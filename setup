@@ -1,0 +1,26 @@
+#!/bin/bash
+#
+# Script used to setup and configure the keepkey workspace.
+#
+NORMAL="\e[0m"
+GREEN="\e[92m"
+RED="\e[91m"
+
+REPOS=("hg clone ssh://hg@bitbucket.org/CarbonDesign/cdlib"
+       "git clone https://github.com/trezor/trezor-crypto")
+
+
+# 
+# Cloning out child project repos.
+#
+echo -e $GREEN"Cloning out child repos $NORMAL"
+
+IFS=""
+for repo in ${REPOS[*]}; do
+   eval ${repo}
+   if [[ $? -ne 0 ]]; then
+      echo -e $RED"Error cloning out ${repo}.  Bailing out.$NORMAL"
+      exit -1
+   fi
+done
+
