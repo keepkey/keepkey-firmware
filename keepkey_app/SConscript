@@ -1,5 +1,6 @@
 from SCons.Script import *
 from scons_util import *
 
-init_project('keepkey_app', deps=['crypto'])
+Import('env')
+init_project('keepkey_app', env, deps=['crypto'])
 
