@@ -2,24 +2,39 @@
  * @brief    Implements the top level bitcoin API.
  */
 
+#include <cstring>
+#include <string>
+
 #include <crypto/public/crypto.h>
 
 #include "bitcoin.h"
 
 namespace cd {
 
-   const char* make_mnemonic() {
+   std::string make_mnemonic() {
        return  mnemonic_generate(MNEMONIC_STRENGTH);
    }
 
-   bool make_wallet(const char* seed) {
+   HDNode make_wallet(std::string &seed) {
+      HDNode wallet;
 
-      return false;
+      /*
+       * The glories of inconsistent constness.
+       */
+      uint8_t *tmp_seed = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(seed.c_str()));
+      hdnode_from_seed(tmp_seed, seed.length(), &wallet);
+
+      return wallet;
    }
 
+   HDNode make_account_from_wallet(HDNode& wallet) {
+
+   }
 
    bool sign_transaction() {
       return false;
    }
+
+
 }
 

@@ -1,6 +1,10 @@
 #ifndef BITCOIN_H
 #define BITCOIN_H
 
+#include <string>
+
+#include <crypto/public/crypto.h>
+
 /**
  * Top level API for handling bitcoin workflows.
  */
@@ -20,9 +24,10 @@ namespace cd {
     *
     * @note The mnemonic is generated assuming a strength of 128 bits.
     */
-   const char* make_mnemonic();
+   std::string make_mnemonic();
 
-   bool make_wallet(const char* seed);
+   HDNode make_wallet(std::string& seed);
+
 
    bool sign_transaction();
 };
