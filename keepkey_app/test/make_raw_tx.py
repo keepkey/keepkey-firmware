@@ -13,13 +13,11 @@ source_addr_list = ['myHnTiAfku2nqLBvj4CA5DXiXKR1pdaAkW']
 #
 dest_list = [('mk5pFDdTFfnUke4fo9J4weqrX2vKLFokcE', long(1))]
 
-
-
 # 
 # The intermediate file that contains the transaction to be sent to the
 # keepkey.
 #
-tx_unsigned_outfile = 'tx_unsigned_out.dat'
+tx_dp_outfile = 'tx_armory_signed_out.dat'
 
 
 
@@ -70,18 +68,84 @@ def createTxFromAddrList(walletObj, addrList, recipList, \
    # Print more detailed information
    pprintUnspentTxOutList(utxoList, 'Available outputs: ')
 
+def make_py_tx(recip160ValPairs):
+    tx = PyTx()
+    tx.version = 1
+    tx.lockTime = 0
+    tx.inputs = []
+    tx.outputs = []
+
+    # We can prepare the outputs, first
+    for recipObj,value in recip160ValPairs:
+        txout = PyTxOut()
+        txout.value = long(value)
+
+        # Assume recipObj is either a PBA or a string
+        if isinstance(recipObj, PyBtcAddress):
+            recipObj = recipObj.getAddr160()
+
+        # Now recipObj is def a string
+        if len(recipObj)!=20:
+            # If not an address, it's a full script
+            txout.binScript = recipObj
+        else:
+            # Construct a std TxOut from addr160 str
+            txout.binScript = ''.join([  getOpCode('OP_DUP'        ), \
+                                         getOpCode('OP_HASH160'    ), \
+                                         '\x14',                      \
+                                         recipObj,
+                                         getOpCode('OP_EQUALVERIFY'), \
+                                         getOpCode('OP_CHECKSIG'   )])
+        thePyTx.outputs.append(txout)
+
+    # Prepare the inputs based on the utxo objects
+    for iin,utxo in enumerate(utxoSelection):
+        # First, make sure that we have the previous Tx data available
+        # We can't continue without it, since BIP 0010 will now require
+        # the full tx of outputs being spent
+        txin = PyTxIn()
+        txin.outpoint = PyOutPoint()
+        txin.binScript = ''
+        txin.intSeq = 2**32-1
+
+        txhash = utxo.getTxHash()
+        txidx  = utxo.getTxOutIndex()
+        txin.outpoint.txHash = str(txhash)
+        txin.outpoint.txOutIndex = txidx
+        thePyTx.inputs.append(txin)
+
+    return self.createFromPyTx(thePyTx, txMap)
+
+def sign_multisig_tx(wallet, tx_dp):
+    wallet.signTxDistProposal(tx_dp)
+
+
+
 def main():
     print "Opening armory wallet %s" % wallet_name
-    wlt = PyBtcWallet().readWalletFile(wallet_name)
+    armory_wallet = PyBtcWallet().readWalletFile(wallet_name)
     TheBDM.registerWallet(wlt)
 
     print "Creating unsigned transaction: "
     print "  Testnet test bitcoin     : " + source_addr_list[0]
     print "  Tx Unsigned Outfile      : " + tx_unsigned_outfile
     print "  Current blockchain state : " + TheBDM.getBDMState()
-    raw_tx = createTxFromAddrList(wlt, source_addr_list, dest_list)
+    #raw_tx = createTxFromAddrList(wlt, source_addr_list, dest_list)
 
-    execCleanShutdown()
+    # Create multisig tx
+    mstx = make_multisig_tx(armory_wallet, 2, source_addr_list, dest_list) 
+
+    # Client sign tx
+    sign_multisig_tx(armory_wallet, tx_dp)
+
+    # Write 1 of 2 signed tx to file for sending to kk 
+    outfile = open(tx_dp_outfile, 'w')
+    outfile.write(tx_dp.serializeAscii())
+    outfile.close()
+    
+
+
+    TheBDM.execCleanShutdown()
 
 if __name__ == '__main__':
     main()

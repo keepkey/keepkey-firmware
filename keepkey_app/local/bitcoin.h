@@ -26,9 +26,6 @@ namespace cd {
     */
    std::string make_mnemonic();
 
-   HDNode make_wallet(std::string& seed);
-
-
    bool sign_transaction();
 };
 

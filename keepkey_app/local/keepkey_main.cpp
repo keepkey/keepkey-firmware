@@ -9,6 +9,13 @@
 #include <crypto/public/crypto.h>
 
 #include "bitcoin.h"
+#include "cd_getopt.h"
+#include "diag.h" 
+#include "helper_macros.h"
+#include "utility.h"
+#include "wallet.h"
+
+static const std::string wallet_outfilename("keepkey_wallet.dat");
 
 
 /*
@@ -37,61 +44,120 @@ std::string get_mnemonic() {
 
 bool read_and_sign(std::string &tx_fn) {
     /*
-    FILE* fp = fopen(tx_fn, "r");
+       FILE* fp = fopen(tx_fn, "r");
 
-    if(fp == NULL) {
-        std::cout << "Transaction file: " << tx_fn << " not found." << std::endl;
-        return false;
-    }
-    */
+       if(fp == NULL) {
+       std::cout << "Transaction file: " << tx_fn << " not found." << std::endl;
+       return false;
+       }
+       */
     return false;
 }
 
-std::string hexdump(std::vector<uint8_t> &v) {
-    std::ostringstream ret;
+cd::BIP32Wallet get_wallet() {
 
-    for(size_t i=0; i < v.size(); i++) {
-        ret << std::hex << std::setfill('0') << std::setw(2) << v[i];
-        if(i != v.size()-1) {
-            ret << " ";
+    cd::BIP32Wallet wallet;
+    const std::string wallet_filename(wallet_outfilename);
+
+    /*
+     * If wallet file exists, load it, otherwise create a new one.
+     */
+    if(cd::is_file(wallet_filename.c_str())) {
+        std::cout << "Wallet found.  Loading contents from kkwallet.dat" << std::endl;
+        wallet.init_from_file(wallet_filename);
+    } else {
+        std::cout << "No pre-existing wallet found.  Generating a new one to kkwallet.dat." << std::endl;
+
+        std::string make_seed("n");
+        std::cin >> make_seed;
+        std::string mnemonic;
+
+        while(1) {
+            std::cout << "Generate seed? (y=generate, n=enter your own later)" << std::endl;
+            std::cin >> make_seed;
+
+            if(make_seed == "y") {
+                std::cout << "Making seed ..." << std::endl;
+                mnemonic = get_mnemonic();
+                break;
+            } else if(make_seed == "n") {
+                std::cout << "Enter a custom seed now: ";
+                std::cin >> mnemonic;
+                std::cout << "Using custom seed: " << mnemonic << std::endl;
+                break;
+            }
         }
+
+        wallet.init_from_seed(mnemonic);        
+        wallet.serialize(wallet_filename);
     }
 
-    return ret.str();
+    return wallet;
 }
 
-void print_wallet(HDNode& wallet) {
-    std::cout << "Created bip32 wallet:" << std::endl;
-    std::cout << "  depth       : " <<  wallet.depth << std::endl;
-    std::cout << "  fingerprint : " <<  wallet.fingerprint << std::endl;
-    std::cout << "  child_num   : " <<  wallet.child_num << std::endl; 
-    std::vector<uint8_t> v;
-    v.assign(wallet.chain_code, wallet.chain_code + sizeof(wallet.chain_code));
-    /*
-    std::cout << "  chain_code  : " << hexdump(std::vector<uint8_t>(wallet.chain_code)) << std::endl;
-    std::cout << "  private_key : " << hexdump(wallet.private_key) << std::endl;
-    std::cout << "  public_key  : " << hexdump(wallet.public_key) << std::endl;
-    */
+bool parse_commandline(int argc, char *argv[], cd::CommandLine &cl) {
+    std::vector<cd::option_descriptor_t> optlist;
+    cd::option_descriptor_t opts[] =
+    {
+        {
+            "--show",
+            "Displays the contents of the keepkey wallet\n",
+            cd::getopt_no_arg,
+            cd::getopt_invalid_arg,
+            false,
+            cd::ArgumentValue()
+        },
+        {
+            "--make",
+            "Make the initial keepkey wallet\n",
+            cd::getopt_no_arg,
+            cd::getopt_invalid_arg,
+            false,
+            cd::ArgumentValue()
+        }
+ 
+    };
+
+    optlist.assign(opts, opts + ARRAY_SIZE(opts));
+
+    AbortIfNot(cl.init(argc, argv, optlist), false, "Incorrect usage.\n");
+
+    return true;
+
 }
 
 int main(int argc, char *argv[]) {
+    std::cout << "KeepKey: v.1" << std::endl;
 
-    std::cout << "Making seed ..." << std::endl;
-    std::string mnemonic = get_mnemonic();
+    cd::CommandLine cd;
+    AbortIfNot(parse_commandline(argc, argv, cd), -1, "Failed to parse command line.\n");
 
-    /**
-     * Make the bip32 wallet.
-     */
-    HDNode wallet = cd::make_wallet(mnemonic);
-    print_wallet(wallet);
+    if(cd.is_arg("--make")) {
+        std::cout << "LKAJSDLKALKSJDLKJA" << std::endl;
+        return -1;
+        cd::BIP32Wallet wallet = get_wallet();
+        wallet.serialize(wallet_outfilename);
 
-    /*
-     * Read transaction from file and do it.
-     */
-    std::string transaction_filename("tx.txt");
-    std::cout << "Reading transaction from " <<  transaction_filename << " ... " << std::endl;
-    read_and_sign(transaction_filename);
-    std::cout << "Transaction signed." << std::endl;
+    } else if(cd.is_arg("--show")) {
+        /**
+         * Make the bip32 wallet.
+         */
+        cd::BIP32Wallet wallet = get_wallet();
+        wallet.print();
+
+    } else if(cd.is_arg("--sign")) {
+        /*
+         * Read transaction from file and do it.
+         */
+        std::string transaction_filename("tx.txt");
+        std::cout << "Reading transaction from " <<  transaction_filename << " ... " << std::endl;
+        read_and_sign(transaction_filename);
+        std::cout << "Transaction signed." << std::endl;
+
+    } else {
+        cd.print_usage();
+        Abort(-1, "Unknown option.\n");
+    }
 
     return 0;
 }
