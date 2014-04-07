@@ -100,7 +100,7 @@ bool parse_commandline(int argc, char *argv[], cd::CommandLine &cl) {
     cd::option_descriptor_t opts[] =
     {
         {
-            "--show",
+            "show",
             "Displays the contents of the keepkey wallet\n",
             cd::getopt_no_arg,
             cd::getopt_invalid_arg,
@@ -108,14 +108,13 @@ bool parse_commandline(int argc, char *argv[], cd::CommandLine &cl) {
             cd::ArgumentValue()
         },
         {
-            "--make",
+            "make",
             "Make the initial keepkey wallet\n",
             cd::getopt_no_arg,
             cd::getopt_invalid_arg,
             false,
             cd::ArgumentValue()
         }
- 
     };
 
     optlist.assign(opts, opts + ARRAY_SIZE(opts));
@@ -123,7 +122,6 @@ bool parse_commandline(int argc, char *argv[], cd::CommandLine &cl) {
     AbortIfNot(cl.init(argc, argv, optlist), false, "Incorrect usage.\n");
 
     return true;
-
 }
 
 int main(int argc, char *argv[]) {
@@ -132,20 +130,18 @@ int main(int argc, char *argv[]) {
     cd::CommandLine cd;
     AbortIfNot(parse_commandline(argc, argv, cd), -1, "Failed to parse command line.\n");
 
-    if(cd.is_arg("--make")) {
-        std::cout << "LKAJSDLKALKSJDLKJA" << std::endl;
-        return -1;
+    if(cd.is_arg("make")) {
         cd::BIP32Wallet wallet = get_wallet();
         wallet.serialize(wallet_outfilename);
 
-    } else if(cd.is_arg("--show")) {
+    } else if(cd.is_arg("show")) {
         /**
          * Make the bip32 wallet.
          */
         cd::BIP32Wallet wallet = get_wallet();
         wallet.print();
 
-    } else if(cd.is_arg("--sign")) {
+    } else if(cd.is_arg("sign")) {
         /*
          * Read transaction from file and do it.
          */

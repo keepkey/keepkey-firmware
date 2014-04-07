@@ -147,9 +147,10 @@ namespace cd
         int ret = 0;
         int option_index = 0;
 
-        int argct = 0;
-        while(1 && argct++ < MAX_NUM_ARGS)
+        unsigned int argct = 0;
+        while(argct++ < MAX_NUM_ARGS)
         { 
+            
             ret = ::getopt_long(argc, 
                               argv, 
                               "", 
@@ -168,7 +169,19 @@ namespace cd
                            false, 
                            "Undefined operation for getopt_long.\n");
 
-                optlist[ret].value.set(optarg);
+                if(optlist[ret].argspec == getopt_no_arg)
+                {
+                    optlist[ret].value.set("<set>");
+                } else {
+                    /*
+                     * Handle incorrect argument format. 
+                     */
+                    if(!optarg)
+                    {
+                        return false;
+                    }
+                    optlist[ret].value.set(optarg);
+                } 
             }
         }
 
