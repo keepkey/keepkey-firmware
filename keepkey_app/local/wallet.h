@@ -21,6 +21,12 @@ namespace cd {
 
             void serialize(const std::string &filename);
 
+            /**
+             * Sign the raw transaction, and return output string
+             * suitable for inclusion in tx_input of bip10.
+             */
+            std::string sign_raw_tx(const std::string &txin);
+
             void print();
 
         private:

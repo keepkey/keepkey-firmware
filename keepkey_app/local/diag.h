@@ -31,9 +31,9 @@ namespace cd {
     void platformAssert(const char *fmt, ...);
 };
 
-#define PRINT(fmt, ...) (cd::platformDiag(LOG_INFO, fmt, ##__VA_ARGS__))
+#define PRINT(fmt, ...) (cd::platformDiag(cd::LOG_INFO, fmt, ##__VA_ARGS__))
 
-#define LOG(fmt,...) (cd::platformDiag(LOG_INFO, "%s:%s:%d " fmt, cd::LOG_PREAMBLE, cd::pathsep(__FILE__, 2), __LINE__, ##__VA_ARGS__))
+#define LOG(fmt,...) (cd::platformDiag(cd::LOG_INFO, "%s:%s:%d " fmt, cd::LOG_PREAMBLE, cd::pathsep(__FILE__, 2), __LINE__, ##__VA_ARGS__))
 
 #define Error(fmt, ...) \
     { \

@@ -9,6 +9,7 @@
 #include <crypto/public/crypto.h>
 
 #include "bitcoin.h"
+#include "cd_file.h"
 #include "cd_getopt.h"
 #include "diag.h" 
 #include "helper_macros.h"
@@ -42,18 +43,6 @@ std::string get_mnemonic() {
     return mnemonic;
 }
 
-bool read_and_sign(std::string &tx_fn) {
-    /*
-       FILE* fp = fopen(tx_fn, "r");
-
-       if(fp == NULL) {
-       std::cout << "Transaction file: " << tx_fn << " not found." << std::endl;
-       return false;
-       }
-       */
-    return false;
-}
-
 cd::BIP32Wallet get_wallet() {
 
     cd::BIP32Wallet wallet;
@@ -63,13 +52,12 @@ cd::BIP32Wallet get_wallet() {
      * If wallet file exists, load it, otherwise create a new one.
      */
     if(cd::is_file(wallet_filename.c_str())) {
-        std::cout << "Wallet found.  Loading contents from kkwallet.dat" << std::endl;
+        std::cout << "Wallet found.  Loading contents from " << wallet_filename << std::endl;
         wallet.init_from_file(wallet_filename);
     } else {
-        std::cout << "No pre-existing wallet found.  Generating a new one to kkwallet.dat." << std::endl;
+        std::cout << "No pre-existing wallet found.  Generating a new one to " << wallet_filename << std::endl;
 
-        std::string make_seed("n");
-        std::cin >> make_seed;
+        std::string make_seed;
         std::string mnemonic;
 
         while(1) {
@@ -90,6 +78,10 @@ cd::BIP32Wallet get_wallet() {
 
         wallet.init_from_seed(mnemonic);        
         wallet.serialize(wallet_filename);
+
+        char *cwd = get_current_dir_name();
+        LOG("Wallet written to : '%s/%s'\n", cwd, wallet_filename.c_str());
+        free(cwd);
     }
 
     return wallet;
@@ -114,8 +106,16 @@ bool parse_commandline(int argc, char *argv[], cd::CommandLine &cl) {
             cd::getopt_invalid_arg,
             false,
             cd::ArgumentValue()
+        },
+        {
+            "sign",
+            "Signs a raw bip10 transaction (tx dist proposal), as output by bitcoind.\n",
+            cd::getopt_no_arg,
+            cd::getopt_invalid_arg,
+            false,
+            cd::ArgumentValue()
         }
-    };
+     };
 
     optlist.assign(opts, opts + ARRAY_SIZE(opts));
 
@@ -142,13 +142,18 @@ int main(int argc, char *argv[]) {
         wallet.print();
 
     } else if(cd.is_arg("sign")) {
+        cd::BIP32Wallet wallet = get_wallet();
+
         /*
          * Read transaction from file and do it.
          */
-        std::string transaction_filename("tx.txt");
-        std::cout << "Reading transaction from " <<  transaction_filename << " ... " << std::endl;
-        read_and_sign(transaction_filename);
+        std::string rawtx;
+        std::cout << "Paste in raw tx:" << std::endl;
+        std::cin >> rawtx;
+
+        std::string tx_input = wallet.sign_raw_tx(rawtx);
         std::cout << "Transaction signed." << std::endl;
+        std::cout << "TX_INPUT: " << tx_input << std::endl;
 
     } else {
         cd.print_usage();

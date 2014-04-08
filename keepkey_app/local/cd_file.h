@@ -35,6 +35,12 @@ namespace cd
     bool read_configfile(const char *filename, vec_vec_str &lines);
 
     bool open_file(const char *filename, int &fd);
+    
+    /**
+     * @eturn true if the specified file exists.
+     */
+    bool is_file(const char *filename);
+
 
 };
 

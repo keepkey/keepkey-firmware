@@ -81,6 +81,9 @@ namespace cd
 
         return true;
     }
-
-
+    
+    bool is_file(const char *filename) {
+        std::ifstream ifile(filename);
+        return ifile;
+    }
 };
