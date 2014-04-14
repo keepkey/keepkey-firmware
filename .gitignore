@@ -1,3 +1,33 @@
-*.pyc
+# .gitignore
+
+# Selected build objects
 *.o
+
+# Compiled python scripts
+*.pyc
+
+# Emacs temporary files
+*~
+*\#
+
+# IAR generated files
+*.browse
+*.cout
+*.cspy.bat
+*.dbgdt
+*.dep
+*.dni
+*.jlink
+*.lst
+*.pbi
+*.pbd
+*.sfr
+*.sim
+*.tmp
+*.wsdt
+*.pbi
+*.cout
+
+# CDLIB files (not controlled under git)
 cdlib/*
+
