@@ -85,11 +85,11 @@
         </option>
         <option>
           <name>OCDynDriverList</name>
-          <state>STLINK_ID</state>
+          <state>JLINK_ID</state>
         </option>
         <option>
           <name>OCLastSavedByProductVersion</name>
-          <state>6.40.1.53794</state>
+          <state>6.40.5.54273</state>
         </option>
         <option>
           <name>OCDownloadAttachToProgram</name>
@@ -317,7 +317,7 @@
       <name>IJET_ID</name>
       <archiveVersion>2</archiveVersion>
       <data>
-        <version>0</version>
+        <version>1</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>1</debug>
         <option>
@@ -333,13 +333,9 @@
           <state>1</state>
         </option>
         <option>
-          <name>OCIarProbeConfigFile</name>
-          <state>1</state>
-        </option>
-        <option>
           <name>IjetResetList</name>
-          <version>0</version>
-          <state>9</state>
+          <version>1</version>
+          <state>10</state>
         </option>
         <option>
           <name>IjetHWResetDuration</name>
@@ -486,6 +482,14 @@
         <option>
           <name>CatchDummy</name>
           <state>0</state>
+        </option>
+        <option>
+          <name>OCProbeCfgOverride</name>
+          <state>0</state>
+        </option>
+        <option>
+          <name>OCProbeConfig</name>
+          <state></state>
         </option>
       </data>
     </settings>
@@ -1472,7 +1476,7 @@
       <name>IJET_ID</name>
       <archiveVersion>2</archiveVersion>
       <data>
-        <version>0</version>
+        <version>1</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>1</debug>
         <option>
@@ -1488,13 +1492,9 @@
           <state>1</state>
         </option>
         <option>
-          <name>OCIarProbeConfigFile</name>
-          <state>1</state>
-        </option>
-        <option>
           <name>IjetResetList</name>
-          <version>0</version>
-          <state>9</state>
+          <version>1</version>
+          <state>10</state>
         </option>
         <option>
           <name>IjetHWResetDuration</name>
@@ -1641,6 +1641,14 @@
         <option>
           <name>CatchDummy</name>
           <state>0</state>
+        </option>
+        <option>
+          <name>OCProbeCfgOverride</name>
+          <state>0</state>
+        </option>
+        <option>
+          <name>OCProbeConfig</name>
+          <state></state>
         </option>
       </data>
     </settings>
@@ -2627,7 +2635,7 @@
       <name>IJET_ID</name>
       <archiveVersion>2</archiveVersion>
       <data>
-        <version>0</version>
+        <version>1</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>1</debug>
         <option>
@@ -2643,13 +2651,9 @@
           <state>1</state>
         </option>
         <option>
-          <name>OCIarProbeConfigFile</name>
-          <state>1</state>
-        </option>
-        <option>
           <name>IjetResetList</name>
-          <version>0</version>
-          <state>9</state>
+          <version>1</version>
+          <state>10</state>
         </option>
         <option>
           <name>IjetHWResetDuration</name>
@@ -2796,6 +2800,14 @@
         <option>
           <name>CatchDummy</name>
           <state>0</state>
+        </option>
+        <option>
+          <name>OCProbeCfgOverride</name>
+          <state>0</state>
+        </option>
+        <option>
+          <name>OCProbeConfig</name>
+          <state></state>
         </option>
       </data>
     </settings>
@@ -3782,7 +3794,7 @@
       <name>IJET_ID</name>
       <archiveVersion>2</archiveVersion>
       <data>
-        <version>0</version>
+        <version>1</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>1</debug>
         <option>
@@ -3798,13 +3810,9 @@
           <state>1</state>
         </option>
         <option>
-          <name>OCIarProbeConfigFile</name>
-          <state>1</state>
-        </option>
-        <option>
           <name>IjetResetList</name>
-          <version>0</version>
-          <state>9</state>
+          <version>1</version>
+          <state>10</state>
         </option>
         <option>
           <name>IjetHWResetDuration</name>
@@ -3951,6 +3959,14 @@
         <option>
           <name>CatchDummy</name>
           <state>0</state>
+        </option>
+        <option>
+          <name>OCProbeCfgOverride</name>
+          <state>0</state>
+        </option>
+        <option>
+          <name>OCProbeConfig</name>
+          <state></state>
         </option>
       </data>
     </settings>
@@ -4937,7 +4953,7 @@
       <name>IJET_ID</name>
       <archiveVersion>2</archiveVersion>
       <data>
-        <version>0</version>
+        <version>1</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>1</debug>
         <option>
@@ -4953,13 +4969,9 @@
           <state>1</state>
         </option>
         <option>
-          <name>OCIarProbeConfigFile</name>
-          <state>1</state>
-        </option>
-        <option>
           <name>IjetResetList</name>
-          <version>0</version>
-          <state>9</state>
+          <version>1</version>
+          <state>10</state>
         </option>
         <option>
           <name>IjetHWResetDuration</name>
@@ -5106,6 +5118,14 @@
         <option>
           <name>CatchDummy</name>
           <state>0</state>
+        </option>
+        <option>
+          <name>OCProbeCfgOverride</name>
+          <state>0</state>
+        </option>
+        <option>
+          <name>OCProbeConfig</name>
+          <state></state>
         </option>
       </data>
     </settings>
@@ -6092,7 +6112,7 @@
       <name>IJET_ID</name>
       <archiveVersion>2</archiveVersion>
       <data>
-        <version>0</version>
+        <version>1</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>1</debug>
         <option>
@@ -6108,13 +6128,9 @@
           <state>1</state>
         </option>
         <option>
-          <name>OCIarProbeConfigFile</name>
-          <state>1</state>
-        </option>
-        <option>
           <name>IjetResetList</name>
-          <version>0</version>
-          <state>9</state>
+          <version>1</version>
+          <state>10</state>
         </option>
         <option>
           <name>IjetHWResetDuration</name>
@@ -6261,6 +6277,14 @@
         <option>
           <name>CatchDummy</name>
           <state>0</state>
+        </option>
+        <option>
+          <name>OCProbeCfgOverride</name>
+          <state>0</state>
+        </option>
+        <option>
+          <name>OCProbeConfig</name>
+          <state></state>
         </option>
       </data>
     </settings>
@@ -7247,7 +7271,7 @@
       <name>IJET_ID</name>
       <archiveVersion>2</archiveVersion>
       <data>
-        <version>0</version>
+        <version>1</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>1</debug>
         <option>
@@ -7263,13 +7287,9 @@
           <state>1</state>
         </option>
         <option>
-          <name>OCIarProbeConfigFile</name>
-          <state>1</state>
-        </option>
-        <option>
           <name>IjetResetList</name>
-          <version>0</version>
-          <state>9</state>
+          <version>1</version>
+          <state>10</state>
         </option>
         <option>
           <name>IjetHWResetDuration</name>
@@ -7416,6 +7436,14 @@
         <option>
           <name>CatchDummy</name>
           <state>0</state>
+        </option>
+        <option>
+          <name>OCProbeCfgOverride</name>
+          <state>0</state>
+        </option>
+        <option>
+          <name>OCProbeConfig</name>
+          <state></state>
         </option>
       </data>
     </settings>
