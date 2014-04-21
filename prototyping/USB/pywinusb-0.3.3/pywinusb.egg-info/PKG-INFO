@@ -1,0 +1,181 @@
+Metadata-Version: 1.1
+Name: pywinusb
+Version: 0.3.3
+Summary: A package that simplifies USB/HID communications on windows
+Home-page: https://github.com/rene-aguirre/pywinusb
+Author: Rene F. Aguirre
+Author-email: rene.f.aguirre@gmail.com
+License: BSD
+Description: *********************************
+        Installing and Using pywinusb.hid
+        *********************************
+        
+        .. contents:: **Table of Contents**
+        
+        Introduction
+        ============
+        
+        This project aims to be a simple USB/HID user application space (hence no system 
+        drivers needed) 100% python package (without C extensions). Initially targeting 
+        simple HID devices management.
+        
+        The vision for this project is to be something similar to `PySerial` or `PyParallel` 
+        but for USB/HID hardware enthusiasts.
+        
+        Advantages
+        ----------
+        
+         * All python code, using ctypes
+         
+         * Top level handling of HID events (usage events calling hook function handlers)
+        
+        Current limitations
+        -------------------
+        
+        Depending on your application you might find these limitations
+        
+         * Windows only (so far...)
+         
+         * Maybe speed. I've had feedback by some users that speed is not a problem for high data throughput, but I think you might hit some Python limits if you are require any real time processing.
+        
+        Installation Instructions
+        =========================
+        
+        Windows
+        -------
+        
+        The most convenient way of installing is using `easy_install` or `pip`, I
+        recommend to do this once you are familiar with the library as you might loose
+        track of the example source files, but you can take a look to the example or
+        the source browsing the github repository.
+        
+        If using a source package (.zip) from PyPi un-zip your file, or get the source
+        from the main repository and run the familiar `setup.py install` command line
+        is sufficient, setuptools or distribute (for python 3) are required.
+        
+        
+        Other
+        -----
+        
+        So far only Windows OS it's supported.
+        
+        Using pywinusb.hid
+        ==================
+        
+        View the `./examples` directory for some (ok, few right now) scripts. These
+        show, for instance, how to use pywinusb.hid to handle events from HID class
+        devices usages events.
+        
+        Latest code and some Wiki information can be found on the `main project code page`_.
+        
+        .. _main project code page: https://github.com/rene-aguirre/pywinusb
+        
+        Utilities
+        ---------
+        
+        More on this later... 
+        
+         * The module pywinusb.hid.tools contains a function to check HID class devices
+           capabilities, for now it provides a basic human readable text report (see
+           the hid.core package, run it as main while HID class devices are connected
+           to your system)
+        
+        Feedback and Contributing
+        =========================
+        
+        Feel free to contact me! use the `main code project page`_, just tell what do
+        you think about the project or bring me anything you think might be cool to
+        consider.
+        
+        Any participation it's appreciated, feel free to contribute more examples or applications or just a reference to your open source project that uses the library.
+        
+        .. _main code project page: https://github.com/rene-aguirre/pywinusb
+        
+        
+        Release changes
+        ===============
+        
+        0.3.3
+        -----
+        
+         * Win7/64 fixes, PnP example fixed, show_hids.py now using local encodings, stdout encodings now not in library (should be part of applications), usage_pages.py UsagePage repr() fix.
+        
+        0.3.2
+        -----
+        
+         * Python 3 filtering fix
+        
+        0.3.1
+        -----
+        
+         * Python 2 and 3 support (tested with Python 3.2)
+        
+        0.3.0
+        -----
+        
+         * Refactored setup api handling.
+        
+         * Many PyLint fixes.
+        
+        0.2.9
+        -----
+        
+         * Fixed broken value array usages transactions
+        
+         * Better Setup API device paths handling
+        
+        <= 0.2.8
+        --------
+        
+         * Fixed broken value array usages transactions
+        
+         * Fixing sending output / feature reports
+        
+         * Fixed broken input report handling
+        
+         * Stability improvements
+        
+         * Tweaked PnP example, added frame closing event handler, so the USB device is closed
+        
+         * Report reading threads and device closing optimizations
+        
+         * Fixed bugs preventing properly setting report usage variables after a HidReport().get()
+        
+         * Fixed raw_data.py example
+        
+         * Fixed bug preventing proper value array setting/getting items
+        
+         * Fixed deadlock when device unplugged
+        
+         * Added HidDevice.set_raw_data_handler(), and corresponding raw_data.py example script
+        
+         * Fixing output only mode (no input report for forced open)
+        
+         * Bringing a little bit of stability
+        
+         * Output only mode (no reading thread configured)
+        
+         * Kind of usable now
+        
+        0.1.0 
+        -----
+        
+         * First public release
+        
+        nn
+Keywords: hid usb usages
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Win32 (MS Windows)
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3.3
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Topic :: System :: Hardware
+Classifier: Topic :: System :: Hardware :: Hardware Drivers
+Classifier: Topic :: Scientific/Engineering :: Human Machine Interfaces
+Classifier: Topic :: Software Development :: Embedded Systems
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Utilities
+Classifier: Intended Audience :: Developers

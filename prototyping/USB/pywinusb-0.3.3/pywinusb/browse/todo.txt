@@ -1,0 +1,26 @@
+Bugs
+----
+
+    * 
+
+Pending code changes
+--------------------
+
+  * Use structure members data formatting interface
+
+  * Re-work the code as a library
+
+    * Expose device browsing on API
+    * Allow to return devices tree
+    * Allow to search USB devices only
+    * Search results shall provide usb host interacing for
+      further device info polling
+
+  * InterfaceDescriptorFactory: Allow to customize class specific interfaces,
+    i.e. name it as "Standard AC interface descriptor" if applies
+
+Pending functionality
+---------------------
+
+  * Further USB classes
+
