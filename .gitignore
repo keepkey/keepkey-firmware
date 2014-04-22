@@ -1,3 +1,15 @@
 *.pyc
 *.o
+.sconsign*
+.gradle
+
+# component libraries
+cdlib/
+crypto/
+display_engine/
+hal/
+build/
+site_scons/
+trezor_crypto/
+
 
