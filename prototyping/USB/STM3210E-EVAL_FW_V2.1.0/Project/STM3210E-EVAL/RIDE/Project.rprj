@@ -1,0 +1,6 @@
+
+<Project ActiveApp="Project" Header="Project 'Project'" OutputFile="" Path=".\Project.rprj" Project="Yes" sate="96" >
+	<ApplicationBuild Config="Debug" Extern=".\Project.rapp" Header="Project" OutputFile=".\Debug\Project.elf" Path=".\Project.rapp" sate="98" />
+				
+
+</Project>

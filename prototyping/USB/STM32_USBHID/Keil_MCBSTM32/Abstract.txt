@@ -1,0 +1,18 @@
+The HID project is a demo program for the STM32F103RBT6 
+using Keil 'MCBSTM32' Evaluation Board.
+
+It demonstrates an USB HID (Human Interface Device):
+  - 8 LEDs
+  - 2 Push Buttons (S2,S3)
+
+The USB HID is recognized by the host PC running Windows
+which will load a generic HID driver. The board LEDs
+and Push Buttons can then be accessed from the PC
+through a custom HID Client Program.
+
+The HID program is available for the following targets:
+  MCBSTM32: configured for on-chip Flash ROM
+           (used for production or target debugging)
+
+Note: set jumper J1 to PD2 for debugging
+
