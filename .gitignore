@@ -7,9 +7,10 @@
 cdlib/
 crypto/
 display_engine/
-hal/
 build/
 site_scons/
 trezor_crypto/
+app/
+foundation/
 
 
