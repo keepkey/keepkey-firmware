@@ -51,11 +51,13 @@ if mydev != None:
 	# Enumerate device configs, interfaces, endpoints.
 	for config in mydev.configurations:
 		if myconfig == None:
+			# Save first config found.
 			myconfig = config
 		print "   Configuration:", config.value
 
 		for intf in config.interfaces:
 			if myintf == None:
+				# Save first interface found.
 				myintf = intf[0]
 			print "    Interface:", myintf.interfaceNumber
 			for alt in intf:
@@ -78,7 +80,7 @@ if mydev != None:
 	try:
 		mydevHandle.detachKernelDriver(myintf)
 	except usb.USBError:
-		# Kernel driver is already detached.
+		# Kernel driver is already detached, probably.
 		pass
 	mydevHandle.setConfiguration(config)
 	mydevHandle.claimInterface(myintf)
