@@ -65,7 +65,7 @@ if mydev != None:
 				print "      Interface class:", alt.interfaceClass
 
 				for ep in alt.endpoints:
-					if ep.address & 0x80:
+					if ep.address & usb.ENDPOINT_IN:
 						myInEP  = ep
 					else:
 						myOutEP = ep
