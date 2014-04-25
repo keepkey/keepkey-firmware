@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -5,9 +6,9 @@
 
 #include <platform.h>
 
-#include <jsoncpp/json/json.h>
-#include <jsoncpp/json/reader.h>
-#include <jsoncpp/json/writer.h>
+#include <json.h>
+#include <reader.h>
+#include <writer.h>
 #include "crypto/public/ecdsa.h"
 #include "wallet.h"
 
@@ -89,9 +90,9 @@ namespace cd {
         Json::Value out;
 
         out["seed"] = seed;
-        out["depth"] = hdnode.depth;
-        out["child_num"] = hdnode.child_num;
-        out["fingerprint"] = hdnode.fingerprint;
+        out["depth"] = (unsigned int)hdnode.depth;
+        out["child_num"] = (unsigned int)hdnode.child_num;
+        out["fingerprint"] = (const char*)hdnode.fingerprint;
         out["chain_code"] = tohex(hdnode.chain_code, sizeof(hdnode.chain_code));
         out["private_key"] = tohex(hdnode.private_key, sizeof(hdnode.private_key));
         out["public_key"] = tohex(hdnode.public_key, sizeof(hdnode.public_key));

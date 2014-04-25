@@ -12,7 +12,7 @@ from fabric.api import local
 
 def proc_args():
     parser = argparse.ArgumentParser(description = 'Build helper front end tool.')
-    parser.add_argument('-s', '--st32', help = 'Build for the st32 eval board.', action = 'store_true')
+    parser.add_argument('-s', '--stm32', help = 'Build for the stm32 eval board.', action = 'store_true')
     parser.add_argument('-l', '--linux', help = 'Build the native linux x64 build', action = 'store_true')
     parser.add_argument('-d', '--debug', help = 'Build debug variant.', action = 'store_true')
     parser.add_argument('-v', '--verbose', help = 'Build with verbose output.', action = 'store_true')
@@ -25,13 +25,16 @@ def main():
     args = proc_args()
 
     buildargs = ''
+
     if args.debug:
         buildargs += ' debug=1'
     if args.verbose:
         buildargs += ' verbose=1'
 
-    if args.st32:
-        target='arm-none-gnu-eabi'
+    if args.stm32:
+        target ='arm-none-gnu-eabi'
+        buildargs += ' flavor-hal-arch=stm32'
+        buildargs += ' flavor-board-type=stm32-eval'
     else:
         target='x86_64-linux-gnu-none'
 
