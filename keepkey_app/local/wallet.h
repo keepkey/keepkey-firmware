@@ -22,6 +22,13 @@ namespace cd {
             void serialize(const std::string &filename);
 
             /**
+             * @return true if a wallet store exists and is valid
+             * and was loaded successfully.
+             */
+            bool load();
+            bool store();
+
+            /**
              * Sign the raw transaction, and return output string
              * suitable for inclusion in tx_input of bip10.
              */
@@ -34,6 +41,8 @@ namespace cd {
 
             std::string seed;
             HDNode hdnode;
+
+            static const std::string wallet_filename;
 
     };
 };

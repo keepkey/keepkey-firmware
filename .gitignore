@@ -2,6 +2,20 @@
 
 # Selected build objects
 *.o
+.sconsign*
+.gradle
+
+# component libraries
+cdlib/
+crypto/
+display_engine/
+build/
+site_scons/
+trezor_crypto/
+app/
+foundation/
+json-cpp/
+
 
 # Compiled python scripts
 *.pyc
