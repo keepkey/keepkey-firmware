@@ -31,6 +31,9 @@
 #include "usb_lib.h"
 #include "usb_desc.h"
 #include "usb_pwr.h"
+#if KEEPKEY_PROTOTYPE
+#include "keepkey_mesg.h"
+#endif // !KEEPKEY_PROTOTYPE
 
 
 /* Private typedef -----------------------------------------------------------*/
@@ -71,7 +74,11 @@ int main(void)
       if (receive_length  != 0)
       {
         if (packet_sent == 1)
+#if KEEPKEY_PROTOTYPE
+          KK_HandleUsbMessage ( Receive_Buffer, receive_length );
+#else // !KEEPKEY_PROTOTYPE
           CDC_Send_DATA ((unsigned char*)Receive_Buffer,receive_length);
+#endif // !KEEPKEY_PROTOTYPE
         receive_length = 0;
       }
     }

@@ -87,7 +87,7 @@
         </option>
         <option>
           <name>OGLastSavedByProductVersion</name>
-          <state>6.50.1.4445</state>
+          <state>6.40.5.54273</state>
         </option>
         <option>
           <name>GeneralEnableMisra</name>
@@ -171,6 +171,7 @@
           <state>USE_STDPERIPH_DRIVER</state>
           <state>STM32F10X_HD</state>
           <state>USE_STM3210E_EVAL</state>
+          <state>KEEPKEY_PROTOTYPE</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -6870,6 +6871,9 @@
     <name>User</name>
     <file>
       <name>$PROJ_DIR$\..\src\hw_config.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\src\keepkey_mesg.c</name>
     </file>
     <file>
       <name>$PROJ_DIR$\..\src\main.c</name>
