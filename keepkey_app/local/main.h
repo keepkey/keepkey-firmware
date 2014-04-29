@@ -30,15 +30,7 @@
 #define __MAIN_H
 
 /* Includes ------------------------------------------------------------------*/
-#include "stm3210e_eval_lcd.h"
 #include "stm32f10x_it.h"
-#include "menu.h"
-#include "calendar.h"
-#include "mass_storage.h"
-#include "waveplayer.h"
-#include "lowpower.h"
-#include "stm3210e_eval_i2c_tsensor.h"
-#include "smartcard.h"
 
 /* Exported types ------------------------------------------------------------*/
 /* Exported constants --------------------------------------------------------*/
@@ -50,14 +42,7 @@ void SysTick_Configuration(void);
 void IntExtOnOffConfig(FunctionalState NewState);
 void GPIO_Config(void);
 void Delay(__IO uint32_t nCount);
-uint32_t DelayJoyStick(__IO uint32_t nTime);
 void Decrement_TimingDelay(void);
-void Set_SELStatus(void);
-void LedShow_Init(void);
-void LedShow(FunctionalState NewState);
-uint32_t Get_LedShowStatus(void);
-void CheckBitmapFilesStatus(void);
-ErrorStatus Get_HSEStartUpStatus(void);
 
 #endif /* __MAIN_H */
 

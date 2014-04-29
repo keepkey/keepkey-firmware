@@ -29,6 +29,11 @@
 #include "stm32f10x_fsmc.h"
 #include "stm32f10x_rcc.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 /** @addtogroup STM32F10x_StdPeriph_Driver
   * @{
   */
@@ -856,6 +861,10 @@ void FSMC_ClearITPendingBit(uint32_t FSMC_Bank, uint32_t FSMC_IT)
     FSMC_Bank4->SR4 &= ~(FSMC_IT >> 3);
   }
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 /**
   * @}

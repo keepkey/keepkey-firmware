@@ -26,8 +26,14 @@
   */
 
 /* Includes ------------------------------------------------------------------*/
-#include "main.h"
-#include "stm32f10x_it.h"
+extern "C" {
+#   include "main.h"
+#   include "stm32f10x_it.h"
+}
+
+#include "KeepKeyDisplay.h"
+#include "keepkey_oled_test_1.h"
+
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
@@ -63,116 +69,92 @@ show_led()
     GPIOF->BSRR = which_led;
 }
 
-/**
-  * @brief  Main program.
-  * @param  None
-  * @retval None
-  */
-int main(void)
-{
-    /* Initialize the Demo */
-    Demo_Init();
 
-  while (1)
-  {
-    /* If SEL pushbutton is pressed */
-    if(SELStatus == 1)
+void
+test_display(
+        void
+)
+{
+    /* Enable GPIOA, GPIOB, GPIOC, GPIOD, GPIOE, GPIOF, GPIOG and AFIO clocks */
+    RCC_APB2PeriphClockCmd(
+            RCC_APB2Periph_GPIOA | 
+            RCC_APB2Periph_GPIOB |
+            RCC_APB2Periph_GPIOC | 
+            RCC_APB2Periph_GPIOD | 
+            RCC_APB2Periph_GPIOE | 
+            RCC_APB2Periph_GPIOF | 
+            RCC_APB2Periph_GPIOG | 
+            RCC_APB2Periph_AFIO, 
+            ENABLE
+    );
+
+    /* TIM1 Periph clock enable */
+    RCC_APB2PeriphClockCmd( RCC_APB2Periph_TIM1, ENABLE );
+
+    show_led();
+
+    InterruptConfig();
+
+    /* Configure the systick */    
+    SysTick_Configuration();
+
+    KeepKeyDisplay* display = new KeepKeyDisplay();
+
+    
+
+    PixelBuffer* image = new PixelBuffer( 
+            Pixel::A8,
+            (uint32_t)image_data_keepkey_oled_test_1,
+            64,
+            256
+    );
+
+    PixelBuffer::transfer(
+            image,
+            display->frame_buffer()
+    );
+
+
+#if 0
+    uint32_t image_addr = (uint32_t)image_data_keepkey_oled_test_1;
+    uint8_t* data = (uint8_t*)image;
+    int image_size = 64 * 256;
+    uint8_t* dst = (uint8_t*)display->frame_buffer()->origin();
+    
+    int src_index = 0;
+    int dst_index = 0;
+    while( src_index < image_size )
     {
-      /* External Interrupt Disable */
-      IntExtOnOffConfig(DISABLE);
+        uint8_t v = ( data[ src_index ] & 0xF0 ) | ( ( data[ src_index + 1 ] >> 4 ) & 0x0F );
+        dst[ dst_index ] = v;
+        src_index += 2;
+        dst_index += 1;
+    }
+#endif
+    display->frame_buffer()->taint();
 
-      /* Execute Sel Function */
-      SelFunc();
-
-      /* External Interrupt Enable */
-      IntExtOnOffConfig(ENABLE);
-      /* Reset SELStatus value */
-      SELStatus = 0;
-    } 
-  }
+    display->refresh();
 }
 
-/**
-  * @brief  Initializes the demonstration application.
-  * @param  None
-  * @retval None
-  */
-void Demo_Init(void)
+
+int 
+main(
+        void
+)
 {
-  /* Enable GPIOA, GPIOB, GPIOC, GPIOD, GPIOE, GPIOF, GPIOG and AFIO clocks */
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_GPIOB |RCC_APB2Periph_GPIOC 
-         | RCC_APB2Periph_GPIOD | RCC_APB2Periph_GPIOE | RCC_APB2Periph_GPIOF | RCC_APB2Periph_GPIOG 
-         | RCC_APB2Periph_AFIO, ENABLE);
-  
-  /* TIM1 Periph clock enable */
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM1, ENABLE);
+    test_display();
 
-  RCC->CSR &= !RCC_CSR_RMVF;
+    show_led();
 
-  WWDG_DeInit();
- 
-  /*------------------- Resources Initialization -----------------------------*/
-  /* GPIO Configuration */
-  GPIO_Config();
+    int i = 1;
 
-  /* Interrupt Configuration */
-  InterruptConfig();
+    if( i == 0 )
+        FSMC_NORSRAMInit( 0 );
 
-  /* Configure the systick */    
-  SysTick_Configuration();
-
-  /*------------------- Drivers Initialization -------------------------------*/
-  /* Initialize the LEDs toogling */
-  LedShow_Init();
-
-  /* Initialize the Low Power application */
-  LowPower_Init();
-
-  /* Initialize the LCD */
-  STM3210E_LCD_Init();
-
-  show_led();
-
-  /* Clear the LCD */ 
-  LCD_Clear(White);
-  
-  /* If HSE is not detected at program startup */
-  if(HSEStartUpStatus == ERROR)
-  {
-    /* Generate NMI exception */
-    SCB->ICSR |= SCB_ICSR_NMIPENDSET;
-  }  
-   
-  /* Checks the availability of the bitmap files */
-  CheckBitmapFilesStatus();
-
-  /* Display the STM32 introduction */
-  STM32Intro();
-
-  /* Clear the LCD */ 
-  LCD_Clear(White);
-
-  /* Initialize the Calendar */
-  Calendar_Init();
-
-  /* Enable Leds toggling */
-  LedShow(ENABLE);
-  
-  /* Initialize the Low Power application*/ 
-  LowPower_Init();
-
-  /* Set the LCD Back Color */
-  LCD_SetBackColor(Blue);
-
-  /* Set the LCD Text Color */
-  LCD_SetTextColor(White);
-  
-  /* Initialize the Menu */
-  Menu_Init();
-
-  /* Display the main menu icons */
-  ShowMenuIcons();
+    while( 1 )
+    {}
 }
+
 
 #if 0
 void
@@ -466,29 +448,6 @@ void Delay(__IO uint32_t nCount)
 }
 
 /**
-  * @brief  Inserts a delay time while no joystick RIGHT, LEFT and SEL 
-  *         pushbuttons are pressed.
-  * @param  nCount: specifies the delay time length (time base 10 ms).
-  * @retval Pressed Key. This value can be: NOKEY, RIGHT, LEFT or SEL.
-  */
-uint32_t DelayJoyStick(__IO uint32_t nTime)
-{
-  __IO uint32_t keystate = 0;
-
-  /* Enable the SysTick Counter */
-  SysTick->CTRL |= SysTick_CTRL_ENABLE;
-
-  TimingDelay = nTime;
- 
-  while((TimingDelay != 0) && (keystate != RIGHT) && (keystate != LEFT) && (keystate != SEL))
-  {
-    keystate = ReadKey();
-  } 
-  
-  return keystate;
-}
-
-/**
   * @brief  Decrements the TimingDelay variable.
   * @param  None
   * @retval None
@@ -510,150 +469,3 @@ void Set_SELStatus(void)
 {
   SELStatus = 1;
 }
-
-/**
-  * @brief  Configure the leds pins as output pushpull: LED1, LED2, LED3 and LED4
-  * @param  None
-  * @retval None
-  */
-void LedShow_Init(void)
-{
-  TIM_TimeBaseInitTypeDef  TIM_TimeBaseStructure;
-  TIM_OCInitTypeDef  TIM_OCInitStructure;
-
-  TIM_TimeBaseStructInit(&TIM_TimeBaseStructure);
-  TIM_OCStructInit(&TIM_OCInitStructure);
-
-  /* Configure LEDs GPIO: as output push-pull */
-  STM_EVAL_LEDInit(LED1);
-  STM_EVAL_LEDInit(LED2);
-  STM_EVAL_LEDInit(LED3);
-  STM_EVAL_LEDInit(LED4);
-
-  /* Time Base configuration */
-  TIM_TimeBaseStructure.TIM_Prescaler = 719;
-  TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
-  TIM_TimeBaseStructure.TIM_Period = 0x270F;
-  TIM_TimeBaseStructure.TIM_ClockDivision = 0x0;
-  TIM_TimeBaseStructure.TIM_RepetitionCounter = 0x0;
-
-  TIM_TimeBaseInit(TIM1, &TIM_TimeBaseStructure);
-
-  /* Channel 1 Configuration in Timing mode */
-  TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_Timing;
-  TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
-  TIM_OCInitStructure.TIM_OutputNState = TIM_OutputNState_Disable;
-  TIM_OCInitStructure.TIM_Pulse = 0x0;
-  
-  TIM_OC1Init(TIM1, &TIM_OCInitStructure); 
-}
-
-/**
-  * @brief  Enables or disables LED1, LED2, LED3 and LED4 toggling.
-  * @param  None
-  * @retval None
-  */
-void LedShow(FunctionalState NewState)
-{
-  /* Enable LEDs toggling */
-  if(NewState == ENABLE)
-  {
-    LedShowStatus = 1;
-    /* Enable the TIM1 Update Interrupt */
-    TIM_ITConfig(TIM1, TIM_IT_Update, ENABLE);
-    /* TIM1 counter enable */
-    TIM_Cmd(TIM1, ENABLE);
-  }
-  /* Disable LEDs toggling */
-  else
-  {
-    LedShowStatus = 0;
-    /* Disable the TIM1 Update Interrupt */
-    TIM_ITConfig(TIM1, TIM_IT_Update, DISABLE);
-    /* TIM1 counter disable */
-    TIM_Cmd(TIM1, DISABLE);
-  }
-}
-
-/**
-  * @brief  Get the LedShowStatus value.
-  * @param  None
-  * @retval LedShowStatus Value
-  */
-uint32_t Get_LedShowStatus(void)
-{
-  return LedShowStatus;
-}
-
-/**
-  * @brief  Checks the bitmap files availability and display a warning message 
-  * if these files doesn't exit.
-  * @param  None
-  * @param  None
-  * @retval None
-  */
-void CheckBitmapFilesStatus(void)
-{
-  /* Checks if the Bitmap files are loaded */
-  if(CheckBitmapFiles() != 0)
-  {
-    /* Set the LCD Back Color */
-    LCD_SetBackColor(Blue);
-
-    /* Set the LCD Text Color */
-    LCD_SetTextColor(White);    
-    LCD_DisplayStringLine(Line0, "      Warning       ");
-    LCD_DisplayStringLine(Line1, "No loaded Bitmap    ");
-    LCD_DisplayStringLine(Line2, "files. Demo can't be");
-    LCD_DisplayStringLine(Line3, "executed.           ");
-    LCD_DisplayStringLine(Line4, "Please be sure that ");
-    LCD_DisplayStringLine(Line5, "all files are       ");
-    LCD_DisplayStringLine(Line6, "correctly programmed");
-    LCD_DisplayStringLine(Line7, "in the NOR FLASH and");
-    LCD_DisplayStringLine(Line8, "restart the Demo.   ");
-    LCD_DisplayStringLine(Line9, "                    ");
-    
-    /* Deinitializes the RCC */
-    RCC_DeInit();
-    
-    /* Demo Can't Start */
-    while(1)
-    {
-    }
-  }
-}
-
-/**
-  * @brief  Returns the HSE StartUp Status.
-  * @param  None
-  * @retval HSE StartUp Status
-  */
-ErrorStatus Get_HSEStartUpStatus(void)
-{
-  return (HSEStartUpStatus);
-}
-
-#ifdef  USE_FULL_ASSERT
-/**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
-void assert_failed(uint8_t* file, uint32_t line)
-{ 
-  /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-  
-  LCD_Clear(White);
-  LCD_DisplayStringLine(Line0, "   Assert Function  ");
-  
-  /* Infinite loop */
-  while (1)
-  {
-  }
-}
-#endif
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
