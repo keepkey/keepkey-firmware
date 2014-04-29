@@ -37,19 +37,15 @@
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
+
 /* Private variables ---------------------------------------------------------*/
 ErrorStatus HSEStartUpStatus;
 EXTI_InitTypeDef EXTI_InitStructure;
-extern __IO uint32_t packet_sent;
-extern __IO uint8_t Send_Buffer[VIRTUAL_COM_PORT_DATA_SIZE] ;
-extern __IO  uint32_t packet_receive;
-extern __IO uint8_t Receive_length;
-
-uint8_t Receive_Buffer[64];
-uint32_t Send_length;
 static void IntToUnicode (uint32_t value , uint8_t *pbuf , uint8_t len);
-/* Extern variables ----------------------------------------------------------*/
 
+/* Extern variables ----------------------------------------------------------*/
+extern __IO uint32_t packet_sent;
+extern __IO uint32_t packet_received;
 extern LINE_CODING linecoding;
 
 /* Private function prototypes -----------------------------------------------*/
@@ -371,7 +367,7 @@ uint32_t CDC_Send_DATA (uint8_t *ptrBuffer, uint8_t Send_length)
 uint32_t CDC_Receive_DATA(void)
 { 
   /*Receive flag*/
-  packet_receive = 0;
+  packet_received = 0;
   SetEPRxValid(ENDP3); 
   return 1 ;
 }
