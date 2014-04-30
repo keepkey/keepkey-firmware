@@ -2,8 +2,7 @@
 #
 # This script connects to a specified serial device and enables you to write
 # and read characters to/from a message buffer which is assumed to reside on
-# the device.  The script assumes that the serial device can accept or return
-# all the characters specified.  (This may or may not be the case.)
+# the device.  
 
 # Modules imported:
 import getopt
@@ -70,7 +69,7 @@ def main():
                 readLength = raw_input ( 'Number of characters to read: ' )
                 msgString = msgType + chr(int(readLength)) + chr(int(msgOffset))
                 serialDevice.writeSerial ( msgString )
-                returnedString = serialDevice.readSerial ( int(readLength) )
+                returnedString = serialDevice.readSerial() 
                 print "Device reply: " + returnedString
 
 
@@ -91,12 +90,13 @@ class UsbSerialDevice ( object ):
 
     # Read serial method:
     #
-    # TODO (LS): This method will hang if you try to read beyond the end of
-    # the Keepkey message buffer, because Keepkey will stop sending bytes at
-    # that point.
+    # This method assumes that the first byte sent from the remote device
+    # specifies the number of data bytes to follow.
     #
-    def readSerial ( self, length ):
+    def readSerial ( self ):
         string = ''
+        num_bytes = self.serialInterface.read()
+        length = ord ( num_bytes )
         while length:
             char = self.serialInterface.read()
             string += char
