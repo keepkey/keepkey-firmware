@@ -40,11 +40,14 @@
 /* Interval between sending IN packets in frame number (1 frame = 1ms) */
 #define VCOMPORT_IN_FRAME_INTERVAL             5
 /* Private macro -------------------------------------------------------------*/
-/* Private variables ---------------------------------------------------------*/
-extern __IO uint32_t packet_sent;
-extern __IO uint32_t packet_receive;
-extern __IO uint8_t Receive_Buffer[64];
-uint32_t Receive_length;
+
+/* Public variables ---------------------------------------------------------*/
+uint8_t Send_Buffer[VIRTUAL_COM_PORT_DATA_SIZE];
+uint8_t Receive_Buffer[VIRTUAL_COM_PORT_DATA_SIZE];
+uint32_t receive_length;
+uint32_t packet_sent=1;
+uint32_t packet_received=1;
+
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -70,9 +73,9 @@ void EP1_IN_Callback (void)
 *******************************************************************************/
 void EP3_OUT_Callback(void)
 {
-  packet_receive = 1;
-  Receive_length = GetEPRxCount(ENDP3);
-  PMAToUserBufferCopy((unsigned char*)Receive_Buffer, ENDP3_RXADDR, Receive_length);
+  packet_received = 1;
+  receive_length = GetEPRxCount(ENDP3);
+  PMAToUserBufferCopy((unsigned char*)Receive_Buffer, ENDP3_RXADDR, receive_length);
 }
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

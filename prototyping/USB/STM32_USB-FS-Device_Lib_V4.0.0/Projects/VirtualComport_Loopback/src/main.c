@@ -31,20 +31,25 @@
 #include "usb_lib.h"
 #include "usb_desc.h"
 #include "usb_pwr.h"
+#if KEEPKEY_PROTOTYPE
+#include "keepkey_mesg.h"
+#endif // !KEEPKEY_PROTOTYPE
 
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
+
 /* Extern variables ----------------------------------------------------------*/
-extern __IO uint8_t Receive_Buffer[64];
-extern __IO  uint32_t Receive_length ;
-extern __IO  uint32_t length ;
-uint8_t Send_Buffer[64];
-uint32_t packet_sent=1;
-uint32_t packet_receive=1;
+extern __IO uint8_t Send_Buffer[VIRTUAL_COM_PORT_DATA_SIZE];
+extern __IO uint8_t Receive_Buffer[VIRTUAL_COM_PORT_DATA_SIZE];
+extern __IO uint32_t receive_length ;
+extern __IO uint32_t packet_sent;
+extern __IO uint32_t packet_received;
+
 /* Private function prototypes -----------------------------------------------*/
+
 /* Private functions ---------------------------------------------------------*/
 /*******************************************************************************
 * Function Name  : main.
@@ -66,11 +71,15 @@ int main(void)
     {
       CDC_Receive_DATA();
       /*Check to see if we have data yet */
-      if (Receive_length  != 0)
+      if (receive_length  != 0)
       {
         if (packet_sent == 1)
-          CDC_Send_DATA ((unsigned char*)Receive_Buffer,Receive_length);
-        Receive_length = 0;
+#if KEEPKEY_PROTOTYPE
+          KK_HandleUsbMessage ( Receive_Buffer, receive_length );
+#else // !KEEPKEY_PROTOTYPE
+          CDC_Send_DATA ((unsigned char*)Receive_Buffer,receive_length);
+#endif // !KEEPKEY_PROTOTYPE
+        receive_length = 0;
       }
     }
   }
