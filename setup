@@ -10,10 +10,11 @@ RED="\e[91m"
 # FIXME: move this out to a general manifest.
 #
 REPOS=("hg clone ssh://hg@bitbucket.org/CarbonDesign/cdlib"
-       "git clone https://github.com/trezor/trezor-crypto.git"
+       "git clone https://github.com/trezor/trezor-mcu.git"
        "git clone ssh://git@bitbucket.org/CarbonDesign/site_scons"
-       "git clone ssh://git@bitbucket.org/CarbonDesign/app
-       "git clone ssh://git@bitbucket.org/CarbonDesign/crypto
+       "git clone ssh://git@bitbucket.org/CarbonDesign/app"
+       "git clone ssh://git@bitbucket.org/CarbonDesign/crypto"
+       "git clone ssh://git@bitbucket.org/CarbonDesign/graphics_engine"
        "git clone ssh://git@bitbucket.org/CarbonDesign/foundation"
        )
 
