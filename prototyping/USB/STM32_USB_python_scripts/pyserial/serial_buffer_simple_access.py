@@ -1,19 +1,15 @@
 #! /usr/bin/python
 #
-# Sends a user-entered string to the specified serial port and reads a string
-# returned from the serial port.  The returned string is expected to be
-# terminated by a newline ('\n') character.  The script prints the returned
-# string.
+# This script connects to a specified serial device and enables you to write
+# and read characters to/from a message buffer which is assumed to reside on
+# the device.  The script assumes that the serial device can accept or return
+# all the characters specified.  (This may or may not be the case.)
 
 # Modules imported:
-from datetime import datetime
 import getopt
-import glob
 import os
-import re
 import serial
 import sys
-import time
 
 # Globals:
 serialDevice = ''
