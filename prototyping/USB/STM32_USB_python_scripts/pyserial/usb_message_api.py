@@ -75,7 +75,7 @@ def main():
                 msgString = msgType + chr(int(readLength)) + chr(int(msgOffset))
                 serialDevice.writeSerial ( msgString )
                 returnedString = serialDevice.readSerial ( int(readLength) )
-                print "Serial reply: " + returnedString
+                print "Device reply: " + returnedString
 
 
 # UsbSerialDevice class:
@@ -94,6 +94,11 @@ class UsbSerialDevice ( object ):
         self.serialInterface.write( string + '\n' )
 
     # Read serial method:
+    #
+    # TODO (LS): This method will hang if you try to read beyond the end of
+    # the Keepkey message buffer, because Keepkey will stop sending bytes at
+    # that point.
+    #
     def readSerial ( self, length ):
         string = ''
         while length:

@@ -15,6 +15,7 @@
 
 
 //================================ INCLUDES ===================================
+#include "carbon.h"
 #include "hw_config.h"
 #include "keepkey_mesg.h"
 
@@ -43,7 +44,7 @@
 static uint8_t keepkeyMessageBuffer[ KEEPKEY_MESSAGE_LENGTH ];
 
 /// Pointer to next unused byte in Keepkey message buffer.
-static uint8_t* pBufferUnused;
+//static uint8_t* pBufferUnused;
 
 
 //====================== PRIVATE FUNCTION DECLARATIONS ========================
@@ -80,39 +81,60 @@ KK_HandleUsbMessage (
     __IO uint32_t recv_length
 )
 {
-    // ASSERT(__Validate_incoming_parameters);
+    /// @todo (LS): Implement ASSERT
+    // ASSERT( recv_buffer );
 
     uint16_t count;             // Byte counter.
+    uint16_t offset;            // Offset into keepkey message buffer.
     uint8_t* pKeyBuf;           // Pointer to Keepkey message buffer.
     __IO uint8_t* pUsbBuf;      // Pointer to USB receive buffer.
 
-    // Get count from USB message.
-    count = recv_buffer[ IDX_MESSAGE_LENGTH ];
-
-    // Point into keepkey message buffer.
-    pKeyBuf = & ( keepkeyMessageBuffer[ recv_buffer[IDX_MESSAGE_OFFSET] ] );
-
-    // Switch on message type (read/write).
-    switch ( recv_buffer[ IDX_MESSAGE_TYPE ] )
+    // If the received message is complete enough to be valid,
+    if ( IDX_MESSAGE_BODY <= recv_length )
     {
-        case HOST_WRITE_CMD:
+        // Get count from USB message.
+        count = recv_buffer[ IDX_MESSAGE_LENGTH ];
 
-            // Copy bytes from USB receive buffer to Keepkey message buffer.
-            pUsbBuf = & ( recv_buffer[ IDX_MESSAGE_BODY ] );
-            while ( count-- )
-            {
-                *pKeyBuf++ = *pUsbBuf++;
-            }
-            break;
+        // Get offset into keepkey message buffer (staying within the buffer).
+        offset = recv_buffer[IDX_MESSAGE_OFFSET];
+        offset = MIN ( offset, ARRAY_LENGTH(keepkeyMessageBuffer) );
 
-        case HOST_READ_CMD:
+        // Skip the message preamble during copying.
+        recv_length = recv_length - IDX_MESSAGE_BODY;
 
-            // Send bytes from Keepkey message buffer to host.
-            CDC_Send_DATA ( (unsigned char*) pKeyBuf, count );
-            break;
+        // Switch on message type (read/write).
+        switch ( recv_buffer[ IDX_MESSAGE_TYPE ] )
+        {
+            case HOST_WRITE_CMD:
 
-        default:
-            break;
+                // Copy bytes from USB receive buffer to Keepkey message buffer.
+                // Only copy as many bytes as were actually received.
+                pUsbBuf = & ( recv_buffer[ IDX_MESSAGE_BODY ] );
+                while ( count-- && recv_length-- && offset < ARRAY_LENGTH(keepkeyMessageBuffer) )
+                {
+                    keepkeyMessageBuffer[ offset++ ] = *pUsbBuf++;
+                }
+                break;
+
+            case HOST_READ_CMD:
+
+                // Point to offset in Keepkey message buffer.
+                pKeyBuf = & ( keepkeyMessageBuffer[ offset ] );
+
+                // Limit the number of bytes to be copied to stay within
+                // the message buffer.
+                if ( ARRAY_LENGTH(keepkeyMessageBuffer) < offset + count )
+                {
+                    count = ARRAY_LENGTH(keepkeyMessageBuffer) - offset;
+                }
+
+                // Send bytes from Keepkey message buffer to host.
+                CDC_Send_DATA ( (unsigned char*) pKeyBuf, count );
+                break;
+
+            default:
+                break;
+        }
     }
 }
 
