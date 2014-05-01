@@ -32,14 +32,15 @@ import sys
 MAX_MESSAGE_LENGTH = 256
 MAX_PAYLOAD_LENGTH = 32
 PREAMBLE_LENGTH = 3
-serialDevice = ''
+serialDevice = '/dev/ttyACM0' # Default for Ubuntu Linux
+serialInstance = ''
 
 # Usage summary:
 def usage():
 
     print "Usage: python " + os.path.basename( sys.argv[0] ),
-    print "-c comPort"
-    print "  -c Specify serial port (e.g. com1)"
+    print "-d serialDevice"
+    print "  -d Specify serial device (e.g. com1 or /dev/ttyACM0)"
     print "  -? Help: print this usage message"
 
 
@@ -48,39 +49,44 @@ def main():
 
     # Globals modified:
     global serialDevice
+    global serialInstance
 
-    # Scan for options.
-    serialInterface = ''
     try:
-        opts, args = getopt.getopt( sys.argv[1:], "c:h?" )
-    except getopt.GetoptError, err:
-        # print help information and exit:
-        print str( err ) # will print something like "option -a not recognized"
-        sys.exit( 2 )
-    for o, a in opts:
-        if o == "-c":
-            serialInterface = a
-        elif o in ("-h","-?"):
+        # Initialize serial device object.
+        serialInstance = UsbSerialDevice ( serialDevice )
+    except:
+        # Scan for options.
+        serialDevice = ''
+        try:
+            opts, args = getopt.getopt( sys.argv[1:], "d:h?" )
+        except getopt.GetoptError, err:
+            # print help information and exit:
+            print str( err ) # will print something like "option -a not recognized"
+            sys.exit( 2 )
+        for o, a in opts:
+            if o == "-d":
+                serialDevice = a
+            elif o in ("-h","-?"):
+                usage()
+                sys.exit( 0 )
+            else:
+                assert False, "unhandled option"
+        if serialDevice == '':
             usage()
-            sys.exit( 0 )
-        else:
-            assert False, "unhandled option"
-    if serialInterface == '':
-        usage()
-        sys.exit( 1 )
-    
-    # Initialize serial device object.
-    serialDevice = UsbSerialDevice ( serialInterface )
+            sys.exit( 1 )
+
+        # Should work this time.
+        serialInstance = UsbSerialDevice ( serialDevice )
 
     # Main menu:
-    print 
+    print "Welcome to the Keepkey USB demo."
     while 1:
         returnedString = ""
         msgType = raw_input ( 'Enter message type (w/r/q): ' )
 
         # If quiting:
         if msgType == 'q':
-            print 'bye bye'
+            print 'See you later.'
             sys.exit( 0 )
         else:
 
@@ -110,7 +116,7 @@ def main():
                         userCharsToWrite = 0
 
                     # Send the message string.
-                    serialDevice.writeSerial ( msgString )
+                    serialInstance.writeSerial ( msgString )
 
             # Else if reading from device:
             elif msgType == 'r':
@@ -127,14 +133,14 @@ def main():
                 while int(userCharsToRead):
                     if MAX_PAYLOAD_LENGTH < userCharsToRead:
                         msgString = msgType + chr(MAX_PAYLOAD_LENGTH) + chr(msgOffset)
-                        serialDevice.writeSerial ( msgString )
-                        returnedString  += serialDevice.readSerial() 
+                        serialInstance.writeSerial ( msgString )
+                        returnedString  += serialInstance.readSerial() 
                         userCharsToRead -= MAX_PAYLOAD_LENGTH
                         msgOffset       += MAX_PAYLOAD_LENGTH
                     else:
                         msgString = msgType + chr(int(userCharsToRead)) + chr(msgOffset)
-                        serialDevice.writeSerial ( msgString )
-                        returnedString  += serialDevice.readSerial() 
+                        serialInstance.writeSerial ( msgString )
+                        returnedString  += serialInstance.readSerial() 
                         userCharsToRead = 0
                 print "Device reply: " + returnedString
 
@@ -143,16 +149,16 @@ def main():
 class UsbSerialDevice ( object ):
 
     serialInterfaceBaud = 115200
-    serialInterface = ''
+    serialInstance = ''
 
     # Initialization:
     def __init__ ( self, serialInterfacePort ):
-        self.serialInterface = serial.Serial( serialInterfacePort, int(self.serialInterfaceBaud) )
+        self.serialInstance = serial.Serial( serialInterfacePort, int(self.serialInterfaceBaud) )
 
     # Write serial method:
     def writeSerial ( self, string ):
-        self.serialInterface.flushInput()
-        self.serialInterface.write( string + '\n' )
+        self.serialInstance.flushInput()
+        self.serialInstance.write( string + '\n' )
 
     # Read serial method:
     #
@@ -161,10 +167,10 @@ class UsbSerialDevice ( object ):
     #
     def readSerial ( self ):
         string = ''
-        num_bytes = self.serialInterface.read()
+        num_bytes = self.serialInstance.read()
         length = ord ( num_bytes )
         while length:
-            char = self.serialInterface.read()
+            char = self.serialInstance.read()
             string += char
             length = length - 1
         return string
@@ -177,5 +183,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print "Terminated by user"
         sys.exit( 3 )
-
 
