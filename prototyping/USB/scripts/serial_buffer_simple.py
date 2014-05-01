@@ -1,8 +1,12 @@
 #! /usr/bin/python
 #
-# This script connects to a specified serial device and enables you to write
-# and read characters to/from a message buffer which is assumed to reside on
-# the device.  
+# This script connects to a specified USB serial device and enables you to
+# write and read characters to/from a message buffer which is assumed to
+# reside on the device.
+#
+# In general, the USB communication device class (CDC) can handle 64-byte USB
+# packets.  This script doesn't support longer packets and probably won't
+# behave well if you try to send them.
 
 # Modules imported:
 import getopt

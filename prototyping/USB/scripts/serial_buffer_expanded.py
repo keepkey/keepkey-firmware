@@ -1,26 +1,26 @@
-#! /usr/bin/python
-#
-# This script connects to a specified USB serial device and enables you to
-# write and read characters to/from a message buffer on the device.  This
-# script supports writing and reading up to 256 characters to/from the device
-# in one request.
-#
-# Since we assume that a USB communication class device can transfer only
-# 64-bytes in each USB packet, this script breaks up longer messages into
-# multiple packets for transfer.  Each packet sent to the remote device begins
-# with a three-byte preamble which specifies the message type (read/write),
-# the message length (up to 32 bytes), and an offset into the message buffer
-# on the remote device specifying where in the buffer the read or write is to
-# begin.  When data is read from the remote device, each USB packet includes
-# a 1-byte preamble which indicates the number of bytes of data actually sent
-# (up to 32 per packet).  Note that when reading from the device, the number
-# of bytes actually returned may be less than the number requested (i.e. if
-# the device's message buffer has been exhausted).
-#
-# The payload for each USB packet consists of up to 32 data bytes.  Thus, to
-# transfer 256 bytes requires eight USB packets.  This script breaks longer
-# read or write requests into as many packets as needed to complete the data
-# transfer.
+#! /usr/bin/python                                                            
+#                                                                             
+# This script connects to a specified USB serial device and enables you to    
+# write and read characters to/from a message buffer on the device.  This     
+# script supports writing and reading up to 256 characters to/from the device 
+# in one request.                                                             
+#                                                                             
+# Since we assume that the USB communication device class (CDC) can transfer  
+# only 64-bytes in each USB packet, this script breaks up longer messages     
+# into multiple packets for transfer.  Each packet sent to the remote         
+# device begins with a three-byte preamble which specifies the message type   
+# (read/write), the message length (up to 32 bytes), and an offset into the   
+# message buffer on the remote device specifying where in the buffer the read 
+# or write is to start.  When data is read from the remote device, each USB   
+# packet includes a 1-byte preamble which indicates the number of bytes of    
+# data actually sent (up to 32 per packet).  Note that when reading from the  
+# device, the number of bytes actually returned may be less than the number   
+# requested (i.e. if the device's message buffer has been exhausted).         
+#                                                                             
+# The payload for each USB packet consists of up to 32 data bytes.  Thus, to  
+# transfer 256 bytes requires eight USB packets.  This script breaks longer   
+# read or write requests into as many packets as needed to complete the data  
+# transfer.                                                                   
 
 # Modules imported:
 import getopt

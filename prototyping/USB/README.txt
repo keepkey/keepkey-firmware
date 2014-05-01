@@ -25,6 +25,11 @@ has been modified to support reading and writing 256-byte messages from/to
 the evaluation board.  There are python scripts in the "scripts" folder which
 interact with this firmware via a USB virtual COM port connection.
 
+To build the Virtual Comport Loopback firmware for Keepkey prototyping, define
+the symbol KEEPKEY_PROTOTYPE in the build environment during compilation.  If
+you don't define this symbol, the Virtual Comport Loopback demo firmware will
+be built as it was originally distributed by STMicroelectronics.
+
 Note: Lowell Skoog has an electronic copy of Jan Axelson's "USB Complete"
 book.  The book is readable using the Adobe Digital Editions application.
 Being an e-book, it is a pain in the ass to share it.
