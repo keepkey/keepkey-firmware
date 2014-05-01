@@ -32,15 +32,15 @@ import sys
 MAX_MESSAGE_LENGTH = 256
 MAX_PAYLOAD_LENGTH = 32
 PREAMBLE_LENGTH = 3
-serialDevice = '/dev/ttyACM0' # Default for Ubuntu Linux
-serialInstance = ''
+serialPort = '/dev/ttyACM0' # Default for Ubuntu Linux
+serialDevice = ''
 
 # Usage summary:
 def usage():
 
     print "Usage: python " + os.path.basename( sys.argv[0] ),
-    print "-d serialDevice"
-    print "  -d Specify serial device (e.g. com1 or /dev/ttyACM0)"
+    print "-p serialPort"
+    print "  -p Specify serial port (e.g. com1 or /dev/ttyACM0)"
     print "  -? Help: print this usage message"
 
 
@@ -48,35 +48,35 @@ def usage():
 def main():
 
     # Globals modified:
+    global serialPort
     global serialDevice
-    global serialInstance
 
     try:
         # Initialize serial device object.
-        serialInstance = UsbSerialDevice ( serialDevice )
+        serialDevice = UsbSerialDevice ( serialPort )
     except:
         # Scan for options.
-        serialDevice = ''
+        serialPort = ''
         try:
-            opts, args = getopt.getopt( sys.argv[1:], "d:h?" )
+            opts, args = getopt.getopt( sys.argv[1:], "p:h?" )
         except getopt.GetoptError, err:
             # print help information and exit:
             print str( err ) # will print something like "option -a not recognized"
             sys.exit( 2 )
         for o, a in opts:
-            if o == "-d":
-                serialDevice = a
+            if o == "-p":
+                serialPort = a
             elif o in ("-h","-?"):
                 usage()
                 sys.exit( 0 )
             else:
                 assert False, "unhandled option"
-        if serialDevice == '':
+        if serialPort == '':
             usage()
             sys.exit( 1 )
 
         # Should work this time.
-        serialInstance = UsbSerialDevice ( serialDevice )
+        serialDevice = UsbSerialDevice ( serialPort )
 
     # Main menu:
     print "Welcome to the Keepkey USB demo."
@@ -116,7 +116,7 @@ def main():
                         userCharsToWrite = 0
 
                     # Send the message string.
-                    serialInstance.writeSerial ( msgString )
+                    serialDevice.writeSerial ( msgString )
 
             # Else if reading from device:
             elif msgType == 'r':
@@ -133,14 +133,14 @@ def main():
                 while int(userCharsToRead):
                     if MAX_PAYLOAD_LENGTH < userCharsToRead:
                         msgString = msgType + chr(MAX_PAYLOAD_LENGTH) + chr(msgOffset)
-                        serialInstance.writeSerial ( msgString )
-                        returnedString  += serialInstance.readSerial() 
+                        serialDevice.writeSerial ( msgString )
+                        returnedString  += serialDevice.readSerial() 
                         userCharsToRead -= MAX_PAYLOAD_LENGTH
                         msgOffset       += MAX_PAYLOAD_LENGTH
                     else:
                         msgString = msgType + chr(int(userCharsToRead)) + chr(msgOffset)
-                        serialInstance.writeSerial ( msgString )
-                        returnedString  += serialInstance.readSerial() 
+                        serialDevice.writeSerial ( msgString )
+                        returnedString  += serialDevice.readSerial() 
                         userCharsToRead = 0
                 print "Device reply: " + returnedString
 
@@ -149,16 +149,16 @@ def main():
 class UsbSerialDevice ( object ):
 
     serialInterfaceBaud = 115200
-    serialInstance = ''
+    serialDevice = ''
 
     # Initialization:
     def __init__ ( self, serialInterfacePort ):
-        self.serialInstance = serial.Serial( serialInterfacePort, int(self.serialInterfaceBaud) )
+        self.serialDevice = serial.Serial( serialInterfacePort, int(self.serialInterfaceBaud) )
 
     # Write serial method:
     def writeSerial ( self, string ):
-        self.serialInstance.flushInput()
-        self.serialInstance.write( string + '\n' )
+        self.serialDevice.flushInput()
+        self.serialDevice.write( string + '\n' )
 
     # Read serial method:
     #
@@ -167,10 +167,10 @@ class UsbSerialDevice ( object ):
     #
     def readSerial ( self ):
         string = ''
-        num_bytes = self.serialInstance.read()
+        num_bytes = self.serialDevice.read()
         length = ord ( num_bytes )
         while length:
-            char = self.serialInstance.read()
+            char = self.serialDevice.read()
             string += char
             length = length - 1
         return string
