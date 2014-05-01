@@ -29,6 +29,7 @@ import serial
 import sys
 
 # Globals:
+MAX_MESSAGE_LENGTH = 256
 MAX_PAYLOAD_LENGTH = 32
 PREAMBLE_LENGTH = 3
 serialDevice = ''
@@ -89,6 +90,9 @@ def main():
                 # Get user string.
                 userString = raw_input ( 'Enter a string: ' )
                 userCharsToWrite = len(userString)
+                if MAX_MESSAGE_LENGTH < userCharsToWrite:
+                    userString = userString[:MAX_MESSAGE_LENGTH]
+                    userCharsToWrite = len(userString)
                 msgOffset = 0
                 beginSlice = 0
                 endSlice = MAX_PAYLOAD_LENGTH 
@@ -114,6 +118,8 @@ def main():
                 # Get number of characters to read.
                 userCharsToReadString = raw_input ( 'Number of characters to read: ' )
                 userCharsToRead = int(userCharsToReadString)
+                if MAX_MESSAGE_LENGTH < userCharsToRead:
+                    userCharsToRead = MAX_MESSAGE_LENGTH
                 returnedString = ''
                 msgOffset = 0
 
