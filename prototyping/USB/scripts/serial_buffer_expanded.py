@@ -27,12 +27,13 @@ import getopt
 import os
 import serial
 import sys
+import platform
 
 # Globals:
 MAX_MESSAGE_LENGTH = 256
 MAX_PAYLOAD_LENGTH = 32
 PREAMBLE_LENGTH = 3
-serialPort = '/dev/ttyACM0' # Default for Ubuntu Linux
+serialPort = ''
 serialDevice = ''
 
 # Usage summary:
@@ -40,7 +41,7 @@ def usage():
 
     print "Usage: python " + os.path.basename( sys.argv[0] ),
     print "-p serialPort"
-    print "  -p Specify serial port (e.g. com1 or /dev/ttyACM0)"
+    print "  -p Specify serial port (e.g. com1 or /dev/ttyUSB0)"
     print "  -? Help: print this usage message"
 
 
@@ -50,6 +51,12 @@ def main():
     # Globals modified:
     global serialPort
     global serialDevice
+
+    # TODO (LS): Need to figure out how to do this at runtime.
+    if platform.system() == 'Linux':
+        serialPort = '/dev/ttyACM0'
+    elif platform.system() == 'Windows':
+        serialPort = 'com27'
 
     try:
         # Initialize serial device object.
