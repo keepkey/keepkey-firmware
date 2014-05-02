@@ -15,6 +15,7 @@
 
 
 //================================ INCLUDES ===================================
+#include "carbon.h"
 #include "hw_config.h"
 #include "keepkey_mesg.h"
 
@@ -23,6 +24,9 @@
 
 /// Keepkey message length.
 #define KEEPKEY_MESSAGE_LENGTH  256
+
+/// Keepkey USB packet payload length.
+#define USB_PAYLOAD_LENGTH      32
 
 /// Keepkey commands (from the host perspective).
 #define HOST_WRITE_CMD          'w'
@@ -37,13 +41,18 @@
 
 //=============================== VARIABLES ===================================
 
-/// Keepkey message buffer, containing the entire keepkey message from/to the
+/// Keepkey message buffer, containing the entire keepkey message from the
 /// host.  Multiple USB transfers may be needed to read or write the message
 /// buffer.
 static uint8_t keepkeyMessageBuffer[ KEEPKEY_MESSAGE_LENGTH ];
 
+/// Keepkey USB output buffer.  This buffer is used to assemble a packet to   
+/// be sent to the USB host device.  The packet consists simply of a byte     
+/// count followed by the output data.                                        
+static uint8_t keepkeyUsbOutputBuffer[ USB_PAYLOAD_LENGTH + 1 ];
+
 /// Pointer to next unused byte in Keepkey message buffer.
-static uint8_t* pBufferUnused;
+//static uint8_t* pBufferUnused;
 
 
 //====================== PRIVATE FUNCTION DECLARATIONS ========================
@@ -80,39 +89,62 @@ KK_HandleUsbMessage (
     __IO uint32_t recv_length
 )
 {
-    // ASSERT(__Validate_incoming_parameters);
+    /// @todo (LS): Implement ASSERT
+    // ASSERT( recv_buffer );
 
-    uint16_t count;             // Byte counter.
-    uint8_t* pKeyBuf;           // Pointer to Keepkey message buffer.
-    __IO uint8_t* pUsbBuf;      // Pointer to USB receive buffer.
+    uint8_t count;              // Byte counter
+    uint8_t offset;             // Offset into keepkey message buffer
+    __IO uint8_t* pUsbBuf;      // Pointer to USB receive buffer
 
-    // Get count from USB message.
-    count = recv_buffer[ IDX_MESSAGE_LENGTH ];
-
-    // Point into keepkey message buffer.
-    pKeyBuf = & ( keepkeyMessageBuffer[ recv_buffer[IDX_MESSAGE_OFFSET] ] );
-
-    // Switch on message type (read/write).
-    switch ( recv_buffer[ IDX_MESSAGE_TYPE ] )
+    // If the received message is complete enough to be valid,
+    if ( IDX_MESSAGE_BODY <= recv_length )
     {
-        case HOST_WRITE_CMD:
+        // Get count from USB message.
+        count = recv_buffer[ IDX_MESSAGE_LENGTH ];
 
-            // Copy bytes from USB receive buffer to Keepkey message buffer.
-            pUsbBuf = & ( recv_buffer[ IDX_MESSAGE_BODY ] );
-            while ( count-- )
-            {
-                *pKeyBuf++ = *pUsbBuf++;
-            }
-            break;
+        // Get offset into keepkey message buffer (staying within the buffer).
+        offset = recv_buffer[IDX_MESSAGE_OFFSET];
+        offset = MIN ( offset, ARRAY_LENGTH(keepkeyMessageBuffer) - 1 );
 
-        case HOST_READ_CMD:
+        // Skip the message preamble during copying.
+        recv_length = recv_length - IDX_MESSAGE_BODY;
 
-            // Send bytes from Keepkey message buffer to host.
-            CDC_Send_DATA ( (unsigned char*) pKeyBuf, count );
-            break;
+        // Switch on message type (read/write).
+        switch ( recv_buffer[ IDX_MESSAGE_TYPE ] )
+        {
+            case HOST_WRITE_CMD:
 
-        default:
-            break;
+                // Copy bytes from USB receive buffer to Keepkey message buffer.
+                // Only copy as many bytes as were actually received.
+                pUsbBuf = & ( recv_buffer[ IDX_MESSAGE_BODY ] );
+                while ( count-- && recv_length-- )
+                {
+                    keepkeyMessageBuffer[ offset++ ] = *pUsbBuf++;
+                }
+                break;
+
+            case HOST_READ_CMD:
+
+                // Limit the number of bytes to be copied to stay within the  
+                // limits of the message buffer.                                            
+                if ( ARRAY_LENGTH(keepkeyMessageBuffer) < offset + count )
+                {
+                    count = ARRAY_LENGTH(keepkeyMessageBuffer) - offset;
+                }
+
+                // Load count into output buffer as the USB packet preamble.
+                keepkeyUsbOutputBuffer[0] = count;
+
+                // Copy payload into USB output buffer.
+                memcpy ( &(keepkeyUsbOutputBuffer[1]), keepkeyMessageBuffer + offset, count );
+
+                // Send bytes from Keepkey message buffer to host.
+                CDC_Send_DATA ( (unsigned char*) keepkeyUsbOutputBuffer, count + 1 );
+                break;
+
+            default:
+                break;
+        }
     }
 }
 
