@@ -18,7 +18,12 @@
 
 static const std::string wallet_outfilename("keepkey_wallet.dat");
 
+extern "C" { 
+    void Demo_Init();
+}
+
 int main(int argc, char *argv[]) {
+    Demo_Init();
 
     cd::App app;
     AbortIfNot(app.init("KeepKey"), false, "Failed to init KeepKey app.\n");
