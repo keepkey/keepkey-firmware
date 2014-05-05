@@ -1,3 +1,54 @@
-*.py
+# .gitignore
+
+# Selected build objects
 *.o
+.sconsign*
+.gradle
+
+
+# IDE files
+.cproject
+.project
+
+# component libraries
+cdlib/
+crypto/
+display_engine/
+build/
+site_scons/
+trezor_crypto/
+app/
+foundation/
+json-cpp/
+trezor-crypto/
+config/
+console/
+
+# Compiled python scripts
+*.pyc
+
+# Emacs temporary files
+*~
+*\#
+
+# IAR generated files
+*.browse
+*.cout
+*.cspy.bat
+*.dbgdt
+*.dep
+*.dni
+*.jlink
+*.lst
+*.pbi
+*.pbd
+*.sfr
+*.sim
+*.tmp
+*.wsdt
+*.pbi
+*.cout
+
+# CDLIB files (not controlled under git)
+cdlib/*
 

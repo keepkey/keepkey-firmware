@@ -1,0 +1,2 @@
+ARMORY_PATH=~/src/BitcoinArmory
+export PYTHONPATH=$PYTHONPATH:$ARMORY_PATH
