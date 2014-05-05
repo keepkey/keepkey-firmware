@@ -2,6 +2,7 @@
 #include <cstring>
 #include <iomanip>
 #include <iostream>
+#include <malloc.h>
 #include <string>
 #include <sstream>
 #include <vector>
@@ -35,6 +36,8 @@ int main(int argc, char *argv[]) {
     cd::DisplayManager dmgr;
     AbortIfNot(app.register_runnable(&dmgr), false,
             "Failed to register %s\n", dmgr.get_name().c_str());
+
+    struct mallinfo mi = mallinfo();
 
     app.run_forever();
 
