@@ -33,6 +33,7 @@ extern "C" {
 
 #include "KeepKeyDisplay.h"
 #include "keepkey_oled_test_1.h"
+#include "STM32F10x.h"
 
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,7 +60,7 @@ show_led()
 
     GPIO_InitTypeDef  GPIO_InitStructure;
 
-    RCC_APB2PeriphClockCmd( RCC_APB2Periph_GPIOF, ENABLE );
+    //RCC_APB2PeriphClockCmd( RCC_APB2Periph_GPIOF, ENABLE );
 
     GPIO_InitStructure.GPIO_Pin = which_led | GPIO_Pin_6;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
@@ -75,6 +76,8 @@ test_display(
         void
 )
 {
+
+#if 0
     /* Enable GPIOA, GPIOB, GPIOC, GPIOD, GPIOE, GPIOF, GPIOG and AFIO clocks */
     RCC_APB2PeriphClockCmd(
             RCC_APB2Periph_GPIOA | 
@@ -91,17 +94,32 @@ test_display(
     /* TIM1 Periph clock enable */
     RCC_APB2PeriphClockCmd( RCC_APB2Periph_TIM1, ENABLE );
 
-    show_led();
-
     InterruptConfig();
 
     /* Configure the systick */    
     SysTick_Configuration();
+#endif
 
-    KeepKeyDisplay* display = new KeepKeyDisplay();
+    STM32F10x* board = new STM32F10x();
+    
+    board->initialize();
+
+    NorSramController* bank4 = board->get_norsram_bank_4();
+    
+    NorSramController::Config c;
+    c.memory_type       = NorSramController::Config::MEMORY_TYPE_SRAM;
+    c.memory_data_width = NorSramController::Config::DATA_WIDTH_16B;
+    c.write_operation   = NorSramController::Config::WRITE_OPERATION_ENABLE;
+    bank4->configure( &c );
+
+    board->show_led();
+
+    KeepKeyDisplay* display = new KeepKeyDisplay( 
+            bank4,
+            board->get_pin( STM32F10x::Pins::B_7 ),
+            board->get_pin( STM32F10x::Pins::B_6 ) );
 
     
-
     PixelBuffer* image = new PixelBuffer( 
             Pixel::A8,
             (uint32_t)image_data_keepkey_oled_test_1,
@@ -144,7 +162,7 @@ main(
 {
     test_display();
 
-    show_led();
+    //show_led();
 
     int i = 1;
 

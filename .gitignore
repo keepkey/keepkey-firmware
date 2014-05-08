@@ -23,6 +23,8 @@ json-cpp/
 trezor-crypto/
 config/
 console/
+trezor-mcu/
+hsm/
 
 # Compiled python scripts
 *.pyc

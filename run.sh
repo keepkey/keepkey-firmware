@@ -8,11 +8,11 @@ if [[ $? -ne 0 ]]; then
 fi
 OBJCOPY=/opt/carbon/gcc-arm-none-eabi-4_8-2014q1/bin/arm-none-eabi-objcopy
 OBJDUMP=/opt/carbon/gcc-arm-none-eabi-4_8-2014q1/bin/arm-none-eabi-objdump
-BINDIR=~/src/keepkey/build/arm-none-gnu-eabi/debug/bin
-BINNAME=keepkey_main
-ELF_FILE=$BINDIR/keepkey_main.elf
-HEX_FILE=$BINDIR/keepkey_main.hex
-MAP_FILE=$bindir/keepkey_main.map
+BINDIR=~/Projects/keepkey/build/arm-none-gnu-eabi/debug/bin
+BINNAME=test_main
+ELF_FILE=$BINDIR/test_main.elf
+HEX_FILE=$BINDIR/test_main.hex
+MAP_FILE=$bindir/test_main.map
 
 
 $OBJCOPY -O ihex $ELF_FILE $HEX_FILE
