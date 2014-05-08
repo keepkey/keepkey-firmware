@@ -12,12 +12,8 @@
 #include <core.h>
 #include <platform.h>
 
-#include "bitcoin.h"
-#include "display_manager.h"
-#include "keepkey_manager.h"
-#include "wallet.h"
-
-static const std::string wallet_outfilename("keepkey_wallet.dat");
+#include <display_manager.h>
+#include <keepkey_manager.h>
 
 extern "C" { 
     void Demo_Init();

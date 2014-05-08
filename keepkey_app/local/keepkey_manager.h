@@ -2,6 +2,7 @@
 #define KEEPKEY_MANAGER_H
 
 #include <app.h>
+#include <bitcoin.h>
 #include <platform.h>
 
 namespace cd
@@ -17,6 +18,7 @@ namespace cd
             bool run();
 
         private:
+            Wallet wallet;
 
     };
 };
