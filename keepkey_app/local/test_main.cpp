@@ -33,7 +33,7 @@ extern "C" {
 
 #include "KeepKeyDisplay.h"
 #include "keepkey_oled_test_1.h"
-#include "STM32F10x.h"
+#include "EvalKeepKeyBoard.h"
 
 
 /* Private typedef -----------------------------------------------------------*/
@@ -49,77 +49,12 @@ static __IO uint32_t SELStatus = 0;
 /* Private functions ---------------------------------------------------------*/
 
 void
-show_led()
-{
-
-    uint32_t i = 0;
-    for( i = 0; i < 0x0000FFFF; i++ )
-    {}
-
-    uint32_t which_led = GPIO_Pin_7; 
-
-    GPIO_InitTypeDef  GPIO_InitStructure;
-
-    //RCC_APB2PeriphClockCmd( RCC_APB2Periph_GPIOF, ENABLE );
-
-    GPIO_InitStructure.GPIO_Pin = which_led | GPIO_Pin_6;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_Init( GPIOF, &GPIO_InitStructure );
-
-    GPIOF->BSRR = which_led;
-}
-
-
-void
 test_display(
         void
 )
 {
+    EvalKeepKeyBoard* board = new EvalKeepKeyBoard();
 
-#if 0
-    /* Enable GPIOA, GPIOB, GPIOC, GPIOD, GPIOE, GPIOF, GPIOG and AFIO clocks */
-    RCC_APB2PeriphClockCmd(
-            RCC_APB2Periph_GPIOA | 
-            RCC_APB2Periph_GPIOB |
-            RCC_APB2Periph_GPIOC | 
-            RCC_APB2Periph_GPIOD | 
-            RCC_APB2Periph_GPIOE | 
-            RCC_APB2Periph_GPIOF | 
-            RCC_APB2Periph_GPIOG | 
-            RCC_APB2Periph_AFIO, 
-            ENABLE
-    );
-
-    /* TIM1 Periph clock enable */
-    RCC_APB2PeriphClockCmd( RCC_APB2Periph_TIM1, ENABLE );
-
-    InterruptConfig();
-
-    /* Configure the systick */    
-    SysTick_Configuration();
-#endif
-
-    STM32F10x* board = new STM32F10x();
-    
-    board->initialize();
-
-    NorSramController* bank4 = board->get_norsram_bank_4();
-    
-    NorSramController::Config c;
-    c.memory_type       = NorSramController::Config::MEMORY_TYPE_SRAM;
-    c.memory_data_width = NorSramController::Config::DATA_WIDTH_16B;
-    c.write_operation   = NorSramController::Config::WRITE_OPERATION_ENABLE;
-    bank4->configure( &c );
-
-    board->show_led();
-
-    KeepKeyDisplay* display = new KeepKeyDisplay( 
-            bank4,
-            board->get_pin( STM32F10x::Pins::B_7 ),
-            board->get_pin( STM32F10x::Pins::B_6 ) );
-
-    
     PixelBuffer* image = new PixelBuffer( 
             Pixel::A8,
             (uint32_t)image_data_keepkey_oled_test_1,
@@ -129,29 +64,12 @@ test_display(
 
     PixelBuffer::transfer(
             image,
-            display->frame_buffer()
+            board->display()->frame_buffer()
     );
 
+    board->display()->frame_buffer()->taint();
 
-#if 0
-    uint32_t image_addr = (uint32_t)image_data_keepkey_oled_test_1;
-    uint8_t* data = (uint8_t*)image;
-    int image_size = 64 * 256;
-    uint8_t* dst = (uint8_t*)display->frame_buffer()->origin();
-    
-    int src_index = 0;
-    int dst_index = 0;
-    while( src_index < image_size )
-    {
-        uint8_t v = ( data[ src_index ] & 0xF0 ) | ( ( data[ src_index + 1 ] >> 4 ) & 0x0F );
-        dst[ dst_index ] = v;
-        src_index += 2;
-        dst_index += 1;
-    }
-#endif
-    display->frame_buffer()->taint();
-
-    display->refresh();
+    board->display()->refresh();
 }
 
 
@@ -161,8 +79,6 @@ main(
 )
 {
     test_display();
-
-    //show_led();
 
     int i = 1;
 
@@ -270,6 +186,7 @@ config_layout(
     wm->redraw();
 }
 #endif
+
 
 /**
   * @brief  Configures the used IRQ Channels and sets their priority.
