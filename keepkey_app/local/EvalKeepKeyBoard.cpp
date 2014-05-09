@@ -37,9 +37,9 @@ EvalKeepKeyBoard::EvalKeepKeyBoard(
     // Configure the subsystems.
     this->configure_display();
     this->configure_led();
-    this->configure_interrupts();
+    //this->configure_interrupts();
 
-    this->button_press.callback = [ this ](){ this->button_pressed(); };
+    //this->button_press.callback = [ this ](){ this->button_pressed(); };
 
 }
 

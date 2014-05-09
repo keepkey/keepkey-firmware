@@ -3,8 +3,6 @@
 
 #include <app.h>
 
-#include "wallet.h"
-
 namespace cd
 {
     class DisplayManager : public Component, public Runnable
@@ -18,8 +16,6 @@ namespace cd
             bool run();
 
         private:
-
-            BIP32Wallet wallet;
     };
 };
 

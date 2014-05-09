@@ -9,6 +9,7 @@
 # IDE files
 .cproject
 .project
+.metadata/
 
 # component libraries
 cdlib/
@@ -25,6 +26,9 @@ config/
 console/
 trezor-mcu/
 hsm/
+
+# Misc
+tags
 
 # Compiled python scripts
 *.pyc

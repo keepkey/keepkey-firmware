@@ -2,5 +2,12 @@ from SCons.Script import *
 from scons_util import *
 
 Import('env')
-init_project(env, deps=['app', 'crypto', 'foundation', 'json-cpp', 'display_engine'])
+init_project(env, deps=['app', 
+                        'crypto', 
+                        'foundation', 
+                        'json-cpp', 
+                        'client', 
+                        'bitcoin',
+                        'trezor-bitcoin',
+                        'display_engine'])
 

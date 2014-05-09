@@ -178,7 +178,6 @@ void RTC_IRQHandler(void)
   RTC_ClearITPendingBit(RTC_IT_SEC);
 }
 
-#if 0
 /**
   * @brief  This function handles External interrupt Line 3 request.
   * @param  None
@@ -192,7 +191,6 @@ void EXTI3_IRQHandler(void)
     EXTI_ClearITPendingBit(EXTI_Line3);
   }
 }
-#endif
 
 /**
   * @brief  This function handles USB High Priority or CAN TX interrupt request.
@@ -212,7 +210,6 @@ void USB_LP_CAN1_RX0_IRQHandler(void)
 {
 }
 
-#if 0
 /**
   * @brief  This function handles External lines 9 to 5 interrupt request.
   * @param  None
@@ -226,7 +223,6 @@ void EXTI9_5_IRQHandler(void)
     EXTI_ClearITPendingBit(EXTI_Line8);
   }
 }
-#endif
 
 /**
   * @brief  This function handles TIM1 overflow and update  interrupt request.
@@ -255,7 +251,6 @@ void USART3_IRQHandler(void)
 {
 }
 
-#if 0
 /**
   * @brief  This function handles External lines 15 to 10 interrupt request.
   * @param  None
@@ -270,7 +265,6 @@ void EXTI15_10_IRQHandler(void)
   }
  
 }
-#endif
 
 /**
   * @brief  This function handles RTC Alarm  interrupt request.
