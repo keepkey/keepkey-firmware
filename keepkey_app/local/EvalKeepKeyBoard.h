@@ -41,6 +41,7 @@ public:
     const STM32F10x::Pins::Id LED_PIN_ID            = STM32F10x::Pins::F_7;
     const STM32F10x::Pins::Id DISPLAY_RESET_PIN_ID  = STM32F10x::Pins::B_7;
     const STM32F10x::Pins::Id DISPLAY_POWER_PIN_ID  = STM32F10x::Pins::B_6;
+    const STM32F10x::Pins::Id CONFIRM_BUTTON_PIN_ID = STM32F10x::Pins::G_7;
 
 
     //============== Construction and Destruction =========================
@@ -74,10 +75,7 @@ private:
 	STM32F10x* mcu;
 
 	Pin* led_pin;
-
-
-    ExternalInterrupt::Handler button_press;
-
+    Pin* confirm_button_pin;
 
 	void
 	configure_display(
@@ -86,7 +84,7 @@ private:
 
 
     void
-    configure_interrupts(
+    configure_button(
             void
     );
 

@@ -49,8 +49,8 @@ public:
 
 
     static const uint32_t ADDRESS_SETUP_TIME    = 10;
-    static const uint32_t ADDRESS_HOLD_TIME     = 0;
-    static const uint32_t DATA_SETUP_TIME       = 40;
+    static const uint32_t ADDRESS_HOLD_TIME     = 10;
+    static const uint32_t DATA_SETUP_TIME       = 45;
     static const uint32_t BUS_TURNAROUND_DURATION = 10;
     static const uint32_t DATA_LATENCY          = 7;
 
@@ -174,7 +174,6 @@ private:
             uint16_t x,
             uint16_t y
     );
-
 
 };
 

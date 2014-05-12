@@ -11,6 +11,8 @@
 
 #include "EvalKeepKeyBoard.h"
 #include "KeepKeyDisplay.h"
+#include "ExternalInterrupt.h"
+#include "STM32F10x.h"
 #include "STM32F10x.h"
 #include "misc.h"
 
@@ -37,10 +39,15 @@ EvalKeepKeyBoard::EvalKeepKeyBoard(
     // Configure the subsystems.
     this->configure_display();
     this->configure_led();
-    //this->configure_interrupts();
+    this->configure_button();
 
-    //this->button_press.callback = [ this ](){ this->button_pressed(); };
-
+    this->confirm_button()->set_on_press_handler(
+            [ this ](){ this->button_pressed(); }
+    );
+    
+    this->confirm_button()->set_on_release_handler(
+            [ this ](){ this->button_pressed(); }
+    );
 }
 
 
@@ -51,7 +58,9 @@ void
 EvalKeepKeyBoard::button_pressed(
         void
 )
-{}
+{
+    this->led_pin->toggle();
+}
 
 
 //-------------------------------------------------------------------------
@@ -92,9 +101,6 @@ EvalKeepKeyBoard::show_led(
 }
 
 
-
-
-
 //-------------------------------------------------------------------------
 // See declaration for interface.
 //
@@ -110,18 +116,19 @@ EvalKeepKeyBoard::configure_led(
 }
 
 
-
 //-------------------------------------------------------------------------
 // See declaration for interface.
 //
 void
-EvalKeepKeyBoard::configure_interrupts(
+EvalKeepKeyBoard::configure_button(
         void
 )
 {
-    // Set the Vector Table base address at 0x08000000
-    NVIC_SetVectorTable( NVIC_VectTab_FLASH, 0x00 );
+    this->confirm_button_pin = this->mcu->get_pin( this->CONFIRM_BUTTON_PIN_ID );
+    this->confirm_button_pin->set_mode( Pin::INPUT );
+    this->confirm_button_pin->enable();
 
-    // Configure the Priority Group to 2 bits
-    NVIC_PriorityGroupConfig( NVIC_PriorityGroup_2 );
+    Button* button = new Button( this->confirm_button_pin );
+    this->set_confirm_button( button );
+
 }

@@ -27,8 +27,6 @@ test_display(
 {
     EvalKeepKeyBoard* board = new EvalKeepKeyBoard();
 
-    board->show_led();
-
     PixelBuffer* image = new PixelBuffer( 
             Pixel::A8,
             (uint32_t)image_data_keepkey_oled_test_1,

@@ -179,20 +179,6 @@ void RTC_IRQHandler(void)
 }
 
 /**
-  * @brief  This function handles External interrupt Line 3 request.
-  * @param  None
-  * @retval None
-  */
-void EXTI3_IRQHandler(void)
-{
-  if(EXTI_GetITStatus(EXTI_Line3) != RESET)
-  {
-    /* Clear the EXTI Line 3 */
-    EXTI_ClearITPendingBit(EXTI_Line3);
-  }
-}
-
-/**
   * @brief  This function handles USB High Priority or CAN TX interrupt request.
   * @param  None
   * @retval None
@@ -210,19 +196,6 @@ void USB_LP_CAN1_RX0_IRQHandler(void)
 {
 }
 
-/**
-  * @brief  This function handles External lines 9 to 5 interrupt request.
-  * @param  None
-  * @retval None
-  */
-void EXTI9_5_IRQHandler(void)
-{
-  if(EXTI_GetITStatus(EXTI_Line8) != RESET)
-  {
-    /* Clear the EXTI Line 8 */
-    EXTI_ClearITPendingBit(EXTI_Line8);
-  }
-}
 
 /**
   * @brief  This function handles TIM1 overflow and update  interrupt request.
@@ -251,20 +224,6 @@ void USART3_IRQHandler(void)
 {
 }
 
-/**
-  * @brief  This function handles External lines 15 to 10 interrupt request.
-  * @param  None
-  * @retval None
-  */
-void EXTI15_10_IRQHandler(void)
-{
-  if(EXTI_GetITStatus(EXTI_Line15) != RESET)
-  {
-    /* Clear the EXTI Line 15 */  
-    EXTI_ClearITPendingBit(EXTI_Line15);
-  }
- 
-}
 
 /**
   * @brief  This function handles RTC Alarm  interrupt request.
@@ -297,6 +256,52 @@ WWDG_IRQHandler(
 {
   return;
 }
+
+#if 0
+/**
+  * @brief  This function handles External lines 9 to 5 interrupt request.
+  * @param  None
+  * @retval None
+  */
+void EXTI9_5_IRQHandler(void)
+{
+  if(EXTI_GetITStatus(EXTI_Line8) != RESET)
+  {
+    /* Clear the EXTI Line 8 */
+    EXTI_ClearITPendingBit(EXTI_Line8);
+  }
+}
+
+/**
+  * @brief  This function handles External lines 15 to 10 interrupt request.
+  * @param  None
+  * @retval None
+  */
+void EXTI15_10_IRQHandler(void)
+{
+  if(EXTI_GetITStatus(EXTI_Line15) != RESET)
+  {
+    /* Clear the EXTI Line 15 */  
+    EXTI_ClearITPendingBit(EXTI_Line15);
+  }
+ 
+}
+
+
+/**
+  * @brief  This function handles External interrupt Line 3 request.
+  * @param  None
+  * @retval None
+  */
+void EXTI3_IRQHandler(void)
+{
+  if(EXTI_GetITStatus(EXTI_Line3) != RESET)
+  {
+    /* Clear the EXTI Line 3 */
+    EXTI_ClearITPendingBit(EXTI_Line3);
+  }
+}
+#endif
 
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
