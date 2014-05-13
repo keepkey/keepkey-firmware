@@ -5,6 +5,12 @@
 .sconsign*
 .gradle
 
+
+# IDE files
+.cproject
+.project
+.metadata/
+
 # component libraries
 cdlib/
 crypto/
@@ -15,6 +21,14 @@ trezor_crypto/
 app/
 foundation/
 json-cpp/
+trezor-crypto/
+config/
+console/
+trezor-mcu/
+hsm/
+
+# Misc
+tags
 
 # Compiled python scripts
 *.pyc
@@ -22,11 +36,6 @@ json-cpp/
 # Emacs temporary files
 *~
 *\#
-
-# Eclipse files
-.cproject
-.project
-*.launch
 
 # IAR generated files
 *.browse
@@ -48,7 +57,4 @@ json-cpp/
 
 # CDLIB files (not controlled under git)
 cdlib/*
-
-# Other files
-tags
 

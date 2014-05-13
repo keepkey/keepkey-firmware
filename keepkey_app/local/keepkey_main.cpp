@@ -15,12 +15,29 @@
 #include <display_manager.h>
 #include <keepkey_manager.h>
 
-extern "C" { 
-    void Demo_Init();
+#include "EvalKeepKeyBoard.h"
+
+
+void
+test_board(
+        void
+)
+{
+    EvalKeepKeyBoard* board = new EvalKeepKeyBoard();
+
+    while(1)
+    {}
 }
 
-int main(int argc, char *argv[]) {
-    Demo_Init();
+
+int 
+main(
+        int argc, 
+        char *argv[]
+) 
+{
+    // Test the board.  This will block indefinitely.
+    test_board();
 
     cd::App app;
     AbortIfNot(app.init("KeepKey"), false, "Failed to init KeepKey app.\n");

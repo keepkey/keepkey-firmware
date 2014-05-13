@@ -8,7 +8,7 @@ if [[ $? -ne 0 ]]; then
 fi
 OBJCOPY=/opt/carbon/gcc-arm-none-eabi-4_8-2014q1/bin/arm-none-eabi-objcopy
 OBJDUMP=/opt/carbon/gcc-arm-none-eabi-4_8-2014q1/bin/arm-none-eabi-objdump
-BINDIR=~/src/keepkey/build/arm-none-gnu-eabi/debug/bin
+BINDIR=./build/arm-none-gnu-eabi/debug/bin
 BINNAME=keepkey_main
 ELF_FILE=$BINDIR/keepkey_main.elf
 HEX_FILE=$BINDIR/keepkey_main.hex
