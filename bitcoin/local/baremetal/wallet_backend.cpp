@@ -4,7 +4,9 @@
 /**
  * Baremetal implementation.
  */
-bool Wallet::load_from_file()
-{
-    return false;
+namespace cd {
+    bool Wallet::load_from_file()
+    {
+        return false;
+    }
 }
