@@ -38,7 +38,7 @@ described at the URL above.
 So, make sure to install libusb-win32 as a filter driver.  After doing this,
 you need to run the Filter Wizard which comes with the library.  (This runs as
 part of the installation process, and you can run it again later by looking in
-the start menu for "LibUSB-Win32 / Filter Wizard"."  The wizard associates the
+the start menu for "LibUSB-Win32 / Filter Wizard".)  The wizard associates the
 filter with a device of your choosing.  This is not as automatic as we'd like
 in the long run, but it makes the device appear as a virtual COM port, which
 is what we need.
