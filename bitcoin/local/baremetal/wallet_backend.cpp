@@ -1,12 +1,8 @@
 #include <foundation/foundation.h>
 #include <wallet.h>
 
-namespace cd 
-{
+namespace cd {
 
-    /**
-     * Baremetal implementation.
-     */
     bool Wallet::load_from_file()
     {
         return false;

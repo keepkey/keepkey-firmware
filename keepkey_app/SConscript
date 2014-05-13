@@ -8,5 +8,6 @@ init_project(env, deps=['app',
                         'json-cpp', 
                         'client', 
                         'bitcoin',
-                        'trezor-bitcoin'])
+                        'trezor-bitcoin',
+                        'display_engine'])
 
