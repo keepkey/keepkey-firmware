@@ -16,13 +16,17 @@ app/
 foundation/
 json-cpp/
 
-
 # Compiled python scripts
 *.pyc
 
 # Emacs temporary files
 *~
 *\#
+
+# Eclipse files
+.cproject
+.project
+*.launch
 
 # IAR generated files
 *.browse
@@ -44,4 +48,7 @@ json-cpp/
 
 # CDLIB files (not controlled under git)
 cdlib/*
+
+# Other files
+tags
 
