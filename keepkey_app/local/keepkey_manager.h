@@ -3,7 +3,10 @@
 
 #include <app.h>
 #include <bitcoin.h>
-#include <platform.h>
+#include <foundation/foundation.h>
+#include <trezor_reader.h>
+#include <trezor_writer.h>
+
 
 namespace cd
 {
@@ -19,6 +22,11 @@ namespace cd
 
         private:
             Wallet wallet;
+
+            TrezorReader reader;
+            TrezorWriter writer;
+
+            bool send_initialize_response();
 
     };
 };

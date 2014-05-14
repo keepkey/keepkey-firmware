@@ -9,5 +9,5 @@ init_project(env, deps=['app',
                         'client', 
                         'bitcoin',
                         'trezor-bitcoin',
-                        'display_engine'])
+                        'graphics_engine'])
 

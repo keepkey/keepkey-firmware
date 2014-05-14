@@ -43,6 +43,7 @@ main(
     AbortIfNot(app.init("KeepKey"), false, "Failed to init KeepKey app.\n");
 
     cd::KeepkeyManager kkmgr;
+    kkmgr.init();
     AbortIfNot(app.register_runnable(&kkmgr), false,
             "Failed to register %s\n", kkmgr.get_name().c_str());
 

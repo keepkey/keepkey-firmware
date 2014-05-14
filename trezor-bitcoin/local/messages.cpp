@@ -34,14 +34,84 @@
 #error "MSG_IN_SIZE is too small!"
 #endif
 
+struct MessagesMap_t {
+	char type;	// n = normal, d = debug
+	char dir; 	// i = in, o = out
+	uint16_t msg_id;
+	const pb_field_t *fields;
+	void (*process_func)(void *ptr);
+};
+
+static const struct MessagesMap_t MessagesMap[] = {
+	// in messages
+	{'n', 'i', MessageType_MessageType_Initialize,			Initialize_fields,			NULL},
+	{'n', 'i', MessageType_MessageType_Ping,			Ping_fields,				NULL},
+	{'n', 'i', MessageType_MessageType_ChangePin,			ChangePin_fields,			NULL},
+	{'n', 'i', MessageType_MessageType_WipeDevice,			WipeDevice_fields,			NULL},
+	{'n', 'i', MessageType_MessageType_FirmwareErase,		FirmwareErase_fields,		        NULL},
+	{'n', 'i', MessageType_MessageType_FirmwareUpload,		FirmwareUpload_fields,		        NULL},
+	{'n', 'i', MessageType_MessageType_GetEntropy,			GetEntropy_fields,		        NULL},	
+	{'n', 'i', MessageType_MessageType_GetPublicKey,		GetPublicKey_fields,		        NULL},
+	{'n', 'i', MessageType_MessageType_LoadDevice,			LoadDevice_fields,			NULL},
+	{'n', 'i', MessageType_MessageType_ResetDevice,			ResetDevice_fields,		        NULL},
+	{'n', 'i', MessageType_MessageType_SignTx,			SignTx_fields,	                        NULL},	
+	{'n', 'i', MessageType_MessageType_SimpleSignTx,		SimpleSignTx_fields,                    NULL},
+//	{'n', 'i', MessageType_MessageType_PinMatrixAck,		PinMatrixAck_fields,
+	{'n', 'i', MessageType_MessageType_Cancel,		    	Cancel_fields,	                        NULL},	
+	{'n', 'i', MessageType_MessageType_TxAck,			TxAck_fields,		                NULL},
+	{'n', 'i', MessageType_MessageType_ApplySettings,		ApplySettings_fields,                   NULL},
+//	{'n', 'i', MessageType_MessageType_ButtonAck,			ButtonAck_fields,
+	{'n', 'i', MessageType_MessageType_GetAddress,			GetAddress_fields,                      NULL},
+	{'n', 'i', MessageType_MessageType_EntropyAck,			EntropyAck_fields,                      NULL},
+	{'n', 'i', MessageType_MessageType_SignMessage,			SignMessage_fields,                     NULL},
+	{'n', 'i', MessageType_MessageType_VerifyMessage,		VerifyMessage_fields,	                NULL},
+//	{'n', 'i', MessageType_MessageType_PassphraseAck,		PassphraseAck_fields,		(void (*)(void *))fsm_msgPassphraseAck},
+	{'n', 'i', MessageType_MessageType_EstimateTxSize,		EstimateTxSize_fields,	                NULL},
+	{'n', 'i', MessageType_MessageType_RecoveryDevice,		RecoveryDevice_fields,                  NULL},
+	{'n', 'i', MessageType_MessageType_WordAck,			WordAck_fields,		                NULL},
+	// out messages
+	{'n', 'o', MessageType_MessageType_Success,			Success_fields,				NULL},
+	{'n', 'o', MessageType_MessageType_Failure,			Failure_fields,				NULL},
+	{'n', 'o', MessageType_MessageType_Entropy,			Entropy_fields,				NULL},
+	{'n', 'o', MessageType_MessageType_PublicKey,			PublicKey_fields,			NULL},
+	{'n', 'o', MessageType_MessageType_Features,			Features_fields,			NULL},
+	{'n', 'o', MessageType_MessageType_PinMatrixRequest,	        PinMatrixRequest_fields,	        NULL},
+	{'n', 'o', MessageType_MessageType_TxRequest,			TxRequest_fields,			NULL},
+	{'n', 'o', MessageType_MessageType_ButtonRequest,		ButtonRequest_fields,		        NULL},
+	{'n', 'o', MessageType_MessageType_Address,			Address_fields,				NULL},
+	{'n', 'o', MessageType_MessageType_EntropyRequest,		EntropyRequest_fields,		        NULL},
+	{'n', 'o', MessageType_MessageType_MessageSignature,	        MessageSignature_fields,	        NULL},
+	{'n', 'o', MessageType_MessageType_PassphraseRequest,	        PassphraseRequest_fields,	        NULL},
+	{'n', 'o', MessageType_MessageType_TxSize,			TxSize_fields,				NULL},
+	{'n', 'o', MessageType_MessageType_WordRequest,			WordRequest_fields,			NULL},
+	// end
+	{0, 0, 0, 0, 0}
+};
+
 const pb_field_t *MessageFields(char type, char dir, uint16_t msg_id)
 {
+    const struct MessagesMap_t *m = MessagesMap;
+    while (m->type) {
+        if (type == m->type && dir == m->dir && msg_id == m->msg_id) {
+            return m->fields;
+        }
+        m++;
+    }
     return NULL;
-}
+}        
 
 void MessageProcessFunc(char type, char dir, uint16_t msg_id, void *ptr)
 {
+    const struct MessagesMap_t *m = MessagesMap;
+    while (m->type) {
+        if (type == m->type && dir == m->dir && msg_id == m->msg_id) {
+            m->process_func(ptr);
+            return;
+        }
+        m++;
+    }
 }
+
 
 static uint32_t msg_out_start = 0;
 static uint32_t msg_out_end = 0;
@@ -119,6 +189,7 @@ bool msg_write_common(char type, uint16_t msg_id, const void *msg_ptr)
 	append(len & 0xFF);
 	pb_ostream_t stream = {pb_callback, 0, SIZE_MAX, 0, 0};
 	status = pb_encode(&stream, fields, msg_ptr);
+        
 	if (type == 'n') {
 		msg_out_pad();
 	}
@@ -152,7 +223,7 @@ void msg_read_common(char type, uint8_t *buf, int len)
 	static const pb_field_t *fields = 0;
 
 	if (read_state == READSTATE_IDLE) {
-		if (buf[0] != '?' || buf[1] != '#' || buf[2] != '#') {	// invalid start - discard
+		if (buf[0] != '#' || buf[1] != '#') {	// invalid start - discard
 			return;
 		}
 		msg_id = (buf[3] << 8) + buf[4];
