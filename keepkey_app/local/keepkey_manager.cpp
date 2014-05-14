@@ -44,6 +44,7 @@ namespace cd
         features.has_label = true; strlcpy(features.label, "My Keepkey #1", sizeof(features.label));
         features.has_initialized = true; features.initialized = true;
 
+        return true;
     }
 
     bool KeepkeyManager::run()

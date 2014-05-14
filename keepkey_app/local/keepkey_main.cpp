@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <iostream>
 #include <malloc.h>
+#include <memory>
 #include <string>
 #include <sstream>
 #include <vector>
@@ -12,22 +13,10 @@
 #include <core.h>
 #include <platform.h>
 
+#include <board_factory.h>
 #include <display_manager.h>
 #include <keepkey_manager.h>
 
-#include "EvalKeepKeyBoard.h"
-
-
-void
-test_board(
-        void
-)
-{
-    EvalKeepKeyBoard* board = new EvalKeepKeyBoard();
-
-    while(1)
-    {}
-}
 
 
 int 
@@ -36,8 +25,7 @@ main(
         char *argv[]
 ) 
 {
-    // Test the board.  This will block indefinitely.
-    test_board();
+    std::shared_ptr<KeepKeyBoard> board = cd::make_keepkey_board();
 
     cd::App app;
     AbortIfNot(app.init("KeepKey"), false, "Failed to init KeepKey app.\n");
