@@ -3,23 +3,19 @@
     Developed for __Client_Name by Carbon Design Group.
 ******************************************************************************/
 
-/// @file Board.h
+/// @file EvalKeepKeyBoard.h
 ///
 /// Board interface
 
-#ifndef KeepKeyBoard_H
-#define KeepKeyBoard_H
+#ifndef EvalKeepKeyBoard_H
+#define EvalKeepKeyBoard_H
 
 
 //============================== INCLUDES =================================
 
 
-#include "Display.h"
-<<<<<<< HEAD
-#include "Button.h"
-=======
-#include "button.h"
->>>>>>> display_dev
+#include "KeepKeyBoard.h"
+#include "hal_stm32f10x_mcu.h"
 
 
 //=================== CONSTANTS, MACROS, AND TYPES ========================
@@ -28,20 +24,29 @@
 
 
 //-------------------------------------------------------------------------
-/// KeepKeyBoard interface class.
+/// Board base class.
 ///
+/// All Board types will extend this.
 //-------------------------------------------------------------------------
-class KeepKeyBoard
+class EvalKeepKeyBoard
+		: public KeepKeyBoard
 {
 public:
 
     //=============== Public Types and Constants ==========================
 
+
+    const Stm32f10x::Mcu::Pins::Id LED_PIN_ID            = Stm32f10x::Mcu::Pins::F_7;
+    const Stm32f10x::Mcu::Pins::Id DISPLAY_RESET_PIN_ID  = Stm32f10x::Mcu::Pins::B_7;
+    const Stm32f10x::Mcu::Pins::Id DISPLAY_POWER_PIN_ID  = Stm32f10x::Mcu::Pins::B_6;
+    const Stm32f10x::Mcu::Pins::Id CONFIRM_BUTTON_PIN_ID = Stm32f10x::Mcu::Pins::G_7;
+
+
     //============== Construction and Destruction =========================
 
 
 	// Initialize the essentials of the board.
-    KeepKeyBoard(
+    EvalKeepKeyBoard(
             void
     );
 
@@ -49,41 +54,45 @@ public:
     //================ Public Member Functions ============================
 
 
-    Display*
-    display(
+    void
+    show_led(
     		void
-	) const;
+	);
 
 
-    Button*
-    confirm_button(
-    		void
-	) const;
+    void
+    button_pressed(
+            void
+    );
 
 
 protected:
 
-
-	void
-	set_display(
-			Display* display
-	);
-
-
-	void
-	set_confirm_button(
-			Button* button
-	);
-
 private:
 
+	Stm32f10x::Mcu* mcu;
 
-	Display* m_display;
+	Pin* led_pin;
+    Pin* confirm_button_pin;
+
+	void
+	configure_display(
+			void
+	);
 
 
-	Button* m_confirm_button;
+    void
+    configure_button(
+            void
+    );
+
+
+    void
+    configure_led(
+            void
+    );
 
 };
 
 
-#endif // KeepKeyBoard_H
+#endif // EvalKeepKeyBoard_H
