@@ -17,36 +17,13 @@
 #include <display_manager.h>
 #include <keepkey_manager.h>
 
-<<<<<<< HEAD
-=======
-#include "EvalKeepKeyBoard.h"
-
-
-void
-test_board(
-        void
-)
-{
-    EvalKeepKeyBoard* board = new EvalKeepKeyBoard();
-
-    while(1)
-    {}
-}
->>>>>>> display_dev
-
-
 int 
 main(
         int argc, 
         char *argv[]
 ) 
 {
-<<<<<<< HEAD
     std::shared_ptr<KeepKeyBoard> board = cd::make_keepkey_board();
-=======
-    // Test the board.  This will block indefinitely.
-    test_board();
->>>>>>> display_dev
 
     cd::App app;
     AbortIfNot(app.init("KeepKey"), false, "Failed to init KeepKey app.\n");

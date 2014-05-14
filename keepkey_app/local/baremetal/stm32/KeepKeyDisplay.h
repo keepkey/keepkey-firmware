@@ -15,13 +15,8 @@
 
 
 #include "Display.h"
-<<<<<<< HEAD
-#include "MemoryController.h"
-#include "Pin.h"
-=======
 #include "memory_controller.h"
 #include "pin.h"
->>>>>>> display_dev
 
 
 //=================== CONSTANTS, MACROS, AND TYPES ========================

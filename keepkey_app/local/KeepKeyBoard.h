@@ -15,11 +15,7 @@
 
 
 #include "Display.h"
-<<<<<<< HEAD
-#include "Button.h"
-=======
 #include "button.h"
->>>>>>> display_dev
 
 
 //=================== CONSTANTS, MACROS, AND TYPES ========================

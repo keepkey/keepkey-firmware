@@ -11,9 +11,7 @@
 
 #include "EvalKeepKeyBoard.h"
 #include "KeepKeyDisplay.h"
-#include "ExternalInterrupt.h"
-#include "STM32F10x.h"
-#include "STM32F10x.h"
+#include "external_interrupt.h"
 #include "misc.h"
 
 
@@ -33,7 +31,7 @@ EvalKeepKeyBoard::EvalKeepKeyBoard(
     KeepKeyBoard()
 {
     // Initialize the micro
-    this->mcu = new STM32F10x();
+    this->mcu = new Stm32f10x::Mcu();
     this->mcu->initialize();
 
     // Configure the subsystems.
@@ -71,13 +69,13 @@ EvalKeepKeyBoard::configure_display(
         void
 )
 {
-    NorSramController* bank4 = this->mcu->get_norsram_bank_4();
+    Stm32f10x::NorSramController* bank4 = this->mcu->get_norsram_bank_4();
     
     // Configure the controller to be correct for the display.
-    NorSramController::Config c;
-    c.memory_type       = NorSramController::Config::MEMORY_TYPE_SRAM;
-    c.memory_data_width = NorSramController::Config::DATA_WIDTH_16B;
-    c.write_operation   = NorSramController::Config::WRITE_OPERATION_ENABLE;
+    Stm32f10x::NorSramController::Config c;
+    c.memory_type       = Stm32f10x::NorSramController::Config::MEMORY_TYPE_SRAM;
+    c.memory_data_width = Stm32f10x::NorSramController::Config::DATA_WIDTH_16B;
+    c.write_operation   = Stm32f10x::NorSramController::Config::WRITE_OPERATION_ENABLE;
     bank4->configure( &c );
 
     KeepKeyDisplay* display = new KeepKeyDisplay( 
@@ -130,4 +128,5 @@ EvalKeepKeyBoard::configure_button(
 
     Button* button = new Button( this->confirm_button_pin );
     this->set_confirm_button( button );
+
 }
