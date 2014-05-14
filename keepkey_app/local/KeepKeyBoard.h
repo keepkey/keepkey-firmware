@@ -15,7 +15,7 @@
 
 
 #include "Display.h"
-#include "Button.h"
+#include "button.h"
 
 
 //=================== CONSTANTS, MACROS, AND TYPES ========================

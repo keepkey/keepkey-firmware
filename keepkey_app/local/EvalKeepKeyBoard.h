@@ -3,7 +3,7 @@
     Developed for __Client_Name by Carbon Design Group.
 ******************************************************************************/
 
-/// @file Board.h
+/// @file EvalKeepKeyBoard.h
 ///
 /// Board interface
 
@@ -15,9 +15,7 @@
 
 
 #include "KeepKeyBoard.h"
-#include "STM32F10x.h"
-#include "ExternalInterrupt.h"
-
+#include "hal_stm32f10x_mcu.h"
 
 
 //=================== CONSTANTS, MACROS, AND TYPES ========================
@@ -38,10 +36,10 @@ public:
     //=============== Public Types and Constants ==========================
 
 
-    const STM32F10x::Pins::Id LED_PIN_ID            = STM32F10x::Pins::F_7;
-    const STM32F10x::Pins::Id DISPLAY_RESET_PIN_ID  = STM32F10x::Pins::B_7;
-    const STM32F10x::Pins::Id DISPLAY_POWER_PIN_ID  = STM32F10x::Pins::B_6;
-    const STM32F10x::Pins::Id CONFIRM_BUTTON_PIN_ID = STM32F10x::Pins::G_7;
+    const Stm32f10x::Mcu::Pins::Id LED_PIN_ID            = Stm32f10x::Mcu::Pins::F_7;
+    const Stm32f10x::Mcu::Pins::Id DISPLAY_RESET_PIN_ID  = Stm32f10x::Mcu::Pins::B_7;
+    const Stm32f10x::Mcu::Pins::Id DISPLAY_POWER_PIN_ID  = Stm32f10x::Mcu::Pins::B_6;
+    const Stm32f10x::Mcu::Pins::Id CONFIRM_BUTTON_PIN_ID = Stm32f10x::Mcu::Pins::G_7;
 
 
     //============== Construction and Destruction =========================
@@ -72,7 +70,7 @@ protected:
 
 private:
 
-	STM32F10x* mcu;
+	Stm32f10x::Mcu* mcu;
 
 	Pin* led_pin;
     Pin* confirm_button_pin;
