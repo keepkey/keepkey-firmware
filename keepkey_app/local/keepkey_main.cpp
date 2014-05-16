@@ -17,8 +17,6 @@
 #include <display_manager.h>
 #include <keepkey_manager.h>
 
-
-
 int 
 main(
         int argc, 
