@@ -11,12 +11,6 @@
 
 #include "KeepKeyDisplay.h"
 #include "Pixel.h"
-
-#if !defined(USING_HAL)
-#include "stm32f10x_gpio.h"
-#include "stm32f10x_rcc.h"
-#include "stm32f10x_fsmc.h"
-#endif
     
 
 //=================== CONSTANTS, MACROS, AND TYPES ========================
@@ -83,7 +77,7 @@ KeepKeyDisplay::on_refresh(
     uint8_t* data = (uint8_t*)this->frame_buffer()->origin();
     for( i = 0; i < end; i++ )
     {
-    	uint8_t data_to_write = data[ i ];
+        uint8_t data_to_write = data[ i ];
         this->m_mem->write( this->ram_address, data_to_write );
         //*this->ram_address = data_to_write;
     }
