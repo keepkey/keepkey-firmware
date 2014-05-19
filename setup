@@ -15,7 +15,8 @@ REPOS=(
        "git clone ssh://git@bitbucket.org/CarbonDesign/foundation"
        "git clone ssh://git@bitbucket.org/CarbonDesign/hsm"
        "git clone ssh://git@bitbucket.org/CarbonDesign/site_scons"
-       "git clone https://github.com/trezor/trezor-mcu.git" 
+       "git clone ssh://git@bitbucket.org/CarbonDesign/trezor-mcu.git"
+       "git clone git://github.com/libopencm3/libopencm3.git"
        )
 
 
