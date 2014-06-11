@@ -36,6 +36,8 @@ specific memorymap.h header before including this header file.*/
 #ifndef LIBOPENCM3_GPIO_COMMON_ALL_H
 #define LIBOPENCM3_GPIO_COMMON_ALL_H
 
+#include <stdint.h>
+
 /**@{*/
 
 /* --- Convenience macros -------------------------------------------------- */
