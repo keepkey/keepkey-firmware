@@ -33,9 +33,6 @@ def main():
 
     if args.stm32:
         target ='arm-none-gnu-eabi'
-        buildargs += ' flavor-hal-arch=stm32'
-        buildargs += ' flavor-board-type=stm32-eval'
-        buildargs += ' flavor-keepkey_app-arch=stm32'
     else:
         target='x86_64-linux-gnu-none'
 
