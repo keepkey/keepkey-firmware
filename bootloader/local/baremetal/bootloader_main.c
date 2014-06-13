@@ -42,7 +42,7 @@
 #include <layout.h>
 
 #include <confirm_sm.h>
-#include <../keepkey_led.h>
+#include <keepkey_led.h>
 #include <usb_driver.h>
 #include <usb_flash.h>
 

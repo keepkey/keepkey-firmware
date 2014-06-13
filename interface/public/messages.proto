@@ -1,0 +1,483 @@
+/**
+ * Messages for TREZOR communication
+ *
+ * @author	Marek Palatinus <slush@satoshilabs.com>
+ * @version	0.6
+ */
+
+// Sugar for easier handling in Java
+option java_package = "com.satoshilabs.trezor.protobuf";
+option java_outer_classname = "TrezorMessage";
+
+import "types.proto";
+
+/**
+ * Mapping between Trezor wire identifier (uint) and a protobuf message
+ */
+enum MessageType {
+	MessageType_Initialize = 1 [(wire_in) = true];
+	MessageType_Ping = 2 [(wire_in) = true];
+	MessageType_Success = 3 [(wire_out) = true];
+	MessageType_Failure = 4 [(wire_out) = true];
+	MessageType_ChangePin = 5 [(wire_in) = true];
+	MessageType_WipeDevice = 6 [(wire_in) = true];
+	MessageType_FirmwareUpdate = 7 [(wire_in) = true];
+	MessageType_GetEntropy = 9 [(wire_in) = true];
+	MessageType_Entropy = 10 [(wire_out) = true];
+	MessageType_GetPublicKey = 11 [(wire_in) = true];
+	MessageType_PublicKey = 12 [(wire_out) = true];
+	MessageType_LoadDevice = 13 [(wire_in) = true];
+	MessageType_ResetDevice = 14 [(wire_in) = true];
+	MessageType_SignTx = 15 [(wire_in) = true];
+	MessageType_SimpleSignTx = 16 [(wire_in) = true];
+	MessageType_Features = 17 [(wire_out) = true];
+	MessageType_PinMatrixRequest = 18 [(wire_out) = true];
+	MessageType_PinMatrixAck = 19 [(wire_in) = true];
+	MessageType_Cancel = 20 [(wire_in) = true];
+	MessageType_TxRequest = 21 [(wire_out) = true];
+	MessageType_TxAck = 22 [(wire_in) = true];
+	MessageType_ApplySettings = 25 [(wire_in) = true];
+	MessageType_ButtonRequest = 26 [(wire_out) = true];
+	MessageType_ButtonAck = 27 [(wire_in) = true];
+	MessageType_GetAddress = 29 [(wire_in) = true];
+	MessageType_Address = 30 [(wire_out) = true];
+	MessageType_EntropyRequest = 35 [(wire_out) = true];
+	MessageType_EntropyAck = 36 [(wire_in) = true];
+	MessageType_SignMessage = 38 [(wire_in) = true];
+	MessageType_VerifyMessage = 39 [(wire_in) = true];
+	MessageType_MessageSignature = 40 [(wire_out) = true];
+	MessageType_PassphraseRequest = 41 [(wire_out) = true];
+	MessageType_PassphraseAck = 42 [(wire_in) = true];
+	MessageType_EstimateTxSize = 43 [(wire_in) = true];
+	MessageType_TxSize = 44 [(wire_out) = true];
+	MessageType_RecoveryDevice = 45 [(wire_in) = true];
+	MessageType_WordRequest = 46 [(wire_out) = true];
+	MessageType_WordAck = 47 [(wire_in) = true];
+	MessageType_KeepKeyBootloaderFrame = 48;
+	MessageType_LAST = 49;
+}
+
+////////////////////
+// Basic messages //
+////////////////////
+
+/**
+ * Request: Reset device to default state and ask for device details
+ * @next Features
+ */
+message Initialize {
+}
+
+/**
+ * Response: Reports various information about the device
+ * @prev Initialize
+ */
+message Features {
+	optional string vendor = 1;			// name of the manufacturer, e.g. "bitcointrezor.com"
+	optional uint32 major_version = 2;		// major version of the device, e.g. 1
+	optional uint32 minor_version = 3;		// minor version of the device, e.g. 0
+	optional uint32 patch_version = 4;		// patch version of the device, e.g. 0
+	optional bool bootloader_mode = 5;		// is device in bootloader mode?
+	optional string device_id = 6;			// device's unique identifier
+	optional bool pin_protection = 7;		// is device protected by PIN?
+	optional bool passphrase_protection = 8;	// is node/mnemonic encrypted using passphrase?
+	optional string language = 9;			// device language
+	optional string label = 10;			// device description label
+	repeated CoinType coins = 11;			// supported coins
+	optional bool initialized = 12;			// does device contain seed?
+	optional bytes revision = 13;			// SCM revision of firmware
+	optional bytes bootloader_hash = 14;		// hash of the bootloader
+}
+
+/**
+ * Request: change language and/or label of the device
+ * @next Success
+ * @next Failure
+ * @next ButtonRequest
+ * @next PinMatrixRequest
+ */
+message ApplySettings {
+	optional string language = 1;
+	optional string label = 2;
+}
+
+/**
+ * Request: Starts workflow for setting/changing/removing the PIN
+ * @next ButtonRequest
+ * @next PinMatrixRequest
+ */
+message ChangePin {
+	optional bool remove = 1;	// is PIN removal requested?
+}
+
+/**
+ * Request: Test if the device is alive, device sends back the message in Success response
+ * @next Success
+ */
+message Ping {
+	optional string message = 1;			// message to send back in Success message
+	optional bool button_protection = 2;		// ask for button press
+	optional bool pin_protection = 3;		// ask for PIN if set in device
+	optional bool passphrase_protection = 4;	// ask for passphrase if set in device
+}
+
+/**
+ * Response: Success of the previous request
+ */
+message Success {
+	optional string message = 1;	// human readable description of action or request-specific payload
+}
+
+/**
+ * Response: Failure of the previous request
+ */
+message Failure {
+	optional FailureType code = 1;	// computer-readable definition of the error state
+	optional string message = 2;	// human-readable message of the error state
+}
+
+/**
+ * Response: Device is waiting for HW button press.
+ * @next ButtonAck
+ * @next Cancel
+ */
+message ButtonRequest {
+	optional ButtonRequestType code = 1;
+	optional string data = 2;
+}
+
+/**
+ * Request: Computer agrees to wait for HW button press
+ * @prev ButtonRequest
+ */
+message ButtonAck {
+}
+
+/**
+ * Response: Device is asking computer to show PIN matrix and awaits PIN encoded using this matrix scheme
+ * @next PinMatrixAck
+ * @next Cancel
+ */
+message PinMatrixRequest {
+	optional PinMatrixRequestType type = 1;
+}
+
+/**
+ * Request: Computer responds with encoded PIN
+ * @prev PinMatrixRequest
+ */
+message PinMatrixAck {
+	required string pin = 1;		// matrix encoded PIN entered by user
+}
+
+/**
+ * Request: Abort last operation that required user interaction
+ * @prev ButtonRequest
+ * @prev PinMatrixRequest
+ * @prev PassphraseRequest
+ */
+message Cancel {
+}
+
+/**
+ * Response: Device awaits encryption passphrase
+ * @next PassphraseAck
+ * @next Cancel
+ */
+message PassphraseRequest {
+}
+
+/**
+ * Request: Send passphrase back
+ * @prev PassphraseRequest
+ */
+message PassphraseAck {
+	required string passphrase = 1;
+}
+
+/**
+ * Request: Request a sample of random data generated by hardware RNG. May be used for testing.
+ * @next ButtonRequest
+ * @next Entropy
+ * @next Failure
+ */
+message GetEntropy {
+	required uint32 size = 1;		// size of requested entropy
+}
+
+/**
+ * Response: Reply with random data generated by internal RNG
+ * @prev GetEntropy
+ */
+message Entropy {
+	required bytes entropy = 1;		// stream of random generated bytes
+}
+
+/**
+ * Request: Ask device for public key corresponding to address_n path
+ * @next PassphraseRequest
+ * @next PublicKey
+ * @next Failure
+ */
+message GetPublicKey {
+	repeated uint32 address_n = 1;		// BIP-32 path to derive the key from master node
+}
+
+/**
+ * Response: Contains public key derived from device private seed
+ * @prev GetPublicKey
+ */
+message PublicKey {
+	required HDNodeType node = 1;		// BIP32 public node
+}
+
+/**
+ * Request: Ask device for address corresponding to address_n path
+ * @next PassphraseRequest
+ * @next Address
+ * @next Failure
+ */
+message GetAddress {
+	repeated uint32 address_n = 1;		// BIP-32 path to derive the key from master node
+	optional string coin_name = 2 [default='Bitcoin'];
+}
+
+/**
+ * Response: Contains address derived from device private seed
+ * @prev GetAddress
+ */
+message Address {
+	required string address = 1;		// Coin address in Base58 encoding
+}
+
+/**
+ * Request: Request device to wipe all sensitive data and settings
+ * @next ButtonRequest
+ */
+message WipeDevice {
+}
+
+/**
+ * Request: Load seed and related internal settings from the computer
+ * @next ButtonRequest
+ * @next Success
+ * @next Failure
+ */
+message LoadDevice {
+	optional string mnemonic = 1;				// seed encoded as BIP-39 mnemonic (12, 18 or 24 words)
+	optional HDNodeType node = 2;				// BIP-32 node
+	optional string pin = 3;				// set PIN protection
+	optional bool passphrase_protection = 4;		// enable master node encryption using passphrase
+	optional string language = 5 [default='english'];	// device language
+	optional string label = 6;				// device label
+	optional bool skip_checksum = 7;			// do not test mnemonic for valid BIP-39 checksum
+}
+
+/**
+ * Request: Ask device to do initialization involving user interaction
+ * @next EntropyRequest
+ * @next Failure
+ */
+message ResetDevice {
+	optional bool display_random = 1;			// display entropy generated by the device before asking for additional entropy
+	optional uint32 strength = 2 [default=128];		// strength of seed in bits
+	optional bool passphrase_protection = 3;		// enable master node encryption using passphrase
+	optional bool pin_protection = 4;			// enable PIN protection
+	optional string language = 5 [default='english'];	// device language
+	optional string label = 6;				// device label
+}
+
+/**
+ * Response: Ask for additional entropy from host computer
+ * @prev ResetDevice
+ * @next EntropyAck
+ */
+message EntropyRequest {
+}
+
+/**
+ * Request: Provide additional entropy for seed generation function
+ * @prev EntropyRequest
+ * @next ButtonRequest
+ */
+message EntropyAck {
+	optional bytes entropy = 1;				// 256 bits (32 bytes) of random data
+}
+
+/**
+ * Request: Start recovery workflow asking user for specific words of mnemonic
+ * Used to recovery device safely even on untrusted computer.
+ * @next WordRequest
+ */
+message RecoveryDevice {
+	optional uint32 word_count = 1;				// number of words in BIP-39 mnemonic
+	optional bool passphrase_protection = 2;		// enable master node encryption using passphrase
+	optional bool pin_protection = 3;			// enable PIN protection
+	optional string language = 4 [default='english'];	// device language
+	optional string label = 5;				// device label
+	optional bool enforce_wordlist = 6;			// enforce BIP-39 wordlist during the process
+}
+
+/**
+ * Response: Device is waiting for user to enter word of the mnemonic
+ * Its position is shown only on device's internal display.
+ * @prev RecoveryDevice
+ * @prev WordAck
+ */
+message WordRequest {
+}
+
+/**
+ * Request: Computer replies with word from the mnemonic
+ * @prev WordRequest
+ * @next WordRequest
+ * @next Success
+ * @next Failure
+ */
+message WordAck {
+	required string word = 1;				// one word of mnemonic on asked position
+}
+
+//////////////////////////////
+// Message signing messages //
+//////////////////////////////
+
+/**
+ * Request: Ask device to sign message
+ * @next MessageSignature
+ * @next Failure
+ */
+message SignMessage {
+	repeated uint32 address_n = 1;				// BIP-32 path to derive the key from master node
+	required bytes message = 2;				// message to be signed
+	optional string coin_name = 3 [default='Bitcoin'];	// coin to use for signing
+}
+
+/**
+ * Request: Ask device to verify message
+ * @next Success
+ * @next Failure
+ */
+message VerifyMessage {
+	optional string address = 1;				// address to verify
+	optional bytes signature = 2;				// signature to verify
+	optional bytes message = 3;				// message to verify
+}
+
+/**
+ * Response: Signed message
+ * @prev SignMessage
+ */
+message MessageSignature {
+	optional string address = 1;				// address used to sign the message
+	optional bytes signature = 2;				// signature of the message
+}
+
+//////////////////////////////////
+// Transaction signing messages //
+//////////////////////////////////
+
+/**
+ * Request:  Estimated size of the transaction
+ * This behaves exactly like SignTx, which means that it can ask using TxRequest
+ * This call is non-blocking (except possible PassphraseRequest to unlock the seed)
+ * @next TxSize
+ * @next Failure
+ */
+message EstimateTxSize {
+	required uint32 outputs_count = 1;			// number of transaction outputs
+	required uint32 inputs_count = 2;			// number of transaction inputs
+	optional string coin_name = 3 [default='Bitcoin'];	// coin to use
+}
+
+/**
+ * Response: Estimated size of the transaction
+ * @prev EstimateTxSize
+ */
+message TxSize {
+	optional uint32 tx_size = 1;				// estimated size of transaction in bytes
+}
+
+/**
+ * Request: Ask device to sign transaction
+ * @next PassphraseRequest
+ * @next PinMatrixRequest
+ * @next TxRequest
+ * @next Failure
+ */
+message SignTx {
+	required uint32 outputs_count = 1;			// number of transaction outputs
+	required uint32 inputs_count = 2;			// number of transaction inputs
+	optional string coin_name = 3 [default='Bitcoin'];	// coin to use
+}
+
+/**
+ * Request: Simplified transaction signing
+ * This method doesn't support streaming, so there are hardware limits in number of inputs and outputs.
+ * In case of success, the result is returned using TxRequest message.
+ * @next PassphraseRequest
+ * @next PinMatrixRequest
+ * @next TxRequest
+ * @next Failure
+ */
+message SimpleSignTx {
+	repeated TxInputType inputs = 1;			// transaction inputs
+	repeated TxOutputType outputs = 2;			// transaction outputs
+	repeated TransactionType transactions = 3;		// transactions whose outputs are used to build current inputs
+	optional string coin_name = 4 [default='Bitcoin'];	// coin to use
+}
+
+/**
+ * Response: Device asks for information for signing transaction or returns the last result
+ * If request_index is set, device awaits TxAck message (with fields filled in according to request_type)
+ * If signature_index is set, 'signature' contains signed input of signature_index's input
+ * @prev SignTx
+ * @prev SimpleSignTx
+ * @prev TxAck
+ */
+message TxRequest {
+	optional RequestType request_type = 1;		// what should be filled in TxAck message?
+	optional TxRequestDetailsType details = 2;		// request for tx details
+	optional TxRequestSerializedType serialized = 3;	// serialized data and request for next
+}
+
+/**
+ * Request: Reported transaction data
+ * @prev TxRequest
+ * @next TxRequest
+ */
+message TxAck {
+	optional TransactionType tx = 1;
+}
+
+/////////////////////////
+// Bootloader messages //
+/////////////////////////
+
+/**
+ * Request: Send firmware in binary form to the device
+ * @next Success
+ * @next Failure
+ */
+message FirmwareUpdate {
+        optional bool final = 1;
+        required uint32 offset = 2;
+	required bytes payload = 3;
+}
+
+
+/**
+ * Top level message to enable parsing out a message top from the incoming message stream.
+ */
+message KeepKeyBootloaderFrame {
+    required MessageType type = 1;
+
+    optional Initialize initialize = 2;
+    optional Ping ping = 3;
+    optional Success success = 4;
+    optional Failure failure = 5;
+    optional PassphraseRequest passphrase_request= 6;
+    optional PassphraseAck passphrase_ack = 7;
+    optional FirmwareUpdate firmware_update = 8;
+}
+
