@@ -1,0 +1,9 @@
+[subtree "crypto"]
+   url git@bitbucket.org:CarbonDesign/crypto.git
+   path = crypto
+   branch = master
+
+[subtree "opencm3"]
+   url git@bitbucket.org:CarbonDesign/libopencm3.git 
+   path = libopencm3
+   branch = master
