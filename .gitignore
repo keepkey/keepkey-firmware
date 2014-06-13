@@ -12,20 +12,7 @@
 .metadata/
 
 # component libraries
-cdlib/
-crypto/
-display_engine/
 build/
-site_scons/
-trezor_crypto/
-app/
-foundation/
-json-cpp/
-trezor-crypto/
-config/
-console/
-trezor-mcu/
-hsm/
 
 # Misc
 tags
@@ -54,7 +41,4 @@ tags
 *.wsdt
 *.pbi
 *.cout
-
-# CDLIB files (not controlled under git)
-cdlib/*
 
