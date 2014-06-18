@@ -174,9 +174,11 @@ int main(int argc, char* argv[])
 
             if(update_mode)
             {
-                if(confirm("Hold button to confirm flash update."))
+                if(confirm("Hold button to confirm firmware update."))
                 {
+                    //TODO: config_erase(); Erase key storage area after firmware update, per Darin.
                     usb_flash_firmware();
+
                     board_reset();
                 } 
             } else {

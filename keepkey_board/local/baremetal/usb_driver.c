@@ -153,7 +153,7 @@ static const struct usb_endpoint_descriptor hid_endpoints[] = {{
 	.bEndpointAddress = ENDPOINT_ADDRESS_OUT,
 	.bmAttributes = USB_ENDPOINT_ATTR_INTERRUPT,
 	.wMaxPacketSize = USB_SEGMENT_SIZE,
-	.bInterval = 100,
+	.bInterval = 1,
 }};
 
 static const struct usb_interface_descriptor hid_iface[] = {{
@@ -269,7 +269,7 @@ bool usb_init(void)
     //desig_get_unique_id_as_string(serial_number, sizeof(serial_number));
     usb_strings[NUM_USB_STRINGS-1] = serial_number;
 
-    usbd_register_set_config_callback(usbd_dev, hid_set_config_callback);
+   
 
     usbd_dev = usbd_init(&otgfs_usb_driver, 
                          &dev_descr, 
@@ -282,6 +282,8 @@ bool usb_init(void)
     {
         return false;
     }
+
+    usbd_register_set_config_callback(usbd_dev, hid_set_config_callback);
 
     return true;
 }
