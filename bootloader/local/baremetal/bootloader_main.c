@@ -35,6 +35,7 @@
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/f2/rng.h>
 
+#include <keepkey_board.h>
 #include <keepkey_display.h>
 #include <keepkey_leds.h>
 #include <keepkey_button.h>
@@ -91,24 +92,55 @@ static void boot_jump(uint32_t addr)
     app_entry();
 }
 
+void blink(void* context)
+{
+    toggle_red();    
+}
+
+
+
 static void configure_hw()
 {
+#define Y
+#ifdef X
+   clock_scale_t clock = hse_8mhz_3v3[ CLOCK_3V3_120MHZ ];
+    rcc_clock_setup_hse_3v3( &clock );
+
+    // Enable GPIOA/B/C clock.
+    rcc_periph_clock_enable( RCC_GPIOA );
+    rcc_periph_clock_enable( RCC_GPIOB );
+    rcc_periph_clock_enable( RCC_GPIOC );
+
+    // Enable the peripheral clock for the system configuration 
+    rcc_peripheral_enable_clock( &RCC_APB2ENR, RCC_APB2ENR_SYSCFGEN );
+
+    // Enable the periph clock for timer 4
+    rcc_peripheral_enable_clock( &RCC_APB1ENR, RCC_APB1ENR_TIM4EN );
+
+    timer_init();
+
+    keepkey_leds_init();
+
+    keepkey_button_init();
+
+    post_periodic(&blink, NULL, 1000, 1000);
+    while(1) {}
+
+
+    return;
+
+#endif
+#ifdef Y
+
+
     clock_scale_t clock = hse_8mhz_3v3[CLOCK_3V3_120MHZ];
     rcc_clock_setup_hse_3v3(&clock);
 
-    rcc_peripheral_enable_clock(&RCC_AHB1ENR, 
-            RCC_AHB1ENR_IOPAEN |
-            RCC_AHB1ENR_IOPBEN |
-            RCC_AHB1ENR_IOPCEN 
-          );  
-
-    
-    // Enable GPIOA/B/C clock.
     rcc_periph_clock_enable(RCC_GPIOA);
     rcc_periph_clock_enable(RCC_GPIOB);
     rcc_periph_clock_enable(RCC_GPIOC);
-    rcc_periph_clock_enable(RCC_SYSCFG);
     rcc_periph_clock_enable(RCC_OTGFS);
+    rcc_periph_clock_enable(RCC_SYSCFG);
     rcc_periph_clock_enable(RCC_TIM4);
 
     timer_init();
@@ -122,6 +154,22 @@ static void configure_hw()
     display_init();
 
     layout_init( display_canvas() );
+#endif
+}
+
+bool check_firmware_sig(void)
+{
+    return true;
+}
+
+const char* firmware_sig_as_string(void)
+{
+    return "KL123123KJH3452";
+}
+
+void board_reset(void)
+{
+    while(1) {}
 }
 
 int main(int argc, char* argv[])
@@ -131,27 +179,48 @@ int main(int argc, char* argv[])
 
     configure_hw();
 
+    bool update_mode = keepkey_button_down();
+
     led_green(true);
     led_red(true);
 
+
+
     while(1)
     {
-        if(validate_firmware())
+        if(validate_firmware() && !update_mode)
         {
+            if(check_firmware_sig())
+            {
+                layout_standard_notification("Loading KeepKey firmware", firmware_sig_as_string());
+            } else {
+                layout_standard_notification("UNSIGNED FIRMWARE", firmware_sig_as_string());
+            }
+
+            delay(5000);
+
             led_red(false);
             set_vector_table_offset(0x10000);
             boot_jump(0x08010000);
         } else {
             led_green(false);
 
-            if(confirm("Hold button to confirm flash update."))
+            if(update_mode)
             {
-                usb_flash_firmware();
+                if(confirm("Hold button to confirm flash update."))
+                {
+                    usb_flash_firmware();
+                    board_reset();
+                } 
             } else {
-                while(1) {}
-            } 
+                layout_standard_notification("Invalid firmware image detected.", "Reset and perform a firmware update.");
+                display_refresh();
+                break;
+            }
         }
     }
+
+    while(1) {}
 
     return 0;
 }

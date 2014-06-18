@@ -70,7 +70,7 @@ typedef struct
 /*
  * The number of milliseconds to wait for a confirmation
  */
-#define CONFIRM_TIMEOUT_MS (3000)
+#define CONFIRM_TIMEOUT_MS (2000)
 
 
 //=============================== VARIABLES ===================================
@@ -187,6 +187,7 @@ bool confirm(const char *request)
     keepkey_button_set_on_release_handler( &handle_screen_release, (void*)&state_info );
 
     layout_standard_notification("Confirm firmware update?", "Press and hold button to confirm...");
+    display_refresh();
 
     ActiveLayout cur_layout = state_info.active_layout;
     while(1)
@@ -198,8 +199,8 @@ bool confirm(const char *request)
 
         if(cur_layout != new_layout)
         {
-        	swap_layout(new_layout, &state_info);
-        	cur_layout = new_layout;
+            swap_layout(new_layout, &state_info);
+            cur_layout = new_layout;
         }
 
         display_refresh();

@@ -203,22 +203,20 @@ void handle_usb_rx(UsbMessage *msg)
 
 bool is_update_complete(void)
 {
+    return false;
     return update_state == UPDATE_COMPLETE;
 }
 
 bool usb_flash_firmware(void)
 {
-
-//    usb_set_rx_callback(handle_usb_rx);
-    usb_init();
-    while(1) usb_poll();
-
+usb_init();
+while(1) usb_poll();
 
     layout_standard_notification("Firmware Updating...", "Erasing flash...");
     display_refresh();
+
     flash_unlock();
     flash_erase(FLASH_APP);
-
 
     /*
      * Send out an unsolicited announcement to trigger the host side of the USB bus to recognize 
@@ -227,10 +225,16 @@ bool usb_flash_firmware(void)
     layout_standard_notification("Firmware Updating...", "Programming...");
     display_refresh();
 
+    usb_set_rx_callback(handle_usb_rx);
+    usb_init();
+
+    /*
+     * NOTE: After this point the timing requirements for usb_poll are fairly tight during the initial enumeration process.  Don't call display_refresh until the first packets start arriving.
+     */
+
     while(!is_update_complete())
     {
-        display_refresh();
-        usbPoll();
+        usb_poll();
     }
     flash_lock();
 

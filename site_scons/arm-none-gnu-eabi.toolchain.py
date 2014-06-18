@@ -10,7 +10,7 @@ TOOLCHAIN_LIBDIR=os.path.join(TOOLCHAIN_ROOT, 'lib/gcc/arm-none-eabi/4.8.3')
 TOOLCHAIN_BINDIR=os.path.join(TOOLCHAIN_ROOT, 'bin')
 CROSS_COMPILE=TOOLCHAIN_BINDIR + '/arm-none-eabi-'
 
-OPENCM3_ROOT = os.path.join(Dir('#').abspath, 'libopencm3')
+OPENCM3_ROOT = os.path.join(Dir('#').abspath, '../libopencm3-examples/libopencm3')
 
 #
 # TODO: These are hacked in for now.  It should be part of the hal for this particular eval board impl.
@@ -31,7 +31,7 @@ def load_toolchain():
     env['AS'] = CROSS_COMPILE + 'g++' 
     env['OBJCOPY']      = CROSS_COMPILE + 'objcopy'
     env['OBJDUMP'] = CROSS_COMPILE + 'objdump'
-    env['LINK']         = CROSS_COMPILE + 'g++'
+    env['LINK']         = CROSS_COMPILE + 'gcc'
     env['OBJPREFIX']    = ''
     env['OBJSUFFIX']    = '.o'
     env['LIBPREFIX']    = 'lib'
@@ -45,46 +45,76 @@ def load_toolchain():
     env['SHLIBPREFIX']  = 'lib'
     env['SHLIBSUFFIX']  = '.so'
 
-    """
-    env['LINKFLAGS']    = [ '--static',
-            '-Wl,--start-group',
-                    '-lc',
-                    '-lgcc',
-                    '-lnosys',
-                    '-Wl,--end-group',
-                    '-L'+Dir('#').abspath,
-                    '-L'+OPENCM3_ROOT+'/lib',
-                    '-L'+OPENCM3_ROOT+'/lib/stm32/f2',
+    env['LINKFLAGS']    = [ 
+                    '-mthumb',
+                    '-mcpu=cortex-m3',
                     '-T' + Dir('#').abspath + '/memory_bootloader.ld', 
                     '-nostartfiles',
-                    '-mthumb',
-                    '-march=armv7',
-                    '-mfix-cortex-m3-ldrd',
-                    '-msoft-float']
+                    '-msoft-float',
+                    '-L'+OPENCM3_ROOT+'/lib',
+                    '-specs=nosys.specs',
+                    #'-Wl,--start-group',
+                    #'-lc', '-lgcc', '-lnosys',
+                    #'-Wl,--end-group',
+                    # Mapfile output via linker.  Shows the memory map and 
+                    # high level symbol table info 
+                    '-Wl,-Map=${TARGET.base}.linkermap',
+                    '-Wl,--gc-sections',
+
+                      #'-mfloat-abi=soft'
+                    ]
 
     """
     env['LINKFLAGS']    = [ 
+                        '--static',
                         '-specs=nosys.specs', 
                         '-mthumb', 
                         '-L'+Dir('#').abspath,
                         '-L'+OPENCM3_ROOT+'/lib',
-                        '-L'+OPENCM3_ROOT+'/lib/stm32/f2',
                         '-T' + Dir('#').abspath + '/memory_bootloader.ld', 
                         '-nostartfiles', 
                         '-mcpu=cortex-m3',
-                        #'-mfix-cortex-m3-ldrd',
-                        '-msoft-float'
-                        ] 
+                        '-mfix-cortex-m3-ldrd',
+                        '-msoft-float',
+                        '-ffunction-sections',
+                        '-fdata-sections',
+                        '-fno-common',
+                        '-Wl,--gc-sections',
+                        # Lots of output '-Wl,--print-gc-sections',
 
+                        # Mapfile output via linker.  Shows the memory map and 
+                        # high level symbol table info 
+                        '-Wl,-Map=${TARGET.base}.linkermap'
+                        ] 
+    """
 
     env['LIBPREFIXES']  = [ '$LIBPREFIX' ]
     env['LIBSUFFIXES']  = [ '$LIBSUFFIX' ]
+
+
+    env['CCFLAGS'] = [
+
+            '-mthumb',
+            '-mcpu=cortex-m3',
+            #'-march=armv7-m',
+
+            '-msoft-float',
+            #'-mfix-cortex-m3-ldrd',
+            #'-mfloat-abi=soft',
+
+            '-ffunction-sections',
+            '-fdata-sections',
+            '-fno-common',
+            '-I'+OPENCM3_ROOT+'/include',
+            ]
+
+    """
     env['CCFLAGS'] = [
             "-mcpu=cortex-m3",
             "-mthumb",                       # use THUMB='-mthumb' to compile as thumb code (default for AT91SAM)
-            "-mfloat-abi=soft",
-            "-mthumb-interwork",
-            "-gdwarf-2",
+            #"-mfloat-abi=soft",
+            #"-mthumb-interwork",
+            #"-gdwarf-2",
             "-funsigned-char",
             "-funsigned-bitfields",
             "-fshort-enums",
@@ -113,35 +143,6 @@ def load_toolchain():
             "-msoft-float",
             '-I'+OPENCM3_ROOT+'/include'
             ]
-
-    """
-    env['CCFLAGS'] = [
-            '-W',
-            '-Wall',
-            '-Wextra',
-            '-Wimplicit-function-declaration',
-            '-Wredundant-decls',
-            '-Wundef',
-            '-Wshadow',
-            '-Wpointer-arith',
-            '-Wformat',
-            '-Wreturn-type',
-            '-Wsign-compare',
-            '-Wmultichar',
-            '-Wformat-nonliteral',
-            '-Winit-self',
-            '-Wuninitialized',
-            '-Wformat-security',
-            '-Werror',
-            '-fno-common',
-            '-fno-exceptions',
-            '-fvisibility=internal',
-            '-mcpu=cortex-m3',
-            '-mthumb',
-            '-msoft-float',
-            '-DSTM32F2',
-            '-I'+OPENCM3_ROOT+'/include'
-            ]
     """
 
     # For ST BSP
@@ -165,7 +166,6 @@ def load_toolchain():
            # Assembler flags
     env['ASFLAGS'] = [
             "-mcpu=cortex-m3",
-            "-mthumb-interwork",
             "-mthumb",
             "-gdwarf-2",
             "-xassembler-with-cpp",
@@ -175,7 +175,7 @@ def load_toolchain():
 
     debug = ARGUMENTS.get('debug', 0)
     if int(debug):
-        env['CCFLAGS'].append(['-g', '-O0'])
+        env['CCFLAGS'].append(['-g', '-Os'])
     else:
         env['CCFLAGS'].append(['-Os', '-g'])
 

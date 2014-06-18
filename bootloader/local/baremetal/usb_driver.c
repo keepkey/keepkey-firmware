@@ -146,14 +146,14 @@ static const struct usb_endpoint_descriptor hid_endpoints[] = {{
 	.bEndpointAddress = ENDPOINT_ADDRESS_IN,
 	.bmAttributes = USB_ENDPOINT_ATTR_INTERRUPT,
 	.wMaxPacketSize = USB_SEGMENT_SIZE,
-	.bInterval = 1,
+	.bInterval = 100,
 }, {
 	.bLength = USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType = USB_DT_ENDPOINT,
 	.bEndpointAddress = ENDPOINT_ADDRESS_OUT,
 	.bmAttributes = USB_ENDPOINT_ATTR_INTERRUPT,
 	.wMaxPacketSize = USB_SEGMENT_SIZE,
-	.bInterval = 1,
+	.bInterval = 100,
 }};
 
 static const struct usb_interface_descriptor hid_iface[] = {{
@@ -191,9 +191,10 @@ static const struct usb_config_descriptor config = {
 static const char *usb_strings[] = {
 	"KeepKey",
 	"KeepKey Bootloader",
-	"asdasdasdasd",
+	"No Serial",
+        ""
 };
-#define NUM_USB_STRINGS (sizeof(usb_strings) / sizeof(usb_strings[0]))
+#define NUM_USB_STRINGS (sizeof(usb_strings) / sizeof(usb_strings[0]) - 1)
 
 static int hid_control_request(usbd_device *dev, struct usb_setup_data *req, uint8_t **buf, uint16_t *len,
 			void (**complete)(usbd_device *, struct usb_setup_data *))
@@ -264,9 +265,11 @@ bool usb_init(void)
     gpio_mode_setup(USB_GPIO_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, USB_GPIO_PORT_PINS);
     gpio_set_af(USB_GPIO_PORT, GPIO_AF10, USB_GPIO_PORT_PINS);
 
-    char mystr[100];
-    desig_get_unique_id_as_string(mystr, sizeof(mystr));
-    //usb_strings[NUM_USB_STRINGS-1] = get_uuid_str(); 
+    static char serial_number[100];
+    //desig_get_unique_id_as_string(serial_number, sizeof(serial_number));
+    usb_strings[NUM_USB_STRINGS-1] = serial_number;
+
+    usbd_register_set_config_callback(usbd_dev, hid_set_config_callback);
 
     usbd_dev = usbd_init(&otgfs_usb_driver, 
                          &dev_descr, 
@@ -280,8 +283,6 @@ bool usb_init(void)
         return false;
     }
 
-    usbd_register_set_config_callback(usbd_dev, hid_set_config_callback);
-    
     return true;
 }
 
