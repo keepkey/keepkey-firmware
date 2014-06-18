@@ -21,6 +21,13 @@
  */
 /* END KEEPKEY LICENSE */
 
+#include <stdint.h>
+
+#include <libopencm3/stm32/rcc.h>
+#include <libopencm3/stm32/gpio.h>
+#include <libopencm3/stm32/spi.h>
+#include <libopencm3/stm32/f2/rng.h>
+
 #include <keepkey_board.h>
 
 void board_reset(void)
@@ -28,3 +35,27 @@ void board_reset(void)
     scb_reset_system();
 }
 
+static void clock_init(void)
+{
+    // setup clock
+    clock_scale_t clock = hse_8mhz_3v3[CLOCK_3V3_120MHZ];
+    rcc_clock_setup_hse_3v3(&clock);
+
+
+    rcc_periph_clock_enable(RCC_GPIOA);
+    rcc_periph_clock_enable(RCC_GPIOB);
+    rcc_periph_clock_enable(RCC_GPIOC);
+    rcc_periph_clock_enable(RCC_OTGFS);
+    rcc_periph_clock_enable(RCC_SYSCFG);
+    rcc_periph_clock_enable(RCC_TIM4);
+}
+ 
+void board_init(void)
+{
+    clock_init();
+       
+    // enable OTG_FS
+    gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO11 | GPIO12);
+    gpio_set_af(GPIOA, GPIO_AF10, GPIO11 | GPIO12);
+
+}

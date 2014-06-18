@@ -17,18 +17,18 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <setup.h>
+#include <keepkey_board.h>
 #include <usb.h>
 
 int main(void)
 {
 
-    setup();
+    board_init();
     
-    usbInit();
+    usb_init();
     while(1)
     {
-        usbPoll();
+        usb_poll();
     }
 
     return 0;

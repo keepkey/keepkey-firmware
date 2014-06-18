@@ -101,38 +101,6 @@ void blink(void* context)
 
 static void configure_hw()
 {
-#define Y
-#ifdef X
-   clock_scale_t clock = hse_8mhz_3v3[ CLOCK_3V3_120MHZ ];
-    rcc_clock_setup_hse_3v3( &clock );
-
-    // Enable GPIOA/B/C clock.
-    rcc_periph_clock_enable( RCC_GPIOA );
-    rcc_periph_clock_enable( RCC_GPIOB );
-    rcc_periph_clock_enable( RCC_GPIOC );
-
-    // Enable the peripheral clock for the system configuration 
-    rcc_peripheral_enable_clock( &RCC_APB2ENR, RCC_APB2ENR_SYSCFGEN );
-
-    // Enable the periph clock for timer 4
-    rcc_peripheral_enable_clock( &RCC_APB1ENR, RCC_APB1ENR_TIM4EN );
-
-    timer_init();
-
-    keepkey_leds_init();
-
-    keepkey_button_init();
-
-    post_periodic(&blink, NULL, 1000, 1000);
-    while(1) {}
-
-
-    return;
-
-#endif
-#ifdef Y
-
-
     clock_scale_t clock = hse_8mhz_3v3[CLOCK_3V3_120MHZ];
     rcc_clock_setup_hse_3v3(&clock);
 
@@ -154,7 +122,6 @@ static void configure_hw()
     display_init();
 
     layout_init( display_canvas() );
-#endif
 }
 
 bool check_firmware_sig(void)

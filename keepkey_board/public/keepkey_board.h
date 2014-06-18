@@ -37,6 +37,11 @@ extern "C" {
  */
 void board_reset(void);
 
+/*
+ * Initial setup and configuration of board.
+ */
+void board_init(void);
+
 #ifdef __cplusplus
 }
 #endif
