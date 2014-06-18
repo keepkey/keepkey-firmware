@@ -1,45 +1,36 @@
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+/*
+ * This file is part of the TREZOR project.
+ *
+ * Copyright (C) 2014 Pavol Rusnak <stick@satoshilabs.com>
+ *
+ * This library is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-#include <libopencm3/stm32/gpio.h>
-#include <libopencm3/stm32/desig.h>
 #include <libopencm3/usb/usbd.h>
 #include <libopencm3/usb/hid.h>
-#include <libopencm3/stm32/rcc.h>
 
-#include "usb_driver.h"
+#include "trezor.h"
+#include "usb.h"
+#include "debug.h"
+#include "messages.h"
+#include "storage.h"
+#include "util.h"
 
-/**
- * These are the addresses assigned to the USB interface.  These
- * are from the perspective of the host, so ENDPOINT_ADDRESS_IN is the 
- * KeepKey endpoint, and ENDPOINT_ADDRESS_OUT is the Host endpoint.
- */
 #define ENDPOINT_ADDRESS_IN         (0x81)
 #define ENDPOINT_ADDRESS_OUT        (0x01)
-
-/**
- * Control buffer for use by the USB stack.  We just allocate the
- * space for it.
- */
-#define USBD_CONTROL_BUFFER_SIZE 128
-static uint8_t usbd_control_buffer[USBD_CONTROL_BUFFER_SIZE];
-
-/**
- * USB Device state structure.
- */
-static usbd_device *usbd_dev = NULL;
-
-/**
- * This optional callback is configured by the user to handle receive events.
- */
-usb_rx_callback_t user_rx_callback = NULL;
-
-/*
- * Used to track the initialization of the USB device.  Set to true after the
- * USB stack is configured.
- */
-static bool usb_configured = false;
+#define ENDPOINT_ADDRESS_DEBUG_IN   (0x82)
+#define ENDPOINT_ADDRESS_DEBUG_OUT  (0x02)
 
 static const struct usb_device_descriptor dev_descr = {
 	.bLength = USB_DT_DEVICE_SIZE,
@@ -48,7 +39,7 @@ static const struct usb_device_descriptor dev_descr = {
 	.bDeviceClass = 0,
 	.bDeviceSubClass = 0,
 	.bDeviceProtocol = 0,
-	.bMaxPacketSize0 = USB_SEGMENT_SIZE,
+	.bMaxPacketSize0 = 64,
 	.idVendor = 0x534c,
 	.idProduct = 0x0001,
 	.bcdDevice = 0x0100,
@@ -140,20 +131,20 @@ static const struct {
 	}
 };
 
-static const struct usb_endpoint_descriptor hid_endpoints[] = {{
+static const struct usb_endpoint_descriptor hid_endpoints[2] = {{
 	.bLength = USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType = USB_DT_ENDPOINT,
 	.bEndpointAddress = ENDPOINT_ADDRESS_IN,
 	.bmAttributes = USB_ENDPOINT_ATTR_INTERRUPT,
-	.wMaxPacketSize = USB_SEGMENT_SIZE,
+	.wMaxPacketSize = 64,
 	.bInterval = 1,
 }, {
 	.bLength = USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType = USB_DT_ENDPOINT,
 	.bEndpointAddress = ENDPOINT_ADDRESS_OUT,
 	.bmAttributes = USB_ENDPOINT_ATTR_INTERRUPT,
-	.wMaxPacketSize = USB_SEGMENT_SIZE,
-	.bInterval = 100,
+	.wMaxPacketSize = 64,
+	.bInterval = 1,
 }};
 
 static const struct usb_interface_descriptor hid_iface[] = {{
@@ -171,16 +162,58 @@ static const struct usb_interface_descriptor hid_iface[] = {{
 	.extralen = sizeof(hid_function),
 }};
 
+#if DEBUG_LINK
+static const struct usb_endpoint_descriptor hid_endpoints_debug[2] = {{
+	.bLength = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType = USB_DT_ENDPOINT,
+	.bEndpointAddress = ENDPOINT_ADDRESS_DEBUG_IN,
+	.bmAttributes = USB_ENDPOINT_ATTR_INTERRUPT,
+	.wMaxPacketSize = 64,
+	.bInterval = 1,
+}, {
+	.bLength = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType = USB_DT_ENDPOINT,
+	.bEndpointAddress = ENDPOINT_ADDRESS_DEBUG_OUT,
+	.bmAttributes = USB_ENDPOINT_ATTR_INTERRUPT,
+	.wMaxPacketSize = 64,
+	.bInterval = 1,
+}};
+
+static const struct usb_interface_descriptor hid_iface_debug[] = {{
+	.bLength = USB_DT_INTERFACE_SIZE,
+	.bDescriptorType = USB_DT_INTERFACE,
+	.bInterfaceNumber = 1,
+	.bAlternateSetting = 0,
+	.bNumEndpoints = 2,
+	.bInterfaceClass = USB_CLASS_HID,
+	.bInterfaceSubClass = 0,
+	.bInterfaceProtocol = 0,
+	.iInterface = 0,
+	.endpoint = hid_endpoints_debug,
+	.extra = &hid_function,
+	.extralen = sizeof(hid_function),
+}};
+#endif
+
 static const struct usb_interface ifaces[] = {{
 	.num_altsetting = 1,
 	.altsetting = hid_iface,
+#if DEBUG_LINK
+}, {
+	.num_altsetting = 1,
+	.altsetting = hid_iface_debug,
+#endif
 }};
 
 static const struct usb_config_descriptor config = {
 	.bLength = USB_DT_CONFIGURATION_SIZE,
 	.bDescriptorType = USB_DT_CONFIGURATION,
 	.wTotalLength = 0,
+#if DEBUG_LINK
+	.bNumInterfaces = 2,
+#else
 	.bNumInterfaces = 1,
+#endif
 	.bConfigurationValue = 1,
 	.iConfiguration = 0,
 	.bmAttributes = 0x80,
@@ -189,12 +222,10 @@ static const struct usb_config_descriptor config = {
 };
 
 static const char *usb_strings[] = {
-	"KeepKey",
-	"KeepKey Bootloader",
-	"No Serial",
-        ""
+	"SatoshiLabs",
+	"TREZOR",
+	"asdasdasdasd",
 };
-#define NUM_USB_STRINGS (sizeof(usb_strings) / sizeof(usb_strings[0]) - 1)
 
 static int hid_control_request(usbd_device *dev, struct usb_setup_data *req, uint8_t **buf, uint16_t *len,
 			void (**complete)(usbd_device *, struct usb_setup_data *))
@@ -202,7 +233,7 @@ static int hid_control_request(usbd_device *dev, struct usb_setup_data *req, uin
 	(void)complete;
 	(void)dev;
 
-	if ((req->bmRequestType != ENDPOINT_ADDRESS_IN) ||
+	if ((req->bmRequestType != 0x81) ||
 	    (req->bRequest != USB_REQ_GET_DESCRIPTOR) ||
 	    (req->wValue != 0x2200))
 		return 0;
@@ -210,101 +241,94 @@ static int hid_control_request(usbd_device *dev, struct usb_setup_data *req, uin
 	/* Handle the HID report descriptor. */
 	*buf = (uint8_t *)hid_report_descriptor;
 	*len = sizeof(hid_report_descriptor);
+
 	return 1;
 }
 
+static volatile char tiny = 0;
+
 static void hid_rx_callback(usbd_device *dev, uint8_t ep)
 {
-    (void)ep;
-
-    /*
-     * Receive into the message buffer.
-     */
-    UsbMessage m;
-    uint16_t rx = usbd_ep_read_packet(dev, 
-                                      ENDPOINT_ADDRESS_OUT, 
-                                      m.message, 
-                                      USB_SEGMENT_SIZE);
-
-    if(rx && user_rx_callback)
-    {
-        m.len = rx;
-        user_rx_callback(&m);
-    }
+	(void)ep;
+	static uint8_t buf[64] __attribute__ ((aligned(4)));
+	if ( usbd_ep_read_packet(dev, ENDPOINT_ADDRESS_OUT, buf, 64) != 64) return;
+	debugLog(0, "", "hid_rx_callback");
+	if (!tiny) {
+		msg_read(buf, 64);
+	} else {
+		msg_read_tiny(buf, 64);
+	}
 }
 
-/**
- * Called by the usb infrastructure in response to a config event.
- */
-static void hid_set_config_callback(usbd_device *dev, uint16_t wValue)
+#if DEBUG_LINK
+static void hid_debug_rx_callback(usbd_device *dev, uint8_t ep)
+{
+	(void)ep;
+	static uint8_t buf[64] __attribute__ ((aligned(4)));
+	if ( usbd_ep_read_packet(dev, ENDPOINT_ADDRESS_DEBUG_OUT, buf, 64) != 64) return;
+	debugLog(0, "", "hid_debug_rx_callback");
+	if (!tiny) {
+		msg_debug_read(buf, 64);
+	} else {
+		msg_read_tiny(buf, 64);
+	}
+}
+#endif
+
+static void hid_set_config(usbd_device *dev, uint16_t wValue)
 {
 	(void)wValue;
 
-	usbd_ep_setup(dev, ENDPOINT_ADDRESS_IN,  USB_ENDPOINT_ATTR_INTERRUPT, USB_SEGMENT_SIZE, 0);
-	usbd_ep_setup(dev, ENDPOINT_ADDRESS_OUT, USB_ENDPOINT_ATTR_INTERRUPT, USB_SEGMENT_SIZE, hid_rx_callback);
+	usbd_ep_setup(dev, ENDPOINT_ADDRESS_IN,  USB_ENDPOINT_ATTR_INTERRUPT, 64, 0);
+	usbd_ep_setup(dev, ENDPOINT_ADDRESS_OUT, USB_ENDPOINT_ATTR_INTERRUPT, 64, hid_rx_callback);
+#if DEBUG_LINK
+	usbd_ep_setup(dev, ENDPOINT_ADDRESS_DEBUG_IN,  USB_ENDPOINT_ATTR_INTERRUPT, 64, 0);
+	usbd_ep_setup(dev, ENDPOINT_ADDRESS_DEBUG_OUT, USB_ENDPOINT_ATTR_INTERRUPT, 64, hid_debug_rx_callback);
+#endif
 
 	usbd_register_control_callback(
 		dev,
 		USB_REQ_TYPE_STANDARD | USB_REQ_TYPE_INTERFACE,
 		USB_REQ_TYPE_TYPE | USB_REQ_TYPE_RECIPIENT,
 		hid_control_request);
-
-        usb_configured = true;
 }
 
-bool usb_init(void)
+static usbd_device *usbd_dev;
+static uint8_t usbd_control_buffer[128];
+
+void usbInit(void)
 {
-    /*
-     * Already initialized.
-     */
-    if(usbd_dev != NULL)
-    {
-        return false;
-    }
-
-    gpio_mode_setup(USB_GPIO_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, USB_GPIO_PORT_PINS);
-    gpio_set_af(USB_GPIO_PORT, GPIO_AF10, USB_GPIO_PORT_PINS);
-
-    static char serial_number[100];
-    //desig_get_unique_id_as_string(serial_number, sizeof(serial_number));
-    usb_strings[NUM_USB_STRINGS-1] = serial_number;
-
-    usbd_register_set_config_callback(usbd_dev, hid_set_config_callback);
-
-    usbd_dev = usbd_init(&otgfs_usb_driver, 
-                         &dev_descr, 
-                         &config, 
-                         usb_strings,
-                         NUM_USB_STRINGS, 
-                         usbd_control_buffer, 
-                         sizeof(usbd_control_buffer));
-    if(usbd_dev == NULL)
-    {
-        return false;
-    }
-
-    return true;
+	usbd_dev = usbd_init(&otgfs_usb_driver, &dev_descr, &config, usb_strings, 3, usbd_control_buffer, sizeof(usbd_control_buffer));
+	usbd_register_set_config_callback(usbd_dev, hid_set_config);
 }
 
-bool usb_poll(void)
+void usbPoll(void)
 {
-
-    usbd_poll(usbd_dev);
-
-    return true;
+	static uint8_t *data;
+	// poll read buffer
+	usbd_poll(usbd_dev);
+	// write pending data
+	data = msg_out_data();
+	if (data) {
+		while ( usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_IN, data, 64) != 64 ) {}
+	}
+#if DEBUG_LINK
+	// write pending debug data
+	data = msg_debug_out_data();
+	if (data) {
+		while ( usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_DEBUG_IN, data, 64) != 64 ) {}
+	}
+#endif
 }
 
-bool usb_tx(void* message, uint32_t len)
+void usbReconnect(void)
 {
-    uint16_t tx = usbd_ep_write_packet(usbd_dev, 
-                                       ENDPOINT_ADDRESS_IN, 
-                                       message, 
-                                       len);
-    return(tx != 0);
+	usbd_disconnect(usbd_dev, 1);
+	delay(1000);
+	usbd_disconnect(usbd_dev, 0);
 }
 
-void usb_set_rx_callback(usb_rx_callback_t callback)
+void usbTiny(char set)
 {
-    user_rx_callback = callback;
+	tiny = set;
 }
-

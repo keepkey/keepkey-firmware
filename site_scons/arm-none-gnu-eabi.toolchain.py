@@ -5,12 +5,18 @@ Snagged alot of settings from:
 from SCons.Script import *
 import os
 
-TOOLCHAIN_ROOT='/opt/carbon/gcc-arm-none-eabi-4_8-2014q1'
-TOOLCHAIN_LIBDIR=os.path.join(TOOLCHAIN_ROOT, 'lib/gcc/arm-none-eabi/4.8.3')
-TOOLCHAIN_BINDIR=os.path.join(TOOLCHAIN_ROOT, 'bin')
-CROSS_COMPILE=TOOLCHAIN_BINDIR + '/arm-none-eabi-'
+root = os.environ.get('GCC_ROOT')
+if root != None:
+    print("Defaulting to configured toolchain location:" + root)
+    TOOLCHAIN_ROOT=root
+    TOOLCHAIN_LIBDIR=os.path.join(TOOLCHAIN_ROOT, 'lib/gcc/arm-none-eabi/4.8.3')
+    TOOLCHAIN_BINDIR=os.path.join(TOOLCHAIN_ROOT, 'bin')
+    CROSS_COMPILE=TOOLCHAIN_BINDIR + '/arm-none-eabi-'
+else:
+    # Grab it from the path
+    CROSS_COMPILE='arm-none-eabi-'
 
-OPENCM3_ROOT = os.path.join(Dir('#').abspath, '../libopencm3-examples/libopencm3')
+OPENCM3_ROOT = os.path.join(Dir('#').abspath, 'libopencm3')
 
 #
 # TODO: These are hacked in for now.  It should be part of the hal for this particular eval board impl.
