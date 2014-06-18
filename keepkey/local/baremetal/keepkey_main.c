@@ -25,7 +25,6 @@ int main(void)
 
     setup();
     
-    
     usbInit();
     while(1)
     {

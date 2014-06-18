@@ -24,7 +24,6 @@
 #include "usb.h"
 #include "debug.h"
 #include "messages.h"
-#include "storage.h"
 #include "util.h"
 
 #define ENDPOINT_ADDRESS_IN         (0x81)
@@ -162,58 +161,16 @@ static const struct usb_interface_descriptor hid_iface[] = {{
 	.extralen = sizeof(hid_function),
 }};
 
-#if DEBUG_LINK
-static const struct usb_endpoint_descriptor hid_endpoints_debug[2] = {{
-	.bLength = USB_DT_ENDPOINT_SIZE,
-	.bDescriptorType = USB_DT_ENDPOINT,
-	.bEndpointAddress = ENDPOINT_ADDRESS_DEBUG_IN,
-	.bmAttributes = USB_ENDPOINT_ATTR_INTERRUPT,
-	.wMaxPacketSize = 64,
-	.bInterval = 1,
-}, {
-	.bLength = USB_DT_ENDPOINT_SIZE,
-	.bDescriptorType = USB_DT_ENDPOINT,
-	.bEndpointAddress = ENDPOINT_ADDRESS_DEBUG_OUT,
-	.bmAttributes = USB_ENDPOINT_ATTR_INTERRUPT,
-	.wMaxPacketSize = 64,
-	.bInterval = 1,
-}};
-
-static const struct usb_interface_descriptor hid_iface_debug[] = {{
-	.bLength = USB_DT_INTERFACE_SIZE,
-	.bDescriptorType = USB_DT_INTERFACE,
-	.bInterfaceNumber = 1,
-	.bAlternateSetting = 0,
-	.bNumEndpoints = 2,
-	.bInterfaceClass = USB_CLASS_HID,
-	.bInterfaceSubClass = 0,
-	.bInterfaceProtocol = 0,
-	.iInterface = 0,
-	.endpoint = hid_endpoints_debug,
-	.extra = &hid_function,
-	.extralen = sizeof(hid_function),
-}};
-#endif
-
 static const struct usb_interface ifaces[] = {{
 	.num_altsetting = 1,
 	.altsetting = hid_iface,
-#if DEBUG_LINK
-}, {
-	.num_altsetting = 1,
-	.altsetting = hid_iface_debug,
-#endif
 }};
 
 static const struct usb_config_descriptor config = {
 	.bLength = USB_DT_CONFIGURATION_SIZE,
 	.bDescriptorType = USB_DT_CONFIGURATION,
 	.wTotalLength = 0,
-#if DEBUG_LINK
-	.bNumInterfaces = 2,
-#else
 	.bNumInterfaces = 1,
-#endif
 	.bConfigurationValue = 1,
 	.iConfiguration = 0,
 	.bmAttributes = 0x80,
@@ -253,27 +210,14 @@ static void hid_rx_callback(usbd_device *dev, uint8_t ep)
 	static uint8_t buf[64] __attribute__ ((aligned(4)));
 	if ( usbd_ep_read_packet(dev, ENDPOINT_ADDRESS_OUT, buf, 64) != 64) return;
 	debugLog(0, "", "hid_rx_callback");
+#if 0
 	if (!tiny) {
 		msg_read(buf, 64);
 	} else {
 		msg_read_tiny(buf, 64);
 	}
-}
-
-#if DEBUG_LINK
-static void hid_debug_rx_callback(usbd_device *dev, uint8_t ep)
-{
-	(void)ep;
-	static uint8_t buf[64] __attribute__ ((aligned(4)));
-	if ( usbd_ep_read_packet(dev, ENDPOINT_ADDRESS_DEBUG_OUT, buf, 64) != 64) return;
-	debugLog(0, "", "hid_debug_rx_callback");
-	if (!tiny) {
-		msg_debug_read(buf, 64);
-	} else {
-		msg_read_tiny(buf, 64);
-	}
-}
 #endif
+}
 
 static void hid_set_config(usbd_device *dev, uint16_t wValue)
 {
@@ -281,10 +225,6 @@ static void hid_set_config(usbd_device *dev, uint16_t wValue)
 
 	usbd_ep_setup(dev, ENDPOINT_ADDRESS_IN,  USB_ENDPOINT_ATTR_INTERRUPT, 64, 0);
 	usbd_ep_setup(dev, ENDPOINT_ADDRESS_OUT, USB_ENDPOINT_ATTR_INTERRUPT, 64, hid_rx_callback);
-#if DEBUG_LINK
-	usbd_ep_setup(dev, ENDPOINT_ADDRESS_DEBUG_IN,  USB_ENDPOINT_ATTR_INTERRUPT, 64, 0);
-	usbd_ep_setup(dev, ENDPOINT_ADDRESS_DEBUG_OUT, USB_ENDPOINT_ATTR_INTERRUPT, 64, hid_debug_rx_callback);
-#endif
 
 	usbd_register_control_callback(
 		dev,
@@ -308,27 +248,10 @@ void usbPoll(void)
 	// poll read buffer
 	usbd_poll(usbd_dev);
 	// write pending data
+#if 0
 	data = msg_out_data();
 	if (data) {
 		while ( usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_IN, data, 64) != 64 ) {}
 	}
-#if DEBUG_LINK
-	// write pending debug data
-	data = msg_debug_out_data();
-	if (data) {
-		while ( usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_DEBUG_IN, data, 64) != 64 ) {}
-	}
 #endif
-}
-
-void usbReconnect(void)
-{
-	usbd_disconnect(usbd_dev, 1);
-	delay(1000);
-	usbd_disconnect(usbd_dev, 0);
-}
-
-void usbTiny(char set)
-{
-	tiny = set;
 }
