@@ -159,60 +159,6 @@ configure_hw(
     keepkey_leds_init();
 
     keepkey_button_init();
-
-    keepkey_button_set_on_press_handler( &handle_screen_press, NULL );
-    keepkey_button_set_on_release_handler( &handle_screen_release, NULL );
 }
 
 
-static void
-handle_screen_press(
-        void* context
-)
-{
-    switch( display_state )
-    {
-        case HOME:
-            layout_tx_info( "kiasdfsdfli8e0248dasd93", 1 );
-            display_state = INFO;
-            break;
-
-        case INFO:
-            post_delayed( &handle_confirm_timeout, NULL, 3000 );
-            layout_tx_confirmation( 3000 );
-            display_state = CONFIRMING;
-            break;
-
-        default:
-            break;
-    }
-}
-
-
-static void
-handle_screen_release(
-        void* context
-)
-{
-    switch( display_state )
-    {
-        case CONFIRMING:
-            layout_home();
-            remove_runnable( &handle_confirm_timeout );
-            display_state = HOME;
-            break;
-
-        default:
-            break;
-    }
-}
-
-
-static void
-handle_confirm_timeout(
-        void* context 
-)
-{
-    layout_home();
-    display_state = HOME;
-}

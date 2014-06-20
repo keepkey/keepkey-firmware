@@ -70,12 +70,3 @@ uint32_t readprotobufint(uint8_t **ptr)
 	return result;
 }
 
-void __attribute__((noreturn)) system_halt(void)
-{
-	for (;;) {} // loop forever
-}
-
-void __attribute__((noreturn)) system_reset(void)
-{
-	scb_reset_system();
-}

@@ -30,4 +30,18 @@ const CoinType *coinByShortcut(const char *shortcut);
 const CoinType *coinByName(const char *name);
 const CoinType *coinByAddressType(uint8_t address_type);
 
+/**
+ * Converts the given number of satoshi's into a bbb.sssBTC format
+ * suitable for printing.  NULL termination is guaranteed.
+ *
+ * @param satoshi The amount in satoshi
+ * @param unit Set to true to append BTC to the output.
+ *
+ * @return static string suitable for immediate use.  If you
+ * want to keep it around for awhile you'll need to copy it off.
+ *
+ * @note This function will assert if it encounters bogus satoshi amount.
+ */
+const char* satoshi_to_str(uint64_t satoshi, bool unit);
+
 #endif

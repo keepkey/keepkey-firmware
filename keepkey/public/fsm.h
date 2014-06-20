@@ -29,6 +29,8 @@ void fsm_sendFailure(FailureType code, const char *text);
 
 void fsm_msgInitialize(Initialize *msg);
 void fsm_msgPing(Ping *msg);
+
+#if 0
 void fsm_msgChangePin(ChangePin *msg);
 void fsm_msgWipeDevice(WipeDevice *msg);
 void fsm_msgFirmwareErase(FirmwareErase *msg);
@@ -53,11 +55,6 @@ void fsm_msgEstimateTxSize(EstimateTxSize *msg);
 void fsm_msgRecoveryDevice(RecoveryDevice *msg);
 void fsm_msgWordAck(WordAck *msg);
 
-// debug message functions
-#if DEBUG_LINK
-//void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
-void fsm_msgDebugLinkGetState(DebugLinkGetState *msg);
-void fsm_msgDebugLinkStop(DebugLinkStop *msg);
 #endif
 
 #endif

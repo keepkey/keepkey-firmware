@@ -209,8 +209,6 @@ bool is_update_complete(void)
 
 bool usb_flash_firmware(void)
 {
-usb_init();
-while(1) usb_poll();
 
     layout_standard_notification("Firmware Updating...", "Erasing flash...");
     display_refresh();
@@ -316,7 +314,7 @@ void usb_write_pb(const pb_field_t* fields, void* msg, MessageType id)
 
     framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
 
-//    bool ret = usb_tx(&framebuf, sizeof(framebuf.frame) + os.bytes_written);
-//    ret ? stats.usb_tx_ct++ : stats.usb_tx_err_ct++;
+    bool ret = usb_tx(&framebuf, sizeof(framebuf.frame) + os.bytes_written);
+    ret ? stats.usb_tx_ct++ : stats.usb_tx_err_ct++;
 }
 

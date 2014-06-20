@@ -33,9 +33,4 @@ void data2hex(const void *data, uint32_t len, char *str);
 // read protobuf integer and advance pointer
 uint32_t readprotobufint(uint8_t **ptr);
 
-// halt execution (or do an endless loop)
-void __attribute__((noreturn)) system_halt(void);
-// reset system
-void __attribute__((noreturn)) system_reset(void);
-
 #endif

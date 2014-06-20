@@ -18,7 +18,13 @@
  */
 
 #include <keepkey_board.h>
-#include <usb.h>
+#include <usb_driver.h>
+
+static void exec(void)
+{
+    usb_poll();
+}
+
 
 int main(void)
 {
@@ -28,7 +34,7 @@ int main(void)
     usb_init();
     while(1)
     {
-        usb_poll();
+        exec();
     }
 
     return 0;

@@ -16,20 +16,19 @@
 
 #include "draw.h"
 #include "font.h"
-#include "keepkey_leds.h"
 #include "layout.h"
 #include "timer.h"
 
 
 //====================== CONSTANTS, TYPES, AND MACROS =========================
 
-typedef void (*AnimateCallback)(void* data, uint32_t duration, uint32_t ellapsed );
+typedef void (*AnimateCallback)(void* data, uint32_t duration, uint32_t elapsed );
 
 typedef struct Animation Animation;
 struct Animation
 {
     uint32_t        duration;
-    uint32_t        ellapsed;
+    uint32_t        elapsed;
  
     void*           data;
     AnimateCallback animate_callback;
@@ -44,9 +43,6 @@ typedef struct
     int         size;
 
 } AnimationQueue;
-
-#define SATOSHI_PER_BTC 1000000
-
 
 //=============================== VARIABLES ===================================
 
@@ -86,6 +82,11 @@ static Animation animations[ MAX_ANIMATIONS ];
 static Canvas* canvas = NULL;
 
 static volatile bool animate_flag = false;
+
+/*
+ * Standard time to wait for the confirmation.
+ */
+static const uint32_t STANDARD_CONFIRM_MS = 2000; 
 
 
 //====================== PRIVATE FUNCTION DECLARATIONS ========================
@@ -166,10 +167,10 @@ animation_queue_get(
 //-----------------------------------------------------------------------------
 // 
 static void
-layout_animate_tx_confirm(
+layout_animate_confirm(
         void*       data,
         uint32_t    duration,
-        uint32_t    ellapsed
+        uint32_t    elapsed
 );
 
 
@@ -228,71 +229,12 @@ layout_home(
 }
 
 
-//-----------------------------------------------------------------------------
-// See layout.h for public interface.
-//
-void
-layout_sleep(
-        void
-)
+void layout_sleep(void)
 {
     layout_clear();
 }
 
-
-//-----------------------------------------------------------------------------
-// See layout.h for public interface.
-//
-void
-layout_tx_info(
-        const char* address,
-        uint32_t    amount_in_satoshi
-)
-{
-    layout_clear();
-
-    DrawableParams sp;
-    sp.x = 0;
-    
-    sp.y = GROUP_PADDING;
-    sp.color = LABEL_COLOR;
-    draw_string( canvas, ADDRESS_LABEL_TEXT, &sp );
-
-    sp.y += font_height();
-    sp.color = DATA_COLOR;
-    draw_string( canvas, address, &sp );
-
-    sp.y += font_height() + GROUP_PADDING;
-    sp.color = LABEL_COLOR;
-    draw_string( canvas, AMOUNT_LABEL_TEXT, &sp );
-
-    sp.y += font_height();
-    sp.color = DATA_COLOR;
-
-    char buf[20]; // bbbbbbbb + . + ssssss + some feelgood pad.
-
-    uint32_t major;
-    uint32_t minor;
-    if(amount_in_satoshi == 0)
-    {
-       major = minor = 0;
-    } else {
-        major = amount_in_satoshi / SATOSHI_PER_BTC;
-        minor = amount_in_satoshi % SATOSHI_PER_BTC;
-    }
-    buf[0]='\0';
-    //sprintf(buf, "%lu.%06lubtc", major, minor);
-
-    draw_string( canvas, "buf", &sp );
-}
-
-//-----------------------------------------------------------------------------
-// See layout.h for public interface.
-//
-void
-layout_tx_confirmation(
-        uint32_t confirmation_duration_ms
-)
+void layout_confirmation()
 {
     layout_clear();
 
@@ -300,7 +242,7 @@ layout_tx_confirmation(
     sp.x = SIDE_PADDING;
     sp.y = SIDE_PADDING;
     sp.color = LABEL_COLOR;
-    draw_string( canvas, CONFIRM_LABEL_TEXT, &sp );
+    draw_string( canvas, "Confirming ...", &sp );
 
     static BoxDrawableParams box_params;
     box_params.base.y        = ( canvas->height / 2 ) - ( BAR_HEIGHT / 2 );
@@ -310,49 +252,12 @@ layout_tx_confirmation(
     box_params.base.color    = BAR_COLOR;
 
     layout_add_animation( 
-            &layout_animate_tx_confirm,
+            &layout_animate_confirm,
             (void*)&box_params,
-            confirmation_duration_ms );
+            STANDARD_CONFIRM_MS);
 }
 
-//-----------------------------------------------------------------------------
-// See layout.h for public interface.
-//
-void
-layout_firmware_update_confirmation(
-        uint32_t confirmation_duration_ms
-)
-{
-    layout_clear();
-
-    DrawableParams sp;
-    sp.x = SIDE_PADDING;
-    sp.y = SIDE_PADDING;
-    sp.color = LABEL_COLOR;
-    draw_string( canvas, "Confirming firmware update...", &sp );
-
-    static BoxDrawableParams box_params;
-    box_params.base.y        = ( canvas->height / 2 ) - ( BAR_HEIGHT / 2 );
-    box_params.base.x        = SIDE_PADDING;
-    box_params.width         = 0;
-    box_params.height        = BAR_HEIGHT;
-    box_params.base.color    = BAR_COLOR;
-
-    layout_add_animation( 
-            &layout_animate_tx_confirm,
-            (void*)&box_params,
-            confirmation_duration_ms );
-}
-
-
-//-----------------------------------------------------------------------------
-// See layout.h for public interface.
-//
-void
-layout_standard_notification(
-		const char* str1,
-		const char* str2
-)
+void layout_standard_notification(const char* str1, const char* str2)
 {
     layout_clear();
 
@@ -386,14 +291,14 @@ animate(
     {
         Animation* next = animation->next;
 
-        animation->ellapsed += ANIMATION_PERIOD;
+        animation->elapsed += ANIMATION_PERIOD;
 
         animation->animate_callback(
                 animation->data,
                 animation->duration,
-                animation->ellapsed );
+                animation->elapsed );
 
-        if( ( animation->duration > 0 ) && ( animation->ellapsed >= animation->duration ) )
+        if( ( animation->duration > 0 ) && ( animation->elapsed >= animation->duration ) )
         {
             animation_queue_push(
                     &free_queue,
@@ -410,17 +315,12 @@ animate(
 //-----------------------------------------------------------------------------
 // See layout.h for public interface.
 //
-static void
-layout_animate_tx_confirm(
-        void*       data,
-        uint32_t    duration,
-        uint32_t    ellapsed
-)
+static void layout_animate_confirm(void* data, uint32_t duration, uint32_t elapsed)
 {
     BoxDrawableParams* box_params = (BoxDrawableParams*)data;
 
     uint32_t max_width = ( canvas->width - box_params->base.x - SIDE_PADDING );
-    box_params->width = ( max_width * ( ellapsed ) ) / duration;
+    box_params->width = ( max_width * ( elapsed ) ) / duration;
 
     draw_box( canvas, box_params );
 }
@@ -478,7 +378,7 @@ layout_add_animation(
 
     animation->data = data;
     animation->duration = duration;
-    animation->ellapsed = 0;
+    animation->elapsed = 0;
     animation->animate_callback = callback;
 
     animation_queue_push( &active_queue, animation );
@@ -620,4 +520,10 @@ animation_queue_get(
     }
 
     return result;
+}
+
+uint32_t layout_char_width()
+{
+    //TODO: Derive this from font width.
+    return 80;
 }
