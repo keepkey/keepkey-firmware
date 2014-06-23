@@ -41,12 +41,10 @@ void memory_protect(void)
 
 int memory_bootloader_hash(uint8_t *hash)
 {
-    //TODO: Massive size.  Investigate this requirement.
-    (void)hash;
-    return 0;
-    //sha256_Raw((const uint8_t *)FLASH_BOOT_START, FLASH_BOOT_LEN, hash);
-    //sha256_Raw(hash, 32, hash);
-    //return 32;
+    const hash_len = 32;
+    sha256_Raw((const uint8_t *)FLASH_BOOT_START, FLASH_BOOT_LEN, hash);
+    sha256_Raw(hash, hash_len, hash);
+    return hash_len;
 }
 
 

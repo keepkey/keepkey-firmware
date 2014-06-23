@@ -18,11 +18,13 @@
  */
 
 #include <keepkey_board.h>
+#include <layout.h>
 #include <usb_driver.h>
 
 static void exec(void)
 {
     usb_poll();
+    display_refresh();
 }
 
 
@@ -30,8 +32,12 @@ int main(void)
 {
 
     board_init();
-    
+
     usb_init();
+    msg_init();
+
+    layout_home();
+
     while(1)
     {
         exec();

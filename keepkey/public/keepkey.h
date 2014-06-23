@@ -1,3 +1,4 @@
+
 /* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
@@ -20,33 +21,17 @@
  */
 /* END KEEPKEY LICENSE */
 
-#ifndef KEEPKEY_BOARD_H
-#define KEEPKEY_BOARD_H
-
-#include <keepkey_leds.h>
-#include <keepkey_display.h>
-#include <keepkey_button.h>
-#include <layout.h>
-#include <timer.h>
-#include <usb_driver.h>
+#ifndef KEEPKEY_H
+#define KEEPKEY_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * @brief miscellaneous board functions    
+ * Top level function to step the keepkey application.
  */
-
-/**
- * Perform a soft reset of the board.
- */
-void board_reset(void);
-
-/*
- * Initial setup and configuration of board.
- */
-void board_init(void);
+//void app_exec();
 
 #ifdef __cplusplus
 }

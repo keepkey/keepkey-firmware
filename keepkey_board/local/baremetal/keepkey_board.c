@@ -49,6 +49,13 @@ static void clock_init(void)
     rcc_periph_clock_enable(RCC_OTGFS);
     rcc_periph_clock_enable(RCC_SYSCFG);
     rcc_periph_clock_enable(RCC_TIM4);
+
+    timer_init();
+    keepkey_leds_init();
+    keepkey_button_init();
+    display_init();
+    layout_init(display_canvas());
+
 }
  
 void board_init(void)

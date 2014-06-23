@@ -3,6 +3,7 @@ import os
 import pprint
 import sets
 import toolchains
+import re
 
 from SCons.Script import *
 
@@ -279,15 +280,8 @@ def init_product():
 
     env = DefaultEnvironment()
     
-    #
-    # Nanopb
-    add_nanopb_builders(env)
-    env.Append(PROTOCPATH = '#nanopb/generator')
-
-
     init_platform(env)
     env.Append(CPPDEFINES={'PRODUCT_NAME' : current_project_name()})
-    env.Append(PROTOCPATH=os.path.join(os.environ['NANOPB_PATH'], 'generator'))
 
     #
     # Disable alternate pretty strings for verbose output.

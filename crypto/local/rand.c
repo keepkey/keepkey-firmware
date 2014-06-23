@@ -1,56 +1,45 @@
-/**
- * Copyright (c) 2013 Tomas Dzetkulic
- * Copyright (c) 2013 Pavol Rusnak
+/*
+ * This file is part of the TREZOR project.
  *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
+ * Copyright (C) 2014 Pavol Rusnak <stick@satoshilabs.com>
  *
- * The above copyright notice and this permission notice shall be included
- * in all copies or substantial portions of the Software.
+ * This library is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES
- * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
- * OTHER DEALINGS IN THE SOFTWARE.
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
-#include <stdio.h>
-
-#include "rand.h"
-
-static FILE *f = NULL;
-
-void init_rand(void)
-{
-	f = fopen("/dev/urandom", "r");
-}
+#include <libopencm3/cm3/common.h>
+#include <libopencm3/stm32/memorymap.h>
+#include <libopencm3/stm32/f2/rng.h>
 
 uint32_t random32(void)
 {
-	uint32_t r;
-
-        if(f == NULL) {
-            init_rand();
-        }
-
-        assert(f != NULL);
-	fread(&r, 1, sizeof(r), f);
-	return r;
+	static uint32_t last = 0, new = 0;
+	while (new == last) {
+		if (((RNG_SR & (RNG_SR_SEIS | RNG_SR_CEIS)) == 0) && ((RNG_SR & RNG_SR_DRDY) > 0)) {
+			new = RNG_DR;
+		}
+	}
+	last = new;
+	return new;
 }
 
 void random_buffer(uint8_t *buf, uint32_t len)
 {
-        if(f == NULL) {
-            init_rand();
-        }
-
-	fread(buf, 1, len, f);
+	uint32_t i, r = 0;
+	for (i = 0; i < len; i++) {
+		if (i % 4 == 0) {
+			r = random32();
+		}
+		buf[i] = (r >> ((i % 4) * 8)) & 0xFF;
+	}
 }

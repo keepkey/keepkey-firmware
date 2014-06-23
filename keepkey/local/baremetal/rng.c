@@ -21,8 +21,6 @@
 #include <libopencm3/stm32/memorymap.h>
 #include <libopencm3/stm32/f2/rng.h>
 
-#include "rng.h"
-
 uint32_t random32(void)
 {
 	static uint32_t last = 0, new = 0;

@@ -63,8 +63,9 @@ struct MessagesMap_t {
 static const struct MessagesMap_t MessagesMap[] = {
 	// in messages
 	{'i', MessageType_MessageType_Initialize,		Initialize_fields,	(void (*)(void *))fsm_msgInitialize},
-#if 0        
-	{'n', 'i', MessageType_MessageType_Ping,		Ping_fields,		(void (*)(void *))fsm_msgPing},
+	{'i', MessageType_MessageType_Ping,			Ping_fields,		(void (*)(void *))fsm_msgPing},
+	{'o', MessageType_MessageType_Features,		        Features_fields,	0},
+#if 0
 	{'n', 'i', MessageType_MessageType_ChangePin,		ChangePin_fields,	(void (*)(void *))fsm_msgChangePin},
 	{'n', 'i', MessageType_MessageType_WipeDevice,		WipeDevice_fields,	(void (*)(void *))fsm_msgWipeDevice},
 	{'n', 'i', MessageType_MessageType_FirmwareErase,	FirmwareErase_fields,	(void (*)(void *))fsm_msgFirmwareErase},
@@ -93,7 +94,7 @@ static const struct MessagesMap_t MessagesMap[] = {
 	{'n', 'o', MessageType_MessageType_Failure,		Failure_fields,		0},
 	{'n', 'o', MessageType_MessageType_Entropy,		Entropy_fields,		0},
 	{'n', 'o', MessageType_MessageType_PublicKey,		PublicKey_fields,	0},
-	{'n', 'o', MessageType_MessageType_Features,		Features_fields,	0},
+.	{'n', 'o', MessageType_MessageType_Features,		Features_fields,	0},
 	{'n', 'o', MessageType_MessageType_PinMatrixRequest,	PinMatrixRequest_fields,0},
 	{'n', 'o', MessageType_MessageType_TxRequest,		TxRequest_fields,	0},
 	{'n', 'o', MessageType_MessageType_ButtonRequest,	ButtonRequest_fields,	0},
@@ -210,12 +211,7 @@ void handle_usb_rx(UsbMessage *msg)
     frame->header.id = __builtin_bswap16(frame->header.id);
     frame->header.len = __builtin_bswap32(frame->header.len);
 
-    if(! frame->header.id < MessageType_MessageType_LAST) 
-    {
-        ++msg_stats.invalid_msg_type;
-        return;
-    }
-    
+
     const struct MessagesMap_t* entry = message_map_entry(frame->header.id);
     if(entry)
     {

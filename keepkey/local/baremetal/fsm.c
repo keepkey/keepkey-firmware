@@ -29,7 +29,7 @@
 #include <coins.h>
 #include <debug.h>
 #include <transaction.h>
-#include <rng.h>
+#include <rand.h>
 #include <storage.h>
 #include <protect.h>
 #include <pinmatrix.h>
@@ -106,7 +106,8 @@ void fsm_msgInitialize(Initialize *msg)
 #ifdef SCM_REVISION
 	resp->has_revision = true; memcpy(resp->revision.bytes, SCM_REVISION, sizeof(resp->revision)); resp->revision.size = SCM_REVISION_LEN;
 #endif
-	resp->has_bootloader_hash = true; resp->bootloader_hash.size = memory_bootloader_hash(resp->bootloader_hash.bytes);
+	resp->has_bootloader_hash = true; 
+        resp->bootloader_hash.size = memory_bootloader_hash(resp->bootloader_hash.bytes);
 	if (storage.has_language) {
 		resp->has_language = true;
 		strlcpy(resp->language, storage.language, sizeof(resp->language));

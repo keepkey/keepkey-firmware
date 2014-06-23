@@ -298,6 +298,9 @@ bool usb_poll(void)
 
 bool usb_tx(void* message, uint32_t len)
 {
+	if(len > 63) {
+		len = 63;
+	}
     uint16_t tx = usbd_ep_write_packet(usbd_dev, 
                                        ENDPOINT_ADDRESS_IN, 
                                        message, 
