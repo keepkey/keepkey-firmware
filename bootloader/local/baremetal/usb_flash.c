@@ -27,31 +27,19 @@
 
 #include <libopencm3/stm32/flash.h>
 
-#include <keepkey_led.h>
-#include <keepkey_display.h>
-#include <layout.h>
+#include <interface.h>
+#include <keepkey_board.h>
 #include <memory.h>
+#include <messages.h>
 
-#include <messages.pb.h>
-#include <types.pb.h>
-#include <pb_decode.h>
-#include <pb_encode.h>
 
 #include <usb_driver.h>
 #include <usb_flash.h>
 
-/*
- * Max message decode size for use in statically allocating space for incoming
- * protobuf packets.  This would ideally key off a nanopb struct size, but there 
- * appears to not be a good way to determin the max sized structure.
- */
-#define MAX_DECODE_SIZE 512
-
-
 void handler_initialize(Initialize* msg);
 void handler_ping(Ping* msg);
 void handler_update(FirmwareUpdate* msg);
-void usb_write_pb(const pb_field_t* fields, void* msg, MessageType id);
+void usb_write_pb(void* msg, MessageType id);
 
 /**
  * Performance / metrics counters.
@@ -65,52 +53,6 @@ typedef struct
     uint16_t usb_tx_err_ct;
 } Stats;
 
-#pragma pack(1)
-/**
- * This structure is derived from the Trezor protocol.  Note that the values come in as big endian, so
- * they'll need to be swapped.
- */
-
-/**
- * USB Header coming in from the pc/libusb
- */
-typedef struct
-{
-    uint8_t hid_type;  // This is always '?'
-} UsbHeader;
-
-typedef struct
-{
-    /* 
-     * Not sure what these are for.  They are derived from the Trezor code. I think they denote the first
-     * USB segment in a message, in the case where multiple USB segments are sent. 
-     */
-    uint8_t pre1;
-    uint8_t pre2;
-
-    /* Protobuf ID */
-    uint16_t id;    
-
-    /* Length of the following message */
-    uint32_t len;
-
-} TrezorFrameHeader;
-
-typedef struct 
-{
-    UsbHeader usb_header;
-    TrezorFrameHeader header;
-    uint8_t contents[0];
-} TrezorFrame;
-
-typedef struct
-{
-    TrezorFrame frame;
-    uint8_t buffer[MAX_DECODE_SIZE];
-} TrezorFrameBuffer;
-
-#pragma pack()
-
 typedef enum 
 {
     UPDATE_NOT_STARTED,
@@ -123,83 +65,27 @@ static FirmwareUpdateState update_state = UPDATE_NOT_STARTED;
 /**
  * Generic message handler callback type.
  */
-
 typedef void (*message_handler_t)(void* msg_struct);
 
 /**
  * Structure to map incoming messages to handler functions.
  */
-typedef struct 
-{
-    MessageType         type;
-    message_handler_t   handler;
-    const pb_field_t    *fields;
-} DispatchTable;
 
-static const DispatchTable dispatch_table[] = 
-{
-    { MessageType_MessageType_Initialize,       (message_handler_t)handler_initialize,     Initialize_fields }, 
-    { MessageType_MessageType_Ping,             (message_handler_t)handler_ping,           Ping_fields },  
-    { MessageType_MessageType_FirmwareUpdate,   (message_handler_t)handler_update,         FirmwareUpdate_fields }, 
+static const MessagesMap_t MessagesMap[] = {
+	// in messages
+	{'i', MessageType_MessageType_Initialize,		Initialize_fields,	(message_handler_t)(handler_initialize)},
+	{'i', MessageType_MessageType_Ping,			Ping_fields,		(message_handler_t)(handler_ping)},
+	{'i', MessageType_MessageType_FirmwareUpdate,		FirmwareUpdate_fields,	(message_handler_t)(handler_update)},
+	{'o', MessageType_MessageType_Features,		        Features_fields,	NULL},
+	{'o', MessageType_MessageType_Success,		        Success_fields,		NULL},
+	{'o', MessageType_MessageType_Failure,		        Failure_fields,		NULL},
+        {0,0,0,0}
 };
 
 /**
  * Stats counters.
  */
 static Stats stats;
-
-const DispatchTable* type_to_dispatch(MessageType type)
-{
-    size_t i;
-    for(i=0; i < sizeof(dispatch_table) / sizeof(dispatch_table[0]); i++)
-    {
-        if(type == dispatch_table[i].type)
-        {
-            return &dispatch_table[i];
-        }
-    }
-
-    return NULL;
-}
-
-void dispatch(const DispatchTable *entry, uint8_t *msg, uint32_t msg_size)
-{
-    static uint8_t decode_buffer[MAX_DECODE_SIZE];
-
-    pb_istream_t stream = pb_istream_from_buffer(msg, msg_size);
-
-    bool status = pb_decode(&stream, entry->fields, decode_buffer);
-    if (status) {
-        entry->handler(decode_buffer);
-    } 
-
-    /* TODO: Handle error response */
-}
-
-void handle_usb_rx(UsbMessage *msg)
-{
-    TrezorFrame *frame = (TrezorFrame*)(msg->message);
-    if(frame->usb_header.hid_type != '?')
-    {
-        ++stats.invalid_usb_header_ct;
-        return;
-    }
-
-    /*
-     * Byte swap in place.
-     */
-    frame->header.id = __builtin_bswap16(frame->header.id);
-    frame->header.len = __builtin_bswap32(frame->header.len);
-
-    if(! frame->header.id < MessageType_MessageType_LAST) 
-    {
-        ++stats.invalid_msg_type_ct;
-        return;
-    }
-    
-    const DispatchTable *entry = type_to_dispatch(frame->header.id);
-    dispatch(entry, frame->contents, frame->header.len);
-}
 
 bool is_update_complete(void)
 {
@@ -214,6 +100,7 @@ bool usb_flash_firmware(void)
     display_refresh();
 
     flash_unlock();
+    flash_erase(FLASH_CONFIG);
     flash_erase(FLASH_APP);
 
     /*
@@ -222,8 +109,7 @@ bool usb_flash_firmware(void)
      */
     layout_standard_notification("Firmware Updating...", "Programming...");
     display_refresh();
-
-    usb_set_rx_callback(handle_usb_rx);
+    msg_init(MessagesMap);
     usb_init();
 
     /*
@@ -282,7 +168,7 @@ void handler_ping(Ping* msg)
 
 void handler_initialize(Initialize* msg) 
 {
-    (void)msg;
+    assert(msg != NULL);
 
     Features f;
     memset(&f, 0, sizeof(f));
@@ -294,27 +180,6 @@ void handler_initialize(Initialize* msg)
     f.minor_version= BOOTLOADER_MINOR_VERSION;
     f.patch_version = BOOTLOADER_PATCH_VERSION;
 
-    usb_write_pb(Features_fields, &f, MessageType_MessageType_Features);
-}
-
-void usb_write_pb(const pb_field_t* fields, void* msg, MessageType id)
-{
-    assert(fields != NULL);
-
-    TrezorFrameBuffer framebuf;
-    memset(&framebuf, 0, sizeof(framebuf));
-    framebuf.frame.usb_header.hid_type = '?';
-    framebuf.frame.header.pre1 = '#';
-    framebuf.frame.header.pre2 = '#';
-    framebuf.frame.header.id = __builtin_bswap16(id);
-
-    pb_ostream_t os = pb_ostream_from_buffer(framebuf.buffer, sizeof(framebuf.buffer));
-    bool status = pb_encode(&os, fields, msg);
-    assert(status);
-
-    framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
-
-    bool ret = usb_tx(&framebuf, sizeof(framebuf.frame) + os.bytes_written);
-    ret ? stats.usb_tx_ct++ : stats.usb_tx_err_ct++;
+    msg_write(MessageType_MessageType_Features, &f);
 }
 

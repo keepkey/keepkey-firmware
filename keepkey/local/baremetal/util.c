@@ -20,11 +20,6 @@
 #include <libopencm3/cm3/scb.h>
 #include "util.h"
 
-inline void delay(uint32_t wait)
-{
-	while (--wait > 0) __asm__("nop");
-}
-
 static const char *hexdigits = "0123456789ABCDEF";
 
 void uint32hex(uint32_t num, char *str)

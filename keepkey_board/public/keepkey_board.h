@@ -23,6 +23,7 @@
 #ifndef KEEPKEY_BOARD_H
 #define KEEPKEY_BOARD_H
 
+#include <confirm_sm.h>
 #include <keepkey_leds.h>
 #include <keepkey_display.h>
 #include <keepkey_button.h>

@@ -22,8 +22,6 @@
 
 #include <stdint.h>
 
-inline void delay(uint32_t wait);
-
 // converts uint32 to hexa (8 digits)
 void uint32hex(uint32_t num, char *str);
 

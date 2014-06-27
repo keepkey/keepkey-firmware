@@ -1,6 +1,8 @@
+#include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/desig.h>
@@ -8,7 +10,7 @@
 #include <libopencm3/usb/hid.h>
 #include <libopencm3/stm32/rcc.h>
 
-#include "usb_driver.h"
+#include <keepkey_board.h>
 
 /**
  * These are the addresses assigned to the USB interface.  These
@@ -266,7 +268,7 @@ bool usb_init(void)
     gpio_set_af(USB_GPIO_PORT, GPIO_AF10, USB_GPIO_PORT_PINS);
 
     static char serial_number[100];
-    //desig_get_unique_id_as_string(serial_number, sizeof(serial_number));
+    desig_get_unique_id_as_string(serial_number, sizeof(serial_number));
     usb_strings[NUM_USB_STRINGS-1] = serial_number;
 
    
@@ -298,14 +300,37 @@ bool usb_poll(void)
 
 bool usb_tx(void* message, uint32_t len)
 {
-	if(len > 63) {
-		len = 63;
-	}
-    uint16_t tx = usbd_ep_write_packet(usbd_dev, 
-                                       ENDPOINT_ADDRESS_IN, 
-                                       message, 
-                                       len);
-    return(tx != 0);
+    uint8_t tmp_buffer[USB_SEGMENT_SIZE];
+    tmp_buffer[0] = '?';
+
+    uint32_t send_ct = 0;
+
+    while(send_ct < len)
+    {
+        if(send_ct)
+        {
+            //TODO Replace with more elegant solution that
+            //monitors the usb transmit for last transmit complete
+            //status.
+            delay(100);
+        }
+        /*
+         * Need to truncate to 63 because 
+         * 1) maintain messaging compatability with trezor 
+         * 2) opencm3 doesn't support fragments packets currently.
+         */
+        uint32_t rem = len-send_ct;
+        uint32_t ct = rem < USB_SEGMENT_SIZE-1 ? rem : USB_SEGMENT_SIZE-1;
+        memcpy(tmp_buffer+1, message+send_ct, ct);
+
+        /*
+         * Chunk out the message 63 bytes at a time (with the trezor '?' as the first byte)
+         */
+        uint16_t tx = usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_IN, tmp_buffer, ct+1);
+        send_ct += ct;
+        assert(tx != 0);
+    }
+    return(true);
 }
 
 void usb_set_rx_callback(usb_rx_callback_t callback)

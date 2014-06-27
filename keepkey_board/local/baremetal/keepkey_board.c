@@ -49,6 +49,12 @@ static void clock_init(void)
     rcc_periph_clock_enable(RCC_OTGFS);
     rcc_periph_clock_enable(RCC_SYSCFG);
     rcc_periph_clock_enable(RCC_TIM4);
+    rcc_periph_clock_enable(RCC_RNG);
+    
+    /*
+     * Enable random
+     */
+    RNG_CR |= RNG_CR_IE | RNG_CR_RNGEN;
 
     timer_init();
     keepkey_leds_init();

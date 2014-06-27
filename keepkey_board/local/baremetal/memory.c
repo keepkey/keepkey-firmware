@@ -23,6 +23,7 @@
 #include <libopencm3/stm32/flash.h>
 
 #include "memory.h"
+#include <crypto.h>
 
 #define OPTION_BYTES_1 ((uint64_t *)0x1FFFC000)
 #define OPTION_BYTES_2 ((uint64_t *)0x1FFFC008)
@@ -41,7 +42,7 @@ void memory_protect(void)
 
 int memory_bootloader_hash(uint8_t *hash)
 {
-    const hash_len = 32;
+    const size_t hash_len = 32;
     sha256_Raw((const uint8_t *)FLASH_BOOT_START, FLASH_BOOT_LEN, hash);
     sha256_Raw(hash, hash_len, hash);
     return hash_len;

@@ -17,6 +17,7 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <coins.h>
 #include <crypto.h>
 #include <keepkey_board.h>
 
@@ -377,16 +378,16 @@ void signing_txack(TransactionType *tx)
 					}
                                         uint64_t fee = to_spend - spending;
                                         if (fee > (((uint64_t)tc.size + 999) / 1000) * coin->maxfee_kb) {
-                                            if(!confirm_sm("Warning: Fee '%s' is over threshold.", satoshi_to_str(fee))) {
+                                            if(!confirm("Warning: Fee '%s' is over threshold.", satoshi_to_str(fee, true))) {
                                                 fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
                                                 layout_home();
                                                 return;
                                             }
                                         }
                                         // last confirmation
-                                        if(!confirm_sm("Confirm Tx: spend: %s fee: %s.",
-                                                satoshi_to_str(to_spend - change_spend - fee),
-                                                satoshi_to_str(fee))); {
+                                        if(!confirm("Confirm Tx: spend: %s fee: %s.",
+                                                satoshi_to_str(to_spend - change_spend - fee, true),
+                                                satoshi_to_str(fee, true))); {
 
 						fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
 						signing_abort();

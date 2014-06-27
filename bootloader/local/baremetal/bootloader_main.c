@@ -131,12 +131,12 @@ bool check_firmware_sig(void)
 
 const char* firmware_sig_as_string(void)
 {
-    return "KL123123KJH3452";
+    return "NOSIG";
 }
 
 void board_reset(void)
 {
-    while(1) {}
+    scb_reset_system();
 }
 
 int main(int argc, char* argv[])
@@ -176,7 +176,6 @@ int main(int argc, char* argv[])
             {
                 if(confirm("Hold button to confirm firmware update."))
                 {
-                    //TODO: config_erase(); Erase key storage area after firmware update, per Darin.
                     usb_flash_firmware();
 
                     board_reset();

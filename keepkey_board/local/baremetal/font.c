@@ -1710,7 +1710,7 @@ static const Character KeepKey_array[] = {
   // character: 'V'
   {0x56, &KeepKey_0x56},
 
-  // character: 'W'
+  // character: 'W';
   {0x57, &KeepKey_0x57},
 
   // character: 'X'
@@ -1868,4 +1868,12 @@ font_height(
 )
 {
     return font.size;
+}
+
+int font_width(void)
+{
+    /**
+     * Return worst case width using the space char as the reference.
+     */
+    return  font_get_char(' ')->width;
 }

@@ -10,12 +10,14 @@
 
 //================================ INCLUDES ===================================
 
-
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "draw.h"
 #include "font.h"
+#include "keepkey_display.h"
 #include "layout.h"
 #include "timer.h"
 
@@ -59,8 +61,6 @@ static const uint32_t BAR_PADDING   = 5;
 static const uint32_t BAR_HEIGHT    = 15;
 static const uint8_t BAR_COLOR      = 0xFF;
 
-static const uint8_t LABEL_COLOR    = 0x44;
-static const uint8_t DATA_COLOR     = 0xFF;
 
 static const uint32_t GROUP_PADDING = 5;
 
@@ -255,6 +255,23 @@ void layout_confirmation()
             &layout_animate_confirm,
             (void*)&box_params,
             STANDARD_CONFIRM_MS);
+}
+
+void layout_line(unsigned int line, uint8_t color, const char* str, ...)
+{
+    va_list vl;
+    va_start(vl, str);
+    char strbuf[layout_char_width()+1];
+    memset(strbuf, 0, sizeof(strbuf));
+    vsnprintf(strbuf, sizeof(strbuf), str, vl);
+    va_end(vl);
+
+    DrawableParams sp;
+    sp.x = 0;
+
+    sp.y = GROUP_PADDING + font_width()*line;
+    sp.color = color;
+    draw_string( canvas, strbuf, &sp );
 }
 
 void layout_standard_notification(const char* str1, const char* str2)
@@ -524,6 +541,7 @@ animation_queue_get(
 
 uint32_t layout_char_width()
 {
-    //TODO: Derive this from font width.
-    return 80;
+    return KEEPKEY_DISPLAY_WIDTH / font_width();
 }
+
+

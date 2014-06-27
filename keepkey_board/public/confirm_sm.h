@@ -26,6 +26,8 @@
 #ifndef CONFIRM_SM_H
 #define CONFIRM_SM_H
 
+#include <stdbool.h>
+
 /**
  * @param request The string to display for confirmation.
  * @param varargs for the request, printf style.

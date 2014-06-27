@@ -87,6 +87,22 @@ void layout_standard_notification( const char* str1, const char* str2);
 //-----------------------------------------------------------------------------
 void animate( void); 
 
+typedef enum 
+{
+    LABEL_COLOR    = 0x44,
+    DATA_COLOR     = 0xFF,
+} LAYOUT_FONT_COLORS;
+
+/**
+ * Layout the text on the specified line given the color.
+ *
+ * @param line The line id to write on (0-3 for standard oled)
+ * @param color The color of the string
+ * @param str The string to write.  Any longer than the line and it will be truncated.
+ * @param ... optional printf-style varargs 
+ */
+void layout_line(unsigned int line, uint8_t color, const char *str, ...);
+
 #ifdef __cplusplus
 }
 #endif

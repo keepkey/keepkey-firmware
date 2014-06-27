@@ -20,8 +20,6 @@
 #ifndef __DEBUG_H__
 #define __DEBUG_H__
 
-#include "trezor.h"
-
 #if DEBUG_LOG
 
 void debugLog(int level, const char *bucket, const char *text);

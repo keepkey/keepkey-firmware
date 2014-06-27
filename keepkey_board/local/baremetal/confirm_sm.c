@@ -50,7 +50,7 @@ typedef enum
     CONFIRM_WAIT,
     ABORTED,
     CONFIRMED,
-    UPDATING
+    FINISHED
 } DisplayState;
 
 typedef enum
@@ -59,13 +59,26 @@ typedef enum
     LAYOUT_CONFIRM_ANIMATION,
     LAYOUT_ABORTED,
     LAYOUT_CONFIRMED,
-    LAYOUT_UPDATING
+    LAYOUT_FINISHED,
+    LAYOUT_NUM_LAYOUTS,
+    LAYOUT_INVALID
 } ActiveLayout;
 
+/**
+ * Define the given layout dialog texts for each screen
+ */
+#define NUM_LINES 4
+typedef struct
+{
+    const char* str;
+    uint8_t color;
+} ScreenLine;
+typedef ScreenLine ScreenLines[NUM_LINES];
+typedef ScreenLines DialogLines[LAYOUT_NUM_LAYOUTS];
 
 typedef struct 
 {
-    const char* req_string;
+    DialogLines lines;
     DisplayState display_state;
     ActiveLayout active_layout;
 } StateInfo;
@@ -74,7 +87,6 @@ typedef struct
  * The number of milliseconds to wait for a confirmation
  */
 #define CONFIRM_TIMEOUT_MS (2000)
-
 
 //=============================== VARIABLES ===================================
 
@@ -126,8 +138,8 @@ static void handle_screen_release( void* context)
             break;
 
         case CONFIRMED:
-            si->active_layout = LAYOUT_UPDATING;
-            si->display_state = UPDATING;
+            si->active_layout = LAYOUT_FINISHED;
+            si->display_state = FINISHED;
             break;
 
         default:
@@ -158,23 +170,20 @@ void swap_layout(ActiveLayout active_layout, volatile StateInfo* si)
     	case LAYOUT_REQUEST:
     		break;
     	case LAYOUT_CONFIRM_ANIMATION:
-    		layout_confirmation(CONFIRM_TIMEOUT_MS);
     		post_delayed( &handle_confirm_timeout, (void*)si, CONFIRM_TIMEOUT_MS );
     		break;
     	case LAYOUT_ABORTED:
     		remove_runnable( &handle_confirm_timeout );
-    		layout_standard_notification("Firmware update ABORTED.", "Reset your KeepKey to continue.");
     		break;
     	case LAYOUT_CONFIRMED:
     		remove_runnable( &handle_confirm_timeout );
-    		layout_standard_notification("Firmware update CONFIRMED.", "Release button to continue");
     		break;
-    	case LAYOUT_UPDATING:
-    		layout_standard_notification("Firmware updating...", "");
+    	case LAYOUT_FINISHED:
     		break;
     	default:
     		assert(0);
     };
+    layout_standard_notification(si->lines[active_layout][0].str, si->lines[active_layout][1].str);
 }
 
 bool confirm(const char *request, ...)
@@ -184,22 +193,30 @@ bool confirm(const char *request, ...)
     va_list vl;
     va_start(vl, request);
     char strbuf[layout_char_width()+1];
-    memset(strbuf, 0, sizeof(strbuf));
     vsnprintf(strbuf, sizeof(strbuf), request, vl);
     va_end(vl);
 
     volatile StateInfo state_info;
-    state_info.req_string = strbuf;
+    memset((void*)&state_info, 0, sizeof(state_info));
     state_info.display_state = HOME;
     state_info.active_layout = LAYOUT_REQUEST;
+    state_info.lines[LAYOUT_REQUEST][0].str = request;
+    state_info.lines[LAYOUT_REQUEST][0].color = DATA_COLOR;
+    state_info.lines[LAYOUT_REQUEST][1].str = "Press and hold button to confirm...";
+    state_info.lines[LAYOUT_REQUEST][1].color = LABEL_COLOR;
+    state_info.lines[LAYOUT_CONFIRMED][0].str = request;
+    state_info.lines[LAYOUT_CONFIRMED][0].color = DATA_COLOR;
+    state_info.lines[LAYOUT_CONFIRMED][1].str = "CONFIRMED";
+    state_info.lines[LAYOUT_CONFIRMED][1].color = LABEL_COLOR;
+    state_info.lines[LAYOUT_ABORTED][0].str = request;
+    state_info.lines[LAYOUT_ABORTED][0].color = DATA_COLOR;
+    state_info.lines[LAYOUT_ABORTED][1].str = "ABORTED";
+    state_info.lines[LAYOUT_ABORTED][1].color = LABEL_COLOR;
 
     keepkey_button_set_on_press_handler( &handle_screen_press, (void*)&state_info );
     keepkey_button_set_on_release_handler( &handle_screen_release, (void*)&state_info );
 
-    layout_standard_notification(request, "Press and hold button to confirm...");
-    display_refresh();
-
-    ActiveLayout cur_layout = state_info.active_layout;
+    ActiveLayout cur_layout = LAYOUT_INVALID;
     while(1)
     {
         cm_disable_interrupts();
@@ -216,9 +233,9 @@ bool confirm(const char *request, ...)
         display_refresh();
         animate();
 
-        if(new_ds == UPDATING ||  new_ds == ABORTED)
+        if(new_ds == FINISHED ||  new_ds == ABORTED)
         {
-            ret =new_ds == UPDATING;
+            ret =new_ds == FINISHED;
 	    break;
         }
     }
@@ -228,4 +245,5 @@ bool confirm(const char *request, ...)
 
     return ret;
 }
+
 

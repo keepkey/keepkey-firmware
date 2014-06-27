@@ -26,6 +26,9 @@ DEFS=['-DSTM32F2',
       '-DBOOTLOADER_MAJOR_VERSION=0', 
       '-DBOOTLOADER_MINOR_VERSION=0', 
       '-DBOOTLOADER_PATCH_VERSION=0',
+      '-DMAJOR_VERSION=0', 
+      '-DMINOR_VERSION=0', 
+      '-DPATCH_VERSION=0',
       '-DPB_FIELD_16BIT=1']
 
 def load_toolchain():

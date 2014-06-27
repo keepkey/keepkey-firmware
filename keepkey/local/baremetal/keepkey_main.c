@@ -19,6 +19,7 @@
 
 #include <keepkey_board.h>
 #include <layout.h>
+#include <fsm.h>
 #include <usb_driver.h>
 
 static void exec(void)
@@ -34,7 +35,7 @@ int main(void)
     board_init();
 
     usb_init();
-    msg_init();
+    fsm_init();
 
     layout_home();
 

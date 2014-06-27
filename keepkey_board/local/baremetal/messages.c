@@ -22,11 +22,8 @@
 
 #include <usb_driver.h>
 
-#include "trezor.h"
 #include "messages.h"
 #include "debug.h"
-#include "fsm.h"
-#include "util.h"
 
 #include <nanopb.h>
 #include <interface.h>
@@ -52,19 +49,20 @@ typedef struct
 
 static MsgStats msg_stats;
 
-
-struct MessagesMap_t {
-    char dir; 	// i = in, o = out
-    MessageType msg_id;
-    const pb_field_t *fields;
-    void (*process_func)(void *ptr);
-};
-
-static const struct MessagesMap_t MessagesMap[] = {
+static const MessagesMap_t *MessagesMap =NULL;
+#if 0
+static const MessagesMap_t MessagesMap[] = {
 	// in messages
 	{'i', MessageType_MessageType_Initialize,		Initialize_fields,	(void (*)(void *))fsm_msgInitialize},
 	{'i', MessageType_MessageType_Ping,			Ping_fields,		(void (*)(void *))fsm_msgPing},
 	{'o', MessageType_MessageType_Features,		        Features_fields,	0},
+	{'i', MessageType_MessageType_SignTx,		        SignTx_fields,		(void (*)(void *))fsm_msgSignTx},
+	{'o', MessageType_MessageType_Success,		        Success_fields,		0},
+	{'o', MessageType_MessageType_Failure,		        Failure_fields,		0},
+	{'i', MessageType_MessageType_GetAddress,		GetAddress_fields,	(void (*)(void *))fsm_msgGetAddress},
+	{'i', MessageType_MessageType_ResetDevice,		ResetDevice_fields,	(void (*)(void *))fsm_msgResetDevice},
+	{'o', MessageType_MessageType_EntropyRequest,	        EntropyRequest_fields,	0},
+	{'i', MessageType_MessageType_EntropyAck,		EntropyAck_fields,	(void (*)(void *))fsm_msgEntropyAck},
 #if 0
 	{'n', 'i', MessageType_MessageType_ChangePin,		ChangePin_fields,	(void (*)(void *))fsm_msgChangePin},
 	{'n', 'i', MessageType_MessageType_WipeDevice,		WipeDevice_fields,	(void (*)(void *))fsm_msgWipeDevice},
@@ -108,10 +106,11 @@ static const struct MessagesMap_t MessagesMap[] = {
 #endif
 	{0, 0, 0, 0}
 };
+#endif
 
-const struct MessagesMap_t* message_map_entry(MessageType type)
+const MessagesMap_t* message_map_entry(MessageType type)
 {
-    const struct MessagesMap_t *m = MessagesMap;
+    const MessagesMap_t *m = MessagesMap;
     while(m->msg_id) {
         if(type == m->msg_id)
         {
@@ -125,7 +124,7 @@ const struct MessagesMap_t* message_map_entry(MessageType type)
 
 const pb_field_t *message_fields(MessageType type)
 {
-    const struct MessagesMap_t *m = MessagesMap;
+    const MessagesMap_t *m = MessagesMap;
     while (m->msg_id) {
         if (type == m->msg_id) {
             return m->fields;
@@ -169,7 +168,7 @@ bool msg_write(MessageType type, const void *msg_ptr)
     return true;
 }
 
-void dispatch(const struct MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size)
+void dispatch(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size)
 {
     static uint8_t decode_buffer[MAX_DECODE_SIZE];
 
@@ -212,7 +211,7 @@ void handle_usb_rx(UsbMessage *msg)
     frame->header.len = __builtin_bswap32(frame->header.len);
 
 
-    const struct MessagesMap_t* entry = message_map_entry(frame->header.id);
+    const MessagesMap_t* entry = message_map_entry(frame->header.id);
     if(entry)
     {
         dispatch(entry, frame->contents, frame->header.len);
@@ -221,8 +220,11 @@ void handle_usb_rx(UsbMessage *msg)
     }
 }
 
-void msg_init(void)
+void msg_init(const MessagesMap_t* map)
 {
+    assert(map != NULL);
+
+    MessagesMap = map;
     usb_set_rx_callback(handle_usb_rx);
 }
 

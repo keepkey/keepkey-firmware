@@ -32,7 +32,6 @@
 #include <rand.h>
 #include <storage.h>
 #include <protect.h>
-#include <pinmatrix.h>
 #include <reset.h>
 #include <recovery.h>
 #include <memory.h>
@@ -43,7 +42,6 @@
 
 
 // message methods
-
 static uint8_t msg_resp[MSG_OUT_SIZE];
 
 #define RESP_INIT(TYPE) TYPE *resp = (TYPE *)msg_resp; memset(resp, 0, sizeof(TYPE));
@@ -97,9 +95,9 @@ void fsm_msgInitialize(Initialize *msg)
 	signing_abort();
 	RESP_INIT(Features);
 	resp->has_vendor = true;         strlcpy(resp->vendor, "keepkey.com", sizeof(resp->vendor));
-	resp->has_major_version = true;  resp->major_version = VERSION_MAJOR;
-	resp->has_minor_version = true;  resp->minor_version = VERSION_MINOR;
-	resp->has_patch_version = true;  resp->patch_version = VERSION_PATCH;
+	resp->has_major_version = true;  resp->major_version = 0;
+	resp->has_minor_version = true;  resp->minor_version = 0;
+	resp->has_patch_version = true;  resp->patch_version = 0;
 	resp->has_device_id = true;      strlcpy(resp->device_id, storage_uuid_str, sizeof(resp->device_id));
 	resp->has_pin_protection = true; resp->pin_protection = storage.has_pin;
 	resp->has_passphrase_protection = true; resp->passphrase_protection = storage.passphrase_protection;
@@ -213,11 +211,6 @@ void fsm_msgSignTx(SignTx *msg)
         return;
     }
 
-    if (!protectPin(true)) {
-        layout_home();
-        return;
-    }
-
     HDNode *node = fsm_getRootNode();
     if (!node) return;
     const CoinType *coin = coinByName(msg->coin_name);
@@ -242,11 +235,6 @@ void fsm_msgSimpleSignTx(SimpleSignTx *msg)
 
     if (msg->outputs_count < 1) {
         fsm_sendFailure(FailureType_Failure_Other, "Transaction must have at least one output");
-        layout_home();
-        return;
-    }
-
-    if (!protectPin(true)) {
         layout_home();
         return;
     }
@@ -421,6 +409,14 @@ void fsm_msgGetAddress(GetAddress *msg)
     layout_home();
 }
 
+void fsm_msgEntropyAck(EntropyAck *msg)
+{
+	if (msg->has_entropy) {
+		reset_entropy(msg->entropy.bytes, msg->entropy.size);
+	} else {
+		reset_entropy(0, 0);
+	}
+}
 
 void fsm_msgRecoveryDevice(RecoveryDevice *msg)
 {
@@ -441,5 +437,25 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg)
 void fsm_msgWordAck(WordAck *msg)
 {
     recovery_word(msg->word);
+}
+
+static const MessagesMap_t MessagesMap[] = {
+    // in messages
+    {'i', MessageType_MessageType_Initialize,		Initialize_fields,	(void (*)(void *))fsm_msgInitialize},
+    {'i', MessageType_MessageType_Ping,			Ping_fields,		(void (*)(void *))fsm_msgPing},
+    {'o', MessageType_MessageType_Features,	        Features_fields,	0},
+    {'i', MessageType_MessageType_SignTx,	        SignTx_fields,		(void (*)(void *))fsm_msgSignTx},
+    {'o', MessageType_MessageType_Success,	        Success_fields,		0},
+    {'o', MessageType_MessageType_Failure,	        Failure_fields,		0},
+    {'i', MessageType_MessageType_GetAddress,		GetAddress_fields,	(void (*)(void *))fsm_msgGetAddress},
+    {'i', MessageType_MessageType_ResetDevice,		ResetDevice_fields,	(void (*)(void *))fsm_msgResetDevice},
+    {'o', MessageType_MessageType_EntropyRequest,        EntropyRequest_fields,	0},
+    {'i', MessageType_MessageType_EntropyAck,		EntropyAck_fields,	(void (*)(void *))fsm_msgEntropyAck},
+    {0,0,0,0}
+};
+
+void fsm_init(void)
+{
+    msg_init(MessagesMap);
 }
 

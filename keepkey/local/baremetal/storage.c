@@ -231,7 +231,7 @@ bool storage_getRootNode(HDNode *node)
 			return false;
 		}
 		uint8_t seed[64];
-		layoutProgressSwipe("Waking up", 0, 0);
+                layout_standard_notification("Waking up","");
 		mnemonic_to_seed(storage.mnemonic, sessionPassphrase, seed, get_root_node_callback); // BIP-0039
 		hdnode_from_seed(seed, sizeof(seed), &sessionRootNode);
 		memcpy(node, &sessionRootNode, sizeof(HDNode));

@@ -62,5 +62,11 @@ font_height(
         void
 );
 
+/// Get the width of a font
+int
+font_width(
+        void
+);
+
 
 #endif // KeepKeyFont_H

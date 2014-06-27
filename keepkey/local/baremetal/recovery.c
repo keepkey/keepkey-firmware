@@ -72,12 +72,6 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
 	word_count = _word_count;
 	enforce_wordlist = _enforce_wordlist;
 
-	if (pin_protection && !protectChangePin()) {
-		fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
-		layout_home();
-		return;
-	}
-
 	storage.has_passphrase_protection = true;
 	storage.passphrase_protection = passphrase_protection;
 	storage_setLanguage(language);
