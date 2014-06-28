@@ -43,7 +43,6 @@
 #include <layout.h>
 
 #include <confirm_sm.h>
-#include <keepkey_led.h>
 #include <usb_driver.h>
 #include <usb_flash.h>
 
@@ -63,7 +62,7 @@ uint32_t * const  SCB_VTOR = (uint32_t*)0xe000ed08;
 
 static bool validate_firmware()
 {
-    return false;
+    return true;
 }
 
 /**
@@ -115,8 +114,6 @@ static void configure_hw()
 
     keepkey_leds_init();
 
-    led_init();
-
     keepkey_button_init();
 
     display_init();
@@ -148,8 +145,8 @@ int main(int argc, char* argv[])
 
     bool update_mode = keepkey_button_down();
 
-    led_green(true);
-    led_red(true);
+    set_green();
+    set_red();
 
 
 
@@ -163,20 +160,26 @@ int main(int argc, char* argv[])
             } else {
                 layout_standard_notification("UNSIGNED FIRMWARE", firmware_sig_as_string());
             }
+            delay(1000);
+            display_refresh();
+            display_refresh();
 
             delay(5000);
 
-            led_red(false);
+            clear_red();
             set_vector_table_offset(0x40000);
             boot_jump(0x08040000);
         } else {
-            led_green(false);
+            clear_green();
 
             if(update_mode)
             {
                 if(confirm("Hold button to confirm firmware update."))
                 {
                     usb_flash_firmware();
+                    layout_standard_notification("Firmware Updating...", "COMPLETED.  Board will reset in 5 seconds.");
+                    display_refresh();
+                    delay(5000);
 
                     board_reset();
                 } 

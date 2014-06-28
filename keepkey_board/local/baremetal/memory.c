@@ -75,7 +75,9 @@ void flash_write(Allocation group, size_t offset, size_t len, uint8_t* data)
         if(s->use == group)
         {
             start = s->start;
+            break;
         }
+        ++s;
     }
 
     assert(start != 0);

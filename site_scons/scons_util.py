@@ -169,6 +169,12 @@ def init_project(env, deps=None, libs=None, project_defines=None):
     flavors = None
     flavor_map = get_flavors()
 
+    linkflags = []
+    if project_name == 'bootloader':
+        linkflags = env['LINKFLAGS'] + ['-T' + Dir('#').abspath + '/memory_bootloader.ld']
+    else:
+        linkflags = env['LINKFLAGS'] + ['-T' + Dir('#').abspath + '/memory.ld']
+
     project_flavors = {}
     if project_name in flavor_map:
         project_flavors = flavor_map[project_name]
@@ -227,6 +233,7 @@ def init_project(env, deps=None, libs=None, project_defines=None):
                       exe_source, 
                       LIBS=[deplibs], 
                       _LIBFLAGS= '-Wl,--start-group ' + env['_LIBFLAGS'] + ' -Wl,--end-group ' + platform_libs,
+                      LINKFLAGS=linkflags,
 		      LIBPATH=deplibpaths,
                       CPPPATH=include_paths + dep_include_paths,
                       CPATH=include_paths + dep_include_paths)

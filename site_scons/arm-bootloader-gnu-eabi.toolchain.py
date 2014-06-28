@@ -58,7 +58,7 @@ def load_toolchain():
     env['LINKFLAGS']    = [ 
                     '-mthumb',
                     '-mcpu=cortex-m3',
-                    #'-T' + Dir('#').abspath + '/memory.ld', 
+                    '-T' + Dir('#').abspath + '/memory_bootloader.ld', 
                     '-nostartfiles',
                     '-msoft-float',
                     '-L'+OPENCM3_ROOT+'/lib',

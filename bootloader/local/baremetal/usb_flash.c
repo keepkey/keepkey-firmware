@@ -158,16 +158,11 @@ void send_failure(FailureType code, const char *text)
 void handler_update(FirmwareUpdate* msg) 
 {
     update_state = UPDATE_STARTED;
-send_success(NULL);
-return;
 
-
-
-
-    uint32_t app_flash_start = flash_sector_map[FLASH_APP_SECTOR_FIRST].start;
-    uint32_t app_flash_end = flash_sector_map[FLASH_APP_SECTOR_LAST].start + 
+    const uint32_t app_flash_start = flash_sector_map[FLASH_APP_SECTOR_FIRST].start;
+    const uint32_t app_flash_end = flash_sector_map[FLASH_APP_SECTOR_LAST].start + 
         flash_sector_map[FLASH_APP_SECTOR_LAST].len;
-    uint32_t app_flash_size = app_flash_end - app_flash_start;
+    const uint32_t app_flash_size = app_flash_end - app_flash_start;
 
     /*
     if(msg->offset > app_flash_size)
@@ -179,20 +174,15 @@ return;
     */
 
     static uint32_t offset = 0;
-    //uint32_t offset = msg->offset + app_flash_start;
     uint32_t size = msg->payload.size;
 
     if( (offset + size) < app_flash_end)
     {
     	if(size > 0)
     	{
-            uint32_t x = offset + app_flash_start;
-        //            flash_write(FLASH_APP, offset, size, msg->payload.bytes);
-        //
+            flash_write(FLASH_APP, offset, size, msg->payload.bytes);
+            offset += size;
     	}
-        send_success(NULL);
-        offset += size;
-
     } else {
         ++stats.invalid_offset_ct;
         send_failure(FailureType_Failure_UnexpectedMessage, "Upload overflow");

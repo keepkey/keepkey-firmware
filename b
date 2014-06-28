@@ -33,10 +33,11 @@ def main():
 
     if args.stm32:
         target ='arm-none-gnu-eabi'
+        local('scons ' + 'target='+target + buildargs)
+        
     else:
         target='x86_64-linux-gnu-none'
-
-    local('scons ' + 'target='+target + buildargs)
+        local('scons ' + 'target='+target + buildargs)
     
 
 if __name__ == '__main__':
