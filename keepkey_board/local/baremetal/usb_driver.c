@@ -155,7 +155,7 @@ static const struct usb_endpoint_descriptor hid_endpoints[] = {{
 	.bEndpointAddress = ENDPOINT_ADDRESS_OUT,
 	.bmAttributes = USB_ENDPOINT_ATTR_INTERRUPT,
 	.wMaxPacketSize = USB_SEGMENT_SIZE,
-	.bInterval = 1,
+	.bInterval = 10,
 }};
 
 static const struct usb_interface_descriptor hid_iface[] = {{
@@ -313,6 +313,8 @@ bool usb_tx(void* message, uint32_t len)
             //monitors the usb transmit for last transmit complete
             //status.
             delay(100);
+        } else {
+        	delay(100);
         }
         /*
          * Need to truncate to 63 because 

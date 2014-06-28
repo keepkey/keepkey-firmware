@@ -167,8 +167,8 @@ int main(int argc, char* argv[])
             delay(5000);
 
             led_red(false);
-            set_vector_table_offset(0x10000);
-            boot_jump(0x08010000);
+            set_vector_table_offset(0x40000);
+            boot_jump(0x08040000);
         } else {
             led_green(false);
 

@@ -175,8 +175,12 @@ void dispatch(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size)
     pb_istream_t stream = pb_istream_from_buffer(msg, msg_size);
 
     bool status = pb_decode(&stream, entry->fields, decode_buffer);
-    if (status) {
-        entry->process_func(decode_buffer);
+    if (status) 
+    {
+        if(entry->process_func) 
+        {
+            entry->process_func(decode_buffer);
+        }
     } else {
         /* TODO: Handle error response */
     }
@@ -191,8 +195,9 @@ void dispatch(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size)
  */
 void handle_usb_rx(UsbMessage *msg)
 {
-    assert(msg);
-    if(msg->len < sizeof(TrezorFrameHeader))
+    assert(msg != NULL);
+
+    if(msg->len < sizeof(TrezorFrameHeaderFirst))
     {
         ++msg_stats.runt_packet;
         return;
@@ -202,19 +207,37 @@ void handle_usb_rx(UsbMessage *msg)
     {
         ++msg_stats.invalid_usb_header;
         return;
-    }
+    } 
 
     /*
-     * Byte swap in place.
+     * Check to see if this is the first frame of a series,
+     * or a continuation/fragment.
      */
-    frame->header.id = __builtin_bswap16(frame->header.id);
-    frame->header.len = __builtin_bswap32(frame->header.len);
+    static TrezorFrameHeaderFirst last_frame_header = 
+    {
+        .id = 0xffff,
+        .len = 0
+    };
 
+    uint8_t* contents = NULL;
+    uint32_t len = 0;
 
-    const MessagesMap_t* entry = message_map_entry(frame->header.id);
+    if(frame->header.pre1 == '#' && frame->header.pre2 == '#')
+    {
+        /*
+         * Byte swap in place.
+         */
+        last_frame_header.id = __builtin_bswap16(frame->header.id);
+        last_frame_header.len = __builtin_bswap32(frame->header.len);
+        contents = frame->contents;
+    } else {
+        contents = ((TrezorFrameFragment*)msg->message)->contents;
+    } 
+
+    const MessagesMap_t* entry = message_map_entry(last_frame_header.id);
     if(entry)
     {
-        dispatch(entry, frame->contents, frame->header.len);
+        dispatch(entry, contents, last_frame_header.len);
     } else {
         ++msg_stats.unknown_dispatch_entry;
     }

@@ -65,7 +65,7 @@ SimpleSignTx.outputs			max_count:4
 SimpleSignTx.transactions		max_count:4
 SimpleSignTx.coin_name			max_size:17
 
-FirmwareUpdate.payload			max_size:48 
+FirmwareUpdate.payload			max_size:55
 
 DebugLinkState.layout			max_size:1024
 DebugLinkState.pin			max_size:10

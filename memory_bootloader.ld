@@ -1,7 +1,7 @@
 MEMORY
 {
     /* Bootloader */
-    rom (rx) : ORIGIN = 0x08000000, LENGTH = 1024K 
+    rom (rx) : ORIGIN = 0x08000000, LENGTH = 256K 
 
     /* RAM */
     ram (rwx)    : ORIGIN = 0x20000000, LENGTH = 128K

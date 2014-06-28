@@ -68,10 +68,10 @@
 #define FLASH_END               (FLASH_ORIGIN + FLASH_TOTAL_SIZE)
 
 #define FLASH_BOOT_START	(FLASH_ORIGIN)
-#define FLASH_BOOT_LEN		(0x20000)
+#define FLASH_BOOT_LEN		(0x40000)
 
 #define FLASH_CONFIG_START	(FLASH_BOOT_START + FLASH_BOOT_LEN)
-#define FLASH_CONFIG_LEN	(0x20000)
+#define FLASH_CONFIG_LEN	(0x40000)
 
 #define FLASH_APP_START		(FLASH_CONFIG_START + FLASH_CONFIG_LEN)
 
@@ -119,7 +119,7 @@ typedef struct
     Allocation use;
 } FlashSector;
 
-static const FlashSector flash_sector_map[FLASH_APP_SECTOR_LAST+2] = {
+static const FlashSector flash_sector_map[]= {
     { 0,  0x08000000, 0x4000,  FLASH_BOOTLOADER },
     { 1,  0x08004000, 0x4000,  FLASH_BOOTLOADER },
     { 2,  0x08008000, 0x4000,  FLASH_BOOTLOADER },

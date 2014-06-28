@@ -46,6 +46,9 @@ typedef struct
 /**
  * Trezor frame header
  */
+/**
+ * First Trezor header with the ?##<id><len> preamble
+ */
 typedef struct
 {
     /* 
@@ -61,12 +64,21 @@ typedef struct
     /* Length of the following message */
     uint32_t len;
 
-} TrezorFrameHeader;
+} TrezorFrameHeaderFirst;
+
+/**
+ * Second+ continuation fragment.
+ */
+typedef struct
+{
+    UsbHeader header;
+    uint8_t contents[0];
+} TrezorFrameFragment;
 
 typedef struct 
 {
     UsbHeader usb_header;
-    TrezorFrameHeader header;
+    TrezorFrameHeaderFirst header;
     uint8_t contents[0];
 } TrezorFrame;
 

@@ -53,8 +53,6 @@ enum MessageType {
 	MessageType_RecoveryDevice = 45 [(wire_in) = true];
 	MessageType_WordRequest = 46 [(wire_out) = true];
 	MessageType_WordAck = 47 [(wire_in) = true];
-	MessageType_KeepKeyBootloaderFrame = 48;
-	MessageType_LAST = 49;
 }
 
 ////////////////////
@@ -460,24 +458,9 @@ message TxAck {
  * @next Failure
  */
 message FirmwareUpdate {
-        optional bool final = 1;
-        required uint32 offset = 2;
-	required bytes payload = 3;
-}
+	optional bytes payload = 1;
+        optional uint32 offset = 3;
+        optional bool final = 2;
 
-
-/**
- * Top level message to enable parsing out a message top from the incoming message stream.
- */
-message KeepKeyBootloaderFrame {
-    required MessageType type = 1;
-
-    optional Initialize initialize = 2;
-    optional Ping ping = 3;
-    optional Success success = 4;
-    optional Failure failure = 5;
-    optional PassphraseRequest passphrase_request= 6;
-    optional PassphraseAck passphrase_ack = 7;
-    optional FirmwareUpdate firmware_update = 8;
 }
 

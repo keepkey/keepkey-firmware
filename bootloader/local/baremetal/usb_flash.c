@@ -127,37 +127,83 @@ bool usb_flash_firmware(void)
     return true;
 }
 
+
+void send_success(const char *text)
+{
+    Success s;
+    memset(&s, 0, sizeof(s));
+
+    if (text) {
+        s.has_message = true;
+        strlcpy(s.message, text, sizeof(s.message));
+    }
+    msg_write(MessageType_MessageType_Success, &s);
+}
+
+void send_failure(FailureType code, const char *text)
+{
+    Failure f;
+    memset(&f, 0, sizeof(f));
+
+    f.has_code = true;
+    f.code = code;
+    if (text) {
+        f.has_message = true;
+        strlcpy(f.message, text, sizeof(f.message));
+    }
+    msg_write(MessageType_MessageType_Failure, &f);
+}
+
+
 void handler_update(FirmwareUpdate* msg) 
 {
     update_state = UPDATE_STARTED;
+send_success(NULL);
+return;
+
+
+
 
     uint32_t app_flash_start = flash_sector_map[FLASH_APP_SECTOR_FIRST].start;
     uint32_t app_flash_end = flash_sector_map[FLASH_APP_SECTOR_LAST].start + 
         flash_sector_map[FLASH_APP_SECTOR_LAST].len;
     uint32_t app_flash_size = app_flash_end - app_flash_start;
 
+    /*
     if(msg->offset > app_flash_size)
     {
         ++stats.invalid_offset_ct;
+        send_failure(FailureType_Failure_UnexpectedMessage, "Offset too large");
+        return;
     }
+    */
 
-    uint32_t offset = msg->offset + app_flash_start;
+    static uint32_t offset = 0;
+    //uint32_t offset = msg->offset + app_flash_start;
     uint32_t size = msg->payload.size;
 
     if( (offset + size) < app_flash_end)
     {
-        if(size > 0)
-        {
-            flash_write(FLASH_APP, offset, size, msg->payload.bytes);
-        }
+    	if(size > 0)
+    	{
+            uint32_t x = offset + app_flash_start;
+        //            flash_write(FLASH_APP, offset, size, msg->payload.bytes);
+        //
+    	}
+        send_success(NULL);
+        offset += size;
+
     } else {
         ++stats.invalid_offset_ct;
+        send_failure(FailureType_Failure_UnexpectedMessage, "Upload overflow");
+        return;
     }
 
     if(msg->has_final && msg->final == true)
     {
         update_state = UPDATE_COMPLETE;
         flash_lock();
+        send_success("Upload complete");
     } 
 }
 
