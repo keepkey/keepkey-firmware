@@ -194,6 +194,8 @@ void handler_update(FirmwareUpdate* msg)
         update_state = UPDATE_COMPLETE;
         flash_lock();
         send_success("Upload complete");
+        layout_standard_notification("Firmware Updating...", "Upload complete");
+        display_refresh();
     } 
 }
 

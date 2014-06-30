@@ -63,9 +63,6 @@ def load_toolchain():
                     '-msoft-float',
                     '-L'+OPENCM3_ROOT+'/lib',
                     '-specs=nosys.specs',
-                    #'-Wl,--start-group',
-                    #'-lc', '-lgcc', '-lnosys',
-                    #'-Wl,--end-group',
                     # Mapfile output via linker.  Shows the memory map and 
                     # high level symbol table info 
                     '-Wl,-Map=${TARGET.base}.linkermap',
@@ -106,12 +103,7 @@ def load_toolchain():
 
             '-mthumb',
             '-mcpu=cortex-m3',
-            #'-march=armv7-m',
-
             '-msoft-float',
-            #'-mfix-cortex-m3-ldrd',
-            #'-mfloat-abi=soft',
-
             '-ffunction-sections',
             '-fdata-sections',
             '-fno-common',
@@ -209,6 +201,13 @@ def add_builders(env):
     def generate_srec(source, target, env, for_signature):
         return '%s -O ihex %s %s' % (env['OBJCOPY'], source[0], target[0])
 
+    #
+    # bin file for bootloader
+    #
+    def generate_bin(source, target, env, for_signature):
+        return '%s -O binary %s %s' % (env['OBJCOPY'], source[0], target[0])
+
+
     env.Append(BUILDERS=\
         {
         'Mapfile' : Builder(
@@ -218,6 +217,10 @@ def add_builders(env):
         'SRecord' : Builder(
             generator = generate_srec,
             suffix = '.srec',
+            src_suffix = '.elf'),
+        'Binfile' : Builder(
+            generator = generate_bin,
+            suffix = '.bin',
             src_suffix = '.elf')
         })
 

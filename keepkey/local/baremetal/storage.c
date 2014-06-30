@@ -110,10 +110,14 @@ void storage_reset(void)
 	sessionPinCached = false;        memset(&sessionPin, 0, sizeof(sessionPin));
 }
 
-static uint8_t meta_backup[FLASH_CONFIG_LEN];
+// Currently not enough RAM for this:
+// static uint8_t meta_backup[FLASH_CONFIG_LEN];
 
 void storage_commit(void)
 {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Not enough RAM.");
+        return;
+#if 0
 	int i;
 	uint32_t *w;
 	// backup meta
@@ -133,6 +137,7 @@ void storage_commit(void)
 		flash_program_word(FLASH_CONFIG_START + i * 4, *w);
 	}
 	flash_lock();
+#endif
 }
 
 void storage_loadDevice(LoadDevice *msg)

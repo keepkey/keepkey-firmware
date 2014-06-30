@@ -58,45 +58,16 @@ def load_toolchain():
     env['LINKFLAGS']    = [ 
                     '-mthumb',
                     '-mcpu=cortex-m3',
-                    #'-T' + Dir('#').abspath + '/memory.ld', 
                     '-nostartfiles',
                     '-msoft-float',
                     '-L'+OPENCM3_ROOT+'/lib',
                     '-specs=nosys.specs',
-                    #'-Wl,--start-group',
-                    #'-lc', '-lgcc', '-lnosys',
-                    #'-Wl,--end-group',
                     # Mapfile output via linker.  Shows the memory map and 
                     # high level symbol table info 
                     '-Wl,-Map=${TARGET.base}.linkermap',
                     '-Wl,--gc-sections',
-
                       #'-mfloat-abi=soft'
                     ]
-
-    """
-    env['LINKFLAGS']    = [ 
-                        '--static',
-                        '-specs=nosys.specs', 
-                        '-mthumb', 
-                        '-L'+Dir('#').abspath,
-                        '-L'+OPENCM3_ROOT+'/lib',
-                        '-T' + Dir('#').abspath + '/memory_bootloader.ld', 
-                        '-nostartfiles', 
-                        '-mcpu=cortex-m3',
-                        '-mfix-cortex-m3-ldrd',
-                        '-msoft-float',
-                        '-ffunction-sections',
-                        '-fdata-sections',
-                        '-fno-common',
-                        '-Wl,--gc-sections',
-                        # Lots of output '-Wl,--print-gc-sections',
-
-                        # Mapfile output via linker.  Shows the memory map and 
-                        # high level symbol table info 
-                        '-Wl,-Map=${TARGET.base}.linkermap'
-                        ] 
-    """
 
     env['LIBPREFIXES']  = [ '$LIBPREFIX' ]
     env['LIBSUFFIXES']  = [ '$LIBSUFFIX' ]
@@ -209,6 +180,12 @@ def add_builders(env):
     def generate_srec(source, target, env, for_signature):
         return '%s -O ihex %s %s' % (env['OBJCOPY'], source[0], target[0])
 
+    #
+    # bin file for bootloader
+    #
+    def generate_bin(source, target, env, for_signature):
+        return '%s -O binary %s %s' % (env['OBJCOPY'], source[0], target[0])
+
     env.Append(BUILDERS=\
         {
         'Mapfile' : Builder(
@@ -218,6 +195,10 @@ def add_builders(env):
         'SRecord' : Builder(
             generator = generate_srec,
             suffix = '.srec',
+            src_suffix = '.elf'),
+        'Binfile' : Builder(
+            generator = generate_bin,
+            suffix = '.bin',
             src_suffix = '.elf')
         })
 

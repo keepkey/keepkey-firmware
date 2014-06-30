@@ -241,6 +241,7 @@ def init_project(env, deps=None, libs=None, project_defines=None):
         try:
             env.Mapfile(exe)
             env.SRecord(exe)
+            env.Binfile(exe)
         except AttributeError:
             print "No platform specific output defined."
 
