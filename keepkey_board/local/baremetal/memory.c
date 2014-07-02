@@ -58,7 +58,7 @@ void flash_erase(Allocation group)
     {
         if(s->use == group)
         {
-            flash_erase_sector(s->sector, FLASH_CR_PROGRAM_X32);
+            flash_erase_sector(s->sector, FLASH_CR_PROGRAM_X8);
         }
 
         ++s;

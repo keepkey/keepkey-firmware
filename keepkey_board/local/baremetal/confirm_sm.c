@@ -168,22 +168,27 @@ void swap_layout(ActiveLayout active_layout, volatile StateInfo* si)
     switch(active_layout)
     {
     	case LAYOUT_REQUEST:
+                layout_standard_notification(si->lines[active_layout][0].str, si->lines[active_layout][1].str);
     		break;
     	case LAYOUT_CONFIRM_ANIMATION:
+                layout_confirmation(CONFIRM_TIMEOUT_MS);
     		post_delayed( &handle_confirm_timeout, (void*)si, CONFIRM_TIMEOUT_MS );
     		break;
     	case LAYOUT_ABORTED:
+                layout_standard_notification(si->lines[active_layout][0].str, si->lines[active_layout][1].str);
     		remove_runnable( &handle_confirm_timeout );
     		break;
     	case LAYOUT_CONFIRMED:
+                layout_standard_notification(si->lines[active_layout][0].str, si->lines[active_layout][1].str);
     		remove_runnable( &handle_confirm_timeout );
     		break;
     	case LAYOUT_FINISHED:
+                layout_standard_notification(si->lines[active_layout][0].str, si->lines[active_layout][1].str);
     		break;
     	default:
     		assert(0);
     };
-    layout_standard_notification(si->lines[active_layout][0].str, si->lines[active_layout][1].str);
+
 }
 
 bool confirm(const char *request, ...)

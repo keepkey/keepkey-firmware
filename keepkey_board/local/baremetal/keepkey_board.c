@@ -51,6 +51,12 @@ static void clock_init(void)
     rcc_periph_clock_enable(RCC_TIM4);
     rcc_periph_clock_enable(RCC_RNG);
     
+}
+ 
+void board_init(void)
+{
+    clock_init();
+
     /*
      * Enable random
      */
@@ -61,15 +67,4 @@ static void clock_init(void)
     keepkey_button_init();
     display_init();
     layout_init(display_canvas());
-
-}
- 
-void board_init(void)
-{
-    clock_init();
-       
-    // enable OTG_FS
-    gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO11 | GPIO12);
-    gpio_set_af(GPIOA, GPIO_AF10, GPIO11 | GPIO12);
-
 }

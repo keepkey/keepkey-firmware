@@ -181,6 +181,7 @@ void handler_update(FirmwareUpdate* msg)
     	if(size > 0)
     	{
             flash_write(FLASH_APP, offset, size, msg->payload.bytes);
+            send_success(NULL);
             offset += size;
     	}
     } else {
@@ -191,10 +192,11 @@ void handler_update(FirmwareUpdate* msg)
 
     if(msg->has_final && msg->final == true)
     {
+        //flash_write(FLASH_APP, offset, size, msg->payload.bytes);
         update_state = UPDATE_COMPLETE;
         flash_lock();
         send_success("Upload complete");
-        layout_standard_notification("Firmware Updating...", "Upload complete");
+        layout_standard_notification("Firmware Updating...", "Upload complete.  Reset KeepKey to continue.");
         display_refresh();
     } 
 }

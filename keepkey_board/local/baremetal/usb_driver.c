@@ -192,7 +192,7 @@ static const struct usb_config_descriptor config = {
 
 static const char *usb_strings[] = {
 	"KeepKey",
-	"KeepKey Bootloader",
+	"KeepKey App",
 	"No Serial",
         ""
 };
