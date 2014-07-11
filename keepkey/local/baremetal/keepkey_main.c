@@ -33,6 +33,7 @@ int main(void)
     board_init();
     set_red();
 
+    storage_init();
     fsm_init();
     layout_home();
     display_refresh();

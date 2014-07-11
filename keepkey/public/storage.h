@@ -97,5 +97,6 @@ void storage_set_mnemonic(const char *mnemonic);
  * @return the currently configured mnemonic.
  */
 const char* storage_get_mnemonic(void);
+const char* storage_get_shadow_mnemonic(void);
 
 #endif

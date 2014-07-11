@@ -111,13 +111,14 @@ void storage_init(void)
     //TODO: Add checksum functionality to config store.
     // if magic is ok
     if (real_config->meta.magic == META_MAGIC &&
-            storage_from_flash(real_config->storage.version))
+        storage_from_flash(real_config->storage.version))
     {
         storage_commit();
     } else {
         /*
          *  Handle unknown invalid storage config here.
          */
+        shadow_config.meta.magic = META_MAGIC;
         storage_reset_uuid();
         storage_commit();
     }
@@ -144,19 +145,13 @@ void storage_reset(void)
  */
 void storage_commit(void)
 {
-    Metadata meta_backup;
     int i;
     uint32_t *w;
-
-    /*
-     * backup meta
-     */
-    memcpy(&meta_backup, (Metadata*)FLASH_CONFIG_START, sizeof(Metadata));
 
     flash_unlock();
 
     flash_erase(FLASH_CONFIG);
-    flash_write(FLASH_CONFIG, 0, sizeof(Metadata), (uint8_t*)&meta_backup);
+    flash_write(FLASH_CONFIG, 0, sizeof(shadow_config), (uint8_t*)&shadow_config);
 
     flash_lock();
 }
@@ -261,6 +256,7 @@ bool storage_getRootNode(HDNode *node)
         }
         uint8_t seed[64];
         layout_standard_notification("Waking up","");
+        display_refresh();
         mnemonic_to_seed(real_config->storage.mnemonic, sessionPassphrase, seed, get_root_node_callback); // BIP-0039
         hdnode_from_seed(seed, sizeof(seed), &sessionRootNode);
         memcpy(node, &sessionRootNode, sizeof(HDNode));

@@ -98,9 +98,13 @@ void fsm_msgInitialize(Initialize *msg)
 	resp->has_major_version = true;  resp->major_version = 0;
 	resp->has_minor_version = true;  resp->minor_version = 0;
 	resp->has_patch_version = true;  resp->patch_version = 0;
-	resp->has_device_id = true;      strlcpy(resp->device_id, storage_get_uuid_str(), sizeof(resp->device_id));
 
-	resp->has_passphrase_protection = true; resp->passphrase_protection = storage_get_passphrase_protected();
+        resp->has_device_id = false;
+	//resp->has_device_id = true;      strlcpy(resp->device_id, storage_get_uuid_str(), sizeof(resp->device_id));
+
+        resp->has_passphrase_protection = false;
+//        resp->has_passphrase_protection = true; resp->passphrase_protection = storage_get_passphrase_protected();
+
 #ifdef SCM_REVISION
 	resp->has_revision = true; memcpy(resp->revision.bytes, SCM_REVISION, sizeof(resp->revision)); resp->revision.size = SCM_REVISION_LEN;
 #endif
@@ -403,6 +407,7 @@ void fsm_msgGetAddress(GetAddress *msg)
     if (!coin) {
         fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
         layout_home();
+        display_refresh();
         return;
     }
 
@@ -412,6 +417,7 @@ void fsm_msgGetAddress(GetAddress *msg)
 
     msg_write(MessageType_MessageType_Address, resp);
     layout_home();
+    display_refresh();
 }
 
 void fsm_msgEntropyAck(EntropyAck *msg)
@@ -456,6 +462,21 @@ static const MessagesMap_t MessagesMap[] = {
     {'i', MessageType_MessageType_ResetDevice,		ResetDevice_fields,	(void (*)(void *))fsm_msgResetDevice},
     {'o', MessageType_MessageType_EntropyRequest,        EntropyRequest_fields,	0},
     {'i', MessageType_MessageType_EntropyAck,		EntropyAck_fields,	(void (*)(void *))fsm_msgEntropyAck},
+    {'i', MessageType_MessageType_WipeDevice,		WipeDevice_fields,	(void (*)(void *))fsm_msgWipeDevice},
+    {'i', MessageType_MessageType_GetPublicKey,	GetPublicKey_fields,	(void (*)(void *))fsm_msgGetPublicKey},
+    {'i', MessageType_MessageType_LoadDevice,		LoadDevice_fields,	(void (*)(void *))fsm_msgLoadDevice},
+    {'i', MessageType_MessageType_ResetDevice,		ResetDevice_fields,	(void (*)(void *))fsm_msgResetDevice},
+    {'i', MessageType_MessageType_SignTx,		SignTx_fields,		(void (*)(void *))fsm_msgSignTx},
+    //UNUSED BY TREZOR NOW {'i', MessageType_MessageType_SimpleSignTx,	SimpleSignTx_fields,	(void (*)(void *))fsm_msgSimpleSignTx},
+    {'i', MessageType_MessageType_Cancel,		Cancel_fields,		(void (*)(void *))fsm_msgCancel},
+    //TODO: {'i', MessageType_MessageType_TxAck,		TxAck_fields,		(void (*)(void *))fsm_msgTxAck},
+    {'i', MessageType_MessageType_ApplySettings,	ApplySettings_fields,	(void (*)(void *))fsm_msgApplySettings},
+    {'o', MessageType_MessageType_Address,		Address_fields,	        0},
+    {'i', MessageType_MessageType_EntropyAck,		EntropyAck_fields,	(void (*)(void *))fsm_msgEntropyAck},
+    {'i', MessageType_MessageType_RecoveryDevice,	RecoveryDevice_fields,	(void (*)(void *))fsm_msgRecoveryDevice},
+    {'i', MessageType_MessageType_WordAck,		WordAck_fields,		(void (*)(void *))fsm_msgWordAck},
+    {'o', MessageType_MessageType_WordRequest,		WordRequest_fields,	0},
+
     {0,0,0,0}
 };
 

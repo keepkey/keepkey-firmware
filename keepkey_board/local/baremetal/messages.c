@@ -50,63 +50,6 @@ typedef struct
 static MsgStats msg_stats;
 
 static const MessagesMap_t *MessagesMap =NULL;
-#if 0
-static const MessagesMap_t MessagesMap[] = {
-	// in messages
-	{'i', MessageType_MessageType_Initialize,		Initialize_fields,	(void (*)(void *))fsm_msgInitialize},
-	{'i', MessageType_MessageType_Ping,			Ping_fields,		(void (*)(void *))fsm_msgPing},
-	{'o', MessageType_MessageType_Features,		        Features_fields,	0},
-	{'i', MessageType_MessageType_SignTx,		        SignTx_fields,		(void (*)(void *))fsm_msgSignTx},
-	{'o', MessageType_MessageType_Success,		        Success_fields,		0},
-	{'o', MessageType_MessageType_Failure,		        Failure_fields,		0},
-	{'i', MessageType_MessageType_GetAddress,		GetAddress_fields,	(void (*)(void *))fsm_msgGetAddress},
-	{'i', MessageType_MessageType_ResetDevice,		ResetDevice_fields,	(void (*)(void *))fsm_msgResetDevice},
-	{'o', MessageType_MessageType_EntropyRequest,	        EntropyRequest_fields,	0},
-	{'i', MessageType_MessageType_EntropyAck,		EntropyAck_fields,	(void (*)(void *))fsm_msgEntropyAck},
-#if 0
-	{'n', 'i', MessageType_MessageType_ChangePin,		ChangePin_fields,	(void (*)(void *))fsm_msgChangePin},
-	{'n', 'i', MessageType_MessageType_WipeDevice,		WipeDevice_fields,	(void (*)(void *))fsm_msgWipeDevice},
-	{'n', 'i', MessageType_MessageType_FirmwareErase,	FirmwareErase_fields,	(void (*)(void *))fsm_msgFirmwareErase},
-	{'n', 'i', MessageType_MessageType_FirmwareUpload,	FirmwareUpload_fields,	(void (*)(void *))fsm_msgFirmwareUpload},
-	{'n', 'i', MessageType_MessageType_GetEntropy,		GetEntropy_fields,	(void (*)(void *))fsm_msgGetEntropy},
-	{'n', 'i', MessageType_MessageType_GetPublicKey,	GetPublicKey_fields,	(void (*)(void *))fsm_msgGetPublicKey},
-	{'n', 'i', MessageType_MessageType_LoadDevice,		LoadDevice_fields,	(void (*)(void *))fsm_msgLoadDevice},
-	{'n', 'i', MessageType_MessageType_ResetDevice,		ResetDevice_fields,	(void (*)(void *))fsm_msgResetDevice},
-	{'n', 'i', MessageType_MessageType_SignTx,		SignTx_fields,		(void (*)(void *))fsm_msgSignTx},
-	{'n', 'i', MessageType_MessageType_SimpleSignTx,	SimpleSignTx_fields,	(void (*)(void *))fsm_msgSimpleSignTx},
-//	{'n', 'i', MessageType_MessageType_PinMatrixAck,	PinMatrixAck_fields,	(void (*)(void *))fsm_msgPinMatrixAck},
-	{'n', 'i', MessageType_MessageType_Cancel,		Cancel_fields,		(void (*)(void *))fsm_msgCancel},
-	{'n', 'i', MessageType_MessageType_TxAck,		TxAck_fields,		(void (*)(void *))fsm_msgTxAck},
-	{'n', 'i', MessageType_MessageType_ApplySettings,	ApplySettings_fields,	(void (*)(void *))fsm_msgApplySettings},
-//	{'n', 'i', MessageType_MessageType_ButtonAck,		ButtonAck_fields,	(void (*)(void *))fsm_msgButtonAck},
-	{'n', 'i', MessageType_MessageType_GetAddress,		GetAddress_fields,	(void (*)(void *))fsm_msgGetAddress},
-	{'n', 'i', MessageType_MessageType_EntropyAck,		EntropyAck_fields,	(void (*)(void *))fsm_msgEntropyAck},
-	{'n', 'i', MessageType_MessageType_SignMessage,		SignMessage_fields,	(void (*)(void *))fsm_msgSignMessage},
-	{'n', 'i', MessageType_MessageType_VerifyMessage,	VerifyMessage_fields,	(void (*)(void *))fsm_msgVerifyMessage},
-//	{'n', 'i', MessageType_MessageType_PassphraseAck,	PassphraseAck_fields,	(void (*)(void *))fsm_msgPassphraseAck},
-	{'n', 'i', MessageType_MessageType_EstimateTxSize,	EstimateTxSize_fields,	(void (*)(void *))fsm_msgEstimateTxSize},
-	{'n', 'i', MessageType_MessageType_RecoveryDevice,	RecoveryDevice_fields,	(void (*)(void *))fsm_msgRecoveryDevice},
-	{'n', 'i', MessageType_MessageType_WordAck,		WordAck_fields,		(void (*)(void *))fsm_msgWordAck},
-	// out message
-	{'n', 'o', MessageType_MessageType_Success,		Success_fields,		0},
-	{'n', 'o', MessageType_MessageType_Failure,		Failure_fields,		0},
-	{'n', 'o', MessageType_MessageType_Entropy,		Entropy_fields,		0},
-	{'n', 'o', MessageType_MessageType_PublicKey,		PublicKey_fields,	0},
-.	{'n', 'o', MessageType_MessageType_Features,		Features_fields,	0},
-	{'n', 'o', MessageType_MessageType_PinMatrixRequest,	PinMatrixRequest_fields,0},
-	{'n', 'o', MessageType_MessageType_TxRequest,		TxRequest_fields,	0},
-	{'n', 'o', MessageType_MessageType_ButtonRequest,	ButtonRequest_fields,	0},
-	{'n', 'o', MessageType_MessageType_Address,		Address_fields,		0},
-	{'n', 'o', MessageType_MessageType_EntropyRequest,	EntropyRequest_fields,	0},
-	{'n', 'o', MessageType_MessageType_MessageSignature,	MessageSignature_fields,0},
-	{'n', 'o', MessageType_MessageType_PassphraseRequest,	PassphraseRequest_fields,   0},
-	{'n', 'o', MessageType_MessageType_TxSize,		TxSize_fields,	    	0},
-	{'n', 'o', MessageType_MessageType_WordRequest,		WordRequest_fields,	0},
-	// end
-#endif
-	{0, 0, 0, 0}
-};
-#endif
 
 const MessagesMap_t* message_map_entry(MessageType type)
 {
@@ -124,6 +67,8 @@ const MessagesMap_t* message_map_entry(MessageType type)
 
 const pb_field_t *message_fields(MessageType type)
 {
+    assert(MessagesMap != NULL);
+
     const MessagesMap_t *m = MessagesMap;
     while (m->msg_id) {
         if (type == m->msg_id) {

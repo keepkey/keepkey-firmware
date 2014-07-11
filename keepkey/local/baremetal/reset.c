@@ -70,6 +70,7 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 
 static char current_word[10];
 
+//TODO: Review this function.  The entropy wait state needs to be reviewed for correctness.
 void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 {
 	if (!awaiting_entropy) {
@@ -81,19 +82,23 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 	sha256_Update(&ctx, int_entropy, 32);
 	sha256_Update(&ctx, ext_entropy, len);
 	sha256_Final(int_entropy, &ctx);
-	storage_set_mnemonic(mnemonic_from_data(int_entropy, strength / 8));
+
+        const char* temp_mnemonic = mnemonic_from_data(int_entropy, strength / 8);
+
+        /*
+         * Clearing entropy after we're done for security purposes.
+         */
 	memset(int_entropy, 0, 32);
 	awaiting_entropy = false;
 
-	int pass, word_pos, i = 0, j;
-
-        if(!confirm("Confirm mnemonic: %s", storage_get_mnemonic()))
+        if(!confirm("Confirm mnemonic: %s", temp_mnemonic))
         {
-            storage_reset();
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Mnemonic not confirmed");
             layout_home();
             return;
         }
 
+        storage_set_mnemonic(temp_mnemonic);
 	storage_commit();
 	fsm_sendSuccess("Device reset");
 	layout_home();
