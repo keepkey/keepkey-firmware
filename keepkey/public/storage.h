@@ -25,6 +25,12 @@
 #include "messages.pb.h"
 #include "bip32.h"
 
+/**
+ * Initialize internal storage and configuration.
+ *
+ * If this function fails to find a valid config block 
+ * it will blow away and reinitialize the current one.
+ */
 void storage_init(void);
 void storage_reset_uuid(void);
 void storage_reset(void);
@@ -54,8 +60,42 @@ uint32_t storage_getPinFails(void);
 
 bool storage_isInitialized(void);
 
-extern Storage storage;
+/*
+ * @return a human readable uuid str.
+ */
+const char* storage_get_uuid_str(void);
 
-extern char storage_uuid_str[25];
+/**
+ * @return the currently configured language, or NULL if unconfigured.
+ */
+const char* storage_get_language(void);
+
+/**
+ * @return the currently configured label, or NULL if unconfigured.
+ */
+const char* storage_get_label(void);
+
+/**
+ * @return true if the storage is passphrase protected.
+ */
+bool storage_get_passphrase_protected(void);
+
+/**
+ * @param p Set to true to enable passphrase protection
+ */
+void storage_set_passphrase_protected(bool p);
+
+/**
+ * @param m Sets the specified mnemonic into storage.
+ * TODO: This should really be NULL delimited, not space.  I haven't yet
+ * figured out why Trezor is using space delimited.
+ */
+void storage_set_mnemonic_from_words(const char *words[], unsigned int num_words);
+void storage_set_mnemonic(const char *mnemonic);
+
+/**
+ * @return the currently configured mnemonic.
+ */
+const char* storage_get_mnemonic(void);
 
 #endif

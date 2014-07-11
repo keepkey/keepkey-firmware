@@ -98,22 +98,27 @@ void fsm_msgInitialize(Initialize *msg)
 	resp->has_major_version = true;  resp->major_version = 0;
 	resp->has_minor_version = true;  resp->minor_version = 0;
 	resp->has_patch_version = true;  resp->patch_version = 0;
-	resp->has_device_id = true;      strlcpy(resp->device_id, storage_uuid_str, sizeof(resp->device_id));
-	resp->has_pin_protection = true; resp->pin_protection = storage.has_pin;
-	resp->has_passphrase_protection = true; resp->passphrase_protection = storage.passphrase_protection;
+	resp->has_device_id = true;      strlcpy(resp->device_id, storage_get_uuid_str(), sizeof(resp->device_id));
+
+	resp->has_passphrase_protection = true; resp->passphrase_protection = storage_get_passphrase_protected();
 #ifdef SCM_REVISION
 	resp->has_revision = true; memcpy(resp->revision.bytes, SCM_REVISION, sizeof(resp->revision)); resp->revision.size = SCM_REVISION_LEN;
 #endif
 	resp->has_bootloader_hash = true; 
         resp->bootloader_hash.size = memory_bootloader_hash(resp->bootloader_hash.bytes);
-	if (storage.has_language) {
-		resp->has_language = true;
-		strlcpy(resp->language, storage.language, sizeof(resp->language));
-	}
-	if (storage.has_label) {
-		resp->has_label = true;
-		strlcpy(resp->label, storage.label, sizeof(resp->label));
-	}
+
+        if(storage_get_language())
+        {
+            resp->has_language = true;
+            strlcpy(resp->language, storage_get_language(), sizeof(resp->language));
+        }
+
+        if(storage_get_label())
+        {
+            resp->has_label = true;
+            strlcpy(resp->label, storage_get_label(), sizeof(resp->label));
+        }
+
 	resp->coins_count = COINS_COUNT;
 	memcpy(resp->coins, coins, COINS_COUNT * sizeof(CoinType));
 	resp->has_initialized = true;  resp->initialized = storage_isInitialized();

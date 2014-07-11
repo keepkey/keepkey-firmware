@@ -58,8 +58,7 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 		}
 	}
 
-	storage.has_passphrase_protection = true;
-	storage.passphrase_protection = passphrase_protection;
+        storage_set_passphrase_protected(passphrase_protection);
 	storage_setLanguage(language);
 	storage_setLabel(label);
 
@@ -82,64 +81,19 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 	sha256_Update(&ctx, int_entropy, 32);
 	sha256_Update(&ctx, ext_entropy, len);
 	sha256_Final(int_entropy, &ctx);
-	strlcpy(storage.mnemonic, mnemonic_from_data(int_entropy, strength / 8), sizeof(storage.mnemonic));
+	storage_set_mnemonic(mnemonic_from_data(int_entropy, strength / 8));
 	memset(int_entropy, 0, 32);
 	awaiting_entropy = false;
 
 	int pass, word_pos, i = 0, j;
 
-	for (pass = 0; pass < 2; pass++) {
-		i = 0;
-		for (word_pos = 1; word_pos <= (int)strength/32*3; word_pos++) {
-			// copy current_word
-			j = 0;
-			while (storage.mnemonic[i] != ' ' && storage.mnemonic[i] != 0 && j + 1 < (int)sizeof(current_word)) {
-				current_word[j] = storage.mnemonic[i];
-				i++; j++;
-			}
-			current_word[j] = 0; if (storage.mnemonic[i] != 0) i++;
-			char desc[] = "##th word";
-			if (word_pos < 10) {
-				desc[0] = ' ';
-			} else {
-				desc[0] = '0' + word_pos / 10;
-			}
-			desc[1] = '0' + word_pos % 10;
-			if (word_pos == 1 || word_pos == 21) {
-				desc[2] = 's'; desc[3] = 't';
-			} else
-			if (word_pos == 2 || word_pos == 22) {
-				desc[2] = 'n'; desc[3] = 'd';
-			} else
-			if (word_pos == 3 || word_pos == 23) {
-				desc[2] = 'r'; desc[3] = 'd';
-			}
-			if (word_pos == (int)strength/32*3) { // last word
-				if (pass == 1) {
-                                    confirm("Finish: Please check the seed: %s %s",  
-                                            (word_pos < 10 ? desc + 1 : desc), current_word);
-				} else {
-				    confirm("Again: Write down the seed %s %s", 
-                                            (word_pos < 10 ? desc + 1 : desc), current_word);
-				}
-			} else {
-				if (pass == 1) {
-                                        confirm("Next: lease check the seed %s %s", 
-                                                (word_pos < 10 ? desc + 1 : desc), current_word);
-				} else {
-                                        confirm("Next: Please check the seed %s %s", 
-                                                (word_pos < 10 ? desc + 1 : desc), current_word);
-				}
-			}
-                        if(!confirm("Confirm mnemonic")) {
-				storage_reset();
-				layout_home();
-				return;
-			}
-		}
-	}
+        if(!confirm("Confirm mnemonic: %s", storage_get_mnemonic()))
+        {
+            storage_reset();
+            layout_home();
+            return;
+        }
 
-	storage.has_mnemonic = true;
 	storage_commit();
 	fsm_sendSuccess("Device reset");
 	layout_home();

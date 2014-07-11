@@ -205,15 +205,15 @@ bool confirm(const char *request, ...)
     memset((void*)&state_info, 0, sizeof(state_info));
     state_info.display_state = HOME;
     state_info.active_layout = LAYOUT_REQUEST;
-    state_info.lines[LAYOUT_REQUEST][0].str = request;
+    state_info.lines[LAYOUT_REQUEST][0].str = strbuf;
     state_info.lines[LAYOUT_REQUEST][0].color = DATA_COLOR;
     state_info.lines[LAYOUT_REQUEST][1].str = "Press and hold button to confirm...";
     state_info.lines[LAYOUT_REQUEST][1].color = LABEL_COLOR;
-    state_info.lines[LAYOUT_CONFIRMED][0].str = request;
+    state_info.lines[LAYOUT_CONFIRMED][0].str = strbuf;
     state_info.lines[LAYOUT_CONFIRMED][0].color = DATA_COLOR;
     state_info.lines[LAYOUT_CONFIRMED][1].str = "CONFIRMED";
     state_info.lines[LAYOUT_CONFIRMED][1].color = LABEL_COLOR;
-    state_info.lines[LAYOUT_ABORTED][0].str = request;
+    state_info.lines[LAYOUT_ABORTED][0].str = strbuf;
     state_info.lines[LAYOUT_ABORTED][0].color = DATA_COLOR;
     state_info.lines[LAYOUT_ABORTED][1].str = "ABORTED";
     state_info.lines[LAYOUT_ABORTED][1].color = LABEL_COLOR;

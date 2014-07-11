@@ -72,8 +72,7 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
 	word_count = _word_count;
 	enforce_wordlist = _enforce_wordlist;
 
-	storage.has_passphrase_protection = true;
-	storage.passphrase_protection = passphrase_protection;
+        storage_set_passphrase_protected(true);
 	storage_setLanguage(language);
 	storage_setLabel(label);
 
@@ -99,69 +98,71 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
 
 void recovery_word(const char *word)
 {
-	if (!awaiting_word) {
-		fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
-		layout_home();
-		return;
-	}
+    if (!awaiting_word) 
+    {
+        fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
+        layout_home();
+        return;
+    }
 
-	if (word_pos == 0) { // fake word
-		if (strcmp(word, fake_word) != 0) {
-			storage_reset();
-			fsm_sendFailure(FailureType_Failure_SyntaxError, "Wrong word retyped");
-			layout_home();
-			return;
-		}
-	} else { // real word
-		if (enforce_wordlist) { // check if word is valid
-			const char **wl = mnemonic_wordlist();
-			bool found = false;
-			while (*wl) {
-				if (strcmp(word, *wl) == 0) {
-					found = true;
-					break;
-				}
-				wl++;
-			}
-			if (!found) {
-				storage_reset();
-				fsm_sendFailure(FailureType_Failure_SyntaxError, "Word not found in a wordlist");
-				layout_home();
-				return;
-			}
-		}
-		strlcpy(words[word_pos - 1], word, sizeof(words[word_pos - 1]));
-	}
+    if (word_pos == 0) 
+    { // fake word
+        if (strcmp(word, fake_word) != 0) {
+            storage_reset();
+            fsm_sendFailure(FailureType_Failure_SyntaxError, "Wrong word retyped");
+            layout_home();
+            return;
+        }
+    } else { // real word
+        if (enforce_wordlist) 
+        { // check if word is valid
+            const char **wl = mnemonic_wordlist();
+            bool found = false;
+            while (*wl) 
+            {
+                if (strcmp(word, *wl) == 0) 
+                {
+                    found = true;
+                    break;
+                }
+                wl++;
+            }
+            if (!found) 
+            {
+                storage_reset();
+                fsm_sendFailure(FailureType_Failure_SyntaxError, "Word not found in a wordlist");
+                layout_home();
+                return;
+            }
+        }
+        strlcpy(words[word_pos - 1], word, sizeof(words[word_pos - 1]));
+    }
 
-	if (word_index + 1 == word_count + word_count / 2) { // last one
-		uint32_t i;
-		strlcpy(storage.mnemonic, words[0], sizeof(storage.mnemonic));
-		for (i = 1; i < word_count; i++) {
-			strlcat(storage.mnemonic, " ", sizeof(storage.mnemonic));
-			strlcat(storage.mnemonic, words[i], sizeof(storage.mnemonic));
-		}
-		if (!enforce_wordlist || mnemonic_check(storage.mnemonic)) {
-			storage.has_mnemonic = true;
-			storage_commit();
-			fsm_sendSuccess("Device recovered");
-		} else {
-			storage_reset();
-			fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid mnemonic, are words in correct order?");
-		}
-		awaiting_word = false;
-		layout_home();
-	} else {
-		word_index++;
-		next_word();
-	}
+    if (word_index + 1 == word_count + word_count / 2) 
+    { // last one
+        storage_set_mnemonic_from_words(words, word_index + 1);
+        if (!enforce_wordlist || mnemonic_check(storage_get_mnemonic())) 
+        {
+            storage_commit();
+            fsm_sendSuccess("Device recovered");
+        } else {
+            storage_reset();
+            fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid mnemonic, are words in correct order?");
+        }
+        awaiting_word = false;
+        layout_home();
+    } else {
+        word_index++;
+        next_word();
+    }
 }
 
 void recovery_abort(void)
 {
-	if (awaiting_word) {
-		layout_home();
-		awaiting_word = false;
-	}
+    if (awaiting_word) {
+        layout_home();
+        awaiting_word = false;
+    }
 }
 
 const char *recovery_get_fake_word(void)
