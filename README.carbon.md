@@ -7,7 +7,7 @@ Development Environment
   1. sudo add-apt-repository ppa:terry.guo/gcc-arm-embedded 
   1. sudo apt-get update
   1. sudo apt-get install scons gcc-arm-none-eabi
-  1. sudo apt-get install exuberant-ctags
+  1. sudo apt-get install exuberant-ctags fabric
 
 1. Eclipse Setup
   1. Install sconsolidator if you want to do builds in eclipse ( http://www.sconsolidator.com/ )
