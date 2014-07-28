@@ -102,31 +102,12 @@ layout_animate(
 
 //-----------------------------------------------------------------------------
 // 
-static void
-layout_add_animation(
-        AnimateCallback     callback,
-        void*               data,
-        uint32_t            duration
-);
-
-
-//-----------------------------------------------------------------------------
-// 
 #if defined(AGGRO_UNDEFINED_FN)
 static void
 layout_remove_animation(
         AnimateCallback  callback
 );  
 #endif
-
-
-//-----------------------------------------------------------------------------
-// 
-static void
-layout_clear_animations(
-        void
-);  
-
 
 
 //-----------------------------------------------------------------------------
@@ -171,14 +152,6 @@ layout_animate_confirm(
         void*       data,
         uint32_t    duration,
         uint32_t    elapsed
-);
-
-
-//-----------------------------------------------------------------------------
-// 
-static void
-layout_clear(
-        void
 );
 
 
@@ -269,7 +242,7 @@ void layout_line(unsigned int line, uint8_t color, const char* str, ...)
     DrawableParams sp;
     sp.x = 0;
 
-    sp.y = GROUP_PADDING + font_width()*line;
+    sp.y = GROUP_PADDING + font_height()*line;
     sp.color = color;
     draw_string( canvas, strbuf, &sp );
 }
@@ -346,13 +319,25 @@ static void layout_animate_confirm(void* data, uint32_t duration, uint32_t elaps
 //-----------------------------------------------------------------------------
 // See layout.h for public interface.
 //
-static void
+void
 layout_clear(
         void
 )
 {
     layout_clear_animations();
 
+    layout_clear_static();
+
+}
+
+//-----------------------------------------------------------------------------
+// See layout.h for public interface.
+//
+void
+layout_clear_static(
+        void
+)
+{
     BoxDrawableParams bp;
     bp.width = canvas->width;
     bp.height = canvas->height;
@@ -379,7 +364,7 @@ layout_animate(
 
 //-----------------------------------------------------------------------------
 // 
-static void
+void
 layout_add_animation(
         AnimateCallback callback,
         void*           data,
@@ -422,7 +407,7 @@ layout_remove_animation(
 
 //-----------------------------------------------------------------------------
 // 
-static void
+void
 layout_clear_animations(
         void
 )
