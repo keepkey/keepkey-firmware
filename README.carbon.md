@@ -1,21 +1,60 @@
+
+
+  
+
+Firmware for the Super Action controller boards
+
 Development Environment
 =======================
-### Linux 
-###### Note: terry.guo maintains the 64-bit build
 
-1. Toolchain setup
-  1. sudo add-apt-repository ppa:terry.guo/gcc-arm-embedded 
-  1. sudo apt-get update
-  1. sudo apt-get install scons gcc-arm-none-eabi
-  1. sudo apt-get install exuberant-ctags fabric
+Windows (incomplete)
+-------
 
-1. Eclipse Setup
-  1. Install sconsolidator if you want to do builds in eclipse ( http://www.sconsolidator.com/ )
-  1. Install jlink gdb plugin, http://gnuarmeclipse.livius.net/blog/jlink-debugging/
-1. Follow instructions to install the embsys plugin: 
-  1. https://www.nordicsemi.com/eng/nordic/download_resource/22748/3/4972989 
-    1. Eclipse update site: http://embsysregview.sourceforge.net/update
+1. Install gcc-arm-embedded toolchain: https://launchpad.net/gcc-arm-embedded/4.8/4.8-2014-q1-update
+2. Install cygwin (including make): https://cygwin.com/install.html
 
+Linux 
+-----
+*Note: terry.guo maintains the 64-bit build
+1. sudo add-apt-repository ppa:terry.guo/gcc-arm-embedded 
+2. sudo apt-get update
+3. sudo apt-get install scons gcc-arm-none-eabi
+
+Eclipse Setup:
+1. Install sconsolidator if you want to do builds in eclipse:
+   http://www.sconsolidator.com/
+2. Install jlink gdb plugin:
+   http://gnuarmeclipse.livius.net/blog/jlink-debugging/
+3. Follow instructions to install the embsys plugin: 
+   https://www.nordicsemi.com/eng/nordic/download_resource/22748/3/4972989 
+4. Eclipse update site: 
+   http://embsysregview.sourceforge.net/update
+
+Create Scons project in Eclipse:
++ In Eclipse, "File / New / New Scons project from existing source"
++ In new project dialog: give the project a name, browse to source code
++ In project properties, Scons tab, enter Scons options (refer to SuperAction 'b' script):
+    target=nrf51-none-gnu-eabisf
+    flavor-libnrf-type=super_action
+    flavor-board-ldscript=board/local/super_action/board.ld
++ In project properties, Scons tab, specify additional environment variables:
+    GCC_ROOT=/opt/carbon/gcc-arm-none-eabi-4_8-2014q1/
+
+Debugging under Eclipse:
++ In Debug Configurations, create new GDB SEGGER J-Link Debugging configuration for SuperAction
++ Debug configuration, Main tab:
+    C/C++ Application: specify path to controller_main.elf
+    Project: SuperAction
++ Debug configuration, Debugger tab:
+    J-Link GDB Server Setup: Start the J-Link GDB server locally
+    Executable: /usr/bin/JLinkGDBServer
+    Device name: nRF51822
+    Endianness, etc: use the defaults
+    GDB Client Setup, Executable: /usr/bin/arm-none-eabi-gdb
++ Debug configuration, Startup tab: use the defaults
++ Use SEGGER J-Link debugger (hardware)
++ Connect 10-pin CortexM cable from J-Link to SuperAction controller board
++ Debug!
 
 ### Prerequisites to running any product build:
 
@@ -27,4 +66,4 @@ Development Environment
 1. To build:
   1. Build debug version: ./b -s -d 
   1. Build release version: ./b -s
-  
+
