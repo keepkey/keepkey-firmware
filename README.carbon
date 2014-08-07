@@ -29,21 +29,21 @@ Create Scons project in Eclipse:
 + In Eclipse, "File / New / New Scons project from existing source"
 + In new project dialog: give the project a name, browse to source code
 + In project properties, Scons tab, enter Scons options (refer to SuperAction 'b' script):
-    target=nrf51-none-gnu-eabisf
-    flavor-libnrf-type=super_action
-    flavor-board-ldscript=board/local/super_action/board.ld
+    target=arm-none-gnu-eabi
+    verbose=1
+    debug=1
 + In project properties, Scons tab, specify additional environment variables:
     GCC_ROOT=/opt/carbon/gcc-arm-none-eabi-4_8-2014q1/
 
 Debugging under Eclipse:
-+ In Debug Configurations, create new GDB SEGGER J-Link Debugging configuration for SuperAction
++ In Debug Configurations, create new GDB SEGGER J-Link Debugging configuration for KeepKey Debug
 + Debug configuration, Main tab:
     C/C++ Application: specify path to controller_main.elf
     Project: SuperAction
 + Debug configuration, Debugger tab:
     J-Link GDB Server Setup: Start the J-Link GDB server locally
     Executable: /usr/bin/JLinkGDBServer
-    Device name: nRF51822
+    Device name: STM32F2RG
     Endianness, etc: use the defaults
     GDB Client Setup, Executable: /usr/bin/arm-none-eabi-gdb
 + Debug configuration, Startup tab: use the defaults
