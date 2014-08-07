@@ -1,9 +1,4 @@
 
-
-  
-
-Firmware for the Super Action controller boards
-
 Development Environment
 =======================
 
