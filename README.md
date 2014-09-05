@@ -7,7 +7,7 @@
 
 ## Linux (Ubuntu 14.04)
 
-###Install Toolchain
+### Install Toolchain
 
 These instructions were used to setup toolchain and IDE on a brand new installtion of Ubuntu 14.04
 
@@ -55,7 +55,7 @@ $ tar zxf ~/nanopb-0.2.9-linux-x86.tar.gz -C ~
 $ mv ~/nanopb-0.2.9-linux-x86 ~/nanopb
 ```
 
-###Build from command line
+### Build from command line
 
 To build opencm3, go to the root of the firmware repository and run:
 
@@ -87,7 +87,7 @@ To build a release version, run the following command in the root of the reposit
 $ ./b -s
 ```
 
-###Install IDE (Eclipse Luna)
+### Install IDE (Eclipse Luna)
 
 First, download Eclipse and decompress, then move it to /opt:
 
@@ -156,8 +156,8 @@ In the menu goto "Run" -> "Debug Configurations".  Navigate to the "GDB SEGGER J
 Then navigate to "Debugger" tab. Fill in the following
 
 * Executable: /usr/bin/JLinkGDBServer
-..* Device name: STM32F2RG
-..* Initial speed: auto
+  * Device name: STM32F2RG
+  * Initial speed: auto
 
 And under "GDB Client Setup"
 
