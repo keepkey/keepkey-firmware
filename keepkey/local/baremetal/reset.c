@@ -51,7 +51,7 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 	data2hex(int_entropy + 24, 8, ent_str[3]);
 
 	if (display_random) {
-                if(!confirm("Internal entropy: %s %s %s %s", ent_str[0], ent_str[1], ent_str[2], ent_str[3])) {
+                if(!confirm("Entropy", "Internal entropy: %s %s %s %s", ent_str[0], ent_str[1], ent_str[2], ent_str[3])) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Reset cancelled");
 			layout_home();
 			return;
@@ -91,7 +91,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 	memset(int_entropy, 0, 32);
 	awaiting_entropy = false;
 
-        if(!confirm("Confirm mnemonic: %s", temp_mnemonic))
+        if(!confirm("Write Down Recover Sentence", "%s", temp_mnemonic))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Mnemonic not confirmed");
             layout_home();

@@ -35,9 +35,10 @@ extern "C" {
 //=============================== INCLUDES ====================================
 
 
-#include "canvas.h"
 #include <stddef.h>
 #include <stdbool.h>
+#include "canvas.h"
+#include "font.h"
 
 
 //====================== CONSTANTS, TYPES, AND MACROS =========================
@@ -82,12 +83,10 @@ draw_char(
 /// Draw a string on the display.
 ///
 //-----------------------------------------------------------------------------
-bool
-draw_string(
-        Canvas*         canvas,
-        const char*     c,
-        DrawableParams* params
-);
+bool draw_title_string(Canvas* canvas, const char* c, DrawableParams* p, int width);
+bool draw_body_string(Canvas* canvas, const char* c, DrawableParams* p, int width);
+bool draw_string_helper(Canvas* canvas, const char* c, DrawableParams* p, int width,
+		const CharacterImage* (*font_get_char)(char));
 
 
 //-----------------------------------------------------------------------------
@@ -95,10 +94,7 @@ draw_string(
 ///
 //-----------------------------------------------------------------------------
 bool
-draw_box(
-        Canvas*             canvas,
-        BoxDrawableParams*  params
-);
+draw_box(Canvas* canvas, BoxDrawableParams*  params);
 
 
 #ifdef __cplusplus

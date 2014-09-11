@@ -139,7 +139,7 @@ void fsm_msgPing(Ping *msg)
 void fsm_msgWipeDevice(WipeDevice *msg)
 {
     (void)msg;
-    if(confirm("Clear device configuration?"))
+    if(confirm("Confirm Wipe", "This will erase all private keys and settings. Any funds stored will be lost. Are you sure you would like to do this?"))
     {
         storage_reset();
         storage_commit();
@@ -332,7 +332,7 @@ void fsm_msgSimpleSignTx(SimpleSignTx *msg)
 
         char linebuf[layout_char_width()];
         snprintf(linebuf, sizeof(linebuf), "Fee over threshold: %s", satoshi_to_str(fee, true));
-        if(!confirm(linebuf))
+        if(!confirm("Confirm?", linebuf))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
             layout_home();
@@ -346,7 +346,7 @@ void fsm_msgSimpleSignTx(SimpleSignTx *msg)
     snprintf(outstr, sizeof(outstr), "Confirm tx: %s  FEE(%s)?", 
             satoshi_to_str(to_spend - change_spend - fee, true),
             satoshi_to_str(fee, true));
-    if(!confirm(outstr)) {
+    if(!confirm("Confirm?", outstr)) {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
         layout_standard_notification(outstr, "CANCELLED");
     } else {

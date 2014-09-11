@@ -61,10 +61,30 @@ static const uint32_t BAR_PADDING   = 5;
 static const uint32_t BAR_HEIGHT    = 15;
 static const uint8_t BAR_COLOR      = 0xFF;
 
+/*
+ * Margin
+ */
+static const uint32_t GROUP_MARGIN = 3;
+static const uint32_t SIDE_MARGIN  = 5;
 
-static const uint32_t GROUP_PADDING = 5;
+/*
+ * Title
+ */
+static const uint32_t TITLE_BORDER_PADDING = 1;
+static const uint32_t TITLE_WIDTH = 179;
+static const uint32_t TITLE_HEIGHT = 11;
+static const uint32_t TITLE_ROWS = 1;
 
-static const uint32_t SIDE_PADDING  = 5;
+/*
+ * Body
+ */
+static const uint32_t BODY_WIDTH = 177;
+static const uint32_t BODY_ROWS = 3;
+
+/*
+ * Default Layout
+ */
+static const uint32_t NO_WIDTH = 0;
 
 static const char* IDLE_SCREEN_TEXT     = "KeepKey Wallet";
 static const char* AMOUNT_LABEL_TEXT    = "Amount:";
@@ -194,11 +214,11 @@ layout_home(
     layout_clear();
 
     DrawableParams sp;
-    sp.y = ( canvas->height / 2 ) - ( font_height() / 2 );
+    sp.y = ( canvas->height / 2 ) - ( body_font_height() / 2 );
     sp.x = 5;
     sp.color = 0x80;
 
-    draw_string( canvas, IDLE_SCREEN_TEXT, &sp );
+    draw_title_string(canvas, IDLE_SCREEN_TEXT, &sp, NO_WIDTH);
 }
 
 
@@ -212,14 +232,14 @@ void layout_confirmation()
     layout_clear();
 
     DrawableParams sp;
-    sp.x = SIDE_PADDING;
-    sp.y = SIDE_PADDING;
-    sp.color = LABEL_COLOR;
-    draw_string( canvas, "Confirming ...", &sp );
+    sp.x = SIDE_MARGIN;
+    sp.y = SIDE_MARGIN;
+    sp.color = BODY_COLOR;
+    draw_title_string(canvas, "Confirming ...", &sp, NO_WIDTH);
 
     static BoxDrawableParams box_params;
     box_params.base.y        = ( canvas->height / 2 ) - ( BAR_HEIGHT / 2 );
-    box_params.base.x        = SIDE_PADDING;
+    box_params.base.x        = SIDE_MARGIN;
     box_params.width         = 0;
     box_params.height        = BAR_HEIGHT;
     box_params.base.color    = BAR_COLOR;
@@ -242,9 +262,9 @@ void layout_line(unsigned int line, uint8_t color, const char* str, ...)
     DrawableParams sp;
     sp.x = 0;
 
-    sp.y = GROUP_PADDING + font_height()*line;
+    sp.y = GROUP_MARGIN + body_font_height()*line;
     sp.color = color;
-    draw_string( canvas, strbuf, &sp );
+    draw_body_string(canvas, strbuf, &sp, NO_WIDTH);
 }
 
 void layout_standard_notification(const char* str1, const char* str2)
@@ -254,13 +274,35 @@ void layout_standard_notification(const char* str1, const char* str2)
     DrawableParams sp;
     sp.x = 0;
 
-    sp.y = GROUP_PADDING;
-    sp.color = DATA_COLOR;
-    draw_string( canvas, str1, &sp );
+    /*
+     * Format Title
+     */
+    char upper_str1[title_char_width()];
+    strcpy(upper_str1, str1);
+    strupr(upper_str1);
 
-    sp.y += font_height();
-    sp.color = LABEL_COLOR;
-    draw_string( canvas, str2, &sp );
+    /*
+     * Draw Title Box
+     */
+    BoxDrawableParams box_params;
+	box_params.base.y        = SIDE_MARGIN;
+	box_params.base.x        = SIDE_MARGIN;
+	box_params.width         = TITLE_WIDTH;
+	box_params.height        = TITLE_HEIGHT;
+	box_params.base.color    = TITLE_BACKGROUND_COLOR;
+    draw_box(canvas, &box_params);
+
+    /*
+     * Title
+     */
+    sp.y = GROUP_MARGIN;
+    sp.x = SIDE_MARGIN + TITLE_BORDER_PADDING;
+    sp.color = TITLE_COLOR;
+    draw_title_string(canvas, upper_str1, &sp, TITLE_WIDTH);
+
+    sp.y += body_font_height() + 2;
+    sp.color = BODY_COLOR;
+    draw_body_string(canvas, str2, &sp, BODY_WIDTH);
 }
 
 //-----------------------------------------------------------------------------
@@ -309,7 +351,7 @@ static void layout_animate_confirm(void* data, uint32_t duration, uint32_t elaps
 {
     BoxDrawableParams* box_params = (BoxDrawableParams*)data;
 
-    uint32_t max_width = ( canvas->width - box_params->base.x - SIDE_PADDING );
+    uint32_t max_width = ( canvas->width - box_params->base.x - SIDE_MARGIN );
     box_params->width = ( max_width * ( elapsed ) ) / duration;
 
     draw_box( canvas, box_params );
@@ -526,7 +568,17 @@ animation_queue_get(
 
 uint32_t layout_char_width()
 {
-    return KEEPKEY_DISPLAY_WIDTH / font_width();
+    return KEEPKEY_DISPLAY_WIDTH / body_font_width();
+}
+
+uint32_t title_char_width()
+{
+    return (TITLE_WIDTH / title_font_width()) * TITLE_ROWS;
+}
+
+uint32_t body_char_width()
+{
+    return (BODY_WIDTH / body_font_width()) * BODY_ROWS;
 }
 
 

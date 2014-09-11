@@ -11,10 +11,9 @@
 
 //================================ INCLUDES ===================================
 
-
+#include <stddef.h>
 #include "draw.h"
 #include "font.h"
-#include <stddef.h>
 
 
 //====================== CONSTANTS, TYPES, AND MACROS =========================
@@ -26,18 +25,10 @@
 //=============================== FUNCTIONS ===================================
 
 
-static bool
-draw_char_with_shift(
-        Canvas*         canvas,
-        char            c,
-        DrawableParams* p,
-        int*            x_shift,
-        int*            y_shift
-)
+static bool draw_char_with_shift(Canvas* canvas, char c, DrawableParams* p,
+		int* x_shift, int* y_shift, const CharacterImage* img)
 {
     bool success = false;
-
-    const CharacterImage* img = font_get_char( c );
 
     int start_index = ( p->y * canvas->width ) + p->x;
     uint8_t* canvas_pixel = &canvas->buffer[ start_index ];
@@ -85,23 +76,30 @@ draw_char_with_shift(
 }
 
 
-bool
-draw_char(
-        Canvas*         canvas,
-        char            c,
-        DrawableParams* params
-)
+bool draw_body_char(Canvas* canvas, char c, DrawableParams* params)
 {
-    return draw_char_with_shift( canvas, c, params, NULL, NULL );
+	const CharacterImage* img = body_font_get_char(c);
+    return draw_char_with_shift(canvas, c, params, NULL, NULL, img);
 }
 
+bool draw_title_char(Canvas* canvas, char c, DrawableParams* params)
+{
+	const CharacterImage* img = body_font_get_char(c);
+    return draw_char_with_shift(canvas, c, params, NULL, NULL, img);
+}
 
-bool
-draw_string(
-        Canvas* canvas,
-        const char*   c,
-        DrawableParams* p
-)
+bool draw_title_string(Canvas* canvas, const char* c, DrawableParams* p, int width)
+{
+	return draw_string_helper(canvas, c, p, width, &title_font_get_char);
+}
+
+bool draw_body_string(Canvas* canvas, const char* c, DrawableParams* p, int width)
+{
+	return draw_string_helper(canvas, c, p, width, &body_font_get_char);
+}
+
+bool draw_string_helper(Canvas* canvas, const char* c, DrawableParams* p, int width,
+		const CharacterImage* (*font_get_char)(char))
 {
     bool have_space = true;
 
@@ -111,13 +109,27 @@ draw_string(
 
     while( *c && have_space )
     {
+    	/*
+    	 * Determine if we need a line break
+    	 */
+    	if((width != 0) && (x_offset + p->x > width))
+    	{
+    		char_params.y += 11;
+    		x_offset = 0;
+    	}
+
+    	/*
+    	 * Draw Character
+    	 */
+    	const CharacterImage* img = (*font_get_char)( *c );
         char_params.x = x_offset + p->x;
         have_space = draw_char_with_shift(
                 canvas,
                 *c,
                 &char_params,
                 &x_offset,
-                NULL );
+                NULL,
+                img);
         c++;
     }
 
@@ -127,11 +139,7 @@ draw_string(
 }
 
 
-bool
-draw_box(
-        Canvas*             canvas,
-        BoxDrawableParams*  p
-)
+bool draw_box(Canvas* canvas, BoxDrawableParams* p)
 {
     int start_row = p->base.y;
     int end_row = start_row + p->height;

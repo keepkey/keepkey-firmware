@@ -328,7 +328,7 @@ bool usb_tx(void* message, uint32_t len)
         /*
          * Chunk out the message 63 bytes at a time (with the trezor '?' as the first byte)
          */
-        uint16_t tx = usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_IN, tmp_buffer, ct+1);
+        uint16_t tx = usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_IN, tmp_buffer, USB_SEGMENT_SIZE);
         send_ct += ct;
         assert(tx != 0);
     }

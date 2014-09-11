@@ -55,7 +55,7 @@ void add_animation()
 {
     static const int line = 4; 
     static BoxDrawableParams box_params;
-    box_params.base.y        =  line * font_height();
+    box_params.base.y        =  line * body_font_height();
     box_params.base.x        = SIDE_PADDING;
     box_params.width         = 0;
     box_params.height        = BAR_HEIGHT;

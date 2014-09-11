@@ -67,6 +67,8 @@ void layout_confirmation();
  * @return the number of characters that are printable across the width of the screen.
  */
 uint32_t layout_char_width();
+uint32_t title_char_width();
+uint32_t body_char_width();
 
 /**
  * Used by the bootloader to verify firmware update.
@@ -89,8 +91,9 @@ void animate( void);
 
 typedef enum 
 {
-    LABEL_COLOR    = 0x44,
-    DATA_COLOR     = 0xFF,
+    TITLE_COLOR    			= 0x00,
+    BODY_COLOR     			= 0xFF,
+    TITLE_BACKGROUND_COLOR  = 0xFF
 } LAYOUT_FONT_COLORS;
 
 /**

@@ -174,7 +174,7 @@ int main(int argc, char* argv[])
 
             if(update_mode)
             {
-                if(confirm("Hold button to confirm firmware update."))
+                if(confirm("Confirm?", "Hold button to confirm firmware update."))
                 {
                     usb_flash_firmware();
                     layout_standard_notification("Firmware Updating...", "COMPLETED.  Board will reset in 5 seconds.");

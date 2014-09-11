@@ -50,23 +50,17 @@ typedef struct
 
 
 /// Get a character image.
-const CharacterImage*
-font_get_char(
-        char c 
-);
-
+const CharacterImage* title_font_get_char(char c);
+const CharacterImage* body_font_get_char(char c);
+const CharacterImage* font_get_char_helper(Font* font, char c);
 
 /// Get the height of a font
-int
-font_height(
-        void
-);
+int title_font_height(void);
+int body_font_height(void);
 
 /// Get the width of a font
-int
-font_width(
-        void
-);
+int title_font_width(void);
+int body_font_width(void);
 
 
 #endif // KeepKeyFont_H

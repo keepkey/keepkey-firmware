@@ -37,6 +37,6 @@
  * @note The timeout is currently fixed.
  */
 
-bool confirm(const char* request_fmt, ...);
+bool confirm(const char* request_title, const char* request_body, ...);
 
 #endif

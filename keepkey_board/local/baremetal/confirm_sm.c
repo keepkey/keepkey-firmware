@@ -191,32 +191,44 @@ void swap_layout(ActiveLayout active_layout, volatile StateInfo* si)
 
 }
 
-bool confirm(const char *request, ...)
+bool confirm(const char *request_title, const char *request_body, ...)
 {
     bool ret=false;
 
     va_list vl;
-    va_start(vl, request);
-    char strbuf[layout_char_width()+1];
-    vsnprintf(strbuf, sizeof(strbuf), request, vl);
+    va_start(vl, request_body);
+    char strbuf[body_char_width()+1];
+    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
     volatile StateInfo state_info;
     memset((void*)&state_info, 0, sizeof(state_info));
     state_info.display_state = HOME;
     state_info.active_layout = LAYOUT_REQUEST;
-    state_info.lines[LAYOUT_REQUEST][0].str = strbuf;
-    state_info.lines[LAYOUT_REQUEST][0].color = DATA_COLOR;
-    state_info.lines[LAYOUT_REQUEST][1].str = "Press and hold button to confirm...";
-    state_info.lines[LAYOUT_REQUEST][1].color = LABEL_COLOR;
-    state_info.lines[LAYOUT_CONFIRMED][0].str = strbuf;
-    state_info.lines[LAYOUT_CONFIRMED][0].color = DATA_COLOR;
+
+    /*
+     * Request
+     */
+    state_info.lines[LAYOUT_REQUEST][0].str = request_title;
+    state_info.lines[LAYOUT_REQUEST][0].color = TITLE_COLOR;
+    state_info.lines[LAYOUT_REQUEST][1].str = strbuf;
+    state_info.lines[LAYOUT_REQUEST][1].color = BODY_COLOR;
+
+    /*
+     * Confirmed
+     */
+    state_info.lines[LAYOUT_CONFIRMED][0].str = request_title;
+    state_info.lines[LAYOUT_CONFIRMED][0].color = TITLE_COLOR;
     state_info.lines[LAYOUT_CONFIRMED][1].str = "CONFIRMED";
-    state_info.lines[LAYOUT_CONFIRMED][1].color = LABEL_COLOR;
-    state_info.lines[LAYOUT_ABORTED][0].str = strbuf;
-    state_info.lines[LAYOUT_ABORTED][0].color = DATA_COLOR;
+    state_info.lines[LAYOUT_CONFIRMED][1].color = BODY_COLOR;
+
+    /*
+     * Aborted
+     */
+    state_info.lines[LAYOUT_ABORTED][0].str = request_title;
+    state_info.lines[LAYOUT_ABORTED][0].color = TITLE_COLOR;
     state_info.lines[LAYOUT_ABORTED][1].str = "ABORTED";
-    state_info.lines[LAYOUT_ABORTED][1].color = LABEL_COLOR;
+    state_info.lines[LAYOUT_ABORTED][1].color = BODY_COLOR;
 
     keepkey_button_set_on_press_handler( &handle_screen_press, (void*)&state_info );
     keepkey_button_set_on_release_handler( &handle_screen_release, (void*)&state_info );
