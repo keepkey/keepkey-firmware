@@ -102,32 +102,49 @@ bool draw_string_helper(Canvas* canvas, const char* c, DrawableParams* p, int wi
 		const CharacterImage* (*font_get_char)(char))
 {
     bool have_space = true;
-
     int x_offset = 0;
-
     DrawableParams char_params = *p;
 
     while( *c && have_space )
     {
+    	const CharacterImage* img = (*font_get_char)( *c );
+    	int word_width = 0;
+    	char* next_c = c + 1;
+
+    	/*
+    	 * Calculate the next word width while
+    	 * removing spacings at beginning of lines
+    	 */
+    	if(*c == ' '){
+
+    		while(*next_c && *next_c != ' ')
+    		{
+    			word_width += img->width;
+    			next_c++;
+    		}
+    	}
+
     	/*
     	 * Determine if we need a line break
     	 */
-    	if((width != 0) && (x_offset + p->x > width))
+    	if((width != 0) && (x_offset + word_width > width))
     	{
     		char_params.y += line_height;
     		x_offset = 0;
     	}
 
     	/*
-    	 * Remove spaces that start new lines
+    	 * Remove spaces from beginning of of line
     	 */
-    	if(x_offset == 0 && &c == ' ')
-    		continue;
+    	if(x_offset == 0 && *c == ' ')
+		{
+			c++;
+			continue;
+		}
 
     	/*
     	 * Draw Character
     	 */
-    	const CharacterImage* img = (*font_get_char)( *c );
         char_params.x = x_offset + p->x;
         have_space = draw_char_with_shift(
                 canvas,

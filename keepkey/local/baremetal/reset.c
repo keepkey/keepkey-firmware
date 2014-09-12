@@ -91,7 +91,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 	memset(int_entropy, 0, 32);
 	awaiting_entropy = false;
 
-        if(!confirm("Write Down Recover Sentence", "%s", temp_mnemonic))
+        if(!confirm("Write Down Recovery Sentence", "%s", temp_mnemonic))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Mnemonic not confirmed");
             layout_home();

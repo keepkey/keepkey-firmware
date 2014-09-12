@@ -283,13 +283,13 @@ void layout_standard_notification(const char* str1, const char* str2)
     /*
      * Draw Title Box
      */
-    /*BoxDrawableParams box_params;
+    BoxDrawableParams box_params;
 	box_params.base.y        = SIDE_MARGIN;
 	box_params.base.x        = SIDE_MARGIN;
 	box_params.width         = TITLE_WIDTH;
 	box_params.height        = TITLE_HEIGHT;
 	box_params.base.color    = TITLE_BACKGROUND_COLOR;
-    draw_box(canvas, &box_params);*/
+    draw_box(canvas, &box_params);
 
     /*
      * Title
@@ -297,7 +297,7 @@ void layout_standard_notification(const char* str1, const char* str2)
     DrawableParams sp;
     sp.y = SIDE_MARGIN - 2;
     sp.x = SIDE_MARGIN + TITLE_BORDER_PADDING;
-    sp.color = BODY_COLOR;
+    sp.color = TITLE_COLOR;
     draw_title_string(canvas, upper_str1, &sp, TITLE_WIDTH, title_font_height());
 
     /*
