@@ -139,7 +139,7 @@ void fsm_msgPing(Ping *msg)
 void fsm_msgWipeDevice(WipeDevice *msg)
 {
     (void)msg;
-    if(confirm("Confirm Wipe", "This will erase all private keys and settings. Any funds stored will be lost. Are you sure you would like to do this?"))
+    if(confirm("Wipe Private Keys and Settings", "Are you sure you want to erase private keys and settings? Any money stored will be lost."))
     {
         storage_reset();
         storage_commit();

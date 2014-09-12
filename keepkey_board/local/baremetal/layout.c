@@ -64,22 +64,24 @@ static const uint8_t BAR_COLOR      = 0xFF;
 /*
  * Margin
  */
-static const uint32_t GROUP_MARGIN = 3;
-static const uint32_t SIDE_MARGIN  = 5;
+static const uint32_t SIDE_MARGIN  = 6;
 
 /*
  * Title
  */
-static const uint32_t TITLE_BORDER_PADDING = 1;
+static const uint32_t TITLE_BORDER_PADDING = 2;
 static const uint32_t TITLE_WIDTH = 179;
 static const uint32_t TITLE_HEIGHT = 11;
 static const uint32_t TITLE_ROWS = 1;
+static const uint32_t TITLE_FONT_LINE_PADDING = 0;
 
 /*
  * Body
  */
+static const uint32_t BODY_BORDER_PADDING = 1;
 static const uint32_t BODY_WIDTH = 177;
 static const uint32_t BODY_ROWS = 3;
+static const uint32_t BODY_FONT_LINE_PADDING = 2;
 
 /*
  * Default Layout
@@ -218,7 +220,7 @@ layout_home(
     sp.x = 5;
     sp.color = 0x80;
 
-    draw_title_string(canvas, IDLE_SCREEN_TEXT, &sp, NO_WIDTH);
+    draw_title_string(canvas, IDLE_SCREEN_TEXT, &sp, NO_WIDTH, title_font_height());
 }
 
 
@@ -235,7 +237,7 @@ void layout_confirmation()
     sp.x = SIDE_MARGIN;
     sp.y = SIDE_MARGIN;
     sp.color = BODY_COLOR;
-    draw_title_string(canvas, "Confirming ...", &sp, NO_WIDTH);
+    draw_title_string(canvas, "Confirming ...", &sp, NO_WIDTH, title_font_height());
 
     static BoxDrawableParams box_params;
     box_params.base.y        = ( canvas->height / 2 ) - ( BAR_HEIGHT / 2 );
@@ -262,17 +264,14 @@ void layout_line(unsigned int line, uint8_t color, const char* str, ...)
     DrawableParams sp;
     sp.x = 0;
 
-    sp.y = GROUP_MARGIN + body_font_height()*line;
+    sp.y = body_font_height()*line;
     sp.color = color;
-    draw_body_string(canvas, strbuf, &sp, NO_WIDTH);
+    draw_body_string(canvas, strbuf, &sp, NO_WIDTH, body_font_height());
 }
 
 void layout_standard_notification(const char* str1, const char* str2)
 {
     layout_clear();
-
-    DrawableParams sp;
-    sp.x = 0;
 
     /*
      * Format Title
@@ -284,25 +283,30 @@ void layout_standard_notification(const char* str1, const char* str2)
     /*
      * Draw Title Box
      */
-    BoxDrawableParams box_params;
+    /*BoxDrawableParams box_params;
 	box_params.base.y        = SIDE_MARGIN;
 	box_params.base.x        = SIDE_MARGIN;
 	box_params.width         = TITLE_WIDTH;
 	box_params.height        = TITLE_HEIGHT;
 	box_params.base.color    = TITLE_BACKGROUND_COLOR;
-    draw_box(canvas, &box_params);
+    draw_box(canvas, &box_params);*/
 
     /*
      * Title
      */
-    sp.y = GROUP_MARGIN;
+    DrawableParams sp;
+    sp.y = SIDE_MARGIN - 2;
     sp.x = SIDE_MARGIN + TITLE_BORDER_PADDING;
-    sp.color = TITLE_COLOR;
-    draw_title_string(canvas, upper_str1, &sp, TITLE_WIDTH);
-
-    sp.y += body_font_height() + 2;
     sp.color = BODY_COLOR;
-    draw_body_string(canvas, str2, &sp, BODY_WIDTH);
+    draw_title_string(canvas, upper_str1, &sp, TITLE_WIDTH, title_font_height());
+
+    /*
+     * Body
+     */
+    sp.y += body_font_height() + 3;
+    sp.x = SIDE_MARGIN + BODY_BORDER_PADDING;
+    sp.color = BODY_COLOR;
+    draw_body_string(canvas, str2, &sp, BODY_WIDTH, body_font_height());
 }
 
 //-----------------------------------------------------------------------------

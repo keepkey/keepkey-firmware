@@ -88,17 +88,17 @@ bool draw_title_char(Canvas* canvas, char c, DrawableParams* params)
     return draw_char_with_shift(canvas, c, params, NULL, NULL, img);
 }
 
-bool draw_title_string(Canvas* canvas, const char* c, DrawableParams* p, int width)
+bool draw_title_string(Canvas* canvas, const char* c, DrawableParams* p, int width, int line_height)
 {
-	return draw_string_helper(canvas, c, p, width, &title_font_get_char);
+	return draw_string_helper(canvas, c, p, width, line_height, &title_font_get_char);
 }
 
-bool draw_body_string(Canvas* canvas, const char* c, DrawableParams* p, int width)
+bool draw_body_string(Canvas* canvas, const char* c, DrawableParams* p, int width, int line_height)
 {
-	return draw_string_helper(canvas, c, p, width, &body_font_get_char);
+	return draw_string_helper(canvas, c, p, width, line_height, &body_font_get_char);
 }
 
-bool draw_string_helper(Canvas* canvas, const char* c, DrawableParams* p, int width,
+bool draw_string_helper(Canvas* canvas, const char* c, DrawableParams* p, int width, int line_height,
 		const CharacterImage* (*font_get_char)(char))
 {
     bool have_space = true;
@@ -114,9 +114,15 @@ bool draw_string_helper(Canvas* canvas, const char* c, DrawableParams* p, int wi
     	 */
     	if((width != 0) && (x_offset + p->x > width))
     	{
-    		char_params.y += 11;
+    		char_params.y += line_height;
     		x_offset = 0;
     	}
+
+    	/*
+    	 * Remove spaces that start new lines
+    	 */
+    	if(x_offset == 0 && &c == ' ')
+    		continue;
 
     	/*
     	 * Draw Character

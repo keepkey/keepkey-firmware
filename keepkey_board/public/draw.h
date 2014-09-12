@@ -83,10 +83,12 @@ draw_char(
 /// Draw a string on the display.
 ///
 //-----------------------------------------------------------------------------
-bool draw_title_string(Canvas* canvas, const char* c, DrawableParams* p, int width);
-bool draw_body_string(Canvas* canvas, const char* c, DrawableParams* p, int width);
+bool draw_title_string(Canvas* canvas, const char* c, DrawableParams* p, int width,
+		int line_height);
+bool draw_body_string(Canvas* canvas, const char* c, DrawableParams* p, int width,
+		int line_height);
 bool draw_string_helper(Canvas* canvas, const char* c, DrawableParams* p, int width,
-		const CharacterImage* (*font_get_char)(char));
+		int line_height, const CharacterImage* (*font_get_char)(char));
 
 
 //-----------------------------------------------------------------------------
