@@ -39,6 +39,7 @@ extern "C" {
 #include <stdbool.h>
 #include "canvas.h"
 #include "font.h"
+#include "resources.h"
 
 
 //====================== CONSTANTS, TYPES, AND MACROS =========================
@@ -52,13 +53,18 @@ typedef struct
 
 } DrawableParams;
 
-
 typedef struct
 {
     DrawableParams  base;
     int             height;
     int             width;
 } BoxDrawableParams;
+
+typedef struct
+{
+    DrawableParams  base;
+    ImageAnimation* img_animation;
+} AnimationImageDrawableParams;
 
 
 //=============================== VARIABLES ===================================
@@ -71,32 +77,29 @@ typedef struct
 /// Draw a character on the display.
 ///
 //-----------------------------------------------------------------------------
-bool
-draw_char(
-        Canvas*         canvas,
-        char            c,
-        DrawableParams* params
-);
+bool draw_char(Canvas* canvas, Font* font, char c, DrawableParams* params);
 
 
 //-----------------------------------------------------------------------------
 /// Draw a string on the display.
 ///
 //-----------------------------------------------------------------------------
-bool draw_title_string(Canvas* canvas, const char* c, DrawableParams* p, int width,
+bool draw_string(Canvas* canvas, Font* font, const char* c, DrawableParams* p, int width,
 		int line_height);
-bool draw_body_string(Canvas* canvas, const char* c, DrawableParams* p, int width,
-		int line_height);
-bool draw_string_helper(Canvas* canvas, const char* c, DrawableParams* p, int width,
-		int line_height, const CharacterImage* (*font_get_char)(char));
 
 
 //-----------------------------------------------------------------------------
 /// Draw a box on the display.
 ///
 //-----------------------------------------------------------------------------
-bool
-draw_box(Canvas* canvas, BoxDrawableParams*  params);
+bool draw_box(Canvas* canvas, BoxDrawableParams*  params);
+
+
+//-----------------------------------------------------------------------------
+/// Draw a bitmap on the display using RLE
+///
+//-----------------------------------------------------------------------------
+bool draw_bitmap_mono_rle(Canvas* canvas, int x, int y, const Image *img);
 
 
 #ifdef __cplusplus

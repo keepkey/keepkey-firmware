@@ -48,19 +48,18 @@ typedef struct
 
 //====================== CLASS MEMBER FUNCTIONS ===========================
 
+// Get a specific font
+const Font* get_title_font();
+const Font* get_body_font();
 
 /// Get a character image.
-const CharacterImage* title_font_get_char(char c);
-const CharacterImage* body_font_get_char(char c);
-const CharacterImage* font_get_char_helper(Font* font, char c);
+const CharacterImage* font_get_char(Font* font, char c);
 
 /// Get the height of a font
-int title_font_height(void);
-int body_font_height(void);
+int font_height(Font* font);
 
 /// Get the width of a font
-int title_font_width(void);
-int body_font_width(void);
+int font_width(Font* font);
 
 
 #endif // KeepKeyFont_H

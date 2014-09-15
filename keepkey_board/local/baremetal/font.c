@@ -12,8 +12,8 @@
 //================================ INCLUDES ===================================
 
 
-#include "font.h"
 #include <stddef.h>
+#include "font.h"
 
 
 //====================== CONSTANTS, TYPES, AND MACROS =========================
@@ -3841,20 +3841,19 @@ static const Character body_font_array[] = {
 const Font body_font = { 95, 13, body_font_array };
 
 
-
 //=============================== FUNCTIONS ===================================
 
-const CharacterImage* title_font_get_char(char c)
+const Font* get_title_font()
 {
-	return font_get_char_helper(&title_font, c);
+	return &title_font;
 }
 
-const CharacterImage* body_font_get_char(char c)
+const Font* get_body_font()
 {
-	return font_get_char_helper(&body_font, c);
+	return &body_font;
 }
 
-const CharacterImage* font_get_char_helper(Font* font, char c)
+const CharacterImage* font_get_char(Font* font, char c)
 {
     const CharacterImage* img = NULL;
 
@@ -3872,29 +3871,15 @@ const CharacterImage* font_get_char_helper(Font* font, char c)
     return img;
 }
 
-
-int body_font_height(void)
+int font_height(Font* font)
 {
     return body_font.size;
 }
 
-int title_font_height(void)
-{
-    return title_font.size;
-}
-
-int body_font_width(void)
+int font_width(Font* font)
 {
     /**
      * Return worst case width using the | char as the reference.
      */
-    return  body_font_get_char('|')->width;
-}
-
-int title_font_width(void)
-{
-    /**
-     * Return worst case width using the | char as the reference.
-     */
-    return  title_font_get_char('|')->width;
+    return  font_get_char(font, '|')->width;
 }

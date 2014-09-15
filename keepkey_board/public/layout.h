@@ -106,13 +106,8 @@ typedef enum
  */
 void layout_line(unsigned int line, uint8_t color, const char *str, ...);
 
-typedef void (*AnimateCallback)(void* data, uint32_t duration, uint32_t elapsed );
-void
-layout_add_animation(
-        AnimateCallback     callback,
-        void*               data,
-        uint32_t            duration
-);
+typedef void (*AnimateCallback)(void* data, uint32_t duration, uint32_t elapsed);
+void layout_add_animation(AnimateCallback callback, void* data, uint32_t duration);
 
 void layout_clear();
 void layout_clear_animations();

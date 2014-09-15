@@ -91,16 +91,16 @@ typedef struct
 //=============================== VARIABLES ===================================
 
 //====================== PRIVATE FUNCTION DECLARATIONS ========================
-static void handle_screen_press( void* context);
-static void handle_screen_release( void* context);
-static void handle_confirm_timeout( void* context );
+static void handle_screen_press(void* context);
+static void handle_screen_release(void* context);
+static void handle_confirm_timeout(void* context);
 
 //=============================== FUNCTIONS ===================================
 
 /**
  * Handles user key-down event.
  */
-static void handle_screen_press( void* context)
+static void handle_screen_press(void* context)
 {
     assert(context != NULL);
 

@@ -3,11 +3,11 @@
     Developed for __Client_Name by Carbon Design Group.
 ******************************************************************************/
 
-/// @file KeepKeyFont.h
+/// @file resources.h
 ///
 
-#ifndef KeepKeyFont_H
-#define KeepKeyFont_H
+#ifndef resources_H
+#define resources_H
 
 
 //================================ INCLUDES ===================================
@@ -19,48 +19,33 @@
 //=================== CONSTANTS, MACROS, AND TYPES ========================
 
 
-/// Data pertaining to the image of a character
+/// Data pertaining to the image
 typedef struct
 {
-    const uint8_t*  data;
-    uint16_t        width;
-    uint16_t        height;
-} CharacterImage;
+    const unsigned char *data;
+    uint16_t width;
+    uint16_t height;
+    uint8_t  dataSize;
+} Image;
 
-
-/// Character information.
+/// Image frame information.
 typedef struct
 {
-    long int                code;
-    const CharacterImage*   image;
-} Character;
+	uint32_t		duration;
+    const Image* 	image;
+} ImageFrame;
 
-
-/// A complete font package.
+/// Image animation information.
 typedef struct
 {
     int                 length;
-    int                 size;
-    const Character*    characters;
-} Font;
-
+    const ImageFrame* 	frames;
+} ImageAnimation;
 
 
 //====================== CLASS MEMBER FUNCTIONS ===========================
 
+const ImageAnimation* get_confirm_icon_animation();
+const Image* get_image_animation_frame(const ImageAnimation* img_animation, const uint32_t elapsed);
 
-/// Get a character image.
-const CharacterImage* title_font_get_char(char c);
-const CharacterImage* body_font_get_char(char c);
-const CharacterImage* font_get_char_helper(Font* font, char c);
-
-/// Get the height of a font
-int title_font_height(void);
-int body_font_height(void);
-
-/// Get the width of a font
-int title_font_width(void);
-int body_font_width(void);
-
-
-#endif // KeepKeyFont_H
+#endif // resources_H

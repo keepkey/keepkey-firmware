@@ -169,12 +169,8 @@ animation_queue_get(
 
 //-----------------------------------------------------------------------------
 // 
-static void
-layout_animate_confirm(
-        void*       data,
-        uint32_t    duration,
-        uint32_t    elapsed
-);
+static void layout_animate_confirming(void* data, uint32_t duration, uint32_t elapsed);
+static void layout_animate_images(void* data, uint32_t duration, uint32_t elapsed);
 
 
 //=============================== FUNCTIONS ===================================
@@ -183,10 +179,7 @@ layout_animate_confirm(
 //-----------------------------------------------------------------------------
 // See layout.h for public interface.
 //
-void
-layout_init(
-        Canvas* new_canvas
-)
+void layout_init(Canvas* new_canvas)
 {
     canvas = new_canvas;
 
@@ -208,19 +201,18 @@ layout_init(
 //-----------------------------------------------------------------------------
 // See layout.h for public interface.
 //
-void
-layout_home(
-        void
-)
+void layout_home(void)
 {    
     layout_clear();
 
+    const Font* font = get_title_font();
+
     DrawableParams sp;
-    sp.y = ( canvas->height / 2 ) - ( body_font_height() / 2 );
+    sp.y = ( canvas->height / 2 ) - ( font_height(font) / 2 );
     sp.x = 5;
     sp.color = 0x80;
 
-    draw_title_string(canvas, IDLE_SCREEN_TEXT, &sp, NO_WIDTH, title_font_height());
+    draw_string(canvas, font, IDLE_SCREEN_TEXT, &sp, NO_WIDTH, font_height(font));
 }
 
 
@@ -233,11 +225,13 @@ void layout_confirmation()
 {
     layout_clear();
 
+    const Font* font = get_title_font();
+
     DrawableParams sp;
     sp.x = SIDE_MARGIN;
     sp.y = SIDE_MARGIN;
     sp.color = BODY_COLOR;
-    draw_title_string(canvas, "Confirming ...", &sp, NO_WIDTH, title_font_height());
+    draw_string(canvas, font, "Confirming ...", &sp, NO_WIDTH, font_height(font));
 
     static BoxDrawableParams box_params;
     box_params.base.y        = ( canvas->height / 2 ) - ( BAR_HEIGHT / 2 );
@@ -247,7 +241,7 @@ void layout_confirmation()
     box_params.base.color    = BAR_COLOR;
 
     layout_add_animation( 
-            &layout_animate_confirm,
+            &layout_animate_confirming,
             (void*)&box_params,
             STANDARD_CONFIRM_MS);
 }
@@ -261,17 +255,22 @@ void layout_line(unsigned int line, uint8_t color, const char* str, ...)
     vsnprintf(strbuf, sizeof(strbuf), str, vl);
     va_end(vl);
 
+    const Font* font = get_body_font();
+
     DrawableParams sp;
     sp.x = 0;
 
-    sp.y = body_font_height()*line;
+    sp.y = font_height(font)*line;
     sp.color = color;
-    draw_body_string(canvas, strbuf, &sp, NO_WIDTH, body_font_height());
+    draw_string(canvas, font, strbuf, &sp, NO_WIDTH, font_height(font));
 }
 
 void layout_standard_notification(const char* str1, const char* str2)
 {
     layout_clear();
+
+    const Font* title_font = get_title_font();
+    const Font* body_font = get_body_font();
 
     /*
      * Format Title
@@ -298,23 +297,33 @@ void layout_standard_notification(const char* str1, const char* str2)
     sp.y = SIDE_MARGIN - 2;
     sp.x = SIDE_MARGIN + TITLE_BORDER_PADDING;
     sp.color = TITLE_COLOR;
-    draw_title_string(canvas, upper_str1, &sp, TITLE_WIDTH, title_font_height());
+    draw_string(canvas, title_font, upper_str1, &sp, TITLE_WIDTH, font_height(title_font));
 
     /*
      * Body
      */
-    sp.y += body_font_height() + 3;
+    sp.y += font_height(body_font) + 3;
     sp.x = SIDE_MARGIN + BODY_BORDER_PADDING;
     sp.color = BODY_COLOR;
-    draw_body_string(canvas, str2, &sp, BODY_WIDTH, body_font_height());
+    draw_string(canvas, body_font, str2, &sp, BODY_WIDTH, font_height(body_font));
+
+    /*
+     * Confirm Icon
+     */
+    static AnimationImageDrawableParams confirm_icon;
+    confirm_icon.base.x = 195;
+    confirm_icon.base.y = 5;
+    confirm_icon.img_animation = get_confirm_icon_animation();
+
+    layout_add_animation(
+		&layout_animate_images,
+		(void*)&confirm_icon,
+		0);
 }
 
 //-----------------------------------------------------------------------------
 // 
-void
-animate(
-        void
-)
+void animate(void)
 {
     if( !animate_flag )
     {
@@ -351,7 +360,7 @@ animate(
 //-----------------------------------------------------------------------------
 // See layout.h for public interface.
 //
-static void layout_animate_confirm(void* data, uint32_t duration, uint32_t elapsed)
+static void layout_animate_confirming(void* data, uint32_t duration, uint32_t elapsed)
 {
     BoxDrawableParams* box_params = (BoxDrawableParams*)data;
 
@@ -361,14 +370,20 @@ static void layout_animate_confirm(void* data, uint32_t duration, uint32_t elaps
     draw_box( canvas, box_params );
 }
 
+static void layout_animate_images(void* data, uint32_t duration, uint32_t elapsed)
+{
+	Image* img;
+	AnimationImageDrawableParams* animation_img_params = (AnimationImageDrawableParams*)data;
+
+    if(img = get_image_animation_frame(animation_img_params->img_animation, elapsed))
+    	draw_bitmap_mono_rle(canvas, animation_img_params->base.x, animation_img_params->base.y, img);
+}
+
 
 //-----------------------------------------------------------------------------
 // See layout.h for public interface.
 //
-void
-layout_clear(
-        void
-)
+void layout_clear(void)
 {
     layout_clear_animations();
 
@@ -379,10 +394,7 @@ layout_clear(
 //-----------------------------------------------------------------------------
 // See layout.h for public interface.
 //
-void
-layout_clear_static(
-        void
-)
+void layout_clear_static(void)
 {
     BoxDrawableParams bp;
     bp.width = canvas->width;
@@ -397,10 +409,7 @@ layout_clear_static(
 
 //-----------------------------------------------------------------------------
 // 
-static void
-layout_animate(
-        void* context 
-)
+static void layout_animate(void* context)
 {
     (void)context;
 
@@ -410,12 +419,7 @@ layout_animate(
 
 //-----------------------------------------------------------------------------
 // 
-void
-layout_add_animation(
-        AnimateCallback callback,
-        void*           data,
-        uint32_t        duration
-)
+void layout_add_animation(AnimateCallback callback, void* data, uint32_t duration)
 {
     Animation* animation = animation_queue_get( &active_queue, callback );
 
@@ -436,10 +440,7 @@ layout_add_animation(
 //-----------------------------------------------------------------------------
 // 
 #if defined(AGGRO_UNDEFINED_FN)
-static void
-layout_remove_animation(
-        AnimateCallback  callback
-)
+static void layout_remove_animation(AnimateCallback callback)
 {
     Animation* animation = animation_queue_get( &active_queue, callback );
 
@@ -453,10 +454,7 @@ layout_remove_animation(
 
 //-----------------------------------------------------------------------------
 // 
-void
-layout_clear_animations(
-        void
-)
+void layout_clear_animations(void)
 {
     Animation* animation = animation_queue_pop( &active_queue );
 
@@ -473,10 +471,7 @@ layout_clear_animations(
 
 //-----------------------------------------------------------------------------
 // 
-static Animation*
-animation_queue_peek(
-        AnimationQueue* queue
-)
+static Animation* animation_queue_peek(AnimationQueue* queue)
 {
     return queue->head;
 }
@@ -484,11 +479,7 @@ animation_queue_peek(
 
 //-----------------------------------------------------------------------------
 // 
-static void
-animation_queue_push(
-        AnimationQueue* queue,
-        Animation*      node
-)
+static void animation_queue_push(AnimationQueue* queue, Animation* node)
 {
     if( queue->head != NULL )
     {
@@ -506,10 +497,7 @@ animation_queue_push(
 
 //-----------------------------------------------------------------------------
 // 
-static Animation*
-animation_queue_pop(
-        AnimationQueue* queue
-)
+static Animation* animation_queue_pop(AnimationQueue* queue)
 {
     Animation* animation = queue->head;
 
@@ -525,11 +513,7 @@ animation_queue_pop(
 
 //-----------------------------------------------------------------------------
 // 
-static Animation*
-animation_queue_get(
-        AnimationQueue* queue,
-        AnimateCallback callback
-)
+static Animation* animation_queue_get(AnimationQueue* queue, AnimateCallback callback)
 {
     Animation* current = queue->head;
     Animation* result = NULL;
@@ -570,19 +554,19 @@ animation_queue_get(
     return result;
 }
 
-uint32_t layout_char_width()
+uint32_t layout_char_width(Font *font)
 {
-    return KEEPKEY_DISPLAY_WIDTH / body_font_width();
+    return KEEPKEY_DISPLAY_WIDTH / font_width(font);
 }
 
 uint32_t title_char_width()
 {
-    return (TITLE_WIDTH / title_font_width()) * TITLE_ROWS;
+	const Font* font = get_title_font();
+    return (TITLE_WIDTH / font_width(font)) * TITLE_ROWS;
 }
 
 uint32_t body_char_width()
 {
-    return (BODY_WIDTH / body_font_width()) * BODY_ROWS;
+	const Font* font = get_body_font();
+    return (BODY_WIDTH / font_width(font)) * BODY_ROWS;
 }
-
-
