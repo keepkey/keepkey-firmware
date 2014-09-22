@@ -156,7 +156,13 @@ int main(int argc, char* argv[])
         {
             if(check_firmware_sig())
             {
-                layout_standard_notification("Loading KeepKey firmware", firmware_sig_as_string());
+            	layout_loading(1);
+
+            	while(1){
+            		display_refresh();
+            		animate();
+            	}
+                //layout_standard_notification("Loading KeepKey firmware", firmware_sig_as_string());
             } else {
                 layout_standard_notification("UNSIGNED FIRMWARE", firmware_sig_as_string());
             }

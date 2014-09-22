@@ -321,6 +321,22 @@ void layout_standard_notification(const char* str1, const char* str2)
 		0);
 }
 
+void layout_loading(int type)
+{
+    /*
+     * Firmware loading
+     */
+    static AnimationImageDrawableParams firmware_loading;
+    firmware_loading.base.x = 0;
+    firmware_loading.base.y = 0;
+    firmware_loading.img_animation = get_firmware_loading_animation();
+
+    layout_add_animation(
+		&layout_animate_images,
+		(void*)&firmware_loading,
+		2880);
+}
+
 //-----------------------------------------------------------------------------
 // 
 void animate(void)
