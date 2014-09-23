@@ -334,7 +334,7 @@ void layout_loading(int type)
     layout_add_animation(
 		&layout_animate_images,
 		(void*)&firmware_loading,
-		1410);
+		2820);
 }
 
 //-----------------------------------------------------------------------------
