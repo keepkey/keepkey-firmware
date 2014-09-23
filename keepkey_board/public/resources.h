@@ -14,6 +14,7 @@
 
 
 #include <stdint.h>
+#include <stdbool.h>
 
 
 //=================== CONSTANTS, MACROS, AND TYPES ========================
@@ -46,6 +47,6 @@ typedef struct
 //====================== CLASS MEMBER FUNCTIONS ===========================
 
 const ImageAnimation* get_confirm_icon_animation();
-const Image* get_image_animation_frame(const ImageAnimation* img_animation, const uint32_t elapsed);
+const Image* get_image_animation_frame(const ImageAnimation* img_animation, const uint32_t elapsed, bool loop);
 
 #endif // resources_H

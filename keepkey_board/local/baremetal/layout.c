@@ -334,7 +334,7 @@ void layout_loading(int type)
     layout_add_animation(
 		&layout_animate_images,
 		(void*)&firmware_loading,
-		2880);
+		1410);
 }
 
 //-----------------------------------------------------------------------------
@@ -391,7 +391,12 @@ static void layout_animate_images(void* data, uint32_t duration, uint32_t elapse
 	Image* img;
 	AnimationImageDrawableParams* animation_img_params = (AnimationImageDrawableParams*)data;
 
-    if(img = get_image_animation_frame(animation_img_params->img_animation, elapsed))
+	if(duration == 0) // looping
+		img = get_image_animation_frame(animation_img_params->img_animation, elapsed, true);
+	else
+		img = get_image_animation_frame(animation_img_params->img_animation, elapsed, false);
+
+    if(img)
     	draw_bitmap_mono_rle(canvas, animation_img_params->base.x, animation_img_params->base.y, img);
 }
 
