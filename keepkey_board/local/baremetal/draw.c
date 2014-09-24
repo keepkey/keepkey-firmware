@@ -170,19 +170,19 @@ bool draw_box(Canvas* canvas, BoxDrawableParams* p)
     return true;
 }
 
-bool draw_bitmap_mono_rle(Canvas* canvas, int x, int y, const Image *img)
+bool draw_bitmap_mono_rle(Canvas* canvas, DrawableParams* p, const Image *img)
 {
 	int x0, y0;
 	int8_t sequence = 0;
 	int8_t nonsequence = 0;
 	uint8_t value = 0;
 
-    int start_index = ( y * canvas->width ) + x;
+    int start_index = ( p->y * canvas->width ) + p->x;
     uint8_t* canvas_pixel = &canvas->buffer[ start_index ];
 
 	// Check that it's within bounds.
-	if( ( ( img->width + x ) <= canvas->width ) &&
-		( ( img->height + y ) <= canvas->height ) )
+	if( ( ( img->width + p->x ) <= canvas->width ) &&
+		( ( img->height + p->y ) <= canvas->height ) )
 	{
 		const uint8_t* img_pixel = &img->data[ 0 ];
 

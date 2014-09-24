@@ -46,6 +46,7 @@ typedef struct
 
 //====================== CLASS MEMBER FUNCTIONS ===========================
 
+const Image* get_home_image();
 const ImageAnimation* get_confirm_icon_animation();
 const Image* get_image_animation_frame(const ImageAnimation* img_animation, const uint32_t elapsed, bool loop);
 

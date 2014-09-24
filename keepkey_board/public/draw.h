@@ -99,7 +99,7 @@ bool draw_box(Canvas* canvas, BoxDrawableParams*  params);
 /// Draw a bitmap on the display using RLE
 ///
 //-----------------------------------------------------------------------------
-bool draw_bitmap_mono_rle(Canvas* canvas, int x, int y, const Image *img);
+bool draw_bitmap_mono_rle(Canvas* canvas, DrawableParams* p, const Image *img);
 
 
 #ifdef __cplusplus

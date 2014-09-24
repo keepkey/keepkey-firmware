@@ -30,14 +30,41 @@ static void exec(void)
 
 int main(void)
 {
+	/*
+	 * Init board
+	 */
     board_init();
     set_red();
 
-    storage_init();
-    fsm_init();
+    /*
+     * Show loading screen
+     */
+    layout_loading(1);
+
+	while(is_animating()){
+		animate();
+		display_refresh();
+	}
+
+	/*
+	 * Show home
+	 */
     layout_home();
     display_refresh();
 
+    /*
+     * Init storage
+     */
+    storage_init();
+
+    /*
+     * Init protcol buffer message map
+     */
+    fsm_init();
+
+    /*
+     * Listen for commands
+     */
     set_green();
     usb_init();
     clear_red();

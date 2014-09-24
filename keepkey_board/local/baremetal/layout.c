@@ -205,14 +205,11 @@ void layout_home(void)
 {    
     layout_clear();
 
-    const Font* font = get_title_font();
-
     DrawableParams sp;
-    sp.y = ( canvas->height / 2 ) - ( font_height(font) / 2 );
-    sp.x = 5;
-    sp.color = 0x80;
+    sp.x = 0;
+    sp.y = 0;
 
-    draw_string(canvas, font, IDLE_SCREEN_TEXT, &sp, NO_WIDTH, font_height(font));
+    draw_bitmap_mono_rle(canvas, &sp, get_home_image());
 }
 
 
@@ -334,7 +331,7 @@ void layout_loading(int type)
     layout_add_animation(
 		&layout_animate_images,
 		(void*)&firmware_loading,
-		2820);
+		1410);
 }
 
 //-----------------------------------------------------------------------------
@@ -372,6 +369,15 @@ void animate(void)
     animate_flag = false;
 }
 
+//-----------------------------------------------------------------------------
+//
+bool is_animating(void)
+{
+	if(animation_queue_peek( &active_queue ) == NULL)
+		return false;
+	else
+		return true;
+}
 
 //-----------------------------------------------------------------------------
 // See layout.h for public interface.
@@ -397,7 +403,7 @@ static void layout_animate_images(void* data, uint32_t duration, uint32_t elapse
 		img = get_image_animation_frame(animation_img_params->img_animation, elapsed, false);
 
     if(img)
-    	draw_bitmap_mono_rle(canvas, animation_img_params->base.x, animation_img_params->base.y, img);
+    	draw_bitmap_mono_rle(canvas, &animation_img_params->base, img);
 }
 
 

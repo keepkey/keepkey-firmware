@@ -87,7 +87,12 @@ void layout_standard_notification( const char* str1, const char* str2);
 /// Call this in a loop.
 ///
 //-----------------------------------------------------------------------------
-void animate( void); 
+void animate( void);
+
+/*
+ * Determine if animations exist in active animations queue
+ */
+bool is_animating(void);
 
 typedef enum 
 {

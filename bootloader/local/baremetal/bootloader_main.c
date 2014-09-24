@@ -154,23 +154,12 @@ int main(int argc, char* argv[])
     {
         if(validate_firmware() && !update_mode)
         {
-            if(check_firmware_sig())
+            if(!check_firmware_sig())
             {
-            	layout_loading(1);
-
-            	while(1){
-            		display_refresh();
-            		animate();
-            	}
-                //layout_standard_notification("Loading KeepKey firmware", firmware_sig_as_string());
-            } else {
                 layout_standard_notification("UNSIGNED FIRMWARE", firmware_sig_as_string());
+                display_refresh();
+                delay(5000);
             }
-            delay(1000);
-            display_refresh();
-            display_refresh();
-
-            delay(5000);
 
             clear_red();
             set_vector_table_offset(0x40000);
