@@ -143,7 +143,7 @@ void storage_reset(void)
 /**
  * Blow away the flash config storage, and reapply the meta configuration settings.
  */
-void storage_commit(void)
+void storage_commit()
 {
     int i;
     uint32_t *w;
@@ -152,6 +152,19 @@ void storage_commit(void)
 
     flash_erase(FLASH_CONFIG);
     flash_write(FLASH_CONFIG, 0, sizeof(shadow_config), (uint8_t*)&shadow_config);
+
+    flash_lock();
+}
+
+void storage_commit_with_tick(void (*tick)())
+{
+    int i;
+    uint32_t *w;
+
+    flash_unlock();
+
+    flash_erase_with_tick(FLASH_CONFIG, tick);
+    flash_write_with_tick(FLASH_CONFIG, 0, sizeof(shadow_config), (uint8_t*)&shadow_config, tick);
 
     flash_lock();
 }

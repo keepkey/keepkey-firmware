@@ -117,7 +117,6 @@ static void configure_hw()
     keepkey_button_init();
 
     display_init();
-
     layout_init( display_canvas() );
 }
 

@@ -126,7 +126,9 @@ static const FlashSector flash_sector_map[]= {
 };
 
 void flash_erase(Allocation group);
+void flash_erase_with_tick(Allocation group, void (*tick)());
 void flash_write(Allocation group, size_t offset, size_t len, uint8_t* data);
+void flash_write_with_tick(Allocation group, size_t offset, size_t len, uint8_t* data, void (*tick)());
 
 void memory_protect(void);
 int memory_bootloader_hash(uint8_t *hash);

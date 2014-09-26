@@ -49,7 +49,23 @@ int memory_bootloader_hash(uint8_t *hash)
 }
 
 
-void flash_erase(Allocation group) 
+void flash_erase(Allocation group)
+{
+    //TODO: See if there's a way to handle flash errors here gracefully.
+
+    const FlashSector* s = flash_sector_map;
+    while(s->use != FLASH_INVALID)
+    {
+        if(s->use == group)
+        {
+            flash_erase_sector(s->sector, FLASH_CR_PROGRAM_X8);
+        }
+
+        ++s;
+    }
+}
+
+void flash_erase_with_tick(Allocation group, void (*tick)())
 {
     //TODO: See if there's a way to handle flash errors here gracefully.
     
@@ -83,4 +99,27 @@ void flash_write(Allocation group, size_t offset, size_t len, uint8_t* data)
     assert(start != 0);
 
     flash_program(start + offset, data, len);
+}
+
+void flash_write_with_tick(Allocation group, size_t offset, size_t len, uint8_t* data, void (*tick)())
+{
+
+    size_t start = 0;
+    const FlashSector* s = flash_sector_map;
+    while(s->use != FLASH_INVALID)
+    {
+    	if(s->use == group)
+        {
+            start = s->start;
+            break;
+        }
+        ++s;
+    }
+
+    assert(start != 0);
+
+    for (int i = 0; i < len; i++) {
+    	(*tick)();
+    	flash_program_byte(start + offset+i, data[i]);
+    }
 }

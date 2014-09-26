@@ -33,7 +33,7 @@ typedef struct
 typedef struct
 {
 	uint32_t		duration;
-    const Image* 	image;
+    Image			image;
 } ImageFrame;
 
 /// Image animation information.
@@ -42,6 +42,22 @@ typedef struct
     int                 length;
     const ImageFrame* 	frames;
 } ImageAnimation;
+
+
+typedef struct
+{
+    const unsigned char *data;
+    uint16_t width;
+    uint16_t height;
+    uint8_t  duration;
+} ResourceImage;
+
+typedef enum
+{
+	CONFIRM_ICON,
+    BOOT,
+    WIPE
+} Resource;
 
 
 //====================== CLASS MEMBER FUNCTIONS ===========================

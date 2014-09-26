@@ -39,7 +39,7 @@ int main(void)
     /*
      * Show loading screen
      */
-    layout_loading(1);
+    layout_loading(BOOT);
 
 	while(is_animating()){
 		animate();

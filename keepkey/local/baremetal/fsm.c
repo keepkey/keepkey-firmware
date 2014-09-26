@@ -141,8 +141,17 @@ void fsm_msgWipeDevice(WipeDevice *msg)
     (void)msg;
     if(confirm("Wipe Private Keys and Settings", "Are you sure you want to erase private keys and settings? Any money stored will be lost."))
     {
+       	layout_loading(WIPE);
+
+    	void tick(){
+    		animate();
+    		display_refresh();
+    		delay(10);
+		}
+
+    	tick();
         storage_reset();
-        storage_commit();
+        storage_commit_with_tick(&tick);
 
         fsm_sendSuccess("Device wiped");
         layout_home();

@@ -318,20 +318,33 @@ void layout_standard_notification(const char* str1, const char* str2)
 		0);
 }
 
-void layout_loading(int type)
+void layout_loading(Resource type)
 {
-    /*
-     * Firmware loading
-     */
-    static AnimationImageDrawableParams firmware_loading;
-    firmware_loading.base.x = 0;
-    firmware_loading.base.y = 0;
-    firmware_loading.img_animation = get_firmware_loading_animation();
+    static AnimationImageDrawableParams loading_animation;
+    loading_animation.base.x = 0;
+    loading_animation.base.y = 0;
 
-    layout_add_animation(
-		&layout_animate_images,
-		(void*)&firmware_loading,
-		1410);
+    switch(type)
+    {
+    	case BOOT:
+    		loading_animation.img_animation = get_firmware_loading_animation();
+
+    		layout_add_animation(
+    				&layout_animate_images,
+    				(void*)&loading_animation,
+    				get_image_animation_duration(loading_animation.img_animation));
+
+    		break;
+
+    	case WIPE:
+    		loading_animation.img_animation = get_wipe_animation();
+
+    		layout_add_animation(
+    				&layout_animate_images,
+    				(void*)&loading_animation,
+    				0);
+    		break;
+    }
 }
 
 //-----------------------------------------------------------------------------
