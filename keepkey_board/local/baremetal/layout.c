@@ -20,6 +20,7 @@
 #include "keepkey_display.h"
 #include "layout.h"
 #include "timer.h"
+#include "resources.h"
 
 
 //====================== CONSTANTS, TYPES, AND MACROS =========================

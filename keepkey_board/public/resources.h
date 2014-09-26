@@ -33,7 +33,7 @@ typedef struct
 typedef struct
 {
 	uint32_t		duration;
-    Image			image;
+    Image*			image;
 } ImageFrame;
 
 /// Image animation information.

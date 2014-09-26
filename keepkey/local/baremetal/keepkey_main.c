@@ -21,6 +21,7 @@
 #include <layout.h>
 #include <fsm.h>
 #include <usb_driver.h>
+#include <resources.h>
 
 static void exec(void)
 {
