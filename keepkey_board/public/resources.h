@@ -15,6 +15,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "keepkey_display.h"
 
 
 //=================== CONSTANTS, MACROS, AND TYPES ========================
@@ -23,34 +24,25 @@
 /// Data pertaining to the image
 typedef struct
 {
-    const unsigned char *data;
-    uint16_t width;
-    uint16_t height;
-    uint8_t  dataSize;
+	unsigned char *data;
+	uint16_t width;
+	uint16_t height;
 } Image;
 
 /// Image frame information.
 typedef struct
 {
+	Image*			image;
 	uint32_t		duration;
-    Image*			image;
-} ImageFrame;
+	void* 			(*get_image_data)(uint8_t*);
+} AnimationFrame;
 
 /// Image animation information.
 typedef struct
 {
     int                 length;
-    const ImageFrame* 	frames;
+    const AnimationFrame* 	frames;
 } ImageAnimation;
-
-
-typedef struct
-{
-    const unsigned char *data;
-    uint16_t width;
-    uint16_t height;
-    uint8_t  duration;
-} ResourceImage;
 
 typedef enum
 {
