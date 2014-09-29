@@ -22,9 +22,18 @@ extern "C" {
 
 #include <stdint.h>
 #include "canvas.h"
+#include "resources.h"
 
 
 //====================== CONSTANTS, TYPES, AND MACROS =========================
+
+typedef enum
+{
+	NOTIFICATION_INFO,
+    NOTIFICATION_REQUEST,
+    NOTIFICATION_CONFIRM_ANIMATION,
+    NOTIFICATION_CONFIRMED
+} NotificationType;
 
 
 //=============================== VARIABLES ===================================
@@ -81,7 +90,17 @@ void layout_firmware_update_confirmation();
 /**
  * Standard 2-line notification layout for display.
  */
-void layout_standard_notification( const char* str1, const char* str2);
+void layout_standard_notification( const char* str1, const char* str2, NotificationType type);
+
+/*
+ * Standard layout for intro
+ */
+void layout_intro();
+
+/*
+ * Standard layout for loading animations that fill entire screen
+ */
+void layout_loading(AnimationResource type);
 
 //-----------------------------------------------------------------------------
 /// Call this in a loop.
@@ -110,6 +129,8 @@ typedef enum
  * @param ... optional printf-style varargs 
  */
 void layout_line(unsigned int line, uint8_t color, const char *str, ...);
+
+void force_animation_start();
 
 typedef void (*AnimateCallback)(void* data, uint32_t duration, uint32_t elapsed);
 void layout_add_animation(AnimateCallback callback, void* data, uint32_t duration);

@@ -20,7 +20,6 @@
 #include "keepkey_display.h"
 #include "layout.h"
 #include "timer.h"
-#include "resources.h"
 
 
 //====================== CONSTANTS, TYPES, AND MACROS =========================
@@ -263,7 +262,7 @@ void layout_line(unsigned int line, uint8_t color, const char* str, ...)
     draw_string(canvas, font, strbuf, &sp, NO_WIDTH, font_height(font));
 }
 
-void layout_standard_notification(const char* str1, const char* str2)
+void layout_standard_notification(const char* str1, const char* str2, NotificationType type)
 {
     layout_clear();
 
@@ -306,46 +305,75 @@ void layout_standard_notification(const char* str1, const char* str2)
     draw_string(canvas, body_font, str2, &sp, BODY_WIDTH, font_height(body_font));
 
     /*
-     * Confirm Icon
+     * Determine animation/icon to show
      */
-    static AnimationImageDrawableParams confirm_icon;
-    confirm_icon.base.x = 195;
-    confirm_icon.base.y = 5;
-    confirm_icon.img_animation = get_confirm_icon_animation();
+    static AnimationImageDrawableParams icon;
+    switch(type){
+    	case NOTIFICATION_REQUEST:
+    		icon.base.x = 195;
+			icon.base.y = 5;
+			icon.img_animation = get_confirm_icon_animation();
+
+			layout_add_animation(
+				&layout_animate_images,
+				(void*)&icon,
+				0);
+			break;
+		case NOTIFICATION_CONFIRM_ANIMATION:
+			icon.base.x = 195;
+			icon.base.y = 6;
+			icon.img_animation = get_confirming_animation();
+
+			layout_add_animation(
+				&layout_animate_images,
+				(void*)&icon,
+				get_image_animation_duration(icon.img_animation));
+			break;
+		case NOTIFICATION_CONFIRMED:
+			sp.x = 195;
+			sp.y = 6;
+			draw_bitmap_mono_rle(canvas, &sp, get_confirmed_image());
+			break;
+    }
+}
+
+void layout_intro()
+{
+    static AnimationImageDrawableParams intro_animation;
+    intro_animation.base.x = 0;
+    intro_animation.base.y = 0;
+    intro_animation.img_animation = get_boot_animation();
+
+	layout_add_animation(
+		&layout_animate_images,
+		(void*)&intro_animation,
+		get_image_animation_duration(intro_animation.img_animation));
+}
+
+void layout_loading(AnimationResource type)
+{
+    static AnimationImageDrawableParams loading_animation;
+
+    /*
+     * Background params
+     */
+    DrawableParams sp;
+	sp.x = 0;
+	sp.y = 0;
+
+    switch(type){
+    	case WIPE_ANIM:
+    		loading_animation.img_animation = get_wipe_animation();
+    		draw_bitmap_mono_rle(canvas, &sp, get_wipe_background_image());
+    		loading_animation.base.x = 24;
+    		loading_animation.base.y = 13;
+    		break;
+    }
 
     layout_add_animation(
 		&layout_animate_images,
-		(void*)&confirm_icon,
+		(void*)&loading_animation,
 		0);
-}
-
-void layout_loading(Resource type)
-{
-    static AnimationImageDrawableParams loading_animation;
-    loading_animation.base.x = 0;
-    loading_animation.base.y = 0;
-
-    switch(type)
-    {
-    	case BOOT:
-    		loading_animation.img_animation = get_firmware_loading_animation();
-
-    		layout_add_animation(
-    				&layout_animate_images,
-    				(void*)&loading_animation,
-    				get_image_animation_duration(loading_animation.img_animation));
-
-    		break;
-
-    	case WIPE:
-    		loading_animation.img_animation = get_wipe_animation();
-
-    		layout_add_animation(
-    				&layout_animate_images,
-    				(void*)&loading_animation,
-    				0);
-    		break;
-    }
 }
 
 //-----------------------------------------------------------------------------
@@ -454,6 +482,14 @@ static void layout_animate(void* context)
 {
     (void)context;
 
+    animate_flag = true;
+}
+
+
+//-----------------------------------------------------------------------------
+//
+void force_animation_start()
+{
     animate_flag = true;
 }
 

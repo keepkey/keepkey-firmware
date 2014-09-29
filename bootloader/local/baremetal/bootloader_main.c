@@ -155,7 +155,7 @@ int main(int argc, char* argv[])
         {
             if(!check_firmware_sig())
             {
-                layout_standard_notification("UNSIGNED FIRMWARE", firmware_sig_as_string());
+                layout_standard_notification("UNSIGNED FIRMWARE", firmware_sig_as_string(), NOTIFICATION_INFO);
                 display_refresh();
                 delay(5000);
             }
@@ -171,14 +171,14 @@ int main(int argc, char* argv[])
                 if(confirm("Confirm?", "Hold button to confirm firmware update."))
                 {
                     usb_flash_firmware();
-                    layout_standard_notification("Firmware Updating...", "COMPLETED.  Board will reset in 5 seconds.");
+                    layout_standard_notification("Firmware Updating...", "COMPLETED.  Board will reset in 5 seconds.", NOTIFICATION_INFO);
                     display_refresh();
                     delay(5000);
 
                     board_reset();
                 } 
             } else {
-                layout_standard_notification("Invalid firmware image detected.", "Reset and perform a firmware update.");
+                layout_standard_notification("Invalid firmware image detected.", "Reset and perform a firmware update.", NOTIFICATION_INFO);
                 display_refresh();
                 break;
             }

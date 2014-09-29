@@ -40,12 +40,12 @@ int main(void)
     /*
      * Show loading screen
      */
-    layout_loading(BOOT);
+    /*layout_intro();
 
 	while(is_animating()){
 		animate();
 		display_refresh();
-	}
+	}*/
 
 	/*
 	 * Show home

@@ -43,7 +43,7 @@ void next_word(void) {
 	if (word_pos == 0) {
 		const char **wl = mnemonic_wordlist();
 		strlcpy(fake_word, wl[random32() & 0x7FF], sizeof(fake_word));
-                layout_standard_notification("Enter the word", fake_word);
+                layout_standard_notification("Enter the word", fake_word, NOTIFICATION_INFO);
 	} else {
 		fake_word[0] = 0;
 		char descbuf[] = "__. word";
@@ -54,7 +54,7 @@ void next_word(void) {
 			descbuf[0] = '0' + word_pos / 10;
 		}
 		descbuf[1] = '0' + word_pos % 10;
-                layout_standard_notification("Enter the following", desc);
+                layout_standard_notification("Enter the following", desc, NOTIFICATION_INFO);
 	}
 	WordRequest resp;
 	memset(&resp, 0, sizeof(WordRequest));

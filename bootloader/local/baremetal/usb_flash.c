@@ -96,7 +96,7 @@ bool is_update_complete(void)
 bool usb_flash_firmware(void)
 {
 
-    layout_standard_notification("Firmware Updating...", "Erasing flash...");
+    layout_standard_notification("Firmware Updating...", "Erasing flash...", NOTIFICATION_INFO);
     display_refresh();
 
     flash_unlock();
@@ -107,7 +107,7 @@ bool usb_flash_firmware(void)
      * Send out an unsolicited announcement to trigger the host side of the USB bus to recognize 
      * the device.
      */
-    layout_standard_notification("Firmware Updating...", "Programming...");
+    layout_standard_notification("Firmware Updating...", "Programming...", NOTIFICATION_INFO);
     display_refresh();
     msg_init(MessagesMap);
     usb_init();
@@ -122,7 +122,7 @@ bool usb_flash_firmware(void)
     }
     flash_lock();
 
-    layout_standard_notification("Firmware Update Complete", "Reset device to continue.");
+    layout_standard_notification("Firmware Update Complete", "Reset device to continue.", NOTIFICATION_INFO);
     display_refresh();
     return true;
 }
@@ -196,7 +196,7 @@ void handler_update(FirmwareUpdate* msg)
         update_state = UPDATE_COMPLETE;
         flash_lock();
         send_success("Upload complete");
-        layout_standard_notification("Firmware Updating...", "Upload complete.  Reset KeepKey to continue.");
+        layout_standard_notification("Firmware Updating...", "Upload complete.  Reset KeepKey to continue.", NOTIFICATION_INFO);
         display_refresh();
     } 
 }

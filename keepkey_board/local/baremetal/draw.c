@@ -176,15 +176,23 @@ bool draw_bitmap_mono_rle(Canvas* canvas, DrawableParams* p, const Image *img)
 	int8_t sequence = 0;
 	int8_t nonsequence = 0;
 	uint8_t value = 0;
+	static uint8_t image_data[KEEPKEY_DISPLAY_WIDTH * KEEPKEY_DISPLAY_HEIGHT];
 
     int start_index = ( p->y * canvas->width ) + p->x;
     uint8_t* canvas_pixel = &canvas->buffer[ start_index ];
 
-	// Check that it's within bounds.
+    /*
+     * Get image data
+     */
+    img->get_image_data(image_data);
+
+	/*
+	 * Check that image will fit in bounds
+	 */
 	if( ( ( img->width + p->x ) <= canvas->width ) &&
 		( ( img->height + p->y ) <= canvas->height ) )
 	{
-		const uint8_t* img_pixel = &img->data[ 0 ];
+		const uint8_t* img_pixel = &image_data[0];
 
 		for( y0 = 0; y0 < img->height; y0++ )
 		{

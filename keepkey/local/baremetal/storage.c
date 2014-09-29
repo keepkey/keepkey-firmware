@@ -156,15 +156,15 @@ void storage_commit()
     flash_lock();
 }
 
-void storage_commit_with_tick(void (*tick)())
+void storage_commit_ticking(void (*tick)())
 {
     int i;
     uint32_t *w;
 
     flash_unlock();
 
-    flash_erase_with_tick(FLASH_CONFIG, tick);
-    flash_write_with_tick(FLASH_CONFIG, 0, sizeof(shadow_config), (uint8_t*)&shadow_config, tick);
+    flash_erase(FLASH_CONFIG);
+    flash_write_ticking(FLASH_CONFIG, 0, sizeof(shadow_config), (uint8_t*)&shadow_config, tick);
 
     flash_lock();
 }
@@ -223,7 +223,7 @@ void storage_setLanguage(const char *lang)
 void get_root_node_callback(uint32_t iter, uint32_t total)
 {
     static uint8_t i;
-    layout_standard_notification("Waking up", "Building root node");
+    layout_standard_notification("Waking up", "Building root node", NOTIFICATION_INFO);
     display_refresh();
 }
 
@@ -268,7 +268,7 @@ bool storage_getRootNode(HDNode *node)
             return false;
         }
         uint8_t seed[64];
-        layout_standard_notification("Waking up","");
+        layout_standard_notification("Waking up","", NOTIFICATION_INFO);
         display_refresh();
         mnemonic_to_seed(real_config->storage.mnemonic, sessionPassphrase, seed, get_root_node_callback); // BIP-0039
         hdnode_from_seed(seed, sizeof(seed), &sessionRootNode);

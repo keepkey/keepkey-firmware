@@ -142,17 +142,18 @@ void fsm_msgWipeDevice(WipeDevice *msg)
     (void)msg;
     if(confirm("Wipe Private Keys and Settings", "Are you sure you want to erase private keys and settings? Any money stored will be lost."))
     {
-       	layout_loading(WIPE);
+       	layout_loading(WIPE_ANIM);
+       	force_animation_start();
 
     	void tick(){
     		animate();
     		display_refresh();
-    		delay(10);
+    		delay(3);
 		}
 
     	tick();
         storage_reset();
-        storage_commit_with_tick(&tick);
+        storage_commit_ticking(&tick);
 
         fsm_sendSuccess("Device wiped");
         layout_home();
@@ -169,7 +170,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 	HDNode *node = fsm_getRootNode();
 	if (!node) return;
 
-        layout_standard_notification("Preparing Keys...", "This may take a moment.");
+    layout_standard_notification("Preparing Keys...", "This may take a moment.", NOTIFICATION_INFO);
 	fsm_deriveKey(node, msg->address_n, msg->address_n_count);
 
 	resp->node.depth = node->depth;
@@ -358,7 +359,7 @@ void fsm_msgSimpleSignTx(SimpleSignTx *msg)
             satoshi_to_str(fee, true));
     if(!confirm("Confirm?", outstr)) {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
-        layout_standard_notification(outstr, "CANCELLED");
+        layout_standard_notification(outstr, "CANCELLED", NOTIFICATION_INFO);
     } else {
         resp->has_request_type = true;
         resp->request_type = RequestType_TXFINISHED;
@@ -366,7 +367,7 @@ void fsm_msgSimpleSignTx(SimpleSignTx *msg)
         resp->serialized.has_serialized_tx = true;
         resp->serialized.serialized_tx.size = (uint32_t)tx_size;
         msg_write(MessageType_MessageType_TxRequest, resp);
-        layout_standard_notification(outstr, "CONFIRMED");
+        layout_standard_notification(outstr, "CONFIRMED", NOTIFICATION_INFO);
     }
 
     layout_home();
