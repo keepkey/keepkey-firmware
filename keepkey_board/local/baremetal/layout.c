@@ -20,6 +20,7 @@
 #include "keepkey_display.h"
 #include "layout.h"
 #include "timer.h"
+#include "resources.h"
 
 
 //====================== CONSTANTS, TYPES, AND MACROS =========================
@@ -218,31 +219,6 @@ void layout_sleep(void)
     layout_clear();
 }
 
-void layout_confirmation()
-{
-    layout_clear();
-
-    const Font* font = get_title_font();
-
-    DrawableParams sp;
-    sp.x = SIDE_MARGIN;
-    sp.y = SIDE_MARGIN;
-    sp.color = BODY_COLOR;
-    draw_string(canvas, font, "Confirming ...", &sp, NO_WIDTH, font_height(font));
-
-    static BoxDrawableParams box_params;
-    box_params.base.y        = ( canvas->height / 2 ) - ( BAR_HEIGHT / 2 );
-    box_params.base.x        = SIDE_MARGIN;
-    box_params.width         = 0;
-    box_params.height        = BAR_HEIGHT;
-    box_params.base.color    = BAR_COLOR;
-
-    layout_add_animation( 
-            &layout_animate_confirming,
-            (void*)&box_params,
-            STANDARD_CONFIRM_MS);
-}
-
 void layout_line(unsigned int line, uint8_t color, const char* str, ...)
 {
     va_list vl;
@@ -436,7 +412,7 @@ static void layout_animate_confirming(void* data, uint32_t duration, uint32_t el
 
 static void layout_animate_images(void* data, uint32_t duration, uint32_t elapsed)
 {
-	Image* img;
+	const Image* img;
 	AnimationImageDrawableParams* animation_img_params = (AnimationImageDrawableParams*)data;
 
 	if(duration == 0) // looping

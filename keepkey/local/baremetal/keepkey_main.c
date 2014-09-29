@@ -22,6 +22,7 @@
 #include <fsm.h>
 #include <usb_driver.h>
 #include <resources.h>
+#include <storage.h>
 
 static void exec(void)
 {
@@ -40,12 +41,12 @@ int main(void)
     /*
      * Show loading screen
      */
-    /*layout_intro();
+    layout_intro();
 
 	while(is_animating()){
 		animate();
 		display_refresh();
-	}*/
+	}
 
 	/*
 	 * Show home

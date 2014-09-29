@@ -62,8 +62,8 @@ typedef struct
 
 typedef struct
 {
-    DrawableParams  base;
-    ImageAnimation* img_animation;
+    DrawableParams  		base;
+    const ImageAnimation* 	img_animation;
 } AnimationImageDrawableParams;
 
 
@@ -84,7 +84,7 @@ bool draw_char(Canvas* canvas, Font* font, char c, DrawableParams* params);
 /// Draw a string on the display.
 ///
 //-----------------------------------------------------------------------------
-bool draw_string(Canvas* canvas, Font* font, const char* c, DrawableParams* p, int width,
+bool draw_string(Canvas* canvas, const Font* font, const char* c, DrawableParams* p, int width,
 		int line_height);
 
 

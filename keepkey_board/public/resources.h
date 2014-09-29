@@ -24,7 +24,7 @@
 /// Data pertaining to the image
 typedef struct
 {
-	void* 		(*get_image_data)(uint8_t*);
+	const void* (*get_image_data)(uint8_t*);
 	uint16_t 	width;
 	uint16_t 	height;
 } Image;
@@ -32,7 +32,7 @@ typedef struct
 /// Image frame information.
 typedef struct
 {
-	Image*			image;
+	const Image*	image;
 	uint32_t		duration;
 } AnimationFrame;
 
@@ -62,7 +62,14 @@ typedef enum
 //====================== CLASS MEMBER FUNCTIONS ===========================
 
 const Image* get_home_image();
-const ImageAnimation* get_animation(AnimationResource type);
+const Image* get_wipe_background_image();
+const Image* get_confirmed_image();
+
+const ImageAnimation* get_confirm_icon_animation();
+const ImageAnimation* get_confirming_animation();
+const ImageAnimation* get_wipe_animation();
+const ImageAnimation* get_boot_animation();
+
 const uint32_t get_image_animation_duration(const ImageAnimation* img_animation);
 const Image* get_image_animation_frame(const ImageAnimation* img_animation, const uint32_t elapsed, bool loop);
 

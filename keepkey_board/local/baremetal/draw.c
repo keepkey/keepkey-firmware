@@ -27,7 +27,7 @@
 
 
 static bool draw_char_with_shift(Canvas* canvas, DrawableParams* p,
-		int* x_shift, int* y_shift, CharacterImage* img)
+		int* x_shift, int* y_shift, const CharacterImage* img)
 {
     bool success = false;
 
@@ -76,7 +76,7 @@ static bool draw_char_with_shift(Canvas* canvas, DrawableParams* p,
     return success;
 }
 
-bool draw_string(Canvas* canvas, Font* font, const char* c, DrawableParams* p, int width, int line_height)
+bool draw_string(Canvas* canvas, const Font* font, const char* c, DrawableParams* p, int width, int line_height)
 {
     bool have_space = true;
     int x_offset = 0;
@@ -86,7 +86,7 @@ bool draw_string(Canvas* canvas, Font* font, const char* c, DrawableParams* p, i
     {
     	const CharacterImage* img = font_get_char(font, *c);
     	int word_width = 0;
-    	char* next_c = c + 1;
+    	const char* next_c = c + 1;
 
     	/*
     	 * Calculate the next word width while

@@ -1927,7 +1927,7 @@ static const Character title_font_array[] = {
 };
 
 
-const Font title_font = { 95, 13, title_font_array };
+static const Font title_font = { 95, 13, title_font_array };
 
 //================================= BODY ======================================
 
@@ -3838,7 +3838,7 @@ static const Character body_font_array[] = {
 };
 
 
-const Font body_font = { 95, 13, body_font_array };
+static const Font body_font = { 95, 13, body_font_array };
 
 
 //=============================== FUNCTIONS ===================================
@@ -3853,7 +3853,7 @@ const Font* get_body_font()
 	return &body_font;
 }
 
-const CharacterImage* font_get_char(Font* font, char c)
+const CharacterImage* font_get_char(const Font* font, char c)
 {
     const CharacterImage* img = NULL;
 
@@ -3871,12 +3871,12 @@ const CharacterImage* font_get_char(Font* font, char c)
     return img;
 }
 
-int font_height(Font* font)
+int font_height(const Font* font)
 {
     return body_font.size;
 }
 
-int font_width(Font* font)
+int font_width(const Font* font)
 {
     /**
      * Return worst case width using the | char as the reference.

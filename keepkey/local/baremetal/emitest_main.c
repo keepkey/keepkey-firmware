@@ -17,6 +17,7 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdio.h>
 #include <keepkey_board.h>
 #include <draw.h>
 #include <font.h>
@@ -24,6 +25,7 @@
 #include <storage.h>
 #include <fsm.h>
 #include <usb_driver.h>
+#include <bip39.h>
 
 
 static const uint32_t SIDE_PADDING  = 5;
@@ -53,7 +55,7 @@ static void animate_emi_bar(void* data, uint32_t duration, uint32_t elapsed)
 
 void add_animation()
 {
-	Font *font = get_body_font();
+	const Font *font = get_body_font();
 
     static const int line = 4; 
     static BoxDrawableParams box_params;
