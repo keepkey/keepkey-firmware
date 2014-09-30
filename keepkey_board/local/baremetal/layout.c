@@ -219,25 +219,6 @@ void layout_sleep(void)
     layout_clear();
 }
 
-void layout_line(unsigned int line, uint8_t color, const char* str, ...)
-{
-    va_list vl;
-    va_start(vl, str);
-    char strbuf[layout_char_width()+1];
-    memset(strbuf, 0, sizeof(strbuf));
-    vsnprintf(strbuf, sizeof(strbuf), str, vl);
-    va_end(vl);
-
-    const Font* font = get_body_font();
-
-    DrawableParams sp;
-    sp.x = 0;
-
-    sp.y = font_height(font)*line;
-    sp.color = color;
-    draw_string(canvas, font, strbuf, &sp, NO_WIDTH, font_height(font));
-}
-
 void layout_standard_notification(const char* str1, const char* str2, NotificationType type)
 {
     layout_clear();
