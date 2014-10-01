@@ -26,7 +26,7 @@
 
  flash memory layout:
 
-   name    |          range          |  size   |     function
+    name    |          range          |  size   |     function
 -----------+-------------------------+---------+------------------
  Sector  0 | 0x08000000 - 0x08003FFF |  16 KiB | bootloader code
  Sector  1 | 0x08004000 - 0x08007FFF |  16 KiB | bootloader code
@@ -34,9 +34,9 @@
  Sector  2 | 0x08008000 - 0x0800BFFF |  16 KiB | bootloader code
  Sector  3 | 0x0800C000 - 0x0800FFFF |  16 KiB | bootloader code
 -----------+-------------------------+---------+------------------
- Sector  4 | 0x08010000 - 0x0801FFFF |  64 KiB | storage/config
- Sector  5 | 0x08020000 - 0x0803FFFF | 128 KiB | application code
- Sector  6 | 0x08040000 - 0x0805FFFF | 128 KiB | application code
+ Sector  4 | 0x08010000 - 0x0801FFFF |  64 KiB | bootloader code
+ Sector  5 | 0x08020000 - 0x0803FFFF | 128 KiB | bootloader code
+ Sector  6 | 0x08040000 - 0x0805FFFF | 128 KiB | storage/config
  Sector  7 | 0x08060000 - 0x0807FFFF | 128 KiB | application code
 ===========+=========================+============================
  Sector  8 | 0x08080000 - 0x0809FFFF | 128 KiB | application code
@@ -68,7 +68,7 @@
 #define FLASH_END               (FLASH_ORIGIN + FLASH_TOTAL_SIZE)
 
 #define FLASH_BOOT_START	(FLASH_ORIGIN)
-#define FLASH_BOOT_LEN		(0x20000)
+#define FLASH_BOOT_LEN		(0x40000)
 
 #define FLASH_CONFIG_START	(FLASH_BOOT_START + FLASH_BOOT_LEN)
 #define FLASH_CONFIG_LEN	(0x20000)
@@ -81,12 +81,12 @@
 #define FLASH_STORAGE_LEN	(FLASH_APP_START - FLASH_STORAGE_START)
 
 #define FLASH_BOOT_SECTOR_FIRST	0
-#define FLASH_BOOT_SECTOR_LAST	4
+#define FLASH_BOOT_SECTOR_LAST	5
 
-#define FLASH_CONFIG_SECTOR_FIRST	5
-#define FLASH_CONFIG_SECTOR_LAST	5
+#define FLASH_CONFIG_SECTOR_FIRST	6
+#define FLASH_CONFIG_SECTOR_LAST	6
 
-#define FLASH_APP_SECTOR_FIRST	6
+#define FLASH_APP_SECTOR_FIRST	7
 #define FLASH_APP_SECTOR_LAST	11
 
 
@@ -115,8 +115,8 @@ static const FlashSector flash_sector_map[]= {
     { 2,  0x08008000, 0x4000,  FLASH_BOOTLOADER },
     { 3,  0x0800c000, 0x4000,  FLASH_BOOTLOADER },
     { 4,  0x08010000, 0x10000, FLASH_BOOTLOADER },
-    { 5,  0x08020000, 0x20000, FLASH_CONFIG },
-    { 6,  0x08040000, 0x20000, FLASH_APP },
+    { 5,  0x08020000, 0x20000, FLASH_BOOTLOADER },
+    { 6,  0x08040000, 0x20000, FLASH_CONFIG },
     { 7,  0x08060000, 0x20000, FLASH_APP },
     { 8,  0x08080000, 0x20000, FLASH_APP },
     { 9,  0x080A0000, 0x20000, FLASH_APP },
