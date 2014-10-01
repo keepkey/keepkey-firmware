@@ -65,13 +65,12 @@ typedef enum
 /**
  * Define the given layout dialog texts for each screen
  */
-#define NUM_LINES 4
 typedef struct
 {
-    const char* str;
-    uint8_t color;
+    const char* request_title;
+    const char* request_body;
 } ScreenLine;
-typedef ScreenLine ScreenLines[NUM_LINES];
+typedef ScreenLine ScreenLines;
 typedef ScreenLines DialogLines[LAYOUT_NUM_LAYOUTS];
 
 typedef struct 
@@ -166,15 +165,15 @@ void swap_layout(ActiveLayout active_layout, volatile StateInfo* si)
     switch(active_layout)
     {
     	case LAYOUT_REQUEST:
-    		layout_standard_notification(si->lines[active_layout][0].str, si->lines[active_layout][1].str, NOTIFICATION_REQUEST);
+    		layout_standard_notification(si->lines[active_layout].request_title, si->lines[active_layout].request_body, NOTIFICATION_REQUEST);
             remove_runnable( &handle_confirm_timeout );
     		break;
     	case LAYOUT_CONFIRM_ANIMATION:
-    		layout_standard_notification(si->lines[active_layout][0].str, si->lines[active_layout][1].str, NOTIFICATION_CONFIRM_ANIMATION);
+    		layout_standard_notification(si->lines[active_layout].request_title, si->lines[active_layout].request_body, NOTIFICATION_CONFIRM_ANIMATION);
     		post_delayed( &handle_confirm_timeout, (void*)si, CONFIRM_TIMEOUT_MS );
     		break;
     	case LAYOUT_CONFIRMED:
-    		layout_standard_notification(si->lines[active_layout][0].str, si->lines[active_layout][1].str, NOTIFICATION_CONFIRMED);
+    		layout_standard_notification(si->lines[active_layout].request_title, si->lines[active_layout].request_body, NOTIFICATION_CONFIRMED);
     		remove_runnable( &handle_confirm_timeout );
     		break;
     	default:
@@ -201,26 +200,20 @@ bool confirm(const char *request_title, const char *request_body, ...)
     /*
      * Request
      */
-    state_info.lines[LAYOUT_REQUEST][0].str = request_title;
-    state_info.lines[LAYOUT_REQUEST][0].color = TITLE_COLOR;
-    state_info.lines[LAYOUT_REQUEST][1].str = strbuf;
-    state_info.lines[LAYOUT_REQUEST][1].color = BODY_COLOR;
+    state_info.lines[LAYOUT_REQUEST].request_title = request_title;
+    state_info.lines[LAYOUT_REQUEST].request_body = strbuf;
 
     /*
 	 * Confirming
 	 */
-	state_info.lines[LAYOUT_CONFIRM_ANIMATION][0].str = request_title;
-	state_info.lines[LAYOUT_CONFIRM_ANIMATION][0].color = TITLE_COLOR;
-	state_info.lines[LAYOUT_CONFIRM_ANIMATION][1].str = strbuf;
-	state_info.lines[LAYOUT_CONFIRM_ANIMATION][1].color = BODY_COLOR;
+	state_info.lines[LAYOUT_CONFIRM_ANIMATION].request_title = request_title;
+	state_info.lines[LAYOUT_CONFIRM_ANIMATION].request_body = strbuf;
 
     /*
      * Confirmed
      */
-    state_info.lines[LAYOUT_CONFIRMED][0].str = request_title;
-    state_info.lines[LAYOUT_CONFIRMED][0].color = TITLE_COLOR;
-    state_info.lines[LAYOUT_CONFIRMED][1].str = strbuf;
-    state_info.lines[LAYOUT_CONFIRMED][1].color = BODY_COLOR;
+    state_info.lines[LAYOUT_CONFIRMED].request_title = request_title;
+    state_info.lines[LAYOUT_CONFIRMED].request_body = strbuf;
 
     keepkey_button_set_on_press_handler( &handle_screen_press, (void*)&state_info );
     keepkey_button_set_on_release_handler( &handle_screen_release, (void*)&state_info );
