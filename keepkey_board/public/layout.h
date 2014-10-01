@@ -113,13 +113,6 @@ void animate( void);
  */
 bool is_animating(void);
 
-typedef enum 
-{
-    TITLE_COLOR    			= 0x00,
-    BODY_COLOR     			= 0xFF,
-    TITLE_BACKGROUND_COLOR  = 0xFF
-} LAYOUT_FONT_COLORS;
-
 /**
  * Layout the text on the specified line given the color.
  *
