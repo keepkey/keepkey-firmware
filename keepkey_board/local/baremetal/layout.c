@@ -58,29 +58,25 @@ typedef struct
 //
 static const uint32_t ANIMATION_PERIOD = 20; // ms
 
-static const uint32_t BAR_PADDING   = 5;
-static const uint32_t BAR_HEIGHT    = 15;
-static const uint8_t BAR_COLOR      = 0xFF;
-
 /*
  * Margin
  */
-static const uint32_t SIDE_MARGIN  = 6;
+static const uint32_t TOP_MARGIN  = 7;
+static const uint32_t LEFT_MARGIN  = 4;
 
 /*
  * Title
  */
-static const uint32_t TITLE_BORDER_PADDING = 2;
+static const uint8_t TITLE_COLOR = 0xFF;
 static const uint32_t TITLE_WIDTH = 179;
-static const uint32_t TITLE_HEIGHT = 11;
 static const uint32_t TITLE_ROWS = 1;
 static const uint32_t TITLE_FONT_LINE_PADDING = 0;
 
 /*
  * Body
  */
-static const uint32_t BODY_BORDER_PADDING = 1;
-static const uint32_t BODY_WIDTH = 177;
+static const uint8_t BODY_COLOR = 0xFF;
+static const uint32_t BODY_WIDTH = 206;
 static const uint32_t BODY_ROWS = 3;
 static const uint32_t BODY_FONT_LINE_PADDING = 2;
 
@@ -89,7 +85,6 @@ static const uint32_t BODY_FONT_LINE_PADDING = 2;
  */
 static const uint32_t NO_WIDTH = 0;
 
-static const char* IDLE_SCREEN_TEXT     = "KeepKey Wallet";
 static const char* AMOUNT_LABEL_TEXT    = "Amount:";
 static const char* ADDRESS_LABEL_TEXT   = "Address:";
 static const char* CONFIRM_LABEL_TEXT   = "Confirming transaction...";
@@ -234,32 +229,21 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
     strupr(upper_str1);
 
     /*
-     * Draw Title Box
-     */
-    BoxDrawableParams box_params;
-	box_params.base.y        = SIDE_MARGIN;
-	box_params.base.x        = SIDE_MARGIN;
-	box_params.width         = TITLE_WIDTH;
-	box_params.height        = TITLE_HEIGHT;
-	box_params.base.color    = TITLE_BACKGROUND_COLOR;
-    draw_box(canvas, &box_params);
-
-    /*
      * Title
      */
     DrawableParams sp;
-    sp.y = SIDE_MARGIN - 2;
-    sp.x = SIDE_MARGIN + TITLE_BORDER_PADDING;
+    sp.y = TOP_MARGIN - 4;
+    sp.x = LEFT_MARGIN;
     sp.color = TITLE_COLOR;
     draw_string(canvas, title_font, upper_str1, &sp, TITLE_WIDTH, font_height(title_font));
 
     /*
      * Body
      */
-    sp.y += font_height(body_font) + 3;
-    sp.x = SIDE_MARGIN + BODY_BORDER_PADDING;
+    sp.y += font_height(body_font) + 2;
+    sp.x = LEFT_MARGIN;
     sp.color = BODY_COLOR;
-    draw_string(canvas, body_font, str2, &sp, BODY_WIDTH, font_height(body_font));
+    draw_string(canvas, body_font, str2, &sp, BODY_WIDTH, font_height(body_font) + 1);
 
     /*
      * Determine animation/icon to show
@@ -267,8 +251,8 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
     static AnimationImageDrawableParams icon;
     switch(type){
     	case NOTIFICATION_REQUEST:
-    		icon.base.x = 195;
-			icon.base.y = 5;
+    		icon.base.x = 213;
+			icon.base.y = 13;
 			icon.img_animation = get_confirm_icon_animation();
 
 			layout_add_animation(
@@ -381,16 +365,6 @@ bool is_animating(void)
 //-----------------------------------------------------------------------------
 // See layout.h for public interface.
 //
-static void layout_animate_confirming(void* data, uint32_t duration, uint32_t elapsed)
-{
-    BoxDrawableParams* box_params = (BoxDrawableParams*)data;
-
-    uint32_t max_width = ( canvas->width - box_params->base.x - SIDE_MARGIN );
-    box_params->width = ( max_width * ( elapsed ) ) / duration;
-
-    draw_box( canvas, box_params );
-}
-
 static void layout_animate_images(void* data, uint32_t duration, uint32_t elapsed)
 {
 	const Image* img;
