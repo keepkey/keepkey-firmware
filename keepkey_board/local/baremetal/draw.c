@@ -85,8 +85,8 @@ bool draw_string(Canvas* canvas, const Font* font, const char* c, DrawableParams
     while( *c && have_space )
     {
     	const CharacterImage* img = font_get_char(font, *c);
-    	int word_width = 0;
-    	const char* next_c = c + 1;
+    	int word_width = img->width;
+    	char* next_c = c + 1;
 
     	/*
     	 * Calculate the next word width while
@@ -96,7 +96,7 @@ bool draw_string(Canvas* canvas, const Font* font, const char* c, DrawableParams
 
     		while(*next_c && *next_c != ' ')
     		{
-    			word_width += img->width;
+    			word_width += font_get_char(font, *next_c)->width;
     			next_c++;
     		}
     	}
