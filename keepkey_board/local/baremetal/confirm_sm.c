@@ -83,7 +83,7 @@ typedef struct
 /*
  * The number of milliseconds to wait for a confirmation
  */
-#define CONFIRM_TIMEOUT_MS (2000)
+#define CONFIRM_TIMEOUT_MS (1800)
 
 //=============================== VARIABLES ===================================
 

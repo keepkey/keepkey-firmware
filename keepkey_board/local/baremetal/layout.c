@@ -261,8 +261,8 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
 				0);
 			break;
 		case NOTIFICATION_CONFIRM_ANIMATION:
-			icon.base.x = 195;
-			icon.base.y = 6;
+			icon.base.x = 220;
+			icon.base.y = 19;
 			icon.img_animation = get_confirming_animation();
 
 			layout_add_animation(
@@ -271,8 +271,8 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
 				get_image_animation_duration(icon.img_animation));
 			break;
 		case NOTIFICATION_CONFIRMED:
-			sp.x = 195;
-			sp.y = 6;
+			sp.x = 220;
+			sp.y = 19;
 			draw_bitmap_mono_rle(canvas, &sp, get_confirmed_image());
 			break;
     }
