@@ -45,17 +45,11 @@ typedef struct
 
 typedef enum
 {
-	HOME_IMG,
-    WIPE_BACKGROUND_IMG,
-    CONFIRMED_IMG
-} ImageResource;
-
-typedef enum
-{
 	CONFIRM_ICON_ANIM,
 	CONFIRMING_ANIM,
     BOOT_ANIM,
-    WIPE_ANIM
+    WIPE_ANIM,
+    SAVING_ANIM
 } AnimationResource;
 
 
@@ -63,11 +57,13 @@ typedef enum
 
 const Image* get_home_image();
 const Image* get_wipe_background_image();
+const Image* get_saving_background_image();
 const Image* get_confirmed_image();
 
 const ImageAnimation* get_confirm_icon_animation();
 const ImageAnimation* get_confirming_animation();
 const ImageAnimation* get_wipe_animation();
+const ImageAnimation* get_saving_animation();
 const ImageAnimation* get_boot_animation();
 
 const uint32_t get_image_animation_duration(const ImageAnimation* img_animation);
