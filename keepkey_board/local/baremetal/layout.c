@@ -309,6 +309,12 @@ void layout_loading(AnimationResource type)
     		loading_animation.base.x = 24;
     		loading_animation.base.y = 13;
     		break;
+    	case SAVING_ANIM:
+			loading_animation.img_animation = get_saving_animation();
+			draw_bitmap_mono_rle(canvas, &sp, get_saving_background_image());
+			loading_animation.base.x = 18;
+			loading_animation.base.y = 9;
+			break;
     }
 
     layout_add_animation(
