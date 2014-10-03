@@ -40,7 +40,7 @@ static void exec(unsigned int reset_count)
     	layout_clear();
         const char* mnemonic = mnemonic_generate(128);
         char title[50];
-        sprintf(title, "EMI test: Mnemonic Generation     %d", reset_count);
+        sprintf(title, "EMI test: Mnemonic Generation [%d]", reset_count);
         layout_standard_notification(title, mnemonic, NOTIFICATION_CONFIRM_ANIMATION);
 
         usb_poll();
