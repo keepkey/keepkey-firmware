@@ -1,0 +1,51 @@
+///* #
+//#  this to recover the device if it is locked with level 1 option bytes.
+//#
+//#  usage:
+//#     JLinkExe -CommanderScript jlRecover
+//#     then power reset the device and Jtag
+//#     before loading the image using jlLoadImage
+//*/
+
+device STM32F205RG
+Sleep 500
+speed 12000
+
+
+g
+halt
+
+cmd32 0x40023C14,4
+Sleep 500
+w4 0x40023c08,0x08192A3B
+g
+halt
+
+Sleep 500
+w4 0x40023C08,0x4C5D6E7F
+g
+halt
+Sleep 500
+
+w2 0x40023C16,0xffff
+g
+halt
+Sleep 500
+w4 0x40023C14,0xffffAAFE
+g
+halt
+Sleep 500
+w1 0x40023C14,0xEF
+g
+halt
+Sleep 500
+
+mem32 0x400203C14,4
+
+g
+halt
+
+sleep 1000
+
+q
+

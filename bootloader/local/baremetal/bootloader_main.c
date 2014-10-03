@@ -167,8 +167,8 @@ int main(int argc, char* argv[])
             delay(5000);
 
             clear_red();
-            set_vector_table_offset(0x40000);
-            boot_jump(0x08040000);
+            set_vector_table_offset(0x60000);
+            boot_jump(0x08060000);
         } else {
             clear_green();
 

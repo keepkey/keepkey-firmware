@@ -1,0 +1,30 @@
+///* #
+//#   this routine uses the basic JLink to upload the bootloader and image together
+//#
+//#  usage:
+//#     JLinkExe -CommanderScript jlLoadImage
+//#    please note that it copies the bin files
+//#
+//*/
+device STM32F205RG
+Sleep 50
+
+//###speed 12000
+//#intentionally reduced the speed to 4 MHz(max supported 12MHz).
+speed 4000
+Sleep 20
+
+//#erase
+sleep 50
+
+loadbin ./build/arm-none-gnu-eabi/debug/bin/bootloader_main.bin,08000000
+go
+halt
+
+loadbin ./build/arm-none-gnu-eabi/debug/bin/keepkey_main.bin,08060000
+go 
+halt
+
+Sleep 500
+q
+

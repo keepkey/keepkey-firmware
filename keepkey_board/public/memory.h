@@ -34,9 +34,9 @@
  Sector  2 | 0x08008000 - 0x0800BFFF |  16 KiB | bootloader code
  Sector  3 | 0x0800C000 - 0x0800FFFF |  16 KiB | bootloader code
 -----------+-------------------------+---------+------------------
- Sector  4 | 0x08010000 - 0x0801FFFF |  64 KiB | storage/config
- Sector  5 | 0x08020000 - 0x0803FFFF | 128 KiB | application code
- Sector  6 | 0x08040000 - 0x0805FFFF | 128 KiB | application code
+ Sector  4 | 0x08010000 - 0x0801FFFF |  64 KiB | bootloader code
+ Sector  5 | 0x08020000 - 0x0803FFFF | 128 KiB | bootloader code
+ Sector  6 | 0x08040000 - 0x0805FFFF | 128 KiB | storage/config
  Sector  7 | 0x08060000 - 0x0807FFFF | 128 KiB | application code
 ===========+=========================+============================
  Sector  8 | 0x08080000 - 0x0809FFFF | 128 KiB | application code
@@ -65,28 +65,28 @@
 
 #define FLASH_ORIGIN		(0x08000000)
 #define FLASH_TOTAL_SIZE	(1024 * 1024)
-#define FLASH_END               (FLASH_ORIGIN + FLASH_TOTAL_SIZE)
+#define FLASH_END           (FLASH_ORIGIN + FLASH_TOTAL_SIZE)
 
 #define FLASH_BOOT_START	(FLASH_ORIGIN)
-#define FLASH_BOOT_LEN		(0x20000)
+#define FLASH_BOOT_LEN		(0x40000)
 
-#define FLASH_CONFIG_START	(FLASH_BOOT_START + FLASH_BOOT_LEN)
+#define FLASH_CONFIG_START	(FLASH_BOOT_START + FLASH_BOOT_LEN)    //0x08040000
 #define FLASH_CONFIG_LEN	(0x20000)
 
-#define FLASH_APP_START		(FLASH_CONFIG_START + FLASH_CONFIG_LEN)
+#define FLASH_APP_START		(FLASH_CONFIG_START + FLASH_CONFIG_LEN)  //0x08060000
 
-#define FLASH_CONFIG_DESC_LEN   (0x100)
+#define FLASH_CONFIG_DESC_LEN   (0x1000)
 
 #define FLASH_STORAGE_START	(FLASH_CONFIG_START + FLASH_CONFIG_DESC_LEN)
 #define FLASH_STORAGE_LEN	(FLASH_APP_START - FLASH_STORAGE_START)
 
 #define FLASH_BOOT_SECTOR_FIRST	0
-#define FLASH_BOOT_SECTOR_LAST	4
+#define FLASH_BOOT_SECTOR_LAST	5
 
-#define FLASH_CONFIG_SECTOR_FIRST	5
-#define FLASH_CONFIG_SECTOR_LAST	5
+#define FLASH_CONFIG_SECTOR_FIRST	6
+#define FLASH_CONFIG_SECTOR_LAST	6
 
-#define FLASH_APP_SECTOR_FIRST	6
+#define FLASH_APP_SECTOR_FIRST	7
 #define FLASH_APP_SECTOR_LAST	11
 
 
