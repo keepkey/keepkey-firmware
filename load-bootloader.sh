@@ -1,6 +1,6 @@
 #! /bin/bash
 
-BINDIR=build/arm-none-gnu-eabi/debug/bin/
+BINDIR=./build/arm-none-gnu-eabi/debug/bin/
 BINNAME=bootloader_main
 ELF_FILE=$BINDIR/$BINNAME.elf
 

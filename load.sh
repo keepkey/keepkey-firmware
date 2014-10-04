@@ -1,6 +1,6 @@
 #! /bin/bash
 
-BINDIR=build/arm-none-gnu-eabi/debug/bin/
+BINDIR=./build/arm-none-gnu-eabi/debug/bin/
 BINNAME=$1
 ELF_FILE=$BINDIR/$BINNAME.elf
 
