@@ -51,14 +51,14 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 	data2hex(int_entropy + 24, 8, ent_str[3]);
 
 	if (display_random) {
-                if(!confirm("Entropy", "Internal entropy: %s %s %s %s", ent_str[0], ent_str[1], ent_str[2], ent_str[3])) {
+		if(!confirm("Internal Entropy", "%s %s %s %s", ent_str[0], ent_str[1], ent_str[2], ent_str[3])) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Reset cancelled");
 			layout_home();
 			return;
 		}
 	}
 
-        storage_set_passphrase_protected(passphrase_protection);
+	storage_set_passphrase_protected(passphrase_protection);
 	storage_setLanguage(language);
 	storage_setLabel(label);
 
@@ -83,23 +83,63 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 	sha256_Update(&ctx, ext_entropy, len);
 	sha256_Final(int_entropy, &ctx);
 
-        const char* temp_mnemonic = mnemonic_from_data(int_entropy, strength / 8);
+	const char* temp_mnemonic = mnemonic_from_data(int_entropy, strength / 8);
 
-        /*
-         * Clearing entropy after we're done for security purposes.
-         */
+	/*
+	 * Clearing entropy after we're done for security purposes.
+	 */
 	memset(int_entropy, 0, 32);
 	awaiting_entropy = false;
 
-        if(!confirm("Write Down Recovery Sentence", "%s", temp_mnemonic))
-        {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Mnemonic not confirmed");
-            layout_home();
-            return;
-        }
+	/*
+	 * Format mnemonic for user review
+	 */
+	int word_count = 0;
+	char *tok;
+	char tokened_mnemonic[24 * 10];
+	char formatted_mnemonic[24 / 12][24 * (10 + 5)];
+	strcpy(tokened_mnemonic, temp_mnemonic);
 
-        storage_set_mnemonic(temp_mnemonic);
-	storage_commit();
+	tok = strtok(tokened_mnemonic, " ");
+	while (tok) {
+		char word[10 + 5];
+		sprintf(word, "%d.%s   ", word_count + 1, tok);
+		strcat(formatted_mnemonic[word_count / 12], word);
+		tok = strtok(NULL, " ");
+		word_count++;
+	}
+
+	/*
+	 * Have user confirm mnemonic is sets of 12 words
+	 */
+	for(int word_group = 0; word_group < ((strength / 32) * 3) / 12; word_group++)
+	if(!confirm("Write Down Recovery Sentence", "%s", formatted_mnemonic[word_group]))
+	{
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Mnemonic not confirmed");
+		layout_home();
+		return;
+	}
+
+	/*
+	 * Setup saving animation
+	 */
+	layout_loading(SAVING_ANIM);
+	force_animation_start();
+
+	void tick(){
+		animate();
+		display_refresh();
+		delay(3);
+	}
+
+	tick();
+
+	/*
+	 * Save mnemonic
+	 */
+    storage_set_mnemonic(temp_mnemonic);
+	storage_commit_ticking(&tick);
+
 	fsm_sendSuccess("Device reset");
 	layout_home();
 }

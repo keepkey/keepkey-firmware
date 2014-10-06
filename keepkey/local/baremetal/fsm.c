@@ -143,6 +143,9 @@ void fsm_msgWipeDevice(WipeDevice *msg)
     (void)msg;
     if(confirm("Wipe Private Keys and Settings", "Are you sure you want to erase private keys and settings? This process cannot be undone and any money stored will be lost."))
     {
+    	/*
+    	 * Setup wipe animation
+    	 */
        	layout_loading(WIPE_ANIM);
        	force_animation_start();
 
@@ -153,6 +156,10 @@ void fsm_msgWipeDevice(WipeDevice *msg)
 		}
 
     	tick();
+
+    	/*
+    	 * Wipe device
+    	 */
         storage_reset();
         storage_commit_ticking(&tick);
 
