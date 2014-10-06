@@ -2,7 +2,7 @@
 //#   this routine uses the basic JLink to upload the bootloader and image together
 //#
 //#  usage:
-//#     JLinkExe -CommanderScript jlLoadImage
+//#     JLinkExe -CommanderScript load-all.jlink
 //#    please note that it copies the bin files
 //#
 //*/

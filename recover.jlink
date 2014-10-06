@@ -2,7 +2,7 @@
 //#  this to recover the device if it is locked with level 1 option bytes.
 //#
 //#  usage:
-//#     JLinkExe -CommanderScript jlRecover
+//#     JLinkExe -CommanderScript recover.jlink
 //#     then power reset the device and Jtag
 //#     before loading the image using jlLoadImage
 //*/
