@@ -17,6 +17,7 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdio.h>
 #include <crypto.h>
 #include <interface.h>
 #include <keepkey_board.h>
@@ -28,9 +29,23 @@
 #include "protect.h"
 #include "util.h"
 
-static uint32_t strength;
-static uint8_t  int_entropy[32];
-static bool     awaiting_entropy = false;
+//-----------------------------------------------------------------------------
+// Configuration variables.
+//
+static const uint32_t MAX_WORD_LEN = 10;
+static const uint32_t ADDITIONAL_WORD_PAD = 5;
+static const uint32_t WORDS_PER_SCREEN = 12;
+
+
+//-----------------------------------------------------------------------------
+// Operation variables.
+
+static uint32_t 	strength;
+static uint8_t  	int_entropy[32];
+static bool     	awaiting_entropy = false;
+static char			current_word[10];
+
+//================================ FUNCTIONS ==================================
 
 void reset_init(bool display_random, uint32_t _strength, bool passphrase_protection, bool pin_protection, const char *language, const char *label)
 {
@@ -68,8 +83,6 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 	awaiting_entropy = true;
 }
 
-static char current_word[10];
-
 //TODO: Review this function.  The entropy wait state needs to be reviewed for correctness.
 void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 {
@@ -96,15 +109,15 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 	 */
 	int word_count = 0;
 	char *tok;
-	char tokened_mnemonic[24 * 10];
-	char formatted_mnemonic[24 / 12][24 * (10 + 5)];
+	char tokened_mnemonic[24 * MAX_WORD_LEN];
+	char formatted_mnemonic[24 / WORDS_PER_SCREEN][24 * (MAX_WORD_LEN + ADDITIONAL_WORD_PAD)];
 	strcpy(tokened_mnemonic, temp_mnemonic);
 
 	tok = strtok(tokened_mnemonic, " ");
 	while (tok) {
-		char word[10 + 5];
+		char word[MAX_WORD_LEN + ADDITIONAL_WORD_PAD];
 		sprintf(word, "%d.%s   ", word_count + 1, tok);
-		strcat(formatted_mnemonic[word_count / 12], word);
+		strcat(formatted_mnemonic[word_count / WORDS_PER_SCREEN], word);
 		tok = strtok(NULL, " ");
 		word_count++;
 	}
@@ -112,12 +125,21 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 	/*
 	 * Have user confirm mnemonic is sets of 12 words
 	 */
-	for(int word_group = 0; word_group < ((strength / 32) * 3) / 12; word_group++)
-	if(!confirm("Write Down Recovery Sentence", "%s", formatted_mnemonic[word_group]))
+	for(int word_group = 0; word_group * WORDS_PER_SCREEN < (strength / 32) * 3; word_group++)
 	{
-		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Mnemonic not confirmed");
-		layout_home();
-		return;
+		char title[32];
+
+		if((strength / 32) * 3 > WORDS_PER_SCREEN)
+			sprintf(title, "Write Down Recovery Sentence %d/2", word_group + 1);
+		else
+			strcpy(title, "Write Down Recovery Sentence");
+
+		if(!confirm(title, "%s", formatted_mnemonic[word_group]))
+		{
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Mnemonic not confirmed");
+			layout_home();
+			return;
+		}
 	}
 
 	/*

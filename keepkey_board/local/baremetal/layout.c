@@ -68,7 +68,7 @@ static const uint32_t LEFT_MARGIN  = 4;
  * Title
  */
 static const uint8_t TITLE_COLOR = 0xFF;
-static const uint32_t TITLE_WIDTH = 179;
+static const uint32_t TITLE_WIDTH = 206;
 static const uint32_t TITLE_ROWS = 1;
 static const uint32_t TITLE_FONT_LINE_PADDING = 0;
 
