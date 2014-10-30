@@ -225,7 +225,7 @@ void signing_txack(TransactionType *tx)
 
 	switch (signing_stage) {
 		case STAGE_REQUEST_1_INPUT:
-                        layout_standard_notification("Signing", "Requesting inputs");
+                        layout_standard_notification("Signing", "Requesting inputs", NOTIFICATION_INFO);
 			memcpy(&input, tx->inputs, sizeof(TxInputType));
 			send_req_2_prev_meta();
 			return;
@@ -273,7 +273,7 @@ void signing_txack(TransactionType *tx)
 			}
 			return;
 		case STAGE_REQUEST_3_INPUT:
-                        layout_standard_notification("Signing", "Requesting inputs");
+                        layout_standard_notification("Signing", "Requesting inputs", NOTIFICATION_INFO);
 			if (!tx_hash_input(&tc, tx->inputs)) {
 				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize input");
 				signing_abort();
@@ -310,7 +310,7 @@ void signing_txack(TransactionType *tx)
 			}
 			return;
 		case STAGE_REQUEST_3_OUTPUT:
-                        layout_standard_notification("Signing", "Compiling outputs.");
+                        layout_standard_notification("Signing", "Compiling outputs.", NOTIFICATION_INFO);
 			co = compile_output(coin, root, tx->outputs, &bin_output, idx1i == 0);
 			if (co < 0) {
 				fsm_sendFailure(FailureType_Failure_Other, "Signing cancelled by user");
@@ -398,7 +398,7 @@ void signing_txack(TransactionType *tx)
 			}
 			return;
 		case STAGE_REQUEST_4_OUTPUT:
-			layout_standard_notification("Signing", "Compiling outputs");
+			layout_standard_notification("Signing", "Compiling outputs", NOTIFICATION_INFO);
 			if (compile_output(coin, root, tx->outputs, &bin_output, false) <= 0) {
 				fsm_sendFailure(FailureType_Failure_Other, "Failed to compile output");
 				signing_abort();

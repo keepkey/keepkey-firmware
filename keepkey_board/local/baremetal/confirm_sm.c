@@ -48,7 +48,6 @@ typedef enum
 {
     HOME,
     CONFIRM_WAIT,
-    ABORTED,
     CONFIRMED,
     FINISHED
 } DisplayState;
@@ -57,7 +56,6 @@ typedef enum
 {
     LAYOUT_REQUEST,
     LAYOUT_CONFIRM_ANIMATION,
-    LAYOUT_ABORTED,
     LAYOUT_CONFIRMED,
     LAYOUT_FINISHED,
     LAYOUT_NUM_LAYOUTS,
@@ -67,13 +65,12 @@ typedef enum
 /**
  * Define the given layout dialog texts for each screen
  */
-#define NUM_LINES 4
 typedef struct
 {
-    const char* str;
-    uint8_t color;
+    const char* request_title;
+    const char* request_body;
 } ScreenLine;
-typedef ScreenLine ScreenLines[NUM_LINES];
+typedef ScreenLine ScreenLines;
 typedef ScreenLines DialogLines[LAYOUT_NUM_LAYOUTS];
 
 typedef struct 
@@ -86,21 +83,21 @@ typedef struct
 /*
  * The number of milliseconds to wait for a confirmation
  */
-#define CONFIRM_TIMEOUT_MS (2000)
+#define CONFIRM_TIMEOUT_MS (1800)
 
 //=============================== VARIABLES ===================================
 
 //====================== PRIVATE FUNCTION DECLARATIONS ========================
-static void handle_screen_press( void* context);
-static void handle_screen_release( void* context);
-static void handle_confirm_timeout( void* context );
+static void handle_screen_press(void* context);
+static void handle_screen_release(void* context);
+static void handle_confirm_timeout(void* context);
 
 //=============================== FUNCTIONS ===================================
 
 /**
  * Handles user key-down event.
  */
-static void handle_screen_press( void* context)
+static void handle_screen_press(void* context)
 {
     assert(context != NULL);
 
@@ -133,8 +130,8 @@ static void handle_screen_release( void* context)
     switch( si->display_state )
     {
         case CONFIRM_WAIT:
-            si->active_layout = LAYOUT_ABORTED;
-            si->display_state = ABORTED;
+            si->active_layout = LAYOUT_REQUEST;
+            si->display_state = HOME;
             break;
 
         case CONFIRMED:
@@ -168,22 +165,16 @@ void swap_layout(ActiveLayout active_layout, volatile StateInfo* si)
     switch(active_layout)
     {
     	case LAYOUT_REQUEST:
-                layout_standard_notification(si->lines[active_layout][0].str, si->lines[active_layout][1].str);
+    		layout_standard_notification(si->lines[active_layout].request_title, si->lines[active_layout].request_body, NOTIFICATION_REQUEST);
+            remove_runnable( &handle_confirm_timeout );
     		break;
     	case LAYOUT_CONFIRM_ANIMATION:
-                layout_confirmation(CONFIRM_TIMEOUT_MS);
+    		layout_standard_notification(si->lines[active_layout].request_title, si->lines[active_layout].request_body, NOTIFICATION_CONFIRM_ANIMATION);
     		post_delayed( &handle_confirm_timeout, (void*)si, CONFIRM_TIMEOUT_MS );
     		break;
-    	case LAYOUT_ABORTED:
-                layout_standard_notification(si->lines[active_layout][0].str, si->lines[active_layout][1].str);
-    		remove_runnable( &handle_confirm_timeout );
-    		break;
     	case LAYOUT_CONFIRMED:
-                layout_standard_notification(si->lines[active_layout][0].str, si->lines[active_layout][1].str);
+    		layout_standard_notification(si->lines[active_layout].request_title, si->lines[active_layout].request_body, NOTIFICATION_CONFIRMED);
     		remove_runnable( &handle_confirm_timeout );
-    		break;
-    	case LAYOUT_FINISHED:
-                layout_standard_notification(si->lines[active_layout][0].str, si->lines[active_layout][1].str);
     		break;
     	default:
     		assert(0);
@@ -191,32 +182,38 @@ void swap_layout(ActiveLayout active_layout, volatile StateInfo* si)
 
 }
 
-bool confirm(const char *request, ...)
+bool confirm(const char *request_title, const char *request_body, ...)
 {
     bool ret=false;
 
     va_list vl;
-    va_start(vl, request);
-    char strbuf[layout_char_width()+1];
-    vsnprintf(strbuf, sizeof(strbuf), request, vl);
+    va_start(vl, request_body);
+    char strbuf[body_char_width()+1];
+    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
     volatile StateInfo state_info;
     memset((void*)&state_info, 0, sizeof(state_info));
     state_info.display_state = HOME;
     state_info.active_layout = LAYOUT_REQUEST;
-    state_info.lines[LAYOUT_REQUEST][0].str = strbuf;
-    state_info.lines[LAYOUT_REQUEST][0].color = DATA_COLOR;
-    state_info.lines[LAYOUT_REQUEST][1].str = "Press and hold button to confirm...";
-    state_info.lines[LAYOUT_REQUEST][1].color = LABEL_COLOR;
-    state_info.lines[LAYOUT_CONFIRMED][0].str = strbuf;
-    state_info.lines[LAYOUT_CONFIRMED][0].color = DATA_COLOR;
-    state_info.lines[LAYOUT_CONFIRMED][1].str = "CONFIRMED";
-    state_info.lines[LAYOUT_CONFIRMED][1].color = LABEL_COLOR;
-    state_info.lines[LAYOUT_ABORTED][0].str = strbuf;
-    state_info.lines[LAYOUT_ABORTED][0].color = DATA_COLOR;
-    state_info.lines[LAYOUT_ABORTED][1].str = "ABORTED";
-    state_info.lines[LAYOUT_ABORTED][1].color = LABEL_COLOR;
+
+    /*
+     * Request
+     */
+    state_info.lines[LAYOUT_REQUEST].request_title = request_title;
+    state_info.lines[LAYOUT_REQUEST].request_body = strbuf;
+
+    /*
+	 * Confirming
+	 */
+	state_info.lines[LAYOUT_CONFIRM_ANIMATION].request_title = request_title;
+	state_info.lines[LAYOUT_CONFIRM_ANIMATION].request_body = strbuf;
+
+    /*
+     * Confirmed
+     */
+    state_info.lines[LAYOUT_CONFIRMED].request_title = request_title;
+    state_info.lines[LAYOUT_CONFIRMED].request_body = strbuf;
 
     keepkey_button_set_on_press_handler( &handle_screen_press, (void*)&state_info );
     keepkey_button_set_on_release_handler( &handle_screen_release, (void*)&state_info );
@@ -225,9 +222,15 @@ bool confirm(const char *request, ...)
     while(1)
     {
         cm_disable_interrupts();
-    		ActiveLayout new_layout = state_info.active_layout;
-    		DisplayState new_ds = state_info.display_state;
+    	ActiveLayout new_layout = state_info.active_layout;
+    	DisplayState new_ds = state_info.display_state;
         cm_enable_interrupts();
+
+        if(new_ds == FINISHED)
+        {
+            ret = true;
+            break;
+        }
 
         if(cur_layout != new_layout)
         {
@@ -237,12 +240,6 @@ bool confirm(const char *request, ...)
 
         display_refresh();
         animate();
-
-        if(new_ds == FINISHED ||  new_ds == ABORTED)
-        {
-            ret =new_ds == FINISHED;
-	    break;
-        }
     }
 
     keepkey_button_set_on_press_handler( NULL, NULL );

@@ -84,13 +84,10 @@ display_refresh(
 
 
 //-----------------------------------------------------------------------------
-/// Initialize the GPIO necessary for the display and show a blank screen.
+/// Display settings
 ///
 //-----------------------------------------------------------------------------
-void
-display_set_brightness(
-        int percentage
-);
+void display_set_brightness(int percentage);
 
 
 //-----------------------------------------------------------------------------

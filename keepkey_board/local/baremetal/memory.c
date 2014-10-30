@@ -49,10 +49,10 @@ int memory_bootloader_hash(uint8_t *hash)
 }
 
 
-void flash_erase(Allocation group) 
+void flash_erase(Allocation group)
 {
     //TODO: See if there's a way to handle flash errors here gracefully.
-    
+
     const FlashSector* s = flash_sector_map;
     while(s->use != FLASH_INVALID)
     {
@@ -65,22 +65,37 @@ void flash_erase(Allocation group)
     }
 }
 
+static size_t flash_write_helper(Allocation group, size_t offset, size_t len)
+{
+	size_t start = 0;
+	const FlashSector* s = flash_sector_map;
+	while(s->use != FLASH_INVALID)
+	{
+		if(s->use == group)
+		{
+			start = s->start;
+			break;
+		}
+		++s;
+	}
+
+	assert(start != 0);
+
+	return start;
+}
+
 void flash_write(Allocation group, size_t offset, size_t len, uint8_t* data)
 {
+	size_t start = flash_write_helper(group, offset, len);
+	flash_program(start + offset, data, len);
+}
 
-    size_t start = 0;
-    const FlashSector* s = flash_sector_map;
-    while(s->use != FLASH_INVALID)
-    {
-        if(s->use == group)
-        {
-            start = s->start;
-            break;
-        }
-        ++s;
-    }
+void flash_write_ticking(Allocation group, size_t offset, size_t len, uint8_t* data, void (*tick)())
+{
 
-    assert(start != 0);
-
-    flash_program(start + offset, data, len);
+	size_t start = flash_write_helper(group, offset, len);
+	for (int i = 0; i < len; i++) {
+		(*tick)();
+		flash_program_byte(start + offset+i, data[i]);
+	}
 }

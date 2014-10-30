@@ -26,7 +26,7 @@
 
  flash memory layout:
 
-   name    |          range          |  size   |     function
+    name    |          range          |  size   |     function
 -----------+-------------------------+---------+------------------
  Sector  0 | 0x08000000 - 0x08003FFF |  16 KiB | bootloader code
  Sector  1 | 0x08004000 - 0x08007FFF |  16 KiB | bootloader code
@@ -127,6 +127,7 @@ static const FlashSector flash_sector_map[]= {
 
 void flash_erase(Allocation group);
 void flash_write(Allocation group, size_t offset, size_t len, uint8_t* data);
+void flash_write_ticking(Allocation group, size_t offset, size_t len, uint8_t* data, void (*tick)());
 
 void memory_protect(void);
 int memory_bootloader_hash(uint8_t *hash);

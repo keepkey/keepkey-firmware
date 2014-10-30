@@ -38,6 +38,8 @@
 #include <usb.h>
 #include <util.h>
 #include <signing.h>
+#include <resources.h>
+#include <timer.h>
 
 
 
@@ -139,10 +141,27 @@ void fsm_msgPing(Ping *msg)
 void fsm_msgWipeDevice(WipeDevice *msg)
 {
     (void)msg;
-    if(confirm("Clear device configuration?"))
+    if(confirm("Wipe Private Keys and Settings", "Are you sure you want to erase private keys and settings? This process cannot be undone and any money stored will be lost."))
     {
+    	/*
+    	 * Setup wipe animation
+    	 */
+       	layout_loading(WIPE_ANIM);
+       	force_animation_start();
+
+    	void tick(){
+    		animate();
+    		display_refresh();
+    		delay(3);
+		}
+
+    	tick();
+
+    	/*
+    	 * Wipe device
+    	 */
         storage_reset();
-        storage_commit();
+        storage_commit_ticking(&tick);
 
         fsm_sendSuccess("Device wiped");
         layout_home();
@@ -159,7 +178,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 	HDNode *node = fsm_getRootNode();
 	if (!node) return;
 
-        layout_standard_notification("Preparing Keys...", "This may take a moment.");
+    layout_standard_notification("Preparing Keys...", "This may take a moment.", NOTIFICATION_INFO);
 	fsm_deriveKey(node, msg->address_n, msg->address_n_count);
 
 	resp->node.depth = node->depth;
@@ -332,7 +351,7 @@ void fsm_msgSimpleSignTx(SimpleSignTx *msg)
 
         char linebuf[layout_char_width()];
         snprintf(linebuf, sizeof(linebuf), "Fee over threshold: %s", satoshi_to_str(fee, true));
-        if(!confirm(linebuf))
+        if(!confirm("Confirm?", linebuf))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
             layout_home();
@@ -346,9 +365,9 @@ void fsm_msgSimpleSignTx(SimpleSignTx *msg)
     snprintf(outstr, sizeof(outstr), "Confirm tx: %s  FEE(%s)?", 
             satoshi_to_str(to_spend - change_spend - fee, true),
             satoshi_to_str(fee, true));
-    if(!confirm(outstr)) {
+    if(!confirm("Confirm?", outstr)) {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
-        layout_standard_notification(outstr, "CANCELLED");
+        layout_standard_notification(outstr, "CANCELLED", NOTIFICATION_INFO);
     } else {
         resp->has_request_type = true;
         resp->request_type = RequestType_TXFINISHED;
@@ -356,7 +375,7 @@ void fsm_msgSimpleSignTx(SimpleSignTx *msg)
         resp->serialized.has_serialized_tx = true;
         resp->serialized.serialized_tx.size = (uint32_t)tx_size;
         msg_write(MessageType_MessageType_TxRequest, resp);
-        layout_standard_notification(outstr, "CONFIRMED");
+        layout_standard_notification(outstr, "CONFIRMED", NOTIFICATION_INFO);
     }
 
     layout_home();

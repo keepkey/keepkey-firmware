@@ -22,9 +22,18 @@ extern "C" {
 
 #include <stdint.h>
 #include "canvas.h"
+#include "resources.h"
 
 
 //====================== CONSTANTS, TYPES, AND MACROS =========================
+
+typedef enum
+{
+	NOTIFICATION_INFO,
+    NOTIFICATION_REQUEST,
+    NOTIFICATION_CONFIRM_ANIMATION,
+    NOTIFICATION_CONFIRMED
+} NotificationType;
 
 
 //=============================== VARIABLES ===================================
@@ -67,6 +76,8 @@ void layout_confirmation();
  * @return the number of characters that are printable across the width of the screen.
  */
 uint32_t layout_char_width();
+uint32_t title_char_width();
+uint32_t body_char_width();
 
 /**
  * Used by the bootloader to verify firmware update.
@@ -79,19 +90,28 @@ void layout_firmware_update_confirmation();
 /**
  * Standard 2-line notification layout for display.
  */
-void layout_standard_notification( const char* str1, const char* str2);
+void layout_standard_notification( const char* str1, const char* str2, NotificationType type);
+
+/*
+ * Standard layout for intro
+ */
+void layout_intro();
+
+/*
+ * Standard layout for loading animations that fill entire screen
+ */
+void layout_loading(AnimationResource type);
 
 //-----------------------------------------------------------------------------
 /// Call this in a loop.
 ///
 //-----------------------------------------------------------------------------
-void animate( void); 
+void animate( void);
 
-typedef enum 
-{
-    LABEL_COLOR    = 0x44,
-    DATA_COLOR     = 0xFF,
-} LAYOUT_FONT_COLORS;
+/*
+ * Determine if animations exist in active animations queue
+ */
+bool is_animating(void);
 
 /**
  * Layout the text on the specified line given the color.
@@ -103,13 +123,10 @@ typedef enum
  */
 void layout_line(unsigned int line, uint8_t color, const char *str, ...);
 
-typedef void (*AnimateCallback)(void* data, uint32_t duration, uint32_t elapsed );
-void
-layout_add_animation(
-        AnimateCallback     callback,
-        void*               data,
-        uint32_t            duration
-);
+void force_animation_start();
+
+typedef void (*AnimateCallback)(void* data, uint32_t duration, uint32_t elapsed);
+void layout_add_animation(AnimateCallback callback, void* data, uint32_t duration);
 
 void layout_clear();
 void layout_clear_animations();
