@@ -499,8 +499,13 @@ static const MessagesMap_t MessagesMap[] = {
     {0,0,0,0}
 };
 
+static const RawMessagesMap_t RawMessagesMap[] = {
+	{0,0}
+};
+
 void fsm_init(void)
 {
-    msg_init(MessagesMap);
+	msg_map_init(MessagesMap, MESSAGE_MAP);
+	msg_map_init(RawMessagesMap, RAW_MESSAGE_MAP);
+	msg_init();
 }
-

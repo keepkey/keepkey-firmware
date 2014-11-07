@@ -75,11 +75,17 @@ static const MessagesMap_t MessagesMap[] = {
 	// in messages
 	{'i', MessageType_MessageType_Initialize,		Initialize_fields,	(message_handler_t)(handler_initialize)},
 	{'i', MessageType_MessageType_Ping,			Ping_fields,		(message_handler_t)(handler_ping)},
-	{'i', MessageType_MessageType_FirmwareUpdate,		FirmwareUpdate_fields,	(message_handler_t)(handler_update)},
 	{'o', MessageType_MessageType_Features,		        Features_fields,	NULL},
 	{'o', MessageType_MessageType_Success,		        Success_fields,		NULL},
 	{'o', MessageType_MessageType_Failure,		        Failure_fields,		NULL},
-        {0,0,0,0}
+
+	{0,0,0,0}
+};
+
+static const RawMessagesMap_t RawMessagesMap[] = {
+	{MessageType_MessageType_FirmwareUpdate, (message_handler_t)(handler_update)},
+
+	{0,0}
 };
 
 /**

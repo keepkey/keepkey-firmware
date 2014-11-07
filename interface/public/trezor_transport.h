@@ -40,20 +40,19 @@ extern "C" {
  */
 typedef struct
 {
-    uint8_t hid_type;  // This is always '?', and is part of the Trezor protocol.
+    uint8_t hid_type;  // First byte is always 0x3f
 } UsbHeader;
 
 /**
  * Trezor frame header
  */
 /**
- * First Trezor header with the ?##<id><len> preamble
+ * First Trezor header with the ##<id><len> preamble
  */
 typedef struct
 {
     /* 
-     * Not sure what these are for.  They are derived from the Trezor code. I think they denote the first
-     * USB segment in a message, in the case where multiple USB segments are sent. 
+     * Start of Trezor frame
      */
     uint8_t pre1;
     uint8_t pre2;

@@ -28,6 +28,12 @@
 #define MSG_IN_SIZE (24*1024)
 #define MSG_OUT_SIZE (9*1024)
 
+typedef enum
+{
+    MESSAGE_MAP,
+	RAW_MESSAGE_MAP
+} MessageMapType;
+
 typedef struct {
     char dir; 	// i = in, o = out
     MessageType msg_id;
@@ -35,13 +41,10 @@ typedef struct {
     void (*process_func)(void *ptr);
 } MessagesMap_t;
 
-/**
- * Call prior to any other messaging routines.  This initializes the messaging subsystem 
- * and sets up any required callbacks.
- *
- * @param Persistent handler/fields mapping structure for incoming messages.
- */
-void msg_init(const MessagesMap_t* message_map);
+typedef struct {
+    MessageType msg_id;
+    void (*process_func)(uint8_t *msg, uint32_t msg_size);
+} RawMessagesMap_t;
 
 /**
  *
@@ -56,6 +59,11 @@ bool msg_write(MessageType type, const void* msg);
  * Initializes the messaging subsystem with a set of callback handlers for each
  * expected message type.
  */
-void msg_init(const MessagesMap_t* map);
+void msg_map_init(const void* map, MessageMapType type);
+
+/*
+ * Assign callback for USB interrupt handling
+ */
+void msg_init();
 
 #endif

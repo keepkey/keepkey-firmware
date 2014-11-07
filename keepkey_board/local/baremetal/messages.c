@@ -49,11 +49,33 @@ typedef struct
 
 static MsgStats msg_stats;
 
-static const MessagesMap_t *MessagesMap =NULL;
+static const MessagesMap_t *MessagesMap = NULL;
+static const RawMessagesMap_t *RawMessagesMap = NULL;
+
+/*
+ * Get message map entry if one exists
+ */
 
 const MessagesMap_t* message_map_entry(MessageType type)
 {
     const MessagesMap_t *m = MessagesMap;
+    while(m->msg_id) {
+        if(type == m->msg_id)
+        {
+            return m;
+        }
+        ++m;
+    }
+
+    return NULL;
+}
+
+/*
+ * Get a raw message map entry if one exists
+ */
+const RawMessagesMap_t* raw_message_map_entry(MessageType type)
+{
+    const RawMessagesMap_t *m = RawMessagesMap;
     while(m->msg_id) {
         if(type == m->msg_id)
         {
@@ -131,6 +153,14 @@ void dispatch(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size)
     }
 }
 
+void raw_dispatch(const RawMessagesMap_t* entry, uint8_t *msg, uint32_t msg_size)
+{
+	if(entry->process_func)
+	{
+		entry->process_func(msg, msg_size);
+	}
+}
+
 
 /**
  * Local routine to handle messages incoming from the USB driver.
@@ -152,7 +182,13 @@ void handle_usb_rx(UsbMessage *msg)
     {
         ++msg_stats.invalid_usb_header;
         return;
-    } 
+    }
+
+    /*
+	 * Frame content buffer and position
+	 */
+	static TrezorFrameBuffer framebuf;
+	static uint32_t content_pos = 0;
 
     /*
      * Check to see if this is the first frame of a series,
@@ -174,25 +210,70 @@ void handle_usb_rx(UsbMessage *msg)
          */
         last_frame_header.id = __builtin_bswap16(frame->header.id);
         last_frame_header.len = __builtin_bswap32(frame->header.len);
-        contents = frame->contents;
+
+        /*
+		 * Init content pos
+		 */
+		content_pos = msg->len - 9;
+		memcpy(framebuf.buffer, frame->contents, content_pos);
     } else {
         contents = ((TrezorFrameFragment*)msg->message)->contents;
-    } 
 
-    const MessagesMap_t* entry = message_map_entry(last_frame_header.id);
+        /*
+		 * Append to content buffer
+		 */
+		memcpy(framebuf.buffer + content_pos, frame->contents, msg->len - 1);
+		content_pos += msg->len - 1;
+    }
+
+    MessageMapType map_type;
+    const void* entry = message_map_entry(last_frame_header.id);
+
+    /*
+     * If no entry was found, check to see if there is a route for a raw version
+     * of this message (one that won't be parsed by protocol buffers)
+     */
     if(entry)
     {
-        dispatch(entry, contents, last_frame_header.len);
+    	map_type = MESSAGE_MAP;
+    } else if(entry = raw_message_map_entry(last_frame_header.id)) {
+    	map_type = RAW_MESSAGE_MAP;
+
+    	/* call dispatch for every segment since we are not buffering and parsing, and
+    	 * assume the raw dispatched callbacks will handle their own state and
+    	 * buffering internally
+    	 */
+    	raw_dispatch((RawMessagesMap_t*)entry, frame->contents, last_frame_header.len);
     } else {
-        ++msg_stats.unknown_dispatch_entry;
+    	++msg_stats.unknown_dispatch_entry;
     }
+
+    /*
+     * Only parse and message map if all segments have been buffered
+     * and this message type is parsable
+     */
+    if (content_pos >= last_frame_header.len && map_type == MESSAGE_MAP)
+    	dispatch((MessagesMap_t*)entry, framebuf.buffer, last_frame_header.len);
+
+    /*
+	 * Last segment
+	 */
+	if(content_pos >= last_frame_header.len)
+		content_pos = 0;
 }
 
-void msg_init(const MessagesMap_t* map)
+void msg_map_init(const void* map, MessageMapType type)
 {
     assert(map != NULL);
 
-    MessagesMap = map;
+    if(type == MESSAGE_MAP)
+    	MessagesMap = map;
+    else
+    	RawMessagesMap = map;
+}
+
+void msg_init()
+{
     usb_set_rx_callback(handle_usb_rx);
 }
 
