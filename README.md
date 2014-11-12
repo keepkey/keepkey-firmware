@@ -157,6 +157,9 @@ Then navigate to "Debugger" tab. Fill in the following
 
 * Executable: /usr/bin/JLinkGDBServer
   * Device name: STM32F2RG
+  * Endianness : Little
+  * Connection: USB
+  * Interface: JTAG
   * Initial speed: auto
 
 And under "GDB Client Setup"
