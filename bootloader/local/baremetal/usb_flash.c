@@ -27,18 +27,19 @@
 
 #include <libopencm3/stm32/flash.h>
 
-#include <interface.h>
-#include <keepkey_board.h>
-#include <memory.h>
-#include <messages.h>
+#include "interface.h"
+#include "keepkey_board.h"
+#include "memory.h"
+#include "messages.h"
 
 
-#include <usb_driver.h>
-#include <usb_flash.h>
+#include "usb_driver.h"
+#include "usb_flash.h"
 
 void handler_initialize(Initialize* msg);
 void handler_ping(Ping* msg);
-void handler_update(FirmwareUpdate* msg);
+void handler_erase(FirmwareErase* msg);
+void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length);
 void usb_write_pb(void* msg, MessageType id);
 
 /**
@@ -55,12 +56,12 @@ typedef struct
 
 typedef enum 
 {
-    UPDATE_NOT_STARTED,
-    UPDATE_STARTED,
-    UPDATE_COMPLETE
-} FirmwareUpdateState;
+    UPLOAD_NOT_STARTED,
+    UPLOAD_STARTED,
+    UPLOAD_COMPLETE
+} FirmwareUploadState;
 
-static FirmwareUpdateState update_state = UPDATE_NOT_STARTED;
+static FirmwareUploadState upload_state = UPLOAD_NOT_STARTED;
 
 /**
  * Generic message handler callback type.
@@ -73,17 +74,18 @@ typedef void (*message_handler_t)(void* msg_struct);
 
 static const MessagesMap_t MessagesMap[] = {
 	// in messages
-	{'i', MessageType_MessageType_Initialize,		Initialize_fields,	(message_handler_t)(handler_initialize)},
-	{'i', MessageType_MessageType_Ping,			Ping_fields,		(message_handler_t)(handler_ping)},
-	{'o', MessageType_MessageType_Features,		        Features_fields,	NULL},
-	{'o', MessageType_MessageType_Success,		        Success_fields,		NULL},
-	{'o', MessageType_MessageType_Failure,		        Failure_fields,		NULL},
+	{'i', MessageType_MessageType_Initialize,		Initialize_fields,		(message_handler_t)(handler_initialize)},
+	{'i', MessageType_MessageType_Ping,				Ping_fields,			(message_handler_t)(handler_ping)},
+	{'i', MessageType_MessageType_FirmwareErase,	FirmwareErase_fields,	(message_handler_t)(handler_erase)},
+	{'o', MessageType_MessageType_Features,			Features_fields,		NULL},
+	{'o', MessageType_MessageType_Success,			Success_fields,			NULL},
+	{'o', MessageType_MessageType_Failure,			Failure_fields,			NULL},
 
 	{0,0,0,0}
 };
 
 static const RawMessagesMap_t RawMessagesMap[] = {
-	{MessageType_MessageType_FirmwareUpdate, (message_handler_t)(handler_update)},
+	{MessageType_MessageType_FirmwareUpload, (message_handler_t)(raw_handler_upload)},
 
 	{0,0}
 };
@@ -96,31 +98,25 @@ static Stats stats;
 bool is_update_complete(void)
 {
     return false;
-    return update_state == UPDATE_COMPLETE;
+    return upload_state == UPLOAD_COMPLETE;
 }
 
 bool usb_flash_firmware(void)
 {
-
-    layout_standard_notification("Firmware Updating...", "Erasing flash...", NOTIFICATION_INFO);
+    layout_standard_notification("Firmware Update Mode", "Waiting...", NOTIFICATION_INFO);
     display_refresh();
-
-    flash_unlock();
-    flash_erase(FLASH_CONFIG);
-    flash_erase(FLASH_APP);
 
     /*
-     * Send out an unsolicited announcement to trigger the host side of the USB bus to recognize 
-     * the device.
+     * Init message map and usb callback
      */
-    layout_standard_notification("Firmware Updating...", "Programming...", NOTIFICATION_INFO);
-    display_refresh();
-    msg_init(MessagesMap);
+    msg_map_init(MessagesMap, MESSAGE_MAP);
+    msg_map_init(RawMessagesMap, RAW_MESSAGE_MAP);
+    msg_init();
+
+    /*
+     * Init USB
+     */
     usb_init();
-
-    /*
-     * NOTE: After this point the timing requirements for usb_poll are fairly tight during the initial enumeration process.  Don't call display_refresh until the first packets start arriving.
-     */
 
     while(!is_update_complete())
     {
@@ -160,53 +156,6 @@ void send_failure(FailureType code, const char *text)
     msg_write(MessageType_MessageType_Failure, &f);
 }
 
-
-void handler_update(FirmwareUpdate* msg) 
-{
-    update_state = UPDATE_STARTED;
-
-    const uint32_t app_flash_start = flash_sector_map[FLASH_APP_SECTOR_FIRST].start;
-    const uint32_t app_flash_end = flash_sector_map[FLASH_APP_SECTOR_LAST].start + 
-        flash_sector_map[FLASH_APP_SECTOR_LAST].len;
-    const uint32_t app_flash_size = app_flash_end - app_flash_start;
-
-    /*
-    if(msg->offset > app_flash_size)
-    {
-        ++stats.invalid_offset_ct;
-        send_failure(FailureType_Failure_UnexpectedMessage, "Offset too large");
-        return;
-    }
-    */
-
-    static uint32_t offset = 0;
-    uint32_t size = msg->payload.size;
-
-    if( (offset + size) < app_flash_end)
-    {
-    	if(size > 0)
-    	{
-            flash_write(FLASH_APP, offset, size, msg->payload.bytes);
-            send_success(NULL);
-            offset += size;
-    	}
-    } else {
-        ++stats.invalid_offset_ct;
-        send_failure(FailureType_Failure_UnexpectedMessage, "Upload overflow");
-        return;
-    }
-
-    if(msg->has_final && msg->final == true)
-    {
-        //flash_write(FLASH_APP, offset, size, msg->payload.bytes);
-        update_state = UPDATE_COMPLETE;
-        flash_lock();
-        send_success("Upload complete");
-        layout_standard_notification("Firmware Updating...", "Upload complete.  Reset KeepKey to continue.", NOTIFICATION_INFO);
-        display_refresh();
-    } 
-}
-
 void handler_ping(Ping* msg) 
 {
     (void)msg;
@@ -229,3 +178,108 @@ void handler_initialize(Initialize* msg)
     msg_write(MessageType_MessageType_Features, &f);
 }
 
+void handler_erase(FirmwareErase* msg)
+{
+	if(confirm("Verify Backup Before Upgrade", "Before upgrading your firmware, confirm that you have access to the backup of your recovery sentence."))
+	{
+		layout_standard_notification("Firmware Updating...", "Erasing flash...", NOTIFICATION_INFO);
+		display_refresh();
+
+		flash_unlock();
+		flash_erase(FLASH_CONFIG);
+		flash_erase(FLASH_APP);
+
+		send_success("Firmware Erased");
+
+		layout_standard_notification("Firmware Updating..", "Wating for Firmware...", NOTIFICATION_INFO);
+		display_refresh();
+	}
+}
+
+void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
+{
+	const uint32_t app_flash_start = flash_sector_map[FLASH_APP_SECTOR_FIRST].start;
+	const uint32_t app_flash_end = flash_sector_map[FLASH_APP_SECTOR_LAST].start +
+		flash_sector_map[FLASH_APP_SECTOR_LAST].len;
+	const uint32_t app_flash_size = app_flash_end - app_flash_start;
+
+	static uint32_t flash_offset;
+	static uint32_t upload_pos;
+
+	/*
+	 * Start firmware upload
+	 */
+	if(upload_state == UPLOAD_NOT_STARTED)
+	{
+		upload_state = UPLOAD_STARTED;
+		flash_offset = 0;
+		upload_pos = 0;
+
+		/*
+		 * On first USB segment of upload we have to account for added data for protocol buffers
+		 * which we will ignore since it is not being parsed out for us
+		 */
+		msg_size -= 4;
+		msg = (uint8_t*)(msg + 4);
+	}
+
+	/*
+	 * Incement upload postion
+	 */
+	upload_pos += msg_size;
+
+	/*
+	 * Process firmware upload
+	 */
+	if(upload_state == UPLOAD_STARTED)
+	{
+		if(upload_pos % UPLOAD_STATUS_FREQUENCY < USB_SEGMENT_SIZE)
+		{
+			char str_progress[20];
+			sprintf(str_progress, "%dK of %dK", upload_pos / UPLOAD_STATUS_FREQUENCY, frame_length / UPLOAD_STATUS_FREQUENCY);
+			layout_standard_notification("Firmware Updating..", str_progress, NOTIFICATION_INFO);
+			display_refresh();
+		}
+
+		if(upload_pos - msg_size < 256)
+		{
+			/*
+			 * TODO: Write 256B header to flash for each 64 byte pass (USB_SEGMENT_SIZE) so that
+			 * after firmware is upload we can check signatures
+			 */
+		}
+
+		if(upload_pos > 256)
+		{
+			if( (flash_offset + msg_size) < app_flash_end)
+			{
+				if(upload_pos - 256 < msg_size)
+				{
+					uint32_t adj_msg_size = upload_pos - 256;
+					flash_write(FLASH_APP, flash_offset, adj_msg_size, msg + (msg_size - adj_msg_size));
+					flash_offset += upload_pos - 256;
+				}
+				else
+				{
+					flash_write(FLASH_APP, flash_offset, msg_size, msg);
+					flash_offset += msg_size;
+				}
+			} else {
+				++stats.invalid_offset_ct;
+				send_failure(FailureType_Failure_UnexpectedMessage, "Upload overflow");
+			}
+		}
+
+		/*
+		 * Finish firmware update
+		 */
+		if (upload_pos >= frame_length - 4)
+		{
+			flash_lock();
+			layout_standard_notification("Firmware Updating...", "Upload complete.  Reset KeepKey to continue.", NOTIFICATION_INFO);
+			display_refresh();
+			send_success("Upload complete");
+			upload_state = UPLOAD_COMPLETE;
+		}
+	}
+}
