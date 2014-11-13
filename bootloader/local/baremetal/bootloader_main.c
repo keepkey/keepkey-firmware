@@ -35,6 +35,7 @@
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/f2/rng.h>
 
+#include <memory.h>
 #include <keepkey_board.h>
 #include <keepkey_display.h>
 #include <keepkey_leds.h>
@@ -45,6 +46,7 @@
 #include <confirm_sm.h>
 #include <usb_driver.h>
 #include <usb_flash.h>
+#include <signatures.h>
 
 
 //====================== CONSTANTS, TYPES, AND MACROS =========================
@@ -162,21 +164,18 @@ int main(int argc, char* argv[])
 
             clear_red();
             set_vector_table_offset(0x60000);
-            boot_jump(0x08060000);
+            boot_jump(FLASH_APP_START);
         } else {
             clear_green();
 
             if(update_mode)
             {
-                if(confirm("Confirm?", "Hold button to confirm firmware update."))
-                {
-                    usb_flash_firmware();
-                    layout_standard_notification("Firmware Updating...", "COMPLETED.  Board will reset in 5 seconds.", NOTIFICATION_INFO);
-                    display_refresh();
-                    delay(5000);
+				usb_flash_firmware();
+				layout_standard_notification("Firmware Updating...", "COMPLETED.  Board will reset in 5 seconds.", NOTIFICATION_INFO);
+				display_refresh();
+				delay(5000);
 
-                    board_reset();
-                } 
+				board_reset();
             } else {
                 layout_standard_notification("Invalid firmware image detected.", "Reset and perform a firmware update.", NOTIFICATION_INFO);
                 display_refresh();
