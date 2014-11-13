@@ -153,11 +153,11 @@ void dispatch(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size)
     }
 }
 
-void raw_dispatch(const RawMessagesMap_t* entry, uint8_t *msg, uint32_t msg_size)
+void raw_dispatch(const RawMessagesMap_t* entry, uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
 {
 	if(entry->process_func)
 	{
-		entry->process_func(msg, msg_size);
+		entry->process_func(msg, msg_size, frame_length);
 	}
 }
 
@@ -185,10 +185,16 @@ void handle_usb_rx(UsbMessage *msg)
     }
 
     /*
-	 * Frame content buffer and position
+	 * Frame content buffer, position, and size
 	 */
 	static TrezorFrameBuffer framebuf;
 	static uint32_t content_pos = 0;
+	static uint32_t content_size = 0;
+
+	/*
+	 * Current segment content
+	 */
+	uint8_t* contents = NULL;
 
     /*
      * Check to see if this is the first frame of a series,
@@ -200,9 +206,6 @@ void handle_usb_rx(UsbMessage *msg)
         .len = 0
     };
 
-    uint8_t* contents = NULL;
-    uint32_t len = 0;
-
     if(frame->header.pre1 == '#' && frame->header.pre2 == '#')
     {
         /*
@@ -211,19 +214,18 @@ void handle_usb_rx(UsbMessage *msg)
         last_frame_header.id = __builtin_bswap16(frame->header.id);
         last_frame_header.len = __builtin_bswap32(frame->header.len);
 
-        /*
-		 * Init content pos
-		 */
-		content_pos = msg->len - 9;
-		memcpy(framebuf.buffer, frame->contents, content_pos);
-    } else {
-        contents = ((TrezorFrameFragment*)msg->message)->contents;
+        contents = frame->contents;
 
         /*
-		 * Append to content buffer
+		 * Init content pos and size
 		 */
-		memcpy(framebuf.buffer + content_pos, frame->contents, msg->len - 1);
-		content_pos += msg->len - 1;
+		content_pos = msg->len - 9;
+		content_size = content_pos;
+    } else {
+    	contents = ((TrezorFrameFragment*)msg->message)->contents;
+
+    	content_pos += msg->len - 1;
+		content_size = msg->len - 1;
     }
 
     MessageMapType map_type;
@@ -236,6 +238,15 @@ void handle_usb_rx(UsbMessage *msg)
     if(entry)
     {
     	map_type = MESSAGE_MAP;
+
+    	/*
+    	 * Copy content to frame buffer
+    	 */
+    	if(content_size == content_pos)
+    		memcpy(framebuf.buffer, contents, content_pos);
+    	else
+    		memcpy(framebuf.buffer + content_pos - msg->len - 1, contents, msg->len - 1);
+
     } else if(entry = raw_message_map_entry(last_frame_header.id)) {
     	map_type = RAW_MESSAGE_MAP;
 
@@ -243,7 +254,7 @@ void handle_usb_rx(UsbMessage *msg)
     	 * assume the raw dispatched callbacks will handle their own state and
     	 * buffering internally
     	 */
-    	raw_dispatch((RawMessagesMap_t*)entry, frame->contents, last_frame_header.len);
+    	raw_dispatch((RawMessagesMap_t*)entry, contents, content_size, last_frame_header.len);
     } else {
     	++msg_stats.unknown_dispatch_entry;
     }
