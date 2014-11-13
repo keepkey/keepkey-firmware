@@ -48,7 +48,7 @@
 
  offset | type/length |  description
 --------+-------------+-------------------------------
- 0x0000 |  4 bytes    |  magic = 'KK01'
+ 0x0000 |  4 bytes    |  magic = 'KPKY'
  0x0004 |  uint32     |  length of the code (codelen)
  0x0008 |  uint8      |  signature index #1
  0x0009 |  uint8      |  signature index #2
