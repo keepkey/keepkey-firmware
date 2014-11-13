@@ -123,10 +123,10 @@ Type=Application
 Categories=Utility;Application;Development;IDE
 ```
 
-Now install the GDB Server plugin for the JLINK Plus.  We can get that on Segger's website.  Look for the DEB Installer.  The one I used was "Software and documentation pack for Linux V4.90b, DEB Installer 64-bit version."  Download the plugin and then run the following command:
+Now install the GDB Server plugin for the JLINK Plus.  We can get that on Segger's website (https://www.segger.com/jlink-software.html).  Look for the DEB Installer.  The one I used was "Software and documentation pack for Linux V4.90b, DEB Installer 64-bit version."  Download the plugin and then run the following command:
 
 ```
-$ sudo dpkg -i jlink_4.90.2_x86_64.deb
+$ sudo dpkg -i jlink_4.94.3_x86_64.deb
 ```
 
 Now we install the Sconsolidator plugin for Eclipse. In Eclipse click "Help" -> "Install New Software" in the menu. Then click Add and for "Name" enter "Sconsolidator" and for "Location" enter "http://www.sconsolidator.com/update" and then click "Ok".  It will take a few seconds but the package will appear.  Put a check in the ckeckbox next to it and proceed to install it.
@@ -157,6 +157,9 @@ Then navigate to "Debugger" tab. Fill in the following
 
 * Executable: /usr/bin/JLinkGDBServer
   * Device name: STM32F2RG
+  * Endianness : Little
+  * Connection: USB
+  * Interface: JTAG
   * Initial speed: auto
 
 And under "GDB Client Setup"
