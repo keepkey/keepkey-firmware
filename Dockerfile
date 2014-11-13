@@ -13,13 +13,3 @@ RUN make
 
 # Setup environment
 ENV PATH /root/nanopb/generator:$PATH
-
-# Copy context
-ADD . /root/keepkey_firmware
-
-# Build libopencm3
-WORKDIR /root/keepkey_firmware/libopencm3
-RUN make
-
-# Set WORKDIR
-WORKDIR /root/keepkey_firmware
