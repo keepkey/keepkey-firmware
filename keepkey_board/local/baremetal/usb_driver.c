@@ -155,7 +155,7 @@ static const struct usb_endpoint_descriptor hid_endpoints[] = {{
 	.bEndpointAddress = ENDPOINT_ADDRESS_OUT,
 	.bmAttributes = USB_ENDPOINT_ATTR_INTERRUPT,
 	.wMaxPacketSize = USB_SEGMENT_SIZE,
-	.bInterval = 10,
+	.bInterval = 1,
 }};
 
 static const struct usb_interface_descriptor hid_iface[] = {{
@@ -300,38 +300,35 @@ bool usb_poll(void)
 
 bool usb_tx(void* message, uint32_t len)
 {
-    uint8_t tmp_buffer[USB_SEGMENT_SIZE];
-    tmp_buffer[0] = '?';
+	uint32_t send_ct = 0;
 
-    uint32_t send_ct = 0;
-
+	/*
+	 * Chunk out message
+	 */
     while(send_ct < len)
     {
-        if(send_ct)
-        {
-            //TODO Replace with more elegant solution that
-            //monitors the usb transmit for last transmit complete
-            //status.
-            delay(100);
-        } else {
-        	delay(100);
-        }
-        /*
-         * Need to truncate to 63 because 
-         * 1) maintain messaging compatability with trezor 
-         * 2) opencm3 doesn't support fragments packets currently.
-         */
-        uint32_t rem = len-send_ct;
-        uint32_t ct = rem < USB_SEGMENT_SIZE-1 ? rem : USB_SEGMENT_SIZE-1;
-        memcpy(tmp_buffer+1, message+send_ct, ct);
+    	if(send_ct)
+		{
+			//TODO Replace with more elegant solution that
+			//monitors the usb transmit for last transmit complete
+			//status.
+			delay(100);
+		} else {
+			delay(100);
+		}
 
-        /*
-         * Chunk out the message 63 bytes at a time (with the trezor '?' as the first byte)
-         */
+    	uint8_t tmp_buffer[USB_SEGMENT_SIZE] = { 0 };
+    	uint32_t rem = len - send_ct;
+    	uint32_t ct = rem < USB_SEGMENT_SIZE-1 ? rem : USB_SEGMENT_SIZE-1;
+
+    	tmp_buffer[0] = '?';
+        memcpy(tmp_buffer + 1, message + send_ct, ct);
+
         uint16_t tx = usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_IN, tmp_buffer, USB_SEGMENT_SIZE);
         send_ct += ct;
         assert(tx != 0);
     }
+
     return(true);
 }
 
