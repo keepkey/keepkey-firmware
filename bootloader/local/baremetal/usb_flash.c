@@ -36,6 +36,7 @@
 #include "usb_driver.h"
 #include "usb_flash.h"
 
+void send_failure(FailureType code, const char *text);
 void handler_initialize(Initialize* msg);
 void handler_ping(Ping* msg);
 void handler_erase(FirmwareErase* msg);
@@ -107,10 +108,11 @@ bool usb_flash_firmware(void)
     display_refresh();
 
     /*
-     * Init message map and usb callback
+     * Init message map, failure function, and usb callback
      */
     msg_map_init(MessagesMap, MESSAGE_MAP);
     msg_map_init(RawMessagesMap, RAW_MESSAGE_MAP);
+    msg_failure_init(&send_failure);
     msg_init();
 
     /*
