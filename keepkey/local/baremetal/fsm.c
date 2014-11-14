@@ -60,6 +60,9 @@ void fsm_sendSuccess(const char *text)
 
 void fsm_sendFailure(FailureType code, const char *text)
 {
+	layout_standard_notification("ERROR", "Unkown Message", NOTIFICATION_INFO);
+	display_refresh();
+
 	RESP_INIT(Failure);
 	resp->has_code = true;
 	resp->code = code;
@@ -169,6 +172,18 @@ void fsm_msgWipeDevice(WipeDevice *msg)
         fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe cancelled");
         layout_home();
     }
+}
+
+void fsm_msgFirmwareErase(FirmwareErase *msg)
+{
+	(void)msg;
+	fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in bootloader mode");
+}
+
+void fsm_msgFirmwareUpload(FirmwareUpload *msg)
+{
+	(void)msg;
+	fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in bootloader mode");
 }
 
 void fsm_msgGetPublicKey(GetPublicKey *msg)
@@ -472,28 +487,30 @@ void fsm_msgWordAck(WordAck *msg)
 static const MessagesMap_t MessagesMap[] = {
     // in messages
     {'i', MessageType_MessageType_Initialize,		Initialize_fields,	(void (*)(void *))fsm_msgInitialize},
-    {'i', MessageType_MessageType_Ping,			Ping_fields,		(void (*)(void *))fsm_msgPing},
+    {'i', MessageType_MessageType_Ping,				Ping_fields,		(void (*)(void *))fsm_msgPing},
     {'o', MessageType_MessageType_Features,	        Features_fields,	0},
     {'i', MessageType_MessageType_SignTx,	        SignTx_fields,		(void (*)(void *))fsm_msgSignTx},
     {'o', MessageType_MessageType_Success,	        Success_fields,		0},
     {'o', MessageType_MessageType_Failure,	        Failure_fields,		0},
     {'i', MessageType_MessageType_GetAddress,		GetAddress_fields,	(void (*)(void *))fsm_msgGetAddress},
     {'i', MessageType_MessageType_ResetDevice,		ResetDevice_fields,	(void (*)(void *))fsm_msgResetDevice},
-    {'o', MessageType_MessageType_EntropyRequest,        EntropyRequest_fields,	0},
+    {'o', MessageType_MessageType_EntropyRequest,   EntropyRequest_fields,	0},
     {'i', MessageType_MessageType_EntropyAck,		EntropyAck_fields,	(void (*)(void *))fsm_msgEntropyAck},
     {'i', MessageType_MessageType_WipeDevice,		WipeDevice_fields,	(void (*)(void *))fsm_msgWipeDevice},
-    {'i', MessageType_MessageType_GetPublicKey,	GetPublicKey_fields,	(void (*)(void *))fsm_msgGetPublicKey},
+	{'i', MessageType_MessageType_FirmwareErase,	FirmwareErase_fields,		(void (*)(void *))fsm_msgFirmwareErase},
+	{'i', MessageType_MessageType_FirmwareUpload,	FirmwareUpload_fields,		(void (*)(void *))fsm_msgFirmwareUpload},
+    {'i', MessageType_MessageType_GetPublicKey,		GetPublicKey_fields,	(void (*)(void *))fsm_msgGetPublicKey},
     {'i', MessageType_MessageType_LoadDevice,		LoadDevice_fields,	(void (*)(void *))fsm_msgLoadDevice},
     {'i', MessageType_MessageType_ResetDevice,		ResetDevice_fields,	(void (*)(void *))fsm_msgResetDevice},
-    {'i', MessageType_MessageType_SignTx,		SignTx_fields,		(void (*)(void *))fsm_msgSignTx},
+    {'i', MessageType_MessageType_SignTx,			SignTx_fields,		(void (*)(void *))fsm_msgSignTx},
     //UNUSED BY TREZOR NOW {'i', MessageType_MessageType_SimpleSignTx,	SimpleSignTx_fields,	(void (*)(void *))fsm_msgSimpleSignTx},
-    {'i', MessageType_MessageType_Cancel,		Cancel_fields,		(void (*)(void *))fsm_msgCancel},
-    //TODO: {'i', MessageType_MessageType_TxAck,		TxAck_fields,		(void (*)(void *))fsm_msgTxAck},
+    {'i', MessageType_MessageType_Cancel,			Cancel_fields,		(void (*)(void *))fsm_msgCancel},
+    //TODO: {'i', MessageType_MessageType_TxAck,	TxAck_fields,		(void (*)(void *))fsm_msgTxAck},
     {'i', MessageType_MessageType_ApplySettings,	ApplySettings_fields,	(void (*)(void *))fsm_msgApplySettings},
-    {'o', MessageType_MessageType_Address,		Address_fields,	        0},
+    {'o', MessageType_MessageType_Address,			Address_fields,	        0},
     {'i', MessageType_MessageType_EntropyAck,		EntropyAck_fields,	(void (*)(void *))fsm_msgEntropyAck},
     {'i', MessageType_MessageType_RecoveryDevice,	RecoveryDevice_fields,	(void (*)(void *))fsm_msgRecoveryDevice},
-    {'i', MessageType_MessageType_WordAck,		WordAck_fields,		(void (*)(void *))fsm_msgWordAck},
+    {'i', MessageType_MessageType_WordAck,			WordAck_fields,		(void (*)(void *))fsm_msgWordAck},
     {'o', MessageType_MessageType_WordRequest,		WordRequest_fields,	0},
 
     {0,0,0,0}
@@ -507,5 +524,6 @@ void fsm_init(void)
 {
 	msg_map_init(MessagesMap, MESSAGE_MAP);
 	msg_map_init(RawMessagesMap, RAW_MESSAGE_MAP);
+	msg_failure_init(&fsm_sendFailure);
 	msg_init();
 }

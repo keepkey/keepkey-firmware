@@ -52,6 +52,8 @@ static MsgStats msg_stats;
 static const MessagesMap_t *MessagesMap = NULL;
 static const RawMessagesMap_t *RawMessagesMap = NULL;
 
+static msg_failure_t msg_failure;
+
 /*
  * Get message map entry if one exists
  */
@@ -229,13 +231,12 @@ void handle_usb_rx(UsbMessage *msg)
     }
 
     MessageMapType map_type;
-    const void* entry = message_map_entry(last_frame_header.id);
+    const void* entry;
 
     /*
-     * If no entry was found, check to see if there is a route for a raw version
-     * of this message (one that won't be parsed by protocol buffers)
+     * Check for a message map entry for protocol buffer messages
      */
-    if(entry)
+    if(entry = message_map_entry(last_frame_header.id))
     {
     	map_type = MESSAGE_MAP;
 
@@ -247,6 +248,9 @@ void handle_usb_rx(UsbMessage *msg)
     	else
     		memcpy(framebuf.buffer + content_pos - msg->len - 1, contents, msg->len - 1);
 
+    /*
+     * Check for raw messages that bypass procol buffer parsing
+     */
     } else if(entry = raw_message_map_entry(last_frame_header.id)) {
     	map_type = RAW_MESSAGE_MAP;
 
@@ -255,8 +259,15 @@ void handle_usb_rx(UsbMessage *msg)
     	 * buffering internally
     	 */
     	raw_dispatch((RawMessagesMap_t*)entry, contents, content_size, last_frame_header.len);
+
+    /*
+     * Catch message mapping failure
+     */
     } else {
     	++msg_stats.unknown_dispatch_entry;
+
+    	(*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message");
+    	return;
     }
 
     /*
@@ -281,6 +292,11 @@ void msg_map_init(const void* map, MessageMapType type)
     	MessagesMap = map;
     else
     	RawMessagesMap = map;
+}
+
+void msg_failure_init(msg_failure_t failure_func)
+{
+	msg_failure = failure_func;
 }
 
 void msg_init()

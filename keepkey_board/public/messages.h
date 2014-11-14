@@ -46,7 +46,9 @@ typedef struct {
     void (*process_func)(uint8_t *msg, uint32_t msg_size, uint32_t frame_length);
 } RawMessagesMap_t;
 
-/**
+typedef void (*msg_failure_t)(FailureType, const char *);
+
+/*
  *
  * @param type The pb type of the message.
  * @param msg The message structure to encode and send.
@@ -55,11 +57,16 @@ typedef struct {
  */
 bool msg_write(MessageType type, const void* msg);
 
-/**
+/*
  * Initializes the messaging subsystem with a set of callback handlers for each
  * expected message type.
  */
 void msg_map_init(const void* map, MessageMapType type);
+
+/*
+ * Initializes message failure callback
+ */
+void msg_failure_init(msg_failure_t failure_func);
 
 /*
  * Assign callback for USB interrupt handling
