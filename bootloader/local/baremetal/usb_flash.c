@@ -99,7 +99,7 @@ static Stats stats;
 /*
  * Configuration variables.
  */
-static const uint32_t FIRMWARE_HEADER_SIZE = 256;
+#define FIRMWARE_HEADER_SIZE	256
 
 bool is_update_complete(void)
 {
