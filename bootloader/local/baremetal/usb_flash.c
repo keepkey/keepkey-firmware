@@ -96,6 +96,11 @@ static const RawMessagesMap_t RawMessagesMap[] = {
  */
 static Stats stats;
 
+/*
+ * Configuration variables.
+ */
+static const uint32_t FIRMWARE_HEADER_SIZE = 256;
+
 bool is_update_complete(void)
 {
     return false;
@@ -243,7 +248,7 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
 			display_refresh();
 		}
 
-		if(upload_pos - msg_size < 256)
+		if(upload_pos - msg_size < FIRMWARE_HEADER_SIZE)
 		{
 			/*
 			 * TODO: Write 256B header to flash for each 64 byte pass (USB_SEGMENT_SIZE) so that
@@ -251,15 +256,15 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
 			 */
 		}
 
-		if(upload_pos > 256)
+		if(upload_pos > FIRMWARE_HEADER_SIZE)
 		{
 			if( (flash_offset + msg_size) < app_flash_end)
 			{
-				if(upload_pos - 256 < msg_size)
+				if(upload_pos - FIRMWARE_HEADER_SIZE < msg_size)
 				{
-					uint32_t adj_msg_size = upload_pos - 256;
+					uint32_t adj_msg_size = upload_pos - FIRMWARE_HEADER_SIZE;
 					flash_write(FLASH_APP, flash_offset, adj_msg_size, msg + (msg_size - adj_msg_size));
-					flash_offset += upload_pos - 256;
+					flash_offset += upload_pos - FIRMWARE_HEADER_SIZE;
 				}
 				else
 				{
