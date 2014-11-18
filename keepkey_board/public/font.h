@@ -61,5 +61,8 @@ int font_height(const Font* font);
 /// Get the width of a font
 int font_width(const Font* font);
 
+// Calculate string width using font data
+int calc_str_width(const Font* font, char* str);
+
 
 #endif // KeepKeyFont_H
