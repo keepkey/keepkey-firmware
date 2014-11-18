@@ -31,6 +31,7 @@ typedef enum
 {
 	NOTIFICATION_INFO,
     NOTIFICATION_REQUEST,
+	NOTIFICATION_UNPLUG,
     NOTIFICATION_CONFIRM_ANIMATION,
     NOTIFICATION_CONFIRMED
 } NotificationType;
@@ -78,6 +79,7 @@ void layout_confirmation();
 uint32_t layout_char_width();
 uint32_t title_char_width();
 uint32_t body_char_width();
+uint32_t warning_char_width();
 
 /**
  * Used by the bootloader to verify firmware update.
@@ -91,6 +93,11 @@ void layout_firmware_update_confirmation();
  * Standard 2-line notification layout for display.
  */
 void layout_standard_notification( const char* str1, const char* str2, NotificationType type);
+
+/*
+ * Standard warning message
+ */
+void layout_warning(const char* str1);
 
 /*
  * Standard layout for intro
