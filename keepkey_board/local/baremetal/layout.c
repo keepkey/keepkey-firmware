@@ -81,6 +81,14 @@ static const uint32_t BODY_ROWS = 3;
 static const uint32_t BODY_FONT_LINE_PADDING = 2;
 
 /*
+ * Warning
+ */
+static const uint8_t WARNING_COLOR = 0xFF;
+static const uint32_t WARNING_WIDTH = 256;
+static const uint32_t WARNING_ROWS = 1;
+static const uint32_t WARNING_FONT_LINE_PADDING = 0;
+
+/*
  * Default Layout
  */
 static const uint32_t NO_WIDTH = 0;
@@ -275,7 +283,45 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
 			sp.y = 19;
 			draw_bitmap_mono_rle(canvas, &sp, get_confirmed_image());
 			break;
+		case NOTIFICATION_UNPLUG:
+			sp.x = 213;
+			sp.y = 21;
+			draw_bitmap_mono_rle(canvas, &sp, get_unplug_image());
+			break;
     }
+}
+
+void layout_warning(const char* str1)
+{
+    layout_clear();
+
+    const Font* font = get_title_font();
+
+    /*
+     * Format Title
+     */
+    char upper_str1[warning_char_width()];
+    strcpy(upper_str1, "WARNING: ");
+    strcat(upper_str1, str1);
+    strupr(upper_str1);
+
+    /*
+     * Title
+     */
+    DrawableParams sp;
+    sp.x = (256 - calc_str_width(font, upper_str1)) / 2;
+    sp.y = 47;
+    sp.color = TITLE_COLOR;
+    draw_string(canvas, font, upper_str1, &sp, WARNING_WIDTH, font_height(font));
+
+    static AnimationImageDrawableParams warning;
+    warning.img_animation = get_warning_animation();
+    warning.base.y = 7;
+    warning.base.x = 107;
+    layout_add_animation(
+		&layout_animate_images,
+		(void*)&warning,
+		0);
 }
 
 void layout_intro()
@@ -314,6 +360,12 @@ void layout_loading(AnimationResource type)
 			draw_bitmap_mono_rle(canvas, &sp, get_saving_background_image());
 			loading_animation.base.x = 18;
 			loading_animation.base.y = 9;
+			break;
+    	case FLASHING_ANIM:
+			loading_animation.img_animation = get_flashing_animation();
+			draw_bitmap_mono_rle(canvas, &sp, get_flashing_background_image());
+			loading_animation.base.x = 29;
+			loading_animation.base.y = 14;
 			break;
     }
 
@@ -583,4 +635,10 @@ uint32_t body_char_width()
 {
 	const Font* font = get_body_font();
     return (BODY_WIDTH / font_width(font)) * BODY_ROWS;
+}
+
+uint32_t warning_char_width()
+{
+	const Font* font = get_title_font();
+    return (WARNING_WIDTH / font_width(font)) * WARNING_ROWS;
 }
