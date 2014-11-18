@@ -3883,3 +3883,16 @@ int font_width(const Font* font)
      */
     return  font_get_char(font, '|')->width;
 }
+
+int calc_str_width(const Font* font, char* str)
+{
+    int width = 0;
+
+    while(str[0] != '\0')
+    {
+    	width += font_get_char(font, str[0])->width;
+    	str++;
+    }
+
+    return width;
+}
