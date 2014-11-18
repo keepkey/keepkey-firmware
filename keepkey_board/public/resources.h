@@ -49,7 +49,8 @@ typedef enum
 	CONFIRMING_ANIM,
     BOOT_ANIM,
     WIPE_ANIM,
-    SAVING_ANIM
+    SAVING_ANIM,
+	FLASHING_ANIM
 } AnimationResource;
 
 
@@ -59,11 +60,14 @@ const Image* get_home_image();
 const Image* get_wipe_background_image();
 const Image* get_saving_background_image();
 const Image* get_confirmed_image();
+const Image* get_unplug_image();
 
 const ImageAnimation* get_confirm_icon_animation();
 const ImageAnimation* get_confirming_animation();
 const ImageAnimation* get_wipe_animation();
 const ImageAnimation* get_saving_animation();
+const ImageAnimation* get_warning_animation();
+const ImageAnimation* get_flashing_animation();
 const ImageAnimation* get_boot_animation();
 
 const uint32_t get_image_animation_duration(const ImageAnimation* img_animation);
