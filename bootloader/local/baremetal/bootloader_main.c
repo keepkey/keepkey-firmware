@@ -171,11 +171,9 @@ int main(int argc, char* argv[])
             if(update_mode)
             {
 				usb_flash_firmware();
-				layout_standard_notification("Firmware Updating...", "COMPLETED.  Board will reset in 5 seconds.", NOTIFICATION_INFO);
+				layout_standard_notification("Firmware Update Complete", "Please disconnect and reconnect your KeepKey to continue.", NOTIFICATION_UNPLUG);
 				display_refresh();
-				delay(5000);
 
-				board_reset();
             } else {
                 layout_standard_notification("Invalid firmware image detected.", "Reset and perform a firmware update.", NOTIFICATION_INFO);
                 display_refresh();
