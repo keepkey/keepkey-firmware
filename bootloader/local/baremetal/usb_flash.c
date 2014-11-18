@@ -103,14 +103,12 @@ static Stats stats;
 
 bool is_update_complete(void)
 {
-    return false;
     return upload_state == UPLOAD_COMPLETE;
 }
 
 bool usb_flash_firmware(void)
 {
-    layout_standard_notification("Firmware Update Mode", "Waiting...", NOTIFICATION_INFO);
-    display_refresh();
+	layout_warning("Firmware Update Mode");
 
     /*
      * Init message map, failure function, and usb callback
@@ -128,11 +126,11 @@ bool usb_flash_firmware(void)
     while(!is_update_complete())
     {
         usb_poll();
-    }
-    flash_lock();
 
-    layout_standard_notification("Firmware Update Complete", "Reset device to continue.", NOTIFICATION_INFO);
-    display_refresh();
+        animate();
+        display_refresh();
+    }
+
     return true;
 }
 
@@ -189,7 +187,10 @@ void handler_erase(FirmwareErase* msg)
 {
 	if(confirm("Verify Backup Before Upgrade", "Before upgrading your firmware, confirm that you have access to the backup of your recovery sentence."))
 	{
-		layout_standard_notification("Firmware Updating...", "Erasing flash...", NOTIFICATION_INFO);
+		layout_loading(FLASHING_ANIM);
+		force_animation_start();
+
+		animate();
 		display_refresh();
 
 		flash_unlock();
@@ -197,9 +198,6 @@ void handler_erase(FirmwareErase* msg)
 		flash_erase(FLASH_APP);
 
 		send_success("Firmware Erased");
-
-		layout_standard_notification("Firmware Updating..", "Wating for Firmware...", NOTIFICATION_INFO);
-		display_refresh();
 	}
 }
 
@@ -240,12 +238,14 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
 	 */
 	if(upload_state == UPLOAD_STARTED)
 	{
+		/*
+		 * Animate flashing
+		 */
 		if(upload_pos % UPLOAD_STATUS_FREQUENCY < USB_SEGMENT_SIZE)
 		{
-			char str_progress[20];
-			sprintf(str_progress, "%dK of %dK", upload_pos / UPLOAD_STATUS_FREQUENCY, frame_length / UPLOAD_STATUS_FREQUENCY);
-			layout_standard_notification("Firmware Updating..", str_progress, NOTIFICATION_INFO);
+			animate();
 			display_refresh();
+			delay(3);
 		}
 
 		if(upload_pos - msg_size < FIRMWARE_HEADER_SIZE)
@@ -283,8 +283,6 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
 		if (upload_pos >= frame_length - 4)
 		{
 			flash_lock();
-			layout_standard_notification("Firmware Updating...", "Upload complete.  Reset KeepKey to continue.", NOTIFICATION_INFO);
-			display_refresh();
 			send_success("Upload complete");
 			upload_state = UPLOAD_COMPLETE;
 		}
