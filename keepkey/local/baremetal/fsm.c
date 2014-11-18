@@ -60,9 +60,6 @@ void fsm_sendSuccess(const char *text)
 
 void fsm_sendFailure(FailureType code, const char *text)
 {
-	layout_standard_notification("ERROR", "Unkown Message", NOTIFICATION_INFO);
-	display_refresh();
-
 	RESP_INIT(Failure);
 	resp->has_code = true;
 	resp->code = code;
