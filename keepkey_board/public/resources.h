@@ -51,7 +51,8 @@ typedef enum
     WIPE_ANIM,
     SAVING_ANIM,
 	FLASHING_ANIM,
-	SENDING_ANIM
+	SENDING_ANIM,
+	SIGNING_ANIM
 } AnimationResource;
 
 
@@ -62,6 +63,7 @@ const Image* get_wipe_background_image();
 const Image* get_saving_background_image();
 const Image* get_flashing_background_image();
 const Image* get_sending_background_image();
+const Image* get_signing_background_image();
 const Image* get_confirmed_image();
 const Image* get_unplug_image();
 
@@ -72,6 +74,7 @@ const ImageAnimation* get_saving_animation();
 const ImageAnimation* get_warning_animation();
 const ImageAnimation* get_flashing_animation();
 const ImageAnimation* get_sending_animation();
+const ImageAnimation* get_signing_animation();
 const ImageAnimation* get_boot_animation();
 
 const uint32_t get_image_animation_duration(const ImageAnimation* img_animation);
