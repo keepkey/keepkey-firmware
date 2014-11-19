@@ -23,6 +23,7 @@
 #include <usb_driver.h>
 #include <resources.h>
 #include <storage.h>
+#include <keepkey_usart.h>
 
 static void exec(void)
 {
@@ -37,6 +38,7 @@ int main(void)
 	 */
     board_init();
     set_red();
+    dbg_print("Application Version %d.%d\n\r", MAJOR_VERSION, MINOR_VERSION );
 
     /*
      * Show loading screen

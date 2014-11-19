@@ -156,7 +156,7 @@ def load_toolchain():
 
     debug = ARGUMENTS.get('debug', 0)
     if int(debug):
-        env['CCFLAGS'].append(['-g', '-Os'])
+        env['CCFLAGS'].append(['-g', '-Os', '-DUSART3_ON'])
     else:
         env['CCFLAGS'].append(['-Os', '-g'])
 

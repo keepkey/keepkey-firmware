@@ -40,6 +40,7 @@
 #include <keepkey_display.h>
 #include <keepkey_leds.h>
 #include <keepkey_button.h>
+#include <keepkey_usart.h>
 #include <timer.h>
 #include <layout.h>
 
@@ -114,6 +115,8 @@ static void configure_hw()
 
     timer_init();
 
+    usart_init();
+
     keepkey_leds_init();
 
     keepkey_button_init();
@@ -149,6 +152,8 @@ int main(int argc, char* argv[])
     set_green();
     set_red();
 
+    dbg_print("\n\rKeepKey LLC, Copyright (C) 2014\n\r");
+    dbg_print("BootLoader Version %d.%d\n\r", BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION);
 
 
     while(1)
