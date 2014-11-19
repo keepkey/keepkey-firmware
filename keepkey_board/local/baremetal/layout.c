@@ -373,6 +373,12 @@ void layout_loading(AnimationResource type)
 			loading_animation.base.x = 22;
 			loading_animation.base.y = 10;
 			break;
+    	case SIGNING_ANIM:
+			loading_animation.img_animation = get_signing_animation();
+			draw_bitmap_mono_rle(canvas, &sp, get_signing_background_image());
+			loading_animation.base.x = 15;
+			loading_animation.base.y = 20;
+			break;
     }
 
     layout_add_animation(
