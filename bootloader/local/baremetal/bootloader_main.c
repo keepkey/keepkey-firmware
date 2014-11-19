@@ -153,7 +153,7 @@ int main(int argc, char* argv[])
     set_red();
 
     dbg_print("\n\rKeepKey LLC, Copyright (C) 2014\n\r");
-    dbg_print("BootLoader Version %d.%d\n\r", BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION);
+    dbg_print("BootLoader Version %d.%d (%s)\n\r", BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION, __DATE__);
 
 
     while(1)
