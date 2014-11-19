@@ -269,8 +269,8 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
 				0);
 			break;
 		case NOTIFICATION_CONFIRM_ANIMATION:
-			icon.base.x = 220;
-			icon.base.y = 19;
+			icon.base.x = 213;
+			icon.base.y = 13;
 			icon.img_animation = get_confirming_animation();
 
 			layout_add_animation(
@@ -279,12 +279,12 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
 				get_image_animation_duration(icon.img_animation));
 			break;
 		case NOTIFICATION_CONFIRMED:
-			sp.x = 220;
-			sp.y = 19;
+			sp.x = 213;
+			sp.y = 13;
 			draw_bitmap_mono_rle(canvas, &sp, get_confirmed_image());
 			break;
 		case NOTIFICATION_UNPLUG:
-			sp.x = 213;
+			sp.x = 208;
 			sp.y = 21;
 			draw_bitmap_mono_rle(canvas, &sp, get_unplug_image());
 			break;
@@ -366,6 +366,12 @@ void layout_loading(AnimationResource type)
 			draw_bitmap_mono_rle(canvas, &sp, get_flashing_background_image());
 			loading_animation.base.x = 29;
 			loading_animation.base.y = 14;
+			break;
+    	case SENDING_ANIM:
+			loading_animation.img_animation = get_sending_animation();
+			draw_bitmap_mono_rle(canvas, &sp, get_sending_background_image());
+			loading_animation.base.x = 22;
+			loading_animation.base.y = 10;
 			break;
     }
 
