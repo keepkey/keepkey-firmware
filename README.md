@@ -93,17 +93,18 @@ $ ./b -s
 ```
 * Start J-Link IDE Debugger
     * Click "OK" for "Beta Version" pop up Window
-    * Select "Create a New Project 
-    * Select STM32F205RG for device in Target Device Window and click "Next" button to continue
+    * Select "Create a New Project" and click "Next" to continue 
+    * Select "STM32F205RG" for device in Target Device Window and click "Next" to continue
     * Select following settings in "Connection Setting Window" and click "Next" to continue
         * Target Interface = JTAG
         * Host Interface = USB
         * Target Interface Speed = 1 MHz
         * Serial No = <empty>
     * Select the desire "elf" (keepkey_main.elf or bootloader_main.elf) in "Data File" window.  
-        * Note : the files are located in the "build" directory
+        * Note : the files are located in "build" directory in source folder
         
-* Note : Since we are currently building the image in Linux machine and the debugger is running in Windows, the embedded location of the source code in "elf" files are not recognized by the j-link debug.  You will have to manually set the path as you debug the code 
+* Note : Since we are currently building the image with Linux machine and the debugger is running on Windows, the embedded location of the source code in "elf" 
+         files are not recognized by the j-link debug.  You will have to manually set the path as you debug the code. 
 
 ```
 ```
