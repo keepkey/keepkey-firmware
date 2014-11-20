@@ -89,6 +89,8 @@ $ ./b -s
 ###  Install J-Link IDE for JTAG IDE from Segger In Windows 7 Machine
 1. Install J-Link V4.94c  (Setup_JLink_V494c, Obtain from https://www.dropbox.com/home/KeepKey/tools/Windows%20tools/Segger)
 2. Install J-Link IDE Debugger (J-LinkDebugger_Setup_Windows_V167a, https://www.dropbox.com/home/KeepKey/tools/Windows%20tools/Segger)
+
+```
 $Start J-Link IDE Debugger
         $ Click "OK" on J-Link Debugger - Beta Version pop up Window
         $ Select "Create a New Project 
@@ -103,6 +105,7 @@ $Start J-Link IDE Debugger
         
 $Note : Since we are currently building the image in Linux machine and the debugger is running in Windows, the embedded location of the source code in "elf" files are not recognized by the j-link debug.  You will have to manually set the path as you debug the code 
 
+```
 ```
 ### (Obsolete) Install IDE (Eclipse Luna)
 
