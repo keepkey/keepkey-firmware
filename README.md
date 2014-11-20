@@ -107,7 +107,7 @@ $ ./b -s
          files are not recognized by the j-link debugger.  You will have to manually set the path as you debug the code. 
 
 ```
-```
+
 ### (Obsolete) Install IDE (Eclipse Luna)
 
 First, download Eclipse and decompress, then move it to /opt:
