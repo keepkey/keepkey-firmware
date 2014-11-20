@@ -94,7 +94,7 @@ $ ./b -s
 * Start J-Link IDE Debugger
     * Click "OK" for "Beta Version" pop up Window
     * Select "Create a New Project" and click "Next" to continue 
-    * Select "STM32F205RG" for device in Target Device Window and click "Next" to continue
+    * Select "STM32F205RG" for device in "Target Device Window" and click "Next" to continue
     * Select following settings in "Connection Setting Window" and click "Next" to continue
         * Target Interface = JTAG
         * Host Interface = USB
