@@ -104,7 +104,7 @@ $ ./b -s
         * Note : the files are located in "build" directory in source folder
         
 * Note : Since we are currently building the image with Linux machine and the debugger is running on Windows, the embedded location of the source code in "elf" 
-         files are not recognized by the j-link debug.  You will have to manually set the path as you debug the code. 
+         files are not recognized by the j-link debugger.  You will have to manually set the path as you debug the code. 
 
 ```
 ```
