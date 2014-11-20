@@ -92,7 +92,7 @@ $ ./b -s
 
 ```
 $Start J-Link IDE Debugger
-        $ Click "OK" on J-Link Debugger - Beta Version pop up Window
+        $ Click "OK" for "Beta Version" pop up Window
         $ Select "Create a New Project 
         $ Select STM32F205RG for device in Target Device Window and click "Next" button to continue
         $ Select following settings in "Connection Setting Window" and click "Next" to continue
