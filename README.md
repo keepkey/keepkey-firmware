@@ -91,19 +91,19 @@ $ ./b -s
 2. Install J-Link IDE Debugger (J-LinkDebugger_Setup_Windows_V167a, https://www.dropbox.com/home/KeepKey/tools/Windows%20tools/Segger)
 
 ```
-$Start J-Link IDE Debugger
-        $ Click "OK" for "Beta Version" pop up Window
-        $ Select "Create a New Project 
-        $ Select STM32F205RG for device in Target Device Window and click "Next" button to continue
-        $ Select following settings in "Connection Setting Window" and click "Next" to continue
-           $ Target Interface = JTAG
-           $ Host Interface = USB
-           $ Target Interface Speed = 1 MHz
-           $ Serial No = <empty>
-        $ Select the desire "elf" (keepkey_main.elf or bootloader_main.elf) in "Data File" window.  
-           $ Note : the files are located in the "build" directory
+* Start J-Link IDE Debugger
+    * Click "OK" for "Beta Version" pop up Window
+    * Select "Create a New Project 
+    * Select STM32F205RG for device in Target Device Window and click "Next" button to continue
+    * Select following settings in "Connection Setting Window" and click "Next" to continue
+        * Target Interface = JTAG
+        * Host Interface = USB
+        * Target Interface Speed = 1 MHz
+        * Serial No = <empty>
+    * Select the desire "elf" (keepkey_main.elf or bootloader_main.elf) in "Data File" window.  
+        * Note : the files are located in the "build" directory
         
-$Note : Since we are currently building the image in Linux machine and the debugger is running in Windows, the embedded location of the source code in "elf" files are not recognized by the j-link debug.  You will have to manually set the path as you debug the code 
+* Note : Since we are currently building the image in Linux machine and the debugger is running in Windows, the embedded location of the source code in "elf" files are not recognized by the j-link debug.  You will have to manually set the path as you debug the code 
 
 ```
 ```
