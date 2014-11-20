@@ -103,7 +103,7 @@ $Start J-Link IDE Debugger
         
 $Note : Since we are currently building the image in Linux machine and the debugger is running in Windows, the embedded location of the source code in "elf" files are not recognized by the j-link debug.  You will have to manually set the path as you debug the code 
 
-
+```
 ### (Obsolete) Install IDE (Eclipse Luna)
 
 First, download Eclipse and decompress, then move it to /opt:
