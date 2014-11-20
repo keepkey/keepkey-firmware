@@ -86,8 +86,25 @@ To build a release version, run the following command in the root of the reposit
 ```
 $ ./b -s
 ```
+###  Install J-Link IDE for JTAG IDE from Segger In Windows 7 Machine
+1. Install J-Link V4.94c  (Setup_JLink_V494c, Obtain from https://www.dropbox.com/home/KeepKey/tools/Windows%20tools/Segger)
+2. Install J-Link IDE Debugger (J-LinkDebugger_Setup_Windows_V167a, https://www.dropbox.com/home/KeepKey/tools/Windows%20tools/Segger)
+    Start J-Link IDE Debugger
+        * Click "OK" on J-Link Debugger - Beta Version pop up Window
+        * Select "Create a New Project 
+        * Select STM32F205RG for device in Target Device Window and click "Next" button to continue
+        * Select following settings in "Connection Setting Window" and click "Next" to continue
+            Target Interface = JTAG
+            Host Interface = USB
+            Target Interface Speed = 1 MHz
+            Serial No = <empty>
+        * Select the desire "elf" (keepkey_main.elf or bootloader_main.elf) in "Data File" window.  
+            Note : the files are located in the "build" directory
+        
 
-### Install IDE (Eclipse Luna)
+
+
+### (Obsolete) Install IDE (Eclipse Luna)
 
 First, download Eclipse and decompress, then move it to /opt:
 
