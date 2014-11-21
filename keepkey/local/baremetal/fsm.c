@@ -514,7 +514,7 @@ static const MessagesMap_t MessagesMap[] = {
 };
 
 static const RawMessagesMap_t RawMessagesMap[] = {
-	{0,0}
+	{0,0,0}
 };
 
 void fsm_init(void)

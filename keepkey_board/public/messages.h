@@ -42,6 +42,7 @@ typedef struct {
 } MessagesMap_t;
 
 typedef struct {
+	char dir; 	// i = in, o = out
     MessageType msg_id;
     void (*process_func)(uint8_t *msg, uint32_t msg_size, uint32_t frame_length);
 } RawMessagesMap_t;

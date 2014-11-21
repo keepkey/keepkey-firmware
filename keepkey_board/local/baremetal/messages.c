@@ -61,7 +61,7 @@ static msg_failure_t msg_failure;
 const MessagesMap_t* message_map_entry(MessageType type)
 {
     const MessagesMap_t *m = MessagesMap;
-    while(m->msg_id) {
+    while(m->dir) {
         if(type == m->msg_id)
         {
             return m;
@@ -78,7 +78,7 @@ const MessagesMap_t* message_map_entry(MessageType type)
 const RawMessagesMap_t* raw_message_map_entry(MessageType type)
 {
     const RawMessagesMap_t *m = RawMessagesMap;
-    while(m->msg_id) {
+    while(m->dir) {
         if(type == m->msg_id)
         {
             return m;
@@ -94,7 +94,7 @@ const pb_field_t *message_fields(MessageType type)
     assert(MessagesMap != NULL);
 
     const MessagesMap_t *m = MessagesMap;
-    while (m->msg_id) {
+    while (m->dir) {
         if (type == m->msg_id) {
             return m->fields;
         }

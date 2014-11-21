@@ -102,7 +102,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 	memset(out, 0, sizeof(TxOutputBinType));
 	out->amount = in->amount;
 
-	if (in->script_type == ScriptType_PAYTOADDRESS) {
+	if (in->script_type == OutputScriptType_PAYTOADDRESS) {
 		out->script_pubkey.bytes[0] = 0x76; // OP_DUP
 		out->script_pubkey.bytes[1] = 0xA9; // OP_HASH_160
 		out->script_pubkey.bytes[2] = 0x14; // pushing 20 bytes
@@ -117,7 +117,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		return 25;
 	}
 
-	if (in->script_type == ScriptType_PAYTOSCRIPTHASH) {
+	if (in->script_type == OutputScriptType_PAYTOSCRIPTHASH) {
 		out->script_pubkey.bytes[0] = 0xA9; // OP_HASH_160
 		out->script_pubkey.bytes[1] = 0x14; // pushing 20 bytes
 		uint8_t decoded[21];
