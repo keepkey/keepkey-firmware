@@ -36,7 +36,6 @@ typedef enum
     NOTIFICATION_CONFIRMED
 } NotificationType;
 
-
 //=============================== VARIABLES ===================================
 
 
@@ -54,7 +53,7 @@ void layout_init( Canvas* canvas);
 ///
 /// @TODO Have some personalization here?
 //-----------------------------------------------------------------------------
-void layout_home( void);
+void layout_home(void);
 
 
 //-----------------------------------------------------------------------------
