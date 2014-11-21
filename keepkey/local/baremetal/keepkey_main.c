@@ -45,17 +45,6 @@ int main(void)
      */
     layout_intro();
 
-	while(is_animating()){
-		animate();
-		display_refresh();
-	}
-
-	/*
-	 * Show home
-	 */
-    layout_home();
-    display_refresh();
-
     /*
      * Init storage
      */
