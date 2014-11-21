@@ -112,7 +112,7 @@ static volatile bool animate_flag = false;
 /*
  * Standard time to wait for the confirmation.
  */
-static const uint32_t STANDARD_CONFIRM_MS = 2000; 
+static const uint32_t STANDARD_CONFIRM_MS = 2000;
 
 
 //====================== PRIVATE FUNCTION DECLARATIONS ========================
@@ -206,14 +206,27 @@ void layout_init(Canvas* new_canvas)
 // See layout.h for public interface.
 //
 void layout_home(void)
-{    
+{
     layout_clear();
 
     DrawableParams sp;
     sp.x = 0;
     sp.y = 0;
 
-    draw_bitmap_mono_rle(canvas, &sp, get_home_image());
+    static AnimationImageDrawableParams logo;
+    logo.base.x = 104;
+    logo.base.y = 12;
+    logo.img_animation = get_logo_animation();
+
+    layout_add_animation(
+		&layout_animate_images,
+		(void*)&logo,
+		get_image_animation_duration(logo.img_animation));
+
+    while(is_animating()){
+		animate();
+		display_refresh();
+	}
 }
 
 
@@ -254,14 +267,23 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
     draw_string(canvas, body_font, str2, &sp, BODY_WIDTH, font_height(body_font) + 1);
 
     /*
+     * Confirm text
+     */
+    sp.y = 46;
+	sp.x = 215;
+	sp.color = 0x99;
+
+    /*
      * Determine animation/icon to show
      */
     static AnimationImageDrawableParams icon;
     switch(type){
     	case NOTIFICATION_REQUEST:
-    		icon.base.x = 213;
-			icon.base.y = 13;
+    		icon.base.x = 211;
+			icon.base.y = 0;
 			icon.img_animation = get_confirm_icon_animation();
+
+			draw_string(canvas, body_font, "confirm", &sp, BODY_WIDTH, font_height(body_font) + 1);
 
 			layout_add_animation(
 				&layout_animate_images,
@@ -269,9 +291,11 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
 				0);
 			break;
 		case NOTIFICATION_CONFIRM_ANIMATION:
-			icon.base.x = 213;
+			icon.base.x = 217;
 			icon.base.y = 13;
 			icon.img_animation = get_confirming_animation();
+
+			draw_string(canvas, body_font, "confirm", &sp, BODY_WIDTH, font_height(body_font) + 1);
 
 			layout_add_animation(
 				&layout_animate_images,
@@ -279,7 +303,10 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
 				get_image_animation_duration(icon.img_animation));
 			break;
 		case NOTIFICATION_CONFIRMED:
-			sp.x = 213;
+			sp.x = 209;
+			draw_string(canvas, body_font, "confirmed", &sp, BODY_WIDTH, font_height(body_font) + 1);
+
+			sp.x = 217;
 			sp.y = 13;
 			draw_bitmap_mono_rle(canvas, &sp, get_confirmed_image());
 			break;
@@ -335,6 +362,11 @@ void layout_intro()
 		&layout_animate_images,
 		(void*)&intro_animation,
 		get_image_animation_duration(intro_animation.img_animation));
+
+	while(is_animating()){
+		animate();
+		display_refresh();
+	}
 }
 
 void layout_loading(AnimationResource type)
