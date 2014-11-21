@@ -238,16 +238,6 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
 	 */
 	if(upload_state == UPLOAD_STARTED)
 	{
-		/*
-		 * Animate flashing
-		 */
-		if(upload_pos % UPLOAD_STATUS_FREQUENCY < USB_SEGMENT_SIZE)
-		{
-			animate();
-			display_refresh();
-			delay(3);
-		}
-
 		if(upload_pos - msg_size < FIRMWARE_HEADER_SIZE)
 		{
 			/*
