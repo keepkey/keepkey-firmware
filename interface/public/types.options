@@ -1,26 +1,28 @@
-HDNodeType.chain_code		max_size:32
-HDNodeType.private_key		max_size:32
-HDNodeType.public_key		max_size:33
 
-CoinType.coin_name		max_size:17
-CoinType.coin_shortcut		max_size:9
+HDNodeType.chain_code			max_size:32
+HDNodeType.private_key			max_size:32
+HDNodeType.public_key			max_size:33
 
-TxInputType.address_n		max_count:8
-TxInputType.prev_hash		max_size:32
-TxInputType.script_sig		max_size:256
+CoinType.coin_name			max_size:17
+CoinType.coin_shortcut			max_size:9
 
-TxOutputType.address		max_size:35
-TxOutputType.address_n		max_count:8
-TxOutputType.script_args	max_count:3
-TxOutputType.script_args	max_size:16
+TxInputType.address_n			max_count:8
+TxInputType.prev_hash			max_size:32
+TxInputType.script_sig			max_size:520
 
-TxOutputBinType.script_pubkey	max_size:256
+TxOutputType.address			max_size:35
+TxOutputType.address_n			max_count:8
 
-TransactionType.inputs		max_count:8
-TransactionType.bin_outputs	max_count:4
-TransactionType.outputs		max_count:4
+TxOutputBinType.script_pubkey		max_size:520
 
-TxRequestDetailsType.tx_hash	max_size:32
+TransactionType.inputs			max_count:1
+TransactionType.bin_outputs		max_count:1
+TransactionType.outputs			max_count:1
+
+TxRequestDetailsType.tx_hash		max_size:32
 
 TxRequestSerializedType.signature	max_size:80
 TxRequestSerializedType.serialized_tx	max_size:1024
+
+//TODO:MultisigRedeemScriptType.pubkeys	max_count:5 max_size:65
+//TODO:MultisigRedeemScriptType.signatures	max_count:4 max_size:80

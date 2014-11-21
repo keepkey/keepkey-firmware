@@ -1,8 +1,10 @@
-/**
- * Messages for TREZOR communication
+/*
+ * Messages for KeepKey Communication
  *
- * @author	Marek Palatinus <slush@satoshilabs.com>
- * @version	0.6
+ * @trezor_author	Marek Palatinus <slush@satoshilabs.com>
+ * @trezor_version	1.2
+ * @keepkey_author 	Darin Stanchfield
+ * @keepkey_version	1.0
  */
 
 // Sugar for easier handling in Java
@@ -15,12 +17,14 @@ import "types.proto";
  * Mapping between Trezor wire identifier (uint) and a protobuf message
  */
 enum MessageType {
-	MessageType_Initialize = 1 [(wire_in) = true];
-	MessageType_Ping = 2 [(wire_in) = true];
-	MessageType_Success = 3 [(wire_out) = true];
-	MessageType_Failure = 4 [(wire_out) = true];
-	MessageType_ChangePin = 5 [(wire_in) = true];
-	MessageType_WipeDevice = 6 [(wire_in) = true];
+	MessageType_Initialize = 0 [(wire_in) = true];
+	MessageType_Ping = 1 [(wire_in) = true];
+	MessageType_Success = 2 [(wire_out) = true];
+	MessageType_Failure = 3 [(wire_out) = true];
+	MessageType_ChangePin = 4 [(wire_in) = true];
+	MessageType_WipeDevice = 5 [(wire_in) = true];
+	MessageType_FirmwareErase = 6 [(wire_in) = true];
+	MessageType_FirmwareUpload = 7 [(wire_in) = true];
 	MessageType_GetEntropy = 9 [(wire_in) = true];
 	MessageType_Entropy = 10 [(wire_out) = true];
 	MessageType_GetPublicKey = 11 [(wire_in) = true];
@@ -35,6 +39,9 @@ enum MessageType {
 	MessageType_Cancel = 20 [(wire_in) = true];
 	MessageType_TxRequest = 21 [(wire_out) = true];
 	MessageType_TxAck = 22 [(wire_in) = true];
+	//TODO:MessageType_CipherKeyValue = 23 [(wire_in) = true];
+	//TODO:MessageType_CipheredKeyValue = 48 [(wire_out) = true];
+	//TODO:MessageType_ClearSession = 24 [(wire_in) = true];
 	MessageType_ApplySettings = 25 [(wire_in) = true];
 	MessageType_ButtonRequest = 26 [(wire_out) = true];
 	MessageType_ButtonAck = 27 [(wire_in) = true];
@@ -45,6 +52,10 @@ enum MessageType {
 	MessageType_SignMessage = 38 [(wire_in) = true];
 	MessageType_VerifyMessage = 39 [(wire_in) = true];
 	MessageType_MessageSignature = 40 [(wire_out) = true];
+	//TODO:MessageType_EncryptMessage = 49 [(wire_in) = true];
+	//TODO:MessageType_EncryptedMessage = 50 [(wire_out) = true];
+	//TODO:MessageType_DecryptMessage = 51 [(wire_in) = true];
+	//TODO:MessageType_DecryptedMessage = 52 [(wire_out) = true];
 	MessageType_PassphraseRequest = 41 [(wire_out) = true];
 	MessageType_PassphraseAck = 42 [(wire_in) = true];
 	MessageType_EstimateTxSize = 43 [(wire_in) = true];
@@ -52,8 +63,11 @@ enum MessageType {
 	MessageType_RecoveryDevice = 45 [(wire_in) = true];
 	MessageType_WordRequest = 46 [(wire_out) = true];
 	MessageType_WordAck = 47 [(wire_in) = true];
-	MessageType_FirmwareUpload = 48 [(wire_in) = true];
-	MessageType_FirmwareErase = 49 [(wire_in) = true];
+	//TODO:MessageType_DebugLinkDecision = 100 [(wire_debug_in) = true];
+	//TODO:MessageType_DebugLinkGetState = 101 [(wire_debug_in) = true];
+	//TODO:MessageType_DebugLinkState = 102 [(wire_debug_out) = true];
+	//TODO:MessageType_DebugLinkStop = 103 [(wire_debug_in) = true];
+	//TODO:MessageType_DebugLinkLog = 104 [(wire_debug_out) = true];
 }
 
 ////////////////////
@@ -86,7 +100,15 @@ message Features {
 	optional bool initialized = 12;			// does device contain seed?
 	optional bytes revision = 13;			// SCM revision of firmware
 	optional bytes bootloader_hash = 14;		// hash of the bootloader
+	optional bool imported = 15;			// was storage imported from an external source?
 }
+
+/**
+ * Request: clear session (removes cached PIN, passphrase, etc).
+ * @next Success
+ */
+/*TODO:message ClearSession {
+}*/
 
 /**
  * Request: change language and/or label of the device
@@ -228,6 +250,7 @@ message GetPublicKey {
  */
 message PublicKey {
 	required HDNodeType node = 1;		// BIP32 public node
+	//TODO:optional string xpub = 2;		// serialized form of public node
 }
 
 /**
@@ -239,6 +262,7 @@ message PublicKey {
 message GetAddress {
 	repeated uint32 address_n = 1;		// BIP-32 path to derive the key from master node
 	optional string coin_name = 2 [default='Bitcoin'];
+	//TODO:optional bool show_display = 3;
 }
 
 /**
@@ -372,6 +396,76 @@ message MessageSignature {
 	optional bytes signature = 2;				// signature of the message
 }
 
+///////////////////////////
+// Encryption/decryption //
+///////////////////////////
+
+/**
+ * Request: Ask device to encrypt message
+ * @next EncryptedMessage
+ * @next Failure
+ */
+/*TODO:message EncryptMessage {
+	optional bytes pubkey = 1;				// public key
+	optional bytes message = 2;				// message to encrypt
+	optional bool display_only = 3;				// show just on display? (don't send back via wire)
+	repeated uint32 address_n = 4;				// BIP-32 path to derive the signing key from master node
+	optional string coin_name = 5 [default='Bitcoin'];	// coin to use for signing
+}*/
+
+/**
+ * Response: Encrypted message
+ * @prev EncryptMessage
+ */
+/*TODO:message EncryptedMessage {
+	optional bytes nonce = 1;				// nonce used during encryption
+	optional bytes message = 2;				// encrypted message
+	optional bytes hmac = 3;				// message hmac
+}*/
+
+/**
+ * Request: Ask device to decrypt message
+ * @next Success
+ * @next Failure
+ */
+/*TODO:message DecryptMessage {
+	repeated uint32 address_n = 1;				// BIP-32 path to derive the decryption key from master node
+	optional bytes nonce = 2;				// nonce used during encryption
+	optional bytes message = 3;				// message to decrypt
+	optional bytes hmac = 4;				// message hmac
+}*/
+
+/**
+ * Response: Decrypted message
+ * @prev DecryptedMessage
+ */
+/*TODO:message DecryptedMessage {
+	optional bytes message = 1;				// decrypted message
+	optional string address = 2;				// address used to sign the message (if used)
+}*/
+
+/**
+ * Request: Ask device to encrypt or decrypt value of given key
+ * @next CipheredKeyValue
+ * @next Failure
+ */
+/*TODO:message CipherKeyValue {
+	repeated uint32 address_n = 1;		// BIP-32 path to derive the key from master node
+	optional string key = 2;		// key component of key:value
+	optional bytes value = 3;		// value component of key:value
+	optional bool encrypt = 4;		// are we encrypting (True) or decrypting (False)?
+	optional bool ask_on_encrypt = 5;	// should we ask on encrypt operation?
+	optional bool ask_on_decrypt = 6;	// should we ask on decrypt operation?
+}*/
+
+/**
+ * Response: Return ciphered/deciphered value
+ * @prev CipherKeyValue
+ */
+/*TODO:message CipheredKeyValue {
+	optional bytes value = 1;		// ciphered/deciphered value
+}*/
+
 //////////////////////////////////
 // Transaction signing messages //
 //////////////////////////////////
@@ -435,7 +529,7 @@ message SimpleSignTx {
  * @prev TxAck
  */
 message TxRequest {
-	optional RequestType request_type = 1;		// what should be filled in TxAck message?
+	optional RequestType request_type = 1;			// what should be filled in TxAck message?
 	optional TxRequestDetailsType details = 2;		// request for tx details
 	optional TxRequestSerializedType serialized = 3;	// serialized data and request for next
 }
@@ -467,6 +561,56 @@ message FirmwareErase {
  * @next Failure
  */
 message FirmwareUpload {
-	required bytes payload = 1;	
+	required bytes payload = 1;			// firmware to be loaded into device
 }
 
+/////////////////////////////////////////////////////////////
+// Debug messages (only available if DebugLink is enabled) //
+/////////////////////////////////////////////////////////////
+
+/**
+ * Request: "Press" the button on the device
+ * @next Success
+ */
+/*TODO:message DebugLinkDecision {
+	required bool yes_no = 1;			// true for "Confirm", false for "Cancel"
+}*/
+
+/**
+ * Request: Computer asks for device state
+ * @next DebugLinkState
+ */
+/*TODO:message DebugLinkGetState {
+}*/
+
+/**
+ * Response: Device current state
+ * @prev DebugLinkGetState
+ */
+/*TODO:message DebugLinkState {
+	optional bytes layout = 1;			// raw buffer of display
+	optional string pin = 2;			// current PIN, blank if PIN is not set/enabled
+	optional string matrix = 3;			// current PIN matrix
+	optional string mnemonic = 4;			// current BIP-39 mnemonic
+	optional HDNodeType node = 5;			// current BIP-32 node
+	optional bool passphrase_protection = 6;	// is node/mnemonic encrypted using passphrase?
+	optional string reset_word = 7;			// word on device display during ResetDevice workflow
+	optional bytes reset_entropy = 8;		// current entropy during ResetDevice workflow
+	optional string recovery_fake_word = 9;		// (fake) word on display during RecoveryDevice workflow
+	optional uint32 recovery_word_pos = 10;		// index of mnemonic word the device is expecting during RecoveryDevice workflow
+}*/
+
+/**
+ * Request: Ask device to restart
+ */
+/*TODO:message DebugLinkStop {
+}*/
+
+/**
+ * Response: Device wants host to log event
+ */
+/*TODO:message DebugLinkLog {
+	optional uint32 level = 1;
+	optional string bucket = 2;
+	optional string text = 3;
+}*/
