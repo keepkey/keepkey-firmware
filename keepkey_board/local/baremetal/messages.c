@@ -187,11 +187,12 @@ void handle_usb_rx(UsbMessage *msg)
     }
 
     /*
-	 * Frame content buffer, position, and size
+	 * Frame content buffer, position, size, and frame tracking
 	 */
 	static TrezorFrameBuffer framebuf;
 	static uint32_t content_pos = 0;
 	static uint32_t content_size = 0;
+	static bool mid_frame = false;
 
 	/*
 	 * Current segment content
@@ -208,7 +209,7 @@ void handle_usb_rx(UsbMessage *msg)
         .len = 0
     };
 
-    if(frame->header.pre1 == '#' && frame->header.pre2 == '#')
+    if(frame->header.pre1 == '#' && frame->header.pre2 == '#' && !mid_frame)
     {
         /*
          * Byte swap in place.
@@ -223,6 +224,11 @@ void handle_usb_rx(UsbMessage *msg)
 		 */
 		content_pos = msg->len - 9;
 		content_size = content_pos;
+
+		/*
+		 * Set to be mid frame
+		 */
+		mid_frame = true;
     } else {
     	contents = ((TrezorFrameFragment*)msg->message)->contents;
 
@@ -281,7 +287,10 @@ void handle_usb_rx(UsbMessage *msg)
 	 * Last segment
 	 */
 	if(content_pos >= last_frame_header.len)
+	{
 		content_pos = 0;
+		mid_frame = false;
+	}
 }
 
 void msg_map_init(const void* map, MessageMapType type)
