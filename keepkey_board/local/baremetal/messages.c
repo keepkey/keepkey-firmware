@@ -273,6 +273,8 @@ void handle_usb_rx(UsbMessage *msg)
     	++msg_stats.unknown_dispatch_entry;
 
     	(*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message");
+
+    	mid_frame = false;
     	return;
     }
 
