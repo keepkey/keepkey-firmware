@@ -271,7 +271,7 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
      */
     sp.y = 46;
 	sp.x = 215;
-	sp.color = 0x99;
+	sp.color = 0x66;
 
     /*
      * Determine animation/icon to show
