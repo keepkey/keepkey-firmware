@@ -263,7 +263,7 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
 				}
 			} else {
 				++stats.invalid_offset_ct;
-				send_failure(FailureType_Failure_UnexpectedMessage, "Upload overflow");
+				send_failure(FailureType_Failure_FirmwareError, "Upload overflow");
 			}
 		}
 
