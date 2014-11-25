@@ -1,6 +1,6 @@
 /**
- * Copyright (c) 2013 Tomas Dzetkulic
- * Copyright (c) 2013 Pavol Rusnak
+ * Copyright (c) 2013-2014 Tomas Dzetkulic
+ * Copyright (c) 2013-2014 Pavol Rusnak
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the "Software"),
@@ -31,6 +31,14 @@
 #include "ripemd160.h"
 #include "hmac.h"
 #include "ecdsa.h"
+#include "base58.h"
+
+// Set cp2 = cp1
+void point_copy(const curve_point *cp1, curve_point *cp2)
+{
+	memcpy(&(cp2->x),  &(cp1->x), sizeof(bignum256));
+	memcpy(&(cp2->y),  &(cp1->y), sizeof(bignum256));
+}
 
 // cp2 = cp1 + cp2
 void point_add(const curve_point *cp1, curve_point *cp2)
@@ -38,6 +46,23 @@ void point_add(const curve_point *cp1, curve_point *cp2)
 	int i;
 	uint32_t temp;
 	bignum256 lambda, inv, xr, yr;
+
+	if (point_is_infinity(cp1)) {
+		return;
+	}
+	if (point_is_infinity(cp2)) {
+		point_copy(cp1, cp2);
+		return;
+	}
+	if (point_is_equal(cp1, cp2)) {
+		point_double(cp2);
+		return;
+	}
+	if (point_is_negative_of(cp1, cp2)) {
+		point_set_infinity(cp2);
+		return;
+	}
+
 	bn_substract(&(cp2->x), &(cp1->x), &inv);
 	bn_inverse(&inv, &prime256k1);
 	bn_substract(&(cp2->y), &(cp1->y), &lambda);
@@ -59,6 +84,8 @@ void point_add(const curve_point *cp1, curve_point *cp2)
 	bn_fast_mod(&yr, &prime256k1);
 	memcpy(&(cp2->x), &xr, sizeof(bignum256));
 	memcpy(&(cp2->y), &yr, sizeof(bignum256));
+	bn_mod(&(cp2->x), &prime256k1);
+	bn_mod(&(cp2->y), &prime256k1);
 }
 
 // cp = cp + cp
@@ -67,6 +94,15 @@ void point_double(curve_point *cp)
 	int i;
 	uint32_t temp;
 	bignum256 lambda, inverse_y, xr, yr;
+
+	if (point_is_infinity(cp)) {
+		return;
+	}
+	if (bn_is_zero(&(cp->y))) {
+		point_set_infinity(cp);
+		return;
+	}
+
 	memcpy(&inverse_y, &(cp->y), sizeof(bignum256));
 	bn_inverse(&inverse_y, &prime256k1);
 	memcpy(&lambda, &three_over_two256k1, sizeof(bignum256));
@@ -90,6 +126,8 @@ void point_double(curve_point *cp)
 	bn_fast_mod(&yr, &prime256k1);
 	memcpy(&(cp->x), &xr, sizeof(bignum256));
 	memcpy(&(cp->y), &yr, sizeof(bignum256));
+	bn_mod(&(cp->x), &prime256k1);
+	bn_mod(&(cp->y), &prime256k1);
 }
 
 // res = k * p
@@ -115,51 +153,85 @@ void point_multiply(const bignum256 *k, const curve_point *p, curve_point *res)
 			point_double(&curr);
 		}
 	}
-	bn_mod(&(res->x), &prime256k1);
-	bn_mod(&(res->y), &prime256k1);
+}
+
+// set point to internal representation of point at infinity
+void point_set_infinity(curve_point *p)
+{
+	bn_zero(&(p->x));
+	bn_zero(&(p->y));
+}
+
+// return true iff p represent point at infinity
+// both coords are zero in internal representation
+int point_is_infinity(const curve_point *p)
+{
+	return bn_is_zero(&(p->x)) && bn_is_zero(&(p->y));
+}
+
+// return true iff both points are equal
+int point_is_equal(const curve_point *p, const curve_point *q)
+{
+	return bn_is_equal(&(p->x), &(q->x)) && bn_is_equal(&(p->y), &(q->y));
+}
+
+// returns true iff p == -q
+// expects p and q be valid points on curve other than point at infinity
+int point_is_negative_of(const curve_point *p, const curve_point *q)
+{
+	// if P == (x, y), then -P would be (x, -y) on this curve
+	if (!bn_is_equal(&(p->x), &(q->x))) {
+		return 0;
+	}
+	
+	// we shouldn't hit this for a valid point
+	if (bn_is_zero(&(p->y))) {
+		return 0;
+	}
+	
+	return !bn_is_equal(&(p->y), &(q->y));
 }
 
 // res = k * G
 void scalar_multiply(const bignum256 *k, curve_point *res)
 {
-	int i, j;
+	int i;
 	// result is zero
 	int is_zero = 1;
-#if USE_PRECOMPUTED_CP
-	int exp = 0;
-#else
 	curve_point curr;
 	// initial res
 	memcpy(&curr, &G256k1, sizeof(curve_point));
-#endif
-	for (i = 0; i < 9; i++) {
-		for (j = 0; j < 30; j++) {
-			if (i == 8 && (k->val[i] >> j) == 0) break;
-			if (k->val[i] & (1u << j)) {
-				if (is_zero) {
+	for (i = 0; i < 256; i++) {
+		if (k->val[i / 30] & (1u << (i % 30))) {
+			if (is_zero) {
 #if USE_PRECOMPUTED_CP
-					memcpy(res, secp256k1_cp + exp, sizeof(curve_point));
-#else
-					memcpy(res, &curr, sizeof(curve_point));
-#endif
-					is_zero = 0;
+				if (i < 255 && (k->val[(i + 1) / 30] & (1u << ((i + 1) % 30)))) {
+					memcpy(res, secp256k1_cp2 + i, sizeof(curve_point));
+					i++;
 				} else {
-#if USE_PRECOMPUTED_CP
-					point_add(secp256k1_cp + exp, res);
-#else
-					point_add(&curr, res);
-#endif
+					memcpy(res, secp256k1_cp + i, sizeof(curve_point));
 				}
-			}
-#if USE_PRECOMPUTED_CP
-			exp++;
 #else
-			point_double(&curr);
+				memcpy(res, &curr, sizeof(curve_point));
 #endif
+				is_zero = 0;
+			} else {
+#if USE_PRECOMPUTED_CP
+				if (i < 255 && (k->val[(i + 1) / 30] & (1u << ((i + 1) % 30)))) {
+					point_add(secp256k1_cp2 + i, res);
+					i++;
+				} else {
+					point_add(secp256k1_cp + i, res);
+				}
+#else
+				point_add(&curr, res);
+#endif
+			}
 		}
+#if ! USE_PRECOMPUTED_CP
+		point_double(&curr);
+#endif
 	}
-	bn_mod(&(res->x), &prime256k1);
-	bn_mod(&(res->y), &prime256k1);
 }
 
 // generate random K for signing
@@ -271,12 +343,7 @@ int ecdsa_sign_digest(const uint8_t *priv_key, const uint8_t *digest, uint8_t *s
 	// r = (rx mod n)
 	bn_mod(&R.x, &order256k1);
 	// if r is zero, we fail
-	for (i = 0; i < 9; i++) {
-		if (R.x.val[i] != 0) break;
-	}
-	if (i == 9) {
-		return 2;
-	}
+	if (bn_is_zero(&R.x)) return 2;
 	bn_inverse(&k, &order256k1);
 	bn_read_be(priv_key, da);
 	bn_multiply(&R.x, da, &order256k1);
@@ -288,13 +355,8 @@ int ecdsa_sign_digest(const uint8_t *priv_key, const uint8_t *digest, uint8_t *s
 	da->val[8] += z.val[8];
 	bn_multiply(da, &k, &order256k1);
 	bn_mod(&k, &order256k1);
-	for (i = 0; i < 9; i++) {
-		if (k.val[i] != 0) break;
-	}
 	// if k is zero, we fail
-	if (i == 9) {
-		return 3;
-	}
+	if (bn_is_zero(&k)) return 3;
 
 	// if S > order/2 => S = -S
 	if (bn_is_less(&order256k1_half, &k)) {
@@ -336,89 +398,42 @@ void ecdsa_get_public_key65(const uint8_t *priv_key, uint8_t *pub_key)
 void ecdsa_get_pubkeyhash(const uint8_t *pub_key, uint8_t *pubkeyhash)
 {
 	uint8_t h[32];
-	if (pub_key[0] == 0x04) {
+	if (pub_key[0] == 0x04) {  // uncompressed format
 		sha256_Raw(pub_key, 65, h);
+	} else if (pub_key[0] == 0x00) { // point at infinity
+		sha256_Raw(pub_key, 1, h);
 	} else {
-		sha256_Raw(pub_key, 33, h);
+		sha256_Raw(pub_key, 33, h); // expecting compressed format
 	}
 	ripemd160(h, 32, pubkeyhash);
 }
 
+void ecdsa_get_address_raw(const uint8_t *pub_key, uint8_t version, uint8_t *addr_raw)
+{
+	addr_raw[0] = version;
+	ecdsa_get_pubkeyhash(pub_key, addr_raw + 1);
+}
+
 void ecdsa_get_address(const uint8_t *pub_key, uint8_t version, char *addr)
 {
-	const char code[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-	char *p = addr, s;
-	uint8_t a[32], b[21];
-	uint32_t r;
-	bignum256 c;
-	int i, l;
+	uint8_t raw[21];
+	ecdsa_get_address_raw(pub_key, version, raw);
+	base58_encode_check(raw, 21, addr);
+}
 
-	b[0] = version;
-	ecdsa_get_pubkeyhash(pub_key, b + 1);
-
-	sha256_Raw(b, 21, a);
-	sha256_Raw(a, 32, a);
-
-	memcpy(a + 28, a, 4); // checksum
-	memset(a, 0, 7);      // zeroes
-	memcpy(a + 7, b, 21); // ripemd160(sha256(version + pubkey)
-
-	bn_read_be(a, &c);
-
-	while (!bn_is_zero(&c)) {
-		bn_divmod58(&c, &r);
-		*p = code[r];
-		p++;
-	}
-
-	i = 7;
-	while (a[i] == 0) {
-		*p = code[0];
-		p++; i++;
-	}
-
-	*p = 0;
-
-	l = strlen(addr);
-
-	for (i = 0; i < l / 2; i++) {
-		s = addr[i];
-		addr[i] = addr[l - 1 - i];
-		addr[l - 1 - i] = s;
-	}
+void ecdsa_get_wif(const uint8_t *priv_key, uint8_t version, char *wif)
+{
+	uint8_t data[34];
+	data[0] = version;
+	memcpy(data + 1, priv_key, 32);
+	data[33 ] = 0x01;
+	base58_encode_check(data, 34, wif);
 }
 
 int ecdsa_address_decode(const char *addr, uint8_t *out)
 {
 	if (!addr) return 0;
-	const char code[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-	bignum256 num;
-	uint8_t buf[32], check[32];
-	bn_zero(&num);
-	uint32_t k;
-	size_t i;
-	for (i = 0; i < strlen(addr); i++) {
-		bn_muli(&num, 58);
-		for (k = 0; k <= strlen(code); k++) {
-			if (code[k] == 0) { // char not found -> invalid address
-				return 0;
-			}
-			if (addr[i] == code[k]) {
-				bn_addi(&num, k);
-				break;
-			}
-		}
-	}
-	bn_write_be(&num, buf);
-	// compute address hash
-	sha256_Raw(buf + 7, 21, check);
-	sha256_Raw(check, 32, check);
-	// check if valid
-	if (memcmp(buf + 7 + 21, check, 4) != 0) {
-		return 0;
-	}
-	memcpy(out, buf + 7, 21);
-	return 1;
+	return base58_decode_check(addr, out) == 21;
 }
 
 void uncompress_coords(uint8_t odd, const bignum256 *x, bignum256 *y)
@@ -439,15 +454,67 @@ int ecdsa_read_pubkey(const uint8_t *pub_key, curve_point *pub)
 	if (pub_key[0] == 0x04) {
 		bn_read_be(pub_key + 1, &(pub->x));
 		bn_read_be(pub_key + 33, &(pub->y));
+#if USE_PUBKEY_VALIDATE
+		return ecdsa_validate_pubkey(pub);
+#else
 		return 1;
+#endif
 	}
 	if (pub_key[0] == 0x02 || pub_key[0] == 0x03) { // compute missing y coords
 		bn_read_be(pub_key + 1, &(pub->x));
 		uncompress_coords(pub_key[0], &(pub->x), &(pub->y));
+#if USE_PUBKEY_VALIDATE
+		return ecdsa_validate_pubkey(pub);
+#else
 		return 1;
+#endif
 	}
 	// error
 	return 0;
+}
+
+// Verifies that:
+//   - pub is not the point at infinity.
+//   - pub->x and pub->y are in range [0,p-1].
+//   - pub is on the curve.
+//   - n*pub is the point at infinity.
+
+int ecdsa_validate_pubkey(const curve_point *pub)
+{
+	bignum256 y_2, x_3_b;
+	curve_point temp;
+
+	if (point_is_infinity(pub)) {
+		return 0;
+	}
+
+	if (!bn_is_less(&(pub->x), &prime256k1) || !bn_is_less(&(pub->y), &prime256k1)) {
+		return 0;
+	}
+
+	memcpy(&y_2, &(pub->y), sizeof(bignum256));
+	memcpy(&x_3_b, &(pub->x), sizeof(bignum256));
+
+	// y^2
+	bn_multiply(&(pub->y), &y_2, &prime256k1);
+	bn_mod(&y_2, &prime256k1);
+
+	// x^3 + b
+	bn_multiply(&(pub->x), &x_3_b, &prime256k1);
+	bn_multiply(&(pub->x), &x_3_b, &prime256k1);
+	bn_addmodi(&x_3_b, 7, &prime256k1);
+
+	if (!bn_is_equal(&x_3_b, &y_2)) {
+		return 0;
+	}
+
+	point_multiply(&order256k1, pub, &temp);
+
+	if (!point_is_infinity(&temp)) {
+		return 0;
+	}
+
+	return 1;
 }
 
 // uses secp256k1 curve
@@ -472,7 +539,6 @@ int ecdsa_verify_double(const uint8_t *pub_key, const uint8_t *sig, const uint8_
 }
 
 // returns 0 if verification succeeded
-// it is assumed that public key is valid otherwise calling this does not make much sense
 int ecdsa_verify_digest(const uint8_t *pub_key, const uint8_t *sig, const uint8_t *digest)
 {
 	int i, j;
@@ -510,28 +576,16 @@ int ecdsa_verify_digest(const uint8_t *pub_key, const uint8_t *sig, const uint8_
 		for (j = 0; j < 30; j++) {
 			if (i == 8 && (s.val[i] >> j) == 0) break;
 			if (s.val[i] & (1u << j)) {
-				bn_mod(&(pub.y), &prime256k1);
-				bn_mod(&(res.y), &prime256k1);
-				if (bn_is_equal(&(pub.y), &(res.y))) {
-					// this is not a failure, but a very inprobable case
-					// that we don't handle because of its inprobability
-					return 4;
-				}
 				point_add(&pub, &res);
 			}
 			point_double(&pub);
 		}
 	}
 
-	bn_mod(&(res.x), &prime256k1);
 	bn_mod(&(res.x), &order256k1);
 
 	// signature does not match
-	for (i = 0; i < 9; i++) {
-		if (res.x.val[i] != r.val[i]) {
-			return 5;
-		}
-	}
+	if (!bn_is_equal(&res.x, &r)) return 5;
 
 	// all OK
 	return 0;

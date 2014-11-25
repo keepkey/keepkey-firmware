@@ -1,20 +1,41 @@
+/**
+ * Copyright (c) 2013-2014 Tomas Dzetkulic
+ * Copyright (c) 2013-2014 Pavol Rusnak
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
+
 #include <string.h>
 
-#include <crypto/public/bip39.h>
+#include "bip39.h"
 #include "hmac.h"
 #include "rand.h"
 #include "sha2.h"
 #include "pbkdf2.h"
 #include "bip39_english.h"
 
-#define PBKDF2_ROUNDS 2048
-
 const char *mnemonic_generate(int strength)
 {
 	if (strength % 32 || strength < 128 || strength > 256) {
 		return 0;
 	}
-	static uint8_t data[32];
+	uint8_t data[32];
 	random_buffer(data, 32);
 	return mnemonic_from_data(data, strength / 8);
 }
@@ -26,10 +47,11 @@ const char *mnemonic_from_data(const uint8_t *data, int len)
 	}
 
 	uint8_t bits[32 + 1];
-	memcpy(bits, data, len);
 
 	sha256_Raw(data, len, bits);
+	// checksum
 	bits[len] = bits[0];
+	// data
 	memcpy(bits, data, len);
 
 	int mlen = len * 3 / 4;
@@ -125,12 +147,12 @@ int mnemonic_check(const char *mnemonic)
 
 void mnemonic_to_seed(const char *mnemonic, const char *passphrase, uint8_t seed[512 / 8], void (*progress_callback)(uint32_t current, uint32_t total))
 {
-	static uint8_t salt[8 + 256 + 4];
+	uint8_t salt[8 + 256 + 4];
 	int saltlen = strlen(passphrase);
 	memcpy(salt, "mnemonic", 8);
 	memcpy(salt + 8, passphrase, saltlen);
 	saltlen += 8;
-	pbkdf2((const uint8_t *)mnemonic, strlen(mnemonic), salt, saltlen, PBKDF2_ROUNDS, seed, 512 / 8, progress_callback);
+	pbkdf2_hmac_sha512((const uint8_t *)mnemonic, strlen(mnemonic), salt, saltlen, BIP39_PBKDF2_ROUNDS, seed, 512 / 8, progress_callback);
 }
 
 const char **mnemonic_wordlist(void)
