@@ -30,8 +30,8 @@
 
 
 // SimpleSignTx_size is the largest message we operate with
-#if MSG_IN_SIZE < SimpleSignTx_size
-#error "MSG_IN_SIZE is too small!"
+#if MAX_FRAME_SIZE < SimpleSignTx_size
+#error "MAX_FRAME_SIZE is too small!"
 #endif
 
 /**
