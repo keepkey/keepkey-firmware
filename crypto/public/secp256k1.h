@@ -1,6 +1,6 @@
 /**
- * Copyright (c) 2013 Tomas Dzetkulic
- * Copyright (c) 2013 Pavol Rusnak
+ * Copyright (c) 2013-2014 Tomas Dzetkulic
+ * Copyright (c) 2013-2014 Pavol Rusnak
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the "Software"),
@@ -28,10 +28,6 @@
 
 #include "bignum.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // curve point x and y
 typedef struct {
 	bignum256 x, y;
@@ -58,10 +54,7 @@ extern const bignum256 secp256k1_iv[256];
 
 #if USE_PRECOMPUTED_CP
 extern const curve_point secp256k1_cp[256];
-#endif
-
-#ifdef __cplusplus
-}
+extern const curve_point secp256k1_cp2[255];
 #endif
 
 #endif
