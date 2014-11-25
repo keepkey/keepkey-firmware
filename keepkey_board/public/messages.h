@@ -25,9 +25,6 @@
 
 #include <interface.h>
 
-#define MSG_IN_SIZE (24*1024)
-#define MSG_OUT_SIZE (9*1024)
-
 typedef enum
 {
     MESSAGE_MAP,
