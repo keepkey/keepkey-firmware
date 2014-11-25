@@ -44,7 +44,7 @@
 
 
 // message methods
-static uint8_t msg_resp[MSG_OUT_SIZE];
+static uint8_t msg_resp[MAX_FRAME_SIZE];
 
 #define RESP_INIT(TYPE) TYPE *resp = (TYPE *)msg_resp; memset(resp, 0, sizeof(TYPE));
 
@@ -181,6 +181,22 @@ void fsm_msgFirmwareUpload(FirmwareUpload *msg)
 {
 	(void)msg;
 	fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in bootloader mode");
+}
+
+void fsm_msgGetEntropy(GetEntropy *msg)
+{
+	if(confirm("Generate and Return Entropy", "Are you sure you would like to generate entropy using the hardware RNG, and return it to the computer client?"))
+	{
+		RESP_INIT(Entropy);
+		uint32_t len = msg->size;
+		if (len > 1024) {
+			len = 1024;
+		}
+		resp->entropy.size = len;
+		random_buffer(resp->entropy.bytes, len);
+		msg_write(MessageType_MessageType_Entropy, resp);
+		layout_home();
+	}
 }
 
 void fsm_msgGetPublicKey(GetPublicKey *msg)
@@ -446,6 +462,18 @@ void fsm_msgGetAddress(GetAddress *msg)
 
     ecdsa_get_address(node->public_key, coin->address_type, resp->address);
 
+    /*
+     * TODO: Implement address display
+     */
+    /*if (msg->has_show_display && msg->show_display) {
+		layoutAddress(resp->address);
+		if (!protectButton(ButtonRequestType_ButtonRequest_Address, true)) {
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
+			layoutHome();
+			return;
+		}
+	}*/
+
     msg_write(MessageType_MessageType_Address, resp);
     layout_home();
     display_refresh();
@@ -482,38 +510,56 @@ void fsm_msgWordAck(WordAck *msg)
 }
 
 static const MessagesMap_t MessagesMap[] = {
-    // in messages
-    {'i', MessageType_MessageType_Initialize,		Initialize_fields,	(void (*)(void *))fsm_msgInitialize},
-    {'i', MessageType_MessageType_Ping,				Ping_fields,		(void (*)(void *))fsm_msgPing},
-    {'o', MessageType_MessageType_Features,	        Features_fields,	0},
-    {'i', MessageType_MessageType_SignTx,	        SignTx_fields,		(void (*)(void *))fsm_msgSignTx},
-    {'o', MessageType_MessageType_Success,	        Success_fields,		0},
-    {'o', MessageType_MessageType_Failure,	        Failure_fields,		0},
-    {'i', MessageType_MessageType_GetAddress,		GetAddress_fields,	(void (*)(void *))fsm_msgGetAddress},
-    {'i', MessageType_MessageType_ResetDevice,		ResetDevice_fields,	(void (*)(void *))fsm_msgResetDevice},
-    {'o', MessageType_MessageType_EntropyRequest,   EntropyRequest_fields,	0},
-    {'i', MessageType_MessageType_EntropyAck,		EntropyAck_fields,	(void (*)(void *))fsm_msgEntropyAck},
-    {'i', MessageType_MessageType_WipeDevice,		WipeDevice_fields,	(void (*)(void *))fsm_msgWipeDevice},
-	{'i', MessageType_MessageType_FirmwareErase,	FirmwareErase_fields,		(void (*)(void *))fsm_msgFirmwareErase},
-	{'i', MessageType_MessageType_FirmwareUpload,	FirmwareUpload_fields,		(void (*)(void *))fsm_msgFirmwareUpload},
-    {'i', MessageType_MessageType_GetPublicKey,		GetPublicKey_fields,	(void (*)(void *))fsm_msgGetPublicKey},
-    {'i', MessageType_MessageType_LoadDevice,		LoadDevice_fields,	(void (*)(void *))fsm_msgLoadDevice},
-    {'i', MessageType_MessageType_ResetDevice,		ResetDevice_fields,	(void (*)(void *))fsm_msgResetDevice},
-    {'i', MessageType_MessageType_SignTx,			SignTx_fields,		(void (*)(void *))fsm_msgSignTx},
-    //UNUSED BY TREZOR NOW {'i', MessageType_MessageType_SimpleSignTx,	SimpleSignTx_fields,	(void (*)(void *))fsm_msgSimpleSignTx},
-    {'i', MessageType_MessageType_Cancel,			Cancel_fields,		(void (*)(void *))fsm_msgCancel},
-    //TODO: {'i', MessageType_MessageType_TxAck,	TxAck_fields,		(void (*)(void *))fsm_msgTxAck},
-    {'i', MessageType_MessageType_ApplySettings,	ApplySettings_fields,	(void (*)(void *))fsm_msgApplySettings},
-    {'o', MessageType_MessageType_Address,			Address_fields,	        0},
-    {'i', MessageType_MessageType_EntropyAck,		EntropyAck_fields,	(void (*)(void *))fsm_msgEntropyAck},
-    {'i', MessageType_MessageType_RecoveryDevice,	RecoveryDevice_fields,	(void (*)(void *))fsm_msgRecoveryDevice},
-    {'i', MessageType_MessageType_WordAck,			WordAck_fields,		(void (*)(void *))fsm_msgWordAck},
-    {'o', MessageType_MessageType_WordRequest,		WordRequest_fields,	0},
-
-    {0,0,0,0}
+	// in messages
+	{'i', MessageType_MessageType_Initialize,			Initialize_fields,			(void (*)(void *))fsm_msgInitialize},
+	{'i', MessageType_MessageType_Ping,					Ping_fields,				(void (*)(void *))fsm_msgPing},
+//TODO:	{'i', MessageType_MessageType_ChangePin,			ChangePin_fields,			(void (*)(void *))fsm_msgChangePin},
+	{'i', MessageType_MessageType_WipeDevice,			WipeDevice_fields,			(void (*)(void *))fsm_msgWipeDevice},
+	{'i', MessageType_MessageType_FirmwareErase,		FirmwareErase_fields,		(void (*)(void *))fsm_msgFirmwareErase},
+	{'i', MessageType_MessageType_FirmwareUpload,		FirmwareUpload_fields,		(void (*)(void *))fsm_msgFirmwareUpload},
+	{'i', MessageType_MessageType_GetEntropy,			GetEntropy_fields,			(void (*)(void *))fsm_msgGetEntropy},
+	{'i', MessageType_MessageType_GetPublicKey,			GetPublicKey_fields,		(void (*)(void *))fsm_msgGetPublicKey},
+	{'i', MessageType_MessageType_LoadDevice,			LoadDevice_fields,			(void (*)(void *))fsm_msgLoadDevice},
+	{'i', MessageType_MessageType_ResetDevice,			ResetDevice_fields,			(void (*)(void *))fsm_msgResetDevice},
+	{'i', MessageType_MessageType_SignTx,				SignTx_fields,				(void (*)(void *))fsm_msgSignTx},
+//	{'i', MessageType_MessageType_PinMatrixAck,			PinMatrixAck_fields,		(void (*)(void *))fsm_msgPinMatrixAck},
+	{'i', MessageType_MessageType_Cancel,				Cancel_fields,				(void (*)(void *))fsm_msgCancel},
+//TODO:	{'i', MessageType_MessageType_TxAck,				TxAck_fields,				(void (*)(void *))fsm_msgTxAck},
+//TODO:	{'i', MessageType_MessageType_CipherKeyValue,		CipherKeyValue_fields,		(void (*)(void *))fsm_msgCipherKeyValue},
+//TODO:	{'i', MessageType_MessageType_ClearSession,			ClearSession_fields,		(void (*)(void *))fsm_msgClearSession},
+	{'i', MessageType_MessageType_ApplySettings,		ApplySettings_fields,		(void (*)(void *))fsm_msgApplySettings},
+//	{'i', MessageType_MessageType_ButtonAck,			ButtonAck_fields,			(void (*)(void *))fsm_msgButtonAck},
+	{'i', MessageType_MessageType_GetAddress,			GetAddress_fields,			(void (*)(void *))fsm_msgGetAddress},
+	{'i', MessageType_MessageType_EntropyAck,			EntropyAck_fields,			(void (*)(void *))fsm_msgEntropyAck},
+//TODO:	{'i', MessageType_MessageType_SignMessage,			SignMessage_fields,			(void (*)(void *))fsm_msgSignMessage},
+//TODO:	{'i', MessageType_MessageType_VerifyMessage,		VerifyMessage_fields,		(void (*)(void *))fsm_msgVerifyMessage},
+//TODO:	{'i', MessageType_MessageType_EncryptMessage,		EncryptMessage_fields,		(void (*)(void *))fsm_msgEncryptMessage},
+//TODO:	{'i', MessageType_MessageType_DecryptMessage,		DecryptMessage_fields,		(void (*)(void *))fsm_msgDecryptMessage},
+//	{'i', MessageType_MessageType_PassphraseAck,		PassphraseAck_fields,		(void (*)(void *))fsm_msgPassphraseAck},
+//TODO:	{'i', MessageType_MessageType_EstimateTxSize,		EstimateTxSize_fields,		(void (*)(void *))fsm_msgEstimateTxSize},
+	{'i', MessageType_MessageType_RecoveryDevice,		RecoveryDevice_fields,		(void (*)(void *))fsm_msgRecoveryDevice},
+	{'i', MessageType_MessageType_WordAck,				WordAck_fields,				(void (*)(void *))fsm_msgWordAck},
+	// out messages
+	{'o', MessageType_MessageType_Success,				Success_fields,				0},
+	{'o', MessageType_MessageType_Failure,				Failure_fields,				0},
+	{'o', MessageType_MessageType_Entropy,				Entropy_fields,				0},
+//TODO:	{'o', MessageType_MessageType_PublicKey,			PublicKey_fields,			0},
+	{'o', MessageType_MessageType_Features,				Features_fields,			0},
+//TODO:	{'o', MessageType_MessageType_PinMatrixRequest,		PinMatrixRequest_fields,	0},
+//TODO	{'o', MessageType_MessageType_TxRequest,			TxRequest_fields,			0},
+//TODO	{'o', MessageType_MessageType_ButtonRequest,		ButtonRequest_fields,		0},
+	{'o', MessageType_MessageType_Address,				Address_fields,				0},
+	{'o', MessageType_MessageType_EntropyRequest,		EntropyRequest_fields,		0},
+//TODO:	{'o', MessageType_MessageType_MessageSignature,		MessageSignature_fields,	0},
+//TODO:	{'o', MessageType_MessageType_PassphraseRequest,	PassphraseRequest_fields,	0},
+//TODO:	{'o', MessageType_MessageType_TxSize,				TxSize_fields,				0},
+	{'o', MessageType_MessageType_WordRequest,			WordRequest_fields,			0},
+	// end
+	{0, 0, 0, 0}
 };
 
 static const RawMessagesMap_t RawMessagesMap[] = {
+	// end
 	{0,0,0}
 };
 
