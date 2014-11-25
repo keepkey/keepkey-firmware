@@ -250,12 +250,14 @@ bool storage_getRootNode(HDNode *node)
 
         if (real_config->storage.has_passphrase_protection > 0) {
             // decrypt hd node
-            aes_ctx ctx;
-            aes_enc_key((const uint8_t *)sessionPassphrase, strlen(sessionPassphrase), &ctx);
-            aes_enc_blk(sessionRootNode.chain_code, sessionRootNode.chain_code, &ctx);
-            aes_enc_blk(sessionRootNode.chain_code + 16, sessionRootNode.chain_code + 16, &ctx);
-            aes_enc_blk(sessionRootNode.private_key, sessionRootNode.private_key, &ctx);
-            aes_enc_blk(sessionRootNode.private_key + 16, sessionRootNode.private_key + 16, &ctx);
+			uint8_t secret[64];
+			layout_standard_notification("Waking up","", NOTIFICATION_INFO);
+			display_refresh();
+			pbkdf2_hmac_sha512((const uint8_t *)sessionPassphrase, strlen(sessionPassphrase), (uint8_t *)"TREZORHD", 8, BIP39_PBKDF2_ROUNDS, secret, 64, get_root_node_callback);
+			aes_decrypt_ctx ctx;
+			aes_decrypt_key256(secret, &ctx);
+			aes_cbc_decrypt(sessionRootNode.chain_code, sessionRootNode.chain_code, 32, secret + 32, &ctx);
+			aes_cbc_decrypt(sessionRootNode.private_key, sessionRootNode.private_key, 32, secret + 32, &ctx);
         }
         memcpy(node, &sessionRootNode, sizeof(HDNode));
         sessionRootNodeCached = true;
