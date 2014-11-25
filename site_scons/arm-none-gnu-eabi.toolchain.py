@@ -164,6 +164,12 @@ def load_toolchain():
     if int(console):
         env['CCFLAGS'].append(['-DUSART3_ON'])
 
+    bldtype = ARGUMENTS.get('bldtype', 0)
+    if bldtype == 'bldr':
+        env['CCFLAGS'].append(['-DBLDR'])
+    elif bldtype == 'app':
+        env['CCFLAGS'].append(['-DAPP'])
+	
     add_builders(env)
 
 
