@@ -30,6 +30,9 @@ uint32_t random32(void)
 		if (((RNG_SR & (RNG_SR_SEIS | RNG_SR_CEIS)) == 0) && ((RNG_SR & RNG_SR_DRDY) > 0)) {
 			new = RNG_DR;
 		}
+#ifdef Debug
+        dbg_print("0x%x, 0x%x\n\r", last, new);
+#endif
 	}
 	last = new;
 	return new;
