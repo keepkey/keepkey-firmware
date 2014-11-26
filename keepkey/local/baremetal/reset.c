@@ -29,23 +29,13 @@
 #include "protect.h"
 #include "util.h"
 
-//-----------------------------------------------------------------------------
-// Configuration variables.
-//
-static const uint32_t MAX_WORD_LEN = 10;
-static const uint32_t ADDITIONAL_WORD_PAD = 5;
-static const uint32_t WORDS_PER_SCREEN = 12;
+#define MAX_WORD_LEN 10
+#define ADDITIONAL_WORD_PAD 5
+#define WORDS_PER_SCREEN 12
 
-
-//-----------------------------------------------------------------------------
-// Operation variables.
-
-static uint32_t 	strength;
-static uint8_t  	int_entropy[32];
-static bool     	awaiting_entropy = false;
-static char			current_word[10];
-
-//================================ FUNCTIONS ==================================
+static uint32_t strength;
+static uint8_t  int_entropy[32];
+static bool     awaiting_entropy = false;
 
 void reset_init(bool display_random, uint32_t _strength, bool passphrase_protection, bool pin_protection, const char *language, const char *label)
 {
@@ -66,12 +56,15 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 	data2hex(int_entropy + 24, 8, ent_str[3]);
 
 	if (display_random) {
-		if(!confirm("Internal Entropy", "%s %s %s %s", ent_str[0], ent_str[1], ent_str[2], ent_str[3])) {
-			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Reset cancelled");
-			layout_home();
-			return;
-		}
+		confirm("Internal Entropy", "%s %s %s %s", ent_str[0], ent_str[1], ent_str[2], ent_str[3]);
 	}
+
+	//TODO:Add PIN support
+	/*if (pin_protection && !protectChangePin()) {
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
+		layoutHome();
+		return;
+	}*/
 
 	storage_set_passphrase_protected(passphrase_protection);
 	storage_setLanguage(language);
@@ -83,7 +76,8 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 	awaiting_entropy = true;
 }
 
-//TODO: Review this function.  The entropy wait state needs to be reviewed for correctness.
+static char current_word[10];
+
 void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 {
 	if (!awaiting_entropy) {
@@ -98,9 +92,6 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 
 	const char* temp_mnemonic = mnemonic_from_data(int_entropy, strength / 8);
 
-	/*
-	 * Clearing entropy after we're done for security purposes.
-	 */
 	memset(int_entropy, 0, 32);
 	awaiting_entropy = false;
 
@@ -134,12 +125,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 		else
 			strcpy(title, "Write Down Recovery Sentence");
 
-		if(!confirm(title, "%s", formatted_mnemonic[word_group]))
-		{
-			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Mnemonic not confirmed");
-			layout_home();
-			return;
-		}
+		confirm(title, "%s", formatted_mnemonic[word_group]);
 	}
 
 	/*

@@ -96,46 +96,112 @@ void fsm_msgInitialize(Initialize *msg)
 	recovery_abort();
 	signing_abort();
 	RESP_INIT(Features);
+
+	/*
+	 * Vendor ID
+	 */
 	resp->has_vendor = true;         strlcpy(resp->vendor, "keepkey.com", sizeof(resp->vendor));
-	resp->has_major_version = true;  resp->major_version = 0;
-	resp->has_minor_version = true;  resp->minor_version = 0;
-	resp->has_patch_version = true;  resp->patch_version = 0;
 
-        resp->has_device_id = false;
-	//resp->has_device_id = true;      strlcpy(resp->device_id, storage_get_uuid_str(), sizeof(resp->device_id));
+	/*
+	 * Version
+	 */
+	resp->has_major_version = true;  resp->major_version = MAJOR_VERSION;
+	resp->has_minor_version = true;  resp->minor_version = MINOR_VERSION;
+	resp->has_patch_version = true;  resp->patch_version = PATCH_VERSION;
 
-        resp->has_passphrase_protection = false;
-//        resp->has_passphrase_protection = true; resp->passphrase_protection = storage_get_passphrase_protected();
+	/*
+	 * Device ID
+	 */
+	resp->has_device_id = true;      strlcpy(resp->device_id, storage_get_uuid_str(), sizeof(resp->device_id));
+
+	/*
+	 * Security settings
+	 */
+	//TODO:resp->has_pin_protection = true; resp->pin_protection = storage.has_pin;
+	resp->has_passphrase_protection = true; resp->passphrase_protection = storage_get_passphrase_protected();
 
 #ifdef SCM_REVISION
-	resp->has_revision = true; memcpy(resp->revision.bytes, SCM_REVISION, sizeof(resp->revision)); resp->revision.size = SCM_REVISION_LEN;
+	int len = sizeof(SCM_REVISION) - 1;
+	resp->has_revision = true; memcpy(resp->revision.bytes, SCM_REVISION, len); resp->revision.size = len;
 #endif
-	resp->has_bootloader_hash = true; 
-        resp->bootloader_hash.size = memory_bootloader_hash(resp->bootloader_hash.bytes);
 
-        if(storage_get_language())
-        {
-            resp->has_language = true;
-            strlcpy(resp->language, storage_get_language(), sizeof(resp->language));
-        }
+	/*
+	 * Bootloader hash
+	 */
+	resp->has_bootloader_hash = true; resp->bootloader_hash.size = memory_bootloader_hash(resp->bootloader_hash.bytes);
 
-        if(storage_get_label())
-        {
-            resp->has_label = true;
-            strlcpy(resp->label, storage_get_label(), sizeof(resp->label));
-        }
+	/*
+	 * Settings for device
+	 */
+	if(storage_get_language())
+	{
+		resp->has_language = true;
+		strlcpy(resp->language, storage_get_language(), sizeof(resp->language));
+	}
+	if(storage_get_label())
+	{
+		resp->has_label = true;
+		strlcpy(resp->label, storage_get_label(), sizeof(resp->label));
+	}
 
+	/*
+	 * Coin type support
+	 */
 	resp->coins_count = COINS_COUNT;
 	memcpy(resp->coins, coins, COINS_COUNT * sizeof(CoinType));
+
+	/*
+	 * Is device initialized?
+	 */
 	resp->has_initialized = true;  resp->initialized = storage_isInitialized();
+
+	/*
+	 * Are private keys imported
+	 */
+	//TODO:resp->has_imported = true; resp->imported = storage.has_imported && storage.imported;
+
 	msg_write(MessageType_MessageType_Features, resp);
 }
 
 void fsm_msgPing(Ping *msg)
 {
 	RESP_INIT(Success);
+
+	bool return_home = false;
+
+	if(msg->has_button_protection && msg->button_protection)
+		if(msg->has_message && strlen(msg->message) <= 40)
+			if(confirm("Respond to Ping Request", "A ping request was received with the message \"%s\". Would you like to have it responded to?", msg->message))
+				return_home = true;
+		else
+			if(confirm("Respond to Ping Request", "A ping request was received. Would you like to have it responded to?"))
+				return_home = true;
+
+	//TODO:pin protect ping
+	/*if(msg->has_pin_protection && msg->pin_protection) {
+		if (!protectPin(true)) {
+			layoutHome();
+			return;
+		}
+	}*/
+
+	//TODO:passphrase protect ping
+	/*if(msg->has_passphrase_protection && msg->passphrase_protection) {
+		if(!protectPassphrase()) {
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
+			return;
+		}
+	}*/
+
+	if(msg->has_message) {
+		resp->has_message = true;
+		memcpy(&(resp->message), &(msg->message), sizeof(resp->message));
+	}
+
 	msg_write(MessageType_MessageType_Success, resp);
-	layout_home();
+
+	if(return_home)
+		layout_home();
 }
 
 void fsm_msgWipeDevice(WipeDevice *msg)
@@ -161,12 +227,10 @@ void fsm_msgWipeDevice(WipeDevice *msg)
     	 * Wipe device
     	 */
         storage_reset();
+        storage_reset_uuid();
         storage_commit_ticking(&tick);
 
         fsm_sendSuccess("Device wiped");
-        layout_home();
-    } else {
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe cancelled");
         layout_home();
     }
 }
@@ -206,7 +270,6 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 	HDNode *node = fsm_getRootNode();
 	if (!node) return;
 
-    layout_standard_notification("Preparing Keys...", "This may take a moment.", NOTIFICATION_INFO);
 	fsm_deriveKey(node, msg->address_n, msg->address_n_count);
 
 	resp->node.depth = node->depth;
@@ -427,21 +490,48 @@ void fsm_msgTxAck(TxAck *msg)
 
 void fsm_msgApplySettings(ApplySettings *msg)
 {
-    if(msg->has_label)
-    {
-        if(!confirm("Change label to: \"%s\"?", msg->label))
-        {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
-            layout_home();
-            return;
-        } else {
-            storage_setLabel(msg->label);
-            storage_commit();
-        }
-    }
+	if (msg->has_label && msg->has_language)
+		confirm("Change Label and Language", "Are you sure you would like to change the label to \"%s\" and the language to %s?", msg->label, msg->language);
+	else if (msg->has_label)
+		confirm("Change Label", "Are you sure you would like to change the label to \"%s\"?", msg->label);
+	else if (msg->has_language)
+		confirm("Change Language", "Are you sure you would like to change the language to %s?", msg->language);
+	else
+	{
+		fsm_sendFailure(FailureType_Failure_SyntaxError, "No setting provided");
+		return;
+	}
 
-    fsm_sendSuccess("Settings applied");
-    layout_home();
+	//TODO:Add PIN support
+	/*if (!protectPin(true)) {
+		layoutHome();
+		return;
+	}*/
+
+	if (msg->has_label) {
+		storage_setLabel(msg->label);
+	}
+	if (msg->has_language) {
+		storage_setLanguage(msg->language);
+	}
+
+	/*
+	 * Setup saving animation
+	 */
+	layout_loading(SAVING_ANIM);
+	force_animation_start();
+
+	void tick(){
+		animate();
+		display_refresh();
+		delay(3);
+	}
+
+	tick();
+	storage_commit_ticking(&tick);
+
+	fsm_sendSuccess("Settings applied");
+	layout_home();
 }
 
 void fsm_msgGetAddress(GetAddress *msg)

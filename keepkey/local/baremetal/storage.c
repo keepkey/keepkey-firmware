@@ -248,8 +248,8 @@ bool storage_getRootNode(HDNode *node)
                          real_config->storage.node.private_key.bytes, 
                          &sessionRootNode);
 
-        if (real_config->storage.has_passphrase_protection > 0) {
-            // decrypt hd node
+        if (real_config->storage.has_passphrase_protection && real_config->storage.passphrase_protection && strlen(sessionPassphrase)) {
+        	// decrypt hd node
 			uint8_t secret[64];
 			layout_standard_notification("Waking up","", NOTIFICATION_INFO);
 			display_refresh();
