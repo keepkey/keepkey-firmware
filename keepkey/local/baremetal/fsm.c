@@ -293,7 +293,7 @@ void fsm_msgLoadDevice(LoadDevice *msg)
         return;
     }
 
-    if(confirm("Load Recovery Sentence", "Loading a recovery sentence directly from the connected computer is not recommended unless you understand the risks."))
+    if(confirm("Import Recovery Sentence", "Importing a recovery sentence directly from a connected computer is not recommended unless you understand the risks."))
     {
     	storage_loadDevice(msg);
 
