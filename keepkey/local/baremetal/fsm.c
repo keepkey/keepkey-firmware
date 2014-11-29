@@ -293,10 +293,28 @@ void fsm_msgLoadDevice(LoadDevice *msg)
         return;
     }
 
-    storage_loadDevice(msg);
-    storage_commit();
-    fsm_sendSuccess("Device loaded");
-    layout_home();
+    if(confirm("Load Recovery Sentence", "Loading a recovery sentence directly from the connected computer is not recommended unless you understand the risks."))
+    {
+    	storage_loadDevice(msg);
+
+    	/*
+    	 * Setup saving animation
+    	 */
+    	layout_loading(SAVING_ANIM);
+    	force_animation_start();
+
+    	void tick(){
+    		animate();
+    		display_refresh();
+    		delay(3);
+    	}
+
+    	tick();
+    	storage_commit_ticking(&tick);
+
+    	fsm_sendSuccess("Device loaded");
+    	layout_home();
+    }
 }
 
 void fsm_msgResetDevice(ResetDevice *msg)

@@ -173,6 +173,14 @@ void storage_loadDevice(LoadDevice *msg)
 {
     storage_reset();
 
+    shadow_config.storage.has_imported = true;
+    shadow_config.storage.imported = true;
+
+    //TODO: Add PIN support
+    /*if (msg->has_pin > 0) {
+    	storage_setPin(msg->pin);
+    }*/
+
     if (msg->has_passphrase_protection) {
         shadow_config.storage.has_passphrase_protection = true;
         shadow_config.storage.passphrase_protection = msg->passphrase_protection;
