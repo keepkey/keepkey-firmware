@@ -35,6 +35,7 @@ void storage_init(void);
 void storage_reset_uuid(void);
 void storage_reset(void);
 void storage_reset_ticking(void (*tick)());
+void storage_clear(void);
 void storage_commit(void);
 void storage_commit_ticking(void (*tick)());
 

@@ -552,6 +552,13 @@ void fsm_msgApplySettings(ApplySettings *msg)
 	layout_home();
 }
 
+void fsm_msgClearSession(ClearSession *msg)
+{
+	(void)msg;
+	session_clear();
+	fsm_sendSuccess("Session cleared");
+}
+
 void fsm_msgGetAddress(GetAddress *msg)
 {
     RESP_INIT(Address);
@@ -634,7 +641,7 @@ static const MessagesMap_t MessagesMap[] = {
 	{'i', MessageType_MessageType_Cancel,				Cancel_fields,				(void (*)(void *))fsm_msgCancel},
 //TODO:	{'i', MessageType_MessageType_TxAck,				TxAck_fields,				(void (*)(void *))fsm_msgTxAck},
 //TODO:	{'i', MessageType_MessageType_CipherKeyValue,		CipherKeyValue_fields,		(void (*)(void *))fsm_msgCipherKeyValue},
-//TODO:	{'i', MessageType_MessageType_ClearSession,			ClearSession_fields,		(void (*)(void *))fsm_msgClearSession},
+	{'i', MessageType_MessageType_ClearSession,			ClearSession_fields,		(void (*)(void *))fsm_msgClearSession},
 	{'i', MessageType_MessageType_ApplySettings,		ApplySettings_fields,		(void (*)(void *))fsm_msgApplySettings},
 //	{'i', MessageType_MessageType_ButtonAck,			ButtonAck_fields,			(void (*)(void *))fsm_msgButtonAck},
 	{'i', MessageType_MessageType_GetAddress,			GetAddress_fields,			(void (*)(void *))fsm_msgGetAddress},

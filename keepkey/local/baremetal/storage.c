@@ -136,8 +136,14 @@ void storage_reset(void)
     // reset storage struct
     memset(&shadow_config.storage, 0, sizeof(shadow_config.storage));
     shadow_config.storage.version = STORAGE_VERSION;
-    sessionRootNodeCached = false;   memset(&sessionRootNode, 0, sizeof(sessionRootNode));
-    sessionPassphraseCached = false; memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
+    session_clear();
+}
+
+void session_clear(void)
+{
+	sessionRootNodeCached = false;   memset(&sessionRootNode, 0, sizeof(sessionRootNode));
+	sessionPassphraseCached = false; memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
+	//TODO: PIN Support:sessionPinCached = false;        memset(&sessionPin, 0, sizeof(sessionPin));
 }
 
 /**
