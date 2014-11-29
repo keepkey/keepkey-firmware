@@ -633,7 +633,7 @@ static const MessagesMap_t MessagesMap[] = {
 	{'o', MessageType_MessageType_Success,				Success_fields,				0},
 	{'o', MessageType_MessageType_Failure,				Failure_fields,				0},
 	{'o', MessageType_MessageType_Entropy,				Entropy_fields,				0},
-//TODO:	{'o', MessageType_MessageType_PublicKey,			PublicKey_fields,			0},
+	{'o', MessageType_MessageType_PublicKey,			PublicKey_fields,			0},
 	{'o', MessageType_MessageType_Features,				Features_fields,			0},
 //TODO:	{'o', MessageType_MessageType_PinMatrixRequest,		PinMatrixRequest_fields,	0},
 //TODO	{'o', MessageType_MessageType_TxRequest,			TxRequest_fields,			0},
