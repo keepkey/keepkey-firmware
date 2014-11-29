@@ -41,7 +41,7 @@ enum MessageType {
 	MessageType_TxAck = 22 [(wire_in) = true];
 	//TODO:MessageType_CipherKeyValue = 23 [(wire_in) = true];
 	//TODO:MessageType_CipheredKeyValue = 48 [(wire_out) = true];
-	//TODO:MessageType_ClearSession = 24 [(wire_in) = true];
+	MessageType_ClearSession = 24 [(wire_in) = true];
 	MessageType_ApplySettings = 25 [(wire_in) = true];
 	MessageType_ButtonRequest = 26 [(wire_out) = true];
 	MessageType_ButtonAck = 27 [(wire_in) = true];
@@ -107,8 +107,8 @@ message Features {
  * Request: clear session (removes cached PIN, passphrase, etc).
  * @next Success
  */
-/*TODO:message ClearSession {
-}*/
+message ClearSession {
+}
 
 /**
  * Request: change language and/or label of the device
