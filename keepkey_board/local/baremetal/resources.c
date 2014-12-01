@@ -106,7 +106,11 @@ static const AnimationFrame confirm_icon_array[] = {
 	{&confirm_icon_3_image, 100}
 };
 
+#ifndef BLDR
 static const ImageAnimation confirm_icon = { 3, confirm_icon_array };
+#else
+static const ImageAnimation confirm_icon ;
+#endif
 
 //========================= CONFIRMING ANIMATION ===============================
 
@@ -620,7 +624,11 @@ static void confirming_64(uint8_t* data){
 	};
 	memcpy(data, image_data, sizeof(image_data));
 }
+#ifndef BLDR
 static const Image confirming_64_image = {(void*)&confirming_64, 31, 31};
+#else
+static const Image confirming_64_image ;
+#endif
 
 static void confirming_65(uint8_t* data){
 	const uint8_t image_data[216] = {
@@ -707,7 +715,11 @@ static const AnimationFrame confirming_array[] = {
 	{&confirming_66_image, 30}
 };
 
+#ifndef BLDR
 static const ImageAnimation confirming = { 64, confirming_array };
+#else
+static const ImageAnimation confirming ;
+#endif
 
 //=========================== LOADING ANIMATION ===============================
 
@@ -1086,7 +1098,11 @@ static void firmware_loading_47(uint8_t* data){
 	};
 	memcpy(data, image_data, sizeof(image_data));
 }
+#ifndef BLDR
 static const Image firmware_loading_47_image = {(void*)&firmware_loading_47, 256, 64};
+#else
+static const Image firmware_loading_47_image ;
+#endif
 
 static const AnimationFrame firmware_loading_array[] = {
 	{&firmware_loading_1_image, 60},
@@ -1138,7 +1154,11 @@ static const AnimationFrame firmware_loading_array[] = {
 	{&firmware_loading_47_image, 60}
 };
 
+#ifndef BLDR
 static const ImageAnimation firmware_loading = { 47, firmware_loading_array };
+#else
+static const ImageAnimation firmware_loading ;
+#endif
 
 //============================ WIPE ANIMATION =================================
 
@@ -1181,7 +1201,6 @@ static void wipe_background(uint8_t* data){
 	};
 	memcpy(data, image_data, sizeof(image_data));
 }
-static const Image wipe_background_image = {(void*)&wipe_background, 256, 64};
 
 static const AnimationFrame wipe_array[] = {
 	{&wipe_1_image, 200},
@@ -1190,7 +1209,13 @@ static const AnimationFrame wipe_array[] = {
 	{&wipe_4_image, 200}
 };
 
+#ifndef BLDR
+static const Image wipe_background_image = {(void*)&wipe_background, 256, 64};
 static const ImageAnimation wipe = { 4, wipe_array };
+#else
+static const ImageAnimation wipe ;
+static const Image wipe_background_image ;
+#endif
 
 //============================ SAVE ANIMATION =================================
 
@@ -1297,7 +1322,6 @@ static void saving_background(uint8_t* data){
 	};
 	memcpy(data, image_data, sizeof(image_data));
 }
-static const Image saving_background_image = {(void*)&saving_background, 256, 64};
 
 static const AnimationFrame saving_array[] = {
 	{&saving_1_image, 300},
@@ -1314,7 +1338,13 @@ static const AnimationFrame saving_array[] = {
 	{&saving_12_image, 150}
 };
 
+#ifndef BLDR
+static const Image saving_background_image = {(void*)&saving_background, 256, 64};
 static const ImageAnimation saving = { 12, saving_array };
+#else
+static const Image saving_background_image ;
+static const ImageAnimation saving ;
+#endif
 
 //=========================== WARNING ANIMATION ===============================
 
@@ -1506,7 +1536,6 @@ static void sending_background(uint8_t* data){
 	};
 	memcpy(data, image_data, sizeof(image_data));
 }
-static const Image sending_background_image = {(void*)&sending_background, 256, 64};
 
 static const AnimationFrame sending_array[] = {
 	{&sending_1_image, 500},
@@ -1516,7 +1545,13 @@ static const AnimationFrame sending_array[] = {
 	{&sending_5_image, 500}
 };
 
+#ifndef BLDR
+static const Image sending_background_image = {(void*)&sending_background, 256, 64};
 static const ImageAnimation sending = { 5, sending_array };
+#else
+static const Image sending_background_image ;
+static const ImageAnimation sending ;
+#endif
 
 
 //=========================== SIGNING ANIMATION ===============================
@@ -1640,7 +1675,6 @@ static void signing_background(uint8_t* data){
 	};
 	memcpy(data, image_data, sizeof(image_data));
 }
-static const Image signing_background_image = {(void*)&signing_background, 256, 64};
 
 static const AnimationFrame signing_array[] = {
 	{&signing_1_image, 100},
@@ -1659,7 +1693,13 @@ static const AnimationFrame signing_array[] = {
 	{&signing_14_image, 100}
 };
 
+#ifndef BLDR
+static const Image signing_background_image = {(void*)&signing_background, 256, 64};
 static const ImageAnimation signing = { 14, signing_array };
+#else
+static const Image signing_background_image ;
+static const ImageAnimation signing ;
+#endif
 
 
 //================================= UNPLUG ====================================
