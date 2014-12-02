@@ -55,10 +55,10 @@ enum OutputScriptType {
  * Type of script which will be used for transaction output
  * @used_in TxInputType
  */
-/*TODO:enum InputScriptType {
+enum InputScriptType {
 	SPENDADDRESS = 0;
 	SPENDMULTISIG = 1;
-}*/
+}
 
 /**
  * Type of information required by transaction signing process
@@ -84,8 +84,8 @@ enum ButtonRequestType {
 	ButtonRequest_WipeDevice = 6;
 	ButtonRequest_ProtectCall = 7;
 	ButtonRequest_SignTx = 8;
-	//TODO:ButtonRequest_FirmwareCheck = 9;
-	//TODO:ButtonRequest_Address = 10;
+	ButtonRequest_FirmwareCheck = 9;
+	ButtonRequest_Address = 10;
 }
 
 /**
@@ -130,10 +130,10 @@ message CoinType {
  * Type of redeem script used in input
  * @used_in TxInputType
  */
-/*TODO:message MultisigRedeemScriptType {
+message MultisigRedeemScriptType {
 	repeated bytes pubkeys = 1;						// pubkeys from multisig address (sorted lexicographically)
 	repeated bytes signatures = 2;						// existing signatures for partially signed input
-}*/
+}
 
 /**
  * Structure representing transaction input
@@ -146,8 +146,8 @@ message TxInputType {
 	required uint32 prev_index = 3;						// index of previous output to spend
 	optional bytes script_sig = 4;						// script signature, unset for tx to sign
 	optional uint32 sequence = 5 [default=0xffffffff];			// sequence
-	//TODO:optional InputScriptType script_type = 6 [default=SPENDADDRESS];	// defines template of input script
-	//TODO:optional MultisigRedeemScriptType multisig = 7;				// Filled if input is going to spend multisig tx
+	optional InputScriptType script_type = 6 [default=SPENDADDRESS];	// defines template of input script
+	optional MultisigRedeemScriptType multisig = 7;				// Filled if input is going to spend multisig tx
 }
 
 /**

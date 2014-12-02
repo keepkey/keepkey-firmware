@@ -39,8 +39,8 @@ enum MessageType {
 	MessageType_Cancel = 20 [(wire_in) = true];
 	MessageType_TxRequest = 21 [(wire_out) = true];
 	MessageType_TxAck = 22 [(wire_in) = true];
-	//TODO:MessageType_CipherKeyValue = 23 [(wire_in) = true];
-	//TODO:MessageType_CipheredKeyValue = 48 [(wire_out) = true];
+	MessageType_CipherKeyValue = 23 [(wire_in) = true];
+	MessageType_CipheredKeyValue = 48 [(wire_out) = true];
 	MessageType_ClearSession = 24 [(wire_in) = true];
 	MessageType_ApplySettings = 25 [(wire_in) = true];
 	MessageType_ButtonRequest = 26 [(wire_out) = true];
@@ -52,10 +52,10 @@ enum MessageType {
 	MessageType_SignMessage = 38 [(wire_in) = true];
 	MessageType_VerifyMessage = 39 [(wire_in) = true];
 	MessageType_MessageSignature = 40 [(wire_out) = true];
-	//TODO:MessageType_EncryptMessage = 49 [(wire_in) = true];
-	//TODO:MessageType_EncryptedMessage = 50 [(wire_out) = true];
-	//TODO:MessageType_DecryptMessage = 51 [(wire_in) = true];
-	//TODO:MessageType_DecryptedMessage = 52 [(wire_out) = true];
+	MessageType_EncryptMessage = 49 [(wire_in) = true];
+	MessageType_EncryptedMessage = 50 [(wire_out) = true];
+	MessageType_DecryptMessage = 51 [(wire_in) = true];
+	MessageType_DecryptedMessage = 52 [(wire_out) = true];
 	MessageType_PassphraseRequest = 41 [(wire_out) = true];
 	MessageType_PassphraseAck = 42 [(wire_in) = true];
 	MessageType_EstimateTxSize = 43 [(wire_in) = true];
@@ -262,7 +262,7 @@ message PublicKey {
 message GetAddress {
 	repeated uint32 address_n = 1;		// BIP-32 path to derive the key from master node
 	optional string coin_name = 2 [default='Bitcoin'];
-	//TODO:optional bool show_display = 3;
+	optional bool show_display = 3;
 }
 
 /**
@@ -405,66 +405,66 @@ message MessageSignature {
  * @next EncryptedMessage
  * @next Failure
  */
-/*TODO:message EncryptMessage {
+message EncryptMessage {
 	optional bytes pubkey = 1;				// public key
 	optional bytes message = 2;				// message to encrypt
 	optional bool display_only = 3;				// show just on display? (don't send back via wire)
 	repeated uint32 address_n = 4;				// BIP-32 path to derive the signing key from master node
 	optional string coin_name = 5 [default='Bitcoin'];	// coin to use for signing
-}*/
+}
 
 /**
  * Response: Encrypted message
  * @prev EncryptMessage
  */
-/*TODO:message EncryptedMessage {
+message EncryptedMessage {
 	optional bytes nonce = 1;				// nonce used during encryption
 	optional bytes message = 2;				// encrypted message
 	optional bytes hmac = 3;				// message hmac
-}*/
+}
 
 /**
  * Request: Ask device to decrypt message
  * @next Success
  * @next Failure
  */
-/*TODO:message DecryptMessage {
+message DecryptMessage {
 	repeated uint32 address_n = 1;				// BIP-32 path to derive the decryption key from master node
 	optional bytes nonce = 2;				// nonce used during encryption
 	optional bytes message = 3;				// message to decrypt
 	optional bytes hmac = 4;				// message hmac
-}*/
+}
 
 /**
  * Response: Decrypted message
  * @prev DecryptedMessage
  */
-/*TODO:message DecryptedMessage {
+message DecryptedMessage {
 	optional bytes message = 1;				// decrypted message
 	optional string address = 2;				// address used to sign the message (if used)
-}*/
+}
 
 /**
  * Request: Ask device to encrypt or decrypt value of given key
  * @next CipheredKeyValue
  * @next Failure
  */
-/*TODO:message CipherKeyValue {
+message CipherKeyValue {
 	repeated uint32 address_n = 1;		// BIP-32 path to derive the key from master node
 	optional string key = 2;		// key component of key:value
 	optional bytes value = 3;		// value component of key:value
 	optional bool encrypt = 4;		// are we encrypting (True) or decrypting (False)?
 	optional bool ask_on_encrypt = 5;	// should we ask on encrypt operation?
 	optional bool ask_on_decrypt = 6;	// should we ask on decrypt operation?
-}*/
+}
 
 /**
  * Response: Return ciphered/deciphered value
  * @prev CipherKeyValue
  */
-/*TODO:message CipheredKeyValue {
+message CipheredKeyValue {
 	optional bytes value = 1;		// ciphered/deciphered value
-}*/
+}
 
 //////////////////////////////////
 // Transaction signing messages //
