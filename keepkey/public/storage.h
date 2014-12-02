@@ -93,7 +93,7 @@ void storage_set_passphrase_protected(bool p);
  * TODO: This should really be NULL delimited, not space.  I haven't yet
  * figured out why Trezor is using space delimited.
  */
-void storage_set_mnemonic_from_words(const char words[24][12], unsigned int num_words);
+void storage_set_mnemonic_from_words(const char (*words)[12], unsigned int num_words);
 void storage_set_mnemonic(const char *mnemonic);
 
 /**

@@ -363,7 +363,7 @@ void storage_set_passphrase_protected(bool p)
     shadow_config.storage.passphrase_protection = p;
 }
 
-void storage_set_mnemonic_from_words(const char words[24][12], unsigned int word_count)
+void storage_set_mnemonic_from_words(const char (*words)[12], unsigned int word_count)
 {
 	strlcpy(shadow_config.storage.mnemonic, words[0], sizeof(shadow_config.storage.mnemonic));
 
