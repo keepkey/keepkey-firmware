@@ -1,7 +1,24 @@
-/******************************************************************************
-    Copyright (c) __20xx __Client_Name. All rights reserved.
-    Developed for __Client_Name by Carbon Design Group.
-******************************************************************************/
+/* START KEEPKEY LICENSE */
+/*
+ * This file is part of the KeepKey project.
+ *
+ * Copyright (C) 2014 KeepKey LLC
+ *
+ * This library is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+/* END KEEPKEY LICENSE */
 
 /// @file keepkey_display.c
 /// __One_line_description_of_file.
@@ -76,23 +93,23 @@ static bool draw_char_with_shift(Canvas* canvas, DrawableParams* p,
     return success;
 }
 
-bool draw_string(Canvas* canvas, const Font* font, const char* c, DrawableParams* p, int width, int line_height)
+bool draw_string(Canvas* canvas, const Font* font, const char* str_write, DrawableParams* p, int width, int line_height)
 {
     bool have_space = true;
     int x_offset = 0;
     DrawableParams char_params = *p;
 
-    while( *c && have_space )
+    while( *str_write && have_space )
     {
-    	const CharacterImage* img = font_get_char(font, *c);
+    	const CharacterImage* img = font_get_char(font, *str_write);
     	int word_width = img->width;
-    	char* next_c = c + 1;
+    	char* next_c = (char *)str_write + 1;
 
     	/*
     	 * Calculate the next word width while
     	 * removing spacings at beginning of lines
     	 */
-    	if(*c == ' '){
+    	if(*str_write == ' '){
 
     		while(*next_c && *next_c != ' ')
     		{
@@ -113,9 +130,9 @@ bool draw_string(Canvas* canvas, const Font* font, const char* c, DrawableParams
     	/*
     	 * Remove spaces from beginning of of line
     	 */
-    	if(x_offset == 0 && *c == ' ')
+    	if(x_offset == 0 && *str_write == ' ')
 		{
-			c++;
+			str_write++;
 			continue;
 		}
 
@@ -129,7 +146,7 @@ bool draw_string(Canvas* canvas, const Font* font, const char* c, DrawableParams
                 &x_offset,
                 NULL,
                 img);
-        c++;
+        str_write++;
     }
 
     canvas->dirty = true;

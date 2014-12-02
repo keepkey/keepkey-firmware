@@ -86,8 +86,7 @@ static const MessagesMap_t MessagesMap[] = {
 };
 
 static const RawMessagesMap_t RawMessagesMap[] = {
-	{'i', MessageType_MessageType_FirmwareUpload, (message_handler_t)(raw_handler_upload)},
-
+	{'i', MessageType_MessageType_FirmwareUpload, raw_handler_upload},
 	{0,0,0}
 };
 

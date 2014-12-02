@@ -43,6 +43,7 @@ extern "C" {
  * Perform a soft reset of the board.
  */
 void board_reset(void);
+void scb_reset_system(void);
 
 /*
  * Initial setup and configuration of board.
