@@ -24,5 +24,5 @@ TxRequestDetailsType.tx_hash		max_size:32
 TxRequestSerializedType.signature	max_size:80
 TxRequestSerializedType.serialized_tx	max_size:1024
 
-//TODO:MultisigRedeemScriptType.pubkeys	max_count:5 max_size:65
-//TODO:MultisigRedeemScriptType.signatures	max_count:4 max_size:80
+MultisigRedeemScriptType.pubkeys	max_count:5 max_size:65
+MultisigRedeemScriptType.signatures	max_count:4 max_size:80
