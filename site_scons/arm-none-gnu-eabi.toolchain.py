@@ -182,7 +182,7 @@ def add_builders(env):
     # Generate mapfile for debugging
     #
     def generate_map(source, target, env, for_signature):
-        return '%s -gdSt %s > %s' % (env['OBJDUMP'], source[0], target[0])
+        return '%s -dSt %s > %s' % (env['OBJDUMP'], source[0], target[0])
 
     #
     # SREC file because Paul likes them.

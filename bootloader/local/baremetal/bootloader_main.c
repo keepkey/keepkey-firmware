@@ -35,6 +35,7 @@
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/f2/rng.h>
 
+
 #include <memory.h>
 #include <keepkey_board.h>
 #include <keepkey_display.h>
