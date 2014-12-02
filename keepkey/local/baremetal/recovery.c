@@ -18,6 +18,7 @@
  */
 
 #include <string.h>
+#include <stdio.h>
 
 #include <crypto.h>
 #include <keepkey_board.h>
@@ -35,26 +36,49 @@ static bool enforce_wordlist;
 static char fake_word[12];
 static uint32_t word_pos;
 static uint32_t word_index;
-static char word_order[36];
+static char word_order[24];
 static char words[24][12];
 
 void next_word(void) {
 	word_pos = word_order[word_index];
+	char title_formatted[26];
+	char body_formatted[90];
+
+	/*
+	 * Form title
+	 */
+	sprintf(title_formatted, "Device Recovery Mode %d/24", word_index + 1);
+
 	if (word_pos == 0) {
 		const char **wl = mnemonic_wordlist();
 		strlcpy(fake_word, wl[random32() & 0x7FF], sizeof(fake_word));
-                layout_standard_notification("Enter the word", fake_word, NOTIFICATION_INFO);
+
+		/*
+		 * Format body for fake word
+		 */
+		sprintf(body_formatted, "On the device connected to this KeepKey, enter the word \"%s\".", fake_word);
+
+        layout_standard_notification(title_formatted, body_formatted, NOTIFICATION_RECOVERY);
 	} else {
 		fake_word[0] = 0;
-		char descbuf[] = "__. word";
-		char *desc = descbuf;
-		if (word_pos < 10) {
-			desc++;
-		} else {
-			descbuf[0] = '0' + word_pos / 10;
+
+		char desc[] = "th word";
+		if (word_pos == 1 || word_pos == 21) {
+			desc[0] = 's'; desc[1] = 't';
+		} else
+		if (word_pos == 2 || word_pos == 22) {
+			desc[0] = 'n'; desc[1] = 'd';
+		} else
+		if (word_pos == 3 || word_pos == 23) {
+			desc[0] = 'r'; desc[1] = 'd';
 		}
-		descbuf[1] = '0' + word_pos % 10;
-                layout_standard_notification("Enter the following", desc, NOTIFICATION_INFO);
+
+		/*
+		 * Format body for real word
+		 */
+		sprintf(body_formatted, "On the device connected to this KeepKey, enter the %d%s of your recovery sentence.", word_pos, desc);
+
+		layout_standard_notification(title_formatted, body_formatted, NOTIFICATION_RECOVERY);
 	}
 	WordRequest resp;
 	memset(&resp, 0, sizeof(WordRequest));
@@ -72,7 +96,14 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
 	word_count = _word_count;
 	enforce_wordlist = _enforce_wordlist;
 
-        storage_set_passphrase_protected(true);
+    //TODO:Implement PIN
+	/*if (pin_protection && !protectChangePin()) {
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
+		layout_home();
+		return;
+	}*/
+
+	storage_set_passphrase_protected(true);
 	storage_setLanguage(language);
 	storage_setLabel(label);
 
@@ -81,12 +112,12 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
 	for (i = 0; i < word_count; i++) {
 		word_order[i] = i + 1;
 	}
-	for (i = word_count; i < word_count + word_count / 2; i++) {
+	for (i = word_count; i < 24; i++) {
 		word_order[i] = 0;
 	}
 	for (i = 0; i < 10000; i++) {
-		j = random32() % (word_count + word_count / 2);
-		k = random32() % (word_count + word_count / 2);
+		j = random32() % 24;
+		k = random32() % 24;
 		t = word_order[j];
 		word_order[j] = word_order[k];
 		word_order[k] = t;
@@ -138,12 +169,27 @@ void recovery_word(const char *word)
         strlcpy(words[word_pos - 1], word, sizeof(words[word_pos - 1]));
     }
 
-    if (word_index + 1 == word_count + word_count / 2) 
+    if (word_index + 1 == 24)
     { // last one
-        storage_set_mnemonic_from_words(words, word_index + 1);
-        if (!enforce_wordlist || mnemonic_check(storage_get_mnemonic())) 
+        storage_set_mnemonic_from_words(words, word_count);
+
+        if (!enforce_wordlist || mnemonic_check(storage_get_shadow_mnemonic()))
         {
-            storage_commit();
+        	/*
+        	 * Setup saving animation
+        	 */
+        	layout_loading(SAVING_ANIM);
+        	force_animation_start();
+
+        	void tick(){
+        		animate();
+        		display_refresh();
+        		delay(3);
+        	}
+
+        	tick();
+        	storage_commit_ticking(&tick);
+
             fsm_sendSuccess("Device recovered");
         } else {
             storage_reset();

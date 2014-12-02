@@ -315,6 +315,11 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
 			sp.y = 21;
 			draw_bitmap_mono_rle(canvas, &sp, get_unplug_image());
 			break;
+		case NOTIFICATION_RECOVERY:
+			sp.x = 221;
+			sp.y = 20;
+			draw_bitmap_mono_rle(canvas, &sp, get_recovery_image());
+			break;
 		case NOTIFICATION_INFO:
 		default:
 			/* no action requires */

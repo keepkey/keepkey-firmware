@@ -363,16 +363,13 @@ void storage_set_passphrase_protected(bool p)
     shadow_config.storage.passphrase_protection = p;
 }
 
-void storage_set_mnemonic_from_words(const char* words[], unsigned int num_words)
+void storage_set_mnemonic_from_words(const char words[24][12], unsigned int word_count)
 {
-    memset(shadow_config.storage.mnemonic, 0, sizeof(shadow_config.storage.mnemonic));
+	strlcpy(shadow_config.storage.mnemonic, words[0], sizeof(shadow_config.storage.mnemonic));
 
-    for(unsigned int i=0; i < num_words; i++)
+    for(uint32_t i = 1; i < word_count; i++)
     {
-        if(i == 1)
-        {
-            strlcat(shadow_config.storage.mnemonic, " ", sizeof(shadow_config.storage.mnemonic));
-        }
+        strlcat(shadow_config.storage.mnemonic, " ", sizeof(shadow_config.storage.mnemonic));
         strlcat(shadow_config.storage.mnemonic, words[i], sizeof(shadow_config.storage.mnemonic));
     }
 
@@ -389,4 +386,9 @@ void storage_set_mnemonic(const char* m)
 const char* storage_get_mnemonic(void)
 {
     return real_config->storage.mnemonic;
+}
+
+const char* storage_get_shadow_mnemonic(void)
+{
+	return shadow_config.storage.mnemonic;
 }
