@@ -19,10 +19,8 @@
 
 #include <stdio.h>
 
-#include <crypto.h>
 #include <layout.h>
 #include <confirm_sm.h>
-
 #include <fsm.h>
 #include <messages.h>
 #include <storage.h>
@@ -603,6 +601,74 @@ void fsm_msgEntropyAck(EntropyAck *msg)
 	}
 }
 
+void fsm_msgSignMessage(SignMessage *msg)
+{
+	RESP_INIT(MessageSignature);
+
+	if(confirm("Sign Message", msg->message.bytes))
+	{
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Sign message cancelled");
+		layout_home();
+		return;
+	}
+
+	//TODO:Implement PIN
+	/*if (!protectPin(true)) {
+		layout_home();
+		return;
+	}*/
+
+	HDNode *node = fsm_getRootNode();
+	if (!node) return;
+	const CoinType *coin = coinByName(msg->coin_name);
+	if (!coin) {
+		fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
+		layout_home();
+		return;
+	}
+
+	fsm_deriveKey(node, msg->address_n, msg->address_n_count);
+
+	ecdsa_get_address(node->public_key, coin->address_type, resp->address);
+
+	/*
+	 * Signing animation
+	 */
+
+	/*if (cryptoMessageSign(msg->message.bytes, msg->message.size, node->private_key, resp->address, resp->signature.bytes)) {
+		resp->has_address = true;
+		resp->has_signature = true;
+		resp->signature.size = 65;
+		msg_write(MessageType_MessageType_MessageSignature, resp);
+	} else {
+		fsm_sendFailure(FailureType_Failure_Other, "Error signing message");
+	}*/
+	layout_home();
+}
+
+void fsm_msgVerifyMessage(VerifyMessage *msg)
+{
+	const char *address = msg->has_address ? msg->address : 0;
+
+	/*
+	 * Verifying Animation
+	 */
+
+	/*if (msg->signature.size == 65 && cryptoMessageVerify(msg->message.bytes, msg->message.size, msg->signature.bytes, address))
+	{
+		if(confirm("Verify Message", msg->message.bytes))
+		{
+			fsm_sendSuccess("Message verified");
+		}
+	}
+	else
+	{
+		fsm_sendFailure(FailureType_Failure_InvalidSignature, "Invalid signature");
+	}*/
+
+	layout_home();
+}
+
 void fsm_msgRecoveryDevice(RecoveryDevice *msg)
 {
     if (storage_isInitialized()) {
@@ -646,8 +712,8 @@ static const MessagesMap_t MessagesMap[] = {
 //	{'i', MessageType_MessageType_ButtonAck,			ButtonAck_fields,			(void (*)(void *))fsm_msgButtonAck},
 	{'i', MessageType_MessageType_GetAddress,			GetAddress_fields,			(void (*)(void *))fsm_msgGetAddress},
 	{'i', MessageType_MessageType_EntropyAck,			EntropyAck_fields,			(void (*)(void *))fsm_msgEntropyAck},
-//TODO:	{'i', MessageType_MessageType_SignMessage,			SignMessage_fields,			(void (*)(void *))fsm_msgSignMessage},
-//TODO:	{'i', MessageType_MessageType_VerifyMessage,		VerifyMessage_fields,		(void (*)(void *))fsm_msgVerifyMessage},
+	{'i', MessageType_MessageType_SignMessage,			SignMessage_fields,			(void (*)(void *))fsm_msgSignMessage},
+	{'i', MessageType_MessageType_VerifyMessage,		VerifyMessage_fields,		(void (*)(void *))fsm_msgVerifyMessage},
 //TODO:	{'i', MessageType_MessageType_EncryptMessage,		EncryptMessage_fields,		(void (*)(void *))fsm_msgEncryptMessage},
 //TODO:	{'i', MessageType_MessageType_DecryptMessage,		DecryptMessage_fields,		(void (*)(void *))fsm_msgDecryptMessage},
 //	{'i', MessageType_MessageType_PassphraseAck,		PassphraseAck_fields,		(void (*)(void *))fsm_msgPassphraseAck},
@@ -665,7 +731,7 @@ static const MessagesMap_t MessagesMap[] = {
 //TODO	{'o', MessageType_MessageType_ButtonRequest,		ButtonRequest_fields,		0},
 	{'o', MessageType_MessageType_Address,				Address_fields,				0},
 	{'o', MessageType_MessageType_EntropyRequest,		EntropyRequest_fields,		0},
-//TODO:	{'o', MessageType_MessageType_MessageSignature,		MessageSignature_fields,	0},
+	{'o', MessageType_MessageType_MessageSignature,		MessageSignature_fields,	0},
 //TODO:	{'o', MessageType_MessageType_PassphraseRequest,	PassphraseRequest_fields,	0},
 //TODO:	{'o', MessageType_MessageType_TxSize,				TxSize_fields,				0},
 	{'o', MessageType_MessageType_WordRequest,			WordRequest_fields,			0},
