@@ -20,7 +20,6 @@
 #include <string.h>
 #include <stdio.h>
 
-#include <crypto.h>
 #include <keepkey_board.h>
 #include <layout.h>
 #include <messages.h>
