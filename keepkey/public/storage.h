@@ -51,6 +51,7 @@ void storage_setLanguage(const char *lang);
 
 void session_cachePassphrase(const char *passphrase);
 bool session_isPassphraseCached(void);
+void session_clear(void);
 
 bool storage_isPinCorrect(const char *pin);
 bool storage_hasPin(void);

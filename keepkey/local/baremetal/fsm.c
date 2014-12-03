@@ -168,13 +168,22 @@ void fsm_msgPing(Ping *msg)
 	bool return_home = false;
 
 	if(msg->has_button_protection && msg->button_protection)
+    {
 		if(msg->has_message && strlen(msg->message) <= 40)
+        {
 			if(confirm("Respond to Ping Request", "A ping request was received with the message \"%s\". Would you like to have it responded to?", msg->message))
+            {
 				return_home = true;
+            }
+        }
 		else
+        {
 			if(confirm("Respond to Ping Request", "A ping request was received. Would you like to have it responded to?"))
+            {
 				return_home = true;
-
+            }
+        }
+    }
 	//TODO:pin protect ping
 	/*if(msg->has_pin_protection && msg->pin_protection) {
 		if (!protectPin(true)) {
@@ -191,7 +200,8 @@ void fsm_msgPing(Ping *msg)
 		}
 	}*/
 
-	if(msg->has_message) {
+	if(msg->has_message) 
+    {
 		resp->has_message = true;
 		memcpy(&(resp->message), &(msg->message), sizeof(resp->message));
 	}
@@ -199,7 +209,9 @@ void fsm_msgPing(Ping *msg)
 	msg_write(MessageType_MessageType_Success, resp);
 
 	if(return_home)
+    {
 		layout_home();
+    }
 }
 
 void fsm_msgWipeDevice(WipeDevice *msg)

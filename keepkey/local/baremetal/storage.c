@@ -25,6 +25,7 @@
 #include <crypto.h>
 #include <interface.h>
 #include <keepkey_board.h>
+#include <pbkdf2.h>
 
 #include "trezor.h"
 #include "util.h"
@@ -55,7 +56,7 @@
  */
 #define STORAGE_UUID_STR_LEN 25
 
-#define META_MAGIC (uint32_t)('stor')
+#define META_MAGIC 0x73746F72  /* 'stor' */
 
 /*
  * Flash metadata structure which will contains unique identifier
@@ -131,19 +132,19 @@ void storage_reset_uuid(void)
     data2hex(shadow_config.meta.uuid, sizeof(shadow_config.meta.uuid), shadow_config.meta.uuid_str);
 }
 
+void session_clear(void)
+{
+	sessionRootNodeCached = false;   memset(&sessionRootNode, 0, sizeof(sessionRootNode));
+	sessionPassphraseCached = false; memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
+	//TODO: PIN Support:sessionPinCached = false;        memset(&sessionPin, 0, sizeof(sessionPin));
+}
+
 void storage_reset(void)
 {
     // reset storage struct
     memset(&shadow_config.storage, 0, sizeof(shadow_config.storage));
     shadow_config.storage.version = STORAGE_VERSION;
     session_clear();
-}
-
-void session_clear(void)
-{
-	sessionRootNodeCached = false;   memset(&sessionRootNode, 0, sizeof(sessionRootNode));
-	sessionPassphraseCached = false; memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
-	//TODO: PIN Support:sessionPinCached = false;        memset(&sessionPin, 0, sizeof(sessionPin));
 }
 
 /**

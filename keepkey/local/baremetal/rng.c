@@ -22,6 +22,7 @@
 #include <libopencm3/cm3/common.h>
 #include <libopencm3/stm32/memorymap.h>
 #include <libopencm3/stm32/f2/rng.h>
+#include <keepkey_usart.h>
 
 uint32_t random32(void)
 {

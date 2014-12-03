@@ -81,4 +81,5 @@ const ImageAnimation* get_boot_animation();
 const uint32_t get_image_animation_duration(const ImageAnimation* img_animation);
 const Image* get_image_animation_frame(const ImageAnimation* img_animation, const uint32_t elapsed, bool loop);
 
+const Image* get_recovery_image(void);
 #endif // resources_H
