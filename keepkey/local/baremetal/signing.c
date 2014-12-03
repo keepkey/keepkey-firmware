@@ -18,8 +18,8 @@
  */
 
 #include <coins.h>
-#include <crypto.h>
 #include <keepkey_board.h>
+#include <ecdsa.h>
 
 #include "signing.h"
 #include "fsm.h"

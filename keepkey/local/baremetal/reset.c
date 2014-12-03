@@ -18,9 +18,11 @@
  */
 
 #include <stdio.h>
-#include <crypto.h>
+
 #include <interface.h>
 #include <keepkey_board.h>
+#include <sha2.h>
+#include <bip39.h>
 
 #include "reset.h"
 #include "storage.h"
@@ -28,6 +30,7 @@
 #include "fsm.h"
 #include "protect.h"
 #include "util.h"
+#include "rand.h"
 
 #define MAX_WORD_LEN 10
 #define ADDITIONAL_WORD_PAD 5

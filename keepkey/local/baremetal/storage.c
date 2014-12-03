@@ -22,7 +22,9 @@
 
 #include <libopencm3/stm32/flash.h>
 
-#include <crypto.h>
+#include <bip39.h>
+#include <aes.h>
+#include <pbkdf2.h>
 #include <interface.h>
 #include <keepkey_board.h>
 #include <pbkdf2.h>
@@ -33,6 +35,7 @@
 #include "storage.h"
 #include "debug.h"
 #include "protect.h"
+#include "rng.h"
 
 
 /*
@@ -132,19 +135,19 @@ void storage_reset_uuid(void)
     data2hex(shadow_config.meta.uuid, sizeof(shadow_config.meta.uuid), shadow_config.meta.uuid_str);
 }
 
-void session_clear(void)
-{
-	sessionRootNodeCached = false;   memset(&sessionRootNode, 0, sizeof(sessionRootNode));
-	sessionPassphraseCached = false; memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
-	//TODO: PIN Support:sessionPinCached = false;        memset(&sessionPin, 0, sizeof(sessionPin));
-}
-
 void storage_reset(void)
 {
     // reset storage struct
     memset(&shadow_config.storage, 0, sizeof(shadow_config.storage));
     shadow_config.storage.version = STORAGE_VERSION;
     session_clear();
+}
+
+void session_clear(void)
+{
+	sessionRootNodeCached = false;   memset(&sessionRootNode, 0, sizeof(sessionRootNode));
+	sessionPassphraseCached = false; memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
+	//TODO: PIN Support:sessionPinCached = false;        memset(&sessionPin, 0, sizeof(sessionPin));
 }
 
 /**

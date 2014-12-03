@@ -20,6 +20,7 @@
 #include <string.h>
 #include <stdio.h>
 
+#include <bip39.h>
 #include <keepkey_board.h>
 #include <layout.h>
 #include <messages.h>
@@ -27,6 +28,7 @@
 
 #include "recovery.h"
 #include "fsm.h"
+#include "rng.h"
 
 
 static uint32_t word_count;

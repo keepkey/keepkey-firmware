@@ -19,7 +19,8 @@
 
 #include <string.h>
 
-#include <crypto.h>
+#include <bip32.h>
+#include <ecdsa.h>
 #include <interface.h>
 #include <keepkey_board.h>
 

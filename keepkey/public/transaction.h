@@ -22,8 +22,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <sha2.h>
 
-#include <crypto.h>
 #include "types.pb.h"
 
 typedef struct {

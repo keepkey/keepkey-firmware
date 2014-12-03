@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 
+#include <ecdsa.h>
 #include <layout.h>
 #include <confirm_sm.h>
 #include <fsm.h>

@@ -21,9 +21,9 @@
 #include <stdint.h>
 
 #include <libopencm3/stm32/flash.h>
+#include <sha2.h>
 
 #include "memory.h"
-#include <crypto.h>
 
 #define OPTION_BYTES_1 ((uint64_t *)0x1FFFC000)
 #define OPTION_BYTES_2 ((uint64_t *)0x1FFFC008)
