@@ -170,7 +170,7 @@ void recovery_word(const char *word)
 
     if (word_index + 1 == 24)
     { // last one
-        storage_set_mnemonic_from_words(words, word_count);
+        storage_set_mnemonic_from_words((const char (*)[])words, word_count);
 
         if (!enforce_wordlist || mnemonic_check(storage_get_shadow_mnemonic()))
         {
