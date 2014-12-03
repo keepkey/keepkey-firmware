@@ -252,7 +252,7 @@ void handle_usb_rx(UsbMessage *msg)
     	if(content_size == content_pos)
     		memcpy(framebuf.buffer, contents, content_pos);
     	else
-    		memcpy(framebuf.buffer + content_pos - msg->len - 1, contents, msg->len - 1);
+    		memcpy(framebuf.buffer + (content_pos - (msg->len - 1)), contents, msg->len - 1);
 
     /*
      * Check for raw messages that bypass procol buffer parsing
