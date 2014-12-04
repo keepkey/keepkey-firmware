@@ -39,8 +39,7 @@
 #include <signing.h>
 #include <resources.h>
 #include <timer.h>
-
-
+#include <crypto.h>
 
 // message methods
 static uint8_t msg_resp[MAX_FRAME_SIZE];
@@ -618,7 +617,7 @@ void fsm_msgSignMessage(SignMessage *msg)
 {
 	RESP_INIT(MessageSignature);
 
-	if(confirm("Sign Message", msg->message.bytes))
+	if(!confirm("Sign Message", msg->message.bytes))
 	{
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Sign message cancelled");
 		layout_home();
@@ -634,7 +633,8 @@ void fsm_msgSignMessage(SignMessage *msg)
 	HDNode *node = fsm_getRootNode();
 	if (!node) return;
 	const CoinType *coin = coinByName(msg->coin_name);
-	if (!coin) {
+	if (!coin)
+	{
 		fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
 		layout_home();
 		return;
@@ -648,26 +648,40 @@ void fsm_msgSignMessage(SignMessage *msg)
 	 * Signing animation
 	 */
 
-	/*if (cryptoMessageSign(msg->message.bytes, msg->message.size, node->private_key, resp->address, resp->signature.bytes)) {
+	if (cryptoMessageSign(msg->message.bytes, msg->message.size, node->private_key, resp->address, resp->signature.bytes))
+	{
 		resp->has_address = true;
 		resp->has_signature = true;
 		resp->signature.size = 65;
 		msg_write(MessageType_MessageType_MessageSignature, resp);
-	} else {
+	} else
+	{
 		fsm_sendFailure(FailureType_Failure_Other, "Error signing message");
-	}*/
+	}
 	layout_home();
 }
 
 void fsm_msgVerifyMessage(VerifyMessage *msg)
 {
-	const char *address = msg->has_address ? msg->address : 0;
+	if (!msg->has_address) {
+		fsm_sendFailure(FailureType_Failure_Other, "No address provided");
+		return;
+	}
+	if (!msg->has_message) {
+		fsm_sendFailure(FailureType_Failure_Other, "No message provided");
+		return;
+	}
 
 	/*
 	 * Verifying Animation
 	 */
 
-	/*if (msg->signature.size == 65 && cryptoMessageVerify(msg->message.bytes, msg->message.size, msg->signature.bytes, address))
+	uint8_t addr_raw[21];
+	if (!ecdsa_address_decode(msg->address, addr_raw))
+	{
+		fsm_sendFailure(FailureType_Failure_InvalidSignature, "Invalid address");
+	}
+	if (msg->signature.size == 65 && cryptoMessageVerify(msg->message.bytes, msg->message.size, addr_raw, msg->signature.bytes) == 0)
 	{
 		if(confirm("Verify Message", msg->message.bytes))
 		{
@@ -677,14 +691,15 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 	else
 	{
 		fsm_sendFailure(FailureType_Failure_InvalidSignature, "Invalid signature");
-	}*/
+	}
 
 	layout_home();
 }
 
 void fsm_msgRecoveryDevice(RecoveryDevice *msg)
 {
-    if (storage_isInitialized()) {
+    if (storage_isInitialized())
+    {
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Device is already initialized. Use Wipe first.");
         return;
     }
