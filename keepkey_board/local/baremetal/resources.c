@@ -106,11 +106,7 @@ static const AnimationFrame confirm_icon_array[] = {
 	{&confirm_icon_3_image, 100}
 };
 
-#ifndef BLDR
 static const ImageAnimation confirm_icon = { 3, confirm_icon_array };
-#else
-static const ImageAnimation confirm_icon ;
-#endif
 
 //========================= CONFIRMING ANIMATION ===============================
 
@@ -624,11 +620,8 @@ static void confirming_64(uint8_t* data){
 	};
 	memcpy(data, image_data, sizeof(image_data));
 }
-#ifndef BLDR
+
 static const Image confirming_64_image = {(void*)&confirming_64, 31, 31};
-#else
-static const Image confirming_64_image ;
-#endif
 
 static void confirming_65(uint8_t* data){
 	const uint8_t image_data[216] = {
@@ -715,11 +708,7 @@ static const AnimationFrame confirming_array[] = {
 	{&confirming_66_image, 30}
 };
 
-#ifndef BLDR
 static const ImageAnimation confirming = { 64, confirming_array };
-#else
-static const ImageAnimation confirming ;
-#endif
 
 //=========================== LOADING ANIMATION ===============================
 
@@ -1475,7 +1464,6 @@ static void flashing_background(uint8_t* data){
 	};
 	memcpy(data, image_data, sizeof(image_data));
 }
-static const Image flashing_background_image = {(void*)&flashing_background, 256, 64};
 
 static const AnimationFrame flashing_array[] = {
 	{&flashing_1_image, 200},
@@ -1485,7 +1473,13 @@ static const AnimationFrame flashing_array[] = {
 	{&flashing_5_image, 200}
 };
 
+#ifdef BLDR
+static const Image flashing_background_image = {(void*)&flashing_background, 256, 64};
 static const ImageAnimation flashing = { 5, flashing_array };
+#else
+static const Image flashing_background_image ;
+static const ImageAnimation flashing ;
+#endif
 
 //=========================== SENDING ANIMATION ===============================
 
@@ -1710,8 +1704,12 @@ static void unplug(uint8_t* data){
 	};
 	memcpy(data, image_data, sizeof(image_data));
 }
-static const Image unplug_image = {(void*)&unplug, 45, 27};
 
+#ifdef BLDR
+static const Image unplug_image = {(void*)&unplug, 45, 27};
+#else
+static const Image unplug_image ;
+#endif
 
 //================================ RECOVERY ===================================
 
@@ -1721,8 +1719,12 @@ static void recovery(uint8_t* data){
 	};
 	memcpy(data, image_data, sizeof(image_data));
 }
-static const Image recovery_image = {(void*)&recovery, 29, 29};
 
+#ifndef BLDR
+static const Image recovery_image = {(void*)&recovery, 29, 29};
+#else
+static const Image recovery_image ;
+#endif
 
 //=============================== FUNCTIONS ===================================
 
