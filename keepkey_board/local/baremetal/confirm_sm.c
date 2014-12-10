@@ -226,16 +226,11 @@ bool confirm(const char *request_title, const char *request_body, ...)
     	DisplayState new_ds = state_info.display_state;
         cm_enable_interrupts();
 
-#if 0
         if(new_ds == FINISHED)
         {
             ret = true;
             break;
         }
-#else
-            ret = true;
-            break;
-#endif
 
         if(cur_layout != new_layout)
         {
