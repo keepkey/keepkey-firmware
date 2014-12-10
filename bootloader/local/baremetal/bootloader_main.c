@@ -169,26 +169,26 @@ int main(int argc, char* argv[])
             }
 
             clear_red();
-            set_vector_table_offset(0x60000);
+            set_vector_table_offset(FLASH_APP_START - FLASH_ORIGIN);  //offset = 0x60100
             boot_jump(FLASH_APP_START);
         } else {
             clear_green();
 
-            if(update_mode)
+            if(usb_flash_firmware())
             {
-				usb_flash_firmware();
-				layout_standard_notification("Firmware Update Complete", "Please disconnect and reconnect your KeepKey to continue.", NOTIFICATION_UNPLUG);
-				display_refresh();
-
-            } else {
+                layout_standard_notification("Firmware Update Complete", "Please disconnect and reconnect your KeepKey to continue.", NOTIFICATION_UNPLUG);
+                display_refresh();
+            } 
+            else 
+            {
                 layout_standard_notification("Invalid firmware image detected.", "Reset and perform a firmware update.", NOTIFICATION_INFO);
                 display_refresh();
-                break;
             }
+            break;  /* break out of this loop and hang out in infinite loop */
         }
     }
 
     while(1) {}
 
-    return 0;
+    return(0);
 }
