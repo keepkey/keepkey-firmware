@@ -56,46 +56,46 @@ typedef struct
 //-----------------------------------------------------------------------------
 // Configuration variables.
 //
-static const uint32_t ANIMATION_PERIOD = 20; // ms
+#define ANIMATION_PERIOD 20
 
 /*
  * Margin
  */
-static const uint32_t TOP_MARGIN  = 7;
-static const uint32_t LEFT_MARGIN  = 4;
+#define TOP_MARGIN 	7
+#define LEFT_MARGIN	4
 
 /*
  * Title
  */
-static const uint8_t TITLE_COLOR = 0xFF;
-static const uint32_t TITLE_WIDTH = 206;
-static const uint32_t TITLE_ROWS = 1;
-static const uint32_t TITLE_FONT_LINE_PADDING = 0;
+#define TITLE_COLOR 			0xFF
+#define TITLE_WIDTH 			206
+#define TITLE_ROWS 				1
+#define TITLE_FONT_LINE_PADDING 0
 
 /*
  * Body
  */
-static const uint8_t BODY_COLOR = 0xFF;
-static const uint32_t BODY_WIDTH = 206;
-static const uint32_t BODY_ROWS = 3;
-static const uint32_t BODY_FONT_LINE_PADDING = 2;
+#define BODY_COLOR				0xFF
+#define BODY_WIDTH				206
+#define BODY_ROWS				3
+#define BODY_FONT_LINE_PADDING	2
 
 /*
  * Warning
  */
-static const uint8_t WARNING_COLOR = 0xFF;
-static const uint32_t WARNING_WIDTH = 256;
-static const uint32_t WARNING_ROWS = 1;
-static const uint32_t WARNING_FONT_LINE_PADDING = 0;
+#define WARNING_COLOR 				0xFF
+#define WARNING_WIDTH				256
+#define WARNING_ROWS				1
+#define WARNING_FONT_LINE_PADDING	0
 
 /*
  * Default Layout
  */
-static const uint32_t NO_WIDTH = 0;
+#define NO_WIDTH 0;
 
-static const char* AMOUNT_LABEL_TEXT    = "Amount:";
-static const char* ADDRESS_LABEL_TEXT   = "Address:";
-static const char* CONFIRM_LABEL_TEXT   = "Confirming transaction...";
+#define AMOUNT_LABEL_TEXT	"Amount:"
+#define ADDRESS_LABEL_TEXT	"Address:"
+#define CONFIRM_LABEL_TEXT	"Confirming transaction..."
 
 
 //-----------------------------------------------------------------------------
@@ -327,7 +327,7 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
     }
 }
 
-void layout_warning(const char* str1)
+void layout_warning(const char* prompt)
 {
     layout_clear();
 
@@ -336,19 +336,19 @@ void layout_warning(const char* str1)
     /*
      * Format Title
      */
-    char upper_str1[warning_char_width()];
-    strcpy(upper_str1, "WARNING: ");
-    strcat(upper_str1, str1);
-    strupr(upper_str1);
+    char upper_prompt[warning_char_width()];
+    strcpy(upper_prompt, "WARNING: ");
+    strcat(upper_prompt, prompt);
+    strupr(upper_prompt);
 
     /*
      * Title
      */
     DrawableParams sp;
-    sp.x = (256 - calc_str_width(font, upper_str1)) / 2;
+    sp.x = (256 - calc_str_width(font, upper_prompt)) / 2;
     sp.y = 47;
     sp.color = TITLE_COLOR;
-    draw_string(canvas, font, upper_str1, &sp, WARNING_WIDTH, font_height(font));
+    draw_string(canvas, font, upper_prompt, &sp, WARNING_WIDTH, font_height(font));
 
     static AnimationImageDrawableParams warning;
     warning.img_animation = get_warning_animation();
@@ -358,6 +358,71 @@ void layout_warning(const char* str1)
 		&layout_animate_images,
 		(void*)&warning,
 		0);
+}
+
+void layout_pin(const char* prompt, char pin[])
+{
+	DrawableParams sp;
+	BoxDrawableParams box_params;
+
+	/*
+	 * Draw matrix
+	 */
+	for(uint8_t row = 0; row < 4; row++)
+	{
+		box_params.base.y = 7 + row * 17;
+		box_params.base.x = 99;
+		box_params.height = 1;
+		box_params.width = 61;
+		draw_box(canvas, &box_params);
+	}
+	for(uint8_t col = 0; col < 4; col++)
+	{
+		box_params.base.y = 7;
+		box_params.base.x = 99 + col * 20;
+		box_params.height = 52;
+		box_params.width = 1;
+		draw_box(canvas, &box_params);
+	}
+
+	/*
+	 * Draw pin digits
+	 */
+	sp.color = 0xff;
+	const Font* pin_font = get_pin_font();
+	char pin_num[] = {0, 0};
+	for(uint8_t row = 0; row < 3; row++)
+		for(uint8_t col = 0; col < 3; col++)
+		{
+			uint8_t pad = 7;
+			pin_num[0] = *pin++;
+
+			/*
+			 * Adjust pad
+			 */
+			if(pin_num[0] == '4' || pin_num[0] == '6' | pin_num[0] == '8' | pin_num[0] == '9')
+				pad--;
+
+			sp.y = 9 + row * 17;
+			sp.x = 99 + pad + col * 20;
+			draw_string(canvas, pin_font, pin_num, &sp, WARNING_WIDTH, font_height(pin_font));
+		}
+
+	/*
+	 * Format prompt
+	 */
+	char upper_prompt[title_char_width()];
+	strcpy(upper_prompt, prompt);
+	strupr(upper_prompt);
+
+    /*
+     * Draw prompt
+     */
+	const Font* font = get_title_font();
+    sp.y = 24;
+    sp.x = 27;
+    sp.color = 0x55;
+    draw_string(canvas, font, upper_prompt, &sp, TITLE_WIDTH, font_height(font));
 }
 
 void layout_intro()

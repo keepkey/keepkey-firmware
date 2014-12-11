@@ -49,6 +49,7 @@ typedef struct
 //====================== CLASS MEMBER FUNCTIONS ===========================
 
 // Get a specific font
+const Font* get_pin_font();
 const Font* get_title_font();
 const Font* get_body_font();
 

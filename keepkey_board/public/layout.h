@@ -97,7 +97,12 @@ void layout_standard_notification( const char* str1, const char* str2, Notificat
 /*
  * Standard warning message
  */
-void layout_warning(const char* str1);
+void layout_warning(const char* prompt);
+
+/*
+ * Standard pin message
+ */
+void layout_pin(const char *prompt, char *pin);
 
 /*
  * Standard layout for intro
