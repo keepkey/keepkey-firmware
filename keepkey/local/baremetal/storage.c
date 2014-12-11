@@ -84,7 +84,7 @@ typedef struct
     Storage storage;
 } ConfigFlash;
 
-ConfigFlash* real_config = (ConfigFlash*)FLASH_CONFIG_START;
+ConfigFlash* real_config = (ConfigFlash*)FLASH_STORAGE_START;
 ConfigFlash shadow_config;
 
 static bool   sessionRootNodeCached;
@@ -160,8 +160,8 @@ void storage_commit()
 
     flash_unlock();
 
-    flash_erase(FLASH_CONFIG);
-    flash_write(FLASH_CONFIG, 0, sizeof(shadow_config), (uint8_t*)&shadow_config);
+    flash_erase(FLASH_STORAGE);
+    flash_write(FLASH_STORAGE, 0, sizeof(shadow_config), (uint8_t*)&shadow_config);
 
     flash_lock();
 }
@@ -173,8 +173,8 @@ void storage_commit_ticking(void (*tick)())
 
     flash_unlock();
 
-    flash_erase(FLASH_CONFIG);
-    flash_write_ticking(FLASH_CONFIG, 0, sizeof(shadow_config), (uint8_t*)&shadow_config, tick);
+    flash_erase(FLASH_STORAGE);
+    flash_write_ticking(FLASH_STORAGE, 0, sizeof(shadow_config), (uint8_t*)&shadow_config, tick);
 
     flash_lock();
 }
