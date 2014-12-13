@@ -128,7 +128,12 @@ static void configure_hw()
 
 bool check_firmware_sig(void)
 {
-    return true;
+    uint32_t retval = false;
+    if(signatures_ok())
+    {
+        retval = true;
+    }
+    return retval;
 }
 
 const char* firmware_sig_as_string(void)
