@@ -29,8 +29,28 @@
 extern "C" {
 #endif
 
+/* definitions */
+#define PUBKEYS 5
+#define PUBKEY_LENGTH 65 
+#define SIGNATURES 3
+
 /* extern declarations */
 extern int signatures_ok(void);
+
+/* typedefs */
+typedef struct
+{
+    uint32_t magic;
+    uint32_t code_len;
+    uint8_t  sig_index1;
+    uint8_t  sig_index2;
+    uint8_t  sig_index3;
+    uint8_t  flag;
+    uint8_t  rsv[52];
+    uint8_t  sig1[64];
+    uint8_t  sig2[64];
+    uint8_t  sig3[64];
+}app_meta_td;
 
 #ifdef __cplusplus
 }
