@@ -32,7 +32,7 @@ extern "C" {
 /* definitions */
 #define PUBKEYS 5
 #define PUBKEY_LENGTH 65 
-#define SIGNATURES 3
+#define SIGNATURES 1
 
 /* extern declarations */
 extern int signatures_ok(void);
