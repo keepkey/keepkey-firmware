@@ -38,6 +38,7 @@
 #include "usb_flash.h"
 
 void send_failure(FailureType code, const char *text);
+void send_failure_unknown_msg(void);
 void handler_initialize(Initialize* msg);
 void handler_ping(Ping* msg);
 void handler_erase(FirmwareErase* msg);
@@ -124,7 +125,7 @@ bool usb_flash_firmware(void)
     /* Init message map, failure function, and usb callback */
     msg_map_init(MessagesMap, MESSAGE_MAP);
     msg_map_init(RawMessagesMap, RAW_MESSAGE_MAP);
-    msg_failure_init(&send_failure);
+    msg_unknown_failure_init(&send_failure_unknown_msg);
     msg_init();
 
     /* Init USB */
@@ -202,6 +203,21 @@ void send_failure(FailureType code, const char *text)
         strlcpy(f.message, text, sizeof(f.message));
     }
     msg_write(MessageType_MessageType_Failure, &f);
+}
+
+/***************************************************************
+ * send_failure_unknown_msg() -  Sends unknown message failure
+ *
+ * INPUT
+ *  - none
+ *
+ * OUTPUT
+ *  - none
+ *
+ ***************************************************************/
+void send_failure_unknown_msg(void)
+{
+	send_failure(FailureType_Failure_UnexpectedMessage, "Unknown message");
 }
 
 void handler_ping(Ping* msg) 
