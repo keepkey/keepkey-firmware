@@ -36,7 +36,6 @@
 #include <reset.h>
 #include <recovery.h>
 #include <memory.h>
-#include <usb.h>
 #include <util.h>
 #include <signing.h>
 #include <resources.h>
