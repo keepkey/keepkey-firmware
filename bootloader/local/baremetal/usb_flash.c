@@ -31,6 +31,7 @@
 #include <keepkey_board.h>
 #include <memory.h>
 #include <messages.h>
+#include <keepkey_usart.h>
 
 
 #include "usb_driver.h"
