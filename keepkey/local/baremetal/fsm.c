@@ -20,6 +20,8 @@
 #include <stdio.h>
 
 #include <ecdsa.h>
+#include <aes.h>
+#include <hmac.h>
 #include <layout.h>
 #include <confirm_sm.h>
 #include <fsm.h>
@@ -562,6 +564,65 @@ void fsm_msgApplySettings(ApplySettings *msg)
 	layout_home();
 }
 
+void fsm_msgCipherKeyValue(CipherKeyValue *msg)
+{
+	if (!msg->has_key) {
+		fsm_sendFailure(FailureType_Failure_SyntaxError, "No key provided");
+		return;
+	}
+	if (!msg->has_value) {
+		fsm_sendFailure(FailureType_Failure_SyntaxError, "No value provided");
+		return;
+	}
+	if (msg->value.size % 16) {
+		fsm_sendFailure(FailureType_Failure_SyntaxError, "Value length must be a multiple of 16");
+		return;
+	}
+
+	//TODO:Implement PIN
+	/*if (!protectPin(true)) {
+		layout_home();
+		return;
+	}*/
+
+	HDNode *node = fsm_getRootNode();
+	if (!node) return;
+	fsm_deriveKey(node, msg->address_n, msg->address_n_count);
+
+	bool encrypt = msg->has_encrypt && msg->encrypt;
+	bool ask_on_encrypt = msg->has_ask_on_encrypt && msg->ask_on_encrypt;
+	bool ask_on_decrypt = msg->has_ask_on_decrypt && msg->ask_on_decrypt;
+	if ((encrypt && ask_on_encrypt) || (!encrypt && ask_on_decrypt)) {
+		if(!confirm_cipher(encrypt, msg->key))
+		{
+			layout_home();
+			return;
+		}
+	}
+
+	uint8_t data[256 + 4];
+	strlcpy((char *)data, msg->key, sizeof(data));
+	strlcat((char *)data, ask_on_encrypt ? "E1" : "E0", sizeof(data));
+	strlcat((char *)data, ask_on_decrypt ? "D1" : "D0", sizeof(data));
+
+	hmac_sha512(node->private_key, 32, data, strlen((char *)data), data);
+
+	RESP_INIT(CipheredKeyValue);
+	if (encrypt) {
+		aes_encrypt_ctx ctx;
+		aes_encrypt_key256(data, &ctx);
+		aes_cbc_encrypt(msg->value.bytes, resp->value.bytes, msg->value.size, data + 32, &ctx);
+	} else {
+		aes_decrypt_ctx ctx;
+		aes_decrypt_key256(data, &ctx);
+		aes_cbc_decrypt(msg->value.bytes, resp->value.bytes, msg->value.size, data + 32, &ctx);
+	}
+	resp->has_value = true;
+	resp->value.size = msg->value.size;
+	msg_write(MessageType_MessageType_CipheredKeyValue, resp);
+	layout_home();
+}
+
 void fsm_msgClearSession(ClearSession *msg)
 {
 	(void)msg;
@@ -696,6 +757,131 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 	layout_home();
 }
 
+void fsm_msgEncryptMessage(EncryptMessage *msg)
+{
+	if (!msg->has_pubkey) {
+		fsm_sendFailure(FailureType_Failure_SyntaxError, "No public key provided");
+		return;
+	}
+	if (!msg->has_message) {
+		fsm_sendFailure(FailureType_Failure_SyntaxError, "No message provided");
+		return;
+	}
+	curve_point pubkey;
+	if (msg->pubkey.size != 33 || ecdsa_read_pubkey(msg->pubkey.bytes, &pubkey) == 0) {
+		fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid public key provided");
+		return;
+	}
+	bool display_only = msg->has_display_only && msg->display_only;
+	bool signing = msg->address_n_count > 0;
+	RESP_INIT(EncryptedMessage);
+	const CoinType *coin = 0;
+	HDNode *node = 0;
+	uint8_t address_raw[21];
+	if (signing) {
+		coin = coinByName(msg->coin_name);
+		if (!coin) {
+			fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
+			return;
+		}
+
+		//TODO:Implement PIN
+		/*if (!protectPin(true)) {
+			layout_home();
+			return;
+		}*/
+
+		node = fsm_getRootNode();
+		if (!node) return;
+		fsm_deriveKey(node, msg->address_n, msg->address_n_count);
+		hdnode_fill_public_key(node);
+		ecdsa_get_address_raw(node->public_key, coin->address_type, address_raw);
+	}
+
+	if(!confirm_encrypt_msg(msg->message.bytes, signing))
+	{
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Encrypt message cancelled");
+		layout_home();
+		return;
+	}
+
+	//TODO:Encrypting animation
+	//layoutProgressSwipe("Encrypting", 0, 0);
+
+	if (cryptoMessageEncrypt(&pubkey, msg->message.bytes, msg->message.size, display_only, resp->nonce.bytes, &(resp->nonce.size), resp->message.bytes, &(resp->message.size), resp->hmac.bytes, &(resp->hmac.size), signing ? node->private_key : 0, signing ? address_raw : 0) != 0) {
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Error encrypting message");
+		layout_home();
+		return;
+	}
+	resp->has_nonce = true;
+	resp->has_message = true;
+	resp->has_hmac = true;
+	msg_write(MessageType_MessageType_EncryptedMessage, resp);
+	layout_home();
+}
+
+void fsm_msgDecryptMessage(DecryptMessage *msg)
+{
+	if (!msg->has_nonce) {
+		fsm_sendFailure(FailureType_Failure_SyntaxError, "No nonce provided");
+		return;
+	}
+	if (!msg->has_message) {
+		fsm_sendFailure(FailureType_Failure_SyntaxError, "No message provided");
+		return;
+	}
+	if (!msg->has_hmac) {
+		fsm_sendFailure(FailureType_Failure_SyntaxError, "No message hmac provided");
+		return;
+	}
+	curve_point nonce_pubkey;
+	if (msg->nonce.size != 33 || ecdsa_read_pubkey(msg->nonce.bytes, &nonce_pubkey) == 0) {
+		fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid nonce provided");
+		return;
+	}
+
+	//TODO:Implement PIN
+	/*if (!protectPin(true)) {
+		layoutHome();
+		return;
+	}*/
+
+	HDNode *node = fsm_getRootNode();
+	if (!node) return;
+	fsm_deriveKey(node, msg->address_n, msg->address_n_count);
+
+	//TODO:Decrypting animation
+	//layoutProgressSwipe("Decrypting", 0, 0);
+
+	RESP_INIT(DecryptedMessage);
+	bool display_only = false;
+	bool signing = false;
+	uint8_t address_raw[21];
+	if (cryptoMessageDecrypt(&nonce_pubkey, msg->message.bytes, msg->message.size, msg->hmac.bytes, msg->hmac.size, node->private_key, resp->message.bytes, &(resp->message.size), &display_only, &signing, address_raw) != 0) {
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Error decrypting message");
+		layout_home();
+		return;
+	}
+	if (signing) {
+		base58_encode_check(address_raw, 21, resp->address);
+	}
+
+	if(confirm_decrypt_msg(resp->message.bytes, signing ? resp->address : 0))
+	{
+		if (display_only) {
+			resp->has_address = false;
+			resp->has_message = false;
+			memset(resp->address, sizeof(resp->address), 0);
+			memset(&(resp->message), sizeof(resp->message), 0);
+		} else {
+			resp->has_address = signing;
+			resp->has_message = true;
+		}
+		msg_write(MessageType_MessageType_DecryptedMessage, resp);
+		layout_home();
+	}
+}
+
 void fsm_msgRecoveryDevice(RecoveryDevice *msg)
 {
     if (storage_isInitialized())
@@ -734,7 +920,7 @@ static const MessagesMap_t MessagesMap[] = {
 //	{'i', MessageType_MessageType_PinMatrixAck,			PinMatrixAck_fields,		(void (*)(void *))fsm_msgPinMatrixAck},
 	{'i', MessageType_MessageType_Cancel,				Cancel_fields,				(void (*)(void *))fsm_msgCancel},
 //TODO:	{'i', MessageType_MessageType_TxAck,				TxAck_fields,				(void (*)(void *))fsm_msgTxAck},
-//TODO:	{'i', MessageType_MessageType_CipherKeyValue,		CipherKeyValue_fields,		(void (*)(void *))fsm_msgCipherKeyValue},
+	{'i', MessageType_MessageType_CipherKeyValue,		CipherKeyValue_fields,		(void (*)(void *))fsm_msgCipherKeyValue},
 	{'i', MessageType_MessageType_ClearSession,			ClearSession_fields,		(void (*)(void *))fsm_msgClearSession},
 	{'i', MessageType_MessageType_ApplySettings,		ApplySettings_fields,		(void (*)(void *))fsm_msgApplySettings},
 //	{'i', MessageType_MessageType_ButtonAck,			ButtonAck_fields,			(void (*)(void *))fsm_msgButtonAck},
@@ -742,8 +928,8 @@ static const MessagesMap_t MessagesMap[] = {
 	{'i', MessageType_MessageType_EntropyAck,			EntropyAck_fields,			(void (*)(void *))fsm_msgEntropyAck},
 	{'i', MessageType_MessageType_SignMessage,			SignMessage_fields,			(void (*)(void *))fsm_msgSignMessage},
 	{'i', MessageType_MessageType_VerifyMessage,		VerifyMessage_fields,		(void (*)(void *))fsm_msgVerifyMessage},
-//TODO:	{'i', MessageType_MessageType_EncryptMessage,		EncryptMessage_fields,		(void (*)(void *))fsm_msgEncryptMessage},
-//TODO:	{'i', MessageType_MessageType_DecryptMessage,		DecryptMessage_fields,		(void (*)(void *))fsm_msgDecryptMessage},
+	{'i', MessageType_MessageType_EncryptMessage,		EncryptMessage_fields,		(void (*)(void *))fsm_msgEncryptMessage},
+	{'i', MessageType_MessageType_DecryptMessage,		DecryptMessage_fields,		(void (*)(void *))fsm_msgDecryptMessage},
 //	{'i', MessageType_MessageType_PassphraseAck,		PassphraseAck_fields,		(void (*)(void *))fsm_msgPassphraseAck},
 //TODO:	{'i', MessageType_MessageType_EstimateTxSize,		EstimateTxSize_fields,		(void (*)(void *))fsm_msgEstimateTxSize},
 	{'i', MessageType_MessageType_RecoveryDevice,		RecoveryDevice_fields,		(void (*)(void *))fsm_msgRecoveryDevice},
@@ -756,10 +942,13 @@ static const MessagesMap_t MessagesMap[] = {
 	{'o', MessageType_MessageType_Features,				Features_fields,			0},
 //TODO:	{'o', MessageType_MessageType_PinMatrixRequest,		PinMatrixRequest_fields,	0},
 //TODO	{'o', MessageType_MessageType_TxRequest,			TxRequest_fields,			0},
+	{'o', MessageType_MessageType_CipheredKeyValue,		CipheredKeyValue_fields,	0},
 //TODO	{'o', MessageType_MessageType_ButtonRequest,		ButtonRequest_fields,		0},
 	{'o', MessageType_MessageType_Address,				Address_fields,				0},
 	{'o', MessageType_MessageType_EntropyRequest,		EntropyRequest_fields,		0},
 	{'o', MessageType_MessageType_MessageSignature,		MessageSignature_fields,	0},
+	{'o', MessageType_MessageType_EncryptedMessage,		EncryptedMessage_fields,	0},
+	{'o', MessageType_MessageType_DecryptedMessage,		DecryptedMessage_fields,	0},
 //TODO:	{'o', MessageType_MessageType_PassphraseRequest,	PassphraseRequest_fields,	0},
 //TODO:	{'o', MessageType_MessageType_TxSize,				TxSize_fields,				0},
 	{'o', MessageType_MessageType_WordRequest,			WordRequest_fields,			0},

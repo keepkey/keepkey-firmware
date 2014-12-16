@@ -58,17 +58,28 @@ VerifyMessage.message			max_size:256
 MessageSignature.address		max_size:35
 MessageSignature.signature		max_size:65
 
-EncryptMessage.pubkey			max_size:65
+EncryptMessage.pubkey			max_size:33
 EncryptMessage.message			max_size:1024
 EncryptMessage.address_n		max_count:8
 EncryptMessage.coin_name		max_size:17
 
+EncryptedMessage.nonce			max_size:33
+EncryptedMessage.message		max_size:1120
+EncryptedMessage.hmac			max_size:8
+
 DecryptMessage.address_n		max_count:8
-DecryptMessage.message			max_size:1024
+DecryptMessage.nonce			max_size:33
+DecryptMessage.message			max_size:1120 # 1 + 9 + 1024 + 21 + 65
+DecryptMessage.hmac				max_size:8
+
+DecryptedMessage.address		max_size:35
+DecryptedMessage.message		max_size:1024
 
 CipherKeyValue.address_n		max_count:8
-CipherKeyValue.key			max_size:256
+CipherKeyValue.key				max_size:256
 CipherKeyValue.value			max_size:1024
+
+CipheredKeyValue.value			max_size:1024
 
 EstimateTxSize.coin_name		max_size:17
 

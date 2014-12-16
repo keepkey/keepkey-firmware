@@ -114,6 +114,10 @@ void layout_intro();
  */
 void layout_loading(AnimationResource type);
 
+bool confirm_cipher(bool encrypt, const char *key);
+bool confirm_encrypt_msg(const char *msg, bool signing);
+bool confirm_decrypt_msg(const char *msg, const char *address);
+
 //-----------------------------------------------------------------------------
 /// Call this in a loop.
 ///
