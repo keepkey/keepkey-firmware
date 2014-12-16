@@ -194,6 +194,12 @@ void handle_usb_rx(UsbMessage *msg)
 	static bool mid_frame = false;
 
 	/*
+	 * Message mapping
+	 */
+	static MessageMapType map_type;
+	static void* entry;
+
+	/*
 	 * Current segment content
 	 */
 	uint8_t* contents = NULL;
@@ -228,6 +234,16 @@ void handle_usb_rx(UsbMessage *msg)
 		 * Set to be mid frame
 		 */
 		mid_frame = true;
+
+		/*
+		 * Determine callback handler and message map type
+		 */
+		if(entry = message_map_entry(last_frame_header.id))
+			map_type = MESSAGE_MAP;
+		else if(entry = raw_message_map_entry(last_frame_header.id))
+			map_type = RAW_MESSAGE_MAP;
+
+
     } else {
     	contents = ((TrezorFrameFragment*)msg->message)->contents;
 
@@ -235,16 +251,13 @@ void handle_usb_rx(UsbMessage *msg)
 		content_size = msg->len - 1;
     }
 
-    MessageMapType map_type;
-    const void* entry;
+    bool last_segment = content_pos >= last_frame_header.len;
 
     /*
      * Check for a message map entry for protocol buffer messages
      */
-    if(entry = message_map_entry(last_frame_header.id))
+    if(map_type == MESSAGE_MAP)
     {
-    	map_type = MESSAGE_MAP;
-
     	/*
     	 * Copy content to frame buffer
     	 */
@@ -256,41 +269,44 @@ void handle_usb_rx(UsbMessage *msg)
     /*
      * Check for raw messages that bypass protocol buffer parsing
      */
-    } else if(entry = raw_message_map_entry(last_frame_header.id)) {
-    	map_type = RAW_MESSAGE_MAP;
+    } else if(map_type == RAW_MESSAGE_MAP) {
+
 
     	/* call dispatch for every segment since we are not buffering and parsing, and
     	 * assume the raw dispatched callbacks will handle their own state and
     	 * buffering internally
     	 */
     	raw_dispatch((RawMessagesMap_t*)entry, contents, content_size, last_frame_header.len);
-
-    /*
-     * Catch message mapping failure
-     */
-    } else {
-    	++msg_stats.unknown_dispatch_entry;
-
-    	(*msg_failure)();
-
-    	mid_frame = false;
-    	return;
     }
 
     /*
      * Only parse and message map if all segments have been buffered
      * and this message type is parsable
      */
-    if (content_pos >= last_frame_header.len && map_type == MESSAGE_MAP)
+    if (last_segment && map_type == MESSAGE_MAP)
     	dispatch((MessagesMap_t*)entry, framebuf.buffer, last_frame_header.len);
 
     /*
-	 * Last segment
+     * Catch messages that are in message maps
+     */
+    else if(last_segment && (map_type != MESSAGE_MAP && map_type != RAW_MESSAGE_MAP))
+	{
+    	++msg_stats.unknown_dispatch_entry;
+
+		(*msg_failure)();
+
+		mid_frame = false;
+	}
+
+    /*
+	 * Last segment clear static variables
 	 */
-	if(content_pos >= last_frame_header.len)
+	if(last_segment)
 	{
 		content_pos = 0;
 		mid_frame = false;
+		entry = NULL;
+		map_type = NO_MAP;
 	}
 }
 

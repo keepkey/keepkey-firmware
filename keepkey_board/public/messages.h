@@ -28,7 +28,8 @@
 typedef enum
 {
     MESSAGE_MAP,
-	RAW_MESSAGE_MAP
+	RAW_MESSAGE_MAP,
+	NO_MAP
 } MessageMapType;
 
 typedef struct {
