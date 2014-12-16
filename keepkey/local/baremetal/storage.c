@@ -45,7 +45,8 @@
 --------+-------------+-------------------------------
  0x0000 |  4 bytes    |  magic = 'stor'
  0x0004 |  12 bytes   |  uuid
- 0x0010 |  ?          |  Storage structure
+ 0x0010 |  25 bytes   |  uuid_str
+ 0x0029 |  ?          |  Storage structure
  */
 
 
@@ -57,7 +58,7 @@
 /*
  * Length of the uuid binary converted to readable ASCII.
  */
-#define STORAGE_UUID_STR_LEN 25
+#define STORAGE_UUID_STR_LEN ((STORAGE_UUID_LEN * 2) + 1)
 
 #define META_MAGIC 0x73746F72  /* 'stor' */
 
@@ -74,9 +75,6 @@ typedef struct
 
 /*
  * Config flash overlay structure.
- *
- * TODO: There needs to be a meta version as well.  This is not present in the
- * current Trezor code.
  */
 typedef struct 
 {
@@ -110,22 +108,26 @@ bool storage_from_flash(uint32_t version)
 
 void storage_init(void)
 {
-    storage_reset();
-
-    //TODO: Add checksum functionality to config store.
-    // if magic is ok
-    if (real_config->meta.magic == META_MAGIC &&
-        storage_from_flash(real_config->storage.version))
-    {
-        storage_commit();
-    } else {
-        /*
-         *  Handle unknown invalid storage config here.
-         */
-        shadow_config.meta.magic = META_MAGIC;
-        storage_reset_uuid();
-        storage_commit();
-    }
+    	storage_reset();
+	/* verify storage area is valid */
+	if (memcmp((void *)FLASH_STORAGE_START, "stor", 4) == 0) {
+		// load uuid
+		memcpy(shadow_config.meta.uuid, (void *)(FLASH_STORAGE_START + 4), sizeof(shadow_config.meta.uuid));
+		data2hex(shadow_config.meta.uuid, sizeof(shadow_config.meta.uuid), shadow_config.meta.uuid_str);
+		// load storage struct
+		uint32_t version = real_config->storage.version;
+		if (version && version <= STORAGE_VERSION) {
+			storage_from_flash(version);
+		}
+        /* New app with storage version changed!  update the storage space */
+		if (version != STORAGE_VERSION) {
+			storage_commit();
+		}
+	} else {
+        /* keep storage area cleared */
+		storage_reset_uuid();
+		storage_commit();
+	}
 }
 
 void storage_reset_uuid(void)
@@ -161,6 +163,7 @@ void storage_commit()
     flash_unlock();
 
     flash_erase(FLASH_STORAGE);
+    memcpy(&shadow_config.meta.magic, "stor", 4);
     flash_write(FLASH_STORAGE, 0, sizeof(shadow_config), (uint8_t*)&shadow_config);
 
     flash_lock();
