@@ -255,7 +255,7 @@ void handle_usb_rx(UsbMessage *msg)
     		memcpy(framebuf.buffer + (content_pos - (msg->len - 1)), contents, msg->len - 1);
 
     /*
-     * Check for raw messages that bypass procol buffer parsing
+     * Check for raw messages that bypass protocol buffer parsing
      */
     } else if(entry = raw_message_map_entry(last_frame_header.id)) {
     	map_type = RAW_MESSAGE_MAP;
