@@ -970,5 +970,4 @@ void fsm_init(void)
 	msg_map_init(MessagesMap, MESSAGE_MAP);
 	msg_map_init(RawMessagesMap, RAW_MESSAGE_MAP);
 	msg_unknown_failure_init(&fsm_sendFailureUnexpectedMessage);
-	msg_init();
 }
