@@ -51,9 +51,10 @@ int main(void)
     storage_init();
 
     /*
-     * Init protcol buffer message map
+     * Init protcol buffer message map and usb msg callback
      */
     fsm_init();
+    msg_init();
 
     /*
      * Listen for commands
