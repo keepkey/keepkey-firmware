@@ -69,11 +69,6 @@ void fsm_sendFailure(FailureType code, const char *text)
 	msg_write(MessageType_MessageType_Failure, resp);
 }
 
-void fsm_sendFailureUnexpectedMessage()
-{
-	fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Unknown message");
-}
-
 HDNode *fsm_getRootNode(void)
 {
 	static HDNode node;
@@ -969,5 +964,5 @@ void fsm_init(void)
 {
 	msg_map_init(MessagesMap, MESSAGE_MAP);
 	msg_map_init(RawMessagesMap, RAW_MESSAGE_MAP);
-	msg_unknown_failure_init(&fsm_sendFailureUnexpectedMessage);
+	msg_failure_init(&fsm_sendFailure);
 }

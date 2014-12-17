@@ -26,7 +26,6 @@ void fsm_init(void);
 
 void fsm_sendSuccess(const char *text);
 void fsm_sendFailure(FailureType code, const char *text);
-void fsm_sendFailureUnexpectedMessage();
 #if 0
 void fsm_msgInitialize(Initialize *msg);
 void fsm_msgPing(Ping *msg);

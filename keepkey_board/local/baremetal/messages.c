@@ -293,7 +293,7 @@ void handle_usb_rx(UsbMessage *msg)
 	{
     	++msg_stats.unknown_dispatch_entry;
 
-		(*msg_failure)();
+    	(*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message");
 
 		mid_frame = false;
 	}
@@ -320,7 +320,7 @@ void msg_map_init(const void* map, MessageMapType type)
     	RawMessagesMap = map;
 }
 
-void msg_unknown_failure_init(msg_failure_t failure_func)
+void msg_failure_init(msg_failure_t failure_func)
 {
 	msg_failure = failure_func;
 }
