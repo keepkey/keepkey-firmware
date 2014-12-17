@@ -136,14 +136,17 @@ bool msg_write(MessageType type, const void *msg_ptr)
     return true;
 }
 
+bool pb_parse(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size, uint8_t *buf)
+{
+	pb_istream_t stream = pb_istream_from_buffer(msg, msg_size);
+	return pb_decode(&stream, entry->fields, buf);
+}
+
 void dispatch(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size)
 {
     static uint8_t decode_buffer[MAX_DECODE_SIZE];
 
-    pb_istream_t stream = pb_istream_from_buffer(msg, msg_size);
-
-    bool status = pb_decode(&stream, entry->fields, decode_buffer);
-    if (status) 
+    if(pb_parse(entry, msg, msg_size, decode_buffer))
     {
         if(entry->process_func) 
         {
@@ -160,6 +163,40 @@ void raw_dispatch(const RawMessagesMap_t* entry, uint8_t *msg, uint32_t msg_size
 	{
 		entry->process_func(msg, msg_size, frame_length);
 	}
+}
+
+/*
+ * Tiny messages
+ */
+static bool msg_tiny_flag = false;
+static uint8_t msg_tiny[64];
+static uint16_t msg_tiny_id = 0xFFFF;
+
+MessageType wait_for_tiny_msg(const uint8_t *buf)
+{
+	/*
+	 * Init buffer for tiny msg
+	 */
+	msg_tiny_id = 0xFFFF;
+
+	/*
+	 * Turn on tiny msg
+	 */
+	msg_tiny_flag = true;
+
+	while(msg_tiny_id == 0xFFFF)
+		usb_poll();
+
+	/*
+	 * Turn off tiny msg
+	 */
+	msg_tiny_flag = false;
+
+	/*
+	 * Set and return msg
+	 */
+	memcpy(buf, msg_tiny, sizeof(msg_tiny));
+	return msg_tiny_id;
 }
 
 
@@ -284,7 +321,14 @@ void handle_usb_rx(UsbMessage *msg)
      * and this message type is parsable
      */
     if (last_segment && map_type == MESSAGE_MAP)
-    	dispatch((MessagesMap_t*)entry, framebuf.buffer, last_frame_header.len);
+    	if(!msg_tiny_flag)
+    		dispatch((MessagesMap_t*)entry, framebuf.buffer, last_frame_header.len);
+    	else
+    	{
+    		bool status = pb_parse((MessagesMap_t*)entry, framebuf.buffer, last_frame_header.len, msg_tiny);
+    		msg_tiny_id == last_frame_header.id;
+    		//TODO: Handle error parsing tiny msg
+    	}
 
     /*
      * Catch messages that are in message maps
@@ -329,4 +373,3 @@ void msg_init()
 {
     usb_set_rx_callback(handle_usb_rx);
 }
-
