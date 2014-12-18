@@ -172,7 +172,7 @@ static bool msg_tiny_flag = false;
 static uint8_t msg_tiny[64];
 static uint16_t msg_tiny_id = 0xFFFF;
 
-MessageType wait_for_tiny_msg(const uint8_t *buf)
+MessageType wait_for_tiny_msg(uint8_t *buf)
 {
 	/*
 	 * Init buffer for tiny msg
@@ -234,7 +234,7 @@ void handle_usb_rx(UsbMessage *msg)
 	 * Message mapping
 	 */
 	static MessageMapType map_type;
-	static void* entry;
+	static const void* entry;
 
 	/*
 	 * Current segment content

@@ -72,4 +72,9 @@ void msg_failure_init(msg_failure_t failure_func);
  */
 void msg_init();
 
+/*
+ * Tiny messages
+ */
+MessageType wait_for_tiny_msg(uint8_t *buf);
+
 #endif
