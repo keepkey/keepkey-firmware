@@ -21,7 +21,6 @@
 #include "layout.h"
 #include "timer.h"
 #include "resources.h"
-#include "confirm_sm.h"
 
 
 //====================== CONSTANTS, TYPES, AND MACROS =========================
