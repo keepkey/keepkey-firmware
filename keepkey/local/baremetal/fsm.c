@@ -41,6 +41,7 @@
 #include <resources.h>
 #include <timer.h>
 #include <crypto.h>
+#include <protect.h>
 
 // message methods
 static uint8_t msg_resp[MAX_FRAME_SIZE];
@@ -59,6 +60,11 @@ void fsm_sendSuccess(const char *text)
 
 void fsm_sendFailure(FailureType code, const char *text)
 {
+	if (protectAbortedByInitialize) {
+		fsm_msgInitialize((Initialize *)0);
+		protectAbortedByInitialize = false;
+		return;
+	}
 	RESP_INIT(Failure);
 	resp->has_code = true;
 	resp->code = code;
@@ -217,33 +223,37 @@ void fsm_msgPing(Ping *msg)
 
 void fsm_msgWipeDevice(WipeDevice *msg)
 {
-    (void)msg;
-    if(confirm("Wipe Private Keys and Settings", "Are you sure you want to erase private keys and settings? This process cannot be undone and any money stored will be lost."))
-    {
-    	/*
-    	 * Setup wipe animation
-    	 */
-       	layout_loading(WIPE_ANIM);
-       	force_animation_start();
+	(void)msg;
+	if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_WipeDevice, "Wipe Private Keys and Settings", "Are you sure you want to erase private keys and settings? This process cannot be undone and any money stored will be lost."))
+	{
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe cancelled");
+		layout_home();
+		return;
+	}
 
-    	void tick(){
-    		animate();
-    		display_refresh();
-    		delay(3);
-		}
+	/*
+	 * Setup wipe animation
+	 */
+	layout_loading(WIPE_ANIM);
+	force_animation_start();
 
-    	tick();
+	void tick(){
+		animate();
+		display_refresh();
+		delay(3);
+	}
 
-    	/*
-    	 * Wipe device
-    	 */
-        storage_reset();
-        storage_reset_uuid();
-        storage_commit_ticking(&tick);
+	tick();
 
-        fsm_sendSuccess("Device wiped");
-        layout_home();
-    }
+	/*
+	 * Wipe device
+	 */
+	storage_reset();
+	storage_reset_uuid();
+	storage_commit_ticking(&tick);
+
+	fsm_sendSuccess("Device wiped");
+	layout_home();
 }
 
 void fsm_msgFirmwareErase(FirmwareErase *msg)
@@ -922,7 +932,7 @@ static const MessagesMap_t MessagesMap[] = {
 	{'i', MessageType_MessageType_CipherKeyValue,		CipherKeyValue_fields,		(void (*)(void *))fsm_msgCipherKeyValue},
 	{'i', MessageType_MessageType_ClearSession,			ClearSession_fields,		(void (*)(void *))fsm_msgClearSession},
 	{'i', MessageType_MessageType_ApplySettings,		ApplySettings_fields,		(void (*)(void *))fsm_msgApplySettings},
-//	{'i', MessageType_MessageType_ButtonAck,			ButtonAck_fields,			(void (*)(void *))fsm_msgButtonAck},
+	{'i', MessageType_MessageType_ButtonAck,			ButtonAck_fields,			0},
 	{'i', MessageType_MessageType_GetAddress,			GetAddress_fields,			(void (*)(void *))fsm_msgGetAddress},
 	{'i', MessageType_MessageType_EntropyAck,			EntropyAck_fields,			(void (*)(void *))fsm_msgEntropyAck},
 	{'i', MessageType_MessageType_SignMessage,			SignMessage_fields,			(void (*)(void *))fsm_msgSignMessage},
@@ -942,7 +952,7 @@ static const MessagesMap_t MessagesMap[] = {
 //TODO:	{'o', MessageType_MessageType_PinMatrixRequest,		PinMatrixRequest_fields,	0},
 //TODO	{'o', MessageType_MessageType_TxRequest,			TxRequest_fields,			0},
 	{'o', MessageType_MessageType_CipheredKeyValue,		CipheredKeyValue_fields,	0},
-//TODO	{'o', MessageType_MessageType_ButtonRequest,		ButtonRequest_fields,		0},
+	{'o', MessageType_MessageType_ButtonRequest,		ButtonRequest_fields,		0},
 	{'o', MessageType_MessageType_Address,				Address_fields,				0},
 	{'o', MessageType_MessageType_EntropyRequest,		EntropyRequest_fields,		0},
 	{'o', MessageType_MessageType_MessageSignature,		MessageSignature_fields,	0},

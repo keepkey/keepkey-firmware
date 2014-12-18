@@ -76,5 +76,6 @@ void msg_init();
  * Tiny messages
  */
 MessageType wait_for_tiny_msg(uint8_t *buf);
+MessageType check_for_tiny_msg(bool block);
 
 #endif

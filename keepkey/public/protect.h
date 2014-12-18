@@ -23,6 +23,8 @@
 #include <stdbool.h>
 #include "types.pb.h"
 
+extern bool protectAbortedByInitialize;
+
 bool protectButton(ButtonRequestType type, bool confirm_only);
 bool protectPin(bool use_cached);
 bool protectChangePin(void);

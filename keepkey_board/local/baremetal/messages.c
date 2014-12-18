@@ -149,11 +149,11 @@ void dispatch(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size)
     if(pb_parse(entry, msg, msg_size, decode_buffer))
     {
         if(entry->process_func) 
-        {
             entry->process_func(decode_buffer);
-        }
+        else
+        	(*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unexpected message");
     } else {
-        /* TODO: Handle error response */
+    	(*msg_failure)(FailureType_Failure_UnexpectedMessage, "Could not parse protocol buffer message");
     }
 }
 
@@ -174,8 +174,19 @@ static uint16_t msg_tiny_id = 0xFFFF;
 
 MessageType wait_for_tiny_msg(uint8_t *buf)
 {
+	check_for_tiny_msg(true);
+
 	/*
-	 * Init buffer for tiny msg
+	 * Set and return msg
+	 */
+	memcpy(buf, msg_tiny, sizeof(msg_tiny));
+	return msg_tiny_id;
+}
+
+MessageType check_for_tiny_msg(bool block)
+{
+	/*
+	 * Init
 	 */
 	msg_tiny_id = 0xFFFF;
 
@@ -185,7 +196,12 @@ MessageType wait_for_tiny_msg(uint8_t *buf)
 	msg_tiny_flag = true;
 
 	while(msg_tiny_id == 0xFFFF)
+	{
 		usb_poll();
+
+		if(!block)
+			break;
+	}
 
 	/*
 	 * Turn off tiny msg
@@ -193,9 +209,8 @@ MessageType wait_for_tiny_msg(uint8_t *buf)
 	msg_tiny_flag = false;
 
 	/*
-	 * Set and return msg
+	 * Return msg id
 	 */
-	memcpy(buf, msg_tiny, sizeof(msg_tiny));
 	return msg_tiny_id;
 }
 
@@ -268,11 +283,6 @@ void handle_usb_rx(UsbMessage *msg)
 		content_size = content_pos;
 
 		/*
-		 * Set to be mid frame
-		 */
-		mid_frame = true;
-
-		/*
 		 * Determine callback handler and message map type
 		 */
 		if(entry = message_map_entry(last_frame_header.id))
@@ -289,6 +299,7 @@ void handle_usb_rx(UsbMessage *msg)
     }
 
     bool last_segment = content_pos >= last_frame_header.len;
+    mid_frame = !last_segment;
 
     /*
      * Check for a message map entry for protocol buffer messages
@@ -322,12 +333,22 @@ void handle_usb_rx(UsbMessage *msg)
      */
     if (last_segment && map_type == MESSAGE_MAP)
     	if(!msg_tiny_flag)
+    	{
+    		/*
+    		 * Make sure if there are tiny messages in dispatched method are re-mapped
+    		 */
+    		map_type = NO_MAP;
+
     		dispatch((MessagesMap_t*)entry, framebuf.buffer, last_frame_header.len);
+    	}
     	else
     	{
     		bool status = pb_parse((MessagesMap_t*)entry, framebuf.buffer, last_frame_header.len, msg_tiny);
-    		msg_tiny_id == last_frame_header.id;
-    		//TODO: Handle error parsing tiny msg
+
+    		if(status)
+    			msg_tiny_id = last_frame_header.id;
+    		else
+    			(*msg_failure)(FailureType_Failure_UnexpectedMessage, "Could not parse protocol buffer message");
     	}
 
     /*
@@ -338,8 +359,6 @@ void handle_usb_rx(UsbMessage *msg)
     	++msg_stats.unknown_dispatch_entry;
 
     	(*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message");
-
-		mid_frame = false;
 	}
 
     /*
@@ -348,7 +367,6 @@ void handle_usb_rx(UsbMessage *msg)
 	if(last_segment)
 	{
 		content_pos = 0;
-		mid_frame = false;
 		entry = NULL;
 		map_type = NO_MAP;
 	}
