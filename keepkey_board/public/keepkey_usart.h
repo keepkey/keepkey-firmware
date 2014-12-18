@@ -23,7 +23,6 @@
 #ifndef KEEPKEY_USART_H
 #define KEEPKEY_USART_H
 
-#include <confirm_sm.h>
 #include <keepkey_leds.h>
 #include <keepkey_display.h>
 #include <keepkey_button.h>

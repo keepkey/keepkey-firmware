@@ -3,6 +3,6 @@ from scons_util import *
 
 Import('env')
 init_project(env, 
-    deps=['interface', 'nanopb', 'keepkey_board', 'crypto'], 
+    deps=['interface', 'nanopb', 'keepkey_board', 'crypto', 'keepkey'], 
     libs=['opencm3_stm32f2'])
 
