@@ -26,7 +26,7 @@ $ sudo apt-get remove gdb
 Then install neccassary packages
 
 ```
-$ sudo apt-get install git scons gcc-arm-none-eabi python-protobuf protobuf-compiler fabric exuberant-ctags gdb-arm-none-eabi default-jre
+$ sudo apt-get install git scons gcc-arm-none-eabi python-protobuf protobuf-compiler fabric exuberant-ctags gdb-arm-none-eabi build-essential default-jre
 ```
 
 We can generate a SSH key to add to our GitLab profile so we don't have to enter credentials each and everytime we use git.  Replace $your_email with your KeepKey email address.  Your email here is used to seed your RSA key.  During this process you are asked for a passphrase.  You can either choose a passphrase or leave blank. If you decide to use a passphrase, you will have to enter it everytime you interact with git.
