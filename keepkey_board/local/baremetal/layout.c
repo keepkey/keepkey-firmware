@@ -493,61 +493,6 @@ void layout_loading(AnimationResource type)
 		0);
 }
 
-//=========================== CONFIRM FUNCTIONS ================================
-
-#define MAX_CYPHER_KEY_LEN 55
-#define MAX_ENCRYPT_MSG_LEN 65
-
-bool confirm_cipher(bool encrypt, const char *key)
-{
-	char key_prompt[MAX_CYPHER_KEY_LEN];
-
-	strncpy(key_prompt, key, MAX_CYPHER_KEY_LEN -1);
-	if(strlen(key) > (MAX_CYPHER_KEY_LEN - 4))
-	{
-		key_prompt[MAX_CYPHER_KEY_LEN - 4] = '.'; key_prompt[MAX_CYPHER_KEY_LEN - 3] = '.';
-		key_prompt[MAX_CYPHER_KEY_LEN - 2] = '.'; key_prompt[MAX_CYPHER_KEY_LEN - 1] = '\0';
-	}
-
-	if(encrypt)
-		return confirm("Encrypt Key Value", "Do you want to encrypt the value of the key \"%s\"?", key_prompt);
-	else
-		return confirm("Decrypt Key Value", "Do you want to decrypt the value of the key \"%s\"?", key_prompt);
-}
-
-bool confirm_encrypt_msg(const char *msg, bool signing)
-{
-	char msg_prompt[MAX_ENCRYPT_MSG_LEN];
-
-	strncpy(msg_prompt, msg, MAX_ENCRYPT_MSG_LEN - 1);
-	if(strlen(msg) > (MAX_ENCRYPT_MSG_LEN - 4))
-	{
-		msg_prompt[MAX_ENCRYPT_MSG_LEN - 4] = '.'; msg_prompt[MAX_ENCRYPT_MSG_LEN - 3] = '.';
-		msg_prompt[MAX_ENCRYPT_MSG_LEN - 2] = '.'; msg_prompt[MAX_ENCRYPT_MSG_LEN - 1] = '\0';
-	}
-
-	if(signing)
-		return confirm("Encrypt and Sign Message", "Do you want to encrypt and sign the message \"%s\"?", msg_prompt);
-	else
-		return confirm("Encrypt Message", "Do you want to encrypt the message \"%s\"?", msg_prompt);
-}
-
-bool confirm_decrypt_msg(const char *msg, const char *address)
-{
-	char msg_prompt[MAX_ENCRYPT_MSG_LEN];
-
-	strncpy(msg_prompt, msg, MAX_ENCRYPT_MSG_LEN - 1);
-	if(strlen(msg) > (MAX_ENCRYPT_MSG_LEN - 4))
-	{
-		msg_prompt[MAX_ENCRYPT_MSG_LEN - 4] = '.'; msg_prompt[MAX_ENCRYPT_MSG_LEN - 3] = '.';
-		msg_prompt[MAX_ENCRYPT_MSG_LEN - 2] = '.'; msg_prompt[MAX_ENCRYPT_MSG_LEN - 1] = '\0';
-	}
-
-	if(address)
-		return confirm("Decrypt Signed Message", "The decrypted, signed message is \"%s\"?", msg_prompt);
-	else
-		return confirm("Decrypt Message", "The decrypted message is \"%s\"?", msg_prompt);
-}
 
 //-----------------------------------------------------------------------------
 // 

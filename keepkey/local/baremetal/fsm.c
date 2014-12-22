@@ -22,6 +22,7 @@
 #include <ecdsa.h>
 #include <aes.h>
 #include <hmac.h>
+#include <bip39.h>
 #include <layout.h>
 #include <confirm_sm.h>
 #include <fsm.h>
@@ -172,25 +173,13 @@ void fsm_msgPing(Ping *msg)
 {
 	RESP_INIT(Success);
 
-	bool return_home = false;
-
 	if(msg->has_button_protection && msg->button_protection)
-    {
-		if(msg->has_message && strlen(msg->message) <= 40)
-        {
-			if(confirm("Respond to Ping Request", "A ping request was received with the message \"%s\". Would you like to have it responded to?", msg->message))
-            {
-				return_home = true;
-            }
-        }
-		else
-        {
-			if(confirm("Respond to Ping Request", "A ping request was received. Would you like to have it responded to?"))
-            {
-				return_home = true;
-            }
-        }
-    }
+		if(!confirm_ping_msg(msg->message))
+		{
+			layout_home();
+			return;
+		}
+
 	//TODO:pin protect ping
 	/*if(msg->has_pin_protection && msg->pin_protection) {
 		if (!protectPin(true)) {
@@ -214,11 +203,7 @@ void fsm_msgPing(Ping *msg)
 	}
 
 	msg_write(MessageType_MessageType_Success, resp);
-
-	if(return_home)
-    {
-		layout_home();
-    }
+	layout_home();
 }
 
 void fsm_msgWipeDevice(WipeDevice *msg)
@@ -270,18 +255,25 @@ void fsm_msgFirmwareUpload(FirmwareUpload *msg)
 
 void fsm_msgGetEntropy(GetEntropy *msg)
 {
-	if(confirm("Generate and Return Entropy", "Are you sure you would like to generate entropy using the hardware RNG, and return it to the computer client?"))
+	if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+		"Generate and Return Entropy", "Are you sure you would like to generate entropy using the hardware RNG, and return it to the computer client?"))
 	{
-		RESP_INIT(Entropy);
-		uint32_t len = msg->size;
-		if (len > 1024) {
-			len = 1024;
-		}
-		resp->entropy.size = len;
-		random_buffer(resp->entropy.bytes, len);
-		msg_write(MessageType_MessageType_Entropy, resp);
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Entropy cancelled");
 		layout_home();
+		return;
 	}
+
+	RESP_INIT(Entropy);
+	uint32_t len = msg->size;
+
+	if (len > 1024) {
+		len = 1024;
+	}
+
+	resp->entropy.size = len;
+	random_buffer(resp->entropy.bytes, len);
+	msg_write(MessageType_MessageType_Entropy, resp);
+	layout_home();
 }
 
 void fsm_msgGetPublicKey(GetPublicKey *msg)
@@ -309,33 +301,46 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 
 void fsm_msgLoadDevice(LoadDevice *msg)
 {
-    if (storage_isInitialized()) {
-        fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Device is already initialized. Use Wipe first.");
-        return;
+	if (storage_isInitialized()) {
+		fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Device is already initialized. Use Wipe first.");
+    	return;
     }
 
-    if(confirm("Import Recovery Sentence", "Importing a recovery sentence directly from a connected computer is not recommended unless you understand the risks."))
+    if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+    	"Import Recovery Sentence", "Importing a recovery sentence directly from a connected computer is not recommended unless you understand the risks."))
     {
-    	storage_loadDevice(msg);
-
-    	/*
-    	 * Setup saving animation
-    	 */
-    	layout_loading(SAVING_ANIM);
-    	force_animation_start();
-
-    	void tick(){
-    		animate();
-    		display_refresh();
-    		delay(3);
-    	}
-
-    	tick();
-    	storage_commit_ticking(&tick);
-
-    	fsm_sendSuccess("Device loaded");
-    	layout_home();
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Load cancelled");
+		layout_home();
+		return;
     }
+
+	if (msg->has_mnemonic && !(msg->has_skip_checksum && msg->skip_checksum) ) {
+		if (!mnemonic_check(msg->mnemonic)) {
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Mnemonic with wrong checksum provided");
+			layout_home();
+			return;
+		}
+	}
+
+	storage_loadDevice(msg);
+
+	/*
+	 * Setup saving animation
+	 */
+	layout_loading(SAVING_ANIM);
+	force_animation_start();
+
+	void tick(){
+		animate();
+		display_refresh();
+		delay(3);
+	}
+
+	tick();
+	storage_commit_ticking(&tick);
+
+	fsm_sendSuccess("Device loaded");
+	layout_home();
 }
 
 void fsm_msgResetDevice(ResetDevice *msg)
@@ -604,6 +609,7 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
 	if ((encrypt && ask_on_encrypt) || (!encrypt && ask_on_decrypt)) {
 		if(!confirm_cipher(encrypt, msg->key))
 		{
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "CipherKeyValue cancelled");
 			layout_home();
 			return;
 		}
@@ -875,20 +881,24 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
 		base58_encode_check(address_raw, 21, resp->address);
 	}
 
-	if(confirm_decrypt_msg(resp->message.bytes, signing ? resp->address : 0))
+	if(!confirm_decrypt_msg(resp->message.bytes, signing ? resp->address : 0))
 	{
-		if (display_only) {
-			resp->has_address = false;
-			resp->has_message = false;
-			memset(resp->address, sizeof(resp->address), 0);
-			memset(&(resp->message), sizeof(resp->message), 0);
-		} else {
-			resp->has_address = signing;
-			resp->has_message = true;
-		}
-		msg_write(MessageType_MessageType_DecryptedMessage, resp);
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Decrypt message cancelled");
 		layout_home();
+		return;
 	}
+
+	if (display_only) {
+		resp->has_address = false;
+		resp->has_message = false;
+		memset(resp->address, sizeof(resp->address), 0);
+		memset(&(resp->message), sizeof(resp->message), 0);
+	} else {
+		resp->has_address = signing;
+		resp->has_message = true;
+	}
+	msg_write(MessageType_MessageType_DecryptedMessage, resp);
+	layout_home();
 }
 
 void fsm_msgRecoveryDevice(RecoveryDevice *msg)

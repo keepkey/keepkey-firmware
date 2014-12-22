@@ -42,5 +42,9 @@
 bool confirm_with_button_request(ButtonRequestType type, const char *request_title, const char *request_body, ...);
 bool confirm(const char* request_title, const char* request_body, ...);
 bool confirm_helper(const char* request_title, const char* request_body);
+bool confirm_cipher(bool encrypt, const char *key);
+bool confirm_encrypt_msg(const char *msg, bool signing);
+bool confirm_decrypt_msg(const char *msg, const char *address);
+bool confirm_ping_msg(const char *msg);
 
 #endif
