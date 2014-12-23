@@ -1473,7 +1473,7 @@ static const AnimationFrame flashing_array[] = {
 	{&flashing_5_image, 200}
 };
 
-#ifdef BLDR
+#ifndef APP
 static const Image flashing_background_image = {(void*)&flashing_background, 256, 64};
 static const ImageAnimation flashing = { 5, flashing_array };
 #else
@@ -1705,7 +1705,7 @@ static void unplug(uint8_t* data){
 	memcpy(data, image_data, sizeof(image_data));
 }
 
-#ifdef BLDR
+#ifndef APP
 static const Image unplug_image = {(void*)&unplug, 45, 27};
 #else
 static const Image unplug_image ;
