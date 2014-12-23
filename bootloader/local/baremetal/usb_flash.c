@@ -27,6 +27,7 @@
 
 #include <libopencm3/stm32/flash.h>
 
+#include <sha2.h>
 #include <interface.h>
 #include <keepkey_board.h>
 #include <memory.h>
@@ -81,9 +82,11 @@ static const MessagesMap_t MessagesMap[] = {
     {'i', MessageType_MessageType_Initialize,       Initialize_fields,      (message_handler_t)(handler_initialize)},
     {'i', MessageType_MessageType_Ping,             Ping_fields,            (message_handler_t)(handler_ping)},
     {'i', MessageType_MessageType_FirmwareErase,    FirmwareErase_fields,   (message_handler_t)(handler_erase)},
-    {'o', MessageType_MessageType_Features,         Features_fields,        NULL},
-    {'o', MessageType_MessageType_Success,          Success_fields,         NULL},
-    {'o', MessageType_MessageType_Failure,          Failure_fields,         NULL},
+	{'i', MessageType_MessageType_ButtonAck,		ButtonAck_fields,		0},
+    {'o', MessageType_MessageType_Features,         Features_fields,        0},
+    {'o', MessageType_MessageType_Success,          Success_fields,         0},
+    {'o', MessageType_MessageType_Failure,          Failure_fields,         0},
+	{'o', MessageType_MessageType_ButtonRequest,	ButtonRequest_fields,	0},
 
     {0,0,0,0}
 };
@@ -262,8 +265,8 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
             * On first USB segment of upload we have to account for added data for protocol buffers
             * which we will ignore since it is not being parsed out for us
             */
-            msg_size -= 4;
-            msg = (uint8_t*)(msg + 4);
+            msg_size -= PROTOBUF_FIRMWARE_PADDING;
+            msg = (uint8_t*)(msg + PROTOBUF_FIRMWARE_PADDING);
         }
 
         /* Process firmware upload */
@@ -285,18 +288,38 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
             }
 
             /* Finish firmware update */
-            if (flash_offset >= frame_length - 4)
+            if (flash_offset >= frame_length - PROTOBUF_FIRMWARE_PADDING)
             {
                 flash_lock();
-                send_success("Upload complete");
-                upload_state = UPLOAD_COMPLETE;
 
                 /* Check fingerprint */
-                char digest[64];
-                sha256_Raw((uint8_t *)FLASH_APP_START, frame_length - 4, digest);
+                char digest[32];
+                char str_digest[65] = "";
+                uint32_t firmware_size = frame_length - PROTOBUF_FIRMWARE_PADDING - FLASH_META_DESC_LEN;
+                sha256_Raw((uint8_t *)FLASH_APP_START, firmware_size, digest);
 
-                confirm_with_button_request(ButtonRequestType_ButtonRequest_FirmwareCheck,
-                	"Confirm", "test");
+                for (uint8_t i = 0; i < 32; i++)
+                {
+                	char digest_buf[3];
+                	sprintf(digest_buf, "%02x", digest[i]);
+                    strcat(str_digest, digest_buf);
+                }
+
+                if(confirm_with_button_request(ButtonRequestType_ButtonRequest_FirmwareCheck,
+                	"Compare Firmware Fingerprint", str_digest))
+                {
+                	/* Swap in KPKY in META MAGIC so firmware can boot */
+                	//TODO:swap in KPKY
+
+                    /* Send success */
+                    send_success("Upload complete");
+    				upload_state = UPLOAD_COMPLETE;
+                }
+                else
+                {
+                	send_failure(FailureType_Failure_FirmwareError, "Fingerprint Not Confirmed");
+                	upload_state = UPLOAD_ERROR;
+                }
             }
         }
     }

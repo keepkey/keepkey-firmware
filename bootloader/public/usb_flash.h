@@ -26,7 +26,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define UPLOAD_STATUS_FREQUENCY 1024
+#define UPLOAD_STATUS_FREQUENCY		1024
+#define PROTOBUF_FIRMWARE_PADDING	4
 
 bool usb_flash_firmware();
 

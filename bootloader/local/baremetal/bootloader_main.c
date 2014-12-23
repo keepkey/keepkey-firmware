@@ -42,6 +42,8 @@
 #include <keepkey_usart.h>
 #include <timer.h>
 #include <layout.h>
+
+#include <confirm_sm.h>
 #include <usb_driver.h>
 #include <usb_flash.h>
 #include <ecdsa.h>
@@ -176,7 +178,7 @@ bool check_firmware_sig(void)
 	uint32_t index;
     uint8_t (*app_meta_sig_ptr)[64] = (uint8_t (*)[])FLASH_META_SIG1;
 	bool retval = false;
-    app_meta_td *app_meta = (app_meta_td *)FLASH_META_START;         
+    app_meta_td *app_meta = (app_meta_td *)FLASH_META_START;
 
     if(memcmp(&app_meta->magic, "KPKY", 4) == 0)
     {
