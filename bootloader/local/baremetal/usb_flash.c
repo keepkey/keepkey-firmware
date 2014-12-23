@@ -289,6 +289,13 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
                 flash_lock();
                 send_success("Upload complete");
                 upload_state = UPLOAD_COMPLETE;
+
+                /* Check fingerprint */
+                char digest[64];
+                sha256_Raw((uint8_t *)FLASH_APP_START, frame_length - 4, digest);
+
+                confirm_with_button_request(ButtonRequestType_ButtonRequest_FirmwareCheck,
+                	"Confirm", "test");
             }
         }
     }
