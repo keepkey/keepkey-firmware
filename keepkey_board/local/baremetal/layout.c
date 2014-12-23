@@ -303,8 +303,8 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
 				get_image_animation_duration(icon.img_animation));
 			break;
 		case NOTIFICATION_CONFIRMED:
-			sp.x = 209;
-			draw_string(canvas, body_font, "confirmed", &sp, BODY_WIDTH, font_height(body_font) + 1);
+			sp.x = 226;
+			draw_string(canvas, body_font, "ok!", &sp, BODY_WIDTH, font_height(body_font) + 1);
 
 			sp.x = 217;
 			sp.y = 13;
