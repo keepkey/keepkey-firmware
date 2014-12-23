@@ -42,8 +42,6 @@
 #include <keepkey_usart.h>
 #include <timer.h>
 #include <layout.h>
-
-#include <confirm_sm.h>
 #include <usb_driver.h>
 #include <usb_flash.h>
 #include <ecdsa.h>
