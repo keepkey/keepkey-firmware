@@ -32,6 +32,7 @@
 #include <memory.h>
 #include <messages.h>
 #include <keepkey_usart.h>
+#include <confirm_sm.h>
 
 
 #include "usb_driver.h"

@@ -28,14 +28,14 @@ def get_projects():
     ignores = ['.git', '.hg', 'build']
 
     #check build type to include appropriate directory
-    bldtype = ARGUMENTS.get('bldtype', 0)
+#    bldtype = ARGUMENTS.get('bldtype', 0)
  
-    if bldtype == 'bldr':
+#    if bldtype == 'bldr':
         #Don't include KeepKey App directory since Bootloader is being built
-    	ignores.append('keepkey')
-    elif bldtype == 'app':
+#        ignores.append('keepkey')
+#    elif bldtype == 'app':
         #Don't include Bootloader directory since Application is being built
-    	ignores.append('bootloader')
+#     	ignores.append('bootloader')
 
     for root, dirs, files in os.walk(Dir('#').abspath):
         for i in ignores:
