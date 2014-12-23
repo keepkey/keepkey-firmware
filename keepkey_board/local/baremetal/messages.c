@@ -246,12 +246,6 @@ void handle_usb_rx(UsbMessage *msg)
 	static bool mid_frame = false;
 
 	/*
-	 * Message mapping
-	 */
-	static MessageMapType map_type;
-	static const void* entry;
-
-	/*
 	 * Current segment content
 	 */
 	uint8_t* contents = NULL;
@@ -282,15 +276,6 @@ void handle_usb_rx(UsbMessage *msg)
 		content_pos = msg->len - 9;
 		content_size = content_pos;
 
-		/*
-		 * Determine callback handler and message map type
-		 */
-		if(entry = message_map_entry(last_frame_header.id))
-			map_type = MESSAGE_MAP;
-		else if(entry = raw_message_map_entry(last_frame_header.id))
-			map_type = RAW_MESSAGE_MAP;
-
-
     } else {
     	contents = ((TrezorFrameFragment*)msg->message)->contents;
 
@@ -300,6 +285,18 @@ void handle_usb_rx(UsbMessage *msg)
 
     bool last_segment = content_pos >= last_frame_header.len;
     mid_frame = !last_segment;
+
+    /*
+	 * Determine callback handler and message map type
+	 */
+	MessageMapType map_type;
+	const void* entry;
+	if(entry = message_map_entry(last_frame_header.id))
+		map_type = MESSAGE_MAP;
+	else if(entry = raw_message_map_entry(last_frame_header.id))
+		map_type = RAW_MESSAGE_MAP;
+	else
+		map_type = NO_MAP;
 
     /*
      * Check for a message map entry for protocol buffer messages
@@ -333,14 +330,7 @@ void handle_usb_rx(UsbMessage *msg)
      */
     if (last_segment && map_type == MESSAGE_MAP)
     	if(!msg_tiny_flag)
-    	{
-    		/*
-    		 * Make sure if there are tiny messages in dispatched method are re-mapped
-    		 */
-    		map_type = NO_MAP;
-
     		dispatch((MessagesMap_t*)entry, framebuf.buffer, last_frame_header.len);
-    	}
     	else
     	{
     		bool status = pb_parse((MessagesMap_t*)entry, framebuf.buffer, last_frame_header.len, msg_tiny);
@@ -352,23 +342,13 @@ void handle_usb_rx(UsbMessage *msg)
     	}
 
     /*
-     * Catch messages that are in message maps
+     * Catch messages that are not in message maps
      */
-    else if(last_segment && (map_type != MESSAGE_MAP && map_type != RAW_MESSAGE_MAP))
+    else if(last_segment && map_type == NO_MAP)
 	{
     	++msg_stats.unknown_dispatch_entry;
 
     	(*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message");
-	}
-
-    /*
-	 * Last segment clear static variables
-	 */
-	if(last_segment)
-	{
-		content_pos = 0;
-		entry = NULL;
-		map_type = NO_MAP;
 	}
 }
 
