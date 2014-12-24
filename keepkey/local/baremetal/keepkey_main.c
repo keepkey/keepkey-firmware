@@ -54,7 +54,6 @@ int main(void)
      * Init protcol buffer message map and usb msg callback
      */
     fsm_init();
-    msg_init();
 
     /*
      * Listen for commands
