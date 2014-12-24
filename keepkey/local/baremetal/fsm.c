@@ -23,6 +23,7 @@
 #include <aes.h>
 #include <hmac.h>
 #include <bip39.h>
+#include <base58.h>
 #include <layout.h>
 #include <confirm_sm.h>
 #include <fsm.h>
@@ -535,13 +536,49 @@ void fsm_msgTxAck(TxAck *msg)
 void fsm_msgApplySettings(ApplySettings *msg)
 {
 	if (msg->has_label && msg->has_language)
-		confirm("Change Label and Language", "Are you sure you would like to change the label to \"%s\" and the language to %s?", msg->label, msg->language);
-	else if (msg->has_label)
-		confirm("Change Label", "Are you sure you would like to change the label to \"%s\"?", msg->label);
-	else if (msg->has_language)
-		confirm("Change Language", "Are you sure you would like to change the language to %s?", msg->language);
-	else
 	{
+		if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+			"Change Label and Language", "Are you sure you would like to change the label to \"%s\" and the language to %s?", msg->label, msg->language))
+		{
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
+			layout_home();
+			return;
+		}
+	}
+	else if (msg->has_label)
+	{
+		if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+			"Change Label", "Are you sure you would like to change the label to \"%s\"?", msg->label))
+		{
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
+			layout_home();
+			return;
+		}
+	}
+	else if (msg->has_language)
+	{
+		if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+			"Change Language", "Are you sure you would like to change the language to %s?", msg->language))
+		{
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
+			layout_home();
+			return;
+		}
+	}
+	//TODO:Add passphrase support
+	/*if (msg->has_use_passphrase) {
+		layoutDialogSwipe(DIALOG_ICON_QUESTION, "Cancel", "Confirm", NULL, "Do you really want to", msg->use_passphrase ? "enable passphrase" : "disable passphrase", "protection?", NULL, NULL, NULL);
+		if (!protectButton(ButtonRequestType_ButtonRequest_ProtectCall, false)) {
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
+			layoutHome();
+			return;
+		}
+	}
+	if (!msg->has_label && !msg->has_language && !msg->has_use_passphrase) {
+		fsm_sendFailure(FailureType_Failure_SyntaxError, "No setting provided");
+		return;
+	}*/
+	if (!msg->has_label && !msg->has_language) {
 		fsm_sendFailure(FailureType_Failure_SyntaxError, "No setting provided");
 		return;
 	}
@@ -558,6 +595,10 @@ void fsm_msgApplySettings(ApplySettings *msg)
 	if (msg->has_language) {
 		storage_setLanguage(msg->language);
 	}
+	//TODO:Add passphrase support
+	/*if (msg->has_use_passphrase) {
+		storage_setPassphraseProtection(msg->use_passphrase);
+	}*/
 
 	/*
 	 * Setup saving animation
@@ -693,7 +734,7 @@ void fsm_msgSignMessage(SignMessage *msg)
 {
 	RESP_INIT(MessageSignature);
 
-	if(!confirm("Sign Message", msg->message.bytes))
+	if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall, "Sign Message", msg->message.bytes))
 	{
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Sign message cancelled");
 		layout_home();
@@ -709,31 +750,30 @@ void fsm_msgSignMessage(SignMessage *msg)
 	HDNode *node = fsm_getRootNode();
 	if (!node) return;
 	const CoinType *coin = coinByName(msg->coin_name);
-	if (!coin)
-	{
+	if (!coin) {
 		fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
 		layout_home();
 		return;
 	}
 
 	fsm_deriveKey(node, msg->address_n, msg->address_n_count);
-
-	ecdsa_get_address(node->public_key, coin->address_type, resp->address);
+	uint8_t addr_raw[21];
+	ecdsa_get_address_raw(node->public_key, coin->address_type, addr_raw);
+	base58_encode_check(addr_raw, 21, resp->address);
 
 	/*
-	 * Signing animation
+	 * Sign message animation
 	 */
 
-	if (cryptoMessageSign(msg->message.bytes, msg->message.size, node->private_key, resp->address, resp->signature.bytes))
-	{
+	if (cryptoMessageSign(msg->message.bytes, msg->message.size, node->private_key, addr_raw, resp->signature.bytes) == 0) {
 		resp->has_address = true;
 		resp->has_signature = true;
 		resp->signature.size = 65;
 		msg_write(MessageType_MessageType_MessageSignature, resp);
-	} else
-	{
+	} else {
 		fsm_sendFailure(FailureType_Failure_Other, "Error signing message");
 	}
+
 	layout_home();
 }
 
@@ -759,7 +799,7 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 	}
 	if (msg->signature.size == 65 && cryptoMessageVerify(msg->message.bytes, msg->message.size, addr_raw, msg->signature.bytes) == 0)
 	{
-		if(confirm("Verify Message", msg->message.bytes))
+		if(confirm_with_button_request(ButtonRequestType_ButtonRequest_Other, "Verify Message", msg->message.bytes))
 		{
 			fsm_sendSuccess("Message verified");
 		}
@@ -823,7 +863,7 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 	//TODO:Encrypting animation
 	//layoutProgressSwipe("Encrypting", 0, 0);
 
-	if (cryptoMessageEncrypt(&pubkey, msg->message.bytes, msg->message.size, display_only, resp->nonce.bytes, &(resp->nonce.size), resp->message.bytes, &(resp->message.size), resp->hmac.bytes, &(resp->hmac.size), signing ? node->private_key : 0, signing ? address_raw : 0) != 0) {
+	if (cryptoMessageEncrypt(&pubkey, msg->message.bytes, msg->message.size, display_only, resp->nonce.bytes, (pb_size_t *)&(resp->nonce.size), resp->message.bytes, (pb_size_t *)&(resp->message.size), resp->hmac.bytes, (pb_size_t *)&(resp->hmac.size), signing ? node->private_key : 0, signing ? address_raw : 0) != 0) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Error encrypting message");
 		layout_home();
 		return;
@@ -872,7 +912,7 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
 	bool display_only = false;
 	bool signing = false;
 	uint8_t address_raw[21];
-	if (cryptoMessageDecrypt(&nonce_pubkey, msg->message.bytes, msg->message.size, msg->hmac.bytes, msg->hmac.size, node->private_key, resp->message.bytes, &(resp->message.size), &display_only, &signing, address_raw) != 0) {
+	if (cryptoMessageDecrypt(&nonce_pubkey, msg->message.bytes, msg->message.size, msg->hmac.bytes, msg->hmac.size, node->private_key, resp->message.bytes, (pb_size_t *)&(resp->message.size), &display_only, &signing, address_raw) != 0) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Error decrypting message");
 		layout_home();
 		return;
@@ -985,4 +1025,5 @@ void fsm_init(void)
 	msg_map_init(MessagesMap, MESSAGE_MAP);
 	msg_map_init(RawMessagesMap, RAW_MESSAGE_MAP);
 	msg_failure_init(&fsm_sendFailure);
+	msg_init();
 }
