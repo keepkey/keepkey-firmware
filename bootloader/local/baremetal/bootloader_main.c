@@ -263,6 +263,7 @@ int main(int argc, char* argv[])
             {
                 /* Invalid magic found.  Not booting!!! */
                 layout_standard_notification("INVALID FIRMWARE MAGIC", "Magic value invalid in Application partition", NOTIFICATION_INFO);
+                display_refresh();
                 dbg_print("INVALID FIRMWARE MAGIC\n\r");
                 break;
             }
@@ -287,7 +288,6 @@ int main(int argc, char* argv[])
     while(1) 
     {
         /* Catastrophic error, hang in forever loop */
-        dbg_print("looping forever\n\r");
     }
 
     return(0);
