@@ -30,7 +30,8 @@ DEFS=['-DSTM32F2',
       '-DMAJOR_VERSION=0', 
       '-DMINOR_VERSION=0', 
       '-DPATCH_VERSION=0',
-      '-DPB_FIELD_16BIT=1']
+      '-DPB_FIELD_16BIT=1',
+      '-DNDEBUG']
 
 def load_toolchain():
     env = DefaultEnvironment()

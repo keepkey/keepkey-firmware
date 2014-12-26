@@ -79,16 +79,19 @@
 /* Application Partition */
 #define FLASH_META_START        (FLASH_STORAGE_START + FLASH_STORAGE_LEN) //0x0806_0000 - 0x0806_00FF
 
-#define FLASH_META_MAGIC	(FLASH_META_START)
-#define FLASH_META_CODELEN	(FLASH_META_START + 0x0004)
-#define FLASH_META_SIGINDEX1	(FLASH_META_START + 0x0008)
-#define FLASH_META_SIGINDEX2	(FLASH_META_START + 0x0009)
-#define FLASH_META_SIGINDEX3	(FLASH_META_START + 0x000A)
-#define FLASH_META_FLAGS	(FLASH_META_START + 0x000B)
-#define FLASH_META_SIG1		(FLASH_META_START + 0x0040)
-#define FLASH_META_SIG2		(FLASH_META_START + 0x0080)
-#define FLASH_META_SIG3		(FLASH_META_START + 0x00C0)
+#define FLASH_META_MAGIC	    (FLASH_META_START)
+#define FLASH_META_CODELEN	    (FLASH_META_MAGIC       + sizeof(((app_meta_td *)NULL)->magic))
+#define FLASH_META_SIGINDEX1	(FLASH_META_CODELEN	    + sizeof(((app_meta_td *)NULL)->code_len))
+#define FLASH_META_SIGINDEX2	(FLASH_META_SIGINDEX1   + sizeof(((app_meta_td *)NULL)->sig_index1))
+#define FLASH_META_SIGINDEX3	(FLASH_META_SIGINDEX2   + sizeof(((app_meta_td *)NULL)->sig_index2))
+#define FLASH_META_FLAGS	    (FLASH_META_SIGINDEX3   + sizeof(((app_meta_td *)NULL)->sig_index3))
+#define FLASH_META_RESERVE	    (FLASH_META_FLAGS       + sizeof(((app_meta_td *)NULL)->flag))
+#define FLASH_META_SIG1		    (FLASH_META_RESERVE     + sizeof(((app_meta_td *)NULL)->rsv))
+#define FLASH_META_SIG2		    (FLASH_META_SIG1        + sizeof(((app_meta_td *)NULL)->sig1))
+#define FLASH_META_SIG3		    (FLASH_META_SIG2        + sizeof(((app_meta_td *)NULL)->sig2))
+
 #define FLASH_META_DESC_LEN     (0x100) 
+#define META_MAGIC_SIZE         (FLASH_META_CODELEN	- FLASH_META_MAGIC)
 
 #define FLASH_APP_START     (FLASH_META_START + FLASH_META_DESC_LEN)     //0x0806_0100 - 0x080F_FFFF
 #define FLASH_APP_LEN       (FLASH_TOTAL_SIZE - FLASH_BOOT_LEN - FLASH_STORAGE_LEN - FLASH_META_DESC_LEN )
@@ -103,10 +106,23 @@
 #define FLASH_APP_SECTOR_FIRST  7
 #define FLASH_APP_SECTOR_LAST   11
 
+/* Flash sector map definition to simplify flash management operations. */
 
-/**
- * Flash sector map definition to simplify flash management operations.
- */
+/*Application Meta format */
+typedef struct
+{
+    uint32_t magic;
+    uint32_t code_len;
+    uint8_t  sig_index1;
+    uint8_t  sig_index2;
+    uint8_t  sig_index3;
+    uint8_t  flag;
+    uint8_t  rsv[52];
+    uint8_t  sig1[64];
+    uint8_t  sig2[64];
+    uint8_t  sig3[64];
+}app_meta_td;
+
 typedef enum
 {
     FLASH_INVALID,
@@ -139,6 +155,7 @@ static const FlashSector flash_sector_map[]= {
     { -1, 0,          0,       FLASH_INVALID}
 };
 
+/* declarations */
 void flash_erase(Allocation group);
 void flash_write(Allocation group, size_t offset, size_t len, uint8_t* data);
 void flash_write_ticking(Allocation group, size_t offset, size_t len, uint8_t* data, void (*tick)());
