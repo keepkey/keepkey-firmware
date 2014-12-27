@@ -365,9 +365,12 @@ void layout_pin(const char* prompt, char pin[])
 	DrawableParams sp;
 	BoxDrawableParams box_params;
 
+	layout_clear();
+
 	/*
 	 * Draw matrix
 	 */
+	box_params.base.color = 0x55;
 	for(uint8_t row = 0; row < 4; row++)
 	{
 		box_params.base.y = 7 + row * 17;
@@ -400,7 +403,7 @@ void layout_pin(const char* prompt, char pin[])
 			/*
 			 * Adjust pad
 			 */
-			if(pin_num[0] == '4' || pin_num[0] == '6' | pin_num[0] == '8' | pin_num[0] == '9')
+			if(pin_num[0] == '4' || pin_num[0] == '6' || pin_num[0] == '8' || pin_num[0] == '9')
 				pad--;
 
 			sp.y = 9 + row * 17;
@@ -420,9 +423,11 @@ void layout_pin(const char* prompt, char pin[])
      */
 	const Font* font = get_title_font();
     sp.y = 24;
-    sp.x = 27;
+    sp.x = (100 - calc_str_width(font, upper_prompt)) / 2;;
     sp.color = 0x55;
     draw_string(canvas, font, upper_prompt, &sp, TITLE_WIDTH, font_height(font));
+
+    display_refresh();
 }
 
 void layout_intro()

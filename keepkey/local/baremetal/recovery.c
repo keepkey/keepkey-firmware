@@ -29,6 +29,7 @@
 #include "recovery.h"
 #include "fsm.h"
 #include "rng.h"
+#include "pin_sm.h"
 
 
 static uint32_t word_count;
@@ -97,12 +98,11 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
 	word_count = _word_count;
 	enforce_wordlist = _enforce_wordlist;
 
-    //TODO:Implement PIN
-	/*if (pin_protection && !protectChangePin()) {
+	if (pin_protection && !change_pin()) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
 		layout_home();
 		return;
-	}*/
+	}
 
 	storage_set_passphrase_protected(true);
 	storage_setLanguage(language);

@@ -32,6 +32,7 @@
 #include "protect.h"
 #include "util.h"
 #include "rand.h"
+#include "pin_sm.h"
 
 #define MAX_WORD_LEN 10
 #define ADDITIONAL_WORD_PAD 5
@@ -69,12 +70,11 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 		}
 	}
 
-	//TODO:Add PIN support
-	/*if (pin_protection && !protectChangePin()) {
+	if (pin_protection && !change_pin()) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
-		layoutHome();
+		layout_home();
 		return;
-	}*/
+	}
 
 	storage_set_passphrase_protected(passphrase_protection);
 	storage_setLanguage(language);

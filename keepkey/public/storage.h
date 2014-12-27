@@ -53,14 +53,14 @@ void session_cachePassphrase(const char *passphrase);
 bool session_isPassphraseCached(void);
 void session_clear(void);
 
-bool storage_isPinCorrect(const char *pin);
-bool storage_hasPin(void);
-void storage_setPin(const char *pin);
-void session_cachePin(const char *pin);
-bool session_isPinCached(void);
-void storage_resetPinFails(void);
-void storage_increasePinFails(void);
-uint32_t storage_getPinFails(void);
+bool storage_is_pin_correct(const char *pin);
+bool storage_has_pin(void);
+void storage_set_pin(const char *pin);
+void session_cache_pin(const char *pin);
+bool session_is_pin_cached(void);
+void storage_reset_pin_fails(void);
+void storage_increase_pin_fails(void);
+uint32_t storage_get_pin_fails(void);
 
 bool storage_isInitialized(void);
 

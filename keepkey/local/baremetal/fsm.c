@@ -26,6 +26,7 @@
 #include <base58.h>
 #include <layout.h>
 #include <confirm_sm.h>
+#include <pin_sm.h>
 #include <fsm.h>
 #include <messages.h>
 #include <storage.h>
@@ -124,7 +125,7 @@ void fsm_msgInitialize(Initialize *msg)
 	/*
 	 * Security settings
 	 */
-	//TODO:resp->has_pin_protection = true; resp->pin_protection = storage.has_pin;
+	resp->has_pin_protection = true; resp->pin_protection = storage_has_pin();
 	resp->has_passphrase_protection = true; resp->passphrase_protection = storage_get_passphrase_protected();
 
 #ifdef SCM_REVISION
@@ -181,13 +182,14 @@ void fsm_msgPing(Ping *msg)
 			return;
 		}
 
-	//TODO:pin protect ping
-	/*if(msg->has_pin_protection && msg->pin_protection) {
-		if (!protectPin(true)) {
-			layoutHome();
+	if(msg->has_pin_protection && msg->pin_protection)
+	{
+		if (!pin_protect_cached())
+		{
+			layout_home();
 			return;
 		}
-	}*/
+	}
 
 	//TODO:passphrase protect ping
 	/*if(msg->has_passphrase_protection && msg->passphrase_protection) {
@@ -204,6 +206,59 @@ void fsm_msgPing(Ping *msg)
 	}
 
 	msg_write(MessageType_MessageType_Success, resp);
+	layout_home();
+}
+
+void fsm_msgChangePin(ChangePin *msg)
+{
+	bool removal = msg->has_remove && msg->remove;
+	bool confirmed = false;
+
+	if (removal)
+	{
+		if (storage_has_pin())
+		{
+			confirmed = confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+				"Remove Your PIN", "Are you sure you want to remove your PIN protecting this KeepKey?");
+		} else {
+			fsm_sendSuccess("PIN removed");
+			return;
+		}
+	} else {
+		if (storage_has_pin())
+			confirmed = confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+				"Change Your PIN", "Are you sure you want to change your PIN protecting this KeepKey?");
+		else
+			confirmed = confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+				"Add PIN Protection", "Are you sure you want to add PIN protection this KeepKey?");
+	}
+
+	if (!confirmed)
+	{
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, removal ? "PIN removal cancelled" : "PIN change cancelled");
+		layout_home();
+		return;
+	}
+
+	if (!pin_protect())
+	{
+		layout_home();
+		return;
+	}
+
+	if (removal)
+	{
+		storage_set_pin(0);
+		fsm_sendSuccess("PIN removed");
+	}
+	else
+	{
+		if (change_pin())
+			fsm_sendSuccess("PIN changed");
+		else
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
+	}
+
 	layout_home();
 }
 
@@ -352,13 +407,13 @@ void fsm_msgResetDevice(ResetDevice *msg)
     }
 
     reset_init(
-            msg->has_display_random && msg->display_random,
-            msg->has_strength ? msg->strength : 128,
-            msg->has_passphrase_protection && msg->passphrase_protection,
-            msg->has_pin_protection && msg->pin_protection,
-            msg->has_language ? msg->language : 0,
-            msg->has_label ? msg->label : 0
-            );
+		msg->has_display_random && msg->display_random,
+		msg->has_strength ? msg->strength : 128,
+		msg->has_passphrase_protection && msg->passphrase_protection,
+		msg->has_pin_protection && msg->pin_protection,
+		msg->has_language ? msg->language : 0,
+		msg->has_label ? msg->label : 0
+		);
 }
 
 void fsm_msgSignTx(SignTx *msg)
@@ -583,11 +638,11 @@ void fsm_msgApplySettings(ApplySettings *msg)
 		return;
 	}
 
-	//TODO:Add PIN support
-	/*if (!protectPin(true)) {
-		layoutHome();
+	if (!pin_protect_cached())
+	{
+		layout_home();
 		return;
-	}*/
+	}
 
 	if (msg->has_label) {
 		storage_setLabel(msg->label);
@@ -634,11 +689,11 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
 		return;
 	}
 
-	//TODO:Implement PIN
-	/*if (!protectPin(true)) {
+	if (!pin_protect_cached())
+	{
 		layout_home();
 		return;
-	}*/
+	}
 
 	HDNode *node = fsm_getRootNode();
 	if (!node) return;
@@ -741,11 +796,11 @@ void fsm_msgSignMessage(SignMessage *msg)
 		return;
 	}
 
-	//TODO:Implement PIN
-	/*if (!protectPin(true)) {
+	if (!pin_protect_cached())
+	{
 		layout_home();
 		return;
-	}*/
+	}
 
 	HDNode *node = fsm_getRootNode();
 	if (!node) return;
@@ -840,11 +895,11 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 			return;
 		}
 
-		//TODO:Implement PIN
-		/*if (!protectPin(true)) {
+		if (!pin_protect_cached())
+		{
 			layout_home();
 			return;
-		}*/
+		}
 
 		node = fsm_getRootNode();
 		if (!node) return;
@@ -861,7 +916,6 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 	}
 
 	//TODO:Encrypting animation
-	//layoutProgressSwipe("Encrypting", 0, 0);
 
 	if (cryptoMessageEncrypt(&pubkey, msg->message.bytes, msg->message.size, display_only, resp->nonce.bytes, (pb_size_t *)&(resp->nonce.size), resp->message.bytes, (pb_size_t *)&(resp->message.size), resp->hmac.bytes, (pb_size_t *)&(resp->hmac.size), signing ? node->private_key : 0, signing ? address_raw : 0) != 0) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Error encrypting message");
@@ -895,11 +949,11 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
 		return;
 	}
 
-	//TODO:Implement PIN
-	/*if (!protectPin(true)) {
-		layoutHome();
+	if (!pin_protect_cached())
+	{
+		layout_home();
 		return;
-	}*/
+	}
 
 	HDNode *node = fsm_getRootNode();
 	if (!node) return;
@@ -967,7 +1021,7 @@ static const MessagesMap_t MessagesMap[] = {
 	// in messages
 	{'i', MessageType_MessageType_Initialize,			Initialize_fields,			(void (*)(void *))fsm_msgInitialize},
 	{'i', MessageType_MessageType_Ping,					Ping_fields,				(void (*)(void *))fsm_msgPing},
-//TODO:	{'i', MessageType_MessageType_ChangePin,			ChangePin_fields,			(void (*)(void *))fsm_msgChangePin},
+	{'i', MessageType_MessageType_ChangePin,			ChangePin_fields,			(void (*)(void *))fsm_msgChangePin},
 	{'i', MessageType_MessageType_WipeDevice,			WipeDevice_fields,			(void (*)(void *))fsm_msgWipeDevice},
 	{'i', MessageType_MessageType_FirmwareErase,		FirmwareErase_fields,		(void (*)(void *))fsm_msgFirmwareErase},
 	{'i', MessageType_MessageType_FirmwareUpload,		FirmwareUpload_fields,		(void (*)(void *))fsm_msgFirmwareUpload},
@@ -976,7 +1030,7 @@ static const MessagesMap_t MessagesMap[] = {
 	{'i', MessageType_MessageType_LoadDevice,			LoadDevice_fields,			(void (*)(void *))fsm_msgLoadDevice},
 	{'i', MessageType_MessageType_ResetDevice,			ResetDevice_fields,			(void (*)(void *))fsm_msgResetDevice},
 	{'i', MessageType_MessageType_SignTx,				SignTx_fields,				(void (*)(void *))fsm_msgSignTx},
-//	{'i', MessageType_MessageType_PinMatrixAck,			PinMatrixAck_fields,		(void (*)(void *))fsm_msgPinMatrixAck},
+	{'i', MessageType_MessageType_PinMatrixAck,			PinMatrixAck_fields,		0},
 	{'i', MessageType_MessageType_Cancel,				Cancel_fields,				(void (*)(void *))fsm_msgCancel},
 //TODO:	{'i', MessageType_MessageType_TxAck,				TxAck_fields,				(void (*)(void *))fsm_msgTxAck},
 	{'i', MessageType_MessageType_CipherKeyValue,		CipherKeyValue_fields,		(void (*)(void *))fsm_msgCipherKeyValue},
@@ -999,7 +1053,7 @@ static const MessagesMap_t MessagesMap[] = {
 	{'o', MessageType_MessageType_Entropy,				Entropy_fields,				0},
 	{'o', MessageType_MessageType_PublicKey,			PublicKey_fields,			0},
 	{'o', MessageType_MessageType_Features,				Features_fields,			0},
-//TODO:	{'o', MessageType_MessageType_PinMatrixRequest,		PinMatrixRequest_fields,	0},
+	{'o', MessageType_MessageType_PinMatrixRequest,		PinMatrixRequest_fields,	0},
 //TODO	{'o', MessageType_MessageType_TxRequest,			TxRequest_fields,			0},
 	{'o', MessageType_MessageType_CipheredKeyValue,		CipheredKeyValue_fields,	0},
 	{'o', MessageType_MessageType_ButtonRequest,		ButtonRequest_fields,		0},

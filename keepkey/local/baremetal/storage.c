@@ -88,6 +88,9 @@ ConfigFlash shadow_config;
 static bool   sessionRootNodeCached;
 static HDNode sessionRootNode;
 
+static bool sessionPinCached;
+static char sessionPin[17];
+
 static bool sessionPassphraseCached;
 static char sessionPassphrase[51];
 
@@ -239,6 +242,69 @@ void storage_setLanguage(const char *lang)
         shadow_config.storage.has_language = true;
         strlcpy(shadow_config.storage.language, lang, sizeof(shadow_config.storage.language));
     }
+}
+
+
+bool storage_is_pin_correct(const char *pin)
+{
+    if(real_config->storage.has_pin)
+    {
+    	return strcmp(real_config->storage.pin, pin) == 0;
+    } else {
+    	return false;
+    }
+}
+
+bool storage_has_pin(void)
+{
+	return real_config->storage.has_pin && strlen(real_config->storage.pin) > 0;
+}
+
+void storage_set_pin(const char *pin)
+{
+	if (pin && strlen(pin) > 0) {
+		shadow_config.storage.has_pin = true;
+		strlcpy(shadow_config.storage.pin, pin, sizeof(shadow_config.storage.pin));
+	} else {
+		shadow_config.storage.has_pin = false;
+		shadow_config.storage.pin[0] = 0;
+	}
+	storage_commit();
+	sessionPinCached = false;
+}
+
+void session_cache_pin(const char *pin)
+{
+	strlcpy(sessionPin, pin, sizeof(sessionPin));
+	sessionPinCached = true;
+}
+
+bool session_is_pin_cached(void)
+{
+	return sessionPinCached && strcmp(sessionPin, real_config->storage.pin) == 0;
+}
+
+void storage_reset_pin_fails(void)
+{
+	shadow_config.storage.has_pin_failed_attempts = true;
+	shadow_config.storage.pin_failed_attempts = 0;
+	storage_commit();
+}
+
+void storage_increase_pin_fails(void)
+{
+	if (!real_config->storage.has_pin_failed_attempts) {
+		shadow_config.storage.has_pin_failed_attempts = true;
+		shadow_config.storage.pin_failed_attempts = 1;
+	} else {
+		shadow_config.storage.pin_failed_attempts++;
+	}
+	storage_commit();
+}
+
+uint32_t storage_get_pin_fails(void)
+{
+	return real_config->storage.has_pin_failed_attempts ? real_config->storage.pin_failed_attempts : 0;
 }
 
 void get_root_node_callback(uint32_t iter, uint32_t total)
