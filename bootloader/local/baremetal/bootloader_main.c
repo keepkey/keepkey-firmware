@@ -163,9 +163,26 @@ static void configure_hw()
     display_init();
     layout_init( display_canvas() );
 }
+/**************************************************************************
+ *  check_magic() - check application magic 
+ *
+ *  INPUT 
+ *      - none
+ *  OUTPUT
+ *      - true/false
+ *
+ * ***********************************************************************/
+bool check_magic(void)
+{
+	bool retval = false;
+    app_meta_td *app_meta = (app_meta_td *)FLASH_META_MAGIC;
+    
+    retval = memcmp(&app_meta->magic, "KPKY", 4) == 0 ? true : false;
+    return(retval);
+}
 
 /**************************************************************************
- *  check_firmware_gig() - check image application partition is the 
+ *  check_firmware_sig() - check image application partition is the 
  *                         valid keepkey firmware
  *  INPUT 
  *      - none
@@ -180,21 +197,18 @@ bool check_firmware_sig(void)
 	bool retval = false;
     app_meta_td *app_meta = (app_meta_td *)FLASH_META_START;
 
-    if(memcmp(&app_meta->magic, "KPKY", 4) == 0)
+    for(index = 0; index < SIGNATURES; index++)
     {
-        for(index = 0; index < SIGNATURES; index++)
+	    if (ecdsa_verify(&pubkey[index][0], (uint8_t *)app_meta_sig_ptr[index], (uint8_t *)FLASH_APP_START, app_meta->code_len ))
         {
-	        if (ecdsa_verify(&pubkey[index][0], (uint8_t *)app_meta_sig_ptr[index], (uint8_t *)FLASH_APP_START, app_meta->code_len ))
+            break;
+        }
+        else
+        {
+            /* verify this pass run is from the last signature */ 
+            if(index == SIGNATURES-1)
             {
-                break;
-            }
-            else
-            {
-                /* verify this pass run is from the last signature */ 
-                if(index == SIGNATURES-1)
-                {
-                    retval = true;
-                }
+                retval = true;
             }
         }
     }
@@ -226,23 +240,35 @@ int main(int argc, char* argv[])
     dbg_print("\n\rKeepKey LLC, Copyright (C) 2014\n\r");
     dbg_print("BootLoader Version %d.%d (%s)\n\r", BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION, __DATE__);
 
-
     while(1)
     {
         if(!update_mode)
         {
-            if(!check_firmware_sig())
+            if(check_magic())
             {
-                /* KeepKey signature check failed.  Foreign code might be sitting there. Take action to clear storage partition!!! */
-                layout_standard_notification("UNSIGNED FIRMWARE", firmware_sig_as_string(), NOTIFICATION_INFO);
-                display_refresh();
-                delay(5000);
-            }
 
-            clear_red();
-            set_vector_table_offset(FLASH_APP_START - FLASH_ORIGIN);  //offset = 0x60100
-            boot_jump(FLASH_APP_START);
-        } else {
+                if(!check_firmware_sig())
+                {
+                    /* KeepKey signature check failed.  Foreign code might be sitting there. Take action to clear storage partition!!! */
+                    layout_standard_notification("UNSIGNED FIRMWARE", firmware_sig_as_string(), NOTIFICATION_INFO);
+                    display_refresh();
+                    delay(5000);
+                }
+
+                clear_red();
+                set_vector_table_offset(FLASH_APP_START - FLASH_ORIGIN);  //offset = 0x60100
+                boot_jump(FLASH_APP_START);
+            }
+            else
+            {
+                /* Invalid magic found.  Not booting!!! */
+                layout_standard_notification("INVALID FIRMWARE MAGIC", "Magic value invalid in Application partition", NOTIFICATION_INFO);
+                display_refresh();
+                dbg_print("INVALID FIRMWARE MAGIC\n\r");
+                break;
+            }
+        } else 
+        {
             clear_green();
 
             if(usb_flash_firmware())
@@ -259,7 +285,10 @@ int main(int argc, char* argv[])
         }
     }
 
-    while(1) {}
+    while(1) 
+    {
+        /* Catastrophic error, hang in forever loop */
+    }
 
     return(0);
 }

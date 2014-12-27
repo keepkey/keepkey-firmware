@@ -35,9 +35,8 @@
 #include <keepkey_usart.h>
 #include <confirm_sm.h>
 
-
-#include "usb_driver.h"
-#include "usb_flash.h"
+#include <usb_driver.h>
+#include <usb_flash.h>
 
 void send_failure(FailureType code, const char *text);
 void handler_initialize(Initialize* msg);
@@ -243,6 +242,7 @@ void handler_erase(FirmwareErase* msg)
         flash_unlock();
         flash_erase(FLASH_STORAGE);
         flash_erase(FLASH_APP);
+        flash_lock();
 
         send_success("Firmware Erased");
     }
@@ -275,16 +275,40 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
             /* check if the image is bigger than allocated space */
             if((flash_offset + msg_size) < (FLASH_APP_LEN + FLASH_META_DESC_LEN))
             {
+                if(flash_offset == 0)
+                {
+                    /* check image is prep'ed with KeepKey magic */
+                    if(memcmp(msg, "KPKY", META_MAGIC_SIZE))
+                    {
+                        /* invalid KeepKey magic detected. Bailing!!! */
+                        ++stats.invalid_msg_type_ct;
+                        send_failure(FailureType_Failure_FirmwareError, "Invalid Magic Key");
+                        upload_state = UPLOAD_ERROR;
+                        dbg_print("error: Invalid Magic Key detected... \n\r");
+                        goto rhu_exit;
+                    }
+                    else
+                    {
+                        msg_size -= META_MAGIC_SIZE;
+                        msg = (uint8_t *)(msg + META_MAGIC_SIZE); 
+                        flash_offset = META_MAGIC_SIZE; 
+                        /* unlock the flash for writing */
+                        flash_unlock();
+                    }
+                }
+                /* Begin writing to flash */
                 flash_write(FLASH_APP, flash_offset, msg_size, msg);
                 flash_offset += msg_size;
             } 
             else 
             {
+                /* error: frame overrun detected during the image update */
                 flash_lock();
                 ++stats.invalid_offset_ct;
                 send_failure(FailureType_Failure_FirmwareError, "Upload overflow");
-                dbg_print("error: Image corruption occured during download... \n\r");
                 upload_state = UPLOAD_ERROR;
+                dbg_print("error: Image corruption occured during download... \n\r");
+                goto rhu_exit;
             }
 
             /* Finish firmware update */
@@ -308,10 +332,10 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
                 if(confirm_with_button_request(ButtonRequestType_ButtonRequest_FirmwareCheck,
                 	"Compare Firmware Fingerprint", str_digest))
                 {
-                	/* Swap in KPKY in META MAGIC so firmware can boot */
-                	//TODO:swap in KPKY
-
-                    /* Send success */
+                    /* user has confirmed the finger print.  Restore "KPKY" magic in flash meta header */
+                    flash_unlock();
+                    flash_write(FLASH_APP, 0, META_MAGIC_SIZE , "KPKY");
+                    flash_lock();
                     send_success("Upload complete");
     				upload_state = UPLOAD_COMPLETE;
                 }
@@ -329,4 +353,6 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
             dbg_print("error: Image too large to fit in the allocated space : 0x%x ...\n\r", frame_length);
             upload_state = UPLOAD_ERROR;
     }
+rhu_exit:
+    return;
 }
