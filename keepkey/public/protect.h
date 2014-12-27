@@ -25,9 +25,6 @@
 
 extern bool protectAbortedByInitialize;
 
-bool protectButton(ButtonRequestType type, bool confirm_only);
-bool protectPin(bool use_cached);
-bool protectChangePin(void);
 bool protectPassphrase(void);
 
 #endif
