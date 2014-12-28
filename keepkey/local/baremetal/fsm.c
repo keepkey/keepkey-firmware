@@ -27,6 +27,7 @@
 #include <layout.h>
 #include <confirm_sm.h>
 #include <pin_sm.h>
+#include <passphrase_sm.h>
 #include <fsm.h>
 #include <messages.h>
 #include <storage.h>
@@ -191,13 +192,13 @@ void fsm_msgPing(Ping *msg)
 		}
 	}
 
-	//TODO:passphrase protect ping
-	/*if(msg->has_passphrase_protection && msg->passphrase_protection) {
-		if(!protectPassphrase()) {
+	if(msg->has_passphrase_protection && msg->passphrase_protection) {
+		if(!passphrase_protect()) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
+			layout_home();
 			return;
 		}
-	}*/
+	}
 
 	if(msg->has_message) 
     {
@@ -620,19 +621,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 			return;
 		}
 	}
-	//TODO:Add passphrase support
-	/*if (msg->has_use_passphrase) {
-		layoutDialogSwipe(DIALOG_ICON_QUESTION, "Cancel", "Confirm", NULL, "Do you really want to", msg->use_passphrase ? "enable passphrase" : "disable passphrase", "protection?", NULL, NULL, NULL);
-		if (!protectButton(ButtonRequestType_ButtonRequest_ProtectCall, false)) {
-			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
-			layoutHome();
-			return;
-		}
-	}
-	if (!msg->has_label && !msg->has_language && !msg->has_use_passphrase) {
-		fsm_sendFailure(FailureType_Failure_SyntaxError, "No setting provided");
-		return;
-	}*/
+
 	if (!msg->has_label && !msg->has_language) {
 		fsm_sendFailure(FailureType_Failure_SyntaxError, "No setting provided");
 		return;
@@ -650,10 +639,6 @@ void fsm_msgApplySettings(ApplySettings *msg)
 	if (msg->has_language) {
 		storage_setLanguage(msg->language);
 	}
-	//TODO:Add passphrase support
-	/*if (msg->has_use_passphrase) {
-		storage_setPassphraseProtection(msg->use_passphrase);
-	}*/
 
 	/*
 	 * Setup saving animation
@@ -1043,7 +1028,7 @@ static const MessagesMap_t MessagesMap[] = {
 	{'i', MessageType_MessageType_VerifyMessage,		VerifyMessage_fields,		(void (*)(void *))fsm_msgVerifyMessage},
 	{'i', MessageType_MessageType_EncryptMessage,		EncryptMessage_fields,		(void (*)(void *))fsm_msgEncryptMessage},
 	{'i', MessageType_MessageType_DecryptMessage,		DecryptMessage_fields,		(void (*)(void *))fsm_msgDecryptMessage},
-//	{'i', MessageType_MessageType_PassphraseAck,		PassphraseAck_fields,		(void (*)(void *))fsm_msgPassphraseAck},
+	{'i', MessageType_MessageType_PassphraseAck,		PassphraseAck_fields,		0},
 //TODO:	{'i', MessageType_MessageType_EstimateTxSize,		EstimateTxSize_fields,		(void (*)(void *))fsm_msgEstimateTxSize},
 	{'i', MessageType_MessageType_RecoveryDevice,		RecoveryDevice_fields,		(void (*)(void *))fsm_msgRecoveryDevice},
 	{'i', MessageType_MessageType_WordAck,				WordAck_fields,				(void (*)(void *))fsm_msgWordAck},
@@ -1062,7 +1047,7 @@ static const MessagesMap_t MessagesMap[] = {
 	{'o', MessageType_MessageType_MessageSignature,		MessageSignature_fields,	0},
 	{'o', MessageType_MessageType_EncryptedMessage,		EncryptedMessage_fields,	0},
 	{'o', MessageType_MessageType_DecryptedMessage,		DecryptedMessage_fields,	0},
-//TODO:	{'o', MessageType_MessageType_PassphraseRequest,	PassphraseRequest_fields,	0},
+	{'o', MessageType_MessageType_PassphraseRequest,	PassphraseRequest_fields,	0},
 //TODO:	{'o', MessageType_MessageType_TxSize,				TxSize_fields,				0},
 	{'o', MessageType_MessageType_WordRequest,			WordRequest_fields,			0},
 	// end

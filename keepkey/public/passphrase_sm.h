@@ -1,7 +1,8 @@
+/* START KEEPKEY LICENSE */
 /*
- * This file is part of the TREZOR project.
+ * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 Pavol Rusnak <stick@satoshilabs.com>
+ * Copyright (C) 2014 Carbon Design Group <tom@carbondesign.com>
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -15,14 +16,18 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+/* END KEEPKEY LICENSE */
+/*
+ * @brief General confirmation state machine
  */
 
-#ifndef __PROTECT_H__
-#define __PROTECT_H__
+#ifndef PASSPHRASE_SM_H
+#define PASSPHRASE_SM_H
 
 #include <stdbool.h>
-#include "types.pb.h"
 
-extern bool protectAbortedByInitialize;
+bool passphrase_protect();
 
 #endif

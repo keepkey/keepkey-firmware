@@ -27,13 +27,13 @@
 //================================ INCLUDES =================================== 
 
 #include "pin_sm.h"
+#include "fsm.h"
 
 #include <stdbool.h>
 
 #include <layout.h>
 #include <messages.h>
 #include <rand.h>
-#include <fsm.h>
 #include <storage.h>
 #include <timer.h>
 
@@ -111,7 +111,7 @@ static void wait_for_pin_ack(PINInfo *pin_info)
 		pin_info->pin_ack_msg = PIN_ACK_CANCEL_BY_INIT;
 }
 
-static void run_state(PINState *pin_state, PINInfo *pin_info)
+static void run_pin_state(PINState *pin_state, PINInfo *pin_info)
 {
 	switch(*pin_state){
 
@@ -171,7 +171,7 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
 	/* Run SM */
 	while(1)
 	{
-		run_state(&pin_state, pin_info);
+		run_pin_state(&pin_state, pin_info);
 
 		if(pin_state == PIN_FINISHED)
 			break;

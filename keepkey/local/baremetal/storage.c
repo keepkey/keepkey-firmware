@@ -36,6 +36,7 @@
 #include "debug.h"
 #include "protect.h"
 #include "rng.h"
+#include "passphrase_sm.h"
 
 
 /*
@@ -152,7 +153,7 @@ void session_clear(void)
 {
 	sessionRootNodeCached = false;   memset(&sessionRootNode, 0, sizeof(sessionRootNode));
 	sessionPassphraseCached = false; memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
-	//TODO: PIN Support:sessionPinCached = false;        memset(&sessionPin, 0, sizeof(sessionPin));
+	sessionPinCached = false;        memset(&sessionPin, 0, sizeof(sessionPin));
 }
 
 /**
@@ -192,10 +193,9 @@ void storage_loadDevice(LoadDevice *msg)
     shadow_config.storage.has_imported = true;
     shadow_config.storage.imported = true;
 
-    //TODO: Add PIN support
-    /*if (msg->has_pin > 0) {
-    	storage_setPin(msg->pin);
-    }*/
+    if (msg->has_pin > 0) {
+    	storage_set_pin(msg->pin);
+    }
 
     if (msg->has_passphrase_protection) {
         shadow_config.storage.has_passphrase_protection = true;
@@ -324,7 +324,7 @@ bool storage_getRootNode(HDNode *node)
 
     // if storage has node, decrypt and use it
     if (real_config->storage.has_node) {
-        if (!protectPassphrase()) {
+        if (!passphrase_protect()) {
             return false;
         }
 
@@ -353,7 +353,7 @@ bool storage_getRootNode(HDNode *node)
 
     // if storage has mnemonic, convert it to node and use it
     if (real_config->storage.has_mnemonic) {
-        if (!protectPassphrase()) {
+        if (!passphrase_protect()) {
             return false;
         }
         uint8_t seed[64];
