@@ -71,7 +71,11 @@ static const AnimationFrame logo_array[] = {
 	{&logo_5_image, 60}
 };
 
+#ifndef BLDR
 static const ImageAnimation logo = { 5, logo_array };
+#else
+static const ImageAnimation logo ;
+#endif
 
 
 //======================== CONFIRM ICON ANIMATION =============================
