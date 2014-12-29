@@ -161,10 +161,6 @@ def load_toolchain():
     else:
         env['CCFLAGS'].append(['-Os', '-g'])
 
-    console= ARGUMENTS.get('console', 0)
-    if int(console):
-        env['CCFLAGS'].append(['-DUSART3_ON'])
-
     bldtype = ARGUMENTS.get('bldtype', 0)
     if bldtype == 'bldr':
         env['CCFLAGS'].append(['-DBLDR'])

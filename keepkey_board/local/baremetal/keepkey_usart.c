@@ -33,7 +33,7 @@
  * input - none
  * output - none 
  ********************************************************************/
-#ifdef USART3_ON
+#ifdef DEBUG_ON
 void usart_init(void)  
 {
 
@@ -153,7 +153,7 @@ static void display_debug_string(char *pStr)
  * Input - content to print
  * Output- send to debug port  
  ********************************************************************/
-#ifdef USART3_ON
+#ifdef DEBUG_ON
 bool dbg_print(char *pStr, ...)
 {
     bool ret_stat = true;
