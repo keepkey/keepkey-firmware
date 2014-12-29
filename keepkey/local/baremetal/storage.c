@@ -86,6 +86,8 @@ typedef struct
 ConfigFlash* real_config = (ConfigFlash*)FLASH_STORAGE_START;
 ConfigFlash shadow_config;
 
+static progress_handler_t progress_handler;
+
 static bool   sessionRootNodeCached;
 static HDNode sessionRootNode;
 
@@ -164,24 +166,18 @@ void storage_commit()
     int i;
     uint32_t *w;
 
+    if(progress_handler)
+    	(*progress_handler)();
+
     flash_unlock();
 
     flash_erase(FLASH_STORAGE);
     memcpy(&shadow_config.meta.magic, "stor", 4);
-    flash_write(FLASH_STORAGE, 0, sizeof(shadow_config), (uint8_t*)&shadow_config);
 
-    flash_lock();
-}
-
-void storage_commit_ticking(void (*tick)())
-{
-    int i;
-    uint32_t *w;
-
-    flash_unlock();
-
-    flash_erase(FLASH_STORAGE);
-    flash_write_ticking(FLASH_STORAGE, 0, sizeof(shadow_config), (uint8_t*)&shadow_config, tick);
+    if(progress_handler)
+    	flash_write_with_progress(FLASH_STORAGE, 0, sizeof(shadow_config), (uint8_t*)&shadow_config, progress_handler);
+    else
+    	flash_write(FLASH_STORAGE, 0, sizeof(shadow_config), (uint8_t*)&shadow_config);
 
     flash_lock();
 }
@@ -269,7 +265,6 @@ void storage_set_pin(const char *pin)
 		shadow_config.storage.has_pin = false;
 		shadow_config.storage.pin[0] = 0;
 	}
-	storage_commit();
 	sessionPinCached = false;
 }
 
@@ -464,4 +459,9 @@ const char* storage_get_mnemonic(void)
 const char* storage_get_shadow_mnemonic(void)
 {
 	return shadow_config.storage.mnemonic;
+}
+
+void storage_set_progress_handler(progress_handler_t handler)
+{
+	progress_handler = handler;
 }

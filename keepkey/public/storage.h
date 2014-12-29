@@ -24,6 +24,7 @@
 #include "storage.pb.h"
 #include "messages.pb.h"
 #include "bip32.h"
+#include "memory.h"
 
 /**
  * Initialize internal storage and configuration.
@@ -34,10 +35,8 @@
 void storage_init(void);
 void storage_reset_uuid(void);
 void storage_reset(void);
-void storage_reset_ticking(void (*tick)());
 void session_clear(void);
 void storage_commit(void);
-void storage_commit_ticking(void (*tick)());
 
 void storage_loadDevice(LoadDevice *msg);
 
@@ -102,5 +101,7 @@ void storage_set_mnemonic(const char *mnemonic);
  */
 const char* storage_get_mnemonic(void);
 const char* storage_get_shadow_mnemonic(void);
+
+void storage_set_progress_handler(progress_handler_t handler);
 
 #endif
