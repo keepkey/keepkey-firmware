@@ -136,7 +136,8 @@ bool is_animating(void);
  */
 void layout_line(unsigned int line, uint8_t color, const char *str, ...);
 
-void force_animation_start();
+void force_animation_start(void);
+void animating_progress_handler(void);
 
 typedef void (*AnimateCallback)(void* data, uint32_t duration, uint32_t elapsed);
 void layout_add_animation(AnimateCallback callback, void* data, uint32_t duration);

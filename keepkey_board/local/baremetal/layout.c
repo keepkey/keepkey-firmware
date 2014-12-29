@@ -496,6 +496,8 @@ void layout_loading(AnimationResource type)
 		&layout_animate_images,
 		(void*)&loading_animation,
 		0);
+
+    force_animation_start();
 }
 
 
@@ -601,9 +603,19 @@ static void layout_animate(void* context)
 
 //-----------------------------------------------------------------------------
 //
-void force_animation_start()
+void force_animation_start(void)
 {
     animate_flag = true;
+}
+
+void animating_progress_handler(void)
+{
+	if(is_animating())
+	{
+		animate();
+		display_refresh();
+		delay(1);
+	}
 }
 
 
