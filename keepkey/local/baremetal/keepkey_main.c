@@ -46,9 +46,10 @@ int main(void)
     layout_intro();
 
     /*
-     * Init storage
+     * Init storage and set progress handler
      */
     storage_init();
+    storage_set_progress_handler(&animating_progress_handler);
 
     /*
      * Init protcol buffer message map and usb msg callback
