@@ -38,6 +38,9 @@
 #include <usb_driver.h>
 #include <usb_flash.h>
 
+#define SHA256_DIGEST_STR_LEN ((SHA256_DIGEST_LENGTH * 2) + 1)
+#define BYTE_AS_HEX_STR_LEN (2 + 1)
+
 void send_failure(FailureType code, const char *text);
 void handler_initialize(Initialize* msg);
 void handler_ping(Ping* msg);
@@ -317,17 +320,17 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
                 flash_lock();
 
                 /* Check fingerprint */
-                char digest[32];
-                char str_digest[65] = "";
+                char digest[SHA256_DIGEST_LENGTH];
+                char str_digest[SHA256_DIGEST_STR_LEN] = "";
                 uint32_t firmware_size = frame_length - PROTOBUF_FIRMWARE_PADDING - FLASH_META_DESC_LEN;
                 sha256_Raw((uint8_t *)FLASH_APP_START, firmware_size, digest);
 
-                for (uint8_t i = 0; i < 32; i++)
-                {
-                	char digest_buf[3];
-                	sprintf(digest_buf, "%02x", digest[i]);
-                    strcat(str_digest, digest_buf);
-                }
+                for (uint8_t i = 0; i < SHA256_DIGEST_LENGTH; i++)
+				{
+					char digest_buf[BYTE_AS_HEX_STR_LEN];
+					sprintf(digest_buf, "%02x", digest[i]);
+					strcat(str_digest, digest_buf);
+				}
 
                 if(confirm_with_button_request(ButtonRequestType_ButtonRequest_FirmwareCheck,
                 	"Compare Firmware Fingerprint", str_digest))
