@@ -174,11 +174,15 @@ static void configure_hw()
  * ***********************************************************************/
 bool check_magic(void)
 {
+#ifndef DEBUG_ON
 	bool retval = false;
     app_meta_td *app_meta = (app_meta_td *)FLASH_META_MAGIC;
     
     retval = memcmp(&app_meta->magic, "KPKY", 4) == 0 ? true : false;
     return(retval);
+#else
+    return(true);
+#endif
 }
 
 /**************************************************************************
@@ -192,6 +196,7 @@ bool check_magic(void)
  * ***********************************************************************/
 bool check_firmware_sig(void)
 {
+#ifndef DEBUG_ON
 	uint32_t index;
     uint8_t (*app_meta_sig_ptr)[64] = (uint8_t (*)[])FLASH_META_SIG1;
 	bool retval = false;
@@ -213,6 +218,9 @@ bool check_firmware_sig(void)
         }
     }
 	return(retval);
+#else
+	return(true);
+#endif
 }
 
 const char* firmware_sig_as_string(void)
