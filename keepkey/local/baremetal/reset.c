@@ -142,25 +142,14 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 		}
 	}
 
-	/*
-	 * Setup saving animation
-	 */
+	/* Setup saving animation */
 	layout_loading(SAVING_ANIM);
-	force_animation_start();
-
-	void tick(){
-		animate();
-		display_refresh();
-		delay(3);
-	}
-
-	tick();
 
 	/*
 	 * Save mnemonic
 	 */
     storage_set_mnemonic(temp_mnemonic);
-	storage_commit_ticking(&tick);
+	storage_commit();
 
 	fsm_sendSuccess("Device reset");
 	layout_home();

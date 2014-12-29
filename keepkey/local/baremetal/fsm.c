@@ -250,12 +250,25 @@ void fsm_msgChangePin(ChangePin *msg)
 	if (removal)
 	{
 		storage_set_pin(0);
+
+		/* Setup saving animation */
+		layout_loading(SAVING_ANIM);
+
+		storage_commit();
+
 		fsm_sendSuccess("PIN removed");
 	}
 	else
 	{
 		if (change_pin())
+		{
+			/* Setup saving animation */
+			layout_loading(SAVING_ANIM);
+
+			storage_commit();
+
 			fsm_sendSuccess("PIN changed");
+		}
 		else
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
 	}
@@ -273,26 +286,13 @@ void fsm_msgWipeDevice(WipeDevice *msg)
 		return;
 	}
 
-	/*
-	 * Setup wipe animation
-	 */
+	/* Setup wipe animation */
 	layout_loading(WIPE_ANIM);
-	force_animation_start();
 
-	void tick(){
-		animate();
-		display_refresh();
-		delay(3);
-	}
-
-	tick();
-
-	/*
-	 * Wipe device
-	 */
+	/* Wipe device */
 	storage_reset();
 	storage_reset_uuid();
-	storage_commit_ticking(&tick);
+	storage_commit();
 
 	fsm_sendSuccess("Device wiped");
 	layout_home();
@@ -381,20 +381,10 @@ void fsm_msgLoadDevice(LoadDevice *msg)
 
 	storage_loadDevice(msg);
 
-	/*
-	 * Setup saving animation
-	 */
+	/* Setup saving animation */
 	layout_loading(SAVING_ANIM);
-	force_animation_start();
 
-	void tick(){
-		animate();
-		display_refresh();
-		delay(3);
-	}
-
-	tick();
-	storage_commit_ticking(&tick);
+	storage_commit();
 
 	fsm_sendSuccess("Device loaded");
 	layout_home();
@@ -640,20 +630,10 @@ void fsm_msgApplySettings(ApplySettings *msg)
 		storage_setLanguage(msg->language);
 	}
 
-	/*
-	 * Setup saving animation
-	 */
+	/* Setup saving animation */
 	layout_loading(SAVING_ANIM);
-	force_animation_start();
 
-	void tick(){
-		animate();
-		display_refresh();
-		delay(3);
-	}
-
-	tick();
-	storage_commit_ticking(&tick);
+	storage_commit();
 
 	fsm_sendSuccess("Settings applied");
 	layout_home();

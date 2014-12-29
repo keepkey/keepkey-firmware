@@ -176,20 +176,10 @@ void recovery_word(const char *word)
 
         if (!enforce_wordlist || mnemonic_check(storage_get_shadow_mnemonic()))
         {
-        	/*
-        	 * Setup saving animation
-        	 */
+        	/* Setup saving animation */
         	layout_loading(SAVING_ANIM);
-        	force_animation_start();
 
-        	void tick(){
-        		animate();
-        		display_refresh();
-        		delay(3);
-        	}
-
-        	tick();
-        	storage_commit_ticking(&tick);
+        	storage_commit();
 
             fsm_sendSuccess("Device recovered");
         } else {
