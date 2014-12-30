@@ -25,7 +25,6 @@
 #include "fsm.h"
 #include "messages.h"
 #include "transaction.h"
-#include "protect.h"
 
 
 static uint32_t inputs_count;

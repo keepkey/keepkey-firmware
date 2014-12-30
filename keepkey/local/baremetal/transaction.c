@@ -28,7 +28,6 @@
 #include "coins.h"
 #include "util.h"
 #include "debug.h"
-#include "protect.h"
 
 uint32_t op_push(uint32_t i, uint8_t *out) {
 	if (i < 0x4C) {

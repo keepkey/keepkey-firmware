@@ -29,7 +29,6 @@
 #include "storage.h"
 #include "messages.h"
 #include "fsm.h"
-#include "protect.h"
 #include "util.h"
 #include "rand.h"
 #include "pin_sm.h"

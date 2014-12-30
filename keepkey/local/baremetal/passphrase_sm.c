@@ -27,7 +27,6 @@
 //================================ INCLUDES =================================== 
 
 #include "passphrase_sm.h"
-#include "protect.h"
 #include "fsm.h"
 
 #include <stdbool.h>

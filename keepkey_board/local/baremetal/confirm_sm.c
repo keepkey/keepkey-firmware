@@ -42,7 +42,6 @@
 #include <layout.h>
 #include <messages.h>
 #include <confirm_sm.h>
-#include <protect.h>
 
 //====================== CONSTANTS, TYPES, AND MACROS =========================
 typedef enum
