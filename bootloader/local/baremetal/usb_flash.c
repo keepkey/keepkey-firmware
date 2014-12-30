@@ -37,6 +37,7 @@
 
 #include <usb_driver.h>
 #include <usb_flash.h>
+#include <bootloader.h>
 
 #define SHA256_DIGEST_STR_LEN ((SHA256_DIGEST_LENGTH * 2) + 1)
 #define BYTE_AS_HEX_STR_LEN (2 + 1)
@@ -126,6 +127,8 @@ FirmwareUploadState get_update_status(void)
 bool usb_flash_firmware(void)
 {
     FirmwareUploadState upd_stat; 
+    ConfigFlash storage_shadow;
+    bool retval = false;
 
     layout_warning("Firmware Update Mode");
     /* Init message map, failure function, send init function, and usb callback */
@@ -138,6 +141,7 @@ bool usb_flash_firmware(void)
 
     /* Init USB */
     usb_init();  
+    storage_part_sav(&storage_shadow);
 
     /* implement timer for this loop in the future*/
     while(1)
@@ -147,11 +151,28 @@ bool usb_flash_firmware(void)
         {
             case UPLOAD_COMPLETE:
             {
-                return(true);
+                if(check_firmware_sig())
+                {
+                    if(check_fw_is_new())
+                    {
+                        storage_part_restore(&storage_shadow);
+                        dbg_print("restored keys....\n\r");
+                    }
+                    else
+                    {
+                        dbg_print("fw is staled....\n\r");
+                    }
+                }
+                else
+                {
+                    dbg_print("error: failed sign check\n\r");
+                }
+                retval = true;
+                break;
             }
             case UPLOAD_ERROR:
             {
-                return(false);
+                break;
             }
             case UPLOAD_NOT_STARTED:
             case UPLOAD_STARTED:
@@ -163,6 +184,9 @@ bool usb_flash_firmware(void)
             }
         }
     }
+    /* clear the shadow before exiting */
+    memset(&storage_shadow, 0xEE, sizeof(ConfigFlash));
+    return(retval);
 }
 
 /***************************************************************
@@ -234,7 +258,34 @@ void handler_initialize(Initialize* msg)
 
     msg_write(MessageType_MessageType_Features, &f);
 }
-
+/***********************************************************************
+ *  storage_part_sav - save storage partition in RAM for firmware update
+ *
+ *  INPUT 
+ *      pointer to save Storge partition in RAM
+ *  OUTPUT
+ *      void 
+ ***********************************************************************/
+void storage_part_sav(ConfigFlash *cfg_ptr)
+{
+    /* Save Storage partition in RAM in case downloaded image is invalid */
+    memcpy((void *)cfg_ptr, (void *)FLASH_STORAGE_START, sizeof(ConfigFlash));
+}
+/***********************************************************************
+ *  storage_part_restore - restore storage partition in flash for firmware update
+ *
+ *  INPUT 
+ *      pointer to Storge partition in RAM
+ *  OUTPUT
+ *      true/false 
+ ***********************************************************************/
+void storage_part_restore(ConfigFlash *cfg_ptr)
+{
+    /* Save Storage partition in RAM in case downloaded image is invalid */
+    flash_unlock();
+    flash_write(FLASH_STORAGE, 0, sizeof(ConfigFlash), (uint8_t *)cfg_ptr);
+    flash_lock();
+}
 void handler_erase(FirmwareErase* msg)
 {
     if(confirm("Verify Backup Before Upgrade", "Before upgrading your firmware, confirm that you have access to the backup of your recovery sentence."))

@@ -222,6 +222,20 @@ bool check_firmware_sig(void)
 	return(true);
 #endif
 }
+/**************************************************************************
+ *  check_fw_is_new - check firmware being loaded in newer the installed version
+ *
+ *  INPUT 
+ *      - none
+ *  OUTPUT
+ *      - true/false
+ *
+ * ***********************************************************************/
+bool check_fw_is_new(void)
+{
+    /* TODO: need to implement away to check version (stubbed for now) */
+    return(true);
+}
 
 const char* firmware_sig_as_string(void)
 {
@@ -275,7 +289,8 @@ int main(int argc, char* argv[])
                 dbg_print("INVALID FIRMWARE MAGIC\n\r");
                 break;
             }
-        } else 
+        } 
+        else 
         {
             clear_green();
 

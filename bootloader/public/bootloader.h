@@ -36,6 +36,8 @@ extern "C" {
 
 /* extern declarations */
 extern int signatures_ok(void);
+bool check_firmware_sig(void);
+bool check_fw_is_new(void);
 
 #ifdef __cplusplus
 }
