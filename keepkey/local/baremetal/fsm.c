@@ -813,7 +813,7 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 	}
 	if (msg->signature.size == 65 && cryptoMessageVerify(msg->message.bytes, msg->message.size, addr_raw, msg->signature.bytes) == 0)
 	{
-		if(confirm("Verify Message", msg->message.bytes))
+		if(review("Verify Message", msg->message.bytes))
 		{
 			success_confirm("Message verified");
 		}

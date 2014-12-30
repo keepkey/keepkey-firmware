@@ -225,6 +225,19 @@ bool confirm(const char *request_title, const char *request_body, ...)
 	vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
 	va_end(vl);
 
+	return confirm_helper(request_title, strbuf);
+}
+
+bool review(const char *request_title, const char *request_body, ...)
+{
+	button_request_acked = true;
+
+	va_list vl;
+	va_start(vl, request_body);
+	char strbuf[body_char_width()+1];
+	vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+	va_end(vl);
+
 	confirm_helper(request_title, strbuf);
 	return true;
 }
