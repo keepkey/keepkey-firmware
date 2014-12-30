@@ -347,7 +347,7 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
                 }
                 else
                 {
-                	send_failure(FailureType_Failure_FirmwareError, "Fingerprint Not Confirmed");
+                	cancel_confirm(FailureType_Failure_FirmwareError, "Fingerprint Not Confirmed");
                 	upload_state = UPLOAD_ERROR;
                 }
             }
