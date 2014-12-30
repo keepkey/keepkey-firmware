@@ -51,7 +51,9 @@ static MsgStats msg_stats;
 static const MessagesMap_t *MessagesMap = NULL;
 static const RawMessagesMap_t *RawMessagesMap = NULL;
 
+static msg_success_t msg_success;
 static msg_failure_t msg_failure;
+static msg_initialize_t msg_initialize;
 
 /*
  * Get message map entry if one exists
@@ -338,7 +340,7 @@ void handle_usb_rx(UsbMessage *msg)
     		if(status)
     			msg_tiny_id = last_frame_header.id;
     		else
-    			(*msg_failure)(FailureType_Failure_UnexpectedMessage, "Could not parse protocol buffer message");
+    			call_msg_failure_handler(FailureType_Failure_UnexpectedMessage, "Could not parse protocol buffer message");
     	}
 
     /*
@@ -362,9 +364,34 @@ void msg_map_init(const void* map, MessageMapType type)
     	RawMessagesMap = map;
 }
 
-void msg_failure_init(msg_failure_t failure_func)
+void set_msg_success_handler(msg_success_t success_func)
+{
+	msg_success = success_func;
+}
+
+void set_msg_failure_handler(msg_failure_t failure_func)
 {
 	msg_failure = failure_func;
+}
+
+void set_msg_initialize_handler(msg_initialize_t initialize_func)
+{
+	msg_initialize = initialize_func;
+}
+
+void call_msg_success_handler(const char *text)
+{
+	(*msg_success)(text);
+}
+
+void call_msg_failure_handler(FailureType code, const char *text)
+{
+	(*msg_failure)(code, text);
+}
+
+void call_msg_initialize_handler(void)
+{
+	(*msg_initialize)((Initialize *)0);
 }
 
 void msg_init()

@@ -179,6 +179,7 @@ void fsm_msgPing(Ping *msg)
 	if(msg->has_button_protection && msg->button_protection)
 		if(!confirm_ping_msg(msg->message))
 		{
+			cancel_confirm(FailureType_Failure_ActionCancelled, "Ping cancelled");
 			layout_home();
 			return;
 		}
@@ -194,7 +195,7 @@ void fsm_msgPing(Ping *msg)
 
 	if(msg->has_passphrase_protection && msg->passphrase_protection) {
 		if(!passphrase_protect()) {
-			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
+			cancel_passphrase(FailureType_Failure_ActionCancelled, "Ping cancelled");
 			layout_home();
 			return;
 		}
@@ -236,7 +237,7 @@ void fsm_msgChangePin(ChangePin *msg)
 
 	if (!confirmed)
 	{
-		fsm_sendFailure(FailureType_Failure_ActionCancelled, removal ? "PIN removal cancelled" : "PIN change cancelled");
+		cancel_confirm(FailureType_Failure_ActionCancelled, removal ? "PIN removal cancelled" : "PIN change cancelled");
 		layout_home();
 		return;
 	}
@@ -270,7 +271,7 @@ void fsm_msgChangePin(ChangePin *msg)
 			fsm_sendSuccess("PIN changed");
 		}
 		else
-			fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
+			cancel_pin(FailureType_Failure_ActionCancelled, "PIN change failed");
 	}
 
 	layout_home();
@@ -281,7 +282,7 @@ void fsm_msgWipeDevice(WipeDevice *msg)
 	(void)msg;
 	if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_WipeDevice, "Wipe Private Keys and Settings", "Are you sure you want to erase private keys and settings? This process cannot be undone and any money stored will be lost."))
 	{
-		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe cancelled");
+		cancel_confirm(FailureType_Failure_ActionCancelled, "Wipe cancelled");
 		layout_home();
 		return;
 	}
@@ -315,7 +316,7 @@ void fsm_msgGetEntropy(GetEntropy *msg)
 	if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
 		"Generate and Return Entropy", "Are you sure you would like to generate entropy using the hardware RNG, and return it to the computer client?"))
 	{
-		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Entropy cancelled");
+		cancel_confirm(FailureType_Failure_ActionCancelled, "Entropy cancelled");
 		layout_home();
 		return;
 	}
@@ -366,7 +367,7 @@ void fsm_msgLoadDevice(LoadDevice *msg)
     if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
     	"Import Recovery Sentence", "Importing a recovery sentence directly from a connected computer is not recommended unless you understand the risks."))
     {
-		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Load cancelled");
+		cancel_confirm(FailureType_Failure_ActionCancelled, "Load cancelled");
 		layout_home();
 		return;
     }
@@ -586,7 +587,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 		if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
 			"Change Label and Language", "Are you sure you would like to change the label to \"%s\" and the language to %s?", msg->label, msg->language))
 		{
-			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
+			cancel_confirm(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
 			layout_home();
 			return;
 		}
@@ -596,7 +597,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 		if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
 			"Change Label", "Are you sure you would like to change the label to \"%s\"?", msg->label))
 		{
-			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
+			cancel_confirm(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
 			layout_home();
 			return;
 		}
@@ -606,7 +607,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 		if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
 			"Change Language", "Are you sure you would like to change the language to %s?", msg->language))
 		{
-			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
+			cancel_confirm(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
 			layout_home();
 			return;
 		}
@@ -670,7 +671,7 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
 	if ((encrypt && ask_on_encrypt) || (!encrypt && ask_on_decrypt)) {
 		if(!confirm_cipher(encrypt, msg->key))
 		{
-			fsm_sendFailure(FailureType_Failure_ActionCancelled, "CipherKeyValue cancelled");
+			cancel_confirm(FailureType_Failure_ActionCancelled, "CipherKeyValue cancelled");
 			layout_home();
 			return;
 		}
@@ -756,7 +757,7 @@ void fsm_msgSignMessage(SignMessage *msg)
 
 	if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall, "Sign Message", msg->message.bytes))
 	{
-		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Sign message cancelled");
+		cancel_confirm(FailureType_Failure_ActionCancelled, "Sign message cancelled");
 		layout_home();
 		return;
 	}
@@ -819,9 +820,9 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 	}
 	if (msg->signature.size == 65 && cryptoMessageVerify(msg->message.bytes, msg->message.size, addr_raw, msg->signature.bytes) == 0)
 	{
-		if(confirm_with_button_request(ButtonRequestType_ButtonRequest_Other, "Verify Message", msg->message.bytes))
+		if(confirm("Verify Message", msg->message.bytes))
 		{
-			fsm_sendSuccess("Message verified");
+			success_confirm("Message verified");
 		}
 	}
 	else
@@ -875,7 +876,7 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 
 	if(!confirm_encrypt_msg(msg->message.bytes, signing))
 	{
-		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Encrypt message cancelled");
+		cancel_confirm(FailureType_Failure_ActionCancelled, "Encrypt message cancelled");
 		layout_home();
 		return;
 	}
@@ -942,7 +943,7 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
 
 	if(!confirm_decrypt_msg(resp->message.bytes, signing ? resp->address : 0))
 	{
-		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Decrypt message cancelled");
+		cancel_confirm(FailureType_Failure_ActionCancelled, "Decrypt message cancelled");
 		layout_home();
 		return;
 	}
@@ -1043,6 +1044,7 @@ void fsm_init(void)
 {
 	msg_map_init(MessagesMap, MESSAGE_MAP);
 	msg_map_init(RawMessagesMap, RAW_MESSAGE_MAP);
-	msg_failure_init(&fsm_sendFailure);
+	set_msg_failure_handler(&fsm_sendFailure);
+	set_msg_initialize_handler(&fsm_msgInitialize);
 	msg_init();
 }

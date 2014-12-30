@@ -42,6 +42,8 @@
 bool confirm_with_button_request(ButtonRequestType type, const char *request_title, const char *request_body, ...);
 bool confirm(const char* request_title, const char* request_body, ...);
 bool confirm_helper(const char* request_title, const char* request_body);
+void cancel_confirm(FailureType code, const char *text);
+void success_confirm(const char *text);
 bool confirm_cipher(bool encrypt, const char *key);
 bool confirm_encrypt_msg(const char *msg, bool signing);
 bool confirm_decrypt_msg(const char *msg, const char *address);

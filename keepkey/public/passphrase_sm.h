@@ -28,6 +28,9 @@
 
 #include <stdbool.h>
 
+#include <interface.h>
+
 bool passphrase_protect();
+void cancel_passphrase(FailureType code, const char *text);
 
 #endif

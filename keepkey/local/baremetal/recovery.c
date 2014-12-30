@@ -99,7 +99,7 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
 	enforce_wordlist = _enforce_wordlist;
 
 	if (pin_protection && !change_pin()) {
-		fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
+		cancel_pin(FailureType_Failure_ActionCancelled, "PIN change failed");
 		layout_home();
 		return;
 	}

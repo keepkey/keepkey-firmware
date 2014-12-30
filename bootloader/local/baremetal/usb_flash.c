@@ -127,10 +127,11 @@ bool usb_flash_firmware(void)
     FirmwareUploadState upd_stat; 
 
     layout_warning("Firmware Update Mode");
-    /* Init message map, failure function, and usb callback */
+    /* Init message map, failure function, send init function, and usb callback */
     msg_map_init(MessagesMap, MESSAGE_MAP);
     msg_map_init(RawMessagesMap, RAW_MESSAGE_MAP);
-    msg_failure_init(&send_failure);
+    set_msg_failure_handler(&send_failure);
+    set_msg_initialize_handler(&handler_initialize);
     msg_init();
 
     /* Init USB */

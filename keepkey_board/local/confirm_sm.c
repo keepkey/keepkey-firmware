@@ -91,6 +91,11 @@ typedef struct
  */
 static bool button_request_acked = false;
 
+/*
+ * Flag whether confirm was canceled by init msg
+ */
+static bool confirm_canceled_by_init = false;
+
 //=============================== VARIABLES ===================================
 
 //====================== PRIVATE FUNCTION DECLARATIONS ========================
@@ -221,12 +226,14 @@ bool confirm(const char *request_title, const char *request_body, ...)
 	vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
 	va_end(vl);
 
-	return confirm_helper(request_title, strbuf);
+	confirm_helper(request_title, strbuf);
+	return true;
 }
 
 bool confirm_helper(const char *request_title, const char *request_body)
 {
     bool ret=false;
+    confirm_canceled_by_init = false;
 
     volatile StateInfo state_info;
     memset((void*)&state_info, 0, sizeof(state_info));
@@ -278,7 +285,7 @@ bool confirm_helper(const char *request_title, const char *request_body)
          */
 		if (tiny_msg == MessageType_MessageType_Cancel || tiny_msg == MessageType_MessageType_Initialize) {
 			if (tiny_msg == MessageType_MessageType_Initialize) {
-				protectAbortedByInitialize = true;
+				confirm_canceled_by_init = true;
 			}
 			ret = false;
 			break;
@@ -306,6 +313,25 @@ bool confirm_helper(const char *request_title, const char *request_body)
     return ret;
 }
 
+void cancel_confirm(FailureType code, const char *text)
+{
+	if(confirm_canceled_by_init)
+		call_msg_initialize_handler();
+	else
+		call_msg_failure_handler(code, text);
+
+	confirm_canceled_by_init = false;
+}
+
+void success_confirm(const char *text)
+{
+	if(confirm_canceled_by_init)
+		call_msg_initialize_handler();
+	else
+		call_msg_success_handler(text);
+
+	confirm_canceled_by_init = false;
+}
 
 //=========================== CONFIRM FUNCTIONS ================================
 

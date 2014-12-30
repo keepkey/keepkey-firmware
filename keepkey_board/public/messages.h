@@ -45,7 +45,9 @@ typedef struct {
     void (*process_func)(uint8_t *msg, uint32_t msg_size, uint32_t frame_length);
 } RawMessagesMap_t;
 
+typedef void (*msg_success_t)(const char *);
 typedef void (*msg_failure_t)(FailureType, const char *);
+typedef void (*msg_initialize_t)(Initialize *);
 
 /*
  *
@@ -63,9 +65,14 @@ bool msg_write(MessageType type, const void* msg);
 void msg_map_init(const void* map, MessageMapType type);
 
 /*
- * Initializes message failure callback
+ * Message failure and message init callback
  */
-void msg_failure_init(msg_failure_t failure_func);
+void set_msg_success_handler(msg_success_t success_func);
+void set_msg_failure_handler(msg_failure_t failure_func);
+void set_msg_initialize_handler(msg_initialize_t initialize_func);
+void call_msg_success_handler(const char *text);
+void call_msg_failure_handler(FailureType code, const char *text);
+void call_msg_initialize_handler(void);
 
 /*
  * Assign callback for USB interrupt handling

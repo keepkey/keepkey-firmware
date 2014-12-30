@@ -64,14 +64,14 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 		if (!confirm_with_button_request(ButtonRequestType_ButtonRequest_ResetDevice,
 			"Internal Entropy", "%s %s %s %s", ent_str[0], ent_str[1], ent_str[2], ent_str[3]))
 		{
-			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Reset cancelled");
+			cancel_confirm(FailureType_Failure_ActionCancelled, "Reset cancelled");
 			layout_home();
 			return;
 		}
 	}
 
 	if (pin_protection && !change_pin()) {
-		fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
+		cancel_pin(FailureType_Failure_ActionCancelled, "PIN change failed");
 		layout_home();
 		return;
 	}
@@ -136,6 +136,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 			strcpy(title, "Write Down Recovery Sentence");
 
 		if (!confirm_with_button_request(ButtonRequestType_ButtonRequest_ConfirmWord, title, "%s", formatted_mnemonic[word_group])) {
+			cancel_confirm(FailureType_Failure_ActionCancelled, "Reset cancelled");
 			storage_reset();
 			layout_home();
 			return;

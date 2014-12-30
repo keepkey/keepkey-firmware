@@ -75,6 +75,11 @@ typedef struct
 
 //=============================== VARIABLES ===================================
 
+/*
+ * Flag whether passphrase was canceled by init msg
+ */
+static bool passphrase_canceled_by_init = false;
+
 //====================== PRIVATE FUNCTION DECLARATIONS ========================
 
 static void send_passphrase_request(void)
@@ -132,6 +137,7 @@ static void run_passphrase_state(PassphraseState *passphrase_state, PassphraseIn
 static bool passphrase_request(PassphraseInfo *passphrase_info)
 {
 	bool ret = false;
+	passphrase_canceled_by_init = false;
 	PassphraseState passphrase_state = PASSPHRASE_REQUEST;
 
 	/* Run SM */
@@ -148,7 +154,7 @@ static bool passphrase_request(PassphraseInfo *passphrase_info)
 		ret = true;
 	else
 		if(passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_CANCEL_BY_INIT)
-			protectAbortedByInitialize = true;
+			passphrase_canceled_by_init = true;
 
 	return ret;
 }
@@ -173,4 +179,14 @@ bool passphrase_protect()
 		ret = true;
 
 	return ret;
+}
+
+void cancel_passphrase(FailureType code, const char *text)
+{
+	if(passphrase_canceled_by_init)
+		call_msg_initialize_handler();
+	else
+		call_msg_failure_handler(code, text);
+
+	passphrase_canceled_by_init = false;
 }

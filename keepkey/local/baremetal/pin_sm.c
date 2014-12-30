@@ -74,6 +74,11 @@ typedef struct
 
 //=============================== VARIABLES ===================================
 
+/*
+ * Flag whether pin was canceled by init msg
+ */
+static bool pin_canceled_by_init = false;
+
 //====================== PRIVATE FUNCTION DECLARATIONS ========================
 
 static void send_pin_request(PinMatrixRequestType type)
@@ -147,7 +152,7 @@ static void decode_pin(char randomized_pin[], PINInfo *pin_info)
 {
 	for (uint8_t i = 0; i < strlen(pin_info->pin); i++)
 	{
-		uint8_t j = pin_info->pin[i] - '1';
+		uint8_t j = pin_info->pin[i] - '0';
 
 		if(0 <= j < strlen(randomized_pin))
 			pin_info->pin[i] = randomized_pin[j];
@@ -159,6 +164,7 @@ static void decode_pin(char randomized_pin[], PINInfo *pin_info)
 static bool pin_request(const char *prompt, PINInfo *pin_info)
 {
 	bool ret = false;
+	pin_canceled_by_init = false;
 	PINState pin_state = PIN_REQUEST;
 
 	/* Init and randomize pin matrix */
@@ -180,10 +186,10 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
 	/* Check for PIN cancel */
 	if (pin_info->pin_ack_msg != PIN_ACK_RECEIVED)
 	{
-		fsm_sendFailure(FailureType_Failure_PinCancelled, "PIN Cancelled");
-
 		if(pin_info->pin_ack_msg == PIN_ACK_CANCEL_BY_INIT)
-			fsm_msgInitialize((Initialize *)0);
+			pin_canceled_by_init = true;
+
+		cancel_pin(FailureType_Failure_PinCancelled, "PIN Cancelled");
 	}
 	else
 	{
@@ -238,9 +244,10 @@ bool pin_protect()
 			{
 				storage_increase_pin_fails();
 				fsm_sendFailure(FailureType_Failure_PinInvalid, "Invalid PIN");
-				ret = false;
 			}
 		}
+		else
+			fsm_sendFailure(FailureType_Failure_PinCancelled, "PIN Cancelled");
 	}
 	else
 		ret = true;
@@ -277,4 +284,14 @@ bool change_pin(void)
 	}
 
 	return ret;
+}
+
+void cancel_pin(FailureType code, const char *text)
+{
+	if(pin_canceled_by_init)
+		call_msg_initialize_handler();
+	else
+		call_msg_failure_handler(code, text);
+
+	pin_canceled_by_init = false;
 }
