@@ -156,23 +156,24 @@ bool usb_flash_firmware(void)
                     if(check_fw_is_new())
                     {
                         storage_part_restore(&storage_shadow);
-                        dbg_print("restored keys....\n\r");
+                        dbg_print("keys restored...\n\r");
                     }
                     else
                     {
-                        dbg_print("fw is staled....\n\r");
+                        dbg_print("firmware being loaded is older than current version.  Clearing the Keys...\n\r");
                     }
                 }
                 else
                 {
-                    dbg_print("error: failed sign check\n\r");
+                    dbg_print("Firmware is not from KeepKey.  Clearing the Keys...\n\r");
                 }
                 retval = true;
-                break;
+                goto uff_exit;
             }
             case UPLOAD_ERROR:
             {
-                break;
+                dbg_print("error: Firmware update error...\n\r");
+                goto uff_exit;
             }
             case UPLOAD_NOT_STARTED:
             case UPLOAD_STARTED:
@@ -184,6 +185,7 @@ bool usb_flash_firmware(void)
             }
         }
     }
+uff_exit:
     /* clear the shadow before exiting */
     memset(&storage_shadow, 0xEE, sizeof(ConfigFlash));
     return(retval);
