@@ -41,6 +41,7 @@
 #define SHA256_DIGEST_STR_LEN ((SHA256_DIGEST_LENGTH * 2) + 1)
 #define BYTE_AS_HEX_STR_LEN (2 + 1)
 
+void send_success(const char *text);
 void send_failure(FailureType code, const char *text);
 void handler_initialize(Initialize* msg);
 void handler_ping(Ping* msg);
@@ -130,6 +131,7 @@ bool usb_flash_firmware(void)
     /* Init message map, failure function, send init function, and usb callback */
     msg_map_init(MessagesMap, MESSAGE_MAP);
     msg_map_init(RawMessagesMap, RAW_MESSAGE_MAP);
+    set_msg_success_handler(&send_success);
     set_msg_failure_handler(&send_failure);
     set_msg_initialize_handler(&handler_initialize);
     msg_init();
