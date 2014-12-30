@@ -223,7 +223,7 @@ bool check_firmware_sig(void)
 #endif
 }
 /**************************************************************************
- *  check_fw_is_new - check firmware being loaded in newer the installed version
+ *  check_fw_is_new - check firmware being loaded is newer than installed version
  *
  *  INPUT 
  *      - none
