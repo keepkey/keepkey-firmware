@@ -35,11 +35,11 @@ typedef struct {
 	uint8_t public_key[33];
 } HDNode;
 
-int hdnode_from_xpub(uint32_t depth, uint32_t fingerprint, uint32_t child_num, uint8_t *chain_code, uint8_t *public_key, HDNode *out);
+int hdnode_from_xpub(uint32_t depth, uint32_t fingerprint, uint32_t child_num, const uint8_t *chain_code, const uint8_t *public_key, HDNode *out);
 
-int hdnode_from_xprv(uint32_t depth, uint32_t fingerprint, uint32_t child_num, uint8_t *chain_code, uint8_t *private_key, HDNode *out);
+int hdnode_from_xprv(uint32_t depth, uint32_t fingerprint, uint32_t child_num, const uint8_t *chain_code, const uint8_t *private_key, HDNode *out);
 
-int hdnode_from_seed(uint8_t *seed, int seed_len, HDNode *out);
+int hdnode_from_seed(const uint8_t *seed, int seed_len, HDNode *out);
 
 #define hdnode_private_ckd_prime(X, I) hdnode_private_ckd((X), ((I) | 0x80000000))
 
@@ -49,9 +49,9 @@ int hdnode_public_ckd(HDNode *inout, uint32_t i);
 
 void hdnode_fill_public_key(HDNode *node);
 
-void hdnode_serialize_public(const HDNode *node, char *str);
+void hdnode_serialize_public(const HDNode *node, char *str, int strsize);
 
-void hdnode_serialize_private(const HDNode *node, char *str);
+void hdnode_serialize_private(const HDNode *node, char *str, int strsize);
 
 int hdnode_deserialize(const char *str, HDNode *node);
 
