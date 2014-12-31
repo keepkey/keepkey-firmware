@@ -29,6 +29,7 @@
 #include <layout.h>
 #include <timer.h>
 #include <usb_driver.h>
+#include <storage.pb.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,6 +38,49 @@ extern "C" {
 /**
  * @brief miscellaneous board functions    
  */
+/*
+ storage layout:
+
+ offset | type/length |  description
+--------+-------------+-------------------------------
+ 0x0000 |  4 bytes    |  magic = 'stor'
+ 0x0004 |  12 bytes   |  uuid
+ 0x0010 |  25 bytes   |  uuid_str
+ 0x0029 |  ?          |  Storage structure
+ */
+
+
+/*
+ * Specify the length of the uuid binary string
+ */ 
+#define STORAGE_UUID_LEN 12
+
+/*
+ * Length of the uuid binary converted to readable ASCII.
+ */
+#define STORAGE_UUID_STR_LEN ((STORAGE_UUID_LEN * 2) + 1)
+
+#define META_MAGIC 0x73746F72  /* 'stor' */
+
+/*
+ * Flash metadata structure which will contains unique identifier
+ * information that spans device resets.
+ */
+typedef struct
+{
+    uint32_t magic;  
+    uint8_t uuid[STORAGE_UUID_LEN];
+    char uuid_str[STORAGE_UUID_STR_LEN];
+} Metadata;
+
+/*
+ * Config flash overlay structure.
+ */
+typedef struct 
+{
+    Metadata meta;
+    Storage storage;
+} ConfigFlash;
 
 /**
  * Perform a soft reset of the board.
