@@ -63,11 +63,11 @@ enum MessageType {
 	MessageType_RecoveryDevice = 45 [(wire_in) = true];
 	MessageType_WordRequest = 46 [(wire_out) = true];
 	MessageType_WordAck = 47 [(wire_in) = true];
-	//TODO:MessageType_DebugLinkDecision = 100 [(wire_debug_in) = true];
-	//TODO:MessageType_DebugLinkGetState = 101 [(wire_debug_in) = true];
-	//TODO:MessageType_DebugLinkState = 102 [(wire_debug_out) = true];
-	//TODO:MessageType_DebugLinkStop = 103 [(wire_debug_in) = true];
-	//TODO:MessageType_DebugLinkLog = 104 [(wire_debug_out) = true];
+	MessageType_DebugLinkDecision = 100 [(wire_debug_in) = true];
+	MessageType_DebugLinkGetState = 101 [(wire_debug_in) = true];
+	MessageType_DebugLinkState = 102 [(wire_debug_out) = true];
+	MessageType_DebugLinkStop = 103 [(wire_debug_in) = true];
+	MessageType_DebugLinkLog = 104 [(wire_debug_out) = true];
 }
 
 ////////////////////
@@ -120,6 +120,7 @@ message ClearSession {
 message ApplySettings {
 	optional string language = 1;
 	optional string label = 2;
+	optional bool use_passphrase = 3;
 }
 
 /**
@@ -263,6 +264,7 @@ message GetAddress {
 	repeated uint32 address_n = 1;			// BIP-32 path to derive the key from master node
 	optional string coin_name = 2 [default='Bitcoin'];
 	optional bool show_display = 3;
+	optional MultisigRedeemScriptType multisig = 4;	// Filled if we are showing a multisig address
 }
 
 /**
@@ -572,22 +574,22 @@ message FirmwareUpload {
  * Request: "Press" the button on the device
  * @next Success
  */
-/*TODO:message DebugLinkDecision {
+message DebugLinkDecision {
 	required bool yes_no = 1;			// true for "Confirm", false for "Cancel"
-}*/
+}
 
 /**
  * Request: Computer asks for device state
  * @next DebugLinkState
  */
-/*TODO:message DebugLinkGetState {
-}*/
+message DebugLinkGetState {
+}
 
 /**
  * Response: Device current state
  * @prev DebugLinkGetState
  */
-/*TODO:message DebugLinkState {
+message DebugLinkState {
 	optional bytes layout = 1;			// raw buffer of display
 	optional string pin = 2;			// current PIN, blank if PIN is not set/enabled
 	optional string matrix = 3;			// current PIN matrix
@@ -598,19 +600,19 @@ message FirmwareUpload {
 	optional bytes reset_entropy = 8;		// current entropy during ResetDevice workflow
 	optional string recovery_fake_word = 9;		// (fake) word on display during RecoveryDevice workflow
 	optional uint32 recovery_word_pos = 10;		// index of mnemonic word the device is expecting during RecoveryDevice workflow
-}*/
+}
 
 /**
  * Request: Ask device to restart
  */
-/*TODO:message DebugLinkStop {
-}*/
+message DebugLinkStop {
+}
 
 /**
  * Response: Device wants host to log event
  */
-/*TODO:message DebugLinkLog {
+message DebugLinkLog {
 	optional uint32 level = 1;
 	optional string bucket = 2;
 	optional string text = 3;
-}*/
+}
