@@ -24,6 +24,7 @@
 #include <hmac.h>
 #include <bip39.h>
 #include <base58.h>
+#include <ripemd160.h>
 #include <layout.h>
 #include <confirm_sm.h>
 #include <pin_sm.h>
@@ -83,13 +84,25 @@ HDNode *fsm_getRootNode(void)
 	return &node;
 }
 
-void fsm_deriveKey(HDNode *node, uint32_t *address_n, size_t address_n_count)
+int fsm_deriveKey(HDNode *node, uint32_t *address_n, size_t address_n_count)
 {
-    size_t i;
-
-    for (i = 0; i < address_n_count; i++) {
-        hdnode_private_ckd(node, address_n[i]);
-    }
+	size_t i;
+	if (address_n_count > 3) {
+		//TODO:Animation Setup
+		//layoutProgressSwipe("Preparing keys", 0);
+	}
+	for (i = 0; i < address_n_count; i++) {
+		if (hdnode_private_ckd(node, address_n[i]) == 0) {
+			fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
+			layout_home();
+			return 0;
+		}
+		if (address_n_count > 3) {
+			//TODO:Animation Setup
+			//layoutProgress("Preparing keys", 1000 * i / address_n_count);
+		}
+	}
+	return 1;
 }
 
 void fsm_msgInitialize(Initialize *msg)
@@ -698,6 +711,8 @@ void fsm_msgClearSession(ClearSession *msg)
 	(void)msg;
 	session_clear();
 	fsm_sendSuccess("Session cleared");
+
+	confirm("SIZE OF STORAGE", "%d", sizeof(Storage));
 }
 
 void fsm_msgGetAddress(GetAddress *msg)
@@ -710,13 +725,33 @@ void fsm_msgGetAddress(GetAddress *msg)
     if (!coin) {
         fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
         layout_home();
-        display_refresh();
         return;
     }
 
-    fsm_deriveKey(node, msg->address_n, msg->address_n_count);
+    if (fsm_deriveKey(node, msg->address_n, msg->address_n_count) == 0) return;
 
-    ecdsa_get_address(node->public_key, coin->address_type, resp->address);
+    if (msg->has_multisig) {
+
+    	//TODO: Preparing Animation
+		//layoutProgressSwipe("Preparing", 0);
+
+		if (cryptoMultisigPubkeyIndex(&(msg->multisig), node->public_key) < 0) {
+			fsm_sendFailure(FailureType_Failure_Other, "Pubkey not found in multisig script");
+			layout_home();
+			return;
+		}
+		uint8_t buf[32];
+		if (compile_script_multisig_hash(&(msg->multisig), buf) == 0) {
+			fsm_sendFailure(FailureType_Failure_Other, "Invalid multisig script");
+			layout_home();
+			return;
+		}
+		ripemd160(buf, 32, buf + 1);
+		buf[0] = coin->address_type_p2sh; // multisig cointype
+		base58_encode_check(buf, 21, resp->address, sizeof(resp->address));
+	} else {
+		ecdsa_get_address(node->public_key, coin->address_type, resp->address, sizeof(resp->address));
+	}
 
     /*
      * TODO: Implement address display
@@ -732,7 +767,6 @@ void fsm_msgGetAddress(GetAddress *msg)
 
     msg_write(MessageType_MessageType_Address, resp);
     layout_home();
-    display_refresh();
 }
 
 void fsm_msgEntropyAck(EntropyAck *msg)
@@ -770,17 +804,16 @@ void fsm_msgSignMessage(SignMessage *msg)
 		return;
 	}
 
-	fsm_deriveKey(node, msg->address_n, msg->address_n_count);
-	uint8_t addr_raw[21];
-	ecdsa_get_address_raw(node->public_key, coin->address_type, addr_raw);
-	base58_encode_check(addr_raw, 21, resp->address);
+	if (fsm_deriveKey(node, msg->address_n, msg->address_n_count) == 0) return;
 
-	/*
-	 * Sign message animation
-	 */
+	//TODO:Sign Message Animation
+	//layoutProgressSwipe("Signing", 0);
 
-	if (cryptoMessageSign(msg->message.bytes, msg->message.size, node->private_key, addr_raw, resp->signature.bytes) == 0) {
+	if (cryptoMessageSign(msg->message.bytes, msg->message.size, node->private_key, resp->signature.bytes) == 0) {
 		resp->has_address = true;
+		uint8_t addr_raw[21];
+		ecdsa_get_address_raw(node->public_key, coin->address_type, addr_raw);
+		base58_encode_check(addr_raw, 21, resp->address, sizeof(resp->address));
 		resp->has_signature = true;
 		resp->signature.size = 65;
 		msg_write(MessageType_MessageType_MessageSignature, resp);
@@ -862,7 +895,7 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 
 		node = fsm_getRootNode();
 		if (!node) return;
-		fsm_deriveKey(node, msg->address_n, msg->address_n_count);
+		if (fsm_deriveKey(node, msg->address_n, msg->address_n_count) == 0) return;
 		hdnode_fill_public_key(node);
 		ecdsa_get_address_raw(node->public_key, coin->address_type, address_raw);
 	}
@@ -875,12 +908,14 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 	}
 
 	//TODO:Encrypting animation
+	//layoutProgressSwipe("Encrypting", 0);
 
-	if (cryptoMessageEncrypt(&pubkey, msg->message.bytes, msg->message.size, display_only, resp->nonce.bytes, (pb_size_t *)&(resp->nonce.size), resp->message.bytes, (pb_size_t *)&(resp->message.size), resp->hmac.bytes, (pb_size_t *)&(resp->hmac.size), signing ? node->private_key : 0, signing ? address_raw : 0) != 0) {
+	if (cryptoMessageEncrypt(&pubkey, msg->message.bytes, msg->message.size, display_only, resp->nonce.bytes, &(resp->nonce.size), resp->message.bytes, &(resp->message.size), resp->hmac.bytes, &(resp->hmac.size), signing ? node->private_key : 0, signing ? address_raw : 0) != 0) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Error encrypting message");
 		layout_home();
 		return;
 	}
+
 	resp->has_nonce = true;
 	resp->has_message = true;
 	resp->has_hmac = true;
@@ -916,7 +951,7 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
 
 	HDNode *node = fsm_getRootNode();
 	if (!node) return;
-	fsm_deriveKey(node, msg->address_n, msg->address_n_count);
+	if (fsm_deriveKey(node, msg->address_n, msg->address_n_count) == 0) return;
 
 	//TODO:Decrypting animation
 	//layoutProgressSwipe("Decrypting", 0, 0);
@@ -925,13 +960,13 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
 	bool display_only = false;
 	bool signing = false;
 	uint8_t address_raw[21];
-	if (cryptoMessageDecrypt(&nonce_pubkey, msg->message.bytes, msg->message.size, msg->hmac.bytes, msg->hmac.size, node->private_key, resp->message.bytes, (pb_size_t *)&(resp->message.size), &display_only, &signing, address_raw) != 0) {
+	if (cryptoMessageDecrypt(&nonce_pubkey, msg->message.bytes, msg->message.size, msg->hmac.bytes, msg->hmac.size, node->private_key, resp->message.bytes, &(resp->message.size), &display_only, &signing, address_raw) != 0) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Error decrypting message");
 		layout_home();
 		return;
 	}
 	if (signing) {
-		base58_encode_check(address_raw, 21, resp->address);
+		base58_encode_check(address_raw, 21, resp->address, sizeof(resp->address));
 	}
 
 	if(!confirm_decrypt_msg(resp->message.bytes, signing ? resp->address : 0))

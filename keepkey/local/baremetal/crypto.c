@@ -17,14 +17,15 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <sha2.h>
-#include <ecdsa.h>
-#include <pbkdf2.h>
-#include <aes.h>
-#include <hmac.h>
-#include <interface.h>
-
+#include <string.h>
 #include "crypto.h"
+#include "sha2.h"
+#include "ecdsa.h"
+#include "pbkdf2.h"
+#include "aes.h"
+#include "hmac.h"
+#include "bip32.h"
+#include "layout.h"
 
 uint32_t ser_length(uint32_t len, uint8_t *out)
 {
@@ -46,6 +47,24 @@ uint32_t ser_length(uint32_t len, uint8_t *out)
 	return 5;
 }
 
+uint32_t ser_length_hash(SHA256_CTX *ctx, uint32_t len)
+{
+	if (len < 253) {
+		sha256_Update(ctx, (const uint8_t *)&len, 1);
+		return 1;
+	}
+	if (len < 0x10000) {
+		uint8_t d = 253;
+		sha256_Update(ctx, &d, 1);
+		sha256_Update(ctx, (const uint8_t *)&len, 2);
+		return 3;
+	}
+	uint8_t d = 254;
+	sha256_Update(ctx, &d, 1);
+	sha256_Update(ctx, (const uint8_t *)&len, 4);
+	return 5;
+}
+
 uint32_t deser_length(const uint8_t *in, uint32_t *out)
 {
 	if (in[0] < 253) {
@@ -64,7 +83,7 @@ uint32_t deser_length(const uint8_t *in, uint32_t *out)
 	return 1 + 8;
 }
 
-int cryptoMessageSign(const uint8_t *message, pb_size_t message_len, const uint8_t *privkey, const uint8_t *address_raw, uint8_t *signature)
+int cryptoMessageSign(const uint8_t *message, size_t message_len, const uint8_t *privkey, uint8_t *signature)
 {
 	SHA256_CTX ctx;
 	sha256_Init(&ctx);
@@ -76,18 +95,13 @@ int cryptoMessageSign(const uint8_t *message, pb_size_t message_len, const uint8
 	uint8_t hash[32];
 	sha256_Final(hash, &ctx);
 	sha256_Raw(hash, 32, hash);
-	ecdsa_sign_digest(privkey, hash, signature + 1);
-	uint8_t i;
-	for (i = 27 + 4; i < 27 + 4 + 4; i++) {
-		signature[0] = i;
-		if (cryptoMessageVerify(message, message_len, address_raw, signature) == 0) {
-			return 0;
-		}
-	}
-	return 1;
+	uint8_t pby;
+	ecdsa_sign_digest(privkey, hash, signature + 1, &pby);
+	signature[0] = 27 + pby + 4;
+	return 0;
 }
 
-int cryptoMessageVerify(const uint8_t *message, pb_size_t message_len, const uint8_t *address_raw, const uint8_t *signature)
+int cryptoMessageVerify(const uint8_t *message, size_t message_len, const uint8_t *address_raw, const uint8_t *signature)
 {
 	bignum256 r, s, e;
 	curve_point cp, cp2;
@@ -107,13 +121,8 @@ int cryptoMessageVerify(const uint8_t *message, pb_size_t message_len, const uin
 	// read r and s
 	bn_read_be(signature + 1, &r);
 	bn_read_be(signature + 33, &s);
-	// x = r + (recid / 2) * order
-	bn_zero(&cp.x);
-	uint8_t i;
-	for (i = 0; i < recid / 2; i++) {
-		bn_addmod(&cp.x, &order256k1, &prime256k1);
-	}
-	bn_addmod(&cp.x, &r, &prime256k1);
+	// x = r
+	memcpy(&cp.x, &r, sizeof(bignum256));
 	// compute y from x
 	uncompress_coords(recid % 2, &cp.x, &cp.y);
 	// calculate hash
@@ -155,14 +164,14 @@ int cryptoMessageVerify(const uint8_t *message, pb_size_t message_len, const uin
 // internal from ecdsa.c
 int generate_k_random(bignum256 *k);
 
-int cryptoMessageEncrypt(curve_point *pubkey, const uint8_t *msg, pb_size_t msg_size, bool display_only, uint8_t *nonce, pb_size_t *nonce_len, uint8_t *payload, pb_size_t *payload_len, uint8_t *hmac, pb_size_t *hmac_len, const uint8_t *privkey, const uint8_t *address_raw)
+int cryptoMessageEncrypt(curve_point *pubkey, const uint8_t *msg, size_t msg_size, bool display_only, uint8_t *nonce, size_t *nonce_len, uint8_t *payload, size_t *payload_len, uint8_t *hmac, size_t *hmac_len, const uint8_t *privkey, const uint8_t *address_raw)
 {
 	if (privkey && address_raw) { // signing == true
 		payload[0] = display_only ? 0x81 : 0x01;
 		uint32_t l = ser_length(msg_size, payload + 1);
 		memcpy(payload + 1 + l, msg, msg_size);
 		memcpy(payload + 1 + l + msg_size, address_raw, 21);
-		if (cryptoMessageSign(msg, msg_size, privkey, address_raw, payload + 1 + l + msg_size + 21) != 0) {
+		if (cryptoMessageSign(msg, msg_size, privkey, payload + 1 + l + msg_size + 21) != 0) {
 			return 1;
 		}
 		*payload_len = 1 + l + msg_size + 21 + 65;
@@ -207,7 +216,7 @@ int cryptoMessageEncrypt(curve_point *pubkey, const uint8_t *msg, pb_size_t msg_
 	return 0;
 }
 
-int cryptoMessageDecrypt(curve_point *nonce, uint8_t *payload, pb_size_t payload_len, const uint8_t *hmac, pb_size_t hmac_len, const uint8_t *privkey, uint8_t *msg, pb_size_t *msg_len, bool *display_only, bool *signing, uint8_t *address_raw)
+int cryptoMessageDecrypt(curve_point *nonce, uint8_t *payload, size_t payload_len, const uint8_t *hmac, size_t hmac_len, const uint8_t *privkey, uint8_t *msg, size_t *msg_len, bool *display_only, bool *signing, uint8_t *address_raw)
 {
 	if (hmac_len != 8) {
 		return 1;
@@ -261,4 +270,76 @@ int cryptoMessageDecrypt(curve_point *nonce, uint8_t *payload, pb_size_t payload
 	memcpy(msg, payload + 1 + l, o);
 	*msg_len = o;
 	return 0;
+}
+
+uint8_t *cryptoHDNodePathToPubkey(const HDNodePathType *hdnodepath)
+{
+	if (!hdnodepath->node.has_public_key || hdnodepath->node.public_key.size != 33) return 0;
+	static HDNode node;
+	if (hdnode_from_xpub(hdnodepath->node.depth, hdnodepath->node.fingerprint, hdnodepath->node.child_num, hdnodepath->node.chain_code.bytes, hdnodepath->node.public_key.bytes, &node) == 0) {
+		return 0;
+	}
+	//TODO: Progress Animation
+	//layoutProgressUpdate(true);
+	uint32_t i;
+	for (i = 0; i < hdnodepath->address_n_count; i++) {
+		if (hdnode_public_ckd(&node, hdnodepath->address_n[i]) == 0) {
+			return 0;
+		}
+		//TODO: Progress Animation
+		//layoutProgressUpdate(true);
+	}
+	return node.public_key;
+}
+
+int cryptoMultisigPubkeyIndex(const MultisigRedeemScriptType *multisig, const uint8_t *pubkey)
+{
+	size_t i;
+	for (i = 0; i < multisig->pubkeys_count; i++) {
+		const uint8_t *node_pubkey = cryptoHDNodePathToPubkey(&(multisig->pubkeys[i]));
+		if (node_pubkey && memcmp(node_pubkey, pubkey, 33) == 0) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+int cryptoMultisigFingerprint(const MultisigRedeemScriptType *multisig, uint8_t *hash)
+{
+	const uint32_t n = multisig->pubkeys_count;
+	if (n > 15) {
+		return 0;
+	}
+	const HDNodePathType *ptr[n], *swap;
+	uint32_t i, j;
+	// check sanity
+	for (i = 0; i < n; i++) {
+		ptr[i] = &(multisig->pubkeys[i]);
+		if (!ptr[i]->node.has_public_key || ptr[i]->node.public_key.size != 33) return 0;
+		if (ptr[i]->node.chain_code.size != 32) return 0;
+	}
+	// minsort according to pubkey
+	for (i = 0; i < n - 1; i++) {
+		for (j = n - 1; j > i; j--) {
+			if (memcmp(ptr[i]->node.public_key.bytes, ptr[j]->node.public_key.bytes, 33) > 0) {
+				swap = ptr[i];
+				ptr[i] = ptr[j];
+				ptr[j] = swap;
+			}
+		}
+	}
+	// hash sorted nodes
+	SHA256_CTX ctx;
+	sha256_Init(&ctx);
+	for (i = 0; i < n; i++) {
+		sha256_Update(&ctx, (const uint8_t *)&(ptr[i]->node.depth), sizeof(uint32_t));
+		sha256_Update(&ctx, (const uint8_t *)&(ptr[i]->node.fingerprint), sizeof(uint32_t));
+		sha256_Update(&ctx, (const uint8_t *)&(ptr[i]->node.child_num), sizeof(uint32_t));
+		sha256_Update(&ctx, ptr[i]->node.chain_code.bytes, 32);
+		sha256_Update(&ctx, ptr[i]->node.public_key.bytes, 33);
+	}
+	sha256_Final(hash, &ctx);
+	//TODO: Progress Animation
+	//layoutProgressUpdate(true);
+	return 1;
 }

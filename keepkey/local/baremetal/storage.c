@@ -322,18 +322,23 @@ bool storage_getRootNode(HDNode *node)
             return false;
         }
 
-        hdnode_from_xprv(real_config->storage.node.depth, 
-                         real_config->storage.node.fingerprint, 
-                         real_config->storage.node.child_num, 
-                         real_config->storage.node.chain_code.bytes, 
-                         real_config->storage.node.private_key.bytes, 
-                         &sessionRootNode);
+        if (hdnode_from_xprv(real_config->storage.node.depth,
+        		real_config->storage.node.fingerprint,
+				real_config->storage.node.child_num,
+				real_config->storage.node.chain_code.bytes,
+				real_config->storage.node.private_key.bytes,
+				&sessionRootNode) == 0)
+        {
+			return false;
+		}
 
         if (real_config->storage.has_passphrase_protection && real_config->storage.passphrase_protection && strlen(sessionPassphrase)) {
         	// decrypt hd node
 			uint8_t secret[64];
+
 			layout_standard_notification("Waking up","", NOTIFICATION_INFO);
 			display_refresh();
+
 			pbkdf2_hmac_sha512((const uint8_t *)sessionPassphrase, strlen(sessionPassphrase), (uint8_t *)"TREZORHD", 8, BIP39_PBKDF2_ROUNDS, secret, 64, get_root_node_callback);
 			aes_decrypt_ctx ctx;
 			aes_decrypt_key256(secret, &ctx);
@@ -351,13 +356,17 @@ bool storage_getRootNode(HDNode *node)
             return false;
         }
         uint8_t seed[64];
+
         layout_standard_notification("Waking up","", NOTIFICATION_INFO);
         display_refresh();
-        mnemonic_to_seed(real_config->storage.mnemonic, sessionPassphrase, seed, get_root_node_callback); // BIP-0039
-        hdnode_from_seed(seed, sizeof(seed), &sessionRootNode);
-        memcpy(node, &sessionRootNode, sizeof(HDNode));
-        sessionRootNodeCached = true;
-        return true;
+
+		mnemonic_to_seed(real_config->storage.mnemonic, sessionPassphrase, seed, get_root_node_callback); // BIP-0039
+		if (hdnode_from_seed(seed, sizeof(seed), &sessionRootNode) == 0) {
+			return false;
+		}
+		memcpy(node, &sessionRootNode, sizeof(HDNode));
+		sessionRootNodeCached = true;
+		return true;
     }
 
     return false;

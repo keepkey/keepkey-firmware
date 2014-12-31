@@ -17,15 +17,13 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <coins.h>
-#include <keepkey_board.h>
-#include <ecdsa.h>
-
 #include "signing.h"
 #include "fsm.h"
 #include "messages.h"
 #include "transaction.h"
-
+#include "ecdsa.h"
+#include "crypto.h"
+#include "layout.h"
 
 static uint32_t inputs_count;
 static uint32_t outputs_count;
@@ -52,16 +50,15 @@ static uint64_t to_spend, spending, change_spend;
 const uint32_t version = 1;
 const uint32_t lock_time = 0;
 static uint32_t progress, progress_total;
+static bool multisig_fp_set, multisig_fp_mismatch;
+static uint8_t multisig_fp[32];
 
 /*
 Workflow of streamed signing
-
 I - input
 O - output
-
 foreach I:
     Request I                                                         STAGE_REQUEST_1_INPUT
-
     Calculate amount of I:
         Request prevhash I, META                                      STAGE_REQUEST_2_PREV_META
         foreach prevhash I:                                           STAGE_REQUEST_2_PREV_INPUT
@@ -70,7 +67,6 @@ foreach I:
             Request prevhash O
             Store amount of I
         Calculate hash of streamed tx, compare to prevhash I
-
     foreach I:                                                        STAGE_REQUEST_3_INPUT
         Request I
         If I == I-to-be-signed:
@@ -82,7 +78,6 @@ foreach I:
             Display output
             Ask for confirmation
         Add O to StreamTransactionSign
-
     If I=0:
         Check tx fee
         Calculate txhash
@@ -90,13 +85,14 @@ foreach I:
         Compare current hash with txhash
         If different:
             Failure
-
     Sign StreamTransactionSign
     Return signed chunk
  */
 
 void send_req_1_input(void)
 {
+	//TODO:Progress Animation
+	//layoutProgress("Signing transaction", 1000 * progress / progress_total);
 	idx2i = idx2o = idx3i = idx3o = 0;
 	signing_stage = STAGE_REQUEST_1_INPUT;
 	resp.has_request_type = true;
@@ -109,6 +105,8 @@ void send_req_1_input(void)
 
 void send_req_2_prev_meta(void)
 {
+	//TODO:Progress Animation
+	//layoutProgress("Signing transaction", 1000 * progress / progress_total);
 	signing_stage = STAGE_REQUEST_2_PREV_META;
 	resp.has_request_type = true;
 	resp.request_type = RequestType_TXMETA;
@@ -121,6 +119,8 @@ void send_req_2_prev_meta(void)
 
 void send_req_2_prev_input(void)
 {
+	//TODO:Progress Animation
+	//layoutProgress("Signing transaction", 1000 * progress / progress_total);
 	signing_stage = STAGE_REQUEST_2_PREV_INPUT;
 	resp.has_request_type = true;
 	resp.request_type = RequestType_TXINPUT;
@@ -135,6 +135,8 @@ void send_req_2_prev_input(void)
 
 void send_req_2_prev_output(void)
 {
+	//TODO:Progress Animation
+	//layoutProgress("Signing transaction", 1000 * progress / progress_total);
 	signing_stage = STAGE_REQUEST_2_PREV_OUTPUT;
 	resp.has_request_type = true;
 	resp.request_type = RequestType_TXOUTPUT;
@@ -149,6 +151,8 @@ void send_req_2_prev_output(void)
 
 void send_req_3_input(void)
 {
+	//TODO:Progress Animation
+	//layoutProgress("Signing transaction", 1000 * progress / progress_total);
 	signing_stage = STAGE_REQUEST_3_INPUT;
 	resp.has_request_type = true;
 	resp.request_type = RequestType_TXINPUT;
@@ -160,6 +164,8 @@ void send_req_3_input(void)
 
 void send_req_3_output(void)
 {
+	//TODO:Progress Animation
+	//layoutProgress("Signing transaction", 1000 * progress / progress_total);
 	signing_stage = STAGE_REQUEST_3_OUTPUT;
 	resp.has_request_type = true;
 	resp.request_type = RequestType_TXOUTPUT;
@@ -171,6 +177,8 @@ void send_req_3_output(void)
 
 void send_req_4_output(void)
 {
+	//TODO:Progress Animation
+	//layoutProgress("Signing transaction", 1000 * progress / progress_total);
 	signing_stage = STAGE_REQUEST_4_OUTPUT;
 	resp.has_request_type = true;
 	resp.request_type = RequestType_TXOUTPUT;
@@ -182,6 +190,8 @@ void send_req_4_output(void)
 
 void send_req_finished(void)
 {
+	//TODO:Progress Animation
+	//layoutProgress("Signing transaction", 1000 * progress / progress_total);
 	resp.has_request_type = true;
 	resp.request_type = RequestType_TXFINISHED;
 	msg_write(MessageType_MessageType_TxRequest, &resp);
@@ -203,9 +213,15 @@ void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinTyp
 
 	signing = true;
 	progress = 1;
-	progress_total = inputs_count * (1 + inputs_count + outputs_count) + outputs_count;
+	progress_total = inputs_count * (1 + inputs_count + outputs_count) + outputs_count + 1;
+
+	multisig_fp_set = false;
+	multisig_fp_mismatch = false;
 
 	tx_init(&to, inputs_count, outputs_count, version, lock_time, false);
+
+	//TODO:Progress Animation
+	//layoutProgressSwipe("Signing transaction", 0);
 
 	send_req_1_input();
 }
@@ -218,13 +234,15 @@ void signing_txack(TransactionType *tx)
 		return;
 	}
 
-	int co;
+	//TODO:Progress Animation
+	//layoutProgress("Signing transaction", 1000 * progress / progress_total);
 
+	int co;
 	memset(&resp, 0, sizeof(TxRequest));
 
 	switch (signing_stage) {
 		case STAGE_REQUEST_1_INPUT:
-                        layout_standard_notification("Signing", "Requesting inputs", NOTIFICATION_INFO);
+			progress++;
 			memcpy(&input, tx->inputs, sizeof(TxInputType));
 			send_req_2_prev_meta();
 			return;
@@ -233,7 +251,7 @@ void signing_txack(TransactionType *tx)
 			send_req_2_prev_input();
 			return;
 		case STAGE_REQUEST_2_PREV_INPUT:
-			if (!tx_hash_input(&tp, tx->inputs)) {
+			if (!tx_serialize_input_hash(&tp, tx->inputs)) {
 				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize input");
 				signing_abort();
 				return;
@@ -246,7 +264,7 @@ void signing_txack(TransactionType *tx)
 			}
 			return;
 		case STAGE_REQUEST_2_PREV_OUTPUT:
-			if (!tx_hash_output(&tp, tx->bin_outputs)) {
+			if (!tx_serialize_output_hash(&tp, tx->bin_outputs)) {
 				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize output");
 				signing_abort();
 				return;
@@ -272,20 +290,56 @@ void signing_txack(TransactionType *tx)
 			}
 			return;
 		case STAGE_REQUEST_3_INPUT:
-                        layout_standard_notification("Signing", "Requesting inputs", NOTIFICATION_INFO);
-			if (!tx_hash_input(&tc, tx->inputs)) {
+			progress++;
+			if (!tx_serialize_input_hash(&tc, tx->inputs)) {
 				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize input");
 				signing_abort();
 				return;
+			}
+			if (idx1i == 0) {
+				if (tx->inputs[0].script_type == InputScriptType_SPENDMULTISIG &&
+				    tx->inputs[0].has_multisig && !multisig_fp_mismatch) {
+					if (multisig_fp_set) {
+						uint8_t h[32];
+						if (cryptoMultisigFingerprint(&(tx->inputs[0].multisig), h) == 0) {
+							fsm_sendFailure(FailureType_Failure_Other, "Error computing multisig fingeprint");
+							signing_abort();
+							return;
+						}
+						if (memcmp(multisig_fp, h, 32) != 0) {
+							multisig_fp_mismatch = true;
+						}
+					} else {
+						if (cryptoMultisigFingerprint(&(tx->inputs[0].multisig), multisig_fp) == 0) {
+							fsm_sendFailure(FailureType_Failure_Other, "Error computing multisig fingeprint");
+							signing_abort();
+							return;
+						}
+						multisig_fp_set = true;
+					}
+				}
 			}
 			if (idx3i == idx1i) {
 				memcpy(&node, root, sizeof(HDNode));
 				uint32_t k;
 				for (k = 0; k < tx->inputs[0].address_n_count; k++) {
-					hdnode_private_ckd(&node, tx->inputs[0].address_n[k]);
+					if (hdnode_private_ckd(&node, tx->inputs[0].address_n[k]) == 0) {
+						fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
+						signing_abort();
+						return;
+					}
 				}
-				ecdsa_get_pubkeyhash(node.public_key, hash);
-				tx->inputs[0].script_sig.size = compile_script_sig(coin->address_type, hash, tx->inputs[0].script_sig.bytes);
+				if (tx->inputs[0].script_type == InputScriptType_SPENDMULTISIG) {
+					if (!tx->inputs[0].has_multisig) {
+						fsm_sendFailure(FailureType_Failure_Other, "Multisig info not provided");
+						signing_abort();
+						return;
+					}
+					tx->inputs[0].script_sig.size = compile_script_multisig(&(tx->inputs[0].multisig), tx->inputs[0].script_sig.bytes);
+				} else { // SPENDADDRESS
+					ecdsa_get_pubkeyhash(node.public_key, hash);
+					tx->inputs[0].script_sig.size = compile_script_sig(coin->address_type, hash, tx->inputs[0].script_sig.bytes);
+				}
 				if (tx->inputs[0].script_sig.size == 0) {
 					fsm_sendFailure(FailureType_Failure_Other, "Failed to compile input");
 					signing_abort();
@@ -296,7 +350,7 @@ void signing_txack(TransactionType *tx)
 			} else {
 				tx->inputs[0].script_sig.size = 0;
 			}
-			if (!tx_hash_input(&ti, tx->inputs)) {
+			if (!tx_serialize_input_hash(&ti, tx->inputs)) {
 				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize input");
 				signing_abort();
 				return;
@@ -309,29 +363,27 @@ void signing_txack(TransactionType *tx)
 			}
 			return;
 		case STAGE_REQUEST_3_OUTPUT:
-                        layout_standard_notification("Signing", "Compiling outputs.", NOTIFICATION_INFO);
-			co = compile_output(coin, root, tx->outputs, &bin_output, idx1i == 0);
-			if (co < 0) {
-				fsm_sendFailure(FailureType_Failure_Other, "Signing cancelled by user");
-				signing_abort();
-				return;
-			} else if (co == 0) {
-				fsm_sendFailure(FailureType_Failure_Other, "Failed to compile output");
-				signing_abort();
-				return;
-			}
-			if (!tx_hash_output(&tc, &bin_output)) {
-				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize output");
-				signing_abort();
-				return;
-			}
-			if (!tx_hash_output(&ti, &bin_output)) {
-				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize output");
-				signing_abort();
-				return;
-			}
+			progress++;
 			if (idx1i == 0) {
-				if (tx->outputs[0].address_n_count > 0) { // address_n set -> change address
+				bool is_change = false;
+				if (tx->outputs[0].script_type == OutputScriptType_PAYTOMULTISIG &&
+				    tx->outputs[0].has_multisig &&
+				    multisig_fp_set && !multisig_fp_mismatch) {
+					uint8_t h[32];
+					if (cryptoMultisigFingerprint(&(tx->outputs[0].multisig), h) == 0) {
+						fsm_sendFailure(FailureType_Failure_Other, "Error computing multisig fingeprint");
+						signing_abort();
+						return;
+					}
+					if (memcmp(multisig_fp, h, 32) == 0) {
+						is_change = true;
+					}
+				} else
+				if (tx->outputs[0].script_type == OutputScriptType_PAYTOADDRESS &&
+				    tx->outputs[0].address_n_count > 0) {
+					is_change = true;
+				}
+				if (is_change) {
 					if (change_spend == 0) { // not set
 						change_spend = tx->outputs[0].amount;
 					} else {
@@ -341,6 +393,32 @@ void signing_txack(TransactionType *tx)
 					}
 				}
 				spending += tx->outputs[0].amount;
+				co = compile_output(coin, root, tx->outputs, &bin_output, !is_change);
+				if (!is_change) {
+					//TODO:Progress Animation
+					//layoutProgress("Signing transaction", 1000 * progress / progress_total);
+				}
+			} else {
+				co = compile_output(coin, root, tx->outputs, &bin_output, false);
+			}
+			if (co < 0) {
+				fsm_sendFailure(FailureType_Failure_Other, "Signing cancelled by user");
+				signing_abort();
+				return;
+			} else if (co == 0) {
+				fsm_sendFailure(FailureType_Failure_Other, "Failed to compile output");
+				signing_abort();
+				return;
+			}
+			if (!tx_serialize_output_hash(&tc, &bin_output)) {
+				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize output");
+				signing_abort();
+				return;
+			}
+			if (!tx_serialize_output_hash(&ti, &bin_output)) {
+				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize output");
+				signing_abort();
+				return;
 			}
 			if (idx3o < outputs_count - 1) {
 				idx3o++;
@@ -362,10 +440,33 @@ void signing_txack(TransactionType *tx)
 				resp.serialized.signature_index = idx1i;
 				resp.serialized.has_signature = true;
 				resp.serialized.has_serialized_tx = true;
-				ecdsa_sign_digest(privkey, hash, sig);
+				ecdsa_sign_digest(privkey, hash, sig, 0);
 				resp.serialized.signature.size = ecdsa_sig_to_der(sig, resp.serialized.signature.bytes);
-				input.script_sig.size = serialize_script_sig(resp.serialized.signature.bytes, resp.serialized.signature.size, pubkey, 33, input.script_sig.bytes);
-				resp.serialized.serialized_tx.size = tx_serialize_input(&to, input.prev_hash.bytes, input.prev_index, input.script_sig.bytes, input.script_sig.size, input.sequence, resp.serialized.serialized_tx.bytes);
+				if (input.script_type == InputScriptType_SPENDMULTISIG) {
+					if (!input.has_multisig) {
+						fsm_sendFailure(FailureType_Failure_Other, "Multisig info not provided");
+						signing_abort();
+						return;
+					}
+					// fill in the signature
+					int pubkey_idx = cryptoMultisigPubkeyIndex(&(input.multisig), pubkey);
+					if (pubkey_idx < 0) {
+						fsm_sendFailure(FailureType_Failure_Other, "Pubkey not found in multisig script");
+						signing_abort();
+						return;
+					}
+					memcpy(input.multisig.signatures[pubkey_idx].bytes, resp.serialized.signature.bytes, resp.serialized.signature.size);
+					input.multisig.signatures[pubkey_idx].size = resp.serialized.signature.size;
+					input.script_sig.size = serialize_script_multisig(&(input.multisig), input.script_sig.bytes);
+					if (input.script_sig.size == 0) {
+						fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize multisig script");
+						signing_abort();
+						return;
+					}
+				} else { // SPENDADDRESS
+					input.script_sig.size = serialize_script_sig(resp.serialized.signature.bytes, resp.serialized.signature.size, pubkey, 33, input.script_sig.bytes);
+				}
+				resp.serialized.serialized_tx.size = tx_serialize_input(&to, &input, resp.serialized.serialized_tx.bytes);
 				if (idx1i < inputs_count - 1) {
 					idx1i++;
 					send_req_1_input();
@@ -375,29 +476,32 @@ void signing_txack(TransactionType *tx)
 						layout_home();
 						return;
 					}
-                                        uint64_t fee = to_spend - spending;
-                                        if (fee > (((uint64_t)tc.size + 999) / 1000) * coin->maxfee_kb) {
-                                            if(!confirm("Warning: Fee '%s' is over threshold.", satoshi_to_str(fee, true))) {
-                                                fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
-                                                layout_home();
-                                                return;
-                                            }
-                                        }
-                                        // last confirmation
-                                        if(!confirm("Confirm Tx: spend: %s fee: %s.",
-                                                satoshi_to_str(to_spend - change_spend - fee, true),
-                                                satoshi_to_str(fee, true))); {
-
+					uint64_t fee = to_spend - spending;
+					uint32_t tx_est_size = transactionEstimateSizeKb(inputs_count, outputs_count);
+					//TODO:Fix Signing
+#if 0
+					if (fee > (uint64_t)tx_est_size * coin->maxfee_kb) {
+						layoutFeeOverThreshold(coin, fee, tx_est_size);
+						if (!protectButton(ButtonRequestType_ButtonRequest_FeeOverThreshold, false)) {
+							fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
+							layoutHome();
+							return;
+						}
+					}
+					// last confirmation
+					layoutConfirmTx(coin, to_spend - change_spend - fee, fee);
+					if (!protectButton(ButtonRequestType_ButtonRequest_SignTx, false)) {
 						fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
 						signing_abort();
 						return;
 					}
+#endif
 					send_req_4_output();
 				}
 			}
 			return;
 		case STAGE_REQUEST_4_OUTPUT:
-			layout_standard_notification("Signing", "Compiling outputs", NOTIFICATION_INFO);
+			progress++;
 			if (compile_output(coin, root, tx->outputs, &bin_output, false) <= 0) {
 				fsm_sendFailure(FailureType_Failure_Other, "Failed to compile output");
 				signing_abort();
@@ -405,7 +509,7 @@ void signing_txack(TransactionType *tx)
 			}
 			resp.has_serialized = true;
 			resp.serialized.has_serialized_tx = true;
-			resp.serialized.serialized_tx.size = tx_serialize_output(&to, bin_output.amount, bin_output.script_pubkey.bytes, bin_output.script_pubkey.size, resp.serialized.serialized_tx.bytes);
+			resp.serialized.serialized_tx.size = tx_serialize_output(&to, &bin_output, resp.serialized.serialized_tx.bytes);
 			if (idx4o < outputs_count - 1) {
 				idx4o++;
 				send_req_4_output();
