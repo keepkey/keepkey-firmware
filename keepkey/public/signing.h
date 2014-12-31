@@ -23,7 +23,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "bip32.h"
-#include "types.pb.h"
+#include <interface.h>
 
 void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinType *_coin, HDNode *_root);
 void signing_abort(void);
