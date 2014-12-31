@@ -427,6 +427,11 @@ const char* storage_get_shadow_mnemonic(void)
 	return shadow_config.storage.mnemonic;
 }
 
+bool storage_get_imported(void)
+{
+	return real_config->storage.has_imported && real_config->storage.imported;
+}
+
 void storage_set_progress_handler(progress_handler_t handler)
 {
 	progress_handler = handler;

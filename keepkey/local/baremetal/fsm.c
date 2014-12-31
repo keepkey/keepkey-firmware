@@ -112,26 +112,18 @@ void fsm_msgInitialize(Initialize *msg)
 	signing_abort();
 	RESP_INIT(Features);
 
-	/*
-	 * Vendor ID
-	 */
+	/* Vendor ID */
 	resp->has_vendor = true;         strlcpy(resp->vendor, "keepkey.com", sizeof(resp->vendor));
 
-	/*
-	 * Version
-	 */
+	/* Version */
 	resp->has_major_version = true;  resp->major_version = MAJOR_VERSION;
 	resp->has_minor_version = true;  resp->minor_version = MINOR_VERSION;
 	resp->has_patch_version = true;  resp->patch_version = PATCH_VERSION;
 
-	/*
-	 * Device ID
-	 */
+	/* Device ID */
 	resp->has_device_id = true;      strlcpy(resp->device_id, storage_get_uuid_str(), sizeof(resp->device_id));
 
-	/*
-	 * Security settings
-	 */
+	/* Security settings */
 	resp->has_pin_protection = true; resp->pin_protection = storage_has_pin();
 	resp->has_passphrase_protection = true; resp->passphrase_protection = storage_get_passphrase_protected();
 
@@ -140,14 +132,10 @@ void fsm_msgInitialize(Initialize *msg)
 	resp->has_revision = true; memcpy(resp->revision.bytes, SCM_REVISION, len); resp->revision.size = len;
 #endif
 
-	/*
-	 * Bootloader hash
-	 */
+	/* Bootloader hash */
 	resp->has_bootloader_hash = true; resp->bootloader_hash.size = memory_bootloader_hash(resp->bootloader_hash.bytes);
 
-	/*
-	 * Settings for device
-	 */
+	/* Settings for device */
 	if(storage_get_language())
 	{
 		resp->has_language = true;
@@ -159,21 +147,15 @@ void fsm_msgInitialize(Initialize *msg)
 		strlcpy(resp->label, storage_get_label(), sizeof(resp->label));
 	}
 
-	/*
-	 * Coin type support
-	 */
+	/* Coin type support */
 	resp->coins_count = COINS_COUNT;
 	memcpy(resp->coins, coins, COINS_COUNT * sizeof(CoinType));
 
-	/*
-	 * Is device initialized?
-	 */
+	/* Is device initialized? */
 	resp->has_initialized = true;  resp->initialized = storage_isInitialized();
 
-	/*
-	 * Are private keys imported
-	 */
-	//TODO:resp->has_imported = true; resp->imported = storage.has_imported && storage.imported;
+	/* Are private keys imported */
+	resp->has_imported = true; resp->imported = storage_get_imported();
 
 	msg_write(MessageType_MessageType_Features, resp);
 }
@@ -346,8 +328,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 
 	HDNode *node = fsm_getRootNode();
 	if (!node) return;
-
-	fsm_deriveKey(node, msg->address_n, msg->address_n_count);
+	if (fsm_deriveKey(node, msg->address_n, msg->address_n_count) == 0) return;
 
 	resp->node.depth = node->depth;
 	resp->node.fingerprint = node->fingerprint;
@@ -358,6 +339,8 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 	resp->node.has_public_key = true;
 	resp->node.public_key.size = 33;
 	memcpy(resp->node.public_key.bytes, node->public_key, 33);
+	resp->has_xpub = true;
+	hdnode_serialize_public(node, resp->xpub, sizeof(resp->xpub));
 
 	msg_write(MessageType_MessageType_PublicKey, resp);
 	layout_home();
@@ -588,17 +571,7 @@ void fsm_msgTxAck(TxAck *msg)
 
 void fsm_msgApplySettings(ApplySettings *msg)
 {
-	if (msg->has_label && msg->has_language)
-	{
-		if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
-			"Change Label and Language", "Are you sure you would like to change the label to \"%s\" and the language to %s?", msg->label, msg->language))
-		{
-			cancel_confirm(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
-			layout_home();
-			return;
-		}
-	}
-	else if (msg->has_label)
+	if (msg->has_label)
 	{
 		if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
 			"Change Label", "Are you sure you would like to change the label to \"%s\"?", msg->label))
@@ -608,7 +581,8 @@ void fsm_msgApplySettings(ApplySettings *msg)
 			return;
 		}
 	}
-	else if (msg->has_language)
+
+	if (msg->has_language)
 	{
 		if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
 			"Change Language", "Are you sure you would like to change the language to %s?", msg->language))
@@ -619,7 +593,30 @@ void fsm_msgApplySettings(ApplySettings *msg)
 		}
 	}
 
-	if (!msg->has_label && !msg->has_language) {
+	if (msg->has_use_passphrase) {
+		if(msg->use_passphrase)
+		{
+			if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+				"Enable Passphrase", "Are you sure you would like to enable a passphrase?", msg->language))
+			{
+				cancel_confirm(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
+				layout_home();
+				return;
+			}
+		}
+		else
+		{
+			if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+				"Disable Passphrase", "Are you sure you would like to disable passphrase?", msg->language))
+			{
+				cancel_confirm(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
+				layout_home();
+				return;
+			}
+		}
+	}
+
+	if (!msg->has_label && !msg->has_language && !msg->has_use_passphrase) {
 		fsm_sendFailure(FailureType_Failure_SyntaxError, "No setting provided");
 		return;
 	}
@@ -635,6 +632,9 @@ void fsm_msgApplySettings(ApplySettings *msg)
 	}
 	if (msg->has_language) {
 		storage_setLanguage(msg->language);
+	}
+	if (msg->has_use_passphrase) {
+		storage_set_passphrase_protected(msg->use_passphrase);
 	}
 
 	/* Setup saving animation */
@@ -669,7 +669,7 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
 
 	HDNode *node = fsm_getRootNode();
 	if (!node) return;
-	fsm_deriveKey(node, msg->address_n, msg->address_n_count);
+	if (fsm_deriveKey(node, msg->address_n, msg->address_n_count) == 0) return;
 
 	bool encrypt = msg->has_encrypt && msg->encrypt;
 	bool ask_on_encrypt = msg->has_ask_on_encrypt && msg->ask_on_encrypt;
@@ -711,8 +711,6 @@ void fsm_msgClearSession(ClearSession *msg)
 	(void)msg;
 	session_clear();
 	fsm_sendSuccess("Session cleared");
-
-	confirm("SIZE OF STORAGE", "%d", sizeof(Storage));
 }
 
 void fsm_msgGetAddress(GetAddress *msg)

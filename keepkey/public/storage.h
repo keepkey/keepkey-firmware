@@ -102,6 +102,8 @@ void storage_set_mnemonic(const char *mnemonic);
 const char* storage_get_mnemonic(void);
 const char* storage_get_shadow_mnemonic(void);
 
+bool storage_get_imported(void);
+
 void storage_set_progress_handler(progress_handler_t handler);
 
 #endif
