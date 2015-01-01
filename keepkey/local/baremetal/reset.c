@@ -145,9 +145,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 	/* Setup saving animation */
 	layout_loading(SAVING_ANIM);
 
-	/*
-	 * Save mnemonic
-	 */
+	/* Save mnemonic */
     storage_set_mnemonic(temp_mnemonic);
 	storage_commit();
 

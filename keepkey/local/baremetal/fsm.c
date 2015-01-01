@@ -833,9 +833,8 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 		return;
 	}
 
-	/*
-	 * Verifying Animation
-	 */
+	//TODO: Verying Animation
+	//layoutProgressSwipe("Verifying", 0);
 
 	uint8_t addr_raw[21];
 	if (!ecdsa_address_decode(msg->address, addr_raw))
