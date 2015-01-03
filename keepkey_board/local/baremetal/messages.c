@@ -381,17 +381,20 @@ void set_msg_initialize_handler(msg_initialize_t initialize_func)
 
 void call_msg_success_handler(const char *text)
 {
-	(*msg_success)(text);
+	if(msg_success)
+		(*msg_success)(text);
 }
 
 void call_msg_failure_handler(FailureType code, const char *text)
 {
-	(*msg_failure)(code, text);
+	if(msg_failure)
+		(*msg_failure)(code, text);
 }
 
 void call_msg_initialize_handler(void)
 {
-	(*msg_initialize)((Initialize *)0);
+	if(msg_initialize)
+		(*msg_initialize)((Initialize *)0);
 }
 
 void msg_init()

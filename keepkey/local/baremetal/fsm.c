@@ -1069,6 +1069,7 @@ void fsm_init(void)
 {
 	msg_map_init(MessagesMap, MESSAGE_MAP);
 	msg_map_init(RawMessagesMap, RAW_MESSAGE_MAP);
+	set_msg_success_handler(&fsm_sendSuccess);
 	set_msg_failure_handler(&fsm_sendFailure);
 	set_msg_initialize_handler(&fsm_msgInitialize);
 	msg_init();
