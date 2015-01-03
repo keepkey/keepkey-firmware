@@ -141,7 +141,7 @@ bool usb_flash_firmware(void)
 
     /* Init USB */
     usb_init();  
-    storage_part_sav(&storage_shadow);
+    sav_storage_in_ram (&storage_shadow);
 
     /* implement timer for this loop in the future*/
     while(1)
@@ -261,62 +261,86 @@ void handler_initialize(Initialize* msg)
     msg_write(MessageType_MessageType_Features, &f);
 }
 /***********************************************************************
- *  storage_part_sav - save storage partition in RAM for firmware update
+ *  sav_storage_in_ram - save storage partition in RAM for firmware update
  *
  *  INPUT 
  *      pointer to save Storge partition in RAM
  *  OUTPUT
  *      void 
  ***********************************************************************/
-void storage_part_sav(ConfigFlash *cfg_ptr)
+static void sav_storage_in_ram(ConfigFlash *cfg_ptr)
 {
     /* Save Storage partition in RAM in case downloaded image is invalid */
     memcpy((void *)cfg_ptr, (void *)FLASH_STORAGE_START, sizeof(ConfigFlash));
 }
-/***********************************************************************
+
+/*
  *  storage_part_restore - restore storage partition in flash for firmware update
  *
- *  INPUT 
+ *  INPUT - 
  *      pointer to Storge partition in RAM
- *  OUTPUT
+ *
+ *  OUTPUT - 
  *      true/false 
- ***********************************************************************/
+ */
 void storage_part_restore(ConfigFlash *cfg_ptr)
 {
-    /* Save Storage partition in RAM in case downloaded image is invalid */
     flash_unlock();
     flash_write(FLASH_STORAGE, 0, sizeof(ConfigFlash), (uint8_t *)cfg_ptr);
     flash_lock();
 }
+
+/*
+ * handler_erase() - The function is invoked by the host PC to erase "storage"
+ *      and "application" partitions.  
+ *  
+ * INPUT - 
+ *    *msg = unused argument
+ *
+ * OUTPUT - 
+ *    none
+ *
+ */
 void handler_erase(FirmwareErase* msg)
 {
-    if(confirm("Verify Backup Before Upgrade", "Before upgrading your firmware, confirm that you have access to the backup of your recovery sentence."))
-    {
+    if(confirm("Verify Backup Before Upgrade", 
+                "Before upgrading your firmware, confirm that you have access to the backup of your \
+                recovery sentence.")) {
         layout_loading(FLASHING_ANIM);
         force_animation_start();
 
         animate();
         display_refresh();
-
-        flash_unlock();
-        flash_erase(FLASH_STORAGE);
+        
+        flash_unlock(); 
+        flash_erase(FLASH_STORAGE);  
         flash_erase(FLASH_APP);
         flash_lock();
-
         send_success("Firmware Erased");
     }
 }
 
+/*
+ * raw_handler_upload() - The function updates application image downloaded over the USB
+ *      to application partition.  Prior to the update, it will validate image
+ *      SHA256 (finger print) and install "KPKY" magic upon validation
+ *
+ * INPUT - 
+ *     1. buffer pointer
+ *     2. size of buffer
+ *     3. size of file
+ *
+ * OUTPUT - none                 
+ *
+ */
 void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
 {
     static uint32_t flash_offset;
 
     /* check file size is within allocated space */
-    if( frame_length < (FLASH_APP_LEN + FLASH_META_DESC_LEN))
-    {
+    if( frame_length < (FLASH_APP_LEN + FLASH_META_DESC_LEN)) {
         /* Start firmware load */
-        if(upload_state == UPLOAD_NOT_STARTED)
-        {
+        if(upload_state == UPLOAD_NOT_STARTED) {
             upload_state = UPLOAD_STARTED;
             flash_offset = 0;
 
@@ -329,25 +353,19 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
         }
 
         /* Process firmware upload */
-        if(upload_state == UPLOAD_STARTED)
-        {
+        if(upload_state == UPLOAD_STARTED) {
             /* check if the image is bigger than allocated space */
-            if((flash_offset + msg_size) < (FLASH_APP_LEN + FLASH_META_DESC_LEN))
-            {
-                if(flash_offset == 0)
-                {
+            if((flash_offset + msg_size) < (FLASH_APP_LEN + FLASH_META_DESC_LEN)) {
+                if(flash_offset == 0) {
                     /* check image is prep'ed with KeepKey magic */
-                    if(memcmp(msg, "KPKY", META_MAGIC_SIZE))
-                    {
+                    if(memcmp(msg, "KPKY", META_MAGIC_SIZE)) {
                         /* invalid KeepKey magic detected. Bailing!!! */
                         ++stats.invalid_msg_type_ct;
                         send_failure(FailureType_Failure_FirmwareError, "Invalid Magic Key");
                         upload_state = UPLOAD_ERROR;
                         dbg_print("error: Invalid Magic Key detected... \n\r");
                         goto rhu_exit;
-                    }
-                    else
-                    {
+                    } else {
                         msg_size -= META_MAGIC_SIZE;
                         msg = (uint8_t *)(msg + META_MAGIC_SIZE); 
                         flash_offset = META_MAGIC_SIZE; 
@@ -358,9 +376,7 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
                 /* Begin writing to flash */
                 flash_write(FLASH_APP, flash_offset, msg_size, msg);
                 flash_offset += msg_size;
-            } 
-            else 
-            {
+            } else {
                 /* error: frame overrun detected during the image update */
                 flash_lock();
                 ++stats.invalid_offset_ct;
@@ -371,8 +387,7 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
             }
 
             /* Finish firmware update */
-            if (flash_offset >= frame_length - PROTOBUF_FIRMWARE_PADDING)
-            {
+            if (flash_offset >= frame_length - PROTOBUF_FIRMWARE_PADDING) {
                 flash_lock();
 
                 /* Check fingerprint */
@@ -381,36 +396,30 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
                 uint32_t firmware_size = frame_length - PROTOBUF_FIRMWARE_PADDING - FLASH_META_DESC_LEN;
                 sha256_Raw((uint8_t *)FLASH_APP_START, firmware_size, digest);
 
-                for (uint8_t i = 0; i < SHA256_DIGEST_LENGTH; i++)
-				{
+                for (uint8_t i = 0; i < SHA256_DIGEST_LENGTH; i++) {
 					char digest_buf[BYTE_AS_HEX_STR_LEN];
 					sprintf(digest_buf, "%02x", digest[i]);
 					strcat(str_digest, digest_buf);
 				}
 
                 if(confirm_with_button_request(ButtonRequestType_ButtonRequest_FirmwareCheck,
-                	"Compare Firmware Fingerprint", str_digest))
-                {
+                	"Compare Firmware Fingerprint", str_digest)) {
                     /* user has confirmed the finger print.  Restore "KPKY" magic in flash meta header */
                     flash_unlock();
                     flash_write(FLASH_APP, 0, META_MAGIC_SIZE , "KPKY");
                     flash_lock();
                     send_success("Upload complete");
     				upload_state = UPLOAD_COMPLETE;
-                }
-                else
-                {
+                } else {
                 	cancel_confirm(FailureType_Failure_FirmwareError, "Fingerprint Not Confirmed");
                 	upload_state = UPLOAD_ERROR;
                 }
             }
         }
-    }
-    else
-    {
-            send_failure(FailureType_Failure_FirmwareError, "Image Too Big");
-            dbg_print("error: Image too large to fit in the allocated space : 0x%x ...\n\r", frame_length);
-            upload_state = UPLOAD_ERROR;
+    } else {
+        send_failure(FailureType_Failure_FirmwareError, "Image Too Big");
+        dbg_print("error: Image too large to fit in the allocated space : 0x%x ...\n\r", frame_length);
+        upload_state = UPLOAD_ERROR;
     }
 rhu_exit:
     return;

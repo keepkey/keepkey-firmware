@@ -30,7 +30,7 @@
 #define PROTOBUF_FIRMWARE_PADDING	4
 
 bool usb_flash_firmware();
-void storage_part_sav(ConfigFlash *cfg_ptr);
+static void sav_storage_in_ram(ConfigFlash *cfg_ptr);
 void storage_part_restore(ConfigFlash *cfg_ptr);
 
 #endif
