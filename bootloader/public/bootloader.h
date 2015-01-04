@@ -34,8 +34,12 @@ extern "C" {
 #define PUBKEY_LENGTH 65 
 #define SIGNATURES 1
 
+#define FOREVER_LOOP() while(1)
+//====================== CONSTANTS, TYPES, AND MACROS =========================
+typedef void (*app_entry_t)(void);
+
 /* extern declarations */
-extern int signatures_ok(void);
+int signatures_ok(void);
 bool check_firmware_sig(void);
 bool check_fw_is_new(void);
 

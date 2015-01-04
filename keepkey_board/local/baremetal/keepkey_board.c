@@ -28,9 +28,14 @@
 #include <libopencm3/cm3/scb.h>
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/f2/rng.h>
-
 #include <keepkey_board.h>
 
+/*
+ * board_reset() - Request board reset
+ *
+ * INPUT  - none
+ * OUTPUT - none
+ */
 void board_reset(void)
 {
     scb_reset_system();

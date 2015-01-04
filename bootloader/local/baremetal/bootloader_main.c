@@ -50,14 +50,10 @@
 #include <bootloader.h>
 
 
-//====================== CONSTANTS, TYPES, AND MACROS =========================
-
-typedef void (*app_entry_t)(void);
 
 //=============================== VARIABLES ===================================
 
 uint32_t * const  SCB_VTOR = (uint32_t*)0xe000ed08;
-
 
 static const uint8_t pubkey[PUBKEYS][PUBKEY_LENGTH] = 
 {
@@ -102,12 +98,7 @@ static const uint8_t pubkey[PUBKEYS][PUBKEY_LENGTH] =
 
 //=============================== FUNCTIONS ===================================
 
-static bool validate_firmware()
-{
-    return true;
-}
-
-/**
+/*
  * Lightweight routine to reset the vector table to point to the application's vector table.
  *
  * @param offset This must be a multiple of 0x200.  This is added to to the base address of flash
@@ -116,11 +107,18 @@ static bool validate_firmware()
  */
 static void set_vector_table_offset(uint32_t offset)
 { 
-    static const uint32_t NVIC_OFFSET_FLASH = ((uint32_t)0x08000000);
+    static const uint32_t NVIC_OFFSET_FLASH = ((uint32_t)FLASH_ORIGIN);
 
     *SCB_VTOR = NVIC_OFFSET_FLASH | (offset & (uint32_t)0x1FFFFF80);
 }
 
+/*
+ * boot_jump() - jump to application address
+ *
+ * INPUT - Start of application address
+ * OUTPUT - none
+ *
+ */
 static void boot_jump(uint32_t addr)
 {
     /*
@@ -133,13 +131,12 @@ static void boot_jump(uint32_t addr)
     app_entry();
 }
 
-void blink(void* context)
-{
-    toggle_red();    
-}
-
-
-
+/*
+ * configure_hw() - board initialization
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
 static void configure_hw()
 {
     clock_scale_t clock = hse_8mhz_3v3[CLOCK_3V3_120MHZ];
@@ -151,41 +148,35 @@ static void configure_hw()
     rcc_periph_clock_enable(RCC_OTGFS);
     rcc_periph_clock_enable(RCC_SYSCFG);
     rcc_periph_clock_enable(RCC_TIM4);
-
     timer_init();
-
     usart_init();
-
     keepkey_leds_init();
-
     keepkey_button_init();
-
     display_init();
     layout_init( display_canvas() );
 }
-/**************************************************************************
+
+/*
  *  check_magic() - check application magic 
  *
- *  INPUT 
- *      - none
- *  OUTPUT
- *      - true/false
+ *  INPUT - none
+ *  OUTPUT - true/false
  *
- * ***********************************************************************/
-bool check_magic(void)
+ */
+static bool check_magic(void)
 {
 #ifndef DEBUG_ON
 	bool retval = false;
     app_meta_td *app_meta = (app_meta_td *)FLASH_META_MAGIC;
     
-    retval = memcmp(&app_meta->magic, "KPKY", 4) == 0 ? true : false;
+    retval = (memcmp(&app_meta->magic, "KPKY", 4) == 0) ? true : false;
     return(retval);
 #else
     return(true);
 #endif
 }
 
-/**************************************************************************
+/*
  *  check_firmware_sig() - check image application partition is the 
  *                         valid keepkey firmware
  *  INPUT 
@@ -193,7 +184,7 @@ bool check_magic(void)
  *  OUTPUT
  *      - true/false
  *
- * ***********************************************************************/
+ */
 bool check_firmware_sig(void)
 {
 #ifndef DEBUG_ON
@@ -222,7 +213,7 @@ bool check_firmware_sig(void)
 	return(true);
 #endif
 }
-/**************************************************************************
+/*
  *  check_fw_is_new - check firmware being loaded is newer than installed version
  *
  *  INPUT 
@@ -230,77 +221,58 @@ bool check_firmware_sig(void)
  *  OUTPUT
  *      - true/false
  *
- * ***********************************************************************/
+ */
 bool check_fw_is_new(void)
 {
     /* TODO: need to implement away to check version (stubbed for now) */
     return(true);
 }
 
-const char* firmware_sig_as_string(void)
-{
-    return "NOSIG";
-}
-
-void board_reset(void)
-{
-    scb_reset_system();
-}
-
+/*
+ * Bootloader main entry function
+ * INPUT - argc (not used)
+ * OUTPUT - argv (not used)
+ */
 int main(int argc, char* argv[])
 {
     (void)argc;
     (void)argv;
+    bool update_mode;
 
     configure_hw();
-
-    bool update_mode = keepkey_button_down();
-
+    update_mode = keepkey_button_down();
     set_green();
     set_red();
 
     dbg_print("\n\rKeepKey LLC, Copyright (C) 2014\n\r");
     dbg_print("BootLoader Version %d.%d (%s)\n\r", BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION, __DATE__);
 
-    while(1)
-    {
-        if(!update_mode)
-        {
-            if(check_magic())
-            {
-
-                if(!check_firmware_sig())
-                {
+    while(1) {
+        if(!update_mode) {
+            if(check_magic() == true) {
+                if(!check_firmware_sig()) {
                     /* KeepKey signature check failed.  Foreign code might be sitting there. Take action to clear storage partition!!! */
-                    layout_standard_notification("UNSIGNED FIRMWARE", firmware_sig_as_string(), NOTIFICATION_INFO);
+                    layout_standard_notification("UNSIGNED FIRMWARE", "NOSIG", NOTIFICATION_INFO);
                     display_refresh();
                     delay(5000);
                 }
-
                 clear_red();
                 set_vector_table_offset(FLASH_APP_START - FLASH_ORIGIN);  //offset = 0x60100
                 boot_jump(FLASH_APP_START);
             }
-            else
-            {
+            else {
                 /* Invalid magic found.  Not booting!!! */
                 layout_standard_notification("INVALID FIRMWARE MAGIC", "Magic value invalid in Application partition", NOTIFICATION_INFO);
                 display_refresh();
                 dbg_print("INVALID FIRMWARE MAGIC\n\r");
                 break;
             }
-        } 
-        else 
-        {
+        } else {
             clear_green();
-
-            if(usb_flash_firmware())
-            {
+            if(usb_flash_firmware()) {
                 layout_standard_notification("Firmware Update Complete", "Please disconnect and reconnect your KeepKey to continue.", NOTIFICATION_UNPLUG);
                 display_refresh();
-            } 
-            else 
-            {
+            } else {
                 layout_standard_notification("Invalid firmware image detected.", "Reset and perform a firmware update.", NOTIFICATION_INFO);
                 display_refresh();
             }
@@ -308,10 +280,6 @@ int main(int argc, char* argv[])
         }
     }
 
-    while(1) 
-    {
-        /* Catastrophic error, hang in forever loop */
-    }
-
-    return(0);
+    FOREVER_LOOP();/* Catastrophic error, hang in forever loop */
+    return(false);  /* should never get here */
 }
