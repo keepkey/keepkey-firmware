@@ -399,158 +399,34 @@ void fsm_msgResetDevice(ResetDevice *msg)
 
 void fsm_msgSignTx(SignTx *msg)
 {
-    if (msg->inputs_count < 1) {
-        fsm_sendFailure(FailureType_Failure_Other, "Transaction must have at least one input");
-        layout_home();
-        return;
-    }
+	if (msg->inputs_count < 1) {
+		fsm_sendFailure(FailureType_Failure_Other, "Transaction must have at least one input");
+		layout_home();
+		return;
+	}
 
-    if (msg->outputs_count < 1) {
-        fsm_sendFailure(FailureType_Failure_Other, "Transaction must have at least one output");
-        layout_home();
-        return;
-    }
+	if (msg->outputs_count < 1) {
+		fsm_sendFailure(FailureType_Failure_Other, "Transaction must have at least one output");
+		layout_home();
+		return;
+	}
 
-    HDNode *node = fsm_getRootNode();
-    if (!node) return;
-    const CoinType *coin = coinByName(msg->coin_name);
-    if (!coin) {
-        fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
-        layout_home();
-        return;
-    }
+	if (!pin_protect_cached())
+	{
+		layout_home();
+		return;
+	}
 
-    signing_init(msg->inputs_count, msg->outputs_count, coin, node);
-}
+	HDNode *node = fsm_getRootNode();
+	if (!node) return;
+	const CoinType *coin = coinByName(msg->coin_name);
+	if (!coin) {
+		fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
+		layout_home();
+		return;
+	}
 
-void fsm_msgSimpleSignTx(SimpleSignTx *msg)
-{
-    RESP_INIT(TxRequest);
-
-    if (msg->inputs_count < 1) {
-        fsm_sendFailure(FailureType_Failure_Other, "Transaction must have at least one input");
-        layout_home();
-        return;
-    }
-
-    if (msg->outputs_count < 1) {
-        fsm_sendFailure(FailureType_Failure_Other, "Transaction must have at least one output");
-        layout_home();
-        return;
-    }
-
-    HDNode *node = fsm_getRootNode();
-    if (!node) return;
-    const CoinType *coin = coinByName(msg->coin_name);
-    if (!coin) {
-        fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
-        layout_home();
-        return;
-    }
-
-    uint32_t version = 1;
-    uint32_t lock_time = 0;
-    int tx_size = transactionSimpleSign(coin, node, msg->inputs, msg->inputs_count, msg->outputs, msg->outputs_count, version, lock_time, resp->serialized.serialized_tx.bytes);
-    if (tx_size < 0) {
-        fsm_sendFailure(FailureType_Failure_Other, "Signing cancelled by user");
-        layout_home();
-        return;
-    }
-    if (tx_size == 0) {
-        fsm_sendFailure(FailureType_Failure_Other, "Error signing transaction");
-        layout_home();
-        return;
-    }
-
-    size_t i, j;
-
-    // determine change address
-    uint64_t change_spend = 0;
-    for (i = 0; i < msg->outputs_count; i++) {
-        if (msg->outputs[i].address_n_count > 0) { // address_n set -> change address
-            if (change_spend == 0) { // not set
-                change_spend = msg->outputs[i].amount;
-            } else {
-                fsm_sendFailure(FailureType_Failure_Other, "Only one change output allowed");
-                layout_home();
-                return;
-            }
-        }
-    }
-
-    // check origin transactions
-    uint8_t prev_hashes[ pb_arraysize(SimpleSignTx, transactions) ][32];
-    for (i = 0; i < msg->transactions_count; i++) {
-        if (!transactionHash(&(msg->transactions[i]), prev_hashes[i])) {
-            memset(prev_hashes[i], 0, 32);
-        }
-    }
-
-    // calculate spendings
-    uint64_t to_spend = 0;
-    bool found;
-    for (i = 0; i < msg->inputs_count; i++) {
-        found = false;
-        for (j = 0; j < msg->transactions_count; j++) {
-            if (memcmp(msg->inputs[i].prev_hash.bytes, prev_hashes[j], 32) == 0) { // found prev TX
-                if (msg->inputs[i].prev_index < msg->transactions[j].bin_outputs_count) {
-                    to_spend += msg->transactions[j].bin_outputs[msg->inputs[i].prev_index].amount;
-                    found = true;
-                    break;
-                }
-            }
-        }
-        if (!found) {
-            fsm_sendFailure(FailureType_Failure_Other, "Invalid prevhash");
-            layout_home();
-            return;
-        }
-    }
-
-    uint64_t spending = 0;
-    for (i = 0; i < msg->outputs_count; i++) {
-        spending += msg->outputs[i].amount;
-    }
-
-    if (spending > to_spend) {
-        fsm_sendFailure(FailureType_Failure_NotEnoughFunds, "Insufficient funds");
-        layout_home();
-        return;
-    }
-
-    uint64_t fee = to_spend - spending;
-    if (fee > (((uint64_t)tx_size + 999) / 1000) * coin->maxfee_kb) {
-
-        char linebuf[layout_char_width()];
-        snprintf(linebuf, sizeof(linebuf), "Fee over threshold: %s", satoshi_to_str(fee, true));
-        if(!confirm("Confirm?", linebuf))
-        {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
-            layout_home();
-            return;        
-        }
-    }
-
-    // last confirmation
-    char outstr[layout_char_width()+1];
-
-    snprintf(outstr, sizeof(outstr), "Confirm tx: %s  FEE(%s)?", 
-            satoshi_to_str(to_spend - change_spend - fee, true),
-            satoshi_to_str(fee, true));
-    if(!confirm("Confirm?", outstr)) {
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
-        layout_standard_notification(outstr, "CANCELLED", NOTIFICATION_INFO);
-    } else {
-        resp->has_request_type = true;
-        resp->request_type = RequestType_TXFINISHED;
-        resp->has_serialized = true;
-        resp->serialized.has_serialized_tx = true;
-        resp->serialized.serialized_tx.size = (uint32_t)tx_size;
-        msg_write(MessageType_MessageType_TxRequest, resp);
-        layout_standard_notification(outstr, "CONFIRMED", NOTIFICATION_INFO);
-    }
-
-    layout_home();
+	signing_init(msg->inputs_count, msg->outputs_count, coin, node);
 }
 
 void fsm_msgCancel(Cancel *msg)
@@ -562,11 +438,11 @@ void fsm_msgCancel(Cancel *msg)
 
 void fsm_msgTxAck(TxAck *msg)
 {
-    if (msg->has_tx) {
-        signing_txack(&(msg->tx));
-    } else {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "No transaction provided");
-    }
+	if (msg->has_tx) {
+		signing_txack(&(msg->tx));
+	} else {
+		fsm_sendFailure(FailureType_Failure_SyntaxError, "No transaction provided");
+	}
 }
 
 void fsm_msgApplySettings(ApplySettings *msg)
@@ -986,6 +862,14 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
 	layout_home();
 }
 
+void fsm_msgEstimateTxSize(EstimateTxSize *msg)
+{
+	RESP_INIT(TxSize);
+	resp->has_tx_size = true;
+	resp->tx_size = transactionEstimateSize(msg->inputs_count, msg->outputs_count);
+	msg_write(MessageType_MessageType_TxSize, resp);
+}
+
 void fsm_msgRecoveryDevice(RecoveryDevice *msg)
 {
     if (storage_isInitialized())
@@ -1023,7 +907,7 @@ static const MessagesMap_t MessagesMap[] = {
 	{'i', MessageType_MessageType_SignTx,				SignTx_fields,				(void (*)(void *))fsm_msgSignTx},
 	{'i', MessageType_MessageType_PinMatrixAck,			PinMatrixAck_fields,		0},
 	{'i', MessageType_MessageType_Cancel,				Cancel_fields,				(void (*)(void *))fsm_msgCancel},
-//TODO:	{'i', MessageType_MessageType_TxAck,				TxAck_fields,				(void (*)(void *))fsm_msgTxAck},
+	{'i', MessageType_MessageType_TxAck,				TxAck_fields,				(void (*)(void *))fsm_msgTxAck},
 	{'i', MessageType_MessageType_CipherKeyValue,		CipherKeyValue_fields,		(void (*)(void *))fsm_msgCipherKeyValue},
 	{'i', MessageType_MessageType_ClearSession,			ClearSession_fields,		(void (*)(void *))fsm_msgClearSession},
 	{'i', MessageType_MessageType_ApplySettings,		ApplySettings_fields,		(void (*)(void *))fsm_msgApplySettings},
@@ -1035,7 +919,7 @@ static const MessagesMap_t MessagesMap[] = {
 	{'i', MessageType_MessageType_EncryptMessage,		EncryptMessage_fields,		(void (*)(void *))fsm_msgEncryptMessage},
 	{'i', MessageType_MessageType_DecryptMessage,		DecryptMessage_fields,		(void (*)(void *))fsm_msgDecryptMessage},
 	{'i', MessageType_MessageType_PassphraseAck,		PassphraseAck_fields,		0},
-//TODO:	{'i', MessageType_MessageType_EstimateTxSize,		EstimateTxSize_fields,		(void (*)(void *))fsm_msgEstimateTxSize},
+	{'i', MessageType_MessageType_EstimateTxSize,		EstimateTxSize_fields,		(void (*)(void *))fsm_msgEstimateTxSize},
 	{'i', MessageType_MessageType_RecoveryDevice,		RecoveryDevice_fields,		(void (*)(void *))fsm_msgRecoveryDevice},
 	{'i', MessageType_MessageType_WordAck,				WordAck_fields,				(void (*)(void *))fsm_msgWordAck},
 	// out messages
@@ -1045,7 +929,7 @@ static const MessagesMap_t MessagesMap[] = {
 	{'o', MessageType_MessageType_PublicKey,			PublicKey_fields,			0},
 	{'o', MessageType_MessageType_Features,				Features_fields,			0},
 	{'o', MessageType_MessageType_PinMatrixRequest,		PinMatrixRequest_fields,	0},
-//TODO	{'o', MessageType_MessageType_TxRequest,			TxRequest_fields,			0},
+	{'o', MessageType_MessageType_TxRequest,			TxRequest_fields,			0},
 	{'o', MessageType_MessageType_CipheredKeyValue,		CipheredKeyValue_fields,	0},
 	{'o', MessageType_MessageType_ButtonRequest,		ButtonRequest_fields,		0},
 	{'o', MessageType_MessageType_Address,				Address_fields,				0},
@@ -1054,7 +938,7 @@ static const MessagesMap_t MessagesMap[] = {
 	{'o', MessageType_MessageType_EncryptedMessage,		EncryptedMessage_fields,	0},
 	{'o', MessageType_MessageType_DecryptedMessage,		DecryptedMessage_fields,	0},
 	{'o', MessageType_MessageType_PassphraseRequest,	PassphraseRequest_fields,	0},
-//TODO:	{'o', MessageType_MessageType_TxSize,				TxSize_fields,				0},
+	{'o', MessageType_MessageType_TxSize,				TxSize_fields,				0},
 	{'o', MessageType_MessageType_WordRequest,			WordRequest_fields,			0},
 	// end
 	{0, 0, 0, 0}
