@@ -169,7 +169,17 @@ static bool check_magic(void)
 	bool retval = false;
     app_meta_td *app_meta = (app_meta_td *)FLASH_META_MAGIC;
     
-    retval = (memcmp(&app_meta->magic, "KPKY", 4) == 0) ? true : false;
+    retval = (memcmp((void *)&app_meta->magic, "KPKY", 4) == 0) ? true : false;
+
+    /*
+     * Make sure magic area in the flash is written.  (Magic area can be left in
+     * unwritten state if usb cable was unplugged before the magic value had a chance to 
+     * to update during the last flash update).  This will ensure external app can 
+     * not write to the space without having to erase the sector
+     */
+    if((retval == false) && (app_meta->magic == 0xFFFFFFFF)){
+        flash_write_n_lock(FLASH_APP, 0, META_MAGIC_SIZE, "XXXX");
+    }
     return(retval);
 #else
     return(true);

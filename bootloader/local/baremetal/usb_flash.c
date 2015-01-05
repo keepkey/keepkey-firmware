@@ -104,7 +104,7 @@ bool usb_flash_firmware(void)
 
     /* Init USB */
     usb_init();  
-    sav_storage_in_ram (&storage_shadow);
+    memcpy((void *)&storage_shadow, (void *)FLASH_STORAGE_START, sizeof(ConfigFlash));
 
     /* implement timer for this loop in the future*/
     while(1)
@@ -118,7 +118,7 @@ bool usb_flash_firmware(void)
                 {
                     if(check_fw_is_new())
                     {
-                        storage_part_restore(&storage_shadow);
+                        flash_write_n_lock(FLASH_STORAGE, 0, sizeof(ConfigFlash), (uint8_t *)&storage_shadow);
                         dbg_print("keys restored...\n\r");
                     }
                     else
@@ -242,17 +242,22 @@ void handler_initialize(Initialize* msg)
 }
 
 /*
- *  sav_storage_in_ram() - save storage partition in RAM for firmware update
+ *  flash_write_n_lock() - restore storage partition in flash for firmware update
  *
- *  INPUT 
- *      pointer to save Storge partition in RAM
- *  OUTPUT
- *      void 
+ *  INPUT - 
+ *      1. flash partition
+ *      2. flash offset within partition to begin write
+ *      3. length to write
+ *      4. pointer to source data
+ *
+ *  OUTPUT - 
+ *      none 
  */
-static void sav_storage_in_ram(ConfigFlash *cfg_ptr)
+void flash_write_n_lock(Allocation group, size_t offset, size_t len, uint8_t* dataPtr)
 {
-    /* Save Storage partition in RAM in case downloaded image is invalid */
-    memcpy((void *)cfg_ptr, (void *)FLASH_STORAGE_START, sizeof(ConfigFlash));
+    flash_unlock();
+    flash_write(group, offset, len, dataPtr);
+    flash_lock();
 }
 
 /*
@@ -386,14 +391,13 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
                 if(confirm_with_button_request(ButtonRequestType_ButtonRequest_FirmwareCheck,
                 	"Compare Firmware Fingerprint", str_digest)) {
                     /* user has confirmed the finger print.  Restore "KPKY" magic in flash meta header */
-                    flash_unlock();
-                    flash_write(FLASH_APP, 0, META_MAGIC_SIZE , "KPKY");
-                    flash_lock();
+                    flash_write_n_lock(FLASH_APP, 0, META_MAGIC_SIZE, "KPKY");
                     send_success("Upload complete");
     				upload_state = UPLOAD_COMPLETE;
                 } else {
-                	cancel_confirm(FailureType_Failure_FirmwareError, "Fingerprint Not Confirmed");
-                	upload_state = UPLOAD_ERROR;
+                    flash_write_n_lock(FLASH_APP, 0, META_MAGIC_SIZE, "XXXX");
+                    cancel_confirm(FailureType_Failure_FirmwareError, "Fingerprint is Not Confirmed");
+                    upload_state = UPLOAD_ERROR;
                 }
             }
         }
