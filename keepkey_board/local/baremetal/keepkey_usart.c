@@ -27,16 +27,16 @@
 #include <keepkey_usart.h>
 #include <string.h>
 
-/********************************************************************
- * usart_init - Initialize USART Debug Port 
+/*
+ * usart_init () - Initialize USART Debug Port 
  *
- * input - none
- * output - none 
- ********************************************************************/
-#ifdef DEBUG_ON
+ * INPUT - 
+ *      none
+ * OUTPUT - 
+ *      none 
+ */
 void usart_init(void)  
 {
-
     /* Setup PB10 for USART-TX */
     gpio_mode_setup( GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO10 );
     gpio_set_output_options(GPIOB, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO10);
@@ -75,10 +75,8 @@ void usart_init(void)
 
     /* Note : RDR= Read data, TDR=Transmit data */
 }
-#else
-void usart_init(void){}
-#endif
 
+#ifdef DEBUG_ON
 /********************************************************************
  * put_console_char - Display a character on serial debug port
  *
@@ -153,7 +151,6 @@ static void display_debug_string(char *pStr)
  * Input - content to print
  * Output- send to debug port  
  ********************************************************************/
-#ifdef DEBUG_ON
 bool dbg_print(char *pStr, ...)
 {
     bool ret_stat = true;
@@ -174,20 +171,15 @@ bool dbg_print(char *pStr, ...)
     }
     return(ret_stat);
 }
-#else
-bool dbg_print(char *pStr, ...){}
-#endif
 
-
-
-/********************************************************************
+/*
  * read_console - Read debug console port for user input 
  *                (Example for how to implement USART read )
  *
  *
  * Input - none 
  * Output- send to debug port  
- ********************************************************************/
+ */
 char read_console(void)
 {
     int timeout_cnt = 100; /* allow 100msec for USART busy timeout*/
@@ -204,3 +196,10 @@ char read_console(void)
     }
     return(char_read);
 }
+#else
+bool dbg_print(char *pStr, ...){}
+#endif
+
+
+
+
