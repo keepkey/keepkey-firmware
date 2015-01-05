@@ -2,7 +2,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 Carbon Design Group <tom@carbondesign.com>
+ * Copyright (C) 2014 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -39,48 +39,10 @@
 #include <usb_flash.h>
 #include <bootloader.h>
 
-#define SHA256_DIGEST_STR_LEN ((SHA256_DIGEST_LENGTH * 2) + 1)
-#define BYTE_AS_HEX_STR_LEN (2 + 1)
-
-void send_success(const char *text);
-void send_failure(FailureType code, const char *text);
-void handler_initialize(Initialize* msg);
-void handler_ping(Ping* msg);
-void handler_erase(FirmwareErase* msg);
-void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length);
-void usb_write_pb(void* msg, MessageType id);
-
-/**
- * Performance / metrics counters.
- */
-typedef struct 
-{
-    uint16_t invalid_usb_header_ct;
-    uint16_t invalid_msg_type_ct;
-    uint16_t invalid_offset_ct;
-    uint16_t usb_tx_ct;
-    uint16_t usb_tx_err_ct;
-} Stats;
-
-typedef enum 
-{
-    UPLOAD_NOT_STARTED,
-    UPLOAD_STARTED,
-    UPLOAD_COMPLETE,
-    UPLOAD_ERROR
-} FirmwareUploadState;
-
+/*** Definition ***/
 static FirmwareUploadState upload_state = UPLOAD_NOT_STARTED;
 
-/**
- * Generic message handler callback type.
- */
-typedef void (*message_handler_t)(void* msg_struct);
-
-/**
- * Structure to map incoming messages to handler functions.
- */
-
+/*** Structure to map incoming messages to handler functions. ***/
 static const MessagesMap_t MessagesMap[] = {
     // in messages
     {'i', MessageType_MessageType_Initialize,       Initialize_fields,      (message_handler_t)(handler_initialize)},
@@ -100,13 +62,15 @@ static const RawMessagesMap_t RawMessagesMap[] = {
     {0,0,0}
 };
 
-/**
- * Stats counters.
- */
 static Stats stats;
 
 /*
- * Configuration variables.
+ * get_update_status() - get firmware update status
+ *
+ * INPUT - 
+ *      none
+ * OUTPUT - 
+ *      status
  */
 
 FirmwareUploadState get_update_status(void)
@@ -114,7 +78,7 @@ FirmwareUploadState get_update_status(void)
     return (upload_state);
 }
 
-/***************************************************************
+/*
  * usb_flash_firmware() - update firmware over usb bus
  *
  * INPUT  
@@ -122,8 +86,7 @@ FirmwareUploadState get_update_status(void)
  *  
  * OUTPUT  
  *  - update status 
- *
- * *************************************************************/
+ */
 bool usb_flash_firmware(void)
 {
     FirmwareUploadState upd_stat; 
@@ -191,7 +154,7 @@ uff_exit:
     return(retval);
 }
 
-/***************************************************************
+/*
  * send_success() - Send success message over usb port 
  *
  * INPUT  
@@ -200,7 +163,7 @@ uff_exit:
  * OUTPUT  
  *  - none
  *
- * *************************************************************/
+ */
 
 void send_success(const char *text)
 {
@@ -214,7 +177,7 @@ void send_success(const char *text)
     msg_write(MessageType_MessageType_Success, &s);
 }
 
-/***************************************************************
+/*
  * send_falure() -  Send failure message over usb port       
  *
  * INPUT 
@@ -224,7 +187,7 @@ void send_success(const char *text)
  * OUTPUT
  *  - none
  *
- ***************************************************************/
+ */
 void send_failure(FailureType code, const char *text)
 {
     Failure f;
@@ -239,11 +202,28 @@ void send_failure(FailureType code, const char *text)
     msg_write(MessageType_MessageType_Failure, &f);
 }
 
+/*
+ * handler_ping() - stubbed handler
+ *  
+ * INPUT -
+ *      none
+ * OUTPUT - 
+ *      none
+ */
 void handler_ping(Ping* msg) 
 {
     (void)msg;
 }
 
+/*
+ * handler_initialize() - handler to respond to usb host with bootloader 
+ *      initialization values
+ *
+ * INPUT - 
+ *      usb buffer - not used
+ * OUTPUT - 
+ *      none 
+ */
 void handler_initialize(Initialize* msg) 
 {
     assert(msg != NULL);
@@ -260,14 +240,15 @@ void handler_initialize(Initialize* msg)
 
     msg_write(MessageType_MessageType_Features, &f);
 }
-/***********************************************************************
- *  sav_storage_in_ram - save storage partition in RAM for firmware update
+
+/*
+ *  sav_storage_in_ram() - save storage partition in RAM for firmware update
  *
  *  INPUT 
  *      pointer to save Storge partition in RAM
  *  OUTPUT
  *      void 
- ***********************************************************************/
+ */
 static void sav_storage_in_ram(ConfigFlash *cfg_ptr)
 {
     /* Save Storage partition in RAM in case downloaded image is invalid */
@@ -275,7 +256,7 @@ static void sav_storage_in_ram(ConfigFlash *cfg_ptr)
 }
 
 /*
- *  storage_part_restore - restore storage partition in flash for firmware update
+ *  storage_part_restore() - restore storage partition in flash for firmware update
  *
  *  INPUT - 
  *      pointer to Storge partition in RAM
