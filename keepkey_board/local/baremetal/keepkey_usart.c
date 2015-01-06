@@ -27,6 +27,7 @@
 #include <keepkey_usart.h>
 #include <string.h>
 
+#ifdef DEBUG_ON  /* Enable serial port only for debug version */
 /*
  * usart_init () - Initialize USART Debug Port 
  *
@@ -76,7 +77,6 @@ void usart_init(void)
     /* Note : RDR= Read data, TDR=Transmit data */
 }
 
-#ifdef DEBUG_ON
 /********************************************************************
  * put_console_char - Display a character on serial debug port
  *
@@ -198,6 +198,7 @@ char read_console(void)
 }
 #else
 bool dbg_print(char *pStr, ...){}
+void usart_init(void){}
 #endif
 
 
