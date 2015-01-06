@@ -224,13 +224,13 @@ display_init(
 
     display_write_reg( (uint8_t)0xA6 ); 
 
-    delay( 10 );
+    delay_ms( 10 );
 
 
     // Set the screen to display-writing mode
     display_prepare_gram_write();
 
-    delay( 10 );
+    delay_ms( 10 );
 
     // Make the display blank
     int end = 64  * 256;
@@ -243,7 +243,7 @@ display_init(
     // Turn on 12V
     SET_PIN( BACKLIGHT_PWR_PIN );
 
-    delay( 100 );
+    delay_ms( 100 );
 
     display_turn_on();
 
@@ -351,11 +351,11 @@ display_reset(
 {
     CLEAR_PIN( nRESET_PIN );
 
-    delay( 10 );
+    delay_ms( 10 );
 
     SET_PIN( nRESET_PIN );
 
-    delay( 50 );
+    delay_ms( 50 );
 }
 
 

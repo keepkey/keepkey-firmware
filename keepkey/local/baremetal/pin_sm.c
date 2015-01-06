@@ -223,7 +223,7 @@ bool pin_protect()
 			}
 			wait = (wait < 32) ? (1u << wait) : 0xFFFFFFFF;
 			while (--wait > 0) {
-				delay(1000);
+				delay_ms(1000);
 			}
 		}
 

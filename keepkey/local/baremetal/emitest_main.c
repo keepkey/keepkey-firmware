@@ -36,7 +36,7 @@ static void exec(unsigned int reset_count)
 
     if(!is_animating())
     {
-    	delay(1000);
+    	delay_ms(1000);
     	layout_clear();
         const char* mnemonic = mnemonic_generate(128);
         char title[50];

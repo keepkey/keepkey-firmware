@@ -312,9 +312,9 @@ bool usb_tx(void* message, uint32_t len)
 			//TODO Replace with more elegant solution that
 			//monitors the usb transmit for last transmit complete
 			//status.
-			delay(100);
+			delay_ms(100);
 		} else {
-			delay(100);
+			delay_ms(100);
 		}
 
     	uint8_t tmp_buffer[USB_SEGMENT_SIZE] = { 0 };

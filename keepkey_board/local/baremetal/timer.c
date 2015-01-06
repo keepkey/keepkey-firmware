@@ -154,7 +154,7 @@ timer_init(
 // See timer.h for public interface.
 //
 void
-delay(
+delay_ms(
         uint32_t ms
 )
 {

@@ -614,7 +614,7 @@ void animating_progress_handler(void)
 	{
 		animate();
 		display_refresh();
-		delay(1);
+		delay_ms(1);
 	}
 }
 

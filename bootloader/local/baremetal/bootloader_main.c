@@ -264,7 +264,7 @@ int main(int argc, char* argv[])
                     /* KeepKey signature check failed.  Foreign code might be sitting there. Take action to clear storage partition!!! */
                     layout_standard_notification("UNSIGNED FIRMWARE", "NOSIG", NOTIFICATION_INFO);
                     display_refresh();
-                    delay(5000);
+                    delay_ms(5000);
                 }
                 clear_red();
                 set_vector_table_offset(FLASH_APP_START - FLASH_ORIGIN);  //offset = 0x60100

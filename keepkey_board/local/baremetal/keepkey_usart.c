@@ -98,7 +98,7 @@ static bool put_console_char(int8_t nCharVal)
             ret_stat = true;
             break;
         }
-        delay(1);   /* 1msec sampling */
+        delay_ms(1);   /* 1msec sampling */
     }while(--timeout_cnt);
     return(ret_stat);
 }
@@ -126,7 +126,7 @@ static bool get_console_input(char *read_char)
             ret_stat = true;
             break;
         }
-        delay(1);   /* 1msec sampling */
+        delay_ms(1);   /* 1msec sampling */
     }while(--timeout_cnt);
     return (ret_stat);
 }
