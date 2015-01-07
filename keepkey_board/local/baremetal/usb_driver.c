@@ -56,7 +56,7 @@ static const struct usb_device_descriptor dev_descr = {
 	.bcdDevice = 0x0100,
 	.iManufacturer = 1,
 	.iProduct = 2,
-	.iSerialNumber = 3,
+	.iSerialNumber = 0,
 	.bNumConfigurations = 1,
 };
 
@@ -193,7 +193,7 @@ static const struct usb_config_descriptor config = {
 static const char *usb_strings[] = {
 	"KeepKey",
 	"KeepKey App",
-	"No Serial",
+	"",
         ""
 };
 #define NUM_USB_STRINGS (sizeof(usb_strings) / sizeof(usb_strings[0]) - 1)
