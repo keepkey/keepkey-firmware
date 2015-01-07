@@ -1,7 +1,8 @@
+/* START KEEPKEY LICENSE */
 /*
- * This file is part of the TREZOR project.
+ * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 Pavol Rusnak <stick@satoshilabs.com>
+ * Copyright (C) 2014 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -15,7 +16,9 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
+/* END KEEPKEY LICENSE */
 
 #include <keepkey_board.h>
 #include <layout.h>
@@ -25,47 +28,49 @@
 #include <storage.h>
 #include <keepkey_usart.h>
 
+
+/*
+ * void exec() -  Main loop
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
 static void exec(void)
 {
     usb_poll();
     display_refresh();
 }
 
+/*
+ * main() - Application main entry
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
 int main(void)
 {
-	/*
-	 * Init board
-	 */
+	/* Init board */
     board_init();
     set_red();
     dbg_print("Application Version %d.%d\n\r", MAJOR_VERSION, MINOR_VERSION );
 
-    /*
-     * Show loading screen
-     */
+    /* Show loading screen */
     layout_intro();
 
-    /*
-     * Init storage and set progress handler
-     */
+    /* Init storage and set progress handler */
     storage_init();
     storage_set_progress_handler(&animating_progress_handler);
 
-    /*
-     * Init protcol buffer message map and usb msg callback
-     */
+    /* Init protcol buffer message map and usb msg callback */
     fsm_init();
 
-    /*
-     * Listen for commands
-     */
     set_green();
     usb_init();
     clear_red();
-    while(1)
-    {
+
+    /* Monitor host usb commands */
+    while(1) {
         exec();
     }
-
     return 0;
 }
