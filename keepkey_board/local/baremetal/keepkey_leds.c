@@ -1,125 +1,77 @@
-/******************************************************************************
-    Copyright (c) __20xx __Client_Name. All rights reserved.
-    Developed for __Client_Name by Carbon Design Group.
-******************************************************************************/
-
-/// @file keepkey_button.c
-///
-
-
-//================================ INCLUDES ===================================
-
+/* START KEEPKEY LICENSE */
+/*
+ * This file is part of the KeepKey project.
+ *
+ * Copyright (C) 2014 KeepKey LLC
+ *
+ * This library is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+/* END KEEPKEY LICENSE */
 
 #include "keepkey_leds.h"
 #include "pin.h"
 #include <stddef.h>
 
 
-//====================== CONSTANTS, TYPES, AND MACROS =========================
-
-
-//=============================== VARIABLES ===================================
-
 static const Pin GREEN_LED  = { GPIOC, GPIO14 };
 static const Pin RED_LED    = { GPIOC, GPIO15 };
 
-//====================== PRIVATE FUNCTION DECLARATIONS ========================
-
-
-
-//=============================== FUNCTIONS ===================================
-
-
-//-----------------------------------------------------------------------------
-/// 
-///
-//-----------------------------------------------------------------------------
-void
-keepkey_leds_init(
-        void
-)
+/*
+ * keepkey_leds_init() - initialize gpios for LEDs
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
+void keepkey_leds_init(void)
 {
     pin_init_output( &GREEN_LED, PUSH_PULL_MODE, NO_PULL_MODE );
     pin_init_output( &RED_LED, PUSH_PULL_MODE, NO_PULL_MODE );
 
-    clear_green();
-    clear_red();
+    led_func(CLR_GREEN_LED);
+    led_func(CLR_RED_LED);
 }
 
-
-//-----------------------------------------------------------------------------
-/// 
-///
-//-----------------------------------------------------------------------------
-void
-set_green(
-        void
-)
+/*
+ * led_func() - set led states
+ *
+ * INPUT - led action
+ * OUTPUT - none
+ */
+void led_func(led_action act)
 {
-    CLEAR_PIN( GREEN_LED );
-}
-
-
-//-----------------------------------------------------------------------------
-/// 
-///
-//-----------------------------------------------------------------------------
-void
-clear_green(
-        void
-)
-{
-    SET_PIN( GREEN_LED );
-}
-
-
-//-----------------------------------------------------------------------------
-/// 
-///
-//-----------------------------------------------------------------------------
-void
-toggle_green(
-        void
-)
-{
-    TOGGLE_PIN( GREEN_LED );
-}
-
-
-//-----------------------------------------------------------------------------
-/// 
-///
-//-----------------------------------------------------------------------------
-void
-set_red(
-        void
-)
-{
-    CLEAR_PIN( RED_LED );
-}
-
-
-//-----------------------------------------------------------------------------
-/// 
-///
-//-----------------------------------------------------------------------------
-void
-clear_red(
-        void
-)
-{
-    SET_PIN( RED_LED );
-}
-
-
-//-----------------------------------------------------------------------------
-/// 
-///
-//-----------------------------------------------------------------------------
-void
-toggle_red(
-        void
-)
-{
-    TOGGLE_PIN ( RED_LED );
+    switch(act){
+        case CLR_GREEN_LED:
+            SET_PIN( GREEN_LED );
+            break;
+        case SET_GREEN_LED:
+            CLEAR_PIN( GREEN_LED );
+            break;
+        case TGL_GREEN_LED:
+            TOGGLE_PIN( GREEN_LED );
+            break;
+        case CLR_RED_LED:
+            SET_PIN( RED_LED );
+            break;
+        case SET_RED_LED:
+            CLEAR_PIN( RED_LED );
+            break;
+        case TGL_RED_LED:
+            TOGGLE_PIN ( RED_LED );
+            break;
+        default:
+            /*no action */
+            break;
+    }
 }

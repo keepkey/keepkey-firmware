@@ -51,7 +51,7 @@ int main(void)
 {
 	/* Init board */
     board_init();
-    set_red();
+    led_func(SET_RED_LED);
     dbg_print("Application Version %d.%d\n\r", MAJOR_VERSION, MINOR_VERSION );
 
     /* Show loading screen */
@@ -64,9 +64,9 @@ int main(void)
     /* Init protcol buffer message map and usb msg callback */
     fsm_init();
 
-    set_green();
+    led_func(SET_GREEN_LED);
     usb_init();
-    clear_red();
+    led_func(CLR_RED_LED);
 
     /* Monitor host usb commands */
     while(1) {

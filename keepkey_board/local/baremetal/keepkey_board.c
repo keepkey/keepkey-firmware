@@ -1,9 +1,8 @@
-
 /* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 Carbon Design Group <tom@carbondesign.com>
+ * Copyright (C) 2014 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -41,6 +40,12 @@ void board_reset(void)
     scb_reset_system();
 }
 
+/*
+ * void clock_init() - Initialize clocks to enable peripherals
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
 static void clock_init(void)
 {
     // setup clock
@@ -58,6 +63,12 @@ static void clock_init(void)
     
 }
  
+/*
+ * board_init() - Initialize board
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
 void board_init(void)
 {
     clock_init();

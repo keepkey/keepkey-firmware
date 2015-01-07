@@ -251,22 +251,23 @@ int main(int argc, char* argv[])
 
     configure_hw();
     update_mode = keepkey_button_down();
-    set_green();
-    set_red();
+    led_func(SET_GREEN_LED);
+    led_func(SET_RED_LED);
 
     dbg_print("\n\rKeepKey LLC, Copyright (C) 2014\n\r");
     dbg_print("BootLoader Version %d.%d (%s)\n\r", BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION, __DATE__);
 
+    /* main loop for bootloader to transition to next step */
     while(1) {
         if(!update_mode) {
             if(check_magic() == true) {
                 if(!check_firmware_sig()) {
-                    /* KeepKey signature check failed.  Foreign code might be sitting there. Take action to clear storage partition!!! */
+                    /* KeepKey signature check failed.  Unknown code is sitting in Application parition */
                     layout_standard_notification("UNSIGNED FIRMWARE", "NOSIG", NOTIFICATION_INFO);
                     display_refresh();
                     delay_ms(5000);
                 }
-                clear_red();
+                led_func(CLR_RED_LED);
                 set_vector_table_offset(FLASH_APP_START - FLASH_ORIGIN);  //offset = 0x60100
                 boot_jump(FLASH_APP_START);
             }
@@ -278,7 +279,7 @@ int main(int argc, char* argv[])
                 break;
             }
         } else {
-            clear_green();
+            led_func(CLR_GREEN_LED);
             if(usb_flash_firmware()) {
                 layout_standard_notification("Firmware Update Complete", "Please disconnect and reconnect your KeepKey to continue.", NOTIFICATION_UNPLUG);
                 display_refresh();

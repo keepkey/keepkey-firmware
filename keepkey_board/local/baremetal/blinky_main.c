@@ -88,7 +88,7 @@ blink(
         void* context 
 )
 {
-    toggle_red();
+    led_func(TGL_RED_LED);
 }
 
 static void
@@ -96,7 +96,7 @@ blonk(
         void* context 
 )
 {
-    toggle_green();
+    led_func(TGL_GREEN_LED);
 }
 
 //-------------------------------------------------------------------------

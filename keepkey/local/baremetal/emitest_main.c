@@ -60,7 +60,7 @@ void update_reset_count(unsigned int count)
 int main(void)
 {
     board_init();
-    set_red();
+    led_func(SET_RED_LED);
 
     /*
      * Show loading screen
@@ -88,9 +88,9 @@ int main(void)
     layout_home();
     display_refresh();
 
-    set_green();
+    led_func(SET_GREEN_LED);
     usb_init();
-    clear_red();
+    led_func(CLR_RED_LED);
 
     while(1)
     {
