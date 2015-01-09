@@ -12,29 +12,14 @@
 
 #include <keepkey_board.h>
 
-/**
- * These are the addresses assigned to the USB interface.  These
- * are from the perspective of the host, so ENDPOINT_ADDRESS_IN is the 
- * KeepKey endpoint, and ENDPOINT_ADDRESS_OUT is the Host endpoint.
- */
-#define ENDPOINT_ADDRESS_IN         (0x81)
-#define ENDPOINT_ADDRESS_OUT        (0x01)
 
-/**
- * Control buffer for use by the USB stack.  We just allocate the
- * space for it.
- */
-#define USBD_CONTROL_BUFFER_SIZE 128
+/************ Static and Global variables  **************************/
 static uint8_t usbd_control_buffer[USBD_CONTROL_BUFFER_SIZE];
 
-/**
- * USB Device state structure.
- */
+/* USB Device state structure.  */
 static usbd_device *usbd_dev = NULL;
 
-/**
- * This optional callback is configured by the user to handle receive events.
- */
+/* This optional callback is configured by the user to handle receive events.  */
 usb_rx_callback_t user_rx_callback = NULL;
 
 /*
@@ -43,6 +28,7 @@ usb_rx_callback_t user_rx_callback = NULL;
  */
 static bool usb_configured = false;
 
+/* usb device descriptor */
 static const struct usb_device_descriptor dev_descr = {
 	.bLength = USB_DT_DEVICE_SIZE,
 	.bDescriptorType = USB_DT_DEVICE,
@@ -193,10 +179,8 @@ static const struct usb_config_descriptor config = {
 static const char *usb_strings[] = {
 	"KeepKey",
 	"KeepKey App",
-	"",
-        ""
+	""
 };
-#define NUM_USB_STRINGS (sizeof(usb_strings) / sizeof(usb_strings[0]) - 1)
 
 static int hid_control_request(usbd_device *dev, struct usb_setup_data *req, uint8_t **buf, uint16_t *len,
 			void (**complete)(usbd_device *, struct usb_setup_data *))
@@ -215,6 +199,16 @@ static int hid_control_request(usbd_device *dev, struct usb_setup_data *req, uin
 	return 1;
 }
 
+/*
+ * hid_rx_callback() - callback function to process received packet from usb host
+ *
+ * INPUT 
+ *      dev - pointer to usb device handler
+ *      ep - unused 
+ * OUTPUT 
+ *      none
+ *
+ */
 static void hid_rx_callback(usbd_device *dev, uint8_t ep)
 {
     (void)ep;
@@ -235,8 +229,14 @@ static void hid_rx_callback(usbd_device *dev, uint8_t ep)
     }
 }
 
-/**
- * Called by the usb infrastructure in response to a config event.
+/*
+ * hid_set_config_callback() - config usb IN/OUT endpoints and register callbacks
+ *
+ * INPUT -
+ *      dev - pointer to usb device handler
+ *      wValue - not used 
+ * OUTPUT -
+ *      none
  */
 static void hid_set_config_callback(usbd_device *dev, uint16_t wValue)
 {
@@ -254,50 +254,62 @@ static void hid_set_config_callback(usbd_device *dev, uint16_t wValue)
         usb_configured = true;
 }
 
+/*
+ * usb_init() - initialize USB registers and set callback functions 
+ *
+ * INPUT  - none
+ * OUTPUT - 
+ *      true/false  - status
+ */
+
 bool usb_init(void)
 {
-    /*
-     * Already initialized.
-     */
-    if(usbd_dev != NULL)
-    {
-        return false;
-    }
+    bool ret_bool = true;
+    /* skip initialization if alrealy initialized */
+    if(usbd_dev == NULL) {
+        gpio_mode_setup(USB_GPIO_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, USB_GPIO_PORT_PINS);
+        gpio_set_af(USB_GPIO_PORT, GPIO_AF10, USB_GPIO_PORT_PINS);
 
-    gpio_mode_setup(USB_GPIO_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, USB_GPIO_PORT_PINS);
-    gpio_set_af(USB_GPIO_PORT, GPIO_AF10, USB_GPIO_PORT_PINS);
-
-    static char serial_number[100];
-    desig_get_unique_id_as_string(serial_number, sizeof(serial_number));
-    usb_strings[NUM_USB_STRINGS-1] = serial_number;
-
-   
-
-    usbd_dev = usbd_init(&otgfs_usb_driver, 
+        static char serial_number[100];
+        desig_get_unique_id_as_string(serial_number, sizeof(serial_number));
+        usb_strings[NUM_USB_STRINGS-1] = serial_number;
+        usbd_dev = usbd_init(&otgfs_usb_driver, 
                          &dev_descr, 
                          &config, 
                          usb_strings,
                          NUM_USB_STRINGS, 
                          usbd_control_buffer, 
                          sizeof(usbd_control_buffer));
-    if(usbd_dev == NULL)
-    {
-        return false;
+        if(usbd_dev != NULL) {
+            usbd_register_set_config_callback(usbd_dev, hid_set_config_callback);
+        } else {
+            /* error: unable init usbd_dev */
+            ret_bool = false;
+        }
     }
-
-    usbd_register_set_config_callback(usbd_dev, hid_set_config_callback);
-
-    return true;
+    return (ret_bool);
 }
 
-bool usb_poll(void)
+/*
+ * usb_poll() - poll usb port for message
+ *  
+ * INPUT - none
+ * OUTPUT - none
+ */
+void usb_poll(void)
 {
-
     usbd_poll(usbd_dev);
-
-    return true;
 }
 
+/*
+ * usb_tx() - transmit usb message to host 
+ *
+ * INPUT
+ *      message - pointer message buffer
+ *      len - length of message 
+ * OUTPUT
+ *      true/false
+ */
 bool usb_tx(void* message, uint32_t len)
 {
 	uint32_t send_ct = 0;
@@ -332,6 +344,14 @@ bool usb_tx(void* message, uint32_t len)
     return(true);
 }
 
+/*
+ * usb_set_rx_callback() - setup USB receive callback function pointer
+ *
+ * INPUT -
+ *      callback - callback function
+ * OUTPUT - 
+ *      none
+ */
 void usb_set_rx_callback(usb_rx_callback_t callback)
 {
     user_rx_callback = callback;

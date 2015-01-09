@@ -109,8 +109,7 @@
 /* Flash sector map definition to simplify flash management operations. */
 
 /*Application Meta format */
-typedef struct
-{
+typedef struct {
     uint32_t magic;
     uint32_t code_len;
     uint8_t  sig_index1;
@@ -123,16 +122,14 @@ typedef struct
     uint8_t  sig3[64];
 }app_meta_td;
 
-typedef enum
-{
+typedef enum {
     FLASH_INVALID,
     FLASH_BOOTLOADER,
     FLASH_STORAGE,
     FLASH_APP
 } Allocation;
 
-typedef struct 
-{
+typedef struct {
     int sector;
     size_t start;
     uint32_t len;

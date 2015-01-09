@@ -26,26 +26,30 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/*
- * USB Board Config
- */
+/******************** #defines ***********************************/
+/* USB Board Config */
 #define USB_GPIO_PORT GPIOA
 #define USB_GPIO_PORT_PINS (GPIO11 | GPIO12)
 
 #define USB_SEGMENT_SIZE 64
 #define MAX_NUM_USB_SEGMENTS 1
 #define MAX_MESSAGE_SIZE (USB_SEGMENT_SIZE * MAX_NUM_USB_SEGMENTS)
+#define NUM_USB_STRINGS (sizeof(usb_strings) / sizeof(usb_strings[0]))
 
+/* USB endpoint */
+#define ENDPOINT_ADDRESS_IN         (0x81)
+#define ENDPOINT_ADDRESS_OUT        (0x01)
+
+/* Control buffer for use by the USB stack.  We just allocate the 
+   space for it.  */
+#define USBD_CONTROL_BUFFER_SIZE 128
+
+/******************** typedefs and enums ****************************/
 typedef struct
 {
     uint32_t len;
     uint8_t message[MAX_MESSAGE_SIZE];
 } UsbMessage;
-
-/**
- * Setup a callback to receive USB messages.  If not set, incoming USB
- * packets will just be tossed.
- */
 
 /**
  * The callback function pointer.
@@ -58,11 +62,8 @@ typedef void (*usb_rx_callback_t)(UsbMessage* msg);
  * @param callback Callback function pointer.
  */
 void usb_set_rx_callback(usb_rx_callback_t callback);
-
 bool usb_init(void);
-
-bool usb_poll(void);
-
+void usb_poll(void);
 bool usb_tx(void* msg, uint32_t len);
 
 #endif

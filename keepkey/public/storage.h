@@ -32,6 +32,11 @@
  * If this function fails to find a valid config block 
  * it will blow away and reinitialize the current one.
  */
+
+/*********************  #Defines  ******************/
+#define STORAGE_VERSION 1
+
+/*************  Function declarations **************/
 void storage_init(void);
 void storage_reset_uuid(void);
 void storage_reset(void);

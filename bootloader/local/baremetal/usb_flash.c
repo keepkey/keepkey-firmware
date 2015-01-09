@@ -103,7 +103,13 @@ bool usb_flash_firmware(void)
     msg_init();
 
     /* Init USB */
-    usb_init();  
+    if( usb_init() == false )
+    {
+        layout_standard_notification("USB Failure", "Unable to initialize USB", NOTIFICATION_INFO);
+        display_refresh();
+        delay_ms(2000);
+        goto uff_exit;
+    }
     memcpy((void *)&storage_shadow, (void *)FLASH_STORAGE_START, sizeof(ConfigFlash));
 
     /* implement timer for this loop in the future*/

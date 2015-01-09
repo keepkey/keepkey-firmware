@@ -284,7 +284,7 @@ int main(int argc, char* argv[])
                 layout_standard_notification("Firmware Update Complete", "Please disconnect and reconnect your KeepKey to continue.", NOTIFICATION_UNPLUG);
                 display_refresh();
             } else {
-                layout_standard_notification("Invalid firmware image detected.", "Reset and perform a firmware update.", NOTIFICATION_INFO);
+                layout_standard_notification("Firmware Update Failure.", "Unable to load image", NOTIFICATION_INFO);
                 display_refresh();
             }
             break;  /* break out of this loop and hang out in infinite loop */
