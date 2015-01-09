@@ -31,16 +31,9 @@
 extern "C" {
 #endif
 
-
-//=============================== INCLUDES ====================================
-
-
 #include "canvas.h"
 
-
-//====================== CONSTANTS, TYPES, AND MACROS =========================
-
-
+/**************  #defines *******************************/ 
 #define KEEPKEY_DISPLAY_HEIGHT 	64
 #define KEEPKEY_DISPLAY_WIDTH	256
 
@@ -50,17 +43,21 @@ extern "C" {
 //=============================== VARIABLES ===================================
 
 
-//=============================== FUNCTIONS ===================================
+/**********************  Function Declarations ***********************/
+static void display_configure_io ( void);
+static void display_reset_io( void);
+static void display_reset( void);
+static void display_prepare_gram_write( void);
+static void display_write_reg ( uint8_t reg);
+static void display_write_ram( uint8_t val );
+
 
 
 //-----------------------------------------------------------------------------
 /// Initialize the GPIO necessary for the display and show a blank screen.
 ///
 //-----------------------------------------------------------------------------
-Canvas*
-display_init (
-        void
-);
+Canvas*display_init (void);
 
 
 //-----------------------------------------------------------------------------

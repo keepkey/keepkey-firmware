@@ -53,80 +53,14 @@ static uint8_t canvas_buffer[ KEEPKEY_DISPLAY_HEIGHT * KEEPKEY_DISPLAY_WIDTH ];
 static Canvas canvas;
 
 
-//====================== PRIVATE FUNCTION DECLARATIONS ========================
-
-
-
-//-----------------------------------------------------------------------------
-/// Write a frame buffer to the display.
-/// 
-//-----------------------------------------------------------------------------
-static void
-display_configure_io (
-        void
-);
-
-
-//-----------------------------------------------------------------------------
-/// Reset IO to do nothing.
-/// 
-//-----------------------------------------------------------------------------
-static void
-display_reset_io(
-        void
-);
-
-
-//-----------------------------------------------------------------------------
-/// Reset the display.
-/// 
-//-----------------------------------------------------------------------------
-static void
-display_reset(
-        void
-);
-
-
-//-----------------------------------------------------------------------------
-/// Write to display ram
-///
-//-----------------------------------------------------------------------------
-static void
-display_prepare_gram_write(
-        void
-);
-
-
-//-----------------------------------------------------------------------------
-/// Write to a display reg
-///
-//-----------------------------------------------------------------------------
-static void
-display_write_reg (
-        uint8_t reg
-);
-
-
-//-----------------------------------------------------------------------------
-/// Write to display ram
-///
-//-----------------------------------------------------------------------------
-static void
-display_write_ram(
-        uint8_t val 
-);
-
-
-//=============================== FUNCTIONS ===================================
-
-
-//-----------------------------------------------------------------------------
-// See keepkey_display.h for public interface.
-//
-Canvas*
-display_init(
-        void
-)
+/*
+ * display_init( void)  - display initialization
+ *
+ * INPUT - none
+ * OUTPUT - 
+ *      pointer to cavas
+ */
+Canvas* display_init( void) 
 {
     // Prepare the canvas
     canvas.buffer   = canvas_buffer;
@@ -251,27 +185,25 @@ display_init(
 }
 
 
-//-----------------------------------------------------------------------------
-/// See keepkey_display.h
-///
-//-----------------------------------------------------------------------------
-Canvas*
-display_canvas(
-        void
-)
+/*
+ * display_canvas() - get pointer canvas
+ *
+ * INPUT - none
+ * OUTPUT - 
+ *      pointer to canvas
+ */
+Canvas* display_canvas(void)
 {
     return &canvas;
 }
 
-
-//-----------------------------------------------------------------------------
-/// Initialize the GPIO necessary for the display and show a blank screen.
-///
-//-----------------------------------------------------------------------------
-void
-display_refresh(
-        void
-)
+/*
+ * display_refresh() - refresh display
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
+void display_refresh(void)
 {
     if(!canvas.dirty)
     {
@@ -293,13 +225,15 @@ display_refresh(
 }
 
 
-//-----------------------------------------------------------------------------
-// See keepkey_display.h for public interface.
-//
-void
-display_set_brightness(
-        int percentage
-)
+/*
+ * display_set_brightness() - set display brightness in percentage
+ * 
+ * INPUT - 
+ *      percentage
+ * OUTPUT - 
+ *      none
+ */
+void display_set_brightness(int percentage)
 {
     // Set the brightness..
     int v = percentage;
@@ -317,37 +251,36 @@ display_set_brightness(
 }
 
 
-//-----------------------------------------------------------------------------
-// See keepkey_display.h for public interface.
-//
-void
-display_turn_on(
-        void
-)
+/*
+ * display_turn_on() - turn on display
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
+void display_turn_on(void)
 {
     display_write_reg( (uint8_t)0xAF );
 }
 
 
-//-----------------------------------------------------------------------------
-// See keepkey_display.h for public interface.
-//
-void
-display_turn_off(
-        void
-)
+/*
+ * display_turn_off() - turn off display
+ *
+ * INPUT - none
+ * OUTPUT -none
+ */
+void display_turn_off(void)
 {
     display_write_reg( (uint8_t)0xAE );
 }
 
-
-//-----------------------------------------------------------------------------
-// See keepkey_display.h for public interface.
-//
-static void
-display_reset(
-        void
-)
+/*
+ * display_reset() - reset display io port 
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
+static void display_reset(void)
 {
     CLEAR_PIN( nRESET_PIN );
 
@@ -358,14 +291,13 @@ display_reset(
     delay_ms( 50 );
 }
 
-
-//-----------------------------------------------------------------------------
-// See keepkey_display.h for public interface.
-//
-static void
-display_reset_io(
-        void
-)
+/*
+ * display_reset_io() - reset display io port 
+ * 
+ * INPUT -  none
+ * OUTPUT -  none
+ */
+static void display_reset_io(void)
 {
     SET_PIN( nRESET_PIN );
     CLEAR_PIN( BACKLIGHT_PWR_PIN );
@@ -378,13 +310,13 @@ display_reset_io(
 }
 
 
-//-----------------------------------------------------------------------------
-// See keepkey_display.h for public interface.
-//
-static void
-display_configure_io(
-        void
-)
+/*
+ * display_configure_io() - setup display io port 
+ *
+ * INPUT -  none
+ * OUTPUT -  none
+ */
+static void display_configure_io( void)
 {
     // Set up port A
     gpio_mode_setup( 
@@ -417,25 +349,27 @@ display_configure_io(
 }
 
 
-//-----------------------------------------------------------------------------
-// See keepkey_display.h for public interface.
-//
-static void
-display_prepare_gram_write(
-        void
-)
+/*
+ * display_prepare_gram_write() - 
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
+static void display_prepare_gram_write(void)
 {
     display_write_reg( (uint8_t)0x5C );
 }
 
 
-//-----------------------------------------------------------------------------
-// See keepkey_display.h for public interface.
-//
-static void
-display_write_reg (
-        uint8_t reg
-)
+/*
+ * display_write_reg () write data to display register
+ *
+ * INPUT
+ *     reg - display register value 
+ * OUTPUT - 
+ *      none
+ */
+static void display_write_reg (uint8_t reg)
 {
     // Unsure about nDC
 
@@ -483,14 +417,15 @@ display_write_reg (
     __asm__("nop");
 }
 
-
-//-----------------------------------------------------------------------------
-// See keepkey_display.h for public interface.
-//
-static void
-display_write_ram(
-        uint8_t val 
-)
+/*
+ * display_write_ram() - write data to display RAM
+ *
+ * INPUT - 
+ *      val - display ram value 
+ * OUTPUT - 
+ *      none
+ */
+static void display_write_ram(uint8_t val )
 {
     // Set up the data
     GPIO_BSRR( GPIOA ) = 0x000000FF & (uint32_t)val;
