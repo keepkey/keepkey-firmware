@@ -17,20 +17,12 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdlib.h>
-
 #include <libopencm3/cm3/common.h>
 #include <libopencm3/stm32/memorymap.h>
 #include <libopencm3/stm32/f2/rng.h>
-#include <keepkey_usart.h>
 
-/*
- * random32() - 32bit random number generator
- *
- * INPUT - none
- * OUTPUT - 32bit random number
- *
- */
+#include "rng.h"
+
 uint32_t random32(void)
 {
 	static uint32_t last = 0, new = 0;
@@ -43,15 +35,6 @@ uint32_t random32(void)
 	return new;
 }
 
-/*
- * random_buffer() - fill buffer with random numbers
- *
- * INPUT - 
- *      *buf - pointer for random numbers storage
- *      len -  number of 32 bit random numbers to fill
- * OUTPUT - 
- *      none
- */
 void random_buffer(uint8_t *buf, size_t len)
 {
 	size_t i;

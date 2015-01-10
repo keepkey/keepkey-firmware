@@ -15,6 +15,9 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *          --------------------------------------------
+ * Jan 10, 2015 - This file has been modified and adapted for KeepKey project.
  */
 
 #include <string.h>
@@ -46,18 +49,14 @@ void next_word(void) {
 	char title_formatted[26];
 	char body_formatted[90];
 
-	/*
-	 * Form title
-	 */
+	/* Form title */
 	sprintf(title_formatted, "Device Recovery Mode %d/24", word_index + 1);
 
 	if (word_pos == 0) {
 		const char **wl = mnemonic_wordlist();
 		strlcpy(fake_word, wl[random32() & 0x7FF], sizeof(fake_word));
 
-		/*
-		 * Format body for fake word
-		 */
+		/* Format body for fake word */
 		sprintf(body_formatted, "On the device connected to this KeepKey, enter the word \"%s\".", fake_word);
 
         layout_standard_notification(title_formatted, body_formatted, NOTIFICATION_RECOVERY);
@@ -75,9 +74,7 @@ void next_word(void) {
 			desc[0] = 'r'; desc[1] = 'd';
 		}
 
-		/*
-		 * Format body for real word
-		 */
+		/* Format body for real word */
 		sprintf(body_formatted, "On the device connected to this KeepKey, enter the %d%s of your recovery sentence.", word_pos, desc);
 
 		layout_standard_notification(title_formatted, body_formatted, NOTIFICATION_RECOVERY);
