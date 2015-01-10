@@ -290,7 +290,7 @@ bool storage_is_pin_correct(const char *pin)
  */
 bool storage_has_pin(void)
 {
-	return real_config->storage.has_pin && strlen(real_config->storage.pin) > 0;
+	return (real_config->storage.has_pin && (strlen(real_config->storage.pin) > 0));
 }
 
 /*
@@ -336,7 +336,7 @@ void session_cache_pin(const char *pin)
  */
 bool session_is_pin_cached(void)
 {
-	return sessionPinCached && strcmp(sessionPin, real_config->storage.pin) == 0;
+	return (sessionPinCached && (strcmp(sessionPin, real_config->storage.pin) == 0));
 }
 
 /*

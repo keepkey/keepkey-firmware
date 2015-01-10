@@ -16,90 +16,24 @@
 extern "C" {
 #endif
 
-
-//=============================== INCLUDES ====================================
-
-
 #include <stdint.h>
 #include <stdbool.h>
 	
 
-//====================== CONSTANTS, TYPES, AND MACROS =========================
-
-
+/******************** #defines *************************************/
+#define ONE_SEC 1000 
+#define HALF_SEC 500
+/******************** Typedefs and enums ***************************/
 typedef void (*Runnable)(void* context);
 
 
-//=============================== VARIABLES ===================================
-
-
-//=============================== FUNCTIONS ===================================
-
-
-//-----------------------------------------------------------------------------
-/// Initialize the timer subsystem.
-///
-//-----------------------------------------------------------------------------
-void
-timer_init(
-        void
-);
-
-
-//-----------------------------------------------------------------------------
-/// Initialize the timer subsystem.
-///
-//-----------------------------------------------------------------------------
-void
-delay_ms(
-        uint32_t ms
-);
-
-
-//-----------------------------------------------------------------------------
-/// Add a runnable to run in the future.
-///
-//-----------------------------------------------------------------------------
-void
-post_delayed(
-        Runnable    runnable,
-        void*		context,
-        uint32_t	ms_delay
-);
-
-
-//-----------------------------------------------------------------------------
-/// Add a runnable to run periodically in the future.
-///
-//-----------------------------------------------------------------------------
-void
-post_periodic(
-        Runnable    runnable,
-        void*       context,
-        uint32_t    period_ms,
-        uint32_t    delay_ms
-);
-
-
-//-----------------------------------------------------------------------------
-/// Remove a runnable.
-///
-//-----------------------------------------------------------------------------
-void
-remove_runnable(
-        Runnable runnable
-);
-
-
-//-----------------------------------------------------------------------------
-/// Remove all queued runnables
-///
-//-----------------------------------------------------------------------------
-void
-clear_runnables(
-        void
-);
-
+/******************** Function Declarations ***********************/
+void timer_init(void);
+void delay_ms(uint32_t ms);
+void post_delayed(Runnable runnable, void *context, uint32_t ms_delay);
+void post_periodic(Runnable runnable, void *context, uint32_t period_ms, uint32_t delay_ms);
+void remove_runnable(Runnable runnable);
+void clear_runnables(void);
 
 #ifdef __cplusplus
 }

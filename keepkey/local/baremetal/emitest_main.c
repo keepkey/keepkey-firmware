@@ -1,7 +1,8 @@
+/* START KEEPKEY LICENSE */
 /*
- * This file is part of the TREZOR project.
+ * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 Pavol Rusnak <stick@satoshilabs.com>
+ * Copyright (C) 2014 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -15,7 +16,11 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
+/* END KEEPKEY LICENSE */
+
+/***** This file is use for EMI emission test *****/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,6 +33,15 @@
 #include <usb_driver.h>
 #include <bip39.h>
 
+/*
+ * exec() - exercise CPU processing cycle using mnemonic_generate() function to keep
+ *      the CPU active for EMI testing
+ *
+ * INPUT - 
+ *      reset_count - # of counts
+ * OUTPUT - 
+ *      none
+ */
 static void exec(unsigned int reset_count)
 {
     usb_poll();
@@ -49,6 +63,12 @@ static void exec(unsigned int reset_count)
 
 }
 
+/*
+ *  update_reset_count() - reset counter
+ *
+ *  INPUT - none
+ *  OUTPUT - none
+ */
 void update_reset_count(unsigned int count)
 {
     char temp[20];
@@ -57,14 +77,21 @@ void update_reset_count(unsigned int count)
     storage_commit();
 }
 
+/*
+ * main() - main application entry poing
+ *
+ * INPUT - none
+ * OUTPUT -none
+ */
 int main(void)
 {
+    const char *label;
+    unsigned long count;
+
     board_init();
     led_func(SET_RED_LED);
 
-    /*
-     * Show loading screen
-     */
+    /* Show loading screen */
     layout_intro();
 
 	while(is_animating()){
@@ -74,11 +101,10 @@ int main(void)
 
     storage_init();
 
-    // Override label to have a reset counter. 
-    const char* label = storage_getLabel();
-    unsigned long count = 1;
-    if(label)
-    {
+    /* Override label to have a reset counter. */
+    label = storage_getLabel();
+    count = 1;
+    if(label) {
         count = strtoul(label, NULL, 10);
     }
 
@@ -92,10 +118,9 @@ int main(void)
     usb_init();
     led_func(CLR_RED_LED);
 
-    while(1)
-    {
+    while(1) {
         exec(count);
     }
 
-    return 0;
+    return(0);
 }

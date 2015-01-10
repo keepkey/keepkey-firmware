@@ -27,8 +27,38 @@
 #define PIN_SM_H
 
 #include <stdbool.h>
-
 #include <interface.h>
+
+/***************** #defines ********************************/
+#define PIN_FAIL_DELAY_START    2
+#define MAX_PIN_FAIL_ATTEMPTS   32
+
+/***************** typedefs and enums **********************/
+
+/* State for PIN SM */
+typedef enum {
+    PIN_REQUEST,
+	PIN_WAITING,
+	PIN_ACK,
+	PIN_FINISHED
+} PINState;
+
+/* While waiting for a PIN ack, these are the types of messages we expect to see.  */
+typedef enum {
+	PIN_ACK_WAITING,
+    PIN_ACK_RECEIVED,
+	PIN_ACK_CANCEL_BY_INIT,
+	PIN_ACK_CANCEL
+} PINAckMsg;
+
+/* Contains PIN received info */
+typedef struct {
+	PinMatrixRequestType type;
+	PINAckMsg pin_ack_msg;
+	char pin[10];
+} PINInfo;
+ 
+/***************** Function Declarations *******************/
 
 bool pin_protect();
 bool pin_protect_cached();

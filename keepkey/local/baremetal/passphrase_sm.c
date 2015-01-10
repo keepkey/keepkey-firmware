@@ -24,13 +24,9 @@
  * @brief General confirmation state machine.
  */
 
-//================================ INCLUDES =================================== 
-
+#include <stdbool.h>
 #include "passphrase_sm.h"
 #include "fsm.h"
-
-#include <stdbool.h>
-
 #include <layout.h>
 #include <messages.h>
 #include <rand.h>
@@ -38,49 +34,19 @@
 #include <timer.h>
 
 
-//====================== CONSTANTS, TYPES, AND MACROS =========================
+/******************** Statics and Global variables ***********************/
 
-/*
- * State for Passphrase SM
- */
-typedef enum
-{
-    PASSPHRASE_REQUEST,
-	PASSPHRASE_WAITING,
-	PASSPHRASE_ACK,
-	PASSPHRASE_FINISHED
-} PassphraseState;
-
-/*
- * While waiting for a passphrase ack, these are the types of messages we expect to
- * see.
- */
-typedef enum
-{
-	PASSPHRASE_ACK_WAITING,
-    PASSPHRASE_ACK_RECEIVED,
-	PASSPHRASE_ACK_CANCEL_BY_INIT,
-	PASSPHRASE_ACK_CANCEL
-} PassphraseAckMsg;
-
-/*
- * Contains passphrase received info
- */
-typedef struct
-{
-	PassphraseAckMsg passphrase_ack_msg;
-	char passphrase[51];
-} PassphraseInfo;
-
-//=============================== VARIABLES ===================================
-
-/*
- * Flag whether passphrase was canceled by init msg
- */
+/*Flag whether passphrase was canceled by init msg */
 static bool passphrase_canceled_by_init = false;
 
-//====================== PRIVATE FUNCTION DECLARATIONS ========================
+//******************** PRIVATE FUNCTION DECLARATIONS *********************/
 
+/*
+ * send_passphrase_request() - send passphrase request to usb host
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
 static void send_passphrase_request(void)
 {
 	PassphraseRequest resp;
@@ -88,6 +54,13 @@ static void send_passphrase_request(void)
 	msg_write(MessageType_MessageType_PassphraseRequest, &resp);
 }
 
+/*
+ * wait_for_passphrase_ack() - wait for passphrase acknowledgement from USB host
+ *
+ * INPUT - 
+ *      *passphrase_info - pointer to load message from usb host
+ * OUTPUT - none
+ */
 static void wait_for_passphrase_ack(PassphraseInfo *passphrase_info)
 {
 	/* Listen for tiny messages */
@@ -114,6 +87,12 @@ static void wait_for_passphrase_ack(PassphraseInfo *passphrase_info)
 		passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_CANCEL_BY_INIT;
 }
 
+/*
+ * run_passphrase_state() - passphrase state machine 
+ *
+ * INPUT - 
+ * OUTPUT -
+ */
 static void run_passphrase_state(PassphraseState *passphrase_state, PassphraseInfo *passphrase_info)
 {
 	switch(*passphrase_state){
@@ -127,12 +106,21 @@ static void run_passphrase_state(PassphraseState *passphrase_state, PassphraseIn
 		/* Wait for a passphrase */
 		case PASSPHRASE_WAITING:
 			wait_for_passphrase_ack(passphrase_info);
-			if(passphrase_info->passphrase_ack_msg != PASSPHRASE_ACK_WAITING)
+			if(passphrase_info->passphrase_ack_msg != PASSPHRASE_ACK_WAITING) {
 				*passphrase_state = PASSPHRASE_FINISHED;
+            }
 			break;
 	}
 }
 
+/*
+ * passphrase_request() - request passphrase from user on usb host
+ *
+ * INPUT - 
+ *  *passphrase_info - pointer to passphrase info
+ * OUTPUT -
+ *      true/false - status
+ */
 static bool passphrase_request(PassphraseInfo *passphrase_info)
 {
 	bool ret = false;
@@ -140,46 +128,60 @@ static bool passphrase_request(PassphraseInfo *passphrase_info)
 	PassphraseState passphrase_state = PASSPHRASE_REQUEST;
 
 	/* Run SM */
-	while(1)
-	{
+	while(1) {
 		run_passphrase_state(&passphrase_state, passphrase_info);
 
-		if(passphrase_state == PASSPHRASE_FINISHED)
+		if(passphrase_state == PASSPHRASE_FINISHED) {
 			break;
+        }
 	}
 
 	/* Check for passphrase cancel */
-	if (passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_RECEIVED)
+	if (passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_RECEIVED) {
 		ret = true;
-	else
-		if(passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_CANCEL_BY_INIT)
+    } else {
+		if(passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_CANCEL_BY_INIT) {
 			passphrase_canceled_by_init = true;
+        }
+    }
 
-	return ret;
+	return (ret);
 }
 
-//=============================== FUNCTIONS ===================================
-
+/*
+ * passphrase_protect() - set passphrase protection
+ *  
+ * INPUT -  none
+ * OUTPUT -
+ *      true/false - status
+ */
 bool passphrase_protect()
 {
 	bool ret = false;
 	PassphraseInfo passphrase_info;
 
-	if(storage_get_passphrase_protected() && !session_isPassphraseCached())
-	{
+	if(storage_get_passphrase_protected() && !session_isPassphraseCached()) {
 		/* Get passphrase and cache */
-		if(passphrase_request(&passphrase_info))
-		{
+		if(passphrase_request(&passphrase_info)) {
 			session_cachePassphrase(passphrase_info.passphrase);
 			ret = true;
 		}
-	}
-	else
+	} else {
 		ret = true;
+    }
 
-	return ret;
+	return (ret);
 }
 
+/*
+ * cancel_passphrase() - process passphrase cancellation
+ *
+ * INPUT - 
+ *      code - 
+ *      *text - 
+ * OUTPUT -
+ *      none
+ */
 void cancel_passphrase(FailureType code, const char *text)
 {
 	if(passphrase_canceled_by_init)
