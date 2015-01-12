@@ -33,7 +33,7 @@
 #include <keepkey_board.h>
 #include <pbkdf2.h>
 
-#include "trezor.h"
+
 #include "util.h"
 #include "memory.h"
 #include "storage.h"

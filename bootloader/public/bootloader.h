@@ -34,7 +34,6 @@ extern "C" {
 #define PUBKEY_LENGTH 65 
 #define SIGNATURES 1
 
-#define FOREVER_LOOP() while(1)
 //====================== CONSTANTS, TYPES, AND MACROS =========================
 typedef void (*app_entry_t)(void);
 

@@ -1,7 +1,8 @@
+/* START KEEPKEY LICENSE */
 /*
- * This file is part of the TREZOR project.
+ * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 Pavol Rusnak <stick@satoshilabs.com>
+ * Copyright (C) 2014 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -15,7 +16,9 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
+/* END KEEPKEY LICENSE */
 
 #ifndef __SSP_H_
 #define __SSP_H_
