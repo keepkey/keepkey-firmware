@@ -23,8 +23,26 @@ extern "C" {
 /******************** #defines *************************************/
 #define ONE_SEC 1000 
 #define HALF_SEC 500
+#define MAX_RUNNABLES 3
 /******************** Typedefs and enums ***************************/
 typedef void (*Runnable)(void* context);
+typedef struct RunnableNode RunnableNode;
+struct RunnableNode
+{
+    uint32_t    remaining;
+    Runnable    runnable;
+    void*       context;
+    uint32_t    period;
+    bool        repeating;
+    RunnableNode* next;
+};
+
+typedef struct
+{
+    RunnableNode*   head;
+    int             size;
+} RunnableQueue;
+
 
 
 /******************** Function Declarations ***********************/

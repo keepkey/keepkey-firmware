@@ -27,8 +27,51 @@
 #define CONFIRM_SM_H
 
 #include <stdbool.h>
-
 #include <interface.h>
+
+/***************** #defines ******************************/
+/* The number of milliseconds to wait for a confirmation */
+#define CONFIRM_TIMEOUT_MS (1800)
+#define MAX_CYPHER_KEY_LEN 55
+#define MAX_ENCRYPT_MSG_LEN 65
+#define MAX_PING_MSG_LEN 36
+
+/***************** typedefs and enums  *******************/
+typedef enum
+{
+    HOME,
+    CONFIRM_WAIT,
+    CONFIRMED,
+    FINISHED
+} DisplayState;
+
+typedef enum
+{
+    LAYOUT_REQUEST,
+    LAYOUT_CONFIRM_ANIMATION,
+    LAYOUT_CONFIRMED,
+    LAYOUT_FINISHED,
+    LAYOUT_NUM_LAYOUTS,
+    LAYOUT_INVALID
+} ActiveLayout;
+
+/**
+ * Define the given layout dialog texts for each screen
+ */
+typedef struct
+{
+    const char* request_title;
+    const char* request_body;
+} ScreenLine;
+typedef ScreenLine ScreenLines;
+typedef ScreenLines DialogLines[LAYOUT_NUM_LAYOUTS];
+
+typedef struct 
+{
+    DialogLines lines;
+    DisplayState display_state;
+    ActiveLayout active_layout;
+} StateInfo;
 
 /**
  * @param request The string to display for confirmation.

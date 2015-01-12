@@ -106,6 +106,8 @@ static const uint8_t pubkey[PUBKEYS][PUBKEY_LENGTH] =
  */
 void __attribute__((noreturn)) system_halt(void)
 {
+    /*disable interrupts */
+	__asm__("CPSID I\n");
     for (;;) {} // loop forever
 }
 
@@ -285,7 +287,9 @@ int main(int argc, char* argv[])
             }
             else {
                 /* Invalid magic found.  Not booting!!! */
-                layout_standard_notification("INVALID FIRMWARE MAGIC", "Magic value invalid in Application partition", NOTIFICATION_INFO);
+                layout_standard_notification("INVALID FIRMWARE MAGIC", 
+                        "Magic value invalid in Application partition", 
+                        NOTIFICATION_INFO);
                 display_refresh();
                 dbg_print("INVALID FIRMWARE MAGIC\n\r");
                 break;
