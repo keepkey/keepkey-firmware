@@ -91,7 +91,6 @@ void delay_ms(uint32_t ms)
     while( remaining_delay > 0 ) {}
 }
 
-
 /*
  * tim4_isr() - timer 4 interrupt service routine
  *
@@ -109,9 +108,8 @@ void tim4_isr(void)
     timer_clear_flag(TIM4, TIM_SR_UIF);
 }
 
-
 /*
- * run_runnables() - 
+ * run_runnables() - run task (callback function) located in task manager (queue) 
  *
  * INPUT - none
  * OUTPUT - none
@@ -153,43 +151,42 @@ static void run_runnables(void)
     }
 }
 
-
 /*
- * post_delayed() - 
+ * post_delayed() - add delay to existing task (callback function) in task manager (queue)
  *
  * INPUT - 
- *      runnable -
- *      *context - 
- *      delay_ms - 
+ *      callback - task function
+ *      *context - pointer to task arguments
+ *      delay_ms - delay befor task starts
  * OUTPUT - 
+ *      none
  */
-void post_delayed(Runnable runnable, void *context, uint32_t delay_ms)
+void post_delayed(Runnable callback, void *context, uint32_t delay_ms)
 {
-    RunnableNode* runnable_node = runnable_queue_get( &active_queue, runnable );
+    RunnableNode* runnable_node = runnable_queue_get( &active_queue, callback );
 
     if( runnable_node == NULL ) {
         runnable_node = runnable_queue_pop( &free_queue );
     }
 
-    runnable_node->runnable     = runnable;
+    runnable_node->runnable     = callback;
     runnable_node->context      = context;
     runnable_node->remaining    = delay_ms;
     runnable_node->period       = 0;
     runnable_node->repeating    = false;
-
     runnable_queue_push( &active_queue, runnable_node );
 }
 
-
 /*
- * post_periodic() - 
+ * post_periodic() - add repeat & delay to existing task (callback function) in task manager (queue)
  *
  * INPUT - 
- *      callbac - 
- *      *contex - 
- *      period_m - 
- *      delay_ms - 
+ *      callback - task function
+ *      *context - pointer to task arguments
+ *      period_m - task repeat interval (period) 
+ *      delay_ms - delay befor task starts
  * OUTPUT - 
+ *      none
  */
 void post_periodic(Runnable callback, void *context, uint32_t period_ms, uint32_t delay_ms)
 {
@@ -207,27 +204,25 @@ void post_periodic(Runnable callback, void *context, uint32_t period_ms, uint32_
     runnable_queue_push( &active_queue, runnable_node );
 }
 
-
 /*
- * remove_runnable() - 
+ * remove_runnable() - remove task from the task manager (queue)
  *
  * INPUT - 
- *      runnable - 
+ *      callback - task function
  * OUTPUT - 
- *
+ *      none
  */
-void remove_runnable(Runnable runnable)
+void remove_runnable(Runnable callback)
 {
-    RunnableNode* runnable_node = runnable_queue_get( &active_queue, runnable );
+    RunnableNode* runnable_node = runnable_queue_get( &active_queue, callback );
 
     if( runnable_node != NULL ) {
         runnable_queue_push( &free_queue, runnable_node );
     }
 }
 
-
 /*
- * clear_runnables() - 
+ * clear_runnables() - reset free_queue and active_queue to initial state
  *
  * INPUT - none
  * OUTPUT - none
@@ -242,28 +237,27 @@ void clear_runnables(void)
     }
 }
 
-
 /*
- * runnable_queue_peek() - 
+ * runnable_queue_peek() - get pointer to head node in task manager (queue)
  *
  * INPUT - 
- *      *queue - 
+ *      *queue - head pointer to linklist (queue)
  * OUTPUT - 
- *      *RunnableNode - 
+ *      *RunnableNode - head node in the queue
  */
 static RunnableNode* runnable_queue_peek(RunnableQueue *queue)
 {
-    return queue->head;
+    return(queue->head);
 }
 
-
 /*
- * runnable_queue_push() - 
+ * runnable_queue_push() - push node to the task manger (queue)
  *
  * INPUT -
+ *      *queue - head pointer to the queue
+ *      *node - pointer to a new node to be added
  * OUTPUT - 
- *      *queu - 
- *      *node - 
+ *      none
  */
 static void runnable_queue_push(RunnableQueue *queue, RunnableNode *node)
 {
@@ -278,14 +272,13 @@ static void runnable_queue_push(RunnableQueue *queue, RunnableNode *node)
     cm_enable_interrupts();
 }
 
-
 /*
- * runnable_queue_pop() - 
+ * runnable_queue_pop() - pop node from task manager (queue)
  *
  * INPUT - 
- *      *queue -
+ *      *queue - head pointer to task manager 
  * OUTPUT -
- *      *RunnableNode 
+ *      *RunnableNode - pointer to an available node retrieved from the queue
  */
 static RunnableNode* runnable_queue_pop(RunnableQueue *queue)
 {
@@ -301,36 +294,38 @@ static RunnableNode* runnable_queue_pop(RunnableQueue *queue)
 
     cm_enable_interrupts();
 
-    return runnable_node;
+    return(runnable_node);
 }
 
-
 /*
- * runnable_queue_get()
+ * runnable_queue_get() - get the pointer to node that contains the  
+ *                        callback function (task)
  *
  * INPUT -
- *      *queu -
- *      runnable -
+ *      *queue - head pointer to linklist (queue)
+ *      callback - task function  
  * OUTPUT - 
- *      *RunnableNode
- *
+ *      *RunnableNode - pointer to a node containing the requested task function
  */
-static RunnableNode* runnable_queue_get(RunnableQueue *queue, Runnable runnable)
+static RunnableNode* runnable_queue_get(RunnableQueue *queue, Runnable callback)
 {
-    RunnableNode* current = queue->head;
-    RunnableNode* result = NULL;
+    RunnableNode *current = queue->head;
+    RunnableNode *result = NULL;
 
+    /* check queue is empty */
     if( current != NULL ) {
-        if( current->runnable == runnable ) {
+        if( current->runnable == callback ) {
             result = current;
             queue->head = current->next;
         } else {
+            /* search through the linklist for node that contains the runnable 
+               callback function */
             RunnableNode* previous = current;
             current = current->next;
 
             while( ( current != NULL ) && ( result == NULL ) ) {
                 // Found the node!
-                if( current->runnable == runnable ) {
+                if( current->runnable == callback ) {
                     result = current;
                     previous->next = current->next;
                     result->next = NULL;

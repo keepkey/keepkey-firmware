@@ -70,8 +70,7 @@ static void handle_screen_press(void* context)
     StateInfo *si = (StateInfo*)context;
 
     if(button_request_acked) {
-		switch( si->display_state )
-		{
+		switch( si->display_state ) {
 			case HOME:
 				si->active_layout = LAYOUT_CONFIRM_ANIMATION;
 				si->display_state = CONFIRM_WAIT;
@@ -141,18 +140,20 @@ static void handle_confirm_timeout( void* context )
  */
 void swap_layout(ActiveLayout active_layout, volatile StateInfo* si)
 {
-    switch(active_layout)
-    {
+    switch(active_layout) {
     	case LAYOUT_REQUEST:
-    		layout_standard_notification(si->lines[active_layout].request_title, si->lines[active_layout].request_body, NOTIFICATION_REQUEST);
+    		layout_standard_notification(si->lines[active_layout].request_title, 
+                    si->lines[active_layout].request_body, NOTIFICATION_REQUEST);
             remove_runnable( &handle_confirm_timeout );
     		break;
     	case LAYOUT_CONFIRM_ANIMATION:
-    		layout_standard_notification(si->lines[active_layout].request_title, si->lines[active_layout].request_body, NOTIFICATION_CONFIRM_ANIMATION);
+    		layout_standard_notification(si->lines[active_layout].request_title, 
+                    si->lines[active_layout].request_body, NOTIFICATION_CONFIRM_ANIMATION);
     		post_delayed( &handle_confirm_timeout, (void*)si, CONFIRM_TIMEOUT_MS );
     		break;
     	case LAYOUT_CONFIRMED:
-    		layout_standard_notification(si->lines[active_layout].request_title, si->lines[active_layout].request_body, NOTIFICATION_CONFIRMED);
+    		layout_standard_notification(si->lines[active_layout].request_title, 
+                    si->lines[active_layout].request_body, NOTIFICATION_CONFIRMED);
     		remove_runnable( &handle_confirm_timeout );
     		break;
     	default:
