@@ -2,7 +2,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 KeepKey LLC
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -52,14 +52,13 @@ typedef enum
     LAYOUT_INVALID
 } ActiveLayout;
 
-/**
- * Define the given layout dialog texts for each screen
- */
+/* Define the given layout dialog texts for each screen */
 typedef struct
 {
     const char* request_title;
     const char* request_body;
 } ScreenLine;
+
 typedef ScreenLine ScreenLines;
 typedef ScreenLines DialogLines[LAYOUT_NUM_LAYOUTS];
 
@@ -70,15 +69,7 @@ typedef struct
     ActiveLayout active_layout;
 } StateInfo;
 
-/**
- * @param request The string to display for confirmation.
- * @param varargs for the request, printf style.
- *
- * @return true on confirmation.
- *
- * @note The timeout is currently fixed.
- */
-
+/******************* Function Declarations *****************************/
 bool confirm_with_button_request(ButtonRequestType type, const char *request_title, const char *request_body, ...);
 bool confirm(const char* request_title, const char* request_body, ...);
 bool review(const char* request_title, const char* request_body, ...);

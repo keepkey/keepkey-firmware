@@ -2,7 +2,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 KeepKey LLC
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -51,16 +51,9 @@ typedef struct
     uint8_t message[MAX_MESSAGE_SIZE];
 } UsbMessage;
 
-/**
- * The callback function pointer.
- * @param msg The received message.  You need to copy it back into your context, as the 
- * USB fifo depth is limited.
- */
 typedef void (*usb_rx_callback_t)(UsbMessage* msg);
 
-/**
- * @param callback Callback function pointer.
- */
+/******************** Function Declarations ************************/
 void usb_set_rx_callback(usb_rx_callback_t callback);
 bool usb_init(void);
 void usb_poll(void);

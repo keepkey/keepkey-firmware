@@ -2,7 +2,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 KeepKey LLC
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -28,9 +28,6 @@ extern "C" {
 #endif
 
 
-//=============================== INCLUDES ====================================
-
-
 #include <stddef.h>
 #include <stdbool.h>
 #include "canvas.h"
@@ -38,9 +35,7 @@ extern "C" {
 #include "resources.h"
 
 
-//====================== CONSTANTS, TYPES, AND MACROS =========================
-
-
+/***************** typedefs and enums  *******************/
 typedef struct
 {
     uint8_t color;
@@ -63,38 +58,16 @@ typedef struct
 } AnimationImageDrawableParams;
 
 
-//=============================== VARIABLES ===================================
-
-
-//=============================== FUNCTIONS ===================================
-
-
-//-----------------------------------------------------------------------------
-/// Draw a character on the display.
-///
-//-----------------------------------------------------------------------------
+/******************* Function Declarations ******************/
 bool draw_char(Canvas* canvas, Font* font, char c, DrawableParams* params);
-
-
-//-----------------------------------------------------------------------------
-/// Draw a string on the display.
-///
-//-----------------------------------------------------------------------------
+/* Draw a string on the display. */
 bool draw_string(Canvas* canvas, const Font* font, const char* c, DrawableParams* p, int width,
 		int line_height);
 
-
-//-----------------------------------------------------------------------------
-/// Draw a box on the display.
-///
-//-----------------------------------------------------------------------------
+/* Draw a box on the display.  */
 bool draw_box(Canvas* canvas, BoxDrawableParams*  params);
 
-
-//-----------------------------------------------------------------------------
-/// Draw a bitmap on the display using RLE
-///
-//-----------------------------------------------------------------------------
+/* Draw a bitmap on the display using RLE */
 bool draw_bitmap_mono_rle(Canvas* canvas, DrawableParams* p, const Image *img);
 
 

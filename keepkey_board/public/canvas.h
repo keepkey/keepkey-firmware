@@ -2,7 +2,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 KeepKey LLC
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -28,15 +28,10 @@ extern "C" {
 #endif
 
 
-//=============================== INCLUDES ====================================
-
-
 #include <stdint.h>
 #include <stdbool.h>
 
-
-//====================== CONSTANTS, TYPES, AND MACROS =========================
-
+/***************** typedefs and enums  *******************/
 
 typedef struct
 {
@@ -45,12 +40,6 @@ typedef struct
 	int 		width;
 	bool 		dirty;
 } Canvas;
-
-
-//=============================== VARIABLES ===================================
-
-
-//=============================== FUNCTIONS ===================================
 
 
 #ifdef __cplusplus

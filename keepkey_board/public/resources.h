@@ -2,7 +2,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 KeepKey LLC
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -24,18 +24,12 @@
 #define resources_H
 
 
-//================================ INCLUDES ===================================
-
-
 #include <stdint.h>
 #include <stdbool.h>
 #include "keepkey_display.h"
 
 
-//=================== CONSTANTS, MACROS, AND TYPES ========================
-
-
-/// Data pertaining to the image
+/***************** typedefs and enums  *******************/
 typedef struct
 {
 	const void* (*get_image_data)(uint8_t*);

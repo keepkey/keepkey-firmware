@@ -30,14 +30,10 @@
 extern "C" {
 #endif
 
-
-//=============================== INCLUDES ====================================
-
-
 #include <stdint.h>
 #include "canvas.h"
 
-/* enums */
+/***************** typedefs and enums  *******************/
 typedef enum {
     CLR_GREEN_LED,
     SET_GREEN_LED,
@@ -47,7 +43,7 @@ typedef enum {
     TGL_RED_LED
 }led_action;
 
-/* Function declarations  */
+/****************** Function declarations *************** */
 
 void keepkey_leds_init( void);
 void led_func(led_action act);

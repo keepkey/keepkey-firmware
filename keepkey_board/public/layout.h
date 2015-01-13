@@ -93,7 +93,6 @@ struct Animation
     Animation*      next;
 };
 
-
 typedef struct
 {
     Animation*  head;
@@ -102,7 +101,6 @@ typedef struct
 } AnimationQueue;
 
 /**************  Function Declarations ****************/
-
 void layout_init( Canvas* canvas);
 void layout_home(void);
 void layout_sleep( void);

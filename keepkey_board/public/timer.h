@@ -2,7 +2,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 KeepKey LLC
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -35,9 +35,9 @@ extern "C" {
 	
 
 /******************** #defines *************************************/
-#define ONE_SEC 1000 
-#define HALF_SEC 500
-#define MAX_RUNNABLES 3
+#define ONE_SEC 1000   /* count for 1 second  */
+#define HALF_SEC 500   /* count for 0.5 second*/
+#define MAX_RUNNABLES 3 /* max number of queue for task manager */
 
 /******************** Typedefs and enums ***************************/
 typedef void (*Runnable)(void* context);

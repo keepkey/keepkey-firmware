@@ -38,10 +38,6 @@ extern "C" {
 
 #define DEFAULT_DISPLAY_BRIGHTNESS 	65 // percent
 
-
-//=============================== VARIABLES ===================================
-
-
 /**********************  Function Declarations ***********************/
 static void display_configure_io ( void);
 static void display_reset_io( void);
@@ -50,60 +46,12 @@ static void display_prepare_gram_write( void);
 static void display_write_reg ( uint8_t reg);
 static void display_write_ram( uint8_t val );
 
-
-
-//-----------------------------------------------------------------------------
-/// Initialize the GPIO necessary for the display and show a blank screen.
-///
-//-----------------------------------------------------------------------------
 Canvas*display_init (void);
-
-
-//-----------------------------------------------------------------------------
-/// Initialize the GPIO necessary for the display and show a blank screen.
-///
-//-----------------------------------------------------------------------------
-Canvas*
-display_canvas (
-        void
-);
-
-
-//-----------------------------------------------------------------------------
-/// Initialize the GPIO necessary for the display and show a blank screen.
-///
-//-----------------------------------------------------------------------------
-void
-display_refresh(
-		void
-);
-
-
-//-----------------------------------------------------------------------------
-/// Display settings
-///
-//-----------------------------------------------------------------------------
+Canvas* display_canvas (void);
+void display_refresh(void);
 void display_set_brightness(int percentage);
-
-
-//-----------------------------------------------------------------------------
-/// Initialize the GPIO necessary for the display and show a blank screen.
-///
-//-----------------------------------------------------------------------------
-void
-display_turn_on(
-        void
-);
-
-
-//-----------------------------------------------------------------------------
-/// Initialize the GPIO necessary for the display and show a blank screen.
-///
-//-----------------------------------------------------------------------------
-void
-display_turn_off(
-        void
-);
+void display_turn_on(void);
+void display_turn_off(void);
 
 
 #ifdef __cplusplus
