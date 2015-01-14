@@ -49,5 +49,6 @@ bool confirm_cipher(bool encrypt, const char *key);
 bool confirm_encrypt_msg(const char *msg, bool signing);
 bool confirm_decrypt_msg(const char *msg, const char *address);
 bool confirm_ping_msg(const char *msg);
+bool confirm_transaction_output(const char *amount, const char *to);
 
 #endif

@@ -27,6 +27,8 @@
 #include "ripemd160.h"
 #include "base58.h"
 #include <interface.h>
+#include <layout.h>
+#include <confirm_sm.h>
 
 uint32_t op_push(uint32_t i, uint8_t *out) {
 	if (i < 0x4C) {
@@ -57,6 +59,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 	memset(out, 0, sizeof(TxOutputBinType));
 	out->amount = in->amount;
 	uint8_t addr_raw[21];
+	char amount_str[32];
 
 	if (in->script_type == OutputScriptType_PAYTOADDRESS) {
 
@@ -65,26 +68,23 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 			HDNode node;
 			uint32_t k;
 			memcpy(&node, root, sizeof(HDNode));
-			//TODO: Progress Animation
-			//layoutProgressUpdate(true);
+			animating_progress_handler();
 			for (k = 0; k < in->address_n_count; k++) {
 				if (hdnode_private_ckd(&node, in->address_n[k]) == 0) {
 					return 0;
 				}
-				//TODO: Progress Animation
-				//layoutProgressUpdate(true);
+				animating_progress_handler();
 			}
 			ecdsa_get_address_raw(node.public_key, coin->address_type, addr_raw);
 		} else
 		if (in->has_address) { // address provided -> regular output
 			if (needs_confirm) {
-				//TODO:Implement Confirm
-#if 0
-				layoutConfirmOutput(coin, in);
-				if (!protectButton(ButtonRequestType_ButtonRequest_ConfirmOutput, false)) {
+				coin_amnt_to_str(coin, in->amount, amount_str, sizeof(amount_str));
+
+				if(!confirm_transaction_output(amount_str, in->address))
+				{
 					return -1;
 				}
-#endif
 			}
 			if (!ecdsa_address_decode(in->address, addr_raw)) {
 				return 0;
@@ -113,15 +113,14 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		if (addr_raw[0] != coin->address_type_p2sh) {
 			return 0;
 		}
-		//TODO: Implement Confirm
-#if 0
 		if (needs_confirm) {
-			layoutConfirmOutput(coin, in);
-			if (!protectButton(ButtonRequestType_ButtonRequest_ConfirmOutput, false)) {
+			coin_amnt_to_str(coin, in->amount, amount_str, sizeof(amount_str));
+
+			if(!confirm_transaction_output(amount_str, in->address))
+			{
 				return -1;
 			}
 		}
-#endif
 		out->script_pubkey.bytes[0] = 0xA9; // OP_HASH_160
 		out->script_pubkey.bytes[1] = 0x14; // pushing 20 bytes
 		memcpy(out->script_pubkey.bytes + 2, addr_raw + 1, 20);
@@ -142,13 +141,12 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		ripemd160(buf, 32, addr_raw + 1);
 		if (needs_confirm) {
 			base58_encode_check(addr_raw, 21, in->address, sizeof(in->address));
-			//TODO: Implement Confirm
-#if 0
-			layoutConfirmOutput(coin, in);
-			if (!protectButton(ButtonRequestType_ButtonRequest_ConfirmOutput, false)) {
+			coin_amnt_to_str(coin, in->amount, amount_str, sizeof(amount_str));
+
+			if(!confirm_transaction_output(amount_str, in->address))
+			{
 				return -1;
 			}
-#endif
 		}
 		out->script_pubkey.bytes[0] = 0xA9; // OP_HASH_160
 		out->script_pubkey.bytes[1] = 0x14; // pushing 20 bytes

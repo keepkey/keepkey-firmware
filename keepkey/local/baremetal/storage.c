@@ -687,9 +687,9 @@ bool storage_get_imported(void)
 /*
  * storage_set_progress_handler() - set handler for lcd display during flash update
  *
- * INPUT - 
- *      handler - function pointer for animiation 
- * OUTPUT - 
+ * INPUT -
+ *      handler - function pointer for animiation
+ * OUTPUT -
  *      none
  */
 void storage_set_progress_handler(progress_handler_t handler)

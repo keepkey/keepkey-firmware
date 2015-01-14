@@ -417,3 +417,9 @@ bool confirm_ping_msg(const char *msg)
 		return confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
 			"Respond to Ping Request", "A ping request was received. Would you like to have it responded to?");
 }
+
+bool confirm_transaction_output(const char *amount, const char *to)
+{
+	return confirm_with_button_request(ButtonRequestType_ButtonRequest_ConfirmOutput,
+		"Confirm Transaction", "Send %s to %s", amount, to);
+}

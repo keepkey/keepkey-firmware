@@ -24,6 +24,8 @@
 #include "ecdsa.h"
 #include "crypto.h"
 #include "layout.h"
+#include "coins.h"
+#include <confirm_sm.h>
 
 static uint32_t inputs_count;
 static uint32_t outputs_count;
@@ -91,8 +93,7 @@ foreach I:
 
 void send_req_1_input(void)
 {
-	//TODO:Progress Animation
-	//layoutProgress("Signing transaction", 1000 * progress / progress_total);
+	animating_progress_handler();
 	idx2i = idx2o = idx3i = idx3o = 0;
 	signing_stage = STAGE_REQUEST_1_INPUT;
 	resp.has_request_type = true;
@@ -105,8 +106,7 @@ void send_req_1_input(void)
 
 void send_req_2_prev_meta(void)
 {
-	//TODO:Progress Animation
-	//layoutProgress("Signing transaction", 1000 * progress / progress_total);
+	animating_progress_handler();
 	signing_stage = STAGE_REQUEST_2_PREV_META;
 	resp.has_request_type = true;
 	resp.request_type = RequestType_TXMETA;
@@ -119,8 +119,7 @@ void send_req_2_prev_meta(void)
 
 void send_req_2_prev_input(void)
 {
-	//TODO:Progress Animation
-	//layoutProgress("Signing transaction", 1000 * progress / progress_total);
+	animating_progress_handler();
 	signing_stage = STAGE_REQUEST_2_PREV_INPUT;
 	resp.has_request_type = true;
 	resp.request_type = RequestType_TXINPUT;
@@ -135,8 +134,7 @@ void send_req_2_prev_input(void)
 
 void send_req_2_prev_output(void)
 {
-	//TODO:Progress Animation
-	//layoutProgress("Signing transaction", 1000 * progress / progress_total);
+	animating_progress_handler();
 	signing_stage = STAGE_REQUEST_2_PREV_OUTPUT;
 	resp.has_request_type = true;
 	resp.request_type = RequestType_TXOUTPUT;
@@ -151,8 +149,7 @@ void send_req_2_prev_output(void)
 
 void send_req_3_input(void)
 {
-	//TODO:Progress Animation
-	//layoutProgress("Signing transaction", 1000 * progress / progress_total);
+	animating_progress_handler();
 	signing_stage = STAGE_REQUEST_3_INPUT;
 	resp.has_request_type = true;
 	resp.request_type = RequestType_TXINPUT;
@@ -164,8 +161,7 @@ void send_req_3_input(void)
 
 void send_req_3_output(void)
 {
-	//TODO:Progress Animation
-	//layoutProgress("Signing transaction", 1000 * progress / progress_total);
+	animating_progress_handler();
 	signing_stage = STAGE_REQUEST_3_OUTPUT;
 	resp.has_request_type = true;
 	resp.request_type = RequestType_TXOUTPUT;
@@ -177,8 +173,7 @@ void send_req_3_output(void)
 
 void send_req_4_output(void)
 {
-	//TODO:Progress Animation
-	//layoutProgress("Signing transaction", 1000 * progress / progress_total);
+	animating_progress_handler();
 	signing_stage = STAGE_REQUEST_4_OUTPUT;
 	resp.has_request_type = true;
 	resp.request_type = RequestType_TXOUTPUT;
@@ -190,8 +185,7 @@ void send_req_4_output(void)
 
 void send_req_finished(void)
 {
-	//TODO:Progress Animation
-	//layoutProgress("Signing transaction", 1000 * progress / progress_total);
+	animating_progress_handler();
 	resp.has_request_type = true;
 	resp.request_type = RequestType_TXFINISHED;
 	msg_write(MessageType_MessageType_TxRequest, &resp);
@@ -220,8 +214,7 @@ void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinTyp
 
 	tx_init(&to, inputs_count, outputs_count, version, lock_time, false);
 
-	//TODO:Progress Animation
-	//layoutProgressSwipe("Signing transaction", 0);
+	animating_progress_handler();
 
 	send_req_1_input();
 }
@@ -234,8 +227,7 @@ void signing_txack(TransactionType *tx)
 		return;
 	}
 
-	//TODO:Progress Animation
-	//layoutProgress("Signing transaction", 1000 * progress / progress_total);
+	animating_progress_handler();
 
 	int co;
 	memset(&resp, 0, sizeof(TxRequest));
@@ -395,14 +387,13 @@ void signing_txack(TransactionType *tx)
 				spending += tx->outputs[0].amount;
 				co = compile_output(coin, root, tx->outputs, &bin_output, !is_change);
 				if (!is_change) {
-					//TODO:Progress Animation
-					//layoutProgress("Signing transaction", 1000 * progress / progress_total);
+					animating_progress_handler();
 				}
 			} else {
 				co = compile_output(coin, root, tx->outputs, &bin_output, false);
 			}
 			if (co < 0) {
-				fsm_sendFailure(FailureType_Failure_Other, "Signing cancelled by user");
+				cancel_confirm(FailureType_Failure_Other, "Signing cancelled by user");
 				signing_abort();
 				return;
 			} else if (co == 0) {
@@ -478,24 +469,30 @@ void signing_txack(TransactionType *tx)
 					}
 					uint64_t fee = to_spend - spending;
 					uint32_t tx_est_size = transactionEstimateSizeKb(inputs_count, outputs_count);
-					//TODO:Fix Signing
-#if 0
+					char total_amount_str[32];
+					char fee_str[32];
+
 					if (fee > (uint64_t)tx_est_size * coin->maxfee_kb) {
-						layoutFeeOverThreshold(coin, fee, tx_est_size);
-						if (!protectButton(ButtonRequestType_ButtonRequest_FeeOverThreshold, false)) {
-							fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
-							layoutHome();
+
+						coin_amnt_to_str(coin, fee, fee_str, sizeof(fee_str));
+						if (!confirm_with_button_request(ButtonRequestType_ButtonRequest_FeeOverThreshold,
+							"Confirm Fee", "%s", fee_str))
+						{
+							cancel_confirm(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
+							layout_home();
 							return;
 						}
 					}
 					// last confirmation
-					layoutConfirmTx(coin, to_spend - change_spend - fee, fee);
-					if (!protectButton(ButtonRequestType_ButtonRequest_SignTx, false)) {
-						fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
+					coin_amnt_to_str(coin, to_spend - change_spend - fee, total_amount_str, sizeof(total_amount_str));
+
+					if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_SignTx,
+						"Confirm Transaction", "Total amount leaving your wallet is %s with a fee of %s.", total_amount_str, fee_str))
+					{
+						cancel_confirm(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
 						signing_abort();
 						return;
 					}
-#endif
 					send_req_4_output();
 				}
 			}

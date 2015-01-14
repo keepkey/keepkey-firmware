@@ -29,5 +29,6 @@ extern const CoinType coins[COINS_COUNT];
 const CoinType *coinByShortcut(const char *shortcut);
 const CoinType *coinByName(const char *name);
 const CoinType *coinByAddressType(uint8_t address_type);
+void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len);
 
 #endif

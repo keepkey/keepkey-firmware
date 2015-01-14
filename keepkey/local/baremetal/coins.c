@@ -60,3 +60,46 @@ const CoinType *coinByAddressType(uint8_t address_type)
 	}
 	return 0;
 }
+
+void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len)
+{
+	memset(buf, 0, len);
+	uint64_t a = amnt, b = 1;
+	int i;
+
+	for (i = 0; i < 8; i++)
+	{
+		buf[16 - i] = '0' + (a / b) % 10;
+		b *= 10;
+	}
+
+	buf[8] = '.';
+
+	for (i = 0; i < 8; i++)
+	{
+		buf[7 - i] = '0' + (a / b) % 10;
+		b *= 10;
+	}
+
+	i = 17;
+
+	while (i > 10 && buf[i - 1] == '0') // drop trailing zeroes
+	{
+		i--;
+	}
+
+	if (coin->has_coin_shortcut)
+	{
+		buf[i] = ' ';
+		strlcpy(buf + i + 1, coin->coin_shortcut, len - i - 1);
+	} else
+	{
+		buf[i] = 0;
+	}
+
+	while (buf[0] == '0' && buf[1] != '.') // drop leading zeroes
+	{
+		i = 0;
+		while((buf[i] = buf[i + 1])) i++;
+	}
+}
