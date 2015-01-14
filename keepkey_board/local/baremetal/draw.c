@@ -2,7 +2,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 KeepKey LLC
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -20,87 +20,86 @@
  */
 /* END KEEPKEY LICENSE */
 
-/// @file keepkey_display.c
-/// __One_line_description_of_file.
-///
-/// __Detailed_description_of_file.
-
-
-//================================ INCLUDES ===================================
-
 #include <stddef.h>
 #include "draw.h"
 #include "font.h"
 #include "resources.h"
 
-
-//====================== CONSTANTS, TYPES, AND MACROS =========================
-
-
-//=============================== VARIABLES ===================================
-
-
-//=============================== FUNCTIONS ===================================
-
-
+/*
+ * draw_char_with_shift() - draw image on display with left/top margins
+ *
+ * INPUT -
+ *      *canvas - canvas
+ *      *p - pointer to Margins and text color
+ *      *x_shift - left margin
+ *      *y_shift - top margin
+ *      *img - pointer to image drawn on the screen
+ * OUTPUT - 
+ *      true/false - status
+ */
 static bool draw_char_with_shift(Canvas* canvas, DrawableParams* p,
 		int* x_shift, int* y_shift, const CharacterImage* img)
 {
-    bool success = false;
+    bool ret_stat = false;
 
     int start_index = ( p->y * canvas->width ) + p->x;
     uint8_t* canvas_pixel = &canvas->buffer[ start_index ];
 
     // Check that this was a character that we have in the font.
-    if( img != NULL )
-    {
+    if( img != NULL ) {
 
         // Check that it's within bounds.
         if( ( ( img->width + p->x ) <= canvas->width ) &&
-            ( ( img->height + p->y ) <= canvas->height ) )
-        {
+            ( ( img->height + p->y ) <= canvas->height ) ) {
             const uint8_t* img_pixel = &img->data[ 0 ]; 
 
             int y;
-            for( y = 0; y < img->height; y++ )
-            {
+            for( y = 0; y < img->height; y++ ) {
                 int x;
-                for( x = 0; x < img->width; x++ )
-                {
+                for( x = 0; x < img->width; x++ ) {
                     *canvas_pixel = ( *img_pixel == 0x00 ) ? p->color : *canvas_pixel;
                     canvas_pixel++;
                     img_pixel++;
                 }
                 canvas_pixel += ( canvas->width - img->width );
             }
-
-            if( x_shift != NULL )
-            {
+            if( x_shift != NULL ) {
                 *x_shift += img->width;
             }
 
-            if( y_shift != NULL )
-            {
+            if( y_shift != NULL ) {
                 *y_shift += img->height;
             }
 
-            success = true;
+            ret_stat = true;
         }
     }
 
     canvas->dirty = true;
 
-    return success;
+    return(ret_stat);
 }
 
-bool draw_string(Canvas* canvas, const Font* font, const char* str_write, DrawableParams* p, int width, int line_height)
+/*
+ * draw_string()
+ *
+ * INPUT -
+ *      *canvas - canvas
+ *      *font - pointer to font size
+ *      *str_write - pointer to string to shown on display
+ *      *p - pointer to Margins and text color
+ *      width - row width allocated for drawing
+ *      line_height - offset from top of screen 
+ * OUTPUT - 
+ *      none
+ */
+void draw_string(Canvas *canvas, const Font *font, const char *str_write, DrawableParams *p, int width, int line_height)
 {
     bool have_space = true;
     int x_offset = 0;
     DrawableParams char_params = *p;
 
-    while( *str_write && have_space )
-    {
+    while( *str_write && have_space ) {
     	const CharacterImage* img = font_get_char(font, *str_write);
     	int word_width = img->width;
     	char* next_c = (char *)str_write + 1;
@@ -111,50 +110,43 @@ bool draw_string(Canvas* canvas, const Font* font, const char* str_write, Drawab
     	 */
     	if(*str_write == ' '){
 
-    		while(*next_c && *next_c != ' ')
-    		{
+    		while(*next_c && *next_c != ' ') {
     			word_width += font_get_char(font, *next_c)->width;
     			next_c++;
     		}
     	}
 
-    	/*
-    	 * Determine if we need a line break
-    	 */
-    	if((width != 0) && (x_offset + word_width > width))
-    	{
+    	/* Determine if we need a line break */
+    	if((width != 0) && (x_offset + word_width > width)) {
     		char_params.y += line_height;
     		x_offset = 0;
     	}
 
-    	/*
-    	 * Remove spaces from beginning of of line
-    	 */
-    	if(x_offset == 0 && *str_write == ' ')
-		{
+    	/* Remove spaces from beginning of of line */
+    	if(x_offset == 0 && *str_write == ' ') {
 			str_write++;
 			continue;
 		}
 
-    	/*
-    	 * Draw Character
-    	 */
+    	/* Draw Character */
         char_params.x = x_offset + p->x;
-        have_space = draw_char_with_shift(
-                canvas,
-                &char_params,
-                &x_offset,
-                NULL,
-                img);
+        have_space = draw_char_with_shift( canvas, &char_params, &x_offset, NULL, img);
         str_write++;
     }
 
     canvas->dirty = true;
-
-    return have_space;
 }
 
-bool draw_box(Canvas* canvas, BoxDrawableParams* p)
+/*
+ * draw_box() - draw box on display for debugging
+ *
+ * INPUT - 
+ *      *canvas - canvas
+ *      *p - pointer to Margins and text color
+ * OUTPUT - 
+ *      none
+ */
+void draw_box(Canvas *canvas, BoxDrawableParams *p)
 {
     int start_row = p->base.y;
     int end_row = start_row + p->height;
@@ -171,11 +163,9 @@ bool draw_box(Canvas* canvas, BoxDrawableParams* p)
     int width = end_col - start_col;
 
     int y;
-    for( y = 0; y < height; y++ )
-    {
+    for( y = 0; y < height; y++ ) {
         int x;
-        for( x = 0; x < width; x++ )
-        {
+        for( x = 0; x < width; x++ ) {
             *canvas_pixel = p->base.color;
             canvas_pixel++;
         }
@@ -183,12 +173,21 @@ bool draw_box(Canvas* canvas, BoxDrawableParams* p)
     }
 
     canvas->dirty = true;
-    
-    return true;
 }
 
+/*
+ * draw_bitmap_mono_rle()
+ *
+ * INPUT - 
+ *      *canvas - canvas
+ *      *p - pointer to Margins and text color
+ *      *img - pointer to image drawn on the screen
+ * OUTPUT - 
+ *      true/false - status
+ */
 bool draw_bitmap_mono_rle(Canvas* canvas, DrawableParams* p, const Image *img)
 {
+    bool ret_stat = false;
 	int x0, y0;
 	int8_t sequence = 0;
 	int8_t nonsequence = 0;
@@ -198,56 +197,43 @@ bool draw_bitmap_mono_rle(Canvas* canvas, DrawableParams* p, const Image *img)
     int start_index = ( p->y * canvas->width ) + p->x;
     uint8_t* canvas_pixel = &canvas->buffer[ start_index ];
 
-    /*
-     * Get image data
-     */
+    /* Get image data */
     img->get_image_data(image_data);
 
-	/*
-	 * Check that image will fit in bounds
-	 */
+	/* Check that image will fit in bounds */
 	if( ( ( img->width + p->x ) <= canvas->width ) &&
-		( ( img->height + p->y ) <= canvas->height ) )
-	{
+		( ( img->height + p->y ) <= canvas->height ) ) {
 		const uint8_t* img_pixel = &image_data[0];
 
-		for( y0 = 0; y0 < img->height; y0++ )
-		{
-			for( x0 = 0; x0 < img->width; x0++ )
-			{
-				if ((sequence == 0) && (nonsequence == 0))
-				{
+		for( y0 = 0; y0 < img->height; y0++ ) {
+			for( x0 = 0; x0 < img->width; x0++ ) {
+				if ((sequence == 0) && (nonsequence == 0)) {
 					sequence = *img_pixel++;
-					if (sequence < 0)
-					{
+					if (sequence < 0) {
 						nonsequence = -sequence;
 						sequence = 0;
 					}
 				}
-				if (sequence > 0)
-				{
+				if (sequence > 0) {
 					*canvas_pixel = *img_pixel;
 
 					sequence--;
 
-					if (sequence == 0)
+					if (sequence == 0) {
 						img_pixel++;
+                    }
 				}
-				if (nonsequence > 0)
-				{
+				if (nonsequence > 0) {
 					*canvas_pixel = *img_pixel++;
 
 					nonsequence--;
 				}
-
 				canvas_pixel++;
 			}
 			canvas_pixel += ( canvas->width - img->width );
 		}
-
 		canvas->dirty = true;
-		return true;
+        ret_stat = true;
 	}
-
-	return false;
+	return(ret_stat);
 }
