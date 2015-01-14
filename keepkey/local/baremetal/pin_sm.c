@@ -155,7 +155,7 @@ static void randomize_pin(char pin[])
 static void decode_pin(char randomized_pin[], PINInfo *pin_info)
 {
 	for (uint8_t i = 0; i < strlen(pin_info->pin); i++) {
-		uint8_t j = pin_info->pin[i] - '0';
+		uint8_t j = pin_info->pin[i] - '1';
 
 		if(0 <= j < strlen(randomized_pin)) {
 			pin_info->pin[i] = randomized_pin[j];

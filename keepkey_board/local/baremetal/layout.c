@@ -303,7 +303,7 @@ void layout_pin(const char* prompt, char pin[])
 	for(uint8_t row = 0; row < 3; row++) {
 		for(uint8_t col = 0; col < 3; col++) {
 			uint8_t pad = 7;
-			pin_num[0] = *pin++;
+			pin_num[0] = pin[col + (2 - row) * 3];
 
 			/*
 			 * Adjust pad
