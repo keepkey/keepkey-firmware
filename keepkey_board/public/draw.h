@@ -61,11 +61,11 @@ typedef struct
 /******************* Function Declarations ******************/
 bool draw_char(Canvas* canvas, Font* font, char c, DrawableParams* params);
 /* Draw a string on the display. */
-bool draw_string(Canvas* canvas, const Font* font, const char* c, DrawableParams* p, int width,
+void draw_string(Canvas* canvas, const Font* font, const char* c, DrawableParams* p, int width,
 		int line_height);
 
 /* Draw a box on the display.  */
-bool draw_box(Canvas* canvas, BoxDrawableParams*  params);
+void draw_box(Canvas* canvas, BoxDrawableParams*  params);
 
 /* Draw a bitmap on the display using RLE */
 bool draw_bitmap_mono_rle(Canvas* canvas, DrawableParams* p, const Image *img);
