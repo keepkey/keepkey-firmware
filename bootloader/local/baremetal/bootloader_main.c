@@ -99,6 +99,19 @@ static const uint8_t pubkey[PUBKEYS][PUBKEY_LENGTH] =
 //=============================== FUNCTIONS ===================================
 
 /*
+ * system_halt() - forever loop here
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
+void __attribute__((noreturn)) system_halt(void)
+{
+    /*disable interrupts */
+	__asm__("CPSID I\n");
+    for (;;) {} // loop forever
+}
+
+/*
  * Lightweight routine to reset the vector table to point to the application's vector table.
  *
  * @param offset This must be a multiple of 0x200.  This is added to to the base address of flash
@@ -222,6 +235,7 @@ bool check_firmware_sig(void)
 #else
 	return(true);
 #endif
+
 }
 /*
  *  check_fw_is_new - check firmware being loaded is newer than installed version
@@ -230,7 +244,6 @@ bool check_firmware_sig(void)
  *      - none
  *  OUTPUT
  *      - true/false
- *
  */
 bool check_fw_is_new(void)
 {
@@ -240,6 +253,7 @@ bool check_fw_is_new(void)
 
 /*
  * Bootloader main entry function
+ *
  * INPUT - argc (not used)
  * OUTPUT - argv (not used)
  */
@@ -273,7 +287,9 @@ int main(int argc, char* argv[])
             }
             else {
                 /* Invalid magic found.  Not booting!!! */
-                layout_standard_notification("INVALID FIRMWARE MAGIC", "Magic value invalid in Application partition", NOTIFICATION_INFO);
+                layout_standard_notification("INVALID FIRMWARE MAGIC", 
+                        "Magic value invalid in Application partition", 
+                        NOTIFICATION_INFO);
                 display_refresh();
                 dbg_print("INVALID FIRMWARE MAGIC\n\r");
                 break;
@@ -291,6 +307,6 @@ int main(int argc, char* argv[])
         }
     }
 
-    FOREVER_LOOP();/* Catastrophic error, hang in forever loop */
+    system_halt();  /* Catastrophic error, hang in forever loop */
     return(false);  /* should never get here */
 }

@@ -15,6 +15,10 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * Jan 9, 2015 - This file has been modified and adapted for KeepKey project.
+ *
  */
 
 #include <assert.h>
@@ -177,43 +181,29 @@ static uint16_t msg_tiny_id = 0xFFFF;
 MessageType wait_for_tiny_msg(uint8_t *buf)
 {
 	check_for_tiny_msg(true);
+	/* copy tiny message buffer */
+	memcpy(buf, msg_tiny, sizeof(msg_tiny)); 
 
-	/*
-	 * Set and return msg
-	 */
-	memcpy(buf, msg_tiny, sizeof(msg_tiny));
-	return msg_tiny_id;
+	return(msg_tiny_id);
 }
 
 MessageType check_for_tiny_msg(bool block)
 {
-	/*
-	 * Init
-	 */
-	msg_tiny_id = 0xFFFF;
+	msg_tiny_id = 0xFFFF; /* Init */
+	msg_tiny_flag = true; /* Turn on tiny msg */
 
-	/*
-	 * Turn on tiny msg
-	 */
-	msg_tiny_flag = true;
-
-	while(msg_tiny_id == 0xFFFF)
-	{
+    /* poll until "msg_tiny_id" is updated */
+	while(msg_tiny_id == 0xFFFF) {
 		usb_poll();
-
-		if(!block)
+		if(!block){
 			break;
+        }
 	}
-
-	/*
-	 * Turn off tiny msg
-	 */
+	/* Turn off tiny msg */
 	msg_tiny_flag = false;
 
-	/*
-	 * Return msg id
-	 */
-	return msg_tiny_id;
+	/* Return msg id */
+	return(msg_tiny_id);
 }
 
 

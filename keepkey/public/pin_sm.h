@@ -2,7 +2,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 Carbon Design Group <tom@carbondesign.com>
+ * Copyright (C) 2014 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by

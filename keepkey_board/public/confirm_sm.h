@@ -2,7 +2,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 Carbon Design Group <tom@carbondesign.com>
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -19,26 +19,57 @@
  *
  */
 /* END KEEPKEY LICENSE */
-/*
- * @brief General confirmation state machine
- */
 
 #ifndef CONFIRM_SM_H
 #define CONFIRM_SM_H
 
 #include <stdbool.h>
-
 #include <interface.h>
 
-/**
- * @param request The string to display for confirmation.
- * @param varargs for the request, printf style.
- *
- * @return true on confirmation.
- *
- * @note The timeout is currently fixed.
- */
+/***************** #defines ******************************/
+/* The number of milliseconds to wait for a confirmation */
+#define CONFIRM_TIMEOUT_MS (1800)
+#define MAX_CYPHER_KEY_LEN 55
+#define MAX_ENCRYPT_MSG_LEN 65
+#define MAX_PING_MSG_LEN 36
 
+/***************** typedefs and enums  *******************/
+typedef enum
+{
+    HOME,
+    CONFIRM_WAIT,
+    CONFIRMED,
+    FINISHED
+} DisplayState;
+
+typedef enum
+{
+    LAYOUT_REQUEST,
+    LAYOUT_CONFIRM_ANIMATION,
+    LAYOUT_CONFIRMED,
+    LAYOUT_FINISHED,
+    LAYOUT_NUM_LAYOUTS,
+    LAYOUT_INVALID
+} ActiveLayout;
+
+/* Define the given layout dialog texts for each screen */
+typedef struct
+{
+    const char* request_title;
+    const char* request_body;
+} ScreenLine;
+
+typedef ScreenLine ScreenLines;
+typedef ScreenLines DialogLines[LAYOUT_NUM_LAYOUTS];
+
+typedef struct 
+{
+    DialogLines lines;
+    DisplayState display_state;
+    ActiveLayout active_layout;
+} StateInfo;
+
+/******************* Function Declarations *****************************/
 bool confirm_with_button_request(ButtonRequestType type, const char *request_title, const char *request_body, ...);
 bool confirm(const char* request_title, const char* request_body, ...);
 bool review(const char* request_title, const char* request_body, ...);

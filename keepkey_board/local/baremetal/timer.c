@@ -1,12 +1,24 @@
-/******************************************************************************
-    Copyright (c) __20xx __Client_Name. All rights reserved.
-    Developed for __Client_Name by Carbon Design Group.
-******************************************************************************/
-
-/// @file timer.c
-/// Timer related functions such as delays and delayed runnables.
-///
-
+/* START KEEPKEY LICENSE */
+/*
+ * This file is part of the KeepKey project.
+ *
+ * Copyright (C) 2014 KeepKey LLC
+ *
+ * This library is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+/* END KEEPKEY LICENSE */
 
 //================================ INCLUDES ===================================
 
@@ -20,122 +32,37 @@
 #include "keepkey_leds.h"
 
 
-//====================== CONSTANTS, TYPES, AND MACROS =========================
-
-
-#define MAX_RUNNABLES 3
-
-
-//-----------------------------------------------------------------------------
-// Delayed function node callback.
-//
-typedef struct RunnableNode RunnableNode;
-struct RunnableNode
-{
-    uint32_t    remaining;
-
-    Runnable    runnable;
-    void*       context;
-
-    uint32_t    period;
-    bool        repeating;
-
-    RunnableNode* next;
-};
-
-
-typedef struct
-{
-    RunnableNode*   head;
-
-    int             size;
-} RunnableQueue;
-
-
-
-//=============================== VARIABLES ===================================
-
-
+/******************** Static/Global Variables ***************************/ 
 static volatile uint32_t remaining_delay;
-
-
 static RunnableNode runnables[ MAX_RUNNABLES ];
-
-
 static RunnableQueue free_queue = { NULL, 0 };
 static RunnableQueue active_queue = { NULL, 0 };
 
 
-//====================== PRIVATE FUNCTION DECLARATIONS ========================
+/***************** Function Declarations ********************************/
+static void run_runnables(void);
+static void runnable_queue_push( RunnableQueue *queue, RunnableNode *node);
+static RunnableNode *runnable_queue_pop(RunnableQueue* queue);
+static RunnableNode *runnable_queue_peek(RunnableQueue* queue);
+static RunnableNode *runnable_queue_get(RunnableQueue *queue, Runnable callback);
 
-
-//-----------------------------------------------------------------------------
-// 
-static void
-run_runnables(
-        void
-);
-
-
-//-----------------------------------------------------------------------------
-// 
-static void
-runnable_queue_push(
-        RunnableQueue* queue,
-        RunnableNode*      node
-);
-
-
-//-----------------------------------------------------------------------------
-// 
-static RunnableNode*
-runnable_queue_pop(
-        RunnableQueue* queue
-);
-
-
-//-----------------------------------------------------------------------------
-// 
-static RunnableNode*
-runnable_queue_peek(
-        RunnableQueue* queue
-);
-
-
-//-----------------------------------------------------------------------------
-// 
-static RunnableNode*
-runnable_queue_get(
-        RunnableQueue* queue,
-        Runnable callback
-);
-
-
-//=============================== FUNCTIONS ===================================
-
-
-//-----------------------------------------------------------------------------
-// See timer.h for public interface.
-//
-void
-timer_init(
-        void
-)
+/*
+ * timer_init() - timer 4 initialization.  Main timer for round robin tasking. 
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
+void timer_init(void) 
 {
     int i;
-    for( i = 0; i < MAX_RUNNABLES; i++ )
-    {
+    for( i = 0; i < MAX_RUNNABLES; i++ ) {
         runnable_queue_push( &free_queue, &runnables[ i ] );
     }
 
     // Set up the timer.
     timer_reset(TIM4);
     timer_enable_irq(TIM4, TIM_DIER_UIE);
-    timer_set_mode(
-            TIM4, 
-            TIM_CR1_CKD_CK_INT,
-            TIM_CR1_CMS_EDGE, 
-            TIM_CR1_DIR_UP );
+    timer_set_mode( TIM4, TIM_CR1_CKD_CK_INT, TIM_CR1_CMS_EDGE, TIM_CR1_DIR_UP );
 
     // 1000 * ( 120 / 12000000 ) = 1 ms intervals
     // Where 1000 is the counter, 120 is the prescalar,
@@ -149,45 +76,45 @@ timer_init(
     timer_enable_counter( TIM4 );
 }
 
-
-//-----------------------------------------------------------------------------
-// See timer.h for public interface.
-//
-void
-delay_ms(
-        uint32_t ms
-)
+/*
+ * delay_ms() - millisecond delay 
+ *
+ * INPUT - 
+ *      ms - count in milliseconds
+ * OUTPUT - 
+ *      none
+ */
+void delay_ms(uint32_t ms)
 {
     remaining_delay = ms;
 
-    while( remaining_delay > 0 )
-    {}
+    while( remaining_delay > 0 ) {}
 }
 
-
-//-----------------------------------------------------------------------------
-// 
-void tim4_isr()
+/*
+ * tim4_isr() - timer 4 interrupt service routine
+ *
+ * INPUT - none
+ * OUTPUT - none
+ *
+ */
+void tim4_isr(void)
 {
     // Decrement the delay.
-    if( remaining_delay > 0 )
-    {
+    if( remaining_delay > 0 ) {
         remaining_delay--;
     }
-    
     run_runnables();
-
     timer_clear_flag(TIM4, TIM_SR_UIF);
-
 }
 
-
-//-----------------------------------------------------------------------------
-// 
-static void
-run_runnables(
-        void
-)
+/*
+ * run_runnables() - run task (callback function) located in task manager (queue) 
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
+static void run_runnables(void)
 {
     // Do timer function work.    
     RunnableNode* runnable_node = runnable_queue_peek( &active_queue );
@@ -224,47 +151,47 @@ run_runnables(
     }
 }
 
-
-//-----------------------------------------------------------------------------
-// 
-void
-post_delayed(
-        Runnable    runnable,
-        void*       context,
-        uint32_t    delay_ms
-)
+/*
+ * post_delayed() - add delay to existing task (callback function) in task manager (queue)
+ *
+ * INPUT - 
+ *      callback - task function
+ *      *context - pointer to task arguments
+ *      delay_ms - delay befor task starts
+ * OUTPUT - 
+ *      none
+ */
+void post_delayed(Runnable callback, void *context, uint32_t delay_ms)
 {
-    RunnableNode* runnable_node = runnable_queue_get( &active_queue, runnable );
+    RunnableNode* runnable_node = runnable_queue_get( &active_queue, callback );
 
-    if( runnable_node == NULL )
-    {
+    if( runnable_node == NULL ) {
         runnable_node = runnable_queue_pop( &free_queue );
     }
 
-    runnable_node->runnable     = runnable;
+    runnable_node->runnable     = callback;
     runnable_node->context      = context;
     runnable_node->remaining    = delay_ms;
     runnable_node->period       = 0;
     runnable_node->repeating    = false;
-
     runnable_queue_push( &active_queue, runnable_node );
 }
 
-
-//-----------------------------------------------------------------------------
-// 
-void
-post_periodic(
-        Runnable    callback,
-        void*       context,
-        uint32_t    period_ms,
-        uint32_t    delay_ms
-)
+/*
+ * post_periodic() - add repeat & delay to existing task (callback function) in task manager (queue)
+ *
+ * INPUT - 
+ *      callback - task function
+ *      *context - pointer to task arguments
+ *      period_m - task repeat interval (period) 
+ *      delay_ms - delay befor task starts
+ * OUTPUT - 
+ *      none
+ */
+void post_periodic(Runnable callback, void *context, uint32_t period_ms, uint32_t delay_ms)
 {
     RunnableNode* runnable_node = runnable_queue_get( &active_queue, callback );
-
-    if( runnable_node == NULL )
-    {
+    if( runnable_node == NULL ) {
         runnable_node = runnable_queue_pop( &free_queue );
     }
 
@@ -277,86 +204,83 @@ post_periodic(
     runnable_queue_push( &active_queue, runnable_node );
 }
 
-
-//-----------------------------------------------------------------------------
-// 
-void
-remove_runnable(
-        Runnable  runnable
-)
+/*
+ * remove_runnable() - remove task from the task manager (queue)
+ *
+ * INPUT - 
+ *      callback - task function
+ * OUTPUT - 
+ *      none
+ */
+void remove_runnable(Runnable callback)
 {
-    RunnableNode* runnable_node = runnable_queue_get( &active_queue, runnable );
+    RunnableNode* runnable_node = runnable_queue_get( &active_queue, callback );
 
-    if( runnable_node != NULL )
-    {
+    if( runnable_node != NULL ) {
         runnable_queue_push( &free_queue, runnable_node );
     }
 }
 
-
-//-----------------------------------------------------------------------------
-// 
-void
-clear_runnables(
-        void
-)
+/*
+ * clear_runnables() - reset free_queue and active_queue to initial state
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
+void clear_runnables(void)
 {
     RunnableNode* runnable_node = runnable_queue_pop( &active_queue );
 
-    while( runnable_node != NULL )
-    {
-        runnable_queue_push(
-                &free_queue,
-                runnable_node );
-
-        runnable_node = runnable_queue_pop( &active_queue );
+    while( runnable_node != NULL ) {
+        runnable_queue_push(&free_queue, runnable_node);
+        runnable_node = runnable_queue_pop(&active_queue);
     }
 }
 
-
-//-----------------------------------------------------------------------------
-// 
-static RunnableNode*
-runnable_queue_peek(
-        RunnableQueue* queue
-)
+/*
+ * runnable_queue_peek() - get pointer to head node in task manager (queue)
+ *
+ * INPUT - 
+ *      *queue - head pointer to linklist (queue)
+ * OUTPUT - 
+ *      *RunnableNode - head node in the queue
+ */
+static RunnableNode* runnable_queue_peek(RunnableQueue *queue)
 {
-    return queue->head;
+    return(queue->head);
 }
 
-
-//-----------------------------------------------------------------------------
-// 
-static void
-runnable_queue_push(
-        RunnableQueue* queue,
-        RunnableNode*      node
-)
+/*
+ * runnable_queue_push() - push node to the task manger (queue)
+ *
+ * INPUT -
+ *      *queue - head pointer to the queue
+ *      *node - pointer to a new node to be added
+ * OUTPUT - 
+ *      none
+ */
+static void runnable_queue_push(RunnableQueue *queue, RunnableNode *node)
 {
     cm_disable_interrupts();
-
-    if( queue->head != NULL )
-    {
+    if( queue->head != NULL ) {
         node->next = queue->head;
-    }
-    else
-    {
+    } else {
     	node->next = NULL;
     }
- 
     queue->head = node;
     queue->size += 1;
-
     cm_enable_interrupts();
 }
 
-
-//-----------------------------------------------------------------------------
-// 
-static RunnableNode*
-runnable_queue_pop(
-        RunnableQueue* queue
-)
+/*
+ * runnable_queue_pop() - pop node from task manager (queue)
+ *
+ * INPUT - 
+ *      *queue - head pointer to task manager 
+ * OUTPUT -
+ *      *RunnableNode - pointer to an available node retrieved from the queue
+ */
+static RunnableNode* runnable_queue_pop(RunnableQueue *queue)
 {
     cm_disable_interrupts();
 
@@ -370,38 +294,38 @@ runnable_queue_pop(
 
     cm_enable_interrupts();
 
-    return runnable_node;
+    return(runnable_node);
 }
 
-
-//-----------------------------------------------------------------------------
-// 
-static RunnableNode*
-runnable_queue_get(
-        RunnableQueue* queue,
-        Runnable runnable
-)
+/*
+ * runnable_queue_get() - get the pointer to node that contains the  
+ *                        callback function (task)
+ *
+ * INPUT -
+ *      *queue - head pointer to linklist (queue)
+ *      callback - task function  
+ * OUTPUT - 
+ *      *RunnableNode - pointer to a node containing the requested task function
+ */
+static RunnableNode* runnable_queue_get(RunnableQueue *queue, Runnable callback)
 {
-    RunnableNode* current = queue->head;
-    RunnableNode* result = NULL;
+    RunnableNode *current = queue->head;
+    RunnableNode *result = NULL;
 
-    if( current != NULL )
-    {
-        if( current->runnable == runnable )
-        {
+    /* check queue is empty */
+    if( current != NULL ) {
+        if( current->runnable == callback ) {
             result = current;
             queue->head = current->next;
-        }
-        else
-        {
+        } else {
+            /* search through the linklist for node that contains the runnable 
+               callback function */
             RunnableNode* previous = current;
             current = current->next;
 
-            while( ( current != NULL ) && ( result == NULL ) )
-            {
+            while( ( current != NULL ) && ( result == NULL ) ) {
                 // Found the node!
-                if( current->runnable == runnable )
-                {
+                if( current->runnable == callback ) {
                     result = current;
                     previous->next = current->next;
                     result->next = NULL;
@@ -413,10 +337,8 @@ runnable_queue_get(
         }
     }
 
-    if( result != NULL )
-    {
+    if( result != NULL ) {
         queue->size -= 1;
     }
-
-    return result;
+    return(result);
 }

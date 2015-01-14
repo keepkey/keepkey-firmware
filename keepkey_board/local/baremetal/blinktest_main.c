@@ -1,8 +1,8 @@
+/* START KEEPKEY LICENSE */
 /*
- * This file is part of the libopencm3 project.
+ * This file is part of the KeepKey project.
  *
- * Copyright (C) 2009 Uwe Hermann <uwe@hermann-uwe.de>
- * Copyright (C) 2011 Fergus Noble <fergusnoble@gmail.com>
+ * Copyright (C) 2014 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -16,105 +16,62 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
-
-
+/* END KEEPKEY LICENSE */
 //================================ INCLUDES ===================================
 
 
+#include <stddef.h>
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
-
-#include <stddef.h>
-
 #include "keepkey_display.h"
 #include "keepkey_leds.h"
 #include "keepkey_button.h"
 #include "timer.h"
 #include "layout.h"
 
+static void configure_hw(void);
 
-//====================== CONSTANTS, TYPES, AND MACROS =========================
-
-
-typedef enum
-{
-    HOME,
-    INFO,
-    CONFIRMING
-} DisplayState;
-
-//=============================== VARIABLES ===================================
-
-
-static volatile DisplayState display_state = HOME;
-
-
-//====================== PRIVATE FUNCTION DECLARATIONS ========================
-
-
-static void
-handle_screen_press(
-        void* context
-);
-
-
-static void
-handle_screen_release(
-        void* context
-);
-
-
-static void
-handle_confirm_timeout(
-        void* context 
-);
-
-
-//-------------------------------------------------------------------------
-// Configure all the hardware
-//
-static void
-configure_hw(
-        void
-);
-
-
-//=============================== FUNCTIONS ===================================
-
-
-static void
-blink(
-        void* context 
-)
+/*
+ * blink() - toggl red led 
+ *
+ * INPUT - 
+ *      *context - pointer to arguments 
+ * OUTOPUT - 
+ *      none
+ *
+ */
+static void blink(void *context )
 {
     led_func(TGL_RED_LED);
 }
 
-static void
-blonk(
-        void* context 
-)
+/*
+ * blonk() - toggle led green led
+ *
+ * INPUT - 
+ *      *context - pointer to arguments 
+ * OUTPUT - 
+ *      none
+ */
+static void blonk(void *context)
 {
     led_func(TGL_GREEN_LED);
 }
 
-//-------------------------------------------------------------------------
-// 
-//
-int 
-main(
-        void
-)
+/*
+ * main() - main entry to blinky_main application
+ *
+ * INPUT - none
+ * OUTPUT - 0 - dummy return.
+ */
+int main(void)
 {
     configure_hw();
-
     display_init();
-
     layout_init( display_canvas() );
-
     layout_home();
-
     post_periodic( &blink, NULL, 1000, 1000 );
     post_periodic( &blonk, NULL, 500, 1000 );
 
@@ -127,18 +84,17 @@ main(
 
         animate();
     }
-
     return 0;
 }
 
 
-//-------------------------------------------------------------------------
-// Configure all the hardware
-//
-static void
-configure_hw(
-        void
-)
+/*
+ * configure_hw() - harware initialization 
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
+static void configure_hw(void)
 {
     clock_scale_t clock = hse_8mhz_3v3[ CLOCK_3V3_120MHZ ];
     rcc_clock_setup_hse_3v3( &clock );

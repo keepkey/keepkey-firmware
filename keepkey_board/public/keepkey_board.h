@@ -2,7 +2,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 Carbon Design Group <tom@carbondesign.com>
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -50,22 +50,16 @@ extern "C" {
  */
 
 
-/*
- * Specify the length of the uuid binary string
- */ 
+/*********************  #defines ***************************************
+/* Specify the length of the uuid binary string */ 
 #define STORAGE_UUID_LEN 12
-
-/*
- * Length of the uuid binary converted to readable ASCII.
- */
+/* Length of the uuid binary converted to readable ASCII.  */
 #define STORAGE_UUID_STR_LEN ((STORAGE_UUID_LEN * 2) + 1)
-
 #define META_MAGIC 0x73746F72  /* 'stor' */
 
-/*
- * Flash metadata structure which will contains unique identifier
- * information that spans device resets.
- */
+/***************** typedefs and enums  *******************/
+/* Flash metadata structure which will contains unique identifier
+   information that spans device resets.  */
 typedef struct
 {
     uint32_t magic;  
@@ -73,24 +67,18 @@ typedef struct
     char uuid_str[STORAGE_UUID_STR_LEN];
 } Metadata;
 
-/*
- * Config flash overlay structure.
- */
+/* Config flash overlay structure.  */
 typedef struct 
 {
     Metadata meta;
     Storage storage;
 } ConfigFlash;
 
-/**
- * Perform a soft reset of the board.
- */
+/***********************  Function Declaration ***************************/
+/* Perform a soft reset of the board.  */
 void board_reset(void);
 void scb_reset_system(void);
-
-/*
- * Initial setup and configuration of board.
- */
+/* Initial setup and configuration of board.  */
 void board_init(void);
 
 #ifdef __cplusplus

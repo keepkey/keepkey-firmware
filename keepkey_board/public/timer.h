@@ -1,10 +1,24 @@
-/******************************************************************************
-    Copyright (c) __20xx __Client_Name. All rights reserved.
-    Developed for __Client_Name by Carbon Design Group.
-******************************************************************************/
-
-/// @file timer.h
-
+/* START KEEPKEY LICENSE */
+/*
+ * This file is part of the KeepKey project.
+ *
+ * Copyright (C) 2015 KeepKey LLC
+ *
+ * This library is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+/* END KEEPKEY LICENSE */
 
 //============================= CONDITIONALS ==================================
 
@@ -21,10 +35,29 @@ extern "C" {
 	
 
 /******************** #defines *************************************/
-#define ONE_SEC 1000 
-#define HALF_SEC 500
+#define ONE_SEC 1000   /* count for 1 second  */
+#define HALF_SEC 500   /* count for 0.5 second*/
+#define MAX_RUNNABLES 3 /* max number of queue for task manager */
+
 /******************** Typedefs and enums ***************************/
 typedef void (*Runnable)(void* context);
+typedef struct RunnableNode RunnableNode;
+struct RunnableNode
+{
+    uint32_t    remaining;
+    Runnable    runnable;
+    void        *context;
+    uint32_t    period;
+    bool        repeating;
+    RunnableNode* next;
+};
+
+typedef struct
+{
+    RunnableNode*   head;
+    int             size;
+} RunnableQueue;
+
 
 
 /******************** Function Declarations ***********************/

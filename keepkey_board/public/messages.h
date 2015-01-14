@@ -22,9 +22,9 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-
 #include <interface.h>
 
+/***************** Typedefs and enums  *******************/
 typedef enum
 {
     MESSAGE_MAP,
@@ -49,24 +49,11 @@ typedef void (*msg_success_t)(const char *);
 typedef void (*msg_failure_t)(FailureType, const char *);
 typedef void (*msg_initialize_t)(Initialize *);
 
-/*
- *
- * @param type The pb type of the message.
- * @param msg The message structure to encode and send.
- *
- * @return true if the message is successfully encoded and sent.
- */
+/***************** Function Declarations ******************/
 bool msg_write(MessageType type, const void* msg);
-
-/*
- * Initializes the messaging subsystem with a set of callback handlers for each
- * expected message type.
- */
 void msg_map_init(const void* map, MessageMapType type);
 
-/*
- * Message failure and message init callback
- */
+/* Message failure and message init callback */
 void set_msg_success_handler(msg_success_t success_func);
 void set_msg_failure_handler(msg_failure_t failure_func);
 void set_msg_initialize_handler(msg_initialize_t initialize_func);
@@ -74,14 +61,10 @@ void call_msg_success_handler(const char *text);
 void call_msg_failure_handler(FailureType code, const char *text);
 void call_msg_initialize_handler(void);
 
-/*
- * Assign callback for USB interrupt handling
- */
+/* Assign callback for USB interrupt handling */
 void msg_init();
 
-/*
- * Tiny messages
- */
+/* Tiny messages */
 MessageType wait_for_tiny_msg(uint8_t *buf);
 MessageType check_for_tiny_msg(bool block);
 

@@ -35,21 +35,12 @@
 extern "C" {
 #endif
 
-/*
- *  Extern declarations to resolve compiler warnings 
- */
+/* Extern declarations to resolve compiler warnings */
 extern int sprintf(char *, const char *, ...);
 extern int vsprintf(char *, const char *, va_list);
 
-/*
- *  print to debug console
- */
-bool dbg_print(char *pStr, ...);
-
-/*
- *  Initialize usart3 for debug port
- */
-void usart_init(void);
+bool dbg_print(char *pStr, ...); /*  print to debug console */
+void usart_init(void); /* Initialize usart3 for debug port */
 
 #ifdef __cplusplus
 }
