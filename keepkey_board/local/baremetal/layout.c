@@ -2,7 +2,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 KeepKey LLC
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -46,7 +46,7 @@ static const uint32_t STANDARD_CONFIRM_MS = 2000;
 
 /* static function */
 
-static void layout_animate( void* context );
+static void layout_animate_callback( void* context );
 
 #if defined(AGGRO_UNDEFINED_FN)
 static void layout_remove_animation( AnimateCallback  callback);  
@@ -76,7 +76,7 @@ void layout_init(Canvas* new_canvas)
         animation_queue_push( &free_queue, &animations[ i ] );
     }
     // Start the animation timer.
-    post_periodic( &layout_animate, NULL, ANIMATION_PERIOD, ANIMATION_PERIOD );
+    post_periodic( &layout_animate_callback, NULL, ANIMATION_PERIOD, ANIMATION_PERIOD );
 }
 
 /*
@@ -139,40 +139,32 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
     const Font* title_font = get_title_font();
     const Font* body_font = get_body_font();
 
-    /*
-     * Format Title
-     */
+    /* Format Title */
     char upper_str1[title_char_width()];
     strcpy(upper_str1, str1);
     strupr(upper_str1);
 
-    /*
-     * Title
-     */
+    /* Title */
     DrawableParams sp;
     sp.y = TOP_MARGIN - 4;
     sp.x = LEFT_MARGIN;
     sp.color = TITLE_COLOR;
     draw_string(canvas, title_font, upper_str1, &sp, TITLE_WIDTH, font_height(title_font));
 
-    /*
-     * Body
-     */
+    /* Body */
     sp.y += font_height(body_font) + 2;
     sp.x = LEFT_MARGIN;
     sp.color = BODY_COLOR;
     draw_string(canvas, body_font, str2, &sp, BODY_WIDTH, font_height(body_font) + 1);
 
-    /*
-     * Confirm text
-     */
+
+
+    /* Confirm text */
     sp.y = 46;
 	sp.x = 215;
 	sp.color = 0x66;
 
-    /*
-     * Determine animation/icon to show
-     */
+    /* Determine animation/icon to show */
     static AnimationImageDrawableParams icon;
     switch(type){
     	case NOTIFICATION_REQUEST:
@@ -236,17 +228,13 @@ void layout_warning(const char* prompt)
 
     const Font* font = get_title_font();
 
-    /*
-     * Format Title
-     */
+    /* Format Title */
     char upper_prompt[warning_char_width()];
     strcpy(upper_prompt, "WARNING: ");
     strcat(upper_prompt, prompt);
     strupr(upper_prompt);
 
-    /*
-     * Title
-     */
+    /* Title */
     DrawableParams sp;
     sp.x = (256 - calc_str_width(font, upper_prompt)) / 2;
     sp.y = 47;
@@ -267,6 +255,7 @@ void layout_warning(const char* prompt)
  *      1. pointer to string message 
  *      2. pointer PIN storage
  * OUTPUT - 
+ *      none
  */
 void layout_pin(const char* prompt, char pin[])
 {
@@ -275,10 +264,9 @@ void layout_pin(const char* prompt, char pin[])
 
 	layout_clear();
 
-	/*
-	 * Draw matrix
-	 */
+    /* set matrix color */
 	box_params.base.color = 0x55;
+    /* draw 4 horizontal lines for matrix */
 	for(uint8_t row = 0; row < 4; row++) {
 		box_params.base.y = 7 + row * 17;
 		box_params.base.x = 99;
@@ -286,6 +274,7 @@ void layout_pin(const char* prompt, char pin[])
 		box_params.width = 61;
 		draw_box(canvas, &box_params);
 	}
+    /* draw 4 vertical lines for matrix*/
 	for(uint8_t col = 0; col < 4; col++) {
 		box_params.base.y = 7;
 		box_params.base.x = 99 + col * 20;
@@ -294,16 +283,14 @@ void layout_pin(const char* prompt, char pin[])
 		draw_box(canvas, &box_params);
 	}
 
-	/*
-	 * Draw pin digits
-	 */
+	/* Draw pin digits */
 	sp.color = 0xff;
 	const Font* pin_font = get_pin_font();
 	char pin_num[] = {0, 0};
 	for(uint8_t row = 0; row < 3; row++) {
 		for(uint8_t col = 0; col < 3; col++) {
 			uint8_t pad = 7;
-			pin_num[0] = pin[col + (2 - row) * 3];
+			pin_num[0] = *pin++;
 
 			/*
 			 * Adjust pad
@@ -317,16 +304,12 @@ void layout_pin(const char* prompt, char pin[])
 		}
     }
 
-	/*
-	 * Format prompt
-	 */
+	/* Format prompt */
 	char upper_prompt[title_char_width()];
 	strcpy(upper_prompt, prompt);
 	strupr(upper_prompt);
 
-    /*
-     * Draw prompt
-     */
+    /* Draw prompt */
 	const Font* font = get_title_font();
     sp.y = 24;
     sp.x = (100 - calc_str_width(font, upper_prompt)) / 2;
@@ -370,9 +353,7 @@ void layout_loading(AnimationResource type)
 {
     static AnimationImageDrawableParams loading_animation;
 
-    /*
-     * Background params
-     */
+    /* Background params */
     DrawableParams sp;
 	sp.x = 0;
 	sp.y = 0;
@@ -466,11 +447,14 @@ bool is_animating(void)
 }
 
 /*
- * layout_animate_images() - 
+ * layout_animate_images() - animate image on display
  *
  * INPUT - 
+ *      *data - pointer to image 
+ *      duration - duration of the image animation
+ *      elapsed - delay before drawing the image
  * OUTPUT - 
- *
+ *      none
  */
 static void layout_animate_images(void* data, uint32_t duration, uint32_t elapsed)
 {
@@ -482,14 +466,13 @@ static void layout_animate_images(void* data, uint32_t duration, uint32_t elapse
     } else {
         img = get_image_animation_frame(animation_img_params->img_animation, elapsed, false);
     }
-
     if(img) {
         draw_bitmap_mono_rle(canvas, &animation_img_params->base, img);
     }
 }
 
 /*
- * layout_clear() -
+ * layout_clear() - API to clear display
  *
  * INPUT - none
  * OUTPUT - none
@@ -503,10 +486,10 @@ void layout_clear(void)
 }
 
 /*
- * layout_clear_static()
+ * layout_clear_static() - clear display 
  *
- * INPUT -
- * OUTPUT -
+ * INPUT - none
+ * OUTPUT - none
  */
 void layout_clear_static(void)
 {
@@ -521,25 +504,24 @@ void layout_clear_static(void)
 }
 
 /*
- * layout_animate()
+ * layout_animate_callback() - callback function to set animation flag   
  *
- * INPUT -
+ * INPUT - 
+ *      *context - not used 
  * OUTPUT -
+		none
  */
-static void layout_animate(void* context)
+static void layout_animate_callback(void *context)
 {
     (void)context;
-
     animate_flag = true;
 }
 
 /*
- * force_animation_start()
+ * force_animation_start() - direct call to start animation 
  *
- * INPUT - 
- * OUTPUT - 
- *
- *
+ * INPUT - none
+ * OUTPUT - none
  */
 void force_animation_start(void)
 {
@@ -566,31 +548,35 @@ void animating_progress_handler(void)
  * layout_add_animation() - queue up the animation in active_queue. 
  *
  * INPUT -
+ *      callback - animation callback function
+ *      *data - pointer to image 
+ *      duration - duration of animation 
  * OUTPUT - 
+ *      none
  */
-void layout_add_animation(AnimateCallback callback, void* data, uint32_t duration)
+void layout_add_animation(AnimateCallback callback, void *data, uint32_t duration)
 {
     Animation* animation = animation_queue_get( &active_queue, callback );
 
     if( animation == NULL ) {
         animation = animation_queue_pop( &free_queue );
     }
-
     animation->data = data;
     animation->duration = duration;
     animation->elapsed = 0;
     animation->animate_callback = callback;
-
     animation_queue_push( &active_queue, animation );
 }
 
+#if defined(AGGRO_UNDEFINED_FN)
 /*
- * layout_remove_animation() -
+ * layout_remove_animation() - remove animation node that contains the callback function from the queue
  *
  * INPUT - 
+ *      callback - animation callback function
  * OUTPUT - 
+		none
  */ 
-#if defined(AGGRO_UNDEFINED_FN)
 static void layout_remove_animation(AnimateCallback callback)
 {
     Animation* animation = animation_queue_get( &active_queue, callback );
@@ -602,7 +588,7 @@ static void layout_remove_animation(AnimateCallback callback)
 #endif
 
 /*
- * layout_clear_animations() - clear animation from queue
+ * layout_clear_animations() - clear all animation from queue
  *
  * INPUT - none
  * OUTPUT - none
@@ -618,10 +604,12 @@ void layout_clear_animations(void)
 }
 
 /*
- * animation_queue_peek() - get current animation in queue
+ * animation_queue_peek() - get current animation node in head pointer
  *
  * INPUT -
+ *      *queue - pointer to animation queue
  * OUTPUT - 
+ *      node pointed to by head pointer
  */ 
 static Animation* animation_queue_peek(AnimationQueue* queue)
 {
@@ -632,7 +620,9 @@ static Animation* animation_queue_peek(AnimationQueue* queue)
  * animation_queue_push() - push animation into queue
  *
  * INPUT - 
+ *      *queue - pointer to animation queue
  * OUTPUT - 
+ *      none
  */
 static void animation_queue_push(AnimationQueue* queue, Animation* node)
 {
@@ -648,12 +638,12 @@ static void animation_queue_push(AnimationQueue* queue, Animation* node)
 
 
 /* 
- * animation_queue_pop() - pop animation queue
+ * animation_queue_pop() - pop a node from animation queue
  *
  * INPUT - 
- *      queue type
+ *      *queue - pointer to animation queue
  * OUTPUT -
- *      pointer to Animation
+ *      pointer to a node from the queue
  */
 static Animation* animation_queue_pop(AnimationQueue* queue)
 {
@@ -663,18 +653,17 @@ static Animation* animation_queue_pop(AnimationQueue* queue)
         queue->head = animation->next;
         queue->size -= 1;
     }
-
     return(animation);
 }
 
 /*
- * animation_queue_get() - get a queue 
+ * animation_queue_get() - get a queue containg the callback function 
  *
  * INPUT - 
- *      1. queue type 
- *      2. callback function
+ *      *queue - pointer to animation queue
+ *      callback - animation callback function
  * OUTPUT - 
- *      pointer to Animation
+ *      pointer to Animation node
  */
 static Animation* animation_queue_get(AnimationQueue* queue, AnimateCallback callback)
 {
@@ -713,9 +702,8 @@ static Animation* animation_queue_get(AnimationQueue* queue, AnimateCallback cal
  * layout_char_width() - get display with respect to font type
  * 
  * INPUT -
- *      font type
- * OUTPUT - 
- *      display width size
+ *      *font - pointer font type
+ * OUTPUT - get display width 
  */
 uint32_t layout_char_width(Font *font)
 {
@@ -726,7 +714,7 @@ uint32_t layout_char_width(Font *font)
  * title_char_width() - get display titile width 
  *
  * INPUT - none 
- * OUTPUT - none
+ * OUTPUT - get title width
  */
 uint32_t title_char_width()
 {
@@ -738,7 +726,7 @@ uint32_t title_char_width()
  * body_char_width() - get display body width
  *
  * INPUT - none 
- * OUTPUT - none
+ * OUTPUT - get body width 
  */
 uint32_t body_char_width()
 {
@@ -750,7 +738,7 @@ uint32_t body_char_width()
  * warning_char_width() - get display warning width
  *
  * INPUT - none 
- * OUTPUT - none
+ * OUTPUT - get warning width 
  */
 uint32_t warning_char_width()
 {
