@@ -4108,7 +4108,7 @@ const CharacterImage* font_get_char(const Font* font, char c)
 
 int font_height(const Font* font)
 {
-    return body_font.size;
+    return font->size;
 }
 
 int font_width(const Font* font)
