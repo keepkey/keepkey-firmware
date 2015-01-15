@@ -15,6 +15,10 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * Jan 14, 2015 - This file has been modified and adapted for KeepKey project.
+ *
  */
 
 #include <string.h>
