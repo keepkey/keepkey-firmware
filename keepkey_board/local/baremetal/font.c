@@ -27,7 +27,7 @@
 #include "font.h"
 
 
-//====================== CONSTANTS, TYPES, AND MACROS =========================
+/*******************  static and local variables  **********************/
 
 
 //================================== PIN ======================================
@@ -4067,30 +4067,60 @@ static const Character body_font_array[] = {
 
 };
 
-
+/* Display Body Font setting */
 static const Font body_font = { 95, 13, body_font_array };
-
 
 //=============================== FUNCTIONS ===================================
 
+/*
+ * get_pin_font() - get pointer to PIN font
+ *
+ * INPUT - none
+ * OUTPUT - 
+ *      pin_font - pointer PIN (personal ID #) font
+ */
 const Font* get_pin_font()
 {
 	return &pin_font;
 }
 
+/*
+ * get_title_font() - get pointer to title font 
+ * INPUT - none
+ * OUTPUT -
+ *      body_font - pointer to title font setting
+ */
 const Font* get_title_font()
 {
 	return &title_font;
 }
 
+/*
+ * get_body_font() - get pointer to body font
+ *
+ * INPUT - none
+ * OUTPUT - 
+ *      body_font - pointer to body font setting
+ *
+ */
 const Font* get_body_font()
 {
 	return &body_font;
 }
 
-const CharacterImage* font_get_char(const Font* font, char c)
+/*
+ * font_get_char() - 
+ *
+ * INPUT - 
+ *      *font - pointer to font structure
+ *      c - ascii charactor
+ * OUTPUT - 
+ *      pointer to ascii charactor image
+ *      
+ */
+const CharacterImage* font_get_char(const Font *font, char c)
 {
-    const CharacterImage* img = NULL;
+    const CharacterImage *img = NULL;
 
     int i = 0;
     while( ( i < font->length ) && ( img == NULL ) )
@@ -4106,19 +4136,40 @@ const CharacterImage* font_get_char(const Font* font, char c)
     return img;
 }
 
-int font_height(const Font* font)
+/*
+ * font_height() - get font height
+ *
+ * INPUT-
+ *      *font - pointer to font structure
+ * OUTPUT -
+ *      font height
+ */
+int font_height(const Font *font)
 {
     return font->size;
 }
 
+/*
+ * font_width() - get font width
+ *
+ * INPUT -
+ *      *font - pointer to font structure
+ * OUTPUT - 
+ *      font width
+ */
 int font_width(const Font* font)
 {
-    /**
-     * Return worst case width using the | char as the reference.
-     */
+    /*Return worst case width using the | char as the reference.  */
     return  font_get_char(font, '|')->width;
 }
 
+/*
+ * calc_str_width() - get string width respect to font type and string size
+ *
+ * INPUT - 
+ *      *font - pointer to font structure
+ *      *str  - pointer string
+ */
 int calc_str_width(const Font* font, char* str)
 {
     int width = 0;
