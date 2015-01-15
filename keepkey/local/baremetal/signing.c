@@ -23,7 +23,7 @@
 
 #include "signing.h"
 #include "fsm.h"
-#include "messages.h"
+#include "msg_dispatch.h"
 #include "transaction.h"
 #include "ecdsa.h"
 #include "crypto.h"

@@ -40,7 +40,7 @@
 #include <keepkey_button.h>
 #include <timer.h>
 #include <layout.h>
-#include <messages.h>
+#include <msg_dispatch.h>
 #include <confirm_sm.h>
 
 

@@ -31,7 +31,7 @@
 #include <interface.h>
 #include <keepkey_board.h>
 #include <memory.h>
-#include <messages.h>
+#include <msg_dispatch.h>
 #include <keepkey_usart.h>
 #include <confirm_sm.h>
 

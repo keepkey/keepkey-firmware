@@ -30,7 +30,7 @@
 #include <stdbool.h>
 
 #include <layout.h>
-#include <messages.h>
+#include <msg_dispatch.h>
 #include <rand.h>
 #include <storage.h>
 #include <timer.h>

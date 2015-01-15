@@ -26,7 +26,7 @@
 #include <bip39.h>
 #include <keepkey_board.h>
 #include <layout.h>
-#include <messages.h>
+#include <msg_dispatch.h>
 #include <storage.h>
 
 #include "recovery.h"

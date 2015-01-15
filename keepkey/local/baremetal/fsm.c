@@ -34,7 +34,7 @@
 #include <pin_sm.h>
 #include <passphrase_sm.h>
 #include <fsm.h>
-#include <messages.h>
+#include <msg_dispatch.h>
 #include <storage.h>
 #include <coins.h>
 #include <debug.h>

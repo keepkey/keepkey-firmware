@@ -23,10 +23,8 @@
 
 #include <assert.h>
 #include <string.h>
-
 #include <usb_driver.h>
-
-#include "messages.h"
+#include "msg_dispatch.h"
 #include "debug.h"
 
 #include <nanopb.h>
