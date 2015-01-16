@@ -218,12 +218,12 @@ bool pin_protect()
 	PINInfo pin_info;
 
 	if(storage_has_pin()) {
-#if 1  /* TODO : which implementation is prefered */
 	    uint32_t wait = 0;
-		/* Check for PIN fails */
+
+		/* Check for prior PIN failed attempts and apply exponentially longer wait
+           time for each subsequent failed attempts */
 		if(wait = storage_get_pin_fails())
 		{
-			//TODO:Have Philip check logic
 			if(wait > 2)
 			{
 				layout_standard_notification("Wrong PIN Entered", "Please wait ...", NOTIFICATION_INFO);
@@ -231,55 +231,9 @@ bool pin_protect()
 			}
 			wait = (wait < 32) ? (1u << wait) : 0xFFFFFFFF;
 			while (--wait > 0) {
-				delay_ms(1000);
-			}
-		}
-#else
-        /* TODO : alternate implementation for above */
-	    uint32_t pin_failed_delay = 0;
-        uint8_t layout_str[50];
-
-        /* install progressively longer wait period as PIN failed attempts increases */
-        if(pin_failed_delay = storage_get_pin_fails()) {
-
-			if((pin_failed_delay > PIN_FAIL_DELAY_START) && (pin_failed_delay <= MAX_PIN_FAIL_ATTEMPTS )) {
-
-                if(pin_failed_delay < MAX_PIN_FAIL_ATTEMPTS ) {
-
-                    /* display warning before the last PIN entry */
-                    if(pin_failed_delay == MAX_PIN_FAIL_ATTEMPTS - 1) {
-                        sprintf(layout_str, "Warning: last attempt for PIN authentication (%d / %d)",
-                                pin_failed_delay, MAX_PIN_FAIL_ATTEMPTS);
-				        layout_standard_notification(layout_str, 
-                                "Device will lock up if the PIN is incorrect...", NOTIFICATION_INFO);
-				        display_refresh();
-                    } else {
-                        sprintf(layout_str, "Wait %d seconds for PIN entry", pin_failed_delay * 5);
-				        layout_standard_notification("Incorrect PIN Warning", layout_str, NOTIFICATION_INFO);
-				        display_refresh();
-                    }
-
-                    pin_failed_delay *= 5;  /* install 5 sec delay for each failed attempts */
-
-                } else {
-                    /* Max failed attempts reached.  Lock the system */
-                    sprintf(layout_str, "Max PIN Failed Attempts Reached (%d)!!!", MAX_PIN_FAIL_ATTEMPTS);
-				    layout_standard_notification("Max Incorrect PIN Failed Attempts Reached", 
-                     "Device is locked for safty", NOTIFICATION_INFO);
-				    display_refresh();
-                    for(;;);
-                }
-			} else {
-                /* no need to install delay for first 2 failure attempts */
-			    pin_failed_delay = 1;
-            }
-
-            /* force delay for PIN entry */
-			while (--pin_failed_delay > 0) {
 				delay_ms(ONE_SEC);
 			}
 		}
-#endif
 
 		/* Set request type */
 		pin_info.type = PinMatrixRequestType_PinMatrixRequestType_Current;
