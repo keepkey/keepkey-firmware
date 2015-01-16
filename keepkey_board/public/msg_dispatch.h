@@ -1,7 +1,8 @@
+/* START KEEPKEY LICENSE */
 /*
- * This file is part of the TREZOR project.
+ * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 Pavol Rusnak <stick@satoshilabs.com>
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -15,7 +16,9 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
+/* END KEEPKEY LICENSE */
 
 #ifndef __MESSAGES_H__
 #define __MESSAGES_H__
@@ -23,6 +26,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <interface.h>
+
+/***************** #defines ******************************/
+#define MSG_TINY_BFR_SZ     64
+#define MSG_TINY_TYPE_ERROR 0xFFFF
 
 /***************** Typedefs and enums  *******************/
 typedef enum
@@ -32,14 +39,26 @@ typedef enum
 	NO_MAP
 } MessageMapType;
 
-typedef struct {
+typedef struct
+{
+    uint16_t runt_packet;
+    uint16_t invalid_usb_header;
+    uint16_t invalid_msg_type;
+    uint16_t unknown_dispatch_entry;
+    uint16_t usb_tx;
+    uint16_t usb_tx_err;
+} MsgStats;
+
+typedef struct 
+{
     char dir; 	// i = in, o = out
     MessageType msg_id;
     const pb_field_t *fields;
     void (*process_func)(void *ptr);
 } MessagesMap_t;
 
-typedef struct {
+typedef struct 
+{
 	char dir; 	// i = in, o = out
     MessageType msg_id;
     void (*process_func)(uint8_t *msg, uint32_t msg_size, uint32_t frame_length);

@@ -48,8 +48,6 @@ static bool pin_canceled_by_init = false;
  *      type -pin request type 
  * OUTPUT - 
  *      none
- *
- *
  */
 static void send_pin_request(PinMatrixRequestType type)
 {
@@ -66,32 +64,32 @@ static void send_pin_request(PinMatrixRequestType type)
  * INPUT - 
  *      *pin_info -  pointer to PIN info
  * OUTPUT -  none
- *
  */
 static void wait_for_pin_ack(PINInfo *pin_info)
 {
 	/* Listen for tiny messages */
-	uint8_t msg_tiny_buf[64];
+	uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
 	uint16_t tiny_msg = wait_for_tiny_msg(msg_tiny_buf);
 
-	/* Check for standard pin matrix ack */
-	if(tiny_msg == MessageType_MessageType_PinMatrixAck) {
-		pin_info->pin_ack_msg = PIN_ACK_RECEIVED;
-		PinMatrixAck *pma = (PinMatrixAck *)msg_tiny_buf;
+    switch(tiny_msg) {
+        case MessageType_MessageType_PinMatrixAck:
+		    pin_info->pin_ack_msg = PIN_ACK_RECEIVED;
+		    PinMatrixAck *pma = (PinMatrixAck *)msg_tiny_buf;
+		    strcpy(pin_info->pin, pma->pin);
+            break;
+        /* Check for pin tumbler ack */
+        //TODO:Implement PIN tumbler
 
-		strcpy(pin_info->pin, pma->pin);
-	}
-
-	/* Check for pin tumbler ack */
-	//TODO:Implement PIN tumbler
-
-	/* Check for cancel or initialize messages */
-	if(tiny_msg == MessageType_MessageType_Cancel) {
-		pin_info->pin_ack_msg = PIN_ACK_CANCEL;
-    }
-
-	if(tiny_msg == MessageType_MessageType_Initialize) {
-		pin_info->pin_ack_msg = PIN_ACK_CANCEL_BY_INIT;
+	    /* Check for cancel or initialize messages */
+        case MessageType_MessageType_Cancel :
+            pin_info->pin_ack_msg = PIN_ACK_CANCEL;
+            break;
+        case MessageType_MessageType_Initialize :
+            pin_info->pin_ack_msg = PIN_ACK_CANCEL_BY_INIT;
+            break;
+        case MSG_TINY_TYPE_ERROR :
+        default:
+            break;
     }
 }
 
@@ -101,7 +99,6 @@ static void wait_for_pin_ack(PINInfo *pin_info)
  * INPUT
  *      *pin_state - state of request
  *      *pin_info - buffer for user PIN
- *
  */
 static void run_pin_state(PINState *pin_state, PINInfo *pin_info)
 {
@@ -129,7 +126,6 @@ static void run_pin_state(PINState *pin_state, PINInfo *pin_info)
  * INPUT -
  *      pin - keyboard matrix 
  * OUTPUT - none
- *
  */
 static void randomize_pin(char pin[])
 {
@@ -150,7 +146,6 @@ static void randomize_pin(char pin[])
  *      *pin_info - 
  * OUTPUT -
  *      none
- *
  */
 static void decode_pin(char randomized_pin[], PINInfo *pin_info)
 {
@@ -172,7 +167,6 @@ static void decode_pin(char randomized_pin[], PINInfo *pin_info)
  *      *prompt - pointer to user text
  * OUTPUT - 
  *      true/false - status
- *
  */
 static bool pin_request(const char *prompt, PINInfo *pin_info)
 {
@@ -217,7 +211,6 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
  *
  * INPUT - none
  * OUTPUT - none
- *
  */
 bool pin_protect()
 {
@@ -322,7 +315,6 @@ bool pin_protect()
  * INPUT - none
  * OUTPUT -
  *      true/false - status
- *
  */
 bool pin_protect_cached(void)
 {
@@ -339,7 +331,6 @@ bool pin_protect_cached(void)
  * INPUT - none
  * OUTPUT - 
  *      true/false - status
- *
  */
 bool change_pin(void)
 {
