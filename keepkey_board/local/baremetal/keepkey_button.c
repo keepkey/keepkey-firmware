@@ -2,7 +2,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 KeepKey LLC
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -35,31 +35,24 @@
 #include "keepkey_leds.h"
 
 
-//====================== CONSTANTS, TYPES, AND MACROS =========================
-
-
-//=============================== VARIABLES ===================================
-
-
+/************* Local and static variables ****************/
 static Handler on_press_handler     = NULL;
 static Handler on_release_handler   = NULL;
 
 static void* on_release_handler_context = NULL;
 static void* on_press_handler_context   = NULL;
-
-
 static const uint16_t BUTTON_PIN    = GPIO7;
 static const uint32_t BUTTON_PORT   = GPIOB;
 static const uint8_t BUTTON_IRQN    = NVIC_EXTI9_5_IRQ;
 static const uint32_t BUTTON_EXTI   = EXTI7;
 
-
-//====================== PRIVATE FUNCTION DECLARATIONS ========================
-
-
-
-//=============================== FUNCTIONS ===================================
-
+/*****************  FUNCTIONS **************************/
+/*
+ * keepkey_button_init() - initialize push botton interrupt registers and variables
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
 void keepkey_button_init(void) {
 
     on_press_handler = NULL;
@@ -88,29 +81,68 @@ void keepkey_button_init(void) {
     exti_enable_request( BUTTON_EXTI );
 }
 
+/*
+ * keepkey_button_set_on_press_handler() - set callback handler for button pressed
+ * INPUT - 
+ *      handler - handler function
+ *      *context - pointer to release handler state info. 
+ * OUTPUT - 
+ *      none
+ *
+ */
 void keepkey_button_set_on_press_handler(Handler handler, void* context)
 {
     on_press_handler = handler;
     on_press_handler_context = context;
 }
 
+/*
+ * keepkey_button_set_on_release_handler() - set handler for button released
+ *
+ * INPUT - 
+ *      handler - handler function
+ *      *context - pointer to release handler state info. 
+ * OUTPUT - 
+ *      none
+ *
+ */
 void keepkey_button_set_on_release_handler(Handler handler, void* context)
 {
     on_release_handler = handler;
     on_release_handler_context = context;
 }
 
+/*
+ * keepkey_button_up() - get push button in up state
+ *
+ * INPUT - none
+ * OUTPUT -
+ *      state of push button up
+ */
 bool keepkey_button_up(void)
 {
     uint16_t port = gpio_port_read(BUTTON_PORT);
     return port & BUTTON_PIN;
 }
 
+/*
+ * keepkey_button_down() - get push button in down state
+ *
+ * INPUT - none
+ * OUTPUT -
+ *      state of push button down
+ */
 bool keepkey_button_down(void)
 {
     return !keepkey_button_up();
 }
 
+/*
+ * exti9_5_isr() - interrupt service routine for push button external interrupt
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
 void exti9_5_isr(void)
 {
     exti_reset_request( BUTTON_EXTI );

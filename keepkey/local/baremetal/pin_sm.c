@@ -2,7 +2,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 KeepKey LLC
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -30,7 +30,7 @@
 #include <stdbool.h>
 
 #include <layout.h>
-#include <messages.h>
+#include <msg_dispatch.h>
 #include <rand.h>
 #include <storage.h>
 #include <timer.h>
@@ -48,8 +48,6 @@ static bool pin_canceled_by_init = false;
  *      type -pin request type 
  * OUTPUT - 
  *      none
- *
- *
  */
 static void send_pin_request(PinMatrixRequestType type)
 {
@@ -66,32 +64,32 @@ static void send_pin_request(PinMatrixRequestType type)
  * INPUT - 
  *      *pin_info -  pointer to PIN info
  * OUTPUT -  none
- *
  */
 static void wait_for_pin_ack(PINInfo *pin_info)
 {
 	/* Listen for tiny messages */
-	uint8_t msg_tiny_buf[64];
+	uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
 	uint16_t tiny_msg = wait_for_tiny_msg(msg_tiny_buf);
 
-	/* Check for standard pin matrix ack */
-	if(tiny_msg == MessageType_MessageType_PinMatrixAck) {
-		pin_info->pin_ack_msg = PIN_ACK_RECEIVED;
-		PinMatrixAck *pma = (PinMatrixAck *)msg_tiny_buf;
+    switch(tiny_msg) {
+        case MessageType_MessageType_PinMatrixAck:
+		    pin_info->pin_ack_msg = PIN_ACK_RECEIVED;
+		    PinMatrixAck *pma = (PinMatrixAck *)msg_tiny_buf;
+		    strcpy(pin_info->pin, pma->pin);
+            break;
+        /* Check for pin tumbler ack */
+        //TODO:Implement PIN tumbler
 
-		strcpy(pin_info->pin, pma->pin);
-	}
-
-	/* Check for pin tumbler ack */
-	//TODO:Implement PIN tumbler
-
-	/* Check for cancel or initialize messages */
-	if(tiny_msg == MessageType_MessageType_Cancel) {
-		pin_info->pin_ack_msg = PIN_ACK_CANCEL;
-    }
-
-	if(tiny_msg == MessageType_MessageType_Initialize) {
-		pin_info->pin_ack_msg = PIN_ACK_CANCEL_BY_INIT;
+	    /* Check for cancel or initialize messages */
+        case MessageType_MessageType_Cancel :
+            pin_info->pin_ack_msg = PIN_ACK_CANCEL;
+            break;
+        case MessageType_MessageType_Initialize :
+            pin_info->pin_ack_msg = PIN_ACK_CANCEL_BY_INIT;
+            break;
+        case MSG_TINY_TYPE_ERROR :
+        default:
+            break;
     }
 }
 
@@ -101,7 +99,6 @@ static void wait_for_pin_ack(PINInfo *pin_info)
  * INPUT
  *      *pin_state - state of request
  *      *pin_info - buffer for user PIN
- *
  */
 static void run_pin_state(PINState *pin_state, PINInfo *pin_info)
 {
@@ -129,7 +126,6 @@ static void run_pin_state(PINState *pin_state, PINInfo *pin_info)
  * INPUT -
  *      pin - keyboard matrix 
  * OUTPUT - none
- *
  */
 static void randomize_pin(char pin[])
 {
@@ -150,7 +146,6 @@ static void randomize_pin(char pin[])
  *      *pin_info - 
  * OUTPUT -
  *      none
- *
  */
 static void decode_pin(char randomized_pin[], PINInfo *pin_info)
 {
@@ -172,7 +167,6 @@ static void decode_pin(char randomized_pin[], PINInfo *pin_info)
  *      *prompt - pointer to user text
  * OUTPUT - 
  *      true/false - status
- *
  */
 static bool pin_request(const char *prompt, PINInfo *pin_info)
 {
@@ -217,7 +211,6 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
  *
  * INPUT - none
  * OUTPUT - none
- *
  */
 bool pin_protect()
 {
@@ -225,12 +218,12 @@ bool pin_protect()
 	PINInfo pin_info;
 
 	if(storage_has_pin()) {
-#if 1  /* TODO : which implementation is prefered */
 	    uint32_t wait = 0;
-		/* Check for PIN fails */
+
+		/* Check for prior PIN failed attempts and apply exponentially longer wait
+           time for each subsequent failed attempts */
 		if(wait = storage_get_pin_fails())
 		{
-			//TODO:Have Philip check logic
 			if(wait > 2)
 			{
 				layout_standard_notification("Wrong PIN Entered", "Please wait ...", NOTIFICATION_INFO);
@@ -238,55 +231,9 @@ bool pin_protect()
 			}
 			wait = (wait < 32) ? (1u << wait) : 0xFFFFFFFF;
 			while (--wait > 0) {
-				delay_ms(1000);
-			}
-		}
-#else
-        /* TODO : alternate implementation for above */
-	    uint32_t pin_failed_delay = 0;
-        uint8_t layout_str[50];
-
-        /* install progressively longer wait period as PIN failed attempts increases */
-        if(pin_failed_delay = storage_get_pin_fails()) {
-
-			if((pin_failed_delay > PIN_FAIL_DELAY_START) && (pin_failed_delay <= MAX_PIN_FAIL_ATTEMPTS )) {
-
-                if(pin_failed_delay < MAX_PIN_FAIL_ATTEMPTS ) {
-
-                    /* display warning before the last PIN entry */
-                    if(pin_failed_delay == MAX_PIN_FAIL_ATTEMPTS - 1) {
-                        sprintf(layout_str, "Warning: last attempt for PIN authentication (%d / %d)",
-                                pin_failed_delay, MAX_PIN_FAIL_ATTEMPTS);
-				        layout_standard_notification(layout_str, 
-                                "Device will lock up if the PIN is incorrect...", NOTIFICATION_INFO);
-				        display_refresh();
-                    } else {
-                        sprintf(layout_str, "Wait %d seconds for PIN entry", pin_failed_delay * 5);
-				        layout_standard_notification("Incorrect PIN Warning", layout_str, NOTIFICATION_INFO);
-				        display_refresh();
-                    }
-
-                    pin_failed_delay *= 5;  /* install 5 sec delay for each failed attempts */
-
-                } else {
-                    /* Max failed attempts reached.  Lock the system */
-                    sprintf(layout_str, "Max PIN Failed Attempts Reached (%d)!!!", MAX_PIN_FAIL_ATTEMPTS);
-				    layout_standard_notification("Max Incorrect PIN Failed Attempts Reached", 
-                     "Device is locked for safty", NOTIFICATION_INFO);
-				    display_refresh();
-                    for(;;);
-                }
-			} else {
-                /* no need to install delay for first 2 failure attempts */
-			    pin_failed_delay = 1;
-            }
-
-            /* force delay for PIN entry */
-			while (--pin_failed_delay > 0) {
 				delay_ms(ONE_SEC);
 			}
 		}
-#endif
 
 		/* Set request type */
 		pin_info.type = PinMatrixRequestType_PinMatrixRequestType_Current;
@@ -322,7 +269,6 @@ bool pin_protect()
  * INPUT - none
  * OUTPUT -
  *      true/false - status
- *
  */
 bool pin_protect_cached(void)
 {
@@ -339,7 +285,6 @@ bool pin_protect_cached(void)
  * INPUT - none
  * OUTPUT - 
  *      true/false - status
- *
  */
 bool change_pin(void)
 {

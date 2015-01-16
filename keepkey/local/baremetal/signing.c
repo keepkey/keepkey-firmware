@@ -15,11 +15,15 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * Jan 14, 2015 - This file has been modified and adapted for KeepKey project.
+ *
  */
 
 #include "signing.h"
 #include "fsm.h"
-#include "messages.h"
+#include "msg_dispatch.h"
 #include "transaction.h"
 #include "ecdsa.h"
 #include "crypto.h"

@@ -31,7 +31,7 @@
 
 #include "reset.h"
 #include "storage.h"
-#include "messages.h"
+#include "msg_dispatch.h"
 #include "fsm.h"
 #include "util.h"
 #include "rand.h"

@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *
- *          --------------------------------------------
+ *
  * Jan 9, 2015 - This file has been modified and adapted for KeepKey project.
  *
  */
@@ -34,7 +34,7 @@
 #include <pin_sm.h>
 #include <passphrase_sm.h>
 #include <fsm.h>
-#include <messages.h>
+#include <msg_dispatch.h>
 #include <storage.h>
 #include <coins.h>
 #include <debug.h>

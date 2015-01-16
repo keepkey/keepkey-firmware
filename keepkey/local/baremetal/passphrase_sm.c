@@ -2,7 +2,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 KeepKey LLC
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -28,7 +28,7 @@
 #include "passphrase_sm.h"
 #include "fsm.h"
 #include <layout.h>
-#include <messages.h>
+#include <msg_dispatch.h>
 #include <rand.h>
 #include <storage.h>
 #include <timer.h>
@@ -64,27 +64,28 @@ static void send_passphrase_request(void)
 static void wait_for_passphrase_ack(PassphraseInfo *passphrase_info)
 {
 	/* Listen for tiny messages */
-	uint8_t msg_tiny_buf[64];
+	uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
 	uint16_t tiny_msg = wait_for_tiny_msg(msg_tiny_buf);
 
-	/* Check for standard passphrase ack */
-	if(tiny_msg == MessageType_MessageType_PassphraseAck)
-	{
-		passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_RECEIVED;
-		PassphraseAck *ppa = (PassphraseAck *)msg_tiny_buf;
-
-		strcpy(passphrase_info->passphrase, ppa->passphrase);
-	}
-
-	/* Check for passphrase tumbler ack */
-	//TODO:Implement passphrase tumbler
-
-	/* Check for cancel or initialize messages */
-	if(tiny_msg == MessageType_MessageType_Cancel)
-		passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_CANCEL;
-
-	if(tiny_msg == MessageType_MessageType_Initialize)
-		passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_CANCEL_BY_INIT;
+    switch(tiny_msg) {
+	    /* Check for standard passphrase ack */
+        case MessageType_MessageType_PassphraseAck : 
+		    passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_RECEIVED;
+		    PassphraseAck *ppa = (PassphraseAck *)msg_tiny_buf;
+		    strcpy(passphrase_info->passphrase, ppa->passphrase);
+            break;
+	    /* Check for passphrase tumbler ack */
+	    //TODO:Implement passphrase tumbler
+        case MessageType_MessageType_Cancel :
+		    passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_CANCEL;
+            break;
+        case MessageType_MessageType_Initialize : 
+            passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_CANCEL_BY_INIT;
+            break;
+        case MSG_TINY_TYPE_ERROR:
+        default:
+            break;
+    } 
 }
 
 /*

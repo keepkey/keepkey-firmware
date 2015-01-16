@@ -2,7 +2,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 KeepKey LLC
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -31,7 +31,7 @@
 #include <interface.h>
 #include <keepkey_board.h>
 #include <memory.h>
-#include <messages.h>
+#include <msg_dispatch.h>
 #include <keepkey_usart.h>
 #include <confirm_sm.h>
 
