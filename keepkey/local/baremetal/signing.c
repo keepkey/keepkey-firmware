@@ -472,9 +472,10 @@ void signing_txack(TransactionType *tx)
 					char total_amount_str[32];
 					char fee_str[32];
 
+					coin_amnt_to_str(coin, fee, fee_str, sizeof(fee_str));
+
 					if (fee > (uint64_t)tx_est_size * coin->maxfee_kb) {
 
-						coin_amnt_to_str(coin, fee, fee_str, sizeof(fee_str));
 						if (!confirm_with_button_request(ButtonRequestType_ButtonRequest_FeeOverThreshold,
 							"Confirm Fee", "%s", fee_str))
 						{
