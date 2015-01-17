@@ -27,3 +27,11 @@ message Storage {
 	optional string label = 8;			// device label
 	optional bool imported = 9;			// was storage imported from an external source?
 }
+
+message SecondaryStorage {
+	optional uint32 pin_failed_attempts = 5;	// number of failed PIN attempts
+}
+
+message Cache {
+	optional HDNodeType root_node = 1;		// cache of root node for when passphrase is not present
+}
