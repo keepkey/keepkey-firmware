@@ -244,8 +244,8 @@ bool pin_protect()
 			/* authenticate user PIN */
 			if (storage_is_pin_correct(pin_info.pin))
 			{
-				session_cache_pin(pin_info.pin);
 				storage_reset_pin_fails();
+				session_cache_pin(pin_info.pin);
 				ret = true;
 			}
 			else
