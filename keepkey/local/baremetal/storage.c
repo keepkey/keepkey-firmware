@@ -659,11 +659,11 @@ void storage_set_mnemonic(const char* m)
 }
 
 /*
- * storage_has_mnemonic() - determine if storage has mnemonic
+ * storage_has_mnemonic() - state of storage has_mnemonic
  *
  * INPUT - none
  * OUTPUT -
- *      true or false
+ *      true/false - status
  *
  */
 bool storage_has_mnemonic(void)
@@ -706,6 +706,30 @@ const char* storage_get_shadow_mnemonic(void)
 bool storage_get_imported(void)
 {
 	return real_config->storage.has_imported && real_config->storage.imported;
+}
+
+/*
+ * storage_has_node() - get state of storage has_node
+ *
+ * INPUT - none
+ * OUTPUT -
+ *      true/false - status
+ */
+bool storage_has_node(void)
+{
+	return real_config->storage.has_node;
+}
+
+/*
+ * storage_get_node() - get state of storage node
+ *
+ * INPUT - none
+ * OUTPUT -
+ *      true/false - status
+ */
+HDNodeType storage_get_node(void)
+{
+	return real_config->storage.node;
 }
 
 /*
