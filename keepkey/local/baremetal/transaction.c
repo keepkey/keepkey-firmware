@@ -26,7 +26,6 @@
 #include "ecdsa.h"
 #include "coins.h"
 #include "util.h"
-#include "debug.h"
 #include "crypto.h"
 #include "ripemd160.h"
 #include "base58.h"
