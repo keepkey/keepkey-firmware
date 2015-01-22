@@ -64,6 +64,7 @@ void session_clear(void);
 bool storage_is_pin_correct(const char *pin);
 bool storage_has_pin(void);
 void storage_set_pin(const char *pin);
+const char* storage_get_pin(void);
 void session_cache_pin(const char *pin);
 bool session_is_pin_cached(void);
 void storage_reset_pin_fails(void);

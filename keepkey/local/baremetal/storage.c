@@ -313,6 +313,18 @@ void storage_set_pin(const char *pin)
 }
 
 /*
+ * storage_get_pin() - returns pin
+ *
+ * INPUT - none
+ * OUTPUT -
+ *      pin
+ */
+const char* storage_get_pin(void)
+{
+	return (real_config->storage.has_pin) ? real_config->storage.pin : NULL;
+}
+
+/*
  * session_cache_pin() - save pin in session cache 
  *
  * INPUT 
