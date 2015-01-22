@@ -659,6 +659,19 @@ void storage_set_mnemonic(const char* m)
 }
 
 /*
+ * storage_has_mnemonic() - determine if storage has mnemonic
+ *
+ * INPUT - none
+ * OUTPUT -
+ *      true or false
+ *
+ */
+bool storage_has_mnemonic(void)
+{
+    return real_config->storage.has_mnemonic;
+}
+
+/*
  * storage_get_mnemonic() - get state of config mnemonic from flash
  *
  * INPUT - none

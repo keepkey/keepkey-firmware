@@ -105,6 +105,7 @@ void storage_set_passphrase_protected(bool p);
  */
 void storage_set_mnemonic_from_words(const char (*words)[12], unsigned int num_words);
 void storage_set_mnemonic(const char *mnemonic);
+bool storage_has_mnemonic(void);
 
 /**
  * @return the currently configured mnemonic.
