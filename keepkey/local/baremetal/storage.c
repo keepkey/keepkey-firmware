@@ -727,9 +727,9 @@ bool storage_has_node(void)
  * OUTPUT -
  *      true/false - status
  */
-HDNodeType storage_get_node(void)
+HDNodeType* storage_get_node(void)
 {
-	return real_config->storage.node;
+	return &real_config->storage.node;
 }
 
 /*
