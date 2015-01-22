@@ -60,6 +60,7 @@ typedef struct {
  
 /***************** Function Declarations *******************/
 
+const char* get_pin_matrix(void);
 bool pin_protect();
 bool pin_protect_cached();
 bool change_pin(void);

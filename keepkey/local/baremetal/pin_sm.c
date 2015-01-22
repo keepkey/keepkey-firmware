@@ -39,6 +39,9 @@
 /* Flag whether pin was canceled by init msg */
 static bool pin_canceled_by_init = false;
 
+/* random PIN matrix holder */
+static char pin_matrix[] = "*********";
+
 /*******************FUNCTION Definitions  ****************************/
 
 /*
@@ -175,7 +178,7 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
 	PINState pin_state = PIN_REQUEST;
 
 	/* Init and randomize pin matrix */
-	char pin_matrix[] = "123456789";
+	strcpy(pin_matrix, "123456789");
 	randomize_pin(pin_matrix);
 
 	/* Show layout */
@@ -189,6 +192,9 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
 			break;
         }
 	}
+
+	/* clear PIN matrix */
+	strcpy(pin_matrix, "*********");
 
 	/* Check for PIN cancel */
 	if (pin_info->pin_ack_msg != PIN_ACK_RECEIVED) {
@@ -204,6 +210,17 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
 	}
 
 	return (ret);
+}
+
+/*
+ * get_pin_matrix() - Gets randomized PIN matrix
+ *
+ * INPUT - none
+ * OUTPUT - randomized PIN
+ */
+const char* get_pin_matrix(void)
+{
+	return pin_matrix;
 }
 
 /*
