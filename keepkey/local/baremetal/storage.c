@@ -37,7 +37,6 @@
 #include "util.h"
 #include "memory.h"
 #include "storage.h"
-#include "debug.h"
 #include "rng.h"
 #include "passphrase_sm.h"
 
