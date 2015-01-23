@@ -30,7 +30,7 @@
 extern "C" {
 #endif
 
-#define MAX_FRAME_SIZE (9*1024)
+#define MAX_FRAME_SIZE (12*1024)
 
 #pragma pack(1)
 
