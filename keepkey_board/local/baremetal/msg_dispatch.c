@@ -24,7 +24,10 @@
 #include <string.h>
 #include <usb_driver.h>
 #include "msg_dispatch.h"
+<<<<<<< HEAD
 
+=======
+>>>>>>> b61b1af1b4b50007361c37cbad2964afe23525ca
 #include <nanopb.h>
 
 

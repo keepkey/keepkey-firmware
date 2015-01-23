@@ -167,6 +167,10 @@ def load_toolchain():
     elif bldtype == 'app':
         env['CCFLAGS'].append(['-DAPP'])
 	
+    debugLink = ARGUMENTS.get('debugLink', 0)
+    if int(debugLink):
+        env['CCFLAGS'].append(['-DDEBUG_LINK=1'])
+
     add_builders(env)
 
 

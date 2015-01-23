@@ -15,6 +15,7 @@ def proc_args():
     parser.add_argument('-s',    '--stm32',      help = 'Build for the stm32 eval board.', action = 'store_true')
     parser.add_argument('-l',    '--linux',      help = 'Build the native linux x64 build', action = 'store_true')
     parser.add_argument('-d',    '--debug',      help = 'Build debug variant.', action = 'store_true')
+    parser.add_argument('-dl',    '--debugLink',  help = 'Build /w USB EndPoint 2 enable for test.', action = 'store_true')
     parser.add_argument('-v',    '--verbose',    help = 'Build with verbose output.', action = 'store_true')
     parser.add_argument('-b','--bldtype',    help = 'Build type <options: bldr | app>', action = 'append')
     args = parser.parse_args()
@@ -27,6 +28,8 @@ def main():
 
     buildargs = ''
 
+    if args.debugLink:
+        buildargs += ' debugLink=1'
     if args.debug:
         buildargs += ' debug=1'
     if args.verbose:
