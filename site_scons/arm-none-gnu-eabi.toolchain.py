@@ -23,7 +23,6 @@ OPENCM3_ROOT = os.path.join(Dir('#').abspath, 'libopencm3')
 # TODO: These are hacked in for now.  It should be part of the hal for this particular eval board impl.
 #
 DEFS=['-DSTM32F2', 
-      '-DDEBUG_LINK=0', 
       '-DBOOTLOADER_MAJOR_VERSION=0', 
       '-DBOOTLOADER_MINOR_VERSION=0', 
       '-DBOOTLOADER_PATCH_VERSION=0',
@@ -170,6 +169,8 @@ def load_toolchain():
     debugLink = ARGUMENTS.get('debugLink', 0)
     if int(debugLink):
         env['CCFLAGS'].append(['-DDEBUG_LINK=1'])
+    else:
+        env['CCFLAGS'].append(['-DDEBUG_LINK=0'])
 
     add_builders(env)
 
