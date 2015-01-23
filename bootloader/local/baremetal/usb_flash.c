@@ -45,21 +45,17 @@ static FirmwareUploadState upload_state = UPLOAD_NOT_STARTED;
 /*** Structure to map incoming messages to handler functions. ***/
 static const MessagesMap_t MessagesMap[] = {
     // in messages
-    {'i', MessageType_MessageType_Initialize,       Initialize_fields,      (message_handler_t)(handler_initialize)},
-    {'i', MessageType_MessageType_Ping,             Ping_fields,            (message_handler_t)(handler_ping)},
-    {'i', MessageType_MessageType_FirmwareErase,    FirmwareErase_fields,   (message_handler_t)(handler_erase)},
-	{'i', MessageType_MessageType_ButtonAck,		ButtonAck_fields,		0},
-    {'o', MessageType_MessageType_Features,         Features_fields,        0},
-    {'o', MessageType_MessageType_Success,          Success_fields,         0},
-    {'o', MessageType_MessageType_Failure,          Failure_fields,         0},
-	{'o', MessageType_MessageType_ButtonRequest,	ButtonRequest_fields,	0},
+    {NORMAL_MSG, IN_MSG, MessageType_MessageType_Initialize,		Initialize_fields,      (message_handler_t)(handler_initialize)},
+    {NORMAL_MSG, IN_MSG, MessageType_MessageType_Ping,				Ping_fields,            (message_handler_t)(handler_ping)},
+    {NORMAL_MSG, IN_MSG, MessageType_MessageType_FirmwareErase,		FirmwareErase_fields,   (message_handler_t)(handler_erase)},
+	{NORMAL_MSG, IN_MSG, MessageType_MessageType_ButtonAck,			ButtonAck_fields,		0},
+	{RAW_MSG, IN_MSG, MessageType_MessageType_FirmwareUpload,		FirmwareUpload_fields,	(message_handler_t)(raw_handler_upload)},
+	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_Features,         Features_fields,        0},
+    {NORMAL_MSG, OUT_MSG, MessageType_MessageType_Success,          Success_fields,         0},
+    {NORMAL_MSG, OUT_MSG, MessageType_MessageType_Failure,          Failure_fields,         0},
+	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_ButtonRequest,	ButtonRequest_fields,	0},
 
-    {0,0,0,0}
-};
-
-static const RawMessagesMap_t RawMessagesMap[] = {
-    {'i', MessageType_MessageType_FirmwareUpload, raw_handler_upload},
-    {0,0,0}
+    {END_OF_MAP, 0, 0, 0, 0}
 };
 
 static Stats stats;
@@ -95,8 +91,7 @@ bool usb_flash_firmware(void)
 
     layout_warning("Firmware Update Mode");
     /* Init message map, failure function, send init function, and usb callback */
-    msg_map_init(MessagesMap, MESSAGE_MAP);
-    msg_map_init(RawMessagesMap, RAW_MESSAGE_MAP);
+    msg_map_init(MessagesMap);
     set_msg_success_handler(&send_success);
     set_msg_failure_handler(&send_failure);
     set_msg_initialize_handler(&handler_initialize);
