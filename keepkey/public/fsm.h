@@ -66,7 +66,6 @@ void fsm_init(void);
 /*
  * Debug message functions
  */
-//TODO:Implement Debug
 #if DEBUG_LINK
 //void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
 void fsm_msgDebugLinkGetState(DebugLinkGetState *msg);
