@@ -37,7 +37,6 @@
 #include <msg_dispatch.h>
 #include <storage.h>
 #include <coins.h>
-#include <debug.h>
 #include <transaction.h>
 #include <rand.h>
 #include <storage.h>
