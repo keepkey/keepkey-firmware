@@ -254,6 +254,9 @@ bool confirm_helper(const char *request_title, const char *request_body)
     volatile StateInfo state_info;
     ActiveLayout new_layout, cur_layout;
     DisplayState new_ds;
+    uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
+    DebugLinkDecision *dld;
+
     confirm_canceled_by_init = false;
 
     memset((void*)&state_info, 0, sizeof(state_info));
@@ -283,7 +286,7 @@ bool confirm_helper(const char *request_title, const char *request_body)
         cm_enable_interrupts();
 
         /* Listen for tiny messages */
-        tiny_msg = check_for_tiny_msg(false);
+        tiny_msg = check_for_tiny_msg(msg_tiny_buf);
 
         /* If ack received, let user confirm */
         if(tiny_msg == MessageType_MessageType_ButtonAck) {
@@ -298,7 +301,11 @@ bool confirm_helper(const char *request_title, const char *request_body)
 			    }
 			    ret_stat  = false;
                 goto confirm_helper_exit;
-            defaule:
+            case MessageType_MessageType_DebugLinkDecision:
+            	dld = (DebugLinkDecision *)msg_tiny_buf;
+            	ret_stat = dld->yes_no;
+            	goto confirm_helper_exit;
+            default:
 			    break; /* break from switch statement and stay in the while loop*/
         }
 

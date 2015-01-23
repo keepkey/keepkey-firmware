@@ -181,16 +181,58 @@ static const struct usb_interface_descriptor hid_iface[] = {{
 	.extralen = sizeof(hid_function),
 }};
 
+#if DEBUG_LINK
+static const struct usb_endpoint_descriptor hid_endpoints_debug[] = {{
+	.bLength = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType = USB_DT_ENDPOINT,
+	.bEndpointAddress = ENDPOINT_ADDRESS_DEBUG_IN,
+	.bmAttributes = USB_ENDPOINT_ATTR_INTERRUPT,
+	.wMaxPacketSize = USB_SEGMENT_SIZE,
+	.bInterval = 1,
+}, {
+	.bLength = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType = USB_DT_ENDPOINT,
+	.bEndpointAddress = ENDPOINT_ADDRESS_DEBUG_OUT,
+	.bmAttributes = USB_ENDPOINT_ATTR_INTERRUPT,
+	.wMaxPacketSize = USB_SEGMENT_SIZE,
+	.bInterval = 1,
+}};
+
+static const struct usb_interface_descriptor hid_iface_debug[] = {{
+	.bLength = USB_DT_INTERFACE_SIZE,
+	.bDescriptorType = USB_DT_INTERFACE,
+	.bInterfaceNumber = 1,
+	.bAlternateSetting = 0,
+	.bNumEndpoints = 2,
+	.bInterfaceClass = USB_CLASS_HID,
+	.bInterfaceSubClass = 0,
+	.bInterfaceProtocol = 0,
+	.iInterface = 0,
+	.endpoint = hid_endpoints_debug,
+	.extra = &hid_function,
+	.extralen = sizeof(hid_function),
+}};
+#endif
+
 static const struct usb_interface ifaces[] = {{
 	.num_altsetting = 1,
 	.altsetting = hid_iface,
+#if DEBUG_LINK
+}, {
+	.num_altsetting = 1,
+	.altsetting = hid_iface_debug,
+#endif
 }};
 
 static const struct usb_config_descriptor config = {
 	.bLength = USB_DT_CONFIGURATION_SIZE,
 	.bDescriptorType = USB_DT_CONFIGURATION,
 	.wTotalLength = 0,
+#if DEBUG_LINK
+	.bNumInterfaces = 2,
+#else
 	.bNumInterfaces = 1,
+#endif
 	.bConfigurationValue = 1,
 	.iConfiguration = 0,
 	.bmAttributes = 0x80,
@@ -252,6 +294,38 @@ static void hid_rx_callback(usbd_device *dev, uint8_t ep)
 }
 
 /*
+ * hid_debug_rx_callback() - callback function to process received packet from usb host on debug endpoint
+ *
+ * INPUT
+ *      dev - pointer to usb device handler
+ *      ep - unused
+ * OUTPUT
+ *      none
+ *
+ */
+#if DEBUG_LINK
+static void hid_debug_rx_callback(usbd_device *dev, uint8_t ep)
+{
+    (void)ep;
+
+    /*
+     * Receive into the message buffer.
+     */
+    UsbMessage m;
+    uint16_t rx = usbd_ep_read_packet(dev,
+                                      ENDPOINT_ADDRESS_DEBUG_OUT,
+                                      m.message,
+                                      USB_SEGMENT_SIZE);
+
+    if(rx && user_rx_callback)
+    {
+        m.len = rx;
+        user_rx_callback(&m);
+    }
+}
+#endif
+
+/*
  * hid_set_config_callback() - config usb IN/OUT endpoints and register callbacks
  *
  * INPUT -
@@ -266,6 +340,10 @@ static void hid_set_config_callback(usbd_device *dev, uint16_t wValue)
 
 	usbd_ep_setup(dev, ENDPOINT_ADDRESS_IN,  USB_ENDPOINT_ATTR_INTERRUPT, USB_SEGMENT_SIZE, 0);
 	usbd_ep_setup(dev, ENDPOINT_ADDRESS_OUT, USB_ENDPOINT_ATTR_INTERRUPT, USB_SEGMENT_SIZE, hid_rx_callback);
+#if DEBUG_LINK
+	usbd_ep_setup(dev, ENDPOINT_ADDRESS_DEBUG_IN,  USB_ENDPOINT_ATTR_INTERRUPT, USB_SEGMENT_SIZE, 0);
+	usbd_ep_setup(dev, ENDPOINT_ADDRESS_DEBUG_OUT, USB_ENDPOINT_ATTR_INTERRUPT, USB_SEGMENT_SIZE, hid_debug_rx_callback);
+#endif
 
 	usbd_register_control_callback(
 		dev,
@@ -328,43 +406,60 @@ void usb_poll(void)
  *
  * INPUT
  *      message - pointer message buffer
- *      len - length of message 
+ *      len - length of message
  * OUTPUT
  *      true/false
  */
 bool usb_tx(void* message, uint32_t len)
 {
-	uint32_t send_ct = 0;
+	uint32_t pos = 0;
 
-	/*
-	 * Chunk out message
-	 */
-    while(send_ct < len)
+	/* Chunk out message */
+    while(pos < len)
     {
-    	if(send_ct)
-		{
-			//TODO Replace with more elegant solution that
-			//monitors the usb transmit for last transmit complete
-			//status.
-			delay_ms(100);
-		} else {
-			delay_ms(100);
-		}
-
     	uint8_t tmp_buffer[USB_SEGMENT_SIZE] = { 0 };
-    	uint32_t rem = len - send_ct;
-    	uint32_t ct = rem < USB_SEGMENT_SIZE-1 ? rem : USB_SEGMENT_SIZE-1;
 
     	tmp_buffer[0] = '?';
-        memcpy(tmp_buffer + 1, message + send_ct, ct);
+        memcpy(tmp_buffer + 1, message + pos, USB_SEGMENT_SIZE - 1);
 
-        uint16_t tx = usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_IN, tmp_buffer, USB_SEGMENT_SIZE);
-        send_ct += ct;
-        assert(tx != 0);
+        while(usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_IN, tmp_buffer, USB_SEGMENT_SIZE) == 0) {};
+
+        pos += USB_SEGMENT_SIZE - 1;
     }
 
     return(true);
 }
+
+/*
+ * usb_debug_tx() - transmit usb message to host via debug endpoint
+ *
+ * INPUT
+ *      message - pointer message buffer
+ *      len - length of message
+ * OUTPUT
+ *      true/false
+ */
+#if DEBUG_LINK
+bool usb_debug_tx(void* message, uint32_t len)
+{
+	uint32_t pos = 0;
+
+	/* Chunk out message */
+    while(pos < len)
+    {
+    	uint8_t tmp_buffer[USB_SEGMENT_SIZE] = { 0 };
+
+    	tmp_buffer[0] = '?';
+        memcpy(tmp_buffer + 1, message + pos, USB_SEGMENT_SIZE - 1);
+
+        while(usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_DEBUG_IN, tmp_buffer, USB_SEGMENT_SIZE) == 0) {};
+
+        pos += USB_SEGMENT_SIZE - 1;
+    }
+
+    return(true);
+}
+#endif
 
 /*
  * usb_set_rx_callback() - setup USB receive callback function pointer

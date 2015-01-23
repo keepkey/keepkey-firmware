@@ -40,6 +40,11 @@
 #define ENDPOINT_ADDRESS_IN         (0x81)
 #define ENDPOINT_ADDRESS_OUT        (0x01)
 
+#if DEBUG_LINK
+#define ENDPOINT_ADDRESS_DEBUG_IN   (0x82)
+#define ENDPOINT_ADDRESS_DEBUG_OUT  (0x02)
+#endif
+
 /* Control buffer for use by the USB stack.  We just allocate the 
    space for it.  */
 #define USBD_CONTROL_BUFFER_SIZE 128
@@ -57,6 +62,9 @@ typedef void (*usb_rx_callback_t)(UsbMessage* msg);
 void usb_set_rx_callback(usb_rx_callback_t callback);
 bool usb_init(void);
 void usb_poll(void);
-bool usb_tx(void* msg, uint32_t len);
+bool usb_tx(void* message, uint32_t len);
+#if DEBUG_LINK
+bool usb_debug_tx(void* message, uint32_t len);
+#endif
 
 #endif

@@ -32,12 +32,27 @@
 #define MSG_TINY_TYPE_ERROR 0xFFFF
 
 /***************** Typedefs and enums  *******************/
+typedef void (*msg_handler_t)(void *ptr);
+typedef void (*raw_msg_handler_t)(uint8_t *msg, uint32_t msg_size, uint32_t frame_length);
+typedef void (*msg_success_t)(const char *);
+typedef void (*msg_failure_t)(FailureType, const char *);
+typedef void (*msg_initialize_t)(Initialize *);
+typedef bool (*usb_tx_handler_t)(void*, uint32_t);
+
 typedef enum
 {
-    MESSAGE_MAP,
-	RAW_MESSAGE_MAP,
-	NO_MAP
+    NORMAL_MSG,
+	RAW_MSG,
+	DEBUG_MSG,
+	UNKNOWN_MSG,
+	END_OF_MAP
 } MessageMapType;
+
+typedef enum
+{
+    IN_MSG,
+	OUT_MSG
+} MessageMapDirection;
 
 typedef struct
 {
@@ -51,26 +66,21 @@ typedef struct
 
 typedef struct 
 {
-    char dir; 	// i = in, o = out
+	MessageMapType type;
+	MessageMapDirection dir;
     MessageType msg_id;
     const pb_field_t *fields;
-    void (*process_func)(void *ptr);
+    msg_handler_t process_func;
 } MessagesMap_t;
-
-typedef struct 
-{
-	char dir; 	// i = in, o = out
-    MessageType msg_id;
-    void (*process_func)(uint8_t *msg, uint32_t msg_size, uint32_t frame_length);
-} RawMessagesMap_t;
-
-typedef void (*msg_success_t)(const char *);
-typedef void (*msg_failure_t)(FailureType, const char *);
-typedef void (*msg_initialize_t)(Initialize *);
 
 /***************** Function Declarations ******************/
 bool msg_write(MessageType type, const void* msg);
-void msg_map_init(const void* map, MessageMapType type);
+
+#if DEBUG_LINK
+bool msg_debug_write(MessageType type, const void *msg);
+#endif
+
+void msg_map_init(const void* map);
 
 /* Message failure and message init callback */
 void set_msg_success_handler(msg_success_t success_func);
@@ -85,6 +95,7 @@ void msg_init();
 
 /* Tiny messages */
 MessageType wait_for_tiny_msg(uint8_t *buf);
-MessageType check_for_tiny_msg(bool block);
+MessageType check_for_tiny_msg(uint8_t *buf);
+MessageType tiny_msg_poll(bool block);
 
 #endif
