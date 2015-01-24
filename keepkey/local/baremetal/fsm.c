@@ -901,9 +901,11 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg)
 	(void)msg;
 	RESP_INIT(DebugLinkState);
 
+	//TODO: Layout is too large to put into to memory for serializing into PB.  Figure out a way to compress (possibly RLE?)
+	Canvas *screenshot = display_canvas();
 	resp->has_layout = true;
-	resp->layout.size = KEEPKEY_DISPLAY_WIDTH * KEEPKEY_DISPLAY_HEIGHT;
-	memcpy(resp->layout.bytes, display_canvas(), KEEPKEY_DISPLAY_WIDTH * KEEPKEY_DISPLAY_HEIGHT);
+	resp->layout.size = 1024;//KEEPKEY_DISPLAY_WIDTH * KEEPKEY_DISPLAY_HEIGHT;
+	memcpy(resp->layout.bytes, screenshot->buffer, 1024);//KEEPKEY_DISPLAY_WIDTH * KEEPKEY_DISPLAY_HEIGHT);
 
 	if (storage_has_pin()) {
 		resp->has_pin = true;
@@ -1014,5 +1016,10 @@ void fsm_init(void)
 	set_msg_success_handler(&fsm_sendSuccess);
 	set_msg_failure_handler(&fsm_sendFailure);
 	set_msg_initialize_handler(&fsm_msgInitialize);
+
+#if DEBUG_LINK
+	set_msg_debug_link_get_state_handler(&fsm_msgDebugLinkGetState);
+#endif
+
 	msg_init();
 }

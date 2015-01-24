@@ -40,7 +40,7 @@
 static bool pin_canceled_by_init = false;
 
 /* random PIN matrix holder */
-static char pin_matrix[] = "*********";
+static char pin_matrix[] = "XXXXXXXXX";
 
 /*******************FUNCTION Definitions  ****************************/
 
@@ -72,28 +72,41 @@ static void wait_for_pin_ack(PINInfo *pin_info)
 {
 	/* Listen for tiny messages */
 	uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
-	uint16_t tiny_msg = wait_for_tiny_msg(msg_tiny_buf);
+	uint16_t tiny_msg;
+	bool finished = false;
 
-    switch(tiny_msg) {
-        case MessageType_MessageType_PinMatrixAck:
-		    pin_info->pin_ack_msg = PIN_ACK_RECEIVED;
-		    PinMatrixAck *pma = (PinMatrixAck *)msg_tiny_buf;
-		    strcpy(pin_info->pin, pma->pin);
-            break;
-        /* Check for pin tumbler ack */
-        //TODO:Implement PIN tumbler
+	while(!finished) {
+		tiny_msg = wait_for_tiny_msg(msg_tiny_buf);
 
-	    /* Check for cancel or initialize messages */
-        case MessageType_MessageType_Cancel :
-            pin_info->pin_ack_msg = PIN_ACK_CANCEL;
-            break;
-        case MessageType_MessageType_Initialize :
-            pin_info->pin_ack_msg = PIN_ACK_CANCEL_BY_INIT;
-            break;
-        case MSG_TINY_TYPE_ERROR :
-        default:
-            break;
-    }
+		switch(tiny_msg) {
+			case MessageType_MessageType_PinMatrixAck:
+				pin_info->pin_ack_msg = PIN_ACK_RECEIVED;
+				PinMatrixAck *pma = (PinMatrixAck *)msg_tiny_buf;
+				strcpy(pin_info->pin, pma->pin);
+				finished = true;
+				break;
+			/* Check for pin tumbler ack */
+			//TODO:Implement PIN tumbler
+
+			/* Check for cancel or initialize messages */
+			case MessageType_MessageType_Cancel :
+				pin_info->pin_ack_msg = PIN_ACK_CANCEL;
+				finished = true;
+				break;
+			case MessageType_MessageType_Initialize:
+				pin_info->pin_ack_msg = PIN_ACK_CANCEL_BY_INIT;
+				finished = true;
+				break;
+#if DEBUG_LINK
+			case MessageType_MessageType_DebugLinkGetState:
+				call_msg_debug_link_get_state_handler((DebugLinkGetState *)msg_tiny_buf);
+				break;
+#endif
+			case MSG_TINY_TYPE_ERROR :
+			default:
+				break;
+		}
+	}
 }
 
 /*
@@ -150,13 +163,13 @@ static void randomize_pin(char pin[])
  * OUTPUT -
  *      none
  */
-static void decode_pin(char randomized_pin[], PINInfo *pin_info)
+static void decode_pin(PINInfo *pin_info)
 {
 	for (uint8_t i = 0; i < strlen(pin_info->pin); i++) {
 		uint8_t j = pin_info->pin[i] - '1';
 
-		if(0 <= j < strlen(randomized_pin)) {
-			pin_info->pin[i] = randomized_pin[j];
+		if(0 <= j < strlen(pin_matrix)) {
+			pin_info->pin[i] = pin_matrix[j];
         } else {
 			pin_info->pin[i] = 'X';
         }
@@ -193,9 +206,6 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
         }
 	}
 
-	/* clear PIN matrix */
-	strcpy(pin_matrix, "*********");
-
 	/* Check for PIN cancel */
 	if (pin_info->pin_ack_msg != PIN_ACK_RECEIVED) {
 		if(pin_info->pin_ack_msg == PIN_ACK_CANCEL_BY_INIT) {
@@ -204,10 +214,13 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
 		cancel_pin(FailureType_Failure_PinCancelled, "PIN Cancelled");
 	} else {
 		/* Decode PIN */
-		decode_pin(pin_matrix, pin_info);
+		decode_pin(pin_info);
 
 		ret = true;
 	}
+
+	/* clear PIN matrix */
+	strcpy(pin_matrix, "XXXXXXXXX");
 
 	return (ret);
 }

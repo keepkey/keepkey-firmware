@@ -250,12 +250,16 @@ bool review(const char *request_title, const char *request_body, ...)
 bool confirm_helper(const char *request_title, const char *request_body)
 {
     bool ret_stat = false;
-    uint16_t tiny_msg;
     volatile StateInfo state_info;
     ActiveLayout new_layout, cur_layout;
     DisplayState new_ds;
+    uint16_t tiny_msg;
     uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
+
+#if DEBUG_LINK
     DebugLinkDecision *dld;
+    bool debug_decided = false;
+#endif
 
     confirm_canceled_by_init = false;
 
@@ -288,12 +292,10 @@ bool confirm_helper(const char *request_title, const char *request_body)
         /* Listen for tiny messages */
         tiny_msg = check_for_tiny_msg(msg_tiny_buf);
 
-        /* If ack received, let user confirm */
-        if(tiny_msg == MessageType_MessageType_ButtonAck) {
-        	button_request_acked = true;
-        }
-
         switch(tiny_msg) {
+        	case MessageType_MessageType_ButtonAck:
+        		button_request_acked = true;
+        		break;
             case MessageType_MessageType_Cancel:
             case MessageType_MessageType_Initialize:
 			    if (tiny_msg == MessageType_MessageType_Initialize) {
@@ -301,10 +303,16 @@ bool confirm_helper(const char *request_title, const char *request_body)
 			    }
 			    ret_stat  = false;
                 goto confirm_helper_exit;
+#if DEBUG_LINK
             case MessageType_MessageType_DebugLinkDecision:
             	dld = (DebugLinkDecision *)msg_tiny_buf;
             	ret_stat = dld->yes_no;
-            	goto confirm_helper_exit;
+            	debug_decided = true;
+            	break;
+            case MessageType_MessageType_DebugLinkGetState:
+            	call_msg_debug_link_get_state_handler((DebugLinkGetState *)msg_tiny_buf);
+            	break;
+#endif
             default:
 			    break; /* break from switch statement and stay in the while loop*/
         }
@@ -313,10 +321,18 @@ bool confirm_helper(const char *request_title, const char *request_body)
             ret_stat = true;
             break; /* confirmation done.  Exiting function */
         }
+
         if(cur_layout != new_layout) {
             swap_layout(new_layout, &state_info);
             cur_layout = new_layout;
         }
+
+#if DEBUG_LINK
+        if(debug_decided && button_request_acked) {
+        	break; /* confirmation done via debug link.  Exiting function */
+        }
+#endif
+
         display_refresh();
         animate();
     }

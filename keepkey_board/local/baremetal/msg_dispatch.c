@@ -39,6 +39,9 @@ static const MessagesMap_t *MessagesMap = NULL;
 static msg_success_t msg_success;
 static msg_failure_t msg_failure;
 static msg_initialize_t msg_initialize;
+#if DEBUG_LINK
+static msg_debug_link_get_state_t msg_debug_link_get_state;
+#endif
 
 /* Tiny messages */
 static bool msg_tiny_flag = false;
@@ -364,6 +367,10 @@ void handle_usb_rx(UsbMessage *msg)
 
 	if(entry = message_map_entry(NORMAL_MSG, IN_MSG, last_frame_header.id)) {
 		map_type = NORMAL_MSG;
+#if DEBUG_LINK
+	} else if(entry = message_map_entry(DEBUG_MSG, IN_MSG, last_frame_header.id)) {
+		map_type = DEBUG_MSG;
+#endif
     } else if(entry = message_map_entry(RAW_MSG, IN_MSG, last_frame_header.id)) {
 		map_type = RAW_MSG;
     } else {
@@ -371,7 +378,11 @@ void handle_usb_rx(UsbMessage *msg)
     }
 
     /* Check for a message map entry for protocol buffer messages */
-    if(map_type == NORMAL_MSG)
+#if DEBUG_LINK
+	if(map_type == NORMAL_MSG || map_type == DEBUG_MSG)
+#else
+	if(map_type == NORMAL_MSG)
+#endif
     {
     	/* Copy content to frame buffer */
     	if(content_size == content_pos)
@@ -394,7 +405,11 @@ void handle_usb_rx(UsbMessage *msg)
      * Only parse and message map if all segments have been buffered
      * and this message type is parsable
      */
-    if (last_segment && map_type == NORMAL_MSG)
+#if DEBUG_LINK
+	if (last_segment && (map_type == NORMAL_MSG || map_type == DEBUG_MSG))
+#else
+	if (last_segment && map_type == NORMAL_MSG)
+#endif
     	if(!msg_tiny_flag) {
     		dispatch(entry, framebuf.buffer, last_frame_header.len);
         } else {
@@ -471,6 +486,21 @@ void set_msg_initialize_handler(msg_initialize_t initialize_func)
 }
 
 /*
+ * set_msg_debug_link_get_state_handler() - setup usb message debug link get state handler
+ *
+ * INPUT -
+ *      debug_link_get_state_func - message initialization handler
+ * OUTPUT -
+ *      none
+ */
+#if DEBUG_LINK
+void set_msg_debug_link_get_state_handler(msg_debug_link_get_state_t debug_link_get_state_func)
+{
+	msg_debug_link_get_state = debug_link_get_state_func;
+}
+#endif
+
+/*
  * call_msg_success_handler() - call message success handler
  *
  * INPUT -
@@ -509,6 +539,20 @@ void call_msg_initialize_handler(void)
 	if(msg_initialize)
 		(*msg_initialize)((Initialize *)0);
 }
+
+/*
+ * call_msg_debug_link_get_state_handler() - call message debug link get state handler
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
+#if DEBUG_LINK
+void call_msg_debug_link_get_state_handler(DebugLinkGetState *msg)
+{
+	if(msg_debug_link_get_state)
+		(*msg_debug_link_get_state)(msg);
+}
+#endif
 
 /*
  * msg_init() - setup usb receive callback handler

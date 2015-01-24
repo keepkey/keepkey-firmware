@@ -38,12 +38,17 @@ typedef void (*msg_success_t)(const char *);
 typedef void (*msg_failure_t)(FailureType, const char *);
 typedef void (*msg_initialize_t)(Initialize *);
 typedef bool (*usb_tx_handler_t)(void*, uint32_t);
+#if DEBUG_LINK
+typedef void (*msg_debug_link_get_state_t)(DebugLinkGetState *);
+#endif
 
 typedef enum
 {
     NORMAL_MSG,
 	RAW_MSG,
+#if DEBUG_LINK
 	DEBUG_MSG,
+#endif
 	UNKNOWN_MSG,
 	END_OF_MAP
 } MessageMapType;
@@ -89,6 +94,10 @@ void set_msg_initialize_handler(msg_initialize_t initialize_func);
 void call_msg_success_handler(const char *text);
 void call_msg_failure_handler(FailureType code, const char *text);
 void call_msg_initialize_handler(void);
+#if DEBUG_LINK
+void set_msg_debug_link_get_state_handler(msg_debug_link_get_state_t debug_link_get_state_func);
+void call_msg_debug_link_get_state_handler(DebugLinkGetState *msg);
+#endif
 
 /* Assign callback for USB interrupt handling */
 void msg_init();
