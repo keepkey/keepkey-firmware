@@ -163,16 +163,15 @@ void swap_layout(ActiveLayout active_layout, volatile StateInfo* si)
 }
 
 /*
- * confirm_with_button_request() - user confirmation function interface with USB button request
+ *  confirm() - user confirmation function interface 
  *
- * INPUT - 
- *       type - 
- *       *request_title - 
- *       *request_body -
- * OUTPUT - 
- *      true/false - status
+ *  INPUT - 
+ *  	type -
+ *      *request_title - 
+ *      *request_body -
+ *  OUTPUT -
  */
-bool confirm_with_button_request(ButtonRequestType type, const char *request_title, const char *request_body, ...)
+bool confirm(ButtonRequestType type, const char *request_title, const char *request_body, ...)
 {
 	button_request_acked = false;
 
@@ -182,9 +181,7 @@ bool confirm_with_button_request(ButtonRequestType type, const char *request_tit
 	vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
 	va_end(vl);
 
-	/*
-	 * Send button request
-	 */
+	/* Send button request */
 	ButtonRequest resp;
 	memset(&resp, 0, sizeof(ButtonRequest));
 	resp.has_code = true;
@@ -195,14 +192,15 @@ bool confirm_with_button_request(ButtonRequestType type, const char *request_tit
 }
 
 /*
- *  confirm() - user confirmation function interface 
+ * confirm_without_button_request() - user confirmation function interface without button request
  *
- *  INPUT - 
- *      *request_title - 
- *      *request_body -
- *  OUTPUT -
+ * INPUT -
+ *       *request_title -
+ *       *request_body -
+ * OUTPUT -
+ *      true/false - status
  */
-bool confirm(const char *request_title, const char *request_body, ...)
+bool confirm_without_button_request(const char *request_title, const char *request_body, ...)
 {
 	button_request_acked = true;
 
@@ -219,13 +217,45 @@ bool confirm(const char *request_title, const char *request_body, ...)
  * review()
  *
  * INPUT - 
+ * 		type -
  *      *request_title
  *      *request_body
  * OUTPUT - 
  *      true/false - status
  *  
  */
-bool review(const char *request_title, const char *request_body, ...)
+bool review(ButtonRequestType type, const char *request_title, const char *request_body, ...)
+{
+	button_request_acked = false;
+
+	va_list vl;
+	va_start(vl, request_body);
+	char strbuf[body_char_width()+1];
+	vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+	va_end(vl);
+
+	/* Send button request */
+	ButtonRequest resp;
+	memset(&resp, 0, sizeof(ButtonRequest));
+	resp.has_code = true;
+	resp.code = type;
+	msg_write(MessageType_MessageType_ButtonRequest, &resp);
+
+	confirm_helper(request_title, strbuf);
+	return true;
+}
+
+/*
+ * review_without_button_request() - user review function interface without button request
+ *
+ * INPUT -
+ *      *request_title
+ *      *request_body
+ * OUTPUT -
+ *      true/false - status
+ *
+ */
+bool review_without_button_request(const char *request_title, const char *request_body, ...)
 {
 	button_request_acked = true;
 
@@ -406,10 +436,10 @@ bool confirm_cipher(bool encrypt, const char *key)
 	}
 
 	if(encrypt)
-		ret_stat = confirm_with_button_request(ButtonRequestType_ButtonRequest_Other,
+		ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
 			"Encrypt Key Value", "Do you want to encrypt the value of the key \"%s\"?", key_prompt);
 	else
-		ret_stat = confirm_with_button_request(ButtonRequestType_ButtonRequest_Other,
+		ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
 			"Decrypt Key Value", "Do you want to decrypt the value of the key \"%s\"?", key_prompt);
 
     return(ret_stat);
@@ -437,10 +467,10 @@ bool confirm_encrypt_msg(const char *msg, bool signing)
 	}
 
 	if(signing) {
-		ret_stat = confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+		ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
 			"Encrypt and Sign Message", "Do you want to encrypt and sign the message \"%s\"?", msg_prompt);
     } else {
-		 ret_stat = confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+		 ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
 			"Encrypt Message", "Do you want to encrypt the message \"%s\"?", msg_prompt);
     }
 
@@ -470,10 +500,10 @@ bool confirm_decrypt_msg(const char *msg, const char *address)
 	}
 
 	if(address) {
-		ret_stat = confirm_with_button_request(ButtonRequestType_ButtonRequest_Other, 
+		ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
                 "Decrypt Signed Message", "The decrypted, signed message is \"%s\"?", msg_prompt);
     } else {
-		ret_stat = confirm_with_button_request(ButtonRequestType_ButtonRequest_Other, 
+		ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
                 "Decrypt Message", "The decrypted message is \"%s\"?", msg_prompt);
     }
 
@@ -493,11 +523,11 @@ bool confirm_ping_msg(const char *msg)
     bool ret_stat;
 
 	if(strlen(msg) <= MAX_PING_MSG_LEN) {
-		ret_stat = confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+		ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
 			"Respond to Ping Request", 
             "A ping request was received with the message \"%s\". Would you like to have it responded to?", msg);
     } else {
-		ret_stat = confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+		ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
 			"Respond to Ping Request", "A ping request was received. Would you like to have it responded to?");
     }
     return(ret_stat);
@@ -505,6 +535,6 @@ bool confirm_ping_msg(const char *msg)
 
 bool confirm_transaction_output(const char *amount, const char *to)
 {
-	return confirm_with_button_request(ButtonRequestType_ButtonRequest_ConfirmOutput,
+	return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
 		"Confirm Transaction", "Send %s to %s", amount, to);
 }

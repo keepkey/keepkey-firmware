@@ -211,7 +211,7 @@ void fsm_msgChangePin(ChangePin *msg)
 	{
 		if (storage_has_pin())
 		{
-			confirmed = confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+			confirmed = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
 				"Remove Your PIN", "Are you sure you want to remove your PIN protecting this KeepKey?");
 		} else {
 			fsm_sendSuccess("PIN removed");
@@ -219,10 +219,10 @@ void fsm_msgChangePin(ChangePin *msg)
 		}
 	} else {
 		if (storage_has_pin())
-			confirmed = confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+			confirmed = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
 				"Change Your PIN", "Are you sure you want to change your PIN protecting this KeepKey?");
 		else
-			confirmed = confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+			confirmed = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
 				"Add PIN Protection", "Are you sure you want to add PIN protection this KeepKey?");
 	}
 
@@ -271,7 +271,7 @@ void fsm_msgChangePin(ChangePin *msg)
 void fsm_msgWipeDevice(WipeDevice *msg)
 {
 	(void)msg;
-	if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_WipeDevice, "Wipe Private Keys and Settings", "Are you sure you want to erase private keys and settings? This process cannot be undone and any money stored will be lost."))
+	if(!confirm(ButtonRequestType_ButtonRequest_WipeDevice, "Wipe Private Keys and Settings", "Are you sure you want to erase private keys and settings? This process cannot be undone and any money stored will be lost."))
 	{
 		cancel_confirm(FailureType_Failure_ActionCancelled, "Wipe cancelled");
 		layout_home();
@@ -304,7 +304,7 @@ void fsm_msgFirmwareUpload(FirmwareUpload *msg)
 
 void fsm_msgGetEntropy(GetEntropy *msg)
 {
-	if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+	if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
 		"Generate and Return Entropy", "Are you sure you would like to generate entropy using the hardware RNG, and return it to the computer client?"))
 	{
 		cancel_confirm(FailureType_Failure_ActionCancelled, "Entropy cancelled");
@@ -356,7 +356,7 @@ void fsm_msgLoadDevice(LoadDevice *msg)
     	return;
     }
 
-    if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+    if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
     	"Import Recovery Sentence", "Importing a recovery sentence directly from a connected computer is not recommended unless you understand the risks."))
     {
 		cancel_confirm(FailureType_Failure_ActionCancelled, "Load cancelled");
@@ -452,7 +452,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 {
 	if (msg->has_label)
 	{
-		if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+		if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
 			"Change Label", "Are you sure you would like to change the label to \"%s\"?", msg->label))
 		{
 			cancel_confirm(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
@@ -463,7 +463,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 
 	if (msg->has_language)
 	{
-		if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+		if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
 			"Change Language", "Are you sure you would like to change the language to %s?", msg->language))
 		{
 			cancel_confirm(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
@@ -475,7 +475,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 	if (msg->has_use_passphrase) {
 		if(msg->use_passphrase)
 		{
-			if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+			if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
 				"Enable Passphrase", "Are you sure you would like to enable a passphrase?", msg->language))
 			{
 				cancel_confirm(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
@@ -485,7 +485,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 		}
 		else
 		{
-			if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall,
+			if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
 				"Disable Passphrase", "Are you sure you would like to disable passphrase?", msg->language))
 			{
 				cancel_confirm(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
@@ -659,7 +659,7 @@ void fsm_msgSignMessage(SignMessage *msg)
 {
 	RESP_INIT(MessageSignature);
 
-	if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_ProtectCall, "Sign Message", msg->message.bytes))
+	if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall, "Sign Message", msg->message.bytes))
 	{
 		cancel_confirm(FailureType_Failure_ActionCancelled, "Sign message cancelled");
 		layout_home();
@@ -722,7 +722,7 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 	}
 	if (msg->signature.size == 65 && cryptoMessageVerify(msg->message.bytes, msg->message.size, addr_raw, msg->signature.bytes) == 0)
 	{
-		if(review("Verify Message", msg->message.bytes))
+		if(review(ButtonRequestType_ButtonRequest_Other, "Verify Message", msg->message.bytes))
 		{
 			success_confirm("Message verified");
 		}

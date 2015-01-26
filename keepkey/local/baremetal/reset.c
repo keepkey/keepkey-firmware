@@ -64,7 +64,7 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 	data2hex(int_entropy + 24, 8, ent_str[3]);
 
 	if (display_random) {
-		if (!confirm_with_button_request(ButtonRequestType_ButtonRequest_ResetDevice,
+		if (!confirm(ButtonRequestType_ButtonRequest_ResetDevice,
 			"Internal Entropy", "%s %s %s %s", ent_str[0], ent_str[1], ent_str[2], ent_str[3]))
 		{
 			cancel_confirm(FailureType_Failure_ActionCancelled, "Reset cancelled");
@@ -138,7 +138,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 		else
 			strcpy(title, "Write Down Recovery Sentence");
 
-		if (!confirm_with_button_request(ButtonRequestType_ButtonRequest_ConfirmWord, title, "%s", formatted_mnemonic[word_group])) {
+		if (!confirm(ButtonRequestType_ButtonRequest_ConfirmWord, title, "%s", formatted_mnemonic[word_group])) {
 			cancel_confirm(FailureType_Failure_ActionCancelled, "Reset cancelled");
 			storage_reset();
 			layout_home();

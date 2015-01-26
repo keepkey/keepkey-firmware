@@ -70,9 +70,10 @@ typedef struct
 } StateInfo;
 
 /******************* Function Declarations *****************************/
-bool confirm_with_button_request(ButtonRequestType type, const char *request_title, const char *request_body, ...);
-bool confirm(const char* request_title, const char* request_body, ...);
-bool review(const char* request_title, const char* request_body, ...);
+bool confirm(ButtonRequestType type, const char *request_title, const char *request_body, ...);
+bool confirm_without_button_request(const char* request_title, const char* request_body, ...);
+bool review(ButtonRequestType type, const char* request_title, const char* request_body, ...);
+bool review_without_button_request(const char *request_title, const char *request_body, ...);
 bool confirm_helper(const char* request_title, const char* request_body);
 void cancel_confirm(FailureType code, const char *text);
 void success_confirm(const char *text);

@@ -480,7 +480,7 @@ void signing_txack(TransactionType *tx)
 
 					if (fee > (uint64_t)tx_est_size * coin->maxfee_kb) {
 
-						if (!confirm_with_button_request(ButtonRequestType_ButtonRequest_FeeOverThreshold,
+						if (!confirm(ButtonRequestType_ButtonRequest_FeeOverThreshold,
 							"Confirm Fee", "%s", fee_str))
 						{
 							cancel_confirm(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
@@ -491,7 +491,7 @@ void signing_txack(TransactionType *tx)
 					// last confirmation
 					coin_amnt_to_str(coin, to_spend - change_spend - fee, total_amount_str, sizeof(total_amount_str));
 
-					if(!confirm_with_button_request(ButtonRequestType_ButtonRequest_SignTx,
+					if(!confirm(ButtonRequestType_ButtonRequest_SignTx,
 						"Confirm Transaction", "Total amount leaving your wallet is %s with a fee of %s.", total_amount_str, fee_str))
 					{
 						cancel_confirm(FailureType_Failure_ActionCancelled, "Signing cancelled by user");

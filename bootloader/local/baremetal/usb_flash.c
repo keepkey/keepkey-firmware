@@ -290,7 +290,7 @@ void storage_part_restore(ConfigFlash *cfg_ptr)
  */
 void handler_erase(FirmwareErase* msg)
 {
-    if(confirm("Verify Backup Before Upgrade", 
+    if(confirm_without_button_request("Verify Backup Before Upgrade",
                 "Before upgrading your firmware, confirm that you have access to the backup of your \
                 recovery sentence.")) {
         layout_loading(FLASHING_ANIM);
@@ -389,7 +389,7 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
 					strcat(str_digest, digest_buf);
 				}
 
-                if(confirm_with_button_request(ButtonRequestType_ButtonRequest_FirmwareCheck,
+                if(confirm(ButtonRequestType_ButtonRequest_FirmwareCheck,
                 	"Compare Firmware Fingerprint", str_digest)) {
                     /* user has confirmed the finger print.  Restore "KPKY" magic in flash meta header */
                     flash_write_n_lock(FLASH_APP, 0, META_MAGIC_SIZE, "KPKY");
