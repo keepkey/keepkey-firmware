@@ -284,8 +284,6 @@ bool pin_protect()
 				fsm_sendFailure(FailureType_Failure_PinInvalid, "Invalid PIN");
 			}
 		}
-		else
-			fsm_sendFailure(FailureType_Failure_PinCancelled, "PIN Cancelled");
 	} else {
 		ret = true;
     }
