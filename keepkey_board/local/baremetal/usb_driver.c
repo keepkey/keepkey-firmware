@@ -412,10 +412,10 @@ void usb_poll(void)
  */
 bool usb_tx(void* message, uint32_t len)
 {
-	uint32_t pos = 0;
+	uint32_t pos = 1;
 
 	/* Chunk out message */
-    while(pos < len)
+    while(pos < len - 1)
     {
     	uint8_t tmp_buffer[USB_SEGMENT_SIZE] = { 0 };
 
@@ -442,10 +442,10 @@ bool usb_tx(void* message, uint32_t len)
 #if DEBUG_LINK
 bool usb_debug_tx(void* message, uint32_t len)
 {
-	uint32_t pos = 0;
+	uint32_t pos = 1;
 
 	/* Chunk out message */
-    while(pos < len)
+    while(pos < len - 1)
     {
     	uint8_t tmp_buffer[USB_SEGMENT_SIZE] = { 0 };
 
