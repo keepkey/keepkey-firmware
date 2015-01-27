@@ -35,7 +35,7 @@ extern "C" {
 /**
  * The max size of a decoded protobuf.  
  */
-#define MAX_DECODE_SIZE 2048
+#define MAX_DECODE_SIZE (12 * 1024)
 
 #ifdef __cplusplus
 }
