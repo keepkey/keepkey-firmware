@@ -46,7 +46,7 @@
 
 /* Version of the nanopb library. Just in case you want to check it in
  * your own program. */
-#define NANOPB_VERSION nanopb-0.2.7
+#define NANOPB_VERSION nanopb-0.2.9
 
 /* Include all the system headers needed by nanopb. You will need the
  * definitions of the following:
@@ -80,8 +80,8 @@
 #   define PB_PACKED_STRUCT_START
 #   define PB_PACKED_STRUCT_END
 #   define pb_packed __attribute__((packed))
-#elif defined(__ICCARM__)
-    /* For IAR ARM compiler */
+#elif defined(__ICCARM__) || defined(__CC_ARM)
+    /* For IAR ARM and Keil MDK-ARM compilers */
 #   define PB_PACKED_STRUCT_START _Pragma("pack(push, 1)")
 #   define PB_PACKED_STRUCT_END _Pragma("pack(pop)")
 #   define pb_packed
