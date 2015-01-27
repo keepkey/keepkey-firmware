@@ -43,7 +43,7 @@
 
 /* Static / Global variables */
 
-ConfigFlash* real_config = (ConfigFlash*)FLASH_STORAGE_START;
+/* shadow memory for configuration data in storage partition*/
 ConfigFlash shadow_config;
 
 static progress_handler_t progress_handler;
@@ -59,7 +59,7 @@ static char sessionPassphrase[51];
 
 
 /*
- * storage_from_flash() - copy content of storage partition from flash memory to shadow memory 
+ * storage_from_flash() - copy configuration from storage partition in flash memory to shadow memory in RAM
  *
  * INPUT - 
  *      storage version   
@@ -69,9 +69,10 @@ static char sessionPassphrase[51];
  */
 bool storage_from_flash(uint32_t version)
 {
+    ConfigFlash *stor_config = (ConfigFlash*)FLASH_STORAGE_START;
     switch (version) {
         case 1:
-            memcpy(&shadow_config, real_config, sizeof(shadow_config));
+            memcpy(&shadow_config, stor_config, sizeof(shadow_config));
             break;
         default:
             return false;
@@ -88,19 +89,27 @@ bool storage_from_flash(uint32_t version)
  */
 void storage_init(void)
 {
-     storage_reset();
-	/* verify storage area is valid */
-	if (memcmp((void *)FLASH_STORAGE_START, "stor", 4) == 0) {
-		// load uuid
-		memcpy(shadow_config.meta.uuid, (void *)(FLASH_STORAGE_START + 4), sizeof(shadow_config.meta.uuid));
+    ConfigFlash *stor_config = (ConfigFlash*)FLASH_STORAGE_START;
+
+    /* reset shadow configuration in RAM */
+    storage_reset();
+    
+    dbg_print("metaMagicAddr 0x%x\n\r", stor_config->meta.magic);
+	/* verify storage area is initialized */
+	if (memcmp((void *)stor_config->meta.magic , "stor", 4) == 0) {
+		// load uuid to shadow memory
+		memcpy(shadow_config.meta.uuid, (void *)&stor_config->meta.uuid, sizeof(shadow_config.meta.uuid));
 		data2hex(shadow_config.meta.uuid, sizeof(shadow_config.meta.uuid), shadow_config.meta.uuid_str);
-		// load storage struct
-		uint32_t version = real_config->storage.version;
-		if (version && version <= STORAGE_VERSION) {
-			storage_from_flash(version);
-		}
+
+        dbg_print("ver %d, %d, pinAddr = 0x%x\n\r", stor_config->storage.version, STORAGE_VERSION, stor_config->storage.pin);
+
+        if( stor_config->storage.version) {
+		    if (stor_config->storage.version <= STORAGE_VERSION) {
+			    storage_from_flash(stor_config->storage.version);
+		    }
+        }
         /* New app with storage version changed!  update the storage space */
-		if (version != STORAGE_VERSION) {
+		if (stor_config->storage.version != STORAGE_VERSION) {
 			storage_commit();
 		}
 	} else {
@@ -169,7 +178,7 @@ void storage_commit()
     flash_unlock();
 
     flash_erase(FLASH_STORAGE);
-    memcpy(&shadow_config.meta.magic, "stor", 4);
+    memcpy((void *)shadow_config.meta.magic, "stor", 4);
 
     if(progress_handler)
     	flash_write_with_progress(FLASH_STORAGE, 0, sizeof(shadow_config), (uint8_t*)&shadow_config, progress_handler);
@@ -272,9 +281,9 @@ void storage_setLanguage(const char *lang)
  */
 bool storage_is_pin_correct(const char *pin)
 {
-    if(real_config->storage.has_pin)
+    if(shadow_config.storage.has_pin)
     {
-    	return strcmp(real_config->storage.pin, pin) == 0;
+    	return strcmp(shadow_config.storage.pin, pin) == 0;
     } else {
     	return false;
     }
@@ -289,7 +298,7 @@ bool storage_is_pin_correct(const char *pin)
  */
 bool storage_has_pin(void)
 {
-	return (real_config->storage.has_pin && (strlen(real_config->storage.pin) > 0));
+	return (shadow_config.storage.has_pin && (strlen(shadow_config.storage.pin) > 0));
 }
 
 /*
@@ -321,7 +330,7 @@ void storage_set_pin(const char *pin)
  */
 const char* storage_get_pin(void)
 {
-	return (real_config->storage.has_pin) ? real_config->storage.pin : NULL;
+	return (shadow_config.storage.has_pin) ? shadow_config.storage.pin : NULL;
 }
 
 /*
@@ -347,7 +356,7 @@ void session_cache_pin(const char *pin)
  */
 bool session_is_pin_cached(void)
 {
-	return (sessionPinCached && (strcmp(sessionPin, real_config->storage.pin) == 0));
+	return (sessionPinCached && (strcmp(sessionPin, shadow_config.storage.pin) == 0));
 }
 
 /*
@@ -371,7 +380,7 @@ void storage_reset_pin_fails(void)
  */
 void storage_increase_pin_fails(void)
 {
-	if (!real_config->storage.has_pin_failed_attempts) {
+	if (!shadow_config.storage.has_pin_failed_attempts) {
 		shadow_config.storage.has_pin_failed_attempts = true;
 		shadow_config.storage.pin_failed_attempts = 1;
 	} else {
@@ -389,7 +398,7 @@ void storage_increase_pin_fails(void)
  */
 uint32_t storage_get_pin_fails(void)
 {
-	return real_config->storage.has_pin_failed_attempts ? real_config->storage.pin_failed_attempts : 0;
+	return shadow_config.storage.has_pin_failed_attempts ? shadow_config.storage.pin_failed_attempts : 0;
 }
 
 /*
@@ -422,22 +431,22 @@ bool storage_getRootNode(HDNode *node)
     }
 
     // if storage has node, decrypt and use it
-    if (real_config->storage.has_node) {
+    if (shadow_config.storage.has_node) {
         if (!passphrase_protect()) {
             return false;
         }
 
-        if (hdnode_from_xprv(real_config->storage.node.depth,
-        		real_config->storage.node.fingerprint,
-				real_config->storage.node.child_num,
-				real_config->storage.node.chain_code.bytes,
-				real_config->storage.node.private_key.bytes,
+        if (hdnode_from_xprv(shadow_config.storage.node.depth,
+        		shadow_config.storage.node.fingerprint,
+				shadow_config.storage.node.child_num,
+				shadow_config.storage.node.chain_code.bytes,
+				shadow_config.storage.node.private_key.bytes,
 				&sessionRootNode) == 0)
         {
 			return false;
 		}
 
-        if (real_config->storage.has_passphrase_protection && real_config->storage.passphrase_protection && strlen(sessionPassphrase)) {
+        if (shadow_config.storage.has_passphrase_protection && shadow_config.storage.passphrase_protection && strlen(sessionPassphrase)) {
         	// decrypt hd node
 			uint8_t secret[64];
 
@@ -456,7 +465,7 @@ bool storage_getRootNode(HDNode *node)
     }
 
     // if storage has mnemonic, convert it to node and use it
-    if (real_config->storage.has_mnemonic) {
+    if (shadow_config.storage.has_mnemonic) {
         if (!passphrase_protect()) {
             return false;
         }
@@ -465,7 +474,7 @@ bool storage_getRootNode(HDNode *node)
         layout_standard_notification("Waking up","", NOTIFICATION_INFO);
         display_refresh();
 
-		mnemonic_to_seed(real_config->storage.mnemonic, sessionPassphrase, seed, get_root_node_callback); // BIP-0039
+		mnemonic_to_seed(shadow_config.storage.mnemonic, sessionPassphrase, seed, get_root_node_callback); // BIP-0039
 		if (hdnode_from_seed(seed, sizeof(seed), &sessionRootNode) == 0) {
 			return false;
 		}
@@ -486,7 +495,7 @@ bool storage_getRootNode(HDNode *node)
  */
 const char *storage_getLabel(void)
 {
-    return real_config->storage.has_label ? real_config->storage.label : NULL;
+    return shadow_config.storage.has_label ? shadow_config.storage.label : NULL;
 }
 
 /*
@@ -498,7 +507,7 @@ const char *storage_getLabel(void)
  */
 const char *storage_getLanguage(void)
 {
-    return real_config->storage.has_language ? real_config->storage.language : NULL;
+    return shadow_config.storage.has_language ? shadow_config.storage.language : NULL;
 }
 
 /*
@@ -538,7 +547,7 @@ bool session_isPassphraseCached(void)
  */
 bool storage_isInitialized(void)
 {
-	return real_config->storage.has_node || real_config->storage.has_mnemonic;
+	return shadow_config.storage.has_node || shadow_config.storage.has_mnemonic;
 }
 
 /*
@@ -550,7 +559,7 @@ bool storage_isInitialized(void)
  */
 const char* storage_get_uuid_str(void)
 {
-    return real_config->meta.uuid_str;
+    return shadow_config.meta.uuid_str;
 }
 
 /*
@@ -562,9 +571,9 @@ const char* storage_get_uuid_str(void)
  */
 const char* storage_get_language(void)
 {
-    if(real_config->storage.has_language)
+    if(shadow_config.storage.has_language)
     {
-        return real_config->storage.language;
+        return shadow_config.storage.language;
     } else {
         return NULL;
     }
@@ -580,9 +589,9 @@ const char* storage_get_language(void)
  */
 const char* storage_get_label(void)
 {
-    if(real_config->storage.has_label)
+    if(shadow_config.storage.has_label)
     {
-        return real_config->storage.label;
+        return shadow_config.storage.label;
     } else {
         return NULL;
     }
@@ -598,9 +607,9 @@ const char* storage_get_label(void)
  */
 bool storage_get_passphrase_protected(void)
 {
-    if(real_config->storage.has_passphrase_protection)
+    if(shadow_config.storage.has_passphrase_protection)
     {
-        return real_config->storage.passphrase_protection;
+        return shadow_config.storage.passphrase_protection;
     } else {
         return false;
     }
@@ -668,7 +677,7 @@ void storage_set_mnemonic(const char* m)
  */
 bool storage_has_mnemonic(void)
 {
-    return real_config->storage.has_mnemonic;
+    return shadow_config.storage.has_mnemonic;
 }
 
 /*
@@ -681,7 +690,7 @@ bool storage_has_mnemonic(void)
  */
 const char* storage_get_mnemonic(void)
 {
-    return real_config->storage.mnemonic;
+    return shadow_config.storage.mnemonic;
 }
 
 /*
@@ -705,7 +714,7 @@ const char* storage_get_shadow_mnemonic(void)
  */
 bool storage_get_imported(void)
 {
-	return real_config->storage.has_imported && real_config->storage.imported;
+	return shadow_config.storage.has_imported && shadow_config.storage.imported;
 }
 
 /*
@@ -717,7 +726,7 @@ bool storage_get_imported(void)
  */
 bool storage_has_node(void)
 {
-	return real_config->storage.has_node;
+	return shadow_config.storage.has_node;
 }
 
 /*
@@ -729,7 +738,7 @@ bool storage_has_node(void)
  */
 HDNodeType* storage_get_node(void)
 {
-	return &real_config->storage.node;
+	return &shadow_config.storage.node;
 }
 
 /*
