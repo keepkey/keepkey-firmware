@@ -55,14 +55,14 @@ extern "C" {
 #define STORAGE_UUID_LEN 12
 /* Length of the uuid binary converted to readable ASCII.  */
 #define STORAGE_UUID_STR_LEN ((STORAGE_UUID_LEN * 2) + 1)
-#define META_MAGIC 0x73746F72  /* 'stor' */
+
 
 /***************** typedefs and enums  *******************/
 /* Flash metadata structure which will contains unique identifier
    information that spans device resets.  */
 typedef struct
 {
-    uint32_t magic;  
+    char magic[4];
     uint8_t uuid[STORAGE_UUID_LEN];
     char uuid_str[STORAGE_UUID_STR_LEN];
 } Metadata;
