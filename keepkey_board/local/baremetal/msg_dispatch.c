@@ -342,8 +342,8 @@ void handle_usb_rx(UsbMessage *msg)
     if(frame->header.pre1 == '#' && frame->header.pre2 == '#' && !mid_frame)
     {
         /* Byte swap in place. */
-        last_frame_header.id = __builtin_bswap16(frame->header.id)
-        last_frame_header.len = __builtin_bswap32(frame->header.len);
+        last_frame_header.id = __builtin_bswap16(frame->header.id);
+        last_frame_header.len = __builtin_bswap32(frame->header.len)
 
         contents = frame->contents;
 
