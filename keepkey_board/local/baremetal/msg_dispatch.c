@@ -343,7 +343,7 @@ void handle_usb_rx(UsbMessage *msg)
     {
         /* Byte swap in place. */
         last_frame_header.id = __builtin_bswap16(frame->header.id);
-        last_frame_header.len = __builtin_bswap32(frame->header.len)
+        last_frame_header.len = __builtin_bswap32(frame->header.len);
 
         contents = frame->contents;
 
@@ -410,7 +410,8 @@ void handle_usb_rx(UsbMessage *msg)
 #else
 	if (last_segment && map_type == NORMAL_MSG)
 #endif
-    	if(!msg_tiny_flag) {
+		(*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message");
+    	/*if(!msg_tiny_flag) {
     		dispatch(entry, framebuf.buffer, last_frame_header.len);
         } else {
     		bool status = pb_parse(entry, framebuf.buffer, last_frame_header.len, msg_tiny);
@@ -421,7 +422,7 @@ void handle_usb_rx(UsbMessage *msg)
     			call_msg_failure_handler(FailureType_Failure_UnexpectedMessage, 
                         "Could not parse protocol buffer message");
             }
-    	}
+    	}*/
 
     /* Catch messages that are not in message maps */
     else if(last_segment && map_type == UNKNOWN_MSG)
