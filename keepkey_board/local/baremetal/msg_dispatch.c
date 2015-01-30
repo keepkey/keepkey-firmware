@@ -335,7 +335,8 @@ void handle_usb_rx(UsbMessage *msg)
 	/* Current segment content */
 	uint8_t* contents = NULL;
 
-    /* Check to see if this is the first frame of a series, * or a continuation/fragment.  */
+    /* Check to see if this is the first frame of a series, * or a
+       continuation/fragment.  */
     static TrezorFrameHeaderFirst last_frame_header = { .id = 0xffff, .len = 0 };
 
     if(frame->header.pre1 == '#' && frame->header.pre2 == '#' && !mid_frame)
