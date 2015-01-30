@@ -101,7 +101,7 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
 		return;
 	}
 
-	storage_set_passphrase_protected(true);
+	storage_set_passphrase_protected(passphrase_protection);
 	storage_setLanguage(language);
 	storage_setLabel(label);
 
