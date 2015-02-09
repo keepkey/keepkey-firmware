@@ -34,6 +34,7 @@
 #include <rand.h>
 #include <storage.h>
 #include <timer.h>
+#include <stdio.h>
 
 /*******************  variables *************************************/
 /* Flag whether pin was canceled by init msg */
