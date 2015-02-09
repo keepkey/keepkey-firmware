@@ -155,10 +155,38 @@ static void randomize_pin(char pin[])
 }
 
 /*
+ * check_pin_input() - make sure that PIN is at least one digit and a char from 1 to 9
+ *
+ * INPUT -
+ *      *pin_info -
+ * OUTPUT -
+ *      true/false - status
+ */
+static bool check_pin_input(PINInfo *pin_info)
+{
+	bool ret = true;
+
+	/* check that PIN is at least 1 digit */
+	if(strlen(pin_info->pin) < 1) {
+		ret = false;
+	}
+
+	/* check that PIN char is a digit from 1 to 9 */
+	for (uint8_t i = 0; i < strlen(pin_info->pin); i++) {
+		uint8_t num = pin_info->pin[i] - '0';
+
+		if(num < 1 || num > 9) {
+			ret = false;
+		}
+	}
+
+	return ret;
+}
+
+/*
  * decode_pin() - decode user PIN entry
  * 
  * INPUT -
- *      randomized_pin -
  *      *pin_info - 
  * OUTPUT -
  *      none
@@ -213,10 +241,13 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
         }
 		cancel_pin(FailureType_Failure_PinCancelled, "PIN Cancelled");
 	} else {
-		/* Decode PIN */
-		decode_pin(pin_info);
-
-		ret = true;
+		if(check_pin_input(pin_info)) {
+			/* Decode PIN */
+			decode_pin(pin_info);
+			ret = true;
+		} else {
+			cancel_pin(FailureType_Failure_PinCancelled, "PIN must be at least 1 digit consisting of numbers from 1 to 9");
+		}
 	}
 
 	/* clear PIN matrix */
