@@ -39,6 +39,7 @@
 #include "storage.h"
 #include "rng.h"
 #include "passphrase_sm.h"
+#include <fsm.h>
 
 
 /* Static / Global variables */
@@ -67,10 +68,10 @@ static char sessionPassphrase[51];
  *      true/false status
  *
  */
-bool storage_from_flash(uint32_t version)
+bool storage_from_flash(ConfigFlash *stor_config)
 {
-    ConfigFlash *stor_config = (ConfigFlash*)FLASH_STORAGE_START;
-    switch (version) {
+    /* load cofig values from active config node */
+    switch (stor_config->storage.version) {
         case 1:
             memcpy(&shadow_config, stor_config, sizeof(shadow_config));
             break;
@@ -82,40 +83,70 @@ bool storage_from_flash(uint32_t version)
 }
 
 /*
- * storage_init() - validate storage content copy copy data to shadow memory
+ * get_end_stor() - search through configuration node list to find the end node,
+ *                  which is the active node.
+ *
+ * INPUT :
+ *      pointer to storage end node.
+ * OUTPUT : 
+ *      true/false : status
+ */
+static  bool get_end_stor(ConfigFlash **end_stor)
+{
+    bool ret_stat = false;
+    uint32_t cnt = 0; 
+
+    /* set to head node for start of search*/
+    ConfigFlash *config_ptr = (ConfigFlash*)FLASH_STORAGE_START; 
+
+    /* search through the node list to find the last node (active node) */
+	while(memcmp((void *)config_ptr->meta.magic , "stor", 4) == 0) {
+        *end_stor = config_ptr;
+        config_ptr++;
+        cnt++;
+    }
+    if(cnt) {
+        ret_stat = true;
+    }
+    return(ret_stat);
+}
+
+/*
+ * storage_init() - validate storage content and copy data to shadow memory
  *
  * INPUT - none
  * OUTPUT - none
  */
 void storage_init(void)
 {
+    /* Init to start of storage partition */
     ConfigFlash *stor_config = (ConfigFlash*)FLASH_STORAGE_START;
 
     /* reset shadow configuration in RAM */
     storage_reset();
-    
-    dbg_print("metaMagicAddr 0x%x\n\r", stor_config->meta.magic);
-	/* verify storage area is initialized */
+
+	/* verify storage partition is initialized */
 	if (memcmp((void *)stor_config->meta.magic , "stor", 4) == 0) {
+        /* clear out stor_config befor finding end config node */
+        stor_config = NULL;
+        get_end_stor(&stor_config);
 		// load uuid to shadow memory
 		memcpy(shadow_config.meta.uuid, (void *)&stor_config->meta.uuid, sizeof(shadow_config.meta.uuid));
 		data2hex(shadow_config.meta.uuid, sizeof(shadow_config.meta.uuid), shadow_config.meta.uuid_str);
 
-        dbg_print("ver %d, %d, pinAddr = 0x%x\n\r", stor_config->storage.version, STORAGE_VERSION, stor_config->storage.pin);
-
-        if( stor_config->storage.version) {
-		    if (stor_config->storage.version <= STORAGE_VERSION) {
-			    storage_from_flash(stor_config->storage.version);
-		    }
+        if(stor_config->storage.version) {
+            if (stor_config->storage.version <= STORAGE_VERSION) {
+                storage_from_flash(stor_config);
+            }
         }
         /* New app with storage version changed!  update the storage space */
 		if (stor_config->storage.version != STORAGE_VERSION) {
-			storage_commit();
+		    storage_commit(NEW_STOR);
 		}
 	} else {
         /* keep storage area cleared */
 		storage_reset_uuid();
-		storage_commit();
+		storage_commit(FRESH_STOR);
 	}
 }
 
@@ -167,24 +198,62 @@ void session_clear(void)
  * INPUT - none
  * OUTPUT - none
  */
-void storage_commit()
+void storage_commit(stor_commit_type c_type)
 {
     int i;
     uint32_t *w;
+    ConfigFlash *stor_cfg_ptr;
+    size_t storage_offset;
 
-    if(progress_handler)
+    if(progress_handler) {
     	(*progress_handler)();
+    }
+
+    switch(c_type) {
+        case FRESH_STOR:
+            storage_offset = 0;
+            break;
+        case NEW_STOR:
+        DEFAULT:
+            stor_cfg_ptr = NULL;
+            if( get_end_stor(&stor_cfg_ptr) == true) {
+                /* advance to new node */
+                stor_cfg_ptr++;
+                /* check to ensure new node does not cross into app partition */
+                if((void *)FLASH_META_START  > (void *)stor_cfg_ptr + sizeof(ConfigFlash )) {
+                    /* adding new node */
+                    storage_offset = (size_t)((void *)stor_cfg_ptr - FLASH_STORAGE_START);
+                } else {
+                    /* no more space in storage partition.  Start from top */
+                    storage_offset = 0;
+                }
+            } else {
+                /*restart the new node from top */
+                storage_offset = 0;
+           }
+            break;
+    }
 
     flash_unlock();
+    if(storage_offset == 0) {
+        flash_erase(FLASH_STORAGE);
+    }
 
-    flash_erase(FLASH_STORAGE);
-    memcpy((void *)shadow_config.meta.magic, "stor", 4);
-
-    if(progress_handler)
-    	flash_write_with_progress(FLASH_STORAGE, 0, sizeof(shadow_config), (uint8_t*)&shadow_config, progress_handler);
-    else
-    	flash_write(FLASH_STORAGE, 0, sizeof(shadow_config), (uint8_t*)&shadow_config);
-
+    /* Update new node in flash except for magic value, which will be updated last.
+     * Just in case power is removed during the update!  This will avoid declaring 
+     * the node valid unless the write to flash is allowed to finished!!! */
+    if(progress_handler && (storage_offset == 0)) {
+    	flash_write_with_progress(FLASH_STORAGE, storage_offset + sizeof(shadow_config.meta.magic), 
+                sizeof(shadow_config) - sizeof(shadow_config.meta.magic), 
+                (uint8_t*)&shadow_config + sizeof(shadow_config.meta.magic),
+                progress_handler);
+    } else {
+    	flash_write(FLASH_STORAGE, storage_offset + sizeof(shadow_config.meta.magic), 
+                sizeof(shadow_config) - sizeof(shadow_config.meta.magic), 
+                (uint8_t*)&shadow_config + sizeof(shadow_config.meta.magic));
+    }
+    /* update magic value to complete the update*/
+   	flash_write(FLASH_STORAGE, storage_offset, sizeof(shadow_config.meta.magic), "stor");
     flash_lock();
 }
 
@@ -367,9 +436,13 @@ bool session_is_pin_cached(void)
  */
 void storage_reset_pin_fails(void)
 {
-	shadow_config.storage.has_pin_failed_attempts = true;
-	shadow_config.storage.pin_failed_attempts = 0;
-	storage_commit();
+    /* only write to flash if there's a change in status */
+    if( shadow_config.storage.has_pin_failed_attempts == true) {
+	    shadow_config.storage.has_pin_failed_attempts = false;
+	    shadow_config.storage.pin_failed_attempts = 0;
+	    storage_commit(NEW_STOR);
+    }
+
 }
 
 /*
@@ -386,7 +459,7 @@ void storage_increase_pin_fails(void)
 	} else {
 		shadow_config.storage.pin_failed_attempts++;
 	}
-	storage_commit();
+    storage_commit(NEW_STOR);
 }
 
 /*
@@ -753,3 +826,33 @@ void storage_set_progress_handler(progress_handler_t handler)
 {
 	progress_handler = handler;
 }
+
+#if DEBUG_LINK
+/*
+ * test_config_node() - test 
+ *
+ */
+void fsm_test_config_node(void) 
+{
+    uint32_t test_cnt = 0;
+    bool tstat = true;
+    ConfigFlash *test_config, test_shadow_config;
+
+    memcpy((void *)&test_shadow_config, (void *)&shadow_config, sizeof(ConfigFlash)); 
+
+    do {
+	    storage_commit(NEW_STOR);
+        get_end_stor(&test_config);
+	    if(memcmp((void *)&test_shadow_config, (void *)test_config, sizeof(ConfigFlash))) {
+            dbg_print(" ----> failed ");
+            tstat = false;
+            break;
+        } 
+    }while(test_cnt++  < 5000 );
+    if(tstat == true) {
+	    fsm_sendSuccess("Passed.");
+    } else {
+	    fsm_sendSuccess("Failed.");
+    }
+}
+#endif

@@ -35,7 +35,7 @@ extern "C" {
 	
 
 /******************** #defines *************************************/
-#define ONE_SEC 1000   /* count for 1 second  */
+#define ONE_SEC 1100   /* count for 1 second  */
 #define HALF_SEC 500   /* count for 0.5 second*/
 #define MAX_RUNNABLES 3 /* max number of queue for task manager */
 

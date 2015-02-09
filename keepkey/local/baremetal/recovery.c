@@ -176,7 +176,7 @@ void recovery_word(const char *word)
         	/* Setup saving animation */
         	layout_loading(SAVING_ANIM);
 
-        	storage_commit();
+        	storage_commit(NEW_STOR);
 
             fsm_sendSuccess("Device recovered");
         } else {

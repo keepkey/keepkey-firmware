@@ -242,13 +242,10 @@ void fsm_msgChangePin(ChangePin *msg)
 	if (removal)
 	{
 		storage_set_pin(0);
-
 		/* Setup saving animation */
 		layout_loading(SAVING_ANIM);
-
-		storage_commit();
-
-		fsm_sendSuccess("PIN removed");
+        storage_commit(NEW_STOR);
+        fsm_sendSuccess("PIN removed");
 	}
 	else
 	{
@@ -256,9 +253,7 @@ void fsm_msgChangePin(ChangePin *msg)
 		{
 			/* Setup saving animation */
 			layout_loading(SAVING_ANIM);
-
-			storage_commit();
-
+			storage_commit(NEW_STOR);
 			fsm_sendSuccess("PIN changed");
 		}
 		else
@@ -284,7 +279,7 @@ void fsm_msgWipeDevice(WipeDevice *msg)
 	/* Wipe device */
 	storage_reset();
 	storage_reset_uuid();
-	storage_commit();
+	storage_commit(FRESH_STOR);
 
 	fsm_sendSuccess("Device wiped");
 	layout_home();
@@ -377,8 +372,7 @@ void fsm_msgLoadDevice(LoadDevice *msg)
 	/* Setup saving animation */
 	layout_loading(SAVING_ANIM);
 
-	storage_commit();
-
+	storage_commit(NEW_STOR);
 	fsm_sendSuccess("Device loaded");
 	layout_home();
 }
@@ -519,7 +513,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 	/* Setup saving animation */
 	layout_loading(SAVING_ANIM);
 
-	storage_commit();
+	storage_commit(NEW_STOR);
 
 	fsm_sendSuccess("Settings applied");
 	layout_home();

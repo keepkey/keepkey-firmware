@@ -277,6 +277,8 @@ bool pin_protect()
 {
 	bool ret = false;
 	PINInfo pin_info;
+    char warn_title_fmt[50];
+    char warn_msg_fmt[50];
 
 	if(storage_has_pin()) {
 	    uint32_t wait = 0;
@@ -287,7 +289,9 @@ bool pin_protect()
 		{
 			if(wait > 2)
 			{
-				layout_standard_notification("Wrong PIN Entered", "Please wait ...", NOTIFICATION_INFO);
+                sprintf(warn_title_fmt, "Too Many Incorrect PIN Entries (%d)", wait);
+                sprintf(warn_msg_fmt, "Forcing %d seconds delay for security", 1u << wait);
+				layout_standard_notification(warn_title_fmt, warn_msg_fmt, NOTIFICATION_INFO);
 				display_refresh();
 			}
 			wait = (wait < 32) ? (1u << wait) : 0xFFFFFFFF;
