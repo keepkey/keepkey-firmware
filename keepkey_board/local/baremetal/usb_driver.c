@@ -241,8 +241,8 @@ static const struct usb_config_descriptor config = {
 };
 
 static const char *usb_strings[] = {
+	"KeepKey, LLC.",
 	"KeepKey",
-	"KeepKey App",
 	""
 };
 
