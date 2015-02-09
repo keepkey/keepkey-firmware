@@ -95,8 +95,8 @@ void layout_home(void)
     sp.y = 0;
 
     static AnimationImageDrawableParams logo;
-    logo.base.x = 104;
-    logo.base.y = 12;
+    logo.base.x = 0;
+    logo.base.y = 0;
     logo.img_animation = get_logo_animation();
 
     layout_add_animation(
@@ -316,30 +316,6 @@ void layout_pin(const char* prompt, char pin[])
     sp.color = 0x55;
     draw_string(canvas, font, upper_prompt, &sp, TITLE_WIDTH, font_height(font));
     display_refresh(); /*dray content on LCD creen */
-}
-
-/*
- * layout_intro() - display KeepKey intro screen
- *
- * INPUT - none
- * OUTPUT - none
- */
-void layout_intro(void)
-{
-    static AnimationImageDrawableParams intro_animation;
-    intro_animation.base.x = 0;
-    intro_animation.base.y = 0;
-    intro_animation.img_animation = get_boot_animation();
-
-	layout_add_animation(
-		&layout_animate_images,
-		(void*)&intro_animation,
-		get_image_animation_duration(intro_animation.img_animation));
-
-	while(is_animating()){
-		animate();
-		display_refresh();
-	}
 }
 
 /*

@@ -66,7 +66,6 @@ typedef enum
 
 //====================== CLASS MEMBER FUNCTIONS ===========================
 
-const Image* get_home_image();
 const Image* get_wipe_background_image();
 const Image* get_saving_background_image();
 const Image* get_flashing_background_image();
@@ -84,7 +83,6 @@ const ImageAnimation* get_warning_animation();
 const ImageAnimation* get_flashing_animation();
 const ImageAnimation* get_sending_animation();
 const ImageAnimation* get_signing_animation();
-const ImageAnimation* get_boot_animation();
 
 const uint32_t get_image_animation_duration(const ImageAnimation* img_animation);
 const Image* get_image_animation_frame(const ImageAnimation* img_animation, const uint32_t elapsed, bool loop);

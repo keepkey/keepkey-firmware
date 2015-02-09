@@ -91,8 +91,8 @@ int main(void)
     board_init();
     led_func(SET_RED_LED);
 
-    /* Show loading screen */
-    layout_intro();
+    /* Show home screen */
+    layout_home();
 
 	while(is_animating()){
 		animate();

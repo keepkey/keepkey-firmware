@@ -55,7 +55,7 @@ int main(void)
     dbg_print("Application Version %d.%d\n\r", MAJOR_VERSION, MINOR_VERSION );
 
     /* Show loading screen */
-    layout_intro();
+    layout_home();
 
     /* Init storage and set progress handler */
     storage_init();

@@ -115,7 +115,6 @@ void layout_firmware_update_confirmation();
 void layout_standard_notification( const char* str1, const char* str2, NotificationType type);
 void layout_warning(const char* prompt);
 void layout_pin(const char *prompt, char *pin);
-void layout_intro();
 void layout_loading(AnimationResource type);
 
 void animate( void);
