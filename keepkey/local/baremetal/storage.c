@@ -385,7 +385,7 @@ void storage_set_pin(const char *pin)
 		strlcpy(shadow_config.storage.pin, pin, sizeof(shadow_config.storage.pin));
 	} else {
 		shadow_config.storage.has_pin = false;
-		shadow_config.storage.pin[0] = 0;
+        memset(shadow_config.storage.pin, 0,sizeof(shadow_config.storage.pin));
 	}
 	sessionPinCached = false;
 }
