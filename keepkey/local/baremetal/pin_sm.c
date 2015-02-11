@@ -37,11 +37,9 @@
 #include <stdio.h>
 
 /*******************  variables *************************************/
-/* Flag whether pin was canceled by init msg */
-static bool pin_canceled_by_init = false;
-
 /* random PIN matrix holder */
 static char pin_matrix[] = "XXXXXXXXX";
+extern bool reset_msg_stack;
 
 /*******************FUNCTION Definitions  ****************************/
 
@@ -167,8 +165,8 @@ static bool check_pin_input(PINInfo *pin_info)
 {
 	bool ret = true;
 
-	/* check that PIN is at least 1 digit */
-	if(strlen(pin_info->pin) < 1) {
+	/* check that PIN is at least 1 digit and no more than 9 */
+	if(!(strlen(pin_info->pin) >= 1 && strlen(pin_info->pin) <= 9)) {
 		ret = false;
 	}
 
@@ -216,7 +214,7 @@ static void decode_pin(PINInfo *pin_info)
 static bool pin_request(const char *prompt, PINInfo *pin_info)
 {
 	bool ret = false;
-	pin_canceled_by_init = false;
+	reset_msg_stack = false;
 	PINState pin_state = PIN_REQUEST;
 
 	/* Init and randomize pin matrix */
@@ -238,16 +236,16 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
 	/* Check for PIN cancel */
 	if (pin_info->pin_ack_msg != PIN_ACK_RECEIVED) {
 		if(pin_info->pin_ack_msg == PIN_ACK_CANCEL_BY_INIT) {
-			pin_canceled_by_init = true;
+			reset_msg_stack = true;
         }
-		cancel_pin(FailureType_Failure_PinCancelled, "PIN Cancelled");
+		fsm_sendFailure(FailureType_Failure_PinCancelled, "PIN Cancelled");
 	} else {
 		if(check_pin_input(pin_info)) {
 			/* Decode PIN */
 			decode_pin(pin_info);
 			ret = true;
 		} else {
-			cancel_pin(FailureType_Failure_PinCancelled, "PIN must be at least 1 digit consisting of numbers from 1 to 9");
+			fsm_sendFailure(FailureType_Failure_PinCancelled, "PIN must be at least 1 digit consisting of numbers from 1 to 9");
 		}
 	}
 
@@ -290,14 +288,17 @@ bool pin_protect()
 		{
 			if(wait > 2)
 			{
-                sprintf(warn_title_fmt, "Too Many Incorrect PIN Entries (%d)", wait);
-                sprintf(warn_msg_fmt, "Forcing %d seconds delay for security", 1u << wait);
-				layout_standard_notification(warn_title_fmt, warn_msg_fmt, NOTIFICATION_INFO);
-				display_refresh();
-			}
-			wait = (wait < 32) ? (1u << wait) : 0xFFFFFFFF;
-			while (--wait > 0) {
-				delay_ms(ONE_SEC);
+                sprintf(warn_msg_fmt, "Wait %d seconds for previous PIN fails", 1u << wait);
+				layout_warning(warn_msg_fmt);
+
+				wait = (wait < 32) ? (1u << wait) : 0xFFFFFFFF;
+				while (--wait > 0) {
+					for(uint8_t i = 0; i < 220; i++) {
+						animate();
+						display_refresh();
+						delay_ms(5);
+					}
+				}
 			}
 		}
 
@@ -364,26 +365,10 @@ bool change_pin(void)
 			if (strcmp(pin_info_first.pin, pin_info_second.pin) == 0) {
 				storage_set_pin(pin_info_first.pin);
 				ret = true;
+			} else {
+				fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
 			}
 		}
 	}
 	return ret;
-}
-
-/*
- * cancel_pin() - process pin cancellation 
- *
- * INPUT -
- *      code
- *      *text
- * OUTPUT - 
- */
-void cancel_pin(FailureType code, const char *text)
-{
-	if(pin_canceled_by_init) {
-		call_msg_initialize_handler();
-    } else {
-		call_msg_failure_handler(code, text);
-    }
-	pin_canceled_by_init = false;
 }

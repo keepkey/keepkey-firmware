@@ -32,6 +32,7 @@
 #include <fsm.h>
 #include <usb_driver.h>
 #include <bip39.h>
+#include <home_sm.h>
 
 /*
  * exec() - exercise CPU processing cycle using mnemonic_generate() function to keep
@@ -92,7 +93,7 @@ int main(void)
     led_func(SET_RED_LED);
 
     /* Show home screen */
-    layout_home();
+    go_home();
 
 	while(is_animating()){
 		animate();
@@ -110,9 +111,6 @@ int main(void)
 
     count++;
     update_reset_count(count);
-
-    layout_home();
-    display_refresh();
 
     led_func(SET_GREEN_LED);
     usb_init();

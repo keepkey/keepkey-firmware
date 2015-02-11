@@ -36,6 +36,7 @@
 #include "util.h"
 #include "rand.h"
 #include "pin_sm.h"
+#include "home_sm.h"
 
 #define MAX_WORDS 24
 #define MAX_WORD_LEN 10
@@ -50,7 +51,7 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 {
 	if (_strength != 128 && _strength != 192 && _strength != 256) {
 		fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid strength (has to be 128, 192 or 256 bits)");
-		layout_home();
+		go_home();
 		return;
 	}
 
@@ -68,15 +69,15 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 		if (!confirm(ButtonRequestType_ButtonRequest_ResetDevice,
 			"Internal Entropy", "%s %s %s %s", ent_str[0], ent_str[1], ent_str[2], ent_str[3]))
 		{
-			cancel_confirm(FailureType_Failure_ActionCancelled, "Reset cancelled");
-			layout_home();
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Reset cancelled");
+			go_home();
 			return;
 		}
 	}
 
 	if (pin_protection && !change_pin()) {
-		cancel_pin(FailureType_Failure_ActionCancelled, "PIN change failed");
-		layout_home();
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
+		go_home();
 		return;
 	}
 
@@ -151,22 +152,19 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 			strcpy(title, "Write Down Recovery Sentence");
 
 		if (!confirm(ButtonRequestType_ButtonRequest_ConfirmWord, title, "%s", formatted_mnemonic[word_group])) {
-			cancel_confirm(FailureType_Failure_ActionCancelled, "Reset cancelled");
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Reset cancelled");
 			storage_reset();
-			layout_home();
+			go_home();
 			return;
 		}
 	}
-
-	/* Setup saving animation */
-	layout_loading(SAVING_ANIM);
 
 	/* Save mnemonic */
     storage_set_mnemonic(temp_mnemonic);
 	storage_commit(NEW_STOR);
 
 	fsm_sendSuccess("Device reset");
-	layout_home();
+	go_home();
 }
 
 uint32_t reset_get_int_entropy(uint8_t *entropy) {

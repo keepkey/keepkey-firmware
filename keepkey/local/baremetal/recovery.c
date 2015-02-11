@@ -33,6 +33,7 @@
 #include "fsm.h"
 #include "rng.h"
 #include "pin_sm.h"
+#include "home_sm.h"
 
 
 static uint32_t word_count;
@@ -88,7 +89,7 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
 {
 	if (_word_count != 12 && _word_count != 18 && _word_count != 24) {
 		fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid word count (has to be 12, 18 or 24 bits)");
-		layout_home();
+		go_home();
 		return;
 	}
 
@@ -96,8 +97,8 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
 	enforce_wordlist = _enforce_wordlist;
 
 	if (pin_protection && !change_pin()) {
-		cancel_pin(FailureType_Failure_ActionCancelled, "PIN change failed");
-		layout_home();
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
+		go_home();
 		return;
 	}
 
@@ -130,7 +131,7 @@ void recovery_word(const char *word)
     if (!awaiting_word) 
     {
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
-        layout_home();
+        go_home();
         return;
     }
 
@@ -139,7 +140,7 @@ void recovery_word(const char *word)
         if (strcmp(word, fake_word) != 0) {
             storage_reset();
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Wrong word retyped");
-            layout_home();
+            go_home();
             return;
         }
     } else { // real word
@@ -160,7 +161,7 @@ void recovery_word(const char *word)
             {
                 storage_reset();
                 fsm_sendFailure(FailureType_Failure_SyntaxError, "Word not found in a wordlist");
-                layout_home();
+                go_home();
                 return;
             }
         }
@@ -173,18 +174,14 @@ void recovery_word(const char *word)
 
         if (!enforce_wordlist || mnemonic_check(storage_get_shadow_mnemonic()))
         {
-        	/* Setup saving animation */
-        	layout_loading(SAVING_ANIM);
-
         	storage_commit(NEW_STOR);
-
             fsm_sendSuccess("Device recovered");
         } else {
             storage_reset();
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid mnemonic, are words in correct order?");
         }
         awaiting_word = false;
-        layout_home();
+        go_home();
     } else {
         word_index++;
         next_word();
@@ -194,7 +191,7 @@ void recovery_word(const char *word)
 void recovery_abort(void)
 {
     if (awaiting_word) {
-        layout_home();
+        go_home();
         awaiting_word = false;
     }
 }

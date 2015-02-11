@@ -29,6 +29,7 @@
 #include "crypto.h"
 #include "layout.h"
 #include "coins.h"
+#include "home_sm.h"
 #include <confirm_sm.h>
 
 static uint32_t inputs_count;
@@ -227,7 +228,7 @@ void signing_txack(TransactionType *tx)
 {
 	if (!signing) {
 		fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Signing mode");
-		layout_home();
+		go_home();
 		return;
 	}
 
@@ -397,7 +398,7 @@ void signing_txack(TransactionType *tx)
 				co = compile_output(coin, root, tx->outputs, &bin_output, false);
 			}
 			if (co < 0) {
-				cancel_confirm(FailureType_Failure_Other, "Signing cancelled by user");
+				fsm_sendFailure(FailureType_Failure_Other, "Signing cancelled by user");
 				signing_abort();
 				return;
 			} else if (co == 0) {
@@ -468,7 +469,7 @@ void signing_txack(TransactionType *tx)
 				} else {
 					if (spending > to_spend) {
 						fsm_sendFailure(FailureType_Failure_NotEnoughFunds, "Not enough funds");
-						layout_home();
+						go_home();
 						return;
 					}
 					uint64_t fee = to_spend - spending;
@@ -483,8 +484,8 @@ void signing_txack(TransactionType *tx)
 						if (!confirm(ButtonRequestType_ButtonRequest_FeeOverThreshold,
 							"Confirm Fee", "%s", fee_str))
 						{
-							cancel_confirm(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
-							layout_home();
+							fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
+							go_home();
 							return;
 						}
 					}
@@ -494,7 +495,7 @@ void signing_txack(TransactionType *tx)
 					if(!confirm(ButtonRequestType_ButtonRequest_SignTx,
 						"Confirm Transaction", "Total amount leaving your wallet is %s with a fee of %s.", total_amount_str, fee_str))
 					{
-						cancel_confirm(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
+						fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
 						signing_abort();
 						return;
 					}
@@ -529,7 +530,7 @@ void signing_txack(TransactionType *tx)
 void signing_abort(void)
 {
 	if (signing) {
-		layout_home();
+		go_home();
 		signing = false;
 	}
 }

@@ -30,6 +30,7 @@
 #include <base58.h>
 #include <ripemd160.h>
 #include <layout.h>
+#include <home_sm.h>
 #include <confirm_sm.h>
 #include <pin_sm.h>
 #include <passphrase_sm.h>
@@ -49,6 +50,9 @@
 #include <timer.h>
 #include <crypto.h>
 
+// Static and global variables
+extern bool reset_msg_stack;
+
 // message methods
 static uint8_t msg_resp[MAX_FRAME_SIZE];
 
@@ -56,6 +60,12 @@ static uint8_t msg_resp[MAX_FRAME_SIZE];
 
 void fsm_sendSuccess(const char *text)
 {
+	if (reset_msg_stack) {
+		fsm_msgInitialize((Initialize *)0);
+		reset_msg_stack = false;
+		return;
+	}
+
 	RESP_INIT(Success);
 	if (text) {
 		resp->has_message = true;
@@ -66,6 +76,12 @@ void fsm_sendSuccess(const char *text)
 
 void fsm_sendFailure(FailureType code, const char *text)
 {
+	if (reset_msg_stack) {
+		fsm_msgInitialize((Initialize *)0);
+		reset_msg_stack = false;
+		return;
+	}
+
 	RESP_INIT(Failure);
 	resp->has_code = true;
 	resp->code = code;
@@ -80,7 +96,7 @@ HDNode *fsm_getRootNode(void)
 {
 	static HDNode node;
 	if (!storage_getRootNode(&node)) {
-		layout_home();
+		go_home();
 		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized or passphrase request cancelled");
 		return 0;
 	}
@@ -90,6 +106,7 @@ HDNode *fsm_getRootNode(void)
 int fsm_deriveKey(HDNode *node, uint32_t *address_n, size_t address_n_count)
 {
 	size_t i;
+
 	if (address_n_count > 3) {
 		//TODO:Animation Setup
 		//layoutProgressSwipe("Preparing keys", 0);
@@ -97,7 +114,7 @@ int fsm_deriveKey(HDNode *node, uint32_t *address_n, size_t address_n_count)
 	for (i = 0; i < address_n_count; i++) {
 		if (hdnode_private_ckd(node, address_n[i]) == 0) {
 			fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
-			layout_home();
+			go_home();
 			return 0;
 		}
 		if (address_n_count > 3) {
@@ -170,8 +187,8 @@ void fsm_msgPing(Ping *msg)
 	if(msg->has_button_protection && msg->button_protection)
 		if(!confirm_ping_msg(msg->message))
 		{
-			cancel_confirm(FailureType_Failure_ActionCancelled, "Ping cancelled");
-			layout_home();
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
+			go_home();
 			return;
 		}
 
@@ -179,15 +196,15 @@ void fsm_msgPing(Ping *msg)
 	{
 		if (!pin_protect_cached())
 		{
-			layout_home();
+			go_home();
 			return;
 		}
 	}
 
 	if(msg->has_passphrase_protection && msg->passphrase_protection) {
 		if(!passphrase_protect()) {
-			cancel_passphrase(FailureType_Failure_ActionCancelled, "Ping cancelled");
-			layout_home();
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
+			go_home();
 			return;
 		}
 	}
@@ -199,7 +216,7 @@ void fsm_msgPing(Ping *msg)
 	}
 
 	msg_write(MessageType_MessageType_Success, resp);
-	layout_home();
+	go_home();
 }
 
 void fsm_msgChangePin(ChangePin *msg)
@@ -228,22 +245,20 @@ void fsm_msgChangePin(ChangePin *msg)
 
 	if (!confirmed)
 	{
-		cancel_confirm(FailureType_Failure_ActionCancelled, removal ? "PIN removal cancelled" : "PIN change cancelled");
-		layout_home();
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, removal ? "PIN removal cancelled" : "PIN change cancelled");
+		go_home();
 		return;
 	}
 
 	if (!pin_protect())
 	{
-		layout_home();
+		go_home();
 		return;
 	}
 
 	if (removal)
 	{
 		storage_set_pin(0);
-		/* Setup saving animation */
-		layout_loading(SAVING_ANIM);
         storage_commit(NEW_STOR);
         fsm_sendSuccess("PIN removed");
 	}
@@ -251,16 +266,12 @@ void fsm_msgChangePin(ChangePin *msg)
 	{
 		if (change_pin())
 		{
-			/* Setup saving animation */
-			layout_loading(SAVING_ANIM);
 			storage_commit(NEW_STOR);
 			fsm_sendSuccess("PIN changed");
 		}
-		else
-			cancel_pin(FailureType_Failure_ActionCancelled, "PIN change failed");
 	}
 
-	layout_home();
+	go_home();
 }
 
 void fsm_msgWipeDevice(WipeDevice *msg)
@@ -268,8 +279,8 @@ void fsm_msgWipeDevice(WipeDevice *msg)
 	(void)msg;
 	if(!confirm(ButtonRequestType_ButtonRequest_WipeDevice, "Wipe Private Keys and Settings", "Are you sure you want to erase private keys and settings? This process cannot be undone and any money stored will be lost."))
 	{
-		cancel_confirm(FailureType_Failure_ActionCancelled, "Wipe cancelled");
-		layout_home();
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe cancelled");
+		go_home();
 		return;
 	}
 
@@ -282,7 +293,7 @@ void fsm_msgWipeDevice(WipeDevice *msg)
 	storage_commit(FRESH_STOR);
 
 	fsm_sendSuccess("Device wiped");
-	layout_home();
+	go_home();
 }
 
 void fsm_msgFirmwareErase(FirmwareErase *msg)
@@ -302,8 +313,8 @@ void fsm_msgGetEntropy(GetEntropy *msg)
 	if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
 		"Generate and Return Entropy", "Are you sure you would like to generate entropy using the hardware RNG, and return it to the computer client?"))
 	{
-		cancel_confirm(FailureType_Failure_ActionCancelled, "Entropy cancelled");
-		layout_home();
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Entropy cancelled");
+		go_home();
 		return;
 	}
 
@@ -317,7 +328,7 @@ void fsm_msgGetEntropy(GetEntropy *msg)
 	resp->entropy.size = len;
 	random_buffer(resp->entropy.bytes, len);
 	msg_write(MessageType_MessageType_Entropy, resp);
-	layout_home();
+	go_home();
 }
 
 void fsm_msgGetPublicKey(GetPublicKey *msg)
@@ -341,7 +352,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 	hdnode_serialize_public(node, resp->xpub, sizeof(resp->xpub));
 
 	msg_write(MessageType_MessageType_PublicKey, resp);
-	layout_home();
+	go_home();
 }
 
 void fsm_msgLoadDevice(LoadDevice *msg)
@@ -354,27 +365,24 @@ void fsm_msgLoadDevice(LoadDevice *msg)
     if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
     	"Import Recovery Sentence", "Importing a recovery sentence directly from a connected computer is not recommended unless you understand the risks."))
     {
-		cancel_confirm(FailureType_Failure_ActionCancelled, "Load cancelled");
-		layout_home();
+    	fsm_sendFailure(FailureType_Failure_ActionCancelled, "Load cancelled");
+		go_home();
 		return;
     }
 
 	if (msg->has_mnemonic && !(msg->has_skip_checksum && msg->skip_checksum) ) {
 		if (!mnemonic_check(msg->mnemonic)) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Mnemonic with wrong checksum provided");
-			layout_home();
+			go_home();
 			return;
 		}
 	}
 
 	storage_loadDevice(msg);
 
-	/* Setup saving animation */
-	layout_loading(SAVING_ANIM);
-
 	storage_commit(NEW_STOR);
 	fsm_sendSuccess("Device loaded");
-	layout_home();
+	go_home();
 }
 
 void fsm_msgResetDevice(ResetDevice *msg)
@@ -398,19 +406,19 @@ void fsm_msgSignTx(SignTx *msg)
 {
 	if (msg->inputs_count < 1) {
 		fsm_sendFailure(FailureType_Failure_Other, "Transaction must have at least one input");
-		layout_home();
+		go_home();
 		return;
 	}
 
 	if (msg->outputs_count < 1) {
 		fsm_sendFailure(FailureType_Failure_Other, "Transaction must have at least one output");
-		layout_home();
+		go_home();
 		return;
 	}
 
 	if (!pin_protect_cached())
 	{
-		layout_home();
+		go_home();
 		return;
 	}
 
@@ -419,7 +427,7 @@ void fsm_msgSignTx(SignTx *msg)
 	const CoinType *coin = coinByName(msg->coin_name);
 	if (!coin) {
 		fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
-		layout_home();
+		go_home();
 		return;
 	}
 
@@ -449,8 +457,8 @@ void fsm_msgApplySettings(ApplySettings *msg)
 		if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
 			"Change Label", "Are you sure you would like to change the label to \"%s\"?", msg->label))
 		{
-			cancel_confirm(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
-			layout_home();
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
+			go_home();
 			return;
 		}
 	}
@@ -460,8 +468,8 @@ void fsm_msgApplySettings(ApplySettings *msg)
 		if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
 			"Change Language", "Are you sure you would like to change the language to %s?", msg->language))
 		{
-			cancel_confirm(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
-			layout_home();
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
+			go_home();
 			return;
 		}
 	}
@@ -472,8 +480,8 @@ void fsm_msgApplySettings(ApplySettings *msg)
 			if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
 				"Enable Passphrase", "Are you sure you would like to enable a passphrase?", msg->language))
 			{
-				cancel_confirm(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
-				layout_home();
+				fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
+				go_home();
 				return;
 			}
 		}
@@ -482,8 +490,8 @@ void fsm_msgApplySettings(ApplySettings *msg)
 			if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
 				"Disable Passphrase", "Are you sure you would like to disable passphrase?", msg->language))
 			{
-				cancel_confirm(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
-				layout_home();
+				fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
+				go_home();
 				return;
 			}
 		}
@@ -496,7 +504,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 
 	if (!pin_protect_cached())
 	{
-		layout_home();
+		go_home();
 		return;
 	}
 
@@ -510,13 +518,10 @@ void fsm_msgApplySettings(ApplySettings *msg)
 		storage_set_passphrase_protected(msg->use_passphrase);
 	}
 
-	/* Setup saving animation */
-	layout_loading(SAVING_ANIM);
-
 	storage_commit(NEW_STOR);
 
 	fsm_sendSuccess("Settings applied");
-	layout_home();
+	go_home();
 }
 
 void fsm_msgCipherKeyValue(CipherKeyValue *msg)
@@ -536,7 +541,7 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
 
 	if (!pin_protect_cached())
 	{
-		layout_home();
+		go_home();
 		return;
 	}
 
@@ -550,8 +555,8 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
 	if ((encrypt && ask_on_encrypt) || (!encrypt && ask_on_decrypt)) {
 		if(!confirm_cipher(encrypt, msg->key))
 		{
-			cancel_confirm(FailureType_Failure_ActionCancelled, "CipherKeyValue cancelled");
-			layout_home();
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "CipherKeyValue cancelled");
+			go_home();
 			return;
 		}
 	}
@@ -576,7 +581,7 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
 	resp->has_value = true;
 	resp->value.size = msg->value.size;
 	msg_write(MessageType_MessageType_CipheredKeyValue, resp);
-	layout_home();
+	go_home();
 }
 
 void fsm_msgClearSession(ClearSession *msg)
@@ -595,7 +600,7 @@ void fsm_msgGetAddress(GetAddress *msg)
     const CoinType *coin = coinByName(msg->coin_name);
     if (!coin) {
         fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
-        layout_home();
+        go_home();
         return;
     }
 
@@ -608,13 +613,13 @@ void fsm_msgGetAddress(GetAddress *msg)
 
 		if (cryptoMultisigPubkeyIndex(&(msg->multisig), node->public_key) < 0) {
 			fsm_sendFailure(FailureType_Failure_Other, "Pubkey not found in multisig script");
-			layout_home();
+			go_home();
 			return;
 		}
 		uint8_t buf[32];
 		if (compile_script_multisig_hash(&(msg->multisig), buf) == 0) {
 			fsm_sendFailure(FailureType_Failure_Other, "Invalid multisig script");
-			layout_home();
+			go_home();
 			return;
 		}
 		ripemd160(buf, 32, buf + 1);
@@ -637,7 +642,7 @@ void fsm_msgGetAddress(GetAddress *msg)
 	}*/
 
     msg_write(MessageType_MessageType_Address, resp);
-    layout_home();
+    go_home();
 }
 
 void fsm_msgEntropyAck(EntropyAck *msg)
@@ -655,14 +660,14 @@ void fsm_msgSignMessage(SignMessage *msg)
 
 	if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall, "Sign Message", msg->message.bytes))
 	{
-		cancel_confirm(FailureType_Failure_ActionCancelled, "Sign message cancelled");
-		layout_home();
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Sign message cancelled");
+		go_home();
 		return;
 	}
 
 	if (!pin_protect_cached())
 	{
-		layout_home();
+		go_home();
 		return;
 	}
 
@@ -671,7 +676,7 @@ void fsm_msgSignMessage(SignMessage *msg)
 	const CoinType *coin = coinByName(msg->coin_name);
 	if (!coin) {
 		fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
-		layout_home();
+		go_home();
 		return;
 	}
 
@@ -692,7 +697,7 @@ void fsm_msgSignMessage(SignMessage *msg)
 		fsm_sendFailure(FailureType_Failure_Other, "Error signing message");
 	}
 
-	layout_home();
+	go_home();
 }
 
 void fsm_msgVerifyMessage(VerifyMessage *msg)
@@ -718,7 +723,7 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 	{
 		if(review(ButtonRequestType_ButtonRequest_Other, "Verify Message", msg->message.bytes))
 		{
-			success_confirm("Message verified");
+			fsm_sendSuccess("Message verified");
 		}
 	}
 	else
@@ -726,7 +731,7 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 		fsm_sendFailure(FailureType_Failure_InvalidSignature, "Invalid signature");
 	}
 
-	layout_home();
+	go_home();
 }
 
 void fsm_msgEncryptMessage(EncryptMessage *msg)
@@ -759,7 +764,7 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 
 		if (!pin_protect_cached())
 		{
-			layout_home();
+			go_home();
 			return;
 		}
 
@@ -772,8 +777,8 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 
 	if(!confirm_encrypt_msg(msg->message.bytes, signing))
 	{
-		cancel_confirm(FailureType_Failure_ActionCancelled, "Encrypt message cancelled");
-		layout_home();
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Encrypt message cancelled");
+		go_home();
 		return;
 	}
 
@@ -782,7 +787,7 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 
 	if (cryptoMessageEncrypt(&pubkey, msg->message.bytes, msg->message.size, display_only, resp->nonce.bytes, &(resp->nonce.size), resp->message.bytes, &(resp->message.size), resp->hmac.bytes, &(resp->hmac.size), signing ? node->private_key : 0, signing ? address_raw : 0) != 0) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Error encrypting message");
-		layout_home();
+		go_home();
 		return;
 	}
 
@@ -790,7 +795,7 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 	resp->has_message = true;
 	resp->has_hmac = true;
 	msg_write(MessageType_MessageType_EncryptedMessage, resp);
-	layout_home();
+	go_home();
 }
 
 void fsm_msgDecryptMessage(DecryptMessage *msg)
@@ -815,7 +820,7 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
 
 	if (!pin_protect_cached())
 	{
-		layout_home();
+		go_home();
 		return;
 	}
 
@@ -832,7 +837,7 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
 	uint8_t address_raw[21];
 	if (cryptoMessageDecrypt(&nonce_pubkey, msg->message.bytes, msg->message.size, msg->hmac.bytes, msg->hmac.size, node->private_key, resp->message.bytes, &(resp->message.size), &display_only, &signing, address_raw) != 0) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Error decrypting message");
-		layout_home();
+		go_home();
 		return;
 	}
 	if (signing) {
@@ -841,8 +846,8 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
 
 	if(!confirm_decrypt_msg(resp->message.bytes, signing ? resp->address : 0))
 	{
-		cancel_confirm(FailureType_Failure_ActionCancelled, "Decrypt message cancelled");
-		layout_home();
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Decrypt message cancelled");
+		go_home();
 		return;
 	}
 
@@ -856,7 +861,7 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
 		resp->has_message = true;
 	}
 	msg_write(MessageType_MessageType_DecryptedMessage, resp);
-	layout_home();
+	go_home();
 }
 
 void fsm_msgEstimateTxSize(EstimateTxSize *msg)
@@ -1007,9 +1012,10 @@ static const MessagesMap_t MessagesMap[] = {
 void fsm_init(void)
 {
 	msg_map_init(MessagesMap);
-	set_msg_success_handler(&fsm_sendSuccess);
 	set_msg_failure_handler(&fsm_sendFailure);
-	set_msg_initialize_handler(&fsm_msgInitialize);
+
+	/* set leaving handler for layout to help with determine home state */
+	set_leaving_handler(&leave_home);
 
 #if DEBUG_LINK
 	set_msg_debug_link_get_state_handler(&fsm_msgDebugLinkGetState);

@@ -27,6 +27,7 @@
 #include <resources.h>
 #include <storage.h>
 #include <keepkey_usart.h>
+#include <home_sm.h>
 
 
 /*
@@ -54,8 +55,8 @@ int main(void)
     led_func(SET_RED_LED);
     dbg_print("Application Version %d.%d\n\r", MAJOR_VERSION, MINOR_VERSION );
 
-    /* Show loading screen */
-    layout_home();
+    /* Show home screen */
+    go_home();
 
     /* Init storage and set progress handler */
     storage_init();

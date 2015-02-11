@@ -35,9 +35,7 @@
 
 
 /******************** Statics and Global variables ***********************/
-
-/*Flag whether passphrase was canceled by init msg */
-static bool passphrase_canceled_by_init = false;
+extern bool reset_msg_stack;
 
 //******************** PRIVATE FUNCTION DECLARATIONS *********************/
 
@@ -125,7 +123,7 @@ static void run_passphrase_state(PassphraseState *passphrase_state, PassphraseIn
 static bool passphrase_request(PassphraseInfo *passphrase_info)
 {
 	bool ret = false;
-	passphrase_canceled_by_init = false;
+	reset_msg_stack = false;
 	PassphraseState passphrase_state = PASSPHRASE_REQUEST;
 
 	/* Run SM */
@@ -142,7 +140,7 @@ static bool passphrase_request(PassphraseInfo *passphrase_info)
 		ret = true;
     } else {
 		if(passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_CANCEL_BY_INIT) {
-			passphrase_canceled_by_init = true;
+			reset_msg_stack = true;
         }
     }
 
@@ -172,23 +170,4 @@ bool passphrase_protect()
     }
 
 	return (ret);
-}
-
-/*
- * cancel_passphrase() - process passphrase cancellation
- *
- * INPUT - 
- *      code - 
- *      *text - 
- * OUTPUT -
- *      none
- */
-void cancel_passphrase(FailureType code, const char *text)
-{
-	if(passphrase_canceled_by_init)
-		call_msg_initialize_handler();
-	else
-		call_msg_failure_handler(code, text);
-
-	passphrase_canceled_by_init = false;
 }
