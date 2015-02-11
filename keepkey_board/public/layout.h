@@ -79,7 +79,8 @@ typedef enum
     NOTIFICATION_CONFIRMED
 } NotificationType;
 
-typedef void (*AnimateCallback)(void* data, uint32_t duration, uint32_t elapsed );
+typedef void (*leaving_handler_t)(void);
+typedef void (*AnimateCallback)(void* data, uint32_t duration, uint32_t elapsed);
 typedef struct Animation Animation;
 
 struct Animation
@@ -103,6 +104,7 @@ typedef struct
 /**************  Function Declarations ****************/
 void layout_init( Canvas* canvas);
 void layout_home(void);
+void layout_home_reversed(void);
 void layout_sleep( void);
 void layout_tx_info( const char* address, uint64_t amount_in_satoshi);
 void layout_confirmation(); 
@@ -126,6 +128,9 @@ void layout_add_animation(AnimateCallback callback, void* data, uint32_t duratio
 void layout_clear();
 void layout_clear_animations();
 void layout_clear_static();
+
+void set_leaving_handler(leaving_handler_t leaving_func);
+static void call_leaving_handler(void);
 
 
 #ifdef __cplusplus

@@ -34,9 +34,7 @@
 /***************** Typedefs and enums  *******************/
 typedef void (*msg_handler_t)(void *ptr);
 typedef void (*raw_msg_handler_t)(uint8_t *msg, uint32_t msg_size, uint32_t frame_length);
-typedef void (*msg_success_t)(const char *);
 typedef void (*msg_failure_t)(FailureType, const char *);
-typedef void (*msg_initialize_t)(Initialize *);
 typedef bool (*usb_tx_handler_t)(void*, uint32_t);
 #if DEBUG_LINK
 typedef void (*msg_debug_link_get_state_t)(DebugLinkGetState *);
@@ -87,13 +85,9 @@ bool msg_debug_write(MessageType type, const void *msg);
 
 void msg_map_init(const void* map);
 
-/* Message failure and message init callback */
-void set_msg_success_handler(msg_success_t success_func);
+/* Message failure and debug link get state callback */
 void set_msg_failure_handler(msg_failure_t failure_func);
-void set_msg_initialize_handler(msg_initialize_t initialize_func);
-void call_msg_success_handler(const char *text);
 void call_msg_failure_handler(FailureType code, const char *text);
-void call_msg_initialize_handler(void);
 #if DEBUG_LINK
 void set_msg_debug_link_get_state_handler(msg_debug_link_get_state_t debug_link_get_state_func);
 void call_msg_debug_link_get_state_handler(DebugLinkGetState *msg);

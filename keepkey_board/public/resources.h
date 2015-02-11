@@ -75,6 +75,7 @@ const Image* get_confirmed_image();
 const Image* get_unplug_image();
 
 const ImageAnimation* get_logo_animation();
+const ImageAnimation* get_logo_reversed_animation();
 const ImageAnimation* get_confirm_icon_animation();
 const ImageAnimation* get_confirming_animation();
 const ImageAnimation* get_wipe_animation();
