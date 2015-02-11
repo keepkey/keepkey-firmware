@@ -41,6 +41,7 @@
 
 /*** Definition ***/
 static FirmwareUploadState upload_state = UPLOAD_NOT_STARTED;
+extern bool reset_msg_stack;
 
 /*** Structure to map incoming messages to handler functions. ***/
 static const MessagesMap_t MessagesMap[] = {
@@ -90,11 +91,10 @@ bool usb_flash_firmware(void)
     bool retval = false;
 
     layout_warning("Firmware Update Mode");
+
     /* Init message map, failure function, send init function, and usb callback */
     msg_map_init(MessagesMap);
-    set_msg_success_handler(&send_success);
     set_msg_failure_handler(&send_failure);
-    set_msg_initialize_handler(&handler_initialize);
     msg_init();
 
     /* Init USB */
@@ -191,6 +191,12 @@ void send_success(const char *text)
  */
 void send_failure(FailureType code, const char *text)
 {
+	if (reset_msg_stack) {
+		handler_initialize((Initialize *)0);
+		reset_msg_stack = false;
+		return;
+	}
+
     Failure f;
     memset(&f, 0, sizeof(f));
 
@@ -397,7 +403,7 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
     				upload_state = UPLOAD_COMPLETE;
                 } else {
                     flash_write_n_lock(FLASH_APP, 0, META_MAGIC_SIZE, "XXXX");
-                    cancel_confirm(FailureType_Failure_FirmwareError, "Fingerprint is Not Confirmed");
+                    send_failure(FailureType_Failure_FirmwareError, "Fingerprint is Not Confirmed");
                     upload_state = UPLOAD_ERROR;
                 }
             }
