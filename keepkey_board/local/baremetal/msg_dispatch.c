@@ -34,11 +34,16 @@
 #endif
 
 /*************** Static and Global variables ****************/
+
+/* Allow mapped messages to reset message stack.  This variable by itself doesn't
+ * do much but messages down the line can use it to determine for to gracefully
+ * exit from a message should the message stack been reset
+ */
+bool reset_msg_stack = false;
+
 static MsgStats msg_stats;
 static const MessagesMap_t *MessagesMap = NULL;
-static msg_success_t msg_success;
 static msg_failure_t msg_failure;
-static msg_initialize_t msg_initialize;
 #if DEBUG_LINK
 static msg_debug_link_get_state_t msg_debug_link_get_state;
 #endif
@@ -448,21 +453,9 @@ void msg_map_init(const void *map)
 }
 
 /*
- * set_msg_success_handler() - setup usb message success handler
- *
- * INPUT - 
- *      success_func - message success handler
- * OUTPUT -
- *      none
- */
-void set_msg_success_handler(msg_success_t success_func)
-{
-	msg_success = success_func;
-}
-/*
  * set_msg_failure_handler() - setup usb message failure handler
  *
- * INPUT - 
+ * INPUT -
  *      failure_func - message failure handler
  * OUTPUT -
  *      none
@@ -470,19 +463,6 @@ void set_msg_success_handler(msg_success_t success_func)
 void set_msg_failure_handler(msg_failure_t failure_func)
 {
 	msg_failure = failure_func;
-}
-
-/*
- * set_msg_initialize_handler() - setup usb message initialization handler 
- *
- * INPUT - 
- *      initialize_func - message initialization handler
- * OUTPUT -
- *      none
- */
-void set_msg_initialize_handler(msg_initialize_t initialize_func)
-{
-	msg_initialize = initialize_func;
 }
 
 /*
@@ -501,43 +481,17 @@ void set_msg_debug_link_get_state_handler(msg_debug_link_get_state_t debug_link_
 #endif
 
 /*
- * call_msg_success_handler() - call message success handler
- *
- * INPUT -
- *      *text - pointer function arguments
- * OUTPUT -
- *      none
- */
-void call_msg_success_handler(const char *text)
-{
-	if(msg_success)
-		(*msg_success)(text);
-}
-
-/*
  * call_msg_failure_handler() - call message failure handler
  *
  * INPUT -
- *      code - failure code 
- *      *text - pinter to function arguments  
+ *      code - failure code
+ *      *text - pinter to function arguments
  * OUTPUT -
  */
 void call_msg_failure_handler(FailureType code, const char *text)
 {
 	if(msg_failure)
 		(*msg_failure)(code, text);
-}
-
-/*
- * call_msg_initialize_handler() - call message initialization handler
- *
- * INPUT - none
- * OUTPUT - none
- */
-void call_msg_initialize_handler(void)
-{
-	if(msg_initialize)
-		(*msg_initialize)((Initialize *)0);
 }
 
 /*

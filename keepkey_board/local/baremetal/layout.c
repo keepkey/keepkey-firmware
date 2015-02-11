@@ -40,11 +40,14 @@ static AnimationQueue free_queue = { NULL, 0 };
 static Animation animations[ MAX_ANIMATIONS ];
 static Canvas* canvas = NULL;
 static volatile bool animate_flag = false;
+static leaving_handler_t leaving_handler;
 
 /* Standard time to wait for the confirmation.  */
 static const uint32_t STANDARD_CONFIRM_MS = 2000;
 
 /* static function */
+
+static void layout_home_helper(bool reversed);
 
 static void layout_animate_callback( void* context );
 
@@ -80,13 +83,34 @@ void layout_init(Canvas* new_canvas)
 }
 
 /*
- *  layout_home() - splash home screen on LCD screen
- *  (TODO: Have some personalization here?)
+ *  layout_home() - splash home screen
  *
  *  INPUT - none
  *  OUTPUT - none
  */
 void layout_home(void)
+{
+	layout_home_helper(false);
+}
+
+/*
+ *  layout_home_reversed() - splash home screen in reverse
+ *
+ *  INPUT - none
+ *  OUTPUT - none
+ */
+void layout_home_reversed(void)
+{
+	layout_home_helper(true);
+}
+
+/*
+ *  layout_home_helper() - splash home screen helper
+ *
+ *  INPUT - true/false - reverse or normal
+ *  OUTPUT - none
+ */
+static void layout_home_helper(bool reversed)
 {
     layout_clear();
 
@@ -97,7 +121,12 @@ void layout_home(void)
     static AnimationImageDrawableParams logo;
     logo.base.x = 0;
     logo.base.y = 0;
-    logo.img_animation = get_logo_animation();
+
+    if(reversed) {
+    	logo.img_animation = get_logo_reversed_animation();
+    } else {
+    	logo.img_animation = get_logo_animation();
+    }
 
     layout_add_animation(
 		&layout_animate_images,
@@ -134,6 +163,7 @@ void layout_sleep(void)
  */
 void layout_standard_notification(const char* str1, const char* str2, NotificationType type)
 {
+	call_leaving_handler();
     layout_clear();
 
     const Font* title_font = get_title_font();
@@ -224,6 +254,7 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
  */
 void layout_warning(const char* prompt)
 {
+	call_leaving_handler();
     layout_clear();
 
     const Font* font = get_title_font();
@@ -262,6 +293,7 @@ void layout_pin(const char* prompt, char pin[])
 	DrawableParams sp;
 	BoxDrawableParams box_params;
 
+	call_leaving_handler();
 	layout_clear();
 
     /* set matrix color */
@@ -720,4 +752,31 @@ uint32_t warning_char_width()
 {
 	const Font* font = get_title_font();
     return((WARNING_WIDTH / font_width(font)) * WARNING_ROWS);
+}
+
+/*
+ * set_leaving_handler() - setup leaving handler
+ *
+ * INPUT -
+ *      leaving_func - leaving handler to be set
+ * OUTPUT -
+ *      none
+ */
+void set_leaving_handler(leaving_handler_t leaving_func)
+{
+	leaving_handler = leaving_func;
+}
+
+/*
+ * call_leaving_handler() - call leaving handler
+ *
+ * INPUT -
+ *      none
+ * OUTPUT -
+ * 		none
+ */
+static void call_leaving_handler(void)
+{
+	if(leaving_handler)
+		(*leaving_handler)();
 }

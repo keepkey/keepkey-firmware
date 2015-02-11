@@ -47,9 +47,7 @@
 /******************** Static/Global variables *************************/
 /* Button request ack */
 static bool button_request_acked = false;
-
-/* Flag whether confirm was canceled by init msg */
-static bool confirm_canceled_by_init = false;
+extern bool reset_msg_stack;
 
 /******************** Static Function Declarations ********************/
 static void handle_screen_press(void* context);
@@ -291,7 +289,7 @@ bool confirm_helper(const char *request_title, const char *request_body)
     bool debug_decided = false;
 #endif
 
-    confirm_canceled_by_init = false;
+    reset_msg_stack = false;
 
     memset((void*)&state_info, 0, sizeof(state_info));
     state_info.display_state = HOME;
@@ -329,7 +327,7 @@ bool confirm_helper(const char *request_title, const char *request_body)
             case MessageType_MessageType_Cancel:
             case MessageType_MessageType_Initialize:
 			    if (tiny_msg == MessageType_MessageType_Initialize) {
-				    confirm_canceled_by_init = true;
+			    	reset_msg_stack = true;
 			    }
 			    ret_stat  = false;
                 goto confirm_helper_exit;
@@ -373,45 +371,6 @@ confirm_helper_exit:
     keepkey_button_set_on_release_handler( NULL, NULL );
 
     return(ret_stat);
-}
-
-/*
- *  cancel_confirm() - 
- *
- *  INPUT - 
- *      code -
- *      *text - 
- *  OUTPUT - 
- *      none
- */
-void cancel_confirm(FailureType code, const char *text)
-{
-	if(confirm_canceled_by_init) {
-		call_msg_initialize_handler();
-    } else {
-		call_msg_failure_handler(code, text);
-    }
-
-	confirm_canceled_by_init = false;
-}
-
-/*
- * success_confirm() -
- *
- * INPUT - 
- *      *text - 
- * OUTPUT - 
- *      none
- */
-void success_confirm(const char *text)
-{
-	if(confirm_canceled_by_init){
-		call_msg_initialize_handler();
-    } else {
-		call_msg_success_handler(text);
-    }
-
-	confirm_canceled_by_init = false;
 }
 
 /*

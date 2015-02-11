@@ -182,10 +182,31 @@ static const AnimationFrame logo_array[] = {
 	{&logo_16_image, 15}
 };
 
+static const AnimationFrame logo_reversed_array[] = {
+	{&logo_16_image, 15},
+	{&logo_15_image, 15},
+	{&logo_14_image, 15},
+	{&logo_13_image, 15},
+	{&logo_12_image, 15},
+	{&logo_11_image, 15},
+	{&logo_10_image, 15},
+	{&logo_9_image, 15},
+	{&logo_8_image, 15},
+	{&logo_7_image, 15},
+	{&logo_6_image, 15},
+	{&logo_5_image, 15},
+	{&logo_4_image, 15},
+	{&logo_3_image, 15},
+	{&logo_2_image, 15},
+	{&logo_1_image, 15}
+};
+
 #ifndef BLDR
 static const ImageAnimation logo = { 16, logo_array };
+static const ImageAnimation logo_reversed = { 16, logo_reversed_array };
 #else
 static const ImageAnimation logo ;
+static const ImageAnimation logo_reversed ;
 #endif
 
 
@@ -1448,6 +1469,11 @@ const Image* get_recovery_image()
 const ImageAnimation* get_logo_animation()
 {
 	return &logo;
+}
+
+const ImageAnimation* get_logo_reversed_animation()
+{
+	return &logo_reversed;
 }
 
 const ImageAnimation* get_confirm_icon_animation()
