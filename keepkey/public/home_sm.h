@@ -20,43 +20,26 @@
  */
 /* END KEEPKEY LICENSE */
 /*
- * @brief General confirmation state machine
+ * @brief home screen state machine
  */
 
-#ifndef PASSPHRASE_SM_H
-#define PASSPHRASE_SM_H
+#ifndef HOME_SM_H
+#define HOME_SM_H
 
-#include <stdbool.h>
-#include <interface.h>
+/***************** #defines ********************************/
 
-/***************** #defines  *****************************/
+/***************** typedefs and enums **********************/
 
-
-/***************** typedefs and enums  *******************/
-/* State for Passphrase SM */
+/* State for Home SM */
 typedef enum {
-    PASSPHRASE_REQUEST,
-	PASSPHRASE_WAITING,
-	PASSPHRASE_ACK,
-	PASSPHRASE_FINISHED
-} PassphraseState;
+    AT_HOME,
+	AWAY_FROM_HOME,
+	SCREENSAVER
+} HomeState;
+ 
+/***************** Function Declarations *******************/
 
-/* While waiting for a passphrase ack, these are the types of messages we expect to
- * see.
- */
-typedef enum {
-	PASSPHRASE_ACK_WAITING,
-    PASSPHRASE_ACK_RECEIVED,
-	PASSPHRASE_ACK_CANCEL_BY_INIT,
-	PASSPHRASE_ACK_CANCEL
-} PassphraseAckMsg;
-
-/* Contains passphrase received info */
-typedef struct {
-	PassphraseAckMsg passphrase_ack_msg;
-	char passphrase[51];
-} PassphraseInfo; 
-
-bool passphrase_protect();
+void go_home();
+void leave_home();
 
 #endif
