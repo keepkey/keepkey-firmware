@@ -91,7 +91,7 @@ bool storage_from_flash(ConfigFlash *stor_config)
  * OUTPUT : 
  *      true/false : status
  */
-static  bool get_end_stor(ConfigFlash **end_stor)
+static bool get_end_stor(ConfigFlash **end_stor)
 {
     bool ret_stat = false;
     uint32_t cnt = 0; 
@@ -110,6 +110,33 @@ static  bool get_end_stor(ConfigFlash **end_stor)
     }
     return(ret_stat);
 }
+
+/*
+ * get_end_stor_cnt() - search through configuration node list to find the end node,
+ *                  	and returns the count of nodes.
+ *
+ * INPUT :
+ *      pointer to storage end node.
+ * OUTPUT :
+ *      true/false : status
+ */
+#if DEBUG_LINK
+uint32_t storage_get_end_stor_cnt(void)
+{
+    uint32_t cnt = 0;
+
+    /* set to head node for start of search*/
+    ConfigFlash *config_ptr = (ConfigFlash*)FLASH_STORAGE_START;
+
+    /* search through the node list to find the last node (active node) */
+	while(memcmp((void *)config_ptr->meta.magic , "stor", 4) == 0) {
+        config_ptr++;
+        cnt++;
+    }
+
+    return(cnt);
+}
+#endif
 
 /*
  * storage_init() - validate storage content and copy data to shadow memory
@@ -826,33 +853,3 @@ void storage_set_progress_handler(progress_handler_t handler)
 {
 	progress_handler = handler;
 }
-
-#if DEBUG_LINK
-/*
- * test_config_node() - test 
- *
- */
-void fsm_test_config_node(void) 
-{
-    uint32_t test_cnt = 0;
-    bool tstat = true;
-    ConfigFlash *test_config, test_shadow_config;
-
-    memcpy((void *)&test_shadow_config, (void *)&shadow_config, sizeof(ConfigFlash)); 
-
-    do {
-	    storage_commit(NEW_STOR);
-        get_end_stor(&test_config);
-	    if(memcmp((void *)&test_shadow_config, (void *)test_config, sizeof(ConfigFlash))) {
-            dbg_print(" ----> failed ");
-            tstat = false;
-            break;
-        } 
-    }while(test_cnt++  < 5000 );
-    if(tstat == true) {
-	    fsm_sendSuccess("Passed.");
-    } else {
-	    fsm_sendSuccess("Failed.");
-    }
-}
-#endif
