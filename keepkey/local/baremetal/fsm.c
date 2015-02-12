@@ -939,6 +939,9 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg)
 	resp->has_passphrase_protection = true;
 	resp->passphrase_protection = storage_get_passphrase_protected();
 
+	resp->has_config_stor_count = true;
+	resp->config_stor_count  = storage_get_end_stor_cnt();
+
 	msg_debug_write(MessageType_MessageType_DebugLinkState, resp);
 }
 
