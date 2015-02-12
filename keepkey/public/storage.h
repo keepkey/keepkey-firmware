@@ -49,6 +49,10 @@ typedef enum
 } stor_commit_type;
 
 /*************  Function declarations **************/
+#if DEBUG_LINK
+uint32_t storage_get_end_stor_cnt(void);
+#endif
+
 void storage_init(void);
 void storage_reset_uuid(void);
 void storage_reset(void);
