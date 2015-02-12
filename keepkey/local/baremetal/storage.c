@@ -368,6 +368,7 @@ void storage_setLabel(const char *label)
 {
     if (!label) return;
     shadow_config.storage.has_label = true;
+    memset(shadow_config.storage.label, 0, sizeof(shadow_config.storage.label));
     strlcpy(shadow_config.storage.label, label, sizeof(shadow_config.storage.label));
 }
 
@@ -385,6 +386,7 @@ void storage_setLanguage(const char *lang)
     // sanity check
     if (strcmp(lang, "english") == 0) {
         shadow_config.storage.has_language = true;
+        memset(shadow_config.storage.language, 0, sizeof(shadow_config.storage.language));
         strlcpy(shadow_config.storage.language, lang, sizeof(shadow_config.storage.language));
     }
 }
@@ -607,18 +609,6 @@ bool storage_getRootNode(HDNode *node)
     }
 
     return false;
-}
-
-/* 
- * char *storage_getLabel()- get configuration label
- *
- * INPUT - none
- * OUTPUT - 
- *      pointer label
- */
-const char *storage_getLabel(void)
-{
-    return shadow_config.storage.has_label ? shadow_config.storage.label : NULL;
 }
 
 /*

@@ -64,7 +64,6 @@ void storage_loadDevice(LoadDevice *msg);
 
 bool storage_getRootNode(HDNode *node);
 
-const char *storage_getLabel(void);
 void storage_setLabel(const char *label);
 
 const char *storage_getLanguage(void);
