@@ -601,6 +601,7 @@ message DebugLinkState {
 	optional string recovery_fake_word = 9;		// (fake) word on display during RecoveryDevice workflow
 	optional uint32 recovery_word_pos = 10;		// index of mnemonic word the device is expecting during RecoveryDevice workflow
 	optional uint32 config_stor_count = 11;		// count of how many config stor nodes device is currently using
+	optional bytes config_stor = 12;			// snapshot of config stor from flash
 }
 
 /**
