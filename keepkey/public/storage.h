@@ -51,6 +51,7 @@ typedef enum
 /*************  Function declarations **************/
 #if DEBUG_LINK
 uint32_t storage_get_end_stor_cnt(void);
+bool storage_get_end_stor(void *stor_cpy);
 #endif
 
 void storage_init(void);

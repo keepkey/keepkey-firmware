@@ -942,6 +942,10 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg)
 	resp->has_config_stor_count = true;
 	resp->config_stor_count  = storage_get_end_stor_cnt();
 
+	if(storage_get_end_stor((void *)resp->config_stor.bytes)) {
+		resp->has_config_stor = true;
+	}
+
 	msg_debug_write(MessageType_MessageType_DebugLinkState, resp);
 }
 

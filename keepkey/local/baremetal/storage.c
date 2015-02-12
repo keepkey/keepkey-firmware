@@ -68,7 +68,7 @@ static char sessionPassphrase[51];
  *      true/false status
  *
  */
-bool storage_from_flash(ConfigFlash *stor_config)
+static bool storage_from_flash(ConfigFlash *stor_config)
 {
     /* load cofig values from active config node */
     switch (stor_config->storage.version) {
@@ -136,7 +136,30 @@ uint32_t storage_get_end_stor_cnt(void)
 
     return(cnt);
 }
+
+/*
+ * storage_from_flash() - copy configuration from storage partition in flash memory to shadow memory in RAM
+ *
+ * INPUT -
+ *      storage version
+ * OUTPUT -
+ *      true/false status
+ *
+ */
+bool storage_get_end_stor(void *stor_cpy)
+{
+	/* get a pointer to end stor */
+	ConfigFlash *stor_config;
+	get_end_stor(&stor_config);
+
+	/* make a copy of end stor */
+	memcpy(stor_cpy, (void *)stor_config, sizeof(ConfigFlash));
+
+    return true;
+}
 #endif
+
+
 
 /*
  * storage_init() - validate storage content and copy data to shadow memory
