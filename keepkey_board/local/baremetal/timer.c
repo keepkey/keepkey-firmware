@@ -92,6 +92,27 @@ void delay_ms(uint32_t ms)
 }
 
 /*
+ * delay_ms_with_callback() - millisecond delay allowing a callback for extra work
+ *
+ * INPUT -
+ *      ms - count in milliseconds
+ *      callback_func - function to call during loops
+ *      frequency_ms - frequency in ms to do callback
+ * OUTPUT -
+ *      none
+ */
+void delay_ms_with_callback(uint32_t ms, callback_func_t callback_func, uint32_t frequency_ms)
+{
+    remaining_delay = ms;
+
+    while( remaining_delay > 0 ) {
+    	if(remaining_delay % 20 == 0) {
+    		(*callback_func)();
+    	}
+    }
+}
+
+/*
  * tim4_isr() - timer 4 interrupt service routine
  *
  * INPUT - none
