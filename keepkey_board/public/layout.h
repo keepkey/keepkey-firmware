@@ -123,6 +123,7 @@ void animate( void);
 bool is_animating(void);
 void force_animation_start(void);
 void animating_progress_handler(void);
+void animating_progress_slowed_handler(void);
 void layout_add_animation(AnimateCallback callback, void* data, uint32_t duration);
 
 void layout_clear();
