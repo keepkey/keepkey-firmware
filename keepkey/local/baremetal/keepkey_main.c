@@ -39,7 +39,6 @@
 static void exec(void)
 {
     usb_poll();
-    display_refresh();
 }
 
 /*
