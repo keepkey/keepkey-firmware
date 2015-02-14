@@ -540,9 +540,23 @@ void force_animation_start(void)
  * animating_progress_handler() - animate storage update progress
  *
  * INPUT - none
- * OUTPUT - none 
+ * OUTPUT - none
  */
 void animating_progress_handler(void)
+{
+	if(is_animating()) {
+		animate();
+		display_refresh();
+	}
+}
+
+/*
+ * animating_progress_slowed_handler() - animate progress handler with intentional delay to slow process
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
+void animating_progress_slowed_handler(void)
 {
 	if(is_animating()) {
 		animate();

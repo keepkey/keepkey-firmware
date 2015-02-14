@@ -293,11 +293,7 @@ bool pin_protect()
 
 				wait = (wait < 32) ? (1u << wait) : 0xFFFFFFFF;
 				while (--wait > 0) {
-					for(uint8_t i = 0; i < 220; i++) {
-						animate();
-						display_refresh();
-						delay_ms(5);
-					}
+					delay_ms_with_callback(ONE_SEC, &animating_progress_handler, 20);
 				}
 			}
 		}

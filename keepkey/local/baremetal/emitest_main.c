@@ -103,7 +103,7 @@ int main(void)
     storage_init();
 
     /* Override label to have a reset counter. */
-    label = storage_getLabel();
+    label = storage_get_label();
     count = 1;
     if(label) {
         count = strtoul(label, NULL, 10);

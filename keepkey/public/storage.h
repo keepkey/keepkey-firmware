@@ -49,6 +49,11 @@ typedef enum
 } stor_commit_type;
 
 /*************  Function declarations **************/
+#if DEBUG_LINK
+uint32_t storage_get_end_stor_cnt(void);
+bool storage_get_end_stor(void *stor_cpy);
+#endif
+
 void storage_init(void);
 void storage_reset_uuid(void);
 void storage_reset(void);
@@ -59,7 +64,6 @@ void storage_loadDevice(LoadDevice *msg);
 
 bool storage_getRootNode(HDNode *node);
 
-const char *storage_getLabel(void);
 void storage_setLabel(const char *label);
 
 const char *storage_getLanguage(void);
