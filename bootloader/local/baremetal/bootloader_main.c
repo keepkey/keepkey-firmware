@@ -161,6 +161,12 @@ static void configure_hw()
     rcc_periph_clock_enable(RCC_OTGFS);
     rcc_periph_clock_enable(RCC_SYSCFG);
     rcc_periph_clock_enable(RCC_TIM4);
+    rcc_periph_clock_enable(RCC_RNG);
+    /*
+     * Enable random
+     */
+    RNG_CR |= RNG_CR_IE | RNG_CR_RNGEN;
+
     timer_init();
     usart_init();
     keepkey_leds_init();
@@ -259,6 +265,8 @@ bool check_fw_is_new(void)
  */
 int main(int argc, char* argv[])
 {
+    // init for safeguard against stack overflow (-fstack_protector_all)
+    __stack_chk_guard = SSP_GUARD_VAL;  
     (void)argc;
     (void)argv;
     bool update_mode;
@@ -268,7 +276,7 @@ int main(int argc, char* argv[])
     led_func(SET_GREEN_LED);
     led_func(SET_RED_LED);
 
-    dbg_print("\n\rKeepKey LLC, Copyright (C) 2014\n\r");
+    dbg_print("\n\rKeepKey LLC, Copyright (C) 2015\n\r");
     dbg_print("BootLoader Version %d.%d (%s)\n\r", BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION, __DATE__);
 
     /* main loop for bootloader to transition to next step */

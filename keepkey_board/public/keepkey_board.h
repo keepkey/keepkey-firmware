@@ -50,13 +50,14 @@ extern "C" {
  */
 
 
-/*********************  #defines ***************************************
+/*********************  #defines *************************/
 /* Specify the length of the uuid binary string */ 
 #define STORAGE_UUID_LEN 12
 /* Length of the uuid binary converted to readable ASCII.  */
 #define STORAGE_UUID_STR_LEN ((STORAGE_UUID_LEN * 2) + 1)
 
-
+/* set initial __stack_chk_guard to a value from arbitrary RAM location */
+#define SSP_GUARD_VAL (*(uintptr_t *)0x2001FB10)
 /***************** typedefs and enums  *******************/
 /* Flash metadata structure which will contains unique identifier
    information that spans device resets.  */
@@ -75,12 +76,17 @@ typedef struct
     Cache cache;
 } ConfigFlash;
 
-/***********************  Function Declaration ***************************/
+/***************** external variable declarations ********/
+extern uintptr_t __stack_chk_guard; 
+
+/***************** Function Declaration *********************/
 /* Perform a soft reset of the board.  */
 void board_reset(void);
 void scb_reset_system(void);
 /* Initial setup and configuration of board.  */
 void board_init(void);
+
+void __stack_chk_fail(void) __attribute__((noreturn));
 
 #ifdef __cplusplus
 }

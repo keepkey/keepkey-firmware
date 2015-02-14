@@ -29,15 +29,16 @@
 extern "C" {
 #endif
 
-/* definitions */
+/*********************  #defines *************************/
 #define PUBKEYS 5
 #define PUBKEY_LENGTH 65 
 #define SIGNATURES 1
 
-//====================== CONSTANTS, TYPES, AND MACROS =========================
+/***************** typedefs and enums  *******************/
 typedef void (*app_entry_t)(void);
 
-/* extern declarations */
+
+/***************** Function Declaration ******************/
 int signatures_ok(void);
 bool check_firmware_sig(void);
 bool check_fw_is_new(void);
