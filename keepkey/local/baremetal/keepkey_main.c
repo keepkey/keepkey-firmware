@@ -28,6 +28,7 @@
 #include <storage.h>
 #include <keepkey_usart.h>
 #include <home_sm.h>
+#include <rng.h>
 
 
 /*
