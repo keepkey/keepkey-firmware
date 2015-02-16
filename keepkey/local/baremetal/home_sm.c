@@ -26,11 +26,12 @@
 
 #include "home_sm.h"
 
-#include "layout.h"
+#include <layout.h>
 
 /*******************  variables *************************************/
 /* track state of home screen */
 static HomeState home_state = AWAY_FROM_HOME;
+static uint32_t idle_time = 0;
 
 /*******************FUNCTION Definitions  ****************************/
 
@@ -42,12 +43,13 @@ static HomeState home_state = AWAY_FROM_HOME;
  * OUTPUT - 
  *      none
  */
-void go_home()
+void go_home(void)
 {
 	switch(home_state) {
 		case AWAY_FROM_HOME:
 		case SCREENSAVER:
 			layout_home();
+			reset_idle_time();
 			home_state = AT_HOME;
 			break;
 		case AT_HOME:
@@ -65,12 +67,15 @@ void go_home()
  * OUTPUT - 
  *      none
  */
-void leave_home()
+void leave_home(void)
 {
 	switch(home_state) {
 		case AT_HOME:
-		case SCREENSAVER:
 			layout_home_reversed();
+			reset_idle_time();
+			home_state = AWAY_FROM_HOME;
+			break;
+		case SCREENSAVER:
 			home_state = AWAY_FROM_HOME;
 			break;
 		case AWAY_FROM_HOME:
@@ -78,4 +83,60 @@ void leave_home()
 			/* no action requires */
 			break;
 	}
+}
+
+/*
+ * toggle_screensaver() - toggles the screensaver based on idle time
+ *
+ * INPUT  -
+ *      none
+ * OUTPUT -
+ *      none
+ */
+void toggle_screensaver(void)
+{
+	switch(home_state) {
+		case AT_HOME:
+			if(idle_time >= SCREENSAVER_TIMEOUT) {
+				layout_screensaver();
+				home_state = SCREENSAVER;
+			}
+			break;
+		case SCREENSAVER:
+			if(idle_time < SCREENSAVER_TIMEOUT) {
+				layout_home();
+				home_state = AT_HOME;
+			}
+			break;
+		case AWAY_FROM_HOME:
+		default:
+			/* no action requires */
+			break;
+	}
+}
+
+/*
+ * increment_idle_time() - increments idle time
+ *
+ * INPUT  -
+ *      increment_ms - time to increment in ms
+ * OUTPUT -
+ *      none
+ */
+void increment_idle_time(uint32_t increment_ms)
+{
+	idle_time += increment_ms;
+}
+
+/*
+ * reset_idle_time() - resets idle time
+ *
+ * INPUT  -
+ *      none
+ * OUTPUT -
+ *      none
+ */
+void reset_idle_time(void)
+{
+	idle_time = 0;
 }

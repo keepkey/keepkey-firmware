@@ -38,7 +38,11 @@
  */
 static void exec(void)
 {
-    usb_poll();
+	usb_poll();
+
+	/* attempt to animate should a screensaver be present */
+	animate();
+	display_refresh();
 }
 
 /*
@@ -69,8 +73,11 @@ int main(void)
     led_func(CLR_RED_LED);
 
     /* Monitor host usb commands */
+    reset_idle_time();
     while(1) {
-        exec();
+    	delay_ms_with_callback(ONE_SEC, &exec, 1);
+		increment_idle_time(ONE_SEC);
+		toggle_screensaver();
     }
     return 0;
 }

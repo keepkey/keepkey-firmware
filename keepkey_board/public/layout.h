@@ -105,7 +105,7 @@ typedef struct
 void layout_init( Canvas* canvas);
 void layout_home(void);
 void layout_home_reversed(void);
-void layout_sleep( void);
+void layout_screensaver(void);
 void layout_tx_info( const char* address, uint64_t amount_in_satoshi);
 void layout_confirmation(); 
 uint32_t layout_char_width();

@@ -114,13 +114,9 @@ static void layout_home_helper(bool reversed)
 {
     layout_clear();
 
-    DrawableParams sp;
-    sp.x = 0;
-    sp.y = 0;
-
     static AnimationImageDrawableParams logo;
-    logo.base.x = 0;
-    logo.base.y = 0;
+    logo.base.x = 100;
+    logo.base.y = 10;
 
     if(reversed) {
     	logo.img_animation = get_logo_reversed_animation();
@@ -140,15 +136,23 @@ static void layout_home_helper(bool reversed)
 }
 
 /*
- * layout_sleep() - display sleep notification on LCD screen (being cleared for now)
- *  (TODO: Have some personalization here?)
+ *  layout_home_helper() - splash home screen helper
  *
- * INPUT - none
- * OUTPUT - none
+ *  INPUT - true/false - reverse or normal
+ *  OUTPUT - none
  */
-void layout_sleep(void)
+void layout_screensaver(void)
 {
-    layout_clear();
+    static AnimationImageDrawableParams screensaver;
+    screensaver.base.x = 0;
+    screensaver.base.y = 0;
+
+    screensaver.img_animation = get_screensaver_animation();
+
+    layout_add_animation(
+		&layout_animate_images,
+		(void*)&screensaver,
+		0);
 }
 
 /*

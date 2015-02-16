@@ -26,7 +26,12 @@
 #ifndef HOME_SM_H
 #define HOME_SM_H
 
+#include <stdint.h>
+
+#include <timer.h>
+
 /***************** #defines ********************************/
+#define SCREENSAVER_TIMEOUT ONE_SEC * 60 * 10
 
 /***************** typedefs and enums **********************/
 
@@ -39,7 +44,10 @@ typedef enum {
  
 /***************** Function Declarations *******************/
 
-void go_home();
-void leave_home();
+void go_home(void);
+void leave_home(void);
+void toggle_screensaver(void);
+void increment_idle_time(uint32_t increment_ms);
+void reset_idle_time(void);
 
 #endif

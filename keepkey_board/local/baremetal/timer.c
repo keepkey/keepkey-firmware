@@ -106,7 +106,7 @@ void delay_ms_with_callback(uint32_t ms, callback_func_t callback_func, uint32_t
     remaining_delay = ms;
 
     while( remaining_delay > 0 ) {
-    	if(remaining_delay % 20 == 0) {
+    	if(remaining_delay % frequency_ms == 0) {
     		(*callback_func)();
     	}
     }

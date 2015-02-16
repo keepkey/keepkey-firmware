@@ -74,6 +74,7 @@ const Image* get_signing_background_image();
 const Image* get_confirmed_image();
 const Image* get_unplug_image();
 
+const ImageAnimation* get_screensaver_animation();
 const ImageAnimation* get_logo_animation();
 const ImageAnimation* get_logo_reversed_animation();
 const ImageAnimation* get_confirm_icon_animation();
