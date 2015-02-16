@@ -28,6 +28,7 @@
 #include <storage.h>
 #include <keepkey_usart.h>
 #include <home_sm.h>
+#include <rng.h>
 
 
 /*
@@ -53,6 +54,8 @@ static void exec(void)
  */
 int main(void)
 {
+    // init for safeguard against stack overflow (-fstack-protector-all)
+    __stack_chk_guard=(uintptr_t)random32();
 	/* Init board */
     board_init();
     led_func(SET_RED_LED);

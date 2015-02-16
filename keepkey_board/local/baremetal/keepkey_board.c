@@ -29,6 +29,29 @@
 #include <libopencm3/stm32/f2/rng.h>
 #include <keepkey_board.h>
 
+/* Static and Global variables */
+/* stack smashing protector (SSP) canary value storage */
+uintptr_t __stack_chk_guard;
+
+/*
+ * __stack_chk_fail() - stack smashing protector (SSP) call back funcation for -fstack-protector-all GCC option
+ *
+ * INPUT  - none
+ * OUTPUT - none
+ */
+__attribute__((noreturn)) void __stack_chk_fail(void)
+{
+    int cnt = 0;
+	layout_warning("Error Dectected.  Reboot Device!");
+    display_refresh();
+	do{
+        if(cnt % 5 == 0) {
+            animate();
+            display_refresh();
+        }
+    }while(1); //loop forever
+}
+
 /*
  * board_reset() - Request board reset
  *

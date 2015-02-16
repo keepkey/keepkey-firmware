@@ -86,6 +86,7 @@ def load_toolchain():
             '-ffunction-sections',
             '-fdata-sections',
             '-fno-common',
+            '-fstack-protector-all', 
             '-I'+OPENCM3_ROOT+'/include',
             ]
 
