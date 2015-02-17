@@ -7,9 +7,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -yq make gi
 
 # Install nanopb
 WORKDIR /root
-RUN git clone --branch nanopb-0.2.9.2 https://code.google.com/p/nanopb/
+RUN git clone --branch nanopb-0.2.9.1 https://code.google.com/p/nanopb/
 WORKDIR /root/nanopb/generator/proto
-RUN git checkout maintenance_0.2
 RUN make
 
 # Setup environment
