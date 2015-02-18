@@ -25,6 +25,8 @@
 #define __FSM_H__
 
 #include <interface.h>
+/***************** #defines ********************************/
+#define ENTROPY_BFRSZ sizeof(((Entropy *)NULL)->entropy.bytes)
 
 /*
  * Message functions
