@@ -33,7 +33,6 @@
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/f2/rng.h>
 
-
 #include <memory.h>
 #include <keepkey_board.h>
 #include <keepkey_display.h>
@@ -48,6 +47,7 @@
 #include <usb_flash.h>
 #include <ecdsa.h>
 #include <bootloader.h>
+#include <rng.h>
 
 
 
@@ -263,13 +263,14 @@ bool check_fw_is_new(void)
  */
 int main(int argc, char* argv[])
 {
-    // init for safeguard against stack overflow (-fstack_protector_all)
-    __stack_chk_guard = SSP_GUARD_VAL;  
     (void)argc;
     (void)argv;
     bool update_mode;
 
     configure_hw();
+    // update default stack guard value random value (-fstack_protector_all)
+    __stack_chk_guard = random32(); 
+
     update_mode = keepkey_button_down();
     led_func(SET_GREEN_LED);
     led_func(SET_RED_LED);

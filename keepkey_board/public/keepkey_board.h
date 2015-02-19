@@ -56,8 +56,6 @@ extern "C" {
 /* Length of the uuid binary converted to readable ASCII.  */
 #define STORAGE_UUID_STR_LEN ((STORAGE_UUID_LEN * 2) + 1)
 
-/* set initial __stack_chk_guard to a value from arbitrary RAM location */
-#define SSP_GUARD_VAL (*(uintptr_t *)0x2001FB10)
 /***************** typedefs and enums  *******************/
 /* Flash metadata structure which will contains unique identifier
    information that spans device resets.  */

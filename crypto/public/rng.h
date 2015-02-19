@@ -17,39 +17,14 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <libopencm3/cm3/common.h>
-#include <libopencm3/stm32/memorymap.h>
-#include <libopencm3/stm32/f2/rng.h>
-#include <keepkey_board.h>
-#include "rng.h"
+#ifndef __RNG_H__
+#define __RNG_H__
 
-uint32_t random32(void)
-{
-    uint32_t rng_samples = 0;
-    static uint32_t last = 0, new = 0;
-    while (new == last) {
-        if (((RNG_SR & (RNG_SR_SEIS | RNG_SR_CEIS)) == 0) && ((RNG_SR & RNG_SR_DRDY) > 0)) {
-            new = RNG_DR;
-            continue;
-        }
-        delay_ms(1);
-        if(rng_samples++ >= 100) {
-            reset_rng();
-            rng_samples = 0;
-        }
-    }
-    last = new;
-    return new;
-}
+#include <stdint.h>
+#include <stdlib.h>
 
-void random_buffer(uint8_t *buf, size_t len)
-{
-	size_t i;
-	uint32_t r = 0;
-	for (i = 0; i < len; i++) {
-		if (i % 4 == 0) {
-			r = random32();
-		}
-		buf[i] = (r >> ((i % 4) * 8)) & 0xFF;
-	}
-}
+uint32_t random32(void);
+void random_buffer(uint8_t *buf, size_t len);
+void reset_rng(void);
+
+#endif

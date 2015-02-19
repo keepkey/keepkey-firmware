@@ -29,7 +29,7 @@
 #include "fsm.h"
 #include <layout.h>
 #include <msg_dispatch.h>
-#include <rand.h>
+#include <rng.h>
 #include <storage.h>
 #include <timer.h>
 

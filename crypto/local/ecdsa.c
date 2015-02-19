@@ -26,7 +26,7 @@
 #include <string.h>
 
 #include "bignum.h"
-#include "rand.h"
+#include "rng.h"
 #include "sha2.h"
 #include "ripemd160.h"
 #include "hmac.h"

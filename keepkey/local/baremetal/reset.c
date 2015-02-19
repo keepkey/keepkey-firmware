@@ -34,7 +34,7 @@
 #include "msg_dispatch.h"
 #include "fsm.h"
 #include "util.h"
-#include "rand.h"
+#include "rng.h"
 #include "pin_sm.h"
 #include "home_sm.h"
 

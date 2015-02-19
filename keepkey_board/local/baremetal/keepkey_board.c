@@ -30,8 +30,10 @@
 #include <keepkey_board.h>
 
 /* Static and Global variables */
-/* stack smashing protector (SSP) canary value storage */
-uintptr_t __stack_chk_guard;
+
+/* stack smashing protector (SSP) canary value storage 
+ * initialize to a value until random generator has been setup*/
+uintptr_t __stack_chk_guard = 0x1A2B3C4D;  
 
 /*
  * __stack_chk_fail() - stack smashing protector (SSP) call back funcation for -fstack-protector-all GCC option
