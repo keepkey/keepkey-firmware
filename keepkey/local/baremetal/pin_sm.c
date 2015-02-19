@@ -67,44 +67,38 @@ static void send_pin_request(PinMatrixRequestType type)
  *      *pin_info -  pointer to PIN info
  * OUTPUT -  none
  */
-static void wait_for_pin_ack(PINInfo *pin_info)
+static void check_for_pin_ack(PINInfo *pin_info)
 {
 	/* Listen for tiny messages */
 	uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
 	uint16_t tiny_msg;
-	bool finished = false;
 
-	while(!finished) {
-		tiny_msg = wait_for_tiny_msg(msg_tiny_buf);
+	tiny_msg = check_for_tiny_msg(msg_tiny_buf);
 
-		switch(tiny_msg) {
-			case MessageType_MessageType_PinMatrixAck:
-				pin_info->pin_ack_msg = PIN_ACK_RECEIVED;
-				PinMatrixAck *pma = (PinMatrixAck *)msg_tiny_buf;
-				strcpy(pin_info->pin, pma->pin);
-				finished = true;
-				break;
-			/* Check for pin tumbler ack */
-			//TODO:Implement PIN tumbler
+	switch(tiny_msg) {
+		case MessageType_MessageType_PinMatrixAck:
+			pin_info->pin_ack_msg = PIN_ACK_RECEIVED;
+			PinMatrixAck *pma = (PinMatrixAck *)msg_tiny_buf;
+			strcpy(pin_info->pin, pma->pin);
+			break;
+		/* Check for pin tumbler ack */
+		//TODO:Implement PIN tumbler
 
-			/* Check for cancel or initialize messages */
-			case MessageType_MessageType_Cancel :
-				pin_info->pin_ack_msg = PIN_ACK_CANCEL;
-				finished = true;
-				break;
-			case MessageType_MessageType_Initialize:
-				pin_info->pin_ack_msg = PIN_ACK_CANCEL_BY_INIT;
-				finished = true;
-				break;
+		/* Check for cancel or initialize messages */
+		case MessageType_MessageType_Cancel :
+			pin_info->pin_ack_msg = PIN_ACK_CANCEL;
+			break;
+		case MessageType_MessageType_Initialize:
+			pin_info->pin_ack_msg = PIN_ACK_CANCEL_BY_INIT;
+			break;
 #if DEBUG_LINK
-			case MessageType_MessageType_DebugLinkGetState:
-				call_msg_debug_link_get_state_handler((DebugLinkGetState *)msg_tiny_buf);
-				break;
+		case MessageType_MessageType_DebugLinkGetState:
+			call_msg_debug_link_get_state_handler((DebugLinkGetState *)msg_tiny_buf);
+			break;
 #endif
-			case MSG_TINY_TYPE_ERROR :
-			default:
-				break;
-		}
+		case MSG_TINY_TYPE_ERROR :
+		default:
+			break;
 	}
 }
 
@@ -123,12 +117,13 @@ static void run_pin_state(PINState *pin_state, PINInfo *pin_info)
 		case PIN_REQUEST:
 			if(pin_info->type)
 				send_pin_request(pin_info->type);
+			pin_info->pin_ack_msg = PIN_ACK_WAITING;
 			*pin_state = PIN_WAITING;
 			break;
 
 		/* Wait for a PIN */
 		case PIN_WAITING:
-			wait_for_pin_ack(pin_info);
+			check_for_pin_ack(pin_info);
 			if(pin_info->pin_ack_msg != PIN_ACK_WAITING)
 				*pin_state = PIN_FINISHED;
 			break;
@@ -226,6 +221,9 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
 
 	/* Run SM */
 	while(1) {
+		animate();
+		display_refresh();
+
 		run_pin_state(&pin_state, pin_info);
 
 		if(pin_state == PIN_FINISHED) {
