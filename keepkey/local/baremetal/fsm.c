@@ -322,8 +322,8 @@ void fsm_msgGetEntropy(GetEntropy *msg)
 	RESP_INIT(Entropy);
 	uint32_t len = msg->size;
 
-	if (len > 1024) {
-		len = 1024;
+	if (len > ENTROPY_BFRSZ) {
+		len = ENTROPY_BFRSZ;
 	}
 
 	resp->entropy.size = len;
