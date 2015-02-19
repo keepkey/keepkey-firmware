@@ -87,6 +87,22 @@ static void clock_init(void)
 }
  
 /*
+ * reset_rng(void) - reset random number generator
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
+void reset_rng(void)
+{
+    /* disable RNG */
+    RNG_CR &= ~(RNG_CR_IE | RNG_CR_RNGEN);
+    /* reset Seed/Clock/ error status */
+	RNG_SR &= ~(RNG_SR_SEIS | RNG_SR_CEIS | RNG_SR_SECS);
+    /* reenable RNG */
+    RNG_CR |= RNG_CR_IE | RNG_CR_RNGEN;
+}
+
+/*
  * board_init() - Initialize board
  *
  * INPUT - none
@@ -95,12 +111,6 @@ static void clock_init(void)
 void board_init(void)
 {
     clock_init();
-
-    /*
-     * Enable random
-     */
-    RNG_CR |= RNG_CR_IE | RNG_CR_RNGEN;
-
     timer_init();
     keepkey_leds_init();
     keepkey_button_init();

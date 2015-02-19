@@ -85,6 +85,7 @@ void board_reset(void);
 void scb_reset_system(void);
 /* Initial setup and configuration of board.  */
 void board_init(void);
+void reset_rng(void);
 
 void __stack_chk_fail(void) __attribute__((noreturn));
 

@@ -162,11 +162,9 @@ static void configure_hw()
     rcc_periph_clock_enable(RCC_SYSCFG);
     rcc_periph_clock_enable(RCC_TIM4);
     rcc_periph_clock_enable(RCC_RNG);
-    /*
-     * Enable random
-     */
-    RNG_CR |= RNG_CR_IE | RNG_CR_RNGEN;
-
+    
+    /* Enable random */
+    reset_rng();
     timer_init();
     usart_init();
     keepkey_leds_init();

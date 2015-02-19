@@ -20,19 +20,26 @@
 #include <libopencm3/cm3/common.h>
 #include <libopencm3/stm32/memorymap.h>
 #include <libopencm3/stm32/f2/rng.h>
-
+#include <keepkey_board.h>
 #include "rng.h"
 
 uint32_t random32(void)
 {
-	static uint32_t last = 0, new = 0;
-	while (new == last) {
-		if (((RNG_SR & (RNG_SR_SEIS | RNG_SR_CEIS)) == 0) && ((RNG_SR & RNG_SR_DRDY) > 0)) {
-			new = RNG_DR;
-		}
-	}
-	last = new;
-	return new;
+    uint32_t rng_samples = 0;
+    static uint32_t last = 0, new = 0;
+    while (new == last) {
+        if (((RNG_SR & (RNG_SR_SEIS | RNG_SR_CEIS)) == 0) && ((RNG_SR & RNG_SR_DRDY) > 0)) {
+            new = RNG_DR;
+            continue;
+        }
+        delay_ms(1);
+        if(rng_samples++ >= 100) {
+            reset_rng();
+            rng_samples = 0;
+        }
+    }
+    last = new;
+    return new;
 }
 
 void random_buffer(uint8_t *buf, size_t len)
