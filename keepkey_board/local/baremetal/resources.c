@@ -320,41 +320,41 @@ static void logo_16(uint8_t* data){
 static const Image logo_16_image = {(void*)&logo_16, 56, 49};
 
 static const AnimationFrame logo_array[] = {
-	{&logo_1_image, 15},
-	{&logo_2_image, 15},
-	{&logo_3_image, 15},
-	{&logo_4_image, 15},
-	{&logo_5_image, 15},
-	{&logo_6_image, 15},
-	{&logo_7_image, 15},
-	{&logo_8_image, 15},
-	{&logo_9_image, 15},
-	{&logo_10_image, 15},
-	{&logo_11_image, 15},
-	{&logo_12_image, 15},
-	{&logo_13_image, 15},
-	{&logo_14_image, 15},
-	{&logo_15_image, 15},
-	{&logo_16_image, 15}
+	{&logo_1_image, 20},
+	{&logo_2_image, 20},
+	{&logo_3_image, 20},
+	{&logo_4_image, 20},
+	{&logo_5_image, 20},
+	{&logo_6_image, 20},
+	{&logo_7_image, 20},
+	{&logo_8_image, 20},
+	{&logo_9_image, 20},
+	{&logo_10_image, 20},
+	{&logo_11_image, 20},
+	{&logo_12_image, 20},
+	{&logo_13_image, 20},
+	{&logo_14_image, 20},
+	{&logo_15_image, 20},
+	{&logo_16_image, 20}
 };
 
 static const AnimationFrame logo_reversed_array[] = {
-	{&logo_16_image, 15},
-	{&logo_15_image, 15},
-	{&logo_14_image, 15},
-	{&logo_13_image, 15},
-	{&logo_12_image, 15},
-	{&logo_11_image, 15},
-	{&logo_10_image, 15},
-	{&logo_9_image, 15},
-	{&logo_8_image, 15},
-	{&logo_7_image, 15},
-	{&logo_6_image, 15},
-	{&logo_5_image, 15},
-	{&logo_4_image, 15},
-	{&logo_3_image, 15},
-	{&logo_2_image, 15},
-	{&logo_1_image, 15}
+	{&logo_16_image, 20},
+	{&logo_15_image, 20},
+	{&logo_14_image, 20},
+	{&logo_13_image, 20},
+	{&logo_12_image, 20},
+	{&logo_11_image, 20},
+	{&logo_10_image, 20},
+	{&logo_9_image, 20},
+	{&logo_8_image, 20},
+	{&logo_7_image, 20},
+	{&logo_6_image, 20},
+	{&logo_5_image, 20},
+	{&logo_4_image, 20},
+	{&logo_3_image, 20},
+	{&logo_2_image, 20},
+	{&logo_1_image, 20}
 };
 
 #ifndef BLDR
