@@ -192,7 +192,6 @@ Canvas* display_init( void)
     return &canvas;
 }
 
-
 /*
  * display_canvas() - get pointer canvas
  *
