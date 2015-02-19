@@ -59,8 +59,8 @@ static void animation_queue_push( AnimationQueue *queue, Animation *node);
 static Animation *animation_queue_pop( AnimationQueue *queue);
 static Animation *animation_queue_peek( AnimationQueue *queue);
 static Animation* animation_queue_get( AnimationQueue *queue, AnimateCallback callback);
-static void layout_animate_confirming(void *data, uint32_t duration, uint32_t elapsed);
 static void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed);
+static void layout_animate_pin(void *data, uint32_t duration, uint32_t elapsed);
 
 /*
  * layout_init() - Initialize layout subsystem for LCD screen
@@ -295,50 +295,9 @@ void layout_warning(const char* prompt)
 void layout_pin(const char* prompt, char pin[])
 {
 	DrawableParams sp;
-	BoxDrawableParams box_params;
 
 	call_leaving_handler();
 	layout_clear();
-
-    /* set matrix color */
-	box_params.base.color = 0x55;
-    /* draw 4 horizontal lines for matrix */
-	for(uint8_t row = 0; row < 4; row++) {
-		box_params.base.y = 7 + row * 17;
-		box_params.base.x = 99;
-		box_params.height = 1;
-		box_params.width = 61;
-		draw_box(canvas, &box_params);
-	}
-    /* draw 4 vertical lines for matrix*/
-	for(uint8_t col = 0; col < 4; col++) {
-		box_params.base.y = 7;
-		box_params.base.x = 99 + col * 20;
-		box_params.height = 52;
-		box_params.width = 1;
-		draw_box(canvas, &box_params);
-	}
-
-	/* Draw pin digits */
-	sp.color = 0xff;
-	const Font* pin_font = get_pin_font();
-	char pin_num[] = {0, 0};
-	for(uint8_t row = 0; row < 3; row++) {
-		for(uint8_t col = 0; col < 3; col++) {
-			uint8_t pad = 7;
-			pin_num[0] = pin[col + (2 - row) * 3];
-
-			/*
-			 * Adjust pad
-			 */
-			if(pin_num[0] == '4' || pin_num[0] == '6' || pin_num[0] == '8' || pin_num[0] == '9')
-				pad--;
-
-			sp.y = 9 + row * 17;
-			sp.x = 99 + pad + col * 20;
-			draw_string(canvas, pin_font, pin_num, &sp, WARNING_WIDTH, font_height(pin_font));
-		}
-    }
 
 	/* Format prompt */
 	char upper_prompt[title_char_width()];
@@ -351,7 +310,10 @@ void layout_pin(const char* prompt, char pin[])
     sp.x = (100 - calc_str_width(font, upper_prompt)) / 2;
     sp.color = 0x55;
     draw_string(canvas, font, upper_prompt, &sp, TITLE_WIDTH, font_height(font));
-    display_refresh(); /*dray content on LCD creen */
+    display_refresh();
+
+	/* Animate pin scrambling */
+	layout_add_animation( &layout_animate_pin, (void*)pin, 0);
 }
 
 /*
@@ -482,6 +444,126 @@ static void layout_animate_images(void* data, uint32_t duration, uint32_t elapse
         draw_bitmap_mono_rle(canvas, &animation_img_params->base, img);
     }
 }
+
+/*
+ * layout_animate_pin() - animate pin scramble
+ *
+ * INPUT -
+ *      *data - pointer to pin array
+ *      duration - duration of the pin scramble animation
+ *      elapsed - how long we have animating
+ * OUTPUT -
+ *      none
+ */
+static void layout_animate_pin(void* data, uint32_t duration, uint32_t elapsed)
+{
+	BoxDrawableParams box_params = {{0x00, 0, 0}, 64, 256};
+	DrawableParams sp;
+	char *pin = (char*)data;
+	uint8_t color_stepping[] = {PIN_MATRIX_STEP1, PIN_MATRIX_STEP2, PIN_MATRIX_STEP3, PIN_MATRIX_STEP4, PIN_MATRIX_FOREGROUND};
+
+	const Font* pin_font = get_pin_font();
+	char pin_num[] = {0, 0};
+
+	PINAnimationConfig *cur_pos_cfg;
+	uint8_t cur_pos;
+	uint32_t cur_pos_elapsed;
+
+	/* Init temp canvas and make sure it is cleared */
+	static uint8_t tmp_canvas_buffer[ KEEPKEY_DISPLAY_HEIGHT * KEEPKEY_DISPLAY_WIDTH ];
+	Canvas tmp_canvas;
+	tmp_canvas.buffer = tmp_canvas_buffer;
+	tmp_canvas.width = KEEPKEY_DISPLAY_WIDTH;
+	tmp_canvas.height = KEEPKEY_DISPLAY_HEIGHT;
+	draw_box(&tmp_canvas, &box_params);
+
+	/* Configure each PIN digit animation settings */
+	PINAnimationConfig pin_animation_cfg[] = {
+			{SLIDE_RIGHT, 160}, // 1
+			{SLIDE_UP, 140}, 	// 2
+			{SLIDE_DOWN, 120}, 	// 3
+			{SLIDE_LEFT, 100}, 	// 4
+			{SLIDE_UP, 80}, 	// 5
+			{SLIDE_RIGHT, 60}, 	// 6
+			{SLIDE_UP, 0}, 		// 7
+			{SLIDE_RIGHT, 20}, 	// 8
+			{SLIDE_DOWN, 40}  	// 9
+	};
+
+	/* Draw each pin digit individually base on animation config on matrix position */
+	for(uint8_t row = 0; row < 3; row++) {
+		for(uint8_t col = 0; col < 3; col++) {
+
+			cur_pos = col + (2 - row) * 3;
+			cur_pos_cfg = &pin_animation_cfg[cur_pos];
+			cur_pos_elapsed = elapsed - cur_pos_cfg->elapsed_start_ms;
+
+			/* Skip position is enough time has not passed */
+			if(cur_pos_cfg->elapsed_start_ms > elapsed) {
+				continue;
+			}
+
+			/* Determine color */
+			sp.color = PIN_MATRIX_FOREGROUND;
+			for(uint8_t color_index = 0; color_index < sizeof(color_stepping)/sizeof(color_stepping[0]); color_index++) {
+				if(cur_pos_elapsed < (color_index * PIN_MATRIX_ANIMATION_FREQUENCY_MS)) {
+					sp.color = color_stepping[color_index];
+					break;
+				}
+			}
+
+			uint8_t pad = 7;
+			pin_num[0] = pin[cur_pos];
+
+			/* Adjust pad */
+			if(pin_num[0] == '4' || pin_num[0] == '6' || pin_num[0] == '8' || pin_num[0] == '9')
+				pad--;
+
+			sp.y = 9 + row * 17;
+			sp.x = 99 + pad + col * 20;
+
+			/* Determine position */
+			for(uint8_t adj_pos = 0; adj_pos < 5; adj_pos++) {
+
+				if(cur_pos_elapsed < ((5 - adj_pos) * PIN_MATRIX_ANIMATION_FREQUENCY_MS)) {
+					switch(cur_pos_cfg->direction) {
+						case SLIDE_DOWN:
+							sp.y -= adj_pos;
+							break;
+						case SLIDE_LEFT:
+							sp.x += adj_pos;
+							break;
+						case SLIDE_UP:
+							sp.y += adj_pos;
+							break;
+						case SLIDE_RIGHT:
+						default:
+							sp.x -= adj_pos;
+							break;
+					}
+				}
+			}
+
+			draw_string(&tmp_canvas, pin_font, pin_num, &sp, WARNING_WIDTH, font_height(pin_font));
+		}
+    }
+
+	/* Draw matrix */
+	box_params.base.color = PIN_MATRIX_BACKGROUND;
+	for(uint8_t row = 0; row < 3; row++) {
+		for(uint8_t col = 0; col < 3; col++) {
+			box_params.base.y = 8 + row * 17;
+			box_params.base.x = 100 + col * 20;
+			box_params.height = 16;
+			box_params.width = 19;
+			draw_box(canvas, &box_params);
+
+			/* Copy contents of box in tmp canvas over to real canvas */
+			copy_box(canvas, &tmp_canvas, &box_params);
+		}
+	}
+}
+
 
 /*
  * layout_clear() - API to clear display

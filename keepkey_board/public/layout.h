@@ -64,6 +64,15 @@ extern "C" {
 /* Default Layout */
 #define NO_WIDTH 0;
 
+/* PIN Matrix */
+#define PIN_MATRIX_ANIMATION_FREQUENCY_MS	40
+#define PIN_MATRIX_BACKGROUND 				0x11
+#define PIN_MATRIX_STEP1	 				0x11
+#define PIN_MATRIX_STEP2	 				0x33
+#define PIN_MATRIX_STEP3	 				0x77
+#define PIN_MATRIX_STEP4	 				0xBB
+#define PIN_MATRIX_FOREGROUND 				0xFF
+
 #define AMOUNT_LABEL_TEXT	"Amount:"
 #define ADDRESS_LABEL_TEXT	"Address:"
 #define CONFIRM_LABEL_TEXT	"Confirming transaction..."
@@ -78,6 +87,14 @@ typedef enum
     NOTIFICATION_CONFIRM_ANIMATION,
     NOTIFICATION_CONFIRMED
 } NotificationType;
+
+typedef enum
+{
+	SLIDE_DOWN,
+	SLIDE_LEFT,
+	SLIDE_UP,
+	SLIDE_RIGHT
+} PINAnimationDirection;
 
 typedef void (*leaving_handler_t)(void);
 typedef void (*AnimateCallback)(void* data, uint32_t duration, uint32_t elapsed);
@@ -100,6 +117,12 @@ typedef struct
     int         size;
 
 } AnimationQueue;
+
+typedef struct
+{
+	PINAnimationDirection direction;
+    uint32_t elapsed_start_ms;
+} PINAnimationConfig;
 
 /**************  Function Declarations ****************/
 void layout_init( Canvas* canvas);
