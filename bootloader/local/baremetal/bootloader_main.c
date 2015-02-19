@@ -32,6 +32,7 @@
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/f2/rng.h>
+#include <libopencm3/cm3/cortex.h>
 
 #include <memory.h>
 #include <keepkey_board.h>
@@ -107,7 +108,7 @@ static const uint8_t pubkey[PUBKEYS][PUBKEY_LENGTH] =
 void __attribute__((noreturn)) system_halt(void)
 {
     /*disable interrupts */
-	__asm__("CPSID I\n");
+	cm_disable_interrupts();
     for (;;) {} // loop forever
 }
 
