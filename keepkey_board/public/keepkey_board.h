@@ -71,7 +71,6 @@ typedef struct
 {
     Metadata meta;
     Storage storage;
-    Cache cache;
 } ConfigFlash;
 
 /***************** external variable declarations ********/
