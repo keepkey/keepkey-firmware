@@ -83,7 +83,6 @@ void usart_init(void)
  * input - ASCII character to debug port
  * output - send to debug port  
  ********************************************************************/
-
 static bool put_console_char(int8_t nCharVal)
 {
     int timeout_cnt = 100; /* allow 100msec for USART busy timeout*/
@@ -141,7 +140,7 @@ static void display_debug_string(char *pStr)
 {
     do
     {
-        put_console_char(*(pStr));
+        put_console_char(*pStr);
     }while (*(pStr++));
 }
 
@@ -172,6 +171,24 @@ bool dbg_print(char *pStr, ...)
     return(ret_stat);
 }
 
+/********************************************************************
+ * dbg_trigger - scope trigger pulse for debugging
+ *
+ * input - none
+ * output- none 
+ ********************************************************************/
+void dbg_trigger(void)
+{
+    do
+    {
+        /* check Tx register ready transmissiion */
+        if(USART_SR(USART3_BASE) & USART_SR_TXE)
+        {
+            USART_DR(USART3_BASE) = 0x01;
+            break;
+        }
+    }while(1);
+}
 /*
  * read_console - Read debug console port for user input 
  *                (Example for how to implement USART read )
