@@ -290,6 +290,7 @@ int main(int argc, char* argv[])
                     delay_ms(5000);
                 }
                 led_func(CLR_RED_LED);
+	            cm_disable_interrupts();
                 set_vector_table_offset(FLASH_APP_START - FLASH_ORIGIN);  //offset = 0x60100
                 boot_jump(FLASH_APP_START);
             }
