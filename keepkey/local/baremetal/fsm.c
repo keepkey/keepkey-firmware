@@ -39,7 +39,7 @@
 #include <storage.h>
 #include <coins.h>
 #include <transaction.h>
-#include <rng.h>
+#include <rand.h>
 #include <storage.h>
 #include <reset.h>
 #include <recovery.h>

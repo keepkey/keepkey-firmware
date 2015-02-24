@@ -25,7 +25,7 @@
 
 #include "bip39.h"
 #include "hmac.h"
-#include "rng.h"
+#include "rand.h"
 #include "sha2.h"
 #include "pbkdf2.h"
 #include "bip39_english.h"
