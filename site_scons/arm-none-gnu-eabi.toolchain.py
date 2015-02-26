@@ -4,6 +4,7 @@ Snagged alot of settings from:
 """
 from SCons.Script import *
 import os
+import subprocess
 
 root = os.environ.get('GCC_ROOT')
 
@@ -19,6 +20,12 @@ else:
 
 OPENCM3_ROOT = os.path.join(Dir('#').abspath, 'libopencm3')
 
+#Assemble SCM_REVISION
+#scm_rev=subprocess.check_output('git rev-parse HEAD', shell=True)
+scm_rev=subprocess.check_output(r"git rev-parse HEAD | sed 's:\(..\):\\\\x\1:g'", shell=True)
+scm_rev=scm_rev.replace("\n","")
+scm_rev='%s%s%s%s' % ('-DSCM_REVISION=', '\\\"', scm_rev, '\\"')
+
 #
 # TODO: These are hacked in for now.  It should be part of the hal for this particular eval board impl.
 #
@@ -30,7 +37,8 @@ DEFS=['-DSTM32F2',
       '-DMINOR_VERSION=0', 
       '-DPATCH_VERSION=0',
       '-DPB_FIELD_16BIT=1',
-      '-DNDEBUG']
+      '-DNDEBUG'
+      ]
 
 def load_toolchain():
     env = DefaultEnvironment()
@@ -88,7 +96,8 @@ def load_toolchain():
             '-fno-common',
             '-fstack-protector-all', 
             '-I'+OPENCM3_ROOT+'/include',
-            ]
+            '%s' % scm_rev
+			]
 
     """
     env['CCFLAGS'] = [
