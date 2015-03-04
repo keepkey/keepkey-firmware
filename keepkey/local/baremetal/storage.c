@@ -32,6 +32,7 @@
 #include <interface.h>
 #include <keepkey_board.h>
 #include <pbkdf2.h>
+#include <keepkey_storage.h>
 
 
 #include "util.h"
@@ -81,85 +82,6 @@ static bool storage_from_flash(ConfigFlash *stor_config)
     shadow_config.storage.version = STORAGE_VERSION;
     return true;
 }
-
-/*
- * get_end_stor() - search through configuration node list to find the end node,
- *                  which is the active node.
- *
- * INPUT :
- *      pointer to storage end node.
- * OUTPUT : 
- *      true/false : status
- */
-static bool get_end_stor(ConfigFlash **end_stor)
-{
-    bool ret_stat = false;
-    uint32_t cnt = 0; 
-
-    /* set to head node for start of search*/
-    ConfigFlash *config_ptr = (ConfigFlash*)FLASH_STORAGE_START; 
-
-    /* search through the node list to find the last node (active node) */
-	while(memcmp((void *)config_ptr->meta.magic , "stor", 4) == 0) {
-        *end_stor = config_ptr;
-        config_ptr++;
-        cnt++;
-    }
-    if(cnt) {
-        ret_stat = true;
-    }
-    return(ret_stat);
-}
-
-/*
- * get_end_stor_cnt() - search through configuration node list to find the end node,
- *                  	and returns the count of nodes.
- *
- * INPUT :
- *      pointer to storage end node.
- * OUTPUT :
- *      true/false : status
- */
-#if DEBUG_LINK
-uint32_t storage_get_end_stor_cnt(void)
-{
-    uint32_t cnt = 0;
-
-    /* set to head node for start of search*/
-    ConfigFlash *config_ptr = (ConfigFlash*)FLASH_STORAGE_START;
-
-    /* search through the node list to find the last node (active node) */
-	while(memcmp((void *)config_ptr->meta.magic , "stor", 4) == 0) {
-        config_ptr++;
-        cnt++;
-    }
-
-    return(cnt);
-}
-
-/*
- * storage_from_flash() - copy configuration from storage partition in flash memory to shadow memory in RAM
- *
- * INPUT -
- *      storage version
- * OUTPUT -
- *      true/false status
- *
- */
-bool storage_get_end_stor(void *stor_cpy)
-{
-	/* get a pointer to end stor */
-	ConfigFlash *stor_config;
-	get_end_stor(&stor_config);
-
-	/* make a copy of end stor */
-	memcpy(stor_cpy, (void *)stor_config, sizeof(ConfigFlash));
-
-    return true;
-}
-#endif
-
-
 
 /*
  * storage_init() - validate storage content and copy data to shadow memory
@@ -245,7 +167,8 @@ void session_clear(void)
  * storage_commit() - write content of configuration in shadow memory to 
  *          storage partion in flash
  *
- * INPUT - none
+ * INPUT - 
+ *      Commit type
  * OUTPUT - none
  */
 void storage_commit(stor_commit_type c_type)

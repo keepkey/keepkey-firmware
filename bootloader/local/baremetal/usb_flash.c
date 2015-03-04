@@ -38,6 +38,7 @@
 #include <usb_driver.h>
 #include <usb_flash.h>
 #include <bootloader.h>
+#include <keepkey_storage.h>
 
 /*** Definition ***/
 static FirmwareUploadState upload_state = UPLOAD_NOT_STARTED;
@@ -97,6 +98,11 @@ bool usb_flash_firmware(void)
     set_msg_failure_handler(&send_failure);
     msg_init();
 
+    /* save storage data */
+    memset(&storage_shadow, 0, sizeof(ConfigFlash));
+    dbg_print("sizeof-ConfigFlash %d\n\r", sizeof(ConfigFlash));
+    storage_get_end_stor(&storage_shadow);
+
     /* Init USB */
     if( usb_init() == false )
     {
@@ -105,7 +111,6 @@ bool usb_flash_firmware(void)
         delay_ms(2000);
         goto uff_exit;
     }
-    memcpy((void *)&storage_shadow, (void *)FLASH_STORAGE_START, sizeof(ConfigFlash));
 
     /* implement timer for this loop in the future*/
     while(1)
@@ -119,17 +124,9 @@ bool usb_flash_firmware(void)
                 {
                     if(check_fw_is_new())
                     {
+                        /* restore storage data to 1st block */
                         flash_write_n_lock(FLASH_STORAGE, 0, sizeof(ConfigFlash), (uint8_t *)&storage_shadow);
-                        dbg_print("keys restored...\n\r");
                     }
-                    else
-                    {
-                        dbg_print("firmware being loaded is older than current version.  Clearing the Keys...\n\r");
-                    }
-                }
-                else
-                {
-                    dbg_print("Firmware is not from KeepKey.  Clearing the Keys...\n\r");
                 }
                 retval = true;
                 goto uff_exit;

@@ -50,6 +50,7 @@
 #include <timer.h>
 #include <crypto.h>
 #include <keepkey_board.h>
+#include <keepkey_storage.h>
 
 // Static and global variables
 extern bool reset_msg_stack;
