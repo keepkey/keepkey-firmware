@@ -101,7 +101,7 @@ DebugLinkState.mnemonic			max_size:241
 DebugLinkState.reset_word		max_size:133
 DebugLinkState.reset_entropy		max_size:128
 DebugLinkState.recovery_fake_word	max_size:12
-DebugLinkState.config_stor			max_size:640
+DebugLinkState.config_stor			max_size:504
 
 DebugLinkLog.bucket			max_size:33
 DebugLinkLog.text			max_size:256
