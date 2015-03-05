@@ -77,6 +77,37 @@ FirmwareUploadState get_update_status(void)
 }
 
 /*
+ * verify_fingerprint - verify application's finger print
+ *
+ * INPUT  
+ *  - none
+ *  
+ * OUTPUT  
+ *  - update status 
+ */
+bool verify_fingerprint(void) 
+{
+    char digest[SHA256_DIGEST_LENGTH];
+    char str_digest[SHA256_DIGEST_STR_LEN] = "";
+    uint32_t firmware_size = *(uint32_t *)FLASH_META_CODELEN ;
+    bool retval = false;
+
+    sha256_Raw((uint8_t *)FLASH_APP_START, firmware_size, digest);
+
+    for (uint8_t i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+        char digest_buf[BYTE_AS_HEX_STR_LEN];
+        sprintf(digest_buf, "%02x", digest[i]);
+        strcat(str_digest, digest_buf);
+    }
+	/* get user confirmation */
+    if(confirm(ButtonRequestType_ButtonRequest_FirmwareCheck,
+        "Compare Firmware Fingerprint", str_digest)) {
+        retval = true;
+    } 
+    return(retval);
+}
+
+/*
  * usb_flash_firmware() - update firmware over usb bus
  *
  * INPUT  
@@ -100,7 +131,6 @@ bool usb_flash_firmware(void)
 
     /* save storage data */
     memset(&storage_shadow, 0, sizeof(ConfigFlash));
-    dbg_print("sizeof-ConfigFlash %d\n\r", sizeof(ConfigFlash));
     storage_get_end_stor(&storage_shadow);
 
     /* Init USB */
@@ -128,7 +158,17 @@ bool usb_flash_firmware(void)
                         flash_write_n_lock(FLASH_STORAGE, 0, sizeof(ConfigFlash), (uint8_t *)&storage_shadow);
                     }
                 }
-                retval = true;
+                if(verify_fingerprint()) {
+                    /* user has confirmed the finger print.  Install "KPKY" magic in flash meta header */
+                    flash_write_n_lock(FLASH_APP, 0, META_MAGIC_SIZE, "KPKY");
+                    send_success("Upload complete");
+                    upload_state = UPLOAD_COMPLETE;
+                    retval = true;
+                }else {
+                    send_failure(FailureType_Failure_FirmwareError, "Fingerprint is Not Confirmed");
+                    upload_state = UPLOAD_ERROR;
+                    retval = false;
+                }
                 goto uff_exit;
             }
             case UPLOAD_ERROR:
@@ -246,7 +286,7 @@ void handler_initialize(Initialize* msg)
 }
 
 /*
- *  flash_write_n_lock() - restore storage partition in flash for firmware update
+ *  flash_write_n_lock - restore storage partition in flash for firmware update
  *
  *  INPUT - 
  *      1. flash partition
@@ -265,7 +305,7 @@ void flash_write_n_lock(Allocation group, size_t offset, size_t len, uint8_t* da
 }
 
 /*
- *  storage_part_restore() - restore storage partition in flash for firmware update
+ *  storage_part_restore - restore storage partition in flash for firmware update
  *
  *  INPUT - 
  *      pointer to Storge partition in RAM
@@ -281,14 +321,25 @@ void storage_part_restore(ConfigFlash *cfg_ptr)
 }
 
 /*
+ *  storage_part_erase - restore storage partition in flash for firmware update
+ *
+ *  INPUT - none 
+ *  OUTPUT - none 
+ */
+void storage_part_erase(void)
+{
+    flash_unlock(); 
+    flash_erase(FLASH_STORAGE);  
+    flash_lock();
+}
+
+/*
  * handler_erase() - The function is invoked by the host PC to erase "storage"
  *      and "application" partitions.  
  *  
  * INPUT - 
  *    *msg = unused argument
- *
- * OUTPUT - 
- *    none
+ * OUTPUT - none
  *
  */
 void handler_erase(FirmwareErase* msg)
@@ -379,30 +430,7 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
             /* Finish firmware update */
             if (flash_offset >= frame_length - PROTOBUF_FIRMWARE_PADDING) {
                 flash_lock();
-
-                /* Check fingerprint */
-                char digest[SHA256_DIGEST_LENGTH];
-                char str_digest[SHA256_DIGEST_STR_LEN] = "";
-                uint32_t firmware_size = frame_length - PROTOBUF_FIRMWARE_PADDING - FLASH_META_DESC_LEN;
-                sha256_Raw((uint8_t *)FLASH_APP_START, firmware_size, digest);
-
-                for (uint8_t i = 0; i < SHA256_DIGEST_LENGTH; i++) {
-					char digest_buf[BYTE_AS_HEX_STR_LEN];
-					sprintf(digest_buf, "%02x", digest[i]);
-					strcat(str_digest, digest_buf);
-				}
-
-                if(confirm(ButtonRequestType_ButtonRequest_FirmwareCheck,
-                	"Compare Firmware Fingerprint", str_digest)) {
-                    /* user has confirmed the finger print.  Restore "KPKY" magic in flash meta header */
-                    flash_write_n_lock(FLASH_APP, 0, META_MAGIC_SIZE, "KPKY");
-                    send_success("Upload complete");
-    				upload_state = UPLOAD_COMPLETE;
-                } else {
-                    flash_write_n_lock(FLASH_APP, 0, META_MAGIC_SIZE, "XXXX");
-                    send_failure(FailureType_Failure_FirmwareError, "Fingerprint is Not Confirmed");
-                    upload_state = UPLOAD_ERROR;
-                }
+    			upload_state = UPLOAD_COMPLETE;
             }
         }
     } else {

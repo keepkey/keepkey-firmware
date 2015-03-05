@@ -287,6 +287,10 @@ int main(int argc, char* argv[])
                     /* KeepKey signature check failed.  Unknown code is sitting in Application parition */
                     layout_standard_notification("UNSIGNED FIRMWARE", "NOSIG", NOTIFICATION_INFO);
                     display_refresh();
+                    if(*(uint32_t *)FLASH_STORAGE_START != 0xFFFFFFFF) {
+                        /* make sure storage partition is cleared.  We don't want any loose ends */
+                        storage_part_erase();
+                    }
                     delay_ms(5000);
                 }
                 led_func(CLR_RED_LED);
