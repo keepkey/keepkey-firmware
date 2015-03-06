@@ -272,24 +272,23 @@ const char* get_pin_matrix(void)
  */
 bool pin_protect()
 {
-	bool ret = false;
 	PINInfo pin_info;
-    char warn_title_fmt[50];
-    char warn_msg_fmt[50];
+    char warn_title_fmt[50], warn_msg_fmt[50];
+    uint32_t failed_cnts = 0, wait = 0;
+	bool ret = false, pre_increment_cnt_flg = true;
 
 	if(storage_has_pin()) {
-	    uint32_t wait = 0;
 
-		/* Check for prior PIN failed attempts and apply exponentially longer wait
-           time for each subsequent failed attempts */
-		if(wait = storage_get_pin_fails())
+		/* Check for prior PIN failed attempts and apply exponentially longer delay for 
+         * each subsequent failed attempts */
+		if(failed_cnts = storage_get_pin_fails())
 		{
-			if(wait > 2)
+			if(failed_cnts > 2)
 			{
-                sprintf(warn_msg_fmt, "Wait %d seconds for previous PIN fails", 1u << wait);
+                sprintf(warn_msg_fmt, "Wait %d seconds for previous PIN fails", 1u << failed_cnts);
 				layout_warning(warn_msg_fmt);
 
-				wait = (wait < 32) ? (1u << wait) : 0xFFFFFFFF;
+				wait = (failed_cnts < 32) ? (1u << failed_cnts) : 0xFFFFFFFF;
 				while (--wait > 0) {
 					delay_ms_with_callback(ONE_SEC, &animating_progress_handler, 20);
 				}
@@ -299,22 +298,23 @@ bool pin_protect()
 		/* Set request type */
 		pin_info.type = PinMatrixRequestType_PinMatrixRequestType_Current;
 
+        /* preincrement the failed counter */
+        storage_increase_pin_fails();
+        pre_increment_cnt_flg = (failed_cnts >= storage_get_pin_fails());
+
 		/* Get PIN */
 		if(pin_request("Enter Your PIN", &pin_info))
 		{
 			/* authenticate user PIN */
-			if (storage_is_pin_correct(pin_info.pin))
-			{
+			if (storage_is_pin_correct(pin_info.pin) && !pre_increment_cnt_flg) {
 				storage_reset_pin_fails();
 				session_cache_pin(pin_info.pin);
 				ret = true;
-			}
-			else
-			{
-				storage_increase_pin_fails();
+			} else {
 				fsm_sendFailure(FailureType_Failure_PinInvalid, "Invalid PIN");
 			}
-		}
+		} /* else - PIN entry has been canceled by the user */
+
 	} else {
 		ret = true;
     }
