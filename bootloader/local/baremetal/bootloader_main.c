@@ -146,15 +146,16 @@ static void boot_jump(uint32_t addr)
 }
 
 /*
- * configure_hw() - board initialization
+ * bootldr_init() - initialize misc initialization for bootloader
  *
  * INPUT - none
  * OUTPUT - none
  */
-static void configure_hw()
+static void bootldr_init(void)
 {
     clock_scale_t clock = hse_8mhz_3v3[CLOCK_3V3_120MHZ];
     rcc_clock_setup_hse_3v3(&clock);
+#if 0
 
     rcc_periph_clock_enable(RCC_GPIOA);
     rcc_periph_clock_enable(RCC_GPIOB);
@@ -163,7 +164,7 @@ static void configure_hw()
     rcc_periph_clock_enable(RCC_SYSCFG);
     rcc_periph_clock_enable(RCC_TIM4);
     rcc_periph_clock_enable(RCC_RNG);
-    
+#endif
     /* Enable random */
     reset_rng();
     timer_init();
@@ -257,7 +258,7 @@ bool check_fw_is_new(void)
 }
 
 /*
- * Bootloader main entry function
+ * main - Bootloader main entry function
  *
  * INPUT - argc (not used)
  * OUTPUT - argv (not used)
@@ -268,11 +269,17 @@ int main(int argc, char* argv[])
     (void)argv;
     bool update_mode;
 
-    configure_hw();
-    // update default stack guard value random value (-fstack_protector_all)
+    // initialize stack guard with random value (-fstack_protector_all)
     __stack_chk_guard = random32(); 
 
+    bootldr_init();
+
+    //ReEnable interrupt for timer
+    cm_enable_interrupts();  
+
+    //get button status 
     update_mode = keepkey_button_down();
+
     led_func(SET_GREEN_LED);
     led_func(SET_RED_LED);
 

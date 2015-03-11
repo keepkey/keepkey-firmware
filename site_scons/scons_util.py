@@ -30,11 +30,17 @@ def get_projects():
     #check build type to include appropriate directory
     bldtype = ARGUMENTS.get('bldtype', 0)
  
-    if bldtype == 'bldr':
+    if bldtype == 'bstrap':
         #Don't include KeepKey App directory since Bootloader is being built
+    	ignores.append('bootloader')
+    	ignores.append('keepkey')
+    elif bldtype == 'bldr':
+        #Don't include KeepKey App directory since Bootloader is being built
+    	ignores.append('bootstrap')
     	ignores.append('keepkey')
     elif bldtype == 'app':
         #Don't include Bootloader directory since Application is being built
+    	ignores.append('bootstrap')
     	ignores.append('bootloader')
 
     for root, dirs, files in os.walk(Dir('#').abspath):
@@ -180,7 +186,9 @@ def init_project(env, deps=None, libs=None, project_defines=None):
     flavor_map = get_flavors()
 
     linkflags = []
-    if project_name == 'bootloader':
+    if project_name == 'bootstrap':
+        linkflags = env['LINKFLAGS'] + ['-T' + Dir('#').abspath + '/memory_bootstrap.ld']
+    elif project_name == 'bootloader':
         linkflags = env['LINKFLAGS'] + ['-T' + Dir('#').abspath + '/memory_bootloader.ld']
     else:
         linkflags = env['LINKFLAGS'] + ['-T' + Dir('#').abspath + '/memory.ld']

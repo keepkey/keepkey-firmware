@@ -171,7 +171,10 @@ def load_toolchain():
         env['CCFLAGS'].append(['-Os', '-g'])
 
     bldtype = ARGUMENTS.get('bldtype', 0)
-    if bldtype == 'bldr':
+    if bldtype == 'bstrap':
+        env['CCFLAGS'].append(['-DBSTRAP'])
+        env['CCFLAGS'].append(['-DBLDR'])
+    elif bldtype == 'bldr':
         env['CCFLAGS'].append(['-DBLDR'])
     elif bldtype == 'app':
         env['CCFLAGS'].append(['-DAPP'])

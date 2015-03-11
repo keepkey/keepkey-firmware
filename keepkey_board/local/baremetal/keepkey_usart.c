@@ -150,6 +150,13 @@ static void display_debug_string(char *pStr)
  * Input - content to print
  * Output- send to debug port  
  ********************************************************************/
+#ifdef BSTRAP
+bool dbg_print(char *pStr, ...)
+{
+    display_debug_string(pStr);
+    return(0);
+}
+#else
 bool dbg_print(char *pStr, ...)
 {
     bool ret_stat = true;
@@ -171,6 +178,7 @@ bool dbg_print(char *pStr, ...)
     return(ret_stat);
 }
 
+#endif
 /********************************************************************
  * dbg_trigger - scope trigger pulse for debugging
  *

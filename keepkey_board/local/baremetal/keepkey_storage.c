@@ -41,7 +41,10 @@ bool get_end_stor(ConfigFlash **end_stor)
 
     /* set to head node for start of search*/
     ConfigFlash *config_ptr = (ConfigFlash*)FLASH_STORAGE_START; 
-
+#if 1  
+    *end_stor = config_ptr;
+    dbg_print("%s: 0x%x  \n\r",__FUNCTION__,  *end_stor);
+#else
     /* search through the node list to find the last node (active node) */
 	while(memcmp((void *)config_ptr->meta.magic , "stor", 4) == 0) {
         *end_stor = config_ptr;
@@ -51,6 +54,7 @@ bool get_end_stor(ConfigFlash **end_stor)
     if(cnt) {
         ret_stat = true;
     }
+#endif
     return(ret_stat);
 }
 

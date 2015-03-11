@@ -29,6 +29,7 @@
 #include <keepkey_usart.h>
 #include <home_sm.h>
 #include <rng.h>
+#include <libopencm3/cm3/cortex.h>
 
 
 /*
@@ -72,6 +73,10 @@ int main(void)
     fsm_init();
 
     led_func(SET_GREEN_LED);
+
+    //ReEnable interrupt for timer
+    cm_enable_interrupts();
+
     usb_init();
     led_func(CLR_RED_LED);
 

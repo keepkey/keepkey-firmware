@@ -29,18 +29,18 @@
 /*
 
  flash memory layout:
-
+ --------------------
     name    |          range          |  size   |     function
 -----------+-------------------------+---------+------------------
- Sector  0 | 0x08000000 - 0x08003FFF |  16 KiB | bootloader code
- Sector  1 | 0x08004000 - 0x08007FFF |  16 KiB | bootloader code
+ Sector  0 | 0x08000000 - 0x08003FFF |  16 KiB | bootstrap code
+ Sector  1 | 0x08004000 - 0x08007FFF |  16 KiB | bootstrap code
 -----------+-------------------------+---------+------------------
- Sector  2 | 0x08008000 - 0x0800BFFF |  16 KiB | bootloader code
- Sector  3 | 0x0800C000 - 0x0800FFFF |  16 KiB | bootloader code
+ Sector  2 | 0x08008000 - 0x0800BFFF |  16 KiB | bootstrap code 
+ Sector  3 | 0x0800C000 - 0x0800FFFF |  16 KiB | storage/config
 -----------+-------------------------+---------+------------------
- Sector  4 | 0x08010000 - 0x0801FFFF |  64 KiB | bootloader code
+ Sector  4 | 0x08010000 - 0x0801FFFF |  64 KiB | empty 
  Sector  5 | 0x08020000 - 0x0803FFFF | 128 KiB | bootloader code
- Sector  6 | 0x08040000 - 0x0805FFFF | 128 KiB | storage/config
+ Sector  6 | 0x08040000 - 0x0805FFFF | 128 KiB | bootloader code
  Sector  7 | 0x08060000 - 0x0807FFFF | 128 KiB | application code
 ===========+=========================+============================
  Sector  8 | 0x08080000 - 0x0809FFFF | 128 KiB | application code
@@ -48,8 +48,8 @@
  Sector 10 | 0x080C0000 - 0x080DFFFF | 128 KiB | application code
  Sector 11 | 0x080E0000 - 0x080FFFFF | 128 KiB | application code
 
- metadata area:
-
+ Application metadata area:
+ -------------------------
  offset | type/length |  description
 --------+-------------+-------------------------------
  0x0000 |  4 bytes    |  magic = 'KPKY'
@@ -72,16 +72,24 @@
 #define FLASH_TOTAL_SIZE        (1024 * 1024)
 #define FLASH_END               (FLASH_ORIGIN + FLASH_TOTAL_SIZE)
 
-/* Boot Partition */
-#define FLASH_BOOT_START        (FLASH_ORIGIN)                          //0x0800_0000 - 0x0803_FFFF
-#define FLASH_BOOT_LEN          (0x40000)
+/* Boot Strap Partition */
+#define FLASH_BOOTSTRAP_START   (FLASH_ORIGIN)     //0x0800_0000 - 0x0800_BFFF
+#define FLASH_BOOTSTRAP_LEN     (0xC000)
 
 /* Storage/Configuration Partition */
-#define FLASH_STORAGE_START     (FLASH_BOOT_START + FLASH_BOOT_LEN)     //0x0804_0000 - 0x0805_FFFF
-#define FLASH_STORAGE_LEN       (0x20000)
+#define FLASH_STORAGE_START     (FLASH_BOOTSTRAP_START + FLASH_BOOTSTRAP_LEN)     //0x0800_C000 - 0x0800_FFFF
+#define FLASH_STORAGE_LEN       (0x4000)
+
+/*<  0x801_0000 - 0x801_FFFF is empty  >*/
+
+/* Boot Loader Partition */
+#define FLASH_BOOT_START        (0x08020000)                          //0x0802_0000 - 0x0805_FFFF
+#define FLASH_BOOT_LEN          (0x40000)
+
 
 /* Application Partition */
-#define FLASH_META_START        (FLASH_STORAGE_START + FLASH_STORAGE_LEN) //0x0806_0000 - 0x0806_00FF
+#define FLASH_META_START        (FLASH_BOOT_START + FLASH_BOOT_LEN) //0x0806_0000
+#define FLASH_META_DESC_LEN     (0x100) 
 
 #define FLASH_META_MAGIC	    (FLASH_META_START)
 #define FLASH_META_CODELEN	    (FLASH_META_MAGIC       + sizeof(((app_meta_td *)NULL)->magic))
@@ -94,18 +102,20 @@
 #define FLASH_META_SIG2		    (FLASH_META_SIG1        + sizeof(((app_meta_td *)NULL)->sig1))
 #define FLASH_META_SIG3		    (FLASH_META_SIG2        + sizeof(((app_meta_td *)NULL)->sig2))
 
-#define FLASH_META_DESC_LEN     (0x100) 
-#define META_MAGIC_SIZE         (FLASH_META_CODELEN	- FLASH_META_MAGIC)
+#define META_MAGIC_SIZE         (sizeof(((app_meta_td *)NULL)->magic))
 
 #define FLASH_APP_START     (FLASH_META_START + FLASH_META_DESC_LEN)     //0x0806_0100 - 0x080F_FFFF
 #define FLASH_APP_LEN       (FLASH_TOTAL_SIZE - FLASH_BOOT_LEN - FLASH_STORAGE_LEN - FLASH_META_DESC_LEN )
 
 /* Misc Info. */
-#define FLASH_BOOT_SECTOR_FIRST 0
-#define FLASH_BOOT_SECTOR_LAST  5
+#define FLASH_BOOTSTRAP_SECTOR_FIRST 0
+#define FLASH_BOOTSTRAP_SECTOR_LAST  2
 
-#define FLASH_STORAGE_SECTOR_FIRST   6
-#define FLASH_STORAGE_SECTOR_LAST    6
+#define FLASH_STORAGE_SECTOR_FIRST   3
+#define FLASH_STORAGE_SECTOR_LAST    3
+
+#define FLASH_BOOT_SECTOR_FIRST 5
+#define FLASH_BOOT_SECTOR_LAST  6
 
 #define FLASH_APP_SECTOR_FIRST  7
 #define FLASH_APP_SECTOR_LAST   11
@@ -128,8 +138,9 @@ typedef struct {
 
 typedef enum {
     FLASH_INVALID,
-    FLASH_BOOTLOADER,
+    FLASH_BOOTSTRAP,
     FLASH_STORAGE,
+    FLASH_BOOTLOADER,
     FLASH_APP
 } Allocation;
 
@@ -141,19 +152,19 @@ typedef struct {
 } FlashSector;
 
 static const FlashSector flash_sector_map[]= {
-    { 0,  0x08000000, 0x4000,  FLASH_BOOTLOADER },
-    { 1,  0x08004000, 0x4000,  FLASH_BOOTLOADER },
-    { 2,  0x08008000, 0x4000,  FLASH_BOOTLOADER },
-    { 3,  0x0800c000, 0x4000,  FLASH_BOOTLOADER },
-    { 4,  0x08010000, 0x10000, FLASH_BOOTLOADER },
-    { 5,  0x08020000, 0x20000, FLASH_BOOTLOADER },
-    { 6,  0x08040000, 0x20000, FLASH_STORAGE },
-    { 7,  0x08060000, 0x20000, FLASH_APP },
-    { 8,  0x08080000, 0x20000, FLASH_APP },
-    { 9,  0x080A0000, 0x20000, FLASH_APP },
-    { 10, 0x080C0000, 0x20000, FLASH_APP },
-    { 11, 0x080E0000, 0x20000, FLASH_APP },
-    { -1, 0,          0,       FLASH_INVALID}
+    { 0,  0x08000000, 0x4000,   FLASH_BOOTSTRAP },
+    { 1,  0x08004000, 0x4000,   FLASH_BOOTSTRAP },
+    { 2,  0x08008000, 0x4000,   FLASH_BOOTSTRAP },
+    { 3,  0x0800C000, 0x4000,   FLASH_STORAGE },
+//  { 4,  0x08010000, 0x10000,  UNUSED }, 
+    { 5,  0x08020000, 0x20000,  FLASH_BOOTLOADER },
+    { 6,  0x08040000, 0x20000,  FLASH_BOOTLOADER },
+    { 7,  0x08060000, 0x20000,  FLASH_APP },
+    { 8,  0x08080000, 0x20000,  FLASH_APP },
+    { 9,  0x080A0000, 0x20000,  FLASH_APP },
+    { 10, 0x080C0000, 0x20000,  FLASH_APP },
+    { 11, 0x080E0000, 0x20000,  FLASH_APP },
+    { -1, 0,          0,        FLASH_INVALID}
 };
 
 typedef void (*progress_handler_t)(void);

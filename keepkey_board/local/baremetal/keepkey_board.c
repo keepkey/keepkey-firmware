@@ -112,7 +112,7 @@ void reset_rng(void)
  */
 void board_init(void)
 {
-    clock_init();
+//    clock_init();
     timer_init();
     keepkey_leds_init();
     keepkey_button_init();
