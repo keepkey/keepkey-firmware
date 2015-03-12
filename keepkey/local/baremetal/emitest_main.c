@@ -75,7 +75,7 @@ void update_reset_count(unsigned int count)
     char temp[20];
     sprintf(temp, "%d", count);
     storage_setLabel(temp);
-    storage_commit(FRESH_STOR);
+    storage_commit();
 }
 
 /*

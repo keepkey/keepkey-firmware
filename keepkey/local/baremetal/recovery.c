@@ -174,7 +174,7 @@ void recovery_word(const char *word)
 
         if (!enforce_wordlist || mnemonic_check(storage_get_shadow_mnemonic()))
         {
-        	storage_commit(NEW_STOR);
+        	storage_commit();
             fsm_sendSuccess("Device recovered");
         } else {
             storage_reset();

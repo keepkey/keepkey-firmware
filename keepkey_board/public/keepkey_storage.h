@@ -23,7 +23,6 @@
 
 /***************** Function Declaration *********************/
 bool storage_get_end_stor(void *stor_cpy);
-bool get_end_stor(ConfigFlash **end_stor);
 #if DEBUG_LINK
 uint32_t storage_get_end_stor_cnt(void);
 #endif

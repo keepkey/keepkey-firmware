@@ -261,14 +261,14 @@ void fsm_msgChangePin(ChangePin *msg)
 	if (removal)
 	{
 		storage_set_pin(0);
-        storage_commit(NEW_STOR);
+        storage_commit();
         fsm_sendSuccess("PIN removed");
 	}
 	else
 	{
 		if (change_pin())
 		{
-			storage_commit(NEW_STOR);
+			storage_commit();
 			fsm_sendSuccess("PIN changed");
 		}
 	}
@@ -292,7 +292,7 @@ void fsm_msgWipeDevice(WipeDevice *msg)
 	/* Wipe device */
 	storage_reset();
 	storage_reset_uuid();
-	storage_commit(FRESH_STOR);
+	storage_commit();
 
 	fsm_sendSuccess("Device wiped");
 	go_home();
@@ -382,7 +382,7 @@ void fsm_msgLoadDevice(LoadDevice *msg)
 
 	storage_loadDevice(msg);
 
-	storage_commit(NEW_STOR);
+	storage_commit();
 	fsm_sendSuccess("Device loaded");
 	go_home();
 }
@@ -520,7 +520,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 		storage_set_passphrase_protected(msg->use_passphrase);
 	}
 
-	storage_commit(NEW_STOR);
+	storage_commit();
 
 	fsm_sendSuccess("Settings applied");
 	go_home();

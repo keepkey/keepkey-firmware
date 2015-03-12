@@ -42,19 +42,13 @@
 
 /*************  Typedefs and Enums *****************/
 
-typedef enum 
-{
-    FRESH_STOR,
-    NEW_STOR,
-} stor_commit_type;
-
 /*************  Function declarations **************/
 
 void storage_init(void);
 void storage_reset_uuid(void);
 void storage_reset(void);
 void session_clear(void);
-void storage_commit(stor_commit_type commit_type);
+void storage_commit(void);
 
 void storage_loadDevice(LoadDevice *msg);
 

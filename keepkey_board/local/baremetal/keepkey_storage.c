@@ -24,40 +24,6 @@
 #include <keepkey_board.h>
 #include <memory.h>
 
-
-/*
- * get_end_stor() - search through configuration node list to find the end node,
- *                  which is the active node.
- *
- * INPUT :
- *      pointer to storage end node.
- * OUTPUT : 
- *      true/false : status
- */
-bool get_end_stor(ConfigFlash **end_stor)
-{
-    bool ret_stat = false;
-    uint32_t cnt = 0; 
-
-    /* set to head node for start of search*/
-    ConfigFlash *config_ptr = (ConfigFlash*)FLASH_STORAGE_START; 
-#if 1  
-    *end_stor = config_ptr;
-    dbg_print("%s: 0x%x  \n\r",__FUNCTION__,  *end_stor);
-#else
-    /* search through the node list to find the last node (active node) */
-	while(memcmp((void *)config_ptr->meta.magic , "stor", 4) == 0) {
-        *end_stor = config_ptr;
-        config_ptr++;
-        cnt++;
-    }
-    if(cnt) {
-        ret_stat = true;
-    }
-#endif
-    return(ret_stat);
-}
-
 /*
  * storage_from_flash() - copy configuration from storage partition in flash memory to shadow memory in RAM
  *
@@ -69,13 +35,8 @@ bool get_end_stor(ConfigFlash **end_stor)
  */
 bool storage_get_end_stor(void *stor_cpy)
 {
-	/* get a pointer to end stor */
-	ConfigFlash *stor_config;
-	get_end_stor(&stor_config);
-
-	/* make a copy of end stor */
-	memcpy(stor_cpy, (void *)stor_config, sizeof(ConfigFlash));
-
+	/* make a copy of the storage data */
+	memcpy(stor_cpy, (void *)FLASH_STORAGE_START, sizeof(ConfigFlash));
     return true;
 }
 
