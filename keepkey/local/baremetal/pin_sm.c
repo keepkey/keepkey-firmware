@@ -298,17 +298,18 @@ bool pin_protect()
 		/* Set request type */
 		pin_info.type = PinMatrixRequestType_PinMatrixRequestType_Current;
 
-        /* preincrement the failed counter */
-        storage_increase_pin_fails();
-        pre_increment_cnt_flg = (failed_cnts >= storage_get_pin_fails());
-
 		/* Get PIN */
 		if(pin_request("Enter Your PIN", &pin_info))
 		{
+
+            /* preincrement the failed counter before authentication*/
+            storage_increase_pin_fails();
+            pre_increment_cnt_flg = (failed_cnts >= storage_get_pin_fails());
+
 			/* authenticate user PIN */
 			if (storage_is_pin_correct(pin_info.pin) && !pre_increment_cnt_flg) {
+				session_cache_pin();
 				storage_reset_pin_fails();
-				session_cache_pin(pin_info.pin);
 				ret = true;
 			} else {
 				fsm_sendFailure(FailureType_Failure_PinInvalid, "Invalid PIN");

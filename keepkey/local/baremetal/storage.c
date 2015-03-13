@@ -17,7 +17,7 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *
  *          --------------------------------------------
- * Jan 9, 2015 - This file has been modified and adapted for KeepKey project.
+ * March 12, 2015 - This file has been modified and adapted for KeepKey project.
  *
  */
 
@@ -54,7 +54,6 @@ static bool   sessionRootNodeCached;
 static HDNode sessionRootNode;
 
 static bool sessionPinCached;
-static char sessionPin[17];
 
 static bool sessionPassphraseCached;
 static char sessionPassphrase[51];
@@ -158,7 +157,7 @@ void session_clear(void)
 {
 	sessionRootNodeCached = false;   memset(&sessionRootNode, 0, sizeof(sessionRootNode));
 	sessionPassphraseCached = false; memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
-	sessionPinCached = false;        memset(&sessionPin, 0, sizeof(sessionPin));
+	sessionPinCached = false;
 }
 
 /*
@@ -294,13 +293,18 @@ void storage_setLanguage(const char *lang)
  */
 bool storage_is_pin_correct(const char *pin)
 {
-    if(shadow_config.storage.has_pin)
-    {
-    	return strcmp(shadow_config.storage.pin, pin) == 0;
-    } else {
-    	return false;
-    }
-}
+	/* The execution time of the following code only depends on the
+	 * (public) input.  This avoids timing attacks.
+	 */
+	char diff = 0;
+	uint32_t i = 0;
+	while (pin[i]) {
+		diff |= shadow_config.storage.pin[i] - pin[i];
+		i++;
+	}
+	diff |= shadow_config.storage.pin[i];
+	return diff == 0;
+}    
 
 /*
  * storage_has_pin() - get PIN state
@@ -311,7 +315,7 @@ bool storage_is_pin_correct(const char *pin)
  */
 bool storage_has_pin(void)
 {
-	return (shadow_config.storage.has_pin && (strlen(shadow_config.storage.pin) > 0));
+	return (shadow_config.storage.has_pin && (shadow_config.storage.pin[0] != 0));
 }
 
 /*
@@ -354,9 +358,8 @@ const char* storage_get_pin(void)
  * OUTPUT -
  *      none
  */
-void session_cache_pin(const char *pin)
+void session_cache_pin(void)
 {
-	strlcpy(sessionPin, pin, sizeof(sessionPin));
 	sessionPinCached = true;
 }
 
@@ -369,7 +372,7 @@ void session_cache_pin(const char *pin)
  */
 bool session_is_pin_cached(void)
 {
-	return (sessionPinCached && (strcmp(sessionPin, shadow_config.storage.pin) == 0));
+	return (sessionPinCached);
 }
 
 /*
