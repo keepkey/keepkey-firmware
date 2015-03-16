@@ -327,6 +327,7 @@ void layout_loading()
 {
     static AnimationImageDrawableParams loading_animation;
 
+    call_leaving_handler();
     layout_clear();
 
     loading_animation.img_animation = get_loading_animation();

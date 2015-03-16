@@ -607,9 +607,6 @@ void fsm_msgGetAddress(GetAddress *msg)
 
     if (msg->has_multisig) {
 
-    	//TODO: Preparing Animation
-		//layoutProgressSwipe("Preparing", 0);
-
 		if (cryptoMultisigPubkeyIndex(&(msg->multisig), node->public_key) < 0) {
 			fsm_sendFailure(FailureType_Failure_Other, "Pubkey not found in multisig script");
 			go_home();
@@ -681,9 +678,6 @@ void fsm_msgSignMessage(SignMessage *msg)
 
 	if (fsm_deriveKey(node, msg->address_n, msg->address_n_count) == 0) return;
 
-	//TODO:Sign Message Animation
-	//layoutProgressSwipe("Signing", 0);
-
 	if (cryptoMessageSign(msg->message.bytes, msg->message.size, node->private_key, resp->signature.bytes) == 0) {
 		resp->has_address = true;
 		uint8_t addr_raw[21];
@@ -710,8 +704,8 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 		return;
 	}
 
-	//TODO: Verying Animation
-	//layoutProgressSwipe("Verifying", 0);
+    layout_standard_notification("Verifying","", NOTIFICATION_INFO);
+    display_refresh();
 
 	uint8_t addr_raw[21];
 	if (!ecdsa_address_decode(msg->address, addr_raw))
@@ -781,8 +775,8 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 		return;
 	}
 
-	//TODO:Encrypting animation
-	//layoutProgressSwipe("Encrypting", 0);
+	layout_standard_notification("Encrypting","", NOTIFICATION_INFO);
+	display_refresh();
 
 	if (cryptoMessageEncrypt(&pubkey, msg->message.bytes, msg->message.size, display_only, resp->nonce.bytes, &(resp->nonce.size), resp->message.bytes, &(resp->message.size), resp->hmac.bytes, &(resp->hmac.size), signing ? node->private_key : 0, signing ? address_raw : 0) != 0) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Error encrypting message");
@@ -827,8 +821,8 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
 	if (!node) return;
 	if (fsm_deriveKey(node, msg->address_n, msg->address_n_count) == 0) return;
 
-	//TODO:Decrypting animation
-	//layoutProgressSwipe("Decrypting", 0, 0);
+	layout_standard_notification("Decrypting","", NOTIFICATION_INFO);
+	display_refresh();
 
 	RESP_INIT(DecryptedMessage);
 	bool display_only = false;

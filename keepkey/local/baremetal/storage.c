@@ -419,9 +419,7 @@ uint32_t storage_get_pin_fails(void)
  */
 void get_root_node_callback(uint32_t iter, uint32_t total)
 {
-    static uint8_t i;
-    layout_standard_notification("Waking up", "Building root node", NOTIFICATION_INFO);
-    display_refresh();
+	animating_progress_handler();
 }
 
 /*
@@ -440,6 +438,8 @@ bool storage_getRootNode(HDNode *node)
 
     // if storage has node, decrypt and use it
     if (shadow_config.storage.has_node) {
+    	layout_loading();
+
         if (!passphrase_protect()) {
             return false;
         }
@@ -458,8 +458,7 @@ bool storage_getRootNode(HDNode *node)
         	// decrypt hd node
 			uint8_t secret[64];
 
-			layout_standard_notification("Waking up","", NOTIFICATION_INFO);
-			display_refresh();
+			animating_progress_handler();
 
 			pbkdf2_hmac_sha512((const uint8_t *)sessionPassphrase, strlen(sessionPassphrase), (uint8_t *)"A!B@C#D$", 8, BIP39_PBKDF2_ROUNDS, secret, 64, get_root_node_callback);
 			aes_decrypt_ctx ctx;
@@ -474,13 +473,14 @@ bool storage_getRootNode(HDNode *node)
 
     // if storage has mnemonic, convert it to node and use it
     if (shadow_config.storage.has_mnemonic) {
+    	layout_loading();
+
         if (!passphrase_protect()) {
             return false;
         }
         uint8_t seed[64];
 
-        layout_standard_notification("Waking up","", NOTIFICATION_INFO);
-        display_refresh();
+        animating_progress_handler();
 
 		mnemonic_to_seed(shadow_config.storage.mnemonic, sessionPassphrase, seed, get_root_node_callback); // BIP-0039
 		if (hdnode_from_seed(seed, sizeof(seed), &sessionRootNode) == 0) {
