@@ -347,10 +347,8 @@ void handler_erase(FirmwareErase* msg)
     if(confirm_without_button_request("Verify Backup Before Upgrade",
                 "Before upgrading your firmware, confirm that you have access to the backup of your \
                 recovery sentence.")) {
-        layout_loading();
-        force_animation_start();
 
-        animate();
+        layout_standard_notification("Erasing","", NOTIFICATION_INFO);
         display_refresh();
         
         flash_unlock(); 
@@ -358,6 +356,8 @@ void handler_erase(FirmwareErase* msg)
         flash_erase(FLASH_APP);
         flash_lock();
         send_success("Firmware Erased");
+
+        layout_loading();
     }
 }
 
