@@ -48,8 +48,6 @@
 /* shadow memory for configuration data in storage partition*/
 ConfigFlash shadow_config;
 
-static progress_handler_t progress_handler;
-
 static bool   sessionRootNodeCached;
 static HDNode sessionRootNode;
 
@@ -173,26 +171,16 @@ void storage_commit(void)
     int i;
     uint32_t *w;
 
-    if(progress_handler) {
-    	(*progress_handler)();
-    }
-
     flash_unlock();
     flash_erase(FLASH_STORAGE);
 
     /* Update storage data except for magic value, which will be updated last.
      * Just in case power is removed during the update!  This will avoid declaring 
      * the node valid unless the write to flash is allowed to finished!!! */
-    if(progress_handler) {
-    	flash_write_with_progress(FLASH_STORAGE, sizeof(shadow_config.meta.magic), 
-                sizeof(shadow_config) - sizeof(shadow_config.meta.magic), 
-                (uint8_t*)&shadow_config + sizeof(shadow_config.meta.magic),
-                progress_handler);
-    } else {
-    	flash_write(FLASH_STORAGE, sizeof(shadow_config.meta.magic), 
-                sizeof(shadow_config) - sizeof(shadow_config.meta.magic), 
-                (uint8_t*)&shadow_config + sizeof(shadow_config.meta.magic));
-    }
+	flash_write(FLASH_STORAGE, sizeof(shadow_config.meta.magic),
+		sizeof(shadow_config) - sizeof(shadow_config.meta.magic),
+		(uint8_t*)&shadow_config + sizeof(shadow_config.meta.magic));
+
     /* update magic value to complete the update*/
    	flash_write(FLASH_STORAGE, 0, sizeof(shadow_config.meta.magic), "stor");
     flash_lock();
@@ -747,17 +735,4 @@ bool storage_has_node(void)
 HDNodeType* storage_get_node(void)
 {
 	return &shadow_config.storage.node;
-}
-
-/*
- * storage_set_progress_handler() - set handler for lcd display during flash update
- *
- * INPUT -
- *      handler - function pointer for animiation
- * OUTPUT -
- *      none
- */
-void storage_set_progress_handler(progress_handler_t handler)
-{
-	progress_handler = handler;
 }

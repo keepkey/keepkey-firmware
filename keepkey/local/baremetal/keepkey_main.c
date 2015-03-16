@@ -65,9 +65,8 @@ int main(void)
     /* Show home screen */
     go_home();
 
-    /* Init storage and set progress handler */
+    /* Init storage */
     storage_init();
-    storage_set_progress_handler(&animating_progress_slowed_handler);
 
     /* Init protcol buffer message map and usb msg callback */
     fsm_init();

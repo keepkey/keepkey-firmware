@@ -172,7 +172,6 @@ typedef void (*progress_handler_t)(void);
 /* declarations */
 void flash_erase(Allocation group);
 void flash_write(Allocation group, size_t offset, size_t len, uint8_t* data);
-void flash_write_with_progress(Allocation group, size_t offset, size_t len, uint8_t* data, progress_handler_t ph);
 
 void memory_protect(void);
 int memory_bootloader_hash(uint8_t *hash);

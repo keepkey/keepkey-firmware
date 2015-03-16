@@ -93,13 +93,3 @@ void flash_write(Allocation group, size_t offset, size_t len, uint8_t* data)
 	size_t start = flash_write_helper(group, offset, len);
 	flash_program(start + offset, data, len);
 }
-
-void flash_write_with_progress(Allocation group, size_t offset, size_t len, uint8_t* data, progress_handler_t ph)
-{
-
-	size_t start = flash_write_helper(group, offset, len);
-	for (int i = 0; i < len; i++) {
-		(*ph)();
-		flash_program_byte(start + offset+i, data[i]);
-	}
-}

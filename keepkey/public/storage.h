@@ -120,6 +120,4 @@ bool storage_get_imported(void);
 bool storage_has_node(void);
 HDNodeType* storage_get_node(void);
 
-void storage_set_progress_handler(progress_handler_t handler);
-
 #endif
