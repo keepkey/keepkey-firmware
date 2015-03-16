@@ -286,15 +286,13 @@ void fsm_msgWipeDevice(WipeDevice *msg)
 		return;
 	}
 
-	/* go home to eliminate illusion of lag */
-	go_home();
-
 	/* Wipe device */
 	storage_reset();
 	storage_reset_uuid();
 	storage_commit();
 
 	fsm_sendSuccess("Device wiped");
+	go_home();
 }
 
 void fsm_msgFirmwareErase(FirmwareErase *msg)
