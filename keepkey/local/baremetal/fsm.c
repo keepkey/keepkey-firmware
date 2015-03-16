@@ -286,8 +286,8 @@ void fsm_msgWipeDevice(WipeDevice *msg)
 		return;
 	}
 
-	/* Setup wipe animation */
-	layout_loading(WIPE_ANIM);
+	/* go home to eliminate illusion of lag */
+	go_home();
 
 	/* Wipe device */
 	storage_reset();
@@ -295,7 +295,6 @@ void fsm_msgWipeDevice(WipeDevice *msg)
 	storage_commit();
 
 	fsm_sendSuccess("Device wiped");
-	go_home();
 }
 
 void fsm_msgFirmwareErase(FirmwareErase *msg)
