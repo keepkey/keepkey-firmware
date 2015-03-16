@@ -51,22 +51,9 @@ typedef struct
     const AnimationFrame* 	frames;
 } ImageAnimation;
 
-typedef enum
-{
-	CONFIRM_ICON_ANIM,
-	CONFIRMING_ANIM,
-    BOOT_ANIM,
-    WIPE_ANIM,
-    SAVING_ANIM,
-	FLASHING_ANIM,
-	SENDING_ANIM,
-	SIGNING_ANIM
-} AnimationResource;
-
 
 //====================== CLASS MEMBER FUNCTIONS ===========================
 
-const Image* get_wipe_background_image();
 const Image* get_saving_background_image();
 const Image* get_flashing_background_image();
 const Image* get_sending_background_image();
@@ -79,7 +66,7 @@ const ImageAnimation* get_logo_animation();
 const ImageAnimation* get_logo_reversed_animation();
 const ImageAnimation* get_confirm_icon_animation();
 const ImageAnimation* get_confirming_animation();
-const ImageAnimation* get_wipe_animation();
+const ImageAnimation* get_loading_animation();
 const ImageAnimation* get_saving_animation();
 const ImageAnimation* get_warning_animation();
 const ImageAnimation* get_flashing_animation();

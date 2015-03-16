@@ -319,54 +319,20 @@ void layout_pin(const char* prompt, char pin[])
 /*
  * layout_loading() - load image for display
  *
- * INPUT - image type
+ * INPUT - none
  * OUTPUT - none
  *
  */
-void layout_loading(AnimationResource type)
+void layout_loading()
 {
     static AnimationImageDrawableParams loading_animation;
 
-    /* Background params */
-    DrawableParams sp;
-	sp.x = 0;
-	sp.y = 0;
+    layout_clear();
 
-    switch(type){
-    	case WIPE_ANIM:
-    		loading_animation.img_animation = get_wipe_animation();
-    		draw_bitmap_mono_rle(canvas, &sp, get_wipe_background_image());
-    		loading_animation.base.x = 24;
-    		loading_animation.base.y = 13;
-    		break;
-    	case SAVING_ANIM:
-			loading_animation.img_animation = get_saving_animation();
-			draw_bitmap_mono_rle(canvas, &sp, get_saving_background_image());
-			loading_animation.base.x = 18;
-			loading_animation.base.y = 9;
-			break;
-    	case FLASHING_ANIM:
-			loading_animation.img_animation = get_flashing_animation();
-			draw_bitmap_mono_rle(canvas, &sp, get_flashing_background_image());
-			loading_animation.base.x = 29;
-			loading_animation.base.y = 14;
-			break;
-    	case SENDING_ANIM:
-			loading_animation.img_animation = get_sending_animation();
-			draw_bitmap_mono_rle(canvas, &sp, get_sending_background_image());
-			loading_animation.base.x = 22;
-			loading_animation.base.y = 10;
-			break;
-    	case SIGNING_ANIM:
-			loading_animation.img_animation = get_signing_animation();
-			draw_bitmap_mono_rle(canvas, &sp, get_signing_background_image());
-			loading_animation.base.x = 15;
-			loading_animation.base.y = 20;
-			break;
-    }
-
+    loading_animation.img_animation = get_loading_animation();
+	loading_animation.base.x = 83;
+	loading_animation.base.y = 29;
     layout_add_animation( &layout_animate_images, (void*)&loading_animation, 0);
-
     force_animation_start();
 }
 
@@ -635,22 +601,6 @@ void animating_progress_handler(void)
 		display_refresh();
 	}
 }
-
-/*
- * animating_progress_slowed_handler() - animate progress handler with intentional delay to slow process
- *
- * INPUT - none
- * OUTPUT - none
- */
-void animating_progress_slowed_handler(void)
-{
-	if(is_animating()) {
-		animate();
-		display_refresh();
-		delay_ms(1);
-	}
-}
-
 
 /*
  * layout_add_animation() - queue up the animation in active_queue. 

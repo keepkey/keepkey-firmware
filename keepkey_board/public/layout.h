@@ -140,13 +140,12 @@ void layout_firmware_update_confirmation();
 void layout_standard_notification( const char* str1, const char* str2, NotificationType type);
 void layout_warning(const char* prompt);
 void layout_pin(const char *prompt, char *pin);
-void layout_loading(AnimationResource type);
+void layout_loading();
 
 void animate( void);
 bool is_animating(void);
 void force_animation_start(void);
 void animating_progress_handler(void);
-void animating_progress_slowed_handler(void);
 void layout_add_animation(AnimateCallback callback, void* data, uint32_t duration);
 
 void layout_clear();
