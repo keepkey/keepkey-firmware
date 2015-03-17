@@ -202,23 +202,24 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
     static AnimationImageDrawableParams icon;
     switch(type){
     	case NOTIFICATION_REQUEST:
-    		icon.base.x = 211;
-			icon.base.y = 0;
+    		icon.base.x = 234;
+			icon.base.y = 4;
 			icon.img_animation = get_confirm_icon_animation();
-
-			draw_string(canvas, body_font, "confirm", &sp, BODY_WIDTH, font_height(body_font) + 1);
 
 			layout_add_animation(
 				&layout_animate_images,
 				(void*)&icon,
-				0);
+				get_image_animation_duration(icon.img_animation));
+			break;
+    	case NOTIFICATION_REQUEST_NO_ANIMATION:
+			sp.x = 234;
+			sp.y = 4;
+			draw_bitmap_mono_rle(canvas, &sp, get_confirm_icon_image());
 			break;
 		case NOTIFICATION_CONFIRM_ANIMATION:
-			icon.base.x = 217;
-			icon.base.y = 13;
+			icon.base.x = 232;
+			icon.base.y = 2;
 			icon.img_animation = get_confirming_animation();
-
-			draw_string(canvas, body_font, "confirm", &sp, BODY_WIDTH, font_height(body_font) + 1);
 
 			layout_add_animation(
 				&layout_animate_images,
@@ -226,11 +227,8 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
 				get_image_animation_duration(icon.img_animation));
 			break;
 		case NOTIFICATION_CONFIRMED:
-			sp.x = 226;
-			draw_string(canvas, body_font, "ok!", &sp, BODY_WIDTH, font_height(body_font) + 1);
-
-			sp.x = 217;
-			sp.y = 13;
+			sp.x = 232;
+			sp.y = 2;
 			draw_bitmap_mono_rle(canvas, &sp, get_confirmed_image());
 			break;
 		case NOTIFICATION_UNPLUG:

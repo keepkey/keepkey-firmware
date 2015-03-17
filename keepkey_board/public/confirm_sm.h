@@ -28,7 +28,7 @@
 
 /***************** #defines ******************************/
 /* The number of milliseconds to wait for a confirmation */
-#define CONFIRM_TIMEOUT_MS (1800)
+#define CONFIRM_TIMEOUT_MS (1260)
 #define MAX_CYPHER_KEY_LEN 55
 #define MAX_ENCRYPT_MSG_LEN 65
 #define MAX_PING_MSG_LEN 36
@@ -45,6 +45,7 @@ typedef enum
 typedef enum
 {
     LAYOUT_REQUEST,
+	LAYOUT_REQUEST_NO_ANIMATION,
     LAYOUT_CONFIRM_ANIMATION,
     LAYOUT_CONFIRMED,
     LAYOUT_FINISHED,

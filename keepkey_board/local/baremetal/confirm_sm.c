@@ -96,7 +96,7 @@ static void handle_screen_release( void* context)
 
     switch( si->display_state ) {
         case CONFIRM_WAIT:
-            si->active_layout = LAYOUT_REQUEST;
+            si->active_layout = LAYOUT_REQUEST_NO_ANIMATION;
             si->display_state = HOME;
             break;
         case CONFIRMED:
@@ -142,6 +142,11 @@ void swap_layout(ActiveLayout active_layout, volatile StateInfo* si)
     	case LAYOUT_REQUEST:
     		layout_standard_notification(si->lines[active_layout].request_title, 
                     si->lines[active_layout].request_body, NOTIFICATION_REQUEST);
+            remove_runnable( &handle_confirm_timeout );
+    		break;
+    	case LAYOUT_REQUEST_NO_ANIMATION:
+    		layout_standard_notification(si->lines[active_layout].request_title,
+                    si->lines[active_layout].request_body, NOTIFICATION_REQUEST_NO_ANIMATION);
             remove_runnable( &handle_confirm_timeout );
     		break;
     	case LAYOUT_CONFIRM_ANIMATION:
@@ -298,6 +303,8 @@ bool confirm_helper(const char *request_title, const char *request_body)
     /* Request */
     state_info.lines[LAYOUT_REQUEST].request_title = request_title;
     state_info.lines[LAYOUT_REQUEST].request_body = request_body;
+    state_info.lines[LAYOUT_REQUEST_NO_ANIMATION].request_title = request_title;
+    state_info.lines[LAYOUT_REQUEST_NO_ANIMATION].request_body = request_body;
 
     /* Confirming */
 	state_info.lines[LAYOUT_CONFIRM_ANIMATION].request_title = request_title;
