@@ -94,7 +94,7 @@ def load_toolchain():
             '-ffunction-sections',
             '-fdata-sections',
             '-fno-common',
-            '-fstack-protector-all', 
+#            '-fstack-protector-all', 
             '-I'+OPENCM3_ROOT+'/include',
             '%s' % scm_rev
 			]
@@ -176,8 +176,10 @@ def load_toolchain():
         env['CCFLAGS'].append(['-DBLDR'])
     elif bldtype == 'bldr':
         env['CCFLAGS'].append(['-DBLDR'])
+        env['CCFLAGS'].append(['-fstack-protector-all'])
     elif bldtype == 'app':
         env['CCFLAGS'].append(['-DAPP'])
+        env['CCFLAGS'].append(['-fstack-protector-all'])
 	
     debugLink = ARGUMENTS.get('debugLink', 0)
     if int(debugLink):

@@ -30,9 +30,6 @@ extern "C" {
 #endif
 
 /*********************  #defines *************************/
-#define PUBKEYS 5
-#define PUBKEY_LENGTH 65 
-#define SIGNATURES 1
 
 /***************** typedefs and enums  *******************/
 typedef void (*app_entry_t)(void);

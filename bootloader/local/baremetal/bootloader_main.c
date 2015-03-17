@@ -153,18 +153,6 @@ static void boot_jump(uint32_t addr)
  */
 static void bootldr_init(void)
 {
-    clock_scale_t clock = hse_8mhz_3v3[CLOCK_3V3_120MHZ];
-    rcc_clock_setup_hse_3v3(&clock);
-#if 0
-
-    rcc_periph_clock_enable(RCC_GPIOA);
-    rcc_periph_clock_enable(RCC_GPIOB);
-    rcc_periph_clock_enable(RCC_GPIOC);
-    rcc_periph_clock_enable(RCC_OTGFS);
-    rcc_periph_clock_enable(RCC_SYSCFG);
-    rcc_periph_clock_enable(RCC_TIM4);
-    rcc_periph_clock_enable(RCC_RNG);
-#endif
     /* Enable random */
     reset_rng();
     timer_init();
@@ -263,19 +251,40 @@ bool check_fw_is_new(void)
  * INPUT - argc (not used)
  * OUTPUT - argv (not used)
  */
+
+/*
+ * configure_hw() - board initialization
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
+static void configure_hw()
+{
+    clock_scale_t clock = hse_8mhz_3v3[CLOCK_3V3_120MHZ];
+    rcc_clock_setup_hse_3v3(&clock);
+
+    rcc_periph_clock_enable(RCC_GPIOA);
+    rcc_periph_clock_enable(RCC_GPIOB);
+    rcc_periph_clock_enable(RCC_GPIOC);
+    rcc_periph_clock_enable(RCC_OTGFS);
+    rcc_periph_clock_enable(RCC_SYSCFG);
+    rcc_periph_clock_enable(RCC_TIM4);
+    rcc_periph_clock_enable(RCC_RNG);
+    
+}
+
 int main(int argc, char* argv[])
 {
     (void)argc;
     (void)argv;
     bool update_mode;
 
-    // initialize stack guard with random value (-fstack_protector_all)
-    __stack_chk_guard = random32(); 
 
+    configure_hw();
     bootldr_init();
 
-    //ReEnable interrupt for timer
-    cm_enable_interrupts();  
+    // initialize stack guard with random value (-fstack_protector_all)
+    __stack_chk_guard = random32(); 
 
     //get button status 
     update_mode = keepkey_button_down();
