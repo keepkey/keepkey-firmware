@@ -77,7 +77,7 @@
 #define FLASH_BOOTSTRAP_LEN     (0x4000)
 
 /* Storage/Configuration Partition */
-#define FLASH_STORAGE_START     (0x0800C0000)
+#define FLASH_STORAGE_START     (0x0800C000)
 #define FLASH_STORAGE_LEN       (0x4000)
 
 /*<  0x801_0000 - 0x801_FFFF is empty  >*/
