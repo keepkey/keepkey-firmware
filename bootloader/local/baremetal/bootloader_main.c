@@ -246,13 +246,6 @@ bool check_fw_is_new(void)
 }
 
 /*
- * main - Bootloader main entry function
- *
- * INPUT - argc (not used)
- * OUTPUT - argv (not used)
- */
-
-/*
  * configure_hw() - board initialization
  *
  * INPUT - none
@@ -273,6 +266,12 @@ static void configure_hw()
     
 }
 
+/*
+ * main - Bootloader main entry function
+ *
+ * INPUT - argc (not used)
+ * OUTPUT - argv (not used)
+ */
 int main(int argc, char* argv[])
 {
     (void)argc;
@@ -282,6 +281,10 @@ int main(int argc, char* argv[])
 
     configure_hw();
     bootldr_init();
+
+#if 0 //TODO (GIT issue #49): Do not turn this on until We're ready to ship
+    memory_protect();
+#endif
 
     // initialize stack guard with random value (-fstack_protector_all)
     __stack_chk_guard = random32(); 

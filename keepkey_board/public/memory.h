@@ -33,9 +33,9 @@
     name    |          range          |  size   |     function
 -----------+-------------------------+---------+------------------
  Sector  0 | 0x08000000 - 0x08003FFF |  16 KiB | bootstrap code
- Sector  1 | 0x08004000 - 0x08007FFF |  16 KiB | bootstrap code
+ Sector  1 | 0x08004000 - 0x08007FFF |  16 KiB | empty
 -----------+-------------------------+---------+------------------
- Sector  2 | 0x08008000 - 0x0800BFFF |  16 KiB | bootstrap code 
+ Sector  2 | 0x08008000 - 0x0800BFFF |  16 KiB | empty
  Sector  3 | 0x0800C000 - 0x0800FFFF |  16 KiB | storage/config
 -----------+-------------------------+---------+------------------
  Sector  4 | 0x08010000 - 0x0801FFFF |  64 KiB | empty 
@@ -73,11 +73,11 @@
 #define FLASH_END               (FLASH_ORIGIN + FLASH_TOTAL_SIZE)
 
 /* Boot Strap Partition */
-#define FLASH_BOOTSTRAP_START   (FLASH_ORIGIN)     //0x0800_0000 - 0x0800_BFFF
-#define FLASH_BOOTSTRAP_LEN     (0xC000)
+#define FLASH_BOOTSTRAP_START   (FLASH_ORIGIN)     //0x0800_0000 - 0x0800_3FFF
+#define FLASH_BOOTSTRAP_LEN     (0x4000)
 
 /* Storage/Configuration Partition */
-#define FLASH_STORAGE_START     (FLASH_BOOTSTRAP_START + FLASH_BOOTSTRAP_LEN)     //0x0800_C000 - 0x0800_FFFF
+#define FLASH_STORAGE_START     (0x0800C000)
 #define FLASH_STORAGE_LEN       (0x4000)
 
 /*<  0x801_0000 - 0x801_FFFF is empty  >*/
@@ -109,7 +109,7 @@
 
 /* Misc Info. */
 #define FLASH_BOOTSTRAP_SECTOR_FIRST 0
-#define FLASH_BOOTSTRAP_SECTOR_LAST  2
+#define FLASH_BOOTSTRAP_SECTOR_LAST  0
 
 #define FLASH_STORAGE_SECTOR_FIRST   3
 #define FLASH_STORAGE_SECTOR_LAST    3
@@ -153,10 +153,10 @@ typedef struct {
 
 static const FlashSector flash_sector_map[]= {
     { 0,  0x08000000, 0x4000,   FLASH_BOOTSTRAP },
-    { 1,  0x08004000, 0x4000,   FLASH_BOOTSTRAP },
-    { 2,  0x08008000, 0x4000,   FLASH_BOOTSTRAP },
+/*    { 1,  0x08004000, 0x4000,   UNUSED }, */
+/*    { 2,  0x08008000, 0x4000,   UNUSED }, */
     { 3,  0x0800C000, 0x4000,   FLASH_STORAGE },
-//  { 4,  0x08010000, 0x10000,  UNUSED }, 
+/*    { 4,  0x08010000, 0x10000,  UNUSED }, */
     { 5,  0x08020000, 0x20000,  FLASH_BOOTLOADER },
     { 6,  0x08040000, 0x20000,  FLASH_BOOTLOADER },
     { 7,  0x08060000, 0x20000,  FLASH_APP },

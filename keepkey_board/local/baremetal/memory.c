@@ -35,12 +35,12 @@
 void memory_protect(void)
 {
     //                     set RDP level 2                   WRP for sectors 0 and 1
-    if ((((*OPTION_BYTES_1) & 0xFFFF) == 0xCCFF) && (((*OPTION_BYTES_2) & 0xFFFF) == 0xFFFC)) {
+    if ((((*OPTION_BYTES_1) & 0xFFFF) == 0xCCFF) && (((*OPTION_BYTES_2) & 0xFFFF) == 0xFF88)) {
         return; // already set up correctly - bail out
     }
     flash_unlock_option_bytes();
-    //                                 WRP +    RDP
-    flash_program_option_bytes( 0xFFFC0000 + 0xCCFF);
+    //                              WRP +    RDP
+    flash_program_option_bytes( 0xFF880000 + 0xCCFF); //RDP BLevel 2 (Irreversible)
     flash_lock_option_bytes();
 }
 
