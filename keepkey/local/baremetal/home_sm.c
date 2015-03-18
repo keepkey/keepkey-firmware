@@ -47,11 +47,11 @@ void go_home(void)
 {
 	switch(home_state) {
 		case AWAY_FROM_HOME:
-		case SCREENSAVER:
 			layout_home();
 			reset_idle_time();
 			home_state = AT_HOME;
 			break;
+		case SCREENSAVER:
 		case AT_HOME:
 		default:
 			/* no action requires */

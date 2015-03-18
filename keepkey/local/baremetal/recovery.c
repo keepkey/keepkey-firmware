@@ -51,14 +51,14 @@ void next_word(void) {
 	char body_formatted[90];
 
 	/* Form title */
-	sprintf(title_formatted, "Device Recovery Mode %d/24", word_index + 1);
+	sprintf(title_formatted, "Device Recovery Step %d/24", word_index + 1);
 
 	if (word_pos == 0) {
 		const char **wl = mnemonic_wordlist();
 		strlcpy(fake_word, wl[random32() & 0x7FF], sizeof(fake_word));
 
 		/* Format body for fake word */
-		sprintf(body_formatted, "On the device connected to this KeepKey, enter the word \"%s\".", fake_word);
+		sprintf(body_formatted, "Enter the word \"%s\".", fake_word);
 
         layout_standard_notification(title_formatted, body_formatted, NOTIFICATION_RECOVERY);
 	} else {
@@ -76,7 +76,7 @@ void next_word(void) {
 		}
 
 		/* Format body for real word */
-		sprintf(body_formatted, "On the device connected to this KeepKey, enter the %d%s of your recovery sentence.", word_pos, desc);
+		sprintf(body_formatted, "Enter the %d%s of your recovery sentence.", word_pos, desc);
 
 		layout_standard_notification(title_formatted, body_formatted, NOTIFICATION_RECOVERY);
 	}
@@ -172,6 +172,9 @@ void recovery_word(const char *word)
     { // last one
         storage_set_mnemonic_from_words((const char (*)[])words, word_count);
 
+        /* Go home before commiting to eliminate lag */
+        go_home();
+
         if (!enforce_wordlist || mnemonic_check(storage_get_shadow_mnemonic()))
         {
         	storage_commit();
@@ -181,7 +184,6 @@ void recovery_word(const char *word)
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid mnemonic, are words in correct order?");
         }
         awaiting_word = false;
-        go_home();
     } else {
         word_index++;
         next_word();

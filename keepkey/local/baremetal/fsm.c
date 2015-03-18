@@ -110,18 +110,14 @@ int fsm_deriveKey(HDNode *node, uint32_t *address_n, size_t address_n_count)
 	size_t i;
 
 	if (address_n_count > 3) {
-		//TODO:Animation Setup
-		//layoutProgressSwipe("Preparing keys", 0);
+		layout_simple_message("Deriving Keys...");
+		display_refresh();
 	}
 	for (i = 0; i < address_n_count; i++) {
 		if (hdnode_private_ckd(node, address_n[i]) == 0) {
 			fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
 			go_home();
 			return 0;
-		}
-		if (address_n_count > 3) {
-			//TODO:Animation Setup
-			//layoutProgress("Preparing keys", 1000 * i / address_n_count);
 		}
 	}
 	return 1;
@@ -187,7 +183,7 @@ void fsm_msgPing(Ping *msg)
 	RESP_INIT(Success);
 
 	if(msg->has_button_protection && msg->button_protection)
-		if(!confirm_ping_msg(msg->message))
+		if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall, "Ping", msg->message))
 		{
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
 			go_home();
@@ -231,7 +227,7 @@ void fsm_msgChangePin(ChangePin *msg)
 		if (storage_has_pin())
 		{
 			confirmed = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-				"Remove Your PIN", "Are you sure you want to remove your PIN protecting this KeepKey?");
+				"Remove PIN", "Do you want to remove PIN protection?");
 		} else {
 			fsm_sendSuccess("PIN removed");
 			return;
@@ -239,10 +235,10 @@ void fsm_msgChangePin(ChangePin *msg)
 	} else {
 		if (storage_has_pin())
 			confirmed = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-				"Change Your PIN", "Are you sure you want to change your PIN protecting this KeepKey?");
+				"Change PIN", "Do you want to change your PIN?");
 		else
 			confirmed = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-				"Add PIN Protection", "Are you sure you want to add PIN protection this KeepKey?");
+				"Create PIN", "Do you want to add PIN protection?");
 	}
 
 	if (!confirmed)
@@ -279,12 +275,15 @@ void fsm_msgChangePin(ChangePin *msg)
 void fsm_msgWipeDevice(WipeDevice *msg)
 {
 	(void)msg;
-	if(!confirm(ButtonRequestType_ButtonRequest_WipeDevice, "Wipe Private Keys and Settings", "Are you sure you want to erase private keys and settings? This process cannot be undone and any money stored will be lost."))
+	if(!confirm(ButtonRequestType_ButtonRequest_WipeDevice, "Wipe Device", "Do you want to erase your private keys and settings?"))
 	{
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe cancelled");
 		go_home();
 		return;
 	}
+
+	/* Go home before we start wiping device to eliminate any lag */
+	go_home();
 
 	/* Wipe device */
 	storage_reset();
@@ -292,7 +291,6 @@ void fsm_msgWipeDevice(WipeDevice *msg)
 	storage_commit();
 
 	fsm_sendSuccess("Device wiped");
-	go_home();
 }
 
 void fsm_msgFirmwareErase(FirmwareErase *msg)
@@ -310,7 +308,7 @@ void fsm_msgFirmwareUpload(FirmwareUpload *msg)
 void fsm_msgGetEntropy(GetEntropy *msg)
 {
 	if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-		"Generate and Return Entropy", "Are you sure you would like to generate entropy using the hardware RNG, and return it to the computer client?"))
+		"Generate Entropy", "Do you want to generate and return entropy using the hardware RNG?"))
 	{
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Entropy cancelled");
 		go_home();
@@ -361,8 +359,7 @@ void fsm_msgLoadDevice(LoadDevice *msg)
     	return;
     }
 
-    if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-    	"Import Recovery Sentence", "Importing a recovery sentence directly from a connected computer is not recommended unless you understand the risks."))
+    if(!confirm_load_device(msg->has_node))
     {
     	fsm_sendFailure(FailureType_Failure_ActionCancelled, "Load cancelled");
 		go_home();
@@ -377,11 +374,13 @@ void fsm_msgLoadDevice(LoadDevice *msg)
 		}
 	}
 
+	/* Go home before we start importing to eliminate any lag */
+	go_home();
+
 	storage_loadDevice(msg);
 
 	storage_commit();
 	fsm_sendSuccess("Device loaded");
-	go_home();
 }
 
 void fsm_msgResetDevice(ResetDevice *msg)
@@ -454,7 +453,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 	if (msg->has_label)
 	{
 		if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-			"Change Label", "Are you sure you would like to change the label to \"%s\"?", msg->label))
+			"Change Label", "Do you want to change the label to \"%s\"?", msg->label))
 		{
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
 			go_home();
@@ -465,7 +464,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 	if (msg->has_language)
 	{
 		if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-			"Change Language", "Are you sure you would like to change the language to %s?", msg->language))
+			"Change Language", "Do you want to change the language to %s?", msg->language))
 		{
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
 			go_home();
@@ -477,7 +476,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 		if(msg->use_passphrase)
 		{
 			if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-				"Enable Passphrase", "Are you sure you would like to enable a passphrase?", msg->language))
+				"Enable Passphrase", "Do you want to enable a passphrase?", msg->language))
 			{
 				fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
 				go_home();
@@ -487,7 +486,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 		else
 		{
 			if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-				"Disable Passphrase", "Are you sure you would like to disable passphrase?", msg->language))
+				"Disable Passphrase", "Do you want to disable passphrase?", msg->language))
 			{
 				fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
 				go_home();
@@ -517,10 +516,12 @@ void fsm_msgApplySettings(ApplySettings *msg)
 		storage_set_passphrase_protected(msg->use_passphrase);
 	}
 
+	/* Go home before we commit to eliminate lag */
+	go_home();
+
 	storage_commit();
 
 	fsm_sendSuccess("Settings applied");
-	go_home();
 }
 
 void fsm_msgCipherKeyValue(CipherKeyValue *msg)
@@ -704,7 +705,7 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 		return;
 	}
 
-    layout_standard_notification("Verifying","", NOTIFICATION_INFO);
+    layout_simple_message("Verifying Message...");
     display_refresh();
 
 	uint8_t addr_raw[21];
@@ -714,7 +715,7 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 	}
 	if (msg->signature.size == 65 && cryptoMessageVerify(msg->message.bytes, msg->message.size, addr_raw, msg->signature.bytes) == 0)
 	{
-		if(review(ButtonRequestType_ButtonRequest_Other, "Verify Message", msg->message.bytes))
+		if(review(ButtonRequestType_ButtonRequest_Other, "Message Verified", msg->message.bytes))
 		{
 			fsm_sendSuccess("Message verified");
 		}
@@ -775,7 +776,7 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 		return;
 	}
 
-	layout_standard_notification("Encrypting","", NOTIFICATION_INFO);
+	layout_simple_message("Encrypting Message...");
 	display_refresh();
 
 	if (cryptoMessageEncrypt(&pubkey, msg->message.bytes, msg->message.size, display_only, resp->nonce.bytes, &(resp->nonce.size), resp->message.bytes, &(resp->message.size), resp->hmac.bytes, &(resp->hmac.size), signing ? node->private_key : 0, signing ? address_raw : 0) != 0) {
@@ -821,7 +822,7 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
 	if (!node) return;
 	if (fsm_deriveKey(node, msg->address_n, msg->address_n_count) == 0) return;
 
-	layout_standard_notification("Decrypting","", NOTIFICATION_INFO);
+	layout_simple_message("Decrypting Message...");
 	display_refresh();
 
 	RESP_INIT(DecryptedMessage);

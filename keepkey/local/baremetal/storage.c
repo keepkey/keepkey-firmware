@@ -438,8 +438,6 @@ bool storage_getRootNode(HDNode *node)
 
     // if storage has node, decrypt and use it
     if (shadow_config.storage.has_node) {
-    	layout_loading();
-
         if (!passphrase_protect()) {
             return false;
         }

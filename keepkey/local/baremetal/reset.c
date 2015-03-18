@@ -147,9 +147,9 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 		current_words[strlen(current_words) - 1] = 0;
 
 		if((strength / 32) * 3 > WORDS_PER_SCREEN)
-			sprintf(title, "Write Down Recovery Sentence %d/2", word_group + 1);
+			sprintf(title, "Recovery Sentence %d/2", word_group + 1);
 		else
-			strcpy(title, "Write Down Recovery Sentence");
+			strcpy(title, "Recovery Sentence");
 
 		if (!confirm(ButtonRequestType_ButtonRequest_ConfirmWord, title, "%s", formatted_mnemonic[word_group])) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Reset cancelled");
@@ -159,12 +159,14 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 		}
 	}
 
+	/* Go home before we save mnemonic to eliminate any lag */
+	go_home();
+
 	/* Save mnemonic */
     storage_set_mnemonic(temp_mnemonic);
 	storage_commit();
 
 	fsm_sendSuccess("Device reset");
-	go_home();
 }
 
 uint32_t reset_get_int_entropy(uint8_t *entropy) {
