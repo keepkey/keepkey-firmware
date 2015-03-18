@@ -31,7 +31,7 @@
 #define CONFIRM_TIMEOUT_MS (1260)
 #define MAX_CYPHER_KEY_LEN 55
 #define MAX_ENCRYPT_MSG_LEN 65
-#define MAX_PING_MSG_LEN 36
+#define MAX_PING_MSG_LEN 45
 
 /***************** typedefs and enums  *******************/
 typedef enum
@@ -79,7 +79,7 @@ bool confirm_helper(const char* request_title, const char* request_body);
 bool confirm_cipher(bool encrypt, const char *key);
 bool confirm_encrypt_msg(const char *msg, bool signing);
 bool confirm_decrypt_msg(const char *msg, const char *address);
-bool confirm_ping_msg(const char *msg);
 bool confirm_transaction_output(const char *amount, const char *to);
+bool confirm_load_device(bool is_node);
 
 #endif

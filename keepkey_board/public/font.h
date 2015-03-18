@@ -53,22 +53,16 @@ typedef struct
 } Font;
 
 /******************* Function Declarations *****************************/
-// Get a specific font
 const Font* get_pin_font();
 const Font* get_title_font();
 const Font* get_body_font();
 
-/// Get a character image.
 const CharacterImage* font_get_char(const Font* font, char c);
 
-/// Get the height of a font
 int font_height(const Font* font);
-
-/// Get the width of a font
 int font_width(const Font* font);
 
-// Calculate string width using font data
 int calc_str_width(const Font* font, char* str);
-
+int calc_str_line(const Font* font, const char* str, uint16_t line_width);
 
 #endif // KeepKeyFont_H

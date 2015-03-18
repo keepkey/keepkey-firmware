@@ -39,6 +39,12 @@ extern "C" {
 #define MAX_ANIMATIONS 5
 #define ANIMATION_PERIOD 20
 
+/* Vertical Alignment */
+#define ONE_LINE 1
+#define TWO_LINES 2
+#define TOP_MARGIN_FOR_ONE_LINE 20
+#define TOP_MARGIN_FOR_TWO_LINES 13
+
 /* Margin */
 #define TOP_MARGIN 	7
 #define LEFT_MARGIN	4
@@ -50,14 +56,14 @@ extern "C" {
 #define TITLE_FONT_LINE_PADDING 0
 
 /* Body */
+#define BODY_TOP_MARGIN 		4
 #define BODY_COLOR				0xFF
-#define BODY_WIDTH				206
+#define BODY_WIDTH				225
 #define BODY_ROWS				3
-#define BODY_FONT_LINE_PADDING	2
+#define BODY_FONT_LINE_PADDING	4
 
 /* Warning */
 #define WARNING_COLOR 				0xFF
-#define WARNING_WIDTH				256
 #define WARNING_ROWS				1
 #define WARNING_FONT_LINE_PADDING	0
 
@@ -72,6 +78,8 @@ extern "C" {
 #define PIN_MATRIX_STEP3	 				0x77
 #define PIN_MATRIX_STEP4	 				0xBB
 #define PIN_MATRIX_FOREGROUND 				0xFF
+#define PIN_SLIDE_DELAY						20
+#define PIN_MAX_ANIMATION_MS				1000
 
 #define AMOUNT_LABEL_TEXT	"Amount:"
 #define ADDRESS_LABEL_TEXT	"Address:"
@@ -140,6 +148,7 @@ uint32_t warning_char_width();
 void layout_firmware_update_confirmation();
 void layout_standard_notification( const char* str1, const char* str2, NotificationType type);
 void layout_warning(const char* prompt);
+void layout_simple_message(const char* str);
 void layout_pin(const char *prompt, char *pin);
 void layout_loading();
 
