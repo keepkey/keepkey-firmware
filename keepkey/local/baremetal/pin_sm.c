@@ -299,7 +299,7 @@ bool pin_protect()
 		pin_info.type = PinMatrixRequestType_PinMatrixRequestType_Current;
 
 		/* Get PIN */
-		if(pin_request("Enter Your PIN", &pin_info))
+		if(pin_request("Enter PIN", &pin_info))
 		{
 
             /* preincrement the failed counter before authentication*/
@@ -355,8 +355,8 @@ bool change_pin(void)
 	pin_info_first.type = 	PinMatrixRequestType_PinMatrixRequestType_NewFirst;
 	pin_info_second.type = 	PinMatrixRequestType_PinMatrixRequestType_NewSecond;
 
-	if(pin_request("Enter New PIN", &pin_info_first)) {
-		if(pin_request("Re-Enter New PIN", &pin_info_second)) {
+	if(pin_request("New PIN", &pin_info_first)) {
+		if(pin_request("Re-Enter PIN", &pin_info_second)) {
 			if (strcmp(pin_info_first.pin, pin_info_second.pin) == 0) {
 				storage_set_pin(pin_info_first.pin);
 				ret = true;
