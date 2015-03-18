@@ -345,10 +345,9 @@ void storage_part_erase(void)
 void handler_erase(FirmwareErase* msg)
 {
     if(confirm_without_button_request("Verify Backup Before Upgrade",
-                "Before upgrading your firmware, confirm that you have access to the backup of your \
-                recovery sentence.")) {
+                "Before upgrading, confirm that you have access to the backup of your recovery sentence.")) {
 
-        layout_standard_notification("Erasing","", NOTIFICATION_INFO);
+        layout_simple_message("Preparing For Upgrade...");
         display_refresh();
         
         flash_unlock(); 

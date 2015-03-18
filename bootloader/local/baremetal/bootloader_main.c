@@ -316,8 +316,8 @@ int main(int argc, char* argv[])
             }
             else {
                 /* Invalid magic found.  Not booting!!! */
-                layout_standard_notification("INVALID FIRMWARE MAGIC", 
-                        "Magic value invalid in Application partition", 
+                layout_standard_notification("INVALID FIRMWARE MAGIC",
+                        "Magic value invalid in Application partition",
                         NOTIFICATION_INFO);
                 display_refresh();
                 dbg_print("INVALID FIRMWARE MAGIC\n\r");
@@ -326,7 +326,7 @@ int main(int argc, char* argv[])
         } else {
             led_func(CLR_GREEN_LED);
             if(usb_flash_firmware()) {
-                layout_standard_notification("Firmware Update Complete", "Please disconnect and reconnect your KeepKey to continue.", NOTIFICATION_UNPLUG);
+                layout_standard_notification("Firmware Update Complete", "Please disconnect and reconnect.", NOTIFICATION_UNPLUG);
                 display_refresh();
             } else {
                 layout_standard_notification("Firmware Update Failure.", "Unable to load image", NOTIFICATION_INFO);
