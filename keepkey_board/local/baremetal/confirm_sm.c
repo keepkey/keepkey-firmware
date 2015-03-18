@@ -392,21 +392,14 @@ confirm_helper_exit:
 bool confirm_cipher(bool encrypt, const char *key)
 {
     bool ret_stat;
-	char key_prompt[MAX_CYPHER_KEY_LEN];
 
-	strncpy(key_prompt, key, MAX_CYPHER_KEY_LEN -1);
-	if(strlen(key) > (MAX_CYPHER_KEY_LEN - 4))
-	{
-		key_prompt[MAX_CYPHER_KEY_LEN - 4] = '.'; key_prompt[MAX_CYPHER_KEY_LEN - 3] = '.';
-		key_prompt[MAX_CYPHER_KEY_LEN - 2] = '.'; key_prompt[MAX_CYPHER_KEY_LEN - 1] = '\0';
+	if(encrypt) {
+		ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
+			"Encrypt Key Value", key);
+	} else {
+		ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
+			"Decrypt Key Value", key);
 	}
-
-	if(encrypt)
-		ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
-			"Encrypt Key Value", "Do you want to encrypt the value of the key \"%s\"?", key_prompt);
-	else
-		ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
-			"Decrypt Key Value", "Do you want to decrypt the value of the key \"%s\"?", key_prompt);
 
     return(ret_stat);
 }
@@ -423,21 +416,13 @@ bool confirm_cipher(bool encrypt, const char *key)
 bool confirm_encrypt_msg(const char *msg, bool signing)
 {
     bool ret_stat;
-	char msg_prompt[MAX_ENCRYPT_MSG_LEN];
-
-	strncpy(msg_prompt, msg, MAX_ENCRYPT_MSG_LEN - 1);
-	if(strlen(msg) > (MAX_ENCRYPT_MSG_LEN - 4))
-	{
-		msg_prompt[MAX_ENCRYPT_MSG_LEN - 4] = '.'; msg_prompt[MAX_ENCRYPT_MSG_LEN - 3] = '.';
-		msg_prompt[MAX_ENCRYPT_MSG_LEN - 2] = '.'; msg_prompt[MAX_ENCRYPT_MSG_LEN - 1] = '\0';
-	}
 
 	if(signing) {
 		ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-			"Encrypt and Sign Message", "Do you want to encrypt and sign the message \"%s\"?", msg_prompt);
+			"Encrypt and Sign Message", msg);
     } else {
 		 ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-			"Encrypt Message", "Do you want to encrypt the message \"%s\"?", msg_prompt);
+			"Encrypt Message", msg);
     }
 
     return(ret_stat);
@@ -446,61 +431,64 @@ bool confirm_encrypt_msg(const char *msg, bool signing)
 /*
  * confirm_decrypt_msg()
  *
- * INPUT - 
- *      *msg -  
- *      *address - 
- * OUTPUT - 
+ * INPUT -
+ *      *msg -
+ *      *address -
+ * OUTPUT -
  *      true/false - status
- *     
+ *
  */
 bool confirm_decrypt_msg(const char *msg, const char *address)
 {
     bool ret_stat;
-	char msg_prompt[MAX_ENCRYPT_MSG_LEN];
-
-	strncpy(msg_prompt, msg, MAX_ENCRYPT_MSG_LEN - 1);
-	if(strlen(msg) > (MAX_ENCRYPT_MSG_LEN - 4))
-	{
-		msg_prompt[MAX_ENCRYPT_MSG_LEN - 4] = '.'; msg_prompt[MAX_ENCRYPT_MSG_LEN - 3] = '.';
-		msg_prompt[MAX_ENCRYPT_MSG_LEN - 2] = '.'; msg_prompt[MAX_ENCRYPT_MSG_LEN - 1] = '\0';
-	}
 
 	if(address) {
 		ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
-                "Decrypt Signed Message", "The decrypted, signed message is \"%s\"?", msg_prompt);
+                "Decrypted Signed Message", msg);
     } else {
 		ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
-                "Decrypt Message", "The decrypted message is \"%s\"?", msg_prompt);
+                "Decrypted Message", msg);
     }
 
     return(ret_stat);
 }
 
 /*
- *  confirm_ping_msg() - 
+ * confirm_transaction_output()
  *
- *  INPUT - 
- *      *msg - 
- *  OUTPUT - 
+ * INPUT -
+ *      *amount - amount to send
+ *      *to - who to send to
+ * OUTPUT -
  *      true/false - status
+ *
  */
-bool confirm_ping_msg(const char *msg)
-{
-    bool ret_stat;
-
-	if(strlen(msg) <= MAX_PING_MSG_LEN) {
-		ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-			"Respond to Ping Request", 
-            "A ping request was received with the message \"%s\". Would you like to have it responded to?", msg);
-    } else {
-		ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-			"Respond to Ping Request", "A ping request was received. Would you like to have it responded to?");
-    }
-    return(ret_stat);
-}
-
 bool confirm_transaction_output(const char *amount, const char *to)
 {
 	return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
 		"Confirm Transaction", "Send %s to %s", amount, to);
+}
+
+/*
+ * confirm_load_device()
+ *
+ * INPUT -
+ *      is_node -
+ * OUTPUT -
+ *      true/false - status
+ *
+ */
+bool confirm_load_device(bool is_node)
+{
+    bool ret_stat;
+
+	if(is_node) {
+		ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
+		    	"Import Private Key", "Importing is not recommended unless you understand the risks. Do you want to import private key?");
+    } else {
+		ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
+		    	"Import Recovery Sentence", "Importing is not recommended unless you understand the risks. Do you want to import recovery sentence?");
+    }
+
+    return(ret_stat);
 }

@@ -170,8 +170,18 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
 	call_leaving_handler();
     layout_clear();
 
+    DrawableParams sp;
     const Font* title_font = get_title_font();
     const Font* body_font = get_body_font();
+    uint8_t body_line_count = calc_str_line(body_font, str2, BODY_WIDTH);
+
+    /* Determine vertical alignment and body width */
+    sp.y = TOP_MARGIN;
+    if(body_line_count == ONE_LINE) {
+    	sp.y = TOP_MARGIN_FOR_ONE_LINE;
+    } else if(body_line_count == TWO_LINES) {
+    	sp.y = TOP_MARGIN_FOR_TWO_LINES;
+    }
 
     /* Format Title */
     char upper_str1[title_char_width()];
@@ -179,19 +189,15 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
     strupr(upper_str1);
 
     /* Title */
-    DrawableParams sp;
-    sp.y = TOP_MARGIN - 4;
     sp.x = LEFT_MARGIN;
     sp.color = TITLE_COLOR;
     draw_string(canvas, title_font, upper_str1, &sp, TITLE_WIDTH, font_height(title_font));
 
     /* Body */
-    sp.y += font_height(body_font) + 2;
+    sp.y += font_height(body_font) + BODY_TOP_MARGIN;
     sp.x = LEFT_MARGIN;
     sp.color = BODY_COLOR;
-    draw_string(canvas, body_font, str2, &sp, BODY_WIDTH, font_height(body_font) + 1);
-
-
+    draw_string(canvas, body_font, str2, &sp, BODY_WIDTH, font_height(body_font) + BODY_FONT_LINE_PADDING);
 
     /* Confirm text */
     sp.y = 46;
@@ -249,12 +255,13 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
 }
 
 /*
- * layout_warning() - display warning message on LCD screen
+ * layout_warning() - display warning message on display
  *
- * INPUT - 
+ * INPUT -
+ * 		prompt - string to display
  * OUTPUT -
  */
-void layout_warning(const char* prompt)
+void layout_warning(const char* str)
 {
 	call_leaving_handler();
     layout_clear();
@@ -262,23 +269,49 @@ void layout_warning(const char* prompt)
     const Font* font = get_title_font();
 
     /* Format Title */
-    char upper_prompt[warning_char_width()];
-    strcpy(upper_prompt, "WARNING: ");
-    strcat(upper_prompt, prompt);
-    strupr(upper_prompt);
+    char upper_str[warning_char_width()];
+    strcpy(upper_str, str);
+    strupr(upper_str);
 
     /* Title */
     DrawableParams sp;
-    sp.x = (256 - calc_str_width(font, upper_prompt)) / 2;
-    sp.y = 47;
+    sp.x = (KEEPKEY_DISPLAY_WIDTH - calc_str_width(font, upper_str)) / 2;
+    sp.y = 50;
     sp.color = TITLE_COLOR;
-    draw_string(canvas, font, upper_prompt, &sp, WARNING_WIDTH, font_height(font));
+    draw_string(canvas, font, upper_str, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
 
     static AnimationImageDrawableParams warning;
     warning.img_animation = get_warning_animation();
     warning.base.y = 7;
     warning.base.x = 107;
     layout_add_animation( &layout_animate_images, (void*)&warning, 0);
+}
+
+/*
+ * layout_simple_message() - displays a simple one line message
+ *
+ * INPUT - 
+ * 		str - string to display
+ * OUTPUT -
+ */
+void layout_simple_message(const char* str)
+{
+	call_leaving_handler();
+    layout_clear();
+
+    const Font* font = get_title_font();
+
+    /* Format Message */
+    char upper_str[title_char_width()];
+    strcpy(upper_str, str);
+    strupr(upper_str);
+
+    /* Draw Message */
+    DrawableParams sp;
+    sp.x = (KEEPKEY_DISPLAY_WIDTH - calc_str_width(font, upper_str)) / 2;
+    sp.y = (KEEPKEY_DISPLAY_HEIGHT / 2) - (font_height(font) / 2);
+    sp.color = TITLE_COLOR;
+    draw_string(canvas, font, upper_str, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
 }
 
 /*
@@ -444,15 +477,15 @@ static void layout_animate_pin(void* data, uint32_t duration, uint32_t elapsed)
 
 	/* Configure each PIN digit animation settings */
 	PINAnimationConfig pin_animation_cfg[] = {
-			{SLIDE_RIGHT, 160}, // 1
-			{SLIDE_UP, 140}, 	// 2
-			{SLIDE_DOWN, 120}, 	// 3
-			{SLIDE_LEFT, 100}, 	// 4
-			{SLIDE_UP, 80}, 	// 5
-			{SLIDE_RIGHT, 60}, 	// 6
-			{SLIDE_UP, 0}, 		// 7
-			{SLIDE_RIGHT, 20}, 	// 8
-			{SLIDE_DOWN, 40}  	// 9
+			{SLIDE_RIGHT, 8 * PIN_SLIDE_DELAY}, // 1
+			{SLIDE_UP, 7 * PIN_SLIDE_DELAY}, 	// 2
+			{SLIDE_DOWN, 6 * PIN_SLIDE_DELAY}, 	// 3
+			{SLIDE_LEFT, 5 * PIN_SLIDE_DELAY}, 	// 4
+			{SLIDE_UP, 4 * PIN_SLIDE_DELAY}, 	// 5
+			{SLIDE_RIGHT, 3 * PIN_SLIDE_DELAY}, // 6
+			{SLIDE_UP, 0 * PIN_SLIDE_DELAY}, 	// 7
+			{SLIDE_RIGHT, 1 * PIN_SLIDE_DELAY}, // 8
+			{SLIDE_DOWN, 2 * PIN_SLIDE_DELAY}  	// 9
 	};
 
 	/* Draw each pin digit individually base on animation config on matrix position */
@@ -487,31 +520,33 @@ static void layout_animate_pin(void* data, uint32_t duration, uint32_t elapsed)
 			sp.y = 9 + row * 17;
 			sp.x = 99 + pad + col * 20;
 
-			/* Determine position */
-			for(uint8_t adj_pos = 0; adj_pos < 5; adj_pos++) {
-
-				if(cur_pos_elapsed < ((5 - adj_pos) * PIN_MATRIX_ANIMATION_FREQUENCY_MS)) {
-					switch(cur_pos_cfg->direction) {
-						case SLIDE_DOWN:
-							sp.y -= adj_pos;
-							break;
-						case SLIDE_LEFT:
-							sp.x += adj_pos;
-							break;
-						case SLIDE_UP:
-							sp.y += adj_pos;
-							break;
-						case SLIDE_RIGHT:
-						default:
-							sp.x -= adj_pos;
-							break;
-					}
+			uint8_t adj_pos = cur_pos_elapsed / 40;
+			if(adj_pos <= 5) {
+				adj_pos = 5 - adj_pos;
+				switch(cur_pos_cfg->direction) {
+					case SLIDE_DOWN:
+						sp.y -= adj_pos;
+						break;
+					case SLIDE_LEFT:
+						sp.x += adj_pos;
+						break;
+					case SLIDE_UP:
+						sp.y += adj_pos;
+						break;
+					case SLIDE_RIGHT:
+					default:
+						sp.x -= adj_pos;
+						break;
 				}
 			}
 
-			draw_string(&tmp_canvas, pin_font, pin_num, &sp, WARNING_WIDTH, font_height(pin_font));
+			draw_string(&tmp_canvas, pin_font, pin_num, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(pin_font));
 		}
     }
+
+	if(elapsed > PIN_MAX_ANIMATION_MS) {
+		layout_clear_animations();
+	}
 
 	/* Draw matrix */
 	box_params.base.color = PIN_MATRIX_BACKGROUND;
@@ -800,7 +835,7 @@ uint32_t body_char_width()
 uint32_t warning_char_width()
 {
 	const Font* font = get_title_font();
-    return((WARNING_WIDTH / font_width(font)) * WARNING_ROWS);
+    return((KEEPKEY_DISPLAY_WIDTH / font_width(font)) * WARNING_ROWS);
 }
 
 /*
