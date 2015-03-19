@@ -33,6 +33,7 @@
 #include "layout.h"
 #include "timer.h"
 #include "resources.h"
+#include "qr_encode.h"
 
 /* variable definitions  */
 static AnimationQueue active_queue = { NULL, 0 };
@@ -358,6 +359,37 @@ void layout_loading()
     force_animation_start();
 }
 
+/*
+ * layout_address() - draw security pin layout on LCD screen
+ *
+ * INPUT - 
+ *      1. pointer to string address
+ * OUTPUT - 
+ *      none
+ */
+void layout_address(const char* address) {
+    static unsigned char bitdata[QR_MAX_BITDATA];
+
+    int a, i, j;
+    int side = qr_encode(QR_LEVEL_M, 0, address, 0, bitdata);
+
+    if (side > 0 && side <= 29) {
+        //oledInvert(0, 0, (side + 2) * 2, (side + 2) * 2);
+        BoxDrawableParams box_params = {{0xff, 0, 0}, (side + 2) * 2, (side + 2) * 2};
+        draw_box(canvas, &box_params);
+        /*for (i = 0; i < side; i++) {
+            for (j = 0; j< side; j++) {
+                a = j * side + i;
+                if (bitdata[a / 8] & (1 << (7 - a % 8))) {
+                    oledClearPixel(2 + i * 2, 2 + j * 2);
+                    oledClearPixel(3 + i * 2, 2 + j * 2);
+                    oledClearPixel(2 + i * 2, 3 + j * 2);
+                    oledClearPixel(3 + i * 2, 3 + j * 2);
+                }
+            }
+        }*/
+    }
+}
 
 /*
  * animate() - image animation

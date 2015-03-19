@@ -626,17 +626,15 @@ void fsm_msgGetAddress(GetAddress *msg)
 		ecdsa_get_address(node->public_key, coin->address_type, resp->address, sizeof(resp->address));
 	}
 
-    /*
-     * TODO: Implement address display
-     */
-    /*if (msg->has_show_display && msg->show_display) {
-		layoutAddress(resp->address);
-		if (!protectButton(ButtonRequestType_ButtonRequest_Address, true)) {
-			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
-			layoutHome();
-			return;
-		}
-	}*/
+    if (msg->has_show_display && msg->show_display) {
+    	// TODO: Philip starts here
+		// layout_address(resp->address);
+		// if (!protectButton(ButtonRequestType_ButtonRequest_Address, true)) {
+		// 	fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
+		// 	layoutHome();
+		// 	return;
+		// }
+	}
 
     msg_write(MessageType_MessageType_Address, resp);
     go_home();
