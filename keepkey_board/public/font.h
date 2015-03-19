@@ -62,7 +62,7 @@ const CharacterImage* font_get_char(const Font* font, char c);
 int font_height(const Font* font);
 int font_width(const Font* font);
 
-int calc_str_width(const Font* font, char* str);
+int calc_str_width(const Font* font, const char* str);
 int calc_str_line(const Font* font, const char* str, uint16_t line_width);
 
 #endif // KeepKeyFont_H

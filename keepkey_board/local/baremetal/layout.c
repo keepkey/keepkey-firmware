@@ -266,19 +266,14 @@ void layout_warning(const char* str)
 	call_leaving_handler();
     layout_clear();
 
-    const Font* font = get_title_font();
-
-    /* Format Title */
-    char upper_str[warning_char_width()];
-    strcpy(upper_str, str);
-    strupr(upper_str);
+    const Font* font = get_body_font();
 
     /* Title */
     DrawableParams sp;
-    sp.x = (KEEPKEY_DISPLAY_WIDTH - calc_str_width(font, upper_str)) / 2;
+    sp.x = (KEEPKEY_DISPLAY_WIDTH - calc_str_width(font, str)) / 2;
     sp.y = 50;
     sp.color = TITLE_COLOR;
-    draw_string(canvas, font, upper_str, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
+    draw_string(canvas, font, str, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
 
     static AnimationImageDrawableParams warning;
     warning.img_animation = get_warning_animation();
@@ -323,24 +318,19 @@ void layout_simple_message(const char* str)
  * OUTPUT - 
  *      none
  */
-void layout_pin(const char* prompt, char pin[])
+void layout_pin(const char* str, char pin[])
 {
 	DrawableParams sp;
 
 	call_leaving_handler();
 	layout_clear();
 
-	/* Format prompt */
-	char upper_prompt[title_char_width()];
-	strcpy(upper_prompt, prompt);
-	strupr(upper_prompt);
-
     /* Draw prompt */
-	const Font* font = get_title_font();
-    sp.y = 24;
-    sp.x = (100 - calc_str_width(font, upper_prompt)) / 2;
-    sp.color = 0x55;
-    draw_string(canvas, font, upper_prompt, &sp, TITLE_WIDTH, font_height(font));
+	const Font* font = get_body_font();
+    sp.y = 29;
+    sp.x = (140 - calc_str_width(font, str)) / 2;
+    sp.color = BODY_COLOR;
+    draw_string(canvas, font, str, &sp, TITLE_WIDTH, font_height(font));
     display_refresh();
 
 	/* Animate pin scrambling */
@@ -514,11 +504,12 @@ static void layout_animate_pin(void* data, uint32_t duration, uint32_t elapsed)
 			pin_num[0] = pin[cur_pos];
 
 			/* Adjust pad */
-			if(pin_num[0] == '4' || pin_num[0] == '6' || pin_num[0] == '8' || pin_num[0] == '9')
-				pad--;
+			if(pin_num[0] == '1') {
+				pad++;
+            }
 
-			sp.y = 9 + row * 17;
-			sp.x = 99 + pad + col * 20;
+			sp.y = 8 + row * 19;
+			sp.x = 138 + pad + col * 19;
 
 			uint8_t adj_pos = cur_pos_elapsed / 40;
 			if(adj_pos <= 5) {
@@ -552,10 +543,10 @@ static void layout_animate_pin(void* data, uint32_t duration, uint32_t elapsed)
 	box_params.base.color = PIN_MATRIX_BACKGROUND;
 	for(uint8_t row = 0; row < 3; row++) {
 		for(uint8_t col = 0; col < 3; col++) {
-			box_params.base.y = 8 + row * 17;
-			box_params.base.x = 100 + col * 20;
-			box_params.height = 16;
-			box_params.width = 19;
+			box_params.base.y = 5 + row * 19;
+			box_params.base.x = 140 + col * 19;
+			box_params.height = 18;
+			box_params.width = 18;
 			draw_box(canvas, &box_params);
 
 			/* Copy contents of box in tmp canvas over to real canvas */
