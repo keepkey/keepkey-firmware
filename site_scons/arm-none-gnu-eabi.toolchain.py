@@ -90,7 +90,7 @@ def load_toolchain():
             '-msoft-float',
             #'-mfix-cortex-m3-ldrd',
             #'-mfloat-abi=soft',
-
+            '-DQR_MAX_VERSION=0'
             '-ffunction-sections',
             '-fdata-sections',
             '-fno-common',
