@@ -33,6 +33,7 @@
 #include <keepkey_board.h>
 #include <pbkdf2.h>
 #include <keepkey_storage.h>
+#include <keepkey_flash.h>
 
 
 #include "util.h"
@@ -171,18 +172,15 @@ void storage_commit(void)
     int i;
     uint32_t *w;
 
+    memcpy((void *)&shadow_config, "stor", 4);
     flash_unlock();
-    flash_erase(FLASH_STORAGE);
-
-    /* Update storage data except for magic value, which will be updated last.
-     * Just in case power is removed during the update!  This will avoid declaring 
-     * the node valid unless the write to flash is allowed to finished!!! */
-	flash_write(FLASH_STORAGE, sizeof(shadow_config.meta.magic),
-		sizeof(shadow_config) - sizeof(shadow_config.meta.magic),
-		(uint8_t*)&shadow_config + sizeof(shadow_config.meta.magic));
-
-    /* update magic value to complete the update*/
-   	flash_write(FLASH_STORAGE, 0, sizeof(shadow_config.meta.magic), "stor");
+    flash_erase_word(FLASH_STORAGE);
+	if(flash_write_word(FLASH_STORAGE, 0, sizeof(shadow_config), (uint32_t*)&shadow_config) == false) {
+        flash_lock();
+        layout_warning("Storage error!  Please unplug device.");
+        display_refresh();
+        for(;;){}
+    }
     flash_lock();
 }
 
