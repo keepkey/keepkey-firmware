@@ -71,6 +71,9 @@ extern "C" {
 #define NO_WIDTH 0;
 
 /* PIN Matrix */
+#define MATRIX_MASK_COLOR                   0x00
+#define MATRIX_MASK_MARGIN                  3
+#define PIN_MATRIX_GRID_SIZE                18
 #define PIN_MATRIX_ANIMATION_FREQUENCY_MS	40
 #define PIN_MATRIX_BACKGROUND 				0x11
 #define PIN_MATRIX_STEP1	 				0x11

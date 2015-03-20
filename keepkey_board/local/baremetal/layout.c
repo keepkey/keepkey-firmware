@@ -483,19 +483,22 @@ static void layout_animate_pin(void* data, uint32_t duration, uint32_t elapsed)
 	uint8_t color_stepping[] = {PIN_MATRIX_STEP1, PIN_MATRIX_STEP2, PIN_MATRIX_STEP3, PIN_MATRIX_STEP4, PIN_MATRIX_FOREGROUND};
 
 	const Font* pin_font = get_pin_font();
-	char pin_num[] = {0, 0};
 
 	PINAnimationConfig *cur_pos_cfg;
 	uint8_t cur_pos;
 	uint32_t cur_pos_elapsed;
 
-	/* Init temp canvas and make sure it is cleared */
-	static uint8_t tmp_canvas_buffer[ KEEPKEY_DISPLAY_HEIGHT * KEEPKEY_DISPLAY_WIDTH ];
-	Canvas tmp_canvas;
-	tmp_canvas.buffer = tmp_canvas_buffer;
-	tmp_canvas.width = KEEPKEY_DISPLAY_WIDTH;
-	tmp_canvas.height = KEEPKEY_DISPLAY_HEIGHT;
-	draw_box(&tmp_canvas, &box_params);
+    /* Draw matrix */
+    box_params.base.color = PIN_MATRIX_BACKGROUND;
+    for(uint8_t row = 0; row < 3; row++) {
+        for(uint8_t col = 0; col < 3; col++) {
+            box_params.base.y = 5 + row * 19;
+            box_params.base.x = 140 + col * 19;
+            box_params.height = 18;
+            box_params.width = 18;
+            draw_box(canvas, &box_params);
+        }
+    }
 
 	/* Configure each PIN digit animation settings */
 	PINAnimationConfig pin_animation_cfg[] = {
@@ -533,10 +536,9 @@ static void layout_animate_pin(void* data, uint32_t duration, uint32_t elapsed)
 			}
 
 			uint8_t pad = 7;
-			pin_num[0] = pin[cur_pos];
 
 			/* Adjust pad */
-			if(pin_num[0] == '1') {
+			if(pin[cur_pos] == '1') {
 				pad++;
             }
 
@@ -563,27 +565,25 @@ static void layout_animate_pin(void* data, uint32_t duration, uint32_t elapsed)
 				}
 			}
 
-			draw_string(&tmp_canvas, pin_font, pin_num, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(pin_font));
+			draw_char(canvas, pin_font, pin[cur_pos], &sp);
 		}
     }
 
+    /* Mask horizontally */
+    draw_box_simple(canvas, MATRIX_MASK_COLOR, 137, 2, PIN_MATRIX_GRID_SIZE * 3 + 8, MATRIX_MASK_MARGIN);
+    draw_box_simple(canvas, MATRIX_MASK_COLOR, 137, 5 + PIN_MATRIX_GRID_SIZE, PIN_MATRIX_GRID_SIZE * 3 + 8, 1);
+    draw_box_simple(canvas, MATRIX_MASK_COLOR, 137, 6 + PIN_MATRIX_GRID_SIZE * 2, PIN_MATRIX_GRID_SIZE * 3 + 8, 1);
+    draw_box_simple(canvas, MATRIX_MASK_COLOR, 137, 7 + PIN_MATRIX_GRID_SIZE * 3, PIN_MATRIX_GRID_SIZE * 3 + 8, MATRIX_MASK_MARGIN);
+
+    /* Mask vertically */
+    draw_box_simple(canvas, MATRIX_MASK_COLOR, 137, 2, MATRIX_MASK_MARGIN, 18 * 3 + 8);
+    draw_box_simple(canvas, MATRIX_MASK_COLOR, 140 + PIN_MATRIX_GRID_SIZE, 2, 1, PIN_MATRIX_GRID_SIZE * 3 + 8);
+    draw_box_simple(canvas, MATRIX_MASK_COLOR, 141 + PIN_MATRIX_GRID_SIZE * 2, 2, 1, PIN_MATRIX_GRID_SIZE * 3 + 8);
+    draw_box_simple(canvas, MATRIX_MASK_COLOR, 142 + PIN_MATRIX_GRID_SIZE * 3, 2, MATRIX_MASK_MARGIN, PIN_MATRIX_GRID_SIZE * 3 + 8);
+ 
+
 	if(elapsed > PIN_MAX_ANIMATION_MS) {
 		layout_clear_animations();
-	}
-
-	/* Draw matrix */
-	box_params.base.color = PIN_MATRIX_BACKGROUND;
-	for(uint8_t row = 0; row < 3; row++) {
-		for(uint8_t col = 0; col < 3; col++) {
-			box_params.base.y = 5 + row * 19;
-			box_params.base.x = 140 + col * 19;
-			box_params.height = 18;
-			box_params.width = 18;
-			draw_box(canvas, &box_params);
-
-			/* Copy contents of box in tmp canvas over to real canvas */
-			copy_box(canvas, &tmp_canvas, &box_params);
-		}
 	}
 }
 

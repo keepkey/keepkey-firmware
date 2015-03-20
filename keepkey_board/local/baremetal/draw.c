@@ -138,7 +138,31 @@ void draw_string(Canvas *canvas, const Font *font, const char *str_write, Drawab
 }
 
 /*
- * draw_box() - draw box on display for debugging
+ * draw_char() - draw a single character to the display
+ *
+ * INPUT - 
+ *      *canvas - canvas
+ *      *font - font to use for drawing
+ *      c - character to draw
+ *      *p - loccation of character placement
+ * OUTPUT - 
+ *      none
+ */
+void draw_char(Canvas *canvas, const Font *font, char c, DrawableParams *p)
+{
+    DrawableParams char_params = *p;
+    const CharacterImage* img = font_get_char(font, c);
+    int x_offset = 0;
+
+    /* Draw Character */
+    char_params.x = x_offset + p->x;
+    draw_char_with_shift( canvas, p, &x_offset, NULL, img);
+
+    canvas->dirty = true;
+}
+
+/*
+ * draw_box() - draw box on display
  *
  * INPUT - 
  *      *canvas - canvas
@@ -176,47 +200,21 @@ void draw_box(Canvas *canvas, BoxDrawableParams *p)
 }
 
 /*
- * copy_box() - copies content of drawable box params
+ * draw_box_simple() - draw box without having to create box param object
  *
- * INPUT -
- *      *canvas - canvas to copy to
- *      *src_canvas - canvas to copy from
- *      *p - pointer to Margins and text color
- * OUTPUT -
+ * INPUT - 
+ *      *canvas - canvas
+ *      color - color of box
+ *      x - x position
+ *      y - y position
+ *      width - width of box
+ *      height - height of box
+ * OUTPUT - 
  *      none
  */
-void copy_box(Canvas *canvas, Canvas *src_canvas, BoxDrawableParams *p)
-{
-    int start_row = p->base.y;
-    int end_row = start_row + p->height;
-    end_row = ( end_row >= canvas->height ) ? canvas->height - 1 : end_row;
-
-    int start_col = p->base.x;
-    int end_col = p->base.x + p->width;
-    end_col = ( end_col >= canvas->width ) ? canvas->width - 1 : end_col;
-
-    int start_index = ( start_row * canvas->width ) + start_col;
-    uint8_t* canvas_pixel = &canvas->buffer[ start_index ];
-    uint8_t* src_canvas_pixel = &src_canvas->buffer[ start_index ];
-
-    int height = end_row - start_row;
-    int width = end_col - start_col;
-
-    int y;
-    for( y = 0; y < height; y++ ) {
-        int x;
-        for( x = 0; x < width; x++ ) {
-        	if(*src_canvas_pixel != 0x00) {
-        		*canvas_pixel = *src_canvas_pixel;
-        	}
-            canvas_pixel++;
-            src_canvas_pixel++;
-        }
-        canvas_pixel += ( canvas->width - width );
-        src_canvas_pixel += ( canvas->width - width );
-    }
-
-    canvas->dirty = true;
+void draw_box_simple(Canvas *canvas, uint8_t color, int x, int y, int width, int height) {
+    BoxDrawableParams box_params = {{color, x, y}, height, width};
+    draw_box(canvas, &box_params);
 }
 
 /*
