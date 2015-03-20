@@ -17,17 +17,15 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Jan 9, 2015 - This file has been modified and adapted for KeepKey project.
+ * March 19, 2015 - This file has been modified and adapted for KeepKey project.
  *
  */
 
 #include <assert.h>
 #include <stdint.h>
-
 #include <libopencm3/stm32/flash.h>
 #include <sha2.h>
-
-#include "memory.h"
+#include <memory.h>
 
 #define OPTION_BYTES_1 ((uint64_t *)0x1FFFC000)
 #define OPTION_BYTES_2 ((uint64_t *)0x1FFFC008)
@@ -52,44 +50,3 @@ int memory_bootloader_hash(uint8_t *hash)
     return hash_len;
 }
 
-
-void flash_erase(Allocation group)
-{
-    //TODO: See if there's a way to handle flash errors here gracefully.
-
-    const FlashSector* s = flash_sector_map;
-    while(s->use != FLASH_INVALID)
-    {
-        if(s->use == group)
-        {
-            flash_erase_sector(s->sector, FLASH_CR_PROGRAM_X8);
-        }
-
-        ++s;
-    }
-}
-
-static size_t flash_write_helper(Allocation group, size_t offset, size_t len)
-{
-	size_t start = 0;
-	const FlashSector* s = flash_sector_map;
-	while(s->use != FLASH_INVALID)
-	{
-		if(s->use == group)
-		{
-			start = s->start;
-			break;
-		}
-		++s;
-	}
-
-	assert(start != 0);
-
-	return start;
-}
-
-void flash_write(Allocation group, size_t offset, size_t len, uint8_t* data)
-{
-	size_t start = flash_write_helper(group, offset, len);
-	flash_program(start + offset, data, len);
-}

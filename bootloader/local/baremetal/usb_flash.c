@@ -39,6 +39,7 @@
 #include <usb_flash.h>
 #include <bootloader.h>
 #include <keepkey_storage.h>
+#include <keepkey_flash.h>
 
 /*** Definition ***/
 static FirmwareUploadState upload_state = UPLOAD_NOT_STARTED;
