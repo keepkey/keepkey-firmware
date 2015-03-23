@@ -270,7 +270,7 @@ const char* get_pin_matrix(void)
  * INPUT - none
  * OUTPUT - none
  */
-bool pin_protect()
+bool pin_protect(char *prompt)
 {
 	PINInfo pin_info;
     char warn_title_fmt[50], warn_msg_fmt[50];
@@ -299,7 +299,7 @@ bool pin_protect()
 		pin_info.type = PinMatrixRequestType_PinMatrixRequestType_Current;
 
 		/* Get PIN */
-		if(pin_request("Enter Your PIN", &pin_info))
+		if(pin_request(prompt, &pin_info))
 		{
 
             /* preincrement the failed counter before authentication*/
@@ -335,7 +335,7 @@ bool pin_protect_cached(void)
 	if(session_is_pin_cached()) {
 		return (true);
     } else {
-		return (pin_protect());
+		return (pin_protect("Enter Your PIN"));
     }
 }
 

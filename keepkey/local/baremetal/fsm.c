@@ -248,7 +248,7 @@ void fsm_msgChangePin(ChangePin *msg)
 		return;
 	}
 
-	if (!pin_protect())
+	if (!pin_protect("Enter Current PIN"))
 	{
 		go_home();
 		return;
