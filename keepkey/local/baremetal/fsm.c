@@ -109,10 +109,6 @@ int fsm_deriveKey(HDNode *node, uint32_t *address_n, size_t address_n_count)
 {
 	size_t i;
 
-	if (address_n_count > 3) {
-		layout_simple_message("Deriving Keys...");
-		display_refresh();
-	}
 	for (i = 0; i < address_n_count; i++) {
 		if (hdnode_private_ckd(node, address_n[i]) == 0) {
 			fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
