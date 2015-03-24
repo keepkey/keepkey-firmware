@@ -133,29 +133,30 @@ static void handle_confirm_timeout( void* context )
  * INPUT -
  *      active_layout - 
  *      *si - 
+ *      *layout_notification_func - layout notification function to use to display confirm message
  * OUTPUT - 
  *      none
  */
-void swap_layout(ActiveLayout active_layout, volatile StateInfo* si)
+void swap_layout(ActiveLayout active_layout, volatile StateInfo* si, layout_notification_t layout_notification_func)
 {
     switch(active_layout) {
     	case LAYOUT_REQUEST:
-    		layout_standard_notification(si->lines[active_layout].request_title, 
+    		(*layout_notification_func)(si->lines[active_layout].request_title, 
                     si->lines[active_layout].request_body, NOTIFICATION_REQUEST);
             remove_runnable( &handle_confirm_timeout );
     		break;
     	case LAYOUT_REQUEST_NO_ANIMATION:
-    		layout_standard_notification(si->lines[active_layout].request_title,
+    		(*layout_notification_func)(si->lines[active_layout].request_title,
                     si->lines[active_layout].request_body, NOTIFICATION_REQUEST_NO_ANIMATION);
             remove_runnable( &handle_confirm_timeout );
     		break;
     	case LAYOUT_CONFIRM_ANIMATION:
-    		layout_standard_notification(si->lines[active_layout].request_title, 
+    		(*layout_notification_func)(si->lines[active_layout].request_title, 
                     si->lines[active_layout].request_body, NOTIFICATION_CONFIRM_ANIMATION);
     		post_delayed( &handle_confirm_timeout, (void*)si, CONFIRM_TIMEOUT_MS );
     		break;
     	case LAYOUT_CONFIRMED:
-    		layout_standard_notification(si->lines[active_layout].request_title, 
+    		(*layout_notification_func)(si->lines[active_layout].request_title, 
                     si->lines[active_layout].request_body, NOTIFICATION_CONFIRMED);
     		remove_runnable( &handle_confirm_timeout );
     		break;
@@ -169,9 +170,9 @@ void swap_layout(ActiveLayout active_layout, volatile StateInfo* si)
  *  confirm() - user confirmation function interface 
  *
  *  INPUT - 
- *  	type -
- *      *request_title - 
- *      *request_body -
+ *  	type - type of button request to send to host
+ *      *request_title - title of confirm message
+ *      *request_body - body of confirm message
  *  OUTPUT -
  */
 bool confirm(ButtonRequestType type, const char *request_title, const char *request_body, ...)
@@ -191,7 +192,38 @@ bool confirm(ButtonRequestType type, const char *request_title, const char *requ
 	resp.code = type;
 	msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-	return confirm_helper(request_title, strbuf);
+	return confirm_helper(request_title, strbuf, &layout_standard_notification);
+}
+
+/*
+ *  confirm_with_custom_layout() - user confirmation function interface that allows custom layout notification
+ *
+ *  INPUT - 
+ *      layout_notification_func - custom layout notification
+ *      type - type of button request to send to host
+ *      *request_title - title of confirm message
+ *      *request_body - body of confirm message
+ *  OUTPUT -
+ */
+bool confirm_with_custom_layout(layout_notification_t layout_notification_func, ButtonRequestType type, 
+    const char *request_title, const char *request_body, ...)
+{
+    button_request_acked = false;
+
+    va_list vl;
+    va_start(vl, request_body);
+    char strbuf[body_char_width()+1];
+    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+    va_end(vl);
+
+    /* Send button request */
+    ButtonRequest resp;
+    memset(&resp, 0, sizeof(ButtonRequest));
+    resp.has_code = true;
+    resp.code = type;
+    msg_write(MessageType_MessageType_ButtonRequest, &resp);
+
+    return confirm_helper(request_title, strbuf, layout_notification_func);
 }
 
 /*
@@ -213,7 +245,7 @@ bool confirm_without_button_request(const char *request_title, const char *reque
 	vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
 	va_end(vl);
 
-	return confirm_helper(request_title, strbuf);
+	return confirm_helper(request_title, strbuf, &layout_standard_notification);
 }
 
 /*
@@ -244,7 +276,7 @@ bool review(ButtonRequestType type, const char *request_title, const char *reque
 	resp.code = type;
 	msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-	confirm_helper(request_title, strbuf);
+	confirm_helper(request_title, strbuf, &layout_standard_notification);
 	return true;
 }
 
@@ -268,7 +300,7 @@ bool review_without_button_request(const char *request_title, const char *reques
 	vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
 	va_end(vl);
 
-	confirm_helper(request_title, strbuf);
+	confirm_helper(request_title, strbuf, &layout_standard_notification);
 	return true;
 }
 
@@ -276,11 +308,12 @@ bool review_without_button_request(const char *request_title, const char *reques
  * confirm_helper()  - function for confirm
  *
  * INPUT - 
- *      *request_title - 
- *      *request_body - 
+ *      *request_title - title of confirm message
+ *      *request_body - body of confirm message
+ *      *layout_notification_func - layout notification function to use to display confirm message
  * OUTPUT - 
  */
-bool confirm_helper(const char *request_title, const char *request_body)
+bool confirm_helper(const char *request_title, const char *request_body, layout_notification_t layout_notification_func)
 {
     bool ret_stat = false;
     volatile StateInfo state_info;
@@ -358,7 +391,7 @@ bool confirm_helper(const char *request_title, const char *request_body)
         }
 
         if(cur_layout != new_layout) {
-            swap_layout(new_layout, &state_info);
+            swap_layout(new_layout, &state_info, layout_notification_func);
             cur_layout = new_layout;
         }
 
@@ -465,8 +498,8 @@ bool confirm_decrypt_msg(const char *msg, const char *address)
  */
 bool confirm_transaction_output(const char *amount, const char *to)
 {
-	return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-		"Confirm Transaction", "Send %s to %s", amount, to);
+	return confirm_with_custom_layout(&layout_transaction_notification,
+        ButtonRequestType_ButtonRequest_ConfirmOutput, amount, to);
 }
 
 /*

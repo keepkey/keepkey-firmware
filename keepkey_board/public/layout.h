@@ -33,6 +33,7 @@ extern "C" {
 #include <stdint.h>
 #include "canvas.h"
 #include "resources.h"
+#include "draw.h"
 
 
 /*******************  Defines ************************/
@@ -61,6 +62,9 @@ extern "C" {
 #define BODY_WIDTH				225
 #define BODY_ROWS				3
 #define BODY_FONT_LINE_PADDING	4
+
+/* Transaction */
+#define TRANSACTION_WIDTH       250
 
 /* Warning */
 #define WARNING_COLOR 				0xFF
@@ -150,6 +154,8 @@ uint32_t warning_char_width();
 
 void layout_firmware_update_confirmation();
 void layout_standard_notification( const char* str1, const char* str2, NotificationType type);
+void layout_transaction_notification(const char* amount, const char* address, NotificationType type);
+void layout_notification_icon(NotificationType type, DrawableParams *sp);
 void layout_warning(const char* prompt);
 void layout_simple_message(const char* str);
 void layout_pin(const char *prompt, char *pin);

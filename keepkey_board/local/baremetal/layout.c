@@ -200,58 +200,103 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
     sp.color = BODY_COLOR;
     draw_string(canvas, body_font, str2, &sp, BODY_WIDTH, font_height(body_font) + BODY_FONT_LINE_PADDING);
 
-    /* Confirm text */
-    sp.y = 46;
-	sp.x = 215;
-	sp.color = 0x66;
+    layout_notification_icon(type, &sp);
+}
 
+/*
+ * layout_transaction_notification() - display standard notification on LCD screen
+ *
+ * INPUT - 
+ *      1. string pointer1
+ *      2. string pointer2
+ *      3. notification type
+ * OUTPUT - 
+ *      none
+ */
+void layout_transaction_notification(const char* amount, const char* address, NotificationType type)
+{
+    call_leaving_handler();
+    layout_clear();
+
+    DrawableParams sp;
+    const Font* amount_font = get_title_font();
+    const Font* address_font = get_title_font();
+
+    /* Unbold fonts if address becomes too long */
+    if(calc_str_width(address_font, address) > TRANSACTION_WIDTH) {
+        amount_font = get_body_font();
+        address_font = get_body_font();
+    }
+
+    /* Determine vertical alignment and body width */
+    sp.y =  TOP_MARGIN_FOR_ONE_LINE;
+
+    /* Format amount line */
+    char title[body_char_width()];
+    sprintf(title, "Send %s to", amount);
+
+    /* Draw amount */
+    sp.x = LEFT_MARGIN;
+    sp.color = TITLE_COLOR;
+    draw_string(canvas, amount_font, title, &sp, TRANSACTION_WIDTH, font_height(amount_font));
+
+    /* Draw address */
+    sp.y += font_height(address_font) + BODY_TOP_MARGIN;
+    sp.x = LEFT_MARGIN;
+    sp.color = BODY_COLOR;
+    draw_string(canvas, address_font, address, &sp, TRANSACTION_WIDTH, font_height(address_font) + BODY_FONT_LINE_PADDING);
+
+    layout_notification_icon(type, &sp);
+}
+
+void layout_notification_icon(NotificationType type, DrawableParams *sp) {
     /* Determine animation/icon to show */
     static AnimationImageDrawableParams icon;
     switch(type){
-    	case NOTIFICATION_REQUEST:
-    		icon.base.x = 234;
-			icon.base.y = 4;
-			icon.img_animation = get_confirm_icon_animation();
+        case NOTIFICATION_REQUEST:
+            icon.base.x = 234;
+            icon.base.y = 4;
+            icon.img_animation = get_confirm_icon_animation();
 
-			layout_add_animation(
-				&layout_animate_images,
-				(void*)&icon,
-				get_image_animation_duration(icon.img_animation));
-			break;
-    	case NOTIFICATION_REQUEST_NO_ANIMATION:
-			sp.x = 234;
-			sp.y = 4;
-			draw_bitmap_mono_rle(canvas, &sp, get_confirm_icon_image());
-			break;
-		case NOTIFICATION_CONFIRM_ANIMATION:
-			icon.base.x = 232;
-			icon.base.y = 2;
-			icon.img_animation = get_confirming_animation();
+            layout_add_animation(
+                &layout_animate_images,
+                (void*)&icon,
+                get_image_animation_duration(icon.img_animation));
+            break;
+        case NOTIFICATION_REQUEST_NO_ANIMATION:
+            sp->x = 234;
+            sp->y = 4;
+            draw_bitmap_mono_rle(canvas, sp, get_confirm_icon_image());
+            break;
+        case NOTIFICATION_CONFIRM_ANIMATION:
+            icon.base.x = 232;
+            icon.base.y = 2;
+            icon.img_animation = get_confirming_animation();
 
-			layout_add_animation(
-				&layout_animate_images,
-				(void*)&icon,
-				get_image_animation_duration(icon.img_animation));
-			break;
-		case NOTIFICATION_CONFIRMED:
-			sp.x = 232;
-			sp.y = 2;
-			draw_bitmap_mono_rle(canvas, &sp, get_confirmed_image());
-			break;
-		case NOTIFICATION_UNPLUG:
-			sp.x = 208;
-			sp.y = 21;
-			draw_bitmap_mono_rle(canvas, &sp, get_unplug_image());
-			break;
-		case NOTIFICATION_RECOVERY:
-			sp.x = 221;
-			sp.y = 20;
-			draw_bitmap_mono_rle(canvas, &sp, get_recovery_image());
-			break;
-		case NOTIFICATION_INFO:
-		default:
-			/* no action requires */
-			break;
+            layout_add_animation(
+                &layout_animate_images,
+                (void*)&icon,
+                get_image_animation_duration(icon.img_animation));
+            break;
+        case NOTIFICATION_CONFIRMED:
+            sp->x = 232;
+            sp->y = 2;
+            draw_bitmap_mono_rle(canvas, sp, get_confirmed_image());
+            break;
+        case NOTIFICATION_UNPLUG:
+            sp->x = 208;
+            sp->y = 21;
+            draw_bitmap_mono_rle(canvas, sp, get_unplug_image());
+            break;
+        case NOTIFICATION_RECOVERY:
+            sp->x = 221;
+            sp->y = 20;
+            draw_bitmap_mono_rle(canvas, sp, get_recovery_image());
+            break;
+        case NOTIFICATION_INFO:
+        default:
+            /* no action requires */
+            break;
     }
 }
 
