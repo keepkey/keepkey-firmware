@@ -3575,7 +3575,7 @@ int calc_str_width(const Font* font, const char* str)
 }
 
 /*
- * calc_str_line() - calculates how many lines astring will occupy given a line width
+ * calc_str_line() - calculates how many lines a string will occupy given a line width
  *
  * INPUT -
  *      *font - 	 pointer to font structure
