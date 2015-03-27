@@ -88,6 +88,11 @@ extern "C" {
 #define PIN_SLIDE_DELAY						20
 #define PIN_MAX_ANIMATION_MS				1000
 
+/* QR */
+#define QR_DISPLAY_SCALE    1
+#define QR_DISPLAY_X        4
+#define QR_DISPLAY_Y        16
+
 #define AMOUNT_LABEL_TEXT	"Amount:"
 #define ADDRESS_LABEL_TEXT	"Address:"
 #define CONFIRM_LABEL_TEXT	"Confirming transaction..."
@@ -155,11 +160,13 @@ uint32_t warning_char_width();
 void layout_firmware_update_confirmation();
 void layout_standard_notification( const char* str1, const char* str2, NotificationType type);
 void layout_transaction_notification(const char* amount, const char* address, NotificationType type);
+void layout_address_notification(const char* str1, const char* address, NotificationType type);
 void layout_notification_icon(NotificationType type, DrawableParams *sp);
 void layout_warning(const char* prompt);
 void layout_simple_message(const char* str);
 void layout_pin(const char *prompt, char *pin);
 void layout_loading();
+void layout_address(const char* address);
 
 void animate( void);
 bool is_animating(void);

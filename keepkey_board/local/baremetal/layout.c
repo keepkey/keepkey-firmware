@@ -249,6 +249,43 @@ void layout_transaction_notification(const char* amount, const char* address, No
     layout_notification_icon(type, &sp);
 }
 
+/*
+ * layout_address_notification() - display address notification
+ *
+ * INPUT - 
+ *      1. string pointer1
+ *      2. address to display both as string and QR
+ *      3. notification type
+ * OUTPUT - 
+ *      none
+ */
+void layout_address_notification(const char* str1, const char* address, NotificationType type)
+{
+    call_leaving_handler();
+    layout_clear();
+
+    DrawableParams sp;
+    const Font* str1_font = get_title_font();
+    const Font* address_font = get_body_font();
+
+    /* Determine vertical alignment and body width */
+    sp.y =  TOP_MARGIN_FOR_ONE_LINE;
+
+    /* Draw str1 */
+    sp.x = LEFT_MARGIN + 32 + 4;
+    sp.color = TITLE_COLOR;
+    draw_string(canvas, str1_font, str1, &sp, TRANSACTION_WIDTH, font_height(str1_font));
+
+    /* Draw address */
+    sp.y += font_height(address_font) + BODY_TOP_MARGIN;
+    sp.x = LEFT_MARGIN + 32 + 4;
+    sp.color = BODY_COLOR;
+    draw_string(canvas, address_font, address, &sp, TRANSACTION_WIDTH, font_height(address_font) + BODY_FONT_LINE_PADDING);
+
+    layout_address(address);
+    layout_notification_icon(type, &sp);
+}
+
 void layout_notification_icon(NotificationType type, DrawableParams *sp) {
     /* Determine animation/icon to show */
     static AnimationImageDrawableParams icon;
@@ -405,7 +442,7 @@ void layout_loading()
 }
 
 /*
- * layout_address() - draw security pin layout on LCD screen
+ * layout_address() - draws qr code of address to oled
  *
  * INPUT - 
  *      1. pointer to string address
@@ -419,20 +456,22 @@ void layout_address(const char* address) {
     int side = qr_encode(QR_LEVEL_M, 0, address, 0, bitdata);
 
     if (side > 0 && side <= 29) {
-        //oledInvert(0, 0, (side + 2) * 2, (side + 2) * 2);
-        BoxDrawableParams box_params = {{0xff, 0, 0}, (side + 2) * 2, (side + 2) * 2};
-        draw_box(canvas, &box_params);
-        /*for (i = 0; i < side; i++) {
+        /* Draw QR background */
+        draw_box_simple(canvas, 0xFF, QR_DISPLAY_X, QR_DISPLAY_Y, 
+            (side + 2) * QR_DISPLAY_SCALE, (side + 2) * QR_DISPLAY_SCALE);
+
+        /* Fill in QR */
+        for (i = 0; i < side; i++) {
             for (j = 0; j< side; j++) {
                 a = j * side + i;
                 if (bitdata[a / 8] & (1 << (7 - a % 8))) {
-                    oledClearPixel(2 + i * 2, 2 + j * 2);
-                    oledClearPixel(3 + i * 2, 2 + j * 2);
-                    oledClearPixel(2 + i * 2, 3 + j * 2);
-                    oledClearPixel(3 + i * 2, 3 + j * 2);
+                    draw_box_simple(canvas, 0x00, 
+                        QR_DISPLAY_SCALE + (i + QR_DISPLAY_X) * QR_DISPLAY_SCALE,
+                        QR_DISPLAY_SCALE + (j + QR_DISPLAY_Y) * QR_DISPLAY_SCALE,
+                        QR_DISPLAY_SCALE, QR_DISPLAY_SCALE);
                 }
             }
-        }*/
+        }
     }
 }
 

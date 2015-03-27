@@ -623,13 +623,11 @@ void fsm_msgGetAddress(GetAddress *msg)
 	}
 
     if (msg->has_show_display && msg->show_display) {
-    	// TODO: Philip starts here
-		// layout_address(resp->address);
-		// if (!protectButton(ButtonRequestType_ButtonRequest_Address, true)) {
-		// 	fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
-		// 	layoutHome();
-		// 	return;
-		// }
+		if(!confirm_address("Confirm Address", resp->address)) {
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
+			go_home();
+			return;
+		}
 	}
 
     msg_write(MessageType_MessageType_Address, resp);

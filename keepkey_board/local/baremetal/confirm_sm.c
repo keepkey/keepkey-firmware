@@ -525,3 +525,19 @@ bool confirm_load_device(bool is_node)
 
     return(ret_stat);
 }
+
+/*
+ * confirm_address()
+ *
+ * INPUT -
+ *      *request_title - title for confirm message
+ *      *address - address to display both as string and in QR
+ * OUTPUT -
+ *      true/false - status
+ *
+ */
+bool confirm_address(const char *request_title, const char *address)
+{
+    return confirm_with_custom_layout(&layout_address_notification,
+        ButtonRequestType_ButtonRequest_Address, request_title, address);
+}
