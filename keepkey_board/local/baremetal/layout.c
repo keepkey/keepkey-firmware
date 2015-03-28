@@ -266,19 +266,19 @@ void layout_address_notification(const char* str1, const char* address, Notifica
 
     DrawableParams sp;
     const Font* str1_font = get_title_font();
-    const Font* address_font = get_body_font();
+    const Font* address_font = get_title_font();
+
+    /* Unbold fonts if address becomes too long */
+    if(calc_str_width(address_font, address) > TRANSACTION_WIDTH) {
+        address_font = get_body_font();
+    }
 
     /* Determine vertical alignment and body width */
     sp.y =  TOP_MARGIN_FOR_ONE_LINE;
 
-    /* Draw str1 */
-    sp.x = LEFT_MARGIN + 32 + 4;
-    sp.color = TITLE_COLOR;
-    draw_string(canvas, str1_font, str1, &sp, TRANSACTION_WIDTH, font_height(str1_font));
-
     /* Draw address */
-    sp.y += font_height(address_font) + BODY_TOP_MARGIN;
-    sp.x = LEFT_MARGIN + 32 + 4;
+    sp.y += font_height(address_font) + ADDRESS_TOP_MARGIN;
+    sp.x = LEFT_MARGIN;
     sp.color = BODY_COLOR;
     draw_string(canvas, address_font, address, &sp, TRANSACTION_WIDTH, font_height(address_font) + BODY_FONT_LINE_PADDING);
 
@@ -286,6 +286,15 @@ void layout_address_notification(const char* str1, const char* address, Notifica
     layout_notification_icon(type, &sp);
 }
 
+/*
+ * layout_notification_icon() - display notification icon
+ *
+ * INPUT - 
+ *      1. notification type
+ *      2. drawable parameters for icon notification placement
+ * OUTPUT - 
+ *      none
+ */
 void layout_notification_icon(NotificationType type, DrawableParams *sp) {
     /* Determine animation/icon to show */
     static AnimationImageDrawableParams icon;

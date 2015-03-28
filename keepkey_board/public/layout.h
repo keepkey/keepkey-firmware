@@ -89,13 +89,10 @@ extern "C" {
 #define PIN_MAX_ANIMATION_MS				1000
 
 /* QR */
+#define ADDRESS_TOP_MARGIN  16
 #define QR_DISPLAY_SCALE    1
 #define QR_DISPLAY_X        4
-#define QR_DISPLAY_Y        16
-
-#define AMOUNT_LABEL_TEXT	"Amount:"
-#define ADDRESS_LABEL_TEXT	"Address:"
-#define CONFIRM_LABEL_TEXT	"Confirming transaction..."
+#define QR_DISPLAY_Y        10
 
 /**************  Typedefs and Macros *****************/
 typedef enum
