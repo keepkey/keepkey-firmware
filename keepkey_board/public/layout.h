@@ -57,13 +57,14 @@ extern "C" {
 #define TITLE_FONT_LINE_PADDING 0
 
 /* Body */
-#define BODY_TOP_MARGIN 		4
+#define BODY_TOP_MARGIN 		7
 #define BODY_COLOR				0xFF
 #define BODY_WIDTH				225
 #define BODY_ROWS				3
 #define BODY_FONT_LINE_PADDING	4
 
 /* Transaction */
+#define TRANSACTION_TOP_MARGIN  4
 #define TRANSACTION_WIDTH       250
 
 /* Warning */

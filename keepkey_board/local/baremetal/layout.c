@@ -241,7 +241,7 @@ void layout_transaction_notification(const char* amount, const char* address, No
     draw_string(canvas, amount_font, title, &sp, TRANSACTION_WIDTH, font_height(amount_font));
 
     /* Draw address */
-    sp.y += font_height(address_font) + BODY_TOP_MARGIN;
+    sp.y += font_height(address_font) + TRANSACTION_TOP_MARGIN;
     sp.x = LEFT_MARGIN;
     sp.color = BODY_COLOR;
     draw_string(canvas, address_font, address, &sp, TRANSACTION_WIDTH, font_height(address_font) + BODY_FONT_LINE_PADDING);
