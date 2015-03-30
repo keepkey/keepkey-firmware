@@ -63,6 +63,10 @@ enum MessageType {
 	MessageType_RecoveryDevice = 45 [(wire_in) = true];
 	MessageType_WordRequest = 46 [(wire_out) = true];
 	MessageType_WordAck = 47 [(wire_in) = true];
+  MessageType_CharacterRequest = 53 [(wire_out) = true];
+  MessageType_CharacterAck = 54 [(wire_in) = true];
+  MessageType_CharacterDeleteAck = 55 [(wire_in) = true];
+  MessageType_CharacterFinalAck = 56 [(wire_in) = true];
 	MessageType_DebugLinkDecision = 100 [(wire_debug_in) = true];
 	MessageType_DebugLinkGetState = 101 [(wire_debug_in) = true];
 	MessageType_DebugLinkState = 102 [(wire_debug_out) = true];
@@ -341,6 +345,7 @@ message RecoveryDevice {
 	optional string language = 4 [default='english'];	// device language
 	optional string label = 5;				// device label
 	optional bool enforce_wordlist = 6;			// enforce BIP-39 wordlist during the process
+	optional bool use_character_cypher = 7;	// an optional way to input recovery sentence by character using a cypher
 }
 
 /**
@@ -361,6 +366,44 @@ message WordRequest {
  */
 message WordAck {
 	required string word = 1;				// one word of mnemonic on asked position
+}
+
+/**
+ * Response: Device is waiting for user to enter character of the mnemonic using cypher.
+ * The cypher is shown on device's internal display.
+ * @prev RecoveryDevice
+ * @prev CharacterAck
+ */
+message CharacterRequest {
+}
+
+/**
+ * Request: Computer replies with character from the mnemonic using cypher
+ * @prev CharacterRequest
+ * @next CharacterRequest
+ * @next Failure
+ */
+message CharacterAck {
+	required string character = 1;				// one character of mnemonic using cypher
+}
+
+/**
+ * Request: Computer replies with a request to delete previous character from mnemonic
+ * if one exists.
+ * @prev CharacterRequest
+ * @next CharacterRequest
+ * @next Failure
+ */
+message CharacterDeleteAck {
+}
+
+/**
+ * Request: Computer replies with a final character letting the device know mnemonic is complete.
+ * @prev CharacterRequest
+ * @next Success
+ * @next Failure
+ */
+message CharacterFinalAck {
 }
 
 //////////////////////////////
