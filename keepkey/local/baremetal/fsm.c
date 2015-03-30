@@ -43,6 +43,7 @@
 #include <storage.h>
 #include <reset.h>
 #include <recovery.h>
+#include <recovery_cypher.h>
 #include <memory.h>
 #include <util.h>
 #include <signing.h>
@@ -860,19 +861,28 @@ void fsm_msgEstimateTxSize(EstimateTxSize *msg)
 
 void fsm_msgRecoveryDevice(RecoveryDevice *msg)
 {
-    if (storage_isInitialized())
-    {
+    if (storage_isInitialized()) {
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Device is already initialized. Use Wipe first.");
         return;
     }
-    recovery_init(
-            msg->has_word_count ? msg->word_count : 12,
+
+    if(msg->has_use_character_cypher && msg->use_character_cypher == true) { // recovery via character cypher
+        recovery_cypher_init(
             msg->has_passphrase_protection && msg->passphrase_protection,
             msg->has_pin_protection && msg->pin_protection,
             msg->has_language ? msg->language : 0,
-            msg->has_label ? msg->label : 0,
-            msg->has_enforce_wordlist ? msg->enforce_wordlist : false
+            msg->has_label ? msg->label : 0
             );
+    } else {                                                                 // legacy way of recovery
+        recovery_init(
+    		msg->has_word_count ? msg->word_count : 12,
+    		msg->has_passphrase_protection && msg->passphrase_protection,
+    		msg->has_pin_protection && msg->pin_protection,
+    		msg->has_language ? msg->language : 0,
+    		msg->has_label ? msg->label : 0,
+    		msg->has_enforce_wordlist ? msg->enforce_wordlist : false
+    		);
+   }
 }
 
 void fsm_msgWordAck(WordAck *msg)
@@ -983,7 +993,8 @@ static const MessagesMap_t MessagesMap[] = {
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_DecryptedMessage,		DecryptedMessage_fields,	0},
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_PassphraseRequest,	PassphraseRequest_fields,	0},
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_TxSize,				TxSize_fields,				0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_WordRequest,			WordRequest_fields,			0},
+    {NORMAL_MSG, OUT_MSG, MessageType_MessageType_WordRequest,          WordRequest_fields,         0},
+	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_CharacterRequest,		CharacterRequest_fields,	0},
 #if DEBUG_LINK
 	// debug in messages
 	{DEBUG_MSG, IN_MSG, MessageType_MessageType_DebugLinkDecision,		DebugLinkDecision_fields,	0},
