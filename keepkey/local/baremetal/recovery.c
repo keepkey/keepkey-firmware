@@ -116,7 +116,9 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
 	}
 	for (i = 0; i < 10000; i++) {
 		j = random32() % 24;
+        delay_us(1);  /* brief pause before acquiring another random value */
 		k = random32() % 24;
+        delay_us(1);  /* brief pause before acquiring another random value */
 		t = word_order[j];
 		word_order[j] = word_order[k];
 		word_order[k] = t;

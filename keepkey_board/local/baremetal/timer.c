@@ -77,6 +77,22 @@ void timer_init(void)
 }
 
 /*
+ * delay_us() - micro second delay 
+ *
+ * INPUT - 
+ *      us - count in micro seconds
+ * OUTPUT - 
+ *      none
+ */
+void delay_us(uint32_t us)
+{
+    uint32_t cnt = us * 20;
+    while(cnt--) {
+        __asm__("nop");
+    }
+}
+
+/*
  * delay_ms() - millisecond delay 
  *
  * INPUT - 

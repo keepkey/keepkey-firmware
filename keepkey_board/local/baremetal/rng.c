@@ -15,6 +15,10 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ *          --------------------------------------------
+ * March 30, 2015 - This file has been modified and adapted for KeepKey project.
  */
 
 #include <libopencm3/cm3/common.h>
@@ -25,17 +29,29 @@
 
 uint32_t random32(void)
 {
-    uint32_t rng_samples = 0;
+    uint32_t rng_samples = 0, rng_sr_img;
     static uint32_t last = 0, new = 0;
+
     while (new == last) {
-        if (((RNG_SR & (RNG_SR_SEIS | RNG_SR_CEIS)) == 0) && ((RNG_SR & RNG_SR_DRDY) > 0)) {
-            new = RNG_DR;
-            continue;
+        /* Capture the RNG status register */
+        rng_sr_img = RNG_SR;  
+        if ((rng_sr_img & (RNG_SR_SEIS | RNG_SR_CEIS)) == 0) {
+            if (rng_sr_img & RNG_SR_DRDY) {
+                new = RNG_DR;
+            }
         }
-        delay_ms(1);
-        if(rng_samples++ >= 100) {
-            reset_rng();
-            rng_samples = 0;
+        else if ((rng_sr_img & (RNG_SR_SECS | RNG_SR_CECS)) == 0) {
+            /* Reset RNG interrupt status bits (SECS, CECS errors no longer exist) */
+            RNG_SR &= ~(RNG_SR_SEIS | RNG_SR_CEIS);
+        }
+        else {
+            /* RNG is not ready.  Allow few more samples for RNG to come back alive
+             * before resetting */
+            if (++rng_samples >= 100) {
+                /* RNG in hang state.  Reset RNG */
+                reset_rng();
+                rng_samples = 0;
+            }
         }
     }
     last = new;

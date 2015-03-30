@@ -64,6 +64,7 @@ typedef struct
 /******************** Function Declarations ***********************/
 void timer_init(void);
 void delay_ms(uint32_t ms);
+void delay_us(uint32_t us);
 void delay_ms_with_callback(uint32_t ms, callback_func_t callback_func, uint32_t frequency_ms);
 void post_delayed(Runnable runnable, void *context, uint32_t ms_delay);
 void post_periodic(Runnable runnable, void *context, uint32_t period_ms, uint32_t delay_ms);

@@ -99,9 +99,11 @@ void reset_rng(void)
     /* disable RNG */
     RNG_CR &= ~(RNG_CR_IE | RNG_CR_RNGEN);
     /* reset Seed/Clock/ error status */
-	RNG_SR &= ~(RNG_SR_SEIS | RNG_SR_CEIS | RNG_SR_SECS);
+	RNG_SR &= ~(RNG_SR_SEIS | RNG_SR_CEIS);
     /* reenable RNG */
     RNG_CR |= RNG_CR_IE | RNG_CR_RNGEN;
+    /* this delay is required before rng data can be read */
+    delay_us(5);
 }
 
 /*

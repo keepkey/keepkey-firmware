@@ -185,17 +185,17 @@ bool dbg_print(char *pStr, ...)
  * input - none
  * output- none 
  ********************************************************************/
-void dbg_trigger(void)
+void dbg_trigger(uint32_t color)
 {
-    do
-    {
-        /* check Tx register ready transmissiion */
-        if(USART_SR(USART3_BASE) & USART_SR_TXE)
-        {
-            USART_DR(USART3_BASE) = 0x01;
+    switch(color) {
+        case 1:
+            led_func(CLR_RED_LED);
+            led_func(SET_RED_LED);
             break;
-        }
-    }while(1);
+        case 2:
+            led_func(CLR_GREEN_LED);
+            led_func(SET_GREEN_LED);
+    }
 }
 /*
  * read_console - Read debug console port for user input 
