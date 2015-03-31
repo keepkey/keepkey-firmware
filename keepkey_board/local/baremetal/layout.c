@@ -429,6 +429,62 @@ void layout_pin(const char* str, char pin[])
 	layout_add_animation( &layout_animate_pin, (void*)pin, 0);
 }
 
+void layout_cypher(const char* cypher)
+{
+    DrawableParams sp;
+    int row, letter, x_padding;
+    const Font* title_font = get_title_font();
+    const Font* cypher_font = get_title_font();
+    char alphabet[] = "abcdefghijklmnopqrstuvwxyz";
+    char *current_letter = alphabet;
+
+    call_leaving_handler();
+    layout_clear();
+
+    /* Draw prompt */
+    sp.y = 20;
+    sp.x = 8;
+    sp.color = BODY_COLOR;
+    draw_string(canvas, title_font, "Recovery Cypher", &sp, 56, font_height(title_font) + 3);
+
+    /* Draw grid */
+    sp.y = 3;
+    sp.x = 76;
+    for(row = 0; row < 2; row++) {
+        for(letter = 0; letter < 13; letter++) {
+            sp.x = 76 + (letter * 14);
+            x_padding = 0;
+
+            /* Draw grid */
+            draw_box_simple(canvas, 0x22, sp.x - 4, sp.y + 13, 13, 13);
+
+            x_padding = 0;
+            if(*current_letter == 'i' || *current_letter == 'l') {
+                x_padding = 2;
+            } else if(*current_letter == 'm' || *current_letter == 'w') {
+                x_padding = -1;
+            }
+
+            /* Draw map */
+            draw_char_simple(canvas, cypher_font, *current_letter++, 0x55, sp.x + x_padding, sp.y);
+
+            x_padding = 0;
+            if(*cypher == 'i' || *cypher == 'l') {
+                x_padding = 2;
+            } else if(*cypher == 'm' || *cypher == 'w') {
+                x_padding = -1;
+            }
+
+            /* Draw cypher */
+            draw_char_simple(canvas, cypher_font, *cypher++, BODY_COLOR, sp.x + x_padding, sp.y + 14);
+        }
+        sp.x = 76;
+        sp.y += 35;
+    }
+
+    display_refresh();
+}
+
 /*
  * layout_loading() - load image for display
  *

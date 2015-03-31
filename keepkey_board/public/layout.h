@@ -163,6 +163,7 @@ void layout_notification_icon(NotificationType type, DrawableParams *sp);
 void layout_warning(const char* prompt);
 void layout_simple_message(const char* str);
 void layout_pin(const char *prompt, char *pin);
+void layout_cypher(const char* cypher);
 void layout_loading();
 void layout_address(const char* address);
 
