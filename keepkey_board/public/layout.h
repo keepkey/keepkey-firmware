@@ -90,7 +90,26 @@ extern "C" {
 #define PIN_MAX_ANIMATION_MS				1000
 
 /* Recovery Cypher */
-#define CYPHER_ANIMATION_FREQUENCY_MS   20
+#define CYPHER_ROWS                     2
+#define CYPHER_LETTER_BY_ROW            13
+#define CYPHER_GRID_SIZE                13
+#define CYPHER_GRID_SPACING             1
+#define CYPHER_ANIMATION_FREQUENCY_MS   10
+#define CYPHER_STEP_1                   0X22
+#define CYPHER_STEP_2                   0X33
+#define CYPHER_STEP_3                   0X55
+#define CYPHER_STEP_4                   0X77
+#define CYPHER_FOREGROUND               0X99
+#define CYPHER_START_X                  76
+#define CYPHER_START_Y                  3
+#define CYPHER_MASK_COLOR               0x00
+#define CYPHER_FONT_COLOR               0x99
+#define CYPHER_MAP_FONT_COLOR           0xFF
+#define CYPHER_HORIZONTAL_MASK_WIDTH    181
+#define CYPHER_HORIZONTAL_MASK_WIDTH_3  3
+#define CYPHER_HORIZONTAL_MASK_HEIGHT_2 2
+#define CYPHER_HORIZONTAL_MASK_HEIGHT_3 3
+#define CYPHER_HORIZONTAL_MASK_HEIGHT_4 4
 
 /* QR */
 #define ADDRESS_TOP_MARGIN  16

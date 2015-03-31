@@ -433,7 +433,7 @@ void layout_pin(const char* str, char pin[])
 void layout_cypher(const char* cypher)
 {
     DrawableParams sp;
-    const Font* title_font = get_title_font();
+    const Font* title_font = get_body_font();
 
     call_leaving_handler();
     layout_clear();
@@ -442,7 +442,7 @@ void layout_cypher(const char* cypher)
     sp.y = 20;
     sp.x = 8;
     sp.color = BODY_COLOR;
-    draw_string(canvas, title_font, "Recovery Cypher", &sp, 56, font_height(title_font) + 3);
+    draw_string(canvas, title_font, "Recovery Cypher:", &sp, 58, font_height(title_font) + 3);
     display_refresh();
 
     /* Animate cypher */
@@ -707,27 +707,31 @@ static void layout_animate_pin(void* data, uint32_t duration, uint32_t elapsed)
  */
 static void layout_animate_cypher(void* data, uint32_t duration, uint32_t elapsed)
 {
-    int row, letter, x_padding, cur_pos_elapsed, adj_pos;
-    uint8_t color_stepping[] = {PIN_MATRIX_STEP1, PIN_MATRIX_STEP2, PIN_MATRIX_STEP3, PIN_MATRIX_STEP4, PIN_MATRIX_FOREGROUND};
+    int row, letter, x_padding, cur_pos_elapsed, adj_pos, adj_x, adj_y, cur_index;
+    uint8_t color_stepping[] = {CYPHER_STEP_1, CYPHER_STEP_2, CYPHER_STEP_3, CYPHER_STEP_4, CYPHER_FOREGROUND};
     char *cypher = (char*)data;
     char alphabet[] = "abcdefghijklmnopqrstuvwxyz";
     char *current_letter = alphabet;
 
     DrawableParams sp;
     const Font* title_font = get_title_font();
-    const Font* cypher_font = get_title_font();
+    const Font* cypher_font = get_body_font();
+
+    /* Clear area behind cypher */
+    draw_box_simple(canvas, CYPHER_MASK_COLOR, CYPHER_START_X, 0, KEEPKEY_DISPLAY_WIDTH-CYPHER_START_X, KEEPKEY_DISPLAY_HEIGHT);
 
     /* Draw grid */
-    sp.y = 3;
-    sp.x = 76;
-    for(row = 0; row < 2; row++) {
-        for(letter = 0; letter < 13; letter++) {
-            cur_pos_elapsed = elapsed - ((row * 13) + letter) * CYPHER_ANIMATION_FREQUENCY_MS;
-            sp.x = 76 + (letter * 14);
+    sp.y = CYPHER_START_Y;
+    sp.x = CYPHER_START_X;
+    for(row = 0; row < CYPHER_ROWS; row++) {
+        for(letter = 0; letter < CYPHER_LETTER_BY_ROW; letter++) {
+            cur_index = (row * CYPHER_LETTER_BY_ROW) + letter;
+            cur_pos_elapsed = elapsed - cur_index * CYPHER_ANIMATION_FREQUENCY_MS;
+            sp.x = CYPHER_START_X + (letter * (CYPHER_GRID_SIZE + CYPHER_GRID_SPACING));
             x_padding = 0;
 
             /* Draw grid */
-            draw_box_simple(canvas, 0x22, sp.x - 4, sp.y + 13, 13, 13);
+            draw_box_simple(canvas, CYPHER_STEP_1, sp.x - 4, sp.y + CYPHER_GRID_SIZE, CYPHER_GRID_SIZE, CYPHER_GRID_SIZE);
 
             x_padding = 0;
             if(*current_letter == 'i' || *current_letter == 'l') {
@@ -737,11 +741,14 @@ static void layout_animate_cypher(void* data, uint32_t duration, uint32_t elapse
             }
 
             /* Draw map */
-            draw_char_simple(canvas, cypher_font, *current_letter++, 0x55, sp.x + x_padding, sp.y);
+            draw_char_simple(canvas, title_font, *current_letter++, CYPHER_MAP_FONT_COLOR, sp.x + x_padding, sp.y);
 
             x_padding = 0;
             if(*cypher == 'i' || *cypher == 'l') {
                 x_padding = 2;
+            } else if(*cypher == 'k' || *cypher == 'j' ||
+                    *cypher == 'r' || *cypher == 'f') {
+                x_padding = 1;
             } else if(*cypher == 'm' || *cypher == 'w') {
                 x_padding = -1;
             }
@@ -750,23 +757,45 @@ static void layout_animate_cypher(void* data, uint32_t duration, uint32_t elapse
             if(cur_pos_elapsed > 0) {
                 adj_pos = cur_pos_elapsed / CYPHER_ANIMATION_FREQUENCY_MS;
 
+                adj_x = 0;
+                adj_y = 0;
+
                 if(adj_pos < 5){
-                    draw_char_simple(canvas, cypher_font, *cypher, color_stepping[adj_pos], sp.x + x_padding, sp.y + 14 + (5 - adj_pos));
-                } else {
-                    draw_char_simple(canvas, cypher_font, *cypher, BODY_COLOR, sp.x + x_padding, sp.y + 14);
+                    if(cur_index % 4 == 0) {
+                        adj_y = -(5 - adj_pos);
+                    } else if (cur_index % 4 == 1) {
+                        adj_x = 5 - adj_pos;
+                    } else if (cur_index % 4 == 2) {
+                        adj_y = 5 - adj_pos;
+                    } else {                    
+                        adj_x = -(5 - adj_pos);
+                    }
                 }
-                
+
+                draw_char_simple(canvas, cypher_font, *cypher, CYPHER_FONT_COLOR, 
+                    sp.x + x_padding + adj_x, sp.y + (CYPHER_GRID_SIZE + CYPHER_GRID_SPACING) + adj_y);
             }
+
+            /* Draw grid mask between boxes */
+            draw_box_simple(canvas, CYPHER_MASK_COLOR, sp.x - 5, sp.y + CYPHER_GRID_SIZE, 1, CYPHER_GRID_SIZE);
 
             *cypher++;
         }
-        sp.x = 76;
+        sp.x = CYPHER_START_X;
         sp.y += 31;
     }
 
     /* Draw mask */
-    draw_box_simple(canvas, 0x00, 72, 29, 181, 3);
-    draw_box_simple(canvas, 0x00, 72, 59, 181, 4);
+    draw_box_simple(canvas, CYPHER_MASK_COLOR, CYPHER_START_X - 4, 14, CYPHER_HORIZONTAL_MASK_WIDTH, 
+        CYPHER_HORIZONTAL_MASK_HEIGHT_2);
+    draw_box_simple(canvas, CYPHER_MASK_COLOR, CYPHER_START_X - 4, 45, CYPHER_HORIZONTAL_MASK_WIDTH, 
+        CYPHER_HORIZONTAL_MASK_HEIGHT_2);
+    draw_box_simple(canvas, CYPHER_MASK_COLOR, CYPHER_START_X - 4, 29, CYPHER_HORIZONTAL_MASK_WIDTH, 
+        CYPHER_HORIZONTAL_MASK_HEIGHT_3);
+    draw_box_simple(canvas, CYPHER_MASK_COLOR, CYPHER_START_X - 4, 59, CYPHER_HORIZONTAL_MASK_WIDTH, 
+        CYPHER_HORIZONTAL_MASK_HEIGHT_4);
+    draw_box_simple(canvas, CYPHER_MASK_COLOR, KEEPKEY_DISPLAY_WIDTH - CYPHER_HORIZONTAL_MASK_WIDTH_3, 0,
+        CYPHER_HORIZONTAL_MASK_WIDTH_3, KEEPKEY_DISPLAY_HEIGHT);
 }
 
 /*
