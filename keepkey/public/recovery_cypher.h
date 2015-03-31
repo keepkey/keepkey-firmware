@@ -28,5 +28,7 @@
 
 void recovery_cypher_init(bool passphrase_protection, bool pin_protection, const char *language, const char *label);
 void next_character(void);
+void recovery_character(const char *character);
+void recovery_delete_character(void);
 
 #endif

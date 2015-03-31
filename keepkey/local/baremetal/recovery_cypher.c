@@ -30,6 +30,7 @@
 #include <storage.h>
 
 #include "recovery_cypher.h"
+#include "rng.h"
 #include "fsm.h"
 #include "pin_sm.h"
 #include "home_sm.h"
@@ -49,7 +50,30 @@ void recovery_cypher_init(bool passphrase_protection, bool pin_protection, const
 }
 
 void next_character(void) {
-  CharacterRequest resp;
-  memset(&resp, 0, sizeof(CharacterRequest));
-  msg_write(MessageType_MessageType_CharacterRequest, &resp);
+    char cypher[] = "abcdefghijklmnopqrstuvwxyz", temp;
+    uint32_t i, j, k;
+
+    for (i = 0; i < 100; i++) {
+        j = random32() % 26;
+        k = random32() % 26;
+        temp = cypher[j];
+        cypher[j] = cypher[k];
+        cypher[k] = temp;
+    }
+
+    layout_cypher(cypher);
+
+    CharacterRequest resp;
+    memset(&resp, 0, sizeof(CharacterRequest));
+    msg_write(MessageType_MessageType_CharacterRequest, &resp);
+}
+
+void recovery_character(const char *character) {
+    dbg_print("\n\r%s\n\r", character);
+    next_character();
+}
+
+void recovery_delete_character(void) {
+    dbg_print("\n\rDELETE\n\r");
+    next_character();
 }

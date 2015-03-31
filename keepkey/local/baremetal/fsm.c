@@ -890,6 +890,16 @@ void fsm_msgWordAck(WordAck *msg)
     recovery_word(msg->word);
 }
 
+void fsm_msgCharacterAck(CharacterAck *msg)
+{
+    recovery_character(msg->character);
+}
+
+void fsm_msgCharacterDeleteAck(CharacterDeleteAck *msg)
+{
+    recovery_delete_character();
+}
+
 #if DEBUG_LINK
 void fsm_msgDebugLinkGetState(DebugLinkGetState *msg)
 {
@@ -976,6 +986,8 @@ static const MessagesMap_t MessagesMap[] = {
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_EstimateTxSize,		EstimateTxSize_fields,		(void (*)(void *))fsm_msgEstimateTxSize},
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_RecoveryDevice,		RecoveryDevice_fields,		(void (*)(void *))fsm_msgRecoveryDevice},
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_WordAck,				WordAck_fields,				(void (*)(void *))fsm_msgWordAck},
+	{NORMAL_MSG, IN_MSG, MessageType_MessageType_CharacterAck,			CharacterAck_fields,		(void (*)(void *))fsm_msgCharacterAck},
+	{NORMAL_MSG, IN_MSG, MessageType_MessageType_CharacterDeleteAck,	CharacterDeleteAck_fields,	(void (*)(void *))fsm_msgCharacterDeleteAck},
 	// out messages
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_Success,				Success_fields,				0},
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_Failure,				Failure_fields,				0},
