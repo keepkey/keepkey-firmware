@@ -50,8 +50,11 @@ void recovery_cypher_init(bool passphrase_protection, bool pin_protection, const
 }
 
 void next_character(void) {
-    char cypher[] = "abcdefghijklmnopqrstuvwxyz", temp;
+    static char cypher[27];
+    char temp;
     uint32_t i, j, k;
+
+    strcpy(cypher, "abcdefghijklmnopqrstuvwxyz");
 
     for (i = 0; i < 100; i++) {
         j = random32() % 26;

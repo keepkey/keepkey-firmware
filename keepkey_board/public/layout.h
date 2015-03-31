@@ -89,6 +89,9 @@ extern "C" {
 #define PIN_SLIDE_DELAY						20
 #define PIN_MAX_ANIMATION_MS				1000
 
+/* Recovery Cypher */
+#define CYPHER_ANIMATION_FREQUENCY_MS   20
+
 /* QR */
 #define ADDRESS_TOP_MARGIN  16
 #define QR_DISPLAY_SCALE    1
