@@ -47,7 +47,7 @@ RecoveryDevice.label			max_size:33
 
 WordAck.word				max_size:12
 
-CharacterAck.character        max_size:1
+CharacterAck.character        max_size:2
 
 SignMessage.address_n			max_count:8
 SignMessage.message			max_size:1024
