@@ -124,6 +124,7 @@ void fsm_msgInitialize(Initialize *msg)
 {
 	(void)msg;
 	recovery_abort();
+	recovery_cypher_abort(false);
 	signing_abort();
 	RESP_INIT(Features);
 
@@ -433,6 +434,7 @@ void fsm_msgCancel(Cancel *msg)
 {
     (void)msg;
     recovery_abort();
+    recovery_cypher_abort(true);
     signing_abort();
 }
 
@@ -871,7 +873,8 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg)
             msg->has_passphrase_protection && msg->passphrase_protection,
             msg->has_pin_protection && msg->pin_protection,
             msg->has_language ? msg->language : 0,
-            msg->has_label ? msg->label : 0
+            msg->has_label ? msg->label : 0,
+            msg->has_enforce_wordlist ? msg->enforce_wordlist : false
             );
     } else {                                                                 // legacy way of recovery
         recovery_init(
@@ -898,6 +901,11 @@ void fsm_msgCharacterAck(CharacterAck *msg)
 void fsm_msgCharacterDeleteAck(CharacterDeleteAck *msg)
 {
     recovery_delete_character();
+}
+
+void fsm_msgCharacterFinalAck(CharacterFinalAck *msg)
+{
+    recovery_final_character();
 }
 
 #if DEBUG_LINK
@@ -988,6 +996,7 @@ static const MessagesMap_t MessagesMap[] = {
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_WordAck,				WordAck_fields,				(void (*)(void *))fsm_msgWordAck},
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_CharacterAck,			CharacterAck_fields,		(void (*)(void *))fsm_msgCharacterAck},
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_CharacterDeleteAck,	CharacterDeleteAck_fields,	(void (*)(void *))fsm_msgCharacterDeleteAck},
+	{NORMAL_MSG, IN_MSG, MessageType_MessageType_CharacterFinalAck,		CharacterFinalAck_fields,	(void (*)(void *))fsm_msgCharacterFinalAck},
 	// out messages
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_Success,				Success_fields,				0},
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_Failure,				Failure_fields,				0},

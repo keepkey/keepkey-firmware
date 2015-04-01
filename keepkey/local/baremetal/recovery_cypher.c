@@ -35,7 +35,16 @@
 #include "pin_sm.h"
 #include "home_sm.h"
 
-void recovery_cypher_init(bool passphrase_protection, bool pin_protection, const char *language, const char *label) {
+static bool enforce_wordlist;
+static bool awaiting_character;
+static char mnemonic[24 * 12];
+static char english_alphabet[] = "abcdefghijklmnopqrstuvwxyz";
+static char cypher[27];
+
+void get_current_word(char *current_word);
+
+void recovery_cypher_init(bool passphrase_protection, bool pin_protection, 
+        const char *language, const char *label, bool _enforce_wordlist) {
 	if (pin_protection && !change_pin()) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
 		go_home();
@@ -46,15 +55,21 @@ void recovery_cypher_init(bool passphrase_protection, bool pin_protection, const
 	storage_setLanguage(language);
 	storage_setLabel(label);
 
+    enforce_wordlist = _enforce_wordlist;
+
+    /* Clear mnemonic */
+    memset(mnemonic,0,strlen(mnemonic));
+
+    /* Set to recovery cypher mode and generate and show next cypher */
+    awaiting_character = true;
 	next_character();
 }
 
 void next_character(void) {
-    static char cypher[27];
-    char temp;
+    char current_word[9] = "", temp;
     uint32_t i, j, k;
 
-    strcpy(cypher, "abcdefghijklmnopqrstuvwxyz");
+    strcpy(cypher, english_alphabet);
 
     for (i = 0; i < 100; i++) {
         j = random32() % 26;
@@ -64,7 +79,9 @@ void next_character(void) {
         cypher[k] = temp;
     }
 
-    layout_cypher(cypher);
+    /* Format current word and display it along with cypher */
+    get_current_word(current_word);
+    layout_cypher(current_word, cypher);
 
     CharacterRequest resp;
     memset(&resp, 0, sizeof(CharacterRequest));
@@ -72,11 +89,72 @@ void next_character(void) {
 }
 
 void recovery_character(const char *character) {
-    dbg_print("\n\r%s\n\r", character);
-    next_character();
+    
+    char decoded_character[2] = " ", *pos;
+
+    if(awaiting_character) {
+
+        pos = strchr(cypher, character[0]);
+
+        /* Decode character using cypher if not space */
+        if(character[0] != ' ') {
+            decoded_character[0] = english_alphabet[(int)(pos - cypher)];
+        }
+
+        // concat to mnemonic
+        strcat(mnemonic, decoded_character);
+
+        dbg_print("\n\r%s\n\r", mnemonic);
+
+        next_character();
+
+    } else {
+
+        fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
+        go_home();
+        return;
+
+    }
 }
 
 void recovery_delete_character(void) {
-    dbg_print("\n\rDELETE\n\r");
+    mnemonic[strlen(mnemonic) - 1] = '\0';
     next_character();
+}
+
+void recovery_final_character(void) {
+    mnemonic[strlen(mnemonic) - 1] = '\0';
+
+    fsm_sendSuccess("Device recovered");
+    go_home();
+}
+
+void recovery_cypher_abort(bool send_failure)
+{
+    if (awaiting_character) {
+        if(send_failure) {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Recovery cancelled");
+        }
+
+        go_home();
+        awaiting_character = false;
+    }
+}
+
+void get_current_word(char *current_word) {
+    char *pos = strrchr(mnemonic, ' ');
+    int i;
+
+    if(pos) {
+        *pos++;
+        strcpy(current_word, pos);
+    } else {
+        strcpy(current_word, mnemonic);
+    }
+
+    /* Pad with asterix */
+    for(i = strlen(current_word); i < 9; i++) {
+        current_word[i] = '-';
+    }
+    current_word[9] = '\0';
 }

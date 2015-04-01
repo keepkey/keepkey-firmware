@@ -26,9 +26,12 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-void recovery_cypher_init(bool passphrase_protection, bool pin_protection, const char *language, const char *label);
+void recovery_cypher_init(bool passphrase_protection, bool pin_protection, const char *language,
+    const char *label, bool _enforce_wordlist);
 void next_character(void);
 void recovery_character(const char *character);
 void recovery_delete_character(void);
+void recovery_final_character(void);
+void recovery_cypher_abort(bool send_failure);
 
 #endif

@@ -430,7 +430,7 @@ void layout_pin(const char* str, char pin[])
 	layout_add_animation( &layout_animate_pin, (void*)pin, PIN_MAX_ANIMATION_MS);
 }
 
-void layout_cypher(const char* cypher)
+void layout_cypher(const char* current_word, const char* cypher)
 {
     DrawableParams sp;
     const Font* title_font = get_body_font();
@@ -439,10 +439,17 @@ void layout_cypher(const char* cypher)
     layout_clear();
 
     /* Draw prompt */
-    sp.y = 20;
-    sp.x = 8;
+    sp.y = 11;
+    sp.x = 4;
     sp.color = BODY_COLOR;
     draw_string(canvas, title_font, "Recovery Cypher:", &sp, 58, font_height(title_font) + 3);
+    display_refresh();
+
+    /* Draw current word */
+    sp.y = 46;
+    sp.x = 4;
+    sp.color = BODY_COLOR;
+    draw_string(canvas, title_font, current_word, &sp, 58, font_height(title_font));
     display_refresh();
 
     /* Animate cypher */
