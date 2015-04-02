@@ -58,7 +58,7 @@ void recovery_cypher_init(bool passphrase_protection, bool pin_protection,
     enforce_wordlist = _enforce_wordlist;
 
     /* Clear mnemonic */
-    memset(mnemonic,0,strlen(mnemonic));
+    memset(mnemonic, 0, sizeof(mnemonic) / sizeof(char));
 
     /* Set to recovery cypher mode and generate and show next cypher */
     awaiting_character = true;
@@ -66,7 +66,7 @@ void recovery_cypher_init(bool passphrase_protection, bool pin_protection,
 }
 
 void next_character(void) {
-    char current_word[9] = "", temp;
+    char current_word[12] = "", temp;
     uint32_t i, j, k;
 
     strcpy(cypher, english_alphabet);
@@ -104,8 +104,6 @@ void recovery_character(const char *character) {
         // concat to mnemonic
         strcat(mnemonic, decoded_character);
 
-        dbg_print("\n\r%s\n\r", mnemonic);
-
         next_character();
 
     } else {
@@ -142,19 +140,26 @@ void recovery_cypher_abort(bool send_failure)
 }
 
 void get_current_word(char *current_word) {
-    char *pos = strrchr(mnemonic, ' ');
-    int i;
+    char *pos = strrchr(mnemonic, ' '), *pos_num = strchr(mnemonic,' ');
+    int i, j, word_num = 1, pos_len;
+
+    /* Determine word number */
+    while (pos_num != NULL) {
+        word_num++;
+        pos_num = strchr(++pos_num, ' ');
+    }
 
     if(pos) {
         *pos++;
-        strcpy(current_word, pos);
+        pos_len = strlen(pos);
+        sprintf(current_word, "%d.%s", word_num, pos);
     } else {
-        strcpy(current_word, mnemonic);
+        pos_len = strlen(mnemonic);
+        sprintf(current_word, "1.%s", mnemonic);
     }
 
     /* Pad with asterix */
-    for(i = strlen(current_word); i < 9; i++) {
-        current_word[i] = '-';
+    for(i = 0; i < 8 - pos_len; i++) {
+        strcat(current_word, "-");
     }
-    current_word[9] = '\0';
 }

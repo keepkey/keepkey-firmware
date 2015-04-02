@@ -449,7 +449,7 @@ void layout_cypher(const char* current_word, const char* cypher)
     sp.y = 46;
     sp.x = 4;
     sp.color = BODY_COLOR;
-    draw_string(canvas, title_font, current_word, &sp, 58, font_height(title_font));
+    draw_string(canvas, title_font, current_word, &sp, 68, font_height(title_font));
     display_refresh();
 
     /* Animate cypher */
