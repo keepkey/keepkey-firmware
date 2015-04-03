@@ -330,7 +330,7 @@ void storage_part_restore(ConfigFlash *cfg_ptr)
 void storage_part_erase(void)
 {
     flash_unlock(); 
-    flash_erase(FLASH_STORAGE);  
+    flash_erase_word(FLASH_STORAGE);  
     flash_lock();
 }
 
@@ -352,8 +352,8 @@ void handler_erase(FirmwareErase* msg)
         display_refresh();
         
         flash_unlock(); 
-        flash_erase(FLASH_STORAGE);  
-        flash_erase(FLASH_APP);
+        flash_erase_word(FLASH_STORAGE);  
+        flash_erase_word(FLASH_APP);
         flash_lock();
         send_success("Firmware Erased");
 
