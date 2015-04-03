@@ -121,10 +121,34 @@ void recovery_delete_character(void) {
 }
 
 void recovery_final_character(void) {
-    mnemonic[strlen(mnemonic) - 1] = '\0';
+    char words[24][12], temp[] = {'\0', '\0'};
+    int i, j;
 
-    fsm_sendSuccess("Device recovered");
+    /* Parse menmonic into array */
+    for(i = 0, j = 0; i < strlen(mnemonic); ++i) {
+        if(mnemonic[i] == ' ') {
+            j++;
+            words[j][0] = '\0';
+        } else {
+            temp[0] = mnemonic[i];
+            strcat(words[j], temp);
+        }
+    }
+
+    storage_set_mnemonic_from_words((const char (*)[])words, j + 1);
+
+    /* Go home before commiting to eliminate lag */
     go_home();
+
+    if (!enforce_wordlist || mnemonic_check(storage_get_shadow_mnemonic()))
+    {
+        storage_commit();
+        fsm_sendSuccess("Device recovered");
+    } else {
+        storage_reset();
+        fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid mnemonic, are words in correct order?");
+    }
+    awaiting_character = false;
 }
 
 void recovery_cypher_abort(bool send_failure)
