@@ -24,6 +24,7 @@
 #include <stdint.h>
 #include <libopencm3/stm32/flash.h>
 #include <keepkey_flash.h>
+#include <string.h>
 
 /*
  * flash_write_helper - helper function to locate starting address of the functional group
@@ -103,21 +104,44 @@ void flash_erase(Allocation group)
  * OUTPUT:
  *      status 
  */
-bool flash_write_word(Allocation group, uint32_t offset, uint32_t len, uint32_t* data)
+bool flash_write_word(Allocation group, uint32_t offset, uint32_t len, uint8_t *data)
 {
-    int i;
     bool retval = true;
 	uint32_t start = flash_write_helper(group);
+    uint32_t data_word[1];
+    uint32_t i, align_cnt = 0;
 
-    for(i = 0 ; i < len/sizeof(uint32_t); data++, i++)
+    start += offset ;
+
+    /* Byte writes for flash start address not long-word aligned */
+    if(start % sizeof(uint32_t)) {
+        align_cnt = sizeof(uint32_t) - start % sizeof(uint32_t);
+        flash_program(start, data, align_cnt);
+        start += align_cnt;
+        data += align_cnt;
+        len -= align_cnt;
+    }
+
+    /* Long word writes */
+    for(i = 0 ; i < len/sizeof(uint32_t); i++)
     {
-	    flash_program_word(start + offset, *data);
+        memcpy(data_word, data, sizeof(uint32_t));
+	    flash_program_word(start, *data_word);
         start += sizeof(uint32_t);
+        data += sizeof(uint32_t);
 	    // check flash status register for error condition
 	    if (FLASH_SR & (FLASH_SR_PGAERR | FLASH_SR_PGPERR | FLASH_SR_PGSERR | FLASH_SR_WRPERR)) {
             retval = false;
+            goto fww_exit;
 	    }
     }
+
+    /* Byte write for last remaining bytes */
+    align_cnt = len % sizeof(uint32_t);
+    if(align_cnt) {
+        flash_program(start, data, align_cnt);
+    }
+fww_exit:
     return(retval);
 }
 
