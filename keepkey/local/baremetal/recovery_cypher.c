@@ -20,6 +20,10 @@
  */
 /* END KEEPKEY LICENSE */
 
+/*
+ * @brief Recovery cypher.
+ */
+
 #include <string.h>
 #include <stdio.h>
 
@@ -43,6 +47,18 @@ static char cypher[27];
 
 void get_current_word(char *current_word);
 
+/*
+ * recovery_cypher_init() - display standard notification on LCD screen
+ *
+ * INPUT - 
+ *      1. bool passphrase_protection - whether to use passphrase protection
+ *      2. bool pin_protection - whether to use pin protection
+ *      3. string language - language for device
+ *      4. string label - label for device
+ *      5. bool _enforce_wordlist - whether to enforce bip 39 word list
+ * OUTPUT - 
+ *      none
+ */
 void recovery_cypher_init(bool passphrase_protection, bool pin_protection, 
         const char *language, const char *label, bool _enforce_wordlist) {
 	if (pin_protection && !change_pin()) {
@@ -65,6 +81,14 @@ void recovery_cypher_init(bool passphrase_protection, bool pin_protection,
 	next_character();
 }
 
+/*
+ * next_character() - randomizes cypher and displays it for next character entry
+ *
+ * INPUT - 
+ *      none
+ * OUTPUT - 
+ *      none
+ */
 void next_character(void) {
     char current_word[12] = "", temp;
     uint32_t i, j, k;
@@ -73,7 +97,9 @@ void next_character(void) {
 
     for (i = 0; i < 10000; i++) {
         j = random32() % 26;
+        delay_us(1);  /* brief pause before acquiring another random value */
         k = random32() % 26;
+        delay_us(1);  /* brief pause before acquiring another random value */
         temp = cypher[j];
         cypher[j] = cypher[k];
         cypher[k] = temp;
@@ -88,6 +114,14 @@ void next_character(void) {
     msg_write(MessageType_MessageType_CharacterRequest, &resp);
 }
 
+/*
+ * recovery_character() - decodes character received from host
+ *
+ * INPUT - 
+ *      1. string character - string to decode
+ * OUTPUT - 
+ *      none
+ */
 void recovery_character(const char *character) {
     
     char decoded_character[2] = " ", *pos;
@@ -115,11 +149,27 @@ void recovery_character(const char *character) {
     }
 }
 
+/*
+ * recovery_delete_character() - deletes previously received recovery character
+ *
+ * INPUT - 
+ *      none
+ * OUTPUT - 
+ *      none
+ */
 void recovery_delete_character(void) {
     mnemonic[strlen(mnemonic) - 1] = '\0';
     next_character();
 }
 
+/*
+ * recovery_final_character() - finished mnemonic entry
+ *
+ * INPUT - 
+ *      none
+ * OUTPUT - 
+ *      none
+ */
 void recovery_final_character(void) {
     char words[24][12], temp[] = {'\0', '\0'};
     int i, j;
@@ -151,6 +201,14 @@ void recovery_final_character(void) {
     awaiting_character = false;
 }
 
+/*
+ * recovery_cypher_abort() - aborts recovery cypher process
+ *
+ * INPUT - 
+ *      1. bool send_failure - whether a failure message is sent to host on cancellation
+ * OUTPUT - 
+ *      none
+ */
 void recovery_cypher_abort(bool send_failure)
 {
     if (awaiting_character) {
@@ -163,11 +221,27 @@ void recovery_cypher_abort(bool send_failure)
     }
 }
 
+/*
+ * recovery_get_cypher() - gets current cypher being show on display
+ *
+ * INPUT - 
+ *      none
+ * OUTPUT - 
+ *      none
+ */
 const char *recovery_get_cypher(void)
 {
     return cypher;
 }
 
+/*
+ * get_current_word() - returns the current word of the mnemonic sentence entry
+ *
+ * INPUT - 
+ *      1. string current_word - string to decode
+ * OUTPUT - 
+ *      none
+ */
 void get_current_word(char *current_word) {
     char *pos = strrchr(mnemonic, ' '), *pos_num = strchr(mnemonic,' ');
     int i, j, word_num = 1, pos_len;

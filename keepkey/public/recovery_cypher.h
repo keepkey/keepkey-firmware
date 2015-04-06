@@ -20,6 +20,10 @@
  */
 /* END KEEPKEY LICENSE */
 
+/*
+ * @brief Recovery cypher.
+ */
+
 #ifndef __RECOVERY_CYPHER_H__
 #define __RECOVERY_CYPHER_H__
 
