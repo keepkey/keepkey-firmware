@@ -453,7 +453,7 @@ void layout_cypher(const char* current_word, const char* cypher)
     display_refresh();
 
     /* Animate cypher */
-    layout_add_animation(&layout_animate_cypher, (void*)cypher, 0);
+    layout_add_animation(&layout_animate_cypher, (void*)cypher, CYPHER_ANIMATION_FREQUENCY_MS * 30);
 }
 
 /*
