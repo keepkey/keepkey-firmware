@@ -100,7 +100,7 @@ void flash_erase(Allocation group)
  *      1. functional group
  *      2. flash address offset
  *      3. length of source data
- *      4. source data address
+ *      4. pointer to source data 
  * OUTPUT:
  *      status 
  */
