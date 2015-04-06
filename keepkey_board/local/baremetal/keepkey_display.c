@@ -222,11 +222,18 @@ void display_refresh(void)
     int num_writes = canvas.width * canvas.height;
 
     int i;
+#ifdef INVERT_DISPLAY
+    for( i = num_writes; i > 0; i -= 2 )
+    {
+        uint8_t v = ( 0xF0 & canvas.buffer[ i ] ) | ( canvas.buffer[ i - 1 ] >> 4 );
+#else
     for( i = 0; i < num_writes; i += 2 )
     {
         uint8_t v = ( 0xF0 & canvas.buffer[ i ] ) | ( canvas.buffer[ i + 1 ] >> 4 );
+#endif
         display_write_ram( v );
     }
+
 
     canvas.dirty = false;
 }

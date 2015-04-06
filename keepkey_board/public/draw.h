@@ -64,6 +64,7 @@ bool draw_char_with_shift(Canvas* canvas, DrawableParams* p,
 void draw_string(Canvas* canvas, const Font* font, const char* c, DrawableParams* p, int width,
 		int line_height);
 void draw_char(Canvas *canvas, const Font *font, char c, DrawableParams *p);
+void draw_char_simple(Canvas *canvas, const Font *font, char c, uint8_t color, int x, int y);
 void draw_box(Canvas* canvas, BoxDrawableParams*  params);
 void draw_box_simple(Canvas *canvas, uint8_t color, int x, int y, int width, int height);
 bool draw_bitmap_mono_rle(Canvas* canvas, DrawableParams* p, const Image *img);

@@ -187,6 +187,10 @@ def load_toolchain():
     else:
         env['CCFLAGS'].append(['-DDEBUG_LINK=0'])
 
+    invert = ARGUMENTS.get('invert', 0)
+    if int(invert):
+        env['CCFLAGS'].append(['-DINVERT_DISPLAY=1'])
+
     add_builders(env)
 
 

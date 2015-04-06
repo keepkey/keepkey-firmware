@@ -36,7 +36,7 @@ extern "C" {
 #define KEEPKEY_DISPLAY_HEIGHT 	64
 #define KEEPKEY_DISPLAY_WIDTH	256
 
-#define DEFAULT_DISPLAY_BRIGHTNESS 	65 // percent
+#define DEFAULT_DISPLAY_BRIGHTNESS 	100 // percent
 
 /**********************  Function Declarations ***********************/
 static void display_configure_io ( void);

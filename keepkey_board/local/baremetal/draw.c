@@ -162,6 +162,30 @@ void draw_char(Canvas *canvas, const Font *font, char c, DrawableParams *p)
 }
 
 /*
+ * draw_char_simple() - draw a single character to the display 
+ * without having to create box param object
+ *
+ * INPUT - 
+ *      *canvas - canvas
+ *      *font - font to use for drawing
+ *      c - character to draw
+ *      color - color of character
+ *      x - x position
+ *      y - y position
+ * OUTPUT - 
+ *      none
+ */
+void draw_char_simple(Canvas *canvas, const Font *font, char c, uint8_t color, int x, int y)
+{
+    DrawableParams p;
+    p.color = color;
+    p.x = x;
+    p.y = y;
+
+    draw_char(canvas, font, c, &p);
+}
+
+/*
  * draw_box() - draw box on display
  *
  * INPUT - 

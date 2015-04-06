@@ -43,6 +43,7 @@
 #include <storage.h>
 #include <reset.h>
 #include <recovery.h>
+#include <recovery_cypher.h>
 #include <memory.h>
 #include <util.h>
 #include <signing.h>
@@ -123,6 +124,7 @@ void fsm_msgInitialize(Initialize *msg)
 {
 	(void)msg;
 	recovery_abort();
+	recovery_cypher_abort(false);
 	signing_abort();
 	RESP_INIT(Features);
 
@@ -432,6 +434,7 @@ void fsm_msgCancel(Cancel *msg)
 {
     (void)msg;
     recovery_abort();
+    recovery_cypher_abort(true);
     signing_abort();
 }
 
@@ -860,24 +863,49 @@ void fsm_msgEstimateTxSize(EstimateTxSize *msg)
 
 void fsm_msgRecoveryDevice(RecoveryDevice *msg)
 {
-    if (storage_isInitialized())
-    {
+    if (storage_isInitialized()) {
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Device is already initialized. Use Wipe first.");
         return;
     }
-    recovery_init(
-            msg->has_word_count ? msg->word_count : 12,
+
+    if(msg->has_use_character_cypher && msg->use_character_cypher == true) { // recovery via character cypher
+        recovery_cypher_init(
             msg->has_passphrase_protection && msg->passphrase_protection,
             msg->has_pin_protection && msg->pin_protection,
             msg->has_language ? msg->language : 0,
             msg->has_label ? msg->label : 0,
             msg->has_enforce_wordlist ? msg->enforce_wordlist : false
             );
+    } else {                                                                 // legacy way of recovery
+        recovery_init(
+    		msg->has_word_count ? msg->word_count : 12,
+    		msg->has_passphrase_protection && msg->passphrase_protection,
+    		msg->has_pin_protection && msg->pin_protection,
+    		msg->has_language ? msg->language : 0,
+    		msg->has_label ? msg->label : 0,
+    		msg->has_enforce_wordlist ? msg->enforce_wordlist : false
+    		);
+   }
 }
 
 void fsm_msgWordAck(WordAck *msg)
 {
     recovery_word(msg->word);
+}
+
+void fsm_msgCharacterAck(CharacterAck *msg)
+{
+    recovery_character(msg->character);
+}
+
+void fsm_msgCharacterDeleteAck(CharacterDeleteAck *msg)
+{
+    recovery_delete_character();
+}
+
+void fsm_msgCharacterFinalAck(CharacterFinalAck *msg)
+{
+    recovery_final_character();
 }
 
 #if DEBUG_LINK
@@ -966,6 +994,9 @@ static const MessagesMap_t MessagesMap[] = {
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_EstimateTxSize,		EstimateTxSize_fields,		(void (*)(void *))fsm_msgEstimateTxSize},
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_RecoveryDevice,		RecoveryDevice_fields,		(void (*)(void *))fsm_msgRecoveryDevice},
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_WordAck,				WordAck_fields,				(void (*)(void *))fsm_msgWordAck},
+	{NORMAL_MSG, IN_MSG, MessageType_MessageType_CharacterAck,			CharacterAck_fields,		(void (*)(void *))fsm_msgCharacterAck},
+	{NORMAL_MSG, IN_MSG, MessageType_MessageType_CharacterDeleteAck,	CharacterDeleteAck_fields,	(void (*)(void *))fsm_msgCharacterDeleteAck},
+	{NORMAL_MSG, IN_MSG, MessageType_MessageType_CharacterFinalAck,		CharacterFinalAck_fields,	(void (*)(void *))fsm_msgCharacterFinalAck},
 	// out messages
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_Success,				Success_fields,				0},
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_Failure,				Failure_fields,				0},
@@ -983,7 +1014,8 @@ static const MessagesMap_t MessagesMap[] = {
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_DecryptedMessage,		DecryptedMessage_fields,	0},
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_PassphraseRequest,	PassphraseRequest_fields,	0},
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_TxSize,				TxSize_fields,				0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_WordRequest,			WordRequest_fields,			0},
+    {NORMAL_MSG, OUT_MSG, MessageType_MessageType_WordRequest,          WordRequest_fields,         0},
+	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_CharacterRequest,		CharacterRequest_fields,	0},
 #if DEBUG_LINK
 	// debug in messages
 	{DEBUG_MSG, IN_MSG, MessageType_MessageType_DebugLinkDecision,		DebugLinkDecision_fields,	0},
