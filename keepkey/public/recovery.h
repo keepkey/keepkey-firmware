@@ -25,7 +25,7 @@
 
 void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_protection, const char *language, const char *label, bool _enforce_wordlist);
 void recovery_word(const char *word);
-void recovery_abort(void);
+void recovery_abort(bool send_failure);
 const char *recovery_get_fake_word(void);
 uint32_t recovery_get_word_pos(void);
 

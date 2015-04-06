@@ -205,19 +205,17 @@ void recovery_final_character(void) {
  * recovery_cypher_abort() - aborts recovery cypher process
  *
  * INPUT - 
- *      1. bool send_failure - whether a failure message is sent to host on cancellation
- * OUTPUT - 
  *      none
+ * OUTPUT - 
+ *      bool - status of aborted
  */
-void recovery_cypher_abort(bool send_failure)
+bool recovery_cypher_abort(void)
 {
     if (awaiting_character) {
-        if(send_failure) {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Recovery cancelled");
-        }
-
-        go_home();
         awaiting_character = false;
+        return true;
+    } else {
+        return false;
     }
 }
 

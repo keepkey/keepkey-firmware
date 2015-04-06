@@ -123,8 +123,7 @@ int fsm_deriveKey(HDNode *node, uint32_t *address_n, size_t address_n_count)
 void fsm_msgInitialize(Initialize *msg)
 {
 	(void)msg;
-	recovery_abort();
-	recovery_cypher_abort(false);
+	recovery_abort(false);
 	signing_abort();
 	RESP_INIT(Features);
 
@@ -433,8 +432,7 @@ void fsm_msgSignTx(SignTx *msg)
 void fsm_msgCancel(Cancel *msg)
 {
     (void)msg;
-    recovery_abort();
-    recovery_cypher_abort(true);
+    recovery_abort(true);
     signing_abort();
 }
 

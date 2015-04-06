@@ -36,7 +36,7 @@ void next_character(void);
 void recovery_character(const char *character);
 void recovery_delete_character(void);
 void recovery_final_character(void);
-void recovery_cypher_abort(bool send_failure);
+bool recovery_cypher_abort(void);
 const char *recovery_get_cypher(void);
 
 #endif

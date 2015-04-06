@@ -30,6 +30,7 @@
 #include <storage.h>
 
 #include "recovery.h"
+#include "recovery_cypher.h"
 #include "fsm.h"
 #include "rng.h"
 #include "pin_sm.h"
@@ -192,11 +193,16 @@ void recovery_word(const char *word)
     }
 }
 
-void recovery_abort(void)
+void recovery_abort(bool send_failure)
 {
-    if (awaiting_word) {
-        go_home();
+    if(awaiting_word || recovery_cypher_abort()) {
         awaiting_word = false;
+
+        if(send_failure) {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Recovery cancelled");
+        }
+
+        go_home();
     }
 }
 
