@@ -947,6 +947,9 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg)
 	resp->has_passphrase_protection = true;
 	resp->passphrase_protection = storage_get_passphrase_protected();
 
+	resp->has_recovery_cypher = true;
+	strlcpy(resp->recovery_cypher, recovery_get_cypher(), sizeof(resp->recovery_cypher));
+
 	msg_debug_write(MessageType_MessageType_DebugLinkState, resp);
 }
 

@@ -163,6 +163,11 @@ void recovery_cypher_abort(bool send_failure)
     }
 }
 
+const char *recovery_get_cypher(void)
+{
+    return cypher;
+}
+
 void get_current_word(char *current_word) {
     char *pos = strrchr(mnemonic, ' '), *pos_num = strchr(mnemonic,' ');
     int i, j, word_num = 1, pos_len;
