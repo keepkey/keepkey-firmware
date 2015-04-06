@@ -71,7 +71,7 @@ void next_character(void) {
 
     strcpy(cypher, english_alphabet);
 
-    for (i = 0; i < 100; i++) {
+    for (i = 0; i < 10000; i++) {
         j = random32() % 26;
         k = random32() % 26;
         temp = cypher[j];
