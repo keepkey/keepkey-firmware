@@ -175,7 +175,7 @@ void storage_commit(void)
     memcpy((void *)&shadow_config, "stor", 4);
     flash_unlock();
     flash_erase_word(FLASH_STORAGE);
-	if(flash_write_word(FLASH_STORAGE, 0, sizeof(shadow_config), (uint32_t*)&shadow_config) == false) {
+	if(flash_write_word(FLASH_STORAGE, 0, sizeof(shadow_config), (uint8_t *)&shadow_config) == false) {
         flash_lock();
         layout_warning("Storage error!  Please unplug device.");
         display_refresh();
