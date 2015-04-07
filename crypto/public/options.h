@@ -23,11 +23,6 @@
 #ifndef __OPTIONS_H__
 #define __OPTIONS_H__
 
-// use precomputed Inverse Values of powers of two
-#ifndef USE_PRECOMPUTED_IV
-#define USE_PRECOMPUTED_IV 1
-#endif
-
 // use precomputed Curve Points (some scalar multiples of curve base point G)
 #ifndef USE_PRECOMPUTED_CP
 #define USE_PRECOMPUTED_CP 1
@@ -48,9 +43,11 @@
 #define USE_RFC6979 1
 #endif
 
-// check public key for validity
-#ifndef USE_PUBKEY_VALIDATE
-#define USE_PUBKEY_VALIDATE 1
+// implement BIP32 caching
+#ifndef USE_BIP32_CACHE
+#define USE_BIP32_CACHE 1
+#define BIP32_CACHE_SIZE 10
+#define BIP32_CACHE_MAXDEPTH 8
 #endif
 
 #endif
