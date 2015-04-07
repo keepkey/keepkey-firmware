@@ -15,10 +15,6 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Jan 12, 2015 - This file has been modified and adapted for KeepKey project.
- *
  */
 
 #ifndef __CRYPTO_H__
@@ -51,5 +47,7 @@ uint8_t *cryptoHDNodePathToPubkey(const HDNodePathType *hdnodepath);
 int cryptoMultisigPubkeyIndex(const MultisigRedeemScriptType *multisig, const uint8_t *pubkey);
 
 int cryptoMultisigFingerprint(const MultisigRedeemScriptType *multisig, uint8_t *hash);
+
+int cryptoIdentityFingerprint(const IdentityType *identity, uint8_t *hash);
 
 #endif

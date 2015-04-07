@@ -136,7 +136,7 @@ int cryptoMessageVerify(const uint8_t *message, size_t message_len, const uint8_
 	sha256_Raw(hash, 32, hash);
 	// e = -hash
 	bn_read_be(hash, &e);
-	bn_substract_noprime(&order256k1, &e, &e);
+	bn_subtract(&order256k1, &e, &e);
 	// r = r^-1
 	bn_inverse(&r, &order256k1);
 	point_multiply(&s, &cp, &cp);
@@ -160,9 +160,6 @@ int cryptoMessageVerify(const uint8_t *message, size_t message_len, const uint8_
 	}
 	return 0;
 }
-
-// internal from ecdsa.c
-int generate_k_random(bignum256 *k);
 
 int cryptoMessageEncrypt(curve_point *pubkey, const uint8_t *msg, size_t msg_size, bool display_only, uint8_t *nonce, size_t *nonce_len, uint8_t *payload, size_t *payload_len, uint8_t *hmac, size_t *hmac_len, const uint8_t *privkey, const uint8_t *address_raw)
 {
@@ -279,9 +276,7 @@ uint8_t *cryptoHDNodePathToPubkey(const HDNodePathType *hdnodepath)
 	if (hdnode_from_xpub(hdnodepath->node.depth, hdnodepath->node.fingerprint, hdnodepath->node.child_num, hdnodepath->node.chain_code.bytes, hdnodepath->node.public_key.bytes, &node) == 0) {
 		return 0;
 	}
-	
 	animating_progress_handler();
-
 	uint32_t i;
 	for (i = 0; i < hdnodepath->address_n_count; i++) {
 		if (hdnode_public_ckd(&node, hdnodepath->address_n[i]) == 0) {
@@ -306,13 +301,14 @@ int cryptoMultisigPubkeyIndex(const MultisigRedeemScriptType *multisig, const ui
 
 int cryptoMultisigFingerprint(const MultisigRedeemScriptType *multisig, uint8_t *hash)
 {
+	static const HDNodePathType *ptr[15], *swap;
 	const uint32_t n = multisig->pubkeys_count;
 	if (n > 15) {
 		return 0;
 	}
-	const HDNodePathType *ptr[n], *swap;
 	uint32_t i, j;
 	// check sanity
+	if (!multisig->has_m || multisig->m < 1 || multisig->m > 15) return 0;
 	for (i = 0; i < n; i++) {
 		ptr[i] = &(multisig->pubkeys[i]);
 		if (!ptr[i]->node.has_public_key || ptr[i]->node.public_key.size != 33) return 0;
@@ -331,6 +327,7 @@ int cryptoMultisigFingerprint(const MultisigRedeemScriptType *multisig, uint8_t 
 	// hash sorted nodes
 	SHA256_CTX ctx;
 	sha256_Init(&ctx);
+	sha256_Update(&ctx, (const uint8_t *)&(multisig->m), sizeof(uint32_t));
 	for (i = 0; i < n; i++) {
 		sha256_Update(&ctx, (const uint8_t *)&(ptr[i]->node.depth), sizeof(uint32_t));
 		sha256_Update(&ctx, (const uint8_t *)&(ptr[i]->node.fingerprint), sizeof(uint32_t));
@@ -338,7 +335,35 @@ int cryptoMultisigFingerprint(const MultisigRedeemScriptType *multisig, uint8_t 
 		sha256_Update(&ctx, ptr[i]->node.chain_code.bytes, 32);
 		sha256_Update(&ctx, ptr[i]->node.public_key.bytes, 33);
 	}
+	sha256_Update(&ctx, (const uint8_t *)&n, sizeof(uint32_t));
 	sha256_Final(hash, &ctx);
 	animating_progress_handler();
+	return 1;
+}
+
+int cryptoIdentityFingerprint(const IdentityType *identity, uint8_t *hash)
+{
+	SHA256_CTX ctx;
+	sha256_Init(&ctx);
+	sha256_Update(&ctx, (const uint8_t *)&(identity->index), sizeof(uint32_t));
+	if (identity->has_proto && identity->proto[0]) {
+		sha256_Update(&ctx, (const uint8_t *)(identity->proto), strlen(identity->proto));
+		sha256_Update(&ctx, (const uint8_t *)"://", 3);
+	}
+	if (identity->has_user && identity->user[0]) {
+		sha256_Update(&ctx, (const uint8_t *)(identity->user), strlen(identity->user));
+		sha256_Update(&ctx, (const uint8_t *)"@", 1);
+	}
+	if (identity->has_host && identity->host[0]) {
+		sha256_Update(&ctx, (const uint8_t *)(identity->host), strlen(identity->host));
+	}
+	if (identity->has_port && identity->port[0]) {
+		sha256_Update(&ctx, (const uint8_t *)":", 1);
+		sha256_Update(&ctx, (const uint8_t *)(identity->port), strlen(identity->port));
+	}
+	if (identity->has_path && identity->path[0]) {
+		sha256_Update(&ctx, (const uint8_t *)(identity->path), strlen(identity->path));
+	}
+	sha256_Final(hash, &ctx);
 	return 1;
 }
