@@ -130,9 +130,17 @@ void recovery_character(const char *character) {
 
         pos = strchr(cypher, character[0]);
 
-        /* Decode character using cypher if not space */
-        if(character[0] != ' ') {
+        if(character[0] != ' ' && pos == NULL) {    /* If not a space and not a legitmate cypher character, send failure */
+            
+            awaiting_character = false;
+            fsm_sendFailure(FailureType_Failure_SyntaxError, "Character must be from a to z");
+            go_home();
+            return;
+
+        } else if(character[0] != ' ') {            /* Decode character using cypher if not space */
+            
             decoded_character[0] = english_alphabet[(int)(pos - cypher)];
+
         }
 
         // concat to mnemonic
