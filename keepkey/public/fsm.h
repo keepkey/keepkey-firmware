@@ -63,8 +63,6 @@ void fsm_msgEstimateTxSize(EstimateTxSize *msg);
 void fsm_msgRecoveryDevice(RecoveryDevice *msg);
 void fsm_msgWordAck(WordAck *msg);
 void fsm_msgCharacterAck(CharacterAck *msg);
-void fsm_msgCharacterDeleteAck(CharacterDeleteAck *msg);
-void fsm_msgCharacterFinalAck(CharacterFinalAck *msg);
 
 void fsm_init(void);
 

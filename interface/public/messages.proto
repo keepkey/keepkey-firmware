@@ -65,8 +65,6 @@ enum MessageType {
 	MessageType_WordAck = 47 [(wire_in) = true];
   MessageType_CharacterRequest = 53 [(wire_out) = true];
   MessageType_CharacterAck = 54 [(wire_in) = true];
-  MessageType_CharacterDeleteAck = 55 [(wire_in) = true];
-  MessageType_CharacterFinalAck = 56 [(wire_in) = true];
 	MessageType_DebugLinkDecision = 100 [(wire_debug_in) = true];
 	MessageType_DebugLinkGetState = 101 [(wire_debug_in) = true];
 	MessageType_DebugLinkState = 102 [(wire_debug_out) = true];
@@ -384,26 +382,9 @@ message CharacterRequest {
  * @next Failure
  */
 message CharacterAck {
-	required string character = 1;				// one character of mnemonic using cypher
-}
-
-/**
- * Request: Computer replies with a request to delete previous character from mnemonic
- * if one exists.
- * @prev CharacterRequest
- * @next CharacterRequest
- * @next Failure
- */
-message CharacterDeleteAck {
-}
-
-/**
- * Request: Computer replies with a final character letting the device know mnemonic is complete.
- * @prev CharacterRequest
- * @next Success
- * @next Failure
- */
-message CharacterFinalAck {
+	optional string character = 1;				// one character of mnemonic using cypher
+	optional bool delete = 2;							// request to delete previous character from cyphered mnemonic
+	optional bool final = 3;							// marks there are no more characters left for cyphered mnemonic
 }
 
 //////////////////////////////
