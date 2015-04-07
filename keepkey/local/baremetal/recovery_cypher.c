@@ -171,14 +171,14 @@ void recovery_delete_character(void) {
 }
 
 /*
- * recovery_final_character() - finished mnemonic entry
+ * recovery_cypher_finalize() - finished mnemonic entry
  *
  * INPUT - 
  *      none
  * OUTPUT - 
  *      none
  */
-void recovery_final_character(void) {
+void recovery_cypher_finalize(void) {
     char words[24][12], temp[] = {'\0', '\0'};
     int i, j;
 
