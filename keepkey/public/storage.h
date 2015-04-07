@@ -75,43 +75,16 @@ uint32_t storage_get_pin_fails(void);
 
 bool storage_isInitialized(void);
 
-/*
- * @return a human readable uuid str.
- */
 const char* storage_get_uuid_str(void);
-
-/**
- * @return the currently configured language, or NULL if unconfigured.
- */
 const char* storage_get_language(void);
-
-/**
- * @return the currently configured label, or NULL if unconfigured.
- */
 const char* storage_get_label(void);
 
-/**
- * @return true if the storage is passphrase protected.
- */
 bool storage_get_passphrase_protected(void);
-
-/**
- * @param p Set to true to enable passphrase protection
- */
 void storage_set_passphrase_protected(bool p);
-
-/**
- * @param m Sets the specified mnemonic into storage.
- * TODO: This should really be NULL delimited, not space.  I haven't yet
- * figured out why Trezor is using space delimited.
- */
 void storage_set_mnemonic_from_words(const char (*words)[12], unsigned int num_words);
 void storage_set_mnemonic(const char *mnemonic);
 bool storage_has_mnemonic(void);
 
-/**
- * @return the currently configured mnemonic.
- */
 const char* storage_get_mnemonic(void);
 const char* storage_get_shadow_mnemonic(void);
 

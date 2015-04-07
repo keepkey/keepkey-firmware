@@ -81,11 +81,7 @@ static void check_for_pin_ack(PINInfo *pin_info)
 			PinMatrixAck *pma = (PinMatrixAck *)msg_tiny_buf;
 			strcpy(pin_info->pin, pma->pin);
 			break;
-		/* Check for pin tumbler ack */
-		//TODO:Implement PIN tumbler
-
-		/* Check for cancel or initialize messages */
-		case MessageType_MessageType_Cancel :
+		case MessageType_MessageType_Cancel :	/* Check for cancel or initialize messages */
 			pin_info->pin_ack_msg = PIN_ACK_CANCEL;
 			break;
 		case MessageType_MessageType_Initialize:

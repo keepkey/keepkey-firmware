@@ -72,9 +72,7 @@ static void wait_for_passphrase_ack(PassphraseInfo *passphrase_info)
 		    PassphraseAck *ppa = (PassphraseAck *)msg_tiny_buf;
 		    strcpy(passphrase_info->passphrase, ppa->passphrase);
             break;
-	    /* Check for passphrase tumbler ack */
-	    //TODO:Implement passphrase tumbler
-        case MessageType_MessageType_Cancel :
+        case MessageType_MessageType_Cancel :   /* Check for cancel or initialize messages */
 		    passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_CANCEL;
             break;
         case MessageType_MessageType_Initialize : 
