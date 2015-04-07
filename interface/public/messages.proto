@@ -384,7 +384,7 @@ message CharacterRequest {
 message CharacterAck {
 	optional string character = 1;				// one character of mnemonic using cypher
 	optional bool delete = 2;							// request to delete previous character from cyphered mnemonic
-	optional bool final = 3;							// marks there are no more characters left for cyphered mnemonic
+	optional bool done = 3;								// marks there are no more characters left for cyphered mnemonic
 }
 
 //////////////////////////////

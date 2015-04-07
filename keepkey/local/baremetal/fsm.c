@@ -895,8 +895,8 @@ void fsm_msgCharacterAck(CharacterAck *msg)
 {
 	if(msg->has_delete && msg->delete) {
 		recovery_delete_character();
-	} else if(msg->has_final && msg->final) {
-		recovery_final_character();
+	} else if(msg->has_done && msg->done) {
+		recovery_cypher_finalize();
 	} else {
 		recovery_character(msg->character);
 	}
