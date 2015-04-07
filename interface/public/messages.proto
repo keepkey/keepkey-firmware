@@ -40,7 +40,6 @@ enum MessageType {
 	MessageType_TxRequest = 21 [(wire_out) = true];
 	MessageType_TxAck = 22 [(wire_in) = true];
 	MessageType_CipherKeyValue = 23 [(wire_in) = true];
-	MessageType_CipheredKeyValue = 48 [(wire_out) = true];
 	MessageType_ClearSession = 24 [(wire_in) = true];
 	MessageType_ApplySettings = 25 [(wire_in) = true];
 	MessageType_ButtonRequest = 26 [(wire_out) = true];
@@ -52,10 +51,6 @@ enum MessageType {
 	MessageType_SignMessage = 38 [(wire_in) = true];
 	MessageType_VerifyMessage = 39 [(wire_in) = true];
 	MessageType_MessageSignature = 40 [(wire_out) = true];
-	MessageType_EncryptMessage = 49 [(wire_in) = true];
-	MessageType_EncryptedMessage = 50 [(wire_out) = true];
-	MessageType_DecryptMessage = 51 [(wire_in) = true];
-	MessageType_DecryptedMessage = 52 [(wire_out) = true];
 	MessageType_PassphraseRequest = 41 [(wire_out) = true];
 	MessageType_PassphraseAck = 42 [(wire_in) = true];
 	MessageType_EstimateTxSize = 43 [(wire_in) = true];
@@ -63,8 +58,16 @@ enum MessageType {
 	MessageType_RecoveryDevice = 45 [(wire_in) = true];
 	MessageType_WordRequest = 46 [(wire_out) = true];
 	MessageType_WordAck = 47 [(wire_in) = true];
-  MessageType_CharacterRequest = 53 [(wire_out) = true];
-  MessageType_CharacterAck = 54 [(wire_in) = true];
+	MessageType_CipheredKeyValue = 48 [(wire_out) = true];
+	MessageType_EncryptMessage = 49 [(wire_in) = true];
+	MessageType_EncryptedMessage = 50 [(wire_out) = true];
+	MessageType_DecryptMessage = 51 [(wire_in) = true];
+	MessageType_DecryptedMessage = 52 [(wire_out) = true];
+	MessageType_SignIdentity = 53 [(wire_in) = true];
+	MessageType_SignedIdentity = 54 [(wire_out) = true];
+	MessageType_GetFeatures = 55 [(wire_in) = true];
+ 	MessageType_CharacterRequest = 80 [(wire_out) = true];
+ 	MessageType_CharacterAck = 81 [(wire_in) = true];
 	MessageType_DebugLinkDecision = 100 [(wire_debug_in) = true];
 	MessageType_DebugLinkGetState = 101 [(wire_debug_in) = true];
 	MessageType_DebugLinkState = 102 [(wire_debug_out) = true];
@@ -84,8 +87,16 @@ message Initialize {
 }
 
 /**
+ * Request: Ask for device details (no device reset)
+ * @next Features
+ */
+message GetFeatures {
+}
+
+/**
  * Response: Reports various information about the device
  * @prev Initialize
+ * @prev GetFeatures
  */
 message Features {
 	optional string vendor = 1;			// name of the manufacturer, e.g. "bitcointrezor.com"
@@ -103,6 +114,8 @@ message Features {
 	optional bytes revision = 13;			// SCM revision of firmware
 	optional bytes bootloader_hash = 14;		// hash of the bootloader
 	optional bool imported = 15;			// was storage imported from an external source?
+	optional bool pin_cached = 16;			// is PIN already cached in session?
+	optional bool passphrase_cached = 17;		// is passphrase already cached in session?
 }
 
 /**
@@ -343,7 +356,7 @@ message RecoveryDevice {
 	optional string language = 4 [default='english'];	// device language
 	optional string label = 5;				// device label
 	optional bool enforce_wordlist = 6;			// enforce BIP-39 wordlist during the process
-	optional bool use_character_cypher = 7;	// an optional way to input recovery sentence by character using a cypher
+	optional bool use_character_cypher = 7;	// an optional way to input recovery sentence by character using a cipher
 }
 
 /**
@@ -367,7 +380,7 @@ message WordAck {
 }
 
 /**
- * Response: Device is waiting for user to enter character of the mnemonic using cypher.
+ * Response: Device is waiting for user to enter character of the mnemonic using cipher.
  * The cypher is shown on device's internal display.
  * @prev RecoveryDevice
  * @prev CharacterAck
@@ -376,15 +389,15 @@ message CharacterRequest {
 }
 
 /**
- * Request: Computer replies with character from the mnemonic using cypher
+ * Request: Computer replies with character from the mnemonic using cipher
  * @prev CharacterRequest
  * @next CharacterRequest
  * @next Failure
  */
 message CharacterAck {
-	optional string character = 1;				// one character of mnemonic using cypher
-	optional bool delete = 2;							// request to delete previous character from cyphered mnemonic
-	optional bool done = 3;								// marks there are no more characters left for cyphered mnemonic
+	optional string character = 1;				// one character of mnemonic using cipher
+	optional bool delete = 2;							// request to delete previous character from ciphered mnemonic
+	optional bool done = 3;								// marks there are no more characters left for ciphered mnemonic
 }
 
 //////////////////////////////
@@ -567,6 +580,31 @@ message TxRequest {
  */
 message TxAck {
 	optional TransactionType tx = 1;
+}
+
+///////////////////////
+// Identity messages //
+///////////////////////
+
+/**
+ * Request: Ask device to sign identity
+ * @next SignedIdentity
+ * @next Failure
+ */
+message SignIdentity {
+	optional IdentityType identity = 1;		// identity
+	optional bytes challenge_hidden = 2;		// non-visible challenge
+	optional string challenge_visual = 3;		// challenge shown on display (e.g. date+time)
+}
+
+/**
+ * Response: Device provides signed identity
+ * @prev SignIdentity
+ */
+message SignedIdentity {
+	optional string address = 1;			// identity address
+	optional bytes public_key = 2;			// identity public key
+	optional bytes signature = 3;			// signature of the identity data
 }
 
 /////////////////////////

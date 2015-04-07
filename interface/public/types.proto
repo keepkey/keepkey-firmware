@@ -50,6 +50,7 @@ enum OutputScriptType {
 	PAYTOADDRESS = 0;
 	PAYTOSCRIPTHASH = 1;
 	PAYTOMULTISIG = 2;
+	PAYTOOPRETURN = 3;
 }
 
 /**
@@ -128,7 +129,7 @@ message HDNodePathType {
 message CoinType {
 	optional string coin_name = 1;
 	optional string coin_shortcut = 2;
-	optional uint32 address_type = 3;
+	optional uint32 address_type = 3 [default=0];
 	optional uint64 maxfee_kb = 4;
 	optional uint32 address_type_p2sh = 5 [default=5];
 }
@@ -168,7 +169,8 @@ message TxOutputType {
 	repeated uint32 address_n = 2;			// BIP-32 path to derive the key from master node; has higher priority than "address"
 	required uint64 amount = 3;			// amount to spend in satoshis
 	required OutputScriptType script_type = 4;	// output script type
-	optional MultisigRedeemScriptType multisig = 5; // Defines multisig address; script_type must be PAYTOMULTISIG
+	optional MultisigRedeemScriptType multisig = 5; // defines multisig address; script_type must be PAYTOMULTISIG
+	optional bytes op_return_data = 6;		// defines op_return data; script_type must be PAYTOOPRETURN, amount must be 0
 }
 
 /**
@@ -211,4 +213,17 @@ message TxRequestSerializedType {
 	optional uint32 signature_index = 1;	// 'signature' field contains signed input of this index
 	optional bytes signature = 2;		// signature of the signature_index input
 	optional bytes serialized_tx = 3;	// part of serialized and signed transaction
+}
+
+/**
+ * Structure representing identity data
+ * @used_in IdentityType
+ */
+message IdentityType {
+	optional string proto = 1;			// proto part of URI
+	optional string user = 2;			// user part of URI
+	optional string host = 3;			// host part of URI
+	optional string port = 4;			// port part of URI
+	optional string path = 5;			// path part of URI
+	optional uint32 index = 6 [default=0];		// identity index
 }

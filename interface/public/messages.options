@@ -2,7 +2,7 @@ Features.vendor				max_size:33
 Features.device_id			max_size:25
 Features.language			max_size:17
 Features.label				max_size:33
-Features.coins				max_count:5
+Features.coins				max_count:6
 Features.revision			max_size:20
 Features.bootloader_hash		max_size:32
 
@@ -87,6 +87,13 @@ EstimateTxSize.coin_name		max_size:17
 
 SignTx.coin_name			max_size:17
 
+SignIdentity.challenge_hidden   max_size:256
+SignIdentity.challenge_visual   max_size:256
+
+SignedIdentity.address      max_size:36
+SignedIdentity.public_key   max_size:33
+SignedIdentity.signature    max_size:65
+
 # not used in firmware
 SimpleSignTx.inputs			max_count:0
 SimpleSignTx.outputs			max_count:0
@@ -100,7 +107,7 @@ DebugLinkState.layout			max_size:1024
 DebugLinkState.pin			max_size:10
 DebugLinkState.matrix			max_size:10
 DebugLinkState.mnemonic			max_size:241
-DebugLinkState.reset_word		max_size:133
+DebugLinkState.reset_word		max_size:12
 DebugLinkState.reset_entropy		max_size:128
 DebugLinkState.recovery_fake_word	max_size:12
 DebugLinkState.recovery_cypher      max_size:27
