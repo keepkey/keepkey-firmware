@@ -60,7 +60,6 @@ static uint32_t flash_write_helper(Allocation group)
  */
 void flash_erase_word(Allocation group)
 {
-    //TODO: See if there's a way to handle flash errors here gracefully.
     const FlashSector* s = flash_sector_map;
     while(s->use != FLASH_INVALID)
     {
@@ -81,8 +80,6 @@ void flash_erase_word(Allocation group)
  */
 void flash_erase(Allocation group)
 {
-    //TODO: See if there's a way to handle flash errors here gracefully.
-
     const FlashSector* s = flash_sector_map;
     while(s->use != FLASH_INVALID)
     {
@@ -156,7 +153,6 @@ fww_exit:
  * OUTPUT:
  *      none
  */
-//TODO : replace all calls to this function with flash_write_word() to speed up the flash write.
 void flash_write(Allocation group, uint32_t offset, uint32_t len, uint8_t* data)
 {
 	uint32_t start = flash_write_helper(group);
