@@ -179,21 +179,7 @@ void recovery_delete_character(void) {
  *      none
  */
 void recovery_cypher_finalize(void) {
-    char words[24][12], temp[] = {'\0', '\0'};
-    int i, j;
-
-    /* Parse menmonic into array */
-    for(i = 0, j = 0; i < strlen(mnemonic); ++i) {
-        if(mnemonic[i] == ' ') {
-            j++;
-            words[j][0] = '\0';
-        } else {
-            temp[0] = mnemonic[i];
-            strcat(words[j], temp);
-        }
-    }
-
-    storage_set_mnemonic_from_words((const char (*)[])words, j + 1);
+    storage_set_mnemonic(mnemonic);
 
     /* Go home before commiting to eliminate lag */
     go_home();
