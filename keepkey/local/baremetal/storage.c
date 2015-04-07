@@ -143,20 +143,23 @@ void storage_reset(void)
     // reset storage struct
     memset(&shadow_config.storage, 0, sizeof(shadow_config.storage));
     shadow_config.storage.version = STORAGE_VERSION;
-    session_clear();
+    session_clear(true); // clear PIN as well
 }
 
 /*
  * session_clear() - reset session states
  * 
- * INPUT - none
+ * INPUT -
+ *     clear_pin - whether to clear pin or not
  * OUTPUT - none
  */
-void session_clear(void)
+void session_clear(bool clear_pin)
 {
-	sessionRootNodeCached = false;   memset(&sessionRootNode, 0, sizeof(sessionRootNode));
-	sessionPassphraseCached = false; memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
-	sessionPinCached = false;
+    sessionRootNodeCached = false;   memset(&sessionRootNode, 0, sizeof(sessionRootNode));
+    sessionPassphraseCached = false; memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
+    if (clear_pin) {
+        sessionPinCached = false;
+    }
 }
 
 /*

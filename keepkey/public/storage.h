@@ -47,7 +47,7 @@
 void storage_init(void);
 void storage_reset_uuid(void);
 void storage_reset(void);
-void session_clear(void);
+void session_clear(bool clear_pin);
 void storage_commit(void);
 
 void storage_loadDevice(LoadDevice *msg);
@@ -61,7 +61,6 @@ void storage_setLanguage(const char *lang);
 
 void session_cachePassphrase(const char *passphrase);
 bool session_isPassphraseCached(void);
-void session_clear(void);
 
 bool storage_is_pin_correct(const char *pin);
 bool storage_has_pin(void);

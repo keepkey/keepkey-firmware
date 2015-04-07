@@ -584,7 +584,7 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
 void fsm_msgClearSession(ClearSession *msg)
 {
 	(void)msg;
-	session_clear();
+	session_clear(true);
 	fsm_sendSuccess("Session cleared");
 }
 
