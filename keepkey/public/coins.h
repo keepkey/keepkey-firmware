@@ -26,7 +26,7 @@
 
 #include <interface.h>
 
-#define COINS_COUNT 5
+#define COINS_COUNT 6
 
 extern const CoinType coins[COINS_COUNT];
 

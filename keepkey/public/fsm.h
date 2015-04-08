@@ -35,6 +35,7 @@ void fsm_sendSuccess(const char *text);
 void fsm_sendFailure(FailureType code, const char *text);
 
 void fsm_msgInitialize(Initialize *msg);
+void fsm_msgGetFeatures(GetFeatures *msg);
 void fsm_msgPing(Ping *msg);
 void fsm_msgChangePin(ChangePin *msg);
 void fsm_msgWipeDevice(WipeDevice *msg);
@@ -56,6 +57,7 @@ void fsm_msgGetAddress(GetAddress *msg);
 void fsm_msgEntropyAck(EntropyAck *msg);
 void fsm_msgSignMessage(SignMessage *msg);
 void fsm_msgVerifyMessage(VerifyMessage *msg);
+void fsm_msgSignIdentity(SignIdentity *msg);
 void fsm_msgEncryptMessage(EncryptMessage *msg);
 void fsm_msgDecryptMessage(DecryptMessage *msg);
 //void fsm_msgPassphraseAck(PassphraseAck *msg);
