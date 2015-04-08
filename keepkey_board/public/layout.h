@@ -112,10 +112,11 @@ extern "C" {
 #define CYPHER_HORIZONTAL_MASK_HEIGHT_4 4
 
 /* QR */
-#define ADDRESS_TOP_MARGIN  16
-#define QR_DISPLAY_SCALE    1
-#define QR_DISPLAY_X        4
-#define QR_DISPLAY_Y        10
+#define ADDRESS_TOP_MARGIN      16
+#define MULTISIG_LEFT_MARGIN    40
+#define QR_DISPLAY_SCALE        1
+#define QR_DISPLAY_X            4
+#define QR_DISPLAY_Y            10
 
 /**************  Typedefs and Macros *****************/
 typedef enum
@@ -180,7 +181,7 @@ uint32_t warning_char_width();
 void layout_firmware_update_confirmation();
 void layout_standard_notification( const char* str1, const char* str2, NotificationType type);
 void layout_transaction_notification(const char* amount, const char* address, NotificationType type);
-void layout_address_notification(const char* str1, const char* address, NotificationType type);
+void layout_address_notification(const char* desc, const char* address, NotificationType type);
 void layout_notification_icon(NotificationType type, DrawableParams *sp);
 void layout_warning(const char* prompt);
 void layout_simple_message(const char* str);
