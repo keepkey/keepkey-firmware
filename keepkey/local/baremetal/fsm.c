@@ -26,6 +26,7 @@
 #include <ecdsa.h>
 #include <aes.h>
 #include <hmac.h>
+#include <bip32.h>
 #include <bip39.h>
 #include <base58.h>
 #include <ripemd160.h>
@@ -95,29 +96,34 @@ void fsm_sendFailure(FailureType code, const char *text)
 	msg_write(MessageType_MessageType_Failure, resp);
 }
 
-HDNode *fsm_getRootNode(void)
+const CoinType *fsm_getCoin(const char *name)
+{
+	const CoinType *coin = coinByName(name);
+	if (!coin) {
+		fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
+		go_home();
+		return 0;
+	}
+	return coin;
+}
+
+const HDNode *fsm_getDerivedNode(uint32_t *address_n, size_t address_n_count)
 {
 	static HDNode node;
 	if (!storage_getRootNode(&node)) {
-		go_home();
 		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized or passphrase request cancelled");
+		go_home();
+		return 0;
+	}
+	if (!address_n || address_n_count == 0) {
+		return &node;
+	}
+	if (hdnode_private_ckd_cached(&node, address_n, address_n_count) == 0) {
+		fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
+		go_home();
 		return 0;
 	}
 	return &node;
-}
-
-int fsm_deriveKey(HDNode *node, uint32_t *address_n, size_t address_n_count)
-{
-	size_t i;
-
-	for (i = 0; i < address_n_count; i++) {
-		if (hdnode_private_ckd(node, address_n[i]) == 0) {
-			fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
-			go_home();
-			return 0;
-		}
-	}
-	return 1;
 }
 
 void fsm_msgInitialize(Initialize *msg)
@@ -125,6 +131,13 @@ void fsm_msgInitialize(Initialize *msg)
 	(void)msg;
 	recovery_abort(false);
 	signing_abort();
+	session_clear(false); // do not clear PIN
+	fsm_msgGetFeatures(0);
+}
+
+void fsm_msgGetFeatures(GetFeatures *msg)
+{
+	(void)msg;
 	RESP_INIT(Features);
 
 	/* Vendor ID */
@@ -171,6 +184,10 @@ void fsm_msgInitialize(Initialize *msg)
 
 	/* Are private keys imported */
 	resp->has_imported = true; resp->imported = storage_get_imported();
+
+	/* Cached pin and passphrase status */
+	resp->has_pin_cached = true; resp->pin_cached = session_is_pin_cached();
+	resp->has_passphrase_cached = true; resp->passphrase_cached = session_isPassphraseCached();
 
 	msg_write(MessageType_MessageType_Features, resp);
 }
@@ -329,9 +346,13 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 {
 	RESP_INIT(PublicKey);
 
-	HDNode *node = fsm_getRootNode();
+	if (!pin_protect_cached()) {
+		go_home();
+		return;
+	}
+
+	const HDNode *node = fsm_getDerivedNode(msg->address_n, msg->address_n_count);
 	if (!node) return;
-	if (fsm_deriveKey(node, msg->address_n, msg->address_n_count) == 0) return;
 
 	resp->node.depth = node->depth;
 	resp->node.fingerprint = node->fingerprint;
@@ -417,14 +438,10 @@ void fsm_msgSignTx(SignTx *msg)
 		return;
 	}
 
-	HDNode *node = fsm_getRootNode();
+	const CoinType *coin = fsm_getCoin(msg->coin_name);
+	if (!coin) return;
+	const HDNode *node = fsm_getDerivedNode(0, 0);
 	if (!node) return;
-	const CoinType *coin = coinByName(msg->coin_name);
-	if (!coin) {
-		fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
-		go_home();
-		return;
-	}
 
 	signing_init(msg->inputs_count, msg->outputs_count, coin, node);
 }
@@ -473,7 +490,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 		if(msg->use_passphrase)
 		{
 			if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-				"Enable Passphrase", "Do you want to enable a passphrase?", msg->language))
+				"Enable Passphrase", "Do you want to enable passphrase encryption?", msg->language))
 			{
 				fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
 				go_home();
@@ -483,7 +500,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 		else
 		{
 			if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-				"Disable Passphrase", "Do you want to disable passphrase?", msg->language))
+				"Disable Passphrase", "Do you want to disable passphrase encryption?", msg->language))
 			{
 				fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
 				go_home();
@@ -542,9 +559,8 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
 		return;
 	}
 
-	HDNode *node = fsm_getRootNode();
+	const HDNode *node = fsm_getDerivedNode(msg->address_n, msg->address_n_count);
 	if (!node) return;
-	if (fsm_deriveKey(node, msg->address_n, msg->address_n_count) == 0) return;
 
 	bool encrypt = msg->has_encrypt && msg->encrypt;
 	bool ask_on_encrypt = msg->has_ask_on_encrypt && msg->ask_on_encrypt;
@@ -592,16 +608,15 @@ void fsm_msgGetAddress(GetAddress *msg)
 {
     RESP_INIT(Address);
 
-    HDNode *node = fsm_getRootNode();
-    if (!node) return;
-    const CoinType *coin = coinByName(msg->coin_name);
-    if (!coin) {
-        fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
-        go_home();
-        return;
-    }
+    if (!pin_protect_cached()) {
+		go_home();
+		return;
+	}
 
-    if (fsm_deriveKey(node, msg->address_n, msg->address_n_count) == 0) return;
+	const CoinType *coin = fsm_getCoin(msg->coin_name);
+	if (!coin) return;
+	const HDNode *node = fsm_getDerivedNode(msg->address_n, msg->address_n_count);
+	if (!node) return;
 
     if (msg->has_multisig) {
 
@@ -624,7 +639,14 @@ void fsm_msgGetAddress(GetAddress *msg)
 	}
 
     if (msg->has_show_display && msg->show_display) {
-		if(!confirm_address("Confirm Address", resp->address)) {
+    	char desc[27] = "";
+		if (msg->has_multisig) {
+			const uint32_t m = msg->multisig.m;
+			const uint32_t n = msg->multisig.pubkeys_count;
+			sprintf(desc, "(Multi-Signature %d of %d)", m, n);
+		}
+
+		if(!confirm_address(desc, resp->address)) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
 			go_home();
 			return;
@@ -661,16 +683,10 @@ void fsm_msgSignMessage(SignMessage *msg)
 		return;
 	}
 
-	HDNode *node = fsm_getRootNode();
+	const CoinType *coin = fsm_getCoin(msg->coin_name);
+	if (!coin) return;
+	const HDNode *node = fsm_getDerivedNode(msg->address_n, msg->address_n_count);
 	if (!node) return;
-	const CoinType *coin = coinByName(msg->coin_name);
-	if (!coin) {
-		fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
-		go_home();
-		return;
-	}
-
-	if (fsm_deriveKey(node, msg->address_n, msg->address_n_count) == 0) return;
 
 	if (cryptoMessageSign(msg->message.bytes, msg->message.size, node->private_key, resp->signature.bytes) == 0) {
 		resp->has_address = true;
@@ -721,6 +737,63 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 	go_home();
 }
 
+void fsm_msgSignIdentity(SignIdentity *msg)
+{
+	RESP_INIT(SignedIdentity);
+
+	if(!confirm_sign_identity(&(msg->identity), msg->has_challenge_visual ? msg->challenge_visual : 0))
+	{
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Sign identity cancelled");
+		go_home();
+		return;
+	}
+
+	if (!pin_protect_cached()) {
+		go_home();
+		return;
+	}
+
+	uint8_t hash[32];
+	if (!msg->has_identity || cryptoIdentityFingerprint(&(msg->identity), hash) == 0) {
+		fsm_sendFailure(FailureType_Failure_Other, "Invalid identity");
+		go_home();
+		return;
+	}
+	uint32_t address_n[5];
+	address_n[0] = 0x80000000 | 13;
+	address_n[1] = 0x80000000 | hash[ 0] | (hash[ 1] << 8) | (hash[ 2] << 16) | (hash[ 3] << 24);
+	address_n[2] = 0x80000000 | hash[ 4] | (hash[ 5] << 8) | (hash[ 6] << 16) | (hash[ 7] << 24);
+	address_n[3] = 0x80000000 | hash[ 8] | (hash[ 9] << 8) | (hash[10] << 16) | (hash[11] << 24);
+	address_n[4] = 0x80000000 | hash[12] | (hash[13] << 8) | (hash[14] << 16) | (hash[15] << 24);
+
+	const HDNode *node = fsm_getDerivedNode(address_n, 5);
+	if (!node) return;
+
+	uint8_t message[256 + 256];
+	memcpy(message, msg->challenge_hidden.bytes, msg->challenge_hidden.size);
+	const int len = strlen(msg->challenge_visual);
+	memcpy(message + msg->challenge_hidden.size, msg->challenge_visual, len);
+	
+	layout_simple_message("Signing Identity...");
+    display_refresh();
+
+	if (cryptoMessageSign(message, msg->challenge_hidden.size + len, node->private_key, resp->signature.bytes) == 0) {
+		resp->has_address = true;
+		uint8_t addr_raw[21];
+		ecdsa_get_address_raw(node->public_key, 0x00, addr_raw); // hardcoded Bitcoin address type
+		base58_encode_check(addr_raw, 21, resp->address, sizeof(resp->address));
+		resp->has_public_key = true;
+		resp->public_key.size = 33;
+		memcpy(resp->public_key.bytes, node->public_key, 33);
+		resp->has_signature = true;
+		resp->signature.size = 65;
+		msg_write(MessageType_MessageType_SignedIdentity, resp);
+	} else {
+		fsm_sendFailure(FailureType_Failure_Other, "Error signing identity");
+	}
+	go_home();
+}
+
 void fsm_msgEncryptMessage(EncryptMessage *msg)
 {
 	if (!msg->has_pubkey) {
@@ -740,7 +813,7 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 	bool signing = msg->address_n_count > 0;
 	RESP_INIT(EncryptedMessage);
 	const CoinType *coin = 0;
-	HDNode *node = 0;
+	const HDNode *node = 0;
 	uint8_t address_raw[21];
 	if (signing) {
 		coin = coinByName(msg->coin_name);
@@ -755,11 +828,11 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 			return;
 		}
 
-		node = fsm_getRootNode();
+		node = fsm_getDerivedNode(msg->address_n, msg->address_n_count);
 		if (!node) return;
-		if (fsm_deriveKey(node, msg->address_n, msg->address_n_count) == 0) return;
-		hdnode_fill_public_key(node);
-		ecdsa_get_address_raw(node->public_key, coin->address_type, address_raw);
+		uint8_t public_key[33];
+		ecdsa_get_public_key33(node->private_key, public_key);
+		ecdsa_get_address_raw(public_key, coin->address_type, address_raw);
 	}
 
 	if(!confirm_encrypt_msg(msg->message.bytes, signing))
@@ -811,9 +884,8 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
 		return;
 	}
 
-	HDNode *node = fsm_getRootNode();
+	const HDNode *node = fsm_getDerivedNode(msg->address_n, msg->address_n_count);
 	if (!node) return;
-	if (fsm_deriveKey(node, msg->address_n, msg->address_n_count) == 0) return;
 
 	layout_simple_message("Decrypting Message...");
 	display_refresh();
@@ -956,6 +1028,7 @@ void fsm_msgDebugLinkStop(DebugLinkStop *msg)
 static const MessagesMap_t MessagesMap[] = {
 	// in messages
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_Initialize,			Initialize_fields,			(void (*)(void *))fsm_msgInitialize},
+	{NORMAL_MSG, IN_MSG, MessageType_MessageType_GetFeatures,			GetFeatures_fields,			(void (*)(void *))fsm_msgGetFeatures},
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_Ping,					Ping_fields,				(void (*)(void *))fsm_msgPing},
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_ChangePin,				ChangePin_fields,			(void (*)(void *))fsm_msgChangePin},
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_WipeDevice,			WipeDevice_fields,			(void (*)(void *))fsm_msgWipeDevice},
@@ -976,6 +1049,7 @@ static const MessagesMap_t MessagesMap[] = {
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_GetAddress,			GetAddress_fields,			(void (*)(void *))fsm_msgGetAddress},
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_EntropyAck,			EntropyAck_fields,			(void (*)(void *))fsm_msgEntropyAck},
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_SignMessage,			SignMessage_fields,			(void (*)(void *))fsm_msgSignMessage},
+	{NORMAL_MSG, IN_MSG, MessageType_MessageType_SignIdentity,			SignIdentity_fields,		(void (*)(void *))fsm_msgSignIdentity},
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_VerifyMessage,			VerifyMessage_fields,		(void (*)(void *))fsm_msgVerifyMessage},
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_EncryptMessage,		EncryptMessage_fields,		(void (*)(void *))fsm_msgEncryptMessage},
 	{NORMAL_MSG, IN_MSG, MessageType_MessageType_DecryptMessage,		DecryptMessage_fields,		(void (*)(void *))fsm_msgDecryptMessage},
@@ -997,6 +1071,7 @@ static const MessagesMap_t MessagesMap[] = {
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_Address,				Address_fields,				0},
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_EntropyRequest,		EntropyRequest_fields,		0},
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_MessageSignature,		MessageSignature_fields,	0},
+	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_SignedIdentity,		SignedIdentity_fields,		0},
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_EncryptedMessage,		EncryptedMessage_fields,	0},
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_DecryptedMessage,		DecryptedMessage_fields,	0},
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_PassphraseRequest,	PassphraseRequest_fields,	0},

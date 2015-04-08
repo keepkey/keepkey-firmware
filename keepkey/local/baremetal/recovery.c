@@ -55,8 +55,8 @@ void next_word(void) {
 	sprintf(title_formatted, "Device Recovery Step %d/24", word_index + 1);
 
 	if (word_pos == 0) {
-		const char **wl = mnemonic_wordlist();
-		strlcpy(fake_word, wl[random32() & 0x7FF], sizeof(fake_word));
+		const char * const *wl = mnemonic_wordlist();
+        strlcpy(fake_word, wl[random_uniform(2048)], sizeof(fake_word));
 
 		/* Format body for fake word */
 		sprintf(body_formatted, "Enter the word \"%s\".", fake_word);
@@ -107,23 +107,14 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
 	storage_setLanguage(language);
 	storage_setLabel(label);
 
-	uint32_t i, j, k;
-	char t;
-	for (i = 0; i < word_count; i++) {
-		word_order[i] = i + 1;
-	}
-	for (i = word_count; i < 24; i++) {
-		word_order[i] = 0;
-	}
-	for (i = 0; i < 10000; i++) {
-		j = random32() % 24;
-        delay_us(1);  /* brief pause before acquiring another random value */
-		k = random32() % 24;
-        delay_us(1);  /* brief pause before acquiring another random value */
-		t = word_order[j];
-		word_order[j] = word_order[k];
-		word_order[k] = t;
-	}
+	uint32_t i;
+    for (i = 0; i < word_count; i++) {
+        word_order[i] = i + 1;
+    }
+    for (i = word_count; i < 24; i++) {
+        word_order[i] = 0;
+    }
+    random_permute(word_order, 24);
 	awaiting_word = true;
 	word_index = 0;
 	next_word();
@@ -149,7 +140,7 @@ void recovery_word(const char *word)
     } else { // real word
         if (enforce_wordlist) 
         { // check if word is valid
-            const char **wl = mnemonic_wordlist();
+            const char * const *wl = mnemonic_wordlist();
             bool found = false;
             while (*wl) 
             {

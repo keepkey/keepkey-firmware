@@ -26,10 +26,12 @@ const CoinType coins[COINS_COUNT] = {
 	{true, "Namecoin", true, "NMC",  true,  52, true,  10000000, true,   5},
 	{true, "Litecoin", true, "LTC",  true,  48, true,  10000000, true,   5},
 	{true, "Dogecoin", true, "DOGE", true,  30, true, 100000000, true,  22},
+	{true, "Dash",     true, "DASH", true,  76, true,    100000, true,  16},
 };
 
 const CoinType *coinByShortcut(const char *shortcut)
 {
+	if (!shortcut) return 0;
 	int i;
 	for (i = 0; i < COINS_COUNT; i++) {
 		if (strcmp(shortcut, coins[i].coin_shortcut) == 0) {
@@ -41,6 +43,7 @@ const CoinType *coinByShortcut(const char *shortcut)
 
 const CoinType *coinByName(const char *name)
 {
+	if (!name) return 0;
 	int i;
 	for (i = 0; i < COINS_COUNT; i++) {
 		if (strcmp(name, coins[i].coin_name) == 0) {

@@ -94,16 +94,7 @@ void next_character(void) {
     uint32_t i, j, k;
 
     strcpy(cypher, english_alphabet);
-
-    for (i = 0; i < 10000; i++) {
-        j = random32() % 26;
-        delay_us(1);  /* brief pause before acquiring another random value */
-        k = random32() % 26;
-        delay_us(1);  /* brief pause before acquiring another random value */
-        temp = cypher[j];
-        cypher[j] = cypher[k];
-        cypher[k] = temp;
-    }
+    random_permute(cypher, 26);
 
     /* Format current word and display it along with cypher */
     get_current_word(current_word);

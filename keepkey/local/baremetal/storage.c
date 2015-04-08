@@ -53,6 +53,7 @@ static bool   sessionRootNodeCached;
 static HDNode sessionRootNode;
 
 static bool sessionPinCached;
+static char sessionPin[17];
 
 static bool sessionPassphraseCached;
 static char sessionPassphrase[51];
@@ -282,17 +283,7 @@ void storage_setLanguage(const char *lang)
  */
 bool storage_is_pin_correct(const char *pin)
 {
-	/* The execution time of the following code only depends on the
-	 * (public) input.  This avoids timing attacks.
-	 */
-	char diff = 0;
-	uint32_t i = 0;
-	while (pin[i]) {
-		diff |= shadow_config.storage.pin[i] - pin[i];
-		i++;
-	}
-	diff |= shadow_config.storage.pin[i];
-	return diff == 0;
+    return strcmp(shadow_config.storage.pin, pin) == 0;
 }    
 
 /*
@@ -304,7 +295,7 @@ bool storage_is_pin_correct(const char *pin)
  */
 bool storage_has_pin(void)
 {
-	return (shadow_config.storage.has_pin && (shadow_config.storage.pin[0] != 0));
+	return shadow_config.storage.has_pin && strlen(shadow_config.storage.pin) > 0;
 }
 
 /*
@@ -347,8 +338,9 @@ const char* storage_get_pin(void)
  * OUTPUT -
  *      none
  */
-void session_cache_pin(void)
+void session_cache_pin(const char *pin)
 {
+    strlcpy(sessionPin, pin, sizeof(sessionPin));
 	sessionPinCached = true;
 }
 
@@ -361,7 +353,7 @@ void session_cache_pin(void)
  */
 bool session_is_pin_cached(void)
 {
-	return (sessionPinCached);
+	return sessionPinCached && strcmp(sessionPin, shadow_config.storage.pin) == 0;
 }
 
 /*

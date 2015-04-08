@@ -127,24 +127,6 @@ static void run_pin_state(PINState *pin_state, PINInfo *pin_info)
 }
 
 /*
- * randomize_pin() - scramble the user input to prevent keystroke sniffing
- *
- * INPUT -
- *      pin - keyboard matrix 
- * OUTPUT - none
- */
-static void randomize_pin(char pin[])
-{
-	for (uint16_t i = 0; i < 10000; i++) {
-		uint32_t j = random32() % strlen(pin);
-		uint32_t k = random32() % strlen(pin);
-		char temp = pin[j];
-		pin[j] = pin[k];
-		pin[k] = temp;
-	}
-}
-
-/*
  * check_pin_input() - make sure that PIN is at least one digit and a char from 1 to 9
  *
  * INPUT -
@@ -210,7 +192,7 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
 
 	/* Init and randomize pin matrix */
 	strcpy(pin_matrix, "123456789");
-	randomize_pin(pin_matrix);
+	random_permute(pin_matrix, 9);
 
 	/* Show layout */
 	layout_pin(prompt, pin_matrix);
@@ -304,7 +286,7 @@ bool pin_protect(char *prompt)
 
 			/* authenticate user PIN */
 			if (storage_is_pin_correct(pin_info.pin) && !pre_increment_cnt_flg) {
-				session_cache_pin();
+				session_cache_pin(pin_info.pin);
 				storage_reset_pin_fails();
 				ret = true;
 			} else {

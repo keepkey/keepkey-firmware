@@ -69,15 +69,14 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		// address_n provided-> change address -> calculate from address_n
 		if (in->address_n_count > 0) {
 			HDNode node;
-			uint32_t k;
 			memcpy(&node, root, sizeof(HDNode));
-			animating_progress_handler();
-			for (k = 0; k < in->address_n_count; k++) {
-				if (hdnode_private_ckd(&node, in->address_n[k]) == 0) {
-					return 0;
-				}
-				animating_progress_handler();
+
+			if (hdnode_private_ckd_cached(&node, in->address_n, in->address_n_count) == 0) {
+				return 0;
 			}
+
+			animating_progress_handler();
+
 			ecdsa_get_address_raw(node.public_key, coin->address_type, addr_raw);
 		} else
 		if (in->has_address) { // address provided -> regular output
@@ -157,6 +156,16 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		out->script_pubkey.bytes[22] = 0x87; // OP_EQUAL
 		out->script_pubkey.size = 23;
 		return 23;
+	}
+
+	if (in->script_type == OutputScriptType_PAYTOOPRETURN) {
+		if (in->amount != 0) return 0; // only 0 satoshi allowed for OP_RETURN
+		uint32_t r = 0;
+		out->script_pubkey.bytes[0] = 0x6A; r++; // OP_RETURN
+		r += op_push(in->op_return_data.size, out->script_pubkey.bytes + r);
+		memcpy(out->script_pubkey.bytes + r, in->op_return_data.bytes, in->op_return_data.size); r += in->op_return_data.size;
+		out->script_pubkey.size = r;
+		return r;
 	}
 
 	return 0;
