@@ -536,8 +536,24 @@ bool confirm_load_device(bool is_node)
  *      true/false - status
  *
  */
-bool confirm_address(const char *request_title, const char *address)
+bool confirm_address(const char *desc, const char *address)
 {
     return confirm_with_custom_layout(&layout_address_notification,
-        ButtonRequestType_ButtonRequest_Address, request_title, address);
+        ButtonRequestType_ButtonRequest_Address, desc, address);
+}
+
+/*
+ * confirm_sign_identity()
+ *
+ * INPUT -
+ *      *identity - identity information from protocol buffer
+ *      *challenge - challenge string
+ * OUTPUT -
+ *      true/false - status
+ *
+ */
+bool confirm_sign_identity(const IdentityType *identity, const char *challenge)
+{
+    return confirm(ButtonRequestType_ButtonRequest_ProtectCall,
+        "Import Recovery Sentence", "Importing is not recommended unless you understand the risks. Do you want to import recovery sentence?");
 }

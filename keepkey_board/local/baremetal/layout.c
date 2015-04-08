@@ -260,7 +260,7 @@ void layout_transaction_notification(const char* amount, const char* address, No
  * OUTPUT - 
  *      none
  */
-void layout_address_notification(const char* str1, const char* address, NotificationType type)
+void layout_address_notification(const char* desc, const char* address, NotificationType type)
 {
     call_leaving_handler();
     layout_clear();
@@ -282,6 +282,14 @@ void layout_address_notification(const char* str1, const char* address, Notifica
     sp.x = LEFT_MARGIN;
     sp.color = BODY_COLOR;
     draw_string(canvas, address_font, address, &sp, TRANSACTION_WIDTH, font_height(address_font) + BODY_FONT_LINE_PADDING);
+
+    /* Draw description */
+    if(strcmp(desc, "") != 0) {
+        sp.y = TOP_MARGIN_FOR_ONE_LINE;
+        sp.x = MULTISIG_LEFT_MARGIN;
+        sp.color = BODY_COLOR;
+        draw_string(canvas, address_font, desc, &sp, TRANSACTION_WIDTH, font_height(address_font) + BODY_FONT_LINE_PADDING);
+    }
 
     layout_address(address);
     layout_notification_icon(type, &sp);

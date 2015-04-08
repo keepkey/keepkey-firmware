@@ -25,7 +25,8 @@
 #include <libopencm3/stm32/memorymap.h>
 #include <libopencm3/stm32/f2/rng.h>
 #include <rng.h>
-#include <keepkey_board/public/timer.h>
+#include <keepkey_board.h>
+#include <timer.h>
 
 uint32_t random32(void)
 {
@@ -58,6 +59,13 @@ uint32_t random32(void)
     return new;
 }
 
+uint32_t random_uniform(uint32_t n)
+{
+    uint32_t x, max = 0xFFFFFFFF - (0xFFFFFFFF % n);
+    while ((x = random32()) >= max);
+    return x / (max / n);
+}
+
 void random_buffer(uint8_t *buf, size_t len)
 {
 	size_t i;
@@ -68,4 +76,16 @@ void random_buffer(uint8_t *buf, size_t len)
 		}
 		buf[i] = (r >> ((i % 4) * 8)) & 0xFF;
 	}
+}
+
+void random_permute(char *str, size_t len)
+{
+    int i, j;
+    char t;
+    for (i = len - 1; i >= 1; i--) {
+        j = random_uniform(i + 1);
+        t = str[j];
+        str[j] = str[i];
+        str[i] = t;
+    }
 }
