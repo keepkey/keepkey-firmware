@@ -201,7 +201,7 @@ bool pb_parse(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size, uint8
  */
 void dispatch(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size)
 {
-    static uint8_t decode_buffer[MAX_DECODE_SIZE];
+    static uint8_t decode_buffer[MAX_DECODE_SIZE] __attribute__((aligned(4)));
 
     if(pb_parse(entry, msg, msg_size, decode_buffer)) {
         if(entry->process_func) { 
