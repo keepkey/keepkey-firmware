@@ -30,7 +30,7 @@
 #include <storage.h>
 
 #include "recovery.h"
-#include "recovery_cypher.h"
+#include "recovery_cipher.h"
 #include "fsm.h"
 #include "rng.h"
 #include "pin_sm.h"
@@ -186,7 +186,7 @@ void recovery_word(const char *word)
 
 void recovery_abort(bool send_failure)
 {
-    if(awaiting_word || recovery_cypher_abort()) {
+    if(awaiting_word || recovery_cipher_abort()) {
         awaiting_word = false;
 
         if(send_failure) {

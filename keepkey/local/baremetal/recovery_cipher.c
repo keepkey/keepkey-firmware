@@ -21,7 +21,7 @@
 /* END KEEPKEY LICENSE */
 
 /*
- * @brief Recovery cypher.
+ * @brief Recovery cipher.
  */
 
 #include <string.h>
@@ -33,7 +33,7 @@
 #include <msg_dispatch.h>
 #include <storage.h>
 
-#include "recovery_cypher.h"
+#include "recovery_cipher.h"
 #include "rng.h"
 #include "fsm.h"
 #include "pin_sm.h"
@@ -43,12 +43,12 @@ static bool enforce_wordlist;
 static bool awaiting_character;
 static char mnemonic[24 * 12];
 static char english_alphabet[] = "abcdefghijklmnopqrstuvwxyz";
-static char cypher[27];
+static char cipher[27];
 
 void get_current_word(char *current_word);
 
 /*
- * recovery_cypher_init() - display standard notification on LCD screen
+ * recovery_cipher_init() - display standard notification on LCD screen
  *
  * INPUT - 
  *      1. bool passphrase_protection - whether to use passphrase protection
@@ -59,7 +59,7 @@ void get_current_word(char *current_word);
  * OUTPUT - 
  *      none
  */
-void recovery_cypher_init(bool passphrase_protection, bool pin_protection, 
+void recovery_cipher_init(bool passphrase_protection, bool pin_protection, 
         const char *language, const char *label, bool _enforce_wordlist) {
 	if (pin_protection && !change_pin()) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
@@ -76,13 +76,13 @@ void recovery_cypher_init(bool passphrase_protection, bool pin_protection,
     /* Clear mnemonic */
     memset(mnemonic, 0, sizeof(mnemonic) / sizeof(char));
 
-    /* Set to recovery cypher mode and generate and show next cypher */
+    /* Set to recovery cipher mode and generate and show next cipher */
     awaiting_character = true;
 	next_character();
 }
 
 /*
- * next_character() - randomizes cypher and displays it for next character entry
+ * next_character() - randomizes cipher and displays it for next character entry
  *
  * INPUT - 
  *      none
@@ -93,12 +93,12 @@ void next_character(void) {
     char current_word[12] = "", temp;
     uint32_t i, j, k;
 
-    strcpy(cypher, english_alphabet);
-    random_permute(cypher, 26);
+    strcpy(cipher, english_alphabet);
+    random_permute(cipher, 26);
 
-    /* Format current word and display it along with cypher */
+    /* Format current word and display it along with cipher */
     get_current_word(current_word);
-    layout_cypher(current_word, cypher);
+    layout_cipher(current_word, cipher);
 
     CharacterRequest resp;
     memset(&resp, 0, sizeof(CharacterRequest));
@@ -119,18 +119,18 @@ void recovery_character(const char *character) {
 
     if(awaiting_character) {
 
-        pos = strchr(cypher, character[0]);
+        pos = strchr(cipher, character[0]);
 
-        if(character[0] != ' ' && pos == NULL) {    /* If not a space and not a legitmate cypher character, send failure */
+        if(character[0] != ' ' && pos == NULL) {    /* If not a space and not a legitmate cipher character, send failure */
             
             awaiting_character = false;
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Character must be from a to z");
             go_home();
             return;
 
-        } else if(character[0] != ' ') {            /* Decode character using cypher if not space */
+        } else if(character[0] != ' ') {            /* Decode character using cipher if not space */
             
-            decoded_character[0] = english_alphabet[(int)(pos - cypher)];
+            decoded_character[0] = english_alphabet[(int)(pos - cipher)];
 
         }
 
@@ -162,14 +162,14 @@ void recovery_delete_character(void) {
 }
 
 /*
- * recovery_cypher_finalize() - finished mnemonic entry
+ * recovery_cipher_finalize() - finished mnemonic entry
  *
  * INPUT - 
  *      none
  * OUTPUT - 
  *      none
  */
-void recovery_cypher_finalize(void) {
+void recovery_cipher_finalize(void) {
     storage_set_mnemonic(mnemonic);
 
     /* Go home before commiting to eliminate lag */
@@ -187,14 +187,14 @@ void recovery_cypher_finalize(void) {
 }
 
 /*
- * recovery_cypher_abort() - aborts recovery cypher process
+ * recovery_cipher_abort() - aborts recovery cipher process
  *
  * INPUT - 
  *      none
  * OUTPUT - 
  *      bool - status of aborted
  */
-bool recovery_cypher_abort(void)
+bool recovery_cipher_abort(void)
 {
     if (awaiting_character) {
         awaiting_character = false;
@@ -205,16 +205,16 @@ bool recovery_cypher_abort(void)
 }
 
 /*
- * recovery_get_cypher() - gets current cypher being show on display
+ * recovery_get_cipher() - gets current cipher being show on display
  *
  * INPUT - 
  *      none
  * OUTPUT - 
  *      none
  */
-const char *recovery_get_cypher(void)
+const char* recovery_get_cipher(void)
 {
-    return cypher;
+    return cipher;
 }
 
 /*

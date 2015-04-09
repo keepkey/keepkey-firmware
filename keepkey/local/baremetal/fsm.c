@@ -44,7 +44,7 @@
 #include <storage.h>
 #include <reset.h>
 #include <recovery.h>
-#include <recovery_cypher.h>
+#include <recovery_cipher.h>
 #include <memory.h>
 #include <util.h>
 #include <signing.h>
@@ -938,8 +938,8 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg)
         return;
     }
 
-    if(msg->has_use_character_cypher && msg->use_character_cypher == true) { // recovery via character cypher
-        recovery_cypher_init(
+    if(msg->has_use_character_cipher && msg->use_character_cipher == true) { // recovery via character cipher
+        recovery_cipher_init(
             msg->has_passphrase_protection && msg->passphrase_protection,
             msg->has_pin_protection && msg->pin_protection,
             msg->has_language ? msg->language : 0,
@@ -968,7 +968,7 @@ void fsm_msgCharacterAck(CharacterAck *msg)
 	if(msg->has_delete && msg->delete) {
 		recovery_delete_character();
 	} else if(msg->has_done && msg->done) {
-		recovery_cypher_finalize();
+		recovery_cipher_finalize();
 	} else {
 		recovery_character(msg->character);
 	}
@@ -1013,8 +1013,8 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg)
 	resp->has_passphrase_protection = true;
 	resp->passphrase_protection = storage_get_passphrase_protected();
 
-	resp->has_recovery_cypher = true;
-	strlcpy(resp->recovery_cypher, recovery_get_cypher(), sizeof(resp->recovery_cypher));
+	resp->has_recovery_cipher = true;
+	strlcpy(resp->recovery_cipher, recovery_get_cipher(), sizeof(resp->recovery_cipher));
 
 	msg_debug_write(MessageType_MessageType_DebugLinkState, resp);
 }
