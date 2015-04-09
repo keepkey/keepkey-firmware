@@ -4,8 +4,8 @@ MAINTAINER darin@keepkey.com
 
 # Install toolchain
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys FE324A81C208C89497EFC6246D1D8367A3421AFB
-RUN echo "deb http://ppa.launchpad.net/terry.guo/gcc-arm-embedded/ubuntu saucy main" >> /etc/apt/sources.list
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -yq build-essential git scons gcc-arm-none-eabi=4-8-2014q2-0saucy9 python-protobuf protobuf-compiler fabric exuberant-ctags wget
+RUN echo "deb http://ppa.launchpad.net/terry.guo/gcc-arm-embedded/ubuntu trusty main" >> /etc/apt/sources.list
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -yq build-essential git scons gcc-arm-none-eabi=4.9.3.2015q1-0trusty13 python-protobuf protobuf-compiler fabric exuberant-ctags wget
 
 # Install nanopb
 WORKDIR /root
