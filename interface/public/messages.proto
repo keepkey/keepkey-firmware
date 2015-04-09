@@ -356,7 +356,7 @@ message RecoveryDevice {
 	optional string language = 4 [default='english'];	// device language
 	optional string label = 5;				// device label
 	optional bool enforce_wordlist = 6;			// enforce BIP-39 wordlist during the process
-	optional bool use_character_cypher = 7;	// an optional way to input recovery sentence by character using a cipher
+	optional bool use_character_cipher = 7;	// an optional way to input recovery sentence by character using a cipher
 }
 
 /**
@@ -381,7 +381,7 @@ message WordAck {
 
 /**
  * Response: Device is waiting for user to enter character of the mnemonic using cipher.
- * The cypher is shown on device's internal display.
+ * The cipher is shown on device's internal display.
  * @prev RecoveryDevice
  * @prev CharacterAck
  */
@@ -662,7 +662,7 @@ message DebugLinkState {
 	optional bytes reset_entropy = 8;		// current entropy during ResetDevice workflow
 	optional string recovery_fake_word = 9;		// (fake) word on display during RecoveryDevice workflow
 	optional uint32 recovery_word_pos = 10;		// index of mnemonic word the device is expecting during RecoveryDevice workflow
-	optional string recovery_cypher = 11;			// current recovery cypher
+	optional string recovery_cipher = 11;			// current recovery cipher
 }
 
 /**
