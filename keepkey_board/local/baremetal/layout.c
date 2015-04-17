@@ -234,7 +234,7 @@ void layout_transaction_notification(const char* amount, const char* address, No
 
     /* Format amount line */
     char title[body_char_width()];
-    sprintf(title, "Send %s to", amount);
+    snprintf(title, body_char_width(), "Send %s to", amount);
 
     /* Draw amount */
     sp.x = LEFT_MARGIN;

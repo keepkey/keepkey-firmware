@@ -20,6 +20,8 @@
  */
 /* END KEEPKEY LICENSE */
 
+#include <stdio.h>
+
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/usart.h>
@@ -160,18 +162,18 @@ bool dbg_print(char *pStr, ...)
 bool dbg_print(char *pStr, ...)
 {
     bool ret_stat = true;
-    char str[DBG_BFR_SIZE];
+    char str[LARGE_DEBUG_BUF];
     va_list arg;
 
     va_start(arg, pStr);
-    vsprintf(str, pStr, arg);
-    if(strlen(str)+1 <= DBG_BFR_SIZE)
+    vsnprintf(str, LARGE_DEBUG_BUF, pStr, arg);
+    if(strlen(str)+1 <= LARGE_DEBUG_BUF)
     {
         display_debug_string(str);
     }
     else
     {
-        sprintf(str,"error: Debug string(%d) exceeds buffer size(%d)\n\r", strlen(str)+1, DBG_BFR_SIZE );
+        snprintf(str, LARGE_DEBUG_BUF, "error: Debug string(%d) exceeds buffer size(%d)\n\r", strlen(str)+1, LARGE_DEBUG_BUF);
         display_debug_string(str);
         ret_stat = false;
     }
@@ -208,14 +210,14 @@ void dbg_trigger(uint32_t color)
 char read_console(void)
 {
     int timeout_cnt = 100; /* allow 100msec for USART busy timeout*/
-    char char_read = 0, str_dbg[30];
+    char char_read = 0, str_dbg[SMALL_DEBUG_BUF];
 
     while(1)
     {
         if(get_console_input(&char_read))
         {
             /* print for debug only */
-            sprintf(str_dbg, "%c\n\r", char_read);
+            snprintf(str_dbg, SMALL_DEBUG_BUF, "%c\n\r", char_read);
             display_debug_string(str_dbg); 
         }
     }

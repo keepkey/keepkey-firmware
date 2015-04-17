@@ -43,7 +43,7 @@
  * OUTPUT - 
  *      none
  */
-static void exec(unsigned int reset_count)
+static void exec(uint32_t reset_count)
 {
     usb_poll();
     animate();
@@ -54,8 +54,10 @@ static void exec(unsigned int reset_count)
     	delay_ms(1000);
     	layout_clear();
         const char* mnemonic = mnemonic_generate(128);
-        char title[50];
-        sprintf(title, "EMI test: Mnemonic Generation [%d]", reset_count);
+        char title[MEDIUM_STR_BUF];
+
+        /* snprintf: 32 + 10 (%u) + 1 (NULL) = 43 */
+        snprintf(title, MEDIUM_STR_BUF, "EMI test: Mnemonic Generation [%u]", reset_count);
         layout_standard_notification(title, mnemonic, NOTIFICATION_CONFIRM_ANIMATION);
 
         usb_poll();
@@ -70,10 +72,13 @@ static void exec(unsigned int reset_count)
  *  INPUT - none
  *  OUTPUT - none
  */
-void update_reset_count(unsigned int count)
+void update_reset_count(uint32_t count)
 {
-    char temp[20];
-    sprintf(temp, "%d", count);
+    char temp[SMALL_STR_BUF];
+
+    /* snprintf: 10 (%u) + 1 (NULL) = 11 */
+    snprintf(temp, SMALL_STR_BUF, "%u", count);
+    
     storage_setLabel(temp);
     storage_commit();
 }
@@ -87,7 +92,7 @@ void update_reset_count(unsigned int count)
 int main(void)
 {
     const char *label;
-    unsigned long count;
+    uint32_t count;
 
     board_init();
     led_func(SET_RED_LED);
@@ -106,7 +111,7 @@ int main(void)
     label = storage_get_label();
     count = 1;
     if(label) {
-        count = strtoul(label, NULL, 10);
+        count = (uint32_t) strtol(label, NULL, 10);
     }
 
     count++;

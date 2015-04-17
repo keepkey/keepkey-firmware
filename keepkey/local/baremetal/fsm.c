@@ -639,11 +639,13 @@ void fsm_msgGetAddress(GetAddress *msg)
 	}
 
     if (msg->has_show_display && msg->show_display) {
-    	char desc[27] = "";
+    	char desc[MEDIUM_STR_BUF] = "";
 		if (msg->has_multisig) {
 			const uint32_t m = msg->multisig.m;
 			const uint32_t n = msg->multisig.pubkeys_count;
-			sprintf(desc, "(Multi-Signature %d of %d)", m, n);
+
+			/* snprintf: 22 + 10 (%u) + 10 (%u) + 1 (NULL) = 43 */
+			snprintf(desc, MEDIUM_STR_BUF, "(Multi-Signature %u of %u)", m, n);
 		}
 
 		if(!confirm_address(desc, resp->address)) {

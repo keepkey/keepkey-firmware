@@ -29,6 +29,7 @@
 
 #include <stdbool.h>
 
+#include <keepkey_board.h>
 #include <layout.h>
 #include <msg_dispatch.h>
 #include <rand.h>
@@ -251,7 +252,7 @@ const char* get_pin_matrix(void)
 bool pin_protect(char *prompt)
 {
 	PINInfo pin_info;
-    char warn_title_fmt[50], warn_msg_fmt[50];
+    char warn_msg_fmt[MEDIUM_STR_BUF];
     uint32_t failed_cnts = 0, wait = 0;
 	bool ret = false, pre_increment_cnt_flg = true;
 
@@ -263,7 +264,8 @@ bool pin_protect(char *prompt)
 		{
 			if(failed_cnts > 2)
 			{
-                sprintf(warn_msg_fmt, "Previous PIN Failures: Wait %d Seconds", 1u << failed_cnts);
+				/* snprintf: 36 + 10 (%u) + 1 (NULL) = 47 */
+                snprintf(warn_msg_fmt, MEDIUM_STR_BUF, "Previous PIN Failures: Wait %u Seconds", 1u << failed_cnts);
 				layout_warning(warn_msg_fmt);
 
 				wait = (failed_cnts < 32) ? (1u << failed_cnts) : 0xFFFFFFFF;

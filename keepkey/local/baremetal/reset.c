@@ -38,10 +38,12 @@
 #include "pin_sm.h"
 #include "home_sm.h"
 
-#define MAX_WORDS 24
-#define MAX_WORD_LEN 10
-#define ADDITIONAL_WORD_PAD 5
-#define WORDS_PER_SCREEN 12
+#define MAX_WORDS 				24
+#define MAX_WORD_LEN 			10
+#define ADDITIONAL_WORD_PAD 	5
+#define WORDS_PER_SCREEN 		12
+#define FORMATTED_MNEMONIC_BUF	MAX_WORDS * (MAX_WORD_LEN + ADDITIONAL_WORD_PAD) + 1
+#define MNEMONIC_BY_SCREEN_BUF	WORDS_PER_SCREEN * (MAX_WORD_LEN + 1) + 1
 
 static uint32_t strength;
 static uint8_t  int_entropy[32];
@@ -113,23 +115,28 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 	/*
 	 * Format mnemonic for user review
 	 */
-	int word_count = 0;
+	uint32_t word_count = 0;
 	char *tok;
 	char tokened_mnemonic[MAX_WORDS * (MAX_WORD_LEN + 1) + 1];
-	char mnemonic_by_screen[MAX_WORDS / WORDS_PER_SCREEN][WORDS_PER_SCREEN * (MAX_WORD_LEN + 1) + 1];
-	char formatted_mnemonic[MAX_WORDS / WORDS_PER_SCREEN][MAX_WORDS * (MAX_WORD_LEN + ADDITIONAL_WORD_PAD) + 1];
+	char mnemonic_by_screen[MAX_WORDS / WORDS_PER_SCREEN][MNEMONIC_BY_SCREEN_BUF];
+	char formatted_mnemonic[MAX_WORDS / WORDS_PER_SCREEN][FORMATTED_MNEMONIC_BUF];
 	strcpy(tokened_mnemonic, temp_mnemonic);
 
 	tok = strtok(tokened_mnemonic, " ");
 	while (tok) {
 		/* format word for screen */
 		char formatted_word[MAX_WORD_LEN + ADDITIONAL_WORD_PAD];
-		sprintf(formatted_word, "%d.%s   ", word_count + 1, tok);
-		strcat(formatted_mnemonic[word_count / WORDS_PER_SCREEN], formatted_word);
+
+		snprintf(formatted_word, MAX_WORD_LEN + ADDITIONAL_WORD_PAD, "%u.%s   ", word_count + 1, tok);
+
+		strncat(formatted_mnemonic[word_count / WORDS_PER_SCREEN], formatted_word,
+			FORMATTED_MNEMONIC_BUF - strlen(formatted_mnemonic[word_count / WORDS_PER_SCREEN]) - 1);
 
 		/* save mnemonic for each screen */
-		strcat(mnemonic_by_screen[word_count / WORDS_PER_SCREEN], tok);
-		strcat(mnemonic_by_screen[word_count / WORDS_PER_SCREEN], " ");
+		strncat(mnemonic_by_screen[word_count / WORDS_PER_SCREEN], tok,
+			MNEMONIC_BY_SCREEN_BUF - strlen(mnemonic_by_screen[word_count / WORDS_PER_SCREEN]) - 1);
+		strncat(mnemonic_by_screen[word_count / WORDS_PER_SCREEN], " ",
+			MNEMONIC_BY_SCREEN_BUF - strlen(mnemonic_by_screen[word_count / WORDS_PER_SCREEN]) - 1);
 
 		tok = strtok(NULL, " ");
 		word_count++;
@@ -140,16 +147,16 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 	 */
 	for(int word_group = 0; word_group * WORDS_PER_SCREEN < (strength / 32) * 3; word_group++)
 	{
-		char title[32];
+		char title[MEDIUM_STR_BUF] = "Recovery Sentence";
 
 		/* make current screen mnemonic available externally */
 		strcpy(current_words, mnemonic_by_screen[word_group]);
 		current_words[strlen(current_words) - 1] = 0;
 
-		if((strength / 32) * 3 > WORDS_PER_SCREEN)
-			sprintf(title, "Recovery Sentence %d/2", word_group + 1);
-		else
-			strcpy(title, "Recovery Sentence");
+		if((strength / 32) * 3 > WORDS_PER_SCREEN) {
+			/* snprintf: 20 + 10 (%d) + 1 (NULL) = 31 */
+			snprintf(title, MEDIUM_STR_BUF, "Recovery Sentence %d/2", word_group + 1);
+		}
 
 		if (!confirm(ButtonRequestType_ButtonRequest_ConfirmWord, title, "%s", formatted_mnemonic[word_group])) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Reset cancelled");

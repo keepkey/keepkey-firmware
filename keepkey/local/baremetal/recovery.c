@@ -48,18 +48,20 @@ static char words[24][12];
 
 void next_word(void) {
 	word_pos = word_order[word_index];
-	char title_formatted[26];
-	char body_formatted[90];
+	char title_formatted[SMALL_STR_BUF];
+	char body_formatted[MEDIUM_STR_BUF];
 
 	/* Form title */
-	sprintf(title_formatted, "Device Recovery Step %d/24", word_index + 1);
+    /* snprintf: 24 + 10 (%u) + 1 (NULL) = 35 */
+	snprintf(title_formatted, SMALL_STR_BUF, "Device Recovery Step %u/24", word_index + 1);
 
 	if (word_pos == 0) {
 		const char * const *wl = mnemonic_wordlist();
         strlcpy(fake_word, wl[random_uniform(2048)], sizeof(fake_word));
 
 		/* Format body for fake word */
-		sprintf(body_formatted, "Enter the word \"%s\".", fake_word);
+        /* snprintf: 18 + 12 (fake_word) + 1 (NULL) = 31 */
+		snprintf(body_formatted, MEDIUM_STR_BUF, "Enter the word \"%s\".", fake_word);
 
         layout_standard_notification(title_formatted, body_formatted, NOTIFICATION_RECOVERY);
 	} else {
@@ -77,7 +79,8 @@ void next_word(void) {
 		}
 
 		/* Format body for real word */
-		sprintf(body_formatted, "Enter the %d%s of your recovery sentence.", word_pos, desc);
+        /* snprintf: 37 + 10 (%u) + 8 (desc) + 1 (NULL) = 56 */
+		snprintf(body_formatted, MEDIUM_STR_BUF, "Enter the %u%s of your recovery sentence.", word_pos, desc);
 
 		layout_standard_notification(title_formatted, body_formatted, NOTIFICATION_RECOVERY);
 	}

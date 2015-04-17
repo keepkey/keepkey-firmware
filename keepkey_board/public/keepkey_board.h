@@ -56,6 +56,10 @@ extern "C" {
 /* Length of the uuid binary converted to readable ASCII.  */
 #define STORAGE_UUID_STR_LEN ((STORAGE_UUID_LEN * 2) + 1)
 
+#define SMALL_STR_BUF       32
+#define MEDIUM_STR_BUF      64
+#define LARGE_STR_BUF       128
+
 /***************** typedefs and enums  *******************/
 /* Flash metadata structure which will contains unique identifier
    information that spans device resets.  */

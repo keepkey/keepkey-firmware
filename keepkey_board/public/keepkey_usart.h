@@ -30,14 +30,13 @@
 #include <timer.h>
 #include <stdarg.h>
 
-#define DBG_BFR_SIZE    100
+#define SMALL_DEBUG_BUF     32
+#define MEDIUM_DEBUG_BUF    64
+#define LARGE_DEBUG_BUF     128
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/* Extern declarations to resolve compiler warnings */
-extern int sprintf(char *, const char *, ...);
-extern int vsprintf(char *, const char *, va_list);
 
 bool dbg_print(char *pStr, ...); /*  print to debug console */
 void usart_init(void); /* Initialize usart3 for debug port */
