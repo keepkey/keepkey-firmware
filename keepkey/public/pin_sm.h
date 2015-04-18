@@ -30,6 +30,8 @@
 #include <interface.h>
 
 /***************** #defines ********************************/
+#define PIN_BUF sizeof(((PinMatrixAck *)NULL)->pin)
+
 #define PIN_FAIL_DELAY_START    2
 #define MAX_PIN_FAIL_ATTEMPTS   32
 
@@ -55,7 +57,7 @@ typedef enum {
 typedef struct {
 	PinMatrixRequestType type;
 	PINAckMsg pin_ack_msg;
-	char pin[10];
+	char pin[PIN_BUF];
 } PINInfo;
  
 /***************** Function Declarations *******************/

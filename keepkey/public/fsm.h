@@ -26,7 +26,7 @@
 
 #include <interface.h>
 /***************** #defines ********************************/
-#define ENTROPY_BFRSZ sizeof(((Entropy *)NULL)->entropy.bytes)
+#define ENTROPY_BUF sizeof(((Entropy *)NULL)->entropy.bytes)
 
 /*
  * Message functions

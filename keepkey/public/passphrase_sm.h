@@ -31,6 +31,7 @@
 
 /***************** #defines  *****************************/
 
+#define PASSPHRASE_BUF sizeof(((PassphraseAck *)NULL)->passphrase)
 
 /***************** typedefs and enums  *******************/
 /* State for Passphrase SM */
@@ -54,8 +55,8 @@ typedef enum {
 /* Contains passphrase received info */
 typedef struct {
 	PassphraseAckMsg passphrase_ack_msg;
-	char passphrase[51];
-} PassphraseInfo; 
+	char passphrase[PASSPHRASE_BUF];
+} PassphraseInfo;
 
 bool passphrase_protect();
 

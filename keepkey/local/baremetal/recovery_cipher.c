@@ -42,7 +42,7 @@
 static bool enforce_wordlist;
 static bool awaiting_character;
 static char mnemonic[MNEMONIC_BUF];
-static char english_alphabet[] = "abcdefghijklmnopqrstuvwxyz";
+static char english_alphabet[ENGLISH_ALPHABET_LEN + 1] = "abcdefghijklmnopqrstuvwxyz";
 static char cipher[ENGLISH_ALPHABET_LEN + 1];
 
 void get_current_word(char *current_word);
@@ -93,7 +93,8 @@ void next_character(void) {
     char current_word[CURRENT_WORD_BUF] = "", temp;
     uint32_t i, j, k;
 
-    strcpy(cipher, english_alphabet);
+    *cipher = '\0';
+    strncat(cipher, english_alphabet, ENGLISH_ALPHABET_LEN);
     random_permute(cipher, ENGLISH_ALPHABET_LEN);
 
     /* Format current word and display it along with cipher */

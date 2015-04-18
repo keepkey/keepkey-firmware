@@ -42,6 +42,7 @@
 #define MAX_WORD_LEN 			10
 #define ADDITIONAL_WORD_PAD 	5
 #define WORDS_PER_SCREEN 		12
+#define TOKENED_MNEMONIC_BUF	MAX_WORDS * (MAX_WORD_LEN + 1) + 1
 #define FORMATTED_MNEMONIC_BUF	MAX_WORDS * (MAX_WORD_LEN + ADDITIONAL_WORD_PAD) + 1
 #define MNEMONIC_BY_SCREEN_BUF	WORDS_PER_SCREEN * (MAX_WORD_LEN + 1) + 1
 
@@ -93,7 +94,7 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 	awaiting_entropy = true;
 }
 
-static char current_words[WORDS_PER_SCREEN * (MAX_WORD_LEN + 1) + 1];
+static char current_words[MNEMONIC_BY_SCREEN_BUF];
 
 void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 {
@@ -117,10 +118,12 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 	 */
 	uint32_t word_count = 0;
 	char *tok;
-	char tokened_mnemonic[MAX_WORDS * (MAX_WORD_LEN + 1) + 1];
+	char tokened_mnemonic[TOKENED_MNEMONIC_BUF];
 	char mnemonic_by_screen[MAX_WORDS / WORDS_PER_SCREEN][MNEMONIC_BY_SCREEN_BUF];
 	char formatted_mnemonic[MAX_WORDS / WORDS_PER_SCREEN][FORMATTED_MNEMONIC_BUF];
-	strcpy(tokened_mnemonic, temp_mnemonic);
+
+	*tokened_mnemonic = '\0';
+	strncat(tokened_mnemonic, temp_mnemonic, TOKENED_MNEMONIC_BUF - 1);
 
 	tok = strtok(tokened_mnemonic, " ");
 	while (tok) {
@@ -150,7 +153,9 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 		char title[MEDIUM_STR_BUF] = "Recovery Sentence";
 
 		/* make current screen mnemonic available externally */
-		strcpy(current_words, mnemonic_by_screen[word_group]);
+		*current_words = '\0';
+		strncat(current_words, mnemonic_by_screen[word_group], MNEMONIC_BY_SCREEN_BUF - 1);
+
 		current_words[strlen(current_words) - 1] = 0;
 
 		if((strength / 32) * 3 > WORDS_PER_SCREEN) {
