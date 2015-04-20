@@ -22,6 +22,7 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
 
@@ -97,8 +98,8 @@ bool verify_fingerprint(void)
 
     for (uint8_t i = 0; i < SHA256_DIGEST_LENGTH; i++) {
         char digest_buf[BYTE_AS_HEX_STR_LEN];
-        sprintf(digest_buf, "%02x", digest[i]);
-        strcat(str_digest, digest_buf);
+        snprintf(digest_buf, BYTE_AS_HEX_STR_LEN, "%02x", digest[i]);
+        strncat(str_digest, digest_buf, BYTE_AS_HEX_STR_LEN - 1);
     }
 	/* get user confirmation */
     if(confirm(ButtonRequestType_ButtonRequest_FirmwareCheck,

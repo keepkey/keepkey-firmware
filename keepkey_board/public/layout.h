@@ -175,8 +175,6 @@ void layout_home_reversed(void);
 void layout_screensaver(void);
 void layout_tx_info( const char* address, uint64_t amount_in_satoshi);
 void layout_confirmation(); 
-const uint32_t layout_char_width();
-const uint32_t warning_char_width();
 
 void layout_firmware_update_confirmation();
 void layout_standard_notification( const char* str1, const char* str2, NotificationType type);

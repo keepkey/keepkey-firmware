@@ -1039,30 +1039,6 @@ static Animation* animation_queue_get(AnimationQueue* queue, AnimateCallback cal
 }
 
 /*
- * layout_char_width() - get display with respect to font type
- * 
- * INPUT -
- *      *font - pointer font type
- * OUTPUT - get display width 
- */
-const uint32_t layout_char_width(Font *font)
-{
-    return(KEEPKEY_DISPLAY_WIDTH / font_width(font));
-}
-
-/*
- * warning_char_width() - get display warning width
- *
- * INPUT - none 
- * OUTPUT - get warning width 
- */
-const uint32_t warning_char_width()
-{
-	const Font* font = get_title_font();
-    return((KEEPKEY_DISPLAY_WIDTH / font_width(font)) * WARNING_ROWS);
-}
-
-/*
  * set_leaving_handler() - setup leaving handler
  *
  * INPUT -
