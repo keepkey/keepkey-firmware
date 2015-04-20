@@ -42,8 +42,8 @@
 static bool enforce_wordlist;
 static bool awaiting_character;
 static char mnemonic[MNEMONIC_BUF];
-static char english_alphabet[ENGLISH_ALPHABET_LEN + 1] = "abcdefghijklmnopqrstuvwxyz";
-static char cipher[ENGLISH_ALPHABET_LEN + 1];
+static char english_alphabet[ENGLISH_ALPHABET_BUF] = "abcdefghijklmnopqrstuvwxyz";
+static char cipher[ENGLISH_ALPHABET_BUF];
 
 void get_current_word(char *current_word);
 
@@ -93,9 +93,8 @@ void next_character(void) {
     char current_word[CURRENT_WORD_BUF] = "", temp;
     uint32_t i, j, k;
 
-    *cipher = '\0';
-    strncat(cipher, english_alphabet, ENGLISH_ALPHABET_LEN);
-    random_permute(cipher, ENGLISH_ALPHABET_LEN);
+    strlcpy(cipher, english_alphabet, ENGLISH_ALPHABET_BUF);
+    random_permute(cipher, ENGLISH_ALPHABET_BUF - 1);
 
     /* Format current word and display it along with cipher */
     get_current_word(current_word);
@@ -136,7 +135,7 @@ void recovery_character(const char *character) {
         }
 
         // concat to mnemonic
-        strncat(mnemonic, decoded_character, MNEMONIC_BUF - strlen(mnemonic) - 1);
+        strlcat(mnemonic, decoded_character, MNEMONIC_BUF);
 
         next_character();
 
@@ -248,6 +247,6 @@ void get_current_word(char *current_word) {
 
     /* Pad with asterix */
     for(i = 0; i < 8 - pos_len; i++) {
-        strncat(current_word, "-", CURRENT_WORD_BUF - strlen(current_word) - 1);
+        strlcat(current_word, "-", CURRENT_WORD_BUF);
     }
 }

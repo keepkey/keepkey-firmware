@@ -99,7 +99,7 @@ bool verify_fingerprint(void)
     for (uint8_t i = 0; i < SHA256_DIGEST_LENGTH; i++) {
         char digest_buf[BYTE_AS_HEX_STR_LEN];
         snprintf(digest_buf, BYTE_AS_HEX_STR_LEN, "%02x", digest[i]);
-        strncat(str_digest, digest_buf, BYTE_AS_HEX_STR_LEN - 1);
+        strlcat(str_digest, digest_buf, SHA256_DIGEST_STR_LEN);
     }
 	/* get user confirmation */
     if(confirm(ButtonRequestType_ButtonRequest_FirmwareCheck,

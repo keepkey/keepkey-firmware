@@ -32,7 +32,7 @@
 
 #define MNEMONIC_BUF            24 * 12
 #define CURRENT_WORD_BUF        12
-#define ENGLISH_ALPHABET_LEN    26
+#define ENGLISH_ALPHABET_BUF    27
 
 void recovery_cipher_init(bool passphrase_protection, bool pin_protection, const char *language,
     const char *label, bool _enforce_wordlist);

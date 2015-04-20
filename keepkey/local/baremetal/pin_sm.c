@@ -81,8 +81,7 @@ static void check_for_pin_ack(PINInfo *pin_info)
 			pin_info->pin_ack_msg = PIN_ACK_RECEIVED;
 			PinMatrixAck *pma = (PinMatrixAck *)msg_tiny_buf;
 
-			*pin_info->pin = '\0';
-			strncat(pin_info->pin, pma->pin, PIN_BUF - 1);
+			strlcpy(pin_info->pin, pma->pin, PIN_BUF);
 			break;
 		case MessageType_MessageType_Cancel :	/* Check for cancel or initialize messages */
 			pin_info->pin_ack_msg = PIN_ACK_CANCEL;
@@ -194,8 +193,7 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
 	PINState pin_state = PIN_REQUEST;
 
 	/* Init and randomize pin matrix */
-	*pin_matrix = '\0';
-	strncat(pin_matrix, "123456789", PIN_BUF - 1);
+	strlcpy(pin_matrix, "123456789", PIN_BUF);
 	random_permute(pin_matrix, 9);
 
 	/* Show layout */
@@ -230,8 +228,7 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
 	}
 
 	/* clear PIN matrix */
-	*pin_matrix = '\0';
-	strncat(pin_matrix, "XXXXXXXXX", PIN_BUF - 1);
+	strlcpy(pin_matrix, "XXXXXXXXX", PIN_BUF);
 
 	return (ret);
 }

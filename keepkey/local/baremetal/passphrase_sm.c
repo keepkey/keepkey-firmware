@@ -71,8 +71,7 @@ static void wait_for_passphrase_ack(PassphraseInfo *passphrase_info)
 		    passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_RECEIVED;
 		    PassphraseAck *ppa = (PassphraseAck *)msg_tiny_buf;
 
-            *passphrase_info->passphrase = '\0';
-		    strncat(passphrase_info->passphrase, ppa->passphrase, PASSPHRASE_BUF - 1);
+		    strlcpy(passphrase_info->passphrase, ppa->passphrase, PASSPHRASE_BUF);
             break;
         case MessageType_MessageType_Cancel :   /* Check for cancel or initialize messages */
 		    passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_CANCEL;

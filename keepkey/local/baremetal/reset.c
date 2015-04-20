@@ -122,8 +122,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 	char mnemonic_by_screen[MAX_WORDS / WORDS_PER_SCREEN][MNEMONIC_BY_SCREEN_BUF];
 	char formatted_mnemonic[MAX_WORDS / WORDS_PER_SCREEN][FORMATTED_MNEMONIC_BUF];
 
-	*tokened_mnemonic = '\0';
-	strncat(tokened_mnemonic, temp_mnemonic, TOKENED_MNEMONIC_BUF - 1);
+	strlcpy(tokened_mnemonic, temp_mnemonic, TOKENED_MNEMONIC_BUF);
 
 	tok = strtok(tokened_mnemonic, " ");
 	while (tok) {
@@ -132,14 +131,11 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 
 		snprintf(formatted_word, MAX_WORD_LEN + ADDITIONAL_WORD_PAD, "%u.%s   ", word_count + 1, tok);
 
-		strncat(formatted_mnemonic[word_count / WORDS_PER_SCREEN], formatted_word,
-			FORMATTED_MNEMONIC_BUF - strlen(formatted_mnemonic[word_count / WORDS_PER_SCREEN]) - 1);
+		strlcat(formatted_mnemonic[word_count / WORDS_PER_SCREEN], formatted_word, FORMATTED_MNEMONIC_BUF);
 
 		/* save mnemonic for each screen */
-		strncat(mnemonic_by_screen[word_count / WORDS_PER_SCREEN], tok,
-			MNEMONIC_BY_SCREEN_BUF - strlen(mnemonic_by_screen[word_count / WORDS_PER_SCREEN]) - 1);
-		strncat(mnemonic_by_screen[word_count / WORDS_PER_SCREEN], " ",
-			MNEMONIC_BY_SCREEN_BUF - strlen(mnemonic_by_screen[word_count / WORDS_PER_SCREEN]) - 1);
+		strlcpy(mnemonic_by_screen[word_count / WORDS_PER_SCREEN], tok, MNEMONIC_BY_SCREEN_BUF);
+		strlcat(mnemonic_by_screen[word_count / WORDS_PER_SCREEN], " ", MNEMONIC_BY_SCREEN_BUF);
 
 		tok = strtok(NULL, " ");
 		word_count++;
@@ -153,8 +149,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 		char title[MEDIUM_STR_BUF] = "Recovery Sentence";
 
 		/* make current screen mnemonic available externally */
-		*current_words = '\0';
-		strncat(current_words, mnemonic_by_screen[word_group], MNEMONIC_BY_SCREEN_BUF - 1);
+		strlcpy(current_words, mnemonic_by_screen[word_group], MNEMONIC_BY_SCREEN_BUF);
 
 		current_words[strlen(current_words) - 1] = 0;
 

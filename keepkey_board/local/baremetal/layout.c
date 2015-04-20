@@ -186,8 +186,8 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
     }
 
     /* Format Title */
-    char upper_str1[TITLE_CHAR_MAX] = "";
-    strncat(upper_str1, str1, TITLE_CHAR_MAX - 1);
+    char upper_str1[TITLE_CHAR_MAX];
+    strlcpy(upper_str1, str1, TITLE_CHAR_MAX);
     strupr(upper_str1);
 
     /* Title */
@@ -398,8 +398,8 @@ void layout_simple_message(const char* str)
     const Font* font = get_title_font();
 
     /* Format Message */
-    char upper_str[TITLE_CHAR_MAX] = "";
-    strncat(upper_str, str, TITLE_CHAR_MAX - 1);
+    char upper_str[TITLE_CHAR_MAX];
+    strlcpy(upper_str, str, TITLE_CHAR_MAX);
     strupr(upper_str);
 
     /* Draw Message */
