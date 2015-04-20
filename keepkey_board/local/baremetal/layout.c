@@ -175,7 +175,7 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
     DrawableParams sp;
     const Font* title_font = get_title_font();
     const Font* body_font = get_body_font();
-    uint8_t body_line_count = calc_str_line(body_font, str2, BODY_WIDTH);
+    const uint32_t body_line_count = calc_str_line(body_font, str2, BODY_WIDTH);
 
     /* Determine vertical alignment and body width */
     sp.y = TOP_MARGIN;
@@ -186,8 +186,8 @@ void layout_standard_notification(const char* str1, const char* str2, Notificati
     }
 
     /* Format Title */
-    char upper_str1[title_char_width()];
-    strcpy(upper_str1, str1);
+    char upper_str1[TITLE_CHAR_MAX] = "";
+    strncat(upper_str1, str1, TITLE_CHAR_MAX - 1);
     strupr(upper_str1);
 
     /* Title */
@@ -233,8 +233,8 @@ void layout_transaction_notification(const char* amount, const char* address, No
     sp.y =  TOP_MARGIN_FOR_ONE_LINE;
 
     /* Format amount line */
-    char title[body_char_width()];
-    snprintf(title, body_char_width(), "Send %s to", amount);
+    char title[BODY_CHAR_MAX];
+    snprintf(title, BODY_CHAR_MAX, "Send %s to", amount);
 
     /* Draw amount */
     sp.x = LEFT_MARGIN;
@@ -398,8 +398,8 @@ void layout_simple_message(const char* str)
     const Font* font = get_title_font();
 
     /* Format Message */
-    char upper_str[title_char_width()];
-    strcpy(upper_str, str);
+    char upper_str[TITLE_CHAR_MAX] = "";
+    strncat(upper_str, str, TITLE_CHAR_MAX - 1);
     strupr(upper_str);
 
     /* Draw Message */
@@ -1045,33 +1045,9 @@ static Animation* animation_queue_get(AnimationQueue* queue, AnimateCallback cal
  *      *font - pointer font type
  * OUTPUT - get display width 
  */
-uint32_t layout_char_width(Font *font)
+const uint32_t layout_char_width(Font *font)
 {
     return(KEEPKEY_DISPLAY_WIDTH / font_width(font));
-}
-
-/*
- * title_char_width() - get display titile width 
- *
- * INPUT - none 
- * OUTPUT - get title width
- */
-uint32_t title_char_width()
-{
-	const Font* font = get_title_font();
-    return((TITLE_WIDTH / font_width(font)) * TITLE_ROWS);
-}
-
-/*
- * body_char_width() - get display body width
- *
- * INPUT - none 
- * OUTPUT - get body width 
- */
-uint32_t body_char_width()
-{
-	const Font* font = get_body_font();
-    return((BODY_WIDTH / font_width(font)) * BODY_ROWS);
 }
 
 /*
@@ -1080,7 +1056,7 @@ uint32_t body_char_width()
  * INPUT - none 
  * OUTPUT - get warning width 
  */
-uint32_t warning_char_width()
+const uint32_t warning_char_width()
 {
 	const Font* font = get_title_font();
     return((KEEPKEY_DISPLAY_WIDTH / font_width(font)) * WARNING_ROWS);

@@ -181,8 +181,8 @@ bool confirm(ButtonRequestType type, const char *request_title, const char *requ
 
 	va_list vl;
 	va_start(vl, request_body);
-	char strbuf[body_char_width()+1];
-	vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+	char strbuf[BODY_CHAR_MAX];
+	vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
 	va_end(vl);
 
 	/* Send button request */
@@ -212,8 +212,8 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func, 
 
     va_list vl;
     va_start(vl, request_body);
-    char strbuf[body_char_width()+1];
-    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+    char strbuf[BODY_CHAR_MAX];
+    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
     /* Send button request */
@@ -241,8 +241,8 @@ bool confirm_without_button_request(const char *request_title, const char *reque
 
 	va_list vl;
 	va_start(vl, request_body);
-	char strbuf[body_char_width()+1];
-	vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+	char strbuf[BODY_CHAR_MAX];
+	vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
 	va_end(vl);
 
 	return confirm_helper(request_title, strbuf, &layout_standard_notification);
@@ -265,8 +265,8 @@ bool review(ButtonRequestType type, const char *request_title, const char *reque
 
 	va_list vl;
 	va_start(vl, request_body);
-	char strbuf[body_char_width()+1];
-	vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+	char strbuf[BODY_CHAR_MAX];
+	vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
 	va_end(vl);
 
 	/* Send button request */
@@ -296,8 +296,8 @@ bool review_without_button_request(const char *request_title, const char *reques
 
 	va_list vl;
 	va_start(vl, request_body);
-	char strbuf[body_char_width()+1];
-	vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+	char strbuf[BODY_CHAR_MAX];
+	vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
 	va_end(vl);
 
 	confirm_helper(request_title, strbuf, &layout_standard_notification);
