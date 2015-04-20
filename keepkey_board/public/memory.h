@@ -67,6 +67,9 @@
  flags & 0x01 -> restore storage after flashing (if signatures are ok)
  */
 
+/* meta info */
+#define META_MAGIC_STR          "KPKY"
+
 /* Flash Info */
 #define FLASH_ORIGIN            (0x08000000)
 #define FLASH_TOTAL_SIZE        (1024 * 1024)
