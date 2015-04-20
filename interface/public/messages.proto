@@ -386,6 +386,7 @@ message WordAck {
  * @prev CharacterAck
  */
 message CharacterRequest {
+	optional bool found = 2;							// current word of mnemonic has been found
 }
 
 /**
