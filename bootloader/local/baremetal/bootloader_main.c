@@ -177,16 +177,6 @@ static bool check_magic(void)
     app_meta_td *app_meta = (app_meta_td *)FLASH_META_MAGIC;
     
     retval = (memcmp((void *)&app_meta->magic, META_MAGIC_STR, META_MAGIC_SIZE) == 0) ? true : false;
-
-    /*
-     * Make sure magic area in the flash is written.  (Magic area can be left in
-     * unwritten state if usb cable was unplugged before the magic value had a chance to 
-     * to update during the last flash update).  This will ensure external app can 
-     * not write to the space without having to erase the sector
-     */
-    if((retval == false) && (app_meta->magic == 0xFFFFFFFF)){
-        flash_write_n_lock(FLASH_APP, 0, META_MAGIC_SIZE, "XXXX");
-    }
     return(retval);
 #else
     return(true);
@@ -230,19 +220,6 @@ bool check_firmware_sig(void)
 	return(true);
 #endif
 
-}
-/*
- *  check_fw_is_new - check firmware being loaded is newer than installed version
- *
- *  INPUT 
- *      - none
- *  OUTPUT
- *      - true/false
- */
-bool check_fw_is_new(void)
-{
-    /* TODO: need to implement away to check version (stubbed for now) */
-    return(true);
 }
 
 /*
@@ -299,46 +276,41 @@ int main(int argc, char* argv[])
     dbg_print("BootLoader Version %d.%d (%s)\n\r", BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION, __DATE__);
 
     /* main loop for bootloader to transition to next step */
-    while(1) {
-        if(!update_mode) {
-            if(check_magic() == true) {
-                if(!check_firmware_sig()) {
-                    /* KeepKey signature check failed.  Unknown code is sitting in Application parition */
-                    layout_standard_notification("UNSIGNED FIRMWARE", "NOSIG", NOTIFICATION_INFO);
+    if(!update_mode) {
+        if(check_magic() == true) {
+            if(!check_firmware_sig()) {
+                /*KeepKey signature chk failed, get user acknowledgement before booting.*/
+                if(!confirm_without_button_request("Unsigned Firmware Detected", 
+                                                   "Do you want to continue booting?")) {
+                    layout_simple_message("Boot aborted.");
                     display_refresh();
-                    if(*(uint32_t *)FLASH_STORAGE_START != 0xFFFFFFFF) {
-                        /* make sure storage partition is cleared.  We don't want any loose ends */
-                        storage_part_erase();
-                    }
-                    delay_ms(5000);
+                    goto boot_exit;
                 }
-                led_func(CLR_RED_LED);
-	            cm_disable_interrupts();
-                set_vector_table_offset(FLASH_APP_START - FLASH_ORIGIN);  //offset = 0x60100
-                boot_jump(FLASH_APP_START);
             }
-            else {
-                /* Invalid magic found.  Not booting!!! */
-                layout_standard_notification("INVALID FIRMWARE MAGIC",
-                        "Magic value invalid in Application partition",
-                        NOTIFICATION_INFO);
-                display_refresh();
-                dbg_print("INVALID FIRMWARE MAGIC\n\r");
-                break;
-            }
-        } else {
-            led_func(CLR_GREEN_LED);
-            if(usb_flash_firmware()) {
-                layout_standard_notification("Firmware Update Complete", "Please disconnect and reconnect.", NOTIFICATION_UNPLUG);
-                display_refresh();
-            } else {
-                layout_standard_notification("Firmware Update Failure.", "Unable to load image", NOTIFICATION_INFO);
-                display_refresh();
-            }
-            break;  /* break out of this loop and hang out in infinite loop */
+            led_func(CLR_RED_LED);
+	        cm_disable_interrupts();
+            set_vector_table_offset(FLASH_APP_START - FLASH_ORIGIN);  //offset = 0x60100
+            boot_jump(FLASH_APP_START);
         }
+        else {
+            /* Invalid magic found.  Not booting!!! */
+            layout_standard_notification("INVALID FIRMWARE MAGIC",
+                        "Boot aborted.",
+                        NOTIFICATION_INFO);
+            display_refresh();
+        }
+    } else {
+        led_func(CLR_GREEN_LED);
+        if(usb_flash_firmware()) {
+                layout_standard_notification("Firmware Update Complete", 
+                        "Please disconnect and reconnect.", NOTIFICATION_UNPLUG);
+        } else {
+                layout_standard_notification("Firmware Update Failure.", 
+                        "Unable to load image.", NOTIFICATION_INFO);
+        }
+        display_refresh();
     }
-
-    system_halt();  /* Catastrophic error, hang in forever loop */
+boot_exit:
+    system_halt();  /* forever loop */
     return(false);  /* should never get here */
 }

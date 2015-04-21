@@ -28,10 +28,8 @@
 
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/desig.h>
-#include <libopencm3/usb/usbd.h>
 #include <libopencm3/usb/hid.h>
 #include <libopencm3/stm32/rcc.h>
-
 #include <keepkey_board.h>
 
 
@@ -474,3 +472,16 @@ void usb_set_rx_callback(usb_rx_callback_t callback)
     user_rx_callback = callback;
 }
 
+
+/*
+ * get_usb_init_stat() - get usb initialization status
+ *
+ * INPUT -
+ *      none
+ * OUTPUT -
+ *      usb pointer 
+ */
+usbd_device *get_usb_init_stat(void)
+{
+    return(usbd_dev);
+}

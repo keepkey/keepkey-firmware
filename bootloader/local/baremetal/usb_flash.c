@@ -154,22 +154,18 @@ bool usb_flash_firmware(void)
             {
                 if(check_firmware_sig())
                 {
-                    if(check_fw_is_new())
-                    {
-                        /* restore storage data to 1st block */
-                        flash_write_n_lock(FLASH_STORAGE, 0, sizeof(ConfigFlash), (uint8_t *)&storage_shadow);
-                    }
+                    /* Image is from KeepKey.  Restore storage data */
+                    flash_write_n_lock(FLASH_STORAGE, 0, sizeof(ConfigFlash), (uint8_t *)&storage_shadow);
                 }
+                /* Request user to verify image fingerprint */
                 if(verify_fingerprint()) {
-                    /* user has confirmed the finger print.  Install "KPKY" magic in flash meta header */
+                    /* Fingerprint has been verified.  Install "KPKY" magic in meta header */
                     flash_write_n_lock(FLASH_APP, 0, META_MAGIC_SIZE, META_MAGIC_STR);
                     send_success("Upload complete");
-                    upload_state = UPLOAD_COMPLETE;
                     retval = true;
                 }else {
+                    flash_write_n_lock(FLASH_APP, 0, META_MAGIC_SIZE, "AAAA");
                     send_failure(FailureType_Failure_FirmwareError, "Fingerprint is Not Confirmed");
-                    upload_state = UPLOAD_ERROR;
-                    retval = false;
                 }
                 goto uff_exit;
             }
