@@ -111,6 +111,7 @@ DebugLinkState.reset_word		max_size:12
 DebugLinkState.reset_entropy		max_size:128
 DebugLinkState.recovery_fake_word	max_size:12
 DebugLinkState.recovery_cipher      max_size:27
+DebugLinkState.recovery_auto_completed_word max_size:12
 
 DebugLinkLog.bucket			max_size:33
 DebugLinkLog.text			max_size:256

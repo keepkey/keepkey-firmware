@@ -661,8 +661,9 @@ message DebugLinkState {
 	optional string reset_word = 7;			// word on device display during ResetDevice workflow
 	optional bytes reset_entropy = 8;		// current entropy during ResetDevice workflow
 	optional string recovery_fake_word = 9;		// (fake) word on display during RecoveryDevice workflow
-	optional uint32 recovery_word_pos = 10;		// index of mnemonic word the device is expecting during RecoveryDevice workflow
-	optional string recovery_cipher = 11;			// current recovery cipher
+	optional uint32 recovery_word_pos = 10;			// index of mnemonic word the device is expecting during RecoveryDevice workflow
+	optional string recovery_cipher = 11;				// current recovery cipher
+	optional string recovery_auto_completed_word = 12;	// last auto completed recovery word
 }
 
 /**
