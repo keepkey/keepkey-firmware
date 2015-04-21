@@ -162,7 +162,7 @@ bool usb_flash_firmware(void)
                 }
                 if(verify_fingerprint()) {
                     /* user has confirmed the finger print.  Install "KPKY" magic in flash meta header */
-                    flash_write_n_lock(FLASH_APP, 0, META_MAGIC_SIZE, "KPKY");
+                    flash_write_n_lock(FLASH_APP, 0, META_MAGIC_SIZE, META_MAGIC_STR);
                     send_success("Upload complete");
                     upload_state = UPLOAD_COMPLETE;
                     retval = true;
@@ -400,7 +400,7 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
             if((flash_offset + msg_size) < (FLASH_APP_LEN + FLASH_META_DESC_LEN)) {
                 if(flash_offset == 0) {
                     /* check image is prep'ed with KeepKey magic */
-                    if(memcmp(msg, "KPKY", META_MAGIC_SIZE)) {
+                    if(memcmp(msg, META_MAGIC_STR, META_MAGIC_SIZE)) {
                         /* invalid KeepKey magic detected. Bailing!!! */
                         ++stats.invalid_msg_type_ct;
                         send_failure(FailureType_Failure_FirmwareError, "Invalid Magic Key");

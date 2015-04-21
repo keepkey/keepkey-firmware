@@ -176,7 +176,7 @@ static bool check_magic(void)
 	bool retval = false;
     app_meta_td *app_meta = (app_meta_td *)FLASH_META_MAGIC;
     
-    retval = (memcmp((void *)&app_meta->magic, "KPKY", 4) == 0) ? true : false;
+    retval = (memcmp((void *)&app_meta->magic, META_MAGIC_STR, META_MAGIC_SIZE) == 0) ? true : false;
 
     /*
      * Make sure magic area in the flash is written.  (Magic area can be left in
