@@ -51,6 +51,9 @@ extern "C" {
 
 
 /*********************  #defines *************************/
+#define STORAGE_MAGIC_STR "stor"
+#define STORAGE_MAGIC_LEN 4
+
 /* Specify the length of the uuid binary string */ 
 #define STORAGE_UUID_LEN 12
 /* Length of the uuid binary converted to readable ASCII.  */
@@ -65,7 +68,7 @@ extern "C" {
    information that spans device resets.  */
 typedef struct
 {
-    char magic[4];
+    char magic[STORAGE_MAGIC_LEN];
     uint8_t uuid[STORAGE_UUID_LEN];
     char uuid_str[STORAGE_UUID_STR_LEN];
 } Metadata;
