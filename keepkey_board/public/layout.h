@@ -96,7 +96,7 @@ extern "C" {
 #define CIPHER_LETTER_BY_ROW            13
 #define CIPHER_GRID_SIZE                13
 #define CIPHER_GRID_SPACING             1
-#define CIPHER_ANIMATION_FREQUENCY_MS   20
+#define CIPHER_ANIMATION_FREQUENCY_MS   10
 #define CIPHER_STEP_1                   0X22
 #define CIPHER_STEP_2                   0X33
 #define CIPHER_STEP_3                   0X55
