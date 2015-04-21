@@ -42,6 +42,7 @@
 #include <layout.h>
 #include <msg_dispatch.h>
 #include <confirm_sm.h>
+#include <usb_driver.h>
 
 
 /******************** Static/Global variables *************************/
@@ -357,34 +358,36 @@ bool confirm_helper(const char *request_title, const char *request_body, layout_
     	new_ds = state_info.display_state;
         cm_enable_interrupts();
 
-        /* Listen for tiny messages */
-        tiny_msg = check_for_tiny_msg(msg_tiny_buf);
+        /* Don't process usb tiny message unless usb has been initialized */
+        if(get_usb_init_stat()){
+            /* Listen for tiny messages */
+            tiny_msg = check_for_tiny_msg(msg_tiny_buf);
 
         switch(tiny_msg) {
-        	case MessageType_MessageType_ButtonAck:
-        		button_request_acked = true;
-        		break;
-            case MessageType_MessageType_Cancel:
-            case MessageType_MessageType_Initialize:
-			    if (tiny_msg == MessageType_MessageType_Initialize) {
-			    	reset_msg_stack = true;
-			    }
-			    ret_stat  = false;
-                goto confirm_helper_exit;
+        	    case MessageType_MessageType_ButtonAck:
+        		    button_request_acked = true;
+        		    break;
+                case MessageType_MessageType_Cancel:
+                case MessageType_MessageType_Initialize:
+			        if (tiny_msg == MessageType_MessageType_Initialize) {
+			    	    reset_msg_stack = true;
+			        }
+			        ret_stat  = false;
+                    goto confirm_helper_exit;
 #if DEBUG_LINK
-            case MessageType_MessageType_DebugLinkDecision:
-            	dld = (DebugLinkDecision *)msg_tiny_buf;
-            	ret_stat = dld->yes_no;
-            	debug_decided = true;
-            	break;
-            case MessageType_MessageType_DebugLinkGetState:
-            	call_msg_debug_link_get_state_handler((DebugLinkGetState *)msg_tiny_buf);
-            	break;
+                case MessageType_MessageType_DebugLinkDecision:
+            	    dld = (DebugLinkDecision *)msg_tiny_buf;
+            	    ret_stat = dld->yes_no;
+            	    debug_decided = true;
+            	    break;
+                case MessageType_MessageType_DebugLinkGetState:
+            	    call_msg_debug_link_get_state_handler((DebugLinkGetState *)msg_tiny_buf);
+            	    break;
 #endif
-            default:
-			    break; /* break from switch statement and stay in the while loop*/
+                default:
+			        break; /* break from switch statement and stay in the while loop*/
+            }
         }
-
         if(new_ds == FINISHED) {
             ret_stat = true;
             break; /* confirmation done.  Exiting function */

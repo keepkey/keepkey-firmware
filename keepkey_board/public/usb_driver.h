@@ -25,6 +25,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <libopencm3/usb/usbd.h>
 
 /******************** #defines ***********************************/
 /* USB Board Config */
@@ -63,6 +64,7 @@ void usb_set_rx_callback(usb_rx_callback_t callback);
 bool usb_init(void);
 void usb_poll(void);
 bool usb_tx(void* message, uint32_t len);
+usbd_device *get_usb_init_stat(void);
 #if DEBUG_LINK
 bool usb_debug_tx(void* message, uint32_t len);
 #endif
