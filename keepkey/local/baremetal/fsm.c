@@ -1018,6 +1018,9 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg)
 	resp->has_recovery_cipher = true;
 	strlcpy(resp->recovery_cipher, recovery_get_cipher(), sizeof(resp->recovery_cipher));
 
+	resp->has_recovery_auto_completed_word = true;
+	strlcpy(resp->recovery_auto_completed_word, recovery_get_auto_completed_word(), sizeof(resp->recovery_auto_completed_word));
+
 	msg_debug_write(MessageType_MessageType_DebugLinkState, resp);
 }
 

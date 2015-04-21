@@ -45,6 +45,10 @@ static char mnemonic[MNEMONIC_BUF];
 static char english_alphabet[ENGLISH_ALPHABET_BUF] = "abcdefghijklmnopqrstuvwxyz";
 static char cipher[ENGLISH_ALPHABET_BUF];
 
+#if DEBUG_LINK
+static char auto_completed_word[CURRENT_WORD_BUF];
+#endif
+
 void format_current_word(char *current_word, bool auto_completed);
 void get_current_word(char *current_word);
 bool exact_str_match(const char *str1, const char *str2, uint32_t len);
@@ -120,6 +124,17 @@ void next_character(void) {
         {
             auto_completed = attempt_auto_complete(current_word);
         }
+
+#if DEBUG_LINK
+        if(auto_completed)
+        {
+            strlcpy(auto_completed_word, current_word, CURRENT_WORD_BUF);
+        }
+        else
+        {
+            auto_completed_word[0] = '\0';
+        }
+#endif
 
         /* Format current word and display it along with cipher */
         format_current_word(current_word, auto_completed);
@@ -279,12 +294,27 @@ bool recovery_cipher_abort(void)
  * INPUT - 
  *      none
  * OUTPUT - 
- *      none
+ *      current cipher
  */
+#if DEBUG_LINK
 const char* recovery_get_cipher(void)
 {
     return cipher;
 }
+
+/*
+ * recovery_get_auto_completed_word() - gets last auto completed word
+ *
+ * INPUT - 
+ *      none
+ * OUTPUT - 
+ *      last auto completed word
+ */
+const char* recovery_get_auto_completed_word(void)
+{
+    return auto_completed_word;
+}
+#endif
 
 /*
  * format_current_word() - formats the passed word to show position in mnemonic as well as characters left

@@ -42,6 +42,10 @@ void recovery_character(const char *character);
 void recovery_delete_character(void);
 void recovery_cipher_finalize(void);
 bool recovery_cipher_abort(void);
+
+#if DEBUG_LINK
 const char* recovery_get_cipher(void);
+const char* recovery_get_auto_completed_word(void);
+#endif
 
 #endif
