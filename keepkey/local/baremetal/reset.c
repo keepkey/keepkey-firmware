@@ -79,7 +79,6 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 	}
 
 	if (pin_protection && !change_pin()) {
-		fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
 		go_home();
 		return;
 	}
@@ -134,8 +133,15 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 		strlcat(formatted_mnemonic[word_count / WORDS_PER_SCREEN], formatted_word, FORMATTED_MNEMONIC_BUF);
 
 		/* save mnemonic for each screen */
-		strlcpy(mnemonic_by_screen[word_count / WORDS_PER_SCREEN], tok, MNEMONIC_BY_SCREEN_BUF);
-		strlcat(mnemonic_by_screen[word_count / WORDS_PER_SCREEN], " ", MNEMONIC_BY_SCREEN_BUF);
+		if(strlen(mnemonic_by_screen[word_count / WORDS_PER_SCREEN]) == 0)
+		{
+			strlcpy(mnemonic_by_screen[word_count / WORDS_PER_SCREEN], tok, MNEMONIC_BY_SCREEN_BUF);
+		}
+		else
+		{
+			strlcat(mnemonic_by_screen[word_count / WORDS_PER_SCREEN], " ", MNEMONIC_BY_SCREEN_BUF);
+			strlcat(mnemonic_by_screen[word_count / WORDS_PER_SCREEN], tok, MNEMONIC_BY_SCREEN_BUF);
+		}
 
 		tok = strtok(NULL, " ");
 		word_count++;
@@ -148,10 +154,8 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 	{
 		char title[MEDIUM_STR_BUF] = "Recovery Sentence";
 
-		/* make current screen mnemonic available externally */
+		/* make current screen mnemonic available via debuglink */
 		strlcpy(current_words, mnemonic_by_screen[word_group], MNEMONIC_BY_SCREEN_BUF);
-
-		current_words[strlen(current_words) - 1] = 0;
 
 		if((strength / 32) * 3 > WORDS_PER_SCREEN) {
 			/* snprintf: 20 + 10 (%d) + 1 (NULL) = 31 */
