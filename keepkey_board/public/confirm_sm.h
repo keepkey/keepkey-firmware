@@ -33,6 +33,9 @@
 #define MAX_ENCRYPT_MSG_LEN 65
 #define MAX_PING_MSG_LEN 45
 
+#define CONFIRM_SIGN_IDENTITY_TITLE 32
+#define CONFIRM_SIGN_IDENTITY_BODY 416
+
 /***************** typedefs and enums  *******************/
 typedef enum
 {

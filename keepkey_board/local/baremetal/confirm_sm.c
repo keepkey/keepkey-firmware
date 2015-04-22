@@ -557,6 +557,49 @@ bool confirm_address(const char *desc, const char *address)
  */
 bool confirm_sign_identity(const IdentityType *identity, const char *challenge)
 {
-    return confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-        "Import Recovery Sentence", "Importing is not recommended unless you understand the risks. Do you want to import recovery sentence?");
+    char title[CONFIRM_SIGN_IDENTITY_TITLE], body[CONFIRM_SIGN_IDENTITY_BODY];
+
+    /* Format protocol */
+    if (identity->has_proto && identity->proto[0])
+    {
+        strlcpy(title, identity->proto, sizeof(title));
+        strupr(title);
+        strlcat(title, " login to: ", sizeof(title));
+    }
+    else
+    {
+        strlcpy(title, "Login to: ", sizeof(title));
+    }
+
+    /* Format host and port */
+    if (identity->has_host && identity->host[0])
+    {
+        strlcpy(body, "host: ", sizeof(body));
+        strlcat(body, identity->host, sizeof(body));
+        if (identity->has_port && identity->port[0])
+        {
+            strlcat(body, ":", sizeof(body));
+            strlcat(body, identity->port, sizeof(body));
+        }
+        strlcat(body, "\n", sizeof(body));
+    }
+    else
+    {
+        body[0] = 0;
+    }
+
+    /* Format user */
+    if (identity->has_user && identity->user[0]) {
+        strlcat(body, "user: ", sizeof(body));
+        strlcat(body, identity->user, sizeof(body));
+        strlcat(body, "\n", sizeof(body));
+    }
+
+    /* Format challenge */
+    if(strlen(challenge) != 0)
+    {
+        strlcat(body, challenge, sizeof(body));
+    }
+
+    return confirm(ButtonRequestType_ButtonRequest_ProtectCall, title, body);
 }
