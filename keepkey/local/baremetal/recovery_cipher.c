@@ -103,7 +103,7 @@ void next_character(void) {
 
     /* Scramble cipher */
     strlcpy(cipher, english_alphabet, ENGLISH_ALPHABET_BUF);
-    random_permute(cipher, ENGLISH_ALPHABET_BUF - 1);
+    random_permute(cipher, strlen(cipher));
 
     get_current_word(current_word);
 

@@ -31,8 +31,8 @@
 #include <stdbool.h>
 
 #define MNEMONIC_BUF            24 * 12
-#define CURRENT_WORD_BUF        12
-#define ENGLISH_ALPHABET_BUF    27
+#define CURRENT_WORD_BUF        32
+#define ENGLISH_ALPHABET_BUF    32
 #define ENGLISH_MAX_WORD_LEN    8
 
 void recovery_cipher_init(bool passphrase_protection, bool pin_protection, const char *language,
