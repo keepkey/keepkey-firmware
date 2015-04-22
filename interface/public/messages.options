@@ -107,7 +107,7 @@ DebugLinkState.layout			max_size:1024
 DebugLinkState.pin			max_size:10
 DebugLinkState.matrix			max_size:10
 DebugLinkState.mnemonic			max_size:241
-DebugLinkState.reset_word		max_size:12
+DebugLinkState.reset_word		max_size:133
 DebugLinkState.reset_entropy		max_size:128
 DebugLinkState.recovery_fake_word	max_size:12
 DebugLinkState.recovery_cipher      max_size:27
