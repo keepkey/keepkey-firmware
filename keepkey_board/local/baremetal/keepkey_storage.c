@@ -58,7 +58,7 @@ uint32_t storage_get_end_stor_cnt(void)
     ConfigFlash *config_ptr = (ConfigFlash*)FLASH_STORAGE_START;
 
     /* search through the node list to find the last node (active node) */
-	while(memcmp((void *)config_ptr->meta.magic , "stor", 4) == 0) {
+	while(memcmp((void *)config_ptr->meta.magic , STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0) {
         config_ptr++;
         cnt++;
     }

@@ -97,7 +97,7 @@ void storage_init(void)
     storage_reset();
 
 	/* verify storage partition is initialized */
-	if (memcmp((void *)stor_config->meta.magic , "stor", 4) == 0) {
+	if (memcmp((void *)stor_config->meta.magic , STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0) {
         /* clear out stor_config befor finding end config node */
 		// load uuid to shadow memory
 		memcpy(shadow_config.meta.uuid, (void *)&stor_config->meta.uuid, sizeof(shadow_config.meta.uuid));
@@ -176,7 +176,7 @@ void storage_commit(void)
     int i;
     uint32_t *w;
 
-    memcpy((void *)&shadow_config, "stor", 4);
+    memcpy((void *)&shadow_config, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
     flash_unlock();
     flash_erase_word(FLASH_STORAGE);
 	if(flash_write_word(FLASH_STORAGE, 0, sizeof(shadow_config), (uint8_t *)&shadow_config) == false) {
