@@ -104,20 +104,30 @@ void draw_string(Canvas *canvas, const Font *font, const char *str_write, Drawab
     	int word_width = img->width;
     	char* next_c = (char *)str_write + 1;
 
+        /* Allow line breaks */
+        if(*str_write == '\n')
+        {
+            char_params.y += line_height;
+            x_offset = 0;
+            str_write++;
+            continue;
+        }
+
     	/*
     	 * Calculate the next word width while
     	 * removing spacings at beginning of lines
     	 */
     	if(*str_write == ' '){
 
-    		while(*next_c && *next_c != ' ') {
+    		while(*next_c && *next_c != ' ' && *next_c != '\n') {
     			word_width += font_get_char(font, *next_c)->width;
     			next_c++;
     		}
     	}
 
     	/* Determine if we need a line break */
-    	if((width != 0) && (x_offset + word_width > width)) {
+    	if((width != 0) && (x_offset + word_width > width))
+        {
     		char_params.y += line_height;
     		x_offset = 0;
     	}

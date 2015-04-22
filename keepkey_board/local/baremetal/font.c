@@ -3595,9 +3595,18 @@ const uint32_t calc_str_line(const Font* font, const char* str, uint16_t line_wi
 		word_width = character_width;
 		next_character = (char *)str + 1;
 
+        /* Allow line breaks */
+        if(*str == '\n')
+        {
+            line_count++;
+            x_offset = 0;
+            str++;
+            continue;
+        }
+
 		/* Calculate next work width */
 		if(*str == ' ') {
-			while(*next_character && *next_character != ' ') {
+			while(*next_character && *next_character != ' ' && *next_character != '\n') {
 				word_width += font_get_char(font, *next_character)->width;
 				next_character++;
 			}
