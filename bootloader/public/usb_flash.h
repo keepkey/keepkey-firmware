@@ -61,7 +61,7 @@ typedef void (*message_handler_t)(void* msg_struct);
 /*** Function Declarations ***/ 
 bool usb_flash_firmware(void);
 static void sav_storage_in_ram(ConfigFlash *cfg_ptr);
-void flash_write_n_lock(Allocation group, size_t offset, size_t len, uint8_t* dataPtr);
+bool flash_write_n_lock(Allocation group, size_t offset, size_t len, uint8_t* dataPtr);
 void send_success(const char *text);
 void send_failure(FailureType code, const char *text);
 void handler_initialize(Initialize* msg);
@@ -69,6 +69,5 @@ void handler_ping(Ping* msg);
 void handler_erase(FirmwareErase* msg);
 void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length);
 void usb_write_pb(void* msg, MessageType id);
-void storage_part_erase(void);
 
 #endif

@@ -51,6 +51,27 @@ static uint32_t flash_write_helper(Allocation group)
 }
 
 /*
+ * flash_chk_status - get flash operation status
+ *
+ * INPUT :
+ *      none
+ * OUTPUT : 
+ *      flash operation status
+ *          false - error
+ *          true - success
+ */
+bool flash_chk_status(void)
+{
+    if(FLASH_SR & (FLASH_SR_PGAERR | FLASH_SR_PGPERR | FLASH_SR_PGSERR | FLASH_SR_WRPERR)) {
+        /* Flash error detected */
+        return(false);
+    }else {
+        /* Flash operation successful */
+        return(true);
+    }
+}
+
+/*
  * flash_erase_word() - flash erase in word (32bit) size
  *
  * INPUT : 
@@ -114,6 +135,11 @@ bool flash_write_word(Allocation group, uint32_t offset, uint32_t len, uint8_t *
     if(start % sizeof(uint32_t)) {
         align_cnt = sizeof(uint32_t) - start % sizeof(uint32_t);
         flash_program(start, data, align_cnt);
+        if(flash_chk_status() == false) {
+            retval = false;
+            goto fww_exit;
+        }
+        /* Update new start address/data & len */
         start += align_cnt;
         data += align_cnt;
         len -= align_cnt;
@@ -124,19 +150,21 @@ bool flash_write_word(Allocation group, uint32_t offset, uint32_t len, uint8_t *
     {
         memcpy(data_word, data, sizeof(uint32_t));
 	    flash_program_word(start, *data_word);
-        start += sizeof(uint32_t);
-        data += sizeof(uint32_t);
 	    // check flash status register for error condition
-	    if (FLASH_SR & (FLASH_SR_PGAERR | FLASH_SR_PGPERR | FLASH_SR_PGSERR | FLASH_SR_WRPERR)) {
+        if(flash_chk_status() == false) {
             retval = false;
             goto fww_exit;
-	    }
+        }
+        start += sizeof(uint32_t);
+        data += sizeof(uint32_t);
     }
 
-    /* Byte write for last remaining bytes */
-    align_cnt = len % sizeof(uint32_t);
-    if(align_cnt) {
-        flash_program(start, data, align_cnt);
+    /* Byte write for last remaining bytes < longword */
+    if(len % sizeof(uint32_t)) {
+        flash_program(start, data, len % sizeof(uint32_t));
+        if(flash_chk_status() == false) {
+            retval = false;
+        }
     }
 fww_exit:
     return(retval);
@@ -151,12 +179,17 @@ fww_exit:
  *      3. length of source data
  *      4. source data address
  * OUTPUT:
- *      none
+ *      status 
  */
-void flash_write(Allocation group, uint32_t offset, uint32_t len, uint8_t* data)
+bool flash_write(Allocation group, uint32_t offset, uint32_t len, uint8_t* data)
 {
+    bool retval = true;
 	uint32_t start = flash_write_helper(group);
 	flash_program(start + offset, data, len);
+    if(flash_chk_status() == false) {
+        retval = false;
+    }
+    return(retval);
 }
 
 

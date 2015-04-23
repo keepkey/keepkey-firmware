@@ -154,19 +154,20 @@ bool usb_flash_firmware(void)
             {
                 if(check_firmware_sig())
                 {
-                    /* Image is from KeepKey.  Restore storage data */
-                    flash_write_n_lock(FLASH_STORAGE, 0, sizeof(ConfigFlash), (uint8_t *)&storage_shadow);
+                    /* The image is from KeepKey.  Restore storage data */
+                    if(flash_write_n_lock(FLASH_STORAGE, 0, sizeof(ConfigFlash), (uint8_t *)&storage_shadow) == false) {
+                        /* bailing early*/
+                        goto uff_exit; 
+                    }
                 }
                 /* Request user to verify image fingerprint */
                 if(verify_fingerprint()) {
                     /* Fingerprint has been verified.  Install "KPKY" magic in meta header */
-                    flash_write_n_lock(FLASH_APP, 0, META_MAGIC_SIZE, META_MAGIC_STR);
-                    send_success("Upload complete");
-                    retval = true;
-                }else {
-                    flash_write_n_lock(FLASH_APP, 0, META_MAGIC_SIZE, "AAAA");
-                    send_failure(FailureType_Failure_FirmwareError, "Fingerprint is Not Confirmed");
-                }
+                    if(flash_write_n_lock(FLASH_APP, 0, META_MAGIC_SIZE, META_MAGIC_STR) == true) {
+                        send_success("Upload complete");
+                        retval = true;
+                    }
+                } 
                 goto uff_exit;
             }
             case UPLOAD_ERROR:
@@ -293,42 +294,19 @@ void handler_initialize(Initialize* msg)
  *      4. pointer to source data
  *
  *  OUTPUT - 
- *      none 
+ *      status
  */
-void flash_write_n_lock(Allocation group, size_t offset, size_t len, uint8_t* dataPtr)
+bool flash_write_n_lock(Allocation group, size_t offset, size_t len, uint8_t* dataPtr)
 {
-    flash_unlock();
-    flash_write(group, offset, len, dataPtr);
-    flash_lock();
-}
+    bool ret_val = true;
 
-/*
- *  storage_part_restore - restore storage partition in flash for firmware update
- *
- *  INPUT - 
- *      pointer to Storge partition in RAM
- *
- *  OUTPUT - 
- *      true/false 
- */
-void storage_part_restore(ConfigFlash *cfg_ptr)
-{
     flash_unlock();
-    flash_write(FLASH_STORAGE, 0, sizeof(ConfigFlash), (uint8_t *)cfg_ptr);
+    if(flash_write(group, offset, len, dataPtr) == false) {
+        /* flash error detectected */
+        ret_val = false;
+    }
     flash_lock();
-}
-
-/*
- *  storage_part_erase - restore storage partition in flash for firmware update
- *
- *  INPUT - none 
- *  OUTPUT - none 
- */
-void storage_part_erase(void)
-{
-    flash_unlock(); 
-    flash_erase_word(FLASH_STORAGE);  
-    flash_lock();
+    return(ret_val);
 }
 
 /*
@@ -412,7 +390,13 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
                     }
                 }
                 /* Begin writing to flash */
-                flash_write(FLASH_APP, flash_offset, msg_size, msg);
+                if(flash_write(FLASH_APP, flash_offset, msg_size, msg) == false) {
+                    flash_lock();
+                    /* error: flash write error */
+                    send_failure(FailureType_Failure_FirmwareError, "Flash write error");
+                    upload_state = UPLOAD_ERROR;
+                    goto rhu_exit;
+                } 
                 flash_offset += msg_size;
             } else {
                 /* error: frame overrun detected during the image update */
