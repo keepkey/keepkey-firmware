@@ -665,6 +665,7 @@ message DebugLinkState {
 	optional string recovery_cipher = 11;				// current recovery cipher
 	optional string recovery_auto_completed_word = 12;	// last auto completed recovery word
 	optional bytes app_fingerprint = 13;								// fingerprint of the application
+	optional bytes storage_fingerprint = 14;						// fingerprint of storage
 }
 
 /**
