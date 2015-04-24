@@ -362,7 +362,8 @@ static void hid_set_config_callback(usbd_device *dev, uint16_t wValue)
 
 bool usb_init(void)
 {
-    bool ret_bool = true;
+    bool ret_stat = true;
+
     /* skip initialization if alrealy initialized */
     if(usbd_dev == NULL) {
         gpio_mode_setup(USB_GPIO_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, USB_GPIO_PORT_PINS);
@@ -382,10 +383,11 @@ bool usb_init(void)
             usbd_register_set_config_callback(usbd_dev, hid_set_config_callback);
         } else {
             /* error: unable init usbd_dev */
-            ret_bool = false;
+            ret_stat = false;
         }
     }
-    return (ret_bool);
+    
+    return (ret_stat);
 }
 
 /*
