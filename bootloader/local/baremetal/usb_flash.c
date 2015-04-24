@@ -444,7 +444,12 @@ void handler_debug_link_get_state(DebugLinkGetState *msg)
     memset(&resp, 0, sizeof(resp));
 
     /* App fingerprint */
-    resp.has_app_fingerprint = true; resp.app_fingerprint.size = memory_app_fingerprint(resp.app_fingerprint.bytes);
+    resp.has_app_fingerprint = true;
+    resp.app_fingerprint.size = memory_app_fingerprint(resp.app_fingerprint.bytes);
+
+    /* Storage fingerprint */
+    resp.has_storage_fingerprint = true;
+    resp.storage_fingerprint.size = memory_storage_fingerprint(resp.storage_fingerprint.bytes, sizeof(ConfigFlash));
 
     msg_debug_write(MessageType_MessageType_DebugLinkState, &resp);
 }
