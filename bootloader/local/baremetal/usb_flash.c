@@ -150,6 +150,10 @@ bool usb_flash_firmware(void)
     set_msg_failure_handler(&send_failure);
     msg_init();
 
+#if DEBUG_LINK
+    set_msg_debug_link_get_state_handler(&handler_debug_link_get_state);
+#endif
+
     /* save storage data */
     memcpy(&storage_shadow, (void *)FLASH_STORAGE_START, sizeof(ConfigFlash));
 
@@ -442,9 +446,7 @@ void handler_debug_link_get_state(DebugLinkGetState *msg)
     /* App fingerprint */
     resp.has_app_fingerprint = true; resp.app_fingerprint.size = memory_app_fingerprint(resp.app_fingerprint.bytes);
 
-    dbg_print("GOT HERE");
-
-    msg_write(MessageType_MessageType_DebugLinkState, &resp);
+    msg_debug_write(MessageType_MessageType_DebugLinkState, &resp);
 }
 
 void handler_debug_link_stop(FirmwareErase* msg)
