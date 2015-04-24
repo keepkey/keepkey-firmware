@@ -133,6 +133,15 @@ bool usb_flash_firmware(void)
     ConfigFlash storage_shadow;
     bool retval = false;
 
+    /* Init USB */
+    if( usb_init() == false )
+    {
+        layout_standard_notification("USB Failure", "Unable to initialize USB", NOTIFICATION_INFO);
+        display_refresh();
+        delay_ms(2000);
+        goto uff_exit;
+    }
+
     layout_warning("Firmware Update Mode");
 
     /* Init message map, failure function, send init function, and usb callback */
@@ -143,15 +152,6 @@ bool usb_flash_firmware(void)
     /* save storage data */
     memset(&storage_shadow, 0, sizeof(ConfigFlash));
     storage_get_end_stor(&storage_shadow);
-
-    /* Init USB */
-    if( usb_init() == false )
-    {
-        layout_standard_notification("USB Failure", "Unable to initialize USB", NOTIFICATION_INFO);
-        display_refresh();
-        delay_ms(2000);
-        goto uff_exit;
-    }
 
     /* implement timer for this loop in the future*/
     while(1)
