@@ -98,24 +98,26 @@ FirmwareUploadState get_update_status(void)
  */
 bool verify_fingerprint(void) 
 {
-    char digest[SHA256_DIGEST_LENGTH];
-    char str_digest[SHA256_DIGEST_STR_LEN] = "";
-    uint32_t firmware_size = *(uint32_t *)FLASH_META_CODELEN ;
-    bool retval = false;
+    char digest[SHA256_DIGEST_LENGTH],
+        str_digest[SHA256_DIGEST_STR_LEN] = "";
+    bool ret_stat = false;
+    uint32_t i = 0;
 
-    sha256_Raw((uint8_t *)FLASH_APP_START, firmware_size, digest);
+    memory_app_fingerprint(digest);
 
-    for (uint8_t i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+    for (; i < SHA256_DIGEST_LENGTH; i++) {
         char digest_buf[BYTE_AS_HEX_STR_LEN];
         snprintf(digest_buf, BYTE_AS_HEX_STR_LEN, "%02x", digest[i]);
         strlcat(str_digest, digest_buf, SHA256_DIGEST_STR_LEN);
     }
-	/* get user confirmation */
+
+	/* Get user confirmation */
     if(confirm(ButtonRequestType_ButtonRequest_FirmwareCheck,
         "Compare Firmware Fingerprint", str_digest)) {
-        retval = true;
+        ret_stat = true;
     } 
-    return(retval);
+
+    return (ret_stat);
 }
 
 /*
@@ -438,6 +440,9 @@ void handler_debug_link_get_state(DebugLinkGetState *msg)
     (void)msg;
     DebugLinkState resp;
     memset(&resp, 0, sizeof(resp));
+
+    /* App fingerprint */
+    resp.has_app_fingerprint = true; resp.app_fingerprint.size = memory_app_fingerprint(resp.app_fingerprint.bytes);
 
     msg_write(MessageType_MessageType_DebugLinkState, &resp);
 }
