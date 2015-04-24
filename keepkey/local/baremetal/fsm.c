@@ -1020,7 +1020,12 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg)
 	resp->has_recovery_auto_completed_word = true;
 	strlcpy(resp->recovery_auto_completed_word, recovery_get_auto_completed_word(), sizeof(resp->recovery_auto_completed_word));
 
-	resp->has_app_fingerprint = true; resp->app_fingerprint.size = memory_app_fingerprint(resp->app_fingerprint.bytes);
+	resp->has_app_fingerprint = true;
+	resp->app_fingerprint.size = memory_app_fingerprint(resp->app_fingerprint.bytes);
+
+	/* Storage fingerprint */
+    resp->has_storage_fingerprint = true;
+    resp->storage_fingerprint.size = memory_storage_fingerprint(resp->storage_fingerprint.bytes, sizeof(ConfigFlash));
 
 	msg_debug_write(MessageType_MessageType_DebugLinkState, resp);
 }
