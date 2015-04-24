@@ -44,9 +44,13 @@ void memory_protect(void)
 
 int memory_bootloader_hash(uint8_t *hash)
 {
-    const size_t hash_len = 32;
     sha256_Raw((const uint8_t *)FLASH_BOOT_START, FLASH_BOOT_LEN, hash);
-    sha256_Raw(hash, hash_len, hash);
-    return hash_len;
+    sha256_Raw(hash, SHA256_DIGEST_LENGTH, hash);
+    return SHA256_DIGEST_LENGTH;
 }
 
+int memory_app_fingerprint(uint8_t *hash)
+{
+    sha256_Raw((const uint8_t *)FLASH_APP_START, *(uint32_t *)FLASH_META_CODELEN, hash);
+    return SHA256_DIGEST_LENGTH;
+}
