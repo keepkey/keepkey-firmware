@@ -1023,7 +1023,6 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg)
 	resp->has_app_fingerprint = true;
 	resp->app_fingerprint.size = memory_app_fingerprint(resp->app_fingerprint.bytes);
 
-	/* Storage fingerprint */
     resp->has_storage_fingerprint = true;
     resp->storage_fingerprint.size = memory_storage_fingerprint(resp->storage_fingerprint.bytes, sizeof(ConfigFlash));
 
