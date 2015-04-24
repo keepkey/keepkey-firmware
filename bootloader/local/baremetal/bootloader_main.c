@@ -320,6 +320,11 @@ int main(int argc, char* argv[])
         }
         display_refresh();
     }
+
+#if DEBUG_LINK
+    board_reset();
+#endif
+
 boot_exit:
     system_halt();  /* forever loop */
     return(false);  /* should never get here */
