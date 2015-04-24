@@ -39,7 +39,6 @@
 #include <usb_driver.h>
 #include <usb_flash.h>
 #include <bootloader.h>
-#include <keepkey_storage.h>
 #include <keepkey_flash.h>
 
 /*** Definition ***/
@@ -152,8 +151,7 @@ bool usb_flash_firmware(void)
     msg_init();
 
     /* save storage data */
-    memset(&storage_shadow, 0, sizeof(ConfigFlash));
-    storage_get_end_stor(&storage_shadow);
+    memcpy(&storage_shadow, (void *)FLASH_STORAGE_START, sizeof(ConfigFlash));
 
     /* implement timer for this loop in the future*/
     while(1)

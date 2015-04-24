@@ -32,7 +32,6 @@
 #include <interface.h>
 #include <keepkey_board.h>
 #include <pbkdf2.h>
-#include <keepkey_storage.h>
 #include <keepkey_flash.h>
 
 
