@@ -49,8 +49,14 @@ int memory_bootloader_hash(uint8_t *hash)
     return SHA256_DIGEST_LENGTH;
 }
 
-int memory_app_fingerprint(uint8_t *hash)
+int memory_app_fingerprint(uint8_t *digest)
 {
-    sha256_Raw((const uint8_t *)FLASH_APP_START, *(uint32_t *)FLASH_META_CODELEN, hash);
+    sha256_Raw((const uint8_t *)FLASH_APP_START, *(uint32_t *)FLASH_META_CODELEN, digest);
+    return SHA256_DIGEST_LENGTH;
+}
+
+int memory_storage_fingerprint(uint8_t *digest, size_t len)
+{
+    sha256_Raw((const uint8_t *)FLASH_STORAGE_START, len, digest);
     return SHA256_DIGEST_LENGTH;
 }
