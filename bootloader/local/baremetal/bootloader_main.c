@@ -263,11 +263,16 @@ int main(int argc, char* argv[])
     memory_protect();
 #endif
 
-    // initialize stack guard with random value (-fstack_protector_all)
+    /* initialize stack guard with random value (-fstack_protector_all) */
     __stack_chk_guard = random32(); 
 
-    //get button status 
+    /* button's state determines update mode. debug link will 
+     * form update mode so unit tests can run */
+#if DEBUG_LINK
+    update_mode = true;
+#else
     update_mode = keepkey_button_down();
+#endif
 
     led_func(SET_GREEN_LED);
     led_func(SET_RED_LED);

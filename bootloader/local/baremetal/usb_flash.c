@@ -58,7 +58,16 @@ static const MessagesMap_t MessagesMap[] = {
     {NORMAL_MSG, OUT_MSG, MessageType_MessageType_Success,          Success_fields,         0},
     {NORMAL_MSG, OUT_MSG, MessageType_MessageType_Failure,          Failure_fields,         0},
 	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_ButtonRequest,	ButtonRequest_fields,	0},
-
+#if DEBUG_LINK
+    // debug in messages
+    {DEBUG_MSG, IN_MSG, MessageType_MessageType_DebugLinkDecision,      DebugLinkDecision_fields,   0},
+    {DEBUG_MSG, IN_MSG, MessageType_MessageType_DebugLinkGetState,      DebugLinkGetState_fields,   (message_handler_t)(handler_debug_link_get_state)},
+    {DEBUG_MSG, IN_MSG, MessageType_MessageType_DebugLinkStop,          DebugLinkStop_fields,       (message_handler_t)(handler_debug_link_stop)},
+    // debug out messages
+    {DEBUG_MSG, OUT_MSG, MessageType_MessageType_DebugLinkState,        DebugLinkState_fields,      0},
+    {DEBUG_MSG, OUT_MSG, MessageType_MessageType_DebugLinkLog,          DebugLinkLog_fields,        0},
+#endif
+    // end
     {END_OF_MAP, 0, 0, 0, 0}
 };
 
@@ -320,7 +329,7 @@ bool flash_write_n_lock(Allocation group, size_t offset, size_t len, uint8_t* da
  */
 void handler_erase(FirmwareErase* msg)
 {
-    if(confirm_without_button_request("Verify Backup Before Upgrade",
+    if(confirm(ButtonRequestType_ButtonRequest_FirmwareErase, "Verify Backup Before Upgrade",
                 "Before upgrading, confirm that you have access to the backup of your recovery sentence.")) {
 
         layout_simple_message("Preparing For Upgrade...");
@@ -422,3 +431,19 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
 rhu_exit:
     return;
 }
+
+#if DEBUG_LINK
+void handler_debug_link_get_state(DebugLinkGetState *msg)
+{
+    (void)msg;
+    DebugLinkState resp;
+    memset(&resp, 0, sizeof(resp));
+
+    msg_write(MessageType_MessageType_DebugLinkState, &resp);
+}
+
+void handler_debug_link_stop(FirmwareErase* msg)
+{
+    (void)msg;
+}
+#endif
