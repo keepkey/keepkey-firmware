@@ -444,6 +444,8 @@ void handler_debug_link_get_state(DebugLinkGetState *msg)
     /* App fingerprint */
     resp.has_app_fingerprint = true; resp.app_fingerprint.size = memory_app_fingerprint(resp.app_fingerprint.bytes);
 
+    dbg_print("GOT HERE");
+
     msg_write(MessageType_MessageType_DebugLinkState, &resp);
 }
 
