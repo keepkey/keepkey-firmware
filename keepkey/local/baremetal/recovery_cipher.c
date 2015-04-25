@@ -69,7 +69,6 @@ bool attempt_auto_complete(char *partial_word);
 void recovery_cipher_init(bool passphrase_protection, bool pin_protection, 
         const char *language, const char *label, bool _enforce_wordlist) {
 	if (pin_protection && !change_pin()) {
-		fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
 		go_home();
 		return;
 	}
