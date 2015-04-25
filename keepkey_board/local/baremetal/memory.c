@@ -21,6 +21,8 @@
  *
  */
 
+#include <string.h>
+
 #include <assert.h>
 #include <stdint.h>
 #include <libopencm3/stm32/flash.h>
