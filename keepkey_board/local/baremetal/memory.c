@@ -44,8 +44,16 @@ void memory_protect(void)
 
 int memory_bootloader_hash(uint8_t *hash)
 {
-    sha256_Raw((const uint8_t *)FLASH_BOOT_START, FLASH_BOOT_LEN, hash);
-    sha256_Raw(hash, SHA256_DIGEST_LENGTH, hash);
+    static uint8_t cached_hash[SHA256_DIGEST_LENGTH];
+
+    if(cached_hash[0] == '\0')
+    {
+        sha256_Raw((const uint8_t *)FLASH_BOOT_START, FLASH_BOOT_LEN, cached_hash);
+        sha256_Raw(cached_hash, SHA256_DIGEST_LENGTH, cached_hash);
+    }
+
+    memcpy(hash, cached_hash, SHA256_DIGEST_LENGTH);
+    
     return SHA256_DIGEST_LENGTH;
 }
 
