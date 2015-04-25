@@ -31,6 +31,14 @@
 #define MSG_TINY_BFR_SZ     64
 #define MSG_TINY_TYPE_ERROR 0xFFFF
 
+#define MSG_IN(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = NORMAL_MSG, [ID].dir = IN_MSG, [ID].fields = FIELDS, [ID].process_func = PROCESS_FUNC,
+#define MSG_OUT(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = NORMAL_MSG, [ID].dir = OUT_MSG, [ID].fields = FIELDS, [ID].process_func = PROCESS_FUNC,
+#define RAW_IN(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = RAW_MSG, [ID].dir = IN_MSG, [ID].fields = FIELDS, [ID].process_func = PROCESS_FUNC,
+#define RAW_OUT(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = RAW_MSG, [ID].dir = OUT_MSG, [ID].fields = FIELDS, [ID].process_func = PROCESS_FUNC,
+#define DEBUG_IN(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = DEBUG_MSG, [ID].dir = IN_MSG, [ID].fields = FIELDS, [ID].process_func = PROCESS_FUNC,
+#define DEBUG_OUT(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = DEBUG_MSG, [ID].dir = OUT_MSG, [ID].fields = FIELDS, [ID].process_func = PROCESS_FUNC,
+#define NO_PROCESS_FUNC 0
+
 /***************** Typedefs and enums  *******************/
 typedef void (*msg_handler_t)(void *ptr);
 typedef void (*raw_msg_handler_t)(uint8_t *msg, uint32_t msg_size, uint32_t frame_length);
@@ -77,13 +85,13 @@ typedef struct
 } MessagesMap_t;
 
 /***************** Function Declarations ******************/
-bool msg_write(MessageType type, const void* msg);
+bool msg_write(MessageType msg_id, const void *msg);
 
 #if DEBUG_LINK
-bool msg_debug_write(MessageType type, const void *msg);
+bool msg_debug_write(MessageType msg_id, const void *msg);
 #endif
 
-void msg_map_init(const void* map);
+void msg_map_init(const void *map, const size_t size);
 
 /* Message failure and debug link get state callback */
 void set_msg_failure_handler(msg_failure_t failure_func);

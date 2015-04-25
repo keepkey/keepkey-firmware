@@ -48,26 +48,24 @@ extern bool reset_msg_stack;
 /*** Structure to map incoming messages to handler functions. ***/
 static const MessagesMap_t MessagesMap[] = {
     // in messages
-    {NORMAL_MSG, IN_MSG, MessageType_MessageType_Initialize,		Initialize_fields,      (message_handler_t)(handler_initialize)},
-    {NORMAL_MSG, IN_MSG, MessageType_MessageType_Ping,				Ping_fields,            (message_handler_t)(handler_ping)},
-    {NORMAL_MSG, IN_MSG, MessageType_MessageType_FirmwareErase,		FirmwareErase_fields,   (message_handler_t)(handler_erase)},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_ButtonAck,			ButtonAck_fields,		0},
-	{RAW_MSG, IN_MSG, MessageType_MessageType_FirmwareUpload,		FirmwareUpload_fields,	(message_handler_t)(raw_handler_upload)},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_Features,         Features_fields,        0},
-    {NORMAL_MSG, OUT_MSG, MessageType_MessageType_Success,          Success_fields,         0},
-    {NORMAL_MSG, OUT_MSG, MessageType_MessageType_Failure,          Failure_fields,         0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_ButtonRequest,	ButtonRequest_fields,	0},
+    MSG_IN(MessageType_MessageType_Initialize,          Initialize_fields,          (message_handler_t)(handler_initialize))
+    MSG_IN(MessageType_MessageType_Ping,                Ping_fields,                (message_handler_t)(handler_ping))
+    MSG_IN(MessageType_MessageType_FirmwareErase,       FirmwareErase_fields,       (message_handler_t)(handler_erase))
+    MSG_IN(MessageType_MessageType_ButtonAck,           ButtonAck_fields,           NO_PROCESS_FUNC)
+    MSG_IN(MessageType_MessageType_FirmwareUpload,      FirmwareUpload_fields,      (message_handler_t)(raw_handler_upload))
+    MSG_IN(MessageType_MessageType_Features,            Features_fields,            NO_PROCESS_FUNC)
+    MSG_IN(MessageType_MessageType_Success,             Success_fields,             NO_PROCESS_FUNC)
+    MSG_IN(MessageType_MessageType_Failure,             Failure_fields,             NO_PROCESS_FUNC)
+    MSG_IN(MessageType_MessageType_ButtonRequest,       ButtonRequest_fields,       NO_PROCESS_FUNC)
 #if DEBUG_LINK
     // debug in messages
-    {DEBUG_MSG, IN_MSG, MessageType_MessageType_DebugLinkDecision,      DebugLinkDecision_fields,   0},
-    {DEBUG_MSG, IN_MSG, MessageType_MessageType_DebugLinkGetState,      DebugLinkGetState_fields,   (message_handler_t)(handler_debug_link_get_state)},
-    {DEBUG_MSG, IN_MSG, MessageType_MessageType_DebugLinkStop,          DebugLinkStop_fields,       (message_handler_t)(handler_debug_link_stop)},
+    DEBUG_IN(MessageType_MessageType_DebugLinkDecision, DebugLinkDecision_fields,   NO_PROCESS_FUNC)
+    DEBUG_IN(MessageType_MessageType_DebugLinkGetState, DebugLinkGetState_fields,   (message_handler_t)(handler_debug_link_get_state))
+    DEBUG_IN(MessageType_MessageType_DebugLinkStop,     DebugLinkStop_fields,       (message_handler_t)(handler_debug_link_stop))
     // debug out messages
-    {DEBUG_MSG, OUT_MSG, MessageType_MessageType_DebugLinkState,        DebugLinkState_fields,      0},
-    {DEBUG_MSG, OUT_MSG, MessageType_MessageType_DebugLinkLog,          DebugLinkLog_fields,        0},
+    DEBUG_OUT(MessageType_MessageType_DebugLinkState,   DebugLinkState_fields,      NO_PROCESS_FUNC)
+    DEBUG_OUT(MessageType_MessageType_DebugLinkLog,     DebugLinkLog_fields,        NO_PROCESS_FUNC)
 #endif
-    // end
-    {END_OF_MAP, 0, 0, 0, 0}
 };
 
 static Stats stats;
@@ -146,7 +144,7 @@ bool usb_flash_firmware(void)
     layout_warning("Firmware Update Mode");
 
     /* Init message map, failure function, send init function, and usb callback */
-    msg_map_init(MessagesMap);
+    msg_map_init(MessagesMap, sizeof(MessagesMap));
     set_msg_failure_handler(&send_failure);
     msg_init();
 

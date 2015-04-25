@@ -1036,74 +1036,71 @@ void fsm_msgDebugLinkStop(DebugLinkStop *msg)
 #endif
 
 static const MessagesMap_t MessagesMap[] = {
-	// in messages
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_Initialize,			Initialize_fields,			(void (*)(void *))fsm_msgInitialize},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_GetFeatures,			GetFeatures_fields,			(void (*)(void *))fsm_msgGetFeatures},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_Ping,					Ping_fields,				(void (*)(void *))fsm_msgPing},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_ChangePin,				ChangePin_fields,			(void (*)(void *))fsm_msgChangePin},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_WipeDevice,			WipeDevice_fields,			(void (*)(void *))fsm_msgWipeDevice},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_FirmwareErase,			FirmwareErase_fields,		(void (*)(void *))fsm_msgFirmwareErase},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_FirmwareUpload,		FirmwareUpload_fields,		(void (*)(void *))fsm_msgFirmwareUpload},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_GetEntropy,			GetEntropy_fields,			(void (*)(void *))fsm_msgGetEntropy},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_GetPublicKey,			GetPublicKey_fields,		(void (*)(void *))fsm_msgGetPublicKey},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_LoadDevice,			LoadDevice_fields,			(void (*)(void *))fsm_msgLoadDevice},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_ResetDevice,			ResetDevice_fields,			(void (*)(void *))fsm_msgResetDevice},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_SignTx,				SignTx_fields,				(void (*)(void *))fsm_msgSignTx},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_PinMatrixAck,			PinMatrixAck_fields,		0},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_Cancel,				Cancel_fields,				(void (*)(void *))fsm_msgCancel},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_TxAck,					TxAck_fields,				(void (*)(void *))fsm_msgTxAck},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_CipherKeyValue,		CipherKeyValue_fields,		(void (*)(void *))fsm_msgCipherKeyValue},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_ClearSession,			ClearSession_fields,		(void (*)(void *))fsm_msgClearSession},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_ApplySettings,			ApplySettings_fields,		(void (*)(void *))fsm_msgApplySettings},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_ButtonAck,				ButtonAck_fields,			0},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_GetAddress,			GetAddress_fields,			(void (*)(void *))fsm_msgGetAddress},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_EntropyAck,			EntropyAck_fields,			(void (*)(void *))fsm_msgEntropyAck},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_SignMessage,			SignMessage_fields,			(void (*)(void *))fsm_msgSignMessage},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_SignIdentity,			SignIdentity_fields,		(void (*)(void *))fsm_msgSignIdentity},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_VerifyMessage,			VerifyMessage_fields,		(void (*)(void *))fsm_msgVerifyMessage},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_EncryptMessage,		EncryptMessage_fields,		(void (*)(void *))fsm_msgEncryptMessage},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_DecryptMessage,		DecryptMessage_fields,		(void (*)(void *))fsm_msgDecryptMessage},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_PassphraseAck,			PassphraseAck_fields,		0},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_EstimateTxSize,		EstimateTxSize_fields,		(void (*)(void *))fsm_msgEstimateTxSize},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_RecoveryDevice,		RecoveryDevice_fields,		(void (*)(void *))fsm_msgRecoveryDevice},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_WordAck,				WordAck_fields,				(void (*)(void *))fsm_msgWordAck},
-	{NORMAL_MSG, IN_MSG, MessageType_MessageType_CharacterAck,			CharacterAck_fields,		(void (*)(void *))fsm_msgCharacterAck},
+	MSG_IN(MessageType_MessageType_Initialize, 			Initialize_fields, 			(void (*)(void *))fsm_msgInitialize)
+	MSG_IN(MessageType_MessageType_GetFeatures, 		GetFeatures_fields, 		(void (*)(void *))fsm_msgGetFeatures)
+	MSG_IN(MessageType_MessageType_Ping, 				Ping_fields, 				(void (*)(void *))fsm_msgPing)
+	MSG_IN(MessageType_MessageType_ChangePin, 			ChangePin_fields, 			(void (*)(void *))fsm_msgChangePin)
+	MSG_IN(MessageType_MessageType_WipeDevice, 			WipeDevice_fields, 			(void (*)(void *))fsm_msgWipeDevice)
+	MSG_IN(MessageType_MessageType_FirmwareErase, 		FirmwareErase_fields, 		(void (*)(void *))fsm_msgFirmwareErase)
+	MSG_IN(MessageType_MessageType_FirmwareUpload, 		FirmwareUpload_fields, 		(void (*)(void *))fsm_msgFirmwareUpload)
+	MSG_IN(MessageType_MessageType_GetEntropy, 			GetEntropy_fields, 			(void (*)(void *))fsm_msgGetEntropy)
+	MSG_IN(MessageType_MessageType_GetPublicKey, 		GetPublicKey_fields, 		(void (*)(void *))fsm_msgGetPublicKey)
+	MSG_IN(MessageType_MessageType_LoadDevice, 			LoadDevice_fields, 			(void (*)(void *))fsm_msgLoadDevice)
+	MSG_IN(MessageType_MessageType_ResetDevice, 		ResetDevice_fields, 		(void (*)(void *))fsm_msgResetDevice)
+	MSG_IN(MessageType_MessageType_SignTx, 				SignTx_fields, 				(void (*)(void *))fsm_msgSignTx)
+	MSG_IN(MessageType_MessageType_PinMatrixAck, 		PinMatrixAck_fields, 		NO_PROCESS_FUNC)
+	MSG_IN(MessageType_MessageType_Cancel, 				Cancel_fields, 				(void (*)(void *))fsm_msgCancel)
+	MSG_IN(MessageType_MessageType_TxAck, 				TxAck_fields, 				(void (*)(void *))fsm_msgTxAck)
+	MSG_IN(MessageType_MessageType_CipherKeyValue, 		CipherKeyValue_fields, 		(void (*)(void *))fsm_msgCipherKeyValue)
+	MSG_IN(MessageType_MessageType_ClearSession, 		ClearSession_fields, 		(void (*)(void *))fsm_msgClearSession)
+	MSG_IN(MessageType_MessageType_ApplySettings, 		ApplySettings_fields, 		(void (*)(void *))fsm_msgApplySettings)
+	MSG_IN(MessageType_MessageType_ButtonAck, 			ButtonAck_fields, 			NO_PROCESS_FUNC)
+	MSG_IN(MessageType_MessageType_GetAddress, 			GetAddress_fields, 			(void (*)(void *))fsm_msgGetAddress)
+	MSG_IN(MessageType_MessageType_EntropyAck, 			EntropyAck_fields, 			(void (*)(void *))fsm_msgEntropyAck)
+	MSG_IN(MessageType_MessageType_SignMessage, 		SignMessage_fields, 		(void (*)(void *))fsm_msgSignMessage)
+	MSG_IN(MessageType_MessageType_SignIdentity, 		SignIdentity_fields, 		(void (*)(void *))fsm_msgSignIdentity)
+	MSG_IN(MessageType_MessageType_VerifyMessage, 		VerifyMessage_fields, 		(void (*)(void *))fsm_msgVerifyMessage)
+	MSG_IN(MessageType_MessageType_EncryptMessage, 		EncryptMessage_fields, 		(void (*)(void *))fsm_msgEncryptMessage)
+	MSG_IN(MessageType_MessageType_DecryptMessage, 		DecryptMessage_fields, 		(void (*)(void *))fsm_msgDecryptMessage)
+	MSG_IN(MessageType_MessageType_PassphraseAck, 		PassphraseAck_fields, 		NO_PROCESS_FUNC)
+	MSG_IN(MessageType_MessageType_EstimateTxSize, 		EstimateTxSize_fields, 		(void (*)(void *))fsm_msgEstimateTxSize)
+	MSG_IN(MessageType_MessageType_RecoveryDevice, 		RecoveryDevice_fields, 		(void (*)(void *))fsm_msgRecoveryDevice)
+	MSG_IN(MessageType_MessageType_WordAck, 			WordAck_fields, 			(void (*)(void *))fsm_msgWordAck)
+	MSG_IN(MessageType_MessageType_CharacterAck, 		CharacterAck_fields, 		(void (*)(void *))fsm_msgCharacterAck)
 	// out messages
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_Success,				Success_fields,				0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_Failure,				Failure_fields,				0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_Entropy,				Entropy_fields,				0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_PublicKey,			PublicKey_fields,			0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_Features,				Features_fields,			0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_PinMatrixRequest,		PinMatrixRequest_fields,	0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_TxRequest,			TxRequest_fields,			0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_CipheredKeyValue,		CipheredKeyValue_fields,	0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_ButtonRequest,		ButtonRequest_fields,		0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_Address,				Address_fields,				0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_EntropyRequest,		EntropyRequest_fields,		0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_MessageSignature,		MessageSignature_fields,	0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_SignedIdentity,		SignedIdentity_fields,		0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_EncryptedMessage,		EncryptedMessage_fields,	0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_DecryptedMessage,		DecryptedMessage_fields,	0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_PassphraseRequest,	PassphraseRequest_fields,	0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_TxSize,				TxSize_fields,				0},
-    {NORMAL_MSG, OUT_MSG, MessageType_MessageType_WordRequest,          WordRequest_fields,         0},
-	{NORMAL_MSG, OUT_MSG, MessageType_MessageType_CharacterRequest,		CharacterRequest_fields,	0},
+	MSG_OUT(MessageType_MessageType_Success, 			Success_fields, 			NO_PROCESS_FUNC)
+	MSG_OUT(MessageType_MessageType_Failure, 			Failure_fields, 			NO_PROCESS_FUNC)
+	MSG_OUT(MessageType_MessageType_Entropy, 			Entropy_fields, 			NO_PROCESS_FUNC)
+	MSG_OUT(MessageType_MessageType_PublicKey, 			PublicKey_fields, 			NO_PROCESS_FUNC)
+	MSG_OUT(MessageType_MessageType_Features, 			Features_fields, 			NO_PROCESS_FUNC)
+	MSG_OUT(MessageType_MessageType_PinMatrixRequest, 	PinMatrixRequest_fields, 	NO_PROCESS_FUNC)
+	MSG_OUT(MessageType_MessageType_TxRequest, 			TxRequest_fields, 			NO_PROCESS_FUNC)
+	MSG_OUT(MessageType_MessageType_CipheredKeyValue, 	CipheredKeyValue_fields, 	NO_PROCESS_FUNC)
+	MSG_OUT(MessageType_MessageType_ButtonRequest, 		ButtonRequest_fields, 		NO_PROCESS_FUNC)
+	MSG_OUT(MessageType_MessageType_Address, 			Address_fields, 			NO_PROCESS_FUNC)
+	MSG_OUT(MessageType_MessageType_EntropyRequest, 	EntropyRequest_fields, 		NO_PROCESS_FUNC)
+	MSG_OUT(MessageType_MessageType_MessageSignature, 	MessageSignature_fields, 	NO_PROCESS_FUNC)
+	MSG_OUT(MessageType_MessageType_SignedIdentity, 	SignedIdentity_fields, 		NO_PROCESS_FUNC)
+	MSG_OUT(MessageType_MessageType_EncryptedMessage, 	EncryptedMessage_fields, 	NO_PROCESS_FUNC)
+	MSG_OUT(MessageType_MessageType_DecryptedMessage, 	DecryptedMessage_fields, 	NO_PROCESS_FUNC)
+	MSG_OUT(MessageType_MessageType_PassphraseRequest, 	PassphraseRequest_fields, 	NO_PROCESS_FUNC)
+	MSG_OUT(MessageType_MessageType_TxSize, 			TxSize_fields, 				NO_PROCESS_FUNC)
+	MSG_OUT(MessageType_MessageType_WordRequest, 		WordRequest_fields, 		NO_PROCESS_FUNC)
+	MSG_OUT(MessageType_MessageType_CharacterRequest, 	CharacterRequest_fields, 	NO_PROCESS_FUNC)
 #if DEBUG_LINK
 	// debug in messages
-	{DEBUG_MSG, IN_MSG, MessageType_MessageType_DebugLinkDecision,		DebugLinkDecision_fields,	0},
-	{DEBUG_MSG, IN_MSG, MessageType_MessageType_DebugLinkGetState,		DebugLinkGetState_fields,	(void (*)(void *))fsm_msgDebugLinkGetState},
-	{DEBUG_MSG, IN_MSG, MessageType_MessageType_DebugLinkStop,			DebugLinkStop_fields,		(void (*)(void *))fsm_msgDebugLinkStop},
+	DEBUG_IN(MessageType_MessageType_DebugLinkDecision, DebugLinkDecision_fields, 	NO_PROCESS_FUNC)
+	DEBUG_IN(MessageType_MessageType_DebugLinkGetState, DebugLinkGetState_fields, 	(void (*)(void *))fsm_msgDebugLinkGetState)
+	DEBUG_IN(MessageType_MessageType_DebugLinkStop, 	DebugLinkStop_fields, 		(void (*)(void *))fsm_msgDebugLinkStop)
 	// debug out messages
-	{DEBUG_MSG, OUT_MSG, MessageType_MessageType_DebugLinkState,		DebugLinkState_fields,		0},
-	{DEBUG_MSG, OUT_MSG, MessageType_MessageType_DebugLinkLog,			DebugLinkLog_fields,		0},
-#endif
-	// end
-	{END_OF_MAP, 0, 0, 0, 0}
+	DEBUG_OUT(MessageType_MessageType_DebugLinkState, DebugLinkState_fields, 		NO_PROCESS_FUNC)
+	DEBUG_OUT(MessageType_MessageType_DebugLinkLog, DebugLinkLog_fields, 			NO_PROCESS_FUNC)
+#endif	
 };
 
 void fsm_init(void)
 {
-	msg_map_init(MessagesMap);
+	msg_map_init(MessagesMap, sizeof(MessagesMap));
 	set_msg_failure_handler(&fsm_sendFailure);
 
 	/* set leaving handler for layout to help with determine home state */

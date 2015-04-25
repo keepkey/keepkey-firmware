@@ -43,6 +43,7 @@ bool reset_msg_stack = false;
 
 static MsgStats msg_stats;
 static const MessagesMap_t *MessagesMap = NULL;
+static size_t map_size = 0;
 static msg_failure_t msg_failure;
 #if DEBUG_LINK
 static msg_debug_link_get_state_t msg_debug_link_get_state;
@@ -58,18 +59,18 @@ static uint16_t msg_tiny_id = MSG_TINY_TYPE_ERROR; /* default to error type*/
  *                       in MessagesMap[] array 
  *
  * INPUT -
- *      type - massage type
+ *      msg_id  - protocol buffer message id
+ *      dir     - direction of message
  * OUTPUT -
  *      pointer to message  
  */
-const MessagesMap_t* message_map_entry(MessageMapType type, MessageMapDirection dir, MessageType msg_id)
+const MessagesMap_t* message_map_entry(MessageType msg_id, MessageMapDirection dir)
 {
     const MessagesMap_t *m = MessagesMap;
-    while(m->type != END_OF_MAP) {
-        if(type == m->type && dir == m->dir && msg_id == m->msg_id) {
-            return m;
-        }
-        ++m;
+
+    if(map_size > msg_id && m[msg_id].msg_id == msg_id && m[msg_id].dir == dir)
+    {
+        return &m[msg_id];
     }
     return NULL;
 }
@@ -79,21 +80,22 @@ const MessagesMap_t* message_map_entry(MessageMapType type, MessageMapDirection 
  *                            in MessagesMap[] array
  *
  * INPUT -
- *      type - massage type
+ *      msg_id  - protocol buffer message id
+ *      dir     - direction of message
  * OUTPUT -
  *      pointer to protocol buffer
  */
-const pb_field_t* message_fields(MessageMapType type, MessageMapDirection dir, MessageType msg_id)
+const pb_field_t* message_fields(MessageType msg_id, MessageMapDirection dir)
 {
     assert(MessagesMap != NULL);
 
     const MessagesMap_t *m = MessagesMap;
-    while (m->type != END_OF_MAP) {
-    	if(type == m->type && dir == m->dir && msg_id == m->msg_id) {
-            return m->fields;
-        }
-        m++;
+    
+    if(map_size > msg_id && m[msg_id].msg_id == msg_id && m[msg_id].dir == dir)
+    {
+        return m[msg_id].fields;
     }
+
     return NULL;
 }
 
@@ -133,19 +135,19 @@ void usb_write_pb(const pb_field_t* fields, const void* msg, MessageType id, usb
  * msg_write() - transmit message over usb port
  *
  * INPUT - 
- *      type - massage type
- *      *msg - pointer to message buffer 
+ *      msg_id  - protocol buffer message id
+ *      *msg    - pointer to message buffer
  * OUTPUT -
  *      true/false status
  */
-bool msg_write(MessageType type, const void *msg)
+bool msg_write(MessageType msg_id, const void *msg)
 {
-    const pb_field_t *fields = message_fields(NORMAL_MSG, OUT_MSG, type);
+    const pb_field_t *fields = message_fields(msg_id, OUT_MSG);
     if (!fields) { // unknown message
         return(false);
     }
     /* add frame header to message and transmit out to usb */
-    usb_write_pb(fields, msg, type, &usb_tx);
+    usb_write_pb(fields, msg, msg_id, &usb_tx);
     return(true);
 }
 
@@ -153,20 +155,20 @@ bool msg_write(MessageType type, const void *msg)
  * msg_debug_write() - transmit message over usb port on debug endpoint
  *
  * INPUT -
- *      type - massage type
- *      *msg - pointer to message buffer
+ *      msg_id  - protocol buffer message id
+ *      *msg    - pointer to message buffer
  * OUTPUT -
  *      true/false status
  */
 #if DEBUG_LINK
-bool msg_debug_write(MessageType type, const void *msg)
+bool msg_debug_write(MessageType msg_id, const void *msg)
 {
-    const pb_field_t *fields = message_fields(DEBUG_MSG, OUT_MSG, type);
+    const pb_field_t *fields = message_fields(msg_id, OUT_MSG);
     if (!fields) { // unknown message
         return(false);
     }
     /* add frame header to message and transmit out to usb */
-    usb_write_pb(fields, msg, type, &usb_debug_tx);
+    usb_write_pb(fields, msg, msg_id, &usb_debug_tx);
     return(true);
 }
 #endif
@@ -211,6 +213,29 @@ void dispatch(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size)
         }
     } else {
     	(*msg_failure)(FailureType_Failure_UnexpectedMessage, "Could not parse protocol buffer message");
+    }
+}
+
+/*
+ * tiny_dispatch() - process received tiny messages
+ *
+ * INPUT - 
+ *      *entry - pointer to message entry
+ *      *msg - pointer to received message buffer
+ *      msg_size - size of message
+ * OUTPUT -
+ *      none
+ *
+ */
+void tiny_dispatch(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size)
+{
+    bool status = pb_parse(entry, msg, msg_size, msg_tiny);
+
+    if(status) {
+        msg_tiny_id = entry->msg_id;
+    } else {
+        call_msg_failure_handler(FailureType_Failure_UnexpectedMessage, 
+                "Could not parse protocol buffer message");
     }
 }
 
@@ -317,6 +342,16 @@ MessageType tiny_msg_poll(bool block)
  */
 void handle_usb_rx(UsbMessage *msg)
 {
+    static TrezorFrameHeaderFirst last_frame_header = { .id = 0xffff, .len = 0 };
+    static TrezorFrameBuffer framebuf;
+    static uint32_t content_pos = 0, content_size = 0;
+    static bool mid_frame = false;
+
+    const MessagesMap_t* entry;
+    TrezorFrame *frame = (TrezorFrame*)(msg->message);
+    bool last_segment;
+    uint8_t* contents;
+
     assert(msg != NULL);
 
     if(msg->len < sizeof(TrezorFrameHeaderFirst))
@@ -324,26 +359,15 @@ void handle_usb_rx(UsbMessage *msg)
         ++msg_stats.runt_packet;
         return;
     }
-    TrezorFrame *frame = (TrezorFrame*)(msg->message);
+    
     if(frame->usb_header.hid_type != '?')
     {
         ++msg_stats.invalid_usb_header;
         return;
-    }
-
-    /* Frame content buffer, position, size, and frame tracking */
-	static TrezorFrameBuffer framebuf;
-	static uint32_t content_pos = 0;
-	static uint32_t content_size = 0;
-	static bool mid_frame = false;
-
-	/* Current segment content */
-	uint8_t* contents = NULL;
+    }	
 
     /* Check to see if this is the first frame of a series, * or a
        continuation/fragment.  */
-    static TrezorFrameHeaderFirst last_frame_header = { .id = 0xffff, .len = 0 };
-
     if(frame->header.pre1 == '#' && frame->header.pre2 == '#' && !mid_frame)
     {
         /* Byte swap in place. */
@@ -363,78 +387,52 @@ void handle_usb_rx(UsbMessage *msg)
 		content_size = msg->len - 1;
     }
 
-    bool last_segment = content_pos >= last_frame_header.len;
+    last_segment = content_pos >= last_frame_header.len;
     mid_frame = !last_segment;
 
     /* Determine callback handler and message map type */
-    const MessagesMap_t* entry;
-	MessageMapType map_type;
+    entry = message_map_entry(last_frame_header.id, IN_MSG);
 
-	if(entry = message_map_entry(NORMAL_MSG, IN_MSG, last_frame_header.id)) {
-		map_type = NORMAL_MSG;
-#if DEBUG_LINK
-	} else if(entry = message_map_entry(DEBUG_MSG, IN_MSG, last_frame_header.id)) {
-		map_type = DEBUG_MSG;
-#endif
-    } else if(entry = message_map_entry(RAW_MSG, IN_MSG, last_frame_header.id)) {
-		map_type = RAW_MSG;
-    } else {
-		map_type = UNKNOWN_MSG;
+    if(entry && entry->type == RAW_MSG) {
+        /* call dispatch for every segment since we are not buffering and parsing, and
+         * assume the raw dispatched callbacks will handle their own state and
+         * buffering internally
+         */
+        raw_dispatch(entry, contents, content_size, last_frame_header.len);
     }
-
-    /* Check for a message map entry for protocol buffer messages */
-#if DEBUG_LINK
-	if(map_type == NORMAL_MSG || map_type == DEBUG_MSG)
-#else
-	if(map_type == NORMAL_MSG)
-#endif
+    else if(entry)
     {
     	/* Copy content to frame buffer */
     	if(content_size == content_pos)
+        {
     		memcpy(framebuf.buffer, contents, content_pos);
+        }
     	else
+        {
     		memcpy(framebuf.buffer + (content_pos - (msg->len - 1)), contents, msg->len - 1);
-
-    /* Check for raw messages that bypass protocol buffer parsing */
-    } else if(map_type == RAW_MSG) {
-
-
-    	/* call dispatch for every segment since we are not buffering and parsing, and
-    	 * assume the raw dispatched callbacks will handle their own state and
-    	 * buffering internally
-    	 */
-    	raw_dispatch(entry, contents, content_size, last_frame_header.len);
+        }
     }
 
     /*
      * Only parse and message map if all segments have been buffered
      * and this message type is parsable
      */
-#if DEBUG_LINK
-	if (last_segment && (map_type == NORMAL_MSG || map_type == DEBUG_MSG))
-#else
-	if (last_segment && map_type == NORMAL_MSG)
-#endif
-    	if(!msg_tiny_flag) {
+    if(last_segment && !entry)
+    {
+        ++msg_stats.unknown_dispatch_entry;
+        (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message");
+    }
+    else if(last_segment)
+    {
+    	if(msg_tiny_flag)
+        {
+    		tiny_dispatch(entry, framebuf.buffer, last_frame_header.len);
+        }
+        else
+        {
     		dispatch(entry, framebuf.buffer, last_frame_header.len);
-        } else {
-    		bool status = pb_parse(entry, framebuf.buffer, last_frame_header.len, msg_tiny);
-
-    		if(status) {
-    			msg_tiny_id = last_frame_header.id;
-            } else {
-    			call_msg_failure_handler(FailureType_Failure_UnexpectedMessage, 
-                        "Could not parse protocol buffer message");
-            }
     	}
-
-    /* Catch messages that are not in message maps */
-    else if(last_segment && map_type == UNKNOWN_MSG)
-	{
-    	++msg_stats.unknown_dispatch_entry;
-
-    	(*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message");
-	}
+    }
 }
 
 /*
@@ -442,14 +440,15 @@ void handle_usb_rx(UsbMessage *msg)
  *
  * INPUT -
  *      *map - pointer message map array
- *      type - message type
+ *      size - size of message map
  * OUTPUT -
  *
  */
-void msg_map_init(const void *map)
+void msg_map_init(const void *map, const size_t size)
 {
     assert(map != NULL);
     MessagesMap = map;
+    map_size = size;
 }
 
 /*
