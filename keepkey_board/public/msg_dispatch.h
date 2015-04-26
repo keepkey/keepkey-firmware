@@ -34,7 +34,6 @@
 #define MSG_IN(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = NORMAL_MSG, [ID].dir = IN_MSG, [ID].fields = FIELDS, [ID].process_func = PROCESS_FUNC,
 #define MSG_OUT(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = NORMAL_MSG, [ID].dir = OUT_MSG, [ID].fields = FIELDS, [ID].process_func = PROCESS_FUNC,
 #define RAW_IN(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = RAW_MSG, [ID].dir = IN_MSG, [ID].fields = FIELDS, [ID].process_func = PROCESS_FUNC,
-#define RAW_OUT(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = RAW_MSG, [ID].dir = OUT_MSG, [ID].fields = FIELDS, [ID].process_func = PROCESS_FUNC,
 #define DEBUG_IN(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = DEBUG_MSG, [ID].dir = IN_MSG, [ID].fields = FIELDS, [ID].process_func = PROCESS_FUNC,
 #define DEBUG_OUT(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = DEBUG_MSG, [ID].dir = OUT_MSG, [ID].fields = FIELDS, [ID].process_func = PROCESS_FUNC,
 #define NO_PROCESS_FUNC 0

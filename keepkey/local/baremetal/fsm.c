@@ -1100,7 +1100,7 @@ static const MessagesMap_t MessagesMap[] = {
 
 void fsm_init(void)
 {
-	msg_map_init(MessagesMap, sizeof(MessagesMap));
+	msg_map_init(MessagesMap, sizeof(MessagesMap) / sizeof(MessagesMap_t));
 	set_msg_failure_handler(&fsm_sendFailure);
 
 	/* set leaving handler for layout to help with determine home state */

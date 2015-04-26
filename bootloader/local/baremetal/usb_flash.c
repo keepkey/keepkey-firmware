@@ -52,11 +52,11 @@ static const MessagesMap_t MessagesMap[] = {
     MSG_IN(MessageType_MessageType_Ping,                Ping_fields,                (message_handler_t)(handler_ping))
     MSG_IN(MessageType_MessageType_FirmwareErase,       FirmwareErase_fields,       (message_handler_t)(handler_erase))
     MSG_IN(MessageType_MessageType_ButtonAck,           ButtonAck_fields,           NO_PROCESS_FUNC)
-    MSG_IN(MessageType_MessageType_FirmwareUpload,      FirmwareUpload_fields,      (message_handler_t)(raw_handler_upload))
-    MSG_IN(MessageType_MessageType_Features,            Features_fields,            NO_PROCESS_FUNC)
-    MSG_IN(MessageType_MessageType_Success,             Success_fields,             NO_PROCESS_FUNC)
-    MSG_IN(MessageType_MessageType_Failure,             Failure_fields,             NO_PROCESS_FUNC)
-    MSG_IN(MessageType_MessageType_ButtonRequest,       ButtonRequest_fields,       NO_PROCESS_FUNC)
+    RAW_IN(MessageType_MessageType_FirmwareUpload,      FirmwareUpload_fields,      (message_handler_t)(raw_handler_upload))
+    MSG_OUT(MessageType_MessageType_Features,           Features_fields,            NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_Success,            Success_fields,             NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_Failure,            Failure_fields,             NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_ButtonRequest,      ButtonRequest_fields,       NO_PROCESS_FUNC)
 #if DEBUG_LINK
     // debug in messages
     DEBUG_IN(MessageType_MessageType_DebugLinkDecision, DebugLinkDecision_fields,   NO_PROCESS_FUNC)
@@ -144,7 +144,7 @@ bool usb_flash_firmware(void)
     layout_warning("Firmware Update Mode");
 
     /* Init message map, failure function, send init function, and usb callback */
-    msg_map_init(MessagesMap, sizeof(MessagesMap));
+    msg_map_init(MessagesMap, sizeof(MessagesMap) / sizeof(MessagesMap_t));
     set_msg_failure_handler(&send_failure);
     msg_init();
 

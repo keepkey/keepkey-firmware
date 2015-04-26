@@ -61,6 +61,7 @@ int memory_bootloader_hash(uint8_t *hash)
 
 int memory_app_fingerprint(uint8_t *digest)
 {
+    //TODO: If code length is 0, return an empty hash
     sha256_Raw((const uint8_t *)FLASH_APP_START, *(uint32_t *)FLASH_META_CODELEN, digest);
     return SHA256_DIGEST_LENGTH;
 }
