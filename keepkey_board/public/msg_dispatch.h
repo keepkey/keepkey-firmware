@@ -40,9 +40,10 @@
 
 /***************** Typedefs and enums  *******************/
 typedef void (*msg_handler_t)(void *ptr);
-typedef void (*raw_msg_handler_t)(uint8_t *msg, uint32_t msg_size, uint32_t frame_length);
+typedef void (*raw_msg_handler_t)(uint8_t *msg, uint32_t msg_size,
+                                  uint32_t frame_length);
 typedef void (*msg_failure_t)(FailureType, const char *);
-typedef bool (*usb_tx_handler_t)(void*, uint32_t);
+typedef bool (*usb_tx_handler_t)(void *, uint32_t);
 #if DEBUG_LINK
 typedef void (*msg_debug_link_get_state_t)(DebugLinkGetState *);
 #endif
@@ -50,18 +51,18 @@ typedef void (*msg_debug_link_get_state_t)(DebugLinkGetState *);
 typedef enum
 {
     NORMAL_MSG,
-	RAW_MSG,
+    RAW_MSG,
 #if DEBUG_LINK
-	DEBUG_MSG,
+    DEBUG_MSG,
 #endif
-	UNKNOWN_MSG,
-	END_OF_MAP
+    UNKNOWN_MSG,
+    END_OF_MAP
 } MessageMapType;
 
 typedef enum
 {
     IN_MSG,
-	OUT_MSG
+    OUT_MSG
 } MessageMapDirection;
 
 typedef struct
@@ -74,10 +75,10 @@ typedef struct
     uint16_t usb_tx_err;
 } MsgStats;
 
-typedef struct 
+typedef struct
 {
-	MessageMapType type;
-	MessageMapDirection dir;
+    MessageMapType type;
+    MessageMapDirection dir;
     MessageType msg_id;
     const pb_field_t *fields;
     msg_handler_t process_func;
@@ -96,7 +97,8 @@ void msg_map_init(const void *map, const size_t size);
 void set_msg_failure_handler(msg_failure_t failure_func);
 void call_msg_failure_handler(FailureType code, const char *text);
 #if DEBUG_LINK
-void set_msg_debug_link_get_state_handler(msg_debug_link_get_state_t debug_link_get_state_func);
+void set_msg_debug_link_get_state_handler(msg_debug_link_get_state_t
+        debug_link_get_state_func);
 void call_msg_debug_link_get_state_handler(DebugLinkGetState *msg);
 #endif
 
@@ -106,6 +108,6 @@ void msg_init();
 /* Tiny messages */
 MessageType wait_for_tiny_msg(uint8_t *buf);
 MessageType check_for_tiny_msg(uint8_t *buf);
-MessageType tiny_msg_poll(bool block);
+MessageType tiny_msg_poll_and_buffer(bool block, uint8_t *buf);
 
 #endif

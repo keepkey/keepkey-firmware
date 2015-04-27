@@ -56,15 +56,16 @@ static uint16_t msg_tiny_id = MSG_TINY_TYPE_ERROR; /* default to error type*/
 
 /*
  * message_map_entry() - get message map entry that matches message type
- *                       in MessagesMap[] array 
+ *                       in MessagesMap[] array
  *
  * INPUT -
  *      msg_id  - protocol buffer message id
  *      dir     - direction of message
  * OUTPUT -
- *      pointer to message  
+ *      pointer to message
  */
-const MessagesMap_t* message_map_entry(MessageType msg_id, MessageMapDirection dir)
+const MessagesMap_t *message_map_entry(MessageType msg_id,
+                                       MessageMapDirection dir)
 {
     const MessagesMap_t *m = MessagesMap;
 
@@ -72,11 +73,12 @@ const MessagesMap_t* message_map_entry(MessageType msg_id, MessageMapDirection d
     {
         return &m[msg_id];
     }
+
     return NULL;
 }
 
 /*
- * message_fields() - get protocol buffer in message map entry that matches message type 
+ * message_fields() - get protocol buffer in message map entry that matches message type
  *                            in MessagesMap[] array
  *
  * INPUT -
@@ -85,12 +87,12 @@ const MessagesMap_t* message_map_entry(MessageType msg_id, MessageMapDirection d
  * OUTPUT -
  *      pointer to protocol buffer
  */
-const pb_field_t* message_fields(MessageType msg_id, MessageMapDirection dir)
+const pb_field_t *message_fields(MessageType msg_id, MessageMapDirection dir)
 {
     assert(MessagesMap != NULL);
 
     const MessagesMap_t *m = MessagesMap;
-    
+
     if(map_size > msg_id && m[msg_id].msg_id == msg_id && m[msg_id].dir == dir)
     {
         return m[msg_id].fields;
@@ -103,13 +105,14 @@ const pb_field_t* message_fields(MessageType msg_id, MessageMapDirection dir)
  * usb_write_pb() - add usb frame header info to message buffer and perform usb transmission
  *
  * INPUT -
- *      *fields - 
- *      *msg - pointer to message buffer 
- *      id - message ID 
- * OUTPUT - 
+ *      *fields -
+ *      *msg - pointer to message buffer
+ *      id - message ID
+ * OUTPUT -
  *      none
  */
-void usb_write_pb(const pb_field_t* fields, const void* msg, MessageType id, usb_tx_handler_t usb_tx_handler)
+void usb_write_pb(const pb_field_t *fields, const void *msg, MessageType id,
+                  usb_tx_handler_t usb_tx_handler)
 {
     assert(fields != NULL);
 
@@ -120,13 +123,15 @@ void usb_write_pb(const pb_field_t* fields, const void* msg, MessageType id, usb
     framebuf.frame.header.pre2 = '#';
     framebuf.frame.header.id = __builtin_bswap16(id);
 
-    pb_ostream_t os = pb_ostream_from_buffer(framebuf.buffer, sizeof(framebuf.buffer));
+    pb_ostream_t os = pb_ostream_from_buffer(framebuf.buffer,
+                      sizeof(framebuf.buffer));
     bool status = pb_encode(&os, fields, msg);
     assert(status);
 
     framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
 
-    bool ret = (*usb_tx_handler)(&framebuf, sizeof(framebuf.frame) + os.bytes_written);
+    bool ret = (*usb_tx_handler)(&framebuf,
+                                 sizeof(framebuf.frame) + os.bytes_written);
     ret ? msg_stats.usb_tx++ : msg_stats.usb_tx_err++;
 }
 
@@ -134,7 +139,7 @@ void usb_write_pb(const pb_field_t* fields, const void* msg, MessageType id, usb
 /*
  * msg_write() - transmit message over usb port
  *
- * INPUT - 
+ * INPUT -
  *      msg_id  - protocol buffer message id
  *      *msg    - pointer to message buffer
  * OUTPUT -
@@ -143,9 +148,12 @@ void usb_write_pb(const pb_field_t* fields, const void* msg, MessageType id, usb
 bool msg_write(MessageType msg_id, const void *msg)
 {
     const pb_field_t *fields = message_fields(msg_id, OUT_MSG);
-    if (!fields) { // unknown message
+
+    if(!fields)    // unknown message
+    {
         return(false);
     }
+
     /* add frame header to message and transmit out to usb */
     usb_write_pb(fields, msg, msg_id, &usb_tx);
     return(true);
@@ -164,9 +172,12 @@ bool msg_write(MessageType msg_id, const void *msg)
 bool msg_debug_write(MessageType msg_id, const void *msg)
 {
     const pb_field_t *fields = message_fields(msg_id, OUT_MSG);
-    if (!fields) { // unknown message
+
+    if(!fields)    // unknown message
+    {
         return(false);
     }
+
     /* add frame header to message and transmit out to usb */
     usb_write_pb(fields, msg, msg_id, &usb_debug_tx);
     return(true);
@@ -176,7 +187,7 @@ bool msg_debug_write(MessageType msg_id, const void *msg)
 /*
  * pb_parse() - process usb message by protocol buffer
  *
- * INPUT - 
+ * INPUT -
  *      *entry - pointer to message entry
  *      *msg - pointer to received message buffer
  *      msg_size - size of message
@@ -184,16 +195,17 @@ bool msg_debug_write(MessageType msg_id, const void *msg)
  * OUTPUT -
  *
  */
-bool pb_parse(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size, uint8_t *buf)
+bool pb_parse(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_size,
+              uint8_t *buf)
 {
-	pb_istream_t stream = pb_istream_from_buffer(msg, msg_size);
-	return(pb_decode(&stream, entry->fields, buf));
+    pb_istream_t stream = pb_istream_from_buffer(msg, msg_size);
+    return(pb_decode(&stream, entry->fields, buf));
 }
 
 /*
  * dispatch() - process received message and jump to corresponding process function
  *
- * INPUT - 
+ * INPUT -
  *      *entry - pointer to message entry
  *      *msg - pointer to received message buffer
  *      msg_size - size of message
@@ -201,25 +213,32 @@ bool pb_parse(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size, uint8
  *      none
  *
  */
-void dispatch(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size)
+void dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_size)
 {
     static uint8_t decode_buffer[MAX_DECODE_SIZE] __attribute__((aligned(4)));
 
-    if(pb_parse(entry, msg, msg_size, decode_buffer)) {
-        if(entry->process_func) { 
+    if(pb_parse(entry, msg, msg_size, decode_buffer))
+    {
+        if(entry->process_func)
+        {
             entry->process_func(decode_buffer);
-        } else {
-        	(*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unexpected message");
         }
-    } else {
-    	(*msg_failure)(FailureType_Failure_UnexpectedMessage, "Could not parse protocol buffer message");
+        else
+        {
+            (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unexpected message");
+        }
+    }
+    else
+    {
+        (*msg_failure)(FailureType_Failure_UnexpectedMessage,
+                       "Could not parse protocol buffer message");
     }
 }
 
 /*
  * tiny_dispatch() - process received tiny messages
  *
- * INPUT - 
+ * INPUT -
  *      *entry - pointer to message entry
  *      *msg - pointer to received message buffer
  *      msg_size - size of message
@@ -227,36 +246,40 @@ void dispatch(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size)
  *      none
  *
  */
-void tiny_dispatch(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size)
+void tiny_dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_size)
 {
     bool status = pb_parse(entry, msg, msg_size, msg_tiny);
 
-    if(status) {
+    if(status)
+    {
         msg_tiny_id = entry->msg_id;
-    } else {
-        call_msg_failure_handler(FailureType_Failure_UnexpectedMessage, 
-                "Could not parse protocol buffer message");
+    }
+    else
+    {
+        call_msg_failure_handler(FailureType_Failure_UnexpectedMessage,
+                                 "Could not parse protocol buffer message");
     }
 }
 
 /*
- * raw_dispatch() - process received message and jump to corresponding 
+ * raw_dispatch() - process received message and jump to corresponding
  *                  process function (used by bootloader)
  *
  * INPUT -
  *      *entry - pointer to message entry
  *      *msg - pointer to received message buffer
  *      msg_size - size of message
- *      frame_length - 
+ *      frame_length -
  * OUTPUT -
  *      none
  */
-void raw_dispatch(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
+void raw_dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_size,
+                  uint32_t frame_length)
 {
-	if(entry->process_func)
-	{
-		((raw_msg_handler_t)entry->process_func)(msg, msg_size, frame_length);
-	}
+    if(entry->process_func)
+    {
+        ((raw_msg_handler_t)entry->process_func)(msg, msg_size, frame_length);
+    }
 }
 
 /*
@@ -265,20 +288,12 @@ void raw_dispatch(const MessagesMap_t* entry, uint8_t *msg, uint32_t msg_size, u
  * INPUT -
  *      *buf - pointer to destination buffer
  * OUTPUT -
- *      message tiny type  
+ *      message tiny type
  *
  */
 MessageType wait_for_tiny_msg(uint8_t *buf)
 {
-    MessageType ret_msg_tiny_type;
-
-    ret_msg_tiny_type = tiny_msg_poll(true);
-
-    if(ret_msg_tiny_type != MSG_TINY_TYPE_ERROR) {
-	    /* copy tiny message buffer */
-	    memcpy(buf, msg_tiny, sizeof(msg_tiny)); 
-    } 
-    return(ret_msg_tiny_type);
+    return(tiny_msg_poll_and_buffer(true, buf));
 }
 
 /*
@@ -292,49 +307,48 @@ MessageType wait_for_tiny_msg(uint8_t *buf)
  */
 MessageType check_for_tiny_msg(uint8_t *buf)
 {
-    MessageType ret_msg_tiny_type;
-
-    ret_msg_tiny_type = tiny_msg_poll(false);
-
-    if(ret_msg_tiny_type != MSG_TINY_TYPE_ERROR) {
-	    /* copy tiny message buffer */
-	    memcpy(buf, msg_tiny, sizeof(msg_tiny));
-    }
-    return(ret_msg_tiny_type);
+    return(tiny_msg_poll_and_buffer(false, buf));
 }
 
 /*
- * poll_for_tiny_msg(bool block) - poll usb port to check for tiny message from host
+ * tiny_msg_poll_and_buffer(bool block) - poll usb port to check for tiny message from host
  *
- * INPUT - 
- *      block - flag to continually poll usb until tiny message is received
+ * INPUT -
+ *      block   - flag to continually poll usb until tiny message is received
+ *      *buf    - pointer to destination buffer
  * OUTPUT -
  *      message type
- *      
+ *
  */
-MessageType tiny_msg_poll(bool block)
+MessageType tiny_msg_poll_and_buffer(bool block, uint8_t *buf)
 {
-	msg_tiny_id = MSG_TINY_TYPE_ERROR; /* Init */
-	msg_tiny_flag = true; /* Turn on tiny msg */
+    msg_tiny_id = MSG_TINY_TYPE_ERROR;
+    msg_tiny_flag = true;
 
-    /* poll until "msg_tiny_id" is updated */
-	while(msg_tiny_id == MSG_TINY_TYPE_ERROR) {
-		usb_poll();
-		if(!block){
-			break;
+    while(msg_tiny_id == MSG_TINY_TYPE_ERROR)
+    {
+        usb_poll();
+
+        if(!block)
+        {
+            break;
         }
-	}
-	/* Turn off tiny msg */
-	msg_tiny_flag = false;
+    }
 
-	/* Return msg id */
-	return(msg_tiny_id);
+    msg_tiny_flag = false;
+
+    if(msg_tiny_id != MSG_TINY_TYPE_ERROR)
+    {
+        memcpy(buf, msg_tiny, sizeof(msg_tiny));
+    }
+
+    return(msg_tiny_id);
 }
 
 
 /*
  * handle_usb_rx() - handler for USB message from host
- * 
+ *
  * INPUT -
  *      *msg - pointer to message received from host
  * OUTPUT -
@@ -347,10 +361,10 @@ void handle_usb_rx(UsbMessage *msg)
     static uint32_t content_pos = 0, content_size = 0;
     static bool mid_frame = false;
 
-    const MessagesMap_t* entry;
-    TrezorFrame *frame = (TrezorFrame*)(msg->message);
+    const MessagesMap_t *entry;
+    TrezorFrame *frame = (TrezorFrame *)(msg->message);
     bool last_segment;
-    uint8_t* contents;
+    uint8_t *contents;
 
     assert(msg != NULL);
 
@@ -359,12 +373,12 @@ void handle_usb_rx(UsbMessage *msg)
         ++msg_stats.runt_packet;
         return;
     }
-    
+
     if(frame->usb_header.hid_type != '?')
     {
         ++msg_stats.invalid_usb_header;
         return;
-    }	
+    }
 
     /* Check to see if this is the first frame of a series, * or a
        continuation/fragment.  */
@@ -377,14 +391,16 @@ void handle_usb_rx(UsbMessage *msg)
         contents = frame->contents;
 
         /* Init content pos and size */
-		content_pos = msg->len - 9;
-		content_size = content_pos;
+        content_pos = msg->len - 9;
+        content_size = content_pos;
 
-    } else {
-    	contents = ((TrezorFrameFragment*)msg->message)->contents;
+    }
+    else
+    {
+        contents = ((TrezorFrameFragment *)msg->message)->contents;
 
-    	content_pos += msg->len - 1;
-		content_size = msg->len - 1;
+        content_pos += msg->len - 1;
+        content_size = msg->len - 1;
     }
 
     last_segment = content_pos >= last_frame_header.len;
@@ -393,7 +409,8 @@ void handle_usb_rx(UsbMessage *msg)
     /* Determine callback handler and message map type */
     entry = message_map_entry(last_frame_header.id, IN_MSG);
 
-    if(entry && entry->type == RAW_MSG) {
+    if(entry && entry->type == RAW_MSG)
+    {
         /* call dispatch for every segment since we are not buffering and parsing, and
          * assume the raw dispatched callbacks will handle their own state and
          * buffering internally
@@ -402,14 +419,15 @@ void handle_usb_rx(UsbMessage *msg)
     }
     else if(entry)
     {
-    	/* Copy content to frame buffer */
-    	if(content_size == content_pos)
+        /* Copy content to frame buffer */
+        if(content_size == content_pos)
         {
-    		memcpy(framebuf.buffer, contents, content_pos);
+            memcpy(framebuf.buffer, contents, content_pos);
         }
-    	else
+        else
         {
-    		memcpy(framebuf.buffer + (content_pos - (msg->len - 1)), contents, msg->len - 1);
+            memcpy(framebuf.buffer + (content_pos - (msg->len - 1)), contents,
+                   msg->len - 1);
         }
     }
 
@@ -424,14 +442,14 @@ void handle_usb_rx(UsbMessage *msg)
     }
     else if(last_segment && entry->type != RAW_MSG)
     {
-    	if(msg_tiny_flag)
+        if(msg_tiny_flag)
         {
-    		tiny_dispatch(entry, framebuf.buffer, last_frame_header.len);
+            tiny_dispatch(entry, framebuf.buffer, last_frame_header.len);
         }
         else
         {
-    		dispatch(entry, framebuf.buffer, last_frame_header.len);
-    	}
+            dispatch(entry, framebuf.buffer, last_frame_header.len);
+        }
     }
 }
 
@@ -461,7 +479,7 @@ void msg_map_init(const void *map, const size_t size)
  */
 void set_msg_failure_handler(msg_failure_t failure_func)
 {
-	msg_failure = failure_func;
+    msg_failure = failure_func;
 }
 
 /*
@@ -473,9 +491,10 @@ void set_msg_failure_handler(msg_failure_t failure_func)
  *      none
  */
 #if DEBUG_LINK
-void set_msg_debug_link_get_state_handler(msg_debug_link_get_state_t debug_link_get_state_func)
+void set_msg_debug_link_get_state_handler(msg_debug_link_get_state_t
+        debug_link_get_state_func)
 {
-	msg_debug_link_get_state = debug_link_get_state_func;
+    msg_debug_link_get_state = debug_link_get_state_func;
 }
 #endif
 
@@ -489,8 +508,10 @@ void set_msg_debug_link_get_state_handler(msg_debug_link_get_state_t debug_link_
  */
 void call_msg_failure_handler(FailureType code, const char *text)
 {
-	if(msg_failure)
-		(*msg_failure)(code, text);
+    if(msg_failure)
+    {
+        (*msg_failure)(code, text);
+    }
 }
 
 /*
@@ -502,8 +523,10 @@ void call_msg_failure_handler(FailureType code, const char *text)
 #if DEBUG_LINK
 void call_msg_debug_link_get_state_handler(DebugLinkGetState *msg)
 {
-	if(msg_debug_link_get_state)
-		(*msg_debug_link_get_state)(msg);
+    if(msg_debug_link_get_state)
+    {
+        (*msg_debug_link_get_state)(msg);
+    }
 }
 #endif
 
