@@ -422,7 +422,7 @@ void handle_usb_rx(UsbMessage *msg)
         ++msg_stats.unknown_dispatch_entry;
         (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message");
     }
-    else if(last_segment)
+    else if(last_segment && entry->type != RAW_MSG)
     {
     	if(msg_tiny_flag)
         {
