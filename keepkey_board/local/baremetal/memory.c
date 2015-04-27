@@ -35,12 +35,14 @@
 void memory_protect(void)
 {
     //                     set RDP level 2                   WRP for sectors 0 and 1
-    if ((((*OPTION_BYTES_1) & 0xFFFF) == 0xCCFF) && (((*OPTION_BYTES_2) & 0xFFFF) == 0xFF88)) {
+    if((((*OPTION_BYTES_1) & 0xFFFF) == 0xCCFF) && (((*OPTION_BYTES_2) & 0xFFFF) == 0xFF88))
+    {
         return; // already set up correctly - bail out
     }
+
     flash_unlock_option_bytes();
     //                              WRP +    RDP
-    flash_program_option_bytes( 0xFF880000 + 0xCCFF); //RDP BLevel 2 (Irreversible)
+    flash_program_option_bytes(0xFF880000 + 0xCCFF);  //RDP BLevel 2 (Irreversible)
     flash_lock_option_bytes();
 }
 
@@ -55,15 +57,23 @@ int memory_bootloader_hash(uint8_t *hash)
     }
 
     memcpy(hash, cached_hash, SHA256_DIGEST_LENGTH);
-    
+
     return SHA256_DIGEST_LENGTH;
 }
 
 int memory_app_fingerprint(uint8_t *digest)
 {
-    //TODO: If code length is 0, return an empty hash
-    sha256_Raw((const uint8_t *)FLASH_APP_START, *(uint32_t *)FLASH_META_CODELEN, digest);
-    return SHA256_DIGEST_LENGTH;
+    uint32_t codelen = *((uint32_t *)FLASH_META_CODELEN);
+
+    if(codelen != 0xffffffff)
+    {
+        sha256_Raw((const uint8_t *)FLASH_APP_START, codelen, digest);
+        return SHA256_DIGEST_LENGTH;
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 int memory_storage_fingerprint(uint8_t *digest, size_t len)
