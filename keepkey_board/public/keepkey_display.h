@@ -32,22 +32,23 @@ extern "C" {
 
 #include "canvas.h"
 
-/**************  #defines *******************************/ 
-#define KEEPKEY_DISPLAY_HEIGHT 	64
-#define KEEPKEY_DISPLAY_WIDTH	256
+/**************  #defines *******************************/
+#define KEEPKEY_DISPLAY_HEIGHT  64
+#define KEEPKEY_DISPLAY_WIDTH   256
 
-#define DEFAULT_DISPLAY_BRIGHTNESS 	100 // percent
+#define DEFAULT_DISPLAY_BRIGHTNESS  100 // percent
 
 /**********************  Function Declarations ***********************/
-static void display_configure_io ( void);
-static void display_reset_io( void);
-static void display_reset( void);
-static void display_prepare_gram_write( void);
-static void display_write_reg ( uint8_t reg);
-static void display_write_ram( uint8_t val );
+static void display_configure_io(void);
+static void display_reset_io(void);
+static void display_reset(void);
+static void display_prepare_gram_write(void);
+static void display_write_reg(uint8_t reg);
+static void display_write_ram(uint8_t val);
 
-Canvas*display_init (void);
-Canvas* display_canvas (void);
+void display_hw_init(void);
+Canvas *display_canvas_init(void);
+Canvas *display_canvas(void);
 void display_refresh(void);
 void display_set_brightness(int percentage);
 void display_turn_on(void);
