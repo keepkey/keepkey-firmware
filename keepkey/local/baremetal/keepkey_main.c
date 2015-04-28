@@ -40,11 +40,11 @@
  */
 static void exec(void)
 {
-	usb_poll();
+    usb_poll();
 
-	/* attempt to animate should a screensaver be present */
-	animate();
-	display_refresh();
+    /* Attempt to animate should a screensaver be present */
+    animate();
+    display_refresh();
 }
 
 /*
@@ -55,15 +55,13 @@ static void exec(void)
  */
 int main(void)
 {
-    // init for safeguard against stack overflow (-fstack-protector-all)
-    __stack_chk_guard=(uintptr_t)random32();
-	/* Init board */
+    /* Init for safeguard against stack overflow (-fstack-protector-all) */
+    __stack_chk_guard = (uintptr_t)random32();
+
+    /* Init board */
     board_init();
     led_func(SET_RED_LED);
-    dbg_print("Application Version %d.%d\n\r", MAJOR_VERSION, MINOR_VERSION );
-
-    /* Show home screen */
-    go_home();
+    dbg_print("Application Version %d.%d\n\r", MAJOR_VERSION, MINOR_VERSION);
 
     /* Init storage */
     storage_init();
@@ -81,10 +79,13 @@ int main(void)
 
     /* Monitor host usb commands */
     reset_idle_time();
-    while(1) {
-    	delay_ms_with_callback(ONE_SEC, &exec, 1);
-		increment_idle_time(ONE_SEC);
-		toggle_screensaver();
+
+    while(1)
+    {
+        delay_ms_with_callback(ONE_SEC, &exec, 1);
+        increment_idle_time(ONE_SEC);
+        toggle_screensaver();
     }
+
     return 0;
 }
