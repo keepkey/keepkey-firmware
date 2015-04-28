@@ -30,7 +30,7 @@
 
 /*******************  variables *************************************/
 /* track state of home screen */
-static HomeState home_state = AWAY_FROM_HOME;
+static HomeState home_state = AT_HOME;
 static uint32_t idle_time = 0;
 
 /*******************FUNCTION Definitions  ****************************/
