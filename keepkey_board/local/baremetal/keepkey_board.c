@@ -64,29 +64,6 @@ void board_reset(void)
 {
     scb_reset_system();
 }
-
-/*
- * void clock_init() - Initialize clocks to enable peripherals
- *
- * INPUT - none
- * OUTPUT - none
- */
-static void clock_init(void)
-{
-    // setup clock
-    clock_scale_t clock = hse_8mhz_3v3[CLOCK_3V3_120MHZ];
-    rcc_clock_setup_hse_3v3(&clock);
-
-
-    rcc_periph_clock_enable(RCC_GPIOA);
-    rcc_periph_clock_enable(RCC_GPIOB);
-    rcc_periph_clock_enable(RCC_GPIOC);
-    rcc_periph_clock_enable(RCC_OTGFS);
-    rcc_periph_clock_enable(RCC_SYSCFG);
-    rcc_periph_clock_enable(RCC_TIM4);
-    rcc_periph_clock_enable(RCC_RNG);
-    
-}
  
 /*
  * reset_rng(void) - reset random number generator
@@ -114,10 +91,8 @@ void reset_rng(void)
  */
 void board_init(void)
 {
-//    clock_init();
     timer_init();
     keepkey_leds_init();
     keepkey_button_init();
-    display_init();
-    layout_init(display_canvas());
+    layout_init(display_canvas_init());
 }

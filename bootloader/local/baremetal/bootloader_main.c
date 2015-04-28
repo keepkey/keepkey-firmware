@@ -53,7 +53,7 @@
 
 //=============================== VARIABLES ===================================
 
-uint32_t *const  SCB_VTOR = (uint32_t *)0xe000ed08;
+uint32_t *const SCB_VTOR = (uint32_t *)0xe000ed08;
 
 //====================== PRIVATE FUNCTION DECLARATIONS ========================
 
@@ -108,21 +108,20 @@ static void boot_jump(uint32_t addr)
 }
 
 /*
- * bootldr_init() - initialize misc initialization for bootloader
+ * bootloader_init() - initialize misc initialization for bootloader
  *
  * INPUT - none
  * OUTPUT - none
  */
-static void bootldr_init(void)
+static void bootloader_init(void)
 {
-    /* Enable random */
-    reset_rng();
+    reset_rng();//
     timer_init();
     usart_init();
     keepkey_leds_init();
     keepkey_button_init();
-    display_init();
-    layout_init(display_canvas());
+    display_hw_init();
+    layout_init(display_canvas_init());
 }
 
 /*
@@ -147,12 +146,12 @@ static bool check_magic(void)
 }
 
 /*
- * configure_hw() - board initialization
+ * clock_init() - clock initialization
  *
  * INPUT - none
  * OUTPUT - none
  */
-static void configure_hw()
+static void clock_init()
 {
     clock_scale_t clock = hse_8mhz_3v3[CLOCK_3V3_120MHZ];
     rcc_clock_setup_hse_3v3(&clock);
@@ -164,7 +163,6 @@ static void configure_hw()
     rcc_periph_clock_enable(RCC_SYSCFG);
     rcc_periph_clock_enable(RCC_TIM4);
     rcc_periph_clock_enable(RCC_RNG);
-
 }
 
 /*
@@ -179,8 +177,8 @@ int main(int argc, char *argv[])
     (void)argv;
     bool update_mode;
 
-    configure_hw();
-    bootldr_init();
+    clock_init();
+    bootloader_init();
 
 #if 0 //TODO (GIT issue #49): Do not turn this on until We're ready to ship
     memory_protect();
@@ -209,9 +207,13 @@ int main(int argc, char *argv[])
     {
         if(check_magic() == true)
         {
+            layout_home();
+
             if(signatures_ok() == 0)
             {
-                /*KeepKey signature chk failed, get user acknowledgement before booting.*/
+                delay_ms(500);
+
+                /* KeepKey signature check failed, get user acknowledgement before booting.*/
                 if(!confirm_without_button_request("Unsigned Firmware Detected",
                                                    "Do you want to continue booting?"))
                 {

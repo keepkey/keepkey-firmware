@@ -34,15 +34,15 @@
 static void configure_hw(void);
 
 /*
- * blink() - toggl red led 
+ * blink() - toggl red led
  *
- * INPUT - 
- *      *context - pointer to arguments 
- * OUTOPUT - 
+ * INPUT -
+ *      *context - pointer to arguments
+ * OUTOPUT -
  *      none
  *
  */
-static void blink(void *context )
+static void blink(void *context)
 {
     led_func(TGL_RED_LED);
 }
@@ -50,9 +50,9 @@ static void blink(void *context )
 /*
  * blonk() - toggle led green led
  *
- * INPUT - 
- *      *context - pointer to arguments 
- * OUTPUT - 
+ * INPUT -
+ *      *context - pointer to arguments
+ * OUTPUT -
  *      none
  */
 static void blonk(void *context)
@@ -69,27 +69,28 @@ static void blonk(void *context)
 int main(void)
 {
     configure_hw();
-    display_init();
-    layout_init( display_canvas() );
+    display_hw_init();
+    layout_init(display_canvas_init());
     layout_home();
-    post_periodic( &blink, NULL, 1000, 1000 );
-    post_periodic( &blonk, NULL, 500, 1000 );
+    post_periodic(&blink, NULL, 1000, 1000);
+    post_periodic(&blonk, NULL, 500, 1000);
 
-    while( 1 )
+    while(1)
     {
-        if( display_canvas()->dirty )
+        if(display_canvas()->dirty)
         {
             display_refresh();
         }
 
         animate();
     }
+
     return 0;
 }
 
 
 /*
- * configure_hw() - harware initialization 
+ * configure_hw() - harware initialization
  *
  * INPUT - none
  * OUTPUT - none
@@ -97,18 +98,18 @@ int main(void)
 static void configure_hw(void)
 {
     clock_scale_t clock = hse_8mhz_3v3[ CLOCK_3V3_120MHZ ];
-    rcc_clock_setup_hse_3v3( &clock );
+    rcc_clock_setup_hse_3v3(&clock);
 
     // Enable GPIOA/B/C clock.
-    rcc_periph_clock_enable( RCC_GPIOA );
-    rcc_periph_clock_enable( RCC_GPIOB );
-    rcc_periph_clock_enable( RCC_GPIOC );
+    rcc_periph_clock_enable(RCC_GPIOA);
+    rcc_periph_clock_enable(RCC_GPIOB);
+    rcc_periph_clock_enable(RCC_GPIOC);
 
-    // Enable the peripheral clock for the system configuration 
-    rcc_peripheral_enable_clock( &RCC_APB2ENR, RCC_APB2ENR_SYSCFGEN );
+    // Enable the peripheral clock for the system configuration
+    rcc_peripheral_enable_clock(&RCC_APB2ENR, RCC_APB2ENR_SYSCFGEN);
 
     // Enable the periph clock for timer 4
-    rcc_peripheral_enable_clock( &RCC_APB1ENR, RCC_APB1ENR_TIM4EN );
+    rcc_peripheral_enable_clock(&RCC_APB1ENR, RCC_APB1ENR_TIM4EN);
 
     timer_init();
 
