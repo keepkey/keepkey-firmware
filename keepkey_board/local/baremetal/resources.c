@@ -366,13 +366,8 @@ static const AnimationFrame logo_reversed_array[] = {
 	{&logo_1_image, 20}
 };
 
-#ifndef BLDR
 static const ImageAnimation logo = { 16, logo_array };
 static const ImageAnimation logo_reversed = { 16, logo_reversed_array };
-#else
-static const ImageAnimation logo ;
-static const ImageAnimation logo_reversed ;
-#endif
 
 
 //======================== CONFIRM ICON ANIMATION =============================
