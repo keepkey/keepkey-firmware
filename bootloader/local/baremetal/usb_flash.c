@@ -41,6 +41,8 @@
 #include "signatures.h"
 #include "usb_flash.h"
 
+#define RESP_INIT(TYPE) TYPE resp; memset(&resp, 0, sizeof(TYPE));
+
 /*** Definition ***/
 static FirmwareUploadState upload_state = UPLOAD_NOT_STARTED;
 extern bool reset_msg_stack;
@@ -71,37 +73,31 @@ static const MessagesMap_t MessagesMap[] =
 
 static Stats stats;
 
-#if DEBUG_LINK
-static bool fill_config_sector(void)
-{
-    ConfigFlash storage_shadow;
-    bool ret_stat = true;
-
-    memset((uint8_t *)&storage_shadow, 0xaa, sizeof(ConfigFlash));
-
-    if(flash_write_n_lock(FLASH_STORAGE, 0, sizeof(ConfigFlash),
-                          (uint8_t *)&storage_shadow)  == false)
-    {
-        ret_stat = false;
-    }
-
-    return(ret_stat);
-}
-#endif
-
 /*
- * get_update_status() - get firmware update status
+ * fill_config_sector() - fills config partition with values, used to test signed firmware uploads
  *
  * INPUT -
  *      none
  * OUTPUT -
  *      status
  */
-
-FirmwareUploadState get_update_status(void)
+#if DEBUG_LINK
+static bool fill_config_sector(void)
 {
-    return (upload_state);
+    ConfigFlash storage_shadow;
+    bool ret_val = true;
+
+    memset((uint8_t *)&storage_shadow, 0xaa, sizeof(ConfigFlash));
+
+    if(flash_locking_write(FLASH_STORAGE, 0, sizeof(ConfigFlash),
+                           (uint8_t *)&storage_shadow)  == false)
+    {
+        ret_val = false;
+    }
+
+    return(ret_val);
 }
+#endif
 
 /*
  * verify_fingerprint - verify application's finger print
@@ -116,7 +112,7 @@ bool verify_fingerprint(void)
 {
     char digest[SHA256_DIGEST_LENGTH],
          str_digest[SHA256_DIGEST_STR_LEN] = "";
-    bool ret_stat = false;
+    bool ret_val = false;
     uint32_t i = 0;
 
     memory_app_fingerprint(digest);
@@ -132,10 +128,10 @@ bool verify_fingerprint(void)
     if(confirm(ButtonRequestType_ButtonRequest_FirmwareCheck,
                "Compare Firmware Fingerprint", str_digest))
     {
-        ret_stat = true;
+        ret_val = true;
     }
 
-    return (ret_stat);
+    return(ret_val);
 }
 
 /*
@@ -149,9 +145,8 @@ bool verify_fingerprint(void)
  */
 bool usb_flash_firmware(void)
 {
-    FirmwareUploadState upd_stat;
     ConfigFlash storage_shadow;
-    bool retval = false;
+    bool ret_val = false;
 
     /* Init USB */
     if(usb_init() == false)
@@ -175,23 +170,20 @@ bool usb_flash_firmware(void)
     fill_config_sector();
 #endif
 
-    /* save storage data */
+    /* Save storage data */
     memcpy(&storage_shadow, (void *)FLASH_STORAGE_START, sizeof(ConfigFlash));
 
-    /* implement timer for this loop in the future*/
     while(1)
     {
-        upd_stat = get_update_status();
-
-        switch(upd_stat)
+        switch(upload_state)
         {
             case UPLOAD_COMPLETE:
             {
                 if(signatures_ok() == 1)
                 {
                     /* The image is from KeepKey.  Restore storage data */
-                    if(flash_write_n_lock(FLASH_STORAGE, 0, sizeof(ConfigFlash),
-                                          (uint8_t *)&storage_shadow) == false)
+                    if(flash_locking_write(FLASH_STORAGE, 0, sizeof(ConfigFlash),
+                                           (uint8_t *)&storage_shadow) == false)
                     {
                         /* bailing early */
                         goto uff_exit;
@@ -202,10 +194,10 @@ bool usb_flash_firmware(void)
                 if(verify_fingerprint())
                 {
                     /* Fingerprint has been verified.  Install "KPKY" magic in meta header */
-                    if(flash_write_n_lock(FLASH_APP, 0, META_MAGIC_SIZE, META_MAGIC_STR) == true)
+                    if(flash_locking_write(FLASH_APP, 0, META_MAGIC_SIZE, META_MAGIC_STR) == true)
                     {
                         send_success("Upload complete");
-                        retval = true;
+                        ret_val = true;
                     }
                 }
 
@@ -230,9 +222,38 @@ bool usb_flash_firmware(void)
     }
 
 uff_exit:
-    /* clear the shadow before exiting */
-    memset(&storage_shadow, 0xEE, sizeof(ConfigFlash));
-    return(retval);
+    /* Clear the shadow before exiting */
+    memset(&storage_shadow, 0, sizeof(ConfigFlash));
+    return(ret_val);
+}
+
+/*
+ *  flash_locking_write - restore storage partition in flash for firmware update
+ *
+ *  INPUT -
+ *      1. flash partition
+ *      2. flash offset within partition to begin write
+ *      3. length to write
+ *      4. pointer to source data
+ *
+ *  OUTPUT -
+ *      status
+ */
+bool flash_locking_write(Allocation group, size_t offset, size_t len,
+                         uint8_t *dataPtr)
+{
+    bool ret_val = true;
+
+    flash_unlock();
+
+    if(flash_write(group, offset, len, dataPtr) == false)
+    {
+        /* flash error detectected */
+        ret_val = false;
+    }
+
+    flash_lock();
+    return(ret_val);
 }
 
 /*
@@ -248,16 +269,15 @@ uff_exit:
 
 void send_success(const char *text)
 {
-    Success s;
-    memset(&s, 0, sizeof(s));
+    RESP_INIT(Success);
 
     if(text)
     {
-        s.has_message = true;
-        strlcpy(s.message, text, sizeof(s.message));
+        resp.has_message = true;
+        strlcpy(resp.message, text, sizeof(resp.message));
     }
 
-    msg_write(MessageType_MessageType_Success, &s);
+    msg_write(MessageType_MessageType_Success, &resp);
 }
 
 /*
@@ -280,19 +300,18 @@ void send_failure(FailureType code, const char *text)
         return;
     }
 
-    Failure f;
-    memset(&f, 0, sizeof(f));
+    RESP_INIT(Failure);
 
-    f.has_code = true;
-    f.code = code;
+    resp.has_code = true;
+    resp.code = code;
 
     if(text)
     {
-        f.has_message = true;
-        strlcpy(f.message, text, sizeof(f.message));
+        resp.has_message = true;
+        strlcpy(resp.message, text, sizeof(resp.message));
     }
 
-    msg_write(MessageType_MessageType_Failure, &f);
+    msg_write(MessageType_MessageType_Failure, &resp);
 }
 
 /*
@@ -305,7 +324,15 @@ void send_failure(FailureType code, const char *text)
  */
 void handler_ping(Ping *msg)
 {
-    (void)msg;
+    RESP_INIT(Success);
+
+    if(msg->has_message)
+    {
+        resp.has_message = true;
+        memcpy(resp.message, &(msg->message), sizeof(resp.message));
+    }
+
+    msg_write(MessageType_MessageType_Success, &resp);
 }
 
 /*
@@ -319,48 +346,17 @@ void handler_ping(Ping *msg)
  */
 void handler_initialize(Initialize *msg)
 {
-    assert(msg != NULL);
+    (void)msg;
+    RESP_INIT(Features);
 
-    Features f;
-    memset(&f, 0, sizeof(f));
+    resp.has_bootloader_mode = true;
+    resp.bootloader_mode = true;
+    resp.has_major_version = true;
+    resp.major_version = BOOTLOADER_MAJOR_VERSION;
+    resp.minor_version = BOOTLOADER_MINOR_VERSION;
+    resp.patch_version = BOOTLOADER_PATCH_VERSION;
 
-    f.has_bootloader_mode = true;
-    f.bootloader_mode = true;
-    f.has_major_version = true;
-    f.major_version = BOOTLOADER_MAJOR_VERSION;
-    f.minor_version = BOOTLOADER_MINOR_VERSION;
-    f.patch_version = BOOTLOADER_PATCH_VERSION;
-
-    msg_write(MessageType_MessageType_Features, &f);
-}
-
-/*
- *  flash_write_n_lock - restore storage partition in flash for firmware update
- *
- *  INPUT -
- *      1. flash partition
- *      2. flash offset within partition to begin write
- *      3. length to write
- *      4. pointer to source data
- *
- *  OUTPUT -
- *      status
- */
-bool flash_write_n_lock(Allocation group, size_t offset, size_t len,
-                        uint8_t *dataPtr)
-{
-    bool ret_val = true;
-
-    flash_unlock();
-
-    if(flash_write(group, offset, len, dataPtr) == false)
-    {
-        /* flash error detectected */
-        ret_val = false;
-    }
-
-    flash_lock();
-    return(ret_val);
+    msg_write(MessageType_MessageType_Features, &resp);
 }
 
 /*
@@ -374,13 +370,14 @@ bool flash_write_n_lock(Allocation group, size_t offset, size_t len,
  */
 void handler_erase(FirmwareErase *msg)
 {
+    (void)msg;
+
     if(confirm(ButtonRequestType_ButtonRequest_FirmwareErase,
                "Verify Backup Before Upgrade",
                "Before upgrading, confirm that you have access to the backup of your recovery sentence."))
     {
 
         layout_simple_message("Preparing For Upgrade...");
-        display_refresh();
 
         flash_unlock();
         flash_erase_word(FLASH_STORAGE);
@@ -409,7 +406,7 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
 {
     static uint32_t flash_offset;
 
-    /* check file size is within allocated space */
+    /* Check file size is within allocated space */
     if(frame_length < (FLASH_APP_LEN + FLASH_META_DESC_LEN))
     {
         /* Start firmware load */
@@ -429,22 +426,13 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
         /* Process firmware upload */
         if(upload_state == UPLOAD_STARTED)
         {
-            /* check if the image is bigger than allocated space */
+            /* Check if the image is bigger than allocated space */
             if((flash_offset + msg_size) < (FLASH_APP_LEN + FLASH_META_DESC_LEN))
             {
                 if(flash_offset == 0)
                 {
-                    /* check image is prep'ed with KeepKey magic */
-                    if(memcmp(msg, META_MAGIC_STR, META_MAGIC_SIZE))
-                    {
-                        /* invalid KeepKey magic detected. Bailing!!! */
-                        ++stats.invalid_msg_type_ct;
-                        send_failure(FailureType_Failure_FirmwareError, "Invalid Magic Key");
-                        upload_state = UPLOAD_ERROR;
-                        dbg_print("error: Invalid Magic Key detected... \n\r");
-                        goto rhu_exit;
-                    }
-                    else
+                    /* Check that image is prepared with KeepKey magic */
+                    if(memcmp(msg, META_MAGIC_STR, META_MAGIC_SIZE) == 0)
                     {
                         msg_size -= META_MAGIC_SIZE;
                         msg = (uint8_t *)(msg + META_MAGIC_SIZE);
@@ -452,15 +440,27 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
                         /* unlock the flash for writing */
                         flash_unlock();
                     }
+                    else
+                    {
+                        /* Invalid KeepKey magic detected */
+                        ++stats.invalid_msg_type_ct;
+                        send_failure(FailureType_Failure_FirmwareError, "Not valid firmware");
+                        upload_state = UPLOAD_ERROR;
+                        dbg_print("Error: invalid Magic Key detected... \n\r");
+                        goto rhu_exit;
+                    }
+
                 }
 
                 /* Begin writing to flash */
-                if(flash_write(FLASH_APP, flash_offset, msg_size, msg) == false)
+                if(!flash_write(FLASH_APP, flash_offset, msg_size, msg))
                 {
+                    /* Error: flash write error */
                     flash_lock();
-                    /* error: flash write error */
-                    send_failure(FailureType_Failure_FirmwareError, "Flash write error");
+                    send_failure(FailureType_Failure_FirmwareError,
+                                 "Encountered error while writing to flash");
                     upload_state = UPLOAD_ERROR;
+                    dbg_print("Error: flash write error... \n\r");
                     goto rhu_exit;
                 }
 
@@ -468,12 +468,12 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
             }
             else
             {
-                /* error: frame overrun detected during the image update */
+                /* Error: frame overrun detected during the image update */
                 flash_lock();
                 ++stats.invalid_offset_ct;
-                send_failure(FailureType_Failure_FirmwareError, "Upload overflow");
+                send_failure(FailureType_Failure_FirmwareError, "Firmware too large");
                 upload_state = UPLOAD_ERROR;
-                dbg_print("error: Image corruption occured during download... \n\r");
+                dbg_print("Error: frame overrun detected during the image update... \n\r");
                 goto rhu_exit;
             }
 
@@ -487,8 +487,8 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
     }
     else
     {
-        send_failure(FailureType_Failure_FirmwareError, "Image Too Big");
-        dbg_print("error: Image too large to fit in the allocated space : 0x%x ...\n\r",
+        send_failure(FailureType_Failure_FirmwareError, "Firmware too large");
+        dbg_print("Error: image too large to fit in the allocated space : 0x%x ...\n\r",
                   frame_length);
         upload_state = UPLOAD_ERROR;
     }
@@ -498,13 +498,19 @@ rhu_exit:
 }
 
 #if DEBUG_LINK
+/*
+ * handler_debug_link_get_state() - Handler for debug link get state
+ *
+ * INPUT
+ *  - msg:  pointer to DebugLinkGetState msg
+ *
+ * OUTPUT
+ *  - none
+ */
 void handler_debug_link_get_state(DebugLinkGetState *msg)
 {
     (void)msg;
-    DebugLinkState resp;
-    memset(&resp, 0, sizeof(resp));
-
-    dbg_print("GOT HERE");
+    RESP_INIT(DebugLinkState);
 
     /* App fingerprint */
     if((resp.app_fingerprint.size = memory_app_fingerprint(resp.app_fingerprint.bytes)) != 0)
@@ -520,7 +526,16 @@ void handler_debug_link_get_state(DebugLinkGetState *msg)
     msg_debug_write(MessageType_MessageType_DebugLinkState, &resp);
 }
 
-void handler_debug_link_stop(FirmwareErase *msg)
+/*
+ * handler_debug_link_stop() - Handler for debug link stop
+ *
+ * INPUT
+ *  - msg:  pointer to DebugLinkStop msg
+ *
+ * OUTPUT
+ *  - none
+ */
+void handler_debug_link_stop(DebugLinkStop *msg)
 {
     (void)msg;
 }

@@ -57,11 +57,10 @@ typedef struct
 /* Generic message handler callback type*/
 typedef void (*message_handler_t)(void* msg_struct); 
 
-
 /*** Function Declarations ***/ 
 bool usb_flash_firmware(void);
 static void sav_storage_in_ram(ConfigFlash *cfg_ptr);
-bool flash_write_n_lock(Allocation group, size_t offset, size_t len, uint8_t* dataPtr);
+bool flash_locking_write(Allocation group, size_t offset, size_t len, uint8_t* dataPtr);
 void send_success(const char *text);
 void send_failure(FailureType code, const char *text);
 void handler_initialize(Initialize* msg);
@@ -72,7 +71,7 @@ void usb_write_pb(void* msg, MessageType id);
 
 #if DEBUG_LINK
 void handler_debug_link_get_state(DebugLinkGetState *msg);
-void handler_debug_link_stop(FirmwareErase* msg);
+void handler_debug_link_stop(DebugLinkStop *msg);
 #endif
 
 #endif

@@ -65,20 +65,27 @@ uint32_t *const SCB_VTOR = (uint32_t *)0xe000ed08;
  *
  * INPUT - none
  * OUTPUT - none
+ *
  */
 void __attribute__((noreturn)) system_halt(void)
 {
-    /*disable interrupts */
+#if DEBUG_LINK
+    board_reset();
+#else
     cm_disable_interrupts();
+#endif
 
-    for(;;) {}  // loop forever
+    for(;;) {} /* Loops forever */
 }
 
 /*
- * Lightweight routine to reset the vector table to point to the application's vector table.
+ * set_vector_table_offset() - Lightweight routine to reset the vector table to point
+ * to the application's vector table.
  *
- * @param offset This must be a multiple of 0x200.  This is added to to the base address of flash
- *               in order to compute the correct base address.
+ * INPUT -
+ *     1. offset - This must be a multiple of 0x200.  This is added to to the base address of flash
+ *     in order to compute the correct base address.
+ * OUTPUT - none
  *
  */
 static void set_vector_table_offset(uint32_t offset)
@@ -112,6 +119,7 @@ static void boot_jump(uint32_t addr)
  *
  * INPUT - none
  * OUTPUT - none
+ *
  */
 static void bootloader_init(void)
 {
@@ -125,31 +133,11 @@ static void bootloader_init(void)
 }
 
 /*
- *  check_magic() - check application magic
- *
- *  INPUT - none
- *  OUTPUT - true/false
- *
- */
-static bool check_magic(void)
-{
-#ifndef DEBUG_ON
-    bool retval = false;
-    app_meta_td *app_meta = (app_meta_td *)FLASH_META_MAGIC;
-
-    retval = (memcmp((void *)&app_meta->magic, META_MAGIC_STR,
-                     META_MAGIC_SIZE) == 0) ? true : false;
-    return(retval);
-#else
-    return(true);
-#endif
-}
-
-/*
  * clock_init() - clock initialization
  *
  * INPUT - none
  * OUTPUT - none
+ *
  */
 static void clock_init()
 {
@@ -166,6 +154,107 @@ static void clock_init()
 }
 
 /*
+ *  is_fw_update_mode() - Determines whether in firmware update mode or not
+ *
+ *  INPUT - none
+ *  OUTPUT - true/false
+ *
+ */
+static bool is_fw_update_mode(void)
+{
+#if DEBUG_LINK
+    return true;
+#else
+    return keepkey_button_down();
+#endif
+}
+
+/*
+ *  magic_ok() - check application magic
+ *
+ *  INPUT - none
+ *  OUTPUT - true/false
+ *
+ */
+static bool magic_ok(void)
+{
+#ifndef DEBUG_ON
+    bool ret_val = false;
+    app_meta_td *app_meta = (app_meta_td *)FLASH_META_MAGIC;
+
+    ret_val = (memcmp((void *)&app_meta->magic, META_MAGIC_STR,
+                      META_MAGIC_SIZE) == 0) ? true : false;
+    return(ret_val);
+#else
+    return(true);
+#endif
+}
+
+/*
+ *  boot_main_application() - Runs through application firmware checking, and then boots
+ *
+ *  INPUT - none
+ *  OUTPUT - true/false
+ *
+ */
+static bool boot_main_application(void)
+{
+    if(magic_ok())
+    {
+        /* Splash screen */
+        layout_home();
+
+        if(signatures_ok() == 0) /* Signature check failed */
+        {
+            delay_ms(500);
+
+            if(!confirm_without_button_request("Unofficial Firmware",
+                                               "Do you want to continue booting?"))
+            {
+                layout_simple_message("Boot Aborted");
+                goto cancel_boot;
+            }
+        }
+
+        led_func(CLR_RED_LED);
+        cm_disable_interrupts();
+        set_vector_table_offset(FLASH_APP_START - FLASH_ORIGIN);
+        boot_jump(FLASH_APP_START);
+    }
+    else
+    {
+        layout_simple_message("Please Reinstall Firmware");
+        goto cancel_boot;
+    }
+
+cancel_boot:
+    return(false);
+}
+
+/*
+ *  update_fw() - Firmware update mode
+ *
+ *  INPUT - none
+ *  OUTPUT - none
+ *
+ */
+static void update_fw(void)
+{
+    led_func(CLR_GREEN_LED);
+
+    if(usb_flash_firmware())
+    {
+        layout_standard_notification("Firmware Update Complete",
+                                     "Please disconnect and reconnect.", NOTIFICATION_UNPLUG);
+        display_refresh();
+    }
+    else
+    {
+        layout_simple_message("Firmware Update Failure, Please Try Again");
+    }
+}
+
+/*
  * main - Bootloader main entry function
  *
  * INPUT - argc (not used)
@@ -175,25 +264,15 @@ int main(int argc, char *argv[])
 {
     (void)argc;
     (void)argv;
-    bool update_mode;
 
     clock_init();
     bootloader_init();
 
-#if 0 //TODO (GIT issue #49): Do not turn this on until We're ready to ship
-    memory_protect();
-#endif
+    //TODO (GIT issue #49): Do not turn this on until We're ready to ship
+    // memory_protect();
 
-    /* initialize stack guard with random value (-fstack_protector_all) */
+    /* Initialize stack guard with random value (-fstack_protector_all) */
     __stack_chk_guard = random32();
-
-    /* button's state determines update mode. debug link will
-     * form update mode so unit tests can run */
-#if DEBUG_LINK
-    update_mode = true;
-#else
-    update_mode = keepkey_button_down();
-#endif
 
     led_func(SET_GREEN_LED);
     led_func(SET_RED_LED);
@@ -202,64 +281,15 @@ int main(int argc, char *argv[])
     dbg_print("BootLoader Version %d.%d (%s)\n\r", BOOTLOADER_MAJOR_VERSION,
               BOOTLOADER_MINOR_VERSION, __DATE__);
 
-    /* main loop for bootloader to transition to next step */
-    if(!update_mode)
+    if(is_fw_update_mode())
     {
-        if(check_magic() == true)
-        {
-            layout_home();
-
-            if(signatures_ok() == 0)
-            {
-                delay_ms(500);
-
-                /* KeepKey signature check failed, get user acknowledgement before booting.*/
-                if(!confirm_without_button_request("Unsigned Firmware Detected",
-                                                   "Do you want to continue booting?"))
-                {
-                    layout_simple_message("Boot aborted.");
-                    display_refresh();
-                    goto boot_exit;
-                }
-            }
-
-            led_func(CLR_RED_LED);
-            cm_disable_interrupts();
-            set_vector_table_offset(FLASH_APP_START - FLASH_ORIGIN);  //offset = 0x60100
-            boot_jump(FLASH_APP_START);
-        }
-        else
-        {
-            /* Invalid magic found.  Not booting!!! */
-            layout_standard_notification("INVALID FIRMWARE MAGIC",
-                                         "Boot aborted.",
-                                         NOTIFICATION_INFO);
-            display_refresh();
-        }
+        update_fw();
     }
     else
     {
-        led_func(CLR_GREEN_LED);
-
-        if(usb_flash_firmware())
-        {
-            layout_standard_notification("Firmware Update Complete",
-                                         "Please disconnect and reconnect.", NOTIFICATION_UNPLUG);
-        }
-        else
-        {
-            layout_standard_notification("Firmware Update Failure.",
-                                         "Unable to load image.", NOTIFICATION_INFO);
-        }
-
-        display_refresh();
+        boot_main_application();
     }
 
-#if DEBUG_LINK
-    board_reset();
-#endif
-
-boot_exit:
-    system_halt();  /* forever loop */
-    return(false);  /* should never get here */
+    system_halt();  /* Loops forever */
+    return(false);  /* Should never get here */
 }
