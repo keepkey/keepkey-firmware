@@ -65,7 +65,7 @@ int memory_app_fingerprint(uint8_t *digest)
 {
     uint32_t codelen = *((uint32_t *)FLASH_META_CODELEN);
 
-    if(codelen != 0xffffffff)
+    if(codelen <= FLASH_APP_LEN)
     {
         sha256_Raw((const uint8_t *)FLASH_APP_START, codelen, digest);
         return SHA256_DIGEST_LENGTH;
