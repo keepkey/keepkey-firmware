@@ -716,7 +716,6 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 	}
 
     layout_simple_message("Verifying Message...");
-    display_refresh();
 
 	uint8_t addr_raw[21];
 	if (!ecdsa_address_decode(msg->address, addr_raw))
@@ -776,7 +775,6 @@ void fsm_msgSignIdentity(SignIdentity *msg)
 	memcpy(message + msg->challenge_hidden.size, msg->challenge_visual, len);
 	
 	layout_simple_message("Signing Identity...");
-    display_refresh();
 
 	if (cryptoMessageSign(message, msg->challenge_hidden.size + len, node->private_key, resp->signature.bytes) == 0) {
 		resp->has_address = true;
@@ -844,7 +842,6 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 	}
 
 	layout_simple_message("Encrypting Message...");
-	display_refresh();
 
 	if (cryptoMessageEncrypt(&pubkey, msg->message.bytes, msg->message.size, display_only, resp->nonce.bytes, &(resp->nonce.size), resp->message.bytes, &(resp->message.size), resp->hmac.bytes, &(resp->hmac.size), signing ? node->private_key : 0, signing ? address_raw : 0) != 0) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Error encrypting message");
@@ -889,7 +886,6 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
 	if (!node) return;
 
 	layout_simple_message("Decrypting Message...");
-	display_refresh();
 
 	RESP_INIT(DecryptedMessage);
 	bool display_only = false;

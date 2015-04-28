@@ -408,6 +408,8 @@ void layout_simple_message(const char* str)
     sp.y = (KEEPKEY_DISPLAY_HEIGHT / 2) - (font_height(font) / 2);
     sp.color = TITLE_COLOR;
     draw_string(canvas, font, upper_str, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
+
+    display_refresh();
 }
 
 /*
@@ -451,7 +453,6 @@ void layout_cipher(const char* current_word, const char* cipher)
     sp.x = 4;
     sp.color = BODY_COLOR;
     draw_string(canvas, title_font, "Recovery Cipher:", &sp, 58, font_height(title_font) + 3);
-    display_refresh();
 
     /* Draw current word */
     sp.y = 46;
