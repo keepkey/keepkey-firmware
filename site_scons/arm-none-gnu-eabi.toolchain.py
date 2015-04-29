@@ -94,6 +94,8 @@ def load_toolchain():
             '-ffunction-sections',
             '-fdata-sections',
             '-fno-common',
+            '-Wall',
+            '-Werror',
 #            '-fstack-protector-all', 
             '-I'+OPENCM3_ROOT+'/include',
             '%s' % scm_rev
