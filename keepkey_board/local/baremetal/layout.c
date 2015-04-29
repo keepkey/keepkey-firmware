@@ -589,7 +589,7 @@ static void layout_animate_images(void* data, uint32_t duration, uint32_t elapse
     } else {
         img = get_image_animation_frame(animation_img_params->img_animation, elapsed, false);
     }
-    if(img) {
+    if(img != NULL) {
         draw_bitmap_mono_rle(canvas, &animation_img_params->base, img);
     }
 }
