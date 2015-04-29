@@ -457,7 +457,7 @@ bool usb_debug_tx(void* message, uint32_t len)
         pos += USB_SEGMENT_SIZE - 1;
     }
 
-    dbg_print("LEN: %d  SENT: %d\r\n", len, pos);
+
 
     return(true);
 }

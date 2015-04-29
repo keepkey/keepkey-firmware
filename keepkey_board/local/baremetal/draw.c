@@ -160,12 +160,12 @@ void draw_string(Canvas *canvas, const Font *font, const char *str_write, Drawab
  */
 void draw_char(Canvas *canvas, const Font *font, char c, DrawableParams *p)
 {
-    DrawableParams char_params = *p;
+//    DrawableParams char_params = *p;
     const CharacterImage* img = font_get_char(font, c);
     int x_offset = 0;
 
     /* Draw Character */
-    char_params.x = x_offset + p->x;
+//    char_params.x = x_offset + p->x;
     draw_char_with_shift( canvas, p, &x_offset, NULL, img);
 
     canvas->dirty = true;
@@ -267,7 +267,6 @@ bool draw_bitmap_mono_rle(Canvas* canvas, DrawableParams* p, const Image *img)
 	int x0, y0;
 	int8_t sequence = 0;
 	int8_t nonsequence = 0;
-	uint8_t value = 0;
 	static uint8_t image_data[KEEPKEY_DISPLAY_WIDTH * KEEPKEY_DISPLAY_HEIGHT];
 
     int start_index = ( p->y * canvas->width ) + p->x;

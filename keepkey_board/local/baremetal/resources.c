@@ -2054,6 +2054,7 @@ static const ImageAnimation warning = { 8, warning_array };
 
 //================================= UNPLUG ====================================
 
+#ifndef APP
 static void unplug(uint8_t *data)
 {
     const uint8_t image_data[395] =
@@ -2063,7 +2064,6 @@ static void unplug(uint8_t *data)
     memcpy(data, image_data, sizeof(image_data));
 }
 
-#ifndef APP
 static const Image unplug_image = {(void *) &unplug, 45, 27};
 #else
 static const Image unplug_image ;
@@ -2071,6 +2071,7 @@ static const Image unplug_image ;
 
 //================================ RECOVERY ===================================
 
+#ifndef BLDR
 static void recovery(uint8_t *data)
 {
     const uint8_t image_data[372] =
@@ -2080,7 +2081,6 @@ static void recovery(uint8_t *data)
     memcpy(data, image_data, sizeof(image_data));
 }
 
-#ifndef BLDR
 static const Image recovery_image = {(void *) &recovery, 29, 29};
 #else
 static const Image recovery_image ;

@@ -152,13 +152,6 @@ static void display_debug_string(char *pStr)
  * Input - content to print
  * Output- send to debug port  
  ********************************************************************/
-#ifdef BSTRAP
-bool dbg_print(char *pStr, ...)
-{
-    display_debug_string(pStr);
-    return(0);
-}
-#else
 bool dbg_print(char *pStr, ...)
 {
     bool ret_stat = true;
@@ -180,7 +173,6 @@ bool dbg_print(char *pStr, ...)
     return(ret_stat);
 }
 
-#endif
 /********************************************************************
  * dbg_trigger - scope trigger pulse for debugging
  *
@@ -209,7 +201,6 @@ void dbg_trigger(uint32_t color)
  */
 char read_console(void)
 {
-    int timeout_cnt = 100; /* allow 100msec for USART busy timeout*/
     char char_read = 0, str_dbg[SMALL_DEBUG_BUF];
 
     while(1)

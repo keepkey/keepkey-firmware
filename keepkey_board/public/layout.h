@@ -199,8 +199,6 @@ void layout_clear_animations();
 void layout_clear_static();
 
 void set_leaving_handler(leaving_handler_t leaving_func);
-static void call_leaving_handler(void);
-
 
 #ifdef __cplusplus
 }

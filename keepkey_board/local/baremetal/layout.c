@@ -65,6 +65,20 @@ static void layout_animate_pin(void *data, uint32_t duration, uint32_t elapsed);
 static void layout_animate_cipher(void* data, uint32_t duration, uint32_t elapsed);
 
 /*
+ * call_leaving_handler() - call leaving handler
+ *
+ * INPUT -
+ *      none
+ * OUTPUT -
+ * 		none
+ */
+static void call_leaving_handler(void)
+{
+	if(leaving_handler)
+		(*leaving_handler)();
+}
+
+/*
  * layout_init() - Initialize layout subsystem for LCD screen
  * 
  * INPUT -
@@ -266,7 +280,6 @@ void layout_address_notification(const char* desc, const char* address, Notifica
     layout_clear();
 
     DrawableParams sp;
-    const Font* str1_font = get_title_font();
     const Font* address_font = get_title_font();
 
     /* Unbold fonts if address becomes too long */
@@ -724,7 +737,6 @@ static void layout_animate_pin(void* data, uint32_t duration, uint32_t elapsed)
 static void layout_animate_cipher(void* data, uint32_t duration, uint32_t elapsed)
 {
     int row, letter, x_padding, cur_pos_elapsed, adj_pos, adj_x, adj_y, cur_index;
-    uint8_t color_stepping[] = {CIPHER_STEP_1, CIPHER_STEP_2, CIPHER_STEP_3, CIPHER_STEP_4, CIPHER_FOREGROUND};
     char *cipher = (char*)data;
     char alphabet[] = "abcdefghijklmnopqrstuvwxyz";
     char *current_letter = alphabet;
@@ -795,7 +807,7 @@ static void layout_animate_cipher(void* data, uint32_t duration, uint32_t elapse
             /* Draw grid mask between boxes */
             draw_box_simple(canvas, CIPHER_MASK_COLOR, sp.x - 5, sp.y + CIPHER_GRID_SIZE, 1, CIPHER_GRID_SIZE);
 
-            *cipher++;
+            cipher++;
         }
         sp.x = CIPHER_START_X;
         sp.y += 31;
@@ -1052,16 +1064,4 @@ void set_leaving_handler(leaving_handler_t leaving_func)
 	leaving_handler = leaving_func;
 }
 
-/*
- * call_leaving_handler() - call leaving handler
- *
- * INPUT -
- *      none
- * OUTPUT -
- * 		none
- */
-static void call_leaving_handler(void)
-{
-	if(leaving_handler)
-		(*leaving_handler)();
-}
+

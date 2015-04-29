@@ -42,9 +42,7 @@ uintptr_t __stack_chk_guard;
  */
 __attribute__((noreturn)) void __stack_chk_fail(void)
 {
-    int cnt = 0;
     layout_warning("Error Dectected.  Reboot Device!");
-
     do
     {
         animate();

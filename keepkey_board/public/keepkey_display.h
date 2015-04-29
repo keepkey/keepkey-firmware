@@ -39,13 +39,6 @@ extern "C" {
 #define DEFAULT_DISPLAY_BRIGHTNESS  100 // percent
 
 /**********************  Function Declarations ***********************/
-static void display_configure_io(void);
-static void display_reset_io(void);
-static void display_reset(void);
-static void display_prepare_gram_write(void);
-static void display_write_reg(uint8_t reg);
-static void display_write_ram(uint8_t val);
-
 void display_hw_init(void);
 Canvas *display_canvas_init(void);
 Canvas *display_canvas(void);

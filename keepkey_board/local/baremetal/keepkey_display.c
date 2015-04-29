@@ -34,10 +34,7 @@
 #define START_ROW ((uint8_t)0x00)
 
 
-//=============================== VARIABLES ===================================
-
-
-
+//=============================== STATIC VARIABLES ===================================
 static const Pin DATA_0_PIN    = { GPIOA, GPIO0 };
 static const Pin DATA_1_PIN    = { GPIOA, GPIO1 };
 static const Pin DATA_2_PIN    = { GPIOA, GPIO2 };
@@ -59,6 +56,290 @@ static const Pin BACKLIGHT_PWR_PIN = { GPIOB, GPIO0 };
 
 static uint8_t canvas_buffer[ KEEPKEY_DISPLAY_HEIGHT * KEEPKEY_DISPLAY_WIDTH ];
 static Canvas canvas;
+
+/*
+ * display_write_reg () write data to display register
+ *
+ * INPUT
+ *     reg - display register value
+ * OUTPUT -
+ *      none
+ */
+static void display_write_reg(uint8_t reg)
+{
+    // Unsure about nDC
+
+    // Set up the data
+    GPIO_BSRR(GPIOA) = 0x000000FF & (uint32_t)reg;
+
+    // Set nOLED_SEL low, nMEM_OE high, and nMEM_WE high.
+    CLEAR_PIN(nSEL_PIN);
+    SET_PIN(nOE_PIN);
+    SET_PIN(nWE_PIN);
+
+    __asm__("nop");
+    __asm__("nop");
+
+    // Set nDC low?
+    CLEAR_PIN(nDC_PIN);
+
+    __asm__("nop");
+    __asm__("nop");
+    __asm__("nop");
+    __asm__("nop");
+
+    // Set nMEM_WE low
+    CLEAR_PIN(nWE_PIN);
+
+    __asm__("nop");
+    __asm__("nop");
+    __asm__("nop");
+    __asm__("nop");
+    __asm__("nop");
+
+    // Set nMEM_WE high
+    SET_PIN(nWE_PIN);
+
+    __asm__("nop");
+    __asm__("nop");
+
+    // Set nOLED_SEL high
+    SET_PIN(nSEL_PIN);
+    GPIO_BSRR(GPIOA) = 0x00FF0000;
+
+    __asm__("nop");
+    __asm__("nop");
+    __asm__("nop");
+    __asm__("nop");
+}
+
+/*
+ * display_reset() - reset display io port
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
+static void display_reset(void)
+{
+    CLEAR_PIN(nRESET_PIN);
+
+    delay_ms(10);
+
+    SET_PIN(nRESET_PIN);
+
+    delay_ms(50);
+}
+
+/*
+ * display_reset_io() - reset display io port
+ *
+ * INPUT -  none
+ * OUTPUT -  none
+ */
+static void display_reset_io(void)
+{
+    SET_PIN(nRESET_PIN);
+    CLEAR_PIN(BACKLIGHT_PWR_PIN);
+    SET_PIN(nWE_PIN);
+    SET_PIN(nOE_PIN);
+    SET_PIN(nDC_PIN);
+    SET_PIN(nSEL_PIN);
+
+    GPIO_BSRR(GPIOA) = 0x00FF0000;
+}
+
+/*
+ * display_configure_io() - setup display io port
+ *
+ * INPUT -  none
+ * OUTPUT -  none
+ */
+static void display_configure_io(void)
+{
+    // Set up port A
+    gpio_mode_setup(
+        GPIOA,
+        GPIO_MODE_OUTPUT,
+        GPIO_PUPD_NONE,
+        GPIO0 | GPIO1 | GPIO2 | GPIO3 | GPIO4 | GPIO5 | GPIO6 | GPIO7 | GPIO8 | GPIO9 | GPIO10);
+
+    gpio_set_output_options(
+        GPIOA,
+        GPIO_OTYPE_PP,
+        GPIO_OSPEED_100MHZ,
+        GPIO0 | GPIO1 | GPIO2 | GPIO3 | GPIO4 | GPIO5 | GPIO6 | GPIO7 | GPIO8 | GPIO9 | GPIO10);
+
+    // Set up port B
+    gpio_mode_setup(
+        GPIOB,
+        GPIO_MODE_OUTPUT,
+        GPIO_PUPD_NONE,
+        GPIO0 | GPIO1 | GPIO5);
+
+    gpio_set_output_options(
+        GPIOB,
+        GPIO_OTYPE_PP,
+        GPIO_OSPEED_100MHZ,
+        GPIO0 | GPIO1 | GPIO5);
+
+    // Set to defaults
+    display_reset_io();
+}
+
+/*
+ * display_prepare_gram_write() -
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
+static void display_prepare_gram_write(void)
+{
+    display_write_reg((uint8_t)0x5C);
+}
+
+/*
+ * display_write_ram() - write data to display RAM
+ *
+ * INPUT -
+ *      val - display ram value
+ * OUTPUT -
+ *      none
+ */
+static void display_write_ram(uint8_t val)
+{
+    // Set up the data
+    GPIO_BSRR(GPIOA) = 0x000000FF & (uint32_t)val;
+
+    // Set nOLED_SEL low, nMEM_OE high, and nMEM_WE high.
+    CLEAR_PIN(nSEL_PIN);
+    SET_PIN(nOE_PIN);
+    SET_PIN(nWE_PIN);
+
+    __asm__("nop");
+    __asm__("nop");
+
+    // Set nDC high?
+    SET_PIN(nDC_PIN);
+
+    __asm__("nop");
+    __asm__("nop");
+    __asm__("nop");
+    __asm__("nop");
+
+    // Set nMEM_WE low
+    CLEAR_PIN(nWE_PIN);
+
+    __asm__("nop");
+    __asm__("nop");
+    __asm__("nop");
+    __asm__("nop");
+    __asm__("nop");
+
+    // Set nMEM_WE high
+    SET_PIN(nWE_PIN);
+
+    __asm__("nop");
+    __asm__("nop");
+
+    // Set nOLED_SEL high
+    SET_PIN(nSEL_PIN);
+    GPIO_BSRR(GPIOA) = 0x00FF0000;
+
+    __asm__("nop");
+    __asm__("nop");
+    __asm__("nop");
+    __asm__("nop");
+}
+
+/*
+ * display_canvas_init( void)  - display canvas initialization
+ *
+ * INPUT - none
+ * OUTPUT -
+ *      pointer to canvas
+ */
+Canvas *display_canvas_init(void)
+{
+    // Prepare the canvas
+    canvas.buffer   = canvas_buffer;
+    canvas.width    = KEEPKEY_DISPLAY_WIDTH;
+    canvas.height   = KEEPKEY_DISPLAY_HEIGHT;
+    canvas.dirty    = false;
+
+    return &canvas;
+}
+
+/*
+ * display_canvas() - get pointer canvas
+ *
+ * INPUT - none
+ * OUTPUT -
+ *      pointer to canvas
+ */
+Canvas *display_canvas(void)
+{
+    return &canvas;
+}
+
+/*
+ * display_refresh() - refresh display
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
+void display_refresh(void)
+{
+    if(!canvas.dirty)
+    {
+        return;
+    }
+
+    display_prepare_gram_write();
+
+    int num_writes = canvas.width * canvas.height;
+
+    int i;
+#ifdef INVERT_DISPLAY
+
+    for(i = num_writes; i > 0; i -= 2)
+    {
+        uint8_t v = (0xF0 & canvas.buffer[ i ]) | (canvas.buffer[ i - 1 ] >> 4);
+#else
+
+    for(i = 0; i < num_writes; i += 2)
+    {
+        uint8_t v = (0xF0 & canvas.buffer[ i ]) | (canvas.buffer[ i + 1 ] >> 4);
+#endif
+        display_write_ram(v);
+    }
+
+
+    canvas.dirty = false;
+}
+
+/*
+ * display_turn_on() - turn on display
+ *
+ * INPUT - none
+ * OUTPUT - none
+ */
+void display_turn_on(void)
+{
+    display_write_reg((uint8_t)0xAF);
+}
+
+/*
+ * display_turn_off() - turn off display
+ *
+ * INPUT - none
+ * OUTPUT -none
+ */
+void display_turn_off(void)
+{
+    display_write_reg((uint8_t)0xAE);
+}
+
+
 
 /*
  * display_hw_init(void)  - display hardware initialization
@@ -184,73 +465,6 @@ void display_hw_init(void)
 }
 
 /*
- * display_canvas_init( void)  - display canvas initialization
- *
- * INPUT - none
- * OUTPUT -
- *      pointer to canvas
- */
-Canvas *display_canvas_init(void)
-{
-    // Prepare the canvas
-    canvas.buffer   = canvas_buffer;
-    canvas.width    = KEEPKEY_DISPLAY_WIDTH;
-    canvas.height   = KEEPKEY_DISPLAY_HEIGHT;
-    canvas.dirty    = false;
-
-    return &canvas;
-}
-
-/*
- * display_canvas() - get pointer canvas
- *
- * INPUT - none
- * OUTPUT -
- *      pointer to canvas
- */
-Canvas *display_canvas(void)
-{
-    return &canvas;
-}
-
-/*
- * display_refresh() - refresh display
- *
- * INPUT - none
- * OUTPUT - none
- */
-void display_refresh(void)
-{
-    if(!canvas.dirty)
-    {
-        return;
-    }
-
-    display_prepare_gram_write();
-
-    int num_writes = canvas.width * canvas.height;
-
-    int i;
-#ifdef INVERT_DISPLAY
-
-    for(i = num_writes; i > 0; i -= 2)
-    {
-        uint8_t v = (0xF0 & canvas.buffer[ i ]) | (canvas.buffer[ i - 1 ] >> 4);
-#else
-
-    for(i = 0; i < num_writes; i += 2)
-    {
-        uint8_t v = (0xF0 & canvas.buffer[ i ]) | (canvas.buffer[ i + 1 ] >> 4);
-#endif
-        display_write_ram(v);
-    }
-
-
-    canvas.dirty = false;
-}
-
-
-/*
  * display_set_brightness() - set display brightness in percentage
  *
  * INPUT -
@@ -275,223 +489,3 @@ void display_set_brightness(int percentage)
     display_write_ram(reg_value);
 }
 
-
-/*
- * display_turn_on() - turn on display
- *
- * INPUT - none
- * OUTPUT - none
- */
-void display_turn_on(void)
-{
-    display_write_reg((uint8_t)0xAF);
-}
-
-
-/*
- * display_turn_off() - turn off display
- *
- * INPUT - none
- * OUTPUT -none
- */
-void display_turn_off(void)
-{
-    display_write_reg((uint8_t)0xAE);
-}
-
-/*
- * display_reset() - reset display io port
- *
- * INPUT - none
- * OUTPUT - none
- */
-static void display_reset(void)
-{
-    CLEAR_PIN(nRESET_PIN);
-
-    delay_ms(10);
-
-    SET_PIN(nRESET_PIN);
-
-    delay_ms(50);
-}
-
-/*
- * display_reset_io() - reset display io port
- *
- * INPUT -  none
- * OUTPUT -  none
- */
-static void display_reset_io(void)
-{
-    SET_PIN(nRESET_PIN);
-    CLEAR_PIN(BACKLIGHT_PWR_PIN);
-    SET_PIN(nWE_PIN);
-    SET_PIN(nOE_PIN);
-    SET_PIN(nDC_PIN);
-    SET_PIN(nSEL_PIN);
-
-    GPIO_BSRR(GPIOA) = 0x00FF0000;
-}
-
-
-/*
- * display_configure_io() - setup display io port
- *
- * INPUT -  none
- * OUTPUT -  none
- */
-static void display_configure_io(void)
-{
-    // Set up port A
-    gpio_mode_setup(
-        GPIOA,
-        GPIO_MODE_OUTPUT,
-        GPIO_PUPD_NONE,
-        GPIO0 | GPIO1 | GPIO2 | GPIO3 | GPIO4 | GPIO5 | GPIO6 | GPIO7 | GPIO8 | GPIO9 | GPIO10);
-
-    gpio_set_output_options(
-        GPIOA,
-        GPIO_OTYPE_PP,
-        GPIO_OSPEED_100MHZ,
-        GPIO0 | GPIO1 | GPIO2 | GPIO3 | GPIO4 | GPIO5 | GPIO6 | GPIO7 | GPIO8 | GPIO9 | GPIO10);
-
-    // Set up port B
-    gpio_mode_setup(
-        GPIOB,
-        GPIO_MODE_OUTPUT,
-        GPIO_PUPD_NONE,
-        GPIO0 | GPIO1 | GPIO5);
-
-    gpio_set_output_options(
-        GPIOB,
-        GPIO_OTYPE_PP,
-        GPIO_OSPEED_100MHZ,
-        GPIO0 | GPIO1 | GPIO5);
-
-    // Set to defaults
-    display_reset_io();
-}
-
-
-/*
- * display_prepare_gram_write() -
- *
- * INPUT - none
- * OUTPUT - none
- */
-static void display_prepare_gram_write(void)
-{
-    display_write_reg((uint8_t)0x5C);
-}
-
-
-/*
- * display_write_reg () write data to display register
- *
- * INPUT
- *     reg - display register value
- * OUTPUT -
- *      none
- */
-static void display_write_reg(uint8_t reg)
-{
-    // Unsure about nDC
-
-    // Set up the data
-    GPIO_BSRR(GPIOA) = 0x000000FF & (uint32_t)reg;
-
-    // Set nOLED_SEL low, nMEM_OE high, and nMEM_WE high.
-    CLEAR_PIN(nSEL_PIN);
-    SET_PIN(nOE_PIN);
-    SET_PIN(nWE_PIN);
-
-    __asm__("nop");
-    __asm__("nop");
-
-    // Set nDC low?
-    CLEAR_PIN(nDC_PIN);
-
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-
-    // Set nMEM_WE low
-    CLEAR_PIN(nWE_PIN);
-
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-
-    // Set nMEM_WE high
-    SET_PIN(nWE_PIN);
-
-    __asm__("nop");
-    __asm__("nop");
-
-    // Set nOLED_SEL high
-    SET_PIN(nSEL_PIN);
-    GPIO_BSRR(GPIOA) = 0x00FF0000;
-
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-}
-
-/*
- * display_write_ram() - write data to display RAM
- *
- * INPUT -
- *      val - display ram value
- * OUTPUT -
- *      none
- */
-static void display_write_ram(uint8_t val)
-{
-    // Set up the data
-    GPIO_BSRR(GPIOA) = 0x000000FF & (uint32_t)val;
-
-    // Set nOLED_SEL low, nMEM_OE high, and nMEM_WE high.
-    CLEAR_PIN(nSEL_PIN);
-    SET_PIN(nOE_PIN);
-    SET_PIN(nWE_PIN);
-
-    __asm__("nop");
-    __asm__("nop");
-
-    // Set nDC high?
-    SET_PIN(nDC_PIN);
-
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-
-    // Set nMEM_WE low
-    CLEAR_PIN(nWE_PIN);
-
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-
-    // Set nMEM_WE high
-    SET_PIN(nWE_PIN);
-
-    __asm__("nop");
-    __asm__("nop");
-
-    // Set nOLED_SEL high
-    SET_PIN(nSEL_PIN);
-    GPIO_BSRR(GPIOA) = 0x00FF0000;
-
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-}

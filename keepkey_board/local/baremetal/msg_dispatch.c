@@ -125,14 +125,19 @@ void usb_write_pb(const pb_field_t *fields, const void *msg, MessageType id,
 
     pb_ostream_t os = pb_ostream_from_buffer(framebuf.buffer,
                       sizeof(framebuf.buffer));
-    bool status = pb_encode(&os, fields, msg);
-    assert(status);
 
-    framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
-
-    bool ret = (*usb_tx_handler)(&framebuf,
-                                 sizeof(framebuf.frame) + os.bytes_written);
-    ret ? msg_stats.usb_tx++ : msg_stats.usb_tx_err++;
+    if(pb_encode(&os, fields, msg))
+    {
+        framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
+        if((*usb_tx_handler)(&framebuf, sizeof(framebuf.frame) + os.bytes_written))
+        {
+            msg_stats.usb_tx++;
+        }
+        else
+        {
+            msg_stats.usb_tx_err++;
+        }
+    }
 }
 
 

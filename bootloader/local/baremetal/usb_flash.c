@@ -115,7 +115,7 @@ bool verify_fingerprint(void)
     bool ret_val = false;
     uint32_t i = 0;
 
-    memory_app_fingerprint(digest);
+    memory_app_fingerprint((uint8_t *)digest);
 
     for(; i < SHA256_DIGEST_LENGTH; i++)
     {
@@ -194,7 +194,7 @@ bool usb_flash_firmware(void)
                 if(verify_fingerprint())
                 {
                     /* Fingerprint has been verified.  Install "KPKY" magic in meta header */
-                    if(flash_locking_write(FLASH_APP, 0, META_MAGIC_SIZE, META_MAGIC_STR) == true)
+                    if(flash_locking_write(FLASH_APP, 0, META_MAGIC_SIZE, (uint8_t *)META_MAGIC_STR) == true)
                     {
                         send_success("Upload complete");
                         ret_val = true;
