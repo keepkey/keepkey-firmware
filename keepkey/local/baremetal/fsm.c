@@ -643,8 +643,8 @@ void fsm_msgGetAddress(GetAddress *msg)
 			const uint32_t m = msg->multisig.m;
 			const uint32_t n = msg->multisig.pubkeys_count;
 
-			/* snprintf: 22 + 10 (%u) + 10 (%u) + 1 (NULL) = 43 */
-			snprintf(desc, MEDIUM_STR_BUF, "(Multi-Signature %u of %u)", m, n);
+			/* snprintf: 22 + 10 (%lu) + 10 (%lu) + 1 (NULL) = 43 */
+			snprintf(desc, MEDIUM_STR_BUF, "(Multi-Signature %lu of %lu)", (unsigned long)m, (unsigned long)n);
 		}
 
 		if(!confirm_address(desc, resp->address)) {
@@ -671,7 +671,7 @@ void fsm_msgSignMessage(SignMessage *msg)
 {
 	RESP_INIT(MessageSignature);
 
-	if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall, "Sign Message", msg->message.bytes))
+	if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall, "Sign Message", (char *)msg->message.bytes))
 	{
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Sign message cancelled");
 		go_home();
@@ -724,7 +724,7 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 	}
 	if (msg->signature.size == 65 && cryptoMessageVerify(msg->message.bytes, msg->message.size, addr_raw, msg->signature.bytes) == 0)
 	{
-		if(review(ButtonRequestType_ButtonRequest_Other, "Message Verified", msg->message.bytes))
+		if(review(ButtonRequestType_ButtonRequest_Other, "Message Verified", (char *)msg->message.bytes))
 		{
 			fsm_sendSuccess("Message verified");
 		}
@@ -834,7 +834,7 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 		ecdsa_get_address_raw(public_key, coin->address_type, address_raw);
 	}
 
-	if(!confirm_encrypt_msg(msg->message.bytes, signing))
+	if(!confirm_encrypt_msg((char *)msg->message.bytes, signing))
 	{
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Encrypt message cancelled");
 		go_home();
@@ -900,7 +900,7 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
 		base58_encode_check(address_raw, 21, resp->address, sizeof(resp->address));
 	}
 
-	if(!confirm_decrypt_msg(resp->message.bytes, signing ? resp->address : 0))
+	if(!confirm_decrypt_msg((char *)resp->message.bytes, signing ? resp->address : 0))
 	{
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Decrypt message cancelled");
 		go_home();

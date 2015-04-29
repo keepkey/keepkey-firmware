@@ -53,7 +53,7 @@ void next_word(void) {
 
 	/* Form title */
     /* snprintf: 24 + 10 (%u) + 1 (NULL) = 35 */
-	snprintf(title_formatted, SMALL_STR_BUF, "Device Recovery Step %u/24", word_index + 1);
+	snprintf(title_formatted, SMALL_STR_BUF, "Device Recovery Step %lu/24", (unsigned long)(word_index + 1));
 
 	if (word_pos == 0) {
 		const char * const *wl = mnemonic_wordlist();
@@ -80,7 +80,7 @@ void next_word(void) {
 
 		/* Format body for real word */
         /* snprintf: 37 + 10 (%u) + 8 (desc) + 1 (NULL) = 56 */
-		snprintf(body_formatted, MEDIUM_STR_BUF, "Enter the %u%s of your recovery sentence.", word_pos, desc);
+		snprintf(body_formatted, MEDIUM_STR_BUF, "Enter the %lu%s of your recovery sentence.", (unsigned long)word_pos, desc);
 
 		layout_standard_notification(title_formatted, body_formatted, NOTIFICATION_RECOVERY);
 	}

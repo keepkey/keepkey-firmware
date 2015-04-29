@@ -38,9 +38,9 @@
  * exec() - exercise CPU processing cycle using mnemonic_generate() function to keep
  *      the CPU active for EMI testing
  *
- * INPUT - 
+ * INPUT -
  *      reset_count - # of counts
- * OUTPUT - 
+ * OUTPUT -
  *      none
  */
 static void exec(uint32_t reset_count)
@@ -51,13 +51,14 @@ static void exec(uint32_t reset_count)
 
     if(!is_animating())
     {
-    	delay_ms(1000);
-    	layout_clear();
-        const char* mnemonic = mnemonic_generate(128);
+        delay_ms(1000);
+        layout_clear();
+        const char *mnemonic = mnemonic_generate(128);
         char title[MEDIUM_STR_BUF];
 
         /* snprintf: 32 + 10 (%u) + 1 (NULL) = 43 */
-        snprintf(title, MEDIUM_STR_BUF, "EMI test: Mnemonic Generation [%u]", reset_count);
+        snprintf(title, MEDIUM_STR_BUF, "EMI test: Mnemonic Generation [%lu]",
+                 (unsigned long)reset_count);
         layout_standard_notification(title, mnemonic, NOTIFICATION_CONFIRM_ANIMATION);
 
         usb_poll();
@@ -77,8 +78,8 @@ void update_reset_count(uint32_t count)
     char temp[SMALL_STR_BUF];
 
     /* snprintf: 10 (%u) + 1 (NULL) = 11 */
-    snprintf(temp, SMALL_STR_BUF, "%u", count);
-    
+    snprintf(temp, SMALL_STR_BUF, "%lu", (unsigned long)count);
+
     storage_setLabel(temp);
     storage_commit();
 }
@@ -100,17 +101,20 @@ int main(void)
     /* Show home screen */
     go_home();
 
-	while(is_animating()){
-		animate();
-		display_refresh();
-	}
+    while(is_animating())
+    {
+        animate();
+        display_refresh();
+    }
 
     storage_init();
 
     /* Override label to have a reset counter. */
     label = storage_get_label();
     count = 1;
-    if(label) {
+
+    if(label)
+    {
         count = (uint32_t) strtol(label, NULL, 10);
     }
 
@@ -121,7 +125,8 @@ int main(void)
     usb_init();
     led_func(CLR_RED_LED);
 
-    while(1) {
+    while(1)
+    {
         exec(count);
     }
 

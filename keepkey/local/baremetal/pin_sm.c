@@ -45,59 +45,64 @@ extern bool reset_msg_stack;
 /*******************FUNCTION Definitions  ****************************/
 
 /*
- * send_pin_request() - send USB request for PIN entry over USB port 
+ * send_pin_request() - send USB request for PIN entry over USB port
  *
- * INPUT  - 
- *      type -pin request type 
- * OUTPUT - 
+ * INPUT  -
+ *      type -pin request type
+ * OUTPUT -
  *      none
  */
 static void send_pin_request(PinMatrixRequestType type)
 {
-	PinMatrixRequest resp;
-	memset(&resp, 0, sizeof(PinMatrixRequest));
-	resp.has_type = true;
-	resp.type = type;
-	msg_write(MessageType_MessageType_PinMatrixRequest, &resp);
+    PinMatrixRequest resp;
+    memset(&resp, 0, sizeof(PinMatrixRequest));
+    resp.has_type = true;
+    resp.type = type;
+    msg_write(MessageType_MessageType_PinMatrixRequest, &resp);
 }
 
 /*
- * wait_for_pin_ack() - capture PIN entry from user over USB port 
+ * wait_for_pin_ack() - capture PIN entry from user over USB port
  *
- * INPUT - 
+ * INPUT -
  *      *pin_info -  pointer to PIN info
  * OUTPUT -  none
  */
 static void check_for_pin_ack(PINInfo *pin_info)
 {
-	/* Listen for tiny messages */
-	uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
-	uint16_t tiny_msg;
+    /* Listen for tiny messages */
+    uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
+    uint16_t tiny_msg;
 
-	tiny_msg = check_for_tiny_msg(msg_tiny_buf);
+    tiny_msg = check_for_tiny_msg(msg_tiny_buf);
 
-	switch(tiny_msg) {
-		case MessageType_MessageType_PinMatrixAck:
-			pin_info->pin_ack_msg = PIN_ACK_RECEIVED;
-			PinMatrixAck *pma = (PinMatrixAck *)msg_tiny_buf;
+    switch(tiny_msg)
+    {
+        case MessageType_MessageType_PinMatrixAck:
+            pin_info->pin_ack_msg = PIN_ACK_RECEIVED;
+            PinMatrixAck *pma = (PinMatrixAck *)msg_tiny_buf;
 
-			strlcpy(pin_info->pin, pma->pin, PIN_BUF);
-			break;
-		case MessageType_MessageType_Cancel :	/* Check for cancel or initialize messages */
-			pin_info->pin_ack_msg = PIN_ACK_CANCEL;
-			break;
-		case MessageType_MessageType_Initialize:
-			pin_info->pin_ack_msg = PIN_ACK_CANCEL_BY_INIT;
-			break;
+            strlcpy(pin_info->pin, pma->pin, PIN_BUF);
+            break;
+
+        case MessageType_MessageType_Cancel :	/* Check for cancel or initialize messages */
+            pin_info->pin_ack_msg = PIN_ACK_CANCEL;
+            break;
+
+        case MessageType_MessageType_Initialize:
+            pin_info->pin_ack_msg = PIN_ACK_CANCEL_BY_INIT;
+            break;
 #if DEBUG_LINK
-		case MessageType_MessageType_DebugLinkGetState:
-			call_msg_debug_link_get_state_handler((DebugLinkGetState *)msg_tiny_buf);
-			break;
+
+        case MessageType_MessageType_DebugLinkGetState:
+            call_msg_debug_link_get_state_handler((DebugLinkGetState *)msg_tiny_buf);
+            break;
 #endif
-		case MSG_TINY_TYPE_ERROR :
-		default:
-			break;
-	}
+
+        case MSG_TINY_TYPE_ERROR :
+        default:
+            break;
+    }
 }
 
 /*
@@ -109,23 +114,36 @@ static void check_for_pin_ack(PINInfo *pin_info)
  */
 static void run_pin_state(PINState *pin_state, PINInfo *pin_info)
 {
-	switch(*pin_state){
+    switch(*pin_state)
+    {
 
-		/* Send PIN request */
-		case PIN_REQUEST:
-			if(pin_info->type)
-				send_pin_request(pin_info->type);
-			pin_info->pin_ack_msg = PIN_ACK_WAITING;
-			*pin_state = PIN_WAITING;
-			break;
+        /* Send PIN request */
+        case PIN_REQUEST:
+            if(pin_info->type)
+            {
+                send_pin_request(pin_info->type);
+            }
 
-		/* Wait for a PIN */
-		case PIN_WAITING:
-			check_for_pin_ack(pin_info);
-			if(pin_info->pin_ack_msg != PIN_ACK_WAITING)
-				*pin_state = PIN_FINISHED;
-			break;
-	}
+            pin_info->pin_ack_msg = PIN_ACK_WAITING;
+            *pin_state = PIN_WAITING;
+            break;
+
+        /* Wait for a PIN */
+        case PIN_WAITING:
+            check_for_pin_ack(pin_info);
+
+            if(pin_info->pin_ack_msg != PIN_ACK_WAITING)
+            {
+                *pin_state = PIN_FINISHED;
+            }
+
+            break;
+
+        case PIN_FINISHED:
+        case PIN_ACK:
+        default:
+            break;
+    }
 }
 
 /*
@@ -138,99 +156,117 @@ static void run_pin_state(PINState *pin_state, PINInfo *pin_info)
  */
 static bool check_pin_input(PINInfo *pin_info)
 {
-	bool ret = true;
+    bool ret = true;
 
-	/* check that PIN is at least 1 digit and no more than 9 */
-	if(!(strlen(pin_info->pin) >= 1 && strlen(pin_info->pin) <= 9)) {
-		ret = false;
-	}
+    /* check that PIN is at least 1 digit and no more than 9 */
+    if(!(strlen(pin_info->pin) >= 1 && strlen(pin_info->pin) <= 9))
+    {
+        ret = false;
+    }
 
-	/* check that PIN char is a digit from 1 to 9 */
-	for (uint8_t i = 0; i < strlen(pin_info->pin); i++) {
-		uint8_t num = pin_info->pin[i] - '0';
+    /* check that PIN char is a digit from 1 to 9 */
+    for(uint8_t i = 0; i < strlen(pin_info->pin); i++)
+    {
+        uint8_t num = pin_info->pin[i] - '0';
 
-		if(num < 1 || num > 9) {
-			ret = false;
-		}
-	}
+        if(num < 1 || num > 9)
+        {
+            ret = false;
+        }
+    }
 
-	return ret;
+    return ret;
 }
 
 /*
  * decode_pin() - decode user PIN entry
- * 
+ *
  * INPUT -
- *      *pin_info - 
+ *      *pin_info -
  * OUTPUT -
  *      none
  */
 static void decode_pin(PINInfo *pin_info)
 {
-	for (uint8_t i = 0; i < strlen(pin_info->pin); i++) {
-		uint8_t j = pin_info->pin[i] - '1';
+    for(uint8_t i = 0; i < strlen(pin_info->pin); i++)
+    {
+        uint8_t j = pin_info->pin[i] - '1';
 
-		if(0 <= j < strlen(pin_matrix)) {
-			pin_info->pin[i] = pin_matrix[j];
-        } else {
-			pin_info->pin[i] = 'X';
+        if(j >= 0 && j < strlen(pin_matrix))
+        {
+            pin_info->pin[i] = pin_matrix[j];
         }
-	}
+        else
+        {
+            pin_info->pin[i] = 'X';
+        }
+    }
 }
 
 /*
  * pin_request() - request user for PIN entry
  *
- * INPUT - 
+ * INPUT -
  *      *prompt - pointer to user text
- * OUTPUT - 
+ * OUTPUT -
  *      true/false - status
  */
 static bool pin_request(const char *prompt, PINInfo *pin_info)
 {
-	bool ret = false;
-	reset_msg_stack = false;
-	PINState pin_state = PIN_REQUEST;
+    bool ret = false;
+    reset_msg_stack = false;
+    PINState pin_state = PIN_REQUEST;
 
-	/* Init and randomize pin matrix */
-	strlcpy(pin_matrix, "123456789", PIN_BUF);
-	random_permute(pin_matrix, 9);
+    /* Init and randomize pin matrix */
+    strlcpy(pin_matrix, "123456789", PIN_BUF);
+    random_permute(pin_matrix, 9);
 
-	/* Show layout */
-	layout_pin(prompt, pin_matrix);
+    /* Show layout */
+    layout_pin(prompt, pin_matrix);
 
-	/* Run SM */
-	while(1) {
-		animate();
-		display_refresh();
+    /* Run SM */
+    while(1)
+    {
+        animate();
+        display_refresh();
 
-		run_pin_state(&pin_state, pin_info);
+        run_pin_state(&pin_state, pin_info);
 
-		if(pin_state == PIN_FINISHED) {
-			break;
+        if(pin_state == PIN_FINISHED)
+        {
+            break;
         }
-	}
+    }
 
-	/* Check for PIN cancel */
-	if (pin_info->pin_ack_msg != PIN_ACK_RECEIVED) {
-		if(pin_info->pin_ack_msg == PIN_ACK_CANCEL_BY_INIT) {
-			reset_msg_stack = true;
+    /* Check for PIN cancel */
+    if(pin_info->pin_ack_msg != PIN_ACK_RECEIVED)
+    {
+        if(pin_info->pin_ack_msg == PIN_ACK_CANCEL_BY_INIT)
+        {
+            reset_msg_stack = true;
         }
-		fsm_sendFailure(FailureType_Failure_PinCancelled, "PIN Cancelled");
-	} else {
-		if(check_pin_input(pin_info)) {
-			/* Decode PIN */
-			decode_pin(pin_info);
-			ret = true;
-		} else {
-			fsm_sendFailure(FailureType_Failure_PinCancelled, "PIN must be at least 1 digit consisting of numbers from 1 to 9");
-		}
-	}
 
-	/* clear PIN matrix */
-	strlcpy(pin_matrix, "XXXXXXXXX", PIN_BUF);
+        fsm_sendFailure(FailureType_Failure_PinCancelled, "PIN Cancelled");
+    }
+    else
+    {
+        if(check_pin_input(pin_info))
+        {
+            /* Decode PIN */
+            decode_pin(pin_info);
+            ret = true;
+        }
+        else
+        {
+            fsm_sendFailure(FailureType_Failure_PinCancelled,
+                            "PIN must be at least 1 digit consisting of numbers from 1 to 9");
+        }
+    }
 
-	return (ret);
+    /* clear PIN matrix */
+    strlcpy(pin_matrix, "XXXXXXXXX", PIN_BUF);
+
+    return (ret);
 }
 
 /*
@@ -239,9 +275,9 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
  * INPUT - none
  * OUTPUT - randomized PIN
  */
-const char* get_pin_matrix(void)
+const char *get_pin_matrix(void)
 {
-	return pin_matrix;
+    return pin_matrix;
 }
 
 /*
@@ -252,56 +288,65 @@ const char* get_pin_matrix(void)
  */
 bool pin_protect(char *prompt)
 {
-	PINInfo pin_info;
+    PINInfo pin_info;
     char warn_msg_fmt[MEDIUM_STR_BUF];
     uint32_t failed_cnts = 0, wait = 0;
-	bool ret = false, pre_increment_cnt_flg = true;
+    bool ret = false, pre_increment_cnt_flg = true;
 
-	if(storage_has_pin()) {
+    if(storage_has_pin())
+    {
 
-		/* Check for prior PIN failed attempts and apply exponentially longer delay for 
+        /* Check for prior PIN failed attempts and apply exponentially longer delay for
          * each subsequent failed attempts */
-		if(failed_cnts = storage_get_pin_fails())
-		{
-			if(failed_cnts > 2)
-			{
-				/* snprintf: 36 + 10 (%u) + 1 (NULL) = 47 */
-                snprintf(warn_msg_fmt, MEDIUM_STR_BUF, "Previous PIN Failures: Wait %u Seconds", 1u << failed_cnts);
-				layout_warning(warn_msg_fmt);
+        if((failed_cnts = storage_get_pin_fails()))
+        {
+            if(failed_cnts > 2)
+            {
+                /* snprintf: 36 + 10 (%u) + 1 (NULL) = 47 */
+                snprintf(warn_msg_fmt, MEDIUM_STR_BUF, "Previous PIN Failures: Wait %u Seconds",
+                         1u << failed_cnts);
+                layout_warning(warn_msg_fmt);
 
-				wait = (failed_cnts < 32) ? (1u << failed_cnts) : 0xFFFFFFFF;
-				while (--wait > 0) {
-					delay_ms_with_callback(ONE_SEC, &animating_progress_handler, 20);
-				}
-			}
-		}
+                wait = (failed_cnts < 32) ? (1u << failed_cnts) : 0xFFFFFFFF;
 
-		/* Set request type */
-		pin_info.type = PinMatrixRequestType_PinMatrixRequestType_Current;
+                while(--wait > 0)
+                {
+                    delay_ms_with_callback(ONE_SEC, &animating_progress_handler, 20);
+                }
+            }
+        }
 
-		/* Get PIN */
-		if(pin_request(prompt, &pin_info))
-		{
+        /* Set request type */
+        pin_info.type = PinMatrixRequestType_PinMatrixRequestType_Current;
+
+        /* Get PIN */
+        if(pin_request(prompt, &pin_info))
+        {
 
             /* preincrement the failed counter before authentication*/
             storage_increase_pin_fails();
             pre_increment_cnt_flg = (failed_cnts >= storage_get_pin_fails());
 
-			/* authenticate user PIN */
-			if (storage_is_pin_correct(pin_info.pin) && !pre_increment_cnt_flg) {
-				session_cache_pin(pin_info.pin);
-				storage_reset_pin_fails();
-				ret = true;
-			} else {
-				fsm_sendFailure(FailureType_Failure_PinInvalid, "Invalid PIN");
-			}
-		} /* else - PIN entry has been canceled by the user */
+            /* authenticate user PIN */
+            if(storage_is_pin_correct(pin_info.pin) && !pre_increment_cnt_flg)
+            {
+                session_cache_pin(pin_info.pin);
+                storage_reset_pin_fails();
+                ret = true;
+            }
+            else
+            {
+                fsm_sendFailure(FailureType_Failure_PinInvalid, "Invalid PIN");
+            }
+        } /* else - PIN entry has been canceled by the user */
 
-	} else {
-		ret = true;
+    }
+    else
+    {
+        ret = true;
     }
 
-	return (ret);
+    return (ret);
 }
 
 /*
@@ -313,38 +358,47 @@ bool pin_protect(char *prompt)
  */
 bool pin_protect_cached(void)
 {
-	if(session_is_pin_cached()) {
-		return (true);
-    } else {
-		return (pin_protect("Enter Your PIN"));
+    if(session_is_pin_cached())
+    {
+        return (true);
+    }
+    else
+    {
+        return (pin_protect("Enter Your PIN"));
     }
 }
 
 /*
  * change_pin() - process PIN change
- * 
+ *
  * INPUT - none
- * OUTPUT - 
+ * OUTPUT -
  *      true/false - status
  */
 bool change_pin(void)
 {
-	bool ret = false;
-	PINInfo pin_info_first, pin_info_second;
+    bool ret = false;
+    PINInfo pin_info_first, pin_info_second;
 
-	/* Set request types */
-	pin_info_first.type = 	PinMatrixRequestType_PinMatrixRequestType_NewFirst;
-	pin_info_second.type = 	PinMatrixRequestType_PinMatrixRequestType_NewSecond;
+    /* Set request types */
+    pin_info_first.type = 	PinMatrixRequestType_PinMatrixRequestType_NewFirst;
+    pin_info_second.type = 	PinMatrixRequestType_PinMatrixRequestType_NewSecond;
 
-	if(pin_request("Enter New PIN", &pin_info_first)) {
-		if(pin_request("Re-Enter New PIN", &pin_info_second)) {
-			if (strcmp(pin_info_first.pin, pin_info_second.pin) == 0) {
-				storage_set_pin(pin_info_first.pin);
-				ret = true;
-			} else {
-				fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
-			}
-		}
-	}
-	return ret;
+    if(pin_request("Enter New PIN", &pin_info_first))
+    {
+        if(pin_request("Re-Enter New PIN", &pin_info_second))
+        {
+            if(strcmp(pin_info_first.pin, pin_info_second.pin) == 0)
+            {
+                storage_set_pin(pin_info_first.pin);
+                ret = true;
+            }
+            else
+            {
+                fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
+            }
+        }
+    }
+
+    return ret;
 }
