@@ -191,13 +191,13 @@ static bool magic_ok(void)
 }
 
 /*
- *  boot_main_application() - Runs through application firmware checking, and then boots
+ *  boot() - Runs through application firmware checking, and then boots
  *
  *  INPUT - none
  *  OUTPUT - true/false
  *
  */
-static bool boot_main_application(void)
+static bool boot(void)
 {
     if(magic_ok())
     {
@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-        boot_main_application();
+        boot();
     }
 
     system_halt();  /* Loops forever */
