@@ -357,7 +357,7 @@ MessageType tiny_msg_poll_and_buffer(bool block, uint8_t *buf)
 void handle_usb_rx(UsbMessage *msg)
 {
     static TrezorFrameHeaderFirst last_frame_header = { .id = 0xffff, .len = 0 };
-    static TrezorFrameBuffer framebuf;
+    static uint8_t content_buf[MAX_FRAME_SIZE];
     static uint32_t content_pos = 0, content_size = 0;
     static bool mid_frame = false;
 
@@ -411,7 +411,7 @@ void handle_usb_rx(UsbMessage *msg)
 
     if(entry && entry->type == RAW_MSG)
     {
-        /* call dispatch for every segment since we are not buffering and parsing, and
+        /* Call dispatch for every segment since we are not buffering and parsing, and
          * assume the raw dispatched callbacks will handle their own state and
          * buffering internally
          */
@@ -420,14 +420,17 @@ void handle_usb_rx(UsbMessage *msg)
     else if(entry)
     {
         /* Copy content to frame buffer */
-        if(content_size == content_pos)
+        if(sizeof(content_buf) >= content_pos)
         {
-            memcpy(framebuf.buffer, contents, content_pos);
-        }
-        else
-        {
-            memcpy(framebuf.buffer + (content_pos - (msg->len - 1)), contents,
-                   msg->len - 1);
+            if(content_size == content_pos)
+            {
+                memcpy(content_buf, contents, content_pos);
+            }
+            else
+            {
+                memcpy(content_buf + (content_pos - (msg->len - 1)), contents,
+                       msg->len - 1);
+            }
         }
     }
 
@@ -444,11 +447,11 @@ void handle_usb_rx(UsbMessage *msg)
     {
         if(msg_tiny_flag)
         {
-            tiny_dispatch(entry, framebuf.buffer, last_frame_header.len);
+            tiny_dispatch(entry, content_buf, last_frame_header.len);
         }
         else
         {
-            dispatch(entry, framebuf.buffer, last_frame_header.len);
+            dispatch(entry, content_buf, last_frame_header.len);
         }
     }
 }

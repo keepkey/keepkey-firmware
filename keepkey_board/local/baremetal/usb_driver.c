@@ -415,7 +415,7 @@ bool usb_tx(void* message, uint32_t len)
 	uint32_t pos = 1;
 
 	/* Chunk out message */
-    while(pos < len - 1)
+    while(pos < len)
     {
     	uint8_t tmp_buffer[USB_SEGMENT_SIZE] = { 0 };
 
@@ -445,7 +445,7 @@ bool usb_debug_tx(void* message, uint32_t len)
 	uint32_t pos = 1;
 
 	/* Chunk out message */
-    while(pos < len - 1)
+    while(pos < len)
     {
     	uint8_t tmp_buffer[USB_SEGMENT_SIZE] = { 0 };
 
@@ -456,6 +456,8 @@ bool usb_debug_tx(void* message, uint32_t len)
 
         pos += USB_SEGMENT_SIZE - 1;
     }
+
+    dbg_print("LEN: %d  SENT: %d\r\n", len, pos);
 
     return(true);
 }
