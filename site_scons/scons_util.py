@@ -27,22 +27,6 @@ def get_projects():
 
     ignores = ['.git', '.hg', 'build']
 
-    #check build type to include appropriate directory
-    bldtype = ARGUMENTS.get('bldtype', 0)
- 
-    if bldtype == 'bstrap':
-        #Don't include KeepKey App directory since Bootloader is being built
-    	ignores.append('bootloader')
-    	ignores.append('keepkey')
-    elif bldtype == 'bldr':
-        #Don't include KeepKey App directory since Bootloader is being built
-    	ignores.append('bootstrap')
-    	ignores.append('keepkey')
-    elif bldtype == 'app':
-        #Don't include Bootloader directory since Application is being built
-    	ignores.append('bootstrap')
-    	ignores.append('bootloader')
-
     for root, dirs, files in os.walk(Dir('#').abspath):
         for i in ignores:
             if i in dirs:
@@ -220,7 +204,7 @@ def init_project(env, deps=None, libs=None, project_defines=None):
     # 
     # Build support project library
     #
-    support_library = StaticLibrary(os.path.join(libdir, project_name), 
+    support_library = env.StaticLibrary(os.path.join(libdir, project_name), 
                               support_files,
                               CPPPATH=include_paths + dep_include_paths,
                               CPATH=include_paths + dep_include_paths)
@@ -247,12 +231,12 @@ def init_project(env, deps=None, libs=None, project_defines=None):
 
     for exe_source in exe_targets:
         exename = os.path.splitext(os.path.basename(exe_source))[0]
-        exe = Program(os.path.join(bindir, exename), 
+        exe = env.Program(os.path.join(bindir, exename), 
                       exe_source, 
                       LIBS=[deplibs], 
                       _LIBFLAGS= '-Wl,--start-group ' + env['_LIBFLAGS'] + ' -Wl,--end-group ' + platform_libs,
                       LINKFLAGS=linkflags,
-		      LIBPATH=deplibpaths,
+		              LIBPATH=deplibpaths,
                       CPPPATH=include_paths + dep_include_paths,
                       CPATH=include_paths + dep_include_paths)
 
@@ -321,11 +305,6 @@ def init_product():
     default_include_dirs = [Dir('#').abspath]
     env['CPPPATH'] = default_include_dirs
     env['CPATH'] = default_include_dirs
-    
-    # 
-    # TODO: Move this to a more elegant location at the product level.
-    #
-    env['CCFLAGS'].append(["-DPB_FIELD_16BIT"])
 
     debug = ARGUMENTS.get('debug', 0)
     if int(debug): 

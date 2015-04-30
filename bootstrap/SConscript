@@ -2,7 +2,13 @@ from SCons.Script import *
 from scons_util import *
 
 Import('env')
-init_project(env, 
+
+#
+# Remove stack protector from bootstrap
+#
+bootstrap_env = env.Clone()
+bootstrap_env['CCFLAGS'].remove('-fstack-protector-all')
+
+init_project(bootstrap_env, 
     deps=['interface', 'nanopb', 'keepkey_board'], 
     libs=['opencm3_stm32f2'])
-

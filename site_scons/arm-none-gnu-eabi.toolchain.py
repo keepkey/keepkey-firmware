@@ -4,7 +4,7 @@ Snagged alot of settings from:
 """
 from SCons.Script import *
 import os
-import subprocess
+import re
 
 root = os.environ.get('GCC_ROOT')
 
@@ -20,25 +20,22 @@ else:
 
 OPENCM3_ROOT = os.path.join(Dir('#').abspath, 'libopencm3')
 
-#Assemble SCM_REVISION
-#scm_rev=subprocess.check_output('git rev-parse HEAD', shell=True)
-scm_rev=subprocess.check_output(r"git rev-parse HEAD | sed 's:\(..\):\\\\x\1:g'", shell=True)
-scm_rev=scm_rev.replace("\n","")
-scm_rev='%s%s%s%s' % ('-DSCM_REVISION=', '\\\"', scm_rev, '\\"')
+SCM_REVISION = os.popen("git rev-parse HEAD").read().rstrip()
 
-#
-# TODO: These are hacked in for now.  It should be part of the hal for this particular eval board impl.
-#
-DEFS=['-DSTM32F2', 
-      '-DBOOTLOADER_MAJOR_VERSION=0', 
+DEFS=['-DSTM32F2',
+      '-DBOOTLOADER_MAJOR_VERSION=1', 
       '-DBOOTLOADER_MINOR_VERSION=0', 
       '-DBOOTLOADER_PATCH_VERSION=0',
-      '-DMAJOR_VERSION=0', 
+      '-DMAJOR_VERSION=1', 
       '-DMINOR_VERSION=0', 
       '-DPATCH_VERSION=0',
+      '-DNDEBUG',
+      '-DSCM_REVISION=\'"%s"\'' % (re.sub(r'(..)', r'\\x\1', SCM_REVISION)),
       '-DPB_FIELD_16BIT=1',
-      '-DNDEBUG'
-      ]
+      '-DQR_MAX_VERSION=0']
+
+WARNS=['-Wall',
+       '-Wextra']
 
 def load_toolchain():
     env = DefaultEnvironment()
@@ -74,7 +71,6 @@ def load_toolchain():
                     # high level symbol table info 
                     '-Wl,-Map=${TARGET.base}.linkermap',
                     '-Wl,--gc-sections',
-                      #'-mfloat-abi=soft'
                     ]
 
     env['LIBPREFIXES']  = [ '$LIBPREFIX' ]
@@ -82,72 +78,23 @@ def load_toolchain():
 
 
     env['CCFLAGS'] = [
-
             '-mthumb',
             '-mcpu=cortex-m3',
-            #'-march=armv7-m',
-
             '-msoft-float',
-            #'-mfix-cortex-m3-ldrd',
-            #'-mfloat-abi=soft',
-            '-DQR_MAX_VERSION=0'
             '-ffunction-sections',
             '-fdata-sections',
             '-fno-common',
-            '-Wall',
-#            '-fstack-protector-all', 
+            '-fstack-protector-all',
             '-I'+OPENCM3_ROOT+'/include',
-            '%s' % scm_rev
-			]
-
-    """
-    env['CCFLAGS'] = [
-            "-mcpu=cortex-m3",
-            "-mthumb",                       # use THUMB='-mthumb' to compile as thumb code (default for AT91SAM)
-            #"-mfloat-abi=soft",
-            #"-mthumb-interwork",
-            #"-gdwarf-2",
-            "-funsigned-char",
-            "-funsigned-bitfields",
-            "-fshort-enums",
-            "-ffunction-sections",
-            "-fdata-sections",
-            "-fno-split-wide-types",
-            "-fno-move-loop-invariants",
-            "-fno-tree-loop-optimize",
-            "-fno-unwind-tables",
-            "-mlong-calls",         # when using ".fastcode" without longcall:
-            "-Wall",
-            "-Wformat",
-            "-Wextra",
-            "-Wundef",
-            "-Winit-self",
-            "-Wpointer-arith",
-            "-Wunused",
-            "-Wfatal-errors",
-            "-Wa,-adhlns=${TARGET.base}.lst",
-            "-DBASENAME=${SOURCE.file}",
-            "-static",
-            "-Wformat-security",
-            "-Wformat-nonliteral",
-            "-Wshadow",
-            "-Wuninitialized",
-            "-msoft-float",
-            '-I'+OPENCM3_ROOT+'/include'
             ]
-    """
 
-    # For ST BSP
-    env['CCFLAGS'].append(DEFS)
+    env['CCFLAGS'] = env['CCFLAGS'] + DEFS + WARNS
 
     env['CXXFLAGS'] = [
-            #"-fverbose-asm",
-            #"-save-temps",          # save preprocessed files
             "-fno-exceptions",
             "-fno-rtti",
             "-fno-threadsafe-statics",
             "-fuse-cxa-atexit",
-            #"-nostdlib",
             "-Woverloaded-virtual",
             "-Weffc++",
             "-std=gnu++11"
@@ -155,7 +102,9 @@ def load_toolchain():
 
     env['CFLAGS'] = ['-std=gnu99' ]
 
-           # Assembler flags
+    #
+    # Assembler flags
+    # 
     env['ASFLAGS'] = [
             "-mcpu=cortex-m3",
             "-mthumb",
@@ -164,33 +113,29 @@ def load_toolchain():
             "-Wa,-adhlns=${TARGET.base}.lst",
     ]
 
-
-    debug = ARGUMENTS.get('debug', 0)
-    if int(debug):
-        env['CCFLAGS'].append(['-g', '-Os', '-DDEBUG_ON'])
+    #
+    # Debug
+    #
+    if int(ARGUMENTS.get('debug', 0)):
+        env['CCFLAGS'] += ['-g', '-Os', '-DDEBUG_ON']
     else:
-        env['CCFLAGS'].append(['-Os', '-g'])
+        env['CCFLAGS'] += ['-Os', '-g']
 
-    bldtype = ARGUMENTS.get('bldtype', 0)
-    if bldtype == 'bstrap':
-        env['CCFLAGS'].append(['-DBSTRAP'])
-        env['CCFLAGS'].append(['-DBLDR'])
-    elif bldtype == 'bldr':
-        env['CCFLAGS'].append(['-DBLDR'])
-        env['CCFLAGS'].append(['-fstack-protector-all'])
-    elif bldtype == 'app':
-        env['CCFLAGS'].append(['-DAPP'])
-        env['CCFLAGS'].append(['-fstack-protector-all'])
-	
-    debugLink = ARGUMENTS.get('debugLink', 0)
-    if int(debugLink):
-        env['CCFLAGS'].append(['-DDEBUG_LINK=1'])
+    #
+    # Debug Link
+    #
+    if int(ARGUMENTS.get('debuglink', 0)):
+        env['CCFLAGS'].append('-DDEBUG_LINK=1')
     else:
-        env['CCFLAGS'].append(['-DDEBUG_LINK=0'])
+        env['CCFLAGS'].append('-DDEBUG_LINK=0')
 
-    invert = ARGUMENTS.get('invert', 0)
-    if int(invert):
-        env['CCFLAGS'].append(['-DINVERT_DISPLAY=1'])
+    #
+    # Invert Display
+    #
+    if int(ARGUMENTS.get('invert', 0)):
+        env['CCFLAGS'].append('-DINVERT_DISPLAY=1')
+    else:
+        env['CCFLAGS'].append('-DINVERT_DISPLAY=1')
 
     add_builders(env)
 
@@ -204,7 +149,7 @@ def add_builders(env):
     # Generate mapfile for debugging
     #
     def generate_map(source, target, env, for_signature):
-        return '%s -dSt %s > %s' % (env['OBJDUMP'], source[0], target[0])
+        return '%s -gdSt %s > %s' % (env['OBJDUMP'], source[0], target[0])
 
     #
     # SREC file because Paul likes them.
@@ -233,5 +178,3 @@ def add_builders(env):
             suffix = '.bin',
             src_suffix = '.elf')
         })
-
-                
