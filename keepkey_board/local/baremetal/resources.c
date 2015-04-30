@@ -225,11 +225,7 @@ static const AnimationFrame screensaver_array[] =
     {&screensaver_8_image, 1000}
 };
 
-#ifndef BLDR
 static const ImageAnimation screensaver = { 17, screensaver_array };
-#else
-static const ImageAnimation screensaver ;
-#endif
 
 
 //============================= LOGO ANIMATION ================================
@@ -2054,7 +2050,6 @@ static const ImageAnimation warning = { 8, warning_array };
 
 //================================= UNPLUG ====================================
 
-#ifndef APP
 static void unplug(uint8_t *data)
 {
     const uint8_t image_data[395] =
@@ -2065,13 +2060,10 @@ static void unplug(uint8_t *data)
 }
 
 static const Image unplug_image = {(void *) &unplug, 45, 27};
-#else
-static const Image unplug_image ;
-#endif
+
 
 //================================ RECOVERY ===================================
 
-#ifndef BLDR
 static void recovery(uint8_t *data)
 {
     const uint8_t image_data[372] =
@@ -2082,9 +2074,6 @@ static void recovery(uint8_t *data)
 }
 
 static const Image recovery_image = {(void *) &recovery, 29, 29};
-#else
-static const Image recovery_image ;
-#endif
 
 
 //=============================== FUNCTIONS ===================================
