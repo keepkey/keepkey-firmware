@@ -368,6 +368,8 @@ void handle_usb_rx(UsbMessage *msg)
 
     const MessagesMap_t *entry;
     TrezorFrame *frame = (TrezorFrame *)(msg->message);
+    TrezorFrameFragment *frame_fragment  = (TrezorFrameFragment *)(msg->message);
+    
     bool last_segment;
     uint8_t *contents;
 
@@ -402,8 +404,7 @@ void handle_usb_rx(UsbMessage *msg)
     }
     else
     {
-        contents = ((TrezorFrameFragment *)msg->message)->contents;
-
+        contents = frame_fragment->contents;
         content_pos += msg->len - 1;
         content_size = msg->len - 1;
     }
