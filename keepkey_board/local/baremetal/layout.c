@@ -322,7 +322,7 @@ void layout_notification_icon(NotificationType type, DrawableParams *sp) {
     static AnimationImageDrawableParams icon;
     switch(type){
         case NOTIFICATION_REQUEST:
-            icon.base.x = 234;
+            icon.base.x = 233;
             icon.base.y = 4;
             icon.img_animation = get_confirm_icon_animation();
 
@@ -332,12 +332,12 @@ void layout_notification_icon(NotificationType type, DrawableParams *sp) {
                 get_image_animation_duration(icon.img_animation));
             break;
         case NOTIFICATION_REQUEST_NO_ANIMATION:
-            sp->x = 234;
+            sp->x = 233;
             sp->y = 4;
             draw_bitmap_mono_rle(canvas, sp, get_confirm_icon_image());
             break;
         case NOTIFICATION_CONFIRM_ANIMATION:
-            icon.base.x = 232;
+            icon.base.x = 231;
             icon.base.y = 2;
             icon.img_animation = get_confirming_animation();
 
@@ -347,7 +347,7 @@ void layout_notification_icon(NotificationType type, DrawableParams *sp) {
                 get_image_animation_duration(icon.img_animation));
             break;
         case NOTIFICATION_CONFIRMED:
-            sp->x = 232;
+            sp->x = 231;
             sp->y = 2;
             draw_bitmap_mono_rle(canvas, sp, get_confirmed_image());
             break;
