@@ -224,7 +224,7 @@ char read_console(void)
     return(char_read);
 }
 #else
-void dbg_print(char *pStr, ...) {}
+void dbg_print(char *pStr, ...) {(void)pStr;}
 void usart_init(void) {}
 #endif
 

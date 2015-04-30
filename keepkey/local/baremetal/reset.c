@@ -161,7 +161,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
     /*
      * Have user confirm mnemonic is sets of 12 words
      */
-    for(int word_group = 0; word_group * WORDS_PER_SCREEN < (strength / 32) * 3; word_group++)
+    for(uint32_t word_group = 0; word_group * WORDS_PER_SCREEN < (strength / 32) * 3; word_group++)
     {
         char title[MEDIUM_STR_BUF] = "Recovery Sentence";
 
@@ -171,7 +171,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
         if((strength / 32) * 3 > WORDS_PER_SCREEN)
         {
             /* snprintf: 20 + 10 (%d) + 1 (NULL) = 31 */
-            snprintf(title, MEDIUM_STR_BUF, "Recovery Sentence %d/2", word_group + 1);
+            snprintf(title, MEDIUM_STR_BUF, "Recovery Sentence %lu/2", word_group + 1);
         }
 
         if(!confirm(ButtonRequestType_ButtonRequest_ConfirmWord, title, "%s",

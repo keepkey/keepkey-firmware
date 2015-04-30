@@ -2134,7 +2134,7 @@ const ImageAnimation *get_warning_animation()
     return(&warning);
 }
 
-const uint32_t get_image_animation_duration(const ImageAnimation *img_animation)
+uint32_t get_image_animation_duration(const ImageAnimation *img_animation)
 {
     uint32_t duration = 0;
 

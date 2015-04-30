@@ -619,16 +619,17 @@ static void layout_animate_images(void* data, uint32_t duration, uint32_t elapse
  */
 static void layout_animate_pin(void* data, uint32_t duration, uint32_t elapsed)
 {
-	BoxDrawableParams box_params = {{0x00, 0, 0}, 64, 256};
-	DrawableParams sp;
-	char *pin = (char*)data;
-	uint8_t color_stepping[] = {PIN_MATRIX_STEP1, PIN_MATRIX_STEP2, PIN_MATRIX_STEP3, PIN_MATRIX_STEP4, PIN_MATRIX_FOREGROUND};
+    (void)duration;
+    BoxDrawableParams box_params = {{0x00, 0, 0}, 64, 256};
+    DrawableParams sp;
+    char *pin = (char*)data;
+    uint8_t color_stepping[] = {PIN_MATRIX_STEP1, PIN_MATRIX_STEP2, PIN_MATRIX_STEP3, PIN_MATRIX_STEP4, PIN_MATRIX_FOREGROUND};
 
-	const Font* pin_font = get_pin_font();
+    const Font* pin_font = get_pin_font();
 
-	PINAnimationConfig *cur_pos_cfg;
-	uint8_t cur_pos;
-	uint32_t cur_pos_elapsed;
+    PINAnimationConfig *cur_pos_cfg;
+    uint8_t cur_pos;
+    uint32_t cur_pos_elapsed;
 
     /* Draw matrix */
     box_params.base.color = PIN_MATRIX_BACKGROUND;
@@ -736,6 +737,7 @@ static void layout_animate_pin(void* data, uint32_t duration, uint32_t elapsed)
  */
 static void layout_animate_cipher(void* data, uint32_t duration, uint32_t elapsed)
 {
+    (void)duration;
     int row, letter, x_padding, cur_pos_elapsed, adj_pos, adj_x, adj_y, cur_index;
     char *cipher = (char*)data;
     char alphabet[] = "abcdefghijklmnopqrstuvwxyz";

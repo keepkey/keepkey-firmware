@@ -44,6 +44,7 @@ static void configure_hw(void);
  */
 static void blink(void *context)
 {
+    (void)context;
     led_func(TGL_RED_LED);
 }
 
@@ -57,6 +58,7 @@ static void blink(void *context)
  */
 static void blonk(void *context)
 {
+    (void)context;
     led_func(TGL_GREEN_LED);
 }
 

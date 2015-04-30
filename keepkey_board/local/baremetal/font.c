@@ -3535,7 +3535,7 @@ const CharacterImage* font_get_char(const Font *font, char c)
  * OUTPUT -
  *      font height
  */
-const uint32_t font_height(const Font *font)
+uint32_t font_height(const Font *font)
 {
     return font->size;
 }
@@ -3548,7 +3548,7 @@ const uint32_t font_height(const Font *font)
  * OUTPUT - 
  *      font width
  */
-const uint32_t font_width(const Font* font)
+uint32_t font_width(const Font* font)
 {
     /*Return worst case width using the | char as the reference.  */
     return  font_get_char(font, '|')->width;
@@ -3561,7 +3561,7 @@ const uint32_t font_width(const Font* font)
  *      *font - pointer to font structure
  *      *str  - pointer string
  */
-const uint32_t calc_str_width(const Font* font, const char* str)
+uint32_t calc_str_width(const Font* font, const char* str)
 {
     int width = 0;
 
@@ -3584,7 +3584,7 @@ const uint32_t calc_str_width(const Font* font, const char* str)
  * OUTPUT -
  *      line count
  */
-const uint32_t calc_str_line(const Font* font, const char* str, uint16_t line_width)
+uint32_t calc_str_line(const Font* font, const char* str, uint16_t line_width)
 {
 	uint8_t line_count = 1, character_width = 0;
 	uint16_t x_offset = 0, word_width = 0;

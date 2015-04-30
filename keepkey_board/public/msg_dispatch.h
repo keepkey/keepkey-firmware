@@ -77,11 +77,11 @@ typedef struct
 
 typedef struct
 {
+    const pb_field_t *fields;
+    msg_handler_t process_func;
     MessageMapType type;
     MessageMapDirection dir;
     MessageType msg_id;
-    const pb_field_t *fields;
-    msg_handler_t process_func;
 } MessagesMap_t;
 
 /***************** Function Declarations ******************/

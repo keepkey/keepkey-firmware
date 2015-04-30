@@ -188,11 +188,11 @@ static bool check_pin_input(PINInfo *pin_info)
  */
 static void decode_pin(PINInfo *pin_info)
 {
-    for(uint8_t i = 0; i < strlen(pin_info->pin); i++)
+    for(uint32_t i = 0; i < strlen(pin_info->pin); i++)
     {
-        uint8_t j = pin_info->pin[i] - '1';
+        int32_t j = pin_info->pin[i] - '1';
 
-        if(j >= 0 && j < strlen(pin_matrix))
+        if(j >= 0 && (uint32_t)j < strlen(pin_matrix))
         {
             pin_info->pin[i] = pin_matrix[j];
         }

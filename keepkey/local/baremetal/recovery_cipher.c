@@ -419,7 +419,7 @@ void get_current_word(char *current_word)
  */
 bool exact_str_match(const char *str1, const char *str2, uint32_t len)
 {
-    int32_t i = 0, match = 0;
+    uint32_t i = 0, match = 0;
 
     for(; i < len && i < CURRENT_WORD_BUF; i++)
     {
