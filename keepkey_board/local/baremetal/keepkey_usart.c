@@ -31,22 +31,22 @@
 
 #ifdef DEBUG_ON  /* Enable serial port only for debug version */
 /*
- * usart_init () - Initialize USART Debug Port 
+ * usart_init () - Initialize USART Debug Port
  *
- * INPUT - 
+ * INPUT -
  *      none
- * OUTPUT - 
- *      none 
+ * OUTPUT -
+ *      none
  */
-void usart_init(void)  
+void usart_init(void)
 {
     /* Setup PB10 for USART-TX */
-    gpio_mode_setup( GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO10 );
+    gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO10);
     gpio_set_output_options(GPIOB, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO10);
 
     /* Setup PB11 for USART-RX */
-    gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO11 );
-    gpio_set_output_options(GPIOB, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO11 );
+    gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO11);
+    gpio_set_output_options(GPIOB, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO11);
 
     /* Set PB10 and PB11 to USART3 alternate aunction */
     gpio_set_af(GPIOB, 7, GPIO10);
@@ -67,7 +67,7 @@ void usart_init(void)
     usart_set_stopbits(USART3_BASE, USART_CR2_STOPBITS_1);
 
     /* disable parity */
-    usart_set_parity(USART3_BASE, 0); /* USART_CR1_PCE */ 
+    usart_set_parity(USART3_BASE, 0); /* USART_CR1_PCE */
 
     usart_set_flow_control(USART3_BASE, 0);
 
@@ -83,7 +83,7 @@ void usart_init(void)
  * put_console_char - Display a character on serial debug port
  *
  * input - ASCII character to debug port
- * output - send to debug port  
+ * output - send to debug port
  ********************************************************************/
 static bool put_console_char(int8_t nCharVal)
 {
@@ -99,8 +99,11 @@ static bool put_console_char(int8_t nCharVal)
             ret_stat = true;
             break;
         }
+
         delay_ms(1);   /* 1msec sampling */
-    }while(--timeout_cnt);
+    }
+    while(--timeout_cnt);
+
     return(ret_stat);
 }
 
@@ -108,9 +111,9 @@ static bool put_console_char(int8_t nCharVal)
  * get_console_input - Display a character on serial port
  *
  * Input - char pointer
- * Output - 
+ * Output -
  *      - load pointer with received char data
- *      - update status 
+ *      - update status
  ********************************************************************/
 static bool get_console_input(char *read_char)
 {
@@ -127,8 +130,11 @@ static bool get_console_input(char *read_char)
             ret_stat = true;
             break;
         }
+
         delay_ms(1);   /* 1msec sampling */
-    }while(--timeout_cnt);
+    }
+    while(--timeout_cnt);
+
     return (ret_stat);
 }
 
@@ -136,68 +142,70 @@ static bool get_console_input(char *read_char)
  * display_debug_string - Dump string to debug console
  *
  * Input - pointer to string
- * Output- send string to debug port  
+ * Output- send string to debug port
  ********************************************************************/
 static void display_debug_string(char *pStr)
 {
     do
     {
         put_console_char(*pStr);
-    }while (*(pStr++));
+    }
+    while(*(pStr++));
 }
 
 /********************************************************************
- * dbg_print - print to debug console 
+ * dbg_print - print to debug console
  *
  * Input - content to print
- * Output- send to debug port  
+ * Output- send to debug port
  ********************************************************************/
-bool dbg_print(char *pStr, ...)
+void dbg_print(char *pStr, ...)
 {
-    bool ret_stat = true;
     char str[LARGE_DEBUG_BUF];
     va_list arg;
 
     va_start(arg, pStr);
     vsnprintf(str, LARGE_DEBUG_BUF, pStr, arg);
-    if(strlen(str)+1 <= LARGE_DEBUG_BUF)
+
+    if(strlen(str) + 1 <= LARGE_DEBUG_BUF)
     {
         display_debug_string(str);
     }
     else
     {
-        snprintf(str, LARGE_DEBUG_BUF, "error: Debug string(%d) exceeds buffer size(%d)\n\r", strlen(str)+1, LARGE_DEBUG_BUF);
+        snprintf(str, LARGE_DEBUG_BUF, "error: Debug string(%d) exceeds buffer size(%d)\n\r",
+                 strlen(str) + 1, LARGE_DEBUG_BUF);
         display_debug_string(str);
-        ret_stat = false;
     }
-    return(ret_stat);
 }
 
 /********************************************************************
  * dbg_trigger - scope trigger pulse for debugging
  *
  * input - none
- * output- none 
+ * output- none
  ********************************************************************/
 void dbg_trigger(uint32_t color)
 {
-    switch(color) {
+    switch(color)
+    {
         case 1:
             led_func(CLR_RED_LED);
             led_func(SET_RED_LED);
             break;
+
         case 2:
             led_func(CLR_GREEN_LED);
             led_func(SET_GREEN_LED);
     }
 }
 /*
- * read_console - Read debug console port for user input 
+ * read_console - Read debug console port for user input
  *                (Example for how to implement USART read )
  *
  *
- * Input - none 
- * Output- send to debug port  
+ * Input - none
+ * Output- send to debug port
  */
 char read_console(void)
 {
@@ -209,14 +217,15 @@ char read_console(void)
         {
             /* print for debug only */
             snprintf(str_dbg, SMALL_DEBUG_BUF, "%c\n\r", char_read);
-            display_debug_string(str_dbg); 
+            display_debug_string(str_dbg);
         }
     }
+
     return(char_read);
 }
 #else
-bool dbg_print(char *pStr, ...){}
-void usart_init(void){}
+void dbg_print(char *pStr, ...) {}
+void usart_init(void) {}
 #endif
 
 

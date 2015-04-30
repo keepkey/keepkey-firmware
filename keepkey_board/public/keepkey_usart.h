@@ -38,7 +38,7 @@
 extern "C" {
 #endif
 
-bool dbg_print(char *pStr, ...); /*  print to debug console */
+void dbg_print(char *pStr, ...); /*  print to debug console */
 void usart_init(void); /* Initialize usart3 for debug port */
 
 #ifdef __cplusplus
