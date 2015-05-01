@@ -6,7 +6,6 @@ Import('env')
 #
 # Turn off unused variable warning for third party code
 #
-crypto_env = env.Clone()
-crypto_env['CCFLAGS'].append('-Wno-unused-variable')
+env = add_flags(env, ['-Wno-unused-variable'])
 
-init_project(crypto_env)
+init_project(env)

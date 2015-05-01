@@ -423,13 +423,21 @@ def get_flavors():
 
     return flavors
 
+#
+# Takes an environment, clones it, and then adds passed flags.  Then returns cloned environment
+#
+def add_flags(env, flags):
+    cloned_env = env.Clone()
+    cloned_env['CCFLAGS'] += flags
+    return cloned_env
 
-            
+#
+# Takes an environment, clones it, and then removes passed flags.  Then returns cloned environment
+#
+def remove_flags(env, flags):
+    cloned_env = env.Clone()
+    
+    for flag in flags:
+        cloned_env['CCFLAGS'].remove(flag)
 
-
-
-
-
-
-
-
+    return cloned_env

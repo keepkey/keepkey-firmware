@@ -9,5 +9,18 @@ Import('env', 'project_deps')
 deps = ["nanopb", "interface", "crypto"]
 project_deps += deps
 
-init_project(env, deps=deps, libs=["opencm3_stm32f2"])
+#
+# Invert Display
+#
+if int(ARGUMENTS.get('invert', 0)):
+  env = add_flags(env, ['-DINVERT_DISPLAY=1'])
 
+#
+# Debug Link
+#
+if int(ARGUMENTS.get('debug_link', 0)):
+    env = add_flags(env, ['-DDEBUG_LINK=1'])
+else:
+    env = add_flags(env, ['-DDEBUG_LINK=0'])
+
+init_project(env, deps=deps, libs=["opencm3_stm32f2"])

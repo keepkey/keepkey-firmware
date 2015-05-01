@@ -6,8 +6,7 @@ Import('env', 'project_deps')
 #
 # Remove stack protector
 #
-bootstrap_env = env.Clone()
-bootstrap_env['CCFLAGS'].remove('-fstack-protector-all')
+env = remove_flags(env, ['-fstack-protector-all'])
 
 #
 # Dependencies
@@ -15,6 +14,4 @@ bootstrap_env['CCFLAGS'].remove('-fstack-protector-all')
 deps = ['keepkey_board']
 project_deps += deps
 
-init_project(bootstrap_env, 
-    deps=deps, 
-    libs=['opencm3_stm32f2'])
+init_project(env, deps=deps, libs=['opencm3_stm32f2'])

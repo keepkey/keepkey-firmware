@@ -9,5 +9,13 @@ Import('env', 'project_deps')
 deps = ['keepkey_board', 'interface', 'nanopb', 'crypto']
 project_deps += deps
 
+#
+# Debug Link
+#
+if int(ARGUMENTS.get('debug_link', 0)):
+    env = add_flags(env, ['-DDEBUG_LINK=1'])
+else:
+    env = add_flags(env, ['-DDEBUG_LINK=0'])
+
 init_project(env, deps=deps, libs=['opencm3_stm32f2'])
 
