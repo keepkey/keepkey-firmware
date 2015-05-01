@@ -129,7 +129,7 @@ void usb_write_pb(const pb_field_t *fields, const void *msg, MessageType id,
     if(pb_encode(&os, fields, msg))
     {
         framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
-        if((*usb_tx_handler)(&framebuf, sizeof(framebuf.frame) + os.bytes_written))
+        if((*usb_tx_handler)((uint8_t *)&framebuf, sizeof(framebuf.frame) + os.bytes_written))
         {
             msg_stats.usb_tx++;
         }

@@ -43,7 +43,7 @@ typedef void (*msg_handler_t)(void *ptr);
 typedef void (*raw_msg_handler_t)(uint8_t *msg, uint32_t msg_size,
                                   uint32_t frame_length);
 typedef void (*msg_failure_t)(FailureType, const char *);
-typedef bool (*usb_tx_handler_t)(void *, uint32_t);
+typedef bool (*usb_tx_handler_t)(uint8_t *, uint32_t);
 #if DEBUG_LINK
 typedef void (*msg_debug_link_get_state_t)(DebugLinkGetState *);
 #endif

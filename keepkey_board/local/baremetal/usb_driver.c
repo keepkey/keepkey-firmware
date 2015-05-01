@@ -410,7 +410,7 @@ void usb_poll(void)
  * OUTPUT
  *      true/false
  */
-bool usb_tx(void* message, uint32_t len)
+bool usb_tx(uint8_t *message, uint32_t len)
 {
 	uint32_t pos = 1;
 
@@ -440,7 +440,7 @@ bool usb_tx(void* message, uint32_t len)
  *      true/false
  */
 #if DEBUG_LINK
-bool usb_debug_tx(void* message, uint32_t len)
+bool usb_debug_tx(uint8_t *message, uint32_t len)
 {
 	uint32_t pos = 1;
 
