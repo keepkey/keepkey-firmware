@@ -1,14 +1,20 @@
 from SCons.Script import *
 from scons_util import *
 
-Import('env')
+Import('env', 'project_deps')
 
 #
-# Remove stack protector from bootstrap
+# Remove stack protector
 #
 bootstrap_env = env.Clone()
 bootstrap_env['CCFLAGS'].remove('-fstack-protector-all')
 
+#
+# Dependencies
+#
+deps = ['keepkey_board']
+project_deps += deps
+
 init_project(bootstrap_env, 
-    deps=['interface', 'nanopb', 'keepkey_board'], 
+    deps=deps, 
     libs=['opencm3_stm32f2'])

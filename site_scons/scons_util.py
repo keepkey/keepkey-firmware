@@ -279,7 +279,15 @@ def init_platform(env):
 def init_product():
     status.register_build_status_handler()
 
+    project = ARGUMENTS.get('project', 'all')
     projects = get_projects()
+    project_deps = []
+    project_deps_loaded = {}
+
+    if project == 'all':
+        project_deps = projects.keys()
+    else:
+        project_deps.append(project)
 
     target = ARGUMENTS.get('target', 'native')
     if target != 'native':
@@ -314,11 +322,13 @@ def init_product():
 
     variant_base_dir = os.path.join(Dir('#').abspath, BUILD_DIR, target, variant)
     env['VARIANT_BASE_DIR'] = variant_base_dir
-    for p in projects:
-        SConscript(os.path.join(projects[p], 'SConscript'), 
-                   variant_dir=os.path.join(variant_base_dir, '.obj', p), 
-                   exports = ['env'],
-                   duplicate=0)
+    for p in project_deps:
+        if p not in project_deps_loaded:
+            project_deps_loaded[p] = True
+            SConscript(os.path.join(projects[p], 'SConscript'), 
+                       variant_dir=os.path.join(variant_base_dir, '.obj', p), 
+                       exports = ['env', 'project_deps'],
+                       duplicate=0)
 
     #
     # Add tags convenience target to build ctags file at product root.
