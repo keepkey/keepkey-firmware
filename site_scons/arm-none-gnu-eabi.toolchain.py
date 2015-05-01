@@ -139,7 +139,7 @@ def load_toolchain():
     #
     # Debug Link
     #
-    if int(ARGUMENTS.get('debuglink', 0)):
+    if int(ARGUMENTS.get('debug_link', 0)):
         env['CCFLAGS'].append('-DDEBUG_LINK=1')
     else:
         env['CCFLAGS'].append('-DDEBUG_LINK=0')
