@@ -2,4 +2,11 @@ from SCons.Script import *
 from scons_util import *
 
 Import('env')
-init_project(env)
+
+#
+# Turn off unused variable warning for third party code
+#
+crypto_env = env.Clone()
+crypto_env['CCFLAGS'].append('-Wno-unused-variable')
+
+init_project(crypto_env)
