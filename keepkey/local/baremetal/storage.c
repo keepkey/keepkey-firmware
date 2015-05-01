@@ -453,8 +453,10 @@ uint32_t storage_get_pin_fails(void)
  * OUTPUT
  *      none
  */
-void get_root_node_callback(void)
+void get_root_node_callback(uint32_t iter, uint32_t total)
 {
+    (void)iter;
+    (void)total;
     animating_progress_handler();
 }
 
