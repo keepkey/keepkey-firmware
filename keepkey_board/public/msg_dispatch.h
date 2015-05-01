@@ -103,7 +103,7 @@ void call_msg_debug_link_get_state_handler(DebugLinkGetState *msg);
 #endif
 
 /* Assign callback for USB interrupt handling */
-void msg_init();
+void msg_init(void);
 
 /* Tiny messages */
 MessageType wait_for_tiny_msg(uint8_t *buf);

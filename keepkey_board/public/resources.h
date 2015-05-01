@@ -54,18 +54,18 @@ typedef struct
 
 //====================== CLASS MEMBER FUNCTIONS ===========================
 
-const Image* get_confirm_icon_image();
-const Image* get_confirmed_image();
-const Image* get_unplug_image();
+const Image* get_confirm_icon_image(void);
+const Image* get_confirmed_image(void);
+const Image* get_unplug_image(void);
 
-const ImageAnimation* get_screensaver_animation();
-const ImageAnimation* get_logo_animation();
-const ImageAnimation* get_logo_reversed_animation();
-const ImageAnimation* get_confirm_icon_animation();
-const ImageAnimation* get_confirming_animation();
-const ImageAnimation* get_loading_animation();
-const ImageAnimation* get_saving_animation();
-const ImageAnimation* get_warning_animation();
+const ImageAnimation* get_screensaver_animation(void);
+const ImageAnimation* get_logo_animation(void);
+const ImageAnimation* get_logo_reversed_animation(void);
+const ImageAnimation* get_confirm_icon_animation(void);
+const ImageAnimation* get_confirming_animation(void);
+const ImageAnimation* get_loading_animation(void);
+const ImageAnimation* get_saving_animation(void);
+const ImageAnimation* get_warning_animation(void);
 
 uint32_t get_image_animation_duration(const ImageAnimation* img_animation);
 const Image *get_image_animation_frame(const ImageAnimation* img_animation, const uint32_t elapsed, bool loop);

@@ -173,7 +173,7 @@ static bool passphrase_request(PassphraseInfo *passphrase_info)
  * OUTPUT -
  *      true/false - status
  */
-bool passphrase_protect()
+bool passphrase_protect(void)
 {
     bool ret = false;
     PassphraseInfo passphrase_info;

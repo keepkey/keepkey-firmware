@@ -3470,7 +3470,7 @@ static const Font body_font = { 95, 10, body_font_array };
  * OUTPUT - 
  *      pin_font - pointer PIN (personal ID #) font
  */
-const Font* get_pin_font()
+const Font* get_pin_font(void)
 {
 	return &pin_font;
 }
@@ -3481,7 +3481,7 @@ const Font* get_pin_font()
  * OUTPUT -
  *      body_font - pointer to title font setting
  */
-const Font* get_title_font()
+const Font* get_title_font(void)
 {
 	return &title_font;
 }
@@ -3494,7 +3494,7 @@ const Font* get_title_font()
  *      body_font - pointer to body font setting
  *
  */
-const Font* get_body_font()
+const Font* get_body_font(void)
 {
 	return &body_font;
 }

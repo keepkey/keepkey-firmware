@@ -139,7 +139,7 @@ static void bootloader_init(void)
  * OUTPUT - none
  *
  */
-static void clock_init()
+static void clock_init(void)
 {
     clock_scale_t clock = hse_8mhz_3v3[CLOCK_3V3_120MHZ];
     rcc_clock_setup_hse_3v3(&clock);

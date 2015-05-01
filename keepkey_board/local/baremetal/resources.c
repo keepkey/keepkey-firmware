@@ -2079,57 +2079,57 @@ static const Image recovery_image = {(void *) &recovery, 29, 29};
 //=============================== FUNCTIONS ===================================
 
 
-const Image *get_confirm_icon_image()
+const Image *get_confirm_icon_image(void)
 {
     return(&confirm_icon_5_image);
 }
 
-const Image *get_confirmed_image()
+const Image *get_confirmed_image(void)
 {
     return(&confirming_64_image);
 }
 
-const Image *get_unplug_image()
+const Image *get_unplug_image(void)
 {
     return(&unplug_image);
 }
 
-const Image *get_recovery_image()
+const Image *get_recovery_image(void)
 {
     return(&recovery_image);
 }
 
-const ImageAnimation *get_screensaver_animation()
+const ImageAnimation *get_screensaver_animation(void)
 {
     return(&screensaver);
 }
 
-const ImageAnimation *get_logo_animation()
+const ImageAnimation *get_logo_animation(void)
 {
     return(&logo);
 }
 
-const ImageAnimation *get_logo_reversed_animation()
+const ImageAnimation *get_logo_reversed_animation(void)
 {
     return(&logo_reversed);
 }
 
-const ImageAnimation *get_confirm_icon_animation()
+const ImageAnimation *get_confirm_icon_animation(void)
 {
     return(&confirm_icon);
 }
 
-const ImageAnimation *get_confirming_animation()
+const ImageAnimation *get_confirming_animation(void)
 {
     return(&confirming);
 }
 
-const ImageAnimation *get_loading_animation()
+const ImageAnimation *get_loading_animation(void)
 {
     return(&loading);
 }
 
-const ImageAnimation *get_warning_animation()
+const ImageAnimation *get_warning_animation(void)
 {
     return(&warning);
 }

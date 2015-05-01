@@ -58,6 +58,6 @@ typedef struct {
 	char passphrase[PASSPHRASE_BUF];
 } PassphraseInfo;
 
-bool passphrase_protect();
+bool passphrase_protect(void);
 
 #endif

@@ -545,7 +545,7 @@ void call_msg_debug_link_get_state_handler(DebugLinkGetState *msg)
  * INPUT - none
  * OUTPUT - none
  */
-void msg_init()
+void msg_init(void)
 {
     usb_set_rx_callback(handle_usb_rx);
 }

@@ -53,9 +53,9 @@ typedef struct
 } Font;
 
 /******************* Function Declarations *****************************/
-const Font* get_pin_font();
-const Font* get_title_font();
-const Font* get_body_font();
+const Font* get_pin_font(void);
+const Font* get_title_font(void);
+const Font* get_body_font(void);
 
 const CharacterImage* font_get_char(const Font* font, char c);
 

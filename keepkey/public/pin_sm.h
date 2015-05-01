@@ -64,7 +64,7 @@ typedef struct {
 
 const char* get_pin_matrix(void);
 bool pin_protect(char *prompt);
-bool pin_protect_cached();
+bool pin_protect_cached(void);
 bool change_pin(void);
 
 #endif
