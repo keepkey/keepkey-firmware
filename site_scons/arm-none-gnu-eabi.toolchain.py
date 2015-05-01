@@ -149,8 +149,6 @@ def load_toolchain():
     #
     if int(ARGUMENTS.get('invert', 0)):
         env['CCFLAGS'].append('-DINVERT_DISPLAY=1')
-    else:
-        env['CCFLAGS'].append('-DINVERT_DISPLAY=0')
 
     add_builders(env)
 
