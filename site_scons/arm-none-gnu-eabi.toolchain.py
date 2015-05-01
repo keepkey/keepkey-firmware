@@ -35,7 +35,22 @@ DEFS=['-DSTM32F2',
       '-DQR_MAX_VERSION=0']
 
 WARNS=['-Wall',
-       '-Wextra']
+       '-Wno-sequence-point',
+       '-Wextra',
+       '-Wformat',
+       '-Wformat-nonliteral',
+       '-Wformat-security',
+       '-Wimplicit-function-declaration',
+       '-Winit-self',
+       '-Wmultichar',
+       '-Wpointer-arith',
+       '-Wredundant-decls',
+       '-Wreturn-type',
+       '-Wshadow',
+       '-Wsign-compare',
+       '-Wstrict-prototypes',
+       '-Wundef',
+       '-Wuninitialized']
 
 def load_toolchain():
     env = DefaultEnvironment()
@@ -149,7 +164,7 @@ def add_builders(env):
     # Generate mapfile for debugging
     #
     def generate_map(source, target, env, for_signature):
-        return '%s -gdSt %s > %s' % (env['OBJDUMP'], source[0], target[0])
+        return '%s -dSt %s > %s' % (env['OBJDUMP'], source[0], target[0])
 
     #
     # SREC file because Paul likes them.
