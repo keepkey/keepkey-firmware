@@ -47,14 +47,15 @@ static const uint8_t BUTTON_IRQN    = NVIC_EXTI9_5_IRQ;
 static const uint32_t BUTTON_EXTI   = EXTI7;
 
 /*****************  FUNCTIONS **************************/
+
 /*
  * keepkey_button_init() - initialize push botton interrupt registers and variables
  *
  * INPUT - none
  * OUTPUT - none
  */
-void keepkey_button_init(void) {
-
+void keepkey_button_init(void) 
+{
     on_press_handler = NULL;
     on_press_handler_context = NULL;
 
