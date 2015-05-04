@@ -105,6 +105,9 @@ static void run_passphrase_state(PassphraseState *passphrase_state,
         case PASSPHRASE_REQUEST:
             send_passphrase_request();
             *passphrase_state = PASSPHRASE_WAITING;
+
+            layout_simple_message("Waiting for Passphrase...");
+
             break;
 
         /* Wait for a passphrase */

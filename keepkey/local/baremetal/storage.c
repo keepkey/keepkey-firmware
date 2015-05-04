@@ -483,6 +483,8 @@ bool storage_getRootNode(HDNode *node)
             return false;
         }
 
+        layout_loading();
+
         if(hdnode_from_xprv(shadow_config.storage.node.depth,
                             shadow_config.storage.node.fingerprint,
                             shadow_config.storage.node.child_num,
@@ -519,12 +521,12 @@ bool storage_getRootNode(HDNode *node)
     // if storage has mnemonic, convert it to node and use it
     if(shadow_config.storage.has_mnemonic)
     {
-        layout_loading();
-
         if(!passphrase_protect())
         {
             return false;
         }
+
+        layout_loading();
 
         uint8_t seed[64];
 
