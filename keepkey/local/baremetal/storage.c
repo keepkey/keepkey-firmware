@@ -195,7 +195,7 @@ void storage_commit(void)
                         (uint8_t *)&shadow_config) == false)
     {
         flash_lock();
-        layout_warning("Error Dectected.  Reboot Device!");
+        layout_warning("Error Detected.  Reboot Device!");
 
         do
         {
