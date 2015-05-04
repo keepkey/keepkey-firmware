@@ -92,7 +92,7 @@ int signatures_ok(void)
     if (ecdsa_verify(pubkey[sigindex2 - 1], (uint8_t *)FLASH_META_SIG2, (uint8_t *)FLASH_APP_START, codelen) != 0) { // failure
         return 0;
     }
-    if (ecdsa_verify(pubkey[sigindex3 - 1], (uint8_t *)FLASH_META_SIG3, (uint8_t *)FLASH_APP_START, codelen) != 0) { // failture
+    if (ecdsa_verify(pubkey[sigindex3 - 1], (uint8_t *)FLASH_META_SIG3, (uint8_t *)FLASH_APP_START, codelen) != 0) { // failure
         return 0;
     }
 #endif
