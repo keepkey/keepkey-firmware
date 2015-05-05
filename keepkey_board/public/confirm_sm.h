@@ -28,10 +28,7 @@
 
 /***************** #defines ******************************/
 /* The number of milliseconds to wait for a confirmation */
-#define CONFIRM_TIMEOUT_MS (1260)
-#define MAX_CYPHER_KEY_LEN 55
-#define MAX_ENCRYPT_MSG_LEN 65
-#define MAX_PING_MSG_LEN 45
+#define CONFIRM_TIMEOUT_MS 1200
 
 #define CONFIRM_SIGN_IDENTITY_TITLE 32
 #define CONFIRM_SIGN_IDENTITY_BODY 416
