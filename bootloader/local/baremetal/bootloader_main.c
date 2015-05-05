@@ -250,7 +250,7 @@ static void update_fw(void)
     }
     else
     {
-        layout_simple_message("Firmware Update Failure, Please Try Again");
+        layout_simple_message("Firmware Update Failure, Try Again");
     }
 }
 
