@@ -501,14 +501,15 @@ bool storage_getRootNode(HDNode *node)
             // decrypt hd node
             uint8_t secret[64];
 
-            /*First 8 bytes contain Salt value and last 4 bytes are reserve workspace for crypto library */
-            uint8_t salt[8+4]; 
-            strncpy((char *)salt, "TREZORHD", 8);
+            /* Length of salt + 4 bytes are needed as workspace by pbkdf2_hmac_sha512 */
+            uint8_t salt[strlen(PBKDF2_HMAC_SHA512_SALT) + 4];
+            memcpy((char *)salt, PBKDF2_HMAC_SHA512_SALT, strlen(PBKDF2_HMAC_SHA512_SALT));
 
             animating_progress_handler();
 
             pbkdf2_hmac_sha512((const uint8_t *)sessionPassphrase, strlen(sessionPassphrase),
-                               salt, 8, BIP39_PBKDF2_ROUNDS, secret, 64, get_root_node_callback);
+                               salt, strlen(PBKDF2_HMAC_SHA512_SALT), BIP39_PBKDF2_ROUNDS, secret, 64,
+                               get_root_node_callback);
 
             aes_decrypt_ctx ctx;
             aes_decrypt_key256(secret, &ctx);
