@@ -157,6 +157,13 @@ void swap_layout(ActiveLayout active_layout, volatile StateInfo* si, layout_noti
     		post_delayed( &handle_confirm_timeout, (void*)si, CONFIRM_TIMEOUT_MS );
     		break;
     	case LAYOUT_CONFIRMED:
+            /* Finish confirming animation */
+            while(is_animating())
+            {
+                animate();
+                display_refresh();
+            }
+
     		(*layout_notification_func)(si->lines[active_layout].request_title, 
                     si->lines[active_layout].request_body, NOTIFICATION_CONFIRMED);
     		remove_runnable( &handle_confirm_timeout );
