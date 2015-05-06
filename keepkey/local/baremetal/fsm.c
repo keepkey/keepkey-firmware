@@ -53,6 +53,9 @@
 #include <crypto.h>
 #include <keepkey_board.h>
 
+#include "app_layout.h"
+#include "app_confirm.h"
+
 // Static and global variables
 extern bool reset_msg_stack;
 

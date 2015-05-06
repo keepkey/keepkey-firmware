@@ -21,7 +21,9 @@
 /* END KEEPKEY LICENSE */
 
 #include <stddef.h>
+
 #include "draw.h"
+#include "keepkey_display.h"
 #include "font.h"
 #include "resources.h"
 

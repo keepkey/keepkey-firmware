@@ -23,52 +23,48 @@
 #ifndef resources_H
 #define resources_H
 
-
 #include <stdint.h>
 #include <stdbool.h>
-#include "keepkey_display.h"
-
 
 /***************** typedefs and enums  *******************/
 typedef struct
 {
-	const void* (*get_image_data)(uint8_t*);
-	uint16_t 	width;
-	uint16_t 	height;
+    const void *(*get_image_data)(uint8_t *);
+    uint16_t    width;
+    uint16_t    height;
 } Image;
 
 /// Image frame information.
 typedef struct
 {
-	const Image*	image;
-	uint32_t		duration;
+    const Image    *image;
+    uint32_t        duration;
 } AnimationFrame;
 
 /// Image animation information.
 typedef struct
 {
     int                 length;
-    const AnimationFrame* 	frames;
+    const AnimationFrame   *frames;
 } ImageAnimation;
 
 
 //====================== CLASS MEMBER FUNCTIONS ===========================
 
-const Image* get_confirm_icon_image(void);
-const Image* get_confirmed_image(void);
-const Image* get_unplug_image(void);
+const Image *get_confirm_icon_image(void);
+const Image *get_confirmed_image(void);
+const Image *get_unplug_image(void);
+const Image *get_recovery_image(void);
 
-const ImageAnimation* get_screensaver_animation(void);
+const ImageAnimation *get_confirm_icon_animation(void);
+const ImageAnimation *get_confirming_animation(void);
+const ImageAnimation *get_loading_animation(void);
+const ImageAnimation *get_warning_animation(void);
 const ImageAnimation* get_logo_animation(void);
 const ImageAnimation* get_logo_reversed_animation(void);
-const ImageAnimation* get_confirm_icon_animation(void);
-const ImageAnimation* get_confirming_animation(void);
-const ImageAnimation* get_loading_animation(void);
-const ImageAnimation* get_saving_animation(void);
-const ImageAnimation* get_warning_animation(void);
 
-uint32_t get_image_animation_duration(const ImageAnimation* img_animation);
-const Image *get_image_animation_frame(const ImageAnimation* img_animation, const uint32_t elapsed, bool loop);
+uint32_t get_image_animation_duration(const ImageAnimation *img_animation);
+const Image *get_image_animation_frame(const ImageAnimation *img_animation,
+                                       const uint32_t elapsed, bool loop);
 
-const Image* get_recovery_image(void);
 #endif // resources_H

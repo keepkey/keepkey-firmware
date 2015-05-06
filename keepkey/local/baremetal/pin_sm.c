@@ -24,9 +24,6 @@
  * @brief General confirmation state machine.
  */
 
-#include "pin_sm.h"
-#include "fsm.h"
-
 #include <stdbool.h>
 
 #include <keepkey_board.h>
@@ -36,6 +33,10 @@
 #include <storage.h>
 #include <timer.h>
 #include <stdio.h>
+
+#include "pin_sm.h"
+#include "fsm.h"
+#include "app_layout.h"
 
 /*******************  variables *************************************/
 /* random PIN matrix holder */

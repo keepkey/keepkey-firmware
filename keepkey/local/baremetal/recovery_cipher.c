@@ -34,6 +34,7 @@
 #include <storage.h>
 
 #include "recovery_cipher.h"
+#include "app_layout.h"
 #include "rng.h"
 #include "fsm.h"
 #include "pin_sm.h"

@@ -33,6 +33,8 @@
 #include <layout.h>
 #include <confirm_sm.h>
 
+#include "app_confirm.h"
+
 uint32_t op_push(uint32_t i, uint8_t *out) {
 	if (i < 0x4C) {
 		out[0] = i & 0xFF;

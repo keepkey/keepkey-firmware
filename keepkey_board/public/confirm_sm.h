@@ -30,9 +30,6 @@
 /* The number of milliseconds to wait for a confirmation */
 #define CONFIRM_TIMEOUT_MS 1200
 
-#define CONFIRM_SIGN_IDENTITY_TITLE 32
-#define CONFIRM_SIGN_IDENTITY_BODY 416
-
 /***************** typedefs and enums  *******************/
 typedef enum
 {
@@ -80,12 +77,5 @@ bool confirm_without_button_request(const char* request_title, const char* reque
 bool review(ButtonRequestType type, const char* request_title, const char* request_body, ...);
 bool review_without_button_request(const char *request_title, const char *request_body, ...);
 bool confirm_helper(const char* request_title, const char* request_body, layout_notification_t layout_notification_func);
-bool confirm_cipher(bool encrypt, const char *key);
-bool confirm_encrypt_msg(const char *msg, bool signing);
-bool confirm_decrypt_msg(const char *msg, const char *address);
-bool confirm_transaction_output(const char *amount, const char *to);
-bool confirm_load_device(bool is_node);
-bool confirm_address(const char *desc, const char *address);
-bool confirm_sign_identity(const IdentityType *identity, const char *challenge);
 
 #endif

@@ -24,9 +24,10 @@
  * @brief home screen state machine
  */
 
-#include "home_sm.h"
-
 #include <layout.h>
+
+#include "home_sm.h"
+#include "app_layout.h"
 
 /*******************  variables *************************************/
 /* track state of home screen */
