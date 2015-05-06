@@ -50,7 +50,8 @@ WARNS=['-Wall',
        '-Wsign-compare',
        '-Wstrict-prototypes',
        '-Wundef',
-       '-Wuninitialized']
+       '-Wuninitialized',
+       '-Werror']
 
 def load_toolchain():
     env = DefaultEnvironment()
