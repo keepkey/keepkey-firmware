@@ -32,6 +32,7 @@ void flash_erase(Allocation group);
 void flash_erase_word(Allocation group);
 bool flash_write(Allocation group, uint32_t offset, uint32_t len, uint8_t* data);
 bool flash_write_word(Allocation group, uint32_t offset, uint32_t len, uint8_t* data);
+bool flash_chk_status(void);
 
 
 #endif

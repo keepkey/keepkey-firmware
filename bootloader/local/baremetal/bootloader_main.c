@@ -61,24 +61,6 @@ uint32_t *const SCB_VTOR = (uint32_t *)0xe000ed08;
 //=============================== FUNCTIONS ===================================
 
 /*
- * system_halt() - forever loop here
- *
- * INPUT - none
- * OUTPUT - none
- *
- */
-void __attribute__((noreturn)) system_halt(void)
-{
-#if DEBUG_LINK
-    board_reset();
-#else
-    cm_disable_interrupts();
-#endif
-
-    for(;;) {} /* Loops forever */
-}
-
-/*
  * set_vector_table_offset() - Lightweight routine to reset the vector table to point
  * to the application's vector table.
  *
@@ -151,6 +133,7 @@ static void clock_init(void)
     rcc_periph_clock_enable(RCC_SYSCFG);
     rcc_periph_clock_enable(RCC_TIM4);
     rcc_periph_clock_enable(RCC_RNG);
+    rcc_periph_clock_enable(RCC_CRC);
 }
 
 /*
@@ -290,6 +273,6 @@ int main(int argc, char *argv[])
         boot();
     }
 
-    system_halt();  /* Loops forever */
+    system_halt("");  /* Loops forever */
     return(false);  /* Should never get here */
 }

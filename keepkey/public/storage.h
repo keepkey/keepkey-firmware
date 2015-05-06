@@ -41,6 +41,7 @@
 #define STORAGE_VERSION 1
 #define PBKDF2_HMAC_SHA512_SALT "TREZORHD"
 
+#define STORAGE_RETRIES 3
 /*************  Typedefs and Enums *****************/
 
 /*************  Function declarations **************/

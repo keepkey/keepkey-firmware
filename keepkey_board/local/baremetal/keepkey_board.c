@@ -27,12 +27,37 @@
 #include <libopencm3/cm3/scb.h>
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/f2/rng.h>
+#include <libopencm3/stm32/f2/crc.h>
+#include <libopencm3/cm3/cortex.h>
 #include <keepkey_board.h>
 
 /* Static and Global variables */
 
 /* Stack smashing protector (SSP) canary value storage */
 uintptr_t __stack_chk_guard;
+
+/*
+ * system_halt() - forever loop here
+ *
+ * INPUT - 
+ *      pointer to string 
+ * OUTPUT - none
+ *
+ */
+void __attribute__((noreturn)) system_halt(char *str_warn)
+{
+#if DEBUG_LINK
+    board_reset();
+#else
+    cm_disable_interrupts();
+#endif
+    layout_warning(str_warn);
+    for(;;)  /* Loops forever */
+    {
+        animate();
+        display_refresh();
+    }
+}
 
 /*
  * __stack_chk_fail() - stack smashing protector (SSP) call back funcation for -fstack-protector-all GCC option
@@ -42,13 +67,7 @@ uintptr_t __stack_chk_guard;
  */
 __attribute__((noreturn)) void __stack_chk_fail(void)
 {
-    layout_warning("Error Detected.  Reboot Device!");
-    do
-    {
-        animate();
-        display_refresh();
-    }
-    while(1); /* Loop forever */
+    system_halt("Error Detected.  Reboot Device!");
 }
 
 /*
@@ -93,3 +112,20 @@ void board_init(void)
     keepkey_button_init();
     layout_init(display_canvas_init());
 }
+
+/* calc_crc32() - calculate crc32 for block of memory
+ *
+ * INPUT - 
+ *      none
+ * OUTPUT -
+ *      crc32 for shadow_config data
+ */
+uint32_t calc_crc32(uint32_t *data, int word_len)
+{
+    uint32_t crc32 = 0;
+
+    crc_reset();
+    crc32 = crc_calculate_block(data, word_len);
+    return(crc32);
+}
+

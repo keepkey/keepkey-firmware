@@ -85,12 +85,14 @@ extern uintptr_t __stack_chk_guard;
 
 /***************** Function Declaration *********************/
 /* Perform a soft reset of the board.  */
+void __attribute__((noreturn)) system_halt(char *str_warn);
 void board_reset(void);
 /* Initial setup and configuration of board.  */
 void board_init(void);
 void reset_rng(void);
 
 void __stack_chk_fail(void) __attribute__((noreturn));
+uint32_t calc_crc32(uint32_t *data, int word_len);
 
 #ifdef __cplusplus
 }

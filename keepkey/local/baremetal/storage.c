@@ -104,9 +104,9 @@ void storage_init(void)
         /* clear out stor_config befor finding end config node */
         // load uuid to shadow memory
         memcpy(shadow_config.meta.uuid, (void *)&stor_config->meta.uuid,
-               sizeof(shadow_config.meta.uuid));
+                sizeof(shadow_config.meta.uuid));
         data2hex(shadow_config.meta.uuid, sizeof(shadow_config.meta.uuid),
-                 shadow_config.meta.uuid_str);
+                shadow_config.meta.uuid_str);
 
         if(stor_config->storage.version)
         {
@@ -142,7 +142,7 @@ void storage_reset_uuid(void)
     // set random uuid
     random_buffer(shadow_config.meta.uuid, sizeof(shadow_config.meta.uuid));
     data2hex(shadow_config.meta.uuid, sizeof(shadow_config.meta.uuid),
-             shadow_config.meta.uuid_str);
+            shadow_config.meta.uuid_str);
 }
 
 /*
@@ -187,25 +187,58 @@ void session_clear(bool clear_pin)
  */
 void storage_commit(void)
 {
+    uint32_t shadow_ram_crc32, shadow_flash_crc32, retries;
+
     memcpy((void *)&shadow_config, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
-    flash_unlock();
-    flash_erase_word(FLASH_STORAGE);
-
-    if(flash_write_word(FLASH_STORAGE, 0, sizeof(shadow_config),
-                        (uint8_t *)&shadow_config) == false)
+    for(retries = 0; retries < STORAGE_RETRIES; retries++) 
     {
-        flash_lock();
-        layout_warning("Error Detected.  Reboot Device!");
-
-        do
+        shadow_ram_crc32 = calc_crc32((uint32_t *)&shadow_config, sizeof(shadow_config)/sizeof(uint32_t));
+        if(shadow_ram_crc32 == 0)
         {
-            animate();
-            display_refresh();
+            continue; /* Retry */
         }
-        while(1); /* Loop forever */
-    }
 
+        /* Make sure flash is in good state before proceeding */
+        if (!flash_chk_status())
+        {
+            flash_clear_status_flags();
+            continue; /* Retry */
+        }
+        flash_unlock();
+        flash_erase_word(FLASH_STORAGE);
+
+        /* Load storage data first before loading storage magic  */
+        if(flash_write_word(FLASH_STORAGE , STORAGE_MAGIC_LEN, 
+                    sizeof(shadow_config) - STORAGE_MAGIC_LEN, 
+                    (uint8_t *)&shadow_config + STORAGE_MAGIC_LEN))
+        {
+            if(!flash_write_word(FLASH_STORAGE , 0, STORAGE_MAGIC_LEN, (uint8_t *)&shadow_config))
+            {
+                continue; /* Retry */
+            }
+        }
+        else
+        {
+            continue; /* Retry */
+        }
+
+        /* Flash write completed successfully.  Verify CRC */
+        shadow_flash_crc32 = calc_crc32((uint32_t *)FLASH_STORAGE_START, sizeof(shadow_config)/sizeof(uint32_t));
+        if(shadow_flash_crc32 == shadow_ram_crc32)
+        {
+            /* Commit successful, break to exit */
+            break;
+        }
+        else
+        {
+            continue; /* Retry */
+        }
+    }
     flash_lock();
+    if(retries >= STORAGE_RETRIES)
+    {
+        system_halt("Error Detected.  Reboot Device!");
+    }
 }
 
 /*
@@ -442,7 +475,7 @@ void storage_increase_pin_fails(void)
 uint32_t storage_get_pin_fails(void)
 {
     return shadow_config.storage.has_pin_failed_attempts ?
-           shadow_config.storage.pin_failed_attempts : 0;
+        shadow_config.storage.pin_failed_attempts : 0;
 }
 
 /*
@@ -486,11 +519,11 @@ bool storage_getRootNode(HDNode *node)
         layout_loading();
 
         if(hdnode_from_xprv(shadow_config.storage.node.depth,
-                            shadow_config.storage.node.fingerprint,
-                            shadow_config.storage.node.child_num,
-                            shadow_config.storage.node.chain_code.bytes,
-                            shadow_config.storage.node.private_key.bytes,
-                            &sessionRootNode) == 0)
+                    shadow_config.storage.node.fingerprint,
+                    shadow_config.storage.node.child_num,
+                    shadow_config.storage.node.chain_code.bytes,
+                    shadow_config.storage.node.private_key.bytes,
+                    &sessionRootNode) == 0)
         {
             return false;
         }
@@ -514,9 +547,9 @@ bool storage_getRootNode(HDNode *node)
             aes_decrypt_ctx ctx;
             aes_decrypt_key256(secret, &ctx);
             aes_cbc_decrypt(sessionRootNode.chain_code, sessionRootNode.chain_code, 32, secret + 32,
-                            &ctx);
+                    &ctx);
             aes_cbc_decrypt(sessionRootNode.private_key, sessionRootNode.private_key, 32, secret + 32,
-                            &ctx);
+                    &ctx);
         }
 
         memcpy(node, &sessionRootNode, sizeof(HDNode));
@@ -539,7 +572,7 @@ bool storage_getRootNode(HDNode *node)
         animating_progress_handler();
 
         mnemonic_to_seed(shadow_config.storage.mnemonic, sessionPassphrase, seed,
-                         get_root_node_callback); // BIP-0039
+                get_root_node_callback); // BIP-0039
 
         if(hdnode_from_seed(seed, sizeof(seed), &sessionRootNode) == 0)
         {
