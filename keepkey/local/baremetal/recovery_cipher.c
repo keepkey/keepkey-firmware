@@ -50,10 +50,11 @@ static char cipher[ENGLISH_ALPHABET_BUF];
 static char auto_completed_word[CURRENT_WORD_BUF];
 #endif
 
-void format_current_word(char *current_word, bool auto_completed);
-void get_current_word(char *current_word);
-bool exact_str_match(const char *str1, const char *str2, uint32_t len);
-bool attempt_auto_complete(char *partial_word);
+static void format_current_word(char *current_word, bool auto_completed);
+static uint32_t get_current_word_pos(void);
+static void get_current_word(char *current_word);
+static bool exact_str_match(const char *str1, const char *str2, uint32_t len);
+static bool attempt_auto_complete(char *partial_word);
 
 /*
  * recovery_cipher_init() - display standard notification on LCD screen
@@ -121,6 +122,10 @@ void next_character(void)
     else
     {
         memset(&resp, 0, sizeof(CharacterRequest));
+
+        resp.word_pos = get_current_word_pos();
+        resp.character_pos = strlen(current_word);
+
         msg_write(MessageType_MessageType_CharacterRequest, &resp);
 
         if(strlen(current_word) >=
@@ -350,17 +355,12 @@ const char *recovery_get_auto_completed_word(void)
  * OUTPUT -
  *      none
  */
-void format_current_word(char *current_word, bool auto_completed)
+static void format_current_word(char *current_word, bool auto_completed)
 {
-    char temp_word[CURRENT_WORD_BUF], *pos_num = strchr(mnemonic, ' ');
-    uint32_t i, word_num = 1, pos_len;
-
-    /* Determine word number */
-    while(pos_num != NULL)
-    {
-        word_num++;
-        pos_num = strchr(++pos_num, ' ');
-    }
+    char temp_word[CURRENT_WORD_BUF];
+    uint32_t i,
+             pos_len,
+             word_num = get_current_word_pos() + 1;
 
     pos_len = strlen(current_word);
     snprintf(temp_word, CURRENT_WORD_BUF, "%lu.%s", (unsigned long)word_num, current_word);
@@ -385,6 +385,28 @@ void format_current_word(char *current_word, bool auto_completed)
 }
 
 /*
+ * get_current_word_pos() - returns the current word position in the mnemonic
+ *
+ * INPUT -
+ *      none
+ * OUTPUT -
+ *      position in mnemonic
+ */
+static uint32_t get_current_word_pos(void)
+{
+    char *pos_num = strchr(mnemonic, ' ');
+    uint32_t word_pos = 0;
+
+    while(pos_num != NULL)
+    {
+        word_pos++;
+        pos_num = strchr(++pos_num, ' ');
+    }
+
+    return word_pos;
+}
+
+/*
  * get_current_word() - returns the current word being entered by parsing the mnemonic thus far
  *
  * INPUT -
@@ -392,7 +414,7 @@ void format_current_word(char *current_word, bool auto_completed)
  * OUTPUT -
  *      none
  */
-void get_current_word(char *current_word)
+static void get_current_word(char *current_word)
 {
     char *pos = strrchr(mnemonic, ' ');
 
@@ -418,7 +440,7 @@ void get_current_word(char *current_word)
  * OUTPUT -
  *      whether matched or not
  */
-bool exact_str_match(const char *str1, const char *str2, uint32_t len)
+static bool exact_str_match(const char *str1, const char *str2, uint32_t len)
 {
     uint32_t i = 0, match = 0;
 
@@ -445,7 +467,7 @@ bool exact_str_match(const char *str1, const char *str2, uint32_t len)
  * OUTPUT -
  *      whether partial_word was auto completed or not
  */
-bool attempt_auto_complete(char *partial_word)
+static bool attempt_auto_complete(char *partial_word)
 {
     const char *const *wordlist = mnemonic_wordlist();
 
