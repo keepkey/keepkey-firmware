@@ -272,10 +272,10 @@ void recovery_cipher_finalize(void)
         full_mnemonic[strlen(full_mnemonic) - 1] = '\0';
 
         storage_set_mnemonic(full_mnemonic);
-
-        /* Go home before commiting to eliminate lag */
-        go_home();
     }
+
+    /* Go home before commiting to eliminate lag */
+    go_home();
 
     if(!enforce_wordlist || mnemonic_check(storage_get_shadow_mnemonic()))
     {
