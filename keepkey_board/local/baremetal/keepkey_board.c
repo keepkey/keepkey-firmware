@@ -49,14 +49,10 @@ void __attribute__((noreturn)) system_halt(char *str_warn)
 #if DEBUG_LINK
     board_reset();
 #else
+    layout_warning_static(str_warn);
     cm_disable_interrupts();
 #endif
-    layout_warning(str_warn);
-    for(;;)  /* Loops forever */
-    {
-        animate();
-        display_refresh();
-    }
+    for(;;);  /* Loops forever */
 }
 
 /*

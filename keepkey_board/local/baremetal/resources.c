@@ -1901,6 +1901,11 @@ const Image *get_recovery_image(void)
     return(&recovery_image);
 }
 
+const Image *get_warning_image(void)
+{
+    return(&warning_1_image);
+}
+
 const ImageAnimation *get_confirm_icon_animation(void)
 {
     return(&confirm_icon);

@@ -55,6 +55,7 @@ const Image *get_confirm_icon_image(void);
 const Image *get_confirmed_image(void);
 const Image *get_unplug_image(void);
 const Image *get_recovery_image(void);
+const Image *get_warning_image(void);
 
 const ImageAnimation *get_confirm_icon_animation(void);
 const ImageAnimation *get_confirming_animation(void);

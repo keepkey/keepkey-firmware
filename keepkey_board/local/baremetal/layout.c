@@ -258,6 +258,34 @@ void layout_warning(const char *str)
 }
 
 /*
+ * layout_warning_static() - display warning message on display without animation
+ *
+ * INPUT -
+ *      prompt - string to display
+ * OUTPUT -
+ */
+void layout_warning_static(const char *str)
+{
+    call_leaving_handler();
+    layout_clear();
+
+    const Font *font = get_body_font();
+
+    /* Title */
+    DrawableParams sp;
+    sp.x = (KEEPKEY_DISPLAY_WIDTH - calc_str_width(font, str)) / 2;
+    sp.y = 50;
+    sp.color = TITLE_COLOR;
+    draw_string(canvas, font, str, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
+
+    sp.x = 107;
+    sp.y = 7;
+    draw_bitmap_mono_rle(canvas, &sp, get_warning_image());
+
+    display_refresh();
+}
+
+/*
  * layout_simple_message() - displays a simple one line message
  *
  * INPUT -

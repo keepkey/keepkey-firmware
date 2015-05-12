@@ -114,6 +114,7 @@ void layout_standard_notification(const char *str1, const char *str2,
                                   NotificationType type);
 void layout_notification_icon(NotificationType type, DrawableParams *sp);
 void layout_warning(const char *prompt);
+void layout_warning_static(const char *str);
 void layout_simple_message(const char *str);
 void layout_home(void);
 void layout_home_reversed(void);
