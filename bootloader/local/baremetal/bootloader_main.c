@@ -273,6 +273,10 @@ int main(int argc, char *argv[])
         boot();
     }
 
+#if DEBUG_LINK
+    board_reset();
+#else
     system_halt();  /* Loops forever */
+#endif
     return(false);  /* Should never get here */
 }
