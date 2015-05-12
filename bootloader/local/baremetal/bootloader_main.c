@@ -273,6 +273,6 @@ int main(int argc, char *argv[])
         boot();
     }
 
-    system_halt("");  /* Loops forever */
+    system_halt();  /* Loops forever */
     return(false);  /* Should never get here */
 }

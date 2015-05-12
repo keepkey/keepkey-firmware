@@ -44,14 +44,9 @@ uintptr_t __stack_chk_guard;
  * OUTPUT - none
  *
  */
-void __attribute__((noreturn)) system_halt(char *str_warn)
+void __attribute__((noreturn)) system_halt(void)
 {
-#if DEBUG_LINK
-    board_reset();
-#else
-    layout_warning_static(str_warn);
     cm_disable_interrupts();
-#endif
     for(;;);  /* Loops forever */
 }
 
@@ -63,7 +58,8 @@ void __attribute__((noreturn)) system_halt(char *str_warn)
  */
 __attribute__((noreturn)) void __stack_chk_fail(void)
 {
-    system_halt("Error Detected.  Reboot Device!");
+    layout_warning_static("Error Detected.  Reboot Device!");
+    system_halt();
 }
 
 /*

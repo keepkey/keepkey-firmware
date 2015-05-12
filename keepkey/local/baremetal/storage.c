@@ -237,7 +237,8 @@ void storage_commit(void)
     flash_lock();
     if(retries >= STORAGE_RETRIES)
     {
-        system_halt("Error Detected.  Reboot Device!");
+        layout_warning_static("Error Detected.  Reboot Device!");
+        system_halt();
     }
 }
 

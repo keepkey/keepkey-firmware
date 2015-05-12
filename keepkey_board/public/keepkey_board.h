@@ -85,7 +85,7 @@ extern uintptr_t __stack_chk_guard;
 
 /***************** Function Declaration *********************/
 /* Perform a soft reset of the board.  */
-void __attribute__((noreturn)) system_halt(char *str_warn);
+void __attribute__((noreturn)) system_halt(void);
 void board_reset(void);
 /* Initial setup and configuration of board.  */
 void board_init(void);
