@@ -29,20 +29,18 @@
 #include <sha2.h>
 #include <memory.h>
 
-#define OPTION_BYTES_1 ((uint64_t *)0x1FFFC000)
-#define OPTION_BYTES_2 ((uint64_t *)0x1FFFC008)
 
 void memory_protect(void)
 {
-    //                     set RDP level 2                   WRP for sectors 0 and 1
-    if((((*OPTION_BYTES_1) & 0xFFFF) == 0xCCFF) && (((*OPTION_BYTES_2) & 0xFFFF) == 0xFF88))
+    /*                     set RDP level 2                   WRP for sectors 0,5,6  */
+    if((((*OPTION_BYTES_1) & 0xFFFF) == OPTION_RDP) && (((*OPTION_BYTES_2) & 0xFFFF) == OPTION_WRP))
     {
         return; // already set up correctly - bail out
     }
 
     flash_unlock_option_bytes();
-    //                              WRP +    RDP
-    flash_program_option_bytes(0xFF880000 + 0xCCFF);  //RDP BLevel 2 (Irreversible)
+    /*                              WRP +    RDP */
+    flash_program_option_bytes((uint32_t)OPTION_WRP << 16 | OPTION_RDP);  //RDP BLevel 2 (Irreversible)
     flash_lock_option_bytes();
 }
 
