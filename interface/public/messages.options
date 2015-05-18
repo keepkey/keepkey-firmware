@@ -101,6 +101,7 @@ SimpleSignTx.transactions		max_count:0
 SimpleSignTx.coin_name			max_size:17
 
 # not used in firmware
+FirmwareUpload.payload_crc  max_size:4
 FirmwareUpload.payload			max_size:0
 
 DebugLinkState.layout			max_size:1024
