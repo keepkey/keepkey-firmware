@@ -274,9 +274,6 @@ void recovery_cipher_finalize(void)
         storage_set_mnemonic(full_mnemonic);
     }
 
-    /* Go home before commiting to eliminate lag */
-    go_home();
-
     if(!enforce_wordlist || mnemonic_check(storage_get_shadow_mnemonic()))
     {
         storage_commit();
@@ -295,6 +292,7 @@ void recovery_cipher_finalize(void)
     }
 
     awaiting_character = false;
+    go_home();
 }
 
 /*

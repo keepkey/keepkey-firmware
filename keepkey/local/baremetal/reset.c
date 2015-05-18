@@ -184,14 +184,12 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
         }
     }
 
-    /* Go home before we save mnemonic to eliminate any lag */
-    go_home();
-
     /* Save mnemonic */
     storage_set_mnemonic(temp_mnemonic);
     storage_commit();
 
     fsm_sendSuccess("Device reset");
+    go_home();
 }
 
 uint32_t reset_get_int_entropy(uint8_t *entropy)

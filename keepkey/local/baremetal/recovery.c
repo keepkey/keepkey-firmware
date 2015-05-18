@@ -168,9 +168,6 @@ void recovery_word(const char *word)
     { // last one
         storage_set_mnemonic_from_words((const char (*)[])words, word_count);
 
-        /* Go home before commiting to eliminate lag */
-        go_home();
-
         if (!enforce_wordlist || mnemonic_check(storage_get_shadow_mnemonic()))
         {
         	storage_commit();
@@ -180,6 +177,7 @@ void recovery_word(const char *word)
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid mnemonic, are words in correct order?");
         }
         awaiting_word = false;
+        go_home();
     } else {
         word_index++;
         next_word();

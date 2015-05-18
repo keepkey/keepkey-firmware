@@ -298,15 +298,13 @@ void fsm_msgWipeDevice(WipeDevice *msg)
 		return;
 	}
 
-	/* Go home before we start wiping device to eliminate any lag */
-	go_home();
-
 	/* Wipe device */
 	storage_reset();
 	storage_reset_uuid();
 	storage_commit();
 
 	fsm_sendSuccess("Device wiped");
+	go_home();
 }
 
 void fsm_msgFirmwareErase(FirmwareErase *msg)
@@ -394,13 +392,11 @@ void fsm_msgLoadDevice(LoadDevice *msg)
 		}
 	}
 
-	/* Go home before we start importing to eliminate any lag */
-	go_home();
-
 	storage_loadDevice(msg);
 
 	storage_commit();
 	fsm_sendSuccess("Device loaded");
+	go_home();
 }
 
 void fsm_msgResetDevice(ResetDevice *msg)
@@ -532,12 +528,10 @@ void fsm_msgApplySettings(ApplySettings *msg)
 		storage_set_passphrase_protected(msg->use_passphrase);
 	}
 
-	/* Go home before we commit to eliminate lag */
-	go_home();
-
 	storage_commit();
 
 	fsm_sendSuccess("Settings applied");
+	go_home();
 }
 
 void fsm_msgCipherKeyValue(CipherKeyValue *msg)
