@@ -45,6 +45,7 @@
 
 /*** Definition ***/
 static FirmwareUploadState upload_state = UPLOAD_NOT_STARTED;
+static uint32_t firmware_crc;
 extern bool reset_msg_stack;
 
 /*** Structure to map incoming messages to handler functions. ***/
@@ -100,38 +101,19 @@ static bool fill_config_sector(void)
 #endif
 
 /*
- * verify_fingerprint - verify application's finger print
+ * check_firmware_crc - checks flashed firmware's CRC
  *
  * INPUT
  *  - none
  *
  * OUTPUT
- *  - update status
+ *  - status of CRC check
  */
-bool verify_fingerprint(void)
+bool check_firmware_crc(void)
 {
-    char digest[SHA256_DIGEST_LENGTH],
-         str_digest[SHA256_DIGEST_STR_LEN] = "";
-    bool ret_val = false;
-    uint32_t i = 0;
+    (void)firmware_crc;
 
-    memory_app_fingerprint((uint8_t *)digest);
-
-    for(; i < SHA256_DIGEST_LENGTH; i++)
-    {
-        char digest_buf[BYTE_AS_HEX_STR_LEN];
-        snprintf(digest_buf, BYTE_AS_HEX_STR_LEN, "%02x", digest[i]);
-        strlcat(str_digest, digest_buf, SHA256_DIGEST_STR_LEN);
-    }
-
-    /* Get user confirmation */
-    if(confirm(ButtonRequestType_ButtonRequest_FirmwareCheck,
-               "Compare Firmware Fingerprint", str_digest))
-    {
-        ret_val = true;
-    }
-
-    return(ret_val);
+    return(true);
 }
 
 /*
@@ -190,8 +172,8 @@ bool usb_flash_firmware(void)
                     }
                 }
 
-                /* Request user to verify image fingerprint */
-                if(verify_fingerprint())
+                /* Check CRC of firmware that was flashed */
+                if(check_firmware_crc())
                 {
                     /* Fingerprint has been verified.  Install "KPKY" magic in meta header */
                     if(flash_locking_write(FLASH_APP, 0, META_MAGIC_SIZE, (uint8_t *)META_MAGIC_STR) == true)
@@ -416,11 +398,15 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
             flash_offset = 0;
 
             /*
-            * On first USB segment of upload we have to account for added data for protocol buffers
-            * which we will ignore since it is not being parsed out for us
-            */
-            msg_size -= PROTOBUF_FIRMWARE_PADDING;
-            msg = (uint8_t *)(msg + PROTOBUF_FIRMWARE_PADDING);
+             * Parse CRC
+             */
+            firmware_crc = __builtin_bswap32(*(uint32_t *)(msg + PROTOBUF_FIRMWARE_CRC_START));
+
+            /*
+             * Parse application start
+             */
+            msg_size -= PROTOBUF_FIRMWARE_START;
+            msg = (uint8_t *)(msg + PROTOBUF_FIRMWARE_START);
         }
 
         /* Process firmware upload */
@@ -478,7 +464,7 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
             }
 
             /* Finish firmware update */
-            if(flash_offset >= frame_length - PROTOBUF_FIRMWARE_PADDING)
+            if(flash_offset >= frame_length - PROTOBUF_FIRMWARE_START)
             {
                 flash_lock();
                 upload_state = UPLOAD_COMPLETE;

@@ -27,8 +27,9 @@
 #include <stdint.h>
 
 /*** Defines ***/
-#define UPLOAD_STATUS_FREQUENCY		1024
-#define PROTOBUF_FIRMWARE_PADDING	4
+#define UPLOAD_STATUS_FREQUENCY		    1024
+#define PROTOBUF_FIRMWARE_CRC_START     2
+#define PROTOBUF_FIRMWARE_START	        10
 
 #define SHA256_DIGEST_STR_LEN ((SHA256_DIGEST_LENGTH * 2) + 1)
 #define BYTE_AS_HEX_STR_LEN (2 + 1)
