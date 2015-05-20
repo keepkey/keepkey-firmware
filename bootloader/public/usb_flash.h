@@ -28,11 +28,8 @@
 
 /*** Defines ***/
 #define UPLOAD_STATUS_FREQUENCY		    1024
-#define PROTOBUF_FIRMWARE_CRC_START     2
-#define PROTOBUF_FIRMWARE_START	        10
-
-#define SHA256_DIGEST_STR_LEN ((SHA256_DIGEST_LENGTH * 2) + 1)
-#define BYTE_AS_HEX_STR_LEN (2 + 1)
+#define PROTOBUF_FIRMWARE_HASH_START    2
+#define PROTOBUF_FIRMWARE_START	        38
 
 /*** Enums ***/
 typedef enum 
@@ -45,33 +42,22 @@ typedef enum
 
 /*** Typedefs ***/
 
-/* Stats counters */
-typedef struct 
-{
-    uint16_t invalid_usb_header_ct;
-    uint16_t invalid_msg_type_ct;
-    uint16_t invalid_offset_ct;
-    uint16_t usb_tx_ct;
-    uint16_t usb_tx_err_ct;
-} Stats;
-
 /* Generic message handler callback type*/
 typedef void (*message_handler_t)(void* msg_struct); 
 
 /*** Function Declarations ***/ 
 bool usb_flash_firmware(void);
-bool flash_locking_write(Allocation group, size_t offset, size_t len, uint8_t* dataPtr);
 void send_success(const char *text);
 void send_failure(FailureType code, const char *text);
 void handler_initialize(Initialize* msg);
 void handler_ping(Ping* msg);
 void handler_erase(FirmwareErase* msg);
 void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length);
-void usb_write_pb(void* msg, MessageType id);
 
 #if DEBUG_LINK
 void handler_debug_link_get_state(DebugLinkGetState *msg);
 void handler_debug_link_stop(DebugLinkStop *msg);
+void handler_debug_link_fill_config(DebugLinkFillConfig *msg);
 #endif
 
 #endif
