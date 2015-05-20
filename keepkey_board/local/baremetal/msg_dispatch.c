@@ -378,13 +378,13 @@ void handle_usb_rx(UsbMessage *msg)
     if(msg->len < sizeof(TrezorFrameHeaderFirst))
     {
         ++msg_stats.runt_packet;
-        return;
+        goto done_handling;
     }
 
     if(frame->usb_header.hid_type != '?')
     {
         ++msg_stats.invalid_usb_header;
-        return;
+        goto done_handling;
     }
 
     /* Check to see if this is the first frame of a series, * or a
