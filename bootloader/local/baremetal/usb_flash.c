@@ -193,7 +193,7 @@ bool usb_flash_firmware(void)
 
             case UPLOAD_ERROR:
             {
-                dbg_print("error: Firmware update error...\n\r");
+                dbg_print("Error: Firmware update error...\n\r");
                 goto uff_exit;
             }
 
