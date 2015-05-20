@@ -402,11 +402,15 @@ void handle_usb_rx(UsbMessage *msg)
         content_size = content_pos;
 
     }
-    else
+    else if(mid_frame)
     {
         contents = frame_fragment->contents;
         content_pos += msg->len - 1;
         content_size = msg->len - 1;
+    }
+    else
+    {
+        goto done_handling;
     }
 
     last_segment = content_pos >= last_frame_header.len;
@@ -460,6 +464,9 @@ void handle_usb_rx(UsbMessage *msg)
             dispatch(entry, content_buf, last_frame_header.len);
         }
     }
+
+done_handling:
+    return;
 }
 
 /*
