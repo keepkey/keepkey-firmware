@@ -59,13 +59,18 @@ int memory_bootloader_hash(uint8_t *hash)
     return SHA256_DIGEST_LENGTH;
 }
 
-int memory_app_fingerprint(uint8_t *digest)
+int memory_firmware_hash(uint8_t *digest)
 {
+    SHA256_CTX ctx;
     uint32_t codelen = *((uint32_t *)FLASH_META_CODELEN);
 
     if(codelen <= FLASH_APP_LEN)
     {
-        sha256_Raw((const uint8_t *)FLASH_APP_START, codelen, digest);
+        sha256_Init(&ctx);
+        sha256_Update(&ctx, (const uint8_t *)META_MAGIC_STR, META_MAGIC_SIZE);
+        sha256_Update(&ctx, (const uint8_t *)FLASH_META_CODELEN, FLASH_META_DESC_LEN - META_MAGIC_SIZE);
+        sha256_Update(&ctx, (const uint8_t *)FLASH_APP_START, codelen);
+        sha256_Final(digest, &ctx);
         return SHA256_DIGEST_LENGTH;
     }
     else
@@ -74,7 +79,7 @@ int memory_app_fingerprint(uint8_t *digest)
     }
 }
 
-int memory_storage_fingerprint(uint8_t *digest, size_t len)
+int memory_storage_hash(uint8_t *digest, size_t len)
 {
     sha256_Raw((const uint8_t *)FLASH_STORAGE_START, len, digest);
     return SHA256_DIGEST_LENGTH;

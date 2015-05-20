@@ -178,7 +178,7 @@ static const FlashSector flash_sector_map[]= {
 typedef void (*progress_handler_t)(void);
 void memory_protect(void);
 int memory_bootloader_hash(uint8_t *hash);
-int memory_app_fingerprint(uint8_t *digest);
-int memory_storage_fingerprint(uint8_t *digest, size_t len);
+int memory_firmware_hash(uint8_t *digest);
+int memory_storage_hash(uint8_t *digest, size_t len);
 
 #endif
