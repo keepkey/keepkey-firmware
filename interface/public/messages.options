@@ -101,7 +101,7 @@ SimpleSignTx.transactions		max_count:0
 SimpleSignTx.coin_name			max_size:17
 
 # not used in firmware
-FirmwareUpload.payload_crc  max_size:4
+FirmwareUpload.payload_hash  max_size:32
 FirmwareUpload.payload			max_size:0
 
 DebugLinkState.layout			max_size:1024
@@ -113,8 +113,8 @@ DebugLinkState.reset_entropy		max_size:128
 DebugLinkState.recovery_fake_word	max_size:12
 DebugLinkState.recovery_cipher      max_size:27
 DebugLinkState.recovery_auto_completed_word max_size:12
-DebugLinkState.app_fingerprint    max_size:32
-DebugLinkState.storage_fingerprint    max_size:32
+DebugLinkState.firmware_hash    max_size:32
+DebugLinkState.storage_hash    max_size:32
 
 DebugLinkLog.bucket			max_size:33
 DebugLinkLog.text			max_size:256
