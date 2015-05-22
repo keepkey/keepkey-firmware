@@ -331,8 +331,8 @@ void handler_erase(FirmwareErase *msg)
     (void)msg;
 
     if(confirm(ButtonRequestType_ButtonRequest_FirmwareErase,
-               "Verify Backup Before Upgrade",
-               "Before upgrading, confirm that you have access to the backup of your recovery sentence."))
+               "Verify Backup",
+               "Do you have your recovery sentence incase your privates keys are deleted?"))
     {
 
         layout_simple_message("Preparing For Upgrade...");
