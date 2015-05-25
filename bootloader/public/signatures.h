@@ -20,6 +20,14 @@
 #ifndef __SIGNATURES_H__
 #define __SIGNATURES_H__
 
+/* === Defines ============================================================= */
+
+#define PUBKEYS 5
+#define PUBKEY_LENGTH 65
+#define SIGNATURES 3
+
+/* === Functions =========================================================== */
+
 int signatures_ok(void);
 
 #endif

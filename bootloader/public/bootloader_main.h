@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -19,19 +18,15 @@
  *
  */
 
-/* END KEEPKEY LICENSE */
-
-/* prevent duplicate inclusion */
 #ifndef BOOTLOADER_MAIN_H
 #define BOOTLOADER_MAIN_H
 
-/*********************  #defines *************************/
+/* === Typedefs ============================================================ */
 
-/***************** typedefs and enums  *******************/
 typedef void (*app_entry_t)(void);
 
+/* === Functions =========================================================== */
 
-/***************** Function Declaration ******************/
 bool check_fw_is_new(void);
 
 #endif

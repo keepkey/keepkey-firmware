@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -18,20 +17,25 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-/* END KEEPKEY LICENSE */
 
 #ifndef USB_FLASH_H
 #define USB_FLASH_H
 
+/* === Includes ============================================================ */
+
 #include <stdbool.h>
 #include <stdint.h>
 
-/*** Defines ***/
+/* === Defines ============================================================= */
+
+#define RESP_INIT(TYPE) TYPE resp; memset(&resp, 0, sizeof(TYPE));
+
 #define UPLOAD_STATUS_FREQUENCY		    1024
 #define PROTOBUF_FIRMWARE_HASH_START    2
 #define PROTOBUF_FIRMWARE_START	        38
 
-/*** Enums ***/
+/* === Enums =============================================================== */
+
 typedef enum 
 {
     UPLOAD_NOT_STARTED,
@@ -40,12 +44,13 @@ typedef enum
     UPLOAD_ERROR
 } FirmwareUploadState;
 
-/*** Typedefs ***/
+/* === Typedefs ============================================================ */
 
-/* Generic message handler callback type*/
+/* Generic message handler callback type */
 typedef void (*message_handler_t)(void* msg_struct); 
 
-/*** Function Declarations ***/ 
+/* === Functions =========================================================== */
+
 bool usb_flash_firmware(void);
 void send_success(const char *text);
 void send_failure(FailureType code, const char *text);
@@ -53,7 +58,6 @@ void handler_initialize(Initialize* msg);
 void handler_ping(Ping* msg);
 void handler_erase(FirmwareErase* msg);
 void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length);
-
 #if DEBUG_LINK
 void handler_debug_link_get_state(DebugLinkGetState *msg);
 void handler_debug_link_stop(DebugLinkStop *msg);

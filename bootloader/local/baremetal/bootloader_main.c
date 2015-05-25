@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -19,10 +18,8 @@
  *
  */
 
-/* END KEEPKEY LICENSE */
+/* === Includes ============================================================ */
 
-//================================ INCLUDES ===================================
-//
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -42,7 +39,6 @@
 #include <keepkey_usart.h>
 #include <timer.h>
 #include <layout.h>
-
 #include <confirm_sm.h>
 #include <usb_driver.h>
 #include <rng.h>
@@ -51,23 +47,20 @@
 #include "usb_flash.h"
 #include "bootloader_main.h"
 
-//=============================== VARIABLES ===================================
+/* === Variables =========================================================== */
 
 uint32_t *const SCB_VTOR = (uint32_t *)0xe000ed08;
 
-//====================== PRIVATE FUNCTION DECLARATIONS ========================
-
-
-//=============================== FUNCTIONS ===================================
+/* === Private Functions =================================================== */
 
 /*
- * set_vector_table_offset() - Lightweight routine to reset the vector table to point
- * to the application's vector table.
+ * set_vector_table_offset() - Resets the vector table to point to the
+ * application's vector table.
  *
- * INPUT -
- *     1. offset - This must be a multiple of 0x200.  This is added to to the base address of flash
- *     in order to compute the correct base address.
- * OUTPUT - none
+ * INPUT
+ *     - offset: flash offest (must be a multiple of 0x200)
+ * OUTPUT
+ *     none
  *
  */
 static void set_vector_table_offset(uint32_t offset)
@@ -78,34 +71,38 @@ static void set_vector_table_offset(uint32_t offset)
 }
 
 /*
- * boot_jump() - jump to application address
+ * boot_jump() - Jump to application address
  *
- * INPUT - Start of application address
- * OUTPUT - none
+ * INPUT
+ *     - address: start of application address
+ * OUTPUT
+ *     none
  *
  */
-static void boot_jump(uint32_t addr)
+static void boot_jump(uint32_t address)
 {
     /*
-     * Jump to one after the base app address to get past the stack pointer.  The +1
-     * is to maintain a valid thumb instruction.
+     * Jump to one after the base app address to get past the stack pointer.
+     * The +1 is to maintain a valid thumb instruction.
      */
-    uint32_t entry_addr = addr + 4;
-    uint32_t app_entry_addr = (uint32_t)(*(uint32_t *)(entry_addr));
-    app_entry_t app_entry = (app_entry_t)app_entry_addr;
+    uint32_t entry_address = address + 4;
+    uint32_t app_entry_address = (uint32_t)(*(uint32_t *)(entry_address));
+    app_entry_t app_entry = (app_entry_t)app_entry_address;
     app_entry();
 }
 
 /*
- * bootloader_init() - initialize misc initialization for bootloader
+ * bootloader_init() - Initialization for bootloader
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  *
  */
 static void bootloader_init(void)
 {
-    reset_rng();//
+    reset_rng();
     timer_init();
     usart_init();
     keepkey_leds_init();
@@ -115,10 +112,12 @@ static void bootloader_init(void)
 }
 
 /*
- * clock_init() - clock initialization
+ * clock_init() - Clock initialization
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  *
  */
 static void clock_init(void)
@@ -139,8 +138,10 @@ static void clock_init(void)
 /*
  *  is_fw_update_mode() - Determines whether in firmware update mode or not
  *
- *  INPUT - none
- *  OUTPUT - true/false
+ *  INPUT
+ *      none
+ *  OUTPUT
+ *      true/false whether firmware is in update mode
  *
  */
 static bool is_fw_update_mode(void)
@@ -153,10 +154,12 @@ static bool is_fw_update_mode(void)
 }
 
 /*
- *  magic_ok() - check application magic
+ *  magic_ok() - Check application magic
  *
- *  INPUT - none
- *  OUTPUT - true/false
+ *  INPUT
+ *      none
+ *  OUTPUT
+ *      true/false if application has correct magic
  *
  */
 static bool magic_ok(void)
@@ -176,8 +179,10 @@ static bool magic_ok(void)
 /*
  *  boot() - Runs through application firmware checking, and then boots
  *
- *  INPUT - none
- *  OUTPUT - true/false
+ *  INPUT
+ *      none
+ *  OUTPUT
+ *      true/false whether boot was successful
  *
  */
 static bool boot(void)
@@ -217,8 +222,10 @@ cancel_boot:
 /*
  *  update_fw() - Firmware update mode
  *
- *  INPUT - none
- *  OUTPUT - none
+ *  INPUT
+ *      none
+ *  OUTPUT
+ *      none
  *
  */
 static void update_fw(void)
@@ -237,11 +244,16 @@ static void update_fw(void)
     }
 }
 
+/* === Functions =========================================================== */
+
 /*
  * main - Bootloader main entry function
  *
- * INPUT - argc (not used)
- * OUTPUT - argv (not used)
+ * INPUT
+ *     - argc: (not used)
+ *     - argv: (not used)
+ * OUTPUT
+ *     0 when complete
  */
 int main(int argc, char *argv[])
 {
@@ -276,7 +288,7 @@ int main(int argc, char *argv[])
 #if DEBUG_LINK
     board_reset();
 #else
-    system_halt();  /* Loops forever */
+    system_halt(); /* Loops forever */
 #endif
-    return(false);  /* Should never get here */
+    return(0); /* Should never get here */
 }

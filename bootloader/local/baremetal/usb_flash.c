@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -18,7 +17,8 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-/* END KEEPKEY LICENSE */
+
+/* === Includes ============================================================ */
 
 #include <assert.h>
 #include <stdint.h>
@@ -41,47 +41,53 @@
 #include "signatures.h"
 #include "usb_flash.h"
 
-#define RESP_INIT(TYPE) TYPE resp; memset(&resp, 0, sizeof(TYPE));
+/* === Variables =========================================================== */
 
-/*** Definition ***/
 static FirmwareUploadState upload_state = UPLOAD_NOT_STARTED;
 static ConfigFlash storage_shadow;
 static uint8_t firmware_hash[SHA256_DIGEST_LENGTH];
 extern bool reset_msg_stack;
 
-/*** Structure to map incoming messages to handler functions. ***/
 static const MessagesMap_t MessagesMap[] =
 {
-    // in messages
+    /* Normal Messages */
     MSG_IN(MessageType_MessageType_Initialize,              Initialize_fields,          (message_handler_t)(handler_initialize))
     MSG_IN(MessageType_MessageType_Ping,                    Ping_fields,                (message_handler_t)(handler_ping))
     MSG_IN(MessageType_MessageType_FirmwareErase,           FirmwareErase_fields,       (message_handler_t)(handler_erase))
     MSG_IN(MessageType_MessageType_ButtonAck,               ButtonAck_fields,           NO_PROCESS_FUNC)
+    
+    /* Normal Raw Messages */
     RAW_IN(MessageType_MessageType_FirmwareUpload,          FirmwareUpload_fields,      (message_handler_t)(raw_handler_upload))
+    
+    /* Normal Out Messages */
     MSG_OUT(MessageType_MessageType_Features,               Features_fields,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_Success,                Success_fields,             NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_Failure,                Failure_fields,             NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_ButtonRequest,          ButtonRequest_fields,       NO_PROCESS_FUNC)
+
 #if DEBUG_LINK
-    // debug in messages
+    /* Debug Messages */
     DEBUG_IN(MessageType_MessageType_DebugLinkDecision,     DebugLinkDecision_fields,   NO_PROCESS_FUNC)
     DEBUG_IN(MessageType_MessageType_DebugLinkGetState,     DebugLinkGetState_fields,   (message_handler_t)(handler_debug_link_get_state))
     DEBUG_IN(MessageType_MessageType_DebugLinkStop,         DebugLinkStop_fields,       (message_handler_t)(handler_debug_link_stop))
     DEBUG_IN(MessageType_MessageType_DebugLinkFillConfig,   DebugLinkFillConfig_fields, (message_handler_t)(handler_debug_link_fill_config))
-    // debug out messages
+    
+    /* Debug Out Messages */
     DEBUG_OUT(MessageType_MessageType_DebugLinkState,       DebugLinkState_fields,      NO_PROCESS_FUNC)
     DEBUG_OUT(MessageType_MessageType_DebugLinkLog,         DebugLinkLog_fields,        NO_PROCESS_FUNC)
 #endif
 };
 
+/* === Private Functions =================================================== */
+
 /*
  * check_firmware_hash - checks flashed firmware's hash
  *
  * INPUT
- *  - none
+ *     none
  *
  * OUTPUT
- *  - status of hash check
+ *  status of hash check
  */
 static bool check_firmware_hash(void)
 {
@@ -96,10 +102,10 @@ static bool check_firmware_hash(void)
  * bootloader_fsm_init() - initiliaze fsm for bootloader
  *
  * INPUT
- *  - none
+ *     none
  *
  * OUTPUT
- *  - update status
+ *     update status
  */
 static void bootloader_fsm_init(void)
 {
@@ -117,22 +123,22 @@ static void bootloader_fsm_init(void)
  *  flash_locking_write - restore storage partition in flash for firmware update
  *
  *  INPUT -
- *      1. flash partition
- *      2. flash offset within partition to begin write
- *      3. length to write
- *      4. pointer to source data
+ *      - group: flash partition
+ *      - offset: flash offset within partition to begin write
+ *      - len: length to write
+ *      - data: pointer to source data
  *
  *  OUTPUT -
- *      status
+ *      status of flash write
  */
 static bool flash_locking_write(Allocation group, size_t offset, size_t len,
-                         uint8_t *dataPtr)
+                         uint8_t *data)
 {
     bool ret_val = true;
 
     flash_unlock();
 
-    if(flash_write(group, offset, len, dataPtr) == false)
+    if(flash_write(group, offset, len, data) == false)
     {
         /* flash error detectected */
         ret_val = false;
@@ -142,14 +148,16 @@ static bool flash_locking_write(Allocation group, size_t offset, size_t len,
     return(ret_val);
 }
 
+/* === Functions =========================================================== */
+
 /*
  * usb_flash_firmware() - update firmware over usb bus
  *
  * INPUT
- *  - none
+ *     none
  *
  * OUTPUT
- *  - update status
+ *     update status
  */
 bool usb_flash_firmware(void)
 {
@@ -214,14 +222,16 @@ uff_exit:
     return(ret_val);
 }
 
+/* --- Message Out Writing ------------------------------------------------- */
+
 /*
- * send_success() - Send success message over usb port
+ * send_success() - Send success message to host
  *
  * INPUT
- *  - message string
+ *     - text: success message
  *
  * OUTPUT
- *  - none
+ *     none
  *
  */
 
@@ -239,14 +249,14 @@ void send_success(const char *text)
 }
 
 /*
- * send_falure() -  Send failure message over usb port
+ * send_falure() -  Send failure message to host
  *
  * INPUT
- *  - failure code
- *  - message string
+ *     - code: failure code
+ *     - text: failure message
  *
  * OUTPUT
- *  - none
+ *     none
  *
  */
 void send_failure(FailureType code, const char *text)
@@ -272,13 +282,15 @@ void send_failure(FailureType code, const char *text)
     msg_write(MessageType_MessageType_Failure, &resp);
 }
 
+/* --- Message Handlers ---------------------------------------------------- */
+
 /*
- * handler_ping() - stubbed handler
+ * handler_ping() - handler to respond to ping message
  *
  * INPUT -
- *      none
+ *     - msg: ping protocol buffer message
  * OUTPUT -
- *      none
+ *     none
  */
 void handler_ping(Ping *msg)
 {
@@ -294,11 +306,10 @@ void handler_ping(Ping *msg)
 }
 
 /*
- * handler_initialize() - handler to respond to usb host with bootloader
- *      initialization values
+ * handler_initialize() - handler to respond to initialize message
  *
  * INPUT -
- *      usb buffer - not used
+ *      - msg: initialize protocol buffer message
  * OUTPUT -
  *      none
  */
@@ -318,12 +329,12 @@ void handler_initialize(Initialize *msg)
 }
 
 /*
- * handler_erase() - The function is invoked by the host PC to erase "storage"
- *      and "application" partitions.
+ * handler_erase() - handler to wipe application firmware
  *
  * INPUT -
- *    *msg = unused argument
- * OUTPUT - none
+ *     - msg: firmware erase protocol buffer message
+ * OUTPUT
+ *     none
  *
  */
 void handler_erase(FirmwareErase *msg)
@@ -350,17 +361,19 @@ void handler_erase(FirmwareErase *msg)
     }
 }
 
+/* --- Raw Message Handlers ------------------------------------------------ */
+
 /*
- * raw_handler_upload() - The function updates application image downloaded over the USB
- *      to application partition.  Prior to the update, it will validate image
- *      SHA256 (finger print) and install "KPKY" magic upon validation
+ * raw_handler_upload() - Main firmware upload handler that parses USB message
+ * and writes image to flash
  *
  * INPUT -
- *     1. buffer pointer
- *     2. size of buffer
- *     3. size of file
+ *     - msg: pointer to usb message buffer
+ *     - msg_size: size of buffer
+ *     - frame_length: total size that should be expected
  *
- * OUTPUT - none
+ * OUTPUT
+ *     none
  *
  */
 void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
@@ -460,15 +473,17 @@ rhu_exit:
     return;
 }
 
+/* --- Debug Message Handlers ---------------------------------------------- */
+
 #if DEBUG_LINK
 /*
  * handler_debug_link_get_state() - Handler for debug link get state
  *
  * INPUT
- *  - msg:  pointer to DebugLinkGetState msg
+ *     - msg: debug link get state protocol buffer message
  *
  * OUTPUT
- *  - none
+ *     none
  */
 void handler_debug_link_get_state(DebugLinkGetState *msg)
 {
@@ -493,10 +508,10 @@ void handler_debug_link_get_state(DebugLinkGetState *msg)
  * handler_debug_link_stop() - Handler for debug link stop
  *
  * INPUT
- *  - msg:  pointer to DebugLinkStop msg
+ *     - msg: debug link stop protocol buffer message
  *
  * OUTPUT
- *  - none
+ *     none
  */
 void handler_debug_link_stop(DebugLinkStop *msg)
 {
@@ -504,13 +519,14 @@ void handler_debug_link_stop(DebugLinkStop *msg)
 }
 
 /*
- * handler_debug_link_fill_config() - Fills config area with sample data (used for testing firmware upload)
+ * handler_debug_link_fill_config() - Fills config area with sample data (used
+ * for testing firmware upload)
  *
  * INPUT
- *  - msg:  pointer to DebugLinkFillConfig msg
+ *     - msg: debug link fill config protocol buffer message
  *
  * OUTPUT
- *  - none
+ *     none
  */
 void handler_debug_link_fill_config(DebugLinkFillConfig *msg)
 {
