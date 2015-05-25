@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,31 +15,13 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
 
-/* END KEEPKEY LICENSE */
-
-/* prevent duplicate inclusion */
 #ifndef BOOTLOADER_H
 #define BOOTLOADER_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* === Typedefs ============================================================ */
 
-/*********************  #defines *************************/
+typedef void (*bootloader_entry_t)(void);
 
-/***************** typedefs and enums  *******************/
-typedef void (*app_entry_t)(void);
-
-
-/***************** Function Declaration ******************/
-int signatures_ok(void);
-bool check_firmware_sig(void);
-bool check_fw_is_new(void);
-
-#ifdef __cplusplus
-}
-#endif
 #endif

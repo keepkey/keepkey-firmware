@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,86 +15,95 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
 
-/* END KEEPKEY LICENSE */
+/* === Includes ============================================================ */
 
-//================================ INCLUDES =================================== 
-//
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/cm3/cortex.h>
+
 #include <memory.h>
-#include <bootstrap.h>
 
+#include "bootstrap.h"
 
+/* === Private Variables =================================================== */
 
-//=============================== VARIABLES ===================================
+static uint32_t * const  SCB_VTOR = (uint32_t*)0xe000ed08;
 
-uint32_t * const  SCB_VTOR = (uint32_t*)0xe000ed08;
-
-
-//=============================== FUNCTIONS ===================================
+/* === Private Functions =================================================== */
 
 /*
- * Lightweight routine to reset the vector table to point to the application's vector table.
+ * set_vector_table_bootloader() - Resets the vector table to point to the
+ * bootloaders's vector table.
  *
- * @param offset This must be a multiple of 0x200.  This is added to to the base address of flash
- *               in order to compute the correct base address.
- * 
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
+ *
  */
-static void set_vector_table_offset(uint32_t offset)
+static void set_vector_table_bootloader(void)
 { 
     static const uint32_t NVIC_OFFSET_FLASH = ((uint32_t)FLASH_ORIGIN);
 
-    *SCB_VTOR = NVIC_OFFSET_FLASH | (offset & (uint32_t)0x1FFFFF80);
+    *SCB_VTOR = NVIC_OFFSET_FLASH | ((FLASH_BOOT_START - FLASH_ORIGIN) & (uint32_t)0x1FFFFF80);
 }
 
 /*
- * bootstrap_halt - forever loop here
+ * bootstrap_halt() - Bootstrap system halt
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
-void __attribute__((noreturn)) bootstrap_halt(void)
+static void __attribute__((noreturn)) bootstrap_halt(void)
 {
-    for (;;) {} // loop forever
+    for(;;); /* Loops forever */
 }
 
 /*
- * boot_jump() - jump to application address
+ * bootloader_jump() - Jump to bootloader
  *
- * INPUT - Start of application address
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  *
  */
-static void boot_jump(uint32_t addr)
+static void bootloader_jump(void)
 {
     /*
-     * Jump to one after the base app address to get past the stack pointer.  The +1 
-     * is to maintain a valid thumb instruction.
+     * Jump to one after the base bootloader address to get past the stack pointer.
+     * The +1 is to maintain a valid thumb instruction.
      */
-    uint32_t entry_addr = addr+4;
-    uint32_t app_entry_addr = (uint32_t)(*(uint32_t*)(entry_addr));
-    app_entry_t app_entry = (app_entry_t)app_entry_addr;
-    app_entry();
+    uint32_t entry_address = FLASH_BOOT_START + 4;
+    uint32_t bootloader_entry_address = (uint32_t)(*(uint32_t*)(entry_address));
+    bootloader_entry_t bootloader_entry = (bootloader_entry_t)bootloader_entry_address;
+    bootloader_entry();
 }
+
+/* === Functions =========================================================== */
 
 /*
  * main - Bootstrap main entry function
  *
- * INPUT - argc (not used)
- * OUTPUT - argv (not used)
+ * INPUT
+ *     - argc: (not used)
+ *     - argv: (not used)
+ * OUTPUT
+ *     0 when complete
  */
 int main(int argc, char* argv[])
 {
     (void)argc;
     (void)argv;
 
-    /* main loop for bootloader to transition to next step */
+    /* Main loop for bootloader to transition to next step */
 	cm_disable_interrupts();
-    set_vector_table_offset(FLASH_BOOT_START - FLASH_ORIGIN);  //offset = 0x20000
-    boot_jump(FLASH_BOOT_START);
+    set_vector_table_bootloader();
+    bootloader_jump();
     bootstrap_halt();
-    return(false);  /* should never get here */
+
+    return(0); /* Should never get here */
 }

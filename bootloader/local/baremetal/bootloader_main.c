@@ -46,45 +46,45 @@
 #include "usb_flash.h"
 #include "bootloader_main.h"
 
-/* === Variables =========================================================== */
+/* === Private Variables =================================================== */
 
-uint32_t *const SCB_VTOR = (uint32_t *)0xe000ed08;
+static uint32_t *const SCB_VTOR = (uint32_t *)0xe000ed08;
 
 /* === Private Functions =================================================== */
 
 /*
- * set_vector_table_offset() - Resets the vector table to point to the
- * application's vector table.
+ * set_vector_table_application() - Resets the vector table to point to the
+ * applications's vector table.
  *
  * INPUT
- *     - offset: flash offest (must be a multiple of 0x200)
+ *     none
  * OUTPUT
  *     none
  *
  */
-static void set_vector_table_offset(uint32_t offset)
+static void set_vector_table_application(void)
 {
     static const uint32_t NVIC_OFFSET_FLASH = ((uint32_t)FLASH_ORIGIN);
 
-    *SCB_VTOR = NVIC_OFFSET_FLASH | (offset & (uint32_t)0x1FFFFF80);
+    *SCB_VTOR = NVIC_OFFSET_FLASH | ((FLASH_APP_START - FLASH_ORIGIN) & (uint32_t)0x1FFFFF80);
 }
 
 /*
- * boot_jump() - Jump to application address
+ * application_jump() - Jump to application
  *
  * INPUT
- *     - address: start of application address
+ *     none
  * OUTPUT
  *     none
  *
  */
-static void boot_jump(uint32_t address)
+static void application_jump(void)
 {
     /*
      * Jump to one after the base app address to get past the stack pointer.
      * The +1 is to maintain a valid thumb instruction.
      */
-    uint32_t entry_address = address + 4;
+    uint32_t entry_address = FLASH_APP_START + 4;
     uint32_t app_entry_address = (uint32_t)(*(uint32_t *)(entry_address));
     app_entry_t app_entry = (app_entry_t)app_entry_address;
     app_entry();
@@ -205,8 +205,8 @@ static bool boot(void)
 
         led_func(CLR_RED_LED);
         cm_disable_interrupts();
-        set_vector_table_offset(FLASH_APP_START - FLASH_ORIGIN);
-        boot_jump(FLASH_APP_START);
+        set_vector_table_application();
+        application_jump();
     }
     else
     {
@@ -289,5 +289,6 @@ int main(int argc, char *argv[])
 #else
     system_halt(); /* Loops forever */
 #endif
+
     return(0); /* Should never get here */
 }
