@@ -31,11 +31,11 @@
 #define MSG_TINY_BFR_SZ     64
 #define MSG_TINY_TYPE_ERROR 0xFFFF
 
-#define MSG_IN(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = NORMAL_MSG, [ID].dir = IN_MSG, [ID].fields = FIELDS, [ID].process_func = PROCESS_FUNC,
-#define MSG_OUT(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = NORMAL_MSG, [ID].dir = OUT_MSG, [ID].fields = FIELDS, [ID].process_func = PROCESS_FUNC,
-#define RAW_IN(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = RAW_MSG, [ID].dir = IN_MSG, [ID].fields = FIELDS, [ID].process_func = PROCESS_FUNC,
-#define DEBUG_IN(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = DEBUG_MSG, [ID].dir = IN_MSG, [ID].fields = FIELDS, [ID].process_func = PROCESS_FUNC,
-#define DEBUG_OUT(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = DEBUG_MSG, [ID].dir = OUT_MSG, [ID].fields = FIELDS, [ID].process_func = PROCESS_FUNC,
+#define MSG_IN(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = NORMAL_MSG, [ID].dir = IN_MSG, [ID].fields = FIELDS, [ID].dispatch = PARSABLE, [ID].process_func = PROCESS_FUNC,
+#define MSG_OUT(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = NORMAL_MSG, [ID].dir = OUT_MSG, [ID].fields = FIELDS, [ID].dispatch = PARSABLE, [ID].process_func = PROCESS_FUNC,
+#define RAW_IN(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = NORMAL_MSG, [ID].dir = IN_MSG, [ID].fields = FIELDS, [ID].dispatch = RAW, [ID].process_func = PROCESS_FUNC,
+#define DEBUG_IN(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = DEBUG_MSG, [ID].dir = IN_MSG, [ID].fields = FIELDS, [ID].dispatch = PARSABLE, [ID].process_func = PROCESS_FUNC,
+#define DEBUG_OUT(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = DEBUG_MSG, [ID].dir = OUT_MSG, [ID].fields = FIELDS, [ID].dispatch = PARSABLE, [ID].process_func = PROCESS_FUNC,
 #define NO_PROCESS_FUNC 0
 
 /***************** Typedefs and enums  *******************/
@@ -51,12 +51,9 @@ typedef void (*msg_debug_link_get_state_t)(DebugLinkGetState *);
 typedef enum
 {
     NORMAL_MSG,
-    RAW_MSG,
 #if DEBUG_LINK
     DEBUG_MSG,
 #endif
-    UNKNOWN_MSG,
-    END_OF_MAP
 } MessageMapType;
 
 typedef enum
@@ -64,6 +61,12 @@ typedef enum
     IN_MSG,
     OUT_MSG
 } MessageMapDirection;
+
+typedef enum
+{
+    PARSABLE,
+    RAW
+} MessageMapDispatch;
 
 typedef struct
 {
@@ -79,6 +82,7 @@ typedef struct
 {
     const pb_field_t *fields;
     msg_handler_t process_func;
+    MessageMapDispatch dispatch;
     MessageMapType type;
     MessageMapDirection dir;
     MessageType msg_id;
@@ -108,6 +112,5 @@ void msg_init(void);
 /* Tiny messages */
 MessageType wait_for_tiny_msg(uint8_t *buf);
 MessageType check_for_tiny_msg(uint8_t *buf);
-MessageType tiny_msg_poll_and_buffer(bool block, uint8_t *buf);
 
 #endif
