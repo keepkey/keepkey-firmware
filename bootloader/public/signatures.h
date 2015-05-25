@@ -17,8 +17,8 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __SIGNATURES_H__
-#define __SIGNATURES_H__
+#ifndef SIGNATURES_H
+#define SIGNATURES_H
 
 /* === Defines ============================================================= */
 
