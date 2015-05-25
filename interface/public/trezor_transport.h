@@ -1,9 +1,7 @@
-
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 KeepKey LLC
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -17,64 +15,51 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
 #ifndef KEEPKEY_TRANSPORT_H
 #define KEEPKEY_TRANSPORT_H
 
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* === Defines ============================================================= */
 
-#define MAX_FRAME_SIZE (12*1024)
+#define MAX_FRAME_SIZE (12 * 1024)
+
+/* === Typedefs ============================================================ */
 
 #pragma pack(1)
 
-/**
- * This structure is derived from the Trezor protocol.  Note that the values come in as big endian, so
- * they'll need to be swapped.
- */
+/* This structure is derived from the Trezor protocol.  Note that the values
+come in as big endian, so they'll need to be swapped. */
 typedef struct
 {
-    uint8_t hid_type;  // First byte is always 0x3f
+    uint8_t hid_type; /* First byte is always 0x3f */
 } UsbHeader;
 
-/**
- * Trezor frame header
- */
-/**
- * First Trezor header with the ##<id><len> preamble
- */
+/* Trezor frame header */
 typedef struct
 {
-    /* 
-     * Start of Trezor frame
-     */
+    /* Start of Trezor frame */
     uint8_t pre1;
     uint8_t pre2;
 
     /* Protobuf ID */
-    uint16_t id;    
+    uint16_t id;
 
     /* Length of the following message */
     uint32_t len;
 
 } TrezorFrameHeaderFirst;
 
-/**
- * Second+ continuation fragment.
- */
+/* Second+ continuation fragment. */
 typedef struct
 {
     UsbHeader header;
     uint8_t contents[0];
 } TrezorFrameFragment;
 
-typedef struct 
+typedef struct
 {
     UsbHeader usb_header;
     TrezorFrameHeaderFirst header;
@@ -88,9 +73,5 @@ typedef struct
 } TrezorFrameBuffer;
 
 #pragma pack()
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

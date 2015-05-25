@@ -1,8 +1,7 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 KeepKey LLC
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -16,29 +15,19 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
 #ifndef INTERFACE_H
 #define INTERFACE_H
 
-#include <messages.pb.h>
-#include <storage.pb.h>
-#include <types.pb.h>
-#include <trezor_transport.h>
+#include "messages.pb.h"
+#include "storage.pb.h"
+#include "types.pb.h"
+#include "trezor_transport.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* === Defines ============================================================= */
 
-/**
- * The max size of a decoded protobuf.  
- */
+/* The max size of a decoded protobuf */
 #define MAX_DECODE_SIZE (12 * 1024)
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif
