@@ -42,6 +42,10 @@ static usbd_device *usbd_dev = NULL;
 /* This optional callback is configured by the user to handle receive events.  */
 usb_rx_callback_t user_rx_callback = NULL;
 
+#if DEBUG_LINK
+usb_rx_callback_t user_debug_rx_callback = NULL;
+#endif
+
 /*
  * Used to track the initialization of the USB device.  Set to true after the
  * USB stack is configured.
@@ -315,10 +319,10 @@ static void hid_debug_rx_callback(usbd_device *dev, uint8_t ep)
                                       m.message,
                                       USB_SEGMENT_SIZE);
 
-    if(rx && user_rx_callback)
+    if(rx && user_debug_rx_callback)
     {
         m.len = rx;
-        user_rx_callback(&m);
+        user_debug_rx_callback(&m);
     }
 }
 #endif
@@ -402,15 +406,16 @@ void usb_poll(void)
 }
 
 /*
- * usb_tx() - transmit usb message to host 
+ * usb_tx_helper() - common way to transmit usb message to host 
  *
  * INPUT
  *      message - pointer message buffer
  *      len - length of message
+ *      endpoint - endpoint for transmission
  * OUTPUT
  *      true/false
  */
-bool usb_tx(uint8_t *message, uint32_t len)
+static bool usb_tx_helper(uint8_t *message, uint32_t len, uint8_t endpoint)
 {
 	uint32_t pos = 1;
 
@@ -422,12 +427,26 @@ bool usb_tx(uint8_t *message, uint32_t len)
     	tmp_buffer[0] = '?';
         memcpy(tmp_buffer + 1, message + pos, USB_SEGMENT_SIZE - 1);
 
-        while(usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_IN, tmp_buffer, USB_SEGMENT_SIZE) == 0) {};
+        while(usbd_ep_write_packet(usbd_dev, endpoint, tmp_buffer, USB_SEGMENT_SIZE) == 0) {};
 
         pos += USB_SEGMENT_SIZE - 1;
     }
 
     return(true);
+}
+
+/*
+ * usb_tx() - transmit usb message to host via normal endpoint
+ *
+ * INPUT
+ *      message - pointer message buffer
+ *      len - length of message
+ * OUTPUT
+ *      true/false
+ */
+bool usb_tx(uint8_t *message, uint32_t len)
+{
+    return usb_tx_helper(message, len, ENDPOINT_ADDRESS_IN);
 }
 
 /*
@@ -442,24 +461,7 @@ bool usb_tx(uint8_t *message, uint32_t len)
 #if DEBUG_LINK
 bool usb_debug_tx(uint8_t *message, uint32_t len)
 {
-	uint32_t pos = 1;
-
-	/* Chunk out message */
-    while(pos < len)
-    {
-    	uint8_t tmp_buffer[USB_SEGMENT_SIZE] = { 0 };
-
-    	tmp_buffer[0] = '?';
-        memcpy(tmp_buffer + 1, message + pos, USB_SEGMENT_SIZE - 1);
-
-        while(usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_DEBUG_IN, tmp_buffer, USB_SEGMENT_SIZE) == 0) {};
-
-        pos += USB_SEGMENT_SIZE - 1;
-    }
-
-
-
-    return(true);
+    return usb_tx_helper(message, len, ENDPOINT_ADDRESS_DEBUG_IN);
 }
 #endif
 
@@ -476,6 +478,20 @@ void usb_set_rx_callback(usb_rx_callback_t callback)
     user_rx_callback = callback;
 }
 
+/*
+ * usb_set_debug_rx_callback() - setup USB receive callback function pointer for debug link
+ *
+ * INPUT -
+ *      callback - callback function
+ * OUTPUT - 
+ *      none
+ */
+#if DEBUG_LINK
+void usb_set_debug_rx_callback(usb_rx_callback_t callback)
+{
+    user_debug_rx_callback = callback;
+}
+#endif
 
 /*
  * get_usb_init_stat() - get usb initialization status

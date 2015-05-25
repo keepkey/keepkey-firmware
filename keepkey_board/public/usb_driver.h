@@ -67,6 +67,7 @@ usbd_device *get_usb_init_stat(void);
 bool usb_tx(uint8_t *message, uint32_t len);
 #if DEBUG_LINK
 bool usb_debug_tx(uint8_t *message, uint32_t len);
+void usb_set_debug_rx_callback(usb_rx_callback_t callback);
 #endif
 
 #endif
