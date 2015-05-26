@@ -15,11 +15,9 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
- *          --------------------------------------------
- * Jan 10, 2015 - This file has been modified and adapted for KeepKey project.
- *
  */
+
+/* === Includes ============================================================ */
 
 #include <stdio.h>
 
@@ -38,17 +36,14 @@
 #include "pin_sm.h"
 #include "home_sm.h"
 
-#define MAX_WORDS 				24
-#define MAX_WORD_LEN 			10
-#define ADDITIONAL_WORD_PAD 	5
-#define WORDS_PER_SCREEN 		12
-#define TOKENED_MNEMONIC_BUF	MAX_WORDS * (MAX_WORD_LEN + 1) + 1
-#define FORMATTED_MNEMONIC_BUF	MAX_WORDS * (MAX_WORD_LEN + ADDITIONAL_WORD_PAD) + 1
-#define MNEMONIC_BY_SCREEN_BUF	WORDS_PER_SCREEN * (MAX_WORD_LEN + 1) + 1
+/* === Private Variables =================================================== */
 
 static uint32_t strength;
-static uint8_t  int_entropy[32];
-static bool     awaiting_entropy = false;
+static uint8_t int_entropy[32];
+static bool awaiting_entropy = false;
+static char current_words[MNEMONIC_BY_SCREEN_BUF];
+
+/* === Functions =========================================================== */
 
 void reset_init(bool display_random, uint32_t _strength, bool passphrase_protection,
                 bool pin_protection, const char *language, const char *label)
@@ -97,8 +92,6 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
     msg_write(MessageType_MessageType_EntropyRequest, &resp);
     awaiting_entropy = true;
 }
-
-static char current_words[MNEMONIC_BY_SCREEN_BUF];
 
 void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 {
@@ -158,9 +151,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
         word_count++;
     }
 
-    /*
-     * Have user confirm mnemonic is sets of 12 words
-     */
+    /* Have user confirm mnemonic is sets of 12 words */
     for(uint32_t word_group = 0; word_group * WORDS_PER_SCREEN < (strength / 32) * 3; word_group++)
     {
         char title[MEDIUM_STR_BUF] = "Recovery Sentence";

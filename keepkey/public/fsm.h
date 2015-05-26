@@ -15,22 +15,25 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Jan 12, 2015 - This file has been modified and adapted for KeepKey project.
- *
  */
 
-#ifndef __FSM_H__
-#define __FSM_H__
+#ifndef FSM_H
+#define FSM_H
+
+/* === Includes ============================================================ */
 
 #include <interface.h>
-/***************** #defines ********************************/
+
+/* === Defines ============================================================= */
+
+#define RESP_INIT(TYPE) TYPE *resp = (TYPE *)msg_resp; memset(resp, 0, sizeof(TYPE));
+
 #define ENTROPY_BUF sizeof(((Entropy *)NULL)->entropy.bytes)
 
-/*
- * Message functions
- */
+/* === Functions =========================================================== */
+
+void fsm_init(void);
+
 void fsm_sendSuccess(const char *text);
 void fsm_sendFailure(FailureType code, const char *text);
 
@@ -66,11 +69,6 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg);
 void fsm_msgWordAck(WordAck *msg);
 void fsm_msgCharacterAck(CharacterAck *msg);
 
-void fsm_init(void);
-
-/*
- * Debug message functions
- */
 #if DEBUG_LINK
 //void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
 void fsm_msgDebugLinkGetState(DebugLinkGetState *msg);

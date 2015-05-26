@@ -15,25 +15,26 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Jan 14, 2015 - This file has been modified and adapted for KeepKey project.
- *
  */
 
+/* === Includes ============================================================ */
+
 #include <string.h>
-#include "transaction.h"
-#include "ecdsa.h"
-#include "coins.h"
-#include "util.h"
-#include "crypto.h"
-#include "ripemd160.h"
-#include "base58.h"
+
+#include <ecdsa.h>
+#include <ripemd160.h>
+#include <base58.h>
 #include <interface.h>
 #include <layout.h>
 #include <confirm_sm.h>
 
+#include "transaction.h"
+#include "coins.h"
+#include "util.h"
+#include "crypto.h"
 #include "app_confirm.h"
+
+/* === Functions =========================================================== */
 
 uint32_t op_push(uint32_t i, uint8_t *out) {
 	if (i < 0x4C) {
@@ -274,7 +275,7 @@ uint32_t serialize_script_multisig(const MultisigRedeemScriptType *multisig, uin
 	return r;
 }
 
-// tx methods
+/* --- Transfer Methods ---------------------------------------------------- */
 
 uint32_t tx_serialize_header(TxStruct *tx, uint8_t *out)
 {

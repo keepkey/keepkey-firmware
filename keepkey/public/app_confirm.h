@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,24 +15,23 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
 #ifndef APP_CONFIRM_H
 #define APP_CONFIRM_H
 
+/* === Includes ============================================================ */
+
 #include <stdbool.h>
+
 #include <interface.h>
 
-/***************** #defines ******************************/
+/* === Defines ============================================================= */
 
 #define CONFIRM_SIGN_IDENTITY_TITLE 32
 #define CONFIRM_SIGN_IDENTITY_BODY 416
 
-/***************** typedefs and enums  *******************/
-
-/******************* Function Declarations *****************************/
+/* === Functions =========================================================== */
 
 bool confirm_cipher(bool encrypt, const char *key);
 bool confirm_encrypt_msg(const char *msg, bool signing);
@@ -43,4 +41,4 @@ bool confirm_load_device(bool is_node);
 bool confirm_address(const char *desc, const char *address);
 bool confirm_sign_identity(const IdentityType *identity, const char *challenge);
 
-#endif // APP_CONFIRM_H
+#endif

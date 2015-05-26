@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,34 +15,34 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
-/*
- * @brief General confirmation state machine.
- */
+/* === Includes ============================================================ */
 
 #include <stdbool.h>
-#include "passphrase_sm.h"
-#include "fsm.h"
+
 #include <layout.h>
 #include <msg_dispatch.h>
 #include <rand.h>
-#include <storage.h>
 #include <timer.h>
 
+#include "passphrase_sm.h"
+#include "fsm.h"
+#include "storage.h"
 
-/******************** Statics and Global variables ***********************/
+/* === Variables =========================================================== */
+
 extern bool reset_msg_stack;
 
-//******************** PRIVATE FUNCTION DECLARATIONS *********************/
+/* === Private Functions =================================================== */
 
 /*
- * send_passphrase_request() - send passphrase request to usb host
+ * send_passphrase_request() - Send passphrase request to USB host
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 static void send_passphrase_request(void)
 {
@@ -53,11 +52,12 @@ static void send_passphrase_request(void)
 }
 
 /*
- * wait_for_passphrase_ack() - wait for passphrase acknowledgement from USB host
+ * wait_for_passphrase_ack() - Wait for passphrase acknowledgement from USB host
  *
- * INPUT -
- *      *passphrase_info - pointer to load message from usb host
- * OUTPUT - none
+ * INPUT
+ *      - passphrase_info: passphrase information
+ * OUTPUT
+ *     none
  */
 static void wait_for_passphrase_ack(PassphraseInfo *passphrase_info)
 {
@@ -90,10 +90,13 @@ static void wait_for_passphrase_ack(PassphraseInfo *passphrase_info)
 }
 
 /*
- * run_passphrase_state() - passphrase state machine
+ * run_passphrase_state() - Passphrase state machine
  *
- * INPUT -
- * OUTPUT -
+ * INPUT
+ *     - passphrase_state: current passphrase input state
+ *     - passphrase_info: passphrase information
+ * OUTPUT
+ *     none
  */
 static void run_passphrase_state(PassphraseState *passphrase_state,
                                  PassphraseInfo *passphrase_info)
@@ -129,12 +132,12 @@ static void run_passphrase_state(PassphraseState *passphrase_state,
 }
 
 /*
- * passphrase_request() - request passphrase from user on usb host
+ * passphrase_request() - Request passphrase from user on USB host
  *
- * INPUT -
- *  *passphrase_info - pointer to passphrase info
- * OUTPUT -
- *      true/false - status
+ * INPUT
+ *     - passphrase_info: passphrase information
+ * OUTPUT
+ *      true/false whether passphrase was received
  */
 static bool passphrase_request(PassphraseInfo *passphrase_info)
 {
@@ -169,12 +172,15 @@ static bool passphrase_request(PassphraseInfo *passphrase_info)
     return (ret);
 }
 
+/* === Functions =========================================================== */
+
 /*
- * passphrase_protect() - set passphrase protection
+ * passphrase_protect() - Set passphrase protection
  *
- * INPUT -  none
- * OUTPUT -
- *      true/false - status
+ * INPUT
+ *     none
+ * OUTPUT
+ *     true/false whether passphrase was received
  */
 bool passphrase_protect(void)
 {

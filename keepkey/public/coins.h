@@ -15,20 +15,24 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Jan 12, 2015 - This file has been modified and adapted for KeepKey project.
- *
  */
 
-#ifndef __COINS_H__
-#define __COINS_H__
+#ifndef COINS_H
+#define COINS_H
+
+/* === Includes ============================================================ */
 
 #include <interface.h>
 
+/* === Defines ============================================================= */
+
 #define COINS_COUNT 6
 
+/* === Variables =========================================================== */
+
 extern const CoinType coins[COINS_COUNT];
+
+/* === Functions =========================================================== */
 
 const CoinType *coinByShortcut(const char *shortcut);
 const CoinType *coinByName(const char *name);

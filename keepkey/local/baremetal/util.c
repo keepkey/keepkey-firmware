@@ -15,16 +15,19 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Jan 14, 2015 - This file has been modified and adapted for KeepKey project.
- *
  */
 
+/* === Includes ============================================================ */
+
 #include <libopencm3/cm3/scb.h>
+
 #include "util.h"
 
+/* === Private Variables =================================================== */
+
 static const char *hexdigits = "0123456789ABCDEF";
+
+/* === Functions =========================================================== */
 
 void uint32hex(uint32_t num, char *str)
 {
@@ -68,4 +71,3 @@ uint32_t readprotobufint(uint8_t **ptr)
 	(*ptr)++;
 	return result;
 }
-

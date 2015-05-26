@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,24 +15,23 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
- */
-/* END KEEPKEY LICENSE */
-/*
- * @brief General confirmation state machine
  */
 
 #ifndef PASSPHRASE_SM_H
 #define PASSPHRASE_SM_H
 
+/* === Includes ============================================================ */
+
 #include <stdbool.h>
+
 #include <interface.h>
 
-/***************** #defines  *****************************/
+/* === Defines ============================================================= */
 
 #define PASSPHRASE_BUF sizeof(((PassphraseAck *)NULL)->passphrase)
 
-/***************** typedefs and enums  *******************/
+/* === Typedefs ============================================================ */
+
 /* State for Passphrase SM */
 typedef enum {
     PASSPHRASE_REQUEST,
@@ -57,6 +55,8 @@ typedef struct {
 	PassphraseAckMsg passphrase_ack_msg;
 	char passphrase[PASSPHRASE_BUF];
 } PassphraseInfo;
+
+/* === Functions =========================================================== */
 
 bool passphrase_protect(void);
 

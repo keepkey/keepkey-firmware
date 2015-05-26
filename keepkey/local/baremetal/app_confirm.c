@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,17 +15,11 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
- */
-/* END KEEPKEY LICENSE */
-
-/*
- * @brief General confirmation state machine.
  */
 
-//================================ INCLUDES =================================== 
+/* === Includes ============================================================ */
+
 #include <assert.h>
-
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -48,18 +41,16 @@
 #include "app_layout.h"
 #include "qr_encode.h"
 
-/******************** Static/Global variables *************************/
-
-/******************** Static Function Declarations ********************/
+/* === Functions =========================================================== */
 
 /*
- * confirm_cipher() -
+ * confirm_cipher() - Show cipher confirmation
  *
- * INPUT - 
- *      encrypt -
- *      key - 
- * OUTPUT - 
- *      true/false - status
+ * INPUT
+ *     - encrypt: true/false whether we are encrypting
+ *     - key: string of key value
+ * OUTPUT
+ *     true/false of confirmation
  */
 bool confirm_cipher(bool encrypt, const char *key)
 {
@@ -77,13 +68,13 @@ bool confirm_cipher(bool encrypt, const char *key)
 }
 
 /*
- * confirm_encrypt_msg()
+ * confirm_encrypt_msg() - Show encrypt message confirmation
  *
- * INPUT -
- *      *msg - 
- *      signing - 
- * OUTPUT - 
- *      true/false - status
+ * INPUT
+ *     - msg: message to encrypt 
+ *     - signing: true/false whether we are signing along with encryption
+ * OUTPUT
+ *     true/false of confirmation
  */
 bool confirm_encrypt_msg(const char *msg, bool signing)
 {
@@ -101,13 +92,13 @@ bool confirm_encrypt_msg(const char *msg, bool signing)
 }
 
 /*
- * confirm_decrypt_msg()
+ * confirm_decrypt_msg() - Show decrypt message confirmation
  *
- * INPUT -
- *      *msg -
- *      *address -
- * OUTPUT -
- *      true/false - status
+ * INPUT
+ *      - msg: decrypted message
+ *      - address: address used to sign message
+ * OUTPUT
+ *     true/false of confirmation
  *
  */
 bool confirm_decrypt_msg(const char *msg, const char *address)
@@ -126,13 +117,13 @@ bool confirm_decrypt_msg(const char *msg, const char *address)
 }
 
 /*
- * confirm_transaction_output()
+ * confirm_transaction_output() - Show transaction confirmation
  *
  * INPUT -
- *      *amount - amount to send
- *      *to - who to send to
+ *      - amount: amount to send
+ *      - to: who to send to
  * OUTPUT -
- *      true/false - status
+ *     true/false of confirmation
  *
  */
 bool confirm_transaction_output(const char *amount, const char *to)
@@ -142,12 +133,12 @@ bool confirm_transaction_output(const char *amount, const char *to)
 }
 
 /*
- * confirm_load_device()
+ * confirm_load_device() - Show load device confirmation
  *
- * INPUT -
- *      is_node -
- * OUTPUT -
- *      true/false - status
+ * INPUT
+ *     - is_node: true/false whether this is an hdnode
+ * OUTPUT
+ *     true/false of confirmation
  *
  */
 bool confirm_load_device(bool is_node)
@@ -166,13 +157,13 @@ bool confirm_load_device(bool is_node)
 }
 
 /*
- * confirm_address()
+ * confirm_address() - Show address confirmation
  *
- * INPUT -
- *      *request_title - title for confirm message
- *      *address - address to display both as string and in QR
- * OUTPUT -
- *      true/false - status
+ * INPUT
+ *      - desc: description to show with address
+ *      - address: address to display both as string and in QR
+ * OUTPUT
+ *     true/false of confirmation
  *
  */
 bool confirm_address(const char *desc, const char *address)
@@ -182,13 +173,13 @@ bool confirm_address(const char *desc, const char *address)
 }
 
 /*
- * confirm_sign_identity()
+ * confirm_sign_identity() - Show identity confirmation
  *
- * INPUT -
- *      *identity - identity information from protocol buffer
- *      *challenge - challenge string
- * OUTPUT -
- *      true/false - status
+ * INPUT
+ *      - identity: identity information from protocol buffer
+ *      - challenge: challenge string
+ * OUTPUT
+ *     true/false of confirmation
  *
  */
 bool confirm_sign_identity(const IdentityType *identity, const char *challenge)

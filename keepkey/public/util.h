@@ -17,10 +17,14 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __UTIL_H_
-#define __UTIL_H_
+#ifndef UTIL_H
+#define UTIL_H
+
+/* === Includes ============================================================ */
 
 #include <stdint.h>
+
+/* === Functions =========================================================== */
 
 // converts uint32 to hexa (8 digits)
 void uint32hex(uint32_t num, char *str);

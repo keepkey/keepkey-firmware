@@ -15,10 +15,9 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
- *          --------------------------------------------
- * Jan 10, 2015 - This file has been modified and adapted for KeepKey project.
  */
+
+/* === Includes ============================================================ */
 
 #include <string.h>
 #include <stdio.h>
@@ -27,8 +26,8 @@
 #include <keepkey_board.h>
 #include <layout.h>
 #include <msg_dispatch.h>
-#include <storage.h>
 
+#include "storage.h"
 #include "recovery.h"
 #include "recovery_cipher.h"
 #include "fsm.h"
@@ -36,6 +35,7 @@
 #include "pin_sm.h"
 #include "home_sm.h"
 
+/* === Private Variables =================================================== */
 
 static uint32_t word_count;
 static bool awaiting_word = false;
@@ -45,6 +45,8 @@ static uint32_t word_pos;
 static uint32_t word_index;
 static char word_order[24];
 static char words[24][12];
+
+/* === Functions =========================================================== */
 
 void next_word(void) {
 	word_pos = word_order[word_index];

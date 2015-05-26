@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,27 +15,20 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
-
-//============================= CONDITIONALS ==================================
-
 
 #ifndef APP_LAYOUT_H
 #define APP_LAYOUT_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* === Includes ============================================================ */
 
 #include <stdint.h>
 
-#include "canvas.h"
-#include "resources.h"
-#include "draw.h"
+#include <canvas.h>
+#include <resources.h>
+#include <draw.h>
 
-/*******************  Defines ************************/
+/* === Defines ============================================================= */
 
 /* Transaction */
 #define TRANSACTION_TOP_MARGIN  4
@@ -85,7 +77,8 @@ extern "C" {
 #define QR_DISPLAY_X            4
 #define QR_DISPLAY_Y            10
 
-/**************  Typedefs and Macros *****************/
+/* === Typedefs ============================================================ */
+
 typedef enum
 {
     SLIDE_DOWN,
@@ -100,7 +93,8 @@ typedef struct
     uint32_t elapsed_start_ms;
 } PINAnimationConfig;
 
-/**************  Function Declarations ****************/
+/* === Functions =========================================================== */
+
 void layout_screensaver(void);
 void layout_tx_info(const char *address, uint64_t amount_in_satoshi);
 void layout_transaction_notification(const char *amount, const char *address,
@@ -112,9 +106,4 @@ void layout_cipher(const char *current_word, const char *cipher);
 void layout_address(const char *address);
 void set_leaving_handler(leaving_handler_t leaving_func);
 
-#ifdef __cplusplus
-}
 #endif
-
-#endif // APP_LAYOUT_H
-

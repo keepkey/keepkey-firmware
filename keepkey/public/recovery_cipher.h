@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,24 +15,24 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
- */
-/* END KEEPKEY LICENSE */
-
-/*
- * @brief Recovery cipher.
  */
 
-#ifndef __RECOVERY_CIPHER_H__
-#define __RECOVERY_CIPHER_H__
+#ifndef RECOVERY_CIPHER_H
+#define RECOVERY_CIPHER_H
+
+/* === Includes ============================================================ */
 
 #include <stdint.h>
 #include <stdbool.h>
+
+/* === Defines ============================================================= */
 
 #define MNEMONIC_BUF            24 * 12
 #define CURRENT_WORD_BUF        32
 #define ENGLISH_ALPHABET_BUF    32
 #define ENGLISH_MAX_WORD_LEN    8
+
+/* === Functions =========================================================== */
 
 void recovery_cipher_init(bool passphrase_protection, bool pin_protection, const char *language,
     const char *label, bool _enforce_wordlist);

@@ -17,11 +17,15 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __RECOVERY_H__
-#define __RECOVERY_H__
+#ifndef RECOVERY_H
+#define RECOVERY_H
+
+/* === Includes ============================================================ */
 
 #include <stdint.h>
 #include <stdbool.h>
+
+/* === Functions =========================================================== */
 
 void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_protection, const char *language, const char *label, bool _enforce_wordlist);
 void recovery_word(const char *word);

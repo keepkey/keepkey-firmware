@@ -22,10 +22,12 @@
  * SOFTWARE.
  */
 
+/* === Includes ============================================================ */
+
 #include <stdlib.h>
 #include <stdint.h>
 
-// Constants
+/* === Defines ============================================================= */
 
 // Error correction level
 #define QR_LEVEL_L         0    //  7% of codewords can be restored
@@ -69,6 +71,8 @@
 
 #define QR_MAX_BITDATA        ((QR_MAX_MODULESIZE * QR_MAX_MODULESIZE + 7) / 8)  // Maximum size of bit data
 #define QR_MAX_CODEBLOCK      153                                                // Maximum number of block data code word (including RS code word)
+
+/* === Functions =========================================================== */
 
 //
 // * level - error correction level, use QR_LEVEL_? macros

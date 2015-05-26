@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,18 +15,13 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
 #ifndef APP_RESOURCES_H
 #define APP_RESOURCES_H
 
-/***************** typedefs and enums  *******************/
-
-
-//====================== CLASS MEMBER FUNCTIONS ===========================
-
+/* === Functions =========================================================== */
+ 
 const ImageAnimation* get_screensaver_animation(void);
 
-#endif // APP_RESOURCES_H
+#endif

@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,26 +15,25 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
- */
-/* END KEEPKEY LICENSE */
-/*
- * @brief General confirmation state machine
  */
 
 #ifndef PIN_SM_H
 #define PIN_SM_H
 
+/* === Includes ============================================================ */
+
 #include <stdbool.h>
+
 #include <interface.h>
 
-/***************** #defines ********************************/
+/* === Defines ============================================================= */
+ 
 #define PIN_BUF sizeof(((PinMatrixAck *)NULL)->pin)
 
 #define PIN_FAIL_DELAY_START    2
 #define MAX_PIN_FAIL_ATTEMPTS   32
 
-/***************** typedefs and enums **********************/
+/* === Typedefs ============================================================ */
 
 /* State for PIN SM */
 typedef enum {
@@ -60,7 +58,7 @@ typedef struct {
 	char pin[PIN_BUF];
 } PINInfo;
  
-/***************** Function Declarations *******************/
+/* === Functions =========================================================== */
 
 const char* get_pin_matrix(void);
 bool pin_protect(char *prompt);

@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,11 +15,9 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
-//================================ INCLUDES ===================================
+/* === Includes ============================================================ */
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -35,239 +32,19 @@
 
 #include "app_layout.h"
 #include "app_resources.h"
-#include <qr_encode.h>
+#include "qr_encode.h"
 
-/* static function */
-
-static void layout_animate_pin(void *data, uint32_t duration, uint32_t elapsed);
-static void layout_animate_cipher(void *data, uint32_t duration, uint32_t elapsed);
+/* === Private Functions =================================================== */
 
 /*
- *  layout_home_helper() - splash home screen helper
+ * layout_animate_pin() - Animate pin scramble
  *
- *  INPUT - true/false - reverse or normal
- *  OUTPUT - none
- */
-void layout_screensaver(void)
-{
-    static AnimationImageDrawableParams screensaver;
-    screensaver.base.x = 0;
-    screensaver.base.y = 0;
-
-    screensaver.img_animation = get_screensaver_animation();
-
-    layout_add_animation(
-        &layout_animate_images,
-        (void *)&screensaver,
-        0);
-}
-
-/*
- * layout_transaction_notification() - display standard notification on LCD screen
- *
- * INPUT -
- *      1. string pointer1
- *      2. string pointer2
- *      3. notification type
- * OUTPUT -
- *      none
- */
-void layout_transaction_notification(const char *amount, const char *address,
-                                     NotificationType type)
-{
-    call_leaving_handler();
-    layout_clear();
-
-    Canvas *canvas = layout_get_canvas();
-    DrawableParams sp;
-    const Font *amount_font = get_title_font();
-    const Font *address_font = get_title_font();
-
-    /* Unbold fonts if address becomes too long */
-    if(calc_str_width(address_font, address) > TRANSACTION_WIDTH)
-    {
-        amount_font = get_body_font();
-        address_font = get_body_font();
-    }
-
-    /* Determine vertical alignment and body width */
-    sp.y =  TOP_MARGIN_FOR_ONE_LINE;
-
-    /* Format amount line */
-    char title[BODY_CHAR_MAX];
-    snprintf(title, BODY_CHAR_MAX, "Send %s to", amount);
-
-    /* Draw amount */
-    sp.x = LEFT_MARGIN;
-    sp.color = TITLE_COLOR;
-    draw_string(canvas, amount_font, title, &sp, TRANSACTION_WIDTH, font_height(amount_font));
-
-    /* Draw address */
-    sp.y += font_height(address_font) + TRANSACTION_TOP_MARGIN;
-    sp.x = LEFT_MARGIN;
-    sp.color = BODY_COLOR;
-    draw_string(canvas, address_font, address, &sp, TRANSACTION_WIDTH,
-                font_height(address_font) + BODY_FONT_LINE_PADDING);
-
-    layout_notification_icon(type, &sp);
-}
-
-/*
- * layout_address_notification() - display address notification
- *
- * INPUT -
- *      1. string pointer1
- *      2. address to display both as string and QR
- *      3. notification type
- * OUTPUT -
- *      none
- */
-void layout_address_notification(const char *desc, const char *address,
-                                 NotificationType type)
-{
-    call_leaving_handler();
-    layout_clear();
-
-    Canvas *canvas = layout_get_canvas();
-    DrawableParams sp;
-    const Font *address_font = get_title_font();
-
-    /* Unbold fonts if address becomes too long */
-    if(calc_str_width(address_font, address) > TRANSACTION_WIDTH)
-    {
-        address_font = get_body_font();
-    }
-
-    /* Determine vertical alignment and body width */
-    sp.y =  TOP_MARGIN_FOR_ONE_LINE;
-
-    /* Draw address */
-    sp.y += font_height(address_font) + ADDRESS_TOP_MARGIN;
-    sp.x = LEFT_MARGIN;
-    sp.color = BODY_COLOR;
-    draw_string(canvas, address_font, address, &sp, TRANSACTION_WIDTH,
-                font_height(address_font) + BODY_FONT_LINE_PADDING);
-
-    /* Draw description */
-    if(strcmp(desc, "") != 0)
-    {
-        sp.y = TOP_MARGIN_FOR_ONE_LINE;
-        sp.x = MULTISIG_LEFT_MARGIN;
-        sp.color = BODY_COLOR;
-        draw_string(canvas, address_font, desc, &sp, TRANSACTION_WIDTH,
-                    font_height(address_font) + BODY_FONT_LINE_PADDING);
-    }
-
-    layout_address(address);
-    layout_notification_icon(type, &sp);
-}
-
-/*
- * layout_pin() - draw security pin layout on LCD screen
- *
- * INPUT -
- *      1. pointer to string message
- *      2. pointer PIN storage
- * OUTPUT -
- *      none
- */
-void layout_pin(const char *str, char pin[])
-{
-    DrawableParams sp;
-    Canvas *canvas = layout_get_canvas();
-
-    call_leaving_handler();
-    layout_clear();
-
-    /* Draw prompt */
-    const Font *font = get_body_font();
-    sp.y = 29;
-    sp.x = (140 - calc_str_width(font, str)) / 2;
-    sp.color = BODY_COLOR;
-    draw_string(canvas, font, str, &sp, TITLE_WIDTH, font_height(font));
-    display_refresh();
-
-    /* Animate pin scrambling */
-    layout_add_animation(&layout_animate_pin, (void *)pin, PIN_MAX_ANIMATION_MS);
-}
-
-void layout_cipher(const char *current_word, const char *cipher)
-{
-    DrawableParams sp;
-    const Font *title_font = get_body_font();
-    Canvas *canvas = layout_get_canvas();
-
-    call_leaving_handler();
-    layout_clear();
-
-    /* Draw prompt */
-    sp.y = 11;
-    sp.x = 4;
-    sp.color = BODY_COLOR;
-    draw_string(canvas, title_font, "Recovery Cipher:", &sp, 58, font_height(title_font) + 3);
-
-    /* Draw current word */
-    sp.y = 46;
-    sp.x = 4;
-    sp.color = BODY_COLOR;
-    draw_string(canvas, title_font, current_word, &sp, 68, font_height(title_font));
-    display_refresh();
-
-    /* Animate cipher */
-    layout_add_animation(&layout_animate_cipher, (void *)cipher,
-                         CIPHER_ANIMATION_FREQUENCY_MS * 30);
-}
-
-/*
- * layout_address() - draws qr code of address to oled
- *
- * INPUT -
- *      1. pointer to string address
- * OUTPUT -
- *      none
- */
-void layout_address(const char *address)
-{
-    static unsigned char bitdata[QR_MAX_BITDATA];
-    Canvas *canvas = layout_get_canvas();
-
-    int a, i, j;
-    int side = qr_encode(QR_LEVEL_M, 0, address, 0, bitdata);
-
-    if(side > 0 && side <= 29)
-    {
-        /* Draw QR background */
-        draw_box_simple(canvas, 0xFF, QR_DISPLAY_X, QR_DISPLAY_Y,
-                        (side + 2) * QR_DISPLAY_SCALE, (side + 2) * QR_DISPLAY_SCALE);
-
-        /* Fill in QR */
-        for(i = 0; i < side; i++)
-        {
-            for(j = 0; j < side; j++)
-            {
-                a = j * side + i;
-
-                if(bitdata[a / 8] & (1 << (7 - a % 8)))
-                {
-                    draw_box_simple(canvas, 0x00,
-                                    QR_DISPLAY_SCALE + (i + QR_DISPLAY_X) * QR_DISPLAY_SCALE,
-                                    QR_DISPLAY_SCALE + (j + QR_DISPLAY_Y) * QR_DISPLAY_SCALE,
-                                    QR_DISPLAY_SCALE, QR_DISPLAY_SCALE);
-                }
-            }
-        }
-    }
-}
-
-/*
- * layout_animate_pin() - animate pin scramble
- *
- * INPUT -
- *      *data - pointer to pin array
- *      duration - duration of the pin scramble animation
- *      elapsed - how long we have animating
- * OUTPUT -
- *      none
+ * INPUT
+ *     - data: pointer to pin array
+ *     - duration: duration of the pin scramble animation
+ *     - elapsed: how long we have animating
+ * OUTPUT
+ *     none
  */
 static void layout_animate_pin(void *data, uint32_t duration, uint32_t elapsed)
 {
@@ -405,14 +182,14 @@ static void layout_animate_pin(void *data, uint32_t duration, uint32_t elapsed)
 }
 
 /*
- * layout_animate_cipher() - animate recovery cipher
+ * layout_animate_cipher() - Animate recovery cipher
  *
- * INPUT -
- *      *data - pointer to pin array
- *      duration - duration of the pin scramble animation
- *      elapsed - how long we have animating
- * OUTPUT -
- *      none
+ * INPUT
+ *     - data: pointer to pin array
+ *     - duration: duration of the pin scramble animation
+ *     - elapsed: how long we have been animating
+ * OUTPUT
+ *     none
  */
 static void layout_animate_cipher(void *data, uint32_t duration, uint32_t elapsed)
 {
@@ -538,4 +315,234 @@ static void layout_animate_cipher(void *data, uint32_t duration, uint32_t elapse
     draw_box_simple(canvas, CIPHER_MASK_COLOR,
                     KEEPKEY_DISPLAY_WIDTH - CIPHER_HORIZONTAL_MASK_WIDTH_3, 0,
                     CIPHER_HORIZONTAL_MASK_WIDTH_3, KEEPKEY_DISPLAY_HEIGHT);
+}
+
+/* === Functions =========================================================== */
+
+/*
+ *  layout_home_helper() - Splash screen helper
+ *
+ *  INPUT
+ *      none
+ *  OUTPUT
+ *      none
+ */
+void layout_screensaver(void)
+{
+    static AnimationImageDrawableParams screensaver;
+    screensaver.base.x = 0;
+    screensaver.base.y = 0;
+
+    screensaver.img_animation = get_screensaver_animation();
+
+    layout_add_animation(
+        &layout_animate_images,
+        (void *)&screensaver,
+        0);
+}
+
+/*
+ * layout_transaction_notification() - Display transaction notification
+ *
+ * INPUT
+ *     - amount: amount of transaction
+ *     - address: destination address
+ *     - type: notification type
+ * OUTPUT
+ *     none
+ */
+void layout_transaction_notification(const char *amount, const char *address,
+                                     NotificationType type)
+{
+    call_leaving_handler();
+    layout_clear();
+
+    Canvas *canvas = layout_get_canvas();
+    DrawableParams sp;
+    const Font *amount_font = get_title_font();
+    const Font *address_font = get_title_font();
+
+    /* Unbold fonts if address becomes too long */
+    if(calc_str_width(address_font, address) > TRANSACTION_WIDTH)
+    {
+        amount_font = get_body_font();
+        address_font = get_body_font();
+    }
+
+    /* Determine vertical alignment and body width */
+    sp.y =  TOP_MARGIN_FOR_ONE_LINE;
+
+    /* Format amount line */
+    char title[BODY_CHAR_MAX];
+    snprintf(title, BODY_CHAR_MAX, "Send %s to", amount);
+
+    /* Draw amount */
+    sp.x = LEFT_MARGIN;
+    sp.color = TITLE_COLOR;
+    draw_string(canvas, amount_font, title, &sp, TRANSACTION_WIDTH, font_height(amount_font));
+
+    /* Draw address */
+    sp.y += font_height(address_font) + TRANSACTION_TOP_MARGIN;
+    sp.x = LEFT_MARGIN;
+    sp.color = BODY_COLOR;
+    draw_string(canvas, address_font, address, &sp, TRANSACTION_WIDTH,
+                font_height(address_font) + BODY_FONT_LINE_PADDING);
+
+    layout_notification_icon(type, &sp);
+}
+
+/*
+ * layout_address_notification() - Display address notification
+ *
+ * INPUT
+ *     - desc: description of address being shown (normal or multisig)
+ *     - address: address to display both as string and QR
+ *     - type: notification type
+ * OUTPUT
+ *      none
+ */
+void layout_address_notification(const char *desc, const char *address,
+                                 NotificationType type)
+{
+    call_leaving_handler();
+    layout_clear();
+
+    Canvas *canvas = layout_get_canvas();
+    DrawableParams sp;
+    const Font *address_font = get_title_font();
+
+    /* Unbold fonts if address becomes too long */
+    if(calc_str_width(address_font, address) > TRANSACTION_WIDTH)
+    {
+        address_font = get_body_font();
+    }
+
+    /* Determine vertical alignment and body width */
+    sp.y =  TOP_MARGIN_FOR_ONE_LINE;
+
+    /* Draw address */
+    sp.y += font_height(address_font) + ADDRESS_TOP_MARGIN;
+    sp.x = LEFT_MARGIN;
+    sp.color = BODY_COLOR;
+    draw_string(canvas, address_font, address, &sp, TRANSACTION_WIDTH,
+                font_height(address_font) + BODY_FONT_LINE_PADDING);
+
+    /* Draw description */
+    if(strcmp(desc, "") != 0)
+    {
+        sp.y = TOP_MARGIN_FOR_ONE_LINE;
+        sp.x = MULTISIG_LEFT_MARGIN;
+        sp.color = BODY_COLOR;
+        draw_string(canvas, address_font, desc, &sp, TRANSACTION_WIDTH,
+                    font_height(address_font) + BODY_FONT_LINE_PADDING);
+    }
+
+    layout_address(address);
+    layout_notification_icon(type, &sp);
+}
+
+/*
+ * layout_pin() - Draws pin matrix
+ *
+ * INPUT
+ *     - str: string prompt to display next to pin matrix
+ *     - pin: randomized pin matric
+ * OUTPUT
+ *     none
+ */
+void layout_pin(const char *str, char pin[])
+{
+    DrawableParams sp;
+    Canvas *canvas = layout_get_canvas();
+
+    call_leaving_handler();
+    layout_clear();
+
+    /* Draw prompt */
+    const Font *font = get_body_font();
+    sp.y = 29;
+    sp.x = (140 - calc_str_width(font, str)) / 2;
+    sp.color = BODY_COLOR;
+    draw_string(canvas, font, str, &sp, TITLE_WIDTH, font_height(font));
+    display_refresh();
+
+    /* Animate pin scrambling */
+    layout_add_animation(&layout_animate_pin, (void *)pin, PIN_MAX_ANIMATION_MS);
+}
+
+/*
+ * layout_cipher() - Draws recover cipher
+ *
+ * INPUT
+ *     - current_word: current word that is being typed in at this point in recovery
+ *     - cipher: randomized cipher
+ * OUTPUT
+ *     none
+ */
+void layout_cipher(const char *current_word, const char *cipher)
+{
+    DrawableParams sp;
+    const Font *title_font = get_body_font();
+    Canvas *canvas = layout_get_canvas();
+
+    call_leaving_handler();
+    layout_clear();
+
+    /* Draw prompt */
+    sp.y = 11;
+    sp.x = 4;
+    sp.color = BODY_COLOR;
+    draw_string(canvas, title_font, "Recovery Cipher:", &sp, 58, font_height(title_font) + 3);
+
+    /* Draw current word */
+    sp.y = 46;
+    sp.x = 4;
+    sp.color = BODY_COLOR;
+    draw_string(canvas, title_font, current_word, &sp, 68, font_height(title_font));
+    display_refresh();
+
+    /* Animate cipher */
+    layout_add_animation(&layout_animate_cipher, (void *)cipher,
+                         CIPHER_ANIMATION_FREQUENCY_MS * 30);
+}
+
+/*
+ * layout_address() - Draws QR code of address
+ *
+ * INPUT
+ *     - address: address to QR code for
+ * OUTPUT
+ *     none
+ */
+void layout_address(const char *address)
+{
+    static unsigned char bitdata[QR_MAX_BITDATA];
+    Canvas *canvas = layout_get_canvas();
+
+    int a, i, j;
+    int side = qr_encode(QR_LEVEL_M, 0, address, 0, bitdata);
+
+    if(side > 0 && side <= 29)
+    {
+        /* Draw QR background */
+        draw_box_simple(canvas, 0xFF, QR_DISPLAY_X, QR_DISPLAY_Y,
+                        (side + 2) * QR_DISPLAY_SCALE, (side + 2) * QR_DISPLAY_SCALE);
+
+        /* Fill in QR */
+        for(i = 0; i < side; i++)
+        {
+            for(j = 0; j < side; j++)
+            {
+                a = j * side + i;
+
+                if(bitdata[a / 8] & (1 << (7 - a % 8)))
+                {
+                    draw_box_simple(canvas, 0x00,
+                                    QR_DISPLAY_SCALE + (i + QR_DISPLAY_X) * QR_DISPLAY_SCALE,
+                                    QR_DISPLAY_SCALE + (j + QR_DISPLAY_Y) * QR_DISPLAY_SCALE,
+                                    QR_DISPLAY_SCALE, QR_DISPLAY_SCALE);
+                }
+            }
+        }
+    }
 }

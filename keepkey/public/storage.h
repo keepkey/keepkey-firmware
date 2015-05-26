@@ -15,36 +15,27 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Jan 12, 2015 - This file has been modified and adapted for KeepKey project.
- *
  */
 
-#ifndef __STORAGE_H__
-#define __STORAGE_H__
+#ifndef STORAGE_H
+#define STORAGE_H
 
-#include "types.pb.h"
-#include "storage.pb.h"
-#include "messages.pb.h"
-#include "bip32.h"
-#include "memory.h"
+/* === Includes ============================================================ */
 
-/**
- * Initialize internal storage and configuration.
- *
- * If this function fails to find a valid config block 
- * it will blow away and reinitialize the current one.
- */
+#include <bip32.h>
+#include <memory.h>
+#include <types.pb.h>
+#include <storage.pb.h>
+#include <messages.pb.h>
 
-/*************  Defines  **************************/
+/* === Defines ============================================================= */
+
 #define STORAGE_VERSION 1
 #define PBKDF2_HMAC_SHA512_SALT "TREZORHD"
 
 #define STORAGE_RETRIES 3
-/*************  Typedefs and Enums *****************/
 
-/*************  Function declarations **************/
+/* === Functions =========================================================== */
 
 void storage_init(void);
 void storage_reset_uuid(void);
@@ -67,7 +58,7 @@ bool session_isPassphraseCached(void);
 bool storage_is_pin_correct(const char *pin);
 bool storage_has_pin(void);
 void storage_set_pin(const char *pin);
-const char* storage_get_pin(void);
+const char *storage_get_pin(void);
 void session_cache_pin(const char *pin);
 bool session_is_pin_cached(void);
 void storage_reset_pin_fails(void);
@@ -76,9 +67,9 @@ uint32_t storage_get_pin_fails(void);
 
 bool storage_isInitialized(void);
 
-const char* storage_get_uuid_str(void);
-const char* storage_get_language(void);
-const char* storage_get_label(void);
+const char *storage_get_uuid_str(void);
+const char *storage_get_language(void);
+const char *storage_get_label(void);
 
 bool storage_get_passphrase_protected(void);
 void storage_set_passphrase_protected(bool p);
@@ -86,12 +77,12 @@ void storage_set_mnemonic_from_words(const char (*words)[12], unsigned int num_w
 void storage_set_mnemonic(const char *mnemonic);
 bool storage_has_mnemonic(void);
 
-const char* storage_get_mnemonic(void);
-const char* storage_get_shadow_mnemonic(void);
+const char *storage_get_mnemonic(void);
+const char *storage_get_shadow_mnemonic(void);
 
 bool storage_get_imported(void);
 
 bool storage_has_node(void);
-HDNodeType* storage_get_node(void);
+HDNodeType *storage_get_node(void);
 
 #endif

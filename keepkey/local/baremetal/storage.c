@@ -15,11 +15,9 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
- *          --------------------------------------------
- * March 12, 2015 - This file has been modified and adapted for KeepKey project.
- *
  */
+
+/* === Includes ============================================================ */
 
 #include <string.h>
 #include <stdint.h>
@@ -29,24 +27,19 @@
 #include <bip39.h>
 #include <aes.h>
 #include <pbkdf2.h>
-#include <interface.h>
 #include <keepkey_board.h>
 #include <pbkdf2.h>
 #include <keepkey_flash.h>
-
+#include <interface.h>
+#include <memory.h>
+#include <rng.h>
 
 #include "util.h"
-#include "memory.h"
 #include "storage.h"
-#include "rng.h"
 #include "passphrase_sm.h"
-#include <fsm.h>
+#include "fsm.h"
 
-
-/* Static / Global variables */
-
-/* shadow memory for configuration data in storage partition*/
-ConfigFlash shadow_config;
+/* === Private Variables =================================================== */
 
 static bool   sessionRootNodeCached;
 static HDNode sessionRootNode;
@@ -57,14 +50,20 @@ static char sessionPin[17];
 static bool sessionPassphraseCached;
 static char sessionPassphrase[51];
 
+/* === Variables =========================================================== */
+
+/* Shadow memory for configuration data in storage partition */
+ConfigFlash shadow_config;
+
+/* === Private Functions =================================================== */
 
 /*
- * storage_from_flash() - copy configuration from storage partition in flash memory to shadow memory in RAM
+ * storage_from_flash() - Copy configuration from storage partition in flash memory to shadow memory in RAM
  *
- * INPUT -
- *      storage version
- * OUTPUT -
- *      true/false status
+ * INPUT
+ *     - stor_config: storage config
+ * OUTPUT
+ *     true/false status
  *
  */
 static bool storage_from_flash(ConfigFlash *stor_config)
@@ -84,18 +83,22 @@ static bool storage_from_flash(ConfigFlash *stor_config)
     return true;
 }
 
+/* === Functions =========================================================== */
+
 /*
- * storage_init() - validate storage content and copy data to shadow memory
+ * storage_init() - Validate storage content and copy data to shadow memory
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void storage_init(void)
 {
     /* Init to start of storage partition */
     ConfigFlash *stor_config = (ConfigFlash *)FLASH_STORAGE_START;
 
-    /* reset shadow configuration in RAM */
+    /* Reset shadow configuration in RAM */
     storage_reset();
 
     /* verify storage partition is initialized */
@@ -124,17 +127,19 @@ void storage_init(void)
     }
     else
     {
-        /* keep storage area cleared */
+        /* Keep storage area cleared */
         storage_reset_uuid();
         storage_commit();
     }
 }
 
 /*
- * storage_reset_uuid() - reset configuration uuid in RAM with random numbers
+ * storage_reset_uuid() - Reset configuration uuid in RAM with random numbers
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  *
  */
 void storage_reset_uuid(void)
@@ -146,10 +151,12 @@ void storage_reset_uuid(void)
 }
 
 /*
- * storage_reset() - clear configuration in RAM
+ * storage_reset() - Clear configuration in RAM
  *
- * INPUT -
- * OUTPUT -
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void storage_reset(void)
 {
@@ -160,11 +167,12 @@ void storage_reset(void)
 }
 
 /*
- * session_clear() - reset session states
+ * session_clear() - Reset session states
  *
- * INPUT -
- *     clear_pin - whether to clear pin or not
- * OUTPUT - none
+ * INPUT
+ *     - clear_pin: whether to clear pin or not
+ * OUTPUT
+ *     none
  */
 void session_clear(bool clear_pin)
 {
@@ -178,12 +186,13 @@ void session_clear(bool clear_pin)
 }
 
 /*
- * storage_commit() - write content of configuration in shadow memory to
- *          storage partion in flash
+ * storage_commit() - Write content of configuration in shadow memory to 
+ * storage partion in flash
  *
- * INPUT -
- *      Commit type
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void storage_commit(void)
 {
@@ -243,12 +252,12 @@ void storage_commit(void)
 }
 
 /*
- * storage_loadDevice() - load configuration data from usb message to shadow memory
+ * storage_loadDevice() - Load configuration data from usb message to shadow memory
  *
- * INPUT -
- *      msg - usb message buffer
- * OUTPUT -
- *      none
+ * INPUT
+ *     - msg: load device message
+ * OUTPUT
+ *     none
  */
 void storage_loadDevice(LoadDevice *msg)
 {
@@ -302,12 +311,12 @@ void storage_loadDevice(LoadDevice *msg)
 }
 
 /*
- * storage_setLabel() - set configuration label
+ * storage_setLabel() - Set device label
  *
- * INPUT -
- *      *lebel - pointer to label
- * OUTPUT -
- *      none
+ * INPUT
+ *     - label: label to set
+ * OUTPUT
+ *     none
  */
 void storage_setLabel(const char *label)
 {
@@ -319,12 +328,12 @@ void storage_setLabel(const char *label)
 }
 
 /*
- * storage_setLanguage() - set configuration language
+ * storage_setLanguage() - Set device language
  *
- *  INPUT -
- *      *lang - pointer language
- * OUTPUT -
- *      none
+ * INPUT
+ *     - lang: language to apply
+ * OUTPUT
+ *     none
  */
 void storage_setLanguage(const char *lang)
 {
@@ -341,12 +350,12 @@ void storage_setLanguage(const char *lang)
 
 
 /*
- * storage_is_pin_correct() - authenticate PIN
+ * storage_is_pin_correct() - Validates PIN
  *
  * INPUT
- *      *pin - pointer to PIN
+ *     - pin: PIN to validate
  * OUTPUT
- *      true/false - status
+ *     true/false whether PIN is correct
  */
 bool storage_is_pin_correct(const char *pin)
 {
@@ -354,11 +363,12 @@ bool storage_is_pin_correct(const char *pin)
 }
 
 /*
- * storage_has_pin() - get PIN state
+ * storage_has_pin() - Determines whther device has PIN
  *
- * INPUT - none
- * OUTPUT -
- *      pin state
+ * INPUT
+ *     none
+ * OUTPUT
+ *     true/false whether device has a PIN
  */
 bool storage_has_pin(void)
 {
@@ -366,12 +376,12 @@ bool storage_has_pin(void)
 }
 
 /*
- * storage_set_pin() - save pin in shadow memory
+ * storage_set_pin() - Save PIN
  *
- * INPUT -
- *      *pin - pointer pin string
- * OUTPUT -
- *      none
+ * INPUT
+ *     - pin: PIN to save
+ * OUTPUT
+ *     none
  */
 void storage_set_pin(const char *pin)
 {
@@ -390,11 +400,12 @@ void storage_set_pin(const char *pin)
 }
 
 /*
- * storage_get_pin() - returns pin
+ * storage_get_pin() - Returns PIN
  *
- * INPUT - none
- * OUTPUT -
- *      pin
+ * INPUT
+ *     none
+ * OUTPUT
+ *     device's PIN
  */
 const char *storage_get_pin(void)
 {
@@ -402,12 +413,12 @@ const char *storage_get_pin(void)
 }
 
 /*
- * session_cache_pin() - save pin in session cache
+ * session_cache_pin() - Save pin in session cache
  *
  * INPUT
- *      *pin - pointer pin string
- * OUTPUT -
- *      none
+ *     - pin: PIN to save to session cache
+ * OUTPUT
+ *     none
  */
 void session_cache_pin(const char *pin)
 {
@@ -416,10 +427,12 @@ void session_cache_pin(const char *pin)
 }
 
 /*
- * session_is_pin_cached() - get state Pin cached in session
+ * session_is_pin_cached() - Is PIN cached in session
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     true/false whether PIN is cached in session
  *
  */
 bool session_is_pin_cached(void)
@@ -428,14 +441,16 @@ bool session_is_pin_cached(void)
 }
 
 /*
- * storage_reset_pin_fails() - reset pin failure info in storage partition.
+ * storage_reset_pin_fails() - Reset PIN failures
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void storage_reset_pin_fails(void)
 {
-    /* only write to flash if there's a change in status */
+    /* Only write to flash if there's a change in status */
     if(shadow_config.storage.has_pin_failed_attempts == true)
     {
         shadow_config.storage.has_pin_failed_attempts = false;
@@ -446,10 +461,12 @@ void storage_reset_pin_fails(void)
 }
 
 /*
- * storage_increase_pin_fails() - update pin failed attempts in storage partition
+ * storage_increase_pin_fails() - Increment PIN failed attempts
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void storage_increase_pin_fails(void)
 {
@@ -467,11 +484,12 @@ void storage_increase_pin_fails(void)
 }
 
 /*
- * storage_get_pin_fails() - get number pin failed attempts
+ * storage_get_pin_fails() - Get number PIN failures
  *
- * INPUT - none
- * OUTPOUT -
- *      number of pin failed attempts
+ * INPUT
+ *     none
+ * OUTPOUT
+ *     number of PIN failures
  */
 uint32_t storage_get_pin_fails(void)
 {
@@ -480,12 +498,13 @@ uint32_t storage_get_pin_fails(void)
 }
 
 /*
- * get_root_node_callback() -
+ * get_root_node_callback() - Calls animation callback
  *
- * INPUT -
- *
+ * INPUT
+ *     - iter: current iteration
+ *     - total: total iterations
  * OUTPUT
- *      none
+ *     none
  */
 void get_root_node_callback(uint32_t iter, uint32_t total)
 {
@@ -495,10 +514,12 @@ void get_root_node_callback(uint32_t iter, uint32_t total)
 }
 
 /*
- * storage_getRootNode() -
+ * storage_getRootNode() - Returns root node of device
  *
- * INPUT -
- * OUTPUT -
+ * INPUT
+ *     - node: where to put the node that is found
+ * OUTPUT
+ *     true/false whether root node was found
  */
 bool storage_getRootNode(HDNode *node)
 {
@@ -589,11 +610,12 @@ bool storage_getRootNode(HDNode *node)
 }
 
 /*
- * char *storage_getLanguage() - get configuration language
+ * char *storage_getLanguage() - Get device's language
  *
- * INPUT - none
- * OUTPUT -
- *      pointer to language
+ * INPUT
+ *     none
+ * OUTPUT
+ *     device's language
  */
 const char *storage_getLanguage(void)
 {
@@ -601,12 +623,12 @@ const char *storage_getLanguage(void)
 }
 
 /*
- * session_cachePassphrase() - set session passphrase
+ * session_cachePassphrase() - Set session passphrase
  *
- * INPUT -
- *      *passphrase - pointer to passphrase
- * OUTPUT -
- *      none
+ * INPUT
+ *     - passphrase: passphrase to set for session
+ * OUTPUT
+ *     none
  */
 void session_cachePassphrase(const char *passphrase)
 {
@@ -615,11 +637,12 @@ void session_cachePassphrase(const char *passphrase)
 }
 
 /*
- * session_isPassphraseCached() -
+ * session_isPassphraseCached() - Returns whether there is a cached passphrase
  *
- * INPUT - none
- * OUTPUT -
- *      Session Passphrase cache status
+ * INPUT
+ *     none
+ * OUTPUT
+ *     true/false session passphrase cache status
  */
 bool session_isPassphraseCached(void)
 {
@@ -627,11 +650,12 @@ bool session_isPassphraseCached(void)
 }
 
 /*
- * storage_isInitialized() - get configuration init status
+ * storage_isInitialized() - Is device initialized?
  *
- * INPUT - none
- * OUTPUT -
- *      init status
+ * INPUT
+ *     none
+ * OUTPUT
+ *     true/false wether device is initialized
  *
  *
  */
@@ -641,11 +665,12 @@ bool storage_isInitialized(void)
 }
 
 /*
- * storage_get_uuid_str() - get uuid string
+ * storage_get_uuid_str() - Get device's UUID
  *
- * INPUT - none
+ * INPUT
+ *     none
  * OUTPUT
- *      configuration UUID string
+ *     device's UUID
  */
 const char *storage_get_uuid_str(void)
 {
@@ -653,11 +678,12 @@ const char *storage_get_uuid_str(void)
 }
 
 /*
- * storage_get_language() - get configuration language
+ * storage_get_language() - Get device's language
  *
- * INPUT - none
+ * INPUT
+ *     none
  * OUTPUT
- *      pointer to config language
+ *     device's language
  */
 const char *storage_get_language(void)
 {
@@ -672,11 +698,12 @@ const char *storage_get_language(void)
 }
 
 /*
- * storage_get_label() - get config label
+ * storage_get_label() - Get device's label
  *
- * INPUT - none
- * OUTPUT -
- *      pointer config label
+ * INPUT
+ *     none
+ * OUTPUT
+ *     device's label
  *
  */
 const char *storage_get_label(void)
@@ -692,11 +719,12 @@ const char *storage_get_label(void)
 }
 
 /*
- * storage_get_passphrase_protected() -  get passphrase protection status
+ * storage_get_passphrase_protected() - Get passphrase protection status
  *
- * INPUT  - none
- * OUTPUT -
- *      passphrase protection status
+ * INPUT
+ *     none
+ * OUTPUT
+ *     true/false whether device is passphrase protected
  *
  */
 bool storage_get_passphrase_protected(void)
@@ -712,12 +740,12 @@ bool storage_get_passphrase_protected(void)
 }
 
 /*
- * storage_set_passphrase_protected() - set passphrase state
+ * storage_set_passphrase_protected() - Set passphrase protection
  *
- * INPUT -
- *      passphrase state
- * OUTPUT -
- *      none
+ * INPUT
+ *     - p: state of passphrase protection to set
+ * OUTPUT
+ *     none
  *
  */
 void storage_set_passphrase_protected(bool p)
@@ -727,12 +755,13 @@ void storage_set_passphrase_protected(bool p)
 }
 
 /*
- * storage_set_mnemonic_from_words() -  set config mnemonic in shadow memory from words
+ * storage_set_mnemonic_from_words() - Set config mnemonic in shadow memory from words
  *
  * INPUT
- *      pointer mnemonic words
- * OUTPUT -
- *      none
+ *     - words: mnemonic
+ *     - word_count: how words in mnemonic
+ * OUTPUT
+ *     none
  */
 void storage_set_mnemonic_from_words(const char (*words)[12], unsigned int word_count)
 {
@@ -748,11 +777,11 @@ void storage_set_mnemonic_from_words(const char (*words)[12], unsigned int word_
 }
 
 /*
- * storage_set_mnemonic() - set config mnemonic in shadow memory
+ * storage_set_mnemonic() - Set config mnemonic in shadow memory
  *
- * INPUT -
- *     pointer to storage mnemonic
- * OUTPUT -
+ * INPUT
+ *     - m: mnemonic to set in shadow memory
+ * OUTPUT
  *     none
  *
  */
@@ -764,11 +793,12 @@ void storage_set_mnemonic(const char *m)
 }
 
 /*
- * storage_has_mnemonic() - state of storage has_mnemonic
+ * storage_has_mnemonic() - Does device have mnemonic?
  *
- * INPUT - none
- * OUTPUT -
- *      true/false - status
+ * INPUT
+ *     none
+ * OUTPUT
+ *     true/false whether device has mnemonic
  *
  */
 bool storage_has_mnemonic(void)
@@ -777,11 +807,12 @@ bool storage_has_mnemonic(void)
 }
 
 /*
- * storage_get_mnemonic() - get state of config mnemonic from flash
+ * storage_get_mnemonic() - Get mnemonic from flash
  *
- * INPUT - none
- * OUTPUT -
- *      mnemonic array pointer in storage partition
+ * INPUT
+ *     none
+ * OUTPUT
+ *     mnemonic from storage
  *
  */
 const char *storage_get_mnemonic(void)
@@ -790,11 +821,12 @@ const char *storage_get_mnemonic(void)
 }
 
 /*
- * storage_get_shadow_mnemonic() - get state of config mnemonic from shadow memory
+ * storage_get_shadow_mnemonic() - Get mnemonic from shadow memory
  *
- * INPUT -  none
- * OUTPUT -
- *      mnemonic array pointer in ram
+ * INPUT
+ *     none
+ * OUTPUT
+ *     mnemonic from shadow memory
  */
 const char *storage_get_shadow_mnemonic(void)
 {
@@ -802,11 +834,12 @@ const char *storage_get_shadow_mnemonic(void)
 }
 
 /*
- * storage_get_imported() - get state of config data from storage partition
+ * storage_get_imported() - Whether private key stored on device was imported
  *
- * INPUT - none
- * OUTPUT -
- *      true/false - status
+ * INPUT
+ *     none
+ * OUTPUT
+ *     true/false whether private key was imported
  */
 bool storage_get_imported(void)
 {
@@ -814,11 +847,12 @@ bool storage_get_imported(void)
 }
 
 /*
- * storage_has_node() - get state of storage has_node
+ * storage_has_node() - Does device have an HDNode
  *
- * INPUT - none
- * OUTPUT -
- *      true/false - status
+ * INPUT
+ *     none
+ * OUTPUT
+ *     true/false whether device has HDNode
  */
 bool storage_has_node(void)
 {
@@ -826,11 +860,12 @@ bool storage_has_node(void)
 }
 
 /*
- * storage_get_node() - get state of storage node
+ * storage_get_node() - Get HDNode
  *
- * INPUT - none
- * OUTPUT -
- *      true/false - status
+ * INPUT
+ *     none
+ * OUTPUT
+ *     HDNode from storage
  */
 HDNodeType *storage_get_node(void)
 {

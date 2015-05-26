@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,24 +15,22 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
- */
-/* END KEEPKEY LICENSE */
-/*
- * @brief home screen state machine
  */
 
 #ifndef HOME_SM_H
 #define HOME_SM_H
 
+/* === Includes ============================================================ */
+
 #include <stdint.h>
 
 #include <timer.h>
 
-/***************** #defines ********************************/
+/* === Defines ============================================================= */
+ 
 #define SCREENSAVER_TIMEOUT ONE_SEC * 60 * 10
 
-/***************** typedefs and enums **********************/
+/* === Typedefs ============================================================ */
 
 /* State for Home SM */
 typedef enum {
@@ -42,7 +39,7 @@ typedef enum {
 	SCREENSAVER
 } HomeState;
  
-/***************** Function Declarations *******************/
+/* === Functions =========================================================== */
 
 void go_home(void);
 void leave_home(void);

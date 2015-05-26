@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,33 +15,31 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
-/*
- * @brief home screen state machine
- */
+/* === Includes ============================================================ */
 
 #include <layout.h>
 
 #include "home_sm.h"
 #include "app_layout.h"
 
-/*******************  variables *************************************/
-/* track state of home screen */
+/* === Private Variables =================================================== */
+
+/* Track state of home screen */
 static HomeState home_state = AT_HOME;
+
 static uint32_t idle_time = 0;
 
-/*******************FUNCTION Definitions  ****************************/
+/* === Functions =========================================================== */
 
 /*
- * go_home() - returns to home screen
+ * go_home() - Returns to home screen
  *
- * INPUT  - 
- *      none
- * OUTPUT - 
- *      none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void go_home(void)
 {
@@ -61,12 +58,12 @@ void go_home(void)
 }
 
 /*
- * leave_home() - leaves home screen
+ * leave_home() - Leaves home screen
  *
- * INPUT  -
- *      none
- * OUTPUT - 
- *      none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void leave_home(void)
 {
@@ -87,12 +84,12 @@ void leave_home(void)
 }
 
 /*
- * toggle_screensaver() - toggles the screensaver based on idle time
+ * toggle_screensaver() - Toggles the screensaver based on idle time
  *
- * INPUT  -
- *      none
- * OUTPUT -
- *      none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void toggle_screensaver(void)
 {
@@ -117,12 +114,12 @@ void toggle_screensaver(void)
 }
 
 /*
- * increment_idle_time() - increments idle time
+ * increment_idle_time() - Increments idle time
  *
- * INPUT  -
- *      increment_ms - time to increment in ms
- * OUTPUT -
- *      none
+ * INPUT
+ *     increment_ms - time to increment in ms
+ * OUTPUT
+ *     none
  */
 void increment_idle_time(uint32_t increment_ms)
 {
@@ -130,12 +127,12 @@ void increment_idle_time(uint32_t increment_ms)
 }
 
 /*
- * reset_idle_time() - resets idle time
+ * reset_idle_time() - Resets idle time
  *
- * INPUT  -
- *      none
- * OUTPUT -
- *      none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void reset_idle_time(void)
 {

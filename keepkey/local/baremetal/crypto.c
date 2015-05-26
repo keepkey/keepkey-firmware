@@ -17,15 +17,20 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* === Includes ============================================================ */
+
 #include <string.h>
+#include <sha2.h>
+#include <ecdsa.h>
+#include <pbkdf2.h>
+#include <aes.h>
+#include <hmac.h>
+#include <bip32.h>
+#include <layout.h>
+
 #include "crypto.h"
-#include "sha2.h"
-#include "ecdsa.h"
-#include "pbkdf2.h"
-#include "aes.h"
-#include "hmac.h"
-#include "bip32.h"
-#include "layout.h"
+
+/* === Functions =========================================================== */
 
 uint32_t ser_length(uint32_t len, uint8_t *out)
 {

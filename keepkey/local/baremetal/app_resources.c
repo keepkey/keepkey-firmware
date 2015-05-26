@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,24 +15,20 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
-//================================ INCLUDES ===================================
+/* === Includes ============================================================ */
 
 #include <string.h>
 #include <stdint.h>
+
 #include <resources.h>
 
 #include "app_resources.h"
 
+/* === Variables =========================================================== */
 
-//====================== CONSTANTS, TYPES, AND MACROS =========================
-
-
-//========================= SCREENSAVER ANIMATION =============================
-
+/* --- Screensaver --------------------------------------------------------- */
 
 static void screensaver_1(uint8_t *data)
 {
@@ -228,10 +223,16 @@ static const AnimationFrame screensaver_array[] =
 
 static const ImageAnimation screensaver = { 17, screensaver_array };
 
+/* === Functions =========================================================== */
 
-//=============================== FUNCTIONS ===================================
-
-
+/*
+ * get_screensaver_animation() - Gets screensaver animation
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     screensaver ImageAnimation
+ */
 const ImageAnimation *get_screensaver_animation(void)
 {
     return(&screensaver);

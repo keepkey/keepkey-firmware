@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,27 +15,35 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
+
+/* === Includes ============================================================ */
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#include <libopencm3/cm3/cortex.h>
 
 #include <keepkey_board.h>
 #include <layout.h>
-#include <fsm.h>
 #include <usb_driver.h>
 #include <resources.h>
-#include <storage.h>
 #include <keepkey_usart.h>
-#include <home_sm.h>
 #include <rng.h>
-#include <libopencm3/cm3/cortex.h>
 
+#include "home_sm.h"
+#include "storage.h"
+#include "fsm.h"
+
+/* === Private Functions =================================================== */
 
 /*
- * void exec() -  Main loop
+ * exec() - Main loop
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 static void exec(void)
 {
@@ -47,11 +54,15 @@ static void exec(void)
     display_refresh();
 }
 
+/* === Functions =========================================================== */
+
 /*
  * main() - Application main entry
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     0 when complete
  */
 int main(void)
 {
@@ -71,7 +82,7 @@ int main(void)
 
     led_func(SET_GREEN_LED);
 
-    //ReEnable interrupt for timer
+    /* Enable interrupt for timer */
     cm_enable_interrupts();
 
     usb_init();
@@ -87,5 +98,5 @@ int main(void)
         toggle_screensaver();
     }
 
-    return 0;
+    return(0);
 }

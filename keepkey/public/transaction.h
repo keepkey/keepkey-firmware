@@ -17,14 +17,18 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __TRANSACTION_H__
-#define __TRANSACTION_H__
+#ifndef TRANSACTION_H
+#define TRANSACTION_H
+
+/* === Includes ============================================================ */
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "sha2.h"
-#include "bip32.h"
+#include <sha2.h>
+#include <bip32.h>
 #include <interface.h>
+
+/* === Typedefs ============================================================ */
 
 typedef struct {
 	uint32_t inputs_len;
@@ -40,6 +44,8 @@ typedef struct {
 
 	SHA256_CTX ctx;
 } TxStruct;
+
+/* === Functions =========================================================== */
 
 uint32_t compile_script_sig(uint8_t address_type, const uint8_t *pubkeyhash, uint8_t *out);
 uint32_t compile_script_multisig(const MultisigRedeemScriptType *multisig, uint8_t *out);

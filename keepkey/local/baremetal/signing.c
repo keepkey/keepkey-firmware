@@ -15,22 +15,23 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Jan 14, 2015 - This file has been modified and adapted for KeepKey project.
- *
  */
+
+/* === Includes ============================================================ */
+
+#include <msg_dispatch.h>
+#include <ecdsa.h>
+#include <crypto.h>
+#include <layout.h>
+#include <confirm_sm.h>
 
 #include "signing.h"
 #include "fsm.h"
-#include "msg_dispatch.h"
 #include "transaction.h"
-#include "ecdsa.h"
-#include "crypto.h"
-#include "layout.h"
 #include "coins.h"
 #include "home_sm.h"
-#include <confirm_sm.h>
+
+/* === Private Variables =================================================== */
 
 static uint32_t inputs_count;
 static uint32_t outputs_count;
@@ -38,6 +39,19 @@ static const CoinType *coin;
 static const HDNode *root;
 static HDNode node;
 static bool signing = false;
+static uint32_t idx1, idx2;
+static TxRequest resp;
+static TxInputType input;
+static TxOutputBinType bin_output;
+static TxStruct to, tp, ti;
+static SHA256_CTX tc;
+static uint8_t hash[32], hash_check[32], privkey[32], pubkey[33], sig[64];
+static uint64_t to_spend, spending, change_spend;
+static bool multisig_fp_set, multisig_fp_mismatch;
+static uint8_t multisig_fp[32];
+
+/* === Variables =========================================================== */
+
 enum {
 	STAGE_REQUEST_1_INPUT,
 	STAGE_REQUEST_2_PREV_META,
@@ -48,23 +62,10 @@ enum {
 	STAGE_REQUEST_4_OUTPUT,
 	STAGE_REQUEST_5_OUTPUT
 } signing_stage;
-static uint32_t idx1, idx2;
-static TxRequest resp;
-static TxInputType input;
-static TxOutputBinType bin_output;
-static TxStruct to, tp, ti;
-static SHA256_CTX tc;
-static uint8_t hash[32], hash_check[32], privkey[32], pubkey[33], sig[64];
-static uint64_t to_spend, spending, change_spend;
 const uint32_t version = 1;
 const uint32_t lock_time = 0;
-static bool multisig_fp_set, multisig_fp_mismatch;
-static uint8_t multisig_fp[32];
 
-/* progress_step/meta_step are fixed point numbers, giving the 
- * progress per input in permille with these many additional bits.
- */
-#define PROGRESS_PRECISION 16
+/* === Functions =========================================================== */
 
 /*
 Workflow of streamed signing

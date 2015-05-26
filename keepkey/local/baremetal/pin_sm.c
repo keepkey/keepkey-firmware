@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,13 +15,9 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
-/*
- * @brief General confirmation state machine.
- */
+/* === Includes ============================================================ */
 
 #include <stdbool.h>
 
@@ -38,20 +33,24 @@
 #include "fsm.h"
 #include "app_layout.h"
 
-/*******************  variables *************************************/
-/* random PIN matrix holder */
+/* === Private Variables =================================================== */
+
+/* Holds random PIN matrix */
 static char pin_matrix[PIN_BUF] = "XXXXXXXXX";
+
+/* === Variables =========================================================== */
+
 extern bool reset_msg_stack;
 
-/*******************FUNCTION Definitions  ****************************/
+/* === Private Functions =================================================== */
 
 /*
- * send_pin_request() - send USB request for PIN entry over USB port
+ * send_pin_request() - Send USB request for PIN entry over USB port
  *
- * INPUT  -
- *      type -pin request type
- * OUTPUT -
- *      none
+ * INPUT
+ *     - type: pin request type
+ * OUTPUT
+ *     none
  */
 static void send_pin_request(PinMatrixRequestType type)
 {
@@ -63,11 +62,12 @@ static void send_pin_request(PinMatrixRequestType type)
 }
 
 /*
- * wait_for_pin_ack() - capture PIN entry from user over USB port
+ * wait_for_pin_ack() - Capture PIN entry from user over USB port
  *
- * INPUT -
- *      *pin_info -  pointer to PIN info
- * OUTPUT -  none
+ * INPUT
+ *     - pin_info: PIN information
+ * OUTPUT
+ *     none
  */
 static void check_for_pin_ack(PINInfo *pin_info)
 {
@@ -86,13 +86,14 @@ static void check_for_pin_ack(PINInfo *pin_info)
             strlcpy(pin_info->pin, pma->pin, PIN_BUF);
             break;
 
-        case MessageType_MessageType_Cancel :	/* Check for cancel or initialize messages */
+        case MessageType_MessageType_Cancel :   /* Check for cancel or initialize messages */
             pin_info->pin_ack_msg = PIN_ACK_CANCEL;
             break;
 
         case MessageType_MessageType_Initialize:
             pin_info->pin_ack_msg = PIN_ACK_CANCEL_BY_INIT;
             break;
+
 #if DEBUG_LINK
 
         case MessageType_MessageType_DebugLinkGetState:
@@ -107,11 +108,11 @@ static void check_for_pin_ack(PINInfo *pin_info)
 }
 
 /*
- * run_pin_state() - request and receive PIN from user over USB port
+ * run_pin_state() - Request and receive PIN from user over USB port
  *
  * INPUT
- *      *pin_state - state of request
- *      *pin_info - buffer for user PIN
+ *     - pin_state: state of request
+ *     - pin_info: buffer for user PIN
  */
 static void run_pin_state(PINState *pin_state, PINInfo *pin_info)
 {
@@ -148,24 +149,24 @@ static void run_pin_state(PINState *pin_state, PINInfo *pin_info)
 }
 
 /*
- * check_pin_input() - make sure that PIN is at least one digit and a char from 1 to 9
+ * check_pin_input() - Make sure that PIN is at least one digit and a char from 1 to 9
  *
  * INPUT -
- *      *pin_info -
+ *     - pin_info: PIN information
  * OUTPUT -
- *      true/false - status
+ *      true/false whether PIN input is correct format
  */
 static bool check_pin_input(PINInfo *pin_info)
 {
     bool ret = true;
 
-    /* check that PIN is at least 1 digit and no more than 9 */
+    /* Check that PIN is at least 1 digit and no more than 9 */
     if(!(strlen(pin_info->pin) >= 1 && strlen(pin_info->pin) <= 9))
     {
         ret = false;
     }
 
-    /* check that PIN char is a digit from 1 to 9 */
+    /* Check that PIN char is a digit from 1 to 9 */
     for(uint8_t i = 0; i < strlen(pin_info->pin); i++)
     {
         uint8_t num = pin_info->pin[i] - '0';
@@ -180,12 +181,12 @@ static bool check_pin_input(PINInfo *pin_info)
 }
 
 /*
- * decode_pin() - decode user PIN entry
+ * decode_pin() - Decode user PIN entry
  *
- * INPUT -
- *      *pin_info -
- * OUTPUT -
- *      none
+ * INPUT
+ *     - pin_info: PIN information
+ * OUTPUT
+ *     none
  */
 static void decode_pin(PINInfo *pin_info)
 {
@@ -205,12 +206,12 @@ static void decode_pin(PINInfo *pin_info)
 }
 
 /*
- * pin_request() - request user for PIN entry
+ * pin_request() - Request user for PIN entry
  *
- * INPUT -
- *      *prompt - pointer to user text
+ * INPUT
+ *     - prompt: prompt to show user along with PIN matrix
  * OUTPUT -
- *      true/false - status
+ *     true/false of whether PIN was received
  */
 static bool pin_request(const char *prompt, PINInfo *pin_info)
 {
@@ -264,17 +265,21 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
         }
     }
 
-    /* clear PIN matrix */
+    /* Clear PIN matrix */
     strlcpy(pin_matrix, "XXXXXXXXX", PIN_BUF);
 
     return (ret);
 }
 
+/* === Functions =========================================================== */
+
 /*
  * get_pin_matrix() - Gets randomized PIN matrix
  *
- * INPUT - none
- * OUTPUT - randomized PIN
+ * INPUT
+ *     none
+ * OUTPUT
+ *     randomized PIN
  */
 const char *get_pin_matrix(void)
 {
@@ -282,10 +287,12 @@ const char *get_pin_matrix(void)
 }
 
 /*
- * pin_protect() - Authenticate user PIN for device access.
+ * pin_protect() - Authenticate user PIN for device access
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     - prompt: prompt to show user along with PIN matrix
+ * OUTPUT
+ *     true/false of whether PIN was correct
  */
 bool pin_protect(char *prompt)
 {
@@ -351,11 +358,12 @@ bool pin_protect(char *prompt)
 }
 
 /*
- * pin_protect_cached() - get state of pin protection
+ * pin_protect_cached() - Prompt for PIN only if it is not already cached
  *
- * INPUT - none
+ * INPUT
+ *     none
  * OUTPUT -
- *      true/false - status
+ *     true/false of whether PIN was correct
  */
 bool pin_protect_cached(void)
 {
@@ -372,9 +380,10 @@ bool pin_protect_cached(void)
 /*
  * change_pin() - process PIN change
  *
- * INPUT - none
- * OUTPUT -
- *      true/false - status
+ * INPUT
+ *     none
+ * OUTPUT
+ *     true/false of whether PIN was successfully changed
  */
 bool change_pin(void)
 {
@@ -382,8 +391,8 @@ bool change_pin(void)
     PINInfo pin_info_first, pin_info_second;
 
     /* Set request types */
-    pin_info_first.type = 	PinMatrixRequestType_PinMatrixRequestType_NewFirst;
-    pin_info_second.type = 	PinMatrixRequestType_PinMatrixRequestType_NewSecond;
+    pin_info_first.type =   PinMatrixRequestType_PinMatrixRequestType_NewFirst;
+    pin_info_second.type =  PinMatrixRequestType_PinMatrixRequestType_NewSecond;
 
     if(pin_request("Enter New PIN", &pin_info_first))
     {

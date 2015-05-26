@@ -15,21 +15,30 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Jan 12, 2015 - This file has been modified and adapted for KeepKey project.
- *
  */
 
-#ifndef __SIGNING_H__
-#define __SIGNING_H__
+#ifndef SIGNING_H
+#define SIGNING_H
+
+/* === Includes ============================================================ */
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "bip32.h"
+
+#include <bip32.h>
 #include <interface.h>
 
-void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinType *_coin, const HDNode *_root);
+/* === Defines ============================================================= */
+
+/* progress_step/meta_step are fixed point numbers, giving the
+ * progress per input in permille with these many additional bits.
+ */
+#define PROGRESS_PRECISION 16
+
+/* === Functions =========================================================== */
+
+void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinType *_coin,
+                  const HDNode *_root);
 void signing_abort(void);
 void signing_txack(TransactionType *tx);
 
