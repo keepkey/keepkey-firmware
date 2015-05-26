@@ -73,10 +73,6 @@ static void __attribute__((noreturn)) bootstrap_halt(void)
  */
 static void bootloader_jump(void)
 {
-    /*
-     * Jump to one after the base bootloader address to get past the stack pointer.
-     * The +1 is to maintain a valid thumb instruction.
-     */
     uint32_t entry_address = FLASH_BOOT_START + 4;
     uint32_t bootloader_entry_address = (uint32_t)(*(uint32_t*)(entry_address));
     bootloader_entry_t bootloader_entry = (bootloader_entry_t)bootloader_entry_address;

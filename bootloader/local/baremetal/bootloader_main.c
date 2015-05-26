@@ -80,10 +80,6 @@ static void set_vector_table_application(void)
  */
 static void application_jump(void)
 {
-    /*
-     * Jump to one after the base app address to get past the stack pointer.
-     * The +1 is to maintain a valid thumb instruction.
-     */
     uint32_t entry_address = FLASH_APP_START + 4;
     uint32_t app_entry_address = (uint32_t)(*(uint32_t *)(entry_address));
     app_entry_t app_entry = (app_entry_t)app_entry_address;
