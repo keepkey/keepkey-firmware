@@ -238,8 +238,8 @@ void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
     }
 
     storage_set_passphrase_protected(passphrase_protection);
-    storage_setLanguage(language);
-    storage_setLabel(label);
+    storage_set_language(language);
+    storage_set_label(label);
 
     enforce_wordlist = _enforce_wordlist;
 

@@ -43,17 +43,15 @@ void storage_reset(void);
 void session_clear(bool clear_pin);
 void storage_commit(void);
 
-void storage_loadDevice(LoadDevice *msg);
+void storage_load_device(LoadDevice *msg);
 
-bool storage_getRootNode(HDNode *node);
+bool storage_get_root_node(HDNode *node);
 
-void storage_setLabel(const char *label);
+void storage_set_label(const char *label);
+const char *storage_get_label(void);
 
-const char *storage_getLanguage(void);
-void storage_setLanguage(const char *lang);
-
-void session_cachePassphrase(const char *passphrase);
-bool session_isPassphraseCached(void);
+void storage_set_language(const char *lang);
+const char *storage_get_language(void);
 
 bool storage_is_pin_correct(const char *pin);
 bool storage_has_pin(void);
@@ -65,14 +63,15 @@ void storage_reset_pin_fails(void);
 void storage_increase_pin_fails(void);
 uint32_t storage_get_pin_fails(void);
 
-bool storage_isInitialized(void);
+bool storage_is_initialized(void);
 
 const char *storage_get_uuid_str(void);
-const char *storage_get_language(void);
-const char *storage_get_label(void);
 
 bool storage_get_passphrase_protected(void);
-void storage_set_passphrase_protected(bool p);
+void storage_set_passphrase_protected(bool passphrase);
+void session_cache_passphrase(const char *passphrase);
+bool session_is_passphrase_cached(void);
+
 void storage_set_mnemonic_from_words(const char (*words)[12], unsigned int num_words);
 void storage_set_mnemonic(const char *mnemonic);
 bool storage_has_mnemonic(void);

@@ -84,8 +84,8 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
     }
 
     storage_set_passphrase_protected(passphrase_protection);
-    storage_setLanguage(language);
-    storage_setLabel(label);
+    storage_set_language(language);
+    storage_set_label(label);
 
     EntropyRequest resp;
     memset(&resp, 0, sizeof(EntropyRequest));

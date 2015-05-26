@@ -208,7 +208,7 @@ const HDNode *fsm_getDerivedNode(uint32_t *address_n, size_t address_n_count)
 {
     static HDNode node;
 
-    if(!storage_getRootNode(&node))
+    if(!storage_get_root_node(&node))
     {
         fsm_sendFailure(FailureType_Failure_NotInitialized,
                         "Device not initialized or passphrase request cancelled");
@@ -291,7 +291,7 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     memcpy(resp->coins, coins, COINS_COUNT * sizeof(CoinType));
 
     /* Is device initialized? */
-    resp->has_initialized = true;  resp->initialized = storage_isInitialized();
+    resp->has_initialized = true;  resp->initialized = storage_is_initialized();
 
     /* Are private keys imported */
     resp->has_imported = true; resp->imported = storage_get_imported();
@@ -299,7 +299,7 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     /* Cached pin and passphrase status */
     resp->has_pin_cached = true; resp->pin_cached = session_is_pin_cached();
     resp->has_passphrase_cached = true;
-    resp->passphrase_cached = session_isPassphraseCached();
+    resp->passphrase_cached = session_is_passphrase_cached();
 
     msg_write(MessageType_MessageType_Features, resp);
 }
@@ -494,7 +494,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 
 void fsm_msgLoadDevice(LoadDevice *msg)
 {
-    if(storage_isInitialized())
+    if(storage_is_initialized())
     {
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                         "Device is already initialized. Use Wipe first.");
@@ -519,7 +519,7 @@ void fsm_msgLoadDevice(LoadDevice *msg)
         }
     }
 
-    storage_loadDevice(msg);
+    storage_load_device(msg);
 
     storage_commit();
     fsm_sendSuccess("Device loaded");
@@ -528,7 +528,7 @@ void fsm_msgLoadDevice(LoadDevice *msg)
 
 void fsm_msgResetDevice(ResetDevice *msg)
 {
-    if(storage_isInitialized())
+    if(storage_is_initialized())
     {
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                         "Device is already initialized. Use Wipe first.");
@@ -659,12 +659,12 @@ void fsm_msgApplySettings(ApplySettings *msg)
 
     if(msg->has_label)
     {
-        storage_setLabel(msg->label);
+        storage_set_label(msg->label);
     }
 
     if(msg->has_language)
     {
-        storage_setLanguage(msg->language);
+        storage_set_language(msg->language);
     }
 
     if(msg->has_use_passphrase)
@@ -1172,7 +1172,7 @@ void fsm_msgEstimateTxSize(EstimateTxSize *msg)
 
 void fsm_msgRecoveryDevice(RecoveryDevice *msg)
 {
-    if(storage_isInitialized())
+    if(storage_is_initialized())
     {
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                         "Device is already initialized. Use Wipe first.");

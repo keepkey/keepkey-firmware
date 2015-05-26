@@ -252,14 +252,14 @@ void storage_commit(void)
 }
 
 /*
- * storage_loadDevice() - Load configuration data from usb message to shadow memory
+ * storage_load_device() - Load configuration data from usb message to shadow memory
  *
  * INPUT
  *     - msg: load device message
  * OUTPUT
  *     none
  */
-void storage_loadDevice(LoadDevice *msg)
+void storage_load_device(LoadDevice *msg)
 {
     storage_reset();
 
@@ -301,24 +301,24 @@ void storage_loadDevice(LoadDevice *msg)
 
     if(msg->has_language)
     {
-        storage_setLanguage(msg->language);
+        storage_set_language(msg->language);
     }
 
     if(msg->has_label)
     {
-        storage_setLabel(msg->label);
+        storage_set_label(msg->label);
     }
 }
 
 /*
- * storage_setLabel() - Set device label
+ * storage_set_label() - Set device label
  *
  * INPUT
  *     - label: label to set
  * OUTPUT
  *     none
  */
-void storage_setLabel(const char *label)
+void storage_set_label(const char *label)
 {
     if(!label) { return; }
 
@@ -328,14 +328,35 @@ void storage_setLabel(const char *label)
 }
 
 /*
- * storage_setLanguage() - Set device language
+ * storage_get_label() - Get device's label
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     device's label
+ *
+ */
+const char *storage_get_label(void)
+{
+    if(shadow_config.storage.has_label)
+    {
+        return shadow_config.storage.label;
+    }
+    else
+    {
+        return NULL;
+    }
+}
+
+/*
+ * storage_set_language() - Set device language
  *
  * INPUT
  *     - lang: language to apply
  * OUTPUT
  *     none
  */
-void storage_setLanguage(const char *lang)
+void storage_set_language(const char *lang)
 {
     if(!lang) { return; }
 
@@ -348,6 +369,25 @@ void storage_setLanguage(const char *lang)
     }
 }
 
+/*
+ * storage_get_language() - Get device's language
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     device's language
+ */
+const char *storage_get_language(void)
+{
+    if(shadow_config.storage.has_language)
+    {
+        return shadow_config.storage.language;
+    }
+    else
+    {
+        return NULL;
+    }
+}
 
 /*
  * storage_is_pin_correct() - Validates PIN
@@ -514,14 +554,14 @@ void get_root_node_callback(uint32_t iter, uint32_t total)
 }
 
 /*
- * storage_getRootNode() - Returns root node of device
+ * storage_get_root_node() - Returns root node of device
  *
  * INPUT
  *     - node: where to put the node that is found
  * OUTPUT
  *     true/false whether root node was found
  */
-bool storage_getRootNode(HDNode *node)
+bool storage_get_root_node(HDNode *node)
 {
     // root node is properly cached
     if(sessionRootNodeCached)
@@ -610,46 +650,6 @@ bool storage_getRootNode(HDNode *node)
 }
 
 /*
- * char *storage_getLanguage() - Get device's language
- *
- * INPUT
- *     none
- * OUTPUT
- *     device's language
- */
-const char *storage_getLanguage(void)
-{
-    return shadow_config.storage.has_language ? shadow_config.storage.language : NULL;
-}
-
-/*
- * session_cachePassphrase() - Set session passphrase
- *
- * INPUT
- *     - passphrase: passphrase to set for session
- * OUTPUT
- *     none
- */
-void session_cachePassphrase(const char *passphrase)
-{
-    strlcpy(sessionPassphrase, passphrase, sizeof(sessionPassphrase));
-    sessionPassphraseCached = true;
-}
-
-/*
- * session_isPassphraseCached() - Returns whether there is a cached passphrase
- *
- * INPUT
- *     none
- * OUTPUT
- *     true/false session passphrase cache status
- */
-bool session_isPassphraseCached(void)
-{
-    return sessionPassphraseCached;
-}
-
-/*
  * storage_isInitialized() - Is device initialized?
  *
  * INPUT
@@ -659,7 +659,7 @@ bool session_isPassphraseCached(void)
  *
  *
  */
-bool storage_isInitialized(void)
+bool storage_is_initialized(void)
 {
     return shadow_config.storage.has_node || shadow_config.storage.has_mnemonic;
 }
@@ -675,47 +675,6 @@ bool storage_isInitialized(void)
 const char *storage_get_uuid_str(void)
 {
     return shadow_config.meta.uuid_str;
-}
-
-/*
- * storage_get_language() - Get device's language
- *
- * INPUT
- *     none
- * OUTPUT
- *     device's language
- */
-const char *storage_get_language(void)
-{
-    if(shadow_config.storage.has_language)
-    {
-        return shadow_config.storage.language;
-    }
-    else
-    {
-        return NULL;
-    }
-}
-
-/*
- * storage_get_label() - Get device's label
- *
- * INPUT
- *     none
- * OUTPUT
- *     device's label
- *
- */
-const char *storage_get_label(void)
-{
-    if(shadow_config.storage.has_label)
-    {
-        return shadow_config.storage.label;
-    }
-    else
-    {
-        return NULL;
-    }
 }
 
 /*
@@ -748,10 +707,37 @@ bool storage_get_passphrase_protected(void)
  *     none
  *
  */
-void storage_set_passphrase_protected(bool p)
+void storage_set_passphrase_protected(bool passphrase)
 {
     shadow_config.storage.has_passphrase_protection = true;
-    shadow_config.storage.passphrase_protection = p;
+    shadow_config.storage.passphrase_protection = passphrase;
+}
+
+/*
+ * session_cachePassphrase() - Set session passphrase
+ *
+ * INPUT
+ *     - passphrase: passphrase to set for session
+ * OUTPUT
+ *     none
+ */
+void session_cache_passphrase(const char *passphrase)
+{
+    strlcpy(sessionPassphrase, passphrase, sizeof(sessionPassphrase));
+    sessionPassphraseCached = true;
+}
+
+/*
+ * session_isPassphraseCached() - Returns whether there is a cached passphrase
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     true/false session passphrase cache status
+ */
+bool session_is_passphrase_cached(void)
+{
+    return sessionPassphraseCached;
 }
 
 /*
