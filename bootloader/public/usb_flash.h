@@ -33,7 +33,7 @@
 #define PROTOBUF_FIRMWARE_HASH_START    2
 #define PROTOBUF_FIRMWARE_START	        38
 
-/* === Enums =============================================================== */
+/* === Typedefs ============================================================ */
 
 typedef enum 
 {
@@ -42,8 +42,6 @@ typedef enum
     UPLOAD_COMPLETE,
     UPLOAD_ERROR
 } FirmwareUploadState;
-
-/* === Typedefs ============================================================ */
 
 /* Generic message handler callback type */
 typedef void (*message_handler_t)(void* msg_struct); 
