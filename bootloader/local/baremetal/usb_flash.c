@@ -497,8 +497,7 @@ void handler_debug_link_get_state(DebugLinkGetState *msg)
 
     /* Storage fingerprint */
     resp.has_storage_hash = true;
-    resp.storage_hash.size = memory_storage_hash(
-                                 resp.storage_hash.bytes, sizeof(ConfigFlash));
+    resp.storage_hash.size = memory_storage_hash(resp.storage_hash.bytes);
 
     msg_debug_write(MessageType_MessageType_DebugLinkState, &resp);
 }
