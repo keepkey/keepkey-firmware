@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,26 +15,22 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
-#ifndef draw_H
-#define draw_H
+#ifndef DRAW_H
+#define DRAW_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+/* === Includes ============================================================ */
 
 #include <stddef.h>
 #include <stdbool.h>
+
 #include "canvas.h"
 #include "font.h"
 #include "resources.h"
 
+/* === Typedefs ============================================================ */
 
-/***************** typedefs and enums  *******************/
 typedef struct
 {
     uint8_t color;
@@ -53,26 +48,23 @@ typedef struct
 
 typedef struct
 {
-    DrawableParams  		base;
-    const ImageAnimation* 	img_animation;
+    DrawableParams          base;
+    const ImageAnimation   *img_animation;
 } AnimationImageDrawableParams;
 
+/* === Functions =========================================================== */
 
-/******************* Function Declarations ******************/
-bool draw_char_with_shift(Canvas* canvas, DrawableParams* p,
-		int* x_shift, int* y_shift, const CharacterImage* img);
-void draw_string(Canvas* canvas, const Font* font, const char* c, DrawableParams* p, int width,
-		int line_height);
+bool draw_char_with_shift(Canvas *canvas, DrawableParams *p,
+                          int *x_shift, int *y_shift, const CharacterImage *img);
+void draw_string(Canvas *canvas, const Font *font, const char *c, DrawableParams *p,
+                 int width,
+                 int line_height);
 void draw_char(Canvas *canvas, const Font *font, char c, DrawableParams *p);
-void draw_char_simple(Canvas *canvas, const Font *font, char c, uint8_t color, int x, int y);
-void draw_box(Canvas* canvas, BoxDrawableParams*  params);
+void draw_char_simple(Canvas *canvas, const Font *font, char c, uint8_t color, int x,
+                      int y);
+void draw_box(Canvas *canvas, BoxDrawableParams  *params);
 void draw_box_simple(Canvas *canvas, uint8_t color, int x, int y, int width, int height);
-bool draw_bitmap_mono_rle(Canvas* canvas, DrawableParams* p, const Image *img);
+bool draw_bitmap_mono_rle(Canvas *canvas, DrawableParams *p, const Image *img);
 
-
-#ifdef __cplusplus
-}
 #endif
-
-#endif // draw_H
 

@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,21 +15,24 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
 #ifndef CONFIRM_SM_H
 #define CONFIRM_SM_H
 
+/* === Includes ============================================================ */
+
 #include <stdbool.h>
+
 #include <interface.h>
 
-/***************** #defines ******************************/
+/* === Defines ============================================================= */
+
 /* The number of milliseconds to wait for a confirmation */
 #define CONFIRM_TIMEOUT_MS 1200
 
-/***************** typedefs and enums  *******************/
+/* === Typedefs ============================================================ */
+
 typedef enum
 {
     HOME,
@@ -42,7 +44,7 @@ typedef enum
 typedef enum
 {
     LAYOUT_REQUEST,
-	LAYOUT_REQUEST_NO_ANIMATION,
+    LAYOUT_REQUEST_NO_ANIMATION,
     LAYOUT_CONFIRM_ANIMATION,
     LAYOUT_CONFIRMED,
     LAYOUT_FINISHED,
@@ -53,29 +55,35 @@ typedef enum
 /* Define the given layout dialog texts for each screen */
 typedef struct
 {
-    const char* request_title;
-    const char* request_body;
+    const char *request_title;
+    const char *request_body;
 } ScreenLine;
 
 typedef ScreenLine ScreenLines;
 typedef ScreenLines DialogLines[LAYOUT_NUM_LAYOUTS];
 
-typedef struct 
+typedef struct
 {
     DialogLines lines;
     DisplayState display_state;
     ActiveLayout active_layout;
 } StateInfo;
 
-typedef void (*layout_notification_t)(const char* str1, const char* str2, NotificationType type);
+typedef void (*layout_notification_t)(const char *str1, const char *str2,
+                                      NotificationType type);
 
-/******************* Function Declarations *****************************/
-bool confirm(ButtonRequestType type, const char *request_title, const char *request_body, ...);
-bool confirm_with_custom_layout(layout_notification_t layout_notification_func, ButtonRequestType type, 
-    const char *request_title, const char *request_body, ...);
-bool confirm_without_button_request(const char* request_title, const char* request_body, ...);
-bool review(ButtonRequestType type, const char* request_title, const char* request_body, ...);
-bool review_without_button_request(const char *request_title, const char *request_body, ...);
-bool confirm_helper(const char* request_title, const char* request_body, layout_notification_t layout_notification_func);
+/* === Functions =========================================================== */
+
+bool confirm(ButtonRequestType type, const char *request_title, const char *request_body,
+             ...);
+bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
+                                ButtonRequestType type,
+                                const char *request_title, const char *request_body, ...);
+bool confirm_without_button_request(const char *request_title, const char *request_body,
+                                    ...);
+bool review(ButtonRequestType type, const char *request_title, const char *request_body,
+            ...);
+bool review_without_button_request(const char *request_title, const char *request_body,
+                                   ...);
 
 #endif

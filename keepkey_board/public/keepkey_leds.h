@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,24 +15,19 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
-//============================= CONDITIONALS ==================================
+#ifndef KEEPKEY_LEDS_H
+#define KEEPKEY_LEDS_H
 
-
-#ifndef keepkey_leds_H
-#define keepkey_leds_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* === Includes ============================================================ */
 
 #include <stdint.h>
+
 #include "canvas.h"
 
-/***************** typedefs and enums  *******************/
+/* === Typedefs ============================================================ */
+
 typedef enum {
     CLR_GREEN_LED,
     SET_GREEN_LED,
@@ -41,16 +35,12 @@ typedef enum {
     CLR_RED_LED,
     SET_RED_LED,
     TGL_RED_LED
-}led_action;
+} LedAction;
 
-/****************** Function declarations *************** */
+/* === Functions =========================================================== */
 
 void keepkey_leds_init( void);
-void led_func(led_action act);
+void led_func(LedAction act);
 
-#ifdef __cplusplus
-}
 #endif
-
-#endif // keepkey_leds_H
 

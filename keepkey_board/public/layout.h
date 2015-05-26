@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,27 +15,21 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
-//============================= CONDITIONALS ==================================
+#ifndef LAYOUT_H
+#define LAYOUT_H
 
-
-#ifndef layout_H
-#define layout_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* === Includes ============================================================ */
 
 #include <stdint.h>
+
 #include "canvas.h"
 #include "resources.h"
 #include "draw.h"
 
+/* === Defines ============================================================= */
 
-/*******************  Defines ************************/
 #define MAX_ANIMATIONS 5
 #define ANIMATION_PERIOD 20
 
@@ -73,7 +66,8 @@ extern "C" {
 /* Default Layout */
 #define NO_WIDTH 0;
 
-/**************  Typedefs and Macros *****************/
+/* === Typedefs ============================================================ */
+
 typedef enum
 {
     NOTIFICATION_INFO,
@@ -105,9 +99,10 @@ typedef struct
 
 } AnimationQueue;
 
-/**************  Function Declarations ****************/
+/* === Functions =========================================================== */
+
 void layout_init(Canvas *canvas);
-Canvas* layout_get_canvas(void);
+Canvas *layout_get_canvas(void);
 void call_leaving_handler(void);
 void layout_firmware_update_confirmation(void);
 void layout_standard_notification(const char *str1, const char *str2,
@@ -129,9 +124,4 @@ void layout_clear(void);
 void layout_clear_animations(void);
 void layout_clear_static(void);
 
-#ifdef __cplusplus
-}
 #endif
-
-#endif // layout_H
-

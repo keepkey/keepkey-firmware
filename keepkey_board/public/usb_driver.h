@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,18 +15,20 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
 #ifndef USB_H
 #define USB_H
 
+/* === Includes ============================================================ */
+
 #include <stdbool.h>
 #include <stdint.h>
+
 #include <libopencm3/usb/usbd.h>
 
-/******************** #defines ***********************************/
+/* === Defines ============================================================= */
+
 /* USB Board Config */
 #define USB_GPIO_PORT GPIOA
 #define USB_GPIO_PORT_PINS (GPIO11 | GPIO12)
@@ -50,7 +51,8 @@
    space for it.  */
 #define USBD_CONTROL_BUFFER_SIZE 128
 
-/******************** typedefs and enums ****************************/
+/* === Typedefs ============================================================ */
+
 typedef struct
 {
     uint32_t len;
@@ -59,7 +61,8 @@ typedef struct
 
 typedef void (*usb_rx_callback_t)(UsbMessage* msg);
 
-/******************** Function Declarations ************************/
+/* === Functions =========================================================== */
+
 void usb_set_rx_callback(usb_rx_callback_t callback);
 bool usb_init(void);
 void usb_poll(void);

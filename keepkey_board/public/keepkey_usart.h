@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,33 +15,30 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
 #ifndef KEEPKEY_USART_H
 #define KEEPKEY_USART_H
 
-#include <keepkey_leds.h>
-#include <keepkey_display.h>
-#include <keepkey_button.h>
-#include <layout.h>
-#include <timer.h>
+/* === Includes ============================================================ */
+
 #include <stdarg.h>
+
+#include "keepkey_leds.h"
+#include "keepkey_display.h"
+#include "keepkey_button.h"
+#include "layout.h"
+#include "timer.h"
+
+/* === Defines ============================================================= */
 
 #define SMALL_DEBUG_BUF     32
 #define MEDIUM_DEBUG_BUF    64
 #define LARGE_DEBUG_BUF     128
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* === Functions =========================================================== */
 
-void dbg_print(char *pStr, ...); /*  print to debug console */
-void usart_init(void); /* Initialize usart3 for debug port */
-
-#ifdef __cplusplus
-}
-#endif
+void dbg_print(char *pStr, ...);
+void usart_init(void);
 
 #endif

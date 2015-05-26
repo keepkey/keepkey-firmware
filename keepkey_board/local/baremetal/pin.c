@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,25 +15,26 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
-//================================ INCLUDES ===================================
-
+/* === Includes ============================================================ */
 
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
+
 #include "pin.h"
 
+/* === Functions =========================================================== */
+
 /*
- * pin_init_output() - initialize GPIO for led
+ * pin_init_output() - Initialize GPIO for LED
  *
- * INPUT - 
- *      *pin - pointer pin assignment 
- *      output_mode - pin output state 
- *      pull_mode - input mode 
- * OUTPUT - 
+ * INPUT
+ *     - pin: pointer pin assignment 
+ *     - output_mode: pin output state 
+ *     - pull_mode: input mode 
+ * OUTPUT
+ *     none 
  */
 void pin_init_output(const Pin *pin, OutputMode output_mode, PullMode pull_mode)
 {
@@ -65,7 +65,7 @@ void pin_init_output(const Pin *pin, OutputMode output_mode, PullMode pull_mode)
             break;
     }
 
-    // Set up port A
+    /* Set up port A */
     gpio_mode_setup( pin->port, GPIO_MODE_OUTPUT, pull_mode_setpoint, pin->pin );
     gpio_set_output_options( pin->port, output_mode_setpoint, GPIO_OSPEED_100MHZ, pin->pin );
 }

@@ -1,8 +1,7 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 KeepKey LLC
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -16,9 +15,9 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
+
+/* === Includes ============================================================ */
 
 #include <assert.h>
 #include <stdbool.h>
@@ -30,21 +29,15 @@
 #include <libopencm3/stm32/desig.h>
 #include <libopencm3/usb/hid.h>
 #include <libopencm3/stm32/rcc.h>
-#include <keepkey_board.h>
 
+#include "keepkey_board.h"
 
-/************ Static and Global variables  **************************/
+/* === Private Variables =================================================== */
+
 static uint8_t usbd_control_buffer[USBD_CONTROL_BUFFER_SIZE];
 
 /* USB Device state structure.  */
 static usbd_device *usbd_dev = NULL;
-
-/* This optional callback is configured by the user to handle receive events.  */
-usb_rx_callback_t user_rx_callback = NULL;
-
-#if DEBUG_LINK
-usb_rx_callback_t user_debug_rx_callback = NULL;
-#endif
 
 /*
  * Used to track the initialization of the USB device.  Set to true after the
@@ -52,7 +45,7 @@ usb_rx_callback_t user_debug_rx_callback = NULL;
  */
 static bool usb_configured = false;
 
-/* usb device descriptor */
+/* USB device descriptor */
 static const struct usb_device_descriptor dev_descr = {
 	.bLength = USB_DT_DEVICE_SIZE,
 	.bDescriptorType = USB_DT_DEVICE,
@@ -61,7 +54,7 @@ static const struct usb_device_descriptor dev_descr = {
 	.bDeviceSubClass = 0,
 	.bDeviceProtocol = 0,
 	.bMaxPacketSize0 = USB_SEGMENT_SIZE,
-	.idVendor = 0x2B24,   /* KEEPKEY Vendor ID */
+	.idVendor = 0x2B24,   /* KeepKey Vendor ID */
 	.idProduct = 0x0001,
 	.bcdDevice = 0x0100,
 	.iManufacturer = 1,
@@ -70,7 +63,7 @@ static const struct usb_device_descriptor dev_descr = {
 	.bNumConfigurations = 1,
 };
 
-/* got via usbhid-dump from CP2110 */
+/* Got via usbhid-dump from CP2110 */
 static const uint8_t hid_report_descriptor[] = {
 	0x06, 0x00, 0xFF, 0x09, 0x01, 0xA1, 0x01, 0x09, 0x01, 0x75, 0x08, 0x95, 0x40, 0x26, 0xFF, 0x00,
 	0x15, 0x00, 0x85, 0x01, 0x95, 0x01, 0x09, 0x01, 0x81, 0x02, 0x09, 0x01, 0x91, 0x02, 0x85, 0x02,
@@ -248,6 +241,17 @@ static const char *usb_strings[] = {
 	""
 };
 
+/* === Variables =========================================================== */
+
+/* This optional callback is configured by the user to handle receive events.  */
+usb_rx_callback_t user_rx_callback = NULL;
+
+#if DEBUG_LINK
+usb_rx_callback_t user_debug_rx_callback = NULL;
+#endif
+
+/* === Private Functions =================================================== */
+
 static int hid_control_request(usbd_device *dev, struct usb_setup_data *req, uint8_t **buf, uint16_t *len,
 			void (**complete)(usbd_device *, struct usb_setup_data *))
 {
@@ -266,22 +270,20 @@ static int hid_control_request(usbd_device *dev, struct usb_setup_data *req, uin
 }
 
 /*
- * hid_rx_callback() - callback function to process received packet from usb host
+ * hid_rx_callback() - Callback function to process received packet from USB host
  *
  * INPUT 
- *      dev - pointer to usb device handler
- *      ep - unused 
+ *     - dev: pointer to USB device handler
+ *     - ep: unused 
  * OUTPUT 
- *      none
+ *     none
  *
  */
 static void hid_rx_callback(usbd_device *dev, uint8_t ep)
 {
     (void)ep;
 
-    /*
-     * Receive into the message buffer.
-     */
+    /* Receive into the message buffer. */
     UsbMessage m;
     uint16_t rx = usbd_ep_read_packet(dev, 
                                       ENDPOINT_ADDRESS_OUT, 
@@ -296,13 +298,13 @@ static void hid_rx_callback(usbd_device *dev, uint8_t ep)
 }
 
 /*
- * hid_debug_rx_callback() - callback function to process received packet from usb host on debug endpoint
+ * hid_debug_rx_callback() - Callback function to process received packet from USB host on debug endpoint
  *
  * INPUT
- *      dev - pointer to usb device handler
- *      ep - unused
+ *     - dev: pointer to USB device handler
+ *     - ep: unused
  * OUTPUT
- *      none
+ *     none
  *
  */
 #if DEBUG_LINK
@@ -310,9 +312,7 @@ static void hid_debug_rx_callback(usbd_device *dev, uint8_t ep)
 {
     (void)ep;
 
-    /*
-     * Receive into the message buffer.
-     */
+    /* Receive into the message buffer. */
     UsbMessage m;
     uint16_t rx = usbd_ep_read_packet(dev,
                                       ENDPOINT_ADDRESS_DEBUG_OUT,
@@ -328,11 +328,11 @@ static void hid_debug_rx_callback(usbd_device *dev, uint8_t ep)
 #endif
 
 /*
- * hid_set_config_callback() - config usb IN/OUT endpoints and register callbacks
+ * hid_set_config_callback() - Config USB IN/OUT endpoints and register callbacks
  *
  * INPUT -
- *      dev - pointer to usb device handler
- *      wValue - not used 
+ *     - dev: pointer to USB device handler
+ *     - wValue: not used 
  * OUTPUT -
  *      none
  */
@@ -357,18 +357,50 @@ static void hid_set_config_callback(usbd_device *dev, uint16_t wValue)
 }
 
 /*
- * usb_init() - initialize USB registers and set callback functions 
+ * usb_tx_helper() - Common way to transmit USB message to host 
  *
- * INPUT  - none
- * OUTPUT - 
- *      true/false  - status
+ * INPUT
+ *     - message: pointer message buffer
+ *     - len: length of message
+ *     - endpoint: endpoint for transmission
+ * OUTPUT
+ *     true/false
  */
+static bool usb_tx_helper(uint8_t *message, uint32_t len, uint8_t endpoint)
+{
+    uint32_t pos = 1;
 
+    /* Chunk out message */
+    while(pos < len)
+    {
+        uint8_t tmp_buffer[USB_SEGMENT_SIZE] = { 0 };
+
+        tmp_buffer[0] = '?';
+        memcpy(tmp_buffer + 1, message + pos, USB_SEGMENT_SIZE - 1);
+
+        while(usbd_ep_write_packet(usbd_dev, endpoint, tmp_buffer, USB_SEGMENT_SIZE) == 0) {};
+
+        pos += USB_SEGMENT_SIZE - 1;
+    }
+
+    return(true);
+}
+
+/* === Functions =========================================================== */
+
+/*
+ * usb_init() - Initialize USB registers and set callback functions 
+ *
+ * INPUT
+ *     none
+ * OUTPUT 
+ *     true/false status of USB init
+ */
 bool usb_init(void)
 {
     bool ret_stat = true;
 
-    /* skip initialization if alrealy initialized */
+    /* Skip initialization if alrealy initialized */
     if(usbd_dev == NULL) {
         gpio_mode_setup(USB_GPIO_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, USB_GPIO_PORT_PINS);
         gpio_set_af(USB_GPIO_PORT, GPIO_AF10, USB_GPIO_PORT_PINS);
@@ -395,10 +427,12 @@ bool usb_init(void)
 }
 
 /*
- * usb_poll() - poll usb port for message
+ * usb_poll() - Poll USB port for message
  *  
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void usb_poll(void)
 {
@@ -406,43 +440,13 @@ void usb_poll(void)
 }
 
 /*
- * usb_tx_helper() - common way to transmit usb message to host 
+ * usb_tx() - Transmit USB message to host via normal endpoint
  *
  * INPUT
- *      message - pointer message buffer
- *      len - length of message
- *      endpoint - endpoint for transmission
+ *     - message: pointer message buffer
+ *     - len: length of message
  * OUTPUT
- *      true/false
- */
-static bool usb_tx_helper(uint8_t *message, uint32_t len, uint8_t endpoint)
-{
-	uint32_t pos = 1;
-
-	/* Chunk out message */
-    while(pos < len)
-    {
-    	uint8_t tmp_buffer[USB_SEGMENT_SIZE] = { 0 };
-
-    	tmp_buffer[0] = '?';
-        memcpy(tmp_buffer + 1, message + pos, USB_SEGMENT_SIZE - 1);
-
-        while(usbd_ep_write_packet(usbd_dev, endpoint, tmp_buffer, USB_SEGMENT_SIZE) == 0) {};
-
-        pos += USB_SEGMENT_SIZE - 1;
-    }
-
-    return(true);
-}
-
-/*
- * usb_tx() - transmit usb message to host via normal endpoint
- *
- * INPUT
- *      message - pointer message buffer
- *      len - length of message
- * OUTPUT
- *      true/false
+ *     true/false
  */
 bool usb_tx(uint8_t *message, uint32_t len)
 {
@@ -450,13 +454,13 @@ bool usb_tx(uint8_t *message, uint32_t len)
 }
 
 /*
- * usb_debug_tx() - transmit usb message to host via debug endpoint
+ * usb_debug_tx() - Transmit usb message to host via debug endpoint
  *
  * INPUT
- *      message - pointer message buffer
- *      len - length of message
+ *     - message: pointer message buffer
+ *     - len: length of message
  * OUTPUT
- *      true/false
+ *     true/false
  */
 #if DEBUG_LINK
 bool usb_debug_tx(uint8_t *message, uint32_t len)
@@ -466,12 +470,12 @@ bool usb_debug_tx(uint8_t *message, uint32_t len)
 #endif
 
 /*
- * usb_set_rx_callback() - setup USB receive callback function pointer
+ * usb_set_rx_callback() - Setup USB receive callback function pointer
  *
- * INPUT -
- *      callback - callback function
- * OUTPUT - 
- *      none
+ * INPUT
+ *     - callback: callback function
+ * OUTPUT
+ *     none
  */
 void usb_set_rx_callback(usb_rx_callback_t callback)
 {
@@ -479,12 +483,12 @@ void usb_set_rx_callback(usb_rx_callback_t callback)
 }
 
 /*
- * usb_set_debug_rx_callback() - setup USB receive callback function pointer for debug link
+ * usb_set_debug_rx_callback() - Setup USB receive callback function pointer for debug link
  *
- * INPUT -
- *      callback - callback function
- * OUTPUT - 
- *      none
+ * INPUT
+ *     - callback: callback function
+ * OUTPUT
+ *     none
  */
 #if DEBUG_LINK
 void usb_set_debug_rx_callback(usb_rx_callback_t callback)
@@ -494,12 +498,12 @@ void usb_set_debug_rx_callback(usb_rx_callback_t callback)
 #endif
 
 /*
- * get_usb_init_stat() - get usb initialization status
+ * get_usb_init_stat() - Get USB initialization status
  *
- * INPUT -
- *      none
- * OUTPUT -
- *      usb pointer 
+ * INPUT
+ *     none
+ * OUTPUT
+ *     USB pointer 
  */
 usbd_device *get_usb_init_stat(void)
 {

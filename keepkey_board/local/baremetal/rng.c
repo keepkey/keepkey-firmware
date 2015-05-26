@@ -15,18 +15,19 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
- *
- *          --------------------------------------------
- * March 30, 2015 - This file has been modified and adapted for KeepKey project.
  */
+
+/* === Includes ============================================================ */
 
 #include <libopencm3/cm3/common.h>
 #include <libopencm3/stm32/memorymap.h>
 #include <libopencm3/stm32/f2/rng.h>
-#include <rng.h>
-#include <keepkey_board.h>
-#include <timer.h>
+
+#include "rng.h"
+#include "keepkey_board.h"
+#include "timer.h"
+
+/* === Functions =========================================================== */
 
 uint32_t random32(void)
 {

@@ -15,21 +15,14 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- * 
- *
- * Jan 13, 2015 - This file has been modified and adapted for KeepKey project.
- *
  */
 
-#ifndef __MEMORY_H__
-#define __MEMORY_H__
+#ifndef MEMORY_H
+#define MEMORY_H
+
+/* === Includes ============================================================ */
 
 #include <stddef.h>
-
-#define OPTION_BYTES_1 ((uint64_t *)0x1FFFC000)
-#define OPTION_BYTES_2 ((uint64_t *)0x1FFFC008)
-#define OPTION_RDP 0xCCFF
-#define OPTION_WRP 0xFF9E
 
 /*
 
@@ -71,6 +64,13 @@
 
  flags & 0x01 -> restore storage after flashing (if signatures are ok)
  */
+
+/* === Defines ============================================================= */
+
+#define OPTION_BYTES_1 ((uint64_t *)0x1FFFC000)
+#define OPTION_BYTES_2 ((uint64_t *)0x1FFFC008)
+#define OPTION_RDP 0xCCFF
+#define OPTION_WRP 0xFF9E
 
 /* meta info */
 #define META_MAGIC_STR          "KPKY"
@@ -128,9 +128,9 @@
 #define FLASH_APP_SECTOR_FIRST  7
 #define FLASH_APP_SECTOR_LAST   11
 
-/* Flash sector map definition to simplify flash management operations. */
+/* === Typedefs ============================================================ */
 
-/*Application Meta format */
+/* Application Meta format */
 typedef struct {
     uint32_t magic;
     uint32_t code_len;
@@ -142,7 +142,7 @@ typedef struct {
     uint8_t  sig1[64];
     uint8_t  sig2[64];
     uint8_t  sig3[64];
-}app_meta_td;
+} app_meta_td;
 
 typedef enum {
     FLASH_INVALID,
@@ -158,6 +158,10 @@ typedef struct {
     uint32_t len;
     Allocation use;
 } FlashSector;
+
+typedef void (*progress_handler_t)(void);
+
+/* === Variables =========================================================== */
 
 static const FlashSector flash_sector_map[]= {
     { 0,  0x08000000, 0x4000,   FLASH_BOOTSTRAP },
@@ -175,10 +179,11 @@ static const FlashSector flash_sector_map[]= {
     { -1, 0,          0,        FLASH_INVALID}
 };
 
-typedef void (*progress_handler_t)(void);
+/* === Functions =========================================================== */
+
 void memory_protect(void);
 int memory_bootloader_hash(uint8_t *hash);
-int memory_firmware_hash(uint8_t *digest);
-int memory_storage_hash(uint8_t *digest, size_t len);
+int memory_firmware_hash(uint8_t *hash);
+int memory_storage_hash(uint8_t *hash);
 
 #endif

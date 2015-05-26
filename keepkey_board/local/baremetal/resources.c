@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,22 +15,17 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
-//================================ INCLUDES ===================================
-
+/* === Includes ============================================================ */
 
 #include <string.h>
+
 #include "resources.h"
 
+/* === Private Variables =================================================== */
 
-//====================== CONSTANTS, TYPES, AND MACROS =========================
-
-
-//======================== CONFIRM ICON ANIMATION =============================
-
+/* --- Confirm Icon Animation ---------------------------------------------- */
 
 static void confirm_icon_1(uint8_t *data)
 {
@@ -94,9 +88,7 @@ static const AnimationFrame confirm_icon_array[] =
 
 static const ImageAnimation confirm_icon = { 5, confirm_icon_array };
 
-
-//========================= CONFIRMING ANIMATION ===============================
-
+/* --- Confirming Animation ------------------------------------------------ */
 
 static void confirming_1(uint8_t *data)
 {
@@ -808,9 +800,7 @@ static const AnimationFrame confirming_array[] =
 
 static const ImageAnimation confirming = { 64, confirming_array };
 
-
-//=========================== LOADING ANIMATION ===============================
-
+/* --- Loading Animation --------------------------------------------------- */
 
 static void loading_1(uint8_t *data)
 {
@@ -1544,9 +1534,7 @@ static const AnimationFrame loading_array[] =
 
 static const ImageAnimation loading = { 66, loading_array };
 
-
-//=========================== WARNING ANIMATION ===============================
-
+/* --- Warning Animation --------------------------------------------------- */
 
 static void warning_1(uint8_t *data)
 {
@@ -1849,8 +1837,7 @@ static const AnimationFrame logo_reversed_array[] =
 static const ImageAnimation logo = { 16, logo_array };
 static const ImageAnimation logo_reversed = { 16, logo_reversed_array };
 
-
-//================================= UNPLUG ====================================
+/* --- Unplug Image -------------------------------------------------------- */
 
 static void unplug(uint8_t *data)
 {
@@ -1863,8 +1850,7 @@ static void unplug(uint8_t *data)
 
 static const Image unplug_image = {(void *) &unplug, 45, 27};
 
-
-//================================ RECOVERY ===================================
+/* --- Recovery Image ------------------------------------------------------ */
 
 static void recovery(uint8_t *data)
 {
@@ -1877,65 +1863,159 @@ static void recovery(uint8_t *data)
 
 static const Image recovery_image = {(void *) &recovery, 29, 29};
 
+/* === Functions =========================================================== */
 
-//=============================== FUNCTIONS ===================================
-
-
+/*
+ * get_confirm_icon_image() - Get confirm icon image
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     confirm icon image 
+ */
 const Image *get_confirm_icon_image(void)
 {
     return(&confirm_icon_5_image);
 }
 
+/*
+ * get_confirmed_image() - Get confirmed image
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     confirmed image 
+ */
 const Image *get_confirmed_image(void)
 {
     return(&confirming_64_image);
 }
 
+/*
+ * get_unplug_image() - Get device unplug image
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     unplug image 
+ */
 const Image *get_unplug_image(void)
 {
     return(&unplug_image);
 }
 
+/*
+ * get_recovery_image() - Get recovery icon image
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     recovery image 
+ */
 const Image *get_recovery_image(void)
 {
     return(&recovery_image);
 }
 
+/*
+ * get_warning_image() - Get warning icon image
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     warining image 
+ */
 const Image *get_warning_image(void)
 {
     return(&warning_1_image);
 }
 
+/*
+ * get_confirm_icon_animation() - Get confirm animation
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     confirm animation
+ */
 const ImageAnimation *get_confirm_icon_animation(void)
 {
     return(&confirm_icon);
 }
 
+/*
+ * get_confirming_animation() - Get confirming animation
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     confirming animation
+ */
 const ImageAnimation *get_confirming_animation(void)
 {
     return(&confirming);
 }
 
+/*
+ * get_loading_animation() - Get loading animation
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     loading animation
+ */
 const ImageAnimation *get_loading_animation(void)
 {
     return(&loading);
 }
 
+/*
+ * get_warning_animation() - Get warning animation
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     warning animation
+ */
 const ImageAnimation *get_warning_animation(void)
 {
     return(&warning);
 }
 
+/*
+ * get_logo_animation() - Get logo animation
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     logo animation
+ */
 const ImageAnimation *get_logo_animation(void)
 {
     return(&logo);
 }
 
+/*
+ * get_logo_reversed_animation() - Get a reversed version logo animation
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     reversed logo animation
+ */
 const ImageAnimation *get_logo_reversed_animation(void)
 {
     return(&logo_reversed);
 }
 
+/*
+ * get_image_animation_duration() - Calculate animation duration
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *    animation duration
+ */
 uint32_t get_image_animation_duration(const ImageAnimation *img_animation)
 {
     uint32_t duration = 0;
@@ -1948,6 +2028,16 @@ uint32_t get_image_animation_duration(const ImageAnimation *img_animation)
     return(duration);
 }
 
+/*
+ * get_image_animation_frame() - Get an animation frame
+ *
+ * INPUT
+ *     - img_animation: animation to pull frame from
+ *     - elapsed: how long has animation elapsed
+ *     - loop: is this animation looping?
+ * OUTPUT
+ *    animation frame as image
+ */
 const Image *get_image_animation_frame(const ImageAnimation *img_animation,
                                        const uint32_t elapsed, bool loop)
 {

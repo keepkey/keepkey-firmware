@@ -1,7 +1,7 @@
 /*
- * This file is part of the TREZOR project.
+ * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 Pavol Rusnak <stick@satoshilabs.com>
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -15,24 +15,23 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- * 
- *
- * Jan 13, 2015 - This file has been modified and adapted for KeepKey project.
- *
  */
 
 #ifndef KEEPKEY_FLASH_H
 #define KEEPKEY_FLASH_H
 
-#include <stddef.h>
-#include <memory.h>
+/* === Includes ============================================================ */
 
-/* declarations */
+#include <stddef.h>
+
+#include "memory.h"
+
+/* === Functions =========================================================== */
+
 void flash_erase(Allocation group);
 void flash_erase_word(Allocation group);
 bool flash_write(Allocation group, uint32_t offset, uint32_t len, uint8_t* data);
 bool flash_write_word(Allocation group, uint32_t offset, uint32_t len, uint8_t* data);
 bool flash_chk_status(void);
-
 
 #endif

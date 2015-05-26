@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,27 +15,110 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
+
+/* === Includes ============================================================ */
 
 #include <stdio.h>
 
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/usart.h>
-#include <timer.h>
-#include <keepkey_usart.h>
-#include <string.h>
 
-#ifdef DEBUG_ON  /* Enable serial port only for debug version */
+#include "timer.h"
+#include "keepkey_usart.h"
+#include "string.h"
+
+/* === Private Functions =================================================== */
+
 /*
- * usart_init () - Initialize USART Debug Port
+ * put_console_char() - Display a character on serial debug port
  *
- * INPUT -
- *      none
- * OUTPUT -
- *      none
+ * INPUT
+ *     - c: ASCII character to debug port
+ * OUTPUT
+ *     true/false status
+ */
+#ifdef DEBUG_ON
+static bool put_console_char(int8_t c)
+{
+    int timeout_cnt = 100; /* allow 100msec for USART busy timeout*/
+    bool ret_stat = false;
+
+    do
+    {
+        /* check Tx register ready transmissiion */
+        if(USART_SR(USART3_BASE) & USART_SR_TXE)
+        {
+            USART_DR(USART3_BASE) = c;
+            ret_stat = true;
+            break;
+        }
+
+        delay_ms(1);   /* 1 ms sampling */
+    }
+    while(--timeout_cnt);
+
+    return(ret_stat);
+}
+
+/*
+ * get_console_input() - Gets a character from serial port
+ *
+ * INPUT
+ *     - read_char: load pointer with received char data
+ * OUTPUT
+ *     true/false update status
+ */
+static bool get_console_input(char *read_char)
+{
+    int timeout_cnt = 100; /* allow 100msec for USART busy timeout*/
+    bool ret_stat = false;
+
+    do
+    {
+        /* check Rx register ready for read*/
+        if(USART_SR(USART3_BASE) & USART_SR_RXNE)
+        {
+            /* data received */
+            *read_char = USART_DR(USART3_BASE);
+            ret_stat = true;
+            break;
+        }
+
+        delay_ms(1);   /* 1 ms sampling */
+    }
+    while(--timeout_cnt);
+
+    return (ret_stat);
+}
+
+/* === Functions =========================================================== */
+
+/*
+ * display_debug_string() - Dump string to debug console
+ *
+ * INPUT
+ *     - str: string to write to debug console
+ * OUTPUT
+ *     none
+ */
+static void display_debug_string(char *str)
+{
+    do
+    {
+        put_console_char(*str);
+    }
+    while(*(str++));
+}
+
+/*
+ * usart_init() - Initialize USART Debug Port
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void usart_init(void)
 {
@@ -79,93 +161,21 @@ void usart_init(void)
     /* Note : RDR= Read data, TDR=Transmit data */
 }
 
-/********************************************************************
- * put_console_char - Display a character on serial debug port
+/*
+ * dbg_print() - Print to debug console
  *
- * input - ASCII character to debug port
- * output - send to debug port
- ********************************************************************/
-static bool put_console_char(int8_t nCharVal)
-{
-    int timeout_cnt = 100; /* allow 100msec for USART busy timeout*/
-    bool ret_stat = false;
-
-    do
-    {
-        /* check Tx register ready transmissiion */
-        if(USART_SR(USART3_BASE) & USART_SR_TXE)
-        {
-            USART_DR(USART3_BASE) = nCharVal;
-            ret_stat = true;
-            break;
-        }
-
-        delay_ms(1);   /* 1msec sampling */
-    }
-    while(--timeout_cnt);
-
-    return(ret_stat);
-}
-
-/********************************************************************
- * get_console_input - Display a character on serial port
- *
- * Input - char pointer
- * Output -
- *      - load pointer with received char data
- *      - update status
- ********************************************************************/
-static bool get_console_input(char *read_char)
-{
-    int timeout_cnt = 100; /* allow 100msec for USART busy timeout*/
-    bool ret_stat = false;
-
-    do
-    {
-        /* check Rx register ready for read*/
-        if(USART_SR(USART3_BASE) & USART_SR_RXNE)
-        {
-            /* data received */
-            *read_char = USART_DR(USART3_BASE);
-            ret_stat = true;
-            break;
-        }
-
-        delay_ms(1);   /* 1msec sampling */
-    }
-    while(--timeout_cnt);
-
-    return (ret_stat);
-}
-
-/********************************************************************
- * display_debug_string - Dump string to debug console
- *
- * Input - pointer to string
- * Output- send string to debug port
- ********************************************************************/
-static void display_debug_string(char *pStr)
-{
-    do
-    {
-        put_console_char(*pStr);
-    }
-    while(*(pStr++));
-}
-
-/********************************************************************
- * dbg_print - print to debug console
- *
- * Input - content to print
- * Output- send to debug port
- ********************************************************************/
-void dbg_print(char *pStr, ...)
+ * INPUT
+ *     - str: string to write to debug console
+ * OUTPUT
+ *     none
+ */
+void dbg_print(char *out_str, ...)
 {
     char str[LARGE_DEBUG_BUF];
     va_list arg;
 
-    va_start(arg, pStr);
-    vsnprintf(str, LARGE_DEBUG_BUF, pStr, arg);
+    va_start(arg, out_str);
+    vsnprintf(str, LARGE_DEBUG_BUF, out_str, arg);
 
     if(strlen(str) + 1 <= LARGE_DEBUG_BUF)
     {
@@ -179,12 +189,14 @@ void dbg_print(char *pStr, ...)
     }
 }
 
-/********************************************************************
- * dbg_trigger - scope trigger pulse for debugging
+/*
+ * dbg_trigger() - Scope trigger pulse for debugging
  *
- * input - none
- * output- none
- ********************************************************************/
+ * INPUT
+ *     - color: color of led to trigger
+ * OUTPUT
+ *     none
+ */
 void dbg_trigger(uint32_t color)
 {
     switch(color)
@@ -199,13 +211,14 @@ void dbg_trigger(uint32_t color)
             led_func(SET_GREEN_LED);
     }
 }
+
 /*
- * read_console - Read debug console port for user input
- *                (Example for how to implement USART read )
- *
- *
- * Input - none
- * Output- send to debug port
+ * read_console() - Read debug console port for user input
+ * 
+ * INPUT
+ *     none
+ * OUTPUT
+ *     character read from console
  */
 char read_console(void)
 {
@@ -227,7 +240,3 @@ char read_console(void)
 void dbg_print(char *pStr, ...) {(void)pStr;}
 void usart_init(void) {}
 #endif
-
-
-
-

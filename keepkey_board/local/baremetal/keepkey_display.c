@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,25 +15,19 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
+
+/* === Includes ============================================================ */
 
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
+
 #include "keepkey_display.h"
 #include "pin.h"
 #include "timer.h"
 
+/* === Private Variables =================================================== */
 
-//====================== CONSTANTS, TYPES, AND MACROS =========================
-
-
-#define START_COL ((uint8_t)0x1C)
-#define START_ROW ((uint8_t)0x00)
-
-
-//=============================== STATIC VARIABLES ===================================
 static const Pin DATA_0_PIN    = { GPIOA, GPIO0 };
 static const Pin DATA_1_PIN    = { GPIOA, GPIO1 };
 static const Pin DATA_2_PIN    = { GPIOA, GPIO2 };
@@ -53,26 +46,25 @@ static const Pin nRESET_PIN    = { GPIOB, GPIO5 };
 
 static const Pin BACKLIGHT_PWR_PIN = { GPIOB, GPIO0 };
 
-
 static uint8_t canvas_buffer[ KEEPKEY_DISPLAY_HEIGHT * KEEPKEY_DISPLAY_WIDTH ];
 static Canvas canvas;
 
+/* === Private Functions =================================================== */
+
 /*
- * display_write_reg () write data to display register
+ * display_write_reg() - Write data to display register
  *
  * INPUT
- *     reg - display register value
- * OUTPUT -
- *      none
+ *     - reg: display register value
+ * OUTPUT
+ *     none
  */
 static void display_write_reg(uint8_t reg)
 {
-    // Unsure about nDC
-
-    // Set up the data
+    /* Set up the data */
     GPIO_BSRR(GPIOA) = 0x000000FF & (uint32_t)reg;
 
-    // Set nOLED_SEL low, nMEM_OE high, and nMEM_WE high.
+    /* Set nOLED_SEL low, nMEM_OE high, and nMEM_WE high. */
     CLEAR_PIN(nSEL_PIN);
     SET_PIN(nOE_PIN);
     SET_PIN(nWE_PIN);
@@ -80,7 +72,7 @@ static void display_write_reg(uint8_t reg)
     __asm__("nop");
     __asm__("nop");
 
-    // Set nDC low?
+    /* Set nDC low */
     CLEAR_PIN(nDC_PIN);
 
     __asm__("nop");
@@ -88,7 +80,7 @@ static void display_write_reg(uint8_t reg)
     __asm__("nop");
     __asm__("nop");
 
-    // Set nMEM_WE low
+    /* Set nMEM_WE low */
     CLEAR_PIN(nWE_PIN);
 
     __asm__("nop");
@@ -97,13 +89,13 @@ static void display_write_reg(uint8_t reg)
     __asm__("nop");
     __asm__("nop");
 
-    // Set nMEM_WE high
+    /* Set nMEM_WE high */
     SET_PIN(nWE_PIN);
 
     __asm__("nop");
     __asm__("nop");
 
-    // Set nOLED_SEL high
+    /* Set nOLED_SEL high */
     SET_PIN(nSEL_PIN);
     GPIO_BSRR(GPIOA) = 0x00FF0000;
 
@@ -114,10 +106,12 @@ static void display_write_reg(uint8_t reg)
 }
 
 /*
- * display_reset() - reset display io port
+ * display_reset() - Reset display io port
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 static void display_reset(void)
 {
@@ -149,14 +143,16 @@ static void display_reset_io(void)
 }
 
 /*
- * display_configure_io() - setup display io port
+ * display_configure_io() - Setup display io port
  *
- * INPUT -  none
- * OUTPUT -  none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 static void display_configure_io(void)
 {
-    // Set up port A
+    /* Set up port A */
     gpio_mode_setup(
         GPIOA,
         GPIO_MODE_OUTPUT,
@@ -169,7 +165,7 @@ static void display_configure_io(void)
         GPIO_OSPEED_100MHZ,
         GPIO0 | GPIO1 | GPIO2 | GPIO3 | GPIO4 | GPIO5 | GPIO6 | GPIO7 | GPIO8 | GPIO9 | GPIO10);
 
-    // Set up port B
+    /* Set up port B */
     gpio_mode_setup(
         GPIOB,
         GPIO_MODE_OUTPUT,
@@ -182,15 +178,17 @@ static void display_configure_io(void)
         GPIO_OSPEED_100MHZ,
         GPIO0 | GPIO1 | GPIO5);
 
-    // Set to defaults
+    /* Set to defaults */
     display_reset_io();
 }
 
 /*
- * display_prepare_gram_write() -
+ * display_prepare_gram_write() - Prepare display for write
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 static void display_prepare_gram_write(void)
 {
@@ -198,19 +196,19 @@ static void display_prepare_gram_write(void)
 }
 
 /*
- * display_write_ram() - write data to display RAM
+ * display_write_ram() - Write data to display
  *
- * INPUT -
- *      val - display ram value
- * OUTPUT -
- *      none
+ * INPUT
+ *     - val: display ram value
+ * OUTPUT
+ *     none
  */
 static void display_write_ram(uint8_t val)
 {
-    // Set up the data
+    /* Set up the data */
     GPIO_BSRR(GPIOA) = 0x000000FF & (uint32_t)val;
 
-    // Set nOLED_SEL low, nMEM_OE high, and nMEM_WE high.
+    /* Set nOLED_SEL low, nMEM_OE high, and nMEM_WE high. */
     CLEAR_PIN(nSEL_PIN);
     SET_PIN(nOE_PIN);
     SET_PIN(nWE_PIN);
@@ -218,7 +216,7 @@ static void display_write_ram(uint8_t val)
     __asm__("nop");
     __asm__("nop");
 
-    // Set nDC high?
+    /* Set nDC high */
     SET_PIN(nDC_PIN);
 
     __asm__("nop");
@@ -226,7 +224,7 @@ static void display_write_ram(uint8_t val)
     __asm__("nop");
     __asm__("nop");
 
-    // Set nMEM_WE low
+    /* Set nMEM_WE low */
     CLEAR_PIN(nWE_PIN);
 
     __asm__("nop");
@@ -235,13 +233,13 @@ static void display_write_ram(uint8_t val)
     __asm__("nop");
     __asm__("nop");
 
-    // Set nMEM_WE high
+    /* Set nMEM_WE high */
     SET_PIN(nWE_PIN);
 
     __asm__("nop");
     __asm__("nop");
 
-    // Set nOLED_SEL high
+    /* Set nOLED_SEL high */
     SET_PIN(nSEL_PIN);
     GPIO_BSRR(GPIOA) = 0x00FF0000;
 
@@ -251,16 +249,19 @@ static void display_write_ram(uint8_t val)
     __asm__("nop");
 }
 
+/* === Functions =========================================================== */
+
 /*
- * display_canvas_init( void)  - display canvas initialization
+ * display_canvas_init() - Display canvas initialization
  *
- * INPUT - none
- * OUTPUT -
- *      pointer to canvas
+ * INPUT
+ *     none
+ * OUTPUT
+ *     pointer to canvas
  */
 Canvas *display_canvas_init(void)
 {
-    // Prepare the canvas
+    /* Prepare the canvas */
     canvas.buffer   = canvas_buffer;
     canvas.width    = KEEPKEY_DISPLAY_WIDTH;
     canvas.height   = KEEPKEY_DISPLAY_HEIGHT;
@@ -270,11 +271,12 @@ Canvas *display_canvas_init(void)
 }
 
 /*
- * display_canvas() - get pointer canvas
+ * display_canvas() - Get pointer canvas
  *
- * INPUT - none
- * OUTPUT -
- *      pointer to canvas
+ * INPUT
+ *     none
+ * OUTPUT
+ *     pointer to canvas
  */
 Canvas *display_canvas(void)
 {
@@ -282,10 +284,12 @@ Canvas *display_canvas(void)
 }
 
 /*
- * display_refresh() - refresh display
+ * display_refresh() - Refresh display
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void display_refresh(void)
 {
@@ -318,10 +322,12 @@ void display_refresh(void)
 }
 
 /*
- * display_turn_on() - turn on display
+ * display_turn_on() - Turn on display
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void display_turn_on(void)
 {
@@ -329,10 +335,12 @@ void display_turn_on(void)
 }
 
 /*
- * display_turn_off() - turn off display
+ * display_turn_off() - Turn off display
  *
- * INPUT - none
- * OUTPUT -none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void display_turn_off(void)
 {
@@ -342,10 +350,12 @@ void display_turn_off(void)
 
 
 /*
- * display_hw_init(void)  - display hardware initialization
+ * display_hw_init(void)  - Display hardware initialization
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void display_hw_init(void)
 {
@@ -360,7 +370,7 @@ void display_hw_init(void)
 
     display_turn_off();
 
-    // Divide DIVSET by 2?
+    /* Divide DIVSET by 2 */
     display_write_reg((uint8_t)0xB3);
     display_write_ram((uint8_t)0x91);
 
@@ -377,7 +387,7 @@ void display_hw_init(void)
     uint8_t row_start = START_ROW;
     uint8_t row_end = row_start + 64 - 1;
 
-    // Width is in units of 4 pixels/column (2 bytes at 4 bits/pixel)
+    /* Width is in units of 4 pixels/column (2 bytes at 4 bits/pixel) */
     int width = (256 / 4);
     uint8_t col_start = START_COL;
     uint8_t col_end = col_start + width - 1;
@@ -389,27 +399,24 @@ void display_hw_init(void)
     display_write_ram(col_start);
     display_write_ram(col_end);
 
-    // Horizontal address increment
-    // Disable colum address re-map
-    // Disable nibble re-map
-    // Scan from COM0 to COM[n-1]
-    // Disable dual COM mode
+    /* Horizontal address increment */
+    /* Disable colum address re-map */
+    /* Disable nibble re-map */
+    /* Scan from COM0 to COM[n-1] */
+    /* Disable dual COM mode */
     display_write_reg((uint8_t)0xA0);
-    //display_write_ram( (uint8_t)0x00;
-    //display_write_ram( (uint8_t)0x01;
     display_write_ram((uint8_t)0x14);
     display_write_ram((uint8_t)0x11);
 
-    // GPIO0: pin HiZ, Input disabled
-    // GPIO1: pin HiZ, Input disabled
+    /* GPIO0: pin HiZ, Input disabled */
+    /* GPIO1: pin HiZ, Input disabled */
     display_write_reg((uint8_t)0xB5);
     display_write_ram((uint8_t)0x00);
 
-    // Enable internal Vdd regulator?
+    /* Enable internal Vdd regulator */
     display_write_reg((uint8_t)0xAB);
     display_write_ram((uint8_t)0x01);
 
-    //
     display_write_reg((uint8_t)0xB4);
     display_write_ram((uint8_t)0xA0);
     display_write_ram((uint8_t)0xFD);
@@ -441,13 +448,12 @@ void display_hw_init(void)
 
     delay_ms(10);
 
-
-    // Set the screen to display-writing mode
+    /* Set the screen to display-writing mode */
     display_prepare_gram_write();
 
     delay_ms(10);
 
-    // Make the display blank
+    /* Make the display blank */
     int end = 64  * 256;
     int i;
 
@@ -456,7 +462,7 @@ void display_hw_init(void)
         display_write_ram((uint8_t)0x00);
     }
 
-    // Turn on 12V
+    /* Turn on 12V */
     SET_PIN(BACKLIGHT_PWR_PIN);
 
     delay_ms(100);
@@ -465,19 +471,18 @@ void display_hw_init(void)
 }
 
 /*
- * display_set_brightness() - set display brightness in percentage
+ * display_set_brightness() - Set display brightness in percentage
  *
- * INPUT -
- *      percentage
- * OUTPUT -
- *      none
+ * INPUT
+ *     - percentage: brightness percentage
+ * OUTPUT
+ *     none
  */
 void display_set_brightness(int percentage)
 {
-    // Set the brightness..
     int v = percentage;
 
-    // Clip to be 0 <= value <= 100
+    /* Clip to be 0 <= value <= 100 */
     v = (v >= 0) ? v : 0;
     v = (v > 100) ? 100 : v;
 
@@ -488,4 +493,3 @@ void display_set_brightness(int percentage)
     display_write_reg((uint8_t)0xC1);
     display_write_ram(reg_value);
 }
-

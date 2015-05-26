@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,33 +15,28 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
-//============================= CONDITIONALS ==================================
+#ifndef TIMER_H
+#define TIMER_H
 
-
-#ifndef timer_H
-#define timer_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* === Includes ============================================================ */
 
 #include <stdint.h>
 #include <stdbool.h>
-	
 
-/******************** #defines *************************************/
-#define ONE_SEC 1100   /* count for 1 second  */
-#define HALF_SEC 500   /* count for 0.5 second*/
-#define MAX_RUNNABLES 3 /* max number of queue for task manager */
+/* === Defines ============================================================= */
 
-/******************** Typedefs and enums ***************************/
+#define ONE_SEC         1100    /* Count for 1 second  */
+#define HALF_SEC        500     /* Count for 0.5 second */
+#define MAX_RUNNABLES   3       /* Max number of queue for task manager */
+
+/* === Typedefs ============================================================ */
+
 typedef void (*callback_func_t)(void);
-typedef void (*Runnable)(void* context);
+typedef void (*Runnable)(void *context);
 typedef struct RunnableNode RunnableNode;
+
 struct RunnableNode
 {
     uint32_t    remaining;
@@ -50,30 +44,26 @@ struct RunnableNode
     void        *context;
     uint32_t    period;
     bool        repeating;
-    RunnableNode* next;
+    RunnableNode *next;
 };
 
 typedef struct
 {
-    RunnableNode*   head;
+    RunnableNode   *head;
     int             size;
 } RunnableQueue;
 
+/* === Functions =========================================================== */
 
-
-/******************** Function Declarations ***********************/
 void timer_init(void);
 void delay_ms(uint32_t ms);
 void delay_us(uint32_t us);
-void delay_ms_with_callback(uint32_t ms, callback_func_t callback_func, uint32_t frequency_ms);
+void delay_ms_with_callback(uint32_t ms, callback_func_t callback_func,
+                            uint32_t frequency_ms);
 void post_delayed(Runnable runnable, void *context, uint32_t ms_delay);
-void post_periodic(Runnable runnable, void *context, uint32_t period_ms, uint32_t delay_ms);
+void post_periodic(Runnable runnable, void *context, uint32_t period_ms,
+                   uint32_t delay_ms);
 void remove_runnable(Runnable runnable);
 void clear_runnables(void);
 
-#ifdef __cplusplus
-}
 #endif
-
-#endif // timer_H
-

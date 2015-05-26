@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,9 +15,9 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
+
+/* === Includes ============================================================ */
 
 #include <stdint.h>
 
@@ -29,32 +28,39 @@
 #include <libopencm3/stm32/f2/rng.h>
 #include <libopencm3/stm32/f2/crc.h>
 #include <libopencm3/cm3/cortex.h>
-#include <keepkey_board.h>
 
-/* Static and Global variables */
+#include "keepkey_board.h"
+
+/* === Variables =========================================================== */
 
 /* Stack smashing protector (SSP) canary value storage */
 uintptr_t __stack_chk_guard;
 
+/* === Functions =========================================================== */
+
 /*
- * system_halt() - forever loop here
+ * system_halt() - System halt
  *
- * INPUT - 
- *      pointer to string 
- * OUTPUT - none
- *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void __attribute__((noreturn)) system_halt(void)
 {
     cm_disable_interrupts();
+
     for(;;);  /* Loops forever */
 }
 
 /*
- * __stack_chk_fail() - stack smashing protector (SSP) call back funcation for -fstack-protector-all GCC option
+ * __stack_chk_fail() - Stack smashing protector (SSP) call back funcation
+ * for -fstack-protector-all GCC option
  *
- * INPUT  - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 __attribute__((noreturn)) void __stack_chk_fail(void)
 {
@@ -65,8 +71,10 @@ __attribute__((noreturn)) void __stack_chk_fail(void)
 /*
  * board_reset() - Request board reset
  *
- * INPUT  - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void board_reset(void)
 {
@@ -74,10 +82,12 @@ void board_reset(void)
 }
 
 /*
- * reset_rng(void) - reset random number generator
+ * reset_rng() - Reset random number generator
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void reset_rng(void)
 {
@@ -94,8 +104,10 @@ void reset_rng(void)
 /*
  * board_init() - Initialize board
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void board_init(void)
 {
@@ -105,12 +117,12 @@ void board_init(void)
     layout_init(display_canvas_init());
 }
 
-/* calc_crc32() - calculate crc32 for block of memory
+/* calc_crc32() - Calculate crc32 for block of memory
  *
- * INPUT - 
- *      none
- * OUTPUT -
- *      crc32 for shadow_config data
+ * INPUT
+ *     none
+ * OUTPUT
+ *     crc32 of data
  */
 uint32_t calc_crc32(uint32_t *data, int word_len)
 {
@@ -120,4 +132,3 @@ uint32_t calc_crc32(uint32_t *data, int word_len)
     crc32 = crc_calculate_block(data, word_len);
     return(crc32);
 }
-

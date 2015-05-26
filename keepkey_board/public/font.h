@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,21 +15,21 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
-#ifndef KeepKeyFont_H
-#define KeepKeyFont_H
+#ifndef FONT_H
+#define FONT_H
 
+/* === Includes ============================================================ */
 
 #include <stdint.h>
 
-/***************** typedefs and enums  *******************/
+/* === Typedefs ============================================================ */
+
 /* Data pertaining to the image of a character */
 typedef struct
 {
-    const uint8_t*  data;
+    const uint8_t  *data;
     uint16_t        width;
     uint16_t        height;
 } CharacterImage;
@@ -40,7 +39,7 @@ typedef struct
 typedef struct
 {
     long int                code;
-    const CharacterImage*   image;
+    const CharacterImage   *image;
 } Character;
 
 
@@ -49,20 +48,21 @@ typedef struct
 {
     int                 length;
     int                 size;
-    const Character*    characters;
+    const Character    *characters;
 } Font;
 
-/******************* Function Declarations *****************************/
-const Font* get_pin_font(void);
-const Font* get_title_font(void);
-const Font* get_body_font(void);
+/* === Functions =========================================================== */
 
-const CharacterImage* font_get_char(const Font* font, char c);
+const Font *get_pin_font(void);
+const Font *get_title_font(void);
+const Font *get_body_font(void);
 
-uint32_t font_height(const Font* font);
-uint32_t font_width(const Font* font);
+const CharacterImage *font_get_char(const Font *font, char c);
 
-uint32_t calc_str_width(const Font* font, const char* str);
-uint32_t calc_str_line(const Font* font, const char* str, uint16_t line_width);
+uint32_t font_height(const Font *font);
+uint32_t font_width(const Font *font);
 
-#endif // KeepKeyFont_H
+uint32_t calc_str_width(const Font *font, const char *str);
+uint32_t calc_str_line(const Font *font, const char *str, uint16_t line_width);
+
+#endif

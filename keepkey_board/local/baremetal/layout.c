@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,11 +15,9 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
-//================================ INCLUDES ===================================
+/* === Includes ============================================================ */
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -34,7 +31,8 @@
 #include "timer.h"
 #include "resources.h"
 
-/* variable definitions  */
+/* === Private Variables =================================================== */
+
 static AnimationQueue active_queue = { NULL, 0 };
 static AnimationQueue free_queue = { NULL, 0 };
 static Animation animations[ MAX_ANIMATIONS ];
@@ -42,25 +40,195 @@ static Canvas *canvas = NULL;
 static volatile bool animate_flag = false;
 static leaving_handler_t leaving_handler;
 
-/* static function */
-
-static void layout_home_helper(bool reversed);
-static void layout_animate_callback(void *context);
-#if defined(AGGRO_UNDEFINED_FN)
-static void layout_remove_animation(AnimateCallback  callback);
-#endif
-
-static void animation_queue_push(AnimationQueue *queue, Animation *node);
-static Animation *animation_queue_pop(AnimationQueue *queue);
-static Animation *animation_queue_peek(AnimationQueue *queue);
-static Animation *animation_queue_get(AnimationQueue *queue, AnimateCallback callback);
+/* === Private Functions =================================================== */
 
 /*
- * layout_init() - Initialize layout subsystem for LCD screen
+ *  layout_home_helper() - Splash home screen helper
  *
- * INPUT -
- *     lay out info for specific image
- * OUTPUT -
+ *  INPUT
+ *      - reversed: true/false whether splash animation is played in reverse
+ *  OUTPUT
+ *      none
+ */
+static void layout_home_helper(bool reversed)
+{
+    layout_clear();
+
+    static AnimationImageDrawableParams logo;
+    logo.base.x = 100;
+    logo.base.y = 10;
+
+    if(reversed)
+    {
+        logo.img_animation = get_logo_reversed_animation();
+    }
+    else
+    {
+        logo.img_animation = get_logo_animation();
+    }
+
+    layout_add_animation(
+        &layout_animate_images,
+        (void *)&logo,
+        get_image_animation_duration(logo.img_animation));
+
+    while(is_animating())
+    {
+        animate();
+        display_refresh();
+    }
+}
+
+/*
+ * layout_animate_callback() - Callback function to set animation flag
+ *
+ * INPUT
+ *     - context: animation context
+ * OUTPUT
+ *     none
+ */
+static void layout_animate_callback(void *context)
+{
+    (void)context;
+    animate_flag = true;
+}
+
+/*
+ * layout_remove_animation() - Remove animation node that contains the callback function from the queue
+ *
+ * INPUT
+ *     - callback: animation callback function to remove node for
+ * OUTPUT
+ *     none
+ */
+#if defined(AGGRO_UNDEFINED_FN)
+static void layout_remove_animation(AnimateCallback callback)
+{
+    Animation *animation = animation_queue_get(&active_queue, callback);
+
+    if(animation != NULL)
+    {
+        animation_queue_push(&free_queue, animation);
+    }
+}
+#endif
+
+/*
+ * animation_queue_peek() - Get current animation node in head pointer
+ *
+ * INPUT
+ *     - queue: pointer to animation queue
+ * OUTPUT
+ *     node pointed to by head pointer
+ */
+static Animation *animation_queue_peek(AnimationQueue *queue)
+{
+    return queue->head;
+}
+
+/*
+ * animation_queue_push() - Push animation into queue
+ *
+ * INPUT
+ *     - queue: pointer to animation queue
+ * OUTPUT
+ *     none
+ */
+static void animation_queue_push(AnimationQueue *queue, Animation *node)
+{
+    if(queue->head != NULL)
+    {
+        node->next = queue->head;
+    }
+    else
+    {
+        node->next = NULL;
+    }
+
+    queue->head = node;
+    queue->size += 1;
+}
+
+
+/*
+ * animation_queue_pop() - Pop a node from animation queue
+ *
+ * INPUT
+ *     - queue: pointer to animation queue
+ * OUTPUT
+ *     pointer to a node from the queue
+ */
+static Animation *animation_queue_pop(AnimationQueue *queue)
+{
+    Animation *animation = queue->head;
+
+    if(animation != NULL)
+    {
+        queue->head = animation->next;
+        queue->size -= 1;
+    }
+
+    return(animation);
+}
+
+/*
+ * animation_queue_get() - Get a queue containg the callback function
+ *
+ * INPUT
+ *     - queue: pointer to animation queue
+ *     - callback: animation callback function
+ * OUTPUT
+ *     pointer to Animation node
+ */
+static Animation *animation_queue_get(AnimationQueue *queue, AnimateCallback callback)
+{
+    Animation *current = queue->head;
+    Animation *result = NULL;
+
+    if(current != NULL)
+    {
+        if(current->animate_callback == callback)
+        {
+            result = current;
+            queue->head = current->next;
+        }
+        else
+        {
+            Animation *previous = current;
+            current = current->next;
+
+            while((current != NULL) && (result == NULL))
+            {
+                // Found the node!
+                if(current->animate_callback == callback)
+                {
+                    result = current;
+                    previous->next = current->next;
+                    result->next = NULL;
+                }
+
+                previous = current;
+                current = current->next;
+            }
+        }
+    }
+
+    if(result != NULL)
+    {
+        queue->size -= 1;
+    }
+
+    return(result);
+}
+
+/* === Functions =========================================================== */
+
+/*
+ * layout_init() - Initialize layout subsystem
+ *
+ * INPUT
+ *     - new_canvas: lay out info for specific image
+ * OUTPUT
  *     none
  */
 void layout_init(Canvas *new_canvas)
@@ -81,23 +249,23 @@ void layout_init(Canvas *new_canvas)
 /*
  * layout_get_canvas() - Returns canvas for drawing to display
  *
- * INPUT -
+ * INPUT
  *     none
- * OUTPUT -
+ * OUTPUT
  *     pointer to canvas
  */
-Canvas* layout_get_canvas(void)
+Canvas *layout_get_canvas(void)
 {
     return canvas;
 }
 
 /*
- * call_leaving_handler() - call leaving handler
+ * call_leaving_handler() - Call leaving handler
  *
- * INPUT -
- *      none
- * OUTPUT -
- *      none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void call_leaving_handler(void)
 {
@@ -108,14 +276,14 @@ void call_leaving_handler(void)
 }
 
 /*
- * layout_standard_notification() - display standard notification on LCD screen
+ * layout_standard_notification() - Display standard notification
  *
- * INPUT -
- *      1. string pointer1
- *      2. string pointer2
- *      3. notification type
- * OUTPUT -
- *      none
+ * INPUT
+ *     - str1: title string
+ *     - str2: body string
+ *     - type: notification type
+ * OUTPUT
+ *     none
  */
 void layout_standard_notification(const char *str1, const char *str2,
                                   NotificationType type)
@@ -161,13 +329,13 @@ void layout_standard_notification(const char *str1, const char *str2,
 }
 
 /*
- * layout_notification_icon() - display notification icon
+ * layout_notification_icon() - Display notification icon
  *
- * INPUT -
- *      1. notification type
- *      2. drawable parameters for icon notification placement
- * OUTPUT -
- *      none
+ * INPUT
+ *     - type: notification type
+ *     - sp: drawable parameters for icon notification placement
+ * OUTPUT
+ *     none
  */
 void layout_notification_icon(NotificationType type, DrawableParams *sp)
 {
@@ -230,11 +398,12 @@ void layout_notification_icon(NotificationType type, DrawableParams *sp)
 }
 
 /*
- * layout_warning() - display warning message on display
+ * layout_warning() - Display warning message
  *
- * INPUT -
- *      prompt - string to display
- * OUTPUT -
+ * INPUT
+ *     - prompt: string to display
+ * OUTPUT
+ *     none
  */
 void layout_warning(const char *str)
 {
@@ -258,11 +427,12 @@ void layout_warning(const char *str)
 }
 
 /*
- * layout_warning_static() - display warning message on display without animation
+ * layout_warning_static() - Display warning message on display without animation
  *
- * INPUT -
- *      prompt - string to display
- * OUTPUT -
+ * INPUT
+ *     - prompt: string to display
+ * OUTPUT
+ *     none
  */
 void layout_warning_static(const char *str)
 {
@@ -286,11 +456,12 @@ void layout_warning_static(const char *str)
 }
 
 /*
- * layout_simple_message() - displays a simple one line message
+ * layout_simple_message() - Displays a simple one line message
  *
- * INPUT -
- *      str - string to display
- * OUTPUT -
+ * INPUT
+ *     - str: string to display
+ * OUTPUT
+ *     none
  */
 void layout_simple_message(const char *str)
 {
@@ -315,10 +486,12 @@ void layout_simple_message(const char *str)
 }
 
 /*
- *  layout_home() - splash home screen
+ *  layout_home() - Splash home screen
  *
- *  INPUT - none
- *  OUTPUT - none
+ *  INPUT
+ *      none
+ *  OUTPUT
+ *      none
  */
 void layout_home(void)
 {
@@ -326,10 +499,12 @@ void layout_home(void)
 }
 
 /*
- *  layout_home_reversed() - splash home screen in reverse
+ *  layout_home_reversed() - Splash home screen in reverse
  *
- *  INPUT - none
- *  OUTPUT - none
+ *  INPUT
+ *      none
+ *  OUTPUT
+ *      none
  */
 void layout_home_reversed(void)
 {
@@ -337,45 +512,12 @@ void layout_home_reversed(void)
 }
 
 /*
- *  layout_home_helper() - splash home screen helper
+ * layout_loading() - Loading animation
  *
- *  INPUT - true/false - reverse or normal
- *  OUTPUT - none
- */
-static void layout_home_helper(bool reversed)
-{
-    layout_clear();
-
-    static AnimationImageDrawableParams logo;
-    logo.base.x = 100;
-    logo.base.y = 10;
-
-    if(reversed)
-    {
-        logo.img_animation = get_logo_reversed_animation();
-    }
-    else
-    {
-        logo.img_animation = get_logo_animation();
-    }
-
-    layout_add_animation(
-        &layout_animate_images,
-        (void *)&logo,
-        get_image_animation_duration(logo.img_animation));
-
-    while(is_animating())
-    {
-        animate();
-        display_refresh();
-    }
-}
-
-/*
- * layout_loading() - load image for display
- *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  *
  */
 void layout_loading(void)
@@ -393,10 +535,12 @@ void layout_loading(void)
 }
 
 /*
- * animate() - image animation
+ * animate() - Attempt to animate if there are animations in the queue
  *
- * INPUT - none
- * OUTPUT -none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void animate(void)
 {
@@ -430,10 +574,12 @@ void animate(void)
 }
 
 /*
- * is_animating() - get animation status
+ * is_animating() - Get animation status
  *
- * INPUT - none
- * OUTPUT - true/false
+ * INPUT
+ *     none
+ * OUTPUT
+ *     true/false whether there are animations in the queue
  */
 bool is_animating(void)
 {
@@ -448,14 +594,14 @@ bool is_animating(void)
 }
 
 /*
- * layout_animate_images() - animate image on display
+ * layout_animate_images() - Animate image on display
  *
- * INPUT -
- *      *data - pointer to image
- *      duration - duration of the image animation
- *      elapsed - delay before drawing the image
- * OUTPUT -
- *      none
+ * INPUT
+ *     - data: pointer to image
+ *     - duration: duration of the image animation
+ *     - elapsed: delay before drawing the image
+ * OUTPUT
+ *     none
  */
 void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed)
 {
@@ -478,10 +624,12 @@ void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed)
 }
 
 /*
- * layout_clear() - API to clear display
+ * layout_clear() - Clear animation queue and clear display
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void layout_clear(void)
 {
@@ -492,10 +640,12 @@ void layout_clear(void)
 }
 
 /*
- * layout_clear_static() - clear display
+ * layout_clear_static() - Clear display
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void layout_clear_static(void)
 {
@@ -510,24 +660,12 @@ void layout_clear_static(void)
 }
 
 /*
- * layout_animate_callback() - callback function to set animation flag
+ * force_animation_start() - Direct call to start animation
  *
- * INPUT -
- *      *context - not used
- * OUTPUT -
-        none
- */
-static void layout_animate_callback(void *context)
-{
-    (void)context;
-    animate_flag = true;
-}
-
-/*
- * force_animation_start() - direct call to start animation
- *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void force_animation_start(void)
 {
@@ -535,10 +673,12 @@ void force_animation_start(void)
 }
 
 /*
- * animating_progress_handler() - animate storage update progress
+ * animating_progress_handler() - Animate storage update progress
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void animating_progress_handler(void)
 {
@@ -550,14 +690,14 @@ void animating_progress_handler(void)
 }
 
 /*
- * layout_add_animation() - queue up the animation in active_queue.
+ * layout_add_animation() - Queue up the animation in active_queue
  *
- * INPUT -
- *      callback - animation callback function
- *      *data - pointer to image
- *      duration - duration of animation
- * OUTPUT -
- *      none
+ * INPUT
+ *     - callback: animation callback function
+ *     - data: pointer to image
+ *     - duration: duration of animation
+ * OUTPUT
+ *     none
  */
 void layout_add_animation(AnimateCallback callback, void *data, uint32_t duration)
 {
@@ -575,31 +715,13 @@ void layout_add_animation(AnimateCallback callback, void *data, uint32_t duratio
     animation_queue_push(&active_queue, animation);
 }
 
-#if defined(AGGRO_UNDEFINED_FN)
 /*
- * layout_remove_animation() - remove animation node that contains the callback function from the queue
+ * layout_clear_animations() - Clear all animation from queue
  *
- * INPUT -
- *      callback - animation callback function
- * OUTPUT -
-        none
- */
-static void layout_remove_animation(AnimateCallback callback)
-{
-    Animation *animation = animation_queue_get(&active_queue, callback);
-
-    if(animation != NULL)
-    {
-        animation_queue_push(&free_queue, animation);
-    }
-}
-#endif
-
-/*
- * layout_clear_animations() - clear all animation from queue
- *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void layout_clear_animations(void)
 {
@@ -613,120 +735,12 @@ void layout_clear_animations(void)
 }
 
 /*
- * animation_queue_peek() - get current animation node in head pointer
+ * set_leaving_handler() - Setup leaving handler
  *
- * INPUT -
- *      *queue - pointer to animation queue
- * OUTPUT -
- *      node pointed to by head pointer
- */
-static Animation *animation_queue_peek(AnimationQueue *queue)
-{
-    return queue->head;
-}
-
-/*
- * animation_queue_push() - push animation into queue
- *
- * INPUT -
- *      *queue - pointer to animation queue
- * OUTPUT -
- *      none
- */
-static void animation_queue_push(AnimationQueue *queue, Animation *node)
-{
-    if(queue->head != NULL)
-    {
-        node->next = queue->head;
-    }
-    else
-    {
-        node->next = NULL;
-    }
-
-    queue->head = node;
-    queue->size += 1;
-}
-
-
-/*
- * animation_queue_pop() - pop a node from animation queue
- *
- * INPUT -
- *      *queue - pointer to animation queue
- * OUTPUT -
- *      pointer to a node from the queue
- */
-static Animation *animation_queue_pop(AnimationQueue *queue)
-{
-    Animation *animation = queue->head;
-
-    if(animation != NULL)
-    {
-        queue->head = animation->next;
-        queue->size -= 1;
-    }
-
-    return(animation);
-}
-
-/*
- * animation_queue_get() - get a queue containg the callback function
- *
- * INPUT -
- *      *queue - pointer to animation queue
- *      callback - animation callback function
- * OUTPUT -
- *      pointer to Animation node
- */
-static Animation *animation_queue_get(AnimationQueue *queue, AnimateCallback callback)
-{
-    Animation *current = queue->head;
-    Animation *result = NULL;
-
-    if(current != NULL)
-    {
-        if(current->animate_callback == callback)
-        {
-            result = current;
-            queue->head = current->next;
-        }
-        else
-        {
-            Animation *previous = current;
-            current = current->next;
-
-            while((current != NULL) && (result == NULL))
-            {
-                // Found the node!
-                if(current->animate_callback == callback)
-                {
-                    result = current;
-                    previous->next = current->next;
-                    result->next = NULL;
-                }
-
-                previous = current;
-                current = current->next;
-            }
-        }
-    }
-
-    if(result != NULL)
-    {
-        queue->size -= 1;
-    }
-
-    return(result);
-}
-
-/*
- * set_leaving_handler() - setup leaving handler
- *
- * INPUT -
- *      leaving_func - leaving handler to be set
- * OUTPUT -
- *      none
+ * INPUT
+ *     - leaving_func: leaving handler to be set
+ * OUTPUT
+ *     none
  */
 void set_leaving_handler(leaving_handler_t leaving_func)
 {

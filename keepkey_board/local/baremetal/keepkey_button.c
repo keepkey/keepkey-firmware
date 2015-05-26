@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,12 +15,9 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
-
-//================================ INCLUDES ===================================
+/* === Includes ============================================================ */
 
 #include <stddef.h>
 
@@ -34,27 +30,30 @@
 #include "keepkey_button.h"
 #include "keepkey_leds.h"
 
+/* === Private Variables =================================================== */
 
-/************* Local and static variables ****************/
 static Handler on_press_handler     = NULL;
 static Handler on_release_handler   = NULL;
 
-static void* on_release_handler_context = NULL;
-static void* on_press_handler_context   = NULL;
+static void *on_release_handler_context = NULL;
+static void *on_press_handler_context   = NULL;
 static const uint16_t BUTTON_PIN    = GPIO7;
 static const uint32_t BUTTON_PORT   = GPIOB;
 static const uint8_t BUTTON_IRQN    = NVIC_EXTI9_5_IRQ;
 static const uint32_t BUTTON_EXTI   = EXTI7;
 
-/*****************  FUNCTIONS **************************/
+/* === Functions =========================================================== */
 
 /*
- * keepkey_button_init() - initialize push botton interrupt registers and variables
+ * keepkey_button_init() - Initialize push botton interrupt registers
+ * and variables
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
-void keepkey_button_init(void) 
+void keepkey_button_init(void)
 {
     on_press_handler = NULL;
     on_press_handler_context = NULL;
@@ -62,63 +61,67 @@ void keepkey_button_init(void)
     on_release_handler = NULL;
     on_release_handler_context = NULL;
 
-    nvic_enable_irq( BUTTON_IRQN );
+    nvic_enable_irq(BUTTON_IRQN);
 
     gpio_mode_setup(
-            BUTTON_PORT, 
-            GPIO_MODE_INPUT, 
-            GPIO_PUPD_NONE,
-            BUTTON_PIN );
+        BUTTON_PORT,
+        GPIO_MODE_INPUT,
+        GPIO_PUPD_NONE,
+        BUTTON_PIN);
 
     /* Configure the EXTI subsystem. */
     exti_select_source(
-            BUTTON_EXTI, 
-            GPIOB );
+        BUTTON_EXTI,
+        GPIOB);
 
     exti_set_trigger(
-            BUTTON_EXTI, 
-            EXTI_TRIGGER_BOTH );
+        BUTTON_EXTI,
+        EXTI_TRIGGER_BOTH);
 
-    exti_enable_request( BUTTON_EXTI );
+    exti_enable_request(BUTTON_EXTI);
 }
 
 /*
- * keepkey_button_set_on_press_handler() - set callback handler for button pressed
- * INPUT - 
- *      handler - handler function
- *      *context - pointer to release handler state info. 
- * OUTPUT - 
- *      none
+ * keepkey_button_set_on_press_handler() - Set callback handler for
+ * button pressed
+ *
+ * INPUT
+ *     - handler: handler function
+ *     - context: pointer to release handler state info.
+ * OUTPUT
+ *     none
  *
  */
-void keepkey_button_set_on_press_handler(Handler handler, void* context)
+void keepkey_button_set_on_press_handler(Handler handler, void *context)
 {
     on_press_handler = handler;
     on_press_handler_context = context;
 }
 
 /*
- * keepkey_button_set_on_release_handler() - set handler for button released
+ * keepkey_button_set_on_release_handler() - Set handler for
+ * button released
  *
- * INPUT - 
- *      handler - handler function
- *      *context - pointer to release handler state info. 
- * OUTPUT - 
- *      none
+ * INPUT
+ *     - handler: handler function
+ *     - context: pointer to release handler state info.
+ * OUTPUT
+ *     none
  *
  */
-void keepkey_button_set_on_release_handler(Handler handler, void* context)
+void keepkey_button_set_on_release_handler(Handler handler, void *context)
 {
     on_release_handler = handler;
     on_release_handler_context = context;
 }
 
 /*
- * keepkey_button_up() - get push button in up state
+ * keepkey_button_up() - Get push button in up state
  *
- * INPUT - none
- * OUTPUT -
- *      state of push button up
+ * INPUT
+ *     none
+ * OUTPUT
+ *     true/false state of push button up
  */
 bool keepkey_button_up(void)
 {
@@ -127,11 +130,12 @@ bool keepkey_button_up(void)
 }
 
 /*
- * keepkey_button_down() - get push button in down state
+ * keepkey_button_down() - Get push button in down state
  *
- * INPUT - none
- * OUTPUT -
- *      state of push button down
+ * INPUT
+ *     none
+ * OUTPUT
+ *     true/false state of push button down
  */
 bool keepkey_button_down(void)
 {
@@ -139,28 +143,29 @@ bool keepkey_button_down(void)
 }
 
 /*
- * exti9_5_isr() - interrupt service routine for push button external interrupt
+ * exti9_5_isr() - Interrupt service routine for push button external interrupt
  *
- * INPUT - none
- * OUTPUT - none
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
  */
 void exti9_5_isr(void)
 {
-    exti_reset_request( BUTTON_EXTI );
+    exti_reset_request(BUTTON_EXTI);
 
-    if( gpio_get( BUTTON_PORT, BUTTON_PIN ) & BUTTON_PIN )
+    if(gpio_get(BUTTON_PORT, BUTTON_PIN) & BUTTON_PIN)
     {
-        if( on_release_handler )
+        if(on_release_handler)
         {
-            on_release_handler( on_release_handler_context );
+            on_release_handler(on_release_handler_context);
         }
     }
     else
     {
-        if( on_press_handler )
+        if(on_press_handler)
         {
-            on_press_handler( on_press_handler_context );
+            on_press_handler(on_press_handler_context);
         }
     }
 }
-

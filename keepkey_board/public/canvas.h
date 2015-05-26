@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,22 +15,17 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
-#ifndef canvas_H
-#define canvas_H
+#ifndef CANVAS_H
+#define CANVAS_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+/* === Includes ============================================================ */
 
 #include <stdint.h>
 #include <stdbool.h>
 
-/***************** typedefs and enums  *******************/
+/* === Typedefs ============================================================ */
 
 typedef struct
 {
@@ -41,10 +35,5 @@ typedef struct
 	bool 		dirty;
 } Canvas;
 
-
-#ifdef __cplusplus
-}
 #endif
-
-#endif // canvas_H
 

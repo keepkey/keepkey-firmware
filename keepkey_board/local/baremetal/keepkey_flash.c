@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,23 +15,27 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
+/* === Includes ============================================================ */
 
-#include <stdint.h>
-#include <libopencm3/stm32/flash.h>
-#include <keepkey_flash.h>
 #include <string.h>
+#include <stdint.h>
+
+#include <libopencm3/stm32/flash.h>
+
+#include "keepkey_flash.h"
+
+/* === Private Functions =================================================== */
 
 /*
- * flash_write_helper - helper function to locate starting address of the functional group
+ * flash_write_helper() - Helper function to locate starting address of 
+ * the functional group
  * 
- * INPUT : 
- *      1. functional group
- * OUTPUT:
- *      starting address of functional group
+ * INPUT
+ *     - group: functional group
+ * OUTPUT
+ *     starting address of functional group
  */
 static uint32_t flash_write_helper(Allocation group)
 {
@@ -50,15 +53,15 @@ static uint32_t flash_write_helper(Allocation group)
 	return start;
 }
 
+/* === Functions =========================================================== */
+
 /*
- * flash_chk_status - get flash operation status
+ * flash_chk_status() - Get flash operation status
  *
- * INPUT :
- *      none
- * OUTPUT : 
- *      flash operation status
- *          false - error
- *          true - success
+ * INPUT
+ *     none
+ * OUTPUT
+ *     true/false flash operation status
  */
 bool flash_chk_status(void)
 {
@@ -72,11 +75,11 @@ bool flash_chk_status(void)
 }
 
 /*
- * flash_erase_word() - flash erase in word (32bit) size
+ * flash_erase_word() - Flash erase in word (32bit) size
  *
- * INPUT : 
- *     functional group 
- * OUTPUT : 
+ * INPUT
+ *     - group: functional group
+ * OUTPUT
  *     none
  */
 void flash_erase_word(Allocation group)
@@ -92,11 +95,11 @@ void flash_erase_word(Allocation group)
 }
 
 /*
- * flash_erase - flash erase in byte size
+ * flash_erase() - Flash erase in byte size
  *
- * INPUT : 
- *     functional group 
- * OUTPUT : 
+ * INPUT
+ *     - group: functional group 
+ * OUTPUT
  *     none
  */
 void flash_erase(Allocation group)
@@ -112,15 +115,15 @@ void flash_erase(Allocation group)
 }
 
 /*
- * flash_write_word - flash write in word (32bit) size
+ * flash_write_word() - Flash write in word (32bit) size
  *
- * INPUT : 
- *      1. functional group
- *      2. flash address offset
- *      3. length of source data
- *      4. pointer to source data 
+ * INPUT
+ *     - group: functional group
+ *     - offset: flash address offset
+ *     - len: length of source data
+ *     - data: pointer to source data 
  * OUTPUT:
- *      status 
+ *     true/false status of write
  */
 bool flash_write_word(Allocation group, uint32_t offset, uint32_t len, uint8_t *data)
 {
@@ -171,15 +174,15 @@ fww_exit:
 }
 
 /*
- * flash_write - flash write in byte size
+ * flash_write() - Flash write in byte size
  *
  * INPUT : 
- *      1. functional group
- *      2. flash address offset
- *      3. length of source data
- *      4. source data address
+ *     - group: functional group
+ *     - offset: flash address offset
+ *     - len: length of source data
+ *     - data: source data address
  * OUTPUT:
- *      status 
+ *     true/false status of write
  */
 bool flash_write(Allocation group, uint32_t offset, uint32_t len, uint8_t* data)
 {
@@ -191,12 +194,3 @@ bool flash_write(Allocation group, uint32_t offset, uint32_t len, uint8_t* data)
     }
     return(retval);
 }
-
-
-
-
-
-
-
-
-

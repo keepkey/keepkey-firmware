@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,17 +15,18 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
-#ifndef resources_H
-#define resources_H
+#ifndef RESOURCES_H
+#define RESOURCES_H
+
+/* === Includes ============================================================ */
 
 #include <stdint.h>
 #include <stdbool.h>
 
-/***************** typedefs and enums  *******************/
+/* === Typedefs ============================================================ */
+
 typedef struct
 {
     const void *(*get_image_data)(uint8_t *);
@@ -34,22 +34,21 @@ typedef struct
     uint16_t    height;
 } Image;
 
-/// Image frame information.
+/* Image frame information */
 typedef struct
 {
     const Image    *image;
     uint32_t        duration;
 } AnimationFrame;
 
-/// Image animation information.
+/* Image animation information */
 typedef struct
 {
-    int                 length;
+    int                     length;
     const AnimationFrame   *frames;
 } ImageAnimation;
 
-
-//====================== CLASS MEMBER FUNCTIONS ===========================
+/* === Functions =========================================================== */
 
 const Image *get_confirm_icon_image(void);
 const Image *get_confirmed_image(void);
@@ -61,11 +60,11 @@ const ImageAnimation *get_confirm_icon_animation(void);
 const ImageAnimation *get_confirming_animation(void);
 const ImageAnimation *get_loading_animation(void);
 const ImageAnimation *get_warning_animation(void);
-const ImageAnimation* get_logo_animation(void);
-const ImageAnimation* get_logo_reversed_animation(void);
+const ImageAnimation *get_logo_animation(void);
+const ImageAnimation *get_logo_reversed_animation(void);
 
 uint32_t get_image_animation_duration(const ImageAnimation *img_animation);
 const Image *get_image_animation_frame(const ImageAnimation *img_animation,
                                        const uint32_t elapsed, bool loop);
 
-#endif // resources_H
+#endif

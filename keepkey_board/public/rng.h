@@ -17,11 +17,15 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __RNG_H__
-#define __RNG_H__
+#ifndef RNG_H
+#define RNG_H
+
+/* === Includes ============================================================ */
 
 #include <stdint.h>
 #include <stdlib.h>
+
+/* === Functions =========================================================== */
 
 uint32_t random32(void);
 uint32_t random_uniform(uint32_t n);

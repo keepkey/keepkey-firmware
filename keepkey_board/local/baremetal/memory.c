@@ -15,21 +15,31 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * March 19, 2015 - This file has been modified and adapted for KeepKey project.
- *
  */
 
-#include <string.h>
+/* === Includes ============================================================ */
 
+#include <string.h>
 #include <assert.h>
 #include <stdint.h>
+
 #include <libopencm3/stm32/flash.h>
+
 #include <sha2.h>
-#include <memory.h>
 
+#include "keepkey_board.h"
+#include "memory.h"
 
+/* === Functions =========================================================== */
+
+/*
+ * memory_protect() - Set option bytes for memory pretection
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
+ */
 void memory_protect(void)
 {
     /*                     set RDP level 2                   WRP for sectors 0,5,6  */
@@ -44,6 +54,14 @@ void memory_protect(void)
     flash_lock_option_bytes();
 }
 
+/*
+ * memory_bootloader_hash() - SHA256 hash of bootloader
+ *
+ * INPUT
+ *     - hash: buffer to be filled with hash
+ * OUTPUT
+ *     none
+ */
 int memory_bootloader_hash(uint8_t *hash)
 {
     static uint8_t cached_hash[SHA256_DIGEST_LENGTH];
@@ -59,7 +77,15 @@ int memory_bootloader_hash(uint8_t *hash)
     return SHA256_DIGEST_LENGTH;
 }
 
-int memory_firmware_hash(uint8_t *digest)
+/*
+ * memory_firmware_hash() - SHA256 hash of firmware (meta and application)
+ *
+ * INPUT
+ *     - hash: buffer to be filled with hash
+ * OUTPUT
+ *     none
+ */
+int memory_firmware_hash(uint8_t *hash)
 {
     SHA256_CTX ctx;
     uint32_t codelen = *((uint32_t *)FLASH_META_CODELEN);
@@ -68,9 +94,10 @@ int memory_firmware_hash(uint8_t *digest)
     {
         sha256_Init(&ctx);
         sha256_Update(&ctx, (const uint8_t *)META_MAGIC_STR, META_MAGIC_SIZE);
-        sha256_Update(&ctx, (const uint8_t *)FLASH_META_CODELEN, FLASH_META_DESC_LEN - META_MAGIC_SIZE);
+        sha256_Update(&ctx, (const uint8_t *)FLASH_META_CODELEN,
+                      FLASH_META_DESC_LEN - META_MAGIC_SIZE);
         sha256_Update(&ctx, (const uint8_t *)FLASH_APP_START, codelen);
-        sha256_Final(digest, &ctx);
+        sha256_Final(hash, &ctx);
         return SHA256_DIGEST_LENGTH;
     }
     else
@@ -79,8 +106,16 @@ int memory_firmware_hash(uint8_t *digest)
     }
 }
 
-int memory_storage_hash(uint8_t *digest, size_t len)
+/*
+ * memory_storage_hash() - SHA256 hash of storage area
+ *
+ * INPUT
+ *     - hash: buffer to be filled with hash
+ * OUTPUT
+ *     none
+ */
+int memory_storage_hash(uint8_t *hash)
 {
-    sha256_Raw((const uint8_t *)FLASH_STORAGE_START, len, digest);
+    sha256_Raw((const uint8_t *)FLASH_STORAGE_START, sizeof(ConfigFlash), hash);
     return SHA256_DIGEST_LENGTH;
 }

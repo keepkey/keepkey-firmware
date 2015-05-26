@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,29 +15,27 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
-//============================= CONDITIONALS ==================================
+#ifndef KEEPKEY_DISPLAY_H
+#define KEEPKEY_DISPLAY_H
 
-
-#ifndef keepkey_display_H
-#define keepkey_display_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* === Includes ============================================================ */
 
 #include "canvas.h"
 
-/**************  #defines *******************************/
+/* === Defines ============================================================= */
+
+#define START_COL ((uint8_t)0x1C)
+#define START_ROW ((uint8_t)0x00)
+
 #define KEEPKEY_DISPLAY_HEIGHT  64
 #define KEEPKEY_DISPLAY_WIDTH   256
 
-#define DEFAULT_DISPLAY_BRIGHTNESS  100 // percent
+#define DEFAULT_DISPLAY_BRIGHTNESS  100 /* Percent */
 
-/**********************  Function Declarations ***********************/
+/* === Functions =========================================================== */
+
 void display_hw_init(void);
 Canvas *display_canvas_init(void);
 Canvas *display_canvas(void);
@@ -47,10 +44,4 @@ void display_set_brightness(int percentage);
 void display_turn_on(void);
 void display_turn_off(void);
 
-
-#ifdef __cplusplus
-}
 #endif
-
-#endif // keepkey_display_H
-

@@ -1,4 +1,3 @@
-/* START KEEPKEY LICENSE */
 /*
  * This file is part of the KeepKey project.
  *
@@ -16,43 +15,27 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-/* END KEEPKEY LICENSE */
 
-#ifndef keepkey_button_H
-#define keepkey_button_H
+#ifndef KEEPKEY_BUTTON_H
+#define KEEPKEY_BUTTON_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+/* === Includes ============================================================ */
 
 #include <stdint.h>
+
 #include "canvas.h"
 
-/***************** Typedefs and enums  *******************/
+/* === Typedefs ============================================================ */
+
 typedef void (*Handler)(void* context);
 
-/***************** Function Declarations ******************/
+/* === Functions =========================================================== */
+
 void keepkey_button_init(void);
 void keepkey_button_set_on_press_handler( Handler handler, void* context);
 void keepkey_button_set_on_release_handler( Handler handler, void* context);
-
-/**
- * @return true if the button is currently in the 'down' state.
- */
 bool keepkey_button_down(void);
-
-/**
- * @return true if the button is currently in the 'up' state.
- */
 bool keepkey_button_up(void);
 
-
-#ifdef __cplusplus
-}
 #endif
-
-#endif // keepkey_button_H
-
