@@ -173,7 +173,7 @@ bool usb_flash_firmware(void)
         {
             case UPLOAD_COMPLETE:
             {
-                if(signatures_ok() == 1)
+                if((SIG_FLAG == 1) && (signatures_ok() == 1))
                 {
                     /* The image is from KeepKey.  Restore storage data */
                     if(flash_locking_write(FLASH_STORAGE, 0, sizeof(ConfigFlash),
