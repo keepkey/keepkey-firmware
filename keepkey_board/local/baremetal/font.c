@@ -3820,11 +3820,6 @@ uint32_t calc_str_line(const Font *font, const char *str, uint16_t line_width)
         {
             line_count++;
             x_offset = 0;
-
-            if(line_count == 3)
-            {
-                goto finished;
-            }
         }
 
         /* Remove leading spaces */
