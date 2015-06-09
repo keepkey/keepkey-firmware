@@ -3833,6 +3833,5 @@ uint32_t calc_str_line(const Font *font, const char *str, uint16_t line_width)
         str++;
     }
 
-finished:
     return line_count;
 }
