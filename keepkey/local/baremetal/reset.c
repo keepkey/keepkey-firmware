@@ -115,11 +115,13 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
     /*
      * Format mnemonic for user review
      */
-    uint32_t word_count = 0;
+    uint32_t word_count = 0, current_page = 0, page_count;
     char *tok;
     char tokened_mnemonic[TOKENED_MNEMONIC_BUF];
-    char mnemonic_by_screen[MAX_WORDS / WORDS_PER_SCREEN][MNEMONIC_BY_SCREEN_BUF];
-    char formatted_mnemonic[MAX_WORDS / WORDS_PER_SCREEN][FORMATTED_MNEMONIC_BUF];
+    char mnemonic_by_screen[MAX_PAGES][MNEMONIC_BY_SCREEN_BUF];
+    char formatted_mnemonic[MAX_PAGES][FORMATTED_MNEMONIC_BUF];
+    char mnemonic_display[FORMATTED_MNEMONIC_BUF];
+    char formatted_word[MAX_WORD_LEN + ADDITIONAL_WORD_PAD];
 
     strlcpy(tokened_mnemonic, temp_mnemonic, TOKENED_MNEMONIC_BUF);
 
@@ -127,24 +129,35 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 
     while(tok)
     {
-        /* format word for screen */
-        char formatted_word[MAX_WORD_LEN + ADDITIONAL_WORD_PAD];
-
-        snprintf(formatted_word, MAX_WORD_LEN + ADDITIONAL_WORD_PAD, "%lu.%s   ",
+        snprintf(formatted_word, MAX_WORD_LEN + ADDITIONAL_WORD_PAD, "%lu.%s",
                  (unsigned long)(word_count + 1), tok);
 
-        strlcat(formatted_mnemonic[word_count / WORDS_PER_SCREEN], formatted_word,
+        /* Check that we have enough room on display to show word */
+        snprintf(mnemonic_display, FORMATTED_MNEMONIC_BUF, "%s   %s",
+                 formatted_mnemonic[current_page], formatted_word);
+
+        if(calc_str_line(get_body_font(), mnemonic_display, BODY_WIDTH) > 3)
+        {
+            page_count++;
+            current_page++;
+
+            snprintf(mnemonic_display, FORMATTED_MNEMONIC_BUF, "%s   %s",
+                 formatted_mnemonic[current_page], formatted_word);
+        }
+
+
+        strlcpy(formatted_mnemonic[current_page], mnemonic_display,
                 FORMATTED_MNEMONIC_BUF);
 
-        /* save mnemonic for each screen */
-        if(strlen(mnemonic_by_screen[word_count / WORDS_PER_SCREEN]) == 0)
+        /* Save mnemonic for each screen */
+        if(strlen(mnemonic_by_screen[current_page]) == 0)
         {
-            strlcpy(mnemonic_by_screen[word_count / WORDS_PER_SCREEN], tok, MNEMONIC_BY_SCREEN_BUF);
+            strlcpy(mnemonic_by_screen[current_page], tok, MNEMONIC_BY_SCREEN_BUF);
         }
         else
         {
-            strlcat(mnemonic_by_screen[word_count / WORDS_PER_SCREEN], " ", MNEMONIC_BY_SCREEN_BUF);
-            strlcat(mnemonic_by_screen[word_count / WORDS_PER_SCREEN], tok, MNEMONIC_BY_SCREEN_BUF);
+            strlcat(mnemonic_by_screen[current_page], " ", MNEMONIC_BY_SCREEN_BUF);
+            strlcat(mnemonic_by_screen[current_page], tok, MNEMONIC_BY_SCREEN_BUF);
         }
 
         tok = strtok(NULL, " ");
@@ -152,21 +165,21 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
     }
 
     /* Have user confirm mnemonic is sets of 12 words */
-    for(uint32_t word_group = 0; word_group * WORDS_PER_SCREEN < (strength / 32) * 3; word_group++)
+    for(page_count = current_page + 1, current_page = 0; current_page < page_count; current_page++)
     {
         char title[MEDIUM_STR_BUF] = "Recovery Sentence";
 
         /* make current screen mnemonic available via debuglink */
-        strlcpy(current_words, mnemonic_by_screen[word_group], MNEMONIC_BY_SCREEN_BUF);
+        strlcpy(current_words, mnemonic_by_screen[current_page], MNEMONIC_BY_SCREEN_BUF);
 
-        if((strength / 32) * 3 > WORDS_PER_SCREEN)
+        if(page_count > 1)
         {
             /* snprintf: 20 + 10 (%d) + 1 (NULL) = 31 */
-            snprintf(title, MEDIUM_STR_BUF, "Recovery Sentence %lu/2", word_group + 1);
+            snprintf(title, MEDIUM_STR_BUF, "Recovery Sentence %lu/%lu", current_page + 1, page_count);
         }
 
         if(!confirm(ButtonRequestType_ButtonRequest_ConfirmWord, title, "%s",
-                    formatted_mnemonic[word_group]))
+                    formatted_mnemonic[current_page]))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Reset cancelled");
             storage_reset();
