@@ -184,7 +184,6 @@ static bool boot(void)
 {
     if(magic_ok())
     {
-        /* Splash screen */
         layout_home();
 
         if(signatures_ok() == 0) /* Signature check failed */
@@ -197,6 +196,8 @@ static bool boot(void)
                 layout_simple_message("Boot Aborted");
                 goto cancel_boot;
             }
+
+            layout_home();
         }
 
         led_func(CLR_RED_LED);
