@@ -97,25 +97,26 @@
 
 /* Application Partition */
 #define FLASH_META_START        (FLASH_BOOT_START + FLASH_BOOT_LEN) //0x0806_0000
-#define FLASH_META_DESC_LEN     (0x100) 
+#define FLASH_META_DESC_LEN     (0x100)
 
-#define FLASH_META_MAGIC	    (FLASH_META_START)
-#define FLASH_META_CODELEN	    (FLASH_META_MAGIC       + sizeof(((app_meta_td *)NULL)->magic))
-#define FLASH_META_SIGINDEX1	(FLASH_META_CODELEN	    + sizeof(((app_meta_td *)NULL)->code_len))
-#define FLASH_META_SIGINDEX2	(FLASH_META_SIGINDEX1   + sizeof(((app_meta_td *)NULL)->sig_index1))
-#define FLASH_META_SIGINDEX3	(FLASH_META_SIGINDEX2   + sizeof(((app_meta_td *)NULL)->sig_index2))
-#define FLASH_META_FLAGS	    (FLASH_META_SIGINDEX3   + sizeof(((app_meta_td *)NULL)->sig_index3))
-#define FLASH_META_RESERVE	    (FLASH_META_FLAGS       + sizeof(((app_meta_td *)NULL)->flag))
-#define FLASH_META_SIG1		    (FLASH_META_RESERVE     + sizeof(((app_meta_td *)NULL)->rsv))
-#define FLASH_META_SIG2		    (FLASH_META_SIG1        + sizeof(((app_meta_td *)NULL)->sig1))
-#define FLASH_META_SIG3		    (FLASH_META_SIG2        + sizeof(((app_meta_td *)NULL)->sig2))
+#define FLASH_META_MAGIC        (FLASH_META_START)
+#define FLASH_META_CODELEN      (FLASH_META_MAGIC       + sizeof(((app_meta_td *)NULL)->magic))
+#define FLASH_META_SIGINDEX1    (FLASH_META_CODELEN     + sizeof(((app_meta_td *)NULL)->code_len))
+#define FLASH_META_SIGINDEX2    (FLASH_META_SIGINDEX1   + sizeof(((app_meta_td *)NULL)->sig_index1))
+#define FLASH_META_SIGINDEX3    (FLASH_META_SIGINDEX2   + sizeof(((app_meta_td *)NULL)->sig_index2))
+#define FLASH_META_FLAGS        (FLASH_META_SIGINDEX3   + sizeof(((app_meta_td *)NULL)->sig_index3))
+#define FLASH_META_RESERVE      (FLASH_META_FLAGS       + sizeof(((app_meta_td *)NULL)->flag))
+#define FLASH_META_SIG1         (FLASH_META_RESERVE     + sizeof(((app_meta_td *)NULL)->rsv))
+#define FLASH_META_SIG2         (FLASH_META_SIG1        + sizeof(((app_meta_td *)NULL)->sig1))
+#define FLASH_META_SIG3         (FLASH_META_SIG2        + sizeof(((app_meta_td *)NULL)->sig2))
 
 #define META_MAGIC_SIZE         (sizeof(((app_meta_td *)NULL)->magic))
 
-#define FLASH_APP_START     (FLASH_META_START + FLASH_META_DESC_LEN)     //0x0806_0100 - 0x080F_FFFF
-#define FLASH_APP_LEN       (FLASH_END - FLASH_APP_START)
+#define FLASH_APP_START         (FLASH_META_START + FLASH_META_DESC_LEN)     //0x0806_0100 - 0x080F_FFFF
+#define FLASH_APP_LEN           (FLASH_END - FLASH_APP_START)
 
-#define SIG_FLAG             (*( uint8_t const *)FLASH_META_FLAGS)
+#define SIG_FLAG                (*( uint8_t const *)FLASH_META_FLAGS)
+
 /* Misc Info. */
 #define FLASH_BOOTSTRAP_SECTOR_FIRST 0
 #define FLASH_BOOTSTRAP_SECTOR_LAST  0
@@ -132,7 +133,8 @@
 /* === Typedefs ============================================================ */
 
 /* Application Meta format */
-typedef struct {
+typedef struct
+{
     uint32_t magic;
     uint32_t code_len;
     uint8_t  sig_index1;
@@ -145,7 +147,8 @@ typedef struct {
     uint8_t  sig3[64];
 } app_meta_td;
 
-typedef enum {
+typedef enum
+{
     FLASH_INVALID,
     FLASH_BOOTSTRAP,
     FLASH_STORAGE,
@@ -153,7 +156,8 @@ typedef enum {
     FLASH_APP
 } Allocation;
 
-typedef struct {
+typedef struct
+{
     int sector;
     size_t start;
     uint32_t len;
@@ -164,12 +168,13 @@ typedef void (*progress_handler_t)(void);
 
 /* === Variables =========================================================== */
 
-static const FlashSector flash_sector_map[]= {
+static const FlashSector flash_sector_map[] =
+{
     { 0,  0x08000000, 0x4000,   FLASH_BOOTSTRAP },
-/*    { 1,  0x08004000, 0x4000,   UNUSED }, */
-/*    { 2,  0x08008000, 0x4000,   UNUSED }, */
+    /*    { 1,  0x08004000, 0x4000,   UNUSED }, */
+    /*    { 2,  0x08008000, 0x4000,   UNUSED }, */
     { 3,  0x0800C000, 0x4000,   FLASH_STORAGE },
-/*    { 4,  0x08010000, 0x10000,  UNUSED }, */
+    /*    { 4,  0x08010000, 0x10000,  UNUSED }, */
     { 5,  0x08020000, 0x20000,  FLASH_BOOTLOADER },
     { 6,  0x08040000, 0x20000,  FLASH_BOOTLOADER },
     { 7,  0x08060000, 0x20000,  FLASH_APP },
