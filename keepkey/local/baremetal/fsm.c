@@ -245,7 +245,7 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     (void)msg;
     RESP_INIT(Features);
 
-    /* Vendor ID */
+    /* Vendor */
     resp->has_vendor = true;
     strlcpy(resp->vendor, "keepkey.com", sizeof(resp->vendor));
 
