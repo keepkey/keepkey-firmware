@@ -259,8 +259,14 @@ int main(int argc, char *argv[])
     clock_init();
     bootloader_init();
 
-    //TODO (GIT issue #49): Do not turn this on until We're ready to ship
-    // memory_protect();
+#if !defined(DEBUG_ON) && (MEMORY_PROTECT == 0)
+#error "To compile release version, please set MEMORY_PROTECT flag"
+#elif !defined(DEBUG_ON)
+    /* Checks and sets memory protection */
+    memory_protect();
+#elif (MEMORY_PROTECT == 1)
+#error "Can only compile release versions with MEMORY_PROTECT flag"
+#endif
 
     /* Initialize stack guard with random value (-fstack_protector_all) */
     __stack_chk_guard = random32();
