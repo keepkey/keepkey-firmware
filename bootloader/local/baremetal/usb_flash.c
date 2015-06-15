@@ -139,7 +139,7 @@ static bool flash_locking_write(Allocation group, size_t offset, size_t len,
 
     if(flash_write(group, offset, len, data) == false)
     {
-        /* flash error detectected */
+        /* Flash error detectected */
         ret_val = false;
     }
 
@@ -181,7 +181,7 @@ bool usb_flash_firmware(void)
                     if(flash_locking_write(FLASH_STORAGE, 0, sizeof(ConfigFlash),
                                            (uint8_t *)&storage_shadow) == false)
                     {
-                        /* bailing early */
+                        /* Bailing early */
                         goto uff_exit;
                     }
                 }
@@ -416,7 +416,7 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
                         msg_size -= META_MAGIC_SIZE;
                         msg = (uint8_t *)(msg + META_MAGIC_SIZE);
                         flash_offset = META_MAGIC_SIZE;
-                        /* unlock the flash for writing */
+                        /* Unlock the flash for writing */
                         flash_unlock();
                     }
                     else
