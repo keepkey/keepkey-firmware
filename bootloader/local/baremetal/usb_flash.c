@@ -319,9 +319,18 @@ void handler_initialize(Initialize *msg)
     (void)msg;
     RESP_INIT(Features);
 
+    /* Vendor */
+    resp.has_vendor = true;
+    strlcpy(resp.vendor, "keepkey.com", sizeof(resp.vendor));
+
+    /* Bootloader Mode */
     resp.has_bootloader_mode = true;
     resp.bootloader_mode = true;
+
+    /* Version */
     resp.has_major_version = true;
+    resp.has_minor_version = true;
+    resp.has_patch_version = true;
     resp.major_version = BOOTLOADER_MAJOR_VERSION;
     resp.minor_version = BOOTLOADER_MINOR_VERSION;
     resp.patch_version = BOOTLOADER_PATCH_VERSION;
