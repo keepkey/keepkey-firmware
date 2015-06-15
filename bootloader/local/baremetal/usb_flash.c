@@ -54,10 +54,10 @@ static const MessagesMap_t MessagesMap[] =
     MSG_IN(MessageType_MessageType_Ping,                    Ping_fields,                (message_handler_t)(handler_ping))
     MSG_IN(MessageType_MessageType_FirmwareErase,           FirmwareErase_fields,       (message_handler_t)(handler_erase))
     MSG_IN(MessageType_MessageType_ButtonAck,               ButtonAck_fields,           NO_PROCESS_FUNC)
-    
+
     /* Normal Raw Messages */
     RAW_IN(MessageType_MessageType_FirmwareUpload,          FirmwareUpload_fields,      (message_handler_t)(raw_handler_upload))
-    
+
     /* Normal Out Messages */
     MSG_OUT(MessageType_MessageType_Features,               Features_fields,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_Success,                Success_fields,             NO_PROCESS_FUNC)
@@ -70,7 +70,7 @@ static const MessagesMap_t MessagesMap[] =
     DEBUG_IN(MessageType_MessageType_DebugLinkGetState,     DebugLinkGetState_fields,   (message_handler_t)(handler_debug_link_get_state))
     DEBUG_IN(MessageType_MessageType_DebugLinkStop,         DebugLinkStop_fields,       (message_handler_t)(handler_debug_link_stop))
     DEBUG_IN(MessageType_MessageType_DebugLinkFillConfig,   DebugLinkFillConfig_fields, (message_handler_t)(handler_debug_link_fill_config))
-    
+
     /* Debug Out Messages */
     DEBUG_OUT(MessageType_MessageType_DebugLinkState,       DebugLinkState_fields,      NO_PROCESS_FUNC)
     DEBUG_OUT(MessageType_MessageType_DebugLinkLog,         DebugLinkLog_fields,        NO_PROCESS_FUNC)
@@ -131,7 +131,7 @@ static void bootloader_fsm_init(void)
  *      status of flash write
  */
 static bool flash_locking_write(Allocation group, size_t offset, size_t len,
-                         uint8_t *data)
+                                uint8_t *data)
 {
     bool ret_val = true;
 
@@ -162,7 +162,9 @@ bool usb_flash_firmware(void)
 {
     bool ret_val = false;
 
-    layout_warning("Firmware Update Mode");
+    layout_simple_message("Firmware Update Mode");
+    layout_version(BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION,
+                   BOOTLOADER_PATCH_VERSION, __DATE__);
 
     usb_init();
     bootloader_fsm_init();

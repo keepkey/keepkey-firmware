@@ -26,6 +26,7 @@
 
 #include "draw.h"
 #include "font.h"
+#include "keepkey_board.h"
 #include "keepkey_display.h"
 #include "layout.h"
 #include "timer.h"
@@ -481,6 +482,38 @@ void layout_simple_message(const char *str)
     sp.y = (KEEPKEY_DISPLAY_HEIGHT / 2) - (font_height(font) / 2);
     sp.color = TITLE_COLOR;
     draw_string(canvas, font, upper_str, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
+
+    display_refresh();
+}
+
+/*
+ * layout_version() - Displays version and build date
+ *
+ * INPUT
+ *     - major: major version number
+ *     - minor: minor version number
+ *     - patch: patch version number
+ *     - date: build date
+ * OUTPUT
+ *     none
+ */
+void layout_version(int32_t major, int32_t minor, int32_t patch, char *date)
+{
+    char version_info[SMALL_STR_BUF];
+
+    call_leaving_handler();
+
+    const Font *font = get_body_font();
+
+    snprintf(version_info, SMALL_STR_BUF, "v%lu.%lu.%lu %s", (unsigned long)major,
+             (unsigned long)minor, (unsigned long)patch, date);
+
+    /* Draw version information */
+    DrawableParams sp;
+    sp.x = KEEPKEY_DISPLAY_WIDTH - calc_str_width(font, version_info) - BODY_FONT_LINE_PADDING;
+    sp.y = KEEPKEY_DISPLAY_HEIGHT - font_height(font) - BODY_FONT_LINE_PADDING;
+    sp.color = 0x22;
+    draw_string(canvas, font, version_info, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
 
     display_refresh();
 }
