@@ -356,7 +356,7 @@ void handler_erase(FirmwareErase *msg)
         flash_erase_word(FLASH_STORAGE);
         flash_erase_word(FLASH_APP);
         flash_lock();
-        send_success("Firmware Erased");
+        send_success("Firmware erased");
 
         layout_loading();
     }
@@ -534,7 +534,7 @@ void handler_debug_link_fill_config(DebugLinkFillConfig *msg)
 
     ConfigFlash fill_storage_shadow;
 
-    memset((uint8_t *)&fill_storage_shadow, 0xaa, sizeof(ConfigFlash));
+    memset((uint8_t *)&fill_storage_shadow, FILL_CONFIG_DATA, sizeof(ConfigFlash));
 
     flash_locking_write(FLASH_STORAGE, 0, sizeof(ConfigFlash),
                         (uint8_t *)&fill_storage_shadow);

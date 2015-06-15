@@ -33,6 +33,8 @@
 #define PROTOBUF_FIRMWARE_HASH_START    2
 #define PROTOBUF_FIRMWARE_START	        38
 
+#define FILL_CONFIG_DATA                0xaa
+
 /* === Typedefs ============================================================ */
 
 typedef enum 
