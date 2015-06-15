@@ -353,7 +353,7 @@ void handler_erase(FirmwareErase *msg)
 
     if(confirm(ButtonRequestType_ButtonRequest_FirmwareErase,
                "Verify Backup",
-               "Do you have your recovery sentence in case your privates keys are erased?"))
+               "Do you have your recovery sentence in case your private keys are erased?"))
     {
 
         layout_simple_message("Preparing For Upgrade...");
