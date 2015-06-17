@@ -54,6 +54,7 @@ static const MessagesMap_t MessagesMap[] =
     MSG_IN(MessageType_MessageType_Ping,                    Ping_fields,                (message_handler_t)(handler_ping))
     MSG_IN(MessageType_MessageType_FirmwareErase,           FirmwareErase_fields,       (message_handler_t)(handler_erase))
     MSG_IN(MessageType_MessageType_ButtonAck,               ButtonAck_fields,           NO_PROCESS_FUNC)
+    MSG_IN(MessageType_MessageType_Cancel,                  Cancel_fields,              NO_PROCESS_FUNC)
 
     /* Normal Raw Messages */
     RAW_IN(MessageType_MessageType_FirmwareUpload,          FirmwareUpload_fields,      (message_handler_t)(raw_handler_upload))
@@ -368,6 +369,10 @@ void handler_erase(FirmwareErase *msg)
         send_success("Firmware erased");
 
         layout_loading();
+    }
+    else
+    {
+        upload_state = UPLOAD_ERROR;
     }
 }
 
