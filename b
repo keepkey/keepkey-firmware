@@ -15,6 +15,7 @@ def proc_args():
     parser.add_argument('-i',  '--invert',     help = 'Build with inverted display.', action = 'store_true')
     parser.add_argument('-dl', '--debug-link',  help = 'Build with Debug Link.', action = 'store_true')
     parser.add_argument('-mp', '--memory-protect',  help = 'Build with memory protection', action = 'store_true')
+    parser.add_argument('-id', '--build-id',  help = 'Label build ID', action = 'store')
     parser.add_argument('-p',  '--project', 
                         help = 'Build specific project (bootloader, bootstrap, crypto, interface, keepkey, keepkey_board, nanopb).', 
                         action = 'store')
@@ -39,6 +40,8 @@ def main():
         buildargs += ' debug_link=1'
     if args.memory_protect:
         buildargs += ' memory_protect=1'
+    if args.build_id:
+        buildargs += ' build_id=%s' % (args.build_id)
     if args.build_type:
         build_aliases = {'bstrap': 'bootstrap', 'bldr': 'bootloader', 'app': 'keepkey'}
         buildargs += ' project=%s' % (build_aliases[args.build_type])

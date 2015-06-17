@@ -25,4 +25,8 @@ if int(ARGUMENTS.get('memory_protect', 0)):
 else:
     env = add_flags(env, ['-DMEMORY_PROTECT=0'])
 
+# Build ID
+if int(ARGUMENTS.get('build_id', 0)):
+    env = add_flags(env, ['-DBUILD_ID=%s' % (ARGUMENTS.get('build_id', 0))])
+
 init_project(env, deps=deps, libs=['opencm3_stm32f2'])
