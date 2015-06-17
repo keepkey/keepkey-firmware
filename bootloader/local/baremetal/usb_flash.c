@@ -164,8 +164,15 @@ bool usb_flash_firmware(void)
     bool ret_val = false;
 
     layout_simple_message("Firmware Update Mode");
+#if !defined(DEBUG_ON) && defined(BUILD_ID)
     layout_version(BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION,
-                   BOOTLOADER_PATCH_VERSION, __DATE__);
+                   BOOTLOADER_PATCH_VERSION, BUILD_ID);
+#elif !defined(DEBUG_ON)
+#error "Must define BUILD_ID flag when building a release version."
+#else
+    layout_version(BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION,
+                   BOOTLOADER_PATCH_VERSION, 0);
+#endif
 
     usb_init();
     bootloader_fsm_init();
@@ -373,6 +380,7 @@ void handler_erase(FirmwareErase *msg)
     else
     {
         upload_state = UPLOAD_ERROR;
+        send_failure(FailureType_Failure_ActionCancelled, "Firmware erase cancelled");
     }
 }
 
