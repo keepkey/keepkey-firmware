@@ -42,7 +42,7 @@
 
 /* === Variables =========================================================== */
 
-static FlashSector storage_loc = {0, 0, 0, 0};
+static FlashSector storage_loc_bl = {0, 0, 0, FLASH_INVALID};
 static FirmwareUploadState upload_state = UPLOAD_NOT_STARTED;
 static ConfigFlash storage_shadow;
 static uint8_t firmware_hash[SHA256_DIGEST_LENGTH];
@@ -346,37 +346,7 @@ void handler_initialize(Initialize *msg)
     msg_write(MessageType_MessageType_Features, &resp);
 }
 
-/*
- * find_active_storage_sect() - find a sector with valid data
- *
- * INPUT - 
- *      pointer to save config data
- * OUTPUT - 
- *      status
- *
- */
-bool find_active_storage_sect(FlashSector *st_ptr)
-{
-    bool ret_stat = false; 
-    Allocation st_use;
-    size_t st_start;
-    
-    /*find 1st storage sector /w valid data */
-    for(st_use = FLASH_STORAGE1; st_use <= FLASH_STORAGE3; st_use++)
-    {
-        st_start = flash_write_helper(st_use);
 
-        if(memcmp((void *)st_start, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0)
-        {
-            /* found valid data.  load data and exit */
-            st_ptr->start = st_start;
-            st_ptr->use = st_use;
-            ret_stat = true;
-            break;
-        }
-    }
-    return(ret_stat);
-}
 
 /*
  * storage_restore() - restore config data 
@@ -391,10 +361,10 @@ bool storage_restore(void)
 {
     bool ret_val = false;
 
-    /* verify variable, storage_loc has been initialized by storage_preserve() */
-    if(storage_loc.use >= FLASH_STORAGE1 && storage_loc.use <= FLASH_STORAGE3)
+    /* verify variable, storage_loc_bl has been initialized by storage_preserve() */
+    if(storage_loc_bl.use >= FLASH_STORAGE1 && storage_loc_bl.use <= FLASH_STORAGE3)
     {
-        ret_val = flash_locking_write(storage_loc.use, 0, sizeof(ConfigFlash), (uint8_t *)&storage_shadow);
+        ret_val = flash_locking_write(storage_loc_bl.use, 0, sizeof(ConfigFlash), (uint8_t *)&storage_shadow);
     }
     return(ret_val);
 }
@@ -410,10 +380,24 @@ bool storage_restore(void)
 void storage_preserve(void)
 {
     /* search active storage sector and save in shadow memory  */
-    if(find_active_storage_sect(&storage_loc))
+    if(find_active_storage_sect(&storage_loc_bl))
     {
-        memcpy(&storage_shadow, (void *)storage_loc.start, sizeof(ConfigFlash));
+        memcpy(&storage_shadow, (void *)storage_loc_bl.start, sizeof(ConfigFlash));
     }
+}
+
+/*
+ * get_storage_loc_start() - get storage data start address
+ *
+ * INPUT -
+ *      none
+ * OUTPUT -
+ *      none
+ *
+ */
+uint32_t get_storage_loc_start(void)
+{
+    return(storage_loc_bl.start);
 }
 
 /*
@@ -632,9 +616,9 @@ void handler_debug_link_fill_config(DebugLinkFillConfig *msg)
 
     memset((uint8_t *)&fill_storage_shadow, FILL_CONFIG_DATA, sizeof(ConfigFlash));
 
-    if(find_active_storage_sect(&storage_loc))
+    if(find_active_storage_sect(&storage_loc_bl))
     {
-        flash_locking_write(storage_loc.use, 0, sizeof(ConfigFlash),  
+        flash_locking_write(storage_loc_bl.use, 0, sizeof(ConfigFlash),  
                         (uint8_t *)&fill_storage_shadow);
     }
 }

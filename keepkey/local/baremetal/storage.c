@@ -49,6 +49,7 @@ static char sessionPin[17];
 
 static bool sessionPassphraseCached;
 static char sessionPassphrase[51];
+static FlashSector storage_loc_app = {0, 0, 0, FLASH_INVALID};
 
 /* === Variables =========================================================== */
 
@@ -95,8 +96,20 @@ static bool storage_from_flash(ConfigFlash *stor_config)
  */
 void storage_init(void)
 {
-    /* Init to start of storage partition */
-    ConfigFlash *stor_config = (ConfigFlash *)FLASH_STORAGE_START;
+    ConfigFlash *stor_config;
+
+    /* find storage sector /w valid data and set storage_loc_app variable */
+    if(find_active_storage_sect(&storage_loc_app))
+    {
+        stor_config = (ConfigFlash *)storage_loc_app.start;
+    }
+    else
+    {
+        /* set to storage sector1 as default if no sector has been initialized */
+        storage_loc_app.use = FLASH_STORAGE1;
+        storage_loc_app.start = flash_write_helper(FLASH_STORAGE1);
+        stor_config = (ConfigFlash *)storage_loc_app.start;
+    }
 
     /* Reset shadow configuration in RAM */
     storage_reset();
@@ -185,6 +198,31 @@ void session_clear(bool clear_pin)
     }
 }
 
+void wear_lev_shiftsector(void)
+{
+    switch(storage_loc_app.use)
+    {
+        case FLASH_STORAGE1:
+        {
+            storage_loc_app.use = FLASH_STORAGE2;
+            storage_loc_app.start = flash_write_helper(FLASH_STORAGE2);
+            break;
+        }
+        case FLASH_STORAGE2:
+        {
+            storage_loc_app.use = FLASH_STORAGE3;
+            storage_loc_app.start = flash_write_helper(FLASH_STORAGE3);
+            break;
+        }
+        case FLASH_STORAGE3:
+        default:
+        {
+            storage_loc_app.use = FLASH_STORAGE1;
+            storage_loc_app.start = flash_write_helper(FLASH_STORAGE1);
+            break;
+        }
+    }
+}
 /*
  * storage_commit() - Write content of configuration in shadow memory to 
  * storage partion in flash
@@ -201,6 +239,7 @@ void storage_commit(void)
     memcpy((void *)&shadow_config, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
     for(retries = 0; retries < STORAGE_RETRIES; retries++) 
     {
+        /* capture CRC for verification at restore*/
         shadow_ram_crc32 = calc_crc32((uint32_t *)&shadow_config, sizeof(shadow_config)/sizeof(uint32_t));
         if(shadow_ram_crc32 == 0)
         {
@@ -213,15 +252,25 @@ void storage_commit(void)
             flash_clear_status_flags();
             continue; /* Retry */
         }
+        
+        /* make sure storage sector is valid before proceeding */
+        if(storage_loc_app.use < FLASH_STORAGE1 && storage_loc_app.use > FLASH_STORAGE3) 
+        {
+            /* let it exhaust the retries and error out*/
+            continue;
+        }
         flash_unlock();
-        flash_erase_word(FLASH_STORAGE);
+        flash_erase_word(storage_loc_app.use);
+        wear_lev_shiftsector();
 
+
+        flash_erase_word(storage_loc_app.use);
         /* Load storage data first before loading storage magic  */
-        if(flash_write_word(FLASH_STORAGE , STORAGE_MAGIC_LEN, 
+        if(flash_write_word(storage_loc_app.use , STORAGE_MAGIC_LEN, 
                     sizeof(shadow_config) - STORAGE_MAGIC_LEN, 
                     (uint8_t *)&shadow_config + STORAGE_MAGIC_LEN))
         {
-            if(!flash_write_word(FLASH_STORAGE , 0, STORAGE_MAGIC_LEN, (uint8_t *)&shadow_config))
+            if(!flash_write_word(storage_loc_app.use , 0, STORAGE_MAGIC_LEN, (uint8_t *)&shadow_config))
             {
                 continue; /* Retry */
             }
@@ -232,7 +281,7 @@ void storage_commit(void)
         }
 
         /* Flash write completed successfully.  Verify CRC */
-        shadow_flash_crc32 = calc_crc32((uint32_t *)FLASH_STORAGE_START, sizeof(shadow_config)/sizeof(uint32_t));
+        shadow_flash_crc32 = calc_crc32((uint32_t *)storage_loc_app.start, sizeof(shadow_config)/sizeof(uint32_t));
         if(shadow_flash_crc32 == shadow_ram_crc32)
         {
             /* Commit successful, break to exit */
@@ -857,3 +906,18 @@ HDNodeType *storage_get_node(void)
 {
     return &shadow_config.storage.node;
 }
+
+/*
+ * get_storage_loc_start() - get storage data start address
+ *
+ * INPUT -
+ *      none
+ * OUTPUT -
+ *      none
+ *
+ */
+uint32_t get_storage_loc_start(void)
+{
+    return(storage_loc_app.start);
+}
+

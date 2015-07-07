@@ -22,13 +22,11 @@
 #include <string.h>
 #include <assert.h>
 #include <stdint.h>
-
 #include <libopencm3/stm32/flash.h>
-
 #include <sha2.h>
-
-#include "keepkey_board.h"
-#include "memory.h"
+#include <keepkey_board.h>
+#include <memory.h>
+#include <keepkey_flash.h>
 
 /* === Functions =========================================================== */
 
@@ -116,6 +114,41 @@ int memory_firmware_hash(uint8_t *hash)
  */
 int memory_storage_hash(uint8_t *hash)
 {
-    sha256_Raw((const uint8_t *)FLASH_STORAGE_START, sizeof(ConfigFlash), hash);
+    const uint8_t *st_start;
+    st_start = (const uint8_t *)get_storage_loc_start();
+
+    sha256_Raw(st_start, sizeof(ConfigFlash), hash);
     return SHA256_DIGEST_LENGTH;
+}
+
+/*
+ * find_active_storage_sect() - find a sector with valid data
+ *
+ * INPUT - 
+ *      pointer to save config data
+ * OUTPUT - 
+ *      status
+ *
+ */
+bool find_active_storage_sect(FlashSector *st_ptr)
+{
+    bool ret_stat = false; 
+    Allocation st_use;
+    size_t st_start;
+    
+    /*find 1st storage sector /w valid data */
+    for(st_use = FLASH_STORAGE1; st_use <= FLASH_STORAGE3; st_use++)
+    {
+        st_start = flash_write_helper(st_use);
+
+        if(memcmp((void *)st_start, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0)
+        {
+            /* found valid data.  load data and exit */
+            st_ptr->start = st_start;
+            st_ptr->use = st_use;
+            ret_stat = true;
+            break;
+        }
+    }
+    return(ret_stat);
 }
