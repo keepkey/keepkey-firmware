@@ -42,6 +42,7 @@
 
 /* === Variables =========================================================== */
 
+static FlashSector storage_loc = {0, 0, 0, 0};
 static FirmwareUploadState upload_state = UPLOAD_NOT_STARTED;
 static ConfigFlash storage_shadow;
 static uint8_t firmware_hash[SHA256_DIGEST_LENGTH];
@@ -186,8 +187,7 @@ bool usb_flash_firmware(void)
                 if((SIG_FLAG == 1) && (signatures_ok() == 1))
                 {
                     /* The image is from KeepKey.  Restore storage data */
-                    if(flash_locking_write(FLASH_STORAGE, 0, sizeof(ConfigFlash),
-                                           (uint8_t *)&storage_shadow) == false)
+                    if(storage_restore() == false)
                     {
                         /* Bailing early */
                         goto uff_exit;
@@ -347,6 +347,76 @@ void handler_initialize(Initialize *msg)
 }
 
 /*
+ * find_active_storage_sect() - find a sector with valid data
+ *
+ * INPUT - 
+ *      pointer to save config data
+ * OUTPUT - 
+ *      status
+ *
+ */
+bool find_active_storage_sect(FlashSector *st_ptr)
+{
+    bool ret_stat = false; 
+    Allocation st_use;
+    size_t st_start;
+    
+    /*find 1st storage sector /w valid data */
+    for(st_use = FLASH_STORAGE1; st_use <= FLASH_STORAGE3; st_use++)
+    {
+        st_start = flash_write_helper(st_use);
+
+        if(memcmp((void *)st_start, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0)
+        {
+            /* found valid data.  load data and exit */
+            st_ptr->start = st_start;
+            st_ptr->use = st_use;
+            ret_stat = true;
+            break;
+        }
+    }
+    return(ret_stat);
+}
+
+/*
+ * storage_restore() - restore config data 
+ *
+ * INPUT - 
+ *      none
+ * OUTPUT - 
+ *      status 
+ *
+ */
+bool storage_restore(void)
+{
+    bool ret_val = false;
+
+    /* verify variable, storage_loc has been initialized by storage_preserve() */
+    if(storage_loc.use >= FLASH_STORAGE1 && storage_loc.use <= FLASH_STORAGE3)
+    {
+        ret_val = flash_locking_write(storage_loc.use, 0, sizeof(ConfigFlash), (uint8_t *)&storage_shadow);
+    }
+    return(ret_val);
+}
+
+/*
+ * storage_preserve() - preserve storage data in ram 
+ *
+ * INPUT - 
+ *      none
+ * OUTPUT - 
+ *      none
+ */
+void storage_preserve(void)
+{
+    /* search active storage sector and save in shadow memory  */
+    if(find_active_storage_sect(&storage_loc))
+    {
+        memcpy(&storage_shadow, (void *)storage_loc.start, sizeof(ConfigFlash));
+    }
+}
+
+/*
  * handler_erase() - handler to wipe application firmware
  *
  * INPUT -
@@ -367,10 +437,14 @@ void handler_erase(FirmwareErase *msg)
         layout_simple_message("Preparing For Upgrade...");
 
         /* Save storage data in memory so it can be copied back after firmware update */
-        memcpy(&storage_shadow, (void *)FLASH_STORAGE_START, sizeof(ConfigFlash));
-
+        storage_preserve();
         flash_unlock();
-        flash_erase_word(FLASH_STORAGE);
+        /* erase config data sectors  */
+        for(uint32_t i = FLASH_STORAGE1; i <= FLASH_STORAGE3; i++)
+        {
+            flash_erase_word(i);
+        }
+        /* erase application section */
         flash_erase_word(FLASH_APP);
         flash_lock();
         send_success("Firmware erased");
@@ -558,7 +632,10 @@ void handler_debug_link_fill_config(DebugLinkFillConfig *msg)
 
     memset((uint8_t *)&fill_storage_shadow, FILL_CONFIG_DATA, sizeof(ConfigFlash));
 
-    flash_locking_write(FLASH_STORAGE, 0, sizeof(ConfigFlash),
+    if(find_active_storage_sect(&storage_loc))
+    {
+        flash_locking_write(storage_loc.use, 0, sizeof(ConfigFlash),  
                         (uint8_t *)&fill_storage_shadow);
+    }
 }
 #endif

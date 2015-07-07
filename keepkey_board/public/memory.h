@@ -121,7 +121,7 @@
 #define FLASH_BOOTSTRAP_SECTOR_FIRST 0
 #define FLASH_BOOTSTRAP_SECTOR_LAST  0
 
-#define FLASH_STORAGE_SECTOR_FIRST   3
+#define FLASH_STORAGE_SECTOR_FIRST   1
 #define FLASH_STORAGE_SECTOR_LAST    3
 
 #define FLASH_BOOT_SECTOR_FIRST 5
@@ -151,7 +151,9 @@ typedef enum
 {
     FLASH_INVALID,
     FLASH_BOOTSTRAP,
-    FLASH_STORAGE,
+    FLASH_STORAGE1,
+    FLASH_STORAGE2,
+    FLASH_STORAGE3,
     FLASH_BOOTLOADER,
     FLASH_APP
 } Allocation;
@@ -171,9 +173,9 @@ typedef void (*progress_handler_t)(void);
 static const FlashSector flash_sector_map[] =
 {
     { 0,  0x08000000, 0x4000,   FLASH_BOOTSTRAP },
-    /*    { 1,  0x08004000, 0x4000,   UNUSED }, */
-    /*    { 2,  0x08008000, 0x4000,   UNUSED }, */
-    { 3,  0x0800C000, 0x4000,   FLASH_STORAGE },
+    { 1,  0x08004000, 0x4000,   FLASH_STORAGE1  }, 
+    { 2,  0x08008000, 0x4000,   FLASH_STORAGE2  }, 
+    { 3,  0x0800C000, 0x4000,   FLASH_STORAGE3  },
     /*    { 4,  0x08010000, 0x10000,  UNUSED }, */
     { 5,  0x08020000, 0x20000,  FLASH_BOOTLOADER },
     { 6,  0x08040000, 0x20000,  FLASH_BOOTLOADER },
