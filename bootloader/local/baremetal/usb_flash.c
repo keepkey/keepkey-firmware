@@ -186,11 +186,15 @@ bool usb_flash_firmware(void)
             {
                 if((SIG_FLAG == 1) && (signatures_ok() == 1))
                 {
-                    /* The image is from KeepKey.  Restore storage data */
-                    if(storage_restore() == false)
+                    /* don't restore storage data if the device is in uninitialized state */
+                    if(storage_loc_bl.use >= FLASH_STORAGE1 && storage_loc_bl.use <= FLASH_STORAGE3) 
                     {
-                        /* Bailing early */
-                        goto uff_exit;
+                        /* The image is from KeepKey.  Restore storage data */
+                        if(storage_restore() == false)
+                        {
+                            /* Bailing early */
+                            goto uff_exit;
+                        }
                     }
                 }
 
@@ -377,12 +381,16 @@ bool storage_restore(void)
  * OUTPUT - 
  *      none
  */
-void storage_preserve(void)
+static void storage_preserve(void)
 {
     /* search active storage sector and save in shadow memory  */
     if(find_active_storage_sect(&storage_loc_bl))
     {
         memcpy(&storage_shadow, (void *)storage_loc_bl.start, sizeof(ConfigFlash));
+    }
+    else
+    {
+        memset(&storage_shadow, 0, sizeof(ConfigFlash));
     }
 }
 
@@ -616,10 +624,13 @@ void handler_debug_link_fill_config(DebugLinkFillConfig *msg)
 
     memset((uint8_t *)&fill_storage_shadow, FILL_CONFIG_DATA, sizeof(ConfigFlash));
 
-    if(find_active_storage_sect(&storage_loc_bl))
+    if(!find_active_storage_sect(&storage_loc_bl))
     {
-        flash_locking_write(storage_loc_bl.use, 0, sizeof(ConfigFlash),  
-                        (uint8_t *)&fill_storage_shadow);
+        /* for uninitialized storage sector, set to default, FLASH_STORAGE1*/
+        storage_loc_bl.use = FLASH_STORAGE1;
+        storage_loc_bl.start = flash_write_helper(FLASH_STORAGE1);
     }
+    flash_locking_write(storage_loc_bl.use, 0, sizeof(ConfigFlash),  
+                        (uint8_t *)&fill_storage_shadow);
 }
 #endif
