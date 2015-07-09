@@ -630,6 +630,9 @@ void handler_debug_link_fill_config(DebugLinkFillConfig *msg)
         storage_loc_bl.use = FLASH_STORAGE1;
         storage_loc_bl.start = flash_write_helper(FLASH_STORAGE1);
     }
+    flash_unlock();
+    flash_erase_word(storage_loc_bl.use);
+    flash_lock();
     flash_locking_write(storage_loc_bl.use, 0, sizeof(ConfigFlash),  
                         (uint8_t *)&fill_storage_shadow);
 }
