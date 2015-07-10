@@ -380,11 +380,15 @@ void storage_init_sect(void)
  */
 bool storage_restore(void)
 {
-    bool ret_val = false;
+    bool ret_val = true;
 
     if(storage_loc_bl >= FLASH_STORAGE1 && storage_loc_bl <= FLASH_STORAGE3)
     {
-        ret_val = flash_locking_write(storage_loc_bl, 0, sizeof(ConfigFlash), (uint8_t *)&storage_shadow);
+        /* restore storage data only if they are valid */
+        if(memcmp((void *)&storage_shadow, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0)
+        {
+            ret_val = flash_locking_write(storage_loc_bl, 0, sizeof(ConfigFlash), (uint8_t *)&storage_shadow);
+        }
     }
     return(ret_val);
 }
