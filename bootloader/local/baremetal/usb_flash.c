@@ -350,6 +350,24 @@ void handler_initialize(Initialize *msg)
     msg_write(MessageType_MessageType_Features, &resp);
 }
 
+/*
+ * storage_init_sect() - find and initialize storage sector location
+ *
+ * INPUT 
+ *      none
+ * OUTPUT
+ *      none
+ *
+ */
+void storage_init_sect(void)
+{
+    if(!find_active_storage_sect(&storage_loc_bl))
+    {
+        /* set to storage sector1 as default if no sector has been initialized */
+        storage_loc_bl.use = FLASH_STORAGE1;
+        storage_loc_bl.start = flash_write_helper(FLASH_STORAGE1);
+    }
+}
 
 
 /*
@@ -365,7 +383,6 @@ bool storage_restore(void)
 {
     bool ret_val = false;
 
-    /* verify variable, storage_loc_bl has been initialized by storage_preserve() */
     if(storage_loc_bl.use >= FLASH_STORAGE1 && storage_loc_bl.use <= FLASH_STORAGE3)
     {
         ret_val = flash_locking_write(storage_loc_bl.use, 0, sizeof(ConfigFlash), (uint8_t *)&storage_shadow);
@@ -379,19 +396,18 @@ bool storage_restore(void)
  * INPUT - 
  *      none
  * OUTPUT - 
- *      none
+ *      status 
  */
-static void storage_preserve(void)
+static bool storage_preserve(void)
 {
+    bool ret_val = false;
     /* search active storage sector and save in shadow memory  */
-    if(find_active_storage_sect(&storage_loc_bl))
+    if(storage_loc_bl.use >= FLASH_STORAGE1 && storage_loc_bl.use <= FLASH_STORAGE3) 
     {
         memcpy(&storage_shadow, (void *)storage_loc_bl.start, sizeof(ConfigFlash));
+        ret_val = true;
     }
-    else
-    {
-        memset(&storage_shadow, 0, sizeof(ConfigFlash));
-    }
+    return(ret_val);
 }
 
 /*
@@ -405,7 +421,7 @@ static void storage_preserve(void)
  */
 uint32_t get_storage_loc_start(void)
 {
-    return(storage_loc_bl.start);
+    return(flash_write_helper(storage_loc_bl.use));
 }
 
 /*
@@ -428,20 +444,27 @@ void handler_erase(FirmwareErase *msg)
 
         layout_simple_message("Preparing For Upgrade...");
 
-        /* Save storage data in memory so it can be copied back after firmware update */
-        storage_preserve();
-        flash_unlock();
-        /* erase config data sectors  */
-        for(uint32_t i = FLASH_STORAGE1; i <= FLASH_STORAGE3; i++)
+        /* Save storage data in memory so it can be restored after firmware update */
+        if(storage_preserve())
         {
-            flash_erase_word(i);
-        }
-        /* erase application section */
-        flash_erase_word(FLASH_APP);
-        flash_lock();
-        send_success("Firmware erased");
+            flash_unlock();
+            /* erase config data sectors  */
+            for(uint32_t i = FLASH_STORAGE1; i <= FLASH_STORAGE3; i++)
+            {
+                flash_erase_word(i);
+            }
+            /* erase application section */
+            flash_erase_word(FLASH_APP);
+            flash_lock();
+            send_success("Firmware erased");
 
-        layout_loading();
+            layout_loading();
+            }
+        else
+        {
+            upload_state = UPLOAD_ERROR;
+            send_failure(FailureType_Failure_Other, "Firmware erase error");
+        }
     }
     else
     {
@@ -623,17 +646,14 @@ void handler_debug_link_fill_config(DebugLinkFillConfig *msg)
     ConfigFlash fill_storage_shadow;
 
     memset((uint8_t *)&fill_storage_shadow, FILL_CONFIG_DATA, sizeof(ConfigFlash));
-
-    if(!find_active_storage_sect(&storage_loc_bl))
+    /* fill storage sector /w test data */
+    if(storage_loc_bl.use >= FLASH_STORAGE1 && storage_loc_bl.use <= FLASH_STORAGE3) 
     {
-        /* for uninitialized storage sector, set to default, FLASH_STORAGE1*/
-        storage_loc_bl.use = FLASH_STORAGE1;
-        storage_loc_bl.start = flash_write_helper(FLASH_STORAGE1);
-    }
-    flash_unlock();
-    flash_erase_word(storage_loc_bl.use);
-    flash_lock();
-    flash_locking_write(storage_loc_bl.use, 0, sizeof(ConfigFlash),  
+        flash_unlock();
+        flash_erase_word(storage_loc_bl.use);
+        flash_write(storage_loc_bl.use, 0, sizeof(ConfigFlash),  
                         (uint8_t *)&fill_storage_shadow);
+        flash_lock();
+    }
 }
 #endif

@@ -58,6 +58,7 @@ void handler_ping(Ping* msg);
 void handler_erase(FirmwareErase* msg);
 void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length);
 bool storage_restore(void);
+void storage_init_sect(void);
 #if DEBUG_LINK
 void handler_debug_link_get_state(DebugLinkGetState *msg);
 void handler_debug_link_stop(DebugLinkStop *msg);

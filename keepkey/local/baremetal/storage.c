@@ -918,6 +918,6 @@ HDNodeType *storage_get_node(void)
  */
 uint32_t get_storage_loc_start(void)
 {
-    return(storage_loc_app.start);
+    return(flash_write_helper(storage_loc_app.use));
 }
 

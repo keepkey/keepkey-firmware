@@ -141,6 +141,7 @@ static void clock_init(void)
  */
 static bool is_fw_update_mode(void)
 {
+    storage_init_sect();
 #if DEBUG_LINK
     return true;
 #else
