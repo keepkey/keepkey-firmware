@@ -42,11 +42,7 @@
 
 /* === Variables =========================================================== */
 
-#if 1
 static Allocation storage_loc_bl = FLASH_INVALID;
-#else
-static FlashSector storage_loc_bl = {0, 0, 0, FLASH_INVALID};
-#endif
 static FirmwareUploadState upload_state = UPLOAD_NOT_STARTED;
 static ConfigFlash storage_shadow;
 static uint8_t firmware_hash[SHA256_DIGEST_LENGTH];
