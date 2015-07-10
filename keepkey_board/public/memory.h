@@ -131,6 +131,7 @@
 #define FLASH_APP_SECTOR_FIRST  7
 #define FLASH_APP_SECTOR_LAST   11
 
+#define STORAGE_SECT_DEFAULT FLASH_STORAGE1
 /* === Typedefs ============================================================ */
 
 /* Application Meta format */

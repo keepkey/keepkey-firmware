@@ -106,8 +106,8 @@ void storage_init(void)
     else
     {
         /* set to storage sector1 as default if no sector has been initialized */
-        storage_loc_app.use = FLASH_STORAGE1;
-        storage_loc_app.start = flash_write_helper(FLASH_STORAGE1);
+        storage_loc_app.use = STORAGE_SECT_DEFAULT;
+        storage_loc_app.start = flash_write_helper(STORAGE_SECT_DEFAULT);
         stor_config = (ConfigFlash *)storage_loc_app.start;
     }
 
@@ -214,11 +214,17 @@ void wear_lev_shiftsector(void)
             storage_loc_app.start = flash_write_helper(FLASH_STORAGE3);
             break;
         }
+        /* wraps around */
         case FLASH_STORAGE3:
-        default:
         {
             storage_loc_app.use = FLASH_STORAGE1;
             storage_loc_app.start = flash_write_helper(FLASH_STORAGE1);
+            break;
+        }
+        default:
+        {
+            storage_loc_app.use = STORAGE_SECT_DEFAULT;
+            storage_loc_app.start = flash_write_helper(STORAGE_SECT_DEFAULT);
             break;
         }
     }

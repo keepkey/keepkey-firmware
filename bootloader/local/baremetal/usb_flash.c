@@ -364,8 +364,8 @@ void storage_init_sect(void)
     if(!find_active_storage_sect(&storage_loc_bl))
     {
         /* set to storage sector1 as default if no sector has been initialized */
-        storage_loc_bl.use = FLASH_STORAGE1;
-        storage_loc_bl.start = flash_write_helper(FLASH_STORAGE1);
+        storage_loc_bl.use = STORAGE_SECT_DEFAULT;
+        storage_loc_bl.start = flash_write_helper(STORAGE_SECT_DEFAULT);
     }
 }
 
