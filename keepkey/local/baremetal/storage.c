@@ -49,7 +49,7 @@ static char sessionPin[17];
 
 static bool sessionPassphraseCached;
 static char sessionPassphrase[51];
-static FlashSector storage_loc_app = {0, 0, 0, FLASH_INVALID};
+static Allocation storage_loc_app = FLASH_INVALID;
 
 /* === Variables =========================================================== */
 
@@ -101,14 +101,13 @@ void storage_init(void)
     /* find storage sector /w valid data and set storage_loc_app variable */
     if(find_active_storage_sect(&storage_loc_app))
     {
-        stor_config = (ConfigFlash *)storage_loc_app.start;
+        stor_config = (ConfigFlash *)flash_write_helper(storage_loc_app);
     }
     else
     {
         /* set to storage sector1 as default if no sector has been initialized */
-        storage_loc_app.use = STORAGE_SECT_DEFAULT;
-        storage_loc_app.start = flash_write_helper(STORAGE_SECT_DEFAULT);
-        stor_config = (ConfigFlash *)storage_loc_app.start;
+        storage_loc_app = STORAGE_SECT_DEFAULT;
+        stor_config = (ConfigFlash *)flash_write_helper(storage_loc_app);
     }
 
     /* Reset shadow configuration in RAM */
@@ -200,31 +199,27 @@ void session_clear(bool clear_pin)
 
 void wear_lev_shiftsector(void)
 {
-    switch(storage_loc_app.use)
+    switch(storage_loc_app)
     {
         case FLASH_STORAGE1:
         {
-            storage_loc_app.use = FLASH_STORAGE2;
-            storage_loc_app.start = flash_write_helper(FLASH_STORAGE2);
+            storage_loc_app = FLASH_STORAGE2;
             break;
         }
         case FLASH_STORAGE2:
         {
-            storage_loc_app.use = FLASH_STORAGE3;
-            storage_loc_app.start = flash_write_helper(FLASH_STORAGE3);
+            storage_loc_app = FLASH_STORAGE3;
             break;
         }
         /* wraps around */
         case FLASH_STORAGE3:
         {
-            storage_loc_app.use = FLASH_STORAGE1;
-            storage_loc_app.start = flash_write_helper(FLASH_STORAGE1);
+            storage_loc_app = FLASH_STORAGE1;
             break;
         }
         default:
         {
-            storage_loc_app.use = STORAGE_SECT_DEFAULT;
-            storage_loc_app.start = flash_write_helper(STORAGE_SECT_DEFAULT);
+            storage_loc_app = STORAGE_SECT_DEFAULT;
             break;
         }
     }
@@ -260,23 +255,23 @@ void storage_commit(void)
         }
         
         /* make sure storage sector is valid before proceeding */
-        if(storage_loc_app.use < FLASH_STORAGE1 && storage_loc_app.use > FLASH_STORAGE3) 
+        if(storage_loc_app < FLASH_STORAGE1 && storage_loc_app > FLASH_STORAGE3) 
         {
             /* let it exhaust the retries and error out*/
             continue;
         }
         flash_unlock();
-        flash_erase_word(storage_loc_app.use);
+        flash_erase_word(storage_loc_app);
         wear_lev_shiftsector();
 
 
-        flash_erase_word(storage_loc_app.use);
+        flash_erase_word(storage_loc_app);
         /* Load storage data first before loading storage magic  */
-        if(flash_write_word(storage_loc_app.use , STORAGE_MAGIC_LEN, 
+        if(flash_write_word(storage_loc_app, STORAGE_MAGIC_LEN, 
                     sizeof(shadow_config) - STORAGE_MAGIC_LEN, 
                     (uint8_t *)&shadow_config + STORAGE_MAGIC_LEN))
         {
-            if(!flash_write_word(storage_loc_app.use , 0, STORAGE_MAGIC_LEN, (uint8_t *)&shadow_config))
+            if(!flash_write_word(storage_loc_app, 0, STORAGE_MAGIC_LEN, (uint8_t *)&shadow_config))
             {
                 continue; /* Retry */
             }
@@ -287,7 +282,7 @@ void storage_commit(void)
         }
 
         /* Flash write completed successfully.  Verify CRC */
-        shadow_flash_crc32 = calc_crc32((uint32_t *)storage_loc_app.start, sizeof(shadow_config)/sizeof(uint32_t));
+        shadow_flash_crc32 = calc_crc32((uint32_t *)flash_write_helper(storage_loc_app), sizeof(shadow_config)/sizeof(uint32_t));
         if(shadow_flash_crc32 == shadow_ram_crc32)
         {
             /* Commit successful, break to exit */
@@ -924,6 +919,6 @@ HDNodeType *storage_get_node(void)
  */
 uint32_t get_storage_loc_start(void)
 {
-    return(flash_write_helper(storage_loc_app.use));
+    return(flash_write_helper(storage_loc_app));
 }
 

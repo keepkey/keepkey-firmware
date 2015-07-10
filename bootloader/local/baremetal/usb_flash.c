@@ -42,7 +42,11 @@
 
 /* === Variables =========================================================== */
 
+#if 1
+static Allocation storage_loc_bl = FLASH_INVALID;
+#else
 static FlashSector storage_loc_bl = {0, 0, 0, FLASH_INVALID};
+#endif
 static FirmwareUploadState upload_state = UPLOAD_NOT_STARTED;
 static ConfigFlash storage_shadow;
 static uint8_t firmware_hash[SHA256_DIGEST_LENGTH];
@@ -187,7 +191,7 @@ bool usb_flash_firmware(void)
                 if((SIG_FLAG == 1) && (signatures_ok() == 1))
                 {
                     /* don't restore storage data if the device is in uninitialized state */
-                    if(storage_loc_bl.use >= FLASH_STORAGE1 && storage_loc_bl.use <= FLASH_STORAGE3) 
+                    if(storage_loc_bl >= FLASH_STORAGE1 && storage_loc_bl <= FLASH_STORAGE3) 
                     {
                         /* The image is from KeepKey.  Restore storage data */
                         if(storage_restore() == false)
@@ -364,8 +368,7 @@ void storage_init_sect(void)
     if(!find_active_storage_sect(&storage_loc_bl))
     {
         /* set to storage sector1 as default if no sector has been initialized */
-        storage_loc_bl.use = STORAGE_SECT_DEFAULT;
-        storage_loc_bl.start = flash_write_helper(STORAGE_SECT_DEFAULT);
+        storage_loc_bl = STORAGE_SECT_DEFAULT;
     }
 }
 
@@ -383,9 +386,9 @@ bool storage_restore(void)
 {
     bool ret_val = false;
 
-    if(storage_loc_bl.use >= FLASH_STORAGE1 && storage_loc_bl.use <= FLASH_STORAGE3)
+    if(storage_loc_bl >= FLASH_STORAGE1 && storage_loc_bl <= FLASH_STORAGE3)
     {
-        ret_val = flash_locking_write(storage_loc_bl.use, 0, sizeof(ConfigFlash), (uint8_t *)&storage_shadow);
+        ret_val = flash_locking_write(storage_loc_bl, 0, sizeof(ConfigFlash), (uint8_t *)&storage_shadow);
     }
     return(ret_val);
 }
@@ -402,9 +405,9 @@ static bool storage_preserve(void)
 {
     bool ret_val = false;
     /* search active storage sector and save in shadow memory  */
-    if(storage_loc_bl.use >= FLASH_STORAGE1 && storage_loc_bl.use <= FLASH_STORAGE3) 
+    if(storage_loc_bl >= FLASH_STORAGE1 && storage_loc_bl <= FLASH_STORAGE3) 
     {
-        memcpy(&storage_shadow, (void *)storage_loc_bl.start, sizeof(ConfigFlash));
+        memcpy(&storage_shadow, (void *)flash_write_helper(storage_loc_bl), sizeof(ConfigFlash));
         ret_val = true;
     }
     return(ret_val);
@@ -421,7 +424,7 @@ static bool storage_preserve(void)
  */
 uint32_t get_storage_loc_start(void)
 {
-    return(flash_write_helper(storage_loc_bl.use));
+    return(flash_write_helper(storage_loc_bl));
 }
 
 /*

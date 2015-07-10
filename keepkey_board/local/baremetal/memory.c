@@ -130,7 +130,7 @@ int memory_storage_hash(uint8_t *hash)
  *      status
  *
  */
-bool find_active_storage_sect(FlashSector *st_ptr)
+bool find_active_storage_sect(Allocation *st_ptr)
 {
     bool ret_stat = false; 
     Allocation st_use;
@@ -144,8 +144,7 @@ bool find_active_storage_sect(FlashSector *st_ptr)
         if(memcmp((void *)st_start, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0)
         {
             /* found valid data.  load data and exit */
-            st_ptr->start = st_start;
-            st_ptr->use = st_use;
+            *st_ptr = st_use;
             ret_stat = true;
             break;
         }
