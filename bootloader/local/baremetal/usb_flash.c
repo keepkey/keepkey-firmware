@@ -646,11 +646,11 @@ void handler_debug_link_fill_config(DebugLinkFillConfig *msg)
 
     memset((uint8_t *)&fill_storage_shadow, FILL_CONFIG_DATA, sizeof(ConfigFlash));
     /* fill storage sector /w test data */
-    if(storage_loc_bl.use >= FLASH_STORAGE1 && storage_loc_bl.use <= FLASH_STORAGE3) 
+    if(storage_loc_bl >= FLASH_STORAGE1 && storage_loc_bl <= FLASH_STORAGE3) 
     {
         flash_unlock();
-        flash_erase_word(storage_loc_bl.use);
-        flash_write(storage_loc_bl.use, 0, sizeof(ConfigFlash),  
+        flash_erase_word(storage_loc_bl);
+        flash_write(storage_loc_bl, 0, sizeof(ConfigFlash),  
                         (uint8_t *)&fill_storage_shadow);
         flash_lock();
     }
