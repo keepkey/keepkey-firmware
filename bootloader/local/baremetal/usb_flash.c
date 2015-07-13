@@ -184,17 +184,14 @@ bool usb_flash_firmware(void)
         {
             case UPLOAD_COMPLETE:
             {
+                /* verify the image is from Keepkey */
                 if((SIG_FLAG == 1) && (signatures_ok() == 1))
                 {
-                    /* don't restore storage data if the device is in uninitialized state */
-                    if(storage_loc_bl >= FLASH_STORAGE1 && storage_loc_bl <= FLASH_STORAGE3) 
+                    /* The image is from KeepKey.  Restore storage data */
+                    if(storage_restore() == false)
                     {
-                        /* The image is from KeepKey.  Restore storage data */
-                        if(storage_restore() == false)
-                        {
-                            /* Bailing early */
-                            goto uff_exit;
-                        }
+                        /* Bailing early */
+                        goto uff_exit;
                     }
                 }
 
@@ -208,7 +205,6 @@ bool usb_flash_firmware(void)
                         ret_val = true;
                     }
                 }
-
                 goto uff_exit;
             }
 
@@ -384,7 +380,7 @@ bool storage_restore(void)
 
     if(storage_loc_bl >= FLASH_STORAGE1 && storage_loc_bl <= FLASH_STORAGE3)
     {
-            ret_val = flash_locking_write(storage_loc_bl, 0, sizeof(ConfigFlash), (uint8_t *)&storage_shadow);
+        ret_val = flash_locking_write(storage_loc_bl, 0, sizeof(ConfigFlash), (uint8_t *)&storage_shadow);
     }
     return(ret_val);
 }
