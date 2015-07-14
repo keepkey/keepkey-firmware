@@ -109,13 +109,14 @@ int memory_firmware_hash(uint8_t *hash)
  *
  * INPUT
  *     - hash: buffer to be filled with hash
+ *     - storage location 
  * OUTPUT
  *     none
  */
-int memory_storage_hash(uint8_t *hash)
+int memory_storage_hash(uint8_t *hash, Allocation st_loc)
 {
     const uint8_t *st_start;
-    st_start = (const uint8_t *)get_storage_loc_start();
+    st_start = (const uint8_t *)flash_write_helper(st_loc);
 
     sha256_Raw(st_start, sizeof(ConfigFlash), hash);
     return SHA256_DIGEST_LENGTH;

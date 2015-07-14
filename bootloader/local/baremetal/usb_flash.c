@@ -406,20 +406,6 @@ static bool storage_preserve(void)
 }
 
 /*
- * get_storage_loc_start() - get storage data start address
- *
- * INPUT -
- *      none
- * OUTPUT -
- *      none
- *
- */
-uint32_t get_storage_loc_start(void)
-{
-    return(flash_write_helper(storage_loc_bl));
-}
-
-/*
  * handler_erase() - handler to wipe application firmware
  *
  * INPUT -
@@ -605,7 +591,7 @@ void handler_debug_link_get_state(DebugLinkGetState *msg)
 
     /* Storage fingerprint */
     resp.has_storage_hash = true;
-    resp.storage_hash.size = memory_storage_hash(resp.storage_hash.bytes);
+    resp.storage_hash.size = memory_storage_hash(resp.storage_hash.bytes, storage_loc_bl);
 
     msg_debug_write(MessageType_MessageType_DebugLinkState, &resp);
 }

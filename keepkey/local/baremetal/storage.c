@@ -917,8 +917,8 @@ HDNodeType *storage_get_node(void)
  *      none
  *
  */
-uint32_t get_storage_loc_start(void)
+Allocation get_storage_loc_start(void)
 {
-    return(flash_write_helper(storage_loc_app));
+    return(storage_loc_app);
 }
 

@@ -194,8 +194,7 @@ static const FlashSector flash_sector_map[] =
 void memory_protect(void);
 int memory_bootloader_hash(uint8_t *hash);
 int memory_firmware_hash(uint8_t *hash);
-int memory_storage_hash(uint8_t *hash);
+int memory_storage_hash(uint8_t *hash, Allocation st_loc);
 bool find_active_storage_sect(Allocation *st_ptr);
-uint32_t get_storage_loc_start(void);
 
 #endif
