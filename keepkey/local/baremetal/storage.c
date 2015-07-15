@@ -139,7 +139,7 @@ void storage_init(void)
     ConfigFlash *stor_config;
 
     /* find storage sector with valid data and set storage_location variable */
-    if(find_active_storage_sect(&storage_location))
+    if(find_active_storage(&storage_location))
     {
         stor_config = (ConfigFlash *)flash_write_helper(storage_location);
     }

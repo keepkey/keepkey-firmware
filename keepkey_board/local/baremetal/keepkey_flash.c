@@ -26,7 +26,7 @@
 
 #include "keepkey_flash.h"
 
-/* === Private Functions =================================================== */
+/* === Functions =========================================================== */
 
 /*
  * flash_write_helper() - Helper function to locate starting address of 
@@ -39,21 +39,19 @@
  */
 uint32_t flash_write_helper(Allocation group)
 {
-	uint32_t start = 0;
-	const FlashSector* s = flash_sector_map;
-	while(s->use != FLASH_INVALID)
-	{
-		if(s->use == group)
-		{
-			start = s->start;
-			break;
-		}
-		++s;
-	}
-	return start;
+    uint32_t start = 0;
+    const FlashSector* s = flash_sector_map;
+    while(s->use != FLASH_INVALID)
+    {
+        if(s->use == group)
+        {
+            start = s->start;
+            break;
+        }
+        ++s;
+    }
+    return start;
 }
-
-/* === Functions =========================================================== */
 
 /*
  * flash_chk_status() - Get flash operation status

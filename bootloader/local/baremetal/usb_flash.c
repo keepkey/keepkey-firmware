@@ -82,7 +82,7 @@ static const MessagesMap_t MessagesMap[] =
 /* === Private Functions =================================================== */
 
 /*
- * check_firmware_hash - checks flashed firmware's hash
+ * check_firmware_hash - Checks flashed firmware's hash
  *
  * INPUT
  *     none
@@ -100,7 +100,7 @@ static bool check_firmware_hash(void)
 }
 
 /*
- * bootloader_fsm_init() - initiliaze fsm for bootloader
+ * bootloader_fsm_init() - Initiliaze fsm for bootloader
  *
  * INPUT
  *     none
@@ -121,7 +121,7 @@ static void bootloader_fsm_init(void)
 }
 
 /*
- *  flash_locking_write - restore storage partition in flash for firmware update
+ *  flash_locking_write - Restore storage partition in flash for firmware update
  *
  *  INPUT -
  *      - group: flash partition
@@ -150,7 +150,7 @@ static bool flash_locking_write(Allocation group, size_t offset, size_t len,
 }
 
 /*
- * storage_restore() - restore config data
+ * storage_restore() - Restore config data
  *
  * INPUT -
  *      none
@@ -172,7 +172,7 @@ static bool storage_restore(void)
 }
 
 /*
- * storage_preserve() - preserve storage data in ram
+ * storage_preserve() - Preserve storage data in ram
  *
  * INPUT -
  *      none
@@ -196,7 +196,7 @@ static bool storage_preserve(void)
 /* === Functions =========================================================== */
 
 /*
- * usb_flash_firmware() - update firmware over usb bus
+ * usb_flash_firmware() - Update firmware over usb bus
  *
  * INPUT
  *     none
@@ -277,7 +277,7 @@ uff_exit:
 }
 
 /*
- * storage_init_sect() - find and initialize storage sector location
+ * storage_init_sect() - Find and initialize storage sector location
  *
  * INPUT
  *      none
@@ -287,7 +287,7 @@ uff_exit:
  */
 void storage_sector_init(void)
 {
-    if(!find_active_storage_sect(&storage_location))
+    if(!find_active_storage(&storage_location))
     {
         /* Set to storage sector1 as default if no sector has been initialized */
         storage_location = STORAGE_SECT_DEFAULT;
@@ -357,7 +357,7 @@ void send_failure(FailureType code, const char *text)
 /* --- Message Handlers ---------------------------------------------------- */
 
 /*
- * handler_ping() - handler to respond to ping message
+ * handler_ping() - Handler to respond to ping message
  *
  * INPUT -
  *     - msg: ping protocol buffer message
@@ -378,7 +378,7 @@ void handler_ping(Ping *msg)
 }
 
 /*
- * handler_initialize() - handler to respond to initialize message
+ * handler_initialize() - Handler to respond to initialize message
  *
  * INPUT -
  *      - msg: initialize protocol buffer message
@@ -410,7 +410,7 @@ void handler_initialize(Initialize *msg)
 }
 
 /*
- * handler_erase() - handler to wipe application firmware
+ * handler_erase() - Handler to wipe application firmware
  *
  * INPUT -
  *     - msg: firmware erase protocol buffer message
