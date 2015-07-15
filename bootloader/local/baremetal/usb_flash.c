@@ -42,7 +42,7 @@
 
 /* === Variables =========================================================== */
 
-static Allocation storage_loc_bl = FLASH_INVALID;
+static Allocation storage_location = FLASH_INVALID;
 static FirmwareUploadState upload_state = UPLOAD_NOT_STARTED;
 static ConfigFlash storage_shadow;
 static uint8_t firmware_hash[SHA256_DIGEST_LENGTH];
@@ -139,13 +139,57 @@ static bool flash_locking_write(Allocation group, size_t offset, size_t len,
 
     flash_unlock();
 
-    if(flash_write(group, offset, len, data) == false)
+    if(!flash_write(group, offset, len, data))
     {
         /* Flash error detectected */
         ret_val = false;
     }
 
     flash_lock();
+    return(ret_val);
+}
+
+/*
+ * storage_restore() - restore config data
+ *
+ * INPUT -
+ *      none
+ * OUTPUT -
+ *      restore status
+ *
+ */
+static bool storage_restore(void)
+{
+    bool ret_val = false;
+
+    if(storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3)
+    {
+        ret_val = flash_locking_write(storage_location, 0, sizeof(ConfigFlash),
+                                      (uint8_t *)&storage_shadow);
+    }
+
+    return(ret_val);
+}
+
+/*
+ * storage_preserve() - preserve storage data in ram
+ *
+ * INPUT -
+ *      none
+ * OUTPUT -
+ *      preserve status
+ */
+static bool storage_preserve(void)
+{
+    bool ret_val = false;
+
+    /* Search active storage sector and save in shadow memory  */
+    if(storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3)
+    {
+        memcpy(&storage_shadow, (void *)flash_write_helper(storage_location), sizeof(ConfigFlash));
+        ret_val = true;
+    }
+
     return(ret_val);
 }
 
@@ -184,11 +228,11 @@ bool usb_flash_firmware(void)
         {
             case UPLOAD_COMPLETE:
             {
-                /* verify the image is from Keepkey */
+                /* Verify the image is from KeepKey */
                 if((SIG_FLAG == 1) && (signatures_ok() == 1))
                 {
                     /* The image is from KeepKey.  Restore storage data */
-                    if(storage_restore() == false)
+                    if(!storage_restore())
                     {
                         /* Bailing early */
                         goto uff_exit;
@@ -205,6 +249,7 @@ bool usb_flash_firmware(void)
                         ret_val = true;
                     }
                 }
+
                 goto uff_exit;
             }
 
@@ -229,6 +274,24 @@ uff_exit:
     /* Clear the shadow before exiting */
     memset(&storage_shadow, 0, sizeof(ConfigFlash));
     return(ret_val);
+}
+
+/*
+ * storage_init_sect() - find and initialize storage sector location
+ *
+ * INPUT
+ *      none
+ * OUTPUT
+ *      none
+ *
+ */
+void storage_sector_init(void)
+{
+    if(!find_active_storage_sect(&storage_location))
+    {
+        /* Set to storage sector1 as default if no sector has been initialized */
+        storage_location = STORAGE_SECT_DEFAULT;
+    }
 }
 
 /* --- Message Out Writing ------------------------------------------------- */
@@ -347,65 +410,6 @@ void handler_initialize(Initialize *msg)
 }
 
 /*
- * storage_init_sect() - find and initialize storage sector location
- *
- * INPUT 
- *      none
- * OUTPUT
- *      none
- *
- */
-void storage_init_sect(void)
-{
-    if(!find_active_storage_sect(&storage_loc_bl))
-    {
-        /* set to storage sector1 as default if no sector has been initialized */
-        storage_loc_bl = STORAGE_SECT_DEFAULT;
-    }
-}
-
-
-/*
- * storage_restore() - restore config data 
- *
- * INPUT - 
- *      none
- * OUTPUT - 
- *      status 
- *
- */
-bool storage_restore(void)
-{
-    bool ret_val = false;
-
-    if(storage_loc_bl >= FLASH_STORAGE1 && storage_loc_bl <= FLASH_STORAGE3)
-    {
-        ret_val = flash_locking_write(storage_loc_bl, 0, sizeof(ConfigFlash), (uint8_t *)&storage_shadow);
-    }
-    return(ret_val);
-}
-
-/*
- * storage_preserve() - preserve storage data in ram 
- *
- * INPUT - 
- *      none
- * OUTPUT - 
- *      status 
- */
-static bool storage_preserve(void)
-{
-    bool ret_val = false;
-    /* search active storage sector and save in shadow memory  */
-    if(storage_loc_bl >= FLASH_STORAGE1 && storage_loc_bl <= FLASH_STORAGE3) 
-    {
-        memcpy(&storage_shadow, (void *)flash_write_helper(storage_loc_bl), sizeof(ConfigFlash));
-        ret_val = true;
-    }
-    return(ret_val);
-}
-
-/*
  * handler_erase() - handler to wipe application firmware
  *
  * INPUT -
@@ -429,18 +433,20 @@ void handler_erase(FirmwareErase *msg)
         if(storage_preserve())
         {
             flash_unlock();
-            /* erase config data sectors  */
+
+            /* Erase config data sectors  */
             for(uint32_t i = FLASH_STORAGE1; i <= FLASH_STORAGE3; i++)
             {
                 flash_erase_word(i);
             }
-            /* erase application section */
+
+            /* Erase application section */
             flash_erase_word(FLASH_APP);
             flash_lock();
             send_success("Firmware erased");
 
             layout_loading();
-            }
+        }
         else
         {
             upload_state = UPLOAD_ERROR;
@@ -591,7 +597,7 @@ void handler_debug_link_get_state(DebugLinkGetState *msg)
 
     /* Storage fingerprint */
     resp.has_storage_hash = true;
-    resp.storage_hash.size = memory_storage_hash(resp.storage_hash.bytes, storage_loc_bl);
+    resp.storage_hash.size = memory_storage_hash(resp.storage_hash.bytes, storage_location);
 
     msg_debug_write(MessageType_MessageType_DebugLinkState, &resp);
 }
@@ -627,13 +633,14 @@ void handler_debug_link_fill_config(DebugLinkFillConfig *msg)
     ConfigFlash fill_storage_shadow;
 
     memset((uint8_t *)&fill_storage_shadow, FILL_CONFIG_DATA, sizeof(ConfigFlash));
-    /* fill storage sector /w test data */
-    if(storage_loc_bl >= FLASH_STORAGE1 && storage_loc_bl <= FLASH_STORAGE3) 
+
+    /* Fill storage sector with test data */
+    if(storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3)
     {
         flash_unlock();
-        flash_erase_word(storage_loc_bl);
-        flash_write(storage_loc_bl, 0, sizeof(ConfigFlash),  
-                        (uint8_t *)&fill_storage_shadow);
+        flash_erase_word(storage_location);
+        flash_write(storage_location, 0, sizeof(ConfigFlash),
+                    (uint8_t *)&fill_storage_shadow);
         flash_lock();
     }
 }

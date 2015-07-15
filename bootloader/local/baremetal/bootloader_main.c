@@ -102,6 +102,7 @@ static void bootloader_init(void)
     usart_init();
     keepkey_leds_init();
     keepkey_button_init();
+    storage_sector_init();
     display_hw_init();
     layout_init(display_canvas_init());
 }
@@ -141,7 +142,6 @@ static void clock_init(void)
  */
 static bool is_fw_update_mode(void)
 {
-    storage_init_sect();
 #if DEBUG_LINK
     return true;
 #else
