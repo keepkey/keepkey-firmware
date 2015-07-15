@@ -49,7 +49,7 @@ static char sessionPin[17];
 
 static bool sessionPassphraseCached;
 static char sessionPassphrase[51];
-static Allocation storage_loc_app = FLASH_INVALID;
+static Allocation storage_location = FLASH_INVALID;
 
 /* === Variables =========================================================== */
 
@@ -84,6 +84,46 @@ static bool storage_from_flash(ConfigFlash *stor_config)
     return true;
 }
 
+/*
+ * wear_leveling_shift() - Shifts sector for config storage
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
+ *
+ */
+static void wear_leveling_shift(void)
+{
+    switch(storage_location)
+    {
+        case FLASH_STORAGE1:
+        {
+            storage_location = FLASH_STORAGE2;
+            break;
+        }
+
+        case FLASH_STORAGE2:
+        {
+            storage_location = FLASH_STORAGE3;
+            break;
+        }
+
+        /* wraps around */
+        case FLASH_STORAGE3:
+        {
+            storage_location = FLASH_STORAGE1;
+            break;
+        }
+
+        default:
+        {
+            storage_location = STORAGE_SECT_DEFAULT;
+            break;
+        }
+    }
+}
+
 /* === Functions =========================================================== */
 
 /*
@@ -98,16 +138,16 @@ void storage_init(void)
 {
     ConfigFlash *stor_config;
 
-    /* find storage sector /w valid data and set storage_loc_app variable */
-    if(find_active_storage_sect(&storage_loc_app))
+    /* find storage sector with valid data and set storage_location variable */
+    if(find_active_storage_sect(&storage_location))
     {
-        stor_config = (ConfigFlash *)flash_write_helper(storage_loc_app);
+        stor_config = (ConfigFlash *)flash_write_helper(storage_location);
     }
     else
     {
         /* set to storage sector1 as default if no sector has been initialized */
-        storage_loc_app = STORAGE_SECT_DEFAULT;
-        stor_config = (ConfigFlash *)flash_write_helper(storage_loc_app);
+        storage_location = STORAGE_SECT_DEFAULT;
+        stor_config = (ConfigFlash *)flash_write_helper(storage_location);
     }
 
     /* Reset shadow configuration in RAM */
@@ -119,9 +159,9 @@ void storage_init(void)
         /* clear out stor_config befor finding end config node */
         // load uuid to shadow memory
         memcpy(shadow_config.meta.uuid, (void *)&stor_config->meta.uuid,
-                sizeof(shadow_config.meta.uuid));
+               sizeof(shadow_config.meta.uuid));
         data2hex(shadow_config.meta.uuid, sizeof(shadow_config.meta.uuid),
-                shadow_config.meta.uuid_str);
+                 shadow_config.meta.uuid_str);
 
         if(stor_config->storage.version)
         {
@@ -159,7 +199,7 @@ void storage_reset_uuid(void)
     // set random uuid
     random_buffer(shadow_config.meta.uuid, sizeof(shadow_config.meta.uuid));
     data2hex(shadow_config.meta.uuid, sizeof(shadow_config.meta.uuid),
-            shadow_config.meta.uuid_str);
+             shadow_config.meta.uuid_str);
 }
 
 /*
@@ -197,35 +237,8 @@ void session_clear(bool clear_pin)
     }
 }
 
-void wear_lev_shiftsector(void)
-{
-    switch(storage_loc_app)
-    {
-        case FLASH_STORAGE1:
-        {
-            storage_loc_app = FLASH_STORAGE2;
-            break;
-        }
-        case FLASH_STORAGE2:
-        {
-            storage_loc_app = FLASH_STORAGE3;
-            break;
-        }
-        /* wraps around */
-        case FLASH_STORAGE3:
-        {
-            storage_loc_app = FLASH_STORAGE1;
-            break;
-        }
-        default:
-        {
-            storage_loc_app = STORAGE_SECT_DEFAULT;
-            break;
-        }
-    }
-}
 /*
- * storage_commit() - Write content of configuration in shadow memory to 
+ * storage_commit() - Write content of configuration in shadow memory to
  * storage partion in flash
  *
  * INPUT
@@ -238,40 +251,45 @@ void storage_commit(void)
     uint32_t shadow_ram_crc32, shadow_flash_crc32, retries;
 
     memcpy((void *)&shadow_config, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
-    for(retries = 0; retries < STORAGE_RETRIES; retries++) 
+
+    for(retries = 0; retries < STORAGE_RETRIES; retries++)
     {
-        /* capture CRC for verification at restore*/
-        shadow_ram_crc32 = calc_crc32((uint32_t *)&shadow_config, sizeof(shadow_config)/sizeof(uint32_t));
+        /* Capture CRC for verification at restore */
+        shadow_ram_crc32 = calc_crc32((uint32_t *)&shadow_config,
+                                      sizeof(shadow_config) / sizeof(uint32_t));
+
         if(shadow_ram_crc32 == 0)
         {
             continue; /* Retry */
         }
 
         /* Make sure flash is in good state before proceeding */
-        if (!flash_chk_status())
+        if(!flash_chk_status())
         {
             flash_clear_status_flags();
             continue; /* Retry */
         }
-        
-        /* make sure storage sector is valid before proceeding */
-        if(storage_loc_app < FLASH_STORAGE1 && storage_loc_app > FLASH_STORAGE3) 
+
+        /* Make sure storage sector is valid before proceeding */
+        if(storage_location < FLASH_STORAGE1 && storage_location > FLASH_STORAGE3)
         {
-            /* let it exhaust the retries and error out*/
+            /* Let it exhaust the retries and error out */
             continue;
         }
+
         flash_unlock();
-        flash_erase_word(storage_loc_app);
-        wear_lev_shiftsector();
+        flash_erase_word(storage_location);
+        wear_leveling_shift();
 
 
-        flash_erase_word(storage_loc_app);
+        flash_erase_word(storage_location);
+
         /* Load storage data first before loading storage magic  */
-        if(flash_write_word(storage_loc_app, STORAGE_MAGIC_LEN, 
-                    sizeof(shadow_config) - STORAGE_MAGIC_LEN, 
-                    (uint8_t *)&shadow_config + STORAGE_MAGIC_LEN))
+        if(flash_write_word(storage_location, STORAGE_MAGIC_LEN,
+                            sizeof(shadow_config) - STORAGE_MAGIC_LEN,
+                            (uint8_t *)&shadow_config + STORAGE_MAGIC_LEN))
         {
-            if(!flash_write_word(storage_loc_app, 0, STORAGE_MAGIC_LEN, (uint8_t *)&shadow_config))
+            if(!flash_write_word(storage_location, 0, STORAGE_MAGIC_LEN, (uint8_t *)&shadow_config))
             {
                 continue; /* Retry */
             }
@@ -282,7 +300,9 @@ void storage_commit(void)
         }
 
         /* Flash write completed successfully.  Verify CRC */
-        shadow_flash_crc32 = calc_crc32((uint32_t *)flash_write_helper(storage_loc_app), sizeof(shadow_config)/sizeof(uint32_t));
+        shadow_flash_crc32 = calc_crc32((uint32_t *)flash_write_helper(storage_location),
+                                        sizeof(shadow_config) / sizeof(uint32_t));
+
         if(shadow_flash_crc32 == shadow_ram_crc32)
         {
             /* Commit successful, break to exit */
@@ -293,7 +313,9 @@ void storage_commit(void)
             continue; /* Retry */
         }
     }
+
     flash_lock();
+
     if(retries >= STORAGE_RETRIES)
     {
         layout_warning_static("Error Detected.  Reboot Device!");
@@ -584,7 +606,7 @@ void storage_increase_pin_fails(void)
 uint32_t storage_get_pin_fails(void)
 {
     return shadow_config.storage.has_pin_failed_attempts ?
-        shadow_config.storage.pin_failed_attempts : 0;
+           shadow_config.storage.pin_failed_attempts : 0;
 }
 
 /*
@@ -631,11 +653,11 @@ bool storage_get_root_node(HDNode *node)
         layout_loading();
 
         if(hdnode_from_xprv(shadow_config.storage.node.depth,
-                    shadow_config.storage.node.fingerprint,
-                    shadow_config.storage.node.child_num,
-                    shadow_config.storage.node.chain_code.bytes,
-                    shadow_config.storage.node.private_key.bytes,
-                    &sessionRootNode) == 0)
+                            shadow_config.storage.node.fingerprint,
+                            shadow_config.storage.node.child_num,
+                            shadow_config.storage.node.chain_code.bytes,
+                            shadow_config.storage.node.private_key.bytes,
+                            &sessionRootNode) == 0)
         {
             return false;
         }
@@ -659,9 +681,9 @@ bool storage_get_root_node(HDNode *node)
             aes_decrypt_ctx ctx;
             aes_decrypt_key256(secret, &ctx);
             aes_cbc_decrypt(sessionRootNode.chain_code, sessionRootNode.chain_code, 32, secret + 32,
-                    &ctx);
+                            &ctx);
             aes_cbc_decrypt(sessionRootNode.private_key, sessionRootNode.private_key, 32, secret + 32,
-                    &ctx);
+                            &ctx);
         }
 
         memcpy(node, &sessionRootNode, sizeof(HDNode));
@@ -684,7 +706,7 @@ bool storage_get_root_node(HDNode *node)
         animating_progress_handler();
 
         mnemonic_to_seed(shadow_config.storage.mnemonic, sessionPassphrase, seed,
-                get_root_node_callback); // BIP-0039
+                         get_root_node_callback); // BIP-0039
 
         if(hdnode_from_seed(seed, sizeof(seed), &sessionRootNode) == 0)
         {
@@ -909,7 +931,7 @@ HDNodeType *storage_get_node(void)
 }
 
 /*
- * get_storage_loc_start() - get storage data start address
+ * get_storage_location() - Get storage data start address
  *
  * INPUT -
  *      none
@@ -917,8 +939,8 @@ HDNodeType *storage_get_node(void)
  *      none
  *
  */
-Allocation get_storage_loc_start(void)
+Allocation get_storage_location(void)
 {
-    return(storage_loc_app);
+    return(storage_location);
 }
 

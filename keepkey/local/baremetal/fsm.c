@@ -1280,7 +1280,7 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg)
     resp->firmware_hash.size = memory_firmware_hash(resp->firmware_hash.bytes);
 
     resp->has_storage_hash = true;
-    resp->storage_hash.size = memory_storage_hash(resp->storage_hash.bytes, get_storage_loc_start());
+    resp->storage_hash.size = memory_storage_hash(resp->storage_hash.bytes, get_storage_location());
 
     msg_debug_write(MessageType_MessageType_DebugLinkState, resp);
 }

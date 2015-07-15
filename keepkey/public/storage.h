@@ -83,6 +83,7 @@ bool storage_get_imported(void);
 
 bool storage_has_node(void);
 HDNodeType *storage_get_node(void);
-Allocation get_storage_loc_start(void);
+
+Allocation get_storage_location(void);
 
 #endif
