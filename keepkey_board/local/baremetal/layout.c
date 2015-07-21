@@ -487,17 +487,16 @@ void layout_simple_message(const char *str)
 }
 
 /*
- * layout_version() - Displays version and build ID
+ * layout_version() - Displays version
  *
  * INPUT
  *     - major: major version number
  *     - minor: minor version number
  *     - patch: patch version number
- *     - build_id: build ID
  * OUTPUT
  *     none
  */
-void layout_version(int32_t major, int32_t minor, int32_t patch, int32_t build_id)
+void layout_version(int32_t major, int32_t minor, int32_t patch)
 {
     char version_info[SMALL_STR_BUF];
 
@@ -505,8 +504,8 @@ void layout_version(int32_t major, int32_t minor, int32_t patch, int32_t build_i
 
     const Font *font = get_body_font();
 
-    snprintf(version_info, SMALL_STR_BUF, "v%lu.%lu.%lu-%04lu", (unsigned long)major,
-             (unsigned long)minor, (unsigned long)patch, build_id);
+    snprintf(version_info, SMALL_STR_BUF, "v%lu.%lu.%lu", (unsigned long)major,
+             (unsigned long)minor, (unsigned long)patch);
 
     /* Draw version information */
     DrawableParams sp;

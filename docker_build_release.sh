@@ -1,11 +1,5 @@
 #!/bin/bash
 
-if [ -z "$1" ]
-  then
-    echo "Error: Must supply a Build ID!"
-    exit 1
-fi
-
 echo "*********************************************************************"
 echo "* You are about to build a release version of KeepKey firmware. The *"
 echo "* resulting bootloader image will memory protect the flash on your  *"
@@ -25,6 +19,6 @@ docker run -t -v $(pwd):/root/keepkey-firmware --rm $IMAGETAG /bin/sh -c "\
 	make clean && \
   make && \
 	cd /root/keepkey-firmware && \
-	./b -mp -id $1"
+	./b -mp"
 
 fi
