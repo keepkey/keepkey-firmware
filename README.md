@@ -1,4 +1,4 @@
-# KeepKey Build Procedure for Ubuntu 14.04
+## KeepKey Build Procedure for Ubuntu 14.04
 
 ### Toolchain Installation
 
