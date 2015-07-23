@@ -1,10 +1,5 @@
 # Install Toolchain and Eclipse IDE
 
-## Windows (Incomplete)
-
-1. Install gcc-arm-embedded toolchain: https://launchpad.net/gcc-arm-embedded/4.8/4.8-2014-q1-update
-2. Install cygwin (including make): https://cygwin.com/install.html
-
 ## Linux (Ubuntu 14.04)
 
 ### Install Toolchain
@@ -75,114 +70,13 @@ When you compile protocol buffers you may see some warnings.  Run to following c
 $ cd interface && ./build_protos.sh
 ```
 
-To build a debug version, run the following command in the root of the repository:
+To build a Application for debug version, run the following command in the root of the repository:
 
 ```
-$ ./b -s -d
+$ ./b -d -b app 
 ```
 
-To build a release version, run the following command in the root of the repository:
+To build a Application for release version, run the following command in the root of the repository:
 
 ```
-$ ./b -s
-```
-###  Install J-Link IDE from Segger In Windows 7 Machine
-1. Install J-Link V4.94c  (Setup_JLink_V494c, Obtain from https://www.dropbox.com/home/KeepKey/tools/Windows%20tools/Segger)
-2. Install J-Link IDE Debugger (J-LinkDebugger_Setup_Windows_V167a, https://www.dropbox.com/home/KeepKey/tools/Windows%20tools/Segger)
-
-```
-* Start J-Link IDE Debugger
-    * Click "OK" for "Beta Version" pop up Window
-    * Select "Create a New Project" and click "Next" to continue 
-    * Select "STM32F205RG" for device in "Target Device Window" and click "Next" to continue
-    * Select following settings in "Connection Setting Window" and click "Next" to continue
-        * Target Interface = JTAG
-        * Host Interface = USB
-        * Target Interface Speed = 1 MHz
-        * Serial No = <empty>
-    * Select the desire "elf" (keepkey_main.elf or bootloader_main.elf) in "Data File" window.  
-        * Note : the files are located in "build" directory in source folder
-        
-* Note : Since we are currently building the image with Linux machine and the debugger is running on Windows, the embedded location of the source code in "elf" 
-         files are not recognized by the j-link debugger.  You will have to manually set the path as you debug the code. 
-
-```
-
-### (Obsolete) Install IDE (Eclipse Luna)
-
-First, download Eclipse and decompress, then move it to /opt:
-
-```
-$ wget -P ~/ http://www.gtlib.gatech.edu/pub/eclipse/technology/epp/downloads/release/luna/R/eclipse-cpp-luna-R-linux-gtk-x86_64.tar.gz
-$ tar zxf ~/eclipse-cpp-luna-R-linux-gtk-x86_64.tar.gz -C ~
-$ sudo mv ~/eclipse /opt
-```
-
-Now we make sure it is accessable by all users:
-
-```
-$ sudo ln -s /opt/eclipse/eclipse /usr/bin/eclipse
-```
-
-You can also create an entry in Unity Dash.  Run the following command:
-
-```
-$ sudo gedit /usr/share/applications/eclipse.desktop
-```
-
-And then enter everything below into file and save it
-
-```
-[Desktop Entry]
-Version=4.4.0
-Name=Eclipse
-Comment=IDE for all seasons
-Exec=env UBUNTU_MENUPROXY=0 /opt/eclipse/eclipse
-Icon=/opt/eclipse/icon.xpm
-Terminal=false
-Type=Application
-Categories=Utility;Application;Development;IDE
-```
-
-Now install the GDB Server plugin for the JLINK Plus.  We can get that on Segger's website (https://www.segger.com/jlink-software.html).  Look for the DEB Installer.  The one I used was "Software and documentation pack for Linux V4.90b, DEB Installer 64-bit version."  Download the plugin and then run the following command:
-
-```
-$ sudo dpkg -i jlink_4.94.3_x86_64.deb
-```
-
-Now we install the Sconsolidator plugin for Eclipse. In Eclipse click "Help" -> "Install New Software" in the menu. Then click Add and for "Name" enter "Sconsolidator" and for "Location" enter "http://www.sconsolidator.com/update" and then click "Ok".  It will take a few seconds but the package will appear.  Put a check in the ckeckbox next to it and proceed to install it.
-
-Then proceed to install the GNU ARM plugin following the previous method for Sconsolidator.  Use the "Location" of "http://gnuarmeclipse.sourceforge.net/updates"
-
-Next, install embsysregview by going to "Help" -> "Eclipse Marketplace" and searching for "embsysregview"
-
-Setup Project in Eclipse
-
-Create Scons project in Eclipse by going to "File" -> "New" -> "Other", then finding "New SCons project from existing source" under the "C/C++" category.  Then enter the project name and locate the repository for "Existing Code Location"
-
-Now, open the project properties and navigate to the "SCons" category. Select "Use project settings" and then under "SCons Options" enter:
-
-```
-target=arm-none-gnu-eabi
-verbose=1
-debug=1
-```
-
-Click OK, then attempt to build all.  Everything should compile properly.
-
-Setup Debugging in Eclipse
-
-In the menu goto "Run" -> "Debug Configurations".  Navigate to the "GDB SEGGER J-Link Debugging" category in the left column, then right-click and click "New". For "C/C++ Application", choose "keepkey_main.elf" in the "/build/arm-none-gnu-eabi/debug/bin" directory of the firmware repository. Click "Apply".
-
-Then navigate to "Debugger" tab. Fill in the following
-
-* Executable: /usr/bin/JLinkGDBServer
-  * Device name: STM32F2RG
-  * Endianness : Little
-  * Connection: USB
-  * Interface: JTAG
-  * Initial speed: auto
-
-And under "GDB Client Setup"
-
-* Executable: /usr/bin/arm-none-eabi-gdb
+$ ./b -b app 
