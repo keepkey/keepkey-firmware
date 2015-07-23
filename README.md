@@ -2,9 +2,7 @@
 
 ### Toolchain Installation
 
-These instructions were used to setup toolchain in Ubuntu 14.04
-
-First, update "apt-get"
+Update "apt-get"
 ```
 $ sudo apt-get update
 ```
@@ -24,15 +22,16 @@ $ git clone git@gitlab.keepkey.com:embedded-software/keepkey-firmware.git
 
 ### command line build
 
-To build libopencm3, go to the root of the firmware repository and run:
+First build libopencm3. Change to firmware directory and start make
 ```
 $ cd libopencm3 && make
 ```
-To build a Application for debug version, run the following command in the root of the repository:
+Build final bootloader image. Change to firmware directory and run following command
 ```
-$ ./b -d -b app 
+$ ./b -b bldr 
 ```
-To build a Application for release version, run the following command in the root of the repository:
+
+Build final application image. Change to firmware directory and run following command
 ```
 $ ./b -b app 
 ```
