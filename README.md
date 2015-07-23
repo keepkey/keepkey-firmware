@@ -24,11 +24,11 @@ $ git clone git@gitlab.keepkey.com:embedded-software/keepkey-firmware.git
 
 First build libopencm3. Change to firmware directory and start make
 ```
-$ cd libopencm3 && make
+$ pushd libopencm3 && make && popd
 ```
 Build final bootloader image. Change to firmware directory and run following command
 ```
-$ ./b -b bldr 
+$ ./b -b bldr -mp
 ```
 
 Build final application image. Change to firmware directory and run following command
