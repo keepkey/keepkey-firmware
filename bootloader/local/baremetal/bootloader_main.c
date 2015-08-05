@@ -276,8 +276,8 @@ int main(int argc, char *argv[])
     led_func(SET_RED_LED);
 
     dbg_print("\n\rKeepKey LLC, Copyright (C) 2015\n\r");
-    dbg_print("BootLoader Version %d.%d (%s)\n\r", BOOTLOADER_MAJOR_VERSION,
-              BOOTLOADER_MINOR_VERSION, __DATE__);
+    dbg_print("BootLoader Version %d.%d.%d\n\r", BOOTLOADER_MAJOR_VERSION,
+              BOOTLOADER_MINOR_VERSION, BOOTLOADER_PATCH_VERSION);
 
     if(is_fw_update_mode())
     {
