@@ -189,7 +189,7 @@ def init_project(env, deps=None, libs=None, project_defines=None):
 
     project_files, proto_files = find_project_source_files(project_path, build_os, project_flavors)
 
-    exe_targets, support_files = find_executable_targets(project_files, project_flavors)
+    exe_targets, support_files = find_executable_targets(sorted(project_files), project_flavors)
 
     #
     # Setup default include paths
