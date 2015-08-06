@@ -14,14 +14,15 @@ IMAGETAG=keepkey/firmware
 
 docker build -t $IMAGETAG .
 
-docker run -t -v $(pwd):/root/kf --rm $IMAGETAG /bin/sh -c "\
-  cd /root/ && \
-  git clone https://github.com/keepkey/keepkey-firmware.git && \
+docker run -t -v $(pwd):/root/keepkey-firmware --rm $IMAGETAG /bin/sh -c "\
 	cd /root/keepkey-firmware/libopencm3 && \
 	make clean && \
   make && \
 	cd /root/keepkey-firmware && \
 	./b -mp && \
-  sha256sum build/arm-none-gnu-eabi/release/bin/keepkey_main.bin"
+  echo '*********************************************************************' && \
+  echo '* KeepKey Application Fingerprint                                   *' && \
+  echo '*********************************************************************' && \
+  cat build/arm-none-gnu-eabi/release/bin/keepkey_main.bin | sha256sum"
 
 fi
