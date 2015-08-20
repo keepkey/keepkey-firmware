@@ -320,7 +320,20 @@ static void layout_animate_cipher(void *data, uint32_t duration, uint32_t elapse
 /* === Functions =========================================================== */
 
 /*
- *  layout_home_helper() - Splash screen helper
+ *  layout_screen_test() - Display screen test
+ *
+ *  INPUT
+ *      none
+ *  OUTPUT
+ *      none
+ */
+void layout_screen_test(void)
+{
+    draw_box_simple(layout_get_canvas(), TEST_COLOR, TEST_X, TEST_Y, TEST_WIDTH, TEST_HEIGHT);
+}
+
+/*
+ *  layout_screensaver() - Displays screensaver
  *
  *  INPUT
  *      none

@@ -30,6 +30,13 @@
 
 /* === Defines ============================================================= */
 
+/* Screen Test */
+#define TEST_COLOR      0xFF
+#define TEST_X          1
+#define TEST_Y          1
+#define TEST_WIDTH      256
+#define TEST_HEIGHT     64
+
 /* Transaction */
 #define TRANSACTION_TOP_MARGIN  4
 #define TRANSACTION_WIDTH       250
@@ -95,6 +102,7 @@ typedef struct
 
 /* === Functions =========================================================== */
 
+void layout_screen_test(void);
 void layout_screensaver(void);
 void layout_tx_info(const char *address, uint64_t amount_in_satoshi);
 void layout_transaction_notification(const char *amount, const char *address,

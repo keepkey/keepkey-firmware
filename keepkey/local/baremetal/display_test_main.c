@@ -28,13 +28,7 @@
 #include <draw.h>
 #include <layout.h>
 
-/* === Defines ============================================================= */
-
-#define TEST_COLOR      0xFF
-#define TEST_X          1
-#define TEST_Y          1
-#define TEST_WIDTH      256
-#define TEST_HEIGHT     64
+#include "app_layout.h"
 
 /* === Functions =========================================================== */
 
@@ -53,7 +47,7 @@ int main(void)
     led_func(SET_RED_LED);
 
     /* Draw box to consume screen with pixels */
-    draw_box_simple(layout_get_canvas(), TEST_COLOR, TEST_X, TEST_Y, TEST_WIDTH, TEST_HEIGHT);
+    layout_screen_test();
     display_refresh();
 
     for(;;);  /* Loops forever */

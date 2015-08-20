@@ -35,6 +35,7 @@
 #include "home_sm.h"
 #include "storage.h"
 #include "fsm.h"
+#include "app_layout.h"
 
 /* === Private Functions =================================================== */
 
@@ -56,7 +57,7 @@ static void exec(void)
 }
 
 /* 
- * mfg_chk() - Check device in manufacture state
+ * screen_test() - Preform a screen test if device is in manufacture mode
  *
  * INPUT  
  *      none
@@ -64,12 +65,11 @@ static void exec(void)
  *      none
  *
  */
-void mfg_chk(void)
+static void screen_test(void)
 {
-    if(chk_mfg_prestine())
+    if(is_mfg_mode())
     {
-        /* device is prestine */
-        draw_box_simple(layout_get_canvas(), BODY_COLOR, 1, 1, 256, 64);
+        layout_screen_test();
     }
 }
     
@@ -101,7 +101,8 @@ int main(void)
     fsm_init();
 
     led_func(SET_GREEN_LED);
-    mfg_chk();
+    
+    screen_test();
 
     /* Enable interrupt for timer */
     cm_enable_interrupts();
@@ -109,7 +110,6 @@ int main(void)
     usb_init();
     led_func(CLR_RED_LED);
 
-    /* Monitor host usb commands */
     reset_idle_time();
 
     while(1)
