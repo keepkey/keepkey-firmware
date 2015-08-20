@@ -21,10 +21,11 @@
 
 #include <stdint.h>
 
+#include <ecdsa.h>
+#include <secp256k1.h>
 #include <memory.h>
 
 #include "signatures.h"
-#include "ecdsa.h"
 
 /* === Variables =========================================================== */
 
@@ -106,19 +107,19 @@ int signatures_ok(void)
     if(sigindex1 == sigindex3) { return 0; }  /* Duplicate use */
     if(sigindex2 == sigindex3) { return 0; }  /* Duplicate use */
 
-    if(ecdsa_verify(pubkey[sigindex1 - 1], (uint8_t *)FLASH_META_SIG1,
+    if(ecdsa_verify(&secp256k1, pubkey[sigindex1 - 1], (uint8_t *)FLASH_META_SIG1,
                     (uint8_t *)FLASH_APP_START, codelen) != 0)   /* Failure */
     {
         return 0;
     }
 
-    if(ecdsa_verify(pubkey[sigindex2 - 1], (uint8_t *)FLASH_META_SIG2,
+    if(ecdsa_verify(&secp256k1, pubkey[sigindex2 - 1], (uint8_t *)FLASH_META_SIG2,
                     (uint8_t *)FLASH_APP_START, codelen) != 0)   /* Failure */
     {
         return 0;
     }
 
-    if(ecdsa_verify(pubkey[sigindex3 - 1], (uint8_t *)FLASH_META_SIG3,
+    if(ecdsa_verify(&secp256k1, pubkey[sigindex3 - 1], (uint8_t *)FLASH_META_SIG3,
                     (uint8_t *)FLASH_APP_START, codelen) != 0)   /* Failure */
     {
         return 0;

@@ -25,6 +25,8 @@
 #include <pbkdf2.h>
 #include <aes.h>
 #include <hmac.h>
+#include <secp256k1.h>
+#include <nist256p1.h>
 #include <bip32.h>
 #include <layout.h>
 
@@ -101,9 +103,11 @@ int cryptoMessageSign(const uint8_t *message, size_t message_len, const uint8_t 
 	sha256_Final(hash, &ctx);
 	sha256_Raw(hash, 32, hash);
 	uint8_t pby;
-	ecdsa_sign_digest(privkey, hash, signature + 1, &pby);
-	signature[0] = 27 + pby + 4;
-	return 0;
+	int result = ecdsa_sign_digest(&secp256k1, privkey, hash, signature + 1, &pby);
+	if (result == 0) {
+		signature[0] = 27 + pby + 4;
+	}
+	return result;
 }
 
 int cryptoMessageVerify(const uint8_t *message, size_t message_len, const uint8_t *address_raw, const uint8_t *signature)
@@ -129,7 +133,7 @@ int cryptoMessageVerify(const uint8_t *message, size_t message_len, const uint8_
 	// x = r
 	memcpy(&cp.x, &r, sizeof(bignum256));
 	// compute y from x
-	uncompress_coords(recid % 2, &cp.x, &cp.y);
+	uncompress_coords(&secp256k1, recid % 2, &cp.x, &cp.y);
 	// calculate hash
 	sha256_Init(&ctx);
 	sha256_Update(&ctx, (const uint8_t *)"\x18" "Bitcoin Signed Message:" "\n", 25);
@@ -141,13 +145,13 @@ int cryptoMessageVerify(const uint8_t *message, size_t message_len, const uint8_
 	sha256_Raw(hash, 32, hash);
 	// e = -hash
 	bn_read_be(hash, &e);
-	bn_subtract(&order256k1, &e, &e);
+	bn_subtract(&secp256k1.order, &e, &e);
 	// r = r^-1
-	bn_inverse(&r, &order256k1);
-	point_multiply(&s, &cp, &cp);
-	scalar_multiply(&e, &cp2);
-	point_add(&cp2, &cp);
-	point_multiply(&r, &cp, &cp);
+	bn_inverse(&r, &secp256k1.order);
+	point_multiply(&secp256k1, &s, &cp, &cp);
+	scalar_multiply(&secp256k1, &e, &cp2);
+	point_add(&secp256k1, &cp2, &cp);
+	point_multiply(&secp256k1, &r, &cp, &cp);
 	pubkey[0] = 0x04;
 	bn_write_be(&cp.x, pubkey + 1);
 	bn_write_be(&cp.y, pubkey + 33);
@@ -160,7 +164,7 @@ int cryptoMessageVerify(const uint8_t *message, size_t message_len, const uint8_
 		return 2;
 	}
 	// check if signature verifies the digest
-	if (ecdsa_verify_digest(pubkey, signature + 1, hash) != 0) {
+	if (ecdsa_verify_digest(&secp256k1, pubkey, signature + 1, hash) != 0) {
 		return 3;
 	}
 	return 0;
@@ -186,16 +190,16 @@ int cryptoMessageEncrypt(curve_point *pubkey, const uint8_t *msg, size_t msg_siz
 	// generate random nonce
 	curve_point R;
 	bignum256 k;
-	if (generate_k_random(&k) != 0) {
+	if (generate_k_random(&secp256k1, &k) != 0) {
 		return 2;
 	}
 	// compute k*G
-	scalar_multiply(&k, &R);
+	scalar_multiply(&secp256k1, &k, &R);
 	nonce[0] = 0x02 | (R.y.val[0] & 0x01);
 	bn_write_be(&R.x, nonce + 1);
 	*nonce_len = 33;
 	// compute shared secret
-	point_multiply(&k, pubkey, &R);
+	point_multiply(&secp256k1, &k, pubkey, &R);
 	uint8_t shared_secret[33];
 	shared_secret[0] = 0x02 | (R.y.val[0] & 0x01);
 	bn_write_be(&R.x, shared_secret + 1);
@@ -227,7 +231,7 @@ int cryptoMessageDecrypt(curve_point *nonce, uint8_t *payload, size_t payload_le
 	curve_point R;
 	bignum256 k;
 	bn_read_be(privkey, &k);
-	point_multiply(&k, nonce, &R);
+	point_multiply(&secp256k1, &k, nonce, &R);
 	uint8_t shared_secret[33];
 	shared_secret[0] = 0x02 | (R.y.val[0] & 0x01);
 	bn_write_be(&R.x, shared_secret + 1);

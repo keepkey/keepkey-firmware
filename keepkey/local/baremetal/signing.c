@@ -21,6 +21,7 @@
 
 #include <msg_dispatch.h>
 #include <ecdsa.h>
+#include <secp256k1.h>
 #include <crypto.h>
 #include <layout.h>
 #include <confirm_sm.h>
@@ -533,7 +534,7 @@ void signing_txack(TransactionType *tx)
 				resp.serialized.signature_index = idx1;
 				resp.serialized.has_signature = true;
 				resp.serialized.has_serialized_tx = true;
-				ecdsa_sign_digest(privkey, hash, sig, 0);
+				ecdsa_sign_digest(&secp256k1, privkey, hash, sig, 0);
 				resp.serialized.signature.size = ecdsa_sig_to_der(sig, resp.serialized.signature.bytes);
 				if (input.script_type == InputScriptType_SPENDMULTISIG) {
 					if (!input.has_multisig) {

@@ -28,6 +28,7 @@
 #include <bip39.h>
 #include <base58.h>
 #include <ripemd160.h>
+#include <secp256k1.h>
 #include <layout.h>
 #include <confirm_sm.h>
 #include <msg_dispatch.h>
@@ -60,68 +61,68 @@ static uint8_t msg_resp[MAX_FRAME_SIZE];
 static const MessagesMap_t MessagesMap[] =
 {
     /* Normal Messages */
-    MSG_IN(MessageType_MessageType_Initialize, 			Initialize_fields,			(void (*)(void *))fsm_msgInitialize)
-    MSG_IN(MessageType_MessageType_GetFeatures, 		GetFeatures_fields,			(void (*)(void *))fsm_msgGetFeatures)
-    MSG_IN(MessageType_MessageType_Ping, 				Ping_fields,				(void (*)(void *))fsm_msgPing)
-    MSG_IN(MessageType_MessageType_ChangePin, 			ChangePin_fields,			(void (*)(void *))fsm_msgChangePin)
-    MSG_IN(MessageType_MessageType_WipeDevice, 			WipeDevice_fields,			(void (*)(void *))fsm_msgWipeDevice)
-    MSG_IN(MessageType_MessageType_FirmwareErase, 		FirmwareErase_fields,		(void (*)(void *))fsm_msgFirmwareErase)
-    MSG_IN(MessageType_MessageType_FirmwareUpload, 		FirmwareUpload_fields,		(void (*)(void *))fsm_msgFirmwareUpload)
-    MSG_IN(MessageType_MessageType_GetEntropy, 			GetEntropy_fields,			(void (*)(void *))fsm_msgGetEntropy)
-    MSG_IN(MessageType_MessageType_GetPublicKey, 		GetPublicKey_fields,		(void (*)(void *))fsm_msgGetPublicKey)
-    MSG_IN(MessageType_MessageType_LoadDevice, 			LoadDevice_fields,			(void (*)(void *))fsm_msgLoadDevice)
-    MSG_IN(MessageType_MessageType_ResetDevice, 		ResetDevice_fields,			(void (*)(void *))fsm_msgResetDevice)
-    MSG_IN(MessageType_MessageType_SignTx, 				SignTx_fields,				(void (*)(void *))fsm_msgSignTx)
-    MSG_IN(MessageType_MessageType_PinMatrixAck, 		PinMatrixAck_fields, 		NO_PROCESS_FUNC)
-    MSG_IN(MessageType_MessageType_Cancel, 				Cancel_fields,				(void (*)(void *))fsm_msgCancel)
-    MSG_IN(MessageType_MessageType_TxAck, 				TxAck_fields,				(void (*)(void *))fsm_msgTxAck)
-    MSG_IN(MessageType_MessageType_CipherKeyValue, 		CipherKeyValue_fields,		(void (*)(void *))fsm_msgCipherKeyValue)
-    MSG_IN(MessageType_MessageType_ClearSession, 		ClearSession_fields,		(void (*)(void *))fsm_msgClearSession)
-    MSG_IN(MessageType_MessageType_ApplySettings, 		ApplySettings_fields,		(void (*)(void *))fsm_msgApplySettings)
-    MSG_IN(MessageType_MessageType_ButtonAck, 			ButtonAck_fields, 			NO_PROCESS_FUNC)
-    MSG_IN(MessageType_MessageType_GetAddress, 			GetAddress_fields,			(void (*)(void *))fsm_msgGetAddress)
-    MSG_IN(MessageType_MessageType_EntropyAck, 			EntropyAck_fields,			(void (*)(void *))fsm_msgEntropyAck)
-    MSG_IN(MessageType_MessageType_SignMessage, 		SignMessage_fields,			(void (*)(void *))fsm_msgSignMessage)
-    MSG_IN(MessageType_MessageType_SignIdentity, 		SignIdentity_fields,		(void (*)(void *))fsm_msgSignIdentity)
-    MSG_IN(MessageType_MessageType_VerifyMessage, 		VerifyMessage_fields,		(void (*)(void *))fsm_msgVerifyMessage)
-    MSG_IN(MessageType_MessageType_EncryptMessage, 		EncryptMessage_fields,		(void (*)(void *))fsm_msgEncryptMessage)
-    MSG_IN(MessageType_MessageType_DecryptMessage, 		DecryptMessage_fields,		(void (*)(void *))fsm_msgDecryptMessage)
-    MSG_IN(MessageType_MessageType_PassphraseAck, 		PassphraseAck_fields, 		NO_PROCESS_FUNC)
-    MSG_IN(MessageType_MessageType_EstimateTxSize, 		EstimateTxSize_fields,		(void (*)(void *))fsm_msgEstimateTxSize)
-    MSG_IN(MessageType_MessageType_RecoveryDevice, 		RecoveryDevice_fields,		(void (*)(void *))fsm_msgRecoveryDevice)
-    MSG_IN(MessageType_MessageType_WordAck, 			WordAck_fields,				(void (*)(void *))fsm_msgWordAck)
-    MSG_IN(MessageType_MessageType_CharacterAck, 		CharacterAck_fields,		(void (*)(void *))fsm_msgCharacterAck)
-    
+    MSG_IN(MessageType_MessageType_Initialize,          Initialize_fields,          (void (*)(void *))fsm_msgInitialize)
+    MSG_IN(MessageType_MessageType_GetFeatures,         GetFeatures_fields,         (void (*)(void *))fsm_msgGetFeatures)
+    MSG_IN(MessageType_MessageType_Ping,                Ping_fields,                (void (*)(void *))fsm_msgPing)
+    MSG_IN(MessageType_MessageType_ChangePin,           ChangePin_fields,           (void (*)(void *))fsm_msgChangePin)
+    MSG_IN(MessageType_MessageType_WipeDevice,          WipeDevice_fields,          (void (*)(void *))fsm_msgWipeDevice)
+    MSG_IN(MessageType_MessageType_FirmwareErase,       FirmwareErase_fields,       (void (*)(void *))fsm_msgFirmwareErase)
+    MSG_IN(MessageType_MessageType_FirmwareUpload,      FirmwareUpload_fields,      (void (*)(void *))fsm_msgFirmwareUpload)
+    MSG_IN(MessageType_MessageType_GetEntropy,          GetEntropy_fields,          (void (*)(void *))fsm_msgGetEntropy)
+    MSG_IN(MessageType_MessageType_GetPublicKey,        GetPublicKey_fields,        (void (*)(void *))fsm_msgGetPublicKey)
+    MSG_IN(MessageType_MessageType_LoadDevice,          LoadDevice_fields,          (void (*)(void *))fsm_msgLoadDevice)
+    MSG_IN(MessageType_MessageType_ResetDevice,         ResetDevice_fields,         (void (*)(void *))fsm_msgResetDevice)
+    MSG_IN(MessageType_MessageType_SignTx,              SignTx_fields,              (void (*)(void *))fsm_msgSignTx)
+    MSG_IN(MessageType_MessageType_PinMatrixAck,        PinMatrixAck_fields,        NO_PROCESS_FUNC)
+    MSG_IN(MessageType_MessageType_Cancel,              Cancel_fields,              (void (*)(void *))fsm_msgCancel)
+    MSG_IN(MessageType_MessageType_TxAck,               TxAck_fields,               (void (*)(void *))fsm_msgTxAck)
+    MSG_IN(MessageType_MessageType_CipherKeyValue,      CipherKeyValue_fields,      (void (*)(void *))fsm_msgCipherKeyValue)
+    MSG_IN(MessageType_MessageType_ClearSession,        ClearSession_fields,        (void (*)(void *))fsm_msgClearSession)
+    MSG_IN(MessageType_MessageType_ApplySettings,       ApplySettings_fields,       (void (*)(void *))fsm_msgApplySettings)
+    MSG_IN(MessageType_MessageType_ButtonAck,           ButtonAck_fields,           NO_PROCESS_FUNC)
+    MSG_IN(MessageType_MessageType_GetAddress,          GetAddress_fields,          (void (*)(void *))fsm_msgGetAddress)
+    MSG_IN(MessageType_MessageType_EntropyAck,          EntropyAck_fields,          (void (*)(void *))fsm_msgEntropyAck)
+    MSG_IN(MessageType_MessageType_SignMessage,         SignMessage_fields,         (void (*)(void *))fsm_msgSignMessage)
+    MSG_IN(MessageType_MessageType_SignIdentity,        SignIdentity_fields,        (void (*)(void *))fsm_msgSignIdentity)
+    MSG_IN(MessageType_MessageType_VerifyMessage,       VerifyMessage_fields,       (void (*)(void *))fsm_msgVerifyMessage)
+    MSG_IN(MessageType_MessageType_EncryptMessage,      EncryptMessage_fields,      (void (*)(void *))fsm_msgEncryptMessage)
+    MSG_IN(MessageType_MessageType_DecryptMessage,      DecryptMessage_fields,      (void (*)(void *))fsm_msgDecryptMessage)
+    MSG_IN(MessageType_MessageType_PassphraseAck,       PassphraseAck_fields,       NO_PROCESS_FUNC)
+    MSG_IN(MessageType_MessageType_EstimateTxSize,      EstimateTxSize_fields,      (void (*)(void *))fsm_msgEstimateTxSize)
+    MSG_IN(MessageType_MessageType_RecoveryDevice,      RecoveryDevice_fields,      (void (*)(void *))fsm_msgRecoveryDevice)
+    MSG_IN(MessageType_MessageType_WordAck,             WordAck_fields,             (void (*)(void *))fsm_msgWordAck)
+    MSG_IN(MessageType_MessageType_CharacterAck,        CharacterAck_fields,        (void (*)(void *))fsm_msgCharacterAck)
+
     /* Normal Out Messages */
-    MSG_OUT(MessageType_MessageType_Success, 			Success_fields, 			NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_Failure, 			Failure_fields, 			NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_Entropy, 			Entropy_fields, 			NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_PublicKey, 			PublicKey_fields, 			NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_Features, 			Features_fields, 			NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_PinMatrixRequest, 	PinMatrixRequest_fields, 	NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_TxRequest, 			TxRequest_fields, 			NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_CipheredKeyValue, 	CipheredKeyValue_fields, 	NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_ButtonRequest, 		ButtonRequest_fields, 		NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_Address, 			Address_fields, 			NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_EntropyRequest, 	EntropyRequest_fields, 		NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_MessageSignature, 	MessageSignature_fields, 	NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_SignedIdentity, 	SignedIdentity_fields, 		NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_EncryptedMessage, 	EncryptedMessage_fields, 	NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_DecryptedMessage, 	DecryptedMessage_fields, 	NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_PassphraseRequest, 	PassphraseRequest_fields, 	NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_TxSize, 			TxSize_fields, 				NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_WordRequest, 		WordRequest_fields, 		NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_CharacterRequest, 	CharacterRequest_fields, 	NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_Success,            Success_fields,             NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_Failure,            Failure_fields,             NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_Entropy,            Entropy_fields,             NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_PublicKey,          PublicKey_fields,           NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_Features,           Features_fields,            NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_PinMatrixRequest,   PinMatrixRequest_fields,    NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_TxRequest,          TxRequest_fields,           NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_CipheredKeyValue,   CipheredKeyValue_fields,    NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_ButtonRequest,      ButtonRequest_fields,       NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_Address,            Address_fields,             NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_EntropyRequest,     EntropyRequest_fields,      NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_MessageSignature,   MessageSignature_fields,    NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_SignedIdentity,     SignedIdentity_fields,      NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_EncryptedMessage,   EncryptedMessage_fields,    NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_DecryptedMessage,   DecryptedMessage_fields,    NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_PassphraseRequest,  PassphraseRequest_fields,   NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_TxSize,             TxSize_fields,              NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_WordRequest,        WordRequest_fields,         NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_CharacterRequest,   CharacterRequest_fields,    NO_PROCESS_FUNC)
 
 #if DEBUG_LINK
     /* Debug Messages */
-    DEBUG_IN(MessageType_MessageType_DebugLinkDecision, DebugLinkDecision_fields, 	NO_PROCESS_FUNC)
-    DEBUG_IN(MessageType_MessageType_DebugLinkGetState, DebugLinkGetState_fields,	(void (*)(void *))fsm_msgDebugLinkGetState)
-    DEBUG_IN(MessageType_MessageType_DebugLinkStop, 	DebugLinkStop_fields,	(void (*)(void *))fsm_msgDebugLinkStop)
-    
+    DEBUG_IN(MessageType_MessageType_DebugLinkDecision, DebugLinkDecision_fields,   NO_PROCESS_FUNC)
+    DEBUG_IN(MessageType_MessageType_DebugLinkGetState, DebugLinkGetState_fields,   (void (*)(void *))fsm_msgDebugLinkGetState)
+    DEBUG_IN(MessageType_MessageType_DebugLinkStop,     DebugLinkStop_fields,       (void (*)(void *))fsm_msgDebugLinkStop)
+
     /* Debug Out Messages */
-    DEBUG_OUT(MessageType_MessageType_DebugLinkState, DebugLinkState_fields, 		NO_PROCESS_FUNC)
-    DEBUG_OUT(MessageType_MessageType_DebugLinkLog, DebugLinkLog_fields, 			NO_PROCESS_FUNC)
+    DEBUG_OUT(MessageType_MessageType_DebugLinkState, DebugLinkState_fields,        NO_PROCESS_FUNC)
+    DEBUG_OUT(MessageType_MessageType_DebugLinkLog, DebugLinkLog_fields,            NO_PROCESS_FUNC)
 #endif
 };
 
@@ -271,7 +272,8 @@ void fsm_msgGetFeatures(GetFeatures *msg)
 
     /* Bootloader hash */
     resp->has_bootloader_hash = true;
-    resp->bootloader_hash.size = memory_bootloader_hash(resp->bootloader_hash.bytes);
+    resp->bootloader_hash.size = memory_bootloader_hash(
+                                     resp->bootloader_hash.bytes);
 
     /* Settings for device */
     if(storage_get_language())
@@ -429,19 +431,22 @@ void fsm_msgWipeDevice(WipeDevice *msg)
 void fsm_msgFirmwareErase(FirmwareErase *msg)
 {
     (void)msg;
-    fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in bootloader mode");
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                    "Not in bootloader mode");
 }
 
 void fsm_msgFirmwareUpload(FirmwareUpload *msg)
 {
     (void)msg;
-    fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in bootloader mode");
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                    "Not in bootloader mode");
 }
 
 void fsm_msgGetEntropy(GetEntropy *msg)
 {
     if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-                "Generate Entropy", "Do you want to generate and return entropy using the hardware RNG?"))
+                "Generate Entropy",
+                "Do you want to generate and return entropy using the hardware RNG?"))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, "Entropy cancelled");
         go_home();
@@ -549,14 +554,16 @@ void fsm_msgSignTx(SignTx *msg)
 {
     if(msg->inputs_count < 1)
     {
-        fsm_sendFailure(FailureType_Failure_Other, "Transaction must have at least one input");
+        fsm_sendFailure(FailureType_Failure_Other,
+                        "Transaction must have at least one input");
         go_home();
         return;
     }
 
     if(msg->outputs_count < 1)
     {
-        fsm_sendFailure(FailureType_Failure_Other, "Transaction must have at least one output");
+        fsm_sendFailure(FailureType_Failure_Other,
+                        "Transaction must have at least one output");
         go_home();
         return;
     }
@@ -604,7 +611,8 @@ void fsm_msgApplySettings(ApplySettings *msg)
         if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
                     "Change Label", "Do you want to change the label to \"%s\"?", msg->label))
         {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
+            fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                            "Apply settings cancelled");
             go_home();
             return;
         }
@@ -615,7 +623,8 @@ void fsm_msgApplySettings(ApplySettings *msg)
         if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
                     "Change Language", "Do you want to change the language to %s?", msg->language))
         {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
+            fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                            "Apply settings cancelled");
             go_home();
             return;
         }
@@ -626,9 +635,11 @@ void fsm_msgApplySettings(ApplySettings *msg)
         if(msg->use_passphrase)
         {
             if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-                        "Enable Passphrase", "Do you want to enable passphrase encryption?", msg->language))
+                        "Enable Passphrase", "Do you want to enable passphrase encryption?",
+                        msg->language))
             {
-                fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
+                fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                                "Apply settings cancelled");
                 go_home();
                 return;
             }
@@ -636,9 +647,11 @@ void fsm_msgApplySettings(ApplySettings *msg)
         else
         {
             if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-                        "Disable Passphrase", "Do you want to disable passphrase encryption?", msg->language))
+                        "Disable Passphrase", "Do you want to disable passphrase encryption?",
+                        msg->language))
             {
-                fsm_sendFailure(FailureType_Failure_ActionCancelled, "Apply settings cancelled");
+                fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                                "Apply settings cancelled");
                 go_home();
                 return;
             }
@@ -694,7 +707,8 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
 
     if(msg->value.size % 16)
     {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "Value length must be a multiple of 16");
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        "Value length must be a multiple of 16");
         return;
     }
 
@@ -716,7 +730,8 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
     {
         if(!confirm_cipher(encrypt, msg->key))
         {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "CipherKeyValue cancelled");
+            fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                            "CipherKeyValue cancelled");
             go_home();
             return;
         }
@@ -735,13 +750,15 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
     {
         aes_encrypt_ctx ctx;
         aes_encrypt_key256(data, &ctx);
-        aes_cbc_encrypt(msg->value.bytes, resp->value.bytes, msg->value.size, data + 32, &ctx);
+        aes_cbc_encrypt(msg->value.bytes, resp->value.bytes, msg->value.size, data + 32,
+                        &ctx);
     }
     else
     {
         aes_decrypt_ctx ctx;
         aes_decrypt_key256(data, &ctx);
-        aes_cbc_decrypt(msg->value.bytes, resp->value.bytes, msg->value.size, data + 32, &ctx);
+        aes_cbc_decrypt(msg->value.bytes, resp->value.bytes, msg->value.size, data + 32,
+                        &ctx);
     }
 
     resp->has_value = true;
@@ -780,7 +797,8 @@ void fsm_msgGetAddress(GetAddress *msg)
 
         if(cryptoMultisigPubkeyIndex(&(msg->multisig), node->public_key) < 0)
         {
-            fsm_sendFailure(FailureType_Failure_Other, "Pubkey not found in multisig script");
+            fsm_sendFailure(FailureType_Failure_Other,
+                            "Pubkey not found in multisig script");
             go_home();
             return;
         }
@@ -800,8 +818,7 @@ void fsm_msgGetAddress(GetAddress *msg)
     }
     else
     {
-        ecdsa_get_address(node->public_key, coin->address_type, resp->address,
-                          sizeof(resp->address));
+        ecdsa_get_address(node->public_key, coin->address_type, resp->address, sizeof(resp->address));
     }
 
     if(msg->has_show_display && msg->show_display)
@@ -977,7 +994,8 @@ void fsm_msgSignIdentity(SignIdentity *msg)
 
     layout_simple_message("Signing Identity...");
 
-    if(cryptoMessageSign(message, msg->challenge_hidden.size + len, node->private_key,
+    if(cryptoMessageSign(message, msg->challenge_hidden.size + len,
+                         node->private_key,
                          resp->signature.bytes) == 0)
     {
         resp->has_address = true;
@@ -1015,7 +1033,8 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 
     curve_point pubkey;
 
-    if(msg->pubkey.size != 33 || ecdsa_read_pubkey(msg->pubkey.bytes, &pubkey) == 0)
+    if(msg->pubkey.size != 33 ||
+            ecdsa_read_pubkey(&secp256k1, msg->pubkey.bytes, &pubkey) == 0)
     {
         fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid public key provided");
         return;
@@ -1049,25 +1068,29 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
         if(!node) { return; }
 
         uint8_t public_key[33];
-        ecdsa_get_public_key33(node->private_key, public_key);
+        ecdsa_get_public_key33(&secp256k1, node->private_key, public_key);
         ecdsa_get_address_raw(public_key, coin->address_type, address_raw);
     }
 
     if(!confirm_encrypt_msg((char *)msg->message.bytes, signing))
     {
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Encrypt message cancelled");
+        fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                        "Encrypt message cancelled");
         go_home();
         return;
     }
 
     layout_simple_message("Encrypting Message...");
 
-    if(cryptoMessageEncrypt(&pubkey, msg->message.bytes, msg->message.size, display_only,
-                            resp->nonce.bytes, &(resp->nonce.size), resp->message.bytes, &(resp->message.size),
+    if(cryptoMessageEncrypt(&pubkey, msg->message.bytes, msg->message.size,
+                            display_only,
+                            resp->nonce.bytes, &(resp->nonce.size), resp->message.bytes,
+                            &(resp->message.size),
                             resp->hmac.bytes, &(resp->hmac.size), signing ? node->private_key : 0,
                             signing ? address_raw : 0) != 0)
     {
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Error encrypting message");
+        fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                        "Error encrypting message");
         go_home();
         return;
     }
@@ -1101,7 +1124,8 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
 
     curve_point nonce_pubkey;
 
-    if(msg->nonce.size != 33 || ecdsa_read_pubkey(msg->nonce.bytes, &nonce_pubkey) == 0)
+    if(msg->nonce.size != 33 ||
+            ecdsa_read_pubkey(&secp256k1, msg->nonce.bytes, &nonce_pubkey) == 0)
     {
         fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid nonce provided");
         return;
@@ -1128,7 +1152,8 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
                             msg->hmac.bytes, msg->hmac.size, node->private_key, resp->message.bytes,
                             &(resp->message.size), &display_only, &signing, address_raw) != 0)
     {
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Error decrypting message");
+        fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                        "Error decrypting message");
         go_home();
         return;
     }
@@ -1138,9 +1163,11 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
         base58_encode_check(address_raw, 21, resp->address, sizeof(resp->address));
     }
 
-    if(!confirm_decrypt_msg((char *)resp->message.bytes, signing ? resp->address : 0))
+    if(!confirm_decrypt_msg((char *)resp->message.bytes,
+                            signing ? resp->address : 0))
     {
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Decrypt message cancelled");
+        fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                        "Decrypt message cancelled");
         go_home();
         return;
     }
@@ -1270,7 +1297,8 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg)
     resp->passphrase_protection = storage_get_passphrase_protected();
 
     resp->has_recovery_cipher = true;
-    strlcpy(resp->recovery_cipher, recovery_get_cipher(), sizeof(resp->recovery_cipher));
+    strlcpy(resp->recovery_cipher, recovery_get_cipher(),
+            sizeof(resp->recovery_cipher));
 
     resp->has_recovery_auto_completed_word = true;
     strlcpy(resp->recovery_auto_completed_word, recovery_get_auto_completed_word(),
@@ -1280,7 +1308,8 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg)
     resp->firmware_hash.size = memory_firmware_hash(resp->firmware_hash.bytes);
 
     resp->has_storage_hash = true;
-    resp->storage_hash.size = memory_storage_hash(resp->storage_hash.bytes, get_storage_location());
+    resp->storage_hash.size = memory_storage_hash(resp->storage_hash.bytes,
+                              get_storage_location());
 
     msg_debug_write(MessageType_MessageType_DebugLinkState, resp);
 }
