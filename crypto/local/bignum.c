@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2013-2014 Tomas Dzetkulic
  * Copyright (c) 2013-2014 Pavol Rusnak
+ * Copyright (c)      2015 Jochen Hoenicke
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the "Software"),
@@ -25,7 +26,32 @@
 #include <string.h>
 #include <assert.h>
 #include "bignum.h"
-#include "secp256k1.h"
+#include "macros.h"
+
+/* big number library */
+
+/* The structure bignum256 is an array of nine 32-bit values, which
+ * are digits in base 2^30 representation.  I.e. the number
+ *   bignum256 a;
+ * represents the value
+ *   sum_{i=0}^8 a.val[i] * 2^{30 i}.
+ *
+ * The number is *normalized* iff every digit is < 2^30.
+ *
+ * As the name suggests, a bignum256 is intended to represent a 256
+ * bit number, but it can represent 270 bits.  Numbers are usually
+ * reduced using a prime, either the group order or the field prime.
+ * The reduction is often partly done by bn_fast_mod, and similarly
+ * implicitly in bn_multiply.  A *partly reduced number* is a
+ * normalized number between 0 (inclusive) and 2*prime (exclusive).
+ *
+ * A partly reduced number can be fully reduced by calling bn_mod.
+ * Only a fully reduced number is guaranteed to fit in 256 bit.
+ *
+ * All functions assume that the prime in question is slightly smaller
+ * than 2^256.  In particular it must be between 2^256-2^224 and
+ * 2^256 and it must be a prime number.
+ */
 
 inline uint32_t read_be(const uint8_t *data)
 {
@@ -43,7 +69,8 @@ inline void write_be(uint8_t *data, uint32_t x)
 	data[3] = x;
 }
 
-// convert a raw bigendian 256 bit number to a normalized bignum
+// convert a raw bigendian 256 bit value into a normalized bignum.
+// out_number is partly reduced (since it fits in 256 bit).
 void bn_read_be(const uint8_t *in_number, bignum256 *out_number)
 {
 	int i;
@@ -63,7 +90,7 @@ void bn_read_be(const uint8_t *in_number, bignum256 *out_number)
 }
 
 // convert a normalized bignum to a raw bigendian 256 bit number.
-// in_number must be normalized and < 2^256.
+// in_number must be fully reduced.
 void bn_write_be(const bignum256 *in_number, uint8_t *out_number)
 {
 	int i;
@@ -77,6 +104,7 @@ void bn_write_be(const bignum256 *in_number, uint8_t *out_number)
 	}
 }
 
+// sets a bignum to zero.
 void bn_zero(bignum256 *a)
 {
 	int i;
@@ -85,42 +113,64 @@ void bn_zero(bignum256 *a)
 	}
 }
 
+// checks that a bignum is zero.
+// a must be normalized
+// function is constant time (on some architectures, in particular ARM).
 int bn_is_zero(const bignum256 *a)
 {
 	int i;
+	uint32_t result = 0;
 	for (i = 0; i < 9; i++) {
-		if (a->val[i] != 0) return 0;
+		result |= a->val[i];
 	}
-	return 1;
+	return !result;
 }
 
+// Check whether a < b
+// a and b must be normalized
+// function is constant time (on some architectures, in particular ARM).
 int bn_is_less(const bignum256 *a, const bignum256 *b)
 {
 	int i;
+	uint32_t res1 = 0;
+	uint32_t res2 = 0;
 	for (i = 8; i >= 0; i--) {
-		if (a->val[i] < b->val[i]) return 1;
-		if (a->val[i] > b->val[i]) return 0;
+		res1 = (res1 << 1) | (a->val[i] < b->val[i]);
+		res2 = (res2 << 1) | (a->val[i] > b->val[i]);
 	}
-	return 0;
+	return res1 > res2;
 }
 
+// Check whether a == b
+// a and b must be normalized
+// function is constant time (on some architectures, in particular ARM).
 int bn_is_equal(const bignum256 *a, const bignum256 *b) {
 	int i;
+	uint32_t result = 0;
 	for (i = 0; i < 9; i++) {
-		if (a->val[i] != b->val[i]) return 0;
+		result |= (a->val[i] ^ b->val[i]);
 	}
-	return 1;
+	return !result;
 }
 
-int bn_bitlen(const bignum256 *a) {
-	int i = 8, j;
-	while (i >= 0 && a->val[i] == 0) i--;
-	if (i == -1) return 0;
-	j = 29;
-	while ((a->val[i] & (1 << j)) == 0) j--;
-	return i * 30 + j + 1;
+// Assigns res = cond ? truecase : falsecase
+// assumes that cond is either 0 or 1.
+// function is constant time.
+void bn_cmov(bignum256 *res, int cond, const bignum256 *truecase, const bignum256 *falsecase)
+{
+	int i;
+	uint32_t tmask = (uint32_t) -cond;
+	uint32_t fmask = ~tmask;
+
+	assert (cond == 1 || cond == 0);
+	for (i = 0; i < 9; i++) {
+		res->val[i] = (truecase->val[i] & tmask) |
+			(falsecase->val[i] & fmask);
+	}
 }
 
+// shift number to the left, i.e multiply it by 2.
+// a must be normalized.  The result is normalized but not reduced.
 void bn_lshift(bignum256 *a)
 {
 	int i;
@@ -130,6 +180,8 @@ void bn_lshift(bignum256 *a)
 	a->val[0] = (a->val[0] << 1) & 0x3FFFFFFF;
 }
 
+// shift number to the right, i.e divide by 2 while rounding down.
+// a must be normalized.  The result is normalized.
 void bn_rshift(bignum256 *a)
 {
 	int i;
@@ -139,18 +191,20 @@ void bn_rshift(bignum256 *a)
 	a->val[8] >>= 1;
 }
 
-// multiply x by 3/2 modulo prime.
-// assumes x < 2*prime,
-// guarantees x < 4*prime on exit.
-void bn_mult_3_2(bignum256 * x, const bignum256 *prime)
+// multiply x by 1/2 modulo prime.
+// it computes x = (x & 1) ? (x + prime) >> 1 : x >> 1.
+// assumes x is normalized.
+// if x was partly reduced, it is also partly reduced on exit.
+// function is constant time.
+void bn_mult_half(bignum256 * x, const bignum256 *prime)
 {
 	int j;
 	uint32_t xodd = -(x->val[0] & 1);
-	// compute x = 3*x/2 mod prime
-	// if x is odd compute (3*x+prime)/2
-	uint32_t tmp1 = (3*x->val[0] + (prime->val[0] & xodd)) >> 1;
+	// compute x = x/2 mod prime
+	// if x is odd compute (x+prime)/2
+	uint32_t tmp1 = (x->val[0] + (prime->val[0] & xodd)) >> 1;
 	for (j = 0; j < 8; j++) {
-		uint32_t tmp2 = (3*x->val[j+1] + (prime->val[j+1] & xodd));
+		uint32_t tmp2 = (x->val[j+1] + (prime->val[j+1] & xodd));
 		tmp1 += (tmp2 & 1) << 29;
 		x->val[j] = tmp1 & 0x3fffffff;
 		tmp1 >>= 30;
@@ -159,7 +213,20 @@ void bn_mult_3_2(bignum256 * x, const bignum256 *prime)
 	x->val[8] = tmp1;
 }
 
-// assumes x < 2*prime, result < prime
+// multiply x by k modulo prime.
+// assumes x is normalized, 0 <= k <= 4.
+// guarantees x is partly reduced.
+void bn_mult_k(bignum256 *x, uint8_t k, const bignum256 *prime)
+{
+	int j;
+	for (j = 0; j < 9; j++) {
+		x->val[j] = k * x->val[j];
+	}
+	bn_fast_mod(x, prime);
+}
+
+// compute x = x mod prime  by computing  x >= prime ? x - prime : x.
+// assumes x partly reduced, guarantees x fully reduced.
 void bn_mod(bignum256 *x, const bignum256 *prime)
 {
 	int i = 8;
@@ -185,21 +252,19 @@ void bn_mod(bignum256 *x, const bignum256 *prime)
 	}
 }
 
-// Compute x := k * x  (mod prime)
-// both inputs must be smaller than 2 * prime.
-// result is reduced to 0 <= x < 2 * prime
-// This only works for primes between 2^256-2^196 and 2^256.
-// this particular implementation accepts inputs up to 2^263 or 128*prime.
-void bn_multiply(const bignum256 *k, bignum256 *x, const bignum256 *prime)
+// auxiliary function for multiplication.
+// compute k * x as a 540 bit number in base 2^30 (normalized).
+// assumes that k and x are normalized.
+void bn_multiply_long(const bignum256 *k, const bignum256 *x, uint32_t res[18])
 {
 	int i, j;
 	uint64_t temp = 0;
-	uint32_t res[18], coef;
 
 	// compute lower half of long multiplication
 	for (i = 0; i < 9; i++)
 	{
 		for (j = 0; j <= i; j++) {
+			// no overflow, since 9*2^60 < 2^64
 			temp += k->val[j] * (uint64_t)x->val[i - j];
 		}
 		res[i] = temp & 0x3FFFFFFFu;
@@ -209,44 +274,66 @@ void bn_multiply(const bignum256 *k, bignum256 *x, const bignum256 *prime)
 	for (; i < 17; i++)
 	{
 		for (j = i - 8; j < 9 ; j++) {
+			// no overflow, since 9*2^60 < 2^64
 			temp += k->val[j] * (uint64_t)x->val[i - j];
 		}
 		res[i] = temp & 0x3FFFFFFFu;
 		temp >>= 30;
 	}
 	res[17] = temp;
+}
+
+// auxiliary function for multiplication.
+// reduces res modulo prime.
+// assumes    res normalized, res < 2^(30(i-7)) * 2 * prime
+// guarantees res normalized, res < 2^(30(i-8)) * 2 * prime
+void bn_multiply_reduce_step(uint32_t res[18], const bignum256 *prime, uint32_t i) {
+	// let k = i-8.
+	// on entry:
+	//   0 <= res < 2^(30k + 31) * prime
+	// estimate coef = (res / prime / 2^30k)
+	// by coef = res / 2^(30k + 256)  rounded down
+	// 0 <= coef < 2^31
+	// subtract (coef * 2^(30k) * prime) from res
+	// note that we unrolled the first iteration
+	uint32_t j;
+	uint32_t coef = (res[i] >> 16) + (res[i + 1] << 14);
+	uint64_t temp = 0x2000000000000000ull + res[i - 8] - prime->val[0] * (uint64_t)coef;
+	assert (coef < 0x80000000u);
+	res[i - 8] = temp & 0x3FFFFFFF;
+	for (j = 1; j < 9; j++) {
+		temp >>= 30;
+		// Note: coeff * prime->val[j] <= (2^31-1) * (2^30-1)
+		// Hence, this addition will not underflow.
+		temp += 0x1FFFFFFF80000000ull + res[i - 8 + j] - prime->val[j] * (uint64_t)coef;
+		res[i - 8 + j] = temp & 0x3FFFFFFF;
+		// 0 <= temp < 2^61 + 2^30
+	}
+	temp >>= 30;
+	temp += 0x1FFFFFFF80000000ull + res[i - 8 + j];
+	res[i - 8 + j] = temp & 0x3FFFFFFF;
+	// we rely on the fact that prime > 2^256 - 2^224
+	//   res = oldres - coef*2^(30k) * prime;
+	// and
+	//   coef * 2^(30k + 256) <= oldres < (coef+1) * 2^(30k + 256)
+	// Hence, 0 <= res < 2^30k (2^256 + coef * (2^256 - prime))
+	//                 < 2^30k (2^256 + 2^31 * 2^224)
+	//                 < 2^30k (2 * prime)
+}
+
+
+// auxiliary function for multiplication.
+// reduces x = res modulo prime.
+// assumes    res normalized, res < 2^270 * 2 * prime
+// guarantees x partly reduced, i.e., x < 2 * prime
+void bn_multiply_reduce(bignum256 *x, uint32_t res[18], const bignum256 *prime)
+{
+	int i;
 	// res = k * x is a normalized number (every limb < 2^30)
-	// 0 <= res < 2^526.
-	// compute modulo p division is only estimated so this may give result greater than prime but not bigger than 2 * prime
+	// 0 <= res < 2^270 * 2 * prime.
 	for (i = 16; i >= 8; i--) {
-		// let k = i-8.
-		// invariants:
-		//   res[0..(i+1)] = k * x   (mod prime)
-		//   0 <= res < 2^(30k + 256) * (2^30 + 1)
-		// estimate (res / prime)
-		coef = (res[i] >> 16) + (res[i + 1] << 14);
-		
-		// coef = res / 2^(30k + 256)  rounded down
-		// 0 <= coef <= 2^30
-		// subtract (coef * 2^(30k) * prime) from res
-		// note that we unrolled the first iteration
-		temp = 0x1000000000000000ull + res[i - 8] - prime->val[0] * (uint64_t)coef;
-		res[i - 8] = temp & 0x3FFFFFFF;
-		for (j = 1; j < 9; j++) {
-			temp >>= 30;
-			temp += 0xFFFFFFFC0000000ull + res[i - 8 + j] - prime->val[j] * (uint64_t)coef;
-			res[i - 8 + j] = temp & 0x3FFFFFFF;
-		}
-		// we don't clear res[i+1] but we never read it again.
-		
-		// we rely on the fact that prime > 2^256 - 2^196
-		//   res = oldres - coef*2^(30k) * prime;
-		// and
-		//   coef * 2^(30k + 256) <= oldres < (coef+1) * 2^(30k + 256)
-		// Hence, 0 <= res < 2^30k (2^256 + coef * (2^256 - prime))
-		// Since coef * (2^256 - prime) < 2^226, we get
-		//   0 <= res < 2^(30k + 226) (2^30 + 1)
-		// Thus the invariant holds again.
+		bn_multiply_reduce_step(res, prime, i);
+		assert(res[i + 1] == 0);
 	}
 	// store the result
 	for (i = 0; i < 9; i++) {
@@ -254,9 +341,23 @@ void bn_multiply(const bignum256 *k, bignum256 *x, const bignum256 *prime)
 	}
 }
 
-// input x can be any normalized number that fits (0 <= x < 2^270).
-// prime must be between (2^256 - 2^196) and 2^256
-// result is smaller than 2*prime
+// Compute x := k * x  (mod prime)
+// both inputs must be smaller than 180 * prime.
+// result is partly reduced (0 <= x < 2 * prime)
+// This only works for primes between 2^256-2^224 and 2^256.
+void bn_multiply(const bignum256 *k, bignum256 *x, const bignum256 *prime)
+{
+	uint32_t res[18] = {0};
+	bn_multiply_long(k, x, res);
+	bn_multiply_reduce(x, res, prime); 
+	MEMSET_BZERO(res, sizeof(res));
+}
+
+// partly reduce x modulo prime
+// input x does not have to be normalized.
+// x can be any number that fits.
+// prime must be between (2^256 - 2^224) and 2^256
+// result is partly reduced, smaller than 2*prime
 void bn_fast_mod(bignum256 *x, const bignum256 *prime)
 {
 	int j;
@@ -266,17 +367,19 @@ void bn_fast_mod(bignum256 *x, const bignum256 *prime)
 	coef = x->val[8] >> 16;
 	// substract (coef * prime) from x
 	// note that we unrolled the first iteration
-	temp = 0x1000000000000000ull + x->val[0] - prime->val[0] * (uint64_t)coef;
+	temp = 0x2000000000000000ull + x->val[0] - prime->val[0] * (uint64_t)coef;
 	x->val[0] = temp & 0x3FFFFFFF;
 	for (j = 1; j < 9; j++) {
 		temp >>= 30;
-		temp += 0xFFFFFFFC0000000ull + x->val[j] - prime->val[j] * (uint64_t)coef;
+		temp += 0x1FFFFFFF80000000ull + x->val[j] - prime->val[j] * (uint64_t)coef;
 		x->val[j] = temp & 0x3FFFFFFF;
 	}
 }
 
 // square root of x = x^((p+1)/4)
 // http://en.wikipedia.org/wiki/Quadratic_residue#Prime_or_prime_power_modulus
+// assumes    x is normalized but not necessarily reduced.
+// guarantees x is reduced
 void bn_sqrt(bignum256 *x, const bignum256 *prime)
 {
 	// this method compute x^1/2 = x^(prime+1)/4
@@ -309,6 +412,8 @@ void bn_sqrt(bignum256 *x, const bignum256 *prime)
 	}
 	bn_mod(&res, prime);
 	memcpy(x, &res, sizeof(bignum256));
+	MEMSET_BZERO(&res, sizeof(res));
+	MEMSET_BZERO(&p, sizeof(p));
 }
 
 #if ! USE_INVERSE_FAST
@@ -326,7 +431,7 @@ void bn_inverse(bignum256 *x, const bignum256 *prime)
 		//    res = old(x)^((prime-2) % 2^(i*30))
 		// get the i-th limb of prime - 2
 		limb = prime->val[i];
-		// this is not enough in general but fine for secp256k1 because prime->val[0] > 1
+		// this is not enough in general but fine for secp256k1 & nist256p1 because prime->val[0] > 1
 		if (i == 0) limb -= 2;
 		for (j = 0; j < 30; j++) {
 			// invariants:
@@ -401,14 +506,14 @@ void bn_inverse(bignum256 *x, const bignum256 *prime)
 	odd = &us;
 	even = &vr;
 
-	// u = prime, v = x  
+	// u = prime, v = x
 	// r = 0    , s = 1
 	// k = 0
 	for (;;) {
 		// invariants:
-		//   let u = limbs us.a[0..u.len1-1] in little endian, 
+		//   let u = limbs us.a[0..u.len1-1] in little endian,
 		//   let s = limbs us.a[u.len..8] in big endian,
-		//   let v = limbs vr.a[0..u.len1-1] in little endian, 
+		//   let v = limbs vr.a[0..u.len1-1] in little endian,
 		//   let r = limbs vr.a[u.len..8] in big endian,
 		//   r,s >= 0 ; u,v >= 1
 		//   x*-r = u*2^k mod prime
@@ -418,7 +523,7 @@ void bn_inverse(bignum256 *x, const bignum256 *prime)
 		//   max(u,v) <= 2^k   (*) see comment at end of loop
 		//   gcd(u,v) = 1
 		//   {odd,even} = {&us, &vr}
- 		//   odd->a[0] and odd->a[8] are odd
+		//   odd->a[0] and odd->a[8] are odd
 		//   even->a[0] or even->a[8] is even
 		//
 		// first u/v are large and r/s small
@@ -479,7 +584,7 @@ void bn_inverse(bignum256 *x, const bignum256 *prime)
 		assert(even->a[0] & 1);
 		assert((even->a[8] & 1) == 0);
 
-		// cmp > 0 if us.a[0..len1-1] > vr.a[0..len1-1], 
+		// cmp > 0 if us.a[0..len1-1] > vr.a[0..len1-1],
 		// cmp = 0 if equal, < 0 if less.
 		cmp = us.len1 - vr.len1;
 		if (cmp == 0) {
@@ -560,7 +665,7 @@ void bn_inverse(bignum256 *x, const bignum256 *prime)
 	// We use the Explicit Quadratic Modular inverse algorithm.
 	//   http://arxiv.org/pdf/1209.6626.pdf
 	// a^-1  = (2-a) * PROD_i (1 + (a - 1)^(2^i)) mod 2^32
-	// the product will converge quickly, because (a-1)^(2^i) will be 
+	// the product will converge quickly, because (a-1)^(2^i) will be
 	// zero mod 2^32 after at most five iterations.
 	// We want to compute -prime^-1 so we start with (pp[0]-2).
 	assert(pp[0] & 1);
@@ -614,14 +719,27 @@ void bn_inverse(bignum256 *x, const bignum256 *prime)
 		temp32 = us.a[8-i] >> (30 - 2 * i);
 	}
 	x->val[i] = temp32;
+
+	// let's wipe all temp buffers
+	MEMSET_BZERO(pp, sizeof(pp));
+	MEMSET_BZERO(&us, sizeof(us));
+	MEMSET_BZERO(&vr, sizeof(vr));
 }
 #endif
 
 void bn_normalize(bignum256 *a) {
+	bn_addi(a, 0);
+}
+
+// add two numbers a = a + b
+// assumes that a, b are normalized
+// guarantees that a is normalized
+void bn_add(bignum256 *a, const bignum256 *b)
+{
 	int i;
 	uint32_t tmp = 0;
 	for (i = 0; i < 9; i++) {
-		tmp += a->val[i];
+		tmp += a->val[i] + b->val[i];
 		a->val[i] = tmp & 0x3FFFFFFF;
 		tmp >>= 30;
 	}
@@ -633,27 +751,35 @@ void bn_addmod(bignum256 *a, const bignum256 *b, const bignum256 *prime)
 	for (i = 0; i < 9; i++) {
 		a->val[i] += b->val[i];
 	}
-	bn_normalize(a);
 	bn_fast_mod(a, prime);
-	bn_mod(a, prime);
 }
 
-void bn_addmodi(bignum256 *a, uint32_t b, const bignum256 *prime) {
-	a->val[0] += b;
-	bn_normalize(a);
-	bn_fast_mod(a, prime);
-	bn_mod(a, prime);
+void bn_addi(bignum256 *a, uint32_t b) {
+	int i;
+	uint32_t tmp = b;
+	for (i = 0; i < 9; i++) {
+		tmp += a->val[i];
+		a->val[i] = tmp & 0x3FFFFFFF;
+		tmp >>= 30;
+	}
+}
+
+void bn_subi(bignum256 *a, uint32_t b, const bignum256 *prime) {
+	assert (b <= prime->val[0]);
+	// the possible underflow will be taken care of when adding the prime
+	a->val[0] -= b;
+	bn_add(a, prime);
 }
 
 // res = a - b mod prime.  More exactly res = a + (2*prime - b).
-// precondition: 0 <= b < 2*prime, 0 <= a < prime
-// res < 3*prime
+// b must be a partly reduced number
+// result is normalized but not reduced.
 void bn_subtractmod(const bignum256 *a, const bignum256 *b, bignum256 *res, const bignum256 *prime)
 {
 	int i;
-	uint32_t temp = 0;
+	uint32_t temp = 1;
 	for (i = 0; i < 9; i++) {
-		temp += a->val[i] + 2u * prime->val[i] - b->val[i];
+		temp += 0x3FFFFFFF + a->val[i] + 2u * prime->val[i] - b->val[i];
 		res->val[i] = temp & 0x3FFFFFFF;
 		temp >>= 30;
 	}

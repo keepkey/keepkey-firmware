@@ -51,13 +51,15 @@ int bn_is_less(const bignum256 *a, const bignum256 *b);
 
 int bn_is_equal(const bignum256 *a, const bignum256 *b);
 
-int bn_bitlen(const bignum256 *a);
+void bn_cmov(bignum256 *res, int cond, const bignum256 *truecase, const bignum256 *falsecase);
 
 void bn_lshift(bignum256 *a);
 
 void bn_rshift(bignum256 *a);
 
-void bn_mult_3_2(bignum256 *x, const bignum256 *prime);
+void bn_mult_half(bignum256 *x, const bignum256 *prime);
+
+void bn_mult_k(bignum256 *x, uint8_t k, const bignum256 *prime);
 
 void bn_mod(bignum256 *x, const bignum256 *prime);
 
@@ -71,9 +73,13 @@ void bn_inverse(bignum256 *x, const bignum256 *prime);
 
 void bn_normalize(bignum256 *a);
 
+void bn_add(bignum256 *a, const bignum256 *b);
+
 void bn_addmod(bignum256 *a, const bignum256 *b, const bignum256 *prime);
 
-void bn_addmodi(bignum256 *a, uint32_t b, const bignum256 *prime);
+void bn_addi(bignum256 *a, uint32_t b);
+
+void bn_subi(bignum256 *a, uint32_t b, const bignum256 *prime);
 
 void bn_subtractmod(const bignum256 *a, const bignum256 *b, bignum256 *res, const bignum256 *prime);
 
