@@ -194,14 +194,14 @@ bool flash_write(Allocation group, uint32_t offset, uint32_t len, uint8_t* data)
 }
 
 /*
- * chk_mfg_prestine() - Verify device is prestine
+ * is_mfg_mode() - Is device in manufacture mode
  *
  * INPUT - 
  *      none
  * OUTPUT -
  *      none
  */
-bool chk_mfg_prestine(void)
+bool is_mfg_mode(void)
 {
     bool ret_val = true;
 
@@ -213,14 +213,14 @@ bool chk_mfg_prestine(void)
 }
 
 /*
- * set_mfg_sig_n_lock() - Set Manufacture signature and lock the block
+ * set_mfg_mode_off() - Set manufacture mode off and lock the block
  *
  * INPUT -
  *      none
  * OUTPUT - 
  *      none
  */
-bool set_mfg_sig_n_lock(void)
+bool set_mfg_mode_off(void)
 {
     bool ret_val = false;
     uint32_t tvar;
@@ -229,9 +229,9 @@ bool set_mfg_sig_n_lock(void)
     if(*(uint8_t *)OTP_BLK_LOCK(OTP_MFG_ADDR) == 0xFF)
     {
         flash_unlock();
-        tvar = OTP_MFG_SIG;     /* set manufactur'ed signature */
+        tvar = OTP_MFG_SIG; /* set manufactur'ed signature */
         flash_program(OTP_MFG_ADDR, (uint8_t *)&tvar, OTP_MFG_SIG_LEN);
-        tvar = 0x00;               /* set OTP lock */
+        tvar = 0x00;        /* set OTP lock */
         flash_program(OTP_BLK_LOCK(OTP_MFG_ADDR), (uint8_t *)&tvar, 1);
         if(flash_chk_status()) 
         {

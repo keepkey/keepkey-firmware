@@ -425,10 +425,10 @@ void fsm_msgWipeDevice(WipeDevice *msg)
     storage_reset_uuid();
     storage_commit();
 
-    if(chk_mfg_prestine())
+    /* If device is in manufacture mode, turn if off and lock it */
+    if(is_mfg_mode())
     {
-        /* set MFG OTP BYTE */
-        set_mfg_sig_n_lock();
+        set_mfg_mode_off();
     }
 
     fsm_sendSuccess("Device wiped");
