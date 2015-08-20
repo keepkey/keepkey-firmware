@@ -25,6 +25,7 @@
 #include <libopencm3/cm3/cortex.h>
 
 #include <keepkey_board.h>
+#include <keepkey_flash.h>
 #include <layout.h>
 #include <usb_driver.h>
 #include <resources.h>
@@ -54,6 +55,24 @@ static void exec(void)
     display_refresh();
 }
 
+/* 
+ * mfg_chk() - Check device in manufacture state
+ *
+ * INPUT  
+ *      none
+ * OUTPUT
+ *      none
+ *
+ */
+void mfg_chk(void)
+{
+    if(chk_mfg_prestine())
+    {
+        /* device is prestine */
+        draw_box_simple(layout_get_canvas(), BODY_COLOR, 1, 1, 256, 64);
+    }
+}
+    
 /* === Functions =========================================================== */
 
 /*
@@ -82,6 +101,7 @@ int main(void)
     fsm_init();
 
     led_func(SET_GREEN_LED);
+    mfg_chk();
 
     /* Enable interrupt for timer */
     cm_enable_interrupts();

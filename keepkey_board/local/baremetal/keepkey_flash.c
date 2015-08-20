@@ -192,3 +192,52 @@ bool flash_write(Allocation group, uint32_t offset, uint32_t len, uint8_t* data)
     }
     return(retval);
 }
+
+/*
+ * chk_mfg_prestine() - Verify device is prestine
+ *
+ * INPUT - 
+ *      none
+ * OUTPUT -
+ *      none
+ */
+bool chk_mfg_prestine(void)
+{
+    bool ret_val = true;
+
+    if(*(uint32_t *)OTP_MFG_ADDR == OTP_MFG_SIG)
+    {
+         ret_val = false;
+    }
+    return(ret_val);
+}
+
+/*
+ * set_mfg_sig_n_lock() - Set Manufacture signature and lock the block
+ *
+ * INPUT -
+ *      none
+ * OUTPUT - 
+ *      none
+ */
+bool set_mfg_sig_n_lock(void)
+{
+    bool ret_val = false;
+    uint32_t tvar;
+
+    /* check OTP lock state before updating */
+    if(*(uint8_t *)OTP_BLK_LOCK(OTP_MFG_ADDR) == 0xFF)
+    {
+        flash_unlock();
+        tvar = OTP_MFG_SIG;     /* set manufactur'ed signature */
+        flash_program(OTP_MFG_ADDR, (uint8_t *)&tvar, OTP_MFG_SIG_LEN);
+        tvar = 0x00;               /* set OTP lock */
+        flash_program(OTP_BLK_LOCK(OTP_MFG_ADDR), (uint8_t *)&tvar, 1);
+        if(flash_chk_status()) 
+        {
+            ret_val = true;
+        }
+        flash_lock();
+    }
+    return(ret_val);
+}

@@ -73,6 +73,11 @@
 #define OPTION_RDP 0xCCFF
 #define OPTION_WRP 0xFF9E
 
+#define OTP_MFG_ADDR            0x1FFF7800
+#define OTP_MFG_SIG             0x08012015
+#define OTP_MFG_SIG_LEN         4
+#define OTP_BLK_LOCK(x)         (0x1FFF7A00 + (x - 0x1FFF7800)/0x20)
+
 /* meta info */
 #define META_MAGIC_STR          "KPKY"
 

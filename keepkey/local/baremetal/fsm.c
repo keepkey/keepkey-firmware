@@ -37,6 +37,7 @@
 #include <resources.h>
 #include <timer.h>
 #include <keepkey_board.h>
+#include <keepkey_flash.h>
 
 #include "home_sm.h"
 #include "app_layout.h"
@@ -423,6 +424,12 @@ void fsm_msgWipeDevice(WipeDevice *msg)
     storage_reset();
     storage_reset_uuid();
     storage_commit();
+
+    if(chk_mfg_prestine())
+    {
+        /* set MFG OTP BYTE */
+        set_mfg_sig_n_lock();
+    }
 
     fsm_sendSuccess("Device wiped");
     go_home();
