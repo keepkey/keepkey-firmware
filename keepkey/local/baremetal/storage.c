@@ -124,6 +124,52 @@ static void wear_leveling_shift(void)
     }
 }
 
+/*
+ * storage_set_root_node_cache() - Set root node in storage cache
+ *
+ * INPUT
+ *     - node: hd node to cache
+ * OUTPUT
+ *     none
+ *
+ */
+static void storage_set_root_node_cache(HDNode *node)
+{
+    if(!(shadow_config.storage.has_passphrase_protection &&
+            shadow_config.storage.passphrase_protection && strlen(sessionPassphrase)))
+    {
+        memset(&shadow_config.cache.root_node_cache, 0,
+               sizeof(((ConfigFlash *)NULL)->cache.root_node_cache));
+        memcpy(&shadow_config.cache.root_node_cache, node,
+               sizeof(((ConfigFlash *)NULL)->cache.root_node_cache));
+        shadow_config.cache.is_root_node_cached = true;
+        storage_commit();
+    }
+}
+
+/*
+ * storage_get_root_node_cache() - Gets root node cache from storage and returns true if found
+ *
+ * INPUT
+ *     - node: hd node to be filled with found cache
+ * OUTPUT
+ *     true/false
+ *
+ */
+static bool storage_get_root_node_cache(HDNode *node)
+{
+    if(!(shadow_config.storage.has_passphrase_protection &&
+            shadow_config.storage.passphrase_protection && strlen(sessionPassphrase)) &&
+            shadow_config.cache.is_root_node_cached)
+    {
+        memcpy(node, &shadow_config.cache.root_node_cache,
+               sizeof(((ConfigFlash *)NULL)->cache.root_node_cache));
+        return true;
+    }
+
+    return false;
+}
+
 /* === Functions =========================================================== */
 
 /*
@@ -213,7 +259,7 @@ void storage_reset_uuid(void)
 void storage_reset(void)
 {
     // reset storage struct
-    memset(&shadow_config.storage, 0, sizeof(shadow_config.storage));
+    memset(&shadow_config, 0, sizeof(shadow_config));
     shadow_config.storage.version = STORAGE_VERSION;
     session_clear(true); // clear PIN as well
 }
@@ -699,6 +745,11 @@ bool storage_get_root_node(HDNode *node)
             return false;
         }
 
+        if(storage_get_root_node_cache(node))
+        {
+            return true;
+        }
+
         layout_loading();
 
         uint8_t seed[64];
@@ -712,6 +763,8 @@ bool storage_get_root_node(HDNode *node)
         {
             return false;
         }
+
+        storage_set_root_node_cache(&sessionRootNode);
 
         memcpy(node, &sessionRootNode, sizeof(HDNode));
         sessionRootNodeCached = true;

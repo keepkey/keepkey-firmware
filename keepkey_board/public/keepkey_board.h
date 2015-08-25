@@ -23,6 +23,7 @@
 /* === Includes ============================================================ */
 
 #include <storage.pb.h>
+#include <bip32.h>
 
 #include "keepkey_leds.h"
 #include "keepkey_display.h"
@@ -68,11 +69,19 @@ typedef struct
     char uuid_str[STORAGE_UUID_STR_LEN];
 } Metadata;
 
+/* Cache structure */
+typedef struct
+{
+    bool is_root_node_cached;
+    HDNode root_node_cache;
+} Cache;
+
 /* Config flash overlay structure.  */
 typedef struct
 {
     Metadata meta;
     Storage storage;
+    Cache cache;
 } ConfigFlash;
 
 /* === Variables =========================================================== */
