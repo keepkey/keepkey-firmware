@@ -547,14 +547,14 @@ void storage_set_pin(const char *pin)
     {
         shadow_config.storage.has_pin = true;
         strlcpy(shadow_config.storage.pin, pin, sizeof(shadow_config.storage.pin));
+        session_cache_pin(pin);
     }
     else
     {
         shadow_config.storage.has_pin = false;
         memset(shadow_config.storage.pin, 0, sizeof(shadow_config.storage.pin));
+        sessionPinCached = false;
     }
-
-    sessionPinCached = false;
 }
 
 /*
