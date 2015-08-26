@@ -258,8 +258,10 @@ void storage_reset_uuid(void)
  */
 void storage_reset(void)
 {
-    // reset storage struct
-    memset(&shadow_config, 0, sizeof(shadow_config));
+    // reset storage and cache
+    memset(&shadow_config.storage, 0, sizeof(shadow_config.storage));
+    memset(&shadow_config.cache, 0, sizeof(shadow_config.cache));
+    
     shadow_config.storage.version = STORAGE_VERSION;
     session_clear(true); // clear PIN as well
 }
