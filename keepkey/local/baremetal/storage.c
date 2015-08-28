@@ -184,14 +184,14 @@ void storage_init(void)
 {
     ConfigFlash *stor_config;
 
-    /* find storage sector with valid data and set storage_location variable */
+    /* Find storage sector with valid data and set storage_location variable */
     if(find_active_storage(&storage_location))
     {
         stor_config = (ConfigFlash *)flash_write_helper(storage_location);
     }
     else
     {
-        /* set to storage sector1 as default if no sector has been initialized */
+        /* Set to storage sector1 as default if no sector has been initialized */
         storage_location = STORAGE_SECT_DEFAULT;
         stor_config = (ConfigFlash *)flash_write_helper(storage_location);
     }
