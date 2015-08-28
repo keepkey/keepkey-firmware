@@ -33,6 +33,7 @@
 #include <interface.h>
 #include <memory.h>
 #include <rng.h>
+#include <keepkey_usart.h>
 
 #include "util.h"
 #include "storage.h"
@@ -73,6 +74,16 @@ static bool storage_from_flash(ConfigFlash *stor_config)
     switch(stor_config->storage.version)
     {
         case 1:
+            memcpy(&shadow_config, stor_config, sizeof(shadow_config) - sizeof(shadow_config.cache));
+
+            /* Clear root node cache as it did not exist in this version */
+            shadow_config.cache.is_root_node_cached = false;
+            memset(&shadow_config.cache.root_node_cache, 0,
+                   sizeof(((ConfigFlash *)NULL)->cache.root_node_cache));
+
+            break;
+
+        case 2:
             memcpy(&shadow_config, stor_config, sizeof(shadow_config));
             break;
 
