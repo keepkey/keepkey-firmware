@@ -48,9 +48,6 @@
 #define STORAGE_MAGIC_STR "stor"
 #define STORAGE_MAGIC_LEN 4
 
-#define CACHE_MAGIC_STR "cach"
-#define CACHE_MAGIC_LEN 4
-
 /* Specify the length of the uuid binary string */
 #define STORAGE_UUID_LEN 12
 
@@ -75,7 +72,6 @@ typedef struct
 /* Cache structure */
 typedef struct
 {
-    char magic[CACHE_MAGIC_LEN];
     bool is_root_node_cached;
     HDNode root_node_cache;
 } Cache;
