@@ -69,7 +69,7 @@ ConfigFlash shadow_config;
  */
 static bool storage_from_flash(ConfigFlash *stor_config)
 {
-    /* load cofig values from active config node */
+    /* load config values from active config node */
     switch(stor_config->storage.version)
     {
         case 1:
@@ -199,11 +199,10 @@ void storage_init(void)
     /* Reset shadow configuration in RAM */
     storage_reset();
 
-    /* verify storage partition is initialized */
+    /* Verify storage partition is initialized */
     if(memcmp((void *)stor_config->meta.magic , STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0)
     {
-        /* clear out stor_config befor finding end config node */
-        // load uuid to shadow memory
+        /* Clear out stor_config before finding end config node */
         memcpy(shadow_config.meta.uuid, (void *)&stor_config->meta.uuid,
                sizeof(shadow_config.meta.uuid));
         data2hex(shadow_config.meta.uuid, sizeof(shadow_config.meta.uuid),
@@ -261,7 +260,7 @@ void storage_reset(void)
     // reset storage and cache
     memset(&shadow_config.storage, 0, sizeof(shadow_config.storage));
     memset(&shadow_config.cache, 0, sizeof(shadow_config.cache));
-    
+
     shadow_config.storage.version = STORAGE_VERSION;
     session_clear(true); // clear PIN as well
 }
