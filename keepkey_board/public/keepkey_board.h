@@ -49,7 +49,6 @@
 #define STORAGE_MAGIC_LEN   4
 
 #define CACHE_EXISTS        0xCA
-#define CACHE_EMPTY         0xAC
 
 /* Specify the length of the uuid binary string */
 #define STORAGE_UUID_LEN    12

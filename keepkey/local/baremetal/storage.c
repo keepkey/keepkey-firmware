@@ -74,15 +74,6 @@ static bool storage_from_flash(ConfigFlash *stor_config)
     {
         case 1:
             memcpy(&shadow_config, stor_config, sizeof(shadow_config));
-
-            if(shadow_config.cache.root_node_cache_status != CACHE_EXISTS &&
-                    shadow_config.cache.root_node_cache_status != CACHE_EMPTY)
-            {
-                shadow_config.cache.root_node_cache_status = CACHE_EMPTY;
-                memset(&shadow_config.cache.root_node_cache, 0,
-                       sizeof(((ConfigFlash *)NULL)->cache.root_node_cache));
-            }
-
             break;
 
         default:
