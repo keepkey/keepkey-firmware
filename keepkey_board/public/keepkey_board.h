@@ -45,11 +45,14 @@
 
 /* === Defines ============================================================= */
 
-#define STORAGE_MAGIC_STR "stor"
-#define STORAGE_MAGIC_LEN 4
+#define STORAGE_MAGIC_STR   "stor"
+#define STORAGE_MAGIC_LEN   4
+
+#define CACHE_EXISTS        0xCA
+#define CACHE_EMPTY         0xAC
 
 /* Specify the length of the uuid binary string */
-#define STORAGE_UUID_LEN 12
+#define STORAGE_UUID_LEN    12
 
 /* Length of the uuid binary converted to readable ASCII.  */
 #define STORAGE_UUID_STR_LEN ((STORAGE_UUID_LEN * 2) + 1)
@@ -72,7 +75,8 @@ typedef struct
 /* Cache structure */
 typedef struct
 {
-    bool is_root_node_cached;
+    /* Root node cache */
+    uint8_t root_node_cache_status;
     HDNode root_node_cache;
 } Cache;
 

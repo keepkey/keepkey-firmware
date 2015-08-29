@@ -33,7 +33,6 @@
 #include <interface.h>
 #include <memory.h>
 #include <rng.h>
-#include <keepkey_usart.h>
 
 #include "util.h"
 #include "storage.h"
@@ -74,17 +73,16 @@ static bool storage_from_flash(ConfigFlash *stor_config)
     switch(stor_config->storage.version)
     {
         case 1:
-            memcpy(&shadow_config, stor_config, sizeof(shadow_config) - sizeof(shadow_config.cache));
-
-            /* Clear root node cache as it did not exist in this version */
-            shadow_config.cache.is_root_node_cached = false;
-            memset(&shadow_config.cache.root_node_cache, 0,
-                   sizeof(((ConfigFlash *)NULL)->cache.root_node_cache));
-
-            break;
-
-        case 2:
             memcpy(&shadow_config, stor_config, sizeof(shadow_config));
+
+            if(shadow_config.cache.root_node_cache_status != CACHE_EXISTS &&
+                    shadow_config.cache.root_node_cache_status != CACHE_EMPTY)
+            {
+                shadow_config.cache.root_node_cache_status = CACHE_EMPTY;
+                memset(&shadow_config.cache.root_node_cache, 0,
+                       sizeof(((ConfigFlash *)NULL)->cache.root_node_cache));
+            }
+
             break;
 
         default:
@@ -153,7 +151,7 @@ static void storage_set_root_node_cache(HDNode *node)
                sizeof(((ConfigFlash *)NULL)->cache.root_node_cache));
         memcpy(&shadow_config.cache.root_node_cache, node,
                sizeof(((ConfigFlash *)NULL)->cache.root_node_cache));
-        shadow_config.cache.is_root_node_cached = true;
+        shadow_config.cache.root_node_cache_status = CACHE_EXISTS;
         storage_commit();
     }
 }
@@ -171,7 +169,7 @@ static bool storage_get_root_node_cache(HDNode *node)
 {
     if(!(shadow_config.storage.has_passphrase_protection &&
             shadow_config.storage.passphrase_protection && strlen(sessionPassphrase)) &&
-            shadow_config.cache.is_root_node_cached)
+            shadow_config.cache.root_node_cache_status == CACHE_EXISTS)
     {
         memcpy(node, &shadow_config.cache.root_node_cache,
                sizeof(((ConfigFlash *)NULL)->cache.root_node_cache));
@@ -211,7 +209,8 @@ void storage_init(void)
     storage_reset();
 
     /* Verify storage partition is initialized */
-    if(memcmp((void *)stor_config->meta.magic , STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0)
+    if(memcmp((void *)stor_config->meta.magic , STORAGE_MAGIC_STR,
+              STORAGE_MAGIC_LEN) == 0)
     {
         /* Clear out stor_config before finding end config node */
         memcpy(shadow_config.meta.uuid, (void *)&stor_config->meta.uuid,
@@ -286,8 +285,10 @@ void storage_reset(void)
  */
 void session_clear(bool clear_pin)
 {
-    sessionRootNodeCached = false;   memset(&sessionRootNode, 0, sizeof(sessionRootNode));
-    sessionPassphraseCached = false; memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
+    sessionRootNodeCached = false;
+    memset(&sessionRootNode, 0, sizeof(sessionRootNode));
+    sessionPassphraseCached = false;
+    memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
 
     if(clear_pin)
     {
@@ -347,7 +348,8 @@ void storage_commit(void)
                             sizeof(shadow_config) - STORAGE_MAGIC_LEN,
                             (uint8_t *)&shadow_config + STORAGE_MAGIC_LEN))
         {
-            if(!flash_write_word(storage_location, 0, STORAGE_MAGIC_LEN, (uint8_t *)&shadow_config))
+            if(!flash_write_word(storage_location, 0, STORAGE_MAGIC_LEN,
+                                 (uint8_t *)&shadow_config))
             {
                 continue; /* Retry */
             }
@@ -358,7 +360,8 @@ void storage_commit(void)
         }
 
         /* Flash write completed successfully.  Verify CRC */
-        shadow_flash_crc32 = calc_crc32((uint32_t *)flash_write_helper(storage_location),
+        shadow_flash_crc32 = calc_crc32((uint32_t *)flash_write_helper(
+                                            storage_location),
                                         sizeof(shadow_config) / sizeof(uint32_t));
 
         if(shadow_flash_crc32 == shadow_ram_crc32)
@@ -454,7 +457,8 @@ void storage_set_label(const char *label)
 
     shadow_config.storage.has_label = true;
     memset(shadow_config.storage.label, 0, sizeof(shadow_config.storage.label));
-    strlcpy(shadow_config.storage.label, label, sizeof(shadow_config.storage.label));
+    strlcpy(shadow_config.storage.label, label,
+            sizeof(shadow_config.storage.label));
 }
 
 /*
@@ -494,8 +498,10 @@ void storage_set_language(const char *lang)
     if(strcmp(lang, "english") == 0)
     {
         shadow_config.storage.has_language = true;
-        memset(shadow_config.storage.language, 0, sizeof(shadow_config.storage.language));
-        strlcpy(shadow_config.storage.language, lang, sizeof(shadow_config.storage.language));
+        memset(shadow_config.storage.language, 0,
+               sizeof(shadow_config.storage.language));
+        strlcpy(shadow_config.storage.language, lang,
+                sizeof(shadow_config.storage.language));
     }
 }
 
@@ -732,15 +738,18 @@ bool storage_get_root_node(HDNode *node)
 
             animating_progress_handler();
 
-            pbkdf2_hmac_sha512((const uint8_t *)sessionPassphrase, strlen(sessionPassphrase),
+            pbkdf2_hmac_sha512((const uint8_t *)sessionPassphrase,
+                               strlen(sessionPassphrase),
                                salt, strlen(PBKDF2_HMAC_SHA512_SALT), BIP39_PBKDF2_ROUNDS, secret, 64,
                                get_root_node_callback);
 
             aes_decrypt_ctx ctx;
             aes_decrypt_key256(secret, &ctx);
-            aes_cbc_decrypt(sessionRootNode.chain_code, sessionRootNode.chain_code, 32, secret + 32,
+            aes_cbc_decrypt(sessionRootNode.chain_code, sessionRootNode.chain_code, 32,
+                            secret + 32,
                             &ctx);
-            aes_cbc_decrypt(sessionRootNode.private_key, sessionRootNode.private_key, 32, secret + 32,
+            aes_cbc_decrypt(sessionRootNode.private_key, sessionRootNode.private_key, 32,
+                            secret + 32,
                             &ctx);
         }
 
@@ -886,14 +895,18 @@ bool session_is_passphrase_cached(void)
  * OUTPUT
  *     none
  */
-void storage_set_mnemonic_from_words(const char (*words)[12], unsigned int word_count)
+void storage_set_mnemonic_from_words(const char (*words)[12],
+                                     unsigned int word_count)
 {
-    strlcpy(shadow_config.storage.mnemonic, words[0], sizeof(shadow_config.storage.mnemonic));
+    strlcpy(shadow_config.storage.mnemonic, words[0],
+            sizeof(shadow_config.storage.mnemonic));
 
     for(uint32_t i = 1; i < word_count; i++)
     {
-        strlcat(shadow_config.storage.mnemonic, " ", sizeof(shadow_config.storage.mnemonic));
-        strlcat(shadow_config.storage.mnemonic, words[i], sizeof(shadow_config.storage.mnemonic));
+        strlcat(shadow_config.storage.mnemonic, " ",
+                sizeof(shadow_config.storage.mnemonic));
+        strlcat(shadow_config.storage.mnemonic, words[i],
+                sizeof(shadow_config.storage.mnemonic));
     }
 
     shadow_config.storage.has_mnemonic = true;
@@ -910,8 +923,10 @@ void storage_set_mnemonic_from_words(const char (*words)[12], unsigned int word_
  */
 void storage_set_mnemonic(const char *m)
 {
-    memset(shadow_config.storage.mnemonic, 0, sizeof(shadow_config.storage.mnemonic));
-    strlcpy(shadow_config.storage.mnemonic, m, sizeof(shadow_config.storage.mnemonic));
+    memset(shadow_config.storage.mnemonic, 0,
+           sizeof(shadow_config.storage.mnemonic));
+    strlcpy(shadow_config.storage.mnemonic, m,
+            sizeof(shadow_config.storage.mnemonic));
     shadow_config.storage.has_mnemonic = true;
 }
 
