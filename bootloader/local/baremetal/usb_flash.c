@@ -1,4 +1,4 @@
-/*
+ /*
  * This file is part of the KeepKey project.
  *
  * Copyright (C) 2015 KeepKey LLC
@@ -44,7 +44,7 @@
 
 static Allocation storage_location = FLASH_INVALID;
 static FirmwareUploadState upload_state = UPLOAD_NOT_STARTED;
-static ConfigFlash storage_shadow;
+static uint8_t storage_sav[STOR_FLASH_SECT_LEN];
 static uint8_t firmware_hash[SHA256_DIGEST_LENGTH];
 extern bool reset_msg_stack;
 
@@ -164,8 +164,8 @@ static bool storage_restore(void)
 
     if(storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3)
     {
-        ret_val = flash_locking_write(storage_location, 0, sizeof(ConfigFlash),
-                                      (uint8_t *)&storage_shadow);
+        ret_val = flash_locking_write(storage_location, 0, STOR_FLASH_SECT_LEN,
+                                      storage_sav);
     }
 
     return(ret_val);
@@ -186,7 +186,7 @@ static bool storage_preserve(void)
     /* Search active storage sector and save in shadow memory  */
     if(storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3)
     {
-        memcpy(&storage_shadow, (void *)flash_write_helper(storage_location), sizeof(ConfigFlash));
+        memcpy(storage_sav, (void *)flash_write_helper(storage_location), STOR_FLASH_SECT_LEN);
         ret_val = true;
     }
 
@@ -265,7 +265,7 @@ bool usb_flash_firmware(void)
 
 uff_exit:
     /* Clear the shadow before exiting */
-    memset(&storage_shadow, 0, sizeof(ConfigFlash));
+    memset(storage_sav, 0, STOR_FLASH_SECT_LEN);
     return(ret_val);
 }
 
@@ -622,18 +622,17 @@ void handler_debug_link_stop(DebugLinkStop *msg)
 void handler_debug_link_fill_config(DebugLinkFillConfig *msg)
 {
     (void)msg;
+    uint8_t fill_storage_shadow[STOR_FLASH_SECT_LEN];
 
-    ConfigFlash fill_storage_shadow;
-
-    memset((uint8_t *)&fill_storage_shadow, FILL_CONFIG_DATA, sizeof(ConfigFlash));
+    memset(fill_storage_shadow, FILL_CONFIG_DATA, STOR_FLASH_SECT_LEN);
 
     /* Fill storage sector with test data */
     if(storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3)
     {
         flash_unlock();
         flash_erase_word(storage_location);
-        flash_write(storage_location, 0, sizeof(ConfigFlash),
-                    (uint8_t *)&fill_storage_shadow);
+        flash_write(storage_location, 0, STOR_FLASH_SECT_LEN,
+                    fill_storage_shadow);
         flash_lock();
     }
 }

@@ -78,6 +78,11 @@
 #define OTP_MFG_SIG_LEN         4
 #define OTP_BLK_LOCK(x)         (0x1FFF7A00 + (x - 0x1FFF7800)/0x20)
 
+#define BSTRP_FLASH_SECT_LEN    0x4000
+#define STOR_FLASH_SECT_LEN     0x4000
+#define BLDR_FLASH_SECT_LEN     0x20000
+#define APP_FLASH_SECT_LEN      0x20000
+
 /* meta info */
 #define META_MAGIC_STR          "KPKY"
 
@@ -91,7 +96,7 @@
 #define FLASH_BOOTSTRAP_LEN     (0x4000)
 
 /* Storage/Configuration Partition */
-#define FLASH_STORAGE_START     (0x0800C000)
+
 #define FLASH_STORAGE_LEN       (0x4000)
 
 /*<  0x801_0000 - 0x801_FFFF is empty  >*/
@@ -179,18 +184,18 @@ typedef void (*progress_handler_t)(void);
 
 static const FlashSector flash_sector_map[] =
 {
-    { 0,  0x08000000, 0x4000,   FLASH_BOOTSTRAP },
-    { 1,  0x08004000, 0x4000,   FLASH_STORAGE1  }, 
-    { 2,  0x08008000, 0x4000,   FLASH_STORAGE2  }, 
-    { 3,  0x0800C000, 0x4000,   FLASH_STORAGE3  },
+    { 0,  0x08000000, BSTRP_FLASH_SECT_LEN, FLASH_BOOTSTRAP },
+    { 1,  0x08004000, STOR_FLASH_SECT_LEN,  FLASH_STORAGE1  }, 
+    { 2,  0x08008000, STOR_FLASH_SECT_LEN,  FLASH_STORAGE2  }, 
+    { 3,  0x0800C000, STOR_FLASH_SECT_LEN,  FLASH_STORAGE3  },
     /*    { 4,  0x08010000, 0x10000,  UNUSED }, */
-    { 5,  0x08020000, 0x20000,  FLASH_BOOTLOADER },
-    { 6,  0x08040000, 0x20000,  FLASH_BOOTLOADER },
-    { 7,  0x08060000, 0x20000,  FLASH_APP },
-    { 8,  0x08080000, 0x20000,  FLASH_APP },
-    { 9,  0x080A0000, 0x20000,  FLASH_APP },
-    { 10, 0x080C0000, 0x20000,  FLASH_APP },
-    { 11, 0x080E0000, 0x20000,  FLASH_APP },
+    { 5,  0x08020000, BLDR_FLASH_SECT_LEN,  FLASH_BOOTLOADER },
+    { 6,  0x08040000, BLDR_FLASH_SECT_LEN,  FLASH_BOOTLOADER },
+    { 7,  0x08060000, APP_FLASH_SECT_LEN,   FLASH_APP },
+    { 8,  0x08080000, APP_FLASH_SECT_LEN,   FLASH_APP },
+    { 9,  0x080A0000, APP_FLASH_SECT_LEN,   FLASH_APP },
+    { 10, 0x080C0000, APP_FLASH_SECT_LEN,   FLASH_APP },
+    { 11, 0x080E0000, APP_FLASH_SECT_LEN,   FLASH_APP },
     { -1, 0,          0,        FLASH_INVALID}
 };
 
