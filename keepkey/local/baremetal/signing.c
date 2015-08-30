@@ -433,7 +433,7 @@ void signing_txack(TransactionType *tx)
 				coin_amnt_to_str(coin, to_spend - change_spend - fee, total_amount_str, sizeof(total_amount_str));
 
 		        if(!confirm(ButtonRequestType_ButtonRequest_SignTx,
-		        	"Transaction Summary", "Total of %s leaving your wallet, and a fee of %s.", total_amount_str, fee_str))
+		        	"Summary", "%s being sent, plus an additional %s fee.", total_amount_str, fee_str))
 		        {
 		        	fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
 		            signing_abort();
