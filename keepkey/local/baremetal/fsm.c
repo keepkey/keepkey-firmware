@@ -384,7 +384,7 @@ void fsm_msgChangePin(ChangePin *msg)
         return;
     }
 
-    if(!pin_protect_cached())
+    if(!pin_protect("Enter Current PIN"))
     {
         go_home();
         return;
@@ -575,7 +575,7 @@ void fsm_msgSignTx(SignTx *msg)
         return;
     }
 
-    if(!pin_protect("Enter Your PIN"))
+    if(!pin_protect_cached())
     {
         go_home();
         return;
