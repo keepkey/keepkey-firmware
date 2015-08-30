@@ -23,6 +23,7 @@
 
 #include "home_sm.h"
 #include "app_layout.h"
+#include "storage.h"
 
 /* === Private Variables =================================================== */
 
@@ -97,6 +98,7 @@ void toggle_screensaver(void)
 		case AT_HOME:
 			if(idle_time >= SCREENSAVER_TIMEOUT) {
 				layout_screensaver();
+				session_clear(true);
 				home_state = SCREENSAVER;
 			}
 			break;
