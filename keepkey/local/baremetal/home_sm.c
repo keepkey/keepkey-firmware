@@ -43,18 +43,33 @@ static uint32_t idle_time = 0;
  */
 void go_home(void)
 {
-	switch(home_state) {
-		case AWAY_FROM_HOME:
-			layout_home();
-			reset_idle_time();
-			home_state = AT_HOME;
-			break;
-		case SCREENSAVER:
-		case AT_HOME:
-		default:
-			/* no action requires */
-			break;
-	}
+    switch(home_state)
+    {
+        case AWAY_FROM_HOME:
+            go_home_forced();
+            break;
+
+        case SCREENSAVER:
+        case AT_HOME:
+        default:
+            /* no action requires */
+            break;
+    }
+}
+
+/*
+ * go_home_forced() - Returns to home screen regardless of home state
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
+ */
+void go_home_forced(void)
+{
+    layout_home();
+    reset_idle_time();
+    home_state = AT_HOME;
 }
 
 /*
@@ -67,20 +82,23 @@ void go_home(void)
  */
 void leave_home(void)
 {
-	switch(home_state) {
-		case AT_HOME:
-			layout_home_reversed();
-			reset_idle_time();
-			home_state = AWAY_FROM_HOME;
-			break;
-		case SCREENSAVER:
-			home_state = AWAY_FROM_HOME;
-			break;
-		case AWAY_FROM_HOME:
-		default:
-			/* no action requires */
-			break;
-	}
+    switch(home_state)
+    {
+        case AT_HOME:
+            layout_home_reversed();
+            reset_idle_time();
+            home_state = AWAY_FROM_HOME;
+            break;
+
+        case SCREENSAVER:
+            home_state = AWAY_FROM_HOME;
+            break;
+
+        case AWAY_FROM_HOME:
+        default:
+            /* no action requires */
+            break;
+    }
 }
 
 /*
@@ -93,24 +111,31 @@ void leave_home(void)
  */
 void toggle_screensaver(void)
 {
-	switch(home_state) {
-		case AT_HOME:
-			if(idle_time >= SCREENSAVER_TIMEOUT) {
-				layout_screensaver();
-				home_state = SCREENSAVER;
-			}
-			break;
-		case SCREENSAVER:
-			if(idle_time < SCREENSAVER_TIMEOUT) {
-				layout_home();
-				home_state = AT_HOME;
-			}
-			break;
-		case AWAY_FROM_HOME:
-		default:
-			/* no action requires */
-			break;
-	}
+    switch(home_state)
+    {
+        case AT_HOME:
+            if(idle_time >= SCREENSAVER_TIMEOUT)
+            {
+                layout_screensaver();
+                home_state = SCREENSAVER;
+            }
+
+            break;
+
+        case SCREENSAVER:
+            if(idle_time < SCREENSAVER_TIMEOUT)
+            {
+                layout_home();
+                home_state = AT_HOME;
+            }
+
+            break;
+
+        case AWAY_FROM_HOME:
+        default:
+            /* no action requires */
+            break;
+    }
 }
 
 /*
@@ -123,7 +148,7 @@ void toggle_screensaver(void)
  */
 void increment_idle_time(uint32_t increment_ms)
 {
-	idle_time += increment_ms;
+    idle_time += increment_ms;
 }
 
 /*
@@ -136,5 +161,5 @@ void increment_idle_time(uint32_t increment_ms)
  */
 void reset_idle_time(void)
 {
-	idle_time = 0;
+    idle_time = 0;
 }

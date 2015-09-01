@@ -42,6 +42,7 @@ typedef enum {
 /* === Functions =========================================================== */
 
 void go_home(void);
+void go_home_forced(void);
 void leave_home(void);
 void toggle_screensaver(void);
 void increment_idle_time(uint32_t increment_ms);
