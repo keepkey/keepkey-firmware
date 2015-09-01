@@ -241,3 +241,18 @@ bool set_mfg_mode_off(void)
     }
     return(ret_val);
 }
+
+/*
+ * clean_unused_sector() - erase unused flash sector(s)
+ *
+ * INPUT -
+ *      none
+ * OUTPUT - 
+ *      none
+ */
+void clean_unused_sector(void)
+{
+    flash_unlock();
+    flash_erase_word(FLASH_UNUSED0);
+    flash_lock();
+}
