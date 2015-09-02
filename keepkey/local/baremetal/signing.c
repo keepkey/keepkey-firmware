@@ -31,6 +31,7 @@
 #include "transaction.h"
 #include "coins.h"
 #include "home_sm.h"
+#include "app_confirm.h"
 
 /* === Private Variables =================================================== */
 
@@ -430,10 +431,9 @@ void signing_txack(TransactionType *tx)
 					animating_progress_handler();
 				}
 				// last confirmation
-				coin_amnt_to_str(coin, to_spend - change_spend - fee, total_amount_str, sizeof(total_amount_str));
+				coin_amnt_to_str(coin, to_spend - change_spend, total_amount_str, sizeof(total_amount_str));
 
-		        if(!confirm(ButtonRequestType_ButtonRequest_SignTx,
-		        	"Summary", "Sending %s, plus an additional\n %s fee.", total_amount_str, fee_str))
+		        if(!confirm_transaction(total_amount_str, fee_str))
 		        {
 		        	fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
 		            signing_abort();

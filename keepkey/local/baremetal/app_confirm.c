@@ -56,13 +56,16 @@ bool confirm_cipher(bool encrypt, const char *key)
 {
     bool ret_stat;
 
-	if(encrypt) {
-		ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
-			"Encrypt Key Value", key);
-	} else {
-		ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
-			"Decrypt Key Value", key);
-	}
+    if(encrypt)
+    {
+        ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
+                           "Encrypt Key Value", key);
+    }
+    else
+    {
+        ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
+                           "Decrypt Key Value", key);
+    }
 
     return(ret_stat);
 }
@@ -71,7 +74,7 @@ bool confirm_cipher(bool encrypt, const char *key)
  * confirm_encrypt_msg() - Show encrypt message confirmation
  *
  * INPUT
- *     - msg: message to encrypt 
+ *     - msg: message to encrypt
  *     - signing: true/false whether we are signing along with encryption
  * OUTPUT
  *     true/false of confirmation
@@ -80,12 +83,15 @@ bool confirm_encrypt_msg(const char *msg, bool signing)
 {
     bool ret_stat;
 
-	if(signing) {
-		ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-			"Encrypt and Sign Message", msg);
-    } else {
-		 ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-			"Encrypt Message", msg);
+    if(signing)
+    {
+        ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
+                           "Encrypt and Sign Message", msg);
+    }
+    else
+    {
+        ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
+                           "Encrypt Message", msg);
     }
 
     return(ret_stat);
@@ -105,19 +111,22 @@ bool confirm_decrypt_msg(const char *msg, const char *address)
 {
     bool ret_stat;
 
-	if(address) {
-		ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
-                "Decrypted Signed Message", msg);
-    } else {
-		ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
-                "Decrypted Message", msg);
+    if(address)
+    {
+        ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
+                           "Decrypted Signed Message", msg);
+    }
+    else
+    {
+        ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
+                           "Decrypted Message", msg);
     }
 
     return(ret_stat);
 }
 
 /*
- * confirm_transaction_output() - Show transaction confirmation
+ * confirm_transaction_output() - Show transaction output confirmation
  *
  * INPUT -
  *      - amount: amount to send
@@ -128,8 +137,35 @@ bool confirm_decrypt_msg(const char *msg, const char *address)
  */
 bool confirm_transaction_output(const char *amount, const char *to)
 {
-	return confirm_with_custom_layout(&layout_transaction_notification,
-        ButtonRequestType_ButtonRequest_ConfirmOutput, amount, to);
+    return confirm_with_custom_layout(&layout_transaction_notification,
+                                      ButtonRequestType_ButtonRequest_ConfirmOutput, amount, to);
+}
+
+/*
+ * confirm_transaction() - Show transaction summary confirmation
+ *
+ * INPUT -
+ *      - total_amount: total transaction amount
+ *      - fee: fee amount
+ * OUTPUT -
+ *     true/false of confirmation
+ *
+ */
+bool confirm_transaction(const char *total_amount, const char *fee)
+{
+    if(strcmp(fee, "0.0\0") == 0)
+    {
+        return confirm(ButtonRequestType_ButtonRequest_SignTx,
+                       "Transaction", "Do you want to send %s from your wallet?",
+                       total_amount);
+    }
+    else
+    {
+        return confirm(ButtonRequestType_ButtonRequest_SignTx,
+                       "Transaction",
+                       "Do you want to send %s from your wallet? This includes a transaction fee of %s.",
+                       total_amount, fee);
+    }
 }
 
 /*
@@ -145,12 +181,17 @@ bool confirm_load_device(bool is_node)
 {
     bool ret_stat;
 
-	if(is_node) {
-		ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-		    	"Import Private Key", "Importing is not recommended unless you understand the risks. Do you want to import private key?");
-    } else {
-		ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-		    	"Import Recovery Sentence", "Importing is not recommended unless you understand the risks. Do you want to import recovery sentence?");
+    if(is_node)
+    {
+        ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
+                           "Import Private Key",
+                           "Importing is not recommended unless you understand the risks. Do you want to import private key?");
+    }
+    else
+    {
+        ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
+                           "Import Recovery Sentence",
+                           "Importing is not recommended unless you understand the risks. Do you want to import recovery sentence?");
     }
 
     return(ret_stat);
@@ -169,7 +210,7 @@ bool confirm_load_device(bool is_node)
 bool confirm_address(const char *desc, const char *address)
 {
     return confirm_with_custom_layout(&layout_address_notification,
-        ButtonRequestType_ButtonRequest_Address, desc, address);
+                                      ButtonRequestType_ButtonRequest_Address, desc, address);
 }
 
 /*
@@ -187,7 +228,7 @@ bool confirm_sign_identity(const IdentityType *identity, const char *challenge)
     char title[CONFIRM_SIGN_IDENTITY_TITLE], body[CONFIRM_SIGN_IDENTITY_BODY];
 
     /* Format protocol */
-    if (identity->has_proto && identity->proto[0])
+    if(identity->has_proto && identity->proto[0])
     {
         strlcpy(title, identity->proto, sizeof(title));
         strupr(title);
@@ -199,15 +240,17 @@ bool confirm_sign_identity(const IdentityType *identity, const char *challenge)
     }
 
     /* Format host and port */
-    if (identity->has_host && identity->host[0])
+    if(identity->has_host && identity->host[0])
     {
         strlcpy(body, "host: ", sizeof(body));
         strlcat(body, identity->host, sizeof(body));
-        if (identity->has_port && identity->port[0])
+
+        if(identity->has_port && identity->port[0])
         {
             strlcat(body, ":", sizeof(body));
             strlcat(body, identity->port, sizeof(body));
         }
+
         strlcat(body, "\n", sizeof(body));
     }
     else
@@ -216,7 +259,8 @@ bool confirm_sign_identity(const IdentityType *identity, const char *challenge)
     }
 
     /* Format user */
-    if (identity->has_user && identity->user[0]) {
+    if(identity->has_user && identity->user[0])
+    {
         strlcat(body, "user: ", sizeof(body));
         strlcat(body, identity->user, sizeof(body));
         strlcat(body, "\n", sizeof(body));
