@@ -434,7 +434,7 @@ void handler_erase(FirmwareErase *msg)
             }
 
             /* Erase unused sectors */
-            clean_unused_sector();
+            flash_erase_word(FLASH_UNUSED0);
 
             /* Erase application section */
             flash_erase_word(FLASH_APP);
