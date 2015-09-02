@@ -36,6 +36,5 @@ bool flash_write_word(Allocation group, uint32_t offset, uint32_t len, uint8_t* 
 bool flash_chk_status(void);
 bool is_mfg_mode(void);
 bool set_mfg_mode_off(void);
-void clean_unused_sector(void);
 
 #endif
