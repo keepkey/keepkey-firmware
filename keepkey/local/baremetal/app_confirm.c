@@ -153,7 +153,7 @@ bool confirm_transaction_output(const char *amount, const char *to)
  */
 bool confirm_transaction(const char *total_amount, const char *fee)
 {
-    if(strcmp(fee, "0.0\0") == 0)
+    if(strcmp(fee, "0.0") == 0)
     {
         return confirm(ButtonRequestType_ButtonRequest_SignTx,
                        "Transaction", "Do you want to send %s from your wallet?",
