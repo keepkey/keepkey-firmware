@@ -17,7 +17,7 @@ $ sudo apt-get install git scons gcc-arm-none-eabi python-protobuf protobuf-comp
 
 Download firmware source code from KeepKey respository (https://github.com/keepkey/keepkey-firmware.git)
 ```
-$ git clone git@gitlab.keepkey.com:embedded-software/keepkey-firmware.git
+$ git clone git@github.com:keepkey/keepkey-firmware.git
 ```
 
 ### command line build
