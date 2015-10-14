@@ -26,7 +26,10 @@
 
 /* === Defines ============================================================= */
 
-#define RESP_INIT(TYPE) TYPE *resp = (TYPE *)msg_resp; memset(resp, 0, sizeof(TYPE));
+#define RESP_INIT(TYPE) \
+    TYPE *resp = (TYPE *)msg_resp; \
+    _Static_assert(sizeof(msg_resp) >= sizeof(TYPE), #TYPE" is too large"); \
+    memset(resp, 0, sizeof(TYPE));
 
 #define ENTROPY_BUF sizeof(((Entropy *)NULL)->entropy.bytes)
 
