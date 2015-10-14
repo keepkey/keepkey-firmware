@@ -1185,8 +1185,8 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
     {
         resp->has_address = false;
         resp->has_message = false;
-        memset(resp->address, sizeof(resp->address), 0);
-        memset(&(resp->message), sizeof(resp->message), 0);
+        memset(resp->address, 0, sizeof(resp->address));
+        memset(&(resp->message), 0, sizeof(resp->message));
     }
     else
     {
