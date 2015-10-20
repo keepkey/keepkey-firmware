@@ -3,7 +3,7 @@
 TEMPDIR="device-protocol"
 IMAGETAG=keepkey/firmware
 
-git clone git@gitlab.keepkey.com:client-software/device-protocol.git $TEMPDIR
+git clone git@github.com:keepkey/device-protocol.git $TEMPDIR
 
 docker build -t $IMAGETAG .
 
