@@ -996,24 +996,53 @@ void fsm_msgSignIdentity(SignIdentity *msg)
 
     if(!node) { return; }
 
-    uint8_t message[256 + 256];
-    memcpy(message, msg->challenge_hidden.bytes, msg->challenge_hidden.size);
-    const int len = strlen(msg->challenge_visual);
-    memcpy(message + msg->challenge_hidden.size, msg->challenge_visual, len);
+    uint8_t public_key[33];  // copy public key to temporary buffer
+    memcpy(public_key, node->public_key, sizeof(public_key));
 
-    layout_simple_message("Signing Identity...");
-
-    if(cryptoMessageSign(message, msg->challenge_hidden.size + len,
-                         node->private_key,
-                         resp->signature.bytes) == 0)
+    if (msg->has_ecdsa_curve_name) 
     {
-        resp->has_address = true;
-        uint8_t addr_raw[21];
-        ecdsa_get_address_raw(node->public_key, 0x00, addr_raw); // hardcoded Bitcoin address type
-        base58_encode_check(addr_raw, 21, resp->address, sizeof(resp->address));
+        const ecdsa_curve *curve = get_curve_by_name(msg->ecdsa_curve_name);
+        if (curve) 
+        {
+            // correct public key (since fsm_getDerivedNode uses secp256k1 curve)
+            ecdsa_get_public_key33(curve, node->private_key, public_key);
+        }
+    }
+
+    bool sign_ssh = msg->identity.has_proto && (strcmp(msg->identity.proto, "ssh") == 0);
+
+    int result = 0;
+
+    layout_simple_message("Signing Identity..."); 
+
+    if (sign_ssh) 
+    { // SSH does not sign visual challenge
+        result = sshMessageSign(msg->challenge_hidden.bytes, msg->challenge_hidden.size, node->private_key, resp->signature.bytes);
+    } 
+    else 
+    {
+        uint8_t digest[64];
+        sha256_Raw(msg->challenge_hidden.bytes, msg->challenge_hidden.size, digest);
+        sha256_Raw((const uint8_t *)msg->challenge_visual, strlen(msg->challenge_visual), digest + 32);
+        result = cryptoMessageSign(digest, 64, node->private_key, resp->signature.bytes);
+    }
+
+    if (result == 0) 
+    {
+        if (sign_ssh) 
+        {
+            resp->has_address = false;
+        } 
+        else 
+        {
+            resp->has_address = true;
+            uint8_t addr_raw[21];
+            ecdsa_get_address_raw(node->public_key, 0x00, addr_raw); // hardcoded Bitcoin address type
+            base58_encode_check(addr_raw, 21, resp->address, sizeof(resp->address));
+        }
         resp->has_public_key = true;
         resp->public_key.size = 33;
-        memcpy(resp->public_key.bytes, node->public_key, 33);
+        memcpy(resp->public_key.bytes, public_key, 33);
         resp->has_signature = true;
         resp->signature.size = 65;
         msg_write(MessageType_MessageType_SignedIdentity, resp);
