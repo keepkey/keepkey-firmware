@@ -41,10 +41,8 @@ const ecdsa_curve nist256p1 = {
 		/*.val =*/{0x3e3192a8, 0x27739585, 0x38bcf427, 0x1cdf55b4, 0x3fffffde, 0x3fffffff, 0x7ff, 0x3fffe000, 0x7fff}
 	},
 
-	/* a */ -3,
-
-	/* b */ {
-		/*.val =*/{0x27d2604b, 0x2f38f0f8, 0x53b0f63, 0x741ac33, 0x1886bc65, 0x2ef555da, 0x293e7b3e, 0xd762a8e, 0x5ac6}
+	/* a */ {
+		/*.val =*/{0x3ffffffc, 0x3fffffff, 0x3fffffff, 0x3f, 0x0, 0x0, 0x1000, 0x3fffc000, 0xffff}
 	}
 #if USE_PRECOMPUTED_CP
 	,
@@ -52,4 +50,5 @@ const ecdsa_curve nist256p1 = {
 #include "nist256p1.table"
 	}
 #endif
+
 };
