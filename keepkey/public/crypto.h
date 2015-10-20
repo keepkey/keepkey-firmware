@@ -52,5 +52,6 @@ int cryptoMultisigPubkeyIndex(const MultisigRedeemScriptType *multisig,
                               const uint8_t *pubkey);
 int cryptoMultisigFingerprint(const MultisigRedeemScriptType *multisig, uint8_t *hash);
 int cryptoIdentityFingerprint(const IdentityType *identity, uint8_t *hash);
+int sshMessageSign(const uint8_t *message, size_t message_len, const uint8_t *privkey, uint8_t *signature);
 
 #endif
