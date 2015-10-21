@@ -263,7 +263,7 @@ void signing_txack(TransactionType *tx)
 	}
 
 	static int update_ctr = 0;
-	if (update_ctr++ == 50) {
+	if (update_ctr++ == 20) {
 		animating_progress_handler();
 		update_ctr = 0;
 	}
