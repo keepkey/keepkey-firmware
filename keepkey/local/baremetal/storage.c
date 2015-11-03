@@ -51,6 +51,8 @@ static bool sessionPassphraseCached;
 static char sessionPassphrase[51];
 static Allocation storage_location = FLASH_INVALID;
 
+/* === Variables =========================================================== */
+
 /* Shadow memory for configuration data in storage partition */
 _Static_assert(sizeof(ConfigFlash) <= FLASH_STORAGE_LEN, "ConfigFlash struct is too large for storage partition");
 static ConfigFlash shadow_config;
