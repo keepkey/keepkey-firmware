@@ -24,6 +24,7 @@ PassphraseAck.passphrase		max_size:51
 Entropy.entropy				max_size:1024
 
 GetPublicKey.address_n			max_count:8
+GetPublicKey.ecdsa_curve_name		max_size:32
 
 PublicKey.xpub				max_size:113
 
@@ -80,6 +81,7 @@ DecryptedMessage.message		max_size:1024
 CipherKeyValue.address_n		max_count:8
 CipherKeyValue.key			max_size:256
 CipherKeyValue.value			max_size:1024
+CipherKeyValue.iv			max_size:16
 
 CipheredKeyValue.value			max_size:1024
 
@@ -87,12 +89,13 @@ EstimateTxSize.coin_name		max_size:17
 
 SignTx.coin_name			max_size:17
 
-SignIdentity.challenge_hidden   max_size:256
-SignIdentity.challenge_visual   max_size:256
+SignIdentity.challenge_hidden		max_size:256
+SignIdentity.challenge_visual		max_size:256
+SignIdentity.ecdsa_curve_name		max_size:32
 
-SignedIdentity.address      max_size:36
-SignedIdentity.public_key   max_size:33
-SignedIdentity.signature    max_size:65
+SignedIdentity.address			max_size:36
+SignedIdentity.public_key		max_size:33
+SignedIdentity.signature		max_size:65
 
 # not used in firmware
 SimpleSignTx.inputs			max_count:0

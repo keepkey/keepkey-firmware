@@ -21,7 +21,6 @@
 
 #include <string.h>
 #include <sha2.h>
-#include <ecdsa.h>
 #include <pbkdf2.h>
 #include <aes.h>
 #include <hmac.h>
@@ -88,6 +87,12 @@ uint32_t deser_length(const uint8_t *in, uint32_t *out)
 	}
 	*out = 0; // ignore 64 bit
 	return 1 + 8;
+}
+
+int sshMessageSign(const uint8_t *message, size_t message_len, const uint8_t *privkey, uint8_t *signature)
+{
+	signature[0] = 0; // prefix: pad with zero, so all signatures are 65 bytes
+	return ecdsa_sign(&nist256p1, privkey, message, message_len, signature + 1, NULL);
 }
 
 int cryptoMessageSign(const uint8_t *message, size_t message_len, const uint8_t *privkey, uint8_t *signature)

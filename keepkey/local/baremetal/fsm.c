@@ -29,6 +29,7 @@
 #include <base58.h>
 #include <ripemd160.h>
 #include <secp256k1.h>
+#include <nist256p1.h>
 #include <layout.h>
 #include <confirm_sm.h>
 #include <msg_dispatch.h>
@@ -62,37 +63,37 @@ static uint8_t msg_resp[MAX_FRAME_SIZE];
 static const MessagesMap_t MessagesMap[] =
 {
     /* Normal Messages */
-    MSG_IN(MessageType_MessageType_Initialize,          Initialize_fields,          (void (*)(void *))fsm_msgInitialize)
-    MSG_IN(MessageType_MessageType_GetFeatures,         GetFeatures_fields,         (void (*)(void *))fsm_msgGetFeatures)
-    MSG_IN(MessageType_MessageType_Ping,                Ping_fields,                (void (*)(void *))fsm_msgPing)
-    MSG_IN(MessageType_MessageType_ChangePin,           ChangePin_fields,           (void (*)(void *))fsm_msgChangePin)
-    MSG_IN(MessageType_MessageType_WipeDevice,          WipeDevice_fields,          (void (*)(void *))fsm_msgWipeDevice)
-    MSG_IN(MessageType_MessageType_FirmwareErase,       FirmwareErase_fields,       (void (*)(void *))fsm_msgFirmwareErase)
-    MSG_IN(MessageType_MessageType_FirmwareUpload,      FirmwareUpload_fields,      (void (*)(void *))fsm_msgFirmwareUpload)
-    MSG_IN(MessageType_MessageType_GetEntropy,          GetEntropy_fields,          (void (*)(void *))fsm_msgGetEntropy)
-    MSG_IN(MessageType_MessageType_GetPublicKey,        GetPublicKey_fields,        (void (*)(void *))fsm_msgGetPublicKey)
-    MSG_IN(MessageType_MessageType_LoadDevice,          LoadDevice_fields,          (void (*)(void *))fsm_msgLoadDevice)
-    MSG_IN(MessageType_MessageType_ResetDevice,         ResetDevice_fields,         (void (*)(void *))fsm_msgResetDevice)
-    MSG_IN(MessageType_MessageType_SignTx,              SignTx_fields,              (void (*)(void *))fsm_msgSignTx)
+    MSG_IN(MessageType_MessageType_Initialize,          Initialize_fields, (void (*)(void *))fsm_msgInitialize)
+    MSG_IN(MessageType_MessageType_GetFeatures,         GetFeatures_fields, (void (*)(void *))fsm_msgGetFeatures)
+    MSG_IN(MessageType_MessageType_Ping,                Ping_fields, (void (*)(void *))fsm_msgPing)
+    MSG_IN(MessageType_MessageType_ChangePin,           ChangePin_fields, (void (*)(void *))fsm_msgChangePin)
+    MSG_IN(MessageType_MessageType_WipeDevice,          WipeDevice_fields, (void (*)(void *))fsm_msgWipeDevice)
+    MSG_IN(MessageType_MessageType_FirmwareErase,       FirmwareErase_fields, (void (*)(void *))fsm_msgFirmwareErase)
+    MSG_IN(MessageType_MessageType_FirmwareUpload,      FirmwareUpload_fields, (void (*)(void *))fsm_msgFirmwareUpload)
+    MSG_IN(MessageType_MessageType_GetEntropy,          GetEntropy_fields, (void (*)(void *))fsm_msgGetEntropy)
+    MSG_IN(MessageType_MessageType_GetPublicKey,        GetPublicKey_fields, (void (*)(void *))fsm_msgGetPublicKey)
+    MSG_IN(MessageType_MessageType_LoadDevice,          LoadDevice_fields, (void (*)(void *))fsm_msgLoadDevice)
+    MSG_IN(MessageType_MessageType_ResetDevice,         ResetDevice_fields, (void (*)(void *))fsm_msgResetDevice)
+    MSG_IN(MessageType_MessageType_SignTx,              SignTx_fields, (void (*)(void *))fsm_msgSignTx)
     MSG_IN(MessageType_MessageType_PinMatrixAck,        PinMatrixAck_fields,        NO_PROCESS_FUNC)
-    MSG_IN(MessageType_MessageType_Cancel,              Cancel_fields,              (void (*)(void *))fsm_msgCancel)
-    MSG_IN(MessageType_MessageType_TxAck,               TxAck_fields,               (void (*)(void *))fsm_msgTxAck)
-    MSG_IN(MessageType_MessageType_CipherKeyValue,      CipherKeyValue_fields,      (void (*)(void *))fsm_msgCipherKeyValue)
-    MSG_IN(MessageType_MessageType_ClearSession,        ClearSession_fields,        (void (*)(void *))fsm_msgClearSession)
-    MSG_IN(MessageType_MessageType_ApplySettings,       ApplySettings_fields,       (void (*)(void *))fsm_msgApplySettings)
+    MSG_IN(MessageType_MessageType_Cancel,              Cancel_fields, (void (*)(void *))fsm_msgCancel)
+    MSG_IN(MessageType_MessageType_TxAck,               TxAck_fields, (void (*)(void *))fsm_msgTxAck)
+    MSG_IN(MessageType_MessageType_CipherKeyValue,      CipherKeyValue_fields, (void (*)(void *))fsm_msgCipherKeyValue)
+    MSG_IN(MessageType_MessageType_ClearSession,        ClearSession_fields, (void (*)(void *))fsm_msgClearSession)
+    MSG_IN(MessageType_MessageType_ApplySettings,       ApplySettings_fields, (void (*)(void *))fsm_msgApplySettings)
     MSG_IN(MessageType_MessageType_ButtonAck,           ButtonAck_fields,           NO_PROCESS_FUNC)
-    MSG_IN(MessageType_MessageType_GetAddress,          GetAddress_fields,          (void (*)(void *))fsm_msgGetAddress)
-    MSG_IN(MessageType_MessageType_EntropyAck,          EntropyAck_fields,          (void (*)(void *))fsm_msgEntropyAck)
-    MSG_IN(MessageType_MessageType_SignMessage,         SignMessage_fields,         (void (*)(void *))fsm_msgSignMessage)
-    MSG_IN(MessageType_MessageType_SignIdentity,        SignIdentity_fields,        (void (*)(void *))fsm_msgSignIdentity)
-    MSG_IN(MessageType_MessageType_VerifyMessage,       VerifyMessage_fields,       (void (*)(void *))fsm_msgVerifyMessage)
-    MSG_IN(MessageType_MessageType_EncryptMessage,      EncryptMessage_fields,      (void (*)(void *))fsm_msgEncryptMessage)
-    MSG_IN(MessageType_MessageType_DecryptMessage,      DecryptMessage_fields,      (void (*)(void *))fsm_msgDecryptMessage)
+    MSG_IN(MessageType_MessageType_GetAddress,          GetAddress_fields, (void (*)(void *))fsm_msgGetAddress)
+    MSG_IN(MessageType_MessageType_EntropyAck,          EntropyAck_fields, (void (*)(void *))fsm_msgEntropyAck)
+    MSG_IN(MessageType_MessageType_SignMessage,         SignMessage_fields, (void (*)(void *))fsm_msgSignMessage)
+    MSG_IN(MessageType_MessageType_SignIdentity,        SignIdentity_fields, (void (*)(void *))fsm_msgSignIdentity)
+    MSG_IN(MessageType_MessageType_VerifyMessage,       VerifyMessage_fields, (void (*)(void *))fsm_msgVerifyMessage)
+    MSG_IN(MessageType_MessageType_EncryptMessage,      EncryptMessage_fields, (void (*)(void *))fsm_msgEncryptMessage)
+    MSG_IN(MessageType_MessageType_DecryptMessage,      DecryptMessage_fields, (void (*)(void *))fsm_msgDecryptMessage)
     MSG_IN(MessageType_MessageType_PassphraseAck,       PassphraseAck_fields,       NO_PROCESS_FUNC)
-    MSG_IN(MessageType_MessageType_EstimateTxSize,      EstimateTxSize_fields,      (void (*)(void *))fsm_msgEstimateTxSize)
-    MSG_IN(MessageType_MessageType_RecoveryDevice,      RecoveryDevice_fields,      (void (*)(void *))fsm_msgRecoveryDevice)
-    MSG_IN(MessageType_MessageType_WordAck,             WordAck_fields,             (void (*)(void *))fsm_msgWordAck)
-    MSG_IN(MessageType_MessageType_CharacterAck,        CharacterAck_fields,        (void (*)(void *))fsm_msgCharacterAck)
+    MSG_IN(MessageType_MessageType_EstimateTxSize,      EstimateTxSize_fields, (void (*)(void *))fsm_msgEstimateTxSize)
+    MSG_IN(MessageType_MessageType_RecoveryDevice,      RecoveryDevice_fields, (void (*)(void *))fsm_msgRecoveryDevice)
+    MSG_IN(MessageType_MessageType_WordAck,             WordAck_fields, (void (*)(void *))fsm_msgWordAck)
+    MSG_IN(MessageType_MessageType_CharacterAck,        CharacterAck_fields, (void (*)(void *))fsm_msgCharacterAck)
 
     /* Normal Out Messages */
     MSG_OUT(MessageType_MessageType_Success,            Success_fields,             NO_PROCESS_FUNC)
@@ -118,8 +119,8 @@ static const MessagesMap_t MessagesMap[] =
 #if DEBUG_LINK
     /* Debug Messages */
     DEBUG_IN(MessageType_MessageType_DebugLinkDecision, DebugLinkDecision_fields,   NO_PROCESS_FUNC)
-    DEBUG_IN(MessageType_MessageType_DebugLinkGetState, DebugLinkGetState_fields,   (void (*)(void *))fsm_msgDebugLinkGetState)
-    DEBUG_IN(MessageType_MessageType_DebugLinkStop,     DebugLinkStop_fields,       (void (*)(void *))fsm_msgDebugLinkStop)
+    DEBUG_IN(MessageType_MessageType_DebugLinkGetState, DebugLinkGetState_fields, (void (*)(void *))fsm_msgDebugLinkGetState)
+    DEBUG_IN(MessageType_MessageType_DebugLinkStop,     DebugLinkStop_fields, (void (*)(void *))fsm_msgDebugLinkStop)
 
     /* Debug Out Messages */
     DEBUG_OUT(MessageType_MessageType_DebugLinkState, DebugLinkState_fields,        NO_PROCESS_FUNC)
@@ -490,6 +491,20 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 
     if(!node) { return; }
 
+    uint8_t public_key[33];  // copy public key to temporary buffer
+    memcpy(public_key, node->public_key, sizeof(public_key));
+
+    if(msg->has_ecdsa_curve_name)
+    {
+        const ecdsa_curve *curve = get_curve_by_name(msg->ecdsa_curve_name);
+
+        if(curve)
+        {
+            // correct public key (since fsm_getDerivedNode uses secp256k1 curve)
+            ecdsa_get_public_key33(curve, node->private_key, public_key);
+        }
+    }
+
     resp->node.depth = node->depth;
     resp->node.fingerprint = node->fingerprint;
     resp->node.child_num = node->child_num;
@@ -498,10 +513,9 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
     resp->node.has_private_key = false;
     resp->node.has_public_key = true;
     resp->node.public_key.size = 33;
-    memcpy(resp->node.public_key.bytes, node->public_key, 33);
+    memcpy(resp->node.public_key.bytes, public_key, 33);
     resp->has_xpub = true;
     hdnode_serialize_public(node, resp->xpub, sizeof(resp->xpub));
-
     msg_write(MessageType_MessageType_PublicKey, resp);
     go_home();
 }
@@ -759,15 +773,15 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
     {
         aes_encrypt_ctx ctx;
         aes_encrypt_key256(data, &ctx);
-        aes_cbc_encrypt(msg->value.bytes, resp->value.bytes, msg->value.size, data + 32,
-                        &ctx);
+        aes_cbc_encrypt(msg->value.bytes, resp->value.bytes, msg->value.size,
+                        ((msg->iv.size == 16) ? (msg->iv.bytes) : (data + 32)), &ctx);
     }
     else
     {
         aes_decrypt_ctx ctx;
         aes_decrypt_key256(data, &ctx);
-        aes_cbc_decrypt(msg->value.bytes, resp->value.bytes, msg->value.size, data + 32,
-                        &ctx);
+        aes_cbc_decrypt(msg->value.bytes, resp->value.bytes, msg->value.size,
+                        ((msg->iv.size == 16) ? (msg->iv.bytes) : (data + 32)), &ctx);
     }
 
     resp->has_value = true;
@@ -827,7 +841,8 @@ void fsm_msgGetAddress(GetAddress *msg)
     }
     else
     {
-        ecdsa_get_address(node->public_key, coin->address_type, resp->address, sizeof(resp->address));
+        ecdsa_get_address(node->public_key, coin->address_type, resp->address,
+                          sizeof(resp->address));
     }
 
     if(msg->has_show_display && msg->show_display)
@@ -996,24 +1011,56 @@ void fsm_msgSignIdentity(SignIdentity *msg)
 
     if(!node) { return; }
 
-    uint8_t message[256 + 256];
-    memcpy(message, msg->challenge_hidden.bytes, msg->challenge_hidden.size);
-    const int len = strlen(msg->challenge_visual);
-    memcpy(message + msg->challenge_hidden.size, msg->challenge_visual, len);
+    uint8_t public_key[33];  // copy public key to temporary buffer
+    memcpy(public_key, node->public_key, sizeof(public_key));
 
+    if(msg->has_ecdsa_curve_name)
+    {
+        const ecdsa_curve *curve = get_curve_by_name(msg->ecdsa_curve_name);
+
+        if(curve)
+        {
+            // correct public key (since fsm_getDerivedNode uses secp256k1 curve)
+            ecdsa_get_public_key33(curve, node->private_key, public_key);
+        }
+    }
+
+    bool sign_ssh = msg->identity.has_proto && (strcmp(msg->identity.proto, "ssh") == 0);
+
+    int result = 0;
     layout_simple_message("Signing Identity...");
 
-    if(cryptoMessageSign(message, msg->challenge_hidden.size + len,
-                         node->private_key,
-                         resp->signature.bytes) == 0)
+    if(sign_ssh)    // SSH does not sign visual challenge
     {
-        resp->has_address = true;
-        uint8_t addr_raw[21];
-        ecdsa_get_address_raw(node->public_key, 0x00, addr_raw); // hardcoded Bitcoin address type
-        base58_encode_check(addr_raw, 21, resp->address, sizeof(resp->address));
+        result = sshMessageSign(msg->challenge_hidden.bytes, msg->challenge_hidden.size,
+                                node->private_key, resp->signature.bytes);
+    }
+    else
+    {
+        uint8_t digest[64];
+        sha256_Raw(msg->challenge_hidden.bytes, msg->challenge_hidden.size, digest);
+        sha256_Raw((const uint8_t *)msg->challenge_visual, strlen(msg->challenge_visual),
+                   digest + 32);
+        result = cryptoMessageSign(digest, 64, node->private_key, resp->signature.bytes);
+    }
+
+    if(result == 0)
+    {
+        if(sign_ssh)
+        {
+            resp->has_address = false;
+        }
+        else
+        {
+            resp->has_address = true;
+            uint8_t addr_raw[21];
+            ecdsa_get_address_raw(node->public_key, 0x00, addr_raw); // hardcoded Bitcoin address type
+            base58_encode_check(addr_raw, 21, resp->address, sizeof(resp->address));
+        }
+
         resp->has_public_key = true;
         resp->public_key.size = 33;
-        memcpy(resp->public_key.bytes, node->public_key, 33);
+        memcpy(resp->public_key.bytes, public_key, 33);
         resp->has_signature = true;
         resp->signature.size = 65;
         msg_write(MessageType_MessageType_SignedIdentity, resp);
