@@ -37,6 +37,18 @@
 #include "fsm.h"
 #include "app_layout.h"
 
+/* === Defines ============================================================= */
+#define APP_MAJOR_VER   "MajorVer=" VERSION_STR(MAJOR_VERSION)
+#define APP_MINOR_VER   "MinorVer=" VERSION_STR(MINOR_VERSION)
+#define APP_PATCH_VER   "PatchVer=" VERSION_STR(PATCH_VERSION)
+
+/* === Defines ============================================================= */
+
+/* These variables will be used by host application to read the version info. */
+const char *const maj_ver   = APP_MAJOR_VER;
+const char *const min_ver   = APP_MINOR_VER;
+const char *const patch_ver = APP_PATCH_VER;
+
 /* === Private Functions =================================================== */
 
 /*

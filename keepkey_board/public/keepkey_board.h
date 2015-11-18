@@ -60,6 +60,9 @@
 #define MEDIUM_STR_BUF      64
 #define LARGE_STR_BUF       128
 
+#define VERSION_NUM(x) #x
+#define VERSION_STR(x) VERSION_NUM(x)
+
 /* === Typedefs ============================================================ */
 
 /* Flash metadata structure which will contains unique identifier
