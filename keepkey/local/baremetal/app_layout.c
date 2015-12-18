@@ -405,6 +405,46 @@ void layout_transaction_notification(const char *amount, const char *address,
 }
 
 /*
+ * layout_xpub_address_notification() - Display extended public address (xpub) notification for subwallet
+ *
+ * INPUT
+ *     - desc: description of address being shown (normal or multisig)
+ *     - address: address to display both as string
+ *     - type: notification type
+ * OUTPUT
+ *      none
+ */
+void layout_xpub_address_notification(const char *desc, const char *address,
+                                 NotificationType type)
+{
+    (void)desc;
+    call_leaving_handler();
+    layout_clear();
+
+    Canvas *canvas = layout_get_canvas();
+    DrawableParams sp;
+    const Font *address_font = get_body_font();
+
+    /* Unbold fonts if address becomes too long */
+    if(calc_str_width(address_font, address) > TRANSACTION_WIDTH)
+    {
+        address_font = get_body_font();
+    }
+
+    /* Draw address */
+    /* Determine vertical alignment and body width */
+    sp.y =  TOP_MARGIN_FOR_THREE_LINES;
+    sp.y += font_height(address_font) + ADDRESS_XPUB_TOP_MARGIN;
+    sp.x = LEFT_MARGIN;
+    sp.color = BODY_COLOR;
+    draw_string(canvas, address_font, address, &sp, TRANSACTION_WIDTH - 25,
+                font_height(address_font) + BODY_FONT_LINE_PADDING);
+
+    layout_address(address);
+    layout_notification_icon(type, &sp);
+}
+
+/*
  * layout_address_notification() - Display address notification
  *
  * INPUT
@@ -446,7 +486,7 @@ void layout_address_notification(const char *desc, const char *address,
         sp.y = TOP_MARGIN_FOR_ONE_LINE;
         sp.x = MULTISIG_LEFT_MARGIN;
         sp.color = BODY_COLOR;
-        draw_string(canvas, address_font, desc, &sp, TRANSACTION_WIDTH,
+        draw_string(canvas, address_font, desc, &sp, TRANSACTION_WIDTH - 2,
                     font_height(address_font) + BODY_FONT_LINE_PADDING);
     }
 

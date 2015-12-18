@@ -79,6 +79,7 @@
 
 /* QR */
 #define ADDRESS_TOP_MARGIN      16
+#define ADDRESS_XPUB_TOP_MARGIN 14
 #define MULTISIG_LEFT_MARGIN    40
 #define QR_DISPLAY_SCALE        1
 #define QR_DISPLAY_X            4
@@ -107,6 +108,8 @@ void layout_screensaver(void);
 void layout_tx_info(const char *address, uint64_t amount_in_satoshi);
 void layout_transaction_notification(const char *amount, const char *address,
                                      NotificationType type);
+void layout_xpub_address_notification(const char *desc, const char *address,
+                                      NotificationType type);
 void layout_address_notification(const char *desc, const char *address,
                                  NotificationType type);
 void layout_pin(const char *prompt, char *pin);

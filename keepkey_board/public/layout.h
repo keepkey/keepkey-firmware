@@ -38,6 +38,7 @@
 #define TWO_LINES 2
 #define TOP_MARGIN_FOR_ONE_LINE 20
 #define TOP_MARGIN_FOR_TWO_LINES 13
+#define TOP_MARGIN_FOR_THREE_LINES 0
 
 /* Margin */
 #define TOP_MARGIN  7

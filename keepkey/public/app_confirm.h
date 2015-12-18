@@ -40,6 +40,7 @@ bool confirm_transaction_output(const char *amount, const char *to);
 bool confirm_transaction(const char *total_amount, const char *fee);
 bool confirm_load_device(bool is_node);
 bool confirm_address(const char *desc, const char *address);
+bool confirm_xpub_address(const char *desc, const char *address);
 bool confirm_sign_identity(const IdentityType *identity, const char *challenge);
 
 #endif
