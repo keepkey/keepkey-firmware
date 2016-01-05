@@ -38,16 +38,14 @@
 #include "app_layout.h"
 
 /* === Defines ============================================================= */
-#define APP_MAJOR_VER   "MajorVer=" VERSION_STR(MAJOR_VERSION)
-#define APP_MINOR_VER   "MinorVer=" VERSION_STR(MINOR_VERSION)
-#define APP_PATCH_VER   "PatchVer=" VERSION_STR(PATCH_VERSION)
+#define APP_MAJOR_VERSION "MajorVersion=" VERSION_STR(MAJOR_VERSION)
+#define APP_MINOR_VERSION "MinorVersion=" VERSION_STR(MINOR_VERSION)
+#define APP_PATCH_VERSION "PatchVersion=" VERSION_STR(PATCH_VERSION)
 
-/* === Defines ============================================================= */
-
-/* These variables will be used by host application to read the version info. */
-const char *const maj_ver   = APP_MAJOR_VER;
-const char *const min_ver   = APP_MINOR_VER;
-const char *const patch_ver = APP_PATCH_VER;
+/* These variables will be used by host application to read the version info */
+const char *const major_version = APP_MAJOR_VERSION;
+const char *const minor_version = APP_MINOR_VERSION;
+const char *const patch_version = APP_PATCH_VERSION;
 
 /* === Private Functions =================================================== */
 
@@ -68,10 +66,10 @@ static void exec(void)
     display_refresh();
 }
 
-/* 
+/*
  * screen_test() - Preform a screen test if device is in manufacture mode
  *
- * INPUT  
+ * INPUT
  *      none
  * OUTPUT
  *      none
@@ -84,7 +82,7 @@ static void screen_test(void)
         layout_screen_test();
     }
 }
-    
+
 /* === Functions =========================================================== */
 
 /*
@@ -113,7 +111,7 @@ int main(void)
     fsm_init();
 
     led_func(SET_GREEN_LED);
-    
+
     screen_test();
 
     /* Enable interrupt for timer */
