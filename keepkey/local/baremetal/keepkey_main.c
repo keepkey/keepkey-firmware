@@ -38,14 +38,13 @@
 #include "app_layout.h"
 
 /* === Defines ============================================================= */
-#define APP_MAJOR_VERSION "MajorVersion=" VERSION_STR(MAJOR_VERSION)
-#define APP_MINOR_VERSION "MinorVersion=" VERSION_STR(MINOR_VERSION)
-#define APP_PATCH_VERSION "PatchVersion=" VERSION_STR(PATCH_VERSION)
+#define APP_VERSIONS "VERSION" \
+                      VERSION_STR(MAJOR_VERSION)  "." \
+                      VERSION_STR(MINOR_VERSION)  "." \
+                      VERSION_STR(PATCH_VERSION)
 
 /* These variables will be used by host application to read the version info */
-const char *const major_version = APP_MAJOR_VERSION;
-const char *const minor_version = APP_MINOR_VERSION;
-const char *const patch_version = APP_PATCH_VERSION;
+const char *const application_version = APP_VERSIONS;
 
 /* === Private Functions =================================================== */
 
