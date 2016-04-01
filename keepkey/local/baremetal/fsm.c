@@ -481,6 +481,12 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 {
     RESP_INIT(PublicKey);
 
+	if (!storage_isInitialized()) 
+    {
+		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+		return;
+	}
+
     if(!pin_protect_cached())
     {
         go_home();
@@ -504,6 +510,16 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
             ecdsa_get_public_key33(curve, node->private_key, public_key);
         }
     }
+
+	if (msg->has_show_display && msg->show_display) 
+    {
+		layoutPublicKey(public_key);
+		if (!protectButton(ButtonRequestType_ButtonRequest_PublicKey, true)) {
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show public key cancelled");
+			layoutHome();
+			return;
+		}
+	}
 
     resp->node.depth = node->depth;
     resp->node.fingerprint = node->fingerprint;
@@ -586,6 +602,13 @@ void fsm_msgResetDevice(ResetDevice *msg)
 
 void fsm_msgSignTx(SignTx *msg)
 {
+
+	if (!storage_isInitialized()) 
+    {
+		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+		return;
+	}
+
     if(msg->inputs_count < 1)
     {
         fsm_sendFailure(FailureType_Failure_Other,
@@ -727,6 +750,13 @@ void fsm_msgApplySettings(ApplySettings *msg)
 
 void fsm_msgCipherKeyValue(CipherKeyValue *msg)
 {
+
+	if (!storage_isInitialized()) 
+    {
+		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+		return;
+	}
+
     if(!msg->has_key)
     {
         fsm_sendFailure(FailureType_Failure_SyntaxError, "No key provided");
@@ -811,6 +841,12 @@ void fsm_msgClearSession(ClearSession *msg)
 void fsm_msgGetAddress(GetAddress *msg)
 {
     RESP_INIT(Address);
+
+	if (!storage_isInitialized()) 
+    {
+		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+		return;
+	}
 
     if(!pin_protect_cached())
     {
@@ -898,6 +934,12 @@ void fsm_msgSignMessage(SignMessage *msg)
 {
     RESP_INIT(MessageSignature);
 
+	if (!storage_isInitialized()) 
+    {
+		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+		return;
+	}
+
     if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall, "Sign Message",
                 (char *)msg->message.bytes))
     {
@@ -983,6 +1025,12 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 void fsm_msgSignIdentity(SignIdentity *msg)
 {
     RESP_INIT(SignedIdentity);
+
+	if (!storage_isInitialized()) 
+    {
+		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+		return;
+	}
 
     if(!confirm_sign_identity(&(msg->identity),
                               msg->has_challenge_visual ? msg->challenge_visual : 0))
@@ -1086,6 +1134,13 @@ void fsm_msgSignIdentity(SignIdentity *msg)
 
 void fsm_msgEncryptMessage(EncryptMessage *msg)
 {
+
+	if (!storage_isInitialized()) 
+    {
+		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+		return;
+	}
+
     if(!msg->has_pubkey)
     {
         fsm_sendFailure(FailureType_Failure_SyntaxError, "No public key provided");
@@ -1171,6 +1226,13 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 
 void fsm_msgDecryptMessage(DecryptMessage *msg)
 {
+
+	if (!storage_isInitialized()) 
+    {
+		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+		return;
+	}
+
     if(!msg->has_nonce)
     {
         fsm_sendFailure(FailureType_Failure_SyntaxError, "No nonce provided");
