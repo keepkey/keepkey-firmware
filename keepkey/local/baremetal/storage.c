@@ -788,7 +788,7 @@ bool storage_get_root_node(HDNode *node)
 }
 
 /*
- * storage_isInitialized() - Is device initialized?
+ * storage_is_initialized() - Is device initialized?
  *
  * INPUT
  *     none
