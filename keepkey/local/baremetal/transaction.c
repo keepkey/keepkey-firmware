@@ -20,6 +20,7 @@
 /* === Includes ============================================================ */
 
 #include <string.h>
+#include <stdio.h>
 
 #include <ecdsa.h>
 #include <ripemd160.h>
@@ -33,6 +34,39 @@
 #include "util.h"
 #include "crypto.h"
 #include "app_confirm.h"
+
+#include <keepkey_usart.h>
+
+/* === Private Variables =================================================== */
+static void node_hex_to_string(ButtonRequestType *bt_type, char * address_n_str, TxOutputType *TxOut)
+{
+    size_t i;
+    char temp_bfr[20];
+
+    if(TxOut->address_n[0] == 0x8000002C && TxOut->address_n[1] == 0x80000000)
+    {
+        snprintf(address_n_str, BODY_CHAR_MAX, "Account #%lu", TxOut->address_n[2] & 0x7ffffff);
+        *bt_type = ButtonRequestType_ButtonRequest_ConfirmTransferToAccount;
+    }
+    else
+    {
+        snprintf(address_n_str, BODY_CHAR_MAX, "Node path : m");
+        for(i = 0; i < TxOut->address_n_count; i++)
+        {
+            if(TxOut->address_n[i] & 0x80000000)
+            {
+                snprintf(temp_bfr, 20, "/%lu\'", TxOut->address_n[i] & 0x7ffffff);
+            }
+            else
+            {
+                snprintf(temp_bfr, 20, "/%lu", TxOut->address_n[i] & 0x7ffffff);
+            }
+                strncat(address_n_str, temp_bfr, 10);
+        }
+        *bt_type = ButtonRequestType_ButtonRequest_ConfirmTransferToNodePath;
+    }
+    dbg_print("bt_type =%d, address_n_str %s\n\r", *bt_type, address_n_str);
+}
 
 /* === Functions =========================================================== */
 
@@ -66,27 +100,39 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 	out->amount = in->amount;
 	uint8_t addr_raw[21];
 	char amount_str[32];
+	char node_addr_str[40];
+	ButtonRequestType bt_req_type;
 
 	if (in->script_type == OutputScriptType_PAYTOADDRESS) {
 
 		// address_n provided-> change address -> calculate from address_n
 		if (in->address_n_count > 0) {
+			/* user confirmation for pay to node path */
+			if (needs_confirm) {
+				coin_amnt_to_str(coin, in->amount, amount_str, sizeof(amount_str));
+				memset(node_addr_str, 0, sizeof(node_addr_str));
+				node_hex_to_string(&bt_req_type, node_addr_str, in);
+				if(!confirm_transaction_output(bt_req_type, amount_str, node_addr_str))
+				{
+					return -1;
+				}
+			}
 			HDNode node;
-			memcpy(&node, root, sizeof(HDNode));
+    		memcpy(&node, root, sizeof(HDNode));
 
-			if (hdnode_private_ckd_cached(&node, in->address_n, in->address_n_count) == 0) {
+			if (hdnode_private_ckd_cached(&node, in->address_n, in->address_n_count) == 0) 
+			{
 				return 0;
 			}
-
 			animating_progress_handler();
-
 			ecdsa_get_address_raw(node.public_key, coin->address_type, addr_raw);
+
 		} else
 		if (in->has_address) { // address provided -> regular output
 			if (needs_confirm) {
 				coin_amnt_to_str(coin, in->amount, amount_str, sizeof(amount_str));
 
-				if(!confirm_transaction_output(amount_str, in->address))
+				if(!confirm_transaction_output(ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str, in->address))
 				{
 					return -1;
 				}
@@ -121,7 +167,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		if (needs_confirm) {
 			coin_amnt_to_str(coin, in->amount, amount_str, sizeof(amount_str));
 
-			if(!confirm_transaction_output(amount_str, in->address))
+			if(!confirm_transaction_output(ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str, in->address))
 			{
 				return -1;
 			}
@@ -148,7 +194,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 			base58_encode_check(addr_raw, 21, in->address, sizeof(in->address));
 			coin_amnt_to_str(coin, in->amount, amount_str, sizeof(amount_str));
 
-			if(!confirm_transaction_output(amount_str, in->address))
+			if(!confirm_transaction_output(ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str, in->address))
 			{
 				return -1;
 			}

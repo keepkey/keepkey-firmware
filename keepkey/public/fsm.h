@@ -33,6 +33,8 @@
 
 #define ENTROPY_BUF sizeof(((Entropy *)NULL)->entropy.bytes)
 
+#define BTC_ADDRESS_SIZE     35         /* BitCoin Addres */
+
 /* === Functions =========================================================== */
 
 void fsm_init(void);

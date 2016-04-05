@@ -33,6 +33,8 @@
 #include "home_sm.h"
 #include "app_confirm.h"
 
+#include <keepkey_usart.h>
+
 /* === Private Variables =================================================== */
 
 static uint32_t inputs_count;
@@ -254,6 +256,29 @@ void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinTyp
 	send_req_1_input();
 }
 
+bool check_valid_output_address(TxOutputType *txout_ptr)
+{
+    bool retval = false ; 
+    switch(txout_ptr->address_type)
+    {
+        case OutputAddressType_OutputAddressType_spend:
+            if(txout_ptr->has_address)
+            {
+                /*valid address type */
+                retval = true; 
+            }
+            break;
+        case OutputAddressType_OutputAddressType_transfer:
+        case OutputAddressType_OutputAddressType_change:
+            if(txout_ptr->address_n_count)
+            {
+                /*valid address type */
+                retval = true; 
+            }
+            break;
+    }
+    return(retval);
+}
 void signing_txack(TransactionType *tx)
 {
 	if (!signing) {
@@ -359,6 +384,7 @@ void signing_txack(TransactionType *tx)
 			 *  Ask for permission.
 			 */
 			bool is_change = false;
+            dbg_print("pkhoo - address_type = %d\n\r", tx->outputs->address_type);
 			if (tx->outputs[0].script_type == OutputScriptType_PAYTOMULTISIG &&
 			    tx->outputs[0].has_multisig &&
 			    multisig_fp_set && !multisig_fp_mismatch) {
@@ -371,11 +397,35 @@ void signing_txack(TransactionType *tx)
 				if (memcmp(multisig_fp, h, 32) == 0) {
 					is_change = true;
 				}
-			} else
-			if (tx->outputs[0].script_type == OutputScriptType_PAYTOADDRESS &&
-			    tx->outputs[0].address_n_count > 0) {
-				is_change = true;
-			}
+                        } else {
+
+                            if(tx->outputs[0].has_address_type)
+                            {
+                                if(check_valid_output_address(tx->outputs) == false)
+                                {
+                                    fsm_sendFailure(FailureType_Failure_Other, "Invalid output address detected");
+                                    signing_abort();
+                                    return;
+                                }
+                                if (tx->outputs[0].script_type == OutputScriptType_PAYTOADDRESS && 
+                                        tx->outputs[0].address_n_count > 0) 
+                                {
+                                    if(tx->outputs[0].address_type == OutputAddressType_OutputAddressType_change)
+                                    {
+                                        is_change = true;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                /* path to handle backward compatibility with older client interface */
+                                if (tx->outputs[0].script_type == OutputScriptType_PAYTOADDRESS &&
+			                      tx->outputs[0].address_n_count > 0) 
+                                {
+                                    is_change = true;
+                                }
+                            }
+                        }
 
 			if (is_change) {
 				if (change_spend == 0) { // not set
@@ -384,7 +434,7 @@ void signing_txack(TransactionType *tx)
 					fsm_sendFailure(FailureType_Failure_Other, "Only one change output allowed");
 					signing_abort();
 					return;
-				}
+			    }
 			}
 
 			spending += tx->outputs[0].amount;
@@ -413,14 +463,14 @@ void signing_txack(TransactionType *tx)
 					go_home();
 					return;
 				}
-				uint64_t fee = to_spend - spending;
-				uint32_t tx_est_size = transactionEstimateSizeKb(inputs_count, outputs_count);
-				char total_amount_str[32];
+                        uint64_t fee = to_spend - spending;
+                        uint32_t tx_est_size = transactionEstimateSizeKb(inputs_count, outputs_count);
+                        char total_amount_str[32];
 		        char fee_str[32];
 
 		        coin_amnt_to_str(coin, fee, fee_str, sizeof(fee_str));
 
-				if (fee > (uint64_t)tx_est_size * coin->maxfee_kb) {
+                        if (fee > (uint64_t)tx_est_size * coin->maxfee_kb) {
 					if (!confirm(ButtonRequestType_ButtonRequest_FeeOverThreshold,
 		              "Confirm Fee", "%s", fee_str))
 		            {
@@ -428,22 +478,22 @@ void signing_txack(TransactionType *tx)
 		              go_home();
 		              return;
 		            }
-					animating_progress_handler();
-				}
-				// last confirmation
-				coin_amnt_to_str(coin, to_spend - change_spend, total_amount_str, sizeof(total_amount_str));
+                            animating_progress_handler();
+                        }
+                        // last confirmation
+                        coin_amnt_to_str(coin, to_spend - change_spend, total_amount_str, sizeof(total_amount_str));
 
 		        if(!confirm_transaction(total_amount_str, fee_str))
 		        {
-		        	fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
+		            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
 		            signing_abort();
 		            return;
 		        }
-				// Everything was checked, now phase 2 begins and the transaction is signed.
-				animating_progress_handler();
-				idx1 = 0;
-				idx2 = 0;
-				send_req_4_input();
+		        // Everything was checked, now phase 2 begins and the transaction is signed.
+			animating_progress_handler();
+			idx1 = 0;
+			idx2 = 0;
+			send_req_4_input();
 			}
 			return;
 		}

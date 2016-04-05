@@ -56,6 +56,7 @@
 #include "recovery.h"
 #include "recovery_cipher.h"
 
+#include <keepkey_usart.h>
 /* === Private Variables =================================================== */
 
 static uint8_t msg_resp[MAX_FRAME_SIZE];
@@ -523,6 +524,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
     resp->has_xpub = true;
     hdnode_serialize_public(node, resp->xpub, sizeof(resp->xpub));
 
+    /* display key QR code */
     if(msg->has_show_display && msg->show_display)
     {
         if(!confirm_xpub_address("", resp->xpub))
@@ -593,11 +595,11 @@ void fsm_msgResetDevice(ResetDevice *msg)
 void fsm_msgSignTx(SignTx *msg)
 {
 
-	if (!storage_is_initialized()) 
+    if (!storage_is_initialized()) 
     {
-		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-		return;
-	}
+        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+        return;
+    }
 
     if(msg->inputs_count < 1)
     {
@@ -625,6 +627,7 @@ void fsm_msgSignTx(SignTx *msg)
 
     if(!coin) { return; }
 
+    /* master node */
     const HDNode *node = fsm_getDerivedNode(0, 0);
 
     if(!node) { return; }
@@ -832,11 +835,11 @@ void fsm_msgGetAddress(GetAddress *msg)
 {
     RESP_INIT(Address);
 
-	if (!storage_is_initialized()) 
+    if (!storage_is_initialized()) 
     {
-		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-		return;
-	}
+        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+        return;
+    }
 
     if(!pin_protect_cached())
     {
@@ -1016,11 +1019,11 @@ void fsm_msgSignIdentity(SignIdentity *msg)
 {
     RESP_INIT(SignedIdentity);
 
-	if (!storage_is_initialized()) 
+    if (!storage_is_initialized()) 
     {
-		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-		return;
-	}
+        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+        return;
+    }
 
     if(!confirm_sign_identity(&(msg->identity),
                               msg->has_challenge_visual ? msg->challenge_visual : 0))
@@ -1125,11 +1128,11 @@ void fsm_msgSignIdentity(SignIdentity *msg)
 void fsm_msgEncryptMessage(EncryptMessage *msg)
 {
 
-	if (!storage_is_initialized()) 
+    if (!storage_is_initialized()) 
     {
-		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-		return;
-	}
+        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+        return;
+    }
 
     if(!msg->has_pubkey)
     {
@@ -1219,8 +1222,8 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
 
     if (!storage_is_initialized()) 
     {
-		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-		return;
+        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+        return;
     }
 
     if(!msg->has_nonce)

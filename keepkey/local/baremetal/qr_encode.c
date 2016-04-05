@@ -30,6 +30,7 @@
 
 #include "qr_encode.h"
 #include "qr_consts.h"
+#include "keepkey_board/public/keepkey_usart.h"
 
 /* === Variables =========================================================== */
 
@@ -944,7 +945,7 @@ void putBitToPos(uint32_t pos, int bw, uint8_t *bits)
 int qr_encode(int level, int version, const char *source, size_t source_len, uint8_t *result)
 {
 	int i, j;
-	const bool auto_extent = 0;
+	const bool auto_extent = 1;
 	m_nLevel = level;
 	m_nMaskingNo = -1;
 
@@ -977,6 +978,8 @@ int qr_encode(int level, int version, const char *source, size_t source_len, uin
 			}
 		}
 	}
+
+        dbg_print("version = %d, nEncodeVer = %d, m_nVersion = %d\n\r", version, nEncodeVersion, m_nVersion );
 
 	// Terminator addition code "0000"
 	int ncDataCodeWord = QR_VersonInfo[m_nVersion].ncDataCodeWord[level];
