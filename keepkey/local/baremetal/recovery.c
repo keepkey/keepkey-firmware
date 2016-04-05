@@ -199,6 +199,8 @@ void recovery_abort(bool send_failure)
     }
 }
 
+/* === Debug Functions =========================================================== */
+#if DEBUG_LINK
 const char *recovery_get_fake_word(void)
 {
 	return fake_word;
@@ -208,3 +210,4 @@ uint32_t recovery_get_word_pos(void)
 {
 	return word_pos;
 }
+#endif

@@ -42,12 +42,15 @@ void pbkdf2_hmac_sha256(const uint8_t *pass, int passlen, uint8_t *salt, int sal
 		salt[saltlen + 3] = i & 0xFF;
 		hmac_sha256(pass, passlen, salt, saltlen + 4, g);
 		memcpy(f, g, HMACLEN);
+		if (progress_callback) {
+			progress_callback(0, iterations);
+		}
 		for (j = 1; j < iterations; j++) {
 			hmac_sha256(pass, passlen, g, HMACLEN, g);
 			for (k = 0; k < HMACLEN; k++) {
 				f[k] ^= g[k];
 			}
-			if (progress_callback) {
+			if (progress_callback && (j % 256 == 255)) {
 				progress_callback(j + 1, iterations);
 			}
 		}
@@ -77,12 +80,15 @@ void pbkdf2_hmac_sha512(const uint8_t *pass, int passlen, uint8_t *salt, int sal
 		salt[saltlen + 3] = i & 0xFF;
 		hmac_sha512(pass, passlen, salt, saltlen + 4, g);
 		memcpy(f, g, HMACLEN);
+		if (progress_callback) {
+			progress_callback(0, iterations);
+		}
 		for (j = 1; j < iterations; j++) {
 			hmac_sha512(pass, passlen, g, HMACLEN, g);
 			for (k = 0; k < HMACLEN; k++) {
 				f[k] ^= g[k];
 			}
-			if (progress_callback) {
+			if (progress_callback && (j % 256 == 255)) {
 				progress_callback(j + 1, iterations);
 			}
 		}
