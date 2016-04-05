@@ -273,18 +273,6 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
 
 /* === Functions =========================================================== */
 
-/*
- * get_pin_matrix() - Gets randomized PIN matrix
- *
- * INPUT
- *     none
- * OUTPUT
- *     randomized PIN
- */
-const char *get_pin_matrix(void)
-{
-    return pin_matrix;
-}
 
 /*
  * pin_protect() - Authenticate user PIN for device access
@@ -412,3 +400,19 @@ bool change_pin(void)
 
     return ret;
 }
+
+/* === Debug Functions =========================================================== */
+#if DEBUG_LINK
+/*
+ * get_pin_matrix() - Gets randomized PIN matrix
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     randomized PIN
+ */
+const char *get_pin_matrix(void)
+{
+    return pin_matrix;
+}
+#endif

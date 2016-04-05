@@ -567,18 +567,7 @@ void storage_set_pin(const char *pin)
     }
 }
 
-/*
- * storage_get_pin() - Returns PIN
- *
- * INPUT
- *     none
- * OUTPUT
- *     device's PIN
- */
-const char *storage_get_pin(void)
-{
-    return (shadow_config.storage.has_pin) ? shadow_config.storage.pin : NULL;
-}
+
 
 /*
  * session_cache_pin() - Save pin in session cache
@@ -936,19 +925,6 @@ bool storage_has_mnemonic(void)
     return shadow_config.storage.has_mnemonic;
 }
 
-/*
- * storage_get_mnemonic() - Get mnemonic from flash
- *
- * INPUT
- *     none
- * OUTPUT
- *     mnemonic from storage
- *
- */
-const char *storage_get_mnemonic(void)
-{
-    return shadow_config.storage.mnemonic;
-}
 
 /*
  * storage_get_shadow_mnemonic() - Get mnemonic from shadow memory
@@ -990,19 +966,6 @@ bool storage_has_node(void)
 }
 
 /*
- * storage_get_node() - Get HDNode
- *
- * INPUT
- *     none
- * OUTPUT
- *     HDNode from storage
- */
-HDNodeType *storage_get_node(void)
-{
-    return &shadow_config.storage.node;
-}
-
-/*
  * get_storage_location() - Get storage data start address
  *
  * INPUT -
@@ -1016,3 +979,46 @@ Allocation get_storage_location(void)
     return(storage_location);
 }
 
+/* === Debug Functions =========================================================== */
+#if DEBUG_LINK
+/*
+ * storage_get_pin() - Returns PIN
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     device's PIN
+ */
+const char *storage_get_pin(void)
+{
+    return (shadow_config.storage.has_pin) ? shadow_config.storage.pin : NULL;
+}
+
+/*
+ * storage_get_mnemonic() - Get mnemonic from flash
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     mnemonic from storage
+ *
+ */
+const char *storage_get_mnemonic(void)
+{
+    return shadow_config.storage.mnemonic;
+}
+
+/*
+ * storage_get_node() - Get HDNode
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     HDNode from storage
+ */
+HDNodeType *storage_get_node(void)
+{
+    return &shadow_config.storage.node;
+}
+
+#endif
