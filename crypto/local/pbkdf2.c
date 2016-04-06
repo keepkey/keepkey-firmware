@@ -50,7 +50,7 @@ void pbkdf2_hmac_sha256(const uint8_t *pass, int passlen, uint8_t *salt, int sal
 			for (k = 0; k < HMACLEN; k++) {
 				f[k] ^= g[k];
 			}
-			if (progress_callback && (j % 256 == 255)) {
+			if (progress_callback) {
 				progress_callback(j + 1, iterations);
 			}
 		}
@@ -88,7 +88,7 @@ void pbkdf2_hmac_sha512(const uint8_t *pass, int passlen, uint8_t *salt, int sal
 			for (k = 0; k < HMACLEN; k++) {
 				f[k] ^= g[k];
 			}
-			if (progress_callback && (j % 256 == 255)) {
+			if (progress_callback) {
 				progress_callback(j + 1, iterations);
 			}
 		}
