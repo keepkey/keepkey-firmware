@@ -197,19 +197,18 @@ bool confirm_load_device(bool is_node)
 }
 
 /*
- * confirm_xpub_address() - Show extended public key confirmation for subwallet
+ * confirm_xpub() - Show extended public key confirmation
  *
  * INPUT
- *      - desc: description to show with address
- *      - address: address to display as string
+ *      - xpub: xpub to display as string
  * OUTPUT
  *     true/false of confirmation
  *
  */
-bool confirm_xpub_address(const char *desc, const char *address)
+bool confirm_xpub(const char *xpub)
 {
-    return confirm_with_custom_layout(&layout_xpub_address_notification,
-                                      ButtonRequestType_ButtonRequest_Address, desc, address);
+    return confirm_with_custom_layout(&layout_xpub_notification,
+                                      ButtonRequestType_ButtonRequest_Address, "", xpub);
 
 }
 

@@ -108,7 +108,7 @@ void layout_screensaver(void);
 void layout_tx_info(const char *address, uint64_t amount_in_satoshi);
 void layout_transaction_notification(const char *amount, const char *address,
                                      NotificationType type);
-void layout_xpub_address_notification(const char *desc, const char *address,
+void layout_xpub_notification(const char *desc, const char *xpub,
                                       NotificationType type);
 void layout_address_notification(const char *desc, const char *address,
                                  NotificationType type);

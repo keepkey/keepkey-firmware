@@ -522,11 +522,12 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
     memcpy(resp->node.public_key.bytes, public_key, 33);
     resp->has_xpub = true;
     hdnode_serialize_public(node, resp->xpub, sizeof(resp->xpub));
+
     if(msg->has_show_display && msg->show_display)
     {
-        if(!confirm_xpub_address("", resp->xpub))
+        if(!confirm_xpub(resp->xpub))
         {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show extended public key cancelled");
             go_home();
             return;
         }
