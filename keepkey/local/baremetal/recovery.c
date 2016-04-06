@@ -200,6 +200,7 @@ void recovery_abort(bool send_failure)
 }
 
 /* === Debug Functions =========================================================== */
+
 #if DEBUG_LINK
 const char *recovery_get_fake_word(void)
 {
