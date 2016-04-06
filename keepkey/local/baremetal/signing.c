@@ -67,7 +67,8 @@ enum {
 const uint32_t version = 1;
 const uint32_t lock_time = 0;
 
-/* === Private functions=========================================================== */
+/* === Private Functions =================================================== */
+
 static bool check_valid_output_address(TxOutputType *txout_ptr)
 {
     bool retval = false ; 

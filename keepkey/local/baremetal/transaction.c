@@ -35,7 +35,8 @@
 #include "crypto.h"
 #include "app_confirm.h"
 
-/* === Private Variables =================================================== */
+/* === Private Functions =================================================== */
+
 static void node_hex_to_string(ButtonRequestType *bt_type, char * address_n_str, TxOutputType *TxOut)
 {
     size_t i;
