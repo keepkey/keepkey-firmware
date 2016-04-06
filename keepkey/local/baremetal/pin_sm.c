@@ -402,6 +402,7 @@ bool change_pin(void)
 }
 
 /* === Debug Functions =========================================================== */
+
 #if DEBUG_LINK
 /*
  * get_pin_matrix() - Gets randomized PIN matrix
