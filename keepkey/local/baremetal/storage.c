@@ -708,7 +708,7 @@ bool storage_get_root_node(HDNode *node)
         }
 
         if(shadow_config.storage.has_passphrase_protection &&
-                shadow_config.storage.passphrase_protection && strlen(sessionPassphrase))
+                shadow_config.storage.passphrase_protection && strlen(sessionPassphrase) > 0)
         {
             // decrypt hd node
             uint8_t secret[64];
