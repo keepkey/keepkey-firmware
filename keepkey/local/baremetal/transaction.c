@@ -41,10 +41,11 @@
 static void node_hex_to_string(ButtonRequestType *bt_type, char * address_n_str, TxOutputType *TxOut)
 {
     size_t i;
-    char temp_bfr[20];
+    char temp_bfr[15];
 
     if(TxOut->address_n[0] == 0x8000002C && TxOut->address_n[1] == 0x80000000)
     {
+        /* node starts with /44'/0'  */
         snprintf(address_n_str, BODY_CHAR_MAX, "Account #%lu", TxOut->address_n[2] & 0x7ffffff);
         *bt_type = ButtonRequestType_ButtonRequest_ConfirmTransferToAccount;
     }
@@ -55,13 +56,13 @@ static void node_hex_to_string(ButtonRequestType *bt_type, char * address_n_str,
         {
             if(TxOut->address_n[i] & 0x80000000)
             {
-                snprintf(temp_bfr, 20, "/%lu\'", TxOut->address_n[i] & 0x7ffffff);
+                snprintf(temp_bfr, sizeof(temp_bfr), "/%lu\'", TxOut->address_n[i] & 0x7ffffff);
             }
             else
             {
-                snprintf(temp_bfr, 20, "/%lu", TxOut->address_n[i] & 0x7ffffff);
+                snprintf(temp_bfr, sizeof(temp_bfr), "/%lu", TxOut->address_n[i] & 0x7ffffff);
             }
-                strncat(address_n_str, temp_bfr, 10);
+            strncat(address_n_str, temp_bfr, sizeof(temp_bfr));
         }
         *bt_type = ButtonRequestType_ButtonRequest_ConfirmTransferToNodePath;
     }
@@ -118,7 +119,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 				}
 			}
 			HDNode node;
-    		memcpy(&node, root, sizeof(HDNode));
+    		        memcpy(&node, root, sizeof(HDNode));
 
 			if (hdnode_private_ckd_cached(&node, in->address_n, in->address_n_count) == 0) 
 			{

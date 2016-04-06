@@ -69,6 +69,31 @@ enum {
 const uint32_t version = 1;
 const uint32_t lock_time = 0;
 
+/* === Private functions=========================================================== */
+static bool check_valid_output_address(TxOutputType *txout_ptr)
+{
+    bool retval = false ; 
+    switch(txout_ptr->address_type)
+    {
+        case OutputAddressType_OutputAddressType_spend:
+            if(txout_ptr->has_address)
+            {
+                /*valid address type */
+                retval = true; 
+            }
+            break;
+        case OutputAddressType_OutputAddressType_transfer:
+        case OutputAddressType_OutputAddressType_change:
+            if(txout_ptr->address_n_count)
+            {
+                /*valid address type */
+                retval = true; 
+            }
+            break;
+    }
+    return(retval);
+}
+
 /* === Functions =========================================================== */
 
 /*
@@ -256,29 +281,6 @@ void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinTyp
 	send_req_1_input();
 }
 
-bool check_valid_output_address(TxOutputType *txout_ptr)
-{
-    bool retval = false ; 
-    switch(txout_ptr->address_type)
-    {
-        case OutputAddressType_OutputAddressType_spend:
-            if(txout_ptr->has_address)
-            {
-                /*valid address type */
-                retval = true; 
-            }
-            break;
-        case OutputAddressType_OutputAddressType_transfer:
-        case OutputAddressType_OutputAddressType_change:
-            if(txout_ptr->address_n_count)
-            {
-                /*valid address type */
-                retval = true; 
-            }
-            break;
-    }
-    return(retval);
-}
 void signing_txack(TransactionType *tx)
 {
 	if (!signing) {

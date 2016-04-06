@@ -523,8 +523,6 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
     memcpy(resp->node.public_key.bytes, public_key, 33);
     resp->has_xpub = true;
     hdnode_serialize_public(node, resp->xpub, sizeof(resp->xpub));
-
-    /* display key QR code */
     if(msg->has_show_display && msg->show_display)
     {
         if(!confirm_xpub_address("", resp->xpub))
