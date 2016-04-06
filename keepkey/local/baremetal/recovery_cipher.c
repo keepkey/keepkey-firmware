@@ -477,6 +477,7 @@ bool recovery_cipher_abort(void)
 }
 
 /* === Debug Functions =========================================================== */
+
 #if DEBUG_LINK
 /*
  * recovery_get_cipher() - Gets current cipher being show on display
