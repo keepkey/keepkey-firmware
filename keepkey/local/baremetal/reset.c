@@ -197,6 +197,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 }
 
 /* === Debug Functions =========================================================== */
+
 #if DEBUG_LINK
 uint32_t reset_get_int_entropy(uint8_t *entropy)
 {
