@@ -135,10 +135,9 @@ bool confirm_decrypt_msg(const char *msg, const char *address)
  *     true/false of confirmation
  *
  */
-bool confirm_transaction_output(const char *amount, const char *to)
+bool confirm_transaction_output(ButtonRequestType bt_request, const char *amount, const char *to)
 {
-    return confirm_with_custom_layout(&layout_transaction_notification,
-                                      ButtonRequestType_ButtonRequest_ConfirmOutput, amount, to);
+    return confirm_with_custom_layout(&layout_transaction_notification, bt_request, amount, to);
 }
 
 /*

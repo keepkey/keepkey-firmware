@@ -33,6 +33,7 @@
 #include "app_layout.h"
 #include "app_resources.h"
 #include "qr_encode.h"
+#include <fsm.h>
 
 /* === Private Functions =================================================== */
 
@@ -387,7 +388,18 @@ void layout_transaction_notification(const char *amount, const char *address,
 
     /* Format amount line */
     char title[BODY_CHAR_MAX];
-    snprintf(title, BODY_CHAR_MAX, "Send %s to", amount);
+
+    /*base58 addresses can be 25-34 characters in length*/
+    if(strlen(address) <= 25)
+    {
+        /* display for sending funds to node address */
+        snprintf(title, BODY_CHAR_MAX, "Moving %s to", amount);
+    }
+    else
+    {
+        /* display for sending funds to base58BitCoin Address */
+        snprintf(title, BODY_CHAR_MAX, "Send %s to", amount);
+    }
 
     /* Draw amount */
     sp.x = LEFT_MARGIN;
@@ -440,7 +452,7 @@ void layout_xpub_address_notification(const char *desc, const char *address,
     draw_string(canvas, address_font, address, &sp, TRANSACTION_WIDTH - 25,
                 font_height(address_font) + BODY_FONT_LINE_PADDING);
 
-    layout_address(address);
+    /*show extended public key on display (no QR)*/
     layout_notification_icon(type, &sp);
 }
 
@@ -490,7 +502,9 @@ void layout_address_notification(const char *desc, const char *address,
                     font_height(address_font) + BODY_FONT_LINE_PADDING);
     }
 
+    /*show QR*/
     layout_address(address);
+    /*show bitcoin address */
     layout_notification_icon(type, &sp);
 }
 
@@ -572,10 +586,19 @@ void layout_address(const char *address)
     static unsigned char bitdata[QR_MAX_BITDATA];
     Canvas *canvas = layout_get_canvas();
 
-    int a, i, j;
-    int side = qr_encode(QR_LEVEL_M, 0, address, 0, bitdata);
+    int a, i, j, side;
 
-    if(side > 0 && side <= 29)
+    if(strlen(address) <= BTC_ADDRESS_SIZE)
+    {
+        side = qr_encode(QR_LEVEL_M, 0, address, 0, bitdata);
+    }
+    else
+    {
+        side = qr_encode(QR_LEVEL_M, 8, address, 0, bitdata);
+    }
+
+    /* Limit QR to version 1-9 (QR size <= 53) */
+    if(side > 0 && side <= 53)
     {
         /* Draw QR background */
         draw_box_simple(canvas, 0xFF, QR_DISPLAY_X, QR_DISPLAY_Y,
