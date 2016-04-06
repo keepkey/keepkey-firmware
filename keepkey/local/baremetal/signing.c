@@ -33,8 +33,6 @@
 #include "home_sm.h"
 #include "app_confirm.h"
 
-#include <keepkey_usart.h>
-
 /* === Private Variables =================================================== */
 
 static uint32_t inputs_count;
@@ -386,7 +384,7 @@ void signing_txack(TransactionType *tx)
 			 *  Ask for permission.
 			 */
 			bool is_change = false;
-            dbg_print("pkhoo - address_type = %d\n\r", tx->outputs->address_type);
+
 			if (tx->outputs[0].script_type == OutputScriptType_PAYTOMULTISIG &&
 			    tx->outputs[0].has_multisig &&
 			    multisig_fp_set && !multisig_fp_mismatch) {

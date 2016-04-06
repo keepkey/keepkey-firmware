@@ -35,8 +35,6 @@
 #include "crypto.h"
 #include "app_confirm.h"
 
-#include <keepkey_usart.h>
-
 /* === Private Variables =================================================== */
 static void node_hex_to_string(ButtonRequestType *bt_type, char * address_n_str, TxOutputType *TxOut)
 {
@@ -66,7 +64,6 @@ static void node_hex_to_string(ButtonRequestType *bt_type, char * address_n_str,
         }
         *bt_type = ButtonRequestType_ButtonRequest_ConfirmTransferToNodePath;
     }
-    dbg_print("bt_type =%d, address_n_str %s\n\r", *bt_type, address_n_str);
 }
 
 /* === Functions =========================================================== */

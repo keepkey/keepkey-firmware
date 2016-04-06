@@ -34,7 +34,7 @@
 #include "app_resources.h"
 #include "qr_encode.h"
 #include <fsm.h>
-#include "keepkey_board/public/keepkey_usart.h"
+
 /* === Private Functions =================================================== */
 
 /*
@@ -596,8 +596,6 @@ void layout_address(const char *address)
     {
         side = qr_encode(QR_LEVEL_M, 8, address, 0, bitdata);
     }
-
-    dbg_print("addrLen = %d, size = %d\n\r", strlen(address), side);
 
     /* Limit QR to version 1-9 (QR size <= 53) */
     if(side > 0 && side <= 53)

@@ -56,7 +56,6 @@
 #include "recovery.h"
 #include "recovery_cipher.h"
 
-#include <keepkey_usart.h>
 /* === Private Variables =================================================== */
 
 static uint8_t msg_resp[MAX_FRAME_SIZE];
