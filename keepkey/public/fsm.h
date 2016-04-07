@@ -33,7 +33,7 @@
 
 #define ENTROPY_BUF sizeof(((Entropy *)NULL)->entropy.bytes)
 
-#define BTC_ADDRESS_SIZE     35         /* BitCoin Addres */
+#define BTC_ADDRESS_SIZE     35
 
 /* === Functions =========================================================== */
 
