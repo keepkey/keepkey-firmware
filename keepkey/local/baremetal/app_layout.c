@@ -578,14 +578,7 @@ void layout_address(const char *address)
 
     int a, i, j, side;
 
-    if(strlen(address) <= BTC_ADDRESS_SIZE)
-    {
-        side = qr_encode(QR_LEVEL_M, 0, address, 0, bitdata);
-    }
-    else
-    {
-        side = qr_encode(QR_LEVEL_M, 8, address, 0, bitdata);
-    }
+    side = qr_encode(QR_LEVEL_M, 0, address, 0, bitdata);
 
     /* Limit QR to version 1-9 (QR size <= 53) */
     if(side > 0 && side <= 53)
