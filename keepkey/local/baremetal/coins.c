@@ -27,12 +27,15 @@
 
 const CoinType coins[COINS_COUNT] =
 {
-    {true, "Bitcoin",  true, "BTC",  true,   0, true,     100000, true,   5},
-    {true, "Testnet",  true, "TEST", true, 111, true,   10000000, true, 196},
-    {true, "Namecoin", true, "NMC",  true,  52, true,   10000000, true,   5},
-    {true, "Litecoin", true, "LTC",  true,  48, true,    1000000, true,   5},
-    {true, "Dogecoin", true, "DOGE", true,  30, true, 1000000000, true,  22},
-    {true, "Dash",     true, "DASH", true,  76, true,     100000, true,  16},
+    {true, "Bitcoin",          true, "BTC",  true,   0, true,            100000, true,   5, true, NetworkType_BITCOIN},
+    {true, "Testnet",          true, "TEST", true, 111, true,          10000000, true, 196, true, NetworkType_BITCOIN},
+    {true, "Namecoin",         true, "NMC",  true,  52, true,          10000000, true,   5, true, NetworkType_BITCOIN},
+    {true, "Litecoin",         true, "LTC",  true,  48, true,           1000000, true,   5, true, NetworkType_BITCOIN},
+    {true, "Dogecoin",         true, "DOGE", true,  30, true,        1000000000, true,  22, true, NetworkType_BITCOIN},
+    {true, "Dash",             true, "DASH", true,  76, true,            100000, true,  16, true, NetworkType_BITCOIN},
+// Ethereum definitions remain commented out until transaction signing is implemented.
+//    {true, "Ethereum",         true, "ETH",  false,  0, true, 10000000000000000, false,  0, true, NetworkType_ETHEREUM},
+//    {true, "Ethereum Testnet", true, "ETH",  false,  0, true, 10000000000000000, false,  0, true, NetworkType_ETHEREUM},
 };
 
 const CoinType *coinByShortcut(const char *shortcut)

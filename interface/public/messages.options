@@ -2,7 +2,7 @@ Features.vendor				max_size:33
 Features.device_id			max_size:25
 Features.language			max_size:17
 Features.label				max_size:33
-Features.coins				max_count:6
+Features.coins				max_count:8
 Features.revision			max_size:20
 Features.bootloader_hash		max_size:32
 
@@ -31,7 +31,7 @@ PublicKey.xpub				max_size:113
 GetAddress.address_n			max_count:8
 GetAddress.coin_name			max_size:17
 
-Address.address				max_size:36
+Address.address				max_size:42
 
 LoadDevice.mnemonic			max_size:241
 LoadDevice.pin				max_size:10
@@ -54,11 +54,11 @@ SignMessage.address_n			max_count:8
 SignMessage.message			max_size:1024
 SignMessage.coin_name			max_size:17
 
-VerifyMessage.address			max_size:36
+VerifyMessage.address			max_size:42
 VerifyMessage.signature			max_size:65
 VerifyMessage.message			max_size:1024
 
-MessageSignature.address		max_size:36
+MessageSignature.address		max_size:42
 MessageSignature.signature		max_size:65
 
 EncryptMessage.pubkey			max_size:33
@@ -75,7 +75,7 @@ DecryptMessage.nonce			max_size:33
 DecryptMessage.message			max_size:1120 # 1 + 9 + 1024 + 21 + 65
 DecryptMessage.hmac			max_size:8
 
-DecryptedMessage.address		max_size:36
+DecryptedMessage.address		max_size:42
 DecryptedMessage.message		max_size:1024
 
 CipherKeyValue.address_n		max_count:8
@@ -93,7 +93,7 @@ SignIdentity.challenge_hidden		max_size:256
 SignIdentity.challenge_visual		max_size:256
 SignIdentity.ecdsa_curve_name		max_size:32
 
-SignedIdentity.address			max_size:36
+SignedIdentity.address			max_size:42
 SignedIdentity.public_key		max_size:33
 SignedIdentity.signature		max_size:65
 

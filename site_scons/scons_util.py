@@ -83,7 +83,7 @@ def find_project_source_files(project_root, platform, flavors):
     proto_files = []
 
     for path in prefixes:
-        pfiles = glob_ext(os.path.join(project_root, path), 'c|cpp|s')
+        pfiles = glob_ext(os.path.join(project_root, path), 'c|cpp|S')
         unique_files = [os.path.relpath(f, project_root) for f in pfiles if os.path.basename(f) in sets.Set([os.path.basename(x) for x in pfiles])]
         source_files += unique_files
 

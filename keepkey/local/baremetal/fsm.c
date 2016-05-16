@@ -854,34 +854,41 @@ void fsm_msgGetAddress(GetAddress *msg)
 
     if(!node) { return; }
 
-    if(msg->has_multisig)
+    if(coin->network_type == NetworkType_BITCOIN)
     {
-
-        if(cryptoMultisigPubkeyIndex(&(msg->multisig), node->public_key) < 0)
+        if(msg->has_multisig)
         {
-            fsm_sendFailure(FailureType_Failure_Other,
-                            "Pubkey not found in multisig script");
-            go_home();
-            return;
+
+            if(cryptoMultisigPubkeyIndex(&(msg->multisig), node->public_key) < 0)
+            {
+                fsm_sendFailure(FailureType_Failure_Other,
+                                "Pubkey not found in multisig script");
+                go_home();
+                return;
+            }
+
+            uint8_t buf[32];
+
+            if(compile_script_multisig_hash(&(msg->multisig), buf) == 0)
+            {
+                fsm_sendFailure(FailureType_Failure_Other, "Invalid multisig script");
+                go_home();
+                return;
+            }
+
+            ripemd160(buf, 32, buf + 1);
+            buf[0] = coin->address_type_p2sh; // multisig cointype
+            base58_encode_check(buf, 21, resp->address, sizeof(resp->address));
         }
-
-        uint8_t buf[32];
-
-        if(compile_script_multisig_hash(&(msg->multisig), buf) == 0)
+        else
         {
-            fsm_sendFailure(FailureType_Failure_Other, "Invalid multisig script");
-            go_home();
-            return;
+            ecdsa_get_address(node->public_key, coin->address_type, resp->address,
+                              sizeof(resp->address));
         }
-
-        ripemd160(buf, 32, buf + 1);
-        buf[0] = coin->address_type_p2sh; // multisig cointype
-        base58_encode_check(buf, 21, resp->address, sizeof(resp->address));
     }
-    else
+    else if(coin->network_type == NetworkType_ETHEREUM)
     {
-        ecdsa_get_address(node->public_key, coin->address_type, resp->address,
-                          sizeof(resp->address));
+        ecdsa_get_ethereum_address(node->public_key, resp->address, sizeof(resp->address));
     }
 
     if(msg->has_show_display && msg->show_display)

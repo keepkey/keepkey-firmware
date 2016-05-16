@@ -35,6 +35,8 @@
 #include "ecdsa.h"
 #include "base58.h"
 #include "macros.h"
+#include "hex.h"
+#include "KeccakHash.h"
 
 #include "secp256k1.h"
 #include "nist256p1.h"
@@ -839,6 +841,44 @@ void ecdsa_get_address(const uint8_t *pub_key, uint8_t version, char *addr, int 
 	base58_encode_check(raw, 21, addr, addrsize);
 
 	// not as important to clear this one, but we might as well
+	MEMSET_BZERO(raw, sizeof(raw));
+}
+
+void uncompress_pubkey(const uint8_t *pub_key, uint8_t *uncompressed)
+{
+	if (pub_key[0] & 0x02)
+	{
+		bignum256 x, y;
+		bn_read_be(pub_key + 1, &x);
+		uncompress_coords(&secp256k1, pub_key[0], &x, &y);
+
+		uncompressed[0] = 0x04;
+		memcpy(uncompressed + 1, pub_key + 1, 32);
+		bn_write_be(&y, uncompressed + 33);
+	} else {
+		// Already uncompressed
+		memcpy(uncompressed, pub_key, 65);
+	}
+}
+
+void ecdsa_get_keccac_pubkeyhash(const uint8_t *pub_key, uint8_t *pubkeyhash)
+{
+	uint8_t uncompressed_pub_key[65];
+	uncompress_pubkey(pub_key, uncompressed_pub_key);
+
+	Keccak_HashInstance hash;
+	Keccak_HashInitialize(&hash, 1088, 512, 256, 0x01);
+	Keccak_HashUpdate(&hash, uncompressed_pub_key + 1, 64 * 8);
+	Keccak_HashFinal(&hash, pubkeyhash);
+
+	MEMSET_BZERO(uncompressed_pub_key, sizeof(uncompressed_pub_key));
+}
+
+void ecdsa_get_ethereum_address(const uint8_t *pub_key, char *addr, int addrsize)
+{
+	uint8_t raw[32];
+	ecdsa_get_keccac_pubkeyhash(pub_key, raw);
+	hex_encode_address(raw + 12, 20, addr, addrsize);
 	MEMSET_BZERO(raw, sizeof(raw));
 }
 
