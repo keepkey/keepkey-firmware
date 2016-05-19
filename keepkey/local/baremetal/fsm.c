@@ -657,7 +657,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 {
     if(msg->has_label)
     {
-        if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
+        if(!confirm(ButtonRequestType_ButtonRequest_ChangeLabel,
                     "Change Label", "Do you want to change the label to \"%s\"?", msg->label))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled,
@@ -669,7 +669,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 
     if(msg->has_language)
     {
-        if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
+        if(!confirm(ButtonRequestType_ButtonRequest_ChangeLanguage,
                     "Change Language", "Do you want to change the language to %s?", msg->language))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled,
@@ -683,7 +683,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
     {
         if(msg->use_passphrase)
         {
-            if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
+            if(!confirm(ButtonRequestType_ButtonRequest_EnablePassphrase,
                         "Enable Passphrase", "Do you want to enable passphrase encryption?",
                         msg->language))
             {
@@ -695,7 +695,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
         }
         else
         {
-            if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
+            if(!confirm(ButtonRequestType_ButtonRequest_DisablePassphrase,
                         "Disable Passphrase", "Do you want to disable passphrase encryption?",
                         msg->language))
             {
