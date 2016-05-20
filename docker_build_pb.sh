@@ -3,7 +3,7 @@
 TEMPDIR="device-protocol"
 IMAGETAG=keepkey/firmware
 
-git clone git@github.com:keepkey/device-protocol.git $TEMPDIR
+#git clone git@github.com:keepkey/device-protocol.git $TEMPDIR
 
 docker build -t $IMAGETAG .
 
@@ -14,4 +14,4 @@ docker run -t -v $(pwd):/root/keepkey-firmware -v $(pwd)/$TEMPDIR:/root/$TEMPDIR
 	mv *.pb.c /root/keepkey-firmware/interface/local && \
 	mv *.pb.h /root/keepkey-firmware/interface/public"
 
-rm -rf $TEMPDIR
+#rm -rf $TEMPDIR
