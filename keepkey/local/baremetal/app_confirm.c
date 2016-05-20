@@ -85,12 +85,12 @@ bool confirm_encrypt_msg(const char *msg, bool signing)
 
     if(signing)
     {
-        ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
+        ret_stat = confirm(ButtonRequestType_ButtonRequest_EncryptAndSignMessage,
                            "Encrypt and Sign Message", msg);
     }
     else
     {
-        ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
+        ret_stat = confirm(ButtonRequestType_ButtonRequest_EncryptMessage,
                            "Encrypt Message", msg);
     }
 
@@ -182,13 +182,13 @@ bool confirm_load_device(bool is_node)
 
     if(is_node)
     {
-        ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
+        ret_stat = confirm(ButtonRequestType_ButtonRequest_ImportPrivateKey,
                            "Import Private Key",
                            "Importing is not recommended unless you understand the risks. Do you want to import private key?");
     }
     else
     {
-        ret_stat = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
+        ret_stat = confirm(ButtonRequestType_ButtonRequest_ImportRecoverySentence,
                            "Import Recovery Sentence",
                            "Importing is not recommended unless you understand the risks. Do you want to import recovery sentence?");
     }
@@ -287,5 +287,5 @@ bool confirm_sign_identity(const IdentityType *identity, const char *challenge)
         strlcat(body, challenge, sizeof(body));
     }
 
-    return confirm(ButtonRequestType_ButtonRequest_ProtectCall, title, body);
+    return confirm(ButtonRequestType_ButtonRequest_signIdentity, title, body);
 }
