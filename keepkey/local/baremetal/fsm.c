@@ -322,7 +322,7 @@ void fsm_msgPing(Ping *msg)
     RESP_INIT(Success);
 
     if(msg->has_button_protection && msg->button_protection)
-        if(!confirm(ButtonRequestType_ButtonRequest_Ping, "Ping", msg->message))
+        if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall, "Ping", msg->message))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
             go_home();
@@ -367,7 +367,7 @@ void fsm_msgChangePin(ChangePin *msg)
     {
         if(storage_has_pin())
         {
-            confirmed = confirm(ButtonRequestType_ButtonRequest_RemovePIN,
+            confirmed = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
                                 "Remove PIN", "Do you want to remove PIN protection?");
         }
         else
@@ -379,10 +379,10 @@ void fsm_msgChangePin(ChangePin *msg)
     else
     {
         if(storage_has_pin())
-            confirmed = confirm(ButtonRequestType_ButtonRequest_ChangePIN,
+            confirmed = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
                                 "Change PIN", "Do you want to change your PIN?");
         else
-            confirmed = confirm(ButtonRequestType_ButtonRequest_CreatePIN,
+            confirmed = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
                                 "Create PIN", "Do you want to add PIN protection?");
     }
 
@@ -455,7 +455,7 @@ void fsm_msgFirmwareUpload(FirmwareUpload *msg)
 
 void fsm_msgGetEntropy(GetEntropy *msg)
 {
-    if(!confirm(ButtonRequestType_ButtonRequest_GenerateEntropy,
+    if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
                 "Generate Entropy",
                 "Do you want to generate and return entropy using the hardware RNG?"))
     {
@@ -932,7 +932,7 @@ void fsm_msgSignMessage(SignMessage *msg)
 		return;
 	}
 
-    if(!confirm(ButtonRequestType_ButtonRequest_SignMessage, "Sign Message",
+    if(!confirm(ButtonRequestType_ButtonRequest_ProtectCall, "Sign Message",
                 (char *)msg->message.bytes))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, "Sign message cancelled");
