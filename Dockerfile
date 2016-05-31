@@ -7,7 +7,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -yq build-e
 
 # Install nanopb
 WORKDIR /root
-RUN git clone --branch nanopb-0.2.9.2 https://code.google.com/p/nanopb/
+RUN git clone --branch nanopb-0.2.9.2 https://github.com/nanopb/nanopb/
 WORKDIR /root/nanopb/generator/proto
 RUN make
 
