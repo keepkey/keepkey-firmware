@@ -954,7 +954,7 @@ void fsm_msgSignMessage(SignMessage *msg)
 
     if(!node) { return; }
 
-    if(cryptoMessageSign(msg->message.bytes, msg->message.size, node->private_key,
+    if(cryptoMessageSign(coin, msg->message.bytes, msg->message.size, node->private_key,
                          resp->signature.bytes) == 0)
     {
         resp->has_address = true;
@@ -987,6 +987,9 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
         return;
     }
 
+    const CoinType *coin = fsm_getCoin(msg->coin_name);
+    if (!coin) return;
+
     layout_simple_message("Verifying Message...");
 
     uint8_t addr_raw[21];
@@ -997,7 +1000,7 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
     }
 
     if(msg->signature.size == 65 &&
-            cryptoMessageVerify(msg->message.bytes, msg->message.size, addr_raw,
+            cryptoMessageVerify(coin, msg->message.bytes, msg->message.size, addr_raw,
                                 msg->signature.bytes) == 0)
     {
         if(review(ButtonRequestType_ButtonRequest_Other, "Message Verified",
@@ -1092,7 +1095,7 @@ void fsm_msgSignIdentity(SignIdentity *msg)
         sha256_Raw(msg->challenge_hidden.bytes, msg->challenge_hidden.size, digest);
         sha256_Raw((const uint8_t *)msg->challenge_visual, strlen(msg->challenge_visual),
                    digest + 32);
-        result = cryptoMessageSign(digest, 64, node->private_key, resp->signature.bytes);
+        result = cryptoMessageSign(&(coins[0]), digest, 64, node->private_key, resp->signature.bytes);
     }
 
     if(result == 0)

@@ -29,6 +29,7 @@
 #include <bip32.h>
 #include <layout.h>
 
+#include "coins.h"
 #include "crypto.h"
 
 /* === Functions =========================================================== */
@@ -95,11 +96,11 @@ int sshMessageSign(const uint8_t *message, size_t message_len, const uint8_t *pr
 	return ecdsa_sign(&nist256p1, privkey, message, message_len, signature + 1, NULL);
 }
 
-int cryptoMessageSign(const uint8_t *message, size_t message_len, const uint8_t *privkey, uint8_t *signature)
+int cryptoMessageSign(const CoinType *coin, const uint8_t *message, size_t message_len, const uint8_t *privkey, uint8_t *signature)
 {
 	SHA256_CTX ctx;
 	sha256_Init(&ctx);
-	sha256_Update(&ctx, (const uint8_t *)"\x18" "Bitcoin Signed Message:" "\n", 25);
+	sha256_Update(&ctx, (const uint8_t *)coin->signed_message_header, strlen(coin->signed_message_header));
 	uint8_t varint[5];
 	uint32_t l = ser_length(message_len, varint);
 	sha256_Update(&ctx, varint, l);
@@ -115,7 +116,7 @@ int cryptoMessageSign(const uint8_t *message, size_t message_len, const uint8_t 
 	return result;
 }
 
-int cryptoMessageVerify(const uint8_t *message, size_t message_len, const uint8_t *address_raw, const uint8_t *signature)
+int cryptoMessageVerify(const CoinType *coin, const uint8_t *message, size_t message_len, const uint8_t *address_raw, const uint8_t *signature)
 {
 	bignum256 r, s, e;
 	curve_point cp, cp2;
@@ -141,7 +142,7 @@ int cryptoMessageVerify(const uint8_t *message, size_t message_len, const uint8_
 	uncompress_coords(&secp256k1, recid % 2, &cp.x, &cp.y);
 	// calculate hash
 	sha256_Init(&ctx);
-	sha256_Update(&ctx, (const uint8_t *)"\x18" "Bitcoin Signed Message:" "\n", 25);
+	sha256_Update(&ctx, (const uint8_t *)coin->signed_message_header, strlen(coin->signed_message_header));
 	uint8_t varint[5];
 	uint32_t l = ser_length(message_len, varint);
 	sha256_Update(&ctx, varint, l);
@@ -182,7 +183,7 @@ int cryptoMessageEncrypt(curve_point *pubkey, const uint8_t *msg, size_t msg_siz
 		uint32_t l = ser_length(msg_size, payload + 1);
 		memcpy(payload + 1 + l, msg, msg_size);
 		memcpy(payload + 1 + l + msg_size, address_raw, 21);
-		if (cryptoMessageSign(msg, msg_size, privkey, payload + 1 + l + msg_size + 21) != 0) {
+		if (cryptoMessageSign(&(coins[0]), msg, msg_size, privkey, payload + 1 + l + msg_size + 21) != 0) {
 			return 1;
 		}
 		*payload_len = 1 + l + msg_size + 21 + 65;
@@ -269,7 +270,7 @@ int cryptoMessageDecrypt(curve_point *nonce, uint8_t *payload, size_t payload_le
 		if (1 + l + o + 21 + 65 != payload_len) {
 			return 4;
 		}
-		if (cryptoMessageVerify(payload + 1 + l, o, payload + 1 + l + o, payload + 1 + l + o + 21) != 0) {
+		if (cryptoMessageVerify(&(coins[0]), payload + 1 + l, o, payload + 1 + l + o, payload + 1 + l + o + 21) != 0) {
 			return 5;
 		}
 		memcpy(address_raw, payload + 1 + l + o, 21);
