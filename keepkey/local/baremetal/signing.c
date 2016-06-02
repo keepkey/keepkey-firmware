@@ -25,6 +25,7 @@
 #include <crypto.h>
 #include <layout.h>
 #include <confirm_sm.h>
+#include <exchange_coin.h>
 
 #include "signing.h"
 #include "fsm.h"
@@ -32,6 +33,8 @@
 #include "coins.h"
 #include "home_sm.h"
 #include "app_confirm.h"
+
+#include "keepkey_board/public/keepkey_usart.h"
 
 /* === Private Variables =================================================== */
 
@@ -51,6 +54,8 @@ static uint8_t hash[32], hash_check[32], privkey[32], pubkey[33], sig[64];
 static uint64_t to_spend, spending, change_spend;
 static bool multisig_fp_set, multisig_fp_mismatch;
 static uint8_t multisig_fp[32];
+
+/* === pkhoo test Variables =================================================== */
 
 /* === Variables =========================================================== */
 
@@ -82,26 +87,36 @@ static bool check_valid_output_address(TxOutputType *tx_out)
 {
     bool ret_val = false;
 
+    dbg_print("outputAddressType %d\n\r",tx_out->address_type);
     switch(tx_out->address_type)
     {
         case OutputAddressType_SPEND:
+        {
             if(tx_out->has_address)
             {
                 /* valid address type */
                 ret_val = true;
             }
-
             break;
 
+        }
         case OutputAddressType_TRANSFER:
         case OutputAddressType_CHANGE:
+        {
             if(tx_out->address_n_count > 0)
             {
                 /* valid address type */
                 ret_val = true;
             }
-
             break;
+        }
+
+        case OutputAddressType_EXCHANGE:
+        {
+//            process_exchange_token();
+            dbg_print("SSToken %d \n\r", sizeof(SendAmountResponse));
+            break;
+        }
     }
 
     return(ret_val);
