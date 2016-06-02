@@ -1,0 +1,8 @@
+Exchange_Address.address              max_size:36
+Exchange_Address.dest_tag             max_size:4
+Exchange_Address.rs_address           max_size:4
+
+SendAmountRequest.withdrawal_coin_type  max_size:17 
+SendAmountRequest.deposit_coin_type   max_size:17 
+
+SendAmountResponse.signature          max_size:73
