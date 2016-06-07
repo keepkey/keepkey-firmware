@@ -287,5 +287,5 @@ bool confirm_sign_identity(const IdentityType *identity, const char *challenge)
         strlcat(body, challenge, sizeof(body));
     }
 
-    return confirm(ButtonRequestType_ButtonRequest_signIdentity, title, body);
+    return confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, body);
 }
