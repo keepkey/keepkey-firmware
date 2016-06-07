@@ -113,8 +113,11 @@ static bool check_valid_output_address(TxOutputType *tx_out)
 
         case OutputAddressType_EXCHANGE:
         {
-            process_exchange_token();
-            dbg_print("SSToken %d \n\r", sizeof(SendAmountResponse));
+
+            if(tx_out->has_exchange_token)
+            {
+                ret_val = true;
+            }
             break;
         }
     }

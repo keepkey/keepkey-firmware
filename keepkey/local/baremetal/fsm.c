@@ -56,6 +56,8 @@
 #include "recovery.h"
 #include "recovery_cipher.h"
 
+#include "keepkey_board/public/keepkey_usart.h"
+
 /* === Private Variables =================================================== */
 
 static uint8_t msg_resp[MAX_FRAME_SIZE];
@@ -131,6 +133,7 @@ static const MessagesMap_t MessagesMap[] =
 /* === Variables =========================================================== */
 
 extern bool reset_msg_stack;
+extern void dumpbfr(char *str, uint8_t *bfr, int len);
 
 /* === Functions =========================================================== */
 
@@ -991,10 +994,13 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 
     uint8_t addr_raw[21];
 
+    dbg_print("btc addr = %s\n\r", msg->address);
+
     if(!ecdsa_address_decode(msg->address, addr_raw))
     {
         fsm_sendFailure(FailureType_Failure_InvalidSignature, "Invalid address");
     }
+    dumpbfr("VM pubkey hash", addr_raw, sizeof(addr_raw));
 
     if(msg->signature.size == 65 &&
             cryptoMessageVerify(msg->message.bytes, msg->message.size, addr_raw,
