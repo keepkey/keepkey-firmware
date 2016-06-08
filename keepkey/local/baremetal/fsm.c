@@ -367,7 +367,7 @@ void fsm_msgChangePin(ChangePin *msg)
     {
         if(storage_has_pin())
         {
-            confirmed = confirm(ButtonRequestType_ButtonRequest_RemovePIN,
+            confirmed = confirm(ButtonRequestType_ButtonRequest_RemovePin,
                                 "Remove PIN", "Do you want to remove PIN protection?");
         }
         else
@@ -379,10 +379,10 @@ void fsm_msgChangePin(ChangePin *msg)
     else
     {
         if(storage_has_pin())
-            confirmed = confirm(ButtonRequestType_ButtonRequest_ChangePIN,
+            confirmed = confirm(ButtonRequestType_ButtonRequest_ChangePin,
                                 "Change PIN", "Do you want to change your PIN?");
         else
-            confirmed = confirm(ButtonRequestType_ButtonRequest_CreatePIN,
+            confirmed = confirm(ButtonRequestType_ButtonRequest_CreatePin,
                                 "Create PIN", "Do you want to add PIN protection?");
     }
 
@@ -455,7 +455,7 @@ void fsm_msgFirmwareUpload(FirmwareUpload *msg)
 
 void fsm_msgGetEntropy(GetEntropy *msg)
 {
-    if(!confirm(ButtonRequestType_ButtonRequest_GenerateEntropy,
+    if(!confirm(ButtonRequestType_ButtonRequest_GetEntropy,
                 "Generate Entropy",
                 "Do you want to generate and return entropy using the hardware RNG?"))
     {
