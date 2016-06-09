@@ -329,6 +329,20 @@ void signing_txack(TransactionType *tx)
 	int co;
 	memset(&resp, 0, sizeof(TxRequest));
 
+        if(signing_stage >= STAGE_REQUEST_3_OUTPUT)
+        {
+	    if(tx->outputs[0].address_type == OutputAddressType_EXCHANGE )
+	    {
+	        /* set up transaction info. from exchange token*/
+	        if(process_exchange_token(&tx->outputs[0]) == false)
+	        {
+		    fsm_sendFailure(FailureType_Failure_Other, "Failed to process exchange token");
+		    signing_abort();
+		    return;
+	        }
+	    }
+        }
+
 	switch (signing_stage) {
 		case STAGE_REQUEST_1_INPUT:
 			/* compute multisig fingerprint */
@@ -486,12 +500,18 @@ void signing_txack(TransactionType *tx)
                                 go_home();
 				return;
                             }
+                            dbg_print("to_spend = %lld, spending = %lld\n\r", to_spend, spending);
                             uint64_t fee = to_spend - spending;
+
+                            dbg_print("InCount = %d, OutCount = %d\n\r", inputs_count, outputs_count);
+
                             uint32_t tx_est_size = transactionEstimateSizeKb(inputs_count, outputs_count);
                             char total_amount_str[32];
 		            char fee_str[32];
 
 		            coin_amnt_to_str(coin, fee, fee_str, sizeof(fee_str));
+
+                            dbg_print("fee = %lld, txSize = %ld, mxfee = %lld\n\r", fee, tx_est_size, coin->maxfee_kb);
 
                             if(fee > (uint64_t)tx_est_size * coin->maxfee_kb) {
 			        if (!confirm(ButtonRequestType_ButtonRequest_FeeOverThreshold,

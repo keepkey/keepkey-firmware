@@ -73,6 +73,7 @@ void fsm_msgEstimateTxSize(EstimateTxSize *msg);
 void fsm_msgRecoveryDevice(RecoveryDevice *msg);
 void fsm_msgWordAck(WordAck *msg);
 void fsm_msgCharacterAck(CharacterAck *msg);
+const CoinType *fsm_getCoin(const char *name);
 
 #if DEBUG_LINK
 //void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);

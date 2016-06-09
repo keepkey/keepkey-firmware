@@ -36,6 +36,8 @@
 #include "app_confirm.h"
 #include <exchange_coin.h>
 
+#include "keepkey_board/public/keepkey_usart.h"
+
 /* === Private Functions =================================================== */
 
 /*
@@ -117,7 +119,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 	char amount_str[32];
 	char node_str[40];
 	ButtonRequestType button_request;
-        
+#if 0  //pkhoo
 	if(in->address_type == OutputAddressType_EXCHANGE )
 	{
 	    /* set up transaction info. from exchange token*/
@@ -126,6 +128,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		return(0);
 	    }
 	}
+#endif
 
 	if (in->script_type == OutputScriptType_PAYTOADDRESS) {
 
@@ -528,5 +531,6 @@ uint32_t transactionEstimateSize(uint32_t inputs, uint32_t outputs)
 
 uint32_t transactionEstimateSizeKb(uint32_t inputs, uint32_t outputs)
 {
+        dbg_print("tranSizeKb = %d\n\r", (transactionEstimateSize(inputs, outputs) + 999) / 1000);
 	return (transactionEstimateSize(inputs, outputs) + 999) / 1000;
 }
