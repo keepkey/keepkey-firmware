@@ -6,4 +6,5 @@ SendAmountRequest.withdrawal_coin_type  max_size:17
 SendAmountRequest.deposit_coin_type     max_size:17 
 SendAmountRequest.api_key               max_size:4
 
-SendAmountResponse.signature            max_size:150
+SendAmountResponse.signature_external   max_size:65
+SendAmountResponse.signature_keepkey    max_size:65
