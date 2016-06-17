@@ -53,9 +53,9 @@ void showVariables(TxOutputType *tx_out)
     int i;
     
     dbg_print("signature = "); 
-    for(i = 0; i < (int) sizeof(((SendAmountResponse_signature_keepkey_t *)0)->bytes); i++)
+    for(i = 0; i < (int) sizeof(((SendAmountResponse_signature_t *)0)->bytes); i++)
     {
-        dbg_print("%c", tx_out->exchange_token.signature_external.bytes[i]);
+        dbg_print("%c", tx_out->exchange_token.signature.bytes[i]);
     }
     dbg_print("\n\r");
 
@@ -103,7 +103,7 @@ static bool verify_exchange_token(SendAmountResponse *token_ptr)
     const CoinType *coin = fsm_getCoin(token_ptr->request.withdrawal_coin_type);
 
     dbg_print("coin = %s, addressType = %d\n\r", coin->coin_name, coin->address_type); 
-    dumpbfr("signature ..." , token_ptr->signature_external.bytes, sizeof(token_ptr->signature_external.bytes));
+    dumpbfr("signature ..." , token_ptr->signature.bytes, sizeof(token_ptr->signature.bytes));
 
     ecdsa_get_address_raw(shapeshift_pubkey, coin->address_type, pub_key_hash);
     dumpbfr("PubKey Hash(addr)", pub_key_hash, sizeof(pub_key_hash));
@@ -113,7 +113,7 @@ static bool verify_exchange_token(SendAmountResponse *token_ptr)
                 (const uint8_t *)&token_ptr->request, 
                 sizeof(SendAmountRequest), 
                 pub_key_hash, 
-                (const uint8_t *)token_ptr->signature_external.bytes);
+                (const uint8_t *)token_ptr->signature.bytes);
 
     if(result == 0)
     {
@@ -190,7 +190,7 @@ bool sign_test(SendAmountRequest *exchange_request)
     
 
     /* clear signature */
-    memset(exchange_token.signature_external.bytes, 0, sizeof(exchange_token.signature_external.bytes));
+    memset(exchange_token.signature.bytes, 0, sizeof(exchange_token.signature.bytes));
 #if 0
     uint8_t message[100];
     memset(message, 0, sizeof(message));
@@ -198,18 +198,18 @@ bool sign_test(SendAmountRequest *exchange_request)
     /* prepare data for signing */
     message[0] = 'a';
     /* sign data */
-    result = cryptoMessageSign(message, 1, node->private_key, exchange_token.signature_external.bytes);
+    result = cryptoMessageSign(message, 1, node->private_key, exchange_token.signature.bytes);
     dbg_print("Message signature result = %x \n\r", result);
-    dumpbfr("\n\Message signature\n\r", exchange_token.signature_external.bytes, sizeof(exchange_token.signature_external.bytes));
-    result = cryptoMessageVerify(message, 1, pub_key_hash,exchange_token.signature_external.bytes);
+    dumpbfr("\n\Message signature\n\r", exchange_token.signature.bytes, sizeof(exchange_token.signature.bytes));
+    result = cryptoMessageVerify(message, 1, pub_key_hash,exchange_token.signature.bytes);
 #else
-    result = cryptoMessageSign((const uint8_t *)exchange_request, sizeof(SendAmountRequest), node->private_key, exchange_token.signature_external.bytes);
+    result = cryptoMessageSign((const uint8_t *)exchange_request, sizeof(SendAmountRequest), node->private_key, exchange_token.signature.bytes);
     dbg_print("Token signature result = %x \n\r", result);
-    dumpbfr("\n\rToken signature\n\r", exchange_token.signature_external.bytes, sizeof(exchange_token.signature_external.bytes));
+    dumpbfr("\n\rToken signature\n\r", exchange_token.signature.bytes, sizeof(exchange_token.signature.bytes));
 
     /*corrupt signature */
 //     exchange_token.signature.bytes[1] &= 0xF0;
-    result = cryptoMessageVerify((const uint8_t *)exchange_request, sizeof(SendAmountRequest), pub_key_hash,exchange_token.signature_external.bytes);
+    result = cryptoMessageVerify((const uint8_t *)exchange_request, sizeof(SendAmountRequest), pub_key_hash,exchange_token.signature.bytes);
 #endif
 
     if(result == 0)
@@ -220,7 +220,7 @@ bool sign_test(SendAmountRequest *exchange_request)
     else
     {
         dbg_print("\n\r ???? FAILED (result = %x): signature not matched!!!  \n\r", result);
-        dumpbfr("signature", exchange_token.signature_external.bytes, sizeof(exchange_token.signature_external.bytes));
+        dumpbfr("signature", exchange_token.signature.bytes, sizeof(exchange_token.signature.bytes));
     }
     return(ret_stat);
 }
