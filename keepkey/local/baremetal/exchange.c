@@ -23,7 +23,7 @@
 #include <crypto.h>
 #include <types.pb.h>
 #include <fsm.h>
-#include <exchange_coin.h>
+#include <exchange.h>
 #include "keepkey_board/public/keepkey_usart.h"
 /* === Defines ============================================================= */
 /* === External Declarations ============================================================= */
