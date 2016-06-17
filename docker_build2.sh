@@ -35,7 +35,7 @@ then
     echo -e "\n\t**************************************************************"
     echo -e "\t*** "$DEVICE_PROTO" directory missing.  Enlisting directory   "
     echo -e "\t**************************************************************\n"
-    git clone https://$GITUSER_ID@github.com/keepkey/$DEVICE_PROTO.git $DEVICE_PROTO
+    git clone ssh://$GITUSER_ID@github.com/keepkey/$DEVICE_PROTO.git $DEVICE_PROTO
 fi
 
 #************************************************************
