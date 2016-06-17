@@ -44,14 +44,14 @@ fi
 
 docker build -t $IMAGETAG .
 docker run -t -v $(pwd):/root/$KEEPKEY_FIRMWARE -v $(pwd)/$DEVICE_PROTO:/root/$DEVICE_PROTO --rm $IMAGETAG /bin/sh -c "\
-        cd /root/$DEVICE_PROTO && \
-	cp /root/$KEEPKEY_FIRMWARE/interface/public/*.options . && \
-	protoc -I. -I/usr/include --plugin=nanopb=protoc-gen-nanopb --nanopb_out=. *.proto && \
-	mv *.pb.c /root/$KEEPKEY_FIRMWARE/interface/local && \
-	mv *.pb.h /root/$KEEPKEY_FIRMWARE/interface/public && \
-        cd /root/$KEEPKEY_FIRMWARE && \
-        make -C $LIBOPENCM3_DIR && \
-        $BLDCMD"
+    cd /root/$DEVICE_PROTO && \
+    cp /root/$KEEPKEY_FIRMWARE/interface/public/*.options . && \
+    protoc -I. -I/usr/include --plugin=nanopb=protoc-gen-nanopb --nanopb_out=. *.proto && \
+    mv *.pb.c /root/$KEEPKEY_FIRMWARE/interface/local && \
+    mv *.pb.h /root/$KEEPKEY_FIRMWARE/interface/public && \
+    cd /root/$KEEPKEY_FIRMWARE && \
+    make -C $LIBOPENCM3_DIR && \
+    $BLDCMD"
 
 echo "*******************************************************"
 echo "*                                                      "
