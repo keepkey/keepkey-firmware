@@ -34,7 +34,7 @@
 #include "util.h"
 #include "crypto.h"
 #include "app_confirm.h"
-#include <exchange_coin.h>
+#include <exchange.h>
 
 #include "keepkey_board/public/keepkey_usart.h"
 

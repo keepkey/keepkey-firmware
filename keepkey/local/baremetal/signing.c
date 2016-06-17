@@ -25,7 +25,7 @@
 #include <crypto.h>
 #include <layout.h>
 #include <confirm_sm.h>
-#include <exchange_coin.h>
+#include <exchange.h>
 
 #include "signing.h"
 #include "fsm.h"
