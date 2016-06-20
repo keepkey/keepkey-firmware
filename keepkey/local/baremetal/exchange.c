@@ -62,13 +62,6 @@ void showVariables(TxOutputType *tx_out)
 {
     int i;
     
-    dbg_print("signature = "); 
-    for(i = 0; i < (int) sizeof(((SendAmountResponse_signature_t *)0)->bytes); i++)
-    {
-        dbg_print("%c", tx_out->exchange_token.signature.bytes[i]);
-    }
-    dbg_print("\n\r");
-
     dbg_print("wdrawalAmount(%ld) = %d \n\r", 
             &tx_out->exchange_token.request.withdrawal_amount, tx_out->exchange_token.request.withdrawal_amount);
     dbg_print("%s \n\r", tx_out->exchange_token.request.withdrawal_coin_type);
@@ -94,7 +87,8 @@ void showVariables(TxOutputType *tx_out)
         dbg_print("%c", tx_out->exchange_token.deposit_address.address[i]);
     }
     dbg_print("\n\r");
-
+    dumpbfr("ss signature = " , tx_out->exchange_token.signature.bytes, sizeof(tx_out->exchange_token.signature.bytes));
+    dumpbfr("kk signature = " , tx_out->exchange_token.approval.bytes, sizeof(tx_out->exchange_token.approval.bytes));
 }
 
 /*
@@ -111,29 +105,43 @@ static bool verify_exchange_token(SendAmountResponse *token_ptr)
     uint32_t result;
     uint8_t pub_key_hash[21];
     const CoinType *coin = fsm_getCoin(token_ptr->request.withdrawal_coin_type);
+    dbg_print("Withdrawal coin = %s, addressType = %d\n\r", coin->coin_name, coin->address_type); 
+    coin = fsm_getCoin(token_ptr->request.deposit_coin_type);
+    dbg_print("Deposit coin = %s, addressType = %d\n\r", coin->coin_name, coin->address_type); 
 
-    dbg_print("coin = %s, addressType = %d\n\r", coin->coin_name, coin->address_type); 
-    dumpbfr("signature ..." , token_ptr->signature.bytes, sizeof(token_ptr->signature.bytes));
-
+    /* Begin ShapeShift Signature verification */
     ecdsa_get_address_raw(signature_pubkey, coin->address_type, pub_key_hash);
-    dumpbfr("PubKey Hash(addr)", pub_key_hash, sizeof(pub_key_hash));
-
-
+    dumpbfr("SS PubKey Hash(addr)", pub_key_hash, sizeof(pub_key_hash));
     result = cryptoMessageVerify(
                 (const uint8_t *)&token_ptr->request, 
                 sizeof(SendAmountRequest), 
                 pub_key_hash, 
                 (const uint8_t *)token_ptr->signature.bytes);
+    if(result != 0)
+    {
+        dbg_print("ShapeShift signature check FAILED!!!\n\r");
+        goto verify_exchange_token_exit;
+    }
+    /* Begin KeepKey's Signature verification */
+    ecdsa_get_address_raw(approval_pubkey, coin->address_type, pub_key_hash);
+    dumpbfr("KK PubKey Hash(addr)", pub_key_hash, sizeof(pub_key_hash));
+    result = cryptoMessageVerify(
+                (const uint8_t *)&token_ptr->request, 
+                sizeof(SendAmountRequest), 
+                pub_key_hash, 
+                (const uint8_t *)token_ptr->approval.bytes);
 
     if(result == 0)
     {
-        dbg_print("signature check OK!!!\n\r");
+        ret_stat = true;
+        dbg_print("signature check PASSED!!!\n\r");
     }
     else
     {
-        dbg_print("signature check Failed!!!\n\r");
+        dbg_print("Keepkey signature check FAILED!!!\n\r");
     }
-    ret_stat = true;
+verify_exchange_token_exit:
+
     return(ret_stat);
 }
 
