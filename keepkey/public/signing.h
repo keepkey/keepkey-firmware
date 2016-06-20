@@ -34,12 +34,14 @@
  * progress per input in permille with these many additional bits.
  */
 #define PROGRESS_PRECISION 16
+#define VAR_INT_BUFFER 8
 
 /* === Functions =========================================================== */
 
 void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinType *_coin,
                   const HDNode *_root);
 void signing_abort(void);
+void parse_raw_txack(uint8_t *msg, uint32_t msg_size);
 void signing_txack(TransactionType *tx);
 
 #endif

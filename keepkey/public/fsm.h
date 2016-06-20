@@ -23,6 +23,7 @@
 /* === Includes ============================================================ */
 
 #include <interface.h>
+#include <msg_dispatch.h>
 
 /* === Defines ============================================================= */
 
@@ -33,7 +34,8 @@
 
 #define ENTROPY_BUF sizeof(((Entropy *)NULL)->entropy.bytes)
 
-#define BTC_ADDRESS_SIZE     35
+#define BTC_ADDRESS_SIZE     	35
+#define RAW_TX_ACK_VARINT_COUNT	4
 
 /* === Functions =========================================================== */
 
@@ -57,6 +59,7 @@ void fsm_msgSignTx(SignTx *msg);
 //void fsm_msgPinMatrixAck(PinMatrixAck *msg);
 void fsm_msgCancel(Cancel *msg);
 void fsm_msgTxAck(TxAck *msg);
+void fsm_msgRawTxAck(RawMessage *msg, uint32_t frame_length);
 void fsm_msgCipherKeyValue(CipherKeyValue *msg);
 void fsm_msgClearSession(ClearSession *msg);
 void fsm_msgApplySettings(ApplySettings *msg);

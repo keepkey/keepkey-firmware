@@ -42,8 +42,6 @@
 /* === Typedefs ============================================================ */
 
 typedef void (*msg_handler_t)(void *ptr);
-typedef void (*raw_msg_handler_t)(uint8_t *msg, uint32_t msg_size,
-                                  uint32_t frame_length);
 typedef void (*msg_failure_t)(FailureType, const char *);
 typedef bool (*usb_tx_handler_t)(uint8_t *, uint32_t);
 
@@ -81,6 +79,22 @@ typedef struct
     MessageType msg_id;
 } MessagesMap_t;
 
+typedef struct
+{
+    uint8_t *buffer;
+    uint32_t length;
+} RawMessage;
+
+typedef enum 
+{
+    RAW_MESSAGE_NOT_STARTED,
+    RAW_MESSAGE_STARTED,
+    RAW_MESSAGE_COMPLETE,
+    RAW_MESSAGE_ERROR
+} RawMessageState;
+
+typedef void (*raw_msg_handler_t)(RawMessage *msg, uint32_t frame_length);
+
 /* === Functions =========================================================== */
 
 bool msg_write(MessageType msg_id, const void *msg);
@@ -103,5 +117,7 @@ void msg_init(void);
 
 MessageType wait_for_tiny_msg(uint8_t *buf);
 MessageType check_for_tiny_msg(uint8_t *buf);
+
+uint32_t parse_pb_varint(RawMessage *msg, uint8_t varint_count);
 
 #endif

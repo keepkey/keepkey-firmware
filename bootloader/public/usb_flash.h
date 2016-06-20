@@ -25,6 +25,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <msg_dispatch.h>
+
 /* === Defines ============================================================= */
 
 #define RESP_INIT(TYPE) TYPE resp; memset(&resp, 0, sizeof(TYPE));
@@ -57,7 +59,7 @@ void send_failure(FailureType code, const char *text);
 void handler_initialize(Initialize* msg);
 void handler_ping(Ping* msg);
 void handler_erase(FirmwareErase* msg);
-void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length);
+void raw_handler_upload(RawMessage *msg, uint32_t frame_length);
 
 #if DEBUG_LINK
 void handler_debug_link_get_state(DebugLinkGetState *msg);

@@ -228,9 +228,13 @@ static void tiny_dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg
 static void raw_dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_size,
                          uint32_t frame_length)
 {
+    static RawMessage raw_msg;
+    raw_msg.buffer = msg;
+    raw_msg.length = msg_size;
+
     if(entry->process_func)
     {
-        ((raw_msg_handler_t)entry->process_func)(msg, msg_size, frame_length);
+        ((raw_msg_handler_t)entry->process_func)(&raw_msg, frame_length);
     }
 }
 
@@ -580,4 +584,40 @@ MessageType wait_for_tiny_msg(uint8_t *buf)
 MessageType check_for_tiny_msg(uint8_t *buf)
 {
     return(tiny_msg_poll_and_buffer(false, buf));
+}
+
+/*
+ * parse_pb_varint() - Parses varints off of raw messages
+ *
+ * INPUT
+ *     - msg: pointer to raw message
+ *     - varint_count: how many varints to remove
+ * OUTPUT
+ *     bytes that were skipped
+ */
+uint32_t parse_pb_varint(RawMessage *msg, uint8_t varint_count)
+{
+    uint32_t skip;
+    uint8_t i;
+    uint64_t pb_varint;
+    pb_istream_t stream;
+
+    /*
+     * Parse varints
+     */
+    stream = pb_istream_from_buffer(msg->buffer, msg->length);
+    skip = stream.bytes_left;
+    for(i = 0; i < varint_count; ++i)
+    {
+        pb_decode_varint(&stream, &pb_varint);
+    }
+    skip = skip - stream.bytes_left;
+
+    /*
+     * Increment skip over message
+     */
+    msg->length -= skip;
+    msg->buffer = (uint8_t *)(msg->buffer + skip);
+
+    return skip;
 }

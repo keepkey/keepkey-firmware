@@ -26,6 +26,7 @@
 #include <layout.h>
 #include <confirm_sm.h>
 
+#include "crypto.h"
 #include "signing.h"
 #include "fsm.h"
 #include "transaction.h"
@@ -67,6 +68,17 @@ enum {
 const uint32_t version = 1;
 const uint32_t lock_time = 0;
 
+enum {
+	NOT_PARSING,
+	PARSING_VERSION,
+	PARSING_INPUT_COUNT,
+	PARSING_INPUTS,
+	PARSING_OUTPUT_COUNT,
+	PARSING_OUTPUTS_VALUE,
+	PARSING_OUTPUTS,
+	PARSING_LOCKTIME
+} raw_tx_status;
+
 /* === Private Functions =================================================== */
 
 /*
@@ -105,6 +117,12 @@ static bool check_valid_output_address(TxOutputType *tx_out)
     }
 
     return(ret_val);
+}
+
+static void reset_parsing_buffer(uint8_t *buffer, uint8_t *buffer_index)
+{
+	memset(buffer, 0, VAR_INT_BUFFER);
+	*buffer_index = 0;
 }
 
 /* === Functions =========================================================== */
@@ -289,9 +307,170 @@ void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinTyp
 	sha256_Update(&tc, (const uint8_t *)&version, sizeof(version));
 	sha256_Update(&tc, (const uint8_t *)&lock_time, sizeof(lock_time));
 
-	animating_progress_handler();
+	raw_tx_status = NOT_PARSING;
 
 	send_req_1_input();
+}
+
+void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
+	static int32_t state_pos = 0;
+	static uint8_t *ptr;
+	static uint8_t var_int_buffer[VAR_INT_BUFFER];
+	static uint8_t var_int_buffer_index;
+	static uint32_t seen, script_len;
+	static uint64_t current_output_val;
+
+	for(uint32_t i = 0; i < msg_size; ++i) {
+
+		state_pos--;
+
+		switch(raw_tx_status) {
+			case NOT_PARSING:
+				tx_init(&tp, 0, 0, 0, 0, false);
+				state_pos = sizeof(uint32_t);
+				raw_tx_status = PARSING_VERSION;
+				ptr = (uint8_t *)&tp.version;
+			case PARSING_VERSION:
+				*ptr++ = msg[i];
+
+				if(state_pos == 1)
+				{
+					raw_tx_status = PARSING_INPUT_COUNT;
+					reset_parsing_buffer(var_int_buffer, &var_int_buffer_index);
+				}
+				break;
+			case PARSING_INPUT_COUNT:
+				var_int_buffer[var_int_buffer_index++] = msg[i];
+
+				if(var_int_buffer_index >= deser_length(var_int_buffer, &tp.inputs_len))
+				{
+					raw_tx_status = PARSING_INPUTS;
+					state_pos = 36;
+					seen = 0;
+					reset_parsing_buffer(var_int_buffer, &var_int_buffer_index);
+				}
+
+				break;
+			case PARSING_INPUTS:
+				if(state_pos < 0 && seen < tp.inputs_len)
+				{
+					var_int_buffer[var_int_buffer_index++] = msg[i];
+
+					if(var_int_buffer_index >= deser_length(var_int_buffer, &script_len))
+					{
+						seen++;
+
+						if(seen < tp.inputs_len)
+						{
+							state_pos = script_len + 4 + 36;
+						}
+						else
+						{
+							state_pos = script_len + 3;	
+						}
+
+						script_len = 0;
+						reset_parsing_buffer(var_int_buffer, &var_int_buffer_index);
+					}
+				}
+				else if(state_pos < 0)
+				{
+					raw_tx_status = PARSING_OUTPUT_COUNT;
+				}
+				break;
+			case PARSING_OUTPUT_COUNT:
+				var_int_buffer[var_int_buffer_index++] = msg[i];
+
+				if(var_int_buffer_index >= deser_length(var_int_buffer, &tp.outputs_len))
+				{
+					raw_tx_status = PARSING_OUTPUTS_VALUE;
+					state_pos = 8;
+					seen = 0;
+					current_output_val = 0;
+					ptr = (uint8_t *)&current_output_val;
+					reset_parsing_buffer(var_int_buffer, &var_int_buffer_index);
+				}
+				break;
+			case PARSING_OUTPUTS_VALUE:
+				if(state_pos < 8)
+				{
+					*ptr++ = msg[i];
+
+					if(state_pos < 1)
+					{
+						if (seen == input.prev_index) {
+							to_spend += current_output_val;
+						}
+
+						raw_tx_status = PARSING_OUTPUTS;
+						script_len = 0;
+						reset_parsing_buffer(var_int_buffer, &var_int_buffer_index);
+					}
+				}
+				break;
+			case PARSING_OUTPUTS:
+				if(state_pos < 0 && seen < tp.outputs_len)
+				{
+					var_int_buffer[var_int_buffer_index++] = msg[i];
+
+					if(var_int_buffer_index >= deser_length(var_int_buffer, &script_len))
+					{
+						seen++;
+
+						if(seen < tp.outputs_len)
+						{
+							current_output_val = 0;
+							ptr = (uint8_t *)&current_output_val;
+							raw_tx_status = PARSING_OUTPUTS_VALUE;
+							state_pos = script_len + 8;
+						}
+						else
+						{
+							state_pos = script_len - 1;
+						}
+					}
+				}
+				else if(state_pos < 0)
+				{
+					raw_tx_status = PARSING_LOCKTIME;
+					state_pos = 4;
+					ptr = (uint8_t *)&tp.lock_time;
+					reset_parsing_buffer(var_int_buffer, &var_int_buffer_index);
+				}
+				break;
+			case PARSING_LOCKTIME:
+            	if(state_pos >= 0)
+				{
+					*ptr++ = msg[i];
+				}
+				if(state_pos < 1)
+				{
+					raw_tx_status = NOT_PARSING;
+					memset(&resp, 0, sizeof(TxRequest));
+
+					sha256_Update(&(tp.ctx), (const uint8_t*)msg+i, 1);
+					tx_hash_final(&tp, hash, true);
+					if (memcmp(hash, input.prev_hash.bytes, 32) != 0) {
+						fsm_sendFailure(FailureType_Failure_Other, "Encountered invalid prevhash");
+						signing_abort();
+						return;
+					}
+            		
+            		if (idx1 < inputs_count - 1) {
+						idx1++;
+						send_req_1_input();
+					} else {
+						idx1 = 0;
+						send_req_3_output();
+					}
+
+					return;
+				}
+				break;
+		}
+
+		sha256_Update(&(tp.ctx), (const uint8_t*)msg+i, 1);
+	}
 }
 
 void signing_txack(TransactionType *tx)
@@ -300,12 +479,6 @@ void signing_txack(TransactionType *tx)
 		fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Signing mode");
 		go_home();
 		return;
-	}
-
-	static int update_ctr = 0;
-	if (update_ctr++ == 20) {
-		animating_progress_handler();
-		update_ctr = 0;
 	}
 
 	int co;
@@ -444,9 +617,7 @@ void signing_txack(TransactionType *tx)
 
 			spending += tx->outputs[0].amount;
 			co = compile_output(coin, root, tx->outputs, &bin_output, !is_change);
-			if (!is_change) {
-				animating_progress_handler();
-			}
+
 			if (co < 0) {
 				fsm_sendFailure(FailureType_Failure_Other, "Signing cancelled by user");
 				signing_abort();
@@ -482,7 +653,7 @@ void signing_txack(TransactionType *tx)
 		                    go_home();
 		                    return;
 		                }
-                                animating_progress_handler();
+
                             }
                             // last confirmation
                             coin_amnt_to_str(coin, to_spend - change_spend, total_amount_str, sizeof(total_amount_str));
@@ -494,7 +665,8 @@ void signing_txack(TransactionType *tx)
 		                return;
 		            }
 		            // Everything was checked, now phase 2 begins and the transaction is signed.
-			    animating_progress_handler();
+		            layout_simple_message("Signing Transaction...");
+
 			    idx1 = 0;
 			    idx2 = 0;
 			    send_req_4_input();
@@ -615,9 +787,7 @@ void signing_txack(TransactionType *tx)
 					input.script_sig.size = serialize_script_sig(resp.serialized.signature.bytes, resp.serialized.signature.size, pubkey, 33, input.script_sig.bytes);
 				}
 				resp.serialized.serialized_tx.size = tx_serialize_input(&to, &input, resp.serialized.serialized_tx.bytes);
-				// since this took a longer time, update progress
-				animating_progress_handler();
-				update_ctr = 0;
+
 				if (idx1 < inputs_count - 1) {
 					idx1++;
 					idx2 = 0;

@@ -138,7 +138,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 			{
 				return 0;
 			}
-			animating_progress_handler();
+
 			ecdsa_get_address_raw(node.public_key, coin->address_type, addr_raw);
 
 		} else

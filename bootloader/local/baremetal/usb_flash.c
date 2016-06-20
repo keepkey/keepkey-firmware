@@ -43,7 +43,7 @@
 /* === Variables =========================================================== */
 
 static Allocation storage_location = FLASH_INVALID;
-static FirmwareUploadState upload_state = UPLOAD_NOT_STARTED;
+static RawMessageState upload_state = RAW_MESSAGE_NOT_STARTED;
 static uint8_t storage_sav[STOR_FLASH_SECT_LEN];
 static uint8_t firmware_hash[SHA256_DIGEST_LENGTH];
 extern bool reset_msg_stack;
@@ -219,7 +219,7 @@ bool usb_flash_firmware(void)
     {
         switch(upload_state)
         {
-            case UPLOAD_COMPLETE:
+            case RAW_MESSAGE_COMPLETE:
             {
                 /* Verify the image is from KeepKey */
                 if((SIG_FLAG == 1) && (signatures_ok() == 1))
@@ -246,14 +246,14 @@ bool usb_flash_firmware(void)
                 goto uff_exit;
             }
 
-            case UPLOAD_ERROR:
+            case RAW_MESSAGE_ERROR:
             {
                 dbg_print("Error: Firmware update error...\n\r");
                 goto uff_exit;
             }
 
-            case UPLOAD_NOT_STARTED:
-            case UPLOAD_STARTED:
+            case RAW_MESSAGE_NOT_STARTED:
+            case RAW_MESSAGE_STARTED:
             default:
             {
                 usb_poll();
@@ -445,13 +445,13 @@ void handler_erase(FirmwareErase *msg)
         }
         else
         {
-            upload_state = UPLOAD_ERROR;
+            upload_state = RAW_MESSAGE_ERROR;
             send_failure(FailureType_Failure_Other, "Firmware erase error");
         }
     }
     else
     {
-        upload_state = UPLOAD_ERROR;
+        upload_state = RAW_MESSAGE_ERROR;
         send_failure(FailureType_Failure_ActionCancelled, "Firmware erase cancelled");
     }
 }
@@ -463,15 +463,14 @@ void handler_erase(FirmwareErase *msg)
  * and writes image to flash
  *
  * INPUT -
- *     - msg: pointer to usb message buffer
- *     - msg_size: size of buffer
+ *     - msg: raw message
  *     - frame_length: total size that should be expected
  *
  * OUTPUT
  *     none
  *
  */
-void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
+void raw_handler_upload(RawMessage *msg, uint32_t frame_length)
 {
     static uint32_t flash_offset;
 
@@ -479,36 +478,36 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
     if(frame_length < (FLASH_APP_LEN + FLASH_META_DESC_LEN))
     {
         /* Start firmware load */
-        if(upload_state == UPLOAD_NOT_STARTED)
+        if(upload_state == RAW_MESSAGE_NOT_STARTED)
         {
-            upload_state = UPLOAD_STARTED;
+            upload_state = RAW_MESSAGE_STARTED;
             flash_offset = 0;
 
             /*
              * Parse firmware hash
              */
-            memcpy(firmware_hash, msg + PROTOBUF_FIRMWARE_HASH_START, SHA256_DIGEST_LENGTH);
+            memcpy(firmware_hash, msg->buffer + PROTOBUF_FIRMWARE_HASH_START, SHA256_DIGEST_LENGTH);
 
             /*
              * Parse application start
              */
-            msg_size -= PROTOBUF_FIRMWARE_START;
-            msg = (uint8_t *)(msg + PROTOBUF_FIRMWARE_START);
+            msg->length -= PROTOBUF_FIRMWARE_START;
+            msg->buffer = (uint8_t *)(msg->buffer + PROTOBUF_FIRMWARE_START);
         }
 
         /* Process firmware upload */
-        if(upload_state == UPLOAD_STARTED)
+        if(upload_state == RAW_MESSAGE_STARTED)
         {
             /* Check if the image is bigger than allocated space */
-            if((flash_offset + msg_size) < (FLASH_APP_LEN + FLASH_META_DESC_LEN))
+            if((flash_offset + msg->length) < (FLASH_APP_LEN + FLASH_META_DESC_LEN))
             {
                 if(flash_offset == 0)
                 {
                     /* Check that image is prepared with KeepKey magic */
-                    if(memcmp(msg, META_MAGIC_STR, META_MAGIC_SIZE) == 0)
+                    if(memcmp(msg->buffer, META_MAGIC_STR, META_MAGIC_SIZE) == 0)
                     {
-                        msg_size -= META_MAGIC_SIZE;
-                        msg = (uint8_t *)(msg + META_MAGIC_SIZE);
+                        msg->length -= META_MAGIC_SIZE;
+                        msg->buffer = (uint8_t *)(msg->buffer + META_MAGIC_SIZE);
                         flash_offset = META_MAGIC_SIZE;
                         /* Unlock the flash for writing */
                         flash_unlock();
@@ -517,7 +516,7 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
                     {
                         /* Invalid KeepKey magic detected */
                         send_failure(FailureType_Failure_FirmwareError, "Not valid firmware");
-                        upload_state = UPLOAD_ERROR;
+                        upload_state = RAW_MESSAGE_ERROR;
                         dbg_print("Error: invalid Magic Key detected... \n\r");
                         goto rhu_exit;
                     }
@@ -525,25 +524,25 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
                 }
 
                 /* Begin writing to flash */
-                if(!flash_write(FLASH_APP, flash_offset, msg_size, msg))
+                if(!flash_write(FLASH_APP, flash_offset, msg->length, msg->buffer))
                 {
                     /* Error: flash write error */
                     flash_lock();
                     send_failure(FailureType_Failure_FirmwareError,
                                  "Encountered error while writing to flash");
-                    upload_state = UPLOAD_ERROR;
+                    upload_state = RAW_MESSAGE_ERROR;
                     dbg_print("Error: flash write error... \n\r");
                     goto rhu_exit;
                 }
 
-                flash_offset += msg_size;
+                flash_offset += msg->length;
             }
             else
             {
                 /* Error: frame overrun detected during the image update */
                 flash_lock();
                 send_failure(FailureType_Failure_FirmwareError, "Firmware too large");
-                upload_state = UPLOAD_ERROR;
+                upload_state = RAW_MESSAGE_ERROR;
                 dbg_print("Error: frame overrun detected during the image update... \n\r");
                 goto rhu_exit;
             }
@@ -552,7 +551,7 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
             if(flash_offset >= frame_length - PROTOBUF_FIRMWARE_START)
             {
                 flash_lock();
-                upload_state = UPLOAD_COMPLETE;
+                upload_state = RAW_MESSAGE_COMPLETE;
             }
         }
     }
@@ -561,7 +560,7 @@ void raw_handler_upload(uint8_t *msg, uint32_t msg_size, uint32_t frame_length)
         send_failure(FailureType_Failure_FirmwareError, "Firmware too large");
         dbg_print("Error: image too large to fit in the allocated space : 0x%x ...\n\r",
                   frame_length);
-        upload_state = UPLOAD_ERROR;
+        upload_state = RAW_MESSAGE_ERROR;
     }
 
 rhu_exit:
