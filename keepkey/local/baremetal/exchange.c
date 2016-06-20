@@ -28,11 +28,21 @@
 /* === Defines ============================================================= */
 /* === External Declarations ============================================================= */
 const HDNode *fsm_getDerivedNode(uint32_t *address_n, size_t address_n_count);
-const uint8_t shapeshift_pubkey[33] =
+
+/* ShapeShift's public key to verify signature on exchange token */
+const uint8_t signature_pubkey[33] =
 {
-    0x03, 0xf6, 0x45, 0xec, 0x65, 0x44, 0xa9, 0x2f, 0x95, 0x1f, 0x3b, 0xca, 
-    0x16, 0xa2, 0xbc, 0x1c, 0x56, 0x84, 0x6d, 0x06, 0x55, 0x94, 0xdb, 0x22,
-    0x27, 0x25, 0xd5, 0x9b, 0x99, 0x02, 0x52, 0x83, 0x85
+    0x02, 0x43, 0x4d, 0x1e, 0x0d, 0x5e, 0x6b, 0x9f, 0x3d, 0x4a, 0xfe, 0xb3, 
+    0xb2, 0x43, 0x7f, 0xd2, 0x34, 0x6c, 0xa9, 0xfb, 0xca, 0x3e, 0x07, 0x58, 
+    0x5f, 0xec, 0x94, 0x9b, 0x71, 0x45, 0xfd, 0xee, 0x19
+};
+
+/* KeepKey's public key to verify signature on exchange token */
+const uint8_t approval_pubkey[33] =
+{
+    0x02, 0x0b, 0x37, 0xd6, 0x30, 0x79, 0x68, 0x8b, 0x85, 0x31, 0x7f, 0xbf, 
+    0x57, 0x69, 0x75, 0xbe, 0x1c, 0x39, 0xe2, 0x21, 0x74, 0x9c, 0x9f, 0x53, 
+    0xec, 0xa2, 0x7b, 0xf3, 0x45, 0x56, 0x8e, 0xb3, 0x47
 };
 
 /* === Private Functions =================================================== */
@@ -105,7 +115,7 @@ static bool verify_exchange_token(SendAmountResponse *token_ptr)
     dbg_print("coin = %s, addressType = %d\n\r", coin->coin_name, coin->address_type); 
     dumpbfr("signature ..." , token_ptr->signature.bytes, sizeof(token_ptr->signature.bytes));
 
-    ecdsa_get_address_raw(shapeshift_pubkey, coin->address_type, pub_key_hash);
+    ecdsa_get_address_raw(signature_pubkey, coin->address_type, pub_key_hash);
     dumpbfr("PubKey Hash(addr)", pub_key_hash, sizeof(pub_key_hash));
 
 
@@ -182,7 +192,7 @@ bool sign_test(SendAmountRequest *exchange_request)
     /**** PubKey Hash from BTC address ***/
     memset(pub_key_hash, 0, sizeof(pub_key_hash));
 #if 1
-    ecdsa_get_address_raw(shapeshift_pubkey, 0, pub_key_hash);
+    ecdsa_get_address_raw(signature_pubkey, 0, pub_key_hash);
 #else
      ecdsa_address_decode("1EfKbQupktEMXf4gujJ9kCFo83k1iMqwqK", pub_key_hash);
 #endif
