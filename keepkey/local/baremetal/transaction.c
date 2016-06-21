@@ -119,16 +119,6 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 	char amount_str[32];
 	char node_str[40];
 	ButtonRequestType button_request;
-#if 0  //pkhoo
-	if(in->address_type == OutputAddressType_EXCHANGE )
-	{
-	    /* set up transaction info. from exchange token*/
-	    if(process_exchange_token(in) == false)
-	    {
-		return(0);
-	    }
-	}
-#endif
 
 	if (in->script_type == OutputScriptType_PAYTOADDRESS) {
 

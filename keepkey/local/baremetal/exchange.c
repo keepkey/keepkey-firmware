@@ -32,17 +32,17 @@ const HDNode *fsm_getDerivedNode(uint32_t *address_n, size_t address_n_count);
 /* ShapeShift's public key to verify signature on exchange token */
 const uint8_t signature_pubkey[33] =
 {
-    0x02, 0x43, 0x4d, 0x1e, 0x0d, 0x5e, 0x6b, 0x9f, 0x3d, 0x4a, 0xfe, 0xb3, 
-    0xb2, 0x43, 0x7f, 0xd2, 0x34, 0x6c, 0xa9, 0xfb, 0xca, 0x3e, 0x07, 0x58, 
-    0x5f, 0xec, 0x94, 0x9b, 0x71, 0x45, 0xfd, 0xee, 0x19
+    0x02, 0x21, 0xcf, 0xe4, 0x46, 0x70, 0xba, 0x4a, 0xa5, 0xa9, 0xd5, 0x6d, 
+    0x99, 0x3b, 0x0e, 0x8e, 0x0c, 0xd1, 0x5c, 0x1c, 0xd3, 0x56, 0xf3, 0x6d, 
+    0x42, 0x15, 0xc0, 0x8a, 0x83, 0xa9, 0x89, 0xd6, 0x1d
 };
 
 /* KeepKey's public key to verify signature on exchange token */
 const uint8_t approval_pubkey[33] =
 {
-    0x02, 0x0b, 0x37, 0xd6, 0x30, 0x79, 0x68, 0x8b, 0x85, 0x31, 0x7f, 0xbf, 
-    0x57, 0x69, 0x75, 0xbe, 0x1c, 0x39, 0xe2, 0x21, 0x74, 0x9c, 0x9f, 0x53, 
-    0xec, 0xa2, 0x7b, 0xf3, 0x45, 0x56, 0x8e, 0xb3, 0x47
+    0x02, 0x0b, 0x0b, 0x62, 0xdd, 0xc3, 0xca, 0x4e, 0x29, 0xa2, 0x67, 0xad, 
+    0x99, 0x21, 0xc3, 0x2b, 0x11, 0x81, 0x43, 0x2c, 0x5a, 0x70, 0xcf, 0x48, 
+    0xe4, 0x40, 0x3f, 0xb4, 0x8b, 0xf4, 0xd6, 0x90, 0xc0
 };
 
 /* === Private Functions =================================================== */
@@ -61,11 +61,17 @@ void dumpbfr(char *str, uint8_t *bfr, int len)
 void showVariables(TxOutputType *tx_out)
 {
     int i;
+    const CoinType *coin;
     
+
+    coin = fsm_getCoin(tx_out->exchange_token.request.withdrawal_coin_type);
+    dbg_print("Withdrawal coin type = %s, addr_Type = %d\n\r", tx_out->exchange_token.request.withdrawal_coin_type, coin->address_type);
+
+    coin = fsm_getCoin(tx_out->exchange_token.request.deposit_coin_type);
+    dbg_print("Deposit coin type = %s, addr_Type = %d\n\r", tx_out->exchange_token.request.deposit_coin_type, coin->address_type);
+
     dbg_print("wdrawalAmount(%ld) = %d \n\r", 
             &tx_out->exchange_token.request.withdrawal_amount, tx_out->exchange_token.request.withdrawal_amount);
-    dbg_print("%s \n\r", tx_out->exchange_token.request.withdrawal_coin_type);
-    dbg_print("%s \n\r", tx_out->exchange_token.request.deposit_coin_type);
 
     dbg_print("WdrawAddr= ");
     for(i = 0; i < 33; i++)
@@ -89,6 +95,9 @@ void showVariables(TxOutputType *tx_out)
     dbg_print("\n\r");
     dumpbfr("ss signature = " , tx_out->exchange_token.signature.bytes, sizeof(tx_out->exchange_token.signature.bytes));
     dumpbfr("kk signature = " , tx_out->exchange_token.approval.bytes, sizeof(tx_out->exchange_token.approval.bytes));
+
+
+//    sign_test(&tx_out->exchange_token.request);
 }
 
 /*
@@ -104,10 +113,10 @@ static bool verify_exchange_token(SendAmountResponse *token_ptr)
     bool ret_stat = false;
     uint32_t result;
     uint8_t pub_key_hash[21];
-    const CoinType *coin = fsm_getCoin(token_ptr->request.withdrawal_coin_type);
-    dbg_print("Withdrawal coin = %s, addressType = %d\n\r", coin->coin_name, coin->address_type); 
-    coin = fsm_getCoin(token_ptr->request.deposit_coin_type);
-    dbg_print("Deposit coin = %s, addressType = %d\n\r", coin->coin_name, coin->address_type); 
+    const CoinType *coin;
+
+    /* withdrawal coin type */
+    coin = fsm_getCoin(token_ptr->request.withdrawal_coin_type);
 
     /* Begin ShapeShift Signature verification */
     ecdsa_get_address_raw(signature_pubkey, coin->address_type, pub_key_hash);
@@ -119,8 +128,13 @@ static bool verify_exchange_token(SendAmountResponse *token_ptr)
                 (const uint8_t *)token_ptr->signature.bytes);
     if(result != 0)
     {
-        dbg_print("ShapeShift signature check FAILED!!!\n\r");
+        dbg_print("error: ShapeShift signature check FAILED!!!\n\r");
         goto verify_exchange_token_exit;
+    }
+    else
+    {
+        dbg_print("ShapeShift signature check OK!!!\n\r");
+
     }
     /* Begin KeepKey's Signature verification */
     ecdsa_get_address_raw(approval_pubkey, coin->address_type, pub_key_hash);
@@ -170,69 +184,84 @@ bool process_exchange_token(TxOutputType *tx_out)
     return(ret_stat);
 }
 
-bool sign_test(SendAmountRequest *exchange_request)
+bool create_signature(const HDNode *node, SendAmountResponse *token, const uint8_t *msg)
 {
-    uint32_t result;
-    char btc_address[36];
-    uint32_t address_n[4] =  { 0, 0, 0, 0};
-    size_t address_n_count = 0;
-    SendAmountResponse exchange_token;
     bool ret_stat = false;
-
-    const HDNode *node;
-
-    node = fsm_getDerivedNode(address_n, address_n_count);
-
-    /**** Private Key (hex) ***/
-    dumpbfr("\n\rprivKey", (uint8_t *)node->private_key, sizeof( node->private_key));
-    dumpbfr("PubKey\n\r", (uint8_t *)node->public_key, sizeof( node->public_key));
-
-    /****  Hashed Pub Key (hex) ***/
     uint8_t pub_key_hash[21];
+    char btc_address[36];
+    uint32_t result;
+
+    /****  Hashed Pub Key from node ***/
     ecdsa_get_address_raw(node->public_key, 0, pub_key_hash);
-    dumpbfr("PubKey Hash(key )", pub_key_hash, sizeof(pub_key_hash));
+    dumpbfr("Node PubKey Hash(key )", pub_key_hash, sizeof(pub_key_hash));
 
-
+    /* Calculate Bit coin address (base58) */
     ecdsa_get_address(node->public_key, 0, btc_address, sizeof(btc_address));
     dbg_print("btc_address : %s \n\r", btc_address);
 
 
-    /**** PubKey Hash from BTC address ***/
     memset(pub_key_hash, 0, sizeof(pub_key_hash));
 #if 1
     ecdsa_get_address_raw(signature_pubkey, 0, pub_key_hash);
 #else
-     ecdsa_address_decode("1EfKbQupktEMXf4gujJ9kCFo83k1iMqwqK", pub_key_hash);
+    /**** PubKey Hash from BTC address ***/
+    ecdsa_address_decode("1EfKbQupktEMXf4gujJ9kCFo83k1iMqwqK", pub_key_hash);
 #endif
-    dumpbfr("PubKey Hash(addr)", pub_key_hash, sizeof(pub_key_hash));
+    dumpbfr("SS PubKey Hash(addr)", pub_key_hash, sizeof(pub_key_hash));
     
 
     /* clear signature */
-    memset(exchange_token.signature.bytes, 0, sizeof(exchange_token.signature.bytes));
-#if 0
-    uint8_t message[100];
-    memset(message, 0, sizeof(message));
+    memset(token->signature.bytes, 0, sizeof(token->signature.bytes));
+    result = cryptoMessageSign(msg, sizeof(SendAmountRequest), 
+            node->private_key, token->signature.bytes);
+    if(result == 0)
+    {
+        dumpbfr("Token signature\n\r", token->signature.bytes, sizeof(token->signature.bytes));
+        ret_stat = true;
+    }
+    else
+    {
+        dbg_print("error creating signature \n\r");
+    }
+    return(ret_stat);
 
-    /* prepare data for signing */
-    message[0] = 'a';
-    /* sign data */
-    result = cryptoMessageSign(message, 1, node->private_key, exchange_token.signature.bytes);
-    dbg_print("Message signature result = %x \n\r", result);
-    dumpbfr("\n\Message signature\n\r", exchange_token.signature.bytes, sizeof(exchange_token.signature.bytes));
-    result = cryptoMessageVerify(message, 1, pub_key_hash,exchange_token.signature.bytes);
-#else
-    result = cryptoMessageSign((const uint8_t *)exchange_request, sizeof(SendAmountRequest), node->private_key, exchange_token.signature.bytes);
-    dbg_print("Token signature result = %x \n\r", result);
-    dumpbfr("\n\rToken signature\n\r", exchange_token.signature.bytes, sizeof(exchange_token.signature.bytes));
+}
 
-    /*corrupt signature */
-//     exchange_token.signature.bytes[1] &= 0xF0;
-    result = cryptoMessageVerify((const uint8_t *)exchange_request, sizeof(SendAmountRequest), pub_key_hash,exchange_token.signature.bytes);
-#endif
+bool sign_test(SendAmountRequest *exchange_request)
+{
+    uint32_t result;
+    bool ret_stat = false;
+    const HDNode *ss_node, *kk_node;
+    SendAmountResponse exchange_token;
+    size_t address_n_count = 2;
+    uint32_t ss_address_n[2] = {0x80000000, 0x80000003};
+    uint32_t kk_address_n[2] = {0x80000000, 0x80000002};
+    uint8_t pub_key_hash[21];
+
+    ss_node = fsm_getDerivedNode(ss_address_n, address_n_count);
+    /**** Private Key (hex) ***/
+    dumpbfr("SS privKey", (uint8_t *)ss_node->private_key, sizeof( ss_node->private_key));
+    /**** Public Key (hex) ***/
+    dumpbfr("SS PubKey", (uint8_t *)ss_node->public_key, sizeof( ss_node->public_key));
+    create_signature(ss_node, &exchange_token, (const uint8_t *)exchange_request);
+
+    kk_node = fsm_getDerivedNode(kk_address_n, address_n_count);
+    /**** Private Key (hex) ***/
+    dumpbfr("KK privKey", (uint8_t *)kk_node->private_key, sizeof(kk_node->private_key));
+    /**** Public Key (hex) ***/
+    dumpbfr("KK PubKey", (uint8_t *)kk_node->public_key, sizeof(kk_node->public_key));
+    create_signature(kk_node, &exchange_token, (const uint8_t *)exchange_request);
+
+/*corrupt signature */
+//    exchange_token.signature.bytes[1] &= 0xF0;
+    /****  Hashed Pub Key from node ***/
+    ecdsa_get_address_raw(ss_node->public_key, 0, pub_key_hash);
+    result = cryptoMessageVerify((const uint8_t *)exchange_request, sizeof(SendAmountRequest), 
+            pub_key_hash,exchange_token.signature.bytes);
 
     if(result == 0)
     {
-        dbg_print("\n\r ++++ PASSED: signature matched \n\r");
+        dbg_print("\n\r %s++++ PASSED: signature matched \n\r", __FUNCTION__);
         ret_stat = true;
     }
     else
