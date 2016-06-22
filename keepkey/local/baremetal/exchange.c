@@ -118,9 +118,13 @@ static bool verify_exchange_token(SendAmountResponse *token_ptr)
     /* withdrawal coin type */
     coin = fsm_getCoin(token_ptr->request.withdrawal_coin_type);
 
-    /* Begin ShapeShift Signature verification */
+    /*************************************************************************************
+     *
+     * There are KeepKey (Approver) and ShapeShift (Signer) signatures on Exchange token 
+     *
+     *************************************************************************************/
+    /* ShapeShift Signature Verification */
     ecdsa_get_address_raw(signature_pubkey, coin->address_type, pub_key_hash);
-    dumpbfr("SS PubKey Hash(addr)", pub_key_hash, sizeof(pub_key_hash));
     result = cryptoMessageVerify(
                 (const uint8_t *)&token_ptr->request, 
                 sizeof(SendAmountRequest), 
@@ -133,12 +137,12 @@ static bool verify_exchange_token(SendAmountResponse *token_ptr)
     }
     else
     {
-        dbg_print("ShapeShift signature check OK!!!\n\r");
+        dbg_print("ShapeShift signature check OK!!!\n\r"); 
 
     }
-    /* Begin KeepKey's Signature verification */
+
+    /* KeepKey Signature Verification */
     ecdsa_get_address_raw(approval_pubkey, coin->address_type, pub_key_hash);
-    dumpbfr("KK PubKey Hash(addr)", pub_key_hash, sizeof(pub_key_hash));
     result = cryptoMessageVerify(
                 (const uint8_t *)&token_ptr->request, 
                 sizeof(SendAmountRequest), 
@@ -148,7 +152,7 @@ static bool verify_exchange_token(SendAmountResponse *token_ptr)
     if(result == 0)
     {
         ret_stat = true;
-        dbg_print("signature check PASSED!!!\n\r");
+        dbg_print("KeepKey signature check OK!!!\n\r");
     }
     else
     {
@@ -163,12 +167,12 @@ bool process_exchange_token(TxOutputType *tx_out)
 {
     bool ret_stat = false;
 
-    showVariables(tx_out);
+//    showVariables(tx_out);
 
     /* Validate token before processing */
-    if(verify_exchange_token(&tx_out->exchange_token) == true)
+    if(tx_out->has_exchange_token)
     {
-        if(tx_out->has_exchange_token)
+        if(verify_exchange_token(&tx_out->exchange_token) == true)
         {
             /* Populate withdrawal address */
             tx_out->has_address = 1;

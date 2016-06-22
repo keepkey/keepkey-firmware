@@ -116,6 +116,7 @@ static bool check_valid_output_address(TxOutputType *tx_out)
 
             if(tx_out->has_exchange_token)
             {
+                dbg_print("ouput addres type = exchanged \n\r");
                 ret_val = true;
             }
             break;
@@ -464,6 +465,7 @@ void signing_txack(TransactionType *tx)
                             }
                         }
 
+
 			if (is_change) {
 				if (change_spend == 0) { // not set
 					change_spend = tx->outputs[0].amount;
@@ -473,6 +475,9 @@ void signing_txack(TransactionType *tx)
 					return;
 			    }
 			}
+
+                        dbg_print("is_change = %d, change_spend = %d, amount = %d\n\r", 
+                                is_change, change_spend, tx->outputs[0].amount);
 
 			spending += tx->outputs[0].amount;
 			co = compile_output(coin, root, tx->outputs, &bin_output, !is_change);
