@@ -22,4 +22,4 @@
 /* === Typedefs ============================================================ */
 /* === Functions =========================================================== */
 bool process_exchange_token(TxOutputType *tx_out);
-bool sign_test(SendAmountRequest *exchange_request);
+bool sign_test(ExchangeRequest *exchange_request);

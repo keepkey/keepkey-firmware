@@ -34,3 +34,8 @@ IdentityType.user			max_size:64
 IdentityType.host			max_size:64
 IdentityType.port			max_size:6
 IdentityType.path			max_size:256
+
+ExchangeType.deposit_address_n		max_count:8
+ExchangeType.deposit_coin_name          max_size:17
+ExchangeType.return_coin_name           max_size:17
+ExchangeType.return_address_n		max_count:8

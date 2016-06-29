@@ -114,7 +114,7 @@ static bool check_valid_output_address(TxOutputType *tx_out)
         case OutputAddressType_EXCHANGE:
         {
 
-            if(tx_out->has_exchange_token)
+            if(tx_out->has_exchange_type)
             {
                 dbg_print("ouput addres type = exchanged \n\r");
                 ret_val = true;
