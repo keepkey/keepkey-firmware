@@ -330,6 +330,7 @@ void signing_txack(TransactionType *tx)
 	int co;
 	memset(&resp, 0, sizeof(TxRequest));
 
+        /* Note to Darin : revise this range check */
         if(signing_stage >= STAGE_REQUEST_3_OUTPUT)
         {
 	    if(tx->outputs[0].address_type == OutputAddressType_EXCHANGE )

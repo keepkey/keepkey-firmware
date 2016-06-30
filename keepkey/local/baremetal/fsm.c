@@ -133,7 +133,6 @@ static const MessagesMap_t MessagesMap[] =
 /* === Variables =========================================================== */
 
 extern bool reset_msg_stack;
-extern void dumpbfr(char *str, uint8_t *bfr, int len);
 
 /* === Functions =========================================================== */
 
@@ -1000,7 +999,6 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
     {
         fsm_sendFailure(FailureType_Failure_InvalidSignature, "Invalid address");
     }
-    dumpbfr("VM pubkey hash", addr_raw, sizeof(addr_raw));
 
     if(msg->signature.size == 65 &&
             cryptoMessageVerify(msg->message.bytes, msg->message.size, addr_raw,
