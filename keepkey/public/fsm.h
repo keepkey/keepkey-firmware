@@ -23,6 +23,7 @@
 /* === Includes ============================================================ */
 
 #include <interface.h>
+#include <bip32.h>
 
 /* === Defines ============================================================= */
 
@@ -74,6 +75,7 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg);
 void fsm_msgWordAck(WordAck *msg);
 void fsm_msgCharacterAck(CharacterAck *msg);
 const CoinType *fsm_getCoin(const char *name);
+const HDNode *fsm_getDerivedNode(uint32_t *address_n, size_t address_n_count);
 
 #if DEBUG_LINK
 //void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);

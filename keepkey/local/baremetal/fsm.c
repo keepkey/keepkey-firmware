@@ -24,7 +24,7 @@
 #include <ecdsa.h>
 #include <aes.h>
 #include <hmac.h>
-#include <bip32.h>
+
 #include <bip39.h>
 #include <base58.h>
 #include <ripemd160.h>
