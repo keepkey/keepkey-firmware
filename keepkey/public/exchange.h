@@ -24,3 +24,4 @@
 /* === Typedefs ============================================================ */
 /* === Functions =========================================================== */
 bool process_exchange_token(TxOutputType *tx_out);
+void reset_exchangetx(void);

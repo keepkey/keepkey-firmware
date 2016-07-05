@@ -28,8 +28,9 @@
 #include <app_confirm.h>
 
 /* === Defines ============================================================= */
-/* === External Declarations ============================================================= */
+/* === External Declarations ================================================*/
 
+/* === Private Variables =================================================== */
 /* ShapeShift's public key to verify signature on exchange token */
 static const uint8_t exchange_pubkey[33] =
 {
@@ -38,7 +39,34 @@ static const uint8_t exchange_pubkey[33] =
     0xa3, 0xa6, 0x39, 0xec, 0xa9, 0xbe, 0xe0, 0xdf, 0x92
 };
 
+static struct {
+    bool exch_flag;
+    ExchangeType exch_image;
+}exchangeTx;
+
 /* === Private Functions =================================================== */
+/*
+ *  set_exchange_txout() - inline function to populate the transaction output buffer
+ *
+ *  INPUT
+ *      tx_out - pointer to transaction output buffer
+ *  OUTPUT
+ *      none
+ */
+inline void set_exchange_txout(TxOutputType *tx_out, ExchangeType *ex_tx) 
+{
+    /* clear to prep transaction output */
+    memset(tx_out, 0, (size_t)((char *)&tx_out->has_address_type - (char *)tx_out));
+
+    /* Populate withdrawal address */
+    tx_out->has_address = 1;
+    memcpy(tx_out->address, ex_tx->response.request.withdrawal_address.address, 
+        sizeof(tx_out->address));
+
+    /* Populate withdrawal amount */
+    tx_out->amount = ex_tx->response.request.withdrawal_amount;
+}
+
 /*
  * verify_exchange_token() - Verify "Deposit" and "Return" addresses belong to Keepkey and verify token's signature
  *                           is a valid 
@@ -101,6 +129,19 @@ verify_exchange_token_exit:
 
 /* === Public Functions =================================================== */
 /*
+ * reset_exchangetx() - reset exchange related variables to initial state
+ * INPUT
+ *      none 
+ * OUTPUT
+ *      none
+ */
+void reset_exchangetx(void)
+{
+    /* clear to initialize exchange data */
+    memset(&exchangeTx, 0, sizeof(exchangeTx));
+}
+
+/*
  * process_exchange_token() - validate token from exchange and populate the transaction
  *                            output structure
  *
@@ -113,28 +154,42 @@ verify_exchange_token_exit:
 bool process_exchange_token(TxOutputType *tx_out)
 {
     bool ret_stat = false;
-    char conf_msg[100];
+    char conf_msg[80];
 
-    /* Validate token before processing */
     if(tx_out->has_exchange_type)
     {
-        if(verify_exchange_token(&tx_out->exchange_type) == true)
+        /* process exchange transaction once and cache it until the transaction is complete*/
+        if(!exchangeTx.exch_flag)
         {
-
-            snprintf(conf_msg, sizeof(conf_msg), "Do you want to exchange \"%s\" to \"%s\" ( Rate = %d%%%% ) ", 
+            /* Validate token before processing */
+            if(verify_exchange_token(&tx_out->exchange_type) == true)
+            {
+                memset(conf_msg, 0, sizeof(conf_msg));
+                snprintf(conf_msg, sizeof(conf_msg), "Do you want to exchange \"%s\" to \"%s\" at rate = %d%%%%", 
                             tx_out->exchange_type.response.request.withdrawal_coin_type, 
                             tx_out->exchange_type.response.request.deposit_coin_type,
                             (int)tx_out->exchange_type.response.quoted_rate); 
-            if(confirm_exchange(conf_msg))
+                /* get user confirmation */
+                if(confirm_exchange(conf_msg))
+                {
+                    set_exchange_txout(tx_out, &tx_out->exchange_type);
+                    exchangeTx.exch_flag = 1;
+                    /* cache exchange_type for the transaction */
+                    exchangeTx.exch_image = tx_out->exchange_type;
+                    ret_stat = true;
+                }
+            }
+        }
+        else
+        {
+            /* Verify if the exchange token is from the same transaction.  */
+            if(!memcmp(&exchangeTx.exch_image, &tx_out->exchange_type, sizeof(ExchangeType)))
             {
-                /* Populate withdrawal address */
-                tx_out->has_address = 1;
-                memcpy(tx_out->address, tx_out->exchange_type.response.request.withdrawal_address.address, 
-                    sizeof(tx_out->address));
 
-                /* Populate withdrawal amount */
-                tx_out->amount = tx_out->exchange_type.response.request.withdrawal_amount;
+                /* Found the token to be the same.  Populate the transaction output with cached data*/
+                set_exchange_txout(tx_out, &tx_out->exchange_type);
                 ret_stat = true;
+
             }
         }
     }
