@@ -139,6 +139,19 @@ bool confirm_transaction_output(ButtonRequestType bt_request, const char *amount
 {
     return confirm_with_custom_layout(&layout_transaction_notification, bt_request, amount, to);
 }
+/*
+ * confirm_exchange() - Show exchange summary confirmation
+ *
+ * INPUT -
+ *      - display string pointer
+  * OUTPUT -
+ *     true/false of confirmation
+ *
+ */
+bool confirm_exchange(const char *disp_msg)
+{
+    return(confirm(ButtonRequestType_ButtonRequest_SignExchange, "Exchange ", disp_msg));
+}
 
 /*
  * confirm_transaction() - Show transaction summary confirmation

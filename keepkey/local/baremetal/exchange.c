@@ -18,11 +18,14 @@
  */
 
 /* === Includes ============================================================ */
+#include <stdio.h>
 #include <ecdsa.h>
 #include <crypto.h>
 #include <types.pb.h>
 #include <fsm.h>
 #include <exchange.h>
+#include <layout.h>
+#include <app_confirm.h>
 
 /* === Defines ============================================================= */
 /* === External Declarations ============================================================= */
@@ -110,21 +113,31 @@ verify_exchange_token_exit:
 bool process_exchange_token(TxOutputType *tx_out)
 {
     bool ret_stat = false;
+    char conf_msg[100];
 
     /* Validate token before processing */
     if(tx_out->has_exchange_type)
     {
         if(verify_exchange_token(&tx_out->exchange_type) == true)
         {
-            /* Populate withdrawal address */
-            tx_out->has_address = 1;
-            memcpy(tx_out->address, tx_out->exchange_type.response.request.withdrawal_address.address, 
-                sizeof(tx_out->address));
 
-            /* Populate withdrawal amount */
-            tx_out->amount = tx_out->exchange_type.response.request.withdrawal_amount;
-            ret_stat = true;
+            snprintf(conf_msg, sizeof(conf_msg), "Do you want to exchange \"%s\" to \"%s\" ( Rate = %d%%%% ) ", 
+                            tx_out->exchange_type.response.request.withdrawal_coin_type, 
+                            tx_out->exchange_type.response.request.deposit_coin_type,
+                            (int)tx_out->exchange_type.response.quoted_rate); 
+            if(confirm_exchange(conf_msg))
+            {
+                /* Populate withdrawal address */
+                tx_out->has_address = 1;
+                memcpy(tx_out->address, tx_out->exchange_type.response.request.withdrawal_address.address, 
+                    sizeof(tx_out->address));
+
+                /* Populate withdrawal amount */
+                tx_out->amount = tx_out->exchange_type.response.request.withdrawal_amount;
+                ret_stat = true;
+            }
         }
     }
     return(ret_stat);
 }
+

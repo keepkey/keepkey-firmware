@@ -54,6 +54,10 @@ static uint8_t hash[32], hash_check[32], privkey[32], pubkey[33], sig[64];
 static uint64_t to_spend, spending, change_spend;
 static bool multisig_fp_set, multisig_fp_mismatch;
 static uint8_t multisig_fp[32];
+static struct {
+    bool exch_flag;
+    ExchangeType exch_image;
+}exchangeTx;
 
 /* === pkhoo test Variables =================================================== */
 
@@ -311,10 +315,14 @@ void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinTyp
 	animating_progress_handler();
 
 	send_req_1_input();
+        /* exchange init */
+        memset(&exchangeTx, 0, sizeof(exchangeTx));
 }
+
 
 void signing_txack(TransactionType *tx)
 {
+
 	if (!signing) {
 		fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Signing mode");
 		go_home();
@@ -330,19 +338,45 @@ void signing_txack(TransactionType *tx)
 	int co;
 	memset(&resp, 0, sizeof(TxRequest));
 
-        /* Note to Darin : revise this range check */
-        if(signing_stage >= STAGE_REQUEST_3_OUTPUT)
+        /* Note: Can we do this once for each transaction instead of every state??? */
+        if(signing_stage >= STAGE_REQUEST_3_OUTPUT && signing_stage <= STAGE_REQUEST_5_OUTPUT )
         {
 	    if(tx->outputs[0].address_type == OutputAddressType_EXCHANGE )
 	    {
-	        /* set up transaction info. from exchange token*/
-	        if(process_exchange_token(&tx->outputs[0]) == false)
-	        {
-		    fsm_sendFailure(FailureType_Failure_Other, "Failed to process exchange token");
-		    signing_abort();
-		    return;
-	        }
-	    }
+                if(!exchangeTx.exch_flag)
+                {
+	            /* set up transaction info. from exchange token*/
+	            if(process_exchange_token(&tx->outputs[0]) == false)
+	            {
+		        fsm_sendFailure(FailureType_Failure_Other, "Failed to process exchange token");
+		        signing_abort();
+		        return;
+	            }
+                    exchangeTx.exch_flag = 1;
+                    exchangeTx.exch_image = tx->outputs[0].exchange_type;
+                }
+                else
+                {
+                    if(!memcmp(&exchangeTx.exch_image, &tx->outputs[0].exchange_type, sizeof(ExchangeType)))
+                    {
+                        dbg_print("exchangeTx are the same!!!\n\r");
+
+                        /* Populate withdrawal address */
+                        tx->outputs[0].has_address = 1;
+                        memcpy(tx->outputs[0].address, exchangeTx.exch_image.response.request.withdrawal_address.address, 
+                            sizeof(tx->outputs[0].address));
+
+                        /* Populate withdrawal amount */
+                        tx->outputs[0].amount = exchangeTx.exch_image.response.request.withdrawal_amount;
+                    }
+                    else
+                    {
+		        fsm_sendFailure(FailureType_Failure_Other, "Failed to process exchange token");
+		        signing_abort();
+		        return;
+                    }
+                }
+            }
         }
 
 	switch (signing_stage) {
@@ -503,7 +537,7 @@ void signing_txack(TransactionType *tx)
                             // check fees
                             if (spending > to_spend) {
 			        fsm_sendFailure(FailureType_Failure_NotEnoughFunds, "Not enough funds");
-                                go_home();
+                                go_home();  //Drarin review: potential issue.  Should we exit by calling signing_abort() instead!!!
 				return;
                             }
                             dbg_print("to_spend = %lld, spending = %lld\n\r", to_spend, spending);
@@ -523,7 +557,7 @@ void signing_txack(TransactionType *tx)
 			        if (!confirm(ButtonRequestType_ButtonRequest_FeeOverThreshold,
 		                        "Confirm Fee", "%s", fee_str)) {
 		                    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
-		                    go_home();
+                                    go_home();  //Drarin review: potential issue.  Should we exit by calling signing_abort() instead!!!
 		                    return;
 		                }
                                 animating_progress_handler();
@@ -700,5 +734,6 @@ void signing_abort(void)
 	if (signing) {
 		go_home();
 		signing = false;
+                memset(&exchangeTx, 0, sizeof(exchangeTx));
 	}
 }
