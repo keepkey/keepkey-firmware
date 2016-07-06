@@ -26,6 +26,7 @@
 #include <exchange.h>
 #include <layout.h>
 #include <app_confirm.h>
+#include "keepkey_board/public/keepkey_usart.h"
 
 /* === Defines ============================================================= */
 /* === External Declarations ================================================*/
@@ -68,64 +69,76 @@ inline void set_exchange_txout(TxOutputType *tx_out, ExchangeType *ex_tx)
 }
 
 /*
- * verify_exchange_token() - Verify "Deposit" and "Return" addresses belong to Keepkey and verify token's signature
- *                           is a valid 
+ * verify_exchange_address - verify "Deposit/Return" address specified in exchange token belongs to KeepKey 
+ *                           device.
+ *
+ * INPUT
+ *     coin_n  - pointer coin type for the specified address
+ *     n_cnt   - depth of node 
+ *     addr_n  - pointer node path
+ *     b58addr - 
+ *
+ * OUTPUT
+ *     true/false  - success/failure
+ *
+ */
+static bool verify_exchange_address(char *coin_n, size_t n_cnt, uint32_t *addr_n, char *b58addr)
+{
+    const CoinType *coin;
+    const HDNode *node;
+    char base58_address[36];
+    bool ret_stat = false;
+
+    coin = fsm_getCoin(coin_n);
+    if(coin)
+    {
+        node = fsm_getDerivedNode(addr_n, n_cnt);
+        ecdsa_get_address(node->public_key, coin->address_type, base58_address, sizeof(base58_address));
+
+        if(!strncmp(base58_address, b58addr, sizeof(base58_address)))
+        {
+            ret_stat = true;
+        }
+    }
+    return(ret_stat);
+}
+
+/*
+ * verify_exchange_token() - Verify content of exchange token is valid 
+ *
  * INPUT
  *     exchange_ptr:  exchange pointer
  * OUTPUT
- *     true - success 
- *     false - failure
+ *     true/false -  success/failure
  */
 static bool verify_exchange_token(ExchangeType *exchange_ptr)
 {
-    bool ret_stat = false;
-    uint32_t result = CODE_ERR;
+    bool ret_stat;
+    uint32_t cryp_msg_chk_result;
     uint8_t pub_key_hash[21];
-    const HDNode *node;
-    const CoinType *coin;
-    char base58_address[36];
 
     /**************************************************
      *          Verify KeepKey DEPOSIT address            
      **************************************************/
-    memset(base58_address, 0, sizeof(base58_address));
-    coin = fsm_getCoin(exchange_ptr->deposit_coin_name);
-    if(coin)
+    ret_stat = verify_exchange_address(exchange_ptr->deposit_coin_name, 
+                                       exchange_ptr->deposit_address_n_count,
+                                       exchange_ptr->deposit_address_n,
+                                       exchange_ptr->response.deposit_address.address);
+    if(ret_stat == false)
     {
-        node = fsm_getDerivedNode(exchange_ptr->deposit_address_n, exchange_ptr->deposit_address_n_count);
-        ecdsa_get_address(node->public_key, coin->address_type, base58_address, sizeof(base58_address));
-
-        if(strncmp(base58_address, exchange_ptr->response.deposit_address.address, sizeof(base58_address)))
-        {
-            /*error! Mismatch DEPOSIT address detected */
-            goto verify_exchange_token_exit;
-        }
-    }
-    else
-    {
-        /*error! Unknown coin type */
         goto verify_exchange_token_exit;
     }
 
     /**************************************************
      *          Verify KeepKey RETURN address
      **************************************************/
-    memset(base58_address, 0, sizeof(base58_address));
-    coin = fsm_getCoin(exchange_ptr->return_coin_name);
-    if(coin)
-    {
-        node = fsm_getDerivedNode(exchange_ptr->return_address_n, exchange_ptr->return_address_n_count);
-        ecdsa_get_address(node->public_key, coin->address_type, base58_address, sizeof(base58_address));
+    ret_stat = verify_exchange_address(exchange_ptr->return_coin_name, 
+                                       exchange_ptr->return_address_n_count,
+                                       exchange_ptr->return_address_n,
+                                       exchange_ptr->response.request.return_address.address);
 
-        if(strncmp(base58_address, exchange_ptr->response.request.return_address.address, sizeof(base58_address)))
-        {
-            /*error! Mismatch RETURN address detected */
-            goto verify_exchange_token_exit;
-        }
-    }
-    else
+    if(ret_stat == false)
     {
-        /*error! Unknown coin type */
         goto verify_exchange_token_exit;
     }
 
@@ -135,17 +148,16 @@ static bool verify_exchange_token(ExchangeType *exchange_ptr)
     /* withdrawal coin type */
     memset(pub_key_hash, 0, sizeof(pub_key_hash));
     ecdsa_get_address_raw(exchange_pubkey, BTC_ADDR_TYPE, pub_key_hash);
-    result = cryptoMessageVerify(
-                (const uint8_t *)&exchange_ptr->response.request, 
-                sizeof(ExchangeRequest), 
-                pub_key_hash, 
-                (const uint8_t *)exchange_ptr->response.signature.bytes);
+    cryp_msg_chk_result = cryptoMessageVerify(
+                            (const uint8_t *)&exchange_ptr->response.request, 
+                            sizeof(ExchangeRequest), 
+                            pub_key_hash, 
+                            (const uint8_t *)exchange_ptr->response.signature.bytes);
+
+    ret_stat = (cryp_msg_chk_result == 0) ? true : false;
 
 verify_exchange_token_exit:
-    if(result == 0) 
-    {
-        ret_stat = true;
-    }
+
     return(ret_stat);
 }
 
@@ -186,19 +198,26 @@ bool process_exchange_token(TxOutputType *tx_out)
             /* Validate token before processing */
             if(verify_exchange_token(&tx_out->exchange_type) == true)
             {
+                const CoinType *wthdr_coin, *dep_coin;
+                dep_coin = fsm_getCoin(tx_out->exchange_type.deposit_coin_name);
+                wthdr_coin = fsm_getCoin(tx_out->exchange_type.response.request.withdrawal_coin_type); 
+
                 memset(conf_msg, 0, sizeof(conf_msg));
                 /* get user confirmation */
                 snprintf(conf_msg, sizeof(conf_msg), "Do you want to exchange \"%s\" to \"%s\" at rate = %d%%%% and deposit to  %s Acc #%d", 
                             tx_out->exchange_type.response.request.withdrawal_coin_type, 
-                            tx_out->exchange_type.response.request.deposit_coin_type,
+                            tx_out->exchange_type.deposit_coin_name,
                             (int)tx_out->exchange_type.response.quoted_rate,
                             tx_out->exchange_type.deposit_coin_name, 
                             (int)tx_out->exchange_type.deposit_address_n[2] & 0x7ffffff); 
                 if(confirm_exchange(conf_msg))
                 {
-                    snprintf(conf_msg, sizeof(conf_msg), "Exchanging %lld BTC to %lld LTC and depositing to %s Acc #%d", 
+
+                    snprintf(conf_msg, sizeof(conf_msg), "Exchanging %lld %s to %lld %s and depositing to %s Acc #%d", 
                             tx_out->exchange_type.response.request.withdrawal_amount, 
+                            wthdr_coin->coin_shortcut,
                             tx_out->exchange_type.response.deposit_amount,
+                            dep_coin->coin_shortcut,
                             tx_out->exchange_type.deposit_coin_name, 
                             (int)tx_out->exchange_type.deposit_address_n[2] & 0x7ffffff); 
                     if(confirm_exchange(conf_msg))
