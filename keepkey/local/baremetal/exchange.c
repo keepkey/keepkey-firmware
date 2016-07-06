@@ -90,7 +90,7 @@ static bool verify_exchange_token(ExchangeType *exchange_ptr)
      **************************************************/
     memset(base58_address, 0, sizeof(base58_address));
     coin = fsm_getCoin(exchange_ptr->deposit_coin_name);
-    if(!coin)
+    if(coin)
     {
         node = fsm_getDerivedNode(exchange_ptr->deposit_address_n, exchange_ptr->deposit_address_n_count);
         ecdsa_get_address(node->public_key, coin->address_type, base58_address, sizeof(base58_address));
@@ -112,7 +112,7 @@ static bool verify_exchange_token(ExchangeType *exchange_ptr)
      **************************************************/
     memset(base58_address, 0, sizeof(base58_address));
     coin = fsm_getCoin(exchange_ptr->return_coin_name);
-    if(!coin)
+    if(coin)
     {
         node = fsm_getDerivedNode(exchange_ptr->return_address_n, exchange_ptr->return_address_n_count);
         ecdsa_get_address(node->public_key, coin->address_type, base58_address, sizeof(base58_address));
