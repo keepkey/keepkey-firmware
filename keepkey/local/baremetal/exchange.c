@@ -26,7 +26,6 @@
 #include <exchange.h>
 #include <layout.h>
 #include <app_confirm.h>
-#include "keepkey_board/public/keepkey_usart.h"
 
 /* === Defines ============================================================= */
 /* === External Declarations ================================================*/
