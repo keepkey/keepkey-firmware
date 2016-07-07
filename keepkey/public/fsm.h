@@ -76,6 +76,7 @@ void fsm_msgEstimateTxSize(EstimateTxSize *msg);
 void fsm_msgRecoveryDevice(RecoveryDevice *msg);
 void fsm_msgWordAck(WordAck *msg);
 void fsm_msgCharacterAck(CharacterAck *msg);
+void fsm_msgApplyPolicies(ApplyPolicies *msg);
 
 #if DEBUG_LINK
 //void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);

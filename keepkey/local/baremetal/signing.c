@@ -33,6 +33,7 @@
 #include "coins.h"
 #include "home_sm.h"
 #include "app_confirm.h"
+#include "policy.h"
 
 /* === Private Variables =================================================== */
 
@@ -617,6 +618,7 @@ void signing_txack(TransactionType *tx)
 
 			spending += tx->outputs[0].amount;
 			co = compile_output(coin, root, tx->outputs, &bin_output, !is_change);
+			co = run_policy_compile_output(coin, root, tx->outputs, &bin_output, !is_change);
 
 			if (co < 0) {
 				fsm_sendFailure(FailureType_Failure_Other, "Signing cancelled by user");
