@@ -635,9 +635,9 @@ void signing_txack(TransactionType *tx)
                             sha256_Final(hash_check, &tc);
                             // check fees
                             if (spending > to_spend) {
-			        fsm_sendFailure(FailureType_Failure_NotEnoughFunds, "Not enough funds");
-                                go_home();
-				return;
+                                fsm_sendFailure(FailureType_Failure_NotEnoughFunds, "Not enough funds");
+		                        signing_abort();
+                                return;
                             }
                             uint64_t fee = to_spend - spending;
                             uint32_t tx_est_size = transactionEstimateSizeKb(inputs_count, outputs_count);
@@ -650,7 +650,7 @@ void signing_txack(TransactionType *tx)
 			        if (!confirm(ButtonRequestType_ButtonRequest_FeeOverThreshold,
 		                        "Confirm Fee", "%s", fee_str)) {
 		                    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
-		                    go_home();
+		                    signing_abort();
 		                    return;
 		                }
 
