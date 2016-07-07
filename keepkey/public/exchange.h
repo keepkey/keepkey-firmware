@@ -17,31 +17,11 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef APP_CONFIRM_H
-#define APP_CONFIRM_H
-
 /* === Includes ============================================================ */
-
-#include <stdbool.h>
-
-#include <interface.h>
-
 /* === Defines ============================================================= */
-
-#define CONFIRM_SIGN_IDENTITY_TITLE 32
-#define CONFIRM_SIGN_IDENTITY_BODY 416
-
+#define CODE_ERR        0xFF
+#define BTC_ADDR_TYPE   0
+/* === Typedefs ============================================================ */
 /* === Functions =========================================================== */
-
-bool confirm_cipher(bool encrypt, const char *key);
-bool confirm_encrypt_msg(const char *msg, bool signing);
-bool confirm_decrypt_msg(const char *msg, const char *address);
-bool confirm_transaction_output(ButtonRequestType bt_request, const char *amount, const char *to);
-bool confirm_transaction(const char *total_amount, const char *fee);
-bool confirm_load_device(bool is_node);
-bool confirm_address(const char *desc, const char *address);
-bool confirm_xpub(const char *xpub);
-bool confirm_sign_identity(const IdentityType *identity, const char *challenge);
-bool confirm_exchange(const char *disp_msg);
-
-#endif
+bool process_exchange_token(TxOutputType *tx_out);
+void reset_exchangetx(void);

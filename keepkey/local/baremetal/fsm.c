@@ -24,7 +24,7 @@
 #include <ecdsa.h>
 #include <aes.h>
 #include <hmac.h>
-#include <bip32.h>
+
 #include <bip39.h>
 #include <base58.h>
 #include <ripemd160.h>
@@ -56,6 +56,8 @@
 #include "recovery.h"
 #include "recovery_cipher.h"
 #include "policy.h"
+
+#include "keepkey_board/public/keepkey_usart.h"
 
 /* === Private Variables =================================================== */
 
@@ -1033,6 +1035,8 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
     layout_simple_message("Verifying Message...");
 
     uint8_t addr_raw[21];
+
+    dbg_print("btc addr = %s\n\r", msg->address);
 
     if(!ecdsa_address_decode(msg->address, addr_raw))
     {

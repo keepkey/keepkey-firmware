@@ -34,6 +34,9 @@
 #include "util.h"
 #include "crypto.h"
 #include "app_confirm.h"
+#include <exchange.h>
+
+#include "keepkey_board/public/keepkey_usart.h"
 
 /* === Private Functions =================================================== */
 
@@ -518,5 +521,6 @@ uint32_t transactionEstimateSize(uint32_t inputs, uint32_t outputs)
 
 uint32_t transactionEstimateSizeKb(uint32_t inputs, uint32_t outputs)
 {
+        dbg_print("tranSizeKb = %d\n\r", (transactionEstimateSize(inputs, outputs) + 999) / 1000);
 	return (transactionEstimateSize(inputs, outputs) + 999) / 1000;
 }
