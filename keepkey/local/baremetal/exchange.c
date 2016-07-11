@@ -57,7 +57,7 @@ inline void set_exchange_txout(TxOutputType *tx_out, ExchangeType *ex_tx)
     memset(tx_out, 0, (size_t)((char *)&tx_out->has_address_type - (char *)tx_out));
 
     /* Populate withdrawal address */
-    tx_out->has_address = 1;
+    tx_out->has_address = true;
     memcpy(tx_out->address, ex_tx->response.request.withdrawal_address.address,
            sizeof(tx_out->address));
 
