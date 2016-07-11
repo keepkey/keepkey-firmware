@@ -44,42 +44,40 @@ static const uint8_t exchange_pubkey[65] =
 /* === Private Functions =================================================== */
 
 /*
- *  set_exchange_txout() - inline function to populate the transaction output buffer
+ *  set_exchange_tx_out() - inline function to populate the transaction output buffer
  *
  *  INPUT
  *      tx_out - pointer to transaction output buffer
  *  OUTPUT
  *      none
  */
-inline void set_exchange_txout(TxOutputType *tx_out, ExchangeType *ex_tx)
+inline void set_exchange_tx_out(TxOutputType *tx_out, ExchangeType *ex_tx)
 {
     /* clear to prep transaction output */
     memset(tx_out, 0, (size_t)((char *)&tx_out->has_address_type - (char *)tx_out));
 
-    /* Populate withdrawal address */
+    /* populate withdrawal address */
     tx_out->has_address = true;
     memcpy(tx_out->address, ex_tx->response.request.withdrawal_address.address,
            sizeof(tx_out->address));
 
-    /* Populate withdrawal amount */
+    /* populate withdrawal amount */
     tx_out->amount = ex_tx->response.request.withdrawal_amount;
 }
 
 /*
- * verify_exchange_address - verify "Deposit/Return" address specified in exchange token belongs to KeepKey
- *                           device.
+ * verify_exchange_address - verify address specified in exchange token belongs to device.
  *
  * INPUT
- *     coin_n  - pointer coin type for the specified address
- *     n_cnt   - depth of node
- *     addr_n  - pointer node path
- *     b58addr -
+ *     coin_name - name of coin
+ *     address_n_count - depth of node
+ *     address_n - pointer to node path
+ *     address_str - string representation of address
  *
  * OUTPUT
- *     true/false  - success/failure
- *
+ *     true/false - success/failure
  */
-static bool verify_exchange_address(char *name, size_t address_n_count,
+static bool verify_exchange_address(char *coin_name, size_t address_n_count,
                                     uint32_t *address_n, char *address_str)
 {
     const CoinType *coin;
@@ -87,7 +85,7 @@ static bool verify_exchange_address(char *name, size_t address_n_count,
     char internal_address[36];
     bool ret_stat = false;
 
-    coin = coinByName(name);
+    coin = coinByName(coin_name);
 
     if(coin)
     {
@@ -209,7 +207,7 @@ bool process_exchange_token(TxOutputType *tx_out, bool needs_confirm)
                 }
             }
 
-            set_exchange_txout(tx_out, &tx_out->exchange_type);
+            set_exchange_tx_out(tx_out, &tx_out->exchange_type);
             ret_stat = true;
         }
     } else {
