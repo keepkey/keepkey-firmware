@@ -272,7 +272,7 @@ void storage_reset(void)
 
     /* Reset policies */
     shadow_config.storage.policies_count = POLICY_COUNT;
-    memcpy(&shadow_config.storage.policies, &policies, POLICY_COUNT * sizeof(PolicyType));
+    memcpy(&shadow_config.storage.policies, policies, POLICY_COUNT * sizeof(PolicyType));
 
     shadow_config.storage.version = STORAGE_VERSION;
     session_clear(true); // clear PIN as well
