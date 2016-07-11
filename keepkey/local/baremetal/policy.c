@@ -22,6 +22,8 @@
 #include "policy.h"
 #include "transaction.h"
 #include "coins.h"
+#include "storage.h"
+#include "exchange.h"
 
 /* === Variables =========================================================== */
 
@@ -45,5 +47,16 @@ const PolicyType policies[POLICY_COUNT] = {
  */
 int run_policy_compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, TxOutputBinType *out, bool needs_confirm)
 {
+    if(storage_is_policy_enabled("ShapeShift"))
+    {
+        if(in->address_type == OutputAddressType_EXCHANGE)
+        {
+            if(!process_exchange_token(in, needs_confirm))
+            {
+                return -1;
+            }
+        }
+    }
+
     return compile_output(coin, root, in, out, needs_confirm);
 }

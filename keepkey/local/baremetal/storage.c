@@ -1000,7 +1000,7 @@ Allocation get_storage_location(void)
  */
 bool storage_set_policy(PolicyType *policy)
 {
-    int i;
+    uint8_t i;
     bool ret_val = false;
 
     for(i = 0; i < POLICY_COUNT; ++i)
@@ -1026,6 +1026,30 @@ bool storage_set_policy(PolicyType *policy)
 void storage_get_policies(PolicyType *policy_data)
 {
     memcpy(policy_data, shadow_config.storage.policies, POLICY_COUNT * sizeof(PolicyType));
+}
+
+/*
+ * storage_is_policy_enabled() - Status of policy in storage
+ *
+ * INPUT
+ *     policy_name: name of policy to check
+ * OUTPUT
+ *     none
+ */
+bool storage_is_policy_enabled(char *policy_name)
+{
+    uint8_t i;
+    bool ret_val = false;
+
+    for(i = 0; i < POLICY_COUNT; ++i)
+    {
+        if(strcmp(policy_name, shadow_config.storage.policies[i].policy_name) == 0)
+        {
+            ret_val = shadow_config.storage.policies[i].enabled;
+        }
+    }
+
+    return ret_val;
 }
 
 /* === Debug Functions =========================================================== */

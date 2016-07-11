@@ -17,11 +17,11 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 /* === Defines ============================================================= */
+
 #define CODE_ERR        0xFF
 #define BTC_ADDR_TYPE   0
-/* === Typedefs ============================================================ */
+
 /* === Functions =========================================================== */
-bool process_exchange_token(TxOutputType *tx_out);
-void reset_exchangetx(void);
+ 
+bool process_exchange_token(TxOutputType *tx_out, bool needs_confirm);

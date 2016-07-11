@@ -25,7 +25,6 @@
 #include <crypto.h>
 #include <layout.h>
 #include <confirm_sm.h>
-#include <exchange.h>
 
 #include "crypto.h"
 #include "signing.h"
@@ -35,8 +34,6 @@
 #include "home_sm.h"
 #include "app_confirm.h"
 #include "policy.h"
-
-#include "keepkey_board/public/keepkey_usart.h"
 
 /* === Private Variables =================================================== */
 
@@ -56,8 +53,6 @@ static uint8_t hash[32], hash_check[32], privkey[32], pubkey[33], sig[64];
 static uint64_t to_spend, spending, change_spend;
 static bool multisig_fp_set, multisig_fp_mismatch;
 static uint8_t multisig_fp[32];
-
-/* === pkhoo test Variables =================================================== */
 
 /* === Variables =========================================================== */
 
@@ -100,7 +95,6 @@ static bool check_valid_output_address(TxOutputType *tx_out)
 {
     bool ret_val = false;
 
-    dbg_print("outputAddressType %d\n\r",tx_out->address_type);
     switch(tx_out->address_type)
     {
         case OutputAddressType_SPEND:
@@ -110,9 +104,11 @@ static bool check_valid_output_address(TxOutputType *tx_out)
                 /* valid address type */
                 ret_val = true;
             }
+
             break;
 
         }
+
         case OutputAddressType_TRANSFER:
         case OutputAddressType_CHANGE:
         {
@@ -121,6 +117,7 @@ static bool check_valid_output_address(TxOutputType *tx_out)
                 /* valid address type */
                 ret_val = true;
             }
+
             break;
         }
 
@@ -129,9 +126,9 @@ static bool check_valid_output_address(TxOutputType *tx_out)
 
             if(tx_out->has_exchange_type)
             {
-                dbg_print("ouput addres type = exchanged \n\r");
                 ret_val = true;
             }
+
             break;
         }
     }
@@ -330,7 +327,6 @@ void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinTyp
 	raw_tx_status = NOT_PARSING;
 
 	send_req_1_input();
-	reset_exchangetx();
 }
 
 void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
@@ -496,7 +492,6 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 
 void signing_txack(TransactionType *tx)
 {
-
 	if (!signing) {
 		fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Signing mode");
 		go_home();
@@ -505,20 +500,6 @@ void signing_txack(TransactionType *tx)
 
 	int co;
 	memset(&resp, 0, sizeof(TxRequest));
-
-	if(signing_stage >= STAGE_REQUEST_3_OUTPUT && signing_stage <= STAGE_REQUEST_5_OUTPUT )
-	{
-	    if(tx->outputs[0].address_type == OutputAddressType_EXCHANGE )
-	    {
-		/* transaction is for exchange, set up transaction output from exchange token*/
-		if(process_exchange_token(&tx->outputs[0]) == false)
-		{
-		    fsm_sendFailure(FailureType_Failure_Other, "Failed to process exchange token");
-		    signing_abort();
-		    return;
-		}
-	    }
-	}
 
 	switch (signing_stage) {
 		case STAGE_REQUEST_1_INPUT:
@@ -641,7 +622,6 @@ void signing_txack(TransactionType *tx)
                             }
                         }
 
-
 			if (is_change) {
 				if (change_spend == 0) { // not set
 					change_spend = tx->outputs[0].amount;
@@ -652,11 +632,7 @@ void signing_txack(TransactionType *tx)
 			    }
 			}
 
-                        dbg_print("is_change = %d, change_spend = %d, amount = %d\n\r", 
-                                is_change, change_spend, tx->outputs[0].amount);
-
 			spending += tx->outputs[0].amount;
-			co = compile_output(coin, root, tx->outputs, &bin_output, !is_change);
 			co = run_policy_compile_output(coin, root, tx->outputs, &bin_output, !is_change);
 
 			if (co < 0) {
@@ -676,28 +652,22 @@ void signing_txack(TransactionType *tx)
                             sha256_Final(hash_check, &tc);
                             // check fees
                             if (spending > to_spend) {
-			        fsm_sendFailure(FailureType_Failure_NotEnoughFunds, "Not enough funds");
-                                go_home();  //Drarin review: potential issue.  Should we exit by calling signing_abort() instead!!!
-				return;
+                                fsm_sendFailure(FailureType_Failure_NotEnoughFunds, "Not enough funds");
+		                        signing_abort();
+                                return;
                             }
-                            dbg_print("to_spend = %lld, spending = %lld\n\r", to_spend, spending);
                             uint64_t fee = to_spend - spending;
-
-                            dbg_print("InCount = %d, OutCount = %d\n\r", inputs_count, outputs_count);
-
                             uint32_t tx_est_size = transactionEstimateSizeKb(inputs_count, outputs_count);
                             char total_amount_str[32];
 		            char fee_str[32];
 
 		            coin_amnt_to_str(coin, fee, fee_str, sizeof(fee_str));
 
-                            dbg_print("fee = %lld, txSize = %ld, mxfee = %lld\n\r", fee, tx_est_size, coin->maxfee_kb);
-
                             if(fee > (uint64_t)tx_est_size * coin->maxfee_kb) {
 			        if (!confirm(ButtonRequestType_ButtonRequest_FeeOverThreshold,
 		                        "Confirm Fee", "%s", fee_str)) {
 		                    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
-                                    go_home();  //Drarin review: potential issue.  Should we exit by calling signing_abort() instead!!!
+		                    signing_abort();
 		                    return;
 		                }
 
@@ -775,7 +745,7 @@ void signing_txack(TransactionType *tx)
 			}
 			return;
 		case STAGE_REQUEST_4_OUTPUT:
-			co = compile_output(coin, root, tx->outputs, &bin_output, false);
+			co = run_policy_compile_output(coin, root, tx->outputs, &bin_output, false);
 			if (co < 0) {
 				fsm_sendFailure(FailureType_Failure_Other, "Signing cancelled by user");
 				signing_abort();
@@ -873,6 +843,5 @@ void signing_abort(void)
 	if (signing) {
 		go_home();
 		signing = false;
-		reset_exchangetx();
 	}
 }

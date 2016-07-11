@@ -88,5 +88,6 @@ Allocation get_storage_location(void);
 
 bool storage_set_policy(PolicyType *policy);
 void storage_get_policies(PolicyType *policies);
+bool storage_is_policy_enabled(char *policy_name);
 
 #endif

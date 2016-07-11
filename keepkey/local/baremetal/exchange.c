@@ -18,6 +18,7 @@
  */
 
 /* === Includes ============================================================ */
+
 #include <stdio.h>
 #include <ecdsa.h>
 #include <crypto.h>
@@ -28,25 +29,20 @@
 #include <layout.h>
 #include <app_confirm.h>
 
-/* === Defines ============================================================= */
-/* === External Declarations ================================================*/
-
 /* === Private Variables =================================================== */
-/* ShapeShift's public key to verify signature on exchange token */
-static const uint8_t exchange_pubkey[33] =
+
+static const uint8_t exchange_pubkey[65] =
 {
-    0x02, 0x1c, 0x8f, 0xef, 0xda, 0x71, 0xa2, 0x05, 0x13, 0x42, 0x6b, 0x86,
-    0xde, 0x44, 0xae, 0x74, 0xe9, 0x5a, 0x50, 0x75, 0xdc, 0xb3, 0xcf, 0xd5,
-    0xa3, 0xa6, 0x39, 0xec, 0xa9, 0xbe, 0xe0, 0xdf, 0x92
+    0x04, 0xa3, 0x3c, 0xec, 0x36, 0xd6, 0xd0, 0x11, 0xaf, 0x09, 0xe0, 0xc4,
+    0x98, 0xd1, 0x7c, 0x3b, 0xa7, 0xab, 0x90, 0x7a, 0xbf, 0xbb, 0x64, 0xca,
+    0xba, 0x16, 0xad, 0x90, 0x77, 0xca, 0xac, 0xd3, 0xe1, 0x98, 0xa3, 0x23,
+    0x62, 0xc3, 0x2d, 0x0e, 0xf0, 0xa7, 0x26, 0x92, 0x59, 0xab, 0xbb, 0xcd,
+    0x8a, 0x68, 0x8a, 0x0c, 0x8f, 0x54, 0xa6, 0xdb, 0xc4, 0x05, 0x45, 0x95,
+    0x66, 0xcd, 0x65, 0x14, 0x1d
 };
 
-static struct
-{
-    bool exch_flag;
-    ExchangeType exch_image;
-} exchangeTx;
-
 /* === Private Functions =================================================== */
+
 /*
  *  set_exchange_txout() - inline function to populate the transaction output buffer
  *
@@ -166,19 +162,7 @@ verify_exchange_token_exit:
     return(ret_stat);
 }
 
-/* === Public Functions =================================================== */
-/*
- * reset_exchangetx() - reset exchange related variables to initial state
- * INPUT
- *      none
- * OUTPUT
- *      none
- */
-void reset_exchangetx(void)
-{
-    /* clear to initialize exchange data */
-    memset(&exchangeTx, 0, sizeof(exchangeTx));
-}
+/* === Functions =========================================================== */
 
 /*
  * process_exchange_token() - validate token from exchange and populate the transaction
@@ -186,29 +170,26 @@ void reset_exchangetx(void)
  *
  * INPUT
  *      tx_out - pointer transaction output structure
+ *      needs_confirm - whether requires user manual approval
  * OUTPUT
- *      true - success
- *      false - failure
+ *      true/false - success/failure
  */
-bool process_exchange_token(TxOutputType *tx_out)
+bool process_exchange_token(TxOutputType *tx_out, bool needs_confirm)
 {
     bool ret_stat = false;
     char conf_msg[100];
 
     if(tx_out->has_exchange_type)
     {
-        /* process exchange transaction once and cache it until the transaction is complete*/
-        if(!exchangeTx.exch_flag)
+        /* Validate token before processing */
+        if(verify_exchange_token(&tx_out->exchange_type) == true)
         {
-            /* Validate token before processing */
-            if(verify_exchange_token(&tx_out->exchange_type) == true)
-            {
-                const CoinType *wthdr_coin, *dep_coin;
-                dep_coin = coinByName(tx_out->exchange_type.deposit_coin_name);
-                wthdr_coin = coinByName(tx_out->exchange_type.response.request.withdrawal_coin_type);
+            const CoinType *wthdr_coin, *dep_coin;
+            dep_coin = coinByName(tx_out->exchange_type.deposit_coin_name);
+            wthdr_coin = coinByName(tx_out->exchange_type.response.request.withdrawal_coin_type);
 
-                memset(conf_msg, 0, sizeof(conf_msg));
-                /* get user confirmation */
+            if(needs_confirm)
+            {
                 snprintf(conf_msg, sizeof(conf_msg),
                          "Do you want to exchange \"%s\" to \"%s\" at rate = %d%%%% and deposit to  %s Acc #%d",
                          tx_out->exchange_type.response.request.withdrawal_coin_type,
@@ -217,43 +198,34 @@ bool process_exchange_token(TxOutputType *tx_out)
                          tx_out->exchange_type.deposit_coin_name,
                          (int)tx_out->exchange_type.deposit_address_n[2] & 0x7ffffff);
 
-                if(confirm_exchange(conf_msg))
+                if(!confirm_exchange(conf_msg))
                 {
+                    ret_stat = false;
+                    goto process_exchange_token_exit;
+                }
 
-                    snprintf(conf_msg, sizeof(conf_msg),
-                             "Exchanging %lld %s to %lld %s and depositing to %s Acc #%d",
-                             tx_out->exchange_type.response.request.withdrawal_amount,
-                             wthdr_coin->coin_shortcut,
-                             tx_out->exchange_type.response.deposit_amount,
-                             dep_coin->coin_shortcut,
-                             tx_out->exchange_type.deposit_coin_name,
-                             (int)tx_out->exchange_type.deposit_address_n[2] & 0x7ffffff);
+                snprintf(conf_msg, sizeof(conf_msg),
+                         "Exchanging %lld %s to %lld %s and depositing to %s Acc #%d",
+                         tx_out->exchange_type.response.request.withdrawal_amount, wthdr_coin->coin_shortcut,
+                         tx_out->exchange_type.response.deposit_amount, dep_coin->coin_shortcut,
+                         tx_out->exchange_type.deposit_coin_name,
+                         (int)tx_out->exchange_type.deposit_address_n[2] & 0x7ffffff);
 
-                    if(confirm_exchange(conf_msg))
-                    {
-                        set_exchange_txout(tx_out, &tx_out->exchange_type);
-                        exchangeTx.exch_flag = 1;
-                        /* cache exchange_type for the transaction */
-                        exchangeTx.exch_image = tx_out->exchange_type;
-                        ret_stat = true;
-                    }
+                if(!confirm_exchange(conf_msg))
+                {
+                    ret_stat = false;
+                    goto process_exchange_token_exit;
                 }
             }
-        }
-        else
-        {
-            /* Verify if the exchange token is from the same transaction.  */
-            if(!memcmp(&exchangeTx.exch_image, &tx_out->exchange_type, sizeof(ExchangeType)))
-            {
 
-                /* Found the token to be the same.  Populate the transaction output with cached data*/
-                set_exchange_txout(tx_out, &tx_out->exchange_type);
-                ret_stat = true;
-
-            }
+            set_exchange_txout(tx_out, &tx_out->exchange_type);
+            ret_stat = true;
         }
+    } else {
+
     }
+
+process_exchange_token_exit:
 
     return(ret_stat);
 }
-
