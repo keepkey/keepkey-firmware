@@ -27,7 +27,7 @@
 
 /* === Defines ============================================================= */
 
-#define POLICY_COUNT 1
+#define POLICY_COUNT sizeof(((Storage *)NULL)->policies) / sizeof(PolicyType)
 
 /* === Variables =========================================================== */
 
