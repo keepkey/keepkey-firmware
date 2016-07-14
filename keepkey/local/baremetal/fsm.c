@@ -57,8 +57,6 @@
 #include "recovery_cipher.h"
 #include "policy.h"
 
-#include "keepkey_board/public/keepkey_usart.h"
-
 /* === Private Variables =================================================== */
 
 static uint8_t msg_resp[MAX_FRAME_SIZE];
@@ -1035,8 +1033,6 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
     layout_simple_message("Verifying Message...");
 
     uint8_t addr_raw[21];
-
-    dbg_print("btc addr = %s\n\r", msg->address);
 
     if(!ecdsa_address_decode(msg->address, addr_raw))
     {

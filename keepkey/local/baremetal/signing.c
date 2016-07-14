@@ -83,10 +83,45 @@ enum {
 /* === Private Functions =================================================== */
 
 /*
+ * send_co_failed_message() - send transaction output error message to client
+ *
+ * INPUT  
+ *     co_error - Transaction output compilation error id
+ * OUTPUT 
+ *     none
+ */
+static void send_fsm_co_error_message(int co_error)
+{
+    switch(co_error)
+    {
+        case(TXOUT_COMPILE_ERROR):
+        {
+            fsm_sendFailure(FailureType_Failure_Other, "Failed to compile output");
+            break;
+        }
+        case(TXOUT_CANCEL):
+        {
+            fsm_sendFailure(FailureType_Failure_Other, "Signing cancelled by user");
+            break;
+        }
+        case (TXOUT_EXCHANGE_TOKEN_ERROR):
+        {
+            fsm_sendFailure(FailureType_Failure_Other, "Invalid exchange token");
+            break;
+        }
+        default:
+        {
+            fsm_sendFailure(FailureType_Failure_Other, "Unknown TxOut compilation error");
+            break;
+        }
+    }
+}
+
+/*
  * check_valid_output_address() - Checks the sanity of an output
  *
  * INPUT
- *     - stor_config: storage config
+ *     tx_out - pointer to transaction output structure
  * OUTPUT
  *     true/false status
  *
@@ -492,13 +527,14 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 
 void signing_txack(TransactionType *tx)
 {
+	int co;
+
 	if (!signing) {
 		fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Signing mode");
 		go_home();
 		return;
 	}
 
-	int co;
 	memset(&resp, 0, sizeof(TxRequest));
 
 	switch (signing_stage) {
@@ -632,18 +668,15 @@ void signing_txack(TransactionType *tx)
 			    }
 			}
 
-			spending += tx->outputs[0].amount;
 			co = run_policy_compile_output(coin, root, tx->outputs, &bin_output, !is_change);
-
-			if (co < 0) {
-				fsm_sendFailure(FailureType_Failure_Other, "Signing cancelled by user");
-				signing_abort();
-				return;
-			} else if (co == 0) {
-				fsm_sendFailure(FailureType_Failure_Other, "Failed to compile output");
-				signing_abort();
-				return;
+			if (co <= TXOUT_COMPILE_ERROR) {
+			    send_fsm_co_error_message(co);
+			    signing_abort();
+			    return;
 			}
+
+			spending += tx->outputs[0].amount;
+
 			sha256_Update(&tc, (const uint8_t *)&bin_output, sizeof(TxOutputBinType));
 			if (idx1 < outputs_count - 1) {
 				idx1++;
@@ -746,14 +779,10 @@ void signing_txack(TransactionType *tx)
 			return;
 		case STAGE_REQUEST_4_OUTPUT:
 			co = run_policy_compile_output(coin, root, tx->outputs, &bin_output, false);
-			if (co < 0) {
-				fsm_sendFailure(FailureType_Failure_Other, "Signing cancelled by user");
-				signing_abort();
-				return;
-			} else if (co == 0) {
-				fsm_sendFailure(FailureType_Failure_Other, "Failed to compile output");
-				signing_abort();
-				return;
+			if (co <= TXOUT_COMPILE_ERROR) {
+			    send_fsm_co_error_message(co);
+			    signing_abort();
+			    return;
 			}
 			sha256_Update(&tc, (const uint8_t *)&bin_output, sizeof(TxOutputBinType));
 			if (!tx_serialize_output_hash(&ti, &bin_output)) {
@@ -816,10 +845,11 @@ void signing_txack(TransactionType *tx)
 			}
 			return;
 		case STAGE_REQUEST_5_OUTPUT:
-			if (compile_output(coin, root, tx->outputs, &bin_output,false) <= 0) {
-				fsm_sendFailure(FailureType_Failure_Other, "Failed to compile output");
-				signing_abort();
-				return;
+			co = run_policy_compile_output(coin, root, tx->outputs, &bin_output, false);
+			if (co <= TXOUT_COMPILE_ERROR) {
+			    send_fsm_co_error_message(co);
+			    signing_abort();
+			    return;
 			}
 			resp.has_serialized = true;
 			resp.serialized.has_serialized_tx = true;

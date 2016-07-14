@@ -33,12 +33,12 @@
 
 static const uint8_t exchange_pubkey[65] =
 {
-    0x04, 0xa3, 0x3c, 0xec, 0x36, 0xd6, 0xd0, 0x11, 0xaf, 0x09, 0xe0, 0xc4,
-    0x98, 0xd1, 0x7c, 0x3b, 0xa7, 0xab, 0x90, 0x7a, 0xbf, 0xbb, 0x64, 0xca,
-    0xba, 0x16, 0xad, 0x90, 0x77, 0xca, 0xac, 0xd3, 0xe1, 0x98, 0xa3, 0x23,
-    0x62, 0xc3, 0x2d, 0x0e, 0xf0, 0xa7, 0x26, 0x92, 0x59, 0xab, 0xbb, 0xcd,
-    0x8a, 0x68, 0x8a, 0x0c, 0x8f, 0x54, 0xa6, 0xdb, 0xc4, 0x05, 0x45, 0x95,
-    0x66, 0xcd, 0x65, 0x14, 0x1d
+    0x04, 0xf6, 0x45, 0xec, 0x65, 0x44, 0xa9, 0x2f, 0x95, 0x1f, 0x3b, 0xca,
+    0x16, 0xa2, 0xbc, 0x1c, 0x56, 0x84, 0x6d, 0x06, 0x55, 0x94, 0xdb, 0x22, 
+    0x27, 0x25, 0xd5, 0x9b, 0x99, 0x02, 0x52, 0x83, 0x85, 0xeb, 0x20, 0xc6, 
+    0x2c, 0x40, 0x83, 0xbd, 0xa5, 0xe9, 0x9d, 0x62, 0x7c, 0x28, 0xbd, 0x89, 
+    0x4e, 0xfc, 0x42, 0x34, 0x44, 0xde, 0x9a, 0xfa, 0x9a, 0xd7, 0xe8, 0xaf,  
+    0xf6, 0x4d, 0x38, 0x97, 0x0f
 };
 
 /* === Private Functions =================================================== */
@@ -73,12 +73,13 @@ inline void set_exchange_tx_out(TxOutputType *tx_out, ExchangeType *ex_tx)
  *     address_n_count - depth of node
  *     address_n - pointer to node path
  *     address_str - string representation of address
+ *     root - root hd node
  *
  * OUTPUT
  *     true/false - success/failure
  */
 static bool verify_exchange_address(char *coin_name, size_t address_n_count,
-                                    uint32_t *address_n, char *address_str)
+                                    uint32_t *address_n, char *address_str, const HDNode *root)
 {
     const CoinType *coin;
     HDNode node;
@@ -89,6 +90,7 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
 
     if(coin)
     {
+    	memcpy(&node, root, sizeof(HDNode));
         if(hdnode_private_ckd_cached(&node, address_n, address_n_count) != 0)
         {
             ecdsa_get_address(node.public_key, coin->address_type, internal_address,
@@ -109,10 +111,11 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
  *
  * INPUT
  *     exchange:  exchange pointer
+ *     root - root hd node
  * OUTPUT
  *     true/false -  success/failure
  */
-static bool verify_exchange_token(ExchangeType *exchange)
+static bool verify_exchange_token(ExchangeType *exchange, const HDNode *root)
 {
     bool ret_stat = false;
     uint8_t fingerprint[32];
@@ -121,7 +124,7 @@ static bool verify_exchange_token(ExchangeType *exchange)
     if(!verify_exchange_address(exchange->deposit_coin_name,
                                 exchange->deposit_address_n_count,
                                 exchange->deposit_address_n,
-                                exchange->response.deposit_address.address))
+                                exchange->response.deposit_address.address, root))
     {
         goto verify_exchange_token_exit;
     }
@@ -130,7 +133,7 @@ static bool verify_exchange_token(ExchangeType *exchange)
     if(!verify_exchange_address(exchange->return_coin_name,
                                 exchange->return_address_n_count,
                                 exchange->return_address_n,
-                                exchange->response.request.return_address.address))
+                                exchange->response.request.return_address.address, root))
     {
         goto verify_exchange_token_exit;
     }
@@ -159,11 +162,12 @@ verify_exchange_token_exit:
  *
  * INPUT
  *      tx_out - pointer transaction output structure
+ *      root - root hd node
  *      needs_confirm - whether requires user manual approval
  * OUTPUT
  *      true/false - success/failure
  */
-bool process_exchange_token(TxOutputType *tx_out, bool needs_confirm)
+bool process_exchange_token(TxOutputType *tx_out, const HDNode *root, bool needs_confirm)
 {
     const CoinType *withdraw_coin, *deposit_coin;
     bool ret_stat = false;
@@ -172,7 +176,7 @@ bool process_exchange_token(TxOutputType *tx_out, bool needs_confirm)
     if(tx_out->has_exchange_type)
     {
         /* validate token before processing */
-        if(verify_exchange_token(&tx_out->exchange_type))
+        if(verify_exchange_token(&tx_out->exchange_type, root))
         {
             deposit_coin = coinByName(tx_out->exchange_type.deposit_coin_name);
             withdraw_coin = coinByName(tx_out->exchange_type.response.request.withdrawal_coin_type);
