@@ -28,7 +28,7 @@
 /* === Variables =========================================================== */
 
 const PolicyType policies[POLICY_COUNT] = {
-    {true, "ShapeShift", true, false}
+    {true, EXCHANGE1, true, false}
 };
 
 /* === Functions =========================================================== */
@@ -47,7 +47,7 @@ const PolicyType policies[POLICY_COUNT] = {
  */
 int run_policy_compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, TxOutputBinType *out, bool needs_confirm)
 {
-    if(storage_is_policy_enabled("ShapeShift"))
+    if(storage_is_policy_enabled(EXCHANGE1))
     {
         if(in->address_type == OutputAddressType_EXCHANGE)
         {
