@@ -1,7 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2015 KeepKey LLC
+ * Copyright (C) 2016 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -22,7 +22,7 @@
 
 #define MAJOR_VERSION 2  /* Major version is bumped on feature releases */
 #define MINOR_VERSION 0  /* Minor version is bumped on minor bug fix releases */
-#define PATCH_VERSION 4  /* Patch version is bumped on internal test builds. */ 
+#define PATCH_VERSION 2  /* Patch version is bumped on internal test builds. */ 
 
 #endif
 
