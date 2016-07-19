@@ -36,6 +36,7 @@
 #include <confirm_sm.h>
 #include <usb_driver.h>
 #include <keepkey_flash.h>
+#include <bootloader_version.h>
 
 #include "signatures.h"
 #include "usb_flash.h"

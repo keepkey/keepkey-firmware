@@ -23,10 +23,6 @@ OPENCM3_ROOT = os.path.join(Dir('#').abspath, 'libopencm3')
 SCM_REVISION = os.popen("git rev-parse HEAD").read().rstrip()
 
 DEFS=['-DSTM32F2',
-      '-DBOOTLOADER_MAJOR_VERSION=1', 
-      '-DBOOTLOADER_MINOR_VERSION=0', 
-      '-DBOOTLOADER_PATCH_VERSION=3',
-
       '-DNDEBUG',
       '-DSCM_REVISION=\'"%s"\'' % (re.sub(r'(..)', r'\\x\1', SCM_REVISION)),
       '-DPB_FIELD_16BIT=1',
