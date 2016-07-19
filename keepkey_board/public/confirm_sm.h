@@ -76,6 +76,9 @@ typedef void (*layout_notification_t)(const char *str1, const char *str2,
 
 bool confirm(ButtonRequestType type, const char *request_title, const char *request_body,
              ...);
+bool confirm_with_custom_button_request(ButtonRequest *button_request,
+                                        const char *request_title, const char *request_body,
+                                        ...);
 bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
                                 ButtonRequestType type,
                                 const char *request_title, const char *request_body, ...);
