@@ -56,7 +56,6 @@
 #include "recovery.h"
 #include "recovery_cipher.h"
 #include "policy.h"
-#include <app_version.h>
 
 /* === Private Variables =================================================== */
 
