@@ -36,7 +36,6 @@
 #include "storage.h"
 #include "fsm.h"
 #include "app_layout.h"
-#include <app_version.h>
 
 /* === Defines ============================================================= */
 #define APP_VERSIONS "VERSION" \
