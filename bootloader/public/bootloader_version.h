@@ -17,8 +17,8 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef APP_VERSION_H
-#define APP_VERSION_H
+#ifndef BLDR_VERSION_H
+#define BLDR_VERSION_H
 
 #define BOOTLOADER_MAJOR_VERSION 1  
 #define BOOTLOADER_MINOR_VERSION 0  
