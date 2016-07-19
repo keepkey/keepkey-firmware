@@ -32,8 +32,7 @@ def proc_args():
     return args
 
 def bump_version(args):
-    with open('version.json', 'r') as f:
-        version = json.load(f)
+    version = json.load(open('version.json', 'r'))
 
     if(args.bump_feature):
         version['MAJOR_VERSION'] += 1
@@ -45,8 +44,7 @@ def bump_version(args):
     elif(args.bump_test):
         version['PATCH_VERSION'] += 1
 
-    with open('version.json', 'w') as f:
-        json.dump(version, f)
+    json.dump(version, open('version.json', 'w'))
 
 def main():
 
