@@ -32,6 +32,10 @@ def proc_app_version(ver_type, operator):
                     app_major_version += 1
                 else:
                     app_major_version = 0 
+                    f.seek(file_offset + line_offset)
+                    #empty out the space before the update
+                    f.write("   ")
+
                 f.seek(file_offset + line_offset)
                 f.write(str(app_major_version))
 
@@ -43,6 +47,10 @@ def proc_app_version(ver_type, operator):
                     app_minor_version += 1
                 else:
                     app_minor_version = 0
+                    f.seek(file_offset + line_offset)
+                    #empty out the space before the update
+                    f.write("   ")
+
                 f.seek(file_offset + line_offset)
                 f.write(str(app_minor_version))
 
@@ -54,6 +62,10 @@ def proc_app_version(ver_type, operator):
                     app_patch_version += 1
                 else:
                     app_patch_version = 0
+                    f.seek(file_offset + line_offset)
+                    #empty out the space before the update
+                    f.write("   ")
+
                 f.seek(file_offset + line_offset)
                 f.write(str(app_patch_version))
     f.close()
