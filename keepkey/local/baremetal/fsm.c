@@ -1417,31 +1417,44 @@ void fsm_msgCharacterAck(CharacterAck *msg)
 
 void fsm_msgApplyPolicies(ApplyPolicies *msg)
 {
+    RESP_INIT(ButtonRequest);
+    resp->has_code = true;
+    resp->code = ButtonRequestType_ButtonRequest_ApplyPolicies;
+    resp->has_data = true;
+
     if(msg->policy_count == 0)
     {
         fsm_sendFailure(FailureType_Failure_SyntaxError, "No policy provided");
         return;
     }
 
+    strlcpy(resp->data, msg->policy[0].policy_name, sizeof(resp->data));
+
     if(msg->policy[0].enabled)
     {
-        if(!confirm(ButtonRequestType_ButtonRequest_ApplyPolicies,
-                    "Enable Policy", "Do you want to enable %s policy?", msg->policy[0].policy_name))
+        strlcat(resp->data, ":Enable", sizeof(resp->data));
+
+        if(!confirm_with_custom_button_request(resp,
+                                               "Enable Policy", "Do you want to enable %s policy?", msg->policy[0].policy_name))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled,
                             "Apply policy cancelled");
             go_home();
             return;
         }
-    } else {
-        if(!confirm(ButtonRequestType_ButtonRequest_ApplyPolicies,
-                    "Disable Policy", "Do you want to disable %s policy?", msg->policy[0].policy_name))
+    }
+    else
+    {
+        strlcat(resp->data, ":Disable", sizeof(resp->data));
+
+        if(!confirm_with_custom_button_request(resp,
+                                               "Disable Policy", "Do you want to disable %s policy?", msg->policy[0].policy_name))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled,
                             "Apply policy cancelled");
             go_home();
             return;
-        }        
+        }
     }
 
     if(!pin_protect_cached())
@@ -1453,7 +1466,7 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg)
     if(!storage_set_policy(&msg->policy[0]))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                            "Policy could not be applied");
+                        "Policy could not be applied");
     }
 
     storage_commit();
