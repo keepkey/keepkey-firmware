@@ -5,6 +5,7 @@ Snagged alot of settings from:
 from SCons.Script import *
 import os
 import re
+import json
 
 root = os.environ.get('GCC_ROOT')
 
@@ -22,7 +23,15 @@ OPENCM3_ROOT = os.path.join(Dir('#').abspath, 'libopencm3')
 
 SCM_REVISION = os.popen("git rev-parse HEAD").read().rstrip()
 
+VERSION = json.load(open('version.json', 'r'))
+
 DEFS=['-DSTM32F2',
+      '-DBOOTLOADER_MAJOR_VERSION=%d' % (VERSION['BOOTLOADER_MAJOR_VERSION']), 
+      '-DBOOTLOADER_MINOR_VERSION=%d' % (VERSION['BOOTLOADER_MINOR_VERSION']), 
+      '-DBOOTLOADER_PATCH_VERSION=%d' % (VERSION['BOOTLOADER_PATCH_VERSION']),
+      '-DMAJOR_VERSION=%d' % (VERSION['MAJOR_VERSION']), 
+      '-DMINOR_VERSION=%d' % (VERSION['MINOR_VERSION']), 
+      '-DPATCH_VERSION=%d' % (VERSION['PATCH_VERSION']),
       '-DNDEBUG',
       '-DSCM_REVISION=\'"%s"\'' % (re.sub(r'(..)', r'\\x\1', SCM_REVISION)),
       '-DPB_FIELD_16BIT=1',
