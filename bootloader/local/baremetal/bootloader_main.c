@@ -45,7 +45,6 @@
 #include "signatures.h"
 #include "usb_flash.h"
 #include "bootloader_main.h"
-#include <bootloader_version.h>
 
 /* === Private Variables =================================================== */
 
