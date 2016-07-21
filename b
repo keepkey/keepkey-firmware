@@ -66,7 +66,6 @@ def main():
         return
 
     compile_protocol_buffers()
-    return
 
     buildargs = ''
 
