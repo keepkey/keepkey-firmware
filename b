@@ -53,7 +53,10 @@ def compile_protocol_buffers():
     if not os.path.exists('interface/local'):
         os.mkdir('interface/local')
     
-    local('protoc -I../device-protocol -I. -I/usr/include --plugin=nanopb=protoc-gen-nanopb --nanopb_out=../device-protocol/. ../device-protocol/*.proto')
+    local('cp interface/public/*.options ../device-protocol/.')
+    os.chdir('../device-protocol')
+    local('protoc -I. -I/usr/include --plugin=nanopb=protoc-gen-nanopb --nanopb_out=. *.proto')
+    os.chdir('../keepkey-firmware')
     local('mv ../device-protocol/*.pb.c interface/local')
     local('mv ../device-protocol/*.pb.h interface/public')
 
