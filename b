@@ -46,6 +46,17 @@ def bump_version(args):
 
     json.dump(version, open('version.json', 'w'))
 
+def compile_protocol_buffers():
+    if not os.path.exists('../device-protocol'):
+        local('git clone https://github.com/keepkey/device-protocol.git ../device-protocol')
+
+    if not os.path.exists('interface/local'):
+        os.mkdir('interface/local')
+    
+    local('protoc -I../device-protocol -I. -I/usr/include --plugin=nanopb=protoc-gen-nanopb --nanopb_out=../device-protocol/. ../device-protocol/*.proto')
+    local('mv ../device-protocol/*.pb.c interface/local')
+    local('mv ../device-protocol/*.pb.h interface/public')
+
 def main():
 
     args = proc_args()
@@ -53,6 +64,9 @@ def main():
     if(args.bump_feature or args.bump_bug_fix or args.bump_test):
         bump_version(args)
         return
+
+    compile_protocol_buffers()
+    return
 
     buildargs = ''
 
