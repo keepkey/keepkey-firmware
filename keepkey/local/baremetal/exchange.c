@@ -58,11 +58,11 @@ inline void set_exchange_tx_out(TxOutputType *tx_out, ExchangeType *ex_tx)
 
     /* populate withdrawal address */
     tx_out->has_address = true;
-    memcpy(tx_out->address, ex_tx->response.request.withdrawal_address.address,
+    memcpy(tx_out->address, ex_tx->signed_exchange_response.response.withdrawal_address.address,
            sizeof(tx_out->address));
 
     /* populate withdrawal amount */
-    tx_out->amount = ex_tx->response.request.withdrawal_amount;
+    tx_out->amount = ex_tx->signed_exchange_response.response.withdrawal_amount;
 }
 
 /*
@@ -121,30 +121,31 @@ static bool verify_exchange_token(ExchangeType *exchange, const HDNode *root)
     uint8_t fingerprint[32];
 
     /* verify deposit address */
-    if(!verify_exchange_address(exchange->deposit_coin_name,
-                                exchange->deposit_address_n_count,
-                                exchange->deposit_address_n,
-                                exchange->response.deposit_address.address, root))
+    if(!verify_exchange_address(
+             exchange->deposit_coin_name,
+             exchange->deposit_address_n_count,
+             exchange->deposit_address_n,
+             exchange->signed_exchange_response.response.deposit_address.address, root))
     {
         goto verify_exchange_token_exit;
     }
 
     /* verify return address */
-    if(!verify_exchange_address(exchange->return_coin_name,
-                                exchange->return_address_n_count,
-                                exchange->return_address_n,
-                                exchange->response.request.return_address.address, root))
+    if(!verify_exchange_address(
+             exchange->return_coin_name,
+             exchange->return_address_n_count,
+             exchange->return_address_n,
+             exchange->signed_exchange_response.response.return_address.address, root))
     {
         goto verify_exchange_token_exit;
     }
 
     /* check exchange signature */
-    sha256_Raw((uint8_t *)&exchange->response.request, sizeof(ExchangeRequest),
+    sha256_Raw((uint8_t *)&exchange->signed_exchange_response.response, sizeof(ExchangeResponse),
                fingerprint);
 
     if(ecdsa_verify_digest(&secp256k1, exchange_pubkey,
-                           (uint8_t *)exchange->response.signature.bytes,
-                           fingerprint) == 0)
+              (uint8_t *)exchange->signed_exchange_response.signature.bytes, fingerprint) == 0)
     {
         ret_stat = true;
     }
@@ -179,15 +180,15 @@ bool process_exchange_token(TxOutputType *tx_out, const HDNode *root, bool needs
         if(verify_exchange_token(&tx_out->exchange_type, root))
         {
             deposit_coin = coinByName(tx_out->exchange_type.deposit_coin_name);
-            withdraw_coin = coinByName(tx_out->exchange_type.response.request.withdrawal_coin_type);
+            withdraw_coin = coinByName(tx_out->exchange_type.signed_exchange_response.response.withdrawal_address.coin_type);
 
             if(needs_confirm)
             {
                 snprintf(conf_msg, sizeof(conf_msg),
                          "Do you want to exchange \"%s\" to \"%s\" at rate = %d%%%% and deposit to  %s Acc #%d",
-                         tx_out->exchange_type.response.request.withdrawal_coin_type,
+                         tx_out->exchange_type.signed_exchange_response.response.withdrawal_address.coin_type,
                          tx_out->exchange_type.deposit_coin_name,
-                         (int)tx_out->exchange_type.response.quoted_rate,
+                         (int)tx_out->exchange_type.signed_exchange_response.response.quoted_rate,
                          tx_out->exchange_type.deposit_coin_name,
                          (int)tx_out->exchange_type.deposit_address_n[2] & 0x7ffffff);
 
@@ -199,8 +200,8 @@ bool process_exchange_token(TxOutputType *tx_out, const HDNode *root, bool needs
 
                 snprintf(conf_msg, sizeof(conf_msg),
                          "Exchanging %lld %s to %lld %s and depositing to %s Acc #%d",
-                         tx_out->exchange_type.response.request.withdrawal_amount, withdraw_coin->coin_shortcut,
-                         tx_out->exchange_type.response.deposit_amount, deposit_coin->coin_shortcut,
+                         tx_out->exchange_type.signed_exchange_response.response.withdrawal_amount, withdraw_coin->coin_shortcut,
+                         tx_out->exchange_type.signed_exchange_response.response.deposit_amount, deposit_coin->coin_shortcut,
                          tx_out->exchange_type.deposit_coin_name,
                          (int)tx_out->exchange_type.deposit_address_n[2] & 0x7ffffff);
 
@@ -222,3 +223,4 @@ process_exchange_token_exit:
 
     return(ret_stat);
 }
+
