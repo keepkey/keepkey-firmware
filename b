@@ -4,9 +4,13 @@ import argparse
 import os
 import json
 
+DEVICE_PROTOCOL='device-protocol-private'
+FIRMWARE_BUILD_DIR=os.getcwd()
+
 """
 Build helper script to shortcut common build scenarions.
 """
+
 
 from fabric.api import local
 
@@ -47,18 +51,18 @@ def bump_version(args):
     json.dump(version, open('version.json', 'w'))
 
 def compile_protocol_buffers():
-    if not os.path.exists('../device-protocol'):
-        local('git clone https://github.com/keepkey/device-protocol.git ../device-protocol')
+    if not os.path.exists('../%s' % DEVICE_PROTOCOL):
+        local('git clone https://github.com/keepkey/%s.git ../%s' % (DEVICE_PROTOCOL, DEVICE_PROTOCOL))
 
     if not os.path.exists('interface/local'):
         os.mkdir('interface/local')
     
-    local('cp interface/public/*.options ../device-protocol/.')
-    os.chdir('../device-protocol')
+    local('cp interface/public/*.options ../%s/.' % DEVICE_PROTOCOL)
+    os.chdir('../%s' % DEVICE_PROTOCOL)
     local('protoc -I. -I/usr/include --plugin=nanopb=protoc-gen-nanopb --nanopb_out=. *.proto')
-    os.chdir('../keepkey-firmware')
-    local('mv ../device-protocol/*.pb.c interface/local')
-    local('mv ../device-protocol/*.pb.h interface/public')
+    os.chdir('/%s' % FIRMWARE_BUILD_DIR)
+    local('mv ../%s/*.pb.c interface/local' % DEVICE_PROTOCOL)
+    local('mv ../%s/*.pb.h interface/public' % DEVICE_PROTOCOL)
 
 def main():
 
