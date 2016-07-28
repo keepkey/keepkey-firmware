@@ -4,16 +4,14 @@ import argparse
 import os
 import json
 
-DEVICE_PROTOCOL='device-protocol-private'
-FIRMWARE_BUILD_DIR=os.getcwd()
+DEVICE_PROTOCOL = 'device-protocol'
+FIRMWARE_BUILD_DIR = os.getcwd()
 
 """
 Build helper script to shortcut common build scenarions.
 """
 
-
 from fabric.api import local
-
 
 def proc_args():
     parser = argparse.ArgumentParser(description = 'Build helper front end tool.')
