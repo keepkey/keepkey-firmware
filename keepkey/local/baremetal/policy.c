@@ -51,7 +51,7 @@ int run_policy_compile_output(const CoinType *coin, const HDNode *root, TxOutput
     {
         if(in->address_type == OutputAddressType_EXCHANGE)
         {
-            if(!process_exchange_token(in, root, needs_confirm))
+            if(!process_exchange_contract(coin, in, root, needs_confirm))
             {
                 return TXOUT_EXCHANGE_TOKEN_ERROR;
             }

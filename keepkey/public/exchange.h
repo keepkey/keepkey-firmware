@@ -24,4 +24,4 @@
 
 /* === Functions =========================================================== */
  
-bool process_exchange_token(TxOutputType *tx_out, const HDNode *root, bool needs_confirm);
+bool process_exchange_contract(const CoinType *coin, TxOutputType *tx_out, const HDNode *root, bool needs_confirm);

@@ -56,17 +56,17 @@ inline void set_exchange_tx_out(TxOutputType *tx_out, ExchangeType *ex_tx)
     /* clear to prep transaction output */
     memset(tx_out, 0, (size_t)((char *)&tx_out->has_address_type - (char *)tx_out));
 
-    /* populate withdrawal address */
+    /* populate deposit address */
     tx_out->has_address = true;
-    memcpy(tx_out->address, ex_tx->signed_exchange_response.response.withdrawal_address.address,
+    memcpy(tx_out->address, ex_tx->signed_exchange_response.response.deposit_address.address,
            sizeof(tx_out->address));
 
-    /* populate withdrawal amount */
-    tx_out->amount = ex_tx->signed_exchange_response.response.withdrawal_amount;
+    /* populate deposit amount */
+    tx_out->amount = ex_tx->signed_exchange_response.response.deposit_amount;
 }
 
 /*
- * verify_exchange_address - verify address specified in exchange token belongs to device.
+ * verify_exchange_address - verify address specified in exchange contract belongs to device.
  *
  * INPUT
  *     coin_name - name of coin
@@ -107,7 +107,7 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
 }
 
 /*
- * verify_exchange_token() - Verify content of exchange token is valid
+ * verify_exchange_contract() - Verify content of exchange contract is valid
  *
  * INPUT
  *     exchange:  exchange pointer
@@ -115,29 +115,49 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
  * OUTPUT
  *     true/false -  success/failure
  */
-static bool verify_exchange_token(ExchangeType *exchange, const HDNode *root)
+static bool verify_exchange_contract(const CoinType *coin, ExchangeType *exchange, const HDNode *root)
 {
     bool ret_stat = false;
     uint8_t fingerprint[32];
 
-    /* verify deposit address */
-    if(!verify_exchange_address(
-             exchange->deposit_coin_name,
-             exchange->deposit_address_n_count,
-             exchange->deposit_address_n,
-             exchange->signed_exchange_response.response.deposit_address.address, root))
+    /* verfiy Withdrawal coin type */
+    if(strncmp(exchange->withdrawal_coin_name, 
+               exchange->signed_exchange_response.response.withdrawal_address.coin_type,
+                sizeof(((ExchangeAddress *)NULL)->coin_type) != 0))
     {
-        goto verify_exchange_token_exit;
+        goto verify_exchange_contract_exit;
     }
 
-    /* verify return address */
+    /* verify Withdrawal address */
     if(!verify_exchange_address(
-             exchange->return_coin_name,
+             exchange->signed_exchange_response.response.withdrawal_address.coin_type,
+             exchange->withdrawal_address_n_count,
+             exchange->withdrawal_address_n,
+             exchange->signed_exchange_response.response.withdrawal_address.address, root))
+    {
+        goto verify_exchange_contract_exit;
+    }
+
+    /* verify Return/Deposit coin type */
+    if(strncmp(coin->coin_name, 
+               exchange->signed_exchange_response.response.return_address.coin_type,
+               sizeof(((ExchangeAddress *)NULL)->coin_type) != 0) 
+        || 
+       strncmp(coin->coin_name, 
+               exchange->signed_exchange_response.response.deposit_address.coin_type,
+               sizeof(((ExchangeAddress *)NULL)->coin_type) != 0))
+    {
+        goto verify_exchange_contract_exit;
+    }
+
+    /* verify Return address */
+    if(!verify_exchange_address(
+             exchange->signed_exchange_response.response.return_address.coin_type, 
              exchange->return_address_n_count,
              exchange->return_address_n,
              exchange->signed_exchange_response.response.return_address.address, root))
     {
-        goto verify_exchange_token_exit;
+        goto verify_exchange_contract_exit;
     }
 
     /* check exchange signature */
@@ -150,7 +170,7 @@ static bool verify_exchange_token(ExchangeType *exchange, const HDNode *root)
         ret_stat = true;
     }
 
-verify_exchange_token_exit:
+verify_exchange_contract_exit:
 
     return(ret_stat);
 }
@@ -158,17 +178,18 @@ verify_exchange_token_exit:
 /* === Functions =========================================================== */
 
 /*
- * process_exchange_token() - validate token from exchange and populate the transaction
+ * process_exchange_contract() - validate contract from exchange and populate the transaction
  *                            output structure
  *
  * INPUT
+ *      coin - pointer signTx coin type
  *      tx_out - pointer transaction output structure
  *      root - root hd node
  *      needs_confirm - whether requires user manual approval
  * OUTPUT
  *      true/false - success/failure
  */
-bool process_exchange_token(TxOutputType *tx_out, const HDNode *root, bool needs_confirm)
+bool process_exchange_contract(const CoinType *coin, TxOutputType *tx_out, const HDNode *root, bool needs_confirm)
 {
     const CoinType *withdraw_coin, *deposit_coin;
     bool ret_stat = false;
@@ -176,39 +197,39 @@ bool process_exchange_token(TxOutputType *tx_out, const HDNode *root, bool needs
 
     if(tx_out->has_exchange_type)
     {
-        /* validate token before processing */
-        if(verify_exchange_token(&tx_out->exchange_type, root))
+        /* validate contract before processing */
+        if(verify_exchange_contract(coin, &tx_out->exchange_type, root))
         {
-            deposit_coin = coinByName(tx_out->exchange_type.deposit_coin_name);
-            withdraw_coin = coinByName(tx_out->exchange_type.signed_exchange_response.response.withdrawal_address.coin_type);
+            withdraw_coin = coinByName(tx_out->exchange_type.withdrawal_coin_name);
+            deposit_coin = coinByName(tx_out->exchange_type.signed_exchange_response.response.deposit_address.coin_type);
 
             if(needs_confirm)
             {
                 snprintf(conf_msg, sizeof(conf_msg),
                          "Do you want to exchange \"%s\" to \"%s\" at rate = %d%%%% and deposit to  %s Acc #%d",
-                         tx_out->exchange_type.signed_exchange_response.response.withdrawal_address.coin_type,
-                         tx_out->exchange_type.deposit_coin_name,
+                         tx_out->exchange_type.signed_exchange_response.response.deposit_address.coin_type,
+                         tx_out->exchange_type.withdrawal_coin_name,
                          (int)tx_out->exchange_type.signed_exchange_response.response.quoted_rate,
-                         tx_out->exchange_type.deposit_coin_name,
-                         (int)tx_out->exchange_type.deposit_address_n[2] & 0x7ffffff);
+                         tx_out->exchange_type.withdrawal_coin_name,
+                         (int)tx_out->exchange_type.withdrawal_address_n[2] & 0x7ffffff);
 
                 if(!confirm_exchange(conf_msg))
                 {
                     ret_stat = false;
-                    goto process_exchange_token_exit;
+                    goto process_exchange_contract_exit;
                 }
 
                 snprintf(conf_msg, sizeof(conf_msg),
                          "Exchanging %lld %s to %lld %s and depositing to %s Acc #%d",
-                         tx_out->exchange_type.signed_exchange_response.response.withdrawal_amount, withdraw_coin->coin_shortcut,
                          tx_out->exchange_type.signed_exchange_response.response.deposit_amount, deposit_coin->coin_shortcut,
-                         tx_out->exchange_type.deposit_coin_name,
-                         (int)tx_out->exchange_type.deposit_address_n[2] & 0x7ffffff);
+                         tx_out->exchange_type.signed_exchange_response.response.withdrawal_amount, withdraw_coin->coin_shortcut,
+                         tx_out->exchange_type.withdrawal_coin_name,
+                         (int)tx_out->exchange_type.withdrawal_address_n[2] & 0x7ffffff);
 
                 if(!confirm_exchange(conf_msg))
                 {
                     ret_stat = false;
-                    goto process_exchange_token_exit;
+                    goto process_exchange_contract_exit;
                 }
             }
 
@@ -219,7 +240,7 @@ bool process_exchange_token(TxOutputType *tx_out, const HDNode *root, bool needs
 
     }
 
-process_exchange_token_exit:
+process_exchange_contract_exit:
 
     return(ret_stat);
 }
