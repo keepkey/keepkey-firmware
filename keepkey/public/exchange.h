@@ -18,10 +18,23 @@
  */
 
 /* === Defines ============================================================= */
+/* === Enums============================================================= */
 
-#define CODE_ERR        0xFF
-#define BTC_ADDR_TYPE   0
+typedef enum
+{
+    NO_EXCHANGE_ERROR,
+    ERROR_EXCHANGE_SIGNATURE,
+    ERROR_EXCHANGE_DEPOSIT_COINTYPE,
+    ERROR_EXCHANGE_DEPOSIT_ADDRESS,
+    ERROR_EXCHANGE_DEPOSIT_AMOUNT,
+    ERROR_EXCHANGE_WITHDRAWAL_COINTYPE,
+    ERROR_EXCHANGE_WITHDRAWAL_ADDRESS,
+    ERROR_EXCHANGE_RETURN_COINTYPE,
+    ERROR_EXCHANGE_RETURN_ADDRESS,
+}ExchangeError;
 
 /* === Functions =========================================================== */
  
 bool process_exchange_contract(const CoinType *coin, TxOutputType *tx_out, const HDNode *root, bool needs_confirm);
+ExchangeError get_exchange_error(void);
+void set_exchange_error(ExchangeError error_code);

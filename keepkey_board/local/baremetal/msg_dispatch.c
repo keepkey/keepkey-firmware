@@ -621,3 +621,33 @@ uint32_t parse_pb_varint(RawMessage *msg, uint8_t varint_count)
 
     return skip;
 }
+
+/*
+ * exchange_response_encode() - convert Exchange Response struct to raw
+ *
+ * INPUT
+ *     - response_ptr : pointer to exchange response struct
+ *     - *bfr: pointer to destination buffer
+ *     - len: size of buffer
+ * OUTPUT
+ *     bytes written to buffer
+ */
+int exchange_response_encode(ExchangeResponse *response_ptr, uint8_t *bfr, uint32_t len )
+{
+    const pb_field_t *fields = message_fields(NORMAL_MSG, MessageType_MessageType_ExchangeResponse, OUT_MSG);
+
+    if(!fields)    // unknown message
+    {
+        return(false);
+    }
+    pb_ostream_t os = pb_ostream_from_buffer(bfr, len);
+
+    if(pb_encode(&os, fields, (const void *)response_ptr))
+    {
+        return(os.bytes_written);
+    }
+    else
+    {
+        return(0);
+    }
+}

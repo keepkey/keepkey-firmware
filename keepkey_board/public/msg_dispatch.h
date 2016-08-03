@@ -119,5 +119,5 @@ MessageType wait_for_tiny_msg(uint8_t *buf);
 MessageType check_for_tiny_msg(uint8_t *buf);
 
 uint32_t parse_pb_varint(RawMessage *msg, uint8_t varint_count);
-
+int exchange_response_encode(ExchangeResponse *response_ptr, uint8_t *bfr, uint32_t len );
 #endif

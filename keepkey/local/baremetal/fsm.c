@@ -120,6 +120,7 @@ static const MessagesMap_t MessagesMap[] =
     MSG_OUT(MessageType_MessageType_TxSize,             TxSize_fields,              NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_WordRequest,        WordRequest_fields,         NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_CharacterRequest,   CharacterRequest_fields,    NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_ExchangeResponse,   ExchangeResponse_fields,    NO_PROCESS_FUNC)
 
 #if DEBUG_LINK
     /* Debug Messages */

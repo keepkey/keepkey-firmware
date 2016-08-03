@@ -34,6 +34,7 @@
 #include "home_sm.h"
 #include "app_confirm.h"
 #include "policy.h"
+#include "exchange.h"
 
 /* === Private Variables =================================================== */
 
@@ -106,7 +107,54 @@ static void send_fsm_co_error_message(int co_error)
         }
         case (TXOUT_EXCHANGE_TOKEN_ERROR):
         {
-            fsm_sendFailure(FailureType_Failure_Other, "Invalid exchange token");
+            switch(get_exchange_error())
+            {
+                case ERROR_EXCHANGE_SIGNATURE:
+                {
+                    fsm_sendFailure(FailureType_Failure_Other, "Exchange signature error");
+                    break;
+                }
+                case ERROR_EXCHANGE_DEPOSIT_COINTYPE:
+                {
+                    fsm_sendFailure(FailureType_Failure_Other, "Exchange deposit coin type error");
+                    break;
+                }
+                case ERROR_EXCHANGE_DEPOSIT_ADDRESS:
+                {
+                    fsm_sendFailure(FailureType_Failure_Other, "Exchange deposit address error");
+                    break;
+                }
+                case ERROR_EXCHANGE_DEPOSIT_AMOUNT:
+                {
+                    fsm_sendFailure(FailureType_Failure_Other, "Exchange deposit amount error");
+                    break;
+                }
+                case ERROR_EXCHANGE_WITHDRAWAL_COINTYPE:
+                {
+                    fsm_sendFailure(FailureType_Failure_Other, "Exchange withdrawal coin type error");
+                    break;
+                }
+                case ERROR_EXCHANGE_WITHDRAWAL_ADDRESS:
+                {
+                    fsm_sendFailure(FailureType_Failure_Other, "Exchange withdrawal address error");
+                    break;
+                }
+                case ERROR_EXCHANGE_RETURN_COINTYPE:
+                {
+                    fsm_sendFailure(FailureType_Failure_Other, "Exchange return coin type error");
+                    break;
+                }
+                case ERROR_EXCHANGE_RETURN_ADDRESS:
+                {
+                    fsm_sendFailure(FailureType_Failure_Other, "Exchange return address error");
+                    break;
+                }
+                default:
+                case NO_EXCHANGE_ERROR:
+                {
+                    break;
+                }
+            }
             break;
         }
         default:
@@ -362,6 +410,7 @@ void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinTyp
 	raw_tx_status = NOT_PARSING;
 
 	send_req_1_input();
+    set_exchange_error(NO_EXCHANGE_ERROR);
 }
 
 void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
