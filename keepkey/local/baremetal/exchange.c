@@ -124,8 +124,9 @@ static bool verify_exchange_contract(const CoinType *coin, TxOutputType *tx_out,
     
     /* verify Exchange signature */
     memset(response_raw, 0, sizeof(response_raw));
-    response_raw_filled_len = exchange_response_encode(
-                                &exchange->signed_exchange_response.response, 
+    response_raw_filled_len = encode_pb(
+                                (const void *)&exchange->signed_exchange_response.response, 
+                                ExchangeResponse_fields,
                                 response_raw, 
                                 sizeof(response_raw));
 
