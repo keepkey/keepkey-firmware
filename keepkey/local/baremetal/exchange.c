@@ -119,7 +119,7 @@ static bool verify_exchange_contract(const CoinType *coin, TxOutputType *tx_out,
 {
     int response_raw_filled_len = 0; 
     uint8_t response_raw[sizeof(ExchangeResponse)];
-    const CoinType *response_coin;
+    const CoinType *response_coin = NULL, *signed_coin = NULL;
     ExchangeType *exchange = &tx_out->exchange_type;
     
     /* verify Exchange signature */
@@ -132,7 +132,8 @@ static bool verify_exchange_contract(const CoinType *coin, TxOutputType *tx_out,
 
     if(response_raw_filled_len != 0)
     {
-        if(cryptoMessageVerify( coin, response_raw, response_raw_filled_len, exchange_pub_key, 
+        signed_coin = coinByShortcut((const char *)"BTC");
+        if(cryptoMessageVerify(signed_coin, response_raw, response_raw_filled_len, exchange_pub_key, 
                     (uint8_t *)exchange->signed_exchange_response.signature.bytes) != 0)
         {
             set_exchange_error(ERROR_EXCHANGE_SIGNATURE);

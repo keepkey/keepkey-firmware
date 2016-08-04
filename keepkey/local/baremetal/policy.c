@@ -47,9 +47,11 @@ const PolicyType policies[POLICY_COUNT] = {
  */
 int run_policy_compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, TxOutputBinType *out, bool needs_confirm)
 {
-    if(storage_is_policy_enabled(EXCHANGE1))
+    int ret_result = TXOUT_COMPILE_ERROR;
+
+    if(in->address_type == OutputAddressType_EXCHANGE)
     {
-        if(in->address_type == OutputAddressType_EXCHANGE)
+        if(storage_is_policy_enabled(EXCHANGE1))
         {
             if(process_exchange_contract(coin, in, root, needs_confirm))
             {
@@ -57,10 +59,18 @@ int run_policy_compile_output(const CoinType *coin, const HDNode *root, TxOutput
             }
             else
             {
-                return TXOUT_EXCHANGE_TOKEN_ERROR;
+                ret_result = TXOUT_EXCHANGE_TOKEN_ERROR;
+                goto run_policy_compile_output_exit;
             }
         }
+        else
+        {
+            goto run_policy_compile_output_exit;
+        }
     }
+    ret_result = compile_output(coin, root, in, out, needs_confirm);
 
-    return compile_output(coin, root, in, out, needs_confirm);
+run_policy_compile_output_exit:
+
+    return(ret_result);
 }
