@@ -119,5 +119,5 @@ MessageType wait_for_tiny_msg(uint8_t *buf);
 MessageType check_for_tiny_msg(uint8_t *buf);
 
 uint32_t parse_pb_varint(RawMessage *msg, uint8_t varint_count);
-int encode_pb(const void *source_ptr, const pb_field_t *field,  uint8_t *bfr, uint32_t len );
+int encode_pb(const void *source_ptr, const pb_field_t *fields,  uint8_t *buffer, uint32_t len );
 #endif
