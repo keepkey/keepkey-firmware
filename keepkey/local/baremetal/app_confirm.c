@@ -135,9 +135,9 @@ bool confirm_decrypt_msg(const char *msg, const char *address)
  *     true/false of confirmation
  *
  */
-bool confirm_transaction_output(ButtonRequestType bt_request, const char *amount, const char *to)
+bool confirm_transaction_output(ButtonRequestType button_request, const char *amount, const char *to)
 {
-    return confirm_with_custom_layout(&layout_transaction_notification, bt_request, amount, to);
+    return confirm_with_custom_layout(&layout_transaction_notification, button_request, amount, to);
 }
 /*
  * confirm_exchange() - Show exchange summary confirmation
@@ -150,6 +150,7 @@ bool confirm_transaction_output(ButtonRequestType bt_request, const char *amount
  */
 bool confirm_exchange(const char *disp_msg)
 {
+    // "Do you want to use ShapeShift to convert %d BTC to %d LTC and have it sent to Litecoin Account #1?"
     return(confirm(ButtonRequestType_ButtonRequest_SignExchange, "Exchange ", disp_msg));
 }
 
