@@ -142,7 +142,7 @@ bool confirm_exchange_output(const char *exchange, const char *from_amount,
 {
         return confirm_with_custom_layout(&layout_notification_no_title,
                                       ButtonRequestType_ButtonRequest_SignExchange,
-                                      "", "Convert %s to\n %s With %s and Send to %s",
+                                      "", "Convert %s to\n %s with %s and send to %s",
                                       from_amount, to_amount, exchange, address);
 }
 
