@@ -45,28 +45,6 @@ static uint8_t exchange_pub_key[21] =
 /* === Private Functions =================================================== */
 
 /*
- *  set_exchange_tx_out() - inline function to populate the transaction output buffer
- *
- *  INPUT
- *      tx_out - pointer to transaction output buffer
- *  OUTPUT
- *      none
- */
-inline void set_exchange_tx_out(TxOutputType *tx_out, ExchangeType *ex_tx)
-{
-    /* clear to prep transaction output */
-    memset(tx_out, 0, (size_t)((char *)&tx_out->has_address_type - (char *)tx_out));
-
-    /* populate deposit address */
-    tx_out->has_address = true;
-    memcpy(tx_out->address, ex_tx->signed_exchange_response.response.deposit_address.address,
-           sizeof(tx_out->address));
-
-    /* populate deposit amount */
-    tx_out->amount = ex_tx->signed_exchange_response.response.deposit_amount;
-}
-
-/*
  * verify_exchange_address - verify address specified in exchange contract belongs to device.
  *
  * INPUT
@@ -300,9 +278,9 @@ ExchangeError get_exchange_error(void)
  */
 bool process_exchange_contract(const CoinType *coin, TxOutputType *tx_out, const HDNode *root, bool needs_confirm)
 {
-    bool ret_stat = false;
+    bool ret_val = false;
     const CoinType *withdraw_coin, *deposit_coin;
-    char conf_msg[100];
+    char amount_from_str[32], amount_to_str[32], node_str[100];
 
     if(tx_out->has_exchange_type)
     {
@@ -311,44 +289,25 @@ bool process_exchange_contract(const CoinType *coin, TxOutputType *tx_out, const
         {
             withdraw_coin = coinByName(tx_out->exchange_type.withdrawal_coin_name);
             deposit_coin = get_response_coin(tx_out->exchange_type.signed_exchange_response.response.deposit_address.coin_type);
-            if(deposit_coin == 0)
-            {
-                goto process_exchange_contract_exit;
-            }
 
             if(needs_confirm)
             {
-                snprintf(conf_msg, sizeof(conf_msg),
-                         "Do you want to exchange \"%s\" to \"%s\" at rate = %d%%%% and deposit to  %s Acc #%d",
-                         tx_out->exchange_type.signed_exchange_response.response.deposit_address.coin_type,
-                         tx_out->exchange_type.withdrawal_coin_name,
-                         (int)tx_out->exchange_type.signed_exchange_response.response.quoted_rate,
-                         tx_out->exchange_type.withdrawal_coin_name,
-                         (int)tx_out->exchange_type.withdrawal_address_n[2] & 0x7ffffff);
+                coin_amnt_to_str(deposit_coin, tx_out->exchange_type.signed_exchange_response.response.deposit_amount, amount_from_str, sizeof(amount_to_str));
+                coin_amnt_to_str(withdraw_coin, tx_out->exchange_type.signed_exchange_response.response.withdrawal_amount, amount_to_str, sizeof(amount_from_str));
+                node_path_to_string(withdraw_coin, node_str, tx_out->exchange_type.withdrawal_address_n,
+                         tx_out->exchange_type.withdrawal_address_n_count);
 
-                if(!confirm_exchange(conf_msg))
-                {
-                    goto process_exchange_contract_exit;
-                }
-
-                snprintf(conf_msg, sizeof(conf_msg),
-                         "Exchanging %lld %s to %lld %s and depositing to %s Acc #%d",
-                         tx_out->exchange_type.signed_exchange_response.response.deposit_amount, deposit_coin->coin_shortcut,
-                         tx_out->exchange_type.signed_exchange_response.response.withdrawal_amount, withdraw_coin->coin_shortcut,
-                         tx_out->exchange_type.withdrawal_coin_name,
-                         (int)tx_out->exchange_type.withdrawal_address_n[2] & 0x7ffffff);
-
-                if(!confirm_exchange(conf_msg))
+                if(!confirm_exchange_output("ShapeShift", amount_from_str, amount_to_str, node_str))
                 {
                     goto process_exchange_contract_exit;
                 }
             }
 
-            set_exchange_tx_out(tx_out, &tx_out->exchange_type);
-            ret_stat = true;
+            ret_val = true;
         }
     } 
+
 process_exchange_contract_exit:
-    return(ret_stat);
+    return ret_val;
 }
 
