@@ -152,14 +152,14 @@ bool node_path_to_string(const CoinType *coin, char *node_str, uint32_t *address
     if(address_n[0] == 0x8000002C && address_n[1] == coin->bip44_account_path)
     {
         /* node starts with /44'/0' */
-        snprintf(node_str, NODE_STRING_LENGTH, "%s Account #%lu", coin->coin_name,
+        snprintf(node_str, NODE_STRING_LENGTH, "%s account #%lu", coin->coin_name,
                  address_n[2] & 0x7ffffff);
 
         return(true);
     }
     else
     {
-        snprintf(node_str, NODE_STRING_LENGTH, "%s Node Path : m", coin->coin_name);
+        snprintf(node_str, NODE_STRING_LENGTH, "node path : m");
 
         for(i = 0; i < address_n_count; i++)
         {
