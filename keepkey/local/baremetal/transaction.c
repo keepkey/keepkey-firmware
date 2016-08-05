@@ -35,53 +35,6 @@
 #include "crypto.h"
 #include "app_confirm.h"
 
-/* === Private Functions =================================================== */
-
-/*
- * node_hex_to_string() - Formats node hex value to readable string
- *
- * INPUT
- *     - button_type: button request type to be set
- *     - node_str: human readable node string
- *     - TxOut: transaction output
- * OUTPUT
- *     none
- *
- */
-static void node_hex_to_string(ButtonRequestType *button_type, char *node_str,
-                                     TxOutputType *TxOut)
-{
-    size_t i;
-    char temp_buffer[15];
-
-    if(TxOut->address_n[0] == 0x8000002C && TxOut->address_n[1] == 0x80000000)
-    {
-        /* node starts with /44'/0'  */
-        snprintf(node_str, BODY_CHAR_MAX, "Account #%lu", TxOut->address_n[2] & 0x7ffffff);
-        *button_type = ButtonRequestType_ButtonRequest_ConfirmTransferToAccount;
-    }
-    else
-    {
-        snprintf(node_str, BODY_CHAR_MAX, "Node path : m");
-
-        for(i = 0; i < TxOut->address_n_count; i++)
-        {
-            if(TxOut->address_n[i] & 0x80000000)
-            {
-                snprintf(temp_buffer, sizeof(temp_buffer), "/%lu\'", TxOut->address_n[i] & 0x7ffffff);
-            }
-            else
-            {
-                snprintf(temp_buffer, sizeof(temp_buffer), "/%lu", TxOut->address_n[i] & 0x7ffffff);
-            }
-
-            strncat(node_str, temp_buffer, sizeof(temp_buffer));
-        }
-
-        *button_type = ButtonRequestType_ButtonRequest_ConfirmTransferToNodePath;
-    }
-}
-
 /* === Functions =========================================================== */
 
 uint32_t op_push(uint32_t i, uint8_t *out) {
@@ -125,7 +78,16 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 			if (needs_confirm) {
 				coin_amnt_to_str(coin, in->amount, amount_str, sizeof(amount_str));
 				memset(node_str, 0, sizeof(node_str));
-				node_hex_to_string(&button_request, node_str, in);
+				
+				if(node_path_to_string(coin, node_str, in->address_n, in->address_n_count))
+				{
+					button_request = ButtonRequestType_ButtonRequest_ConfirmTransferToAccount;
+				}
+				else
+				{
+					button_request = ButtonRequestType_ButtonRequest_ConfirmTransferToNodePath;
+				}
+				
 				if(!confirm_transaction_output(button_request, amount_str, node_str))
 				{
 					return TXOUT_CANCEL;
