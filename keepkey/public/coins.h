@@ -26,7 +26,8 @@
 
 /* === Defines ============================================================= */
 
-#define COINS_COUNT 6
+#define COINS_COUNT         6
+#define NODE_STRING_LENGTH  50
 
 /* === Variables =========================================================== */
 
@@ -38,5 +39,7 @@ const CoinType *coinByShortcut(const char *shortcut);
 const CoinType *coinByName(const char *name);
 const CoinType *coinByAddressType(uint8_t address_type);
 void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len);
+bool node_path_to_string(const CoinType *coin, char *node_str, uint32_t *address_n,
+                         size_t address_n_count);
 
 #endif
