@@ -149,6 +149,11 @@ static void send_fsm_co_error_message(int co_error)
                     fsm_sendFailure(FailureType_Failure_Other, "Exchange return address error");
                     break;
                 }
+                case ERROR_EXCHANGE_API_KEY:
+                {
+                    fsm_sendFailure(FailureType_Failure_Other, "Exchange api key error");
+                    break;
+                }
                 default:
                 case NO_EXCHANGE_ERROR:
                 {

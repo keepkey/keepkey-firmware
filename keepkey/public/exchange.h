@@ -31,6 +31,7 @@ typedef enum
     ERROR_EXCHANGE_WITHDRAWAL_ADDRESS,
     ERROR_EXCHANGE_RETURN_COINTYPE,
     ERROR_EXCHANGE_RETURN_ADDRESS,
+    ERROR_EXCHANGE_API_KEY
 }ExchangeError;
 
 /* === Functions =========================================================== */
