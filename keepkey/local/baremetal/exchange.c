@@ -35,7 +35,7 @@
 static ExchangeError exchange_error = NO_EXCHANGE_ERROR;
 
 /* exchange public key for signature varification */
-static uint8_t exchange_pub_key[21] =
+static uint8_t ShapeShift_pub_key[21] =
 {
     0x00, 0x70, 0x92, 0xe3, 0x83, 0xde, 0x34, 0x8c, 0x02, 0x47, 
     0x39, 0xc1, 0x11, 0x4f, 0xa7, 0x9e, 0xeb, 0x97, 0xa2, 0x15, 
@@ -43,7 +43,7 @@ static uint8_t exchange_pub_key[21] =
 };
 
 /* exchange API Key */
-static uint8_t exchange_api_key[64] =
+static uint8_t ShapeShift_api_key[64] =
 {
     0x6a, 0xd5, 0x83, 0x1b, 0x77, 0x84, 0x84, 0xbb, 0x84, 0x9d, 0xa4, 0x51, 
     0x80, 0xac, 0x35, 0x04, 0x78, 0x48, 0xe5, 0xca, 0xc0, 0xfa, 0x66, 0x64, 
@@ -165,7 +165,7 @@ static bool verify_exchange_contract(const CoinType *coin, TxOutputType *tx_out,
     if(response_raw_filled_len != 0)
     {
         signed_coin = coinByShortcut((const char *)"BTC");
-        if(cryptoMessageVerify(signed_coin, response_raw, response_raw_filled_len, exchange_pub_key, 
+        if(cryptoMessageVerify(signed_coin, response_raw, response_raw_filled_len, ShapeShift_pub_key, 
                     (uint8_t *)exchange->signed_exchange_response.signature.bytes) != 0)
         {
             set_exchange_error(ERROR_EXCHANGE_SIGNATURE);
@@ -179,8 +179,8 @@ static bool verify_exchange_contract(const CoinType *coin, TxOutputType *tx_out,
     }
 
     /* verify Exchange API-Key */
-    if(memcmp(exchange_api_key, exchange->signed_exchange_response.response.api_key.bytes, 
-                sizeof(exchange_api_key)) != 0)
+    if(memcmp(ShapeShift_api_key, exchange->signed_exchange_response.response.api_key.bytes, 
+                sizeof(ShapeShift_api_key)) != 0)
     {
         set_exchange_error(ERROR_EXCHANGE_API_KEY);
         goto verify_exchange_contract_exit;
