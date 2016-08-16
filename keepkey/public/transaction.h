@@ -32,7 +32,7 @@
 /* Transaction output compilation errors */
 #define TXOUT_COMPILE_ERROR             0
 #define TXOUT_CANCEL                   -1 
-#define TXOUT_EXCHANGE_TOKEN_ERROR     -2 
+#define TXOUT_EXCHANGE_CONTRACT_ERROR  -2 
 
 /* === Typedefs ============================================================ */
 

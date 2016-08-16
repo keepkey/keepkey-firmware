@@ -105,7 +105,7 @@ static void send_fsm_co_error_message(int co_error)
             fsm_sendFailure(FailureType_Failure_Other, "Signing cancelled by user");
             break;
         }
-        case (TXOUT_EXCHANGE_TOKEN_ERROR):
+        case (TXOUT_EXCHANGE_CONTRACT_ERROR):
         {
             switch(get_exchange_error())
             {

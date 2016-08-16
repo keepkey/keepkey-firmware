@@ -59,7 +59,7 @@ int run_policy_compile_output(const CoinType *coin, const HDNode *root, TxOutput
             }
             else
             {
-                ret_result = TXOUT_EXCHANGE_TOKEN_ERROR;
+                ret_result = TXOUT_EXCHANGE_CONTRACT_ERROR;
                 goto run_policy_compile_output_exit;
             }
         }
