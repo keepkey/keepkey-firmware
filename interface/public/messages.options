@@ -5,6 +5,7 @@ Features.label				max_size:33
 Features.coins				max_count:6
 Features.revision			max_size:20
 Features.bootloader_hash		max_size:32
+Features.policies     max_count:1
 
 ApplySettings.language			max_size:17
 ApplySettings.label			max_size:33
@@ -97,6 +98,8 @@ SignIdentity.ecdsa_curve_name		max_size:32
 SignedIdentity.address			max_size:36
 SignedIdentity.public_key		max_size:33
 SignedIdentity.signature		max_size:65
+
+ApplyPolicies.policy        max_count:1
 
 # not used in firmware
 SimpleSignTx.inputs			max_count:0

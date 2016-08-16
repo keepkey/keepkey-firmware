@@ -30,7 +30,7 @@
 
 /* === Defines ============================================================= */
 
-#define STORAGE_VERSION 1
+#define STORAGE_VERSION 2
 #define PBKDF2_HMAC_SHA512_SALT "TREZORHD"
 
 #define STORAGE_RETRIES 3
@@ -85,5 +85,9 @@ bool storage_has_node(void);
 HDNodeType *storage_get_node(void);
 
 Allocation get_storage_location(void);
+
+bool storage_set_policy(PolicyType *policy);
+void storage_get_policies(PolicyType *policies);
+bool storage_is_policy_enabled(char *policy_name);
 
 #endif

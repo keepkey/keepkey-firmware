@@ -38,6 +38,7 @@
 #include "storage.h"
 #include "passphrase_sm.h"
 #include "fsm.h"
+#include "policy.h"
 
 /* === Private Variables =================================================== */
 
@@ -74,6 +75,12 @@ static bool storage_from_flash(ConfigFlash *stor_config)
     switch(stor_config->storage.version)
     {
         case 1:
+            memcpy(&shadow_config.meta, &stor_config->meta, sizeof(shadow_config.meta));
+            memcpy(&shadow_config.storage, &stor_config->storage, sizeof(shadow_config.storage) - sizeof(shadow_config.storage.policies));
+            memcpy(&shadow_config.cache, &stor_config->cache, sizeof(shadow_config.cache));
+            break;
+
+        case 2:
             memcpy(&shadow_config, stor_config, sizeof(shadow_config));
             break;
 
@@ -259,9 +266,13 @@ void storage_reset_uuid(void)
  */
 void storage_reset(void)
 {
-    // reset storage and cache
+    /* Reset storage and cache */
     memset(&shadow_config.storage, 0, sizeof(shadow_config.storage));
     memset(&shadow_config.cache, 0, sizeof(shadow_config.cache));
+
+    /* Reset policies */
+    shadow_config.storage.policies_count = POLICY_COUNT;
+    memcpy(&shadow_config.storage.policies, policies, POLICY_COUNT * sizeof(PolicyType));
 
     shadow_config.storage.version = STORAGE_VERSION;
     session_clear(true); // clear PIN as well
@@ -977,6 +988,68 @@ bool storage_has_node(void)
 Allocation get_storage_location(void)
 {
     return(storage_location);
+}
+
+/*
+ * storage_set_policy() - Set policy
+ *
+ * INPUT
+ *     policy: policy data
+ * OUTPUT
+ *     none
+ */
+bool storage_set_policy(PolicyType *policy)
+{
+    uint8_t i;
+    bool ret_val = false;
+
+    for(i = 0; i < POLICY_COUNT; ++i)
+    {
+        if(strcmp(policy->policy_name, shadow_config.storage.policies[i].policy_name) == 0)
+        {
+            memcpy(&shadow_config.storage.policies[i], policy, sizeof(PolicyType));
+            ret_val = true;
+        }
+    }
+
+    return ret_val;
+}
+
+/*
+ * storage_get_policies() - Copies policies
+ *
+ * INPUT
+ *     policies: where to copy policies to
+ * OUTPUT
+ *     none
+ */
+void storage_get_policies(PolicyType *policy_data)
+{
+    memcpy(policy_data, shadow_config.storage.policies, POLICY_COUNT * sizeof(PolicyType));
+}
+
+/*
+ * storage_is_policy_enabled() - Status of policy in storage
+ *
+ * INPUT
+ *     policy_name: name of policy to check
+ * OUTPUT
+ *     none
+ */
+bool storage_is_policy_enabled(char *policy_name)
+{
+    uint8_t i;
+    bool ret_val = false;
+
+    for(i = 0; i < POLICY_COUNT; ++i)
+    {
+        if(strcmp(policy_name, shadow_config.storage.policies[i].policy_name) == 0)
+        {
+            ret_val = shadow_config.storage.policies[i].enabled;
+        }
+    }
+
+    return ret_val;
 }
 
 /* === Debug Functions =========================================================== */

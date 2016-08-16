@@ -621,3 +621,28 @@ uint32_t parse_pb_varint(RawMessage *msg, uint8_t varint_count)
 
     return skip;
 }
+
+/*
+ * encode_pb() - convert to raw pb data
+ *
+ * INPUT
+ *     - source_ptr : pointer to struct
+ *     - fields: pointer pb fields
+ *     - *buffer: pointer to destination buffer
+ *     - len: size of buffer
+ * OUTPUT
+ *     bytes written to buffer
+ */
+int encode_pb(const void *source_ptr, const pb_field_t *fields,  uint8_t *buffer, uint32_t len )
+{
+    pb_ostream_t os = pb_ostream_from_buffer(buffer, len);
+
+    if(pb_encode(&os, fields, source_ptr))
+    {
+        return(os.bytes_written);
+    }
+    else
+    {
+        return(0);
+    }
+}

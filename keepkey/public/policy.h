@@ -17,32 +17,25 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef APP_CONFIRM_H
-#define APP_CONFIRM_H
+#ifndef POLICY_H
+#define POLICY_H
 
 /* === Includes ============================================================ */
 
-#include <stdbool.h>
-
-#include <interface.h>
+#include "transaction.h"
+#include "coins.h"
 
 /* === Defines ============================================================= */
 
-#define CONFIRM_SIGN_IDENTITY_TITLE 32
-#define CONFIRM_SIGN_IDENTITY_BODY 416
+#define POLICY_COUNT sizeof(((Storage *)NULL)->policies) / sizeof(PolicyType)
+#define EXCHANGE1    "ShapeShift"  
+
+/* === Variables =========================================================== */
+
+extern const PolicyType policies[POLICY_COUNT];
 
 /* === Functions =========================================================== */
 
-bool confirm_cipher(bool encrypt, const char *key);
-bool confirm_encrypt_msg(const char *msg, bool signing);
-bool confirm_decrypt_msg(const char *msg, const char *address);
-bool confirm_exchange_output(const char *exchange, const char *from_amount,
-                             const char *to_amount, const char *address);
-bool confirm_transaction_output(ButtonRequestType button_request, const char *amount, const char *to);
-bool confirm_transaction(const char *total_amount, const char *fee);
-bool confirm_load_device(bool is_node);
-bool confirm_address(const char *desc, const char *address);
-bool confirm_xpub(const char *xpub);
-bool confirm_sign_identity(const IdentityType *identity, const char *challenge);
+int run_policy_compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, TxOutputBinType *out, bool needs_confirm);
 
 #endif

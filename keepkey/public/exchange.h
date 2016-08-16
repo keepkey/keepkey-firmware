@@ -1,7 +1,7 @@
 /*
- * This file is part of the TREZOR project.
+ * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 Pavol Rusnak <stick@satoshilabs.com>
+ * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -17,29 +17,25 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef COINS_H
-#define COINS_H
-
-/* === Includes ============================================================ */
-
-#include <interface.h>
-
 /* === Defines ============================================================= */
+/* === Enums============================================================= */
 
-#define COINS_COUNT         6
-#define NODE_STRING_LENGTH  50
-
-/* === Variables =========================================================== */
-
-extern const CoinType coins[COINS_COUNT];
+typedef enum
+{
+    NO_EXCHANGE_ERROR,
+    ERROR_EXCHANGE_SIGNATURE,
+    ERROR_EXCHANGE_DEPOSIT_COINTYPE,
+    ERROR_EXCHANGE_DEPOSIT_ADDRESS,
+    ERROR_EXCHANGE_DEPOSIT_AMOUNT,
+    ERROR_EXCHANGE_WITHDRAWAL_COINTYPE,
+    ERROR_EXCHANGE_WITHDRAWAL_ADDRESS,
+    ERROR_EXCHANGE_RETURN_COINTYPE,
+    ERROR_EXCHANGE_RETURN_ADDRESS,
+    ERROR_EXCHANGE_API_KEY
+}ExchangeError;
 
 /* === Functions =========================================================== */
-
-const CoinType *coinByShortcut(const char *shortcut);
-const CoinType *coinByName(const char *name);
-const CoinType *coinByAddressType(uint8_t address_type);
-void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len);
-bool node_path_to_string(const CoinType *coin, char *node_str, uint32_t *address_n,
-                         size_t address_n_count);
-
-#endif
+ 
+bool process_exchange_contract(const CoinType *coin, TxOutputType *tx_out, const HDNode *root, bool needs_confirm);
+ExchangeError get_exchange_error(void);
+void set_exchange_error(ExchangeError error_code);

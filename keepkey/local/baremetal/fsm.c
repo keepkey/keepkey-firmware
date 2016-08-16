@@ -24,7 +24,7 @@
 #include <ecdsa.h>
 #include <aes.h>
 #include <hmac.h>
-#include <bip32.h>
+
 #include <bip39.h>
 #include <base58.h>
 #include <ripemd160.h>
@@ -55,6 +55,7 @@
 #include "reset.h"
 #include "recovery.h"
 #include "recovery_cipher.h"
+#include "policy.h"
 
 /* === Private Variables =================================================== */
 
@@ -94,6 +95,7 @@ static const MessagesMap_t MessagesMap[] =
     MSG_IN(MessageType_MessageType_RecoveryDevice,      RecoveryDevice_fields, (void (*)(void *))fsm_msgRecoveryDevice)
     MSG_IN(MessageType_MessageType_WordAck,             WordAck_fields, (void (*)(void *))fsm_msgWordAck)
     MSG_IN(MessageType_MessageType_CharacterAck,        CharacterAck_fields, (void (*)(void *))fsm_msgCharacterAck)
+    MSG_IN(MessageType_MessageType_ApplyPolicies,       ApplyPolicies_fields, (void (*)(void *))fsm_msgApplyPolicies)
 
     /* Normal Raw Messages */
     RAW_IN(MessageType_MessageType_RawTxAck,            RawTxAck_fields,            (void (*)(void *))fsm_msgRawTxAck)
@@ -316,6 +318,10 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     resp->has_pin_cached = true; resp->pin_cached = session_is_pin_cached();
     resp->has_passphrase_cached = true;
     resp->passphrase_cached = session_is_passphrase_cached();
+
+    /* Policies */
+    resp->policies_count = POLICY_COUNT;
+    storage_get_policies(resp->policies);
 
     msg_write(MessageType_MessageType_Features, resp);
 }
@@ -1407,6 +1413,66 @@ void fsm_msgCharacterAck(CharacterAck *msg)
     {
         recovery_character(msg->character);
     }
+}
+
+void fsm_msgApplyPolicies(ApplyPolicies *msg)
+{
+    RESP_INIT(ButtonRequest);
+    resp->has_code = true;
+    resp->code = ButtonRequestType_ButtonRequest_ApplyPolicies;
+    resp->has_data = true;
+
+    if(msg->policy_count == 0)
+    {
+        fsm_sendFailure(FailureType_Failure_SyntaxError, "No policy provided");
+        return;
+    }
+
+    strlcpy(resp->data, msg->policy[0].policy_name, sizeof(resp->data));
+
+    if(msg->policy[0].enabled)
+    {
+        strlcat(resp->data, ":Enable", sizeof(resp->data));
+
+        if(!confirm_with_custom_button_request(resp,
+                                               "Enable Policy", "Do you want to enable %s policy?", msg->policy[0].policy_name))
+        {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                            "Apply policy cancelled");
+            go_home();
+            return;
+        }
+    }
+    else
+    {
+        strlcat(resp->data, ":Disable", sizeof(resp->data));
+
+        if(!confirm_with_custom_button_request(resp,
+                                               "Disable Policy", "Do you want to disable %s policy?", msg->policy[0].policy_name))
+        {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                            "Apply policy cancelled");
+            go_home();
+            return;
+        }
+    }
+
+    if(!pin_protect_cached())
+    {
+        go_home();
+        return;
+    }
+
+    if(!storage_set_policy(&msg->policy[0]))
+    {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                        "Policy could not be applied");
+    }
+
+    storage_commit();
+
+    fsm_sendSuccess("Policies applied");
+    go_home();
 }
 
 /* --- Debug Message Handlers ---------------------------------------------- */

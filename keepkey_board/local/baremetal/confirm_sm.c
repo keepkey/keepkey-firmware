@@ -342,6 +342,34 @@ bool confirm(ButtonRequestType type, const char *request_title, const char *requ
 }
 
 /*
+ *  confirm_with_custom_button_request() - User confirmation function interface
+ *
+ *  INPUT
+ *      - button_request: custom button request to send to host
+ *      - request_title: title of confirm message
+ *      - request_body: body of confirm message
+ *  OUTPUT
+ *      true/false whether device confirmed
+ */
+bool confirm_with_custom_button_request(ButtonRequest *button_request,
+                                        const char *request_title, const char *request_body,
+                                        ...)
+{
+    button_request_acked = false;
+
+    va_list vl;
+    va_start(vl, request_body);
+    char strbuf[BODY_CHAR_MAX];
+    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    va_end(vl);
+
+    /* Send button request */
+    msg_write(MessageType_MessageType_ButtonRequest, button_request);
+
+    return confirm_helper(request_title, strbuf, &layout_standard_notification);
+}
+
+/*
  *  confirm_with_custom_layout() - User confirmation function interface that allows custom layout notification
  *
  *  INPUT

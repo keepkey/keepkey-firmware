@@ -37,3 +37,9 @@ IdentityType.user			max_size:64
 IdentityType.host			max_size:64
 IdentityType.port			max_size:6
 IdentityType.path			max_size:256
+
+PolicyType.policy_name    max_size:15
+
+ExchangeType.withdrawal_coin_name       max_size:17
+ExchangeType.withdrawal_address_n       max_count:8
+ExchangeType.return_address_n		max_count:8

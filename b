@@ -2,13 +2,16 @@
 
 import argparse
 import os
+import json
+
+DEVICE_PROTOCOL = 'device-protocol'
+FIRMWARE_BUILD_DIR = os.getcwd()
 
 """
 Build helper script to shortcut common build scenarions.
 """
 
 from fabric.api import local
-
 
 def proc_args():
     parser = argparse.ArgumentParser(description = 'Build helper front end tool.')
@@ -21,15 +24,53 @@ def proc_args():
     parser.add_argument('-b',  '--build-type', 
                         help = 'Build specifc build type (bstrap, bldr, app).', 
                         action = 'store')
+    parser.add_argument('-bf',  '--bump-feature', help = 'Bump feature release version.', action = 'store_true')
+    parser.add_argument('-bb',  '--bump-bug-fix', help = 'Bump bug fix version.', action = 'store_true')
+    parser.add_argument('-bt',  '--bump-test', help = 'Bump test version.', action = 'store_true')
     parser.add_argument('-d',  '--debug', help = 'Build debug variant.', action = 'store_true')
     parser.add_argument('-v',  '--verbose', help = 'Build with verbose output.', action = 'store_true')
     args = parser.parse_args()
 
     return args
 
+def bump_version(args):
+    version = json.load(open('version.json', 'r'))
+
+    if(args.bump_feature):
+        version['MAJOR_VERSION'] += 1
+        version['MINOR_VERSION'] = 0
+        version['PATCH_VERSION'] = 0
+    elif(args.bump_bug_fix):
+        version['MINOR_VERSION'] += 1
+        version['PATCH_VERSION'] = 0
+    elif(args.bump_test):
+        version['PATCH_VERSION'] += 1
+
+    json.dump(version, open('version.json', 'w'))
+
+def compile_protocol_buffers():
+    if not os.path.exists('../%s' % DEVICE_PROTOCOL):
+        local('git clone https://github.com/keepkey/%s.git ../%s' % (DEVICE_PROTOCOL, DEVICE_PROTOCOL))
+
+    if not os.path.exists('interface/local'):
+        os.mkdir('interface/local')
+    
+    local('cp interface/public/*.options ../%s/.' % DEVICE_PROTOCOL)
+    os.chdir('../%s' % DEVICE_PROTOCOL)
+    local('protoc -I. -I/usr/include --plugin=nanopb=protoc-gen-nanopb --nanopb_out=. *.proto')
+    os.chdir('/%s' % FIRMWARE_BUILD_DIR)
+    local('mv ../%s/*.pb.c interface/local' % DEVICE_PROTOCOL)
+    local('mv ../%s/*.pb.h interface/public' % DEVICE_PROTOCOL)
+
 def main():
 
     args = proc_args()
+
+    if(args.bump_feature or args.bump_bug_fix or args.bump_test):
+        bump_version(args)
+        return
+
+    compile_protocol_buffers()
 
     buildargs = ''
 

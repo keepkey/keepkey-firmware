@@ -35,53 +35,6 @@
 #include "crypto.h"
 #include "app_confirm.h"
 
-/* === Private Functions =================================================== */
-
-/*
- * node_hex_to_string() - Formats node hex value to readable string
- *
- * INPUT
- *     - button_type: button request type to be set
- *     - node_str: human readable node string
- *     - TxOut: transaction output
- * OUTPUT
- *     none
- *
- */
-static void node_hex_to_string(ButtonRequestType *button_type, char *node_str,
-                                     TxOutputType *TxOut)
-{
-    size_t i;
-    char temp_buffer[15];
-
-    if(TxOut->address_n[0] == 0x8000002C && TxOut->address_n[1] == 0x80000000)
-    {
-        /* node starts with /44'/0'  */
-        snprintf(node_str, BODY_CHAR_MAX, "Account #%lu", TxOut->address_n[2] & 0x7ffffff);
-        *button_type = ButtonRequestType_ButtonRequest_ConfirmTransferToAccount;
-    }
-    else
-    {
-        snprintf(node_str, BODY_CHAR_MAX, "Node path : m");
-
-        for(i = 0; i < TxOut->address_n_count; i++)
-        {
-            if(TxOut->address_n[i] & 0x80000000)
-            {
-                snprintf(temp_buffer, sizeof(temp_buffer), "/%lu\'", TxOut->address_n[i] & 0x7ffffff);
-            }
-            else
-            {
-                snprintf(temp_buffer, sizeof(temp_buffer), "/%lu", TxOut->address_n[i] & 0x7ffffff);
-            }
-
-            strncat(node_str, temp_buffer, sizeof(temp_buffer));
-        }
-
-        *button_type = ButtonRequestType_ButtonRequest_ConfirmTransferToNodePath;
-    }
-}
-
 /* === Functions =========================================================== */
 
 uint32_t op_push(uint32_t i, uint8_t *out) {
@@ -125,10 +78,19 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 			if (needs_confirm) {
 				coin_amnt_to_str(coin, in->amount, amount_str, sizeof(amount_str));
 				memset(node_str, 0, sizeof(node_str));
-				node_hex_to_string(&button_request, node_str, in);
+				
+				if(node_path_to_string(coin, node_str, in->address_n, in->address_n_count))
+				{
+					button_request = ButtonRequestType_ButtonRequest_ConfirmTransferToAccount;
+				}
+				else
+				{
+					button_request = ButtonRequestType_ButtonRequest_ConfirmTransferToNodePath;
+				}
+				
 				if(!confirm_transaction_output(button_request, amount_str, node_str))
 				{
-					return -1;
+					return TXOUT_CANCEL;
 				}
 			}
 			HDNode node;
@@ -136,7 +98,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 
 			if (hdnode_private_ckd_cached(&node, in->address_n, in->address_n_count) == 0) 
 			{
-				return 0;
+				return TXOUT_COMPILE_ERROR;
 			}
 
 			ecdsa_get_address_raw(node.public_key, coin->address_type, addr_raw);
@@ -148,17 +110,17 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 
 				if(!confirm_transaction_output(ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str, in->address))
 				{
-					return -1;
+					return TXOUT_CANCEL;
 				}
 			}
 			if (!ecdsa_address_decode(in->address, addr_raw)) {
-				return 0;
+				return TXOUT_COMPILE_ERROR;
 			}
 			if (addr_raw[0] != coin->address_type) {
-				return 0;
+				return TXOUT_COMPILE_ERROR;
 			}
 		} else { // does not have address_n neither address -> error
-			return 0;
+			return TXOUT_COMPILE_ERROR;
 		}
 
 		out->script_pubkey.bytes[0] = 0x76; // OP_DUP
@@ -173,17 +135,17 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 
 	if (in->script_type == OutputScriptType_PAYTOSCRIPTHASH) {
 		if (!in->has_address || !ecdsa_address_decode(in->address, addr_raw)) {
-			return 0;
+			return TXOUT_COMPILE_ERROR;
 		}
 		if (addr_raw[0] != coin->address_type_p2sh) {
-			return 0;
+			return TXOUT_COMPILE_ERROR;
 		}
 		if (needs_confirm) {
 			coin_amnt_to_str(coin, in->amount, amount_str, sizeof(amount_str));
 
 			if(!confirm_transaction_output(ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str, in->address))
 			{
-				return -1;
+				return TXOUT_CANCEL;
 			}
 		}
 		out->script_pubkey.bytes[0] = 0xA9; // OP_HASH_160
@@ -197,10 +159,10 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 	if (in->script_type == OutputScriptType_PAYTOMULTISIG) {
 		uint8_t buf[32];
 		if (!in->has_multisig) {
-			return 0;
+			return TXOUT_COMPILE_ERROR;
 		}
 		if (compile_script_multisig_hash(&(in->multisig), buf) == 0) {
-			return 0;
+			return TXOUT_COMPILE_ERROR;
 		}
 		addr_raw[0] = coin->address_type_p2sh;
 		ripemd160(buf, 32, addr_raw + 1);
@@ -210,7 +172,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 
 			if(!confirm_transaction_output(ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str, in->address))
 			{
-				return -1;
+				return TXOUT_CANCEL;
 			}
 		}
 		out->script_pubkey.bytes[0] = 0xA9; // OP_HASH_160
@@ -222,7 +184,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 	}
 
 	if (in->script_type == OutputScriptType_PAYTOOPRETURN) {
-		if (in->amount != 0) return 0; // only 0 satoshi allowed for OP_RETURN
+		if (in->amount != 0) return TXOUT_COMPILE_ERROR; // only 0 satoshi allowed for OP_RETURN
 		uint32_t r = 0;
 		out->script_pubkey.bytes[0] = 0x6A; r++; // OP_RETURN
 		r += op_push(in->op_return_data.size, out->script_pubkey.bytes + r);
@@ -231,7 +193,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		return r;
 	}
 
-	return 0;
+	return TXOUT_COMPILE_ERROR;
 }
 
 uint32_t compile_script_sig(uint8_t address_type, const uint8_t *pubkeyhash, uint8_t *out)

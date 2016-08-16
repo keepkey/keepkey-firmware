@@ -417,6 +417,37 @@ void layout_transaction_notification(const char *amount, const char *address,
 }
 
 /*
+ * layout_notification_no_title() - Display notification without title
+ *
+ * INPUT
+ *     - title
+ *     - body
+ * OUTPUT
+ *     none
+ */
+void layout_notification_no_title(const char *title, const char *body,
+                                  NotificationType type)
+{
+    (void)title;
+    call_leaving_handler();
+    layout_clear();
+
+    Canvas *canvas = layout_get_canvas();
+    DrawableParams sp;
+    const Font *font = get_title_font();
+
+    /* Determine vertical alignment and body width */
+    sp.y =  TOP_MARGIN_FOR_ONE_LINE;
+
+    /* Draw */
+    sp.x = LEFT_MARGIN;
+    sp.color = TITLE_COLOR;
+    draw_string(canvas, font, body, &sp, NO_TITLE_WIDTH, font_height(font));
+
+    layout_notification_icon(type, &sp);
+}
+
+/*
  * layout_xpub_notification() - Display extended public address (xpub) notification
  *
  * INPUT
