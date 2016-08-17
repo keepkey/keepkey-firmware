@@ -36,7 +36,7 @@
 static ExchangeError exchange_error = NO_EXCHANGE_ERROR;
 
 /* exchange public key for signature varification */
-static uint8_t ShapeShift_pub_address[25] =
+static uint8_t ShapeShift_public_address[25] =
 {
     0x00, 0xB9, 0xF5, 0x01, 0xE0, 0xD3, 0x69, 0x28, 0x37, 0x19, 
     0x57, 0x5B, 0xD5, 0x93, 0x40, 0x6C, 0xC3, 0xBA, 0x78, 0xC2, 
@@ -166,7 +166,7 @@ static bool verify_exchange_contract(const CoinType *coin, TxOutputType *tx_out,
     if(response_raw_filled_len != 0)
     {
         signed_coin = coinByShortcut((const char *)"BTC");
-        if(cryptoMessageVerify(signed_coin, response_raw, response_raw_filled_len, ShapeShift_pub_address, 
+        if(cryptoMessageVerify(signed_coin, response_raw, response_raw_filled_len, ShapeShift_public_address, 
                     (uint8_t *)exchange->signed_exchange_response.signature.bytes) != 0)
         {
             set_exchange_error(ERROR_EXCHANGE_SIGNATURE);
