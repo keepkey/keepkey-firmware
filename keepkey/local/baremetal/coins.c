@@ -146,35 +146,15 @@ void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len)
 bool node_path_to_string(const CoinType *coin, char *node_str, uint32_t *address_n,
                          size_t address_n_count)
 {
-    size_t i;
-    char temp_buffer[NODE_STRING_LENGTH];
-
-    if(address_n[0] == 0x8000002C && address_n[1] == coin->bip44_account_path)
+    bool ret_stat = false;
+    if(address_n_count == 5 && address_n[3] == 0)
     {
-        /* node starts with /44'/0' */
-        snprintf(node_str, NODE_STRING_LENGTH, "%s account #%lu", coin->coin_name,
-                 address_n[2] & 0x7ffffff);
-
-        return(true);
-    }
-    else
-    {
-        snprintf(node_str, NODE_STRING_LENGTH, "node path : m");
-
-        for(i = 0; i < address_n_count; i++)
+        if(address_n[0] == 0x8000002C && address_n[1] == coin->bip44_account_path)
         {
-            if(address_n[i] & 0x80000000)
-            {
-                snprintf(temp_buffer, sizeof(temp_buffer), "/%lu\'", address_n[i] & 0x7ffffff);
-            }
-            else
-            {
-                snprintf(temp_buffer, sizeof(temp_buffer), "/%lu", address_n[i] & 0x7ffffff);
-            }
-
-            strncat(node_str, temp_buffer, sizeof(temp_buffer));
+            snprintf(node_str, NODE_STRING_LENGTH, "%s account #%lu", coin->coin_name,
+                    address_n[2] & 0x7ffffff);
+            ret_stat = true;
         }
-
-        return(false);
     }
+    return(ret_stat);
 }

@@ -85,7 +85,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 				}
 				else
 				{
-					button_request = ButtonRequestType_ButtonRequest_ConfirmTransferToNodePath;
+					return TXOUT_COMPILE_ERROR;
 				}
 				
 				if(!confirm_transaction_output(button_request, amount_str, node_str))

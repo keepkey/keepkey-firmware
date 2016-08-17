@@ -313,10 +313,15 @@ bool process_exchange_contract(const CoinType *coin, TxOutputType *tx_out, const
             {
                 coin_amnt_to_str(deposit_coin, tx_out->exchange_type.signed_exchange_response.response.deposit_amount, amount_from_str, sizeof(amount_to_str));
                 coin_amnt_to_str(withdraw_coin, tx_out->exchange_type.signed_exchange_response.response.withdrawal_amount, amount_to_str, sizeof(amount_from_str));
-                node_path_to_string(withdraw_coin, node_str, tx_out->exchange_type.withdrawal_address_n,
-                         tx_out->exchange_type.withdrawal_address_n_count);
-
-                if(!confirm_exchange_output(EXCHANGE1, amount_from_str, amount_to_str, node_str))
+                if(node_path_to_string(withdraw_coin, node_str, tx_out->exchange_type.withdrawal_address_n,
+                         tx_out->exchange_type.withdrawal_address_n_count))
+                {
+                    if(!confirm_exchange_output(EXCHANGE1, amount_from_str, amount_to_str, node_str))
+                    {
+                        goto process_exchange_contract_exit;
+                    }
+                }
+                else
                 {
                     goto process_exchange_contract_exit;
                 }
