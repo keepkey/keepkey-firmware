@@ -35,6 +35,32 @@ const CoinType coins[COINS_COUNT] = {
     {true, "Dash",     true, "DASH", true,  76, true,     100000, true,  16, false, 0, false, 0, true, "\x19" "DarkCoin Signed Message:\n", true, 0x80000005},
 };
 
+/* === Private Functions =================================================== */
+/*
+ * verify_bip44_node() - Checks node is valid bip44
+ *
+ * INPUT
+ *     *coin - coin type pointer
+ *     address_n - node path
+ *     address_n_count - number of nodes in path
+ * OUTPUT
+ *     true/false status
+ *
+ */
+static bool verify_bip44_node(const CoinType *coin, uint32_t *address_n, size_t address_n_count)
+{
+    bool ret_stat = false;
+    if(address_n_count == 5 && address_n[3] == 0)
+    {
+        if(address_n[0] == 0x8000002C && address_n[1] == coin->bip44_account_path)
+        {
+            ret_stat = true;
+        }
+    }
+    return(ret_stat);
+}
+
+/* === Functions =========================================================== */
 const CoinType *coinByShortcut(const char *shortcut)
 {
     if(!shortcut) { return 0; }
@@ -132,7 +158,7 @@ void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len)
 }
 
 /*
- * node_path_to_string() - Parses node path to BIP 44 equivalent string
+ * bip44_node_to_string() - Parses node path to BIP 44 equivalent string
  *
  * INPUT -
  *      - coin: coin to use to determine bip44 path
@@ -143,18 +169,16 @@ void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len)
  *     true/false whether node path was bip 44 string or just regular node
  *
  */
-bool node_path_to_string(const CoinType *coin, char *node_str, uint32_t *address_n,
+bool bip44_node_to_string(const CoinType *coin, char *node_str, uint32_t *address_n,
                          size_t address_n_count)
 {
     bool ret_stat = false;
-    if(address_n_count == 5 && address_n[3] == 0)
+
+    if(verify_bip44_node(coin, address_n, address_n_count))
     {
-        if(address_n[0] == 0x8000002C && address_n[1] == coin->bip44_account_path)
-        {
-            snprintf(node_str, NODE_STRING_LENGTH, "%s account #%lu", coin->coin_name,
+        snprintf(node_str, NODE_STRING_LENGTH, "%s account #%lu", coin->coin_name,
                     address_n[2] & 0x7ffffff);
-            ret_stat = true;
-        }
+        ret_stat = true;
     }
     return(ret_stat);
 }
