@@ -38,6 +38,7 @@ bool confirm_encrypt_msg(const char *msg, bool signing);
 bool confirm_decrypt_msg(const char *msg, const char *address);
 bool confirm_exchange_output(const char *exchange, const char *from_amount,
                              const char *to_amount, const char *address);
+bool confirm_transfer_output(ButtonRequestType button_request, const char *amount, const char *to);
 bool confirm_transaction_output(ButtonRequestType button_request, const char *amount, const char *to);
 bool confirm_transaction(const char *total_amount, const char *fee);
 bool confirm_load_device(bool is_node);

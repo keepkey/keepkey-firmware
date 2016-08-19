@@ -107,8 +107,6 @@ typedef struct
 void layout_screen_test(void);
 void layout_screensaver(void);
 void layout_tx_info(const char *address, uint64_t amount_in_satoshi);
-void layout_transaction_notification(const char *amount, const char *address,
-                                     NotificationType type);
 void layout_notification_no_title(const char *title, const char *body,
                                   NotificationType type);
 void layout_xpub_notification(const char *desc, const char *xpub,

@@ -140,16 +140,36 @@ bool confirm_decrypt_msg(const char *msg, const char *address)
 bool confirm_exchange_output(const char *exchange, const char *from_amount,
                              const char *to_amount, const char *address)
 {
-        return confirm_with_custom_layout(&layout_notification_no_title,
+    return confirm_with_custom_layout(&layout_notification_no_title,
                                       ButtonRequestType_ButtonRequest_SignExchange,
-                                      "", "Convert %s to\n %s with %s and send to %s",
+                                      "", 
+                                      "Convert %s to\n%s with %s and send to %s",
                                       from_amount, to_amount, exchange, address);
 }
 
 /*
+ * confirm_transfer_output() - Show transfer output confirmation
+ *
+ * INPUT -
+ *      - button_request: button request type
+ *      - amount: amount to send
+ *      - to: who to send to
+ * OUTPUT -
+ *     true/false of confirmation
+ *
+ */
+bool confirm_transfer_output(ButtonRequestType button_request, const char *amount, const char *to)
+{
+    return confirm_with_custom_layout(&layout_notification_no_title,
+                                       button_request,
+                                      "", 
+                                      "Transfer %s to\n%s", amount, to);
+}
+/*
  * confirm_transaction_output() - Show transaction output confirmation
  *
  * INPUT -
+ *      - button_request: button request type
  *      - amount: amount to send
  *      - to: who to send to
  * OUTPUT -
@@ -158,7 +178,10 @@ bool confirm_exchange_output(const char *exchange, const char *from_amount,
  */
 bool confirm_transaction_output(ButtonRequestType button_request, const char *amount, const char *to)
 {
-    return confirm_with_custom_layout(&layout_transaction_notification, button_request, amount, to);
+    return confirm_with_custom_layout(&layout_notification_no_title,
+                                       button_request,
+                                       "",
+                                       "Send %s to\n%s", amount, to);
 }
 
 /*

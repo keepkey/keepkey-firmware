@@ -88,7 +88,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 					return TXOUT_COMPILE_ERROR;
 				}
 				
-				if(!confirm_transaction_output(button_request, amount_str, node_str))
+				if(!confirm_transfer_output(button_request, amount_str, node_str))
 				{
 					return TXOUT_CANCEL;
 				}

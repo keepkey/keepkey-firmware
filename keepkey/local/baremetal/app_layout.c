@@ -356,67 +356,6 @@ void layout_screensaver(void)
 }
 
 /*
- * layout_transaction_notification() - Display transaction notification
- *
- * INPUT
- *     - amount: amount of transaction
- *     - address: destination address
- *     - type: notification type
- * OUTPUT
- *     none
- */
-void layout_transaction_notification(const char *amount, const char *address,
-                                     NotificationType type)
-{
-    call_leaving_handler();
-    layout_clear();
-
-    Canvas *canvas = layout_get_canvas();
-    DrawableParams sp;
-    const Font *amount_font = get_title_font();
-    const Font *address_font = get_title_font();
-
-    /* Unbold fonts if address becomes too long */
-    if(calc_str_width(address_font, address) > TRANSACTION_WIDTH)
-    {
-        amount_font = get_body_font();
-        address_font = get_body_font();
-    }
-
-    /* Determine vertical alignment and body width */
-    sp.y =  TOP_MARGIN_FOR_ONE_LINE;
-
-    /* Format amount line */
-    char title[BODY_CHAR_MAX];
-
-    /*base58 addresses can be 25-34 characters in length*/
-    if(strlen(address) <= 25)
-    {
-        /* display for sending funds to node address */
-        snprintf(title, BODY_CHAR_MAX, "Moving %s to", amount);
-    }
-    else
-    {
-        /* display for sending funds to base58BitCoin Address */
-        snprintf(title, BODY_CHAR_MAX, "Send %s to", amount);
-    }
-
-    /* Draw amount */
-    sp.x = LEFT_MARGIN;
-    sp.color = TITLE_COLOR;
-    draw_string(canvas, amount_font, title, &sp, TRANSACTION_WIDTH, font_height(amount_font));
-
-    /* Draw address */
-    sp.y += font_height(address_font) + TRANSACTION_TOP_MARGIN;
-    sp.x = LEFT_MARGIN;
-    sp.color = BODY_COLOR;
-    draw_string(canvas, address_font, address, &sp, TRANSACTION_WIDTH,
-                font_height(address_font) + BODY_FONT_LINE_PADDING);
-
-    layout_notification_icon(type, &sp);
-}
-
-/*
  * layout_notification_no_title() - Display notification without title
  *
  * INPUT
