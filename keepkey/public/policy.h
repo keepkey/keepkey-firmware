@@ -28,7 +28,6 @@
 /* === Defines ============================================================= */
 
 #define POLICY_COUNT sizeof(((Storage *)NULL)->policies) / sizeof(PolicyType)
-#define EXCHANGE1    "ShapeShift"  
 
 /* === Variables =========================================================== */
 

@@ -318,7 +318,7 @@ bool process_exchange_contract(const CoinType *coin, TxOutputType *tx_out, const
                 if(bip44_node_to_string(withdraw_coin, node_str, tx_out->exchange_type.withdrawal_address_n,
                          tx_out->exchange_type.withdrawal_address_n_count))
                 {
-                    if(!confirm_exchange_output(EXCHANGE1, amount_from_str, amount_to_str, node_str))
+                    if(!confirm_exchange_output("ShapeShift", amount_from_str, amount_to_str, node_str))
                     {
                         goto process_exchange_contract_exit;
                     }
