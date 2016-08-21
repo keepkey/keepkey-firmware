@@ -82,6 +82,13 @@ static bool storage_from_flash(ConfigFlash *stor_config)
 
         case 2:
             memcpy(&shadow_config, stor_config, sizeof(shadow_config));
+            if(shadow_config.storage.policies_count == 0xFFFFFFFF && *(uint32_t *)&shadow_config.cache == 0xFFFFFFFF)
+            {
+                shadow_config.storage.policies_count = POLICY_COUNT;
+                memcpy(&shadow_config.storage.policies, policies, POLICY_COUNT * sizeof(PolicyType));
+                memset(&shadow_config.cache, 0, sizeof(shadow_config.cache));
+                storage_commit();
+            }
             break;
 
         default:
