@@ -61,6 +61,33 @@ static ConfigFlash shadow_config;
 /* === Private Functions =================================================== */
 
 /*
+ * storage_reset_policies() - Resets policies
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
+ *
+ */
+static void storage_reset_policies(void){
+    shadow_config.storage.policies_count = POLICY_COUNT;
+    memcpy(&shadow_config.storage.policies, policies, POLICY_COUNT * sizeof(PolicyType));
+}
+
+/*
+ * storage_reset_cache() - Resets cache
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
+ *
+ */
+static void storage_reset_cache(void){
+    memset(&shadow_config.cache, 0, sizeof(shadow_config.cache));
+}
+
+/*
  * storage_from_flash() - Copy configuration from storage partition in flash memory to shadow memory in RAM
  *
  * INPUT
@@ -77,18 +104,22 @@ static bool storage_from_flash(ConfigFlash *stor_config)
         case 1:
             memcpy(&shadow_config.meta, &stor_config->meta, sizeof(shadow_config.meta));
             memcpy(&shadow_config.storage, &stor_config->storage, sizeof(shadow_config.storage) - sizeof(shadow_config.storage.policies));
-            memcpy(&shadow_config.cache, &stor_config->cache, sizeof(shadow_config.cache));
+            storage_reset_cache();
             break;
 
         case 2:
             memcpy(&shadow_config, stor_config, sizeof(shadow_config));
-            if(shadow_config.storage.policies_count == 0xFFFFFFFF && *(uint32_t *)&shadow_config.cache == 0xFFFFFFFF)
+
+            /* We have to do this for users with bootloaders <= v1.0.2. This
+            scenario would only happen after a firmware install from the same
+            storage version */
+            if(shadow_config.storage.policies_count == 0xFFFFFFFF)
             {
-                shadow_config.storage.policies_count = POLICY_COUNT;
-                memcpy(&shadow_config.storage.policies, policies, POLICY_COUNT * sizeof(PolicyType));
-                memset(&shadow_config.cache, 0, sizeof(shadow_config.cache));
+                storage_reset_policies();
+                storage_reset_cache();
                 storage_commit();
             }
+
             break;
 
         default:
@@ -277,9 +308,7 @@ void storage_reset(void)
     memset(&shadow_config.storage, 0, sizeof(shadow_config.storage));
     memset(&shadow_config.cache, 0, sizeof(shadow_config.cache));
 
-    /* Reset policies */
-    shadow_config.storage.policies_count = POLICY_COUNT;
-    memcpy(&shadow_config.storage.policies, policies, POLICY_COUNT * sizeof(PolicyType));
+    storage_reset_policies();
 
     shadow_config.storage.version = STORAGE_VERSION;
     session_clear(true); // clear PIN as well
