@@ -69,7 +69,8 @@ static ConfigFlash shadow_config;
  *     none
  *
  */
-static void storage_reset_policies(void){
+static void storage_reset_policies(void)
+{
     shadow_config.storage.policies_count = POLICY_COUNT;
     memcpy(&shadow_config.storage.policies, policies, POLICY_COUNT * sizeof(PolicyType));
 }
@@ -83,7 +84,8 @@ static void storage_reset_policies(void){
  *     none
  *
  */
-static void storage_reset_cache(void){
+static void storage_reset_cache(void)
+{
     memset(&shadow_config.cache, 0, sizeof(shadow_config.cache));
 }
 
