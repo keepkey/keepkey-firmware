@@ -105,7 +105,8 @@ static bool storage_from_flash(ConfigFlash *stor_config)
     {
         case 1:
             memcpy(&shadow_config.meta, &stor_config->meta, sizeof(shadow_config.meta));
-            memcpy(&shadow_config.storage, &stor_config->storage, sizeof(shadow_config.storage) - sizeof(shadow_config.storage.policies));
+            memcpy(&shadow_config.storage, &stor_config->storage, sizeof(shadow_config.storage));
+            storage_reset_policies();
             storage_reset_cache();
             break;
 
