@@ -109,6 +109,11 @@ static void send_fsm_co_error_message(int co_error)
         {
             switch(get_exchange_error())
             {
+                case ERROR_EXCHANGE_CANCEL:
+                {
+                    fsm_sendFailure(FailureType_Failure_Other, "Exchange cancelled");
+                    break;
+                }
                 case ERROR_EXCHANGE_SIGNATURE:
                 {
                     fsm_sendFailure(FailureType_Failure_Other, "Exchange signature error");
