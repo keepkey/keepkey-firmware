@@ -58,6 +58,7 @@ int point_is_equal(const curve_point *p, const curve_point *q);
 int point_is_negative_of(const curve_point *p, const curve_point *q);
 void scalar_multiply(const ecdsa_curve *curve, const bignum256 *k, curve_point *res);
 void uncompress_coords(const ecdsa_curve *curve, uint8_t odd, const bignum256 *x, bignum256 *y);
+int ecdsa_uncompress_pubkey(const ecdsa_curve *curve, const uint8_t *pub_key, uint8_t *uncompressed);
 
 int ecdsa_sign(const ecdsa_curve *curve, const uint8_t *priv_key, const uint8_t *msg, uint32_t msg_len, uint8_t *sig, uint8_t *pby);
 int ecdsa_sign_double(const ecdsa_curve *curve, const uint8_t *priv_key, const uint8_t *msg, uint32_t msg_len, uint8_t *sig, uint8_t *pby);
@@ -75,8 +76,8 @@ int ecdsa_validate_pubkey(const ecdsa_curve *curve, const curve_point *pub);
 int ecdsa_verify(const ecdsa_curve *curve, const uint8_t *pub_key, const uint8_t *sig, const uint8_t *msg, uint32_t msg_len);
 int ecdsa_verify_double(const ecdsa_curve *curve, const uint8_t *pub_key, const uint8_t *sig, const uint8_t *msg, uint32_t msg_len);
 int ecdsa_verify_digest(const ecdsa_curve *curve, const uint8_t *pub_key, const uint8_t *sig, const uint8_t *digest);
+int ecdsa_verify_digest_recover(const ecdsa_curve *curve, uint8_t *pub_key, const uint8_t *sig, const uint8_t *digest, int recid);
 int ecdsa_sig_to_der(const uint8_t *sig, uint8_t *der);
-const ecdsa_curve *get_curve_by_name(const char *curve_name);
 
 // Private
 int generate_k_rfc6979(const ecdsa_curve *curve, bignum256 *secret, const uint8_t *priv_key, const uint8_t *hash);

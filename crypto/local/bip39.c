@@ -55,6 +55,16 @@ const char *mnemonic_generate(int strength)
 	return mnemonic_from_data(data, strength / 8);
 }
 
+const uint16_t *mnemonic_generate_indexes(int strength)
+{
+	if (strength % 32 || strength < 128 || strength > 256) {
+		return 0;
+	}
+	uint8_t data[32];
+	random_buffer(data, 32);
+	return mnemonic_from_data_indexes(data, strength / 8);
+}
+
 const char *mnemonic_from_data(const uint8_t *data, int len)
 {
 	if (len % 4 || len < 16 || len > 32) {
@@ -84,6 +94,36 @@ const char *mnemonic_from_data(const uint8_t *data, int len)
 		p += strlen(wordlist[idx]);
 		*p = (i < mlen - 1) ? ' ' : 0;
 		p++;
+	}
+
+	return mnemo;
+}
+
+const uint16_t *mnemonic_from_data_indexes(const uint8_t *data, int len)
+{
+	if (len % 4 || len < 16 || len > 32) {
+		return 0;
+	}
+
+	uint8_t bits[32 + 1];
+
+	sha256_Raw(data, len, bits);
+	// checksum
+	bits[len] = bits[0];
+	// data
+	memcpy(bits, data, len);
+
+	int mlen = len * 3 / 4;
+	static uint16_t mnemo[24];
+
+	int i, j, idx;
+	for (i = 0; i < mlen; i++) {
+		idx = 0;
+		for (j = 0; j < 11; j++) {
+			idx <<= 1;
+			idx += (bits[(i * 11 + j) / 8] & (1 << (7 - ((i * 11 + j) % 8)))) > 0;
+		}
+		mnemo[i] = idx;
 	}
 
 	return mnemo;
@@ -168,8 +208,7 @@ void mnemonic_to_seed(const char *mnemonic, const char *passphrase, uint8_t seed
 	int mnemoniclen = strlen(mnemonic);
 	// check cache
 	if (mnemoniclen < 256 && passphraselen < 64) {
-		int i;
-		for (i = 0; i < BIP39_CACHE_SIZE; i++) {
+		for (int i = 0; i < BIP39_CACHE_SIZE; i++) {
 			if (!bip39_cache[i].set) continue;
 			if (strcmp(bip39_cache[i].mnemonic, mnemonic) != 0) continue;
 			if (strcmp(bip39_cache[i].passphrase, passphrase) != 0) continue;
@@ -179,10 +218,21 @@ void mnemonic_to_seed(const char *mnemonic, const char *passphrase, uint8_t seed
 		}
 	}
 #endif
-	uint8_t salt[8 + 256 + 4];
+	uint8_t salt[8 + 256];
 	memcpy(salt, "mnemonic", 8);
 	memcpy(salt + 8, passphrase, passphraselen);
-	pbkdf2_hmac_sha512((const uint8_t *)mnemonic, strlen(mnemonic), salt, passphraselen + 8, BIP39_PBKDF2_ROUNDS, seed, 512 / 8, progress_callback);
+	PBKDF2_HMAC_SHA512_CTX pctx;
+	pbkdf2_hmac_sha512_Init(&pctx, (const uint8_t *)mnemonic, strlen(mnemonic), salt, passphraselen + 8);
+	if (progress_callback) {
+		progress_callback(0, BIP39_PBKDF2_ROUNDS);
+	}
+	for (int i = 0; i < 16; i++) {
+		pbkdf2_hmac_sha512_Update(&pctx, BIP39_PBKDF2_ROUNDS / 16);
+		if (progress_callback) {
+			progress_callback((i + 1) * BIP39_PBKDF2_ROUNDS / 16, BIP39_PBKDF2_ROUNDS);
+		}
+	}
+	pbkdf2_hmac_sha512_Final(&pctx, seed);
 #if USE_BIP39_CACHE
 	// store to cache
 	if (mnemoniclen < 256 && passphraselen < 64) {

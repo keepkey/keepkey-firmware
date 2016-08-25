@@ -1,6 +1,5 @@
 /**
- * Copyright (c) 2013-2014 Tomas Dzetkulic
- * Copyright (c) 2013-2014 Pavol Rusnak
+ * Copyright (c) 2016 Pavol Rusnak
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the "Software"),
@@ -21,24 +20,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef __BIP39_H__
-#define __BIP39_H__
+#ifndef __SCRIPT_H__
+#define __SCRIPT_H__
 
 #include <stdint.h>
 
-#define BIP39_PBKDF2_ROUNDS 2048
-
-const char *mnemonic_generate(int strength);	// strength in bits
-const uint16_t *mnemonic_generate_indexes(int strength);	// strength in bits
-
-const char *mnemonic_from_data(const uint8_t *data, int len);
-const uint16_t *mnemonic_from_data_indexes(const uint8_t *data, int len);
-
-int mnemonic_check(const char *mnemonic);
-
-// passphrase must be at most 256 characters or code may crash
-void mnemonic_to_seed(const char *mnemonic, const char *passphrase, uint8_t seed[512 / 8], void (*progress_callback)(uint32_t current, uint32_t total));
-
-const char * const *mnemonic_wordlist(void);
+int script_output_to_address(const uint8_t *script, int scriptlen, char *addr, int addrsize);
 
 #endif

@@ -35,9 +35,7 @@
 #include "ecdsa.h"
 #include "base58.h"
 #include "macros.h"
-
 #include "secp256k1.h"
-#include "nist256p1.h"
 
 // Set cp2 = cp1
 void point_copy(const curve_point *cp1, curve_point *cp2)
@@ -738,7 +736,12 @@ int ecdsa_sign_digest(const ecdsa_curve *curve, const uint8_t *priv_key, const u
 			*pby = R.y.val[0] & 1;
 		}
 		// r = (rx mod n)
-		bn_mod(&R.x, &curve->order);
+		if (!bn_is_less(&R.x, &curve->order)) {
+			bn_subtract(&R.x, &curve->order, &R.x);
+			if (pby) {
+				*pby |= 2;
+			}
+		}
 		// if r is zero, we fail
 		if (bn_is_zero(&R.x))
 		{
@@ -769,7 +772,7 @@ int ecdsa_sign_digest(const ecdsa_curve *curve, const uint8_t *priv_key, const u
 		if (bn_is_less(&curve->order_half, &k)) {
 			bn_subtract(&curve->order, &k, &k);
 			if (pby) {
-				*pby = !*pby;
+				*pby ^= 1;
 			}
 		}
 		// we are done, R.x and k is the result signature
@@ -810,6 +813,21 @@ void ecdsa_get_public_key65(const ecdsa_curve *curve, const uint8_t *priv_key, u
 	bn_write_be(&R.y, pub_key + 33);
 	MEMSET_BZERO(&R, sizeof(R));
 	MEMSET_BZERO(&k, sizeof(k));
+}
+
+int ecdsa_uncompress_pubkey(const ecdsa_curve *curve, const uint8_t *pub_key, uint8_t *uncompressed)
+{
+	curve_point pub;
+
+	if (!ecdsa_read_pubkey(curve, pub_key, &pub)) {
+		return 0;
+	}
+
+	uncompressed[0] = 4;
+	bn_write_be(&pub.x, uncompressed + 1);
+	bn_write_be(&pub.y, uncompressed + 33);
+
+	return 1;
 }
 
 void ecdsa_get_pubkeyhash(const uint8_t *pub_key, uint8_t *pubkeyhash)
@@ -862,7 +880,7 @@ int ecdsa_address_decode(const char *addr, uint8_t *out)
 
 void uncompress_coords(const ecdsa_curve *curve, uint8_t odd, const bignum256 *x, bignum256 *y)
 {
-	// y^2 = x^3 + 0*x + 7
+	// y^2 = x^3 + a*x + b
 	memcpy(y, x, sizeof(bignum256));         // y is x
 	bn_multiply(x, y, &curve->prime);        // y is x^2
 	bn_subi(y, -curve->a, &curve->prime);    // y is x^2 + a
@@ -876,6 +894,9 @@ void uncompress_coords(const ecdsa_curve *curve, uint8_t odd, const bignum256 *x
 
 int ecdsa_read_pubkey(const ecdsa_curve *curve, const uint8_t *pub_key, curve_point *pub)
 {
+	if (!curve) {
+		curve = &secp256k1;
+	}
 	if (pub_key[0] == 0x04) {
 		bn_read_be(pub_key + 1, &(pub->x));
 		bn_read_be(pub_key + 33, &(pub->y));
@@ -951,6 +972,56 @@ int ecdsa_verify_double(const ecdsa_curve *curve, const uint8_t *pub_key, const 
 	int res = ecdsa_verify_digest(curve, pub_key, sig, hash);
 	MEMSET_BZERO(hash, sizeof(hash));
 	return res;
+}
+
+// Compute public key from signature and recovery id.
+// returns 0 if verification succeeded
+int ecdsa_verify_digest_recover(const ecdsa_curve *curve, uint8_t *pub_key, const uint8_t *sig, const uint8_t *digest, int recid)
+{
+	bignum256 r, s, e;
+	curve_point cp, cp2;
+
+	// read r and s
+	bn_read_be(sig, &r);
+	bn_read_be(sig + 32, &s);
+	if (!bn_is_less(&r, &curve->order) || bn_is_zero(&r)) {
+		return 1;
+	}
+	if (!bn_is_less(&s, &curve->order) || bn_is_zero(&s)) {
+		return 1;
+	}
+	// cp = R = k * G (k is secret nonce when signing)
+	memcpy(&cp.x, &r, sizeof(bignum256));
+	if (recid & 2) {
+		bn_add(&cp.x, &curve->order);
+		if (!bn_is_less(&cp.x, &curve->prime)) {
+			return 1;
+		}
+	}
+	// compute y from x
+	uncompress_coords(curve, recid & 1, &cp.x, &cp.y);
+	if (!ecdsa_validate_pubkey(curve, &cp)) {
+		return 1;
+	}
+	// e = -digest
+	bn_read_be(digest, &e);
+	bn_subtractmod(&curve->order, &e, &e, &curve->order);
+	bn_fast_mod(&e, &curve->order);
+	bn_mod(&e, &curve->order);
+	// r := r^-1
+	bn_inverse(&r, &curve->order);
+	// cp := s * R = s * k *G
+	point_multiply(curve, &s, &cp, &cp);
+	// cp2 := -digest * G
+	scalar_multiply(curve, &e, &cp2);
+	// cp := (s * k - digest) * G = (r*priv) * G = r * Pub
+	point_add(curve, &cp2, &cp);
+	// cp := r^{-1} * r * Pub = Pub
+	point_multiply(curve, &r, &cp, &cp);
+	pub_key[0] = 0x04;
+	bn_write_be(&cp.x, pub_key + 1);
+	bn_write_be(&cp.y, pub_key + 33);
+	return 0;
 }
 
 // returns 0 if verification succeeded
@@ -1043,18 +1114,4 @@ int ecdsa_sig_to_der(const uint8_t *sig, uint8_t *der)
 
 	*len = *len1 + *len2 + 4;
 	return *len + 2;
-}
-
-
-const ecdsa_curve *get_curve_by_name(const char *curve_name) {
-	if (curve_name == 0) {
-		return 0;
-	}
-	if (strcmp(curve_name, "secp256k1") == 0) {
-		return &secp256k1;
-	}
-	if (strcmp(curve_name, "nist256p1") == 0) {
-		return &nist256p1;
-	}
-	return 0;
 }
