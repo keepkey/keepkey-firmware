@@ -28,8 +28,8 @@
 #include <bip39.h>
 #include <base58.h>
 #include <ripemd160.h>
+#include <curves.h>
 #include <secp256k1.h>
-#include <nist256p1.h>
 #include <layout.h>
 #include <confirm_sm.h>
 #include <msg_dispatch.h>
@@ -88,14 +88,21 @@ static const MessagesMap_t MessagesMap[] =
     MSG_IN(MessageType_MessageType_SignMessage,         SignMessage_fields, (void (*)(void *))fsm_msgSignMessage)
     MSG_IN(MessageType_MessageType_SignIdentity,        SignIdentity_fields, (void (*)(void *))fsm_msgSignIdentity)
     MSG_IN(MessageType_MessageType_VerifyMessage,       VerifyMessage_fields, (void (*)(void *))fsm_msgVerifyMessage)
+    MSG_IN(MessageType_MessageType_GetECDHSessionKey,   GetECDHSessionKey_fields, (void (*)(void *))fsm_msgGetECDHSessionKey)
+/* ECIES disabled
     MSG_IN(MessageType_MessageType_EncryptMessage,      EncryptMessage_fields, (void (*)(void *))fsm_msgEncryptMessage)
     MSG_IN(MessageType_MessageType_DecryptMessage,      DecryptMessage_fields, (void (*)(void *))fsm_msgDecryptMessage)
-    MSG_IN(MessageType_MessageType_PassphraseAck,       PassphraseAck_fields,       NO_PROCESS_FUNC)
+*/
+//    MSG_IN(MessageType_MessageType_PassphraseAck,       PassphraseAck_fields,       NO_PROCESS_FUNC)
     MSG_IN(MessageType_MessageType_EstimateTxSize,      EstimateTxSize_fields, (void (*)(void *))fsm_msgEstimateTxSize)
     MSG_IN(MessageType_MessageType_RecoveryDevice,      RecoveryDevice_fields, (void (*)(void *))fsm_msgRecoveryDevice)
     MSG_IN(MessageType_MessageType_WordAck,             WordAck_fields, (void (*)(void *))fsm_msgWordAck)
     MSG_IN(MessageType_MessageType_CharacterAck,        CharacterAck_fields, (void (*)(void *))fsm_msgCharacterAck)
     MSG_IN(MessageType_MessageType_ApplyPolicies,       ApplyPolicies_fields, (void (*)(void *))fsm_msgApplyPolicies)
+    MSG_IN(MessageType_MessageType_SetU2FCounter,	SetU2FCounter_fields, (void (*)(void *))fsm_msgSetU2FCounter)
+    MSG_IN(MessageType_MessageType_EthereumGetAddress,	EthereumGetAddress_fields, (void (*)(void *))fsm_msgEthereumGetAddress)
+    MSG_IN(MessageType_MessageType_EthereumSignTx,      EthereumSignTx_fields, (void (*)(void *))fsm_msgEthereumSignTx)
+    MSG_IN(MessageType_MessageType_EthereumTxAck,       EthereumTxAck_fields, (void (*)(void *))fsm_msgEthereumTxAck)
 
     /* Normal Raw Messages */
     RAW_IN(MessageType_MessageType_RawTxAck,            RawTxAck_fields,            (void (*)(void *))fsm_msgRawTxAck)
@@ -114,22 +121,31 @@ static const MessagesMap_t MessagesMap[] =
     MSG_OUT(MessageType_MessageType_EntropyRequest,     EntropyRequest_fields,      NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_MessageSignature,   MessageSignature_fields,    NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_SignedIdentity,     SignedIdentity_fields,      NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_ECDHSessionKey,     ECDHSessionKey_fields,      NO_PROCESS_FUNC)
+/* ECIES disabled
     MSG_OUT(MessageType_MessageType_EncryptedMessage,   EncryptedMessage_fields,    NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_DecryptedMessage,   DecryptedMessage_fields,    NO_PROCESS_FUNC)
+*/
     MSG_OUT(MessageType_MessageType_PassphraseRequest,  PassphraseRequest_fields,   NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_TxSize,             TxSize_fields,              NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_WordRequest,        WordRequest_fields,         NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_CharacterRequest,   CharacterRequest_fields,    NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_EthereumAddress,    EthereumAddress_fields,     NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_EthereumTxRequest,  EthereumTxRequest_fields,   NO_PROCESS_FUNC)
 
 #if DEBUG_LINK
     /* Debug Messages */
     DEBUG_IN(MessageType_MessageType_DebugLinkDecision, DebugLinkDecision_fields,   NO_PROCESS_FUNC)
     DEBUG_IN(MessageType_MessageType_DebugLinkGetState, DebugLinkGetState_fields, (void (*)(void *))fsm_msgDebugLinkGetState)
     DEBUG_IN(MessageType_MessageType_DebugLinkStop,     DebugLinkStop_fields, (void (*)(void *))fsm_msgDebugLinkStop)
+//    DEBUG_IN(MessageType_MessageType_DebugLinkMemoryRead, DebugLinkMemoryRead_fields,	(void (*)(void *))fsm_msgDebugLinkMemoryRead)
+//    DEBUG_IN(MessageType_MessageType_DebugLinkMemoryWrite, DebugLinkMemoryWrite_fields, (void (*)(void *))fsm_msgDebugLinkMemoryWrite)
+//    DEBUG_IN(MessageType_MessageType_DebugLinkFlashErase, DebugLinkFlashErase_fields,	(void (*)(void *))fsm_msgDebugLinkFlashErase)
 
     /* Debug Out Messages */
     DEBUG_OUT(MessageType_MessageType_DebugLinkState, DebugLinkState_fields,        NO_PROCESS_FUNC)
     DEBUG_OUT(MessageType_MessageType_DebugLinkLog, DebugLinkLog_fields,            NO_PROCESS_FUNC)
+    DEBUG_OUT(MessageType_MessageType_DebugLinkMemory, DebugLinkMemory_fields,      NO_PROCESS_FUNC)
 #endif
 };
 
@@ -212,11 +228,11 @@ const CoinType *fsm_getCoin(const char *name)
     return coin;
 }
 
-const HDNode *fsm_getDerivedNode(uint32_t *address_n, size_t address_n_count)
+const HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t address_n_count)
 {
     static HDNode node;
 
-    if(!storage_get_root_node(&node))
+    if(!storage_get_root_node(&node, curve, true))
     {
         fsm_sendFailure(FailureType_Failure_NotInitialized,
                         "Device not initialized or passphrase request cancelled");
@@ -502,36 +518,25 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
         go_home();
         return;
     }
-
-    const HDNode *node = fsm_getDerivedNode(msg->address_n, msg->address_n_count);
-
-    if(!node) { return; }
-
-    uint8_t public_key[33];  // copy public key to temporary buffer
-    memcpy(public_key, node->public_key, sizeof(public_key));
-
-    if(msg->has_ecdsa_curve_name)
-    {
-        const ecdsa_curve *curve = get_curve_by_name(msg->ecdsa_curve_name);
-
-        if(curve)
-        {
-            // correct public key (since fsm_getDerivedNode uses secp256k1 curve)
-            ecdsa_get_public_key33(curve, node->private_key, public_key);
-        }
+    const char *curve = SECP256K1_NAME;
+    if (msg->has_ecdsa_curve_name) {
+        curve = msg->ecdsa_curve_name;
     }
-
-    resp->node.depth = node->depth;
-    resp->node.fingerprint = node->fingerprint;
-    resp->node.child_num = node->child_num;
-    resp->node.chain_code.size = 32;
-    memcpy(resp->node.chain_code.bytes, node->chain_code, 32);
-    resp->node.has_private_key = false;
-    resp->node.has_public_key = true;
-    resp->node.public_key.size = 33;
-    memcpy(resp->node.public_key.bytes, public_key, 33);
-    resp->has_xpub = true;
-    hdnode_serialize_public(node, resp->xpub, sizeof(resp->xpub));
+    uint32_t fingerprint;
+    HDNode *node;
+    if (msg->address_n_count == 0) {
+        /* get master node */
+        fingerprint = 0;
+        node = fsm_getDerivedNode(curve, msg->address_n, 0);
+    } else {
+        /* get parent node */
+        node = fsm_getDerivedNode(curve, msg->address_n, msg->address_n_count - 1);
+        if (!node) return;
+        fingerprint = hdnode_fingerprint(node);
+	/* get child */
+	hdnode_private_ckd(node, msg->address_n[msg->address_n_count - 1]);
+    }
+    hdnode_fill_public_key(node);
 
     if(msg->has_show_display && msg->show_display)
     {
@@ -543,6 +548,21 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
         }
     }
 
+    resp->node.depth = node->depth;
+    resp->node.fingerprint = node->fingerprint;
+    resp->node.child_num = node->child_num;
+    resp->node.chain_code.size = 32;
+    memcpy(resp->node.chain_code.bytes, node->chain_code, 32);
+    resp->node.has_private_key = false;
+    resp->node.has_public_key = true;
+    resp->node.public_key.size = 33;
+    memcpy(resp->node.public_key.bytes, node->public_key, 33);
+    if (node->public_key[0] == 1) {
+        /* ed25519 public key */
+        resp->node.public_key.bytes[0] = 0;
+    }
+    resp->has_xpub = true;
+    hdnode_serialize_public(node, fingerprint, resp->xpub, sizeof(resp->xpub));
     msg_write(MessageType_MessageType_PublicKey, resp);
     go_home();
 }
@@ -636,20 +656,13 @@ void fsm_msgSignTx(SignTx *msg)
     if(!coin) { return; }
 
     /* master node */
-    const HDNode *node = fsm_getDerivedNode(0, 0);
+    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0);
 
     if(!node) { return; }
 
     layout_simple_message("Preparing Transaction...");
 
-    signing_init(msg->inputs_count, msg->outputs_count, coin, node);
-}
-
-void fsm_msgCancel(Cancel *msg)
-{
-    (void)msg;
-    recovery_abort(true);
-    signing_abort();
+    signing_init(msg->inputs_count, msg->outputs_count, coin, node, msg->version, msg->lock_time);
 }
 
 void fsm_msgTxAck(TxAck *msg)
@@ -662,6 +675,38 @@ void fsm_msgTxAck(TxAck *msg)
     {
         fsm_sendFailure(FailureType_Failure_SyntaxError, "No transaction provided");
     }
+}
+
+void fsm_msgCancel(Cancel *msg)
+{
+    (void)msg;
+    recovery_abort(true);
+    signing_abort();
+    ethereum_signing_abort();
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Aborted");
+}
+
+void fsm_msgEthereumSignTx(EthereumSignTx *msg)
+{
+	if (!storage_isInitialized()) {
+		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+		return;
+	}
+
+	if (!protectPin(true)) {
+		layoutHome();
+		return;
+	}
+
+	const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
+	if (!node) return;
+
+	ethereum_signing_init(msg, node);
+}
+
+void fsm_msgEthereumTxAck(EthereumTxAck *msg)
+{
+	ethereum_signing_txack(msg);
 }
 
 void fsm_msgRawTxAck(RawMessage *msg, uint32_t frame_length)
@@ -783,11 +828,11 @@ void fsm_msgApplySettings(ApplySettings *msg)
 void fsm_msgCipherKeyValue(CipherKeyValue *msg)
 {
 
-	if (!storage_is_initialized()) 
+    if (!storage_is_initialized()) 
     {
-		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-		return;
-	}
+        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+	return;
+    }
 
     if(!msg->has_key)
     {
@@ -814,7 +859,7 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
         return;
     }
 
-    const HDNode *node = fsm_getDerivedNode(msg->address_n, msg->address_n_count);
+    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
 
     if(!node) { return; }
 
@@ -890,9 +935,10 @@ void fsm_msgGetAddress(GetAddress *msg)
 
     if(!coin) { return; }
 
-    const HDNode *node = fsm_getDerivedNode(msg->address_n, msg->address_n_count);
+    HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
 
     if(!node) { return; }
+    hdnode_fill_public_key(node);
 
     if(msg->has_multisig)
     {
@@ -950,6 +996,56 @@ void fsm_msgGetAddress(GetAddress *msg)
     go_home();
 }
 
+void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
+{
+	RESP_INIT(EthereumAddress);
+
+	if (!storage_isInitialized()) {
+		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+		return;
+	}
+
+	if (!protectPin(true)) {
+		layoutHome();
+		return;
+	}
+
+	const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
+	if (!node) return;
+
+	resp->address.size = 20;
+
+	if (!hdnode_get_ethereum_pubkeyhash(node, resp->address.bytes))
+		return;
+
+	if (msg->has_show_display && msg->show_display) {
+		char desc[16];
+		strlcpy(desc, "Address:", sizeof(desc));
+
+		char address[41];
+		data2hex(resp->address.bytes, 20, address);
+
+		layoutAddress(address, desc);
+		if (!protectButton(ButtonRequestType_ButtonRequest_Address, true)) {
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
+			layoutHome();
+			return;
+		}
+	}
+
+	msg_write(MessageType_MessageType_EthereumAddress, resp);
+	layoutHome();
+}
+
+void fsm_msgEntropyAck(EntropyAck *msg)
+{
+	if (msg->has_entropy) {
+		reset_entropy(msg->entropy.bytes, msg->entropy.size);
+	} else {
+		reset_entropy(0, 0);
+	}
+}
+
 void fsm_msgEntropyAck(EntropyAck *msg)
 {
     if(msg->has_entropy)
@@ -990,16 +1086,15 @@ void fsm_msgSignMessage(SignMessage *msg)
 
     if(!coin) { return; }
 
-    const HDNode *node = fsm_getDerivedNode(msg->address_n, msg->address_n_count);
+    HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
 
     if(!node) { return; }
 
-    if(cryptoMessageSign(coin, msg->message.bytes, msg->message.size, node->private_key,
-                         resp->signature.bytes) == 0)
+    if(cryptoMessageSign(coin, node, msg->message.bytes, msg->message.size, resp->signature.bytes) == 0) {
     {
         resp->has_address = true;
         uint8_t addr_raw[21];
-        ecdsa_get_address_raw(node->public_key, coin->address_type, addr_raw);
+        hdnode_get_address_raw(node, coin->address_type, addr_raw);
         base58_encode_check(addr_raw, 21, resp->address, sizeof(resp->address));
         resp->has_signature = true;
         resp->signature.size = 65;
@@ -1009,7 +1104,6 @@ void fsm_msgSignMessage(SignMessage *msg)
     {
         fsm_sendFailure(FailureType_Failure_Other, "Error signing message");
     }
-
     go_home();
 }
 
@@ -1026,19 +1120,15 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
         fsm_sendFailure(FailureType_Failure_Other, "No message provided");
         return;
     }
-
     const CoinType *coin = fsm_getCoin(msg->coin_name);
     if (!coin) return;
-
     layout_simple_message("Verifying Message...");
-
     uint8_t addr_raw[21];
 
     if(!ecdsa_address_decode(msg->address, addr_raw))
     {
         fsm_sendFailure(FailureType_Failure_InvalidSignature, "Invalid address");
     }
-
     if(msg->signature.size == 65 &&
             cryptoMessageVerify(coin, msg->message.bytes, msg->message.size, addr_raw,
                                 msg->signature.bytes) == 0)
@@ -1101,33 +1191,25 @@ void fsm_msgSignIdentity(SignIdentity *msg)
     address_n[4] = 0x80000000 | hash[12] | (hash[13] << 8) | (hash[14] << 16) |
                    (hash[15] << 24);
 
-    const HDNode *node = fsm_getDerivedNode(address_n, 5);
-
-    if(!node) { return; }
-
-    uint8_t public_key[33];  // copy public key to temporary buffer
-    memcpy(public_key, node->public_key, sizeof(public_key));
-
-    if(msg->has_ecdsa_curve_name)
-    {
-        const ecdsa_curve *curve = get_curve_by_name(msg->ecdsa_curve_name);
-
-        if(curve)
-        {
-            // correct public key (since fsm_getDerivedNode uses secp256k1 curve)
-            ecdsa_get_public_key33(curve, node->private_key, public_key);
-        }
+    const char *curve = SECP256K1_NAME;
+    if (msg->has_ecdsa_curve_name) {
+        curve = msg->ecdsa_curve_name;
     }
-
+    HDNode *node = fsm_getDerivedNode(curve, address_n, 5);
+    if(!node) { return; }
     bool sign_ssh = msg->identity.has_proto && (strcmp(msg->identity.proto, "ssh") == 0);
+    bool sign_gpg = msg->identity.has_proto && (strcmp(msg->identity.proto, "gpg") == 0);
 
     int result = 0;
     layout_simple_message("Signing Identity...");
 
     if(sign_ssh)    // SSH does not sign visual challenge
     {
-        result = sshMessageSign(msg->challenge_hidden.bytes, msg->challenge_hidden.size,
-                                node->private_key, resp->signature.bytes);
+        result = sshMessageSign(node, msg->challenge_hidden.bytes, msg->challenge_hidden.size, resp->signature.bytes);
+    }
+    else if (sign_gpg) { // GPG should sign a message digest
+    {
+        result = gpgMessageSign(node, msg->challenge_hidden.bytes, msg->challenge_hidden.size, resp->signature.bytes);
     }
     else
     {
@@ -1135,12 +1217,13 @@ void fsm_msgSignIdentity(SignIdentity *msg)
         sha256_Raw(msg->challenge_hidden.bytes, msg->challenge_hidden.size, digest);
         sha256_Raw((const uint8_t *)msg->challenge_visual, strlen(msg->challenge_visual),
                    digest + 32);
-        result = cryptoMessageSign(&(coins[0]), digest, 64, node->private_key, resp->signature.bytes);
+	result = cryptoMessageSign(&(coins[0]), node, digest, 64, resp->signature.bytes);
     }
 
     if(result == 0)
     {
-        if(sign_ssh)
+	hdnode_fill_public_key(node);
+        if (strcmp(curve, SECP256K1_NAME) != 0) {
         {
             resp->has_address = false;
         }
@@ -1148,13 +1231,16 @@ void fsm_msgSignIdentity(SignIdentity *msg)
         {
             resp->has_address = true;
             uint8_t addr_raw[21];
-            ecdsa_get_address_raw(node->public_key, 0x00, addr_raw); // hardcoded Bitcoin address type
+	    hdnode_get_address_raw(node, 0x00, addr_raw); // hardcoded Bitcoin address type
             base58_encode_check(addr_raw, 21, resp->address, sizeof(resp->address));
         }
-
         resp->has_public_key = true;
         resp->public_key.size = 33;
-        memcpy(resp->public_key.bytes, public_key, 33);
+	memcpy(resp->public_key.bytes, node->public_key, 33);
+	if (node->public_key[0] == 1) {
+            /* ed25519 public key */
+	    resp->public_key.bytes[0] = 0;
+        }
         resp->has_signature = true;
         resp->signature.size = 65;
         msg_write(MessageType_MessageType_SignedIdentity, resp);
@@ -1167,6 +1253,60 @@ void fsm_msgSignIdentity(SignIdentity *msg)
     go_home();
 }
 
+void fsm_msgGetECDHSessionKey(GetECDHSessionKey *msg)
+{
+	RESP_INIT(ECDHSessionKey);
+
+	if (!storage_isInitialized()) {
+		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+		return;
+	}
+
+	layoutDecryptIdentity(&msg->identity);
+	if (!protectButton(ButtonRequestType_ButtonRequest_ProtectCall, false)) {
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "ECDH Session cancelled");
+		layoutHome();
+		return;
+	}
+
+	if (!protectPin(true)) {
+		layoutHome();
+		return;
+	}
+
+	uint8_t hash[32];
+	if (!msg->has_identity || cryptoIdentityFingerprint(&(msg->identity), hash) == 0) {
+		fsm_sendFailure(FailureType_Failure_Other, "Invalid identity");
+		layoutHome();
+		return;
+	}
+
+	uint32_t address_n[5];
+	address_n[0] = 0x80000000 | 17;
+	address_n[1] = 0x80000000 | hash[ 0] | (hash[ 1] << 8) | (hash[ 2] << 16) | (hash[ 3] << 24);
+	address_n[2] = 0x80000000 | hash[ 4] | (hash[ 5] << 8) | (hash[ 6] << 16) | (hash[ 7] << 24);
+	address_n[3] = 0x80000000 | hash[ 8] | (hash[ 9] << 8) | (hash[10] << 16) | (hash[11] << 24);
+	address_n[4] = 0x80000000 | hash[12] | (hash[13] << 8) | (hash[14] << 16) | (hash[15] << 24);
+
+	const char *curve = SECP256K1_NAME;
+	if (msg->has_ecdsa_curve_name) {
+		curve = msg->ecdsa_curve_name;
+	}
+
+	const HDNode *node = fsm_getDerivedNode(curve, address_n, 5);
+	if (!node) return;
+
+	if (cryptoGetECDHSessionKey(node, msg->peer_public_key.bytes, resp->session_key.bytes) == 0) {
+		resp->has_session_key = true;
+		resp->session_key.size = 65;
+		msg_write(MessageType_MessageType_ECDHSessionKey, resp);
+	} else {
+		fsm_sendFailure(FailureType_Failure_Other, "Error getting ECDH session key");
+	}
+	layoutHome();
+}
+
+/* ECIES disabled
 void fsm_msgEncryptMessage(EncryptMessage *msg)
 {
 
@@ -1220,9 +1360,10 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
             return;
         }
 
-        node = fsm_getDerivedNode(msg->address_n, msg->address_n_count);
+	node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
 
         if(!node) { return; }
+        hdnode_get_address_raw(node, coin->address_type, address_raw);
 
         uint8_t public_key[33];
         ecdsa_get_public_key33(&secp256k1, node->private_key, public_key);
@@ -1301,7 +1442,7 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
         return;
     }
 
-    const HDNode *node = fsm_getDerivedNode(msg->address_n, msg->address_n_count);
+    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
 
     if(!node) { return; }
 
@@ -1352,6 +1493,7 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
     msg_write(MessageType_MessageType_DecryptedMessage, resp);
     go_home();
 }
+*/
 
 void fsm_msgEstimateTxSize(EstimateTxSize *msg)
 {
@@ -1397,6 +1539,12 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg)
 void fsm_msgWordAck(WordAck *msg)
 {
     recovery_word(msg->word);
+}
+
+void fsm_msgSetU2FCounter(SetU2FCounter *msg)
+{
+	storage_setU2FCounter(msg->u2f_counter);
+	fsm_sendSuccess("U2F counter set");
 }
 
 void fsm_msgCharacterAck(CharacterAck *msg)
@@ -1542,4 +1690,53 @@ void fsm_msgDebugLinkStop(DebugLinkStop *msg)
 {
     (void)msg;
 }
+
+#if 0  
+void fsm_msgEntropyAck(EntropyAck *msg)
+{
+	if (msg->has_entropy) {
+		reset_entropy(msg->entropy.bytes, msg->entropy.size);
+	} else {
+		reset_entropy(0, 0);
+	}
+}
+
+void fsm_msgDebugLinkMemoryRead(DebugLinkMemoryRead *msg)
+{
+	RESP_INIT(DebugLinkMemory);
+
+	uint32_t length = 1024;
+	if (msg->has_length && msg->length < length)
+		length = msg->length;
+	resp->has_memory = true;
+	memcpy(resp->memory.bytes, (void*) msg->address, length);
+	resp->memory.size = length;
+	msg_debug_write(MessageType_MessageType_DebugLinkMemory, resp);
+}
+
+void fsm_msgDebugLinkMemoryWrite(DebugLinkMemoryWrite *msg)
+{
+	uint32_t length = msg->memory.size;
+	if (msg->flash) {
+		flash_clear_status_flags();
+		flash_unlock();
+		uint32_t* src = (uint32_t *) msg->memory.bytes;
+		for (unsigned int i = 0; i < length; i += 4) {
+			flash_program_word(msg->address +  i, *src);
+			src++;
+		}
+		flash_lock();
+	} else {
+		memcpy((void *) msg->address, msg->memory.bytes, length);
+	}
+}
+
+void fsm_msgDebugLinkFlashErase(DebugLinkFlashErase *msg)
+{
+	flash_clear_status_flags();
+	flash_unlock();
+	flash_erase_sector(msg->sector, FLASH_CR_PROGRAM_X32);
+	flash_lock();
+}
+#endif
 #endif

@@ -67,9 +67,8 @@ enum {
 	STAGE_REQUEST_4_OUTPUT,
 	STAGE_REQUEST_5_OUTPUT
 } signing_stage;
-const uint32_t version = 1;
-const uint32_t lock_time = 0;
-
+static uint32_t version = 1;
+static uint32_t lock_time = 0;
 enum {
 	NOT_PARSING,
 	PARSING_VERSION,
@@ -386,12 +385,14 @@ void send_req_finished(void)
 	msg_write(MessageType_MessageType_TxRequest, &resp);
 }
 
-void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinType *_coin, const HDNode *_root)
+void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinType *_coin, const HDNode *_root, uint32_t _version, uint32_t _lock_time)
 {
 	inputs_count = _inputs_count;
 	outputs_count = _outputs_count;
 	coin = _coin;
 	root = _root;
+	version = _version;
+	lock_time = _lock_time;
 
 	idx1 = 0;
 	to_spend = 0;
@@ -736,7 +737,7 @@ void signing_txack(TransactionType *tx)
 				idx1++;
 				send_req_3_output();
 			} else {
-                            sha256_Final(hash_check, &tc);
+		            sha256_Final(&tc, hash_check);
                             // check fees
                             if (spending > to_spend) {
                                 fsm_sendFailure(FailureType_Failure_NotEnoughFunds, "Not enough funds");
@@ -797,6 +798,7 @@ void signing_txack(TransactionType *tx)
 					signing_abort();
 					return;
 				}
+				hdnode_fill_public_key(&node);
 				if (tx->inputs[0].script_type == InputScriptType_SPENDMULTISIG) {
 					if (!tx->inputs[0].has_multisig) {
 						fsm_sendFailure(FailureType_Failure_Other, "Multisig info not provided");
@@ -848,7 +850,7 @@ void signing_txack(TransactionType *tx)
 				idx2++;
 				send_req_4_output();
 			} else {
-				sha256_Final(hash, &tc);
+				sha256_Final(&tc, hash);
 				if (memcmp(hash, hash_check, 32) != 0) {
 					fsm_sendFailure(FailureType_Failure_Other, "Transaction has changed during signing");
 					signing_abort();

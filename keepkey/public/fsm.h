@@ -69,12 +69,17 @@ void fsm_msgEntropyAck(EntropyAck *msg);
 void fsm_msgSignMessage(SignMessage *msg);
 void fsm_msgVerifyMessage(VerifyMessage *msg);
 void fsm_msgSignIdentity(SignIdentity *msg);
+void fsm_msgGetECDHSessionKey(GetECDHSessionKey *msg);
 void fsm_msgEncryptMessage(EncryptMessage *msg);
 void fsm_msgDecryptMessage(DecryptMessage *msg);
 //void fsm_msgPassphraseAck(PassphraseAck *msg);
 void fsm_msgEstimateTxSize(EstimateTxSize *msg);
 void fsm_msgRecoveryDevice(RecoveryDevice *msg);
 void fsm_msgWordAck(WordAck *msg);
+void fsm_msgSetU2FCounter(SetU2FCounter *msg);
+void fsm_msgEthereumGetAddress(EthereumGetAddress *msg);
+void fsm_msgEthereumSignTx(EthereumSignTx *msg);
+void fsm_msgEthereumTxAck(EthereumTxAck *msg);
 void fsm_msgCharacterAck(CharacterAck *msg);
 void fsm_msgApplyPolicies(ApplyPolicies *msg);
 
@@ -82,6 +87,9 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg);
 //void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
 void fsm_msgDebugLinkGetState(DebugLinkGetState *msg);
 void fsm_msgDebugLinkStop(DebugLinkStop *msg);
+void fsm_msgDebugLinkMemoryWrite(DebugLinkMemoryWrite *msg);
+void fsm_msgDebugLinkMemoryRead(DebugLinkMemoryRead *msg);
+void fsm_msgDebugLinkFlashErase(DebugLinkFlashErase *msg);
 #endif
 
 #endif

@@ -34,6 +34,7 @@
 #include <memory.h>
 #include <rng.h>
 
+#include "curves.h"
 #include "util.h"
 #include "storage.h"
 #include "passphrase_sm.h"
