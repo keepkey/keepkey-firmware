@@ -56,6 +56,7 @@
 #include "recovery.h"
 #include "recovery_cipher.h"
 #include "policy.h"
+#include "ethereum.h"
 
 /* === Private Variables =================================================== */
 
@@ -228,7 +229,7 @@ const CoinType *fsm_getCoin(const char *name)
     return coin;
 }
 
-const HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t address_n_count)
+HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t address_n_count)
 {
     static HDNode node;
 
@@ -549,7 +550,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
     }
 
     resp->node.depth = node->depth;
-    resp->node.fingerprint = node->fingerprint;
+    resp->node.fingerprint = fingerprint;
     resp->node.child_num = node->child_num;
     resp->node.chain_code.size = 32;
     memcpy(resp->node.chain_code.bytes, node->chain_code, 32);
@@ -688,13 +689,14 @@ void fsm_msgCancel(Cancel *msg)
 
 void fsm_msgEthereumSignTx(EthereumSignTx *msg)
 {
-	if (!storage_isInitialized()) {
+        if (!storage_is_initialized()) {
 		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
 		return;
 	}
 
-	if (!protectPin(true)) {
-		layoutHome();
+        if(!pin_protect("Enter Current Ethereum PIN"))
+        {
+                go_home();
 		return;
 	}
 
@@ -1000,13 +1002,14 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 {
 	RESP_INIT(EthereumAddress);
 
-	if (!storage_isInitialized()) {
+        if (!storage_is_initialized()) {
 		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
 		return;
 	}
 
-	if (!protectPin(true)) {
-		layoutHome();
+        if(!pin_protect("Enter Current Ethereum PIN"))
+        {
+                go_home();
 		return;
 	}
 
@@ -1026,24 +1029,17 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 		data2hex(resp->address.bytes, 20, address);
 
 		layoutAddress(address, desc);
-		if (!protectButton(ButtonRequestType_ButtonRequest_Address, true)) {
-			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
-			layoutHome();
-			return;
-		}
+
+                if(!confirm(ButtonRequestType_ButtonRequest_Other, "Ethereum Test", "layoutAddress" ))
+                {
+                    fsm_sendFailure(FailureType_Failure_ActionCancelled, "layoutAddress cancelled");
+                    go_home();
+                    return;
+                }
 	}
 
 	msg_write(MessageType_MessageType_EthereumAddress, resp);
-	layoutHome();
-}
-
-void fsm_msgEntropyAck(EntropyAck *msg)
-{
-	if (msg->has_entropy) {
-		reset_entropy(msg->entropy.bytes, msg->entropy.size);
-	} else {
-		reset_entropy(0, 0);
-	}
+        go_home();
 }
 
 void fsm_msgEntropyAck(EntropyAck *msg)
@@ -1090,7 +1086,7 @@ void fsm_msgSignMessage(SignMessage *msg)
 
     if(!node) { return; }
 
-    if(cryptoMessageSign(coin, node, msg->message.bytes, msg->message.size, resp->signature.bytes) == 0) {
+    if(cryptoMessageSign(coin, node, msg->message.bytes, msg->message.size, resp->signature.bytes) == 0) 
     {
         resp->has_address = true;
         uint8_t addr_raw[21];
@@ -1207,7 +1203,7 @@ void fsm_msgSignIdentity(SignIdentity *msg)
     {
         result = sshMessageSign(node, msg->challenge_hidden.bytes, msg->challenge_hidden.size, resp->signature.bytes);
     }
-    else if (sign_gpg) { // GPG should sign a message digest
+    else if (sign_gpg)  // GPG should sign a message digest
     {
         result = gpgMessageSign(node, msg->challenge_hidden.bytes, msg->challenge_hidden.size, resp->signature.bytes);
     }
@@ -1223,7 +1219,7 @@ void fsm_msgSignIdentity(SignIdentity *msg)
     if(result == 0)
     {
 	hdnode_fill_public_key(node);
-        if (strcmp(curve, SECP256K1_NAME) != 0) {
+        if (strcmp(curve, SECP256K1_NAME) != 0) 
         {
             resp->has_address = false;
         }
@@ -1257,27 +1253,30 @@ void fsm_msgGetECDHSessionKey(GetECDHSessionKey *msg)
 {
 	RESP_INIT(ECDHSessionKey);
 
-	if (!storage_isInitialized()) {
+        if (!storage_is_initialized()) {
 		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
 		return;
 	}
 
 	layoutDecryptIdentity(&msg->identity);
-	if (!protectButton(ButtonRequestType_ButtonRequest_ProtectCall, false)) {
-		fsm_sendFailure(FailureType_Failure_ActionCancelled, "ECDH Session cancelled");
-		layoutHome();
-		return;
-	}
 
-	if (!protectPin(true)) {
-		layoutHome();
+        if(!confirm(ButtonRequestType_ButtonRequest_Other, "Ethereum Test", "fsm_msgGetECDHSessionKey" ))
+        {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, "ECDH Session cancelled");
+            go_home();
+            return;
+        }
+
+        if(!pin_protect("Enter Current Ethereum PIN"))
+        {
+                go_home();
 		return;
 	}
 
 	uint8_t hash[32];
 	if (!msg->has_identity || cryptoIdentityFingerprint(&(msg->identity), hash) == 0) {
 		fsm_sendFailure(FailureType_Failure_Other, "Invalid identity");
-		layoutHome();
+                go_home();
 		return;
 	}
 
@@ -1303,7 +1302,7 @@ void fsm_msgGetECDHSessionKey(GetECDHSessionKey *msg)
 	} else {
 		fsm_sendFailure(FailureType_Failure_Other, "Error getting ECDH session key");
 	}
-	layoutHome();
+        go_home();
 }
 
 /* ECIES disabled
@@ -1543,8 +1542,12 @@ void fsm_msgWordAck(WordAck *msg)
 
 void fsm_msgSetU2FCounter(SetU2FCounter *msg)
 {
+#ifdef TEMP_MERGE_FLAG
+    (void)msg;
+#else
 	storage_setU2FCounter(msg->u2f_counter);
 	fsm_sendSuccess("U2F counter set");
+#endif
 }
 
 void fsm_msgCharacterAck(CharacterAck *msg)

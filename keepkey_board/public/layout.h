@@ -27,6 +27,7 @@
 #include "canvas.h"
 #include "resources.h"
 #include "draw.h"
+#include "types.pb.h"
 
 /* === Defines ============================================================= */
 
@@ -126,4 +127,9 @@ void layout_clear(void);
 void layout_clear_animations(void);
 void layout_clear_static(void);
 
+#ifdef TEMP_MERGE_FLAG
+void layoutDialogSwipe(char *temp_msg);
+void layoutAddress(const char *address, const char *desc);
+void layoutDecryptIdentity(const IdentityType *identity);
+#endif
 #endif

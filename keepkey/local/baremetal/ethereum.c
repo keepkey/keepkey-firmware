@@ -21,15 +21,15 @@
 
 #include "ethereum.h"
 #include "fsm.h"
-#include "layout2.h"
-#include "messages.h"
 #include "transaction.h"
 #include "ecdsa.h"
-#include "protect.h"
 #include "crypto.h"
 #include "secp256k1.h"
 #include "sha3.h"
 #include "util.h"
+#include <layout.h>
+#include <confirm_sm.h>
+#include "home_sm.h"
 
 static bool ethereum_signing = false;
 static uint32_t data_total, data_left;
@@ -130,10 +130,12 @@ static int rlp_calculate_length(int length, uint8_t firstbyte)
 
 static void send_request_chunk(void)
 {
+#if 0 /* remove before release */
 	int progress = 1000 - (data_total > 1000000
 						   ? data_left / (data_total/800)
 						   : data_left * 800 / data_total);
-	layoutProgress("Signing", progress);
+#endif
+        layout_simple_message("Signing Ethereum Transaction..."); 
 	resp.has_data_length = true;
 	resp.data_length = data_left <= 1024 ? data_left : 1024;
 	msg_write(MessageType_MessageType_EthereumTxRequest, &resp);
@@ -141,7 +143,7 @@ static void send_request_chunk(void)
 
 static void send_signature(void)
 {
-	layoutProgress("Signing", 1000);
+        layout_simple_message("Signing Ethereum Transaction..."); 
 	keccak_Final(&keccak_ctx, hash);
 	uint8_t v;
 	if (ecdsa_sign_digest(&secp256k1, privkey, hash, sig, &v) != 0) {
@@ -265,17 +267,7 @@ static void layoutEthereumConfirmTx(const uint8_t *to, uint32_t to_len, const ui
 		strlcpy(_to3, "", sizeof(_to3));
 	}
 
-	layoutDialogSwipe(&bmp_icon_question,
-		"Cancel",
-		"Confirm",
-		NULL,
-		"Send",
-		amount,
-		_to1,
-		_to2,
-		_to3,
-		NULL
-	);
+	layoutDialogSwipe("layoutDialogSwipe: Stubbed message1");
 }
 
 static void layoutEthereumData(const uint8_t *data, uint32_t len, uint32_t total_len)
@@ -300,21 +292,16 @@ static void layoutEthereumData(const uint8_t *data, uint32_t len, uint32_t total
 		*p-- = '0' + number % 10;
 		number = number / 10;
 	}
+#ifndef TEMP_MERGE_FLAG
+{
+#error Unused code
 	char *summarystart = summary;
 	if (total_len == printed)
 		summarystart = summary + 4;
+}
+#endif
 
-	layoutDialogSwipe(&bmp_icon_question,
-		"Cancel",
-		"Confirm",
-		NULL,
-		"Transaction data:",
-		hexdata[0],
-		hexdata[1],
-		hexdata[2],
-		summarystart,
-		NULL
-	);
+	layoutDialogSwipe("layoutDialogSwipe: Stubbed message2");
 }
 
 static void layoutEthereumFee(const uint8_t *value, uint32_t value_len,
@@ -347,17 +334,7 @@ static void layoutEthereumFee(const uint8_t *value, uint32_t value_len,
 		ethereumFormatAmount(&val, tx_value);
 	}
 
-	layoutDialogSwipe(&bmp_icon_question,
-		"Cancel",
-		"Confirm",
-		NULL,
-		"Really send",
-		tx_value,
-		"paying up to",
-		gas_value,
-		"for gas?",
-		NULL
-	);
+	layoutDialogSwipe("layoutDialogSwipe: Stubbed message3");
 }
 
 /*
@@ -445,16 +422,21 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node)
 	}
 
 	layoutEthereumConfirmTx(msg->to.bytes, msg->to.size, msg->value.bytes, msg->value.size);
-	if (!protectButton(ButtonRequestType_ButtonRequest_SignTx, false)) {
-		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
-		ethereum_signing_abort();
-		return;
-	}
+
+        if(!confirm(ButtonRequestType_ButtonRequest_SignTx, "Ethereum layout",
+                "Stubbed layout1 - Make appropriate changes!!!?"))
+        {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
+	    ethereum_signing_abort();
+            return;
+        }
 
 	if (data_total > 0) {
 		layoutEthereumData(msg->data_initial_chunk.bytes, msg->data_initial_chunk.size, data_total);
-		if (!protectButton(ButtonRequestType_ButtonRequest_SignTx, false)) {
-			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
+                if(!confirm(ButtonRequestType_ButtonRequest_SignTx, "Ethereum layout",
+                    "Stubbed layout2 - Make appropriate changes!!!?"))
+                {
+                        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
 			ethereum_signing_abort();
 			return;
 		}
@@ -463,7 +445,9 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node)
 	layoutEthereumFee(msg->value.bytes, msg->value.size,
 					  msg->gas_price.bytes, msg->gas_price.size,
 					  msg->gas_limit.bytes, msg->gas_limit.size);
-	if (!protectButton(ButtonRequestType_ButtonRequest_SignTx, false)) {
+        if(!confirm(ButtonRequestType_ButtonRequest_SignTx, "Ethereum layout",
+                    "Stubbed layout3 - Make appropriate changes!!!?"))
+        {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
 		ethereum_signing_abort();
 		return;
@@ -472,7 +456,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node)
 	/* Stage 1: Calculate total RLP length */
 	uint32_t rlp_length = 0;
 
-	layoutProgress("Signing", 0);
+        layout_simple_message("Signing Ethereum Transaction..."); 
 
 	rlp_length += rlp_calculate_length(msg->nonce.size, msg->nonce.bytes[0]);
 	rlp_length += rlp_calculate_length(msg->gas_price.size, msg->gas_price.bytes[0]);
@@ -484,7 +468,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node)
 	/* Stage 2: Store header fields */
 	hash_rlp_list_length(rlp_length);
 
-	layoutProgress("Signing", 100);
+        layout_simple_message("Signing Ethereum Transaction..."); 
 
 	hash_rlp_field(msg->nonce.bytes, msg->nonce.size);
 	hash_rlp_field(msg->gas_price.bytes, msg->gas_price.size);
@@ -508,7 +492,7 @@ void ethereum_signing_txack(EthereumTxAck *tx)
 {
 	if (!ethereum_signing) {
 		fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Signing mode");
-		layoutHome();
+		go_home();
 		return;
 	}
 
@@ -539,7 +523,7 @@ void ethereum_signing_abort(void)
 {
 	if (ethereum_signing) {
 		memset(privkey, 0, sizeof(privkey));
-		layoutHome();
+                go_home();
 		ethereum_signing = false;
 	}
 }

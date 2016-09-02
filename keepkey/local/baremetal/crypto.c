@@ -30,6 +30,7 @@
 #include "curves.h"
 #include "secp256k1.h"
 #include "coins.h"
+#include "macros.h"
 
 /* === Functions =========================================================== */
 

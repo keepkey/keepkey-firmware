@@ -46,11 +46,15 @@
 static bool   sessionRootNodeCached;
 static HDNode sessionRootNode;
 
+static bool sessionSeedCached, sessionSeedUsesPassphrase;
+static uint8_t sessionSeed[64];
+
 static bool sessionPinCached;
 static char sessionPin[17];
 
 static bool sessionPassphraseCached;
 static char sessionPassphrase[51];
+
 static Allocation storage_location = FLASH_INVALID;
 
 /* === Variables =========================================================== */
@@ -196,7 +200,7 @@ static void storage_set_root_node_cache(HDNode *node)
         storage_commit();
     }
 }
-
+#ifndef TEMP_MERGE_FLAG /* disable for now!!! */
 /*
  * storage_get_root_node_cache() - Gets root node cache from storage and returns true if found
  *
@@ -219,6 +223,7 @@ static bool storage_get_root_node_cache(HDNode *node)
 
     return false;
 }
+#endif
 
 /* === Functions =========================================================== */
 
@@ -330,6 +335,10 @@ void session_clear(bool clear_pin)
 {
     sessionRootNodeCached = false;
     memset(&sessionRootNode, 0, sizeof(sessionRootNode));
+
+    sessionSeedCached = false;
+    memset(&sessionSeed, 0, sizeof(sessionSeed));
+
     sessionPassphraseCached = false;
     memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
 
@@ -464,6 +473,9 @@ void storage_load_device(LoadDevice *msg)
         memcpy(&shadow_config.storage.node, &(msg->node), sizeof(HDNodeType));
         sessionRootNodeCached = false;
         memset(&sessionRootNode, 0, sizeof(sessionRootNode));
+
+        sessionSeedCached = false;
+	memset(&sessionSeed, 0, sizeof(sessionSeed));
     }
     else if(msg->has_mnemonic)
     {
@@ -473,6 +485,9 @@ void storage_load_device(LoadDevice *msg)
                 sizeof(shadow_config.storage.mnemonic));
         sessionRootNodeCached = false;
         memset(&sessionRootNode, 0, sizeof(sessionRootNode));
+
+        sessionSeedCached = false;
+	memset(&sessionSeed, 0, sizeof(sessionSeed));
     }
 
     if(msg->has_language)
@@ -720,6 +735,35 @@ void get_root_node_callback(uint32_t iter, uint32_t total)
     (void)total;
     animating_progress_handler();
 }
+/*
+ *
+ *
+ *
+ */
+const uint8_t *storage_getSeed(bool usePassphrase)
+{
+	// root node is properly cached
+	if (usePassphrase == sessionSeedUsesPassphrase
+		&& sessionSeedCached) {
+		return sessionSeed;
+	}
+
+	// if storage has mnemonic, convert it to node and use it
+	if (shadow_config.storage.has_mnemonic) {
+		if (usePassphrase && !passphrase_protect())
+                {
+			return NULL;
+		}
+                layout_loading();
+                animating_progress_handler();
+		mnemonic_to_seed(shadow_config.storage.mnemonic, usePassphrase ? sessionPassphrase : "", sessionSeed, get_root_node_callback); // BIP-0039
+		sessionSeedCached = true;
+		sessionSeedUsesPassphrase = usePassphrase;
+		return sessionSeed;
+	}
+
+	return NULL;
+}
 
 /*
  * storage_get_root_node() - Returns root node of device
@@ -729,6 +773,74 @@ void get_root_node_callback(uint32_t iter, uint32_t total)
  * OUTPUT
  *     true/false whether root node was found
  */
+#ifdef TEMP_MERGE_FLAG
+bool storage_get_root_node(HDNode *node, const char *curve, bool usePassphrase)
+{
+    // root node is properly cached
+    if(sessionRootNodeCached)
+    {
+        memcpy(node, &sessionRootNode, sizeof(HDNode));
+        return true;
+    }
+
+    // if storage has node, decrypt and use it
+    if(shadow_config.storage.has_node && strcmp(curve, SECP256K1_NAME) == 0) 
+    {
+        if(!passphrase_protect())
+        {
+            return false;
+        }
+	if(hdnode_from_xprv(shadow_config.storage.node.depth, 
+                            shadow_config.storage.node.child_num, 
+                            shadow_config.storage.node.chain_code.bytes, 
+                            shadow_config.storage.node.private_key.bytes, 
+                            curve, node) == 0) 
+        {
+	    return false;
+        }
+
+        if (shadow_config.storage.has_passphrase_protection && 
+            shadow_config.storage.passphrase_protection && 
+            sessionPassphraseCached && 
+            strlen(sessionPassphrase) > 0) 
+        {
+	    // decrypt hd node
+	    uint8_t secret[64];
+	    PBKDF2_HMAC_SHA512_CTX pctx;
+	    pbkdf2_hmac_sha512_Init(&pctx, (const uint8_t *)sessionPassphrase, strlen(sessionPassphrase), (const uint8_t *)"TREZORHD", 8);
+	    get_root_node_callback(0, BIP39_PBKDF2_ROUNDS);
+	    for (int i = 0; i < 8; i++) 
+            {
+	        pbkdf2_hmac_sha512_Update(&pctx, BIP39_PBKDF2_ROUNDS / 8);
+	        get_root_node_callback((i + 1) * BIP39_PBKDF2_ROUNDS / 8, BIP39_PBKDF2_ROUNDS);
+	    }
+	    pbkdf2_hmac_sha512_Final(&pctx, secret);
+	    aes_decrypt_ctx ctx;
+	    aes_decrypt_key256(secret, &ctx);
+	    aes_cbc_decrypt(node->chain_code, node->chain_code, 32, secret + 32, &ctx);
+	    aes_cbc_decrypt(node->private_key, node->private_key, 32, secret + 32, &ctx);
+	}
+        memcpy(&sessionRootNode, node, sizeof(HDNode));
+        sessionRootNodeCached = true;
+	return true;
+    }
+
+    const uint8_t *seed = storage_getSeed(usePassphrase);
+    if (seed == NULL) 
+    {
+        return false;
+    }
+	
+    if(hdnode_from_seed(seed, 64, curve, node) == 1)
+    {
+        storage_set_root_node_cache(node);
+        memcpy(&sessionRootNode, node,  sizeof(HDNode));
+        sessionRootNodeCached = true;
+        return true;
+    }
+    return false;
+}
+#else
 bool storage_get_root_node(HDNode *node)
 {
     // root node is properly cached
@@ -826,6 +938,7 @@ bool storage_get_root_node(HDNode *node)
 
     return false;
 }
+#endif
 
 /*
  * storage_is_initialized() - Is device initialized?
