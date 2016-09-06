@@ -36,3 +36,7 @@ Build final application image. Change to firmware directory and run following co
 $ ./b -b app 
 ```
 The resultant binaries will be located in ./build/arm-none-gnu-eabi/release/bin directory.
+
+## License
+
+If license is not specified in the header of a file, it can be assumed that it is licensed under GPLv3.
