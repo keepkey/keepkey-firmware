@@ -139,14 +139,10 @@ static const MessagesMap_t MessagesMap[] =
     DEBUG_IN(MessageType_MessageType_DebugLinkDecision, DebugLinkDecision_fields,   NO_PROCESS_FUNC)
     DEBUG_IN(MessageType_MessageType_DebugLinkGetState, DebugLinkGetState_fields, (void (*)(void *))fsm_msgDebugLinkGetState)
     DEBUG_IN(MessageType_MessageType_DebugLinkStop,     DebugLinkStop_fields, (void (*)(void *))fsm_msgDebugLinkStop)
-//    DEBUG_IN(MessageType_MessageType_DebugLinkMemoryRead, DebugLinkMemoryRead_fields,	(void (*)(void *))fsm_msgDebugLinkMemoryRead)
-//    DEBUG_IN(MessageType_MessageType_DebugLinkMemoryWrite, DebugLinkMemoryWrite_fields, (void (*)(void *))fsm_msgDebugLinkMemoryWrite)
-//    DEBUG_IN(MessageType_MessageType_DebugLinkFlashErase, DebugLinkFlashErase_fields,	(void (*)(void *))fsm_msgDebugLinkFlashErase)
 
     /* Debug Out Messages */
     DEBUG_OUT(MessageType_MessageType_DebugLinkState, DebugLinkState_fields,        NO_PROCESS_FUNC)
     DEBUG_OUT(MessageType_MessageType_DebugLinkLog, DebugLinkLog_fields,            NO_PROCESS_FUNC)
-    DEBUG_OUT(MessageType_MessageType_DebugLinkMemory, DebugLinkMemory_fields,      NO_PROCESS_FUNC)
 #endif
 };
 
@@ -1694,52 +1690,4 @@ void fsm_msgDebugLinkStop(DebugLinkStop *msg)
     (void)msg;
 }
 
-#if 0  
-void fsm_msgEntropyAck(EntropyAck *msg)
-{
-	if (msg->has_entropy) {
-		reset_entropy(msg->entropy.bytes, msg->entropy.size);
-	} else {
-		reset_entropy(0, 0);
-	}
-}
-
-void fsm_msgDebugLinkMemoryRead(DebugLinkMemoryRead *msg)
-{
-	RESP_INIT(DebugLinkMemory);
-
-	uint32_t length = 1024;
-	if (msg->has_length && msg->length < length)
-		length = msg->length;
-	resp->has_memory = true;
-	memcpy(resp->memory.bytes, (void*) msg->address, length);
-	resp->memory.size = length;
-	msg_debug_write(MessageType_MessageType_DebugLinkMemory, resp);
-}
-
-void fsm_msgDebugLinkMemoryWrite(DebugLinkMemoryWrite *msg)
-{
-	uint32_t length = msg->memory.size;
-	if (msg->flash) {
-		flash_clear_status_flags();
-		flash_unlock();
-		uint32_t* src = (uint32_t *) msg->memory.bytes;
-		for (unsigned int i = 0; i < length; i += 4) {
-			flash_program_word(msg->address +  i, *src);
-			src++;
-		}
-		flash_lock();
-	} else {
-		memcpy((void *) msg->address, msg->memory.bytes, length);
-	}
-}
-
-void fsm_msgDebugLinkFlashErase(DebugLinkFlashErase *msg)
-{
-	flash_clear_status_flags();
-	flash_unlock();
-	flash_erase_sector(msg->sector, FLASH_CR_PROGRAM_X32);
-	flash_lock();
-}
-#endif
 #endif

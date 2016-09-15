@@ -87,9 +87,6 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg);
 //void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
 void fsm_msgDebugLinkGetState(DebugLinkGetState *msg);
 void fsm_msgDebugLinkStop(DebugLinkStop *msg);
-void fsm_msgDebugLinkMemoryWrite(DebugLinkMemoryWrite *msg);
-void fsm_msgDebugLinkMemoryRead(DebugLinkMemoryRead *msg);
-void fsm_msgDebugLinkFlashErase(DebugLinkFlashErase *msg);
 #endif
 
 #endif
