@@ -25,8 +25,9 @@
 #include <interface.h>
 
 /* === Defines ============================================================= */
+#define NA      0xFFFF  /*etherum does not use P2PH or P2SH */
 
-#define COINS_COUNT         6
+#define COINS_COUNT        (int)(sizeof(((Features *)NULL)->coins)/sizeof(CoinType))
 #define NODE_STRING_LENGTH  50
 
 /* === Variables =========================================================== */
