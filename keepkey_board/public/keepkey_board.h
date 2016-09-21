@@ -31,6 +31,7 @@
 #include "layout.h"
 #include "timer.h"
 #include "usb_driver.h"
+#include "crypto/public/curves.h"
 
 /*
  storage layout:
@@ -78,9 +79,10 @@ typedef struct
 typedef struct
 {
     /* Root node cache */
-    uint8_t root_node_cache_status;
-    HDNode root_node_cache;
-} Cache;
+    uint8_t root_seed_cache_status;
+    uint8_t root_seed_cache[64];
+    char root_ecdsa_curve_type[sizeof(ecdsa_curve_type_)];
+}Cache;
 
 /* Config flash overlay structure.  */
 typedef struct
