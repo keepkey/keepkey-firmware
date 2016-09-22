@@ -34,7 +34,7 @@
 #include "app_resources.h"
 #include "qr_encode.h"
 #include <fsm.h>
-
+#include "keepkey_board/public/keepkey_usart.h"
 /* === Private Functions =================================================== */
 
 /*
@@ -70,7 +70,7 @@ static void layout_animate_pin(void *data, uint32_t duration, uint32_t elapsed)
         for(uint8_t col = 0; col < 3; col++)
         {
             box_params.base.y = 5 + row * 19;
-            box_params.base.x = 140 + col * 19;
+            box_params.base.x = PIN_LEFT_MARGIN + col * 19;
             box_params.height = 18;
             box_params.width = 18;
             draw_box(canvas, &box_params);
@@ -129,7 +129,7 @@ static void layout_animate_pin(void *data, uint32_t duration, uint32_t elapsed)
             }
 
             sp.y = 8 + row * 19;
-            sp.x = 138 + pad + col * 19;
+            sp.x = (PIN_LEFT_MARGIN - 2) + pad + col * 19;
 
             uint8_t adj_pos = cur_pos_elapsed / 40;
 
@@ -163,22 +163,22 @@ static void layout_animate_pin(void *data, uint32_t duration, uint32_t elapsed)
     }
 
     /* Mask horizontally */
-    draw_box_simple(canvas, MATRIX_MASK_COLOR, 137, 2, PIN_MATRIX_GRID_SIZE * 3 + 8,
+    draw_box_simple(canvas, MATRIX_MASK_COLOR, PIN_LEFT_MARGIN -3, 2, PIN_MATRIX_GRID_SIZE * 3 + 8,
                     MATRIX_MASK_MARGIN);
-    draw_box_simple(canvas, MATRIX_MASK_COLOR, 137, 5 + PIN_MATRIX_GRID_SIZE,
+    draw_box_simple(canvas, MATRIX_MASK_COLOR, PIN_LEFT_MARGIN -3, 5 + PIN_MATRIX_GRID_SIZE,
                     PIN_MATRIX_GRID_SIZE * 3 + 8, 1);
-    draw_box_simple(canvas, MATRIX_MASK_COLOR, 137, 6 + PIN_MATRIX_GRID_SIZE * 2,
+    draw_box_simple(canvas, MATRIX_MASK_COLOR, PIN_LEFT_MARGIN -3, 6 + PIN_MATRIX_GRID_SIZE * 2,
                     PIN_MATRIX_GRID_SIZE * 3 + 8, 1);
-    draw_box_simple(canvas, MATRIX_MASK_COLOR, 137, 7 + PIN_MATRIX_GRID_SIZE * 3,
+    draw_box_simple(canvas, MATRIX_MASK_COLOR, PIN_LEFT_MARGIN - 3, 7 + PIN_MATRIX_GRID_SIZE * 3,
                     PIN_MATRIX_GRID_SIZE * 3 + 8, MATRIX_MASK_MARGIN);
 
     /* Mask vertically */
-    draw_box_simple(canvas, MATRIX_MASK_COLOR, 137, 2, MATRIX_MASK_MARGIN, 18 * 3 + 8);
-    draw_box_simple(canvas, MATRIX_MASK_COLOR, 140 + PIN_MATRIX_GRID_SIZE, 2, 1,
+    draw_box_simple(canvas, MATRIX_MASK_COLOR, PIN_LEFT_MARGIN - 3, 2, MATRIX_MASK_MARGIN, 18 * 3 + 8);
+    draw_box_simple(canvas, MATRIX_MASK_COLOR, PIN_LEFT_MARGIN + PIN_MATRIX_GRID_SIZE, 2, 1,
                     PIN_MATRIX_GRID_SIZE * 3 + 8);
-    draw_box_simple(canvas, MATRIX_MASK_COLOR, 141 + PIN_MATRIX_GRID_SIZE * 2, 2, 1,
+    draw_box_simple(canvas, MATRIX_MASK_COLOR, PIN_LEFT_MARGIN + 1 + PIN_MATRIX_GRID_SIZE * 2, 2, 1,
                     PIN_MATRIX_GRID_SIZE * 3 + 8);
-    draw_box_simple(canvas, MATRIX_MASK_COLOR, 142 + PIN_MATRIX_GRID_SIZE * 3, 2,
+    draw_box_simple(canvas, MATRIX_MASK_COLOR, PIN_LEFT_MARGIN + 2 + PIN_MATRIX_GRID_SIZE * 3, 2,
                     MATRIX_MASK_MARGIN, PIN_MATRIX_GRID_SIZE * 3 + 8);
 }
 

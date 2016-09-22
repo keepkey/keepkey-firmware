@@ -690,8 +690,7 @@ void fsm_msgEthereumSignTx(EthereumSignTx *msg)
 		return;
 	}
 
-//        if(!pin_protect("Enter Current Ethereum PIN"))
-        if(!pin_protect("Enter Current EIN"))
+        if(!pin_protect("Enter Current PIN"))
         {
                 go_home();
 		return;
@@ -1004,8 +1003,7 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 		return;
 	}
 
-//        if(!pin_protect("Enter Current Ethereum PIN"))
-        if(!pin_protect("Enter Current EIN"))
+        if(!pin_protect("Enter Current PIN"))
         {
                 go_home();
 		return;
@@ -1265,8 +1263,7 @@ void fsm_msgGetECDHSessionKey(GetECDHSessionKey *msg)
             return;
         }
 
-//        if(!pin_protect("Enter Current Ethereum PIN"))
-        if(!pin_protect("Enter Current EIN"))
+        if(!pin_protect("Enter Current PIN"))
         {
                 go_home();
 		return;
