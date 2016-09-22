@@ -34,7 +34,7 @@
 #include "app_resources.h"
 #include "qr_encode.h"
 #include <fsm.h>
-#include "keepkey_board/public/keepkey_usart.h"
+
 /* === Private Functions =================================================== */
 
 /*
