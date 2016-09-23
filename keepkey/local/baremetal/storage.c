@@ -755,7 +755,7 @@ void get_root_node_callback(uint32_t iter, uint32_t total)
  * OUTPUT
  *    sessionSeed - pointer to private seed (if no error)  
  */
-static const uint8_t *storage_getSeed(bool usePassphrase)
+const uint8_t *storage_getSeed(bool usePassphrase)
 {
 	// root node is properly cached
 	if (usePassphrase == sessionSeedUsesPassphrase

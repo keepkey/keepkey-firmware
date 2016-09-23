@@ -43,7 +43,7 @@ void storage_commit(void);
 
 void storage_load_device(LoadDevice *msg);
 
-
+const uint8_t *storage_getSeed(bool usePassphrase);
 bool storage_get_root_node(HDNode *node, const char *curve, bool usePassphrase);
 
 void storage_set_label(const char *label);
