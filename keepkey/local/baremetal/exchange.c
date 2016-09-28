@@ -320,11 +320,13 @@ bool process_exchange_contract(const CoinType *coin, TxOutputType *tx_out, const
                 {
                     if(!confirm_exchange_output("ShapeShift", amount_from_str, amount_to_str, node_str))
                     {
+                        set_exchange_error(ERROR_EXCHANGE_CANCEL);
                         goto process_exchange_contract_exit;
                     }
                 }
                 else
                 {
+                    set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_ADDRESS);
                     goto process_exchange_contract_exit;
                 }
             }
