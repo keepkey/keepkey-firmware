@@ -504,7 +504,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 {
     RESP_INIT(PublicKey);
 
-    if (!storage_is_initialized()) 
+    if (!storage_is_initialized())
     {
         fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
         return;
@@ -620,7 +620,7 @@ void fsm_msgResetDevice(ResetDevice *msg)
 void fsm_msgSignTx(SignTx *msg)
 {
 
-    if (!storage_is_initialized()) 
+    if (!storage_is_initialized())
     {
         fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
         return;
@@ -826,7 +826,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 void fsm_msgCipherKeyValue(CipherKeyValue *msg)
 {
 
-    if (!storage_is_initialized()) 
+    if (!storage_is_initialized())
     {
         fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
 	return;
@@ -917,7 +917,7 @@ void fsm_msgGetAddress(GetAddress *msg)
 {
     RESP_INIT(Address);
 
-    if (!storage_is_initialized()) 
+    if (!storage_is_initialized())
     {
         fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
         return;
@@ -996,46 +996,46 @@ void fsm_msgGetAddress(GetAddress *msg)
 
 void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 {
-	RESP_INIT(EthereumAddress);
+    RESP_INIT(EthereumAddress);
 
-        if (!storage_is_initialized()) {
-		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-		return;
-	}
+    if (!storage_is_initialized()) {
+        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+        return;
+    }
 
-        if(!pin_protect("Enter Current PIN"))
-        {
-                go_home();
-		return;
-	}
-
-	const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
-	if (!node) return;
-
-	resp->address.size = 20;
-
-	if (!hdnode_get_ethereum_pubkeyhash(node, resp->address.bytes))
-		return;
-
-	if (msg->has_show_display && msg->show_display) {
-		char desc[16];
-		strlcpy(desc, "Address:", sizeof(desc));
-
-		char address[41];
-		data2hex(resp->address.bytes, 20, address);
-
-		layoutAddress(address, desc);
-
-                if(!confirm(ButtonRequestType_ButtonRequest_Other, "Ethereum Test", "layoutAddress" ))
-                {
-                    fsm_sendFailure(FailureType_Failure_ActionCancelled, "layoutAddress cancelled");
-                    go_home();
-                    return;
-                }
-	}
-
-	msg_write(MessageType_MessageType_EthereumAddress, resp);
+    if (!pin_protect_cached()) {
         go_home();
+        return;
+    }
+
+    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
+    if (!node) return;
+
+    resp->address.size = 20;
+
+    if (!hdnode_get_ethereum_pubkeyhash(node, resp->address.bytes))
+        return;
+
+    if (msg->has_show_display && msg->show_display)
+    {
+        char desc[16];
+        strlcpy(desc, "Address:", sizeof(desc));
+
+        char address[41];
+        data2hex(resp->address.bytes, 20, address);
+
+        layoutAddress(address, desc);
+
+        if (!confirm(ButtonRequestType_ButtonRequest_Other, "Ethereum Test", "layoutAddress"))
+        {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, "layoutAddress cancelled");
+            go_home();
+            return;
+        }
+    }
+
+    msg_write(MessageType_MessageType_EthereumAddress, resp);
+    go_home();
 }
 
 void fsm_msgEntropyAck(EntropyAck *msg)
@@ -1054,7 +1054,7 @@ void fsm_msgSignMessage(SignMessage *msg)
 {
     RESP_INIT(MessageSignature);
 
-	if (!storage_is_initialized()) 
+	if (!storage_is_initialized())
     {
 		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
 		return;
@@ -1082,7 +1082,7 @@ void fsm_msgSignMessage(SignMessage *msg)
 
     if(!node) { return; }
 
-    if(cryptoMessageSign(coin, node, msg->message.bytes, msg->message.size, resp->signature.bytes) == 0) 
+    if(cryptoMessageSign(coin, node, msg->message.bytes, msg->message.size, resp->signature.bytes) == 0)
     {
         resp->has_address = true;
         uint8_t addr_raw[21];
@@ -1143,7 +1143,7 @@ void fsm_msgSignIdentity(SignIdentity *msg)
 {
     RESP_INIT(SignedIdentity);
 
-    if (!storage_is_initialized()) 
+    if (!storage_is_initialized())
     {
         fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
         return;
@@ -1215,7 +1215,7 @@ void fsm_msgSignIdentity(SignIdentity *msg)
     if(result == 0)
     {
 	hdnode_fill_public_key(node);
-        if (strcmp(curve, SECP256K1_NAME) != 0) 
+        if (strcmp(curve, SECP256K1_NAME) != 0)
         {
             resp->has_address = false;
         }
