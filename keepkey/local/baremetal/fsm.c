@@ -242,14 +242,6 @@ const HDNode *fsm_getDerivedNode(uint32_t *address_n, size_t address_n_count)
 void fsm_msgInitialize(Initialize *msg)
 {
     (void)msg;
-
-    /* If device is in manufacture mode, turn if off and lock it */
-    if(is_mfg_mode())
-    {
-        set_mfg_mode_off();
-        go_home_forced();
-    }
-
     recovery_abort(false);
     signing_abort();
     session_clear(false); // do not clear PIN
@@ -329,6 +321,12 @@ void fsm_msgGetFeatures(GetFeatures *msg)
 void fsm_msgPing(Ping *msg)
 {
     RESP_INIT(Success);
+
+    /* If device is in manufacture mode, turn if off and lock it */
+    if(is_mfg_mode())
+    {
+        set_mfg_mode_off();
+    }
 
     if(msg->has_button_protection && msg->button_protection)
         if(!confirm(ButtonRequestType_ButtonRequest_Ping, "Ping", msg->message))
