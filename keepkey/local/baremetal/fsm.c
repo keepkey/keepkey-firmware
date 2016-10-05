@@ -1018,17 +1018,12 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 
     if (msg->has_show_display && msg->show_display)
     {
-        char desc[16];
-        strlcpy(desc, "Address:", sizeof(desc));
-
-        char address[41];
+	char address[41];
         data2hex(resp->address.bytes, 20, address);
 
-        layoutAddress(address, desc);
-
-        if (!confirm(ButtonRequestType_ButtonRequest_Other, "Ethereum Test", "layoutAddress"))
+        if (!confirm_ether_address("", address))
         {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "layoutAddress cancelled");
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
             go_home();
             return;
         }

@@ -114,6 +114,8 @@ void layout_xpub_notification(const char *desc, const char *xpub,
                                       NotificationType type);
 void layout_address_notification(const char *desc, const char *address,
                                  NotificationType type);
+void layout_ether_address_notification(const char *desc, const char *address,
+                                 NotificationType type);
 void layout_pin(const char *prompt, char *pin);
 void layout_cipher(const char *current_word, const char *cipher);
 void layout_address(const char *address);

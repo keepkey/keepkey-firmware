@@ -417,6 +417,43 @@ void layout_xpub_notification(const char *desc, const char *xpub,
 }
 
 /*
+ * layout_ether_address_notification() - Display ethereum address notification
+ *
+ * INPUT
+ *     - desc: description of address being shown (normal or multisig)
+ *     - address: ethereum address to display both as string and QR
+ *     - type: notification type
+ * OUTPUT
+ *      none
+ */
+void layout_ether_address_notification(const char *desc, const char *address,
+                                 NotificationType type)
+{
+    (void)desc;
+    DrawableParams sp;
+    char address_disp[sizeof(((EthereumAddress *)NULL)->address.bytes)*2+3] = {'0', 'x'};
+    const Font *address_font = get_title_font();
+    Canvas *canvas = layout_get_canvas();
+
+    call_leaving_handler();
+    layout_clear();
+
+    strlcpy (&address_disp[2], address, sizeof(address_disp)-2);
+    /* Body */
+    sp.y = TOP_MARGIN;
+    sp.y += font_height(address_font) + TOP_MARGIN_FOR_TWO_LINES;
+    sp.x = LEFT_MARGIN + 55;
+    sp.color = BODY_COLOR;
+
+    draw_string(canvas, address_font, address_disp, &sp, 150,
+                font_height(address_font) + BODY_FONT_LINE_PADDING);
+
+    /*show QR*/
+    layout_address(address_disp);
+    /*show bitcoin address */
+    layout_notification_icon(type, &sp);
+}
+/*
  * layout_address_notification() - Display address notification
  *
  * INPUT
