@@ -381,6 +381,9 @@ def project_includes(project_name, env):
     include_paths.append(os.path.join(project_path, 'public', env['os']))
     [include_paths.append(os.path.join(project_path, 'public', project_flavors[f])) for f in project_flavors]
     include_paths.append(os.path.join(project_path, 'public'))
+    if project_name.upper() == 'CRYPTO':
+        [include_paths.append(os.path.join(project_path, 'public', project_flavors[f])) for flavor in project_flavors.values()]
+        include_paths.append(os.path.join(project_path, 'public', 'ed25519-donna'))
     include_paths.append(project_path)
 
     return include_paths
@@ -402,6 +405,9 @@ def dep_includes(project_name, env):
     include_paths.append(os.path.join(project_path, 'public', env['os']))
     [include_paths.append(os.path.join(project_path, 'public', flavor)) for flavor in project_flavors.values()]
     include_paths.append(os.path.join(project_path, 'public'))
+    if project_name.upper() == 'CRYPTO':
+        [include_paths.append(os.path.join(project_path, 'public', flavor)) for flavor in project_flavors.values()]
+        include_paths.append(os.path.join(project_path, 'public', 'ed25519-donna'))
     include_paths.append(project_path)
 
     return include_paths
