@@ -83,6 +83,7 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
     	memcpy(&node, root, sizeof(HDNode));
         if(hdnode_private_ckd_cached(&node, address_n, address_n_count) != 0)
         {
+            hdnode_fill_public_key(&node);
             ecdsa_get_address(node.public_key, coin->address_type, internal_address,
                               sizeof(internal_address));
 
