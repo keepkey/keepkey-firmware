@@ -100,7 +100,6 @@ static const MessagesMap_t MessagesMap[] =
     MSG_IN(MessageType_MessageType_WordAck,             WordAck_fields, (void (*)(void *))fsm_msgWordAck)
     MSG_IN(MessageType_MessageType_CharacterAck,        CharacterAck_fields, (void (*)(void *))fsm_msgCharacterAck)
     MSG_IN(MessageType_MessageType_ApplyPolicies,       ApplyPolicies_fields, (void (*)(void *))fsm_msgApplyPolicies)
-    MSG_IN(MessageType_MessageType_SetU2FCounter,	SetU2FCounter_fields, (void (*)(void *))fsm_msgSetU2FCounter)
     MSG_IN(MessageType_MessageType_EthereumGetAddress,	EthereumGetAddress_fields, (void (*)(void *))fsm_msgEthereumGetAddress)
     MSG_IN(MessageType_MessageType_EthereumSignTx,      EthereumSignTx_fields, (void (*)(void *))fsm_msgEthereumSignTx)
     MSG_IN(MessageType_MessageType_EthereumTxAck,       EthereumTxAck_fields, (void (*)(void *))fsm_msgEthereumTxAck)
@@ -1529,16 +1528,6 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg)
 void fsm_msgWordAck(WordAck *msg)
 {
     recovery_word(msg->word);
-}
-
-void fsm_msgSetU2FCounter(SetU2FCounter *msg)
-{
-#ifdef TEMP_MERGE_FLAG
-    (void)msg;
-#else
-	storage_setU2FCounter(msg->u2f_counter);
-	fsm_sendSuccess("U2F counter set");
-#endif
 }
 
 void fsm_msgCharacterAck(CharacterAck *msg)
