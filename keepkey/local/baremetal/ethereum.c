@@ -135,8 +135,10 @@ static void send_request_chunk(void)
 	int progress = 1000 - (data_total > 1000000
 						   ? data_left / (data_total/800)
 						   : data_left * 800 / data_total);
+	layoutProgress("Signing", progress);
+#else
+    layout_simple_message("Stubbed: send_request_chunk...");
 #endif
-        layout_simple_message("Signing Ethereum Transaction..."); 
 	resp.has_data_length = true;
 	resp.data_length = data_left <= 1024 ? data_left : 1024;
 	msg_write(MessageType_MessageType_EthereumTxRequest, &resp);
@@ -144,7 +146,11 @@ static void send_request_chunk(void)
 
 static void send_signature(void)
 {
-        layout_simple_message("Signing Ethereum Transaction..."); 
+#if 0 /* remove berfore release*/
+	layoutProgress("Signing", 1000);
+#else
+    layout_simple_message("Stubbed: send_signature()...");
+#endif
 	keccak_Final(&keccak_ctx, hash);
 	uint8_t v;
 	if (ecdsa_sign_digest(&secp256k1, privkey, hash, sig, &v) != 0) {
@@ -183,11 +189,15 @@ static void ethereumFormatAmount(bignum256 *val, char buffer[25])
 	char value[25] = {0};
 	char *value_ptr = value;
 
+	// convert val into base 1000 for easy printing.
 	uint16_t num[26];
 	uint8_t last_used = 0;
 	for (int i = 0; i < 26; i++) {
-		bn_divmod1000(val, (uint32_t *)&(num[i]));
-		if (num[i] > 0) {
+		uint32_t limb;
+		bn_divmod1000(val, &limb);
+		// limb is < 1000.
+		num[i] = (uint16_t) limb;
+		if (limb > 0) {
 			last_used = i;
 		}
 	}
@@ -268,9 +278,9 @@ static void layoutEthereumConfirmTx(const uint8_t *to, uint32_t to_len, const ui
 		strlcpy(_to2, "", sizeof(_to2));
 		strlcpy(_to3, "", sizeof(_to3));
 	}
-        
-        snprintf(out_str, out_str_len, "%s %s %s %s", amount, _to1, _to2, _to3);
-        if(out_str_len <= strlen(out_str))
+
+
+        if((uint32_t)snprintf(out_str, out_str_len, "%s %s %s %s", amount, _to1, _to2, _to3) >= out_str_len)
         {
             /*error detected.  Clear the buffer */
     	    memset(out_str, 0, out_str_len);
@@ -306,8 +316,7 @@ static void layoutEthereumData(const uint8_t *data, uint32_t len, uint32_t total
             summarystart = summary + 4;
         }
 
-        snprintf(out_str, out_str_len, "%s%s%s%s", hexdata[0], hexdata[1], hexdata[2], summarystart);
-        if(out_str_len <= strlen(out_str))
+        if((uint32_t)snprintf(out_str, out_str_len, "%s%s%s%s", hexdata[0], hexdata[1], hexdata[2], summarystart) >= out_str_len)
         {
             /*error detected.  Clear the buffer */
     	    memset(out_str, 0, out_str_len);
@@ -316,7 +325,8 @@ static void layoutEthereumData(const uint8_t *data, uint32_t len, uint32_t total
 
 static void layoutEthereumFee(const uint8_t *value, uint32_t value_len,
 			const uint8_t *gas_price, uint32_t gas_price_len,
-			const uint8_t *gas_limit, uint32_t gas_limit_len, char *out_str, uint32_t out_str_len)
+			const uint8_t *gas_limit, uint32_t gas_limit_len, 
+                        char *out_str, uint32_t out_str_len)
 {
 	bignum256 val, gas;
 	uint8_t pad_val[32];
@@ -344,8 +354,7 @@ static void layoutEthereumFee(const uint8_t *value, uint32_t value_len,
 		ethereumFormatAmount(&val, tx_value);
 	}
 
-    	snprintf(out_str, out_str_len, "Really send %s paying up to %s", tx_value, gas_value);
-        if(out_str_len <= strlen(out_str))
+    	if((uint32_t)snprintf(out_str, out_str_len, "Really send %s paying up to %s", tx_value, gas_value) >= out_str_len)
         {
             /*error detected.  Clear the buffer */
     	    memset(out_str, 0, out_str_len);
@@ -499,7 +508,11 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node)
 	/* Stage 1: Calculate total RLP length */
 	uint32_t rlp_length = 0;
 
-        layout_simple_message("Signing Ethereum Transaction..."); 
+#if 0 /*remove before release*/
+	layoutProgress("Signing", 0);
+#else	
+    layout_simple_message("Stubbed: ethereum_signing_init()...");
+#endif
 
 	rlp_length += rlp_calculate_length(msg->nonce.size, msg->nonce.bytes[0]);
 	rlp_length += rlp_calculate_length(msg->gas_price.size, msg->gas_price.bytes[0]);
@@ -510,8 +523,11 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node)
 
 	/* Stage 2: Store header fields */
 	hash_rlp_list_length(rlp_length);
-
-        layout_simple_message("Signing Ethereum Transaction..."); 
+#if 0 /*remove before release*/
+	layoutProgress("Signing", 100);
+#else
+    layout_simple_message("Stubbed: ethereum_signing_init(). 2..");
+#endif
 
 	hash_rlp_field(msg->nonce.bytes, msg->nonce.size);
 	hash_rlp_field(msg->gas_price.bytes, msg->gas_price.size);
