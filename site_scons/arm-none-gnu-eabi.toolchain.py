@@ -41,8 +41,7 @@ DEFS2=['-DED25519_CUSTOMRANDOM=1',
        '-DED25519_CUSTOMHASH=1',
        '-DED25519_NO_INLINE_ASM',
        '-DED25519_FORCE_32BIT=1',
-       '-DUSE_ETHEREUM=1',
-       '-DTEMP_MERGE_FLAG'  #Remove before git push
+       '-DUSE_ETHEREUM=1'
        ]
         
 

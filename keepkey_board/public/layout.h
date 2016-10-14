@@ -126,10 +126,4 @@ void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed);
 void layout_clear(void);
 void layout_clear_animations(void);
 void layout_clear_static(void);
-
-#ifdef TEMP_MERGE_FLAG
-void layoutDialogSwipe(char *temp_msg);
-void layoutAddress(const char *address, const char *desc);
-void layoutDecryptIdentity(const IdentityType *identity);
-#endif
 #endif

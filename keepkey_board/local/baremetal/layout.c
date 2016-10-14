@@ -778,25 +778,3 @@ void set_leaving_handler(leaving_handler_t leaving_func)
 {
     leaving_handler = leaving_func;
 }
-
-#ifdef TEMP_MERGE_FLAG
-void layoutDialogSwipe(char *temp_msg)
-{
-    (void)temp_msg;
-    layout_simple_message(temp_msg);
-}
-void layoutAddress(const char *address, const char *desc)
-{
-    (void)address;
-    (void)desc;
-    layout_simple_message("layoutAddress : display stubbed ");
-}
-
-void layoutDecryptIdentity(const IdentityType *identity)
-{
-    (void)identity;
-    layout_simple_message("layoutDecryptIdentity: display stubbed ");
-}
-
-
-#endif

@@ -89,7 +89,6 @@ static const MessagesMap_t MessagesMap[] =
     MSG_IN(MessageType_MessageType_SignMessage,         SignMessage_fields, (void (*)(void *))fsm_msgSignMessage)
     MSG_IN(MessageType_MessageType_SignIdentity,        SignIdentity_fields, (void (*)(void *))fsm_msgSignIdentity)
     MSG_IN(MessageType_MessageType_VerifyMessage,       VerifyMessage_fields, (void (*)(void *))fsm_msgVerifyMessage)
-    MSG_IN(MessageType_MessageType_GetECDHSessionKey,   GetECDHSessionKey_fields, (void (*)(void *))fsm_msgGetECDHSessionKey)
 /* ECIES disabled
     MSG_IN(MessageType_MessageType_EncryptMessage,      EncryptMessage_fields, (void (*)(void *))fsm_msgEncryptMessage)
     MSG_IN(MessageType_MessageType_DecryptMessage,      DecryptMessage_fields, (void (*)(void *))fsm_msgDecryptMessage)
@@ -121,7 +120,6 @@ static const MessagesMap_t MessagesMap[] =
     MSG_OUT(MessageType_MessageType_EntropyRequest,     EntropyRequest_fields,      NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_MessageSignature,   MessageSignature_fields,    NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_SignedIdentity,     SignedIdentity_fields,      NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_ECDHSessionKey,     ECDHSessionKey_fields,      NO_PROCESS_FUNC)
 /* ECIES disabled
     MSG_OUT(MessageType_MessageType_EncryptedMessage,   EncryptedMessage_fields,    NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_DecryptedMessage,   DecryptedMessage_fields,    NO_PROCESS_FUNC)
@@ -1237,62 +1235,6 @@ void fsm_msgSignIdentity(SignIdentity *msg)
     }
 
     go_home();
-}
-
-void fsm_msgGetECDHSessionKey(GetECDHSessionKey *msg)
-{
-	RESP_INIT(ECDHSessionKey);
-
-        if (!storage_is_initialized()) {
-		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-		return;
-	}
-
-	layoutDecryptIdentity(&msg->identity);
-
-        if(!confirm(ButtonRequestType_ButtonRequest_Other, "Ethereum Test", "fsm_msgGetECDHSessionKey" ))
-        {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "ECDH Session cancelled");
-            go_home();
-            return;
-        }
-
-        if(!pin_protect("Enter Current PIN"))
-        {
-                go_home();
-		return;
-	}
-
-	uint8_t hash[32];
-	if (!msg->has_identity || cryptoIdentityFingerprint(&(msg->identity), hash) == 0) {
-		fsm_sendFailure(FailureType_Failure_Other, "Invalid identity");
-                go_home();
-		return;
-	}
-
-	uint32_t address_n[5];
-	address_n[0] = 0x80000000 | 17;
-	address_n[1] = 0x80000000 | hash[ 0] | (hash[ 1] << 8) | (hash[ 2] << 16) | (hash[ 3] << 24);
-	address_n[2] = 0x80000000 | hash[ 4] | (hash[ 5] << 8) | (hash[ 6] << 16) | (hash[ 7] << 24);
-	address_n[3] = 0x80000000 | hash[ 8] | (hash[ 9] << 8) | (hash[10] << 16) | (hash[11] << 24);
-	address_n[4] = 0x80000000 | hash[12] | (hash[13] << 8) | (hash[14] << 16) | (hash[15] << 24);
-
-	const char *curve = SECP256K1_NAME;
-	if (msg->has_ecdsa_curve_name) {
-		curve = msg->ecdsa_curve_name;
-	}
-
-	const HDNode *node = fsm_getDerivedNode(curve, address_n, 5);
-	if (!node) return;
-
-	if (cryptoGetECDHSessionKey(node, msg->peer_public_key.bytes, resp->session_key.bytes) == 0) {
-		resp->has_session_key = true;
-		resp->session_key.size = 65;
-		msg_write(MessageType_MessageType_ECDHSessionKey, resp);
-	} else {
-		fsm_sendFailure(FailureType_Failure_Other, "Error getting ECDH session key");
-	}
-        go_home();
 }
 
 /* ECIES disabled
