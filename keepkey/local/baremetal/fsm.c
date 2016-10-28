@@ -682,21 +682,41 @@ void fsm_msgCancel(Cancel *msg)
 
 void fsm_msgEthereumSignTx(EthereumSignTx *msg)
 {
-        if (!storage_is_initialized()) {
-		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-		return;
-	}
+    if (!storage_is_initialized()) {
+            fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+            return;
+    }
 
-        if(!pin_protect("Enter Current PIN"))
+    if(!pin_protect("Enter Current PIN"))
+    {
+            go_home();
+            return;
+    }
+
+    /* root node */
+    HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0);
+    
+    const CoinType *coin = fsm_getCoin("Ethereum");
+    if(coin != NULL)
+    {
+        int exch_result = run_policy_compile_output(coin, root_node, (void *)msg, (void *)NULL, true);
+        if(exch_result <= TXOUT_COMPILE_ERROR) 
         {
-                go_home();
-		return;
-	}
+            memset((void *)root_node, 0, sizeof(HDNode));
+            send_fsm_co_error_message(exch_result);
+            go_home();
+            return;
+        }
+    }
+    else
+    {
+        return;
+    }
+    /* input sub-node node */
+    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
+    if (!node) return;
 
-	const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
-	if (!node) return;
-
-	ethereum_signing_init(msg, node);
+    ethereum_signing_init(msg, node);
 }
 
 void fsm_msgEthereumTxAck(EthereumTxAck *msg)

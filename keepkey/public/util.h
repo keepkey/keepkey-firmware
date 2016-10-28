@@ -25,6 +25,8 @@
 #include <stdint.h>
 
 /* === Functions =========================================================== */
+// converts 64bit decimal to string
+void dec64_to_str(uint64_t ival, char *str);
 
 // converts uint32 to hexa (8 digits)
 void uint32hex(uint32_t num, char *str);

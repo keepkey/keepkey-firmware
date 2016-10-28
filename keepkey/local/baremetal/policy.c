@@ -45,17 +45,39 @@ const PolicyType policies[POLICY_COUNT] = {
  * OUTPUT
  *     integer determining whether operation was succesful
  */
-int run_policy_compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, TxOutputBinType *out, bool needs_confirm)
+int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vin, void *vout, bool needs_confirm)
 {
     int ret_result = TXOUT_COMPILE_ERROR;
+    OutputAddressType address_type;
 
-    if(in->address_type == OutputAddressType_EXCHANGE)
+    /* setup address type respect to coin type */
+    if(check_ethereum_tx(coin->coin_name))
+    {
+        address_type = ((EthereumSignTx *)vin)->address_type ;
+    }
+    else
+    {
+        if(vout == NULL)
+        {
+            /* vout is not set */
+            goto run_policy_compile_output_exit;
+        }
+        address_type = ((TxOutputType *)vin)->address_type;
+    }
+
+    if(address_type == OutputAddressType_EXCHANGE)
     {
         if(storage_is_policy_enabled("ShapeShift"))
         {
-            if(process_exchange_contract(coin, in, root, needs_confirm))
+            if(process_exchange_contract(coin, vin, root, needs_confirm))
             {
                 needs_confirm = false;
+
+                if(check_ethereum_tx(coin->coin_name))
+                {
+                    ret_result = TXOUT_ETHEREUM_EXCH_OK;          
+                    goto run_policy_compile_output_exit;
+                }
             }
             else
             {
@@ -67,8 +89,18 @@ int run_policy_compile_output(const CoinType *coin, const HDNode *root, TxOutput
         {
             goto run_policy_compile_output_exit;
         }
+
     }
-    ret_result = compile_output(coin, root, in, out, needs_confirm);
+
+    if(check_ethereum_tx(coin->coin_name))
+    {
+        /* pass through for none exchange Ethereum transaction*/
+        ret_result = TXOUT_ETHEREUM_EXCH_OK;          
+    }
+    else
+    {
+        ret_result = compile_output(coin, root, (TxOutputType *)vin, (TxOutputBinType *)vout, needs_confirm);
+    }
 
 run_policy_compile_output_exit:
 

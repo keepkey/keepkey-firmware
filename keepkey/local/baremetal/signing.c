@@ -90,7 +90,7 @@ enum {
  * OUTPUT 
  *     none
  */
-static void send_fsm_co_error_message(int co_error)
+void send_fsm_co_error_message(int co_error)
 {
     switch(co_error)
     {
@@ -723,7 +723,7 @@ void signing_txack(TransactionType *tx)
 			    }
 			}
 
-			co = run_policy_compile_output(coin, root, tx->outputs, &bin_output, !is_change);
+			co = run_policy_compile_output(coin, root, (void *)tx->outputs, (void *)&bin_output, !is_change);
 			if (co <= TXOUT_COMPILE_ERROR) {
 			    send_fsm_co_error_message(co);
 			    signing_abort();
@@ -834,7 +834,7 @@ void signing_txack(TransactionType *tx)
 			}
 			return;
 		case STAGE_REQUEST_4_OUTPUT:
-			co = run_policy_compile_output(coin, root, tx->outputs, &bin_output, false);
+			co = run_policy_compile_output(coin, root, (void *)tx->outputs, (void *)&bin_output, false);
 			if (co <= TXOUT_COMPILE_ERROR) {
 			    send_fsm_co_error_message(co);
 			    signing_abort();
@@ -901,7 +901,7 @@ void signing_txack(TransactionType *tx)
 			}
 			return;
 		case STAGE_REQUEST_5_OUTPUT:
-			co = run_policy_compile_output(coin, root, tx->outputs, &bin_output, false);
+			co = run_policy_compile_output(coin, root, (void *)tx->outputs, (void *)&bin_output, false);
 			if (co <= TXOUT_COMPILE_ERROR) {
 			    send_fsm_co_error_message(co);
 			    signing_abort();

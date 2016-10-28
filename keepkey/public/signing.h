@@ -42,5 +42,6 @@ void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinTyp
 void signing_abort(void);
 void parse_raw_txack(uint8_t *msg, uint32_t msg_size);
 void signing_txack(TransactionType *tx);
+void send_fsm_co_error_message(int co_error);
 
 #endif

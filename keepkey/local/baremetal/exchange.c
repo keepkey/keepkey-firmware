@@ -30,6 +30,7 @@
 #include <app_confirm.h>
 #include <msg_dispatch.h>
 #include <policy.h>
+#include <util.h>
 
 /* === Private Variables =================================================== */
 /* exchange error variable */
@@ -54,6 +55,27 @@ static uint8_t ShapeShift_api_key[64] =
     0x14, 0x45, 0x95, 0x0b
 };
 /* === Private Functions =================================================== */
+/*
+ * check_ether_tx() - check transaction is for Ethereum 
+ *
+ * INPUT 
+ *      coin name
+ *
+ * OUTPUT 
+ *      true - Ethereum transaction
+ *      false - trasaction for others
+ */
+bool check_ethereum_tx(const char *coin_name)
+{
+    if(strcmp(coin_name, "Ethereum") == 0 || strcmp(coin_name, "Ethereum Classic") == 0)
+    {
+        return(true);
+    }
+    else
+    {
+        return(false);
+    }
+}
 
 /*
  * verify_exchange_address - verify address specified in exchange contract belongs to device.
@@ -73,16 +95,40 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
 {
     const CoinType *coin;
     HDNode node;
-    char internal_address[36];
     bool ret_stat = false;
 
     coin = coinByName(coin_name);
 
     if(coin)
     {
-    	memcpy(&node, root, sizeof(HDNode));
-        if(hdnode_private_ckd_cached(&node, address_n, address_n_count) != 0)
+        memcpy(&node, root, sizeof(HDNode));
+        if(hdnode_private_ckd_cached(&node, address_n, address_n_count) == 0)
         {
+            goto verify_exchange_address_exit;
+        }
+
+        if(check_ethereum_tx(coin->coin_name))
+        {
+            char tx_out_address[42];
+            EthereumAddress_address_t ethereum_addr;
+
+            ethereum_addr.size = 20;
+
+            if(hdnode_get_ethereum_pubkeyhash(&node, ethereum_addr.bytes) == 0)
+            {
+                goto verify_exchange_address_exit;
+            }
+
+            data2hex((char *)ethereum_addr.bytes, 20, tx_out_address);
+            if(strncasecmp(tx_out_address, address_str, ethereum_addr.size) == 0)
+            {
+                ret_stat = true;
+            }
+
+        }
+        else
+        {
+            char internal_address[36];
             hdnode_fill_public_key(&node);
             ecdsa_get_address(node.public_key, coin->address_type, internal_address,
                               sizeof(internal_address));
@@ -93,6 +139,7 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
             }
         }
     }
+verify_exchange_address_exit:
 
     return(ret_stat);
 }
@@ -121,8 +168,8 @@ const CoinType * get_response_coin(const char *response_coin_short_name)
  * verify_exchange_coin() - Verify coin type in exchange contract
  *
  * INPUT
- *     coin1: reference coin name
- *     coin2: coin name in exchange
+ *     coin1 - reference coin name
+ *     coin2 - coin name in exchange
  *     len: length of buffer
  * OUTPUT
  *     true/false -  success/failure
@@ -141,6 +188,41 @@ bool verify_exchange_coin(const char *coin1, const char *coin2, uint32_t len)
     }
     return(ret_stat);
 }
+
+/*
+ * verify_exchange_dep_amount() Verify deposit amount specified in exchange contract 
+ *
+ * INPUT
+ *     coin - name of coin being compare for the amount value 
+ *     exchange_deposit_amount - pointer to deposit amount in char buffer
+ *      
+ *
+ * OUTPUT
+ *      true/false - success/failure
+ *
+ */
+static bool verify_exchange_dep_amount(char *coin, void *amount, ExchangeResponse_deposit_amount_t *exchange_deposit_amount)
+{
+    bool ret_stat = false;
+    char amt_str[sizeof(exchange_deposit_amount->bytes)];
+
+    memset(amt_str, 0, sizeof(amt_str));
+    if(check_ethereum_tx(coin))
+    {
+        memcpy (amt_str, amount, sizeof(amt_str));
+    }
+    else
+    {
+        /*convert 64bit decimal to string for bitcoit and altcoins */
+        dec64_to_str(*(uint64_t *)amount, amt_str);
+    }
+    if(memcmp(amt_str, exchange_deposit_amount->bytes, sizeof(amt_str)) == 0)
+    {
+        ret_stat = true;
+    }
+    return(ret_stat);
+}
+
 /*
  * verify_exchange_contract() - Verify content of exchange contract is valid
  *
@@ -150,14 +232,35 @@ bool verify_exchange_coin(const char *coin1, const char *coin2, uint32_t len)
  * OUTPUT
  *     true/false -  success/failure
  */
-static bool verify_exchange_contract(const CoinType *coin, TxOutputType *tx_out, const HDNode *root)
+static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode *root)
 {
     bool ret_stat = false;
     int response_raw_filled_len = 0; 
     uint8_t response_raw[sizeof(ExchangeResponse)];
-    const CoinType *response_coin = NULL, *signed_coin = NULL;
-    ExchangeType *exchange = &tx_out->exchange_type;
-    
+    const CoinType *response_coin;
+
+    char tx_out_address[42];
+    void *tx_out_amount;
+    ExchangeType *exchange;
+
+    memset(tx_out_address, 0, sizeof(tx_out_address));
+
+    if(check_ethereum_tx(coin->coin_name))
+    {
+        EthereumSignTx *tx_out = (EthereumSignTx *)vtx_out;
+        exchange = &tx_out->exchange_type;
+        data2hex(tx_out->to.bytes, tx_out->to.size, tx_out_address);
+        tx_out_amount = (void *)tx_out->value.bytes;
+
+    }
+    else
+    {
+        TxOutputType *tx_out = (TxOutputType *)vtx_out;
+        exchange = &tx_out->exchange_type;
+        memcpy(tx_out_address, tx_out->address, sizeof(tx_out->address));
+        tx_out_amount = (void *)&tx_out->amount;
+    }
+
     /* verify Exchange signature */
     memset(response_raw, 0, sizeof(response_raw));
     response_raw_filled_len = encode_pb(
@@ -168,7 +271,7 @@ static bool verify_exchange_contract(const CoinType *coin, TxOutputType *tx_out,
 
     if(response_raw_filled_len != 0)
     {
-        signed_coin = coinByShortcut((const char *)"BTC");
+        const CoinType *signed_coin = coinByShortcut((const char *)"BTC");
         if(cryptoMessageVerify(signed_coin, response_raw, response_raw_filled_len, ShapeShift_public_address, 
                     (uint8_t *)exchange->signed_exchange_response.signature.bytes) != 0)
         {
@@ -199,16 +302,17 @@ static bool verify_exchange_contract(const CoinType *coin, TxOutputType *tx_out,
         goto verify_exchange_contract_exit;
     }
     /* verify Deposit address */
-    if(strncmp(tx_out->address, 
+    if(strncasecmp(tx_out_address, 
                exchange->signed_exchange_response.response.deposit_address.address, 
-               sizeof(tx_out->address)) != 0)
+               sizeof(tx_out_address)) != 0)
     {
         set_exchange_error(ERROR_EXCHANGE_DEPOSIT_ADDRESS);
         goto verify_exchange_contract_exit;
     }
 
     /* verify Deposit amount*/
-    if(tx_out->amount != exchange->signed_exchange_response.response.deposit_amount)
+    if(!verify_exchange_dep_amount(exchange->signed_exchange_response.response.deposit_address.coin_type, 
+                tx_out_amount, &exchange->signed_exchange_response.response.deposit_amount))
     {
         set_exchange_error(ERROR_EXCHANGE_DEPOSIT_AMOUNT);
         goto verify_exchange_contract_exit;
@@ -298,43 +402,54 @@ ExchangeError get_exchange_error(void)
  * OUTPUT
  *      true/false - success/failure
  */
-bool process_exchange_contract(const CoinType *coin, TxOutputType *tx_out, const HDNode *root, bool needs_confirm)
+bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode *root, bool needs_confirm)
 {
     bool ret_val = false;
-    const CoinType *withdraw_coin, *deposit_coin;
+    const CoinType *withdrawal_coin;
     char amount_from_str[32], amount_to_str[32], node_str[100];
+    ExchangeType *tx_exchange;
 
-    if(tx_out->has_exchange_type)
+    /* validate contract before processing */
+    if(verify_exchange_contract(coin, vtx_out, root))
     {
-        /* validate contract before processing */
-        if(verify_exchange_contract(coin, tx_out, root))
+        if(check_ethereum_tx(coin->coin_name))
         {
-            withdraw_coin = coinByName(tx_out->exchange_type.withdrawal_coin_name);
-            deposit_coin = get_response_coin(tx_out->exchange_type.signed_exchange_response.response.deposit_address.coin_type);
+            EthereumSignTx *tx_out = (EthereumSignTx *)vtx_out;
+            tx_exchange = &tx_out->exchange_type;
+        }
+        else
+        {
+            TxOutputType *tx_out = (TxOutputType *)vtx_out;
+            tx_exchange = &tx_out->exchange_type;
+        }
 
-            if(needs_confirm)
+        withdrawal_coin = coinByName(tx_exchange->withdrawal_coin_name);
+        if(needs_confirm)
+        {
+            memset(amount_from_str, 0, sizeof(amount_from_str));
+            memset(amount_to_str, 0, sizeof(amount_to_str));
+
+            memcpy(amount_from_str, tx_exchange->signed_exchange_response.response.deposit_amount.bytes, sizeof(amount_from_str));
+            memcpy(amount_to_str, tx_exchange->signed_exchange_response.response.withdrawal_amount.bytes, sizeof(amount_to_str));
+
+            if(bip44_node_to_string(withdrawal_coin, node_str, tx_exchange->withdrawal_address_n,
+                     tx_exchange->withdrawal_address_n_count))
             {
-                coin_amnt_to_str(deposit_coin, tx_out->exchange_type.signed_exchange_response.response.deposit_amount, amount_from_str, sizeof(amount_to_str));
-                coin_amnt_to_str(withdraw_coin, tx_out->exchange_type.signed_exchange_response.response.withdrawal_amount, amount_to_str, sizeof(amount_from_str));
-                if(bip44_node_to_string(withdraw_coin, node_str, tx_out->exchange_type.withdrawal_address_n,
-                         tx_out->exchange_type.withdrawal_address_n_count))
+                if(!confirm_exchange_output("ShapeShift", amount_from_str, amount_to_str, node_str))
                 {
-                    if(!confirm_exchange_output("ShapeShift", amount_from_str, amount_to_str, node_str))
-                    {
-                        set_exchange_error(ERROR_EXCHANGE_CANCEL);
-                        goto process_exchange_contract_exit;
-                    }
-                }
-                else
-                {
-                    set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_ADDRESS);
+                    set_exchange_error(ERROR_EXCHANGE_CANCEL);
                     goto process_exchange_contract_exit;
                 }
             }
-
-            ret_val = true;
+            else
+            {
+                set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_ADDRESS);
+                goto process_exchange_contract_exit;
+            }
         }
-    } 
+
+        ret_val = true;
+    }
 
 process_exchange_contract_exit:
     return ret_val;

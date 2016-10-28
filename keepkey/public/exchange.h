@@ -37,6 +37,7 @@ typedef enum
 
 /* === Functions =========================================================== */
  
-bool process_exchange_contract(const CoinType *coin, TxOutputType *tx_out, const HDNode *root, bool needs_confirm);
+bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode *root, bool needs_confirm);
 ExchangeError get_exchange_error(void);
 void set_exchange_error(ExchangeError error_code);
+bool check_ethereum_tx(const char *coin_name);

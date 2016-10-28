@@ -28,6 +28,23 @@
 static const char *hexdigits = "0123456789ABCDEF";
 
 /* === Functions =========================================================== */
+void dec64_to_str(uint64_t ival, char *str)
+{
+    unsigned int b = 0;
+    static char *sbfr;
+
+    sbfr = str;
+    b = ival % 10;
+
+    ival = ival / 10;
+
+    if( ival )
+    {
+        dec64_to_str(ival, sbfr);
+    }
+    *sbfr = '0' + b;
+    sbfr++;
+}
 
 void uint32hex(uint32_t num, char *str)
 {
