@@ -175,6 +175,10 @@ static void send_signature(void)
 	resp.signature_s.size = 32;
 	memcpy(resp.signature_s.bytes, sig + 32, 32);
 
+	resp.has_hash = true;
+	resp.hash.size = sizeof(resp.hash.bytes);
+	memcpy(resp.hash.bytes, hash, resp.hash.size);
+
 	msg_write(MessageType_MessageType_EthereumTxRequest, &resp);
 
 	ethereum_signing_abort();
@@ -399,7 +403,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node)
 {
 	ethereum_signing = true;
 	sha3_256_Init(&keccak_ctx);
-    char confirm_body_message[BODY_CHAR_MAX];
+        char confirm_body_message[BODY_CHAR_MAX];
 
 	memset(&resp, 0, sizeof(EthereumTxRequest));
 	/* set fields to 0, to avoid conditions later */
