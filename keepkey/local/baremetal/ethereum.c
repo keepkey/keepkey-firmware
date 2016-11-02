@@ -179,6 +179,9 @@ static void send_signature(void)
 	resp.hash.size = sizeof(resp.hash.bytes);
 	memcpy(resp.hash.bytes, hash, resp.hash.size);
 
+	resp.has_signature_der = true;
+	resp.signature_der.size = ecdsa_sig_to_der(sig, resp.signature_der.bytes);
+
 	msg_write(MessageType_MessageType_EthereumTxRequest, &resp);
 
 	ethereum_signing_abort();

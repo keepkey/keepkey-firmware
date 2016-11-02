@@ -105,6 +105,7 @@ EthereumSignTx.data_initial_chunk	max_size:1024
 EthereumTxRequest.signature_r		max_size:32
 EthereumTxRequest.signature_s		max_size:32
 EthereumTxRequest.hash			max_size:32
+EthereumTxRequest.signature_der         max_size:73
 
 EthereumTxAck.data_chunk		max_size:1024
 
