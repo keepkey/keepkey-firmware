@@ -693,10 +693,9 @@ void fsm_msgEthereumSignTx(EthereumSignTx *msg)
             return;
     }
 
-    /* root node */
-    HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0);
-    
+    /* prepare for exchange Tx */
     const CoinType *coin = fsm_getCoin("Ethereum");
+    HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0); /* root node */
     if(coin != NULL)
     {
         int exch_result = run_policy_compile_output(coin, root_node, (void *)msg, (void *)NULL, true);

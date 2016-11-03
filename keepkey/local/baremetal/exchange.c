@@ -56,28 +56,6 @@ static uint8_t ShapeShift_api_key[64] =
 };
 /* === Private Functions =================================================== */
 /*
- * check_ether_tx() - check transaction is for Ethereum 
- *
- * INPUT 
- *      coin name
- *
- * OUTPUT 
- *      true - Ethereum transaction
- *      false - trasaction for others
- */
-bool check_ethereum_tx(const char *coin_name)
-{
-    if(strcmp(coin_name, "Ethereum") == 0 || strcmp(coin_name, "Ethereum Classic") == 0)
-    {
-        return(true);
-    }
-    else
-    {
-        return(false);
-    }
-}
-
-/*
  * verify_exchange_address - verify address specified in exchange contract belongs to device.
  *
  * INPUT
@@ -145,6 +123,27 @@ verify_exchange_address_exit:
 }
 
 /* === Functions =========================================================== */
+/*
+ * check_ethereum_tx() - check transaction is for Ethereum 
+ *
+ * INPUT 
+ *      coin name
+ *
+ * OUTPUT 
+ *      true - Ethereum transaction
+ *      false - trasaction for others
+ */
+bool check_ethereum_tx(const char *coin_name)
+{
+    if(strcmp(coin_name, "Ethereum") == 0 || strcmp(coin_name, "Ethereum Classic") == 0)
+    {
+        return(true);
+    }
+    else
+    {
+        return(false);
+    }
+}
 
 /*
  *  get_response_coin() - get pointer to coin type 
@@ -201,7 +200,7 @@ bool verify_exchange_coin(const char *coin1, const char *coin2, uint32_t len)
  *      true/false - success/failure
  *
  */
-static bool verify_exchange_dep_amount(char *coin, void *amount, ExchangeResponse_deposit_amount_t *exchange_deposit_amount)
+static bool verify_exchange_dep_amount(const char *coin, void *dep_amt_ptr, ExchangeResponse_deposit_amount_t *exchange_deposit_amount)
 {
     bool ret_stat = false;
     char amt_str[sizeof(exchange_deposit_amount->bytes)];
@@ -209,13 +208,14 @@ static bool verify_exchange_dep_amount(char *coin, void *amount, ExchangeRespons
     memset(amt_str, 0, sizeof(amt_str));
     if(check_ethereum_tx(coin))
     {
-        memcpy (amt_str, amount, sizeof(amt_str));
+        memcpy (amt_str, dep_amt_ptr, sizeof(amt_str));
     }
     else
     {
-        /*convert 64bit decimal to string for bitcoit and altcoins */
-        dec64_to_str(*(uint64_t *)amount, amt_str);
+
+        memcpy (amt_str, dep_amt_ptr, sizeof(uint64_t));
     }
+
     if(memcmp(amt_str, exchange_deposit_amount->bytes, sizeof(amt_str)) == 0)
     {
         ret_stat = true;
@@ -311,7 +311,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     }
 
     /* verify Deposit amount*/
-    if(!verify_exchange_dep_amount(exchange->signed_exchange_response.response.deposit_address.coin_type, 
+    if(!verify_exchange_dep_amount(coin->coin_name, 
                 tx_out_amount, &exchange->signed_exchange_response.response.deposit_amount))
     {
         set_exchange_error(ERROR_EXCHANGE_DEPOSIT_AMOUNT);
@@ -346,7 +346,6 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
         goto verify_exchange_contract_exit;
     }
     /* verify Return address */
-
     response_coin = get_response_coin(exchange->signed_exchange_response.response.return_address.coin_type);
     if(!verify_exchange_address( (char *)response_coin->coin_name,
              exchange->return_address_n_count,
@@ -405,8 +404,9 @@ ExchangeError get_exchange_error(void)
 bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode *root, bool needs_confirm)
 {
     bool ret_val = false;
-    const CoinType *withdrawal_coin;
-    char amount_from_str[32], amount_to_str[32], node_str[100];
+    uint64_t amount64;
+    const CoinType *withdrawal_coin, *deposit_coin;
+    char amount_dep_str[32], amount_wit_str[32], node_str[100];
     ExchangeType *tx_exchange;
 
     /* validate contract before processing */
@@ -414,28 +414,59 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
     {
         if(check_ethereum_tx(coin->coin_name))
         {
-            EthereumSignTx *tx_out = (EthereumSignTx *)vtx_out;
-            tx_exchange = &tx_out->exchange_type;
+            tx_exchange = &((EthereumSignTx *)vtx_out)->exchange_type;
         }
         else
         {
-            TxOutputType *tx_out = (TxOutputType *)vtx_out;
-            tx_exchange = &tx_out->exchange_type;
+            tx_exchange = &((TxOutputType *)vtx_out)->exchange_type;
         }
-
-        withdrawal_coin = coinByName(tx_exchange->withdrawal_coin_name);
+        /* check user confirmation required*/
         if(needs_confirm)
         {
-            memset(amount_from_str, 0, sizeof(amount_from_str));
-            memset(amount_to_str, 0, sizeof(amount_to_str));
+            /* assemble deposit amount for display*/
+            if(check_ethereum_tx(coin->coin_name))
+            {
+                if(!ether_for_display(
+                        tx_exchange->signed_exchange_response.response.deposit_amount.bytes,
+                        tx_exchange->signed_exchange_response.response.deposit_amount.size,
+                        amount_dep_str))
+                {
+                    set_exchange_error(ERROR_EXCHANGE_DEPOSIT_AMOUNT);
+                    goto process_exchange_contract_exit;
+                }
+            }
+            else
+            {
+                deposit_coin = coinByName(coin->coin_name);
+                memcpy(&amount64, tx_exchange->signed_exchange_response.response.deposit_amount.bytes, sizeof(uint64_t));
+                coin_amnt_to_str(deposit_coin, amount64, amount_dep_str, sizeof(amount_dep_str));
+            }
 
-            memcpy(amount_from_str, tx_exchange->signed_exchange_response.response.deposit_amount.bytes, sizeof(amount_from_str));
-            memcpy(amount_to_str, tx_exchange->signed_exchange_response.response.withdrawal_amount.bytes, sizeof(amount_to_str));
+            /* assemble withdrawal amount for display*/
+            withdrawal_coin = coinByName(tx_exchange->withdrawal_coin_name);
+            if(check_ethereum_tx(tx_exchange->withdrawal_coin_name))
+            {
+                if(!ether_for_display(
+                        tx_exchange->signed_exchange_response.response.withdrawal_amount.bytes,
+                        tx_exchange->signed_exchange_response.response.withdrawal_amount.size,
+                        amount_wit_str))
+                {
+                    set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_AMOUNT);
+                    goto process_exchange_contract_exit;
+                }
 
+            }
+            else
+            {
+                memcpy(&amount64, tx_exchange->signed_exchange_response.response.withdrawal_amount.bytes, sizeof(uint64_t) );
+                coin_amnt_to_str(withdrawal_coin, amount64, amount_wit_str, sizeof(amount_wit_str));
+            }
+
+            /* determine withdrawal account number */
             if(bip44_node_to_string(withdrawal_coin, node_str, tx_exchange->withdrawal_address_n,
                      tx_exchange->withdrawal_address_n_count))
             {
-                if(!confirm_exchange_output("ShapeShift", amount_from_str, amount_to_str, node_str))
+                if(!confirm_exchange_output("ShapeShift", amount_dep_str, amount_wit_str, node_str))
                 {
                     set_exchange_error(ERROR_EXCHANGE_CANCEL);
                     goto process_exchange_contract_exit;

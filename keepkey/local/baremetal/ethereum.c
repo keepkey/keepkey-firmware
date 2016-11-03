@@ -593,3 +593,21 @@ void ethereum_signing_abort(void)
 		ethereum_signing = false;
 	}
 }
+
+bool ether_for_display(const uint8_t *value, uint32_t value_len, char *out_str)
+{
+    bool ret_stat = false;
+    uint8_t pad_val[32];
+    bignum256 val;
+
+    memset(pad_val, 0, sizeof(pad_val));
+    memcpy(pad_val + (32 - value_len), value, value_len);
+    bn_read_be(pad_val, &val);
+
+    if (!bn_is_zero(&val)) 
+    {
+        ethereumFormatAmount(&val, out_str);
+        ret_stat = true;
+    }
+    return(ret_stat);
+}

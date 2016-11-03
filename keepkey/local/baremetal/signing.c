@@ -138,6 +138,11 @@ void send_fsm_co_error_message(int co_error)
                     fsm_sendFailure(FailureType_Failure_Other, "Exchange withdrawal address error");
                     break;
                 }
+                case ERROR_EXCHANGE_WITHDRAWAL_AMOUNT:
+                {
+                    fsm_sendFailure(FailureType_Failure_Other, "Exchange withdrawal amount error");
+                    break;
+                }
                 case ERROR_EXCHANGE_RETURN_COINTYPE:
                 {
                     fsm_sendFailure(FailureType_Failure_Other, "Exchange return coin type error");
