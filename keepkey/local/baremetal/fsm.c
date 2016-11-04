@@ -57,6 +57,7 @@
 #include "recovery_cipher.h"
 #include "policy.h"
 #include "ethereum.h"
+#include "exchange.h"
 
 /* === Private Variables =================================================== */
 
@@ -146,6 +147,81 @@ static const MessagesMap_t MessagesMap[] =
 /* === Variables =========================================================== */
 
 extern bool reset_msg_stack;
+/* === Private Functions =================================================== */
+static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t address_n_count)
+{
+    static HDNode node;
+
+    if(!storage_get_root_node(&node, curve, true))
+    {
+        fsm_sendFailure(FailureType_Failure_NotInitialized,
+                        "Device not initialized or passphrase request cancelled");
+        go_home();
+        return 0;
+    }
+
+    if(!address_n || address_n_count == 0)
+    {
+        return &node;
+    }
+
+    if(hdnode_private_ckd_cached(&node, address_n, address_n_count) == 0)
+    {
+        fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
+        go_home();
+        return 0;
+    }
+
+    return &node;
+}
+
+static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
+{
+    int ret_val = TXOUT_COMPILE_ERROR;
+    char node_str[40], amount_str[32];
+    const HDNode *node = NULL;
+
+    /* precheck: make sure 'to' fields are not loaded to ensure it is for fund transfer*/
+    if(msg->has_to || (msg->to.size) || strlen((char *)msg->to.bytes) != 0)
+    {
+        /* error detected, bailing! */
+        goto process_ethereum_xfer_exit;
+    }
+
+    if(bip44_node_to_string(coin, node_str, msg->to_address_n, msg->to_address_n_count))
+    {
+        ButtonRequestType button_request = ButtonRequestType_ButtonRequest_ConfirmTransferToAccount;
+        if(ether_for_display(msg->value.bytes, msg->value.size, amount_str))
+        {
+            if(!confirm_transfer_output(button_request, amount_str, node_str))
+            {
+                ret_val = TXOUT_CANCEL;
+                goto process_ethereum_xfer_exit;
+            }
+        }
+        else
+        {
+            goto process_ethereum_xfer_exit;
+        }
+    }
+    else
+    {
+        goto process_ethereum_xfer_exit;
+    }
+
+    node = fsm_getDerivedNode(SECP256K1_NAME, msg->to_address_n, msg->to_address_n_count);
+    if(node) 
+    {
+        msg->has_to = true;
+        msg->to.size = 20;
+        if(hdnode_get_ethereum_pubkeyhash(node, msg->to.bytes))
+        {
+            ret_val = TXOUT_OK;
+        }
+    }
+process_ethereum_xfer_exit:
+    return(ret_val);
+}
 
 /* === Functions =========================================================== */
 
@@ -222,32 +298,7 @@ const CoinType *fsm_getCoin(const char *name)
     return coin;
 }
 
-HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t address_n_count)
-{
-    static HDNode node;
 
-    if(!storage_get_root_node(&node, curve, true))
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized,
-                        "Device not initialized or passphrase request cancelled");
-        go_home();
-        return 0;
-    }
-
-    if(!address_n || address_n_count == 0)
-    {
-        return &node;
-    }
-
-    if(hdnode_private_ckd_cached(&node, address_n, address_n_count) == 0)
-    {
-        fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
-        go_home();
-        return 0;
-    }
-
-    return &node;
-}
 
 void fsm_msgInitialize(Initialize *msg)
 {
@@ -693,25 +744,45 @@ void fsm_msgEthereumSignTx(EthereumSignTx *msg)
             return;
     }
 
-    /* prepare for exchange Tx */
-    const CoinType *coin = fsm_getCoin("Ethereum");
-    HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0); /* root node */
-    if(coin != NULL)
+    if(msg->address_type == OutputAddressType_EXCHANGE ||  msg->address_type == OutputAddressType_TRANSFER)
     {
-        int exch_result = run_policy_compile_output(coin, root_node, (void *)msg, (void *)NULL, true);
-        if(exch_result <= TXOUT_COMPILE_ERROR) 
+        int tx_result = TXOUT_COMPILE_ERROR;
+        const CoinType *coin = fsm_getCoin("Ethereum");
+
+        if(coin != NULL)
         {
-            memset((void *)root_node, 0, sizeof(HDNode));
-            send_fsm_co_error_message(exch_result);
-            go_home();
+            HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0); /* root node */
+            tx_result = run_policy_compile_output(coin, root_node, (void *)msg, (void *)NULL, true);
+
+            if(tx_result <= TXOUT_COMPILE_ERROR) 
+            {
+                memset((void *)root_node, 0, sizeof(HDNode));
+                send_fsm_co_error_message(tx_result);
+                go_home();
+                return;
+            }
+
+            if(msg->address_type == OutputAddressType_TRANSFER)
+            {
+                tx_result = process_ethereum_xfer(coin, msg);
+                if(tx_result <= TXOUT_COMPILE_ERROR) 
+                {
+                    memset((void *)root_node, 0, sizeof(HDNode));
+                    send_fsm_co_error_message(tx_result);
+		    go_home();
+                    return;
+                }
+            }
+        }
+        else
+        {
+            send_fsm_co_error_message(tx_result);
+	    go_home();
             return;
         }
     }
-    else
-    {
-        return;
-    }
-    /* input sub-node node */
+
+    /* input node */
     const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
     if (!node) return;
 

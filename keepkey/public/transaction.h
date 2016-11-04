@@ -30,7 +30,7 @@
 
 /* === Defines ============================================================= */
 /* Transaction output compilation errors */
-#define TXOUT_ETHEREUM_EXCH_OK          1
+#define TXOUT_OK          1
 #define TXOUT_COMPILE_ERROR             0
 #define TXOUT_CANCEL                   -1 
 #define TXOUT_EXCHANGE_CONTRACT_ERROR  -2 

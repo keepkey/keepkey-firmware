@@ -75,7 +75,7 @@ int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vi
 
                 if(check_ethereum_tx(coin->coin_name))
                 {
-                    ret_result = TXOUT_ETHEREUM_EXCH_OK;          
+                    ret_result = TXOUT_OK;          
                     goto run_policy_compile_output_exit;
                 }
             }
@@ -95,7 +95,7 @@ int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vi
     if(check_ethereum_tx(coin->coin_name))
     {
         /* pass through for none exchange Ethereum transaction*/
-        ret_result = TXOUT_ETHEREUM_EXCH_OK;          
+        ret_result = TXOUT_OK;          
     }
     else
     {
