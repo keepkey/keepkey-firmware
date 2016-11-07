@@ -361,7 +361,7 @@ static void layoutEthereumFee(const uint8_t *value, uint32_t value_len,
 		ethereumFormatAmount(&val, tx_value);
 	}
 
-    	if((uint32_t)snprintf(out_str, out_str_len, "Really send %s paying up to %s", tx_value, gas_value) >= out_str_len)
+    	if((uint32_t)snprintf(out_str, out_str_len, "Really send %s paying up to %s for gas?", tx_value, gas_value) >= out_str_len)
         {
             /*error detected.  Clear the buffer */
     	    memset(out_str, 0, out_str_len);
@@ -453,24 +453,27 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node)
 		return;
 	}
 
-        memset(confirm_body_message, 0, sizeof(confirm_body_message));
-        layoutEthereumConfirmTx(msg->to.bytes, msg->to.size, msg->value.bytes, msg->value.size, confirm_body_message, sizeof(confirm_body_message));
-        if(strlen(confirm_body_message) > 0)
+        if(msg->address_type != OutputAddressType_TRANSFER)
         {
-            if(!confirm(ButtonRequestType_ButtonRequest_SignTx, 
-                       "Ethereum Transaction", "Do you want to send %s",confirm_body_message))
+            memset(confirm_body_message, 0, sizeof(confirm_body_message));
+            layoutEthereumConfirmTx(msg->to.bytes, msg->to.size, msg->value.bytes, msg->value.size, confirm_body_message, sizeof(confirm_body_message));
+            if(strlen(confirm_body_message) > 0)
             {
-                fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
-                ethereum_signing_abort();
-                return;
+                if(!confirm(ButtonRequestType_ButtonRequest_SignTx, 
+                           "Ethereum Transaction", "Do you want to send %s",confirm_body_message))
+                {
+                    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
+                    ethereum_signing_abort();
+                    return;
+                }
             }
-        }
-        else
-        {
-                fsm_sendFailure(FailureType_Failure_Other, "Invalid Ethereum Tx initialization message");
-                ethereum_signing_abort();
-                return;
-            
+            else
+            {
+                    fsm_sendFailure(FailureType_Failure_Other, "Invalid Ethereum Tx initialization message");
+                    ethereum_signing_abort();
+                    return;
+                
+            }
         }
 
 	if (data_total > 0) {

@@ -67,7 +67,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 	out->amount = in->amount;
 	uint8_t addr_raw[21];
 	char amount_str[32];
-	char node_str[40];
+	char node_str[NODE_STRING_LENGTH];
 	ButtonRequestType button_request;
 
 	if (in->script_type == OutputScriptType_PAYTOADDRESS) {
