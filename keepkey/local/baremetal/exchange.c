@@ -55,6 +55,39 @@ static uint8_t ShapeShift_api_key[64] =
     0x14, 0x45, 0x95, 0x0b
 };
 /* === Private Functions =================================================== */
+
+/*
+ * exchange_tx_layout_str() - assemble display message for exchange transaction output
+ *
+ * INPUT
+ *      coint   - coin type being process
+ *      amt     - pointer to coin amount
+ *      amt     - size of amount buffer
+ *      out     - porint to output buffer
+ *      out_len - size of output buffer
+ *
+ * OUTPUT
+ *      true/false - status
+ *
+ */
+static bool exchange_tx_layout_str(const CoinType *coint, uint8_t *amt, size_t amt_len, char *out, size_t out_len)
+{
+    bool ret_stat = false;
+    uint64_t amount64;
+
+    if(check_ethereum_tx(coint->coin_name))
+    {
+        ret_stat = ether_for_display(amt, amt_len, out);
+    }
+    else
+    {
+        memcpy(&amount64, amt, sizeof(uint64_t));
+        coin_amnt_to_str(coint, amount64, out, out_len);
+        ret_stat = true;
+    }
+    return(ret_stat);
+}
+
 /*
  * verify_exchange_address - verify address specified in exchange contract belongs to device.
  *
@@ -404,7 +437,6 @@ ExchangeError get_exchange_error(void)
 bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode *root, bool needs_confirm)
 {
     bool ret_val = false;
-    uint64_t amount64;
     const CoinType *withdrawal_coin, *deposit_coin;
     char amount_dep_str[32], amount_wit_str[32], node_str[100];
     ExchangeType *tx_exchange;
@@ -423,44 +455,30 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
         /* check user confirmation required*/
         if(needs_confirm)
         {
+            withdrawal_coin = coinByName(tx_exchange->withdrawal_coin_name);
+            deposit_coin = coinByName(coin->coin_name);
+
             /* assemble deposit amount for display*/
-            if(check_ethereum_tx(coin->coin_name))
-            {
-                if(!ether_for_display(
+            if(!exchange_tx_layout_str(deposit_coin, 
                         tx_exchange->signed_exchange_response.response.deposit_amount.bytes,
                         tx_exchange->signed_exchange_response.response.deposit_amount.size,
-                        amount_dep_str))
-                {
-                    set_exchange_error(ERROR_EXCHANGE_DEPOSIT_AMOUNT);
-                    goto process_exchange_contract_exit;
-                }
-            }
-            else
+                        amount_dep_str,
+                        sizeof(amount_dep_str)))
             {
-                deposit_coin = coinByName(coin->coin_name);
-                memcpy(&amount64, tx_exchange->signed_exchange_response.response.deposit_amount.bytes, sizeof(uint64_t));
-                coin_amnt_to_str(deposit_coin, amount64, amount_dep_str, sizeof(amount_dep_str));
+                set_exchange_error(ERROR_EXCHANGE_DEPOSIT_AMOUNT);
+                goto process_exchange_contract_exit;
             }
 
             /* assemble withdrawal amount for display*/
-            withdrawal_coin = coinByName(tx_exchange->withdrawal_coin_name);
-            if(check_ethereum_tx(tx_exchange->withdrawal_coin_name))
-            {
-                if(!ether_for_display(
+            if(!exchange_tx_layout_str(withdrawal_coin, 
                         tx_exchange->signed_exchange_response.response.withdrawal_amount.bytes,
                         tx_exchange->signed_exchange_response.response.withdrawal_amount.size,
-                        amount_wit_str))
-                {
-                    set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_AMOUNT);
-                    goto process_exchange_contract_exit;
-                }
-
-            }
-            else
-            {
-                memcpy(&amount64, tx_exchange->signed_exchange_response.response.withdrawal_amount.bytes, sizeof(uint64_t) );
-                coin_amnt_to_str(withdrawal_coin, amount64, amount_wit_str, sizeof(amount_wit_str));
-            }
+                        amount_wit_str,
+                        sizeof(amount_wit_str)))
+             {
+                set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_AMOUNT);
+                goto process_exchange_contract_exit;
+             }
 
             /* determine withdrawal account number */
             if(bip44_node_to_string(withdrawal_coin, node_str, tx_exchange->withdrawal_address_n,
