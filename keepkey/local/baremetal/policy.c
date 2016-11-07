@@ -72,12 +72,6 @@ int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vi
             if(process_exchange_contract(coin, vin, root, needs_confirm))
             {
                 needs_confirm = false;
-
-                if(check_ethereum_tx(coin->coin_name))
-                {
-                    ret_result = TXOUT_OK;          
-                    goto run_policy_compile_output_exit;
-                }
             }
             else
             {

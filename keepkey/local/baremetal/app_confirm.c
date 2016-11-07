@@ -130,21 +130,21 @@ bool confirm_decrypt_msg(const char *msg, const char *address)
  *
  * INPUT -
  *      - exchange: name of exchange
- *      - from_amount: amount to convert
- *      - to_amount: conversion to amount
+ *      - dep_amt: source amount to convert
+ *      - wit_amt: destination amount to received 
  *      - address: destination
  * OUTPUT -
  *     true/false of confirmation
  *
  */
-bool confirm_exchange_output(const char *exchange, const char *from_amount,
-                             const char *to_amount, const char *address)
+bool confirm_exchange_output(const char *exchange, const char *dep_amt,
+                             const char *wit_amt, const char *address)
 {
     return confirm_with_custom_layout(&layout_notification_no_title,
                                       ButtonRequestType_ButtonRequest_SignExchange,
                                       "", 
                                       "Convert %s to\n%s with %s and send to %s",
-                                      from_amount, to_amount, exchange, address);
+                                      dep_amt, wit_amt, exchange, address);
 }
 
 /*

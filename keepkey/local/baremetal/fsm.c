@@ -178,11 +178,11 @@ static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t
 static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
 {
     int ret_val = TXOUT_COMPILE_ERROR;
-    char node_str[40], amount_str[32];
+    char node_str[NODE_STRING_LENGTH], amount_str[32];
     const HDNode *node = NULL;
 
     /* precheck: make sure 'to' fields are not loaded to ensure it is for fund transfer*/
-    if(msg->has_to || (msg->to.size) || strlen((char *)msg->to.bytes) != 0)
+    if(msg->has_to || msg->to.size || strlen((char *)msg->to.bytes) != 0)
     {
         /* error detected, bailing! */
         goto process_ethereum_xfer_exit;
