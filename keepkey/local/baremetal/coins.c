@@ -48,6 +48,15 @@ const CoinType coins[COINS_COUNT] = {
  * OUTPUT
  *     true/false status
  *
+ * Note : address_n[5] = {/44'/bip44_account_path/account #/0/0 }
+ *
+ * bip44 account path:
+ *      Bitcoin  - 0x8000_0000
+ *      Litecoin - 0x8000_0002
+ *      Dogecoin - 0x8000_0003
+ *      Ethereum - 0x8000_003c
+ *      ...
+ *      ...
  */
 static bool verify_bip44_node(const CoinType *coin, uint32_t *address_n, size_t address_n_count)
 {
