@@ -226,17 +226,17 @@ bool verify_exchange_coin(const char *coin1, const char *coin2, uint32_t len)
  *
  * INPUT
  *     coin - name of coin being compare for the amount value 
- *     exchange_deposit_amount - pointer to deposit amount in char buffer
+ *     exch_dep_amt - pointer to deposit amount in char buffer
  *      
  *
  * OUTPUT
  *      true/false - success/failure
  *
  */
-static bool verify_exchange_dep_amount(const char *coin, void *dep_amt_ptr, ExchangeResponse_deposit_amount_t *exchange_deposit_amount)
+static bool verify_exchange_dep_amount(const char *coin, void *dep_amt_ptr, ExchangeResponse_deposit_amount_t *exch_dep_amt)
 {
     bool ret_stat = false;
-    char amt_str[sizeof(exchange_deposit_amount->bytes)];
+    char amt_str[sizeof(exch_dep_amt->bytes)];
 
     memset(amt_str, 0, sizeof(amt_str));
     if(check_ethereum_tx(coin))
@@ -249,7 +249,7 @@ static bool verify_exchange_dep_amount(const char *coin, void *dep_amt_ptr, Exch
         memcpy (amt_str, dep_amt_ptr, sizeof(uint64_t));
     }
 
-    if(memcmp(amt_str, exchange_deposit_amount->bytes, sizeof(amt_str)) == 0)
+    if(memcmp(amt_str, exch_dep_amt->bytes, sizeof(amt_str)) == 0)
     {
         ret_stat = true;
     }

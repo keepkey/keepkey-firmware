@@ -212,12 +212,13 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
     node = fsm_getDerivedNode(SECP256K1_NAME, msg->to_address_n, msg->to_address_n_count);
     if(node) 
     {
-        msg->has_to = true;
-        msg->to.size = 20;
         if(hdnode_get_ethereum_pubkeyhash(node, msg->to.bytes))
         {
+            msg->has_to = true;
+            msg->to.size = 20;
             ret_val = TXOUT_OK;
         }
+        memset((void *)node, 0, sizeof(HDNode));
     }
 process_ethereum_xfer_exit:
     return(ret_val);
@@ -748,12 +749,19 @@ void fsm_msgEthereumSignTx(EthereumSignTx *msg)
     {
         int tx_result = TXOUT_COMPILE_ERROR;
         const CoinType *coin = fsm_getCoin("Ethereum");
-
-        if(coin != NULL)
+        if(coin == NULL)
         {
+
+            send_fsm_co_error_message(tx_result);
+            go_home();
+            return;
+        }
+
+        if(msg->address_type == OutputAddressType_EXCHANGE)
+        {
+            /*prep for exchange type transaction*/
             HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0); /* root node */
             tx_result = run_policy_compile_output(coin, root_node, (void *)msg, (void *)NULL, true);
-
             if(tx_result <= TXOUT_COMPILE_ERROR) 
             {
                 memset((void *)root_node, 0, sizeof(HDNode));
@@ -761,24 +769,17 @@ void fsm_msgEthereumSignTx(EthereumSignTx *msg)
                 go_home();
                 return;
             }
-
-            if(msg->address_type == OutputAddressType_TRANSFER)
-            {
-                tx_result = process_ethereum_xfer(coin, msg);
-                if(tx_result <= TXOUT_COMPILE_ERROR) 
-                {
-                    memset((void *)root_node, 0, sizeof(HDNode));
-                    send_fsm_co_error_message(tx_result);
-		    go_home();
-                    return;
-                }
-            }
         }
-        else
+        else if(msg->address_type == OutputAddressType_TRANSFER)
         {
-            send_fsm_co_error_message(tx_result);
-	    go_home();
-            return;
+            /*prep transfer type transaction*/
+            tx_result = process_ethereum_xfer(coin, msg);
+            if(tx_result <= TXOUT_COMPILE_ERROR) 
+            {
+                send_fsm_co_error_message(tx_result);
+                go_home();
+                return;
+            }
         }
     }
 
