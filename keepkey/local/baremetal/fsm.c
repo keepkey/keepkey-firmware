@@ -181,10 +181,10 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
     char node_str[NODE_STRING_LENGTH], amount_str[32];
     const HDNode *node = NULL;
 
-    /* precheck: make sure 'to' fields are not loaded to ensure it is for fund transfer*/
+    /* Precheck: For TRANSFER, 'to' fields should not be loaded */
     if(msg->has_to || msg->to.size || strlen((char *)msg->to.bytes) != 0)
     {
-        /* error detected, bailing! */
+        /* Bailing, error detected! */
         goto process_ethereum_xfer_exit;
     }
 
@@ -734,6 +734,8 @@ void fsm_msgCancel(Cancel *msg)
 
 void fsm_msgEthereumSignTx(EthereumSignTx *msg)
 {
+    bool needs_confirm = true;
+
     if (!storage_is_initialized()) {
             fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
             return;
@@ -761,7 +763,7 @@ void fsm_msgEthereumSignTx(EthereumSignTx *msg)
         {
             /*prep for exchange type transaction*/
             HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0); /* root node */
-            tx_result = run_policy_compile_output(coin, root_node, (void *)msg, (void *)NULL, true);
+            tx_result = run_policy_compile_output(coin, root_node, (void *)msg, (void *)NULL, needs_confirm);
             if(tx_result <= TXOUT_COMPILE_ERROR) 
             {
                 memset((void *)root_node, 0, sizeof(HDNode));
@@ -769,6 +771,7 @@ void fsm_msgEthereumSignTx(EthereumSignTx *msg)
                 go_home();
                 return;
             }
+            needs_confirm = false;
         }
         else if(msg->address_type == OutputAddressType_TRANSFER)
         {
@@ -780,6 +783,7 @@ void fsm_msgEthereumSignTx(EthereumSignTx *msg)
                 go_home();
                 return;
             }
+            needs_confirm = false;
         }
     }
 
@@ -787,7 +791,7 @@ void fsm_msgEthereumSignTx(EthereumSignTx *msg)
     const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
     if (!node) return;
 
-    ethereum_signing_init(msg, node);
+    ethereum_signing_init(msg, node, needs_confirm);
 }
 
 void fsm_msgEthereumTxAck(EthereumTxAck *msg)

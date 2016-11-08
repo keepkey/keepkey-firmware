@@ -402,7 +402,7 @@ static bool ethereum_signing_check(EthereumSignTx *msg)
 	return true;
 }
 
-void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node)
+void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_confirm)
 {
 	ethereum_signing = true;
 	sha3_256_Init(&keccak_ctx);
@@ -453,7 +453,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node)
 		return;
 	}
 
-        if(msg->address_type != OutputAddressType_TRANSFER)
+        if(needs_confirm)
         {
             memset(confirm_body_message, 0, sizeof(confirm_body_message));
             layoutEthereumConfirmTx(msg->to.bytes, msg->to.size, msg->value.bytes, msg->value.size, confirm_body_message, sizeof(confirm_body_message));

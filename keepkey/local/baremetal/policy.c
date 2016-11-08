@@ -48,24 +48,25 @@ const PolicyType policies[POLICY_COUNT] = {
 int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vin, void *vout, bool needs_confirm)
 {
     int ret_result = TXOUT_COMPILE_ERROR;
-    OutputAddressType address_type;
+    OutputAddressType addr_type;
 
     /* setup address type respect to coin type */
     if(check_ethereum_tx(coin->coin_name))
     {
-        address_type = ((EthereumSignTx *)vin)->address_type ;
+        addr_type = ((EthereumSignTx *)vin)->address_type ;
     }
     else
     {
+        /* Bitcoin & Altcoins */
         if(vout == NULL)
         {
             /* vout is not set */
             goto run_policy_compile_output_exit;
         }
-        address_type = ((TxOutputType *)vin)->address_type;
+        addr_type = ((TxOutputType *)vin)->address_type;
     }
 
-    if(address_type == OutputAddressType_EXCHANGE)
+    if(addr_type == OutputAddressType_EXCHANGE)
     {
         if(storage_is_policy_enabled("ShapeShift"))
         {

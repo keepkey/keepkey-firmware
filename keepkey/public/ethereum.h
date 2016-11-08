@@ -25,7 +25,7 @@
 #include "bip32.h"
 #include "messages.pb.h"
 
-void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node);
+void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_confirm);
 void ethereum_signing_abort(void);
 void ethereum_signing_txack(EthereumTxAck *msg);
 

@@ -424,7 +424,7 @@ ExchangeError get_exchange_error(void)
 
 /*
  * process_exchange_contract() - validate contract from exchange and populate the transaction
- *                            output structure
+ *                               output structure
  *
  * INPUT
  *      coin - pointer signTx coin type
