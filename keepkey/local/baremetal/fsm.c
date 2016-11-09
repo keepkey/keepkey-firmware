@@ -148,6 +148,20 @@ static const MessagesMap_t MessagesMap[] =
 
 extern bool reset_msg_stack;
 /* === Private Functions =================================================== */
+static const CoinType *fsm_getCoin(const char *name)
+{
+    const CoinType *coin = coinByName(name);
+
+    if(!coin)
+    {
+        fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
+        go_home();
+        return 0;
+    }
+
+    return coin;
+}
+
 static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t address_n_count)
 {
     static HDNode node;
@@ -224,6 +238,41 @@ process_ethereum_xfer_exit:
     return(ret_val);
 }
 
+static int process_ethereum_msg(EthereumSignTx *msg, bool *conf_ptr)
+{
+    int ret_result = TXOUT_COMPILE_ERROR;
+    const CoinType *coin = fsm_getCoin("Ethereum");
+
+    if(coin != NULL)
+    {
+        switch(msg->address_type)
+        {
+            case OutputAddressType_EXCHANGE:
+            {
+                /*prep for exchange type transaction*/
+                HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0); /* root node */
+                ret_result = run_policy_compile_output(coin, root_node, (void *)msg, (void *)NULL, true);
+                if(ret_result <= TXOUT_COMPILE_ERROR) 
+                {
+                    memset((void *)root_node, 0, sizeof(HDNode));
+                }
+                *conf_ptr = false;
+                break;
+            }
+            case OutputAddressType_TRANSFER:
+            {
+                /*prep transfer type transaction*/
+                ret_result = process_ethereum_xfer(coin, msg);
+                *conf_ptr = false;
+                break;
+            }
+            default:
+                ret_result = TXOUT_OK;
+                break;
+        }
+    }
+    return(ret_result);
+}
 /* === Functions =========================================================== */
 
 void fsm_init(void)
@@ -283,20 +332,6 @@ void fsm_sendFailure(FailureType code, const char *text)
     }
 
     msg_write(MessageType_MessageType_Failure, resp);
-}
-
-const CoinType *fsm_getCoin(const char *name)
-{
-    const CoinType *coin = coinByName(name);
-
-    if(!coin)
-    {
-        fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
-        go_home();
-        return 0;
-    }
-
-    return coin;
 }
 
 
@@ -734,7 +769,6 @@ void fsm_msgCancel(Cancel *msg)
 
 void fsm_msgEthereumSignTx(EthereumSignTx *msg)
 {
-    bool needs_confirm = true;
 
     if (!storage_is_initialized()) {
             fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
@@ -747,47 +781,17 @@ void fsm_msgEthereumSignTx(EthereumSignTx *msg)
             return;
     }
 
-    if(msg->address_type == OutputAddressType_EXCHANGE ||  msg->address_type == OutputAddressType_TRANSFER)
+    bool needs_confirm = true;
+    int msg_result = process_ethereum_msg(msg, &needs_confirm);
+
+    if(msg_result < TXOUT_OK) 
     {
-        int tx_result = TXOUT_COMPILE_ERROR;
-        const CoinType *coin = fsm_getCoin("Ethereum");
-        if(coin == NULL)
-        {
-
-            send_fsm_co_error_message(tx_result);
-            go_home();
-            return;
-        }
-
-        if(msg->address_type == OutputAddressType_EXCHANGE)
-        {
-            /*prep for exchange type transaction*/
-            HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0); /* root node */
-            tx_result = run_policy_compile_output(coin, root_node, (void *)msg, (void *)NULL, needs_confirm);
-            if(tx_result <= TXOUT_COMPILE_ERROR) 
-            {
-                memset((void *)root_node, 0, sizeof(HDNode));
-                send_fsm_co_error_message(tx_result);
-                go_home();
-                return;
-            }
-            needs_confirm = false;
-        }
-        else if(msg->address_type == OutputAddressType_TRANSFER)
-        {
-            /*prep transfer type transaction*/
-            tx_result = process_ethereum_xfer(coin, msg);
-            if(tx_result <= TXOUT_COMPILE_ERROR) 
-            {
-                send_fsm_co_error_message(tx_result);
-                go_home();
-                return;
-            }
-            needs_confirm = false;
-        }
+        send_fsm_co_error_message(msg_result);
+        go_home();
+        return;
     }
 
-    /* input node */
+    /* Input node */
     const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
     if (!node) return;
 
