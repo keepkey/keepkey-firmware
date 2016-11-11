@@ -241,7 +241,7 @@ process_ethereum_xfer_exit:
 static int process_ethereum_msg(EthereumSignTx *msg, bool *conf_ptr)
 {
     int ret_result = TXOUT_COMPILE_ERROR;
-    const CoinType *coin = fsm_getCoin("Ethereum");
+    const CoinType *coin = fsm_getCoin(ETHEREUM);
 
     if(coin != NULL)
     {

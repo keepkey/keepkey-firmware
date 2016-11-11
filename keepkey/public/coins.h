@@ -26,6 +26,8 @@
 
 /* === Defines ============================================================= */
 #define NA      0xFFFF  /*etherum does not use P2PH or P2SH */
+#define ETHEREUM        "Ethereum"
+#define ETHEREUM_CLS    "Ethereum Classic"
 
 #define COINS_COUNT        (int)(sizeof(((Features *)NULL)->coins)/sizeof(CoinType))
 #define NODE_STRING_LENGTH  50

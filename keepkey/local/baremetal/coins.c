@@ -33,8 +33,8 @@ const CoinType coins[COINS_COUNT] = {
     {true, "Litecoin", true, "LTC",  true,  48, true,    1000000, true,   5, false, 0, false, 0, true, "\x19" "Litecoin Signed Message:\n", true, 0x80000002},
     {true, "Dogecoin", true, "DOGE", true,  30, true, 1000000000, true,  22, false, 0, false, 0, true, "\x19" "Dogecoin Signed Message:\n", true, 0x80000003},
     {true, "Dash",     true, "DASH", true,  76, true,     100000, true,  16, false, 0, false, 0, true, "\x19" "DarkCoin Signed Message:\n", true, 0x80000005},
-    {true, "Ethereum", true, "ETH",  true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n", true, 0x8000003c},
-    {true, "Ethereum Classic", true, "ETC",  true, NA, true,   100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n", true, 0x8000003d}
+    {true, ETHEREUM,   true, "ETH",  true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n", true, 0x8000003c},
+    {true, ETHEREUM_CLS, true, "ETC",  true, NA, true,   100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n", true, 0x8000003d}
 };
 
 /* === Private Functions =================================================== */
@@ -63,11 +63,19 @@ static bool verify_bip44_node(const CoinType *coin, uint32_t *address_n, size_t 
     bool ret_stat = false;
     if(address_n_count == 5 && address_n[3] == 0)
     {
+        if(strncmp(coin->coin_name, ETHEREUM, strlen(ETHEREUM)) == 0  || strncmp(coin->coin_name, ETHEREUM_CLS, sizeof(ETHEREUM_CLS)) == 0 )
+        {
+            if(address_n[4] != 0)
+            {
+                goto verify_bip44_node_exit;
+            }
+        }
         if(address_n[0] == 0x8000002C && address_n[1] == coin->bip44_account_path)
         {
             ret_stat = true;
         }
     }
+verify_bip44_node_exit:
     return(ret_stat);
 }
 

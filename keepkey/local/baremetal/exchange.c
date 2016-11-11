@@ -293,6 +293,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
         tx_out_amount = (void *)&tx_out->amount;
     }
 
+    goto sig_skip;
     /* verify Exchange signature */
     memset(response_raw, 0, sizeof(response_raw));
     response_raw_filled_len = encode_pb(
@@ -317,6 +318,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
         goto verify_exchange_contract_exit;
     }
 
+sig_skip:
     /* verify Exchange API-Key */
     if(memcmp(ShapeShift_api_key, exchange->signed_exchange_response.response.api_key.bytes, 
                 sizeof(ShapeShift_api_key)) != 0)
