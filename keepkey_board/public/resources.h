@@ -25,6 +25,14 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+
+/* === Defines ============================================================ */
+#ifdef KEEPKEY_PRJ 
+#define LOADING_DURATION 9
+#else
+#define LOADING_DURATION 40
+#endif
+
 /* === Typedefs ============================================================ */
 
 typedef struct
