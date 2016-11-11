@@ -770,7 +770,6 @@ const uint8_t *storage_getSeed(bool usePassphrase)
 		    return NULL;
 		}
                 layout_loading();
-                animating_progress_handler();
 		mnemonic_to_seed(shadow_config.storage.mnemonic, usePassphrase ? sessionPassphrase : "", sessionSeed, get_root_node_callback); // BIP-0039
 		sessionSeedCached = true;
 		sessionSeedUsesPassphrase = usePassphrase;
