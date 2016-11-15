@@ -741,11 +741,9 @@ uint32_t storage_get_pin_fails(void)
  * OUTPUT
  *     none
  */
-void get_root_node_callback(uint32_t iter, uint32_t total)
+void get_root_node_callback(uint32_t ms, uint32_t frequency_ms)
 {
-    (void)iter;
-    (void)total;
-    animating_progress_handler();
+    delay_ms_with_callback(ms, &animating_progress_handler, frequency_ms);
 }
 /*
  * storage_getSeed() - get user private seed
@@ -817,11 +815,11 @@ bool storage_get_root_node(HDNode *node, const char *curve, bool usePassphrase)
 	    uint8_t secret[64];
 	    PBKDF2_HMAC_SHA512_CTX pctx;
 	    pbkdf2_hmac_sha512_Init(&pctx, (const uint8_t *)sessionPassphrase, strlen(sessionPassphrase), (const uint8_t *)"TREZORHD", 8);
-	    get_root_node_callback(0, BIP39_PBKDF2_ROUNDS);
+	    get_root_node_callback(1, 1);
 	    for (int i = 0; i < 8; i++) 
             {
 	        pbkdf2_hmac_sha512_Update(&pctx, BIP39_PBKDF2_ROUNDS / 8);
-	        get_root_node_callback((i + 1) * BIP39_PBKDF2_ROUNDS / 8, BIP39_PBKDF2_ROUNDS);
+	        get_root_node_callback(40, 1);
 	    }
 	    pbkdf2_hmac_sha512_Final(&pctx, secret);
 	    aes_decrypt_ctx ctx;

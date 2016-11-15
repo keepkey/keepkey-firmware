@@ -131,14 +131,7 @@ static int rlp_calculate_length(int length, uint8_t firstbyte)
 
 static void send_request_chunk(void)
 {
-#if 0 /* remove before release */
-	int progress = 1000 - (data_total > 1000000
-						   ? data_left / (data_total/800)
-						   : data_left * 800 / data_total);
-	layoutProgress("Signing", progress);
-#else
-    layout_simple_message("Stubbed: send_request_chunk...");
-#endif
+	animating_progress_handler();
 	resp.has_data_length = true;
 	resp.data_length = data_left <= 1024 ? data_left : 1024;
 	msg_write(MessageType_MessageType_EthereumTxRequest, &resp);
@@ -146,11 +139,7 @@ static void send_request_chunk(void)
 
 static void send_signature(void)
 {
-#if 0 /* remove berfore release*/
-	layoutProgress("Signing", 1000);
-#else
-    layout_simple_message("Stubbed: send_signature()...");
-#endif
+	animating_progress_handler(); // layoutProgress("Signing", 1000);
 	keccak_Final(&keccak_ctx, hash);
 	uint8_t v;
 	if (ecdsa_sign_digest(&secp256k1, privkey, hash, sig, &v) != 0) {
@@ -517,12 +506,8 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
         }
 	/* Stage 1: Calculate total RLP length */
 	uint32_t rlp_length = 0;
-
-#if 0 /*remove before release*/
-	layoutProgress("Signing", 0);
-#else	
-    layout_simple_message("Stubbed: ethereum_signing_init()...");
-#endif
+    layout_loading();
+	animating_progress_handler();
 
 	rlp_length += rlp_calculate_length(msg->nonce.size, msg->nonce.bytes[0]);
 	rlp_length += rlp_calculate_length(msg->gas_price.size, msg->gas_price.bytes[0]);
@@ -533,11 +518,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 
 	/* Stage 2: Store header fields */
 	hash_rlp_list_length(rlp_length);
-#if 0 /*remove before release*/
-	layoutProgress("Signing", 100);
-#else
-    layout_simple_message("Stubbed: ethereum_signing_init(). 2..");
-#endif
+	animating_progress_handler();
 
 	hash_rlp_field(msg->nonce.bytes, msg->nonce.size);
 	hash_rlp_field(msg->gas_price.bytes, msg->gas_price.size);
