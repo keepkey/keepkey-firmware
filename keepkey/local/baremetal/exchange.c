@@ -124,18 +124,14 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
             EthereumAddress_address_t ethereum_addr;
 
             ethereum_addr.size = 20;
-
-            if(hdnode_get_ethereum_pubkeyhash(&node, ethereum_addr.bytes) == 0)
+            if(hdnode_get_ethereum_pubkeyhash(&node, ethereum_addr.bytes) != 0)
             {
-                goto verify_exchange_address_exit;
+                data2hex((char *)ethereum_addr.bytes, 20, tx_out_address);
+                if(strncasecmp(tx_out_address, address_str, sizeof(tx_out_address)) == 0)
+                {
+                    ret_stat = true;
+                }
             }
-
-            data2hex((char *)ethereum_addr.bytes, 20, tx_out_address);
-            if(strncasecmp(tx_out_address, address_str, sizeof(tx_out_address)) == 0)
-            {
-                ret_stat = true;
-            }
-
         }
         else
         {
