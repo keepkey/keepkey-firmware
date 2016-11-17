@@ -240,14 +240,22 @@ static bool verify_exchange_dep_amount(const char *coin, void *dep_amt_ptr, Exch
     }
     else
     {
-
         memcpy (amt_str, dep_amt_ptr, sizeof(uint64_t));
+        if(exch_dep_amt->size <= sizeof(uint64_t))
+        {
+            rev_byte_order(exch_dep_amt->bytes, exch_dep_amt->size);
+        }
+        else
+        {
+            goto verify_exchange_dep_amount_exit;
+        }
     }
 
     if(memcmp(amt_str, exch_dep_amt->bytes, sizeof(amt_str)) == 0)
     {
         ret_stat = true;
     }
+verify_exchange_dep_amount_exit:
     return(ret_stat);
 }
 
@@ -289,7 +297,6 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
         tx_out_amount = (void *)&tx_out->amount;
     }
 
-    goto sig_skip;
     /* verify Exchange signature */
     memset(response_raw, 0, sizeof(response_raw));
     response_raw_filled_len = encode_pb(
@@ -314,7 +321,6 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
         goto verify_exchange_contract_exit;
     }
 
-sig_skip:
     /* verify Exchange API-Key */
     if(memcmp(ShapeShift_api_key, exchange->signed_exchange_response.response.api_key.bytes, 
                 sizeof(ShapeShift_api_key)) != 0)

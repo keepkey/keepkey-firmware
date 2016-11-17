@@ -23,6 +23,7 @@
 /* === Includes ============================================================ */
 
 #include <stdint.h>
+#include <stdio.h>
 
 /* === Functions =========================================================== */
 
@@ -34,5 +35,6 @@ void data2hex(const void *data, uint32_t len, char *str);
 
 // read protobuf integer and advance pointer
 uint32_t readprotobufint(uint8_t **ptr);
+void rev_byte_order(uint8_t *bfr, size_t len);
 
 #endif
