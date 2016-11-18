@@ -81,9 +81,13 @@ static bool exchange_tx_layout_str(const CoinType *coint, uint8_t *amt, size_t a
     }
     else
     {
-        memcpy(&amount64, amt, sizeof(uint64_t));
-        coin_amnt_to_str(coint, amount64, out, out_len);
-        ret_stat = true;
+        if(amt_len <= sizeof(uint64_t))
+        {
+            rev_byte_order(amt, amt_len);
+            memcpy(&amount64, amt, sizeof(uint64_t));
+            coin_amnt_to_str(coint, amount64, out, out_len);
+            ret_stat = true;
+        }
     }
     return(ret_stat);
 }
@@ -283,10 +287,10 @@ static bool verify_exchange_dep_amount(const char *coin, void *dep_amt_ptr, Exch
     }
     else
     {
-        memcpy (amt_str, dep_amt_ptr, sizeof(uint64_t));
-        if(exch_dep_amt->size <= sizeof(uint64_t))
+        if(strlen(dep_amt_ptr) <= sizeof(uint64_t))
         {
-            rev_byte_order(exch_dep_amt->bytes, exch_dep_amt->size);
+            memcpy (amt_str, dep_amt_ptr, sizeof(uint64_t));
+            rev_byte_order((uint8_t *)amt_str, strlen(amt_str));
         }
         else
         {
