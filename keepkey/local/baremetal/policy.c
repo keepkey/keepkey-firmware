@@ -60,7 +60,6 @@ int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vi
         /* Bitcoin & Altcoins */
         if(vout == NULL)
         {
-            /* vout is not set */
             goto run_policy_compile_output_exit;
         }
         addr_type = ((TxOutputType *)vin)->address_type;
@@ -89,7 +88,6 @@ int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vi
 
     if(check_ethereum_tx(coin->coin_name))
     {
-        /* pass through for none exchange Ethereum transaction*/
         ret_result = TXOUT_OK;          
     }
     else

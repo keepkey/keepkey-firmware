@@ -88,6 +88,39 @@ static bool exchange_tx_layout_str(const CoinType *coint, uint8_t *amt, size_t a
     return(ret_stat);
 }
 
+/* 
+ * verify_dep_exchange_address - verify deposit address specified in exchange contract 
+ *
+ * INPUT
+ *      deposit_addr -  pointer to deposit address 
+ *      deposit_response_addr - pointer to deposit address in exchange response 
+ * 
+ * OUTPUT
+ *      true/false - status
+ * 
+ */
+bool verify_dep_exchange_address(char *deposit_addr, char *deposit_response_addr)
+{
+    bool ret_stat = false;
+    if(deposit_response_addr[0] == '0' && (deposit_response_addr[1] == 'x'|| deposit_response_addr[1] == 'X'))
+    {
+        if(strncasecmp(deposit_addr, deposit_response_addr + 2, 
+                    sizeof(((ExchangeAddress *)NULL)->address) -2) == 0)
+        {
+            ret_stat = true;
+        }
+    }
+    else
+    {
+        if(strncasecmp(deposit_addr, deposit_response_addr, 
+                    sizeof(((ExchangeAddress *)NULL)->address)) == 0)
+        {
+            ret_stat = true;
+        }
+    }
+    return(ret_stat);
+}
+
 /*
  * verify_exchange_address - verify address specified in exchange contract belongs to device.
  *
@@ -120,16 +153,26 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
 
         if(check_ethereum_tx(coin->coin_name))
         {
-            char tx_out_address[42];
+            char tx_out_address[sizeof(((ExchangeAddress *)NULL)->address)];
             EthereumAddress_address_t ethereum_addr;
 
             ethereum_addr.size = 20;
             if(hdnode_get_ethereum_pubkeyhash(&node, ethereum_addr.bytes) != 0)
             {
                 data2hex((char *)ethereum_addr.bytes, 20, tx_out_address);
-                if(strncasecmp(tx_out_address, address_str, sizeof(tx_out_address)) == 0)
+                if(address_str[0] == '0' && (address_str[1] == 'x' || address_str[1] == 'X'))
                 {
-                    ret_stat = true;
+                    if(strncasecmp(tx_out_address, address_str+2, sizeof(tx_out_address)-2) == 0)
+                    {
+                        ret_stat = true;
+                    }
+                }
+                else
+                {
+                    if(strncasecmp(tx_out_address, address_str, sizeof(tx_out_address)) == 0)
+                    {
+                        ret_stat = true;
+                    }
                 }
             }
         }
@@ -275,7 +318,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     uint8_t response_raw[sizeof(ExchangeResponse)];
     const CoinType *response_coin;
 
-    char tx_out_address[42];
+    char tx_out_address[sizeof(((ExchangeAddress *)NULL)->address)];
     void *tx_out_amount;
     ExchangeType *exchange;
 
@@ -338,9 +381,8 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
         goto verify_exchange_contract_exit;
     }
     /* verify Deposit address */
-    if(strncasecmp(tx_out_address, 
-               exchange->signed_exchange_response.response.deposit_address.address, 
-               sizeof(tx_out_address)) != 0)
+    if(!verify_dep_exchange_address(tx_out_address, 
+               exchange->signed_exchange_response.response.deposit_address.address))
     {
         set_exchange_error(ERROR_EXCHANGE_DEPOSIT_ADDRESS);
         goto verify_exchange_contract_exit;

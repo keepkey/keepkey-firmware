@@ -238,7 +238,7 @@ process_ethereum_xfer_exit:
     return(ret_val);
 }
 
-static int process_ethereum_msg(EthereumSignTx *msg, bool *conf_ptr)
+static int process_ethereum_msg(EthereumSignTx *msg, bool *confirm_ptr)
 {
     int ret_result = TXOUT_COMPILE_ERROR;
     const CoinType *coin = fsm_getCoin(ETHEREUM);
@@ -256,14 +256,14 @@ static int process_ethereum_msg(EthereumSignTx *msg, bool *conf_ptr)
                 {
                     memset((void *)root_node, 0, sizeof(HDNode));
                 }
-                *conf_ptr = false;
+                *confirm_ptr = false;
                 break;
             }
             case OutputAddressType_TRANSFER:
             {
                 /*prep transfer type transaction*/
                 ret_result = process_ethereum_xfer(coin, msg);
-                *conf_ptr = false;
+                *confirm_ptr = false;
                 break;
             }
             default:
