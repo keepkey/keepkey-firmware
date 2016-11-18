@@ -101,7 +101,7 @@ void send_fsm_co_error_message(int co_error)
         }
         case(TXOUT_CANCEL):
         {
-            fsm_sendFailure(FailureType_Failure_Other, "Signing cancelled by user");
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Transaction cancelled");
             break;
         }
         case (TXOUT_EXCHANGE_CONTRACT_ERROR):
@@ -156,6 +156,11 @@ void send_fsm_co_error_message(int co_error)
                 case ERROR_EXCHANGE_API_KEY:
                 {
                     fsm_sendFailure(FailureType_Failure_Other, "Exchange api key error");
+                    break;
+                }
+                case ERROR_EXCHANGE_CANCEL:
+                {
+                    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Exchange transaction cancelled");
                     break;
                 }
                 default:
