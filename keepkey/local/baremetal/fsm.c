@@ -252,7 +252,7 @@ static int process_ethereum_msg(EthereumSignTx *msg, bool *confirm_ptr)
                 /*prep for exchange type transaction*/
                 HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0); /* root node */
                 ret_result = run_policy_compile_output(coin, root_node, (void *)msg, (void *)NULL, true);
-                if(ret_result <= TXOUT_COMPILE_ERROR) 
+                if(ret_result < TXOUT_OK) 
                 {
                     memset((void *)root_node, 0, sizeof(HDNode));
                 }

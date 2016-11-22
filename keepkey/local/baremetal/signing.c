@@ -163,6 +163,11 @@ void send_fsm_co_error_message(int co_error)
                     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Exchange transaction cancelled");
                     break;
                 }
+                case ERROR_EXCHANGE_SIGN_RESPONSE:
+                {
+                    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Exchange Sign Response error");
+                    break;
+                }
                 default:
                 case NO_EXCHANGE_ERROR:
                 {

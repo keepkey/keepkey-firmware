@@ -275,7 +275,7 @@ bool verify_exchange_coin(const char *coin1, const char *coin2, uint32_t len)
  *      true/false - success/failure
  *
  */
-static bool verify_exchange_dep_amount(const char *coin, void *dep_amt_ptr, ExchangeResponse_deposit_amount_t *exch_dep_amt)
+static bool verify_exchange_dep_amount(const char *coin, void *dep_amt_ptr, ExchangeResponseV2_deposit_amount_t *exch_dep_amt)
 {
     bool ret_stat = false;
     char amt_str[sizeof(exch_dep_amt->bytes)];
@@ -332,6 +332,12 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     {
         EthereumSignTx *tx_out = (EthereumSignTx *)vtx_out;
         exchange = &tx_out->exchange_type;
+        if(exchange->signed_exchange_response.has_response)
+        {
+            /*Incorrect response is loaded (Should be ExchangeResponseV2) */
+            set_exchange_error(ERROR_EXCHANGE_SIGN_RESPONSE);
+            goto verify_exchange_contract_exit;
+        }
         data2hex(tx_out->to.bytes, tx_out->to.size, tx_out_address);
         tx_out_amount = (void *)tx_out->value.bytes;
 
@@ -347,7 +353,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     /* verify Exchange signature */
     memset(response_raw, 0, sizeof(response_raw));
     response_raw_filled_len = encode_pb(
-                                (const void *)&exchange->signed_exchange_response.response, 
+                                (const void *)&exchange->signed_exchange_response.responseV2, 
                                 ExchangeResponse_fields,
                                 response_raw, 
                                 sizeof(response_raw));
@@ -369,7 +375,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     }
 
     /* verify Exchange API-Key */
-    if(memcmp(ShapeShift_api_key, exchange->signed_exchange_response.response.api_key.bytes, 
+    if(memcmp(ShapeShift_api_key, exchange->signed_exchange_response.responseV2.api_key.bytes, 
                 sizeof(ShapeShift_api_key)) != 0)
     {
         set_exchange_error(ERROR_EXCHANGE_API_KEY);
@@ -378,7 +384,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
 
     /* verify Deposit coin type */
     if(!verify_exchange_coin(coin->coin_name,
-                         exchange->signed_exchange_response.response.deposit_address.coin_type,
+                         exchange->signed_exchange_response.responseV2.deposit_address.coin_type,
                          sizeof(coin->coin_name)))
     {
         set_exchange_error(ERROR_EXCHANGE_DEPOSIT_COINTYPE);
@@ -386,7 +392,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     }
     /* verify Deposit address */
     if(!verify_dep_exchange_address(tx_out_address, 
-               exchange->signed_exchange_response.response.deposit_address.address))
+               exchange->signed_exchange_response.responseV2.deposit_address.address))
     {
         set_exchange_error(ERROR_EXCHANGE_DEPOSIT_ADDRESS);
         goto verify_exchange_contract_exit;
@@ -394,7 +400,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
 
     /* verify Deposit amount*/
     if(!verify_exchange_dep_amount(coin->coin_name, 
-                tx_out_amount, &exchange->signed_exchange_response.response.deposit_amount))
+                tx_out_amount, &exchange->signed_exchange_response.responseV2.deposit_amount))
     {
         set_exchange_error(ERROR_EXCHANGE_DEPOSIT_AMOUNT);
         goto verify_exchange_contract_exit;
@@ -402,7 +408,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
 
     /* verify Withdrawal coin type */
     if(!verify_exchange_coin(exchange->withdrawal_coin_name,
-             exchange->signed_exchange_response.response.withdrawal_address.coin_type,
+             exchange->signed_exchange_response.responseV2.withdrawal_address.coin_type,
              sizeof(exchange->withdrawal_coin_name)))
     {
         set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_COINTYPE);
@@ -413,7 +419,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     if(!verify_exchange_address( exchange->withdrawal_coin_name,
              exchange->withdrawal_address_n_count,
              exchange->withdrawal_address_n,
-             exchange->signed_exchange_response.response.withdrawal_address.address, root))
+             exchange->signed_exchange_response.responseV2.withdrawal_address.address, root))
     {
         set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_ADDRESS);
         goto verify_exchange_contract_exit;
@@ -421,18 +427,18 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
 
     /* verify Return coin type */
     if(!verify_exchange_coin(coin->coin_name,
-             exchange->signed_exchange_response.response.return_address.coin_type,
+             exchange->signed_exchange_response.responseV2.return_address.coin_type,
              sizeof(coin->coin_name)))
     {
         set_exchange_error(ERROR_EXCHANGE_RETURN_COINTYPE);
         goto verify_exchange_contract_exit;
     }
     /* verify Return address */
-    response_coin = get_response_coin(exchange->signed_exchange_response.response.return_address.coin_type);
+    response_coin = get_response_coin(exchange->signed_exchange_response.responseV2.return_address.coin_type);
     if(!verify_exchange_address( (char *)response_coin->coin_name,
              exchange->return_address_n_count,
              exchange->return_address_n,
-             exchange->signed_exchange_response.response.return_address.address, root))
+             exchange->signed_exchange_response.responseV2.return_address.address, root))
     {
         set_exchange_error(ERROR_EXCHANGE_RETURN_ADDRESS);
     }
@@ -509,8 +515,8 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
 
             /* assemble deposit amount for display*/
             if(!exchange_tx_layout_str(deposit_coin, 
-                        tx_exchange->signed_exchange_response.response.deposit_amount.bytes,
-                        tx_exchange->signed_exchange_response.response.deposit_amount.size,
+                        tx_exchange->signed_exchange_response.responseV2.deposit_amount.bytes,
+                        tx_exchange->signed_exchange_response.responseV2.deposit_amount.size,
                         amount_dep_str,
                         sizeof(amount_dep_str)))
             {
@@ -520,8 +526,8 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
 
             /* assemble withdrawal amount for display*/
             if(!exchange_tx_layout_str(withdrawal_coin, 
-                        tx_exchange->signed_exchange_response.response.withdrawal_amount.bytes,
-                        tx_exchange->signed_exchange_response.response.withdrawal_amount.size,
+                        tx_exchange->signed_exchange_response.responseV2.withdrawal_amount.bytes,
+                        tx_exchange->signed_exchange_response.responseV2.withdrawal_amount.size,
                         amount_wit_str,
                         sizeof(amount_wit_str)))
              {
