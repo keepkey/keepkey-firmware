@@ -11,4 +11,7 @@ ExchangeResponseV2.miner_fee                      max_size:32
 ExchangeResponseV2.api_key                        max_size:64
 ExchangeResponseV2.order_id                       max_size:18
 
+ExchangeResponse.api_key                        max_size:64
+ExchangeResponse.order_id                       max_size:18
+
 SignedExchangeResponse.signature                max_size:65
