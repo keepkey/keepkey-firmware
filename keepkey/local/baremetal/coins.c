@@ -23,6 +23,7 @@
 #include <stdio.h>
 
 #include "coins.h"
+#include <util.h>
 
 /* === Variables =========================================================== */
 
@@ -131,48 +132,68 @@ const CoinType *coinByAddressType(uint8_t address_type)
 
 /* === Functions =========================================================== */
 
+/*
+ * coin_amnt_to_str() - convert decimal coin amount to string for display 
+ *
+ * INPUT -
+ *      - coin: coin to use to determine bip44 path
+ *      - amnt - coing amount in decimal 
+ *      - *buf - output buffer for coin amount in string
+ *      - len - length of buffer
+ * OUTPUT -
+ *     none
+ *
+ */
 void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len)
 {
-    memset(buf, 0, len);
-    uint64_t a = amnt, b = 1;
+    uint64_t coin_fraction_part, coin_whole_part;
     int i;
+    char buf_fract[10];
 
-    for(i = 0; i < 8; i++)
+    memset(buf, 0, len);
+    memset(buf_fract, 0, 10);
+
+    /*Seperate amount to whole and fraction (amount = whole.fraction)*/
+    coin_whole_part = amnt / COIN_FRACTION ;
+    coin_fraction_part = amnt % COIN_FRACTION;
+
+    /* Convert whole value to string */
+    if(coin_whole_part != 0)
     {
-        buf[16 - i] = '0' + (a / b) % 10;
-        b *= 10;
-    }
-
-    buf[8] = '.';
-
-    for(i = 0; i < 8; i++)
-    {
-        buf[7 - i] = '0' + (a / b) % 10;
-        b *= 10;
-    }
-
-    i = 17;
-
-    while(i > 10 && buf[i - 1] == '0')  // drop trailing zeroes
-    {
-        i--;
-    }
-
-    if(coin->has_coin_shortcut)
-    {
-        buf[i] = ' ';
-        strlcpy(buf + i + 1, coin->coin_shortcut, len - i - 1);
+        dec64_to_str(coin_whole_part, buf);
+        buf[strlen(buf)] = '.';
     }
     else
     {
-        buf[i] = 0;
+        strncpy(buf, "0.", 2);
     }
 
-    while(buf[0] == '0' && buf[1] != '.')  // drop leading zeroes
-    {
-        i = 0;
+    /* Convert Fraction value to string */
+    dec64_to_str(coin_fraction_part, buf_fract);
 
-        while((buf[i] = buf[i + 1])) { i++; }
+    /* Add zeros after decimal */
+    i = 8 - strlen(buf_fract);
+    while(i)
+    {
+        buf[strlen(buf)+i-1] = '0';
+        i--;
+    }
+    /*concantenate whole and fraction part of string */
+    strncpy(buf+strlen(buf), buf_fract, strlen(buf_fract));
+
+    /* Drop least significant zeros in fraction part to shorten display*/
+    i = strlen(buf); 
+    while(buf[i-1] == '0')
+    {
+        buf[i-1] = 0;
+        i--;
+    }
+
+    /* Added coin type to amount */
+    if(coin->has_coin_shortcut)
+    {
+        buf[strlen(buf)] = ' ';
+        strncpy(buf + strlen(buf), coin->coin_shortcut, strlen(coin->coin_shortcut));
     }
 }
 

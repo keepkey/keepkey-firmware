@@ -32,6 +32,7 @@
 #define COINS_COUNT        (int)(sizeof(((Features *)NULL)->coins)/sizeof(CoinType))
 #define NODE_STRING_LENGTH  50
 
+#define COIN_FRACTION 100000000
 /* === Variables =========================================================== */
 
 extern const CoinType coins[COINS_COUNT];
