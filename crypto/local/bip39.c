@@ -227,7 +227,7 @@ void mnemonic_to_seed(const char *mnemonic, const char *passphrase, uint8_t seed
 		progress_callback(1,1);
 	}
 	for (int i = 0; i < 16; i++) {
-		pbkdf2_hmac_sha512_Update(&pctx, BIP39_PBKDF2_ROUNDS / 16);
+		pbkdf2_hmac_sha512_Update(&pctx, BIP39_PBKDF2_ROUNDS / 16, progress_callback);
 		if (progress_callback) {
 		    progress_callback(40, 1);
 		}

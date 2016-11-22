@@ -115,13 +115,17 @@ void pbkdf2_hmac_sha512_Init(PBKDF2_HMAC_SHA512_CTX *pctx, const uint8_t *pass, 
 	pctx->first = 1;
 }
 
-void pbkdf2_hmac_sha512_Update(PBKDF2_HMAC_SHA512_CTX *pctx, uint32_t iterations)
+void pbkdf2_hmac_sha512_Update(PBKDF2_HMAC_SHA512_CTX *pctx, uint32_t iterations,
+                               void (*progress_callback)(uint32_t current, uint32_t total))
 {
 	for (uint32_t i = pctx->first; i < iterations; i++) {
 		sha512_Transform(pctx->idig, pctx->g, pctx->g);
 		sha512_Transform(pctx->odig, pctx->g, pctx->g);
 		for (uint32_t j = 0; j < SHA512_DIGEST_LENGTH / sizeof(uint64_t); j++) {
 			pctx->f[j] ^= pctx->g[j];
+			if (progress_callback) {
+				progress_callback(j + 1, iterations);
+			}
 		}
 	}
 	pctx->first = 0;
@@ -138,10 +142,12 @@ void pbkdf2_hmac_sha512_Final(PBKDF2_HMAC_SHA512_CTX *pctx, uint8_t *key)
 	MEMSET_BZERO(pctx, sizeof(PBKDF2_HMAC_SHA512_CTX));
 }
 
-void pbkdf2_hmac_sha512(const uint8_t *pass, int passlen, const uint8_t *salt, int saltlen, uint32_t iterations, uint8_t *key)
+void pbkdf2_hmac_sha512(const uint8_t *pass, int passlen, const uint8_t *salt,
+                        int saltlen, uint32_t iterations, uint8_t *key,
+                        void (*progress_callback)(uint32_t current, uint32_t total))
 {
 	PBKDF2_HMAC_SHA512_CTX pctx;
 	pbkdf2_hmac_sha512_Init(&pctx, pass, passlen, salt, saltlen);
-	pbkdf2_hmac_sha512_Update(&pctx, iterations);
+	pbkdf2_hmac_sha512_Update(&pctx, iterations, progress_callback);
 	pbkdf2_hmac_sha512_Final(&pctx, key);
 }
