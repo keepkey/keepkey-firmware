@@ -449,7 +449,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
             if(strlen(confirm_body_message) > 0)
             {
                 if(!confirm(ButtonRequestType_ButtonRequest_SignTx, 
-                           "Ethereum Transaction", "Do you want to send %s",confirm_body_message))
+                           "Transaction", "Do you want to send %s",confirm_body_message))
                 {
                     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
                     ethereum_signing_abort();
@@ -471,7 +471,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
                 if(strlen(confirm_body_message) > 0)
                 {
                     if(!confirm(ButtonRequestType_ButtonRequest_SignTx, 
-                       "Ethereum Transaction Data", "Confirm data : %s", confirm_body_message))
+                       "Transaction", "Confirm data : %s", confirm_body_message))
                     {
                         fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
 			ethereum_signing_abort();
