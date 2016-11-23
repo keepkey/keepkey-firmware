@@ -131,7 +131,7 @@ bool confirm_decrypt_msg(const char *msg, const char *address)
  * INPUT -
  *      - exchange: name of exchange
  *      - dep_amt: source amount to convert
- *      - wit_amt: destination amount to received 
+ *      - wit_amt: destination amount to received
  *      - address: destination
  * OUTPUT -
  *     true/false of confirmation
@@ -140,9 +140,9 @@ bool confirm_decrypt_msg(const char *msg, const char *address)
 bool confirm_exchange_output(const char *exchange, const char *dep_amt,
                              const char *wit_amt, const char *address)
 {
-    return confirm_with_custom_layout(&layout_notification_no_title,
+    return confirm_with_custom_layout(&layout_notification_no_title_bold,
                                       ButtonRequestType_ButtonRequest_SignExchange,
-                                      "", 
+                                      "",
                                       "Convert %s to\n%s with %s and send to %s",
                                       dep_amt, wit_amt, exchange, address);
 }
@@ -158,11 +158,12 @@ bool confirm_exchange_output(const char *exchange, const char *dep_amt,
  *     true/false of confirmation
  *
  */
-bool confirm_transfer_output(ButtonRequestType button_request, const char *amount, const char *to)
+bool confirm_transfer_output(ButtonRequestType button_request, const char *amount,
+                             const char *to)
 {
-    return confirm_with_custom_layout(&layout_notification_no_title,
-                                       button_request,
-                                      "", 
+    return confirm_with_custom_layout(&layout_notification_no_title_bold,
+                                      button_request,
+                                      "",
                                       "Transfer %s to\n%s", amount, to);
 }
 
@@ -177,12 +178,33 @@ bool confirm_transfer_output(ButtonRequestType button_request, const char *amoun
  *     true/false of confirmation
  *
  */
-bool confirm_transaction_output(ButtonRequestType button_request, const char *amount, const char *to)
+bool confirm_transaction_output(ButtonRequestType button_request, const char *amount,
+                                const char *to)
 {
-    return confirm_with_custom_layout(&layout_notification_no_title,
-                                       button_request,
-                                       "",
-                                       "Send %s to\n%s", amount, to);
+    return confirm_with_custom_layout(&layout_notification_no_title_bold,
+                                      button_request,
+                                      "",
+                                      "Send %s to\n%s", amount, to);
+}
+
+/*
+ * confirm_transaction_output_no_bold() - Show transaction output confirmation without bold
+ *
+ * INPUT -
+ *      - button_request: button request type
+ *      - amount: amount to send
+ *      - to: who to send to
+ * OUTPUT -
+ *     true/false of confirmation
+ *
+ */
+bool confirm_transaction_output_no_bold(ButtonRequestType button_request,
+                                        const char *amount, const char *to)
+{
+    return confirm_with_custom_layout(&layout_notification_no_title_no_bold,
+            button_request,
+            "",
+            "Send %s to\n%s", amount, to);
 }
 
 /*

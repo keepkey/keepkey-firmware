@@ -40,6 +40,8 @@ bool confirm_exchange_output(const char *exchange, const char *from_amount,
                              const char *to_amount, const char *address);
 bool confirm_transfer_output(ButtonRequestType button_request, const char *amount, const char *to);
 bool confirm_transaction_output(ButtonRequestType button_request, const char *amount, const char *to);
+bool confirm_transaction_output_no_bold(ButtonRequestType button_request,
+                                        const char *amount, const char *to);
 bool confirm_transaction(const char *total_amount, const char *fee);
 bool confirm_load_device(bool is_node);
 bool confirm_address(const char *desc, const char *address);

@@ -1092,6 +1092,8 @@ void fsm_msgGetAddress(GetAddress *msg)
 
 void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 {
+    char address[43];
+
     RESP_INIT(EthereumAddress);
 
     if (!storage_is_initialized()) {
@@ -1114,10 +1116,9 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 
     if (msg->has_show_display && msg->show_display)
     {
-	char address[41];
-        data2hex(resp->address.bytes, 20, address);
+        format_ethereum_address(resp->address.bytes, address, sizeof(address));
 
-        if (!confirm_ethereum_address("", strlwr(address)))
+        if (!confirm_ethereum_address("", address))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
             go_home();

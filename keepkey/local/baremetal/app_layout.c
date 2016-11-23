@@ -365,7 +365,7 @@ void layout_screensaver(void)
  *     none
  */
 void layout_notification_no_title(const char *title, const char *body,
-                                  NotificationType type)
+                                  NotificationType type, bool bold)
 {
     (void)title;
     call_leaving_handler();
@@ -374,6 +374,10 @@ void layout_notification_no_title(const char *title, const char *body,
     Canvas *canvas = layout_get_canvas();
     DrawableParams sp;
     const Font *font = get_title_font();
+
+    if (!bold) {
+        font = get_body_font();
+    }
 
     /* Determine vertical alignment and body width */
     sp.y =  TOP_MARGIN_FOR_ONE_LINE;
@@ -384,6 +388,36 @@ void layout_notification_no_title(const char *title, const char *body,
     draw_string(canvas, font, body, &sp, NO_TITLE_WIDTH, font_height(font));
 
     layout_notification_icon(type, &sp);
+}
+
+/*
+ * layout_notification_no_title_bold() - Display notification without title in bold
+ *
+ * INPUT
+ *     - title
+ *     - body
+ * OUTPUT
+ *     none
+ */
+void layout_notification_no_title_bold(const char *title, const char *body,
+                                  NotificationType type)
+{
+    layout_notification_no_title(title, body, type, true);
+}
+
+/*
+ * layout_notification_no_title_no_bold() - Display notification without title without bold
+ *
+ * INPUT
+ *     - title
+ *     - body
+ * OUTPUT
+ *     none
+ */
+void layout_notification_no_title_no_bold(const char *title, const char *body,
+                                  NotificationType type)
+{
+    layout_notification_no_title(title, body, type, false);
 }
 
 /*
@@ -431,24 +465,21 @@ void layout_ethereum_address_notification(const char *desc, const char *address,
 {
     (void)desc;
     DrawableParams sp;
-    char address_disp[sizeof(((EthereumAddress *)NULL)->address.bytes) * 2 + 3] = {'0', 'x'};
     const Font *address_font = get_body_font();;
     Canvas *canvas = layout_get_canvas();
 
     call_leaving_handler();
     layout_clear();
 
-    strlcpy(&address_disp[2], address, sizeof(address_disp) - 2);
-
     /* Body */
     sp.y =  TOP_MARGIN_FOR_TWO_LINES + TOP_MARGIN;
     sp.x = LEFT_MARGIN + 65;
     sp.color = BODY_COLOR;
 
-    draw_string(canvas, address_font, address_disp, &sp, 140,
+    draw_string(canvas, address_font, address, &sp, 140,
                 font_height(address_font) + BODY_FONT_LINE_PADDING);
 
-    layout_address(address_disp, QR_LARGE);
+    layout_address(address, QR_LARGE);
     layout_notification_icon(type, &sp);
 }
 
