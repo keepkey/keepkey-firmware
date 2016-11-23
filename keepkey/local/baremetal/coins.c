@@ -158,7 +158,7 @@ void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len)
     coin_fraction_part = amnt % COIN_FRACTION;
 
     /* Convert whole value to string */
-    if(coin_whole_part != 0)
+    if(coin_whole_part > 0)
     {
         dec64_to_str(coin_whole_part, buf);
         buf[strlen(buf)] = '.';
@@ -169,26 +169,32 @@ void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len)
     }
 
     /* Convert Fraction value to string */
-    dec64_to_str(coin_fraction_part, buf_fract);
-
-    /* Add zeros after decimal */
-    i = 8 - strlen(buf_fract);
-    while(i)
+    if(coin_fraction_part > 0)
     {
-        buf[strlen(buf)+i-1] = '0';
-        i--;
-    }
-    /*concantenate whole and fraction part of string */
-    strncpy(buf+strlen(buf), buf_fract, strlen(buf_fract));
+        dec64_to_str(coin_fraction_part, buf_fract);
 
-    /* Drop least significant zeros in fraction part to shorten display*/
-    i = strlen(buf); 
-    while(buf[i-1] == '0')
+        /* Add zeros after decimal */
+        i = 8 - strlen(buf_fract);
+        while(i)
+        {
+            buf[strlen(buf)+i-1] = '0';
+            i--;
+        }
+        /*concantenate whole and fraction part of string */
+        strncpy(buf+strlen(buf), buf_fract, strlen(buf_fract));
+
+        /* Drop least significant zeros in fraction part to shorten display*/
+        i = strlen(buf); 
+        while(buf[i-1] == '0')
+        {
+            buf[i-1] = 0;
+            i--;
+        }
+    }
+    else
     {
-        buf[i-1] = 0;
-        i--;
+        buf[strlen(buf)] = '0';
     }
-
     /* Added coin type to amount */
     if(coin->has_coin_shortcut)
     {
