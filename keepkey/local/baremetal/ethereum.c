@@ -414,7 +414,7 @@ static void layoutEthereumFee(const uint8_t *value, uint32_t value_len,
         ethereumFormatAmount(&val, tx_value);
     }
 
-    if((uint32_t)snprintf(out_str, out_str_len, "Really send %s paying up to %s for gas?",
+    if((uint32_t)snprintf(out_str, out_str_len, "Do you want to send %s from your wallet? This includes up to %s for gas.",
                           tx_value, gas_value) >= out_str_len)
     {
         /*error detected.  Clear the buffer */
@@ -546,9 +546,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
         {
             if(!confirm_transaction_output_no_bold(ButtonRequestType_ButtonRequest_SignTx,
                                                    confirm_amount,
-                                                   strlwr(confirm_destination)))
-                // if(!confirm(ButtonRequestType_ButtonRequest_SignTx,
-                // "Transaction", "Do you want to send %s",confirm_body_message))
+                                                   confirm_destination))
             {
                 fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
                 ethereum_signing_abort();
@@ -596,7 +594,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 
     if(strlen(confirm_body_message) > 0)
     {
-        if(!confirm(ButtonRequestType_ButtonRequest_SignTx, "Ethereum Fee", "%s",
+        if(!confirm(ButtonRequestType_ButtonRequest_SignTx, "Transaction", "%s",
                     confirm_body_message))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
