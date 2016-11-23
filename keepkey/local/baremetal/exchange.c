@@ -319,7 +319,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
 {
     bool ret_stat = false;
     int response_raw_filled_len = 0; 
-    uint8_t response_raw[sizeof(ExchangeResponse)];
+    uint8_t response_raw[sizeof(ExchangeResponseV2)];
     const CoinType *response_coin;
 
     char tx_out_address[sizeof(((ExchangeAddress *)NULL)->address)];
@@ -332,12 +332,6 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     {
         EthereumSignTx *tx_out = (EthereumSignTx *)vtx_out;
         exchange = &tx_out->exchange_type;
-        if(exchange->signed_exchange_response.has_response)
-        {
-            /*Incorrect response is loaded (Should be ExchangeResponseV2) */
-            set_exchange_error(ERROR_EXCHANGE_SIGN_RESPONSE);
-            goto verify_exchange_contract_exit;
-        }
         data2hex(tx_out->to.bytes, tx_out->to.size, tx_out_address);
         tx_out_amount = (void *)tx_out->value.bytes;
 
@@ -354,7 +348,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     memset(response_raw, 0, sizeof(response_raw));
     response_raw_filled_len = encode_pb(
                                 (const void *)&exchange->signed_exchange_response.responseV2, 
-                                ExchangeResponse_fields,
+                                ExchangeResponseV2_fields,
                                 response_raw, 
                                 sizeof(response_raw));
 
