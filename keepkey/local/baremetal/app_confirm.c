@@ -256,7 +256,7 @@ bool confirm_xpub(const char *xpub)
 
 }
 /*
- * confirm_ether_address() - Show ethereum address confirmation
+ * confirm_ethereum_address() - Show ethereum address confirmation
  *
  * INPUT
  *      - desc: description to show with address
@@ -265,9 +265,9 @@ bool confirm_xpub(const char *xpub)
  *     true/false of confirmation
  *
  */
-bool confirm_ether_address(const char *desc, const char *address)
+bool confirm_ethereum_address(const char *desc, const char *address)
 {
-    return confirm_with_custom_layout(&layout_ether_address_notification,
+    return confirm_with_custom_layout(&layout_ethereum_address_notification,
                                       ButtonRequestType_ButtonRequest_Address, desc, address);
 }
 /*

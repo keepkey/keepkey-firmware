@@ -417,7 +417,7 @@ void layout_xpub_notification(const char *desc, const char *xpub,
 }
 
 /*
- * layout_ether_address_notification() - Display ethereum address notification
+ * layout_ethereum_address_notification() - Display ethereum address notification
  *
  * INPUT
  *     - desc: description of address being shown (normal or multisig)
@@ -426,33 +426,32 @@ void layout_xpub_notification(const char *desc, const char *xpub,
  * OUTPUT
  *      none
  */
-void layout_ether_address_notification(const char *desc, const char *address,
-                                 NotificationType type)
+void layout_ethereum_address_notification(const char *desc, const char *address,
+        NotificationType type)
 {
     (void)desc;
     DrawableParams sp;
-    char address_disp[sizeof(((EthereumAddress *)NULL)->address.bytes)*2+3] = {'0', 'x'};
-    const Font *address_font = get_title_font();
+    char address_disp[sizeof(((EthereumAddress *)NULL)->address.bytes) * 2 + 3] = {'0', 'x'};
+    const Font *address_font = get_body_font();;
     Canvas *canvas = layout_get_canvas();
 
     call_leaving_handler();
     layout_clear();
 
-    strlcpy (&address_disp[2], address, sizeof(address_disp)-2);
+    strlcpy(&address_disp[2], address, sizeof(address_disp) - 2);
+
     /* Body */
-    sp.y = TOP_MARGIN;
-    sp.y += font_height(address_font) + TOP_MARGIN_FOR_TWO_LINES;
-    sp.x = LEFT_MARGIN + 55;
+    sp.y =  TOP_MARGIN_FOR_TWO_LINES + TOP_MARGIN;
+    sp.x = LEFT_MARGIN + 65;
     sp.color = BODY_COLOR;
 
-    draw_string(canvas, address_font, address_disp, &sp, 150,
+    draw_string(canvas, address_font, address_disp, &sp, 140,
                 font_height(address_font) + BODY_FONT_LINE_PADDING);
 
-    /*show QR*/
-    layout_address(address_disp);
-    /*show bitcoin address */
+    layout_address(address_disp, QR_LARGE);
     layout_notification_icon(type, &sp);
 }
+
 /*
  * layout_address_notification() - Display address notification
  *
@@ -499,9 +498,7 @@ void layout_address_notification(const char *desc, const char *address,
                     font_height(address_font) + BODY_FONT_LINE_PADDING);
     }
 
-    /*show QR*/
-    layout_address(address);
-    /*show bitcoin address */
+    layout_address(address, QR_SMALL);
     layout_notification_icon(type, &sp);
 }
 
@@ -578,27 +575,28 @@ void layout_cipher(const char *current_word, const char *cipher)
  * OUTPUT
  *     none
  */
-void layout_address(const char *address)
+void layout_address(const char *address, QRSize qr_size)
 {
     static unsigned char bitdata[QR_MAX_BITDATA];
     Canvas *canvas = layout_get_canvas();
 
-    int a, i, j, side;
+    int a, i, j, side, y_pos = QR_DISPLAY_Y;
 
-    if(strlen(address) <= BTC_ADDRESS_SIZE)
+    if(qr_size == QR_SMALL)
     {
         side = qr_encode(QR_LEVEL_M, 0, address, 0, bitdata);
     }
     else
     {
         side = qr_encode(QR_LEVEL_M, 8, address, 0, bitdata);
+        y_pos -= 4;
     }
 
     /* Limit QR to version 1-9 (QR size <= 53) */
     if(side > 0 && side <= 53)
     {
         /* Draw QR background */
-        draw_box_simple(canvas, 0xFF, QR_DISPLAY_X, QR_DISPLAY_Y,
+        draw_box_simple(canvas, 0xFF, QR_DISPLAY_X, y_pos,
                         (side + 2) * QR_DISPLAY_SCALE, (side + 2) * QR_DISPLAY_SCALE);
 
         /* Fill in QR */
@@ -612,7 +610,7 @@ void layout_address(const char *address)
                 {
                     draw_box_simple(canvas, 0x00,
                                     QR_DISPLAY_SCALE + (i + QR_DISPLAY_X) * QR_DISPLAY_SCALE,
-                                    QR_DISPLAY_SCALE + (j + QR_DISPLAY_Y) * QR_DISPLAY_SCALE,
+                                    QR_DISPLAY_SCALE + (j + y_pos) * QR_DISPLAY_SCALE,
                                     QR_DISPLAY_SCALE, QR_DISPLAY_SCALE);
                 }
             }

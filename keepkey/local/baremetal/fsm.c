@@ -1117,7 +1117,7 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 	char address[41];
         data2hex(resp->address.bytes, 20, address);
 
-        if (!confirm_ether_address("", address))
+        if (!confirm_ethereum_address("", strlwr(address)))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
             go_home();
