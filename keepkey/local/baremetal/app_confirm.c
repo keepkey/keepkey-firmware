@@ -165,6 +165,7 @@ bool confirm_transfer_output(ButtonRequestType button_request, const char *amoun
                                       "", 
                                       "Transfer %s to\n%s", amount, to);
 }
+
 /*
  * confirm_transaction_output() - Show transaction output confirmation
  *
