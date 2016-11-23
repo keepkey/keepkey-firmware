@@ -283,14 +283,14 @@ static bool verify_exchange_dep_amount(const char *coin, void *dep_amt_ptr, Exch
     memset(amt_str, 0, sizeof(amt_str));
     if(check_ethereum_tx(coin))
     {
-        memcpy (amt_str, dep_amt_ptr, sizeof(amt_str));
+        memcpy (amt_str, exch_dep_amt->bytes, exch_dep_amt->size);
     }
     else
     {
-        if(strlen(dep_amt_ptr) <= sizeof(uint64_t))
+        if(exch_dep_amt->size <= sizeof(uint64_t))
         {
-            memcpy (amt_str, dep_amt_ptr, sizeof(uint64_t));
-            rev_byte_order((uint8_t *)amt_str, strlen(amt_str));
+            memcpy (amt_str, exch_dep_amt->bytes, exch_dep_amt->size);
+            rev_byte_order((uint8_t *)amt_str, exch_dep_amt->size);
         }
         else
         {
@@ -298,7 +298,7 @@ static bool verify_exchange_dep_amount(const char *coin, void *dep_amt_ptr, Exch
         }
     }
 
-    if(memcmp(amt_str, exch_dep_amt->bytes, sizeof(amt_str)) == 0)
+    if(memcmp(amt_str, dep_amt_ptr, exch_dep_amt->size) == 0)
     {
         ret_stat = true;
     }
