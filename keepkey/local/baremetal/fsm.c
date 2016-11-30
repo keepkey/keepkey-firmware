@@ -59,7 +59,7 @@
 
 /* === Private Variables =================================================== */
 
-static uint8_t msg_resp[MAX_FRAME_SIZE];
+static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
 
 static const MessagesMap_t MessagesMap[] =
 {
