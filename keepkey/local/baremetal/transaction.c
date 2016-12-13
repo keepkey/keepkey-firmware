@@ -22,17 +22,17 @@
 #include <string.h>
 #include <stdio.h>
 
-#include <ecdsa.h>
-#include <ripemd160.h>
-#include <base58.h>
 #include <interface.h>
 #include <layout.h>
 #include <confirm_sm.h>
 
 #include "transaction.h"
+#include "ecdsa.h"
 #include "coins.h"
 #include "util.h"
 #include "crypto.h"
+#include "ripemd160.h"
+#include "base58.h"
 #include "app_confirm.h"
 
 /* === Functions =========================================================== */
@@ -67,7 +67,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 	out->amount = in->amount;
 	uint8_t addr_raw[21];
 	char amount_str[32];
-	char node_str[40];
+	char node_str[NODE_STRING_LENGTH];
 	ButtonRequestType button_request;
 
 	if (in->script_type == OutputScriptType_PAYTOADDRESS) {
@@ -94,15 +94,13 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 				}
 			}
 			HDNode node;
-    		        memcpy(&node, root, sizeof(HDNode));
+			memcpy(&node, root, sizeof(HDNode));
 
 			if (hdnode_private_ckd_cached(&node, in->address_n, in->address_n_count) == 0) 
 			{
 				return TXOUT_COMPILE_ERROR;
 			}
-
-			ecdsa_get_address_raw(node.public_key, coin->address_type, addr_raw);
-
+			hdnode_get_address_raw(&node, coin->address_type, addr_raw);
 		} else
 		if (in->has_address) { // address provided -> regular output
 			if (needs_confirm) {
@@ -260,7 +258,7 @@ uint32_t compile_script_multisig_hash(const MultisigRedeemScriptType *multisig, 
 	d[1] = 0xAE;
 	sha256_Update(&ctx, d, 2);
 
-	sha256_Final(hash, &ctx);
+	sha256_Final(&ctx, hash);
 
 	return 1;
 }
@@ -462,7 +460,7 @@ void tx_init(TxStruct *tx, uint32_t inputs_len, uint32_t outputs_len, uint32_t v
 
 void tx_hash_final(TxStruct *t, uint8_t *hash, bool reverse)
 {
-	sha256_Final(hash, &(t->ctx));
+	sha256_Final(&(t->ctx), hash);
 	sha256_Raw(hash, 32, hash);
 	if (!reverse) return;
 	uint8_t i, k;

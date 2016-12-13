@@ -35,6 +35,6 @@ extern const PolicyType policies[POLICY_COUNT];
 
 /* === Functions =========================================================== */
 
-int run_policy_compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, TxOutputBinType *out, bool needs_confirm);
+int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vin, void *vout, bool needs_confirm);
 
 #endif

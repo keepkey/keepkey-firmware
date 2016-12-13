@@ -2,6 +2,7 @@
  * Copyright (c) 2013-2014 Tomas Dzetkulic
  * Copyright (c) 2013-2014 Pavol Rusnak
  * Copyright (c)      2015 Jochen Hoenicke
+ * Copyright (c)      2016 Alex Beregszaszi
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the "Software"),
@@ -69,6 +70,24 @@ inline void write_be(uint8_t *data, uint32_t x)
 	data[3] = x;
 }
 
+#ifdef DEBUG_ON  /* Disabled - Not used */
+inline uint32_t read_le(const uint8_t *data)
+{
+	return (((uint32_t)data[3]) << 24) |
+	       (((uint32_t)data[2]) << 16) |
+	       (((uint32_t)data[1]) << 8)  |
+	       (((uint32_t)data[0]));
+}
+
+inline void write_le(uint8_t *data, uint32_t x)
+{
+	data[3] = x >> 24;
+	data[2] = x >> 16;
+	data[1] = x >> 8;
+	data[0] = x;
+}
+#endif
+
 // convert a raw bigendian 256 bit value into a normalized bignum.
 // out_number is partly reduced (since it fits in 256 bit).
 void bn_read_be(const uint8_t *in_number, bignum256 *out_number)
@@ -104,6 +123,82 @@ void bn_write_be(const bignum256 *in_number, uint8_t *out_number)
 	}
 }
 
+#ifdef DEBUG_ON /* Disabled.  Not used */
+// convert a raw little endian 256 bit value into a normalized bignum.
+// out_number is partly reduced (since it fits in 256 bit).
+void bn_read_le(const uint8_t *in_number, bignum256 *out_number)
+{
+	int i;
+	uint32_t temp = 0;
+	for (i = 0; i < 8; i++) {
+		// invariant: temp = (in_number % 2^(32i)) >> 30i
+		// get next limb = (in_number % 2^(32(i+1))) >> 32i
+		uint32_t limb = read_le(in_number + i * 4);
+		// temp = (in_number % 2^(32(i+1))) << 30i
+		temp |= limb << (2*i);
+		// store 30 bits into val[i]
+		out_number->val[i]= temp & 0x3FFFFFFF;
+		// prepare temp for next round
+		temp = limb >> (30 - 2*i);
+	}
+	out_number->val[8] = temp;
+}
+
+// convert a normalized bignum to a raw little endian 256 bit number.
+// in_number must be fully reduced.
+void bn_write_le(const bignum256 *in_number, uint8_t *out_number)
+{
+	int i;
+	uint32_t temp = in_number->val[8] << 16;
+	for (i = 0; i < 8; i++) {
+		// invariant: temp = (in_number >> 30*(8-i)) << (16 + 2i)
+		uint32_t limb = in_number->val[7 - i];
+		temp |= limb >> (14 - 2*i);
+		write_le(out_number + (7 - i) * 4, temp);
+		temp = limb << (18 + 2*i);
+	}
+}
+
+void bn_read_uint32(uint32_t in_number, bignum256 *out_number)
+{
+	out_number->val[0] = in_number & 0x3FFFFFFF;
+	out_number->val[1] = in_number >> 30;
+	out_number->val[2] = 0;
+	out_number->val[3] = 0;
+	out_number->val[4] = 0;
+	out_number->val[5] = 0;
+	out_number->val[6] = 0;
+	out_number->val[7] = 0;
+	out_number->val[8] = 0;
+}
+
+void bn_read_uint64(uint64_t in_number, bignum256 *out_number)
+{
+	out_number->val[0] = in_number & 0x3FFFFFFF;
+	out_number->val[1] = (in_number >>= 30) & 0x3FFFFFFF;
+	out_number->val[2] = in_number >>= 30;
+	out_number->val[3] = 0;
+	out_number->val[4] = 0;
+	out_number->val[5] = 0;
+	out_number->val[6] = 0;
+	out_number->val[7] = 0;
+	out_number->val[8] = 0;
+}
+
+// a must be normalized
+int bn_bitcount(const bignum256 *a)
+{
+	int i;
+	for (i = 8; i >= 0; i--) {
+		int tmp = a->val[i];
+		if (tmp != 0) {
+			return i * 30 + (32 - __builtin_clz(tmp));
+		}
+	}
+	return 0;
+}
+#endif
+
 // sets a bignum to zero.
 void bn_zero(bignum256 *a)
 {
@@ -111,6 +206,20 @@ void bn_zero(bignum256 *a)
 	for (i = 0; i < 9; i++) {
 		a->val[i] = 0;
 	}
+}
+
+// sets a bignum to one.
+void bn_one(bignum256 *a)
+{
+	a->val[0] = 1;
+	a->val[1] = 0;
+	a->val[2] = 0;
+	a->val[3] = 0;
+	a->val[4] = 0;
+	a->val[5] = 0;
+	a->val[6] = 0;
+	a->val[7] = 0;
+	a->val[8] = 0;
 }
 
 // checks that a bignum is zero.
@@ -368,10 +477,10 @@ void bn_sqrt(bignum256 *x, const bignum256 *prime)
 	// this method compute x^1/2 = x^(prime+1)/4
 	uint32_t i, j, limb;
 	bignum256 res, p;
-	bn_zero(&res); res.val[0] = 1;
+	bn_one(&res);
 	// compute p = (prime+1)/4
 	memcpy(&p, prime, sizeof(bignum256));
-	p.val[0] += 1;
+	bn_addi(&p, 1);
 	bn_rshift(&p);
 	bn_rshift(&p);
 	for (i = 0; i < 9; i++) {
@@ -407,7 +516,7 @@ void bn_inverse(bignum256 *x, const bignum256 *prime)
 	// this method compute x^-1 = x^(prime-2)
 	uint32_t i, j, limb;
 	bignum256 res;
-	bn_zero(&res); res.val[0] = 1;
+	bn_one(&res);
 	for (i = 0; i < 9; i++) {
 		// invariants:
 		//    x   = old(x)^(2^(i*30))
@@ -800,6 +909,30 @@ void bn_divmod58(bignum256 *a, uint32_t *r)
 		// set rem = (rem * 2^30 + a[i]) mod 58
 		//         = (rem * 4 + a[i]) mod 58
 		rem = tmp % 58;
+	}
+	*r = rem;
+}
+
+// a / 1000 = a (+r)
+void bn_divmod1000(bignum256 *a, uint32_t *r)
+{
+	int i;
+	uint32_t rem, tmp;
+	rem = a->val[8] % 1000;
+	a->val[8] /= 1000;
+	for (i = 7; i >= 0; i--) {
+		// invariants:
+		//   rem = old(a) >> 30(i+1) % 1000
+		//   a[i+1..8] = old(a[i+1..8])/1000
+		//   a[0..i]   = old(a[0..i])
+		// 2^30 == 1073741*1000 + 824
+		tmp = rem * 824 + a->val[i];
+		// set a[i] = (rem * 2^30 + a[i])/1000
+		//          = rem * 1073741 + (rem * 824 + a[i])/1000
+		a->val[i] = rem * 1073741 + (tmp / 1000);
+		// set rem = (rem * 2^30 + a[i]) mod 1000
+		//         = (rem * 824 + a[i]) mod 1000
+		rem = tmp % 1000;
 	}
 	*r = rem;
 }

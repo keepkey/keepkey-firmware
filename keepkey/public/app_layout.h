@@ -55,6 +55,7 @@
 #define PIN_MATRIX_FOREGROUND               0xFF
 #define PIN_SLIDE_DELAY                     20
 #define PIN_MAX_ANIMATION_MS                1000
+#define PIN_LEFT_MARGIN                     140
 
 /* Recovery Cypher */
 #define CIPHER_ROWS                     2
@@ -96,6 +97,12 @@ typedef enum
     SLIDE_RIGHT
 } PINAnimationDirection;
 
+typedef enum
+{
+    QR_LARGE,
+    QR_SMALL
+} QRSize;
+
 typedef struct
 {
     PINAnimationDirection direction;
@@ -108,14 +115,20 @@ void layout_screen_test(void);
 void layout_screensaver(void);
 void layout_tx_info(const char *address, uint64_t amount_in_satoshi);
 void layout_notification_no_title(const char *title, const char *body,
-                                  NotificationType type);
+                                  NotificationType type, bool bold);
+void layout_notification_no_title_bold(const char *title, const char *body,
+                                       NotificationType type);
+void layout_notification_no_title_no_bold(const char *title, const char *body,
+        NotificationType type);
 void layout_xpub_notification(const char *desc, const char *xpub,
-                                      NotificationType type);
+                              NotificationType type);
 void layout_address_notification(const char *desc, const char *address,
                                  NotificationType type);
+void layout_ethereum_address_notification(const char *desc, const char *address,
+        NotificationType type);
 void layout_pin(const char *prompt, char *pin);
 void layout_cipher(const char *current_word, const char *cipher);
-void layout_address(const char *address);
+void layout_address(const char *address, QRSize qr_size);
 void set_leaving_handler(leaving_handler_t leaving_func);
 
 #endif

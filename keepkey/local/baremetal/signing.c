@@ -67,9 +67,8 @@ enum {
 	STAGE_REQUEST_4_OUTPUT,
 	STAGE_REQUEST_5_OUTPUT
 } signing_stage;
-const uint32_t version = 1;
-const uint32_t lock_time = 0;
-
+static uint32_t version = 1;
+static uint32_t lock_time = 0;
 enum {
 	NOT_PARSING,
 	PARSING_VERSION,
@@ -91,7 +90,7 @@ enum {
  * OUTPUT 
  *     none
  */
-static void send_fsm_co_error_message(int co_error)
+void send_fsm_co_error_message(int co_error)
 {
     switch(co_error)
     {
@@ -102,18 +101,13 @@ static void send_fsm_co_error_message(int co_error)
         }
         case(TXOUT_CANCEL):
         {
-            fsm_sendFailure(FailureType_Failure_Other, "Signing cancelled by user");
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Transaction cancelled");
             break;
         }
         case (TXOUT_EXCHANGE_CONTRACT_ERROR):
         {
             switch(get_exchange_error())
             {
-                case ERROR_EXCHANGE_CANCEL:
-                {
-                    fsm_sendFailure(FailureType_Failure_Other, "Exchange cancelled");
-                    break;
-                }
                 case ERROR_EXCHANGE_SIGNATURE:
                 {
                     fsm_sendFailure(FailureType_Failure_Other, "Exchange signature error");
@@ -144,6 +138,11 @@ static void send_fsm_co_error_message(int co_error)
                     fsm_sendFailure(FailureType_Failure_Other, "Exchange withdrawal address error");
                     break;
                 }
+                case ERROR_EXCHANGE_WITHDRAWAL_AMOUNT:
+                {
+                    fsm_sendFailure(FailureType_Failure_Other, "Exchange withdrawal amount error");
+                    break;
+                }
                 case ERROR_EXCHANGE_RETURN_COINTYPE:
                 {
                     fsm_sendFailure(FailureType_Failure_Other, "Exchange return coin type error");
@@ -157,6 +156,16 @@ static void send_fsm_co_error_message(int co_error)
                 case ERROR_EXCHANGE_API_KEY:
                 {
                     fsm_sendFailure(FailureType_Failure_Other, "Exchange api key error");
+                    break;
+                }
+                case ERROR_EXCHANGE_CANCEL:
+                {
+                    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Exchange transaction cancelled");
+                    break;
+                }
+                case ERROR_EXCHANGE_RESPONSE_STRUCTURE:
+                {
+                    fsm_sendFailure(FailureType_Failure_Other, "Obsolete Response structure error");
                     break;
                 }
                 default:
@@ -391,12 +400,14 @@ void send_req_finished(void)
 	msg_write(MessageType_MessageType_TxRequest, &resp);
 }
 
-void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinType *_coin, const HDNode *_root)
+void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinType *_coin, const HDNode *_root, uint32_t _version, uint32_t _lock_time)
 {
 	inputs_count = _inputs_count;
 	outputs_count = _outputs_count;
 	coin = _coin;
 	root = _root;
+	version = _version;
+	lock_time = _lock_time;
 
 	idx1 = 0;
 	to_spend = 0;
@@ -727,7 +738,7 @@ void signing_txack(TransactionType *tx)
 			    }
 			}
 
-			co = run_policy_compile_output(coin, root, tx->outputs, &bin_output, !is_change);
+			co = run_policy_compile_output(coin, root, (void *)tx->outputs, (void *)&bin_output, !is_change);
 			if (co <= TXOUT_COMPILE_ERROR) {
 			    send_fsm_co_error_message(co);
 			    signing_abort();
@@ -741,7 +752,7 @@ void signing_txack(TransactionType *tx)
 				idx1++;
 				send_req_3_output();
 			} else {
-                            sha256_Final(hash_check, &tc);
+		            sha256_Final(&tc, hash_check);
                             // check fees
                             if (spending > to_spend) {
                                 fsm_sendFailure(FailureType_Failure_NotEnoughFunds, "Not enough funds");
@@ -802,6 +813,7 @@ void signing_txack(TransactionType *tx)
 					signing_abort();
 					return;
 				}
+				hdnode_fill_public_key(&node);
 				if (tx->inputs[0].script_type == InputScriptType_SPENDMULTISIG) {
 					if (!tx->inputs[0].has_multisig) {
 						fsm_sendFailure(FailureType_Failure_Other, "Multisig info not provided");
@@ -837,7 +849,7 @@ void signing_txack(TransactionType *tx)
 			}
 			return;
 		case STAGE_REQUEST_4_OUTPUT:
-			co = run_policy_compile_output(coin, root, tx->outputs, &bin_output, false);
+			co = run_policy_compile_output(coin, root, (void *)tx->outputs, (void *)&bin_output, false);
 			if (co <= TXOUT_COMPILE_ERROR) {
 			    send_fsm_co_error_message(co);
 			    signing_abort();
@@ -853,7 +865,7 @@ void signing_txack(TransactionType *tx)
 				idx2++;
 				send_req_4_output();
 			} else {
-				sha256_Final(hash, &tc);
+				sha256_Final(&tc, hash);
 				if (memcmp(hash, hash_check, 32) != 0) {
 					fsm_sendFailure(FailureType_Failure_Other, "Transaction has changed during signing");
 					signing_abort();
@@ -904,7 +916,7 @@ void signing_txack(TransactionType *tx)
 			}
 			return;
 		case STAGE_REQUEST_5_OUTPUT:
-			co = run_policy_compile_output(coin, root, tx->outputs, &bin_output, false);
+			co = run_policy_compile_output(coin, root, (void *)tx->outputs, (void *)&bin_output, false);
 			if (co <= TXOUT_COMPILE_ERROR) {
 			    send_fsm_co_error_message(co);
 			    signing_abort();

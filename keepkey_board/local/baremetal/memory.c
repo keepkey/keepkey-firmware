@@ -98,7 +98,7 @@ int memory_firmware_hash(uint8_t *hash)
         sha256_Update(&ctx, (const uint8_t *)FLASH_META_CODELEN,
                       FLASH_META_DESC_LEN - META_MAGIC_SIZE);
         sha256_Update(&ctx, (const uint8_t *)FLASH_APP_START, codelen);
-        sha256_Final(hash, &ctx);
+        sha256_Final(&ctx, hash);
         return SHA256_DIGEST_LENGTH;
     }
     else
