@@ -34,6 +34,7 @@
 #include <memory.h>
 #include <rng.h>
 
+#include "curves.h"
 #include "util.h"
 #include "storage.h"
 #include "passphrase_sm.h"
@@ -42,14 +43,15 @@
 
 /* === Private Variables =================================================== */
 
-static bool   sessionRootNodeCached;
-static HDNode sessionRootNode;
+static bool sessionSeedCached, sessionSeedUsesPassphrase;
+static uint8_t sessionSeed[64];
 
 static bool sessionPinCached;
 static char sessionPin[17];
 
 static bool sessionPassphraseCached;
 static char sessionPassphrase[51];
+
 static Allocation storage_location = FLASH_INVALID;
 
 /* === Variables =========================================================== */
@@ -111,6 +113,7 @@ static bool storage_from_flash(ConfigFlash *stor_config)
             break;
 
         case 2:
+        case 3:
             memcpy(&shadow_config, stor_config, sizeof(shadow_config));
 
             /* We have to do this for users with bootloaders <= v1.0.2. This
@@ -174,49 +177,71 @@ static void wear_leveling_shift(void)
 }
 
 /*
- * storage_set_root_node_cache() - Set root node in storage cache
+ * storage_set_root_seed_cache() - Sets root session seed  in storage
  *
  * INPUT
- *     - node: hd node to cache
+ *     seed : source of root seed 
+ *     curve : pointer to ecdsa cure being used
+ *
  * OUTPUT
- *     none
+ *    none 
  *
  */
-static void storage_set_root_node_cache(HDNode *node)
+static void storage_set_root_seed_cache(const uint8_t *seed, const char* curve)
 {
     if(!(shadow_config.storage.has_passphrase_protection &&
             shadow_config.storage.passphrase_protection && strlen(sessionPassphrase)))
     {
-        memset(&shadow_config.cache.root_node_cache, 0,
-               sizeof(((ConfigFlash *)NULL)->cache.root_node_cache));
-        memcpy(&shadow_config.cache.root_node_cache, node,
-               sizeof(((ConfigFlash *)NULL)->cache.root_node_cache));
-        shadow_config.cache.root_node_cache_status = CACHE_EXISTS;
+        memset(&shadow_config.cache, 0, sizeof(((ConfigFlash *)NULL)->cache));
+
+        memcpy(&shadow_config.cache.root_seed_cache, seed,
+               sizeof(((ConfigFlash *)NULL)->cache.root_seed_cache));
+
+        strlcpy(shadow_config.cache.root_ecdsa_curve_type, curve, 
+                sizeof(shadow_config.cache.root_ecdsa_curve_type));
+
+        shadow_config.cache.root_seed_cache_status = CACHE_EXISTS; 
         storage_commit();
     }
 }
 
 /*
- * storage_get_root_node_cache() - Gets root node cache from storage and returns true if found
+ * storage_get_root_seed_cache() - Gets root session seed cache from storage
  *
  * INPUT
- *     - node: hd node to be filled with found cache
- * OUTPUT
- *     true/false
+ *    seed : destination seed pointer 
+ *    curve : pointer to ecdsa cure being used
+ *    usePassphrase : flag to use passphrase or not
  *
+ * OUTPUT
+ *    return status
  */
-static bool storage_get_root_node_cache(HDNode *node)
+static bool storage_get_root_seed_cache(uint8_t *seed,const char* curve, bool usePassphrase)
 {
-    if(!(shadow_config.storage.has_passphrase_protection &&
-            shadow_config.storage.passphrase_protection && strlen(sessionPassphrase)) &&
-            shadow_config.cache.root_node_cache_status == CACHE_EXISTS)
+    bool ret_stat = false;
+
+    if(shadow_config.cache.root_seed_cache_status == CACHE_EXISTS)
     {
-        memcpy(node, &shadow_config.cache.root_node_cache,
-               sizeof(((ConfigFlash *)NULL)->cache.root_node_cache));
-        return true;
+        if(usePassphrase)
+        {
+            if(shadow_config.storage.has_passphrase_protection &&
+                shadow_config.storage.passphrase_protection && strlen(sessionPassphrase))
+            {
+                goto storage_get_root_seed_cache_exit;
+            }
+        }
+        if(!strcmp(shadow_config.cache.root_ecdsa_curve_type, curve))
+        {
+            memset(seed, 0, sizeof(sessionSeed));
+            memcpy(seed, &shadow_config.cache.root_seed_cache,
+                sizeof(((ConfigFlash *)NULL)->cache.root_seed_cache));
+            ret_stat = true;
+        }
     }
 
-    return false;
+storage_get_root_seed_cache_exit:
+
+    return(ret_stat);
 }
 
 /* === Functions =========================================================== */
@@ -327,8 +352,9 @@ void storage_reset(void)
  */
 void session_clear(bool clear_pin)
 {
-    sessionRootNodeCached = false;
-    memset(&sessionRootNode, 0, sizeof(sessionRootNode));
+    sessionSeedCached = false;
+    memset(&sessionSeed, 0, sizeof(sessionSeed));
+
     sessionPassphraseCached = false;
     memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
 
@@ -461,8 +487,9 @@ void storage_load_device(LoadDevice *msg)
         shadow_config.storage.has_node = true;
         shadow_config.storage.has_mnemonic = false;
         memcpy(&shadow_config.storage.node, &(msg->node), sizeof(HDNodeType));
-        sessionRootNodeCached = false;
-        memset(&sessionRootNode, 0, sizeof(sessionRootNode));
+
+        sessionSeedCached = false;
+		memset(&sessionSeed, 0, sizeof(sessionSeed));
     }
     else if(msg->has_mnemonic)
     {
@@ -470,8 +497,9 @@ void storage_load_device(LoadDevice *msg)
         shadow_config.storage.has_node = false;
         strlcpy(shadow_config.storage.mnemonic, msg->mnemonic,
                 sizeof(shadow_config.storage.mnemonic));
-        sessionRootNodeCached = false;
-        memset(&sessionRootNode, 0, sizeof(sessionRootNode));
+
+        sessionSeedCached = false;
+		memset(&sessionSeed, 0, sizeof(sessionSeed));
     }
 
     if(msg->has_language)
@@ -721,6 +749,38 @@ void get_root_node_callback(uint32_t iter, uint32_t total)
 }
 
 /*
+ * storage_getSeed() - get user private seed
+ *
+ * INPUT
+ *    usePassphrase: argument to use passphrase
+ * OUTPUT
+ *    sessionSeed - pointer to private seed (if no error)  
+ */
+const uint8_t *storage_getSeed(bool usePassphrase)
+{
+	// root node is properly cached
+	if (usePassphrase == sessionSeedUsesPassphrase
+		&& sessionSeedCached) {
+		return sessionSeed;
+	}
+
+	// if storage has mnemonic, convert it to node and use it
+	if (shadow_config.storage.has_mnemonic) {
+		if (usePassphrase && !passphrase_protect())
+                {
+		    return NULL;
+		}
+                layout_loading();
+		mnemonic_to_seed(shadow_config.storage.mnemonic, usePassphrase ? sessionPassphrase : "", sessionSeed, get_root_node_callback); // BIP-0039
+		sessionSeedCached = true;
+		sessionSeedUsesPassphrase = usePassphrase;
+		return sessionSeed;
+	}
+
+	return NULL;
+}
+
+/*
  * storage_get_root_node() - Returns root node of device
  *
  * INPUT
@@ -728,102 +788,89 @@ void get_root_node_callback(uint32_t iter, uint32_t total)
  * OUTPUT
  *     true/false whether root node was found
  */
-bool storage_get_root_node(HDNode *node)
+bool storage_get_root_node(HDNode *node, const char *curve, bool usePassphrase)
 {
-    // root node is properly cached
-    if(sessionRootNodeCached)
-    {
-        memcpy(node, &sessionRootNode, sizeof(HDNode));
-        return true;
-    }
+    bool ret_stat = false;
 
     // if storage has node, decrypt and use it
-    if(shadow_config.storage.has_node)
+    if(shadow_config.storage.has_node && strcmp(curve, SECP256K1_NAME) == 0) 
     {
         if(!passphrase_protect())
         {
-            return false;
+            /* passphrased failed. Bailing */
+            goto storage_get_root_node_exit;
         }
-
-        layout_loading();
-
-        if(hdnode_from_xprv(shadow_config.storage.node.depth,
-                            shadow_config.storage.node.fingerprint,
-                            shadow_config.storage.node.child_num,
-                            shadow_config.storage.node.chain_code.bytes,
-                            shadow_config.storage.node.private_key.bytes,
-                            &sessionRootNode) == 0)
+	if(hdnode_from_xprv(shadow_config.storage.node.depth, 
+                            shadow_config.storage.node.child_num, 
+                            shadow_config.storage.node.chain_code.bytes, 
+                            shadow_config.storage.node.private_key.bytes, 
+                            curve, node) == 0) 
         {
-            return false;
+            goto storage_get_root_node_exit;
         }
 
-        if(shadow_config.storage.has_passphrase_protection &&
-                shadow_config.storage.passphrase_protection && strlen(sessionPassphrase) > 0)
+        if (shadow_config.storage.has_passphrase_protection && 
+            shadow_config.storage.passphrase_protection && 
+            sessionPassphraseCached && 
+            strlen(sessionPassphrase) > 0) 
         {
-            // decrypt hd node
-            uint8_t secret[64];
+	    // decrypt hd node
+	    uint8_t secret[64];
+	    PBKDF2_HMAC_SHA512_CTX pctx;
+	    pbkdf2_hmac_sha512_Init(&pctx, (const uint8_t *)sessionPassphrase, strlen(sessionPassphrase), (const uint8_t *)"TREZORHD", 8);
+	    for (int i = 0; i < 8; i++) 
+            {
+	        pbkdf2_hmac_sha512_Update(&pctx, BIP39_PBKDF2_ROUNDS / 8, get_root_node_callback);
+	    }
+	    pbkdf2_hmac_sha512_Final(&pctx, secret);
+	    aes_decrypt_ctx ctx;
+	    aes_decrypt_key256(secret, &ctx);
+	    aes_cbc_decrypt(node->chain_code, node->chain_code, 32, secret + 32, &ctx);
+	    aes_cbc_decrypt(node->private_key, node->private_key, 32, secret + 32, &ctx);
+	}
 
-            /* Length of salt + 4 bytes are needed as workspace by pbkdf2_hmac_sha512 */
-            uint8_t salt[strlen(PBKDF2_HMAC_SHA512_SALT) + 4];
-            memcpy((char *)salt, PBKDF2_HMAC_SHA512_SALT, strlen(PBKDF2_HMAC_SHA512_SALT));
-
-            animating_progress_handler();
-
-            pbkdf2_hmac_sha512((const uint8_t *)sessionPassphrase,
-                               strlen(sessionPassphrase),
-                               salt, strlen(PBKDF2_HMAC_SHA512_SALT), BIP39_PBKDF2_ROUNDS, secret, 64,
-                               get_root_node_callback);
-
-            aes_decrypt_ctx ctx;
-            aes_decrypt_key256(secret, &ctx);
-            aes_cbc_decrypt(sessionRootNode.chain_code, sessionRootNode.chain_code, 32,
-                            secret + 32,
-                            &ctx);
-            aes_cbc_decrypt(sessionRootNode.private_key, sessionRootNode.private_key, 32,
-                            secret + 32,
-                            &ctx);
-        }
-
-        memcpy(node, &sessionRootNode, sizeof(HDNode));
-        sessionRootNodeCached = true;
-        return true;
+	ret_stat = true;
+        goto storage_get_root_node_exit;
     }
 
-    // if storage has mnemonic, convert it to node and use it
+    /* get node from mnemonic */
     if(shadow_config.storage.has_mnemonic)
     {
         if(!passphrase_protect())
         {
-            return false;
+            /* passphrased failed. Bailing */
+            goto storage_get_root_node_exit;
         }
 
-        if(storage_get_root_node_cache(node))
+	if(!sessionSeedCached)
         {
-            return true;
+
+            sessionSeedCached = storage_get_root_seed_cache(sessionSeed, curve, usePassphrase);
+
+            if(!sessionSeedCached)
+            {
+                /* calculate session seed and update the global sessionSeed/sessionSeedCached variables */
+                storage_getSeed(usePassphrase);
+
+                if (sessionSeedCached) 
+                {
+                    storage_set_root_seed_cache(sessionSeed, curve);
+                }
+                else
+                {
+                    goto storage_get_root_node_exit;
+                }
+            }
         }
 
-        layout_loading();
-
-        uint8_t seed[64];
-
-        animating_progress_handler();
-
-        mnemonic_to_seed(shadow_config.storage.mnemonic, sessionPassphrase, seed,
-                         get_root_node_callback); // BIP-0039
-
-        if(hdnode_from_seed(seed, sizeof(seed), &sessionRootNode) == 0)
+        if(hdnode_from_seed(sessionSeed, 64, curve, node) == 1)
         {
-            return false;
+            ret_stat = true;
         }
-
-        storage_set_root_node_cache(&sessionRootNode);
-
-        memcpy(node, &sessionRootNode, sizeof(HDNode));
-        sessionRootNodeCached = true;
-        return true;
     }
+storage_get_root_node_exit:
 
-    return false;
+    return ret_stat;
 }
 
 /*

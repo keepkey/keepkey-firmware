@@ -71,3 +71,35 @@ uint32_t readprotobufint(uint8_t **ptr)
 	(*ptr)++;
 	return result;
 }
+
+void rev_byte_order(uint8_t *bfr, size_t len)
+{
+    size_t i;
+    uint8_t tempdata; 
+
+    for(i = 0; i < len/2; i++)
+    {
+        tempdata = bfr[i];
+        bfr[i] = bfr[len - i - 1];
+        bfr[len - i - 1] = tempdata;
+    }
+}
+
+/*convert 64bit decimal to string (itoa)*/
+void dec64_to_str(uint64_t dec64_val, char *str)
+{
+    unsigned int b = 0;
+    static char *sbfr;
+
+    sbfr = str;
+    b = dec64_val %10; 
+    dec64_val = dec64_val / 10;
+
+    if(dec64_val)
+    {
+        dec64_to_str(dec64_val, sbfr);
+    }
+    *sbfr = '0' + b;
+    sbfr++;
+}
+

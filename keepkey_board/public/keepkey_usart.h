@@ -27,7 +27,7 @@
 #include "keepkey_leds.h"
 #include "keepkey_display.h"
 #include "keepkey_button.h"
-#include "layout.h"
+
 #include "timer.h"
 
 /* === Defines ============================================================= */

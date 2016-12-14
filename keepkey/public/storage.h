@@ -30,9 +30,7 @@
 
 /* === Defines ============================================================= */
 
-#define STORAGE_VERSION 2
-#define PBKDF2_HMAC_SHA512_SALT "TREZORHD"
-
+#define STORAGE_VERSION 3
 #define STORAGE_RETRIES 3
 
 /* === Functions =========================================================== */
@@ -45,7 +43,8 @@ void storage_commit(void);
 
 void storage_load_device(LoadDevice *msg);
 
-bool storage_get_root_node(HDNode *node);
+const uint8_t *storage_getSeed(bool usePassphrase);
+bool storage_get_root_node(HDNode *node, const char *curve, bool usePassphrase);
 
 void storage_set_label(const char *label);
 const char *storage_get_label(void);

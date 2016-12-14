@@ -130,21 +130,21 @@ bool confirm_decrypt_msg(const char *msg, const char *address)
  *
  * INPUT -
  *      - exchange: name of exchange
- *      - from_amount: amount to convert
- *      - to_amount: conversion to amount
+ *      - dep_amt: source amount to convert
+ *      - wit_amt: destination amount to received
  *      - address: destination
  * OUTPUT -
  *     true/false of confirmation
  *
  */
-bool confirm_exchange_output(const char *exchange, const char *from_amount,
-                             const char *to_amount, const char *address)
+bool confirm_exchange_output(const char *exchange, const char *dep_amt,
+                             const char *wit_amt, const char *address)
 {
-    return confirm_with_custom_layout(&layout_notification_no_title,
+    return confirm_with_custom_layout(&layout_notification_no_title_bold,
                                       ButtonRequestType_ButtonRequest_SignExchange,
-                                      "", 
+                                      "",
                                       "Convert %s to\n%s with %s and send to %s",
-                                      from_amount, to_amount, exchange, address);
+                                      dep_amt, wit_amt, exchange, address);
 }
 
 /*
@@ -158,13 +158,15 @@ bool confirm_exchange_output(const char *exchange, const char *from_amount,
  *     true/false of confirmation
  *
  */
-bool confirm_transfer_output(ButtonRequestType button_request, const char *amount, const char *to)
+bool confirm_transfer_output(ButtonRequestType button_request, const char *amount,
+                             const char *to)
 {
-    return confirm_with_custom_layout(&layout_notification_no_title,
-                                       button_request,
-                                      "", 
+    return confirm_with_custom_layout(&layout_notification_no_title_bold,
+                                      button_request,
+                                      "",
                                       "Transfer %s to\n%s", amount, to);
 }
+
 /*
  * confirm_transaction_output() - Show transaction output confirmation
  *
@@ -176,12 +178,33 @@ bool confirm_transfer_output(ButtonRequestType button_request, const char *amoun
  *     true/false of confirmation
  *
  */
-bool confirm_transaction_output(ButtonRequestType button_request, const char *amount, const char *to)
+bool confirm_transaction_output(ButtonRequestType button_request, const char *amount,
+                                const char *to)
 {
-    return confirm_with_custom_layout(&layout_notification_no_title,
-                                       button_request,
-                                       "",
-                                       "Send %s to\n%s", amount, to);
+    return confirm_with_custom_layout(&layout_notification_no_title_bold,
+                                      button_request,
+                                      "",
+                                      "Send %s to\n%s", amount, to);
+}
+
+/*
+ * confirm_transaction_output_no_bold() - Show transaction output confirmation without bold
+ *
+ * INPUT -
+ *      - button_request: button request type
+ *      - amount: amount to send
+ *      - to: who to send to
+ * OUTPUT -
+ *     true/false of confirmation
+ *
+ */
+bool confirm_transaction_output_no_bold(ButtonRequestType button_request,
+                                        const char *amount, const char *to)
+{
+    return confirm_with_custom_layout(&layout_notification_no_title_no_bold,
+            button_request,
+            "",
+            "Send %s to\n%s", amount, to);
 }
 
 /*
@@ -255,7 +278,21 @@ bool confirm_xpub(const char *xpub)
                                       ButtonRequestType_ButtonRequest_Address, "", xpub);
 
 }
-
+/*
+ * confirm_ethereum_address() - Show ethereum address confirmation
+ *
+ * INPUT
+ *      - desc: description to show with address
+ *      - address: address to display both as string and in QR
+ * OUTPUT
+ *     true/false of confirmation
+ *
+ */
+bool confirm_ethereum_address(const char *desc, const char *address)
+{
+    return confirm_with_custom_layout(&layout_ethereum_address_notification,
+                                      ButtonRequestType_ButtonRequest_Address, desc, address);
+}
 /*
  * confirm_address() - Show address confirmation
  *

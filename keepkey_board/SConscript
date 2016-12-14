@@ -23,4 +23,7 @@ if int(ARGUMENTS.get('debug_link', 0)):
 else:
     env = add_flags(env, ['-DDEBUG_LINK=0'])
 
+if(ARGUMENTS.get('project') == 'keepkey'):
+    env = add_flags(env, ['-DKEEPKEY_PRJ'])
+
 init_project(env, deps=deps, libs=["opencm3_stm32f2"])

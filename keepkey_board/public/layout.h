@@ -27,6 +27,7 @@
 #include "canvas.h"
 #include "resources.h"
 #include "draw.h"
+#include "types.pb.h"
 
 /* === Defines ============================================================= */
 
@@ -125,5 +126,4 @@ void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed);
 void layout_clear(void);
 void layout_clear_animations(void);
 void layout_clear_static(void);
-
 #endif

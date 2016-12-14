@@ -37,6 +37,14 @@ DEFS=['-DSTM32F2',
       '-DPB_FIELD_16BIT=1',
       '-DQR_MAX_VERSION=0']
 
+DEFS2=['-DED25519_CUSTOMRANDOM=1',
+       '-DED25519_CUSTOMHASH=1',
+       '-DED25519_NO_INLINE_ASM',
+       '-DED25519_FORCE_32BIT=1',
+       '-DUSE_ETHEREUM=1'
+       ]
+        
+
 WARNS=['-Wall',
        '-Wno-sequence-point',
        '-Wextra',
@@ -107,7 +115,7 @@ def load_toolchain():
             '-I'+OPENCM3_ROOT+'/include',
             ]
 
-    env['CCFLAGS'] = env['CCFLAGS'] + DEFS + WARNS
+    env['CCFLAGS'] = env['CCFLAGS'] + DEFS + DEFS2 + WARNS
 
     env['CXXFLAGS'] = [
             "-fno-exceptions",
