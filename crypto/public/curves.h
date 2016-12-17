@@ -26,11 +26,13 @@
 #define SECP256K1_STRING "secp256k1"
 #define NIST256P1_STRING "nist256p1"
 #define ED25519_STRING  "ed25519"
+#define CURVE25519_STRING "curve25519"
 
 
 extern const char SECP256K1_NAME[];
 extern const char NIST256P1_NAME[];
 extern const char ED25519_NAME[];
+extern const char CURVE25519_NAME[];
 
 /* === Unions ===============================================================*/
 
@@ -39,5 +41,6 @@ typedef union
     char secp256k1[sizeof(SECP256K1_STRING)];
     char nist256p1[sizeof(NIST256P1_STRING)];
     char ed25519[sizeof(ED25519_STRING)];
+	char curve25519[sizeof(CURVE25519_STRING)];
 }ecdsa_curve_type_;
 #endif

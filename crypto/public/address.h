@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2013-2014 Pavol Rusnak
+ * Copyright (c) 2016 Daira Hopwood
+ * Copyright (c) 2016 Pavol Rusnak
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the "Software"),
@@ -20,55 +21,15 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef __OPTIONS_H__
-#define __OPTIONS_H__
+#ifndef __ADDRESS_H__
+#define __ADDRESS_H__
 
-// use precomputed Curve Points (some scalar multiples of curve base point G)
-#ifndef USE_PRECOMPUTED_CP
-#define USE_PRECOMPUTED_CP 1
-#endif
+#include <stdint.h>
+#include <stdbool.h>
+#include <stddef.h>
 
-// use fast inverse method
-#ifndef USE_INVERSE_FAST
-#define USE_INVERSE_FAST 1
-#endif
-
-// support for printing bignum256 structures via printf
-#ifndef USE_BN_PRINT
-#define USE_BN_PRINT 0
-#endif
-
-// use deterministic signatures
-#ifndef USE_RFC6979
-#define USE_RFC6979 1
-#endif
-
-// implement BIP32 caching
-#ifndef USE_BIP32_CACHE
-#define USE_BIP32_CACHE 1
-#define BIP32_CACHE_SIZE 10
-#define BIP32_CACHE_MAXDEPTH 8
-#endif
-
-// implement BIP39 caching
-#ifndef USE_BIP39_CACHE
-#define USE_BIP39_CACHE 1
-#define BIP39_CACHE_SIZE 4
-#endif
-
-// support Ethereum operations
-#ifndef USE_ETHEREUM
-#define USE_ETHEREUM 0
-#endif
-
-// support Graphene operations (STEEM, BitShares)
-#ifndef USE_GRAPHENE
-#define USE_GRAPHENE 0
-#endif
-
-// support Keccak hashing
-#ifndef USE_KECCAK
-#define USE_KECCAK USE_ETHEREUM
-#endif
+size_t address_prefix_bytes_len(uint32_t address_type);
+void address_write_prefix_bytes(uint32_t address_type, uint8_t *out);
+bool address_check_prefix(const uint8_t *addr, uint32_t address_type);
 
 #endif

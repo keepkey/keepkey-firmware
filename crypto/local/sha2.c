@@ -489,7 +489,7 @@ void sha256_Final(SHA256_CTX* context, sha2_byte digest[]) {
 		((uint8_t*)context->buffer)[usedspace++] = 0x80;
 		
 		if (usedspace > SHA256_SHORT_BLOCK_LENGTH) {
-				MEMSET_BZERO(((uint8_t*)context->buffer) + usedspace, SHA256_BLOCK_LENGTH - usedspace);
+			MEMSET_BZERO(((uint8_t*)context->buffer) + usedspace, SHA256_BLOCK_LENGTH - usedspace);
 
 #if BYTE_ORDER == LITTLE_ENDIAN
 			/* Convert TO host byte order */
