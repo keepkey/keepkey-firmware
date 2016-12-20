@@ -41,9 +41,11 @@ extern const CoinType coins[COINS_COUNT];
 
 const CoinType *coinByShortcut(const char *shortcut);
 const CoinType *coinByName(const char *name);
-const CoinType *coinByAddressType(uint8_t address_type);
+const CoinType *coinByAddressType(uint32_t address_type);
 void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len);
 bool bip44_node_to_string(const CoinType *coin, char *node_str, uint32_t *address_n,
                          size_t address_n_count);
+bool coinExtractAddressType(const CoinType *coin, const char *addr, uint32_t *address_type);
+bool coinExtractAddressTypeRaw(const CoinType *coin, const uint8_t *addr_raw, uint32_t *address_type);
 
 #endif
