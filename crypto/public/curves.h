@@ -41,6 +41,6 @@ typedef union
     char secp256k1[sizeof(SECP256K1_STRING)];
     char nist256p1[sizeof(NIST256P1_STRING)];
     char ed25519[sizeof(ED25519_STRING)];
-	char curve25519[sizeof(CURVE25519_STRING)];
+    char curve25519[sizeof(CURVE25519_STRING)];
 }ecdsa_curve_type_;
 #endif
