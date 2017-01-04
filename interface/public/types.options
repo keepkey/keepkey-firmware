@@ -23,6 +23,8 @@ TransactionType.bin_outputs		max_count:1
 TransactionType.outputs			max_count:1
 TransactionType.extra_data		max_size:1024
 
+RawTransactionType.payload	    max_size:0
+
 TxRequestDetailsType.tx_hash		max_size:32
 
 TxRequestSerializedType.signature	max_size:73
