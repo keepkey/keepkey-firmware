@@ -23,8 +23,10 @@
 #include <stdint.h>
 
 /* === Defines ============================================================= */
-
-#define MAX_FRAME_SIZE (12 * 1024)
+/* The max size of usb input frame */
+#define MAX_FRAME_SIZE (13 * 1024)
+/* The max size of a decoded protobuf */
+#define MAX_DECODE_SIZE (13 * 1024)
 
 /* === Typedefs ============================================================ */
 

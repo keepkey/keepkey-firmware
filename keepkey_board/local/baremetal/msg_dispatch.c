@@ -250,7 +250,7 @@ static void raw_dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_
 static void usb_rx_helper(UsbMessage *msg, MessageMapType type)
 {
     static TrezorFrameHeaderFirst last_frame_header = { .id = 0xffff, .len = 0 };
-    static uint8_t content_buf[MAX_FRAME_SIZE];
+    static uint8_t content_buf[MAX_FRAME_SIZE] __attribute__((aligned(4)));
     static uint32_t content_pos = 0, content_size = 0;
     static bool mid_frame = false;
 
