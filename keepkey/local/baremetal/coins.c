@@ -41,8 +41,8 @@ const CoinType coins[COINS_COUNT] = {
     {true, "Litecoin",          true, "LTC",  true,   48, true,    1000000, true,    5, false, 0, false, 0, true, "\x19" "Litecoin Signed Message:\n", true, 0x80000002},
     {true, "Dogecoin",          true, "DOGE", true,   30, true, 1000000000, true,   22, false, 0, false, 0, true, "\x19" "Dogecoin Signed Message:\n", true, 0x80000003},
     {true, "Dash",              true, "DASH", true,   76, true,     100000, true,   16, false, 0, false, 0, true, "\x19" "DarkCoin Signed Message:\n", true, 0x80000005},
-    {true, "Zcash",             true, "ZEC",  true, 7352, true,    1000000, true, 7357, false, 0, false, 0, true, "\x16" "Zcash Signed Message:\n",    true, 0xFEFEFEFE},  /* Fix it when implementing xfer */
-    {true, "Zcash Testnet",     true, "TAZ",  true, 7461, true,   10000000, true, 7354, false, 0, false, 0, true, "\x16" "Zcash Signed Message:\n",    true, 0xFEFEFEFE},  /* Fix it when implementing xfer */
+    {true, "Zcash",             true, "ZEC",  true, 7352, true,    1000000, true, 7357, false, 0, false, 0, true, "\x16" "Zcash Signed Message:\n",    true, 0x80000085},
+    {true, "Zcash Testnet",     true, "TAZ",  true, 7461, true,   10000000, true, 7354, false, 0, false, 0, true, "\x16" "Zcash Signed Message:\n",    true, 0x80000001},
     {true, ETHEREUM,            true, "ETH",  true,   NA, true,     100000, true,   NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n", true, 0x8000003c},
     {true, ETHEREUM_CLS,        true, "ETC",  true,   NA, true,     100000, true,   NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n", true, 0x8000003d}
 };

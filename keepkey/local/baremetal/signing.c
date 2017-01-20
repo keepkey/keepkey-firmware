@@ -452,7 +452,8 @@ void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinTyp
     set_exchange_error(NO_EXCHANGE_ERROR);
 }
 
-void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
+void parse_raw_txack(uint8_t *msg, uint32_t msg_size)
+{
 	static int32_t state_pos = 0;
 	static uint8_t *ptr;
 	static uint8_t var_int_buffer[VAR_INT_BUFFER];
