@@ -153,13 +153,13 @@ static void send_signature(void)
 	uint8_t v;
 	animating_progress_handler(); 
 
-        /* eip-155 replay protection */
-        if (chain_id != 0) {
-            /* hash v=chain_id, r=0, s=0 */
-            hash_rlp_field(&chain_id, 1);
-            hash_rlp_length(0, 0);
-            hash_rlp_length(0, 0);
-        }
+	/* eip-155 replay protection */
+	if (chain_id != 0) {
+		/* hash v=chain_id, r=0, s=0 */
+		hash_rlp_field(&chain_id, 1);
+		hash_rlp_length(0, 0);
+		hash_rlp_length(0, 0);
+	}
 
 	keccak_Final(&keccak_ctx, hash);
 	if (ecdsa_sign_digest(&secp256k1, privkey, hash, sig, &v, ethereum_is_canonic) != 0) {
@@ -174,11 +174,11 @@ static void send_signature(void)
 	resp.has_data_length = false;
 
 	resp.has_signature_v = true;
-        if (chain_id) {
-            resp.signature_v = v + 2 * chain_id + 35;
-        } else {
-            resp.signature_v = v + 27;
-        }
+	if (chain_id) {
+		resp.signature_v = v + 2 * chain_id + 35;
+	} else {
+		resp.signature_v = v + 27;
+	}
 
 	resp.has_signature_r = true;
 	resp.signature_r.size = 32;
@@ -250,13 +250,11 @@ static void ethereumFormatAmount(bignum256 *val, char buffer[25])
 		// remove trailing dot.
 		if (value_ptr[-1] == '.')
 			value_ptr--;
-
-                if (chain_id == 61 || chain_id == 62) {
-                    strcpy(value_ptr, " ETC");
-                } else {
-                    strcpy(value_ptr, " ETH");
-                }
-
+		if (chain_id == 61 || chain_id == 62) {
+			strcpy(value_ptr, " ETC");
+		} else {
+			strcpy(value_ptr, " ETH");
+		}
 		// value is at most 16 + 4 + 1 characters long
 	} else {
 		// value is bigger than 1e9 ETH => won't fit on display (probably won't happen unless you are Vitalik)
@@ -426,41 +424,39 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 		msg->data_initial_chunk.size = 0;
 	if (!msg->has_to)
 		msg->to.size = 0;
-        if (!msg->has_nonce)
-               msg->nonce.size = 0;
+	if (!msg->has_nonce)
+		msg->nonce.size = 0;
 
-        /* eip-155 chain id */
-        if (msg->has_chain_id) {
-            if (msg->chain_id < 1 || msg->chain_id > 109) {
-                fsm_sendFailure(FailureType_Failure_Other, "Chain Id out of bounds");
-                ethereum_signing_abort();
-                return;
-            }
-            chain_id = (uint8_t) msg->chain_id;
-        } else {
-            chain_id = 0;
-        }
+	/* eip-155 chain id */
+	if (msg->has_chain_id) {
+		if (msg->chain_id < 1 || msg->chain_id > 109) {
+			fsm_sendFailure(FailureType_Failure_Other, "Chain Id out of bounds");
+			ethereum_signing_abort();
+			return;
+		}
+		chain_id = (uint8_t) msg->chain_id;
+	} else {
+		chain_id = 0;
+	}
 
-        if (msg->has_data_length && msg->data_length > 0) 
-        {
-            if (!msg->has_data_initial_chunk || msg->data_initial_chunk.size == 0) {
-                    fsm_sendFailure(FailureType_Failure_Other, "Data length provided, but no initial chunk");
-                    ethereum_signing_abort();
-                    return;
-            }
-            /* Our encoding only supports transactions up to 2^24 bytes.  To
-             * prevent exceeding the limit we use a stricter limit on data length.
-             */
-            if (msg->data_length > 16000000)  {
-                    fsm_sendFailure(FailureType_Failure_Other, "Data length exceeds limit");
-                    ethereum_signing_abort();
-                    return;
-            }
-            data_total = msg->data_length;
+	if (msg->has_data_length && msg->data_length > 0) {
+		if (!msg->has_data_initial_chunk || msg->data_initial_chunk.size == 0) {
+			fsm_sendFailure(FailureType_Failure_Other, "Data length provided, but no initial chunk");
+			ethereum_signing_abort();
+			return;
+		}
+		/* Our encoding only supports transactions up to 2^24 bytes.  To
+		 * prevent exceeding the limit we use a stricter limit on data length.
+		 */
+		if (msg->data_length > 16000000)  {
+			fsm_sendFailure(FailureType_Failure_Other, "Data length exceeds limit");
+			ethereum_signing_abort();
+			return;
+		}
+		data_total = msg->data_length;
 	} else {
 		data_total = 0;
 	}
-
 	if (msg->data_initial_chunk.size > data_total) {
 		fsm_sendFailure(FailureType_Failure_Other, "Invalid size of initial chunk");
 		ethereum_signing_abort();
@@ -545,13 +541,12 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 	rlp_length += rlp_calculate_length(msg->to.size, msg->to.bytes[0]);
 	rlp_length += rlp_calculate_length(msg->value.size, msg->value.bytes[0]);
 	rlp_length += rlp_calculate_length(data_total, msg->data_initial_chunk.bytes[0]);
-        if (chain_id) 
-        {
-            rlp_length += rlp_calculate_length(1, chain_id);
-            rlp_length += rlp_calculate_length(0, 0);
-            rlp_length += rlp_calculate_length(0, 0);
-        }
-        
+	if (chain_id) {
+		rlp_length += rlp_calculate_length(1, chain_id);
+		rlp_length += rlp_calculate_length(0, 0);
+		rlp_length += rlp_calculate_length(0, 0);
+	}
+
 	/* Stage 2: Store header fields */
 	hash_rlp_list_length(rlp_length);
 	animating_progress_handler();
