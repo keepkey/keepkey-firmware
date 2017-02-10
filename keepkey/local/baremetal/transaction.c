@@ -34,6 +34,7 @@
 #include "ripemd160.h"
 #include "base58.h"
 #include "app_confirm.h"
+#include "address.h"
 
 /* === Functions =========================================================== */
 
@@ -65,7 +66,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 {
 	memset(out, 0, sizeof(TxOutputBinType));
 	out->amount = in->amount;
-	uint8_t addr_raw[21];
+	uint8_t addr_raw[MAX_ADDR_RAW_SIZE];
 	char amount_str[32];
 	char node_str[NODE_STRING_LENGTH];
 	ButtonRequestType button_request;
@@ -111,10 +112,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 					return TXOUT_CANCEL;
 				}
 			}
-			if (!ecdsa_address_decode(in->address, addr_raw)) {
-				return TXOUT_COMPILE_ERROR;
-			}
-			if (addr_raw[0] != coin->address_type) {
+			if (!ecdsa_address_decode(in->address, coin->address_type, addr_raw)) {
 				return TXOUT_COMPILE_ERROR;
 			}
 		} else { // does not have address_n neither address -> error
@@ -124,7 +122,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		out->script_pubkey.bytes[0] = 0x76; // OP_DUP
 		out->script_pubkey.bytes[1] = 0xA9; // OP_HASH_160
 		out->script_pubkey.bytes[2] = 0x14; // pushing 20 bytes
-		memcpy(out->script_pubkey.bytes + 3, addr_raw + 1, 20);
+		memcpy(out->script_pubkey.bytes + 3, addr_raw + address_prefix_bytes_len(coin->address_type), 20);
 		out->script_pubkey.bytes[23] = 0x88; // OP_EQUALVERIFY
 		out->script_pubkey.bytes[24] = 0xAC; // OP_CHECKSIG
 		out->script_pubkey.size = 25;
@@ -132,10 +130,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 	}
 
 	if (in->script_type == OutputScriptType_PAYTOSCRIPTHASH) {
-		if (!in->has_address || !ecdsa_address_decode(in->address, addr_raw)) {
-			return TXOUT_COMPILE_ERROR;
-		}
-		if (addr_raw[0] != coin->address_type_p2sh) {
+		if (!in->has_address || !ecdsa_address_decode(in->address, coin->address_type_p2sh, addr_raw)) {
 			return TXOUT_COMPILE_ERROR;
 		}
 		if (needs_confirm) {
@@ -148,7 +143,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		}
 		out->script_pubkey.bytes[0] = 0xA9; // OP_HASH_160
 		out->script_pubkey.bytes[1] = 0x14; // pushing 20 bytes
-		memcpy(out->script_pubkey.bytes + 2, addr_raw + 1, 20);
+		memcpy(out->script_pubkey.bytes + 2, addr_raw + address_prefix_bytes_len(coin->address_type_p2sh), 20);
 		out->script_pubkey.bytes[22] = 0x87; // OP_EQUAL
 		out->script_pubkey.size = 23;
 		return 23;
@@ -156,16 +151,17 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 
 	if (in->script_type == OutputScriptType_PAYTOMULTISIG) {
 		uint8_t buf[32];
+		size_t prefix_bytes = address_prefix_bytes_len(coin->address_type_p2sh);
 		if (!in->has_multisig) {
 			return TXOUT_COMPILE_ERROR;
 		}
 		if (compile_script_multisig_hash(&(in->multisig), buf) == 0) {
 			return TXOUT_COMPILE_ERROR;
 		}
-		addr_raw[0] = coin->address_type_p2sh;
-		ripemd160(buf, 32, addr_raw + 1);
+		address_write_prefix_bytes(coin->address_type_p2sh, addr_raw);
+		ripemd160(buf, 32, addr_raw + prefix_bytes);
 		if (needs_confirm) {
-			base58_encode_check(addr_raw, 21, in->address, sizeof(in->address));
+			base58_encode_check(addr_raw, prefix_bytes + 20, in->address, sizeof(in->address));
 			coin_amnt_to_str(coin, in->amount, amount_str, sizeof(amount_str));
 
 			if(!confirm_transaction_output(ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str, in->address))
@@ -175,7 +171,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		}
 		out->script_pubkey.bytes[0] = 0xA9; // OP_HASH_160
 		out->script_pubkey.bytes[1] = 0x14; // pushing 20 bytes
-		memcpy(out->script_pubkey.bytes + 2, addr_raw + 1, 20);
+		memcpy(out->script_pubkey.bytes + 2, addr_raw + prefix_bytes, 20);
 		out->script_pubkey.bytes[22] = 0x87; // OP_EQUAL
 		out->script_pubkey.size = 23;
 		return 23;
@@ -194,7 +190,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 	return TXOUT_COMPILE_ERROR;
 }
 
-uint32_t compile_script_sig(uint8_t address_type, const uint8_t *pubkeyhash, uint8_t *out)
+uint32_t compile_script_sig(uint32_t address_type, const uint8_t *pubkeyhash, uint8_t *out)
 {
 	if (coinByAddressType(address_type)) { // valid coin type
 		out[0] = 0x76; // OP_DUP
@@ -445,7 +441,27 @@ uint32_t tx_serialize_output_hash(TxStruct *tx, const TxOutputBinType *output)
 	return r;
 }
 
-void tx_init(TxStruct *tx, uint32_t inputs_len, uint32_t outputs_len, uint32_t version, uint32_t lock_time, bool add_hash_type)
+uint32_t tx_serialize_extra_data_hash(TxStruct *tx, const uint8_t *data, uint32_t datalen)
+{
+	if (tx->have_inputs < tx->inputs_len) {
+		// not all inputs provided
+		return 0;
+	}
+	if (tx->have_outputs < tx->outputs_len) {
+		// not all inputs provided
+		return 0;
+	}
+	if (tx->extra_data_received + datalen > tx->extra_data_len) {
+		// we are receiving too much data
+		return 0;
+	}
+	sha256_Update(&(tx->ctx), data, datalen);
+	tx->extra_data_received += datalen;
+	tx->size += datalen;
+	return datalen;
+}
+
+void tx_init(TxStruct *tx, uint32_t inputs_len, uint32_t outputs_len, uint32_t version, uint32_t lock_time, uint32_t extra_data_len, bool add_hash_type)
 {
 	tx->inputs_len = inputs_len;
 	tx->outputs_len = outputs_len;
@@ -454,6 +470,8 @@ void tx_init(TxStruct *tx, uint32_t inputs_len, uint32_t outputs_len, uint32_t v
 	tx->add_hash_type = add_hash_type;
 	tx->have_inputs = 0;
 	tx->have_outputs = 0;
+	tx->extra_data_len = extra_data_len;
+	tx->extra_data_received = 0;
 	tx->size = 0;
 	sha256_Init(&(tx->ctx));
 }

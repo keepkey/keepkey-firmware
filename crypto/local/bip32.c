@@ -37,6 +37,7 @@
 #include "secp256k1.h"
 #include "nist256p1.h"
 #include "ed25519.h"
+#include "curve25519-donna/curve25519.h"
 #if USE_ETHEREUM
 #include "sha3.h"
 #endif
@@ -44,6 +45,12 @@
 const curve_info ed25519_info = {
 	/* bip32_name */
 	"ed25519 seed",
+	0
+};
+
+const curve_info curve25519_info = {
+	/* bip32_name */
+	"curve25519 seed",
 	0
 };
 
@@ -125,7 +132,7 @@ int hdnode_from_seed(const uint8_t *seed, int seed_len, const char* curve, HDNod
 	}
 	memcpy(out->private_key, I, 32);
 	memcpy(out->chain_code, I + 32, 32);
-
+	MEMSET_BZERO(out->public_key, sizeof(out->public_key));
 	MEMSET_BZERO(I, sizeof(I));
 	return 1;
 }
@@ -208,7 +215,6 @@ int hdnode_public_ckd(HDNode *inout, uint32_t i)
 {
 	uint8_t data[1 + 32 + 4];
 	uint8_t I[32 + 32];
-	uint8_t fingerprint[32];
 	curve_point a, b;
 	bignum256 c;
 
@@ -258,7 +264,6 @@ int hdnode_public_ckd(HDNode *inout, uint32_t i)
 	// Wipe all stack data.
 	MEMSET_BZERO(data, sizeof(data));
 	MEMSET_BZERO(I, sizeof(I));
-	MEMSET_BZERO(fingerprint, sizeof(fingerprint));
 	MEMSET_BZERO(&a, sizeof(a));
 	MEMSET_BZERO(&b, sizeof(b));
 	MEMSET_BZERO(&c, sizeof(c));
@@ -266,7 +271,7 @@ int hdnode_public_ckd(HDNode *inout, uint32_t i)
 	return 1;
 }
 
-int hdnode_public_ckd_address_optimized(const curve_point *pub, const uint8_t *public_key, const uint8_t *chain_code, uint32_t i, uint8_t version, char *addr, int addrsize)
+int hdnode_public_ckd_address_optimized(const curve_point *pub, const uint8_t *public_key, const uint8_t *chain_code, uint32_t i, uint32_t version, char *addr, int addrsize)
 {
 	uint8_t data[1 + 32 + 4];
 	uint8_t I[32 + 32];
@@ -288,7 +293,7 @@ int hdnode_public_ckd_address_optimized(const curve_point *pub, const uint8_t *p
 			failed = true;
 		} else {
 			scalar_multiply(&secp256k1, &c, &b); // b = c * G
-			point_add(&secp256k1, pub, &b);       // b = a + b
+			point_add(&secp256k1, pub, &b);      // b = a + b
 			if (point_is_infinity(&b)) {
 				failed = true;
 			}
@@ -374,10 +379,16 @@ int hdnode_private_ckd_cached(HDNode *inout, const uint32_t *i, size_t i_count)
 
 #endif
 
-void hdnode_get_address_raw(HDNode *node, uint8_t version, uint8_t *addr_raw)
+void hdnode_get_address_raw(HDNode *node, uint32_t version, uint8_t *addr_raw)
 {
 	hdnode_fill_public_key(node);
 	ecdsa_get_address_raw(node->public_key, version, addr_raw);
+}
+
+void hdnode_get_address(HDNode *node, uint32_t version, char *addr, int addrsize)
+{
+	hdnode_fill_public_key(node);
+	ecdsa_get_address(node->public_key, version, addr, addrsize);
 }
 
 void hdnode_fill_public_key(HDNode *node)
@@ -387,6 +398,9 @@ void hdnode_fill_public_key(HDNode *node)
 	if (node->curve == &ed25519_info) {
 		node->public_key[0] = 1;
 		ed25519_publickey(node->private_key, node->public_key + 1);
+	} else if (node->curve == &curve25519_info) {
+		node->public_key[0] = 1;
+		curve25519_donna_basepoint(node->public_key + 1, node->private_key);
 	} else {
 		ecdsa_get_public_key33(node->curve->params, node->private_key, node->public_key);
 	}
@@ -415,30 +429,57 @@ int hdnode_get_ethereum_pubkeyhash(const HDNode *node, uint8_t *pubkeyhash)
 
 // msg is a data to be signed
 // msg_len is the message length
-int hdnode_sign(HDNode *node, const uint8_t *msg, uint32_t msg_len, uint8_t *sig, uint8_t *pby)
+int hdnode_sign(HDNode *node, const uint8_t *msg, uint32_t msg_len, uint8_t *sig, uint8_t *pby, int (*is_canonical)(uint8_t by, uint8_t sig[64]))
 {
 	if (node->curve == &ed25519_info) {
 		hdnode_fill_public_key(node);
 		ed25519_sign(msg, msg_len, node->private_key, node->public_key + 1, sig);
 		return 0;
+	} else if (node->curve == &curve25519_info) {
+		return 1;  // signatures are not supported
 	} else {
-		return ecdsa_sign(node->curve->params, node->private_key, msg, msg_len, sig, pby);
+		return ecdsa_sign(node->curve->params, node->private_key, msg, msg_len, sig, pby, is_canonical);
 	}
 }
 
-int hdnode_sign_digest(HDNode *node, const uint8_t *digest, uint8_t *sig, uint8_t *pby)
+int hdnode_sign_digest(HDNode *node, const uint8_t *digest, uint8_t *sig, uint8_t *pby, int (*is_canonical)(uint8_t by, uint8_t sig[64]))
 {
 	if (node->curve == &ed25519_info) {
 		hdnode_fill_public_key(node);
 		ed25519_sign(digest, 32, node->private_key, node->public_key + 1, sig);
 		return 0;
+	} else if (node->curve == &curve25519_info) {
+		return 1;  // signatures are not supported
 	} else {
-		return ecdsa_sign_digest(node->curve->params, node->private_key, digest, sig, pby);
+		return ecdsa_sign_digest(node->curve->params, node->private_key, digest, sig, pby, is_canonical);
+	}
+}
+
+int hdnode_get_shared_key(const HDNode *node, const uint8_t *peer_public_key, uint8_t *session_key, int *result_size)
+{
+	// Use elliptic curve Diffie-Helman to compute shared session key
+	if (node->curve == &ed25519_info) {
+		*result_size = 0;
+		return 1;  // ECDH is not supported
+	} else if (node->curve == &curve25519_info) {
+		session_key[0] = 0x04;
+		if (peer_public_key[0] != 0x40) {
+			return 1;  // Curve25519 public key should start with 0x40 byte.
+		}
+		curve25519_donna(session_key + 1, node->private_key, peer_public_key + 1);
+		*result_size = 33;
+		return 0;
+	} else {
+		if (ecdh_multiply(node->curve->params, node->private_key, peer_public_key, session_key) != 0) {
+			return 1;
+		}
+		*result_size = 65;
+		return 0;
 	}
 }
 
 
-void hdnode_serialize(const HDNode *node, uint32_t fingerprint, uint32_t version, char use_public, char *str, int strsize)
+int hdnode_serialize(const HDNode *node, uint32_t fingerprint, uint32_t version, char use_public, char *str, int strsize)
 {
 	uint8_t node_data[78];
 	write_be(node_data, version);
@@ -452,23 +493,23 @@ void hdnode_serialize(const HDNode *node, uint32_t fingerprint, uint32_t version
 		node_data[45] = 0;
 		memcpy(node_data + 46, node->private_key, 32);
 	}
-	base58_encode_check(node_data, sizeof(node_data), str, strsize);
-
+	int ret = base58_encode_check(node_data, sizeof(node_data), str, strsize);
 	MEMSET_BZERO(node_data, sizeof(node_data));
+	return ret;
 }
 
-void hdnode_serialize_public(const HDNode *node, uint32_t fingerprint, char *str, int strsize)
+int hdnode_serialize_public(const HDNode *node, uint32_t fingerprint, char *str, int strsize)
 {
-	hdnode_serialize(node, fingerprint, 0x0488B21E, 1, str, strsize);
+	return hdnode_serialize(node, fingerprint, 0x0488B21E, 1, str, strsize);
 }
 
-void hdnode_serialize_private(const HDNode *node, uint32_t fingerprint, char *str, int strsize)
+int hdnode_serialize_private(const HDNode *node, uint32_t fingerprint, char *str, int strsize)
 {
-	hdnode_serialize(node, fingerprint, 0x0488ADE4, 0, str, strsize);
+	return hdnode_serialize(node, fingerprint, 0x0488ADE4, 0, str, strsize);
 }
 
 // check for validity of curve point in case of public data not performed
-int hdnode_deserialize(const char *str, HDNode *node)
+int hdnode_deserialize(const char *str, HDNode *node, uint32_t *fingerprint)
 {
 	uint8_t node_data[78];
 	memset(node, 0, sizeof(HDNode));
@@ -490,6 +531,9 @@ int hdnode_deserialize(const char *str, HDNode *node)
 		return -3; // invalid version
 	}
 	node->depth = node_data[4];
+	if (fingerprint) {
+		*fingerprint = read_be(node_data + 5);
+	}
 	node->child_num = read_be(node_data + 9);
 	memcpy(node->chain_code, node_data + 13, 32);
 	return 0;
@@ -507,6 +551,9 @@ const curve_info *get_curve_by_name(const char *curve_name) {
 	}
 	if (strcmp(curve_name, ED25519_NAME) == 0) {
 		return &ed25519_info;
+	}
+	if (strcmp(curve_name, CURVE25519_NAME) == 0) {
+		return &curve25519_info;
 	}
 	return 0;
 }

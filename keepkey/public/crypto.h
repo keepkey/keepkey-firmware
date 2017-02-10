@@ -34,6 +34,7 @@
 /* === Functions =========================================================== */
 
 uint32_t ser_length(uint32_t len, uint8_t *out);
+
 uint32_t ser_length_hash(SHA256_CTX *ctx, uint32_t len);
 uint32_t deser_length(const uint8_t *in, uint32_t *out);
 
@@ -41,11 +42,9 @@ int sshMessageSign(HDNode *node, const uint8_t *message, size_t message_len, uin
 
 int gpgMessageSign(HDNode *node, const uint8_t *message, size_t message_len, uint8_t *signature);
 
-int cryptoGetECDHSessionKey(const HDNode *node, const uint8_t *peer_public_key, uint8_t *session_key);
-
 int cryptoMessageSign(const CoinType *coin, HDNode *node, const uint8_t *message, size_t message_len, uint8_t *signature);
 
-int cryptoMessageVerify(const CoinType *coin, const uint8_t *message, size_t message_len, const uint8_t *address_raw, const uint8_t *signature);
+int cryptoMessageVerify(const CoinType *coin, const uint8_t *message, size_t message_len, uint32_t address_type, const uint8_t *address_raw, const uint8_t *signature);
 
 /* ECIES disabled
 // ECIES: http://memwallet.info/btcmssgs.html
@@ -59,9 +58,11 @@ int cryptoMessageDecrypt(curve_point *nonce, uint8_t *payload, size_t payload_le
 */
 
 uint8_t *cryptoHDNodePathToPubkey(const HDNodePathType *hdnodepath);
-int cryptoMultisigPubkeyIndex(const MultisigRedeemScriptType *multisig,
-                              const uint8_t *pubkey);
+
+int cryptoMultisigPubkeyIndex(const MultisigRedeemScriptType *multisig, const uint8_t *pubkey);
+
 int cryptoMultisigFingerprint(const MultisigRedeemScriptType *multisig, uint8_t *hash);
+
 int cryptoIdentityFingerprint(const IdentityType *identity, uint8_t *hash);
 
 #endif

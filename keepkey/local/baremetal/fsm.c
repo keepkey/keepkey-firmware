@@ -1175,9 +1175,7 @@ void fsm_msgSignMessage(SignMessage *msg)
     if(cryptoMessageSign(coin, node, msg->message.bytes, msg->message.size, resp->signature.bytes) == 0)
     {
         resp->has_address = true;
-        uint8_t addr_raw[21];
-        hdnode_get_address_raw(node, coin->address_type, addr_raw);
-        base58_encode_check(addr_raw, 21, resp->address, sizeof(resp->address));
+        hdnode_get_address(node, coin->address_type, resp->address, sizeof(resp->address));
         resp->has_signature = true;
         resp->signature.size = 65;
         msg_write(MessageType_MessageType_MessageSignature, resp);
@@ -1204,16 +1202,19 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
     }
     const CoinType *coin = fsm_getCoin(msg->coin_name);
     if (!coin) return;
+	uint8_t addr_raw[MAX_ADDR_RAW_SIZE];
+	uint32_t address_type;
+	if (!coinExtractAddressType(coin, msg->address, &address_type) || !ecdsa_address_decode(msg->address, address_type, addr_raw)) {
+		fsm_sendFailure(FailureType_Failure_InvalidSignature, "Invalid address");
+		return;
+	}
     layout_simple_message("Verifying Message...");
-    uint8_t addr_raw[21];
-
-    if(!ecdsa_address_decode(msg->address, addr_raw))
-    {
-        fsm_sendFailure(FailureType_Failure_InvalidSignature, "Invalid address");
-    }
-    if(msg->signature.size == 65 &&
-            cryptoMessageVerify(coin, msg->message.bytes, msg->message.size, addr_raw,
-                                msg->signature.bytes) == 0)
+    if (msg->signature.size == 65 && cryptoMessageVerify(coin, 
+                                                         msg->message.bytes, 
+                                                         msg->message.size, 
+                                                         address_type, 
+                                                         addr_raw, 
+                                                         msg->signature.bytes) == 0) 
     {
         if(review(ButtonRequestType_ButtonRequest_Other, "Message Verified",
                   (char *)msg->message.bytes))
@@ -1264,14 +1265,10 @@ void fsm_msgSignIdentity(SignIdentity *msg)
 
     uint32_t address_n[5];
     address_n[0] = 0x80000000 | 13;
-    address_n[1] = 0x80000000 | hash[ 0] | (hash[ 1] << 8) | (hash[ 2] << 16) |
-                   (hash[ 3] << 24);
-    address_n[2] = 0x80000000 | hash[ 4] | (hash[ 5] << 8) | (hash[ 6] << 16) |
-                   (hash[ 7] << 24);
-    address_n[3] = 0x80000000 | hash[ 8] | (hash[ 9] << 8) | (hash[10] << 16) |
-                   (hash[11] << 24);
-    address_n[4] = 0x80000000 | hash[12] | (hash[13] << 8) | (hash[14] << 16) |
-                   (hash[15] << 24);
+    address_n[1] = 0x80000000 | hash[ 0] | (hash[ 1] << 8) | (hash[ 2] << 16) | (hash[ 3] << 24);
+    address_n[2] = 0x80000000 | hash[ 4] | (hash[ 5] << 8) | (hash[ 6] << 16) | (hash[ 7] << 24);
+    address_n[3] = 0x80000000 | hash[ 8] | (hash[ 9] << 8) | (hash[10] << 16) | (hash[11] << 24);
+    address_n[4] = 0x80000000 | hash[12] | (hash[13] << 8) | (hash[14] << 16) | (hash[15] << 24);
 
     const char *curve = SECP256K1_NAME;
     if (msg->has_ecdsa_curve_name) {
@@ -1312,9 +1309,7 @@ void fsm_msgSignIdentity(SignIdentity *msg)
         else
         {
             resp->has_address = true;
-            uint8_t addr_raw[21];
-	    hdnode_get_address_raw(node, 0x00, addr_raw); // hardcoded Bitcoin address type
-            base58_encode_check(addr_raw, 21, resp->address, sizeof(resp->address));
+            hdnode_get_address(node, 0x00, resp->address, sizeof(resp->address)); // hardcoded Bitcoin address type
         }
         resp->has_public_key = true;
         resp->public_key.size = 33;
@@ -1371,8 +1366,7 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
     RESP_INIT(EncryptedMessage);
     const CoinType *coin = 0;
     const HDNode *node = 0;
-    uint8_t address_raw[21];
-
+    uint8_t address_raw[MAX_ADDR_RAW_SIZE];
     if(signing)
     {
         coin = coinByName(msg->coin_name);
@@ -1480,7 +1474,7 @@ void fsm_msgDecryptMessage(DecryptMessage *msg)
     RESP_INIT(DecryptedMessage);
     bool display_only = false;
     bool signing = false;
-    uint8_t address_raw[21];
+    uint8_t address_raw[MAX_ADDR_RAW_SIZE];
 
     if(cryptoMessageDecrypt(&nonce_pubkey, msg->message.bytes, msg->message.size,
                             msg->hmac.bytes, msg->hmac.size, node->private_key, resp->message.bytes,

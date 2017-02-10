@@ -62,6 +62,7 @@ enum {
 	STAGE_REQUEST_2_PREV_META,
 	STAGE_REQUEST_2_PREV_INPUT,
 	STAGE_REQUEST_2_PREV_OUTPUT,
+	STAGE_REQUEST_2_PREV_EXTRADATA,
 	STAGE_REQUEST_3_OUTPUT,
 	STAGE_REQUEST_4_INPUT,
 	STAGE_REQUEST_4_OUTPUT,
@@ -265,6 +266,7 @@ foreach I (idx1):
         foreach prevhash O (idx2):
             Request prevhash O                                        STAGE_REQUEST_2_PREV_OUTPUT
             Add amount of prevhash O (which is amount of I)
+        Request prevhash extra data (if applicable)                   STAGE_REQUEST_2_PREV_EXTRADATA
         Calculate hash of streamed tx, compare to prevhash I
 foreach O (idx1):
     Request O                                                         STAGE_REQUEST_3_OUTPUT
@@ -349,6 +351,22 @@ void send_req_2_prev_output(void)
 	msg_write(MessageType_MessageType_TxRequest, &resp);
 }
 
+void send_req_2_prev_extradata(uint32_t chunk_offset, uint32_t chunk_len)
+{
+	signing_stage = STAGE_REQUEST_2_PREV_EXTRADATA;
+	resp.has_request_type = true;
+	resp.request_type = RequestType_TXEXTRADATA;
+	resp.has_details = true;
+	resp.details.has_extra_data_offset = true;
+	resp.details.extra_data_offset = chunk_offset;
+	resp.details.has_extra_data_len = true;
+	resp.details.extra_data_len = chunk_len;
+	resp.details.has_tx_hash = true;
+	resp.details.tx_hash.size = input.prev_hash.size;
+	memcpy(resp.details.tx_hash.bytes, input.prev_hash.bytes, resp.details.tx_hash.size);
+	msg_write(MessageType_MessageType_TxRequest, &resp);
+}
+
 void send_req_3_output(void)
 {
 	signing_stage = STAGE_REQUEST_3_OUTPUT;
@@ -421,7 +439,7 @@ void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinTyp
 	multisig_fp_set = false;
 	multisig_fp_mismatch = false;
 
-	tx_init(&to, inputs_count, outputs_count, version, lock_time, false);
+	tx_init(&to, inputs_count, outputs_count, version, lock_time, 0, false);
 	sha256_Init(&tc);
 	sha256_Update(&tc, (const uint8_t *)&inputs_count, sizeof(inputs_count));
 	sha256_Update(&tc, (const uint8_t *)&outputs_count, sizeof(outputs_count));
@@ -434,7 +452,8 @@ void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinTyp
     set_exchange_error(NO_EXCHANGE_ERROR);
 }
 
-void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
+void parse_raw_txack(uint8_t *msg, uint32_t msg_size)
+{
 	static int32_t state_pos = 0;
 	static uint8_t *ptr;
 	static uint8_t var_int_buffer[VAR_INT_BUFFER];
@@ -448,7 +467,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 
 		switch(raw_tx_status) {
 			case NOT_PARSING:
-				tx_init(&tp, 0, 0, 0, 0, false);
+				tx_init(&tp, 0, 0, 0, 0, 0, false);
 				state_pos = sizeof(uint32_t);
 				raw_tx_status = PARSING_VERSION;
 				ptr = (uint8_t *)&tp.version;
@@ -595,6 +614,8 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 	}
 }
 
+#define MIN(a,b) (((a)<(b))?(a):(b))
+
 void signing_txack(TransactionType *tx)
 {
 	int co;
@@ -640,9 +661,14 @@ void signing_txack(TransactionType *tx)
 			send_req_2_prev_meta();
 			return;
 		case STAGE_REQUEST_2_PREV_META:
-			tx_init(&tp, tx->inputs_cnt, tx->outputs_cnt, tx->version, tx->lock_time, false);
+			tx_init(&tp, tx->inputs_cnt, tx->outputs_cnt, tx->version, tx->lock_time, tx->extra_data_len, false);
 			idx2 = 0;
-			send_req_2_prev_input();
+			if (tp.inputs_len > 0) {
+				send_req_2_prev_input();
+			} else {
+				tx_serialize_header_hash(&tp);
+				send_req_2_prev_output();
+			}
 			return;
 		case STAGE_REQUEST_2_PREV_INPUT:
 			if (!tx_serialize_input_hash(&tp, tx->inputs)) {
@@ -671,8 +697,35 @@ void signing_txack(TransactionType *tx)
 				/* Check prevtx of next input */
 				idx2++;
 				send_req_2_prev_output();
+			} else { // last output
+				if (tp.extra_data_len > 0) { // has extra data
+					send_req_2_prev_extradata(0, MIN(1024, tp.extra_data_len));
+					return;
+				}
+				tx_hash_final(&tp, hash, true);
+				if (memcmp(hash, input.prev_hash.bytes, 32) != 0) {
+					fsm_sendFailure(FailureType_Failure_Other, "Encountered invalid prevhash");
+					signing_abort();
+					return;
+				}
+				if (idx1 < inputs_count - 1) {
+					idx1++;
+					send_req_1_input();
+				} else {
+					idx1 = 0;
+					send_req_3_output();
+				}
+			}
+			return;
+		case STAGE_REQUEST_2_PREV_EXTRADATA:
+			if (!tx_serialize_extra_data_hash(&tp, tx->extra_data.bytes, tx->extra_data.size)) {
+				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize extra data");
+				signing_abort();
+				return;
+			}
+			if (tp.extra_data_received < tp.extra_data_len) { // still some data remanining
+				send_req_2_prev_extradata(tp.extra_data_received, MIN(1024, tp.extra_data_len - tp.extra_data_received));
 			} else {
-				/* Check next output */
 				tx_hash_final(&tp, hash, true);
 				if (memcmp(hash, input.prev_hash.bytes, 32) != 0) {
 					fsm_sendFailure(FailureType_Failure_Other, "Encountered invalid prevhash");
@@ -695,7 +748,6 @@ void signing_txack(TransactionType *tx)
 			 *  Ask for permission.
 			 */
 			bool is_change = false;
-
 			if (tx->outputs[0].script_type == OutputScriptType_PAYTOMULTISIG &&
 			    tx->outputs[0].has_multisig &&
 			    multisig_fp_set && !multisig_fp_mismatch) {
@@ -795,7 +847,7 @@ void signing_txack(TransactionType *tx)
 		}
 		case STAGE_REQUEST_4_INPUT:
 			if (idx2 == 0) {
-				tx_init(&ti, inputs_count, outputs_count, version, lock_time, true);
+				tx_init(&ti, inputs_count, outputs_count, version, lock_time, 0, true);
 				sha256_Init(&tc);
 				sha256_Update(&tc, (const uint8_t *)&inputs_count, sizeof(inputs_count));
 				sha256_Update(&tc, (const uint8_t *)&outputs_count, sizeof(outputs_count));
@@ -877,7 +929,7 @@ void signing_txack(TransactionType *tx)
 				resp.serialized.signature_index = idx1;
 				resp.serialized.has_signature = true;
 				resp.serialized.has_serialized_tx = true;
-				ecdsa_sign_digest(&secp256k1, privkey, hash, sig, 0);
+				ecdsa_sign_digest(&secp256k1, privkey, hash, sig, NULL, NULL);
 				resp.serialized.signature.size = ecdsa_sig_to_der(sig, resp.serialized.signature.bytes);
 				if (input.script_type == InputScriptType_SPENDMULTISIG) {
 					if (!input.has_multisig) {
