@@ -50,7 +50,7 @@ def bump_version(args):
 
 def compile_protocol_buffers():
     if not os.path.exists('../%s' % DEVICE_PROTOCOL):
-        local('git clone -b zcash-integration https://github.com/keepkey/%s.git ../%s' % (DEVICE_PROTOCOL, DEVICE_PROTOCOL))
+        local('git clone https://github.com/keepkey/%s.git ../%s' % (DEVICE_PROTOCOL, DEVICE_PROTOCOL))
 
     if not os.path.exists('interface/local'):
         os.mkdir('interface/local')
