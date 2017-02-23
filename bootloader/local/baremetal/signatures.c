@@ -25,6 +25,7 @@
 #include <ecdsa.h>
 #include <secp256k1.h>
 #include <memory.h>
+#include <string.h>
 
 #include "signatures.h"
 
@@ -90,7 +91,7 @@ static const uint8_t pubkey[PUBKEYS][PUBKEY_LENGTH] =
  * OUTPUT
  *     returns 1 if signatures are correct, otherwise 0
  */
-int signatures_ok(void)
+int signatures_ok(uint8_t *store_hash)
 {
 #if !defined(DEBUG_ON) || DEBUG_LINK
     uint32_t codelen = *((uint32_t *)FLASH_META_CODELEN);
@@ -114,6 +115,11 @@ int signatures_ok(void)
 
     sha256_Raw((uint8_t *)FLASH_APP_START, codelen, firmware_fingerprint);
 
+    if(store_hash)
+    {
+        memcpy(store_hash, firmware_fingerprint, 32);
+    }
+
     if(ecdsa_verify_digest(&secp256k1, pubkey[sigindex1 - 1], (uint8_t *)FLASH_META_SIG1,
                            firmware_fingerprint) != 0)   /* Failure */
     {
@@ -132,6 +138,8 @@ int signatures_ok(void)
         return 0;
     }
 
+#else
+    (void)store_hash;
 #endif
     return 1;
 }
