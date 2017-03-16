@@ -860,7 +860,7 @@ void signing_txack(TransactionType *tx)
 			if (idx2 == idx1) {
 				memcpy(&input, tx->inputs, sizeof(TxInputType));
 				memcpy(&node, root, sizeof(HDNode));
-				if (hdnode_private_ckd_cached(&node, tx->inputs[0].address_n, tx->inputs[0].address_n_count) == 0) {
+				if(hdnode_private_ckd_cached(&node, tx->inputs[0].address_n, tx->inputs[0].address_n_count, NULL) == 0) {
 					fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
 					signing_abort();
 					return;
@@ -929,7 +929,11 @@ void signing_txack(TransactionType *tx)
 				resp.serialized.signature_index = idx1;
 				resp.serialized.has_signature = true;
 				resp.serialized.has_serialized_tx = true;
-				ecdsa_sign_digest(&secp256k1, privkey, hash, sig, NULL, NULL);
+				if (ecdsa_sign_digest(&secp256k1, privkey, hash, sig, NULL, NULL) != 0) {
+					fsm_sendFailure(FailureType_Failure_Other, "Signing failed");
+					signing_abort();
+					return;
+				}
 				resp.serialized.signature.size = ecdsa_sig_to_der(sig, resp.serialized.signature.bytes);
 				if (input.script_type == InputScriptType_SPENDMULTISIG) {
 					if (!input.has_multisig) {

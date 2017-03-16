@@ -40,18 +40,16 @@ uint32_t read_be(const uint8_t *data);
 // write 4 big endian bytes
 void write_be(uint8_t *data, uint32_t x);
 
-#ifdef DEBUG_ON
 // read 4 little endian bytes into uint32
 uint32_t read_le(const uint8_t *data);
 
 // write 4 little endian bytes
 void write_le(uint8_t *data, uint32_t x);
-#endif
+
 void bn_read_be(const uint8_t *in_number, bignum256 *out_number);
 
 void bn_write_be(const bignum256 *in_number, uint8_t *out_number);
 
-#ifdef DEBUG_ON
 void bn_read_le(const uint8_t *in_number, bignum256 *out_number);
 
 void bn_write_le(const bignum256 *in_number, uint8_t *out_number);
@@ -82,13 +80,11 @@ static inline void bn_copy(const bignum256 *a, bignum256 *b) {
 }
 
 int bn_bitcount(const bignum256 *a);
-#endif
 
 void bn_zero(bignum256 *a);
 
 int bn_is_zero(const bignum256 *a);
 
-#ifdef DEBUG_ON
 void bn_one(bignum256 *a);
 
 static inline int bn_is_even(const bignum256 *a) {
@@ -98,7 +94,6 @@ static inline int bn_is_even(const bignum256 *a) {
 static inline int bn_is_odd(const bignum256 *a) {
 	return (a->val[0] & 1) == 1;
 }
-#endif
 
 int bn_is_less(const bignum256 *a, const bignum256 *b);
 
@@ -109,6 +104,14 @@ void bn_cmov(bignum256 *res, int cond, const bignum256 *truecase, const bignum25
 void bn_lshift(bignum256 *a);
 
 void bn_rshift(bignum256 *a);
+
+void bn_setbit(bignum256 *a, uint8_t bit);
+
+void bn_clearbit(bignum256 *a, uint8_t bit);
+
+uint32_t bn_testbit(bignum256 *a, uint8_t bit);
+
+void bn_xor(bignum256 *a, const bignum256 *b, const bignum256 *c);
 
 void bn_mult_half(bignum256 *x, const bignum256 *prime);
 

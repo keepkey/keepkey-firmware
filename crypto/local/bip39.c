@@ -201,7 +201,7 @@ int mnemonic_check(const char *mnemonic)
 }
 
 // passphrase must be at most 256 characters or code may crash
-void mnemonic_to_seed(const char *mnemonic, const char *passphrase, uint8_t seed[512 / 8], void (*progress_callback)(uint32_t ms, uint32_t frequency_ms))
+void mnemonic_to_seed(const char *mnemonic, const char *passphrase, uint8_t seed[512 / 8], void (*progress_callback)(uint32_t current, uint32_t total))
 {
 	int passphraselen = strlen(passphrase);
 #if USE_BIP39_CACHE

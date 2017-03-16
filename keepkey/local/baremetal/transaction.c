@@ -97,7 +97,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 			HDNode node;
 			memcpy(&node, root, sizeof(HDNode));
 
-			if (hdnode_private_ckd_cached(&node, in->address_n, in->address_n_count) == 0) 
+			if(hdnode_private_ckd_cached(&node, in->address_n, in->address_n_count, NULL) == 0) 
 			{
 				return TXOUT_COMPILE_ERROR;
 			}

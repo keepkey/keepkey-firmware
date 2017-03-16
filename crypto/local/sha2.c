@@ -92,6 +92,7 @@ typedef uint64_t sha2_word64;	/* Exactly 8 bytes */
 
 /*** SHA-256/384/512 Various Length Definitions ***********************/
 /* NOTE: Most of these are in sha2.h */
+#define   SHA1_SHORT_BLOCK_LENGTH	(SHA1_BLOCK_LENGTH - 8)
 #define SHA256_SHORT_BLOCK_LENGTH	(SHA256_BLOCK_LENGTH - 8)
 #define SHA512_SHORT_BLOCK_LENGTH	(SHA512_BLOCK_LENGTH - 16)
 
@@ -114,33 +115,49 @@ typedef uint64_t sha2_word64;	/* Exactly 8 bytes */
 /*
  * Bit shifting and rotation (used by the six SHA-XYZ logical functions:
  *
- *   NOTE:  The naming of R and S appears backwards here (R is a SHIFT and
- *   S is a ROTATION) because the SHA-256/384/512 description document
- *   (see http://csrc.nist.gov/cryptval/shs/sha256-384-512.pdf) uses this
- *   same "backwards" definition.
+ *   NOTE:  In the original SHA-256/384/512 document, the shift-right
+ *   function was named R and the rotate-right function was called S.
+ *   (See: http://csrc.nist.gov/cryptval/shs/sha256-384-512.pdf on the
+ *   web.)
+ *
+ *   The newer NIST FIPS 180-2 document uses a much clearer naming
+ *   scheme, SHR for shift-right, ROTR for rotate-right, and ROTL for
+ *   rotate-left.  (See:
+ *   http://csrc.nist.gov/publications/fips/fips180-2/fips180-2.pdf
+ *   on the web.)
+ *
+ *   WARNING: These macros must be used cautiously, since they reference
+ *   supplied parameters sometimes more than once, and thus could have
+ *   unexpected side-effects if used without taking this into account.
  */
-/* Shift-right (used in SHA-256, SHA-384, and SHA-512): */
-#define R(b,x) 		((x) >> (b))
-/* 32-bit Rotate-right (used in SHA-256): */
-#define S32(b,x)	(((x) >> (b)) | ((x) << (32 - (b))))
-/* 64-bit Rotate-right (used in SHA-384 and SHA-512): */
-#define S64(b,x)	(((x) >> (b)) | ((x) << (64 - (b))))
 
-/* Two of six logical functions used in SHA-256, SHA-384, and SHA-512: */
+/* Shift-right (used in SHA-256, SHA-384, and SHA-512): */
+#define SHR(b,x) 		((x) >> (b))
+/* 32-bit Rotate-right (used in SHA-256): */
+#define ROTR32(b,x)	(((x) >> (b)) | ((x) << (32 - (b))))
+/* 64-bit Rotate-right (used in SHA-384 and SHA-512): */
+#define ROTR64(b,x)	(((x) >> (b)) | ((x) << (64 - (b))))
+/* 32-bit Rotate-left (used in SHA-1): */
+#define ROTL32(b,x)	(((x) << (b)) | ((x) >> (32 - (b))))
+
+/* Two of six logical functions used in SHA-1, SHA-256, SHA-384, and SHA-512: */
 #define Ch(x,y,z)	(((x) & (y)) ^ ((~(x)) & (z)))
 #define Maj(x,y,z)	(((x) & (y)) ^ ((x) & (z)) ^ ((y) & (z)))
 
+/* Function used in SHA-1: */
+#define Parity(x,y,z)	((x) ^ (y) ^ (z))
+
 /* Four of six logical functions used in SHA-256: */
-#define Sigma0_256(x)	(S32(2,  (x)) ^ S32(13, (x)) ^ S32(22, (x)))
-#define Sigma1_256(x)	(S32(6,  (x)) ^ S32(11, (x)) ^ S32(25, (x)))
-#define sigma0_256(x)	(S32(7,  (x)) ^ S32(18, (x)) ^ R(3 ,   (x)))
-#define sigma1_256(x)	(S32(17, (x)) ^ S32(19, (x)) ^ R(10,   (x)))
+#define Sigma0_256(x)	(ROTR32(2,  (x)) ^ ROTR32(13, (x)) ^ ROTR32(22, (x)))
+#define Sigma1_256(x)	(ROTR32(6,  (x)) ^ ROTR32(11, (x)) ^ ROTR32(25, (x)))
+#define sigma0_256(x)	(ROTR32(7,  (x)) ^ ROTR32(18, (x)) ^ SHR(3 ,   (x)))
+#define sigma1_256(x)	(ROTR32(17, (x)) ^ ROTR32(19, (x)) ^ SHR(10,   (x)))
 
 /* Four of six logical functions used in SHA-384 and SHA-512: */
-#define Sigma0_512(x)	(S64(28, (x)) ^ S64(34, (x)) ^ S64(39, (x)))
-#define Sigma1_512(x)	(S64(14, (x)) ^ S64(18, (x)) ^ S64(41, (x)))
-#define sigma0_512(x)	(S64( 1, (x)) ^ S64( 8, (x)) ^ R( 7,   (x)))
-#define sigma1_512(x)	(S64(19, (x)) ^ S64(61, (x)) ^ R( 6,   (x)))
+#define Sigma0_512(x)	(ROTR64(28, (x)) ^ ROTR64(34, (x)) ^ ROTR64(39, (x)))
+#define Sigma1_512(x)	(ROTR64(14, (x)) ^ ROTR64(18, (x)) ^ ROTR64(41, (x)))
+#define sigma0_512(x)	(ROTR64( 1, (x)) ^ ROTR64( 8, (x)) ^ SHR( 7,   (x)))
+#define sigma1_512(x)	(ROTR64(19, (x)) ^ ROTR64(61, (x)) ^ SHR( 6,   (x)))
 
 /*** INTERNAL FUNCTION PROTOTYPES *************************************/
 /* NOTE: These should not be accessed directly from outside this
@@ -151,6 +168,22 @@ static void sha512_Last(SHA512_CTX*);
 
 
 /*** SHA-XYZ INITIAL HASH VALUES AND CONSTANTS ************************/
+
+/* Hash constant words K for SHA-1: */
+#define K1_0_TO_19	0x5a827999UL
+#define K1_20_TO_39	0x6ed9eba1UL
+#define K1_40_TO_59	0x8f1bbcdcUL
+#define K1_60_TO_79	0xca62c1d6UL
+
+/* Initial hash value H for SHA-1: */
+const sha2_word32 sha1_initial_hash_value[SHA1_DIGEST_LENGTH / sizeof(sha2_word32)] = {
+	0x67452301UL,
+	0xefcdab89UL,
+	0x98badcfeUL,
+	0x10325476UL,
+	0xc3d2e1f0UL
+};
+
 /* Hash constant words K for SHA-256: */
 static const sha2_word32 K256[64] = {
 	0x428a2f98UL, 0x71374491UL, 0xb5c0fbcfUL, 0xe9b5dba5UL,
@@ -245,6 +278,414 @@ const sha2_word64 sha512_initial_hash_value[8] = {
  */
 static const char *sha2_hex_digits = "0123456789abcdef";
 
+
+/*** SHA-1: ***********************************************************/
+void sha1_Init(SHA1_CTX* context) {
+	MEMCPY_BCOPY(context->state, sha1_initial_hash_value, SHA1_DIGEST_LENGTH);
+	MEMSET_BZERO(context->buffer, SHA1_BLOCK_LENGTH);
+	context->bitcount = 0;
+}
+
+#ifdef SHA2_UNROLL_TRANSFORM
+
+/* Unrolled SHA-1 round macros: */
+
+#if BYTE_ORDER == LITTLE_ENDIAN
+
+#define ROUND1_0_TO_15(a,b,c,d,e)				\
+	REVERSE32(*data++, W1[j]);				\
+	(e) = ROTL32(5, (a)) + Ch((b), (c), (d)) + (e) +	\
+	     K1_0_TO_19 + W1[j];	\
+	(b) = ROTL32(30, (b));		\
+	j++;
+
+#else /* BYTE_ORDER == LITTLE_ENDIAN */
+
+#define ROUND1_0_TO_15(a,b,c,d,e)				\
+	(e) = ROTL32(5, (a)) + Ch((b), (c), (d)) + (e) +	\
+	     K1_0_TO_19 + ( W1[j] = *data++ );		\
+	(b) = ROTL32(30, (b));	\
+	j++;
+
+#endif /* BYTE_ORDER == LITTLE_ENDIAN */
+
+#define ROUND1_16_TO_19(a,b,c,d,e)	\
+	T1 = W1[(j+13)&0x0f] ^ W1[(j+8)&0x0f] ^ W1[(j+2)&0x0f] ^ W1[j&0x0f];	\
+	(e) = ROTL32(5, a) + Ch(b,c,d) + e + K1_0_TO_19 + ( W1[j&0x0f] = ROTL32(1, T1) );	\
+	(b) = ROTL32(30, b);	\
+	j++;
+
+#define ROUND1_20_TO_39(a,b,c,d,e)	\
+	T1 = W1[(j+13)&0x0f] ^ W1[(j+8)&0x0f] ^ W1[(j+2)&0x0f] ^ W1[j&0x0f];	\
+	(e) = ROTL32(5, a) + Parity(b,c,d) + e + K1_20_TO_39 + ( W1[j&0x0f] = ROTL32(1, T1) );	\
+	(b) = ROTL32(30, b);	\
+	j++;
+
+#define ROUND1_40_TO_59(a,b,c,d,e)	\
+	T1 = W1[(j+13)&0x0f] ^ W1[(j+8)&0x0f] ^ W1[(j+2)&0x0f] ^ W1[j&0x0f];	\
+	(e) = ROTL32(5, a) + Maj(b,c,d) + e + K1_40_TO_59 + ( W1[j&0x0f] = ROTL32(1, T1) );	\
+	(b) = ROTL32(30, b);	\
+	j++;
+
+#define ROUND1_60_TO_79(a,b,c,d,e)	\
+	T1 = W1[(j+13)&0x0f] ^ W1[(j+8)&0x0f] ^ W1[(j+2)&0x0f] ^ W1[j&0x0f];	\
+	(e) = ROTL32(5, a) + Parity(b,c,d) + e + K1_60_TO_79 + ( W1[j&0x0f] = ROTL32(1, T1) );	\
+	(b) = ROTL32(30, b);	\
+	j++;
+
+void sha1_Transform(const sha2_word32* state_in, const sha2_word32* data, sha2_word32* state_out) {
+	sha2_word32	a, b, c, d, e;
+	sha2_word32	T1;
+	sha2_word32	W1[16];
+	int		j;
+
+	/* Initialize registers with the prev. intermediate value */
+	a = state_in[0];
+	b = state_in[1];
+	c = state_in[2];
+	d = state_in[3];
+	e = state_in[4];
+
+	j = 0;
+
+	/* Rounds 0 to 15 unrolled: */
+	ROUND1_0_TO_15(a,b,c,d,e);
+	ROUND1_0_TO_15(e,a,b,c,d);
+	ROUND1_0_TO_15(d,e,a,b,c);
+	ROUND1_0_TO_15(c,d,e,a,b);
+	ROUND1_0_TO_15(b,c,d,e,a);
+	ROUND1_0_TO_15(a,b,c,d,e);
+	ROUND1_0_TO_15(e,a,b,c,d);
+	ROUND1_0_TO_15(d,e,a,b,c);
+	ROUND1_0_TO_15(c,d,e,a,b);
+	ROUND1_0_TO_15(b,c,d,e,a);
+	ROUND1_0_TO_15(a,b,c,d,e);
+	ROUND1_0_TO_15(e,a,b,c,d);
+	ROUND1_0_TO_15(d,e,a,b,c);
+	ROUND1_0_TO_15(c,d,e,a,b);
+	ROUND1_0_TO_15(b,c,d,e,a);
+	ROUND1_0_TO_15(a,b,c,d,e);
+
+	/* Rounds 16 to 19 unrolled: */
+	ROUND1_16_TO_19(e,a,b,c,d);
+	ROUND1_16_TO_19(d,e,a,b,c);
+	ROUND1_16_TO_19(c,d,e,a,b);
+	ROUND1_16_TO_19(b,c,d,e,a);
+
+	/* Rounds 20 to 39 unrolled: */
+	ROUND1_20_TO_39(a,b,c,d,e);
+	ROUND1_20_TO_39(e,a,b,c,d);
+	ROUND1_20_TO_39(d,e,a,b,c);
+	ROUND1_20_TO_39(c,d,e,a,b);
+	ROUND1_20_TO_39(b,c,d,e,a);
+	ROUND1_20_TO_39(a,b,c,d,e);
+	ROUND1_20_TO_39(e,a,b,c,d);
+	ROUND1_20_TO_39(d,e,a,b,c);
+	ROUND1_20_TO_39(c,d,e,a,b);
+	ROUND1_20_TO_39(b,c,d,e,a);
+	ROUND1_20_TO_39(a,b,c,d,e);
+	ROUND1_20_TO_39(e,a,b,c,d);
+	ROUND1_20_TO_39(d,e,a,b,c);
+	ROUND1_20_TO_39(c,d,e,a,b);
+	ROUND1_20_TO_39(b,c,d,e,a);
+	ROUND1_20_TO_39(a,b,c,d,e);
+	ROUND1_20_TO_39(e,a,b,c,d);
+	ROUND1_20_TO_39(d,e,a,b,c);
+	ROUND1_20_TO_39(c,d,e,a,b);
+	ROUND1_20_TO_39(b,c,d,e,a);
+
+	/* Rounds 40 to 59 unrolled: */
+	ROUND1_40_TO_59(a,b,c,d,e);
+	ROUND1_40_TO_59(e,a,b,c,d);
+	ROUND1_40_TO_59(d,e,a,b,c);
+	ROUND1_40_TO_59(c,d,e,a,b);
+	ROUND1_40_TO_59(b,c,d,e,a);
+	ROUND1_40_TO_59(a,b,c,d,e);
+	ROUND1_40_TO_59(e,a,b,c,d);
+	ROUND1_40_TO_59(d,e,a,b,c);
+	ROUND1_40_TO_59(c,d,e,a,b);
+	ROUND1_40_TO_59(b,c,d,e,a);
+	ROUND1_40_TO_59(a,b,c,d,e);
+	ROUND1_40_TO_59(e,a,b,c,d);
+	ROUND1_40_TO_59(d,e,a,b,c);
+	ROUND1_40_TO_59(c,d,e,a,b);
+	ROUND1_40_TO_59(b,c,d,e,a);
+	ROUND1_40_TO_59(a,b,c,d,e);
+	ROUND1_40_TO_59(e,a,b,c,d);
+	ROUND1_40_TO_59(d,e,a,b,c);
+	ROUND1_40_TO_59(c,d,e,a,b);
+	ROUND1_40_TO_59(b,c,d,e,a);
+
+	/* Rounds 60 to 79 unrolled: */
+	ROUND1_60_TO_79(a,b,c,d,e);
+	ROUND1_60_TO_79(e,a,b,c,d);
+	ROUND1_60_TO_79(d,e,a,b,c);
+	ROUND1_60_TO_79(c,d,e,a,b);
+	ROUND1_60_TO_79(b,c,d,e,a);
+	ROUND1_60_TO_79(a,b,c,d,e);
+	ROUND1_60_TO_79(e,a,b,c,d);
+	ROUND1_60_TO_79(d,e,a,b,c);
+	ROUND1_60_TO_79(c,d,e,a,b);
+	ROUND1_60_TO_79(b,c,d,e,a);
+	ROUND1_60_TO_79(a,b,c,d,e);
+	ROUND1_60_TO_79(e,a,b,c,d);
+	ROUND1_60_TO_79(d,e,a,b,c);
+	ROUND1_60_TO_79(c,d,e,a,b);
+	ROUND1_60_TO_79(b,c,d,e,a);
+	ROUND1_60_TO_79(a,b,c,d,e);
+	ROUND1_60_TO_79(e,a,b,c,d);
+	ROUND1_60_TO_79(d,e,a,b,c);
+	ROUND1_60_TO_79(c,d,e,a,b);
+	ROUND1_60_TO_79(b,c,d,e,a);
+
+	/* Compute the current intermediate hash value */
+	state_out[0] = state_in[0] + a;
+	state_out[1] = state_in[1] + b;
+	state_out[2] = state_in[2] + c;
+	state_out[3] = state_in[3] + d;
+	state_out[4] = state_in[4] + e;
+
+	/* Clean up */
+	a = b = c = d = e = T1 = 0;
+}
+
+#else  /* SHA2_UNROLL_TRANSFORM */
+
+void sha1_Transform(const sha2_word32* state_in, const sha2_word32* data, sha2_word32* state_out) {
+	sha2_word32	a, b, c, d, e;
+	sha2_word32	T1;
+	sha2_word32	W1[16];
+	int		j;
+
+	/* Initialize registers with the prev. intermediate value */
+	a = state_in[0];
+	b = state_in[1];
+	c = state_in[2];
+	d = state_in[3];
+	e = state_in[4];
+	j = 0;
+	do {
+#if BYTE_ORDER == LITTLE_ENDIAN
+		T1 = data[j];
+		/* Copy data while converting to host byte order */
+		REVERSE32(*data++, W1[j]);
+		T1 = ROTL32(5, a) + Ch(b, c, d) + e + K1_0_TO_19 + W1[j];
+#else /* BYTE_ORDER == LITTLE_ENDIAN */
+		T1 = ROTL32(5, a) + Ch(b, c, d) + e + K1_0_TO_19 + (W1[j] = *data++);
+#endif /* BYTE_ORDER == LITTLE_ENDIAN */
+		e = d;
+		d = c;
+		c = ROTL32(30, b);
+		b = a;
+		a = T1;
+		j++;
+	} while (j < 16);
+
+	do {
+		T1 = W1[(j+13)&0x0f] ^ W1[(j+8)&0x0f] ^ W1[(j+2)&0x0f] ^ W1[j&0x0f];
+		T1 = ROTL32(5, a) + Ch(b,c,d) + e + K1_0_TO_19 + (W1[j&0x0f] = ROTL32(1, T1));
+		e = d;
+		d = c;
+		c = ROTL32(30, b);
+		b = a;
+		a = T1;
+		j++;
+	} while (j < 20);
+
+	do {
+		T1 = W1[(j+13)&0x0f] ^ W1[(j+8)&0x0f] ^ W1[(j+2)&0x0f] ^ W1[j&0x0f];
+		T1 = ROTL32(5, a) + Parity(b,c,d) + e + K1_20_TO_39 + (W1[j&0x0f] = ROTL32(1, T1));
+		e = d;
+		d = c;
+		c = ROTL32(30, b);
+		b = a;
+		a = T1;
+		j++;
+	} while (j < 40);
+
+	do {
+		T1 = W1[(j+13)&0x0f] ^ W1[(j+8)&0x0f] ^ W1[(j+2)&0x0f] ^ W1[j&0x0f];
+		T1 = ROTL32(5, a) + Maj(b,c,d) + e + K1_40_TO_59 + (W1[j&0x0f] = ROTL32(1, T1));
+		e = d;
+		d = c;
+		c = ROTL32(30, b);
+		b = a;
+		a = T1;
+		j++;
+	} while (j < 60);
+
+	do {
+		T1 = W1[(j+13)&0x0f] ^ W1[(j+8)&0x0f] ^ W1[(j+2)&0x0f] ^ W1[j&0x0f];
+		T1 = ROTL32(5, a) + Parity(b,c,d) + e + K1_60_TO_79 + (W1[j&0x0f] = ROTL32(1, T1));
+		e = d;
+		d = c;
+		c = ROTL32(30, b);
+		b = a;
+		a = T1;
+		j++;
+	} while (j < 80);
+
+
+	/* Compute the current intermediate hash value */
+	state_out[0] = state_in[0] + a;
+	state_out[1] = state_in[1] + b;
+	state_out[2] = state_in[2] + c;
+	state_out[3] = state_in[3] + d;
+	state_out[4] = state_in[4] + e;
+
+	/* Clean up */
+	a = b = c = d = e = T1 = 0;
+}
+
+#endif /* SHA2_UNROLL_TRANSFORM */
+
+void sha1_Update(SHA1_CTX* context, const sha2_byte *data, size_t len) {
+	unsigned int	freespace, usedspace;
+	if (len == 0) {
+		/* Calling with no data is valid - we do nothing */
+		return;
+	}
+
+	usedspace = (context->bitcount >> 3) % SHA1_BLOCK_LENGTH;
+	if (usedspace > 0) {
+		/* Calculate how much free space is available in the buffer */
+		freespace = SHA1_BLOCK_LENGTH - usedspace;
+
+		if (len >= freespace) {
+			/* Fill the buffer completely and process it */
+			MEMCPY_BCOPY(((uint8_t*)context->buffer) + usedspace, data, freespace);
+			context->bitcount += freespace << 3;
+			len -= freespace;
+			data += freespace;
+			sha1_Transform(context->state, context->buffer, context->state);
+		} else {
+			/* The buffer is not yet full */
+			MEMCPY_BCOPY(((uint8_t*)context->buffer) + usedspace, data, len);
+			context->bitcount += len << 3;
+			/* Clean up: */
+			usedspace = freespace = 0;
+			return;
+		}
+	}
+	while (len >= SHA1_BLOCK_LENGTH) {
+		/* Process as many complete blocks as we can */
+		sha1_Transform(context->state, (sha2_word32*)data, context->state);
+		context->bitcount += SHA1_BLOCK_LENGTH << 3;
+		len -= SHA1_BLOCK_LENGTH;
+		data += SHA1_BLOCK_LENGTH;
+	}
+	if (len > 0) {
+		/* There's left-overs, so save 'em */
+		MEMCPY_BCOPY(context->buffer, data, len);
+		context->bitcount += len << 3;
+	}
+	/* Clean up: */
+	usedspace = freespace = 0;
+}
+
+void sha1_Final(SHA1_CTX* context, sha2_byte digest[]) {
+	sha2_word32	*d = (sha2_word32*)digest;
+	unsigned int	usedspace;
+
+	if (digest == (sha2_byte*)0) {
+		/*
+		 * No digest buffer, so we can do nothing
+		 * except clean up and go home
+		 */
+		MEMSET_BZERO(context, sizeof(SHA1_CTX));
+		return;
+	}
+
+	usedspace = (context->bitcount >> 3) % SHA1_BLOCK_LENGTH;
+	if (usedspace == 0) {
+		/* Set-up for the last transform: */
+		MEMSET_BZERO(context->buffer, SHA1_SHORT_BLOCK_LENGTH);
+
+		/* Begin padding with a 1 bit: */
+		*context->buffer = 0x80;
+	} else {
+		/* Begin padding with a 1 bit: */
+		((uint8_t*)context->buffer)[usedspace++] = 0x80;
+
+		if (usedspace <= 56) {
+			/* Set-up for the last transform: */
+			MEMSET_BZERO(((uint8_t*)context->buffer) + usedspace, 56 - usedspace);
+		} else {
+			if (usedspace < 64) {
+				MEMSET_BZERO(((uint8_t*)context->buffer) + usedspace, 64 - usedspace);
+			}
+			/* Do second-to-last transform: */
+			sha1_Transform(context->state, context->buffer, context->state);
+
+			/* And set-up for the last transform: */
+			MEMSET_BZERO(context->buffer, 56);
+		}
+		/* Clean up: */
+		usedspace = 0;
+	}
+	/* Set the bit count: */
+#if BYTE_ORDER == LITTLE_ENDIAN
+	/* Convert FROM host byte order */
+	REVERSE64(context->bitcount,context->bitcount);
+#endif
+	context->buffer[SHA1_SHORT_BLOCK_LENGTH >> 2]     = context->bitcount << 32;
+	context->buffer[SHA1_SHORT_BLOCK_LENGTH >> 2 | 1] = context->bitcount >> 32;
+
+	/* Final transform: */
+	sha1_Transform(context->state, context->buffer, context->state);
+
+	/* Save the hash data for output: */
+#if BYTE_ORDER == LITTLE_ENDIAN
+	{
+		/* Convert TO host byte order */
+		int	j;
+		for (j = 0; j < (SHA1_DIGEST_LENGTH >> 2); j++) {
+			REVERSE32(context->state[j],context->state[j]);
+			*d++ = context->state[j];
+		}
+	}
+#else
+	MEMCPY_BCOPY(d, context->state, SHA1_DIGEST_LENGTH);
+#endif
+
+	/* Clean up: */
+	MEMSET_BZERO(context, sizeof(SHA1_CTX));
+}
+
+char *sha1_End(SHA1_CTX* context, char buffer[]) {
+	sha2_byte	digest[SHA1_DIGEST_LENGTH], *d = digest;
+	int		i;
+
+	if (buffer != (char*)0) {
+		sha1_Final(context, digest);
+
+		for (i = 0; i < SHA1_DIGEST_LENGTH; i++) {
+			*buffer++ = sha2_hex_digits[(*d & 0xf0) >> 4];
+			*buffer++ = sha2_hex_digits[*d & 0x0f];
+			d++;
+		}
+		*buffer = (char)0;
+	} else {
+		MEMSET_BZERO(context, sizeof(SHA1_CTX));
+	}
+	MEMSET_BZERO(digest, SHA1_DIGEST_LENGTH);
+	return buffer;
+}
+
+void sha1_Raw(const sha2_byte* data, size_t len, uint8_t digest[SHA1_DIGEST_LENGTH]) {
+	SHA1_CTX	context;
+	sha1_Init(&context);
+	sha1_Update(&context, data, len);
+	sha1_Final(&context, digest);
+}
+
+char* sha1_Data(const sha2_byte* data, size_t len, char digest[SHA1_DIGEST_STRING_LENGTH]) {
+	SHA1_CTX	context;
+
+	sha1_Init(&context);
+	sha1_Update(&context, data, len);
+	return sha1_End(&context, digest);
+}
 
 /*** SHA-256: *********************************************************/
 void sha256_Init(SHA256_CTX* context) {

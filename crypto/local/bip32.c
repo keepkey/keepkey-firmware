@@ -178,7 +178,7 @@ int hdnode_private_ckd(HDNode *inout, uint32_t i)
 			if (!bn_is_less(&b, &inout->curve->params->order)) { // >= order
 				failed = true;
 			} else {
-				bn_addmod(&b, &a, &inout->curve->params->order);
+				bn_add(&b, &a);
 				bn_mod(&b, &inout->curve->params->order);
 				if (bn_is_zero(&b)) {
 					failed = true;
@@ -323,12 +323,16 @@ static struct {
 	HDNode node;
 } private_ckd_cache[BIP32_CACHE_SIZE];
 
-int hdnode_private_ckd_cached(HDNode *inout, const uint32_t *i, size_t i_count)
+int hdnode_private_ckd_cached(HDNode *inout, const uint32_t *i, size_t i_count, uint32_t *fingerprint)
 {
 	if (i_count == 0) {
+		// no way how to compute parent fingerprint
 		return 1;
 	}
 	if (i_count == 1) {
+		if (fingerprint) {
+			*fingerprint = hdnode_fingerprint(inout);
+		}
 		if (hdnode_private_ckd(inout, i[0]) == 0) return 0;
 		return 1;
 	}
@@ -372,6 +376,9 @@ int hdnode_private_ckd_cached(HDNode *inout, const uint32_t *i, size_t i_count)
 		private_ckd_cache_index = (private_ckd_cache_index + 1) % BIP32_CACHE_SIZE;
 	}
 
+	if (fingerprint) {
+		*fingerprint = hdnode_fingerprint(inout);
+	}
 	if (hdnode_private_ckd(inout, i[i_count - 1]) == 0) return 0;
 
 	return 1;

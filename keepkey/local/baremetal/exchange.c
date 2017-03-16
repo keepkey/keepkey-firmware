@@ -150,7 +150,7 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
     if(coin)
     {
         memcpy(&node, root, sizeof(HDNode));
-        if(hdnode_private_ckd_cached(&node, address_n, address_n_count) == 0)
+        if(hdnode_private_ckd_cached(&node, address_n, address_n_count, NULL) == 0)
         {
             goto verify_exchange_address_exit;
         }

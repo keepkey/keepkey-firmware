@@ -179,7 +179,7 @@ static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t
         return &node;
     }
 
-    if(hdnode_private_ckd_cached(&node, address_n, address_n_count) == 0)
+    if(hdnode_private_ckd_cached(&node, address_n, address_n_count, NULL) == 0)
     {
         fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
         go_home();
@@ -585,12 +585,8 @@ void fsm_msgGetEntropy(GetEntropy *msg)
 void fsm_msgGetPublicKey(GetPublicKey *msg)
 {
     RESP_INIT(PublicKey);
-
-    if (!storage_is_initialized())
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+ 
+    CHECK_INITIALIZED
 
     if(!pin_protect_cached())
     {
@@ -648,12 +644,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 
 void fsm_msgLoadDevice(LoadDevice *msg)
 {
-    if(storage_is_initialized())
-    {
-        fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
-                        "Device is already initialized. Use Wipe first.");
-        return;
-    }
+	CHECK_NOT_INITIALIZED  
 
     if(!confirm_load_device(msg->has_node))
     {
@@ -682,13 +673,9 @@ void fsm_msgLoadDevice(LoadDevice *msg)
 
 void fsm_msgResetDevice(ResetDevice *msg)
 {
-    if(storage_is_initialized())
-    {
-        fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
-                        "Device is already initialized. Use Wipe first.");
-        return;
-    }
-
+    CHECK_NOT_INITIALIZED
+    
+    CHECK_PARAM(!msg->has_strength || msg->strength == 128 || msg->strength == 192 || msg->strength == 256, "Invalid seed strength");
     reset_init(
         msg->has_display_random && msg->display_random,
         msg->has_strength ? msg->strength : 128,
@@ -701,29 +688,10 @@ void fsm_msgResetDevice(ResetDevice *msg)
 
 void fsm_msgSignTx(SignTx *msg)
 {
+	CHECK_INITIALIZED
 
-    if (!storage_is_initialized())
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
-
-    if(msg->inputs_count < 1)
-    {
-        fsm_sendFailure(FailureType_Failure_Other,
-                        "Transaction must have at least one input");
-        go_home();
-        return;
-    }
-
-    if(msg->outputs_count < 1)
-    {
-        fsm_sendFailure(FailureType_Failure_Other,
-                        "Transaction must have at least one output");
-        go_home();
-        return;
-    }
-
+    CHECK_PARAM(msg->inputs_count > 0, "Transaction must have at least one input");
+    CHECK_PARAM(msg->outputs_count > 0, "Transaction must have at least one output");
     if(!pin_protect("Enter Current PIN"))
     {
         go_home();
@@ -746,14 +714,9 @@ void fsm_msgSignTx(SignTx *msg)
 
 void fsm_msgTxAck(TxAck *msg)
 {
-    if(msg->has_tx)
-    {
-        signing_txack(&(msg->tx));
-    }
-    else
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "No transaction provided");
-    }
+    CHECK_PARAM(msg->has_tx, "No transaction provided");
+
+    signing_txack(&(msg->tx));
 }
 
 void fsm_msgCancel(Cancel *msg)
@@ -767,11 +730,7 @@ void fsm_msgCancel(Cancel *msg)
 
 void fsm_msgEthereumSignTx(EthereumSignTx *msg)
 {
-
-    if (!storage_is_initialized()) {
-            fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-            return;
-    }
+	CHECK_INITIALIZED
 
     if(!pin_protect("Enter Current PIN"))
     {
@@ -884,11 +843,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
         }
     }
 
-    if(!msg->has_label && !msg->has_language && !msg->has_use_passphrase)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "No setting provided");
-        return;
-    }
+    CHECK_PARAM(msg->has_label || msg->has_language || msg->has_use_passphrase, "No setting provided");
 
     if(!pin_protect_cached())
     {
@@ -919,31 +874,11 @@ void fsm_msgApplySettings(ApplySettings *msg)
 
 void fsm_msgCipherKeyValue(CipherKeyValue *msg)
 {
+    CHECK_INITIALIZED
 
-    if (!storage_is_initialized())
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-	return;
-    }
-
-    if(!msg->has_key)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "No key provided");
-        return;
-    }
-
-    if(!msg->has_value)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "No value provided");
-        return;
-    }
-
-    if(msg->value.size % 16)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError,
-                        "Value length must be a multiple of 16");
-        return;
-    }
+    CHECK_PARAM(msg->has_key, "No key provided");
+    CHECK_PARAM(msg->has_value, "No value provided");
+    CHECK_PARAM(msg->value.size % 16 == 0, "Value length must be a multiple of 16");
 
     if(!pin_protect_cached())
     {
@@ -1010,12 +945,7 @@ void fsm_msgClearSession(ClearSession *msg)
 void fsm_msgGetAddress(GetAddress *msg)
 {
     RESP_INIT(Address);
-
-    if (!storage_is_initialized())
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+	CHECK_INITIALIZED
 
     if(!pin_protect_cached())
     {
@@ -1093,11 +1023,7 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
     char address[43];
 
     RESP_INIT(EthereumAddress);
-
-    if (!storage_is_initialized()) {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+	CHECK_INITIALIZED
 
     if (!pin_protect_cached()) {
         go_home();
@@ -1143,12 +1069,7 @@ void fsm_msgEntropyAck(EntropyAck *msg)
 void fsm_msgSignMessage(SignMessage *msg)
 {
     RESP_INIT(MessageSignature);
-
-	if (!storage_is_initialized())
-    {
-		fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-		return;
-	}
+	CHECK_INITIALIZED
 
     if(!confirm(ButtonRequestType_ButtonRequest_SignMessage, "Sign Message",
                 (char *)msg->message.bytes))
@@ -1189,17 +1110,8 @@ void fsm_msgSignMessage(SignMessage *msg)
 
 void fsm_msgVerifyMessage(VerifyMessage *msg)
 {
-    if(!msg->has_address)
-    {
-        fsm_sendFailure(FailureType_Failure_Other, "No address provided");
-        return;
-    }
-
-    if(!msg->has_message)
-    {
-        fsm_sendFailure(FailureType_Failure_Other, "No message provided");
-        return;
-    }
+    CHECK_PARAM(msg->has_address, "No address provided");
+    CHECK_PARAM(msg->has_message, "No message provided");
     const CoinType *coin = fsm_getCoin(msg->coin_name);
     if (!coin) return;
 	uint8_t addr_raw[MAX_ADDR_RAW_SIZE];
@@ -1234,11 +1146,7 @@ void fsm_msgSignIdentity(SignIdentity *msg)
 {
     RESP_INIT(SignedIdentity);
 
-    if (!storage_is_initialized())
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+	CHECK_INITIALIZED
 
     if(!confirm_sign_identity(&(msg->identity),
                               msg->has_challenge_visual ? msg->challenge_visual : 0))
@@ -1333,49 +1241,22 @@ void fsm_msgSignIdentity(SignIdentity *msg)
 /* ECIES disabled
 void fsm_msgEncryptMessage(EncryptMessage *msg)
 {
-
-    if (!storage_is_initialized()) 
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
-
-    if(!msg->has_pubkey)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "No public key provided");
-        return;
-    }
-
-    if(!msg->has_message)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "No message provided");
-        return;
-    }
-
+	CHECK_INITIALIZED
+    
+    CHECK_PARAM(msg->has_pubkey, "No public key provided");
+    CHECK_PARAM(msg->has_message, "No message provided");
+    CHECK_PARAM(msg->pubkey.size == 33, "Invalid public key provided");
     curve_point pubkey;
-
-    if(msg->pubkey.size != 33 ||
-            ecdsa_read_pubkey(&secp256k1, msg->pubkey.bytes, &pubkey) == 0)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid public key provided");
-        return;
-    }
+    CHECK_PARAM(ecdsa_read_pubkey(&secp256k1, msg->pubkey.bytes, &pubkey) == 1, "Invalid public key provided");
 
     bool display_only = msg->has_display_only && msg->display_only;
     bool signing = msg->address_n_count > 0;
     RESP_INIT(EncryptedMessage);
-    const CoinType *coin = 0;
     const HDNode *node = 0;
     uint8_t address_raw[MAX_ADDR_RAW_SIZE];
-    if(signing)
-    {
-        coin = coinByName(msg->coin_name);
-
-        if(!coin)
-        {
-            fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
-            return;
-        }
+    if(signing) {
+        const CoinType *coin = fsm_getCoin(msg->coin_name);
+        if (!coin) return;
 
         if(!pin_protect_cached())
         {
@@ -1383,7 +1264,7 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
             return;
         }
 
-	node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
+        node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
 
         if(!node) { return; }
         hdnode_get_address_raw(node, coin->address_type, address_raw);
@@ -1425,39 +1306,15 @@ void fsm_msgEncryptMessage(EncryptMessage *msg)
 
 void fsm_msgDecryptMessage(DecryptMessage *msg)
 {
+    CHECK_INITIALIZED
 
-    if (!storage_is_initialized()) 
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+    CHECK_PARAM(msg->has_nonce, "No nonce provided");
+    CHECK_PARAM(msg->has_message, "No message provided");
+    CHECK_PARAM(msg->has_hmac, "No message hmac provided");
 
-    if(!msg->has_nonce)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "No nonce provided");
-        return;
-    }
-
-    if(!msg->has_message)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "No message provided");
-        return;
-    }
-
-    if(!msg->has_hmac)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "No message hmac provided");
-        return;
-    }
-
+    CHECK_PARAM(msg->nonce.size == 33, "Invalid nonce key provided");
     curve_point nonce_pubkey;
-
-    if(msg->nonce.size != 33 ||
-            ecdsa_read_pubkey(&secp256k1, msg->nonce.bytes, &nonce_pubkey) == 0)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid nonce provided");
-        return;
-    }
+    CHECK_PARAM(ecdsa_read_pubkey(&secp256k1, msg->nonce.bytes, &nonce_pubkey) == 1, "Invalid nonce provided");
 
     if(!pin_protect_cached())
     {
@@ -1528,12 +1385,7 @@ void fsm_msgEstimateTxSize(EstimateTxSize *msg)
 
 void fsm_msgRecoveryDevice(RecoveryDevice *msg)
 {
-    if(storage_is_initialized())
-    {
-        fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
-                        "Device is already initialized. Use Wipe first.");
-        return;
-    }
+	CHECK_NOT_INITIALIZED    
 
     if(msg->has_use_character_cipher &&
             msg->use_character_cipher == true)   // recovery via character cipher

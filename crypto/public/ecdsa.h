@@ -48,9 +48,9 @@ typedef struct {
 
 } ecdsa_curve;
 
-#define MAX_ADDR_RAW_SIZE (4 + 20)
+#define MAX_ADDR_RAW_SIZE (4 + 40)
 #define MAX_WIF_RAW_SIZE (4 + 32 + 1)
-#define MAX_ADDR_SIZE (40)
+#define MAX_ADDR_SIZE (54)
 #define MAX_WIF_SIZE (58)
 
 // rfc6979 pseudo random number generator state
@@ -93,6 +93,6 @@ int ecdsa_sig_to_der(const uint8_t *sig, uint8_t *der);
 // Private
 void init_k_rfc6979(const uint8_t *priv_key, const uint8_t *hash, rfc6979_state *rng);
 void generate_k_rfc6979(bignum256 *k, rfc6979_state *rng);
-void generate_k_random(bignum256 *k);
+void generate_k_random(bignum256 *k, const bignum256 *prime);
 
 #endif
