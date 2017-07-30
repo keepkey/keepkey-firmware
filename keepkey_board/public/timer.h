@@ -56,6 +56,7 @@ typedef struct
 /* === Functions =========================================================== */
 
 void timer_init(void);
+bool suspend_s(uint32_t seconds);
 void delay_ms(uint32_t ms);
 void delay_us(uint32_t us);
 void delay_ms_with_callback(uint32_t ms, callback_func_t callback_func,

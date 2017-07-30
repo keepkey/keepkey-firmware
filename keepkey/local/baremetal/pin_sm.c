@@ -30,6 +30,8 @@
 #include <stdio.h>
 
 #include "pin_sm.h"
+#include "home_sm.h"
+#include "keepkey_board.h"
 #include "fsm.h"
 #include "app_layout.h"
 
@@ -37,6 +39,9 @@
 
 /* Holds random PIN matrix */
 static char pin_matrix[PIN_BUF] = "XXXXXXXXX";
+
+/* Indicates first use of pin_delay */
+static bool pin_delay_used = false;
 
 /* === Variables =========================================================== */
 
@@ -273,6 +278,71 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
 
 /* === Functions =========================================================== */
 
+/*
+ * pin_delay() - Delay between failed PIN entries
+ *
+ * INPUT
+ *     - predelay: If true, this function is invoked to provide a delay before
+ *       PIN entry, which is only done once upon reset to ensure that there
+ *       is no way to defeat the delay by reset of the device.
+ *
+ *     - pin_is_correct: If true, the entered pin was correct. This is used
+ *       to prevent long delay if PIN is correct and storage has
+ *       PIN failures
+ *
+ * OUTPUT
+ */
+__attribute__((optimize(0) ))
+void pin_delay(bool predelay, bool pin_is_correct)
+{
+    uint32_t failed_cnts = UINT32_MAX;
+    uint32_t wait = UINT32_MAX;
+    char warn_msg_fmt[MEDIUM_STR_BUF];
+
+    if (pin_delay_used + predelay == 2)
+    {
+        return;
+    }
+    pin_delay_used = true;
+
+    failed_cnts = storage_get_pin_fails();
+
+    if (pin_is_correct)
+    {
+        failed_cnts = failed_cnts & 0;
+    }
+    else
+    {
+        failed_cnts = failed_cnts & UINT32_MAX;
+    }
+
+    if (failed_cnts > 0)
+    {
+	    wait = 7;
+    }
+    else
+    {
+	    wait = 1;
+    }
+
+    snprintf(warn_msg_fmt, MEDIUM_STR_BUF, "Checking PIN");
+    layout_warning(warn_msg_fmt);
+
+    if (! suspend_s(wait) )
+    {
+        board_reset();
+    }
+
+    if (failed_cnts > 0x7)
+    {
+        storage_reset();
+        storage_reset_uuid();
+        storage_commit();
+
+        go_home();
+    }
+
+}
 
 /*
  * pin_protect() - Authenticate user PIN for device access
@@ -282,64 +352,43 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
  * OUTPUT
  *     true/false of whether PIN was correct
  */
+__attribute__((optimize(0) )) 
 bool pin_protect(char *prompt)
 {
     PINInfo pin_info;
-    char warn_msg_fmt[MEDIUM_STR_BUF];
-    uint32_t failed_cnts = 0, wait = 0;
-    bool ret = false, pre_increment_cnt_flg = true;
+    bool ret = false;
+    bool pin_is_correct = false;
 
-    if(storage_has_pin())
+    if (false == storage_has_pin()) return true;
+
+    pin_delay(true, false);
+
+    pin_info.type = PinMatrixRequestType_PinMatrixRequestType_Current;
+
+    storage_increase_pin_fails();
+
+    if(pin_request(prompt, &pin_info))
     {
+        pin_is_correct = storage_is_pin_correct(pin_info.pin);
+        pin_delay(false, pin_is_correct);
 
-        /* Check for prior PIN failed attempts and apply exponentially longer delay for
-         * each subsequent failed attempts */
-        if((failed_cnts = storage_get_pin_fails()))
+	if (pin_is_correct)
         {
-            if(failed_cnts > 2)
-            {
-                /* snprintf: 36 + 10 (%u) + 1 (NULL) = 47 */
-                snprintf(warn_msg_fmt, MEDIUM_STR_BUF, "Previous PIN Failures: Wait %u Seconds",
-                         1u << failed_cnts);
-                layout_warning(warn_msg_fmt);
+            storage_reset_pin_fails();
+            session_cache_pin(pin_info.pin);
 
-                wait = (failed_cnts < 32) ? (1u << failed_cnts) : 0xFFFFFFFF;
-
-                while(--wait > 0)
-                {
-                    delay_ms_with_callback(ONE_SEC, &animating_progress_handler, 20);
-                }
-            }
+            ret = true;
         }
-
-        /* Set request type */
-        pin_info.type = PinMatrixRequestType_PinMatrixRequestType_Current;
-
-        /* Get PIN */
-        if(pin_request(prompt, &pin_info))
+        else
         {
-
-            /* preincrement the failed counter before authentication*/
-            storage_increase_pin_fails();
-            pre_increment_cnt_flg = (failed_cnts >= storage_get_pin_fails());
-
-            /* authenticate user PIN */
-            if(storage_is_pin_correct(pin_info.pin) && !pre_increment_cnt_flg)
-            {
-                session_cache_pin(pin_info.pin);
-                storage_reset_pin_fails();
-                ret = true;
-            }
-            else
-            {
-                fsm_sendFailure(FailureType_Failure_PinInvalid, "Invalid PIN");
-            }
-        } /* else - PIN entry has been canceled by the user */
-
+            fsm_sendFailure(FailureType_Failure_PinInvalid, "Invalid PIN");
+	    
+	    ret = false;
+        }
     }
     else
     {
-        ret = true;
+        ret = false;
     }
 
     return (ret);

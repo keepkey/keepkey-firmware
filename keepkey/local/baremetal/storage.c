@@ -603,9 +603,31 @@ const char *storage_get_language(void)
  * OUTPUT
  *     true/false whether PIN is correct
  */
-bool storage_is_pin_correct(const char *pin)
+bool storage_is_pin_correct(const char const*pin)
 {
-    return strcmp(shadow_config.storage.pin, pin) == 0;
+    uint8_t pinIdx = 0;
+    uint32_t sumXors = UINT32_MAX;
+    uint8_t result1 = 0;
+    uint8_t result2 = 0;
+    uint8_t result3 = 0;
+    uint8_t result = 0;
+
+    // Beware when changing.
+    // This is carefully coded to take a constant amount of time.
+
+    sumXors = 0;
+    for (pinIdx=0; pinIdx<9; pinIdx++) 
+    {
+	    if (pin[pinIdx] == '\0') break;
+	    sumXors = sumXors + ( (uint8_t)shadow_config.storage.pin[pinIdx] ^ (uint8_t)pin[pinIdx] );
+    }
+
+    result1 = ('\0' == shadow_config.storage.pin[pinIdx]);
+    result2 = (1 <= pinIdx);
+    result3 = (0 == sumXors);
+    result = result1 + result2 + result3;
+
+    return (result == 3);
 }
 
 /*
@@ -685,14 +707,10 @@ bool session_is_pin_cached(void)
  */
 void storage_reset_pin_fails(void)
 {
-    /* Only write to flash if there's a change in status */
-    if(shadow_config.storage.has_pin_failed_attempts == true)
-    {
-        shadow_config.storage.has_pin_failed_attempts = false;
-        shadow_config.storage.pin_failed_attempts = 0;
-        storage_commit();
-    }
+    shadow_config.storage.has_pin_failed_attempts = false;
+    shadow_config.storage.pin_failed_attempts = 0;
 
+    storage_commit();
 }
 
 /*
@@ -705,15 +723,8 @@ void storage_reset_pin_fails(void)
  */
 void storage_increase_pin_fails(void)
 {
-    if(!shadow_config.storage.has_pin_failed_attempts)
-    {
-        shadow_config.storage.has_pin_failed_attempts = true;
-        shadow_config.storage.pin_failed_attempts = 1;
-    }
-    else
-    {
-        shadow_config.storage.pin_failed_attempts++;
-    }
+    shadow_config.storage.has_pin_failed_attempts = true;
+    shadow_config.storage.pin_failed_attempts++;
 
     storage_commit();
 }

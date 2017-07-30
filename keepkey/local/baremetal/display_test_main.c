@@ -27,6 +27,7 @@
 #include <keepkey_board.h>
 #include <draw.h>
 #include <layout.h>
+#include <rng.h>
 
 #include "app_layout.h"
 
@@ -42,15 +43,27 @@
  */
 int main(void)
 {
+    uint8_t color, x, y, width, height;
+    
     /* Init board */
     board_init();
     led_func(SET_RED_LED);
 
-    /* Draw box to consume screen with pixels */
-    layout_screen_test();
-    display_refresh();
+    for (;;) {
+        /* Draw box to consume screen with pixels */
+        color = random32() % 192 + 64;
+        x = random32() % 256;
+        y = random32() % 64;
+        width = random32() % (256 - x);
+        height = random32() % (64 - y);
+        draw_box_simple(layout_get_canvas(), color, x+1, y+1, width, height);
+        display_refresh();
+        if (! suspend_s(1) )
+	{
+	    board_reset();
+	}
+    }
 
-    for(;;);  /* Loops forever */
 
     return(0);
 }

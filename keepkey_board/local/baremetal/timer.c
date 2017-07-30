@@ -24,14 +24,16 @@
 #include <libopencm3/stm32/timer.h>
 #include <libopencm3/stm32/f2/nvic.h>
 #include <libopencm3/stm32/rcc.h>
+#include <libopencm3/cm3/scb.h>
 #include <libopencm3/cm3/cortex.h>
 
+#include "keepkey_board.h"
 #include "keepkey_leds.h"
 #include "timer.h"
 
 /* === Private Variables =================================================== */
 
-static volatile uint32_t remaining_delay;
+static volatile uint32_t remaining_delay = UINT32_MAX;
 static RunnableNode runnables[MAX_RUNNABLES];
 static RunnableQueue free_queue = {NULL, 0};
 static RunnableQueue active_queue = {NULL, 0};
@@ -296,6 +298,100 @@ void delay_ms_with_callback(uint32_t ms, callback_func_t callback_func,
 }
 
 /*
+ * suspend_s() - Suspend MCU. Sleep/suspend state not implemented (yet).
+ *
+ * INPUT
+ *     - seconds: seconds to suspend MCU for
+ * OUTPUT
+ *     none
+ */
+__attribute__((optimize(0) )) bool suspend_s(uint32_t seconds)
+{
+    uint32_t last_remaining_delay;
+    uint32_t new_remaining_delay = seconds * 1000;
+    uint32_t current_remaining_delay;
+    bool success = false;
+
+    // Cannot verify operation of resume out of suspend mode for all cases
+    // (yet), this suspend function uses a while loop dependent upon a
+    // timer-interrupt decremented value, and checks that the value is
+    // correctly decremented and tests for correctness upon completion.
+    //
+    // Set remaining delay, in a very safe way
+    //
+    current_remaining_delay = __atomic_add_fetch(
+	    &remaining_delay,
+	    0,
+	    __ATOMIC_SEQ_CST
+    );
+
+    success = __atomic_compare_exchange(
+	    &remaining_delay,
+	    &current_remaining_delay,
+	    &new_remaining_delay,
+	    false,
+	    __ATOMIC_SEQ_CST,
+	    __ATOMIC_SEQ_CST
+    );
+
+    if (false == success)
+    {
+	// NOTE there is a race condition here, which could very seldomly
+	// reset the device spuriously.
+	//
+	board_reset();
+	// Should not get here, if so then return false
+	//
+	return false;
+    }
+
+    current_remaining_delay = new_remaining_delay;
+    last_remaining_delay = current_remaining_delay;
+
+    while (current_remaining_delay > 0) {
+
+        // Verify that remaining_delay is being decrementing
+	// within a safety window upon each iteration,
+	// reset if not so.
+	//
+	if (
+		current_remaining_delay > last_remaining_delay
+		|| current_remaining_delay < last_remaining_delay - 1
+	)
+	{
+	    board_reset();
+	    // Should not get here, if it does then return false
+	    //
+	    return false;
+	}
+
+	// Reload local delay variables, very safely
+	//
+	last_remaining_delay = current_remaining_delay;
+
+	// Be careful with volatiles
+	//
+        current_remaining_delay = __atomic_add_fetch(
+		&remaining_delay,
+		0,
+	       	__ATOMIC_SEQ_CST
+	);
+    }
+
+    // Verify that remaining_delay is 0, reset if not
+    //
+    if (0 != current_remaining_delay)
+    {
+	board_reset();
+	// Should not get here, if it does then return false
+	//
+        return false;
+    }
+
+    return true;
+}
+
+/*
  * tim4_isr() - Timer 4 interrupt service routine
  *
  * INPUT
@@ -306,10 +402,34 @@ void delay_ms_with_callback(uint32_t ms, callback_func_t callback_func,
  */
 void tim4_isr(void)
 {
-    /* Decrement the delay */
-    if(remaining_delay > 0)
+    uint32_t current_remaining_delay;
+    uint32_t new_remaining_delay;
+    bool success = false;
+
+    current_remaining_delay = __atomic_add_fetch(
+	    &remaining_delay, 
+	    0, 
+	    __ATOMIC_SEQ_CST
+    );
+
+    if (0 == current_remaining_delay) {
+	    new_remaining_delay = 0;
+    } else {
+	    new_remaining_delay = current_remaining_delay - 1;
+    }
+
+    success = __atomic_compare_exchange(
+	    &remaining_delay, 
+	    &current_remaining_delay,
+	    &new_remaining_delay,
+	    false,
+            __ATOMIC_SEQ_CST,
+            __ATOMIC_SEQ_CST
+    );
+    
+    if (false == success)
     {
-        remaining_delay--;
+	    board_reset();
     }
 
     run_runnables();
