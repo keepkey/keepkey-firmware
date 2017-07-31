@@ -31,7 +31,7 @@
 
 /* === Private Variables =================================================== */
 
-static volatile uint32_t remaining_delay;
+static volatile uint32_t remaining_delay = UINT32_MAX;
 static RunnableNode runnables[MAX_RUNNABLES];
 static RunnableQueue free_queue = {NULL, 0};
 static RunnableQueue active_queue = {NULL, 0};
