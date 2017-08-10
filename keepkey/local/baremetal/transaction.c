@@ -259,9 +259,10 @@ uint32_t compile_script_multisig_hash(const MultisigRedeemScriptType *multisig, 
 	return 1;
 }
 
-uint32_t serialize_script_sig(const uint8_t *signature, uint32_t signature_len, const uint8_t *pubkey, uint32_t pubkey_len, uint8_t *out)
+uint32_t serialize_script_sig(const uint8_t *signature, uint32_t signature_len, const uint8_t *pubkey, uint32_t pubkey_len, uint8_t sighash, uint8_t *out)
 {
 	uint32_t r = 0;
+  (void)(sighash);
 	r += op_push(signature_len + 1, out + r);
 	memcpy(out + r, signature, signature_len); r += signature_len;
 	out[r] = 0x01; r++;
@@ -270,9 +271,10 @@ uint32_t serialize_script_sig(const uint8_t *signature, uint32_t signature_len, 
 	return r;
 }
 
-uint32_t serialize_script_multisig(const MultisigRedeemScriptType *multisig, uint8_t *out)
+uint32_t serialize_script_multisig(const MultisigRedeemScriptType *multisig, uint8_t sighash, uint8_t *out)
 {
 	uint32_t i, r = 0;
+  (void)(sighash);
 	out[r] = 0x00; r++;
 	for (i = 0; i < multisig->signatures_count; i++) {
 		if (multisig->signatures[i].size == 0) {
@@ -289,6 +291,43 @@ uint32_t serialize_script_multisig(const MultisigRedeemScriptType *multisig, uin
 	r += op_push(script_len, out + r);
 	r += compile_script_multisig(multisig, out + r);
 	return r;
+}
+
+uint32_t tx_prevout_hash(SHA256_CTX *ctx, const TxInputType *input)
+{
+  for (int i = 0; i < 32; i++) {
+    sha256_Update(ctx, &(input->prev_hash.bytes[31 - i]), 1);
+  }
+  sha256_Update(ctx, (const uint8_t *)&input->prev_index, 4);
+  return 36;
+}
+
+uint32_t tx_script_hash(SHA256_CTX *ctx, uint32_t size, const uint8_t *data)
+{
+  int r = ser_length_hash(ctx, size);
+  sha256_Update(ctx, data, size);
+  return r + size;
+}
+
+uint32_t tx_sequence_hash(SHA256_CTX *ctx, const TxInputType *input)
+{
+  sha256_Update(ctx, (const uint8_t *)&input->sequence, 4);
+  return 4;
+}
+
+uint32_t tx_output_hash(SHA256_CTX *ctx, const TxOutputBinType *output)
+{
+  uint32_t r = 0;
+  sha256_Update(ctx, (const uint8_t *)&output->amount, 8); r += 8;
+  r += tx_script_hash(ctx, output->script_pubkey.size, output->script_pubkey.bytes);
+  return r;
+}
+
+uint32_t tx_serialize_script(uint32_t size, const uint8_t *data, uint8_t *out)
+{
+  int r = ser_length(size, out);
+  memcpy(out + r, data, size);
+  return r + size;
 }
 
 /* --- Transfer Methods ---------------------------------------------------- */

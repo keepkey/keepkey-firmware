@@ -35,16 +35,16 @@
 // filled CoinType Protobuf structure defined in https://github.com/trezor/trezor-common/blob/master/protob/types.proto#L133
 // address types > 0xFF represent a two-byte prefix in big-endian order
 const CoinType coins[COINS_COUNT] = {
-    {true, "Bitcoin",           true, "BTC",  true,    0, true,     100000, true,    5, true,  6, true, 10, true, "\x18" "Bitcoin Signed Message:\n",  true, 0x80000000},
-    {true, "Testnet",           true, "TEST", true,  111, true,   10000000, true,  196, true,  3, true, 40, true, "\x18" "Bitcoin Signed Message:\n",  true, 0x80000001},
-    {true, "Namecoin",          true, "NMC",  true,   52, true,   10000000, true,    5, false, 0, false, 0, true, "\x19" "Namecoin Signed Message:\n", true, 0x80000007},
-    {true, "Litecoin",          true, "LTC",  true,   48, true,    1000000, true,    5, false, 0, false, 0, true, "\x19" "Litecoin Signed Message:\n", true, 0x80000002},
-    {true, "Dogecoin",          true, "DOGE", true,   30, true, 1000000000, true,   22, false, 0, false, 0, true, "\x19" "Dogecoin Signed Message:\n", true, 0x80000003},
-    {true, "Dash",              true, "DASH", true,   76, true,     100000, true,   16, false, 0, false, 0, true, "\x19" "DarkCoin Signed Message:\n", true, 0x80000005},
-    {true, "Zcash",             true, "ZEC",  true, 7352, true,    1000000, true, 7357, false, 0, false, 0, true, "\x16" "Zcash Signed Message:\n",    true, 0x80000085},
-    {true, "Zcash Testnet",     true, "TAZ",  true, 7461, true,   10000000, true, 7354, false, 0, false, 0, true, "\x16" "Zcash Signed Message:\n",    true, 0x80000001},
-    {true, ETHEREUM,            true, "ETH",  true,   NA, true,     100000, true,   NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n", true, 0x8000003c},
-    {true, ETHEREUM_CLS,        true, "ETC",  true,   NA, true,     100000, true,   NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n", true, 0x8000003d}
+    {true, "Bitcoin",           true, "BTC",  true,    0, true,     100000, true,    5, true,  6, true, 10, true, "\x18" "Bitcoin Signed Message:\n",  true, 0x80000000, true, true, false, 0},
+    {true, "Testnet",           true, "TEST", true,  111, true,   10000000, true,  196, true,  3, true, 40, true, "\x18" "Bitcoin Signed Message:\n",  true, 0x80000001, true, true, false, 0},
+    {true, "Namecoin",          true, "NMC",  true,   52, true,   10000000, true,    5, false, 0, false, 0, true, "\x19" "Namecoin Signed Message:\n", true, 0x80000007, true, false, false, 0},
+    {true, "Litecoin",          true, "LTC",  true,   48, true,    1000000, true,    5, false, 0, false, 0, true, "\x19" "Litecoin Signed Message:\n", true, 0x80000002, true, true, false, 0},
+    {true, "Dogecoin",          true, "DOGE", true,   30, true, 1000000000, true,   22, false, 0, false, 0, true, "\x19" "Dogecoin Signed Message:\n", true, 0x80000003, true, false, false, 0},
+    {true, "Dash",              true, "DASH", true,   76, true,     100000, true,   16, false, 0, false, 0, true, "\x19" "DarkCoin Signed Message:\n", true, 0x80000005, true, false, false, 0},
+    {true, "Zcash",             true, "ZEC",  true, 7352, true,    1000000, true, 7357, false, 0, false, 0, true, "\x16" "Zcash Signed Message:\n",    true, 0x80000085, true, false, false, 0},
+    {true, "Zcash Testnet",     true, "TAZ",  true, 7461, true,   10000000, true, 7354, false, 0, false, 0, true, "\x16" "Zcash Signed Message:\n",    true, 0x80000001, true, false, false, 0},
+    {true, ETHEREUM,            true, "ETH",  true,   NA, true,     100000, true,   NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n", true, 0x8000003c, false, false, false, 0},
+    {true, ETHEREUM_CLS,        true, "ETC",  true,   NA, true,     100000, true,   NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n", true, 0x8000003d, false, false, false, 0}
 };
 
 /* === Private Functions =================================================== */
