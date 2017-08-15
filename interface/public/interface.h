@@ -27,7 +27,9 @@
 
 /* === Defines ============================================================= */
 
-/* The max size of a decoded protobuf */
-#define MAX_DECODE_SIZE (12 * 1024)
+/* === Variables =========================================================== */
+_Static_assert(sizeof(TransactionType) <= MAX_DECODE_SIZE, "Error: TransactionType variable causes memory overflow (MAX_DECODE_SIZE)!  ");
+
+_Static_assert(sizeof(TransactionType) <= MAX_FRAME_SIZE, "Error: TransactionType variable causes memory overflow (MAX_FRAME_SIZE)!  ");
 
 #endif

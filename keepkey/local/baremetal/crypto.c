@@ -17,8 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include <string.h>
 #include "crypto.h"
 #include "sha2.h"
@@ -29,8 +27,9 @@
 #include "layout.h"
 #include "curves.h"
 #include "secp256k1.h"
-#include "coins.h"
+#include "address.h"
 #include "macros.h"
+#include "coins.h"
 
 /* === Functions =========================================================== */
 
@@ -93,36 +92,23 @@ uint32_t deser_length(const uint8_t *in, uint32_t *out)
 int sshMessageSign(HDNode *node, const uint8_t *message, size_t message_len, uint8_t *signature)
 {
 	signature[0] = 0; // prefix: pad with zero, so all signatures are 65 bytes
-	return hdnode_sign(node, message, message_len, signature + 1, NULL);
+	return hdnode_sign(node, message, message_len, signature + 1, NULL, NULL);
 }
 
 int gpgMessageSign(HDNode *node, const uint8_t *message, size_t message_len, uint8_t *signature)
 {
-	// GPG should sign a SHA256 digest of the original message.
-	if (message_len != 32) {
-		return 1;
-	}
 	signature[0] = 0; // prefix: pad with zero, so all signatures are 65 bytes
-	return hdnode_sign_digest(node, message, signature + 1, NULL);
-}
-
-int cryptoGetECDHSessionKey(const HDNode *node, const uint8_t *peer_public_key, uint8_t *session_key)
-{
-	curve_point point;
-	const ecdsa_curve *curve = node->curve->params;
-	if (!ecdsa_read_pubkey(curve, peer_public_key, &point)) {
-		return 1;
+	const curve_info *ed25519_curve_info = get_curve_by_name(ED25519_NAME);
+	if (ed25519_curve_info && node->curve == ed25519_curve_info) {
+		// GPG supports variable size digest for Ed25519 signatures
+		return hdnode_sign(node, message, message_len, signature + 1, NULL, NULL);
+	} else {
+		// Ensure 256-bit digest before proceeding
+		if (message_len != 32) {
+			return 1;
+		}
+		return hdnode_sign_digest(node, message, signature + 1, NULL, NULL);
 	}
-	bignum256 k;
-	bn_read_be(node->private_key, &k);
-	point_multiply(curve, &k, &point, &point);
-	MEMSET_BZERO(&k, sizeof(k));
-
-	session_key[0] = 0x04;
-	bn_write_be(&point.x, session_key + 1);
-	bn_write_be(&point.y, session_key + 33);
-	MEMSET_BZERO(&point, sizeof(point));
-	return 0;
 }
 
 int cryptoMessageSign(const CoinType *coin, HDNode *node, const uint8_t *message, size_t message_len, uint8_t *signature)
@@ -138,17 +124,17 @@ int cryptoMessageSign(const CoinType *coin, HDNode *node, const uint8_t *message
 	sha256_Final(&ctx, hash);
 	sha256_Raw(hash, 32, hash);
 	uint8_t pby;
-	int result = hdnode_sign_digest(node, hash, signature + 1, &pby);
+	int result = hdnode_sign_digest(node, hash, signature + 1, &pby, NULL);
 	if (result == 0) {
 		signature[0] = 27 + pby + 4;
 	}
 	return result;
 }
 
-int cryptoMessageVerify(const CoinType *coin, const uint8_t *message, size_t message_len, const uint8_t *address_raw, const uint8_t *signature)
+int cryptoMessageVerify(const CoinType *coin, const uint8_t *message, size_t message_len, uint32_t address_type, const uint8_t *address_raw, const uint8_t *signature)
 {
 	SHA256_CTX ctx;
-	uint8_t pubkey[65], addr_raw[21], hash[32];
+	uint8_t pubkey[65], addr_raw[MAX_ADDR_RAW_SIZE], hash[32];
 
 	// calculate hash
 	sha256_Init(&ctx);
@@ -176,8 +162,8 @@ int cryptoMessageVerify(const CoinType *coin, const uint8_t *message, size_t mes
 		pubkey[0] = 0x02 | (pubkey[64] & 1);
 	}
 	// check if the address is correct
-	ecdsa_get_address_raw(pubkey, address_raw[0], addr_raw);
-	if (memcmp(addr_raw, address_raw, 21) != 0) {
+	ecdsa_get_address_raw(pubkey, address_type, addr_raw);
+	if (memcmp(addr_raw, address_raw, address_prefix_bytes_len(address_type) + 20) != 0) {
 		return 2;
 	}
 	return 0;
@@ -277,9 +263,11 @@ int cryptoMessageDecrypt(curve_point *nonce, uint8_t *payload, size_t payload_le
 	uint32_t l, o;
 	l = deser_length(payload + 1, &o);
 	if (*signing) {
+		// FIXME: assumes a raw address is 21 bytes (also below).
 		if (1 + l + o + 21 + 65 != payload_len) {
 			return 4;
 		}
+		// FIXME: cryptoMessageVerify changed to take the address_type as a parameter.
 		if (cryptoMessageVerify(payload + 1 + l, o, payload + 1 + l + o, payload + 1 + l + o + 21) != 0) {
 			return 5;
 		}
@@ -302,13 +290,13 @@ uint8_t *cryptoHDNodePathToPubkey(const HDNodePathType *hdnodepath)
 	if (hdnode_from_xpub(hdnodepath->node.depth, hdnodepath->node.child_num, hdnodepath->node.chain_code.bytes, hdnodepath->node.public_key.bytes, SECP256K1_NAME, &node) == 0) {
 		return 0;
 	}
-	animating_progress_handler();
+	animating_progress_handler();  
 	uint32_t i;
 	for (i = 0; i < hdnodepath->address_n_count; i++) {
 		if (hdnode_public_ckd(&node, hdnodepath->address_n[i]) == 0) {
 			return 0;
 		}
-		animating_progress_handler();
+		animating_progress_handler(); 
 	}
 	return node.public_key;
 }
@@ -363,7 +351,7 @@ int cryptoMultisigFingerprint(const MultisigRedeemScriptType *multisig, uint8_t 
 	}
 	sha256_Update(&ctx, (const uint8_t *)&n, sizeof(uint32_t));
 	sha256_Final(&ctx, hash);
-	animating_progress_handler();
+	animating_progress_handler();  
 	return 1;
 }
 

@@ -45,6 +45,7 @@
 #include "signatures.h"
 #include "usb_flash.h"
 #include "bootloader_main.h"
+#include "util.h"
 
 /* === Private Variables =================================================== */
 
@@ -183,16 +184,24 @@ static bool magic_ok(void)
  */
 static bool boot(void)
 {
+    uint8_t hash[32]; 
+    char hash_str[2][35];;
+
     if(magic_ok())
     {
         layout_home();
 
-        if(signatures_ok() == 0) /* Signature check failed */
+        if(signatures_ok(hash) == 0) /* Signature check failed */
         {
             delay_ms(500);
 
-            if(!confirm_without_button_request("Unofficial Firmware",
-                                               "Do you want to continue booting?"))
+            memset(hash_str[0], 0, 35);
+            memset(hash_str[1], 0, 35);
+            data2hex((const void *)&hash[0],  16, (char *)hash_str[0]);
+            data2hex((const void *)&hash[16], 16, (char *)hash_str[1]);
+            if(!confirm_without_button_request("Unofficial Firmware", \
+                                               "Do you want to continue booting? \
+                                                %s %s", hash_str[0], hash_str[1]))
             {
                 layout_simple_message("Boot Aborted");
                 goto cancel_boot;
@@ -209,7 +218,6 @@ static bool boot(void)
     else
     {
         layout_simple_message("Please Reinstall Firmware");
-        goto cancel_boot;
     }
 
 cancel_boot:
