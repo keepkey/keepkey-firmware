@@ -70,7 +70,6 @@ inline void write_be(uint8_t *data, uint32_t x)
 	data[3] = x;
 }
 
-#ifdef DEBUG_ON  /* Disabled - Not used */
 inline uint32_t read_le(const uint8_t *data)
 {
 	return (((uint32_t)data[3]) << 24) |
@@ -86,7 +85,6 @@ inline void write_le(uint8_t *data, uint32_t x)
 	data[1] = x >> 8;
 	data[0] = x;
 }
-#endif
 
 // convert a raw bigendian 256 bit value into a normalized bignum.
 // out_number is partly reduced (since it fits in 256 bit).
@@ -123,7 +121,6 @@ void bn_write_be(const bignum256 *in_number, uint8_t *out_number)
 	}
 }
 
-#ifdef DEBUG_ON /* Disabled.  Not used */
 // convert a raw little endian 256 bit value into a normalized bignum.
 // out_number is partly reduced (since it fits in 256 bit).
 void bn_read_le(const uint8_t *in_number, bignum256 *out_number)
@@ -197,7 +194,6 @@ int bn_bitcount(const bignum256 *a)
 	}
 	return 0;
 }
-#endif
 
 // sets a bignum to zero.
 void bn_zero(bignum256 *a)
@@ -298,6 +294,33 @@ void bn_rshift(bignum256 *a)
 		a->val[i] = (a->val[i] >> 1) | ((a->val[i + 1] & 1) << 29);
 	}
 	a->val[8] >>= 1;
+}
+
+// sets bit in bignum
+void bn_setbit(bignum256 *a, uint8_t bit)
+{
+	a->val[bit / 30] |= (1 << (bit % 30));
+}
+
+// clears bit in bignum
+void bn_clearbit(bignum256 *a, uint8_t bit)
+{
+	a->val[bit / 30] &= ~(1 << (bit % 30));
+}
+
+// tests bit in bignum
+uint32_t bn_testbit(bignum256 *a, uint8_t bit)
+{
+	return a->val[bit / 30] & (1 << (bit % 30));
+}
+
+// a = b ^ c
+void bn_xor(bignum256 *a, const bignum256 *b, const bignum256 *c)
+{
+	int i;
+	for (i = 0; i < 9; i++) {
+		a->val[i] = b->val[i] ^ c->val[i];
+	}
 }
 
 // multiply x by 1/2 modulo prime.

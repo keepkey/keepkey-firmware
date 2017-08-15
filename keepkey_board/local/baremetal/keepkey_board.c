@@ -30,6 +30,7 @@
 #include <libopencm3/cm3/cortex.h>
 
 #include "keepkey_board.h"
+#include <rng.h>
 
 /* === Variables =========================================================== */
 
@@ -99,6 +100,9 @@ void reset_rng(void)
     RNG_CR |= RNG_CR_IE | RNG_CR_RNGEN;
     /* this delay is required before rng data can be read */
     delay_us(5);
+
+    /* chuck the 1st random number per FIPS 140-2 */ 
+    random32();
 }
 
 /*

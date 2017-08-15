@@ -150,7 +150,7 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
     if(coin)
     {
         memcpy(&node, root, sizeof(HDNode));
-        if(hdnode_private_ckd_cached(&node, address_n, address_n_count) == 0)
+        if(hdnode_private_ckd_cached(&node, address_n, address_n_count, NULL) == 0)
         {
             goto verify_exchange_address_exit;
         }
@@ -361,7 +361,9 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     if(response_raw_filled_len != 0)
     {
         const CoinType *signed_coin = coinByShortcut((const char *)"BTC");
-        if(cryptoMessageVerify(signed_coin, response_raw, response_raw_filled_len, ShapeShift_public_address, 
+
+        if(cryptoMessageVerify(signed_coin, response_raw, response_raw_filled_len, 
+                    signed_coin->address_type, ShapeShift_public_address, 
                     (uint8_t *)exchange->signed_exchange_response.signature.bytes) != 0)
         {
             set_exchange_error(ERROR_EXCHANGE_SIGNATURE);

@@ -28,9 +28,29 @@
 /* === Defines ============================================================= */
 
 #define RESP_INIT(TYPE) \
-    TYPE *resp = (TYPE *)msg_resp; \
+    TYPE *resp = (TYPE *) (void *) msg_resp; \
     _Static_assert(sizeof(msg_resp) >= sizeof(TYPE), #TYPE" is too large"); \
     memset(resp, 0, sizeof(TYPE));
+
+#define CHECK_INITIALIZED \
+    if (!storage_is_initialized()) { \
+        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized"); \
+        return; \
+    } 
+
+#define CHECK_NOT_INITIALIZED \
+    if(storage_is_initialized()) { \
+        fsm_sendFailure(FailureType_Failure_UnexpectedMessage, \
+                        "Device is already initialized. Use Wipe first."); \
+        return; \
+    }
+
+#define CHECK_PARAM(cond, errormsg) \
+	if (!(cond)) { \
+		fsm_sendFailure(FailureType_Failure_SyntaxError, (errormsg)); \
+                go_home(); \
+		return; \
+	}
 
 #define ENTROPY_BUF sizeof(((Entropy *)NULL)->entropy.bytes)
 
