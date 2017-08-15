@@ -750,7 +750,7 @@ static bool signing_check_input(TxInputType *txinput) {
 		&& txinput->script_type == InputScriptType_SPENDMULTISIG) {
 		uint8_t h[32];
 		if (cryptoMultisigFingerprint(&txinput->multisig, h) == 0) {
-			//fsm_sendFailure(FailureType_Failure_ProcessError, _("Error computing multisig fingerprint"));
+			fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Error computing multisig fingerprint"));
 			signing_abort();
 			return false;
 		}
@@ -782,7 +782,7 @@ static bool signing_check_prevtx_hash(void) {
 	uint8_t hash[32];
 	tx_hash_final(&tp, hash, true);
 	if (memcmp(hash, input.prev_hash.bytes, 32) != 0) {
-//		fsm_sendFailure(FailureType_Failure_DataError, _("Encountered invalid prevhash"));
+//		fsm_sendFailure(FailureType_Failure_Other, ("DataError: Encountered invalid prevhash"));
 		signing_abort();
 		return false;
 	}
@@ -799,7 +799,7 @@ static bool signing_check_output(TxOutputType *txoutput) {
 	bool is_change = false;
 	if (txoutput->address_n_count > 0) {
 		if (txoutput->has_address) {
-			//fsm_sendFailure(FailureType_Failure_DataError, _("Address in change output"));
+			fsm_sendFailure(FailureType_Failure_Other, ("DataError: Address in change output"));
 			signing_abort();
 			return false;
 		}
@@ -830,14 +830,14 @@ static bool signing_check_output(TxOutputType *txoutput) {
 		if (change_spend == 0) { // not set
 			change_spend = txoutput->amount;
 		} else {
-			//fsm_sendFailure(FailureType_Failure_DataError, _("Only one change output allowed"));
+			fsm_sendFailure(FailureType_Failure_Other, ("DataError: Only one change output allowed"));
 			signing_abort();
 			return false;
 		}
 	}
 
 	if (spending + txoutput->amount < spending) {
-		//fsm_sendFailure(FailureType_Failure_DataError, _("Value overflow"));
+		fsm_sendFailure(FailureType_Failure_Other, ("DataError: Value overflow"));
 		signing_abort();
 		return false;
 	}
@@ -851,7 +851,7 @@ static bool signing_check_output(TxOutputType *txoutput) {
 		signing_abort();
 		return false;
 	} else if (co == 0) {
-		//fsm_sendFailure(FailureType_Failure_ProcessError, _("Failed to compile output"));
+		fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Failed to compile output"));
 		signing_abort();
 		return false;
 	}
@@ -929,7 +929,7 @@ static bool signing_sign_hash(TxInputType *txinput, const uint8_t* private_key, 
 	resp.serialized.has_signature = true;
 	resp.serialized.has_serialized_tx = true;
 	if (ecdsa_sign_digest(&secp256k1, private_key, hash, sig, NULL, NULL) != 0) {
-		//fsm_sendFailure(FailureType_Failure_ProcessError, _("Signing failed"));
+		fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Signing failed"));
 		signing_abort();
 		return false;
 	}
@@ -939,7 +939,7 @@ static bool signing_sign_hash(TxInputType *txinput, const uint8_t* private_key, 
 		// fill in the signature
 		int pubkey_idx = cryptoMultisigPubkeyIndex(&(txinput->multisig), public_key);
 		if (pubkey_idx < 0) {
-			//fsm_sendFailure(FailureType_Failure_DataError, _("Pubkey not found in multisig script"));
+			fsm_sendFailure(FailureType_Failure_Other, ("DataError: Pubkey not found in multisig script"));
 			signing_abort();
 			return false;
 		}
@@ -947,7 +947,7 @@ static bool signing_sign_hash(TxInputType *txinput, const uint8_t* private_key, 
 		txinput->multisig.signatures[pubkey_idx].size = resp.serialized.signature.size;
 		txinput->script_sig.size = serialize_script_multisig(&(txinput->multisig), sighash, txinput->script_sig.bytes);
 		if (txinput->script_sig.size == 0) {
-//			fsm_sendFailure(FailureType_Failure_ProcessError, _("Failed to serialize multisig script"));
+//			fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Failed to serialize multisig script"));
 			signing_abort();
 			return false;
 		}
@@ -962,7 +962,7 @@ static bool signing_sign_input(void) {
 	sha256_Final(&hashers[0], hash);
 	sha256_Raw(hash, 32, hash);
 	if (memcmp(hash, hash_outputs, 32) != 0) {
-		//fsm_sendFailure(FailureType_Failure_DataError, _("Transaction has changed during signing"));
+		fsm_sendFailure(FailureType_Failure_Other, ("DataError: Transaction has changed during signing"));
 		signing_abort();
 		return false;
 	}
@@ -984,17 +984,17 @@ static bool signing_sign_segwit_input(TxInputType *txinput) {
 		|| txinput->script_type == InputScriptType_SPENDP2SHWITNESS) {
 		// disable native segwit for now
 		if (txinput->script_type == InputScriptType_SPENDWITNESS) {
-			//fsm_sendFailure(FailureType_Failure_DataError, _("Native segwit is disabled"));
+			fsm_sendFailure(FailureType_Failure_Other, ("DataError: Native segwit is disabled"));
 			signing_abort();
 			return false;
 		}
 		if (!compile_input_script_sig(txinput)) {
-			//fsm_sendFailure(FailureType_Failure_ProcessError, _("Failed to compile input"));
+			fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Failed to compile input"));
 			signing_abort();
 			return false;
 		}
 		if (txinput->amount > authorized_amount) {
-			//fsm_sendFailure(FailureType_Failure_DataError, _("Transaction has changed during signing"));
+			fsm_sendFailure(FailureType_Failure_Other, ("DataError: Transaction has changed during signing"));
 			signing_abort();
 			return false;
 		}
@@ -1053,7 +1053,7 @@ static bool signing_sign_segwit_input(TxInputType *txinput) {
 void signing_txack(TransactionType *tx)
 {
 	if (!signing) {
-		fsm_sendFailure(FailureType_Failure_UnexpectedMessage, _("Not in Signing mode"));
+		fsm_sendFailure(FailureType_Failure_UnexpectedMessage, ("Not in Signing mode"));
 		//layoutHome();
 		return;
 	}
@@ -1075,7 +1075,7 @@ void signing_txack(TransactionType *tx)
 #if !ENABLE_SEGWIT_NONSEGWIT_MIXING
 				// don't mix segwit and non-segwit inputs
 				if (idx1 > 0 && to.is_segwit == true) {
-					//fsm_sendFailure(FailureType_Failure_DataError, _("Mixing segwit and non-segwit inputs is not allowed"));
+					fsm_sendFailure(FailureType_Failure_Other, ("DataError: Mixing segwit and non-segwit inputs is not allowed"));
 					signing_abort();
 					return;
 				}
@@ -1083,12 +1083,12 @@ void signing_txack(TransactionType *tx)
 
 				if (coin->has_forkid) {
 					if (!tx->inputs[0].has_amount) {
-						//fsm_sendFailure(FailureType_Failure_DataError, _("SIGHASH_FORKID input without amount"));
+						fsm_sendFailure(FailureType_Failure_Other, ("SIGHASH_FORKID input without amount"));
 						signing_abort();
 						return;
 					}
 					if (to_spend + tx->inputs[0].amount < to_spend) {
-						//fsm_sendFailure(FailureType_Failure_DataError, _("Value overflow"));
+						fsm_sendFailure(FailureType_Failure_Other, ("Value overflow"));
 						signing_abort();
 						return;
 					}
@@ -1105,23 +1105,23 @@ void signing_txack(TransactionType *tx)
 			} else if  (tx->inputs[0].script_type == InputScriptType_SPENDWITNESS
 						|| tx->inputs[0].script_type == InputScriptType_SPENDP2SHWITNESS) {
 				if (!coin->has_segwit || !coin->segwit) {
-					//fsm_sendFailure(FailureType_Failure_DataError, _("Segwit not enabled on this coin"));
+					fsm_sendFailure(FailureType_Failure_Other, ("DataError: Segwit not enabled on this coin"));
 					signing_abort();
 					return;
 				}
 				// disable native segwit for now
 				if (tx->inputs[0].script_type == InputScriptType_SPENDWITNESS) {
-					//fsm_sendFailure(FailureType_Failure_DataError, _("Native segwit is disabled"));
+					fsm_sendFailure(FailureType_Failure_Other, ("DataError: Native segwit is disabled"));
 					signing_abort();
 					return;
 				}
 				if (!tx->inputs[0].has_amount) {
-					//fsm_sendFailure(FailureType_Failure_DataError, _("Segwit input without amount"));
+					fsm_sendFailure(FailureType_Failure_Other, ("DataError: Segwit input without amount"));
 					signing_abort();
 					return;
 				}
 				if (to_spend + tx->inputs[0].amount < to_spend) {
-					//fsm_sendFailure(FailureType_Failure_DataError, _("Value overflow"));
+					fsm_sendFailure(FailureType_Failure_Other, ("DataError: Value overflow"));
 					signing_abort();
 					return;
 				}
@@ -1130,7 +1130,7 @@ void signing_txack(TransactionType *tx)
 				if (idx1 == 0) {
 					to.is_segwit = true;
 				} else if (to.is_segwit == false) {
-					//fsm_sendFailure(FailureType_Failure_DataError, _("Mixing segwit and non-segwit inputs is not allowed"));
+					fsm_sendFailure(FailureType_Failure_Other, ("DataError: Mixing segwit and non-segwit inputs is not allowed"));
 					signing_abort();
 					return;
 				}
@@ -1141,7 +1141,7 @@ void signing_txack(TransactionType *tx)
 				authorized_amount += tx->inputs[0].amount;
 				phase1_request_next_input();
 			} else {
-				//fsm_sendFailure(FailureType_Failure_DataError, _("Wrong input script type"));
+				fsm_sendFailure(FailureType_Failure_Other, ("DataError: Wrong input script type"));
 				signing_abort();
 				return;
 			}
@@ -1160,7 +1160,7 @@ void signing_txack(TransactionType *tx)
 		case STAGE_REQUEST_2_PREV_INPUT:
 			progress = (idx1 * progress_step + idx2 * progress_meta_step) >> PROGRESS_PRECISION;
 			if (!tx_serialize_input_hash(&tp, tx->inputs)) {
-				//fsm_sendFailure(FailureType_Failure_ProcessError, _("Failed to serialize input"));
+				fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Failed to serialize input"));
 				signing_abort();
 				return;
 			}
@@ -1175,13 +1175,13 @@ void signing_txack(TransactionType *tx)
 		case STAGE_REQUEST_2_PREV_OUTPUT:
 			progress = (idx1 * progress_step + (tp.inputs_len + idx2) * progress_meta_step) >> PROGRESS_PRECISION;
 			if (!tx_serialize_output_hash(&tp, tx->bin_outputs)) {
-				//fsm_sendFailure(FailureType_Failure_ProcessError, _("Failed to serialize output"));
+				fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Failed to serialize output"));
 				signing_abort();
 				return;
 			}
 			if (idx2 == input.prev_index) {
 				if (to_spend + tx->bin_outputs[0].amount < to_spend) {
-					//fsm_sendFailure(FailureType_Failure_DataError, _("Value overflow"));
+					fsm_sendFailure(FailureType_Failure_Other, ("DataError: Value overflow"));
 					signing_abort();
 					return;
 				}
@@ -1201,7 +1201,7 @@ void signing_txack(TransactionType *tx)
 			return;
 		case STAGE_REQUEST_2_PREV_EXTRADATA:
 			if (!tx_serialize_extra_data_hash(&tp, tx->extra_data.bytes, tx->extra_data.size)) {
-				//fsm_sendFailure(FailureType_Failure_ProcessError, _("Failed to serialize extra data"));
+				fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Failed to serialize extra data"));
 				signing_abort();
 				return;
 			}
@@ -1228,7 +1228,7 @@ void signing_txack(TransactionType *tx)
 			sha256_Update(&hashers[0], &tx->inputs[0].script_type, sizeof(&tx->inputs[0].script_type));
 			if (idx2 == idx1) {
 				if (!compile_input_script_sig(&tx->inputs[0])) {
-					//fsm_sendFailure(FailureType_Failure_ProcessError, _("Failed to compile input"));
+					fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Failed to compile input"));
 					signing_abort();
 					return;
 				}
@@ -1244,7 +1244,7 @@ void signing_txack(TransactionType *tx)
 				tx->inputs[0].script_sig.size = 0;
 			}
 			if (!tx_serialize_input_hash(&ti, tx->inputs)) {
-				//fsm_sendFailure(FailureType_Failure_ProcessError, _("Failed to serialize input"));
+				fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Failed to serialize input"));
 				signing_abort();
 				return;
 			}
@@ -1255,7 +1255,7 @@ void signing_txack(TransactionType *tx)
 				uint8_t hash[32];
 				sha256_Final(&hashers[0], hash);
 				if (memcmp(hash, hash_check, 32) != 0) {
-					//fsm_sendFailure(FailureType_Failure_DataError, _("Transaction has changed during signing"));
+					fsm_sendFailure(FailureType_Failure_Other, ("DataError: Transaction has changed during signing"));
 					signing_abort();
 					return;
 				}
@@ -1267,14 +1267,14 @@ void signing_txack(TransactionType *tx)
 		case STAGE_REQUEST_4_OUTPUT:
 			progress = 500 + ((signatures * progress_step + (inputs_count + idx2) * progress_meta_step) >> PROGRESS_PRECISION);
 			if (compile_output(coin, root, tx->outputs, &bin_output, false) <= 0) {
-				//fsm_sendFailure(FailureType_Failure_ProcessError, _("Failed to compile output"));
+				fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Failed to compile output"));
 				signing_abort();
 				return;
 			}
 			//  check hashOutputs
 			tx_output_hash(&hashers[0], &bin_output);
 			if (!tx_serialize_output_hash(&ti, &bin_output)) {
-				//fsm_sendFailure(FailureType_Failure_ProcessError, _("Failed to serialize output"));
+				fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Failed to serialize output"));
 				signing_abort();
 				return;
 			}
@@ -1308,17 +1308,17 @@ void signing_txack(TransactionType *tx)
 			if (tx->inputs[0].script_type == InputScriptType_SPENDMULTISIG
 				|| tx->inputs[0].script_type == InputScriptType_SPENDADDRESS) {
 				if (!coin->has_forkid) {
-					//fsm_sendFailure(FailureType_Failure_DataError, _("Transaction has changed during signing"));
+					fsm_sendFailure(FailureType_Failure_Other, ("DataError: Transaction has changed during signing"));
 					signing_abort();
 					return;
 				}
 				if (!compile_input_script_sig(&tx->inputs[0])) {
-					//fsm_sendFailure(FailureType_Failure_ProcessError, _("Failed to compile input"));
+					fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Failed to compile input"));
 					signing_abort();
 					return;
 				}
 				if (tx->inputs[0].amount > authorized_amount) {
-					//fsm_sendFailure(FailureType_Failure_DataError, _("Transaction has changed during signing"));
+					fsm_sendFailure(FailureType_Failure_Other, ("DataError: Transaction has changed during signing"));
 					signing_abort();
 					return;
 				}
@@ -1336,7 +1336,7 @@ void signing_txack(TransactionType *tx)
 			} else if (tx->inputs[0].script_type == InputScriptType_SPENDP2SHWITNESS
 					   && !tx->inputs[0].has_multisig) {
 				if (!compile_input_script_sig(&tx->inputs[0])) {
-					//fsm_sendFailure(FailureType_Failure_ProcessError, _("Failed to compile input"));
+					fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Failed to compile input"));
 					signing_abort();
 					return;
 				}
@@ -1355,7 +1355,7 @@ void signing_txack(TransactionType *tx)
 				tx->inputs[0].script_sig.bytes[2] = 0x20; // push 32 bytes (digest)
 				// compute digest of multisig script
 				if (!compile_script_multisig_hash(&tx->inputs[0].multisig, tx->inputs[0].script_sig.bytes + 3)) {
-					//fsm_sendFailure(FailureType_Failure_ProcessError, _("Failed to compile input"));
+					fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Failed to compile input"));
 					signing_abort();
 					return;
 				}
@@ -1375,7 +1375,7 @@ void signing_txack(TransactionType *tx)
 
 		case STAGE_REQUEST_5_OUTPUT:
 			if (compile_output(coin, root, tx->outputs, &bin_output,false) <= 0) {
-				//fsm_sendFailure(FailureType_Failure_ProcessError, _("Failed to compile output"));
+				fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Failed to compile output"));
 				signing_abort();
 				return;
 			}
@@ -1412,7 +1412,7 @@ void signing_txack(TransactionType *tx)
 			return;
 	}
 	
-	//fsm_sendFailure(FailureType_Failure_ProcessError, _("Signing error"));
+	fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Signing error"));
 	signing_abort();
 }
 

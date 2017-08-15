@@ -55,7 +55,7 @@ def compile_protocol_buffers():
     if not os.path.exists('../%s' % DEVICE_PROTOCOL):
         # TODO: uncomment and return to refer to keepkey repo
         # local('git clone -b %s https://github.com/keepkey/%s.git ../%s' % (tag, DEVICE_PROTOCOL, DEVICE_PROTOCOL))
-        local('git clone -b %s https://github.com/afg419/%s.git ../%s' % ("1bccSpike", DEVICE_PROTOCOL, DEVICE_PROTOCOL))
+        local('git clone -b %s https://github.com/afg419/%s.git ../%s' % ("2bccSpike", DEVICE_PROTOCOL, DEVICE_PROTOCOL))
 
     if not os.path.exists('interface/local'):
         os.mkdir('interface/local')
