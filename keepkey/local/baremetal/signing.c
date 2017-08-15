@@ -274,7 +274,7 @@ void send_req_1_input(void)
 	resp.has_details = true;
 	resp.details.has_request_index = true;
 	resp.details.request_index = idx1;
-	//msg_write(MessageType_MessageType_TxRequest, &resp);
+	msg_write(MessageType_MessageType_TxRequest, &resp);
 }
 
 void send_req_2_prev_meta(void)
@@ -286,7 +286,7 @@ void send_req_2_prev_meta(void)
 	resp.details.has_tx_hash = true;
 	resp.details.tx_hash.size = input.prev_hash.size;
 	memcpy(resp.details.tx_hash.bytes, input.prev_hash.bytes, input.prev_hash.size);
-	//msg_write(MessageType_MessageType_TxRequest, &resp);
+	msg_write(MessageType_MessageType_TxRequest, &resp);
 }
 
 void send_req_2_prev_input(void)
@@ -300,7 +300,7 @@ void send_req_2_prev_input(void)
 	resp.details.has_tx_hash = true;
 	resp.details.tx_hash.size = input.prev_hash.size;
 	memcpy(resp.details.tx_hash.bytes, input.prev_hash.bytes, resp.details.tx_hash.size);
-	//msg_write(MessageType_MessageType_TxRequest, &resp);
+	msg_write(MessageType_MessageType_TxRequest, &resp);
 }
 
 void send_req_2_prev_output(void)
@@ -314,7 +314,7 @@ void send_req_2_prev_output(void)
 	resp.details.has_tx_hash = true;
 	resp.details.tx_hash.size = input.prev_hash.size;
 	memcpy(resp.details.tx_hash.bytes, input.prev_hash.bytes, resp.details.tx_hash.size);
-	//msg_write(MessageType_MessageType_TxRequest, &resp);
+	msg_write(MessageType_MessageType_TxRequest, &resp);
 }
 
 void send_req_2_prev_extradata(uint32_t chunk_offset, uint32_t chunk_len)
@@ -330,7 +330,7 @@ void send_req_2_prev_extradata(uint32_t chunk_offset, uint32_t chunk_len)
 	resp.details.has_tx_hash = true;
 	resp.details.tx_hash.size = input.prev_hash.size;
 	memcpy(resp.details.tx_hash.bytes, input.prev_hash.bytes, resp.details.tx_hash.size);
-	//msg_write(MessageType_MessageType_TxRequest, &resp);
+	msg_write(MessageType_MessageType_TxRequest, &resp);
 }
 
 void send_req_3_output(void)
@@ -341,7 +341,7 @@ void send_req_3_output(void)
 	resp.has_details = true;
 	resp.details.has_request_index = true;
 	resp.details.request_index = idx1;
-	//msg_write(MessageType_MessageType_TxRequest, &resp);
+	msg_write(MessageType_MessageType_TxRequest, &resp);
 }
 
 void send_req_4_input(void)
@@ -352,7 +352,7 @@ void send_req_4_input(void)
 	resp.has_details = true;
 	resp.details.has_request_index = true;
 	resp.details.request_index = idx2;
-	//msg_write(MessageType_MessageType_TxRequest, &resp);
+	msg_write(MessageType_MessageType_TxRequest, &resp);
 }
 
 void send_req_4_output(void)
@@ -363,7 +363,7 @@ void send_req_4_output(void)
 	resp.has_details = true;
 	resp.details.has_request_index = true;
 	resp.details.request_index = idx2;
-	//msg_write(MessageType_MessageType_TxRequest, &resp);
+	msg_write(MessageType_MessageType_TxRequest, &resp);
 }
 
 void send_req_segwit_input(void)
@@ -374,7 +374,7 @@ void send_req_segwit_input(void)
 	resp.has_details = true;
 	resp.details.has_request_index = true;
 	resp.details.request_index = idx1;
-	//msg_write(MessageType_MessageType_TxRequest, &resp);
+	msg_write(MessageType_MessageType_TxRequest, &resp);
 }
 
 void send_req_segwit_witness(void)
@@ -385,7 +385,7 @@ void send_req_segwit_witness(void)
 	resp.has_details = true;
 	resp.details.has_request_index = true;
 	resp.details.request_index = idx1;
-	//msg_write(MessageType_MessageType_TxRequest, &resp);
+	msg_write(MessageType_MessageType_TxRequest, &resp);
 }
 
 void send_req_5_output(void)
@@ -396,14 +396,14 @@ void send_req_5_output(void)
 	resp.has_details = true;
 	resp.details.has_request_index = true;
 	resp.details.request_index = idx1;
-	//msg_write(MessageType_MessageType_TxRequest, &resp);
+	msg_write(MessageType_MessageType_TxRequest, &resp);
 }
 
 void send_req_finished(void)
 {
 	resp.has_request_type = true;
 	resp.request_type = RequestType_TXFINISHED;
-	//msg_write(MessageType_MessageType_TxRequest, &resp);
+	msg_write(MessageType_MessageType_TxRequest, &resp);
 }
 
 void phase1_request_next_input(void)
@@ -782,7 +782,7 @@ static bool signing_check_prevtx_hash(void) {
 	uint8_t hash[32];
 	tx_hash_final(&tp, hash, true);
 	if (memcmp(hash, input.prev_hash.bytes, 32) != 0) {
-		//fsm_sendFailure(FailureType_Failure_DataError, _("Encountered invalid prevhash"));
+//		fsm_sendFailure(FailureType_Failure_DataError, _("Encountered invalid prevhash"));
 		signing_abort();
 		return false;
 	}
@@ -947,7 +947,7 @@ static bool signing_sign_hash(TxInputType *txinput, const uint8_t* private_key, 
 		txinput->multisig.signatures[pubkey_idx].size = resp.serialized.signature.size;
 		txinput->script_sig.size = serialize_script_multisig(&(txinput->multisig), sighash, txinput->script_sig.bytes);
 		if (txinput->script_sig.size == 0) {
-			//fsm_sendFailure(FailureType_Failure_ProcessError, _("Failed to serialize multisig script"));
+//			fsm_sendFailure(FailureType_Failure_ProcessError, _("Failed to serialize multisig script"));
 			signing_abort();
 			return false;
 		}
@@ -1053,7 +1053,7 @@ static bool signing_sign_segwit_input(TxInputType *txinput) {
 void signing_txack(TransactionType *tx)
 {
 	if (!signing) {
-		//fsm_sendFailure(FailureType_Failure_UnexpectedMessage, _("Not in Signing mode"));
+		fsm_sendFailure(FailureType_Failure_UnexpectedMessage, _("Not in Signing mode"));
 		//layoutHome();
 		return;
 	}
@@ -1288,7 +1288,7 @@ void signing_txack(TransactionType *tx)
 				// since this took a longer time, update progress
 				signatures++;
 				progress = 500 + ((signatures * progress_step) >> PROGRESS_PRECISION);
-				//layoutProgress(_("Signing transaction"), progress);
+//				layoutProgress(_("Signing transaction"), progress);
 				update_ctr = 0;
 				if (idx1 < inputs_count - 1) {
 					idx1++;
@@ -1419,7 +1419,7 @@ void signing_txack(TransactionType *tx)
 void signing_abort(void)
 {
 	if (signing) {
-		//layoutHome();
+//		layoutHome();
 		signing = false;
 	}
 }
