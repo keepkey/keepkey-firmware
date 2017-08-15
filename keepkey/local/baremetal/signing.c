@@ -38,6 +38,8 @@
 
 /* === Private Variables =================================================== */
 
+static uint8_t hash_prevouts[32], hash_sequence[32],hash_outputs[32];
+
 static uint32_t inputs_count;
 static uint32_t outputs_count;
 static const CoinType *coin;
@@ -56,6 +58,11 @@ static bool multisig_fp_set, multisig_fp_mismatch;
 static uint8_t multisig_fp[32];
 
 /* === Variables =========================================================== */
+
+enum {
+	SIGHASH_ALL = 1,
+	SIGHASH_FORKID = 0x40,
+};
 
 enum {
 	STAGE_REQUEST_1_INPUT,
@@ -793,6 +800,7 @@ void signing_txack(TransactionType *tx)
 			}
 			return;
 		}
+
 		case STAGE_REQUEST_4_INPUT:
 			if (idx2 == 0) {
 				tx_init(&ti, inputs_count, outputs_count, version, lock_time, true);
@@ -871,14 +879,42 @@ void signing_txack(TransactionType *tx)
 					signing_abort();
 					return;
 				}
-				tx_hash_final(&ti, hash, false);
+
+				uint8_t sighash;
+				if(coin->has_forkid){
+					if (!compile_input_script_sig(&input)) {
+						fsm_sendFailure(FailureType_Failure_Other, ("Failed to compile input"));
+						signing_abort();
+						return;
+					}
+					if (!input.has_amount) {
+						fsm_sendFailure(FailureType_Failure_Other, ("SIGHASH_FORKID input without amount"));
+						signing_abort();
+						return;
+					}
+					if (input.amount > to_spend) {
+						fsm_sendFailure(FailureType_Failure_Other, ("Transaction has changed during signing"));
+						signing_abort();
+						return;
+					}
+					to_spend -= input.amount;
+
+					sighash = SIGHASH_ALL | SIGHASH_FORKID;
+					signing_hash_bip143(&input, sighash, coin->forkid, hash);
+				} else {
+					sighash = SIGHASH_ALL;
+					tx_hash_final(&ti, hash, false);
+				}
+
 				resp.has_serialized = true;
 				resp.serialized.has_signature_index = true;
 				resp.serialized.signature_index = idx1;
 				resp.serialized.has_signature = true;
 				resp.serialized.has_serialized_tx = true;
+
 				ecdsa_sign_digest(&secp256k1, privkey, hash, sig, 0);
 				resp.serialized.signature.size = ecdsa_sig_to_der(sig, resp.serialized.signature.bytes);
+
 				if (input.script_type == InputScriptType_SPENDMULTISIG) {
 					if (!input.has_multisig) {
 						fsm_sendFailure(FailureType_Failure_Other, "Multisig info not provided");
@@ -894,14 +930,16 @@ void signing_txack(TransactionType *tx)
 					}
 					memcpy(input.multisig.signatures[pubkey_idx].bytes, resp.serialized.signature.bytes, resp.serialized.signature.size);
 					input.multisig.signatures[pubkey_idx].size = resp.serialized.signature.size;
-					input.script_sig.size = serialize_script_multisig(&(input.multisig), input.script_sig.bytes);
+					input.script_sig.size = serialize_script_multisig(&(input.multisig), sighash, input.script_sig.bytes);
 					if (input.script_sig.size == 0) {
 						fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize multisig script");
 						signing_abort();
 						return;
 					}
 				} else { // SPENDADDRESS
-					input.script_sig.size = serialize_script_sig(resp.serialized.signature.bytes, resp.serialized.signature.size, pubkey, 33, input.script_sig.bytes);
+					input.script_sig.size = serialize_script_sig(resp.serialized.signature.bytes,
+																 resp.serialized.signature.size, pubkey, 33, 0,
+																 input.script_sig.bytes);
 				}
 				resp.serialized.serialized_tx.size = tx_serialize_input(&to, &input, resp.serialized.serialized_tx.bytes);
 
@@ -945,4 +983,143 @@ void signing_abort(void)
 		go_home();
 		signing = false;
 	}
+}
+
+void signing_hash_bip143(const TxInputType *txinput, uint8_t sighash, uint32_t forkid, uint8_t *hashX) {
+	uint32_t hash_type = (forkid << 8) | sighash;
+	sha256_Init(&tc);
+	sha256_Update(&tc, (const uint8_t *)&version, 4);
+	sha256_Update(&tc, hash_prevouts, 32);
+	sha256_Update(&tc, hash_sequence, 32);
+	tx_prevout_hash(&tc, txinput);
+	tx_script_hash(&tc, txinput->script_sig.size, txinput->script_sig.bytes);
+	sha256_Update(&tc, (const uint8_t*) &txinput->amount, 8);
+	tx_sequence_hash(&tc, txinput);
+	sha256_Update(&tc, hash_outputs, 32);
+	sha256_Update(&tc, (const uint8_t*) &lock_time, 4);
+	sha256_Update(&tc, (const uint8_t*) &hash_type, 4);
+	sha256_Final(&tc, hashX);
+	sha256_Raw(hashX, 32, hashX);
+}
+//
+//static bool signing_sign_input(void) {
+//	uint8_t hash[32];
+//	sha256_Final(&tc[0], hash);
+//	sha256_Raw(hash, 32, hash);
+//	if (memcmp(hash, hash_check, 32) != 0) {
+//		fsm_sendFailure(FailureType_Failure_Other, ("Transaction has changed during signing"));
+//		signing_abort();
+//		return false;
+//	}
+//
+//	uint8_t sighash;
+//	if (coin->has_forkid) {
+//		if (!compile_input_script_sig(&input)) {
+//			fsm_sendFailure(FailureType_Failure_Other, ("Failed to compile input"));
+//			signing_abort();
+//			return false;
+//		}
+//		if (!input.has_amount) {
+//			fsm_sendFailure(FailureType_Failure_Other, ("SIGHASH_FORKID input without amount"));
+//			signing_abort();
+//			return false;
+//		}
+//		if (input.amount > to_spend) {
+//			fsm_sendFailure(FailureType_Failure_Other, ("Transaction has changed during signing"));
+//			signing_abort();
+//			return false;
+//		}
+//		to_spend -= input.amount;
+//
+//		sighash = SIGHASH_ALL | SIGHASH_FORKID;
+//		signing_hash_bip143(&input, sighash, coin->forkid, hash);
+//	} else {
+//		sighash = SIGHASH_ALL;
+//		tx_hash_final(&ti, hash, false);
+//	}
+//
+//	resp.has_serialized = true;
+//	resp.serialized.has_signature_index = true;
+//	resp.serialized.signature_index = idx1;
+//	resp.serialized.has_signature = true;
+//	resp.serialized.has_serialized_tx = true;
+//	if (ecdsa_sign_digest(&secp256k1, privkey, hash, sig, NULL) != 0) {
+//		fsm_sendFailure(FailureType_Failure_Other, ("Signing failed"));
+//		signing_abort();
+//		return false;
+//	}
+//	resp.serialized.signature.size = ecdsa_sig_to_der(sig, resp.serialized.signature.bytes);
+//
+//	if (input.has_multisig) {
+//		// fill in the signature
+//		int pubkey_idx = cryptoMultisigPubkeyIndex(&(input.multisig), pubkey);
+//		if (pubkey_idx < 0) {
+//			fsm_sendFailure(FailureType_Failure_Other, ("Pubkey not found in multisig script"));
+//			signing_abort();
+//			return false;
+//		}
+//		memcpy(input.multisig.signatures[pubkey_idx].bytes, resp.serialized.signature.bytes, resp.serialized.signature.size);
+//		input.multisig.signatures[pubkey_idx].size = resp.serialized.signature.size;
+//		input.script_sig.size = serialize_script_multisig(&(input.multisig), sighash, input.script_sig.bytes);
+//		if (input.script_sig.size == 0) {
+//			fsm_sendFailure(FailureType_Failure_Other, ("Failed to serialize multisig script"));
+//			signing_abort();
+//			return false;
+//		}
+//	} else { // SPENDADDRESS
+//		input.script_sig.size = serialize_script_sig(resp.serialized.signature.bytes, resp.serialized.signature.size,
+//													 pubkey, 33, 0, sighash);
+//	}
+//	resp.serialized.serialized_tx.size = tx_serialize_input(&to, &input, resp.serialized.serialized_tx.bytes);
+//	return true;
+//}
+
+bool compile_input_script_sig(TxInputType *tinput)
+{
+	if (!multisig_fp_mismatch) {
+		// check that this is still multisig
+		uint8_t h[32];
+		if (tinput->script_type != InputScriptType_SPENDMULTISIG
+			|| cryptoMultisigFingerprint(&(tinput->multisig), h) == 0
+			|| memcmp(multisig_fp, h, 32) != 0) {
+			// Transaction has changed during signing
+			return false;
+		}
+	}
+	memcpy(&node, root, sizeof(HDNode));
+	if (hdnode_private_ckd_cached(&node, tinput->address_n, tinput->address_n_count) == 0) {
+		// Failed to derive private key
+		return false;
+	}
+	hdnode_fill_public_key(&node);
+	if (tinput->has_multisig) {
+		tinput->script_sig.size = compile_script_multisig(&(tinput->multisig), tinput->script_sig.bytes);
+	} else { // SPENDADDRESS
+		uint8_t hashX[20];
+		ecdsa_get_pubkeyhash(node.public_key, hashX);
+		tinput->script_sig.size = compile_script_sig(coin->address_type, hashX, tinput->script_sig.bytes);
+	}
+	return tinput->script_sig.size > 0;
+}
+
+uint32_t tx_prevout_hash(SHA256_CTX *ctx, const TxInputType *tinput)
+{
+	for (int i = 0; i < 32; i++) {
+		sha256_Update(ctx, &(tinput->prev_hash.bytes[31 - i]), 1);
+	}
+	sha256_Update(ctx, (const uint8_t *)&tinput->prev_index, 4);
+	return 36;
+}
+
+uint32_t tx_script_hash(SHA256_CTX *ctx, uint32_t size, const uint8_t *data)
+{
+	int r = ser_length_hash(ctx, size);
+	sha256_Update(ctx, data, size);
+	return r + size;
+}
+
+uint32_t tx_sequence_hash(SHA256_CTX *ctx, const TxInputType *tinput)
+{
+	sha256_Update(ctx, (const uint8_t *)&tinput->sequence, 4);
+	return 4;
 }
