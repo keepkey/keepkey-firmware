@@ -53,6 +53,8 @@ static SHA256_CTX tc;
 static uint8_t hash[32], hash_check[32], privkey[32], pubkey[33], sig[64];
 static uint64_t to_spend, spending, change_spend;
 static bool multisig_fp_set, multisig_fp_mismatch;
+static uint8_t hash_prevouts[32], hash_sequence[32],hash_outputs[32];
+static SHA256_CTX hashers[3];
 static uint8_t multisig_fp[32];
 
 /* === Variables =========================================================== */
@@ -79,6 +81,11 @@ enum {
 	PARSING_OUTPUTS,
 	PARSING_LOCKTIME
 } raw_tx_status;
+
+enum {
+	SIGHASH_ALL = 1,
+	SIGHASH_FORKID = 0x40,
+};
 
 /* === Private Functions =================================================== */
 
@@ -428,6 +435,10 @@ void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinTyp
 	sha256_Update(&tc, (const uint8_t *)&version, sizeof(version));
 	sha256_Update(&tc, (const uint8_t *)&lock_time, sizeof(lock_time));
 
+	sha256_Init(&hashers[0]);
+	sha256_Init(&hashers[1]);
+	sha256_Init(&hashers[2]);
+
 	raw_tx_status = NOT_PARSING;
 
 	send_req_1_input();
@@ -637,6 +648,15 @@ void signing_txack(TransactionType *tx)
 			}
 			sha256_Update(&tc, (const uint8_t *)tx->inputs, sizeof(TxInputType));
 			memcpy(&input, tx->inputs, sizeof(TxInputType));
+
+			TxInputType *txinput = &tx->inputs[0];
+
+			tx_codepoint_hash(&hashers[0], txinput);
+			tx_sequence_hash(&hashers[1], txinput);
+			// hash prevout and script type to check it later (relevant for fee computation)
+			tx_codepoint_hash(&hashers[2], txinput);
+			sha256_Update(&hashers[2], &txinput->script_type, sizeof(&txinput->script_type));
+
 			send_req_2_prev_meta();
 			return;
 		case STAGE_REQUEST_2_PREV_META:
@@ -683,6 +703,13 @@ void signing_txack(TransactionType *tx)
 					idx1++;
 					send_req_1_input();
 				} else {
+					sha256_Final(&hashers[0], hash_prevouts);
+					sha256_Raw(hash_prevouts, 32, hash_prevouts);
+					sha256_Final(&hashers[1], hash_sequence);
+					sha256_Raw(hash_sequence, 32, hash_sequence);
+					sha256_Final(&hashers[2], hash_check);
+					// init hashOutputs
+					sha256_Init(&hashers[0]);
 					idx1 = 0;
 					send_req_3_output();
 				}
@@ -748,6 +775,8 @@ void signing_txack(TransactionType *tx)
 			spending += tx->outputs[0].amount;
 
 			sha256_Update(&tc, (const uint8_t *)&bin_output, sizeof(TxOutputBinType));
+
+			tx_output_hash(&hashers[0], &bin_output);
 			if (idx1 < outputs_count - 1) {
 				idx1++;
 				send_req_3_output();
@@ -789,6 +818,10 @@ void signing_txack(TransactionType *tx)
 
 			    idx1 = 0;
 			    idx2 = 0;
+
+				sha256_Final(&hashers[0], hash_outputs);
+				sha256_Raw(hash_outputs, 32, hash_outputs);
+
 			    send_req_4_input();
 			}
 			return;
@@ -807,24 +840,24 @@ void signing_txack(TransactionType *tx)
 			sha256_Update(&tc, (const uint8_t *)tx->inputs, sizeof(TxInputType));
 			if (idx2 == idx1) {
 				memcpy(&input, tx->inputs, sizeof(TxInputType));
-				memcpy(&node, root, sizeof(HDNode));
-				if (hdnode_private_ckd_cached(&node, tx->inputs[0].address_n, tx->inputs[0].address_n_count) == 0) {
-					fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
-					signing_abort();
-					return;
-				}
-				hdnode_fill_public_key(&node);
-				if (tx->inputs[0].script_type == InputScriptType_SPENDMULTISIG) {
-					if (!tx->inputs[0].has_multisig) {
-						fsm_sendFailure(FailureType_Failure_Other, "Multisig info not provided");
-						signing_abort();
-						return;
-					}
-					tx->inputs[0].script_sig.size = compile_script_multisig(&(tx->inputs[0].multisig), tx->inputs[0].script_sig.bytes);
-				} else { // SPENDADDRESS
-					ecdsa_get_pubkeyhash(node.public_key, hash);
-					tx->inputs[0].script_sig.size = compile_script_sig(coin->address_type, hash, tx->inputs[0].script_sig.bytes);
-				}
+//				if (hdnode_private_ckd_cached(&node, tx->inputs[0].address_n, tx->inputs[0].address_n_count) == 0) {
+//					fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
+//					signing_abort();
+//					return;
+//				}
+//				hdnode_fill_public_key(&node);
+//				if (tx->inputs[0].script_type == InputScriptType_SPENDMULTISIG) {
+//					if (!tx->inputs[0].has_multisig) {
+//						fsm_sendFailure(FailureType_Failure_Other, "Multisig info not provided");
+//						signing_abort();
+//						return;
+//					}
+//					tx->inputs[0].script_sig.size = compile_script_multisig(&(tx->inputs[0].multisig), tx->inputs[0].script_sig.bytes);
+//				} else { // SPENDADDRESS
+//					ecdsa_get_pubkeyhash(node.public_key, hash);
+//					tx->inputs[0].script_sig.size = compile_script_sig(coin->address_type, hash, tx->inputs[0].script_sig.bytes);
+//				}
+				compile_input_script_sig(&tx->inputs[0]);
 				if (tx->inputs[0].script_sig.size == 0) {
 					fsm_sendFailure(FailureType_Failure_Other, "Failed to compile input");
 					signing_abort();
@@ -866,6 +899,32 @@ void signing_txack(TransactionType *tx)
 				send_req_4_output();
 			} else {
 				sha256_Final(&tc, hash);
+
+				uint8_t sighash;
+				if(coin->has_forkid){
+					if (!compile_input_script_sig(&input)) {
+						fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Failed to compile input"));
+						signing_abort();
+						return;
+					}
+					if (!input.has_amount) {
+						fsm_sendFailure(FailureType_Failure_Other, ("Data Error: SIGHASH_FORKID input without amount"));
+						signing_abort();
+						return;
+					}
+					if (input.amount > to_spend) {
+						fsm_sendFailure(FailureType_Failure_Other, ("Data Error: Transaction has changed during signing"));
+						signing_abort();
+						return;
+					}
+					to_spend -= input.amount;
+
+					sighash = SIGHASH_ALL | SIGHASH_FORKID;
+					signing_hash_bip143(&input, sighash, coin->forkid, hash);
+				} else {
+					sighash = SIGHASH_ALL;
+				}
+
 				if (memcmp(hash, hash_check, 32) != 0) {
 					fsm_sendFailure(FailureType_Failure_Other, "Transaction has changed during signing");
 					signing_abort();
@@ -879,6 +938,7 @@ void signing_txack(TransactionType *tx)
 				resp.serialized.has_serialized_tx = true;
 				ecdsa_sign_digest(&secp256k1, privkey, hash, sig, 0);
 				resp.serialized.signature.size = ecdsa_sig_to_der(sig, resp.serialized.signature.bytes);
+
 				if (input.script_type == InputScriptType_SPENDMULTISIG) {
 					if (!input.has_multisig) {
 						fsm_sendFailure(FailureType_Failure_Other, "Multisig info not provided");
@@ -946,3 +1006,50 @@ void signing_abort(void)
 		signing = false;
 	}
 }
+
+bool compile_input_script_sig(TxInputType *tinput)
+{
+	if (!multisig_fp_mismatch) {
+		// check that this is still multisig
+		uint8_t h[32];
+		if (tinput->script_type != InputScriptType_SPENDMULTISIG
+			|| cryptoMultisigFingerprint(&(tinput->multisig), h) == 0
+			|| memcmp(multisig_fp, h, 32) != 0) {
+			// Transaction has changed during signing
+			return false;
+		}
+	}
+	memcpy(&node, root, sizeof(HDNode));
+	if (hdnode_private_ckd_cached(&node, tinput->address_n, tinput->address_n_count) == 0) {
+		// Failed to derive private key
+		return false;
+	}
+	hdnode_fill_public_key(&node);
+	if (tinput->has_multisig) {
+		tinput->script_sig.size = compile_script_multisig(&(tinput->multisig), tinput->script_sig.bytes);
+	} else { // SPENDADDRESS
+		uint8_t xhash[20];
+		ecdsa_get_pubkeyhash(node.public_key, xhash);
+		tinput->script_sig.size = compile_script_sig(coin->address_type, xhash, tinput->script_sig.bytes);
+	}
+	return tinput->script_sig.size > 0;
+}
+
+void signing_hash_bip143(const TxInputType *txinput, uint8_t sighash, uint32_t forkid, uint8_t *xhash) {
+	uint32_t hash_type = (forkid << 8) | sighash;
+	SHA256_CTX sigContainer;
+	sha256_Init(&sigContainer);
+	sha256_Update(&sigContainer, (const uint8_t *)&version, 4);
+	sha256_Update(&sigContainer, hash_prevouts, 32); //hash_prevouts is serialization of all input outpoints (32byte txid followed by 4byte output index)
+	sha256_Update(&sigContainer, hash_sequence, 32); //is the double SHA256 of the serialization of nSequence of all inputs;
+	tx_codepoint_hash(&sigContainer, txinput); //codepoint
+	tx_script_hash(&sigContainer, txinput->script_sig.size, txinput->script_sig.bytes); //script
+	sha256_Update(&sigContainer, (const uint8_t*) &txinput->amount, 8); //value
+	tx_sequence_hash(&sigContainer, txinput); //nSequence
+	sha256_Update(&sigContainer, hash_outputs, 32); //the double SHA256 of the serialization of all output amounts (8-byte little endian) paired up with their scriptPubKey
+	sha256_Update(&sigContainer, (const uint8_t*) &lock_time, 4); //locktime
+	sha256_Update(&sigContainer, (const uint8_t*) &hash_type, 4); //sighash type
+	sha256_Final(&sigContainer, xhash);
+	sha256_Raw(xhash, 32, xhash);
+}
+

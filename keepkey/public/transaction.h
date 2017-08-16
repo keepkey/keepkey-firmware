@@ -64,6 +64,13 @@ uint32_t tx_serialize_input(TxStruct *tx, const TxInputType *input, uint8_t *out
 uint32_t tx_serialize_output(TxStruct *tx, const TxOutputBinType *output, uint8_t *out);
 
 void tx_init(TxStruct *tx, uint32_t inputs_len, uint32_t outputs_len, uint32_t version, uint32_t lock_time, bool add_hash_type);
+
+uint32_t tx_codepoint_hash(SHA256_CTX *ctx, const TxInputType *input);
+uint32_t tx_script_hash(SHA256_CTX *ctx, uint32_t size, const uint8_t *data);
+uint32_t tx_sequence_hash(SHA256_CTX *ctx, const TxInputType *input);
+uint32_t tx_output_hash(SHA256_CTX *ctx, const TxOutputBinType *output);
+uint32_t tx_serialize_script(uint32_t size, const uint8_t *data, uint8_t *out);
+
 uint32_t tx_serialize_input_hash(TxStruct *tx, const TxInputType *input);
 uint32_t tx_serialize_output_hash(TxStruct *tx, const TxOutputBinType *output);
 void tx_hash_final(TxStruct *t, uint8_t *hash, bool reverse);
