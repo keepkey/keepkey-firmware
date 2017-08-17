@@ -83,7 +83,7 @@ enum {
 } raw_tx_status;
 
 enum {
-	SIGHASH_ALL = 1,
+	SIGHASH_ALL = 0x01,
 	SIGHASH_FORKID = 0x40,
 };
 
@@ -898,8 +898,6 @@ void signing_txack(TransactionType *tx)
 				idx2++;
 				send_req_4_output();
 			} else {
-				sha256_Final(&tc, hash);
-
 				uint8_t sighash;
 				if(coin->has_forkid){
 					if (!compile_input_script_sig(&input)) {
@@ -922,7 +920,8 @@ void signing_txack(TransactionType *tx)
 					sighash = SIGHASH_ALL | SIGHASH_FORKID;
 					signing_hash_bip143(&input, sighash, coin->forkid, hash);
 				} else {
-					sighash = SIGHASH_ALL;
+                    sha256_Final(&tc, hash);
+                    sighash = SIGHASH_ALL;
 				}
 
 				if (memcmp(hash, hash_check, 32) != 0) {
@@ -961,7 +960,9 @@ void signing_txack(TransactionType *tx)
 						return;
 					}
 				} else { // SPENDADDRESS
-					input.script_sig.size = serialize_script_sig(resp.serialized.signature.bytes, resp.serialized.signature.size, pubkey, 33, input.script_sig.bytes);
+					input.script_sig.size = serialize_script_sig(resp.serialized.signature.bytes,
+																 resp.serialized.signature.size, pubkey, 33, sighash,
+																 input.script_sig.bytes);
 				}
 				resp.serialized.serialized_tx.size = tx_serialize_input(&to, &input, resp.serialized.serialized_tx.bytes);
 
