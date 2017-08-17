@@ -48,8 +48,8 @@ static uint32_t idx1, idx2;
 static TxRequest resp;
 static TxInputType input;
 static TxOutputBinType bin_output;
-static TxStruct to, tp, ti;
-static SHA256_CTX tc;
+static TxStruct to, transaction_previous, ti;
+static SHA256_CTX transaction_current;
 static uint8_t hash[32], hash_check[32], privkey[32], pubkey[33], sig[64];
 static uint64_t to_spend, spending, change_spend;
 static bool multisig_fp_set, multisig_fp_mismatch;
@@ -71,6 +71,7 @@ enum {
 } signing_stage;
 static uint32_t version = 1;
 static uint32_t lock_time = 0;
+static uint32_t sequence = 4294967294;
 enum {
 	NOT_PARSING,
 	PARSING_VERSION,
@@ -429,11 +430,11 @@ void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinTyp
 	multisig_fp_mismatch = false;
 
 	tx_init(&to, inputs_count, outputs_count, version, lock_time, false);
-	sha256_Init(&tc);
-	sha256_Update(&tc, (const uint8_t *)&inputs_count, sizeof(inputs_count));
-	sha256_Update(&tc, (const uint8_t *)&outputs_count, sizeof(outputs_count));
-	sha256_Update(&tc, (const uint8_t *)&version, sizeof(version));
-	sha256_Update(&tc, (const uint8_t *)&lock_time, sizeof(lock_time));
+	sha256_Init(&transaction_current);
+	sha256_Update(&transaction_current, (const uint8_t *)&inputs_count, sizeof(inputs_count));
+	sha256_Update(&transaction_current, (const uint8_t *)&outputs_count, sizeof(outputs_count));
+	sha256_Update(&transaction_current, (const uint8_t *)&version, sizeof(version));
+	sha256_Update(&transaction_current, (const uint8_t *)&lock_time, sizeof(lock_time));
 
 	sha256_Init(&hashers[0]);
 	sha256_Init(&hashers[1]);
@@ -459,10 +460,10 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 
 		switch(raw_tx_status) {
 			case NOT_PARSING:
-				tx_init(&tp, 0, 0, 0, 0, false);
+				tx_init(&transaction_previous, 0, 0, 0, 0, false);
 				state_pos = sizeof(uint32_t);
 				raw_tx_status = PARSING_VERSION;
-				ptr = (uint8_t *)&tp.version;
+				ptr = (uint8_t *)&transaction_previous.version;
 			case PARSING_VERSION:
 				*ptr++ = msg[i];
 
@@ -475,7 +476,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 			case PARSING_INPUT_COUNT:
 				var_int_buffer[var_int_buffer_index++] = msg[i];
 
-				if(var_int_buffer_index >= deser_length(var_int_buffer, &tp.inputs_len))
+				if(var_int_buffer_index >= deser_length(var_int_buffer, &transaction_previous.inputs_len))
 				{
 					raw_tx_status = PARSING_INPUTS;
 					state_pos = 36;
@@ -485,7 +486,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 
 				break;
 			case PARSING_INPUTS:
-				if(state_pos < 0 && seen < tp.inputs_len)
+				if(state_pos < 0 && seen < transaction_previous.inputs_len)
 				{
 					var_int_buffer[var_int_buffer_index++] = msg[i];
 
@@ -493,7 +494,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 					{
 						seen++;
 
-						if(seen < tp.inputs_len)
+						if(seen < transaction_previous.inputs_len)
 						{
 							state_pos = script_len + 4 + 36;
 						}
@@ -514,7 +515,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 			case PARSING_OUTPUT_COUNT:
 				var_int_buffer[var_int_buffer_index++] = msg[i];
 
-				if(var_int_buffer_index >= deser_length(var_int_buffer, &tp.outputs_len))
+				if(var_int_buffer_index >= deser_length(var_int_buffer, &transaction_previous.outputs_len))
 				{
 					raw_tx_status = PARSING_OUTPUTS_VALUE;
 					state_pos = 8;
@@ -542,7 +543,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 				}
 				break;
 			case PARSING_OUTPUTS:
-				if(state_pos < 0 && seen < tp.outputs_len)
+				if(state_pos < 0 && seen < transaction_previous.outputs_len)
 				{
 					var_int_buffer[var_int_buffer_index++] = msg[i];
 
@@ -550,7 +551,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 					{
 						seen++;
 
-						if(seen < tp.outputs_len)
+						if(seen < transaction_previous.outputs_len)
 						{
 							current_output_val = 0;
 							ptr = (uint8_t *)&current_output_val;
@@ -567,7 +568,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 				{
 					raw_tx_status = PARSING_LOCKTIME;
 					state_pos = 4;
-					ptr = (uint8_t *)&tp.lock_time;
+					ptr = (uint8_t *)&transaction_previous.lock_time;
 					reset_parsing_buffer(var_int_buffer, &var_int_buffer_index);
 				}
 				break;
@@ -581,8 +582,8 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 					raw_tx_status = NOT_PARSING;
 					memset(&resp, 0, sizeof(TxRequest));
 
-					sha256_Update(&(tp.ctx), (const uint8_t*)msg+i, 1);
-					tx_hash_final(&tp, hash, true);
+					sha256_Update(&(transaction_previous.ctx), (const uint8_t*)msg+i, 1);
+					tx_hash_final(&transaction_previous, hash, true);
 					if (memcmp(hash, input.prev_hash.bytes, 32) != 0) {
 						fsm_sendFailure(FailureType_Failure_Other, "Encountered invalid prevhash");
 						signing_abort();
@@ -602,10 +603,11 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 				break;
 		}
 
-		sha256_Update(&(tp.ctx), (const uint8_t*)msg+i, 1);
+		sha256_Update(&(transaction_previous.ctx), (const uint8_t*)msg+i, 1);
 	}
 }
 
+//Method called repeatedly by client code in transaction formation.
 void signing_txack(TransactionType *tx)
 {
 	int co;
@@ -619,10 +621,19 @@ void signing_txack(TransactionType *tx)
 	memset(&resp, 0, sizeof(TxRequest));
 
 	switch (signing_stage) {
-		case STAGE_REQUEST_1_INPUT:
-			/* compute multisig fingerprint */
-			/* (if all input share the same fingerprint, outputs having the same fingerprint will be considered as change outputs) */
-			if (tx->inputs[0].script_type == InputScriptType_SPENDMULTISIG) {
+
+        /* We receive an input to the current transaction without sigScript. Stored in tx->inputs[0]*/
+        case STAGE_REQUEST_1_INPUT:
+            /*tx->inputs[0] (input of current transaction) contains:
+             * address_n (pointer to address in keepkey wallet),
+             * prev_hash (of previous transaction),
+             * prev_index,
+             * script_type,
+             * and possibly multisig */
+
+            /* compute multisig fingerprint */
+            /* (if all input share the same fingerprint, outputs having the same fingerprint will be considered as change outputs) */
+            if (tx->inputs[0].script_type == InputScriptType_SPENDMULTISIG) {
 				if (tx->inputs[0].has_multisig && !multisig_fp_mismatch) {
 					if (multisig_fp_set) {
 						uint8_t h[32];
@@ -646,75 +657,109 @@ void signing_txack(TransactionType *tx)
 			} else { // InputScriptType_SPENDADDRESS
 				multisig_fp_mismatch = true;
 			}
-			sha256_Update(&tc, (const uint8_t *)tx->inputs, sizeof(TxInputType));
+			sha256_Update(&transaction_current, (const uint8_t *)tx->inputs, sizeof(TxInputType));
 			memcpy(&input, tx->inputs, sizeof(TxInputType));
 
 			TxInputType *txinput = &tx->inputs[0];
 
-			tx_codepoint_hash(&hashers[0], txinput);
+            //TODO: Is this necessary?
+//            if(!txinput->has_sequence){
+//                txinput->sequence = sequence;
+//            }
+
+            tx_prevout_hash(&hashers[0], txinput);
 			tx_sequence_hash(&hashers[1], txinput);
 			// hash prevout and script type to check it later (relevant for fee computation)
-			tx_codepoint_hash(&hashers[2], txinput);
+            tx_prevout_hash(&hashers[2], txinput);
 			sha256_Update(&hashers[2], &txinput->script_type, sizeof(&txinput->script_type));
 
+            /*For the above input, we now query for transaction referenced in prev_hash*/
 			send_req_2_prev_meta();
 			return;
+
+        /* We receive metadata for a transaction containing an output refrenced by an input of current transaction
+         * This metadata is just enough to tell us how many inputs and outputs we need in the following two stages */
 		case STAGE_REQUEST_2_PREV_META:
-			tx_init(&tp, tx->inputs_cnt, tx->outputs_cnt, tx->version, tx->lock_time, false);
-			idx2 = 0;
+			tx_init(&transaction_previous, tx->inputs_cnt, tx->outputs_cnt, tx->version, tx->lock_time, false);
+			idx2 = 0; //For the time being, this will index inputs of transaction_previous
 			send_req_2_prev_input();
 			return;
+
+        /* We receive a tx input for a previous transaction. $tx->inputs[0] has all input data
+         * We store the data on the growing transaction_previous.ctx hash context */
 		case STAGE_REQUEST_2_PREV_INPUT:
-			if (!tx_serialize_input_hash(&tp, tx->inputs)) {
+			if (!tx_serialize_input_hash(&transaction_previous, tx->inputs)) {
 				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize input");
 				signing_abort();
 				return;
 			}
-			if (idx2 < tp.inputs_len - 1) {
+			if (idx2 < transaction_previous.inputs_len - 1) {
 				idx2++;
+                //If more inputs for the previous transaction, run this method again asking for the next input.
 				send_req_2_prev_input();
 			} else {
 				idx2 = 0;
+                //If no more inputs for the previous transaction, get the first output.
 				send_req_2_prev_output();
 			}
 			return;
-		case STAGE_REQUEST_2_PREV_OUTPUT:
-			if (!tx_serialize_output_hash(&tp, tx->bin_outputs)) {
+
+        /* We receive a tx output for a previous transaction. $tx->bin_outputs[0] has all output data including
+         * amount and script_pubkey. We store the data on the growing transaction_previous.ctx hash context */
+        case STAGE_REQUEST_2_PREV_OUTPUT:
+			if (!tx_serialize_output_hash(&transaction_previous, tx->bin_outputs)) {
 				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize output");
 				signing_abort();
 				return;
 			}
+            //If this specific output is the one referenced by the current input, contribute its amount to spend.
 			if (idx2 == input.prev_index) {
 				to_spend += tx->bin_outputs[0].amount;
 			}
-			if (idx2 < tp.outputs_len - 1) {
-				/* Check prevtx of next input */
+
+            //If more outputs for this previous transaction, rerun this step for the next output.
+			if (idx2 < transaction_previous.outputs_len - 1) {
 				idx2++;
 				send_req_2_prev_output();
 			} else {
 				/* Check next output */
-				tx_hash_final(&tp, hash, true);
+				tx_hash_final(&transaction_previous, hash, true);
 				if (memcmp(hash, input.prev_hash.bytes, 32) != 0) {
 					fsm_sendFailure(FailureType_Failure_Other, "Encountered invalid prevhash");
 					signing_abort();
 					return;
 				}
+
+                /* If there are more inputs, re-run stages STAGE_REQUEST_1_INPUT --> STAGE_REQUEST_2_PREV_OUTPUT
+                 * for new input */
 				if (idx1 < inputs_count - 1) {
 					idx1++;
 					send_req_1_input();
 				} else {
+                    /* We have all the input codepoints + sequences for the current transaction.
+                     * Finalize them for use in bip143 signing.*/
 					sha256_Final(&hashers[0], hash_prevouts);
 					sha256_Raw(hash_prevouts, 32, hash_prevouts);
+
 					sha256_Final(&hashers[1], hash_sequence);
 					sha256_Raw(hash_sequence, 32, hash_sequence);
+
+                    //Use hash_check for validation later. This is hash_prevouts along with
 					sha256_Final(&hashers[2], hash_check);
-					// init hashOutputs
+
+                    // initialize hashOutputs
 					sha256_Init(&hashers[0]);
+
 					idx1 = 0;
+                    idx2 = 0;
 					send_req_3_output();
 				}
 			}
 			return;
+
+        /* We receive a tx output for the current transaction. $tx->outputs[0] has all output data including
+         * amount, address, script_type... The main thrust of this portion is creating the pubKeyScript/redeemScript
+         * for the received output */
 		case STAGE_REQUEST_3_OUTPUT:
 		{
 			/* Downloaded output idx1 the first time.
@@ -735,25 +780,25 @@ void signing_txack(TransactionType *tx)
 				if (memcmp(multisig_fp, h, 32) == 0) {
 					is_change = true;
 				}
-                        } else {
-                            if(tx->outputs[0].has_address_type) {
-                                if(check_valid_output_address(tx->outputs) == false) {
-                                    fsm_sendFailure(FailureType_Failure_Other, "Invalid output address type");
-                                    signing_abort();
-                                    return;
-                                }
+            } else {
+                if(tx->outputs[0].has_address_type) {
+                    if(check_valid_output_address(tx->outputs) == false) {
+                        fsm_sendFailure(FailureType_Failure_Other, "Invalid output address type");
+                        signing_abort();
+                        return;
+                    }
 
-                                if(tx->outputs[0].script_type == OutputScriptType_PAYTOADDRESS &&
-                                        tx->outputs[0].address_n_count > 0 &&
-                                        tx->outputs[0].address_type == OutputAddressType_CHANGE) {
-                                    is_change = true;
-                                }
-                            }
-                            else if(tx->outputs[0].script_type == OutputScriptType_PAYTOADDRESS &&
-                                    tx->outputs[0].address_n_count > 0) {
-                                is_change = true;
-                            }
-                        }
+                    if(tx->outputs[0].script_type == OutputScriptType_PAYTOADDRESS &&
+                            tx->outputs[0].address_n_count > 0 &&
+                            tx->outputs[0].address_type == OutputAddressType_CHANGE) {
+                        is_change = true;
+                    }
+                }
+                else if(tx->outputs[0].script_type == OutputScriptType_PAYTOADDRESS &&
+                        tx->outputs[0].address_n_count > 0) {
+                    is_change = true;
+                }
+            }
 
 			if (is_change) {
 				if (change_spend == 0) { // not set
@@ -765,6 +810,7 @@ void signing_txack(TransactionType *tx)
 			    }
 			}
 
+            //We generate script for this output and put it on bin_output
 			co = run_policy_compile_output(coin, root, (void *)tx->outputs, (void *)&bin_output, !is_change);
 			if (co <= TXOUT_COMPILE_ERROR) {
 			    send_fsm_co_error_message(co);
@@ -774,51 +820,56 @@ void signing_txack(TransactionType *tx)
 
 			spending += tx->outputs[0].amount;
 
-			sha256_Update(&tc, (const uint8_t *)&bin_output, sizeof(TxOutputBinType));
+			sha256_Update(&transaction_current, (const uint8_t *)&bin_output, sizeof(TxOutputBinType));
 
 			tx_output_hash(&hashers[0], &bin_output);
+
+            //Repeat this process if there are more outputs on current transaction
 			if (idx1 < outputs_count - 1) {
 				idx1++;
 				send_req_3_output();
 			} else {
-		            sha256_Final(&tc, hash_check);
-                            // check fees
-                            if (spending > to_spend) {
-                                fsm_sendFailure(FailureType_Failure_NotEnoughFunds, "Not enough funds");
-		                        signing_abort();
-                                return;
-                            }
-                            uint64_t fee = to_spend - spending;
-                            uint32_t tx_est_size = transactionEstimateSizeKb(inputs_count, outputs_count);
-                            char total_amount_str[32];
-		            char fee_str[32];
+                sha256_Final(&transaction_current, hash_check);
 
-		            coin_amnt_to_str(coin, fee, fee_str, sizeof(fee_str));
+                // check fees
+                if (spending > to_spend) {
+                    fsm_sendFailure(FailureType_Failure_NotEnoughFunds, "Not enough funds");
+                    signing_abort();
+                    return;
+                }
 
-                            if(fee > (uint64_t)tx_est_size * coin->maxfee_kb) {
-			        if (!confirm(ButtonRequestType_ButtonRequest_FeeOverThreshold,
-		                        "Confirm Fee", "%s", fee_str)) {
-		                    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
-		                    signing_abort();
-		                    return;
-		                }
+                uint64_t fee = to_spend - spending;
+                uint32_t tx_est_size = transactionEstimateSizeKb(inputs_count, outputs_count);
+                char total_amount_str[32];
+                char fee_str[32];
 
-                            }
-                            // last confirmation
-                            coin_amnt_to_str(coin, to_spend - change_spend, total_amount_str, sizeof(total_amount_str));
+                coin_amnt_to_str(coin, fee, fee_str, sizeof(fee_str));
 
-		            if(!confirm_transaction(total_amount_str, fee_str))
-		            {
-		                fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
-		                signing_abort();
-		                return;
-		            }
-		            // Everything was checked, now phase 2 begins and the transaction is signed.
-		            layout_simple_message("Signing Transaction...");
+                if (fee > (uint64_t)tx_est_size * coin->maxfee_kb) {
+                    if (!confirm(ButtonRequestType_ButtonRequest_FeeOverThreshold, "Confirm Fee", "%s", fee_str)) {
+                        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
+                        signing_abort();
+                        return;
+                    }
+
+                }
+
+                // last confirmation
+                coin_amnt_to_str(coin, to_spend - change_spend, total_amount_str, sizeof(total_amount_str));
+
+                if(!confirm_transaction(total_amount_str, fee_str)) {
+                    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
+                    signing_abort();
+                    return;
+                }
+
+                // Everything was checked, now phase 2 begins and the transaction is signed.
+                layout_simple_message("Signing Transaction...");
 
 			    idx1 = 0;
 			    idx2 = 0;
 
+                //At this point hash_prevouts, hash_seqence, and hash_outputs are complete.
 				sha256_Final(&hashers[0], hash_outputs);
 				sha256_Raw(hash_outputs, 32, hash_outputs);
 
@@ -826,37 +877,27 @@ void signing_txack(TransactionType *tx)
 			}
 			return;
 		}
+
+        /* We receive a tx input for the current transaction. $tx->inputs[0] has all input data including
+         * address_n, prev_hash, prev_index... The main thrust of this portion adding an output script */
 		case STAGE_REQUEST_4_INPUT:
 			if (idx2 == 0) {
 				tx_init(&ti, inputs_count, outputs_count, version, lock_time, true);
-				sha256_Init(&tc);
-				sha256_Update(&tc, (const uint8_t *)&inputs_count, sizeof(inputs_count));
-				sha256_Update(&tc, (const uint8_t *)&outputs_count, sizeof(outputs_count));
-				sha256_Update(&tc, (const uint8_t *)&version, sizeof(version));
-				sha256_Update(&tc, (const uint8_t *)&lock_time, sizeof(lock_time));
+				sha256_Init(&transaction_current);
+				sha256_Update(&transaction_current, (const uint8_t *)&inputs_count, sizeof(inputs_count));
+				sha256_Update(&transaction_current, (const uint8_t *)&outputs_count, sizeof(outputs_count));
+				sha256_Update(&transaction_current, (const uint8_t *)&version, sizeof(version));
+				sha256_Update(&transaction_current, (const uint8_t *)&lock_time, sizeof(lock_time));
 				memset(privkey, 0, 32);
 				memset(pubkey, 0, 33);
 			}
-			sha256_Update(&tc, (const uint8_t *)tx->inputs, sizeof(TxInputType));
+			sha256_Update(&transaction_current, (const uint8_t *)tx->inputs, sizeof(TxInputType));
 			if (idx2 == idx1) {
 				memcpy(&input, tx->inputs, sizeof(TxInputType));
-//				if (hdnode_private_ckd_cached(&node, tx->inputs[0].address_n, tx->inputs[0].address_n_count) == 0) {
-//					fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
-//					signing_abort();
-//					return;
-//				}
-//				hdnode_fill_public_key(&node);
-//				if (tx->inputs[0].script_type == InputScriptType_SPENDMULTISIG) {
-//					if (!tx->inputs[0].has_multisig) {
-//						fsm_sendFailure(FailureType_Failure_Other, "Multisig info not provided");
-//						signing_abort();
-//						return;
-//					}
-//					tx->inputs[0].script_sig.size = compile_script_multisig(&(tx->inputs[0].multisig), tx->inputs[0].script_sig.bytes);
-//				} else { // SPENDADDRESS
-//					ecdsa_get_pubkeyhash(node.public_key, hash);
-//					tx->inputs[0].script_sig.size = compile_script_sig(coin->address_type, hash, tx->inputs[0].script_sig.bytes);
-//				}
+
+                /* Puts the redeemScript/pubKeyScript corresponding to the output from a previous transaction into
+                 * the sigScript for this input. Though this seems backwards and insane, we do this because this is
+                 * part of the digest algorithm for vanilla BTC: we sign this digest and OP_CHECKSIG will evaluate to T */
 				compile_input_script_sig(&tx->inputs[0]);
 				if (tx->inputs[0].script_sig.size == 0) {
 					fsm_sendFailure(FailureType_Failure_Other, "Failed to compile input");
@@ -881,6 +922,8 @@ void signing_txack(TransactionType *tx)
 				send_req_4_output();
 			}
 			return;
+
+
 		case STAGE_REQUEST_4_OUTPUT:
 			co = run_policy_compile_output(coin, root, (void *)tx->outputs, (void *)&bin_output, false);
 			if (co <= TXOUT_COMPILE_ERROR) {
@@ -888,7 +931,7 @@ void signing_txack(TransactionType *tx)
 			    signing_abort();
 			    return;
 			}
-			sha256_Update(&tc, (const uint8_t *)&bin_output, sizeof(TxOutputBinType));
+			sha256_Update(&transaction_current, (const uint8_t *)&bin_output, sizeof(TxOutputBinType));
 			if (!tx_serialize_output_hash(&ti, &bin_output)) {
 				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize output");
 				signing_abort();
@@ -920,7 +963,7 @@ void signing_txack(TransactionType *tx)
 					sighash = SIGHASH_ALL | SIGHASH_FORKID;
 					signing_hash_bip143(&input, sighash, coin->forkid, hash);
 				} else {
-                    sha256_Final(&tc, hash);
+                    sha256_Final(&transaction_current, hash);
                     sighash = SIGHASH_ALL;
 				}
 
@@ -1008,6 +1051,8 @@ void signing_abort(void)
 	}
 }
 
+/* This function is actually used to reproduce the redeemScript/scriptPubKey of the corresponding output.
+ * The intention here is to use this in the signature of the script_sig. */
 bool compile_input_script_sig(TxInputType *tinput)
 {
 	if (!multisig_fp_mismatch) {
@@ -1043,7 +1088,7 @@ void signing_hash_bip143(const TxInputType *txinput, uint8_t sighash, uint32_t f
 	sha256_Update(&sigContainer, (const uint8_t *)&version, 4);
 	sha256_Update(&sigContainer, hash_prevouts, 32); //hash_prevouts is serialization of all input outpoints (32byte txid followed by 4byte output index)
 	sha256_Update(&sigContainer, hash_sequence, 32); //is the double SHA256 of the serialization of nSequence of all inputs;
-	tx_codepoint_hash(&sigContainer, txinput); //codepoint
+    tx_prevout_hash(&sigContainer, txinput); //codepoint
 	tx_script_hash(&sigContainer, txinput->script_sig.size, txinput->script_sig.bytes); //script
 	sha256_Update(&sigContainer, (const uint8_t*) &txinput->amount, 8); //value
 	tx_sequence_hash(&sigContainer, txinput); //nSequence

@@ -66,7 +66,7 @@ uint32_t tx_serialize_output(TxStruct *tx, const TxOutputBinType *output, uint8_
 
 void tx_init(TxStruct *tx, uint32_t inputs_len, uint32_t outputs_len, uint32_t version, uint32_t lock_time, bool add_hash_type);
 
-uint32_t tx_codepoint_hash(SHA256_CTX *ctx, const TxInputType *input);
+uint32_t tx_prevout_hash(SHA256_CTX *ctx, const TxInputType *input);
 uint32_t tx_script_hash(SHA256_CTX *ctx, uint32_t size, const uint8_t *data);
 uint32_t tx_sequence_hash(SHA256_CTX *ctx, const TxInputType *input);
 uint32_t tx_output_hash(SHA256_CTX *ctx, const TxOutputBinType *output);
