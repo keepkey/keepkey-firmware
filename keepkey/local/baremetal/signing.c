@@ -48,7 +48,7 @@ static uint32_t idx1, idx2;
 static TxRequest resp;
 static TxInputType input;
 static TxOutputBinType bin_output;
-static TxStruct to, transaction_previous, ti;
+static TxStruct to, transaction_previous, transaction_input_sig_digest;
 static SHA256_CTX transaction_current;
 static uint8_t hash[32], hash_check[32], privkey[32], pubkey[33], sig[64];
 static uint64_t to_spend, spending, change_spend;
@@ -71,7 +71,6 @@ enum {
 } signing_stage;
 static uint32_t version = 1;
 static uint32_t lock_time = 0;
-static uint32_t sequence = 4294967294;
 enum {
 	NOT_PARSING,
 	PARSING_VERSION,
@@ -879,10 +878,11 @@ void signing_txack(TransactionType *tx)
 		}
 
         /* We receive a tx input for the current transaction. $tx->inputs[0] has all input data including
-         * address_n, prev_hash, prev_index... The main thrust of this portion adding an output script */
+         * address_n, prev_hash, prev_index... The main thrust of this portion is generating the inputs contribution
+         * (idx2) of an input (idx1) SIGHASH_ALL digest  */
 		case STAGE_REQUEST_4_INPUT:
 			if (idx2 == 0) {
-				tx_init(&ti, inputs_count, outputs_count, version, lock_time, true);
+				tx_init(&transaction_input_sig_digest, inputs_count, outputs_count, version, lock_time, true);
 				sha256_Init(&transaction_current);
 				sha256_Update(&transaction_current, (const uint8_t *)&inputs_count, sizeof(inputs_count));
 				sha256_Update(&transaction_current, (const uint8_t *)&outputs_count, sizeof(outputs_count));
@@ -893,11 +893,12 @@ void signing_txack(TransactionType *tx)
 			}
 			sha256_Update(&transaction_current, (const uint8_t *)tx->inputs, sizeof(TxInputType));
 			if (idx2 == idx1) {
+                //input represent the idx1 input, the one we will be signing two stages from now.
 				memcpy(&input, tx->inputs, sizeof(TxInputType));
 
                 /* Puts the redeemScript/pubKeyScript corresponding to the output from a previous transaction into
                  * the sigScript for this input. Though this seems backwards and insane, we do this because this is
-                 * part of the digest algorithm for vanilla BTC: we sign this digest and OP_CHECKSIG will evaluate to T */
+                 * part of the SIGHASH_ALL digest algorithm for BTC: we sign this digest and OP_CHECKSIG will evaluate to T */
 				compile_input_script_sig(&tx->inputs[0]);
 				if (tx->inputs[0].script_sig.size == 0) {
 					fsm_sendFailure(FailureType_Failure_Other, "Failed to compile input");
@@ -909,11 +910,14 @@ void signing_txack(TransactionType *tx)
 			} else {
 				tx->inputs[0].script_sig.size = 0;
 			}
-			if (!tx_serialize_input_hash(&ti, tx->inputs)) {
+
+			if (!tx_serialize_input_hash(&transaction_input_sig_digest, tx->inputs)) {
 				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize input");
 				signing_abort();
 				return;
 			}
+
+            //If there are more inputs to be added to the digest, rerun this again. Otherwise get outputs for digest.
 			if (idx2 < inputs_count - 1) {
 				idx2++;
 				send_req_4_input();
@@ -924,7 +928,11 @@ void signing_txack(TransactionType *tx)
 			return;
 
 
+         /* We receive a tx output for the current transaction. $tx->outputs[0] has all output data including
+          * destination address, amount, script_type, address_type... The main thrust of this portion is add outputs to
+          * the digest, and when finished with all outputs, signing said digest */
 		case STAGE_REQUEST_4_OUTPUT:
+            //generates redeemScript/publicKeyScript and stores it on bin_output
 			co = run_policy_compile_output(coin, root, (void *)tx->outputs, (void *)&bin_output, false);
 			if (co <= TXOUT_COMPILE_ERROR) {
 			    send_fsm_co_error_message(co);
@@ -932,17 +940,25 @@ void signing_txack(TransactionType *tx)
 			    return;
 			}
 			sha256_Update(&transaction_current, (const uint8_t *)&bin_output, sizeof(TxOutputBinType));
-			if (!tx_serialize_output_hash(&ti, &bin_output)) {
+
+            //add the output to the growing digest
+			if (!tx_serialize_output_hash(&transaction_input_sig_digest, &bin_output)) {
 				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize output");
 				signing_abort();
 				return;
 			}
+
+            //if more outputs rerun, otherwise sign the digest
 			if (idx2 < outputs_count - 1) {
 				idx2++;
 				send_req_4_output();
 			} else {
+
+                //Signing is different for fork_id coins: BCC (only coin currently with fork_id) uses bip143 signature.
+                // rather than the digest we have built up in transaction_input_sig_digest
 				uint8_t sighash;
 				if(coin->has_forkid){
+                    //get the corresponding outputs script_sig, put it on input
 					if (!compile_input_script_sig(&input)) {
 						fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Failed to compile input"));
 						signing_abort();
@@ -961,26 +977,32 @@ void signing_txack(TransactionType *tx)
 					to_spend -= input.amount;
 
 					sighash = SIGHASH_ALL | SIGHASH_FORKID;
-					signing_hash_bip143(&input, sighash, coin->forkid, hash);
+                    digest_for_bip143(&input, sighash, coin->forkid, hash);
 				} else {
-                    sha256_Final(&transaction_current, hash);
                     sighash = SIGHASH_ALL;
+                    tx_hash_final(&transaction_input_sig_digest, hash, false);
+//                    sha256_Final(&transaction_current, hash);
 				}
+                //At this point hash contains the digest for &input. It just needs signing.
 
+                //TODO: this probably isn't going to work anymore
 				if (memcmp(hash, hash_check, 32) != 0) {
 					fsm_sendFailure(FailureType_Failure_Other, "Transaction has changed during signing");
 					signing_abort();
 					return;
 				}
-				tx_hash_final(&ti, hash, false);
+
 				resp.has_serialized = true;
 				resp.serialized.has_signature_index = true;
 				resp.serialized.signature_index = idx1;
 				resp.serialized.has_signature = true;
 				resp.serialized.has_serialized_tx = true;
+
+                //sign the hash==digest with privkey, store in sig
 				ecdsa_sign_digest(&secp256k1, privkey, hash, sig, 0);
 				resp.serialized.signature.size = ecdsa_sig_to_der(sig, resp.serialized.signature.bytes);
 
+                //Now we put the signature into the input
 				if (input.script_type == InputScriptType_SPENDMULTISIG) {
 					if (!input.has_multisig) {
 						fsm_sendFailure(FailureType_Failure_Other, "Multisig info not provided");
@@ -1003,12 +1025,16 @@ void signing_txack(TransactionType *tx)
 						return;
 					}
 				} else { // SPENDADDRESS
+                    //this plunks <sig | sigHash> <pubKey> into input.script_sig.bytes
 					input.script_sig.size = serialize_script_sig(resp.serialized.signature.bytes,
 																 resp.serialized.signature.size, pubkey, 33, sighash,
 																 input.script_sig.bytes);
 				}
+                //add the input to the serialized response
 				resp.serialized.serialized_tx.size = tx_serialize_input(&to, &input, resp.serialized.serialized_tx.bytes);
 
+                //If there are more inputs in current transaction, move on to the next one and repeat previous
+                // two stages to create and sign digest. Otherwise, let's wrap up...
 				if (idx1 < inputs_count - 1) {
 					idx1++;
 					idx2 = 0;
@@ -1028,7 +1054,10 @@ void signing_txack(TransactionType *tx)
 			}
 			resp.has_serialized = true;
 			resp.serialized.has_serialized_tx = true;
+            //add the output to the serialized response
 			resp.serialized.serialized_tx.size = tx_serialize_output(&to, &bin_output, resp.serialized.serialized_tx.bytes);
+
+            //keep going if more outputs, otherwise finish.
 			if (idx1 < outputs_count - 1) {
 				idx1++;
 				send_req_5_output();
@@ -1081,7 +1110,7 @@ bool compile_input_script_sig(TxInputType *tinput)
 	return tinput->script_sig.size > 0;
 }
 
-void signing_hash_bip143(const TxInputType *txinput, uint8_t sighash, uint32_t forkid, uint8_t *xhash) {
+void digest_for_bip143(const TxInputType *txinput, uint8_t sighash, uint32_t forkid, uint8_t *xhash) {
 	uint32_t hash_type = (forkid << 8) | sighash;
 	SHA256_CTX sigContainer;
 	sha256_Init(&sigContainer);
