@@ -43,5 +43,6 @@ void signing_abort(void);
 void parse_raw_txack(uint8_t *msg, uint32_t msg_size);
 void signing_txack(TransactionType *tx);
 void send_fsm_co_error_message(int co_error);
-
+bool compile_input_script_sig(TxInputType *tinput);
+void digest_for_bip143(const TxInputType *txinput, uint8_t sighash, uint32_t forkid, uint8_t *hash);
 #endif
