@@ -49,7 +49,7 @@ static TxRequest resp;
 static TxInputType input;
 static TxOutputBinType bin_output;
 static TxStruct to, transaction_previous, transaction_input_sig_digest;
-static SHA256_CTX transaction_current;
+static SHA256_CTX transaction_inputs_and_outputs;
 static uint8_t hash[32], hash_check[32], privkey[32], pubkey[33], sig[64];
 static uint64_t to_spend, spending, change_spend;
 static bool multisig_fp_set, multisig_fp_mismatch;
@@ -429,11 +429,11 @@ void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinTyp
 	multisig_fp_mismatch = false;
 
 	tx_init(&to, inputs_count, outputs_count, version, lock_time, false);
-	sha256_Init(&transaction_current);
-	sha256_Update(&transaction_current, (const uint8_t *)&inputs_count, sizeof(inputs_count));
-	sha256_Update(&transaction_current, (const uint8_t *)&outputs_count, sizeof(outputs_count));
-	sha256_Update(&transaction_current, (const uint8_t *)&version, sizeof(version));
-	sha256_Update(&transaction_current, (const uint8_t *)&lock_time, sizeof(lock_time));
+	sha256_Init(&transaction_inputs_and_outputs);
+	sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)&inputs_count, sizeof(inputs_count));
+	sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)&outputs_count, sizeof(outputs_count));
+	sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)&version, sizeof(version));
+	sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)&lock_time, sizeof(lock_time));
 
 	sha256_Init(&hashers[0]);
 	sha256_Init(&hashers[1]);
@@ -656,15 +656,10 @@ void signing_txack(TransactionType *tx)
 			} else { // InputScriptType_SPENDADDRESS
 				multisig_fp_mismatch = true;
 			}
-			sha256_Update(&transaction_current, (const uint8_t *)tx->inputs, sizeof(TxInputType));
+			sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)tx->inputs, sizeof(TxInputType));
 			memcpy(&input, tx->inputs, sizeof(TxInputType));
 
 			TxInputType *txinput = &tx->inputs[0];
-
-            //TODO: Is this necessary?
-//            if(!txinput->has_sequence){
-//                txinput->sequence = sequence;
-//            }
 
             tx_prevout_hash(&hashers[0], txinput);
 			tx_sequence_hash(&hashers[1], txinput);
@@ -730,7 +725,7 @@ void signing_txack(TransactionType *tx)
 				}
 
                 /* If there are more inputs, re-run stages STAGE_REQUEST_1_INPUT --> STAGE_REQUEST_2_PREV_OUTPUT
-                 * for new input */
+                 * for each input */
 				if (idx1 < inputs_count - 1) {
 					idx1++;
 					send_req_1_input();
@@ -743,7 +738,7 @@ void signing_txack(TransactionType *tx)
 					sha256_Final(&hashers[1], hash_sequence);
 					sha256_Raw(hash_sequence, 32, hash_sequence);
 
-                    //Use hash_check for validation later. This is hash_prevouts along with
+					//TODO: are we using this?
 					sha256_Final(&hashers[2], hash_check);
 
                     // initialize hashOutputs
@@ -819,7 +814,7 @@ void signing_txack(TransactionType *tx)
 
 			spending += tx->outputs[0].amount;
 
-			sha256_Update(&transaction_current, (const uint8_t *)&bin_output, sizeof(TxOutputBinType));
+			sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)&bin_output, sizeof(TxOutputBinType));
 
 			tx_output_hash(&hashers[0], &bin_output);
 
@@ -828,7 +823,7 @@ void signing_txack(TransactionType *tx)
 				idx1++;
 				send_req_3_output();
 			} else {
-                sha256_Final(&transaction_current, hash_check);
+                sha256_Final(&transaction_inputs_and_outputs, hash_check);
 
                 // check fees
                 if (spending > to_spend) {
@@ -883,15 +878,15 @@ void signing_txack(TransactionType *tx)
 		case STAGE_REQUEST_4_INPUT:
 			if (idx2 == 0) {
 				tx_init(&transaction_input_sig_digest, inputs_count, outputs_count, version, lock_time, true);
-				sha256_Init(&transaction_current);
-				sha256_Update(&transaction_current, (const uint8_t *)&inputs_count, sizeof(inputs_count));
-				sha256_Update(&transaction_current, (const uint8_t *)&outputs_count, sizeof(outputs_count));
-				sha256_Update(&transaction_current, (const uint8_t *)&version, sizeof(version));
-				sha256_Update(&transaction_current, (const uint8_t *)&lock_time, sizeof(lock_time));
+				sha256_Init(&transaction_inputs_and_outputs);
+				sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)&inputs_count, sizeof(inputs_count));
+				sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)&outputs_count, sizeof(outputs_count));
+				sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)&version, sizeof(version));
+				sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)&lock_time, sizeof(lock_time));
 				memset(privkey, 0, 32);
 				memset(pubkey, 0, 33);
 			}
-			sha256_Update(&transaction_current, (const uint8_t *)tx->inputs, sizeof(TxInputType));
+			sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)tx->inputs, sizeof(TxInputType));
 			if (idx2 == idx1) {
                 //input represent the idx1 input, the one we will be signing two stages from now.
 				memcpy(&input, tx->inputs, sizeof(TxInputType));
@@ -939,7 +934,7 @@ void signing_txack(TransactionType *tx)
 			    signing_abort();
 			    return;
 			}
-			sha256_Update(&transaction_current, (const uint8_t *)&bin_output, sizeof(TxOutputBinType));
+			sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)&bin_output, sizeof(TxOutputBinType));
 
             //add the output to the growing digest
 			if (!tx_serialize_output_hash(&transaction_input_sig_digest, &bin_output)) {
@@ -953,6 +948,12 @@ void signing_txack(TransactionType *tx)
 				idx2++;
 				send_req_4_output();
 			} else {
+				sha256_Final(&transaction_inputs_and_outputs, hash);
+				if (memcmp(hash, hash_check, 32) != 0) {
+					fsm_sendFailure(FailureType_Failure_Other, "Transaction has changed during signing");
+					signing_abort();
+					return;
+				}
 
                 //Signing is different for fork_id coins: BCC (only coin currently with fork_id) uses bip143 signature.
                 // rather than the digest we have built up in transaction_input_sig_digest
@@ -981,17 +982,7 @@ void signing_txack(TransactionType *tx)
 				} else {
                     sighash = SIGHASH_ALL;
                     tx_hash_final(&transaction_input_sig_digest, hash, false);
-//                    sha256_Final(&transaction_current, hash);
 				}
-                //At this point hash contains the digest for &input. It just needs signing.
-
-                //TODO: this probably isn't going to work anymore
-				if (memcmp(hash, hash_check, 32) != 0) {
-					fsm_sendFailure(FailureType_Failure_Other, "Transaction has changed during signing");
-					signing_abort();
-					return;
-				}
-
 				resp.has_serialized = true;
 				resp.serialized.has_signature_index = true;
 				resp.serialized.signature_index = idx1;
