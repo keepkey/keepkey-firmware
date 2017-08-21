@@ -35,7 +35,8 @@ DEFS=['-DSTM32F2',
       '-DNDEBUG',
       '-DSCM_REVISION=\'"%s"\'' % (re.sub(r'(..)', r'\\x\1', SCM_REVISION)),
       '-DPB_FIELD_16BIT=1',
-      '-DQR_MAX_VERSION=0']
+      '-DQR_MAX_VERSION=0',
+      '-DCONFIDENTIAL=\'__attribute__((section("confidential")))\'']
 
 DEFS2=['-DED25519_CUSTOMRANDOM=1',
        '-DED25519_CUSTOMHASH=1',

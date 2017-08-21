@@ -9,3 +9,6 @@ MEMORY
 }
 
 INCLUDE libopencm3_stm32f2.ld
+
+_ram_start = ORIGIN(ram);
+_ram_end = ORIGIN(ram) + LENGTH(ram);
