@@ -50,7 +50,8 @@ def bump_version(args):
 
 def compile_protocol_buffers():
     version = json.load(open('version.json', 'r'))
-    tag = 'v%s.%s.%s' % (version['MAJOR_VERSION'], version['MINOR_VERSION'], version['PATCH_VERSION'])
+    # tag = 'v%s.%s.%s' % (version['MAJOR_VERSION'], version['MINOR_VERSION'], version['PATCH_VERSION'])
+    tag = 'bitcoin-cash'
 
     if not os.path.exists('../%s' % DEVICE_PROTOCOL):
         local('git clone -b %s https://github.com/keepkey/%s.git ../%s' % (tag, DEVICE_PROTOCOL, DEVICE_PROTOCOL))
