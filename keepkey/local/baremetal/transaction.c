@@ -391,15 +391,6 @@ uint32_t tx_serialize_input_hash(TxStruct *tx, const TxInputType *input)
 	r += tx_script_hash(&(tx->ctx), input->script_sig.size, input->script_sig.bytes);
 	r += tx_sequence_hash(&(tx->ctx), input);
 
-//	for (i = 0; i < 32; i++) {
-//		sha256_Update(&(tx->ctx), &(input->prev_hash.bytes[31 - i]), 1);
-//	}
-//	r += 32;
-//	sha256_Update(&(tx->ctx), (const uint8_t *)&input->prev_index, 4); r += 4;
-//	r += ser_length_hash(&(tx->ctx), input->script_sig.size);
-//	sha256_Update(&(tx->ctx), input->script_sig.bytes, input->script_sig.size); r += input->script_sig.size;
-//	sha256_Update(&(tx->ctx), (const uint8_t *)&input->sequence, 4); r += 4;
-
 	tx->have_inputs++;
 	tx->size += r;
 
@@ -481,10 +472,6 @@ uint32_t tx_serialize_output_hash(TxStruct *tx, const TxOutputBinType *output)
 	}
 
 	r += tx_output_hash(&(tx->ctx), output);
-
-//	sha256_Update(&(tx->ctx), (const uint8_t *)&output->amount, 8); r += 8;
-//	r += ser_length_hash(&(tx->ctx), output->script_pubkey.size);
-//	sha256_Update(&(tx->ctx), output->script_pubkey.bytes, output->script_pubkey.size); r+= output->script_pubkey.size;
 
 	tx->have_outputs++;
 	if (tx->have_outputs == tx->outputs_len) {

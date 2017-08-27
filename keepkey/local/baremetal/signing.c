@@ -49,8 +49,6 @@ static uint32_t idx1, idx2;
 static TxRequest resp;
 static TxInputType input;
 static TxOutputBinType bin_output;
-//static TxStruct to, tp, ti;
-//static SHA256_CTX tc;
 static TxStruct to, transaction_previous, transaction_input_sig_digest;
 static SHA256_CTX transaction_inputs_and_outputs;
 static uint8_t hash[32], hash_check[32], privkey[32], pubkey[33], sig[64];
@@ -844,25 +842,6 @@ void signing_txack(TransactionType *tx)
 			if (idx2 == idx1) {
 				memcpy(&input, tx->inputs, sizeof(TxInputType));
 				compile_input_script_sig(&tx->inputs[0]);
-
-//				memcpy(&node, root, sizeof(HDNode));
-//				if (hdnode_private_ckd_cached(&node, tx->inputs[0].address_n, tx->inputs[0].address_n_count) == 0) {
-//					fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
-//					signing_abort();
-//					return;
-//				}
-//				hdnode_fill_public_key(&node);
-//				if (tx->inputs[0].script_type == InputScriptType_SPENDMULTISIG) {
-//					if (!tx->inputs[0].has_multisig) {
-//						fsm_sendFailure(FailureType_Failure_Other, "Multisig info not provided");
-//						signing_abort();
-//						return;
-//					}
-//					tx->inputs[0].script_sig.size = compile_script_multisig(&(tx->inputs[0].multisig), tx->inputs[0].script_sig.bytes);
-//				} else { // SPENDADDRESS
-//					ecdsa_get_pubkeyhash(node.public_key, hash);
-//					tx->inputs[0].script_sig.size = compile_script_sig(coin->address_type, hash, tx->inputs[0].script_sig.bytes);
-//				}
 				if (tx->inputs[0].script_sig.size == 0) {
 					fsm_sendFailure(FailureType_Failure_Other, "Failed to compile input");
 					signing_abort();
