@@ -777,6 +777,9 @@ void signing_txack(TransactionType *tx)
 			spending += tx->outputs[0].amount;
 
 			sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)&bin_output, sizeof(TxOutputBinType));
+
+			tx_output_hash(&hashers[0], &bin_output);
+
 			if (idx1 < outputs_count - 1) {
 				idx1++;
 				send_req_3_output();
