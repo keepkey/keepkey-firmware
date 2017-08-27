@@ -263,12 +263,14 @@ uint32_t compile_script_multisig_hash(const MultisigRedeemScriptType *multisig, 
 	return 1;
 }
 
-uint32_t serialize_script_sig(const uint8_t *signature, uint32_t signature_len, const uint8_t *pubkey, uint32_t pubkey_len, uint8_t *out)
+uint32_t serialize_script_sig(const uint8_t *signature, uint32_t signature_len,
+							  const uint8_t *pubkey, uint32_t pubkey_len,
+							  uint8_t sighash, uint8_t *out)
 {
 	uint32_t r = 0;
 	r += op_push(signature_len + 1, out + r);
 	memcpy(out + r, signature, signature_len); r += signature_len;
-	out[r] = 0x01; r++;
+	out[r] = sighash; r++;
 	r += op_push(pubkey_len, out + r);
 	memcpy(out + r, pubkey, pubkey_len); r += pubkey_len;
 	return r;
@@ -296,6 +298,43 @@ uint32_t serialize_script_multisig(const MultisigRedeemScriptType *multisig, uin
 }
 
 /* --- Transfer Methods ---------------------------------------------------- */
+
+uint32_t tx_prevout_hash(SHA256_CTX *ctx, const TxInputType *input)
+{
+	for (int i = 0; i < 32; i++) {
+		sha256_Update(ctx, &(input->prev_hash.bytes[31 - i]), 1);
+	}
+	sha256_Update(ctx, (const uint8_t *)&input->prev_index, 4);
+	return 36;
+}
+
+uint32_t tx_script_hash(SHA256_CTX *ctx, uint32_t size, const uint8_t *data)
+{
+	int r = ser_length_hash(ctx, size);
+	sha256_Update(ctx, data, size);
+	return r + size;
+}
+
+uint32_t tx_sequence_hash(SHA256_CTX *ctx, const TxInputType *input)
+{
+	sha256_Update(ctx, (const uint8_t *)&input->sequence, 4);
+	return 4;
+}
+
+uint32_t tx_output_hash(SHA256_CTX *ctx, const TxOutputBinType *output)
+{
+	uint32_t r = 0;
+	sha256_Update(ctx, (const uint8_t *)&output->amount, 8); r += 8;
+	r += tx_script_hash(ctx, output->script_pubkey.size, output->script_pubkey.bytes);
+	return r;
+}
+
+uint32_t tx_serialize_script(uint32_t size, const uint8_t *data, uint8_t *out)
+{
+	int r = ser_length(size, out);
+	memcpy(out + r, data, size);
+	return r + size;
+}
 
 uint32_t tx_serialize_header(TxStruct *tx, uint8_t *out)
 {
@@ -337,23 +376,20 @@ uint32_t tx_serialize_input(TxStruct *tx, const TxInputType *input, uint8_t *out
 
 uint32_t tx_serialize_input_hash(TxStruct *tx, const TxInputType *input)
 {
-	int i;
 	if (tx->have_inputs >= tx->inputs_len) {
 		// already got all inputs
 		return 0;
 	}
+
 	uint32_t r = 0;
+
 	if (tx->have_inputs == 0) {
 		r += tx_serialize_header_hash(tx);
 	}
-	for (i = 0; i < 32; i++) {
-		sha256_Update(&(tx->ctx), &(input->prev_hash.bytes[31 - i]), 1);
-	}
-	r += 32;
-	sha256_Update(&(tx->ctx), (const uint8_t *)&input->prev_index, 4); r += 4;
-	r += ser_length_hash(&(tx->ctx), input->script_sig.size);
-	sha256_Update(&(tx->ctx), input->script_sig.bytes, input->script_sig.size); r += input->script_sig.size;
-	sha256_Update(&(tx->ctx), (const uint8_t *)&input->sequence, 4); r += 4;
+
+	r += tx_prevout_hash(&(tx->ctx), input);
+	r += tx_script_hash(&(tx->ctx), input->script_sig.size, input->script_sig.bytes);
+	r += tx_sequence_hash(&(tx->ctx), input);
 
 	tx->have_inputs++;
 	tx->size += r;
@@ -434,9 +470,9 @@ uint32_t tx_serialize_output_hash(TxStruct *tx, const TxOutputBinType *output)
 	if (tx->have_outputs == 0) {
 		r += tx_serialize_middle_hash(tx);
 	}
-	sha256_Update(&(tx->ctx), (const uint8_t *)&output->amount, 8); r += 8;
-	r += ser_length_hash(&(tx->ctx), output->script_pubkey.size);
-	sha256_Update(&(tx->ctx), output->script_pubkey.bytes, output->script_pubkey.size); r+= output->script_pubkey.size;
+
+	r += tx_output_hash(&(tx->ctx), output);
+
 	tx->have_outputs++;
 	if (tx->have_outputs == tx->outputs_len) {
 		r += tx_serialize_footer_hash(tx);
