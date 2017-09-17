@@ -35,7 +35,7 @@ static void confirm_icon_1(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirm_icon_1_image = {(void *) &confirm_icon_1, 22, 18};
+static const Image confirm_icon_1_image = {&confirm_icon_1, 22, 18};
 
 static void confirm_icon_2(uint8_t *data)
 {
@@ -45,7 +45,7 @@ static void confirm_icon_2(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirm_icon_2_image = {(void *) &confirm_icon_2, 22, 18};
+static const Image confirm_icon_2_image = {&confirm_icon_2, 22, 18};
 
 static void confirm_icon_3(uint8_t *data)
 {
@@ -55,7 +55,7 @@ static void confirm_icon_3(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirm_icon_3_image = {(void *) &confirm_icon_3, 22, 18};
+static const Image confirm_icon_3_image = {&confirm_icon_3, 22, 18};
 
 static void confirm_icon_4(uint8_t *data)
 {
@@ -65,7 +65,7 @@ static void confirm_icon_4(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirm_icon_4_image = {(void *) &confirm_icon_4, 22, 18};
+static const Image confirm_icon_4_image = {&confirm_icon_4, 22, 18};
 
 static void confirm_icon_5(uint8_t *data)
 {
@@ -75,7 +75,7 @@ static void confirm_icon_5(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirm_icon_5_image = {(void *) &confirm_icon_5, 22, 18};
+static const Image confirm_icon_5_image = {&confirm_icon_5, 22, 18};
 
 static const AnimationFrame confirm_icon_array[] =
 {
@@ -98,7 +98,7 @@ static void confirming_1(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_1_image = {(void *) &confirming_1, 22, 22};
+static const Image confirming_1_image = {&confirming_1, 22, 22};
 
 static void confirming_2(uint8_t *data)
 {
@@ -108,7 +108,7 @@ static void confirming_2(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_2_image = {(void *) &confirming_2, 22, 22};
+static const Image confirming_2_image = {&confirming_2, 22, 22};
 
 static void confirming_3(uint8_t *data)
 {
@@ -118,7 +118,7 @@ static void confirming_3(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_3_image = {(void *) &confirming_3, 22, 22};
+static const Image confirming_3_image = {&confirming_3, 22, 22};
 
 static void confirming_4(uint8_t *data)
 {
@@ -128,7 +128,7 @@ static void confirming_4(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_4_image = {(void *) &confirming_4, 22, 22};
+static const Image confirming_4_image = {&confirming_4, 22, 22};
 
 static void confirming_5(uint8_t *data)
 {
@@ -138,7 +138,7 @@ static void confirming_5(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_5_image = {(void *) &confirming_5, 22, 22};
+static const Image confirming_5_image = {&confirming_5, 22, 22};
 
 static void confirming_6(uint8_t *data)
 {
@@ -148,7 +148,7 @@ static void confirming_6(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_6_image = {(void *) &confirming_6, 22, 22};
+static const Image confirming_6_image = {&confirming_6, 22, 22};
 
 static void confirming_7(uint8_t *data)
 {
@@ -158,7 +158,7 @@ static void confirming_7(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_7_image = {(void *) &confirming_7, 22, 22};
+static const Image confirming_7_image = {&confirming_7, 22, 22};
 
 static void confirming_8(uint8_t *data)
 {
@@ -168,7 +168,7 @@ static void confirming_8(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_8_image = {(void *) &confirming_8, 22, 22};
+static const Image confirming_8_image = {&confirming_8, 22, 22};
 
 static void confirming_9(uint8_t *data)
 {
@@ -178,7 +178,7 @@ static void confirming_9(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_9_image = {(void *) &confirming_9, 22, 22};
+static const Image confirming_9_image = {&confirming_9, 22, 22};
 
 static void confirming_10(uint8_t *data)
 {
@@ -188,7 +188,7 @@ static void confirming_10(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_10_image = {(void *) &confirming_10, 22, 22};
+static const Image confirming_10_image = {&confirming_10, 22, 22};
 
 static void confirming_11(uint8_t *data)
 {
@@ -198,7 +198,7 @@ static void confirming_11(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_11_image = {(void *) &confirming_11, 22, 22};
+static const Image confirming_11_image = {&confirming_11, 22, 22};
 
 static void confirming_12(uint8_t *data)
 {
@@ -208,7 +208,7 @@ static void confirming_12(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_12_image = {(void *) &confirming_12, 22, 22};
+static const Image confirming_12_image = {&confirming_12, 22, 22};
 
 static void confirming_13(uint8_t *data)
 {
@@ -218,7 +218,7 @@ static void confirming_13(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_13_image = {(void *) &confirming_13, 22, 22};
+static const Image confirming_13_image = {&confirming_13, 22, 22};
 
 static void confirming_14(uint8_t *data)
 {
@@ -228,7 +228,7 @@ static void confirming_14(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_14_image = {(void *) &confirming_14, 22, 22};
+static const Image confirming_14_image = {&confirming_14, 22, 22};
 
 static void confirming_15(uint8_t *data)
 {
@@ -238,7 +238,7 @@ static void confirming_15(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_15_image = {(void *) &confirming_15, 22, 22};
+static const Image confirming_15_image = {&confirming_15, 22, 22};
 
 static void confirming_16(uint8_t *data)
 {
@@ -248,7 +248,7 @@ static void confirming_16(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_16_image = {(void *) &confirming_16, 22, 22};
+static const Image confirming_16_image = {&confirming_16, 22, 22};
 
 static void confirming_17(uint8_t *data)
 {
@@ -258,7 +258,7 @@ static void confirming_17(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_17_image = {(void *) &confirming_17, 22, 22};
+static const Image confirming_17_image = {&confirming_17, 22, 22};
 
 static void confirming_18(uint8_t *data)
 {
@@ -268,7 +268,7 @@ static void confirming_18(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_18_image = {(void *) &confirming_18, 22, 22};
+static const Image confirming_18_image = {&confirming_18, 22, 22};
 
 static void confirming_19(uint8_t *data)
 {
@@ -278,7 +278,7 @@ static void confirming_19(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_19_image = {(void *) &confirming_19, 22, 22};
+static const Image confirming_19_image = {&confirming_19, 22, 22};
 
 static void confirming_20(uint8_t *data)
 {
@@ -288,7 +288,7 @@ static void confirming_20(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_20_image = {(void *) &confirming_20, 22, 22};
+static const Image confirming_20_image = {&confirming_20, 22, 22};
 
 static void confirming_21(uint8_t *data)
 {
@@ -298,7 +298,7 @@ static void confirming_21(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_21_image = {(void *) &confirming_21, 22, 22};
+static const Image confirming_21_image = {&confirming_21, 22, 22};
 
 static void confirming_22(uint8_t *data)
 {
@@ -308,7 +308,7 @@ static void confirming_22(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_22_image = {(void *) &confirming_22, 22, 22};
+static const Image confirming_22_image = {&confirming_22, 22, 22};
 
 static void confirming_23(uint8_t *data)
 {
@@ -318,7 +318,7 @@ static void confirming_23(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_23_image = {(void *) &confirming_23, 22, 22};
+static const Image confirming_23_image = {&confirming_23, 22, 22};
 
 static void confirming_24(uint8_t *data)
 {
@@ -328,7 +328,7 @@ static void confirming_24(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_24_image = {(void *) &confirming_24, 22, 22};
+static const Image confirming_24_image = {&confirming_24, 22, 22};
 
 static void confirming_25(uint8_t *data)
 {
@@ -338,7 +338,7 @@ static void confirming_25(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_25_image = {(void *) &confirming_25, 22, 22};
+static const Image confirming_25_image = {&confirming_25, 22, 22};
 
 static void confirming_26(uint8_t *data)
 {
@@ -348,7 +348,7 @@ static void confirming_26(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_26_image = {(void *) &confirming_26, 22, 22};
+static const Image confirming_26_image = {&confirming_26, 22, 22};
 
 static void confirming_27(uint8_t *data)
 {
@@ -358,7 +358,7 @@ static void confirming_27(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_27_image = {(void *) &confirming_27, 22, 22};
+static const Image confirming_27_image = {&confirming_27, 22, 22};
 
 static void confirming_28(uint8_t *data)
 {
@@ -368,7 +368,7 @@ static void confirming_28(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_28_image = {(void *) &confirming_28, 22, 22};
+static const Image confirming_28_image = {&confirming_28, 22, 22};
 
 static void confirming_29(uint8_t *data)
 {
@@ -378,7 +378,7 @@ static void confirming_29(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_29_image = {(void *) &confirming_29, 22, 22};
+static const Image confirming_29_image = {&confirming_29, 22, 22};
 
 static void confirming_30(uint8_t *data)
 {
@@ -388,7 +388,7 @@ static void confirming_30(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_30_image = {(void *) &confirming_30, 22, 22};
+static const Image confirming_30_image = {&confirming_30, 22, 22};
 
 static void confirming_31(uint8_t *data)
 {
@@ -398,7 +398,7 @@ static void confirming_31(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_31_image = {(void *) &confirming_31, 22, 22};
+static const Image confirming_31_image = {&confirming_31, 22, 22};
 
 static void confirming_32(uint8_t *data)
 {
@@ -408,7 +408,7 @@ static void confirming_32(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_32_image = {(void *) &confirming_32, 22, 22};
+static const Image confirming_32_image = {&confirming_32, 22, 22};
 
 static void confirming_33(uint8_t *data)
 {
@@ -418,7 +418,7 @@ static void confirming_33(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_33_image = {(void *) &confirming_33, 22, 22};
+static const Image confirming_33_image = {&confirming_33, 22, 22};
 
 static void confirming_34(uint8_t *data)
 {
@@ -428,7 +428,7 @@ static void confirming_34(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_34_image = {(void *) &confirming_34, 22, 22};
+static const Image confirming_34_image = {&confirming_34, 22, 22};
 
 static void confirming_35(uint8_t *data)
 {
@@ -438,7 +438,7 @@ static void confirming_35(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_35_image = {(void *) &confirming_35, 22, 22};
+static const Image confirming_35_image = {&confirming_35, 22, 22};
 
 static void confirming_36(uint8_t *data)
 {
@@ -448,7 +448,7 @@ static void confirming_36(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_36_image = {(void *) &confirming_36, 22, 22};
+static const Image confirming_36_image = {&confirming_36, 22, 22};
 
 static void confirming_37(uint8_t *data)
 {
@@ -458,7 +458,7 @@ static void confirming_37(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_37_image = {(void *) &confirming_37, 22, 22};
+static const Image confirming_37_image = {&confirming_37, 22, 22};
 
 static void confirming_38(uint8_t *data)
 {
@@ -468,7 +468,7 @@ static void confirming_38(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_38_image = {(void *) &confirming_38, 22, 22};
+static const Image confirming_38_image = {&confirming_38, 22, 22};
 
 static void confirming_39(uint8_t *data)
 {
@@ -478,7 +478,7 @@ static void confirming_39(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_39_image = {(void *) &confirming_39, 22, 22};
+static const Image confirming_39_image = {&confirming_39, 22, 22};
 
 static void confirming_40(uint8_t *data)
 {
@@ -488,7 +488,7 @@ static void confirming_40(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_40_image = {(void *) &confirming_40, 22, 22};
+static const Image confirming_40_image = {&confirming_40, 22, 22};
 
 static void confirming_41(uint8_t *data)
 {
@@ -498,7 +498,7 @@ static void confirming_41(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_41_image = {(void *) &confirming_41, 22, 22};
+static const Image confirming_41_image = {&confirming_41, 22, 22};
 
 static void confirming_42(uint8_t *data)
 {
@@ -508,7 +508,7 @@ static void confirming_42(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_42_image = {(void *) &confirming_42, 22, 22};
+static const Image confirming_42_image = {&confirming_42, 22, 22};
 
 static void confirming_43(uint8_t *data)
 {
@@ -518,7 +518,7 @@ static void confirming_43(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_43_image = {(void *) &confirming_43, 22, 22};
+static const Image confirming_43_image = {&confirming_43, 22, 22};
 
 static void confirming_44(uint8_t *data)
 {
@@ -528,7 +528,7 @@ static void confirming_44(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_44_image = {(void *) &confirming_44, 22, 22};
+static const Image confirming_44_image = {&confirming_44, 22, 22};
 
 static void confirming_45(uint8_t *data)
 {
@@ -538,7 +538,7 @@ static void confirming_45(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_45_image = {(void *) &confirming_45, 22, 22};
+static const Image confirming_45_image = {&confirming_45, 22, 22};
 
 static void confirming_46(uint8_t *data)
 {
@@ -548,7 +548,7 @@ static void confirming_46(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_46_image = {(void *) &confirming_46, 22, 22};
+static const Image confirming_46_image = {&confirming_46, 22, 22};
 
 static void confirming_47(uint8_t *data)
 {
@@ -558,7 +558,7 @@ static void confirming_47(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_47_image = {(void *) &confirming_47, 22, 22};
+static const Image confirming_47_image = {&confirming_47, 22, 22};
 
 static void confirming_48(uint8_t *data)
 {
@@ -568,7 +568,7 @@ static void confirming_48(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_48_image = {(void *) &confirming_48, 22, 22};
+static const Image confirming_48_image = {&confirming_48, 22, 22};
 
 static void confirming_49(uint8_t *data)
 {
@@ -578,7 +578,7 @@ static void confirming_49(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_49_image = {(void *) &confirming_49, 22, 22};
+static const Image confirming_49_image = {&confirming_49, 22, 22};
 
 static void confirming_50(uint8_t *data)
 {
@@ -588,7 +588,7 @@ static void confirming_50(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_50_image = {(void *) &confirming_50, 22, 22};
+static const Image confirming_50_image = {&confirming_50, 22, 22};
 
 static void confirming_51(uint8_t *data)
 {
@@ -598,7 +598,7 @@ static void confirming_51(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_51_image = {(void *) &confirming_51, 22, 22};
+static const Image confirming_51_image = {&confirming_51, 22, 22};
 
 static void confirming_52(uint8_t *data)
 {
@@ -608,7 +608,7 @@ static void confirming_52(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_52_image = {(void *) &confirming_52, 22, 22};
+static const Image confirming_52_image = {&confirming_52, 22, 22};
 
 static void confirming_53(uint8_t *data)
 {
@@ -618,7 +618,7 @@ static void confirming_53(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_53_image = {(void *) &confirming_53, 22, 22};
+static const Image confirming_53_image = {&confirming_53, 22, 22};
 
 static void confirming_54(uint8_t *data)
 {
@@ -628,7 +628,7 @@ static void confirming_54(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_54_image = {(void *) &confirming_54, 22, 22};
+static const Image confirming_54_image = {&confirming_54, 22, 22};
 
 static void confirming_55(uint8_t *data)
 {
@@ -638,7 +638,7 @@ static void confirming_55(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_55_image = {(void *) &confirming_55, 22, 22};
+static const Image confirming_55_image = {&confirming_55, 22, 22};
 
 static void confirming_56(uint8_t *data)
 {
@@ -648,7 +648,7 @@ static void confirming_56(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_56_image = {(void *) &confirming_56, 22, 22};
+static const Image confirming_56_image = {&confirming_56, 22, 22};
 
 static void confirming_57(uint8_t *data)
 {
@@ -658,7 +658,7 @@ static void confirming_57(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_57_image = {(void *) &confirming_57, 22, 22};
+static const Image confirming_57_image = {&confirming_57, 22, 22};
 
 static void confirming_58(uint8_t *data)
 {
@@ -668,7 +668,7 @@ static void confirming_58(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_58_image = {(void *) &confirming_58, 22, 22};
+static const Image confirming_58_image = {&confirming_58, 22, 22};
 
 static void confirming_59(uint8_t *data)
 {
@@ -678,7 +678,7 @@ static void confirming_59(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_59_image = {(void *) &confirming_59, 22, 22};
+static const Image confirming_59_image = {&confirming_59, 22, 22};
 
 static void confirming_60(uint8_t *data)
 {
@@ -688,7 +688,7 @@ static void confirming_60(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_60_image = {(void *) &confirming_60, 22, 22};
+static const Image confirming_60_image = {&confirming_60, 22, 22};
 
 static void confirming_61(uint8_t *data)
 {
@@ -698,7 +698,7 @@ static void confirming_61(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_61_image = {(void *) &confirming_61, 22, 22};
+static const Image confirming_61_image = {&confirming_61, 22, 22};
 
 static void confirming_62(uint8_t *data)
 {
@@ -708,7 +708,7 @@ static void confirming_62(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_62_image = {(void *) &confirming_62, 22, 22};
+static const Image confirming_62_image = {&confirming_62, 22, 22};
 
 static void confirming_63(uint8_t *data)
 {
@@ -718,7 +718,7 @@ static void confirming_63(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_63_image = {(void *) &confirming_63, 22, 22};
+static const Image confirming_63_image = {&confirming_63, 22, 22};
 
 static void confirming_64(uint8_t *data)
 {
@@ -728,7 +728,7 @@ static void confirming_64(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image confirming_64_image = {(void *) &confirming_64, 22, 22};
+static const Image confirming_64_image = {&confirming_64, 22, 22};
 
 static const AnimationFrame confirming_array[] =
 {
@@ -810,7 +810,7 @@ static void loading_1(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_1_image = {(void *) &loading_1, 92, 8};
+static const Image loading_1_image = {&loading_1, 92, 8};
 
 static void loading_2(uint8_t *data)
 {
@@ -820,7 +820,7 @@ static void loading_2(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_2_image = {(void *) &loading_2, 92, 8};
+static const Image loading_2_image = {&loading_2, 92, 8};
 
 static void loading_3(uint8_t *data)
 {
@@ -830,7 +830,7 @@ static void loading_3(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_3_image = {(void *) &loading_3, 92, 8};
+static const Image loading_3_image = {&loading_3, 92, 8};
 
 static void loading_4(uint8_t *data)
 {
@@ -840,7 +840,7 @@ static void loading_4(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_4_image = {(void *) &loading_4, 92, 8};
+static const Image loading_4_image = {&loading_4, 92, 8};
 
 static void loading_5(uint8_t *data)
 {
@@ -850,7 +850,7 @@ static void loading_5(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_5_image = {(void *) &loading_5, 92, 8};
+static const Image loading_5_image = {&loading_5, 92, 8};
 
 static void loading_6(uint8_t *data)
 {
@@ -860,7 +860,7 @@ static void loading_6(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_6_image = {(void *) &loading_6, 92, 8};
+static const Image loading_6_image = {&loading_6, 92, 8};
 
 static void loading_7(uint8_t *data)
 {
@@ -870,7 +870,7 @@ static void loading_7(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_7_image = {(void *) &loading_7, 92, 8};
+static const Image loading_7_image = {&loading_7, 92, 8};
 
 static void loading_8(uint8_t *data)
 {
@@ -880,7 +880,7 @@ static void loading_8(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_8_image = {(void *) &loading_8, 92, 8};
+static const Image loading_8_image = {&loading_8, 92, 8};
 
 static void loading_9(uint8_t *data)
 {
@@ -890,7 +890,7 @@ static void loading_9(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_9_image = {(void *) &loading_9, 92, 8};
+static const Image loading_9_image = {&loading_9, 92, 8};
 
 static void loading_10(uint8_t *data)
 {
@@ -900,7 +900,7 @@ static void loading_10(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_10_image = {(void *) &loading_10, 92, 8};
+static const Image loading_10_image = {&loading_10, 92, 8};
 
 static void loading_11(uint8_t *data)
 {
@@ -910,7 +910,7 @@ static void loading_11(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_11_image = {(void *) &loading_11, 92, 8};
+static const Image loading_11_image = {&loading_11, 92, 8};
 
 static void loading_12(uint8_t *data)
 {
@@ -920,7 +920,7 @@ static void loading_12(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_12_image = {(void *) &loading_12, 92, 8};
+static const Image loading_12_image = {&loading_12, 92, 8};
 
 static void loading_13(uint8_t *data)
 {
@@ -930,7 +930,7 @@ static void loading_13(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_13_image = {(void *) &loading_13, 92, 8};
+static const Image loading_13_image = {&loading_13, 92, 8};
 
 static void loading_14(uint8_t *data)
 {
@@ -940,7 +940,7 @@ static void loading_14(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_14_image = {(void *) &loading_14, 92, 8};
+static const Image loading_14_image = {&loading_14, 92, 8};
 
 static void loading_15(uint8_t *data)
 {
@@ -950,7 +950,7 @@ static void loading_15(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_15_image = {(void *) &loading_15, 92, 8};
+static const Image loading_15_image = {&loading_15, 92, 8};
 
 static void loading_16(uint8_t *data)
 {
@@ -960,7 +960,7 @@ static void loading_16(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_16_image = {(void *) &loading_16, 92, 8};
+static const Image loading_16_image = {&loading_16, 92, 8};
 
 static void loading_17(uint8_t *data)
 {
@@ -970,7 +970,7 @@ static void loading_17(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_17_image = {(void *) &loading_17, 92, 8};
+static const Image loading_17_image = {&loading_17, 92, 8};
 
 static void loading_18(uint8_t *data)
 {
@@ -980,7 +980,7 @@ static void loading_18(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_18_image = {(void *) &loading_18, 92, 8};
+static const Image loading_18_image = {&loading_18, 92, 8};
 
 static void loading_19(uint8_t *data)
 {
@@ -990,7 +990,7 @@ static void loading_19(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_19_image = {(void *) &loading_19, 92, 8};
+static const Image loading_19_image = {&loading_19, 92, 8};
 
 static void loading_20(uint8_t *data)
 {
@@ -1000,7 +1000,7 @@ static void loading_20(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_20_image = {(void *) &loading_20, 92, 8};
+static const Image loading_20_image = {&loading_20, 92, 8};
 
 static void loading_21(uint8_t *data)
 {
@@ -1010,7 +1010,7 @@ static void loading_21(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_21_image = {(void *) &loading_21, 92, 8};
+static const Image loading_21_image = {&loading_21, 92, 8};
 
 static void loading_22(uint8_t *data)
 {
@@ -1020,7 +1020,7 @@ static void loading_22(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_22_image = {(void *) &loading_22, 92, 8};
+static const Image loading_22_image = {&loading_22, 92, 8};
 
 static void loading_23(uint8_t *data)
 {
@@ -1030,7 +1030,7 @@ static void loading_23(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_23_image = {(void *) &loading_23, 92, 8};
+static const Image loading_23_image = {&loading_23, 92, 8};
 
 static void loading_24(uint8_t *data)
 {
@@ -1040,7 +1040,7 @@ static void loading_24(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_24_image = {(void *) &loading_24, 92, 8};
+static const Image loading_24_image = {&loading_24, 92, 8};
 
 static void loading_25(uint8_t *data)
 {
@@ -1050,7 +1050,7 @@ static void loading_25(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_25_image = {(void *) &loading_25, 92, 8};
+static const Image loading_25_image = {&loading_25, 92, 8};
 
 static void loading_26(uint8_t *data)
 {
@@ -1060,7 +1060,7 @@ static void loading_26(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_26_image = {(void *) &loading_26, 92, 8};
+static const Image loading_26_image = {&loading_26, 92, 8};
 
 static void loading_27(uint8_t *data)
 {
@@ -1070,7 +1070,7 @@ static void loading_27(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_27_image = {(void *) &loading_27, 92, 8};
+static const Image loading_27_image = {&loading_27, 92, 8};
 
 static void loading_28(uint8_t *data)
 {
@@ -1080,7 +1080,7 @@ static void loading_28(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_28_image = {(void *) &loading_28, 92, 8};
+static const Image loading_28_image = {&loading_28, 92, 8};
 
 static void loading_29(uint8_t *data)
 {
@@ -1090,7 +1090,7 @@ static void loading_29(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_29_image = {(void *) &loading_29, 92, 8};
+static const Image loading_29_image = {&loading_29, 92, 8};
 
 static void loading_30(uint8_t *data)
 {
@@ -1100,7 +1100,7 @@ static void loading_30(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_30_image = {(void *) &loading_30, 92, 8};
+static const Image loading_30_image = {&loading_30, 92, 8};
 
 static void loading_31(uint8_t *data)
 {
@@ -1110,7 +1110,7 @@ static void loading_31(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_31_image = {(void *) &loading_31, 92, 8};
+static const Image loading_31_image = {&loading_31, 92, 8};
 
 static void loading_32(uint8_t *data)
 {
@@ -1120,7 +1120,7 @@ static void loading_32(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_32_image = {(void *) &loading_32, 92, 8};
+static const Image loading_32_image = {&loading_32, 92, 8};
 
 static void loading_33(uint8_t *data)
 {
@@ -1130,7 +1130,7 @@ static void loading_33(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_33_image = {(void *) &loading_33, 92, 8};
+static const Image loading_33_image = {&loading_33, 92, 8};
 
 static void loading_34(uint8_t *data)
 {
@@ -1140,7 +1140,7 @@ static void loading_34(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_34_image = {(void *) &loading_34, 92, 8};
+static const Image loading_34_image = {&loading_34, 92, 8};
 
 static void loading_35(uint8_t *data)
 {
@@ -1150,7 +1150,7 @@ static void loading_35(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_35_image = {(void *) &loading_35, 92, 8};
+static const Image loading_35_image = {&loading_35, 92, 8};
 
 static void loading_36(uint8_t *data)
 {
@@ -1160,7 +1160,7 @@ static void loading_36(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_36_image = {(void *) &loading_36, 92, 8};
+static const Image loading_36_image = {&loading_36, 92, 8};
 
 static void loading_37(uint8_t *data)
 {
@@ -1170,7 +1170,7 @@ static void loading_37(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_37_image = {(void *) &loading_37, 92, 8};
+static const Image loading_37_image = {&loading_37, 92, 8};
 
 static void loading_38(uint8_t *data)
 {
@@ -1180,7 +1180,7 @@ static void loading_38(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_38_image = {(void *) &loading_38, 92, 8};
+static const Image loading_38_image = {&loading_38, 92, 8};
 
 static void loading_39(uint8_t *data)
 {
@@ -1190,7 +1190,7 @@ static void loading_39(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_39_image = {(void *) &loading_39, 92, 8};
+static const Image loading_39_image = {&loading_39, 92, 8};
 
 static void loading_40(uint8_t *data)
 {
@@ -1200,7 +1200,7 @@ static void loading_40(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_40_image = {(void *) &loading_40, 92, 8};
+static const Image loading_40_image = {&loading_40, 92, 8};
 
 static void loading_41(uint8_t *data)
 {
@@ -1210,7 +1210,7 @@ static void loading_41(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_41_image = {(void *) &loading_41, 92, 8};
+static const Image loading_41_image = {&loading_41, 92, 8};
 
 static void loading_42(uint8_t *data)
 {
@@ -1220,7 +1220,7 @@ static void loading_42(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_42_image = {(void *) &loading_42, 92, 8};
+static const Image loading_42_image = {&loading_42, 92, 8};
 
 static void loading_43(uint8_t *data)
 {
@@ -1230,7 +1230,7 @@ static void loading_43(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_43_image = {(void *) &loading_43, 92, 8};
+static const Image loading_43_image = {&loading_43, 92, 8};
 
 static void loading_44(uint8_t *data)
 {
@@ -1240,7 +1240,7 @@ static void loading_44(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_44_image = {(void *) &loading_44, 92, 8};
+static const Image loading_44_image = {&loading_44, 92, 8};
 
 static void loading_45(uint8_t *data)
 {
@@ -1250,7 +1250,7 @@ static void loading_45(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_45_image = {(void *) &loading_45, 92, 8};
+static const Image loading_45_image = {&loading_45, 92, 8};
 
 static void loading_46(uint8_t *data)
 {
@@ -1260,7 +1260,7 @@ static void loading_46(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_46_image = {(void *) &loading_46, 92, 8};
+static const Image loading_46_image = {&loading_46, 92, 8};
 
 static void loading_47(uint8_t *data)
 {
@@ -1270,7 +1270,7 @@ static void loading_47(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_47_image = {(void *) &loading_47, 92, 8};
+static const Image loading_47_image = {&loading_47, 92, 8};
 
 static void loading_48(uint8_t *data)
 {
@@ -1280,7 +1280,7 @@ static void loading_48(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_48_image = {(void *) &loading_48, 92, 8};
+static const Image loading_48_image = {&loading_48, 92, 8};
 
 static void loading_49(uint8_t *data)
 {
@@ -1290,7 +1290,7 @@ static void loading_49(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_49_image = {(void *) &loading_49, 92, 8};
+static const Image loading_49_image = {&loading_49, 92, 8};
 
 static void loading_50(uint8_t *data)
 {
@@ -1300,7 +1300,7 @@ static void loading_50(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_50_image = {(void *) &loading_50, 92, 8};
+static const Image loading_50_image = {&loading_50, 92, 8};
 
 static void loading_51(uint8_t *data)
 {
@@ -1310,7 +1310,7 @@ static void loading_51(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_51_image = {(void *) &loading_51, 92, 8};
+static const Image loading_51_image = {&loading_51, 92, 8};
 
 static void loading_52(uint8_t *data)
 {
@@ -1320,7 +1320,7 @@ static void loading_52(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_52_image = {(void *) &loading_52, 92, 8};
+static const Image loading_52_image = {&loading_52, 92, 8};
 
 static void loading_53(uint8_t *data)
 {
@@ -1330,7 +1330,7 @@ static void loading_53(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_53_image = {(void *) &loading_53, 92, 8};
+static const Image loading_53_image = {&loading_53, 92, 8};
 
 static void loading_54(uint8_t *data)
 {
@@ -1340,7 +1340,7 @@ static void loading_54(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_54_image = {(void *) &loading_54, 92, 8};
+static const Image loading_54_image = {&loading_54, 92, 8};
 
 static void loading_55(uint8_t *data)
 {
@@ -1350,7 +1350,7 @@ static void loading_55(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_55_image = {(void *) &loading_55, 92, 8};
+static const Image loading_55_image = {&loading_55, 92, 8};
 
 static void loading_56(uint8_t *data)
 {
@@ -1360,7 +1360,7 @@ static void loading_56(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_56_image = {(void *) &loading_56, 92, 8};
+static const Image loading_56_image = {&loading_56, 92, 8};
 
 static void loading_57(uint8_t *data)
 {
@@ -1370,7 +1370,7 @@ static void loading_57(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_57_image = {(void *) &loading_57, 92, 8};
+static const Image loading_57_image = {&loading_57, 92, 8};
 
 static void loading_58(uint8_t *data)
 {
@@ -1380,7 +1380,7 @@ static void loading_58(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_58_image = {(void *) &loading_58, 92, 8};
+static const Image loading_58_image = {&loading_58, 92, 8};
 
 static void loading_59(uint8_t *data)
 {
@@ -1390,7 +1390,7 @@ static void loading_59(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_59_image = {(void *) &loading_59, 92, 8};
+static const Image loading_59_image = {&loading_59, 92, 8};
 
 static void loading_60(uint8_t *data)
 {
@@ -1400,7 +1400,7 @@ static void loading_60(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_60_image = {(void *) &loading_60, 92, 8};
+static const Image loading_60_image = {&loading_60, 92, 8};
 
 static void loading_61(uint8_t *data)
 {
@@ -1410,7 +1410,7 @@ static void loading_61(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_61_image = {(void *) &loading_61, 92, 8};
+static const Image loading_61_image = {&loading_61, 92, 8};
 
 static void loading_62(uint8_t *data)
 {
@@ -1420,7 +1420,7 @@ static void loading_62(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_62_image = {(void *) &loading_62, 92, 8};
+static const Image loading_62_image = {&loading_62, 92, 8};
 
 static void loading_63(uint8_t *data)
 {
@@ -1430,7 +1430,7 @@ static void loading_63(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_63_image = {(void *) &loading_63, 92, 8};
+static const Image loading_63_image = {&loading_63, 92, 8};
 
 static void loading_64(uint8_t *data)
 {
@@ -1440,7 +1440,7 @@ static void loading_64(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_64_image = {(void *) &loading_64, 92, 8};
+static const Image loading_64_image = {&loading_64, 92, 8};
 
 static void loading_65(uint8_t *data)
 {
@@ -1450,7 +1450,7 @@ static void loading_65(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_65_image = {(void *) &loading_65, 92, 8};
+static const Image loading_65_image = {&loading_65, 92, 8};
 
 static void loading_66(uint8_t *data)
 {
@@ -1460,7 +1460,7 @@ static void loading_66(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image loading_66_image = {(void *) &loading_66, 92, 8};
+static const Image loading_66_image = {&loading_66, 92, 8};
 
 static const AnimationFrame loading_array[] =
 {
@@ -1544,7 +1544,7 @@ static void warning_1(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image warning_1_image = {(void *) &warning_1, 41, 37};
+static const Image warning_1_image = {&warning_1, 41, 37};
 
 static void warning_2(uint8_t *data)
 {
@@ -1554,7 +1554,7 @@ static void warning_2(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image warning_2_image = {(void *) &warning_2, 41, 37};
+static const Image warning_2_image = {&warning_2, 41, 37};
 
 static void warning_3(uint8_t *data)
 {
@@ -1564,7 +1564,7 @@ static void warning_3(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image warning_3_image = {(void *) &warning_3, 41, 37};
+static const Image warning_3_image = {&warning_3, 41, 37};
 
 static void warning_4(uint8_t *data)
 {
@@ -1574,7 +1574,7 @@ static void warning_4(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image warning_4_image = {(void *) &warning_4, 41, 37};
+static const Image warning_4_image = {&warning_4, 41, 37};
 
 static void warning_5(uint8_t *data)
 {
@@ -1584,7 +1584,7 @@ static void warning_5(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image warning_5_image = {(void *) &warning_5, 41, 37};
+static const Image warning_5_image = {&warning_5, 41, 37};
 
 static void warning_6(uint8_t *data)
 {
@@ -1594,7 +1594,7 @@ static void warning_6(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image warning_6_image = {(void *) &warning_6, 41, 37};
+static const Image warning_6_image = {&warning_6, 41, 37};
 
 static void warning_7(uint8_t *data)
 {
@@ -1604,7 +1604,7 @@ static void warning_7(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image warning_7_image = {(void *) &warning_7, 41, 37};
+static const Image warning_7_image = {&warning_7, 41, 37};
 
 static void warning_8(uint8_t *data)
 {
@@ -1614,7 +1614,7 @@ static void warning_8(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image warning_8_image = {(void *) &warning_8, 41, 37};
+static const Image warning_8_image = {&warning_8, 41, 37};
 
 static const AnimationFrame warning_array[] =
 {
@@ -1805,7 +1805,7 @@ static void logo_1(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_1_image = {(void *) &logo_1, 56, 49};
+static const Image logo_1_image = {&logo_1, 56, 49};
 
 static void logo_2(uint8_t *data)
 {
@@ -1815,7 +1815,7 @@ static void logo_2(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_2_image = {(void *) &logo_2, 56, 49};
+static const Image logo_2_image = {&logo_2, 56, 49};
 
 static void logo_3(uint8_t *data)
 {
@@ -1825,7 +1825,7 @@ static void logo_3(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_3_image = {(void *) &logo_3, 56, 49};
+static const Image logo_3_image = {&logo_3, 56, 49};
 
 static void logo_4(uint8_t *data)
 {
@@ -1835,7 +1835,7 @@ static void logo_4(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_4_image = {(void *) &logo_4, 56, 49};
+static const Image logo_4_image = {&logo_4, 56, 49};
 
 static void logo_5(uint8_t *data)
 {
@@ -1845,7 +1845,7 @@ static void logo_5(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_5_image = {(void *) &logo_5, 56, 49};
+static const Image logo_5_image = {&logo_5, 56, 49};
 
 static void logo_6(uint8_t *data)
 {
@@ -1855,7 +1855,7 @@ static void logo_6(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_6_image = {(void *) &logo_6, 56, 49};
+static const Image logo_6_image = {&logo_6, 56, 49};
 
 static void logo_7(uint8_t *data)
 {
@@ -1865,7 +1865,7 @@ static void logo_7(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_7_image = {(void *) &logo_7, 56, 49};
+static const Image logo_7_image = {&logo_7, 56, 49};
 
 static void logo_8(uint8_t *data)
 {
@@ -1875,7 +1875,7 @@ static void logo_8(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_8_image = {(void *) &logo_8, 56, 49};
+static const Image logo_8_image = {&logo_8, 56, 49};
 
 static void logo_9(uint8_t *data)
 {
@@ -1885,7 +1885,7 @@ static void logo_9(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_9_image = {(void *) &logo_9, 56, 49};
+static const Image logo_9_image = {&logo_9, 56, 49};
 
 static void logo_10(uint8_t *data)
 {
@@ -1895,7 +1895,7 @@ static void logo_10(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_10_image = {(void *) &logo_10, 56, 49};
+static const Image logo_10_image = {&logo_10, 56, 49};
 
 static void logo_11(uint8_t *data)
 {
@@ -1905,7 +1905,7 @@ static void logo_11(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_11_image = {(void *) &logo_11, 56, 49};
+static const Image logo_11_image = {&logo_11, 56, 49};
 
 static void logo_12(uint8_t *data)
 {
@@ -1915,7 +1915,7 @@ static void logo_12(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_12_image = {(void *) &logo_12, 56, 49};
+static const Image logo_12_image = {&logo_12, 56, 49};
 
 static void logo_13(uint8_t *data)
 {
@@ -1925,7 +1925,7 @@ static void logo_13(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_13_image = {(void *) &logo_13, 56, 49};
+static const Image logo_13_image = {&logo_13, 56, 49};
 
 static void logo_14(uint8_t *data)
 {
@@ -1935,7 +1935,7 @@ static void logo_14(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_14_image = {(void *) &logo_14, 56, 49};
+static const Image logo_14_image = {&logo_14, 56, 49};
 
 static void logo_15(uint8_t *data)
 {
@@ -1945,7 +1945,7 @@ static void logo_15(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_15_image = {(void *) &logo_15, 56, 49};
+static const Image logo_15_image = {&logo_15, 56, 49};
 
 static void logo_16(uint8_t *data)
 {
@@ -1955,7 +1955,7 @@ static void logo_16(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_16_image = {(void *) &logo_16, 56, 49};
+static const Image logo_16_image = {&logo_16, 56, 49};
 
 #endif
 
@@ -2013,7 +2013,7 @@ static void unplug(uint8_t *data)
     memcpy(data, image_data, sizeof(image_data));
 }
 
-static const Image unplug_image = {(void *) &unplug, 45, 27};
+static const Image unplug_image = {&unplug, 45, 27};
 
 /* --- Recovery Image ------------------------------------------------------ */
 
@@ -2026,7 +2026,7 @@ static void recovery(uint8_t *data)
     memcpy(data, image_data, sizeof(image_data));
 }
 
-static const Image recovery_image = {(void *) &recovery, 29, 29};
+static const Image recovery_image = {&recovery, 29, 29};
 
 /* === Functions =========================================================== */
 
