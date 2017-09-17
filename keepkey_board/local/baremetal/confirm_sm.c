@@ -491,7 +491,10 @@ bool review_without_button_request(const char *request_title, const char *reques
     va_list vl;
     va_start(vl, request_body);
     char strbuf[BODY_CHAR_MAX];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+#pragma clang diagnostic pop
     va_end(vl);
 
     confirm_helper(request_title, strbuf, &layout_standard_notification);
