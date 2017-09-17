@@ -232,7 +232,7 @@ bool bip44_node_to_string(const CoinType *coin, char *node_str, uint32_t *addres
     if(verify_bip44_node(coin, address_n, address_n_count))
     {
         snprintf(node_str, NODE_STRING_LENGTH, "%s account #%lu", coin->coin_name,
-                    address_n[2] & 0x7ffffff);
+                    address_n[2] & 0x7ffffffL);
         ret_stat = true;
     }
     return(ret_stat);
