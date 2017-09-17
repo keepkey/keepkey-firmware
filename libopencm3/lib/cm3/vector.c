@@ -32,7 +32,7 @@ extern funcp_t __preinit_array_start, __preinit_array_end;
 extern funcp_t __init_array_start, __init_array_end;
 extern funcp_t __fini_array_start, __fini_array_end;
 
-void main(void);
+int main(void);
 void blocking_handler(void);
 void null_handler(void);
 
@@ -86,7 +86,7 @@ void WEAK __attribute__ ((naked)) reset_handler(void)
 	pre_main();
 
 	/* Call the application's entry point. */
-	main();
+	(void)main();
 
 	/* Destructors. */
 	for (fp = &__fini_array_start; fp < &__fini_array_end; fp++) {
