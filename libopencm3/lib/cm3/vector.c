@@ -59,7 +59,7 @@ vector_table_t vector_table = {
 	}
 };
 
-void WEAK __attribute__ ((naked)) reset_handler(void)
+void WEAK reset_handler(void)
 {
 	volatile unsigned *src, *dest;
 	funcp_t *fp;
