@@ -90,3 +90,4 @@ void random_permute(char *str, size_t len)
         str[i] = t;
     }
 }
+

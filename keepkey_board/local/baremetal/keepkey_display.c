@@ -498,3 +498,4 @@ void display_set_brightness(int percentage)
     display_write_reg((uint8_t)0xC1);
     display_write_ram(reg_value);
 }
+

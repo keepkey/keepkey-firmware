@@ -240,3 +240,4 @@ char read_console(void)
 void dbg_print(char *pStr, ...) {(void)pStr;}
 void usart_init(void) {}
 #endif
+

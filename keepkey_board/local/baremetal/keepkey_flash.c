@@ -241,3 +241,4 @@ bool set_mfg_mode_off(void)
     }
     return(ret_val);
 }
+

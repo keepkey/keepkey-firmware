@@ -48,3 +48,4 @@ const char* recovery_get_auto_completed_word(void);
 #endif
 
 #endif
+
