@@ -38,7 +38,7 @@ static void screensaver_1(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image screensaver_1_image = {(void *) &screensaver_1, 256, 64};
+static const Image screensaver_1_image = {&screensaver_1, 256, 64};
 
 static void screensaver_2(uint8_t *data)
 {
@@ -48,7 +48,7 @@ static void screensaver_2(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image screensaver_2_image = {(void *) &screensaver_2, 256, 64};
+static const Image screensaver_2_image = {&screensaver_2, 256, 64};
 
 static void screensaver_3(uint8_t *data)
 {
@@ -58,7 +58,7 @@ static void screensaver_3(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image screensaver_3_image = {(void *) &screensaver_3, 256, 64};
+static const Image screensaver_3_image = {&screensaver_3, 256, 64};
 
 static void screensaver_4(uint8_t *data)
 {
@@ -68,7 +68,7 @@ static void screensaver_4(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image screensaver_4_image = {(void *) &screensaver_4, 256, 64};
+static const Image screensaver_4_image = {&screensaver_4, 256, 64};
 
 static void screensaver_5(uint8_t *data)
 {
@@ -78,7 +78,7 @@ static void screensaver_5(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image screensaver_5_image = {(void *) &screensaver_5, 256, 64};
+static const Image screensaver_5_image = {&screensaver_5, 256, 64};
 
 static void screensaver_6(uint8_t *data)
 {
@@ -88,7 +88,7 @@ static void screensaver_6(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image screensaver_6_image = {(void *) &screensaver_6, 256, 64};
+static const Image screensaver_6_image = {&screensaver_6, 256, 64};
 
 static void screensaver_7(uint8_t *data)
 {
@@ -98,7 +98,7 @@ static void screensaver_7(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image screensaver_7_image = {(void *) &screensaver_7, 256, 64};
+static const Image screensaver_7_image = {&screensaver_7, 256, 64};
 
 static void screensaver_8(uint8_t *data)
 {
@@ -108,7 +108,7 @@ static void screensaver_8(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image screensaver_8_image = {(void *) &screensaver_8, 256, 64};
+static const Image screensaver_8_image = {&screensaver_8, 256, 64};
 
 static void screensaver_9(uint8_t *data)
 {
@@ -118,7 +118,7 @@ static void screensaver_9(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image screensaver_9_image = {(void *) &screensaver_9, 256, 64};
+static const Image screensaver_9_image = {&screensaver_9, 256, 64};
 
 static void screensaver_10(uint8_t *data)
 {
@@ -128,7 +128,7 @@ static void screensaver_10(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image screensaver_10_image = {(void *) &screensaver_10, 256, 64};
+static const Image screensaver_10_image = {&screensaver_10, 256, 64};
 
 static void screensaver_11(uint8_t *data)
 {
@@ -138,7 +138,7 @@ static void screensaver_11(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image screensaver_11_image = {(void *) &screensaver_11, 256, 64};
+static const Image screensaver_11_image = { &screensaver_11, 256, 64};
 
 static void screensaver_12(uint8_t *data)
 {
@@ -148,7 +148,7 @@ static void screensaver_12(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image screensaver_12_image = {(void *) &screensaver_12, 256, 64};
+static const Image screensaver_12_image = { &screensaver_12, 256, 64};
 
 static void screensaver_13(uint8_t *data)
 {
@@ -158,7 +158,7 @@ static void screensaver_13(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image screensaver_13_image = {(void *) &screensaver_13, 256, 64};
+static const Image screensaver_13_image = {&screensaver_13, 256, 64};
 
 static void screensaver_14(uint8_t *data)
 {
@@ -168,7 +168,7 @@ static void screensaver_14(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image screensaver_14_image = {(void *) &screensaver_14, 256, 64};
+static const Image screensaver_14_image = { &screensaver_14, 256, 64};
 
 static void screensaver_15(uint8_t *data)
 {
@@ -178,7 +178,7 @@ static void screensaver_15(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image screensaver_15_image = {(void *) &screensaver_15, 256, 64};
+static const Image screensaver_15_image = { &screensaver_15, 256, 64};
 
 static void screensaver_16(uint8_t *data)
 {
@@ -188,7 +188,7 @@ static void screensaver_16(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image screensaver_16_image = {(void *) &screensaver_16, 256, 64};
+static const Image screensaver_16_image = { &screensaver_16, 256, 64};
 
 static void screensaver_17(uint8_t *data)
 {
@@ -198,7 +198,7 @@ static void screensaver_17(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image screensaver_17_image = {(void *) &screensaver_17, 256, 64};
+static const Image screensaver_17_image = { &screensaver_17, 256, 64};
 
 static const AnimationFrame screensaver_array[] =
 {

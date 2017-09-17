@@ -32,7 +32,7 @@
 
 typedef struct
 {
-    const void *(*get_image_data)(uint8_t *);
+    void (*const get_image_data)(uint8_t *);
     uint16_t    width;
     uint16_t    height;
 } Image;
