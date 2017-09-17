@@ -115,7 +115,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
     /*
      * Format mnemonic for user review
      */
-    uint32_t word_count = 0, current_page = 0, page_count;
+    uint32_t word_count = 0, current_page = 0, page_count = 0;
     char *tok;
     char tokened_mnemonic[TOKENED_MNEMONIC_BUF];
     char mnemonic_by_screen[MAX_PAGES][MNEMONIC_BY_SCREEN_BUF];
