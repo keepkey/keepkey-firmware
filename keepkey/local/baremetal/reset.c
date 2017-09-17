@@ -115,7 +115,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
     /*
      * Format mnemonic for user review
      */
-    uint32_t word_count = 0, current_page = 0, page_count;
+    uint32_t word_count = 0, page_count = 0;
     char *tok;
     char tokened_mnemonic[TOKENED_MNEMONIC_BUF];
     char mnemonic_by_screen[MAX_PAGES][MNEMONIC_BY_SCREEN_BUF];
@@ -134,38 +134,46 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 
         /* Check that we have enough room on display to show word */
         snprintf(mnemonic_display, FORMATTED_MNEMONIC_BUF, "%s   %s",
-                 formatted_mnemonic[current_page], formatted_word);
+                 formatted_mnemonic[page_count], formatted_word);
 
         if(calc_str_line(get_body_font(), mnemonic_display, BODY_WIDTH) > 3)
         {
             page_count++;
-            current_page++;
+
+            if (MAX_PAGES <= page_count) {
+                fsm_sendFailure(FailureType_Failure_Other, "Too many pages of mnemonic words");
+                storage_reset();
+                go_home();
+                return;
+            }
 
             snprintf(mnemonic_display, FORMATTED_MNEMONIC_BUF, "%s   %s",
-                 formatted_mnemonic[current_page], formatted_word);
+                 formatted_mnemonic[page_count], formatted_word);
         }
 
-
-        strlcpy(formatted_mnemonic[current_page], mnemonic_display,
+        strlcpy(formatted_mnemonic[page_count], mnemonic_display,
                 FORMATTED_MNEMONIC_BUF);
 
         /* Save mnemonic for each screen */
-        if(strlen(mnemonic_by_screen[current_page]) == 0)
+        if(strlen(mnemonic_by_screen[page_count]) == 0)
         {
-            strlcpy(mnemonic_by_screen[current_page], tok, MNEMONIC_BY_SCREEN_BUF);
+            strlcpy(mnemonic_by_screen[page_count], tok, MNEMONIC_BY_SCREEN_BUF);
         }
         else
         {
-            strlcat(mnemonic_by_screen[current_page], " ", MNEMONIC_BY_SCREEN_BUF);
-            strlcat(mnemonic_by_screen[current_page], tok, MNEMONIC_BY_SCREEN_BUF);
+            strlcat(mnemonic_by_screen[page_count], " ", MNEMONIC_BY_SCREEN_BUF);
+            strlcat(mnemonic_by_screen[page_count], tok, MNEMONIC_BY_SCREEN_BUF);
         }
 
         tok = strtok(NULL, " ");
         word_count++;
     }
 
+    // Switch from 0-indexing to 1-indexing
+    page_count++;
+
     /* Have user confirm mnemonic is sets of 12 words */
-    for(page_count = current_page + 1, current_page = 0; current_page < page_count; current_page++)
+    for(uint32_t current_page = 0; current_page < page_count; current_page++)
     {
         char title[MEDIUM_STR_BUF] = "Recovery Sentence";
 
