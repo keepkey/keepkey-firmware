@@ -19,8 +19,6 @@
 
 /* === Includes ============================================================ */
 
-#include <stdbool.h>
-
 #include <keepkey_board.h>
 #include <layout.h>
 #include <msg_dispatch.h>
@@ -32,6 +30,9 @@
 #include "pin_sm.h"
 #include "fsm.h"
 #include "app_layout.h"
+
+#include <stdbool.h>
+#include <inttypes.h>
 
 /* === Private Variables =================================================== */
 
@@ -286,7 +287,7 @@ bool pin_protect(char *prompt)
 {
     PINInfo pin_info;
     char warn_msg_fmt[MEDIUM_STR_BUF];
-    uint32_t failed_cnts = 0, wait = 0;
+    uint32_t failed_cnts = 0;
     bool ret = false, pre_increment_cnt_flg = true;
 
     if(storage_has_pin())
@@ -298,12 +299,15 @@ bool pin_protect(char *prompt)
         {
             if(failed_cnts > 2)
             {
-                /* snprintf: 36 + 10 (%u) + 1 (NULL) = 47 */
-                snprintf(warn_msg_fmt, MEDIUM_STR_BUF, "Previous PIN Failures: Wait %u Seconds",
-                         1u << failed_cnts);
-                layout_warning(warn_msg_fmt);
+                uint32_t wait = (failed_cnts < 32)
+                    ? (1u << failed_cnts)
+                    : 0xFFFFFFFFu;
 
-                wait = (failed_cnts < 32) ? (1u << failed_cnts) : 0xFFFFFFFF;
+                /* snprintf: 36 + 10 (%u) + 1 (NULL) = 47 */
+                snprintf(warn_msg_fmt, MEDIUM_STR_BUF,
+                         "Previous PIN Failures: Wait %" PRIu32 " Seconds",
+                         wait);
+                layout_warning(warn_msg_fmt);
 
                 while(--wait > 0)
                 {
