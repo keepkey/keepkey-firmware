@@ -6,6 +6,7 @@ Features.coins				max_count:9
 Features.revision			max_size:20
 Features.bootloader_hash		max_size:32
 Features.policies			max_count:1
+Features.model              max_size:32
 
 ApplySettings.language			max_size:17
 ApplySettings.label			max_size:33

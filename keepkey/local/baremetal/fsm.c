@@ -364,6 +364,14 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     resp->has_device_id = true;
     strlcpy(resp->device_id, storage_get_uuid_str(), sizeof(resp->device_id));
 
+    
+    resp->has_model = true;
+#ifdef SALT_WHITELABEL
+    strlcpy(resp->model, "K1-14WL-S", sizeof(resp->model));
+#else
+    strlcpy(resp->model, "K1-14WL", sizeof(resp->model));
+#endif
+
     /* Security settings */
     resp->has_pin_protection = true; resp->pin_protection = storage_has_pin();
     resp->has_passphrase_protection = true;
