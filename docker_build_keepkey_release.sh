@@ -17,12 +17,13 @@ docker build -t $IMAGETAG .
 docker run -t -v $(pwd):/root/keepkey-firmware --rm $IMAGETAG /bin/sh -c "\
 	cd /root/keepkey-firmware/libopencm3 && \
 	make clean && \
-  make && \
+    make && \
 	cd /root/keepkey-firmware && \
 	./b -mp && \
-  echo '*********************************************************************' && \
-  echo '* KeepKey Application Fingerprint                                   *' && \
-  echo '*********************************************************************' && \
-  cat build/arm-none-gnu-eabi/release/bin/keepkey_main.bin | sha256sum"
-
+	mkdir -p bin/release/keepkey && \
+    mv build/arm-none-gnu-eabi/release/bin/*.bin bin/release/keepkey/ && \
+    echo '*********************************************************************' && \
+    echo '* KeepKey Application Fingerprint                                   *' && \
+    echo '*********************************************************************' && \
+    cat bin/release/keepkey/keepkey_main.bin | sha256sum"
 fi
