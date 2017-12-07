@@ -20,5 +20,8 @@ else:
 if(ARGUMENTS.get('project') == 'keepkey'):
     env = add_flags(env, ['-DKEEPKEY_PRJ'])
 
+if(ARGUMENTS.get('salt-logo')):
+    env = add_flags(env, ['-DSALT_WHITELABEL'])
+
 init_project(env, deps=deps, libs=['opencm3_stm32f2'])
 
