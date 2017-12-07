@@ -12,7 +12,8 @@
 .metadata/
 
 # component libraries
-build/
+build
+bin
 
 # Misc
 tags
