@@ -95,7 +95,7 @@ def main():
     if args.verbose:
         buildargs += ' verbose=1'
     if args.salt_logo:
-        buildargs += ' <<TBD>>'
+        buildargs += ' salt-logo=1'
 
     target ='arm-none-gnu-eabi'
     local('scons ' + 'target='+target + buildargs)
