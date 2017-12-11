@@ -27,17 +27,19 @@
 
 /* === Variables =========================================================== */
 
-const CoinType coins[COINS_COUNT] = {
-    {true, "Bitcoin",     true, "BTC",  true,   0, true,     100000, true,   5, true,  6, true, 10, true, "\x18" "Bitcoin Signed Message:\n",  true, 0x80000000, false, 0},
-    {true, "Testnet",     true, "TEST", true, 111, true,   10000000, true, 196, true,  3, true, 40, true, "\x18" "Bitcoin Signed Message:\n",  true, 0x80000001, false, 0},
-    {true, "BitcoinCash", true, "BCH",  true,   0, true,     500000, true,   5, false, 0, false, 0, true, "\x18" "Bitcoin Signed Message:\n",  true, 0x80000091, true,  0},
-    {true, "Namecoin",    true, "NMC",  true,  52, true,   10000000, true,   5, false, 0, false, 0, true, "\x19" "Namecoin Signed Message:\n", true, 0x80000007, false, 0},
-    {true, "Litecoin",    true, "LTC",  true,  48, true,    1000000, true,   5, false, 0, false, 0, true, "\x19" "Litecoin Signed Message:\n", true, 0x80000002, false, 0},
-    {true, "Dogecoin",    true, "DOGE", true,  30, true, 1000000000, true,  22, false, 0, false, 0, true, "\x19" "Dogecoin Signed Message:\n", true, 0x80000003, false, 0},
-    {true, "Dash",        true, "DASH", true,  76, true,     100000, true,  16, false, 0, false, 0, true, "\x19" "DarkCoin Signed Message:\n", true, 0x80000005, false, 0},
-    {true, ETHEREUM,      true, "ETH",  true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n", true, 0x8000003c, false, 0},
-    {true, ETHEREUM_CLS,  true, "ETC",  true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n", true, 0x8000003d, false, 0}
+const CoinType coins[COINS_COUNT] = {                                                                                                                                                                    
+	{true, "Bitcoin",     true, "BTC",  true,   0, true,     100000, true,   5, true,  6, true, 10, true, "\x18" "Bitcoin Signed Message:\n",  true, 0x80000000, false, 0, false, 0, false, ""}, 
+	{true, "Testnet",     true, "TEST", true, 111, true,   10000000, true, 196, true,  3, true, 40, true, "\x18" "Bitcoin Signed Message:\n",  true, 0x80000001, false, 0, false, 0, false, ""},  
+	{true, "BitcoinCash", true, "BCH",  true,   0, true,     500000, true,   5, false, 0, false, 0, true, "\x18" "Bitcoin Signed Message:\n",  true, 0x80000091, true,  0, false, 0, false, ""}, 
+	{true, "Namecoin",    true, "NMC",  true,  52, true,   10000000, true,   5, false, 0, false, 0, true, "\x19" "Namecoin Signed Message:\n", true, 0x80000007, false, 0, false, 0, false, ""}, 
+	{true, "Litecoin",    true, "LTC",  true,  48, true,    1000000, true,   5, false, 0, false, 0, true, "\x19" "Litecoin Signed Message:\n", true, 0x80000002, false, 0, false, 0, false, ""},
+	{true, "Dogecoin",    true, "DOGE", true,  30, true, 1000000000, true,  22, false, 0, false, 0, true, "\x19" "Dogecoin Signed Message:\n", true, 0x80000003, false, 0, false, 0, false, ""},
+	{true, "Dash",        true, "DASH", true,  76, true,     100000, true,  16, false, 0, false, 0, true, "\x19" "DarkCoin Signed Message:\n", true, 0x80000005, false, 0, false, 0, false, ""},
+	{true, ETHEREUM,      true, "ETH",  true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n", true, 0x8000003c, false, 0, false, 0, false, ""},
+	{true, ETHEREUM_CLS,  true, "ETC",  true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n", true, 0x8000003d, false, 0, false, 0, false, ""}, 
+	{true, "Salt",        true, "SALT", true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Salt Signed Message:\n",     true, 0x8000003c, false, 0, true, 4, true, "0x4156D3342D5c385a87D264F90653733592000581"}
 };
+// TODO: how do we want to specify the bip44 path at all here? Also do we want a distinct signing message?
 
 /* === Private Functions =================================================== */
 /*
