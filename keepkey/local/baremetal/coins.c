@@ -37,7 +37,7 @@ const CoinType coins[COINS_COUNT] = {
 	{true, "Dash",        true, "DASH", true,  76, true,     100000, true,  16, false, 0, false, 0, true, "\x19" "DarkCoin Signed Message:\n", true, 0x80000005, false, 0, false, 0, false, ""},
 	{true, ETHEREUM,      true, "ETH",  true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n", true, 0x8000003c, false, 0, false, 0, false, ""},
 	{true, ETHEREUM_CLS,  true, "ETC",  true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n", true, 0x8000003d, false, 0, false, 0, false, ""}, 
-	{true, "Salt",        true, "SALT", true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Salt Signed Message:\n",     true, 0x8000003c, false, 0, true, 4, true, "0x4156D3342D5c385a87D264F90653733592000581"}
+	{true, "Salt",        true, "SALT", true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Salt Signed Message:\n",     true, 0x8000003c, false, 0, true,  4, true, "0x4156D3342D5c385a87D264F90653733592000581"}
 };
 // TODO: how do we want to specify the bip44 path at all here? Also do we want a distinct signing message?
 
