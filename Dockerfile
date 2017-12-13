@@ -1,9 +1,17 @@
-FROM ubuntu:14.04
+FROM ubuntu:zesty
 
-MAINTAINER darin@keepkey.com
+MAINTAINER tech@keepkey.com
 
 # Install toolchain
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -yq build-essential git scons gcc-arm-none-eabi python-protobuf protobuf-compiler fabric exuberant-ctags wget
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -yq \
+    build-essential git scons gcc-arm-none-eabi \
+    python3-pip python-protobuf python3-protobuf protobuf-compiler \
+    fabric exuberant-ctags wget && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install protobuf/python3 support
+RUN pip3 install protobuf3
 
 # Install nanopb
 WORKDIR /root
