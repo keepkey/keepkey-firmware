@@ -71,7 +71,7 @@ def load_toolchain():
     env['CC'] = CROSS_COMPILE + 'gcc'
     env['CXX'] = CROSS_COMPILE + 'g++'
     env['AR'] = CROSS_COMPILE + 'ar'
-    env['AS'] = CROSS_COMPILE + 'g++' 
+    env['AS'] = CROSS_COMPILE + 'as' 
     env['OBJCOPY']      = CROSS_COMPILE + 'objcopy'
     env['OBJDUMP'] = CROSS_COMPILE + 'objdump'
     env['LINK']         = CROSS_COMPILE + 'gcc'
@@ -137,8 +137,8 @@ def load_toolchain():
             "-mcpu=cortex-m3",
             "-mthumb",
             "-gdwarf-2",
-            "-xassembler-with-cpp",
-            "-Wa,-adhlns=${TARGET.base}.lst",
+            "-Wa",
+            "-adhlns=${TARGET.base}.lst",
     ]
 
     #
