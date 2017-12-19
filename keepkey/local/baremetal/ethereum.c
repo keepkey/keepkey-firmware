@@ -36,7 +36,8 @@
 static bool ethereum_signing = false;
 static uint32_t data_total, data_left;
 static EthereumTxRequest resp;
-static uint8_t hash[32], sig[64], privkey[32];
+static uint8_t CONFIDENTIAL privkey[32];
+static uint8_t hash[32], sig[64];
 struct SHA3_CTX keccak_ctx;
 
 static inline void hash_data(const uint8_t *buf, size_t size)

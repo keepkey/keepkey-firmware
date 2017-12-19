@@ -164,7 +164,7 @@ static const CoinType *fsm_getCoin(const char *name)
 
 static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t address_n_count)
 {
-    static HDNode node;
+    static CONFIDENTIAL HDNode node;
 
     if(!storage_get_root_node(&node, curve, true))
     {
