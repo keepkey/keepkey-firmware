@@ -44,13 +44,13 @@
 /* === Private Variables =================================================== */
 
 static bool sessionSeedCached, sessionSeedUsesPassphrase;
-static uint8_t sessionSeed[64];
+static uint8_t CONFIDENTIAL sessionSeed[64];
 
 static bool sessionPinCached;
 static char sessionPin[17];
 
 static bool sessionPassphraseCached;
-static char sessionPassphrase[51];
+static char CONFIDENTIAL sessionPassphrase[51];
 
 static Allocation storage_location = FLASH_INVALID;
 
