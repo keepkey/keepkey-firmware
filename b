@@ -27,6 +27,7 @@ def proc_args():
     parser.add_argument('-bf',  '--bump-feature', help = 'Bump feature release version.', action = 'store_true')
     parser.add_argument('-bb',  '--bump-bug-fix', help = 'Bump bug fix version.', action = 'store_true')
     parser.add_argument('-bt',  '--bump-test', help = 'Bump test version.', action = 'store_true')
+    parser.add_argument('-salt',  '--salt-logo', help = 'Build with the salt logo', action = 'store_true')
     parser.add_argument('-d',  '--debug', help = 'Build debug variant.', action = 'store_true')
     parser.add_argument('-v',  '--verbose', help = 'Build with verbose output.', action = 'store_true')
     args = parser.parse_args()
@@ -50,9 +51,9 @@ def bump_version(args):
 
 def compile_protocol_buffers():
     version = json.load(open('version.json', 'r'))
-    tag = 'v%s.%s.%s' % (version['MAJOR_VERSION'], version['MINOR_VERSION'], version['PATCH_VERSION'])
+    tag = 'erc20'#'v%s.%s.%s' % (version['MAJOR_VERSION'], version['MINOR_VERSION'], version['PATCH_VERSION'])
 
-    if not os.path.exists('../%s' % DEVICE_PROTOCOL):
+    if (True):#not os.path.exists('../%s' % DEVICE_PROTOCOL):
         local('git clone -b %s https://github.com/keepkey/%s.git ../%s' % (tag, DEVICE_PROTOCOL, DEVICE_PROTOCOL))
 
     if not os.path.exists('interface/local'):
@@ -93,6 +94,8 @@ def main():
         buildargs += ' debug=1'
     if args.verbose:
         buildargs += ' verbose=1'
+    if args.salt_logo:
+        buildargs += ' salt-logo=1'
 
     target ='arm-none-gnu-eabi'
     local('scons ' + 'target='+target + buildargs)
