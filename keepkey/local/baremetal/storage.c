@@ -44,13 +44,13 @@
 /* === Private Variables =================================================== */
 
 static bool sessionSeedCached, sessionSeedUsesPassphrase;
-static uint8_t CONFIDENTIAL sessionSeed[64];
+static uint8_t sessionSeed[64];
 
 static bool sessionPinCached;
-static char CONFIDENTIAL sessionPin[17];
+static char sessionPin[17];
 
 static bool sessionPassphraseCached;
-static char CONFIDENTIAL sessionPassphrase[51];
+static char sessionPassphrase[51];
 
 static Allocation storage_location = FLASH_INVALID;
 
@@ -58,7 +58,7 @@ static Allocation storage_location = FLASH_INVALID;
 
 /* Shadow memory for configuration data in storage partition */
 _Static_assert(sizeof(ConfigFlash) <= FLASH_STORAGE_LEN, "ConfigFlash struct is too large for storage partition");
-static ConfigFlash CONFIDENTIAL shadow_config;
+static ConfigFlash shadow_config;
 
 /* === Private Functions =================================================== */
 

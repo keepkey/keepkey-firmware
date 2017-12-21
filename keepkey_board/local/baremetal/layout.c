@@ -56,7 +56,12 @@ static void layout_home_helper(bool reversed)
     layout_clear();
 
     static AnimationImageDrawableParams logo;
+
+#ifdef SALT_WHITELABEL
+    logo.base.x = 60;
+#else
     logo.base.x = 100;
+#endif
     logo.base.y = 10;
 
     if(reversed)

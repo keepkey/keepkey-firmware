@@ -93,7 +93,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 					return TXOUT_CANCEL;
 				}
 			}
-			static CONFIDENTIAL HDNode node;
+			HDNode node;
 			memcpy(&node, root, sizeof(HDNode));
 
 			if (hdnode_private_ckd_cached(&node, in->address_n, in->address_n_count) == 0) 

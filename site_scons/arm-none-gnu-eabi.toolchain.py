@@ -35,8 +35,7 @@ DEFS=['-DSTM32F2',
       '-DNDEBUG',
       '-DSCM_REVISION=\'"%s"\'' % (re.sub(r'(..)', r'\\x\1', SCM_REVISION)),
       '-DPB_FIELD_16BIT=1',
-      '-DQR_MAX_VERSION=0',
-      '-DCONFIDENTIAL=\'__attribute__((section("confidential")))\'']
+      '-DQR_MAX_VERSION=0']
 
 DEFS2=['-DED25519_CUSTOMRANDOM=1',
        '-DED25519_CUSTOMHASH=1',
@@ -62,8 +61,7 @@ WARNS=['-Wall',
        '-Wsign-compare',
        '-Wstrict-prototypes',
        '-Wundef',
-       '-Wuninitialized',
-       '-Werror']
+       '-Wuninitialized']
 
 def load_toolchain():
     env = DefaultEnvironment()
@@ -71,7 +69,7 @@ def load_toolchain():
     env['CC'] = CROSS_COMPILE + 'gcc'
     env['CXX'] = CROSS_COMPILE + 'g++'
     env['AR'] = CROSS_COMPILE + 'ar'
-    env['AS'] = CROSS_COMPILE + 'as' 
+    env['AS'] = CROSS_COMPILE + 'g++' 
     env['OBJCOPY']      = CROSS_COMPILE + 'objcopy'
     env['OBJDUMP'] = CROSS_COMPILE + 'objdump'
     env['LINK']         = CROSS_COMPILE + 'gcc'
@@ -137,8 +135,8 @@ def load_toolchain():
             "-mcpu=cortex-m3",
             "-mthumb",
             "-gdwarf-2",
-            "-Wa",
-            "-adhlns=${TARGET.base}.lst",
+            "-xassembler-with-cpp",
+            "-Wa,-adhlns=${TARGET.base}.lst",
     ]
 
     #

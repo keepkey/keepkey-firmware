@@ -164,7 +164,7 @@ static const CoinType *fsm_getCoin(const char *name)
 
 static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t address_n_count)
 {
-    static CONFIDENTIAL HDNode node;
+    static HDNode node;
 
     if(!storage_get_root_node(&node, curve, true))
     {
@@ -363,6 +363,14 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     /* Device ID */
     resp->has_device_id = true;
     strlcpy(resp->device_id, storage_get_uuid_str(), sizeof(resp->device_id));
+
+    
+    resp->has_model = true;
+#ifdef SALT_WHITELABEL
+    strlcpy(resp->model, "K1-14WL-S", sizeof(resp->model));
+#else
+    strlcpy(resp->model, "K1-14WL", sizeof(resp->model));
+#endif
 
     /* Security settings */
     resp->has_pin_protection = true; resp->pin_protection = storage_has_pin();
