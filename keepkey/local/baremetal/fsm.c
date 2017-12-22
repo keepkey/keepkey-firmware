@@ -369,7 +369,7 @@ void fsm_msgGetFeatures(GetFeatures *msg)
 #ifdef SALT_WHITELABEL
     strlcpy(resp->model, "K1-14WL-S", sizeof(resp->model));
 #else
-    strlcpy(resp->model, "K1-14WL", sizeof(resp->model));
+    strlcpy(resp->model, "K1-14AM", sizeof(resp->model));
 #endif
 
     /* Security settings */
