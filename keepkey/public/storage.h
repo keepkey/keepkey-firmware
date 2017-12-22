@@ -30,7 +30,7 @@
 
 /* === Defines ============================================================= */
 
-#define STORAGE_VERSION 4
+#define STORAGE_VERSION 3
 #define STORAGE_RETRIES 3
 
 /* === Functions =========================================================== */
