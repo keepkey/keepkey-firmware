@@ -189,10 +189,13 @@ static void send_request_chunk(void)
 
 static void send_signature(void)
 {
+
+	
+
+
     animating_progress_handler(); // layoutProgress("Signing", 1000);
     keccak_Final(&keccak_ctx, hash);
     uint8_t v;
-
     if(ecdsa_sign_digest(&secp256k1, privkey, hash, sig, &v) != 0)
     {
         fsm_sendFailure(FailureType_Failure_Other, "Signing failed");
@@ -366,6 +369,51 @@ bool ether_for_display(const uint8_t *value, uint32_t value_len, char *out_str)
     }
 
     return(ret_stat);
+}
+
+
+char* d2(char *dest, char *src) {
+
+	while (*dest) dest++;
+	while (*dest++ = *src++);
+	return --dest;
+
+}
+
+char *debugBytes(const uint8_t *bytes) {
+
+
+	/* Allocate twice the number of the bytes in the buf array because each byte would be 
+ 	* converted to two hex characters, also add an extra space for the terminating null byte
+ 	* [size] is the size of the buf array */
+	char output[(64 * 2) + 1];
+
+	/* pointer to the first item (0 index) of the output array */
+	char *ptr = &output[0];
+
+	int i;
+
+	for (i = 0; i < 32; i++)
+	{
+    /* sprintf converts each byte to 2 chars hex string and a null byte, for example
+     * 10 => "0A\0".
+     *
+     * These three chars would be added to the output array starting from
+     * the ptr location, for example if ptr is pointing at 0 index then the hex chars
+     * "0A\0" would be written as output[0] = '0', output[1] = 'A' and output[2] = '\0'.
+     *
+     * sprintf returns the number of chars written execluding the null byte, in our case
+     * this would be 2. Then we move the ptr location two steps ahead so that the next
+     * hex char would be written just after this one and overriding this one's null byte.
+     *
+     * We don't need to add a terminating null byte because it's already added from 
+     * the last hex string. */  
+    	ptr += sprintf (ptr, "%02X", bytes[i]);
+	}
+
+
+	return output;
+    //	fsm_sendFailure(FailureType_Failure_Other, output);
 }
 
 
@@ -583,6 +631,20 @@ static bool ethereum_signing_check(EthereumSignTx *msg)
     return true;
 }
 
+bool is_token_transaction(EthereumSignTx *msg) {
+	return msg->has_token_shortcut && msg->has_token_value && msg->has_token_to;
+}
+
+void prepare_erc20_transaction_data(EthereumSignTx *msg) {
+	uint8_t tokenData[68]; // RLP encoded length of transfer method with arguments
+	uint8_t transfer_method_id[4] = {0xa9, 0x05, 0x9c, 0xbb}; 
+	memcpy(tokenData, transfer_method_id, 4); // transfer method id
+	memcpy(tokenData+4, msg->token_to.bytes, 32); // receiving address
+	memcpy(tokenData+36, msg->token_value.bytes, 32); // token amount
+
+	memcpy(msg->data_initial_chunk.bytes, tokenData, sizeof(tokenData));
+	msg->data_initial_chunk.size = 68;
+}
 
 void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_confirm)
 {
@@ -609,7 +671,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
     {
         msg->to.size = 0;
     }
-
+/*
     if(msg->has_data_length)
     {
         if(msg->data_length == 0)
@@ -629,19 +691,19 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
         /* Our encoding only supports transactions up to 2^24 bytes.  To
          * prevent exceeding the limit we use a stricter limit on data length.
          */
-        if(msg->data_length > 16000000)
-        {
-            fsm_sendFailure(FailureType_Failure_Other, "Data length exceeds limit");
-            ethereum_signing_abort();
-            return;
-        }
+//        if(msg->data_length > 16000000)
+ //       {
+  //          fsm_sendFailure(FailureType_Failure_Other, "Data length exceeds limit");
+   //         ethereum_signing_abort();
+    //        return;
+     //   }
 
-        data_total = msg->data_length;
-    }
-    else
-    {
+      //  data_total = msg->data_length;
+    //}
+   // else
+    //{
         data_total = 0;
-    }
+   // }
 
     if(msg->data_initial_chunk.size > data_total)
     {
@@ -658,9 +720,14 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
         ethereum_signing_abort();
         return;
     }
-    if(msg->has_token_shortcut && msg->has_token_value && msg->has_token_to)
+
+    // setup erc20 data if token transaction
+    if(is_token_transaction(msg))
     {
+	//prepare_erc20_transaction_data(msg); 
+	//data_total = 68;
         needs_confirm = false;
+	data_total = 0;
     }
     if(needs_confirm)
     {
@@ -692,7 +759,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
     if(data_total > 0)
     {
         memset(confirm_body_message, 0, sizeof(confirm_body_message));
-        if((!msg->has_token_shortcut) && (!msg->has_token_value) &&(!msg->has_token_to))
+        if(!is_token_transaction(msg))
         {
             layoutEthereumData(msg->data_initial_chunk.bytes, msg->data_initial_chunk.size, data_total, confirm_body_message, sizeof(confirm_body_message));
         }
@@ -721,7 +788,12 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
         }
         else
         {
-            fsm_sendFailure(FailureType_Failure_Other, "Invalid Ethereum Tx data message");
+		char help[10];
+		sprintf(help, "%d", msg->data_initial_chunk.size);
+            /*fsm_sendFailure(FailureType_Failure_Other, "Invalid Ethereum Tx data message");*/
+	/*help = msg->data_initial_chunk;*/
+	/*fsm_sendFailure(FailureType_Failure_Other, sprintf("%02X:%02X:%02X:%02X", msg->data_initial_chunk.bytes[0], msg->data_initial_chunk.bytes[1], msg->data_initial_chunk.bytes[2], msg->data_initial_chunk.bytes[3]));*/
+	fsm_sendFailure(FailureType_Failure_Other, help);
             ethereum_signing_abort();
             return;
         }
@@ -765,6 +837,13 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
     layout_loading();
     animating_progress_handler();
 
+	//char help[200];
+	//fsm_sendFailure(FailureType_Failure_Other, sprintf("%02X", msg->nonce.bytes
+	//debugBytes(msg->data_initial_chunk.bytes);
+	
+
+
+
     rlp_length += rlp_calculate_length(msg->nonce.size, msg->nonce.bytes[0]);
     rlp_length += rlp_calculate_length(msg->gas_price.size, msg->gas_price.bytes[0]);
     rlp_length += rlp_calculate_length(msg->gas_limit.size, msg->gas_limit.bytes[0]);
@@ -786,6 +865,28 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
     data_left = data_total - msg->data_initial_chunk.size;
 
     memcpy(privkey, node->private_key, 32);
+    //debugBytes(node->private_key);
+    
+	//char help[1000];
+	//sprintf(help, "nonce: %02X gas_price: %02X gas_limit: %02X to: %02X value: %02X initioal: %02X", msg->nonce.size, msg->gas_price.size, msg->gas_limit.size, msg->to.size, msg->value.size, msg->data_initial_chunk.size );
+//	char *p = help;
+//	help[0] = '\0';
+//	p = d2(p, "nonce: ");
+//	p = d2(p, debugBytes(msg->nonce.bytes));
+//	p = d2(p, "\ngas_price: ");
+	//p = d2(p, debugBytes(msg->gas_price.bytes));
+//	p = d2(p, "\nprivKey: ");
+//	p = d2(p, debugBytes(node->private_key));
+//	p = d2(p, "\ngas_limit: ");
+//	p = d2(p, debugBytes(msg->gas_limit.bytes));
+//	p = d2(p, "\nto: ");
+//	p = d2(p, debugBytes(msg->to.bytes));
+//	p = d2(p, "\ninitial_chunk: ");
+//	p = d2(p, debugBytes(msg->data_initial_chunk.bytes));
+//	p = d2(p, "\nvalue: ");
+//	p = d2(p, debugBytes(msg->value.bytes));
+	//fsm_sendFailure(FailureType_Failure_Other, help); 
+   
 
     if(data_left > 0)
     {
