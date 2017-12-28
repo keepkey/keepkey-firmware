@@ -368,51 +368,6 @@ bool ether_for_display(const uint8_t *value, uint32_t value_len, char *out_str)
 }
 
 
-char* d2(char *dest, char *src) {
-
-	while (*dest) dest++;
-	while (*dest++ = *src++);
-	return --dest;
-
-}
-
-char *debugBytes(const uint8_t *bytes) {
-
-
-	/* Allocate twice the number of the bytes in the buf array because each byte would be 
- 	* converted to two hex characters, also add an extra space for the terminating null byte
- 	* [size] is the size of the buf array */
-	char output[(68 * 2) + 1];
-
-	/* pointer to the first item (0 index) of the output array */
-	char *ptr = &output[0];
-
-	int i;
-
-	for (i = 0; i < 68; i++)
-	{
-    /* sprintf converts each byte to 2 chars hex string and a null byte, for example
-     * 10 => "0A\0".
-     *
-     * These three chars would be added to the output array starting from
-     * the ptr location, for example if ptr is pointing at 0 index then the hex chars
-     * "0A\0" would be written as output[0] = '0', output[1] = 'A' and output[2] = '\0'.
-     *
-     * sprintf returns the number of chars written execluding the null byte, in our case
-     * this would be 2. Then we move the ptr location two steps ahead so that the next
-     * hex char would be written just after this one and overriding this one's null byte.
-     *
-     * We don't need to add a terminating null byte because it's already added from 
-     * the last hex string. */  
-    	ptr += sprintf (ptr, "%02X", bytes[i]);
-	}
-
-
-	return output;
-    //	fsm_sendFailure(FailureType_Failure_Other, output);
-}
-
-
 static void get_transaction_str(const uint8_t *to, uint32_t to_len,
                                 const uint8_t *value, uint32_t value_len, char *value_str,
                                 char *destination_str, uint32_t destination_str_len)
@@ -836,35 +791,6 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
     data_left = data_total - msg->data_initial_chunk.size;
 
     memcpy(privkey, node->private_key, 32);
-    //debugBytes(node->private_key);
-    
-//	char help[1000];
-	//sprintf(help, "nonce: %02X gas_price: %02X gas_limit: %02X to: %02X value: %02X initioal: %02X", msg->nonce.size, msg->gas_price.size, msg->gas_limit.size, msg->to.size, msg->value.size, msg->data_initial_chunk.size );
-//	char *p = help;
-//	help[0] = '\0';
-	//p = d2(p, "tok_val:");
-	//p = d2(p, debugBytes(msg->token_value.bytes));
-	//p = d2(p, "\ntoken_to:");
-	//p = d2(p, debugBytes(msg->token_to.bytes));
-//	p = d2(p, "\ndata_chunk:");
-//	p = d2(p, debugBytes(msg->data_initial_chunk.bytes));
-//	p = d2(p, "nonce: ");
-//	p = d2(p, debugBytes(msg->nonce.bytes));
-//	p = d2(p, "\ngas_price: ");
-	//p = d2(p, debugBytes(msg->gas_price.bytes));
-//	p = d2(p, "\nprivKey: ");
-//	p = d2(p, debugBytes(node->private_key));
-//	p = d2(p, "\ngas_limit: ");
-//	p = d2(p, debugBytes(msg->gas_limit.bytes));
-//	p = d2(p, "\nto: ");
-//	p = d2(p, debugBytes(msg->to.bytes));
-//	p = d2(p, "\ninitial_chunk: ");
-//	p = d2(p, debugBytes(msg->data_initial_chunk.bytes));
-//	p = d2(p, "\nvalue: ");
-//	p = d2(p, debugBytes(msg->value.bytes));
-//	p = 
-	//fsm_sendFailure(FailureType_Failure_Other, help); 
-   
 
     if(data_left > 0)
     {
