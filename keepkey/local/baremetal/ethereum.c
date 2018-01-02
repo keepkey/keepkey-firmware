@@ -588,15 +588,20 @@ bool is_token_transaction(EthereumSignTx *msg) {
 
 void prepare_erc20_token_transaction(EthereumSignTx *msg) {
 	uint8_t tokenData[68]; // RLP encoded length of transfer method with arguments
-	memset(tokenData, 0, 68);
+	memset(tokenData, 0, sizeof(tokenData));
 	uint8_t transfer_method_id[4] = {0xa9, 0x05, 0x9c, 0xbb}; 
 	memcpy(tokenData, transfer_method_id, 4); // transfer method id
 	memcpy(tokenData+16, msg->token_to.bytes, 20); // receiving address 20 bytes big endian left padded
 	memcpy(tokenData+36, msg->token_value.bytes, 32); // token amount
 
 	memcpy(msg->data_initial_chunk.bytes, tokenData, sizeof(tokenData));
-	msg->data_initial_chunk.size = 68;
-	data_total = 68;
+	msg->data_initial_chunk.size = sizeof(tokenData);
+	data_total = sizeof(tokenData);
+
+    //setup to field
+    char *to = ethereum_get_contract_address(msg->token_shortcut);
+    memcpy(msg->to.bytes, to, 20); 
+    msg->to.size = 20;
 }
 
 void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_confirm)
@@ -664,7 +669,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
     // setup erc20 data if token transaction
     if(is_token_transaction(msg))
     {
-	prepare_erc20_token_transaction(msg); 
+	    prepare_erc20_token_transaction(msg); 
         needs_confirm = false;
     }
     if(needs_confirm)
