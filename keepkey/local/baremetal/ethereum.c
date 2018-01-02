@@ -582,8 +582,65 @@ static bool ethereum_signing_check(EthereumSignTx *msg)
     return true;
 }
 
+
+static bool ethereum_token_signing_check(EthereumSignTx *msg)
+{
+    if(!msg->has_nonce || !msg->has_gas_price || !msg->has_gas_limit)
+    {
+        return false;
+    }
+
+
+    if(msg->to.size != 0)
+    {
+        /* verify to field is empty, token contract addresses are stored on the device */
+        return false;
+    }
+
+
+    if(msg->has_value)
+    {
+        // token transfer transaction value must be zero
+        bignum256 val;
+        uint8_t pad_val[32];
+        memset(pad_val, 0, sizeof(pad_val));
+        memcpy(pad_val + (32 - msg->value.size), msg->value.bytes, msg->value.size);
+        bn_read_be(pad_val, &val);
+        if(!bn_is_zero(&val))
+        {
+            return false;
+        }
+    }
+
+    // data field is constructed on the device
+    if(msg->has_data_length || msg->data_length != 0)
+    {
+        return false;
+    }
+
+    if(msg->gas_price.size + msg->gas_limit.size  > 30)
+    {
+        // sanity check that fee doesn't overflow
+        return false;
+    }
+
+    return true;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 bool is_token_transaction(EthereumSignTx *msg) {
-	return msg->has_token_shortcut && msg->has_token_value && msg->has_token_to;
+    return msg->has_token_shortcut && msg->has_token_value && msg->has_token_to;
 }
 
 void prepare_erc20_token_transaction(EthereumSignTx *msg) {
@@ -598,10 +655,12 @@ void prepare_erc20_token_transaction(EthereumSignTx *msg) {
 	msg->data_initial_chunk.size = sizeof(tokenData);
 	data_total = sizeof(tokenData);
 
-    //setup to field
+    //get the contract address from the coins table and set it as the to field
     char *to = ethereum_get_contract_address(msg->token_shortcut);
     memcpy(msg->to.bytes, to, 20); 
     msg->to.size = 20;
+
+    memset(msg->value.bytes, 0, msg->value.size);
 }
 
 void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_confirm)
@@ -658,14 +717,25 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
     }
 
     // safety checks
-    if(!ethereum_signing_check(msg))
+    if (is_token_transaction(msg))
     {
-        fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                        "Signing aborted (safety check failed)");
-        ethereum_signing_abort();
-        return;
+        if(!ethereum_token_signing_check(msg))
+        {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                            "Token transfer signing aborted (safety check failed)");
+            ethereum_signing_abort();
+            return;
+        }
     }
-
+    else{
+        if(!ethereum_signing_check(msg))
+        {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                            "Signing aborted (safety check failed)");
+            ethereum_signing_abort();
+            return;
+        }
+    }
     // setup erc20 data if token transaction
     if(is_token_transaction(msg))
     {
