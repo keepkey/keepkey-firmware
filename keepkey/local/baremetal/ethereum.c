@@ -172,10 +172,10 @@ uint32_t ethereum_get_decimal(const char *token_shortcut)
 }
  
 
-char* ethereum_get_contract_address(const char *shortcut)
+static void ethereum_get_contract_address(const char *shortcut, unsigned char* contract_address)
 {
     const CoinType *token_cointype = coinByShortcut((const char *) shortcut);
-    return (char *)token_cointype->contract_address;
+    hex0xstr_to_char(token_cointype->contract_address, contract_address, 20);
 }
  
 
@@ -649,18 +649,26 @@ void prepare_erc20_token_transaction(EthereumSignTx *msg) {
 	uint8_t transfer_method_id[4] = {0xa9, 0x05, 0x9c, 0xbb}; 
 	memcpy(tokenData, transfer_method_id, 4); // transfer method id
 	memcpy(tokenData+16, msg->token_to.bytes, 20); // receiving address 20 bytes big endian left padded
-	memcpy(tokenData+36, msg->token_value.bytes, 32); // token amount
+
+    //left pad the token value field
+    uint8_t tmpVal[32];
+    memset(tmpVal, 0, 32);
+    memcpy(tmpVal + (32 - msg->token_value.size), msg->token_value.bytes, msg->token_value.size);
+	memcpy(tokenData+36, tmpVal, 32); // token amount 32 bytes big endian left padded
 
 	memcpy(msg->data_initial_chunk.bytes, tokenData, sizeof(tokenData));
 	msg->data_initial_chunk.size = sizeof(tokenData);
 	data_total = sizeof(tokenData);
 
-    //get the contract address from the coins table and set it as the to field
-    char *to = ethereum_get_contract_address(msg->token_shortcut);
-    memcpy(msg->to.bytes, to, 20); 
+    //set the contract address in the to field
+    unsigned char contract_addr[20];
+    ethereum_get_contract_address(msg->token_shortcut, contract_addr);
+    memcpy(msg->to.bytes, contract_addr, 20); 
     msg->to.size = 20;
 
-    memset(msg->value.bytes, 0, msg->value.size);
+    //set the value bytes field
+    memset(msg->value.bytes, 0, 32);
+    msg->value.size=0;
 }
 
 void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_confirm)
