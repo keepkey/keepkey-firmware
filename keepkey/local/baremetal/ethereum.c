@@ -488,8 +488,8 @@ static void layoutERC20Fee(const uint8_t *token_value, uint32_t token_value_len,
 
     if (token_for_display(token_value, token_value_len, decimal, token_amt_str))
     {
-        if((uint32_t)snprintf(out_str, out_str_len, "Do you want to send %s %s from your wallet? This includes up to %s for gas.",
-                              token_amt_str, token_shortcut, gas_value) >= out_str_len)
+        if((uint32_t)snprintf(out_str, out_str_len, "Do you want to send %s from your wallet? This includes up to %s for gas.",
+                              token_shortcut, gas_value) >= out_str_len)
         {
             /*error detected.  Clear the buffer */
             memset(out_str, 0, out_str_len);
