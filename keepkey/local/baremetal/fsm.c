@@ -249,6 +249,12 @@ static int process_ethereum_msg(EthereumSignTx *msg, bool *confirm_ptr)
         {
             case OutputAddressType_EXCHANGE:
             {
+		// Exchanges temporarirly disabled for token transactions
+		if(is_token_transaction(msg)) {
+			ret_result = TXOUT_COMPILE_ERROR;
+			break;
+		}
+	
                 /*prep for exchange type transaction*/
                 HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0); /* root node */
                 ret_result = run_policy_compile_output(coin, root_node, (void *)msg, (void *)NULL, true);
@@ -261,6 +267,12 @@ static int process_ethereum_msg(EthereumSignTx *msg, bool *confirm_ptr)
             }
             case OutputAddressType_TRANSFER:
             {
+		// Transfer temporarily disabled for token transactions
+		if(is_token_transaction(msg)) {
+			ret_result = TXOUT_COMPILE_ERROR;
+			break;
+		}
+
                 /*prep transfer type transaction*/
                 ret_result = process_ethereum_xfer(coin, msg);
                 *confirm_ptr = false;
