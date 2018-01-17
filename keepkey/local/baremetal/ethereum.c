@@ -177,6 +177,9 @@ static void ethereum_get_contract_address(const char *shortcut, unsigned char* c
     const CoinType *token_cointype = coinByShortcut((const char *) shortcut);
     hex0xstr_to_char(token_cointype->contract_address, contract_address, 20);
 }
+static CoinType* ethereum_get_token(const char *shortcut) {
+	return coinByShortcut((char *) shortcut);
+}
  
 
 static void send_request_chunk(void)
@@ -629,37 +632,26 @@ static bool ethereum_token_signing_check(EthereumSignTx *msg)
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
 bool is_token_transaction(EthereumSignTx *msg) {
     return msg->has_token_shortcut && msg->has_token_value && msg->has_token_to;
 }
 
 void prepare_erc20_token_transaction(EthereumSignTx *msg) {
-	uint8_t tokenData[68]; // RLP encoded length of transfer method with arguments
-	memset(tokenData, 0, sizeof(tokenData));
-	uint8_t transfer_method_id[4] = {0xa9, 0x05, 0x9c, 0xbb}; 
-	memcpy(tokenData, transfer_method_id, 4); // transfer method id
-	memcpy(tokenData+16, msg->token_to.bytes, 20); // receiving address 20 bytes big endian left padded
+    uint8_t tokenData[68]; // RLP encoded length of transfer method with arguments
+    memset(tokenData, 0, sizeof(tokenData));
+    uint8_t transfer_method_id[4] = {0xa9, 0x05, 0x9c, 0xbb}; 
+    memcpy(tokenData, transfer_method_id, 4); // transfer method id
+    memcpy(tokenData+16, msg->token_to.bytes, 20); // receiving address 20 bytes big endian left padded
 
     //left pad the token value field
     uint8_t tmpVal[32];
     memset(tmpVal, 0, 32);
     memcpy(tmpVal + (32 - msg->token_value.size), msg->token_value.bytes, msg->token_value.size);
-	memcpy(tokenData+36, tmpVal, 32); // token amount 32 bytes big endian left padded
+    memcpy(tokenData+36, tmpVal, 32); // token amount 32 bytes big endian left padded
 
-	memcpy(msg->data_initial_chunk.bytes, tokenData, sizeof(tokenData));
-	msg->data_initial_chunk.size = sizeof(tokenData);
-	data_total = sizeof(tokenData);
+    memcpy(msg->data_initial_chunk.bytes, tokenData, sizeof(tokenData));
+    msg->data_initial_chunk.size = sizeof(tokenData);
+    data_total = sizeof(tokenData);
 
     //set the contract address in the to field
     unsigned char contract_addr[20];
@@ -670,6 +662,23 @@ void prepare_erc20_token_transaction(EthereumSignTx *msg) {
     //set the value bytes field
     memset(msg->value.bytes, 0, 32);
     msg->value.size=0;
+}
+
+static bool ethereum_gas_above_max(EthereumSignTx *msg)
+{
+    // check gas limit
+    bignum256 limit, max;
+
+    uint8_t limit_pad[32];
+    memset(limit_pad, 0, msg->gas_limit.size);
+    memcpy(limit_pad + (32 - msg->gas_limit.size), msg->gas_limit.bytes, msg->gas_limit.size);
+    
+    // Fetch maximum gas limit from table and compare it to the request
+    bn_read_be(ethereum_get_token(msg->token_shortcut)->gas_limit.bytes, &max);
+    bn_read_be(limit_pad, &limit);
+    int res = bn_is_less(&max, &limit);
+    return res;
+   /*return bn_is_less(&max, &limit); */
 }
 
 void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_confirm)
@@ -735,6 +744,27 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
             ethereum_signing_abort();
             return;
         }
+	if(ethereum_gas_above_max(msg)) {
+		fsm_sendFailure(FailureType_Failure_Other, "Gas limit above the allowed maximum");
+		ethereum_signing_abort();
+		return;
+	}
+	// TODO: DELETE this chunk after i figure out why method version doesn't work if its not static
+	/*
+	// check gas limit
+	bignum256 limit, max;
+	
+	uint8_t limit_pad[32];
+	memset(limit_pad, 0, msg->gas_limit.size);
+	memcpy(limit_pad + (32 - msg->gas_limit.size), msg->gas_limit.bytes, msg->gas_limit.size);
+	bn_read_be(ethereum_get_token(msg->token_shortcut)->gas_limit.bytes, &max);
+	bn_read_be(limit_pad, &limit);
+	if (bn_is_less(&max, &limit)) {
+		fsm_sendFailure(FailureType_Failure_Other, "Gas limit above the allowed maximum");
+		ethereum_signing_abort();
+		return;
+	}
+	*/
     }
     else{
         if(!ethereum_signing_check(msg))
