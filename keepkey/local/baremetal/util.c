@@ -109,6 +109,7 @@ int hex0xstr_to_char(const char *hex_str, unsigned char *byte_array, int byte_ar
 {
     int hex_str_len = strlen(hex_str) - 2;
     int i = 2, j = 0;
+    unsigned int long_ch;
 
     // The output array size is half the hex_str length (rounded up)
     int byte_array_size = (hex_str_len+1)/2;
@@ -121,9 +122,13 @@ int hex0xstr_to_char(const char *hex_str, unsigned char *byte_array, int byte_ar
 
     for (; i < hex_str_len+2; i+=2, j++)
     {
-        if (sscanf(&(hex_str[i]), "%02X", &(byte_array[j])) != 1)
+        if (sscanf(&(hex_str[i]), "%02X", &long_ch) != 1)
         {
             return -1;
+        }
+        else
+        {
+            byte_array[j] = (char)long_ch;
         }
     }
 

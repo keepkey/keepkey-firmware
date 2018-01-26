@@ -175,10 +175,11 @@ uint32_t ethereum_get_decimal(const char *token_shortcut)
 static void ethereum_get_contract_address(const char *shortcut, unsigned char* contract_address)
 {
     const CoinType *token_cointype = coinByShortcut((const char *) shortcut);
-    hex0xstr_to_char(token_cointype->contract_address, contract_address, 20);
+    memcpy(contract_address, token_cointype->contract_address.bytes, 20);
 }
-static CoinType* ethereum_get_token(const char *shortcut) {
-	return coinByShortcut((char *) shortcut);
+
+static const CoinType* ethereum_get_token(const char *shortcut) {
+    return coinByShortcut((char *)shortcut);
 }
  
 
@@ -676,9 +677,7 @@ static bool ethereum_gas_above_max(EthereumSignTx *msg)
     // Fetch maximum gas limit from table and compare it to the request
     bn_read_be(ethereum_get_token(msg->token_shortcut)->gas_limit.bytes, &max);
     bn_read_be(limit_pad, &limit);
-    int res = bn_is_less(&max, &limit);
-    return res;
-   /*return bn_is_less(&max, &limit); */
+    return bn_is_less(&max, &limit);
 }
 
 void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_confirm)
@@ -749,22 +748,6 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 		ethereum_signing_abort();
 		return;
 	}
-	// TODO: DELETE this chunk after i figure out why method version doesn't work if its not static
-	/*
-	// check gas limit
-	bignum256 limit, max;
-	
-	uint8_t limit_pad[32];
-	memset(limit_pad, 0, msg->gas_limit.size);
-	memcpy(limit_pad + (32 - msg->gas_limit.size), msg->gas_limit.bytes, msg->gas_limit.size);
-	bn_read_be(ethereum_get_token(msg->token_shortcut)->gas_limit.bytes, &max);
-	bn_read_be(limit_pad, &limit);
-	if (bn_is_less(&max, &limit)) {
-		fsm_sendFailure(FailureType_Failure_Other, "Gas limit above the allowed maximum");
-		ethereum_signing_abort();
-		return;
-	}
-	*/
     }
     else{
         if(!ethereum_signing_check(msg))
