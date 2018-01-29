@@ -671,7 +671,7 @@ static bool ethereum_gas_above_max(EthereumSignTx *msg)
     bignum256 limit, max;
 
     uint8_t limit_pad[32];
-    memset(limit_pad, 0, msg->gas_limit.size);
+    memset(limit_pad, 0, sizeof(limit_pad));
     memcpy(limit_pad + (32 - msg->gas_limit.size), msg->gas_limit.bytes, msg->gas_limit.size);
     
     // Fetch maximum gas limit from table and compare it to the request
