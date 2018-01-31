@@ -23,6 +23,7 @@
 /* === Includes ============================================================ */
 
 #include <stdint.h>
+#include <string.h>
 #include <stdio.h>
 
 /* === Functions =========================================================== */
@@ -37,5 +38,8 @@ void data2hex(const void *data, uint32_t len, char *str);
 uint32_t readprotobufint(uint8_t **ptr);
 void rev_byte_order(uint8_t *bfr, size_t len);
 void dec64_to_str(uint64_t dec64_val, char *str);
+
+int hex0xstr_to_char(const char *hex_str, unsigned char *byte_array, int byte_array_max);
+
 
 #endif

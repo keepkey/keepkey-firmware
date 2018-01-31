@@ -30,6 +30,24 @@
 
 static uint32_t * const  SCB_VTOR = (uint32_t*)0xe000ed08;
 
+
+/* === Private Functions =================================================== */
+
+/*
+ * zero_out_sram() - Fill entire SRAM sector with 0
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
+ *
+ */
+static void zero_out_sram(void)
+{
+    memset_reg(_ram_start, _ram_end, 0);
+}
+
+
 /* === Private Functions =================================================== */
 
 /*
@@ -97,6 +115,7 @@ int main(int argc, char* argv[])
 
     /* Main loop for bootloader to transition to next step */
 	cm_disable_interrupts();
+    zero_out_sram();
     set_vector_table_bootloader();
     bootloader_jump();
     bootstrap_halt();

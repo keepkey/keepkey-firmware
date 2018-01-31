@@ -2,7 +2,7 @@ Features.vendor				max_size:33
 Features.device_id			max_size:25
 Features.language			max_size:17
 Features.label				max_size:33
-Features.coins				max_count:20
+Features.coins				max_count:19
 Features.revision			max_size:20
 Features.bootloader_hash		max_size:32
 Features.policies			max_count:1
@@ -99,12 +99,14 @@ EthereumSignTx.address_n		max_count:8
 EthereumSignTx.nonce			max_size:32
 EthereumSignTx.gas_price		max_size:32
 EthereumSignTx.gas_limit		max_size:32
-EthereumSignTx.to			max_size:20
+EthereumSignTx.to			    max_size:20
 EthereumSignTx.value			max_size:32
 EthereumSignTx.data_initial_chunk	max_size:1024
 EthereumSignTx.to_address_n		max_count:8
-EthereumSignTx.token_shortcut		max_size:8
-EthereumSignTx.token_to			max_size:20
+EthereumSignTx.chain_id         max_size:32
+EthereumSignTx.token_value      max_size:32
+EthereumSignTx.token_to         max_size:20
+EthereumSignTx.token_shortcut   max_size:8
 
 EthereumTxRequest.signature_r		max_size:32
 EthereumTxRequest.signature_s		max_size:32

@@ -35,7 +35,8 @@ DEFS=['-DSTM32F2',
       '-DNDEBUG',
       '-DSCM_REVISION=\'"%s"\'' % (re.sub(r'(..)', r'\\x\1', SCM_REVISION)),
       '-DPB_FIELD_16BIT=1',
-      '-DQR_MAX_VERSION=0']
+      '-DQR_MAX_VERSION=0',
+      '-DCONFIDENTIAL=\'__attribute__((section("confidential")))\'']
 
 DEFS2=['-DED25519_CUSTOMRANDOM=1',
        '-DED25519_CUSTOMHASH=1',
@@ -70,7 +71,7 @@ def load_toolchain():
     env['CC'] = CROSS_COMPILE + 'gcc'
     env['CXX'] = CROSS_COMPILE + 'g++'
     env['AR'] = CROSS_COMPILE + 'ar'
-    env['AS'] = CROSS_COMPILE + 'g++' 
+    env['AS'] = CROSS_COMPILE + 'as' 
     env['OBJCOPY']      = CROSS_COMPILE + 'objcopy'
     env['OBJDUMP'] = CROSS_COMPILE + 'objdump'
     env['LINK']         = CROSS_COMPILE + 'gcc'
@@ -136,8 +137,8 @@ def load_toolchain():
             "-mcpu=cortex-m3",
             "-mthumb",
             "-gdwarf-2",
-            "-xassembler-with-cpp",
-            "-Wa,-adhlns=${TARGET.base}.lst",
+            "-Wa",
+            "-adhlns=${TARGET.base}.lst",
     ]
 
     #
