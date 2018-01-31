@@ -47,7 +47,7 @@ static bool sessionSeedCached, sessionSeedUsesPassphrase;
 static uint8_t sessionSeed[64];
 
 static bool sessionPinCached;
-static char sessionPin[17];
+static char sessionPin[10];
 
 static bool sessionPassphraseCached;
 static char sessionPassphrase[51];
@@ -640,7 +640,7 @@ bool storage_is_pin_correct(const char const*pin)
  */
 bool storage_has_pin(void)
 {
-    return shadow_config.storage.has_pin && strlen(shadow_config.storage.pin) > 0;
+    return shadow_config.storage.has_pin && shadow_config.storage.pin[0] != 0;
 }
 
 /*
@@ -656,6 +656,7 @@ void storage_set_pin(const char *pin)
     if(pin && strlen(pin) > 0)
     {
         shadow_config.storage.has_pin = true;
+        memset(shadow_config.storage.pin, 0, sizeof(shadow_config.storage.pin));
         strlcpy(shadow_config.storage.pin, pin, sizeof(shadow_config.storage.pin));
         session_cache_pin(pin);
     }
@@ -679,6 +680,7 @@ void storage_set_pin(const char *pin)
  */
 void session_cache_pin(const char *pin)
 {
+    memset(sessionPin, 0, sizeof(sessionPin));
     strlcpy(sessionPin, pin, sizeof(sessionPin));
     sessionPinCached = true;
 }
@@ -694,7 +696,15 @@ void session_cache_pin(const char *pin)
  */
 bool session_is_pin_cached(void)
 {
-    return sessionPinCached && strcmp(sessionPin, shadow_config.storage.pin) == 0;
+    _Static_assert(sizeof(sessionPin) == sizeof(shadow_config.storage.pin),
+                   "pin array length mismatch");
+
+    volatile bool pins_same = true;
+    for (volatile size_t i = 0; i < sizeof(sessionPin); i++) {
+        pins_same &= (sessionPin[i] == shadow_config.storage.pin[i]);
+    }
+
+    return sessionPinCached && pins_same;
 }
 
 /*
