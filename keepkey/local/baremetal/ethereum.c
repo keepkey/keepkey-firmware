@@ -952,13 +952,37 @@ void ethereum_signing_abort(void)
     }
 }
 
+static void ethereum_address_checksum(const uint8_t *addr, char address[41])
+{
+    const char * const hex = "0123456789abcdef";
+    for (int i = 0; i < 20; i++) {
+        address[i * 2]     = hex[(addr[i] >> 4) & 0xF];
+        address[i * 2 + 1] = hex[addr[i] & 0xF];
+    }
+    address[40] = 0;
+    SHA3_CTX ctx;
+    keccak_256_Init(&ctx);
+    keccak_Update(&ctx, (unsigned char*)address, 40);
+    uint8_t checksum[32];
+    keccak_Final(&ctx, checksum);
+    for (int i = 0; i < 20; i++) {
+        if (checksum[i] & 0x80 && address[i * 2    ] >= 'a' && address[i * 2    ] <= 'f') {
+            address[i * 2] -= 0x20;
+        }
+        if (checksum[i] & 0x08 && address[i * 2 + 1] >= 'a' && address[i * 2 + 1] <= 'f') {
+            address[i * 2 + 1] -= 0x20;
+        }
+    }
+}
+
 void format_ethereum_address(const uint8_t *to, char *destination_str,
                              uint32_t destination_str_len){
     char formatted_destination[sizeof(((EthereumAddress *)NULL)->address.bytes) * 2 + 3] = {'0', 'x'},
             hex[41];
 
-    data2hex(to, 20, hex);
+    // EIP55 Checksum
+    ethereum_address_checksum(to, hex);
+
     strlcpy(&formatted_destination[2], hex, sizeof(formatted_destination) - 2);
     strlcpy(destination_str, formatted_destination, destination_str_len);
-    strlwr(destination_str);
 }
