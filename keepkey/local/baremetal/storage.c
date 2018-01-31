@@ -44,13 +44,13 @@
 /* === Private Variables =================================================== */
 
 static bool sessionSeedCached, sessionSeedUsesPassphrase;
-static uint8_t sessionSeed[64];
+static uint8_t CONFIDENTIAL sessionSeed[64];
 
 static bool sessionPinCached;
-static char sessionPin[17];
+static char CONFIDENTIAL sessionPin[17];
 
 static bool sessionPassphraseCached;
-static char sessionPassphrase[51];
+static char CONFIDENTIAL sessionPassphrase[51];
 
 static Allocation storage_location = FLASH_INVALID;
 
@@ -58,7 +58,7 @@ static Allocation storage_location = FLASH_INVALID;
 
 /* Shadow memory for configuration data in storage partition */
 _Static_assert(sizeof(ConfigFlash) <= FLASH_STORAGE_LEN, "ConfigFlash struct is too large for storage partition");
-static ConfigFlash shadow_config;
+static ConfigFlash CONFIDENTIAL shadow_config;
 
 /* === Private Functions =================================================== */
 
@@ -114,6 +114,7 @@ static bool storage_from_flash(ConfigFlash *stor_config)
 
         case 2:
         case 3:
+        case 4:
             memcpy(&shadow_config, stor_config, sizeof(shadow_config));
 
             /* We have to do this for users with bootloaders <= v1.0.2. This

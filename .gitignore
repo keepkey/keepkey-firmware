@@ -30,6 +30,10 @@ tags
 *~
 *\#
 
+# VIM temporary files
+*.swo
+*.swp
+
 # IAR generated files
 *.browse
 *.cout

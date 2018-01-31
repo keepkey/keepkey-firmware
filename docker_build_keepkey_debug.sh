@@ -9,6 +9,6 @@ docker run -t -v $(pwd):/root/keepkey-firmware --rm $IMAGETAG /bin/sh -c "\
 	make clean && \
     make && \
 	cd /root/keepkey-firmware && \
-	./b -d -dl && \
+	./b -d && \
 	mkdir -p bin/debug/keepkey && \
     mv build/arm-none-gnu-eabi/debug/bin/*.bin bin/debug/keepkey/"
