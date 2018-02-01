@@ -75,7 +75,7 @@ uint32_t readprotobufint(uint8_t **ptr)
 void rev_byte_order(uint8_t *bfr, size_t len)
 {
     size_t i;
-    uint8_t tempdata; 
+    uint8_t tempdata;
 
     for(i = 0; i < len/2; i++)
     {
@@ -92,7 +92,7 @@ void dec64_to_str(uint64_t dec64_val, char *str)
     static char *sbfr;
 
     sbfr = str;
-    b = dec64_val %10; 
+    b = dec64_val %10;
     dec64_val = dec64_val / 10;
 
     if(dec64_val)
@@ -102,37 +102,3 @@ void dec64_to_str(uint64_t dec64_val, char *str)
     *sbfr = '0' + b;
     sbfr++;
 }
-
-
-/*convert hex to bytes*/
-int hex0xstr_to_char(const char *hex_str, unsigned char *byte_array, int byte_array_max)
-{
-    int hex_str_len = strlen(hex_str) - 2;
-    int i = 2, j = 0;
-    unsigned int long_ch;
-
-    // The output array size is half the hex_str length (rounded up)
-    int byte_array_size = (hex_str_len+1)/2;
-
-    if (byte_array_size > byte_array_max)
-    {
-        // Too big for the output array
-        return -1;
-    }
-
-    for (; i < hex_str_len+2; i+=2, j++)
-    {
-        if (sscanf(&(hex_str[i]), "%02X", &long_ch) != 1)
-        {
-            return -1;
-        }
-        else
-        {
-            byte_array[j] = (char)long_ch;
-        }
-    }
-
-    return byte_array_size;
-}
-
-
