@@ -164,7 +164,7 @@ static const CoinType *fsm_getCoin(const char *name)
 
 static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t address_n_count)
 {
-    static HDNode node;
+    static HDNode CONFIDENTIAL node;
 
     if(!storage_get_root_node(&node, curve, true))
     {
@@ -249,6 +249,12 @@ static int process_ethereum_msg(EthereumSignTx *msg, bool *confirm_ptr)
         {
             case OutputAddressType_EXCHANGE:
             {
+		// Exchanges temporarirly disabled for token transactions
+		if(is_token_transaction(msg)) {
+			ret_result = TXOUT_COMPILE_ERROR;
+			break;
+		}
+
                 /*prep for exchange type transaction*/
                 HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0); /* root node */
                 ret_result = run_policy_compile_output(coin, root_node, (void *)msg, (void *)NULL, true);
@@ -261,6 +267,12 @@ static int process_ethereum_msg(EthereumSignTx *msg, bool *confirm_ptr)
             }
             case OutputAddressType_TRANSFER:
             {
+		// Transfer temporarily disabled for token transactions
+		if(is_token_transaction(msg)) {
+			ret_result = TXOUT_COMPILE_ERROR;
+			break;
+		}
+
                 /*prep transfer type transaction*/
                 ret_result = process_ethereum_xfer(coin, msg);
                 *confirm_ptr = false;
@@ -364,12 +376,12 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     resp->has_device_id = true;
     strlcpy(resp->device_id, storage_get_uuid_str(), sizeof(resp->device_id));
 
-    
+
     resp->has_model = true;
 #ifdef SALT_WHITELABEL
     strlcpy(resp->model, "K1-14WL-S", sizeof(resp->model));
 #else
-    strlcpy(resp->model, "K1-14WL", sizeof(resp->model));
+    strlcpy(resp->model, "K1-14AM", sizeof(resp->model));
 #endif
 
     /* Security settings */

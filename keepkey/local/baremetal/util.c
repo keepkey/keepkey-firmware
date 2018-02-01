@@ -75,7 +75,7 @@ uint32_t readprotobufint(uint8_t **ptr)
 void rev_byte_order(uint8_t *bfr, size_t len)
 {
     size_t i;
-    uint8_t tempdata; 
+    uint8_t tempdata;
 
     for(i = 0; i < len/2; i++)
     {
@@ -92,7 +92,7 @@ void dec64_to_str(uint64_t dec64_val, char *str)
     static char *sbfr;
 
     sbfr = str;
-    b = dec64_val %10; 
+    b = dec64_val %10;
     dec64_val = dec64_val / 10;
 
     if(dec64_val)
@@ -102,4 +102,3 @@ void dec64_to_str(uint64_t dec64_val, char *str)
     *sbfr = '0' + b;
     sbfr++;
 }
-

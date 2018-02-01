@@ -199,6 +199,32 @@ int bn_bitcount(const bignum256 *a)
 }
 #endif
 
+
+#define DIGITS 78 // log10(2 ^ 256)
+
+unsigned int bn_digitcount(const bignum256 *a)
+{
+    bignum256 val;
+    memcpy(&val, a, sizeof(bignum256));
+
+    unsigned int digits = 1;
+
+    for (unsigned int i = 0; i < DIGITS; i += 3) {
+        uint32_t limb;
+        bn_divmod1000(&val, &limb);
+
+        if (limb >= 100) {
+            digits = i + 3;
+        } else if (limb >= 10) {
+            digits = i + 2;
+        } else if (limb >= 1) {
+            digits = i + 1;
+        }
+    }
+
+    return digits;
+}
+
 // sets a bignum to zero.
 void bn_zero(bignum256 *a)
 {
@@ -935,6 +961,92 @@ void bn_divmod1000(bignum256 *a, uint32_t *r)
 		rem = tmp % 1000;
 	}
 	*r = rem;
+}
+
+size_t bn_format(const bignum256 *amnt, const char *prefix, const char *suffix, unsigned int decimals, int exponent, bool trailing, char *out, size_t outlen)
+{
+    size_t prefixlen = prefix ? strlen(prefix) : 0;
+    size_t suffixlen = suffix ? strlen(suffix) : 0;
+
+    char *start = &out[prefixlen + suffixlen], *end = &out[outlen];
+    char *str = end;
+
+#define BN_FORMAT_PUSH_CHECKED(c) \
+    do { \
+        if (str == start) return 0; \
+        *--str = (c); \
+    } while (0)
+
+#define BN_FORMAT_PUSH(n) \
+    do { \
+        if (exponent < 0) { \
+            exponent++; \
+        } else { \
+            if ((n) > 0 || trailing || str != end || decimals <= 1) { \
+                BN_FORMAT_PUSH_CHECKED('0' + (n)); \
+            } \
+            if (decimals > 0 && decimals-- == 1) { \
+                BN_FORMAT_PUSH_CHECKED('.'); \
+            } \
+        } \
+    } while (0)
+
+    bignum256 val;
+    memcpy(&val, amnt, sizeof(bignum256));
+
+    if (bn_is_zero(&val)) {
+        exponent = 0;
+    }
+
+    for (; exponent > 0; exponent--) {
+        BN_FORMAT_PUSH(0);
+    }
+
+    unsigned int digits = bn_digitcount(&val);
+    for (unsigned int i = 0; i < digits / 3; i++) {
+        uint32_t limb;
+        bn_divmod1000(&val, &limb);
+
+        BN_FORMAT_PUSH(limb % 10);
+        limb /= 10;
+        BN_FORMAT_PUSH(limb % 10);
+        limb /= 10;
+        BN_FORMAT_PUSH(limb % 10);
+    }
+
+    if (digits % 3 != 0) {
+        uint32_t limb;
+        bn_divmod1000(&val, &limb);
+
+        switch (digits % 3) {
+        case 2:
+            BN_FORMAT_PUSH(limb % 10);
+            limb /= 10;
+            //-fallthrough
+
+        case 1:
+            BN_FORMAT_PUSH(limb % 10);
+            break;
+        }
+    }
+
+    while (decimals > 0 || str[0] == '\0' || str[0] == '.') {
+        BN_FORMAT_PUSH(0);
+    }
+
+    size_t len = end - str;
+    memmove(&out[prefixlen], str, len);
+
+    if (prefixlen) {
+        memcpy(out, prefix, prefixlen);
+    }
+    if (suffixlen) {
+        memcpy(&out[prefixlen + len], suffix, suffixlen);
+    }
+
+    size_t length = prefixlen + len + suffixlen;
+    out[length] = '\0';
+    return length;
 }
 
 #if USE_BN_PRINT
