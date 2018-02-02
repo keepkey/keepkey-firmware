@@ -13,7 +13,8 @@ RUN apk add --update --no-cache \
     w3m \
     unzip \
     py-setuptools \
-    make
+    make \
+    cmake
 
 # Install gcc-arm-none-eabi
 WORKDIR /root
@@ -51,3 +52,9 @@ RUN rm -rf /root/protobuf-python
 
 # Setup environment
 ENV PATH /root/nanopb/generator:$PATH
+
+# Build libopencm3
+WORKDIR /root
+RUN git clone -b docker-v5 https://github.com/keepkey/libopencm3.git libopencm3
+WORKDIR /root/libopencm3
+RUN make

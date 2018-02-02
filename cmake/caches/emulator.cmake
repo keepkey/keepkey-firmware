@@ -1,0 +1,1 @@
+set(KK_EMULATOR ON CACHE BOOL "")
