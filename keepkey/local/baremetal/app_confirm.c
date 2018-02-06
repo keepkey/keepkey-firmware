@@ -164,7 +164,7 @@ bool confirm_transfer_output(ButtonRequestType button_request, const char *amoun
     return confirm_with_custom_layout(&layout_notification_no_title_bold,
                                       button_request,
                                       "",
-                                      "Transfer %s to\n%s", amount, to);
+                                      "Transfer %s\nto %s", amount, to);
 }
 
 /*

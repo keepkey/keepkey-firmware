@@ -331,7 +331,7 @@ static void ethereumFormatAmount(bignum256 *val, char buffer[25])
 }
 
 
-bool token_for_display(const uint8_t *value, uint32_t value_len, uint32_t decimal, char *out_str)
+bool ether_token_for_display(const uint8_t *value, uint32_t value_len, uint32_t decimal, char *out_str)
 {
     bool ret_stat = false;
     uint8_t pad_val[32];
@@ -413,7 +413,7 @@ static void layoutERC20Data(const char *token_shortcut, const uint8_t *token_val
     {
         memset(token_destination, 0, sizeof(token_destination));
         format_ethereum_address(to, token_destination, sizeof(token_destination));
-        if (token_for_display(token_value, token_value_len, decimal, token_amt_str)){
+        if (ether_token_for_display(token_value, token_value_len, decimal, token_amt_str)){
             snprintf(out_str, out_str_len, "%s %s to: %s", token_amt_str, token_shortcut, token_destination);
         }
     }
@@ -491,7 +491,7 @@ static void layoutERC20Fee(const uint8_t *token_value, uint32_t token_value_len,
 
     ethereumFormatAmount(&gas, gas_value);
 
-    if (token_for_display(token_value, token_value_len, decimal, token_amt_str))
+    if (ether_token_for_display(token_value, token_value_len, decimal, token_amt_str))
     {
         //if((uint32_t)snprintf(out_str, out_str_len, "You are sending %s %s from your wallet and using %s for gas.",
         if((uint32_t)snprintf(out_str, out_str_len, "Send: %s %s\nGas: up to %s\nDo you want to continue?",
@@ -635,7 +635,7 @@ static bool ethereum_token_signing_check(EthereumSignTx *msg)
 
 
 bool is_token_transaction(EthereumSignTx *msg) {
-    return msg->has_token_shortcut && msg->has_token_value && msg->has_token_to;
+    return msg->has_token_shortcut && msg->has_token_value && (msg->has_token_to || msg->to_address_n_count > 0);
 }
 
 void prepare_erc20_token_transaction(EthereumSignTx *msg) {
@@ -762,7 +762,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
     // setup erc20 data if token transaction
     if(is_token_transaction(msg))
     {
-	    prepare_erc20_token_transaction(msg); 
+	prepare_erc20_token_transaction(msg); 
         needs_confirm = false;
     }
     if(needs_confirm)
@@ -804,13 +804,18 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
         }
         if(strlen(confirm_body_message) > 0)
         {
-            if(msg->has_token_shortcut && msg->has_token_value && msg->has_token_to){
-                if(!confirm_erc_token_transfer(ButtonRequestType_ButtonRequest_SignTx, confirm_body_message))
-                {
-                    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
-                    ethereum_signing_abort();
-                    return;
-                }
+            if(is_token_transaction(msg)) {
+		// Dont prompt the user an extra time if the transaction is a secure transfer
+		// i.e. you are sending to a different account in the bip44 node path
+		if (msg->address_type != OutputAddressType_TRANSFER)
+		{
+                    if(!confirm_erc_token_transfer(ButtonRequestType_ButtonRequest_SignTx, confirm_body_message))
+                    {
+                        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
+                        ethereum_signing_abort();
+                        return;
+                    }
+		}
             }else{
                 if(!confirm(ButtonRequestType_ButtonRequest_SignTx,
                             "Transfer", "Confirm data: %s", confirm_body_message))
