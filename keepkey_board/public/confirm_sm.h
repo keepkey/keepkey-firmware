@@ -75,18 +75,24 @@ typedef void (*layout_notification_t)(const char *str1, const char *str2,
 /* === Functions =========================================================== */
 
 bool confirm(ButtonRequestType type, const char *request_title, const char *request_body,
-             ...);
+             ...) __attribute__((format(printf, 3, 4)));
+
 bool confirm_with_custom_button_request(ButtonRequest *button_request,
                                         const char *request_title, const char *request_body,
-                                        ...);
+                                        ...) __attribute__((format(printf, 3, 4)));
+
 bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
                                 ButtonRequestType type,
-                                const char *request_title, const char *request_body, ...);
+                                const char *request_title, const char *request_body,
+                                ...) __attribute__((format(printf, 4, 5)));
+
 bool confirm_without_button_request(const char *request_title, const char *request_body,
-                                    ...);
+                                    ...) __attribute__((format(printf, 2, 3)));
+
 bool review(ButtonRequestType type, const char *request_title, const char *request_body,
-            ...);
+            ...) __attribute__((format(printf, 3, 4)));
+
 bool review_without_button_request(const char *request_title, const char *request_body,
-                                   ...);
+                                   ...) __attribute__((format(printf, 2, 3)));
 
 #endif
