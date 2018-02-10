@@ -46,6 +46,5 @@ bool confirm_transaction(const char *total_amount, const char *fee);
 bool confirm_load_device(bool is_node);
 bool confirm_address(const char *desc, const char *address);
 bool confirm_xpub(const char *xpub);
-bool confirm_sign_identity(const IdentityType *identity, const char *challenge);
 bool confirm_ethereum_address(const char *desc, const char *address);
 #endif
