@@ -420,8 +420,8 @@ void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinTyp
 	to_spend = 0;
 	spending = 0;
 	change_spend = 0;
-	memset(&input, 0, sizeof(TxInputType));
-	memset(&resp, 0, sizeof(TxRequest));
+	memset(&input, 0, sizeof(input));
+	memset(&resp, 0, sizeof(resp));
 
 	signing = true;
 
