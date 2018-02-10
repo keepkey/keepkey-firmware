@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <inttypes.h>
 
 #include <libopencm3/stm32/flash.h>
 
@@ -558,7 +559,7 @@ void raw_handler_upload(RawMessage *msg, uint32_t frame_length)
     else
     {
         send_failure(FailureType_Failure_FirmwareError, "Firmware too large");
-        dbg_print("Error: image too large to fit in the allocated space : 0x%x ...\n\r",
+        dbg_print("Error: image too large to fit in the allocated space : 0x%" PRIx32 " ...\n\r",
                   frame_length);
         upload_state = RAW_MESSAGE_ERROR;
     }

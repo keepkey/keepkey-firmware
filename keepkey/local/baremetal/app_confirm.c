@@ -59,12 +59,12 @@ bool confirm_cipher(bool encrypt, const char *key)
     if(encrypt)
     {
         ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
-                           "Encrypt Key Value", key);
+                           "Encrypt Key Value", "%s", key);
     }
     else
     {
         ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
-                           "Decrypt Key Value", key);
+                           "Decrypt Key Value", "%s", key);
     }
 
     return(ret_stat);
@@ -86,12 +86,12 @@ bool confirm_encrypt_msg(const char *msg, bool signing)
     if(signing)
     {
         ret_stat = confirm(ButtonRequestType_ButtonRequest_EncryptAndSignMessage,
-                           "Encrypt and Sign Message", msg);
+                           "Encrypt and Sign Message", "%s", msg);
     }
     else
     {
         ret_stat = confirm(ButtonRequestType_ButtonRequest_EncryptMessage,
-                           "Encrypt Message", msg);
+                           "Encrypt Message", "%s", msg);
     }
 
     return(ret_stat);
@@ -114,12 +114,12 @@ bool confirm_decrypt_msg(const char *msg, const char *address)
     if(address)
     {
         ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
-                           "Decrypted Signed Message", msg);
+                           "Decrypted Signed Message", "%s", msg);
     }
     else
     {
         ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
-                           "Decrypted Message", msg);
+                           "Decrypted Message", "%s", msg);
     }
 
     return(ret_stat);
@@ -275,7 +275,7 @@ bool confirm_load_device(bool is_node)
 bool confirm_xpub(const char *xpub)
 {
     return confirm_with_custom_layout(&layout_xpub_notification,
-                                      ButtonRequestType_ButtonRequest_Address, "", xpub);
+                                      ButtonRequestType_ButtonRequest_Address, "", "%s", xpub);
 
 }
 /*
@@ -291,7 +291,7 @@ bool confirm_xpub(const char *xpub)
 bool confirm_ethereum_address(const char *desc, const char *address)
 {
     return confirm_with_custom_layout(&layout_ethereum_address_notification,
-                                      ButtonRequestType_ButtonRequest_Address, desc, address);
+                                      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
 }
 /*
  * confirm_address() - Show address confirmation
@@ -306,7 +306,7 @@ bool confirm_ethereum_address(const char *desc, const char *address)
 bool confirm_address(const char *desc, const char *address)
 {
     return confirm_with_custom_layout(&layout_address_notification,
-                                      ButtonRequestType_ButtonRequest_Address, desc, address);
+                                      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
 }
 
 /*
@@ -368,5 +368,5 @@ bool confirm_sign_identity(const IdentityType *identity, const char *challenge)
         strlcat(body, challenge, sizeof(body));
     }
 
-    return confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, body);
+    return confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, "%s", body);
 }

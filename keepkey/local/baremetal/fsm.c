@@ -434,7 +434,7 @@ void fsm_msgPing(Ping *msg)
     }
 
     if(msg->has_button_protection && msg->button_protection)
-        if(!confirm(ButtonRequestType_ButtonRequest_Ping, "Ping", msg->message))
+        if(!confirm(ButtonRequestType_ButtonRequest_Ping, "Ping", "%s", msg->message))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
             go_home();
@@ -869,8 +869,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
         if(msg->use_passphrase)
         {
             if(!confirm(ButtonRequestType_ButtonRequest_EnablePassphrase,
-                        "Enable Passphrase", "Do you want to enable passphrase encryption?",
-                        msg->language))
+                        "Enable Passphrase", "Do you want to enable passphrase encryption?"))
             {
                 fsm_sendFailure(FailureType_Failure_ActionCancelled,
                                 "Apply settings cancelled");
@@ -881,8 +880,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
         else
         {
             if(!confirm(ButtonRequestType_ButtonRequest_DisablePassphrase,
-                        "Disable Passphrase", "Do you want to disable passphrase encryption?",
-                        msg->language))
+                        "Disable Passphrase", "Do you want to disable passphrase encryption?"))
             {
                 fsm_sendFailure(FailureType_Failure_ActionCancelled,
                                 "Apply settings cancelled");
@@ -1158,7 +1156,7 @@ void fsm_msgSignMessage(SignMessage *msg)
 		return;
 	}
 
-    if(!confirm(ButtonRequestType_ButtonRequest_SignMessage, "Sign Message",
+    if(!confirm(ButtonRequestType_ButtonRequest_SignMessage, "Sign Message", "%s",
                 (char *)msg->message.bytes))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, "Sign message cancelled");
@@ -1223,7 +1221,7 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
             cryptoMessageVerify(coin, msg->message.bytes, msg->message.size, addr_raw,
                                 msg->signature.bytes) == 0)
     {
-        if(review(ButtonRequestType_ButtonRequest_Other, "Message Verified",
+        if(review(ButtonRequestType_ButtonRequest_Other, "Message Verified", "%s",
                   (char *)msg->message.bytes))
         {
             fsm_sendSuccess("Message verified");
