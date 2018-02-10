@@ -227,7 +227,8 @@ static const Character pin_font_array[] =
 
 };
 
-static const Font pin_font = { 10, 14, pin_font_array };
+static const Font pin_font = { sizeof(pin_font_array)/sizeof(pin_font_array[0]),
+                               14, pin_font_array };
 
 /* --- Title Font ---------------------------------------------------------- */
 
@@ -1947,7 +1948,8 @@ static const Character title_font_array[] =
 
 };
 
-static const Font title_font = { 95, 10, title_font_array };
+static const Font title_font = { sizeof(title_font_array)/sizeof(title_font_array[0]),
+                                 10, title_font_array };
 
 /* --- Body Font ----------------------------------------------------------- */
 
@@ -3667,7 +3669,8 @@ static const Character body_font_array[] =
 
 };
 
-static const Font body_font = { 95, 10, body_font_array };
+static const Font body_font = { sizeof(body_font_array)/sizeof(body_font_array[0]),
+                                10, body_font_array };
 
 /* === Functions =========================================================== */
 
@@ -3798,15 +3801,14 @@ uint32_t calc_str_width(const Font *font, const char *str)
  */
 uint32_t calc_str_line(const Font *font, const char *str, uint16_t line_width)
 {
-    uint8_t line_count = 1, character_width = 0;
-    uint16_t x_offset = 0, word_width = 0;
-    char *next_character;
+    uint8_t line_count = 1;
+    uint16_t x_offset = 0;
 
     while(*str)
     {
-        character_width = font_get_char(font, str[0])->width;
-        word_width = character_width;
-        next_character = (char *)str + 1;
+        uint8_t character_width = font_get_char(font, str[0])->width;
+        uint16_t word_width = character_width;
+        char *next_character = (char *)str + 1;
 
         /* Allow line breaks */
         if(*str == '\n')
