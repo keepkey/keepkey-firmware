@@ -107,7 +107,16 @@ typedef uint64_t sha2_word64;	/* Exactly 8 bytes */
 	} \
 }
 
-#define MEMSET_BZERO(p,l)	memset((p), 0, (l))
+/*
+ * As a data security measure, redirect through a volatile function pointer so
+ * the compiler cannot optimize out the memset, even in cases where the object
+ * being zeroed is about to go out of scope, therefore making the memset "dead"
+ * in the compiler's eyes.  This prevents sensitive data from sticking around
+ * on the stack, when used appropriately.
+ */
+static void *(*const volatile memset_vp)(void *, int, size_t) = memset;
+
+#define MEMSET_BZERO(p,l)	memset_vp((p), 0, (l))
 #define MEMCPY_BCOPY(d,s,l)	memcpy((d), (s), (l))
 
 /*** THE SIX LOGICAL FUNCTIONS ****************************************/
