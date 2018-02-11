@@ -66,10 +66,10 @@ bool b58tobin(void *bin, size_t *binszp, const char *b58)
 	{
 		if (b58u[i] & 0x80)
 			// High-bit set on invalid digit
-			return false;
+			goto exit_fail;
 		if (b58digits_map[b58u[i]] == -1)
 			// Invalid base58 digit
-			return false;
+			goto exit_fail;
 		c = (unsigned)b58digits_map[b58u[i]];
 		for (j = outisz; j--; )
 		{
@@ -79,10 +79,11 @@ bool b58tobin(void *bin, size_t *binszp, const char *b58)
 		}
 		if (c)
 			// Output number too big (carry to the next int32)
-			return false;
-		if (outi[0] & zeromask)
+			goto exit_fail;
+		if (outi[0] & zeromask) {
 			// Output number too big (last int32 filled too far)
-			return false;
+			goto exit_fail;
+		}
 	}
 
 	j = 0;
@@ -116,7 +117,12 @@ bool b58tobin(void *bin, size_t *binszp, const char *b58)
 	}
 	*binszp += zerocount;
 
+	MEMSET_BZERO(outi, sizeof(outi));
 	return true;
+
+exit_fail:
+	MEMSET_BZERO(outi, sizeof(outi));
+	return false;
 }
 
 int b58check(const void *bin, size_t binsz, const char *base58str)
@@ -128,8 +134,10 @@ int b58check(const void *bin, size_t binsz, const char *base58str)
 		return -4;
 	sha256_Raw(bin, binsz - 4, buf);
 	sha256_Raw(buf, 32, buf);
-	if (memcmp(&binc[binsz - 4], buf, 4))
+	if (memcmp(&binc[binsz - 4], buf, 4)) {
+		MEMSET_BZERO(buf, sizeof(buf));
 		return -1;
+	}
 
 	// Check number of zeros is correct AFTER verifying checksum (to avoid possibility of accessing base58str beyond the end)
 	for (i = 0; binc[i] == '\0' && base58str[i] == '1'; ++i)
@@ -137,6 +145,7 @@ int b58check(const void *bin, size_t binsz, const char *base58str)
 	if (binc[i] == '\0' || base58str[i] == '1')
 		return -3;
 
+	MEMSET_BZERO(buf, sizeof(buf));
 	return binc[0];
 }
 
@@ -171,6 +180,7 @@ bool b58enc(char *b58, size_t *b58sz, const void *data, size_t binsz)
 	if (*b58sz <= zcount + size - j)
 	{
 		*b58sz = zcount + size - j + 1;
+		MEMSET_BZERO(buf, sizeof(buf));
 		return false;
 	}
 
@@ -181,6 +191,7 @@ bool b58enc(char *b58, size_t *b58sz, const void *data, size_t binsz)
 	b58[i] = '\0';
 	*b58sz = i + 1;
 
+	MEMSET_BZERO(buf, sizeof(buf));
 	return true;
 }
 
@@ -208,12 +219,17 @@ int base58_decode_check(const char *str, uint8_t *data, int datalen)
 	uint8_t d[datalen + 4];
 	size_t res = datalen + 4;
 	if (b58tobin(d, &res, str) != true) {
-		return 0;
+		goto exit_fail;
 	}
 	uint8_t *nd = d + datalen + 4 - res;
 	if (b58check(nd, res, str) < 0) {
-		return 0;
+		goto exit_fail;
 	}
 	memcpy(data, nd, res - 4);
+	MEMSET_BZERO(d, sizeof(d));
 	return res - 4;
+
+exit_fail:
+	MEMSET_BZERO(d, sizeof(d));
+	return 0;
 }
