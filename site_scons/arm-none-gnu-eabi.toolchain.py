@@ -63,6 +63,7 @@ WARNS=['-Wall',
        '-Wstrict-prototypes',
        '-Wundef',
        '-Wuninitialized',
+       '-Wsequence-point',
        '-Werror']
 
 def load_toolchain():

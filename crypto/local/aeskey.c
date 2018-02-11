@@ -227,9 +227,9 @@ AES_RETURN aes_xi(encrypt_key256)(const unsigned char *key, aes_encrypt_ctx cx[1
 #endif
 
 #if DEC_ROUND == NO_TABLES
-#define ff(x)   (x)
+#define ff(x)   ({ typeof(x) _x = (x); (_x) })
 #else
-#define ff(x)   inv_mcol(x)
+#define ff(x)   ({ typeof(x) _x = (x); inv_mcol(_x); })
 #if defined( dec_imvars )
 #define d_vars  dec_imvars
 #endif
