@@ -31,6 +31,8 @@
 
 #include "keepkey_board.h"
 
+#include "rng.h"
+
 /* === Variables =========================================================== */
 
 /* Stack smashing protector (SSP) canary value storage */
@@ -110,6 +112,10 @@ void reset_rng(void)
     RNG_CR |= RNG_CR_IE | RNG_CR_RNGEN;
     /* this delay is required before rng data can be read */
     delay_us(5);
+
+    // to be extra careful and heed the STM32F205xx Reference manual, Section 20.3.1
+    // we don't use the first random number generated after setting the RNGEN bit in setup
+    random32();
 }
 
 /*
