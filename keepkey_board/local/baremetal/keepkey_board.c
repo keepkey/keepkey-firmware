@@ -68,6 +68,17 @@ __attribute__((noreturn)) void __stack_chk_fail(void)
     system_halt();
 }
 
+/// Non-maskable interrupt handler
+void nmi_handler(void)
+{
+    // Look for the clock instability interrupt. This is a security measure
+    // that helps prevent clock glitching.
+    if ((RCC_CIR & RCC_CIR_CSSF) != 0) {
+        layout_warning_static("Clock instability detected. Reboot Device!");
+        system_halt();
+    }
+}
+
 /*
  * board_reset() - Request board reset
  *
@@ -112,6 +123,10 @@ void reset_rng(void)
 void board_init(void)
 {
     timer_init();
+
+    // Enable Clock Security System
+    rcc_css_enable();
+
     keepkey_leds_init();
     keepkey_button_init();
     layout_init(display_canvas_init());
@@ -132,3 +147,4 @@ uint32_t calc_crc32(uint32_t *data, int word_len)
     crc32 = crc_calculate_block(data, word_len);
     return(crc32);
 }
+
