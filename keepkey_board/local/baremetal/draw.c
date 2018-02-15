@@ -51,6 +51,7 @@ bool draw_char_with_shift(Canvas *canvas, DrawableParams *p,
         return false;
     }
     uint8_t *canvas_pixel = &canvas->buffer[ start_index ];
+    uint8_t *canvas_end = &canvas->buffer[canvas->width * canvas->height];
 
     /* Check that this was a character that we have in the font */
     if(img != NULL)
@@ -69,6 +70,9 @@ bool draw_char_with_shift(Canvas *canvas, DrawableParams *p,
 
                 for(x = 0; x < img->width; x++)
                 {
+                    if (canvas_pixel >= canvas_end){
+                        return false; // defensive bounds check
+                    }
                     *canvas_pixel = (*img_pixel == 0x00) ? p->color : *canvas_pixel;
                     canvas_pixel++;
                     img_pixel++;
@@ -236,18 +240,20 @@ void draw_box(Canvas *canvas, BoxDrawableParams *p)
 
     uint16_t start_index = (start_row * canvas->width) + start_col;
     uint8_t *canvas_pixel = &canvas->buffer[ start_index ];
+    uint8_t *canvas_end = &canvas->buffer[canvas->width * canvas->height];
 
     uint16_t height = end_row - start_row;
     uint16_t width = end_col - start_col;
 
-    uint16_t y;
 
-    for(y = 0; y < height; y++)
+
+    for(uint16_t y = 0; y < height; y++)
     {
-        uint16_t x;
-
-        for(x = 0; x < width; x++)
+        for(uint16_t x = 0; x < width; x++)
         {
+            if (canvas_pixel >= canvas_end){
+                return; // defensive bounds check
+            }
             *canvas_pixel = p->base.color;
             canvas_pixel++;
         }
@@ -298,6 +304,7 @@ bool draw_bitmap_mono_rle(Canvas *canvas, DrawableParams *p, const Image *img)
     int start_index = (p->y * canvas->width) + p->x;
     uint8_t *canvas_pixel = &canvas->buffer[ start_index ];
 
+
     /* Get image data */
     img->get_image_data(image_data);
 
@@ -306,6 +313,7 @@ bool draw_bitmap_mono_rle(Canvas *canvas, DrawableParams *p, const Image *img)
             ((img->height + p->y) <= canvas->height))
     {
         const uint8_t *img_pixel = &image_data[0];
+        const uint8_t *img_end = &image_data[img->width * img->height]; 
 
         for(y0 = 0; y0 < img->height; y0++)
         {
@@ -313,6 +321,9 @@ bool draw_bitmap_mono_rle(Canvas *canvas, DrawableParams *p, const Image *img)
             {
                 if((sequence == 0) && (nonsequence == 0))
                 {
+                    if (img_pixel >= img_end){
+                        return false; // defensive bounds check
+                    }
                     sequence = *img_pixel++;
 
                     if(sequence < 0)
@@ -330,6 +341,9 @@ bool draw_bitmap_mono_rle(Canvas *canvas, DrawableParams *p, const Image *img)
 
                     if(sequence == 0)
                     {
+                        if (img_pixel >= img_end){
+                            return false; // defensive bounds check
+                        }
                         img_pixel++;
                     }
                 }
