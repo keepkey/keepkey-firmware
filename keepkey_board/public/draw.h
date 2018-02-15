@@ -34,16 +34,16 @@
 typedef struct
 {
     uint8_t color;
-    int     x;
-    int     y;
+    uint16_t     x;
+    uint16_t     y;
 
 } DrawableParams;
 
 typedef struct
 {
     DrawableParams  base;
-    int             height;
-    int             width;
+    uint16_t           height;
+    uint16_t             width;
 } BoxDrawableParams;
 
 typedef struct
@@ -55,15 +55,15 @@ typedef struct
 /* === Functions =========================================================== */
 
 bool draw_char_with_shift(Canvas *canvas, DrawableParams *p,
-                          int *x_shift, int *y_shift, const CharacterImage *img);
+                          uint16_t *x_shift, uint16_t *y_shift, const CharacterImage *img);
 void draw_string(Canvas *canvas, const Font *font, const char *c, DrawableParams *p,
-                 int width,
-                 int line_height);
+                 uint16_t width,
+                 uint16_t line_height);
 void draw_char(Canvas *canvas, const Font *font, char c, DrawableParams *p);
-void draw_char_simple(Canvas *canvas, const Font *font, char c, uint8_t color, int x,
-                      int y);
+void draw_char_simple(Canvas *canvas, const Font *font, char c, uint8_t color, uint16_t x,
+                      uint16_t y);
 void draw_box(Canvas *canvas, BoxDrawableParams  *params);
-void draw_box_simple(Canvas *canvas, uint8_t color, int x, int y, int width, int height);
+void draw_box_simple(Canvas *canvas, uint8_t color, uint16_t x, uint16_t y, uint16_t width, uint16_t height);
 bool draw_bitmap_mono_rle(Canvas *canvas, DrawableParams *p, const Image *img);
 
 #endif

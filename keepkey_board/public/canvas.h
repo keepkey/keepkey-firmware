@@ -30,8 +30,8 @@
 typedef struct
 {
 	uint8_t* 	buffer;
-	int 		height;
-	int 		width;
+	uint16_t 	height;
+	uint16_t 	width;
 	bool 		dirty;
 } Canvas;
 
