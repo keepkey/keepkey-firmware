@@ -54,6 +54,6 @@ bool ether_for_display(const uint8_t *value, uint32_t value_len, char *out_str);
  * \param out_str       128 byte buffer to store string result
  * \returns 		boolean representing wethere the token value was successfully formatted
  */
-bool ether_token_for_display(const uint8_t *value, uint32_t value_len, uint32_t decimal, char *out_str);
+bool ether_token_for_display(const uint8_t *value, uint32_t value_len, uint32_t decimal, char *out_str, size_t out_len);
 
 #endif

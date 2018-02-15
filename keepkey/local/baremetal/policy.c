@@ -44,7 +44,7 @@ const PolicyType policies[POLICY_COUNT] = {
  *     - needs_confirm: whether confirm is required
  * OUTPUT
  *     integer determining whether operation was succesful
- */
+*/
 int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vin, void *vout, bool needs_confirm)
 {
     int ret_result = TXOUT_COMPILE_ERROR;

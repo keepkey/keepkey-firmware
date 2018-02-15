@@ -24,6 +24,7 @@
 
 #include "coins.h"
 #include <util.h>
+#include <inttypes.h>
 
 /* === Variables =========================================================== */
 
@@ -231,11 +232,18 @@ bool bip44_node_to_string(const CoinType *coin, char *node_str, uint32_t *addres
                          size_t address_n_count)
 {
     bool ret_stat = false;
+    bool is_token = coin->has_contract_address;
 
     if(verify_bip44_node(coin, address_n, address_n_count))
     {
-        snprintf(node_str, NODE_STRING_LENGTH, "%s account #%lu", coin->coin_name,
+        // If it is a token we still refer to the destination as an Ethereum account
+        if (is_token) {
+            snprintf(node_str, NODE_STRING_LENGTH, "%s account #%" PRIu32, "Ethereum",
                     address_n[2] & 0x7ffffff);
+        } else {
+            snprintf(node_str, NODE_STRING_LENGTH, "%s account #%" PRIu32, coin->coin_name,
+                    address_n[2] & 0x7ffffff);
+        }
         ret_stat = true;
     }
     return(ret_stat);
