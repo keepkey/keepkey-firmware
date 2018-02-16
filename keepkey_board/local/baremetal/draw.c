@@ -335,6 +335,10 @@ bool draw_bitmap_mono_rle(Canvas *canvas, DrawableParams *p, const Image *img)
 
                 if(sequence > 0)
                 {
+                    if (img_pixel >= img_end){
+                        return false; // defensive bounds check
+                    }
+
                     *canvas_pixel = *img_pixel;
 
                     sequence--;
@@ -350,6 +354,10 @@ bool draw_bitmap_mono_rle(Canvas *canvas, DrawableParams *p, const Image *img)
 
                 if(nonsequence > 0)
                 {
+                    if (img_pixel >= img_end){
+                        return false; // defensive bounds check
+                    }
+
                     *canvas_pixel = *img_pixel++;
 
                     nonsequence--;
