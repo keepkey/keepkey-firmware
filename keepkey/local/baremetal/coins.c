@@ -102,7 +102,8 @@ const CoinType *coinByShortcut(const char *shortcut)
 
     for(i = 0; i < COINS_COUNT; i++)
     {
-        if(strcmp(shortcut, coins[i].coin_shortcut) == 0)
+        if(strncasecmp(shortcut, coins[i].coin_shortcut,
+                       sizeof(coins[i].coin_shortcut)) == 0)
         {
             return &(coins[i]);
         }
@@ -119,7 +120,8 @@ const CoinType *coinByName(const char *name)
 
     for(i = 0; i < COINS_COUNT; i++)
     {
-        if(strcmp(name, coins[i].coin_name) == 0)
+        if(strncasecmp(name, coins[i].coin_name,
+                       sizeof(coins[i].coin_name)) == 0)
         {
             return &(coins[i]);
         }
