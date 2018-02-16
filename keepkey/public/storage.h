@@ -30,7 +30,7 @@
 
 /* === Defines ============================================================= */
 
-#define STORAGE_VERSION 4 /* Must add case fallthrough in storage_from_flash after increment*/
+#define STORAGE_VERSION 5 /* Must add case fallthrough in storage_from_flash after increment*/
 #define STORAGE_RETRIES 3
 
 /* === Functions =========================================================== */
