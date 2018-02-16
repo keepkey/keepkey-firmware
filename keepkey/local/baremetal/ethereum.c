@@ -20,7 +20,6 @@
  */
 
 #include <stdio.h>
-#include <ctype.h>
 #include "ethereum.h"
 #include "fsm.h"
 #include "transaction.h"
@@ -632,24 +631,12 @@ bool ether_for_display(const uint8_t *value, uint32_t value_len, char *out_str)
 void format_ethereum_address(const uint8_t *to, char *destination_str,
                              uint32_t destination_str_len){
     char formatted_destination[sizeof(((EthereumAddress *)NULL)->address.bytes) * 2 + 3] = {'0', 'x'},
-            hex[41], checksum[256];
+            hex[41];
 
     data2hex(to, 20, hex);
-
-    // EIP55 Checksum
-    strlwr(hex);
-    SHA3_CTX ctx;
-    sha3_256_Init(&ctx);
-    sha3_Update(&ctx, (unsigned char*)hex, sizeof(hex));
-    sha3_Final(&ctx, (unsigned char*)checksum);
-    for (unsigned i = 0; i < sizeof(hex); i++) {
-      if (isalpha((unsigned char)hex[i]) && checksum[255 - i] & 1) {
-        hex[i] = toupper((unsigned char)hex[i]);
-      }
-    }
-
     strlcpy(&formatted_destination[2], hex, sizeof(formatted_destination) - 2);
     strlcpy(destination_str, formatted_destination, destination_str_len);
+    strlwr(destination_str);
 }
 
 
