@@ -31,6 +31,7 @@
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
+#include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/util.h"
 
@@ -868,6 +869,18 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
         fsm_sendFailure(FailureType_Failure_Other, "Invalid Ethereum Tx Fee message");
         ethereum_signing_abort();
         return;
+    }
+
+    if (storage_is_policy_enabled("DemoMode")) {
+        if (msg->address_type != OutputAddressType_TRANSFER &&
+            msg->address_type != OutputAddressType_EXCHANGE) {
+            (void)confirm(ButtonRequestType_ButtonRequest_SignTx,
+                          "Demo mode", "External transactions disabled'");
+            fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                            "Demo mode; external transactions disabled.");
+            go_home();
+            return;
+        }
     }
 
     /* Stage 1: Calculate total RLP length */
