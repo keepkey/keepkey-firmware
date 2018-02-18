@@ -91,6 +91,28 @@ static void storage_reset_cache(void)
     memset(&shadow_config.cache, 0, sizeof(shadow_config.cache));
 }
 
+enum StorageVersion {
+    StorageVersion_NONE,
+    #define STORAGE_VERSION_ENTRY(VAL) \
+        StorageVersion_ ##VAL,
+    #include "storage_versions.inc"
+};
+
+static enum StorageVersion version_from_int(int version) {
+    #define STORAGE_VERSION_LAST(VAL) \
+        _Static_assert(VAL == STORAGE_VERSION, \
+                       "need to update storage_versions.inc");
+    #include "storage_versions.inc"
+
+    switch (version) {
+    #define STORAGE_VERSION_ENTRY(VAL) \
+        case VAL: return StorageVersion_ ##VAL;
+    #include "storage_versions.inc"
+    default:
+        return StorageVersion_NONE;
+    }
+}
+
 /*
  * storage_from_flash() - Copy configuration from storage partition in flash memory to shadow memory in RAM
  *
@@ -103,19 +125,20 @@ static void storage_reset_cache(void)
 static bool storage_from_flash(ConfigFlash *stor_config)
 {
     /* load config values from active config node */
-    switch(stor_config->storage.version)
+    switch(version_from_int(stor_config->storage.version))
     {
-        case 1:
+        case StorageVersion_1:
             memcpy(&shadow_config.meta, &stor_config->meta, sizeof(shadow_config.meta));
             memcpy(&shadow_config.storage, &stor_config->storage, sizeof(shadow_config.storage));
             storage_reset_policies();
             storage_reset_cache();
-            break;
+            shadow_config.storage.version = STORAGE_VERSION;
+            return true;
 
-        case 2:
-        case 3:
-        case 4:
-        case 5:
+        case StorageVersion_2:
+        case StorageVersion_3:
+        case StorageVersion_4:
+        case StorageVersion_5:
             memcpy(&shadow_config, stor_config, sizeof(shadow_config));
 
             /* We have to do this for users with bootloaders <= v1.0.2. This
@@ -128,14 +151,24 @@ static bool storage_from_flash(ConfigFlash *stor_config)
                 storage_commit();
             }
 
-            break;
+            shadow_config.storage.version = STORAGE_VERSION;
+            return true;
 
-        default:
+        case StorageVersion_NONE:
             return false;
+
+        // DO *NOT* add a default case
     }
 
-    shadow_config.storage.version = STORAGE_VERSION;
-    return true;
+#ifdef DEBUG_ON
+     // Should be unreachable, but we don't want to tell the compiler that in a
+     // release build. The benefit to doing it this way is that with the
+     // unreachable and lack of default case in the switch, the compiler will
+     // tell us if we have not covered every case in the switch.
+     __builtin_unreachable();
+#endif
+
+    return false;
 }
 
 /*
