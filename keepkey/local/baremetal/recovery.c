@@ -49,6 +49,12 @@ static char words[24][12];
 /* === Functions =========================================================== */
 
 void next_word(void) {
+	if (sizeof(word_order)/sizeof(word_order[0]) <= word_index) {
+		fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid word_index");
+		go_home();
+		return;
+	}
+
 	word_pos = word_order[word_index];
 	char title_formatted[SMALL_STR_BUF];
 	char body_formatted[MEDIUM_STR_BUF];
