@@ -24,4 +24,8 @@
 
 typedef void (*bootloader_entry_t)(void);
 
+extern uint8_t _ram_start[], _ram_end[];
+
+extern void memset_reg(void *start, void *stop, uint32_t val);
+
 #endif

@@ -2,40 +2,40 @@
 
 ### Toolchain Installation
 
-Update "apt-get"
-```
-$ sudo apt-get update
-```
-Remove gdb package. It causes error during gdb-arm-none-eabi toolchain installation
-```
-$ sudo apt-get remove gdb
-```
-Install supporting packages for build
-```
-$ sudo apt-get install git scons gcc-arm-none-eabi python-protobuf protobuf-compiler fabric exuberant-ctags gdb-arm-none-eabi default-jre
-```
+Install Docker Community Edition from: https://www.docker.com/get-docker
 
 Download firmware source code from KeepKey respository (https://github.com/keepkey/keepkey-firmware.git)
 ```
 $ git clone git@github.com:keepkey/keepkey-firmware.git
 ```
 
-### command line build
+Build the docker image for the toolchain:
 
-First build libopencm3. Change to firmware directory and start make
 ```
-$ pushd libopencm3 && make && popd
-```
-Build final bootloader image. Change to firmware directory and run following command
-```
-$ ./b -b bldr -mp
+$ cd keepkey-firmware && docker build -t keepkey/firmware:latest .
 ```
 
-Build final application image. Change to firmware directory and run following command
+Build the debug version of the standard firmware:
 ```
-$ ./b -b app 
+$ docker_build_keepkey_debug.sh
 ```
-The resultant binaries will be located in ./build/arm-none-gnu-eabi/release/bin directory.
+
+Build the release version of the standard firmware:
+```
+$ docker_build_keepkey_release.sh
+```
+
+Build the debug version of the SALT-branded firmware:
+```
+$ docker_build_salt_debug.sh
+```
+
+Build the release version of the SALT-branded firmware:
+```
+$ docker_build_salt_release.sh
+```
+
+The resultant binaries will be located in the ./bin/{debug,release}/{keepkey,salt} directories as appropriate.
 
 ## License
 

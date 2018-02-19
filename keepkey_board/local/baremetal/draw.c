@@ -41,17 +41,21 @@
  *      true/false whether image was drawn
  */
 bool draw_char_with_shift(Canvas *canvas, DrawableParams *p,
-                          int *x_shift, int *y_shift, const CharacterImage *img)
+                          uint16_t *x_shift, uint16_t *y_shift, const CharacterImage *img)
 {
     bool ret_stat = false;
 
-    int start_index = (p->y * canvas->width) + p->x;
+    uint16_t start_index = (p->y * canvas->width) + p->x;
+    /* Check start_index, p->x, p->y are within bounds */
+    if (start_index >= (KEEPKEY_DISPLAY_HEIGHT * KEEPKEY_DISPLAY_WIDTH)){
+        return false;
+    }
     uint8_t *canvas_pixel = &canvas->buffer[ start_index ];
+    uint8_t *canvas_end = &canvas->buffer[canvas->width * canvas->height];
 
     /* Check that this was a character that we have in the font */
     if(img != NULL)
     {
-
         /* Check that it's within bounds. */
         if(((img->width + p->x) <= canvas->width) &&
                 ((img->height + p->y) <= canvas->height))
@@ -66,6 +70,9 @@ bool draw_char_with_shift(Canvas *canvas, DrawableParams *p,
 
                 for(x = 0; x < img->width; x++)
                 {
+                    if (canvas_pixel >= canvas_end){
+                        return false; // defensive bounds check
+                    }
                     *canvas_pixel = (*img_pixel == 0x00) ? p->color : *canvas_pixel;
                     canvas_pixel++;
                     img_pixel++;
@@ -107,16 +114,16 @@ bool draw_char_with_shift(Canvas *canvas, DrawableParams *p,
  *     none
  */
 void draw_string(Canvas *canvas, const Font *font, const char *str_write,
-                 DrawableParams *p, int width, int line_height)
+                 DrawableParams *p, uint16_t width, uint16_t line_height)
 {
     bool have_space = true;
-    int x_offset = 0;
+    uint16_t x_offset = 0;
     DrawableParams char_params = *p;
 
     while(*str_write && have_space)
     {
         const CharacterImage *img = font_get_char(font, *str_write);
-        int word_width = img->width;
+        uint16_t word_width = img->width;
         char *next_c = (char *)str_write + 1;
 
         /* Allow line breaks */
@@ -143,7 +150,7 @@ void draw_string(Canvas *canvas, const Font *font, const char *str_write,
         }
 
         /* Determine if we need a line break */
-        if((width != 0) && (x_offset + word_width > width))
+        if((width != 0) && (width <= canvas->width) && (x_offset + word_width > width))
         {
             char_params.y += line_height;
             x_offset = 0;
@@ -179,7 +186,7 @@ void draw_string(Canvas *canvas, const Font *font, const char *str_write,
 void draw_char(Canvas *canvas, const Font *font, char c, DrawableParams *p)
 {
     const CharacterImage *img = font_get_char(font, c);
-    int x_offset = 0;
+    uint16_t x_offset = 0;
 
     /* Draw Character */
     draw_char_with_shift(canvas, p, &x_offset, NULL, img);
@@ -201,8 +208,8 @@ void draw_char(Canvas *canvas, const Font *font, char c, DrawableParams *p)
  * OUTPUT
  *     none
  */
-void draw_char_simple(Canvas *canvas, const Font *font, char c, uint8_t color, int x,
-                      int y)
+void draw_char_simple(Canvas *canvas, const Font *font, char c, uint8_t color, uint16_t x,
+                      uint16_t y)
 {
     DrawableParams p;
     p.color = color;
@@ -223,28 +230,30 @@ void draw_char_simple(Canvas *canvas, const Font *font, char c, uint8_t color, i
  */
 void draw_box(Canvas *canvas, BoxDrawableParams *p)
 {
-    int start_row = p->base.y;
-    int end_row = start_row + p->height;
+    uint16_t start_row = p->base.y;
+    uint16_t end_row = start_row + p->height;
     end_row = (end_row >= canvas->height) ? canvas->height - 1 : end_row;
 
-    int start_col = p->base.x;
-    int end_col = p->base.x + p->width;
+    uint16_t start_col = p->base.x;
+    uint16_t end_col = p->base.x + p->width;
     end_col = (end_col >= canvas->width) ? canvas->width - 1 : end_col;
 
-    int start_index = (start_row * canvas->width) + start_col;
+    uint16_t start_index = (start_row * canvas->width) + start_col;
     uint8_t *canvas_pixel = &canvas->buffer[ start_index ];
+    uint8_t *canvas_end = &canvas->buffer[canvas->width * canvas->height];
 
-    int height = end_row - start_row;
-    int width = end_col - start_col;
+    uint16_t height = end_row - start_row;
+    uint16_t width = end_col - start_col;
 
-    int y;
 
-    for(y = 0; y < height; y++)
+
+    for(uint16_t y = 0; y < height; y++)
     {
-        int x;
-
-        for(x = 0; x < width; x++)
+        for(uint16_t x = 0; x < width; x++)
         {
+            if (canvas_pixel >= canvas_end){
+                return; // defensive bounds check
+            }
             *canvas_pixel = p->base.color;
             canvas_pixel++;
         }
@@ -268,7 +277,7 @@ void draw_box(Canvas *canvas, BoxDrawableParams *p)
  * OUTPUT
  *     none
  */
-void draw_box_simple(Canvas *canvas, uint8_t color, int x, int y, int width, int height)
+void draw_box_simple(Canvas *canvas, uint8_t color, uint16_t x, uint16_t y, uint16_t width, uint16_t height)
 {
     BoxDrawableParams box_params = {{color, x, y}, height, width};
     draw_box(canvas, &box_params);
@@ -295,6 +304,7 @@ bool draw_bitmap_mono_rle(Canvas *canvas, DrawableParams *p, const Image *img)
     int start_index = (p->y * canvas->width) + p->x;
     uint8_t *canvas_pixel = &canvas->buffer[ start_index ];
 
+
     /* Get image data */
     img->get_image_data(image_data);
 
@@ -303,6 +313,7 @@ bool draw_bitmap_mono_rle(Canvas *canvas, DrawableParams *p, const Image *img)
             ((img->height + p->y) <= canvas->height))
     {
         const uint8_t *img_pixel = &image_data[0];
+        const uint8_t *img_end = &image_data[img->width * img->height]; 
 
         for(y0 = 0; y0 < img->height; y0++)
         {
@@ -310,6 +321,9 @@ bool draw_bitmap_mono_rle(Canvas *canvas, DrawableParams *p, const Image *img)
             {
                 if((sequence == 0) && (nonsequence == 0))
                 {
+                    if (img_pixel >= img_end){
+                        return false; // defensive bounds check
+                    }
                     sequence = *img_pixel++;
 
                     if(sequence < 0)
@@ -321,18 +335,29 @@ bool draw_bitmap_mono_rle(Canvas *canvas, DrawableParams *p, const Image *img)
 
                 if(sequence > 0)
                 {
+                    if (img_pixel >= img_end){
+                        return false; // defensive bounds check
+                    }
+
                     *canvas_pixel = *img_pixel;
 
                     sequence--;
 
                     if(sequence == 0)
                     {
+                        if (img_pixel >= img_end){
+                            return false; // defensive bounds check
+                        }
                         img_pixel++;
                     }
                 }
 
                 if(nonsequence > 0)
                 {
+                    if (img_pixel >= img_end){
+                        return false; // defensive bounds check
+                    }
+
                     *canvas_pixel = *img_pixel++;
 
                     nonsequence--;

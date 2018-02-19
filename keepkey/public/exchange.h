@@ -44,6 +44,16 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
 ExchangeError get_exchange_error(void);
 void set_exchange_error(ExchangeError error_code);
 bool check_ethereum_tx(const char *coin_name);
+
 bool ether_for_display(const uint8_t *value, uint32_t value_len, char *out_str);
+/**
+ * \brief Format an ethereum token value with the proper number of decimals
+ * \param value 	The token value interpreted as a 32byte big endian number
+ * \param value_len     Length in bytes of value
+ * \param decimal       The number of decimals to format this token amount to
+ * \param out_str       128 byte buffer to store string result
+ * \returns 		boolean representing wethere the token value was successfully formatted
+ */
+bool ether_token_for_display(const uint8_t *value, uint32_t value_len, uint32_t decimal, char *out_str, size_t out_len);
 
 #endif

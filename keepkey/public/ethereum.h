@@ -30,5 +30,11 @@ void ethereum_signing_abort(void);
 void ethereum_signing_txack(EthereumTxAck *msg);
 void format_ethereum_address(const uint8_t *to, char *destination_str,
                              uint32_t destination_str_len);
-
+bool is_token_transaction(EthereumSignTx *msg);
+/**
+ * \brief Get the number of decimals associated with an erc20 token
+ * \param 	token_shorcut String corresponding to a token_shortcut in coins table in coins.c
+ * \returns     uint32_t represeting the number of decimals to interpret the token with
+ */
+uint32_t ethereum_get_decimal(const char *token_shortcut);
 #endif
