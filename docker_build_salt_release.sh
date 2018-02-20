@@ -10,11 +10,11 @@ echo    # (optional) move to a new line
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
 
-IMAGETAG=keepkey/firmware
+IMAGETAG=kktech/firmware:v1
 
-docker build -t $IMAGETAG .
+docker pull $IMAGETAG
 
-docker run -t -v $(pwd):/root/keepkey-firmware --rm $IMAGETAG /bin/sh -c "\
+docker run -t -v $(pwd):/root/keepkey-firmware $IMAGETAG /bin/sh -c "\
 	cd /root/keepkey-firmware/libopencm3 && \
 	make clean && \
 	make && \
