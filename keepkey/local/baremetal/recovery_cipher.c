@@ -39,9 +39,9 @@
 
 static bool enforce_wordlist;
 static bool awaiting_character;
-static char mnemonic[MNEMONIC_BUF];
+static CONFIDENTIAL char mnemonic[MNEMONIC_BUF];
 static char english_alphabet[ENGLISH_ALPHABET_BUF] = "abcdefghijklmnopqrstuvwxyz";
-static char cipher[ENGLISH_ALPHABET_BUF];
+static CONFIDENTIAL char cipher[ENGLISH_ALPHABET_BUF];
 
 #if DEBUG_LINK
 static char auto_completed_word[CURRENT_WORD_BUF];

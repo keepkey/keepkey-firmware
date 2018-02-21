@@ -25,6 +25,8 @@
 #ifndef __BIGNUM_H__
 #define __BIGNUM_H__
 
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include "options.h"
 
@@ -84,6 +86,8 @@ static inline void bn_copy(const bignum256 *a, bignum256 *b) {
 int bn_bitcount(const bignum256 *a);
 #endif
 
+unsigned int bn_digitcount(const bignum256 *a);
+
 void bn_zero(bignum256 *a);
 
 int bn_is_zero(const bignum256 *a);
@@ -141,6 +145,9 @@ void bn_subtract(const bignum256 *a, const bignum256 *b, bignum256 *res);
 void bn_divmod58(bignum256 *a, uint32_t *r);
 
 void bn_divmod1000(bignum256 *a, uint32_t *r);
+
+size_t bn_format(const bignum256 *amnt, const char *prefix, const char *suffix, unsigned int decimals, int exponent, bool trailing, char *out, size_t outlen);
+
 
 #if USE_BN_PRINT
 void bn_print(const bignum256 *a);

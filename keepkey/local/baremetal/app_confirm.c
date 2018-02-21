@@ -164,7 +164,7 @@ bool confirm_transfer_output(ButtonRequestType button_request, const char *amoun
     return confirm_with_custom_layout(&layout_notification_no_title_bold,
                                       button_request,
                                       "",
-                                      "Transfer %s to\n%s", amount, to);
+                                      "Transfer %s\nto %s", amount, to);
 }
 
 /*
@@ -186,6 +186,31 @@ bool confirm_transaction_output(ButtonRequestType button_request, const char *am
                                       "",
                                       "Send %s to\n%s", amount, to);
 }
+
+
+/*
+ * confirm_erc_token_transfer() - Show transaction output confirmation without bold
+ *
+ * INPUT -
+ *      - button_request: button request type
+ *      - amount: amount to send
+ *      - to: who to send to
+ * OUTPUT -
+ *     true/false of confirmation
+ *
+ */
+bool confirm_erc_token_transfer(ButtonRequestType button_request,
+                                        const char *msg_body)
+{
+    return confirm_with_custom_layout(&layout_notification_no_title_no_bold,
+            button_request,
+            "",
+            "Send %s", msg_body);
+}
+
+
+
+
 
 /*
  * confirm_transaction_output_no_bold() - Show transaction output confirmation without bold

@@ -58,7 +58,7 @@ def compile_protocol_buffers():
 
     if not os.path.exists('interface/local'):
         os.mkdir('interface/local')
-    
+
     local('cp interface/public/*.options ../%s/.' % DEVICE_PROTOCOL)
     os.chdir('../%s' % DEVICE_PROTOCOL)
     local('protoc -I. -I/usr/include --plugin=nanopb=protoc-gen-nanopb --nanopb_out=. *.proto')
