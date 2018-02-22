@@ -298,12 +298,12 @@ bool pin_protect(char *prompt)
         {
             if(failed_cnts > 2)
             {
+                wait = (failed_cnts < 32) ? (1u << failed_cnts) : 0xFFFFFFFF;
+
                 /* snprintf: 36 + 10 (%u) + 1 (NULL) = 47 */
                 snprintf(warn_msg_fmt, MEDIUM_STR_BUF, "Previous PIN Failures: Wait %u Seconds",
-                         1u << failed_cnts);
+                         wait);
                 layout_warning(warn_msg_fmt);
-
-                wait = (failed_cnts < 32) ? (1u << failed_cnts) : 0xFFFFFFFF;
 
                 while(--wait > 0)
                 {
