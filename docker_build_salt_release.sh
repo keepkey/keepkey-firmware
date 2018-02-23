@@ -14,7 +14,9 @@ IMAGETAG=kktech/firmware:v1
 
 docker pull $IMAGETAG
 
-docker run -t -v $(pwd):/root/keepkey-firmware $IMAGETAG /bin/sh -c "\
+docker run -t \
+  -v $(pwd):/root/keepkey-firmware \
+  -v $(pwd)/../device-protocol:/root/device-protocol $IMAGETAG /bin/sh -c "\
 	cd /root/keepkey-firmware/libopencm3 && \
 	make clean && \
 	make && \
