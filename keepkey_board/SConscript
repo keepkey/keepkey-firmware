@@ -29,4 +29,7 @@ if(ARGUMENTS.get('project') == 'keepkey'):
 if(ARGUMENTS.get('salt-logo')):
     env = add_flags(env, ['-DSALT_WHITELABEL'])
 
+if(ARGUMENTS.get('manufacturer')):
+    env = add_flags(env, ['-DMANUFACTURER=1'])
+
 init_project(env, deps=deps, libs=["opencm3_stm32f2"])

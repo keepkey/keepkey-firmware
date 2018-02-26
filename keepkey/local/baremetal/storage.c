@@ -99,10 +99,16 @@ enum StorageVersion {
 };
 
 static enum StorageVersion version_from_int(int version) {
-    #define STORAGE_VERSION_LAST(VAL) \
+    #ifdef MANUFACTURER
+    #  if MANUFACTURER && 0 != STORAGE_VERSION
+    #    error "Manufacturer firmware must have STORAGE_VERSION 0 for safety reasons"
+    #  endif
+    #else
+    #  define STORAGE_VERSION_LAST(VAL) \
         _Static_assert(VAL == STORAGE_VERSION, \
                        "need to update storage_versions.inc");
-    #include "storage_versions.inc"
+    #  include "storage_versions.inc"
+    #endif
 
     switch (version) {
     #define STORAGE_VERSION_ENTRY(VAL) \

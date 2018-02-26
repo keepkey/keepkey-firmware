@@ -26,6 +26,7 @@
 #include <libopencm3/stm32/flash.h>
 
 #include <sha2.h>
+#include <sha3.h>
 
 #include "keepkey_board.h"
 #include "memory.h"
@@ -157,3 +158,38 @@ bool find_active_storage(Allocation *storage_location)
 
     return(ret_stat);
 }
+
+#ifdef MANUFACTURER
+bool memory_flash_write(uint8_t *address, uint8_t *data, size_t data_len) {
+
+    flash_unlock();
+    flash_program((uint32_t)address, data, data_len);
+    flash_lock();
+
+    return flash_chk_status();
+}
+
+bool memory_flash_hash(uint8_t *address, size_t address_len,
+                       uint8_t *nonce, size_t nonce_len,
+                       uint8_t *hash, size_t hash_len) {
+
+    // Is address+len outside of flash?
+    if (address < (uint8_t*)FLASH_ORIGIN ||
+        (uint8_t*)FLASH_END < address + address_len)
+      return false;
+
+    // Is sha3_Final going to write off the end of hash?
+    if (hash_len < 32)
+      return false;
+
+    static struct SHA3_CTX ctx;
+    sha3_256_Init(&ctx);
+    if (nonce) {
+        sha3_Update(&ctx, nonce, nonce_len);
+    }
+    sha3_Update(&ctx, (void*)address, address_len);
+    sha3_Final(&ctx, hash);
+    return true;
+}
+#endif
+

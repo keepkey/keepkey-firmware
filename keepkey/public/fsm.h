@@ -34,8 +34,8 @@
 
 #define ENTROPY_BUF sizeof(((Entropy *)NULL)->entropy.bytes)
 
-#define BTC_ADDRESS_SIZE     	35
-#define RAW_TX_ACK_VARINT_COUNT	4
+#define BTC_ADDRESS_SIZE           35
+#define RAW_TX_ACK_VARINT_COUNT    4
 
 /* === Functions =========================================================== */
 
@@ -85,6 +85,11 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg);
 //void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
 void fsm_msgDebugLinkGetState(DebugLinkGetState *msg);
 void fsm_msgDebugLinkStop(DebugLinkStop *msg);
+#endif
+
+#ifdef MANUFACTURER
+void fsm_msgFlashWrite(FlashWrite *msg);
+void fsm_msgFlashHash(FlashHash *msg);
 #endif
 
 #endif

@@ -30,7 +30,11 @@
 
 /* === Defines ============================================================= */
 
-#define STORAGE_VERSION 5 /* Must add case fallthrough in storage_from_flash after increment*/
+#ifdef MANUFACTURER
+#  define STORAGE_VERSION 0
+#else
+#  define STORAGE_VERSION 5 /* Must add case fallthrough in storage_from_flash after increment*/
+#endif
 #define STORAGE_RETRIES 3
 
 /* === Functions =========================================================== */

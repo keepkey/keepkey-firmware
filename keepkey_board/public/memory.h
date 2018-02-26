@@ -209,4 +209,31 @@ int memory_firmware_hash(uint8_t *hash);
 int memory_storage_hash(uint8_t *hash, Allocation storage_location);
 bool find_active_storage(Allocation *storage_location);
 
+#ifdef MANUFACTURER
+/**
+ * \brief Writes a buffer to flash.
+ *
+ * \param address[in]   Where to write the data.
+ * \param data[in]      The data to write.
+ * \param data_len[in]  How much data to write.
+ */
+bool memory_flash_write(uint8_t *address, uint8_t *data, size_t data_len);
+
+/**
+ * \brief Hashes the data stored in the requested areas of flash.
+ *
+ * \param address[in]       The address to start the hash at.
+ * \param address_len[in]   The length of data to hash.
+ * \param challenge[in]     The challenge to hash with.
+ * \param challenge_len[in] The length of the challenge buffer in bytes.
+ * \param hash[out]         The contents of the hash.
+ * \param hash_len[in]      The number of bytes allowed to be written into hash.
+ *
+ * \returns false iff there was a problem calculating the has (e.g. permissions, etc)
+ */
+bool memory_flash_hash(uint8_t *address, size_t address_len,
+                       uint8_t *challenge, size_t challenge_len,
+                       uint8_t *hash, size_t hash_len);
+#endif // MANUFACTURER
+
 #endif

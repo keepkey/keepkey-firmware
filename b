@@ -28,6 +28,7 @@ def proc_args():
     parser.add_argument('-bb',  '--bump-bug-fix', help = 'Bump bug fix version.', action = 'store_true')
     parser.add_argument('-bt',  '--bump-test', help = 'Bump test version.', action = 'store_true')
     parser.add_argument('-salt',  '--salt-logo', help = 'Build with the salt logo', action = 'store_true')
+    parser.add_argument('-mfr', '--manufacturer', help = 'Build the maunfacturing firmware', action = 'store_true')
     parser.add_argument('-d',  '--debug', help = 'Build debug variant.', action = 'store_true')
     parser.add_argument('-v',  '--verbose', help = 'Build with verbose output.', action = 'store_true')
     args = parser.parse_args()
@@ -96,6 +97,8 @@ def main():
         buildargs += ' verbose=1'
     if args.salt_logo:
         buildargs += ' salt-logo=1'
+    if args.manufacturer:
+        buildargs += ' manufacturer=1'
 
     target ='arm-none-gnu-eabi'
     local('scons ' + 'target='+target + buildargs)

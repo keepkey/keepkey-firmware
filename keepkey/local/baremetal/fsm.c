@@ -106,6 +106,11 @@ static const MessagesMap_t MessagesMap[] =
     /* Normal Raw Messages */
     RAW_IN(MessageType_MessageType_RawTxAck,            RawTxAck_fields,            (void (*)(void *))fsm_msgRawTxAck)
 
+#ifdef MANUFACTURER
+    MSG_IN(MessageType_MessageType_FlashWrite,          FlashWrite_fields, (void (*)(void *))fsm_msgFlashWrite)
+    MSG_IN(MessageType_MessageType_FlashHash,           FlashHash_fields, (void (*)(void *))fsm_msgFlashHash)
+#endif
+
     /* Normal Out Messages */
     MSG_OUT(MessageType_MessageType_Success,            Success_fields,             NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_Failure,            Failure_fields,             NO_PROCESS_FUNC)
@@ -141,11 +146,16 @@ static const MessagesMap_t MessagesMap[] =
     DEBUG_OUT(MessageType_MessageType_DebugLinkState, DebugLinkState_fields,        NO_PROCESS_FUNC)
     DEBUG_OUT(MessageType_MessageType_DebugLinkLog, DebugLinkLog_fields,            NO_PROCESS_FUNC)
 #endif
+
+#ifdef MANUFACTURER
+    MSG_OUT(MessageType_MessageType_FlashHashResponse, FlashHashResponse_fields,    NO_PROCESS_FUNC)
+#endif
 };
 
 /* === Variables =========================================================== */
 
 extern bool reset_msg_stack;
+
 /* === Private Functions =================================================== */
 static const CoinType *fsm_getCoin(const char *name)
 {
@@ -421,6 +431,7 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     resp->bootloader_hash.size = memory_bootloader_hash(
                                      resp->bootloader_hash.bytes);
 
+#ifndef MANUFACTURER
     /* Settings for device */
     if(storage_get_language())
     {
@@ -433,13 +444,18 @@ void fsm_msgGetFeatures(GetFeatures *msg)
         resp->has_label = true;
         strlcpy(resp->label, storage_get_label(), sizeof(resp->label));
     }
+#else
+    resp->has_label = true;
+    strlcpy(resp->label, "manufacturing firmware", sizeof(resp->label));
+#endif
 
     /* Coin type support */
     resp->coins_count = COINS_COUNT;
     memcpy(resp->coins, coins, COINS_COUNT * sizeof(CoinType));
 
     /* Is device initialized? */
-    resp->has_initialized = true;  resp->initialized = storage_is_initialized();
+    resp->has_initialized = true;
+    resp->initialized = storage_is_initialized();
 
     /* Are private keys imported */
     resp->has_imported = true; resp->imported = storage_get_imported();
@@ -1648,3 +1664,56 @@ void fsm_msgDebugLinkStop(DebugLinkStop *msg)
 }
 
 #endif
+
+#ifdef MANUFACTURER
+void fsm_msgFlashWrite(FlashWrite *msg) {
+    if (!msg->has_address || !msg->has_data || msg->data.size > 1024) {
+        fsm_sendFailure(FailureType_Failure_Other, "Invalid FlashWrite parameters");
+        go_home();
+        return;
+    }
+
+    // Check BOUNDS
+    if (!memory_flash_write((uint8_t*)msg->address, msg->data.bytes, msg->data.size)) {
+        fsm_sendFailure(FailureType_Failure_Other, "Flash write failed");
+        go_home();
+        return;
+    }
+
+    RESP_INIT(FlashHashResponse);
+
+    if (!memory_flash_hash((uint8_t*)msg->address, msg->data.size, 0, 0,
+                           resp->data.bytes, sizeof(resp->data.bytes))) {
+        fsm_sendFailure(FailureType_Failure_Other, "FlashHash failed");
+        go_home();
+        return;
+    }
+
+    resp->has_data = true;
+    resp->data.size = sizeof(resp->data.bytes);
+    msg_write(MessageType_MessageType_FlashHashResponse, resp);
+}
+
+void fsm_msgFlashHash(FlashHash *msg) {
+    if (!msg->has_address || !msg->has_length || !msg->has_challenge) {
+        fsm_sendFailure(FailureType_Failure_Other, "Invalid FlashHash parameters");
+        go_home();
+        return;
+    }
+
+    RESP_INIT(FlashHashResponse);
+
+    if (!memory_flash_hash((uint8_t*)msg->address, msg->length,
+                           msg->challenge.bytes, msg->challenge.size,
+                           resp->data.bytes, sizeof(resp->data.bytes))) {
+        fsm_sendFailure(FailureType_Failure_Other, "FlashHash failed");
+        go_home();
+        return;
+    }
+
+    resp->has_data = true;
+    resp->data.size = sizeof(resp->data.bytes);
+    msg_write(MessageType_MessageType_FlashHashResponse, resp);
+}
+#endif
+
