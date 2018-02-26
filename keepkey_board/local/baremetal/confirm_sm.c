@@ -328,7 +328,10 @@ bool confirm(ButtonRequestType type, const char *request_title, const char *requ
     va_list vl;
     va_start(vl, request_body);
     char strbuf[BODY_CHAR_MAX];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+#pragma clang diagnostic pop
     va_end(vl);
 
     /* Send button request */
@@ -360,7 +363,10 @@ bool confirm_with_custom_button_request(ButtonRequest *button_request,
     va_list vl;
     va_start(vl, request_body);
     char strbuf[BODY_CHAR_MAX];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+#pragma clang diagnostic pop
     va_end(vl);
 
     /* Send button request */
@@ -389,7 +395,10 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
     va_list vl;
     va_start(vl, request_body);
     char strbuf[BODY_CHAR_MAX];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+#pragma clang diagnostic pop
     va_end(vl);
 
     /* Send button request */
@@ -419,7 +428,10 @@ bool confirm_without_button_request(const char *request_title, const char *reque
     va_list vl;
     va_start(vl, request_body);
     char strbuf[BODY_CHAR_MAX];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+#pragma clang diagnostic pop
     va_end(vl);
 
     return confirm_helper(request_title, strbuf, &layout_standard_notification);
@@ -444,7 +456,10 @@ bool review(ButtonRequestType type, const char *request_title, const char *reque
     va_list vl;
     va_start(vl, request_body);
     char strbuf[BODY_CHAR_MAX];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+#pragma clang diagnostic pop
     va_end(vl);
 
     /* Send button request */
@@ -476,7 +491,10 @@ bool review_without_button_request(const char *request_title, const char *reques
     va_list vl;
     va_start(vl, request_body);
     char strbuf[BODY_CHAR_MAX];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+#pragma clang diagnostic pop
     va_end(vl);
 
     confirm_helper(request_title, strbuf, &layout_standard_notification);

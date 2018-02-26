@@ -28,6 +28,9 @@
 
 /* === Private Variables =================================================== */
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-const-variable"
+
 static const Pin DATA_0_PIN    = { GPIOA, GPIO0 };
 static const Pin DATA_1_PIN    = { GPIOA, GPIO1 };
 static const Pin DATA_2_PIN    = { GPIOA, GPIO2 };
@@ -45,6 +48,8 @@ static const Pin nSEL_PIN      = { GPIOA, GPIO10 };
 static const Pin nRESET_PIN    = { GPIOB, GPIO5 };
 
 static const Pin BACKLIGHT_PWR_PIN = { GPIOB, GPIO0 };
+
+#pragma clang diagnostic pop
 
 static uint8_t canvas_buffer[ KEEPKEY_DISPLAY_HEIGHT * KEEPKEY_DISPLAY_WIDTH ];
 static Canvas canvas;
@@ -493,3 +498,4 @@ void display_set_brightness(int percentage)
     display_write_reg((uint8_t)0xC1);
     display_write_ram(reg_value);
 }
+

@@ -74,3 +74,4 @@ void usb_set_debug_rx_callback(usb_rx_callback_t callback);
 #endif
 
 #endif
+

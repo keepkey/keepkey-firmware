@@ -62,3 +62,4 @@ typedef struct
 void pin_init_output(const Pin *pin, OutputMode output_mode, PullMode pull_mode);
 
 #endif
+
