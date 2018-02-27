@@ -11,7 +11,9 @@ FIRMWARE_BUILD_DIR = os.getcwd()
 Build helper script to shortcut common build scenarions.
 """
 
-from fabric.api import local
+from subprocess import call
+def local(cmd):
+    call(cmd, shell=True)
 
 def proc_args():
     parser = argparse.ArgumentParser(description = 'Build helper front end tool.')

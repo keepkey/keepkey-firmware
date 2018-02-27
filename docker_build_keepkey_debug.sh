@@ -11,6 +11,6 @@ docker run -t \
 	make clean && \
     make && \
 	cd /root/keepkey-firmware && \
-	./b -d && \
+	./b -d -dl && \
 	mkdir -p bin/debug/keepkey && \
     mv build/arm-none-gnu-eabi/debug/bin/*.bin bin/debug/keepkey/"

@@ -330,11 +330,6 @@ def init_product():
                        exports = ['env', 'project_deps'],
                        duplicate=0)
 
-    #
-    # Add tags convenience target to build ctags file at product root.
-    #
-    phony_target('tags', 'ctags -R --c++-kinds=+p --fields=+iaS --extra=+qf ' + Dir('#').abspath)
-
     Clean('.', BUILD_DIR)
 
 #

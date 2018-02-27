@@ -101,7 +101,12 @@ to alternate function push-pull outputs where the PWM output will appear.
 #include <libopencm3/stm32/timer.h>
 #include <libopencm3/stm32/rcc.h>
 
-#define ADVANCED_TIMERS (defined(TIM1_BASE) || defined(TIM8_BASE))
+#if defined(TIM1_BASE) || defined(TIM8_BASE)
+#define ADVANCED_TIMERS 1
+#else
+#define ADVANCED_TIMERS 0
+#endif
+
 
 #if defined(TIM8)
 #define TIMER_IS_ADVANCED(periph) ((periph == TIM1) || (periph == TIM8))

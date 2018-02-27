@@ -62,8 +62,9 @@ WARNS=['-Wall',
        '-Wsign-compare',
        '-Wstrict-prototypes',
        '-Wundef',
-       '-Wuninitialized',
-       '-Werror']
+       '-Wuninitialized'
+       ]#'-Werror']
+        #TODO keepkeyjon, fix all these warning here
 
 def load_toolchain():
     env = DefaultEnvironment()
