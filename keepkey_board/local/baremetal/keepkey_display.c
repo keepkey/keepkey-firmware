@@ -28,15 +28,6 @@
 
 /* === Private Variables =================================================== */
 
-static const Pin DATA_0_PIN    = { GPIOA, GPIO0 };
-static const Pin DATA_1_PIN    = { GPIOA, GPIO1 };
-static const Pin DATA_2_PIN    = { GPIOA, GPIO2 };
-static const Pin DATA_3_PIN    = { GPIOA, GPIO3 };
-static const Pin DATA_4_PIN    = { GPIOA, GPIO4 };
-static const Pin DATA_5_PIN    = { GPIOA, GPIO5 };
-static const Pin DATA_6_PIN    = { GPIOA, GPIO6 };
-static const Pin DATA_7_PIN    = { GPIOA, GPIO7 };
-
 static const Pin nOE_PIN       = { GPIOA, GPIO8 };
 static const Pin nWE_PIN       = { GPIOA, GPIO9 };
 static const Pin nDC_PIN       = { GPIOB, GPIO1 };
