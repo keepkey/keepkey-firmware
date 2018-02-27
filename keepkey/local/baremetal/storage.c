@@ -644,7 +644,7 @@ const char *storage_get_language(void)
  * OUTPUT
  *     true/false whether PIN is correct
  */
-bool storage_is_pin_correct(const char const*pin)
+bool storage_is_pin_correct(const char *pin)
 {
     uint8_t pinIdx = 0;
     uint32_t sumXors = UINT32_MAX;
