@@ -463,6 +463,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 				state_pos = sizeof(uint32_t);
 				raw_tx_status = PARSING_VERSION;
 				ptr = (uint8_t *)&transaction_previous.version;
+				__attribute__((fallthrough));
 			case PARSING_VERSION:
 				*ptr++ = msg[i];
 
