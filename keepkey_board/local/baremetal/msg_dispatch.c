@@ -534,7 +534,7 @@ bool msg_write(MessageType msg_id, const void *msg)
 }
 
 /*
- * msg_write() - Transmit message over usb port to debug enpoint
+ * msg_debug_write() - Transmit message over usb port to debug enpoint
  *
  * INPUT
  *     - msg_id: protocol buffer message id
