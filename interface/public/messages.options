@@ -146,6 +146,7 @@ DebugLinkState.recovery_cipher      max_size:27
 DebugLinkState.recovery_auto_completed_word max_size:12
 DebugLinkState.firmware_hash    max_size:32
 DebugLinkState.storage_hash    max_size:32
+DebugLinkFlashDumpResponse.data max_size:1024
 
 DebugLinkLog.bucket			max_size:33
 DebugLinkLog.text			max_size:256

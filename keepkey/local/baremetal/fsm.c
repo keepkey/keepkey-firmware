@@ -141,10 +141,13 @@ static const MessagesMap_t MessagesMap[] =
     DEBUG_IN(MessageType_MessageType_DebugLinkDecision, DebugLinkDecision_fields,   NO_PROCESS_FUNC)
     DEBUG_IN(MessageType_MessageType_DebugLinkGetState, DebugLinkGetState_fields, (void (*)(void *))fsm_msgDebugLinkGetState)
     DEBUG_IN(MessageType_MessageType_DebugLinkStop,     DebugLinkStop_fields, (void (*)(void *))fsm_msgDebugLinkStop)
+    DEBUG_IN(MessageType_MessageType_DebugLinkFlashDump,         DebugLinkFlashDump_fields, (void (*)(void *))fsm_msgDebugLinkFlashDump)
 
     /* Debug Out Messages */
     DEBUG_OUT(MessageType_MessageType_DebugLinkState, DebugLinkState_fields,        NO_PROCESS_FUNC)
     DEBUG_OUT(MessageType_MessageType_DebugLinkLog, DebugLinkLog_fields,            NO_PROCESS_FUNC)
+
+    DEBUG_OUT(MessageType_MessageType_DebugLinkFlashDumpResponse, DebugLinkFlashDumpResponse_fields,    NO_PROCESS_FUNC)
 #endif
 
 #ifdef MANUFACTURER
@@ -1663,9 +1666,27 @@ void fsm_msgDebugLinkStop(DebugLinkStop *msg)
     (void)msg;
 }
 
+void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg) 
+{
+
+    if (!msg->has_length || msg->length > sizeof(((DebugLinkFlashDumpResponse *)0)->data.bytes)) {
+        fsm_sendFailure(FailureType_Failure_Other, "Invalid FlashDump parameters");
+        go_home();
+        return;
+    }
+
+    RESP_INIT(DebugLinkFlashDumpResponse);
+
+    memcpy(resp->data.bytes, (void*)msg->address, msg->length);
+    resp->has_data = true;
+    resp->data.size = msg->length;
+    msg_debug_write(MessageType_MessageType_DebugLinkFlashDumpResponse, resp);
+}
+
 #endif
 
 #ifdef MANUFACTURER
+
 void fsm_msgFlashWrite(FlashWrite *msg) {
     if (!msg->has_address || !msg->has_data || msg->data.size > 1024) {
         fsm_sendFailure(FailureType_Failure_Other, "Invalid FlashWrite parameters");
