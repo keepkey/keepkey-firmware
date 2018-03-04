@@ -654,7 +654,10 @@ void signing_txack(TransactionType *tx)
 			tx_prevout_hash(&hashers[0], txinput);
 			tx_sequence_hash(&hashers[1], txinput);
 			tx_prevout_hash(&hashers[2], txinput);
-			sha256_Update(&hashers[2], &txinput->script_type, sizeof(&txinput->script_type));
+			{
+				uint32_t script_type = txinput->script_type;
+				sha256_Update(&hashers[2], (const uint8_t*)&script_type, sizeof(script_type));
+			}
 
 			send_req_2_prev_meta();
 			return;
