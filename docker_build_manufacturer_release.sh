@@ -24,7 +24,7 @@ docker run -t \
     ./b -mp -mfr && \
     mkdir -p bin/release/salt && \
     mkdir -p bin/release/keepkey && \
-    cp build/arm-none-gnu-eabi/release/bin/*.bin bin/release/salt/ \
+    cp build/arm-none-gnu-eabi/release/bin/*.bin bin/release/salt/ && \
     mv build/arm-none-gnu-eabi/release/bin/*.bin bin/release/keepkey/ && \
     echo '*********************************************************************' && \
     echo '* KeepKey Application Fingerprint                                   *' && \

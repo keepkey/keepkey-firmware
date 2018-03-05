@@ -14,5 +14,5 @@ docker run -t \
     ./b -d -dl -mfr && \
     mkdir -p bin/debug/keepkey && \
     mkdir -p bin/debug/salt && \
-    cp build/arm-none-gnu-eabi/debug/bin/*.bin bin/debug/salt/ \
+    cp build/arm-none-gnu-eabi/debug/bin/*.bin bin/debug/salt/ && \
     mv build/arm-none-gnu-eabi/debug/bin/*.bin bin/debug/keepkey/"
