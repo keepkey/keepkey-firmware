@@ -141,12 +141,17 @@ static const MessagesMap_t MessagesMap[] =
     DEBUG_IN(MessageType_MessageType_DebugLinkDecision, DebugLinkDecision_fields,   NO_PROCESS_FUNC)
     DEBUG_IN(MessageType_MessageType_DebugLinkGetState, DebugLinkGetState_fields, (void (*)(void *))fsm_msgDebugLinkGetState)
     DEBUG_IN(MessageType_MessageType_DebugLinkStop,     DebugLinkStop_fields, (void (*)(void *))fsm_msgDebugLinkStop)
+#endif
+#if DEBUG_LINK || defined(MANUFACTURER)
     DEBUG_IN(MessageType_MessageType_DebugLinkFlashDump,         DebugLinkFlashDump_fields, (void (*)(void *))fsm_msgDebugLinkFlashDump)
+#endif
 
+#if DEBUG_LINK
     /* Debug Out Messages */
     DEBUG_OUT(MessageType_MessageType_DebugLinkState, DebugLinkState_fields,        NO_PROCESS_FUNC)
     DEBUG_OUT(MessageType_MessageType_DebugLinkLog, DebugLinkLog_fields,            NO_PROCESS_FUNC)
-
+#endif
+#if DEBUG_LINK || defined(MANUFACTURER)
     DEBUG_OUT(MessageType_MessageType_DebugLinkFlashDumpResponse, DebugLinkFlashDumpResponse_fields,    NO_PROCESS_FUNC)
 #endif
 
@@ -1665,7 +1670,9 @@ void fsm_msgDebugLinkStop(DebugLinkStop *msg)
 {
     (void)msg;
 }
+#endif
 
+#if DEBUG_LINK || defined(MANUFACTURER)
 void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg) 
 {
 
