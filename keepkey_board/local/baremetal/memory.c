@@ -160,12 +160,98 @@ bool find_active_storage(Allocation *storage_location)
 }
 
 #ifdef MANUFACTURER
-bool memory_flash_write(uint8_t *address, uint8_t *data, size_t data_len) {
+uint8_t sector_from_address(uint8_t *address) {
+    uint32_t addr = (uint32_t)address;
 
+    if (0x08000000 <= addr && addr <= 0x08003FFF) return  0;
+    if (0x08004000 <= addr && addr <= 0x08007FFF) return  1;
+    if (0x08008000 <= addr && addr <= 0x0800BFFF) return  2;
+    if (0x0800C000 <= addr && addr <= 0x0800FFFF) return  3;
+    if (0x08010000 <= addr && addr <= 0x0801FFFF) return  4;
+    if (0x08020000 <= addr && addr <= 0x0803FFFF) return  5;
+    if (0x08040000 <= addr && addr <= 0x0805FFFF) return  6;
+    if (0x08060000 <= addr && addr <= 0x0807FFFF) return  7;
+    if (0x08080000 <= addr && addr <= 0x0809FFFF) return  8;
+    if (0x080A0000 <= addr && addr <= 0x080BFFFF) return  9;
+    if (0x080C0000 <= addr && addr <= 0x080DFFFF) return 10;
+    if (0x080E0000 <= addr && addr <= 0x080FFFFF) return 11;
+
+#ifdef DEBUG_ON
+    __builtin_unreachable();
+#endif
+    return 0;
+}
+
+void *sector_start(uint8_t sector) {
+    switch (sector) {
+#ifdef DEBUG_ON
+    default: __builtin_unreachable();
+#else
+    default: return (void*)0x08000000;
+#endif
+    case  0: return (void*)0x08000000;
+    case  1: return (void*)0x08004000;
+    case  2: return (void*)0x08008000;
+    case  3: return (void*)0x0800C000;
+    case  4: return (void*)0x08010000;
+    case  5: return (void*)0x08020000;
+    case  6: return (void*)0x08040000;
+    case  7: return (void*)0x08060000;
+    case  8: return (void*)0x08080000;
+    case  9: return (void*)0x080A0000;
+    case 10: return (void*)0x080C0000;
+    case 11: return (void*)0x080E0000;
+    }
+}
+
+uint32_t sector_length(uint8_t sector) {
+    switch (sector) {
+#ifdef DEBUG_ON
+    default: __builtin_unreachable();
+#else
+    default: return     0x0;
+#endif
+    case  0: return  0x4000;
+    case  1: return  0x4000;
+    case  2: return  0x4000;
+    case  3: return  0x4000;
+    case  4: return 0x10000;
+    case  5: return 0x20000;
+    case  6: return 0x20000;
+    case  7: return 0x20000;
+    case  8: return 0x20000;
+    case  9: return 0x20000;
+    case 10: return 0x20000;
+    case 11: return 0x20000;
+    }
+}
+
+bool memory_flash_write(uint8_t *address, uint8_t *data, size_t data_len,
+                        bool erase)
+{
+    uint8_t sector = sector_from_address(address);
+
+    // Don't allow writing over sector boundaries
+    if (sector_length(sector) < (uint8_t*)address -
+                                (uint8_t*)sector_start(sector) +
+                                data_len)
+        return false;
+
+    // Allow writing to flash
     flash_unlock();
+
+    if (erase) {
+        // Erase the whole sector
+        flash_erase_sector(sector_from_address(address), 0 /* 8-bit writes */);
+    }
+
+    // Write into the sector
     flash_program((uint32_t)address, data, data_len);
+
+    // Disallow writing to flash
     flash_lock();
 
+    // Check for any errors
     return flash_chk_status();
 }
 

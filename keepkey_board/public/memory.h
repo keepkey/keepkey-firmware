@@ -210,14 +210,22 @@ int memory_storage_hash(uint8_t *hash, Allocation storage_location);
 bool find_active_storage(Allocation *storage_location);
 
 #ifdef MANUFACTURER
+uint8_t sector_from_address(uint8_t *address);
+
+uint32_t sector_length(uint8_t sector);
+
+void *sector_start(uint8_t sector);
+
 /**
  * \brief Writes a buffer to flash.
  *
  * \param address[in]   Where to write the data.
  * \param data[in]      The data to write.
  * \param data_len[in]  How much data to write.
+ * \param erase[in]     Whether the clear the sector first.
  */
-bool memory_flash_write(uint8_t *address, uint8_t *data, size_t data_len);
+bool memory_flash_write(uint8_t *address, uint8_t *data, size_t data_len,
+                        bool erase);
 
 /**
  * \brief Hashes the data stored in the requested areas of flash.

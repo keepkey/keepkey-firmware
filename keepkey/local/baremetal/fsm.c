@@ -1682,21 +1682,29 @@ void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg)
     resp->data.size = msg->length;
     msg_debug_write(MessageType_MessageType_DebugLinkFlashDumpResponse, resp);
 }
-
 #endif
 
 #ifdef MANUFACTURER
-
 void fsm_msgFlashWrite(FlashWrite *msg) {
     if (!msg->has_address || !msg->has_data || msg->data.size > 1024) {
-        fsm_sendFailure(FailureType_Failure_Other, "Invalid FlashWrite parameters");
+        fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: invalid parameters");
+        go_home();
+        return;
+    }
+
+    uint8_t sector = sector_from_address((uint8_t*)msg->address);
+    if (sector_length(sector) < (uint8_t*)msg->address -
+                                (uint8_t*)sector_start(sector) +
+                                msg->data.size) {
+        fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: write must not span more than one sector");
         go_home();
         return;
     }
 
     // Check BOUNDS
-    if (!memory_flash_write((uint8_t*)msg->address, msg->data.bytes, msg->data.size)) {
-        fsm_sendFailure(FailureType_Failure_Other, "Flash write failed");
+    if (!memory_flash_write((uint8_t*)msg->address, msg->data.bytes, msg->data.size,
+                            msg->has_erase ? msg->erase : true)) {
+        fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: write failed");
         go_home();
         return;
     }
@@ -1705,7 +1713,7 @@ void fsm_msgFlashWrite(FlashWrite *msg) {
 
     if (!memory_flash_hash((uint8_t*)msg->address, msg->data.size, 0, 0,
                            resp->data.bytes, sizeof(resp->data.bytes))) {
-        fsm_sendFailure(FailureType_Failure_Other, "FlashHash failed");
+        fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: FlashHash failed");
         go_home();
         return;
     }
@@ -1717,7 +1725,7 @@ void fsm_msgFlashWrite(FlashWrite *msg) {
 
 void fsm_msgFlashHash(FlashHash *msg) {
     if (!msg->has_address || !msg->has_length || !msg->has_challenge) {
-        fsm_sendFailure(FailureType_Failure_Other, "Invalid FlashHash parameters");
+        fsm_sendFailure(FailureType_Failure_Other, "FlashHash: invalid parameters");
         go_home();
         return;
     }
@@ -1727,7 +1735,7 @@ void fsm_msgFlashHash(FlashHash *msg) {
     if (!memory_flash_hash((uint8_t*)msg->address, msg->length,
                            msg->challenge.bytes, msg->challenge.size,
                            resp->data.bytes, sizeof(resp->data.bytes))) {
-        fsm_sendFailure(FailureType_Failure_Other, "FlashHash failed");
+        fsm_sendFailure(FailureType_Failure_Other, "FlashHash: failed");
         go_home();
         return;
     }
