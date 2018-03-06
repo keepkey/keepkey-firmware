@@ -1716,6 +1716,12 @@ void fsm_msgFlashWrite(FlashWrite *msg) {
         return;
     }
 
+    if (memcmp((void*)msg->address, (void*)msg->data.bytes, msg->data.size) != 0) {
+        fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: write / read-back mismatch");
+        go_home();
+        return;
+    }
+
     RESP_INIT(FlashHashResponse);
 
     if (!memory_flash_hash((uint8_t*)msg->address, msg->data.size, 0, 0,
