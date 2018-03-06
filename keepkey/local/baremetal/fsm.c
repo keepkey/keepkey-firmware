@@ -1710,7 +1710,7 @@ void fsm_msgFlashWrite(FlashWrite *msg) {
 
     // Check BOUNDS
     if (!memory_flash_write((uint8_t*)msg->address, msg->data.bytes, msg->data.size,
-                            msg->has_erase ? msg->erase : true)) {
+                            msg->has_erase ? msg->erase : false)) {
         fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: write failed");
         go_home();
         return;
