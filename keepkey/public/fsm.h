@@ -91,6 +91,7 @@ void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg);
 #ifdef MANUFACTURER
 void fsm_msgFlashWrite(FlashWrite *msg);
 void fsm_msgFlashHash(FlashHash *msg);
+void fsm_msgSoftReset(SoftReset *msg);
 #endif
 
 #endif

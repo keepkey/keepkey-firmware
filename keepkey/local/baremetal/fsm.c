@@ -59,6 +59,10 @@
 #include "ethereum.h"
 #include "exchange.h"
 
+#ifdef MANUFACTURER
+#  include <libopencm3/cm3/scb.h>
+#endif
+
 /* === Private Variables =================================================== */
 
 static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
@@ -109,6 +113,7 @@ static const MessagesMap_t MessagesMap[] =
 #ifdef MANUFACTURER
     MSG_IN(MessageType_MessageType_FlashWrite,          FlashWrite_fields, (void (*)(void *))fsm_msgFlashWrite)
     MSG_IN(MessageType_MessageType_FlashHash,           FlashHash_fields, (void (*)(void *))fsm_msgFlashHash)
+    MSG_IN(MessageType_MessageType_SoftReset,           SoftReset_fields, (void (*)(void *))fsm_msgSoftReset)
 #endif
 
     /* Normal Out Messages */
@@ -1692,6 +1697,11 @@ void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg)
 #endif
 
 #ifdef MANUFACTURER
+void fsm_msgSoftReset(SoftReset *msg) {
+    (void)msg;
+    scb_reset_system();
+}
+
 void fsm_msgFlashWrite(FlashWrite *msg) {
     if (!msg->has_address || !msg->has_data || msg->data.size > 1024) {
         fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: invalid parameters");
