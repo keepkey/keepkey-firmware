@@ -226,27 +226,49 @@ uint32_t sector_length(uint8_t sector) {
     }
 }
 
-bool memory_flash_write(uint8_t *address, uint8_t *data, size_t data_len,
-                        bool erase)
+bool memory_flash_write(uint8_t *dst, uint8_t *src, size_t src_len, bool erase)
 {
-    uint8_t sector = sector_from_address(address);
+    uint8_t sector = sector_from_address(dst);
 
     // Don't allow writing over sector boundaries
-    if (sector_length(sector) < (uint8_t*)address -
+    if (sector_length(sector) < (uint8_t*)dst -
                                 (uint8_t*)sector_start(sector) +
-                                data_len)
+                                src_len)
         return false;
+
+    uint8_t *dst_s = dst;
+    uint8_t *dst_e = dst + src_len;
+    const uint8_t *fw_s = (const uint8_t *)FLASH_APP_START;
+    const uint8_t *fw_e = fw_s + *((const uint32_t*)FLASH_META_CODELEN);
+
+    // In order to prevent us from accidentally overwriting the
+    // currently-executing code, check that:
+
+    // 1) The write doesn't overlap the beginning of the application data.
+    if (dst_s <= fw_s && fw_s <= dst_e)
+      return false;
+
+    // 2) The write isn't fully contained within the application data.
+    if (fw_s <= dst_s && dst_e <= fw_e)
+
+    // 3) The write doesn't overlap the end of the application data.
+    if (dst_s <= fw_e && fw_e <= dst_e)
+      return false;
+
+    // 4) The write doesn't fully contain the application data.
+    if (dst_s <= fw_s && fw_e <= dst_e)
+      return false;
 
     // Allow writing to flash
     flash_unlock();
 
     if (erase) {
         // Erase the whole sector
-        flash_erase_sector(sector_from_address(address), 0 /* 8-bit writes */);
+        flash_erase_sector(sector_from_address(dst), 0 /* 8-bit writes */);
     }
 
     // Write into the sector
-    flash_program((uint32_t)address, data, data_len);
+    flash_program((uint32_t)dst, src, src_len);
 
     // Disallow writing to flash
     flash_lock();
