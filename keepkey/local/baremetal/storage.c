@@ -297,6 +297,27 @@ storage_get_root_seed_cache_exit:
  */
 void storage_init(void)
 {
+#ifdef MANUFACTURER
+    {
+        // Storage should have been wiped due to the MANUFACTURER firmware
+        // having a STORAGE_VERSION of 0, but to be absolutely safe and
+        // guarante that secrets cannot leave the device via FlashHash/FlashDump,
+        // we wipe them here.
+
+        ConfigFlash *stor_1 = (ConfigFlash*)flash_write_helper(FLASH_STORAGE1);
+        if (memcmp((void *)stor_1->meta.magic, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0)
+            flash_erase_word(FLASH_STORAGE1);
+
+        ConfigFlash *stor_2 = (ConfigFlash*)flash_write_helper(FLASH_STORAGE2);
+        if (memcmp((void *)stor_2->meta.magic, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0)
+            flash_erase_word(FLASH_STORAGE2);
+
+        ConfigFlash *stor_3 = (ConfigFlash*)flash_write_helper(FLASH_STORAGE3);
+        if (memcmp((void *)stor_3->meta.magic, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0)
+            flash_erase_word(FLASH_STORAGE3);
+    }
+#endif
+
     ConfigFlash *stor_config;
 
     /* Find storage sector with valid data and set storage_location variable */
