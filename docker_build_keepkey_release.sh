@@ -10,7 +10,7 @@ echo    # (optional) move to a new line
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
 
-IMAGETAG=kktech/firmware:v3-beta
+IMAGETAG=kktech/firmware:v3
 
 docker pull $IMAGETAG
 
