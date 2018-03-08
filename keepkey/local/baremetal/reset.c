@@ -35,13 +35,14 @@
 #include "rand.h"
 #include "pin_sm.h"
 #include "home_sm.h"
+#include "macros.h"
 
 /* === Private Variables =================================================== */
 
 static uint32_t strength;
-static uint8_t int_entropy[32];
+static uint8_t CONFIDENTIAL int_entropy[32];
 static bool awaiting_entropy = false;
-static char current_words[MNEMONIC_BY_SCREEN_BUF];
+static char CONFIDENTIAL current_words[MNEMONIC_BY_SCREEN_BUF];
 
 /* === Functions =========================================================== */
 
@@ -60,7 +61,7 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 
     random_buffer(int_entropy, 32);
 
-    char ent_str[4][17];
+    static char CONFIDENTIAL ent_str[4][17];
     data2hex(int_entropy     , 8, ent_str[0]);
     data2hex(int_entropy +  8, 8, ent_str[1]);
     data2hex(int_entropy + 16, 8, ent_str[2]);
@@ -79,6 +80,7 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 
     if(pin_protection && !change_pin())
     {
+        MEMSET_BZERO(ent_str, sizeof(ent_str));
         go_home();
         return;
     }
@@ -91,6 +93,8 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
     memset(&resp, 0, sizeof(EntropyRequest));
     msg_write(MessageType_MessageType_EntropyRequest, &resp);
     awaiting_entropy = true;
+
+    MEMSET_BZERO(ent_str, sizeof(ent_str));
 }
 
 void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
@@ -109,23 +113,22 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 
     const char *temp_mnemonic = mnemonic_from_data(int_entropy, strength / 8);
 
-    memset(int_entropy, 0, 32);
+    MEMSET_BZERO(int_entropy, sizeof(int_entropy));
     awaiting_entropy = false;
 
     /*
      * Format mnemonic for user review
      */
     uint32_t word_count = 0, page_count = 0;
-    char *tok;
-    char tokened_mnemonic[TOKENED_MNEMONIC_BUF];
-    char mnemonic_by_screen[MAX_PAGES][MNEMONIC_BY_SCREEN_BUF];
-    char formatted_mnemonic[MAX_PAGES][FORMATTED_MNEMONIC_BUF];
-    char mnemonic_display[FORMATTED_MNEMONIC_BUF];
-    char formatted_word[MAX_WORD_LEN + ADDITIONAL_WORD_PAD];
+    static char CONFIDENTIAL tokened_mnemonic[TOKENED_MNEMONIC_BUF];
+    static char CONFIDENTIAL mnemonic_by_screen[MAX_PAGES][MNEMONIC_BY_SCREEN_BUF];
+    static char CONFIDENTIAL formatted_mnemonic[MAX_PAGES][FORMATTED_MNEMONIC_BUF];
+    static char CONFIDENTIAL mnemonic_display[FORMATTED_MNEMONIC_BUF];
+    static char CONFIDENTIAL formatted_word[MAX_WORD_LEN + ADDITIONAL_WORD_PAD];
 
     strlcpy(tokened_mnemonic, temp_mnemonic, TOKENED_MNEMONIC_BUF);
 
-    tok = strtok(tokened_mnemonic, " ");
+    char *tok = strtok(tokened_mnemonic, " ");
 
     while(tok)
     {
@@ -143,8 +146,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
             if (MAX_PAGES <= page_count) {
                 fsm_sendFailure(FailureType_Failure_Other, "Too many pages of mnemonic words");
                 storage_reset();
-                go_home();
-                return;
+                goto exit;
             }
 
             snprintf(mnemonic_display, FORMATTED_MNEMONIC_BUF, "%s   %s",
@@ -191,8 +193,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Reset cancelled");
             storage_reset();
-            go_home();
-            return;
+            goto exit;
         }
     }
 
@@ -201,6 +202,14 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
     storage_commit();
 
     fsm_sendSuccess("Device reset");
+
+exit:
+    MEMSET_BZERO(&ctx, sizeof(ctx));
+    MEMSET_BZERO(tokened_mnemonic, sizeof(tokened_mnemonic));
+    MEMSET_BZERO(mnemonic_by_screen, sizeof(mnemonic_by_screen));
+    MEMSET_BZERO(formatted_mnemonic, sizeof(formatted_mnemonic));
+    MEMSET_BZERO(mnemonic_display, sizeof(mnemonic_display));
+    MEMSET_BZERO(formatted_word, sizeof(formatted_word));
     go_home();
 }
 
