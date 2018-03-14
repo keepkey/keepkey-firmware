@@ -69,6 +69,7 @@ const CoinType coins[COINS_COUNT] = {
     {true, "Axe",          true, "AXE",   true,  55,    true,     100000,  true,  16,  true, "\x19" "DarkCoin Signed Message:\n",      true, 0x80001092,   false,   0,     true,   8,  false, {0, {0}},  true, 50221772,  true, false,  true, false,  true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false,        0,        false,       0 },
     {true, "Bitcore",      true, "BTX",   true,   3,    true,     100000,  true,  125, true, "\x18" "BitCore Signed Message:\n",       true, 0x800000a0,   false,   0,     true,   8,  false, {0, {0}},  true, 76067358,  true, true,   true, false,  true, SECP256K1_STRING,  false, "",            true, "btx",   false, false,  true,  77429938,        true, 78792518 },
     {true, "Fujicoin",     true, "FJC",   true,  36,    true,   10000000,  true,  16,  true, "\x19" "FujiCoin Signed Message:\n",      true, 0x8000004b,   false,   0,     true,   8,  false, {0, {0}},  true, 76067358,  true, true,   true, false,  true, SECP256K1_STRING,  false, "",            true, "fc",    false, false,  true,  77429938,        true, 78792518 },
+    {true, "Denarius",     true, "DNR",   true,  30,    true,     100000,  true,  90,  true, "\x19" "Denarius Signed Message:\n",      true, 0x80000074,   false,   0,     true,   8,  false, {0, {0}},  true, 76067358,  true, false,  true, false,  true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false,        0,        false,       0 },
     #include "keepkey/firmware/tokens.def"
 };
 
