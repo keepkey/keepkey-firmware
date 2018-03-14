@@ -34,6 +34,7 @@ const CoinType coins[COINS_COUNT] = {
     {true, "Namecoin",    true, "NMC",  true,  52, true,   10000000, true,   5, false, 0, false, 0, true, "\x19" "Namecoin Signed Message:\n", true, 0x80000007, false, 0},
     {true, "Litecoin",    true, "LTC",  true,  48, true,    1000000, true,   5, false, 0, false, 0, true, "\x19" "Litecoin Signed Message:\n", true, 0x80000002, false, 0},
     {true, "Dogecoin",    true, "DOGE", true,  30, true, 1000000000, true,  22, false, 0, false, 0, true, "\x19" "Dogecoin Signed Message:\n", true, 0x80000003, false, 0},
+    {true, "Denarius",    true, "DNR",  true,  30, true,     100000, true,  90, false, 0, false, 0, true, "\x19" "Denarius Signed Message:\n", true, 0x80000116, false, 0},
     {true, "Dash",        true, "DASH", true,  76, true,     100000, true,  16, false, 0, false, 0, true, "\x19" "DarkCoin Signed Message:\n", true, 0x80000005, false, 0},
     {true, ETHEREUM,      true, "ETH",  true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n", true, 0x8000003c, false, 0},
     {true, ETHEREUM_CLS,  true, "ETC",  true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n", true, 0x8000003d, false, 0}
