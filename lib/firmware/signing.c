@@ -23,6 +23,7 @@
 #include "keepkey/board/layout.h"
 #include "keepkey/board/msg_dispatch.h"
 #include "keepkey/crypto/ecdsa.h"
+#include "keepkey/crypto/macros.h"
 #include "keepkey/crypto/secp256k1.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/coins.h"
@@ -36,12 +37,6 @@
 #include "keepkey/firmware/transaction.h"
 
 #include "types.pb.h"
-
-#ifndef __clang__
-#  define FALLTHROUGH __attribute__((fallthrough))
-#else
-#  define FALLTHROUGH do {} while(0)
-#endif
 
 /* === Private Variables =================================================== */
 
