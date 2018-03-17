@@ -19,7 +19,11 @@ set(sources
     transaction.c
     util.c)
 
-include_directories(${CMAKE_BINARY_DIR}/include)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/scm_revision.h.in"
+               "${CMAKE_CURRENT_BINARY_DIR}/scm_revision.h" @ONLY)
+
+include_directories(${CMAKE_BINARY_DIR}/include
+                     ${CMAKE_CURRENT_BINARY_DIR})
 
 add_library(kkfirmware ${sources})
 add_dependencies(kkfirmware kktransport.pb)

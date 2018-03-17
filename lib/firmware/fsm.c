@@ -19,6 +19,7 @@
 
 /* === Includes ============================================================ */
 
+#include "scm_revision.h"
 #include "whitelabel.h"
 
 #include "keepkey/board/confirm_sm.h"

@@ -19,7 +19,9 @@ set(PROTOC_BINARY protoc CACHE PATH "Path to the protobuf compiler binary")
 set(NANOPB_DIR /root/nanopb CACHE PATH "Path to the nanopb build")
 set(DEVICE_PROTOCOL ${CMAKE_SOURCE_DIR}/deps/device-protocol CACHE PATH "Path to device-protocol")
 
-include(ExternalProject)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules/")
+include(GetGitRevisionDescription)
+get_git_head_revision(GIT_REFSPEC GIT_SHA1)
 
 if(${KK_EMULATOR})
   add_definitions(-DEMULATOR)
