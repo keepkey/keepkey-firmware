@@ -33,7 +33,7 @@ typedef struct _HDNode HDNode;
 void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_confirm);
 void ethereum_signing_abort(void);
 void ethereum_signing_txack(EthereumTxAck *msg);
-void format_ethereum_address(const char *to, char *destination_str,
+void format_ethereum_address(const uint8_t *to, char *destination_str,
                              uint32_t destination_str_len);
 bool is_token_transaction(EthereumSignTx *msg);
 
@@ -50,5 +50,5 @@ uint32_t ethereum_get_decimal(const char *token_shortcut);
  *  \param[in]  addr    The hex string eth address to format.
  *  \param[out] address The formatted eth address.
  */
-void ethereum_address_checksum(const char *addr, char address[41]);
+void ethereum_address_checksum(const uint8_t *addr, char address[41]);
 #endif

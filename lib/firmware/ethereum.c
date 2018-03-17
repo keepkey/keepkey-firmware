@@ -952,12 +952,12 @@ void ethereum_signing_abort(void)
     }
 }
 
-void ethereum_address_checksum(const char *addr, char address[41])
+void ethereum_address_checksum(const uint8_t *addr, char address[41])
 {
     const char * const hex = "0123456789abcdef";
     for (int i = 0; i < 20; i++) {
-        address[i * 2]     = hex[(((unsigned char)addr[i]) >> 4) & 0xF];
-        address[i * 2 + 1] = hex[((unsigned char)addr[i]) & 0xF];
+        address[i * 2]     = hex[(addr[i] >> 4) & 0xF];
+        address[i * 2 + 1] = hex[(addr[i]) & 0xF];
     }
     address[40] = 0;
     SHA3_CTX ctx;
@@ -975,7 +975,7 @@ void ethereum_address_checksum(const char *addr, char address[41])
     }
 }
 
-void format_ethereum_address(const char *to, char *destination_str,
+void format_ethereum_address(const uint8_t *to, char *destination_str,
                              uint32_t destination_str_len){
     char formatted_destination[sizeof(((EthereumAddress *)NULL)->address.bytes) * 2 + 3] = {'0', 'x'},
             hex[41];
