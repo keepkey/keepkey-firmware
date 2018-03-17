@@ -19,6 +19,8 @@
 
 /* === Includes ============================================================ */
 
+#include "whitelabel.h"
+
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
