@@ -27,7 +27,6 @@ set(ARCH_FLAGS
 
 set(WARN_FLAGS
     "-Wall \
-    -Wno-sequence-point \
     -Wextra \
     -Wformat \
     -Wformat-nonliteral \
