@@ -13,4 +13,5 @@ docker run -t \
         -DKK_DEBUG_LINK=ON && \
       make && \
       mkdir -p /root/keepkey-firmware/bin && \
-      cp bin/*.bin /root/keepkey-firmware/bin/"
+      cp bin/*.bin /root/keepkey-firmware/bin/ && \
+      cp bin/*.elf /root/keepkey-firmware/bin/"

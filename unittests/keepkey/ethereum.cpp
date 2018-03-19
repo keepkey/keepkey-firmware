@@ -1,5 +1,5 @@
 extern "C" {
-#include "keepkey/keepkey/ethereum.h"
+#include "keepkey/firmware/ethereum.h"
 }
 
 #include "gtest/gtest.h"
@@ -20,7 +20,7 @@ static uint8_t bin_from_ascii(char c) {
 }
 
 static void test_checksum(const std::string &addr) {
-  char addr_bin[20];
+  uint8_t addr_bin[20];
   for (size_t i = 0; i < addr.size(); i+=2) {
       addr_bin[i/2] = bin_from_ascii(addr[i+1]) |
                       bin_from_ascii(addr[i  ]) << 4;
