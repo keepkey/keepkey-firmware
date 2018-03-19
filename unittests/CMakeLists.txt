@@ -1,1 +1,1 @@
-add_subdirectory(keepkey)
+add_subdirectory(firmware)

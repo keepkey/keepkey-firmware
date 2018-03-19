@@ -107,5 +107,5 @@ if(${KK_EMULATOR})
   add_subdirectory(unittests)
 
   enable_testing()
-  add_test(test-keepkey ${CMAKE_BINARY_DIR}/bin/keepkey_unittests)
+  add_test(test-firmware ${CMAKE_BINARY_DIR}/bin/firmware-unit)
 endif()
