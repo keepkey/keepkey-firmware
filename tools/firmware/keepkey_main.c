@@ -20,6 +20,8 @@
 /* === Includes ============================================================ */
 
 #ifndef EMULATOR
+#  include <inttypes.h>
+#  include <stdbool.h>
 #  include <libopencm3/cm3/cortex.h>
 #endif
 

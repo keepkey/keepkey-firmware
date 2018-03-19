@@ -21,6 +21,9 @@
 
 
 #if !defined(EMULATOR)
+// FIXME: cortex.h should really have these includes inside it.
+#  include <inttypes.h>
+#  include <stdbool.h>
 #  include <libopencm3/cm3/cortex.h>
 #endif
 

@@ -255,7 +255,7 @@ usb_rx_callback_t user_debug_rx_callback = NULL;
 
 /* === Private Functions =================================================== */
 
-static enum usbd_request_return_codes hid_control_request(usbd_device *dev, struct usb_setup_data *req, uint8_t **buf, uint16_t *len,
+static int hid_control_request(usbd_device *dev, struct usb_setup_data *req, uint8_t **buf, uint16_t *len,
 			void (**complete)(usbd_device *, struct usb_setup_data *))
 {
 	(void)complete;
@@ -264,12 +264,12 @@ static enum usbd_request_return_codes hid_control_request(usbd_device *dev, stru
 	if ((req->bmRequestType != ENDPOINT_ADDRESS_IN) ||
 	    (req->bRequest != USB_REQ_GET_DESCRIPTOR) ||
 	    (req->wValue != 0x2200))
-		return USBD_REQ_NOTSUPP;
+		return 0;
 
 	/* Handle the HID report descriptor. */
 	*buf = (uint8_t *)hid_report_descriptor;
 	*len = sizeof(hid_report_descriptor);
-	return USBD_REQ_HANDLED;
+	return 1;
 }
 
 /*
