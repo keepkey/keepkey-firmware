@@ -20,9 +20,20 @@ if(NOT ${KK_EMULATOR})
       -lc
       -lm)
 
-  add_executable(firmware.keepkey.bin ${sources})
-  target_link_libraries(firmware.keepkey.bin ${LINK_FLAGS} kkfirmware.keepkey kkboard.keepkey)
+  add_executable(firmware.keepkey.elf ${sources})
+  target_link_libraries(firmware.keepkey.elf ${LINK_FLAGS} kkfirmware.keepkey kkboard.keepkey)
+  add_custom_command(TARGET firmware.keepkey.elf
+      POST_BUILD
+      COMMAND ${CMAKE_OBJCOPY} ARGS -O binary
+          ${CMAKE_BINARY_DIR}/bin/firmware.keepkey.elf
+          ${CMAKE_BINARY_DIR}/bin/firmware.keepkey.bin)
 
-  add_executable(firmware.salt.bin ${sources})
-  target_link_libraries(firmware.salt.bin ${LINK_FLAGS} kkfirmware.salt kkboard.salt)
+  add_executable(firmware.salt.elf ${sources})
+  target_link_libraries(firmware.salt.elf ${LINK_FLAGS} kkfirmware.salt kkboard.salt)
+  add_custom_command(TARGET firmware.salt.elf
+      POST_BUILD
+      COMMAND ${CMAKE_OBJCOPY} ARGS -O binary
+          ${CMAKE_BINARY_DIR}/bin/firmware.salt.elf
+          ${CMAKE_BINARY_DIR}/bin/firmware.salt.bin)
+
 endif()
