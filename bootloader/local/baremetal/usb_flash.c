@@ -223,7 +223,7 @@ bool usb_flash_firmware(void)
             case RAW_MESSAGE_COMPLETE:
             {
                 /* Verify the image is from KeepKey */
-                if((SIG_FLAG == 1) && (signatures_ok() == 1))
+                if((SIG_FLAG == 1) && (signatures_ok() == SIG_OK))
                 {
                     /* The image is from KeepKey.  Restore storage data */
                     if(!storage_restore())

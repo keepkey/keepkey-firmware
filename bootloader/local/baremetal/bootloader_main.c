@@ -187,18 +187,22 @@ static bool boot(void)
     {
         layout_home();
 
-        if(signatures_ok() == 0) /* Signature check failed */
+        if(signatures_ok() != SIG_OK) /* Signature check failed */
         {
             delay_ms(500);
 
+#if !MEMORY_PROTECT
             if(!confirm_without_button_request("Unofficial Firmware",
                                                "Do you want to continue booting?"))
             {
+#endif
                 layout_simple_message("Boot Aborted");
                 goto cancel_boot;
+#if !MEMORY_PROTECT
             }
 
             layout_home();
+#endif
         }
 
         led_func(CLR_RED_LED);

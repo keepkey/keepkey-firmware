@@ -117,21 +117,21 @@ int signatures_ok(void)
     if(ecdsa_verify_digest(&secp256k1, pubkey[sigindex1 - 1], (uint8_t *)FLASH_META_SIG1,
                            firmware_fingerprint) != 0)   /* Failure */
     {
-        return 0;
+        return SIG_FAIL;
     }
 
     if(ecdsa_verify_digest(&secp256k1, pubkey[sigindex2 - 1], (uint8_t *)FLASH_META_SIG2,
                            firmware_fingerprint) != 0)   /* Failure */
     {
-        return 0;
+        return SIG_FAIL;
     }
 
     if(ecdsa_verify_digest(&secp256k1, pubkey[sigindex3 - 1], (uint8_t *)FLASH_META_SIG3,
                            firmware_fingerprint) != 0)   /* Failure */
     {
-        return 0;
+        return SIG_FAIL;
     }
 
 #endif
-    return 1;
+    return SIG_OK;
 }

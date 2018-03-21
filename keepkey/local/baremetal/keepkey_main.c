@@ -36,6 +36,7 @@
 #include "storage.h"
 #include "fsm.h"
 #include "app_layout.h"
+#include "check_bootloader.h"
 
 /* === Defines ============================================================= */
 #define APP_VERSIONS "VERSION" \
@@ -96,6 +97,9 @@ int main(void)
 {
     /* Init board */
     board_init();
+
+    /* Bootloader hotpatching */
+    check_bootloader();
 
     /* Init for safeguard against stack overflow (-fstack-protector-all) */
     __stack_chk_guard = (uintptr_t)random32();

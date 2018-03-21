@@ -56,6 +56,16 @@ void memory_protect(void)
 }
 
 /*
+ * Enable writing. This exercises a bug in the STM32F2 that allows writing to
+ * read-only sectors of flash.
+ */
+void memory_unlock(void) {
+    flash_unlock_option_bytes();
+    flash_program_option_bytes(0x0FFF0001);
+    flash_lock_option_bytes();
+}
+
+/*
  * memory_bootloader_hash() - SHA256 hash of bootloader
  *
  * INPUT
@@ -157,3 +167,4 @@ bool find_active_storage(Allocation *storage_location)
 
     return(ret_stat);
 }
+
