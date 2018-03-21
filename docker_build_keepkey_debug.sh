@@ -13,4 +13,7 @@ docker run -t \
 	cd /root/keepkey-firmware && \
 	./b -d && \
 	mkdir -p bin/debug/keepkey && \
-    mv build/arm-none-gnu-eabi/debug/bin/*.bin bin/debug/keepkey/"
+    mv build/arm-none-gnu-eabi/debug/bin/*.bin bin/debug/keepkey/ &&
+    mv build/arm-none-gnu-eabi/debug/bin/*.map bin/debug/keepkey/ &&
+    mv build/arm-none-gnu-eabi/debug/bin/*.elf bin/debug/keepkey/ &&
+    mv build/arm-none-gnu-eabi/debug/bin/*.srec bin/debug/keepkey/"

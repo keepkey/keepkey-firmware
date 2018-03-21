@@ -13,4 +13,7 @@ docker run -t \
 	cd /root/keepkey-firmware && \
 	./b -d -salt && \
 	mkdir -p bin/debug/salt && \
-    mv build/arm-none-gnu-eabi/debug/bin/*.bin bin/debug/salt/"
+    mv build/arm-none-gnu-eabi/debug/bin/*.bin bin/debug/salt/ &&
+    mv build/arm-none-gnu-eabi/debug/bin/*.map bin/debug/salt/ &&
+    mv build/arm-none-gnu-eabi/debug/bin/*.elf bin/debug/salt/ &&
+    mv build/arm-none-gnu-eabi/debug/bin/*.srec bin/debug/salt/"

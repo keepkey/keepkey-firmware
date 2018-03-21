@@ -24,6 +24,9 @@ docker run -t \
 	./b -mp -salt && \
 	mkdir -p bin/release/salt && \
     mv build/arm-none-gnu-eabi/release/bin/*.bin bin/release/salt/ && \
+    mv build/arm-none-gnu-eabi/release/bin/*.map bin/release/salt/ && \
+    mv build/arm-none-gnu-eabi/release/bin/*.elf bin/release/salt/ && \
+    mv build/arm-none-gnu-eabi/release/bin/*.srec bin/release/salt/ && \
     echo '*********************************************************************' && \
     echo '* KeepKey Application Fingerprint (SALT)                            *' && \
     echo '*********************************************************************' && \

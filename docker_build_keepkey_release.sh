@@ -24,6 +24,9 @@ docker run -t \
 	./b -mp && \
 	mkdir -p bin/release/keepkey && \
     mv build/arm-none-gnu-eabi/release/bin/*.bin bin/release/keepkey/ && \
+    mv build/arm-none-gnu-eabi/release/bin/*.map bin/release/keepkey/ && \
+    mv build/arm-none-gnu-eabi/release/bin/*.elf bin/release/keepkey/ && \
+    mv build/arm-none-gnu-eabi/release/bin/*.srec bin/release/keepkey/ && \
     echo '*********************************************************************' && \
     echo '* KeepKey Application Fingerprint                                   *' && \
     echo '*********************************************************************' && \
