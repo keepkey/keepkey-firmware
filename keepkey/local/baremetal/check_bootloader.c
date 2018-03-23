@@ -39,6 +39,9 @@ static enum BL_Kind check_bootloader_kind(void) {
     if (32 != memory_bootloader_hash(bl_hash))
         return BL_UNKNOWN;
 
+#if DEBUG_ON
+    return BL_PATCH_APPLIED;
+#else
     // Fixed bootloaders
     // ---------------------
     if (0 == memcmp(bl_hash, "\xf1\x3c\xe2\x28\xc0\xbb\x2b\xdb\xc5\x6b\xdc\xb5\xf4\x56\x93\x67\xf8\xe3\x01\x10\x74\xcc\xc6\x33\x31\x34\x8d\xeb\x49\x8f\x2d\x8f", 32))
@@ -80,6 +83,7 @@ static enum BL_Kind check_bootloader_kind(void) {
         return BL_HOTPATCHABLE; // v1.0.4, unpatched - SALT whitelabel
 
     return BL_UNKNOWN;
+#endif
 }
 
 /*
