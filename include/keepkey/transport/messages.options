@@ -3,7 +3,7 @@ Features.device_id			max_size:25
 Features.language			max_size:17
 Features.label				max_size:33
 Features.coins				max_count:19
-Features.revision			max_size:20
+Features.revision			max_size:41
 Features.bootloader_hash		max_size:32
 Features.policies			max_count:1
 Features.model              max_size:32
