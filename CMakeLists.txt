@@ -90,8 +90,9 @@ if(NOT ${KK_EMULATOR})
 
   # Dummy empty libraries for stack smashing protection support, since we
   # implement __stack_chk_guard and __stack_chk_fail ourselves.
-  add_library(ssp)
-  add_library(ssp_nonshared)
+  file(WRITE ${CMAKE_BINARY_DIR}/ssp.c "")
+  add_library(ssp ${CMAKE_BINARY_DIR}/ssp.c)
+  add_library(ssp_nonshared ${CMAKE_BINARY_DIR}/ssp.c)
   set_property(TARGET ssp PROPERTY LINKER_LANGUAGE CXX)
   set_property(TARGET ssp_nonshared PROPERTY LINKER_LANGUAGE CXX)
   set_target_properties(ssp ssp_nonshared
