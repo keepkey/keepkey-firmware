@@ -39,7 +39,7 @@ static enum BL_Kind check_bootloader_kind(void) {
     if (32 != memory_bootloader_hash(bl_hash))
         return BL_UNKNOWN;
 
-#if DEBUG_ON
+#if defined(DEBUG_ON)
     return BL_PATCH_APPLIED;
 #else
     // Fixed bootloaders
