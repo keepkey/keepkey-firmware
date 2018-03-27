@@ -97,12 +97,14 @@ extern uintptr_t __stack_chk_guard;
 
 /* === Functions =========================================================== */
 
-void __attribute__((noreturn)) system_halt(void);
 void board_reset(void);
 void board_init(void);
 void reset_rng(void);
 
 void __stack_chk_fail(void) __attribute__((noreturn));
 uint32_t calc_crc32(uint32_t *data, int word_len);
+
+void __attribute__((noreturn)) shutdown(void);
+void memset_reg(void *start, void *stop, uint32_t val);
 
 #endif

@@ -33,6 +33,7 @@
 #include "keepkey/board/rng.h"
 
 #include <stdint.h>
+#include <stdlib.h>
 
 /* === Variables =========================================================== */
 
@@ -41,22 +42,16 @@ uintptr_t __stack_chk_guard;
 
 /* === Functions =========================================================== */
 
-/*
- * system_halt() - System halt
- *
- * INPUT
- *     none
- * OUTPUT
- *     none
+#ifdef EMULATOR
+/**
+ * \brief System Halt
  */
-void __attribute__((noreturn)) system_halt(void)
+void __attribute__((noreturn)) shutdown(void)
 {
-#ifndef EMULATOR
-    cm_disable_interrupts();
+    exit(1);
+}
 #endif
 
-    for(;;);  /* Loops forever */
-}
 
 /*
  * __stack_chk_fail() - Stack smashing protector (SSP) call back funcation
@@ -70,7 +65,7 @@ void __attribute__((noreturn)) system_halt(void)
 __attribute__((noreturn)) void __stack_chk_fail(void)
 {
     layout_warning_static("Error Detected.  Reboot Device!");
-    system_halt();
+    shutdown();
 }
 
 #ifndef EMULATOR
@@ -81,7 +76,7 @@ void nmi_handler(void)
     // that helps prevent clock glitching.
     if ((RCC_CIR & RCC_CIR_CSSF) != 0) {
         layout_warning_static("Clock instability detected. Reboot Device!");
-        system_halt();
+        shutdown();
     }
 }
 #endif

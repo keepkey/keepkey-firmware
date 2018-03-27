@@ -292,7 +292,7 @@ int main(int argc, char *argv[])
 #if DEBUG_LINK
     board_reset();
 #else
-    system_halt(); /* Loops forever */
+    shutdown(); /* Loops forever */
 #endif
 
     return(0); /* Should never get here */

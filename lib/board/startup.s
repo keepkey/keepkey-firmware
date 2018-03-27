@@ -36,4 +36,27 @@ reset_handler:
   // loop forever if the application code returns
   b .
 
+  .global shutdown
+  .type shutdown, STT_FUNC
+shutdown:
+  cpsid f                 // disable interrupts
+  ldr r0, =_ram_start
+  ldr r1, =_ram_end
+  ldr r2, =0
+  bl memset_reg
+  ldr r0, =0
+  mov r1, r0
+  mov r2, r0
+  mov r3, r0
+  mov r4, r0
+  mov r5, r0
+  mov r6, r0
+  mov r7, r0
+  mov r8, r0
+  mov r9, r0
+  mov r10, r0
+  mov r11, r0
+  mov r12, r0
+  ldr lr, =0xffffffff
+  b .                     // loop forever
   .end

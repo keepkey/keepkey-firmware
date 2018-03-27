@@ -22,6 +22,7 @@
 #include "keepkey/bootstrap/bootstrap.h"
 
 #include "keepkey/board/memory.h"
+#include "keepkey/board/keepkey_board.h"
 
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/cm3/cortex.h>

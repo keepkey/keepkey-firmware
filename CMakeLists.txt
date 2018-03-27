@@ -108,4 +108,5 @@ if(${KK_EMULATOR})
 
   enable_testing()
   add_test(test-firmware ${CMAKE_BINARY_DIR}/bin/firmware-unit)
+  add_test(test-board ${CMAKE_BINARY_DIR}/bin/board-unit)
 endif()

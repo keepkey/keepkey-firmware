@@ -514,7 +514,7 @@ void storage_commit(void)
     if(retries >= STORAGE_RETRIES)
     {
         layout_warning_static("Error Detected.  Reboot Device!");
-        system_halt();
+        shutdown();
     }
 #endif
 }
