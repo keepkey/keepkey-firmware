@@ -26,6 +26,7 @@
 #include "keepkey/board/msg_dispatch.h"
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/usb_driver.h"
+#include "keepkey/crypto/macros.h"
 
 #ifndef EMULATOR
 #  include <libopencm3/cm3/cortex.h>
@@ -199,7 +200,7 @@ static bool confirm_helper(const char *request_title, const char *request_body,
     ActiveLayout new_layout, cur_layout;
     DisplayState new_ds;
     uint16_t tiny_msg;
-    uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
+    static CONFIDENTIAL uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
 
 #if DEBUG_LINK
     DebugLinkDecision *dld;
@@ -337,7 +338,7 @@ bool confirm(ButtonRequestType type, const char *request_title, const char *requ
 
     va_list vl;
     va_start(vl, request_body);
-    char strbuf[BODY_CHAR_MAX];
+    static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
@@ -348,7 +349,9 @@ bool confirm(ButtonRequestType type, const char *request_title, const char *requ
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    return confirm_helper(request_title, strbuf, &layout_standard_notification);
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification);
+    MEMSET_BZERO(strbuf, sizeof(strbuf));
+    return ret;
 }
 
 /*
@@ -369,14 +372,16 @@ bool confirm_with_custom_button_request(ButtonRequest *button_request,
 
     va_list vl;
     va_start(vl, request_body);
-    char strbuf[BODY_CHAR_MAX];
+    static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
     /* Send button request */
     msg_write(MessageType_MessageType_ButtonRequest, button_request);
 
-    return confirm_helper(request_title, strbuf, &layout_standard_notification);
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification);
+    MEMSET_BZERO(strbuf, sizeof(strbuf));
+    return ret;
 }
 
 /*
@@ -398,7 +403,7 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
 
     va_list vl;
     va_start(vl, request_body);
-    char strbuf[BODY_CHAR_MAX];
+    static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
@@ -409,7 +414,9 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    return confirm_helper(request_title, strbuf, layout_notification_func);
+    bool ret = confirm_helper(request_title, strbuf, layout_notification_func);
+    MEMSET_BZERO(strbuf, sizeof(strbuf));
+    return ret;
 }
 
 /*
@@ -428,11 +435,13 @@ bool confirm_without_button_request(const char *request_title, const char *reque
 
     va_list vl;
     va_start(vl, request_body);
-    char strbuf[BODY_CHAR_MAX];
+    static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
-    return confirm_helper(request_title, strbuf, &layout_standard_notification);
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification);
+    MEMSET_BZERO(strbuf, sizeof(strbuf));
+    return ret;
 }
 
 /*
@@ -453,7 +462,7 @@ bool review(ButtonRequestType type, const char *request_title, const char *reque
 
     va_list vl;
     va_start(vl, request_body);
-    char strbuf[BODY_CHAR_MAX];
+    static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
@@ -464,7 +473,8 @@ bool review(ButtonRequestType type, const char *request_title, const char *reque
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    confirm_helper(request_title, strbuf, &layout_standard_notification);
+    (void)confirm_helper(request_title, strbuf, &layout_standard_notification);
+    MEMSET_BZERO(strbuf, sizeof(strbuf));
     return true;
 }
 
@@ -485,10 +495,11 @@ bool review_without_button_request(const char *request_title, const char *reques
 
     va_list vl;
     va_start(vl, request_body);
-    char strbuf[BODY_CHAR_MAX];
+    static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
-    confirm_helper(request_title, strbuf, &layout_standard_notification);
+    (void)confirm_helper(request_title, strbuf, &layout_standard_notification);
+    MEMSET_BZERO(strbuf, sizeof(strbuf));
     return true;
 }

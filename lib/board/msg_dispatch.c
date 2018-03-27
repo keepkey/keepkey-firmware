@@ -39,7 +39,7 @@ static msg_debug_link_get_state_t msg_debug_link_get_state;
 
 /* Tiny messages */
 static bool msg_tiny_flag = false;
-static uint8_t msg_tiny[MSG_TINY_BFR_SZ];
+static CONFIDENTIAL uint8_t msg_tiny[MSG_TINY_BFR_SZ];
 static uint16_t msg_tiny_id = MSG_TINY_TYPE_ERROR; /* Default to error type */
 
 /* === Variables =========================================================== */
