@@ -400,6 +400,12 @@ void handler_initialize(Initialize *msg)
     resp.minor_version = BOOTLOADER_MINOR_VERSION;
     resp.patch_version = BOOTLOADER_PATCH_VERSION;
 
+    /* Bootloader hash */
+    resp.has_bootloader_hash = true;
+    resp.bootloader_hash.size = memory_bootloader_hash(
+                                     resp.bootloader_hash.bytes);
+
+
     msg_write(MessageType_MessageType_Features, &resp);
 }
 
