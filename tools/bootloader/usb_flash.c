@@ -207,6 +207,7 @@ static bool storage_preserve(void)
 bool usb_flash_firmware(void)
 {
     bool ret_val = false;
+    bool old_firmware_was_unsigned = true;
 
     layout_simple_message("Firmware Update Mode");
     layout_version(BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION,
@@ -221,8 +222,10 @@ bool usb_flash_firmware(void)
         {
             case RAW_MESSAGE_COMPLETE:
             {
-                /* Verify the image is from KeepKey */
-                if((SIG_FLAG == 1) && (signatures_ok() == SIG_OK))
+                // Verify that both the new and old firmware images are
+                // from KeepKey. Otherwise, don't restore the keys to storage.
+                if((SIG_FLAG == 1) && (signatures_ok() == SIG_OK) &&
+                   !old_firmware_was_unsigned)
                 {
                     /* The image is from KeepKey.  Restore storage data */
                     if(!storage_restore())
@@ -256,6 +259,7 @@ bool usb_flash_firmware(void)
             case RAW_MESSAGE_STARTED:
             default:
             {
+                old_firmware_was_unsigned = signatures_ok() == 1;
                 usb_poll();
                 animate();
                 display_refresh();
