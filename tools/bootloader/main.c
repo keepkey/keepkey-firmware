@@ -81,6 +81,10 @@ static void set_vector_table_application(void)
  */
 static void application_jump(void)
 {
+    extern char _confidential_start[];
+    extern char _confidential_end[];
+    memset_reg(_confidential_start, _confidential_end, 0);
+
     uint32_t entry_address = FLASH_APP_START + 4;
     uint32_t app_entry_address = (uint32_t)(*(uint32_t *)(entry_address));
     app_entry_t app_entry = (app_entry_t)app_entry_address;

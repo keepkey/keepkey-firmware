@@ -10,8 +10,10 @@ MEMORY
 SECTIONS
 {
     .confidential (NOLOAD) : {
+        _confidential_start = .;
         *(confidential)
         ASSERT ((SIZEOF(.confidential) <= 32K), "Error: Confidential section too large");
+        _confidential_end = .;
     } >ram
 }
 
