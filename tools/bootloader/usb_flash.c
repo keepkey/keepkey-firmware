@@ -29,6 +29,7 @@
 #include "keepkey/bootloader/signatures.h"
 #include "keepkey/bootloader/usb_flash.h"
 #include "keepkey/crypto/sha2.h"
+#include "keepkey/crypto/macros.h"
 #include "keepkey/transport/interface.h"
 
 #include <libopencm3/stm32/flash.h>
@@ -44,7 +45,7 @@
 
 static Allocation storage_location = FLASH_INVALID;
 static RawMessageState upload_state = RAW_MESSAGE_NOT_STARTED;
-static uint8_t storage_sav[STOR_FLASH_SECT_LEN];
+static uint8_t CONFIDENTIAL storage_sav[STOR_FLASH_SECT_LEN];
 static uint8_t firmware_hash[SHA256_DIGEST_LENGTH];
 static bool old_firmware_was_unsigned;
 extern bool reset_msg_stack;
@@ -284,7 +285,7 @@ bool usb_flash_firmware(void)
 
 uff_exit:
     /* Clear the shadow before exiting */
-    memset(storage_sav, 0, STOR_FLASH_SECT_LEN);
+    MEMSET_BZERO(storage_sav, sizeof(storage_sav));
     return(ret_val);
 }
 
