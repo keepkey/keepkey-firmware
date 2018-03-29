@@ -100,38 +100,38 @@ int signatures_ok(void)
     sigindex2 = *((uint8_t *)FLASH_META_SIGINDEX2);
     sigindex3 = *((uint8_t *)FLASH_META_SIGINDEX3);
 
-    if(sigindex1 < 1 || sigindex1 > PUBKEYS) { return 0; }  /* Invalid index */
+    if(sigindex1 < 1 || sigindex1 > PUBKEYS) { return SIG_FAIL; }  /* Invalid index */
 
-    if(sigindex2 < 1 || sigindex2 > PUBKEYS) { return 0; }  /* Invalid index */
+    if(sigindex2 < 1 || sigindex2 > PUBKEYS) { return SIG_FAIL; }  /* Invalid index */
 
-    if(sigindex3 < 1 || sigindex3 > PUBKEYS) { return 0; }  /* Invalid index */
+    if(sigindex3 < 1 || sigindex3 > PUBKEYS) { return SIG_FAIL; }  /* Invalid index */
 
-    if(sigindex1 == sigindex2) { return 0; }  /* Duplicate use */
+    if(sigindex1 == sigindex2) { return SIG_FAIL; }  /* Duplicate use */
 
-    if(sigindex1 == sigindex3) { return 0; }  /* Duplicate use */
+    if(sigindex1 == sigindex3) { return SIG_FAIL; }  /* Duplicate use */
 
-    if(sigindex2 == sigindex3) { return 0; }  /* Duplicate use */
+    if(sigindex2 == sigindex3) { return SIG_FAIL; }  /* Duplicate use */
 
     sha256_Raw((uint8_t *)FLASH_APP_START, codelen, firmware_fingerprint);
 
     if(ecdsa_verify_digest(&secp256k1, pubkey[sigindex1 - 1], (uint8_t *)FLASH_META_SIG1,
                            firmware_fingerprint) != 0)   /* Failure */
     {
-        return 0;
+        return SIG_FAIL;
     }
 
     if(ecdsa_verify_digest(&secp256k1, pubkey[sigindex2 - 1], (uint8_t *)FLASH_META_SIG2,
                            firmware_fingerprint) != 0)   /* Failure */
     {
-        return 0;
+        return SIG_FAIL;
     }
 
     if(ecdsa_verify_digest(&secp256k1, pubkey[sigindex3 - 1], (uint8_t *)FLASH_META_SIG3,
                            firmware_fingerprint) != 0)   /* Failure */
     {
-        return 0;
+        return SIG_FAIL;
     }
 
 #endif
-    return 1;
+    return SIG_OK;
 }

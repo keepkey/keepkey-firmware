@@ -1,7 +1,7 @@
 /*
- * This file is part of the TREZOR project.
+ * This file is part of the KeepKey project.
  *
- * Copyright (C) 2014 Pavol Rusnak <stick@satoshilabs.com>
+ * Copyright (C) 2018 keepkeyjon <jon@keepkey.com>
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -17,20 +17,9 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SIGNATURES_H
-#define SIGNATURES_H
+#ifndef CHECK_BOOTLOADER_H
+#define CHECK_BOOTLOADER_H
 
-/* === Defines ============================================================= */
-
-#define PUBKEYS 5
-#define PUBKEY_LENGTH 65
-#define SIGNATURES 3
-
-#define SIG_OK      0x5A3CA5C3
-#define SIG_FAIL    0x00000000
-
-/* === Functions =========================================================== */
-
-int signatures_ok(void);
+void check_bootloader(void);
 
 #endif

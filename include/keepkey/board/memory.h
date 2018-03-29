@@ -205,6 +205,7 @@ static const FlashSector flash_sector_map[] =
 /* === Functions =========================================================== */
 
 void memory_protect(void);
+void memory_unlock(void);
 int memory_bootloader_hash(uint8_t *hash);
 int memory_firmware_hash(uint8_t *hash);
 int memory_storage_hash(uint8_t *hash, Allocation storage_location);

@@ -33,10 +33,11 @@
 #include "keepkey/board/keepkey_usart.h"
 #include "keepkey/board/rng.h"
 
+#include "keepkey/firmware/app_layout.h"
+#include "keepkey/firmware/check_bootloader.h"
+#include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
-#include "keepkey/firmware/fsm.h"
-#include "keepkey/firmware/app_layout.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -100,6 +101,9 @@ int main(void)
 {
     /* Init board */
     board_init();
+
+    /* Bootloader hotpatching */
+    check_bootloader();
 
     /* Init for safeguard against stack overflow (-fstack-protector-all) */
     __stack_chk_guard = (uintptr_t)random32();

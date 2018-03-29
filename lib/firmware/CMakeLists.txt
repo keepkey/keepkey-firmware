@@ -1,6 +1,7 @@
 set(sources
     app_confirm.c
     app_layout.c
+    check_bootloader.c
     coins.c
     crypto.c
     ethereum.c
