@@ -46,6 +46,7 @@ static Allocation storage_location = FLASH_INVALID;
 static RawMessageState upload_state = RAW_MESSAGE_NOT_STARTED;
 static uint8_t storage_sav[STOR_FLASH_SECT_LEN];
 static uint8_t firmware_hash[SHA256_DIGEST_LENGTH];
+static bool old_firmware_was_unsigned;
 extern bool reset_msg_stack;
 
 static const MessagesMap_t MessagesMap[] =
@@ -193,7 +194,22 @@ static bool storage_preserve(void)
     return(ret_val);
 }
 
-/* === Functions =========================================================== */
+/// \return true iff storage should be restored after this firmware update.
+static bool should_restore(void) {
+    // If the firmware metadata requests a wipe, honor that.
+    if (SIG_FLAG == 0)
+        return false;
+
+    // Check the signatures of the *new* firmware.
+    uint32_t sig_status = signatures_ok();
+
+    // Restoring is fine if both the old and new firmwares are *un*signed.
+    if (old_firmware_was_unsigned)
+        return sig_status != SIG_OK;
+
+    // Otherwise both the old and new must be signed by KeepKey in order to restore.
+    return sig_status == SIG_OK;
+}
 
 /*
  * usb_flash_firmware() - Update firmware over usb bus
@@ -207,7 +223,7 @@ static bool storage_preserve(void)
 bool usb_flash_firmware(void)
 {
     bool ret_val = false;
-    bool old_firmware_was_unsigned = true;
+    old_firmware_was_unsigned = true;
 
     layout_simple_message("Firmware Update Mode");
     layout_version(BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION,
@@ -222,12 +238,11 @@ bool usb_flash_firmware(void)
         {
             case RAW_MESSAGE_COMPLETE:
             {
-                // Verify that both the new and old firmware images are
-                // from KeepKey. Otherwise, don't restore the keys to storage.
-                if((SIG_FLAG == 1) && (signatures_ok() == SIG_OK) &&
-                   !old_firmware_was_unsigned)
+                // Only restore the storage sector / keys if the old firmware's
+                // signedness matches the new firmware's signedness.
+                if (should_restore())
                 {
-                    /* The image is from KeepKey.  Restore storage data */
+                    // Restore storage data.
                     if(!storage_restore())
                     {
                         /* Bailing early */
@@ -259,7 +274,7 @@ bool usb_flash_firmware(void)
             case RAW_MESSAGE_STARTED:
             default:
             {
-                old_firmware_was_unsigned = signatures_ok() == 1;
+                old_firmware_was_unsigned = signatures_ok() != SIG_OK;
                 usb_poll();
                 animate();
                 display_refresh();
