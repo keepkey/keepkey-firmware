@@ -17,6 +17,7 @@ set(LIBOPENCM3_PATH /root/libopencm3 CACHE PATH "Path to an already-built libope
 set(PROTOC_BINARY protoc CACHE PATH "Path to the protobuf compiler binary")
 set(NANOPB_DIR /root/nanopb CACHE PATH "Path to the nanopb build")
 set(DEVICE_PROTOCOL ${CMAKE_SOURCE_DIR}/deps/device-protocol CACHE PATH "Path to device-protocol")
+set(CMAKE_DEBUG_POSTFIX CACHE STRING "Debug library name postfix")
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules/")
 include(GetGitRevisionDescription)
