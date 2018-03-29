@@ -1366,6 +1366,7 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg)
     if(msg->policy_count == 0)
     {
         fsm_sendFailure(FailureType_Failure_SyntaxError, "No policy provided");
+        go_home();
         return;
     }
 
@@ -1408,6 +1409,8 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg)
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled,
                         "Policy could not be applied");
+        go_home();
+        return;
     }
 
     storage_commit();

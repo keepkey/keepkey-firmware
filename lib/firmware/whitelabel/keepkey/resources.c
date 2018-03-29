@@ -17,18 +17,12 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "keepkey/firmware/app_resources.h"
 
 #include "keepkey/board/resources.h"
 
 #include <string.h>
 #include <stdint.h>
-
-/* === Variables =========================================================== */
-
-/* --- Screensaver --------------------------------------------------------- */
 
 static void screensaver_1(uint8_t *data)
 {
@@ -222,8 +216,6 @@ static const AnimationFrame screensaver_array[] =
 };
 
 static const ImageAnimation screensaver = { 17, screensaver_array };
-
-/* === Functions =========================================================== */
 
 /*
  * get_screensaver_animation() - Gets screensaver animation

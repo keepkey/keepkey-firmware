@@ -31,3 +31,4 @@ add_dependencies(kkfirmware kktransport.pb)
 
 add_library(kkfirmware.keepkey whitelabel/keepkey/resources.c)
 add_library(kkfirmware.salt whitelabel/keepkey/resources.c)
+add_library(kkfirmware.mfr whitelabel/mfr/resources.c)

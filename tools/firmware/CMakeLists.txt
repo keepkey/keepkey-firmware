@@ -36,4 +36,12 @@ if(NOT ${KK_EMULATOR})
           ${CMAKE_BINARY_DIR}/bin/firmware.salt.elf
           ${CMAKE_BINARY_DIR}/bin/firmware.salt.bin)
 
+  add_executable(firmware.mfr.elf ${sources})
+  target_link_libraries(firmware.mfr.elf ${LINK_FLAGS} kkfirmware.mfr kkboard.mfr)
+  add_custom_command(TARGET firmware.mfr.elf
+      POST_BUILD
+      COMMAND ${CMAKE_OBJCOPY} ARGS -O binary
+          ${CMAKE_BINARY_DIR}/bin/firmware.mfr.elf
+          ${CMAKE_BINARY_DIR}/bin/firmware.mfr.bin)
+
 endif()
