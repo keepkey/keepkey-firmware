@@ -61,10 +61,11 @@ if(${KK_MANUFACTURER})
   add_definitions(-DMANUFACTURER=1)
 endif()
 
-if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
   add_definitions(-DDEBUG_ON)
   add_definitions(-DMEMORY_PROTECT=0)
-elseif(${CMAKE_BUILD_TYPE} STREQUAL "Release")
+elseif("${CMAKE_BUILD_TYPE}" STREQUAL "Release" OR
+       "${CMAKE_BUILD_TYPE}" STREQUAL "")
   add_definitions(-DMEMORY_PROTECT=1)
   if(NOT ${KK_EMULATOR})
     message(WARNING
