@@ -808,17 +808,17 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
         if(strlen(confirm_body_message) > 0)
         {
             if(is_token_transaction(msg)) {
-		// Dont prompt the user an extra time if the transaction is a secure transfer or secure exchange
-		// i.e. you are sending to a different account in the bip44 node path
-		if (msg->address_type != OutputAddressType_TRANSFER && msg->address_type != OutputAddressType_EXCHANGE)
-		{
+                // Dont prompt the user an extra time if the transaction is a secure transfer or secure exchange
+                // i.e. you are sending to a different account in the bip44 node path
+                if (msg->address_type != OutputAddressType_TRANSFER && msg->address_type != OutputAddressType_EXCHANGE)
+                {
                     if(!confirm_erc_token_transfer(ButtonRequestType_ButtonRequest_SignTx, confirm_body_message))
                     {
                         fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
                         ethereum_signing_abort();
                         return;
                     }
-		}
+                }
             }else{
                 if(!confirm(ButtonRequestType_ButtonRequest_SignTx,
                             "Transfer", "Confirm data: %s", confirm_body_message))
