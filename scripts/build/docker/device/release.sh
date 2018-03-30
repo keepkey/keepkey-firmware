@@ -1,6 +1,6 @@
 #!/bin/bash
 
-IMAGETAG=kktech/firmware:v5-beta
+IMAGETAG=kktech/firmware:v6-beta
 
 docker pull $IMAGETAG
 

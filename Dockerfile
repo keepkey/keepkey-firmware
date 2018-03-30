@@ -55,6 +55,6 @@ ENV PATH /root/nanopb/generator:$PATH
 
 # Build libopencm3
 WORKDIR /root
-RUN git clone -b keepkey-master https://github.com/keepkey/libopencm3.git libopencm3
+RUN git clone -b docker-v6 https://github.com/keepkey/libopencm3.git libopencm3
 WORKDIR /root/libopencm3
 RUN make

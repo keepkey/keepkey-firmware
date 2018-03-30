@@ -123,7 +123,7 @@ static void bootloader_init(void)
  */
 static void clock_init(void)
 {
-    clock_scale_t clock = hse_8mhz_3v3[CLOCK_3V3_120MHZ];
+    struct rcc_clock_scale clock = rcc_hse_8mhz_3v3[RCC_CLOCK_3V3_120MHZ];
     rcc_clock_setup_hse_3v3(&clock);
 
     rcc_periph_clock_enable(RCC_GPIOA);
