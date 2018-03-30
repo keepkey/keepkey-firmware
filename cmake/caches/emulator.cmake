@@ -1,1 +1,3 @@
 set(KK_EMULATOR ON CACHE BOOL "")
+
+set(CMAKE_CXX_FLAGS "-std=c++14" CACHE STRING "")
