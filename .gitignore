@@ -19,7 +19,6 @@ interface/**/*.pb.c
 # component libraries
 build
 bin
-deps/device-protocol
 
 # Misc
 tags

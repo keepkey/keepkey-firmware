@@ -1,0 +1,3 @@
+[submodule "deps/device-protocol"]
+	path = deps/device-protocol
+	url = git@github.com:keepkey/device-protocol.git
