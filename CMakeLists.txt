@@ -23,6 +23,10 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules/")
 include(GetGitRevisionDescription)
 get_git_head_revision(GIT_REFSPEC GIT_SHA1)
 
+if(NOT EXISTS ${DEVICE_PROTOCOL})
+    message(ERROR "Missing deps/device-protocol symlink?")
+endif()
+
 if(${KK_EMULATOR})
   add_definitions(-DEMULATOR)
   add_definitions(-DCONFIDENTIAL=)
