@@ -5,7 +5,6 @@ pipeline {
             steps {
                 sh 'echo "Building with cmake"'
                 sh '''
-                    git submodule update --init --recursive
                     ./scripts/build/docker/device/debug.sh
                 '''
             }
