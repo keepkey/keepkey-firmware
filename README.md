@@ -14,8 +14,7 @@ The sources can be obtained from github:
 
 ```
 $ git clone git@github.com:keepkey/keepkey-firmware.git
-$ git clone git@github.com:keepkey/device-protocol.git
-$ ln -s $PWD/device-protocol $PWD/keepkey-firmware/deps/device-protocol
+$ git submodule update --init --recursive
 ```
 
 ### Build
