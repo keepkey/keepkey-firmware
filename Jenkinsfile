@@ -23,7 +23,7 @@ pipeline {
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'release.tar.bz2', fingerprint: true
+                    archiveArtifacts artifacts: 'release.tar.bz2,bin/*.bin', fingerprint: true
                 }
             }
         }
