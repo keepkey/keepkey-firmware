@@ -22,7 +22,7 @@ $ git submodule update --init --recursive
 To build the firmware using the docker container, use the provided script:
 
 ```
-$ ./scripts/build/docker/release.sh
+$ ./scripts/build/docker/device/release.sh
 ```
 
 ## License
