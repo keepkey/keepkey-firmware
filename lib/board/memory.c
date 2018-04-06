@@ -66,19 +66,11 @@ void memory_protect(void)
 #endif
 }
 
-/*
- * memory_bootloader_hash() - SHA256 hash of bootloader
- *
- * INPUT
- *     - hash: buffer to be filled with hash
- * OUTPUT
- *     none
- */
-int memory_bootloader_hash(uint8_t *hash)
+int memory_bootloader_hash(uint8_t *hash, bool cached)
 {
     static uint8_t cached_hash[SHA256_DIGEST_LENGTH];
 
-    if(cached_hash[0] == '\0')
+    if(cached_hash[0] == '\0' || !cached)
     {
         sha256_Raw((const uint8_t *)FLASH_BOOT_START, FLASH_BOOT_LEN, cached_hash);
         sha256_Raw(cached_hash, SHA256_DIGEST_LENGTH, cached_hash);

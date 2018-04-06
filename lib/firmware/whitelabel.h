@@ -20,4 +20,4 @@
 typedef struct ImageAnimation_ ImageAnimation;
 const ImageAnimation *get_screensaver_animation(void);
 
-const char *whitelabel_model(void);
+const char *firmware_variant(void);

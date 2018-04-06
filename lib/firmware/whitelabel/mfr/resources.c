@@ -51,6 +51,6 @@ const ImageAnimation *get_screensaver_animation(void)
     return(&screensaver);
 }
 
-const char *whitelabel_model(void) {
-    return "";
+const char *firmware_variant(void) {
+    return "MFR";
 }

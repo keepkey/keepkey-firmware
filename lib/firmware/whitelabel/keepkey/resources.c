@@ -230,6 +230,6 @@ const ImageAnimation *get_screensaver_animation(void)
     return(&screensaver);
 }
 
-const char *whitelabel_model(void) {
-    return "K1-14AM";
+const char *firmware_variant(void) {
+    return "KeepKey";
 }

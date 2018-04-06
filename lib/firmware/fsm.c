@@ -39,24 +39,25 @@
 #include "keepkey/crypto/rand.h"
 #include "keepkey/crypto/ripemd160.h"
 #include "keepkey/crypto/secp256k1.h"
-#include "keepkey/firmware/home_sm.h"
-#include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/app_confirm.h"
-#include "keepkey/firmware/pin_sm.h"
-#include "keepkey/firmware/passphrase_sm.h"
-#include "keepkey/firmware/fsm.h"
-#include "keepkey/firmware/storage.h"
+#include "keepkey/firmware/app_layout.h"
+#include "keepkey/firmware/check_bootloader.h"
 #include "keepkey/firmware/coins.h"
-#include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/crypto.h"
-#include "keepkey/firmware/util.h"
-#include "keepkey/firmware/signing.h"
-#include "keepkey/firmware/reset.h"
-#include "keepkey/firmware/recovery.h"
-#include "keepkey/firmware/recovery_cipher.h"
-#include "keepkey/firmware/policy.h"
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/exchange.h"
+#include "keepkey/firmware/fsm.h"
+#include "keepkey/firmware/home_sm.h"
+#include "keepkey/firmware/passphrase_sm.h"
+#include "keepkey/firmware/pin_sm.h"
+#include "keepkey/firmware/policy.h"
+#include "keepkey/firmware/recovery.h"
+#include "keepkey/firmware/recovery_cipher.h"
+#include "keepkey/firmware/reset.h"
+#include "keepkey/firmware/signing.h"
+#include "keepkey/firmware/storage.h"
+#include "keepkey/firmware/transaction.h"
+#include "keepkey/firmware/util.h"
 
 #include <stdio.h>
 
@@ -403,6 +404,27 @@ void fsm_msgInitialize(Initialize *msg)
     fsm_msgGetFeatures(0);
 }
 
+static const char *model(void) {
+    switch (get_bootloaderKind()) {
+    case BLK_UNKONWN:
+    case BLK_v1_0_0:
+    case BLK_v1_0_1:
+    case BLK_v1_0_2:
+    case BLK_v1_0_3:
+    case BLK_v1_0_3_sig:
+    case BLK_v1_0_3_elf:
+        return "K1-14AM";
+    case BLK_v1_0_4:
+        return "K1-14WL-S";
+    }
+
+#ifdef DEBUG_ON
+     __builtin_unreachable();
+#else
+    return "Unknown";
+#endif
+}
+
 void fsm_msgGetFeatures(GetFeatures *msg)
 {
     (void)msg;
@@ -423,7 +445,11 @@ void fsm_msgGetFeatures(GetFeatures *msg)
 
     /* Model */
     resp->has_model = true;
-    strlcpy(resp->model, whitelabel_model(), sizeof(resp->model));
+    strlcpy(resp->model, model(), sizeof(resp->model));
+
+    /* Whitelabel Name */
+    resp->has_firmware_variant = true;
+    strlcpy(resp->firmware_variant, firmware_variant(), sizeof(resp->firmware_variant));
 
     /* Security settings */
     resp->has_pin_protection = true; resp->pin_protection = storage_has_pin();
@@ -439,9 +465,8 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     /* Bootloader hash */
     resp->has_bootloader_hash = true;
     resp->bootloader_hash.size = memory_bootloader_hash(
-                                     resp->bootloader_hash.bytes);
+                                     resp->bootloader_hash.bytes, false);
 
-#ifndef MANUFACTURER
     /* Settings for device */
     if(storage_get_language())
     {
@@ -454,10 +479,6 @@ void fsm_msgGetFeatures(GetFeatures *msg)
         resp->has_label = true;
         strlcpy(resp->label, storage_get_label(), sizeof(resp->label));
     }
-#else
-    resp->has_label = true;
-    strlcpy(resp->label, "manufacturing firmware", sizeof(resp->label));
-#endif
 
     /* Coin type support */
     resp->coins_count = COINS_COUNT;

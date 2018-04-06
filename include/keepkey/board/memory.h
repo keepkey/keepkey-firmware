@@ -206,7 +206,15 @@ static const FlashSector flash_sector_map[] =
 
 void memory_protect(void);
 void memory_unlock(void);
-int memory_bootloader_hash(uint8_t *hash);
+
+
+/// Double sha256 hash of the bootloader.
+///
+/// \param hash    Buffer to be filled with hash.
+///                Must be at least SHA256_DIGEST_LENGTH bytes long.
+/// \param cached  Whether a cached value is acceptable.
+int memory_bootloader_hash(uint8_t *hash, bool cached);
+
 int memory_firmware_hash(uint8_t *hash);
 int memory_storage_hash(uint8_t *hash, Allocation storage_location);
 bool find_active_storage(Allocation *storage_location);

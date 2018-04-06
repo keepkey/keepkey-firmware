@@ -238,6 +238,6 @@ const ImageAnimation *get_screensaver_animation(void)
     return(&screensaver);
 }
 
-const char *whitelabel_model(void) {
-    return "K1-14WL-S";
+const char *firmware_variant(void) {
+    return "SALT";
 }
