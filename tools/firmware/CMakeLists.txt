@@ -21,7 +21,16 @@ if(NOT ${KK_EMULATOR})
       -lm)
 
   add_executable(firmware.keepkey.elf ${sources})
-  target_link_libraries(firmware.keepkey.elf ${LINK_FLAGS} kkfirmware.keepkey kkboard.keepkey)
+  target_link_libraries(firmware.keepkey.elf
+      kkfirmware
+      -Wl,--whole-archive kkfirmware.keepkey -Wl,--no-whole-archive
+      kkboard
+      -Wl,--whole-archive kkboard.keepkey -Wl,--no-whole-archive
+      kktransport
+      kkcrypto
+      -lopencm3_stm32f2
+      -lc
+      -lm)
   add_custom_command(TARGET firmware.keepkey.elf
       POST_BUILD
       COMMAND ${CMAKE_OBJCOPY} ARGS -O binary
@@ -29,7 +38,16 @@ if(NOT ${KK_EMULATOR})
           ${CMAKE_BINARY_DIR}/bin/firmware.keepkey.bin)
 
   add_executable(firmware.salt.elf ${sources})
-  target_link_libraries(firmware.salt.elf ${LINK_FLAGS} kkfirmware.salt kkboard.salt)
+  target_link_libraries(firmware.salt.elf
+      kkfirmware
+      -Wl,--whole-archive kkfirmware.salt -Wl,--no-whole-archive
+      kkboard
+      -Wl,--whole-archive kkboard.salt -Wl,--no-whole-archive
+      kktransport
+      kkcrypto
+      -lopencm3_stm32f2
+      -lc
+      -lm)
   add_custom_command(TARGET firmware.salt.elf
       POST_BUILD
       COMMAND ${CMAKE_OBJCOPY} ARGS -O binary
@@ -37,7 +55,16 @@ if(NOT ${KK_EMULATOR})
           ${CMAKE_BINARY_DIR}/bin/firmware.salt.bin)
 
   add_executable(firmware.mfr.elf ${sources})
-  target_link_libraries(firmware.mfr.elf ${LINK_FLAGS} kkfirmware.mfr kkboard.keepkey)
+  target_link_libraries(firmware.mfr.elf
+      kkfirmware
+      -Wl,--whole-archive kkfirmware.mfr -Wl,--no-whole-archive
+      kkboard
+      -Wl,--whole-archive kkboard.mfr -Wl,--no-whole-archive
+      kktransport
+      kkcrypto
+      -lopencm3_stm32f2
+      -lc
+      -lm)
   add_custom_command(TARGET firmware.mfr.elf
       POST_BUILD
       COMMAND ${CMAKE_OBJCOPY} ARGS -O binary

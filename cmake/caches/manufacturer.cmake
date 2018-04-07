@@ -16,8 +16,6 @@ set(CMAKE_CXX_COMPILER arm-none-eabi-g++ CACHE FILEPATH "")
 set(CMAKE_C_COMPILER_WORKS True CACHE BOOL "")
 set(CMAKE_CXX_COMPILER_WORKS True CACHE BOOL "")
 
-set(KK_MANUFACTURER True CACHE BOOL "")
-
 set(ARCH_FLAGS
     "-mthumb \
     -mcpu=cortex-m3 \

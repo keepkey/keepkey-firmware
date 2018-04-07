@@ -30,7 +30,7 @@
 
  flash memory layout:
  --------------------
-    name    |          range          |  size   |     function
+   name    |          range          |  size   |     function
 -----------+-------------------------+---------+------------------
  Sector  0 | 0x08000000 - 0x08003FFF |  16 KiB | bootstrap code (Read Only)
  Sector  1 | 0x08004000 - 0x08007FFF |  16 KiB | empty(Read/Write)
@@ -205,6 +205,9 @@ static const FlashSector flash_sector_map[] =
 /* === Functions =========================================================== */
 
 void memory_protect(void);
+
+/// Enable writing. This exercises a bug in the STM32F2 that allows writing to
+/// read-only sectors of flash.
 void memory_unlock(void);
 
 
@@ -218,40 +221,5 @@ int memory_bootloader_hash(uint8_t *hash, bool cached);
 int memory_firmware_hash(uint8_t *hash);
 int memory_storage_hash(uint8_t *hash, Allocation storage_location);
 bool find_active_storage(Allocation *storage_location);
-
-#ifdef MANUFACTURER
-uint8_t sector_from_address(uint8_t *address);
-
-uint32_t sector_length(uint8_t sector);
-
-void *sector_start(uint8_t sector);
-
-/**
- * \brief Writes a buffer to flash.
- *
- * \param address[in]   Where to write the data.
- * \param data[in]      The data to write.
- * \param data_len[in]  How much data to write.
- * \param erase[in]     Whether the clear the sector first.
- */
-bool memory_flash_write(uint8_t *address, uint8_t *data, size_t data_len,
-                        bool erase);
-
-/**
- * \brief Hashes the data stored in the requested areas of flash.
- *
- * \param address[in]       The address to start the hash at.
- * \param address_len[in]   The length of data to hash.
- * \param challenge[in]     The challenge to hash with.
- * \param challenge_len[in] The length of the challenge buffer in bytes.
- * \param hash[out]         The contents of the hash.
- * \param hash_len[in]      The number of bytes allowed to be written into hash.
- *
- * \returns false iff there was a problem calculating the has (e.g. permissions, etc)
- */
-bool memory_flash_hash(uint8_t *address, size_t address_len,
-                       uint8_t *challenge, size_t challenge_len,
-                       uint8_t *hash, size_t hash_len);
-#endif // MANUFACTURER
 
 #endif

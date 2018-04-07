@@ -66,6 +66,14 @@ void memory_protect(void)
 #endif
 }
 
+void memory_unlock(void) {
+#ifndef EMULATOR
+    flash_unlock_option_bytes();
+    flash_program_option_bytes(0x0FFF0001);
+    flash_lock_option_bytes();
+#endif
+}
+
 int memory_bootloader_hash(uint8_t *hash, bool cached)
 {
     static uint8_t cached_hash[SHA256_DIGEST_LENGTH];
@@ -160,160 +168,4 @@ bool find_active_storage(Allocation *storage_location)
 
     return(ret_stat);
 }
-
-#ifdef MANUFACTURER
-uint8_t sector_from_address(uint8_t *address) {
-    uint32_t addr = (uint32_t)address;
-
-    if (0x08000000 <= addr && addr <= 0x08003FFF) return  0;
-    if (0x08004000 <= addr && addr <= 0x08007FFF) return  1;
-    if (0x08008000 <= addr && addr <= 0x0800BFFF) return  2;
-    if (0x0800C000 <= addr && addr <= 0x0800FFFF) return  3;
-    if (0x08010000 <= addr && addr <= 0x0801FFFF) return  4;
-    if (0x08020000 <= addr && addr <= 0x0803FFFF) return  5;
-    if (0x08040000 <= addr && addr <= 0x0805FFFF) return  6;
-    if (0x08060000 <= addr && addr <= 0x0807FFFF) return  7;
-    if (0x08080000 <= addr && addr <= 0x0809FFFF) return  8;
-    if (0x080A0000 <= addr && addr <= 0x080BFFFF) return  9;
-    if (0x080C0000 <= addr && addr <= 0x080DFFFF) return 10;
-    if (0x080E0000 <= addr && addr <= 0x080FFFFF) return 11;
-
-#ifdef DEBUG_ON
-    __builtin_unreachable();
-#endif
-    return 0;
-}
-
-void *sector_start(uint8_t sector) {
-    switch (sector) {
-#ifdef DEBUG_ON
-    default: __builtin_unreachable();
-#else
-    default: return (void*)0x08000000;
-#endif
-    case  0: return (void*)0x08000000;
-    case  1: return (void*)0x08004000;
-    case  2: return (void*)0x08008000;
-    case  3: return (void*)0x0800C000;
-    case  4: return (void*)0x08010000;
-    case  5: return (void*)0x08020000;
-    case  6: return (void*)0x08040000;
-    case  7: return (void*)0x08060000;
-    case  8: return (void*)0x08080000;
-    case  9: return (void*)0x080A0000;
-    case 10: return (void*)0x080C0000;
-    case 11: return (void*)0x080E0000;
-    }
-}
-
-uint32_t sector_length(uint8_t sector) {
-    switch (sector) {
-#ifdef DEBUG_ON
-    default: __builtin_unreachable();
-#else
-    default: return     0x0;
-#endif
-    case  0: return  0x4000;
-    case  1: return  0x4000;
-    case  2: return  0x4000;
-    case  3: return  0x4000;
-    case  4: return 0x10000;
-    case  5: return 0x20000;
-    case  6: return 0x20000;
-    case  7: return 0x20000;
-    case  8: return 0x20000;
-    case  9: return 0x20000;
-    case 10: return 0x20000;
-    case 11: return 0x20000;
-    }
-}
-
-bool memory_flash_write(uint8_t *dst, uint8_t *src, size_t len, bool erase)
-{
-    // Don't allow writing outside of flash.
-    if (dst < (uint8_t*)FLASH_ORIGIN ||
-        (uint8_t*)FLASH_END < dst + len)
-        return false;
-
-    int sector = sector_from_address(dst);
-
-    // Don't allow writing over sector boundaries.
-    if (sector_length(sector) < (uint8_t*)dst -
-                                (uint8_t*)sector_start(sector) + len)
-        return false;
-
-    // Don't allow writing to the bootstrap sector, it should be R/O
-    if (FLASH_BOOTSTRAP_SECTOR_FIRST <= sector &&
-        sector <= FLASH_BOOTSTRAP_SECTOR_LAST)
-        return false;
-
-    // Don't allow writing to the bootloader sectors, they should be R/0
-    if (FLASH_BOOT_SECTOR_FIRST <= sector &&
-        sector <= FLASH_BOOT_SECTOR_LAST)
-        return false;
-
-    uint8_t *dst_s = dst;
-    uint8_t *dst_e = dst + len;
-    const uint8_t *fw_s = (const uint8_t *)FLASH_APP_START;
-    const uint8_t *fw_e = fw_s + *((const uint32_t*)FLASH_META_CODELEN);
-
-    // In order to prevent us from accidentally overwriting the
-    // currently-executing code, check that:
-
-    // 1) The write doesn't overlap the beginning of the application data.
-    if (dst_s <= fw_s && fw_s <= dst_e)
-        return false;
-
-    // 2) The write isn't fully contained within the application data.
-    if (fw_s <= dst_s && dst_e <= fw_e)
-
-    // 3) The write doesn't overlap the end of the application data.
-    if (dst_s <= fw_e && fw_e <= dst_e)
-        return false;
-
-    // 4) The write doesn't fully contain the application data.
-    if (dst_s <= fw_s && fw_e <= dst_e)
-        return false;
-
-    // Tell the flash we're about to write to it.
-    flash_unlock();
-
-    if (erase) {
-        // Erase the whole sector.
-        flash_erase_sector(sector_from_address(dst), 0 /* 8-bit writes */);
-    }
-
-    // Write into the sector.
-    flash_program((uint32_t)dst, src, len);
-
-    // Disallow writing to flash.
-    flash_lock();
-
-    // Check for any errors.
-    return flash_chk_status();
-}
-
-bool memory_flash_hash(uint8_t *address, size_t address_len,
-                       uint8_t *nonce, size_t nonce_len,
-                       uint8_t *hash, size_t hash_len) {
-
-    // Is address+len outside of flash?
-    if (address < (uint8_t*)FLASH_ORIGIN ||
-        (uint8_t*)FLASH_END < address + address_len)
-      return false;
-
-    // Is sha3_Final going to write off the end of hash?
-    if (hash_len < 32)
-      return false;
-
-    static struct SHA3_CTX ctx;
-    sha3_256_Init(&ctx);
-    if (nonce) {
-        sha3_Update(&ctx, nonce, nonce_len);
-    }
-    sha3_Update(&ctx, (void*)address, address_len);
-    sha3_Final(&ctx, hash);
-    return true;
-}
-#endif
 

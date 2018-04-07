@@ -23,6 +23,6 @@
 /* === Functions =========================================================== */
 typedef struct ImageAnimation_ ImageAnimation;
 
-const ImageAnimation* get_screensaver_animation(void);
+const ImageAnimation* variant_getScreensaverAnimation(void);
 
 #endif

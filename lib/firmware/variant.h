@@ -17,7 +17,22 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-typedef struct ImageAnimation_ ImageAnimation;
-const ImageAnimation *get_screensaver_animation(void);
+#ifndef LIB_FIRMWARE_VARIANT_H
+#define LIB_FIRMWARE_VARIANT_H
 
-const char *firmware_variant(void);
+#include <stddef.h>
+#include <inttypes.h>
+#include <stdbool.h>
+
+typedef struct ImageAnimation_ ImageAnimation;
+const ImageAnimation *variant_getScreensaverAnimation(void);
+
+const char *variant_name(void);
+
+/// \returns true iff this is a Manufacturing firmware.
+bool variant_isMFR(void);
+
+/// Perform a soft reset
+void variant_mfr_softReset(void) __attribute__((weak));
+
+#endif

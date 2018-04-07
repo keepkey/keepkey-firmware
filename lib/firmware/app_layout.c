@@ -349,7 +349,7 @@ void layout_screensaver(void)
     screensaver.base.x = 0;
     screensaver.base.y = 0;
 
-    screensaver.img_animation = get_screensaver_animation();
+    screensaver.img_animation = variant_getScreensaverAnimation();
 
     layout_add_animation(
         &layout_animate_images,

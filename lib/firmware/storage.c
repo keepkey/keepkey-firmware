@@ -17,9 +17,9 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
+#include "keepkey/firmware/storage.h"
 
-
+#include "variant.h"
 
 #ifndef EMULATOR
 #  include <libopencm3/stm32/flash.h>
@@ -36,7 +36,6 @@
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/policy.h"
-#include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/util.h"
 #include "keepkey/transport/interface.h"
 
@@ -46,8 +45,6 @@
 
 #include <string.h>
 #include <stdint.h>
-
-/* === Private Variables =================================================== */
 
 static bool sessionSeedCached, sessionSeedUsesPassphrase;
 static uint8_t CONFIDENTIAL sessionSeed[64];
@@ -105,16 +102,10 @@ enum StorageVersion {
 };
 
 static enum StorageVersion version_from_int(int version) {
-    #ifdef MANUFACTURER
-    #  if MANUFACTURER && 0 != STORAGE_VERSION
-    #    error "Manufacturer firmware must have STORAGE_VERSION 0 for safety reasons"
-    #  endif
-    #else
-    #  define STORAGE_VERSION_LAST(VAL) \
-        _Static_assert(VAL == STORAGE_VERSION, \
-                       "need to update storage_versions.inc");
-    #  include "storage_versions.inc"
-    #endif
+    #define STORAGE_VERSION_LAST(VAL) \
+      _Static_assert(VAL == STORAGE_VERSION, \
+                     "need to update storage_versions.inc");
+    #include "storage_versions.inc"
 
     switch (version) {
     #define STORAGE_VERSION_ENTRY(VAL) \
@@ -137,7 +128,13 @@ static enum StorageVersion version_from_int(int version) {
 static bool storage_from_flash(ConfigFlash *stor_config)
 {
     /* load config values from active config node */
-    switch(version_from_int(stor_config->storage.version))
+    enum StorageVersion version = version_from_int(stor_config->storage.version);
+
+    // Don't restore storage in MFR firmware
+    if (variant_isMFR())
+        version = StorageVersion_NONE;
+
+    switch (version)
     {
         case StorageVersion_1:
             memcpy(&shadow_config.meta, &stor_config->meta, sizeof(shadow_config.meta));
@@ -304,8 +301,7 @@ storage_get_root_seed_cache_exit:
  */
 void storage_init(void)
 {
-#ifdef MANUFACTURER
-    if (strcmp("MFR", firmware_variant()) == 0)
+    if (strcmp("MFR", variant_name()) == 0)
     {
         // Storage should have been wiped due to the MANUFACTURER firmware
         // having a STORAGE_VERSION of 0, but to be absolutely safe and
@@ -324,7 +320,6 @@ void storage_init(void)
         if (memcmp((void *)stor_3->meta.magic, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0)
             flash_erase_word(FLASH_STORAGE3);
     }
-#endif
 
     ConfigFlash *stor_config;
 

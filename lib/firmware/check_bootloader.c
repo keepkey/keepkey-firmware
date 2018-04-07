@@ -59,9 +59,6 @@ static enum BL_Status check_bootloader_status(void) {
     if (32 != memory_bootloader_hash(bl_hash, /*cached=*/ false))
         return BL_UNKNOWN;
 
-#if defined(DEBUG_ON)
-    return BL_PATCH_APPLIED;
-#else
     // Fixed bootloaders
     // ---------------------
     if (0 == memcmp(bl_hash, v1_0_0_hotpatched, 32))
@@ -109,7 +106,6 @@ static enum BL_Status check_bootloader_status(void) {
         return BL_HOTPATCHABLE; // v1.0.4, unpatched - SALT whitelabel
 
     return BL_UNKNOWN;
-#endif
 }
 
 BootloaderKind get_bootloaderKind(void) {
@@ -171,6 +167,7 @@ BootloaderKind get_bootloaderKind(void) {
  */
 static bool apply_hotpatch(void)
 {
+#ifndef EMULATOR
     const uintptr_t hotpatch_addr = 0x802026c;
 
     static const char hotpatch[18] = {
@@ -199,10 +196,19 @@ static bool apply_hotpatch(void)
 
     // Check for the hotpatch sequence
     return memcmp((void*)hotpatch_addr, hotpatch, sizeof(hotpatch)) == 0;
+#else
+    return false;
+#endif
 }
 
 void check_bootloader(void) {
+#ifndef EMULATOR
     enum BL_Status status = check_bootloader_status();
+
+#if defined(DEBUG_ON)
+    status = BL_PATCH_APPLIED;
+#endif
+
     if (status == BL_HOTPATCHABLE) {
         if (!apply_hotpatch()) {
             layout_warning_static("Hotpatch failed. Contact support.");
@@ -217,4 +223,5 @@ void check_bootloader(void) {
         layout_warning_static("B/L check failed. Reboot Device!");
         shutdown();
     }
+#endif
 }

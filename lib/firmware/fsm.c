@@ -30,6 +30,7 @@
 #include "keepkey/board/msg_dispatch.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/timer.h"
+#include "keepkey/board/variant.h"
 #include "keepkey/crypto/aes.h"
 #include "keepkey/crypto/base58.h"
 #include "keepkey/crypto/bip39.h"
@@ -61,9 +62,9 @@
 
 #include <stdio.h>
 
-#ifdef MANUFACTURER
-#  include <libopencm3/cm3/scb.h>
-#endif
+//#ifdef MANUFACTURER
+//#  include <libopencm3/cm3/scb.h>
+//#endif
 
 /* === Private Variables =================================================== */
 
@@ -112,11 +113,9 @@ static const MessagesMap_t MessagesMap[] =
     /* Normal Raw Messages */
     RAW_IN(MessageType_MessageType_RawTxAck,            RawTxAck_fields,            (void (*)(void *))fsm_msgRawTxAck)
 
-#ifdef MANUFACTURER
     MSG_IN(MessageType_MessageType_FlashWrite,          FlashWrite_fields, (void (*)(void *))fsm_msgFlashWrite)
     MSG_IN(MessageType_MessageType_FlashHash,           FlashHash_fields, (void (*)(void *))fsm_msgFlashHash)
     MSG_IN(MessageType_MessageType_SoftReset,           SoftReset_fields, (void (*)(void *))fsm_msgSoftReset)
-#endif
 
     /* Normal Out Messages */
     MSG_OUT(MessageType_MessageType_Success,            Success_fields,             NO_PROCESS_FUNC)
@@ -149,22 +148,17 @@ static const MessagesMap_t MessagesMap[] =
     DEBUG_IN(MessageType_MessageType_DebugLinkGetState, DebugLinkGetState_fields, (void (*)(void *))fsm_msgDebugLinkGetState)
     DEBUG_IN(MessageType_MessageType_DebugLinkStop,     DebugLinkStop_fields, (void (*)(void *))fsm_msgDebugLinkStop)
 #endif
-#if DEBUG_LINK || defined(MANUFACTURER)
-    DEBUG_IN(MessageType_MessageType_DebugLinkFlashDump,         DebugLinkFlashDump_fields, (void (*)(void *))fsm_msgDebugLinkFlashDump)
-#endif
+
+    MSG_IN(MessageType_MessageType_DebugLinkFlashDump,         DebugLinkFlashDump_fields, (void (*)(void *))fsm_msgDebugLinkFlashDump)
 
 #if DEBUG_LINK
     /* Debug Out Messages */
     DEBUG_OUT(MessageType_MessageType_DebugLinkState, DebugLinkState_fields,        NO_PROCESS_FUNC)
     DEBUG_OUT(MessageType_MessageType_DebugLinkLog, DebugLinkLog_fields,            NO_PROCESS_FUNC)
 #endif
-#if DEBUG_LINK || defined(MANUFACTURER)
-    DEBUG_OUT(MessageType_MessageType_DebugLinkFlashDumpResponse, DebugLinkFlashDumpResponse_fields,    NO_PROCESS_FUNC)
-#endif
 
-#ifdef MANUFACTURER
+    MSG_OUT(MessageType_MessageType_DebugLinkFlashDumpResponse, DebugLinkFlashDumpResponse_fields,    NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_FlashHashResponse, FlashHashResponse_fields,    NO_PROCESS_FUNC)
-#endif
 };
 
 /* === Variables =========================================================== */
@@ -447,9 +441,9 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     resp->has_model = true;
     strlcpy(resp->model, model(), sizeof(resp->model));
 
-    /* Whitelabel Name */
+    /* Variant Name */
     resp->has_firmware_variant = true;
-    strlcpy(resp->firmware_variant, firmware_variant(), sizeof(resp->firmware_variant));
+    strlcpy(resp->firmware_variant, variant_name(), sizeof(resp->firmware_variant));
 
     /* Security settings */
     resp->has_pin_protection = true; resp->pin_protection = storage_has_pin();
@@ -1509,8 +1503,7 @@ void fsm_msgDebugLinkStop(DebugLinkStop *msg)
 }
 #endif
 
-#if DEBUG_LINK || defined(MANUFACTURER)
-void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg) 
+void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg)
 {
 
     if (!msg->has_length || msg->length > sizeof(((DebugLinkFlashDumpResponse *)0)->data.bytes)) {
@@ -1521,38 +1514,55 @@ void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg)
 
     RESP_INIT(DebugLinkFlashDumpResponse);
 
+#if DEBUG_LINK
     memcpy(resp->data.bytes, (void*)msg->address, msg->length);
-    resp->has_data = true;
-    resp->data.size = msg->length;
-    msg_debug_write(MessageType_MessageType_DebugLinkFlashDumpResponse, resp);
-}
+#else
+    if (variant_mfr_flashDump)
+        variant_mfr_flashDump(resp->data.bytes, (void*)msg->address, msg->length);
 #endif
 
-#ifdef MANUFACTURER
+    resp->has_data = true;
+    resp->data.size = msg->length;
+    msg_write(MessageType_MessageType_DebugLinkFlashDumpResponse, resp);
+}
+
 void fsm_msgSoftReset(SoftReset *msg) {
     (void)msg;
-    scb_reset_system();
+    if (variant_mfr_softReset)
+        variant_mfr_softReset();
+    else {
+        fsm_sendFailure(FailureType_Failure_Other, "SoftReset: unsupported outside of MFR firmware");
+        go_home();
+    }
 }
 
 void fsm_msgFlashWrite(FlashWrite *msg) {
+    if (!variant_mfr_flashWrite || !variant_mfr_flashHash ||
+        !variant_mfr_sectorFromAddress || !variant_mfr_sectorLength ||
+        !variant_mfr_sectorStart) {
+        fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: this isn't MFR firmware");
+        go_home();
+        return;
+    }
+
     if (!msg->has_address || !msg->has_data || msg->data.size > 1024) {
         fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: invalid parameters");
         go_home();
         return;
     }
 
-    uint8_t sector = sector_from_address((uint8_t*)msg->address);
-    if (sector_length(sector) < (uint8_t*)msg->address -
-                                (uint8_t*)sector_start(sector) +
-                                msg->data.size) {
+    uint8_t sector = variant_mfr_sectorFromAddress((uint8_t*)msg->address);
+    if (variant_mfr_sectorLength(sector) < (uint8_t*)msg->address -
+                                  (uint8_t*)variant_mfr_sectorStart(sector) +
+                                  msg->data.size) {
         fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: write must not span more than one sector");
         go_home();
         return;
     }
 
     // Check BOUNDS
-    if (!memory_flash_write((uint8_t*)msg->address, msg->data.bytes, msg->data.size,
-                            msg->has_erase ? msg->erase : false)) {
+    if (!variant_mfr_flashWrite((uint8_t*)msg->address, msg->data.bytes, msg->data.size,
+                                 msg->has_erase ? msg->erase : false)) {
         fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: write failed");
         go_home();
         return;
@@ -1566,8 +1576,8 @@ void fsm_msgFlashWrite(FlashWrite *msg) {
 
     RESP_INIT(FlashHashResponse);
 
-    if (!memory_flash_hash((uint8_t*)msg->address, msg->data.size, 0, 0,
-                           resp->data.bytes, sizeof(resp->data.bytes))) {
+    if (!variant_mfr_flashHash((uint8_t*)msg->address, msg->data.size, 0, 0,
+                                resp->data.bytes, sizeof(resp->data.bytes))) {
         fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: FlashHash failed");
         go_home();
         return;
@@ -1579,6 +1589,12 @@ void fsm_msgFlashWrite(FlashWrite *msg) {
 }
 
 void fsm_msgFlashHash(FlashHash *msg) {
+    if (!variant_mfr_flashHash) {
+        fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: this isn't MFR firmware");
+        go_home();
+        return;
+    }
+
     if (!msg->has_address || !msg->has_length || !msg->has_challenge) {
         fsm_sendFailure(FailureType_Failure_Other, "FlashHash: invalid parameters");
         go_home();
@@ -1587,9 +1603,9 @@ void fsm_msgFlashHash(FlashHash *msg) {
 
     RESP_INIT(FlashHashResponse);
 
-    if (!memory_flash_hash((uint8_t*)msg->address, msg->length,
-                           msg->challenge.bytes, msg->challenge.size,
-                           resp->data.bytes, sizeof(resp->data.bytes))) {
+    if (!variant_mfr_flashHash((uint8_t*)msg->address, msg->length,
+                                msg->challenge.bytes, msg->challenge.size,
+                                resp->data.bytes, sizeof(resp->data.bytes))) {
         fsm_sendFailure(FailureType_Failure_Other, "FlashHash: failed");
         go_home();
         return;
@@ -1599,5 +1615,4 @@ void fsm_msgFlashHash(FlashHash *msg) {
     resp->data.size = sizeof(resp->data.bytes);
     msg_write(MessageType_MessageType_FlashHashResponse, resp);
 }
-#endif
 

@@ -226,18 +226,23 @@ static const ImageAnimation screensaver = { 17, screensaver_array };
 /* === Functions =========================================================== */
 
 /*
- * get_screensaver_animation() - Gets screensaver animation
+ * variant_getScreensaverAnimation() - Gets screensaver animation
  *
  * INPUT
  *     none
  * OUTPUT
  *     screensaver ImageAnimation
  */
-const ImageAnimation *get_screensaver_animation(void)
+const ImageAnimation *variant_getScreensaverAnimation(void)
 {
     return(&screensaver);
 }
 
-const char *firmware_variant(void) {
+const char *variant_name(void) {
     return "SALT";
 }
+
+bool variant_isMFR(void) {
+    return false;
+}
+

@@ -24,10 +24,16 @@ endif()
 
 include_directories(
   ${CMAKE_SOURCE_DIR}/include
-  ${CMAKE_BINARY_DIR}/include)
+  ${CMAKE_BINARY_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(kkboard ${sources})
 add_dependencies(kkboard kktransport kktransport.pb)
 
-add_library(kkboard.keepkey ${CMAKE_CURRENT_SOURCE_DIR}/variant/keepkey/logo.c)
-add_library(kkboard.salt ${CMAKE_CURRENT_SOURCE_DIR}/variant/salt/logo.c)
+add_library(kkboard.keepkey
+    ${CMAKE_CURRENT_SOURCE_DIR}/variant/keepkey/logo.c)
+add_library(kkboard.salt
+    ${CMAKE_CURRENT_SOURCE_DIR}/variant/salt/logo.c)
+add_library(kkboard.mfr
+    ${CMAKE_CURRENT_SOURCE_DIR}/variant/mfr/logo.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/variant/mfr/memory.c)

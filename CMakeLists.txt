@@ -12,7 +12,6 @@ set(BOOTLOADER_PATCH_VERSION 4)
 
 option(KK_EMULATOR "Build the emulator" OFF)
 option(KK_DEBUG_LINK "Build with debug-link enabled" OFF)
-option(KK_MANUFACTURER "Build the manufacturing firmware" OFF)
 set(LIBOPENCM3_PATH /root/libopencm3 CACHE PATH "Path to an already-built libopencm3")
 set(PROTOC_BINARY protoc CACHE PATH "Path to the protobuf compiler binary")
 set(NANOPB_DIR /root/nanopb CACHE PATH "Path to the nanopb build")
@@ -60,10 +59,6 @@ if(${KK_DEBUG_LINK})
   add_definitions(-DDEBUG_LINK=1)
 else()
   add_definitions(-DDEBUG_LINK=0)
-endif()
-
-if(${KK_MANUFACTURER})
-  add_definitions(-DMANUFACTURER=1)
 endif()
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
