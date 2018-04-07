@@ -20,6 +20,7 @@
 #include "keepkey/firmware/app_resources.h"
 
 #include "keepkey/board/resources.h"
+#include "keepkey/board/timer.h"
 
 #include <string.h>
 #include <stdint.h>
@@ -217,17 +218,13 @@ static const AnimationFrame screensaver_array[] =
 
 static const ImageAnimation screensaver = { 17, screensaver_array };
 
-/*
- * variant_getScreensaverAnimation() - Gets screensaver animation
- *
- * INPUT
- *     none
- * OUTPUT
- *     screensaver ImageAnimation
- */
 const ImageAnimation *variant_getScreensaverAnimation(void)
 {
     return(&screensaver);
+}
+
+uint32_t variant_getScreensaverTimeout(void) {
+    return ONE_SEC * 60 * 10;
 }
 
 const char *variant_name(void) {

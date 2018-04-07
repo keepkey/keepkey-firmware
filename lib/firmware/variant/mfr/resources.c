@@ -39,14 +39,6 @@ static const AnimationFrame screensaver_array[] = { {&screensaver_1_image, 1000}
 
 static const ImageAnimation screensaver = { 1, screensaver_array};
 
-/*
- * variant_getScreensaverAnimation() - Gets screensaver animation
- *
- * INPUT
- *     none
- * OUTPUT
- *     screensaver ImageAnimation
- */
 const ImageAnimation *variant_getScreensaverAnimation(void)
 {
     return(&screensaver);
@@ -54,6 +46,10 @@ const ImageAnimation *variant_getScreensaverAnimation(void)
 
 const char *variant_name(void) {
     return "MFR";
+}
+
+uint32_t variant_getScreensaverTimeout(void) {
+    return 1; // Immediately
 }
 
 bool variant_isMFR(void) {

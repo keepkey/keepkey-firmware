@@ -17,21 +17,17 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
+#include "variant.h"
 
 #include "keepkey/board/layout.h"
-
-#include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/app_layout.h"
+#include "keepkey/firmware/home_sm.h"
 
-/* === Private Variables =================================================== */
 
 /* Track state of home screen */
 static HomeState home_state = AT_HOME;
 
 static uint32_t idle_time = 0;
-
-/* === Functions =========================================================== */
 
 /*
  * go_home() - Returns to home screen
@@ -114,7 +110,7 @@ void toggle_screensaver(void)
     switch(home_state)
     {
         case AT_HOME:
-            if(idle_time >= SCREENSAVER_TIMEOUT)
+            if(idle_time >= variant_getScreensaverTimeout())
             {
                 layout_screensaver();
                 home_state = SCREENSAVER;
@@ -123,7 +119,7 @@ void toggle_screensaver(void)
             break;
 
         case SCREENSAVER:
-            if(idle_time < SCREENSAVER_TIMEOUT)
+            if(idle_time < variant_getScreensaverTimeout())
             {
                 layout_home();
                 home_state = AT_HOME;
