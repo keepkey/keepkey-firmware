@@ -47,4 +47,19 @@ const char* recovery_get_cipher(void);
 const char* recovery_get_auto_completed_word(void);
 #endif
 
+
+/// Determine if two strings are exact matches for length passed
+/// (does not stop at null termination)
+///
+/// \param str1  The first string.
+/// \param str2  The second string.
+/// \return true iff the strings match
+bool exact_str_match(const char *str1, const char *str2, uint32_t len);
+
+/// \brief Attempts to auto complete a partial word
+///
+/// \param partial_word[in/out]   word that will be attempted to be auto completed.
+/// \returns true iff partial_word was auto completed
+bool attempt_auto_complete(char *partial_word);
+
 #endif
