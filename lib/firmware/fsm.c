@@ -62,12 +62,6 @@
 
 #include <stdio.h>
 
-//#ifdef MANUFACTURER
-//#  include <libopencm3/cm3/scb.h>
-//#endif
-
-/* === Private Variables =================================================== */
-
 static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
 
 static const MessagesMap_t MessagesMap[] =
@@ -161,11 +155,8 @@ static const MessagesMap_t MessagesMap[] =
     MSG_OUT(MessageType_MessageType_FlashHashResponse, FlashHashResponse_fields,    NO_PROCESS_FUNC)
 };
 
-/* === Variables =========================================================== */
-
 extern bool reset_msg_stack;
 
-/* === Private Functions =================================================== */
 static const CoinType *fsm_getCoin(const char *name)
 {
     const CoinType *coin = coinByName(name);
