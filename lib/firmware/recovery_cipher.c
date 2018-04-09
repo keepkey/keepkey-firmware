@@ -406,7 +406,7 @@ void recovery_cipher_finalize(void)
 
     if(auto_completed)
     {
-        /* Trunicate additional space at end */
+        /* Truncate additional space at the end */
         full_mnemonic[strlen(full_mnemonic) - 1] = '\0';
 
         storage_set_mnemonic(full_mnemonic);
