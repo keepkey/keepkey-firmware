@@ -29,5 +29,5 @@ include_directories(
 add_library(kkboard ${sources})
 add_dependencies(kkboard kktransport kktransport.pb)
 
-add_library(kkboard.keepkey ${CMAKE_CURRENT_SOURCE_DIR}/whitelabel/keepkey/logo.c)
-add_library(kkboard.salt ${CMAKE_CURRENT_SOURCE_DIR}/whitelabel/salt/logo.c)
+add_library(kkboard.keepkey ${CMAKE_CURRENT_SOURCE_DIR}/variant/keepkey/logo.c)
+add_library(kkboard.salt ${CMAKE_CURRENT_SOURCE_DIR}/variant/salt/logo.c)

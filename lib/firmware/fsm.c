@@ -20,7 +20,7 @@
 /* === Includes ============================================================ */
 
 #include "scm_revision.h"
-#include "whitelabel.h"
+#include "variant.h"
 
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/keepkey_board.h"
