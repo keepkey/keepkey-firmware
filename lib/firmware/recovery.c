@@ -99,7 +99,7 @@ void next_word(void) {
 void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_protection, const char *language, const char *label, bool _enforce_wordlist)
 {
 	if (_word_count != 12 && _word_count != 18 && _word_count != 24) {
-		fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid word count (has to be 12, 18 or 24 bits)");
+		fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid word count (has to be 12, 18 or 24");
 		go_home();
 		return;
 	}
