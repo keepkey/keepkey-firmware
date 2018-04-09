@@ -17,7 +17,7 @@ docker run -t \
         -DCMAKE_BUILD_TYPE=Debug \
         -DKK_DEBUG_LINK=ON \
         -DCMAKE_COLOR_MAKEFILE=$COLOR &&\
-      make VERBOSE=1 && \
+      make && \
       mkdir -p /root/keepkey-firmware/bin && \
       cp bin/*.bin /root/keepkey-firmware/bin/ && \
       cp bin/*.elf /root/keepkey-firmware/bin/"
