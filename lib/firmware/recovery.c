@@ -24,6 +24,7 @@
 #include "keepkey/board/msg_dispatch.h"
 #include "keepkey/board/rng.h"
 #include "keepkey/crypto/bip39.h"
+#include "keepkey/crypto/macros.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/pin_sm.h"
@@ -42,8 +43,8 @@ static bool enforce_wordlist;
 static char fake_word[12];
 static uint32_t word_pos;
 static uint32_t word_index;
-static char word_order[24];
-static char words[24][12];
+static char CONFIDENTIAL word_order[24];
+static char CONFIDENTIAL words[24][12];
 
 /* === Functions =========================================================== */
 
@@ -55,8 +56,8 @@ void next_word(void) {
 	}
 
 	word_pos = word_order[word_index];
-	char title_formatted[SMALL_STR_BUF];
-	char body_formatted[MEDIUM_STR_BUF];
+	static char CONFIDENTIAL title_formatted[SMALL_STR_BUF];
+	static char CONFIDENTIAL body_formatted[MEDIUM_STR_BUF];
 
 	/* Form title */
     /* snprintf: 24 + 10 (%u) + 1 (NULL) = 35 */
@@ -94,6 +95,9 @@ void next_word(void) {
 	WordRequest resp;
 	memset(&resp, 0, sizeof(WordRequest));
 	msg_write(MessageType_MessageType_WordRequest, &resp);
+
+    MEMSET_BZERO(title_formatted, sizeof(title_formatted));
+    MEMSET_BZERO(body_formatted, sizeof(body_formatted));
 }
 
 void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_protection, const char *language, const char *label, bool _enforce_wordlist)
