@@ -133,55 +133,58 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
 	next_word();
 }
 
+static bool isInWordList(const char *word) {
+    const char * const *wl = mnemonic_wordlist();
+    while (*wl)
+    {
+        if (strcmp(word, *wl) == 0)
+        {
+            // Yes, this "leaks" timing information about what the word
+            // is, but in this recovery mode, the host knows what each
+            // of the words are (just not their order, nor which ones
+            // are fake).
+            return true;
+        }
+        wl++;
+    }
+    return false;
+}
+
 void recovery_word(const char *word)
 {
-    if (!awaiting_word) 
+    if (!awaiting_word)
     {
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
         go_home();
         return;
     }
 
-    if (word_pos == 0) 
-    { // fake word
-        if (strcmp(word, fake_word) != 0) {
+    volatile bool found = isInWordList(word);
+    volatile bool isFake = exact_str_match(word, fake_word, strlen(word) + 1) != 0;
+
+    if ((word_pos == 0) & isFake) {
+        // Fake word
+        storage_reset();
+        fsm_sendFailure(FailureType_Failure_SyntaxError, "Wrong word retyped");
+        go_home();
+        return;
+    } else {
+        // Real word
+        if (enforce_wordlist & (!found)) {
             storage_reset();
-            fsm_sendFailure(FailureType_Failure_SyntaxError, "Wrong word retyped");
+            fsm_sendFailure(FailureType_Failure_SyntaxError, "Word not found in the bip39 wordlist");
             go_home();
             return;
-        }
-    } else { // real word
-        if (enforce_wordlist) 
-        { // check if word is valid
-            const char * const *wl = mnemonic_wordlist();
-            bool found = false;
-            while (*wl) 
-            {
-                if (strcmp(word, *wl) == 0) 
-                {
-                    found = true;
-                    break;
-                }
-                wl++;
-            }
-            if (!found) 
-            {
-                storage_reset();
-                fsm_sendFailure(FailureType_Failure_SyntaxError, "Word not found in a wordlist");
-                go_home();
-                return;
-            }
         }
         strlcpy(words[word_pos - 1], word, sizeof(words[word_pos - 1]));
     }
 
-    if (word_index + 1 == 24)
-    { // last one
+    if (word_index + 1 == 24) {
+        // last one
         storage_set_mnemonic_from_words((const char (*)[])words, word_count);
 
-        if (!enforce_wordlist || mnemonic_check(storage_get_shadow_mnemonic()))
-        {
-        	storage_commit();
+        if (!enforce_wordlist || mnemonic_check(storage_get_shadow_mnemonic())) {
+            storage_commit();
             fsm_sendSuccess("Device recovered");
         } else {
             storage_reset();
