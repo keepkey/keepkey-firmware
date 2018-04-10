@@ -232,11 +232,12 @@ void mnemonic_to_seed(const char *mnemonic, const char *passphrase, uint8_t seed
 		}
 	}
 #endif
-	uint8_t salt[8 + 256];
+	static uint8_t CONFIDENTIAL salt[8 + 256];
 	memcpy(salt, "mnemonic", 8);
 	memcpy(salt + 8, passphrase, passphraselen);
 	PBKDF2_HMAC_SHA512_CTX pctx;
 	pbkdf2_hmac_sha512_Init(&pctx, (const uint8_t *)mnemonic, strlen(mnemonic), salt, passphraselen + 8);
+	MEMSET_BZERO(salt, sizeof(salt));
 	if (progress_callback) {
 		progress_callback(1,1);
 	}

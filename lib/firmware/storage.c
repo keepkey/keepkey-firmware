@@ -32,6 +32,7 @@
 #include "keepkey/crypto/aes.h"
 #include "keepkey/crypto/bip39.h"
 #include "keepkey/crypto/curves.h"
+#include "keepkey/crypto/macros.h"
 #include "keepkey/crypto/pbkdf2.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/passphrase_sm.h"
@@ -995,7 +996,7 @@ bool storage_get_root_node(HDNode *node, const char *curve, bool usePassphrase)
             strlen(sessionPassphrase) > 0)
         {
             // decrypt hd node
-            uint8_t secret[64];
+            static uint8_t CONFIDENTIAL secret[64];
             PBKDF2_HMAC_SHA512_CTX pctx;
             pbkdf2_hmac_sha512_Init(&pctx, (const uint8_t *)sessionPassphrase, strlen(sessionPassphrase), (const uint8_t *)"TREZORHD", 8);
             for (int i = 0; i < 8; i++) {
@@ -1006,6 +1007,8 @@ bool storage_get_root_node(HDNode *node, const char *curve, bool usePassphrase)
             aes_decrypt_key256(secret, &ctx);
             aes_cbc_decrypt(node->chain_code, node->chain_code, 32, secret + 32, &ctx);
             aes_cbc_decrypt(node->private_key, node->private_key, 32, secret + 32, &ctx);
+            MEMSET_BZERO(&ctx, sizeof(ctx));
+            MEMSET_BZERO(secret, sizeof(secret));
         }
 
         ret_stat = true;
