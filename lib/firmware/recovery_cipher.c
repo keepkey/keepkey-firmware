@@ -240,18 +240,17 @@ void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
  */
 void next_character(void)
 {
-    static char CONFIDENTIAL current_word[CURRENT_WORD_BUF];
-    bool auto_completed = false;
-    CharacterRequest resp;
-
     /* Scramble cipher */
     strlcpy(cipher, english_alphabet, ENGLISH_ALPHABET_BUF);
     random_permute(cipher, strlen(cipher));
 
+    static char CONFIDENTIAL current_word[CURRENT_WORD_BUF];
     get_current_word(current_word);
 
-    if(strlen(current_word) > 4)        /* Words should never be longer than 4 characters */
+    /* Words should never be longer than 4 characters */
+    if (strlen(current_word) > 4)
     {
+        MEMSET_BZERO(current_word, sizeof(current_word));
         awaiting_character = false;
         go_home();
 
@@ -260,6 +259,7 @@ void next_character(void)
     }
     else
     {
+        CharacterRequest resp;
         memset(&resp, 0, sizeof(CharacterRequest));
 
         resp.word_pos = get_current_word_pos();
@@ -267,8 +267,9 @@ void next_character(void)
 
         msg_write(MessageType_MessageType_CharacterRequest, &resp);
 
-        if(strlen(current_word) >=
-                3)   /* Attempt to auto complete if we have at least 3 characters */
+        /* Attempt to auto complete if we have at least 3 characters */
+        bool auto_completed = false;
+        if (strlen(current_word) >= 3)
         {
             auto_completed = attempt_auto_complete(current_word);
         }
@@ -291,6 +292,7 @@ void next_character(void)
 
         /* Show cipher and partial word */
         layout_cipher(current_word, cipher);
+        MEMSET_BZERO(current_word, sizeof(current_word));
     }
 }
 
