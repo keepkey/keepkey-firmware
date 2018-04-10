@@ -17,8 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/msg_dispatch.h"
@@ -35,8 +33,6 @@
 #include <string.h>
 #include <stdio.h>
 
-/* === Private Variables =================================================== */
-
 static bool enforce_wordlist;
 static bool awaiting_character;
 static CONFIDENTIAL char mnemonic[MNEMONIC_BUF];
@@ -51,32 +47,23 @@ static void format_current_word(char *current_word, bool auto_completed);
 static uint32_t get_current_word_pos(void);
 static void get_current_word(char *current_word);
 
-/* === Private Functions =================================================== */
-
-/*
- * format_current_word() - Formats the passed word to show position in mnemonic 
- * as well as characters left
- *
- * INPUT
- *     - current_word: string to format
- *     - auto_completed: whether to format as an auto completed word
- * OUTPUT
- *     none
- */
+/// Formats the passed word to show position in mnemonic as well as characters
+/// left.
+///
+/// \param current_word[in]    The string to format.
+/// \param auto_completed[in]  Whether to format as an auto completed word.
 static void format_current_word(char *current_word, bool auto_completed)
 {
-    char temp_word[CURRENT_WORD_BUF];
-    uint32_t i,
-             pos_len,
-             word_num = get_current_word_pos() + 1;
+    static char CONFIDENTIAL temp_word[CURRENT_WORD_BUF];
+    uint32_t word_num = get_current_word_pos() + 1;
 
-    pos_len = strlen(current_word);
-    snprintf(temp_word, CURRENT_WORD_BUF, "%lu.%s", (unsigned long)word_num, current_word);
+    snprintf(temp_word, CURRENT_WORD_BUF, PRIu32 ".%s", word_num, current_word);
 
     /* Pad with dashes */
-    if(strlen(current_word) < 4)
+    size_t pos_len = strlen(current_word);
+    if (pos_len < 4)
     {
-        for(i = 0; i < 4 - pos_len; i++)
+        for (size_t i = 0; i < 4 - pos_len; i++)
         {
             strlcat(temp_word, "-", CURRENT_WORD_BUF);
         }
@@ -90,6 +77,7 @@ static void format_current_word(char *current_word, bool auto_completed)
     }
 
     strlcpy(current_word, temp_word, CURRENT_WORD_BUF);
+    MEMSET_BZERO(temp_word, sizeof(temp_word));
 }
 
 /*
@@ -192,8 +180,6 @@ bool attempt_auto_complete(char *partial_word)
 
     return false;
 }
-
-/* === Functions =========================================================== */
 
 /*
  * recovery_cipher_init() - Display standard notification on LCD screen
@@ -456,8 +442,6 @@ bool recovery_cipher_abort(void)
         return false;
     }
 }
-
-/* === Debug Functions =========================================================== */
 
 #if DEBUG_LINK
 /*
