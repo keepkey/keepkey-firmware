@@ -38,7 +38,7 @@
 
 static int bip39_cache_index = 0;
 
-static struct {
+static CONFIDENTIAL struct {
 	bool set;
 	char mnemonic[256];
 	char passphrase[64];
