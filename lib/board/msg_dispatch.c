@@ -21,6 +21,7 @@
 
 #include "keepkey/board/usb_driver.h"
 #include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/variant.h"
 
 #include <nanopb.h>
 
@@ -68,10 +69,22 @@ static const MessagesMap_t *message_map_entry(MessageMapType type,
 {
     const MessagesMap_t *m = MessagesMap;
 
-    if(map_size > msg_id && m[msg_id].msg_id == msg_id && m[msg_id].type == type &&
-            m[msg_id].dir == dir)
+    if (map_size > msg_id && m[msg_id].msg_id == msg_id &&
+        m[msg_id].type == type && m[msg_id].dir == dir)
     {
-        return &m[msg_id];
+        switch (m[msg_id].msg_perms) {
+        case MFROnly:
+            return variant_isMFR() ? &m[msg_id] : NULL;
+        case MFRProhibited:
+            return variant_isMFR() ? NULL : &m[msg_id];
+        case AnyVariant:
+            return &m[msg_id];
+        }
+#if DEBUG_ON
+        __builtin_unreachable();
+#else
+        return NULL;
+#endif
     }
 
     return NULL;

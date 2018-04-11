@@ -231,7 +231,3 @@ const char *variant_name(void) {
     return "KeepKey";
 }
 
-bool variant_isMFR(void) {
-    return false;
-}
-

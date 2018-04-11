@@ -29,6 +29,7 @@
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/board/rng.h"
+#include "keepkey/board/variant.h"
 #include "keepkey/crypto/aes.h"
 #include "keepkey/crypto/bip39.h"
 #include "keepkey/crypto/curves.h"

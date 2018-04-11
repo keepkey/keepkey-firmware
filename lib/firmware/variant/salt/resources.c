@@ -237,7 +237,3 @@ uint32_t variant_screensaverTimeout(void) {
     return ONE_SEC * 60 * 10;
 }
 
-bool variant_isMFR(void) {
-    return false;
-}
-
