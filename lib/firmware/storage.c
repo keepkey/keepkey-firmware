@@ -33,6 +33,7 @@
 #include "keepkey/crypto/aes.h"
 #include "keepkey/crypto/bip39.h"
 #include "keepkey/crypto/curves.h"
+#include "keepkey/crypto/macros.h"
 #include "keepkey/crypto/pbkdf2.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/passphrase_sm.h"
@@ -974,43 +975,44 @@ bool storage_get_root_node(HDNode *node, const char *curve, bool usePassphrase)
     bool ret_stat = false;
 
     // if storage has node, decrypt and use it
-    if(shadow_config.storage.has_node && strcmp(curve, SECP256K1_NAME) == 0) 
+    if(shadow_config.storage.has_node && strcmp(curve, SECP256K1_NAME) == 0)
     {
         if(!passphrase_protect())
         {
             /* passphrased failed. Bailing */
             goto storage_get_root_node_exit;
         }
-	if(hdnode_from_xprv(shadow_config.storage.node.depth, 
-                            shadow_config.storage.node.child_num, 
-                            shadow_config.storage.node.chain_code.bytes, 
-                            shadow_config.storage.node.private_key.bytes, 
-                            curve, node) == 0) 
+        if (hdnode_from_xprv(shadow_config.storage.node.depth,
+                             shadow_config.storage.node.child_num,
+                             shadow_config.storage.node.chain_code.bytes,
+                             shadow_config.storage.node.private_key.bytes,
+                             curve, node) == 0)
         {
             goto storage_get_root_node_exit;
         }
 
-        if (shadow_config.storage.has_passphrase_protection && 
-            shadow_config.storage.passphrase_protection && 
-            sessionPassphraseCached && 
-            strlen(sessionPassphrase) > 0) 
+        if (shadow_config.storage.has_passphrase_protection &&
+            shadow_config.storage.passphrase_protection &&
+            sessionPassphraseCached &&
+            strlen(sessionPassphrase) > 0)
         {
-	    // decrypt hd node
-	    uint8_t secret[64];
-	    PBKDF2_HMAC_SHA512_CTX pctx;
-	    pbkdf2_hmac_sha512_Init(&pctx, (const uint8_t *)sessionPassphrase, strlen(sessionPassphrase), (const uint8_t *)"TREZORHD", 8);
-	    for (int i = 0; i < 8; i++) 
-            {
-	        pbkdf2_hmac_sha512_Update(&pctx, BIP39_PBKDF2_ROUNDS / 8, get_root_node_callback);
-	    }
-	    pbkdf2_hmac_sha512_Final(&pctx, secret);
-	    aes_decrypt_ctx ctx;
-	    aes_decrypt_key256(secret, &ctx);
-	    aes_cbc_decrypt(node->chain_code, node->chain_code, 32, secret + 32, &ctx);
-	    aes_cbc_decrypt(node->private_key, node->private_key, 32, secret + 32, &ctx);
-	}
+            // decrypt hd node
+            static uint8_t CONFIDENTIAL secret[64];
+            PBKDF2_HMAC_SHA512_CTX pctx;
+            pbkdf2_hmac_sha512_Init(&pctx, (const uint8_t *)sessionPassphrase, strlen(sessionPassphrase), (const uint8_t *)"TREZORHD", 8);
+            for (int i = 0; i < 8; i++) {
+                pbkdf2_hmac_sha512_Update(&pctx, BIP39_PBKDF2_ROUNDS / 8, get_root_node_callback);
+            }
+            pbkdf2_hmac_sha512_Final(&pctx, secret);
+            aes_decrypt_ctx ctx;
+            aes_decrypt_key256(secret, &ctx);
+            aes_cbc_decrypt(node->chain_code, node->chain_code, 32, secret + 32, &ctx);
+            aes_cbc_decrypt(node->private_key, node->private_key, 32, secret + 32, &ctx);
+            MEMSET_BZERO(&ctx, sizeof(ctx));
+            MEMSET_BZERO(secret, sizeof(secret));
+        }
 
-	ret_stat = true;
+        ret_stat = true;
         goto storage_get_root_node_exit;
     }
 
@@ -1023,7 +1025,7 @@ bool storage_get_root_node(HDNode *node, const char *curve, bool usePassphrase)
             goto storage_get_root_node_exit;
         }
 
-	if(!sessionSeedCached)
+        if(!sessionSeedCached)
         {
 
             sessionSeedCached = storage_get_root_seed_cache(sessionSeed, curve, usePassphrase);
@@ -1033,7 +1035,7 @@ bool storage_get_root_node(HDNode *node, const char *curve, bool usePassphrase)
                 /* calculate session seed and update the global sessionSeed/sessionSeedCached variables */
                 storage_getSeed(usePassphrase);
 
-                if (sessionSeedCached) 
+                if (sessionSeedCached)
                 {
                     storage_set_root_seed_cache(sessionSeed, curve);
                 }

@@ -1,5 +1,6 @@
 set(sources
     ethereum.cpp
+    recovery.cpp
     storage.cpp)
 
 include_directories(

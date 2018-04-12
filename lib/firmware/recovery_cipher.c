@@ -17,13 +17,12 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/msg_dispatch.h"
 #include "keepkey/board/rng.h"
 #include "keepkey/crypto/bip39.h"
+#include "keepkey/crypto/macros.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
@@ -33,8 +32,6 @@
 
 #include <string.h>
 #include <stdio.h>
-
-/* === Private Variables =================================================== */
 
 static bool enforce_wordlist;
 static bool awaiting_character;
@@ -49,35 +46,24 @@ static char auto_completed_word[CURRENT_WORD_BUF];
 static void format_current_word(char *current_word, bool auto_completed);
 static uint32_t get_current_word_pos(void);
 static void get_current_word(char *current_word);
-static bool exact_str_match(const char *str1, const char *str2, uint32_t len);
-static bool attempt_auto_complete(char *partial_word);
 
-/* === Private Functions =================================================== */
-
-/*
- * format_current_word() - Formats the passed word to show position in mnemonic 
- * as well as characters left
- *
- * INPUT
- *     - current_word: string to format
- *     - auto_completed: whether to format as an auto completed word
- * OUTPUT
- *     none
- */
+/// Formats the passed word to show position in mnemonic as well as characters
+/// left.
+///
+/// \param current_word[in]    The string to format.
+/// \param auto_completed[in]  Whether to format as an auto completed word.
 static void format_current_word(char *current_word, bool auto_completed)
 {
-    char temp_word[CURRENT_WORD_BUF];
-    uint32_t i,
-             pos_len,
-             word_num = get_current_word_pos() + 1;
+    static char CONFIDENTIAL temp_word[CURRENT_WORD_BUF];
+    uint32_t word_num = get_current_word_pos() + 1;
 
-    pos_len = strlen(current_word);
-    snprintf(temp_word, CURRENT_WORD_BUF, "%lu.%s", (unsigned long)word_num, current_word);
+    snprintf(temp_word, CURRENT_WORD_BUF, PRIu32 ".%s", word_num, current_word);
 
     /* Pad with dashes */
-    if(strlen(current_word) < 4)
+    size_t pos_len = strlen(current_word);
+    if (pos_len < 4)
     {
-        for(i = 0; i < 4 - pos_len; i++)
+        for (size_t i = 0; i < 4 - pos_len; i++)
         {
             strlcat(temp_word, "-", CURRENT_WORD_BUF);
         }
@@ -91,6 +77,7 @@ static void format_current_word(char *current_word, bool auto_completed)
     }
 
     strlcpy(current_word, temp_word, CURRENT_WORD_BUF);
+    MEMSET_BZERO(temp_word, sizeof(temp_word));
 }
 
 /*
@@ -115,15 +102,8 @@ static uint32_t get_current_word_pos(void)
     return word_pos;
 }
 
-/*
- * get_current_word() - Returns the current word being entered by parsing the 
- * mnemonic thus far
- *
- * INPUT
- *     - current_word: array to populate with current word
- * OUTPUT
- *     none
- */
+/// \returns the current word being entered by parsing the mnemonic thus far
+/// \param current_word[out]  Array to populate with current word.
 static void get_current_word(char *current_word)
 {
     char *pos = strrchr(mnemonic, ' ');
@@ -139,24 +119,18 @@ static void get_current_word(char *current_word)
     }
 }
 
-/*
- * exact_str_match() - Determines if two strings are exact matches for length passed
- * (does not stop at null termination)
- *
- * INPUT
- *     - str1: first string
- *     - str2: second string
- *     - len: length to compare string for match
- * OUTPUT
- *     true/false whether matched or not
- */
-static bool exact_str_match(const char *str1, const char *str2, uint32_t len)
+bool exact_str_match(const char *str1, const char *str2, uint32_t len)
 {
-    uint32_t i = 0, match = 0;
+    uint32_t match = 0;
 
-    for(; i < len && i < CURRENT_WORD_BUF; i++)
+    // Access through volatile ptrs to prevent compiler optimizations that
+    // might leak timing information.
+    const char volatile * volatile str1_v = str1;
+    const char volatile * volatile str2_v = str2;
+
+    for(uint32_t i = 0; i < len && i < CURRENT_WORD_BUF; i++)
     {
-        if(str1[i] == str2[i])
+        if(str1_v[i] == str2_v[i])
         {
             match++;
         }
@@ -169,51 +143,43 @@ static bool exact_str_match(const char *str1, const char *str2, uint32_t len)
     return match == len;
 }
 
-/*
- * attempt_auto_complete() - Attempts to auto complete a partial word
- *
- * INPUT
- *     - partial_word: word that will be attempted to be auto completed
- * OUTPUT
- *     true/false whether partial_word was auto completed or not
- */
-static bool attempt_auto_complete(char *partial_word)
+bool attempt_auto_complete(char *partial_word)
 {
-    const char *const *wordlist = mnemonic_wordlist();
+    // Do lookup through volatile pointers to prevent the compiler from
+    // optimizing this loop into something that can leak timing information.
+    const char *const volatile * volatile wordlist =
+        (const char *const volatile *)mnemonic_wordlist();
 
-    uint32_t partial_word_len = strlen(partial_word), i = 0, match = 0, found = 0;
+    uint32_t partial_word_len = strlen(partial_word), match = 0, found = 0;
+    bool precise_match = false;
 
-    for(; wordlist[i] != 0; i++)
-    {
-        /* Check for match including null termination */
-        if(exact_str_match(partial_word, wordlist[i], partial_word_len + 1))
-        {
+    // Look for precise matches first (including null termination)
+    for (uint32_t volatile i = 0; wordlist[i] != 0; i++) {
+        if (exact_str_match(partial_word, wordlist[i], partial_word_len + 1)) {
             strlcpy(partial_word, wordlist[i], CURRENT_WORD_BUF);
-            goto matched;
+            precise_match = true;
         }
-        /* Check for match for just characters of partial word */
-        else if(exact_str_match(partial_word, wordlist[i], partial_word_len))
-        {
+    }
+
+    // Followed by partial matches (ignoring null termination)
+    for (uint32_t volatile i = 0; wordlist[i] != 0; i++) {
+        if (exact_str_match(partial_word, wordlist[i], partial_word_len)) {
             match++;
             found = i;
         }
     }
 
+    if (precise_match)
+        return true;
+
     /* Autocomplete if we can */
-    if(match == 1)
-    {
+    if (match == 1) {
         strlcpy(partial_word, wordlist[found], CURRENT_WORD_BUF);
-    }
-    else
-    {
-        return false;
+        return true;
     }
 
-matched:
-    return true;
+    return false;
 }
-
-/* === Functions =========================================================== */
 
 /*
  * recovery_cipher_init() - Display standard notification on LCD screen
@@ -260,18 +226,17 @@ void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
  */
 void next_character(void)
 {
-    char current_word[CURRENT_WORD_BUF];
-    bool auto_completed = false;
-    CharacterRequest resp;
-
     /* Scramble cipher */
     strlcpy(cipher, english_alphabet, ENGLISH_ALPHABET_BUF);
     random_permute(cipher, strlen(cipher));
 
+    static char CONFIDENTIAL current_word[CURRENT_WORD_BUF];
     get_current_word(current_word);
 
-    if(strlen(current_word) > 4)        /* Words should never be longer than 4 characters */
+    /* Words should never be longer than 4 characters */
+    if (strlen(current_word) > 4)
     {
+        MEMSET_BZERO(current_word, sizeof(current_word));
         awaiting_character = false;
         go_home();
 
@@ -280,6 +245,7 @@ void next_character(void)
     }
     else
     {
+        CharacterRequest resp;
         memset(&resp, 0, sizeof(CharacterRequest));
 
         resp.word_pos = get_current_word_pos();
@@ -287,8 +253,9 @@ void next_character(void)
 
         msg_write(MessageType_MessageType_CharacterRequest, &resp);
 
-        if(strlen(current_word) >=
-                3)   /* Attempt to auto complete if we have at least 3 characters */
+        /* Attempt to auto complete if we have at least 3 characters */
+        bool auto_completed = false;
+        if (strlen(current_word) >= 3)
         {
             auto_completed = attempt_auto_complete(current_word);
         }
@@ -311,6 +278,7 @@ void next_character(void)
 
         /* Show cipher and partial word */
         layout_cipher(current_word, cipher);
+        MEMSET_BZERO(current_word, sizeof(current_word));
     }
 }
 
@@ -404,34 +372,34 @@ void recovery_delete_character(void)
  */
 void recovery_cipher_finalize(void)
 {
-    char full_mnemonic[MNEMONIC_BUF] = "", temp_word[CURRENT_WORD_BUF], *tok;
-    bool auto_completed = true;
+    static char CONFIDENTIAL full_mnemonic[MNEMONIC_BUF] = "";
+    static char CONFIDENTIAL temp_word[CURRENT_WORD_BUF];
+    volatile bool auto_completed = true;
 
     /* Attempt to autocomplete each word */
-    tok = strtok(mnemonic, " ");
+    char *tok = strtok(mnemonic, " ");
 
     while(tok)
     {
         strlcpy(temp_word, tok, CURRENT_WORD_BUF);
 
-        if(!attempt_auto_complete(temp_word))
-        {
-            auto_completed = false;
-        }
+        auto_completed &= attempt_auto_complete(temp_word);
 
         strlcat(full_mnemonic, temp_word, MNEMONIC_BUF);
         strlcat(full_mnemonic, " ", MNEMONIC_BUF);
 
         tok = strtok(NULL, " ");
     }
+    MEMSET_BZERO(temp_word, sizeof(temp_word));
 
     if(auto_completed)
     {
-        /* Trunicate additional space at end */
+        /* Truncate additional space at the end */
         full_mnemonic[strlen(full_mnemonic) - 1] = '\0';
 
         storage_set_mnemonic(full_mnemonic);
     }
+    MEMSET_BZERO(full_mnemonic, sizeof(full_mnemonic));
 
     if(!enforce_wordlist || mnemonic_check(storage_get_shadow_mnemonic()))
     {
@@ -474,8 +442,6 @@ bool recovery_cipher_abort(void)
         return false;
     }
 }
-
-/* === Debug Functions =========================================================== */
 
 #if DEBUG_LINK
 /*
