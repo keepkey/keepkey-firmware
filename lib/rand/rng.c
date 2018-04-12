@@ -104,12 +104,26 @@ void random_buffer(uint8_t *buf, size_t len)
     }
 }
 
+// I miss C++ templates sooo bad.
+#define RANDOM_PERMUTE(BUFF, COUNT) \
+    do { \
+        for (size_t i = (COUNT) - 1; i >= 1; i--) { \
+            size_t j = random_uniform(i + 1); \
+            typeof(*(BUFF)) t = (BUFF)[j]; \
+            (BUFF)[j] = (BUFF)[i]; \
+            (BUFF)[i] = t; \
+        } \
+    } while (0)
+
 void random_permute_char(char *str, size_t len)
 {
-    for (int i = len - 1; i >= 1; i--) {
-        int j = random_uniform(i + 1);
-        char t = str[j];
-        str[j] = str[i];
-        str[i] = t;
-    }
+    RANDOM_PERMUTE(str, len);
 }
+
+void random_permute_u16(uint16_t *buf, size_t count)
+{
+    RANDOM_PERMUTE(buf, count);
+}
+
+#undef RANDOM_PERMUTE
+
