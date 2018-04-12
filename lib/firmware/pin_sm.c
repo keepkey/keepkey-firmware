@@ -221,7 +221,7 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
 
     /* Init and randomize pin matrix */
     strlcpy(pin_matrix, "123456789", PIN_BUF);
-    random_permute(pin_matrix, 9);
+    random_permute_char(pin_matrix, 9);
 
     /* Show layout */
     layout_pin(prompt, pin_matrix);

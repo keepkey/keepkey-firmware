@@ -228,7 +228,7 @@ void next_character(void)
 {
     /* Scramble cipher */
     strlcpy(cipher, english_alphabet, ENGLISH_ALPHABET_BUF);
-    random_permute(cipher, strlen(cipher));
+    random_permute_char(cipher, strlen(cipher));
 
     static char CONFIDENTIAL current_word[CURRENT_WORD_BUF];
     get_current_word(current_word);

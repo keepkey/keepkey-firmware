@@ -127,7 +127,7 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
     for (i = word_count; i < 24; i++) {
         word_order[i] = 0;
     }
-    random_permute(word_order, 24);
+    random_permute_char(word_order, 24);
 	awaiting_word = true;
 	word_index = 0;
 	next_word();

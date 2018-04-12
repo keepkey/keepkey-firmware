@@ -29,6 +29,6 @@ void reset_rng(void);
 uint32_t random32(void);
 uint32_t random_uniform(uint32_t n);
 void random_buffer(uint8_t *buf, size_t len);
-void random_permute(char *buf, size_t len);
+void random_permute_char(char *buf, size_t len);
 
 #endif
