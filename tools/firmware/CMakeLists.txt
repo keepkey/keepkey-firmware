@@ -28,6 +28,7 @@ if(NOT ${KK_EMULATOR})
       -Wl,--whole-archive kkboard.keepkey -Wl,--no-whole-archive
       kktransport
       kkcrypto
+      kkrand
       -lopencm3_stm32f2
       -lc
       -lm)
@@ -45,6 +46,7 @@ if(NOT ${KK_EMULATOR})
       -Wl,--whole-archive kkboard.salt -Wl,--no-whole-archive
       kktransport
       kkcrypto
+      kkrand
       -lopencm3_stm32f2
       -lc
       -lm)
@@ -62,6 +64,7 @@ if(NOT ${KK_EMULATOR})
       -Wl,--whole-archive kkboard.mfr -Wl,--no-whole-archive
       kktransport
       kkcrypto
+      kkrand
       -lopencm3_stm32f2
       -lc
       -lm)

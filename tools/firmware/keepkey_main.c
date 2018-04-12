@@ -31,13 +31,12 @@
 #include "keepkey/board/usb_driver.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/keepkey_usart.h"
-#include "keepkey/board/rng.h"
-
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/check_bootloader.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
+#include "keepkey/rand/rng.h"
 
 #include <stdbool.h>
 #include <stdint.h>

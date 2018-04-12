@@ -20,12 +20,11 @@
 #ifndef RNG_H
 #define RNG_H
 
-/* === Includes ============================================================ */
-
 #include <stdint.h>
 #include <stdlib.h>
 
-/* === Functions =========================================================== */
+/// Reset the hardware random number generator
+void reset_rng(void);
 
 uint32_t random32(void);
 uint32_t random_uniform(uint32_t n);

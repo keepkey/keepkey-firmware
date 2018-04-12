@@ -22,7 +22,6 @@
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/msg_dispatch.h"
-#include "keepkey/board/rng.h"
 #include "keepkey/crypto/bip39.h"
 #include "keepkey/crypto/macros.h"
 #include "keepkey/firmware/fsm.h"
@@ -31,6 +30,7 @@
 #include "keepkey/firmware/recovery.h"
 #include "keepkey/firmware/recovery_cipher.h"
 #include "keepkey/firmware/storage.h"
+#include "keepkey/rand/rng.h"
 
 #include <string.h>
 #include <stdio.h>

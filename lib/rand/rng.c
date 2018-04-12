@@ -19,17 +19,37 @@
 
 /* === Includes ============================================================ */
 
+#include "keepkey/rand/rng.h"
+
 #ifndef EMULATOR
 #  include <libopencm3/cm3/common.h>
 #  include <libopencm3/stm32/memorymap.h>
 #  include <libopencm3/stm32/f2/rng.h>
 #endif
 
-#include "keepkey/board/rng.h"
-#include "keepkey/board/keepkey_board.h"
-#include "keepkey/board/timer.h"
+void reset_rng(void)
+{
+#ifndef EMULATOR
+    /* disable RNG */
+    RNG_CR &= ~(RNG_CR_IE | RNG_CR_RNGEN);
+    /* reset Seed/Clock/ error status */
+    RNG_SR &= ~(RNG_SR_SEIS | RNG_SR_CEIS);
+    /* reenable RNG */
+    RNG_CR |= RNG_CR_IE | RNG_CR_RNGEN;
+    /* this delay is required before rng data can be read */
+    {
+        uint32_t cnt = 5 /* microseconds */ * 20;
+        while(cnt--)
+        {
+            __asm__("nop");
+        }
+    }
 
-/* === Functions =========================================================== */
+    // to be extra careful and heed the STM32F205xx Reference manual, Section 20.3.1
+    // we don't use the first random number generated after setting the RNGEN bit in setup
+    random32();
+#endif
+}
 
 uint32_t random32(void)
 {
@@ -39,7 +59,7 @@ uint32_t random32(void)
 
     while (new == last) {
         /* Capture the RNG status register */
-        rng_sr_img = RNG_SR;  
+        rng_sr_img = RNG_SR;
         if ((rng_sr_img & (RNG_SR_SEIS | RNG_SR_CEIS)) == 0) {
             if (rng_sr_img & RNG_SR_DRDY) {
                 new = RNG_DR;
@@ -75,23 +95,20 @@ uint32_t random_uniform(uint32_t n)
 
 void random_buffer(uint8_t *buf, size_t len)
 {
-	size_t i;
-	uint32_t r = 0;
-	for (i = 0; i < len; i++) {
-		if (i % 4 == 0) {
-			r = random32();
-		}
-		buf[i] = (r >> ((i % 4) * 8)) & 0xFF;
-	}
+    uint32_t r = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (i % 4 == 0) {
+            r = random32();
+        }
+        buf[i] = (r >> ((i % 4) * 8)) & 0xFF;
+    }
 }
 
 void random_permute(char *str, size_t len)
 {
-    int i, j;
-    char t;
-    for (i = len - 1; i >= 1; i--) {
-        j = random_uniform(i + 1);
-        t = str[j];
+    for (int i = len - 1; i >= 1; i--) {
+        int j = random_uniform(i + 1);
+        char t = str[j];
         str[j] = str[i];
         str[i] = t;
     }

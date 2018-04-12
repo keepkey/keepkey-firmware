@@ -23,11 +23,11 @@
 #include "keepkey/board/layout.h"
 #include "keepkey/board/msg_dispatch.h"
 #include "keepkey/board/timer.h"
-#include "keepkey/crypto/rand.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/pin_sm.h"
 #include "keepkey/firmware/storage.h"
+#include "keepkey/rand/rng.h"
 
 #include <stdbool.h>
 #include <inttypes.h>

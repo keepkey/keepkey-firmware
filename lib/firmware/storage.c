@@ -28,7 +28,6 @@
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/memory.h"
-#include "keepkey/board/rng.h"
 #include "keepkey/board/variant.h"
 #include "keepkey/crypto/aes.h"
 #include "keepkey/crypto/bip39.h"
@@ -39,6 +38,7 @@
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/policy.h"
 #include "keepkey/firmware/util.h"
+#include "keepkey/rand/rng.h"
 #include "keepkey/transport/interface.h"
 
 #include "types.pb.h"
