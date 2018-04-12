@@ -24,6 +24,9 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+/// \returns true iff this is a Manufacturing firmware.
+bool variant_isMFR(void);
+
 /// \brief Writes a buffer to flash.
 ///
 /// \param address[in]   Where to write the data.

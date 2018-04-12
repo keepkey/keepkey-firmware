@@ -52,10 +52,6 @@ uint32_t variant_getScreensaverTimeout(void) {
     return 1; // Immediately
 }
 
-bool variant_isMFR(void) {
-    return true;
-}
-
 void variant_mfr_softReset(void) {
     board_reset();
 }

@@ -29,9 +29,6 @@ const ImageAnimation *variant_getScreensaverAnimation(void);
 
 const char *variant_name(void);
 
-/// \returns true iff this is a Manufacturing firmware.
-bool variant_isMFR(void);
-
 /// Perform a soft reset
 void variant_mfr_softReset(void) __attribute__((weak));
 
