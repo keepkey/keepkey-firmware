@@ -30,6 +30,8 @@
 
 #include "keepkey/crypto/sha2.h"
 
+#include "keepkey/crypto/macros.h"
+
 #include <string.h>
 #include <stdint.h>
 
@@ -115,9 +117,8 @@ typedef uint64_t sha2_word64;	/* Exactly 8 bytes */
  * in the compiler's eyes.  This prevents sensitive data from sticking around
  * on the stack, when used appropriately.
  */
-static void *(*const volatile memset_vp)(void *, int, size_t) = memset;
+void *(*const volatile memset_vp)(void *, int, size_t) = memset;
 
-#define MEMSET_BZERO(p,l)	memset_vp((p), 0, (l))
 #define MEMCPY_BCOPY(d,s,l)	memcpy((d), (s), (l))
 
 /*** THE SIX LOGICAL FUNCTIONS ****************************************/

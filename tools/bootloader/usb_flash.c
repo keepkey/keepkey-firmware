@@ -419,6 +419,30 @@ void handler_initialize(Initialize *msg)
     resp.minor_version = BOOTLOADER_MINOR_VERSION;
     resp.patch_version = BOOTLOADER_PATCH_VERSION;
 
+    /* Bootloader hash */
+    resp.has_bootloader_hash = true;
+    resp.bootloader_hash.size = memory_bootloader_hash(
+                                     resp.bootloader_hash.bytes,
+                                     /*cached=*/false);
+
+    resp.policies_count = 0;
+
+    /* Smuggle debuglink state out via policies */
+    _Static_assert(1 <= sizeof(resp.policies)/sizeof(resp.policies[0]),
+                   "messages.options for policies not big enough?");
+    const char bl_debug_link[] = "bl_debug_link";
+    _Static_assert(sizeof(bl_debug_link) <= sizeof(resp.policies[0].policy_name),
+                   "Policy.policy_name not big enough");
+    memcpy(resp.policies[0].policy_name, bl_debug_link, sizeof(bl_debug_link));
+    resp.policies[0].has_policy_name = true;
+    resp.policies[0].has_enabled = true;
+#if DEBUG_LINK
+    resp.policies[0].enabled = true;
+#else
+    resp.policies[0].enabled = false;
+#endif
+    resp.policies_count++;
+
     msg_write(MessageType_MessageType_Features, &resp);
 }
 
