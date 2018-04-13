@@ -121,7 +121,7 @@ static void get_current_word(char *current_word)
 
 bool exact_str_match(const char *str1, const char *str2, uint32_t len)
 {
-    uint32_t match = 0;
+    volatile uint32_t match = 0;
 
     // Access through volatile ptrs to prevent compiler optimizations that
     // might leak timing information.
@@ -133,9 +133,7 @@ bool exact_str_match(const char *str1, const char *str2, uint32_t len)
         if(str1_v[i] == str2_v[i])
         {
             match++;
-        }
-        else
-        {
+        } else {
             match--;
         }
     }
