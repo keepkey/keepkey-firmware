@@ -35,7 +35,7 @@
 #define COIN_FRACTION 100000000
 /* === Variables =========================================================== */
 
-extern const CoinType coins[COINS_COUNT];
+extern const CoinTable coins;
 
 /* === Functions =========================================================== */
 
