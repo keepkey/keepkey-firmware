@@ -151,8 +151,8 @@ bool attempt_auto_complete(char *partial_word)
     uint32_t partial_word_len = strlen(partial_word), match = 0, found = 0;
     bool precise_match = false;
 
-    static uint16_t CONFIDENTIAL permute[2048];
-    for (int i = 0; i < 2048; i++) {
+    static uint16_t CONFIDENTIAL permute[2049];
+    for (int i = 0; i < 2049; i++) {
         permute[i] = i;
     }
     random_permute_u16(permute, 2048);
