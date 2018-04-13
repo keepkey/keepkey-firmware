@@ -32,11 +32,51 @@
 #define MSG_TINY_BFR_SZ     64
 #define MSG_TINY_TYPE_ERROR 0xFFFF
 
-#define MSG_IN(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = NORMAL_MSG, [ID].dir = IN_MSG, [ID].fields = FIELDS, [ID].dispatch = PARSABLE, [ID].process_func = PROCESS_FUNC,
-#define MSG_OUT(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = NORMAL_MSG, [ID].dir = OUT_MSG, [ID].fields = FIELDS, [ID].dispatch = PARSABLE, [ID].process_func = PROCESS_FUNC,
-#define RAW_IN(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = NORMAL_MSG, [ID].dir = IN_MSG, [ID].fields = FIELDS, [ID].dispatch = RAW, [ID].process_func = PROCESS_FUNC,
-#define DEBUG_IN(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = DEBUG_MSG, [ID].dir = IN_MSG, [ID].fields = FIELDS, [ID].dispatch = PARSABLE, [ID].process_func = PROCESS_FUNC,
-#define DEBUG_OUT(ID, FIELDS, PROCESS_FUNC) [ID].msg_id = ID, [ID].type = DEBUG_MSG, [ID].dir = OUT_MSG, [ID].fields = FIELDS, [ID].dispatch = PARSABLE, [ID].process_func = PROCESS_FUNC,
+#define MSG_IN(ID, FIELDS, PROCESS_FUNC, MSG_PERMS) \
+    [ID].msg_perms = (MSG_PERMS), \
+    [ID].msg_id = (ID), \
+    [ID].type = (NORMAL_MSG), \
+    [ID].dir = (IN_MSG), \
+    [ID].fields = (FIELDS), \
+    [ID].dispatch = (PARSABLE), \
+    [ID].process_func = (PROCESS_FUNC),
+
+#define MSG_OUT(ID, FIELDS, PROCESS_FUNC, MSG_PERMS) \
+    [ID].msg_perms = (MSG_PERMS), \
+    [ID].msg_id = (ID), \
+    [ID].type = (NORMAL_MSG), \
+    [ID].dir = (OUT_MSG), \
+    [ID].fields = (FIELDS), \
+    [ID].dispatch = (PARSABLE), \
+    [ID].process_func = (PROCESS_FUNC),
+
+#define RAW_IN(ID, FIELDS, PROCESS_FUNC, MSG_PERMS) \
+    [ID].msg_perms = (MSG_PERMS), \
+    [ID].msg_id = (ID), \
+    [ID].type = (NORMAL_MSG), \
+    [ID].dir = (IN_MSG), \
+    [ID].fields = (FIELDS), \
+    [ID].dispatch = (RAW), \
+    [ID].process_func = (PROCESS_FUNC),
+
+#define DEBUG_IN(ID, FIELDS, PROCESS_FUNC, MSG_PERMS) \
+    [ID].msg_perms = (MSG_PERMS), \
+    [ID].msg_id = (ID), \
+    [ID].type = (DEBUG_MSG), \
+    [ID].dir = (IN_MSG), \
+    [ID].fields = (FIELDS), \
+    [ID].dispatch = (PARSABLE), \
+    [ID].process_func = (PROCESS_FUNC),
+
+#define DEBUG_OUT(ID, FIELDS, PROCESS_FUNC, MSG_PERMS) \
+    [ID].msg_perms = (MSG_PERMS), \
+    [ID].msg_id = (ID), \
+    [ID].type = (DEBUG_MSG), \
+    [ID].dir = (OUT_MSG), \
+    [ID].fields = (FIELDS), \
+    [ID].dispatch = (PARSABLE), \
+    [ID].process_func = (PROCESS_FUNC),
+
 #define NO_PROCESS_FUNC 0
 
 /* === Typedefs ============================================================ */
@@ -69,6 +109,13 @@ typedef enum
     RAW
 } MessageMapDispatch;
 
+typedef enum
+{
+    AnyVariant,
+    MFROnly,
+    MFRProhibited,
+} MessageVariantPerms;
+
 typedef struct
 {
     const pb_field_t *fields;
@@ -77,6 +124,7 @@ typedef struct
     MessageMapType type;
     MessageMapDirection dir;
     MessageType msg_id;
+    MessageVariantPerms msg_perms;
 } MessagesMap_t;
 
 typedef struct

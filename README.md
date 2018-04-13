@@ -14,8 +14,7 @@ The sources can be obtained from github:
 
 ```
 $ git clone git@github.com:keepkey/keepkey-firmware.git
-$ git clone git@github.com:keepkey/device-protocol.git
-$ ln -s $PWD/device-protocol $PWD/keepkey-firmware/deps/device-protocol
+$ git submodule update --init --recursive
 ```
 
 ### Build
@@ -23,7 +22,7 @@ $ ln -s $PWD/device-protocol $PWD/keepkey-firmware/deps/device-protocol
 To build the firmware using the docker container, use the provided script:
 
 ```
-$ ./scripts/build/docker/release.sh
+$ ./scripts/build/docker/device/release.sh
 ```
 
 ## License

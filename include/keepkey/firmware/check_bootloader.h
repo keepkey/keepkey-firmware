@@ -22,4 +22,17 @@
 
 void check_bootloader(void);
 
+typedef enum _BootloaderKind {
+    BLK_UNKONWN,
+    BLK_v1_0_0,
+    BLK_v1_0_1,
+    BLK_v1_0_2,
+    BLK_v1_0_3,
+    BLK_v1_0_3_sig,
+    BLK_v1_0_3_elf,
+    BLK_v1_0_4,
+} BootloaderKind;
+
+BootloaderKind get_bootloaderKind(void);
+
 #endif

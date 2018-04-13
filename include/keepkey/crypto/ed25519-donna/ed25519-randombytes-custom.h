@@ -7,6 +7,6 @@
 	to create random scalars
 */
 
-#include "keepkey/crypto/rand.h"
+#include "keepkey/rand/rng.h"
 
 #define ed25519_randombytes_unsafe(p, len) random_buffer((uint8_t *)(p), (len))

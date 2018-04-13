@@ -18,6 +18,7 @@ if(NOT ${KK_EMULATOR})
       kkboard.salt
       kktransport
       kkcrypto
+      kkrand
       -lopencm3_stm32f2
       -lc
       -lm)
@@ -33,6 +34,7 @@ if(NOT ${KK_EMULATOR})
       kkboard.keepkey
       kktransport
       kkcrypto
+      kkrand
       -lopencm3_stm32f2
       -lc
       -lm)

@@ -19,6 +19,7 @@
 
 #include "keepkey/firmware/app_resources.h"
 
+#include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/resources.h"
 
 #include <string.h>
@@ -38,19 +39,20 @@ static const AnimationFrame screensaver_array[] = { {&screensaver_1_image, 1000}
 
 static const ImageAnimation screensaver = { 1, screensaver_array};
 
-/*
- * get_screensaver_animation() - Gets screensaver animation
- *
- * INPUT
- *     none
- * OUTPUT
- *     screensaver ImageAnimation
- */
-const ImageAnimation *get_screensaver_animation(void)
+const ImageAnimation *variant_getScreensaverAnimation(void)
 {
     return(&screensaver);
 }
 
-const char *whitelabel_model(void) {
-    return "";
+const char *variant_name(void) {
+    return "MFR";
 }
+
+uint32_t variant_getScreensaverTimeout(void) {
+    return 1; // Immediately
+}
+
+void variant_mfr_softReset(void) {
+    board_reset();
+}
+

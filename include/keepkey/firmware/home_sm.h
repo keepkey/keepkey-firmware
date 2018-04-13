@@ -28,11 +28,7 @@
 
 /* === Defines ============================================================= */
  
-#ifndef MANUFACTURER
-#define SCREENSAVER_TIMEOUT ONE_SEC * 60 * 10
-#else
 #define SCREENSAVER_TIMEOUT 1
-#endif
 
 /* === Typedefs ============================================================ */
 

@@ -85,13 +85,11 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg);
 //void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
 void fsm_msgDebugLinkGetState(DebugLinkGetState *msg);
 void fsm_msgDebugLinkStop(DebugLinkStop *msg);
-void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg);
 #endif
 
-#ifdef MANUFACTURER
+void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg);
 void fsm_msgFlashWrite(FlashWrite *msg);
 void fsm_msgFlashHash(FlashHash *msg);
 void fsm_msgSoftReset(SoftReset *msg);
-#endif
 
 #endif

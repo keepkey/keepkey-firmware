@@ -17,19 +17,22 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef RNG_H
-#define RNG_H
+#ifndef LIB_FIRMWARE_VARIANT_H
+#define LIB_FIRMWARE_VARIANT_H
 
-/* === Includes ============================================================ */
+#include <stddef.h>
+#include <inttypes.h>
+#include <stdbool.h>
 
-#include <stdint.h>
-#include <stdlib.h>
+typedef struct ImageAnimation_ ImageAnimation;
+const ImageAnimation *variant_getScreensaverAnimation(void);
 
-/* === Functions =========================================================== */
+const char *variant_name(void);
 
-uint32_t random32(void);
-uint32_t random_uniform(uint32_t n);
-void random_buffer(uint8_t *buf, size_t len);
-void random_permute(char *buf, size_t len);
+/// Perform a soft reset
+void variant_mfr_softReset(void) __attribute__((weak));
+
+/// Duration of inactivity before the screensaver should be triggered.
+uint32_t variant_getScreensaverTimeout(void);
 
 #endif

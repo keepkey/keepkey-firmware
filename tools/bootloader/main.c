@@ -36,11 +36,11 @@
 #include "keepkey/board/keepkey_usart.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/memory.h"
-#include "keepkey/board/rng.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/usb_driver.h"
 #include "keepkey/bootloader/signatures.h"
 #include "keepkey/bootloader/usb_flash.h"
+#include "keepkey/rand/rng.h"
 
 #include <stdbool.h>
 #include <stddef.h>

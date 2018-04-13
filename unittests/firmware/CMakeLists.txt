@@ -1,5 +1,6 @@
 set(sources
     ethereum.cpp
+    recovery.cpp
     storage.cpp)
 
 include_directories(
@@ -10,8 +11,9 @@ add_executable(firmware-unit ${sources})
 target_link_libraries(firmware-unit
     gtest_main
     kkfirmware
-    kkfirmware.keepkey
+    kkfirmware.mfr
     kkboard
-    kkboard.keepkey
+    kkboard.mfr
     kkcrypto
+    kkrand
     kktransport)

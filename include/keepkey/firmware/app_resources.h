@@ -17,12 +17,12 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef APP_RESOURCES_H
-#define APP_RESOURCES_H
+#ifndef LIB_FIRMWARE_APP_RESOURCES_H
+#define LIB_FIRMWARE_APP_RESOURCES_H
 
-/* === Functions =========================================================== */
 typedef struct ImageAnimation_ ImageAnimation;
 
-const ImageAnimation* get_screensaver_animation(void);
+/// Get the Screensaver Animation
+const ImageAnimation* variant_getScreensaverAnimation(void);
 
 #endif

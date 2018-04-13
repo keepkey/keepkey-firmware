@@ -17,8 +17,10 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef BOOTSTRAP_H
-#define BOOTSTRAP_H
+#ifndef LIB_BOOTSTRAP_BOOTSTRAP_H
+#define LIB_BOOTSTRAP_BOOTSTRAP_H
+
+#include "keepkey/firmware/app_resources.h"
 
 #include <inttypes.h>
 
