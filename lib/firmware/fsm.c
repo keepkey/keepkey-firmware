@@ -37,7 +37,7 @@
 #include "keepkey/crypto/curves.h"
 #include "keepkey/crypto/ecdsa.h"
 #include "keepkey/crypto/hmac.h"
-#include "keepkey/crypto/rand.h"
+#include "keepkey/rand/rng.h"
 #include "keepkey/crypto/ripemd160.h"
 #include "keepkey/crypto/secp256k1.h"
 #include "keepkey/firmware/app_confirm.h"
@@ -467,7 +467,7 @@ void fsm_msgGetFeatures(GetFeatures *msg)
 
     /* Coin type support */
     resp->coins_count = COINS_COUNT;
-    memcpy(resp->coins, coins, COINS_COUNT * sizeof(CoinType));
+    memcpy(resp->coins, coins.table, COINS_COUNT * sizeof(CoinType));
 
     /* Is device initialized? */
     resp->has_initialized = true;

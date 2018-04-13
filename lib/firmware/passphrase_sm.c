@@ -23,7 +23,7 @@
 #include "keepkey/board/layout.h"
 #include "keepkey/board/msg_dispatch.h"
 #include "keepkey/board/timer.h"
-#include "keepkey/crypto/rand.h"
+#include "keepkey/rand/rng.h"
 
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/fsm.h"

@@ -22,7 +22,6 @@
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/msg_dispatch.h"
-#include "keepkey/board/rng.h"
 #include "keepkey/crypto/bip39.h"
 #include "keepkey/crypto/macros.h"
 #include "keepkey/firmware/fsm.h"
@@ -31,6 +30,7 @@
 #include "keepkey/firmware/recovery.h"
 #include "keepkey/firmware/recovery_cipher.h"
 #include "keepkey/firmware/storage.h"
+#include "keepkey/rand/rng.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -127,7 +127,7 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
     for (i = word_count; i < 24; i++) {
         word_order[i] = 0;
     }
-    random_permute(word_order, 24);
+    random_permute_char(word_order, 24);
 	awaiting_word = true;
 	word_index = 0;
 	next_word();
@@ -160,14 +160,16 @@ void recovery_word(const char *word)
     }
 
     volatile bool found = isInWordList(word);
-    volatile bool isFake = exact_str_match(word, fake_word, strlen(word) + 1) != 0;
+    volatile bool isCorrectFake = exact_str_match(word, fake_word, strlen(word) + 1);
 
-    if ((word_pos == 0) & isFake) {
-        // Fake word
-        storage_reset();
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "Wrong word retyped");
-        go_home();
-        return;
+    if (word_pos == 0) {
+        if (!isCorrectFake) {
+            // Fake word
+            storage_reset();
+            fsm_sendFailure(FailureType_Failure_SyntaxError, "Wrong word retyped");
+            go_home();
+            return;
+        }
     } else {
         // Real word
         if (enforce_wordlist & (!found)) {

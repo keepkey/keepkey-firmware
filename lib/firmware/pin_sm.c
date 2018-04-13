@@ -23,11 +23,11 @@
 #include "keepkey/board/layout.h"
 #include "keepkey/board/msg_dispatch.h"
 #include "keepkey/board/timer.h"
-#include "keepkey/crypto/rand.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/pin_sm.h"
 #include "keepkey/firmware/storage.h"
+#include "keepkey/rand/rng.h"
 
 #include <stdbool.h>
 #include <inttypes.h>
@@ -221,7 +221,7 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
 
     /* Init and randomize pin matrix */
     strlcpy(pin_matrix, "123456789", PIN_BUF);
-    random_permute(pin_matrix, 9);
+    random_permute_char(pin_matrix, 9);
 
     /* Show layout */
     layout_pin(prompt, pin_matrix);

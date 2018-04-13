@@ -15,4 +15,5 @@ target_link_libraries(firmware-unit
     kkboard
     kkboard.mfr
     kkcrypto
+    kkrand
     kktransport)

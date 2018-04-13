@@ -32,6 +32,7 @@
 #include "keepkey/firmware/reset.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/util.h"
+#include "keepkey/rand/rng.h"
 #include "keepkey/transport/interface.h"
 
 #include <stdio.h>

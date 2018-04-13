@@ -13,7 +13,6 @@ set(sources
     msg_dispatch.c
     pin.c
     resources.c
-    rng.c
     timer.c
     usb_driver.c)
 

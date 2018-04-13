@@ -23,7 +23,6 @@
  */
 
 #include "keepkey/crypto/bignum.h"
-#include "keepkey/crypto/rand.h"
 #include "keepkey/crypto/sha2.h"
 #include "keepkey/crypto/ripemd160.h"
 #include "keepkey/crypto/hmac.h"
@@ -31,6 +30,7 @@
 #include "keepkey/crypto/base58.h"
 #include "keepkey/crypto/macros.h"
 #include "keepkey/crypto/secp256k1.h"
+#include "keepkey/rand/rng.h"
 
 #include <stdint.h>
 #include <stdlib.h>

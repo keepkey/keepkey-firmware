@@ -28,8 +28,8 @@
 #include "keepkey/crypto/macros.h"
 #include "keepkey/crypto/options.h"
 #include "keepkey/crypto/pbkdf2.h"
-#include "keepkey/crypto/rand.h"
 #include "keepkey/crypto/sha2.h"
+#include "keepkey/rand/rng.h"
 
 #include <string.h>
 #include <stdbool.h>
