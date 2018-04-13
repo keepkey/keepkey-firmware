@@ -37,7 +37,7 @@
 #include "keepkey/crypto/curves.h"
 #include "keepkey/crypto/ecdsa.h"
 #include "keepkey/crypto/hmac.h"
-#include "keepkey/crypto/rand.h"
+#include "keepkey/rand/rng.h"
 #include "keepkey/crypto/ripemd160.h"
 #include "keepkey/crypto/secp256k1.h"
 #include "keepkey/firmware/app_confirm.h"

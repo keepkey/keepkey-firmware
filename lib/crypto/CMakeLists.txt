@@ -13,7 +13,6 @@ set(sources
     hmac.c
     nist256p1.c
     pbkdf2.c
-    rand.c
     ripemd160.c
     secp256k1.c
     sha2.c

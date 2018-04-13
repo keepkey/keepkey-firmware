@@ -30,7 +30,7 @@
 #endif
 
 #include "keepkey/board/keepkey_board.h"
-#include "keepkey/board/rng.h"
+#include "keepkey/rand/rng.h"
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -93,32 +93,6 @@ void board_reset(void)
 {
 #ifndef EMULATOR
     scb_reset_system();
-#endif
-}
-
-/*
- * reset_rng() - Reset random number generator
- *
- * INPUT
- *     none
- * OUTPUT
- *     none
- */
-void reset_rng(void)
-{
-#ifndef EMULATOR
-    /* disable RNG */
-    RNG_CR &= ~(RNG_CR_IE | RNG_CR_RNGEN);
-    /* reset Seed/Clock/ error status */
-    RNG_SR &= ~(RNG_SR_SEIS | RNG_SR_CEIS);
-    /* reenable RNG */
-    RNG_CR |= RNG_CR_IE | RNG_CR_RNGEN;
-    /* this delay is required before rng data can be read */
-    delay_us(5);
-
-    // to be extra careful and heed the STM32F205xx Reference manual, Section 20.3.1
-    // we don't use the first random number generated after setting the RNGEN bit in setup
-    random32();
 #endif
 }
 

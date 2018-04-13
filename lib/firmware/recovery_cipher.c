@@ -20,7 +20,6 @@
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/msg_dispatch.h"
-#include "keepkey/board/rng.h"
 #include "keepkey/crypto/bip39.h"
 #include "keepkey/crypto/macros.h"
 #include "keepkey/firmware/app_layout.h"
@@ -29,6 +28,7 @@
 #include "keepkey/firmware/pin_sm.h"
 #include "keepkey/firmware/recovery_cipher.h"
 #include "keepkey/firmware/storage.h"
+#include "keepkey/rand/rng.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -153,31 +153,51 @@ bool attempt_auto_complete(char *partial_word)
     uint32_t partial_word_len = strlen(partial_word), match = 0, found = 0;
     bool precise_match = false;
 
+    static uint16_t CONFIDENTIAL permute[2048];
+    for (int i = 0; i < 2048; i++) {
+        permute[i] = i;
+    }
+    random_permute_u16(permute, 2048);
+
+    // We don't want the compiler to see through the fact that we're randomly
+    // permuting the order of iteration of the next few loops, in case it's
+    // smart enough to see through that and remove the permutation, so we tell
+    // it we've touched all of memory with some inline asm, and scare it off.
+    // This acts as an optimization barrier.
+    asm volatile ("" ::: "memory");
+
     // Look for precise matches first (including null termination)
-    for (uint32_t volatile i = 0; wordlist[i] != 0; i++) {
-        if (exact_str_match(partial_word, wordlist[i], partial_word_len + 1)) {
-            strlcpy(partial_word, wordlist[i], CURRENT_WORD_BUF);
+    for (uint32_t volatile i = 0; wordlist[permute[i]] != 0; i++) {
+        if (exact_str_match(partial_word, wordlist[permute[i]], partial_word_len + 1)) {
+            strlcpy(partial_word, wordlist[permute[i]], CURRENT_WORD_BUF);
             precise_match = true;
         }
     }
 
+    random_permute_u16(permute, 2048);
+    asm volatile ("" ::: "memory");
+
     // Followed by partial matches (ignoring null termination)
-    for (uint32_t volatile i = 0; wordlist[i] != 0; i++) {
-        if (exact_str_match(partial_word, wordlist[i], partial_word_len)) {
+    for (uint32_t volatile i = 0; wordlist[permute[i]] != 0; i++) {
+        if (exact_str_match(partial_word, wordlist[permute[i]], partial_word_len)) {
             match++;
             found = i;
         }
     }
 
-    if (precise_match)
-        return true;
-
-    /* Autocomplete if we can */
-    if (match == 1) {
-        strlcpy(partial_word, wordlist[found], CURRENT_WORD_BUF);
+    if (precise_match) {
+        MEMSET_BZERO(permute, sizeof(permute));
         return true;
     }
 
+    /* Autocomplete if we can */
+    if (match == 1) {
+        strlcpy(partial_word, wordlist[permute[found]], CURRENT_WORD_BUF);
+        MEMSET_BZERO(permute, sizeof(permute));
+        return true;
+    }
+
+    MEMSET_BZERO(permute, sizeof(permute));
     return false;
 }
 
@@ -228,7 +248,7 @@ void next_character(void)
 {
     /* Scramble cipher */
     strlcpy(cipher, english_alphabet, ENGLISH_ALPHABET_BUF);
-    random_permute(cipher, strlen(cipher));
+    random_permute_char(cipher, strlen(cipher));
 
     static char CONFIDENTIAL current_word[CURRENT_WORD_BUF];
     get_current_word(current_word);
