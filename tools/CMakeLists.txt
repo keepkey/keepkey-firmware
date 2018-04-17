@@ -1,0 +1,4 @@
+add_subdirectory(bootloader)
+add_subdirectory(bootstrap)
+add_subdirectory(display_test)
+add_subdirectory(firmware)

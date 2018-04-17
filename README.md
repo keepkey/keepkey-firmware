@@ -1,41 +1,29 @@
-## KeepKey Build Procedure for Ubuntu 14.04
+## KeepKey Build Procedure
 
 ### Toolchain Installation
 
-Install Docker Community Edition from: https://www.docker.com/get-docker
+Install Docker Community Edition from: `https://www.docker.com/get-docker`
 
-Download firmware source code from KeepKey respository (https://github.com/keepkey/keepkey-firmware.git)
+```
+$ docker pull kktech/firmware:v5-beta
+```
+
+### Clone the Source
+
+The sources can be obtained from github:
+
 ```
 $ git clone git@github.com:keepkey/keepkey-firmware.git
+$ git submodule update --init --recursive
 ```
 
-Build the docker image for the toolchain:
+### Build
+
+To build the firmware using the docker container, use the provided script:
 
 ```
-$ cd keepkey-firmware && docker build -t keepkey/firmware:latest .
+$ ./scripts/build/docker/device/release.sh
 ```
-
-Build the debug version of the standard firmware:
-```
-$ docker_build_keepkey_debug.sh
-```
-
-Build the release version of the standard firmware:
-```
-$ docker_build_keepkey_release.sh
-```
-
-Build the debug version of the SALT-branded firmware:
-```
-$ docker_build_salt_debug.sh
-```
-
-Build the release version of the SALT-branded firmware:
-```
-$ docker_build_salt_release.sh
-```
-
-The resultant binaries will be located in the ./bin/{debug,release}/{keepkey,salt} directories as appropriate.
 
 ## License
 
