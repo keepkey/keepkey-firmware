@@ -80,7 +80,7 @@ static const MessagesMap_t *message_map_entry(MessageMapType type,
         case AnyVariant:
             return &m[msg_id];
         }
-#if DEBUG_ON
+#if defined(DEBUG_ON)
         __builtin_unreachable();
 #else
         return NULL;

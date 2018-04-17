@@ -24,7 +24,6 @@
 #include "keepkey/board/msg_dispatch.h"
 #include "keepkey/crypto/bip39.h"
 #include "keepkey/crypto/macros.h"
-#include "keepkey/crypto/rand.h"
 #include "keepkey/crypto/sha2.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
