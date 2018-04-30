@@ -31,6 +31,7 @@
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
+#include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/util.h"
 
@@ -807,17 +808,17 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
         if(strlen(confirm_body_message) > 0)
         {
             if(is_token_transaction(msg)) {
-		// Dont prompt the user an extra time if the transaction is a secure transfer or secure exchange
-		// i.e. you are sending to a different account in the bip44 node path
-		if (msg->address_type != OutputAddressType_TRANSFER && msg->address_type != OutputAddressType_EXCHANGE)
-		{
+                // Dont prompt the user an extra time if the transaction is a secure transfer or secure exchange
+                // i.e. you are sending to a different account in the bip44 node path
+                if (msg->address_type != OutputAddressType_TRANSFER && msg->address_type != OutputAddressType_EXCHANGE)
+                {
                     if(!confirm_erc_token_transfer(ButtonRequestType_ButtonRequest_SignTx, confirm_body_message))
                     {
                         fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
                         ethereum_signing_abort();
                         return;
                     }
-		}
+                }
             }else{
                 if(!confirm(ButtonRequestType_ButtonRequest_SignTx,
                             "Transfer", "Confirm data: %s", confirm_body_message))
@@ -868,6 +869,18 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
         fsm_sendFailure(FailureType_Failure_Other, "Invalid Ethereum Tx Fee message");
         ethereum_signing_abort();
         return;
+    }
+
+    if (storage_is_policy_enabled("DemoMode")) {
+        if (msg->address_type != OutputAddressType_TRANSFER &&
+            msg->address_type != OutputAddressType_EXCHANGE) {
+            (void)confirm(ButtonRequestType_ButtonRequest_SignTx,
+                          "Demo mode", "External transactions disabled'");
+            fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                            "Demo mode; external transactions disabled.");
+            go_home();
+            return;
+        }
     }
 
     /* Stage 1: Calculate total RLP length */

@@ -28,7 +28,8 @@
 /* === Variables =========================================================== */
 
 const PolicyType policies[POLICY_COUNT] = {
-    {true, "ShapeShift", true, false}
+    {true, "ShapeShift", true, false},
+    {true, "DemoMode",   true, false}
 };
 
 /* === Functions =========================================================== */

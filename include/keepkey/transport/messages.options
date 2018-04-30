@@ -5,7 +5,7 @@ Features.label				max_size:33
 Features.coins				max_count:39
 Features.revision			max_size:41
 Features.bootloader_hash		max_size:32
-Features.policies			max_count:1
+Features.policies			max_count:2
 Features.model              max_size:32
 Features.firmware_variant    max_size:32
 
