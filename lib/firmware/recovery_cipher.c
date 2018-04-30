@@ -57,7 +57,7 @@ static void format_current_word(char *current_word, bool auto_completed)
     static char CONFIDENTIAL temp_word[CURRENT_WORD_BUF];
     uint32_t word_num = get_current_word_pos() + 1;
 
-    snprintf(temp_word, CURRENT_WORD_BUF, PRIu32 ".%s", word_num, current_word);
+    snprintf(temp_word, CURRENT_WORD_BUF, "%" PRIu32 ".%s", word_num, current_word);
 
     /* Pad with dashes */
     size_t pos_len = strlen(current_word);
