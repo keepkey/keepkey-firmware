@@ -207,7 +207,9 @@ static bool check_valid_output_address(TxOutputType *tx_out)
     bool ret_val = false;
 
     if (storage_is_policy_enabled("DemoMode")) {
-        if (tx_out->address_type == OutputAddressType_SPEND) {
+        if (tx_out->address_type != OutputAddressType_TRANSFER &&
+            tx_out->address_type != OutputAddressType_CHANGE &&
+            tx_out->address_type != OutputAddressType_EXCHANGE) {
             (void)confirm(ButtonRequestType_ButtonRequest_SignTx,
                           "Demo mode", "External transactions disabled'");
             fsm_sendFailure(FailureType_Failure_ActionCancelled,
