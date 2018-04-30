@@ -10,6 +10,10 @@ MEMORY
 
 SECTIONS
 {
+    .version : {
+        KEEP(*(version))
+    } >rom
+
     .confidential (NOLOAD) : {
         *(confidential)
         ASSERT ((SIZEOF(.confidential) <= 32K), "Error: Confidential section too large");

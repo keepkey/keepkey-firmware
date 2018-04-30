@@ -48,7 +48,8 @@
                       VERSION_STR(PATCH_VERSION)
 
 /* These variables will be used by host application to read the version info */
-const char *const application_version = APP_VERSIONS;
+static const char *const application_version
+__attribute__((used, section("version"))) = APP_VERSIONS;
 
 /* === Private Functions =================================================== */
 
