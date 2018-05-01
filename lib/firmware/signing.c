@@ -34,7 +34,6 @@
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/policy.h"
 #include "keepkey/firmware/signing.h"
-#include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/transaction.h"
 
 #include "types.pb.h"
@@ -205,18 +204,6 @@ void send_fsm_co_error_message(int co_error)
 static bool check_valid_output_address(TxOutputType *tx_out)
 {
     bool ret_val = false;
-
-    if (storage_is_policy_enabled("DemoMode")) {
-        if (tx_out->address_type != OutputAddressType_TRANSFER &&
-            tx_out->address_type != OutputAddressType_CHANGE &&
-            tx_out->address_type != OutputAddressType_EXCHANGE) {
-            (void)confirm(ButtonRequestType_ButtonRequest_SignTx,
-                          "Demo mode", "External transactions disabled'");
-            fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                            "Demo mode; external transactions disabled.");
-            return false;
-        }
-    }
 
     switch(tx_out->address_type)
     {
