@@ -10,10 +10,6 @@ MEMORY
 
 SECTIONS
 {
-    .version : {
-        KEEP(*(version))
-    } >rom
-
     .confidential (NOLOAD) : {
         *(confidential)
         ASSERT ((SIZEOF(.confidential) <= 32K), "Error: Confidential section too large");
@@ -21,6 +17,13 @@ SECTIONS
 }
 
 INCLUDE libopencm3_stm32f2.ld
+
+SECTIONS
+{
+    .version : {
+        KEEP(*(version))
+    } >rom
+}
 
 _ram_start = ORIGIN(ram);
 _ram_end = ORIGIN(ram) + LENGTH(ram);
