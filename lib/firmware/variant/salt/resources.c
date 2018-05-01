@@ -229,11 +229,11 @@ const ImageAnimation *variant_getScreensaverAnimation(void)
     return(&screensaver);
 }
 
-const char *variant_name(void) {
-    return "SALT";
+uint32_t variant_getScreensaverTimeout(void) {
+    return ONE_SEC * 60 * 10;
 }
 
-uint32_t variant_screensaverTimeout(void) {
-    return ONE_SEC * 60 * 10;
+const char *variant_name(void) {
+    return "SALT";
 }
 
