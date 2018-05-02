@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.9.5)
 
 project(KeepKeyFirmware
 
-        VERSION 5.2.1
+        VERSION 5.2.2
 
         LANGUAGES C CXX)
 
