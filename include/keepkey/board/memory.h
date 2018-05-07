@@ -77,6 +77,7 @@
 #define OTP_MFG_ADDR            0x1FFF7800
 #define OTP_MFG_SIG             0x08012015
 #define OTP_MFG_SIG_LEN         4
+#define OTP_MODEL_ADDR          0x1FFF7820
 #define OTP_BLK_LOCK(x)         (0x1FFF7A00 + (x - 0x1FFF7800)/0x20)
 
 #define BSTRP_FLASH_SECT_LEN    0x4000

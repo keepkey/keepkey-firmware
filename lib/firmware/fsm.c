@@ -390,17 +390,28 @@ void fsm_msgInitialize(Initialize *msg)
 }
 
 static const char *model(void) {
+    const char *ret = flash_getModel();
+    if (ret)
+        return ret;
+
     switch (get_bootloaderKind()) {
     case BLK_UNKONWN:
+        return "Unknown";
     case BLK_v1_0_0:
     case BLK_v1_0_1:
     case BLK_v1_0_2:
     case BLK_v1_0_3:
     case BLK_v1_0_3_sig:
-    case BLK_v1_0_3_elf:
-        return "K1-14AM";
-    case BLK_v1_0_4:
-        return "K1-14WL-S";
+    case BLK_v1_0_3_elf: {
+        static const char model[32] = "K1-14AM";
+        (void)flash_setModel(&model);
+        return model;
+    }
+    case BLK_v1_0_4: {
+        static const char model[32] = "K1-14WL-S";
+        (void)flash_setModel(&model);
+        return model;
+    }
     }
 
 #ifdef DEBUG_ON
