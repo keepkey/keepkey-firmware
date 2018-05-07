@@ -503,10 +503,14 @@ void fsm_msgPing(Ping *msg)
 {
     RESP_INIT(Success);
 
-    /* If device is in manufacture mode, turn if off and lock it */
-    if(is_mfg_mode())
-    {
+    // If device is in manufacture mode, turn if off, lock it, and program the
+    // model number into OTP flash.
+    if (is_mfg_mode() && msg->has_message) {
         set_mfg_mode_off();
+        char message[32];
+        strncpy(message, msg->message, sizeof(message));
+        message[31] = 0;
+        flash_setModel(&message);
     }
 
     if(msg->has_button_protection && msg->button_protection)
