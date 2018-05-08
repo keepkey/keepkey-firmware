@@ -14,24 +14,8 @@ if(NOT ${KK_EMULATOR})
   set(CMAKE_EXE_LINKER_FLAGS
       "${CMAKE_EXE_LINKER_FLAGS} -T${linker_script} -L${CMAKE_BINARY_DIR}/lib")
 
-  add_executable(bootloader.salt.elf ${sources})
-  target_link_libraries(bootloader.salt.elf
-      kkboard
-      kkboard.salt
-      kktransport
-      kkcrypto
-      kkrand
-      -lopencm3_stm32f2
-      -lc
-      -lm)
-  add_custom_command(TARGET bootloader.salt.elf
-      POST_BUILD
-      COMMAND ${CMAKE_OBJCOPY} ARGS -O binary
-          ${CMAKE_BINARY_DIR}/bin/bootloader.salt.elf
-          ${CMAKE_BINARY_DIR}/bin/bootloader.salt.bin)
-
-  add_executable(bootloader.keepkey.elf ${sources})
-  target_link_libraries(bootloader.keepkey.elf
+  add_executable(bootloader.elf ${sources})
+  target_link_libraries(bootloader.elf
       kkboard
       kkboard.keepkey
       kktransport
@@ -40,10 +24,10 @@ if(NOT ${KK_EMULATOR})
       -lopencm3_stm32f2
       -lc
       -lm)
-  add_custom_command(TARGET bootloader.keepkey.elf
+  add_custom_command(TARGET bootloader.elf
       POST_BUILD
       COMMAND ${CMAKE_OBJCOPY} ARGS -O binary
-          ${CMAKE_BINARY_DIR}/bin/bootloader.keepkey.elf
-          ${CMAKE_BINARY_DIR}/bin/bootloader.keepkey.bin)
+          ${CMAKE_BINARY_DIR}/bin/bootloader.elf
+          ${CMAKE_BINARY_DIR}/bin/bootloader.bin)
 
 endif()

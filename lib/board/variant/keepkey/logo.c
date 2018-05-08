@@ -17,15 +17,13 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "keepkey/board/resources.h"
+
+#include "keepkey/board/keepkey_flash.h"
 
 #include <string.h>
 
-//============================= LOGO ANIMATION ================================
-
-static void logo_1(uint8_t *data)
+static void kk_logo_1(uint8_t *data)
 {
     const uint8_t image_data[44] =
     {
@@ -33,9 +31,9 @@ static void logo_1(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_1_image = {&logo_1, 56, 49};
+static const Image kk_logo_1_image = {&kk_logo_1, 56, 49};
 
-static void logo_2(uint8_t *data)
+static void kk_logo_2(uint8_t *data)
 {
     const uint8_t image_data[1019] =
     {
@@ -43,9 +41,9 @@ static void logo_2(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_2_image = {&logo_2, 56, 49};
+static const Image kk_logo_2_image = {&kk_logo_2, 56, 49};
 
-static void logo_3(uint8_t *data)
+static void kk_logo_3(uint8_t *data)
 {
     const uint8_t image_data[1154] =
     {
@@ -53,9 +51,9 @@ static void logo_3(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_3_image = {&logo_3, 56, 49};
+static const Image kk_logo_3_image = {&kk_logo_3, 56, 49};
 
-static void logo_4(uint8_t *data)
+static void kk_logo_4(uint8_t *data)
 {
     const uint8_t image_data[1167] =
     {
@@ -63,9 +61,9 @@ static void logo_4(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_4_image = {&logo_4, 56, 49};
+static const Image kk_logo_4_image = {&kk_logo_4, 56, 49};
 
-static void logo_5(uint8_t *data)
+static void kk_logo_5(uint8_t *data)
 {
     const uint8_t image_data[1184] =
     {
@@ -73,9 +71,9 @@ static void logo_5(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_5_image = {&logo_5, 56, 49};
+static const Image kk_logo_5_image = {&kk_logo_5, 56, 49};
 
-static void logo_6(uint8_t *data)
+static void kk_logo_6(uint8_t *data)
 {
     const uint8_t image_data[1181] =
     {
@@ -83,9 +81,9 @@ static void logo_6(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_6_image = {&logo_6, 56, 49};
+static const Image kk_logo_6_image = {&kk_logo_6, 56, 49};
 
-static void logo_7(uint8_t *data)
+static void kk_logo_7(uint8_t *data)
 {
     const uint8_t image_data[1194] =
     {
@@ -93,9 +91,9 @@ static void logo_7(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_7_image = {&logo_7, 56, 49};
+static const Image kk_logo_7_image = {&kk_logo_7, 56, 49};
 
-static void logo_8(uint8_t *data)
+static void kk_logo_8(uint8_t *data)
 {
     const uint8_t image_data[1183] =
     {
@@ -103,9 +101,9 @@ static void logo_8(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_8_image = {&logo_8, 56, 49};
+static const Image kk_logo_8_image = {&kk_logo_8, 56, 49};
 
-static void logo_9(uint8_t *data)
+static void kk_logo_9(uint8_t *data)
 {
     const uint8_t image_data[1185] =
     {
@@ -113,9 +111,9 @@ static void logo_9(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_9_image = {&logo_9, 56, 49};
+static const Image kk_logo_9_image = {&kk_logo_9, 56, 49};
 
-static void logo_10(uint8_t *data)
+static void kk_logo_10(uint8_t *data)
 {
     const uint8_t image_data[1192] =
     {
@@ -123,9 +121,9 @@ static void logo_10(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_10_image = {&logo_10, 56, 49};
+static const Image kk_logo_10_image = {&kk_logo_10, 56, 49};
 
-static void logo_11(uint8_t *data)
+static void kk_logo_11(uint8_t *data)
 {
     const uint8_t image_data[1189] =
     {
@@ -133,9 +131,9 @@ static void logo_11(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_11_image = {&logo_11, 56, 49};
+static const Image kk_logo_11_image = {&kk_logo_11, 56, 49};
 
-static void logo_12(uint8_t *data)
+static void kk_logo_12(uint8_t *data)
 {
     const uint8_t image_data[1185] =
     {
@@ -143,9 +141,9 @@ static void logo_12(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_12_image = {&logo_12, 56, 49};
+static const Image kk_logo_12_image = {&kk_logo_12, 56, 49};
 
-static void logo_13(uint8_t *data)
+static void kk_logo_13(uint8_t *data)
 {
     const uint8_t image_data[1202] =
     {
@@ -153,9 +151,9 @@ static void logo_13(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_13_image = {&logo_13, 56, 49};
+static const Image kk_logo_13_image = {&kk_logo_13, 56, 49};
 
-static void logo_14(uint8_t *data)
+static void kk_logo_14(uint8_t *data)
 {
     const uint8_t image_data[1190] =
     {
@@ -163,9 +161,9 @@ static void logo_14(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_14_image = {&logo_14, 56, 49};
+static const Image kk_logo_14_image = {&kk_logo_14, 56, 49};
 
-static void logo_15(uint8_t *data)
+static void kk_logo_15(uint8_t *data)
 {
     const uint8_t image_data[1194] =
     {
@@ -173,9 +171,9 @@ static void logo_15(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_15_image = {&logo_15, 56, 49};
+static const Image kk_logo_15_image = {&kk_logo_15, 56, 49};
 
-static void logo_16(uint8_t *data)
+static void kk_logo_16(uint8_t *data)
 {
     const uint8_t image_data[1189] =
     {
@@ -183,77 +181,115 @@ static void logo_16(uint8_t *data)
     };
     memcpy(data, image_data, sizeof(image_data));
 }
-static const Image logo_16_image = {&logo_16, 56, 49};
+static const Image kk_logo_16_image = {&kk_logo_16, 56, 49};
 
-static const AnimationFrame logo_array[] =
+static const AnimationFrame kk_logo_array[] =
 {
-    {&logo_1_image, 20},
-    {&logo_2_image, 20},
-    {&logo_3_image, 20},
-    {&logo_4_image, 20},
-    {&logo_5_image, 20},
-    {&logo_6_image, 20},
-    {&logo_7_image, 20},
-    {&logo_8_image, 20},
-    {&logo_9_image, 20},
-    {&logo_10_image, 20},
-    {&logo_11_image, 20},
-    {&logo_12_image, 20},
-    {&logo_13_image, 20},
-    {&logo_14_image, 20},
-    {&logo_15_image, 20},
-    {&logo_16_image, 20}
+    {&kk_logo_1_image, 20},
+    {&kk_logo_2_image, 20},
+    {&kk_logo_3_image, 20},
+    {&kk_logo_4_image, 20},
+    {&kk_logo_5_image, 20},
+    {&kk_logo_6_image, 20},
+    {&kk_logo_7_image, 20},
+    {&kk_logo_8_image, 20},
+    {&kk_logo_9_image, 20},
+    {&kk_logo_10_image, 20},
+    {&kk_logo_11_image, 20},
+    {&kk_logo_12_image, 20},
+    {&kk_logo_13_image, 20},
+    {&kk_logo_14_image, 20},
+    {&kk_logo_15_image, 20},
+    {&kk_logo_16_image, 20}
 };
 
-static const AnimationFrame logo_reversed_array[] =
+static const AnimationFrame kk_logo_reversed_array[] =
 {
-    {&logo_16_image, 20},
-    {&logo_15_image, 20},
-    {&logo_14_image, 20},
-    {&logo_13_image, 20},
-    {&logo_12_image, 20},
-    {&logo_11_image, 20},
-    {&logo_10_image, 20},
-    {&logo_9_image, 20},
-    {&logo_8_image, 20},
-    {&logo_7_image, 20},
-    {&logo_6_image, 20},
-    {&logo_5_image, 20},
-    {&logo_4_image, 20},
-    {&logo_3_image, 20},
-    {&logo_2_image, 20},
-    {&logo_1_image, 20}
+    {&kk_logo_16_image, 20},
+    {&kk_logo_15_image, 20},
+    {&kk_logo_14_image, 20},
+    {&kk_logo_13_image, 20},
+    {&kk_logo_12_image, 20},
+    {&kk_logo_11_image, 20},
+    {&kk_logo_10_image, 20},
+    {&kk_logo_9_image, 20},
+    {&kk_logo_8_image, 20},
+    {&kk_logo_7_image, 20},
+    {&kk_logo_6_image, 20},
+    {&kk_logo_5_image, 20},
+    {&kk_logo_4_image, 20},
+    {&kk_logo_3_image, 20},
+    {&kk_logo_2_image, 20},
+    {&kk_logo_1_image, 20}
 };
 
-static const ImageAnimation logo = { 16, logo_array };
-static const ImageAnimation logo_reversed = { 16, logo_reversed_array };
+static const ImageAnimation kk_logo = { 16, kk_logo_array };
+static const ImageAnimation kk_logo_reversed = { 16, kk_logo_reversed_array };
 
-/*
- * get_logo_animation() - Get logo animation
- *
- * INPUT
- *     none
- * OUTPUT
- *     logo animation
- */
-const ImageAnimation *get_logo_animation(void)
+static void salt_logo_16(uint8_t *data)
 {
-    return(&logo);
+    // FIXME: we need to actually animate this!
+    const uint8_t image_data[526] =
+    {
+        0x7f, 0x00, 0x7f, 0x00, 0x7f, 0x00, 0x7f, 0x00, 0x7f, 0x00, 0x7f, 0x00, 0x63, 0x00, 0x08, 0xff, 0x23, 0x00, 0xff, 0xff, 0x20, 0x00, 0x03, 0xff, 0x1b, 0x00, 0x13, 0xff, 0x0f, 0x00, 0x0c, 0xff, 0x21, 0x00, 0xff, 0xff, 0x20, 0x00, 0x03, 0xff, 0x1b, 0x00, 0x13, 0xff, 0x0e, 0x00, 0x0f, 0xff, 0x1e, 0x00, 0x03, 0xff, 0x1f, 0x00, 0x03, 0xff, 0x1b, 0x00, 0x13, 0xff, 0x0d, 0x00, 0x05, 0xff, 0x06, 0x00, 0x06, 0xff, 0x1d, 0x00, 0x03, 0xff, 0x1f, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x14, 0x00, 0x04, 0xff, 0x0b, 0x00, 0x03, 0xff, 0x1c, 0x00, 0x05, 0xff, 0x1e, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x14, 0x00, 0x03, 0xff, 0x0d, 0x00, 0xff, 0xff, 0x1d, 0x00, 0x05, 0xff, 0x1e, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x14, 0x00, 0x03, 0xff, 0x2a, 0x00, 0x07, 0xff, 0x1d, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x14, 0x00, 0x03, 0xff, 0x2a, 0x00, 0x03, 0xff, 0xff, 0x00, 0x03, 0xff, 0x1d, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x14, 0x00, 0x04, 0xff, 0x28, 0x00, 0x04, 0xff, 0xff, 0x00, 0x04, 0xff, 0x1c, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x14, 0x00, 0x04, 0xff, 0x28, 0x00, 0x03, 0xff, 0x03, 0x00, 0x03, 0xff, 0x1c, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x15, 0x00, 0x07, 0xff, 0x23, 0x00, 0x04, 0xff, 0x03, 0x00, 0x04, 0xff, 0x1b, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x16, 0x00, 0x0a, 0xff, 0x1f, 0x00, 0x03, 0xff, 0x05, 0x00, 0x03, 0xff, 0x1b, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x17, 0x00, 0x0c, 0xff, 0x1b, 0x00, 0x04, 0xff, 0x05, 0x00, 0x04, 0xff, 0x1a, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x1a, 0x00, 0x0a, 0xff, 0x1a, 0x00, 0x03, 0xff, 0x07, 0x00, 0x03, 0xff, 0x1a, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x1e, 0x00, 0x07, 0xff, 0x18, 0x00, 0x04, 0xff, 0x07, 0x00, 0x04, 0xff, 0x19, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x21, 0x00, 0x05, 0xff, 0x17, 0x00, 0x03, 0xff, 0x09, 0x00, 0x03, 0xff, 0x19, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x22, 0x00, 0x04, 0xff, 0x16, 0x00, 0x04, 0xff, 0x09, 0x00, 0x04, 0xff, 0x18, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x23, 0x00, 0x04, 0xff, 0x15, 0x00, 0x03, 0xff, 0x0b, 0x00, 0x03, 0xff, 0x18, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x23, 0x00, 0x04, 0xff, 0x14, 0x00, 0x04, 0xff, 0x0b, 0x00, 0x04, 0xff, 0x17, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x23, 0x00, 0x04, 0xff, 0x14, 0x00, 0x03, 0xff, 0x0d, 0x00, 0x03, 0xff, 0x17, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x15, 0x00, 0xff, 0xff, 0x0d, 0x00, 0x04, 0xff, 0x13, 0x00, 0x04, 0xff, 0x0d, 0x00, 0x04, 0xff, 0x16, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x14, 0x00, 0x03, 0xff, 0x0b, 0x00, 0x04, 0xff, 0x14, 0x00, 0x03, 0xff, 0x0f, 0x00, 0x03, 0xff, 0x16, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x14, 0x00, 0x05, 0xff, 0x08, 0x00, 0x05, 0xff, 0x13, 0x00, 0x04, 0xff, 0x0f, 0x00, 0x04, 0xff, 0x15, 0x00, 0x03, 0xff, 0x23, 0x00, 0x03, 0xff, 0x15, 0x00, 0x10, 0xff, 0x14, 0x00, 0x17, 0xff, 0x15, 0x00, 0x0f, 0xff, 0x17, 0x00, 0x03, 0xff, 0x16, 0x00, 0x0e, 0xff, 0x14, 0x00, 0x19, 0xff, 0x14, 0x00, 0x0f, 0xff, 0x17, 0x00, 0x03, 0xff, 0x19, 0x00, 0x08, 0xff, 0x17, 0x00, 0x19, 0xff, 0x14, 0x00, 0x0f, 0xff, 0x17, 0x00, 0x03, 0xff, 0x7f, 0x00, 0x7f, 0x00, 0x7f, 0x00, 0x7f, 0x00, 0x4c, 0x00
+    };
+    memcpy(data, image_data, sizeof(image_data));
+}
+static const Image salt_logo_16_image = {(void *) &salt_logo_16, 142, 36};
+
+static const AnimationFrame salt_logo_array[] =
+{
+    {&salt_logo_16_image, 20}
+};
+
+static const ImageAnimation salt_logo = { 16, salt_logo_array };
+
+typedef struct {
+    const ImageAnimation *const forward;
+    const ImageAnimation *const reverse;
+    const uint16_t base_x;
+} LogoParams;
+
+static const LogoParams keepkey_params = { &kk_logo, &kk_logo_reversed, 100 };
+static const LogoParams salt_params = { &salt_logo, &salt_logo, 60 };
+
+static const LogoParams *logo_paramsInit(void) {
+    const char *model = flash_getModel();
+    if (!model)
+        return &keepkey_params;
+
+#define MODEL_KK(MODEL) \
+    if (!strcmp(model, (MODEL))) \
+        return &keepkey_params;
+
+#define MODEL_SALT(MODEL) \
+    if (!strcmp(model, (MODEL))) \
+        return &salt_params;
+
+#include "keepkey/board/models.def"
+
+    // If all else fails, just brand it as if it were a KeepKey
+    return &keepkey_params;
 }
 
-/*
- * get_logo_reversed_animation() - Get a reversed version logo animation
- *
- * INPUT
- *     none
- * OUTPUT
- *     reversed logo animation
- */
+static const LogoParams *logo_params(void) {
+    static const LogoParams *params;
+    if (!params)
+        params = logo_paramsInit();
+    return params;
+}
+
+const ImageAnimation *get_logo_animation(void)
+{
+    return logo_params()->forward;
+}
+
 const ImageAnimation *get_logo_reversed_animation(void)
 {
-    return(&logo_reversed);
+    return logo_params()->reverse;
 }
 
 uint16_t get_logo_base_x(void) {
-    return 100;
+    return logo_params()->base_x;
 }
+

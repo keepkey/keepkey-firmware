@@ -32,9 +32,6 @@ add_dependencies(kkboard kktransport kktransport.pb)
 add_library(kkboard.keepkey
     ${CMAKE_CURRENT_SOURCE_DIR}/variant/keepkey/logo.c
     ${CMAKE_CURRENT_SOURCE_DIR}/variant/keepkey/resources.c)
-add_library(kkboard.salt
-    ${CMAKE_CURRENT_SOURCE_DIR}/variant/salt/logo.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/variant/salt/resources.c)
 add_library(kkboard.mfr
     ${CMAKE_CURRENT_SOURCE_DIR}/variant/mfr/logo.c
     ${CMAKE_CURRENT_SOURCE_DIR}/variant/mfr/memory.c

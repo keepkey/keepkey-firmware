@@ -19,6 +19,7 @@
 
 #include "keepkey/firmware/app_resources.h"
 
+#include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/timer.h"
 
@@ -218,16 +219,54 @@ static const AnimationFrame screensaver_array[] =
 
 static const ImageAnimation screensaver = { 17, screensaver_array };
 
+typedef struct {
+    const ImageAnimation *screensaver;
+    uint32_t timeout;
+    const char *const name;
+} VariantParams;
+
+static const VariantParams keepkey_params = { &screensaver, ONE_SEC * 60 * 10, "KeepKey" };
+
+// FIXME: we need to use the SALT screensaver here, instead of KK's
+static const VariantParams salt_params = { &screensaver, ONE_SEC * 60 * 10, "SALT" };
+
+static const VariantParams *variant_paramsInit(void) {
+    const char *model = flash_getModel();
+    if (!model)
+        return &keepkey_params;
+
+#define MODEL_KK(MODEL) \
+    if (!strcmp(model, (MODEL))) \
+        return &keepkey_params;
+
+#define MODEL_SALT(MODEL) \
+    if (!strcmp(model, (MODEL))) \
+        return &salt_params;
+
+#include "keepkey/board/models.def"
+
+    // If all else fails, just brand it as if it were a KeepKey
+    return &keepkey_params;
+}
+
+static const VariantParams *variant_params(void) {
+    // This would be a bit simpler in C++ :(
+    static const VariantParams *params;
+    if (!params)
+        params = variant_paramsInit();
+    return params;
+}
+
 const ImageAnimation *variant_getScreensaverAnimation(void)
 {
-    return(&screensaver);
+    return variant_params()->screensaver;
 }
 
 uint32_t variant_getScreensaverTimeout(void) {
-    return ONE_SEC * 60 * 10;
+    return variant_params()->timeout;
 }
 
 const char *variant_name(void) {
-    return "KeepKey";
+    return variant_params()->name;
 }
 
