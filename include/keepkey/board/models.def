@@ -1,0 +1,18 @@
+#if !defined(MODEL)
+#  define MODEL(NUMBER)
+#endif
+
+#if !defined(MODEL_KK)
+#  define MODEL_KK(NUMBER) MODEL(NUMBER)
+#endif
+
+#if !defined(MODEL_SALT)
+#  define MODEL_SALT(NUMBER) MODEL(NUMBER)
+#endif
+
+MODEL_KK("K1-14AM")
+MODEL_SALT("K1-14WL-S")
+
+#undef MODEL
+#undef MODEL_KK
+#undef MODEL_SALT

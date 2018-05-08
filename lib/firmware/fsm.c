@@ -403,12 +403,16 @@ static const char *model(void) {
     case BLK_v1_0_3:
     case BLK_v1_0_3_sig:
     case BLK_v1_0_3_elf: {
-        static const char model[32] = "K1-14AM";
+#define MODEL_KK(NUMBER) \
+        static const char model[32] = (NUMBER);
+#include "keepkey/board/models.def"
         (void)flash_setModel(&model);
         return model;
     }
     case BLK_v1_0_4: {
-        static const char model[32] = "K1-14WL-S";
+#define MODEL_SALT(NUMBER) \
+        static const char model[32] = (NUMBER);
+#include "keepkey/board/models.def"
         (void)flash_setModel(&model);
         return model;
     }
@@ -500,12 +504,10 @@ void fsm_msgGetFeatures(GetFeatures *msg)
 }
 
 static bool isValidModelNumber(const char *model) {
-    if (!strcmp(model, "K1-14AM"))
+#define MODEL(NUMBER) \
+    if (!strcmp(model, NUMBER)) \
         return true;
-
-    if (!strcmp(model, "K1-14WL-S"))
-        return true;
-
+#include "keepkey/board/models.def"
     return false;
 }
 
