@@ -499,13 +499,23 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     msg_write(MessageType_MessageType_Features, resp);
 }
 
+static bool isValidModelNumber(const char *model) {
+    if (!strcmp(model, "K1-14AM"))
+        return true;
+
+    if (!strcmp(model, "K1-14WL-S"))
+        return true;
+
+    return false;
+}
+
 void fsm_msgPing(Ping *msg)
 {
     RESP_INIT(Success);
 
     // If device is in manufacture mode, turn if off, lock it, and program the
     // model number into OTP flash.
-    if (is_mfg_mode() && msg->has_message) {
+    if (is_mfg_mode() && msg->has_message && isValidModelNumber(msg->message)) {
         set_mfg_mode_off();
         char message[32];
         strncpy(message, msg->message, sizeof(message));
