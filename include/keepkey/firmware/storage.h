@@ -26,7 +26,7 @@
 #include <stdbool.h>
 #include <inttypes.h>
 
-#define STORAGE_VERSION 7 /* Must add case fallthrough in storage_from_flash after increment*/
+#define STORAGE_VERSION 8 /* Must add case fallthrough in storage_from_flash after increment*/
 #define STORAGE_RETRIES 3
 
 typedef struct _HDNode HDNode;
