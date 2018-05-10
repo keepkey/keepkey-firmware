@@ -406,14 +406,16 @@ static const char *model(void) {
 #define MODEL_KK(NUMBER) \
         static const char model[32] = (NUMBER);
 #include "keepkey/board/models.def"
-        (void)flash_setModel(&model);
+        if (!is_mfg_mode())
+            (void)flash_setModel(&model);
         return model;
     }
     case BLK_v1_0_4: {
 #define MODEL_SALT(NUMBER) \
         static const char model[32] = (NUMBER);
 #include "keepkey/board/models.def"
-        (void)flash_setModel(&model);
+        if (!is_mfg_mode())
+            (void)flash_setModel(&model);
         return model;
     }
     }
