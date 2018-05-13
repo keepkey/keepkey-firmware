@@ -89,6 +89,7 @@ static const MessagesMap_t MessagesMap[] =
     MSG_IN(MessageType_MessageType_GetAddress,          GetAddress_fields, (void (*)(void *))fsm_msgGetAddress, MFRProhibited)
     MSG_IN(MessageType_MessageType_EntropyAck,          EntropyAck_fields, (void (*)(void *))fsm_msgEntropyAck, AnyVariant)
     MSG_IN(MessageType_MessageType_SignMessage,         SignMessage_fields, (void (*)(void *))fsm_msgSignMessage, MFRProhibited)
+    MSG_IN(MessageType_MessageType_SignIdentity,        SignIdentity_fields, (void (*)(void *))fsm_msgSignIdentity, MFRProhibited)
     MSG_IN(MessageType_MessageType_VerifyMessage,       VerifyMessage_fields, (void (*)(void *))fsm_msgVerifyMessage, MFRProhibited)
 /* ECIES disabled
     MSG_IN(MessageType_MessageType_EncryptMessage,      EncryptMessage_fields, (void (*)(void *))fsm_msgEncryptMessage, MFRProhibited)
@@ -1307,6 +1308,111 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
     else
     {
         fsm_sendFailure(FailureType_Failure_InvalidSignature, "Invalid signature");
+    }
+
+    go_home();
+}
+
+void fsm_msgSignIdentity(SignIdentity *msg)
+{
+    RESP_INIT(SignedIdentity);
+
+    if (!storage_is_initialized())
+    {
+        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+        return;
+    }
+
+    if(!confirm_sign_identity(&(msg->identity),
+                              msg->has_challenge_visual ? msg->challenge_visual : 0))
+    {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Sign identity cancelled");
+        go_home();
+        return;
+    }
+
+    if(!pin_protect_cached())
+    {
+        go_home();
+        return;
+    }
+
+    uint8_t hash[32];
+
+    if(!msg->has_identity || cryptoIdentityFingerprint(&(msg->identity), hash) == 0)
+    {
+        fsm_sendFailure(FailureType_Failure_Other, "Invalid identity");
+        go_home();
+        return;
+    }
+
+    uint32_t address_n[5];
+    address_n[0] = 0x80000000 | 13;
+    address_n[1] = 0x80000000 | hash[ 0] | (hash[ 1] << 8) | (hash[ 2] << 16) |
+                   (hash[ 3] << 24);
+    address_n[2] = 0x80000000 | hash[ 4] | (hash[ 5] << 8) | (hash[ 6] << 16) |
+                   (hash[ 7] << 24);
+    address_n[3] = 0x80000000 | hash[ 8] | (hash[ 9] << 8) | (hash[10] << 16) |
+                   (hash[11] << 24);
+    address_n[4] = 0x80000000 | hash[12] | (hash[13] << 8) | (hash[14] << 16) |
+                   (hash[15] << 24);
+
+    const char *curve = SECP256K1_NAME;
+    if (msg->has_ecdsa_curve_name) {
+        curve = msg->ecdsa_curve_name;
+    }
+    HDNode *node = fsm_getDerivedNode(curve, address_n, 5);
+    if(!node) { return; }
+    bool sign_ssh = msg->identity.has_proto && (strcmp(msg->identity.proto, "ssh") == 0);
+    bool sign_gpg = msg->identity.has_proto && (strcmp(msg->identity.proto, "gpg") == 0);
+
+    int result = 0;
+    layout_simple_message("Signing Identity...");
+
+    if(sign_ssh)    // SSH does not sign visual challenge
+    {
+        result = sshMessageSign(node, msg->challenge_hidden.bytes, msg->challenge_hidden.size, resp->signature.bytes);
+    }
+    else if (sign_gpg)  // GPG should sign a message digest
+    {
+        result = gpgMessageSign(node, msg->challenge_hidden.bytes, msg->challenge_hidden.size, resp->signature.bytes);
+    }
+    else
+    {
+        uint8_t digest[64];
+        sha256_Raw(msg->challenge_hidden.bytes, msg->challenge_hidden.size, digest);
+        sha256_Raw((const uint8_t *)msg->challenge_visual, strlen(msg->challenge_visual), digest + 32);
+        result = cryptoMessageSign(coinByName("Bitcoin"), node, digest, 64, resp->signature.bytes);
+    }
+
+    if(result == 0)
+    {
+        hdnode_fill_public_key(node);
+        if (strcmp(curve, SECP256K1_NAME) != 0)
+        {
+            resp->has_address = false;
+        }
+        else
+        {
+            resp->has_address = true;
+            uint8_t addr_raw[21];
+            hdnode_get_address_raw(node, 0x00, addr_raw); // hardcoded Bitcoin address type
+            base58_encode_check(addr_raw, 21, resp->address, sizeof(resp->address));
+        }
+        resp->has_public_key = true;
+        resp->public_key.size = 33;
+        memcpy(resp->public_key.bytes, node->public_key, 33);
+        if (node->public_key[0] == 1) {
+            /* ed25519 public key */
+            resp->public_key.bytes[0] = 0;
+        }
+        resp->has_signature = true;
+        resp->signature.size = 65;
+        msg_write(MessageType_MessageType_SignedIdentity, resp);
+    }
+    else
+    {
+        fsm_sendFailure(FailureType_Failure_Other, "Error signing identity");
     }
 
     go_home();

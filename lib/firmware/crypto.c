@@ -91,6 +91,21 @@ uint32_t deser_length(const uint8_t *in, uint32_t *out)
 	return 1 + 8;
 }
 
+int sshMessageSign(HDNode *node, const uint8_t *message, size_t message_len, uint8_t *signature)
+{
+	signature[0] = 0; // prefix: pad with zero, so all signatures are 65 bytes
+	return hdnode_sign(node, message, message_len, signature + 1, NULL);
+}
+
+int gpgMessageSign(HDNode *node, const uint8_t *message, size_t message_len, uint8_t *signature)
+{
+	// GPG should sign a SHA256 digest of the original message.
+	if (message_len != 32) {
+		return 1;
+	}
+	signature[0] = 0; // prefix: pad with zero, so all signatures are 65 bytes
+	return hdnode_sign_digest(node, message, signature + 1, NULL);
+}
 
 int cryptoGetECDHSessionKey(const HDNode *node, const uint8_t *peer_public_key, uint8_t *session_key)
 {
@@ -238,5 +253,32 @@ int cryptoMultisigFingerprint(const MultisigRedeemScriptType *multisig, uint8_t 
 	sha256_Update(&ctx, (const uint8_t *)&n, sizeof(uint32_t));
 	sha256_Final(&ctx, hash);
 	animating_progress_handler();
+	return 1;
+}
+
+int cryptoIdentityFingerprint(const IdentityType *identity, uint8_t *hash)
+{
+	SHA256_CTX ctx;
+	sha256_Init(&ctx);
+	sha256_Update(&ctx, (const uint8_t *)&(identity->index), sizeof(uint32_t));
+	if (identity->has_proto && identity->proto[0]) {
+		sha256_Update(&ctx, (const uint8_t *)(identity->proto), strlen(identity->proto));
+		sha256_Update(&ctx, (const uint8_t *)"://", 3);
+	}
+	if (identity->has_user && identity->user[0]) {
+		sha256_Update(&ctx, (const uint8_t *)(identity->user), strlen(identity->user));
+		sha256_Update(&ctx, (const uint8_t *)"@", 1);
+	}
+	if (identity->has_host && identity->host[0]) {
+		sha256_Update(&ctx, (const uint8_t *)(identity->host), strlen(identity->host));
+	}
+	if (identity->has_port && identity->port[0]) {
+		sha256_Update(&ctx, (const uint8_t *)":", 1);
+		sha256_Update(&ctx, (const uint8_t *)(identity->port), strlen(identity->port));
+	}
+	if (identity->has_path && identity->path[0]) {
+		sha256_Update(&ctx, (const uint8_t *)(identity->path), strlen(identity->path));
+	}
+	sha256_Final(&ctx, hash);
 	return 1;
 }
