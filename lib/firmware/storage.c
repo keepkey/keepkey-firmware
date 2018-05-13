@@ -41,10 +41,6 @@
 #include "keepkey/rand/rng.h"
 #include "keepkey/transport/interface.h"
 
-#include "types.pb.h"
-#include "storage.pb.h"
-#include "messages.pb.h"
-
 #include <string.h>
 #include <stdint.h>
 
@@ -433,52 +429,6 @@ void session_clear(bool clear_pin)
     }
 }
 
-void storage_commit_pin(void) {
-    char *ram_storage = (char*)&shadow_config;
-    char *flash_storage = (char*)flash_write_helper(storage_location);
-
-    uint32_t *ram_arena_elt = storage_getPinArenaElement(
-        &shadow_config.storage.pin_fail_arena[0],
-        sizeof(shadow_config.storage.pin_fail_arena) /
-        sizeof(shadow_config.storage.pin_fail_arena[0]));
-    if (!ram_arena_elt)
-        return;
-
-    uint32_t *flash_arena_elt = (uint32_t*)(flash_storage +
-                                            ((char*)ram_arena_elt - ram_storage));
-
-    uint32_t retries;
-    for (retries = 0; retries < STORAGE_RETRIES; retries++) {
-#ifdef EMULATOR
-        memcpy(flash_arena_elt, ram_arena_elt, sizeof(*ram_arena_elt));
-#else
-        flash_unlock();
-        flash_program((uint32_t)flash_arena_elt, (uint8_t*)ram_arena_elt,
-                      sizeof(*ram_arena_elt));
-        flash_lock();
-
-        if (!flash_chk_status()) {
-            flash_clear_status_flags();
-            continue;
-        }
-#endif
-
-        if (*flash_arena_elt == *ram_arena_elt)
-            break;
-    }
-
-    if(retries >= STORAGE_RETRIES) {
-        layout_warning_static("Error Detected.  Reboot Device!");
-        shutdown();
-    }
-}
-
-void storage_recycle_pin(void) {
-    memset(&shadow_config.storage.pin_fail_arena[0], 0xff,
-           (sizeof(shadow_config.storage.pin_fail_arena) /
-            sizeof(shadow_config.storage.pin_fail_arena[0])));
-}
-
 /*
  * storage_commit() - Write content of configuration in shadow memory to
  * storage partion in flash
@@ -495,10 +445,6 @@ void storage_commit(void)
     uint32_t shadow_ram_crc32, shadow_flash_crc32, retries;
 
     memcpy((void *)&shadow_config, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
-
-    storage_resetPinArena(&shadow_config.storage.pin_fail_arena[0],
-           (sizeof(shadow_config.storage.pin_fail_arena) /
-            sizeof(shadow_config.storage.pin_fail_arena[0])));
 
     for(retries = 0; retries < STORAGE_RETRIES; retries++)
     {
@@ -819,39 +765,6 @@ bool session_is_pin_cached(void)
     return sessionPinCached && strcmp(sessionPin, shadow_config.storage.pin) == 0;
 }
 
-uint32_t *storage_getPinArenaElement(uint32_t *pin_fail_arena, size_t len)
-{
-    uint32_t *ptr = pin_fail_arena;
-    uint32_t *end = ptr + len;
-
-    while (ptr != end && !*ptr)
-        ++ptr;
-
-    if (ptr == end)
-        return NULL;
-
-    return ptr;
-}
-
-uint32_t storage_getPinArenaFailCount(uint32_t *arena_elt) {
-    return *arena_elt ? __builtin_ctz(*arena_elt) : 0;
-}
-
-void storage_resetPinArena(uint32_t *pin_fail_arena, size_t len) {
-    uint32_t *arena_elt = storage_getPinArenaElement(pin_fail_arena, len);
-    uint32_t arena_elt_val;
-
-    if (!arena_elt) {
-        arena_elt = pin_fail_arena;
-        arena_elt_val = 0xffffffffu;
-    } else {
-        arena_elt_val = *arena_elt;
-    }
-
-    memset(pin_fail_arena, 0xff, len * sizeof(*pin_fail_arena));
-    pin_fail_arena[0] = arena_elt_val;
-}
-
 /*
  * storage_reset_pin_fails() - Reset PIN failures
  *
@@ -862,17 +775,10 @@ void storage_resetPinArena(uint32_t *pin_fail_arena, size_t len) {
  */
 void storage_reset_pin_fails(void)
 {
-    uint32_t *arena_elt = storage_getPinArenaElement(
-        &shadow_config.storage.pin_fail_arena[0],
-        sizeof(shadow_config.storage.pin_fail_arena) /
-        sizeof(shadow_config.storage.pin_fail_arena[0]));
-    if (arena_elt) {
-        *arena_elt = 0;
-        storage_commit_pin();
-    } else {
-        storage_recycle_pin();
-        storage_commit();
-    }
+    shadow_config.storage.has_pin_failed_attempts = false;
+    shadow_config.storage.pin_failed_attempts = 0;
+
+    storage_commit();
 }
 
 /*
@@ -885,17 +791,10 @@ void storage_reset_pin_fails(void)
  */
 void storage_increase_pin_fails(void)
 {
-    uint32_t *arena_elt = storage_getPinArenaElement(
-        &shadow_config.storage.pin_fail_arena[0],
-        sizeof(shadow_config.storage.pin_fail_arena) /
-        sizeof(shadow_config.storage.pin_fail_arena[0]));
-    if (arena_elt) {
-        *arena_elt = *arena_elt << 1;
-        storage_commit_pin();
-    } else {
-        storage_recycle_pin();
-        storage_commit();
-    }
+    shadow_config.storage.has_pin_failed_attempts = true;
+    shadow_config.storage.pin_failed_attempts++;
+
+    storage_commit();
 }
 
 /*
@@ -908,12 +807,8 @@ void storage_increase_pin_fails(void)
  */
 uint32_t storage_get_pin_fails(void)
 {
-    uint32_t *arena_elt = storage_getPinArenaElement(
-        &shadow_config.storage.pin_fail_arena[0],
-        sizeof(shadow_config.storage.pin_fail_arena) /
-        sizeof(shadow_config.storage.pin_fail_arena[0]));
-
-    return storage_getPinArenaFailCount(arena_elt);
+    return shadow_config.storage.has_pin_failed_attempts ?
+           shadow_config.storage.pin_failed_attempts : 0;
 }
 
 /*

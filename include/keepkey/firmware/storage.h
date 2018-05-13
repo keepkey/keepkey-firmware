@@ -20,20 +20,21 @@
 #ifndef STORAGE_H
 #define STORAGE_H
 
+/* === Includes ============================================================ */
+
 #include "keepkey/crypto/bip32.h"
 #include "keepkey/board/memory.h"
 
-#include <stdbool.h>
-#include <inttypes.h>
+#include "types.pb.h"
+#include "storage.pb.h"
+#include "messages.pb.h"
+
+/* === Defines ============================================================= */
 
 #define STORAGE_VERSION 8 /* Must add case fallthrough in storage_from_flash after increment*/
 #define STORAGE_RETRIES 3
 
-typedef struct _HDNode HDNode;
-typedef struct _HDNodeType HDNodeType;
-typedef struct _LoadDevice LoadDevice;
-typedef struct _PolicyType PolicyType;
-typedef struct _Storage Storage;
+/* === Functions =========================================================== */
 
 void storage_init(void);
 void storage_reset_uuid(void);
@@ -58,27 +59,6 @@ void storage_set_pin(const char *pin);
 const char *storage_get_pin(void);
 void session_cache_pin(const char *pin);
 bool session_is_pin_cached(void);
-
-/// Find the first nonzero entry in the pin_fail_arena.
-///
-/// \param pin_fail_arena   The arena to search through.
-/// \param len              The number of arena entries.
-///
-/// \returns a pointer to the entry if one exists. Otherwise returns nullptr.
-uint32_t *storage_getPinArenaElement(uint32_t *pin_fail_arena, size_t len);
-
-/// Count the number of 0 bits in a PinFailArena element, which is indicative
-/// of the amount of time needed for pin failure delay.
-///
-/// \param arena_elt    Pointer to the arena element to grab the count from.
-/// \returns            The number of pin failures.
-uint32_t storage_getPinArenaFailCount(uint32_t *arena_elt);
-
-/// Reset the pin fail arena so that it contains as much 1 bits as possible.
-///
-/// `storage_getPinArenaFailCount()` must be invariant across calls to this function.
-void storage_resetPinArena(uint32_t *pin_fail_arena, size_t len);
-
 void storage_reset_pin_fails(void);
 void storage_increase_pin_fails(void);
 uint32_t storage_get_pin_fails(void);
