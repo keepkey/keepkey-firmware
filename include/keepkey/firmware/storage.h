@@ -24,9 +24,6 @@
 #include "keepkey/board/memory.h"
 #include "keepkey/firmware/storagepb.h"
 
-#include "types.pb.h"
-#include "messages.pb.h"
-
 #define STORAGE_VERSION 8 /* Must add case fallthrough in storage_from_flash after increment*/
 #define STORAGE_RETRIES 3
 

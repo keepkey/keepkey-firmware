@@ -1,6 +1,7 @@
 set(sources
     ethereum.cpp
-    recovery.cpp)
+    recovery.cpp
+    storage.cpp)
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/include
