@@ -11,7 +11,7 @@ docker run -t \
 	make clean && \
     make && \
 	cd /root/keepkey-firmware && \
-	./b -d -salt && \
+	./b -d -dl -salt && \
 	mkdir -p bin/debug/salt && \
     mv build/arm-none-gnu-eabi/debug/bin/*.bin bin/debug/salt/ &&
     mv build/arm-none-gnu-eabi/debug/bin/*.map bin/debug/salt/ &&
