@@ -24,7 +24,11 @@
 
 /* === Defines ============================================================= */
 
-#define MAX_FRAME_SIZE (12 * 1024)
+#ifdef EMULATOR
+#  define MAX_FRAME_SIZE (64 * 1024)
+#else
+#  define MAX_FRAME_SIZE (12 * 1024)
+#endif
 
 /* === Typedefs ============================================================ */
 
