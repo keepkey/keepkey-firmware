@@ -20,21 +20,24 @@
 #ifndef STORAGE_H
 #define STORAGE_H
 
-/* === Includes ============================================================ */
-
 #include "keepkey/crypto/bip32.h"
 #include "keepkey/board/memory.h"
+#include "keepkey/firmware/storagepb.h"
 
 #include "types.pb.h"
-#include "storage.pb.h"
 #include "messages.pb.h"
-
-/* === Defines ============================================================= */
 
 #define STORAGE_VERSION 8 /* Must add case fallthrough in storage_from_flash after increment*/
 #define STORAGE_RETRIES 3
 
-/* === Functions =========================================================== */
+typedef struct _HDNode HDNode;
+typedef struct _HDNodeType HDNodeType;
+typedef struct _LoadDevice LoadDevice;
+typedef struct _PolicyType PolicyType;
+
+typedef struct _Storage Storage;
+typedef struct _StorageHDNode StorageHDNode;
+typedef struct _StoragePolicy StoragePolicy;
 
 void storage_init(void);
 void storage_reset_uuid(void);
@@ -82,7 +85,7 @@ const char *storage_get_shadow_mnemonic(void);
 bool storage_get_imported(void);
 
 bool storage_has_node(void);
-HDNodeType *storage_get_node(void);
+StorageHDNode *storage_get_node(void);
 
 Allocation get_storage_location(void);
 

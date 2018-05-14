@@ -37,6 +37,7 @@
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/policy.h"
+#include "keepkey/firmware/storagepb.h"
 #include "keepkey/firmware/util.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/transport/interface.h"
@@ -1191,7 +1192,22 @@ bool storage_set_policy(PolicyType *policy)
  */
 void storage_get_policies(PolicyType *policy_data)
 {
-    memcpy(policy_data, shadow_config.storage.policies, POLICY_COUNT * sizeof(PolicyType));
+    for (size_t i = 0; i < POLICY_COUNT; ++i) {
+        PolicyType *dst = &policy_data[i];
+        StoragePolicy *src = &shadow_config.storage.policies[i];
+
+        dst->has_policy_name = src->has_policy_name;
+        if (src->has_policy_name) {
+            memcpy(dst->policy_name, src->policy_name, sizeof(src->policy_name));
+            _Static_assert(sizeof(dst->policy_name) ==
+                           sizeof(src->policy_name), "PolicyType vs StoragePolicy type mismatch");
+        }
+
+        dst->has_enabled = src->has_enabled;
+        dst->enabled = src->enabled;
+
+        _Static_assert(sizeof(*dst) == sizeof(*src), "PolicyType vs StoragePolicy type mismatch");
+    }
 }
 
 /*
@@ -1255,7 +1271,7 @@ const char *storage_get_mnemonic(void)
  * OUTPUT
  *     HDNode from storage
  */
-HDNodeType *storage_get_node(void)
+StorageHDNode *storage_get_node(void)
 {
     return &shadow_config.storage.node;
 }

@@ -21,7 +21,7 @@
 #define INTERFACE_H
 
 #include "messages.pb.h"
-#include "storage.pb.h"
+#include "keepkey/firmware/storagepb.h"
 #include "types.pb.h"
 #include "trezor_transport.h"
 
