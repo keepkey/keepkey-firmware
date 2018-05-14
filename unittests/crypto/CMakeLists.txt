@@ -13,4 +13,5 @@ target_link_libraries(crypto-unit
     kkboard
     kkboard.keepkey
     kkcrypto
+    kkrand
     kktransport)

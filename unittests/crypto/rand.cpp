@@ -1,5 +1,5 @@
 extern "C" {
-#include "keepkey/crypto/rand.h"
+#include "keepkey/rand/rng.h"
 }
 
 #include "gtest/gtest.h"
