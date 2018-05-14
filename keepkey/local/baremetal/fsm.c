@@ -1279,23 +1279,21 @@ void fsm_msgSignIdentity(SignIdentity *msg)
         return;
     }
 
-    if(!confirm_sign_identity(&(msg->identity),
-                              msg->has_challenge_visual ? msg->challenge_visual : 0))
+    if (!confirm_sign_identity(&(msg->identity), msg->has_challenge_visual ? msg->challenge_visual : 0))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, "Sign identity cancelled");
         go_home();
         return;
     }
 
-    if(!pin_protect_cached())
+    if (!pin_protect_cached())
     {
         go_home();
         return;
     }
 
     uint8_t hash[32];
-
-    if(!msg->has_identity || cryptoIdentityFingerprint(&(msg->identity), hash) == 0)
+    if (!msg->has_identity || cryptoIdentityFingerprint(&(msg->identity), hash) == 0)
     {
         fsm_sendFailure(FailureType_Failure_Other, "Invalid identity");
         go_home();
@@ -1314,31 +1312,26 @@ void fsm_msgSignIdentity(SignIdentity *msg)
         curve = msg->ecdsa_curve_name;
     }
     HDNode *node = fsm_getDerivedNode(curve, address_n, 5);
-    if(!node) { return; }
+    if (!node) { return; }
+
     bool sign_ssh = msg->identity.has_proto && (strcmp(msg->identity.proto, "ssh") == 0);
     bool sign_gpg = msg->identity.has_proto && (strcmp(msg->identity.proto, "gpg") == 0);
 
     int result = 0;
     layout_simple_message("Signing Identity...");
 
-    if(sign_ssh)    // SSH does not sign visual challenge
-    {
+    if (sign_ssh) {   // SSH does not sign visual challenge
         result = sshMessageSign(node, msg->challenge_hidden.bytes, msg->challenge_hidden.size, resp->signature.bytes);
-    }
-    else if (sign_gpg)  // GPG should sign a message digest
-    {
+    } else if (sign_gpg) { // GPG should sign a message digest
         result = gpgMessageSign(node, msg->challenge_hidden.bytes, msg->challenge_hidden.size, resp->signature.bytes);
-    }
-    else
-    {
+    } else {
         uint8_t digest[64];
         sha256_Raw(msg->challenge_hidden.bytes, msg->challenge_hidden.size, digest);
         sha256_Raw((const uint8_t *)msg->challenge_visual, strlen(msg->challenge_visual), digest + 32);
         result = cryptoMessageSign(&coins[0], node, digest, 64, resp->signature.bytes);
     }
 
-    if(result == 0)
-    {
+    if (result == 0) {
         hdnode_fill_public_key(node);
         if (strcmp(curve, SECP256K1_NAME) != 0)
         {
