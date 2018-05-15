@@ -3,4 +3,3 @@ Storage.pin			  max_size:10
 Storage.language	max_size:17
 Storage.label		  max_size:33
 Storage.policies  max_count:1
-Storage.pin_fail_arena max_count:1024
