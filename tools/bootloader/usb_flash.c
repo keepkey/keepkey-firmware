@@ -224,7 +224,7 @@ static bool should_restore(void) {
 bool usb_flash_firmware(void)
 {
     bool ret_val = false;
-    old_firmware_was_unsigned = true;
+    old_firmware_was_unsigned = signatures_ok() != SIG_OK;
 
     layout_simple_message("Firmware Update Mode");
     layout_version(BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION,
@@ -275,7 +275,6 @@ bool usb_flash_firmware(void)
             case RAW_MESSAGE_STARTED:
             default:
             {
-                old_firmware_was_unsigned = signatures_ok() != SIG_OK;
                 usb_poll();
                 animate();
                 display_refresh();
