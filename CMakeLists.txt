@@ -4,7 +4,7 @@ project(KeepKeyFirmware
 
         VERSION 5.2.4
 
-        LANGUAGES C CXX)
+        LANGUAGES C CXX ASM)
 
 set(BOOTLOADER_MAJOR_VERSION 1)
 set(BOOTLOADER_MINOR_VERSION 0)
