@@ -26,11 +26,11 @@
 #  include <libopencm3/cm3/cortex.h>
 #endif
 
-#include <keepkey_board.h>
-#include <draw.h>
-#include <layout.h>
+#include "keepkey/board/keepkey_board.h"
+#include "keepkey/board/draw.h"
+#include "keepkey/board/layout.h"
 
-#include "app_layout.h"
+#include "keepkey/firmware/app_layout.h"
 
 /* === Functions =========================================================== */
 
