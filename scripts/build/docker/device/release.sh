@@ -8,8 +8,6 @@ IMAGETAG=kktech/firmware:v6-beta
 docker pull $IMAGETAG
 
 if [ "$(whoami)" == "root" ]; then COLOR='OFF'; else COLOR='ON'; fi
-ls -alh deps
-ls -alh deps/device-protocol
 
 docker run -t \
   -v $(pwd):/root/keepkey-firmware \

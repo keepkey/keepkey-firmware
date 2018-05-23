@@ -147,7 +147,7 @@ static void clock_init(void)
  */
 static bool is_fw_update_mode(void)
 {
-#if DEBUG_LINK
+#if 0 // DEBUG_LINK
     return true;
 #else
     return keepkey_button_down();
