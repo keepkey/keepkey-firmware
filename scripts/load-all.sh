@@ -1,32 +1,23 @@
 #! /bin/bash
 
-BINDIR=./build/arm-none-gnu-eabi/debug/bin/
-BSTRAPNAME=bootstrap_main
-ELF_FILE=$BINDIR/$BSTRAPNAME.elf
-
-openocd -s /usr/share/openocd/scripts -f interface/jlink.cfg -f board/keepkey_board.cfg -c "program $ELF_FILE verify exit"
+BIN_FILE=./bin/bootstrap.bin
+openocd -s /usr/share/openocd/scripts -f interface/jlink.cfg -f ./scripts/openocd/openocd.cfg -c "program $BIN_FILE 0x08000000 verify exit"
 if [[ $? -ne 0 ]]; then
         echo $?
         echo "error in loading bootstrap"
         exit
 fi
 
-BINDIR=./build/arm-none-gnu-eabi/debug/bin/
-BINNAME=bootloader_main
-ELF_FILE=$BINDIR/$BINNAME.elf
-
-openocd -s /usr/share/openocd/scripts -f interface/jlink.cfg -f board/keepkey_board.cfg -c "program $ELF_FILE verify exit"
+BIN_FILE=./bin/bootloader.keepkey.bin
+openocd -s /usr/share/openocd/scripts -f interface/jlink.cfg -f ./scripts/openocd/stm32f2x.cfg  -c "program $BIN_FILE 0x08020000 verify exit"
 if [[ $? -ne 0 ]]; then
         echo $?
         echo "error in loading bootloader"
         exit
 fi
 
-INDIR=./build/arm-none-gnu-eabi/debug/bin/
-BINAPPNAME=keepkey_main
-ELF_FILE=$BINDIR/$BINAPPNAME.elf
-
-openocd -s /usr/share/openocd/scripts -f interface/jlink.cfg -f board/keepkey_board.cfg -c "program $ELF_FILE verify reset"
+BIN_FILE=./bin/firmware.keepkey.bin
+openocd -s /usr/share/openocd/scripts -f interface/jlink.cfg -f ./scripts/openocd/stm32f2x.cfg -c "program $BIN_FILE 0x08080000 verify reset"
 if [[ $? -ne 0 ]]; then
         echo $?
         echo "error in loading application image"
