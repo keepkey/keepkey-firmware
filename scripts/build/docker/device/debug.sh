@@ -7,7 +7,7 @@ IMAGETAG=kktech/firmware:v6-beta
 
 docker pull $IMAGETAG
 
-if [ "$(whoami)" == "root" ]; then COLOR='OFF'; else COLOR='ON'; fi
+if [ "$(whoami)" == "jenkins" ]; then COLOR='OFF'; else COLOR='ON'; fi
 
 echo "PWD is: $(pwd)"
 
