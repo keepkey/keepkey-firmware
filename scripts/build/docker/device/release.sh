@@ -19,4 +19,5 @@ docker run -t \
       make && \
       mkdir -p /root/keepkey-firmware/bin && \
       cp bin/*.bin /root/keepkey-firmware/bin/ && \
-      cp bin/*.elf /root/keepkey-firmware/bin/"
+      cp bin/*.elf /root/keepkey-firmware/bin/ && \
+      chown -R \`stat -c \"%u:%g\" /root/keepkey-firmware\` /root/keepkey-firmware/bin"
