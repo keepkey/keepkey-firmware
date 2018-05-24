@@ -18,7 +18,7 @@ pipeline {
             steps {
                 sh '''
                     rm -rf bin
-                    ./scripts/build/docker/device/debug.sh
+                    ./scripts/build/docker/device/release.sh
                     tar cjvf release.tar.bz2 bin/*'''
             }
             post {
