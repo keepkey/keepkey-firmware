@@ -1526,25 +1526,28 @@ void fsm_msgDebugLinkStop(DebugLinkStop *msg)
 
 void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg)
 {
-
+#ifndef EMULATOR
     if (!msg->has_length || msg->length > sizeof(((DebugLinkFlashDumpResponse *)0)->data.bytes)) {
+#endif
         fsm_sendFailure(FailureType_Failure_Other, "Invalid FlashDump parameters");
         go_home();
         return;
+#ifndef EMULATOR
     }
 
     RESP_INIT(DebugLinkFlashDumpResponse);
 
-#if DEBUG_LINK
+#  if DEBUG_LINK
     memcpy(resp->data.bytes, (void*)msg->address, msg->length);
-#else
+#  else
     if (variant_mfr_flashDump)
         variant_mfr_flashDump(resp->data.bytes, (void*)msg->address, msg->length);
-#endif
+#  endif
 
     resp->has_data = true;
     resp->data.size = msg->length;
     msg_write(MessageType_MessageType_DebugLinkFlashDumpResponse, resp);
+#endif
 }
 
 void fsm_msgSoftReset(SoftReset *msg) {
@@ -1558,12 +1561,15 @@ void fsm_msgSoftReset(SoftReset *msg) {
 }
 
 void fsm_msgFlashWrite(FlashWrite *msg) {
+#ifndef EMULATOR
     if (!variant_mfr_flashWrite || !variant_mfr_flashHash ||
         !variant_mfr_sectorFromAddress || !variant_mfr_sectorLength ||
         !variant_mfr_sectorStart) {
+#endif
         fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: this isn't MFR firmware");
         go_home();
         return;
+#ifndef EMULATOR
     }
 
     if (!msg->has_address || !msg->has_data || msg->data.size > 1024) {
@@ -1607,13 +1613,17 @@ void fsm_msgFlashWrite(FlashWrite *msg) {
     resp->has_data = true;
     resp->data.size = sizeof(resp->data.bytes);
     msg_write(MessageType_MessageType_FlashHashResponse, resp);
+#endif
 }
 
 void fsm_msgFlashHash(FlashHash *msg) {
+#ifndef EMULATOR
     if (!variant_mfr_flashHash) {
-        fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: this isn't MFR firmware");
+#endif
+        fsm_sendFailure(FailureType_Failure_Other, "FlashHash: this isn't MFR firmware");
         go_home();
         return;
+#ifndef EMULATOR
     }
 
     if (!msg->has_address || !msg->has_length || !msg->has_challenge) {
@@ -1635,5 +1645,6 @@ void fsm_msgFlashHash(FlashHash *msg) {
     resp->has_data = true;
     resp->data.size = sizeof(resp->data.bytes);
     msg_write(MessageType_MessageType_FlashHashResponse, resp);
+#endif
 }
 
