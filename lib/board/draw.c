@@ -23,8 +23,10 @@
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/font.h"
 #include "keepkey/board/resources.h"
+#include "keepkey/firmware/fsm.h"
 
 #include <stddef.h>
+#include <string.h>
 
 /* === Functions =========================================================== */
 
@@ -288,11 +290,108 @@ void draw_box_simple(Canvas *canvas, uint8_t color, uint16_t x, uint16_t y, uint
  *
  * INPUT
  *     - canvas: canvas
+ *     - frame: pointer to animation frame
+ * OUTPUT
+ *     true/false whether image was drawn
+ */
+bool draw_bitmap_mono_rle_new(Canvas *canvas, const VariantFrame *frame)
+{
+    bool ret_stat = false;
+    int x0, y0;
+    int8_t sequence = 0;
+    int8_t nonsequence = 0;
+    static uint8_t image_data[KEEPKEY_DISPLAY_WIDTH * KEEPKEY_DISPLAY_HEIGHT];
+
+    int start_index = (frame->y * canvas->width) + frame->x;
+    uint8_t *canvas_pixel = &canvas->buffer[ start_index ];
+    const VariantImage *img = frame->image;
+
+    if (img->length > sizeof(image_data)) {
+        return false;
+    }
+    memcpy(image_data, img->data, img->length);
+
+
+    /* Check that image will fit in bounds */
+    if(((img->w + frame->x) <= canvas->width) &&
+            ((img->h + frame->y) <= canvas->height))
+    {
+        const uint8_t *img_pixel = &image_data[0];
+        const uint8_t *img_end = &image_data[img->w * img->h]; 
+
+        for(y0 = 0; y0 < img->h; y0++)
+        {
+            for(x0 = 0; x0 < img->w; x0++)
+            {
+                if((sequence == 0) && (nonsequence == 0))
+                {
+                    if (img_pixel >= img_end){
+                        return false; // defensive bounds check
+                    }
+                    sequence = *img_pixel++;
+
+                    if(sequence < 0)
+                    {
+                        nonsequence = -sequence;
+                        sequence = 0;
+                    }
+                }
+
+                if(sequence > 0)
+                {
+                    if (img_pixel >= img_end){
+                        return false; // defensive bounds check
+                    }
+
+                    *canvas_pixel = *img_pixel & frame->color;
+
+                    sequence--;
+
+                    if(sequence == 0)
+                    {
+                        if (img_pixel >= img_end){
+                            return false; // defensive bounds check
+                        }
+                        img_pixel++;
+                    }
+                }
+
+                if(nonsequence > 0)
+                {
+                    if (img_pixel >= img_end){
+                        return false; // defensive bounds check
+                    }
+
+                    *canvas_pixel = *img_pixel++ & frame->color;
+
+                    nonsequence--;
+                }
+
+                canvas_pixel++;
+            }
+
+            canvas_pixel += (canvas->width - img->w);
+        }
+
+        canvas->dirty = true;
+        ret_stat = true;
+    }
+
+    return(ret_stat);
+}
+
+
+/*
+ * draw_bitmap_mono_rle() - Draw image
+ *
+ * INPUT
+ *     - canvas: canvas
  *     - p: pointer to Margins and text color
  *     - img: pointer to image drawn on the screen
  * OUTPUT
  *     true/false whether image was drawn
  */
+
 bool draw_bitmap_mono_rle(Canvas *canvas, DrawableParams *p, const Image *img)
 {
     bool ret_stat = false;

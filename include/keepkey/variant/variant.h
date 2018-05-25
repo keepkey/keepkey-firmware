@@ -6,17 +6,18 @@
 #define VARIANT_INFO_MAGIC "KKWL"
 
 typedef struct _VariantImage {
-    uint16_t h;
     uint16_t w;
+    uint16_t h;
     uint32_t length;
-    uint8_t *data;
+    const uint8_t *data;
 } VariantImage;
 
 typedef struct _VariantFrame {
     uint16_t x;
     uint16_t y;
+    uint32_t duration;
     uint8_t color;
-    VariantImage *image;
+    const VariantImage *image;
 } VariantFrame;
 
 typedef struct _VariantAnimation {

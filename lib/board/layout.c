@@ -26,6 +26,7 @@
 #include "keepkey/board/layout.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/timer.h"
+#include "keepkey/firmware/fsm.h"
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -55,24 +56,21 @@ static void layout_home_helper(bool reversed)
 {
     layout_clear();
 
-    static AnimationImageDrawableParams logo;
-
-    logo.base.x = get_logo_base_x();
-    logo.base.y = 10;
+    static const VariantAnimation *logo;
 
     if(reversed)
     {
-        logo.img_animation = get_logo_reversed_animation();
+        logo = get_logo_reversed_animation();
     }
     else
     {
-        logo.img_animation = get_logo_animation();
+        logo = get_logo_animation();
     }
 
     layout_add_animation(
-        &layout_animate_images,
-        (void *)&logo,
-        get_image_animation_duration(logo.img_animation));
+        &layout_animate_images_new,
+        (void *)logo,
+        get_image_animation_duration_new(logo));
 
     while(is_animating())
     {
@@ -661,6 +659,26 @@ void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed)
     if(img != NULL)
     {
         draw_bitmap_mono_rle(canvas, &animation_img_params->base, img);
+    }
+}
+
+void layout_animate_images_new(void *data, uint32_t duration, uint32_t elapsed)
+{
+    const VariantFrame *frame;
+    VariantAnimation *animation = (VariantAnimation *)data;
+
+    if(duration == 0)  // looping
+    {
+        frame = get_image_animation_frame_new(animation, elapsed, true);
+    }
+    else
+    {
+        frame = get_image_animation_frame_new(animation, elapsed, false);
+    }
+
+    if(frame != NULL)
+    {
+        draw_bitmap_mono_rle_new(canvas, frame);
     }
 }
 

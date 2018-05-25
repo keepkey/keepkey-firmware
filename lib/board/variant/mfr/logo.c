@@ -21,6 +21,7 @@
 
 #include <string.h>
 
+#if 0
 static void logo_16(uint8_t *data)
 {
     const uint8_t image_data[1189] =
@@ -44,6 +45,7 @@ static const AnimationFrame logo_reversed_array[] =
 static const ImageAnimation logo = { 1, logo_array };
 static const ImageAnimation logo_reversed = { 1, logo_reversed_array };
 
+#endif
 /*
  * get_logo_animation() - Get logo animation
  *
@@ -52,9 +54,10 @@ static const ImageAnimation logo_reversed = { 1, logo_reversed_array };
  * OUTPUT
  *     logo animation
  */
-const ImageAnimation *get_logo_animation(void)
+const VariantAnimation *get_logo_animation(void)
 {
-    return(&logo);
+    /*return(&logo);*/
+    return NULL;
 }
 
 /*
@@ -65,11 +68,13 @@ const ImageAnimation *get_logo_animation(void)
  * OUTPUT
  *     reversed logo animation
  */
-const ImageAnimation *get_logo_reversed_animation(void)
+const VariantAnimation *get_logo_reversed_animation(void)
 {
-    return(&logo_reversed);
+    /*return(&logo_reversed);*/
+    return NULL;
 }
 
 uint16_t get_logo_base_x(void) {
     return 100;
 }
+

@@ -21,6 +21,7 @@
 #define RESOURCES_H
 
 /* === Includes ============================================================ */
+#include "keepkey/variant/variant.h"
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -63,11 +64,15 @@ const ImageAnimation *get_confirm_icon_animation(void);
 const ImageAnimation *get_confirming_animation(void);
 const ImageAnimation *get_loading_animation(void);
 const ImageAnimation *get_warning_animation(void);
-const ImageAnimation *get_logo_animation(void);
-const ImageAnimation *get_logo_reversed_animation(void);
+const VariantAnimation *get_logo_animation(void);
+const VariantAnimation *get_logo_reversed_animation(void);
 uint16_t get_logo_base_x(void);
 
+uint32_t get_image_animation_duration_new(const VariantAnimation *animation);
 uint32_t get_image_animation_duration(const ImageAnimation *img_animation);
+
+const VariantFrame *get_image_animation_frame_new(const VariantAnimation *animation,
+                                       const uint32_t elapsed, bool loop);
 const Image *get_image_animation_frame(const ImageAnimation *img_animation,
                                        const uint32_t elapsed, bool loop);
 #endif

@@ -1779,6 +1779,26 @@ const ImageAnimation *get_warning_animation(void)
  * get_image_animation_duration() - Calculate animation duration
  *
  * INPUT
+ *     Animation
+ * OUTPUT
+ *    animation duration
+ */
+uint32_t get_image_animation_duration_new(const VariantAnimation *animation)
+{
+    uint32_t duration = 0;
+
+    for(int i = 0; i < animation->count; i++)
+    {
+        duration += animation->frames[i].duration;
+    }
+
+    return(duration);
+}
+
+/*
+ * get_image_animation_duration() - Calculate animation duration
+ *
+ * INPUT
  *     none
  * OUTPUT
  *    animation duration
@@ -1824,3 +1844,36 @@ const Image *get_image_animation_frame(const ImageAnimation *img_animation,
 
     return(NULL);
 }
+
+
+
+/*
+ * get_image_animation_frame() - Get an animation frame
+ *
+ * INPUT
+ *     - img_animation: animation to pull frame from
+ *     - elapsed: how long has animation elapsed
+ *     - loop: is this animation looping?
+ * OUTPUT
+ *    animation frame as image
+ */
+const VariantFrame *get_image_animation_frame_new(const VariantAnimation *animation,
+                                       const uint32_t elapsed, bool loop)
+{
+    uint32_t adjusted_elapsed = (loop) ? elapsed % get_image_animation_duration_new(
+                                    animation) : elapsed;
+    uint32_t current_time = 0;
+
+    for(int i = 0; i < animation->count; i++)
+    {
+        current_time += animation->frames[i].duration;
+
+        if(adjusted_elapsed <= current_time)
+        {
+            return &(animation->frames[i]);
+        }
+    }
+
+    return(NULL);
+}
+
