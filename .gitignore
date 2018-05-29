@@ -17,8 +17,8 @@ interface/**/*.pb.c
 .idea
 
 # component libraries
-build
-bin
+/build
+/bin
 
 # Misc
 tags
