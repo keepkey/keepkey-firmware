@@ -31,6 +31,15 @@ pipeline {
             steps {
                 sh '''
                     ./scripts/build/docker/emulator/debug.sh'''
+                step([$class: 'XUnitPublisher',
+                        thresholds: [[$class: 'FailedThreshold', unstableThreshold: '1']],
+                        tools: [[$class: 'GoogleTestType',
+                                   pattern: 'build/unittests/*.xml',
+                                   skipNoTestFiles: false,
+                                   failIfNotNew: false,
+                                   deleteOutputFiles: false,
+                                   stopProcessingIfError: false]]])
+
             }
         }
     }
