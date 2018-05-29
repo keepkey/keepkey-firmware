@@ -27,5 +27,11 @@ pipeline {
                 }
             }
         }
+        stage('Build Debug Emulator + Unittests') {
+            steps {
+                sh '''
+                    ./scripts/build/docker/emulator/debug.sh'''
+            }
+        }
     }
 }

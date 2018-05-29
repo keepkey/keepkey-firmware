@@ -13,11 +13,9 @@ docker run -t \
   -v $(pwd):/root/keepkey-firmware:z \
   $IMAGETAG /bin/sh -c "\
       mkdir /root/build && cd /root/build && \
-      cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
-        -DCMAKE_BUILD_TYPE=Release \
+      cmake -C /root/keepkey-firmware/cmake/caches/emulator.cmake /root/keepkey-firmware \
+        -DCMAKE_C_COMPILER=clang \
+        -DCMAKE_CXX_COMPILER=clang++ \
+        -DCMAKE_BUILD_TYPE=Debug \
         -DCMAKE_COLOR_MAKEFILE=$COLOR &&\
-      make && \
-      mkdir -p /root/keepkey-firmware/bin && \
-      cp bin/*.bin /root/keepkey-firmware/bin/ && \
-      cp bin/*.elf /root/keepkey-firmware/bin/ && \
-      chown -R \`stat -c \"%u:%g\" /root/keepkey-firmware\` /root/keepkey-firmware/bin"
+      make all test"
