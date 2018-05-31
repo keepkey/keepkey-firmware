@@ -521,6 +521,41 @@ void storage_commit(void)
 #endif
 }
 
+void storage_dumpNode(HDNodeType *dst, const StorageHDNode *src) {
+#if DEBUG_LINK
+    dst->depth = src->depth;
+    dst->fingerprint = src->fingerprint;
+    dst->child_num = src->child_num;
+
+    dst->chain_code.size = src->chain_code.size;
+    memcpy(dst->chain_code.bytes, src->chain_code.bytes,
+           sizeof(src->chain_code.bytes));
+    _Static_assert(sizeof(dst->chain_code.bytes) ==
+                   sizeof(src->chain_code.bytes), "chain_code type mismatch");
+
+    dst->has_private_key = src->has_private_key;
+    if (src->has_private_key) {
+        dst->private_key.size = src->private_key.size;
+        memcpy(dst->private_key.bytes, src->private_key.bytes,
+               sizeof(src->private_key.bytes));
+        _Static_assert(sizeof(dst->private_key.bytes) ==
+                       sizeof(src->private_key.bytes), "private_key type mismatch");
+    }
+
+    dst->has_public_key = src->has_public_key;
+    if (src->has_public_key) {
+        dst->public_key.size = src->public_key.size;
+        memcpy(dst->public_key.bytes, src->public_key.bytes,
+               sizeof(src->public_key.bytes));
+        _Static_assert(sizeof(dst->public_key.bytes) ==
+                       sizeof(src->public_key.bytes), "public_key type mismatch");
+    }
+#else
+    (void)dst;
+    (void)src;
+#endif
+}
+
 /*
  * storage_load_device() - Load configuration data from usb message to shadow memory
  *

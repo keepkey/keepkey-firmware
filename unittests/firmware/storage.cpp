@@ -1,11 +1,12 @@
 extern "C" {
 #include "keepkey/firmware/storage.h"
 #include "keepkey/board/keepkey_board.h"
+#include "types.pb.h"
 }
 
 #include "gtest/gtest.h"
 
-TEST(Storage, StorageUpgrade_) {
+TEST(Storage, StorageUpgrade) {
     static const uint8_t config_5_buffer[] = {
         /*00000000:*/ 0x73, 0x74,  0x6f, 0x72,  0x21, 0xf6,  0x29, 0xc0,  0xbf, 0x8c,  0x36, 0x16,  0x78, 0x57,  0xfe, 0x2d,  /*stor!.)...6.xW.-*/
         /*00000010:*/ 0x32, 0x31,  0x46, 0x36,  0x32, 0x39,  0x43, 0x30,  0x42, 0x46,  0x38, 0x43,  0x33, 0x36,  0x31, 0x36,  /*21F629C0BF8C3616*/
@@ -51,4 +52,79 @@ TEST(Storage, StorageUpgrade_) {
     ASSERT_EQ(memcmp(config_5->meta.magic, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN), 0);
     ASSERT_EQ(memcmp(config_5->meta.uuid, "\x21\xf6\x29\xc0\xbf\x8c\x36\x16\x78\x57\xfe\x2d", STORAGE_UUID_LEN), 0);
     ASSERT_EQ(memcmp(config_5->meta.uuid_str, "21F629C0BF8C36167857FE2D", STORAGE_UUID_STR_LEN), 0);
+}
+
+TEST(Storage, DumpNode) {
+    HDNodeType dst;
+    StorageHDNode src = {
+      .depth = 42,
+      .fingerprint = 37,
+      .child_num = 11,
+      .chain_code = { 4, { 1, 2, 3, 4 } },
+      .has_private_key = true,
+      .private_key = { 3, { 5, 6, 7 } },
+      .has_public_key = true,
+      .public_key = { 1, { 74 } },
+    };
+
+    memset(&dst, 0, sizeof(dst));
+    storage_dumpNode(&dst, &src);
+
+#if !DEBUG_LINK
+    EXPECT_EQ(dst.depth, 0);
+    EXPECT_EQ(dst.fingerprint, 0);
+    EXPECT_EQ(dst.child_num, 0);
+    EXPECT_EQ(dst.chain_code.size, 0);
+    EXPECT_EQ(dst.chain_code.bytes[0], 0);
+    EXPECT_EQ(dst.has_private_key, 0);
+    EXPECT_EQ(dst.private_key.size, 0);
+    EXPECT_EQ(dst.private_key.bytes[0], 0);
+    EXPECT_EQ(dst.has_public_key, 0);
+    EXPECT_EQ(dst.public_key.size, 0);
+    EXPECT_EQ(dst.public_key.bytes[0], 0);
+#else
+    EXPECT_EQ(dst.depth, src.depth);
+    EXPECT_EQ(dst.fingerprint, src.fingerprint);
+    EXPECT_EQ(dst.child_num, src.child_num);
+    EXPECT_EQ(dst.chain_code.size, src.chain_code.size);
+    EXPECT_EQ(dst.chain_code.bytes[0], src.chain_code.bytes[0]);
+    EXPECT_EQ(dst.has_private_key, src.has_private_key);
+    EXPECT_EQ(dst.private_key.size, src.private_key.size);
+    EXPECT_EQ(dst.private_key.bytes[0], src.private_key.bytes[0]);
+    EXPECT_EQ(dst.has_public_key, src.has_public_key);
+    EXPECT_EQ(dst.public_key.size, src.public_key.size);
+    EXPECT_EQ(dst.public_key.bytes[0], src.public_key.bytes[0]);
+
+    memset(&dst, 0, sizeof(dst));
+    src.has_private_key = false;
+    storage_dumpNode(&dst, &src);
+
+    EXPECT_EQ(dst.depth, src.depth);
+    EXPECT_EQ(dst.fingerprint, src.fingerprint);
+    EXPECT_EQ(dst.child_num, src.child_num);
+    EXPECT_EQ(dst.chain_code.size, src.chain_code.size);
+    EXPECT_EQ(dst.chain_code.bytes[0], src.chain_code.bytes[0]);
+    EXPECT_EQ(dst.has_private_key, src.has_private_key);
+    EXPECT_EQ(dst.private_key.size, 0);
+    EXPECT_EQ(dst.private_key.bytes[0], 0);
+    EXPECT_EQ(dst.has_public_key, src.has_public_key);
+    EXPECT_EQ(dst.public_key.size, src.public_key.size);
+    EXPECT_EQ(dst.public_key.bytes[0], src.public_key.bytes[0]);
+
+    memset(&dst, 0, sizeof(dst));
+    src.has_public_key = false;
+    storage_dumpNode(&dst, &src);
+
+    EXPECT_EQ(dst.depth, src.depth);
+    EXPECT_EQ(dst.fingerprint, src.fingerprint);
+    EXPECT_EQ(dst.child_num, src.child_num);
+    EXPECT_EQ(dst.chain_code.size, src.chain_code.size);
+    EXPECT_EQ(dst.chain_code.bytes[0], src.chain_code.bytes[0]);
+    EXPECT_EQ(dst.has_private_key, src.has_private_key);
+    EXPECT_EQ(dst.private_key.size, 0);
+    EXPECT_EQ(dst.private_key.bytes[0], 0);
+    EXPECT_EQ(dst.has_public_key, src.has_public_key);
+    EXPECT_EQ(dst.public_key.size, 0);
+    EXPECT_EQ(dst.public_key.bytes[0], 0);
+#endif
 }

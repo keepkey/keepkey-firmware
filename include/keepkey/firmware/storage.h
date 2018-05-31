@@ -42,6 +42,7 @@ void storage_reset(void);
 void session_clear(bool clear_pin);
 void storage_commit(void);
 
+void storage_dumpNode(HDNodeType *dst, const StorageHDNode *src);
 void storage_load_device(LoadDevice *msg);
 
 const uint8_t *storage_getSeed(bool usePassphrase);

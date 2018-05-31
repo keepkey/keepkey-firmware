@@ -1493,37 +1493,7 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg)
     if(storage_has_node())
     {
         resp->has_node = true;
-
-        // Element-wise copy since resp->node and storage_get_node() have different types.
-        StorageHDNode *node = storage_get_node();
-
-        resp->node.depth = node->depth;
-        resp->node.fingerprint = node->fingerprint;
-        resp->node.child_num = node->child_num;
-
-        resp->node.chain_code.size = node->chain_code.size;
-        memcpy(resp->node.chain_code.bytes, node->chain_code.bytes,
-               sizeof(node->chain_code.bytes));
-        _Static_assert(sizeof(resp->node.chain_code.bytes) ==
-                       sizeof(node->chain_code.bytes), "chain_code type mismatch");
-
-        resp->node.has_private_key = node->has_private_key;
-        if (node->has_private_key) {
-            resp->node.private_key.size = node->private_key.size;
-            memcpy(resp->node.private_key.bytes, node->private_key.bytes,
-                   sizeof(node->private_key.bytes));
-            _Static_assert(sizeof(resp->node.private_key.bytes) ==
-                           sizeof(node->private_key.bytes), "private_key type mismatch");
-        }
-
-        resp->node.has_public_key = node->has_public_key;
-        if (node->has_public_key) {
-            resp->node.public_key.size = node->public_key.size;
-            memcpy(resp->node.public_key.bytes, node->public_key.bytes,
-                   sizeof(node->public_key.bytes));
-            _Static_assert(sizeof(resp->node.public_key.bytes) ==
-                           sizeof(node->public_key.bytes), "public_key type mismatch");
-        }
+        storage_dumpNode(&resp->node, storage_get_node());
     }
 
     resp->has_passphrase_protection = true;
