@@ -3,10 +3,12 @@ pipeline {
     stages {
         stage('Build Debug Firmware') {
             steps {
-                sh '''
-                    rm -rf bin
-                    ./scripts/build/docker/device/debug.sh
-                    tar cjvf debug.tar.bz2 bin/*'''
+                ansiColor('xterm') {
+                    sh '''
+                        rm -rf bin
+                        ./scripts/build/docker/device/debug.sh
+                        tar cjvf debug.tar.bz2 bin/*'''
+                }
             }
             post {
                 always {
@@ -16,10 +18,12 @@ pipeline {
         }
         stage('Build Release Firmware') {
             steps {
-                sh '''
-                    rm -rf bin
-                    ./scripts/build/docker/device/release.sh
-                    tar cjvf release.tar.bz2 bin/*'''
+                ansiColor('xterm') {
+                    sh '''
+                        rm -rf bin
+                        ./scripts/build/docker/device/release.sh
+                        tar cjvf release.tar.bz2 bin/*'''
+                }
             }
             post {
                 always {
@@ -29,8 +33,10 @@ pipeline {
         }
         stage('Build Debug Emulator + Unittests') {
             steps {
-                sh '''
-                    ./scripts/build/docker/emulator/debug.sh'''
+                ansiColor('xterm') {
+                    sh '''
+                        ./scripts/build/docker/emulator/debug.sh'''
+                }
                 step([$class: 'XUnitPublisher',
                         thresholds: [[$class: 'FailedThreshold', unstableThreshold: '1']],
                         tools: [[$class: 'GoogleTestType',
