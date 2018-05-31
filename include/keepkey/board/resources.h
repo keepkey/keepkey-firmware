@@ -71,7 +71,7 @@ uint16_t get_logo_base_x(void);
 uint32_t get_image_animation_duration_new(const VariantAnimation *animation);
 uint32_t get_image_animation_duration(const ImageAnimation *img_animation);
 
-const VariantFrame *get_image_animation_frame_new(const VariantAnimation *animation,
+int get_image_animation_frame_new(const VariantAnimation *animation,
                                        const uint32_t elapsed, bool loop);
 const Image *get_image_animation_frame(const ImageAnimation *img_animation,
                                        const uint32_t elapsed, bool loop);

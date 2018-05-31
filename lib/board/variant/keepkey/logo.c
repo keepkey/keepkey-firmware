@@ -194,9 +194,11 @@ static const VariantAnimation kk_logo = {
     }
 };
 static const VariantAnimation kk_logo_reversed = {
-    1, 
+    3, 
     {
-        {40, 0, 2000, 0xFF, &kk_logo_1_image},
+        {40, 0, 50, 0xFF, &kk_logo_1_image},
+        {20, 0, 50, 0xFF, &kk_logo_1_image},
+        {80, 0, 50, 0xFF, &kk_logo_1_image},
     }
 };
 

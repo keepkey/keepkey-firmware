@@ -664,21 +664,21 @@ void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed)
 
 void layout_animate_images_new(void *data, uint32_t duration, uint32_t elapsed)
 {
-    const VariantFrame *frame;
+    int frameNum;
     VariantAnimation *animation = (VariantAnimation *)data;
 
     if(duration == 0)  // looping
     {
-        frame = get_image_animation_frame_new(animation, elapsed, true);
+        frameNum = get_image_animation_frame_new(animation, elapsed, true);
     }
     else
     {
-        frame = get_image_animation_frame_new(animation, elapsed, false);
+        frameNum = get_image_animation_frame_new(animation, elapsed, false);
     }
 
-    if(frame != NULL)
+    if(frameNum != -1)
     {
-        draw_bitmap_mono_rle_new(canvas, frame);
+        draw_bitmap_mono_rle_new(canvas, animation, (uint16_t)frameNum, false);
     }
 }
 

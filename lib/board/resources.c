@@ -1855,9 +1855,9 @@ const Image *get_image_animation_frame(const ImageAnimation *img_animation,
  *     - elapsed: how long has animation elapsed
  *     - loop: is this animation looping?
  * OUTPUT
- *    animation frame as image
+ *    number of the frame that should be displayed
  */
-const VariantFrame *get_image_animation_frame_new(const VariantAnimation *animation,
+int get_image_animation_frame_new(const VariantAnimation *animation,
                                        const uint32_t elapsed, bool loop)
 {
     uint32_t adjusted_elapsed = (loop) ? elapsed % get_image_animation_duration_new(
@@ -1870,10 +1870,10 @@ const VariantFrame *get_image_animation_frame_new(const VariantAnimation *animat
 
         if(adjusted_elapsed <= current_time)
         {
-            return &(animation->frames[i]);
+            return i;
         }
     }
 
-    return(NULL);
+    return -1;
 }
 

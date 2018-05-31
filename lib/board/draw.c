@@ -294,7 +294,7 @@ void draw_box_simple(Canvas *canvas, uint8_t color, uint16_t x, uint16_t y, uint
  * OUTPUT
  *     true/false whether image was drawn
  */
-bool draw_bitmap_mono_rle_new(Canvas *canvas, const VariantFrame *frame)
+bool draw_bitmap_mono_rle_new(Canvas *canvas, const VariantAnimation *animation, uint16_t frameNumber, bool erase)
 {
     bool ret_stat = false;
     int x0, y0;
@@ -302,9 +302,20 @@ bool draw_bitmap_mono_rle_new(Canvas *canvas, const VariantFrame *frame)
     int8_t nonsequence = 0;
     static uint8_t image_data[KEEPKEY_DISPLAY_WIDTH * KEEPKEY_DISPLAY_HEIGHT];
 
-    int start_index = (frame->y * canvas->width) + frame->x;
+    if (frameNumber > animation->count) {
+        return false;
+    }
+    const VariantFrame frame = animation->frames[frameNumber];
+    const VariantImage *img = frame.image;
+
+    int start_index = (frame.y * canvas->width) + frame.x;
     uint8_t *canvas_pixel = &canvas->buffer[ start_index ];
-    const VariantImage *img = frame->image;
+
+
+    // if this isn't the first frame erase all pixels involed in the previous frame
+    if (frameNumber > 0 && !erase) {
+        draw_bitmap_mono_rle_new(canvas, animation, frameNumber - 1, true);
+    }
 
     if (img->length > sizeof(image_data)) {
         return false;
@@ -313,8 +324,8 @@ bool draw_bitmap_mono_rle_new(Canvas *canvas, const VariantFrame *frame)
 
 
     /* Check that image will fit in bounds */
-    if(((img->w + frame->x) <= canvas->width) &&
-            ((img->h + frame->y) <= canvas->height))
+    if(((img->w + frame.x) <= canvas->width) &&
+            ((img->h + frame.y) <= canvas->height))
     {
         const uint8_t *img_pixel = &image_data[0];
         const uint8_t *img_end = &image_data[img->w * img->h]; 
@@ -343,7 +354,11 @@ bool draw_bitmap_mono_rle_new(Canvas *canvas, const VariantFrame *frame)
                         return false; // defensive bounds check
                     }
 
-                    *canvas_pixel = *img_pixel & frame->color;
+                    if (erase) {
+                        *canvas_pixel = 0x0;
+                    } else {
+                        *canvas_pixel = *img_pixel & frame.color;
+                    }
 
                     sequence--;
 
@@ -362,7 +377,12 @@ bool draw_bitmap_mono_rle_new(Canvas *canvas, const VariantFrame *frame)
                         return false; // defensive bounds check
                     }
 
-                    *canvas_pixel = *img_pixel++ & frame->color;
+                    if (erase) {
+                        *canvas_pixel = 0x0;
+                        img_pixel++;
+                    } else {
+                        *canvas_pixel = *img_pixel++ & frame.color;
+                    }
 
                     nonsequence--;
                 }
