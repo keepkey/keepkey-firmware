@@ -14,6 +14,13 @@ pipeline {
                 always {
                     archiveArtifacts artifacts: 'debug.tar.bz2', fingerprint: true
                 }
+                failure {
+                    script {
+                        if (env.CHANGE_ID) {
+                            pullRequest.comment("🚨 Debug Build Failed 🚨")
+                        }
+                    }
+                }
             }
         }
         stage('Build Release Firmware') {
@@ -28,6 +35,13 @@ pipeline {
             post {
                 always {
                     archiveArtifacts artifacts: 'release.tar.bz2,bin/*.bin', fingerprint: true
+                }
+                failure {
+                    script {
+                        if (env.CHANGE_ID) {
+                            pullRequest.comment("🚨 Release Build Failed 🚨")
+                        }
+                    }
                 }
             }
         }
@@ -45,7 +59,27 @@ pipeline {
                                    failIfNotNew: false,
                                    deleteOutputFiles: false,
                                    stopProcessingIfError: false]]])
-
+            }
+            post {
+                failure {
+                    script {
+                        if (env.CHANGE_ID) {
+                            pullRequest.comment("🚨 Emulator Build Failed 🚨")
+                        }
+                    }
+                }
+            }
+        }
+        stage('Post') {
+            steps { sh '''echo "Success!"''' }
+            post {
+                always {
+                    script {
+                        if (env.CHANGE_ID) {
+                            pullRequest.comment("Build Succeeded! 😍🦊")
+                        }
+                    }
+                }
             }
         }
     }
