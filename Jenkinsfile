@@ -1,7 +1,7 @@
 pipeline {
     agent any
     stages {
-        stage('Build Debug Firmware') {
+        stage('Debug Firmware') {
             steps {
                 ansiColor('xterm') {
                     sh '''
@@ -17,13 +17,13 @@ pipeline {
                 failure {
                     script {
                         if (env.CHANGE_ID) {
-                            pullRequest.comment("🚨 Debug Build Failed 🚨")
+                            pullRequest.comment("Build ${env.BUILD_ID} - Failed 🚨")
                         }
                     }
                 }
             }
         }
-        stage('Build Release Firmware') {
+        stage('Release Firmware') {
             steps {
                 ansiColor('xterm') {
                     sh '''
@@ -39,13 +39,13 @@ pipeline {
                 failure {
                     script {
                         if (env.CHANGE_ID) {
-                            pullRequest.comment("🚨 Release Build Failed 🚨")
+                            pullRequest.comment("Build ${env.BUILD_ID} - Failed 🚨")
                         }
                     }
                 }
             }
         }
-        stage('Build Debug Emulator + Unittests') {
+        stage('Debug Emulator + Unittests') {
             steps {
                 ansiColor('xterm') {
                     sh '''
@@ -64,7 +64,7 @@ pipeline {
                 failure {
                     script {
                         if (env.CHANGE_ID) {
-                            pullRequest.comment("🚨 Emulator Build Failed 🚨")
+                            pullRequest.comment("Build ${env.BUILD_ID} - Failed 🚨")
                         }
                     }
                 }
@@ -76,7 +76,7 @@ pipeline {
                 always {
                     script {
                         if (env.CHANGE_ID) {
-                            pullRequest.comment("Build Succeeded! 😍🦊")
+                            pullRequest.comment("Build ${env.BUILD_ID} - Success! 😍🦊")
                         }
                     }
                 }
