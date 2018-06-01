@@ -56,7 +56,7 @@ static void layout_home_helper(bool reversed)
 {
     layout_clear();
 
-    static const VariantAnimation *logo;
+    const VariantAnimation *logo;
 
     if(reversed)
     {
@@ -665,20 +665,18 @@ void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed)
 void layout_animate_images_new(void *data, uint32_t duration, uint32_t elapsed)
 {
     int frameNum;
-    VariantAnimation *animation = (VariantAnimation *)data;
+    const VariantAnimation *animation = (const VariantAnimation *)data;
 
-    if(duration == 0)  // looping
-    {
-        frameNum = get_image_animation_frame_new(animation, elapsed, true);
-    }
-    else
-    {
-        frameNum = get_image_animation_frame_new(animation, elapsed, false);
-    }
+    bool looping = duration == 0;
+    frameNum = get_image_animation_frame_new(animation, elapsed, looping);
 
-    if(frameNum != -1)
+    if(frameNum != -1 && frameNum < animation->count)
     {
-        draw_bitmap_mono_rle_new(canvas, animation, (uint16_t)frameNum, false);
+        // erase the previous frame if there is one
+        if (frameNum > 0) {
+            draw_bitmap_mono_rle_new(canvas, &animation->frames[frameNum-1], true);
+        }
+        draw_bitmap_mono_rle_new(canvas, &animation->frames[frameNum], false);
     }
 }
 
