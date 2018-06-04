@@ -347,7 +347,7 @@ bool draw_bitmap_mono_rle_new(Canvas *canvas, const VariantFrame *frame, bool er
                     if (erase) {
                         *canvas_pixel = 0x0;
                     } else {
-                        *canvas_pixel = *img_pixel & frame->color;
+                        *canvas_pixel = (uint8_t)((int)*img_pixel * frame->color / 100);
                     }
 
                     sequence--;
@@ -371,7 +371,7 @@ bool draw_bitmap_mono_rle_new(Canvas *canvas, const VariantFrame *frame, bool er
                         *canvas_pixel = 0x0;
                         img_pixel++;
                     } else {
-                        *canvas_pixel = *img_pixel++ & frame->color;
+                        *canvas_pixel = (uint8_t)((int)*img_pixel++ * frame->color / 100);
                     }
 
                     nonsequence--;
