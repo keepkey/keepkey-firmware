@@ -2,6 +2,7 @@
 #define KEEPKEY_VARIANT_VARIANT_H
 
 #include <inttypes.h>
+#include <stdbool.h>
 
 #define VARIANT_INFO_MAGIC "KKWL"
 
@@ -29,9 +30,11 @@ typedef struct _VariantInfo {
     char magic[4];
     uint16_t version;
     const char *name;
-    VariantImage *home_screen;
+    const VariantAnimation *logo;
+    const VariantAnimation *logo_reversed;
     VariantAnimation *screensaver;
 } VariantInfo;
+
 
 /// Get the VariantInfo from sector 4 of flash (if it exists), otherwise
 /// fallback on keepkey imagery.
@@ -41,6 +44,6 @@ const VariantInfo *variant_getInfo(void);
 const VariantAnimation *variant_getScreensaver(void);
 
 /// Get the HomeScreen.
-const VariantImage *variant_getHomeScreen(void);
+const VariantAnimation *variant_getLogo(bool reverse);
 
 #endif

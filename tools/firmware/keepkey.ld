@@ -20,6 +20,10 @@ INCLUDE libopencm3_stm32f2.ld
 
 SECTIONS
 {
+    .variant_info : {
+        KEEP(*(variant_info))
+    } >rom
+
     .version : {
         KEEP(*(version))
     } >rom

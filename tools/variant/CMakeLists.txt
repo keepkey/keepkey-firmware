@@ -8,7 +8,10 @@ if(NOT ${KK_EMULATOR})
   set(CMAKE_EXE_LINKER_FLAGS
       "${CMAKE_EXE_LINKER_FLAGS} -T${linker_script} -L${CMAKE_BINARY_DIR}/lib")
 
-  add_executable(variant.keepkey.elf keepkey.c)
+  file(WRITE ${CMAKE_BINARY_DIR}/variant.c "")
+  add_executable(variant.keepkey.elf ${CMAKE_BINARY_DIR}/variant.c)
+  target_link_libraries(variant.keepkey.elf
+      -Wl,--whole-archive kkvariant.keepkey -Wl,--no-whole-archive)
   add_custom_command(TARGET variant.keepkey.elf
       POST_BUILD
       COMMAND ${CMAKE_OBJCOPY} ARGS -O binary

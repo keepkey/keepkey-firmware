@@ -27,6 +27,7 @@
 #include "keepkey/board/resources.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/firmware/fsm.h"
+#include "keepkey/variant/variant.h"
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -57,15 +58,7 @@ static void layout_home_helper(bool reversed)
     layout_clear();
 
     const VariantAnimation *logo;
-
-    if(reversed)
-    {
-        logo = get_logo_reversed_animation();
-    }
-    else
-    {
-        logo = get_logo_animation();
-    }
+    logo = variant_getLogo(reversed);
 
     layout_add_animation(
         &layout_animate_images_new,

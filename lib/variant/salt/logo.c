@@ -31,16 +31,16 @@ static const uint8_t salt_logo_1_data[526] =
 };
 static const VariantImage salt_logo_1_image = {142, 36, 526, salt_logo_1_data};
 
-static const VariantAnimation salt_logo = {
+const VariantAnimation salt_logo = {
     1, 
     {
-        {4,4,2000, 200, &salt_logo_1_image},
+        {4,4,2000, 100, &salt_logo_1_image},
     }
 };
-static const VariantAnimation kk_logo_reversed = {
+const VariantAnimation salt_logo_reversed = {
     1, 
     {
-        {4,4,2000, 200, &salt_logo_1_image}
+        {4,4,2000, 100, &salt_logo_1_image}
     }
 };
 
