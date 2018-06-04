@@ -5,6 +5,7 @@ VariantInfo variant_salt = {
     .magic = "KPWL",
     .version = 1,
     .name = "SALT",
-    .logo = &kk_logo,
+    .logo = &salt_logo,
+    .logo_reversed = &salt_logo_reversed
 };
 
