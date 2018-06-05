@@ -54,14 +54,14 @@ typedef struct ImageAnimation_
 
 /* === Functions =========================================================== */
 
-const Image *get_confirm_icon_image(void);
-const Image *get_confirmed_image(void);
+const VariantFrame *get_confirm_icon_image(void);
+const VariantFrame *get_confirmed_image(void);
 const Image *get_unplug_image(void);
 const Image *get_recovery_image(void);
 const Image *get_warning_image(void);
 
-const ImageAnimation *get_confirm_icon_animation(void);
-const ImageAnimation *get_confirming_animation(void);
+const VariantAnimation *get_confirm_icon_animation(void);
+const VariantAnimation *get_confirming_animation(void);
 const ImageAnimation *get_loading_animation(void);
 const ImageAnimation *get_warning_animation(void);
 const VariantAnimation *get_logo_animation(void);

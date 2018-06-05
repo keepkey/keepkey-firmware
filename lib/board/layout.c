@@ -340,43 +340,37 @@ void layout_standard_notification(const char *str1, const char *str2,
  */
 void layout_notification_icon(NotificationType type, DrawableParams *sp)
 {
-    /* Determine animation/icon to show */
-    static AnimationImageDrawableParams icon;
 
     switch(type)
     {
-        case NOTIFICATION_REQUEST:
-            icon.base.x = 233;
-            icon.base.y = 4;
-            icon.img_animation = get_confirm_icon_animation();
+
+        case NOTIFICATION_REQUEST: {
+            const VariantAnimation *anim = get_confirm_icon_animation();
 
             layout_add_animation(
-                &layout_animate_images,
-                (void *)&icon,
-                get_image_animation_duration(icon.img_animation));
+                &layout_animate_images_new,
+                (void *)anim,
+                get_image_animation_duration_new(anim));
             break;
+        }
 
         case NOTIFICATION_REQUEST_NO_ANIMATION:
-            sp->x = 233;
-            sp->y = 4;
-            draw_bitmap_mono_rle(canvas, sp, get_confirm_icon_image());
+
+            draw_bitmap_mono_rle_new(canvas, get_confirm_icon_image(), false);
             break;
 
-        case NOTIFICATION_CONFIRM_ANIMATION:
-            icon.base.x = 231;
-            icon.base.y = 2;
-            icon.img_animation = get_confirming_animation();
+        case NOTIFICATION_CONFIRM_ANIMATION: {
+            const VariantAnimation *anim = get_confirming_animation();
 
             layout_add_animation(
-                &layout_animate_images,
-                (void *)&icon,
-                get_image_animation_duration(icon.img_animation));
+                &layout_animate_images_new,
+                (void *)anim,
+                get_image_animation_duration_new(anim));
             break;
+        }
 
         case NOTIFICATION_CONFIRMED:
-            sp->x = 231;
-            sp->y = 2;
-            draw_bitmap_mono_rle(canvas, sp, get_confirmed_image());
+            draw_bitmap_mono_rle_new(canvas, get_confirmed_image(), false);
             break;
 
         case NOTIFICATION_UNPLUG:
