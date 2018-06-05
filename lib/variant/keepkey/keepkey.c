@@ -4,8 +4,6 @@
 #include "keepkey/board/timer.h"
 
 
-const VariantAnimation kk_screensaver = {};
-
 const VariantInfo variant_keepkey __attribute__((section("variant_info"))) = {
     .magic = "KPWL",
     .version = 1,

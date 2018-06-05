@@ -9,7 +9,7 @@ const VariantInfo variant_salt __attribute__((section("variant_info"))) = {
     .name = "SALT",
     .logo = &salt_logo,
     .logo_reversed = &salt_logo_reversed,
-    .screensaver_timeout = ONE_SEC  ,
+    .screensaver_timeout = ONE_SEC * 60 * 10,
     .screensaver = &salt_screensaver,
 };
 

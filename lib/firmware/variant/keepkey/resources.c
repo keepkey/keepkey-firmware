@@ -26,6 +26,7 @@
 #include <string.h>
 #include <stdint.h>
 
+#if 0
 static void screensaver_1(uint8_t *data)
 {
     const uint8_t image_data[1357] =
@@ -270,3 +271,4 @@ const char *variant_name(void) {
     return variant_params()->name;
 }
 
+#endif

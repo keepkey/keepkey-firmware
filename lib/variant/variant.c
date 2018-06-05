@@ -24,10 +24,10 @@ const VariantInfo *variant_getInfo(void) {
 
     const char *model = flash_getModel();
     if (!model)
-        return &variant_salt;
+        return &variant_keepkey;
 
     // FIXME: implement fallback for when there isn't anything in sector 4
-    return &variant_salt;
+    return &variant_keepkey;
 }
 
 const VariantAnimation *variant_getScreensaver(void) {
