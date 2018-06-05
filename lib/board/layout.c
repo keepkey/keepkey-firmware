@@ -548,15 +548,16 @@ void layout_home_reversed(void)
  */
 void layout_loading(void)
 {
-    static AnimationImageDrawableParams loading_animation;
+    const VariantAnimation *loading_animation = get_loading_animation();
+    
 
     call_leaving_handler();
     layout_clear();
 
-    loading_animation.img_animation = get_loading_animation();
-    loading_animation.base.x = 83;
-    loading_animation.base.y = 29;
-    layout_add_animation(&layout_animate_images, (void *)&loading_animation, 0);
+    layout_add_animation(
+            &layout_animate_images_new, 
+            (void *)loading_animation, 
+            0);
     force_animation_start();
 }
 

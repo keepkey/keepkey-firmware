@@ -62,7 +62,7 @@ const Image *get_warning_image(void);
 
 const VariantAnimation *get_confirm_icon_animation(void);
 const VariantAnimation *get_confirming_animation(void);
-const ImageAnimation *get_loading_animation(void);
+const VariantAnimation *get_loading_animation(void);
 const ImageAnimation *get_warning_animation(void);
 const VariantAnimation *get_logo_animation(void);
 const VariantAnimation *get_logo_reversed_animation(void);
