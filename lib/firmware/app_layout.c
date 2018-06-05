@@ -30,6 +30,7 @@
 #include "keepkey/firmware/app_resources.h"
 #include "keepkey/firmware/qr_encode.h"
 #include "keepkey/firmware/fsm.h"
+#include "keepkey/variant/variant.h"
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -345,15 +346,13 @@ void layout_screen_test(void)
  */
 void layout_screensaver(void)
 {
-    static AnimationImageDrawableParams screensaver;
-    screensaver.base.x = 0;
-    screensaver.base.y = 0;
+    static const VariantAnimation *screensaver;
 
-    screensaver.img_animation = variant_getScreensaverAnimation();
+    screensaver = variant_getScreensaver();
 
     layout_add_animation(
-        &layout_animate_images,
-        (void *)&screensaver,
+        &layout_animate_images_new,
+        (void *)screensaver,
         0);
 }
 

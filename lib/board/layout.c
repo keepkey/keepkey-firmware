@@ -657,18 +657,14 @@ void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed)
 
 void layout_animate_images_new(void *data, uint32_t duration, uint32_t elapsed)
 {
-    int frameNum;
     const VariantAnimation *animation = (const VariantAnimation *)data;
 
     bool looping = duration == 0;
-    frameNum = get_image_animation_frame_new(animation, elapsed, looping);
+    int frameNum = get_image_animation_frame_new(animation, elapsed, looping);
 
     if(frameNum != -1 && frameNum < animation->count)
     {
-        // erase the previous frame if there is one
-        if (frameNum > 0) {
-            draw_bitmap_mono_rle_new(canvas, &animation->frames[frameNum-1], true);
-        }
+        draw_bitmap_mono_rle_new(canvas, &animation->frames[(frameNum+animation->count-1)%animation->count], true);
         draw_bitmap_mono_rle_new(canvas, &animation->frames[frameNum], false);
     }
 }

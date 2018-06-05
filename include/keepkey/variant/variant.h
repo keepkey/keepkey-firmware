@@ -16,7 +16,7 @@ typedef struct _VariantImage {
 typedef struct _VariantFrame {
     uint16_t x;
     uint16_t y;
-    uint32_t duration;
+    uint16_t duration;
     uint8_t color;
     const VariantImage *image;
 } VariantFrame;
@@ -32,7 +32,8 @@ typedef struct _VariantInfo {
     const char *name;
     const VariantAnimation *logo;
     const VariantAnimation *logo_reversed;
-    VariantAnimation *screensaver;
+    uint32_t screensaver_timeout;
+    const VariantAnimation *screensaver;
 } VariantInfo;
 
 

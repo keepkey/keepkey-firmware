@@ -11,6 +11,8 @@
 static const VariantAnimation *screensaver;
 static const VariantAnimation *logo;
 static const VariantAnimation *logo_reversed;
+static const char *name;
+static const uint32_t *screensaver_timeout;
 
 const VariantInfo *variant_getInfo(void) {
 #ifndef EMULATOR
@@ -22,10 +24,10 @@ const VariantInfo *variant_getInfo(void) {
 
     const char *model = flash_getModel();
     if (!model)
-        return &variant_keepkey;
+        return &variant_salt;
 
     // FIXME: implement fallback for when there isn't anything in sector 4
-    return &variant_keepkey;
+    return &variant_salt;
 }
 
 const VariantAnimation *variant_getScreensaver(void) {
@@ -47,3 +49,22 @@ const VariantAnimation *variant_getLogo(bool reversed) {
 
     return reversed ? logo_reversed : logo;
 }
+
+const char *variant_getName(void) {
+    if (name) {
+        return name;
+    }
+
+    name = variant_getInfo()->name;
+    return name;
+}
+
+uint32_t variant_getScreensaverTimeout(void) {
+    if (screensaver_timeout) {
+        return *screensaver_timeout;
+    }
+
+    screensaver_timeout = &variant_getInfo()->screensaver_timeout;
+    return *screensaver_timeout;
+}
+

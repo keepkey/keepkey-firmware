@@ -59,6 +59,7 @@
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/util.h"
+#include "keepkey/variant/variant.h"
 
 #include <stdio.h>
 
@@ -451,7 +452,7 @@ void fsm_msgGetFeatures(GetFeatures *msg)
 
     /* Variant Name */
     resp->has_firmware_variant = true;
-    strlcpy(resp->firmware_variant, variant_name(), sizeof(resp->firmware_variant));
+    strlcpy(resp->firmware_variant, variant_getName(), sizeof(resp->firmware_variant));
 
     /* Security settings */
     resp->has_pin_protection = true; resp->pin_protection = storage_has_pin();

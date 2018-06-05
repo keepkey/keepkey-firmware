@@ -48,10 +48,6 @@ const char *variant_name(void) {
     return "MFR";
 }
 
-uint32_t variant_getScreensaverTimeout(void) {
-    return 1; // Immediately
-}
-
 void variant_mfr_softReset(void) {
     board_reset();
 }
