@@ -414,10 +414,7 @@ void layout_warning(const char *str)
     sp.color = TITLE_COLOR;
     draw_string(canvas, font, str, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
 
-    static AnimationImageDrawableParams warning;
-    warning.img_animation = get_warning_animation();
-    warning.base.y = 7;
-    warning.base.x = 107;
+    const VariantAnimation *warning = get_warning_animation();
     layout_add_animation(&layout_animate_images, (void *)&warning, 0);
 }
 
@@ -443,9 +440,7 @@ void layout_warning_static(const char *str)
     sp.color = TITLE_COLOR;
     draw_string(canvas, font, str, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
 
-    sp.x = 107;
-    sp.y = 7;
-    draw_bitmap_mono_rle(canvas, &sp, get_warning_image());
+    draw_bitmap_mono_rle_new(canvas, get_warning_image(), false);
 
     display_refresh();
 }
