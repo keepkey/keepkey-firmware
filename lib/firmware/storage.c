@@ -51,6 +51,7 @@
 #include <stdint.h>
 
 #define U2F_KEY_PATH 0x80553246
+#define _(X) (X)
 
 static bool sessionSeedCached, sessionSeedUsesPassphrase;
 static uint8_t CONFIDENTIAL sessionSeed[64];
@@ -80,8 +81,7 @@ static void get_u2froot_callback(uint32_t iter, uint32_t total)
 {
 	(void)iter;
 	(void)total;
-	//layoutProgress(_("Updating"), 1000 * iter / total);
-	animating_progress_handler();
+	layoutProgress(_("Updating"), 1000 * iter / total);
 }
 
 static void storage_compute_u2froot(const char *mnemonic, HDNodeType *u2froot) {
@@ -1194,9 +1194,7 @@ uint32_t storage_getPinFails(void)
 /// \param total Total iterations.
 static void get_root_node_callback(uint32_t iter, uint32_t total)
 {
-    (void)iter;
-    (void)total;
-    animating_progress_handler();
+    animating_progress_handler(_("Waking up"), 1000 * iter / total);
 }
 
 const uint8_t *storage_getSeed(const ConfigFlash *cfg, bool usePassphrase)
@@ -1217,7 +1215,6 @@ const uint8_t *storage_getSeed(const ConfigFlash *cfg, bool usePassphrase)
             return NULL;
         }
 
-        layout_loading();
         mnemonic_to_seed(cfg->storage.sec.mnemonic,
                          usePassphrase ? sessionPassphrase : "",
                          sessionSeed, get_root_node_callback); // BIP-0039

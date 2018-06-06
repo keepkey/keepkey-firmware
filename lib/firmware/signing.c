@@ -655,7 +655,7 @@ void signing_init(const SignTx *msg, const CoinType *_coin, const HDNode *_root)
 		hasher_Init(&hasher_check, curve->hasher_sign);
 	}
 
-	animating_progress_handler(); //layoutProgressSwipe(_("Signing transaction"), 0);
+	layoutProgressSwipe(_("Signing transaction"), 0);
 
 	send_req_1_input();
 	set_exchange_error(NO_EXCHANGE_ERROR);
@@ -778,7 +778,7 @@ static bool signing_check_output(TxOutputType *txoutput) {
 	spending += txoutput->amount;
 	int co = run_policy_compile_output(coin, root, txoutput, &bin_output, !is_change);
 	if (!is_change) {
-		animating_progress_handler(); // layoutProgress(_("Signing transaction"), progress);
+		layoutProgress(_("Signing transaction"), progress);
 	}
 	if (co <= TXOUT_COMPILE_ERROR) {
 		send_fsm_co_error_message(co);
@@ -861,7 +861,7 @@ static void phase1_request_next_output(void) {
 		}
 		// Everything was checked, now phase 2 begins and the transaction is signed.
 		progress_meta_step = progress_step / (inputs_count + outputs_count);
-		animating_progress_handler(); //layoutProgress(_("Signing transaction"), progress);
+		layoutProgress(_("Signing transaction"), progress);
 		idx1 = 0;
 		if (coin->decred) {
 			// Decred prefix serialized in Phase 1, skip Phase 2
@@ -1097,7 +1097,7 @@ void signing_txack(TransactionType *tx)
 
 	static int update_ctr = 0;
 	if (update_ctr++ == 20) {
-		animating_progress_handler(); //layoutProgress(_("Signing transaction"), progress);
+		layoutProgress(_("Signing transaction"), progress);
 		update_ctr = 0;
 	}
 
@@ -1354,7 +1354,7 @@ void signing_txack(TransactionType *tx)
 				// since this took a longer time, update progress
 				signatures++;
 				progress = 500 + ((signatures * progress_step) >> PROGRESS_PRECISION);
-				animating_progress_handler(); //layoutProgress(_("Signing transaction"), progress);
+				layoutProgress(_("Signing transaction"), progress);
 				update_ctr = 0;
 				if (idx1 < inputs_count - 1) {
 					idx1++;
@@ -1412,7 +1412,7 @@ void signing_txack(TransactionType *tx)
 				// since this took a longer time, update progress
 				signatures++;
 				progress = 500 + ((signatures * progress_step) >> PROGRESS_PRECISION);
-				animating_progress_handler(); // layoutProgress(_("Signing transaction"), progress);
+				layoutProgress(_("Signing transaction"), progress);
 				update_ctr = 0;
 			} else if (tx->inputs[0].script_type == InputScriptType_SPENDP2SHWITNESS
 					   && !tx->inputs[0].has_multisig) {
@@ -1482,7 +1482,7 @@ void signing_txack(TransactionType *tx)
 			}
 			signatures++;
 			progress = 500 + ((signatures * progress_step) >> PROGRESS_PRECISION);
-			animating_progress_handler(); // layoutProgress(_("Signing transaction"), progress);
+			layoutProgress(_("Signing transaction"), progress);
 			update_ctr = 0;
 			if (idx1 < inputs_count - 1) {
 				idx1++;
@@ -1532,7 +1532,7 @@ void signing_txack(TransactionType *tx)
 			// since this took a longer time, update progress
 			signatures++;
 			progress = 500 + ((signatures * progress_step) >> PROGRESS_PRECISION);
-			animating_progress_handler(); // layoutProgress(_("Signing transaction"), progress);
+			layoutProgress(_("Signing transaction"), progress);
 			update_ctr = 0;
 			if (idx1 < inputs_count - 1) {
 				idx1++;

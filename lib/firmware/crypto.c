@@ -253,12 +253,12 @@ uint8_t *cryptoHDNodePathToPubkey(const CoinType *coin, const HDNodePathType *hd
 	if (hdnode_from_xpub(hdnodepath->node.depth, hdnodepath->node.child_num, hdnodepath->node.chain_code.bytes, hdnodepath->node.public_key.bytes, coin->curve_name, &node) == 0) {
 		return 0;
 	}
-	animating_progress_handler();
+	animating_progress_handler("Deriving pubkey...", 0);
 	for (uint32_t i = 0; i < hdnodepath->address_n_count; i++) {
 		if (hdnode_public_ckd(&node, hdnodepath->address_n[i]) == 0) {
 			return 0;
 		}
-		animating_progress_handler();
+		animating_progress_handler("Deriving pubkey...", (i * 1000) / hdnodepath->address_n_count);
 	}
 	return node.public_key;
 }
@@ -288,6 +288,7 @@ int cryptoMultisigFingerprint(const MultisigRedeemScriptType *multisig, uint8_t 
 		if (!ptr[i]->node.has_public_key || ptr[i]->node.public_key.size != 33) return 0;
 		if (ptr[i]->node.chain_code.size != 32) return 0;
 	}
+	animating_progress_handler("Calculating multisig fingerprint...", 0);
 	// minsort according to pubkey
 	for (uint32_t i = 0; i < n - 1; i++) {
 		for (uint32_t j = n - 1; j > i; j--) {
@@ -303,6 +304,7 @@ int cryptoMultisigFingerprint(const MultisigRedeemScriptType *multisig, uint8_t 
 	sha256_Init(&ctx);
 	sha256_Update(&ctx, (const uint8_t *)&(multisig->m), sizeof(uint32_t));
 	for (uint32_t i = 0; i < n; i++) {
+		animating_progress_handler("Calculating multisig fingerprint...", (i * 1000) / n);
 		sha256_Update(&ctx, (const uint8_t *)&(ptr[i]->node.depth), sizeof(uint32_t));
 		sha256_Update(&ctx, (const uint8_t *)&(ptr[i]->node.fingerprint), sizeof(uint32_t));
 		sha256_Update(&ctx, (const uint8_t *)&(ptr[i]->node.child_num), sizeof(uint32_t));
@@ -311,7 +313,7 @@ int cryptoMultisigFingerprint(const MultisigRedeemScriptType *multisig, uint8_t 
 	}
 	sha256_Update(&ctx, (const uint8_t *)&n, sizeof(uint32_t));
 	sha256_Final(&ctx, hash);
-	animating_progress_handler();
+	animating_progress_handler("Calculating multisig fingerprint...", 100 * 1000);
 	return 1;
 }
 
