@@ -324,17 +324,17 @@ void usb_rx_helper(UsbMessage *msg, MessageMapType type)
     else if(entry)
     {
         /* Copy content to frame buffer */
-        if(sizeof(content_buf) >= content_pos)
-        {
-            if(content_size == content_pos)
-            {
-                memcpy(content_buf, contents, content_pos);
-            }
-            else
-            {
-                memcpy(content_buf + (content_pos - (msg->len - 1)), contents,
-                       msg->len - 1);
-            }
+        size_t offset, len;
+        if (content_size == content_pos) {
+            offset = 0;
+            len = content_size;
+        } else {
+            offset = content_pos - (msg->len - 1);
+            len = msg->len - 1;
+        }
+
+        if (0 <= offset && offset + (uint64_t)len < sizeof(content_buf)) {
+            memcpy(content_buf + offset, contents, len);
         }
     }
 
