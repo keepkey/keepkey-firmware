@@ -465,9 +465,13 @@ void fsm_msgGetFeatures(GetFeatures *msg)
 #endif
 
     /* Bootloader hash */
+#ifndef EMULATOR
     resp->has_bootloader_hash = true;
     resp->bootloader_hash.size = memory_bootloader_hash(
                                      resp->bootloader_hash.bytes, false);
+#else
+    resp->has_bootloader_hash = false;
+#endif
 
     /* Settings for device */
     if(storage_get_language())
