@@ -1377,7 +1377,7 @@ void fsm_msgWordAck(WordAck *msg)
 
 void fsm_msgCharacterAck(CharacterAck *msg)
 {
-    if(msg->has_delete && msg->delete)
+    if(msg->has_delete && msg->del)
     {
         recovery_delete_character();
     }
