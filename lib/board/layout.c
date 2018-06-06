@@ -376,13 +376,13 @@ void layout_notification_icon(NotificationType type, DrawableParams *sp)
         case NOTIFICATION_UNPLUG:
             sp->x = 208;
             sp->y = 21;
-            draw_bitmap_mono_rle(canvas, sp, get_unplug_image());
+            draw_bitmap_mono_rle_new(canvas, get_unplug_image(), false);
             break;
 
         case NOTIFICATION_RECOVERY:
             sp->x = 221;
             sp->y = 20;
-            draw_bitmap_mono_rle(canvas, sp, get_recovery_image());
+            draw_bitmap_mono_rle_new(canvas, get_recovery_image(), false);
             break;
 
         case NOTIFICATION_INFO:
@@ -415,7 +415,7 @@ void layout_warning(const char *str)
     draw_string(canvas, font, str, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
 
     const VariantAnimation *warning = get_warning_animation();
-    layout_add_animation(&layout_animate_images, (void *)&warning, 0);
+    layout_add_animation(&layout_animate_images_new, (void *)&warning, 0);
 }
 
 /*
@@ -619,32 +619,13 @@ bool is_animating(void)
  * layout_animate_images() - Animate image on display
  *
  * INPUT
+ *      TODO: remove void pointer
  *     - data: pointer to image
  *     - duration: duration of the image animation
  *     - elapsed: delay before drawing the image
  * OUTPUT
  *     none
  */
-void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed)
-{
-    const Image *img;
-    AnimationImageDrawableParams *animation_img_params = (AnimationImageDrawableParams *)data;
-
-    if(duration == 0)  // looping
-    {
-        img = get_image_animation_frame(animation_img_params->img_animation, elapsed, true);
-    }
-    else
-    {
-        img = get_image_animation_frame(animation_img_params->img_animation, elapsed, false);
-    }
-
-    if(img != NULL)
-    {
-        draw_bitmap_mono_rle(canvas, &animation_img_params->base, img);
-    }
-}
-
 void layout_animate_images_new(void *data, uint32_t duration, uint32_t elapsed)
 {
     const VariantAnimation *animation = (const VariantAnimation *)data;
