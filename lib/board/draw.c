@@ -25,6 +25,7 @@
 #include "keepkey/board/resources.h"
 #include "keepkey/firmware/fsm.h"
 
+#include <assert.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -300,93 +301,68 @@ bool draw_bitmap_mono_rle_new(Canvas *canvas, const VariantFrame *frame, bool er
         return false;
     }
 
-    bool ret_stat = false;
-    int x0, y0;
-    int8_t sequence = 0;
-    int8_t nonsequence = 0;
-    const uint8_t *image_data;
-
     const VariantImage *img = frame->image;
-    image_data = img->data;
-
-    int start_index = (frame->y * canvas->width) + frame->x;
-    uint8_t *canvas_pixel = &canvas->buffer[ start_index ];
-
+    const uint8_t color = erase ? 0x0 : frame->color;
 
     /* Check that image will fit in bounds */
-    if(((img->w + frame->x) <= canvas->width) &&
-            ((img->h + frame->y) <= canvas->height))
+    if(((img->w + frame->x) > canvas->width) ||
+            ((img->h + frame->y) > canvas->height))
     {
-        const uint8_t *img_pixel = &image_data[0];
-        const uint8_t *img_end = &image_data[img->w * img->h]; 
-
-        for(y0 = 0; y0 < img->h; y0++)
-        {
-            for(x0 = 0; x0 < img->w; x0++)
-            {
-                if((sequence == 0) && (nonsequence == 0))
-                {
-                    if (img_pixel >= img_end){
-                        return false; // defensive bounds check
-                    }
-                    sequence = *img_pixel++;
-
-                    if(sequence < 0)
-                    {
-                        nonsequence = -sequence;
-                        sequence = 0;
-                    }
-                }
-
-                if(sequence > 0)
-                {
-                    if (img_pixel >= img_end){
-                        return false; // defensive bounds check
-                    }
-
-                    if (erase) {
-                        *canvas_pixel = 0x0;
-                    } else {
-                        *canvas_pixel = (uint8_t)((int)*img_pixel * frame->color / 100);
-                    }
-
-                    sequence--;
-
-                    if(sequence == 0)
-                    {
-                        if (img_pixel >= img_end){
-                            return false; // defensive bounds check
-                        }
-                        img_pixel++;
-                    }
-                }
-
-                if(nonsequence > 0)
-                {
-                    if (img_pixel >= img_end){
-                        return false; // defensive bounds check
-                    }
-
-                    if (erase) {
-                        *canvas_pixel = 0x0;
-                        img_pixel++;
-                    } else {
-                        *canvas_pixel = (uint8_t)((int)*img_pixel++ * frame->color / 100);
-                    }
-
-                    nonsequence--;
-                }
-
-                canvas_pixel++;
-            }
-
-            canvas_pixel += (canvas->width - img->w);
-        }
-
-        canvas->dirty = true;
-        ret_stat = true;
+        return false;
     }
 
-    return(ret_stat);
+    int8_t sequence = 0;
+    int8_t nonsequence = 0;
+    uint32_t pixel_index = 0;
+
+    for(int y0 = 0; y0 < img->h; y0++)
+    {
+        for(int x0 = 0; x0 < img->w; x0++)
+        {
+
+            if (pixel_index >= img->length){
+                return false; // defensive bounds check
+            }
+
+            // sequence > 0 implies the next x pixels are the same
+            // sequence < 0 implies the next -x pixels are all different
+            if((sequence == 0) && (nonsequence == 0))
+            {
+                sequence = img->data[pixel_index];
+                pixel_index++;
+
+                if(sequence < 0)
+                {
+                    nonsequence = -sequence;
+                    sequence = 0;
+                }
+            }
+
+            if (pixel_index >= img->length){
+                return false; // defensive bounds check
+            }
+
+            const uint32_t canvas_index = ((frame->y + y0) * canvas->width) + frame->x + x0;
+            canvas->buffer[canvas_index] = (uint8_t)((int)img->data[pixel_index] * color / 100);
+
+            if(sequence > 0)
+            {
+                sequence--;
+                if(sequence == 0)
+                {
+                    pixel_index++;
+                }
+            } 
+            else 
+            { 
+                assert(nonsequence > 0);
+                pixel_index++;
+                nonsequence--;
+            }
+        }
+    }
+
+    canvas->dirty = true;
+    return true;
 }
 
