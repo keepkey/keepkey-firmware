@@ -47,12 +47,6 @@ typedef struct
     uint16_t             width;
 } BoxDrawableParams;
 
-typedef struct
-{
-    DrawableParams          base;
-    const ImageAnimation   *img_animation;
-} AnimationImageDrawableParams;
-
 /* === Functions =========================================================== */
 
 bool draw_char_with_shift(Canvas *canvas, DrawableParams *p,
@@ -66,7 +60,6 @@ void draw_char_simple(Canvas *canvas, const Font *font, char c, uint8_t color, u
 void draw_box(Canvas *canvas, BoxDrawableParams  *params);
 void draw_box_simple(Canvas *canvas, uint8_t color, uint16_t x, uint16_t y, uint16_t width, uint16_t height);
 bool draw_bitmap_mono_rle_new(Canvas *canvas, const VariantFrame *frame, bool erase);
-bool draw_bitmap_mono_rle(Canvas *canvas, DrawableParams *p, const Image *img);
 
 #endif
 

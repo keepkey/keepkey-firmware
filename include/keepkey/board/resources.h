@@ -29,29 +29,6 @@
 
 /* === Defines ============================================================ */
 
-/* === Typedefs ============================================================ */
-
-typedef struct Image_
-{
-    void (*const get_image_data)(uint8_t *);
-    uint16_t    width;
-    uint16_t    height;
-} Image;
-
-/* Image frame information */
-typedef struct AnimationFrame_
-{
-    const Image    *image;
-    uint32_t        duration;
-} AnimationFrame;
-
-/* Image animation information */
-typedef struct ImageAnimation_
-{
-    int                     length;
-    const AnimationFrame   *frames;
-} ImageAnimation;
-
 /* === Functions =========================================================== */
 
 const VariantFrame *get_confirm_icon_image(void);
@@ -66,13 +43,8 @@ const VariantAnimation *get_loading_animation(void);
 const VariantAnimation *get_warning_animation(void);
 const VariantAnimation *get_logo_animation(void);
 const VariantAnimation *get_logo_reversed_animation(void);
-uint16_t get_logo_base_x(void);
 
 uint32_t get_image_animation_duration_new(const VariantAnimation *animation);
-uint32_t get_image_animation_duration(const ImageAnimation *img_animation);
-
 int get_image_animation_frame_new(const VariantAnimation *animation,
-                                       const uint32_t elapsed, bool loop);
-const Image *get_image_animation_frame(const ImageAnimation *img_animation,
                                        const uint32_t elapsed, bool loop);
 #endif

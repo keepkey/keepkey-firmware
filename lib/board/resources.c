@@ -1126,7 +1126,7 @@ const VariantFrame *get_warning_image(void)
  */
 const VariantAnimation *get_confirm_icon_animation(void)
 {
-    return(&confirm_icon);
+    return &confirm_icon;
 }
 
 /*
@@ -1139,7 +1139,7 @@ const VariantAnimation *get_confirm_icon_animation(void)
  */
 const VariantAnimation *get_confirming_animation(void)
 {
-    return(&confirming);
+    return &confirming;
 }
 
 /*
@@ -1185,60 +1185,8 @@ uint32_t get_image_animation_duration_new(const VariantAnimation *animation)
         duration += animation->frames[i].duration;
     }
 
-    return(duration);
+    return duration;
 }
-
-/*
- * get_image_animation_duration() - Calculate animation duration
- *
- * INPUT
- *     none
- * OUTPUT
- *    animation duration
- */
-uint32_t get_image_animation_duration(const ImageAnimation *img_animation)
-{
-    uint32_t duration = 0;
-
-    for(int i = 0; i < img_animation->length; i++)
-    {
-        duration += img_animation->frames[i].duration;
-    }
-
-    return(duration);
-}
-
-/*
- * get_image_animation_frame() - Get an animation frame
- *
- * INPUT
- *     - img_animation: animation to pull frame from
- *     - elapsed: how long has animation elapsed
- *     - loop: is this animation looping?
- * OUTPUT
- *    animation frame as image
- */
-const Image *get_image_animation_frame(const ImageAnimation *img_animation,
-                                       const uint32_t elapsed, bool loop)
-{
-    uint32_t adjusted_elapsed = (loop) ? elapsed % get_image_animation_duration(
-                                    img_animation) : elapsed;
-    uint32_t current_time = 0;
-
-    for(int i = 0; i < img_animation->length; i++)
-    {
-        current_time += img_animation->frames[i].duration;
-
-        if(adjusted_elapsed <= current_time)
-        {
-            return(img_animation->frames[i].image);
-        }
-    }
-
-    return(NULL);
-}
-
-
 
 /*
  * get_image_animation_frame() - Get an animation frame

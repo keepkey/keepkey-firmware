@@ -20,9 +20,9 @@
 #ifndef LIB_FIRMWARE_APP_RESOURCES_H
 #define LIB_FIRMWARE_APP_RESOURCES_H
 
-typedef struct ImageAnimation_ ImageAnimation;
+#include "keepkey/variant/variant.h"
 
 /// Get the Screensaver Animation
-const ImageAnimation* variant_getScreensaverAnimation(void);
+const VariantAnimation* variant_getScreensaverAnimation(void);
 
 #endif
