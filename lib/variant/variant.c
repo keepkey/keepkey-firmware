@@ -1,6 +1,7 @@
 #include "keepkey/variant/variant.h"
 
 #include "keepkey/board/keepkey_flash.h"
+#include "keepkey/board/pubkeys.h"
 #include "keepkey/crypto/secp256k1.h"
 #include "keepkey/crypto/ecdsa.h"
 #include "keepkey/crypto/sha2.h"

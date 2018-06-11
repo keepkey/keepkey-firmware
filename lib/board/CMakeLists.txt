@@ -12,7 +12,6 @@ set(sources
     memory.c
     msg_dispatch.c
     pin.c
-    pubkeys.c
     resources.c
     timer.c
     usb_driver.c)
