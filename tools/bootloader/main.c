@@ -36,6 +36,7 @@
 #include "keepkey/board/keepkey_usart.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/memory.h"
+#include "keepkey/board/pubkeys.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/usb_driver.h"
 #include "keepkey/bootloader/signatures.h"

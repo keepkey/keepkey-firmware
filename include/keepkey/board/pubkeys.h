@@ -17,9 +17,18 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SIGNATURES_H
-#define SIGNATURES_H
+#ifndef KEEPKEY_BOARD_PUBKEYS_H
+#define KEEPKEY_BOARD_PUBKEYS_H
 
-int signatures_ok(void);
+#include <inttypes.h>
+
+#define PUBKEYS 5
+#define PUBKEY_LENGTH 65
+#define SIGNATURES 3
+
+#define SIG_OK      0x5A3CA5C3
+#define SIG_FAIL    0x00000000
+
+extern const uint8_t pubkey[PUBKEYS][PUBKEY_LENGTH];
 
 #endif

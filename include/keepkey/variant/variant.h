@@ -6,14 +6,14 @@
 
 #define VARIANTINFO_MAGIC "KKWL"
 
-typedef struct _VariantImage {
+typedef struct VariantImage_ {
     uint16_t w;
     uint16_t h;
     uint32_t length;
     const uint8_t *data;
 } VariantImage;
 
-typedef struct _VariantFrame {
+typedef struct VariantFrame_ {
     uint16_t x;
     uint16_t y;
     uint16_t duration;
@@ -21,12 +21,12 @@ typedef struct _VariantFrame {
     const VariantImage *image;
 } VariantFrame;
 
-typedef struct _VariantAnimation {
+typedef struct VariantAnimation_ {
     uint16_t count;
     VariantFrame frames[];
 } VariantAnimation;
 
-typedef struct _VariantInfo {
+typedef struct VariantInfo_ {
     char magic[4];
     uint16_t version;
     const char *name;
