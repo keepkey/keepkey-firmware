@@ -36,6 +36,12 @@ typedef struct _VariantInfo {
     const VariantAnimation *screensaver;
 } VariantInfo;
 
+typedef struct SignedVariantInfo_ {
+    uint8_t sigindex;
+    uint8_t sig[64];
+    uint32_t length;
+    VariantInfo info;
+} SignedVariantInfo;
 
 /// Get the VariantInfo from sector 4 of flash (if it exists), otherwise
 /// fallback on keepkey imagery.

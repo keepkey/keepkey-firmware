@@ -1,12 +1,15 @@
 #include "keepkey/variant/variant.h"
 
-#include "keepkey/variant/keepkey.h" 
-#include "keepkey/variant/salt.h" 
 #include "keepkey/board/keepkey_flash.h"
+#include "keepkey/crypto/secp256k1.h"
+#include "keepkey/crypto/ecdsa.h"
+#include "keepkey/crypto/sha2.h"
+#include "keepkey/variant/keepkey.h"
+#include "keepkey/variant/salt.h"
 
 #include <string.h>
 
-#define VARIANT_INFO_FLASH (VariantInfo*)(0x8010000)
+#define SIGNEDVARIANTINFO_FLASH (SignedVariantInfo*)(0x8010000)
 
 static const VariantAnimation *screensaver;
 static const VariantAnimation *logo;
@@ -16,17 +19,29 @@ static const uint32_t *screensaver_timeout;
 
 const VariantInfo *variant_getInfo(void) {
 #ifndef EMULATOR
-    const VariantInfo *flash = VARIANT_INFO_FLASH;
+    const SignedVariantInfo *flash = SIGNEDVARIANTINFO_FLASH;
 
-    if (0 == memcmp(flash->magic, VARIANT_INFO_MAGIC, sizeof(flash->magic)))
-        return flash;
+    if (0 == memcmp(flash->info.magic, VARIANT_INFO_MAGIC, sizeof(flash->info.magic))) {
+#  ifndef DEBUG_ON
+        uint8_t info_fingerprint[32];
+        sha256_Raw((uint8_t *)SIGNEDVARIANTINFO_FLASH + offsetof(SignedVariantInfo, length),
+                   flash->length, info_fingerprint);
+
+        if(ecdsa_verify_digest(&secp256k1, pubkey[flash->sigindex - 1], flash->sig,
+                                info_fingerprint) == 0)
+        {
+            return &flash->info;
+        }
+#  else
+        return &flash->info;
+#  endif
+    }
 #endif
 
     const char *model = flash_getModel();
     if (!model)
         return &variant_keepkey;
 
-    // FIXME: implement fallback for when there isn't anything in sector 4
     return &variant_keepkey;
 }
 
