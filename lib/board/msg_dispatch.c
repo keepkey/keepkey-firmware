@@ -251,6 +251,33 @@ static void raw_dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_
     }
 }
 
+#if defined(__has_builtin) && __has_builtin(__builtin_add_overflow)
+#  define check_uadd_overflow(A, B, R) \
+    ({ \
+        typeof(A) __a = (A); \
+        typeof(B) __b = (B); \
+        typeof(R) __r = (R); \
+        (void)(&__a == &__b && "types must match"); \
+        (void)(&__a == __r && "types must match"); \
+        _Static_assert(0 < (typeof(A))-1, "types must be unsigned"); \
+        __builtin_add_overflow((A), (B), (R)); \
+    })
+#else
+#  define check_uadd_overflow(A, B, R) \
+    ({ \
+        typeof(A) __a = (A); \
+        typeof(B) __b = (B); \
+        typeof(R) __r = (R); \
+        (void)(&__a == &__b); \
+        (void)(&__a == __r); \
+        (void)(&__a == &__b && "types must match"); \
+        (void)(&__a == __r && "types must match"); \
+        _Static_assert(0 < (typeof(A))-1, "types must be unsigned"); \
+        *__r = __a + __b; \
+        *__r < __a; \
+    })
+#endif
+
 /*
  * usb_rx_helper() - Common helper that handles USB messages from host
  *
@@ -264,7 +291,7 @@ void usb_rx_helper(UsbMessage *msg, MessageMapType type)
 {
     static TrezorFrameHeaderFirst last_frame_header = { .id = 0xffff, .len = 0 };
     static uint8_t content_buf[MAX_FRAME_SIZE];
-    static uint32_t content_pos = 0, content_size = 0;
+    static size_t content_pos = 0, content_size = 0;
     static bool mid_frame = false;
 
     const MessagesMap_t *entry;
@@ -299,7 +326,8 @@ void usb_rx_helper(UsbMessage *msg, MessageMapType type)
     else if(mid_frame)
     {
         contents = frame_fragment->contents;
-        content_pos += msg->len - 1;
+        if (check_uadd_overflow(content_pos, (size_t)(msg->len - 1), &content_pos))
+            goto reset;
         content_size = msg->len - 1;
     }
     else
@@ -323,7 +351,6 @@ void usb_rx_helper(UsbMessage *msg, MessageMapType type)
     }
     else if(entry)
     {
-        /* Copy content to frame buffer */
         size_t offset, len;
         if (content_size == content_pos) {
             offset = 0;
@@ -333,9 +360,12 @@ void usb_rx_helper(UsbMessage *msg, MessageMapType type)
             len = msg->len - 1;
         }
 
-        if (0 <= offset && offset + (uint64_t)len < sizeof(content_buf)) {
-            memcpy(content_buf + offset, contents, len);
-        }
+        size_t end;
+        if (check_uadd_overflow(offset, len, &end) || sizeof(content_buf) < end)
+            goto reset;
+
+        /* Copy content to frame buffer */
+        memcpy(content_buf + offset, contents, len);
     }
 
     /*
@@ -357,6 +387,15 @@ void usb_rx_helper(UsbMessage *msg, MessageMapType type)
             dispatch(entry, content_buf, last_frame_header.len);
         }
     }
+    goto done_handling;
+
+reset:
+    last_frame_header.id = 0xffff;
+    last_frame_header.len = 0;
+    memset(content_buf, 0, sizeof(content_buf));
+    content_pos = 0;
+    content_size = 0;
+    mid_frame = false;
 
 done_handling:
     return;
