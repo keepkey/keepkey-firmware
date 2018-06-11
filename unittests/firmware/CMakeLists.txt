@@ -16,6 +16,7 @@ target_link_libraries(firmware-unit
     kkboard.mfr
     kkvariant
     kkvariant.keepkey
+    kkboard
     kkcrypto
     kkrand
     kktransport)

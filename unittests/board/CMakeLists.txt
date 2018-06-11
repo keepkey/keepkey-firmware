@@ -14,6 +14,7 @@ target_link_libraries(board-unit
     kkboard.keepkey
     kkvariant
     kkvariant.keepkey
+    kkboard
     kkcrypto
     kkrand
     kktransport)

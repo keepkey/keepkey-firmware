@@ -14,6 +14,7 @@ if(${KK_EMULATOR})
       kkboard.keepkey
       kkvariant
       kkvariant.keepkey
+      kkboard
       kktransport
       kkcrypto
       kkrand
