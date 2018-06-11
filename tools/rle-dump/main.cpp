@@ -49,6 +49,8 @@ int main(int argc, char *argv[]) {
     canvas.width = 255;
     canvas.buffer = new uint8_t[64 * 255];
 
+    memset(canvas.buffer, 0, 64 * 255);
+
     if (!canvas.buffer)
         return 1;
 
