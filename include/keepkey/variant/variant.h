@@ -4,7 +4,7 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-#define VARIANT_INFO_MAGIC "KKWL"
+#define VARIANTINFO_MAGIC "KKWL"
 
 typedef struct _VariantImage {
     uint16_t w;

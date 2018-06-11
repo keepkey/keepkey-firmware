@@ -4,7 +4,7 @@
 #include "keepkey/variant/variant.h"
 
 #define VARIANTINFO_SALT \
-    .magic = "KPWL", \
+    .magic = VARIANTINFO_MAGIC, \
     .version = 1, \
     .name = "SALT", \
     .logo = &salt_logo, \

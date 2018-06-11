@@ -21,7 +21,7 @@ const VariantInfo *variant_getInfo(void) {
 #ifndef EMULATOR
     const SignedVariantInfo *flash = SIGNEDVARIANTINFO_FLASH;
 
-    if (0 == memcmp(flash->info.magic, VARIANT_INFO_MAGIC, sizeof(flash->info.magic))) {
+    if (0 == memcmp(flash->info.magic, VARIANTINFO_MAGIC, sizeof(flash->info.magic))) {
 #  ifndef DEBUG_ON
         uint8_t info_fingerprint[32];
         sha256_Raw((uint8_t *)SIGNEDVARIANTINFO_FLASH + offsetof(SignedVariantInfo, length),
