@@ -29,12 +29,32 @@ pipeline {
                     sh '''
                         rm -rf bin
                         ./scripts/build/docker/device/release.sh
+                        echo "Bootstrap Size, Bootloader Size (KeepKey), Bootloader Size (SALT), Firmware Size (KeepKey), Firmware Size (SALT)" >> bin/binsize.csv
+                        echo "$(du -b bin/bootstrap.bin | cut -f1), $(du -b bin/bootloader.keepkey.bin | cut -f1), $(du -b bin/bootloader.salt.bin | cut -f1), $(du -b bin/firmware.keepkey.bin | cut -f1), $(du -b bin/firmware.keepkey.bin | cut -f1)" >> bin/binsize.csv
                         tar cjvf release.tar.bz2 bin/*'''
                 }
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'release.tar.bz2,bin/*.bin', fingerprint: true
+                    archiveArtifacts artifacts: 'release.tar.bz2,bin/*.bin,bin/*.csv', fingerprint: true
+                    plot csvFileName: 'binsize.csv',
+                            csvSeries: [[
+                                                file: 'bin/binsize.csv',
+                                                exclusionValues: '',
+                                                displayTableFlag: true,
+                                                inclusionFlag: 'OFF',
+                                                url: '']],
+                            group: 'Binary Sizes',
+                            title: 'Binary Sizes',
+                            style: 'line',
+                            exclZero: false,
+                            keepRecords: false,
+                            logarithmic: false,
+                            numBuilds: '',
+                            useDescr: true,
+                            yaxis: 'Bytes',
+                            yaxisMaximum: '',
+                            yaxisMinimum: ''
                 }
                 failure {
                     script {
