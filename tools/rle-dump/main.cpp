@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
     if (!canvas.buffer)
         return 1;
 
-    if (draw_bitmap_mono_rle_new(&canvas, &confirm_icon_1_frame, false)) {
+    if (draw_bitmap_mono_rle(&canvas, &confirm_icon_1_frame, false)) {
         to_ppm(&canvas);
         return 0;
     }

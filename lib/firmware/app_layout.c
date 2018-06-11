@@ -351,7 +351,7 @@ void layout_screensaver(void)
     screensaver = variant_getScreensaver();
 
     layout_add_animation(
-        &layout_animate_images_new,
+        &layout_animate_images,
         (void *)screensaver,
         0);
 }

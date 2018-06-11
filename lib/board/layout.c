@@ -61,9 +61,9 @@ static void layout_home_helper(bool reversed)
     logo = variant_getLogo(reversed);
 
     layout_add_animation(
-        &layout_animate_images_new,
+        &layout_animate_images,
         (void *)logo,
-        get_image_animation_duration_new(logo));
+        get_image_animation_duration(logo));
 
     while(is_animating())
     {
@@ -348,41 +348,41 @@ void layout_notification_icon(NotificationType type, DrawableParams *sp)
             const VariantAnimation *anim = get_confirm_icon_animation();
 
             layout_add_animation(
-                &layout_animate_images_new,
+                &layout_animate_images,
                 (void *)anim,
-                get_image_animation_duration_new(anim));
+                get_image_animation_duration(anim));
             break;
         }
 
         case NOTIFICATION_REQUEST_NO_ANIMATION:
 
-            draw_bitmap_mono_rle_new(canvas, get_confirm_icon_image(), false);
+            draw_bitmap_mono_rle(canvas, get_confirm_icon_image(), false);
             break;
 
         case NOTIFICATION_CONFIRM_ANIMATION: {
             const VariantAnimation *anim = get_confirming_animation();
 
             layout_add_animation(
-                &layout_animate_images_new,
+                &layout_animate_images,
                 (void *)anim,
-                get_image_animation_duration_new(anim));
+                get_image_animation_duration(anim));
             break;
         }
 
         case NOTIFICATION_CONFIRMED:
-            draw_bitmap_mono_rle_new(canvas, get_confirmed_image(), false);
+            draw_bitmap_mono_rle(canvas, get_confirmed_image(), false);
             break;
 
         case NOTIFICATION_UNPLUG:
             sp->x = 208;
             sp->y = 21;
-            draw_bitmap_mono_rle_new(canvas, get_unplug_image(), false);
+            draw_bitmap_mono_rle(canvas, get_unplug_image(), false);
             break;
 
         case NOTIFICATION_RECOVERY:
             sp->x = 221;
             sp->y = 20;
-            draw_bitmap_mono_rle_new(canvas, get_recovery_image(), false);
+            draw_bitmap_mono_rle(canvas, get_recovery_image(), false);
             break;
 
         case NOTIFICATION_INFO:
@@ -415,7 +415,7 @@ void layout_warning(const char *str)
     draw_string(canvas, font, str, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
 
     const VariantAnimation *warning = get_warning_animation();
-    layout_add_animation(&layout_animate_images_new, (void *)&warning, 0);
+    layout_add_animation(&layout_animate_images, (void *)&warning, 0);
 }
 
 /*
@@ -440,7 +440,7 @@ void layout_warning_static(const char *str)
     sp.color = TITLE_COLOR;
     draw_string(canvas, font, str, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
 
-    draw_bitmap_mono_rle_new(canvas, get_warning_image(), false);
+    draw_bitmap_mono_rle(canvas, get_warning_image(), false);
 
     display_refresh();
 }
@@ -550,7 +550,7 @@ void layout_loading(void)
     layout_clear();
 
     layout_add_animation(
-            &layout_animate_images_new, 
+            &layout_animate_images, 
             (void *)loading_animation, 
             0);
     force_animation_start();
@@ -626,17 +626,17 @@ bool is_animating(void)
  * OUTPUT
  *     none
  */
-void layout_animate_images_new(void *data, uint32_t duration, uint32_t elapsed)
+void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed)
 {
     const VariantAnimation *animation = (const VariantAnimation *)data;
 
     bool looping = duration == 0;
-    int frameNum = get_image_animation_frame_new(animation, elapsed, looping);
+    int frameNum = get_image_animation_frame(animation, elapsed, looping);
 
     if(frameNum != -1 && frameNum < animation->count)
     {
-        draw_bitmap_mono_rle_new(canvas, &animation->frames[(frameNum+animation->count-1)%animation->count], true);
-        draw_bitmap_mono_rle_new(canvas, &animation->frames[frameNum], false);
+        draw_bitmap_mono_rle(canvas, &animation->frames[(frameNum+animation->count-1)%animation->count], true);
+        draw_bitmap_mono_rle(canvas, &animation->frames[frameNum], false);
     }
 }
 

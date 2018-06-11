@@ -121,7 +121,6 @@ bool is_animating(void);
 void force_animation_start(void);
 void animating_progress_handler(void);
 void layout_add_animation(AnimateCallback callback, void *data, uint32_t duration);
-void layout_animate_images_new(void *data, uint32_t duration, uint32_t elapsed);
 void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed);
 void layout_clear(void);
 void layout_clear_animations(void);

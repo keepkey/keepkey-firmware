@@ -44,7 +44,7 @@ const VariantAnimation *get_warning_animation(void);
 const VariantAnimation *get_logo_animation(void);
 const VariantAnimation *get_logo_reversed_animation(void);
 
-uint32_t get_image_animation_duration_new(const VariantAnimation *animation);
-int get_image_animation_frame_new(const VariantAnimation *animation,
+uint32_t get_image_animation_duration(const VariantAnimation *animation);
+int get_image_animation_frame(const VariantAnimation *animation,
                                        const uint32_t elapsed, bool loop);
 #endif

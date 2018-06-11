@@ -295,7 +295,7 @@ void draw_box_simple(Canvas *canvas, uint8_t color, uint16_t x, uint16_t y, uint
  * OUTPUT
  *     true/false whether image was drawn
  */
-bool draw_bitmap_mono_rle_new(Canvas *canvas, const VariantFrame *frame, bool erase)
+bool draw_bitmap_mono_rle(Canvas *canvas, const VariantFrame *frame, bool erase)
 {
     if (frame == NULL) {
         return false;

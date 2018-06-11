@@ -1176,7 +1176,7 @@ const VariantAnimation *get_warning_animation(void)
  * OUTPUT
  *    animation duration
  */
-uint32_t get_image_animation_duration_new(const VariantAnimation *animation)
+uint32_t get_image_animation_duration(const VariantAnimation *animation)
 {
     uint32_t duration = 0;
 
@@ -1198,10 +1198,10 @@ uint32_t get_image_animation_duration_new(const VariantAnimation *animation)
  * OUTPUT
  *    number of the frame that should be displayed
  */
-int get_image_animation_frame_new(const VariantAnimation *animation,
+int get_image_animation_frame(const VariantAnimation *animation,
                                        const uint32_t elapsed, bool loop)
 {
-    uint32_t adjusted_elapsed = (loop) ? elapsed % get_image_animation_duration_new(
+    uint32_t adjusted_elapsed = (loop) ? elapsed % get_image_animation_duration(
                                     animation) : elapsed;
     uint32_t current_time = 0;
 
