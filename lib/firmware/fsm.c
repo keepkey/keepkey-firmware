@@ -60,6 +60,8 @@
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/util.h"
 
+#include "messages.pb.h"
+
 #include <stdio.h>
 
 static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
@@ -69,6 +71,7 @@ static const MessagesMap_t MessagesMap[] =
     /* Normal Messages */
     MSG_IN(MessageType_MessageType_Initialize,          Initialize_fields, (void (*)(void *))fsm_msgInitialize, AnyVariant)
     MSG_IN(MessageType_MessageType_GetFeatures,         GetFeatures_fields, (void (*)(void *))fsm_msgGetFeatures, AnyVariant)
+    MSG_IN(MessageType_MessageType_GetCoinTable,        GetCoinTable_fields, (void (*)(void *))fsm_msgGetCoinTable, AnyVariant)
     MSG_IN(MessageType_MessageType_Ping,                Ping_fields, (void (*)(void *))fsm_msgPing, AnyVariant)
     MSG_IN(MessageType_MessageType_ChangePin,           ChangePin_fields, (void (*)(void *))fsm_msgChangePin, MFRProhibited)
     MSG_IN(MessageType_MessageType_WipeDevice,          WipeDevice_fields, (void (*)(void *))fsm_msgWipeDevice, MFRProhibited)
@@ -118,6 +121,7 @@ static const MessagesMap_t MessagesMap[] =
     MSG_OUT(MessageType_MessageType_Entropy,            Entropy_fields,             NO_PROCESS_FUNC, AnyVariant)
     MSG_OUT(MessageType_MessageType_PublicKey,          PublicKey_fields,           NO_PROCESS_FUNC, AnyVariant)
     MSG_OUT(MessageType_MessageType_Features,           Features_fields,            NO_PROCESS_FUNC, AnyVariant)
+    MSG_OUT(MessageType_MessageType_CoinTable,          CoinTable_fields,           NO_PROCESS_FUNC, AnyVariant)
     MSG_OUT(MessageType_MessageType_PinMatrixRequest,   PinMatrixRequest_fields,    NO_PROCESS_FUNC, AnyVariant)
     MSG_OUT(MessageType_MessageType_TxRequest,          TxRequest_fields,           NO_PROCESS_FUNC, AnyVariant)
     MSG_OUT(MessageType_MessageType_CipheredKeyValue,   CipheredKeyValue_fields,    NO_PROCESS_FUNC, AnyVariant)
@@ -464,10 +468,6 @@ void fsm_msgGetFeatures(GetFeatures *msg)
         strlcpy(resp->label, storage_get_label(), sizeof(resp->label));
     }
 
-    /* Coin type support */
-    resp->coins_count = COINS_COUNT;
-    memcpy(resp->coins, coins.table, COINS_COUNT * sizeof(CoinType));
-
     /* Is device initialized? */
     resp->has_initialized = true;
     resp->initialized = storage_is_initialized();
@@ -485,6 +485,44 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     storage_get_policies(resp->policies);
 
     msg_write(MessageType_MessageType_Features, resp);
+}
+
+void fsm_msgGetCoinTable(GetCoinTable *msg)
+{
+    RESP_INIT(CoinTable);
+
+    if (msg->has_start != msg->has_end) {
+        fsm_sendFailure(FailureType_Failure_Other,
+                        "Incorrect GetCoinTable parameters");
+        go_home();
+        return;
+    }
+
+    resp->has_chunk_size = true;
+    resp->chunk_size = sizeof(resp->table) / sizeof(resp->table[0]);
+
+    if (msg->has_start && msg->has_end) {
+        if (COINS_COUNT <= msg->start ||
+            COINS_COUNT < msg->end ||
+            msg->end < msg->start ||
+            resp->chunk_size < msg->end - msg->start) {
+            fsm_sendFailure(FailureType_Failure_Other,
+                            "Incorrect GetCoinTable parameters");
+            go_home();
+            return;
+        }
+    }
+
+    resp->has_num_coins = true;
+    resp->num_coins = COINS_COUNT;
+
+    if (msg->has_start && msg->has_end) {
+        resp->table_count = msg->end - msg->start;
+        memcpy(&resp->table[0], &coins[msg->start],
+               resp->table_count * sizeof(resp->table[0]));
+    }
+
+    msg_write(MessageType_MessageType_CoinTable, resp);
 }
 
 static bool isValidModelNumber(const char *model) {
