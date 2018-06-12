@@ -1,7 +1,7 @@
 extern "C" {
 #include "keepkey/board/canvas.h"
 #include "keepkey/board/draw.h"
-#include "keepkey/variant/variant.h"
+#include "keepkey/board/variant.h"
 }
 
 #include <iostream>

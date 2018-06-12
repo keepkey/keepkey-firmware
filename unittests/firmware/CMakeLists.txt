@@ -15,6 +15,7 @@ target_link_libraries(firmware-unit
     kkboard
     kkboard.mfr
     kkvariant.keepkey
+    kkvariant.salt
     kkboard
     kkcrypto
     kkrand
