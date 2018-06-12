@@ -45,7 +45,7 @@ typedef struct SignedVariantInfo_ {
 
 /// Get the VariantInfo from sector 4 of flash (if it exists), otherwise
 /// fallback on keepkey imagery.
-const VariantInfo *variant_getInfo(void);
+const VariantInfo *variant_getInfo(void) __attribute__((weak));
 
 /// Get the Screensaver.
 const VariantAnimation *variant_getScreensaver(void);

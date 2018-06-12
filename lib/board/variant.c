@@ -18,7 +18,7 @@ static const VariantAnimation *logo_reversed;
 static const char *name;
 static const uint32_t *screensaver_timeout;
 
-const VariantInfo *variant_getInfo(void) {
+const VariantInfo * __attribute__((weak)) variant_getInfo(void) {
 #ifndef EMULATOR
     const SignedVariantInfo *flash = SIGNEDVARIANTINFO_FLASH;
 

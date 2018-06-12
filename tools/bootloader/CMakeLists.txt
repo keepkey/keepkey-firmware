@@ -19,7 +19,6 @@ if(NOT ${KK_EMULATOR})
       kkboard
       kkboard.keepkey
       -Wl,--whole-archive kkvariant.keepkey -Wl,--no-whole-archive
-      -Wl,--whole-archive kkvariant.salt -Wl,--no-whole-archive
       kktransport
       kkcrypto
       kkrand
