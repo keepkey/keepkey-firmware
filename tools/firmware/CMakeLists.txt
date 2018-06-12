@@ -26,7 +26,6 @@ if(NOT ${KK_EMULATOR})
       -Wl,--whole-archive kkfirmware.keepkey -Wl,--no-whole-archive
       kkboard
       -Wl,--whole-archive kkboard.keepkey -Wl,--no-whole-archive
-      kkvariant
       -Wl,--whole-archive kkvariant.keepkey -Wl,--no-whole-archive
       -Wl,--whole-archive kkvariant.salt -Wl,--no-whole-archive
       kktransport
@@ -47,7 +46,6 @@ if(NOT ${KK_EMULATOR})
       -Wl,--whole-archive kkfirmware.mfr -Wl,--no-whole-archive
       kkboard
       -Wl,--whole-archive kkboard.mfr -Wl,--no-whole-archive
-      kkvariant
       -Wl,--whole-archive kkvariant.keepkey -Wl,--no-whole-archive
       -Wl,--whole-archive kkvariant.salt -Wl,--no-whole-archive
       kktransport

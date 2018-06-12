@@ -12,7 +12,6 @@ if(${KK_EMULATOR})
       kkfirmware.keepkey
       kkboard
       kkboard.keepkey
-      kkvariant
       kkvariant.keepkey
       kkboard
       kktransport

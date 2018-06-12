@@ -20,7 +20,7 @@
 #ifndef LIB_FIRMWARE_APP_RESOURCES_H
 #define LIB_FIRMWARE_APP_RESOURCES_H
 
-#include "keepkey/variant/variant.h"
+#include "keepkey/board/variant.h"
 
 /// Get the Screensaver Animation
 const VariantAnimation* variant_getScreensaverAnimation(void);

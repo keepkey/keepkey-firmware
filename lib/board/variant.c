@@ -1,4 +1,4 @@
-#include "keepkey/variant/variant.h"
+#include "keepkey/board/variant.h"
 
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/pubkeys.h"
@@ -23,7 +23,7 @@ const VariantInfo *variant_getInfo(void) {
     const SignedVariantInfo *flash = SIGNEDVARIANTINFO_FLASH;
 
     if (0 == memcmp(flash->info.magic, VARIANTINFO_MAGIC, sizeof(flash->info.magic))) {
-#  ifndef DEBUG_ON
+#  if 0
         uint8_t info_fingerprint[32];
         sha256_Raw((uint8_t *)SIGNEDVARIANTINFO_FLASH + offsetof(SignedVariantInfo, length),
                    flash->length, info_fingerprint);
@@ -42,6 +42,15 @@ const VariantInfo *variant_getInfo(void) {
     const char *model = flash_getModel();
     if (!model)
         return &variant_keepkey;
+#define MODEL_KK(NUMBER) \
+    if (strcmp(model, (NUMBER))) { \
+        return &variant_keepkey; \
+    } 
+#define MODEL_SALT(NUMBER) \
+    if (strcmp(model, (NUMBER))) { \
+        return &variant_salt; \
+    }
+#include "keepkey/board/models.def"
 
     return &variant_keepkey;
 }

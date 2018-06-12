@@ -59,7 +59,6 @@
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/util.h"
-#include "keepkey/variant/variant.h"
 
 #include <stdio.h>
 

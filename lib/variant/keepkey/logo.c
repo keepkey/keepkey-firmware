@@ -20,7 +20,7 @@
 #include "keepkey/board/resources.h"
 
 #include "keepkey/board/keepkey_flash.h"
-#include "keepkey/variant/variant.h"
+#include "keepkey/board/variant.h"
 
 #include <string.h>
 

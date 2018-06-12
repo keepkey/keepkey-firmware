@@ -21,7 +21,7 @@
 #define RESOURCES_H
 
 /* === Includes ============================================================ */
-#include "keepkey/variant/variant.h"
+#include "keepkey/board/variant.h"
 
 #include <stdint.h>
 #include <stdbool.h>

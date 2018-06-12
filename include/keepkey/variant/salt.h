@@ -1,7 +1,7 @@
 #ifndef KEEPKEY_VARIANT_SALT_H
 #define KEEPKEY_VARIANT_SALT_H
 
-#include "keepkey/variant/variant.h"
+#include "keepkey/board/variant.h"
 
 #define VARIANTINFO_SALT \
     .magic = VARIANTINFO_MAGIC, \

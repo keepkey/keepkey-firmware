@@ -28,7 +28,7 @@
 #include "canvas.h"
 #include "font.h"
 #include "resources.h"
-#include "keepkey/variant/variant.h"
+#include "keepkey/board/variant.h"
 
 /* === Typedefs ============================================================ */
 

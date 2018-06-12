@@ -12,7 +12,6 @@ target_link_libraries(board-unit
     kkfirmware.keepkey
     kkboard
     kkboard.keepkey
-    kkvariant
     kkvariant.keepkey
     kkboard
     kkcrypto

@@ -26,8 +26,8 @@
 #include "keepkey/board/layout.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/timer.h"
+#include "keepkey/board/variant.h"
 #include "keepkey/firmware/fsm.h"
-#include "keepkey/variant/variant.h"
 
 #include <stdarg.h>
 #include <stddef.h>

@@ -41,7 +41,6 @@
 #include "keepkey/firmware/util.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/transport/interface.h"
-#include "keepkey/variant/variant.h"
 
 #include <string.h>
 #include <stdint.h>

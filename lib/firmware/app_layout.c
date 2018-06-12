@@ -25,12 +25,12 @@
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/timer.h"
+#include "keepkey/board/variant.h"
 
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/app_resources.h"
 #include "keepkey/firmware/qr_encode.h"
 #include "keepkey/firmware/fsm.h"
-#include "keepkey/variant/variant.h"
 
 #include <stdarg.h>
 #include <stddef.h>

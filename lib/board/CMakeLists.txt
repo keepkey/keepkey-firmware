@@ -14,7 +14,8 @@ set(sources
     pin.c
     resources.c
     timer.c
-    usb_driver.c)
+    usb_driver.c
+    variant.c)
 
 if(NOT ${KK_EMULATOR})
   enable_language(ASM)
