@@ -17,8 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "keepkey/board/draw.h"
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/font.h"
@@ -29,7 +27,8 @@
 #include <stddef.h>
 #include <string.h>
 
-/* === Functions =========================================================== */
+#pragma GCC push_options
+#pragma GCC optimize("-O3")
 
 /*
  * draw_char_with_shift() - Draw image on display with left/top margins
@@ -365,4 +364,5 @@ bool draw_bitmap_mono_rle(Canvas *canvas, const AnimationFrame *frame, bool eras
     canvas->dirty = true;
     return true;
 }
+#pragma GCC pop_options
 

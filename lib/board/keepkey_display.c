@@ -17,8 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #ifndef EMULATOR
 #  include <libopencm3/stm32/rcc.h>
 #  include <libopencm3/stm32/gpio.h>
@@ -28,7 +26,8 @@
 #include "keepkey/board/pin.h"
 #include "keepkey/board/timer.h"
 
-/* === Private Variables =================================================== */
+#pragma GCC push_options
+#pragma GCC optimize("-O3")
 
 #ifndef EMULATOR
 static const Pin nOE_PIN       = { GPIOA, GPIO8 };
@@ -43,8 +42,6 @@ static const Pin BACKLIGHT_PWR_PIN = { GPIOB, GPIO0 };
 
 static uint8_t canvas_buffer[ KEEPKEY_DISPLAY_HEIGHT * KEEPKEY_DISPLAY_WIDTH ];
 static Canvas canvas;
-
-/* === Private Functions =================================================== */
 
 /*
  * display_write_reg() - Write data to display register
@@ -504,3 +501,6 @@ void display_set_brightness(int percentage)
     display_write_ram(reg_value);
 #endif
 }
+
+#pragma GCC pop_options
+

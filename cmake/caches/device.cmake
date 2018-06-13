@@ -44,8 +44,15 @@ set(WARN_FLAGS
     -Wuninitialized \
     -Werror")
 
-set(CMAKE_C_FLAGS "${ARCH_FLAGS} -std=gnu99 -O3 ${WARN_FLAGS}" CACHE STRING "")
-set(CMAKE_CXX_FLAGS "${ARCH_FLAGS} -std=gnu++11 -O3 ${WARN_FLAGS} \
+if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+  set(OPT_FLAGS "-O1 -g" CACHE STRING "")
+elseif("${CMAKE_BUILD_TYPE}" STREQUAL "Release" OR
+       "${CMAKE_BUILD_TYPE}" STREQUAL "")
+  set(OPT_FLAGS "-Os" CACHE STRING "")
+endif()
+
+set(CMAKE_C_FLAGS "${ARCH_FLAGS} -std=gnu99 ${OPT_FLAGS} ${WARN_FLAGS}" CACHE STRING "")
+set(CMAKE_CXX_FLAGS "${ARCH_FLAGS} -std=gnu++11 ${OPT_FLAGS} ${WARN_FLAGS} \
     -fno-exceptions \
     -fno-rtti \
     -fno-threadsafe-statics \
