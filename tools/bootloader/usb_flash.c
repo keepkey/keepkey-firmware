@@ -443,6 +443,13 @@ void handler_initialize(Initialize *msg)
 #endif
     resp.policies_count++;
 
+    /* Device model */
+    const char *model = flash_getModel();
+    if (model) {
+        resp.has_model = true;
+        strlcpy(resp.model, model, sizeof(resp.model));
+    }
+
     msg_write(MessageType_MessageType_Features, &resp);
 }
 
