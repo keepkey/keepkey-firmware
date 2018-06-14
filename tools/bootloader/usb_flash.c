@@ -57,6 +57,7 @@ static const MessagesMap_t MessagesMap[] =
     MSG_IN(MessageType_MessageType_Initialize,              Initialize_fields,          (message_handler_t)(handler_initialize), AnyVariant)
     MSG_IN(MessageType_MessageType_GetFeatures,             GetFeatures_fields,         (message_handler_t)(handler_get_features), AnyVariant)
     MSG_IN(MessageType_MessageType_Ping,                    Ping_fields,                (message_handler_t)(handler_ping), AnyVariant)
+    MSG_IN(MessageType_MessageType_WipeDevice,              WipeDevice_fields,          (message_handler_t)(handler_wipe), AnyVariant)
     MSG_IN(MessageType_MessageType_FirmwareErase,           FirmwareErase_fields,       (message_handler_t)(handler_erase), AnyVariant)
     MSG_IN(MessageType_MessageType_ButtonAck,               ButtonAck_fields,           NO_PROCESS_FUNC, AnyVariant)
     MSG_IN(MessageType_MessageType_Cancel,                  Cancel_fields,              NO_PROCESS_FUNC, AnyVariant)
@@ -470,6 +471,38 @@ void handler_get_features(GetFeatures *msg)
 {
     (void)msg;
     handler_initialize(0);
+}
+
+/*
+ * handler_wipe() - Handler to wipe secret storage
+ *
+ * INPUT -
+ *     - msg: WipeDevice protocol buffer message
+ * OUTPUT
+ *     none
+ *
+ */
+void handler_wipe(WipeDevice *msg)
+{
+    (void)msg;
+    if(!confirm(ButtonRequestType_ButtonRequest_WipeDevice, "Wipe Device",
+                "Do you want to erase your private keys and settings?"))
+    {
+        send_failure(FailureType_Failure_ActionCancelled, "Wipe cancelled");
+        layout_home();
+        return;
+    }
+
+    // Only erase the active sector, leaving the other two alone.
+    Allocation storage_loc = FLASH_INVALID;
+    if(find_active_storage(&storage_loc) && storage_loc != FLASH_INVALID) {
+        flash_unlock();
+        flash_erase_word(storage_loc)
+        flash_lock();
+    }
+
+    layout_home();
+    send_success("Device wiped");
 }
 
 /*
