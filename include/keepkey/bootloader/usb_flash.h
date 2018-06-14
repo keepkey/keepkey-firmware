@@ -57,6 +57,7 @@ void storage_sector_init(void);
 void send_success(const char *text);
 void send_failure(FailureType code, const char *text);
 void handler_initialize(Initialize* msg);
+void handler_get_features(GetFeatures* msg);
 void handler_ping(Ping* msg);
 void handler_erase(FirmwareErase* msg);
 void raw_handler_upload(RawMessage *msg, uint32_t frame_length);

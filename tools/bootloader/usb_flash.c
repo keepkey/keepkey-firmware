@@ -55,6 +55,7 @@ static const MessagesMap_t MessagesMap[] =
 {
     /* Normal Messages */
     MSG_IN(MessageType_MessageType_Initialize,              Initialize_fields,          (message_handler_t)(handler_initialize), AnyVariant)
+    MSG_IN(MessageType_MessageType_GetFeatures,             GetFeatures_fields,         (message_handler_t)(handler_get_features), AnyVariant)
     MSG_IN(MessageType_MessageType_Ping,                    Ping_fields,                (message_handler_t)(handler_ping), AnyVariant)
     MSG_IN(MessageType_MessageType_FirmwareErase,           FirmwareErase_fields,       (message_handler_t)(handler_erase), AnyVariant)
     MSG_IN(MessageType_MessageType_ButtonAck,               ButtonAck_fields,           NO_PROCESS_FUNC, AnyVariant)
@@ -455,6 +456,20 @@ void handler_initialize(Initialize *msg)
     }
 
     msg_write(MessageType_MessageType_Features, &resp);
+}
+
+/*
+ * handler_get_features() - Handler to respond to GetFeatures message
+ *
+ * INPUT -
+ *      - msg: GetFeatures protocol buffer message
+ * OUTPUT -
+ *      none
+ */
+void handler_get_features(GetFeatures *msg)
+{
+    (void)msg;
+    handler_initialize(0);
 }
 
 /*
