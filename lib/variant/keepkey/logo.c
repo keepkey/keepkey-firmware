@@ -288,5 +288,5 @@ const VariantAnimation kk_screensaver = {
         {94, 9, 150, 60, &kk_logo_1_image},
         {96, 9, 150, 60, &kk_logo_1_image},
         {98, 9, 150, 60, &kk_logo_1_image},
-            }
+    }
 };

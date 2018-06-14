@@ -19,26 +19,6 @@ static const char *name;
 static const uint32_t *screensaver_timeout;
 
 const VariantInfo * __attribute__((weak)) variant_getInfo(void) {
-#ifndef EMULATOR
-    const SignedVariantInfo *flash = SIGNEDVARIANTINFO_FLASH;
-
-    if (0 == memcmp(flash->info.magic, VARIANTINFO_MAGIC, sizeof(flash->info.magic))) {
-#  if 0
-        uint8_t info_fingerprint[32];
-        sha256_Raw((uint8_t *)SIGNEDVARIANTINFO_FLASH + offsetof(SignedVariantInfo, length),
-                   flash->length, info_fingerprint);
-
-        if(ecdsa_verify_digest(&secp256k1, pubkey[flash->sigindex - 1], flash->sig,
-                                info_fingerprint) == 0)
-        {
-            return &flash->info;
-        }
-#  else
-        return &flash->info;
-#  endif
-    }
-#endif
-
     const char *model = flash_getModel();
     if (!model)
         return &variant_keepkey;
