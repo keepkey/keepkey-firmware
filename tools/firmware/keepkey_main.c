@@ -32,7 +32,7 @@
 #include "keepkey/board/resources.h"
 #include "keepkey/board/keepkey_usart.h"
 #include "keepkey/firmware/app_layout.h"
-#include "keepkey/firmware/check_bootloader.h"
+#include "keepkey/firmware/hotpatch_bootloader.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"

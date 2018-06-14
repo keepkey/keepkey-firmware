@@ -38,4 +38,5 @@ bool is_mfg_mode(void);
 bool set_mfg_mode_off(void);
 const char *flash_getModel(void);
 bool flash_setModel(const char (*model)[32]);
+const char *flash_programModel(void);
 #endif

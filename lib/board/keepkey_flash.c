@@ -25,6 +25,8 @@
 
 #include "keepkey/board/keepkey_flash.h"
 
+#include "keepkey/board/check_bootloader.h"
+
 #include <string.h>
 #include <stdint.h>
 
@@ -292,5 +294,43 @@ bool flash_setModel(const char (*model)[32]) {
     return ret;
 #else
     return true;
+#endif
+}
+
+const char *flash_programModel(void) {
+    const char *ret = flash_getModel();
+    if (ret)
+        return ret;
+
+    switch (get_bootloaderKind()) {
+    case BLK_UNKNOWN:
+        return "Unknown";
+    case BLK_v1_0_0:
+    case BLK_v1_0_1:
+    case BLK_v1_0_2:
+    case BLK_v1_0_3:
+    case BLK_v1_0_3_sig:
+    case BLK_v1_0_3_elf: {
+#define MODEL_KK(NUMBER) \
+        static const char model[32] = (NUMBER);
+#include "keepkey/board/models.def"
+        if (!is_mfg_mode())
+            (void)flash_setModel(&model);
+        return model;
+    }
+    case BLK_v1_0_4: {
+#define MODEL_SALT(NUMBER) \
+        static const char model[32] = (NUMBER);
+#include "keepkey/board/models.def"
+        if (!is_mfg_mode())
+            (void)flash_setModel(&model);
+        return model;
+    }
+    }
+
+#ifdef DEBUG_ON
+     __builtin_unreachable();
+#else
+    return "Unknown";
 #endif
 }

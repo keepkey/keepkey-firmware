@@ -1,13 +1,13 @@
 set(sources
     app_confirm.c
     app_layout.c
-    check_bootloader.c
     coins.c
     crypto.c
     ethereum.c
     exchange.c
     fsm.c
     home_sm.c
+    hotpatch_bootloader.c
     passphrase_sm.c
     pin_sm.c
     policy.c

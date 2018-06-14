@@ -1,4 +1,5 @@
 set(sources
+    check_bootloader.c
     confirm_sm.c
     draw.c
     font.c
