@@ -473,6 +473,14 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     resp->has_bootloader_hash = false;
 #endif
 
+    /* Firmware hash */
+#ifndef EMULATOR
+    resp->has_firmware_hash = true;
+    resp->firmware_hash.size = memory_firmware_hash(resp->firmware_hash.bytes);
+#else
+    resp->has_firmware_hash = false;
+#endif
+
     /* Settings for device */
     if(storage_get_language())
     {

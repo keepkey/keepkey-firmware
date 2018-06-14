@@ -425,6 +425,10 @@ void handler_initialize(Initialize *msg)
                                      resp.bootloader_hash.bytes,
                                      /*cached=*/false);
 
+    /* Firmware hash */
+    resp.has_firmware_hash = true;
+    resp.firmware_hash.size = memory_firmware_hash(resp.firmware_hash.bytes);
+
     resp.policies_count = 0;
 
     /* Smuggle debuglink state out via policies */
