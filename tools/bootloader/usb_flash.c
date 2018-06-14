@@ -497,7 +497,7 @@ void handler_wipe(WipeDevice *msg)
     Allocation storage_loc = FLASH_INVALID;
     if(find_active_storage(&storage_loc) && storage_loc != FLASH_INVALID) {
         flash_unlock();
-        flash_erase_word(storage_loc)
+        flash_erase_word(storage_loc);
         flash_lock();
     }
 
@@ -535,9 +535,6 @@ void handler_erase(FirmwareErase *msg)
             {
                 flash_erase_word(i);
             }
-
-            /* Erase unused sectors */
-            flash_erase_word(FLASH_UNUSED0);
 
             /* Erase application section */
             flash_erase_word(FLASH_APP);
