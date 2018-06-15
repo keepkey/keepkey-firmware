@@ -20,7 +20,11 @@
 #ifndef INTERFACE_H
 #define INTERFACE_H
 
+// Allow this file to be used from C++ by renaming an unfortunately named field:
+#define delete del
 #include "messages.pb.h"
+#undef delete
+
 #include "keepkey/firmware/storagepb.h"
 #include "types.pb.h"
 #include "trezor_transport.h"

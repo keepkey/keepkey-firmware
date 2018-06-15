@@ -1,7 +1,8 @@
 set(sources
     ethereum.cpp
     recovery.cpp
-    storage.cpp)
+    storage.cpp
+    usb_rx.cpp)
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/include
