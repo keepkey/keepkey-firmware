@@ -505,6 +505,26 @@ void handler_wipe(WipeDevice *msg)
     send_success("Device wiped");
 }
 
+/// \returns true iff the storage has been initialized
+static bool is_initialized(void) {
+    Allocation storage_loc = FLASH_INVALID;
+    if(find_active_storage(&storage_loc) && storage_loc != FLASH_INVALID)
+        return true;
+    return false;
+}
+
+/// \returns true iff the user has agreed to update their firmware
+static bool should_erase(void) {
+    if (is_initialized()) {
+        return confirm(ButtonRequestType_ButtonRequest_FirmwareErase,
+                       "Verify Backup",
+                       "Do you have your recovery sentence in case your private keys are erased?");
+    } else {
+        return confirm(ButtonRequestType_ButtonRequest_FirmwareErase,
+                       "Firmware Update", "Do you want to update your firmware?");
+    }
+}
+
 /*
  * handler_erase() - Handler to wipe application firmware
  *
@@ -517,12 +537,7 @@ void handler_wipe(WipeDevice *msg)
 void handler_erase(FirmwareErase *msg)
 {
     (void)msg;
-
-    if(confirm(ButtonRequestType_ButtonRequest_FirmwareErase,
-               "Verify Backup",
-               "Do you have your recovery sentence in case your private keys are erased?"))
-    {
-
+    if (should_erase()) {
         layout_simple_message("Preparing For Upgrade...");
 
         /* Save storage data in memory so it can be restored after firmware update */
