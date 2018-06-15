@@ -314,7 +314,7 @@ int main(int argc, char *argv[])
     led_func(SET_GREEN_LED);
     led_func(SET_RED_LED);
 
-    dbg_print("\n\rKeepKey LLC, Copyright (C) 2015\n\r");
+    dbg_print("\n\rKeepKey LLC, Copyright (C) 2018\n\r");
     dbg_print("BootLoader Version %d.%d.%d\n\r", BOOTLOADER_MAJOR_VERSION,
               BOOTLOADER_MINOR_VERSION, BOOTLOADER_PATCH_VERSION);
 
