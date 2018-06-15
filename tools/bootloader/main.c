@@ -221,19 +221,23 @@ static bool boot(void)
         {
             delay_ms(500);
 
-#if !MEMORY_PROTECT
-            if(!confirm_without_button_request("Unofficial Firmware",
-                                               "Do you want to continue booting?"))
+            if (!confirm_without_button_request("Unofficial Firmware",
+                                                "Do you want to continue booting?"))
             {
-#endif
                 layout_simple_message("Boot Aborted");
                 goto cancel_boot;
-#if !MEMORY_PROTECT
+            }
+
+            char digest_str[SHA256_DIGEST_STRING_LENGTH];
+            if (!confirm_without_button_request("Confirm Unofficial Firmware", "%s",
+                                                memory_firmware_hash_str(digest_str)))
+            {
+                layout_simple_message("Boot Aborted");
+                goto cancel_boot;
             }
 
             layout_home();
             delay_ms(800);
-#endif
         }
 
         led_func(CLR_RED_LED);
