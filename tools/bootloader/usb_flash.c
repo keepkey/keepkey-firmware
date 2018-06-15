@@ -204,12 +204,19 @@ static bool should_restore(void) {
     if (SIG_FLAG == 0)
         return false;
 
+    // Don't restore if the old firmware was unsigned.
+    //
+    // This protects users of custom firmware from having their storage sectors
+    // dumped, but unfortunately means they'll have to re-load keys every time
+    // they update. Security >> conveniece.
+    //
+    // This also guarantees that when we read storage in an official firmware,
+    // it must have been written by an official firmware.
+    if (old_firmware_was_unsigned)
+        return false;
+
     // Check the signatures of the *new* firmware.
     uint32_t sig_status = signatures_ok();
-
-    // Restoring is fine if both the old and new firmwares are *un*signed.
-    if (old_firmware_was_unsigned)
-        return sig_status != SIG_OK;
 
     // Otherwise both the old and new must be signed by KeepKey in order to restore.
     return sig_status == SIG_OK;
