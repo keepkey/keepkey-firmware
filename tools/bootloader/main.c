@@ -44,6 +44,7 @@
 #include "keepkey/bootloader/usb_flash.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/variant/keepkey.h"
+#include "keepkey/variant/poweredBy.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -198,9 +199,7 @@ const VariantInfo *variant_getInfo(void) {
     }
 #include "keepkey/board/models.def"
 
-    // TODO: actually implement variant_poweredby
-    const VariantInfo *variant_poweredby = &variant_keepkey;
-    return variant_poweredby;
+    return &variant_poweredBy;
 }
 
 /*

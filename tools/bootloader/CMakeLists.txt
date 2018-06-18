@@ -18,7 +18,8 @@ if(NOT ${KK_EMULATOR})
   target_link_libraries(bootloader.elf
       kkboard
       kkboard.keepkey
-      -Wl,--whole-archive kkvariant.keepkey -Wl,--no-whole-archive
+      kkvariant.keepkey
+      kkvariant.poweredBy
       kktransport
       kkcrypto
       kkrand
