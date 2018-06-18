@@ -247,7 +247,7 @@ static bool boot(void)
     }
     else
     {
-        layout_simple_message("Please Reinstall Firmware");
+        layout_simple_message("Please visit keepkey.com/get-started");
         goto cancel_boot;
     }
 
