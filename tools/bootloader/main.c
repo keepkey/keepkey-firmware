@@ -194,7 +194,7 @@ const VariantInfo *variant_getInfo(void) {
         return &variant_keepkey;
 
 #define MODEL_KK(NUMBER) \
-    if (strcmp(model, (NUMBER))) { \
+    if (0 == strcmp(model, (NUMBER))) { \
         return &variant_keepkey; \
     }
 #include "keepkey/board/models.def"
@@ -232,6 +232,7 @@ static bool boot(void)
             }
 
             layout_home();
+            delay_ms(800);
 #endif
         }
 

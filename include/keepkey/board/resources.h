@@ -37,7 +37,6 @@ const VariantFrame *get_unplug_image(void);
 const VariantFrame *get_recovery_image(void);
 const VariantFrame *get_warning_image(void);
 
-const VariantAnimation *get_confirm_icon_animation(void);
 const VariantAnimation *get_confirming_animation(void);
 const VariantAnimation *get_loading_animation(void);
 const VariantAnimation *get_warning_animation(void);

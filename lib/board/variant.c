@@ -23,11 +23,11 @@ const VariantInfo * __attribute__((weak)) variant_getInfo(void) {
     if (!model)
         return &variant_keepkey;
 #define MODEL_KK(NUMBER) \
-    if (strcmp(model, (NUMBER))) { \
+    if (0 == strcmp(model, (NUMBER))) { \
         return &variant_keepkey; \
     } 
 #define MODEL_SALT(NUMBER) \
-    if (strcmp(model, (NUMBER))) { \
+    if (0 == strcmp(model, (NUMBER))) { \
         return &variant_salt; \
     }
 #include "keepkey/board/models.def"
