@@ -344,18 +344,8 @@ void layout_notification_icon(NotificationType type, DrawableParams *sp)
     switch(type)
     {
 
-        case NOTIFICATION_REQUEST: {
-            const VariantAnimation *anim = get_confirm_icon_animation();
-
-            layout_add_animation(
-                &layout_animate_images,
-                (void *)anim,
-                get_image_animation_duration(anim));
-            break;
-        }
-
+        case NOTIFICATION_REQUEST:
         case NOTIFICATION_REQUEST_NO_ANIMATION:
-
             draw_bitmap_mono_rle(canvas, get_confirm_icon_image(), false);
             break;
 
