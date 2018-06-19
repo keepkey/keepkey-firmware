@@ -55,7 +55,9 @@ static const MessagesMap_t MessagesMap[] =
 {
     /* Normal Messages */
     MSG_IN(MessageType_MessageType_Initialize,              Initialize_fields,          (message_handler_t)(handler_initialize), AnyVariant)
+    MSG_IN(MessageType_MessageType_GetFeatures,             GetFeatures_fields,         (message_handler_t)(handler_get_features), AnyVariant)
     MSG_IN(MessageType_MessageType_Ping,                    Ping_fields,                (message_handler_t)(handler_ping), AnyVariant)
+    MSG_IN(MessageType_MessageType_WipeDevice,              WipeDevice_fields,          (message_handler_t)(handler_wipe), AnyVariant)
     MSG_IN(MessageType_MessageType_FirmwareErase,           FirmwareErase_fields,       (message_handler_t)(handler_erase), AnyVariant)
     MSG_IN(MessageType_MessageType_ButtonAck,               ButtonAck_fields,           NO_PROCESS_FUNC, AnyVariant)
     MSG_IN(MessageType_MessageType_Cancel,                  Cancel_fields,              NO_PROCESS_FUNC, AnyVariant)
@@ -202,12 +204,19 @@ static bool should_restore(void) {
     if (SIG_FLAG == 0)
         return false;
 
+    // Don't restore if the old firmware was unsigned.
+    //
+    // This protects users of custom firmware from having their storage sectors
+    // dumped, but unfortunately means they'll have to re-load keys every time
+    // they update. Security >> conveniece.
+    //
+    // This also guarantees that when we read storage in an official firmware,
+    // it must have been written by an official firmware.
+    if (old_firmware_was_unsigned)
+        return false;
+
     // Check the signatures of the *new* firmware.
     uint32_t sig_status = signatures_ok();
-
-    // Restoring is fine if both the old and new firmwares are *un*signed.
-    if (old_firmware_was_unsigned)
-        return sig_status != SIG_OK;
 
     // Otherwise both the old and new must be signed by KeepKey in order to restore.
     return sig_status == SIG_OK;
@@ -425,6 +434,10 @@ void handler_initialize(Initialize *msg)
                                      resp.bootloader_hash.bytes,
                                      /*cached=*/false);
 
+    /* Firmware hash */
+    resp.has_firmware_hash = true;
+    resp.firmware_hash.size = memory_firmware_hash(resp.firmware_hash.bytes);
+
     resp.policies_count = 0;
 
     /* Smuggle debuglink state out via policies */
@@ -443,7 +456,80 @@ void handler_initialize(Initialize *msg)
 #endif
     resp.policies_count++;
 
+    /* Device model */
+    const char *model = flash_getModel();
+    if (model) {
+        resp.has_model = true;
+        strlcpy(resp.model, model, sizeof(resp.model));
+    }
+
     msg_write(MessageType_MessageType_Features, &resp);
+}
+
+/*
+ * handler_get_features() - Handler to respond to GetFeatures message
+ *
+ * INPUT -
+ *      - msg: GetFeatures protocol buffer message
+ * OUTPUT -
+ *      none
+ */
+void handler_get_features(GetFeatures *msg)
+{
+    (void)msg;
+    handler_initialize(0);
+}
+
+/*
+ * handler_wipe() - Handler to wipe secret storage
+ *
+ * INPUT -
+ *     - msg: WipeDevice protocol buffer message
+ * OUTPUT
+ *     none
+ *
+ */
+void handler_wipe(WipeDevice *msg)
+{
+    (void)msg;
+    if(!confirm(ButtonRequestType_ButtonRequest_WipeDevice, "Wipe Device",
+                "Do you want to erase your private keys and settings?"))
+    {
+        send_failure(FailureType_Failure_ActionCancelled, "Wipe cancelled");
+        layout_home();
+        return;
+    }
+
+    // Only erase the active sector, leaving the other two alone.
+    Allocation storage_loc = FLASH_INVALID;
+    if(find_active_storage(&storage_loc) && storage_loc != FLASH_INVALID) {
+        flash_unlock();
+        flash_erase_word(storage_loc);
+        flash_lock();
+    }
+
+    layout_home();
+    send_success("Device wiped");
+}
+
+/// \returns true iff the storage has been initialized
+static bool is_initialized(void) {
+    Allocation storage_loc = FLASH_INVALID;
+    if(find_active_storage(&storage_loc) && storage_loc != FLASH_INVALID)
+        return true;
+    return false;
+}
+
+/// \returns true iff the user has agreed to update their firmware
+static bool should_erase(void) {
+    if (is_initialized()) {
+        return confirm(ButtonRequestType_ButtonRequest_FirmwareErase,
+                       "Verify Backup",
+                       "Do you have your recovery sentence in case your private keys are erased?");
+    } else {
+        return confirm(ButtonRequestType_ButtonRequest_FirmwareErase,
+                       "Firmware Update", "Do you want to update your firmware?");
+    }
 }
 
 /*
@@ -458,12 +544,7 @@ void handler_initialize(Initialize *msg)
 void handler_erase(FirmwareErase *msg)
 {
     (void)msg;
-
-    if(confirm(ButtonRequestType_ButtonRequest_FirmwareErase,
-               "Verify Backup",
-               "Do you have your recovery sentence in case your private keys are erased?"))
-    {
-
+    if (should_erase()) {
         layout_simple_message("Preparing For Upgrade...");
 
         /* Save storage data in memory so it can be restored after firmware update */
@@ -476,9 +557,6 @@ void handler_erase(FirmwareErase *msg)
             {
                 flash_erase_word(i);
             }
-
-            /* Erase unused sectors */
-            flash_erase_word(FLASH_UNUSED0);
 
             /* Erase application section */
             flash_erase_word(FLASH_APP);

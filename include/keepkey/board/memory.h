@@ -20,7 +20,7 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
-/* === Includes ============================================================ */
+#include "keepkey/crypto/sha2.h"
 
 #include <stddef.h>
 #include <stdbool.h>
@@ -66,8 +66,6 @@
 
  flags & 0x01 -> restore storage after flashing (if signatures are ok)
  */
-
-/* === Defines ============================================================= */
 
 #define OPTION_BYTES_1 ((uint64_t *)0x1FFFC000)
 #define OPTION_BYTES_2 ((uint64_t *)0x1FFFC008)
@@ -145,7 +143,6 @@
 #define FLASH_APP_SECTOR_LAST   11
 
 #define STORAGE_SECT_DEFAULT FLASH_STORAGE1
-/* === Typedefs ============================================================ */
 
 /* Application Meta format */
 typedef struct
@@ -184,8 +181,6 @@ typedef struct
 
 typedef void (*progress_handler_t)(void);
 
-/* === Variables =========================================================== */
-
 static const FlashSector flash_sector_map[] =
 {
     { 0,  0x08000000, BSTRP_FLASH_SECT_LEN, FLASH_BOOTSTRAP },
@@ -203,7 +198,6 @@ static const FlashSector flash_sector_map[] =
     { -1, 0,          0,        FLASH_INVALID}
 };
 
-/* === Functions =========================================================== */
 
 void memory_protect(void);
 
@@ -220,6 +214,7 @@ void memory_unlock(void);
 int memory_bootloader_hash(uint8_t *hash, bool cached);
 
 int memory_firmware_hash(uint8_t *hash);
+const char *memory_firmware_hash_str(char digest[SHA256_DIGEST_STRING_LENGTH]);
 int memory_storage_hash(uint8_t *hash, Allocation storage_location);
 bool find_active_storage(Allocation *storage_location);
 

@@ -7,8 +7,8 @@ project(KeepKeyFirmware
         LANGUAGES C CXX ASM)
 
 set(BOOTLOADER_MAJOR_VERSION 1)
-set(BOOTLOADER_MINOR_VERSION 0)
-set(BOOTLOADER_PATCH_VERSION 4)
+set(BOOTLOADER_MINOR_VERSION 1)
+set(BOOTLOADER_PATCH_VERSION 0)
 
 option(KK_EMULATOR "Build the emulator" OFF)
 option(KK_DEBUG_LINK "Build with debug-link enabled" OFF)

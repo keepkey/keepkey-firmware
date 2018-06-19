@@ -221,19 +221,25 @@ static bool boot(void)
         {
             delay_ms(500);
 
-#if !MEMORY_PROTECT
-            if(!confirm_without_button_request("Unofficial Firmware",
-                                               "Do you want to continue booting?"))
+#ifdef DEBUG_ON
+            if (!confirm_without_button_request("Unofficial Firmware",
+                                                "Do you want to continue booting?"))
             {
-#endif
                 layout_simple_message("Boot Aborted");
                 goto cancel_boot;
-#if !MEMORY_PROTECT
+            }
+
+            char digest_str[SHA256_DIGEST_STRING_LENGTH];
+            if (!confirm_without_button_request("Confirm Unofficial Firmware", "%s",
+                                                memory_firmware_hash_str(digest_str)))
+#endif
+            {
+                layout_simple_message("Boot Aborted");
+                goto cancel_boot;
             }
 
             layout_home();
             delay_ms(800);
-#endif
         }
 
         led_func(CLR_RED_LED);
@@ -243,7 +249,7 @@ static bool boot(void)
     }
     else
     {
-        layout_simple_message("Please Reinstall Firmware");
+        layout_simple_message("Please visit keepkey.com/get-started");
         goto cancel_boot;
     }
 
@@ -310,7 +316,7 @@ int main(int argc, char *argv[])
     led_func(SET_GREEN_LED);
     led_func(SET_RED_LED);
 
-    dbg_print("\n\rKeepKey LLC, Copyright (C) 2015\n\r");
+    dbg_print("\n\rKeepKey LLC, Copyright (C) 2018\n\r");
     dbg_print("BootLoader Version %d.%d.%d\n\r", BOOTLOADER_MAJOR_VERSION,
               BOOTLOADER_MINOR_VERSION, BOOTLOADER_PATCH_VERSION);
 
