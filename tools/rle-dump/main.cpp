@@ -18,7 +18,7 @@ static const VariantImage confirm_icon_1_image = {
   .data = &confirm_icon_1_data[0]
 };
 
-static const VariantFrame confirm_icon_1_frame = {
+static const AnimationFrame confirm_icon_1_frame = {
     .x = 233,
     .y = 4,
     .duration = 1,

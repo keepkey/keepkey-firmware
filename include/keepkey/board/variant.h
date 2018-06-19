@@ -13,17 +13,17 @@ typedef struct VariantImage_ {
     const uint8_t *data;
 } VariantImage;
 
-typedef struct VariantFrame_ {
+typedef struct AnimationFrame_ {
     uint16_t x;
     uint16_t y;
     uint16_t duration;
     uint8_t color;
     const VariantImage *image;
-} VariantFrame;
+} AnimationFrame;
 
 typedef struct VariantAnimation_ {
     uint16_t count;
-    VariantFrame frames[];
+    AnimationFrame frames[];
 } VariantAnimation;
 
 typedef struct VariantInfo_ {

@@ -31,11 +31,11 @@
 
 /* === Functions =========================================================== */
 
-const VariantFrame *get_confirm_icon_image(void);
-const VariantFrame *get_confirmed_image(void);
-const VariantFrame *get_unplug_image(void);
-const VariantFrame *get_recovery_image(void);
-const VariantFrame *get_warning_image(void);
+const AnimationFrame *get_confirm_icon_frame(void);
+const AnimationFrame *get_confirmed_frame(void);
+const AnimationFrame *get_unplug_frame(void);
+const AnimationFrame *get_recovery_frame(void);
+const AnimationFrame *get_warning_frame(void);
 
 const VariantAnimation *get_confirming_animation(void);
 const VariantAnimation *get_loading_animation(void);

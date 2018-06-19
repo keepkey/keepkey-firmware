@@ -346,7 +346,7 @@ void layout_notification_icon(NotificationType type, DrawableParams *sp)
 
         case NOTIFICATION_REQUEST:
         case NOTIFICATION_REQUEST_NO_ANIMATION:
-            draw_bitmap_mono_rle(canvas, get_confirm_icon_image(), false);
+            draw_bitmap_mono_rle(canvas, get_confirm_icon_frame(), false);
             break;
 
         case NOTIFICATION_CONFIRM_ANIMATION: {
@@ -360,19 +360,19 @@ void layout_notification_icon(NotificationType type, DrawableParams *sp)
         }
 
         case NOTIFICATION_CONFIRMED:
-            draw_bitmap_mono_rle(canvas, get_confirmed_image(), false);
+            draw_bitmap_mono_rle(canvas, get_confirmed_frame(), false);
             break;
 
         case NOTIFICATION_UNPLUG:
             sp->x = 208;
             sp->y = 21;
-            draw_bitmap_mono_rle(canvas, get_unplug_image(), false);
+            draw_bitmap_mono_rle(canvas, get_unplug_frame(), false);
             break;
 
         case NOTIFICATION_RECOVERY:
             sp->x = 221;
             sp->y = 20;
-            draw_bitmap_mono_rle(canvas, get_recovery_image(), false);
+            draw_bitmap_mono_rle(canvas, get_recovery_frame(), false);
             break;
 
         case NOTIFICATION_INFO:
@@ -430,7 +430,7 @@ void layout_warning_static(const char *str)
     sp.color = TITLE_COLOR;
     draw_string(canvas, font, str, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
 
-    draw_bitmap_mono_rle(canvas, get_warning_image(), false);
+    draw_bitmap_mono_rle(canvas, get_warning_frame(), false);
 
     display_refresh();
 }
