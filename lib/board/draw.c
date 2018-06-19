@@ -301,7 +301,7 @@ bool draw_bitmap_mono_rle(Canvas *canvas, const AnimationFrame *frame, bool eras
         return false;
     }
 
-    const VariantImage *img = frame->image;
+    const Image *img = frame->image;
     const uint8_t color = erase ? 0x0 : frame->color;
 
     /* Check that image will fit in bounds */
