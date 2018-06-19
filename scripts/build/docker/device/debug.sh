@@ -7,10 +7,6 @@ IMAGETAG=kktech/firmware:v7
 
 docker pull $IMAGETAG
 
-if [ "$(whoami)" == "jenkins" ]; then COLOR='OFF'; else COLOR='ON'; fi
-
-echo "PWD is: $(pwd)"
-
 docker run -t \
   -v $(pwd):/root/keepkey-firmware:z \
   $IMAGETAG /bin/sh -c "\
@@ -18,7 +14,7 @@ docker run -t \
       cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
         -DCMAKE_BUILD_TYPE=Debug \
         -DKK_DEBUG_LINK=ON \
-        -DCMAKE_COLOR_MAKEFILE=$COLOR &&\
+        -DCMAKE_COLOR_MAKEFILE=ON &&\
       make && \
       mkdir -p /root/keepkey-firmware/bin && \
       cp bin/*.bin /root/keepkey-firmware/bin/ && \
