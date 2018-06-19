@@ -51,11 +51,16 @@
 #include <stdint.h>
 #include <string.h>
 
-/* === Private Variables =================================================== */
-
 static uint32_t *const SCB_VTOR = (uint32_t *)0xe000ed08;
 
-/* === Private Functions =================================================== */
+#define APP_VERSIONS "VERSION" \
+                      VERSION_STR(BOOTLOADER_MAJOR_VERSION)  "." \
+                      VERSION_STR(BOOTLOADER_MINOR_VERSION)  "." \
+                      VERSION_STR(BOOTLOADER_PATCH_VERSION)
+
+/* These variables will be used by host application to read the version info */
+static const char *const application_version
+__attribute__((used, section("version"))) = APP_VERSIONS;
 
 /*
  * set_vector_table_application() - Resets the vector table to point to the
