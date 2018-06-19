@@ -23,8 +23,11 @@
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/font.h"
 #include "keepkey/board/resources.h"
+#include "keepkey/firmware/fsm.h"
 
+#include <assert.h>
 #include <stddef.h>
+#include <string.h>
 
 /* === Functions =========================================================== */
 
@@ -288,90 +291,78 @@ void draw_box_simple(Canvas *canvas, uint8_t color, uint16_t x, uint16_t y, uint
  *
  * INPUT
  *     - canvas: canvas
- *     - p: pointer to Margins and text color
- *     - img: pointer to image drawn on the screen
+ *     - frame: pointer to animation frame
  * OUTPUT
  *     true/false whether image was drawn
  */
-bool draw_bitmap_mono_rle(Canvas *canvas, DrawableParams *p, const Image *img)
+bool draw_bitmap_mono_rle(Canvas *canvas, const AnimationFrame *frame, bool erase)
 {
-    bool ret_stat = false;
-    int x0, y0;
-    int8_t sequence = 0;
-    int8_t nonsequence = 0;
-    static uint8_t image_data[KEEPKEY_DISPLAY_WIDTH * KEEPKEY_DISPLAY_HEIGHT];
-
-    int start_index = (p->y * canvas->width) + p->x;
-    uint8_t *canvas_pixel = &canvas->buffer[ start_index ];
-
-
-    /* Get image data */
-    img->get_image_data(image_data);
-
-    /* Check that image will fit in bounds */
-    if(((img->width + p->x) <= canvas->width) &&
-            ((img->height + p->y) <= canvas->height))
-    {
-        const uint8_t *img_pixel = &image_data[0];
-        const uint8_t *img_end = &image_data[img->width * img->height]; 
-
-        for(y0 = 0; y0 < img->height; y0++)
-        {
-            for(x0 = 0; x0 < img->width; x0++)
-            {
-                if((sequence == 0) && (nonsequence == 0))
-                {
-                    if (img_pixel >= img_end){
-                        return false; // defensive bounds check
-                    }
-                    sequence = *img_pixel++;
-
-                    if(sequence < 0)
-                    {
-                        nonsequence = -sequence;
-                        sequence = 0;
-                    }
-                }
-
-                if(sequence > 0)
-                {
-                    if (img_pixel >= img_end){
-                        return false; // defensive bounds check
-                    }
-
-                    *canvas_pixel = *img_pixel;
-
-                    sequence--;
-
-                    if(sequence == 0)
-                    {
-                        if (img_pixel >= img_end){
-                            return false; // defensive bounds check
-                        }
-                        img_pixel++;
-                    }
-                }
-
-                if(nonsequence > 0)
-                {
-                    if (img_pixel >= img_end){
-                        return false; // defensive bounds check
-                    }
-
-                    *canvas_pixel = *img_pixel++;
-
-                    nonsequence--;
-                }
-
-                canvas_pixel++;
-            }
-
-            canvas_pixel += (canvas->width - img->width);
-        }
-
-        canvas->dirty = true;
-        ret_stat = true;
+    if (frame == NULL) {
+        return false;
     }
 
-    return(ret_stat);
+    const Image *img = frame->image;
+    const uint8_t color = erase ? 0x0 : frame->color;
+
+    /* Check that image will fit in bounds */
+    if(((img->w + frame->x) > canvas->width) ||
+            ((img->h + frame->y) > canvas->height))
+    {
+        return false;
+    }
+
+    int8_t sequence = 0;
+    int8_t nonsequence = 0;
+    uint32_t pixel_index = 0;
+
+    for(int y0 = 0; y0 < img->h; y0++)
+    {
+        for(int x0 = 0; x0 < img->w; x0++)
+        {
+
+            if (pixel_index >= img->length){
+                return false; // defensive bounds check
+            }
+
+            // sequence > 0 implies the next x pixels are the same
+            // sequence < 0 implies the next -x pixels are all different
+            if((sequence == 0) && (nonsequence == 0))
+            {
+                sequence = img->data[pixel_index];
+                pixel_index++;
+
+                if(sequence < 0)
+                {
+                    nonsequence = -sequence;
+                    sequence = 0;
+                }
+            }
+
+            if (pixel_index >= img->length){
+                return false; // defensive bounds check
+            }
+
+            const uint32_t canvas_index = ((frame->y + y0) * canvas->width) + frame->x + x0;
+            canvas->buffer[canvas_index] = (uint8_t)((int)img->data[pixel_index] * color / 100);
+
+            if(sequence > 0)
+            {
+                sequence--;
+                if(sequence == 0)
+                {
+                    pixel_index++;
+                }
+            } 
+            else 
+            { 
+                assert(nonsequence > 0);
+                pixel_index++;
+                nonsequence--;
+            }
+        }
+    }
+
+    canvas->dirty = true;
+    return true;
 }
+

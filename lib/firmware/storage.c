@@ -302,7 +302,7 @@ storage_get_root_seed_cache_exit:
  */
 void storage_init(void)
 {
-    if (strcmp("MFR", variant_name()) == 0)
+    if (strcmp("MFR", variant_getName()) == 0)
     {
         // Storage should have been wiped due to the MANUFACTURER firmware
         // having a STORAGE_VERSION of 0, but to be absolutely safe and

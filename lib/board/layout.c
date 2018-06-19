@@ -26,6 +26,8 @@
 #include "keepkey/board/layout.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/timer.h"
+#include "keepkey/board/variant.h"
+#include "keepkey/firmware/fsm.h"
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -55,24 +57,13 @@ static void layout_home_helper(bool reversed)
 {
     layout_clear();
 
-    static AnimationImageDrawableParams logo;
-
-    logo.base.x = get_logo_base_x();
-    logo.base.y = 10;
-
-    if(reversed)
-    {
-        logo.img_animation = get_logo_reversed_animation();
-    }
-    else
-    {
-        logo.img_animation = get_logo_animation();
-    }
+    const VariantAnimation *logo;
+    logo = variant_getLogo(reversed);
 
     layout_add_animation(
         &layout_animate_images,
-        (void *)&logo,
-        get_image_animation_duration(logo.img_animation));
+        (void *)logo,
+        get_image_animation_duration(logo));
 
     while(is_animating())
     {
@@ -349,55 +340,39 @@ void layout_standard_notification(const char *str1, const char *str2,
  */
 void layout_notification_icon(NotificationType type, DrawableParams *sp)
 {
-    /* Determine animation/icon to show */
-    static AnimationImageDrawableParams icon;
 
     switch(type)
     {
+
         case NOTIFICATION_REQUEST:
-            icon.base.x = 233;
-            icon.base.y = 4;
-            icon.img_animation = get_confirm_icon_animation();
-
-            layout_add_animation(
-                &layout_animate_images,
-                (void *)&icon,
-                get_image_animation_duration(icon.img_animation));
-            break;
-
         case NOTIFICATION_REQUEST_NO_ANIMATION:
-            sp->x = 233;
-            sp->y = 4;
-            draw_bitmap_mono_rle(canvas, sp, get_confirm_icon_image());
+            draw_bitmap_mono_rle(canvas, get_confirm_icon_frame(), false);
             break;
 
-        case NOTIFICATION_CONFIRM_ANIMATION:
-            icon.base.x = 231;
-            icon.base.y = 2;
-            icon.img_animation = get_confirming_animation();
+        case NOTIFICATION_CONFIRM_ANIMATION: {
+            const VariantAnimation *anim = get_confirming_animation();
 
             layout_add_animation(
                 &layout_animate_images,
-                (void *)&icon,
-                get_image_animation_duration(icon.img_animation));
+                (void *)anim,
+                get_image_animation_duration(anim));
             break;
+        }
 
         case NOTIFICATION_CONFIRMED:
-            sp->x = 231;
-            sp->y = 2;
-            draw_bitmap_mono_rle(canvas, sp, get_confirmed_image());
+            draw_bitmap_mono_rle(canvas, get_confirmed_frame(), false);
             break;
 
         case NOTIFICATION_UNPLUG:
             sp->x = 208;
             sp->y = 21;
-            draw_bitmap_mono_rle(canvas, sp, get_unplug_image());
+            draw_bitmap_mono_rle(canvas, get_unplug_frame(), false);
             break;
 
         case NOTIFICATION_RECOVERY:
             sp->x = 221;
             sp->y = 20;
-            draw_bitmap_mono_rle(canvas, sp, get_recovery_image());
+            draw_bitmap_mono_rle(canvas, get_recovery_frame(), false);
             break;
 
         case NOTIFICATION_INFO:
@@ -429,10 +404,7 @@ void layout_warning(const char *str)
     sp.color = TITLE_COLOR;
     draw_string(canvas, font, str, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
 
-    static AnimationImageDrawableParams warning;
-    warning.img_animation = get_warning_animation();
-    warning.base.y = 7;
-    warning.base.x = 107;
+    const VariantAnimation *warning = get_warning_animation();
     layout_add_animation(&layout_animate_images, (void *)&warning, 0);
 }
 
@@ -458,9 +430,7 @@ void layout_warning_static(const char *str)
     sp.color = TITLE_COLOR;
     draw_string(canvas, font, str, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
 
-    sp.x = 107;
-    sp.y = 7;
-    draw_bitmap_mono_rle(canvas, &sp, get_warning_image());
+    draw_bitmap_mono_rle(canvas, get_warning_frame(), false);
 
     display_refresh();
 }
@@ -563,15 +533,16 @@ void layout_home_reversed(void)
  */
 void layout_loading(void)
 {
-    static AnimationImageDrawableParams loading_animation;
+    const VariantAnimation *loading_animation = get_loading_animation();
+    
 
     call_leaving_handler();
     layout_clear();
 
-    loading_animation.img_animation = get_loading_animation();
-    loading_animation.base.x = 83;
-    loading_animation.base.y = 29;
-    layout_add_animation(&layout_animate_images, (void *)&loading_animation, 0);
+    layout_add_animation(
+            &layout_animate_images, 
+            (void *)loading_animation, 
+            0);
     force_animation_start();
 }
 
@@ -638,6 +609,7 @@ bool is_animating(void)
  * layout_animate_images() - Animate image on display
  *
  * INPUT
+ *      TODO: remove void pointer
  *     - data: pointer to image
  *     - duration: duration of the image animation
  *     - elapsed: delay before drawing the image
@@ -646,21 +618,15 @@ bool is_animating(void)
  */
 void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed)
 {
-    const Image *img;
-    AnimationImageDrawableParams *animation_img_params = (AnimationImageDrawableParams *)data;
+    const VariantAnimation *animation = (const VariantAnimation *)data;
 
-    if(duration == 0)  // looping
-    {
-        img = get_image_animation_frame(animation_img_params->img_animation, elapsed, true);
-    }
-    else
-    {
-        img = get_image_animation_frame(animation_img_params->img_animation, elapsed, false);
-    }
+    bool looping = duration == 0;
+    int frameNum = get_image_animation_frame(animation, elapsed, looping);
 
-    if(img != NULL)
+    if(frameNum != -1 && frameNum < animation->count)
     {
-        draw_bitmap_mono_rle(canvas, &animation_img_params->base, img);
+        draw_bitmap_mono_rle(canvas, &animation->frames[(frameNum+animation->count-1)%animation->count], true);
+        draw_bitmap_mono_rle(canvas, &animation->frames[frameNum], false);
     }
 }
 

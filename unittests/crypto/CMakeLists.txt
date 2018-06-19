@@ -12,6 +12,9 @@ target_link_libraries(crypto-unit
     kkfirmware.keepkey
     kkboard
     kkboard.keepkey
+    kkvariant.keepkey
+    kkvariant.salt
+    kkboard
     kkcrypto
     kkrand
     kktransport)

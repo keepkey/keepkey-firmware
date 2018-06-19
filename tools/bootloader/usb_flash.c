@@ -25,6 +25,7 @@
 #include "keepkey/board/keepkey_usart.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/pubkeys.h"
 #include "keepkey/board/usb_driver.h"
 #include "keepkey/bootloader/signatures.h"
 #include "keepkey/bootloader/usb_flash.h"

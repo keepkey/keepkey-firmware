@@ -451,7 +451,7 @@ void fsm_msgGetFeatures(GetFeatures *msg)
 
     /* Variant Name */
     resp->has_firmware_variant = true;
-    strlcpy(resp->firmware_variant, variant_name(), sizeof(resp->firmware_variant));
+    strlcpy(resp->firmware_variant, variant_getName(), sizeof(resp->firmware_variant));
 
     /* Security settings */
     resp->has_pin_protection = true; resp->pin_protection = storage_has_pin();

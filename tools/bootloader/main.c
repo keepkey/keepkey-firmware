@@ -27,20 +27,24 @@
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/cm3/cortex.h>
 
-
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_button.h"
 #include "keepkey/board/keepkey_display.h"
+#include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/keepkey_leds.h"
 #include "keepkey/board/keepkey_usart.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/memory.h"
+#include "keepkey/board/pubkeys.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/usb_driver.h"
+#include "keepkey/board/variant.h"
 #include "keepkey/bootloader/signatures.h"
 #include "keepkey/bootloader/usb_flash.h"
 #include "keepkey/rand/rng.h"
+#include "keepkey/variant/keepkey.h"
+#include "keepkey/variant/poweredBy.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -177,6 +181,27 @@ static bool magic_ok(void)
 #endif
 }
 
+const VariantInfo *variant_getInfo(void) {
+    // Override the weak defintion of variant_getInfo provided by libkkboard to
+    // disallow loading the VariantInfo provided by sector 4 of flash. We do
+    // this so that if there's ever a case where the upload of it got
+    // corrupted, then we want the bootloader to have its own fallback baked
+    // in. That way, we'll be able to use normal firmware upload mechanisms to
+    // fix the situation, rather than having completely bricked the device.
+
+    const char *model = flash_getModel();
+    if (!model)
+        return &variant_keepkey;
+
+#define MODEL_KK(NUMBER) \
+    if (0 == strcmp(model, (NUMBER))) { \
+        return &variant_keepkey; \
+    }
+#include "keepkey/board/models.def"
+
+    return &variant_poweredBy;
+}
+
 /*
  *  boot() - Runs through application firmware checking, and then boots
  *
@@ -207,6 +232,7 @@ static bool boot(void)
             }
 
             layout_home();
+            delay_ms(800);
 #endif
         }
 

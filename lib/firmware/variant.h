@@ -24,10 +24,7 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-typedef struct ImageAnimation_ ImageAnimation;
-const ImageAnimation *variant_getScreensaverAnimation(void);
-
-const char *variant_name(void);
+const char *variant_getName(void);
 
 /// Perform a soft reset
 void variant_mfr_softReset(void) __attribute__((weak));

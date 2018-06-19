@@ -20,17 +20,6 @@
 #ifndef SIGNATURES_H
 #define SIGNATURES_H
 
-/* === Defines ============================================================= */
-
-#define PUBKEYS 5
-#define PUBKEY_LENGTH 65
-#define SIGNATURES 3
-
-#define SIG_OK      0x5A3CA5C3
-#define SIG_FAIL    0x00000000
-
-/* === Functions =========================================================== */
-
 int signatures_ok(void);
 
 #endif
