@@ -23,9 +23,9 @@ if(NOT ${KK_EMULATOR})
   add_executable(display_test.elf ${sources})
   target_link_libraries(display_test.elf
       kkfirmware
-      -Wl,--whole-archive kkfirmware.keepkey -Wl,--no-whole-archive
+      kkfirmware.keepkey
       kkboard
-      -Wl,--whole-archive kkboard.keepkey -Wl,--no-whole-archive
+      kkboard.keepkey
       kktransport
       kkcrypto
       kkrand
