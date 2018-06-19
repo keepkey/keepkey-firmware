@@ -221,6 +221,7 @@ static bool boot(void)
         {
             delay_ms(500);
 
+#ifdef DEBUG_ON
             if (!confirm_without_button_request("Unofficial Firmware",
                                                 "Do you want to continue booting?"))
             {
@@ -231,6 +232,7 @@ static bool boot(void)
             char digest_str[SHA256_DIGEST_STRING_LENGTH];
             if (!confirm_without_button_request("Confirm Unofficial Firmware", "%s",
                                                 memory_firmware_hash_str(digest_str)))
+#endif
             {
                 layout_simple_message("Boot Aborted");
                 goto cancel_boot;
