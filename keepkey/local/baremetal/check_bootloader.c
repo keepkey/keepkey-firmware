@@ -42,6 +42,11 @@ static enum BL_Kind check_bootloader_kind(void) {
 #if defined(DEBUG_ON)
     return BL_PATCH_APPLIED;
 #else
+    // Hotpatch unnecessary
+    // ---------------------
+    if (0 == memcmp(bl_hash, "\x39\x1d\xf8\x7f\xb8\xa6\x90\xb2\x8b\xf5\xea\xaa\xce\x70\x98\xb8\x18\x6b\x3a\x45\x2f\x57\xbd\x6b\xa8\x9c\x29\x12\x02\x1b\xa1\x03", 32))
+        return BL_PATCH_APPLIED; // v1.1.0, hotpatch unnecessary
+
     // Fixed bootloaders
     // ---------------------
     if (0 == memcmp(bl_hash, "\xf1\x3c\xe2\x28\xc0\xbb\x2b\xdb\xc5\x6b\xdc\xb5\xf4\x56\x93\x67\xf8\xe3\x01\x10\x74\xcc\xc6\x33\x31\x34\x8d\xeb\x49\x8f\x2d\x8f", 32))
