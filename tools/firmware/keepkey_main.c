@@ -105,6 +105,11 @@ int main(void)
     /* Bootloader hotpatching */
     check_bootloader();
 
+    /* Program the model into OTP, if we're not in screen-test mode, and it's
+     * not already there
+     */
+    (void)flash_programModel();
+
     /* Init for safeguard against stack overflow (-fstack-protector-all) */
     __stack_chk_guard = (uintptr_t)random32();
 
