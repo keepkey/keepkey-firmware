@@ -303,6 +303,8 @@ const char *flash_programModel(void) {
         return ret;
 
     switch (get_bootloaderKind()) {
+    case BLK_v1_1_0:
+        return "No Model";
     case BLK_UNKNOWN:
         return "Unknown";
     case BLK_v1_0_0:

@@ -45,6 +45,11 @@ static enum BL_Status check_bootloader_status(void) {
     if (32 != memory_bootloader_hash(bl_hash, /*cached=*/ false))
         return BL_UNKNOWN;
 
+    // Hotpatch unnecessary
+    // --------------------
+    if (0 == memcmp(bl_hash, bl_hash_v1_1_0, 32))
+        return BL_PATCH_APPLIED; // bl_hash_v1.1.0, KeepKey + PoweredBy
+
     // Fixed bootloaders
     // ---------------------
     if (0 == memcmp(bl_hash, bl_hash_v1_0_0_hotpatched, 32))

@@ -117,6 +117,7 @@ static bool unknown_bootloader(void) {
     case BLK_v1_0_3_sig:
     case BLK_v1_0_3_elf:
     case BLK_v1_0_4:
+    case BLK_v1_1_0:
         return false;
     }
 
