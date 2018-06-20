@@ -241,3 +241,16 @@ bool set_mfg_mode_off(void)
     }
     return(ret_val);
 }
+
+const char *flash_getModel(void) {
+#ifndef EMULATOR
+    if (*((uint8_t*)OTP_MODEL_ADDR) == 0xFF)
+        return NULL;
+
+    return (char*)OTP_MODEL_ADDR;
+#else
+    // TODO: actually make this settable in the emulator
+    return "K1-14AM";
+#endif
+}
+

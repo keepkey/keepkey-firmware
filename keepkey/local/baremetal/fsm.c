@@ -380,6 +380,18 @@ void fsm_msgInitialize(Initialize *msg)
     fsm_msgGetFeatures(0);
 }
 
+static const char *model(void) {
+    const char *ret = flash_getModel();
+    if (ret)
+        return ret;
+
+#ifdef SALT_WHITELABEL
+    return "K1-14WL-S";
+#else
+    return "K1-14AM";
+#endif
+}
+
 void fsm_msgGetFeatures(GetFeatures *msg)
 {
     (void)msg;
@@ -398,12 +410,16 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     resp->has_device_id = true;
     strlcpy(resp->device_id, storage_get_uuid_str(), sizeof(resp->device_id));
 
-    
+    /* Model */
     resp->has_model = true;
+    strlcpy(resp->model, model(), sizeof(resp->model));
+
+    /* Variant Name */
+    resp->has_firmware_variant = true;
 #ifdef SALT_WHITELABEL
-    strlcpy(resp->model, "K1-14WL-S", sizeof(resp->model));
+    strlcpy(resp->firmware_variant, "SALT", sizeof(resp->firmware_variant));
 #else
-    strlcpy(resp->model, "K1-14AM", sizeof(resp->model));
+    strlcpy(resp->firmware_variant, "KeepKey", sizeof(resp->firmware_variant));
 #endif
 
     /* Security settings */
@@ -421,6 +437,10 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     resp->has_bootloader_hash = true;
     resp->bootloader_hash.size = memory_bootloader_hash(
                                      resp->bootloader_hash.bytes);
+
+    /* Firmware hash */
+    resp->has_firmware_hash = true;
+    resp->firmware_hash.size = memory_firmware_hash(resp->firmware_hash.bytes);
 
     /* Settings for device */
     if(storage_get_language())
