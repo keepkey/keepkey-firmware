@@ -10,7 +10,7 @@ CoinType.signed_message_header          max_size:32
 CoinType.contract_address               max_size:128
 CoinType.gas_limit			max_size:32
 
-CoinTable.table				max_count:40
+CoinTable.table				max_count:41
 
 TxInputType.address_n			max_count:8
 TxInputType.prev_hash			max_size:32
