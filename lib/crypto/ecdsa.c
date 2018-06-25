@@ -22,6 +22,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "keepkey/crypto/address.h"
 #include "keepkey/crypto/bignum.h"
 #include "keepkey/crypto/sha2.h"
 #include "keepkey/crypto/ripemd160.h"
@@ -861,38 +862,43 @@ void ecdsa_get_pubkeyhash(const uint8_t *pub_key, uint8_t *pubkeyhash)
 	MEMSET_BZERO(h, sizeof(h));
 }
 
-void ecdsa_get_address_raw(const uint8_t *pub_key, uint8_t version, uint8_t *addr_raw)
+void ecdsa_get_address_raw(const uint8_t *pub_key, uint32_t version, uint8_t *addr_raw)
 {
-	addr_raw[0] = version;
-	ecdsa_get_pubkeyhash(pub_key, addr_raw + 1);
+	size_t prefix_len = address_prefix_bytes_len(version);
+	address_write_prefix_bytes(version, addr_raw);
+	ecdsa_get_pubkeyhash(pub_key, addr_raw + prefix_len);
 }
 
-void ecdsa_get_address(const uint8_t *pub_key, uint8_t version, char *addr, int addrsize)
+void ecdsa_get_address(const uint8_t *pub_key, uint32_t version, char *addr, int addrsize)
 {
-	uint8_t raw[21];
+	uint8_t raw[MAX_ADDR_RAW_SIZE];
+	size_t prefix_len = address_prefix_bytes_len(version);
 	ecdsa_get_address_raw(pub_key, version, raw);
-	base58_encode_check(raw, 21, addr, addrsize);
+	base58_encode_check(raw, 20 + prefix_len, addr, addrsize);
 
 	// not as important to clear this one, but we might as well
 	MEMSET_BZERO(raw, sizeof(raw));
 }
 
-void ecdsa_get_wif(const uint8_t *priv_key, uint8_t version, char *wif, int wifsize)
+void ecdsa_get_wif(const uint8_t *priv_key, uint32_t version, char *wif, int wifsize)
 {
-	uint8_t data[34];
-	data[0] = version;
-	memcpy(data + 1, priv_key, 32);
-	data[33] = 0x01;
-	base58_encode_check(data, 34, wif, wifsize);
+	uint8_t wif_raw[MAX_WIF_RAW_SIZE];
+	size_t prefix_len = address_prefix_bytes_len(version);
+	address_write_prefix_bytes(version, wif_raw);
+	memcpy(wif_raw + prefix_len, priv_key, 32);
+	wif_raw[prefix_len + 32] = 0x01;
+	base58_encode_check(wif_raw, prefix_len + 32 + 1, wif, wifsize);
 
 	// private keys running around our stack can cause trouble
-	MEMSET_BZERO(data, sizeof(data));
+	MEMSET_BZERO(wif_raw, sizeof(wif_raw));
 }
 
-int ecdsa_address_decode(const char *addr, uint8_t *out)
+int ecdsa_address_decode(const char *addr, uint32_t version, uint8_t *out)
 {
 	if (!addr) return 0;
-	return base58_decode_check(addr, out, 21) == 21;
+	int prefix_len = address_prefix_bytes_len(version);
+	return base58_decode_check(addr, out, 20 + prefix_len) == 20 + prefix_len
+	        && address_check_prefix(out, version);
 }
 
 void uncompress_coords(const ecdsa_curve *curve, uint8_t odd, const bignum256 *x, bignum256 *y)

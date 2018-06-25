@@ -142,7 +142,7 @@ const CoinType *coinByName(const char *name)
     return 0;
 }
 
-const CoinType *coinByAddressType(uint8_t address_type)
+const CoinType *coinByAddressType(uint32_t address_type)
 {
     int i;
 

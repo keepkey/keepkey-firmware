@@ -1288,7 +1288,7 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
     layout_simple_message("Verifying Message...");
     uint8_t addr_raw[21];
 
-    if(!ecdsa_address_decode(msg->address, addr_raw))
+    if(!ecdsa_address_decode(msg->address, coin->address_type, addr_raw))
     {
         fsm_sendFailure(FailureType_Failure_InvalidSignature, "Invalid address");
     }

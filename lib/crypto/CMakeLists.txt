@@ -1,4 +1,5 @@
 set(sources
+    address.c
     aes_modes.c
     aescrypt.c
     aeskey.c
