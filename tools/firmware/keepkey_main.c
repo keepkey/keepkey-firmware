@@ -134,7 +134,10 @@ int main(void)
     led_func(CLR_RED_LED);
 
     reset_idle_time();
-    go_home_forced();
+
+    /* Redraw the screen if we are coming from the whitelabel bootloader image */
+    if (getModel() != MODEL_KEEPKEY)
+        go_home_forced();
 
     while(1)
     {

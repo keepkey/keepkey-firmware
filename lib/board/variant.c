@@ -18,20 +18,37 @@ static const VariantAnimation *logo_reversed;
 static const char *name;
 static const uint32_t *screensaver_timeout;
 
-const VariantInfo * __attribute__((weak)) variant_getInfo(void) {
+// Retrieves model information from storage
+Model getModel(void) {
+
     const char *model = flash_getModel();
     if (!model)
-        return &variant_keepkey;
-#define MODEL_KK(NUMBER) \
-    if (0 == strcmp(model, (NUMBER))) { \
-        return &variant_keepkey; \
-    } 
-#define MODEL_SALT(NUMBER) \
-    if (0 == strcmp(model, (NUMBER))) { \
-        return &variant_salt; \
+	return MODEL_UNKNOWN;
+#define MODEL_ENTRY_KK(STRING, ENUM) \
+    if (0 == strcmp(model, (STRING))) { \
+        return MODEL_KEEPKEY; \
+    }
+#define MODEL_ENTRY_SALT(STRING, ENUM) \
+    if (0 == strcmp(model, (STRING))) { \
+        return MODEL_SALT; \
+    }
+#define MODEL_ENTRY_FOX(STRING, ENUM) \
+    if (0 == strcmp(model, (STRING))) { \
+	return MODEL_FOX; \
     }
 #include "keepkey/board/models.def"
 
+    return MODEL_UNKNOWN;
+}
+
+const VariantInfo * __attribute__((weak)) variant_getInfo(void) {
+
+    switch (getModel()) {
+    case MODEL_KEEPKEY: return &variant_keepkey;
+    case MODEL_SALT: return &variant_salt;
+    case MODEL_FOX: return &variant_keepkey;
+    case MODEL_UNKNOWN: return &variant_keepkey;
+    }
     return &variant_keepkey;
 }
 

@@ -313,16 +313,16 @@ const char *flash_programModel(void) {
     case BLK_v1_0_3:
     case BLK_v1_0_3_sig:
     case BLK_v1_0_3_elf: {
-#define MODEL_KK(NUMBER) \
-        static const char model[32] = (NUMBER);
+#define MODEL_ENTRY_KK(STRING, ENUM) \
+        static const char model[32] = (STRING);
 #include "keepkey/board/models.def"
         if (!is_mfg_mode())
             (void)flash_setModel(&model);
         return model;
     }
     case BLK_v1_0_4: {
-#define MODEL_SALT(NUMBER) \
-        static const char model[32] = (NUMBER);
+#define MODEL_ENTRY_SALT(STRING, ENUM) \
+        static const char model[32] = (STRING);
 #include "keepkey/board/models.def"
         if (!is_mfg_mode())
             (void)flash_setModel(&model);

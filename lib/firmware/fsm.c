@@ -487,8 +487,8 @@ void fsm_msgGetFeatures(GetFeatures *msg)
 }
 
 static bool isValidModelNumber(const char *model) {
-#define MODEL(NUMBER) \
-    if (!strcmp(model, NUMBER)) \
+#define MODEL_ENTRY(STRING, ENUM) \
+    if (!strcmp(model, STRING)) \
         return true;
 #include "keepkey/board/models.def"
     return false;

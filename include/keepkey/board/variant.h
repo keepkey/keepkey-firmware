@@ -43,6 +43,16 @@ typedef struct SignedVariantInfo_ {
     VariantInfo info;
 } SignedVariantInfo;
 
+typedef enum Model_ {
+    MODEL_UNKNOWN,
+    #define MODEL_ENTRY(STRING, ENUM) \
+        MODEL_ ##ENUM,
+    #include "keepkey/board/models.def"
+} Model;
+
+/// Get the model of the device (Keepkey/SALT/etc)
+Model getModel(void);
+
 /// Get the VariantInfo from sector 4 of flash (if it exists), otherwise
 /// fallback on keepkey imagery.
 const VariantInfo *variant_getInfo(void) __attribute__((weak));
