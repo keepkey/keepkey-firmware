@@ -3,6 +3,7 @@ pipeline {
     stages {
         stage('Debug Firmware') {
             steps {
+                githubNotify status:"PENDING", description:"Debug Build"
                 ansiColor('xterm') {
                     sh '''
                         rm -rf bin
@@ -15,16 +16,13 @@ pipeline {
                     archiveArtifacts artifacts: 'debug.tar.bz2', fingerprint: true
                 }
                 failure {
-                    script {
-                        if (env.CHANGE_ID) {
-                            pullRequest.comment("Build ${env.BUILD_ID} - Failed 🚨")
-                        }
-                    }
+                    githubNotify status:"FAILURE", description:"Debug Build Failed"
                 }
             }
         }
         stage('Release Firmware') {
             steps {
+                githubNotify status:"PENDING", description:"Release Build"
                 ansiColor('xterm') {
                     sh '''
                         rm -rf bin
@@ -57,16 +55,13 @@ pipeline {
                             yaxisMinimum: ''
                 }
                 failure {
-                    script {
-                        if (env.CHANGE_ID) {
-                            pullRequest.comment("Build ${env.BUILD_ID} - Failed 🚨")
-                        }
-                    }
+                    githubNotify status:"FAILURE", description:"Release Build Failed"
                 }
             }
         }
         stage('Debug Emulator + Unittests') {
             steps {
+                githubNotify status:"PENDING", description:"Emulator Build"
                 ansiColor('xterm') {
                     sh '''
                         ./scripts/build/docker/emulator/debug.sh'''
@@ -82,11 +77,7 @@ pipeline {
             }
             post {
                 failure {
-                    script {
-                        if (env.CHANGE_ID) {
-                            pullRequest.comment("Build ${env.BUILD_ID} - Failed 🚨")
-                        }
-                    }
+                    githubNotify status:"FAILURE", description:"Emulator Build Failed"
                 }
             }
         }
@@ -94,11 +85,7 @@ pipeline {
             steps { sh '''echo "Success!"''' }
             post {
                 always {
-                    script {
-                        if (env.CHANGE_ID) {
-                            pullRequest.comment("Build ${env.BUILD_ID} - Success! 😍🦊")
-                        }
-                    }
+                    githubNotify status:"SUCCESS", description:"Build Success!"
                 }
             }
         }
