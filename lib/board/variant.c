@@ -23,7 +23,7 @@ Model getModel(void) {
 
     const char *model = flash_getModel();
     if (!model)
-	return MODEL_UNKNOWN;
+        return MODEL_UNKNOWN;
 #define MODEL_ENTRY_KK(STRING, ENUM) \
     if (0 == strcmp(model, (STRING))) { \
         return MODEL_KEEPKEY; \
@@ -34,7 +34,7 @@ Model getModel(void) {
     }
 #define MODEL_ENTRY_FOX(STRING, ENUM) \
     if (0 == strcmp(model, (STRING))) { \
-	return MODEL_FOX; \
+        return MODEL_FOX; \
     }
 #include "keepkey/board/models.def"
 
