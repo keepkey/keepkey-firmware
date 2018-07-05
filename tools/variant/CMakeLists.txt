@@ -26,4 +26,11 @@ if(NOT ${KK_EMULATOR})
           ${CMAKE_BINARY_DIR}/bin/variant.salt.elf
           ${CMAKE_BINARY_DIR}/bin/variant.salt.bin)
 
+  add_executable(variant.fox.elf fox.c)
+  add_custom_command(TARGET variant.fox.elf
+      POST_BUILD
+      COMMAND ${CMAKE_OBJCOPY} ARGS -O binary
+          ${CMAKE_BINARY_DIR}/bin/variant.fox.elf
+          ${CMAKE_BINARY_DIR}/bin/variant.fox.bin)
+
 endif()
