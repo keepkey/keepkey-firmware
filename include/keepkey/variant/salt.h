@@ -4,7 +4,6 @@
 #include "keepkey/board/variant.h"
 
 #define VARIANTINFO_SALT \
-    .magic = VARIANTINFO_MAGIC, \
     .version = 1, \
     .name = "SALT", \
     .logo = &salt_logo, \

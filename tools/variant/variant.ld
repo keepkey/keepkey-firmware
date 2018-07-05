@@ -1,6 +1,6 @@
 MEMORY
 {
-    rom (rx)  : ORIGIN = 0x08010000, LENGTH = 0x0001FFFF
+    rom (rx)  : ORIGIN = 0x08010100, LENGTH = 0x0001FFFF-0x100
 }
 
 SECTIONS

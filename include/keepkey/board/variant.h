@@ -1,11 +1,14 @@
 #ifndef KEEPKEY_VARIANT_VARIANT_H
 #define KEEPKEY_VARIANT_VARIANT_H
 
+#include "keepkey/board/memory.h"
+
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
 
 #define VARIANTINFO_MAGIC "KKWL"
+
 typedef struct Image_ {
     uint16_t w;
     uint16_t h;
@@ -27,7 +30,6 @@ typedef struct VariantAnimation_ {
 } VariantAnimation;
 
 typedef struct VariantInfo_ {
-    char magic[4];
     uint16_t version;
     const char *name;
     const VariantAnimation *logo;
@@ -37,9 +39,7 @@ typedef struct VariantInfo_ {
 } VariantInfo;
 
 typedef struct SignedVariantInfo_ {
-    uint8_t sigindex;
-    uint8_t sig[64];
-    uint32_t length;
+    app_meta_td meta;
     VariantInfo info;
 } SignedVariantInfo;
 

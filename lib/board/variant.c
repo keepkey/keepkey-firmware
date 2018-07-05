@@ -20,7 +20,6 @@ static const uint32_t *screensaver_timeout;
 
 // Retrieves model information from storage
 Model getModel(void) {
-
     const char *model = flash_getModel();
     if (!model)
         return MODEL_UNKNOWN;
@@ -41,7 +40,57 @@ Model getModel(void) {
     return MODEL_UNKNOWN;
 }
 
+#if !defined(EMULATOR)
+static int variant_signature_check(const SignedVariantInfo *svi) {
+    uint8_t sigindex1 = svi->meta.sig_index1;
+    uint8_t sigindex2 = svi->meta.sig_index2;
+    uint8_t sigindex3 = svi->meta.sig_index3;
+
+    if(sigindex1 < 1 || sigindex1 > PUBKEYS) { return SIG_FAIL; }  /* Invalid index */
+
+    if(sigindex2 < 1 || sigindex2 > PUBKEYS) { return SIG_FAIL; }  /* Invalid index */
+
+    if(sigindex3 < 1 || sigindex3 > PUBKEYS) { return SIG_FAIL; }  /* Invalid index */
+
+    if(sigindex1 == sigindex2) { return SIG_FAIL; }  /* Duplicate use */
+
+    if(sigindex1 == sigindex3) { return SIG_FAIL; }  /* Duplicate use */
+
+    if(sigindex2 == sigindex3) { return SIG_FAIL; }  /* Duplicate use */
+
+    uint8_t info_fingerprint[32];
+    sha256_Raw((void *)&svi->info, svi->meta.code_len, info_fingerprint);
+
+    if (ecdsa_verify_digest(&secp256k1, pubkey[sigindex1 - 1], &svi->meta.sig1[0],
+                            info_fingerprint) != 0)
+        return SIG_FAIL;
+
+    if (ecdsa_verify_digest(&secp256k1, pubkey[sigindex2 - 1], &svi->meta.sig2[0],
+                            info_fingerprint) != 0)
+        return SIG_FAIL;
+
+    if (ecdsa_verify_digest(&secp256k1, pubkey[sigindex3 - 1], &svi->meta.sig3[0],
+                            info_fingerprint) != 0)
+        return SIG_FAIL;
+
+    return SIG_OK;
+}
+#endif
+
 const VariantInfo * __attribute__((weak)) variant_getInfo(void) {
+#ifndef EMULATOR
+    const SignedVariantInfo *flash = SIGNEDVARIANTINFO_FLASH;
+    if (memcmp(&flash->meta.magic, VARIANTINFO_MAGIC,
+               sizeof(flash->meta.magic)) == 0) {
+        if (SIG_OK == variant_signature_check(flash))
+        {
+            return &flash->info;
+        }
+#ifdef DEBUG_ON
+        return &flash->info;
+#endif
+    }
+#endif
 
     switch (getModel()) {
     case MODEL_KEEPKEY: return &variant_keepkey;

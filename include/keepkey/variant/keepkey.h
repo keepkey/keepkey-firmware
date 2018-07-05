@@ -4,7 +4,6 @@
 #include "keepkey/board/variant.h"
 
 #define VARIANTINFO_KEEPKEY \
-    .magic = VARIANTINFO_MAGIC, \
     .version = 1, \
     .name = "KeepKey", \
     .logo = &kk_logo, \

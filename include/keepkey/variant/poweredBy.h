@@ -4,7 +4,6 @@
 #include "keepkey/board/variant.h"
 
 #define VARIANTINFO_POWERED_BY \
-    .magic = VARIANTINFO_MAGIC, \
     .version = 1, \
     .name = "POWERED_BY", \
     .logo = &poweredBy_logo, \
