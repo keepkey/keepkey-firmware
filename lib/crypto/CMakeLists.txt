@@ -19,6 +19,8 @@ set(sources
     sha2.c
     sha3.c)
 
+add_compile_options(-O3)
+
 include_directories(
   ${CMAKE_SOURCE_DIR}/crypto/public
   ${CMAKE_SOURCE_DIR}/crypto/public/ed25519-donna
