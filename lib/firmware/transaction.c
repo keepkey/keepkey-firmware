@@ -26,6 +26,7 @@
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/crypto/address.h"
 #include "keepkey/crypto/ecdsa.h"
+#include "keepkey/crypto/macros.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/util.h"
 #include "keepkey/firmware/crypto.h"
@@ -94,14 +95,16 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 					return TXOUT_CANCEL;
 				}
 			}
-			HDNode node;
+			static CONFIDENTIAL HDNode node;
 			memcpy(&node, root, sizeof(HDNode));
 
 			if (hdnode_private_ckd_cached(&node, in->address_n, in->address_n_count) == 0) 
 			{
+				MEMSET_BZERO(&node, sizeof(node));
 				return TXOUT_COMPILE_ERROR;
 			}
 			hdnode_get_address_raw(&node, coin->address_type, addr_raw);
+			MEMSET_BZERO(&node, sizeof(node));
 		} else
 		if (in->has_address) { // address provided -> regular output
 			if (needs_confirm) {
