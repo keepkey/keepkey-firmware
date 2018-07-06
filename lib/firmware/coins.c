@@ -57,7 +57,7 @@ const CoinTable coins = {
 	    {true, "Dash",         true, "DASH", true,  76, true,     100000, true,  16, false, 0, false, 0, true, "\x19" "DarkCoin Signed Message:\n",     true, 0x80000005, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
 	    {true, ETHEREUM,       true, "ETH",  true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n",     true, 0x8000003c, false, 0, true,  18, false, {0, {0}}, false, {0, {0}}},
 	    {true, ETHEREUM_CLS,   true, "ETC",  true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n",     true, 0x8000003d, false, 0, true,  18, false, {0, {0}}, false, {0, {0}}},
-	    {true, "Bitcoin Gold", true, "BTG",  true,  38, true,     500000, true,  23, false, 0, false, 0, true, "\x1d" "Bitcoin Gold Signed Message:\n", true, 0x8000009c, true, 79, true,   8, false, {0, {0}}, false, {0, {0}}},
+	    {true, "BitcoinGold",  true, "BTG",  true,  38, true,     500000, true,  23, false, 0, false, 0, true, "\x1d" "Bitcoin Gold Signed Message:\n", true, 0x8000009c, true, 79, true,   8, false, {0, {0}}, false, {0, {0}}},
 	    #include "keepkey/firmware/tokens.def"
         }
 };
