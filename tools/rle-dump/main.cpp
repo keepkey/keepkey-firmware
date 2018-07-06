@@ -27,17 +27,15 @@ static const AnimationFrame confirm_icon_1_frame = {
 };
 
 void to_ppm(Canvas *canvas) {
-    std::cout << "P3\n"
+    std::cout << "P2\n"
               << canvas->width << " " << canvas->height << "\n"
               << "255\n";
 
     for (uint16_t y = 0; y < canvas->height; y++) {
         for (uint16_t x = 0; x < canvas->width; x++) {
             int color = canvas->buffer[y * canvas->width + x];
-            std::cout << std::setw(3) << color << " " << color << " " << color;
-            if (x + 1 != canvas->width)
-                std::cout << "    ";
-            else
+            std::cout << std::setw(4) << color;
+            if (x + 1 == canvas->width)
                 std::cout << "\n";
         }
     }
@@ -46,7 +44,7 @@ void to_ppm(Canvas *canvas) {
 int main(int argc, char *argv[]) {
     Canvas canvas;
     canvas.height = 64;
-    canvas.width = 255;
+    canvas.width = 256;
     canvas.buffer = new uint8_t[64 * 255];
 
     memset(canvas.buffer, 0, 64 * 255);
