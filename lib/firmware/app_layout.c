@@ -346,13 +346,13 @@ void layout_screen_test(void)
  */
 void layout_screensaver(void)
 {
-    static const VariantAnimation *screensaver;
-
-    screensaver = variant_getScreensaver();
+    draw_box_simple(layout_get_canvas(), 0x00, 0, 0,
+                    KEEPKEY_DISPLAY_WIDTH,
+                    KEEPKEY_DISPLAY_HEIGHT);
 
     layout_add_animation(
         &layout_animate_images,
-        (void *)screensaver,
+        (void *)variant_getScreensaver(),
         0);
 }
 
