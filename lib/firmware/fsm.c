@@ -824,7 +824,9 @@ void fsm_msgSignTx(SignTx *msg)
 
     layout_simple_message("Preparing Transaction...");
 
-    signing_init(msg->inputs_count, msg->outputs_count, coin, node, msg->version, msg->lock_time);
+    signing_init(msg->inputs_count, msg->outputs_count, coin, node,
+                 msg->has_version ? msg->version : 1,
+                 msg->has_lock_time ? msg->lock_time : 0);
 }
 
 void fsm_msgTxAck(TxAck *msg)
