@@ -405,7 +405,7 @@ void layout_warning(const char *str)
     draw_string(canvas, font, str, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
 
     const VariantAnimation *warning = get_warning_animation();
-    layout_add_animation(&layout_animate_images, (void *)&warning, 0);
+    layout_add_animation(&layout_animate_images, (void *)warning, 0);
 }
 
 /*
