@@ -63,11 +63,15 @@ uint32_t op_push(uint32_t i, uint8_t *out) {
 	return 5;
 }
 
+// 4 byte prefix + 40 byte data (segwit)
+// 1 byte prefix + 64 byte data (cashaddr)
+#define MAX_ADDR_RAW_SIZE 65
+
 int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, TxOutputBinType *out, bool needs_confirm)
 {
 	memset(out, 0, sizeof(TxOutputBinType));
 	out->amount = in->amount;
-	uint8_t addr_raw[21];
+	uint8_t addr_raw[MAX_ADDR_RAW_SIZE];
 	char amount_str[32];
 	char node_str[NODE_STRING_LENGTH];
 	ButtonRequestType button_request;
