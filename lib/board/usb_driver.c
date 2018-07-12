@@ -457,6 +457,7 @@ bool usb_tx(uint8_t *message, uint32_t len)
 {
     return usb_tx_helper(message, len, ENDPOINT_ADDRESS_IN);
 }
+#endif
 
 /*
  * usb_debug_tx() - Transmit usb message to host via debug endpoint
@@ -467,10 +468,14 @@ bool usb_tx(uint8_t *message, uint32_t len)
  * OUTPUT
  *     true/false
  */
-#if DEBUG_LINK
+#if DEBUG_LINK || defined(EMULATOR)
 bool usb_debug_tx(uint8_t *message, uint32_t len)
 {
+#ifndef EMULATOR
     return usb_tx_helper(message, len, ENDPOINT_ADDRESS_DEBUG_IN);
+#else
+    return false;
+#endif
 }
 #endif
 
@@ -484,7 +489,9 @@ bool usb_debug_tx(uint8_t *message, uint32_t len)
  */
 void usb_set_rx_callback(usb_rx_callback_t callback)
 {
+#ifndef EMULATOR
     user_rx_callback = callback;
+#endif
 }
 
 /*
@@ -495,13 +502,16 @@ void usb_set_rx_callback(usb_rx_callback_t callback)
  * OUTPUT
  *     none
  */
-#if DEBUG_LINK
+#if DEBUG_LINK || defined(EMULATOR)
 void usb_set_debug_rx_callback(usb_rx_callback_t callback)
 {
+#ifndef EMULATOR
     user_debug_rx_callback = callback;
+#endif
 }
 #endif
 
+#ifndef EMULATOR
 /*
  * get_usb_init_stat() - Get USB initialization status
  *

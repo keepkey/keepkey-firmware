@@ -374,7 +374,7 @@ int hdnode_private_ckd_cached(HDNode *inout, const uint32_t *i, size_t i_count)
 
 #endif
 
-void hdnode_get_address_raw(HDNode *node, uint8_t version, uint8_t *addr_raw)
+void hdnode_get_address_raw(HDNode *node, uint32_t version, uint8_t *addr_raw)
 {
 	hdnode_fill_public_key(node);
 	ecdsa_get_address_raw(node->public_key, version, addr_raw);

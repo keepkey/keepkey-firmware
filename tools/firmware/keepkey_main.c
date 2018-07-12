@@ -32,7 +32,7 @@
 #include "keepkey/board/resources.h"
 #include "keepkey/board/keepkey_usart.h"
 #include "keepkey/firmware/app_layout.h"
-#include "keepkey/firmware/check_bootloader.h"
+#include "keepkey/firmware/hotpatch_bootloader.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
@@ -105,6 +105,11 @@ int main(void)
     /* Bootloader hotpatching */
     check_bootloader();
 
+    /* Program the model into OTP, if we're not in screen-test mode, and it's
+     * not already there
+     */
+    (void)flash_programModel();
+
     /* Init for safeguard against stack overflow (-fstack-protector-all) */
     __stack_chk_guard = (uintptr_t)random32();
 
@@ -129,6 +134,10 @@ int main(void)
     led_func(CLR_RED_LED);
 
     reset_idle_time();
+
+    /* Redraw the screen if we are coming from the whitelabel bootloader image */
+    if (getModel() != MODEL_KEEPKEY)
+        go_home_forced();
 
     while(1)
     {

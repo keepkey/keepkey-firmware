@@ -1,4 +1,5 @@
 set(sources
+    check_bootloader.c
     confirm_sm.c
     draw.c
     font.c
@@ -14,7 +15,8 @@ set(sources
     pin.c
     resources.c
     timer.c
-    usb_driver.c)
+    usb_driver.c
+    variant.c)
 
 if(NOT ${KK_EMULATOR})
   enable_language(ASM)
@@ -30,12 +32,7 @@ add_library(kkboard ${sources})
 add_dependencies(kkboard kktransport kktransport.pb)
 
 add_library(kkboard.keepkey
-    ${CMAKE_CURRENT_SOURCE_DIR}/variant/keepkey/logo.c
     ${CMAKE_CURRENT_SOURCE_DIR}/variant/keepkey/resources.c)
-add_library(kkboard.salt
-    ${CMAKE_CURRENT_SOURCE_DIR}/variant/salt/logo.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/variant/salt/resources.c)
 add_library(kkboard.mfr
-    ${CMAKE_CURRENT_SOURCE_DIR}/variant/mfr/logo.c
     ${CMAKE_CURRENT_SOURCE_DIR}/variant/mfr/memory.c
     ${CMAKE_CURRENT_SOURCE_DIR}/variant/mfr/resources.c)

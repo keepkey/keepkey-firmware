@@ -22,6 +22,7 @@
 #include "scm_revision.h"
 #include "variant.h"
 
+#include "keepkey/board/check_bootloader.h"
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
@@ -42,7 +43,6 @@
 #include "keepkey/crypto/secp256k1.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/app_layout.h"
-#include "keepkey/firmware/check_bootloader.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/ethereum.h"
@@ -390,24 +390,10 @@ void fsm_msgInitialize(Initialize *msg)
 }
 
 static const char *model(void) {
-    switch (get_bootloaderKind()) {
-    case BLK_UNKONWN:
-    case BLK_v1_0_0:
-    case BLK_v1_0_1:
-    case BLK_v1_0_2:
-    case BLK_v1_0_3:
-    case BLK_v1_0_3_sig:
-    case BLK_v1_0_3_elf:
-        return "K1-14AM";
-    case BLK_v1_0_4:
-        return "K1-14WL-S";
-    }
-
-#ifdef DEBUG_ON
-     __builtin_unreachable();
-#else
+    const char *ret = flash_getModel();
+    if (ret)
+        return ret;
     return "Unknown";
-#endif
 }
 
 void fsm_msgGetFeatures(GetFeatures *msg)
@@ -434,7 +420,7 @@ void fsm_msgGetFeatures(GetFeatures *msg)
 
     /* Variant Name */
     resp->has_firmware_variant = true;
-    strlcpy(resp->firmware_variant, variant_name(), sizeof(resp->firmware_variant));
+    strlcpy(resp->firmware_variant, variant_getName(), sizeof(resp->firmware_variant));
 
     /* Security settings */
     resp->has_pin_protection = true; resp->pin_protection = storage_has_pin();
@@ -448,9 +434,21 @@ void fsm_msgGetFeatures(GetFeatures *msg)
 #endif
 
     /* Bootloader hash */
+#ifndef EMULATOR
     resp->has_bootloader_hash = true;
     resp->bootloader_hash.size = memory_bootloader_hash(
                                      resp->bootloader_hash.bytes, false);
+#else
+    resp->has_bootloader_hash = false;
+#endif
+
+    /* Firmware hash */
+#ifndef EMULATOR
+    resp->has_firmware_hash = true;
+    resp->firmware_hash.size = memory_firmware_hash(resp->firmware_hash.bytes);
+#else
+    resp->has_firmware_hash = false;
+#endif
 
     /* Settings for device */
     if(storage_get_language())
@@ -488,14 +486,26 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     msg_write(MessageType_MessageType_Features, resp);
 }
 
+static bool isValidModelNumber(const char *model) {
+#define MODEL_ENTRY(STRING, ENUM) \
+    if (!strcmp(model, STRING)) \
+        return true;
+#include "keepkey/board/models.def"
+    return false;
+}
+
 void fsm_msgPing(Ping *msg)
 {
     RESP_INIT(Success);
 
-    /* If device is in manufacture mode, turn if off and lock it */
-    if(is_mfg_mode())
-    {
+    // If device is in manufacture mode, turn if off, lock it, and program the
+    // model number into OTP flash.
+    if (is_mfg_mode() && msg->has_message && isValidModelNumber(msg->message)) {
         set_mfg_mode_off();
+        char message[32];
+        strncpy(message, msg->message, sizeof(message));
+        message[31] = 0;
+        flash_setModel(&message);
     }
 
     if(msg->has_button_protection && msg->button_protection)
@@ -814,7 +824,9 @@ void fsm_msgSignTx(SignTx *msg)
 
     layout_simple_message("Preparing Transaction...");
 
-    signing_init(msg->inputs_count, msg->outputs_count, coin, node, msg->version, msg->lock_time);
+    signing_init(msg->inputs_count, msg->outputs_count, coin, node,
+                 msg->has_version ? msg->version : 1,
+                 msg->has_lock_time ? msg->lock_time : 0);
 }
 
 void fsm_msgTxAck(TxAck *msg)
@@ -1278,7 +1290,7 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
     layout_simple_message("Verifying Message...");
     uint8_t addr_raw[21];
 
-    if(!ecdsa_address_decode(msg->address, addr_raw))
+    if(!ecdsa_address_decode(msg->address, coin->address_type, addr_raw))
     {
         fsm_sendFailure(FailureType_Failure_InvalidSignature, "Invalid address");
     }
@@ -1348,7 +1360,7 @@ void fsm_msgWordAck(WordAck *msg)
 
 void fsm_msgCharacterAck(CharacterAck *msg)
 {
-    if(msg->has_delete && msg->delete)
+    if(msg->has_delete && msg->del)
     {
         recovery_delete_character();
     }
@@ -1464,7 +1476,7 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg)
     if(storage_has_node())
     {
         resp->has_node = true;
-        memcpy(&(resp->node), storage_get_node(), sizeof(HDNode));
+        storage_dumpNode(&resp->node, storage_get_node());
     }
 
     resp->has_passphrase_protection = true;
@@ -1496,25 +1508,28 @@ void fsm_msgDebugLinkStop(DebugLinkStop *msg)
 
 void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg)
 {
-
+#ifndef EMULATOR
     if (!msg->has_length || msg->length > sizeof(((DebugLinkFlashDumpResponse *)0)->data.bytes)) {
+#endif
         fsm_sendFailure(FailureType_Failure_Other, "Invalid FlashDump parameters");
         go_home();
         return;
+#ifndef EMULATOR
     }
 
     RESP_INIT(DebugLinkFlashDumpResponse);
 
-#if DEBUG_LINK
+#  if DEBUG_LINK
     memcpy(resp->data.bytes, (void*)msg->address, msg->length);
-#else
+#  else
     if (variant_mfr_flashDump)
         variant_mfr_flashDump(resp->data.bytes, (void*)msg->address, msg->length);
-#endif
+#  endif
 
     resp->has_data = true;
     resp->data.size = msg->length;
     msg_write(MessageType_MessageType_DebugLinkFlashDumpResponse, resp);
+#endif
 }
 
 void fsm_msgSoftReset(SoftReset *msg) {
@@ -1528,12 +1543,15 @@ void fsm_msgSoftReset(SoftReset *msg) {
 }
 
 void fsm_msgFlashWrite(FlashWrite *msg) {
+#ifndef EMULATOR
     if (!variant_mfr_flashWrite || !variant_mfr_flashHash ||
         !variant_mfr_sectorFromAddress || !variant_mfr_sectorLength ||
         !variant_mfr_sectorStart) {
+#endif
         fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: this isn't MFR firmware");
         go_home();
         return;
+#ifndef EMULATOR
     }
 
     if (!msg->has_address || !msg->has_data || msg->data.size > 1024) {
@@ -1577,13 +1595,17 @@ void fsm_msgFlashWrite(FlashWrite *msg) {
     resp->has_data = true;
     resp->data.size = sizeof(resp->data.bytes);
     msg_write(MessageType_MessageType_FlashHashResponse, resp);
+#endif
 }
 
 void fsm_msgFlashHash(FlashHash *msg) {
+#ifndef EMULATOR
     if (!variant_mfr_flashHash) {
-        fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: this isn't MFR firmware");
+#endif
+        fsm_sendFailure(FailureType_Failure_Other, "FlashHash: this isn't MFR firmware");
         go_home();
         return;
+#ifndef EMULATOR
     }
 
     if (!msg->has_address || !msg->has_length || !msg->has_challenge) {
@@ -1605,5 +1627,6 @@ void fsm_msgFlashHash(FlashHash *msg) {
     resp->has_data = true;
     resp->data.size = sizeof(resp->data.bytes);
     msg_write(MessageType_MessageType_FlashHashResponse, resp);
+#endif
 }
 

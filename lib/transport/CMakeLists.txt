@@ -5,32 +5,27 @@ set(sources
 set(protoc_pb_sources
     ${DEVICE_PROTOCOL}/types.proto
     ${DEVICE_PROTOCOL}/exchange.proto
-    ${DEVICE_PROTOCOL}/messages.proto
-    ${DEVICE_PROTOCOL}/storage.proto)
+    ${DEVICE_PROTOCOL}/messages.proto)
 
 set(protoc_pb_options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/types.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/exchange.options
-    ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages.options
-    ${CMAKE_SOURCE_DIR}/include/keepkey/transport/storage.options)
+    ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages.options)
 
 set(protoc_c_sources
     ${CMAKE_BINARY_DIR}/lib/transport/types.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/exchange.pb.c
-    ${CMAKE_BINARY_DIR}/lib/transport/messages.pb.c
-    ${CMAKE_BINARY_DIR}/lib/transport/storage.pb.c)
+    ${CMAKE_BINARY_DIR}/lib/transport/messages.pb.c)
 
 set(protoc_c_headers
     ${CMAKE_BINARY_DIR}/include/types.pb.h
     ${CMAKE_BINARY_DIR}/include/exchange.pb.h
-    ${CMAKE_BINARY_DIR}/include/messages.pb.h
-    ${CMAKE_BINARY_DIR}/include/storage.pb.h)
+    ${CMAKE_BINARY_DIR}/include/messages.pb.h)
 
 set(protoc_pb_sources_moved
     ${CMAKE_BINARY_DIR}/lib/transport/types.proto
     ${CMAKE_BINARY_DIR}/lib/transport/exchange.proto
-    ${CMAKE_BINARY_DIR}/lib/transport/messages.proto
-    ${CMAKE_BINARY_DIR}/lib/transport/storage.proto)
+    ${CMAKE_BINARY_DIR}/lib/transport/messages.proto)
 
 add_custom_command(
   OUTPUT
@@ -63,10 +58,6 @@ add_custom_command(
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
       "--nanopb_out=-f messages.options:." messages.proto
-  COMMAND
-    ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f storage.options:." storage.proto
   COMMAND
     ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/lib/transport/*.pb.h
        ${CMAKE_BINARY_DIR}/include

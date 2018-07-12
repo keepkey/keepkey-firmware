@@ -25,6 +25,8 @@
 
 #include "keepkey/board/keepkey_flash.h"
 
+#include "keepkey/board/check_bootloader.h"
+
 #include <string.h>
 #include <stdint.h>
 
@@ -263,4 +265,74 @@ bool set_mfg_mode_off(void)
 #endif
 
     return(ret_val);
+}
+
+const char *flash_getModel(void) {
+#ifndef EMULATOR
+    if (*((uint8_t*)OTP_MODEL_ADDR) == 0xFF)
+        return NULL;
+
+    return (char*)OTP_MODEL_ADDR;
+#else
+    // TODO: actually make this settable in the emulator
+    return "K1-14AM";
+#endif
+}
+
+bool flash_setModel(const char (*model)[32]) {
+#ifndef EMULATOR
+    // Check OTP lock state before updating
+    if (*(uint8_t*)OTP_BLK_LOCK(OTP_MODEL_ADDR) != 0xFF)
+        return false;
+
+    flash_unlock();
+    flash_program(OTP_MODEL_ADDR, (uint8_t*)model, sizeof(*model));
+    uint8_t lock = 0x00;
+    flash_program(OTP_BLK_LOCK(OTP_MODEL_ADDR), &lock, sizeof(lock));
+    bool ret = flash_chk_status();
+    flash_lock();
+    return ret;
+#else
+    return true;
+#endif
+}
+
+const char *flash_programModel(void) {
+    const char *ret = flash_getModel();
+    if (ret)
+        return ret;
+
+    switch (get_bootloaderKind()) {
+    case BLK_v1_1_0:
+        return "No Model";
+    case BLK_UNKNOWN:
+        return "Unknown";
+    case BLK_v1_0_0:
+    case BLK_v1_0_1:
+    case BLK_v1_0_2:
+    case BLK_v1_0_3:
+    case BLK_v1_0_3_sig:
+    case BLK_v1_0_3_elf: {
+#define MODEL_ENTRY_KK(STRING, ENUM) \
+        static const char model[32] = (STRING);
+#include "keepkey/board/models.def"
+        if (!is_mfg_mode())
+            (void)flash_setModel(&model);
+        return model;
+    }
+    case BLK_v1_0_4: {
+#define MODEL_ENTRY_SALT(STRING, ENUM) \
+        static const char model[32] = (STRING);
+#include "keepkey/board/models.def"
+        if (!is_mfg_mode())
+            (void)flash_setModel(&model);
+        return model;
+    }
+    }
+
+#ifdef DEBUG_ON
+     __builtin_unreachable();
+#else
+    return "Unknown";
+#endif
 }

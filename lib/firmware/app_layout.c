@@ -25,6 +25,7 @@
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/timer.h"
+#include "keepkey/board/variant.h"
 
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/app_resources.h"
@@ -345,15 +346,13 @@ void layout_screen_test(void)
  */
 void layout_screensaver(void)
 {
-    static AnimationImageDrawableParams screensaver;
-    screensaver.base.x = 0;
-    screensaver.base.y = 0;
-
-    screensaver.img_animation = variant_getScreensaverAnimation();
+    draw_box_simple(layout_get_canvas(), 0x00, 0, 0,
+                    KEEPKEY_DISPLAY_WIDTH,
+                    KEEPKEY_DISPLAY_HEIGHT);
 
     layout_add_animation(
         &layout_animate_images,
-        (void *)&screensaver,
+        (void *)variant_getScreensaver(),
         0);
 }
 

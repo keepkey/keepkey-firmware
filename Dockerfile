@@ -58,3 +58,9 @@ WORKDIR /root
 RUN git clone -b docker-v6 https://github.com/keepkey/libopencm3.git libopencm3
 WORKDIR /root/libopencm3
 RUN make
+
+RUN apk add --update --no-cache \
+    clang \
+    gcc \
+    g++ \
+    binutils

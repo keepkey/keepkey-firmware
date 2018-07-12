@@ -26,8 +26,6 @@
 #include "keepkey/board/resources.h"
 #include "keepkey/board/draw.h"
 
-#include "types.pb.h"
-
 #include <stdint.h>
 
 /* === Defines ============================================================= */

@@ -28,6 +28,7 @@
 #include "canvas.h"
 #include "font.h"
 #include "resources.h"
+#include "keepkey/board/variant.h"
 
 /* === Typedefs ============================================================ */
 
@@ -46,12 +47,6 @@ typedef struct
     uint16_t             width;
 } BoxDrawableParams;
 
-typedef struct
-{
-    DrawableParams          base;
-    const ImageAnimation   *img_animation;
-} AnimationImageDrawableParams;
-
 /* === Functions =========================================================== */
 
 bool draw_char_with_shift(Canvas *canvas, DrawableParams *p,
@@ -64,7 +59,7 @@ void draw_char_simple(Canvas *canvas, const Font *font, char c, uint8_t color, u
                       uint16_t y);
 void draw_box(Canvas *canvas, BoxDrawableParams  *params);
 void draw_box_simple(Canvas *canvas, uint8_t color, uint16_t x, uint16_t y, uint16_t width, uint16_t height);
-bool draw_bitmap_mono_rle(Canvas *canvas, DrawableParams *p, const Image *img);
+bool draw_bitmap_mono_rle(Canvas *canvas, const AnimationFrame *frame, bool erase);
 
 #endif
 

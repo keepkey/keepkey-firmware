@@ -17,13 +17,29 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef CHECK_BOOTLOADER_H
-#define CHECK_BOOTLOADER_H
+#ifndef KEEPKEY_BOARD_CHECKBOOTLOADER_H
+#define KEEPKEY_BOARD_CHECKBOOTLOADER_H
 
-void check_bootloader(void);
+extern char bl_hash_v1_0_0_hotpatched[32];
+extern char bl_hash_v1_0_1_hotpatched[32];
+extern char bl_hash_v1_0_2_hotpatched[32];
+extern char bl_hash_v1_0_3_hotpatched[32];
+extern char bl_hash_v1_0_3_sig_hotpatched[32];
+extern char bl_hash_v1_0_3_elf_hotpatched[32];
+extern char bl_hash_v1_0_4_hotpatched[32];
+
+extern char bl_hash_v1_0_0_unpatched[32];
+extern char bl_hash_v1_0_1_unpatched[32];
+extern char bl_hash_v1_0_2_unpatched[32];
+extern char bl_hash_v1_0_3_unpatched[32];
+extern char bl_hash_v1_0_3_sig_unpatched[32];
+extern char bl_hash_v1_0_3_elf_unpatched[32];
+extern char bl_hash_v1_0_4_unpatched[32];
+
+extern char bl_hash_v1_1_0[32];
 
 typedef enum _BootloaderKind {
-    BLK_UNKONWN,
+    BLK_UNKNOWN,
     BLK_v1_0_0,
     BLK_v1_0_1,
     BLK_v1_0_2,
@@ -31,8 +47,10 @@ typedef enum _BootloaderKind {
     BLK_v1_0_3_sig,
     BLK_v1_0_3_elf,
     BLK_v1_0_4,
+    BLK_v1_1_0,
 } BootloaderKind;
 
 BootloaderKind get_bootloaderKind(void);
 
 #endif
+

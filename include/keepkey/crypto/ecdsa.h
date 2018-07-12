@@ -48,6 +48,19 @@ typedef struct {
 
 } ecdsa_curve;
 
+// 4 byte prefix + 40 byte data (segwit)
+// 1 byte prefix + 64 byte data (cashaddr)
+#define MAX_ADDR_RAW_SIZE 65
+// bottle neck is cashaddr
+// segwit is at most 90 characters plus NUL separator
+// cashaddr: human readable prefix + 1 separator + 104 data + 8 checksum + 1 NUL
+// we choose 130 as maximum (including NUL character)
+#define MAX_ADDR_SIZE 130
+// 4 byte prefix + 32 byte privkey + 1 byte compressed marker
+#define MAX_WIF_RAW_SIZE (4 + 32 + 1)
+// (4 + 32 + 1 + 4 [checksum]) * 8 / log2(58) plus NUL.
+#define MAX_WIF_SIZE (57)
+
 void point_copy(const curve_point *cp1, curve_point *cp2);
 void point_add(const ecdsa_curve *curve, const curve_point *cp1, curve_point *cp2);
 void point_double(const ecdsa_curve *curve, curve_point *cp);
@@ -66,11 +79,11 @@ int ecdsa_sign_digest(const ecdsa_curve *curve, const uint8_t *priv_key, const u
 void ecdsa_get_public_key33(const ecdsa_curve *curve, const uint8_t *priv_key, uint8_t *pub_key);
 void ecdsa_get_public_key65(const ecdsa_curve *curve, const uint8_t *priv_key, uint8_t *pub_key);
 void ecdsa_get_pubkeyhash(const uint8_t *pub_key, uint8_t *pubkeyhash);
-void ecdsa_get_address_raw(const uint8_t *pub_key, uint8_t version, uint8_t *addr_raw);
-void ecdsa_get_address(const uint8_t *pub_key, uint8_t version, char *addr, int addrsize);
-void ecdsa_get_wif(const uint8_t *priv_key, uint8_t version, char *wif, int wifsize);
+void ecdsa_get_address_raw(const uint8_t *pub_key, uint32_t version, uint8_t *addr_raw);
+void ecdsa_get_address(const uint8_t *pub_key, uint32_t version, char *addr, int addrsize);
+void ecdsa_get_wif(const uint8_t *priv_key, uint32_t version, char *wif, int wifsize);
 
-int ecdsa_address_decode(const char *addr, uint8_t *out);
+int ecdsa_address_decode(const char *addr, uint32_t version, uint8_t *out);
 int ecdsa_read_pubkey(const ecdsa_curve *curve, const uint8_t *pub_key, curve_point *pub);
 int ecdsa_validate_pubkey(const ecdsa_curve *curve, const curve_point *pub);
 int ecdsa_verify(const ecdsa_curve *curve, const uint8_t *pub_key, const uint8_t *sig, const uint8_t *msg, uint32_t msg_len);

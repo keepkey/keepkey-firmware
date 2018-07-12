@@ -27,31 +27,40 @@
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/cm3/cortex.h>
 
-
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_button.h"
 #include "keepkey/board/keepkey_display.h"
+#include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/keepkey_leds.h"
 #include "keepkey/board/keepkey_usart.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/memory.h"
+#include "keepkey/board/pubkeys.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/usb_driver.h"
+#include "keepkey/board/variant.h"
 #include "keepkey/bootloader/signatures.h"
 #include "keepkey/bootloader/usb_flash.h"
 #include "keepkey/rand/rng.h"
+#include "keepkey/variant/keepkey.h"
+#include "keepkey/variant/poweredBy.h"
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
-/* === Private Variables =================================================== */
-
 static uint32_t *const SCB_VTOR = (uint32_t *)0xe000ed08;
 
-/* === Private Functions =================================================== */
+#define APP_VERSIONS "VERSION" \
+                      VERSION_STR(BOOTLOADER_MAJOR_VERSION)  "." \
+                      VERSION_STR(BOOTLOADER_MINOR_VERSION)  "." \
+                      VERSION_STR(BOOTLOADER_PATCH_VERSION)
+
+/* These variables will be used by host application to read the version info */
+static const char *const application_version
+__attribute__((used, section("version"))) = APP_VERSIONS;
 
 /*
  * set_vector_table_application() - Resets the vector table to point to the
@@ -147,7 +156,7 @@ static void clock_init(void)
  */
 static bool is_fw_update_mode(void)
 {
-#if DEBUG_LINK
+#if 0 // DEBUG_LINK
     return true;
 #else
     return keepkey_button_down();
@@ -177,6 +186,27 @@ static bool magic_ok(void)
 #endif
 }
 
+const VariantInfo *variant_getInfo(void) {
+    // Override the weak defintion of variant_getInfo provided by libkkboard to
+    // disallow loading the VariantInfo provided by sector 4 of flash. We do
+    // this so that if there's ever a case where the upload of it got
+    // corrupted, then we want the bootloader to have its own fallback baked
+    // in. That way, we'll be able to use normal firmware upload mechanisms to
+    // fix the situation, rather than having completely bricked the device.
+
+    const char *model = flash_getModel();
+    if (!model)
+        return &variant_keepkey;
+
+#define MODEL_KK(NUMBER) \
+    if (0 == strcmp(model, (NUMBER))) { \
+        return &variant_keepkey; \
+    }
+#include "keepkey/board/models.def"
+
+    return &variant_poweredBy;
+}
+
 /*
  *  boot() - Runs through application firmware checking, and then boots
  *
@@ -196,18 +226,25 @@ static bool boot(void)
         {
             delay_ms(500);
 
-#if !MEMORY_PROTECT
-            if(!confirm_without_button_request("Unofficial Firmware",
-                                               "Do you want to continue booting?"))
+#ifdef DEBUG_ON
+            if (!confirm_without_button_request("Unofficial Firmware",
+                                                "Do you want to continue booting?"))
             {
-#endif
                 layout_simple_message("Boot Aborted");
                 goto cancel_boot;
-#if !MEMORY_PROTECT
+            }
+
+            char digest_str[SHA256_DIGEST_STRING_LENGTH];
+            if (!confirm_without_button_request("Confirm Unofficial Firmware", "%s",
+                                                memory_firmware_hash_str(digest_str)))
+#endif
+            {
+                layout_simple_message("Boot Aborted");
+                goto cancel_boot;
             }
 
             layout_home();
-#endif
+            delay_ms(800);
         }
 
         led_func(CLR_RED_LED);
@@ -217,7 +254,7 @@ static bool boot(void)
     }
     else
     {
-        layout_simple_message("Please Reinstall Firmware");
+        layout_simple_message("Please visit keepkey.com/get-started");
         goto cancel_boot;
     }
 
@@ -284,7 +321,7 @@ int main(int argc, char *argv[])
     led_func(SET_GREEN_LED);
     led_func(SET_RED_LED);
 
-    dbg_print("\n\rKeepKey LLC, Copyright (C) 2015\n\r");
+    dbg_print("\n\rKeepKey LLC, Copyright (C) 2018\n\r");
     dbg_print("BootLoader Version %d.%d.%d\n\r", BOOTLOADER_MAJOR_VERSION,
               BOOTLOADER_MINOR_VERSION, BOOTLOADER_PATCH_VERSION);
 

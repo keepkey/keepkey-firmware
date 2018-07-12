@@ -1,4 +1,5 @@
 set(sources
+    address.c
     aes_modes.c
     aescrypt.c
     aeskey.c
@@ -17,6 +18,8 @@ set(sources
     secp256k1.c
     sha2.c
     sha3.c)
+
+add_compile_options(-O3)
 
 include_directories(
   ${CMAKE_SOURCE_DIR}/crypto/public

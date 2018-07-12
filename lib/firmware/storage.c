@@ -37,6 +37,7 @@
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/policy.h"
+#include "keepkey/firmware/storagepb.h"
 #include "keepkey/firmware/util.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/transport/interface.h"
@@ -301,7 +302,7 @@ storage_get_root_seed_cache_exit:
  */
 void storage_init(void)
 {
-    if (strcmp("MFR", variant_name()) == 0)
+    if (strcmp("MFR", variant_getName()) == 0)
     {
         // Storage should have been wiped due to the MANUFACTURER firmware
         // having a STORAGE_VERSION of 0, but to be absolutely safe and
@@ -517,6 +518,41 @@ void storage_commit(void)
         layout_warning_static("Error Detected.  Reboot Device!");
         shutdown();
     }
+#endif
+}
+
+void storage_dumpNode(HDNodeType *dst, const StorageHDNode *src) {
+#if DEBUG_LINK
+    dst->depth = src->depth;
+    dst->fingerprint = src->fingerprint;
+    dst->child_num = src->child_num;
+
+    dst->chain_code.size = src->chain_code.size;
+    memcpy(dst->chain_code.bytes, src->chain_code.bytes,
+           sizeof(src->chain_code.bytes));
+    _Static_assert(sizeof(dst->chain_code.bytes) ==
+                   sizeof(src->chain_code.bytes), "chain_code type mismatch");
+
+    dst->has_private_key = src->has_private_key;
+    if (src->has_private_key) {
+        dst->private_key.size = src->private_key.size;
+        memcpy(dst->private_key.bytes, src->private_key.bytes,
+               sizeof(src->private_key.bytes));
+        _Static_assert(sizeof(dst->private_key.bytes) ==
+                       sizeof(src->private_key.bytes), "private_key type mismatch");
+    }
+
+    dst->has_public_key = src->has_public_key;
+    if (src->has_public_key) {
+        dst->public_key.size = src->public_key.size;
+        memcpy(dst->public_key.bytes, src->public_key.bytes,
+               sizeof(src->public_key.bytes));
+        _Static_assert(sizeof(dst->public_key.bytes) ==
+                       sizeof(src->public_key.bytes), "public_key type mismatch");
+    }
+#else
+    (void)dst;
+    (void)src;
 #endif
 }
 
@@ -1191,7 +1227,22 @@ bool storage_set_policy(PolicyType *policy)
  */
 void storage_get_policies(PolicyType *policy_data)
 {
-    memcpy(policy_data, shadow_config.storage.policies, POLICY_COUNT * sizeof(PolicyType));
+    for (size_t i = 0; i < POLICY_COUNT; ++i) {
+        PolicyType *dst = &policy_data[i];
+        StoragePolicy *src = &shadow_config.storage.policies[i];
+
+        dst->has_policy_name = src->has_policy_name;
+        if (src->has_policy_name) {
+            memcpy(dst->policy_name, src->policy_name, sizeof(src->policy_name));
+            _Static_assert(sizeof(dst->policy_name) ==
+                           sizeof(src->policy_name), "PolicyType vs StoragePolicy type mismatch");
+        }
+
+        dst->has_enabled = src->has_enabled;
+        dst->enabled = src->enabled;
+
+        _Static_assert(sizeof(*dst) == sizeof(*src), "PolicyType vs StoragePolicy type mismatch");
+    }
 }
 
 /*
@@ -1255,7 +1306,7 @@ const char *storage_get_mnemonic(void)
  * OUTPUT
  *     HDNode from storage
  */
-HDNodeType *storage_get_node(void)
+StorageHDNode *storage_get_node(void)
 {
     return &shadow_config.storage.node;
 }

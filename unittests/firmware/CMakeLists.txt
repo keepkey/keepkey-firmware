@@ -1,6 +1,8 @@
 set(sources
     ethereum.cpp
-    recovery.cpp)
+    recovery.cpp
+    storage.cpp
+    usb_rx.cpp)
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/include
@@ -13,6 +15,9 @@ target_link_libraries(firmware-unit
     kkfirmware.mfr
     kkboard
     kkboard.mfr
+    kkvariant.keepkey
+    kkvariant.salt
+    kkboard
     kkcrypto
     kkrand
     kktransport)

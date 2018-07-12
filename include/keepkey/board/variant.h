@@ -1,28 +1,67 @@
-/*
- * This file is part of the KeepKey project.
- *
- * Copyright (C) 2018 Jon Hodler <jon@keepkey.com>
- *
- * This library is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library.  If not, see <http://www.gnu.org/licenses/>.
- */
+#ifndef KEEPKEY_VARIANT_VARIANT_H
+#define KEEPKEY_VARIANT_VARIANT_H
 
-#ifndef INCLUDE_KEEPKEY_BOARD_VARIANT_H
-#define INCLUDE_KEEPKEY_BOARD_VARIANT_H
+#include "keepkey/board/memory.h"
 
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
+
+#define VARIANTINFO_MAGIC "KKWL"
+
+typedef struct Image_ {
+    uint16_t w;
+    uint16_t h;
+    uint32_t length;
+    const uint8_t *data;
+} Image;
+
+typedef struct AnimationFrame_ {
+    uint16_t x;
+    uint16_t y;
+    uint16_t duration;
+    uint8_t color;
+    const Image *image;
+} AnimationFrame;
+
+typedef struct VariantAnimation_ {
+    uint16_t count;
+    AnimationFrame frames[];
+} VariantAnimation;
+
+typedef struct VariantInfo_ {
+    uint16_t version;
+    const char *name;
+    const VariantAnimation *logo;
+    const VariantAnimation *logo_reversed;
+    uint32_t screensaver_timeout;
+    const VariantAnimation *screensaver;
+} VariantInfo;
+
+typedef struct SignedVariantInfo_ {
+    app_meta_td meta;
+    VariantInfo info;
+} SignedVariantInfo;
+
+typedef enum Model_ {
+    MODEL_UNKNOWN,
+    #define MODEL_ENTRY(STRING, ENUM) \
+        MODEL_ ##ENUM,
+    #include "keepkey/board/models.def"
+} Model;
+
+/// Get the model of the device (Keepkey/SALT/etc)
+Model getModel(void);
+
+/// Get the VariantInfo from sector 4 of flash (if it exists), otherwise
+/// fallback on keepkey imagery.
+const VariantInfo *variant_getInfo(void) __attribute__((weak));
+
+/// Get the Screensaver.
+const VariantAnimation *variant_getScreensaver(void);
+
+/// Get the HomeScreen.
+const VariantAnimation *variant_getLogo(bool reverse);
 
 /// \returns true iff this is a Manufacturing firmware.
 bool variant_isMFR(void);

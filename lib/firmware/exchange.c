@@ -23,6 +23,7 @@
 #include "keepkey/board/msg_dispatch.h"
 #include "keepkey/crypto/bip32.h"
 #include "keepkey/crypto/ecdsa.h"
+#include "keepkey/crypto/macros.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
@@ -211,7 +212,7 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
         }
     }
 verify_exchange_address_exit:
-
+    MEMSET_BZERO(&node, sizeof(node));
     return(ret_stat);
 }
 

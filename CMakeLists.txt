@@ -2,13 +2,13 @@ cmake_minimum_required(VERSION 3.9.5)
 
 project(KeepKeyFirmware
 
-        VERSION 5.2.4
+        VERSION 5.6.0
 
-        LANGUAGES C CXX)
+        LANGUAGES C CXX ASM)
 
 set(BOOTLOADER_MAJOR_VERSION 1)
-set(BOOTLOADER_MINOR_VERSION 0)
-set(BOOTLOADER_PATCH_VERSION 4)
+set(BOOTLOADER_MINOR_VERSION 1)
+set(BOOTLOADER_PATCH_VERSION 0)
 
 option(KK_EMULATOR "Build the emulator" OFF)
 option(KK_DEBUG_LINK "Build with debug-link enabled" OFF)
@@ -111,4 +111,10 @@ if(${KK_EMULATOR})
   add_test(test-firmware ${CMAKE_BINARY_DIR}/bin/firmware-unit)
   add_test(test-board ${CMAKE_BINARY_DIR}/bin/board-unit)
   add_test(test-crypto ${CMAKE_BINARY_DIR}/bin/crypto-unit)
+
+  add_custom_target(xunit
+      COMMAND ${CMAKE_BINARY_DIR}/bin/firmware-unit --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/firmware.xml
+      COMMAND ${CMAKE_BINARY_DIR}/bin/board-unit --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/board.xml
+      COMMAND ${CMAKE_BINARY_DIR}/bin/crypto-unit --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/crypto.xml)
+
 endif()

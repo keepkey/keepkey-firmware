@@ -20,7 +20,7 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
-/* === Includes ============================================================ */
+#include "keepkey/crypto/sha2.h"
 
 #include <stddef.h>
 #include <stdbool.h>
@@ -30,23 +30,23 @@
 
  flash memory layout:
  --------------------
-   name    |          range          |  size   |     function
------------+-------------------------+---------+------------------
- Sector  0 | 0x08000000 - 0x08003FFF |  16 KiB | bootstrap code (Read Only)
- Sector  1 | 0x08004000 - 0x08007FFF |  16 KiB | storage/config (Read/Write)
------------+-------------------------+---------+------------------
- Sector  2 | 0x08008000 - 0x0800BFFF |  16 KiB | storage/config (Read/Write)
- Sector  3 | 0x0800C000 - 0x0800FFFF |  16 KiB | storage/config (Read/Write)
------------+-------------------------+---------+------------------
- Sector  4 | 0x08010000 - 0x0801FFFF |  64 KiB | empty (Read/Write)
- Sector  5 | 0x08020000 - 0x0803FFFF | 128 KiB | bootloader code (Read Only)
- Sector  6 | 0x08040000 - 0x0805FFFF | 128 KiB | bootloader code (Read Only)
- Sector  7 | 0x08060000 - 0x0807FFFF | 128 KiB | application code(Read/Write)
-===========+=========================+============================
- Sector  8 | 0x08080000 - 0x0809FFFF | 128 KiB | application code (Read/Write)
- Sector  9 | 0x080A0000 - 0x080BFFFF | 128 KiB | application code (Read/Write)
- Sector 10 | 0x080C0000 - 0x080DFFFF | 128 KiB | application code (Read/Write)
- Sector 11 | 0x080E0000 - 0x080FFFFF | 128 KiB | application code (Read/Write)
+   name    |          range          |  size   |     function     | permissions
+-----------+-------------------------+---------+------------------+-------------
+ Sector  0 | 0x08000000 - 0x08003FFF |  16 KiB | bootstrap code   | Read
+ Sector  1 | 0x08004000 - 0x08007FFF |  16 KiB | storage/config   | Read  Write
+-----------+-------------------------+---------+------------------+-------------
+ Sector  2 | 0x08008000 - 0x0800BFFF |  16 KiB | storage/config   | Read  Write
+ Sector  3 | 0x0800C000 - 0x0800FFFF |  16 KiB | storage/config   | Read  Write
+-----------+-------------------------+---------+------------------+-------------
+ Sector  4 | 0x08010000 - 0x0801FFFF |  64 KiB | empty            | Read  Write
+ Sector  5 | 0x08020000 - 0x0803FFFF | 128 KiB | bootloader code  | Read
+ Sector  6 | 0x08040000 - 0x0805FFFF | 128 KiB | bootloader code  | Read
+ Sector  7 | 0x08060000 - 0x0807FFFF | 128 KiB | application code | Read  Write
+===========+=========================+============================+=============
+ Sector  8 | 0x08080000 - 0x0809FFFF | 128 KiB | application code | Read  Write
+ Sector  9 | 0x080A0000 - 0x080BFFFF | 128 KiB | application code | Read  Write
+ Sector 10 | 0x080C0000 - 0x080DFFFF | 128 KiB | application code | Read  Write
+ Sector 11 | 0x080E0000 - 0x080FFFFF | 128 KiB | application code | Read  Write
 
  Application metadata area:
  -------------------------
@@ -67,8 +67,6 @@
  flags & 0x01 -> restore storage after flashing (if signatures are ok)
  */
 
-/* === Defines ============================================================= */
-
 #define OPTION_BYTES_1 ((uint64_t *)0x1FFFC000)
 #define OPTION_BYTES_2 ((uint64_t *)0x1FFFC008)
 #define OPTION_RDP 0xCCFF
@@ -77,6 +75,7 @@
 #define OTP_MFG_ADDR            0x1FFF7800
 #define OTP_MFG_SIG             0x08012015
 #define OTP_MFG_SIG_LEN         4
+#define OTP_MODEL_ADDR          0x1FFF7820
 #define OTP_BLK_LOCK(x)         (0x1FFF7A00 + (x - 0x1FFF7800)/0x20)
 
 #define BSTRP_FLASH_SECT_LEN    0x4000
@@ -144,7 +143,6 @@
 #define FLASH_APP_SECTOR_LAST   11
 
 #define STORAGE_SECT_DEFAULT FLASH_STORAGE1
-/* === Typedefs ============================================================ */
 
 /* Application Meta format */
 typedef struct
@@ -183,8 +181,6 @@ typedef struct
 
 typedef void (*progress_handler_t)(void);
 
-/* === Variables =========================================================== */
-
 static const FlashSector flash_sector_map[] =
 {
     { 0,  0x08000000, BSTRP_FLASH_SECT_LEN, FLASH_BOOTSTRAP },
@@ -202,7 +198,6 @@ static const FlashSector flash_sector_map[] =
     { -1, 0,          0,        FLASH_INVALID}
 };
 
-/* === Functions =========================================================== */
 
 void memory_protect(void);
 
@@ -219,6 +214,7 @@ void memory_unlock(void);
 int memory_bootloader_hash(uint8_t *hash, bool cached);
 
 int memory_firmware_hash(uint8_t *hash);
+const char *memory_firmware_hash_str(char digest[SHA256_DIGEST_STRING_LENGTH]);
 int memory_storage_hash(uint8_t *hash, Allocation storage_location);
 bool find_active_storage(Allocation *storage_location);
 

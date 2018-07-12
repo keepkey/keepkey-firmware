@@ -120,6 +120,27 @@ int memory_firmware_hash(uint8_t *hash)
     }
 }
 
+const char *memory_firmware_hash_str(char digest[SHA256_DIGEST_STRING_LENGTH])
+{
+    SHA256_CTX ctx;
+    uint32_t codelen = *((uint32_t *)FLASH_META_CODELEN);
+
+    if(codelen <= FLASH_APP_LEN)
+    {
+        sha256_Init(&ctx);
+        sha256_Update(&ctx, (const uint8_t *)META_MAGIC_STR, META_MAGIC_SIZE);
+        sha256_Update(&ctx, (const uint8_t *)FLASH_META_CODELEN,
+                      FLASH_META_DESC_LEN - META_MAGIC_SIZE);
+        sha256_Update(&ctx, (const uint8_t *)FLASH_APP_START, codelen);
+        sha256_End(&ctx, digest);
+        return &digest[0];
+    }
+    else
+    {
+        return "No Firmware";
+    }
+}
+
 /*
  * memory_storage_hash() - SHA256 hash of storage area
  *

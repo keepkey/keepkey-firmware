@@ -30,7 +30,7 @@
 #include "keepkey/board/usb_driver.h"
 #include "keepkey/crypto/bip32.h"
 #include "keepkey/crypto/curves.h"
-#include "storage.pb.h"
+#include "keepkey/firmware/storagepb.h"
 
 /*
  storage layout:
