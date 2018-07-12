@@ -41,9 +41,9 @@
  * OUTPUT
  *     starting address of functional group
  */
-uint32_t flash_write_helper(Allocation group)
+intptr_t flash_write_helper(Allocation group)
 {
-    uint32_t start = 0;
+    intptr_t start = 0;
     const FlashSector* s = flash_sector_map;
     while(s->use != FLASH_INVALID)
     {
