@@ -150,6 +150,8 @@ static bool storage_from_flash(ConfigFlash *stor_config)
         case StorageVersion_6:
         case StorageVersion_7:
         case StorageVersion_8:
+        case StorageVersion_9:
+        case StorageVersion_10:
             memcpy(&shadow_config, stor_config, sizeof(shadow_config));
 
             /* We have to do this for users with bootloaders <= v1.0.2. This
