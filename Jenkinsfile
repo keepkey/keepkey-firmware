@@ -27,8 +27,8 @@ pipeline {
                     sh '''
                         rm -rf bin
                         ./scripts/build/docker/device/release.sh
-                        echo "Bootstrap Size, Bootloader Size (KeepKey), Firmware Size (KeepKey), Firmware Size (MFR), Variant Size (KeepKey), Variant Size (SALT)" >> bin/binsize.csv
-                        echo "$(du -b bin/bootstrap.bin | cut -f1), $(du -b bin/bootloader.bin | cut -f1), $(du -b bin/firmware.keepkey.bin | cut -f1), $(du -b bin/firmware.mfr.bin | cut -f1), $(du -b bin/variant.keepkey.bin | cut -f1), $(du -b bin/variant.salt.bin | cut -f1)" >> bin/binsize.csv
+                        echo "Bootstrap Size, Bootloader Size (KeepKey), Firmware Size (KeepKey), Firmware Size (MFR), Variant Size (KeepKey), Variant Size (SALT), Variant Size (FOX)" >> bin/binsize.csv
+                        echo "$(du -b bin/bootstrap.bin | cut -f1), $(du -b bin/bootloader.bin | cut -f1), $(du -b bin/firmware.keepkey.bin | cut -f1), $(du -b bin/firmware.mfr.bin | cut -f1), $(du -b bin/variant.keepkey.bin | cut -f1), $(du -b bin/variant.salt.bin | cut -f1)", $(du -b bin/variant.fox.bin | cut -f1) >> bin/binsize.csv
                         tar cjvf release.tar.bz2 bin/*'''
                 }
             }
