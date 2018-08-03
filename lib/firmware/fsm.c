@@ -1702,7 +1702,18 @@ void fsm_msgFlashWrite(FlashWrite *msg) {
         return;
     }
 
-    // Check BOUNDS
+    _Static_assert(FLASH_BOOTSTRAP_SECTOR_FIRST == FLASH_BOOTSTRAP_SECTOR_LAST,
+                   "Bootstrap isn't one sector?");
+    if (FLASH_BOOTSTRAP_SECTOR_FIRST == sector ||
+        (FLASH_VARIANT_SECTOR_FIRST <= sector &&
+         sector <= FLASH_VARIANT_SECTOR_LAST) ||
+        (FLASH_BOOT_SECTOR_FIRST <= sector &&
+         sector <= FLASH_BOOT_SECTOR_LAST)) {
+        fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: cannot write to read-only sector");
+        go_home();
+        return;
+    }
+
     if (!variant_mfr_flashWrite((uint8_t*)msg->address, msg->data.bytes, msg->data.size,
                                  msg->has_erase ? msg->erase : false)) {
         fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: write failed");
