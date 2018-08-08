@@ -26,7 +26,7 @@
 #define ETHEREUM        "Ethereum"
 #define ETHEREUM_CLS    "Ethereum Classic"
 
-#define COINS_COUNT         40
+#define COINS_COUNT         43
 #define NODE_STRING_LENGTH  50
 
 #define COIN_FRACTION 100000000
