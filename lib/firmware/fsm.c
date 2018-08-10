@@ -719,6 +719,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
         go_home();
         return;
     }
+
     const char *curve = SECP256K1_NAME;
     if (msg->has_ecdsa_curve_name) {
         curve = msg->ecdsa_curve_name;
@@ -734,20 +735,10 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
         node = fsm_getDerivedNode(curve, msg->address_n, msg->address_n_count - 1);
         if (!node) return;
         fingerprint = hdnode_fingerprint(node);
-	/* get child */
-	hdnode_private_ckd(node, msg->address_n[msg->address_n_count - 1]);
+        /* get child */
+        hdnode_private_ckd(node, msg->address_n[msg->address_n_count - 1]);
     }
     hdnode_fill_public_key(node);
-
-    if(msg->has_show_display && msg->show_display)
-    {
-        if(!confirm_xpub(resp->xpub))
-        {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show extended public key cancelled");
-            go_home();
-            return;
-        }
-    }
 
     resp->node.depth = node->depth;
     resp->node.fingerprint = fingerprint;
@@ -764,6 +755,17 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
     }
     resp->has_xpub = true;
     hdnode_serialize_public(node, fingerprint, resp->xpub, sizeof(resp->xpub));
+
+    if (msg->has_show_display && msg->show_display)
+    {
+        if (!confirm_xpub(resp->xpub))
+        {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show extended public key cancelled");
+            go_home();
+            return;
+        }
+    }
+
     msg_write(MessageType_MessageType_PublicKey, resp);
     go_home();
 }
