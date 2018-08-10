@@ -151,6 +151,16 @@ const CoinType *coinByAddressType(uint32_t address_type)
     return 0;
 }
 
+const CoinType *coinBySlip44(uint32_t bip44_account_path)
+{
+    for (int i = 0; i < COINS_COUNT; i++) {
+        if (bip44_account_path == coins[i].bip44_account_path) {
+            return &coins[i];
+        }
+    }
+    return 0;
+}
+
 /*
  * coin_amnt_to_str() - convert decimal coin amount to string for display 
  *

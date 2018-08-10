@@ -38,6 +38,7 @@
 #include "keepkey/crypto/curves.h"
 #include "keepkey/crypto/ecdsa.h"
 #include "keepkey/crypto/hmac.h"
+#include "keepkey/crypto/macros.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/crypto/ripemd160.h"
 #include "keepkey/crypto/secp256k1.h"
@@ -758,7 +759,18 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 
     if (msg->has_show_display && msg->show_display)
     {
-        if (!confirm_xpub(resp->xpub))
+        const CoinType *coin = msg->address_n_count > 2 &&
+                               msg->address_n[0] == (0x80000000 | 44)
+             ? coinBySlip44(msg->address_n[1])
+             : 0;
+
+        char node_str[NODE_STRING_LENGTH];
+        if (!coin || !bip44_node_to_string(coin, node_str, msg->address_n,
+                                           msg->address_n_count)) {
+            memset(node_str, 0, sizeof(node_str));
+        }
+
+        if (!confirm_xpub(node_str, resp->xpub))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show extended public key cancelled");
             go_home();
@@ -768,6 +780,9 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 
     msg_write(MessageType_MessageType_PublicKey, resp);
     go_home();
+
+    if (node)
+      MEMSET_BZERO(node, sizeof(node));
 }
 
 void fsm_msgLoadDevice(LoadDevice *msg)

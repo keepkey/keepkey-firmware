@@ -38,6 +38,7 @@
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/qr_encode.h"
+#include "keepkey/firmware/coins.h"
 
 #include <assert.h>
 #include <stdarg.h>
@@ -303,10 +304,10 @@ bool confirm_load_device(bool is_node)
  *     true/false of confirmation
  *
  */
-bool confirm_xpub(const char *xpub)
+bool confirm_xpub(const char *node_str, const char *xpub)
 {
     return confirm_with_custom_layout(&layout_xpub_notification,
-                                      ButtonRequestType_ButtonRequest_Address, "", "%s", xpub);
+                                      ButtonRequestType_ButtonRequest_Address, node_str, "%s", xpub);
 
 }
 /*

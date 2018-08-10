@@ -431,7 +431,7 @@ void layout_notification_no_title_no_bold(const char *title, const char *body,
  *      none
  */
 void layout_xpub_notification(const char *desc, const char *xpub,
-                                 NotificationType type)
+                              NotificationType type)
 {
     (void)desc;
     call_leaving_handler();
@@ -440,6 +440,16 @@ void layout_xpub_notification(const char *desc, const char *xpub,
     Canvas *canvas = layout_get_canvas();
     DrawableParams sp;
     const Font *xpub_font = get_body_font();
+
+    if (strcmp(desc, "") != 0)
+    {
+        const Font *title_font = get_title_font();
+        sp.y = TOP_MARGIN_FOR_THREE_LINES;
+        sp.x = LEFT_MARGIN;
+        sp.color = BODY_COLOR;
+        draw_string(canvas, title_font, desc, &sp, TRANSACTION_WIDTH - 2,
+                    font_height(title_font) + BODY_FONT_LINE_PADDING);
+    }
 
     /* Determine vertical alignment and body width */
     sp.y =  TOP_MARGIN_FOR_THREE_LINES + ADDRESS_XPUB_TOP_MARGIN;
