@@ -20,28 +20,23 @@
 #ifndef COINS_H
 #define COINS_H
 
-/* === Includes ============================================================ */
-
 #include "keepkey/transport/interface.h"
 
-/* === Defines ============================================================= */
 #define NA      0xFFFF  /*etherum does not use P2PH or P2SH */
 #define ETHEREUM        "Ethereum"
 #define ETHEREUM_CLS    "Ethereum Classic"
 
-#define COINS_COUNT        (int)(sizeof(((Features *)NULL)->coins)/sizeof(CoinType))
+#define COINS_COUNT         43
 #define NODE_STRING_LENGTH  50
 
 #define COIN_FRACTION 100000000
-/* === Variables =========================================================== */
 
-extern const CoinTable coins;
-
-/* === Functions =========================================================== */
+extern const CoinType coins[COINS_COUNT];
 
 const CoinType *coinByShortcut(const char *shortcut);
 const CoinType *coinByName(const char *name);
 const CoinType *coinByAddressType(uint32_t address_type);
+const CoinType *coinBySlip44(uint32_t bip44_account_path);
 void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len);
 bool bip44_node_to_string(const CoinType *coin, char *node_str, uint32_t *address_n,
                          size_t address_n_count);

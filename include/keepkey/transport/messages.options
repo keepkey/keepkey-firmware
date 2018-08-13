@@ -2,13 +2,15 @@ Features.vendor				max_size:33
 Features.device_id			max_size:25
 Features.language			max_size:17
 Features.label				max_size:33
-Features.coins				max_count:39
+Features.coins				max_count:0
 Features.revision			max_size:41
 Features.bootloader_hash		max_size:32
 Features.policies			max_count:1
 Features.model              max_size:32
 Features.firmware_variant    max_size:32
 Features.firmware_hash		max_size:32
+
+CoinTable.table				max_count:8
 
 ApplySettings.language			max_size:17
 ApplySettings.label			max_size:33
@@ -160,3 +162,4 @@ FlashWrite.data max_size:1024
 
 FlashHashResponse.data max_size:32
 
+CoinTable.table max_size:39

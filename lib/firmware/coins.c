@@ -17,8 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/util.h"
 
@@ -43,27 +41,24 @@ true, {20, {(CONTRACT_ADDRESS)}},  /* has_contract_address, contract_address*/ \
 true, {32, {(GAS_LIMIT)}},         /* has_gas_limit, gas_limit*/ \
 },
 
-
-/* === Variables =========================================================== */
-
-const CoinTable coins = {
-        .table = {
-	    {true, "Bitcoin",      true, "BTC",  true,   0, true,     100000, true,   5, true,  6, true, 10, true, "\x18" "Bitcoin Signed Message:\n",      true, 0x80000000, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
-	    {true, "Testnet",      true, "TEST", true, 111, true,   10000000, true, 196, true,  3, true, 40, true, "\x18" "Bitcoin Signed Message:\n",      true, 0x80000001, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
-	    {true, "BitcoinCash",  true, "BCH",  true,   0, true,     500000, true,   5, false, 0, false, 0, true, "\x18" "Bitcoin Signed Message:\n",      true, 0x80000091, true,  0, true,   8, false, {0, {0}}, false, {0, {0}}},
-	    {true, "Namecoin",     true, "NMC",  true,  52, true,   10000000, true,   5, false, 0, false, 0, true, "\x19" "Namecoin Signed Message:\n",     true, 0x80000007, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
-	    {true, "Litecoin",     true, "LTC",  true,  48, true,    1000000, true,   5, false, 0, false, 0, true, "\x19" "Litecoin Signed Message:\n",     true, 0x80000002, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
-	    {true, "Dogecoin",     true, "DOGE", true,  30, true, 1000000000, true,  22, false, 0, false, 0, true, "\x19" "Dogecoin Signed Message:\n",     true, 0x80000003, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
-	    {true, "Dash",         true, "DASH", true,  76, true,     100000, true,  16, false, 0, false, 0, true, "\x19" "DarkCoin Signed Message:\n",     true, 0x80000005, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
-	    {true, ETHEREUM,       true, "ETH",  true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n",     true, 0x8000003c, false, 0, true,  18, false, {0, {0}}, false, {0, {0}}},
-	    {true, ETHEREUM_CLS,   true, "ETC",  true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n",     true, 0x8000003d, false, 0, true,  18, false, {0, {0}}, false, {0, {0}}},
-	    {true, "BitcoinGold",  true, "BTG",  true,  38, true,     500000, true,  23, false, 0, false, 0, true, "\x1d" "Bitcoin Gold Signed Message:\n", true, 0x8000009c, true, 79, true,   8, false, {0, {0}}, false, {0, {0}}},
-	    #include "keepkey/firmware/tokens.def"
-        }
+const CoinType coins[COINS_COUNT] = {
+    {true, "Bitcoin",      true, "BTC",  true,   0, true,     100000, true,   5, true,  6, true, 10, true, "\x18" "Bitcoin Signed Message:\n",      true, 0x80000000, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
+    {true, "Testnet",      true, "TEST", true, 111, true,   10000000, true, 196, true,  3, true, 40, true, "\x18" "Bitcoin Signed Message:\n",      true, 0x80000001, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
+    {true, "BitcoinCash",  true, "BCH",  true,   0, true,     500000, true,   5, false, 0, false, 0, true, "\x18" "Bitcoin Signed Message:\n",      true, 0x80000091, true,  0, true,   8, false, {0, {0}}, false, {0, {0}}},
+    {true, "Namecoin",     true, "NMC",  true,  52, true,   10000000, true,   5, false, 0, false, 0, true, "\x19" "Namecoin Signed Message:\n",     true, 0x80000007, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
+    {true, "Litecoin",     true, "LTC",  true,  48, true,    1000000, true,   5, false, 0, false, 0, true, "\x19" "Litecoin Signed Message:\n",     true, 0x80000002, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
+    {true, "Dogecoin",     true, "DOGE", true,  30, true, 1000000000, true,  22, false, 0, false, 0, true, "\x19" "Dogecoin Signed Message:\n",     true, 0x80000003, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
+    {true, "Dash",         true, "DASH", true,  76, true,     100000, true,  16, false, 0, false, 0, true, "\x19" "DarkCoin Signed Message:\n",     true, 0x80000005, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
+    {true, ETHEREUM,       true, "ETH",  true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n",     true, 0x8000003c, false, 0, true,  18, false, {0, {0}}, false, {0, {0}}},
+    {true, ETHEREUM_CLS,   true, "ETC",  true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n",     true, 0x8000003d, false, 0, true,  18, false, {0, {0}}, false, {0, {0}}},
+    {true, "BitcoinGold",  true, "BTG",  true,  38, true,     500000, true,  23, false, 0, false, 0, true, "\x1d" "Bitcoin Gold Signed Message:\n", true, 0x8000009c, true, 79, true,   8, false, {0, {0}}, false, {0, {0}}},
+    #include "keepkey/firmware/tokens.def"
 };
 
+_Static_assert(sizeof(coins) / sizeof(coins[0]) == COINS_COUNT,
+               "Update COINS_COUNT to match the size of the coin table");
 
-/* === Private Functions =================================================== */
+
 /*
  * verify_bip44_node() - Checks node is valid bip44
  *
@@ -105,7 +100,6 @@ verify_bip44_node_exit:
     return(ret_stat);
 }
 
-/* === Functions =========================================================== */
 const CoinType *coinByShortcut(const char *shortcut)
 {
     if(!shortcut) { return 0; }
@@ -114,10 +108,10 @@ const CoinType *coinByShortcut(const char *shortcut)
 
     for(i = 0; i < COINS_COUNT; i++)
     {
-        if(strncasecmp(shortcut, coins.table[i].coin_shortcut,
-                       sizeof(coins.table[i].coin_shortcut)) == 0)
+        if(strncasecmp(shortcut, coins[i].coin_shortcut,
+                       sizeof(coins[i].coin_shortcut)) == 0)
         {
-            return &(coins.table[i]);
+            return &coins[i];
         }
     }
 
@@ -132,10 +126,10 @@ const CoinType *coinByName(const char *name)
 
     for(i = 0; i < COINS_COUNT; i++)
     {
-        if(strncasecmp(name, coins.table[i].coin_name,
-                       sizeof(coins.table[i].coin_name)) == 0)
+        if(strncasecmp(name, coins[i].coin_name,
+                       sizeof(coins[i].coin_name)) == 0)
         {
-            return &(coins.table[i]);
+            return &coins[i];
         }
     }
 
@@ -148,16 +142,24 @@ const CoinType *coinByAddressType(uint32_t address_type)
 
     for(i = 0; i < COINS_COUNT; i++)
     {
-        if(address_type == coins.table[i].address_type)
+        if(address_type == coins[i].address_type)
         {
-            return &(coins.table[i]);
+            return &coins[i];
         }
     }
 
     return 0;
 }
 
-/* === Functions =========================================================== */
+const CoinType *coinBySlip44(uint32_t bip44_account_path)
+{
+    for (int i = 0; i < COINS_COUNT; i++) {
+        if (bip44_account_path == coins[i].bip44_account_path) {
+            return &coins[i];
+        }
+    }
+    return 0;
+}
 
 /*
  * coin_amnt_to_str() - convert decimal coin amount to string for display 

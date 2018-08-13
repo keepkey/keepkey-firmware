@@ -38,6 +38,7 @@
 #include "keepkey/crypto/curves.h"
 #include "keepkey/crypto/ecdsa.h"
 #include "keepkey/crypto/hmac.h"
+#include "keepkey/crypto/macros.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/crypto/ripemd160.h"
 #include "keepkey/crypto/secp256k1.h"
@@ -60,6 +61,8 @@
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/util.h"
 
+#include "messages.pb.h"
+
 #include <stdio.h>
 
 static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
@@ -69,6 +72,7 @@ static const MessagesMap_t MessagesMap[] =
     /* Normal Messages */
     MSG_IN(MessageType_MessageType_Initialize,          Initialize_fields, (void (*)(void *))fsm_msgInitialize, AnyVariant)
     MSG_IN(MessageType_MessageType_GetFeatures,         GetFeatures_fields, (void (*)(void *))fsm_msgGetFeatures, AnyVariant)
+    MSG_IN(MessageType_MessageType_GetCoinTable,        GetCoinTable_fields, (void (*)(void *))fsm_msgGetCoinTable, AnyVariant)
     MSG_IN(MessageType_MessageType_Ping,                Ping_fields, (void (*)(void *))fsm_msgPing, AnyVariant)
     MSG_IN(MessageType_MessageType_ChangePin,           ChangePin_fields, (void (*)(void *))fsm_msgChangePin, MFRProhibited)
     MSG_IN(MessageType_MessageType_WipeDevice,          WipeDevice_fields, (void (*)(void *))fsm_msgWipeDevice, MFRProhibited)
@@ -89,6 +93,7 @@ static const MessagesMap_t MessagesMap[] =
     MSG_IN(MessageType_MessageType_GetAddress,          GetAddress_fields, (void (*)(void *))fsm_msgGetAddress, MFRProhibited)
     MSG_IN(MessageType_MessageType_EntropyAck,          EntropyAck_fields, (void (*)(void *))fsm_msgEntropyAck, AnyVariant)
     MSG_IN(MessageType_MessageType_SignMessage,         SignMessage_fields, (void (*)(void *))fsm_msgSignMessage, MFRProhibited)
+    MSG_IN(MessageType_MessageType_SignIdentity,        SignIdentity_fields, (void (*)(void *))fsm_msgSignIdentity, MFRProhibited)
     MSG_IN(MessageType_MessageType_VerifyMessage,       VerifyMessage_fields, (void (*)(void *))fsm_msgVerifyMessage, MFRProhibited)
 /* ECIES disabled
     MSG_IN(MessageType_MessageType_EncryptMessage,      EncryptMessage_fields, (void (*)(void *))fsm_msgEncryptMessage, MFRProhibited)
@@ -117,6 +122,7 @@ static const MessagesMap_t MessagesMap[] =
     MSG_OUT(MessageType_MessageType_Entropy,            Entropy_fields,             NO_PROCESS_FUNC, AnyVariant)
     MSG_OUT(MessageType_MessageType_PublicKey,          PublicKey_fields,           NO_PROCESS_FUNC, AnyVariant)
     MSG_OUT(MessageType_MessageType_Features,           Features_fields,            NO_PROCESS_FUNC, AnyVariant)
+    MSG_OUT(MessageType_MessageType_CoinTable,          CoinTable_fields,           NO_PROCESS_FUNC, AnyVariant)
     MSG_OUT(MessageType_MessageType_PinMatrixRequest,   PinMatrixRequest_fields,    NO_PROCESS_FUNC, AnyVariant)
     MSG_OUT(MessageType_MessageType_TxRequest,          TxRequest_fields,           NO_PROCESS_FUNC, AnyVariant)
     MSG_OUT(MessageType_MessageType_CipheredKeyValue,   CipheredKeyValue_fields,    NO_PROCESS_FUNC, AnyVariant)
@@ -463,10 +469,6 @@ void fsm_msgGetFeatures(GetFeatures *msg)
         strlcpy(resp->label, storage_get_label(), sizeof(resp->label));
     }
 
-    /* Coin type support */
-    resp->coins_count = COINS_COUNT;
-    memcpy(resp->coins, coins.table, COINS_COUNT * sizeof(CoinType));
-
     /* Is device initialized? */
     resp->has_initialized = true;
     resp->initialized = storage_is_initialized();
@@ -484,6 +486,44 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     storage_get_policies(resp->policies);
 
     msg_write(MessageType_MessageType_Features, resp);
+}
+
+void fsm_msgGetCoinTable(GetCoinTable *msg)
+{
+    RESP_INIT(CoinTable);
+
+    if (msg->has_start != msg->has_end) {
+        fsm_sendFailure(FailureType_Failure_Other,
+                        "Incorrect GetCoinTable parameters");
+        go_home();
+        return;
+    }
+
+    resp->has_chunk_size = true;
+    resp->chunk_size = sizeof(resp->table) / sizeof(resp->table[0]);
+
+    if (msg->has_start && msg->has_end) {
+        if (COINS_COUNT <= msg->start ||
+            COINS_COUNT < msg->end ||
+            msg->end < msg->start ||
+            resp->chunk_size < msg->end - msg->start) {
+            fsm_sendFailure(FailureType_Failure_Other,
+                            "Incorrect GetCoinTable parameters");
+            go_home();
+            return;
+        }
+    }
+
+    resp->has_num_coins = true;
+    resp->num_coins = COINS_COUNT;
+
+    if (msg->has_start && msg->has_end) {
+        resp->table_count = msg->end - msg->start;
+        memcpy(&resp->table[0], &coins[msg->start],
+               resp->table_count * sizeof(resp->table[0]));
+    }
+
+    msg_write(MessageType_MessageType_CoinTable, resp);
 }
 
 static bool isValidModelNumber(const char *model) {
@@ -680,6 +720,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
         go_home();
         return;
     }
+
     const char *curve = SECP256K1_NAME;
     if (msg->has_ecdsa_curve_name) {
         curve = msg->ecdsa_curve_name;
@@ -695,20 +736,10 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
         node = fsm_getDerivedNode(curve, msg->address_n, msg->address_n_count - 1);
         if (!node) return;
         fingerprint = hdnode_fingerprint(node);
-	/* get child */
-	hdnode_private_ckd(node, msg->address_n[msg->address_n_count - 1]);
+        /* get child */
+        hdnode_private_ckd(node, msg->address_n[msg->address_n_count - 1]);
     }
     hdnode_fill_public_key(node);
-
-    if(msg->has_show_display && msg->show_display)
-    {
-        if(!confirm_xpub(resp->xpub))
-        {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show extended public key cancelled");
-            go_home();
-            return;
-        }
-    }
 
     resp->node.depth = node->depth;
     resp->node.fingerprint = fingerprint;
@@ -725,8 +756,33 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
     }
     resp->has_xpub = true;
     hdnode_serialize_public(node, fingerprint, resp->xpub, sizeof(resp->xpub));
+
+    if (msg->has_show_display && msg->show_display)
+    {
+        const CoinType *coin = msg->address_n_count > 2 &&
+                               msg->address_n[0] == (0x80000000 | 44)
+             ? coinBySlip44(msg->address_n[1])
+             : 0;
+
+        char node_str[NODE_STRING_LENGTH];
+        if (!coin || !bip44_node_to_string(coin, node_str, msg->address_n,
+                                           msg->address_n_count)) {
+            memset(node_str, 0, sizeof(node_str));
+        }
+
+        if (!confirm_xpub(node_str, resp->xpub))
+        {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show extended public key cancelled");
+            go_home();
+            return;
+        }
+    }
+
     msg_write(MessageType_MessageType_PublicKey, resp);
     go_home();
+
+    if (node)
+      MEMSET_BZERO(node, sizeof(node));
 }
 
 void fsm_msgLoadDevice(LoadDevice *msg)
@@ -1312,6 +1368,100 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
     go_home();
 }
 
+void fsm_msgSignIdentity(SignIdentity *msg)
+{
+    RESP_INIT(SignedIdentity);
+
+    if (!storage_is_initialized())
+    {
+        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
+        return;
+    }
+
+    if (!confirm_sign_identity(&(msg->identity), msg->has_challenge_visual ? msg->challenge_visual : 0))
+    {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Sign identity cancelled");
+        go_home();
+        return;
+    }
+
+    if (!pin_protect_cached())
+    {
+        go_home();
+        return;
+    }
+
+    uint8_t hash[32];
+    if (!msg->has_identity || cryptoIdentityFingerprint(&(msg->identity), hash) == 0)
+    {
+        fsm_sendFailure(FailureType_Failure_Other, "Invalid identity");
+        go_home();
+        return;
+    }
+
+    uint32_t address_n[5];
+    address_n[0] = 0x80000000 | 13;
+    address_n[1] = 0x80000000 | hash[ 0] | (hash[ 1] << 8) | (hash[ 2] << 16) | ((uint32_t)hash[ 3] << 24);
+    address_n[2] = 0x80000000 | hash[ 4] | (hash[ 5] << 8) | (hash[ 6] << 16) | ((uint32_t)hash[ 7] << 24);
+    address_n[3] = 0x80000000 | hash[ 8] | (hash[ 9] << 8) | (hash[10] << 16) | ((uint32_t)hash[11] << 24);
+    address_n[4] = 0x80000000 | hash[12] | (hash[13] << 8) | (hash[14] << 16) | ((uint32_t)hash[15] << 24);
+
+    const char *curve = SECP256K1_NAME;
+    if (msg->has_ecdsa_curve_name) {
+        curve = msg->ecdsa_curve_name;
+    }
+    HDNode *node = fsm_getDerivedNode(curve, address_n, 5);
+    if (!node) { return; }
+
+    bool sign_ssh = msg->identity.has_proto && (strcmp(msg->identity.proto, "ssh") == 0);
+    bool sign_gpg = msg->identity.has_proto && (strcmp(msg->identity.proto, "gpg") == 0);
+
+    int result = 0;
+    layout_simple_message("Signing Identity...");
+
+    if (sign_ssh) {   // SSH does not sign visual challenge
+        result = sshMessageSign(node, msg->challenge_hidden.bytes, msg->challenge_hidden.size, resp->signature.bytes);
+    } else if (sign_gpg) { // GPG should sign a message digest
+        result = gpgMessageSign(node, msg->challenge_hidden.bytes, msg->challenge_hidden.size, resp->signature.bytes);
+    } else {
+        uint8_t digest[64];
+        sha256_Raw(msg->challenge_hidden.bytes, msg->challenge_hidden.size, digest);
+        sha256_Raw((const uint8_t *)msg->challenge_visual, strlen(msg->challenge_visual), digest + 32);
+        result = cryptoMessageSign(coinByName("Bitcoin"), node, digest, 64, resp->signature.bytes);
+    }
+
+    if (result == 0) {
+        hdnode_fill_public_key(node);
+        if (strcmp(curve, SECP256K1_NAME) != 0)
+        {
+            resp->has_address = false;
+        }
+        else
+        {
+            resp->has_address = true;
+            uint8_t addr_raw[21];
+            hdnode_get_address_raw(node, 0x00, addr_raw); // hardcoded Bitcoin address type
+            base58_encode_check(addr_raw, 21, resp->address, sizeof(resp->address));
+        }
+        resp->has_public_key = true;
+        resp->public_key.size = 33;
+        memcpy(resp->public_key.bytes, node->public_key, 33);
+        if (node->public_key[0] == 1) {
+            /* ed25519 public key */
+            resp->public_key.bytes[0] = 0;
+        }
+        resp->has_signature = true;
+        resp->signature.size = 65;
+        msg_write(MessageType_MessageType_SignedIdentity, resp);
+    }
+    else
+    {
+        fsm_sendFailure(FailureType_Failure_Other, "Error signing identity");
+    }
+
+    go_home();
+}
+
 void fsm_msgEstimateTxSize(EstimateTxSize *msg)
 {
     RESP_INIT(TxSize);
@@ -1569,7 +1719,18 @@ void fsm_msgFlashWrite(FlashWrite *msg) {
         return;
     }
 
-    // Check BOUNDS
+    _Static_assert(FLASH_BOOTSTRAP_SECTOR_FIRST == FLASH_BOOTSTRAP_SECTOR_LAST,
+                   "Bootstrap isn't one sector?");
+    if (FLASH_BOOTSTRAP_SECTOR_FIRST == sector ||
+        (FLASH_VARIANT_SECTOR_FIRST <= sector &&
+         sector <= FLASH_VARIANT_SECTOR_LAST) ||
+        (FLASH_BOOT_SECTOR_FIRST <= sector &&
+         sector <= FLASH_BOOT_SECTOR_LAST)) {
+        fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: cannot write to read-only sector");
+        go_home();
+        return;
+    }
+
     if (!variant_mfr_flashWrite((uint8_t*)msg->address, msg->data.bytes, msg->data.size,
                                  msg->has_erase ? msg->erase : false)) {
         fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: write failed");

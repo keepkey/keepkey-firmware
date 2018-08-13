@@ -46,6 +46,7 @@ void fsm_sendFailure(FailureType code, const char *text);
 
 void fsm_msgInitialize(Initialize *msg);
 void fsm_msgGetFeatures(GetFeatures *msg);
+void fsm_msgGetCoinTable(GetCoinTable *msg);
 void fsm_msgPing(Ping *msg);
 void fsm_msgChangePin(ChangePin *msg);
 void fsm_msgWipeDevice(WipeDevice *msg);
