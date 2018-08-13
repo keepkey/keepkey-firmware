@@ -36,15 +36,11 @@
 
 #include <stdio.h>
 
-/* maximum supported chain id.  value must fit in a uint32_t */
-#define MAX_CHAIN_ID 214783630
-
 static bool ethereum_signing = false;
 static uint32_t data_total, data_left;
 static EthereumTxRequest resp;
 static uint8_t CONFIDENTIAL privkey[32];
 static uint8_t hash[32], sig[64];
-static uint32_t chain_id;
 struct SHA3_CTX keccak_ctx;
 
 static inline void hash_data(const uint8_t *buf, size_t size)
@@ -135,29 +131,6 @@ static void hash_rlp_field(const uint8_t *buf, size_t size)
     hash_data(buf, size);
 }
 
-/**
- * \brief Push an RLP encoded number to the hash buffer.
- *
- *  Ethereum yellow paper says to convert to big endian and strip leading
- *  zeroes.
- */
-static void hash_rlp_number(uint32_t number)
-{
-    if (!number) {
-        return;
-    }
-    uint8_t data[4];
-    data[0] = (number >> 24) & 0xff;
-    data[1] = (number >> 16) & 0xff;
-    data[2] = (number >> 8) & 0xff;
-    data[3] = (number) & 0xff;
-    int offset = 0;
-    while (!data[offset]) {
-        offset++;
-    }
-    hash_rlp_field(data + offset, 4 - offset);
-}
-
 /*
  * Calculate the number of bytes needed for an RLP length header.
  * NOTE: supports up to 16MB of data (how unlikely...)
@@ -224,15 +197,6 @@ static void send_request_chunk(void)
 static void send_signature(void)
 {
     animating_progress_handler(); // layoutProgress("Signing", 1000);
-
-    /* eip-55 replay protection */
-    if (chain_id != 0) {
-      /* hash v=chain_id, r=0, s=0 */
-      hash_rlp_number(chain_id);
-      hash_rlp_length(0, 0);
-      hash_rlp_length(0, 0);
-    }
-
     keccak_Final(&keccak_ctx, hash);
     uint8_t v;
     if(ecdsa_sign_digest(&secp256k1, privkey, hash, sig, &v) != 0)
@@ -248,11 +212,7 @@ static void send_signature(void)
     resp.has_data_length = false;
 
     resp.has_signature_v = true;
-    if (chain_id) {
-        resp.signature_v = v + 2 * chain_id + 35;
-    } else {
-        resp.signature_v = v + 27;
-    }
+    resp.signature_v = v + 27;
 
     resp.has_signature_r = true;
     resp.signature_r.size = 32;
@@ -281,7 +241,7 @@ static void send_signature(void)
  */
 static void ethereumFormatAmount(bignum256 *val, char buffer[25])
 {
-    char value[26] = {0};
+    char value[25] = {0};
     char *value_ptr = value;
 
     // convert val into base 1000 for easy printing.
@@ -351,21 +311,8 @@ static void ethereumFormatAmount(bignum256 *val, char buffer[25])
             value_ptr--;
         }
 
-        switch (chain_id) {
-        case  1: strcpy(value_ptr, " ETH");  break; // Ethereum Mainnet
-        case 61: strcpy(value_ptr, " ETC");  break; // Ethereum Classic Mainnet
-        case 62: strcpy(value_ptr, " tETC"); break; // Ethereum Classic Testnet
-        case  3:                                    // Ethereum Testnet: Ropsten
-        case  4:                                    // Ethereum Testnet: Rinkeby
-        case 42: strcpy(value_ptr, " tETH"); break; // Ethereum Testnet: Kovan
-        default:
-            fsm_sendFailure(FailureType_Failure_Other,
-                            "Unsupported Ethereum Fork");
-            ethereum_signing_abort();
-            break;
-        }
-
-        // value is at most 16 + 5 + 1 characters long
+        strcpy(value_ptr, " ETH");
+        // value is at most 16 + 4 + 1 characters long
     }
     else
     {
@@ -761,18 +708,6 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
     {
         msg->to.size = 0;
     }
-
-    if(msg->has_chain_id) {
-        if(msg->chain_id < 1 || msg->chain_id > MAX_CHAIN_ID) {
-            fsm_sendFailure(FailureType_Failure_Other, "Chain ID out of bounds");
-            ethereum_signing_abort();
-            return;
-        }
-        chain_id = msg->chain_id;
-    } else {
-        chain_id = 0;
-    }
-
     if(msg->has_data_length)
     {
         if(msg->data_length > 0)
@@ -865,9 +800,8 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
         if(!is_token_transaction(msg))
         {
             layoutEthereumData(msg->data_initial_chunk.bytes, msg->data_initial_chunk.size, data_total, confirm_body_message, sizeof(confirm_body_message));
-        }else{
-            // NOTE: This will need the chain_id passed in, if/when we support
-            //       BEC on ETC Mainnet.
+        }
+        else{
             layoutERC20Data(msg->token_shortcut, msg->token_value.bytes, msg->token_value.size, msg->token_to.bytes, confirm_body_message, sizeof(confirm_body_message)); 
         }
         if(strlen(confirm_body_message) > 0)
@@ -947,11 +881,6 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
     rlp_length += rlp_calculate_length(msg->to.size, msg->to.bytes[0]);
     rlp_length += rlp_calculate_length(msg->value.size, msg->value.bytes[0]);
     rlp_length += rlp_calculate_length(data_total, msg->data_initial_chunk.bytes[0]);
-    if (chain_id) {
-        rlp_length += rlp_calculate_length(1, chain_id);
-        rlp_length += rlp_calculate_length(0, 0);
-        rlp_length += rlp_calculate_length(0, 0);
-    }
 
     /* Stage 2: Store header fields */
     hash_rlp_list_length(rlp_length);
