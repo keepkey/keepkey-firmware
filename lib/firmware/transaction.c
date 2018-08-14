@@ -24,14 +24,14 @@
 #include "keepkey/board/confirm_sm.h"
 
 #include "keepkey/firmware/transaction.h"
-#include "keepkey/crypto/address.h"
-#include "keepkey/crypto/ecdsa.h"
-#include "keepkey/crypto/macros.h"
+#include "trezor/crypto/address.h"
+#include "trezor/crypto/ecdsa.h"
+#include "trezor/crypto/memzero.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/util.h"
 #include "keepkey/firmware/crypto.h"
-#include "keepkey/crypto/ripemd160.h"
-#include "keepkey/crypto/base58.h"
+#include "trezor/crypto/ripemd160.h"
+#include "trezor/crypto/base58.h"
 #include "keepkey/firmware/app_confirm.h"
 
 #include <string.h>
@@ -102,13 +102,13 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 			static CONFIDENTIAL HDNode node;
 			memcpy(&node, root, sizeof(HDNode));
 
-			if (hdnode_private_ckd_cached(&node, in->address_n, in->address_n_count) == 0) 
+			if (hdnode_private_ckd_cached(&node, in->address_n, in->address_n_count, NULL) == 0)
 			{
-				MEMSET_BZERO(&node, sizeof(node));
+				memzero(&node, sizeof(node));
 				return TXOUT_COMPILE_ERROR;
 			}
 			hdnode_get_address_raw(&node, coin->address_type, addr_raw);
-			MEMSET_BZERO(&node, sizeof(node));
+			memzero(&node, sizeof(node));
 		} else
 		if (in->has_address) { // address provided -> regular output
 			if (needs_confirm) {
@@ -119,7 +119,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 					return TXOUT_CANCEL;
 				}
 			}
-			if (!ecdsa_address_decode(in->address, coin->address_type, addr_raw)) {
+			if (!ecdsa_address_decode(in->address, coin->address_type, secp256k1_info.hasher_base58, addr_raw)) {
 				return TXOUT_COMPILE_ERROR;
 			}
 		} else { // does not have address_n neither address -> error
@@ -138,7 +138,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 	}
 
 	if (in->script_type == OutputScriptType_PAYTOSCRIPTHASH) {
-		if (!in->has_address || !ecdsa_address_decode(in->address, coin->address_type_p2sh, addr_raw)) {
+		if (!in->has_address || !ecdsa_address_decode(in->address, coin->address_type_p2sh, secp256k1_info.hasher_base58, addr_raw)) {
 			return TXOUT_COMPILE_ERROR;
 		}
 		if (needs_confirm) {
@@ -170,7 +170,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		address_write_prefix_bytes(coin->address_type_p2sh, addr_raw);
 		ripemd160(buf, 32, addr_raw + prefix_len);
 		if (needs_confirm) {
-			base58_encode_check(addr_raw, prefix_len + 20, in->address, sizeof(in->address));
+			base58_encode_check(addr_raw, prefix_len + 20, secp256k1_info.hasher_base58, in->address, sizeof(in->address));
 			coin_amnt_to_str(coin, in->amount, amount_str, sizeof(amount_str));
 
 			if(!confirm_transaction_output(ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str, in->address))

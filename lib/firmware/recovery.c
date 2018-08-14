@@ -22,8 +22,6 @@
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/msg_dispatch.h"
-#include "keepkey/crypto/bip39.h"
-#include "keepkey/crypto/macros.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/pin_sm.h"
@@ -31,6 +29,9 @@
 #include "keepkey/firmware/recovery_cipher.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
+#include "trezor/crypto/bip39.h"
+#include "trezor/crypto/memzero.h"
+#include "trezor/crypto/rand.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -96,8 +97,8 @@ void next_word(void) {
 	memset(&resp, 0, sizeof(WordRequest));
 	msg_write(MessageType_MessageType_WordRequest, &resp);
 
-    MEMSET_BZERO(title_formatted, sizeof(title_formatted));
-    MEMSET_BZERO(body_formatted, sizeof(body_formatted));
+    memzero(title_formatted, sizeof(title_formatted));
+    memzero(body_formatted, sizeof(body_formatted));
 }
 
 void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_protection, const char *language, const char *label, bool _enforce_wordlist)

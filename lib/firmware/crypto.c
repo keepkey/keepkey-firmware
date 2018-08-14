@@ -17,23 +17,21 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "keepkey/board/layout.h"
-#include "keepkey/crypto/aes.h"
-#include "keepkey/crypto/bip32.h"
-#include "keepkey/crypto/curves.h"
-#include "keepkey/crypto/hmac.h"
-#include "keepkey/crypto/macros.h"
-#include "keepkey/crypto/pbkdf2.h"
-#include "keepkey/crypto/secp256k1.h"
-#include "keepkey/crypto/sha2.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
+#include "trezor/crypto/address.h"
+#include "trezor/crypto/aes/aes.h"
+#include "trezor/crypto/base58.h"
+#include "trezor/crypto/bip32.h"
+#include "trezor/crypto/curves.h"
+#include "trezor/crypto/hmac.h"
+#include "trezor/crypto/memzero.h"
+#include "trezor/crypto/pbkdf2.h"
+#include "trezor/crypto/secp256k1.h"
+#include "trezor/crypto/sha2.h"
 
 #include <string.h>
-
-/* === Functions =========================================================== */
 
 uint32_t ser_length(uint32_t len, uint8_t *out)
 {
@@ -94,17 +92,23 @@ uint32_t deser_length(const uint8_t *in, uint32_t *out)
 int sshMessageSign(HDNode *node, const uint8_t *message, size_t message_len, uint8_t *signature)
 {
 	signature[0] = 0; // prefix: pad with zero, so all signatures are 65 bytes
-	return hdnode_sign(node, message, message_len, signature + 1, NULL);
+	return hdnode_sign(node, message, message_len, HASHER_SHA2, signature + 1, NULL, NULL);
 }
 
 int gpgMessageSign(HDNode *node, const uint8_t *message, size_t message_len, uint8_t *signature)
 {
-	// GPG should sign a SHA256 digest of the original message.
-	if (message_len != 32) {
-		return 1;
-	}
 	signature[0] = 0; // prefix: pad with zero, so all signatures are 65 bytes
-	return hdnode_sign_digest(node, message, signature + 1, NULL);
+	const curve_info *ed25519_curve_info = get_curve_by_name(ED25519_NAME);
+	if (ed25519_curve_info && node->curve == ed25519_curve_info) {
+		// GPG supports variable size digest for Ed25519 signatures
+		return hdnode_sign(node, message, message_len, 0, signature + 1, NULL, NULL);
+	} else {
+		// Ensure 256-bit digest before proceeding
+		if (message_len != 32) {
+			return 1;
+		}
+		return hdnode_sign_digest(node, message, signature + 1, NULL, NULL);
+	}
 }
 
 int cryptoGetECDHSessionKey(const HDNode *node, const uint8_t *peer_public_key, uint8_t *session_key)
@@ -117,70 +121,145 @@ int cryptoGetECDHSessionKey(const HDNode *node, const uint8_t *peer_public_key, 
 	bignum256 k;
 	bn_read_be(node->private_key, &k);
 	point_multiply(curve, &k, &point, &point);
-	MEMSET_BZERO(&k, sizeof(k));
+	memzero(&k, sizeof(k));
 
 	session_key[0] = 0x04;
 	bn_write_be(&point.x, session_key + 1);
 	bn_write_be(&point.y, session_key + 33);
-	MEMSET_BZERO(&point, sizeof(point));
+	memzero(&point, sizeof(point));
 	return 0;
 }
 
-int cryptoMessageSign(const CoinType *coin, HDNode *node, const uint8_t *message, size_t message_len, uint8_t *signature)
-{
-	SHA256_CTX ctx;
-	sha256_Init(&ctx);
-	sha256_Update(&ctx, (const uint8_t *)coin->signed_message_header, strlen(coin->signed_message_header));
+static void cryptoMessageHash(const CoinType *coin, const uint8_t *message, size_t message_len, uint8_t hash[HASHER_DIGEST_LENGTH]) {
+	Hasher hasher;
+#if 0
+	hasher_Init(&hasher, coin->curve->hasher_sign);
+#else
+	hasher_Init(&hasher, HASHER_SHA2D);
+#endif
+	hasher_Update(&hasher, (const uint8_t *)coin->signed_message_header, strlen(coin->signed_message_header));
 	uint8_t varint[5];
 	uint32_t l = ser_length(message_len, varint);
-	sha256_Update(&ctx, varint, l);
-	sha256_Update(&ctx, message, message_len);
-	uint8_t hash[32];
-	sha256_Final(&ctx, hash);
-	sha256_Raw(hash, 32, hash);
+	hasher_Update(&hasher, varint, l);
+	hasher_Update(&hasher, message, message_len);
+	hasher_Final(&hasher, hash);
+}
+
+int cryptoMessageSign(const CoinType *coin, HDNode *node, InputScriptType script_type, const uint8_t *message, size_t message_len, uint8_t *signature)
+{
+	uint8_t hash[HASHER_DIGEST_LENGTH];
+	cryptoMessageHash(coin, message, message_len, hash);
+
 	uint8_t pby;
-	int result = hdnode_sign_digest(node, hash, signature + 1, &pby);
+	int result = hdnode_sign_digest(node, hash, signature + 1, &pby, NULL);
 	if (result == 0) {
-		signature[0] = 27 + pby + 4;
+		switch (script_type) {
+#if 0
+			case InputScriptType_SPENDP2SHWITNESS:
+				// segwit-in-p2sh
+				signature[0] = 35 + pby;
+				break;
+			case InputScriptType_SPENDWITNESS:
+				// segwit
+				signature[0] = 39 + pby;
+				break;
+#endif
+			default:
+				// p2pkh
+				signature[0] = 31 + pby;
+				break;
+		}
 	}
 	return result;
 }
 
-int cryptoMessageVerify(const CoinType *coin, const uint8_t *message, size_t message_len, const uint8_t *address_raw, const uint8_t *signature)
+int cryptoMessageVerify(const CoinType *coin, const uint8_t *message, size_t message_len, const char *address, const uint8_t *signature)
 {
-	SHA256_CTX ctx;
-	uint8_t pubkey[65], addr_raw[21], hash[32];
-
-	// calculate hash
-	sha256_Init(&ctx);
-	sha256_Update(&ctx, (const uint8_t *)coin->signed_message_header, strlen(coin->signed_message_header));
-	uint8_t varint[5];
-	uint32_t l = ser_length(message_len, varint);
-	sha256_Update(&ctx, varint, l);
-	sha256_Update(&ctx, message, message_len);
-	sha256_Final(&ctx, hash);
-	sha256_Raw(hash, 32, hash);
-
-	uint8_t recid = signature[0] - 27;
-	if (recid >= 8) {
+	// check for invalid signature prefix
+	if (signature[0] < 27 || signature[0] > 43) {
 		return 1;
 	}
-	bool compressed = (recid >= 4);
-	recid &= 3;
+
+	uint8_t hash[HASHER_DIGEST_LENGTH];
+	cryptoMessageHash(coin, message, message_len, hash);
+
+	uint8_t recid = (signature[0] - 27) % 4;
+	bool compressed = signature[0] >= 31;
 
 	// check if signature verifies the digest and recover the public key
+	uint8_t pubkey[65];
+#if 0
+	if (ecdsa_verify_digest_recover(coin->curve->params, pubkey, signature + 1, hash, recid) != 0) {
+#else
 	if (ecdsa_verify_digest_recover(&secp256k1, pubkey, signature + 1, hash, recid) != 0) {
+#endif
 		return 3;
 	}
 	// convert public key to compressed pubkey if necessary
 	if (compressed) {
 		pubkey[0] = 0x02 | (pubkey[64] & 1);
 	}
+
 	// check if the address is correct
-	ecdsa_get_address_raw(pubkey, address_raw[0], addr_raw);
-	if (memcmp(addr_raw, address_raw, 21) != 0) {
-		return 2;
+	uint8_t addr_raw[MAX_ADDR_RAW_SIZE];
+	uint8_t recovered_raw[MAX_ADDR_RAW_SIZE];
+
+	// p2pkh
+	if (signature[0] >= 27 && signature[0] <= 34) {
+		size_t len;
+#if 0
+		if (coin->cashaddr_prefix) {
+			if (!cash_addr_decode(addr_raw, &len, coin->cashaddr_prefix, address)) {
+				return 2;
+			}
+		} else {
+#else
+		{
+#endif
+#if 0
+			len = base58_decode_check(address, coin->curve->hasher_base58, addr_raw, MAX_ADDR_RAW_SIZE);
+#else
+			len = base58_decode_check(address, secp256k1_info.hasher_base58, addr_raw, MAX_ADDR_RAW_SIZE);
+#endif
+		}
+#if 0
+		ecdsa_get_address_raw(pubkey, coin->address_type, coin->curve->hasher_pubkey, recovered_raw);
+#else
+		ecdsa_get_address_raw(pubkey, coin->address_type, secp256k1_info.hasher_pubkey, recovered_raw);
+#endif
+		if (memcmp(recovered_raw, addr_raw, len) != 0
+			|| len != address_prefix_bytes_len(coin->address_type) + 20) {
+			return 2;
+		}
+#if 0
+	} else
+	// segwit-in-p2sh
+	if (signature[0] >= 35 && signature[0] <= 38) {
+		size_t len = base58_decode_check(address, coin->curve->hasher_base58, addr_raw, MAX_ADDR_RAW_SIZE);
+		ecdsa_get_address_segwit_p2sh_raw(pubkey, coin->address_type_p2sh, coin->curve->hasher_pubkey, recovered_raw);
+		if (memcmp(recovered_raw, addr_raw, len) != 0
+			|| len != address_prefix_bytes_len(coin->address_type_p2sh) + 20) {
+			return 2;
+		}
+	} else
+	// segwit
+	if (signature[0] >= 39 && signature[0] <= 42) {
+		int witver;
+		size_t len;
+		if (!coin->bech32_prefix
+			|| !segwit_addr_decode(&witver, recovered_raw, &len, coin->bech32_prefix, address)) {
+			return 4;
+		}
+		ecdsa_get_pubkeyhash(pubkey, coin->curve->hasher_pubkey, addr_raw);
+		if (memcmp(recovered_raw, addr_raw, len) != 0
+			|| witver != 0 || len != 20) {
+			return 2;
+		}
+#endif
+	} else {
+		return 4;
 	}
+
 	return 0;
 }
 

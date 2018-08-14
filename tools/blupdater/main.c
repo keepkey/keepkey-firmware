@@ -43,7 +43,7 @@
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/draw.h"
 #include "keepkey/board/layout.h"
-#include "keepkey/crypto/sha2.h"
+#include "trezor/crypto/sha2.h"
 
 #include "keepkey/firmware/app_layout.h"
 

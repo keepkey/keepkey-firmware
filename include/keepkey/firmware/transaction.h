@@ -22,8 +22,8 @@
 
 /* === Includes ============================================================ */
 
-#include "keepkey/crypto/sha2.h"
-#include "keepkey/crypto/bip32.h"
+#include "trezor/crypto/sha2.h"
+#include "trezor/crypto/bip32.h"
 #include "keepkey/transport/interface.h"
 
 

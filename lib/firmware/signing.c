@@ -17,14 +17,12 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/msg_dispatch.h"
-#include "keepkey/crypto/ecdsa.h"
-#include "keepkey/crypto/macros.h"
-#include "keepkey/crypto/secp256k1.h"
+#include "trezor/crypto/ecdsa.h"
+#include "trezor/crypto/memzero.h"
+#include "trezor/crypto/secp256k1.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
@@ -38,7 +36,11 @@
 
 #include "types.pb.h"
 
-/* === Private Variables =================================================== */
+#ifndef __clang__
+#  define FALLTHROUGH __attribute__((fallthrough))
+#else
+#  define FALLTHROUGH do {} while (0)
+#endif
 
 static uint32_t inputs_count;
 static uint32_t outputs_count;
@@ -59,8 +61,6 @@ static bool multisig_fp_set, multisig_fp_mismatch;
 static uint8_t hash_prevouts[32], hash_sequence[32],hash_outputs[32];
 static SHA256_CTX hashers[3];
 static uint8_t multisig_fp[32];
-
-/* === Variables =========================================================== */
 
 enum {
 	STAGE_REQUEST_1_INPUT,
@@ -88,7 +88,6 @@ enum {
 	SIGHASH_ALL = 0x01,
 	SIGHASH_FORKID = 0x40,
 };
-/* === Private Functions =================================================== */
 
 /*
  * send_co_failed_message() - send transaction output error message to client
@@ -924,7 +923,7 @@ void signing_txack(TransactionType *tx)
 				resp.serialized.signature_index = idx1;
 				resp.serialized.has_signature = true;
 				resp.serialized.has_serialized_tx = true;
-				ecdsa_sign_digest(&secp256k1, privkey, hash, sig, 0);
+				ecdsa_sign_digest(&secp256k1, privkey, hash, sig, NULL, NULL);
 				resp.serialized.signature.size = ecdsa_sig_to_der(sig, resp.serialized.signature.bytes);
 				if (input.script_type == InputScriptType_SPENDMULTISIG) {
 					if (!input.has_multisig) {
@@ -1006,7 +1005,7 @@ bool compile_input_script_sig(TxInputType *tinput) {
 		}
 	}
 	memcpy(&node, root, sizeof(HDNode));
-	if (hdnode_private_ckd_cached(&node, tinput->address_n, tinput->address_n_count) == 0) {
+	if (hdnode_private_ckd_cached(&node, tinput->address_n, tinput->address_n_count, NULL) == 0) {
 		return false;
 	}
 	hdnode_fill_public_key(&node);
@@ -1014,7 +1013,11 @@ bool compile_input_script_sig(TxInputType *tinput) {
 		tinput->script_sig.size = compile_script_multisig(&(tinput->multisig), tinput->script_sig.bytes);
 	} else {
         uint8_t xhash[20];
-        ecdsa_get_pubkeyhash(node.public_key, xhash);
+#if 0
+        ecdsa_get_pubkeyhash(node.public_key, coin->curve->hasher_pubkey, xhash);
+#else
+        ecdsa_get_pubkeyhash(node.public_key, secp256k1_info.hasher_pubkey, xhash);
+#endif
         tinput->script_sig.size = compile_script_sig(coin->address_type, xhash, tinput->script_sig.bytes);
     }
     return tinput->script_sig.size > 0;

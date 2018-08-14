@@ -20,14 +20,13 @@
 #ifndef STORAGE_H
 #define STORAGE_H
 
-#include "keepkey/crypto/bip32.h"
+#include "trezor/crypto/bip32.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/firmware/storagepb.h"
 
 #define STORAGE_VERSION 10 /* Must add case fallthrough in storage_from_flash after increment*/
 #define STORAGE_RETRIES 3
 
-typedef struct _HDNode HDNode;
 typedef struct _HDNodeType HDNodeType;
 typedef struct _LoadDevice LoadDevice;
 typedef struct _PolicyType PolicyType;

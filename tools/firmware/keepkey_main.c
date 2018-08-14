@@ -37,6 +37,7 @@
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
+#include "trezor/crypto/rand.h"
 
 #include <stdbool.h>
 #include <stdint.h>

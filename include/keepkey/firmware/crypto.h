@@ -20,20 +20,15 @@
 #ifndef CRYPTO_H
 #define CRYPTO_H
 
-/* === Includes ============================================================ */
-
-#include "keepkey/crypto/bip32.h"
-#include "keepkey/crypto/secp256k1.h"
-#include "keepkey/crypto/sha2.h"
+#include "trezor/crypto/bip32.h"
+#include "trezor/crypto/secp256k1.h"
+#include "trezor/crypto/sha2.h"
 #include "pb.h"
 #include "keepkey/transport/interface.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-
-
-/* === Functions =========================================================== */
 
 uint32_t ser_length(uint32_t len, uint8_t *out);
 uint32_t ser_length_hash(SHA256_CTX *ctx, uint32_t len);
@@ -45,9 +40,9 @@ int gpgMessageSign(HDNode *node, const uint8_t *message, size_t message_len, uin
 
 int cryptoGetECDHSessionKey(const HDNode *node, const uint8_t *peer_public_key, uint8_t *session_key);
 
-int cryptoMessageSign(const CoinType *coin, HDNode *node, const uint8_t *message, size_t message_len, uint8_t *signature);
+int cryptoMessageSign(const CoinType *coin, HDNode *node, InputScriptType script_type, const uint8_t *message, size_t message_len, uint8_t *signature);
 
-int cryptoMessageVerify(const CoinType *coin, const uint8_t *message, size_t message_len, const uint8_t *address_raw, const uint8_t *signature);
+int cryptoMessageVerify(const CoinType *coin, const uint8_t *message, size_t message_len, const char *address, const uint8_t *signature);
 
 /* ECIES disabled
 // ECIES: http://memwallet.info/btcmssgs.html

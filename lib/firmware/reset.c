@@ -17,14 +17,9 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/msg_dispatch.h"
-#include "keepkey/crypto/bip39.h"
-#include "keepkey/crypto/macros.h"
-#include "keepkey/crypto/sha2.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/pin_sm.h"
@@ -33,17 +28,17 @@
 #include "keepkey/firmware/util.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/transport/interface.h"
+#include "trezor/crypto/bip39.h"
+#include "trezor/crypto/memzero.h"
+#include "trezor/crypto/rand.h"
+#include "trezor/crypto/sha2.h"
 
 #include <stdio.h>
-
-/* === Private Variables =================================================== */
 
 static uint32_t strength;
 static uint8_t CONFIDENTIAL int_entropy[32];
 static bool awaiting_entropy = false;
 static char CONFIDENTIAL current_words[MNEMONIC_BY_SCREEN_BUF];
-
-/* === Functions =========================================================== */
 
 void reset_init(bool display_random, uint32_t _strength, bool passphrase_protection,
                 bool pin_protection, const char *language, const char *label)
@@ -79,7 +74,7 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 
     if(pin_protection && !change_pin())
     {
-        MEMSET_BZERO(ent_str, sizeof(ent_str));
+        memzero(ent_str, sizeof(ent_str));
         go_home();
         return;
     }
@@ -93,7 +88,7 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
     msg_write(MessageType_MessageType_EntropyRequest, &resp);
     awaiting_entropy = true;
 
-    MEMSET_BZERO(ent_str, sizeof(ent_str));
+    memzero(ent_str, sizeof(ent_str));
 }
 
 void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
@@ -112,7 +107,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 
     const char *temp_mnemonic = mnemonic_from_data(int_entropy, strength / 8);
 
-    MEMSET_BZERO(int_entropy, sizeof(int_entropy));
+    memzero(int_entropy, sizeof(int_entropy));
     awaiting_entropy = false;
 
     /*
@@ -203,12 +198,12 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
     fsm_sendSuccess("Device reset");
 
 exit:
-    MEMSET_BZERO(&ctx, sizeof(ctx));
-    MEMSET_BZERO(tokened_mnemonic, sizeof(tokened_mnemonic));
-    MEMSET_BZERO(mnemonic_by_screen, sizeof(mnemonic_by_screen));
-    MEMSET_BZERO(formatted_mnemonic, sizeof(formatted_mnemonic));
-    MEMSET_BZERO(mnemonic_display, sizeof(mnemonic_display));
-    MEMSET_BZERO(formatted_word, sizeof(formatted_word));
+    memzero(&ctx, sizeof(ctx));
+    memzero(tokened_mnemonic, sizeof(tokened_mnemonic));
+    memzero(mnemonic_by_screen, sizeof(mnemonic_by_screen));
+    memzero(formatted_mnemonic, sizeof(formatted_mnemonic));
+    memzero(mnemonic_display, sizeof(mnemonic_display));
+    memzero(formatted_word, sizeof(formatted_word));
     go_home();
 }
 

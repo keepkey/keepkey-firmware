@@ -21,9 +21,9 @@
 
 #include "keepkey/bootloader/signatures.h"
 
-#include "keepkey/crypto/sha2.h"
-#include "keepkey/crypto/ecdsa.h"
-#include "keepkey/crypto/secp256k1.h"
+#include "trezor/crypto/sha2.h"
+#include "trezor/crypto/ecdsa.h"
+#include "trezor/crypto/secp256k1.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/board/pubkeys.h"
 

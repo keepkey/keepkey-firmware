@@ -21,9 +21,9 @@
 
 #include "keepkey/board/layout.h"
 #include "keepkey/board/msg_dispatch.h"
-#include "keepkey/crypto/bip32.h"
-#include "keepkey/crypto/ecdsa.h"
-#include "keepkey/crypto/macros.h"
+#include "trezor/crypto/bip32.h"
+#include "trezor/crypto/ecdsa.h"
+#include "trezor/crypto/memzero.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
@@ -42,12 +42,7 @@
 static ExchangeError exchange_error = NO_EXCHANGE_ERROR;
 
 /* exchange public key for signature varification */
-static const uint8_t ShapeShift_public_address[25] =
-{
-    0x00, 0xB9, 0xF5, 0x01, 0xE0, 0xD3, 0x69, 0x28, 0x37, 0x19, 
-    0x57, 0x5B, 0xD5, 0x93, 0x40, 0x6C, 0xC3, 0xBA, 0x78, 0xC2, 
-    0x71, 0x66, 0x09, 0x5E, 0x64
-};
+static const char *ShapeShift_pubkey = "1HxFWu1wM88q1aLkfUmpZBjhTWcdXGB6gT";
 
 /* exchange API Key */
 static const uint8_t ShapeShift_api_key[64] =
@@ -169,7 +164,7 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
     if(coin)
     {
         memcpy(&node, root, sizeof(HDNode));
-        if(hdnode_private_ckd_cached(&node, address_n, address_n_count) == 0)
+        if(hdnode_private_ckd_cached(&node, address_n, address_n_count, NULL) == 0)
         {
             goto verify_exchange_address_exit;
         }
@@ -203,8 +198,15 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
         {
             char tx_out_address[36];
             hdnode_fill_public_key(&node);
-            ecdsa_get_address(node.public_key, coin->address_type, tx_out_address,
+#if 0
+            ecdsa_get_address(node.public_key, coin->address_type, coin->curve->hasher_pubkey,
+                              coin->curve->hasher_base58, tx_out_address,
                               sizeof(tx_out_address));
+#else
+            ecdsa_get_address(node.public_key, coin->address_type, secp256k1_info.hasher_pubkey,
+                              secp256k1_info.hasher_base58, tx_out_address,
+                              sizeof(tx_out_address));
+#endif
             if(strncmp(tx_out_address, address_str, sizeof(tx_out_address)) == 0)
             {
                 ret_stat = true;
@@ -212,7 +214,7 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
         }
     }
 verify_exchange_address_exit:
-    MEMSET_BZERO(&node, sizeof(node));
+    memzero(&node, sizeof(node));
     return(ret_stat);
 }
 
@@ -393,7 +395,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     if(response_raw_filled_len != 0)
     {
         const CoinType *signed_coin = coinByShortcut((const char *)"BTC");
-        if(cryptoMessageVerify(signed_coin, response_raw, response_raw_filled_len, ShapeShift_public_address, 
+        if(cryptoMessageVerify(signed_coin, response_raw, response_raw_filled_len, ShapeShift_pubkey,
                     (uint8_t *)exchange->signed_exchange_response.signature.bytes) != 0)
         {
             set_exchange_error(ERROR_EXCHANGE_SIGNATURE);

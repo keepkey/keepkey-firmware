@@ -29,8 +29,8 @@
 #include "keepkey/board/usb_driver.h"
 #include "keepkey/bootloader/signatures.h"
 #include "keepkey/bootloader/usb_flash.h"
-#include "keepkey/crypto/sha2.h"
-#include "keepkey/crypto/macros.h"
+#include "trezor/crypto/sha2.h"
+#include "trezor/crypto/memzero.h"
 #include "keepkey/transport/interface.h"
 
 #include <libopencm3/stm32/flash.h>
@@ -294,7 +294,7 @@ bool usb_flash_firmware(void)
 
 uff_exit:
     /* Clear the shadow before exiting */
-    MEMSET_BZERO(storage_sav, sizeof(storage_sav));
+    memzero(storage_sav, sizeof(storage_sav));
     return(ret_val);
 }
 

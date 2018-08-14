@@ -22,7 +22,7 @@
 
 /* === Includes ============================================================ */
 
-#include "keepkey/crypto/bip32.h"
+#include "trezor/crypto/bip32.h"
 #include "keepkey/transport/interface.h"
 
 #include <stdint.h>

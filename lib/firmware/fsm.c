@@ -32,16 +32,6 @@
 #include "keepkey/board/resources.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/variant.h"
-#include "keepkey/crypto/aes.h"
-#include "keepkey/crypto/base58.h"
-#include "keepkey/crypto/bip39.h"
-#include "keepkey/crypto/curves.h"
-#include "keepkey/crypto/ecdsa.h"
-#include "keepkey/crypto/hmac.h"
-#include "keepkey/crypto/macros.h"
-#include "keepkey/rand/rng.h"
-#include "keepkey/crypto/ripemd160.h"
-#include "keepkey/crypto/secp256k1.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/coins.h"
@@ -60,6 +50,17 @@
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/util.h"
+#include "keepkey/rand/rng.h"
+#include "trezor/crypto/aes/aes.h"
+#include "trezor/crypto/base58.h"
+#include "trezor/crypto/bip39.h"
+#include "trezor/crypto/curves.h"
+#include "trezor/crypto/ecdsa.h"
+#include "trezor/crypto/hmac.h"
+#include "trezor/crypto/memzero.h"
+#include "trezor/crypto/rand.h"
+#include "trezor/crypto/ripemd160.h"
+#include "trezor/crypto/secp256k1.h"
 
 #include "messages.pb.h"
 
@@ -194,7 +195,7 @@ static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t
         return &node;
     }
 
-    if(hdnode_private_ckd_cached(&node, address_n, address_n_count) == 0)
+    if(hdnode_private_ckd_cached(&node, address_n, address_n_count, NULL) == 0)
     {
         fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
         go_home();
@@ -755,7 +756,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
         resp->node.public_key.bytes[0] = 0;
     }
     resp->has_xpub = true;
-    hdnode_serialize_public(node, fingerprint, resp->xpub, sizeof(resp->xpub));
+    hdnode_serialize_public(node, fingerprint, 76067358 /* FIXME: coin->xpub_magic */, resp->xpub, sizeof(resp->xpub));
 
     if (msg->has_show_display && msg->show_display)
     {
@@ -782,7 +783,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
     go_home();
 
     if (node)
-      MEMSET_BZERO(node, sizeof(node));
+      memzero(node, sizeof(node));
 }
 
 void fsm_msgLoadDevice(LoadDevice *msg)
@@ -1193,12 +1194,23 @@ void fsm_msgGetAddress(GetAddress *msg)
 
         ripemd160(buf, 32, buf + 1);
         buf[0] = coin->address_type_p2sh; // multisig cointype
-        base58_encode_check(buf, 21, resp->address, sizeof(resp->address));
+#if 0
+        base58_encode_check(buf, 21, coin->curve->hasher_base58, resp->address, sizeof(resp->address));
+#else
+        base58_encode_check(buf, 21, secp256k1_info.hasher_base58, resp->address, sizeof(resp->address));
+#endif
     }
     else
     {
-        ecdsa_get_address(node->public_key, coin->address_type, resp->address,
+#if 0
+        ecdsa_get_address(node->public_key, coin->address_type, coin->curve->hasher_pubkey,
+                          coin->curve->hasher_base58,resp->address,
                           sizeof(resp->address));
+#else
+        ecdsa_get_address(node->public_key, coin->address_type, secp256k1_info.hasher_pubkey,
+                          secp256k1_info.hasher_base58, resp->address,
+                          sizeof(resp->address));
+#endif
     }
 
     if(msg->has_show_display && msg->show_display)
@@ -1311,12 +1323,12 @@ void fsm_msgSignMessage(SignMessage *msg)
 
     if(!node) { return; }
 
-    if(cryptoMessageSign(coin, node, msg->message.bytes, msg->message.size, resp->signature.bytes) == 0)
+    if(cryptoMessageSign(coin, node, InputScriptType_SPENDADDRESS, msg->message.bytes, msg->message.size, resp->signature.bytes) == 0 &&
+       coin->has_address_type)
     {
         resp->has_address = true;
-        uint8_t addr_raw[21];
-        hdnode_get_address_raw(node, coin->address_type, addr_raw);
-        base58_encode_check(addr_raw, 21, resp->address, sizeof(resp->address));
+        hdnode_fill_public_key(node);
+        hdnode_get_address(node, coin->address_type, resp->address, sizeof(resp->address));
         resp->has_signature = true;
         resp->signature.size = 65;
         msg_write(MessageType_MessageType_MessageSignature, resp);
@@ -1346,12 +1358,16 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
     layout_simple_message("Verifying Message...");
     uint8_t addr_raw[21];
 
-    if(!ecdsa_address_decode(msg->address, coin->address_type, addr_raw))
+#if 0
+    if(!ecdsa_address_decode(msg->address, coin->address_type, coin->curve->hasher_base58, addr_raw))
+#else
+    if(!ecdsa_address_decode(msg->address, coin->address_type, secp256k1_info.hasher_base58, addr_raw))
+#endif
     {
         fsm_sendFailure(FailureType_Failure_InvalidSignature, "Invalid address");
     }
     if(msg->signature.size == 65 &&
-            cryptoMessageVerify(coin, msg->message.bytes, msg->message.size, addr_raw,
+            cryptoMessageVerify(coin, msg->message.bytes, msg->message.size, msg->address,
                                 msg->signature.bytes) == 0)
     {
         if(review(ButtonRequestType_ButtonRequest_Other, "Message Verified", "%s",
@@ -1427,7 +1443,7 @@ void fsm_msgSignIdentity(SignIdentity *msg)
         uint8_t digest[64];
         sha256_Raw(msg->challenge_hidden.bytes, msg->challenge_hidden.size, digest);
         sha256_Raw((const uint8_t *)msg->challenge_visual, strlen(msg->challenge_visual), digest + 32);
-        result = cryptoMessageSign(coinByName("Bitcoin"), node, digest, 64, resp->signature.bytes);
+        result = cryptoMessageSign(coinByName("Bitcoin"), node, InputScriptType_SPENDADDRESS, digest, 64, resp->signature.bytes);
     }
 
     if (result == 0) {
@@ -1439,9 +1455,8 @@ void fsm_msgSignIdentity(SignIdentity *msg)
         else
         {
             resp->has_address = true;
-            uint8_t addr_raw[21];
-            hdnode_get_address_raw(node, 0x00, addr_raw); // hardcoded Bitcoin address type
-            base58_encode_check(addr_raw, 21, resp->address, sizeof(resp->address));
+            hdnode_fill_public_key(node);
+            hdnode_get_address(node, 0x00, resp->address, sizeof(resp->address)); // hardcoded Bitcoin address type
         }
         resp->has_public_key = true;
         resp->public_key.size = 33;

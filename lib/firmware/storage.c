@@ -29,11 +29,6 @@
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/board/variant.h"
-#include "keepkey/crypto/aes.h"
-#include "keepkey/crypto/bip39.h"
-#include "keepkey/crypto/curves.h"
-#include "keepkey/crypto/macros.h"
-#include "keepkey/crypto/pbkdf2.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/policy.h"
@@ -41,6 +36,12 @@
 #include "keepkey/firmware/util.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/transport/interface.h"
+#include "trezor/crypto/aes/aes.h"
+#include "trezor/crypto/bip39.h"
+#include "trezor/crypto/curves.h"
+#include "trezor/crypto/memzero.h"
+#include "trezor/crypto/pbkdf2.h"
+#include "trezor/crypto/rand.h"
 
 #include <string.h>
 #include <stdint.h>
@@ -936,15 +937,16 @@ bool storage_get_root_node(HDNode *node, const char *curve, bool usePassphrase)
             PBKDF2_HMAC_SHA512_CTX pctx;
             pbkdf2_hmac_sha512_Init(&pctx, (const uint8_t *)sessionPassphrase, strlen(sessionPassphrase), (const uint8_t *)"TREZORHD", 8);
             for (int i = 0; i < 8; i++) {
-                pbkdf2_hmac_sha512_Update(&pctx, BIP39_PBKDF2_ROUNDS / 8, get_root_node_callback);
+                pbkdf2_hmac_sha512_Update(&pctx, BIP39_PBKDF2_ROUNDS / 8);
+                get_root_node_callback((i + 1) * BIP39_PBKDF2_ROUNDS / 8, BIP39_PBKDF2_ROUNDS);
             }
             pbkdf2_hmac_sha512_Final(&pctx, secret);
             aes_decrypt_ctx ctx;
             aes_decrypt_key256(secret, &ctx);
             aes_cbc_decrypt(node->chain_code, node->chain_code, 32, secret + 32, &ctx);
             aes_cbc_decrypt(node->private_key, node->private_key, 32, secret + 32, &ctx);
-            MEMSET_BZERO(&ctx, sizeof(ctx));
-            MEMSET_BZERO(secret, sizeof(secret));
+            memzero(&ctx, sizeof(ctx));
+            memzero(secret, sizeof(secret));
         }
 
         ret_stat = true;

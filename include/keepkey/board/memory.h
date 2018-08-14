@@ -20,7 +20,7 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
-#include "keepkey/crypto/sha2.h"
+#include "trezor/crypto/sha2.h"
 
 #include <stddef.h>
 #include <stdbool.h>

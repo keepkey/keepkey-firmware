@@ -45,6 +45,7 @@
 #include "keepkey/rand/rng.h"
 #include "keepkey/variant/keepkey.h"
 #include "keepkey/variant/poweredBy.h"
+#include "trezor/crypto/rand.h"
 
 #include <stdbool.h>
 #include <stddef.h>
