@@ -118,11 +118,7 @@ static int process_ethereum_msg(EthereumSignTx *msg, bool *confirm_ptr)
 
 void fsm_msgEthereumSignTx(EthereumSignTx *msg)
 {
-
-    if (!storage_isInitialized()) {
-            fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-            return;
-    }
+    CHECK_INITIALIZED
 
     if(!pin_protect("Enter Current PIN"))
     {
@@ -158,10 +154,7 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 
     RESP_INIT(EthereumAddress);
 
-    if (!storage_isInitialized()) {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+    CHECK_INITIALIZED
 
     if (!pin_protect_cached()) {
         go_home();

@@ -2,11 +2,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 {
     RESP_INIT(PublicKey);
 
-    if (!storage_isInitialized())
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+    CHECK_INITIALIZED
 
     if(!pin_protect_cached())
     {
@@ -80,12 +76,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 
 void fsm_msgSignTx(SignTx *msg)
 {
-
-    if (!storage_isInitialized())
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+    CHECK_INITIALIZED
 
     if(msg->inputs_count < 1)
     {
@@ -178,11 +169,7 @@ void fsm_msgGetAddress(GetAddress *msg)
 {
     RESP_INIT(Address);
 
-    if (!storage_isInitialized())
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+    CHECK_INITIALIZED
 
     if(!pin_protect_cached())
     {
@@ -270,11 +257,7 @@ void fsm_msgSignMessage(SignMessage *msg)
 {
     RESP_INIT(MessageSignature);
 
-    if (!storage_isInitialized())
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+    CHECK_INITIALIZED
 
     if(!confirm(ButtonRequestType_ButtonRequest_SignMessage, "Sign Message", "%s",
                 (char *)msg->message.bytes))

@@ -1,11 +1,6 @@
 void fsm_msgCipherKeyValue(CipherKeyValue *msg)
 {
-
-    if (!storage_isInitialized())
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+    CHECK_INITIALIZED
 
     if(!msg->has_key)
     {
@@ -85,11 +80,7 @@ void fsm_msgSignIdentity(SignIdentity *msg)
 {
     RESP_INIT(SignedIdentity);
 
-    if (!storage_isInitialized())
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+    CHECK_INITIALIZED
 
     if (!confirm_sign_identity(&(msg->identity), msg->has_challenge_visual ? msg->challenge_visual : 0))
     {
