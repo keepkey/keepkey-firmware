@@ -2,7 +2,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 {
     RESP_INIT(PublicKey);
 
-    if (!storage_is_initialized())
+    if (!storage_isInitialized())
     {
         fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
         return;
@@ -81,7 +81,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 void fsm_msgSignTx(SignTx *msg)
 {
 
-    if (!storage_is_initialized())
+    if (!storage_isInitialized())
     {
         fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
         return;
@@ -141,7 +141,7 @@ void fsm_msgGetAddress(GetAddress *msg)
 {
     RESP_INIT(Address);
 
-    if (!storage_is_initialized())
+    if (!storage_isInitialized())
     {
         fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
         return;
@@ -233,7 +233,7 @@ void fsm_msgSignMessage(SignMessage *msg)
 {
     RESP_INIT(MessageSignature);
 
-    if (!storage_is_initialized())
+    if (!storage_isInitialized())
     {
         fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
         return;

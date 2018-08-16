@@ -182,7 +182,7 @@ static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t
 {
     static HDNode CONFIDENTIAL node;
 
-    if(!storage_get_root_node(&node, curve, true))
+    if(!storage_getRootNode(&node, curve, true))
     {
         fsm_sendFailure(FailureType_Failure_NotInitialized,
                         "Device not initialized or passphrase request cancelled");

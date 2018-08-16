@@ -119,7 +119,7 @@ static int process_ethereum_msg(EthereumSignTx *msg, bool *confirm_ptr)
 void fsm_msgEthereumSignTx(EthereumSignTx *msg)
 {
 
-    if (!storage_is_initialized()) {
+    if (!storage_isInitialized()) {
             fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
             return;
     }
@@ -158,7 +158,7 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 
     RESP_INIT(EthereumAddress);
 
-    if (!storage_is_initialized()) {
+    if (!storage_isInitialized()) {
         fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
         return;
     }

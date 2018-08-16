@@ -31,7 +31,7 @@ void fsm_msgGetFeatures(GetFeatures *msg)
 
     /* Device ID */
     resp->has_device_id = true;
-    strlcpy(resp->device_id, storage_get_uuid_str(), sizeof(resp->device_id));
+    strlcpy(resp->device_id, storage_getUuidStr(), sizeof(resp->device_id));
 
     /* Model */
     resp->has_model = true;
@@ -42,9 +42,9 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     strlcpy(resp->firmware_variant, variant_getName(), sizeof(resp->firmware_variant));
 
     /* Security settings */
-    resp->has_pin_protection = true; resp->pin_protection = storage_has_pin();
+    resp->has_pin_protection = true; resp->pin_protection = storage_hasPin();
     resp->has_passphrase_protection = true;
-    resp->passphrase_protection = storage_get_passphrase_protected();
+    resp->passphrase_protection = storage_getPassphraseProtected();
 
 #ifdef SCM_REVISION
     int len = sizeof(SCM_REVISION) - 1;
@@ -70,24 +70,24 @@ void fsm_msgGetFeatures(GetFeatures *msg)
 #endif
 
     /* Settings for device */
-    if(storage_get_language())
+    if(storage_getLanguage())
     {
         resp->has_language = true;
-        strlcpy(resp->language, storage_get_language(), sizeof(resp->language));
+        strlcpy(resp->language, storage_getLanguage(), sizeof(resp->language));
     }
 
-    if(storage_get_label())
+    if(storage_getLabel())
     {
         resp->has_label = true;
-        strlcpy(resp->label, storage_get_label(), sizeof(resp->label));
+        strlcpy(resp->label, storage_getLabel(), sizeof(resp->label));
     }
 
     /* Is device initialized? */
     resp->has_initialized = true;
-    resp->initialized = storage_is_initialized();
+    resp->initialized = storage_isInitialized();
 
     /* Are private keys imported */
-    resp->has_imported = true; resp->imported = storage_get_imported();
+    resp->has_imported = true; resp->imported = storage_getImported();
 
     /* Cached pin and passphrase status */
     resp->has_pin_cached = true; resp->pin_cached = session_is_pin_cached();
@@ -96,7 +96,7 @@ void fsm_msgGetFeatures(GetFeatures *msg)
 
     /* Policies */
     resp->policies_count = POLICY_COUNT;
-    storage_get_policies(resp->policies);
+    storage_getPolicies(resp->policies);
 
     msg_write(MessageType_MessageType_Features, resp);
 }
@@ -205,7 +205,7 @@ void fsm_msgChangePin(ChangePin *msg)
 
     if(removal)
     {
-        if(storage_has_pin())
+        if(storage_hasPin())
         {
             confirmed = confirm(ButtonRequestType_ButtonRequest_RemovePin,
                                 "Remove PIN", "Do you want to remove PIN protection?");
@@ -218,7 +218,7 @@ void fsm_msgChangePin(ChangePin *msg)
     }
     else
     {
-        if(storage_has_pin())
+        if(storage_hasPin())
             confirmed = confirm(ButtonRequestType_ButtonRequest_ChangePin,
                                 "Change PIN", "Do you want to change your PIN?");
         else
@@ -242,7 +242,7 @@ void fsm_msgChangePin(ChangePin *msg)
 
     if(removal)
     {
-        storage_set_pin(0);
+        storage_setPin(0);
         storage_commit();
         fsm_sendSuccess("PIN removed");
     }
@@ -272,7 +272,7 @@ void fsm_msgWipeDevice(WipeDevice *msg)
 
     /* Wipe device */
     storage_reset();
-    storage_reset_uuid();
+    storage_resetUuid();
     storage_commit();
 
     fsm_sendSuccess("Device wiped");
@@ -320,7 +320,7 @@ void fsm_msgGetEntropy(GetEntropy *msg)
 
 void fsm_msgLoadDevice(LoadDevice *msg)
 {
-    if(storage_is_initialized())
+    if(storage_isInitialized())
     {
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                         "Device is already initialized. Use Wipe first.");
@@ -345,7 +345,7 @@ void fsm_msgLoadDevice(LoadDevice *msg)
         }
     }
 
-    storage_load_device(msg);
+    storage_loadDevice(msg);
 
     storage_commit();
     fsm_sendSuccess("Device loaded");
@@ -354,7 +354,7 @@ void fsm_msgLoadDevice(LoadDevice *msg)
 
 void fsm_msgResetDevice(ResetDevice *msg)
 {
-    if(storage_is_initialized())
+    if(storage_isInitialized())
     {
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                         "Device is already initialized. Use Wipe first.");
@@ -458,17 +458,17 @@ void fsm_msgApplySettings(ApplySettings *msg)
 
     if(msg->has_label)
     {
-        storage_set_label(msg->label);
+        storage_setLabel(msg->label);
     }
 
     if(msg->has_language)
     {
-        storage_set_language(msg->language);
+        storage_setLanguage(msg->language);
     }
 
     if(msg->has_use_passphrase)
     {
-        storage_set_passphrase_protected(msg->use_passphrase);
+        storage_setPassphraseProtected(msg->use_passphrase);
     }
 
     storage_commit();
@@ -479,7 +479,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 
 void fsm_msgRecoveryDevice(RecoveryDevice *msg)
 {
-    if(storage_is_initialized())
+    if(storage_isInitialized())
     {
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                         "Device is already initialized. Use Wipe first.");
@@ -580,7 +580,7 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg)
         return;
     }
 
-    if(!storage_set_policy(&msg->policy[0]))
+    if(!storage_setPolicy(&msg->policy[0]))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled,
                         "Policy could not be applied");
