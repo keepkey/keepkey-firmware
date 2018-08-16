@@ -40,11 +40,15 @@ set(sources
     trezor-crypto/aes/aeskey.c
     trezor-crypto/aes/aescrypt.c
     trezor-crypto/aes/aes_modes.c
-    trezor-crypto/aes/aestab.c
-    trezor-crypto/chacha20poly1305/chacha_merged.c
-    trezor-crypto/chacha20poly1305/rfc7539.c
-    trezor-crypto/chacha20poly1305/poly1305-donna.c
-    trezor-crypto/chacha20poly1305/chacha20poly1305.c)
+    trezor-crypto/aes/aestab.c)
+
+    # Clang 5.0 in the docker image (kktech/firmware:v7) is missing
+    # <xmmintrin.h>, which breaks these. Until they're needed, we'll just elide
+    # them.
+    #trezor-crypto/chacha20poly1305/chacha_merged.c
+    #trezor-crypto/chacha20poly1305/rfc7539.c
+    #trezor-crypto/chacha20poly1305/poly1305-donna.c
+    #trezor-crypto/chacha20poly1305/chacha20poly1305.c
 
 include_directories(
   ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto

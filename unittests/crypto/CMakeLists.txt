@@ -15,6 +15,6 @@ target_link_libraries(crypto-unit
     kkvariant.keepkey
     kkvariant.salt
     kkboard
-    trezorcrypto
     kkrand
+    trezorcrypto
     kktransport)
