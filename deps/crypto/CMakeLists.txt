@@ -50,4 +50,4 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto
   ${OPENSSL_INCLUDE_DIR})
 
-add_library(kkcrypto ${sources})
+add_library(trezorcrypto ${sources})

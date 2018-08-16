@@ -18,6 +18,6 @@ target_link_libraries(firmware-unit
     kkvariant.keepkey
     kkvariant.salt
     kkboard
-    kkcrypto
+    trezorcrypto
     kkrand
     kktransport)

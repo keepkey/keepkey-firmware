@@ -15,7 +15,7 @@ if(NOT ${KK_EMULATOR})
       kkfirmware
       kkboard
       kktransport
-      kkcrypto
+      trezorcrypto
       -lopencm3_stm32f2
       -lc
       -lm)
@@ -27,7 +27,7 @@ if(NOT ${KK_EMULATOR})
       kkboard
       kkboard.keepkey
       kktransport
-      kkcrypto
+      trezorcrypto
       kkrand
       -lopencm3_stm32f2
       -lc
