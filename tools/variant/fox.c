@@ -556,7 +556,7 @@ VariantInfo fox_svi __attribute__((section("variant_info"))) = {
     .version = 1,
     .name = "FOX",
     .logo = &fox_logo,
-    .logo_reversed = &fox_logo,
+    .logo_reversed = &fox_logo_reversed,
     .screensaver_timeout = ONE_SEC * 60 * 10,
     .screensaver = &fox_screensaver
 };
