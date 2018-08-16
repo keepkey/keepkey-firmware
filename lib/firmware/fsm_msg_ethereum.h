@@ -120,11 +120,7 @@ void fsm_msgEthereumSignTx(EthereumSignTx *msg)
 {
     CHECK_INITIALIZED
 
-    if(!pin_protect("Enter Current PIN"))
-    {
-            go_home();
-            return;
-    }
+    CHECK_PIN_UNCACHED
 
     bool needs_confirm = true;
     int msg_result = process_ethereum_msg(msg, &needs_confirm);

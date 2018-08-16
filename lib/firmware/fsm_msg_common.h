@@ -230,11 +230,7 @@ void fsm_msgChangePin(ChangePin *msg)
         return;
     }
 
-    if(!pin_protect("Enter Current PIN"))
-    {
-        go_home();
-        return;
-    }
+    CHECK_PIN_UNCACHED
 
     if(removal)
     {

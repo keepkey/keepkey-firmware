@@ -86,6 +86,12 @@ static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
         return; \
     }
 
+#define CHECK_PIN_UNCACHED \
+    if (!pin_protect("Enter Current PIN")) { \
+        go_home(); \
+        return; \
+    }
+
 static const MessagesMap_t MessagesMap[] =
 {
     /* Normal Messages */

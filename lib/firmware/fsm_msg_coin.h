@@ -90,11 +90,7 @@ void fsm_msgSignTx(SignTx *msg)
         return;
     }
 
-    if(!pin_protect("Enter Current PIN"))
-    {
-        go_home();
-        return;
-    }
+    CHECK_PIN_UNCACHED
 
     const CoinType *coin = fsm_getCoin(msg->coin_name);
 
