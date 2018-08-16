@@ -171,11 +171,7 @@ void fsm_msgPing(Ping *msg)
 
     if(msg->has_pin_protection && msg->pin_protection)
     {
-        if(!pin_protect_cached())
-        {
-            go_home();
-            return;
-        }
+        CHECK_PIN
     }
 
     if(msg->has_passphrase_protection && msg->passphrase_protection)
@@ -440,11 +436,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
         return;
     }
 
-    if(!pin_protect_cached())
-    {
-        go_home();
-        return;
-    }
+    CHECK_PIN
 
     if(msg->has_label)
     {
@@ -559,11 +551,7 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg)
         }
     }
 
-    if(!pin_protect_cached())
-    {
-        go_home();
-        return;
-    }
+    CHECK_PIN
 
     if(!storage_setPolicy(&msg->policy[0]))
     {

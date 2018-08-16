@@ -21,11 +21,7 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
         return;
     }
 
-    if(!pin_protect_cached())
-    {
-        go_home();
-        return;
-    }
+    CHECK_PIN
 
     const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
 
@@ -89,11 +85,7 @@ void fsm_msgSignIdentity(SignIdentity *msg)
         return;
     }
 
-    if (!pin_protect_cached())
-    {
-        go_home();
-        return;
-    }
+    CHECK_PIN
 
     uint8_t hash[32];
     if (!msg->has_identity || cryptoIdentityFingerprint(&(msg->identity), hash) == 0)

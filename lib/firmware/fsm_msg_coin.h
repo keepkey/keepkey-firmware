@@ -4,11 +4,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 
     CHECK_INITIALIZED
 
-    if(!pin_protect_cached())
-    {
-        go_home();
-        return;
-    }
+    CHECK_PIN
 
     const char *curve = SECP256K1_NAME;
     if (msg->has_ecdsa_curve_name) {
@@ -171,11 +167,7 @@ void fsm_msgGetAddress(GetAddress *msg)
 
     CHECK_INITIALIZED
 
-    if(!pin_protect_cached())
-    {
-        go_home();
-        return;
-    }
+    CHECK_PIN
 
     const CoinType *coin = fsm_getCoin(msg->coin_name);
 
@@ -267,11 +259,7 @@ void fsm_msgSignMessage(SignMessage *msg)
         return;
     }
 
-    if(!pin_protect_cached())
-    {
-        go_home();
-        return;
-    }
+    CHECK_PIN
 
     const CoinType *coin = fsm_getCoin(msg->coin_name);
 

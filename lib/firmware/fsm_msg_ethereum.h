@@ -156,10 +156,7 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 
     CHECK_INITIALIZED
 
-    if (!pin_protect_cached()) {
-        go_home();
-        return;
-    }
+    CHECK_PIN
 
     const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
     if (!node) return;
