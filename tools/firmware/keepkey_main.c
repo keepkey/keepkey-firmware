@@ -126,8 +126,6 @@ int main(void)
 
     led_func(SET_GREEN_LED);
 
-    screen_test();
-
     /* Enable interrupt for timer */
     cm_enable_interrupts();
 
@@ -139,6 +137,8 @@ int main(void)
     /* Redraw the screen if we are coming from the whitelabel bootloader image */
     if (getModel() != MODEL_KEEPKEY)
         go_home_forced();
+
+    screen_test();
 
     while(1)
     {
