@@ -2,24 +2,11 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
 {
     CHECK_INITIALIZED
 
-    if(!msg->has_key)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "No key provided");
-        return;
-    }
+    CHECK_PARAM(msg->has_key, "No key provided");
 
-    if(!msg->has_value)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "No value provided");
-        return;
-    }
+    CHECK_PARAM(msg->has_value, "No value provided");
 
-    if(msg->value.size % 16)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError,
-                        "Value length must be a multiple of 16");
-        return;
-    }
+    CHECK_PARAM(!(msg->value.size % 16), "Value length must be a multiple of 16");
 
     CHECK_PIN
 

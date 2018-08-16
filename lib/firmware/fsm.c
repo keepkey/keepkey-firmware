@@ -92,6 +92,14 @@ static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
         return; \
     }
 
+
+#define CHECK_PARAM(cond, errormsg) \
+    if (!(cond)) { \
+        fsm_sendFailure(FailureType_Failure_Other, (errormsg)); \
+        go_home(); \
+        return; \
+    }
+
 static const MessagesMap_t MessagesMap[] =
 {
     /* Normal Messages */

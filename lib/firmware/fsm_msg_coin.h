@@ -74,21 +74,11 @@ void fsm_msgSignTx(SignTx *msg)
 {
     CHECK_INITIALIZED
 
-    if(msg->inputs_count < 1)
-    {
-        fsm_sendFailure(FailureType_Failure_Other,
-                        "Transaction must have at least one input");
-        go_home();
-        return;
-    }
+    CHECK_PARAM(msg->inputs_count >= 1,
+                "Transaction must have at least one input");
 
-    if(msg->outputs_count < 1)
-    {
-        fsm_sendFailure(FailureType_Failure_Other,
-                        "Transaction must have at least one output");
-        go_home();
-        return;
-    }
+    CHECK_PARAM(msg->outputs_count >= 1,
+                "Transaction must have at least one output");
 
     CHECK_PIN_UNCACHED
 
@@ -284,17 +274,10 @@ void fsm_msgSignMessage(SignMessage *msg)
 
 void fsm_msgVerifyMessage(VerifyMessage *msg)
 {
-    if(!msg->has_address)
-    {
-        fsm_sendFailure(FailureType_Failure_Other, "No address provided");
-        return;
-    }
+    CHECK_PARAM(msg->has_address, "No address provided");
 
-    if(!msg->has_message)
-    {
-        fsm_sendFailure(FailureType_Failure_Other, "No message provided");
-        return;
-    }
+    CHECK_PARAM(msg->has_message, "No message provided");
+
     const CoinType *coin = fsm_getCoin(msg->coin_name);
     if (!coin) return;
     layout_simple_message("Verifying Message...");
