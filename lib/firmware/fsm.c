@@ -74,6 +74,12 @@ static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
         return; \
     }
 
+#define CHECK_NOT_INITIALIZED \
+    if (storage_isInitialized()) { \
+        fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Device is already initialized. Use Wipe first."); \
+        return; \
+    }
+
 static const MessagesMap_t MessagesMap[] =
 {
     /* Normal Messages */

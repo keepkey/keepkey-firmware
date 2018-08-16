@@ -320,12 +320,7 @@ void fsm_msgGetEntropy(GetEntropy *msg)
 
 void fsm_msgLoadDevice(LoadDevice *msg)
 {
-    if(storage_isInitialized())
-    {
-        fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
-                        "Device is already initialized. Use Wipe first.");
-        return;
-    }
+    CHECK_NOT_INITIALIZED
 
     if(!confirm_load_device(msg->has_node))
     {
@@ -354,12 +349,7 @@ void fsm_msgLoadDevice(LoadDevice *msg)
 
 void fsm_msgResetDevice(ResetDevice *msg)
 {
-    if(storage_isInitialized())
-    {
-        fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
-                        "Device is already initialized. Use Wipe first.");
-        return;
-    }
+    CHECK_NOT_INITIALIZED
 
     reset_init(
         msg->has_display_random && msg->display_random,
@@ -479,12 +469,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 
 void fsm_msgRecoveryDevice(RecoveryDevice *msg)
 {
-    if(storage_isInitialized())
-    {
-        fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
-                        "Device is already initialized. Use Wipe first.");
-        return;
-    }
+    CHECK_NOT_INITIALIZED
 
     if(msg->has_use_character_cipher &&
             msg->use_character_cipher == true)   // recovery via character cipher
