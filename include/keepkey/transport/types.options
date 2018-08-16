@@ -9,6 +9,11 @@ CoinType.coin_shortcut			max_size:9
 CoinType.signed_message_header          max_size:32
 CoinType.contract_address               max_size:128
 CoinType.gas_limit			max_size:32
+CoinType.curve_name             max_size:21
+CoinType.bech32_prefix          max_size:21
+CoinType.cashaddr_prefix        max_size:16
+
+CoinTable.table                 max_count:39
 
 TxInputType.address_n			max_count:8
 TxInputType.prev_hash			max_size:32
