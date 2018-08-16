@@ -237,10 +237,20 @@ static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t
     return &node;
 }
 
+#if DEBUG_LINK
+static void sendFailureWrapper(FailureType code, const char *text) {
+    fsm_sendFailure(code, text);
+}
+#endif
+
 void fsm_init(void)
 {
     msg_map_init(MessagesMap, sizeof(MessagesMap) / sizeof(MessagesMap_t));
+#if DEBUG_LINK
+    set_msg_failure_handler(&sendFailureWrapper);
+#else
     set_msg_failure_handler(&fsm_sendFailure);
+#endif
 
     /* set leaving handler for layout to help with determine home state */
     set_leaving_handler(&leave_home);
@@ -272,7 +282,11 @@ void fsm_sendSuccess(const char *text)
     msg_write(MessageType_MessageType_Success, resp);
 }
 
+#if DEBUG_LINK
+void fsm_sendFailureDebug(FailureType code, const char *text, const char *source)
+#else
 void fsm_sendFailure(FailureType code, const char *text)
+#endif
 {
     if(reset_msg_stack)
     {
@@ -285,12 +299,19 @@ void fsm_sendFailure(FailureType code, const char *text)
     resp->has_code = true;
     resp->code = code;
 
-    if(text)
+#if DEBUG_LINK
+    resp->has_message = true;
+    strlcpy(resp->message, source, sizeof(resp->message));
+    if (text) {
+        strlcat(resp->message, text, sizeof(resp->message));
+    }
+#else
+    if (text)
     {
         resp->has_message = true;
         strlcpy(resp->message, text, sizeof(resp->message));
     }
-
+#endif
     msg_write(MessageType_MessageType_Failure, resp);
 }
 
