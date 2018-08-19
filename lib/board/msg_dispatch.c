@@ -252,7 +252,10 @@ static void raw_dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_
     }
 }
 
-#if defined(__has_builtin) && __has_builtin(__builtin_add_overflow)
+#if !defined(__has_builtin)
+#  define __has_builtin(X) 0
+#endif
+#if __has_builtin(__builtin_add_overflow)
 #  define check_uadd_overflow(A, B, R) \
     ({ \
         typeof(A) __a = (A); \
