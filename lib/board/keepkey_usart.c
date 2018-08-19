@@ -181,7 +181,7 @@ void usart_init(void)
  * OUTPUT
  *     none
  */
-void dbg_print(char *out_str, ...)
+void dbg_print(const char *out_str, ...)
 {
 #ifndef EMULATOR
     char str[LARGE_DEBUG_BUF];
@@ -271,6 +271,8 @@ char read_console(void)
 #endif
 }
 #else
-void dbg_print(char *pStr, ...) {(void)pStr;}
+#ifndef EMULATOR
+void dbg_print(const char *pStr, ...) {(void)pStr;}
+#endif
 void usart_init(void) {}
 #endif

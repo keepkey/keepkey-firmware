@@ -38,7 +38,7 @@
 
 /* === Functions =========================================================== */
 
-void dbg_print(char *pStr, ...) __attribute__((format(printf,1,2)));
+void dbg_print(const char *pStr, ...) __attribute__((format(printf,1,2)));
 void usart_init(void);
 
 #endif
