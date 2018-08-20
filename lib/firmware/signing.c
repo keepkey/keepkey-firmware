@@ -52,7 +52,7 @@ static uint32_t idx1, idx2;
 static TxRequest resp;
 static TxInputType input;
 static TxOutputBinType bin_output;
-static TxStruct to, transaction_previous, transaction_input_sig_digest;
+static TxStruct to, tp, transaction_input_sig_digest;
 static SHA256_CTX transaction_inputs_and_outputs;
 static uint8_t CONFIDENTIAL privkey[32];
 static uint8_t hash[32], hash_check[32], pubkey[33], sig[64];
@@ -468,10 +468,10 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 
 		switch(raw_tx_status) {
 			case NOT_PARSING:
-				tx_init(&transaction_previous, 0, 0, 0, 0, false);
+				tx_init(&tp, 0, 0, 0, 0, false);
 				state_pos = sizeof(uint32_t);
 				raw_tx_status = PARSING_VERSION;
-				ptr = (uint8_t *)&transaction_previous.version;
+				ptr = (uint8_t *)&tp.version;
 				FALLTHROUGH;
 			case PARSING_VERSION:
 				*ptr++ = msg[i];
@@ -485,7 +485,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 			case PARSING_INPUT_COUNT:
 				var_int_buffer[var_int_buffer_index++] = msg[i];
 
-				if(var_int_buffer_index >= deser_length(var_int_buffer, &transaction_previous.inputs_len))
+				if(var_int_buffer_index >= deser_length(var_int_buffer, &tp.inputs_len))
 				{
 					raw_tx_status = PARSING_INPUTS;
 					state_pos = 36;
@@ -495,7 +495,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 
 				break;
 			case PARSING_INPUTS:
-				if(state_pos < 0 && seen < transaction_previous.inputs_len)
+				if(state_pos < 0 && seen < tp.inputs_len)
 				{
 					var_int_buffer[var_int_buffer_index++] = msg[i];
 
@@ -503,7 +503,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 					{
 						seen++;
 
-						if(seen < transaction_previous.inputs_len)
+						if(seen < tp.inputs_len)
 						{
 							state_pos = script_len + 4 + 36;
 						}
@@ -524,7 +524,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 			case PARSING_OUTPUT_COUNT:
 				var_int_buffer[var_int_buffer_index++] = msg[i];
 
-				if(var_int_buffer_index >= deser_length(var_int_buffer, &transaction_previous.outputs_len))
+				if(var_int_buffer_index >= deser_length(var_int_buffer, &tp.outputs_len))
 				{
 					raw_tx_status = PARSING_OUTPUTS_VALUE;
 					state_pos = 8;
@@ -552,7 +552,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 				}
 				break;
 			case PARSING_OUTPUTS:
-				if(state_pos < 0 && seen < transaction_previous.outputs_len)
+				if(state_pos < 0 && seen < tp.outputs_len)
 				{
 					var_int_buffer[var_int_buffer_index++] = msg[i];
 
@@ -560,7 +560,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 					{
 						seen++;
 
-						if(seen < transaction_previous.outputs_len)
+						if(seen < tp.outputs_len)
 						{
 							current_output_val = 0;
 							ptr = (uint8_t *)&current_output_val;
@@ -577,7 +577,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 				{
 					raw_tx_status = PARSING_LOCKTIME;
 					state_pos = 4;
-					ptr = (uint8_t *)&transaction_previous.lock_time;
+					ptr = (uint8_t *)&tp.lock_time;
 					reset_parsing_buffer(var_int_buffer, &var_int_buffer_index);
 				}
 				break;
@@ -591,8 +591,8 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 					raw_tx_status = NOT_PARSING;
 					memset(&resp, 0, sizeof(TxRequest));
 
-					sha256_Update(&(transaction_previous.ctx), (const uint8_t*)msg+i, 1);
-					tx_hash_final(&transaction_previous, hash, true);
+					sha256_Update(&(tp.ctx), (const uint8_t*)msg+i, 1);
+					tx_hash_final(&tp, hash, true);
 					if (memcmp(hash, input.prev_hash.bytes, 32) != 0) {
 						fsm_sendFailure(FailureType_Failure_Other, "Encountered invalid prevhash");
 						signing_abort();
@@ -612,7 +612,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 				break;
 		}
 
-		sha256_Update(&(transaction_previous.ctx), (const uint8_t*)msg+i, 1);
+		sha256_Update(&(tp.ctx), (const uint8_t*)msg+i, 1);
 	}
 }
 
@@ -672,17 +672,17 @@ void signing_txack(TransactionType *tx)
 			send_req_2_prev_meta();
 			return;
 		case STAGE_REQUEST_2_PREV_META:
-			tx_init(&transaction_previous, tx->inputs_cnt, tx->outputs_cnt, tx->version, tx->lock_time, false);
+			tx_init(&tp, tx->inputs_cnt, tx->outputs_cnt, tx->version, tx->lock_time, false);
 			idx2 = 0;
 			send_req_2_prev_input();
 			return;
 		case STAGE_REQUEST_2_PREV_INPUT:
-			if (!tx_serialize_input_hash(&transaction_previous, tx->inputs)) {
+			if (!tx_serialize_input_hash(&tp, tx->inputs)) {
 				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize input");
 				signing_abort();
 				return;
 			}
-			if (idx2 < transaction_previous.inputs_len - 1) {
+			if (idx2 < tp.inputs_len - 1) {
 				idx2++;
 				send_req_2_prev_input();
 			} else {
@@ -691,7 +691,7 @@ void signing_txack(TransactionType *tx)
 			}
 			return;
 		case STAGE_REQUEST_2_PREV_OUTPUT:
-			if (!tx_serialize_output_hash(&transaction_previous, tx->bin_outputs)) {
+			if (!tx_serialize_output_hash(&tp, tx->bin_outputs)) {
 				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize output");
 				signing_abort();
 				return;
@@ -699,13 +699,13 @@ void signing_txack(TransactionType *tx)
 			if (idx2 == input.prev_index) {
 				to_spend += tx->bin_outputs[0].amount;
 			}
-			if (idx2 < transaction_previous.outputs_len - 1) {
+			if (idx2 < tp.outputs_len - 1) {
 				/* Check prevtx of next input */
 				idx2++;
 				send_req_2_prev_output();
 			} else {
 				/* Check next output */
-				tx_hash_final(&transaction_previous, hash, true);
+				tx_hash_final(&tp, hash, true);
 				if (memcmp(hash, input.prev_hash.bytes, 32) != 0) {
 					fsm_sendFailure(FailureType_Failure_Other, "Encountered invalid prevhash");
 					signing_abort();
