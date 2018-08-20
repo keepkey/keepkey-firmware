@@ -52,7 +52,7 @@ static uint32_t idx1, idx2;
 static TxRequest resp;
 static TxInputType input;
 static TxOutputBinType bin_output;
-static TxStruct to, tp, transaction_input_sig_digest;
+static TxStruct to, tp, ti;
 static SHA256_CTX transaction_inputs_and_outputs;
 static uint8_t CONFIDENTIAL privkey[32];
 static uint8_t hash_check[32], pubkey[33], sig[64];
@@ -865,7 +865,7 @@ void signing_txack(TransactionType *tx)
 		}
 		case STAGE_REQUEST_4_INPUT:
 			if (idx2 == 0) {
-				tx_init(&transaction_input_sig_digest, inputs_count, outputs_count, version, lock_time, true);
+				tx_init(&ti, inputs_count, outputs_count, version, lock_time, true);
 				sha256_Init(&transaction_inputs_and_outputs);
 				sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)&inputs_count, sizeof(inputs_count));
 				sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)&outputs_count, sizeof(outputs_count));
@@ -887,7 +887,7 @@ void signing_txack(TransactionType *tx)
 			} else {
 				tx->inputs[0].script_sig.size = 0;
 			}
-			if (!tx_serialize_input_hash(&transaction_input_sig_digest, tx->inputs)) {
+			if (!tx_serialize_input_hash(&ti, tx->inputs)) {
 				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize input");
 				signing_abort();
 				return;
@@ -908,7 +908,7 @@ void signing_txack(TransactionType *tx)
 				return;
 			}
 			sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)&bin_output, sizeof(TxOutputBinType));
-			if (!tx_serialize_output_hash(&transaction_input_sig_digest, &bin_output)) {
+			if (!tx_serialize_output_hash(&ti, &bin_output)) {
 				fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize output");
 				signing_abort();
 				return;
@@ -947,7 +947,7 @@ void signing_txack(TransactionType *tx)
 					digest_for_bip143(&input, sighash, coin->forkid, hash);
 				} else {
 					sighash = SIGHASH_ALL;
-					tx_hash_final(&transaction_input_sig_digest, hash, false);
+					tx_hash_final(&ti, hash, false);
 				}
 				resp.has_serialized = true;
 				resp.serialized.has_signature_index = true;
