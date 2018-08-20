@@ -20,12 +20,8 @@
 #ifndef FSM_H
 #define FSM_H
 
-/* === Includes ============================================================ */
-
 #include "keepkey/transport/interface.h"
 #include "keepkey/board/msg_dispatch.h"
-
-/* === Defines ============================================================= */
 
 #define RESP_INIT(TYPE) \
     TYPE *resp = (TYPE *)msg_resp; \
@@ -37,12 +33,20 @@
 #define BTC_ADDRESS_SIZE           35
 #define RAW_TX_ACK_VARINT_COUNT    4
 
-/* === Functions =========================================================== */
+#define STR(X) #X
+#define VERSTR(X) STR(X)
 
 void fsm_init(void);
 
 void fsm_sendSuccess(const char *text);
+
+#if DEBUG_LINK
+void fsm_sendFailureDebug(FailureType code, const char *text, const char *source);
+
+#define fsm_sendFailure(code, text) fsm_sendFailureDebug((code), (text), __FILE__ ":" VERSTR(__LINE__) ":")
+#else
 void fsm_sendFailure(FailureType code, const char *text);
+#endif
 
 void fsm_msgInitialize(Initialize *msg);
 void fsm_msgGetFeatures(GetFeatures *msg);

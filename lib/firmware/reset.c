@@ -79,9 +79,9 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
         return;
     }
 
-    storage_set_passphrase_protected(passphrase_protection);
-    storage_set_language(language);
-    storage_set_label(label);
+    storage_setPassphraseProtected(passphrase_protection);
+    storage_setLanguage(language);
+    storage_setLabel(label);
 
     EntropyRequest resp;
     memset(&resp, 0, sizeof(EntropyRequest));
@@ -192,7 +192,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
     }
 
     /* Save mnemonic */
-    storage_set_mnemonic(temp_mnemonic);
+    storage_setMnemonic(temp_mnemonic);
     storage_commit();
 
     fsm_sendSuccess("Device reset");

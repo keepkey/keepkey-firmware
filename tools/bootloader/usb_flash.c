@@ -307,7 +307,7 @@ uff_exit:
  *      none
  *
  */
-void storage_sector_init(void)
+void storage_sectorInit(void)
 {
     if(!find_active_storage(&storage_location))
     {

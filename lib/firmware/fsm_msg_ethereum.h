@@ -118,17 +118,9 @@ static int process_ethereum_msg(EthereumSignTx *msg, bool *confirm_ptr)
 
 void fsm_msgEthereumSignTx(EthereumSignTx *msg)
 {
+    CHECK_INITIALIZED
 
-    if (!storage_is_initialized()) {
-            fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-            return;
-    }
-
-    if(!pin_protect("Enter Current PIN"))
-    {
-            go_home();
-            return;
-    }
+    CHECK_PIN_UNCACHED
 
     bool needs_confirm = true;
     int msg_result = process_ethereum_msg(msg, &needs_confirm);
@@ -158,15 +150,9 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 
     RESP_INIT(EthereumAddress);
 
-    if (!storage_is_initialized()) {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+    CHECK_INITIALIZED
 
-    if (!pin_protect_cached()) {
-        go_home();
-        return;
-    }
+    CHECK_PIN
 
     const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
     if (!node) return;

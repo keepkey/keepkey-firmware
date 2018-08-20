@@ -220,9 +220,9 @@ void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
         return;
     }
 
-    storage_set_passphrase_protected(passphrase_protection);
-    storage_set_language(language);
-    storage_set_label(label);
+    storage_setPassphraseProtected(passphrase_protection);
+    storage_setLanguage(language);
+    storage_setLabel(label);
 
     enforce_wordlist = _enforce_wordlist;
 
@@ -415,11 +415,11 @@ void recovery_cipher_finalize(void)
         /* Truncate additional space at the end */
         full_mnemonic[strlen(full_mnemonic) - 1] = '\0';
 
-        storage_set_mnemonic(full_mnemonic);
+        storage_setMnemonic(full_mnemonic);
     }
     memzero(full_mnemonic, sizeof(full_mnemonic));
 
-    if(!enforce_wordlist || mnemonic_check(storage_get_shadow_mnemonic()))
+    if(!enforce_wordlist || mnemonic_check(storage_getShadowMnemonic()))
     {
         storage_commit();
         fsm_sendSuccess("Device recovered");

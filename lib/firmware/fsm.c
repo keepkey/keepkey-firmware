@@ -68,6 +68,38 @@
 
 static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
 
+#define CHECK_INITIALIZED \
+    if (!storage_isInitialized()) { \
+        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized"); \
+        return; \
+    }
+
+#define CHECK_NOT_INITIALIZED \
+    if (storage_isInitialized()) { \
+        fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Device is already initialized. Use Wipe first."); \
+        return; \
+    }
+
+#define CHECK_PIN \
+    if (!pin_protect_cached()) { \
+        go_home(); \
+        return; \
+    }
+
+#define CHECK_PIN_UNCACHED \
+    if (!pin_protect("Enter Current PIN")) { \
+        go_home(); \
+        return; \
+    }
+
+
+#define CHECK_PARAM(cond, errormsg) \
+    if (!(cond)) { \
+        fsm_sendFailure(FailureType_Failure_Other, (errormsg)); \
+        go_home(); \
+        return; \
+    }
+
 static const MessagesMap_t MessagesMap[] =
 {
     /* Normal Messages */
@@ -182,7 +214,7 @@ static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t
 {
     static HDNode CONFIDENTIAL node;
 
-    if(!storage_get_root_node(&node, curve, true))
+    if(!storage_getRootNode(&node, curve, true))
     {
         fsm_sendFailure(FailureType_Failure_NotInitialized,
                         "Device not initialized or passphrase request cancelled");
@@ -205,10 +237,20 @@ static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t
     return &node;
 }
 
+#if DEBUG_LINK
+static void sendFailureWrapper(FailureType code, const char *text) {
+    fsm_sendFailure(code, text);
+}
+#endif
+
 void fsm_init(void)
 {
     msg_map_init(MessagesMap, sizeof(MessagesMap) / sizeof(MessagesMap_t));
+#if DEBUG_LINK
+    set_msg_failure_handler(&sendFailureWrapper);
+#else
     set_msg_failure_handler(&fsm_sendFailure);
+#endif
 
     /* set leaving handler for layout to help with determine home state */
     set_leaving_handler(&leave_home);
@@ -240,7 +282,11 @@ void fsm_sendSuccess(const char *text)
     msg_write(MessageType_MessageType_Success, resp);
 }
 
+#if DEBUG_LINK
+void fsm_sendFailureDebug(FailureType code, const char *text, const char *source)
+#else
 void fsm_sendFailure(FailureType code, const char *text)
+#endif
 {
     if(reset_msg_stack)
     {
@@ -253,57 +299,28 @@ void fsm_sendFailure(FailureType code, const char *text)
     resp->has_code = true;
     resp->code = code;
 
-    if(text)
+#if DEBUG_LINK
+    resp->has_message = true;
+    strlcpy(resp->message, source, sizeof(resp->message));
+    if (text) {
+        strlcat(resp->message, text, sizeof(resp->message));
+    }
+#else
+    if (text)
     {
         resp->has_message = true;
         strlcpy(resp->message, text, sizeof(resp->message));
     }
-
+#endif
     msg_write(MessageType_MessageType_Failure, resp);
 }
 
-void fsm_msgRawTxAck(RawMessage *msg, uint32_t frame_length)
-{
-    static RawMessageState msg_state = RAW_MESSAGE_NOT_STARTED;
-    static uint32_t msg_offset = 0, skip = 0;
-
-    /* Start raw transaction */
-    if(msg_state == RAW_MESSAGE_NOT_STARTED)
-    {
-        msg_state = RAW_MESSAGE_STARTED;
-        skip = parse_pb_varint(msg, RAW_TX_ACK_VARINT_COUNT);
-    }
-
-    /* Parse raw transaction */
-    if(msg_state == RAW_MESSAGE_STARTED)
-    {
-        msg_offset += msg->length;
-
-        parse_raw_txack(msg->buffer, msg->length);
-
-        /* Finish raw transaction */
-        if(msg_offset >= frame_length - skip)
-        {
-            msg_offset = 0;
-            skip = 0;
-            msg_state = RAW_MESSAGE_NOT_STARTED;
-        }
-    }
-}
 
 void fsm_msgClearSession(ClearSession *msg)
 {
     (void)msg;
     session_clear(true);
     fsm_sendSuccess("Session cleared");
-}
-
-void fsm_msgEstimateTxSize(EstimateTxSize *msg)
-{
-    RESP_INIT(TxSize);
-    resp->has_tx_size = true;
-    resp->tx_size = transactionEstimateSize(msg->inputs_count, msg->outputs_count);
-    msg_write(MessageType_MessageType_TxSize, resp);
 }
 
 #include "fsm_msg_common.h"

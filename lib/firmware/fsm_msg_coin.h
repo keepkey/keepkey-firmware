@@ -2,17 +2,9 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 {
     RESP_INIT(PublicKey);
 
-    if (!storage_is_initialized())
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+    CHECK_INITIALIZED
 
-    if(!pin_protect_cached())
-    {
-        go_home();
-        return;
-    }
+    CHECK_PIN
 
     const char *curve = SECP256K1_NAME;
     if (msg->has_ecdsa_curve_name) {
@@ -80,34 +72,15 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 
 void fsm_msgSignTx(SignTx *msg)
 {
+    CHECK_INITIALIZED
 
-    if (!storage_is_initialized())
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+    CHECK_PARAM(msg->inputs_count >= 1,
+                "Transaction must have at least one input");
 
-    if(msg->inputs_count < 1)
-    {
-        fsm_sendFailure(FailureType_Failure_Other,
-                        "Transaction must have at least one input");
-        go_home();
-        return;
-    }
+    CHECK_PARAM(msg->outputs_count >= 1,
+                "Transaction must have at least one output");
 
-    if(msg->outputs_count < 1)
-    {
-        fsm_sendFailure(FailureType_Failure_Other,
-                        "Transaction must have at least one output");
-        go_home();
-        return;
-    }
-
-    if(!pin_protect("Enter Current PIN"))
-    {
-        go_home();
-        return;
-    }
+    CHECK_PIN_UNCACHED
 
     const CoinType *coin = fsm_getCoin(msg->coin_name);
 
@@ -125,6 +98,14 @@ void fsm_msgSignTx(SignTx *msg)
                  msg->has_lock_time ? msg->lock_time : 0);
 }
 
+void fsm_msgEstimateTxSize(EstimateTxSize *msg)
+{
+    RESP_INIT(TxSize);
+    resp->has_tx_size = true;
+    resp->tx_size = transactionEstimateSize(msg->inputs_count, msg->outputs_count);
+    msg_write(MessageType_MessageType_TxSize, resp);
+}
+
 void fsm_msgTxAck(TxAck *msg)
 {
     if(msg->has_tx)
@@ -137,21 +118,42 @@ void fsm_msgTxAck(TxAck *msg)
     }
 }
 
+void fsm_msgRawTxAck(RawMessage *msg, uint32_t frame_length)
+{
+    static RawMessageState msg_state = RAW_MESSAGE_NOT_STARTED;
+    static uint32_t msg_offset = 0, skip = 0;
+
+    /* Start raw transaction */
+    if(msg_state == RAW_MESSAGE_NOT_STARTED)
+    {
+        msg_state = RAW_MESSAGE_STARTED;
+        skip = parse_pb_varint(msg, RAW_TX_ACK_VARINT_COUNT);
+    }
+
+    /* Parse raw transaction */
+    if(msg_state == RAW_MESSAGE_STARTED)
+    {
+        msg_offset += msg->length;
+
+        parse_raw_txack(msg->buffer, msg->length);
+
+        /* Finish raw transaction */
+        if(msg_offset >= frame_length - skip)
+        {
+            msg_offset = 0;
+            skip = 0;
+            msg_state = RAW_MESSAGE_NOT_STARTED;
+        }
+    }
+}
+
 void fsm_msgGetAddress(GetAddress *msg)
 {
     RESP_INIT(Address);
 
-    if (!storage_is_initialized())
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+    CHECK_INITIALIZED
 
-    if(!pin_protect_cached())
-    {
-        go_home();
-        return;
-    }
+    CHECK_PIN
 
     const CoinType *coin = fsm_getCoin(msg->coin_name);
 
@@ -233,11 +235,7 @@ void fsm_msgSignMessage(SignMessage *msg)
 {
     RESP_INIT(MessageSignature);
 
-    if (!storage_is_initialized())
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+    CHECK_INITIALIZED
 
     if(!confirm(ButtonRequestType_ButtonRequest_SignMessage, "Sign Message", "%s",
                 (char *)msg->message.bytes))
@@ -247,11 +245,7 @@ void fsm_msgSignMessage(SignMessage *msg)
         return;
     }
 
-    if(!pin_protect_cached())
-    {
-        go_home();
-        return;
-    }
+    CHECK_PIN
 
     const CoinType *coin = fsm_getCoin(msg->coin_name);
 
@@ -280,17 +274,10 @@ void fsm_msgSignMessage(SignMessage *msg)
 
 void fsm_msgVerifyMessage(VerifyMessage *msg)
 {
-    if(!msg->has_address)
-    {
-        fsm_sendFailure(FailureType_Failure_Other, "No address provided");
-        return;
-    }
+    CHECK_PARAM(msg->has_address, "No address provided");
 
-    if(!msg->has_message)
-    {
-        fsm_sendFailure(FailureType_Failure_Other, "No message provided");
-        return;
-    }
+    CHECK_PARAM(msg->has_message, "No message provided");
+
     const CoinType *coin = fsm_getCoin(msg->coin_name);
     if (!coin) return;
     layout_simple_message("Verifying Message...");

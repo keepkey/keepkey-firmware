@@ -4,10 +4,10 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg)
     (void)msg;
     RESP_INIT(DebugLinkState);
 
-    if(storage_has_pin())
+    if(storage_hasPin())
     {
         resp->has_pin = true;
-        strlcpy(resp->pin, storage_get_pin(), sizeof(resp->pin));
+        strlcpy(resp->pin, storage_getPin(), sizeof(resp->pin));
     }
 
     resp->has_matrix = true;
@@ -26,20 +26,20 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg)
     resp->has_recovery_word_pos = true;
     resp->recovery_word_pos = recovery_get_word_pos();
 
-    if(storage_has_mnemonic())
+    if(storage_hasMnemonic())
     {
         resp->has_mnemonic = true;
-        strlcpy(resp->mnemonic, storage_get_mnemonic(), sizeof(resp->mnemonic));
+        strlcpy(resp->mnemonic, storage_getMnemonic(), sizeof(resp->mnemonic));
     }
 
-    if(storage_has_node())
+    if(storage_hasNode())
     {
         resp->has_node = true;
-        storage_dumpNode(&resp->node, storage_get_node());
+        storage_dumpNode(&resp->node, storage_getNode());
     }
 
     resp->has_passphrase_protection = true;
-    resp->passphrase_protection = storage_get_passphrase_protected();
+    resp->passphrase_protection = storage_getPassphraseProtected();
 
     resp->has_recovery_cipher = true;
     strlcpy(resp->recovery_cipher, recovery_get_cipher(),

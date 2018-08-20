@@ -117,9 +117,9 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
 		return;
 	}
 
-	storage_set_passphrase_protected(passphrase_protection);
-	storage_set_language(language);
-	storage_set_label(label);
+	storage_setPassphraseProtected(passphrase_protection);
+	storage_setLanguage(language);
+	storage_setLabel(label);
 
 	uint32_t i;
     for (i = 0; i < word_count; i++) {
@@ -184,9 +184,9 @@ void recovery_word(const char *word)
 
     if (word_index + 1 == 24) {
         // last one
-        storage_set_mnemonic_from_words((const char (*)[])words, word_count);
+        storage_setMnemonicFromWords((const char (*)[])words, word_count);
 
-        if (!enforce_wordlist || mnemonic_check(storage_get_shadow_mnemonic())) {
+        if (!enforce_wordlist || mnemonic_check(storage_getShadowMnemonic())) {
             storage_commit();
             fsm_sendSuccess("Device recovered");
         } else {

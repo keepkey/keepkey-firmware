@@ -117,7 +117,7 @@ static void bootloader_init(void)
     usart_init();
     keepkey_leds_init();
     keepkey_button_init();
-    storage_sector_init();
+    storage_sectorInit();
     display_hw_init();
     layout_init(display_canvas_init());
 }

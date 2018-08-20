@@ -67,7 +67,7 @@ int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vi
 
     if(addr_type == OutputAddressType_EXCHANGE)
     {
-        if(storage_is_policy_enabled("ShapeShift"))
+        if(storage_isPolicyEnabled("ShapeShift"))
         {
             if(process_exchange_contract(coin, vin, root, needs_confirm))
             {

@@ -53,7 +53,7 @@ typedef void (*message_handler_t)(void* msg_struct);
 /* === Functions =========================================================== */
 
 bool usb_flash_firmware(void);
-void storage_sector_init(void);
+void storage_sectorInit(void);
 void send_success(const char *text);
 void send_failure(FailureType code, const char *text);
 void handler_initialize(Initialize* msg);

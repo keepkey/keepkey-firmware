@@ -1,36 +1,14 @@
 void fsm_msgCipherKeyValue(CipherKeyValue *msg)
 {
+    CHECK_INITIALIZED
 
-    if (!storage_is_initialized())
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+    CHECK_PARAM(msg->has_key, "No key provided");
 
-    if(!msg->has_key)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "No key provided");
-        return;
-    }
+    CHECK_PARAM(msg->has_value, "No value provided");
 
-    if(!msg->has_value)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "No value provided");
-        return;
-    }
+    CHECK_PARAM(!(msg->value.size % 16), "Value length must be a multiple of 16");
 
-    if(msg->value.size % 16)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError,
-                        "Value length must be a multiple of 16");
-        return;
-    }
-
-    if(!pin_protect_cached())
-    {
-        go_home();
-        return;
-    }
+    CHECK_PIN
 
     const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
 
@@ -85,11 +63,7 @@ void fsm_msgSignIdentity(SignIdentity *msg)
 {
     RESP_INIT(SignedIdentity);
 
-    if (!storage_is_initialized())
-    {
-        fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized");
-        return;
-    }
+    CHECK_INITIALIZED
 
     if (!confirm_sign_identity(&(msg->identity), msg->has_challenge_visual ? msg->challenge_visual : 0))
     {
@@ -98,11 +72,7 @@ void fsm_msgSignIdentity(SignIdentity *msg)
         return;
     }
 
-    if (!pin_protect_cached())
-    {
-        go_home();
-        return;
-    }
+    CHECK_PIN
 
     uint8_t hash[32];
     if (!msg->has_identity || cryptoIdentityFingerprint(&(msg->identity), hash) == 0)
