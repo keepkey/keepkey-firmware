@@ -763,6 +763,77 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 	}
 }
 
+static bool signing_sign_input(void) {
+	uint8_t hash[32];
+	sha256_Final(&transaction_inputs_and_outputs, hash);
+	if (memcmp(hash, hash_check, 32) != 0) {
+		fsm_sendFailure(FailureType_Failure_Other, "Transaction has changed during signing");
+		signing_abort();
+		return false;
+	}
+
+	uint8_t sighash;
+	if (coin->has_forkid) {
+		if (!compile_input_script_sig(&input)) {
+			fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Failed to compile input"));
+			signing_abort();
+			return false;
+		}
+		if (!input.has_amount) {
+			fsm_sendFailure(FailureType_Failure_Other, ("Data Error: input without amount"));
+			signing_abort();
+			return false;
+		}
+		if (input.amount > to_spend) {
+			fsm_sendFailure(FailureType_Failure_Other, ("Data Error: Transaction has changed during signing"));
+			signing_abort();
+			return false;
+		}
+		to_spend -= input.amount;
+		sighash = SIGHASH_ALL | SIGHASH_FORKID;
+		digest_for_bip143(&input, sighash, coin->forkid, hash);
+	} else {
+		sighash = SIGHASH_ALL;
+		tx_hash_final(&ti, hash, false);
+	}
+	resp.has_serialized = true;
+	resp.serialized.has_signature_index = true;
+	resp.serialized.signature_index = idx1;
+	resp.serialized.has_signature = true;
+	resp.serialized.has_serialized_tx = true;
+	ecdsa_sign_digest(&secp256k1, privkey, hash, sig, NULL, NULL);
+	resp.serialized.signature.size = ecdsa_sig_to_der(sig, resp.serialized.signature.bytes);
+	if (input.script_type == InputScriptType_SPENDMULTISIG) {
+		if (!input.has_multisig) {
+			fsm_sendFailure(FailureType_Failure_Other, "Multisig info not provided");
+			signing_abort();
+			return false;
+		}
+		// fill in the signature
+		int pubkey_idx = cryptoMultisigPubkeyIndex(&(input.multisig), pubkey);
+		if (pubkey_idx < 0) {
+			fsm_sendFailure(FailureType_Failure_Other, "Pubkey not found in multisig script");
+			signing_abort();
+			return false;
+		}
+		memcpy(input.multisig.signatures[pubkey_idx].bytes, resp.serialized.signature.bytes, resp.serialized.signature.size);
+		input.multisig.signatures[pubkey_idx].size = resp.serialized.signature.size;
+		input.script_sig.size = serialize_script_multisig(&(input.multisig), input.script_sig.bytes);
+		if (input.script_sig.size == 0) {
+			fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize multisig script");
+			signing_abort();
+			return false;
+		}
+	} else { // SPENDADDRESS
+		input.script_sig.size = serialize_script_sig(
+				resp.serialized.signature.bytes, resp.serialized.signature.size,
+				pubkey, 33, sighash, input.script_sig.bytes);
+	}
+	resp.serialized.serialized_tx.size = tx_serialize_input(&to, &input, resp.serialized.serialized_tx.bytes);
+	return true;
+}
+
+
 void signing_txack(TransactionType *tx)
 {
 	int co;
@@ -917,73 +988,9 @@ void signing_txack(TransactionType *tx)
 				idx2++;
 				send_req_4_output();
 			} else {
-				uint8_t hash[32];
-				sha256_Final(&transaction_inputs_and_outputs, hash);
-				if (memcmp(hash, hash_check, 32) != 0) {
-					fsm_sendFailure(FailureType_Failure_Other, "Transaction has changed during signing");
-					signing_abort();
+				if (!signing_sign_input()) {
 					return;
 				}
-
-				uint8_t sighash;
-				if (coin->has_forkid) {
-					if (!compile_input_script_sig(&input)) {
-						fsm_sendFailure(FailureType_Failure_Other, ("Processor Error: Failed to compile input"));
-						signing_abort();
-						return;
-					}
-					if (!input.has_amount) {
-						fsm_sendFailure(FailureType_Failure_Other, ("Data Error: input without amount"));
-						signing_abort();
-						return;
-					}
-					if (input.amount > to_spend) {
-						fsm_sendFailure(FailureType_Failure_Other, ("Data Error: Transaction has changed during signing"));
-						signing_abort();
-						return;
-					}
-					to_spend -= input.amount;
-					sighash = SIGHASH_ALL | SIGHASH_FORKID;
-					digest_for_bip143(&input, sighash, coin->forkid, hash);
-				} else {
-					sighash = SIGHASH_ALL;
-					tx_hash_final(&ti, hash, false);
-				}
-				resp.has_serialized = true;
-				resp.serialized.has_signature_index = true;
-				resp.serialized.signature_index = idx1;
-				resp.serialized.has_signature = true;
-				resp.serialized.has_serialized_tx = true;
-				ecdsa_sign_digest(&secp256k1, privkey, hash, sig, NULL, NULL);
-				resp.serialized.signature.size = ecdsa_sig_to_der(sig, resp.serialized.signature.bytes);
-				if (input.script_type == InputScriptType_SPENDMULTISIG) {
-					if (!input.has_multisig) {
-						fsm_sendFailure(FailureType_Failure_Other, "Multisig info not provided");
-						signing_abort();
-						return;
-					}
-					// fill in the signature
-					int pubkey_idx = cryptoMultisigPubkeyIndex(&(input.multisig), pubkey);
-					if (pubkey_idx < 0) {
-						fsm_sendFailure(FailureType_Failure_Other, "Pubkey not found in multisig script");
-						signing_abort();
-						return;
-					}
-					memcpy(input.multisig.signatures[pubkey_idx].bytes, resp.serialized.signature.bytes, resp.serialized.signature.size);
-					input.multisig.signatures[pubkey_idx].size = resp.serialized.signature.size;
-					input.script_sig.size = serialize_script_multisig(&(input.multisig), input.script_sig.bytes);
-					if (input.script_sig.size == 0) {
-						fsm_sendFailure(FailureType_Failure_Other, "Failed to serialize multisig script");
-						signing_abort();
-						return;
-					}
-				} else { // SPENDADDRESS
-					input.script_sig.size = serialize_script_sig(
-							resp.serialized.signature.bytes, resp.serialized.signature.size,
-							pubkey, 33, sighash, input.script_sig.bytes);
-				}
-				resp.serialized.serialized_tx.size = tx_serialize_input(&to, &input, resp.serialized.serialized_tx.bytes);
-
 				if (idx1 < inputs_count - 1) {
 					idx1++;
 					idx2 = 0;
