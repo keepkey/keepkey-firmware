@@ -55,7 +55,7 @@ static TxOutputBinType bin_output;
 static TxStruct to, tp, transaction_input_sig_digest;
 static SHA256_CTX transaction_inputs_and_outputs;
 static uint8_t CONFIDENTIAL privkey[32];
-static uint8_t hash[32], hash_check[32], pubkey[33], sig[64];
+static uint8_t hash_check[32], pubkey[33], sig[64];
 static uint64_t to_spend, spending, change_spend;
 static bool multisig_fp_set, multisig_fp_mismatch;
 static uint8_t hash_prevouts[32], hash_sequence[32],hash_outputs[32];
@@ -416,6 +416,25 @@ void send_req_finished(void)
 	msg_write(MessageType_MessageType_TxRequest, &resp);
 }
 
+static void phase1_request_next_input(void) {
+	if (idx1 < inputs_count - 1) {
+		idx1++;
+		send_req_1_input();
+	} else {
+		sha256_Final(&hashers[0], hash_prevouts);
+		sha256_Raw(hash_prevouts, 32, hash_prevouts);
+		sha256_Final(&hashers[1], hash_sequence);
+		sha256_Raw(hash_sequence, 32, hash_sequence);
+		sha256_Final(&hashers[2], hash_check);
+
+		sha256_Init(&hashers[0]);
+
+		idx1 = 0;
+		idx2 = 0;
+		send_req_3_output();
+	}
+}
+
 void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinType *_coin, const HDNode *_root, uint32_t _version, uint32_t _lock_time)
 {
 	inputs_count = _inputs_count;
@@ -452,6 +471,19 @@ void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinTyp
 
 	send_req_1_input();
 	set_exchange_error(NO_EXCHANGE_ERROR);
+}
+
+// check if the hash of the prevtx matches
+static bool signing_check_prevtx_hash(void) {
+	uint8_t hash[32];
+	tx_hash_final(&tp, hash, true);
+	if (memcmp(hash, input.prev_hash.bytes, 32) != 0) {
+		fsm_sendFailure(FailureType_Failure_Other, "Encountered invalid prevhash");
+		signing_abort();
+		return false;
+	}
+	phase1_request_next_input();
+	return true;
 }
 
 void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
@@ -592,6 +624,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 					memset(&resp, 0, sizeof(TxRequest));
 
 					sha256_Update(&(tp.ctx), (const uint8_t*)msg+i, 1);
+					uint8_t hash[32];
 					tx_hash_final(&tp, hash, true);
 					if (memcmp(hash, input.prev_hash.bytes, 32) != 0) {
 						fsm_sendFailure(FailureType_Failure_Other, "Encountered invalid prevhash");
@@ -704,29 +737,8 @@ void signing_txack(TransactionType *tx)
 				idx2++;
 				send_req_2_prev_output();
 			} else {
-				/* Check next output */
-				tx_hash_final(&tp, hash, true);
-				if (memcmp(hash, input.prev_hash.bytes, 32) != 0) {
-					fsm_sendFailure(FailureType_Failure_Other, "Encountered invalid prevhash");
-					signing_abort();
-					return;
-				}
-				if (idx1 < inputs_count - 1) {
-					idx1++;
-					send_req_1_input();
-				} else {
-					sha256_Final(&hashers[0], hash_prevouts);
-					sha256_Raw(hash_prevouts, 32, hash_prevouts);
-					sha256_Final(&hashers[1], hash_sequence);
-					sha256_Raw(hash_sequence, 32, hash_sequence);
-					sha256_Final(&hashers[2], hash_check);
-
-					sha256_Init(&hashers[0]);
-
-					idx1 = 0;
-					idx2 = 0;
-					send_req_3_output();
-				}
+				/* prevtx is done */
+				signing_check_prevtx_hash();
 			}
 			return;
 		case STAGE_REQUEST_3_OUTPUT:
@@ -896,6 +908,7 @@ void signing_txack(TransactionType *tx)
 				idx2++;
 				send_req_4_output();
 			} else {
+				uint8_t hash[32];
 				sha256_Final(&transaction_inputs_and_outputs, hash);
 				if (memcmp(hash, hash_check, 32) != 0) {
 					fsm_sendFailure(FailureType_Failure_Other, "Transaction has changed during signing");
