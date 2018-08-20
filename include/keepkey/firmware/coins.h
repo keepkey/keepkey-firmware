@@ -39,6 +39,6 @@ const CoinType *coinByAddressType(uint32_t address_type);
 const CoinType *coinBySlip44(uint32_t bip44_account_path);
 void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len);
 bool bip44_node_to_string(const CoinType *coin, char *node_str, uint32_t *address_n,
-                         size_t address_n_count);
-
+                         size_t address_n_count, bool whole_account);
+bool bip32_path_to_string(char *str, size_t len, const uint32_t *address_n, size_t address_n_count);
 #endif

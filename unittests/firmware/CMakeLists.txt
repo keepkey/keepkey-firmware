@@ -1,4 +1,5 @@
 set(sources
+    coins.cpp
     ethereum.cpp
     recovery.cpp
     storage.cpp

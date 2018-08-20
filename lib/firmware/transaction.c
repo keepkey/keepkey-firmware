@@ -85,7 +85,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 				coin_amnt_to_str(coin, in->amount, amount_str, sizeof(amount_str));
 				memset(node_str, 0, sizeof(node_str));
 				
-				if(bip44_node_to_string(coin, node_str, in->address_n, in->address_n_count))
+				if(bip44_node_to_string(coin, node_str, in->address_n, in->address_n_count, /*whole_account=*/false))
 				{
 					button_request = ButtonRequestType_ButtonRequest_ConfirmTransferToAccount;
 				}

@@ -11,7 +11,7 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
         goto process_ethereum_xfer_exit;
     }
 
-    if(bip44_node_to_string(coin, node_str, msg->to_address_n, msg->to_address_n_count))
+    if(bip44_node_to_string(coin, node_str, msg->to_address_n, msg->to_address_n_count, /*whole_account=*/false))
     {
         ButtonRequestType button_request = ButtonRequestType_ButtonRequest_ConfirmTransferToAccount;
         if(is_token_transaction(msg)) {
@@ -53,7 +53,7 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
         }
     }
 
-    node = fsm_getDerivedNode(SECP256K1_NAME, msg->to_address_n, msg->to_address_n_count);
+    node = fsm_getDerivedNode(SECP256K1_NAME, msg->to_address_n, msg->to_address_n_count, NULL);
     if(node)
     {
         // setup "token_to" or "to" field depending on if this is a token transaction or not
@@ -84,7 +84,7 @@ process_ethereum_xfer_exit:
 static int process_ethereum_msg(EthereumSignTx *msg, bool *confirm_ptr)
 {
     int ret_result = TXOUT_COMPILE_ERROR;
-    const CoinType *coin = fsm_getCoin(ETHEREUM);
+    const CoinType *coin = fsm_getCoin(true, ETHEREUM);
 
     if(coin != NULL)
     {
@@ -93,7 +93,7 @@ static int process_ethereum_msg(EthereumSignTx *msg, bool *confirm_ptr)
             case OutputAddressType_EXCHANGE:
             {
                 /*prep for exchange type transaction*/
-                HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0); /* root node */
+                HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0, NULL); /* root node */
                 ret_result = run_policy_compile_output(coin, root_node, (void *)msg, (void *)NULL, true);
                 if(ret_result < TXOUT_OK) {
                     memset((void *)root_node, 0, sizeof(HDNode));
@@ -133,7 +133,7 @@ void fsm_msgEthereumSignTx(EthereumSignTx *msg)
     }
 
     /* Input node */
-    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
+    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
     if (!node) return;
 
     ethereum_signing_init(msg, node, needs_confirm);
@@ -154,7 +154,7 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 
     CHECK_PIN
 
-    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
+    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
     if (!node) return;
 
     resp->address.size = 20;
