@@ -129,6 +129,35 @@ static bool verify_bip44_node(const CoinType *coin, uint32_t *address_n,
     return true;
 }
 
+bool bip32_path_to_string(char *str, size_t len, const uint32_t *address_n,
+                          size_t address_n_count) {
+    memset(str, 0, len);
+
+    int cx = snprintf(str, len, "m");
+    if (cx < 0 || len <= (size_t)cx)
+        return false;
+    str += cx;
+    len -= cx;
+
+    for (size_t i = 0; i < address_n_count; i++) {
+        cx = snprintf(str, len, "/%" PRIu32, address_n[i] & 0x7fffffff);
+        if (cx < 0 || len <= (size_t)cx)
+            return false;
+        str += cx;
+        len -= cx;
+
+        if ((address_n[i] & 0x80000000) == 0x80000000) {
+            cx = snprintf(str, len, "'");
+            if (cx < 0 || len <= (size_t)cx)
+                return false;
+            str += cx;
+            len -= cx;
+        }
+    }
+
+    return true;
+}
+
 const CoinType *coinByShortcut(const char *shortcut)
 {
     if(!shortcut) { return 0; }

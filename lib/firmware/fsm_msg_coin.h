@@ -4,15 +4,9 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 
     CHECK_INITIALIZED
 
-        CHECK_PIN
+    CHECK_PIN
 
     const CoinType *coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
-    if (!msg->has_coin_name) {
-       coin = msg->address_n_count > 2 &&
-              msg->address_n[0] == (0x80000000 | 44)
-           ? coinBySlip44(msg->address_n[1])
-           : 0;
-    }
     if (!coin) return;
 
     const char *curve = coin->curve_name;
@@ -45,7 +39,9 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
         char node_str[NODE_STRING_LENGTH];
         if (!bip44_node_to_string(coin, node_str, msg->address_n,
                                   msg->address_n_count,
-                                  /*whole_account=*/true)) {
+                                  /*whole_account=*/true) &&
+            !bip32_path_to_string(node_str, sizeof(node_str),
+                                  msg->address_n, msg->address_n_count)) {
             memset(node_str, 0, sizeof(node_str));
         }
 
