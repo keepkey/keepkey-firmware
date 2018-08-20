@@ -876,13 +876,12 @@ void signing_txack(TransactionType *tx)
 			}
 			sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)tx->inputs, sizeof(TxInputType));
 			if (idx2 == idx1) {
-				memcpy(&input, tx->inputs, sizeof(TxInputType));
-				compile_input_script_sig(&tx->inputs[0]);
-				if (tx->inputs[0].script_sig.size == 0) {
+				if (!compile_input_script_sig(&tx->inputs[0])) {
 					fsm_sendFailure(FailureType_Failure_Other, "Failed to compile input");
 					signing_abort();
 					return;
 				}
+				memcpy(&input, tx->inputs, sizeof(input));
 				memcpy(privkey, node.private_key, 32);
 				memcpy(pubkey, node.public_key, 33);
 			} else {
