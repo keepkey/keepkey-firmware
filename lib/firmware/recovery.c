@@ -52,7 +52,7 @@ static char CONFIDENTIAL words[24][12];
 void next_word(void) {
 	if (sizeof(word_order)/sizeof(word_order[0]) <= word_index) {
 		fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid word_index");
-		go_home();
+		layoutHome();
 		return;
 	}
 
@@ -105,7 +105,7 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
 {
 	if (_word_count != 12 && _word_count != 18 && _word_count != 24) {
 		fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid word count (has to be 12, 18 or 24");
-		go_home();
+		layoutHome();
 		return;
 	}
 
@@ -113,7 +113,7 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
 	enforce_wordlist = _enforce_wordlist;
 
 	if (pin_protection && !change_pin()) {
-		go_home();
+		layoutHome();
 		return;
 	}
 
@@ -156,7 +156,7 @@ void recovery_word(const char *word)
     if (!awaiting_word)
     {
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -168,7 +168,7 @@ void recovery_word(const char *word)
             // Fake word
             storage_reset();
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Wrong word retyped");
-            go_home();
+            layoutHome();
             return;
         }
     } else {
@@ -176,7 +176,7 @@ void recovery_word(const char *word)
         if (enforce_wordlist & (!found)) {
             storage_reset();
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Word not found in the bip39 wordlist");
-            go_home();
+            layoutHome();
             return;
         }
         strlcpy(words[word_pos - 1], word, sizeof(words[word_pos - 1]));
@@ -194,7 +194,7 @@ void recovery_word(const char *word)
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid mnemonic, are words in correct order?");
         }
         awaiting_word = false;
-        go_home();
+        layoutHome();
     } else {
         word_index++;
         next_word();
@@ -210,7 +210,7 @@ void recovery_abort(bool send_failure)
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Recovery cancelled");
         }
 
-        go_home();
+        layoutHome();
     }
 }
 

@@ -919,7 +919,7 @@ void ethereum_signing_txack(EthereumTxAck *tx)
     if(!ethereum_signing)
     {
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Signing mode");
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -956,7 +956,7 @@ void ethereum_signing_abort(void)
     if(ethereum_signing)
     {
         memset(privkey, 0, sizeof(privkey));
-        go_home();
+        layoutHome();
         ethereum_signing = false;
     }
 }

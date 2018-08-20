@@ -622,7 +622,7 @@ void signing_txack(TransactionType *tx)
 
 	if (!signing) {
 		fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Signing mode");
-		go_home();
+		layoutHome();
 		return;
 	}
 
@@ -999,7 +999,7 @@ void signing_txack(TransactionType *tx)
 void signing_abort(void)
 {
 	if (signing) {
-		go_home();
+		layoutHome();
 		signing = false;
 	}
 }

@@ -48,13 +48,13 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
         if (!confirm_xpub(node_str, resp->xpub))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show extended public key cancelled");
-            go_home();
+            layoutHome();
             return;
         }
     }
 
     msg_write(MessageType_MessageType_PublicKey, resp);
-    go_home();
+    layoutHome();
 
     if (node)
       memzero(node, sizeof(node));
@@ -161,7 +161,7 @@ void fsm_msgGetAddress(GetAddress *msg)
         {
             fsm_sendFailure(FailureType_Failure_Other,
                             "Pubkey not found in multisig script");
-            go_home();
+            layoutHome();
             return;
         }
 
@@ -170,7 +170,7 @@ void fsm_msgGetAddress(GetAddress *msg)
         if(compile_script_multisig_hash(&(msg->multisig), buf) == 0)
         {
             fsm_sendFailure(FailureType_Failure_Other, "Invalid multisig script");
-            go_home();
+            layoutHome();
             return;
         }
 
@@ -212,13 +212,13 @@ void fsm_msgGetAddress(GetAddress *msg)
         if(!confirm_address(desc, resp->address))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
-            go_home();
+            layoutHome();
             return;
         }
     }
 
     msg_write(MessageType_MessageType_Address, resp);
-    go_home();
+    layoutHome();
 }
 
 void fsm_msgSignMessage(SignMessage *msg)
@@ -231,7 +231,7 @@ void fsm_msgSignMessage(SignMessage *msg)
                 (char *)msg->message.bytes))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, "Sign message cancelled");
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -259,7 +259,7 @@ void fsm_msgSignMessage(SignMessage *msg)
     {
         fsm_sendFailure(FailureType_Failure_Other, "Error signing message");
     }
-    go_home();
+    layoutHome();
 }
 
 void fsm_msgVerifyMessage(VerifyMessage *msg)
@@ -296,5 +296,5 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
         fsm_sendFailure(FailureType_Failure_InvalidSignature, "Invalid signature");
     }
 
-    go_home();
+    layoutHome();
 }

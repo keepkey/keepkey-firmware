@@ -216,7 +216,7 @@ void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
 {
     if(pin_protection && !change_pin())
     {
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -256,7 +256,7 @@ void next_character(void)
     {
         memzero(current_word, sizeof(current_word));
         awaiting_character = false;
-        go_home();
+        layoutHome();
 
         storage_reset();
         fsm_sendFailure(FailureType_Failure_SyntaxError, "Words were not entered correctly.");
@@ -317,7 +317,7 @@ void recovery_character(const char *character)
     {
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                         "Too many characters attempted during recovery");
-        go_home();
+        layoutHome();
         goto finished;
     }
     else if(awaiting_character)
@@ -331,7 +331,7 @@ void recovery_character(const char *character)
 
             awaiting_character = false;
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Character must be from a to z");
-            go_home();
+            layoutHome();
             goto finished;
 
         }
@@ -353,7 +353,7 @@ void recovery_character(const char *character)
     {
 
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
-        go_home();
+        layoutHome();
         goto finished;
 
     }
@@ -437,7 +437,7 @@ void recovery_cipher_finalize(void)
     }
 
     awaiting_character = false;
-    go_home();
+    layoutHome();
 }
 
 /*

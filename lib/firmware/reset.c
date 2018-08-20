@@ -47,7 +47,7 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
     {
         fsm_sendFailure(FailureType_Failure_SyntaxError,
                         "Invalid strength (has to be 128, 192 or 256 bits)");
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -67,7 +67,7 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
                     "Internal Entropy", "%s %s %s %s", ent_str[0], ent_str[1], ent_str[2], ent_str[3]))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Reset cancelled");
-            go_home();
+            layoutHome();
             return;
         }
     }
@@ -75,7 +75,7 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
     if(pin_protection && !change_pin())
     {
         memzero(ent_str, sizeof(ent_str));
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -204,7 +204,7 @@ exit:
     memzero(formatted_mnemonic, sizeof(formatted_mnemonic));
     memzero(mnemonic_display, sizeof(mnemonic_display));
     memzero(formatted_word, sizeof(formatted_word));
-    go_home();
+    layoutHome();
 }
 
 /* === Debug Functions =========================================================== */

@@ -136,7 +136,7 @@ int main(void)
 
     /* Redraw the screen if we are coming from the whitelabel bootloader image */
     if (getModel() != MODEL_KEEPKEY)
-        go_home_forced();
+        layoutHomeForced();
 
     screen_test();
 

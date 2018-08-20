@@ -82,13 +82,13 @@ static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
 
 #define CHECK_PIN \
     if (!pin_protect_cached()) { \
-        go_home(); \
+        layoutHome(); \
         return; \
     }
 
 #define CHECK_PIN_UNCACHED \
     if (!pin_protect("Enter Current PIN")) { \
-        go_home(); \
+        layoutHome(); \
         return; \
     }
 
@@ -96,7 +96,7 @@ static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
 #define CHECK_PARAM(cond, errormsg) \
     if (!(cond)) { \
         fsm_sendFailure(FailureType_Failure_Other, (errormsg)); \
-        go_home(); \
+        layoutHome(); \
         return; \
     }
 
@@ -207,7 +207,7 @@ static const CoinType *fsm_getCoin(bool has_name, const char *name)
     if(!coin)
     {
         fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
-        go_home();
+        layoutHome();
         return 0;
     }
 
@@ -225,7 +225,7 @@ static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t
     {
         fsm_sendFailure(FailureType_Failure_NotInitialized,
                         "Device not initialized or passphrase request cancelled");
-        go_home();
+        layoutHome();
         return 0;
     }
 
@@ -237,7 +237,7 @@ static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t
     if(hdnode_private_ckd_cached(&node, address_n, address_n_count, fingerprint) == 0)
     {
         fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
-        go_home();
+        layoutHome();
         return 0;
     }
 
