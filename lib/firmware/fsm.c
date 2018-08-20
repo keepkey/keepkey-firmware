@@ -196,10 +196,14 @@ static const MessagesMap_t MessagesMap[] =
 
 extern bool reset_msg_stack;
 
-static const CoinType *fsm_getCoin(const char *name)
+static const CoinType *fsm_getCoin(bool has_name, const char *name)
 {
-    const CoinType *coin = coinByName(name);
-
+    const CoinType *coin;
+    if (has_name) {
+        coin = coinByName(name);
+    } else {
+        coin = coinByName("Bitcoin");
+    }
     if(!coin)
     {
         fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
@@ -210,9 +214,12 @@ static const CoinType *fsm_getCoin(const char *name)
     return coin;
 }
 
-static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t address_n_count)
+static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t address_n_count, uint32_t *fingerprint)
 {
     static HDNode CONFIDENTIAL node;
+    if (fingerprint) {
+        *fingerprint = 0;
+    }
 
     if(!storage_getRootNode(&node, curve, true))
     {
@@ -227,7 +234,7 @@ static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t
         return &node;
     }
 
-    if(hdnode_private_ckd_cached(&node, address_n, address_n_count, NULL) == 0)
+    if(hdnode_private_ckd_cached(&node, address_n, address_n_count, fingerprint) == 0)
     {
         fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
         go_home();

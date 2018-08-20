@@ -10,7 +10,7 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
 
     CHECK_PIN
 
-    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
+    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
 
     if(!node) { return; }
 
@@ -93,7 +93,7 @@ void fsm_msgSignIdentity(SignIdentity *msg)
     if (msg->has_ecdsa_curve_name) {
         curve = msg->ecdsa_curve_name;
     }
-    HDNode *node = fsm_getDerivedNode(curve, address_n, 5);
+    HDNode *node = fsm_getDerivedNode(curve, address_n, 5, NULL);
     if (!node) { return; }
 
     bool sign_ssh = msg->identity.has_proto && (strcmp(msg->identity.proto, "ssh") == 0);

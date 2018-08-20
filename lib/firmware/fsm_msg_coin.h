@@ -4,26 +4,24 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 
     CHECK_INITIALIZED
 
-    CHECK_PIN
+        CHECK_PIN
 
-    const char *curve = SECP256K1_NAME;
+    const CoinType *coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
+    if (!msg->has_coin_name) {
+       coin = msg->address_n_count > 2 &&
+              msg->address_n[0] == (0x80000000 | 44)
+           ? coinBySlip44(msg->address_n[1])
+           : 0;
+    }
+    if (!coin) return;
+
+    const char *curve = coin->curve_name;
     if (msg->has_ecdsa_curve_name) {
         curve = msg->ecdsa_curve_name;
     }
     uint32_t fingerprint;
-    HDNode *node;
-    if (msg->address_n_count == 0) {
-        /* get master node */
-        fingerprint = 0;
-        node = fsm_getDerivedNode(curve, msg->address_n, 0);
-    } else {
-        /* get parent node */
-        node = fsm_getDerivedNode(curve, msg->address_n, msg->address_n_count - 1);
-        if (!node) return;
-        fingerprint = hdnode_fingerprint(node);
-        /* get child */
-        hdnode_private_ckd(node, msg->address_n[msg->address_n_count - 1]);
-    }
+    HDNode *node = fsm_getDerivedNode(curve, msg->address_n, msg->address_n_count, &fingerprint);
+    if (!node) return;
     hdnode_fill_public_key(node);
 
     resp->node.depth = node->depth;
@@ -40,18 +38,14 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
         resp->node.public_key.bytes[0] = 0;
     }
     resp->has_xpub = true;
-    hdnode_serialize_public(node, fingerprint, 76067358 /* FIXME: coin->xpub_magic */, resp->xpub, sizeof(resp->xpub));
+    hdnode_serialize_public(node, fingerprint, coin->xpub_magic, resp->xpub, sizeof(resp->xpub));
 
     if (msg->has_show_display && msg->show_display)
     {
-        const CoinType *coin = msg->address_n_count > 2 &&
-                               msg->address_n[0] == (0x80000000 | 44)
-             ? coinBySlip44(msg->address_n[1])
-             : 0;
-
         char node_str[NODE_STRING_LENGTH];
-        if (!coin || !bip44_node_to_string(coin, node_str, msg->address_n,
-                                           msg->address_n_count)) {
+        if (!bip44_node_to_string(coin, node_str, msg->address_n,
+                                  msg->address_n_count,
+                                  /*whole_account=*/true)) {
             memset(node_str, 0, sizeof(node_str));
         }
 
@@ -82,12 +76,12 @@ void fsm_msgSignTx(SignTx *msg)
 
     CHECK_PIN_UNCACHED
 
-    const CoinType *coin = fsm_getCoin(msg->coin_name);
+    const CoinType *coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
 
     if(!coin) { return; }
 
     /* master node */
-    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0);
+    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0, NULL);
 
     if(!node) { return; }
 
@@ -155,11 +149,11 @@ void fsm_msgGetAddress(GetAddress *msg)
 
     CHECK_PIN
 
-    const CoinType *coin = fsm_getCoin(msg->coin_name);
+    const CoinType *coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
 
     if(!coin) { return; }
 
-    HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
+    HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
 
     if(!node) { return; }
     hdnode_fill_public_key(node);
@@ -247,11 +241,11 @@ void fsm_msgSignMessage(SignMessage *msg)
 
     CHECK_PIN
 
-    const CoinType *coin = fsm_getCoin(msg->coin_name);
+    const CoinType *coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
 
     if(!coin) { return; }
 
-    HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count);
+    HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
 
     if(!node) { return; }
 
@@ -278,7 +272,7 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 
     CHECK_PARAM(msg->has_message, "No message provided");
 
-    const CoinType *coin = fsm_getCoin(msg->coin_name);
+    const CoinType *coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
     if (!coin) return;
     layout_simple_message("Verifying Message...");
     uint8_t addr_raw[21];

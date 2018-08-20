@@ -68,15 +68,8 @@ const CoinType coins[COINS_COUNT] = {
 _Static_assert(sizeof(coins) / sizeof(coins[0]) == COINS_COUNT,
                "Update COINS_COUNT to match the size of the coin table");
 
-/*
- * verify_bip44_node() - Checks node is valid bip44
- *
- * INPUT
- *     *coin - coin type pointer
- *     address_n - node path
- *     address_n_count - number of nodes in path
- * OUTPUT
- *     true/false status
+/**
+ * \brief Checks whether a derivation path is valid bip44
  *
  * Note : address_n[5] = {/44'/bip44_account_path/account #/0/0 }
  *
@@ -87,26 +80,53 @@ _Static_assert(sizeof(coins) / sizeof(coins[0]) == COINS_COUNT,
  *      Ethereum - 0x8000_003c
  *      ...
  *      ...
+ *
+ * \param coin            The coin descriptor.
+ * \param address_n       Node path.
+ * \param address_n_count Number of nodes in the path.
+ * \param whole_account   Whether to consider whole accounts, or just addresses within them.
+ * \returns true iff the derivation path is valid under the bip44 spec.
+ *
  */
-static bool verify_bip44_node(const CoinType *coin, uint32_t *address_n, size_t address_n_count)
+static bool verify_bip44_node(const CoinType *coin, uint32_t *address_n,
+                              size_t address_n_count, bool whole_account)
 {
-    bool ret_stat = false;
-    if(address_n_count == 5 && address_n[3] == 0)
-    {
-        if(strncmp(coin->coin_name, ETHEREUM, strlen(ETHEREUM)) == 0  || strncmp(coin->coin_name, ETHEREUM_CLS, sizeof(ETHEREUM_CLS)) == 0 )
-        {
-            if(address_n[4] != 0)
-            {
-                goto verify_bip44_node_exit;
-            }
-        }
-        if(address_n[0] == 0x8000002C && address_n[1] == coin->bip44_account_path)
-        {
-            ret_stat = true;
-        }
+    // Check that the path has enough derivation steps to even be under bip44
+    if (address_n_count < 3)
+        return false;
+
+    // Check that the path is m/44'
+    if (address_n[0] != (0x80000000 | 44))
+        return false;
+
+    // Check that the path is m/44'/bip44_account_path
+    if (address_n[1] != coin->bip44_account_path)
+        return false;
+
+    // Account level must be hardened
+    if ((address_n[2] & 0x80000000) != 0x80000000)
+        return false;
+
+    if (whole_account) {
+        // Check that the path is m/44'/bip44_account_path/account #'
+        if (address_n_count != 3)
+            return false;
+
+        return true;
     }
-verify_bip44_node_exit:
-    return(ret_stat);
+
+    // Check that the path is m/44'/bip44_account_path/x/y
+    if (address_n_count != 5)
+        return false;
+
+    if (strncmp(coin->coin_name, ETHEREUM, strlen(ETHEREUM)) == 0 ||
+        strncmp(coin->coin_name, ETHEREUM_CLS, sizeof(ETHEREUM_CLS)) == 0) {
+        // Check that the path is m/44'/bip44_account_path/0/y
+        if (address_n[4] != 0)
+            return false;
+    }
+
+    return true;
 }
 
 const CoinType *coinByShortcut(const char *shortcut)
@@ -254,12 +274,12 @@ void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len)
  *
  */
 bool bip44_node_to_string(const CoinType *coin, char *node_str, uint32_t *address_n,
-                         size_t address_n_count)
+                         size_t address_n_count, bool whole_account)
 {
     bool ret_stat = false;
     bool is_token = coin->has_contract_address;
 
-    if(verify_bip44_node(coin, address_n, address_n_count))
+    if(verify_bip44_node(coin, address_n, address_n_count, whole_account))
     {
         // If it is a token we still refer to the destination as an Ethereum account
         if (is_token) {
