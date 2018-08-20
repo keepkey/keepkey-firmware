@@ -55,7 +55,7 @@ static TxOutputBinType bin_output;
 static TxStruct to, transaction_previous, transaction_input_sig_digest;
 static SHA256_CTX transaction_inputs_and_outputs;
 static uint8_t CONFIDENTIAL privkey[32];
-static uint8_t hash[32], hash_check[32], pubkey[33], sig[64]; 
+static uint8_t hash[32], hash_check[32], pubkey[33], sig[64];
 static uint64_t to_spend, spending, change_spend;
 static bool multisig_fp_set, multisig_fp_mismatch;
 static uint8_t hash_prevouts[32], hash_sequence[32],hash_outputs[32];
@@ -92,9 +92,9 @@ enum {
 /*
  * send_co_failed_message() - send transaction output error message to client
  *
- * INPUT  
+ * INPUT
  *     co_error - Transaction output compilation error id
- * OUTPUT 
+ * OUTPUT
  *     none
  */
 void send_fsm_co_error_message(int co_error)
@@ -451,7 +451,7 @@ void signing_init(uint32_t _inputs_count, uint32_t _outputs_count, const CoinTyp
 	raw_tx_status = NOT_PARSING;
 
 	send_req_1_input();
-    set_exchange_error(NO_EXCHANGE_ERROR);
+	set_exchange_error(NO_EXCHANGE_ERROR);
 }
 
 void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
@@ -509,7 +509,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 						}
 						else
 						{
-							state_pos = script_len + 3;	
+							state_pos = script_len + 3;
 						}
 
 						script_len = 0;
@@ -582,7 +582,7 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 				}
 				break;
 			case PARSING_LOCKTIME:
-            	if(state_pos >= 0)
+				if(state_pos >= 0)
 				{
 					*ptr++ = msg[i];
 				}
@@ -598,8 +598,8 @@ void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 						signing_abort();
 						return;
 					}
-            		
-            		if (idx1 < inputs_count - 1) {
+
+					if (idx1 < inputs_count - 1) {
 						idx1++;
 						send_req_1_input();
 					} else {
@@ -738,8 +738,8 @@ void signing_txack(TransactionType *tx)
 			bool is_change = false;
 
 			if (tx->outputs[0].script_type == OutputScriptType_PAYTOMULTISIG &&
-			    tx->outputs[0].has_multisig &&
-			    multisig_fp_set && !multisig_fp_mismatch) {
+				tx->outputs[0].has_multisig &&
+				multisig_fp_set && !multisig_fp_mismatch) {
 				uint8_t h[32];
 				if (cryptoMultisigFingerprint(&(tx->outputs[0].multisig), h) == 0) {
 					fsm_sendFailure(FailureType_Failure_Other, "Error computing multisig fingeprint");
@@ -749,25 +749,25 @@ void signing_txack(TransactionType *tx)
 				if (memcmp(multisig_fp, h, 32) == 0) {
 					is_change = true;
 				}
-                        } else {
-                            if(tx->outputs[0].has_address_type) {
-                                if(check_valid_output_address(tx->outputs) == false) {
-                                    fsm_sendFailure(FailureType_Failure_Other, "Invalid output address type");
-                                    signing_abort();
-                                    return;
-                                }
+			} else {
+				if(tx->outputs[0].has_address_type) {
+					if(check_valid_output_address(tx->outputs) == false) {
+						fsm_sendFailure(FailureType_Failure_Other, "Invalid output address type");
+						signing_abort();
+						return;
+					}
 
-                                if(tx->outputs[0].script_type == OutputScriptType_PAYTOADDRESS &&
-                                        tx->outputs[0].address_n_count > 0 &&
-                                        tx->outputs[0].address_type == OutputAddressType_CHANGE) {
-                                    is_change = true;
-                                }
-                            }
-                            else if(tx->outputs[0].script_type == OutputScriptType_PAYTOADDRESS &&
-                                    tx->outputs[0].address_n_count > 0) {
-                                is_change = true;
-                            }
-                        }
+					if(tx->outputs[0].script_type == OutputScriptType_PAYTOADDRESS &&
+							tx->outputs[0].address_n_count > 0 &&
+							tx->outputs[0].address_type == OutputAddressType_CHANGE) {
+						is_change = true;
+					}
+				}
+				else if(tx->outputs[0].script_type == OutputScriptType_PAYTOADDRESS &&
+						tx->outputs[0].address_n_count > 0) {
+					is_change = true;
+				}
+			}
 
 			if (is_change) {
 				if (change_spend == 0) { // not set
@@ -776,14 +776,14 @@ void signing_txack(TransactionType *tx)
 					fsm_sendFailure(FailureType_Failure_Other, "Only one change output allowed");
 					signing_abort();
 					return;
-			    }
+				}
 			}
 
 			co = run_policy_compile_output(coin, root, (void *)tx->outputs, (void *)&bin_output, !is_change);
 			if (co <= TXOUT_COMPILE_ERROR) {
-			    send_fsm_co_error_message(co);
-			    signing_abort();
-			    return;
+				send_fsm_co_error_message(co);
+				signing_abort();
+				return;
 			}
 
 			spending += tx->outputs[0].amount;
@@ -796,48 +796,48 @@ void signing_txack(TransactionType *tx)
 				idx1++;
 				send_req_3_output();
 			} else {
-		            sha256_Final(&transaction_inputs_and_outputs, hash_check);
-                            // check fees
-                            if (spending > to_spend) {
-                                fsm_sendFailure(FailureType_Failure_NotEnoughFunds, "Not enough funds");
-		                        signing_abort();
-                                return;
-                            }
-                            uint64_t fee = to_spend - spending;
-                            uint32_t tx_est_size = transactionEstimateSizeKb(inputs_count, outputs_count);
-                            char total_amount_str[32];
-		            char fee_str[32];
+				sha256_Final(&transaction_inputs_and_outputs, hash_check);
+				// check fees
+				if (spending > to_spend) {
+					fsm_sendFailure(FailureType_Failure_NotEnoughFunds, "Not enough funds");
+					signing_abort();
+					return;
+				}
+				uint64_t fee = to_spend - spending;
+				uint32_t tx_est_size = transactionEstimateSizeKb(inputs_count, outputs_count);
+				char total_amount_str[32];
+				char fee_str[32];
 
-		            coin_amnt_to_str(coin, fee, fee_str, sizeof(fee_str));
+				coin_amnt_to_str(coin, fee, fee_str, sizeof(fee_str));
 
-                            if(fee > (uint64_t)tx_est_size * coin->maxfee_kb) {
-			        if (!confirm(ButtonRequestType_ButtonRequest_FeeOverThreshold,
-		                        "Confirm Fee", "%s", fee_str)) {
-		                    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
-		                    signing_abort();
-		                    return;
-		                }
+				if(fee > (uint64_t)tx_est_size * coin->maxfee_kb) {
+					if (!confirm(ButtonRequestType_ButtonRequest_FeeOverThreshold,
+							"Confirm Fee", "%s", fee_str)) {
+						fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
+						signing_abort();
+						return;
+					}
 
-                            }
-                            // last confirmation
-                            coin_amnt_to_str(coin, to_spend - change_spend, total_amount_str, sizeof(total_amount_str));
+				}
+				// last confirmation
+				coin_amnt_to_str(coin, to_spend - change_spend, total_amount_str, sizeof(total_amount_str));
 
-		            if(!confirm_transaction(total_amount_str, fee_str))
-		            {
-		                fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
-		                signing_abort();
-		                return;
-		            }
-		            // Everything was checked, now phase 2 begins and the transaction is signed.
-		            layout_simple_message("Signing Transaction...");
+				if(!confirm_transaction(total_amount_str, fee_str))
+				{
+					fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
+					signing_abort();
+					return;
+				}
+				// Everything was checked, now phase 2 begins and the transaction is signed.
+				layout_simple_message("Signing Transaction...");
 
-			    idx1 = 0;
-			    idx2 = 0;
+				idx1 = 0;
+				idx2 = 0;
 
 				sha256_Final(&hashers[0], hash_outputs);
 				sha256_Raw(hash_outputs, 32, hash_outputs);
 
-			    send_req_4_input();
+				send_req_4_input();
 			}
 			return;
 		}
@@ -882,9 +882,9 @@ void signing_txack(TransactionType *tx)
 		case STAGE_REQUEST_4_OUTPUT:
 			co = run_policy_compile_output(coin, root, (void *)tx->outputs, (void *)&bin_output, false);
 			if (co <= TXOUT_COMPILE_ERROR) {
-			    send_fsm_co_error_message(co);
-			    signing_abort();
-			    return;
+				send_fsm_co_error_message(co);
+				signing_abort();
+				return;
 			}
 			sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)&bin_output, sizeof(TxOutputBinType));
 			if (!tx_serialize_output_hash(&transaction_input_sig_digest, &bin_output)) {
@@ -975,9 +975,9 @@ void signing_txack(TransactionType *tx)
 		case STAGE_REQUEST_5_OUTPUT:
 			co = run_policy_compile_output(coin, root, (void *)tx->outputs, (void *)&bin_output, false);
 			if (co <= TXOUT_COMPILE_ERROR) {
-			    send_fsm_co_error_message(co);
-			    signing_abort();
-			    return;
+				send_fsm_co_error_message(co);
+				signing_abort();
+				return;
 			}
 			resp.has_serialized = true;
 			resp.serialized.has_serialized_tx = true;
@@ -1021,31 +1021,31 @@ bool compile_input_script_sig(TxInputType *tinput) {
 	if (tinput->has_multisig) {
 		tinput->script_sig.size = compile_script_multisig(&(tinput->multisig), tinput->script_sig.bytes);
 	} else {
-        uint8_t xhash[20];
+		uint8_t xhash[20];
 #if 0
-        ecdsa_get_pubkeyhash(node.public_key, coin->curve->hasher_pubkey, xhash);
+		ecdsa_get_pubkeyhash(node.public_key, coin->curve->hasher_pubkey, xhash);
 #else
-        ecdsa_get_pubkeyhash(node.public_key, secp256k1_info.hasher_pubkey, xhash);
+		ecdsa_get_pubkeyhash(node.public_key, secp256k1_info.hasher_pubkey, xhash);
 #endif
-        tinput->script_sig.size = compile_script_sig(coin->address_type, xhash, tinput->script_sig.bytes);
-    }
-    return tinput->script_sig.size > 0;
+		tinput->script_sig.size = compile_script_sig(coin->address_type, xhash, tinput->script_sig.bytes);
+	}
+	return tinput->script_sig.size > 0;
 }
 
 void digest_for_bip143(const TxInputType *txinput, uint8_t sighash, uint32_t forkid, uint8_t *xhash) {
-    uint32_t hash_type = (forkid << 8) | sighash;
-    SHA256_CTX sigContainer;
-    sha256_Init(&sigContainer);
-    sha256_Update(&sigContainer, (const uint8_t *)&version, 4);
-    sha256_Update(&sigContainer, hash_prevouts, 32);
-    sha256_Update(&sigContainer, hash_sequence, 32);
-    tx_prevout_hash(&sigContainer, txinput);
-    tx_script_hash(&sigContainer, txinput->script_sig.size, txinput->script_sig.bytes);
-    sha256_Update(&sigContainer, (const uint8_t*) &txinput->amount, 8);
-    tx_sequence_hash(&sigContainer, txinput);
-    sha256_Update(&sigContainer, hash_outputs, 32);
-    sha256_Update(&sigContainer, (const uint8_t*) &lock_time, 4);
-    sha256_Update(&sigContainer, (const uint8_t*) &hash_type, 4);
-    sha256_Final(&sigContainer, xhash);
-    sha256_Raw(xhash, 32, xhash);
+	uint32_t hash_type = (forkid << 8) | sighash;
+	SHA256_CTX sigContainer;
+	sha256_Init(&sigContainer);
+	sha256_Update(&sigContainer, (const uint8_t *)&version, 4);
+	sha256_Update(&sigContainer, hash_prevouts, 32);
+	sha256_Update(&sigContainer, hash_sequence, 32);
+	tx_prevout_hash(&sigContainer, txinput);
+	tx_script_hash(&sigContainer, txinput->script_sig.size, txinput->script_sig.bytes);
+	sha256_Update(&sigContainer, (const uint8_t*) &txinput->amount, 8);
+	tx_sequence_hash(&sigContainer, txinput);
+	sha256_Update(&sigContainer, hash_outputs, 32);
+	sha256_Update(&sigContainer, (const uint8_t*) &lock_time, 4);
+	sha256_Update(&sigContainer, (const uint8_t*) &hash_type, 4);
+	sha256_Final(&sigContainer, xhash);
+	sha256_Raw(xhash, 32, xhash);
 }
