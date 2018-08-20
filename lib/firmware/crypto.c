@@ -53,21 +53,21 @@ uint32_t ser_length(uint32_t len, uint8_t *out)
 	return 5;
 }
 
-uint32_t ser_length_hash(SHA256_CTX *ctx, uint32_t len)
+uint32_t ser_length_hash(Hasher *hasher, uint32_t len)
 {
 	if (len < 253) {
-		sha256_Update(ctx, (const uint8_t *)&len, 1);
+		hasher_Update(hasher, (const uint8_t *)&len, 1);
 		return 1;
 	}
 	if (len < 0x10000) {
 		uint8_t d = 253;
-		sha256_Update(ctx, &d, 1);
-		sha256_Update(ctx, (const uint8_t *)&len, 2);
+		hasher_Update(hasher, &d, 1);
+		hasher_Update(hasher, (const uint8_t *)&len, 2);
 		return 3;
 	}
 	uint8_t d = 254;
-	sha256_Update(ctx, &d, 1);
-	sha256_Update(ctx, (const uint8_t *)&len, 4);
+	hasher_Update(hasher, &d, 1);
+	hasher_Update(hasher, (const uint8_t *)&len, 4);
 	return 5;
 }
 
@@ -208,7 +208,7 @@ int cryptoMessageVerify(const CoinType *coin, const uint8_t *message, size_t mes
 	if (signature[0] >= 27 && signature[0] <= 34) {
 		size_t len;
 #if 0
-		if (coin->cashaddr_prefix) {
+		if (coin->has_cashaddr_prefix) {
 			if (!cash_addr_decode(addr_raw, &len, coin->cashaddr_prefix, address)) {
 				return 2;
 			}
@@ -246,7 +246,7 @@ int cryptoMessageVerify(const CoinType *coin, const uint8_t *message, size_t mes
 	if (signature[0] >= 39 && signature[0] <= 42) {
 		int witver;
 		size_t len;
-		if (!coin->bech32_prefix
+		if (!coin->has_bech32_prefix
 			|| !segwit_addr_decode(&witver, recovered_raw, &len, coin->bech32_prefix, address)) {
 			return 4;
 		}
@@ -263,11 +263,11 @@ int cryptoMessageVerify(const CoinType *coin, const uint8_t *message, size_t mes
 	return 0;
 }
 
-uint8_t *cryptoHDNodePathToPubkey(const HDNodePathType *hdnodepath)
+uint8_t *cryptoHDNodePathToPubkey(const CoinType *coin, const HDNodePathType *hdnodepath)
 {
 	if (!hdnodepath->node.has_public_key || hdnodepath->node.public_key.size != 33) return 0;
 	static HDNode node;
-	if (hdnode_from_xpub(hdnodepath->node.depth, hdnodepath->node.child_num, hdnodepath->node.chain_code.bytes, hdnodepath->node.public_key.bytes, SECP256K1_NAME, &node) == 0) {
+	if (hdnode_from_xpub(hdnodepath->node.depth, hdnodepath->node.child_num, hdnodepath->node.chain_code.bytes, hdnodepath->node.public_key.bytes, coin->curve_name, &node) == 0) {
 		return 0;
 	}
 	animating_progress_handler();
@@ -281,11 +281,11 @@ uint8_t *cryptoHDNodePathToPubkey(const HDNodePathType *hdnodepath)
 	return node.public_key;
 }
 
-int cryptoMultisigPubkeyIndex(const MultisigRedeemScriptType *multisig, const uint8_t *pubkey)
+int cryptoMultisigPubkeyIndex(const CoinType *coin, const MultisigRedeemScriptType *multisig, const uint8_t *pubkey)
 {
 	size_t i;
 	for (i = 0; i < multisig->pubkeys_count; i++) {
-		const uint8_t *node_pubkey = cryptoHDNodePathToPubkey(&(multisig->pubkeys[i]));
+		const uint8_t *node_pubkey = cryptoHDNodePathToPubkey(coin, &(multisig->pubkeys[i]));
 		if (node_pubkey && memcmp(node_pubkey, pubkey, 33) == 0) {
 			return i;
 		}

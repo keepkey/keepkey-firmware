@@ -66,6 +66,8 @@
 
 #include <stdio.h>
 
+#define _(X) (X)
+
 static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
 
 #define CHECK_INITIALIZED \
@@ -133,7 +135,6 @@ static const MessagesMap_t MessagesMap[] =
     MSG_IN(MessageType_MessageType_DecryptMessage,      DecryptMessage_fields, (void (*)(void *))fsm_msgDecryptMessage, MFRProhibited)
 */
     MSG_IN(MessageType_MessageType_PassphraseAck,       PassphraseAck_fields,       NO_PROCESS_FUNC, MFRProhibited)
-    MSG_IN(MessageType_MessageType_EstimateTxSize,      EstimateTxSize_fields, (void (*)(void *))fsm_msgEstimateTxSize, MFRProhibited)
     MSG_IN(MessageType_MessageType_RecoveryDevice,      RecoveryDevice_fields, (void (*)(void *))fsm_msgRecoveryDevice, MFRProhibited)
     MSG_IN(MessageType_MessageType_WordAck,             WordAck_fields, (void (*)(void *))fsm_msgWordAck, MFRProhibited)
     MSG_IN(MessageType_MessageType_CharacterAck,        CharacterAck_fields, (void (*)(void *))fsm_msgCharacterAck, MFRProhibited)
@@ -141,9 +142,6 @@ static const MessagesMap_t MessagesMap[] =
     MSG_IN(MessageType_MessageType_EthereumGetAddress,	EthereumGetAddress_fields, (void (*)(void *))fsm_msgEthereumGetAddress, MFRProhibited)
     MSG_IN(MessageType_MessageType_EthereumSignTx,      EthereumSignTx_fields, (void (*)(void *))fsm_msgEthereumSignTx, MFRProhibited)
     MSG_IN(MessageType_MessageType_EthereumTxAck,       EthereumTxAck_fields, (void (*)(void *))fsm_msgEthereumTxAck, MFRProhibited)
-
-    /* Normal Raw Messages */
-    RAW_IN(MessageType_MessageType_RawTxAck,            RawTxAck_fields,            (void (*)(void *))fsm_msgRawTxAck, AnyVariant)
 
     MSG_IN(MessageType_MessageType_FlashWrite,          FlashWrite_fields, (void (*)(void *))fsm_msgFlashWrite, MFROnly)
     MSG_IN(MessageType_MessageType_FlashHash,           FlashHash_fields, (void (*)(void *))fsm_msgFlashHash, MFROnly)
