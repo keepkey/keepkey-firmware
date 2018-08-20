@@ -486,6 +486,56 @@ static bool signing_check_prevtx_hash(void) {
 	return true;
 }
 
+static void phase1_request_next_output(void) {
+	if (idx1 < outputs_count - 1) {
+		idx1++;
+		send_req_3_output();
+	} else {
+		sha256_Final(&transaction_inputs_and_outputs, hash_check);
+		// check fees
+		if (spending > to_spend) {
+			fsm_sendFailure(FailureType_Failure_NotEnoughFunds, "Not enough funds");
+			signing_abort();
+			return;
+		}
+		uint64_t fee = to_spend - spending;
+		uint32_t tx_est_size = transactionEstimateSizeKb(inputs_count, outputs_count);
+		char total_amount_str[32];
+		char fee_str[32];
+
+		coin_amnt_to_str(coin, fee, fee_str, sizeof(fee_str));
+
+		if(fee > (uint64_t)tx_est_size * coin->maxfee_kb) {
+			if (!confirm(ButtonRequestType_ButtonRequest_FeeOverThreshold,
+					"Confirm Fee", "%s", fee_str)) {
+				fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
+				signing_abort();
+				return;
+			}
+
+		}
+		// last confirmation
+		coin_amnt_to_str(coin, to_spend - change_spend, total_amount_str, sizeof(total_amount_str));
+
+		if(!confirm_transaction(total_amount_str, fee_str))
+		{
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
+			signing_abort();
+			return;
+		}
+		// Everything was checked, now phase 2 begins and the transaction is signed.
+		layout_simple_message("Signing Transaction...");
+
+		idx1 = 0;
+		idx2 = 0;
+
+		sha256_Final(&hashers[0], hash_outputs);
+		sha256_Raw(hash_outputs, 32, hash_outputs);
+
+		send_req_4_input();
+	}
+}
+
 void parse_raw_txack(uint8_t *msg, uint32_t msg_size){
 	static int32_t state_pos = 0;
 	static uint8_t *ptr;
@@ -804,53 +854,7 @@ void signing_txack(TransactionType *tx)
 
 			tx_output_hash(&hashers[0], &bin_output);
 
-			if (idx1 < outputs_count - 1) {
-				idx1++;
-				send_req_3_output();
-			} else {
-				sha256_Final(&transaction_inputs_and_outputs, hash_check);
-				// check fees
-				if (spending > to_spend) {
-					fsm_sendFailure(FailureType_Failure_NotEnoughFunds, "Not enough funds");
-					signing_abort();
-					return;
-				}
-				uint64_t fee = to_spend - spending;
-				uint32_t tx_est_size = transactionEstimateSizeKb(inputs_count, outputs_count);
-				char total_amount_str[32];
-				char fee_str[32];
-
-				coin_amnt_to_str(coin, fee, fee_str, sizeof(fee_str));
-
-				if(fee > (uint64_t)tx_est_size * coin->maxfee_kb) {
-					if (!confirm(ButtonRequestType_ButtonRequest_FeeOverThreshold,
-							"Confirm Fee", "%s", fee_str)) {
-						fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
-						signing_abort();
-						return;
-					}
-
-				}
-				// last confirmation
-				coin_amnt_to_str(coin, to_spend - change_spend, total_amount_str, sizeof(total_amount_str));
-
-				if(!confirm_transaction(total_amount_str, fee_str))
-				{
-					fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
-					signing_abort();
-					return;
-				}
-				// Everything was checked, now phase 2 begins and the transaction is signed.
-				layout_simple_message("Signing Transaction...");
-
-				idx1 = 0;
-				idx2 = 0;
-
-				sha256_Final(&hashers[0], hash_outputs);
-				sha256_Raw(hash_outputs, 32, hash_outputs);
-
-				send_req_4_input();
-			}
+			phase1_request_next_output();
 			return;
 		}
 		case STAGE_REQUEST_4_INPUT:
