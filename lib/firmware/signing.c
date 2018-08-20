@@ -486,6 +486,70 @@ static bool signing_check_prevtx_hash(void) {
 	return true;
 }
 
+static bool signing_check_output(TransactionType *tx, TxOutputType *txoutput) {
+	/* Downloaded output idx1 the first time.
+	 *  Add it to transaction check
+	 *  Ask for permission.
+	 */
+	bool is_change = false;
+
+	if (txoutput->script_type == OutputScriptType_PAYTOMULTISIG &&
+		txoutput->has_multisig &&
+		multisig_fp_set && !multisig_fp_mismatch) {
+		uint8_t h[32];
+		if (cryptoMultisigFingerprint(&(txoutput->multisig), h) == 0) {
+			fsm_sendFailure(FailureType_Failure_Other, "Error computing multisig fingeprint");
+			signing_abort();
+			return false;
+		}
+		if (memcmp(multisig_fp, h, 32) == 0) {
+			is_change = true;
+		}
+	} else {
+		if(txoutput->has_address_type) {
+			if(check_valid_output_address(tx->outputs) == false) {
+				fsm_sendFailure(FailureType_Failure_Other, "Invalid output address type");
+				signing_abort();
+				return false;
+			}
+
+			if(txoutput->script_type == OutputScriptType_PAYTOADDRESS &&
+					txoutput->address_n_count > 0 &&
+					txoutput->address_type == OutputAddressType_CHANGE) {
+				is_change = true;
+			}
+		}
+		else if(txoutput->script_type == OutputScriptType_PAYTOADDRESS &&
+				txoutput->address_n_count > 0) {
+			is_change = true;
+		}
+	}
+
+	if (is_change) {
+		if (change_spend == 0) { // not set
+			change_spend = txoutput->amount;
+		} else {
+			fsm_sendFailure(FailureType_Failure_Other, "Only one change output allowed");
+			signing_abort();
+			return false;
+		}
+	}
+
+	int co = run_policy_compile_output(coin, root, (void *)tx->outputs, (void *)&bin_output, !is_change);
+	if (co <= TXOUT_COMPILE_ERROR) {
+		send_fsm_co_error_message(co);
+		signing_abort();
+		return false;
+	}
+
+	spending += txoutput->amount;
+
+	sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)&bin_output, sizeof(TxOutputBinType));
+
+	tx_output_hash(&hashers[0], &bin_output);
+	return true;
+}
+
 static void phase1_request_next_output(void) {
 	if (idx1 < outputs_count - 1) {
 		idx1++;
@@ -793,67 +857,9 @@ void signing_txack(TransactionType *tx)
 			return;
 		case STAGE_REQUEST_3_OUTPUT:
 		{
-			/* Downloaded output idx1 the first time.
-			 *  Add it to transaction check
-			 *  Ask for permission.
-			 */
-			bool is_change = false;
-
-			if (tx->outputs[0].script_type == OutputScriptType_PAYTOMULTISIG &&
-				tx->outputs[0].has_multisig &&
-				multisig_fp_set && !multisig_fp_mismatch) {
-				uint8_t h[32];
-				if (cryptoMultisigFingerprint(&(tx->outputs[0].multisig), h) == 0) {
-					fsm_sendFailure(FailureType_Failure_Other, "Error computing multisig fingeprint");
-					signing_abort();
-					return;
-				}
-				if (memcmp(multisig_fp, h, 32) == 0) {
-					is_change = true;
-				}
-			} else {
-				if(tx->outputs[0].has_address_type) {
-					if(check_valid_output_address(tx->outputs) == false) {
-						fsm_sendFailure(FailureType_Failure_Other, "Invalid output address type");
-						signing_abort();
-						return;
-					}
-
-					if(tx->outputs[0].script_type == OutputScriptType_PAYTOADDRESS &&
-							tx->outputs[0].address_n_count > 0 &&
-							tx->outputs[0].address_type == OutputAddressType_CHANGE) {
-						is_change = true;
-					}
-				}
-				else if(tx->outputs[0].script_type == OutputScriptType_PAYTOADDRESS &&
-						tx->outputs[0].address_n_count > 0) {
-					is_change = true;
-				}
-			}
-
-			if (is_change) {
-				if (change_spend == 0) { // not set
-					change_spend = tx->outputs[0].amount;
-				} else {
-					fsm_sendFailure(FailureType_Failure_Other, "Only one change output allowed");
-					signing_abort();
-					return;
-				}
-			}
-
-			co = run_policy_compile_output(coin, root, (void *)tx->outputs, (void *)&bin_output, !is_change);
-			if (co <= TXOUT_COMPILE_ERROR) {
-				send_fsm_co_error_message(co);
-				signing_abort();
+			if (!signing_check_output(tx, &tx->outputs[0])) {
 				return;
 			}
-
-			spending += tx->outputs[0].amount;
-
-			sha256_Update(&transaction_inputs_and_outputs, (const uint8_t *)&bin_output, sizeof(TxOutputBinType));
-
-			tx_output_hash(&hashers[0], &bin_output);
-
 			phase1_request_next_output();
 			return;
 		}
