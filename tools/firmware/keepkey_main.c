@@ -140,6 +140,9 @@ int main(void)
 
     screen_test();
 
+    if (variant_isMFR())
+        layout_simple_message("keepkey.com/get-started");
+
     while(1)
     {
         delay_ms_with_callback(ONE_SEC, &exec, 1);
