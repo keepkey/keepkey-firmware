@@ -45,7 +45,7 @@ if(NOT ${KK_EMULATOR})
       kkfirmware
       kkfirmware.mfr
       kkboard
-      kkboard.mfr
+      -Wl,--whole-archive kkboard.mfr -Wl,--no-whole-archive
       kkvariant.keepkey
       kkvariant.salt
       kktransport
