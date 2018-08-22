@@ -105,17 +105,22 @@ void fsm_msgGetCoinTable(GetCoinTable *msg)
 {
     RESP_INIT(CoinTable);
 
-    CHECK_PARAM(msg->has_start != msg->has_end, "Incorrect GetCoinTable parameters");
+    CHECK_PARAM(msg->has_start == msg->has_end, "Incorrect GetCoinTable parameters");
 
     resp->has_chunk_size = true;
     resp->chunk_size = sizeof(resp->table) / sizeof(resp->table[0]);
 
-    CHECK_PARAM(!(msg->has_start && msg->has_end) ||
-                (COINS_COUNT > msg->start &&
-                 COINS_COUNT <= msg->end &&
-                 msg->end > msg->start &&
-                 resp->chunk_size >= msg->end - msg->start),
-                "Incorrect GetCoinTable parameters")
+    if (msg->has_start && msg->has_end) {
+        if (COINS_COUNT <= msg->start ||
+            COINS_COUNT < msg->end ||
+            msg->end < msg->start ||
+            resp->chunk_size < msg->end - msg->start) {
+            fsm_sendFailure(FailureType_Failure_Other,
+                            "Incorrect GetCoinTable parameters");
+            go_home();
+            return;
+        }
+    }
 
     resp->has_num_coins = true;
     resp->num_coins = COINS_COUNT;
