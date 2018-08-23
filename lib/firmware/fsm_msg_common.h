@@ -117,7 +117,7 @@ void fsm_msgGetCoinTable(GetCoinTable *msg)
             resp->chunk_size < msg->end - msg->start) {
             fsm_sendFailure(FailureType_Failure_Other,
                             "Incorrect GetCoinTable parameters");
-            go_home();
+            layoutHome();
             return;
         }
     }
