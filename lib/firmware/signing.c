@@ -227,6 +227,15 @@ static bool check_valid_output_address(TxOutputType *tx_out)
                 ret_val = true;
             }
 
+            if (tx_out->address_type == OutputAddressType_TRANSFER) {
+                /* TRANSFERs only allowed to the 'external' chain,
+                 * not to the 'change' chain */
+                if (tx_out->address_n_count < 5 ||
+                    tx_out->address_n[3] != 0) {
+                    ret_val = false;
+                }
+            }
+
             break;
         }
 
