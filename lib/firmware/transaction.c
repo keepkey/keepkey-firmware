@@ -177,18 +177,20 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 	uint8_t addr_raw[MAX_ADDR_RAW_SIZE];
 	size_t addr_raw_len;
 
-#if 0
-	if (in->script_type == TxAck_TransactionType_TxOutputType_OutputScriptType_PAYTOOPRETURN) {
+	if (in->script_type == OutputScriptType_PAYTOOPRETURN) {
 		// only 0 satoshi allowed for OP_RETURN
 		if (in->amount != 0) {
 			return 0; // failed to compile output
 		}
+#if 0
+		// FIXME: confirm OP_RETURN data
 		if (needs_confirm) {
 			layoutConfirmOpReturn(in->op_return_data.bytes, in->op_return_data.size);
 			if (!protectButton(ButtonRequest_ButtonRequestType_ButtonRequest_ConfirmOutput, false)) {
 				return -1; // user aborted
 			}
 		}
+#endif
 		uint32_t r = 0;
 		out->script_pubkey.bytes[0] = 0x6A; r++; // OP_RETURN
 		r += op_push(in->op_return_data.size, out->script_pubkey.bytes + r);
@@ -196,7 +198,6 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		out->script_pubkey.size = r;
 		return r;
 	}
-#endif
 	if (in->address_n_count > 0) {
 		static CONFIDENTIAL HDNode node;
 		InputScriptType input_script_type;
