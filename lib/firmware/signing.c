@@ -852,7 +852,11 @@ static bool signing_check_output(TxOutputType *txoutput) {
 	if (!is_change) {
 		animating_progress_handler(); // layoutProgress(_("Signing transaction"), progress);
 	}
-	if (co < 0) {
+	if (co <= TXOUT_COMPILE_ERROR) {
+		send_fsm_co_error_message(co);
+		signing_abort();
+		return false;
+	} else if (co < 0) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
 		signing_abort();
 		return false;
