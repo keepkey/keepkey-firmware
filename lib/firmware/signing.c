@@ -1191,7 +1191,7 @@ void signing_txack(TransactionType *tx)
 					signing_abort();
 					return;
 				}
-				if (!coin->has_segwit) {
+				if (!coin->has_segwit || !coin->segwit) {
 					fsm_sendFailure(FailureType_Failure_SyntaxError, _("Segwit not enabled on this coin"));
 					signing_abort();
 					return;

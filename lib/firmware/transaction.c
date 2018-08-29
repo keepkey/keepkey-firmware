@@ -124,7 +124,7 @@ bool compute_address(const CoinType *coin,
 		}
 		if (script_type == InputScriptType_SPENDWITNESS) {
 			// segwit p2wsh:  script hash is single sha256
-			if (!coin->has_segwit || !coin->has_bech32_prefix) {
+			if ((!coin->has_segwit || !coin->segwit) || !coin->has_bech32_prefix) {
 				return 0;
 			}
 			if (!segwit_addr_encode(address, coin->bech32_prefix, SEGWIT_VERSION_0, digest, 32)) {
@@ -132,7 +132,7 @@ bool compute_address(const CoinType *coin,
 			}
 		} else if (script_type == InputScriptType_SPENDP2SHWITNESS) {
 			// segwit p2wsh encapsuled in p2sh address
-			if (!coin->has_segwit) {
+			if (!coin->has_segwit || !coin->segwit) {
 				return 0;
 			}
 			if (!coin->has_address_type_p2sh) {
@@ -165,7 +165,7 @@ bool compute_address(const CoinType *coin,
 		}
 	} else if (script_type == InputScriptType_SPENDWITNESS) {
 		// segwit p2wpkh:  pubkey hash is ripemd160 of sha256
-		if (!coin->has_segwit || !coin->has_bech32_prefix) {
+		if ((!coin->has_segwit || !coin->segwit) || !coin->has_bech32_prefix) {
 			return 0;
 		}
 		ecdsa_get_pubkeyhash(node->public_key, curve->hasher_pubkey, digest);
@@ -174,7 +174,7 @@ bool compute_address(const CoinType *coin,
 		}
 	} else if (script_type == InputScriptType_SPENDP2SHWITNESS) {
 		// segwit p2wpkh embedded in p2sh
-		if (!coin->has_segwit) {
+		if (!coin->has_segwit || !coin->segwit) {
 			return 0;
 		}
 		if (!coin->has_address_type_p2sh) {
