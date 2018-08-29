@@ -84,7 +84,7 @@ uint32_t deser_length(const uint8_t *in, uint32_t *out)
 		return 1 + 2;
 	}
 	if (in[0] == 254) {
-		*out = in[1] + (in[2] << 8) + (in[3] << 16) + ((uint32_t)in[4] << 24);
+		*out = in[1] + (in[2] << 8) + (in[3] << 16) + ((uint32_t) in[4] << 24);
 		return 1 + 4;
 	}
 	*out = 0; // ignore 64 bit
@@ -254,8 +254,7 @@ uint8_t *cryptoHDNodePathToPubkey(const CoinType *coin, const HDNodePathType *hd
 		return 0;
 	}
 	animating_progress_handler();
-	uint32_t i;
-	for (i = 0; i < hdnodepath->address_n_count; i++) {
+	for (uint32_t i = 0; i < hdnodepath->address_n_count; i++) {
 		if (hdnode_public_ckd(&node, hdnodepath->address_n[i]) == 0) {
 			return 0;
 		}
@@ -266,8 +265,7 @@ uint8_t *cryptoHDNodePathToPubkey(const CoinType *coin, const HDNodePathType *hd
 
 int cryptoMultisigPubkeyIndex(const CoinType *coin, const MultisigRedeemScriptType *multisig, const uint8_t *pubkey)
 {
-	size_t i;
-	for (i = 0; i < multisig->pubkeys_count; i++) {
+	for (size_t i = 0; i < multisig->pubkeys_count; i++) {
 		const uint8_t *node_pubkey = cryptoHDNodePathToPubkey(coin, &(multisig->pubkeys[i]));
 		if (node_pubkey && memcmp(node_pubkey, pubkey, 33) == 0) {
 			return i;
@@ -280,20 +278,19 @@ int cryptoMultisigFingerprint(const MultisigRedeemScriptType *multisig, uint8_t 
 {
 	static const HDNodePathType *ptr[15], *swap;
 	const uint32_t n = multisig->pubkeys_count;
-	if (n > 15) {
+	if (n < 1 || n > 15) {
 		return 0;
 	}
-	uint32_t i, j;
 	// check sanity
 	if (!multisig->has_m || multisig->m < 1 || multisig->m > 15) return 0;
-	for (i = 0; i < n; i++) {
+	for (uint32_t i = 0; i < n; i++) {
 		ptr[i] = &(multisig->pubkeys[i]);
 		if (!ptr[i]->node.has_public_key || ptr[i]->node.public_key.size != 33) return 0;
 		if (ptr[i]->node.chain_code.size != 32) return 0;
 	}
 	// minsort according to pubkey
-	for (i = 0; i < n - 1; i++) {
-		for (j = n - 1; j > i; j--) {
+	for (uint32_t i = 0; i < n - 1; i++) {
+		for (uint32_t j = n - 1; j > i; j--) {
 			if (memcmp(ptr[i]->node.public_key.bytes, ptr[j]->node.public_key.bytes, 33) > 0) {
 				swap = ptr[i];
 				ptr[i] = ptr[j];
@@ -305,7 +302,7 @@ int cryptoMultisigFingerprint(const MultisigRedeemScriptType *multisig, uint8_t 
 	SHA256_CTX ctx;
 	sha256_Init(&ctx);
 	sha256_Update(&ctx, (const uint8_t *)&(multisig->m), sizeof(uint32_t));
-	for (i = 0; i < n; i++) {
+	for (uint32_t i = 0; i < n; i++) {
 		sha256_Update(&ctx, (const uint8_t *)&(ptr[i]->node.depth), sizeof(uint32_t));
 		sha256_Update(&ctx, (const uint8_t *)&(ptr[i]->node.fingerprint), sizeof(uint32_t));
 		sha256_Update(&ctx, (const uint8_t *)&(ptr[i]->node.child_num), sizeof(uint32_t));
