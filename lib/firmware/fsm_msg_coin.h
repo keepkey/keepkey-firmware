@@ -210,8 +210,7 @@ void fsm_msgGetAddress(GetAddress *msg)
 			}
 		}
 
-		// FIXME: cashaddr, bech32
-		if(!confirm_address(desc, resp->address))
+		if(!confirm_address(desc, address))
 		{
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
 			layoutHome();
