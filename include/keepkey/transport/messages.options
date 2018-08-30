@@ -86,7 +86,7 @@ DecryptMessage.nonce			max_size:33
 DecryptMessage.message			max_size:1120 # 1 + 9 + 1024 + 21 + 65
 DecryptMessage.hmac			max_size:8
 
-DecryptedMessage.address		max_size:36
+DecryptedMessage.address		max_size:130
 DecryptedMessage.message		max_size:1024
 
 CipherKeyValue.address_n		max_count:8
@@ -122,7 +122,7 @@ SignIdentity.challenge_hidden		max_size:256
 SignIdentity.challenge_visual		max_size:256
 SignIdentity.ecdsa_curve_name		max_size:32
 
-SignedIdentity.address			max_size:36
+SignedIdentity.address			max_size:130
 SignedIdentity.public_key		max_size:33
 SignedIdentity.signature		max_size:65
 
