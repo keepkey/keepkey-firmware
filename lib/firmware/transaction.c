@@ -360,7 +360,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 				memset(node_str, 0, sizeof(node_str));
 				// FIXME: what about general bip32, segwit accounts, etc?
 				if (!bip44_node_to_string(coin, node_str, in->address_n, in->address_n_count, /*whole_account=*/false))
-					return TXOUT_COMPILE_ERROR;
+					break;
 				if (!confirm_transfer_output(ButtonRequestType_ButtonRequest_ConfirmTransferToAccount, amount_str, node_str))
 					return TXOUT_CANCEL;
 				return out->script_pubkey.size;
