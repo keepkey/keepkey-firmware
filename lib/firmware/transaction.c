@@ -371,7 +371,15 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 	if (needs_confirm) {
 		char amount_str[32];
 		coin_amnt_to_str(coin, in->amount, amount_str, sizeof(amount_str));
-		if (!confirm_transaction_output(ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str, in->address)) {
+		if (coin->has_cashaddr_prefix) {
+			prefix_len = strlen(coin->cashaddr_prefix) + 1;
+			if (memcmp(coin->cashaddr_prefix, in->address, prefix_len) != 0)
+				prefix_len = 0;
+		} else {
+			prefix_len = 0;
+		}
+		if (!confirm_transaction_output(ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
+		                                prefix_len + in->address)) {
 			return -1; // user aborted
 		}
 	}

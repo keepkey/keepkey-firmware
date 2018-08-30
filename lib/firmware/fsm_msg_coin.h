@@ -210,7 +210,11 @@ void fsm_msgGetAddress(GetAddress *msg)
 			}
 		}
 
-		if(!confirm_address(desc, address))
+		size_t prefix_len = coin->has_cashaddr_prefix
+		    ? strlen(coin->cashaddr_prefix) + 1
+		    : 0;
+
+		if(!confirm_address(desc, address + prefix_len))
 		{
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
 			layoutHome();
