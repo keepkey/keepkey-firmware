@@ -317,6 +317,33 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		return 0;
 	}
 
+	// KeepKey custom: outputs must have sane address type
+	if (in->has_address_type) {
+		switch (in->address_type) {
+			case OutputAddressType_SPEND: {
+				if (!in->has_address)
+					return 0;
+			} break;
+
+			case OutputAddressType_TRANSFER:
+			case OutputAddressType_CHANGE: {
+				if (in->address_n_count == 0)
+					return 0;
+				// TRANSFERs only allowed to the 'external' chain, not to the
+				// 'change' chain.
+				if (in->address_type == OutputAddressType_TRANSFER)
+					if (in->address_n_count < 5 ||
+					    in->address_n[3] != 0)
+						return 0;
+			} break;
+
+			case OutputAddressType_EXCHANGE: {
+				if (!in->has_exchange_type)
+					return false;
+			} break;
+		}
+	}
+
 	// KeepKey custom: internal transfer screen
 	if (needs_confirm && in->address_n_count > 0) {
 		switch (in->script_type) {
