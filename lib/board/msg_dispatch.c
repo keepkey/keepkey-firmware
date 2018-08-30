@@ -180,7 +180,8 @@ static bool pb_parse(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_size
  */
 static void dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_size)
 {
-    static uint8_t decode_buffer[MAX_DECODE_SIZE] __attribute__((aligned(4)));
+    static CONFIDENTIAL uint8_t decode_buffer[MAX_DECODE_SIZE] __attribute__((aligned(4)));
+    memset(decode_buffer, 0, sizeof(decode_buffer));
 
     if(pb_parse(entry, msg, msg_size, decode_buffer))
     {

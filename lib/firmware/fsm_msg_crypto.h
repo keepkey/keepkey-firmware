@@ -24,7 +24,7 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled,
                             "CipherKeyValue cancelled");
-            go_home();
+            layoutHome();
             return;
         }
     }
@@ -56,7 +56,7 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg)
     resp->has_value = true;
     resp->value.size = msg->value.size;
     msg_write(MessageType_MessageType_CipheredKeyValue, resp);
-    go_home();
+    layoutHome();
 }
 
 void fsm_msgSignIdentity(SignIdentity *msg)
@@ -68,7 +68,7 @@ void fsm_msgSignIdentity(SignIdentity *msg)
     if (!confirm_sign_identity(&(msg->identity), msg->has_challenge_visual ? msg->challenge_visual : 0))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, "Sign identity cancelled");
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -78,7 +78,7 @@ void fsm_msgSignIdentity(SignIdentity *msg)
     if (!msg->has_identity || cryptoIdentityFingerprint(&(msg->identity), hash) == 0)
     {
         fsm_sendFailure(FailureType_Failure_Other, "Invalid identity");
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -141,5 +141,5 @@ void fsm_msgSignIdentity(SignIdentity *msg)
         fsm_sendFailure(FailureType_Failure_Other, "Error signing identity");
     }
 
-    go_home();
+    layoutHome();
 }

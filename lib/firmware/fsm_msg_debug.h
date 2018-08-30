@@ -71,7 +71,7 @@ void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg)
     if (!msg->has_length || msg->length > sizeof(((DebugLinkFlashDumpResponse *)0)->data.bytes)) {
 #endif
         fsm_sendFailure(FailureType_Failure_Other, "Invalid FlashDump parameters");
-        go_home();
+        layoutHome();
         return;
 #ifndef EMULATOR
     }
@@ -97,7 +97,7 @@ void fsm_msgSoftReset(SoftReset *msg) {
         variant_mfr_softReset();
     else {
         fsm_sendFailure(FailureType_Failure_Other, "SoftReset: unsupported outside of MFR firmware");
-        go_home();
+        layoutHome();
     }
 }
 
@@ -108,14 +108,14 @@ void fsm_msgFlashWrite(FlashWrite *msg) {
         !variant_mfr_sectorStart) {
 #endif
         fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: this isn't MFR firmware");
-        go_home();
+        layoutHome();
         return;
 #ifndef EMULATOR
     }
 
     if (!msg->has_address || !msg->has_data || msg->data.size > 1024) {
         fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: invalid parameters");
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -124,7 +124,7 @@ void fsm_msgFlashWrite(FlashWrite *msg) {
                                   (uint8_t*)variant_mfr_sectorStart(sector) +
                                   msg->data.size) {
         fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: write must not span more than one sector");
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -136,20 +136,20 @@ void fsm_msgFlashWrite(FlashWrite *msg) {
         (FLASH_BOOT_SECTOR_FIRST <= sector &&
          sector <= FLASH_BOOT_SECTOR_LAST)) {
         fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: cannot write to read-only sector");
-        go_home();
+        layoutHome();
         return;
     }
 
     if (!variant_mfr_flashWrite((uint8_t*)msg->address, msg->data.bytes, msg->data.size,
                                  msg->has_erase ? msg->erase : false)) {
         fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: write failed");
-        go_home();
+        layoutHome();
         return;
     }
 
     if (memcmp((void*)msg->address, (void*)msg->data.bytes, msg->data.size) != 0) {
         fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: write / read-back mismatch");
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -158,7 +158,7 @@ void fsm_msgFlashWrite(FlashWrite *msg) {
     if (!variant_mfr_flashHash((uint8_t*)msg->address, msg->data.size, 0, 0,
                                 resp->data.bytes, sizeof(resp->data.bytes))) {
         fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: FlashHash failed");
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -173,14 +173,14 @@ void fsm_msgFlashHash(FlashHash *msg) {
     if (!variant_mfr_flashHash) {
 #endif
         fsm_sendFailure(FailureType_Failure_Other, "FlashHash: this isn't MFR firmware");
-        go_home();
+        layoutHome();
         return;
 #ifndef EMULATOR
     }
 
     if (!msg->has_address || !msg->has_length || !msg->has_challenge) {
         fsm_sendFailure(FailureType_Failure_Other, "FlashHash: invalid parameters");
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -190,7 +190,7 @@ void fsm_msgFlashHash(FlashHash *msg) {
                                 msg->challenge.bytes, msg->challenge.size,
                                 resp->data.bytes, sizeof(resp->data.bytes))) {
         fsm_sendFailure(FailureType_Failure_Other, "FlashHash: failed");
-        go_home();
+        layoutHome();
         return;
     }
 

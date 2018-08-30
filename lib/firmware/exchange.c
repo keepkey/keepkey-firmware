@@ -198,15 +198,9 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
         {
             char tx_out_address[36];
             hdnode_fill_public_key(&node);
-#if 0
-            ecdsa_get_address(node.public_key, coin->address_type, coin->curve->hasher_pubkey,
-                              coin->curve->hasher_base58, tx_out_address,
-                              sizeof(tx_out_address));
-#else
             ecdsa_get_address(node.public_key, coin->address_type, secp256k1_info.hasher_pubkey,
                               secp256k1_info.hasher_base58, tx_out_address,
                               sizeof(tx_out_address));
-#endif
             if(strncmp(tx_out_address, address_str, sizeof(tx_out_address)) == 0)
             {
                 ret_stat = true;

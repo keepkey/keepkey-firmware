@@ -32,6 +32,6 @@
 /* === Defines ============================================================= */
 
 /* The max size of a decoded protobuf */
-#define MAX_DECODE_SIZE (12 * 1024)
+#define MAX_DECODE_SIZE (13 * 1024)
 
 #endif

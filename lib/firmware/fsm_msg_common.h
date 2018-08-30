@@ -4,7 +4,7 @@ void fsm_msgInitialize(Initialize *msg)
     recovery_abort(false);
     signing_abort();
     session_clear(false); // do not clear PIN
-    go_home();
+    layoutHome();
     fsm_msgGetFeatures(0);
 }
 
@@ -117,7 +117,7 @@ void fsm_msgGetCoinTable(GetCoinTable *msg)
             resp->chunk_size < msg->end - msg->start) {
             fsm_sendFailure(FailureType_Failure_Other,
                             "Incorrect GetCoinTable parameters");
-            go_home();
+            layoutHome();
             return;
         }
     }
@@ -160,7 +160,7 @@ void fsm_msgPing(Ping *msg)
         if(!confirm(ButtonRequestType_ButtonRequest_Ping, "Ping", "%s", msg->message))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
-            go_home();
+            layoutHome();
             return;
         }
 
@@ -174,7 +174,7 @@ void fsm_msgPing(Ping *msg)
         if(!passphrase_protect())
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
-            go_home();
+            layoutHome();
             return;
         }
     }
@@ -186,7 +186,7 @@ void fsm_msgPing(Ping *msg)
     }
 
     msg_write(MessageType_MessageType_Success, resp);
-    go_home();
+    layoutHome();
 }
 
 void fsm_msgChangePin(ChangePin *msg)
@@ -221,7 +221,7 @@ void fsm_msgChangePin(ChangePin *msg)
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled,
                         removal ? "PIN removal cancelled" : "PIN change cancelled");
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -242,7 +242,7 @@ void fsm_msgChangePin(ChangePin *msg)
         }
     }
 
-    go_home();
+    layoutHome();
 }
 
 void fsm_msgWipeDevice(WipeDevice *msg)
@@ -253,7 +253,7 @@ void fsm_msgWipeDevice(WipeDevice *msg)
                 "Do you want to erase your private keys and settings?"))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe cancelled");
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -263,7 +263,7 @@ void fsm_msgWipeDevice(WipeDevice *msg)
     storage_commit();
 
     fsm_sendSuccess("Device wiped");
-    go_home();
+    layoutHome();
 }
 
 void fsm_msgFirmwareErase(FirmwareErase *msg)
@@ -287,7 +287,7 @@ void fsm_msgGetEntropy(GetEntropy *msg)
                 "Do you want to generate and return entropy using the hardware RNG?"))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, "Entropy cancelled");
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -302,7 +302,7 @@ void fsm_msgGetEntropy(GetEntropy *msg)
     resp->entropy.size = len;
     random_buffer(resp->entropy.bytes, len);
     msg_write(MessageType_MessageType_Entropy, resp);
-    go_home();
+    layoutHome();
 }
 
 void fsm_msgLoadDevice(LoadDevice *msg)
@@ -312,7 +312,7 @@ void fsm_msgLoadDevice(LoadDevice *msg)
     if(!confirm_load_device(msg->has_node))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, "Load cancelled");
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -322,7 +322,7 @@ void fsm_msgLoadDevice(LoadDevice *msg)
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled,
                             "Mnemonic with wrong checksum provided");
-            go_home();
+            layoutHome();
             return;
         }
     }
@@ -331,7 +331,7 @@ void fsm_msgLoadDevice(LoadDevice *msg)
 
     storage_commit();
     fsm_sendSuccess("Device loaded");
-    go_home();
+    layoutHome();
 }
 
 void fsm_msgResetDevice(ResetDevice *msg)
@@ -378,7 +378,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled,
                             "Apply settings cancelled");
-            go_home();
+            layoutHome();
             return;
         }
     }
@@ -390,7 +390,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled,
                             "Apply settings cancelled");
-            go_home();
+            layoutHome();
             return;
         }
     }
@@ -404,7 +404,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
             {
                 fsm_sendFailure(FailureType_Failure_ActionCancelled,
                                 "Apply settings cancelled");
-                go_home();
+                layoutHome();
                 return;
             }
         }
@@ -415,7 +415,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
             {
                 fsm_sendFailure(FailureType_Failure_ActionCancelled,
                                 "Apply settings cancelled");
-                go_home();
+                layoutHome();
                 return;
             }
         }
@@ -447,7 +447,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
     storage_commit();
 
     fsm_sendSuccess("Settings applied");
-    go_home();
+    layoutHome();
 }
 
 void fsm_msgRecoveryDevice(RecoveryDevice *msg)
@@ -509,7 +509,7 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg)
     if(msg->policy_count == 0)
     {
         fsm_sendFailure(FailureType_Failure_SyntaxError, "No policy provided");
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -524,7 +524,7 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg)
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled,
                             "Apply policy cancelled");
-            go_home();
+            layoutHome();
             return;
         }
     }
@@ -537,7 +537,7 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg)
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled,
                             "Apply policy cancelled");
-            go_home();
+            layoutHome();
             return;
         }
     }
@@ -548,13 +548,13 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg)
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled,
                         "Policy could not be applied");
-        go_home();
+        layoutHome();
         return;
     }
 
     storage_commit();
 
     fsm_sendSuccess("Policies applied");
-    go_home();
+    layoutHome();
 }
 

@@ -128,7 +128,7 @@ void fsm_msgEthereumSignTx(EthereumSignTx *msg)
     if(msg_result < TXOUT_OK)
     {
         send_fsm_co_error_message(msg_result);
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -169,11 +169,11 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
         if (!confirm_ethereum_address("", address))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
-            go_home();
+            layoutHome();
             return;
         }
     }
 
     msg_write(MessageType_MessageType_EthereumAddress, resp);
-    go_home();
+    layoutHome();
 }

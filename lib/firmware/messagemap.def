@@ -1,0 +1,86 @@
+    /* Normal Messages */
+    MSG_IN(MessageType_MessageType_Initialize,                      Initialize,                  fsm_msgInitialize,                AnyVariant)
+    MSG_IN(MessageType_MessageType_GetFeatures,                     GetFeatures,                 fsm_msgGetFeatures,               AnyVariant)
+    MSG_IN(MessageType_MessageType_GetCoinTable,                    GetCoinTable,                fsm_msgGetCoinTable,              AnyVariant)
+    MSG_IN(MessageType_MessageType_Ping,                            Ping,                        fsm_msgPing,                      AnyVariant)
+    MSG_IN(MessageType_MessageType_ChangePin,                       ChangePin,                   fsm_msgChangePin,                 MFRProhibited)
+    MSG_IN(MessageType_MessageType_WipeDevice,                      WipeDevice,                  fsm_msgWipeDevice,                MFRProhibited)
+    MSG_IN(MessageType_MessageType_FirmwareErase,                   FirmwareErase,               fsm_msgFirmwareErase,             AnyVariant)
+    MSG_IN(MessageType_MessageType_FirmwareUpload,                  FirmwareUpload,              fsm_msgFirmwareUpload,            AnyVariant)
+    MSG_IN(MessageType_MessageType_GetEntropy,                      GetEntropy,                  fsm_msgGetEntropy,                AnyVariant)
+    MSG_IN(MessageType_MessageType_GetPublicKey,                    GetPublicKey,                fsm_msgGetPublicKey,              MFRProhibited)
+    MSG_IN(MessageType_MessageType_LoadDevice,                      LoadDevice,                  fsm_msgLoadDevice,                MFRProhibited)
+    MSG_IN(MessageType_MessageType_ResetDevice,                     ResetDevice,                 fsm_msgResetDevice,               MFRProhibited)
+    MSG_IN(MessageType_MessageType_SignTx,                          SignTx,                      fsm_msgSignTx,                    MFRProhibited)
+    MSG_IN(MessageType_MessageType_PinMatrixAck,                    PinMatrixAck,                NO_PROCESS_FUNC,                  MFRProhibited)
+    MSG_IN(MessageType_MessageType_Cancel,                          Cancel,                      fsm_msgCancel,                    AnyVariant)
+    MSG_IN(MessageType_MessageType_TxAck,                           TxAck,                       fsm_msgTxAck,                     MFRProhibited)
+    MSG_IN(MessageType_MessageType_CipherKeyValue,                  CipherKeyValue,              fsm_msgCipherKeyValue,            MFRProhibited)
+    MSG_IN(MessageType_MessageType_ClearSession,                    ClearSession,                fsm_msgClearSession,              AnyVariant)
+    MSG_IN(MessageType_MessageType_ApplySettings,                   ApplySettings,               fsm_msgApplySettings,             MFRProhibited)
+    MSG_IN(MessageType_MessageType_ButtonAck,                       ButtonAck,                   NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_IN(MessageType_MessageType_GetAddress,                      GetAddress,                  fsm_msgGetAddress,                MFRProhibited)
+    MSG_IN(MessageType_MessageType_EntropyAck,                      EntropyAck,                  fsm_msgEntropyAck,                AnyVariant)
+    MSG_IN(MessageType_MessageType_SignMessage,                     SignMessage,                 fsm_msgSignMessage,               MFRProhibited)
+    MSG_IN(MessageType_MessageType_SignIdentity,                    SignIdentity,                fsm_msgSignIdentity,              MFRProhibited)
+    MSG_IN(MessageType_MessageType_VerifyMessage,                   VerifyMessage,               fsm_msgVerifyMessage,             MFRProhibited)
+/* ECIES disabled
+    MSG_IN(MessageType_MessageType_EncryptMessage,                  EncryptMessage,              fsm_msgEncryptMessage,            MFRProhibited)
+    MSG_IN(MessageType_MessageType_DecryptMessage,                  DecryptMessage,              fsm_msgDecryptMessage,            MFRProhibited)
+*/
+    MSG_IN(MessageType_MessageType_PassphraseAck,                   PassphraseAck,               NO_PROCESS_FUNC,                  MFRProhibited)
+    MSG_IN(MessageType_MessageType_RecoveryDevice,                  RecoveryDevice,              fsm_msgRecoveryDevice,            MFRProhibited)
+    MSG_IN(MessageType_MessageType_WordAck,                         WordAck,                     fsm_msgWordAck,                   MFRProhibited)
+    MSG_IN(MessageType_MessageType_CharacterAck,                    CharacterAck,                fsm_msgCharacterAck,              MFRProhibited)
+    MSG_IN(MessageType_MessageType_ApplyPolicies,                   ApplyPolicies,               fsm_msgApplyPolicies,             MFRProhibited)
+    MSG_IN(MessageType_MessageType_EthereumGetAddress,              EthereumGetAddress,          fsm_msgEthereumGetAddress,        MFRProhibited)
+    MSG_IN(MessageType_MessageType_EthereumSignTx,                  EthereumSignTx,              fsm_msgEthereumSignTx,            MFRProhibited)
+    MSG_IN(MessageType_MessageType_EthereumTxAck,                   EthereumTxAck,               fsm_msgEthereumTxAck,             MFRProhibited)
+
+    MSG_IN(MessageType_MessageType_FlashWrite,                      FlashWrite,                  fsm_msgFlashWrite,                MFROnly)
+    MSG_IN(MessageType_MessageType_FlashHash,                       FlashHash,                   fsm_msgFlashHash,                 MFROnly)
+    MSG_IN(MessageType_MessageType_SoftReset,                       SoftReset,                   fsm_msgSoftReset,                 MFROnly)
+
+    /* Normal Out Messages */
+    MSG_OUT(MessageType_MessageType_Success,                        Success,                     NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_Failure,                        Failure,                     NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_Entropy,                        Entropy,                     NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_PublicKey,                      PublicKey,                   NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_Features,                       Features,                    NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_CoinTable,                      CoinTable,                   NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_PinMatrixRequest,               PinMatrixRequest,            NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_TxRequest,                      TxRequest,                   NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_CipheredKeyValue,               CipheredKeyValue,            NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_ButtonRequest,                  ButtonRequest,               NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_Address,                        Address,                     NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_EntropyRequest,                 EntropyRequest,              NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_MessageSignature,               MessageSignature,            NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_SignedIdentity,                 SignedIdentity,              NO_PROCESS_FUNC,                  AnyVariant)
+/* ECIES disabled
+    MSG_OUT(MessageType_MessageType_EncryptedMessage,               EncryptedMessage,            NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_DecryptedMessage,               DecryptedMessage,            NO_PROCESS_FUNC,                  AnyVariant)
+*/
+    MSG_OUT(MessageType_MessageType_PassphraseRequest,              PassphraseRequest,           NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_TxSize,                         TxSize,                      NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_WordRequest,                    WordRequest,                 NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_CharacterRequest,               CharacterRequest,            NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_EthereumAddress,                EthereumAddress,             NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_EthereumTxRequest,              EthereumTxRequest,           NO_PROCESS_FUNC,                  AnyVariant)
+
+#if DEBUG_LINK
+    /* Debug Messages */
+    DEBUG_IN(MessageType_MessageType_DebugLinkDecision,             DebugLinkDecision,           NO_PROCESS_FUNC,                  AnyVariant)
+    DEBUG_IN(MessageType_MessageType_DebugLinkGetState,             DebugLinkGetState,           fsm_msgDebugLinkGetState,         AnyVariant)
+    DEBUG_IN(MessageType_MessageType_DebugLinkStop,                 DebugLinkStop,               fsm_msgDebugLinkStop,             AnyVariant)
+#endif
+
+    MSG_IN(MessageType_MessageType_DebugLinkFlashDump,              DebugLinkFlashDump,          fsm_msgDebugLinkFlashDump,        MFROnly)
+
+#if DEBUG_LINK
+    /* Debug Out Messages */
+    DEBUG_OUT(MessageType_MessageType_DebugLinkState,               DebugLinkState,              NO_PROCESS_FUNC,                  AnyVariant)
+    DEBUG_OUT(MessageType_MessageType_DebugLinkLog,                 DebugLinkLog,                NO_PROCESS_FUNC,                  AnyVariant)
+#endif
+
+    MSG_OUT(MessageType_MessageType_DebugLinkFlashDumpResponse,     DebugLinkFlashDumpResponse,  NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_FlashHashResponse,              FlashHashResponse,           NO_PROCESS_FUNC,                  AnyVariant)

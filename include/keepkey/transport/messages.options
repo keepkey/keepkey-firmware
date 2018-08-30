@@ -62,20 +62,20 @@ CharacterAck.character			max_size:2
 
 SignMessage.address_n			max_count:8
 SignMessage.message			max_size:1024
-SignMessage.coin_name			max_size:17
+SignMessage.coin_name			max_size:21
 
-VerifyMessage.address			max_size:36
+VerifyMessage.address			max_size:130
 VerifyMessage.signature			max_size:65
 VerifyMessage.message			max_size:1024
-VerifyMessage.coin_name			max_size:17
+VerifyMessage.coin_name			max_size:21
 
-MessageSignature.address		max_size:36
+MessageSignature.address		max_size:130
 MessageSignature.signature		max_size:65
 
 EncryptMessage.pubkey			max_size:33
 EncryptMessage.message			max_size:1024
 EncryptMessage.address_n		max_count:8
-EncryptMessage.coin_name		max_size:17
+EncryptMessage.coin_name		max_size:21
 
 EncryptedMessage.nonce			max_size:33
 EncryptedMessage.message		max_size:1120
@@ -86,7 +86,7 @@ DecryptMessage.nonce			max_size:33
 DecryptMessage.message			max_size:1120 # 1 + 9 + 1024 + 21 + 65
 DecryptMessage.hmac			max_size:8
 
-DecryptedMessage.address		max_size:36
+DecryptedMessage.address		max_size:130
 DecryptedMessage.message		max_size:1024
 
 CipherKeyValue.address_n		max_count:8
@@ -96,9 +96,7 @@ CipherKeyValue.iv			max_size:16
 
 CipheredKeyValue.value			max_size:1024
 
-EstimateTxSize.coin_name		max_size:17
-
-SignTx.coin_name			max_size:17
+SignTx.coin_name			max_size:21
 
 EthereumSignTx.address_n		max_count:8
 EthereumSignTx.nonce			max_size:32
@@ -124,17 +122,11 @@ SignIdentity.challenge_hidden		max_size:256
 SignIdentity.challenge_visual		max_size:256
 SignIdentity.ecdsa_curve_name		max_size:32
 
-SignedIdentity.address			max_size:36
+SignedIdentity.address			max_size:130
 SignedIdentity.public_key		max_size:33
 SignedIdentity.signature		max_size:65
 
 ApplyPolicies.policy			max_count:1
-
-# not used in firmware
-SimpleSignTx.inputs			max_count:0
-SimpleSignTx.outputs			max_count:0
-SimpleSignTx.transactions		max_count:0
-SimpleSignTx.coin_name			max_size:17
 
 # not used in firmware
 FirmwareUpload.payload_hash  max_size:32
@@ -162,5 +154,3 @@ FlashHash.challenge max_size:32
 FlashWrite.data max_size:1024
 
 FlashHashResponse.data max_size:32
-
-CoinTable.table max_size:39
