@@ -38,7 +38,22 @@ const CoinType *coinByName(const char *name);
 const CoinType *coinByAddressType(uint32_t address_type);
 const CoinType *coinBySlip44(uint32_t bip44_account_path);
 void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len);
-bool bip44_node_to_string(const CoinType *coin, char *node_str, uint32_t *address_n,
-                         size_t address_n_count, bool whole_account);
+
+/// \brief Parses node path to precise BIP32 equivalent string
 bool bip32_path_to_string(char *str, size_t len, const uint32_t *address_n, size_t address_n_count);
+
+/**
+ * \brief Parses node path to human-friendly BIP32 equivalent string
+ *
+ * INPUT -
+ * \param[out]  node_str         buffer to populate
+ * \param[in]   len              size of buffer
+ * \param[in]   coin             coin to use to determine bip44 path
+ * \param[in]   address_n        node path
+ * \param[in]   address_n_count  size of address_n array
+ * \param[in]   whole_account    true iff address_n refers to an entire account (not just an address)
+ * \returns true iff the path matches a known bip44/bip49/bip84/etc account
+ */
+bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin, uint32_t *address_n,
+                          size_t address_n_count, bool whole_account);
 #endif
