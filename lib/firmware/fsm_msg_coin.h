@@ -37,11 +37,12 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 	if (msg->has_show_display && msg->show_display)
 	{
 		char node_str[NODE_STRING_LENGTH];
-		if (!bip44_node_to_string(coin, node_str, msg->address_n,
+		if (!bip32_node_to_string(node_str, sizeof(node_str), coin,
+		                          msg->address_n,
 		                          msg->address_n_count,
 		                          /*whole_account=*/true) &&
-			!bip32_path_to_string(node_str, sizeof(node_str),
-			                      msg->address_n, msg->address_n_count)) {
+		    !bip32_path_to_string(node_str, sizeof(node_str),
+		                          msg->address_n, msg->address_n_count)) {
 			memset(node_str, 0, sizeof(node_str));
 		}
 
@@ -87,6 +88,8 @@ void fsm_msgTxAck(TxAck *msg)
 	signing_txack(&(msg->tx));
 }
 
+// NOTE: there is a very similar copy of this function in coins.c
+//       PLEASE keep both copies in sync.
 static bool path_mismatched(const CoinType *coin, const GetAddress *msg)
 {
 	bool mismatch = false;

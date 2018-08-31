@@ -11,7 +11,7 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
         goto process_ethereum_xfer_exit;
     }
 
-    if(bip44_node_to_string(coin, node_str, msg->to_address_n, msg->to_address_n_count, /*whole_account=*/false))
+    if(bip32_node_to_string(node_str, sizeof(node_str), coin, msg->to_address_n, msg->to_address_n_count, /*whole_account=*/false))
     {
         ButtonRequestType button_request = ButtonRequestType_ButtonRequest_ConfirmTransferToAccount;
         if(is_token_transaction(msg)) {

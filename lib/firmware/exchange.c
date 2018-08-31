@@ -577,8 +577,10 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
              }
 
             /* determine withdrawal account number */
-            if(bip44_node_to_string(withdrawal_coin, node_str, tx_exchange->withdrawal_address_n,
-                     tx_exchange->withdrawal_address_n_count, /*whole_account=*/false))
+            if(bip32_node_to_string(node_str, sizeof(node_str), withdrawal_coin,
+                                    tx_exchange->withdrawal_address_n,
+                                    tx_exchange->withdrawal_address_n_count,
+                                    /*whole_account=*/false))
             {
                 if(!confirm_exchange_output("ShapeShift", amount_dep_str, amount_wit_str, node_str))
                 {

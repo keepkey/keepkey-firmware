@@ -72,65 +72,96 @@ const CoinType coins[COINS_COUNT] = {
 _Static_assert(sizeof(coins) / sizeof(coins[0]) == COINS_COUNT,
                "Update COINS_COUNT to match the size of the coin table");
 
-/**
- * \brief Checks whether a derivation path is valid bip44
- *
- * Note : address_n[5] = {/44'/bip44_account_path/account #/0/0 }
- *
- * bip44 account path:
- *      Bitcoin  - 0x8000_0000
- *      Litecoin - 0x8000_0002
- *      Dogecoin - 0x8000_0003
- *      Ethereum - 0x8000_003c
- *      ...
- *      ...
- *
- * \param coin            The coin descriptor.
- * \param address_n       Node path.
- * \param address_n_count Number of nodes in the path.
- * \param whole_account   Whether to consider whole accounts, or just addresses within them.
- * \returns true iff the derivation path is valid under the bip44 spec.
- *
- */
-static bool verify_bip44_node(const CoinType *coin, uint32_t *address_n,
-                              size_t address_n_count, bool whole_account)
+// Borrowed from fsm_msg_coin.h
+// PLEASE keep these in sync.
+static bool path_mismatched(const CoinType *coin, const uint32_t *address_n,
+                            uint32_t address_n_count, bool whole_account)
 {
-    // Check that the path has enough derivation steps to even be under bip44
-    if (address_n_count < 3)
-        return false;
+	bool mismatch = false;
 
-    // Check that the path is m/44'
-    if (address_n[0] != (0x80000000 | 44))
-        return false;
+	// m : no path
+	if (address_n_count == 0) {
+		return false;
+	}
 
-    // Check that the path is m/44'/bip44_account_path
-    if (address_n[1] != coin->bip44_account_path)
-        return false;
+	// m/44' : BIP44 Legacy
+	// m / purpose' / bip44_account_path' / account' / change / address_index
+	if (address_n[0] == (0x80000000 + 44)) {
+		mismatch |= (address_n_count != (whole_account ? 3 : 5));
+		mismatch |= (address_n[1] != coin->bip44_account_path);
+		mismatch |= (address_n[2] & 0x80000000) == 0;
+		if (!whole_account) {
+			mismatch |= (address_n[3] & 0x80000000) == 0x80000000;
+			mismatch |= (address_n[4] & 0x80000000) == 0x80000000;
+		}
+		return mismatch;
+	}
 
-    // Account level must be hardened
-    if ((address_n[2] & 0x80000000) != 0x80000000)
-        return false;
+	// m/45' - BIP45 Copay Abandoned Multisig P2SH
+	// m / purpose' / cosigner_index / change / address_index
+	if (address_n[0] == (0x80000000 + 45)) {
+		mismatch |= (address_n_count != 4);
+		mismatch |= (address_n[1] & 0x80000000) == 0x80000000;
+		mismatch |= (address_n[2] & 0x80000000) == 0x80000000;
+		mismatch |= (address_n[3] & 0x80000000) == 0x80000000;
+		return mismatch;
+	}
 
-    if (whole_account) {
-        // Check that the path is m/44'/bip44_account_path/account #'
-        if (address_n_count != 3)
-            return false;
+	// m/48' - BIP48 Copay Multisig P2SH
+	// m / purpose' / bip44_account_path' / account' / change / address_index
+	if (address_n[0] == (0x80000000 + 48)) {
+		mismatch |= (address_n_count != (whole_account ? 3 : 5));
+		mismatch |= (address_n[1] != coin->bip44_account_path);
+		mismatch |= (address_n[2] & 0x80000000) == 0;
+		if (!whole_account) {
+			mismatch |= (address_n[3] & 0x80000000) == 0x80000000;
+			mismatch |= (address_n[4] & 0x80000000) == 0x80000000;
+		}
+		return mismatch;
+	}
 
-        return true;
-    }
+	// m/49' : BIP49 SegWit
+	// m / purpose' / bip44_account_path' / account' / change / address_index
+	if (address_n[0] == (0x80000000 + 49)) {
+		mismatch |= !coin->has_segwit || !coin->segwit;
+		mismatch |= !coin->has_address_type_p2sh;
+		mismatch |= (address_n_count != (whole_account ? 3 : 5));
+		mismatch |= (address_n[1] != coin->bip44_account_path);
+		mismatch |= (address_n[2] & 0x80000000) == 0;
+		if (!whole_account) {
+			mismatch |= (address_n[3] & 0x80000000) == 0x80000000;
+			mismatch |= (address_n[4] & 0x80000000) == 0x80000000;
+		}
+		return mismatch;
+	}
 
-    // Check that the path is m/44'/bip44_account_path/x/y
-    if (address_n_count != 5)
-        return false;
+	// m/84' : BIP84 Native SegWit
+	// m / purpose' / bip44_account_path' / account' / change / address_index
+	if (address_n[0] == (0x80000000 + 84)) {
+		mismatch |= !coin->has_segwit || !coin->segwit;
+		mismatch |= !coin->has_bech32_prefix;
+		mismatch |= (address_n_count != (whole_account ? 3 : 5));
+		mismatch |= (address_n[1] != coin->bip44_account_path);
+		mismatch |= (address_n[2] & 0x80000000) == 0;
+		if (!whole_account) {
+			mismatch |= (address_n[3] & 0x80000000) == 0x80000000;
+			mismatch |= (address_n[4] & 0x80000000) == 0x80000000;
+		}
+		return mismatch;
+	}
 
-    if (strncmp(coin->coin_name, ETHEREUM, strlen(ETHEREUM)) == 0 ||
-        strncmp(coin->coin_name, ETHEREUM_CLS, sizeof(ETHEREUM_CLS)) == 0) {
-        // Check that the path is m/44'/bip44_account_path/0/y
-        if (address_n[4] != 0)
-            return false;
-    }
+	// Special case (not needed in the other copy of this function):
+	if (address_n_count == 5 &&
+		(strncmp(coin->coin_name, ETHEREUM, strlen(ETHEREUM)) == 0 ||
+		 strncmp(coin->coin_name, ETHEREUM_CLS, sizeof(ETHEREUM_CLS)) == 0)) {
+		// Check that the path is m/44'/bip44_account_path/y/0/0
+		if (address_n[3] != 0)
+			return true;
+		if (address_n[4] != 0)
+			return true;
+	}
 
-    return true;
+	return false;
 }
 
 bool bip32_path_to_string(char *str, size_t len, const uint32_t *address_n,
@@ -294,35 +325,43 @@ void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len)
     }
 }
 
-/*
- * bip44_node_to_string() - Parses node path to BIP 44 equivalent string
- *
- * INPUT -
- *      - coin: coin to use to determine bip44 path
- *      - node_str: buffer to populate
- *      - address_n: node path
- *      - address_n_coin: size of address_n array
- * OUTPUT -
- *     true/false whether node path was bip 44 string or just regular node
- *
- */
-bool bip44_node_to_string(const CoinType *coin, char *node_str, uint32_t *address_n,
-                         size_t address_n_count, bool whole_account)
-{
-    bool ret_stat = false;
-    bool is_token = coin->has_contract_address;
+static const char *account_prefix(const CoinType *coin,
+                                  const uint32_t *address_n,
+                                  size_t address_n_count,
+                                  bool whole_account) {
+    if (!coin->has_segwit || !coin->segwit)
+        return "";
 
-    if(verify_bip44_node(coin, address_n, address_n_count, whole_account))
-    {
-        // If it is a token we still refer to the destination as an Ethereum account
-        if (is_token) {
-            snprintf(node_str, NODE_STRING_LENGTH, "%s account #%" PRIu32, "Ethereum",
-                    address_n[2] & 0x7ffffff);
-        } else {
-            snprintf(node_str, NODE_STRING_LENGTH, "%s account #%" PRIu32, coin->coin_name,
-                    address_n[2] & 0x7ffffff);
-        }
-        ret_stat = true;
-    }
-    return(ret_stat);
+    if (address_n_count < (whole_account ? 3 : 5))
+        return "";
+
+    uint32_t purpose = address_n[address_n_count - (whole_account ? 3 : 5)];
+
+    if (purpose == (0x80000000 | 44))
+        return "Legacy ";
+
+    if (purpose == (0x80000000 | 49))
+        return "SegWit ";
+
+    if (purpose == (0x80000000 | 84))
+        return "";
+
+    return "";
+}
+
+bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin, uint32_t *address_n,
+                          size_t address_n_count, bool whole_account)
+{
+    if (path_mismatched(coin, address_n, address_n_count, whole_account))
+        return false;
+
+    const char *prefix = account_prefix(coin, address_n, address_n_count, whole_account);
+
+    // If it is a token, we still refer to the destination as an Ethereum account.
+    bool is_token = coin->has_contract_address;
+    const char *coin_name = is_token ? "Ethereum" : coin->coin_name;
+
+    snprintf(node_str, len, "%s%s Account #%" PRIu32, prefix, coin_name,
+             address_n[address_n_count - (whole_account ? 0 : 2)] & 0x7ffffff);
+    return true;
 }
