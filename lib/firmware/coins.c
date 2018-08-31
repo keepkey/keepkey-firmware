@@ -333,7 +333,7 @@ static const char *account_prefix(const CoinType *coin,
         return "";
 
     if (address_n_count < (whole_account ? 3 : 5))
-        return "";
+        return NULL;
 
     uint32_t purpose = address_n[address_n_count - (whole_account ? 3 : 5)];
 
@@ -346,7 +346,7 @@ static const char *account_prefix(const CoinType *coin,
     if (purpose == (0x80000000 | 84))
         return "";
 
-    return "";
+    return NULL;
 }
 
 bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin, uint32_t *address_n,
@@ -356,6 +356,8 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin, uint
         return false;
 
     const char *prefix = account_prefix(coin, address_n, address_n_count, whole_account);
+    if (!prefix)
+        return false;
 
     // If it is a token, we still refer to the destination as an Ethereum account.
     bool is_token = coin->has_contract_address;

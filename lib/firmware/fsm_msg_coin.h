@@ -190,17 +190,17 @@ void fsm_msgGetAddress(GetAddress *msg)
 	}
 
 	if (msg->has_show_display && msg->show_display) {
-		char desc[20];
+		char node_str[NODE_STRING_LENGTH];
 		if (msg->has_multisig) {
-			strlcpy(desc, "Multisig __ of __:", sizeof(desc));
-			const uint32_t m = msg->multisig.m;
-			const uint32_t n = msg->multisig.pubkeys_count;
-			desc[9] = (m < 10) ? ' ': ('0' + (m / 10));
-			desc[10] = '0' + (m % 10);
-			desc[15] = (n < 10) ? ' ': ('0' + (n / 10));
-			desc[16] = '0' + (n % 10);
+			snprintf(node_str, sizeof(node_str), "Multisig (%" PRIu32 " of %zu)",
+			         msg->multisig.m, msg->multisig.pubkeys_count);
 		} else {
-			desc[0] = '\0'; //strlcpy(desc, _("Address:"), sizeof(desc));
+			if (!bip32_node_to_string(node_str, sizeof(node_str), coin, msg->address_n,
+			                          msg->address_n_count, /*whole_account=*/false) &&
+			    !bip32_path_to_string(node_str, sizeof(node_str),
+			                          msg->address_n, msg->address_n_count)) {
+				memset(node_str, 0, sizeof(node_str));
+			}
 		}
 
 		bool mismatch = path_mismatched(coin, msg);
@@ -217,7 +217,7 @@ void fsm_msgGetAddress(GetAddress *msg)
 		    ? strlen(coin->cashaddr_prefix) + 1
 		    : 0;
 
-		if(!confirm_address(desc, address + prefix_len))
+		if(!confirm_address(node_str, address + prefix_len))
 		{
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
 			layoutHome();
