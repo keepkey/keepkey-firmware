@@ -279,6 +279,16 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		memcpy(out->script_pubkey.bytes + 2, addr_raw + prefix_len, 20);
 		out->script_pubkey.bytes[22] = 0x87; // OP_EQUAL
 		out->script_pubkey.size = 23;
+
+		// If the user is sending sending to a 3 address warn them that they could be burning their coins
+		// I.E. sending bch to a btc segwit address
+		if (memcmp(coin->coin_name, "BitcoinCash", sizeof("BitcoinCash")) == 0) {
+			if (!confirm_without_button_request("WARNING",
+			                                    "Sending to \"3\" addresses is not recommended for BCH. "
+			                                    "Continue at your own risk!")) {
+				return TXOUT_CANCEL;
+			}
+		}
 	} else if (coin->has_cashaddr_prefix
 			   && cash_addr_decode(addr_raw, &addr_raw_len, coin->cashaddr_prefix, in->address)) {
 		if (addr_raw_len == 21
