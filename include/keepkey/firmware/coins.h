@@ -31,7 +31,7 @@
 
 #define COIN_FRACTION 100000000
 
-extern const CoinType coins[COINS_COUNT];
+extern const CoinType coins[];
 
 const CoinType *coinByShortcut(const char *shortcut);
 const CoinType *coinByName(const char *name);
