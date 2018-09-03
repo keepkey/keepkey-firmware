@@ -271,8 +271,7 @@ void call_leaving_handler(void)
 #ifdef EMULATOR
 void strupr(char *str) {
     for ( ; *str; str++)
-        if ('a' <= *str || *str <= 'z')
-            *str = *str - 'a' + 'A';
+        *str = toupper(*str);
 }
 #endif
 
