@@ -9,12 +9,17 @@ CoinType.coin_shortcut			max_size:9
 CoinType.signed_message_header          max_size:32
 CoinType.contract_address               max_size:128
 CoinType.gas_limit			max_size:32
+CoinType.curve_name             max_size:21
+CoinType.bech32_prefix          max_size:21
+CoinType.cashaddr_prefix        max_size:16
+
+CoinTable.table                 max_count:39
 
 TxInputType.address_n			max_count:8
 TxInputType.prev_hash			max_size:32
 TxInputType.script_sig			max_size:1650
 
-TxOutputType.address			max_size:36
+TxOutputType.address			max_size:130
 TxOutputType.address_n			max_count:8
 TxOutputType.op_return_data		max_size:80
 
@@ -23,6 +28,7 @@ TxOutputBinType.script_pubkey		max_size:520
 TransactionType.inputs			max_count:1
 TransactionType.bin_outputs		max_count:1
 TransactionType.outputs			max_count:1
+TransactionType.extra_data		max_size:1024
 
 RawTransactionType.payload			max_size:0
 

@@ -21,7 +21,7 @@ if(NOT ${KK_EMULATOR})
       kkvariant.keepkey
       kkvariant.poweredBy
       kktransport
-      kkcrypto
+      trezorcrypto
       kkrand
       -lopencm3_stm32f2
       -lc

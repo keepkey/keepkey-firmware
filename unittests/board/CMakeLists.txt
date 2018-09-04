@@ -15,6 +15,6 @@ target_link_libraries(board-unit
     kkvariant.keepkey
     kkvariant.salt
     kkboard
-    kkcrypto
+    trezorcrypto
     kkrand
     kktransport)

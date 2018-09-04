@@ -1,5 +1,5 @@
 extern "C" {
-#include "keepkey/firmware/ethereum.h"
+#include "trezor/crypto/address.h"
 }
 
 #include "gtest/gtest.h"
@@ -27,7 +27,7 @@ static void test_checksum(const std::string &addr) {
   }
 
   char formatted[41];
-  ethereum_address_checksum(addr_bin, formatted);
+  ethereum_address_checksum(addr_bin, formatted, false, 0);
 
   ASSERT_EQ(formatted[40], '\0')
       << "Must be null terminated";

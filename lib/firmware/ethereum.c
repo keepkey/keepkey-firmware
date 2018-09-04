@@ -23,9 +23,6 @@
 
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/layout.h"
-#include "keepkey/crypto/ecdsa.h"
-#include "keepkey/crypto/secp256k1.h"
-#include "keepkey/crypto/sha3.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
@@ -33,6 +30,10 @@
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/util.h"
+#include "trezor/crypto/address.h"
+#include "trezor/crypto/ecdsa.h"
+#include "trezor/crypto/secp256k1.h"
+#include "trezor/crypto/sha3.h"
 
 #include <stdio.h>
 
@@ -194,12 +195,18 @@ static void send_request_chunk(void)
     msg_write(MessageType_MessageType_EthereumTxRequest, &resp);
 }
 
+static int ethereum_is_canonic(uint8_t v, uint8_t signature[64])
+{
+	(void) signature;
+	return (v & 2) == 0;
+}
+
 static void send_signature(void)
 {
     animating_progress_handler(); // layoutProgress("Signing", 1000);
     keccak_Final(&keccak_ctx, hash);
     uint8_t v;
-    if(ecdsa_sign_digest(&secp256k1, privkey, hash, sig, &v) != 0)
+    if(ecdsa_sign_digest(&secp256k1, privkey, hash, sig, &v, ethereum_is_canonic) != 0)
     {
         fsm_sendFailure(FailureType_Failure_Other, "Signing failed");
         ethereum_signing_abort();
@@ -912,7 +919,7 @@ void ethereum_signing_txack(EthereumTxAck *tx)
     if(!ethereum_signing)
     {
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Signing mode");
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -949,31 +956,8 @@ void ethereum_signing_abort(void)
     if(ethereum_signing)
     {
         memset(privkey, 0, sizeof(privkey));
-        go_home();
+        layoutHome();
         ethereum_signing = false;
-    }
-}
-
-void ethereum_address_checksum(const uint8_t *addr, char address[41])
-{
-    const char * const hex = "0123456789abcdef";
-    for (int i = 0; i < 20; i++) {
-        address[i * 2]     = hex[(addr[i] >> 4) & 0xF];
-        address[i * 2 + 1] = hex[(addr[i]) & 0xF];
-    }
-    address[40] = 0;
-    SHA3_CTX ctx;
-    keccak_256_Init(&ctx);
-    keccak_Update(&ctx, (unsigned char*)address, 40);
-    uint8_t checksum[32];
-    keccak_Final(&ctx, checksum);
-    for (int i = 0; i < 20; i++) {
-        if (checksum[i] & 0x80 && address[i * 2    ] >= 'a' && address[i * 2    ] <= 'f') {
-            address[i * 2] -= 0x20;
-        }
-        if (checksum[i] & 0x08 && address[i * 2 + 1] >= 'a' && address[i * 2 + 1] <= 'f') {
-            address[i * 2 + 1] -= 0x20;
-        }
     }
 }
 
@@ -983,7 +967,7 @@ void format_ethereum_address(const uint8_t *to, char *destination_str,
             hex[41];
 
     // EIP55 Checksum
-    ethereum_address_checksum(to, hex);
+    ethereum_address_checksum(to, hex, false, 0);
 
     strlcpy(&formatted_destination[2], hex, sizeof(formatted_destination) - 2);
     strlcpy(destination_str, formatted_destination, destination_str_len);

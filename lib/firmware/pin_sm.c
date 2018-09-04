@@ -289,12 +289,12 @@ bool pin_protect(char *prompt)
     uint32_t failed_cnts = 0;
     bool ret = false, pre_increment_cnt_flg = true;
 
-    if(storage_has_pin())
+    if(storage_hasPin())
     {
 
         /* Check for prior PIN failed attempts and apply exponentially longer delay for
          * each subsequent failed attempts */
-        if((failed_cnts = storage_get_pin_fails()))
+        if((failed_cnts = storage_getPinFails()))
         {
             if(failed_cnts > 2)
             {
@@ -323,14 +323,14 @@ bool pin_protect(char *prompt)
         {
 
             /* preincrement the failed counter before authentication*/
-            storage_increase_pin_fails();
-            pre_increment_cnt_flg = (failed_cnts >= storage_get_pin_fails());
+            storage_increasePinFails();
+            pre_increment_cnt_flg = (failed_cnts >= storage_getPinFails());
 
             /* authenticate user PIN */
-            if(storage_is_pin_correct(pin_info.pin) && !pre_increment_cnt_flg)
+            if(storage_isPinCorrect(pin_info.pin) && !pre_increment_cnt_flg)
             {
                 session_cache_pin(pin_info.pin);
-                storage_reset_pin_fails();
+                storage_resetPinFails();
                 ret = true;
             }
             else
@@ -391,7 +391,7 @@ bool change_pin(void)
         {
             if(strcmp(pin_info_first.pin, pin_info_second.pin) == 0)
             {
-                storage_set_pin(pin_info_first.pin);
+                storage_setPin(pin_info_first.pin);
                 ret = true;
             }
             else

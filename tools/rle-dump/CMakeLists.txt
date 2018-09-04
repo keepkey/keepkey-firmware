@@ -16,7 +16,7 @@ if(${KK_EMULATOR})
       kkvariant.salt
       kkboard
       kktransport
-      kkcrypto
+      trezorcrypto
       kkrand
       -lc
       -lm)

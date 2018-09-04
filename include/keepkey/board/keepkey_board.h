@@ -28,8 +28,9 @@
 #include "keepkey/board/layout.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/usb_driver.h"
-#include "keepkey/crypto/bip32.h"
 #include "keepkey/crypto/curves.h"
+#include "trezor/crypto/bip32.h"
+#include "trezor/crypto/curves.h"
 #include "keepkey/firmware/storagepb.h"
 
 /*
@@ -80,7 +81,7 @@ typedef struct
     /* Root node cache */
     uint8_t root_seed_cache_status;
     uint8_t root_seed_cache[64];
-    char root_ecdsa_curve_type[sizeof(ecdsa_curve_type_)];
+    char root_ecdsa_curve_type[sizeof(ecdsa_curve_type_)]; // FIXME: this will lead to field alignment pain.
 }Cache;
 
 /* Config flash overlay structure.  */

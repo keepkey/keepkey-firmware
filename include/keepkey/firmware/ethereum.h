@@ -20,15 +20,13 @@
 #ifndef __ETHEREUM_H__
 #define __ETHEREUM_H__
 
-//#include "bip32.h"
-//#include "messages.pb.h"
+#include "trezor/crypto/bip32.h"
 
 #include <stdint.h>
 #include <stdbool.h>
 
 typedef struct _EthereumSignTx EthereumSignTx;
 typedef struct _EthereumTxAck EthereumTxAck;
-typedef struct _HDNode HDNode;
 
 void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_confirm);
 void ethereum_signing_abort(void);
@@ -44,11 +42,4 @@ bool is_token_transaction(EthereumSignTx *msg);
  */
 uint32_t ethereum_get_decimal(const char *token_shortcut);
 
-/**
- *  \brief Calculate the EIP55 checksum of an ethereum address
- *
- *  \param[in]  addr    The hex string eth address to format.
- *  \param[out] address The formatted eth address.
- */
-void ethereum_address_checksum(const uint8_t *addr, char address[41]);
 #endif

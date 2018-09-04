@@ -20,14 +20,13 @@
 #ifndef STORAGE_H
 #define STORAGE_H
 
-#include "keepkey/crypto/bip32.h"
+#include "trezor/crypto/bip32.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/firmware/storagepb.h"
 
-#define STORAGE_VERSION 10 /* Must add case fallthrough in storage_from_flash after increment*/
+#define STORAGE_VERSION 10 /* Must add case fallthrough in storage_fromFlash after increment*/
 #define STORAGE_RETRIES 3
 
-typedef struct _HDNode HDNode;
 typedef struct _HDNodeType HDNodeType;
 typedef struct _LoadDevice LoadDevice;
 typedef struct _PolicyType PolicyType;
@@ -37,58 +36,58 @@ typedef struct _StorageHDNode StorageHDNode;
 typedef struct _StoragePolicy StoragePolicy;
 
 void storage_init(void);
-void storage_reset_uuid(void);
+void storage_resetUuid(void);
 void storage_reset(void);
 void session_clear(bool clear_pin);
 void storage_commit(void);
 
 void storage_dumpNode(HDNodeType *dst, const StorageHDNode *src);
-void storage_load_device(LoadDevice *msg);
+void storage_loadDevice(LoadDevice *msg);
 
 const uint8_t *storage_getSeed(bool usePassphrase);
-bool storage_get_root_node(HDNode *node, const char *curve, bool usePassphrase);
+bool storage_getRootNode(HDNode *node, const char *curve, bool usePassphrase);
 
-void storage_set_label(const char *label);
-const char *storage_get_label(void);
+void storage_setLabel(const char *label);
+const char *storage_getLabel(void);
 
-void storage_set_language(const char *lang);
-const char *storage_get_language(void);
+void storage_setLanguage(const char *lang);
+const char *storage_getLanguage(void);
 
-bool storage_is_pin_correct(const char *pin);
-bool storage_has_pin(void);
-void storage_set_pin(const char *pin);
-const char *storage_get_pin(void);
+bool storage_isPinCorrect(const char *pin);
+bool storage_hasPin(void);
+void storage_setPin(const char *pin);
+const char *storage_getPin(void);
 void session_cache_pin(const char *pin);
 bool session_is_pin_cached(void);
-void storage_reset_pin_fails(void);
-void storage_increase_pin_fails(void);
-uint32_t storage_get_pin_fails(void);
+void storage_resetPinFails(void);
+void storage_increasePinFails(void);
+uint32_t storage_getPinFails(void);
 
-bool storage_is_initialized(void);
+bool storage_isInitialized(void);
 
-const char *storage_get_uuid_str(void);
+const char *storage_getUuidStr(void);
 
-bool storage_get_passphrase_protected(void);
-void storage_set_passphrase_protected(bool passphrase);
+bool storage_getPassphraseProtected(void);
+void storage_setPassphraseProtected(bool passphrase);
 void session_cache_passphrase(const char *passphrase);
 bool session_is_passphrase_cached(void);
 
-void storage_set_mnemonic_from_words(const char (*words)[12], unsigned int num_words);
-void storage_set_mnemonic(const char *mnemonic);
-bool storage_has_mnemonic(void);
+void storage_setMnemonicFromWords(const char (*words)[12], unsigned int num_words);
+void storage_setMnemonic(const char *mnemonic);
+bool storage_hasMnemonic(void);
 
-const char *storage_get_mnemonic(void);
-const char *storage_get_shadow_mnemonic(void);
+const char *storage_getMnemonic(void);
+const char *storage_getShadowMnemonic(void);
 
-bool storage_get_imported(void);
+bool storage_getImported(void);
 
-bool storage_has_node(void);
-StorageHDNode *storage_get_node(void);
+bool storage_hasNode(void);
+StorageHDNode *storage_getNode(void);
 
 Allocation get_storage_location(void);
 
-bool storage_set_policy(PolicyType *policy);
-void storage_get_policies(PolicyType *policies);
-bool storage_is_policy_enabled(char *policy_name);
+bool storage_setPolicy(PolicyType *policy);
+void storage_getPolicies(PolicyType *policies);
+bool storage_isPolicyEnabled(char *policy_name);
 
 #endif

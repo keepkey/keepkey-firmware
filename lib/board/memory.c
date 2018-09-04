@@ -26,8 +26,8 @@
 #  include <stdio.h>
 #endif
 
-#include "keepkey/crypto/sha2.h"
-#include "keepkey/crypto/sha3.h"
+#include "trezor/crypto/sha2.h"
+#include "trezor/crypto/sha3.h"
 
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/memory.h"

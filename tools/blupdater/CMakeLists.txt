@@ -15,7 +15,7 @@ if(NOT ${KK_EMULATOR})
       kkfirmware
       kkboard
       kktransport
-      kkcrypto
+      trezorcrypto
       -lopencm3_stm32f2
       -lc
       -lm)
@@ -23,7 +23,7 @@ if(NOT ${KK_EMULATOR})
   add_executable(blupdater.elf ${sources})
   target_link_libraries(blupdater.elf
       kkboard
-      kkcrypto
+      trezorcrypto
       kkrand
       -lopencm3_stm32f2
       -lc

@@ -29,8 +29,8 @@
 #include "keepkey/board/usb_driver.h"
 #include "keepkey/bootloader/signatures.h"
 #include "keepkey/bootloader/usb_flash.h"
-#include "keepkey/crypto/sha2.h"
-#include "keepkey/crypto/macros.h"
+#include "trezor/crypto/sha2.h"
+#include "trezor/crypto/memzero.h"
 #include "keepkey/transport/interface.h"
 
 #include <libopencm3/stm32/flash.h>
@@ -54,33 +54,33 @@ extern bool reset_msg_stack;
 static const MessagesMap_t MessagesMap[] =
 {
     /* Normal Messages */
-    MSG_IN(MessageType_MessageType_Initialize,              Initialize_fields,          (message_handler_t)(handler_initialize), AnyVariant)
-    MSG_IN(MessageType_MessageType_GetFeatures,             GetFeatures_fields,         (message_handler_t)(handler_get_features), AnyVariant)
-    MSG_IN(MessageType_MessageType_Ping,                    Ping_fields,                (message_handler_t)(handler_ping), AnyVariant)
-    MSG_IN(MessageType_MessageType_WipeDevice,              WipeDevice_fields,          (message_handler_t)(handler_wipe), AnyVariant)
-    MSG_IN(MessageType_MessageType_FirmwareErase,           FirmwareErase_fields,       (message_handler_t)(handler_erase), AnyVariant)
-    MSG_IN(MessageType_MessageType_ButtonAck,               ButtonAck_fields,           NO_PROCESS_FUNC, AnyVariant)
-    MSG_IN(MessageType_MessageType_Cancel,                  Cancel_fields,              NO_PROCESS_FUNC, AnyVariant)
+    MSG_IN(MessageType_MessageType_Initialize,              Initialize,          handler_initialize,                AnyVariant)
+    MSG_IN(MessageType_MessageType_GetFeatures,             GetFeatures,         handler_get_features,              AnyVariant)
+    MSG_IN(MessageType_MessageType_Ping,                    Ping,                handler_ping,                      AnyVariant)
+    MSG_IN(MessageType_MessageType_WipeDevice,              WipeDevice,          handler_wipe,                      AnyVariant)
+    MSG_IN(MessageType_MessageType_FirmwareErase,           FirmwareErase,       handler_erase,                     AnyVariant)
+    MSG_IN(MessageType_MessageType_ButtonAck,               ButtonAck,           NO_PROCESS_FUNC,                   AnyVariant)
+    MSG_IN(MessageType_MessageType_Cancel,                  Cancel,              NO_PROCESS_FUNC,                   AnyVariant)
 
     /* Normal Raw Messages */
-    RAW_IN(MessageType_MessageType_FirmwareUpload,          FirmwareUpload_fields,      (message_handler_t)(raw_handler_upload), AnyVariant)
+    RAW_IN(MessageType_MessageType_FirmwareUpload,          FirmwareUpload,      raw_handler_upload,                AnyVariant)
 
     /* Normal Out Messages */
-    MSG_OUT(MessageType_MessageType_Features,               Features_fields,            NO_PROCESS_FUNC, AnyVariant)
-    MSG_OUT(MessageType_MessageType_Success,                Success_fields,             NO_PROCESS_FUNC, AnyVariant)
-    MSG_OUT(MessageType_MessageType_Failure,                Failure_fields,             NO_PROCESS_FUNC, AnyVariant)
-    MSG_OUT(MessageType_MessageType_ButtonRequest,          ButtonRequest_fields,       NO_PROCESS_FUNC, AnyVariant)
+    MSG_OUT(MessageType_MessageType_Features,               Features,            NO_PROCESS_FUNC,                   AnyVariant)
+    MSG_OUT(MessageType_MessageType_Success,                Success,             NO_PROCESS_FUNC,                   AnyVariant)
+    MSG_OUT(MessageType_MessageType_Failure,                Failure,             NO_PROCESS_FUNC,                   AnyVariant)
+    MSG_OUT(MessageType_MessageType_ButtonRequest,          ButtonRequest,       NO_PROCESS_FUNC,                   AnyVariant)
 
 #if DEBUG_LINK
     /* Debug Messages */
-    DEBUG_IN(MessageType_MessageType_DebugLinkDecision,     DebugLinkDecision_fields,   NO_PROCESS_FUNC, AnyVariant)
-    DEBUG_IN(MessageType_MessageType_DebugLinkGetState,     DebugLinkGetState_fields,   (message_handler_t)(handler_debug_link_get_state), AnyVariant)
-    DEBUG_IN(MessageType_MessageType_DebugLinkStop,         DebugLinkStop_fields,       (message_handler_t)(handler_debug_link_stop), AnyVariant)
-    DEBUG_IN(MessageType_MessageType_DebugLinkFillConfig,   DebugLinkFillConfig_fields, (message_handler_t)(handler_debug_link_fill_config), AnyVariant)
+    DEBUG_IN(MessageType_MessageType_DebugLinkDecision,     DebugLinkDecision,   NO_PROCESS_FUNC,                   AnyVariant)
+    DEBUG_IN(MessageType_MessageType_DebugLinkGetState,     DebugLinkGetState,   handler_debug_link_get_state,      AnyVariant)
+    DEBUG_IN(MessageType_MessageType_DebugLinkStop,         DebugLinkStop,       handler_debug_link_stop,           AnyVariant)
+    DEBUG_IN(MessageType_MessageType_DebugLinkFillConfig,   DebugLinkFillConfig, handler_debug_link_fill_config,    AnyVariant)
 
     /* Debug Out Messages */
-    DEBUG_OUT(MessageType_MessageType_DebugLinkState,       DebugLinkState_fields,      NO_PROCESS_FUNC, AnyVariant)
-    DEBUG_OUT(MessageType_MessageType_DebugLinkLog,         DebugLinkLog_fields,        NO_PROCESS_FUNC, AnyVariant)
+    DEBUG_OUT(MessageType_MessageType_DebugLinkState,       DebugLinkState,      NO_PROCESS_FUNC,                   AnyVariant)
+    DEBUG_OUT(MessageType_MessageType_DebugLinkLog,         DebugLinkLog,        NO_PROCESS_FUNC,                   AnyVariant)
 #endif
 };
 
@@ -294,7 +294,7 @@ bool usb_flash_firmware(void)
 
 uff_exit:
     /* Clear the shadow before exiting */
-    MEMSET_BZERO(storage_sav, sizeof(storage_sav));
+    memzero(storage_sav, sizeof(storage_sav));
     return(ret_val);
 }
 
@@ -307,7 +307,7 @@ uff_exit:
  *      none
  *
  */
-void storage_sector_init(void)
+void storage_sectorInit(void)
 {
     if(!find_active_storage(&storage_location))
     {

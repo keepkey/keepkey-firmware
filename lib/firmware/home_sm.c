@@ -30,19 +30,19 @@ static HomeState home_state = AT_HOME;
 static uint32_t idle_time = 0;
 
 /*
- * go_home() - Returns to home screen
+ * layoutHome() - Returns to home screen
  *
  * INPUT
  *     none
  * OUTPUT
  *     none
  */
-void go_home(void)
+void layoutHome(void)
 {
     switch(home_state)
     {
         case AWAY_FROM_HOME:
-            go_home_forced();
+            layoutHomeForced();
             break;
 
         case SCREENSAVER:
@@ -54,14 +54,14 @@ void go_home(void)
 }
 
 /*
- * go_home_forced() - Returns to home screen regardless of home state
+ * layoutHomeForced() - Returns to home screen regardless of home state
  *
  * INPUT
  *     none
  * OUTPUT
  *     none
  */
-void go_home_forced(void)
+void layoutHomeForced(void)
 {
     layout_home();
     reset_idle_time();

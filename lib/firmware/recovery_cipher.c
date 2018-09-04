@@ -20,8 +20,8 @@
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/msg_dispatch.h"
-#include "keepkey/crypto/bip39.h"
-#include "keepkey/crypto/macros.h"
+#include "trezor/crypto/bip39.h"
+#include "trezor/crypto/memzero.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
@@ -77,7 +77,7 @@ static void format_current_word(char *current_word, bool auto_completed)
     }
 
     strlcpy(current_word, temp_word, CURRENT_WORD_BUF);
-    MEMSET_BZERO(temp_word, sizeof(temp_word));
+    memzero(temp_word, sizeof(temp_word));
 }
 
 /*
@@ -184,18 +184,18 @@ bool attempt_auto_complete(char *partial_word)
     }
 
     if (precise_match) {
-        MEMSET_BZERO(permute, sizeof(permute));
+        memzero(permute, sizeof(permute));
         return true;
     }
 
     /* Autocomplete if we can */
     if (match == 1) {
         strlcpy(partial_word, wordlist[permute[found]], CURRENT_WORD_BUF);
-        MEMSET_BZERO(permute, sizeof(permute));
+        memzero(permute, sizeof(permute));
         return true;
     }
 
-    MEMSET_BZERO(permute, sizeof(permute));
+    memzero(permute, sizeof(permute));
     return false;
 }
 
@@ -216,13 +216,13 @@ void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
 {
     if(pin_protection && !change_pin())
     {
-        go_home();
+        layoutHome();
         return;
     }
 
-    storage_set_passphrase_protected(passphrase_protection);
-    storage_set_language(language);
-    storage_set_label(label);
+    storage_setPassphraseProtected(passphrase_protection);
+    storage_setLanguage(language);
+    storage_setLabel(label);
 
     enforce_wordlist = _enforce_wordlist;
 
@@ -254,9 +254,9 @@ void next_character(void)
     /* Words should never be longer than 4 characters */
     if (strlen(current_word) > 4)
     {
-        MEMSET_BZERO(current_word, sizeof(current_word));
+        memzero(current_word, sizeof(current_word));
         awaiting_character = false;
-        go_home();
+        layoutHome();
 
         storage_reset();
         fsm_sendFailure(FailureType_Failure_SyntaxError, "Words were not entered correctly.");
@@ -296,7 +296,7 @@ void next_character(void)
 
         /* Show cipher and partial word */
         layout_cipher(current_word, cipher);
-        MEMSET_BZERO(current_word, sizeof(current_word));
+        memzero(current_word, sizeof(current_word));
     }
 }
 
@@ -317,7 +317,7 @@ void recovery_character(const char *character)
     {
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                         "Too many characters attempted during recovery");
-        go_home();
+        layoutHome();
         goto finished;
     }
     else if(awaiting_character)
@@ -331,7 +331,7 @@ void recovery_character(const char *character)
 
             awaiting_character = false;
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Character must be from a to z");
-            go_home();
+            layoutHome();
             goto finished;
 
         }
@@ -353,7 +353,7 @@ void recovery_character(const char *character)
     {
 
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
-        go_home();
+        layoutHome();
         goto finished;
 
     }
@@ -408,18 +408,18 @@ void recovery_cipher_finalize(void)
 
         tok = strtok(NULL, " ");
     }
-    MEMSET_BZERO(temp_word, sizeof(temp_word));
+    memzero(temp_word, sizeof(temp_word));
 
     if(auto_completed)
     {
         /* Truncate additional space at the end */
         full_mnemonic[strlen(full_mnemonic) - 1] = '\0';
 
-        storage_set_mnemonic(full_mnemonic);
+        storage_setMnemonic(full_mnemonic);
     }
-    MEMSET_BZERO(full_mnemonic, sizeof(full_mnemonic));
+    memzero(full_mnemonic, sizeof(full_mnemonic));
 
-    if(!enforce_wordlist || mnemonic_check(storage_get_shadow_mnemonic()))
+    if(!enforce_wordlist || mnemonic_check(storage_getShadowMnemonic()))
     {
         storage_commit();
         fsm_sendSuccess("Device recovered");
@@ -437,7 +437,7 @@ void recovery_cipher_finalize(void)
     }
 
     awaiting_character = false;
-    go_home();
+    layoutHome();
 }
 
 /*

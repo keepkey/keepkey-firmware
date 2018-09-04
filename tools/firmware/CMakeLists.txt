@@ -15,7 +15,7 @@ if(NOT ${KK_EMULATOR})
       kkfirmware
       kkboard
       kktransport
-      kkcrypto
+      trezorcrypto
       -lopencm3_stm32f2
       -lc
       -lm)
@@ -29,7 +29,7 @@ if(NOT ${KK_EMULATOR})
       kkvariant.keepkey
       kkvariant.salt
       kktransport
-      kkcrypto
+      trezorcrypto
       kkrand
       -lopencm3_stm32f2
       -lc
@@ -45,11 +45,11 @@ if(NOT ${KK_EMULATOR})
       kkfirmware
       kkfirmware.mfr
       kkboard
-      kkboard.mfr
+      -Wl,--whole-archive kkboard.mfr -Wl,--no-whole-archive
       kkvariant.keepkey
       kkvariant.salt
       kktransport
-      kkcrypto
+      trezorcrypto
       kkrand
       -lopencm3_stm32f2
       -lc

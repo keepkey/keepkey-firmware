@@ -2,9 +2,9 @@
 
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/pubkeys.h"
-#include "keepkey/crypto/secp256k1.h"
-#include "keepkey/crypto/ecdsa.h"
-#include "keepkey/crypto/sha2.h"
+#include "trezor/crypto/secp256k1.h"
+#include "trezor/crypto/ecdsa.h"
+#include "trezor/crypto/sha2.h"
 #include "keepkey/variant/keepkey.h"
 #include "keepkey/variant/salt.h"
 
@@ -123,6 +123,11 @@ const VariantAnimation *variant_getLogo(bool reversed) {
 
 const char *variant_getName(void) {
     if (name) {
+        return name;
+    }
+
+    if (variant_isMFR()) {
+        name = "MFR";
         return name;
     }
 

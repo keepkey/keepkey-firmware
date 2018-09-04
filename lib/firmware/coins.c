@@ -24,6 +24,8 @@
 #include <string.h>
 #include <stdio.h>
 
+#define SECP256K1_STRING "secp256k1"
+
 #define TOKEN_ENTRY(INDEX, NAME, SYMBOL, DECIMALS, CONTRACT_ADDRESS, GAS_LIMIT) \
 {   \
 true, (#NAME),                     /* has_coin_name, coin_name*/ \
@@ -39,65 +41,156 @@ false, 0,                          /* has_forkid, forkid*/ \
 true, (DECIMALS),                  /* has_decimals, decimals*/ \
 true, {20, {(CONTRACT_ADDRESS)}},  /* has_contract_address, contract_address*/ \
 true, {32, {(GAS_LIMIT)}},         /* has_gas_limit, gas_limit*/ \
+false, 0,                          /* has_xpub_magic, xpub_magic*/ \
+false, 0,                          /* has_xprv_magic, xprv_magic*/ \
+false, false,                      /* has_segwit, segwit */ \
+false, false,                      /* has_force_bip143, force_bip143*/ \
+true, SECP256K1_STRING,            /* has_curve_name, curve_name*/ \
+false, "",                         /* has_cashaddr_prefix, cashaddr_prefix*/ \
+false, "",                         /* has_bech32_prefix, bech32_prefix*/ \
+false, false,                      /* has_decred, decred */ \
+false, 0,                          /* has_version_group_id, version_group_id*/ \
 },
 
 const CoinType coins[COINS_COUNT] = {
-    {true, "Bitcoin",      true, "BTC",  true,   0, true,     100000, true,   5, true,  6, true, 10, true, "\x18" "Bitcoin Signed Message:\n",      true, 0x80000000, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
-    {true, "Testnet",      true, "TEST", true, 111, true,   10000000, true, 196, true,  3, true, 40, true, "\x18" "Bitcoin Signed Message:\n",      true, 0x80000001, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
-    {true, "BitcoinCash",  true, "BCH",  true,   0, true,     500000, true,   5, false, 0, false, 0, true, "\x18" "Bitcoin Signed Message:\n",      true, 0x80000091, true,  0, true,   8, false, {0, {0}}, false, {0, {0}}},
-    {true, "Namecoin",     true, "NMC",  true,  52, true,   10000000, true,   5, false, 0, false, 0, true, "\x19" "Namecoin Signed Message:\n",     true, 0x80000007, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
-    {true, "Litecoin",     true, "LTC",  true,  48, true,    1000000, true,   5, false, 0, false, 0, true, "\x19" "Litecoin Signed Message:\n",     true, 0x80000002, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
-    {true, "Dogecoin",     true, "DOGE", true,  30, true, 1000000000, true,  22, false, 0, false, 0, true, "\x19" "Dogecoin Signed Message:\n",     true, 0x80000003, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
-    {true, "Dash",         true, "DASH", true,  76, true,     100000, true,  16, false, 0, false, 0, true, "\x19" "DarkCoin Signed Message:\n",     true, 0x80000005, false, 0, true,   8, false, {0, {0}}, false, {0, {0}}},
-    {true, ETHEREUM,       true, "ETH",  true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n",     true, 0x8000003c, false, 0, true,  18, false, {0, {0}}, false, {0, {0}}},
-    {true, ETHEREUM_CLS,   true, "ETC",  true,  NA, true,     100000, true,  NA, false, 0, false, 0, true, "\x19" "Ethereum Signed Message:\n",     true, 0x8000003d, false, 0, true,  18, false, {0, {0}}, false, {0, {0}}},
-    {true, "BitcoinGold",  true, "BTG",  true,  38, true,     500000, true,  23, false, 0, false, 0, true, "\x1d" "Bitcoin Gold Signed Message:\n", true, 0x8000009c, true, 79, true,   8, false, {0, {0}}, false, {0, {0}}},
+//   coin_name             coin_shortcut  address_type  maxfee_kb          p2sh        p2wpkh     p2wsh      signed_message_header                           bip44_account_path  forkid     decimals    contract_address  gas_limit         xpub_magic       xprv_magic       segwit        force_bip143  curve_name               cashaddr_prefix       bech32_prefix  decred         version_group_id
+    {true, "Bitcoin",      true, "BTC",   true,   0,    true,     100000,  true,   5,  true,  6,  true, 10,  true, "\x18" "Bitcoin Signed Message:\n",       true, 0x80000000,   false, 0,  true,   8,  false, {0, {0}},  false, {0, {0}},  true, 76067358,  true, 76066276,  true, true,   true, false,  true, SECP256K1_STRING,  false, "",            true, "bc",    false, false,  false, 0},
+    {true, "Testnet",      true, "TEST",  true, 111,    true,   10000000,  true, 196,  true,  3,  true, 40,  true, "\x18" "Bitcoin Signed Message:\n",       true, 0x80000001,   false, 0,  true,   8,  false, {0, {0}},  false, {0, {0}},  true, 70617039,  true, 70615956,  true, true,   true, false,  true, SECP256K1_STRING,  false, "",            true, "tb",    false, false,  false, 0},
+    {true, "BitcoinCash",  true, "BCH",   true,   0,    true,     500000,  true,   5,  false, 0,  false, 0,  true, "\x18" "Bitcoin Signed Message:\n",       true, 0x80000091,   true,  0,  true,   8,  false, {0, {0}},  false, {0, {0}},  true, 76067358,  true, 76066276,  true, false,  true, true,   true, SECP256K1_STRING,  true, "bitcoincash",  false, "",     false, false,  false, 0},
+    {true, "Namecoin",     true, "NMC",   true,  52,    true,   10000000,  true,   5,  false, 0,  false, 0,  true, "\x19" "Namecoin Signed Message:\n",      true, 0x80000007,   false, 0,  true,   8,  false, {0, {0}},  false, {0, {0}},  true, 27108450,  true, 27106558,  true, false,  true, false,  true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false, 0},
+    {true, "Litecoin",     true, "LTC",   true,  48,    true,    1000000,  true,  50,  false, 0,  false, 0,  true, "\x19" "Litecoin Signed Message:\n",      true, 0x80000002,   false, 0,  true,   8,  false, {0, {0}},  false, {0, {0}},  true, 27108450,  true, 27106558,  true, true,   true, false,  true, SECP256K1_STRING,  false, "",            true, "ltc",   false, false,  false, 0},
+    {true, "Dogecoin",     true, "DOGE",  true,  30,    true, 1000000000,  true,  22,  false, 0,  false, 0,  true, "\x19" "Dogecoin Signed Message:\n",      true, 0x80000003,   false, 0,  true,   8,  false, {0, {0}},  false, {0, {0}},  true, 49990397,  true, 49988504,  true, false,  true, false,  true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false, 0},
+    {true, "Dash",         true, "DASH",  true,  76,    true,     100000,  true,  16,  false, 0,  false, 0,  true, "\x19" "DarkCoin Signed Message:\n",      true, 0x80000005,   false, 0,  true,   8,  false, {0, {0}},  false, {0, {0}},  true, 50221772,  true, 50221816,  true, false,  true, false,  true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false, 0},
+    {true, ETHEREUM,       true, "ETH",   true,  NA,    true,     100000,  true,  NA,  false, 0,  false, 0,  true, "\x19" "Ethereum Signed Message:\n",      true, 0x8000003c,   false, 0,  true,  18,  false, {0, {0}},  false, {0, {0}},  false, 0,        false, 0,        true, false,  true, false,  true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false, 0},
+    {true, ETHEREUM_CLS,   true, "ETC",   true,  NA,    true,     100000,  true,  NA,  false, 0,  false, 0,  true, "\x19" "Ethereum Signed Message:\n",      true, 0x8000003d,   false, 0,  true,  18,  false, {0, {0}},  false, {0, {0}},  false, 0,        false, 0,        true, false,  true, false,  true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false, 0},
+    {true, "BitcoinGold",  true, "BTG",   true,  38,    true,     500000,  true,  23,  false, 0,  false, 0,  true, "\x1d" "Bitcoin Gold Signed Message:\n",  true, 0x8000009c,   true, 79,  true,   8,  false, {0, {0}},  false, {0, {0}},  true, 76067358,  true, 76066276,  true, true,   true, true,   true, SECP256K1_STRING,  false, "",            true, "btg",   false, false,  false, 0},
+    {true, "ZCash",        true, "ZEC",   true, 7352,   true,    1000000,  true, 7357, false, 0,  false, 0,  true, "\x16" "ZCash Signed Message:\n",         true, 0x80000085,   false, 0,  true,   8,  false, {0, {0}},  false, {0, {0}},  true, 76067358,  true, 76066276,  false, false, false, false, true, SECP256K1_STRING,  false, "",            false, "",     false, false,  true, 63210096},
+    {true, "Zcash Testnet",true, "TAZ",   true, 7461,   true,   10000000,  true, 7354, false, 0,  false, 0,  true, "\x16" "Zcash Signed Message:\n",         true, 0x80000085,   false, 0,  true,   8,  false, {0, {0}},  false, {0, {0}},  true, 70617039,  true, 70615956,  false, false, false, false, true, SECP256K1_STRING,  false, "",            false, "",     false, false,  true, 63210096},
     #include "keepkey/firmware/tokens.def"
 };
 
 _Static_assert(sizeof(coins) / sizeof(coins[0]) == COINS_COUNT,
                "Update COINS_COUNT to match the size of the coin table");
 
-
-/*
- * verify_bip44_node() - Checks node is valid bip44
- *
- * INPUT
- *     *coin - coin type pointer
- *     address_n - node path
- *     address_n_count - number of nodes in path
- * OUTPUT
- *     true/false status
- *
- * Note : address_n[5] = {/44'/bip44_account_path/account #/0/0 }
- *
- * bip44 account path:
- *      Bitcoin  - 0x8000_0000
- *      Litecoin - 0x8000_0002
- *      Dogecoin - 0x8000_0003
- *      Ethereum - 0x8000_003c
- *      ...
- *      ...
- */
-static bool verify_bip44_node(const CoinType *coin, uint32_t *address_n, size_t address_n_count)
+// Borrowed from fsm_msg_coin.h
+// PLEASE keep these in sync.
+static bool path_mismatched(const CoinType *coin, const uint32_t *address_n,
+                            uint32_t address_n_count, bool whole_account)
 {
-    bool ret_stat = false;
-    if(address_n_count == 5 && address_n[3] == 0)
-    {
-        if(strncmp(coin->coin_name, ETHEREUM, strlen(ETHEREUM)) == 0  || strncmp(coin->coin_name, ETHEREUM_CLS, sizeof(ETHEREUM_CLS)) == 0 )
-        {
-            if(address_n[4] != 0)
-            {
-                goto verify_bip44_node_exit;
-            }
-        }
-        if(address_n[0] == 0x8000002C && address_n[1] == coin->bip44_account_path)
-        {
-            ret_stat = true;
+	bool mismatch = false;
+
+	// m : no path
+	if (address_n_count == 0) {
+		return false;
+	}
+
+	// m/44' : BIP44 Legacy
+	// m / purpose' / bip44_account_path' / account' / change / address_index
+	if (address_n[0] == (0x80000000 + 44)) {
+		mismatch |= (address_n_count != (whole_account ? 3 : 5));
+		mismatch |= (address_n[1] != coin->bip44_account_path);
+		mismatch |= (address_n[2] & 0x80000000) == 0;
+		if (!whole_account) {
+			mismatch |= (address_n[3] & 0x80000000) == 0x80000000;
+			mismatch |= (address_n[4] & 0x80000000) == 0x80000000;
+		}
+		return mismatch;
+	}
+
+	// m/45' - BIP45 Copay Abandoned Multisig P2SH
+	// m / purpose' / cosigner_index / change / address_index
+	if (address_n[0] == (0x80000000 + 45)) {
+		mismatch |= (address_n_count != 4);
+		mismatch |= (address_n[1] & 0x80000000) == 0x80000000;
+		mismatch |= (address_n[2] & 0x80000000) == 0x80000000;
+		mismatch |= (address_n[3] & 0x80000000) == 0x80000000;
+		return mismatch;
+	}
+
+	// m/48' - BIP48 Copay Multisig P2SH
+	// m / purpose' / bip44_account_path' / account' / change / address_index
+	if (address_n[0] == (0x80000000 + 48)) {
+		mismatch |= (address_n_count != (whole_account ? 3 : 5));
+		mismatch |= (address_n[1] != coin->bip44_account_path);
+		mismatch |= (address_n[2] & 0x80000000) == 0;
+		if (!whole_account) {
+			mismatch |= (address_n[3] & 0x80000000) == 0x80000000;
+			mismatch |= (address_n[4] & 0x80000000) == 0x80000000;
+		}
+		return mismatch;
+	}
+
+	// m/49' : BIP49 SegWit
+	// m / purpose' / bip44_account_path' / account' / change / address_index
+	if (address_n[0] == (0x80000000 + 49)) {
+		mismatch |= !coin->has_segwit || !coin->segwit;
+		mismatch |= !coin->has_address_type_p2sh;
+		mismatch |= (address_n_count != (whole_account ? 3 : 5));
+		mismatch |= (address_n[1] != coin->bip44_account_path);
+		mismatch |= (address_n[2] & 0x80000000) == 0;
+		if (!whole_account) {
+			mismatch |= (address_n[3] & 0x80000000) == 0x80000000;
+			mismatch |= (address_n[4] & 0x80000000) == 0x80000000;
+		}
+		return mismatch;
+	}
+
+	// m/84' : BIP84 Native SegWit
+	// m / purpose' / bip44_account_path' / account' / change / address_index
+	if (address_n[0] == (0x80000000 + 84)) {
+		mismatch |= !coin->has_segwit || !coin->segwit;
+		mismatch |= !coin->has_bech32_prefix;
+		mismatch |= (address_n_count != (whole_account ? 3 : 5));
+		mismatch |= (address_n[1] != coin->bip44_account_path);
+		mismatch |= (address_n[2] & 0x80000000) == 0;
+		if (!whole_account) {
+			mismatch |= (address_n[3] & 0x80000000) == 0x80000000;
+			mismatch |= (address_n[4] & 0x80000000) == 0x80000000;
+		}
+		return mismatch;
+	}
+
+	// Special case (not needed in the other copy of this function):
+	if (address_n_count == 5 &&
+		(strncmp(coin->coin_name, ETHEREUM, strlen(ETHEREUM)) == 0 ||
+		 strncmp(coin->coin_name, ETHEREUM_CLS, sizeof(ETHEREUM_CLS)) == 0)) {
+		// Check that the path is m/44'/bip44_account_path/y/0/0
+		if (address_n[3] != 0)
+			return true;
+		if (address_n[4] != 0)
+			return true;
+	}
+
+	return false;
+}
+
+bool bip32_path_to_string(char *str, size_t len, const uint32_t *address_n,
+                          size_t address_n_count) {
+    memset(str, 0, len);
+
+    int cx = snprintf(str, len, "m");
+    if (cx < 0 || len <= (size_t)cx)
+        return false;
+    str += cx;
+    len -= cx;
+
+    for (size_t i = 0; i < address_n_count; i++) {
+        cx = snprintf(str, len, "/%" PRIu32, address_n[i] & 0x7fffffff);
+        if (cx < 0 || len <= (size_t)cx)
+            return false;
+        str += cx;
+        len -= cx;
+
+        if ((address_n[i] & 0x80000000) == 0x80000000) {
+            cx = snprintf(str, len, "'");
+            if (cx < 0 || len <= (size_t)cx)
+                return false;
+            str += cx;
+            len -= cx;
         }
     }
-verify_bip44_node_exit:
-    return(ret_stat);
+
+    return true;
 }
 
 const CoinType *coinByShortcut(const char *shortcut)
@@ -232,35 +325,48 @@ void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len)
     }
 }
 
-/*
- * bip44_node_to_string() - Parses node path to BIP 44 equivalent string
- *
- * INPUT -
- *      - coin: coin to use to determine bip44 path
- *      - node_str: buffer to populate
- *      - address_n: node path
- *      - address_n_coin: size of address_n array
- * OUTPUT -
- *     true/false whether node path was bip 44 string or just regular node
- *
- */
-bool bip44_node_to_string(const CoinType *coin, char *node_str, uint32_t *address_n,
-                         size_t address_n_count)
-{
-    bool ret_stat = false;
-    bool is_token = coin->has_contract_address;
+static const char *account_prefix(const CoinType *coin,
+                                  const uint32_t *address_n,
+                                  size_t address_n_count,
+                                  bool whole_account) {
+    if (!coin->has_segwit || !coin->segwit)
+        return "";
 
-    if(verify_bip44_node(coin, address_n, address_n_count))
-    {
-        // If it is a token we still refer to the destination as an Ethereum account
-        if (is_token) {
-            snprintf(node_str, NODE_STRING_LENGTH, "%s account #%" PRIu32, "Ethereum",
-                    address_n[2] & 0x7ffffff);
-        } else {
-            snprintf(node_str, NODE_STRING_LENGTH, "%s account #%" PRIu32, coin->coin_name,
-                    address_n[2] & 0x7ffffff);
-        }
-        ret_stat = true;
-    }
-    return(ret_stat);
+    if (address_n_count < (whole_account ? 3 : 5))
+        return NULL;
+
+    uint32_t purpose = address_n[address_n_count - (whole_account ? 3 : 5)];
+
+    if (purpose == (0x80000000 | 44))
+        return "Legacy ";
+
+    if (purpose == (0x80000000 | 49))
+        return "SegWit ";
+
+    if (purpose == (0x80000000 | 84))
+        return "";
+
+    return NULL;
+}
+
+bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin, uint32_t *address_n,
+                          size_t address_n_count, bool whole_account)
+{
+    if (address_n_count != 3 && address_n_count != 5)
+        return false;
+
+    if (path_mismatched(coin, address_n, address_n_count, whole_account))
+        return false;
+
+    const char *prefix = account_prefix(coin, address_n, address_n_count, whole_account);
+    if (!prefix)
+        return false;
+
+    // If it is a token, we still refer to the destination as an Ethereum account.
+    bool is_token = coin->has_contract_address;
+    const char *coin_name = is_token ? "Ethereum" : coin->coin_name;
+
+    snprintf(node_str, len, "%s%s Account #%" PRIu32, prefix, coin_name,
+             address_n[2] & 0x7ffffff);
+    return true;
 }

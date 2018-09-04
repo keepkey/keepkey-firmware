@@ -37,6 +37,7 @@
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
+#include "trezor/crypto/rand.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -125,8 +126,6 @@ int main(void)
 
     led_func(SET_GREEN_LED);
 
-    screen_test();
-
     /* Enable interrupt for timer */
     cm_enable_interrupts();
 
@@ -137,7 +136,12 @@ int main(void)
 
     /* Redraw the screen if we are coming from the whitelabel bootloader image */
     if (getModel() != MODEL_KEEPKEY)
-        go_home_forced();
+        layoutHomeForced();
+
+    screen_test();
+
+    if (variant_isMFR())
+        layout_simple_message("keepkey.com/get-started");
 
     while(1)
     {

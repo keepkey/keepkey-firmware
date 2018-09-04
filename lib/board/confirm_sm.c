@@ -26,7 +26,7 @@
 #include "keepkey/board/msg_dispatch.h"
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/usb_driver.h"
-#include "keepkey/crypto/macros.h"
+#include "trezor/crypto/memzero.h"
 
 #ifndef EMULATOR
 #  include <libopencm3/cm3/cortex.h>
@@ -350,7 +350,7 @@ bool confirm(ButtonRequestType type, const char *request_title, const char *requ
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
     bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification);
-    MEMSET_BZERO(strbuf, sizeof(strbuf));
+    memzero(strbuf, sizeof(strbuf));
     return ret;
 }
 
@@ -380,7 +380,7 @@ bool confirm_with_custom_button_request(ButtonRequest *button_request,
     msg_write(MessageType_MessageType_ButtonRequest, button_request);
 
     bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification);
-    MEMSET_BZERO(strbuf, sizeof(strbuf));
+    memzero(strbuf, sizeof(strbuf));
     return ret;
 }
 
@@ -415,7 +415,7 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
     bool ret = confirm_helper(request_title, strbuf, layout_notification_func);
-    MEMSET_BZERO(strbuf, sizeof(strbuf));
+    memzero(strbuf, sizeof(strbuf));
     return ret;
 }
 
@@ -440,7 +440,7 @@ bool confirm_without_button_request(const char *request_title, const char *reque
     va_end(vl);
 
     bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification);
-    MEMSET_BZERO(strbuf, sizeof(strbuf));
+    memzero(strbuf, sizeof(strbuf));
     return ret;
 }
 
@@ -474,7 +474,7 @@ bool review(ButtonRequestType type, const char *request_title, const char *reque
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
     (void)confirm_helper(request_title, strbuf, &layout_standard_notification);
-    MEMSET_BZERO(strbuf, sizeof(strbuf));
+    memzero(strbuf, sizeof(strbuf));
     return true;
 }
 
@@ -500,6 +500,6 @@ bool review_without_button_request(const char *request_title, const char *reques
     va_end(vl);
 
     (void)confirm_helper(request_title, strbuf, &layout_standard_notification);
-    MEMSET_BZERO(strbuf, sizeof(strbuf));
+    memzero(strbuf, sizeof(strbuf));
     return true;
 }

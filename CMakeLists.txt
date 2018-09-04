@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.9.5)
 
 project(KeepKeyFirmware
 
-        VERSION 5.7.0
+        VERSION 5.8.0
 
         LANGUAGES C CXX ASM)
 
@@ -41,6 +41,10 @@ add_definitions(-DED25519_NO_INLINE_ASM)
 add_definitions(-DED25519_FORCE_32BIT=1)
 
 add_definitions(-DUSE_ETHEREUM=1)
+add_definitions(-DUSE_CARDANO=0)
+add_definitions(-DUSE_MONERO=0)
+
+add_definitions(-DRAND_PLATFORM_INDEPENDENT=0)
 
 add_definitions(-DPB_FIELD_16BIT=1)
 add_definitions(-DQR_MAX_VERSION=0)
@@ -102,6 +106,7 @@ endif()
 
 add_subdirectory(lib)
 add_subdirectory(tools)
+add_subdirectory(deps/crypto)
 
 if(${KK_EMULATOR})
   add_subdirectory(deps/googletest)

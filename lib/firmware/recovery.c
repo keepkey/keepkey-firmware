@@ -22,8 +22,6 @@
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/msg_dispatch.h"
-#include "keepkey/crypto/bip39.h"
-#include "keepkey/crypto/macros.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/pin_sm.h"
@@ -31,6 +29,9 @@
 #include "keepkey/firmware/recovery_cipher.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
+#include "trezor/crypto/bip39.h"
+#include "trezor/crypto/memzero.h"
+#include "trezor/crypto/rand.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -51,7 +52,7 @@ static char CONFIDENTIAL words[24][12];
 void next_word(void) {
 	if (sizeof(word_order)/sizeof(word_order[0]) <= word_index) {
 		fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid word_index");
-		go_home();
+		layoutHome();
 		return;
 	}
 
@@ -96,15 +97,15 @@ void next_word(void) {
 	memset(&resp, 0, sizeof(WordRequest));
 	msg_write(MessageType_MessageType_WordRequest, &resp);
 
-    MEMSET_BZERO(title_formatted, sizeof(title_formatted));
-    MEMSET_BZERO(body_formatted, sizeof(body_formatted));
+    memzero(title_formatted, sizeof(title_formatted));
+    memzero(body_formatted, sizeof(body_formatted));
 }
 
 void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_protection, const char *language, const char *label, bool _enforce_wordlist)
 {
 	if (_word_count != 12 && _word_count != 18 && _word_count != 24) {
 		fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid word count (has to be 12, 18 or 24");
-		go_home();
+		layoutHome();
 		return;
 	}
 
@@ -112,13 +113,13 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
 	enforce_wordlist = _enforce_wordlist;
 
 	if (pin_protection && !change_pin()) {
-		go_home();
+		layoutHome();
 		return;
 	}
 
-	storage_set_passphrase_protected(passphrase_protection);
-	storage_set_language(language);
-	storage_set_label(label);
+	storage_setPassphraseProtected(passphrase_protection);
+	storage_setLanguage(language);
+	storage_setLabel(label);
 
 	uint32_t i;
     for (i = 0; i < word_count; i++) {
@@ -155,7 +156,7 @@ void recovery_word(const char *word)
     if (!awaiting_word)
     {
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
-        go_home();
+        layoutHome();
         return;
     }
 
@@ -167,7 +168,7 @@ void recovery_word(const char *word)
             // Fake word
             storage_reset();
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Wrong word retyped");
-            go_home();
+            layoutHome();
             return;
         }
     } else {
@@ -175,7 +176,7 @@ void recovery_word(const char *word)
         if (enforce_wordlist & (!found)) {
             storage_reset();
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Word not found in the bip39 wordlist");
-            go_home();
+            layoutHome();
             return;
         }
         strlcpy(words[word_pos - 1], word, sizeof(words[word_pos - 1]));
@@ -183,9 +184,9 @@ void recovery_word(const char *word)
 
     if (word_index + 1 == 24) {
         // last one
-        storage_set_mnemonic_from_words((const char (*)[])words, word_count);
+        storage_setMnemonicFromWords((const char (*)[])words, word_count);
 
-        if (!enforce_wordlist || mnemonic_check(storage_get_shadow_mnemonic())) {
+        if (!enforce_wordlist || mnemonic_check(storage_getShadowMnemonic())) {
             storage_commit();
             fsm_sendSuccess("Device recovered");
         } else {
@@ -193,7 +194,7 @@ void recovery_word(const char *word)
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid mnemonic, are words in correct order?");
         }
         awaiting_word = false;
-        go_home();
+        layoutHome();
     } else {
         word_index++;
         next_word();
@@ -209,7 +210,7 @@ void recovery_abort(bool send_failure)
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Recovery cancelled");
         }
 
-        go_home();
+        layoutHome();
     }
 }
 

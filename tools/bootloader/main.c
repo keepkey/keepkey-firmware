@@ -45,6 +45,7 @@
 #include "keepkey/rand/rng.h"
 #include "keepkey/variant/keepkey.h"
 #include "keepkey/variant/poweredBy.h"
+#include "trezor/crypto/rand.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -116,7 +117,7 @@ static void bootloader_init(void)
     usart_init();
     keepkey_leds_init();
     keepkey_button_init();
-    storage_sector_init();
+    storage_sectorInit();
     display_hw_init();
     layout_init(display_canvas_init());
 }
