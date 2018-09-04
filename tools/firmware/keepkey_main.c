@@ -29,6 +29,7 @@
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/usb_driver.h"
+#include "keepkey/board/u2f.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/keepkey_usart.h"
 #include "keepkey/firmware/app_layout.h"
@@ -36,6 +37,7 @@
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
+#include "keepkey/firmware/u2f.h"
 #include "keepkey/rand/rng.h"
 #include "trezor/crypto/rand.h"
 
@@ -129,6 +131,7 @@ int main(void)
     /* Enable interrupt for timer */
     cm_enable_interrupts();
 
+    u2f_init(&u2f_do_register, &u2f_do_auth);
     usb_init();
     led_func(CLR_RED_LED);
 

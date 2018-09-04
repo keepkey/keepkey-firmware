@@ -27,6 +27,7 @@
 #  include <libopencm3/stm32/f2/rng.h>
 #  include <libopencm3/stm32/f2/crc.h>
 #  include <libopencm3/cm3/cortex.h>
+#  include <libopencm3/stm32/desig.h>
 #endif
 
 #include "keepkey/board/keepkey_board.h"
@@ -39,7 +40,6 @@
 
 /* Stack smashing protector (SSP) canary value storage */
 uintptr_t __stack_chk_guard;
-
 /* === Functions =========================================================== */
 
 #ifdef EMULATOR

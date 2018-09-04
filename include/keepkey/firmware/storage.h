@@ -55,6 +55,13 @@ void storage_loadDevice(LoadDevice *msg);
 /// \return true iff the root node was found.
 bool storage_getRootNode(const char *curve, bool usePassphrase, HDNode *node);
 
+/// \brief Fetch the node used for U2F signing.
+/// \returns true iff retrieval was successful.
+bool storage_getU2FRoot(HDNode *node);
+
+/// \brief Increment and return the next value for the U2F counter.
+uint32_t storage_nextU2FCounter(void);
+
 /// \brief Set device label
 void storage_setLabel(const char *label);
 
@@ -131,8 +138,8 @@ bool storage_hasNode(void);
 
 const char *storage_getPin(void);
 const char *storage_getMnemonic(void);
-StorageHDNode *storage_getNode(void);
-void storage_dumpNode(HDNodeType *dst, const StorageHDNode *src);
+HDNode *storage_getNode(void);
+void storage_dumpNode(HDNodeType *dst, const HDNode *src);
 #endif
 
 #endif

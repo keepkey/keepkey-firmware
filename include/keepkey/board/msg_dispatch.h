@@ -146,6 +146,7 @@ typedef void (*raw_msg_handler_t)(RawMessage *msg, uint32_t frame_length);
 /* === Functions =========================================================== */
 
 bool msg_write(MessageType msg_id, const void *msg);
+bool msg_u2f_write(MessageType msg_id, const void *msg);
 
 #if DEBUG_LINK
 bool msg_debug_write(MessageType msg_id, const void *msg);

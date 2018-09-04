@@ -93,6 +93,7 @@ it easier to extend for new features later on.
 |   Pin Caching policy      |   bit 7        |              |                |
 |   has_node                |   bit 8        |              |                |
 |   has_mnemonic            |   bit 9        |              |                |
+|   has_u2froot             |   bit 10       |              |                |
 |   reserved                |   bits 10 - 31 |              |                |
 | pin_failed_attempts       | u32            |            4 |              8 |
 | auto_lock_delay_ms        | u32            |            4 |             12 |
@@ -100,7 +101,9 @@ it easier to extend for new features later on.
 | label                     | char[48]       |           48 |             32 |
 | wrapped_storage_key       | char[64]       |           64 |             80 |
 | storage_key_fingerprint   | char[64]       |            8 |            144 |
-| reserved                  | char[288]      |          288 |            176 |
+| u2froot                   | StorageHDNode  |          129 |            176 |
+| u2f_counter               | u32            |            4 |            305 |
+| reserved                  | char[155]      |          155 |            309 |
 | encrypted_secrets_version | u32            |            4 |            464 |
 | encrypted_secrets         | char[512]      |          512 |            468 |
 

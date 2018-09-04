@@ -27,6 +27,8 @@
 #include "keepkey/board/msg_dispatch.h"
 #include "keepkey/board/pubkeys.h"
 #include "keepkey/board/usb_driver.h"
+#include "keepkey/board/u2f.h"
+#include "keepkey/board/u2f_types.h"
 #include "keepkey/bootloader/signatures.h"
 #include "keepkey/bootloader/usb_flash.h"
 #include "trezor/crypto/sha2.h"
@@ -239,6 +241,9 @@ bool usb_flash_firmware(void)
     layout_simple_message("Firmware Update Mode");
     layout_version(BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION,
                    BOOTLOADER_PATCH_VERSION);
+
+    // U2F signing unsupported in bootloader mode. Only transport is supported.
+    u2f_init(0, 0);
 
     usb_init();
     bootloader_fsm_init();
