@@ -150,7 +150,7 @@ bool confirm_exchange_output(const char *exchange, const char *dep_amt,
     return confirm_with_custom_layout(&layout_notification_no_title_bold,
                                       ButtonRequestType_ButtonRequest_SignExchange,
                                       "",
-                                      "Convert %s to\n%s with %s and send to %s",
+                                      "Trade %s for\n%s with %s and send to %s",
                                       dep_amt, wit_amt, exchange, address);
 }
 
