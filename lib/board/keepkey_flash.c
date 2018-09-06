@@ -54,7 +54,7 @@ intptr_t flash_write_helper(Allocation group)
         }
         ++s;
     }
-    return start;
+    return (intptr_t)FLASH_PTR(start);
 }
 
 /*
@@ -90,16 +90,18 @@ bool flash_chk_status(void)
  */
 void flash_erase_word(Allocation group)
 {
-#ifndef EMULATOR
     const FlashSector* s = flash_sector_map;
     while(s->use != FLASH_INVALID)
     {
         if(s->use == group) {
+#ifndef EMULATOR
             flash_erase_sector(s->sector, FLASH_CR_PROGRAM_X32);
+#else
+            memset(FLASH_PTR(s->start), 0xff, s->len);
+#endif
         }
         ++s;
     }
-#endif
 }
 
 /*
@@ -112,16 +114,18 @@ void flash_erase_word(Allocation group)
  */
 void flash_erase(Allocation group)
 {
-#ifndef EMULATOR
     const FlashSector* s = flash_sector_map;
     while(s->use != FLASH_INVALID)
     {
         if(s->use == group) {
+#ifndef EMULATOR
             flash_erase_sector(s->sector, FLASH_CR_PROGRAM_X8);
+#else
+            memset(FLASH_PTR(s->start), 0xff, s->len);
+#endif
         }
         ++s;
     }
-#endif
 }
 
 /*
@@ -182,8 +186,10 @@ bool flash_write_word(Allocation group, uint32_t offset, uint32_t len, uint8_t *
     }
 fww_exit:
     return(retval);
+#else
+    memcpy((void*)(flash_write_helper(group) + offset), data, len);
+    return true;
 #endif
-    return false;
 }
 
 /*
@@ -208,6 +214,7 @@ bool flash_write(Allocation group, uint32_t offset, uint32_t len, uint8_t* data)
     }
     return(retval);
 #else
+    memcpy((void*)(flash_write_helper(group) + offset), data, len);
     return true;
 #endif
 }
@@ -222,16 +229,16 @@ bool flash_write(Allocation group, uint32_t offset, uint32_t len, uint8_t* data)
  */
 bool is_mfg_mode(void)
 {
-    bool ret_val = true;
-
 #ifndef EMULATOR
     if(*(uint32_t *)OTP_MFG_ADDR == OTP_MFG_SIG)
     {
-         ret_val = false;
+        return false;
     }
-#endif
 
-    return(ret_val);
+    return true;
+#else
+    return false;
+#endif
 }
 
 /*
@@ -244,27 +251,25 @@ bool is_mfg_mode(void)
  */
 bool set_mfg_mode_off(void)
 {
-    bool ret_val = false;
-    uint32_t tvar;
-
 #ifndef EMULATOR
     /* check OTP lock state before updating */
-    if(*(uint8_t *)OTP_BLK_LOCK(OTP_MFG_ADDR) == 0xFF)
+    if (*(uint8_t *)OTP_BLK_LOCK(OTP_MFG_ADDR) == 0xFF)
     {
         flash_unlock();
-        tvar = OTP_MFG_SIG; /* set manufactur'ed signature */
+        uint32_t tvar = OTP_MFG_SIG; /* set manufactur'ed signature */
         flash_program(OTP_MFG_ADDR, (uint8_t *)&tvar, OTP_MFG_SIG_LEN);
         tvar = 0x00;        /* set OTP lock */
         flash_program(OTP_BLK_LOCK(OTP_MFG_ADDR), (uint8_t *)&tvar, 1);
-        if(flash_chk_status()) 
+        if (flash_chk_status())
         {
-            ret_val = true;
+            return true;
         }
         flash_lock();
     }
+    return false;
+#else
+    return true;
 #endif
-
-    return(ret_val);
 }
 
 const char *flash_getModel(void) {

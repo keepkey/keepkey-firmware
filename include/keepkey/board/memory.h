@@ -65,7 +65,15 @@
  0x0100 |  32K-256 B  |  persistent storage
 
  flags & 0x01 -> restore storage after flashing (if signatures are ok)
+
  */
+
+#ifdef EMULATOR
+extern uint8_t *emulator_flash_base;
+#define FLASH_PTR(x)		(emulator_flash_base + (x - FLASH_ORIGIN))
+#else
+#define FLASH_PTR(x)		(const uint8_t*) (x)
+#endif
 
 #define OPTION_BYTES_1 ((uint64_t *)0x1FFFC000)
 #define OPTION_BYTES_2 ((uint64_t *)0x1FFFC008)
@@ -200,7 +208,6 @@ static const FlashSector flash_sector_map[] =
     { 11, 0x080E0000, APP_FLASH_SECT_LEN,   FLASH_APP },
     { -1, 0,          0,        FLASH_INVALID}
 };
-
 
 void memory_protect(void);
 

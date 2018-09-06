@@ -448,8 +448,6 @@ static MessageType tiny_msg_poll_and_buffer(bool block, uint8_t *buf)
     msg_tiny_id = MSG_TINY_TYPE_ERROR;
     msg_tiny_flag = true;
 
-    // TODO: wire the emulator up so it advertises itself on HID
-#ifndef EMULATOR
     while(msg_tiny_id == MSG_TINY_TYPE_ERROR)
     {
         usb_poll();
@@ -466,7 +464,6 @@ static MessageType tiny_msg_poll_and_buffer(bool block, uint8_t *buf)
     {
         memcpy(buf, msg_tiny, sizeof(msg_tiny));
     }
-#endif
 
     return(msg_tiny_id);
 }
@@ -563,9 +560,7 @@ void call_msg_debug_link_get_state_handler(DebugLinkGetState *msg)
  */
 void msg_init(void)
 {
-#ifndef EMULATOR
     usb_set_rx_callback(handle_usb_rx);
-#endif
 #if DEBUG_LINK
     usb_set_debug_rx_callback(handle_debug_usb_rx);
 #endif
@@ -582,8 +577,6 @@ void msg_init(void)
  */
 bool msg_write(MessageType msg_id, const void *msg)
 {
-    // TODO: wire up the emulator to HID
-#ifndef EMULATOR
     const pb_field_t *fields = message_fields(NORMAL_MSG, msg_id, OUT_MSG);
 
     if(!fields)    // unknown message
@@ -593,7 +586,6 @@ bool msg_write(MessageType msg_id, const void *msg)
 
     /* add frame header to message and transmit out to usb */
     usb_write_pb(fields, msg, msg_id, &usb_tx);
-#endif
     return(true);
 }
 

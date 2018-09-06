@@ -44,4 +44,7 @@ void display_set_brightness(int percentage);
 void display_turn_on(void);
 void display_turn_off(void);
 
+typedef void (*DumpDisplayCallback)(const uint8_t*);
+void display_set_dump_callback(DumpDisplayCallback d);
+
 #endif

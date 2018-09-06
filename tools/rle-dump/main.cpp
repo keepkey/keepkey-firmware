@@ -4,6 +4,7 @@ extern "C" {
 #include "keepkey/board/variant.h"
 }
 
+#include <cstring>
 #include <iostream>
 #include <iomanip>
 
