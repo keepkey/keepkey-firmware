@@ -223,8 +223,6 @@ static void storage_setRootSeedCache(ConfigFlash *cfg, const uint8_t *seed, cons
 static bool storage_getRootSeedCache(ConfigFlash *cfg, const char *curve,
                                      bool usePassphrase, uint8_t *seed)
 {
-    bool ret_stat = false;
-
     if(cfg->cache.root_seed_cache_status == CACHE_EXISTS)
     {
         if(usePassphrase)
@@ -232,21 +230,20 @@ static bool storage_getRootSeedCache(ConfigFlash *cfg, const char *curve,
             if(cfg->storage.has_passphrase_protection &&
                 cfg->storage.passphrase_protection && strlen(sessionPassphrase))
             {
-                goto storage_getRootSeedCache_exit;
+                return false;
             }
         }
+
         if(!strcmp(cfg->cache.root_ecdsa_curve_type, curve))
         {
             memset(seed, 0, sizeof(sessionSeed));
             memcpy(seed, &cfg->cache.root_seed_cache,
                    sizeof(cfg->cache.root_seed_cache));
-            ret_stat = true;
+            return true;
         }
     }
 
-storage_getRootSeedCache_exit:
-
-    return(ret_stat);
+    return false;
 }
 
 void storage_init(void)
@@ -536,14 +533,11 @@ void storage_setLabel(const char *label)
 
 const char *storage_getLabel(void)
 {
-    if(shadow_config.storage.has_label)
-    {
-        return shadow_config.storage.label;
-    }
-    else
-    {
+    if (!shadow_config.storage.has_label) {
         return NULL;
     }
+
+    return shadow_config.storage.label;
 }
 
 void storage_setLanguage(const char *lang)
@@ -563,14 +557,11 @@ void storage_setLanguage(const char *lang)
 
 const char *storage_getLanguage(void)
 {
-    if(shadow_config.storage.has_language)
-    {
-        return shadow_config.storage.language;
-    }
-    else
-    {
+    if (!shadow_config.storage.has_language) {
         return NULL;
     }
+
+    return shadow_config.storage.language;
 }
 
 bool storage_isPinCorrect(const char *pin)
@@ -789,14 +780,12 @@ const char *storage_getUuidStr(void)
 
 bool storage_getPassphraseProtected(void)
 {
-    if(shadow_config.storage.has_passphrase_protection)
-    {
-        return shadow_config.storage.passphrase_protection;
-    }
-    else
+    if (!shadow_config.storage.has_passphrase_protection)
     {
         return false;
     }
+
+    return shadow_config.storage.passphrase_protection;
 }
 
 void storage_setPassphraseProtected(bool passphrase)
@@ -869,19 +858,16 @@ Allocation storage_getLocation(void)
 
 bool storage_setPolicy(const PolicyType *policy)
 {
-    uint8_t i;
-    bool ret_val = false;
-
-    for(i = 0; i < POLICY_COUNT; ++i)
+    for (int i = 0; i < POLICY_COUNT; ++i)
     {
         if(strcmp(policy->policy_name, shadow_config.storage.policies[i].policy_name) == 0)
         {
             memcpy(&shadow_config.storage.policies[i], policy, sizeof(PolicyType));
-            ret_val = true;
+            return true;
         }
     }
 
-    return ret_val;
+    return false;
 }
 
 void storage_getPolicies(PolicyType *policy_data)
@@ -906,18 +892,14 @@ void storage_getPolicies(PolicyType *policy_data)
 
 bool storage_isPolicyEnabled(char *policy_name)
 {
-    uint8_t i;
-    bool ret_val = false;
-
-    for(i = 0; i < POLICY_COUNT; ++i)
+    for (int i = 0; i < POLICY_COUNT; ++i)
     {
         if(strcmp(policy_name, shadow_config.storage.policies[i].policy_name) == 0)
         {
-            ret_val = shadow_config.storage.policies[i].enabled;
+            return shadow_config.storage.policies[i].enabled;
         }
     }
-
-    return ret_val;
+    return false;
 }
 
 #if DEBUG_LINK
