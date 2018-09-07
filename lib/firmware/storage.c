@@ -99,10 +99,10 @@ static enum StorageVersion version_from_int(int version) {
 /// \brief Copy configuration from storage partition in flash memory to shadow
 /// memory in RAM
 /// \returns true iff successful.
-static bool storage_fromFlash(ConfigFlash *stor_config)
+static bool storage_fromFlash(ConfigFlash *dst, const ConfigFlash *src)
 {
     /* load config values from active config node */
-    enum StorageVersion version = version_from_int(stor_config->storage.version);
+    enum StorageVersion version = version_from_int(src->storage.version);
 
     // Don't restore storage in MFR firmware
     if (variant_isMFR())
@@ -111,11 +111,11 @@ static bool storage_fromFlash(ConfigFlash *stor_config)
     switch (version)
     {
         case StorageVersion_1:
-            memcpy(&shadow_config.meta, &stor_config->meta, sizeof(shadow_config.meta));
-            memcpy(&shadow_config.storage, &stor_config->storage, sizeof(shadow_config.storage));
-            storage_resetPolicies(&shadow_config);
-            storage_resetCache(&shadow_config);
-            shadow_config.storage.version = STORAGE_VERSION;
+            memcpy(&dst->meta, &src->meta, sizeof(dst->meta));
+            memcpy(&dst->storage, &src->storage, sizeof(dst->storage));
+            storage_resetPolicies(dst);
+            storage_resetCache(dst);
+            dst->storage.version = STORAGE_VERSION;
             return true;
 
         case StorageVersion_2:
@@ -127,19 +127,19 @@ static bool storage_fromFlash(ConfigFlash *stor_config)
         case StorageVersion_8:
         case StorageVersion_9:
         case StorageVersion_10:
-            memcpy(&shadow_config, stor_config, sizeof(shadow_config));
+            memcpy(&dst, src, sizeof(*dst));
 
             /* We have to do this for users with bootloaders <= v1.0.2. This
             scenario would only happen after a firmware install from the same
             storage version */
-            if(shadow_config.storage.policies_count == 0xFFFFFFFF)
+            if(dst->storage.policies_count == 0xFFFFFFFF)
             {
-                storage_resetPolicies(&shadow_config);
-                storage_resetCache(&shadow_config);
+                storage_resetPolicies(dst);
+                storage_resetCache(dst);
                 storage_commit();
             }
 
-            shadow_config.storage.version = STORAGE_VERSION;
+            dst->storage.version = STORAGE_VERSION;
             return true;
 
         case StorageVersion_NONE:
@@ -299,7 +299,7 @@ void storage_init(void)
         {
             if(stor_config->storage.version <= STORAGE_VERSION)
             {
-                storage_fromFlash(stor_config);
+                storage_fromFlash(&shadow_config, stor_config);
             }
         }
 
