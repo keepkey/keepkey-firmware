@@ -159,15 +159,7 @@ static bool storage_fromFlash(ConfigFlash *stor_config)
     return false;
 }
 
-/*
- * wear_leveling_shift() - Shifts sector for config storage
- *
- * INPUT
- *     none
- * OUTPUT
- *     none
- *
- */
+/// \brief Shifts sector for config storage
 static void wear_leveling_shift(void)
 {
     switch(storage_location)
@@ -199,17 +191,11 @@ static void wear_leveling_shift(void)
     }
 }
 
-/*
- * storage_setRootSeedCache() - Sets root session seed  in storage
- *
- * INPUT
- *     seed : source of root seed 
- *     curve : pointer to ecdsa cure being used
- *
- * OUTPUT
- *    none 
- *
- */
+/// \brief Set root session seed in storage.
+///
+/// \param cfg[in]    The active storage sector.
+/// \param seed[in]   Root seed to write into storage.
+/// \param curve[in]  ECDSA curve name being used.
 static void storage_setRootSeedCache(ConfigFlash *cfg, const uint8_t *seed, const char* curve)
 {
     if(!(cfg->storage.has_passphrase_protection &&
@@ -228,19 +214,14 @@ static void storage_setRootSeedCache(ConfigFlash *cfg, const uint8_t *seed, cons
     }
 }
 
-/*
- * storage_getRootSeedCache() - Gets root session seed cache from storage
- *
- * INPUT
- *    seed : destination seed pointer 
- *    curve : pointer to ecdsa cure being used
- *    usePassphrase : flag to use passphrase or not
- *
- * OUTPUT
- *    return status
- */
-static bool storage_getRootSeedCache(ConfigFlash *cfg, uint8_t *seed,
-                                     const char* curve, bool usePassphrase)
+/// \brief Get root session seed cache from storage.
+///
+/// \param cfg[in]   The active storage sector.
+/// \param curve[in] ECDSA curve name being used.
+/// \param seed[out] The root seed value.
+/// \returns true on success.
+static bool storage_getRootSeedCache(ConfigFlash *cfg, const char *curve,
+                                     bool usePassphrase, uint8_t *seed)
 {
     bool ret_stat = false;
 
@@ -268,16 +249,6 @@ storage_getRootSeedCache_exit:
     return(ret_stat);
 }
 
-/* === Functions =========================================================== */
-
-/*
- * storage_init() - Validate storage content and copy data to shadow memory
- *
- * INPUT
- *     none
- * OUTPUT
- *     none
- */
 void storage_init(void)
 {
     if (strcmp("MFR", variant_getName()) == 0)
@@ -349,15 +320,6 @@ void storage_init(void)
     }
 }
 
-/*
- * storage_resetUuid() - Reset configuration uuid in RAM with random numbers
- *
- * INPUT
- *     none
- * OUTPUT
- *     none
- *
- */
 void storage_resetUuid(void)
 {
     // set random uuid
@@ -366,17 +328,8 @@ void storage_resetUuid(void)
              shadow_config.meta.uuid_str);
 }
 
-/*
- * storage_reset() - Clear configuration in RAM
- *
- * INPUT
- *     none
- * OUTPUT
- *     none
- */
 void storage_reset(void)
 {
-    /* Reset storage and cache */
     memset(&shadow_config.storage, 0, sizeof(shadow_config.storage));
     memset(&shadow_config.cache, 0, sizeof(shadow_config.cache));
 
@@ -386,14 +339,6 @@ void storage_reset(void)
     session_clear(true); // clear PIN as well
 }
 
-/*
- * session_clear() - Reset session states
- *
- * INPUT
- *     - clear_pin: whether to clear pin or not
- * OUTPUT
- *     none
- */
 void session_clear(bool clear_pin)
 {
     sessionSeedCached = false;
@@ -408,15 +353,6 @@ void session_clear(bool clear_pin)
     }
 }
 
-/*
- * storage_commit() - Write content of configuration in shadow memory to
- * storage partion in flash
- *
- * INPUT
- *     none
- * OUTPUT
- *     none
- */
 void storage_commit(void)
 {
     // TODO: implemelnt storage on the emulator
@@ -534,14 +470,6 @@ void storage_dumpNode(HDNodeType *dst, const StorageHDNode *src) {
 #endif
 }
 
-/*
- * storage_loadDevice() - Load configuration data from usb message to shadow memory
- *
- * INPUT
- *     - msg: load device message
- * OUTPUT
- *     none
- */
 void storage_loadDevice(LoadDevice *msg)
 {
     storage_reset();
@@ -571,7 +499,7 @@ void storage_loadDevice(LoadDevice *msg)
         memcpy(&shadow_config.storage.node, &(msg->node), sizeof(HDNodeType));
 
         sessionSeedCached = false;
-		memset(&sessionSeed, 0, sizeof(sessionSeed));
+        memset(&sessionSeed, 0, sizeof(sessionSeed));
     }
     else if(msg->has_mnemonic)
     {
@@ -581,7 +509,7 @@ void storage_loadDevice(LoadDevice *msg)
                 sizeof(shadow_config.storage.mnemonic));
 
         sessionSeedCached = false;
-		memset(&sessionSeed, 0, sizeof(sessionSeed));
+        memset(&sessionSeed, 0, sizeof(sessionSeed));
     }
 
     if(msg->has_language)
@@ -595,14 +523,7 @@ void storage_loadDevice(LoadDevice *msg)
     }
 }
 
-/*
- * storage_setLabel() - Set device label
- *
- * INPUT
- *     - label: label to set
- * OUTPUT
- *     none
- */
+
 void storage_setLabel(const char *label)
 {
     if(!label) { return; }
@@ -613,15 +534,6 @@ void storage_setLabel(const char *label)
             sizeof(shadow_config.storage.label));
 }
 
-/*
- * storage_getLabel() - Get device's label
- *
- * INPUT
- *     none
- * OUTPUT
- *     device's label
- *
- */
 const char *storage_getLabel(void)
 {
     if(shadow_config.storage.has_label)
@@ -634,14 +546,6 @@ const char *storage_getLabel(void)
     }
 }
 
-/*
- * storage_setLanguage() - Set device language
- *
- * INPUT
- *     - lang: language to apply
- * OUTPUT
- *     none
- */
 void storage_setLanguage(const char *lang)
 {
     if(!lang) { return; }
@@ -657,14 +561,6 @@ void storage_setLanguage(const char *lang)
     }
 }
 
-/*
- * storage_getLanguage() - Get device's language
- *
- * INPUT
- *     none
- * OUTPUT
- *     device's language
- */
 const char *storage_getLanguage(void)
 {
     if(shadow_config.storage.has_language)
@@ -677,14 +573,6 @@ const char *storage_getLanguage(void)
     }
 }
 
-/*
- * storage_isPinCorrect() - Validates PIN
- *
- * INPUT
- *     - pin: PIN to validate
- * OUTPUT
- *     true/false whether PIN is correct
- */
 bool storage_isPinCorrect(const char *pin)
 {
     uint8_t pinIdx = 0;
@@ -700,8 +588,8 @@ bool storage_isPinCorrect(const char *pin)
     sumXors = 0;
     for (pinIdx=0; pinIdx<9; pinIdx++)
     {
-	    if (pin[pinIdx] == '\0') break;
-	    sumXors = sumXors + ( (uint8_t)shadow_config.storage.pin[pinIdx] ^ (uint8_t)pin[pinIdx] );
+        if (pin[pinIdx] == '\0') break;
+        sumXors = sumXors + ( (uint8_t)shadow_config.storage.pin[pinIdx] ^ (uint8_t)pin[pinIdx] );
     }
 
     result1 = ('\0' == shadow_config.storage.pin[pinIdx]);
@@ -712,34 +600,18 @@ bool storage_isPinCorrect(const char *pin)
     return (result == 3);
 }
 
-/*
- * storage_hasPin() - Determines whther device has PIN
- *
- * INPUT
- *     none
- * OUTPUT
- *     true/false whether device has a PIN
- */
 bool storage_hasPin(void)
 {
     return shadow_config.storage.has_pin && strlen(shadow_config.storage.pin) > 0;
 }
 
-/*
- * storage_setPin() - Save PIN
- *
- * INPUT
- *     - pin: PIN to save
- * OUTPUT
- *     none
- */
 void storage_setPin(const char *pin)
 {
     if(pin && strlen(pin) > 0)
     {
         shadow_config.storage.has_pin = true;
         strlcpy(shadow_config.storage.pin, pin, sizeof(shadow_config.storage.pin));
-        session_cache_pin(pin);
+        session_cachePin(pin);
     }
     else
     {
@@ -749,44 +621,17 @@ void storage_setPin(const char *pin)
     }
 }
 
-
-
-/*
- * session_cache_pin() - Save pin in session cache
- *
- * INPUT
- *     - pin: PIN to save to session cache
- * OUTPUT
- *     none
- */
-void session_cache_pin(const char *pin)
+void session_cachePin(const char *pin)
 {
     strlcpy(sessionPin, pin, sizeof(sessionPin));
     sessionPinCached = true;
 }
 
-/*
- * session_is_pin_cached() - Is PIN cached in session
- *
- * INPUT
- *     none
- * OUTPUT
- *     true/false whether PIN is cached in session
- *
- */
-bool session_is_pin_cached(void)
+bool session_isPinCached(void)
 {
     return sessionPinCached && strcmp(sessionPin, shadow_config.storage.pin) == 0;
 }
 
-/*
- * storage_resetPinFails() - Reset PIN failures
- *
- * INPUT
- *     none
- * OUTPUT
- *     none
- */
 void storage_resetPinFails(void)
 {
     shadow_config.storage.has_pin_failed_attempts = false;
@@ -795,14 +640,6 @@ void storage_resetPinFails(void)
     storage_commit();
 }
 
-/*
- * storage_increasePinFails() - Increment PIN failed attempts
- *
- * INPUT
- *     none
- * OUTPUT
- *     none
- */
 void storage_increasePinFails(void)
 {
     shadow_config.storage.has_pin_failed_attempts = true;
@@ -811,79 +648,49 @@ void storage_increasePinFails(void)
     storage_commit();
 }
 
-/*
- * storage_getPinFails() - Get number PIN failures
- *
- * INPUT
- *     none
- * OUTPOUT
- *     number of PIN failures
- */
 uint32_t storage_getPinFails(void)
 {
     return shadow_config.storage.has_pin_failed_attempts ?
            shadow_config.storage.pin_failed_attempts : 0;
 }
 
-/*
- * get_root_node_callback() - Calls animation callback
- *
- * INPUT
- *     - iter: current iteration
- *     - total: total iterations
- * OUTPUT
- *     none
- */
-void get_root_node_callback(uint32_t iter, uint32_t total)
+/// \brief Calls animation callback.
+/// \param iter Current iteration.
+/// \param total Total iterations.
+static void get_root_node_callback(uint32_t iter, uint32_t total)
 {
     (void)iter;
     (void)total;
     animating_progress_handler();
 }
 
-/*
- * storage_getSeed() - get user private seed
- *
- * INPUT
- *    usePassphrase: argument to use passphrase
- * OUTPUT
- *    sessionSeed - pointer to private seed (if no error)  
- */
-const uint8_t *storage_getSeed(ConfigFlash *cfg, bool usePassphrase)
+const uint8_t *storage_getSeed(const ConfigFlash *cfg, bool usePassphrase)
 {
-	// root node is properly cached
-	if (usePassphrase == sessionSeedUsesPassphrase
-		&& sessionSeedCached) {
-		return sessionSeed;
-	}
+    // root node is properly cached
+    if (usePassphrase == sessionSeedUsesPassphrase
+        && sessionSeedCached) {
+        return sessionSeed;
+    }
 
-	// if storage has mnemonic, convert it to node and use it
-	if (cfg->storage.has_mnemonic) {
-		if (usePassphrase && !passphrase_protect()) {
-			return NULL;
-		}
+    // if storage has mnemonic, convert it to node and use it
+    if (cfg->storage.has_mnemonic) {
+        if (usePassphrase && !passphrase_protect()) {
+            return NULL;
+        }
 
-		layout_loading();
-		mnemonic_to_seed(cfg->storage.mnemonic,
-		                 usePassphrase ? sessionPassphrase : "",
-		                 sessionSeed, get_root_node_callback); // BIP-0039
-		sessionSeedCached = true;
-		sessionSeedUsesPassphrase = usePassphrase;
-		return sessionSeed;
-	}
+        layout_loading();
+        mnemonic_to_seed(cfg->storage.mnemonic,
+                         usePassphrase ? sessionPassphrase : "",
+                         sessionSeed, get_root_node_callback); // BIP-0039
+        sessionSeedCached = true;
+        sessionSeedUsesPassphrase = usePassphrase;
+        return sessionSeed;
+    }
 
-	return NULL;
+    return NULL;
 }
 
-/*
- * storage_getRootNode() - Returns root node of device
- *
- * INPUT
- *     - node: where to put the node that is found
- * OUTPUT
- *     true/false whether root node was found
- */
-bool storage_getRootNode(HDNode *node, const char *curve, bool usePassphrase)
+bool storage_getRootNode(const char *curve, bool usePassphrase, HDNode *node)
 {
     bool ret_stat = false;
 
@@ -942,7 +749,7 @@ bool storage_getRootNode(HDNode *node, const char *curve, bool usePassphrase)
         if(!sessionSeedCached)
         {
 
-            sessionSeedCached = storage_getRootSeedCache(&shadow_config, sessionSeed, curve, usePassphrase);
+            sessionSeedCached = storage_getRootSeedCache(&shadow_config, curve, usePassphrase, sessionSeed);
 
             if(!sessionSeedCached)
             {
@@ -970,43 +777,16 @@ storage_getRootNode_exit:
     return ret_stat;
 }
 
-/*
- * storage_isInitialized() - Is device initialized?
- *
- * INPUT
- *     none
- * OUTPUT
- *     true/false wether device is initialized
- *
- *
- */
 bool storage_isInitialized(void)
 {
     return shadow_config.storage.has_node || shadow_config.storage.has_mnemonic;
 }
 
-/*
- * storage_getUuidStr() - Get device's UUID
- *
- * INPUT
- *     none
- * OUTPUT
- *     device's UUID
- */
 const char *storage_getUuidStr(void)
 {
     return shadow_config.meta.uuid_str;
 }
 
-/*
- * storage_getPassphraseProtected() - Get passphrase protection status
- *
- * INPUT
- *     none
- * OUTPUT
- *     true/false whether device is passphrase protected
- *
- */
 bool storage_getPassphraseProtected(void)
 {
     if(shadow_config.storage.has_passphrase_protection)
@@ -1019,59 +799,25 @@ bool storage_getPassphraseProtected(void)
     }
 }
 
-/*
- * storage_setPassphraseProtected() - Set passphrase protection
- *
- * INPUT
- *     - p: state of passphrase protection to set
- * OUTPUT
- *     none
- *
- */
 void storage_setPassphraseProtected(bool passphrase)
 {
     shadow_config.storage.has_passphrase_protection = true;
     shadow_config.storage.passphrase_protection = passphrase;
 }
 
-/*
- * session_cachePassphrase() - Set session passphrase
- *
- * INPUT
- *     - passphrase: passphrase to set for session
- * OUTPUT
- *     none
- */
-void session_cache_passphrase(const char *passphrase)
+void session_cachePassphrase(const char *passphrase)
 {
     strlcpy(sessionPassphrase, passphrase, sizeof(sessionPassphrase));
     sessionPassphraseCached = true;
 }
 
-/*
- * session_isPassphraseCached() - Returns whether there is a cached passphrase
- *
- * INPUT
- *     none
- * OUTPUT
- *     true/false session passphrase cache status
- */
-bool session_is_passphrase_cached(void)
+bool session_isPassphraseCached(void)
 {
     return sessionPassphraseCached;
 }
 
-/*
- * storage_setMnemonicFromWords() - Set config mnemonic in shadow memory from words
- *
- * INPUT
- *     - words: mnemonic
- *     - word_count: how words in mnemonic
- * OUTPUT
- *     none
- */
 void storage_setMnemonicFromWords(const char (*words)[12],
-                                     unsigned int word_count)
+                                  unsigned int word_count)
 {
     strlcpy(shadow_config.storage.mnemonic, words[0],
             sizeof(shadow_config.storage.mnemonic));
@@ -1087,15 +833,6 @@ void storage_setMnemonicFromWords(const char (*words)[12],
     shadow_config.storage.has_mnemonic = true;
 }
 
-/*
- * storage_setMnemonic() - Set config mnemonic in shadow memory
- *
- * INPUT
- *     - m: mnemonic to set in shadow memory
- * OUTPUT
- *     none
- *
- */
 void storage_setMnemonic(const char *m)
 {
     memset(shadow_config.storage.mnemonic, 0,
@@ -1105,83 +842,32 @@ void storage_setMnemonic(const char *m)
     shadow_config.storage.has_mnemonic = true;
 }
 
-/*
- * storage_hasMnemonic() - Does device have mnemonic?
- *
- * INPUT
- *     none
- * OUTPUT
- *     true/false whether device has mnemonic
- *
- */
 bool storage_hasMnemonic(void)
 {
     return shadow_config.storage.has_mnemonic;
 }
 
-
-/*
- * storage_getShadowMnemonic() - Get mnemonic from shadow memory
- *
- * INPUT
- *     none
- * OUTPUT
- *     mnemonic from shadow memory
- */
 const char *storage_getShadowMnemonic(void)
 {
     return shadow_config.storage.mnemonic;
 }
 
-/*
- * storage_getImported() - Whether private key stored on device was imported
- *
- * INPUT
- *     none
- * OUTPUT
- *     true/false whether private key was imported
- */
 bool storage_getImported(void)
 {
     return shadow_config.storage.has_imported && shadow_config.storage.imported;
 }
 
-/*
- * storage_hasNode() - Does device have an HDNode
- *
- * INPUT
- *     none
- * OUTPUT
- *     true/false whether device has HDNode
- */
 bool storage_hasNode(void)
 {
     return shadow_config.storage.has_node;
 }
 
-/*
- * get_storage_location() - Get storage data start address
- *
- * INPUT -
- *      none
- * OUTPUT -
- *      none
- *
- */
-Allocation get_storage_location(void)
+Allocation storage_getLocation(void)
 {
-    return(storage_location);
+    return storage_location;
 }
 
-/*
- * storage_setPolicy() - Set policy
- *
- * INPUT
- *     policy: policy data
- * OUTPUT
- *     none
- */
-bool storage_setPolicy(PolicyType *policy)
+bool storage_setPolicy(const PolicyType *policy)
 {
     uint8_t i;
     bool ret_val = false;
@@ -1198,14 +884,6 @@ bool storage_setPolicy(PolicyType *policy)
     return ret_val;
 }
 
-/*
- * storage_getPolicies() - Copies policies
- *
- * INPUT
- *     policies: where to copy policies to
- * OUTPUT
- *     none
- */
 void storage_getPolicies(PolicyType *policy_data)
 {
     for (size_t i = 0; i < POLICY_COUNT; ++i) {
@@ -1226,14 +904,6 @@ void storage_getPolicies(PolicyType *policy_data)
     }
 }
 
-/*
- * storage_isPolicyEnabled() - Status of policy in storage
- *
- * INPUT
- *     policy_name: name of policy to check
- * OUTPUT
- *     none
- */
 bool storage_isPolicyEnabled(char *policy_name)
 {
     uint8_t i;
@@ -1250,46 +920,19 @@ bool storage_isPolicyEnabled(char *policy_name)
     return ret_val;
 }
 
-/* === Debug Functions =========================================================== */
 #if DEBUG_LINK
-/*
- * storage_getPin() - Returns PIN
- *
- * INPUT
- *     none
- * OUTPUT
- *     device's PIN
- */
 const char *storage_getPin(void)
 {
     return (shadow_config.storage.has_pin) ? shadow_config.storage.pin : NULL;
 }
 
-/*
- * storage_getMnemonic() - Get mnemonic from flash
- *
- * INPUT
- *     none
- * OUTPUT
- *     mnemonic from storage
- *
- */
 const char *storage_getMnemonic(void)
 {
     return shadow_config.storage.mnemonic;
 }
 
-/*
- * storage_getNode() - Get HDNode
- *
- * INPUT
- *     none
- * OUTPUT
- *     HDNode from storage
- */
 StorageHDNode *storage_getNode(void)
 {
     return &shadow_config.storage.node;
 }
-
 #endif
