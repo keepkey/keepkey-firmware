@@ -26,24 +26,18 @@
 #include <stdint.h>
 #include <assert.h>
 
+extern usb_rx_callback_t user_rx_callback;
+
+#if DEBUG_LINK
+extern usb_rx_callback_t user_debug_rx_callback;
+#endif
+
 static volatile char tiny = 0;
 
 bool usb_init(void) {
 	emulatorSocketInit();
 	return true;
 }
-
-static usb_rx_callback_t user_rx_callback = 0;
-void usb_set_rx_callback(usb_rx_callback_t callback) {
-	user_rx_callback = callback;
-}
-
-#if DEBUG_LINK
-static usb_rx_callback_t user_debug_rx_callback = 0;
-void usb_set_debug_rx_callback(usb_rx_callback_t callback) {
-	user_debug_rx_callback = callback;
-}
-#endif
 
 void usb_poll(void) {
 	emulatorPoll();
