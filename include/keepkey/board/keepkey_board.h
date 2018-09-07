@@ -85,7 +85,7 @@ typedef struct
 }Cache;
 
 /* Config flash overlay structure.  */
-typedef struct
+typedef struct _ConfigFlash
 {
     Metadata meta;
     Storage storage;

@@ -27,6 +27,8 @@
 #define STORAGE_VERSION 10 /* Must add case fallthrough in storage_fromFlash after increment*/
 #define STORAGE_RETRIES 3
 
+typedef struct _ConfigFlash ConfigFlash;
+
 typedef struct _HDNodeType HDNodeType;
 typedef struct _LoadDevice LoadDevice;
 typedef struct _PolicyType PolicyType;
@@ -44,7 +46,7 @@ void storage_commit(void);
 void storage_dumpNode(HDNodeType *dst, const StorageHDNode *src);
 void storage_loadDevice(LoadDevice *msg);
 
-const uint8_t *storage_getSeed(bool usePassphrase);
+const uint8_t *storage_getSeed(ConfigFlash *cfg, bool usePassphrase);
 bool storage_getRootNode(HDNode *node, const char *curve, bool usePassphrase);
 
 void storage_setLabel(const char *label);
