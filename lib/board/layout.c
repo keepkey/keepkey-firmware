@@ -598,7 +598,7 @@ bool is_animating(void)
     }
     else
     {
-        return true;
+        return animate_flag;
     }
 }
 
