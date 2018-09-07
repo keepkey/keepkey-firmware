@@ -58,7 +58,8 @@ static char CONFIDENTIAL sessionPassphrase[51];
 static Allocation storage_location = FLASH_INVALID;
 
 /* Shadow memory for configuration data in storage partition */
-_Static_assert(sizeof(ConfigFlash) <= FLASH_STORAGE_LEN, "ConfigFlash struct is too large for storage partition");
+_Static_assert(sizeof(ConfigFlash) <= FLASH_STORAGE_LEN,
+               "ConfigFlash struct is too large for storage partition");
 static ConfigFlash CONFIDENTIAL shadow_config;
 
 /// \brief Reset Policies
@@ -239,6 +240,8 @@ static bool storage_getRootSeedCache(ConfigFlash *cfg, const char *curve,
             memset(seed, 0, sizeof(sessionSeed));
             memcpy(seed, &cfg->cache.root_seed_cache,
                    sizeof(cfg->cache.root_seed_cache));
+            _Static_assert(sizeof(sessionSeed) == sizeof(cfg->cache.root_seed_cache),
+                           "size mismatch");
             return true;
         }
     }
