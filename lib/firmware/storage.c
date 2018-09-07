@@ -271,51 +271,40 @@ void storage_init(void)
             flash_erase_word(FLASH_STORAGE3);
     }
 
-    ConfigFlash *stor_config;
-
-    /* Find storage sector with valid data and set storage_location variable */
-    if(find_active_storage(&storage_location))
-    {
-        stor_config = (ConfigFlash *)flash_write_helper(storage_location);
-    }
-    else
-    {
-        /* Set to storage sector1 as default if no sector has been initialized */
+    // Find storage sector with valid data and set storage_location variable.
+    if (!find_active_storage(&storage_location)) {
+        // Otherwise initialize it to the default sector.
         storage_location = STORAGE_SECT_DEFAULT;
-        stor_config = (ConfigFlash *)flash_write_helper(storage_location);
     }
+    ConfigFlash *stor_config = (ConfigFlash *)flash_write_helper(storage_location);
 
     /* Reset shadow configuration in RAM */
     storage_reset();
 
-    /* Verify storage partition is initialized */
-    if(memcmp((void *)stor_config->meta.magic , STORAGE_MAGIC_STR,
-              STORAGE_MAGIC_LEN) == 0)
-    {
-        /* Clear out stor_config before finding end config node */
-        memcpy(shadow_config.meta.uuid, (void *)&stor_config->meta.uuid,
-               sizeof(shadow_config.meta.uuid));
-        data2hex(shadow_config.meta.uuid, sizeof(shadow_config.meta.uuid),
-                 shadow_config.meta.uuid_str);
+    // Check if the storage partition is uninitialized
+    if(memcmp((void *)stor_config->meta.magic, STORAGE_MAGIC_STR,
+              STORAGE_MAGIC_LEN) != 0) {
+        // If so, keep the storage area cleared
+        storage_resetUuid();
+        storage_commit();
+        return;
+    }
 
-        if(stor_config->storage.version)
-        {
-            if(stor_config->storage.version <= STORAGE_VERSION)
-            {
-                storage_fromFlash(&shadow_config, stor_config);
-            }
-        }
+    // Otherwise clear out stor_config before looking for end config node.
+    memcpy(shadow_config.meta.uuid, (void *)&stor_config->meta.uuid,
+           sizeof(shadow_config.meta.uuid));
+    data2hex(shadow_config.meta.uuid, sizeof(shadow_config.meta.uuid),
+             shadow_config.meta.uuid_str);
 
-        /* New app with storage version changed!  update the storage space */
-        if(stor_config->storage.version != STORAGE_VERSION)
-        {
-            storage_commit();
+    if (stor_config->storage.version) {
+        if (stor_config->storage.version <= STORAGE_VERSION) {
+            storage_fromFlash(&shadow_config, stor_config);
         }
     }
-    else
-    {
-        /* Keep storage area cleared */
-        storage_resetUuid();
+
+    // If the version changed, write the new storage to flash so that it's
+    // available on next boot without conversion.
+    if (stor_config->storage.version != STORAGE_VERSION) {
         storage_commit();
     }
 }
