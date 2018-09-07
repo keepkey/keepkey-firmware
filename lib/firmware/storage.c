@@ -62,14 +62,14 @@ _Static_assert(sizeof(ConfigFlash) <= FLASH_STORAGE_LEN, "ConfigFlash struct is 
 static ConfigFlash CONFIDENTIAL shadow_config;
 
 /// \brief Reset Policies
-static void storage_resetPolicies(ConfigFlash *cfg)
+void storage_resetPolicies(ConfigFlash *cfg)
 {
     cfg->storage.policies_count = POLICY_COUNT;
     memcpy(&cfg->storage.policies, policies, POLICY_COUNT * sizeof(PolicyType));
 }
 
 /// \brief Reset Cache
-static void storage_resetCache(ConfigFlash *cfg)
+void storage_resetCache(ConfigFlash *cfg)
 {
     memset(&cfg->cache, 0, sizeof(cfg->cache));
 }

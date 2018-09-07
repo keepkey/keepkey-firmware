@@ -134,6 +134,9 @@ void storage_getPolicies(PolicyType *policies);
 /// \brief Status of policy in storage
 bool storage_isPolicyEnabled(char *policy_name);
 
+void storage_resetPolicies(ConfigFlash *cfg);
+void storage_resetCache(ConfigFlash *cfg);
+
 #ifdef DEBUG_LINK
 const char *storage_getPin(void);
 const char *storage_getMnemonic(void);

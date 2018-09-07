@@ -1,10 +1,14 @@
 extern "C" {
 #include "keepkey/firmware/storage.h"
+#include "keepkey/firmware/policy.h"
 #include "keepkey/board/keepkey_board.h"
 #include "types.pb.h"
 }
 
 #include "gtest/gtest.h"
+
+#include <cstring>
+#include <string>
 
 TEST(Storage, StorageUpgrade) {
     static const uint8_t config_5_buffer[] = {
@@ -127,4 +131,40 @@ TEST(Storage, DumpNode) {
     EXPECT_EQ(dst.public_key.size, 0);
     EXPECT_EQ(dst.public_key.bytes[0], 0);
 #endif
+}
+
+static void check_policyIsSame(const StoragePolicy *sp, const PolicyType *p) {
+    EXPECT_EQ(sp->has_policy_name, p->has_policy_name);
+
+    if (sp->has_policy_name) {
+        EXPECT_EQ(std::string(sp->policy_name), std::string(p->policy_name));
+    }
+
+    EXPECT_EQ(sp->has_enabled, p->has_enabled);
+    EXPECT_EQ(sp->enabled, p->enabled);
+}
+
+TEST(Storage, ResetPolicies) {
+    ConfigFlash cfg;
+    memset(&cfg, 0xCC, sizeof(cfg));
+
+    storage_resetPolicies(&cfg);
+
+    EXPECT_EQ(cfg.storage.policies_count, POLICY_COUNT);
+
+    for (int i = 0; i < POLICY_COUNT; ++i) {
+        check_policyIsSame(&cfg.storage.policies[i], &policies[i]);
+    }
+}
+
+TEST(Storage, ResetCache) {
+    ConfigFlash cfg;
+    memset(&cfg, 0xCC, sizeof(cfg));
+
+    storage_resetCache(&cfg);
+
+    char cache[sizeof(cfg.cache)];
+    memset(&cache[0], 0, sizeof(cache));
+
+    EXPECT_EQ(memcmp(&cache, &cfg.cache, sizeof(cache)), 0);
 }
