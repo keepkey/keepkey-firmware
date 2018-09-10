@@ -40,11 +40,13 @@ typedef struct _StoragePolicy StoragePolicy;
 /// \brief Validate storage content and copy data to shadow memory.
 void storage_init(void);
 
-/// \brief Reset configuration uuid in RAM with random numbers.
+/// \brief Reset configuration UUID with random numbers.
 void storage_resetUuid(void);
+void storage_resetUuid_impl(ConfigFlash *cfg);
 
-/// \brief Clear configuration in RAM.
+/// \brief Clear configuration.
 void storage_reset(void);
+void storage_reset_impl(ConfigFlash *cfg);
 
 /// \brief Reset session states
 /// \param clear_pin  Whether to clear the session pin.
@@ -53,6 +55,7 @@ void session_clear(bool clear_pin);
 /// \brief Write content of configuration in shadow memory to storage partion
 ///        in flash.
 void storage_commit(void);
+void storage_commit_impl(ConfigFlash *cfg);
 
 void storage_dumpNode(HDNodeType *dst, const StorageHDNode *src);
 

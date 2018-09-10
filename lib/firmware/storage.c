@@ -279,14 +279,14 @@ void storage_init(void)
     ConfigFlash *stor_config = (ConfigFlash *)flash_write_helper(storage_location);
 
     /* Reset shadow configuration in RAM */
-    storage_reset();
+    storage_reset_impl(&shadow_config);
 
     // Check if the storage partition is uninitialized
     if(memcmp((void *)stor_config->meta.magic, STORAGE_MAGIC_STR,
               STORAGE_MAGIC_LEN) != 0) {
         // If so, keep the storage area cleared
-        storage_resetUuid();
-        storage_commit();
+        storage_resetUuid_impl(&shadow_config);
+        storage_commit_impl(&shadow_config);
         return;
     }
 
@@ -305,26 +305,35 @@ void storage_init(void)
     // If the version changed, write the new storage to flash so that it's
     // available on next boot without conversion.
     if (stor_config->storage.version != STORAGE_VERSION) {
-        storage_commit();
+        storage_commit_impl(&shadow_config);
     }
 }
 
 void storage_resetUuid(void)
 {
+    storage_resetUuid_impl(&shadow_config);
+}
+
+void storage_resetUuid_impl(ConfigFlash *cfg)
+{
     // set random uuid
-    random_buffer(shadow_config.meta.uuid, sizeof(shadow_config.meta.uuid));
-    data2hex(shadow_config.meta.uuid, sizeof(shadow_config.meta.uuid),
-             shadow_config.meta.uuid_str);
+    random_buffer(cfg->meta.uuid, sizeof(cfg->meta.uuid));
+    data2hex(cfg->meta.uuid, sizeof(cfg->meta.uuid), cfg->meta.uuid_str);
 }
 
 void storage_reset(void)
 {
-    memset(&shadow_config.storage, 0, sizeof(shadow_config.storage));
-    memset(&shadow_config.cache, 0, sizeof(shadow_config.cache));
+    storage_reset_impl(&shadow_config);
+}
 
-    storage_resetPolicies(&shadow_config);
+void storage_reset_impl(ConfigFlash *cfg)
+{
+    memset(&cfg->storage, 0, sizeof(cfg->storage));
+    memset(&cfg->cache, 0, sizeof(cfg->cache));
 
-    shadow_config.storage.version = STORAGE_VERSION;
+    storage_resetPolicies(cfg);
+
+    cfg->storage.version = STORAGE_VERSION;
     session_clear(true); // clear PIN as well
 }
 
@@ -342,34 +351,37 @@ void session_clear(bool clear_pin)
     }
 }
 
-void storage_commit(void)
+void storage_commit(void) {
+    storage_commit_impl(&shadow_config);
+}
+
+void storage_commit_impl(ConfigFlash *cfg)
 {
     // TODO: implemelnt storage on the emulator
 #ifndef EMULATOR
-    uint32_t shadow_ram_crc32, shadow_flash_crc32, retries;
+    memcpy(cfg, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
 
-    memcpy((void *)&shadow_config, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
-
-    for(retries = 0; retries < STORAGE_RETRIES; retries++)
+    uint32_t retries = 0;
+    for (retries = 0; retries < STORAGE_RETRIES; retries++)
     {
         /* Capture CRC for verification at restore */
-        shadow_ram_crc32 = calc_crc32((uint32_t *)&shadow_config,
-                                      sizeof(shadow_config) / sizeof(uint32_t));
+        uint32_t shadow_ram_crc32 =
+            calc_crc32((uint32_t *)cfg, sizeof(*cfg) / sizeof(uint32_t));
 
-        if(shadow_ram_crc32 == 0)
+        if (shadow_ram_crc32 == 0)
         {
             continue; /* Retry */
         }
 
         /* Make sure flash is in good state before proceeding */
-        if(!flash_chk_status())
+        if (!flash_chk_status())
         {
             flash_clear_status_flags();
             continue; /* Retry */
         }
 
         /* Make sure storage sector is valid before proceeding */
-        if(storage_location < FLASH_STORAGE1 && storage_location > FLASH_STORAGE3)
+        if (storage_location < FLASH_STORAGE1 && storage_location > FLASH_STORAGE3)
         {
             /* Let it exhaust the retries and error out */
             continue;
@@ -383,12 +395,12 @@ void storage_commit(void)
         flash_erase_word(storage_location);
 
         /* Load storage data first before loading storage magic  */
-        if(flash_write_word(storage_location, STORAGE_MAGIC_LEN,
-                            sizeof(shadow_config) - STORAGE_MAGIC_LEN,
-                            (uint8_t *)&shadow_config + STORAGE_MAGIC_LEN))
+        if (flash_write_word(storage_location, STORAGE_MAGIC_LEN,
+                             sizeof(*cfg) - STORAGE_MAGIC_LEN,
+                             (uint8_t *)cfg + STORAGE_MAGIC_LEN))
         {
-            if(!flash_write_word(storage_location, 0, STORAGE_MAGIC_LEN,
-                                 (uint8_t *)&shadow_config))
+            if (!flash_write_word(storage_location, 0, STORAGE_MAGIC_LEN,
+                                  (uint8_t *)cfg))
             {
                 continue; /* Retry */
             }
@@ -399,11 +411,11 @@ void storage_commit(void)
         }
 
         /* Flash write completed successfully.  Verify CRC */
-        shadow_flash_crc32 = calc_crc32((uint32_t *)flash_write_helper(
-                                            storage_location),
-                                        sizeof(shadow_config) / sizeof(uint32_t));
+        uint32_t shadow_flash_crc32 =
+            calc_crc32((uint32_t *)flash_write_helper(storage_location),
+                       sizeof(*cfg) / sizeof(uint32_t));
 
-        if(shadow_flash_crc32 == shadow_ram_crc32)
+        if (shadow_flash_crc32 == shadow_ram_crc32)
         {
             /* Commit successful, break to exit */
             break;
@@ -461,7 +473,7 @@ void storage_dumpNode(HDNodeType *dst, const StorageHDNode *src) {
 
 void storage_loadDevice(LoadDevice *msg)
 {
-    storage_reset();
+    storage_reset_impl(&shadow_config);
 
     shadow_config.storage.has_imported = true;
     shadow_config.storage.imported = true;
@@ -620,7 +632,7 @@ void storage_resetPinFails(void)
     shadow_config.storage.has_pin_failed_attempts = false;
     shadow_config.storage.pin_failed_attempts = 0;
 
-    storage_commit();
+    storage_commit_impl(&shadow_config);
 }
 
 void storage_increasePinFails(void)
@@ -628,7 +640,7 @@ void storage_increasePinFails(void)
     shadow_config.storage.has_pin_failed_attempts = true;
     shadow_config.storage.pin_failed_attempts++;
 
-    storage_commit();
+    storage_commit_impl(&shadow_config);
 }
 
 uint32_t storage_getPinFails(void)
@@ -850,7 +862,7 @@ Allocation storage_getLocation(void)
 
 bool storage_setPolicy(const PolicyType *policy)
 {
-    for (int i = 0; i < POLICY_COUNT; ++i)
+    for (unsigned i = 0; i < POLICY_COUNT; ++i)
     {
         if(strcmp(policy->policy_name, shadow_config.storage.policies[i].policy_name) == 0)
         {
@@ -884,7 +896,7 @@ void storage_getPolicies(PolicyType *policy_data)
 
 bool storage_isPolicyEnabled(char *policy_name)
 {
-    for (int i = 0; i < POLICY_COUNT; ++i)
+    for (unsigned i = 0; i < POLICY_COUNT; ++i)
     {
         if(strcmp(policy_name, shadow_config.storage.policies[i].policy_name) == 0)
         {
