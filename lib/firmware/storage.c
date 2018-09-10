@@ -97,10 +97,16 @@ static enum StorageVersion version_from_int(int version) {
     }
 }
 
+typedef enum {
+   SUS_Invalid,
+   SUS_Valid,
+   SUS_Updated,
+} StorageUpdateStatus;
+
 /// \brief Copy configuration from storage partition in flash memory to shadow
 /// memory in RAM
 /// \returns true iff successful.
-static bool storage_fromFlash(ConfigFlash *dst, const ConfigFlash *src)
+static StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const ConfigFlash *src)
 {
     /* load config values from active config node */
     enum StorageVersion version = version_from_int(src->storage.version);
@@ -117,7 +123,7 @@ static bool storage_fromFlash(ConfigFlash *dst, const ConfigFlash *src)
             storage_resetPolicies(dst);
             storage_resetCache(dst);
             dst->storage.version = STORAGE_VERSION;
-            return true;
+            return SUS_Updated;
 
         case StorageVersion_2:
         case StorageVersion_3:
@@ -130,21 +136,24 @@ static bool storage_fromFlash(ConfigFlash *dst, const ConfigFlash *src)
         case StorageVersion_10:
             memcpy(&dst, src, sizeof(*dst));
 
+            dst->storage.version = STORAGE_VERSION;
+
             /* We have to do this for users with bootloaders <= v1.0.2. This
             scenario would only happen after a firmware install from the same
             storage version */
-            if(dst->storage.policies_count == 0xFFFFFFFF)
+            if (dst->storage.policies_count == 0xFFFFFFFF)
             {
                 storage_resetPolicies(dst);
                 storage_resetCache(dst);
-                storage_commit();
+                return SUS_Updated;
             }
 
-            dst->storage.version = STORAGE_VERSION;
-            return true;
+            return dst->storage.version == src->storage.version
+                ? SUS_Valid
+                : SUS_Updated;
 
         case StorageVersion_NONE:
-            return false;
+            return SUS_Invalid;
 
         // DO *NOT* add a default case
     }
@@ -157,7 +166,7 @@ static bool storage_fromFlash(ConfigFlash *dst, const ConfigFlash *src)
      __builtin_unreachable();
 #endif
 
-    return false;
+    return SUS_Invalid;
 }
 
 /// \brief Shifts sector for config storage
@@ -285,8 +294,8 @@ void storage_init(void)
     if(memcmp((void *)stor_config->meta.magic, STORAGE_MAGIC_STR,
               STORAGE_MAGIC_LEN) != 0) {
         // If so, keep the storage area cleared
-        storage_resetUuid_impl(&shadow_config);
-        storage_commit_impl(&shadow_config);
+        storage_resetUuid();
+        storage_commit();
         return;
     }
 
@@ -296,16 +305,19 @@ void storage_init(void)
     data2hex(shadow_config.meta.uuid, sizeof(shadow_config.meta.uuid),
              shadow_config.meta.uuid_str);
 
-    if (stor_config->storage.version) {
-        if (stor_config->storage.version <= STORAGE_VERSION) {
-            storage_fromFlash(&shadow_config, stor_config);
-        }
-    }
-
-    // If the version changed, write the new storage to flash so that it's
-    // available on next boot without conversion.
-    if (stor_config->storage.version != STORAGE_VERSION) {
-        storage_commit_impl(&shadow_config);
+    // Load storage from flash, and update it if necessary.
+    switch (storage_fromFlash(&shadow_config, stor_config)) {
+    case SUS_Invalid:
+        storage_reset();
+        storage_commit();
+        break;
+    case SUS_Valid:
+        break;
+    case SUS_Updated:
+        // If the version changed, write the new storage to flash so
+        // that it's available on next boot without conversion.
+        storage_commit();
+        break;
     }
 }
 
