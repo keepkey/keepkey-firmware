@@ -94,7 +94,7 @@ void board_reset(void);
 void board_init(void);
 
 void __stack_chk_fail(void) __attribute__((noreturn));
-uint32_t calc_crc32(uint32_t *data, int word_len);
+uint32_t calc_crc32(const void *data, int word_len);
 
 void __attribute__((noreturn)) shutdown(void);
 void memset_reg(void *start, void *stop, uint32_t val);

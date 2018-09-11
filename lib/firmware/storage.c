@@ -303,7 +303,7 @@ static StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash
     {
         case StorageVersion_1:
             storage_readMeta(&dst->meta, flash);
-            storage_readStorageV1(&dst->storage, flash + 48);
+            storage_readStorageV1(&dst->storage, flash + 44);
             storage_resetPolicies(dst);
             storage_resetCache(dst);
             dst->storage.version = STORAGE_VERSION;
@@ -319,8 +319,8 @@ static StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash
         case StorageVersion_9:
         case StorageVersion_10:
             storage_readMeta(&dst->meta, flash);
-            storage_readStorageV1(&dst->storage, flash + 48);
-            storage_readCacheV1(&dst->cache, flash);
+            storage_readStorageV1(&dst->storage, flash + 44);
+            storage_readCacheV1(&dst->cache, flash + 528);
 
             dst->storage.version = STORAGE_VERSION;
 
@@ -561,13 +561,22 @@ void storage_commit_impl(ConfigFlash *cfg)
 {
     // TODO: implemelnt storage on the emulator
 #ifndef EMULATOR
+    static CONFIDENTIAL char to_write[sizeof(ConfigFlash)];
+    memzero(to_write, sizeof(to_write));
+
+    storage_writeMeta(to_write, &cfg->meta);
+    storage_writeStorageV1(to_write + 44, &cfg->storage);
+    _Static_assert(offsetof(ConfigFlash, storage) == 44, "storage");
+    storage_writeCacheV1(to_write + 528, &cfg->cache);
+    _Static_assert(offsetof(ConfigFlash, cache) == 528, "cache");
+
     memcpy(cfg, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
 
     uint32_t retries = 0;
     for (retries = 0; retries < STORAGE_RETRIES; retries++) {
         /* Capture CRC for verification at restore */
         uint32_t shadow_ram_crc32 =
-            calc_crc32((uint32_t *)cfg, sizeof(*cfg) / sizeof(uint32_t));
+            calc_crc32(to_write, sizeof(to_write) / sizeof(uint32_t));
 
         if (shadow_ram_crc32 == 0) {
             continue; /* Retry */
@@ -588,26 +597,24 @@ void storage_commit_impl(ConfigFlash *cfg)
         flash_unlock();
         flash_erase_word(storage_location);
         wear_leveling_shift();
-
-
         flash_erase_word(storage_location);
 
-        /* Load storage data first before loading storage magic  */
+        /* Write storage data first before writing storage magic  */
         if (!flash_write_word(storage_location, STORAGE_MAGIC_LEN,
-                              sizeof(*cfg) - STORAGE_MAGIC_LEN,
-                              (uint8_t *)cfg + STORAGE_MAGIC_LEN)) {
+                              sizeof(to_write) - STORAGE_MAGIC_LEN,
+                              (uint8_t *)to_write + STORAGE_MAGIC_LEN)) {
             continue; // Retry
         }
 
         if (!flash_write_word(storage_location, 0, STORAGE_MAGIC_LEN,
-                              (uint8_t *)cfg)) {
+                              (uint8_t *)to_write)) {
             continue; // Retry
         }
 
         /* Flash write completed successfully.  Verify CRC */
         uint32_t shadow_flash_crc32 =
-            calc_crc32((uint32_t *)flash_write_helper(storage_location),
-                       sizeof(*cfg) / sizeof(uint32_t));
+            calc_crc32((const void*)flash_write_helper(storage_location),
+                       sizeof(to_write) / sizeof(uint32_t));
 
         if (shadow_flash_crc32 == shadow_ram_crc32) {
             /* Commit successful, break to exit */
@@ -616,6 +623,8 @@ void storage_commit_impl(ConfigFlash *cfg)
     }
 
     flash_lock();
+
+    memzero(to_write, sizeof(to_write));
 
     if(retries >= STORAGE_RETRIES) {
         layout_warning_static("Error Detected.  Reboot Device!");
