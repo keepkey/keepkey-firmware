@@ -550,27 +550,23 @@ void storage_commit_impl(ConfigFlash *cfg)
     memcpy(cfg, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
 
     uint32_t retries = 0;
-    for (retries = 0; retries < STORAGE_RETRIES; retries++)
-    {
+    for (retries = 0; retries < STORAGE_RETRIES; retries++) {
         /* Capture CRC for verification at restore */
         uint32_t shadow_ram_crc32 =
             calc_crc32((uint32_t *)cfg, sizeof(*cfg) / sizeof(uint32_t));
 
-        if (shadow_ram_crc32 == 0)
-        {
+        if (shadow_ram_crc32 == 0) {
             continue; /* Retry */
         }
 
         /* Make sure flash is in good state before proceeding */
-        if (!flash_chk_status())
-        {
+        if (!flash_chk_status()) {
             flash_clear_status_flags();
             continue; /* Retry */
         }
 
         /* Make sure storage sector is valid before proceeding */
-        if (storage_location < FLASH_STORAGE1 && storage_location > FLASH_STORAGE3)
-        {
+        if (storage_location < FLASH_STORAGE1 && storage_location > FLASH_STORAGE3) {
             /* Let it exhaust the retries and error out */
             continue;
         }
@@ -583,19 +579,15 @@ void storage_commit_impl(ConfigFlash *cfg)
         flash_erase_word(storage_location);
 
         /* Load storage data first before loading storage magic  */
-        if (flash_write_word(storage_location, STORAGE_MAGIC_LEN,
-                             sizeof(*cfg) - STORAGE_MAGIC_LEN,
-                             (uint8_t *)cfg + STORAGE_MAGIC_LEN))
-        {
-            if (!flash_write_word(storage_location, 0, STORAGE_MAGIC_LEN,
-                                  (uint8_t *)cfg))
-            {
-                continue; /* Retry */
-            }
+        if (!flash_write_word(storage_location, STORAGE_MAGIC_LEN,
+                              sizeof(*cfg) - STORAGE_MAGIC_LEN,
+                              (uint8_t *)cfg + STORAGE_MAGIC_LEN)) {
+            continue; // Retry
         }
-        else
-        {
-            continue; /* Retry */
+
+        if (!flash_write_word(storage_location, 0, STORAGE_MAGIC_LEN,
+                              (uint8_t *)cfg)) {
+            continue; // Retry
         }
 
         /* Flash write completed successfully.  Verify CRC */
@@ -603,21 +595,15 @@ void storage_commit_impl(ConfigFlash *cfg)
             calc_crc32((uint32_t *)flash_write_helper(storage_location),
                        sizeof(*cfg) / sizeof(uint32_t));
 
-        if (shadow_flash_crc32 == shadow_ram_crc32)
-        {
+        if (shadow_flash_crc32 == shadow_ram_crc32) {
             /* Commit successful, break to exit */
             break;
-        }
-        else
-        {
-            continue; /* Retry */
         }
     }
 
     flash_lock();
 
-    if(retries >= STORAGE_RETRIES)
-    {
+    if(retries >= STORAGE_RETRIES) {
         layout_warning_static("Error Detected.  Reboot Device!");
         shutdown();
     }
