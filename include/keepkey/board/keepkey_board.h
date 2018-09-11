@@ -44,8 +44,6 @@
  0x0029 |  ?          |  Storage structure
  */
 
-/* === Defines ============================================================= */
-
 #define STORAGE_MAGIC_STR   "stor"
 #define STORAGE_MAGIC_LEN   4
 
@@ -64,11 +62,9 @@
 #define VERSION_NUM(x) #x
 #define VERSION_STR(x) VERSION_NUM(x)
 
-/* === Typedefs ============================================================ */
-
 /* Flash metadata structure which will contains unique identifier
    information that spans device resets.  */
-typedef struct
+typedef struct _Metadata
 {
     char magic[STORAGE_MAGIC_LEN];
     uint8_t uuid[STORAGE_UUID_LEN];
@@ -76,13 +72,13 @@ typedef struct
 } Metadata;
 
 /* Cache structure */
-typedef struct
+typedef struct _Cache
 {
     /* Root node cache */
     uint8_t root_seed_cache_status;
     uint8_t root_seed_cache[64];
     char root_ecdsa_curve_type[sizeof(ecdsa_curve_type_)]; // FIXME: this will lead to field alignment pain.
-}Cache;
+} Cache;
 
 /* Config flash overlay structure.  */
 typedef struct _ConfigFlash
@@ -92,11 +88,7 @@ typedef struct _ConfigFlash
     Cache cache;
 } ConfigFlash;
 
-/* === Variables =========================================================== */
-
 extern uintptr_t __stack_chk_guard;
-
-/* === Functions =========================================================== */
 
 void board_reset(void);
 void board_init(void);

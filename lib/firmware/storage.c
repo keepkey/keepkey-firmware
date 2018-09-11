@@ -75,6 +75,29 @@ void storage_resetCache(ConfigFlash *cfg)
     memset(&cfg->cache, 0, sizeof(cfg->cache));
 }
 
+static uint8_t read_u8(const char *ptr) {
+    return *ptr;
+}
+
+static uint32_t read_u32_le(const char *ptr) {
+    return ptr[0] | ptr[1] << 8 | ptr[2] << 16 | ((uint32_t)ptr[3]) << 24;
+}
+
+static void write_u32_le(char *ptr, uint32_t val) {
+    ptr[0] = val & 0xff;
+    ptr[1] = (val >> 8) & 0xff;
+    ptr[2] = (val >> 16) & 0xff;
+    ptr[3] = (val >> 24) & 0xff;
+}
+
+static bool read_bool(const char *ptr) {
+    return *ptr;
+}
+
+static void write_bool(char *ptr, bool val) {
+    *ptr = val ? 1 : 0;
+}
+
 enum StorageVersion {
     StorageVersion_NONE,
     #define STORAGE_VERSION_ENTRY(VAL) \
@@ -97,6 +120,152 @@ static enum StorageVersion version_from_int(int version) {
     }
 }
 
+void storage_readMeta(Metadata *meta, const char *addr) {
+    memcpy(meta->magic, addr, STORAGE_MAGIC_LEN);
+    memcpy(meta->uuid, addr + 4, STORAGE_UUID_LEN);
+    memcpy(meta->uuid_str, addr + 16, STORAGE_UUID_STR_LEN);
+}
+
+void storage_writeMeta(char *addr, const Metadata *meta) {
+    memcpy(addr, meta->magic, STORAGE_MAGIC_LEN);
+    memcpy(addr + 4, meta->uuid, STORAGE_UUID_LEN);
+    memcpy(addr + 16, meta->uuid_str, STORAGE_UUID_STR_LEN);
+}
+
+void storage_readPolicy(StoragePolicy *policy, const char *addr) {
+    policy->has_policy_name = read_bool(addr);
+    memset(policy->policy_name, 0, sizeof(policy->policy_name));
+    memcpy(policy->policy_name, addr + 1, 15);
+    policy->has_enabled = read_bool(addr + 16);
+    policy->enabled = read_bool(addr + 17);
+}
+
+void storage_writePolicy(char *addr, const StoragePolicy *policy) {
+    write_bool(addr, policy->has_policy_name);
+    memcpy(addr + 1, policy->policy_name, 15);
+    write_bool(addr + 16, policy->has_enabled);
+    write_bool(addr + 17, policy->enabled);
+}
+
+void storage_readHDNode(StorageHDNode *node, const char *addr) {
+    node->depth = read_u32_le(addr);
+    node->fingerprint = read_u32_le(addr + 4);
+    node->child_num = read_u32_le(addr + 8);
+    node->chain_code.size = 32;
+    memcpy(node->chain_code.bytes, addr + 16, 32);
+    node->has_private_key = read_bool(addr + 48);
+    node->private_key.size = 32;
+    memcpy(node->private_key.bytes, addr + 56, 32);
+    node->has_public_key = read_bool(addr + 88);
+    node->public_key.size = 33;
+    memcpy(node->public_key.bytes, addr + 96, 33);
+}
+
+void storage_writeHDNode(char *addr, const StorageHDNode *node) {
+    write_u32_le(addr, node->depth);
+    write_u32_le(addr + 4, node->fingerprint);
+    write_u32_le(addr + 8, node->child_num);
+    write_u32_le(addr + 12, 32);
+    memcpy(addr + 16, node->chain_code.bytes, 32);
+    write_bool(addr + 48, node->has_private_key);
+    addr[49] = 0; // reserved
+    addr[50] = 0; // reserved
+    addr[51] = 0; // reserved
+    write_u32_le(addr + 52, 32);
+    memcpy(addr + 56, node->private_key.bytes, 32);
+    write_bool(addr + 88, node->has_public_key);
+    addr[89] = 0; // reserved
+    addr[90] = 0; // reserved
+    addr[91] = 0; // reserved
+    write_u32_le(addr + 92, 33);
+    memcpy(addr + 96, node->public_key.bytes, 33);
+}
+
+void storage_readStorageV1(Storage *storage, const char *addr) {
+    storage->version = read_u32_le(addr);
+    storage->has_node = read_bool(addr + 4);
+    storage_readHDNode(&storage->node, addr + 8);
+    storage->has_mnemonic = read_bool(addr + 140);
+    memcpy(storage->mnemonic, addr + 141, 241);
+    storage->has_passphrase_protection = read_bool(addr + 382);
+    storage->passphrase_protection = read_bool(addr + 383);
+    storage->has_pin_failed_attempts = read_bool(addr + 384);
+    storage->pin_failed_attempts = read_u32_le(addr + 388);
+    storage->has_pin = read_bool(addr + 392);
+    memset(storage->pin, 0, sizeof(storage->pin));
+    memcpy(storage->pin, addr + 393, 10);
+    storage->has_language = read_bool(addr + 403);
+    memset(storage->language, 0, sizeof(storage->language));
+    memcpy(storage->language, addr + 404, 17);
+    storage->has_label = read_bool(addr + 421);
+    memset(storage->label, 0, sizeof(storage->label));
+    memcpy(storage->label, addr + 422, 33);
+    storage->has_imported = read_bool(addr + 455);
+    storage->imported = read_bool(addr + 456);
+    storage->policies_count = 1;
+    storage_readPolicy(&storage->policies[0], addr + 464);
+}
+
+void storage_writeStorageV1(char *addr, const Storage *storage) {
+    write_u32_le(addr, storage->version);
+    write_bool(addr + 4, storage->has_node);
+    addr[5] = 0; // reserved
+    addr[6] = 0; // reserved
+    addr[7] = 0; // reserved
+    storage_writeHDNode(addr + 8, &storage->node);
+    addr[137] = 0; // reserved
+    addr[138] = 0; // reserved
+    addr[139] = 0; // reserved
+    write_bool(addr + 140, storage->has_mnemonic);
+    memcpy(addr + 141, storage->mnemonic, 241);
+    write_bool(addr + 382, storage->has_passphrase_protection);
+    write_bool(addr + 383, storage->passphrase_protection);
+    write_bool(addr + 384, storage->has_pin_failed_attempts);
+    addr[385] = 0; // reserved
+    addr[386] = 0; // reserved
+    addr[387] = 0; // reserved
+    write_u32_le(addr + 388, storage->pin_failed_attempts);
+    write_bool(addr + 392, storage->has_pin);
+    memcpy(addr + 393, storage->pin, 10);
+    write_bool(addr + 403, storage->has_language);
+    memcpy(addr + 404, storage->language, 17);
+    write_bool(addr + 421, storage->has_label);
+    memcpy(addr + 422, storage->label, 33);
+    write_bool(addr + 455, storage->has_imported);
+    write_bool(addr + 456, storage->imported);
+    addr[457] = 0; // reserved
+    addr[458] = 0; // reserved
+    addr[459] = 0; // reserved
+    write_u32_le(addr + 460, 1);
+    storage_writePolicy(addr + 464, &storage->policies[0]);
+}
+
+// Double check all of the offsets (not strictly necessary, since struct layout
+// is now decoupled from storage location)
+_Static_assert(offsetof(Storage, has_node) == 4, "has_node");
+_Static_assert(offsetof(Storage, node) == 8, "node");
+_Static_assert(offsetof(Storage, has_mnemonic) == 140, "has_mnemonic");
+_Static_assert(offsetof(Storage, mnemonic) == 141, "mnemonic");
+_Static_assert(offsetof(Storage, has_passphrase_protection) == 382, "hpp");
+_Static_assert(offsetof(Storage, passphrase_protection) == 383, "hpp");
+_Static_assert(offsetof(Storage, has_pin_failed_attempts) == 384, "hpfa");
+_Static_assert(offsetof(Storage, pin_failed_attempts) == 388, "pfa");
+_Static_assert(offsetof(Storage, has_pin) == 392, "has_pin");
+_Static_assert(offsetof(Storage, pin) == 393, "pin");
+_Static_assert(offsetof(Storage, has_language) == 403, "has_language");
+_Static_assert(offsetof(Storage, language) == 404, "language");
+_Static_assert(offsetof(Storage, has_label) == 421, "has_label");
+_Static_assert(offsetof(Storage, label) == 422, "label");
+_Static_assert(offsetof(Storage, has_imported) == 455, "has_imported");
+_Static_assert(offsetof(Storage, imported) == 456, "imported");
+_Static_assert(offsetof(Storage, policies) == 464, "policies");
+
+void storage_readCacheV1(Cache *cache, const char *addr) {
+    cache->root_seed_cache_status = read_u8(addr + 522);
+    memcpy(cache->root_seed_cache, addr + 524, 64);
+    memcpy(cache->root_ecdsa_curve_type, addr + 580, 16);
+}
+
 typedef enum {
    SUS_Invalid,
    SUS_Valid,
@@ -106,10 +275,11 @@ typedef enum {
 /// \brief Copy configuration from storage partition in flash memory to shadow
 /// memory in RAM
 /// \returns true iff successful.
-static StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const ConfigFlash *src)
+static StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
 {
-    /* load config values from active config node */
-    enum StorageVersion version = version_from_int(src->storage.version);
+    // Load config values from active config node.
+    enum StorageVersion version =
+        version_from_int(read_u32_le(flash + 44));
 
     // Don't restore storage in MFR firmware
     if (variant_isMFR())
@@ -118,8 +288,8 @@ static StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const ConfigFlash
     switch (version)
     {
         case StorageVersion_1:
-            memcpy(&dst->meta, &src->meta, sizeof(dst->meta));
-            memcpy(&dst->storage, &src->storage, sizeof(dst->storage));
+            storage_readMeta(&dst->meta, flash);
+            storage_readStorageV1(&dst->storage, flash + 48);
             storage_resetPolicies(dst);
             storage_resetCache(dst);
             dst->storage.version = STORAGE_VERSION;
@@ -134,7 +304,9 @@ static StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const ConfigFlash
         case StorageVersion_8:
         case StorageVersion_9:
         case StorageVersion_10:
-            memcpy(&dst, src, sizeof(*dst));
+            storage_readMeta(&dst->meta, flash);
+            storage_readStorageV1(&dst->storage, flash + 48);
+            storage_readCacheV1(&dst->cache, flash);
 
             dst->storage.version = STORAGE_VERSION;
 
@@ -148,7 +320,7 @@ static StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const ConfigFlash
                 return SUS_Updated;
             }
 
-            return dst->storage.version == src->storage.version
+            return dst->storage.version == version
                 ? SUS_Valid
                 : SUS_Updated;
 
@@ -258,6 +430,11 @@ static bool storage_getRootSeedCache(ConfigFlash *cfg, const char *curve,
     return false;
 }
 
+static bool storage_isUninitialized(const char *flash) {
+    return memcmp(((const Metadata *)flash)->magic, STORAGE_MAGIC_STR,
+                  STORAGE_MAGIC_LEN) != 0;
+}
+
 void storage_init(void)
 {
     if (strcmp("MFR", variant_getName()) == 0)
@@ -285,28 +462,27 @@ void storage_init(void)
         // Otherwise initialize it to the default sector.
         storage_location = STORAGE_SECT_DEFAULT;
     }
-    ConfigFlash *stor_config = (ConfigFlash *)flash_write_helper(storage_location);
+    const char *flash = (const char *)flash_write_helper(storage_location);
 
-    /* Reset shadow configuration in RAM */
+    // Reset shadow configuration in RAM
     storage_reset_impl(&shadow_config);
 
-    // Check if the storage partition is uninitialized
-    if(memcmp((void *)stor_config->meta.magic, STORAGE_MAGIC_STR,
-              STORAGE_MAGIC_LEN) != 0) {
-        // If so, keep the storage area cleared
+    // If the storage partition is uninitialized
+    if (storage_isUninitialized(flash)) {
+        // ... then keep the storage area cleared.
         storage_resetUuid();
         storage_commit();
         return;
     }
 
-    // Otherwise clear out stor_config before looking for end config node.
-    memcpy(shadow_config.meta.uuid, (void *)&stor_config->meta.uuid,
+    // Otherwise clear out flash before looking for end config node.
+    memcpy(shadow_config.meta.uuid, ((const Metadata *)flash)->uuid,
            sizeof(shadow_config.meta.uuid));
     data2hex(shadow_config.meta.uuid, sizeof(shadow_config.meta.uuid),
              shadow_config.meta.uuid_str);
 
     // Load storage from flash, and update it if necessary.
-    switch (storage_fromFlash(&shadow_config, stor_config)) {
+    switch (storage_fromFlash(&shadow_config, flash)) {
     case SUS_Invalid:
         storage_reset();
         storage_commit();

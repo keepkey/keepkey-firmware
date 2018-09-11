@@ -146,4 +146,21 @@ const char *storage_getMnemonic(void);
 StorageHDNode *storage_getNode(void);
 #endif
 
+#ifdef EMULATOR
+typedef struct _Metadata Metadata;
+typedef struct _Cache Cache;
+// Exposed for testing only, not a public API.
+void storage_readMeta(Metadata *meta, const char *addr);
+void storage_readPolicy(StoragePolicy *policy, const char *addr);
+void storage_readHDNode(StorageHDNode *node, const char *addr);
+void storage_readStorageV1(Storage *storage, const char *addr);
+void storage_readCacheV1(Cache *cache, const char *addr);
+
+void storage_writeMeta(char *addr, const Metadata *meta);
+void storage_writePolicy(char *addr, const StoragePolicy *policy);
+void storage_writeHDNode(char *addr, const StorageHDNode *node);
+void storage_writeStorageV1(char *addr, const Storage *storage);
+void storage_writeCacheV1(char *addr, const Cache *cache);
+#endif
+
 #endif

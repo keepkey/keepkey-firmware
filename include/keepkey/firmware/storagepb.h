@@ -41,17 +41,17 @@ typedef struct _StorageHDNode {
     uint32_t fingerprint;
     uint32_t child_num;
     struct {
-        size_t size;
+        uint32_t size;
         uint8_t bytes[32];
     } chain_code;
     bool has_private_key;
     struct {
-        size_t size;
+        uint32_t size;
         uint8_t bytes[32];
     } private_key;
     bool has_public_key;
     struct {
-        size_t size;
+        uint32_t size;
         uint8_t bytes[33];
     } public_key;
 } StorageHDNode;
@@ -74,7 +74,7 @@ typedef struct _Storage {
     char label[33];
     bool has_imported;
     bool imported;
-    size_t policies_count;
+    uint32_t policies_count;
     StoragePolicy policies[1];
 } Storage;
 
