@@ -70,7 +70,7 @@ TEST(Storage, ReadMeta) {
 }
 
 TEST(Storage, WriteMeta) {
-    Metadata src = {
+    const Metadata src = {
         .magic = "M1M",
         .uuid = "u1u2u3u4u5u",
         .uuid_str = "S1S2S3S4S5S6S7S8S9SASBS",
@@ -97,7 +97,7 @@ TEST(Storage, ReadPolicy) {
 }
 
 TEST(Storage, WritePolicy) {
-    StoragePolicy src = {
+    const StoragePolicy src = {
         .has_policy_name = true,
         .policy_name = "0123456789ABCD",
         .has_enabled = true,
@@ -204,7 +204,7 @@ TEST(Storage, ReadStorageV1) {
 
 
 TEST(Storage, WriteStorageV1) {
-    Storage src = {
+    const Storage src = {
         .version = 10,
         .has_node = true,
         .node = {
@@ -321,17 +321,38 @@ TEST(Storage, WriteStorageV1) {
     }
 }
 
-#if 0
-TEST(Storage, ReadStorageV1) {
-    void storage_readStorageV1(Storage *storage, const char *flash);
+TEST(Storage, WriteCacheV1) {
+    const Cache src = {
+        .root_seed_cache_status = 42,
+        .root_seed_cache = "012345678901234567890123456789012345678901234567890123456789012",
+        .root_ecdsa_curve_type = "secp256k1",
+    };
 
-    const char src[] = 
+    char dst[75];
+    memset(dst, 0xCC, sizeof(dst));
+
+    storage_writeCacheV1(&dst[0], &src);
+
+    const char expected[76] = "\x2a\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x00\x73\x65\x63\x70\x32\x35\x36\x6b\x31";
+
+    for (int i = 0; i < sizeof(dst); i++) {
+        ASSERT_EQ(dst[i], expected[i]) << "i: " << i;
+    }
 }
 
 TEST(Storage, ReadCacheV1) {
-    void storage_readCacheV1(Cache *cache, const char *flash);
+    const char src[76] = "\x2a\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x00\x73\x65\x63\x70\x32\x35\x36\x6b\x31";
+
+    Cache dst;
+
+    storage_readCacheV1(&dst, &src[0]);
+
+    ASSERT_EQ(dst.root_seed_cache_status, 42);
+    for (int i = 0; i < 64; i++) {
+        ASSERT_EQ(dst.root_seed_cache[i], "012345678901234567890123456789012345678901234567890123456789012"[i]) << "i: " << i;
+    }
+    ASSERT_TRUE(memcmp(dst.root_ecdsa_curve_type, "secp256k1", 10) == 0);
 }
-#endif
 
 TEST(Storage, DumpNode) {
     HDNodeType dst;

@@ -79,6 +79,10 @@ static uint8_t read_u8(const char *ptr) {
     return *ptr;
 }
 
+static void write_u8(char *ptr, uint8_t val) {
+    *ptr = val;
+}
+
 static uint32_t read_u32_le(const char *ptr) {
     return ptr[0] | ptr[1] << 8 | ptr[2] << 16 | ((uint32_t)ptr[3]) << 24;
 }
@@ -261,10 +265,20 @@ _Static_assert(offsetof(Storage, imported) == 456, "imported");
 _Static_assert(offsetof(Storage, policies) == 464, "policies");
 
 void storage_readCacheV1(Cache *cache, const char *addr) {
-    cache->root_seed_cache_status = read_u8(addr + 522);
-    memcpy(cache->root_seed_cache, addr + 524, 64);
-    memcpy(cache->root_ecdsa_curve_type, addr + 580, 16);
+    cache->root_seed_cache_status = read_u8(addr);
+    memcpy(cache->root_seed_cache, addr + 1, 64);
+    memcpy(cache->root_ecdsa_curve_type, addr + 65, 10);
 }
+
+void storage_writeCacheV1(char *addr, const Cache *cache) {
+    write_u8(addr, cache->root_seed_cache_status);
+    memcpy(addr + 1, cache->root_seed_cache, 64);
+    memcpy(addr + 65, cache->root_ecdsa_curve_type, 10);
+}
+
+_Static_assert(offsetof(Cache, root_seed_cache) == 1, "rsc");
+_Static_assert(offsetof(Cache, root_ecdsa_curve_type) == 65, "rect");
+_Static_assert(sizeof(((Cache*)0)->root_ecdsa_curve_type) == 10, "rect");
 
 typedef enum {
    SUS_Invalid,
