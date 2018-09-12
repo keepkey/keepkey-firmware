@@ -17,6 +17,8 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "storage.h"
+
 #include "keepkey/firmware/storage.h"
 
 #include "variant.h"
@@ -32,7 +34,6 @@
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/policy.h"
-#include "keepkey/firmware/storagepb.h"
 #include "keepkey/firmware/util.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/transport/interface.h"
@@ -63,16 +64,18 @@ _Static_assert(sizeof(ConfigFlash) <= FLASH_STORAGE_LEN,
 static ConfigFlash CONFIDENTIAL shadow_config;
 
 /// \brief Reset Policies
-void storage_resetPolicies(ConfigFlash *cfg)
+void storage_resetPolicies(Storage *storage)
 {
-    cfg->storage.policies_count = POLICY_COUNT;
-    memcpy(&cfg->storage.policies, policies, POLICY_COUNT * sizeof(PolicyType));
+    storage->policies_count = POLICY_COUNT;
+    for (int i = 0; i < POLICY_COUNT; i++) {
+        memcpy(&storage->policies[i], &policies[i], sizeof(storage->policies[i]));
+    }
 }
 
 /// \brief Reset Cache
-void storage_resetCache(ConfigFlash *cfg)
+void storage_resetCache(Cache *cache)
 {
-    memset(&cfg->cache, 0, sizeof(cfg->cache));
+    memset(cache, 0, sizeof(*cache));
 }
 
 static uint8_t read_u8(const char *ptr) {
@@ -136,7 +139,7 @@ void storage_writeMeta(char *addr, const Metadata *meta) {
     memcpy(addr + 16, meta->uuid_str, STORAGE_UUID_STR_LEN);
 }
 
-void storage_readPolicy(StoragePolicy *policy, const char *addr) {
+void storage_readPolicy(PolicyType *policy, const char *addr) {
     policy->has_policy_name = read_bool(addr);
     memset(policy->policy_name, 0, sizeof(policy->policy_name));
     memcpy(policy->policy_name, addr + 1, 15);
@@ -144,7 +147,7 @@ void storage_readPolicy(StoragePolicy *policy, const char *addr) {
     policy->enabled = read_bool(addr + 17);
 }
 
-void storage_writePolicy(char *addr, const StoragePolicy *policy) {
+void storage_writePolicy(char *addr, const PolicyType *policy) {
     write_bool(addr, policy->has_policy_name);
     memcpy(addr + 1, policy->policy_name, 15);
     write_bool(addr + 16, policy->has_enabled);
@@ -304,8 +307,8 @@ static StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash
         case StorageVersion_1:
             storage_readMeta(&dst->meta, flash);
             storage_readStorageV1(&dst->storage, flash + 44);
-            storage_resetPolicies(dst);
-            storage_resetCache(dst);
+            storage_resetPolicies(&dst->storage);
+            storage_resetCache(&dst->cache);
             dst->storage.version = STORAGE_VERSION;
             return SUS_Updated;
 
@@ -329,8 +332,8 @@ static StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash
             storage version */
             if (dst->storage.policies_count == 0xFFFFFFFF)
             {
-                storage_resetPolicies(dst);
-                storage_resetCache(dst);
+                storage_resetPolicies(&dst->storage);
+                storage_resetCache(&dst->cache);
                 return SUS_Updated;
             }
 
@@ -533,7 +536,7 @@ void storage_reset_impl(ConfigFlash *cfg)
     memset(&cfg->storage, 0, sizeof(cfg->storage));
     memset(&cfg->cache, 0, sizeof(cfg->cache));
 
-    storage_resetPolicies(cfg);
+    storage_resetPolicies(&cfg->storage);
 
     cfg->storage.version = STORAGE_VERSION;
     session_clear(true); // clear PIN as well
@@ -561,7 +564,8 @@ void storage_commit_impl(ConfigFlash *cfg)
 {
     // TODO: implemelnt storage on the emulator
 #ifndef EMULATOR
-    static CONFIDENTIAL char to_write[sizeof(ConfigFlash)];
+    static CONFIDENTIAL char to_write[1024];
+
     memzero(to_write, sizeof(to_write));
 
     storage_writeMeta(to_write, &cfg->meta);
@@ -1074,20 +1078,7 @@ bool storage_setPolicy(const PolicyType *policy)
 void storage_getPolicies(PolicyType *policy_data)
 {
     for (size_t i = 0; i < POLICY_COUNT; ++i) {
-        PolicyType *dst = &policy_data[i];
-        StoragePolicy *src = &shadow_config.storage.policies[i];
-
-        dst->has_policy_name = src->has_policy_name;
-        if (src->has_policy_name) {
-            memcpy(dst->policy_name, src->policy_name, sizeof(src->policy_name));
-            _Static_assert(sizeof(dst->policy_name) ==
-                           sizeof(src->policy_name), "PolicyType vs StoragePolicy type mismatch");
-        }
-
-        dst->has_enabled = src->has_enabled;
-        dst->enabled = src->enabled;
-
-        _Static_assert(sizeof(*dst) == sizeof(*src), "PolicyType vs StoragePolicy type mismatch");
+        memcpy(&policy_data[i], &shadow_config.storage.policies[i], sizeof(policy_data[i]));
     }
 }
 

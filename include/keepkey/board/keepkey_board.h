@@ -31,7 +31,6 @@
 #include "keepkey/crypto/curves.h"
 #include "trezor/crypto/bip32.h"
 #include "trezor/crypto/curves.h"
-#include "keepkey/firmware/storagepb.h"
 
 /*
  storage layout:
@@ -43,6 +42,8 @@
  0x0010 |  25 bytes   |  uuid_str
  0x0029 |  ?          |  Storage structure
  */
+
+#define STORAGE_SECTOR_LEN  0x00004000
 
 #define STORAGE_MAGIC_STR   "stor"
 #define STORAGE_MAGIC_LEN   4
@@ -79,14 +80,6 @@ typedef struct _Cache
     uint8_t root_seed_cache[64];
     char root_ecdsa_curve_type[sizeof(ecdsa_curve_type_)]; // FIXME: this will lead to field alignment pain.
 } Cache;
-
-/* Config flash overlay structure.  */
-typedef struct _ConfigFlash
-{
-    Metadata meta;
-    Storage storage;
-    Cache cache;
-} ConfigFlash;
 
 extern uintptr_t __stack_chk_guard;
 

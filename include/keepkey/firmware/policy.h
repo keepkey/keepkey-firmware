@@ -20,20 +20,12 @@
 #ifndef POLICY_H
 #define POLICY_H
 
-/* === Includes ============================================================ */
-
 #include "transaction.h"
 #include "coins.h"
 
-/* === Defines ============================================================= */
-
-#define POLICY_COUNT sizeof(((Storage *)NULL)->policies) / sizeof(PolicyType)
-
-/* === Variables =========================================================== */
+#define POLICY_COUNT 1
 
 extern const PolicyType policies[POLICY_COUNT];
-
-/* === Functions =========================================================== */
 
 int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vin, void *vout, bool needs_confirm);
 

@@ -22,31 +22,19 @@
 
 #include "trezor/crypto/bip32.h"
 #include "keepkey/board/memory.h"
-#include "keepkey/firmware/storagepb.h"
 
 #define STORAGE_VERSION 10 /* Must add case fallthrough in storage_fromFlash after increment*/
 #define STORAGE_RETRIES 3
 
-typedef struct _ConfigFlash ConfigFlash;
-
-typedef struct _HDNodeType HDNodeType;
-typedef struct _LoadDevice LoadDevice;
-typedef struct _PolicyType PolicyType;
-
-typedef struct _Storage Storage;
-typedef struct _StorageHDNode StorageHDNode;
-typedef struct _StoragePolicy StoragePolicy;
 
 /// \brief Validate storage content and copy data to shadow memory.
 void storage_init(void);
 
 /// \brief Reset configuration UUID with random numbers.
 void storage_resetUuid(void);
-void storage_resetUuid_impl(ConfigFlash *cfg);
 
 /// \brief Clear configuration.
 void storage_reset(void);
-void storage_reset_impl(ConfigFlash *cfg);
 
 /// \brief Reset session states
 /// \param clear_pin  Whether to clear the session pin.
@@ -55,16 +43,10 @@ void session_clear(bool clear_pin);
 /// \brief Write content of configuration in shadow memory to storage partion
 ///        in flash.
 void storage_commit(void);
-void storage_commit_impl(ConfigFlash *cfg);
-
-void storage_dumpNode(HDNodeType *dst, const StorageHDNode *src);
 
 /// \brief Load configuration data from usb message to shadow memory
+typedef struct _LoadDevice LoadDevice;
 void storage_loadDevice(LoadDevice *msg);
-
-/// \brief Get user private seed.
-/// \returns NULL on error, otherwise \returns the private seed.
-const uint8_t *storage_getSeed(const ConfigFlash *cfg, bool usePassphrase);
 
 /// \brief Get the Root Node of the device.
 /// \param node[out]  The Root Node.
@@ -127,6 +109,8 @@ bool storage_hasNode(void);
 /// \brief Get active storage location..
 Allocation storage_getLocation(void);
 
+typedef struct _PolicyType PolicyType;
+
 /// \brief Assign policy by name
 bool storage_setPolicy(const PolicyType *policy);
 
@@ -137,30 +121,14 @@ void storage_getPolicies(PolicyType *policies);
 /// \brief Status of policy in storage
 bool storage_isPolicyEnabled(char *policy_name);
 
-void storage_resetPolicies(ConfigFlash *cfg);
-void storage_resetCache(ConfigFlash *cfg);
-
 #ifdef DEBUG_LINK
+typedef struct _HDNodeType HDNodeType;
+typedef struct _StorageHDNode StorageHDNode;
+
 const char *storage_getPin(void);
 const char *storage_getMnemonic(void);
 StorageHDNode *storage_getNode(void);
-#endif
-
-#ifdef EMULATOR
-typedef struct _Metadata Metadata;
-typedef struct _Cache Cache;
-// Exposed for testing only, not a public API.
-void storage_readMeta(Metadata *meta, const char *addr);
-void storage_readPolicy(StoragePolicy *policy, const char *addr);
-void storage_readHDNode(StorageHDNode *node, const char *addr);
-void storage_readStorageV1(Storage *storage, const char *addr);
-void storage_readCacheV1(Cache *cache, const char *addr);
-
-void storage_writeMeta(char *addr, const Metadata *meta);
-void storage_writePolicy(char *addr, const StoragePolicy *policy);
-void storage_writeHDNode(char *addr, const StorageHDNode *node);
-void storage_writeStorageV1(char *addr, const Storage *storage);
-void storage_writeCacheV1(char *addr, const Cache *cache);
+void storage_dumpNode(HDNodeType *dst, const StorageHDNode *src);
 #endif
 
 #endif

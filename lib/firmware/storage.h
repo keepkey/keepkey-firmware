@@ -22,19 +22,8 @@
 #ifndef STORAGEPB_H
 #define STORAGEPB_H
 
-/* 
-    WARNING:
-    These structs overlay state information needed for firmware updates. All
-    storage sizes and ordering should remain in place. To remove a variable
-    from use, indicate that it is deprecated rather than deleting it.
-*/
-
-typedef struct _StoragePolicy {
-    bool has_policy_name;
-    char policy_name[15];
-    bool has_enabled;
-    bool enabled;
-} StoragePolicy;
+#include "keepkey/board/keepkey_board.h"
+#include "keepkey/firmware/policy.h"
 
 typedef struct _StorageHDNode {
     uint32_t depth;
@@ -75,7 +64,40 @@ typedef struct _Storage {
     bool has_imported;
     bool imported;
     uint32_t policies_count;
-    StoragePolicy policies[1];
+    PolicyType policies[POLICY_COUNT];
 } Storage;
+
+typedef struct _ConfigFlash {
+    Metadata meta;
+    Storage storage;
+    Cache cache;
+} ConfigFlash;
+
+typedef struct _Cache Cache;
+
+void storage_resetUuid_impl(ConfigFlash *cfg);
+
+void storage_reset_impl(ConfigFlash *cfg);
+
+void storage_commit_impl(ConfigFlash *cfg);
+
+/// \brief Get user private seed.
+/// \returns NULL on error, otherwise \returns the private seed.
+const uint8_t *storage_getSeed(const ConfigFlash *cfg, bool usePassphrase);
+
+void storage_resetPolicies(Storage *storage);
+void storage_resetCache(Cache *cache);
+
+void storage_readMeta(Metadata *meta, const char *addr);
+void storage_readPolicy(PolicyType *policy, const char *addr);
+void storage_readHDNode(StorageHDNode *node, const char *addr);
+void storage_readStorageV1(Storage *storage, const char *addr);
+void storage_readCacheV1(Cache *cache, const char *addr);
+
+void storage_writeMeta(char *addr, const Metadata *meta);
+void storage_writePolicy(char *addr, const PolicyType *policy);
+void storage_writeHDNode(char *addr, const StorageHDNode *node);
+void storage_writeStorageV1(char *addr, const Storage *storage);
+void storage_writeCacheV1(char *addr, const Cache *cache);
 
 #endif

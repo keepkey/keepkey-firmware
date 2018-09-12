@@ -7,6 +7,7 @@ set(sources
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/lib/firmware
     ${CMAKE_BINARY_DIR}/include)
 
 add_executable(firmware-unit ${sources})

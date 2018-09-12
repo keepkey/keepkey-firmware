@@ -155,7 +155,7 @@ int memory_storage_hash(uint8_t *hash, Allocation storage_location)
     const uint8_t *storage_location_start;
     storage_location_start = (const uint8_t *)flash_write_helper(storage_location);
 
-    sha256_Raw(storage_location_start, sizeof(ConfigFlash), hash);
+    sha256_Raw(storage_location_start, STORAGE_SECTOR_LEN, hash);
     return SHA256_DIGEST_LENGTH;
 }
 
