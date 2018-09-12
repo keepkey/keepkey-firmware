@@ -67,6 +67,10 @@ TEST(Storage, ReadMeta) {
     ASSERT_TRUE(memcmp(dst.magic, "M1M2", 4) == 0);
     ASSERT_TRUE(memcmp(dst.uuid, "u1u2u3u4u5u6", 12) == 0);
     ASSERT_TRUE(memcmp(dst.uuid_str, "S1S2S3S4S5S6S7S8S9SASBSC", 24) == 0);
+
+    for (int i = 0; i < sizeof(src); i++) {
+        ASSERT_EQ(src[i], ((char *)&dst)[i]) << "i: " << i;
+    }
 }
 
 TEST(Storage, WriteMeta) {
@@ -200,8 +204,14 @@ TEST(Storage, ReadStorageV1) {
     for (int i = 0; i < sizeof(dst2); ++i) {
         ASSERT_EQ(src[i], dst2[i]) << "i: " << i;
     }
-}
 
+    memset(&dst, 0x00, sizeof(dst));
+    storage_readStorageV1(&dst, &src[0]);
+
+    for (int i = 0; i < sizeof(dst) - 1; i++) {
+        ASSERT_EQ(src[i], ((char*)&dst)[i]) << "i: " << i;
+    }
+}
 
 TEST(Storage, WriteStorageV1) {
     const Storage src = {
@@ -337,6 +347,7 @@ TEST(Storage, WriteCacheV1) {
 
     for (int i = 0; i < sizeof(dst); i++) {
         ASSERT_EQ(dst[i], expected[i]) << "i: " << i;
+        ASSERT_EQ(dst[i], ((const char *)&src)[i]) << "i: " << i;
     }
 }
 
@@ -352,6 +363,10 @@ TEST(Storage, ReadCacheV1) {
         ASSERT_EQ(dst.root_seed_cache[i], "012345678901234567890123456789012345678901234567890123456789012"[i]) << "i: " << i;
     }
     ASSERT_TRUE(memcmp(dst.root_ecdsa_curve_type, "secp256k1", 10) == 0);
+
+    for (int i = 0; i < sizeof(src) - 1; ++i) {
+        ASSERT_EQ(src[i], ((char *)&dst)[i]) << "i: " << i;
+    }
 }
 
 TEST(Storage, DumpNode) {
