@@ -400,28 +400,24 @@ static void storage_setRootSeedCache(ConfigFlash *cfg, const uint8_t *seed, cons
 static bool storage_getRootSeedCache(ConfigFlash *cfg, const char *curve,
                                      bool usePassphrase, uint8_t *seed)
 {
-    if(cfg->cache.root_seed_cache_status == CACHE_EXISTS)
-    {
-        if(usePassphrase)
-        {
-            if (cfg->storage.passphrase_protection && strlen(sessionPassphrase))
-            {
-                return false;
-            }
-        }
+    if (cfg->cache.root_seed_cache_status != CACHE_EXISTS)
+        return false;
 
-        if(!strcmp(cfg->cache.root_ecdsa_curve_type, curve))
-        {
-            memset(seed, 0, sizeof(sessionSeed));
-            memcpy(seed, &cfg->cache.root_seed_cache,
-                   sizeof(cfg->cache.root_seed_cache));
-            _Static_assert(sizeof(sessionSeed) == sizeof(cfg->cache.root_seed_cache),
-                           "size mismatch");
-            return true;
-        }
+    if (usePassphrase && cfg->storage.passphrase_protection &&
+        strlen(sessionPassphrase)) {
+        return false;
     }
 
-    return false;
+    if (strcmp(cfg->cache.root_ecdsa_curve_type, curve) != 0) {
+        return false;
+    }
+
+    memset(seed, 0, sizeof(sessionSeed));
+    memcpy(seed, &cfg->cache.root_seed_cache,
+           sizeof(cfg->cache.root_seed_cache));
+    _Static_assert(sizeof(sessionSeed) == sizeof(cfg->cache.root_seed_cache),
+                   "size mismatch");
+    return true;
 }
 
 static bool storage_isUninitialized(const char *flash) {
