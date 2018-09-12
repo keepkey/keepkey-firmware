@@ -851,31 +851,25 @@ const uint8_t *storage_getSeed(const ConfigFlash *cfg, bool usePassphrase)
     return NULL;
 }
 
-bool storage_getRootNode(const char *curve, bool usePassphrase, HDNode *node)
-{
-    bool ret_stat = false;
-
+bool storage_getRootNode(const char *curve, bool usePassphrase, HDNode *node) {
     // if storage has node, decrypt and use it
-    if(shadow_config.storage.has_node && strcmp(curve, SECP256K1_NAME) == 0)
-    {
-        if(!passphrase_protect())
-        {
+    if (shadow_config.storage.has_node && strcmp(curve, SECP256K1_NAME) == 0) {
+        if (!passphrase_protect()) {
             /* passphrased failed. Bailing */
-            goto storage_getRootNode_exit;
+            return false;
         }
+
         if (hdnode_from_xprv(shadow_config.storage.node.depth,
                              shadow_config.storage.node.child_num,
                              shadow_config.storage.node.chain_code.bytes,
                              shadow_config.storage.node.private_key.bytes,
-                             curve, node) == 0)
-        {
-            goto storage_getRootNode_exit;
+                             curve, node) == 0) {
+            return false;
         }
 
         if (shadow_config.storage.passphrase_protection &&
             sessionPassphraseCached &&
-            strlen(sessionPassphrase) > 0)
-        {
+            strlen(sessionPassphrase) > 0) {
             // decrypt hd node
             static uint8_t CONFIDENTIAL secret[64];
             PBKDF2_HMAC_SHA512_CTX pctx;
@@ -893,48 +887,37 @@ bool storage_getRootNode(const char *curve, bool usePassphrase, HDNode *node)
             memzero(secret, sizeof(secret));
         }
 
-        ret_stat = true;
-        goto storage_getRootNode_exit;
+        return true;
     }
 
     /* get node from mnemonic */
-    if(shadow_config.storage.has_mnemonic)
-    {
-        if(!passphrase_protect())
-        {
+    if (shadow_config.storage.has_mnemonic) {
+        if (!passphrase_protect()) {
             /* passphrased failed. Bailing */
-            goto storage_getRootNode_exit;
+            return false;
         }
 
-        if(!sessionSeedCached)
-        {
-
+        if(!sessionSeedCached) {
             sessionSeedCached = storage_getRootSeedCache(&shadow_config, curve, usePassphrase, sessionSeed);
 
-            if(!sessionSeedCached)
-            {
+            if(!sessionSeedCached) {
                 /* calculate session seed and update the global sessionSeed/sessionSeedCached variables */
                 storage_getSeed(&shadow_config, usePassphrase);
 
-                if (sessionSeedCached)
-                {
-                    storage_setRootSeedCache(&shadow_config, sessionSeed, curve);
+                if (!sessionSeedCached) {
+                    return false;
                 }
-                else
-                {
-                    goto storage_getRootNode_exit;
-                }
+
+                storage_setRootSeedCache(&shadow_config, sessionSeed, curve);
             }
         }
 
-        if(hdnode_from_seed(sessionSeed, 64, curve, node) == 1)
-        {
-            ret_stat = true;
+        if (hdnode_from_seed(sessionSeed, 64, curve, node) == 1) {
+            return true;
         }
     }
-storage_getRootNode_exit:
 
-    return ret_stat;
+    return false;
 }
 
 bool storage_isInitialized(void)
