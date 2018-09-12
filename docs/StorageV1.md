@@ -17,7 +17,7 @@
 | language                  | char[17]       |           17 |                    404 |
 | has_label                 | bool           |            1 |                    421 |
 | label                     | char[33]       |           33 |                    422 |
-| has_imported              | bool           |            1 |                    455 |
+| reserved                  | N/A            |            1 |                    455 |
 | imported                  | bool           |            1 |                    456 |
 | reserved                  | N/A            |            3 |                    457 |
 | policies_count            | u32            |            4 |                    460 |

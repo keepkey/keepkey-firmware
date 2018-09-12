@@ -123,7 +123,7 @@ TEST(Storage, ReadStorageV1) {
         /* 422 */ "\x4d\x65\x6e\x6f\x73\x4d\x61\x72\x78\x4d\x61\x69\x73\x4d\x69\x73" // label
                   "\x65\x73\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // label
                   "\x00"             // label
-        /* 455 */ "\x01"             // has_imported
+        /* 455 */ "\x01"             // reserved
         /* 456 */ "\x00"             // imported
         /* 457 */ "\x00\x00\x00"     // reserved
         /* 460 */ "\x01\x00\x00\x00" // policies_count
@@ -156,13 +156,6 @@ TEST(Storage, ReadStorageV1) {
 
     for (int i = 0; i < sizeof(dst2); ++i) {
         ASSERT_EQ(src[i], dst2[i]) << "i: " << i;
-    }
-
-    memset(&dst, 0x00, sizeof(dst));
-    storage_readStorageV1(&dst, &src[0]);
-
-    for (int i = 0; i < sizeof(dst) - 1; i++) {
-        ASSERT_EQ(src[i], ((char*)&dst)[i]) << "i: " << i;
     }
 }
 
@@ -201,7 +194,6 @@ TEST(Storage, WriteStorageV1) {
         .language = "esperanto",
         .has_label = true,
         .label = "MenosMarxMaisMises",
-        .has_imported = true,
         .imported = false,
         .policies_count = 1,
         .policies = {{

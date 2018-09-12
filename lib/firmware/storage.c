@@ -207,7 +207,6 @@ void storage_readStorageV1(Storage *storage, const char *addr) {
     storage->has_label = read_bool(addr + 421);
     memset(storage->label, 0, sizeof(storage->label));
     memcpy(storage->label, addr + 422, 33);
-    storage->has_imported = read_bool(addr + 455);
     storage->imported = read_bool(addr + 456);
     storage->policies_count = 1;
     storage_readPolicy(&storage->policies[0], addr + 464);
@@ -238,7 +237,7 @@ void storage_writeStorageV1(char *addr, const Storage *storage) {
     memcpy(addr + 404, storage->language, 17);
     write_bool(addr + 421, storage->has_label);
     memcpy(addr + 422, storage->label, 33);
-    write_bool(addr + 455, storage->has_imported);
+    write_bool(addr + 455, true); // formerly has_imported
     write_bool(addr + 456, storage->imported);
     addr[457] = 0; // reserved
     addr[458] = 0; // reserved
@@ -246,26 +245,6 @@ void storage_writeStorageV1(char *addr, const Storage *storage) {
     write_u32_le(addr + 460, 1);
     storage_writePolicy(addr + 464, &storage->policies[0]);
 }
-
-// Double check all of the offsets (not strictly necessary, since struct layout
-// is now decoupled from storage location)
-_Static_assert(offsetof(Storage, has_node) == 4, "has_node");
-_Static_assert(offsetof(Storage, node) == 8, "node");
-_Static_assert(offsetof(Storage, has_mnemonic) == 140, "has_mnemonic");
-_Static_assert(offsetof(Storage, mnemonic) == 141, "mnemonic");
-_Static_assert(offsetof(Storage, has_passphrase_protection) == 382, "hpp");
-_Static_assert(offsetof(Storage, passphrase_protection) == 383, "hpp");
-_Static_assert(offsetof(Storage, has_pin_failed_attempts) == 384, "hpfa");
-_Static_assert(offsetof(Storage, pin_failed_attempts) == 388, "pfa");
-_Static_assert(offsetof(Storage, has_pin) == 392, "has_pin");
-_Static_assert(offsetof(Storage, pin) == 393, "pin");
-_Static_assert(offsetof(Storage, has_language) == 403, "has_language");
-_Static_assert(offsetof(Storage, language) == 404, "language");
-_Static_assert(offsetof(Storage, has_label) == 421, "has_label");
-_Static_assert(offsetof(Storage, label) == 422, "label");
-_Static_assert(offsetof(Storage, has_imported) == 455, "has_imported");
-_Static_assert(offsetof(Storage, imported) == 456, "imported");
-_Static_assert(offsetof(Storage, policies) == 464, "policies");
 
 void storage_readCacheV1(Cache *cache, const char *addr) {
     cache->root_seed_cache_status = read_u8(addr);
@@ -676,7 +655,6 @@ void storage_loadDevice(LoadDevice *msg)
 {
     storage_reset_impl(&shadow_config);
 
-    shadow_config.storage.has_imported = true;
     shadow_config.storage.imported = true;
 
     if(msg->has_pin > 0)
@@ -1048,7 +1026,7 @@ const char *storage_getShadowMnemonic(void)
 
 bool storage_getImported(void)
 {
-    return shadow_config.storage.has_imported && shadow_config.storage.imported;
+    return shadow_config.storage.imported;
 }
 
 bool storage_hasNode(void)

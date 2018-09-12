@@ -61,7 +61,6 @@ typedef struct _Storage {
     char language[17];
     bool has_label;
     char label[33];
-    bool has_imported;
     bool imported;
     uint32_t policies_count;
     PolicyType policies[POLICY_COUNT];
