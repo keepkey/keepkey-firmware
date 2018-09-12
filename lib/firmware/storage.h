@@ -83,8 +83,23 @@ void storage_commit_impl(ConfigFlash *cfg);
 /// \returns NULL on error, otherwise \returns the private seed.
 const uint8_t *storage_getSeed(const ConfigFlash *cfg, bool usePassphrase);
 
+typedef enum {
+   SUS_Invalid,
+   SUS_Valid,
+   SUS_Updated,
+} StorageUpdateStatus;
+
+/// \brief Copy configuration from storage partition in flash memory to shadow
+/// memory in RAM
+/// \returns true iff successful.
+StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash);
+
 void storage_resetPolicies(Storage *storage);
 void storage_resetCache(Cache *cache);
+
+void storage_readV1(ConfigFlash *dst, const char *flash);
+void storage_readV2(ConfigFlash *dst, const char *flash);
+void storage_writeV2(char *flash, const ConfigFlash *src);
 
 void storage_readMeta(Metadata *meta, const char *addr);
 void storage_readPolicy(PolicyType *policy, const char *addr);

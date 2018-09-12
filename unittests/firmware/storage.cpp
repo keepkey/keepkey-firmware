@@ -415,3 +415,128 @@ TEST(Storage, ResetCache) {
 
     EXPECT_EQ(memcmp(&src, &dst, sizeof(Cache)), 0);
 }
+
+TEST(Storage, StorageUpgrade_Normal) {
+    const char flash[] =
+        // Meta
+        "\x73\x74\x6f\x72\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+        "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+        "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+
+        // Storage
+        "\x08\x00\x00\x00" // version
+        "\x01"             // has_node
+        "\x00\x00\x00"     // reserved
+        "\x03\x00\x00\x00" // depth
+        "\x2a\x00\x00\x00" // fingerprint
+        "\x11\x00\x00\x00" // child_num
+        "\x20\x00\x00\x00" // chain_code.size
+        "\x58\x4d\x52\x58\x4d\x52\x58\x4d\x52\x58\x4d\x52\x58\x4d\x52\x58" // chain_code.bytes
+        "\x4d\x52\x58\x4d\x52\x58\x4d\x52\x58\x4d\x52\x58\x4d\x52\x58\x00" // chain_code.bytes
+        "\x01"             // has_private_key
+        "\x00\x00\x00"     // reserved
+        "\x20\x00\x00\x00" // private_key.size
+        "\x46\x4f\x58\x59\x4b\x50\x4b\x59\x46\x4f\x58\x59\x4b\x50\x4b\x59" // private_key.bytes
+        "\x46\x4f\x58\x59\x4b\x50\x4b\x59\x46\x4f\x58\x59\x4b\x50\x4b\x00" // private_key.bytes
+        "\x01"             // has_public_key
+        "\x00\x00\x00"     // reserved
+        "\x21\x00\x00\x00" // public_key.size
+        "\x57\x68\x6f\x20\x69\x73\x20\x53\x61\x74\x6f\x73\x68\x69\x20\x4e" // public_key.bytes
+        "\x61\x6b\x6f\x6d\x6f\x74\x6f\x3f\x3f\x3f\x3f\x3f\x3f\x3f\x3f\x3f" // public_key.bytes
+        "\x00"             // public_key.bytes
+        "\x00\x00\x00"     // reserved
+        "\x01"             // has_mnemonic
+        "\x7a\x6f\x6f\x20\x7a\x6f\x6f\x20\x7a\x6f\x6f\x20\x7a\x6f\x6f\x20" // mnemonic
+        "\x7a\x6f\x6f\x20\x7a\x6f\x6f\x20\x7a\x6f\x6f\x20\x7a\x6f\x6f\x20" // mnemonic
+        "\x7a\x6f\x6f\x20\x7a\x6f\x6f\x20\x7a\x6f\x6f\x20\x77\x72\x6f\x6e" // menmonic
+        "\x67\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
+        "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
+        "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
+        "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
+        "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
+        "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
+        "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
+        "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
+        "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
+        "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
+        "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
+        "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
+        "\x00"             // mnemonic
+        "\x01"             // reserved
+        "\x00"             // passphrase_protection
+        "\x01"             // has_pin_failed_attempts
+        "\x00\x00\x00"     // reserved
+        "\x2a\x00\x00\x00" // pin_failed_attempts
+        "\x01"             // has_pin
+        "\x31\x32\x33\x34\x35\x36\x37\x38\x39\x00" // pin
+        "\x01"             // has_language
+        "\x65\x73\x70\x65\x72\x61\x6e\x74\x6f\x00\x00\x00\x00\x00\x00\x00" // language
+        "\x00"             // language
+        "\x01"             // has_label
+        "\x4d\x65\x6e\x6f\x73\x4d\x61\x72\x78\x4d\x61\x69\x73\x4d\x69\x73" // label
+        "\x65\x73\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // label
+        "\x00"             // label
+        "\x01"             // has_imported
+        "\x00"             // imported
+        "\x00\x00\x00"     // reserved
+        "\x01\x00\x00\x00" // policies_count
+        "\x01"             // policies[0].has_policy_name
+        "\x53\x68\x61\x70\x65\x53\x68\x69\x66\x74\x00\x00\x00\x00\x00" // policies[0].policy_name
+        "\x01"             // policies[0].has_enabled
+        "\x01"             // policies[0].enabled
+
+        // Cache
+        "\x2a\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34"
+        "\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30"
+        "\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36"
+        "\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32"
+        "\x00\x73\x65\x63\x70\x32\x35\x36\x6b\x31\x00\x00";
+
+
+    ConfigFlash shadow;
+    ASSERT_EQ(storage_fromFlash(&shadow, flash), SUS_Updated);
+
+    EXPECT_EQ(shadow.storage.version, STORAGE_VERSION);
+    EXPECT_EQ(shadow.storage.node.depth, 3);
+    EXPECT_EQ(memcmp(shadow.meta.magic, "stor", 4), 0);
+    EXPECT_EQ(std::string(shadow.storage.policies[0].policy_name), "ShapeShift");
+}
+
+TEST(Storage, StorageUpgrade_Vec) {
+    const struct {
+        int version;
+        StorageUpdateStatus update;
+        uint8_t root_seed_cache_status;
+    } vec[] = {
+        { 0,                   SUS_Invalid, 0xCC },
+        { 1,                   SUS_Updated, 0x00 },
+        { 2,                   SUS_Updated, 0xAB },
+        { STORAGE_VERSION,     SUS_Valid,   0xAB },
+        { STORAGE_VERSION + 1, SUS_Invalid, 0xCC }
+    };
+
+    for (const auto &v : vec) {
+        ConfigFlash start;
+        memset(&start, 0xAB, sizeof(start));
+        memcpy(start.meta.magic, "stor", 4);
+        start.storage.version = v.version;
+        start.storage.node.fingerprint = 42;
+
+        std::vector<char> flash(STORAGE_SECTOR_LEN);
+
+        storage_writeV2(&flash[0], &start);
+
+        ConfigFlash end;
+        memset(&end, 0xCC, sizeof(end));
+        EXPECT_EQ(storage_fromFlash(&end, &flash[0]), v.update)
+            << v.version;
+
+        if (v.update != SUS_Invalid) {
+            EXPECT_EQ(end.storage.version, STORAGE_VERSION);
+        }
+
+        EXPECT_EQ(end.cache.root_seed_cache_status,
+                  v.root_seed_cache_status)
+            << v.version;
+    }
+}

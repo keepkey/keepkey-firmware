@@ -261,32 +261,40 @@ _Static_assert(offsetof(Cache, root_seed_cache) == 1, "rsc");
 _Static_assert(offsetof(Cache, root_ecdsa_curve_type) == 65, "rect");
 _Static_assert(sizeof(((Cache*)0)->root_ecdsa_curve_type) == 10, "rect");
 
-typedef enum {
-   SUS_Invalid,
-   SUS_Valid,
-   SUS_Updated,
-} StorageUpdateStatus;
+void storage_readV1(ConfigFlash *dst, const char *flash) {
+    storage_readMeta(&dst->meta, flash);
+    storage_readStorageV1(&dst->storage, flash + 44);
+    storage_resetPolicies(&dst->storage);
+    storage_resetCache(&dst->cache);
+}
 
-/// \brief Copy configuration from storage partition in flash memory to shadow
-/// memory in RAM
-/// \returns true iff successful.
-static StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
+void storage_readV2(ConfigFlash *dst, const char *flash) {
+    storage_readMeta(&dst->meta, flash);
+    storage_readStorageV1(&dst->storage, flash + 44);
+    storage_readCacheV1(&dst->cache, flash + 528);
+}
+
+void storage_writeV2(char *flash, const ConfigFlash *src) {
+    storage_writeMeta(flash, &src->meta);
+    storage_writeStorageV1(flash + 44, &src->storage);
+    storage_writeCacheV1(flash + 528, &src->cache);
+}
+
+StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
 {
     // Load config values from active config node.
     enum StorageVersion version =
         version_from_int(read_u32_le(flash + 44));
 
     // Don't restore storage in MFR firmware
-    if (variant_isMFR())
+    if (variant_isMFR()) {
         version = StorageVersion_NONE;
+    }
 
     switch (version)
     {
         case StorageVersion_1:
-            storage_readMeta(&dst->meta, flash);
-            storage_readStorageV1(&dst->storage, flash + 44);
-            storage_resetPolicies(&dst->storage);
-            storage_resetCache(&dst->cache);
+            storage_readV1(dst, flash);
             dst->storage.version = STORAGE_VERSION;
             return SUS_Updated;
 
@@ -299,10 +307,7 @@ static StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash
         case StorageVersion_8:
         case StorageVersion_9:
         case StorageVersion_10:
-            storage_readMeta(&dst->meta, flash);
-            storage_readStorageV1(&dst->storage, flash + 44);
-            storage_readCacheV1(&dst->cache, flash + 528);
-
+            storage_readV2(dst, flash);
             dst->storage.version = STORAGE_VERSION;
 
             /* We have to do this for users with bootloaders <= v1.0.2. This
@@ -540,12 +545,7 @@ void storage_commit_impl(ConfigFlash *cfg)
     static CONFIDENTIAL char to_write[1024];
 
     memzero(to_write, sizeof(to_write));
-
-    storage_writeMeta(to_write, &cfg->meta);
-    storage_writeStorageV1(to_write + 44, &cfg->storage);
-    _Static_assert(offsetof(ConfigFlash, storage) == 44, "storage");
-    storage_writeCacheV1(to_write + 528, &cfg->cache);
-    _Static_assert(offsetof(ConfigFlash, cache) == 528, "cache");
+    storage_writeV2(to_write, cfg);
 
     memcpy(cfg, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
 

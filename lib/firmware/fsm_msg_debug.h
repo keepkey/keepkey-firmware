@@ -93,9 +93,13 @@ void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg)
 
 void fsm_msgSoftReset(SoftReset *msg) {
     (void)msg;
+#ifndef EMULATOR
     if (variant_mfr_softReset)
         variant_mfr_softReset();
     else {
+#else
+    {
+#endif
         fsm_sendFailure(FailureType_Failure_Other, "SoftReset: unsupported outside of MFR firmware");
         layoutHome();
     }

@@ -14,9 +14,9 @@ add_executable(firmware-unit ${sources})
 target_link_libraries(firmware-unit
     gtest_main
     kkfirmware
-    kkfirmware.mfr
+    kkfirmware.keepkey
     kkboard
-    kkboard.mfr
+    kkboard.keepkey
     kkvariant.keepkey
     kkvariant.salt
     kkboard
