@@ -194,7 +194,6 @@ void storage_readStorageV1(Storage *storage, const char *addr) {
     storage_readHDNode(&storage->node, addr + 8);
     storage->has_mnemonic = read_bool(addr + 140);
     memcpy(storage->mnemonic, addr + 141, 241);
-    storage->has_passphrase_protection = read_bool(addr + 382);
     storage->passphrase_protection = read_bool(addr + 383);
     storage->has_pin_failed_attempts = read_bool(addr + 384);
     storage->pin_failed_attempts = read_u32_le(addr + 388);
@@ -224,7 +223,7 @@ void storage_writeStorageV1(char *addr, const Storage *storage) {
     addr[139] = 0; // reserved
     write_bool(addr + 140, storage->has_mnemonic);
     memcpy(addr + 141, storage->mnemonic, 241);
-    write_bool(addr + 382, storage->has_passphrase_protection);
+    write_bool(addr + 382, true); // formerly has_passphrase_protection
     write_bool(addr + 383, storage->passphrase_protection);
     write_bool(addr + 384, storage->has_pin_failed_attempts);
     addr[385] = 0; // reserved
@@ -376,20 +375,20 @@ static void wear_leveling_shift(void)
 /// \param curve[in]  ECDSA curve name being used.
 static void storage_setRootSeedCache(ConfigFlash *cfg, const uint8_t *seed, const char* curve)
 {
-    if(!(cfg->storage.has_passphrase_protection &&
-         cfg->storage.passphrase_protection && strlen(sessionPassphrase)))
-    {
-        memset(&cfg->cache, 0, sizeof(((ConfigFlash *)NULL)->cache));
+    // Don't cache when passphrase protection is enabled.
+    if (cfg->storage.passphrase_protection && strlen(sessionPassphrase))
+        return;
 
-        memcpy(&cfg->cache.root_seed_cache, seed,
-               sizeof(((ConfigFlash *)NULL)->cache.root_seed_cache));
+    memset(&cfg->cache, 0, sizeof(((ConfigFlash *)NULL)->cache));
 
-        strlcpy(cfg->cache.root_ecdsa_curve_type, curve,
-                sizeof(cfg->cache.root_ecdsa_curve_type));
+    memcpy(&cfg->cache.root_seed_cache, seed,
+           sizeof(((ConfigFlash *)NULL)->cache.root_seed_cache));
 
-        cfg->cache.root_seed_cache_status = CACHE_EXISTS;
-        storage_commit();
-    }
+    strlcpy(cfg->cache.root_ecdsa_curve_type, curve,
+            sizeof(cfg->cache.root_ecdsa_curve_type));
+
+    cfg->cache.root_seed_cache_status = CACHE_EXISTS;
+    storage_commit();
 }
 
 /// \brief Get root session seed cache from storage.
@@ -405,8 +404,7 @@ static bool storage_getRootSeedCache(ConfigFlash *cfg, const char *curve,
     {
         if(usePassphrase)
         {
-            if(cfg->storage.has_passphrase_protection &&
-                cfg->storage.passphrase_protection && strlen(sessionPassphrase))
+            if (cfg->storage.passphrase_protection && strlen(sessionPassphrase))
             {
                 return false;
             }
@@ -662,15 +660,8 @@ void storage_loadDevice(LoadDevice *msg)
         storage_setPin(msg->pin);
     }
 
-    if(msg->has_passphrase_protection)
-    {
-        shadow_config.storage.has_passphrase_protection = true;
-        shadow_config.storage.passphrase_protection = msg->passphrase_protection;
-    }
-    else
-    {
-        shadow_config.storage.has_passphrase_protection = false;
-    }
+    shadow_config.storage.passphrase_protection =
+        msg->has_passphrase_protection && msg->passphrase_protection;
 
     if(msg->has_node)
     {
@@ -885,8 +876,7 @@ bool storage_getRootNode(const char *curve, bool usePassphrase, HDNode *node)
             goto storage_getRootNode_exit;
         }
 
-        if (shadow_config.storage.has_passphrase_protection &&
-            shadow_config.storage.passphrase_protection &&
+        if (shadow_config.storage.passphrase_protection &&
             sessionPassphraseCached &&
             strlen(sessionPassphrase) > 0)
         {
@@ -963,17 +953,11 @@ const char *storage_getUuidStr(void)
 
 bool storage_getPassphraseProtected(void)
 {
-    if (!shadow_config.storage.has_passphrase_protection)
-    {
-        return false;
-    }
-
     return shadow_config.storage.passphrase_protection;
 }
 
 void storage_setPassphraseProtected(bool passphrase)
 {
-    shadow_config.storage.has_passphrase_protection = true;
     shadow_config.storage.passphrase_protection = passphrase;
 }
 

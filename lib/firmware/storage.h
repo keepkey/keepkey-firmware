@@ -51,7 +51,6 @@ typedef struct _Storage {
     StorageHDNode node;
     bool has_mnemonic;
     char mnemonic[241];
-    bool has_passphrase_protection;
     bool passphrase_protection;
     bool has_pin_failed_attempts;
     uint32_t pin_failed_attempts;

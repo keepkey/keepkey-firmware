@@ -109,7 +109,7 @@ TEST(Storage, ReadStorageV1) {
                   "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
                   "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
                   "\x00"             // mnemonic
-        /* 382 */ "\x00"             // has_passphrase_protection
+        /* 382 */ "\x00"             // reserved
         /* 383 */ "\x00"             // passphrase_protection
         /* 384 */ "\x01"             // has_pin_failed_attempts
                   "\x00\x00\x00"     // reserved
@@ -137,7 +137,7 @@ TEST(Storage, ReadStorageV1) {
 
     storage_readStorageV1(&dst, &src[0]);
 
-    // Check a few, don't need toc check them all.
+    // Check a few, don't need to check them all.
     EXPECT_EQ(dst.version, 10);
     EXPECT_TRUE(dst.has_node);
     EXPECT_EQ(dst.node.depth, 3);
@@ -149,14 +149,6 @@ TEST(Storage, ReadStorageV1) {
     EXPECT_EQ(dst.node.public_key.size, 33);
     EXPECT_TRUE(memcmp(dst.node.public_key.bytes, "Who is Satoshi Nakomoto?????????\0", 32) == 0);
     EXPECT_EQ(dst.has_mnemonic, true);
-
-    char dst2[482];
-    memset(dst2, 0xD0, sizeof(dst2));
-    storage_writeStorageV1(&dst2[0], &dst);
-
-    for (int i = 0; i < sizeof(dst2); ++i) {
-        ASSERT_EQ(src[i], dst2[i]) << "i: " << i;
-    }
 }
 
 TEST(Storage, WriteStorageV1) {
@@ -184,7 +176,6 @@ TEST(Storage, WriteStorageV1) {
         },
         .has_mnemonic = true,
         .mnemonic = "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong",
-        .has_passphrase_protection = false,
         .passphrase_protection = false,
         .has_pin_failed_attempts = true,
         .pin_failed_attempts = 42,
@@ -248,7 +239,7 @@ TEST(Storage, WriteStorageV1) {
                   "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
                   "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
                   "\x00"             // mnemonic
-        /* 382 */ "\x00"             // has_passphrase_protection
+        /* 382 */ "\x01"             // reserved
         /* 383 */ "\x00"             // passphrase_protection
         /* 384 */ "\x01"             // has_pin_failed_attempts
                   "\x00\x00\x00"     // reserved

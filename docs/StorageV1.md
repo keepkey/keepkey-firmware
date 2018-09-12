@@ -6,7 +6,7 @@
 | reserved                  | N/A            |            3 |                    137 |
 | has_mnemonic              | bool           |            1 |                    140 |
 | mnemonic                  | char[241]      |          241 |                    141 |
-| has_passphrase_protection | bool           |            1 |                    382 |
+| reserved                  | N/A            |            1 |                    382 |
 | passphrase_protection     | bool           |            1 |                    383 |
 | has_pin_failed_attempts   | bool           |            1 |                    384 |
 | reserved                  | N/A            |            3 |                    385 |
