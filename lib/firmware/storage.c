@@ -841,6 +841,7 @@ void storage_setPin(const char *pin)
     {
         shadow_config.storage.pub.has_pin = false;
         memset(shadow_config.storage.sec.pin, 0, sizeof(shadow_config.storage.sec.pin));
+        memzero(sessionPin, sizeof(sessionPin));
         sessionPinCached = false;
     }
 }
