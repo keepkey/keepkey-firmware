@@ -284,68 +284,53 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
  */
 bool pin_protect(char *prompt)
 {
-    PINInfo pin_info;
-    char warn_msg_fmt[MEDIUM_STR_BUF];
-    uint32_t failed_cnts = 0;
-    bool ret = false, pre_increment_cnt_flg = true;
+    if (!storage_hasPin()) {
+        return true;
+    }
 
-    if(storage_hasPin())
-    {
+    // Check for prior PIN failed attempts and apply exponentially longer delay
+    // for each subsequent failed attempt.
+    uint32_t fail_count = storage_getPinFails();
+    if (fail_count > 2) {
+        uint32_t wait = (fail_count < 32)
+            ? (1u << fail_count)
+            : 0xFFFFFFFFu;
 
-        /* Check for prior PIN failed attempts and apply exponentially longer delay for
-         * each subsequent failed attempts */
-        if((failed_cnts = storage_getPinFails()))
-        {
-            if(failed_cnts > 2)
-            {
-                uint32_t wait = (failed_cnts < 32)
-                    ? (1u << failed_cnts)
-                    : 0xFFFFFFFFu;
+        // snprintf: 36 + 10 (%u) + 1 (NULL) = 47
+        char warn_msg_fmt[MEDIUM_STR_BUF];
+        snprintf(warn_msg_fmt, sizeof(warn_msg_fmt),
+                 "Previous PIN Failures: Wait %" PRIu32 " Seconds",
+                 wait);
+        layout_warning(warn_msg_fmt);
 
-                /* snprintf: 36 + 10 (%u) + 1 (NULL) = 47 */
-                snprintf(warn_msg_fmt, MEDIUM_STR_BUF,
-                         "Previous PIN Failures: Wait %" PRIu32 " Seconds",
-                         wait);
-                layout_warning(warn_msg_fmt);
-
-                while(--wait > 0)
-                {
-                    delay_ms_with_callback(ONE_SEC, &animating_progress_handler, 20);
-                }
-            }
+        while (--wait > 0) {
+            delay_ms_with_callback(ONE_SEC, &animating_progress_handler, 20);
         }
-
-        /* Set request type */
-        pin_info.type = PinMatrixRequestType_PinMatrixRequestType_Current;
-
-        /* Get PIN */
-        if(pin_request(prompt, &pin_info))
-        {
-
-            /* preincrement the failed counter before authentication*/
-            storage_increasePinFails();
-            pre_increment_cnt_flg = (failed_cnts >= storage_getPinFails());
-
-            /* authenticate user PIN */
-            if(storage_isPinCorrect(pin_info.pin) && !pre_increment_cnt_flg)
-            {
-                session_cachePin(pin_info.pin);
-                storage_resetPinFails();
-                ret = true;
-            }
-            else
-            {
-                fsm_sendFailure(FailureType_Failure_PinInvalid, "Invalid PIN");
-            }
-        } /* else - PIN entry has been canceled by the user */
-
-    }
-    else
-    {
-        ret = true;
     }
 
-    return (ret);
+    // Set request type
+    PINInfo pin_info;
+    pin_info.type = PinMatrixRequestType_PinMatrixRequestType_Current;
+
+    // Get PIN
+    if (!pin_request(prompt, &pin_info)) {
+        // PIN entry has been canceled by the user
+        return false;
+    }
+
+    // Preincrement the failed counter before authentication
+    storage_increasePinFails();
+    bool pre_increment_cnt_flg = (fail_count >= storage_getPinFails());
+
+    // Authenticate user PIN
+    if (!storage_isPinCorrect(pin_info.pin) || pre_increment_cnt_flg) {
+        fsm_sendFailure(FailureType_Failure_PinInvalid, "Invalid PIN");
+        return false;
+    }
+
+    session_cachePin(pin_info.pin);
+    storage_resetPinFails();
+    return true;
 }
 
 /*
@@ -356,16 +341,12 @@ bool pin_protect(char *prompt)
  * OUTPUT -
  *     true/false of whether PIN was correct
  */
-bool pin_protect_cached(void)
-{
-    if (session_isPinCached())
-    {
-        return (true);
+bool pin_protect_cached(void) {
+    if (session_isPinCached()) {
+        return true;
     }
-    else
-    {
-        return (pin_protect("Enter Your PIN"));
-    }
+
+    return pin_protect("Enter Your PIN");
 }
 
 /*
@@ -378,30 +359,27 @@ bool pin_protect_cached(void)
  */
 bool change_pin(void)
 {
-    bool ret = false;
     PINInfo pin_info_first, pin_info_second;
 
     /* Set request types */
     pin_info_first.type =   PinMatrixRequestType_PinMatrixRequestType_NewFirst;
     pin_info_second.type =  PinMatrixRequestType_PinMatrixRequestType_NewSecond;
 
-    if(pin_request("Enter New PIN", &pin_info_first))
-    {
-        if(pin_request("Re-Enter New PIN", &pin_info_second))
-        {
-            if(strcmp(pin_info_first.pin, pin_info_second.pin) == 0)
-            {
-                storage_setPin(pin_info_first.pin);
-                ret = true;
-            }
-            else
-            {
-                fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
-            }
-        }
+    if (!pin_request("Enter New PIN", &pin_info_first)) {
+        return false;
     }
 
-    return ret;
+    if (!pin_request("Re-Enter New PIN", &pin_info_second)) {
+        return false;
+    }
+
+    if (strcmp(pin_info_first.pin, pin_info_second.pin) != 0) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
+        return false;
+    }
+
+    storage_setPin(pin_info_first.pin);
+    return true;
 }
 
 /* === Debug Functions =========================================================== */
