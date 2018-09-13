@@ -530,8 +530,8 @@ void session_clear(bool clear_pin)
     sessionPassphraseCached = false;
     memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
 
-    if(clear_pin)
-    {
+    if (clear_pin) {
+        memzero(sessionPin, sizeof(sessionPin));
         sessionPinCached = false;
     }
 }
@@ -790,6 +790,7 @@ void storage_setPin(const char *pin)
 
 void session_cachePin(const char *pin)
 {
+    memzero(sessionPin, sizeof(sessionPin));
     strlcpy(sessionPin, pin, sizeof(sessionPin));
     sessionPinCached = true;
 }
