@@ -90,9 +90,9 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     resp->has_imported = true; resp->imported = storage_getImported();
 
     /* Cached pin and passphrase status */
-    resp->has_pin_cached = true; resp->pin_cached = session_is_pin_cached();
+    resp->has_pin_cached = true; resp->pin_cached = session_isPinCached();
     resp->has_passphrase_cached = true;
-    resp->passphrase_cached = session_is_passphrase_cached();
+    resp->passphrase_cached = session_isPassphraseCached();
 
     /* Policies */
     resp->policies_count = POLICY_COUNT;

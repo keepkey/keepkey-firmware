@@ -7,15 +7,16 @@ set(sources
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/lib/firmware
     ${CMAKE_BINARY_DIR}/include)
 
 add_executable(firmware-unit ${sources})
 target_link_libraries(firmware-unit
     gtest_main
     kkfirmware
-    kkfirmware.mfr
+    kkfirmware.keepkey
     kkboard
-    kkboard.mfr
+    kkboard.keepkey
     kkvariant.keepkey
     kkvariant.salt
     kkboard

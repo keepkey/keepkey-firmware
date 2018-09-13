@@ -125,14 +125,14 @@ void board_init(void)
  * OUTPUT
  *     crc32 of data
  */
-uint32_t calc_crc32(uint32_t *data, int word_len)
+uint32_t calc_crc32(const void *data, int word_len)
 {
     uint32_t crc32 = 0;
 
     // TODO: implement crc32 on the emulator side of things
 #ifndef EMULATOR
     crc_reset();
-    crc32 = crc_calculate_block(data, word_len);
+    crc32 = crc_calculate_block((uint32_t*)data, word_len);
 #endif
 
     return(crc32);

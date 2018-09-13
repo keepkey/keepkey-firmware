@@ -25,7 +25,6 @@
 #include "messages.pb.h"
 #undef delete
 
-#include "keepkey/firmware/storagepb.h"
 #include "types.pb.h"
 #include "trezor_transport.h"
 
