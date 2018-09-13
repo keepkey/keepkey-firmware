@@ -17,21 +17,15 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "keepkey/firmware/policy.h"
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/exchange.h"
 
-/* === Variables =========================================================== */
-
 const PolicyType policies[POLICY_COUNT] = {
     {true, "ShapeShift", true, false}
 };
-
-/* === Functions =========================================================== */
 
 /*
  * run_policy_compile_output() - Policy wrapper around compile output

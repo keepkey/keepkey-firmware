@@ -17,8 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/msg_dispatch.h"
@@ -33,25 +31,12 @@
 #include <inttypes.h>
 #include <stdio.h>
 
-/* === Private Variables =================================================== */
-
 /* Holds random PIN matrix */
 static char pin_matrix[PIN_BUF] = "XXXXXXXXX";
 
-/* === Variables =========================================================== */
-
 extern bool reset_msg_stack;
 
-/* === Private Functions =================================================== */
-
-/*
- * send_pin_request() - Send USB request for PIN entry over USB port
- *
- * INPUT
- *     - type: pin request type
- * OUTPUT
- *     none
- */
+/// Send USB request for PIN entry over USB port
 static void send_pin_request(PinMatrixRequestType type)
 {
     PinMatrixRequest resp;
@@ -61,14 +46,7 @@ static void send_pin_request(PinMatrixRequestType type)
     msg_write(MessageType_MessageType_PinMatrixRequest, &resp);
 }
 
-/*
- * wait_for_pin_ack() - Capture PIN entry from user over USB port
- *
- * INPUT
- *     - pin_info: PIN information
- * OUTPUT
- *     none
- */
+/// Capture PIN entry from user over USB port
 static void check_for_pin_ack(PINInfo *pin_info)
 {
     /* Listen for tiny messages */
@@ -95,7 +73,6 @@ static void check_for_pin_ack(PINInfo *pin_info)
             break;
 
 #if DEBUG_LINK
-
         case MessageType_MessageType_DebugLinkGetState:
             call_msg_debug_link_get_state_handler((DebugLinkGetState *)msg_tiny_buf);
             break;
@@ -107,13 +84,9 @@ static void check_for_pin_ack(PINInfo *pin_info)
     }
 }
 
-/*
- * run_pin_state() - Request and receive PIN from user over USB port
- *
- * INPUT
- *     - pin_state: state of request
- *     - pin_info: buffer for user PIN
- */
+/// Request and receive PIN from user over USB port
+/// \param pin_state state of request
+/// \param pin_info buffer for user PIN
 static void run_pin_state(PINState *pin_state, PINInfo *pin_info)
 {
     switch(*pin_state)
@@ -148,14 +121,8 @@ static void run_pin_state(PINState *pin_state, PINInfo *pin_info)
     }
 }
 
-/*
- * check_pin_input() - Make sure that PIN is at least one digit and a char from 1 to 9
- *
- * INPUT -
- *     - pin_info: PIN information
- * OUTPUT -
- *      true/false whether PIN input is correct format
- */
+/// Make sure that PIN is at least one digit and a char from 1 to 9.
+/// \returns true iff the pin is in the correct format
 static bool check_pin_input(PINInfo *pin_info)
 {
     bool ret = true;
@@ -180,14 +147,7 @@ static bool check_pin_input(PINInfo *pin_info)
     return ret;
 }
 
-/*
- * decode_pin() - Decode user PIN entry
- *
- * INPUT
- *     - pin_info: PIN information
- * OUTPUT
- *     none
- */
+/// Decode user PIN entry.
 static void decode_pin(PINInfo *pin_info)
 {
     for(uint32_t i = 0; i < strlen(pin_info->pin); i++)
@@ -205,14 +165,9 @@ static void decode_pin(PINInfo *pin_info)
     }
 }
 
-/*
- * pin_request() - Request user for PIN entry
- *
- * INPUT
- *     - prompt: prompt to show user along with PIN matrix
- * OUTPUT -
- *     true/false of whether PIN was received
- */
+/// Request user for PIN entry.
+/// \param prompt Text to display for the user along with PIN matrix.
+/// \returns true iff the pin was received.
 static bool pin_request(const char *prompt, PINInfo *pin_info)
 {
     bool ret = false;
@@ -271,18 +226,7 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
     return (ret);
 }
 
-/* === Functions =========================================================== */
-
-
-/*
- * pin_protect() - Authenticate user PIN for device access
- *
- * INPUT
- *     - prompt: prompt to show user along with PIN matrix
- * OUTPUT
- *     true/false of whether PIN was correct
- */
-bool pin_protect(char *prompt)
+bool pin_protect(const char *prompt)
 {
     if (!storage_hasPin()) {
         return true;
@@ -333,14 +277,6 @@ bool pin_protect(char *prompt)
     return true;
 }
 
-/*
- * pin_protect_cached() - Prompt for PIN only if it is not already cached
- *
- * INPUT
- *     none
- * OUTPUT -
- *     true/false of whether PIN was correct
- */
 bool pin_protect_cached(void) {
     if (session_isPinCached()) {
         return true;
@@ -349,14 +285,6 @@ bool pin_protect_cached(void) {
     return pin_protect("Enter Your PIN");
 }
 
-/*
- * change_pin() - process PIN change
- *
- * INPUT
- *     none
- * OUTPUT
- *     true/false of whether PIN was successfully changed
- */
 bool change_pin(void)
 {
     PINInfo pin_info_first, pin_info_second;
@@ -382,17 +310,8 @@ bool change_pin(void)
     return true;
 }
 
-/* === Debug Functions =========================================================== */
-
 #if DEBUG_LINK
-/*
- * get_pin_matrix() - Gets randomized PIN matrix
- *
- * INPUT
- *     none
- * OUTPUT
- *     randomized PIN
- */
+/// Gets randomized PIN matrix
 const char *get_pin_matrix(void)
 {
     return pin_matrix;
