@@ -47,22 +47,29 @@ typedef struct _StorageHDNode {
 
 typedef struct _Storage {
     uint32_t version;
-    bool has_node;
-    StorageHDNode node;
-    bool has_mnemonic;
-    char mnemonic[241];
-    bool passphrase_protection;
-    bool has_pin_failed_attempts;
-    uint32_t pin_failed_attempts;
-    bool has_pin;
-    char pin[10];
-    bool has_language;
-    char language[17];
-    bool has_label;
-    char label[33];
-    bool imported;
-    uint32_t policies_count;
-    PolicyType policies[POLICY_COUNT];
+
+    struct Public {
+        bool has_pin;
+        bool has_pin_failed_attempts;
+        uint32_t pin_failed_attempts;
+        bool has_language;
+        char language[17];
+        bool has_label;
+        char label[33];
+        bool imported;
+        uint32_t policies_count;
+        PolicyType policies[POLICY_COUNT];
+    } pub;
+
+    struct Secret {
+        char magic[7];
+        bool has_node;
+        bool has_mnemonic;
+        bool passphrase_protection;
+        StorageHDNode node;
+        char mnemonic[241];
+        char pin[10];
+    } sec;
 } Storage;
 
 typedef struct _ConfigFlash {

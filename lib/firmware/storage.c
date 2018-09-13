@@ -66,9 +66,9 @@ static ConfigFlash CONFIDENTIAL shadow_config;
 /// \brief Reset Policies
 void storage_resetPolicies(Storage *storage)
 {
-    storage->policies_count = POLICY_COUNT;
+    storage->pub.policies_count = POLICY_COUNT;
     for (int i = 0; i < POLICY_COUNT; i++) {
-        memcpy(&storage->policies[i], &policies[i], sizeof(storage->policies[i]));
+        memcpy(&storage->pub.policies[i], &policies[i], sizeof(storage->pub.policies[i]));
     }
 }
 
@@ -204,61 +204,61 @@ void storage_readStorageV1(Storage *storage, const char *ptr, size_t len) {
     if (len < 464 + 17)
         return;
     storage->version = read_u32_le(ptr);
-    storage->has_node = read_bool(ptr + 4);
-    storage_readHDNode(&storage->node, ptr + 8, 140);
-    storage->has_mnemonic = read_bool(ptr + 140);
-    memcpy(storage->mnemonic, ptr + 141, 241);
-    storage->passphrase_protection = read_bool(ptr + 383);
-    storage->has_pin_failed_attempts = read_bool(ptr + 384);
-    storage->pin_failed_attempts = read_u32_le(ptr + 388);
-    storage->has_pin = read_bool(ptr + 392);
-    memset(storage->pin, 0, sizeof(storage->pin));
-    memcpy(storage->pin, ptr + 393, 10);
-    storage->has_language = read_bool(ptr + 403);
-    memset(storage->language, 0, sizeof(storage->language));
-    memcpy(storage->language, ptr + 404, 17);
-    storage->has_label = read_bool(ptr + 421);
-    memset(storage->label, 0, sizeof(storage->label));
-    memcpy(storage->label, ptr + 422, 33);
-    storage->imported = read_bool(ptr + 456);
-    storage->policies_count = 1;
-    storage_readPolicy(&storage->policies[0], ptr + 464, 17);
+    storage->sec.has_node = read_bool(ptr + 4);
+    storage_readHDNode(&storage->sec.node, ptr + 8, 140);
+    storage->sec.has_mnemonic = read_bool(ptr + 140);
+    memcpy(storage->sec.mnemonic, ptr + 141, 241);
+    storage->sec.passphrase_protection = read_bool(ptr + 383);
+    storage->pub.has_pin_failed_attempts = read_bool(ptr + 384);
+    storage->pub.pin_failed_attempts = read_u32_le(ptr + 388);
+    storage->pub.has_pin = read_bool(ptr + 392);
+    memset(storage->sec.pin, 0, sizeof(storage->sec.pin));
+    memcpy(storage->sec.pin, ptr + 393, 10);
+    storage->pub.has_language = read_bool(ptr + 403);
+    memset(storage->pub.language, 0, sizeof(storage->pub.language));
+    memcpy(storage->pub.language, ptr + 404, 17);
+    storage->pub.has_label = read_bool(ptr + 421);
+    memset(storage->pub.label, 0, sizeof(storage->pub.label));
+    memcpy(storage->pub.label, ptr + 422, 33);
+    storage->pub.imported = read_bool(ptr + 456);
+    storage->pub.policies_count = 1;
+    storage_readPolicy(&storage->pub.policies[0], ptr + 464, 17);
 }
 
 void storage_writeStorageV1(char *ptr, size_t len, const Storage *storage) {
     if (len < 464 + 17)
         return;
     write_u32_le(ptr, storage->version);
-    write_bool(ptr + 4, storage->has_node);
+    write_bool(ptr + 4, storage->sec.has_node);
     ptr[5] = 0; // reserved
     ptr[6] = 0; // reserved
     ptr[7] = 0; // reserved
-    storage_writeHDNode(ptr + 8, 140, &storage->node);
+    storage_writeHDNode(ptr + 8, 140, &storage->sec.node);
     ptr[137] = 0; // reserved
     ptr[138] = 0; // reserved
     ptr[139] = 0; // reserved
-    write_bool(ptr + 140, storage->has_mnemonic);
-    memcpy(ptr + 141, storage->mnemonic, 241);
+    write_bool(ptr + 140, storage->sec.has_mnemonic);
+    memcpy(ptr + 141, storage->sec.mnemonic, 241);
     write_bool(ptr + 382, true); // formerly has_passphrase_protection
-    write_bool(ptr + 383, storage->passphrase_protection);
-    write_bool(ptr + 384, storage->has_pin_failed_attempts);
+    write_bool(ptr + 383, storage->sec.passphrase_protection);
+    write_bool(ptr + 384, storage->pub.has_pin_failed_attempts);
     ptr[385] = 0; // reserved
     ptr[386] = 0; // reserved
     ptr[387] = 0; // reserved
-    write_u32_le(ptr + 388, storage->pin_failed_attempts);
-    write_bool(ptr + 392, storage->has_pin);
-    memcpy(ptr + 393, storage->pin, 10);
-    write_bool(ptr + 403, storage->has_language);
-    memcpy(ptr + 404, storage->language, 17);
-    write_bool(ptr + 421, storage->has_label);
-    memcpy(ptr + 422, storage->label, 33);
+    write_u32_le(ptr + 388, storage->pub.pin_failed_attempts);
+    write_bool(ptr + 392, storage->pub.has_pin);
+    memcpy(ptr + 393, storage->sec.pin, 10);
+    write_bool(ptr + 403, storage->pub.has_language);
+    memcpy(ptr + 404, storage->pub.language, 17);
+    write_bool(ptr + 421, storage->pub.has_label);
+    memcpy(ptr + 422, storage->pub.label, 33);
     write_bool(ptr + 455, true); // formerly has_imported
-    write_bool(ptr + 456, storage->imported);
+    write_bool(ptr + 456, storage->pub.imported);
     ptr[457] = 0; // reserved
     ptr[458] = 0; // reserved
     ptr[459] = 0; // reserved
     write_u32_le(ptr + 460, 1);
-    storage_writePolicy(ptr + 464, 17, &storage->policies[0]);
+    storage_writePolicy(ptr + 464, 17, &storage->pub.policies[0]);
 }
 
 void storage_readCacheV1(Cache *cache, const char *ptr, size_t len) {
@@ -339,7 +339,7 @@ StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
             /* We have to do this for users with bootloaders <= v1.0.2. This
             scenario would only happen after a firmware install from the same
             storage version */
-            if (dst->storage.policies_count == 0xFFFFFFFF)
+            if (dst->storage.pub.policies_count == 0xFFFFFFFF)
             {
                 storage_resetPolicies(&dst->storage);
                 storage_resetCache(&dst->cache);
@@ -407,7 +407,7 @@ static void wear_leveling_shift(void)
 static void storage_setRootSeedCache(ConfigFlash *cfg, const uint8_t *seed, const char* curve)
 {
     // Don't cache when passphrase protection is enabled.
-    if (cfg->storage.passphrase_protection && strlen(sessionPassphrase))
+    if (cfg->storage.sec.passphrase_protection && strlen(sessionPassphrase))
         return;
 
     memset(&cfg->cache, 0, sizeof(((ConfigFlash *)NULL)->cache));
@@ -434,7 +434,7 @@ static bool storage_getRootSeedCache(ConfigFlash *cfg, const char *curve,
     if (cfg->cache.root_seed_cache_status != CACHE_EXISTS)
         return false;
 
-    if (usePassphrase && cfg->storage.passphrase_protection &&
+    if (usePassphrase && cfg->storage.sec.passphrase_protection &&
         strlen(sessionPassphrase)) {
         return false;
     }
@@ -681,31 +681,31 @@ void storage_loadDevice(LoadDevice *msg)
 {
     storage_reset_impl(&shadow_config);
 
-    shadow_config.storage.imported = true;
+    shadow_config.storage.pub.imported = true;
 
     if(msg->has_pin > 0)
     {
         storage_setPin(msg->pin);
     }
 
-    shadow_config.storage.passphrase_protection =
+    shadow_config.storage.sec.passphrase_protection =
         msg->has_passphrase_protection && msg->passphrase_protection;
 
     if(msg->has_node)
     {
-        shadow_config.storage.has_node = true;
-        shadow_config.storage.has_mnemonic = false;
-        memcpy(&shadow_config.storage.node, &(msg->node), sizeof(HDNodeType));
+        shadow_config.storage.sec.has_node = true;
+        shadow_config.storage.sec.has_mnemonic = false;
+        memcpy(&shadow_config.storage.sec.node, &(msg->node), sizeof(HDNodeType));
 
         sessionSeedCached = false;
         memset(&sessionSeed, 0, sizeof(sessionSeed));
     }
     else if(msg->has_mnemonic)
     {
-        shadow_config.storage.has_mnemonic = true;
-        shadow_config.storage.has_node = false;
-        strlcpy(shadow_config.storage.mnemonic, msg->mnemonic,
-                sizeof(shadow_config.storage.mnemonic));
+        shadow_config.storage.sec.has_mnemonic = true;
+        shadow_config.storage.sec.has_node = false;
+        strlcpy(shadow_config.storage.sec.mnemonic, msg->mnemonic,
+                sizeof(shadow_config.storage.sec.mnemonic));
 
         sessionSeedCached = false;
         memset(&sessionSeed, 0, sizeof(sessionSeed));
@@ -727,19 +727,19 @@ void storage_setLabel(const char *label)
 {
     if(!label) { return; }
 
-    shadow_config.storage.has_label = true;
-    memset(shadow_config.storage.label, 0, sizeof(shadow_config.storage.label));
-    strlcpy(shadow_config.storage.label, label,
-            sizeof(shadow_config.storage.label));
+    shadow_config.storage.pub.has_label = true;
+    memset(shadow_config.storage.pub.label, 0, sizeof(shadow_config.storage.pub.label));
+    strlcpy(shadow_config.storage.pub.label, label,
+            sizeof(shadow_config.storage.pub.label));
 }
 
 const char *storage_getLabel(void)
 {
-    if (!shadow_config.storage.has_label) {
+    if (!shadow_config.storage.pub.has_label) {
         return NULL;
     }
 
-    return shadow_config.storage.label;
+    return shadow_config.storage.pub.label;
 }
 
 void storage_setLanguage(const char *lang)
@@ -749,21 +749,21 @@ void storage_setLanguage(const char *lang)
     // sanity check
     if(strcmp(lang, "english") == 0)
     {
-        shadow_config.storage.has_language = true;
-        memset(shadow_config.storage.language, 0,
-               sizeof(shadow_config.storage.language));
-        strlcpy(shadow_config.storage.language, lang,
-                sizeof(shadow_config.storage.language));
+        shadow_config.storage.pub.has_language = true;
+        memset(shadow_config.storage.pub.language, 0,
+               sizeof(shadow_config.storage.pub.language));
+        strlcpy(shadow_config.storage.pub.language, lang,
+                sizeof(shadow_config.storage.pub.language));
     }
 }
 
 const char *storage_getLanguage(void)
 {
-    if (!shadow_config.storage.has_language) {
+    if (!shadow_config.storage.pub.has_language) {
         return NULL;
     }
 
-    return shadow_config.storage.language;
+    return shadow_config.storage.pub.language;
 }
 
 bool storage_isPinCorrect(const char *pin)
@@ -782,10 +782,10 @@ bool storage_isPinCorrect(const char *pin)
     for (pinIdx=0; pinIdx<9; pinIdx++)
     {
         if (pin[pinIdx] == '\0') break;
-        sumXors = sumXors + ( (uint8_t)shadow_config.storage.pin[pinIdx] ^ (uint8_t)pin[pinIdx] );
+        sumXors = sumXors + ( (uint8_t)shadow_config.storage.sec.pin[pinIdx] ^ (uint8_t)pin[pinIdx] );
     }
 
-    result1 = ('\0' == shadow_config.storage.pin[pinIdx]);
+    result1 = ('\0' == shadow_config.storage.sec.pin[pinIdx]);
     result2 = (1 <= pinIdx);
     result3 = (0 == sumXors);
     result = result1 + result2 + result3;
@@ -795,21 +795,21 @@ bool storage_isPinCorrect(const char *pin)
 
 bool storage_hasPin(void)
 {
-    return shadow_config.storage.has_pin && strlen(shadow_config.storage.pin) > 0;
+    return shadow_config.storage.pub.has_pin && strlen(shadow_config.storage.sec.pin) > 0;
 }
 
 void storage_setPin(const char *pin)
 {
     if(pin && strlen(pin) > 0)
     {
-        shadow_config.storage.has_pin = true;
-        strlcpy(shadow_config.storage.pin, pin, sizeof(shadow_config.storage.pin));
+        shadow_config.storage.pub.has_pin = true;
+        strlcpy(shadow_config.storage.sec.pin, pin, sizeof(shadow_config.storage.sec.pin));
         session_cachePin(pin);
     }
     else
     {
-        shadow_config.storage.has_pin = false;
-        memset(shadow_config.storage.pin, 0, sizeof(shadow_config.storage.pin));
+        shadow_config.storage.pub.has_pin = false;
+        memset(shadow_config.storage.sec.pin, 0, sizeof(shadow_config.storage.sec.pin));
         sessionPinCached = false;
     }
 }
@@ -823,29 +823,29 @@ void session_cachePin(const char *pin)
 
 bool session_isPinCached(void)
 {
-    return sessionPinCached && strcmp(sessionPin, shadow_config.storage.pin) == 0;
+    return sessionPinCached && strcmp(sessionPin, shadow_config.storage.sec.pin) == 0;
 }
 
 void storage_resetPinFails(void)
 {
-    shadow_config.storage.has_pin_failed_attempts = false;
-    shadow_config.storage.pin_failed_attempts = 0;
+    shadow_config.storage.pub.has_pin_failed_attempts = false;
+    shadow_config.storage.pub.pin_failed_attempts = 0;
 
     storage_commit_impl(&shadow_config);
 }
 
 void storage_increasePinFails(void)
 {
-    shadow_config.storage.has_pin_failed_attempts = true;
-    shadow_config.storage.pin_failed_attempts++;
+    shadow_config.storage.pub.has_pin_failed_attempts = true;
+    shadow_config.storage.pub.pin_failed_attempts++;
 
     storage_commit_impl(&shadow_config);
 }
 
 uint32_t storage_getPinFails(void)
 {
-    return shadow_config.storage.has_pin_failed_attempts ?
-           shadow_config.storage.pin_failed_attempts : 0;
+    return shadow_config.storage.pub.has_pin_failed_attempts ?
+           shadow_config.storage.pub.pin_failed_attempts : 0;
 }
 
 /// \brief Calls animation callback.
@@ -867,13 +867,13 @@ const uint8_t *storage_getSeed(const ConfigFlash *cfg, bool usePassphrase)
     }
 
     // if storage has mnemonic, convert it to node and use it
-    if (cfg->storage.has_mnemonic) {
+    if (cfg->storage.sec.has_mnemonic) {
         if (usePassphrase && !passphrase_protect()) {
             return NULL;
         }
 
         layout_loading();
-        mnemonic_to_seed(cfg->storage.mnemonic,
+        mnemonic_to_seed(cfg->storage.sec.mnemonic,
                          usePassphrase ? sessionPassphrase : "",
                          sessionSeed, get_root_node_callback); // BIP-0039
         sessionSeedCached = true;
@@ -886,21 +886,21 @@ const uint8_t *storage_getSeed(const ConfigFlash *cfg, bool usePassphrase)
 
 bool storage_getRootNode(const char *curve, bool usePassphrase, HDNode *node) {
     // if storage has node, decrypt and use it
-    if (shadow_config.storage.has_node && strcmp(curve, SECP256K1_NAME) == 0) {
+    if (shadow_config.storage.sec.has_node && strcmp(curve, SECP256K1_NAME) == 0) {
         if (!passphrase_protect()) {
             /* passphrased failed. Bailing */
             return false;
         }
 
-        if (hdnode_from_xprv(shadow_config.storage.node.depth,
-                             shadow_config.storage.node.child_num,
-                             shadow_config.storage.node.chain_code.bytes,
-                             shadow_config.storage.node.private_key.bytes,
+        if (hdnode_from_xprv(shadow_config.storage.sec.node.depth,
+                             shadow_config.storage.sec.node.child_num,
+                             shadow_config.storage.sec.node.chain_code.bytes,
+                             shadow_config.storage.sec.node.private_key.bytes,
                              curve, node) == 0) {
             return false;
         }
 
-        if (shadow_config.storage.passphrase_protection &&
+        if (shadow_config.storage.sec.passphrase_protection &&
             sessionPassphraseCached &&
             strlen(sessionPassphrase) > 0) {
             // decrypt hd node
@@ -924,7 +924,7 @@ bool storage_getRootNode(const char *curve, bool usePassphrase, HDNode *node) {
     }
 
     /* get node from mnemonic */
-    if (shadow_config.storage.has_mnemonic) {
+    if (shadow_config.storage.sec.has_mnemonic) {
         if (!passphrase_protect()) {
             /* passphrased failed. Bailing */
             return false;
@@ -955,7 +955,7 @@ bool storage_getRootNode(const char *curve, bool usePassphrase, HDNode *node) {
 
 bool storage_isInitialized(void)
 {
-    return shadow_config.storage.has_node || shadow_config.storage.has_mnemonic;
+    return shadow_config.storage.sec.has_node || shadow_config.storage.sec.has_mnemonic;
 }
 
 const char *storage_getUuidStr(void)
@@ -965,12 +965,12 @@ const char *storage_getUuidStr(void)
 
 bool storage_getPassphraseProtected(void)
 {
-    return shadow_config.storage.passphrase_protection;
+    return shadow_config.storage.sec.passphrase_protection;
 }
 
 void storage_setPassphraseProtected(bool passphrase)
 {
-    shadow_config.storage.passphrase_protection = passphrase;
+    shadow_config.storage.sec.passphrase_protection = passphrase;
 }
 
 void session_cachePassphrase(const char *passphrase)
@@ -987,47 +987,47 @@ bool session_isPassphraseCached(void)
 void storage_setMnemonicFromWords(const char (*words)[12],
                                   unsigned int word_count)
 {
-    strlcpy(shadow_config.storage.mnemonic, words[0],
-            sizeof(shadow_config.storage.mnemonic));
+    strlcpy(shadow_config.storage.sec.mnemonic, words[0],
+            sizeof(shadow_config.storage.sec.mnemonic));
 
     for(uint32_t i = 1; i < word_count; i++)
     {
-        strlcat(shadow_config.storage.mnemonic, " ",
-                sizeof(shadow_config.storage.mnemonic));
-        strlcat(shadow_config.storage.mnemonic, words[i],
-                sizeof(shadow_config.storage.mnemonic));
+        strlcat(shadow_config.storage.sec.mnemonic, " ",
+                sizeof(shadow_config.storage.sec.mnemonic));
+        strlcat(shadow_config.storage.sec.mnemonic, words[i],
+                sizeof(shadow_config.storage.sec.mnemonic));
     }
 
-    shadow_config.storage.has_mnemonic = true;
+    shadow_config.storage.sec.has_mnemonic = true;
 }
 
 void storage_setMnemonic(const char *m)
 {
-    memset(shadow_config.storage.mnemonic, 0,
-           sizeof(shadow_config.storage.mnemonic));
-    strlcpy(shadow_config.storage.mnemonic, m,
-            sizeof(shadow_config.storage.mnemonic));
-    shadow_config.storage.has_mnemonic = true;
+    memset(shadow_config.storage.sec.mnemonic, 0,
+           sizeof(shadow_config.storage.sec.mnemonic));
+    strlcpy(shadow_config.storage.sec.mnemonic, m,
+            sizeof(shadow_config.storage.sec.mnemonic));
+    shadow_config.storage.sec.has_mnemonic = true;
 }
 
 bool storage_hasMnemonic(void)
 {
-    return shadow_config.storage.has_mnemonic;
+    return shadow_config.storage.sec.has_mnemonic;
 }
 
 const char *storage_getShadowMnemonic(void)
 {
-    return shadow_config.storage.mnemonic;
+    return shadow_config.storage.sec.mnemonic;
 }
 
 bool storage_getImported(void)
 {
-    return shadow_config.storage.imported;
+    return shadow_config.storage.pub.imported;
 }
 
 bool storage_hasNode(void)
 {
-    return shadow_config.storage.has_node;
+    return shadow_config.storage.sec.has_node;
 }
 
 Allocation storage_getLocation(void)
@@ -1039,9 +1039,9 @@ bool storage_setPolicy(const PolicyType *policy)
 {
     for (unsigned i = 0; i < POLICY_COUNT; ++i)
     {
-        if(strcmp(policy->policy_name, shadow_config.storage.policies[i].policy_name) == 0)
+        if(strcmp(policy->policy_name, shadow_config.storage.pub.policies[i].policy_name) == 0)
         {
-            memcpy(&shadow_config.storage.policies[i], policy, sizeof(PolicyType));
+            memcpy(&shadow_config.storage.pub.policies[i], policy, sizeof(PolicyType));
             return true;
         }
     }
@@ -1052,7 +1052,7 @@ bool storage_setPolicy(const PolicyType *policy)
 void storage_getPolicies(PolicyType *policy_data)
 {
     for (size_t i = 0; i < POLICY_COUNT; ++i) {
-        memcpy(&policy_data[i], &shadow_config.storage.policies[i], sizeof(policy_data[i]));
+        memcpy(&policy_data[i], &shadow_config.storage.pub.policies[i], sizeof(policy_data[i]));
     }
 }
 
@@ -1060,9 +1060,9 @@ bool storage_isPolicyEnabled(char *policy_name)
 {
     for (unsigned i = 0; i < POLICY_COUNT; ++i)
     {
-        if(strcmp(policy_name, shadow_config.storage.policies[i].policy_name) == 0)
+        if(strcmp(policy_name, shadow_config.storage.pub.policies[i].policy_name) == 0)
         {
-            return shadow_config.storage.policies[i].enabled;
+            return shadow_config.storage.pub.policies[i].enabled;
         }
     }
     return false;
@@ -1071,16 +1071,16 @@ bool storage_isPolicyEnabled(char *policy_name)
 #if DEBUG_LINK
 const char *storage_getPin(void)
 {
-    return (shadow_config.storage.has_pin) ? shadow_config.storage.pin : NULL;
+    return shadow_config.storage.pub.has_pin ? shadow_config.storage.sec.pin : NULL;
 }
 
 const char *storage_getMnemonic(void)
 {
-    return shadow_config.storage.mnemonic;
+    return shadow_config.storage.sec.mnemonic;
 }
 
 StorageHDNode *storage_getNode(void)
 {
-    return &shadow_config.storage.node;
+    return &shadow_config.storage.sec.node;
 }
 #endif

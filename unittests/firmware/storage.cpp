@@ -139,60 +139,64 @@ TEST(Storage, ReadStorageV1) {
 
     // Check a few, don't need to check them all.
     EXPECT_EQ(dst.version, 10);
-    EXPECT_TRUE(dst.has_node);
-    EXPECT_EQ(dst.node.depth, 3);
-    EXPECT_EQ(dst.node.fingerprint, 42);
-    EXPECT_EQ(dst.node.child_num, 17);
-    EXPECT_EQ(dst.node.chain_code.size, 32);
-    EXPECT_TRUE(memcmp(dst.node.chain_code.bytes, "XMRXMRXMRXMRXMRXMRXMRXMRXMRXMRX\0", 32) == 0);
-    EXPECT_EQ(dst.node.has_private_key, true);
-    EXPECT_EQ(dst.node.public_key.size, 33);
-    EXPECT_TRUE(memcmp(dst.node.public_key.bytes, "Who is Satoshi Nakomoto?????????\0", 32) == 0);
-    EXPECT_EQ(dst.has_mnemonic, true);
+    EXPECT_TRUE(dst.sec.has_node);
+    EXPECT_EQ(dst.sec.node.depth, 3);
+    EXPECT_EQ(dst.sec.node.fingerprint, 42);
+    EXPECT_EQ(dst.sec.node.child_num, 17);
+    EXPECT_EQ(dst.sec.node.chain_code.size, 32);
+    EXPECT_TRUE(memcmp(dst.sec.node.chain_code.bytes, "XMRXMRXMRXMRXMRXMRXMRXMRXMRXMRX\0", 32) == 0);
+    EXPECT_EQ(dst.sec.node.has_private_key, true);
+    EXPECT_EQ(dst.sec.node.public_key.size, 33);
+    EXPECT_TRUE(memcmp(dst.sec.node.public_key.bytes, "Who is Satoshi Nakomoto?????????\0", 32) == 0);
+    EXPECT_EQ(dst.sec.has_mnemonic, true);
 }
 
 TEST(Storage, WriteStorageV1) {
     const Storage src = {
         .version = 10,
-        .has_node = true,
-        .node = {
-            .depth = 3,
-            .fingerprint = 42,
-            .child_num = 17,
-            .chain_code = {
-                .size = 32,
-                .bytes = "XMRXMRXMRXMRXMRXMRXMRXMRXMRXMRX",
-            },
-            .has_private_key = true,
-            .private_key = {
-                .size = 32,
-                .bytes = "FOXYKPKYFOXYKPKYFOXYKPKYFOXYKPK",
-            },
-            .has_public_key = true,
-            .public_key = {
-                .size = 33,
-                .bytes = "Who is Satoshi Nakomoto?????????",
-            },
+        .pub = {
+            .has_pin = true,
+            .has_pin_failed_attempts = true,
+            .pin_failed_attempts = 42,
+            .has_language = true,
+            .language = "esperanto",
+            .has_label = true,
+            .label = "MenosMarxMaisMises",
+            .imported = false,
+            .policies_count = 1,
+            .policies = {{
+                .has_policy_name = true,
+                .policy_name = "ShapeShift",
+                .has_enabled = true,
+                .enabled = true,
+            }},
         },
-        .has_mnemonic = true,
-        .mnemonic = "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong",
-        .passphrase_protection = false,
-        .has_pin_failed_attempts = true,
-        .pin_failed_attempts = 42,
-        .has_pin = true,
-        .pin = "123456789",
-        .has_language = true,
-        .language = "esperanto",
-        .has_label = true,
-        .label = "MenosMarxMaisMises",
-        .imported = false,
-        .policies_count = 1,
-        .policies = {{
-            .has_policy_name = true,
-            .policy_name = "ShapeShift",
-            .has_enabled = true,
-            .enabled = true,
-        }},
+        .sec = {
+            .has_node = true,
+            .has_mnemonic = true,
+            .passphrase_protection = false,
+            .node = {
+                .depth = 3,
+                .fingerprint = 42,
+                .child_num = 17,
+                .chain_code = {
+                    .size = 32,
+                    .bytes = "XMRXMRXMRXMRXMRXMRXMRXMRXMRXMRX",
+                },
+                .has_private_key = true,
+                .private_key = {
+                    .size = 32,
+                    .bytes = "FOXYKPKYFOXYKPKYFOXYKPKYFOXYKPK",
+                },
+                .has_public_key = true,
+                .public_key = {
+                    .size = 33,
+                    .bytes = "Who is Satoshi Nakomoto?????????",
+                },
+            },
+            .mnemonic = "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong",
+            .pin = "123456789",
+        },
     };
 
     char dst[482];
@@ -397,10 +401,10 @@ TEST(Storage, ResetPolicies) {
 
     storage_resetPolicies(&storage);
 
-    EXPECT_EQ(storage.policies_count, POLICY_COUNT);
+    EXPECT_EQ(storage.pub.policies_count, POLICY_COUNT);
 
     for (int i = 0; i < POLICY_COUNT; ++i) {
-        check_policyIsSame(&storage.policies[i], &policies[i]);
+        check_policyIsSame(&storage.pub.policies[i], &policies[i]);
     }
 }
 
@@ -497,9 +501,9 @@ TEST(Storage, StorageUpgrade_Normal) {
     ASSERT_EQ(storage_fromFlash(&shadow, flash), SUS_Updated);
 
     EXPECT_EQ(shadow.storage.version, STORAGE_VERSION);
-    EXPECT_EQ(shadow.storage.node.depth, 3);
+    EXPECT_EQ(shadow.storage.sec.node.depth, 3);
     EXPECT_EQ(memcmp(shadow.meta.magic, "stor", 4), 0);
-    EXPECT_EQ(std::string(shadow.storage.policies[0].policy_name), "ShapeShift");
+    EXPECT_EQ(std::string(shadow.storage.pub.policies[0].policy_name), "ShapeShift");
 }
 
 TEST(Storage, StorageUpgrade_Vec) {
@@ -520,7 +524,7 @@ TEST(Storage, StorageUpgrade_Vec) {
         memset(&start, 0xAB, sizeof(start));
         memcpy(start.meta.magic, "stor", 4);
         start.storage.version = v.version;
-        start.storage.node.fingerprint = 42;
+        start.storage.sec.node.fingerprint = 42;
 
         std::vector<char> flash(STORAGE_SECTOR_LEN);
 
