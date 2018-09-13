@@ -15,7 +15,7 @@ TEST(Storage, ReadMeta) {
     Metadata dst;
     const char src[] = "M1M2u1u2u3u4u5u6S1S2S3S4S5S6S7S8S9SASBSC";
 
-    storage_readMeta(&dst, src);
+    storage_readMeta(&dst, src, sizeof(src));
 
     ASSERT_TRUE(memcmp(dst.magic, "M1M2", 4) == 0);
     ASSERT_TRUE(memcmp(dst.uuid, "u1u2u3u4u5u6", 12) == 0);
@@ -36,7 +36,7 @@ TEST(Storage, WriteMeta) {
     char dst[41];
     memset(dst, 0, sizeof(dst));
 
-    storage_writeMeta(&dst[0], &src);
+    storage_writeMeta(&dst[0], sizeof(dst), &src);
 
     ASSERT_TRUE(memcmp(dst, "M1M\0u1u2u3u4u5u\0S1S2S3S4S5S6S7S8S9SASBS\0", sizeof(dst)) == 0);
 }
@@ -45,7 +45,7 @@ TEST(Storage, ReadPolicy) {
     PolicyType dst;
     const char src[] = "\x01N1N2N3N4N5N6N7N\x01\x01";
 
-    storage_readPolicy(&dst, src);
+    storage_readPolicy(&dst, src, sizeof(src));
 
     ASSERT_EQ(dst.has_policy_name, true);
     ASSERT_TRUE(memcmp(dst.policy_name, "N1N2N3N4N5N6N7N8N", 15) == 0);
@@ -64,7 +64,7 @@ TEST(Storage, WritePolicy) {
     char dst[18];
     memset(dst, 0, sizeof(dst));
 
-    storage_writePolicy(&dst[0], &src);
+    storage_writePolicy(&dst[0], sizeof(dst), &src);
 
     ASSERT_TRUE(memcmp(dst, "\x01""0123456789ABCD\0\x01\x01", sizeof(dst)) == 0);
 }
@@ -135,7 +135,7 @@ TEST(Storage, ReadStorageV1) {
     Storage dst;
     memset(&dst, 0xCC, sizeof(dst));
 
-    storage_readStorageV1(&dst, &src[0]);
+    storage_readStorageV1(&dst, &src[0], sizeof(src));
 
     // Check a few, don't need to check them all.
     EXPECT_EQ(dst.version, 10);
@@ -198,7 +198,7 @@ TEST(Storage, WriteStorageV1) {
     char dst[482];
     memset(dst, 0xCC, sizeof(dst));
 
-    storage_writeStorageV1(&dst[0], &src);
+    storage_writeStorageV1(&dst[0], sizeof(dst), &src);
 
     const char expected[483] =
         /*   0 */ "\x0a\x00\x00\x00" // version
@@ -277,7 +277,7 @@ TEST(Storage, WriteCacheV1) {
     char dst[75];
     memset(dst, 0xCC, sizeof(dst));
 
-    storage_writeCacheV1(&dst[0], &src);
+    storage_writeCacheV1(&dst[0], sizeof(dst), &src);
 
     const char expected[76] = "\x2a\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x00\x73\x65\x63\x70\x32\x35\x36\x6b\x31";
 
@@ -292,7 +292,7 @@ TEST(Storage, ReadCacheV1) {
 
     Cache dst;
 
-    storage_readCacheV1(&dst, &src[0]);
+    storage_readCacheV1(&dst, &src[0], sizeof(src));
 
     ASSERT_EQ(dst.root_seed_cache_status, 42);
     for (int i = 0; i < 64; i++) {
@@ -524,7 +524,7 @@ TEST(Storage, StorageUpgrade_Vec) {
 
         std::vector<char> flash(STORAGE_SECTOR_LEN);
 
-        storage_writeV2(&flash[0], &start);
+        storage_writeV2(&flash[0], flash.size(), &start);
 
         ConfigFlash end;
         memset(&end, 0xCC, sizeof(end));

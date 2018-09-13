@@ -127,157 +127,183 @@ static enum StorageVersion version_from_int(int version) {
     }
 }
 
-void storage_readMeta(Metadata *meta, const char *addr) {
-    memcpy(meta->magic, addr, STORAGE_MAGIC_LEN);
-    memcpy(meta->uuid, addr + 4, STORAGE_UUID_LEN);
-    memcpy(meta->uuid_str, addr + 16, STORAGE_UUID_STR_LEN);
+void storage_readMeta(Metadata *meta, const char *ptr, size_t len) {
+    if (len < 16 + STORAGE_UUID_STR_LEN)
+        return;
+    memcpy(meta->magic, ptr, STORAGE_MAGIC_LEN);
+    memcpy(meta->uuid, ptr + 4, STORAGE_UUID_LEN);
+    memcpy(meta->uuid_str, ptr + 16, STORAGE_UUID_STR_LEN);
 }
 
-void storage_writeMeta(char *addr, const Metadata *meta) {
-    memcpy(addr, meta->magic, STORAGE_MAGIC_LEN);
-    memcpy(addr + 4, meta->uuid, STORAGE_UUID_LEN);
-    memcpy(addr + 16, meta->uuid_str, STORAGE_UUID_STR_LEN);
+void storage_writeMeta(char *ptr, size_t len, const Metadata *meta) {
+    if (len < 16 + STORAGE_UUID_STR_LEN)
+        return;
+    memcpy(ptr, meta->magic, STORAGE_MAGIC_LEN);
+    memcpy(ptr + 4, meta->uuid, STORAGE_UUID_LEN);
+    memcpy(ptr + 16, meta->uuid_str, STORAGE_UUID_STR_LEN);
 }
 
-void storage_readPolicy(PolicyType *policy, const char *addr) {
-    policy->has_policy_name = read_bool(addr);
+void storage_readPolicy(PolicyType *policy, const char *ptr, size_t len) {
+    if (len < 17)
+        return;
+    policy->has_policy_name = read_bool(ptr);
     memset(policy->policy_name, 0, sizeof(policy->policy_name));
-    memcpy(policy->policy_name, addr + 1, 15);
-    policy->has_enabled = read_bool(addr + 16);
-    policy->enabled = read_bool(addr + 17);
+    memcpy(policy->policy_name, ptr + 1, 15);
+    policy->has_enabled = read_bool(ptr + 16);
+    policy->enabled = read_bool(ptr + 17);
 }
 
-void storage_writePolicy(char *addr, const PolicyType *policy) {
-    write_bool(addr, policy->has_policy_name);
-    memcpy(addr + 1, policy->policy_name, 15);
-    write_bool(addr + 16, policy->has_enabled);
-    write_bool(addr + 17, policy->enabled);
+void storage_writePolicy(char *ptr, size_t len, const PolicyType *policy) {
+    if (len < 17)
+        return;
+    write_bool(ptr, policy->has_policy_name);
+    memcpy(ptr + 1, policy->policy_name, 15);
+    write_bool(ptr + 16, policy->has_enabled);
+    write_bool(ptr + 17, policy->enabled);
 }
 
-void storage_readHDNode(StorageHDNode *node, const char *addr) {
-    node->depth = read_u32_le(addr);
-    node->fingerprint = read_u32_le(addr + 4);
-    node->child_num = read_u32_le(addr + 8);
+void storage_readHDNode(StorageHDNode *node, const char *ptr, size_t len) {
+    if (len < 96 + 33)
+        return;
+    node->depth = read_u32_le(ptr);
+    node->fingerprint = read_u32_le(ptr + 4);
+    node->child_num = read_u32_le(ptr + 8);
     node->chain_code.size = 32;
-    memcpy(node->chain_code.bytes, addr + 16, 32);
-    node->has_private_key = read_bool(addr + 48);
+    memcpy(node->chain_code.bytes, ptr + 16, 32);
+    node->has_private_key = read_bool(ptr + 48);
     node->private_key.size = 32;
-    memcpy(node->private_key.bytes, addr + 56, 32);
-    node->has_public_key = read_bool(addr + 88);
+    memcpy(node->private_key.bytes, ptr + 56, 32);
+    node->has_public_key = read_bool(ptr + 88);
     node->public_key.size = 33;
-    memcpy(node->public_key.bytes, addr + 96, 33);
+    memcpy(node->public_key.bytes, ptr + 96, 33);
 }
 
-void storage_writeHDNode(char *addr, const StorageHDNode *node) {
-    write_u32_le(addr, node->depth);
-    write_u32_le(addr + 4, node->fingerprint);
-    write_u32_le(addr + 8, node->child_num);
-    write_u32_le(addr + 12, 32);
-    memcpy(addr + 16, node->chain_code.bytes, 32);
-    write_bool(addr + 48, node->has_private_key);
-    addr[49] = 0; // reserved
-    addr[50] = 0; // reserved
-    addr[51] = 0; // reserved
-    write_u32_le(addr + 52, 32);
-    memcpy(addr + 56, node->private_key.bytes, 32);
-    write_bool(addr + 88, node->has_public_key);
-    addr[89] = 0; // reserved
-    addr[90] = 0; // reserved
-    addr[91] = 0; // reserved
-    write_u32_le(addr + 92, 33);
-    memcpy(addr + 96, node->public_key.bytes, 33);
+void storage_writeHDNode(char *ptr, size_t len, const StorageHDNode *node) {
+    if (len < 96 + 33)
+        return;
+    write_u32_le(ptr, node->depth);
+    write_u32_le(ptr + 4, node->fingerprint);
+    write_u32_le(ptr + 8, node->child_num);
+    write_u32_le(ptr + 12, 32);
+    memcpy(ptr + 16, node->chain_code.bytes, 32);
+    write_bool(ptr + 48, node->has_private_key);
+    ptr[49] = 0; // reserved
+    ptr[50] = 0; // reserved
+    ptr[51] = 0; // reserved
+    write_u32_le(ptr + 52, 32);
+    memcpy(ptr + 56, node->private_key.bytes, 32);
+    write_bool(ptr + 88, node->has_public_key);
+    ptr[89] = 0; // reserved
+    ptr[90] = 0; // reserved
+    ptr[91] = 0; // reserved
+    write_u32_le(ptr + 92, 33);
+    memcpy(ptr + 96, node->public_key.bytes, 33);
 }
 
-void storage_readStorageV1(Storage *storage, const char *addr) {
-    storage->version = read_u32_le(addr);
-    storage->has_node = read_bool(addr + 4);
-    storage_readHDNode(&storage->node, addr + 8);
-    storage->has_mnemonic = read_bool(addr + 140);
-    memcpy(storage->mnemonic, addr + 141, 241);
-    storage->passphrase_protection = read_bool(addr + 383);
-    storage->has_pin_failed_attempts = read_bool(addr + 384);
-    storage->pin_failed_attempts = read_u32_le(addr + 388);
-    storage->has_pin = read_bool(addr + 392);
+void storage_readStorageV1(Storage *storage, const char *ptr, size_t len) {
+    if (len < 464 + 17)
+        return;
+    storage->version = read_u32_le(ptr);
+    storage->has_node = read_bool(ptr + 4);
+    storage_readHDNode(&storage->node, ptr + 8, 140);
+    storage->has_mnemonic = read_bool(ptr + 140);
+    memcpy(storage->mnemonic, ptr + 141, 241);
+    storage->passphrase_protection = read_bool(ptr + 383);
+    storage->has_pin_failed_attempts = read_bool(ptr + 384);
+    storage->pin_failed_attempts = read_u32_le(ptr + 388);
+    storage->has_pin = read_bool(ptr + 392);
     memset(storage->pin, 0, sizeof(storage->pin));
-    memcpy(storage->pin, addr + 393, 10);
-    storage->has_language = read_bool(addr + 403);
+    memcpy(storage->pin, ptr + 393, 10);
+    storage->has_language = read_bool(ptr + 403);
     memset(storage->language, 0, sizeof(storage->language));
-    memcpy(storage->language, addr + 404, 17);
-    storage->has_label = read_bool(addr + 421);
+    memcpy(storage->language, ptr + 404, 17);
+    storage->has_label = read_bool(ptr + 421);
     memset(storage->label, 0, sizeof(storage->label));
-    memcpy(storage->label, addr + 422, 33);
-    storage->imported = read_bool(addr + 456);
+    memcpy(storage->label, ptr + 422, 33);
+    storage->imported = read_bool(ptr + 456);
     storage->policies_count = 1;
-    storage_readPolicy(&storage->policies[0], addr + 464);
+    storage_readPolicy(&storage->policies[0], ptr + 464, 17);
 }
 
-void storage_writeStorageV1(char *addr, const Storage *storage) {
-    write_u32_le(addr, storage->version);
-    write_bool(addr + 4, storage->has_node);
-    addr[5] = 0; // reserved
-    addr[6] = 0; // reserved
-    addr[7] = 0; // reserved
-    storage_writeHDNode(addr + 8, &storage->node);
-    addr[137] = 0; // reserved
-    addr[138] = 0; // reserved
-    addr[139] = 0; // reserved
-    write_bool(addr + 140, storage->has_mnemonic);
-    memcpy(addr + 141, storage->mnemonic, 241);
-    write_bool(addr + 382, true); // formerly has_passphrase_protection
-    write_bool(addr + 383, storage->passphrase_protection);
-    write_bool(addr + 384, storage->has_pin_failed_attempts);
-    addr[385] = 0; // reserved
-    addr[386] = 0; // reserved
-    addr[387] = 0; // reserved
-    write_u32_le(addr + 388, storage->pin_failed_attempts);
-    write_bool(addr + 392, storage->has_pin);
-    memcpy(addr + 393, storage->pin, 10);
-    write_bool(addr + 403, storage->has_language);
-    memcpy(addr + 404, storage->language, 17);
-    write_bool(addr + 421, storage->has_label);
-    memcpy(addr + 422, storage->label, 33);
-    write_bool(addr + 455, true); // formerly has_imported
-    write_bool(addr + 456, storage->imported);
-    addr[457] = 0; // reserved
-    addr[458] = 0; // reserved
-    addr[459] = 0; // reserved
-    write_u32_le(addr + 460, 1);
-    storage_writePolicy(addr + 464, &storage->policies[0]);
+void storage_writeStorageV1(char *ptr, size_t len, const Storage *storage) {
+    if (len < 464 + 17)
+        return;
+    write_u32_le(ptr, storage->version);
+    write_bool(ptr + 4, storage->has_node);
+    ptr[5] = 0; // reserved
+    ptr[6] = 0; // reserved
+    ptr[7] = 0; // reserved
+    storage_writeHDNode(ptr + 8, 140, &storage->node);
+    ptr[137] = 0; // reserved
+    ptr[138] = 0; // reserved
+    ptr[139] = 0; // reserved
+    write_bool(ptr + 140, storage->has_mnemonic);
+    memcpy(ptr + 141, storage->mnemonic, 241);
+    write_bool(ptr + 382, true); // formerly has_passphrase_protection
+    write_bool(ptr + 383, storage->passphrase_protection);
+    write_bool(ptr + 384, storage->has_pin_failed_attempts);
+    ptr[385] = 0; // reserved
+    ptr[386] = 0; // reserved
+    ptr[387] = 0; // reserved
+    write_u32_le(ptr + 388, storage->pin_failed_attempts);
+    write_bool(ptr + 392, storage->has_pin);
+    memcpy(ptr + 393, storage->pin, 10);
+    write_bool(ptr + 403, storage->has_language);
+    memcpy(ptr + 404, storage->language, 17);
+    write_bool(ptr + 421, storage->has_label);
+    memcpy(ptr + 422, storage->label, 33);
+    write_bool(ptr + 455, true); // formerly has_imported
+    write_bool(ptr + 456, storage->imported);
+    ptr[457] = 0; // reserved
+    ptr[458] = 0; // reserved
+    ptr[459] = 0; // reserved
+    write_u32_le(ptr + 460, 1);
+    storage_writePolicy(ptr + 464, 17, &storage->policies[0]);
 }
 
-void storage_readCacheV1(Cache *cache, const char *addr) {
-    cache->root_seed_cache_status = read_u8(addr);
-    memcpy(cache->root_seed_cache, addr + 1, 64);
-    memcpy(cache->root_ecdsa_curve_type, addr + 65, 10);
+void storage_readCacheV1(Cache *cache, const char *ptr, size_t len) {
+    if (len < 65 + 10)
+        return;
+    cache->root_seed_cache_status = read_u8(ptr);
+    memcpy(cache->root_seed_cache, ptr + 1, 64);
+    memcpy(cache->root_ecdsa_curve_type, ptr + 65, 10);
 }
 
-void storage_writeCacheV1(char *addr, const Cache *cache) {
-    write_u8(addr, cache->root_seed_cache_status);
-    memcpy(addr + 1, cache->root_seed_cache, 64);
-    memcpy(addr + 65, cache->root_ecdsa_curve_type, 10);
+void storage_writeCacheV1(char *ptr, size_t len, const Cache *cache) {
+    if (len < 65 + 10)
+        return;
+    write_u8(ptr, cache->root_seed_cache_status);
+    memcpy(ptr + 1, cache->root_seed_cache, 64);
+    memcpy(ptr + 65, cache->root_ecdsa_curve_type, 10);
 }
 
 _Static_assert(offsetof(Cache, root_seed_cache) == 1, "rsc");
 _Static_assert(offsetof(Cache, root_ecdsa_curve_type) == 65, "rect");
 _Static_assert(sizeof(((Cache*)0)->root_ecdsa_curve_type) == 10, "rect");
 
-void storage_readV1(ConfigFlash *dst, const char *flash) {
-    storage_readMeta(&dst->meta, flash);
-    storage_readStorageV1(&dst->storage, flash + 44);
+void storage_readV1(ConfigFlash *dst, const char *flash, size_t len) {
+    if (len < 44 + 528)
+        return;
+    storage_readMeta(&dst->meta, flash, 44);
+    storage_readStorageV1(&dst->storage, flash + 44, 481);
     storage_resetPolicies(&dst->storage);
     storage_resetCache(&dst->cache);
 }
 
-void storage_readV2(ConfigFlash *dst, const char *flash) {
-    storage_readMeta(&dst->meta, flash);
-    storage_readStorageV1(&dst->storage, flash + 44);
-    storage_readCacheV1(&dst->cache, flash + 528);
+void storage_readV2(ConfigFlash *dst, const char *flash, size_t len) {
+    if (len < 528 + 75)
+        return;
+    storage_readMeta(&dst->meta, flash, 44);
+    storage_readStorageV1(&dst->storage, flash + 44, 481);
+    storage_readCacheV1(&dst->cache, flash + 528, 75);
 }
 
-void storage_writeV2(char *flash, const ConfigFlash *src) {
-    storage_writeMeta(flash, &src->meta);
-    storage_writeStorageV1(flash + 44, &src->storage);
-    storage_writeCacheV1(flash + 528, &src->cache);
+void storage_writeV2(char *flash, size_t len, const ConfigFlash *src) {
+    if (len < 528 + 75)
+        return;
+    storage_writeMeta(flash, 44, &src->meta);
+    storage_writeStorageV1(flash + 44, 481, &src->storage);
+    storage_writeCacheV1(flash + 528, 75, &src->cache);
 }
 
 StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
@@ -294,7 +320,7 @@ StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
     switch (version)
     {
         case StorageVersion_1:
-            storage_readV1(dst, flash);
+            storage_readV1(dst, flash, STORAGE_SECTOR_LEN);
             dst->storage.version = STORAGE_VERSION;
             return SUS_Updated;
 
@@ -307,7 +333,7 @@ StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
         case StorageVersion_8:
         case StorageVersion_9:
         case StorageVersion_10:
-            storage_readV2(dst, flash);
+            storage_readV2(dst, flash, STORAGE_SECTOR_LEN);
             dst->storage.version = STORAGE_VERSION;
 
             /* We have to do this for users with bootloaders <= v1.0.2. This
@@ -545,7 +571,7 @@ void storage_commit_impl(ConfigFlash *cfg)
     static CONFIDENTIAL char to_write[1024];
 
     memzero(to_write, sizeof(to_write));
-    storage_writeV2(to_write, cfg);
+    storage_writeV2(to_write, sizeof(to_write), cfg);
 
     memcpy(cfg, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
 
