@@ -15,6 +15,7 @@ set(sources
     pin.c
     resources.c
     timer.c
+    udp.c
     usb_driver.c
     variant.c)
 

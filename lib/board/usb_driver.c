@@ -24,9 +24,12 @@
 #  include <libopencm3/stm32/desig.h>
 #  include <libopencm3/usb/hid.h>
 #  include <libopencm3/stm32/rcc.h>
+#else
+#  include <keepkey/emulator/emulator.h>
 #endif
 
 #include "keepkey/board/keepkey_board.h"
+#include "keepkey/board/usb_driver.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -34,8 +37,14 @@
 #include <stdint.h>
 #include <string.h>
 
+/* This optional callback is configured by the user to handle receive events.  */
+usb_rx_callback_t user_rx_callback = NULL;
+
+#if DEBUG_LINK
+usb_rx_callback_t user_debug_rx_callback = NULL;
+#endif
+
 #ifndef EMULATOR
-/* === Private Variables =================================================== */
 
 static uint8_t usbd_control_buffer[USBD_CONTROL_BUFFER_SIZE];
 
@@ -646,17 +655,6 @@ static const char *usb_strings[] = {
 	""
 };
 
-/* === Variables =========================================================== */
-
-/* This optional callback is configured by the user to handle receive events.  */
-usb_rx_callback_t user_rx_callback = NULL;
-
-#if DEBUG_LINK
-usb_rx_callback_t user_debug_rx_callback = NULL;
-#endif
-
-/* === Private Functions =================================================== */
-
 static enum usbd_request_return_codes
 hid_control_request(usbd_device *dev, struct usb_setup_data *req,
                     uint8_t **buf, uint16_t *len,
@@ -762,6 +760,7 @@ static void hid_set_config_callback(usbd_device *dev, uint16_t wValue)
 
         usb_configured = true;
 }
+#endif
 
 /*
  * usb_tx_helper() - Common way to transmit USB message to host 
@@ -783,9 +782,14 @@ static bool usb_tx_helper(uint8_t *message, uint32_t len, uint8_t endpoint)
         uint8_t tmp_buffer[USB_SEGMENT_SIZE] = { 0 };
 
         tmp_buffer[0] = '?';
+
         memcpy(tmp_buffer + 1, message + pos, USB_SEGMENT_SIZE - 1);
 
+#ifndef EMULATOR
         while(usbd_ep_write_packet(usbd_dev, endpoint, tmp_buffer, USB_SEGMENT_SIZE) == 0) {};
+#else
+        emulatorSocketWrite(endpoint, tmp_buffer, sizeof(tmp_buffer));
+#endif
 
         pos += USB_SEGMENT_SIZE - 1;
     }
@@ -793,8 +797,7 @@ static bool usb_tx_helper(uint8_t *message, uint32_t len, uint8_t endpoint)
     return(true);
 }
 
-/* === Functions =========================================================== */
-
+#ifndef EMULATOR
 /*
  * usb_init() - Initialize USB registers and set callback functions 
  *
@@ -845,6 +848,7 @@ void usb_poll(void)
 {
     usbd_poll(usbd_dev);
 }
+#endif
 
 /*
  * usb_tx() - Transmit USB message to host via normal endpoint
@@ -855,6 +859,7 @@ void usb_poll(void)
  * OUTPUT
  *     true/false
  */
+#ifndef EMULATOR
 bool usb_tx(uint8_t *message, uint32_t len)
 {
     return usb_tx_helper(message, len, ENDPOINT_ADDRESS_IN);
@@ -870,15 +875,13 @@ bool usb_tx(uint8_t *message, uint32_t len)
  * OUTPUT
  *     true/false
  */
-#if DEBUG_LINK || defined(EMULATOR)
+#if DEBUG_LINK
+#ifndef EMULATOR
 bool usb_debug_tx(uint8_t *message, uint32_t len)
 {
-#ifndef EMULATOR
     return usb_tx_helper(message, len, ENDPOINT_ADDRESS_DEBUG_IN);
-#else
-    return false;
-#endif
 }
+#endif
 #endif
 
 /*
@@ -891,9 +894,7 @@ bool usb_debug_tx(uint8_t *message, uint32_t len)
  */
 void usb_set_rx_callback(usb_rx_callback_t callback)
 {
-#ifndef EMULATOR
     user_rx_callback = callback;
-#endif
 }
 
 /*
@@ -904,12 +905,10 @@ void usb_set_rx_callback(usb_rx_callback_t callback)
  * OUTPUT
  *     none
  */
-#if DEBUG_LINK || defined(EMULATOR)
+#if DEBUG_LINK
 void usb_set_debug_rx_callback(usb_rx_callback_t callback)
 {
-#ifndef EMULATOR
     user_debug_rx_callback = callback;
-#endif
 }
 #endif
 

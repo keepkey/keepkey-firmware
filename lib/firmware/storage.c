@@ -432,6 +432,7 @@ static bool storage_isUninitialized(const char *flash) {
 
 void storage_init(void)
 {
+#ifndef EMULATOR
     if (strcmp("MFR", variant_getName()) == 0)
     {
         // Storage should have been wiped due to the MANUFACTURER firmware
@@ -451,6 +452,7 @@ void storage_init(void)
         if (memcmp((void *)stor_3->meta.magic, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0)
             flash_erase_word(FLASH_STORAGE3);
     }
+#endif
 
     // Find storage sector with valid data and set storage_location variable.
     if (!find_active_storage(&storage_location)) {
@@ -540,8 +542,6 @@ void storage_commit(void) {
 
 void storage_commit_impl(ConfigFlash *cfg)
 {
-    // TODO: implemelnt storage on the emulator
-#ifndef EMULATOR
     static CONFIDENTIAL char to_write[1024];
 
     memzero(to_write, sizeof(to_write));
@@ -559,19 +559,24 @@ void storage_commit_impl(ConfigFlash *cfg)
             continue; /* Retry */
         }
 
+#ifndef EMULATOR
         /* Make sure flash is in good state before proceeding */
         if (!flash_chk_status()) {
             flash_clear_status_flags();
             continue; /* Retry */
         }
+#endif
 
         /* Make sure storage sector is valid before proceeding */
-        if (storage_location < FLASH_STORAGE1 && storage_location > FLASH_STORAGE3) {
+        if(storage_location < FLASH_STORAGE1 || storage_location > FLASH_STORAGE3)
+        {
             /* Let it exhaust the retries and error out */
             continue;
         }
 
+#ifndef EMULATOR
         flash_unlock();
+#endif
         flash_erase_word(storage_location);
         wear_leveling_shift();
         flash_erase_word(storage_location);
@@ -599,7 +604,9 @@ void storage_commit_impl(ConfigFlash *cfg)
         }
     }
 
+#ifndef EMULATOR
     flash_lock();
+#endif
 
     memzero(to_write, sizeof(to_write));
 
@@ -607,7 +614,6 @@ void storage_commit_impl(ConfigFlash *cfg)
         layout_warning_static("Error Detected.  Reboot Device!");
         shutdown();
     }
-#endif
 }
 
 void storage_dumpNode(HDNodeType *dst, const StorageHDNode *src) {

@@ -37,6 +37,10 @@
 #include <assert.h>
 #include <stdint.h>
 
+#ifdef EMULATOR
+uint8_t *emulator_flash_base = NULL;
+#endif
+
 
 /* === Functions =========================================================== */
 
@@ -101,6 +105,7 @@ int memory_bootloader_hash(uint8_t *hash, bool cached)
  */
 int memory_firmware_hash(uint8_t *hash)
 {
+#ifndef EMULATOR
     SHA256_CTX ctx;
     uint32_t codelen = *((uint32_t *)FLASH_META_CODELEN);
 
@@ -118,10 +123,14 @@ int memory_firmware_hash(uint8_t *hash)
     {
         return 0;
     }
+#else
+    return 0;
+#endif
 }
 
 const char *memory_firmware_hash_str(char digest[SHA256_DIGEST_STRING_LENGTH])
 {
+#ifndef EMULATOR
     SHA256_CTX ctx;
     uint32_t codelen = *((uint32_t *)FLASH_META_CODELEN);
 
@@ -139,6 +148,9 @@ const char *memory_firmware_hash_str(char digest[SHA256_DIGEST_STRING_LENGTH])
     {
         return "No Firmware";
     }
+#else
+    return "No Firmware";
+#endif
 }
 
 /*

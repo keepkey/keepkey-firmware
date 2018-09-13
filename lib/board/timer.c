@@ -24,6 +24,9 @@
 #  include <libopencm3/stm32/f2/nvic.h>
 #  include <libopencm3/stm32/rcc.h>
 #  include <libopencm3/cm3/cortex.h>
+#else
+#  include <signal.h>
+#  include <unistd.h>
 #endif
 
 #include "keepkey/board/keepkey_leds.h"
@@ -248,6 +251,10 @@ void timer_init(void)
     nvic_enable_irq(NVIC_TIM4_IRQ);
 
     timer_enable_counter(TIM4);
+#else
+    void tim4_sighandler(int sig);
+    signal(SIGALRM, tim4_sighandler);
+    ualarm(1000, 1000);
 #endif
 }
 
@@ -269,7 +276,7 @@ void delay_us(uint32_t us)
         __asm__("nop");
     }
 #else
-    // FIXME: implement me!
+    usleep(us);
 #endif
 }
 
@@ -312,7 +319,6 @@ void delay_ms_with_callback(uint32_t ms, callback_func_t callback_func,
     }
 }
 
-#ifndef EMULATOR
 /*
  * tim4_isr() - Timer 4 interrupt service routine
  *
@@ -331,7 +337,14 @@ void tim4_isr(void)
     }
 
     run_runnables();
+#ifndef EMULATOR
     timer_clear_flag(TIM4, TIM_SR_UIF);
+#endif
+}
+
+#ifdef EMULATOR
+void tim4_sighandler(int sig) {
+    tim4_isr();
 }
 #endif
 

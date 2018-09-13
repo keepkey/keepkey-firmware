@@ -118,6 +118,19 @@ void board_init(void)
     layout_init(display_canvas_init());
 }
 
+#ifdef EMULATOR
+/// Reverses (reflects) bits in a 32-bit word.
+/// http://www.hackersdelight.org/hdcodetxt/crc.c.txt
+static uint32_t reverse(unsigned x) {
+   x = ((x & 0x55555555) <<  1) | ((x >>  1) & 0x55555555);
+   x = ((x & 0x33333333) <<  2) | ((x >>  2) & 0x33333333);
+   x = ((x & 0x0F0F0F0F) <<  4) | ((x >>  4) & 0x0F0F0F0F);
+   x = (x << 24) | ((x & 0xFF00) << 8) |
+       ((x >> 8) & 0xFF00) | (x >> 24);
+   return x;
+}
+#endif
+
 /* calc_crc32() - Calculate crc32 for block of memory
  *
  * INPUT
@@ -129,12 +142,25 @@ uint32_t calc_crc32(const void *data, int word_len)
 {
     uint32_t crc32 = 0;
 
-    // TODO: implement crc32 on the emulator side of things
 #ifndef EMULATOR
     crc_reset();
     crc32 = crc_calculate_block((uint32_t*)data, word_len);
+#else
+    /// http://www.hackersdelight.org/hdcodetxt/crc.c.txt
+    crc32 = 0xFFFFFFFF;
+    for (size_t i = 0; i < word_len; i++) {
+       uint32_t byte = ((const char *)data)[i];  // Get next byte.
+       byte = reverse(byte);                     // 32-bit reversal.
+       for (int j = 0; j <= 7; j++) {            // Do eight times.
+          if ((int)(crc32 ^ byte) < 0)
+               crc32 = (crc32 << 1) ^ 0x04C11DB7;
+          else crc32 = crc32 << 1;
+          byte = byte << 1;                      // Ready next msg bit.
+       }
+    }
+    crc32 = reverse(~crc32);
 #endif
 
-    return(crc32);
+    return crc32;
 }
 

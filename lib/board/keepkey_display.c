@@ -287,6 +287,11 @@ Canvas *display_canvas(void)
     return &canvas;
 }
 
+void (*DumpDisplay)(const uint8_t *buf) = 0;
+void display_set_dump_callback(DumpDisplayCallback d) {
+    DumpDisplay = d;
+}
+
 /*
  * display_refresh() - Refresh display
  *
@@ -297,6 +302,10 @@ Canvas *display_canvas(void)
  */
 void display_refresh(void)
 {
+    if (DumpDisplay) {
+        DumpDisplay(canvas.buffer);
+    }
+
     if(!canvas.dirty)
     {
         return;
@@ -320,7 +329,6 @@ void display_refresh(void)
 #endif
         display_write_ram(v);
     }
-
 
     canvas.dirty = false;
 }

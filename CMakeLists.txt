@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.9.5)
+cmake_minimum_required(VERSION 3.7.2)
 
 project(KeepKeyFirmware
 
@@ -12,6 +12,8 @@ set(BOOTLOADER_PATCH_VERSION 0)
 
 option(KK_EMULATOR "Build the emulator" OFF)
 option(KK_DEBUG_LINK "Build with debug-link enabled" OFF)
+option(KK_HAVE_STRLCPY "Does the target platform have strlcpy?" ON)
+option(KK_HAVE_STRLCAT "Does the target platform have strlcat?" ON)
 set(LIBOPENCM3_PATH /root/libopencm3 CACHE PATH "Path to an already-built libopencm3")
 set(PROTOC_BINARY protoc CACHE PATH "Path to the protobuf compiler binary")
 set(NANOPB_DIR /root/nanopb CACHE PATH "Path to the nanopb build")
@@ -123,3 +125,4 @@ if(${KK_EMULATOR})
       COMMAND ${CMAKE_BINARY_DIR}/bin/crypto-unit --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/crypto.xml)
 
 endif()
+
