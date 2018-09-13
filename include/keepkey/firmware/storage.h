@@ -121,6 +121,9 @@ void storage_getPolicies(PolicyType *policies);
 /// \brief Status of policy in storage
 bool storage_isPolicyEnabled(char *policy_name);
 
+uint32_t storage_getAutoLockDelayMs(void);
+void storage_setAutoLockDelayMs(uint32_t auto_lock_delay_ms);
+
 #ifdef DEBUG_LINK
 typedef struct _HDNodeType HDNodeType;
 typedef struct _StorageHDNode StorageHDNode;

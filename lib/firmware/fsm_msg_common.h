@@ -423,7 +423,18 @@ void fsm_msgApplySettings(ApplySettings *msg)
         }
     }
 
-    if(!msg->has_label && !msg->has_language && !msg->has_use_passphrase)
+    if (msg->has_auto_lock_delay_ms) {
+        if (!confirm(ButtonRequestType_ButtonRequest_Other,
+                     "Change auto-lock delay", "Do you want to set the auto-lock delay to %" PRIu32 " seconds?",
+                     msg->auto_lock_delay_ms / 1000)) {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                            "Apply settings cancelled");
+            layoutHome();
+            return;
+        }
+    }
+
+    if(!msg->has_label && !msg->has_language && !msg->has_use_passphrase && !msg->has_auto_lock_delay_ms)
     {
         fsm_sendFailure(FailureType_Failure_SyntaxError, "No setting provided");
         return;
@@ -444,6 +455,10 @@ void fsm_msgApplySettings(ApplySettings *msg)
     if(msg->has_use_passphrase)
     {
         storage_setPassphraseProtected(msg->use_passphrase);
+    }
+
+    if (msg->has_auto_lock_delay_ms) {
+        storage_setAutoLockDelayMs(msg->auto_lock_delay_ms);
     }
 
     storage_commit();

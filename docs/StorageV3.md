@@ -23,3 +23,13 @@
 | policies_count            | u32            |            4 |                    460 |
 | policies[0]               | StoragePolicy  |           18 |                    464 |
 | policies[1]               | StoragePolicy  |           18 |                    482 |
+| policies[2] (reserved)    | StoragePolicy  |           18 |                    500 |
+| policies[3] (reserved)    | StoragePolicy  |           18 |                    518 |
+| policies[4] (reserved)    | StoragePolicy  |           18 |                    536 |
+| policies[5] (reserved)    | StoragePolicy  |           18 |                    554 |
+| policies[6] (reserved)    | StoragePolicy  |           18 |                    572 |
+| policies[7] (reserved)    | StoragePolicy  |           18 |                    590 |
+| policies[8] (reserved)    | StoragePolicy  |           18 |                    608 |
+| has_auto_lock_delay_ms    | bool           |            1 |                    626 |
+| auto_lock_delay_ms        | u32            |            4 |                    627 |
+| reserved                  | char[169]      |          169 |                    631 |

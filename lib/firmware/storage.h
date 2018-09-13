@@ -47,7 +47,6 @@ typedef struct _StorageHDNode {
 
 typedef struct _Storage {
     uint32_t version;
-
     struct Public {
         bool has_pin;
         bool has_pin_failed_attempts;
@@ -69,6 +68,8 @@ typedef struct _Storage {
         StorageHDNode node;
         char mnemonic[241];
         char pin[10];
+        bool has_auto_lock_delay_ms;
+        uint32_t auto_lock_delay_ms;
     } sec;
 } Storage;
 
@@ -121,6 +122,7 @@ void storage_writeMeta(char *ptr, size_t len, const Metadata *meta);
 void storage_writePolicy(char *ptr, size_t len, const PolicyType *policy);
 void storage_writeHDNode(char *ptr, size_t len, const StorageHDNode *node);
 void storage_writeStorageV1(char *ptr, size_t len, const Storage *storage);
+void storage_writeStorageV3(char *ptr, size_t len, const Storage *storage);
 void storage_writeCacheV1(char *ptr, size_t len, const Cache *cache);
 
 

@@ -29,7 +29,4 @@ const char *variant_getName(void);
 /// Perform a soft reset
 void variant_mfr_softReset(void) __attribute__((weak));
 
-/// Duration of inactivity before the screensaver should be triggered.
-uint32_t variant_getScreensaverTimeout(void);
-
 #endif

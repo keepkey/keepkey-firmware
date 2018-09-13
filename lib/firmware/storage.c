@@ -228,6 +228,8 @@ void storage_readStorageV1(Storage *storage, const char *ptr, size_t len) {
     storage->pub.imported = read_bool(ptr + 456);
     storage->pub.policies_count = 1;
     storage_readPolicy(&storage->pub.policies[0], ptr + 464, 17);
+    storage->sec.has_auto_lock_delay_ms = true;
+    storage->sec.auto_lock_delay_ms = 60 * 1000U;
 }
 
 void storage_writeStorageV1(char *ptr, size_t len, const Storage *storage) {
@@ -266,18 +268,24 @@ void storage_writeStorageV1(char *ptr, size_t len, const Storage *storage) {
     storage_writePolicy(ptr + 464, 17, &storage->pub.policies[0]);
 }
 
-void storage_writeStorageV3(char *addr, size_t len, const Storage *storage) {
-    if (len < 464 + 18*2)
+void storage_writeStorageV3(char *ptr, size_t len, const Storage *storage) {
+    if (len < 800)
         return;
-    storage_writeStorageV1(addr, 464 + 18, storage);
-    storage_writePolicy(addr + 464 + 18, 18, &storage->pub.policies[1]);
+    storage_writeStorageV1(ptr, + 464 + 17, storage);
+    storage_writePolicy(ptr + 464 + 18, 17, &storage->pub.policies[1]);
+    // reserved bytes for policies 2:8
+    write_bool(ptr + 626, storage->sec.has_auto_lock_delay_ms);
+    write_u32_le(ptr + 627, storage->sec.auto_lock_delay_ms);
 }
 
-void storage_readStorageV3(Storage *storage, const char *addr, size_t len) {
-    if (len < 464 + 18*2)
+void storage_readStorageV3(Storage *storage, const char *ptr, size_t len) {
+    if (len < 800)
         return;
-    storage_readStorageV1(storage, addr, 464 + 18);
-    storage_readPolicy(&storage->pub.policies[1], addr + 464 + 18, 18);
+    storage_readStorageV1(storage, ptr, 464 + 18);
+    storage_readPolicy(&storage->pub.policies[1], ptr + 464 + 18, 18);
+    // reserved bytes for policies 2:8
+    storage->sec.has_auto_lock_delay_ms = read_bool(ptr + 626);
+    storage->sec.auto_lock_delay_ms = read_u32_le(ptr + 627);
 }
 
 void storage_readCacheV1(Cache *cache, const char *ptr, size_t len) {
@@ -321,16 +329,16 @@ void storage_readV3(ConfigFlash *dst, const char *flash, size_t len) {
     if (len < 672 + 75)
         return;
     storage_readMeta(&dst->meta, flash, 44);
-    storage_readStorageV3(&dst->storage, flash + 44, 625);
-    storage_readCacheV1(&dst->cache, flash + 672, 75);
+    storage_readStorageV3(&dst->storage, flash + 44, 800);
+    storage_readCacheV1(&dst->cache, flash + 800, 75);
 }
 
 void storage_writeV3(char *flash, size_t len, const ConfigFlash *src) {
     if (len < 672 + 75)
         return;
     storage_writeMeta(flash, 44, &src->meta);
-    storage_writeStorageV3(flash + 44, 625, &src->storage);
-    storage_writeCacheV1(flash + 672, 75, &src->cache);
+    storage_writeStorageV3(flash + 44, 800, &src->storage);
+    storage_writeCacheV1(flash + 800, 75, &src->cache);
 }
 
 StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
@@ -1098,6 +1106,20 @@ bool storage_isPolicyEnabled(char *policy_name)
         }
     }
     return false;
+}
+
+uint32_t storage_getAutoLockDelayMs()
+{
+	const uint32_t default_delay_ms = 10 * 60 * 1000U; // 10 minutes
+	return shadow_config.storage.sec.has_auto_lock_delay_ms ? shadow_config.storage.sec.auto_lock_delay_ms : default_delay_ms;
+}
+
+void storage_setAutoLockDelayMs(uint32_t auto_lock_delay_ms)
+{
+	const uint32_t min_delay_ms = 10 * 1000U; // 10 seconds
+	auto_lock_delay_ms = auto_lock_delay_ms > min_delay_ms ? auto_lock_delay_ms : min_delay_ms;
+	shadow_config.storage.sec.has_auto_lock_delay_ms = true;
+	shadow_config.storage.sec.auto_lock_delay_ms = auto_lock_delay_ms;
 }
 
 #if DEBUG_LINK

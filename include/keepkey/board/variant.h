@@ -34,7 +34,7 @@ typedef struct VariantInfo_ {
     const char *name;
     const VariantAnimation *logo;
     const VariantAnimation *logo_reversed;
-    uint32_t screensaver_timeout;
+    uint32_t screensaver_timeout; // DEPRECATED
     const VariantAnimation *screensaver;
 } VariantInfo;
 
