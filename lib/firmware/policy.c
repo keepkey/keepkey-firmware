@@ -23,8 +23,11 @@
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/exchange.h"
 
+// NOTE: when adding policies, *ONLY* add to the end. Otherwise this breaks
+// storage_upgradePolicies();
 const PolicyType policies[POLICY_COUNT] = {
-    {true, "ShapeShift", true, false}
+    {true, "ShapeShift", true, false},
+    {true, "Pin Caching", true, false}
 };
 
 /*

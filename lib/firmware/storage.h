@@ -101,17 +101,20 @@ typedef enum {
 /// \returns true iff successful.
 StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash);
 
+void storage_upgradePolicies(Storage *storage);
 void storage_resetPolicies(Storage *storage);
 void storage_resetCache(Cache *cache);
 
 void storage_readV1(ConfigFlash *dst, const char *ptr, size_t len);
 void storage_readV2(ConfigFlash *dst, const char *ptr, size_t len);
-void storage_writeV2(char *ptr, size_t len, const ConfigFlash *src);
+void storage_readV3(ConfigFlash *dst, const char *ptr, size_t len);
+void storage_writeV3(char *ptr, size_t len, const ConfigFlash *src);
 
 void storage_readMeta(Metadata *meta, const char *ptr, size_t len);
 void storage_readPolicy(PolicyType *policy, const char *ptr, size_t len);
 void storage_readHDNode(StorageHDNode *node, const char *ptr, size_t len);
 void storage_readStorageV1(Storage *storage, const char *ptr, size_t len);
+void storage_readStorageV3(Storage *storage, const char *ptr, size_t len);
 void storage_readCacheV1(Cache *cache, const char *ptr, size_t len);
 
 void storage_writeMeta(char *ptr, size_t len, const Metadata *meta);
@@ -119,5 +122,6 @@ void storage_writePolicy(char *ptr, size_t len, const PolicyType *policy);
 void storage_writeHDNode(char *ptr, size_t len, const StorageHDNode *node);
 void storage_writeStorageV1(char *ptr, size_t len, const Storage *storage);
 void storage_writeCacheV1(char *ptr, size_t len, const Cache *cache);
+
 
 #endif

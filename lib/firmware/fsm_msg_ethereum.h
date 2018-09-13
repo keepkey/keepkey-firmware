@@ -120,7 +120,7 @@ void fsm_msgEthereumSignTx(EthereumSignTx *msg)
 {
     CHECK_INITIALIZED
 
-    CHECK_PIN_UNCACHED
+    CHECK_PIN_TXSIGN
 
     bool needs_confirm = true;
     int msg_result = process_ethereum_msg(msg, &needs_confirm);

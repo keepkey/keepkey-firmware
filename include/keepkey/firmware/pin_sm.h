@@ -57,6 +57,8 @@ typedef struct {
 /// \returns true iff the PIN was correct.
 bool pin_protect(const char *prompt);
 
+bool pin_protect_txsign(void);
+
 /// Prompt for PIN only if it is not already cached.
 /// \returns true iff the pin was correct (or already cached).
 bool pin_protect_cached(void);

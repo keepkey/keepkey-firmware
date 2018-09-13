@@ -23,7 +23,7 @@
 #include "trezor/crypto/bip32.h"
 #include "keepkey/board/memory.h"
 
-#define STORAGE_VERSION 10 /* Must add case fallthrough in storage_fromFlash after increment*/
+#define STORAGE_VERSION 11 /* Must add case fallthrough in storage_fromFlash after increment*/
 #define STORAGE_RETRIES 3
 
 

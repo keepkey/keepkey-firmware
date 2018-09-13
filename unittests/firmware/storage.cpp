@@ -515,6 +515,7 @@ TEST(Storage, StorageUpgrade_Vec) {
         { 0,                   SUS_Invalid, 0xCC },
         { 1,                   SUS_Updated, 0x00 },
         { 2,                   SUS_Updated, 0xAB },
+        { 10,                  SUS_Updated, 0xAB },
         { STORAGE_VERSION,     SUS_Valid,   0xAB },
         { STORAGE_VERSION + 1, SUS_Invalid, 0xCC }
     };
@@ -528,7 +529,7 @@ TEST(Storage, StorageUpgrade_Vec) {
 
         std::vector<char> flash(STORAGE_SECTOR_LEN);
 
-        storage_writeV2(&flash[0], flash.size(), &start);
+        storage_writeV3(&flash[0], flash.size(), &start);
 
         ConfigFlash end;
         memset(&end, 0xCC, sizeof(end));
@@ -541,6 +542,33 @@ TEST(Storage, StorageUpgrade_Vec) {
 
         EXPECT_EQ(end.cache.root_seed_cache_status,
                   v.root_seed_cache_status)
-            << v.version;
+            << "v.version: "       << v.version << "\n"
+            << "STORAGE_VERSION: " << STORAGE_VERSION;
     }
+}
+
+TEST(Storage, UpgradePolicies) {
+    Storage src = {
+        .pub = {
+            .policies_count = 1,
+            .policies = {{
+                .has_policy_name = true,
+                .policy_name = "ShapeShift",
+                .has_enabled = true,
+                .enabled = true,
+            }},
+        },
+    };
+
+    storage_upgradePolicies(&src);
+
+    EXPECT_EQ(src.pub.policies[0].has_policy_name, true);
+    EXPECT_EQ(std::string(src.pub.policies[0].policy_name), "ShapeShift");
+    EXPECT_EQ(src.pub.policies[0].has_enabled, true);
+    EXPECT_EQ(src.pub.policies[0].enabled, true);
+
+    EXPECT_EQ(src.pub.policies[1].has_policy_name, true);
+    EXPECT_EQ(std::string(src.pub.policies[1].policy_name), "Pin Caching");
+    EXPECT_EQ(src.pub.policies[1].has_enabled, true);
+    EXPECT_EQ(src.pub.policies[1].enabled, false);
 }

@@ -23,7 +23,7 @@
 #include "transaction.h"
 #include "coins.h"
 
-#define POLICY_COUNT 1
+#define POLICY_COUNT 2
 
 extern const PolicyType policies[POLICY_COUNT];
 

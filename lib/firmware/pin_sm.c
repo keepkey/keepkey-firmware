@@ -277,6 +277,16 @@ bool pin_protect(const char *prompt)
     return true;
 }
 
+bool pin_protect_txsign(void) {
+    if (!storage_isPolicyEnabled("Pin Caching")) {
+        return pin_protect("Enter Your Pin");
+    }
+
+    return pin_protect_cached();
+}
+
+/// Prompt for PIN only if it is not already cached
+/// \returns true iff the pin was correct (or already cached).
 bool pin_protect_cached(void) {
     if (session_isPinCached()) {
         return true;

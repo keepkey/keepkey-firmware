@@ -66,16 +66,18 @@ static ConfigFlash CONFIDENTIAL shadow_config;
 // Temporary storage for marshalling secrets in & out of flash.
 static CONFIDENTIAL char flash_temp[1024];
 
-/// \brief Reset Policies
-void storage_resetPolicies(Storage *storage)
-{
-    storage->pub.policies_count = POLICY_COUNT;
-    for (int i = 0; i < POLICY_COUNT; i++) {
+void storage_upgradePolicies(Storage *storage) {
+    for (int i = storage->pub.policies_count; i < POLICY_COUNT; ++i) {
         memcpy(&storage->pub.policies[i], &policies[i], sizeof(storage->pub.policies[i]));
     }
+    storage->pub.policies_count = POLICY_COUNT;
 }
 
-/// \brief Reset Cache
+void storage_resetPolicies(Storage *storage) {
+    storage->pub.policies_count = 0;
+    storage_upgradePolicies(storage);
+}
+
 void storage_resetCache(Cache *cache)
 {
     memset(cache, 0, sizeof(*cache));
@@ -264,6 +266,20 @@ void storage_writeStorageV1(char *ptr, size_t len, const Storage *storage) {
     storage_writePolicy(ptr + 464, 17, &storage->pub.policies[0]);
 }
 
+void storage_writeStorageV3(char *addr, size_t len, const Storage *storage) {
+    if (len < 464 + 18*2)
+        return;
+    storage_writeStorageV1(addr, 464 + 18, storage);
+    storage_writePolicy(addr + 464 + 18, 18, &storage->pub.policies[1]);
+}
+
+void storage_readStorageV3(Storage *storage, const char *addr, size_t len) {
+    if (len < 464 + 18*2)
+        return;
+    storage_readStorageV1(storage, addr, 464 + 18);
+    storage_readPolicy(&storage->pub.policies[1], addr + 464 + 18, 18);
+}
+
 void storage_readCacheV1(Cache *cache, const char *ptr, size_t len) {
     if (len < 65 + 10)
         return;
@@ -301,12 +317,20 @@ void storage_readV2(ConfigFlash *dst, const char *flash, size_t len) {
     storage_readCacheV1(&dst->cache, flash + 528, 75);
 }
 
-void storage_writeV2(char *flash, size_t len, const ConfigFlash *src) {
-    if (len < 528 + 75)
+void storage_readV3(ConfigFlash *dst, const char *flash, size_t len) {
+    if (len < 672 + 75)
+        return;
+    storage_readMeta(&dst->meta, flash, 44);
+    storage_readStorageV3(&dst->storage, flash + 44, 625);
+    storage_readCacheV1(&dst->cache, flash + 672, 75);
+}
+
+void storage_writeV3(char *flash, size_t len, const ConfigFlash *src) {
+    if (len < 672 + 75)
         return;
     storage_writeMeta(flash, 44, &src->meta);
-    storage_writeStorageV1(flash + 44, 481, &src->storage);
-    storage_writeCacheV1(flash + 528, 75, &src->cache);
+    storage_writeStorageV3(flash + 44, 625, &src->storage);
+    storage_writeCacheV1(flash + 672, 75, &src->cache);
 }
 
 StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
@@ -349,9 +373,15 @@ StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
                 return SUS_Updated;
             }
 
+            storage_upgradePolicies(&dst->storage);
+
             return dst->storage.version == version
                 ? SUS_Valid
                 : SUS_Updated;
+
+        case StorageVersion_11:
+            storage_readV3(dst, flash, STORAGE_SECTOR_LEN);
+            return SUS_Valid;
 
         case StorageVersion_NONE:
             return SUS_Invalid;
@@ -571,10 +601,8 @@ void storage_commit(void) {
 
 void storage_commit_impl(ConfigFlash *cfg)
 {
-    static CONFIDENTIAL char to_write[1024];
-
-    memzero(to_write, sizeof(to_write));
-    storage_writeV2(to_write, sizeof(to_write), cfg);
+    memzero(flash_temp, sizeof(flash_temp));
+    storage_writeV3(flash_temp, sizeof(flash_temp), cfg);
 
     memcpy(cfg, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
 

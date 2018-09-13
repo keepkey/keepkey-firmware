@@ -97,6 +97,8 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     /* Policies */
     resp->policies_count = POLICY_COUNT;
     storage_getPolicies(resp->policies);
+    _Static_assert(sizeof(resp->policies) / sizeof(resp->policies[0]) == POLICY_COUNT,
+                   "update messages.options to match POLICY_COUNT");
 
     msg_write(MessageType_MessageType_Features, resp);
 }
@@ -225,7 +227,7 @@ void fsm_msgChangePin(ChangePin *msg)
         return;
     }
 
-    CHECK_PIN_UNCACHED
+    CHECK_PIN_TXSIGN
 
     if(removal)
     {
