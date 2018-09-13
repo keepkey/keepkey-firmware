@@ -71,7 +71,17 @@ void memory_unlock(void) {
     // This exercises a bug in the STM32F2 that allows writing to read-only
     // sectors of flash.
     flash_unlock_option_bytes();
-    flash_program_option_bytes(0x0FFF0001);
+    
+#ifdef DEBUG_ON
+    // 0xFFFAAEC: remove wp from all sectors, no RDP (unless previously set to level 2 which is irreversible), 
+    // disable configurable resets. Low order two bits are don't care.
+    flash_program_option_bytes(0x0FFFAAEC);
+#else
+    // Even though level 2 is described as sticky, this chip has a proven bug related to this register so 
+    // to be sure rewrite the level two value for RDP for non-debug builds.
+    flash_program_option_bytes(0x0FFFCCEC);
+#endif
+
     flash_lock_option_bytes();
 #endif
 }
