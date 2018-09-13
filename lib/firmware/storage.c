@@ -63,6 +63,9 @@ _Static_assert(sizeof(ConfigFlash) <= FLASH_STORAGE_LEN,
                "ConfigFlash struct is too large for storage partition");
 static ConfigFlash CONFIDENTIAL shadow_config;
 
+// Temporary storage for marshalling secrets in & out of flash.
+static CONFIDENTIAL char flash_temp[1024];
+
 /// \brief Reset Policies
 void storage_resetPolicies(Storage *storage)
 {
@@ -579,7 +582,7 @@ void storage_commit_impl(ConfigFlash *cfg)
     for (retries = 0; retries < STORAGE_RETRIES; retries++) {
         /* Capture CRC for verification at restore */
         uint32_t shadow_ram_crc32 =
-            calc_crc32(to_write, sizeof(to_write) / sizeof(uint32_t));
+            calc_crc32(flash_temp, sizeof(flash_temp) / sizeof(uint32_t));
 
         if (shadow_ram_crc32 == 0) {
             continue; /* Retry */
@@ -609,20 +612,20 @@ void storage_commit_impl(ConfigFlash *cfg)
 
         /* Write storage data first before writing storage magic  */
         if (!flash_write_word(storage_location, STORAGE_MAGIC_LEN,
-                              sizeof(to_write) - STORAGE_MAGIC_LEN,
-                              (uint8_t *)to_write + STORAGE_MAGIC_LEN)) {
+                              sizeof(flash_temp) - STORAGE_MAGIC_LEN,
+                              (uint8_t *)flash_temp + STORAGE_MAGIC_LEN)) {
             continue; // Retry
         }
 
         if (!flash_write_word(storage_location, 0, STORAGE_MAGIC_LEN,
-                              (uint8_t *)to_write)) {
+                              (uint8_t *)flash_temp)) {
             continue; // Retry
         }
 
         /* Flash write completed successfully.  Verify CRC */
         uint32_t shadow_flash_crc32 =
             calc_crc32((const void*)flash_write_helper(storage_location),
-                       sizeof(to_write) / sizeof(uint32_t));
+                       sizeof(flash_temp) / sizeof(uint32_t));
 
         if (shadow_flash_crc32 == shadow_ram_crc32) {
             /* Commit successful, break to exit */
@@ -634,7 +637,7 @@ void storage_commit_impl(ConfigFlash *cfg)
     flash_lock();
 #endif
 
-    memzero(to_write, sizeof(to_write));
+    memzero(flash_temp, sizeof(flash_temp));
 
     if(retries >= STORAGE_RETRIES) {
         layout_warning_static("Error Detected.  Reboot Device!");
