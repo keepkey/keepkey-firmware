@@ -152,126 +152,6 @@ TEST(Storage, ReadStorageV1) {
     EXPECT_EQ(dst.sec.has_mnemonic, true);
 }
 
-TEST(Storage, WriteStorageV1) {
-    const Storage src = {
-        .version = 10,
-        .pub = {
-            .has_pin = true,
-            .has_pin_failed_attempts = true,
-            .pin_failed_attempts = 42,
-            .has_language = true,
-            .language = "esperanto",
-            .has_label = true,
-            .label = "MenosMarxMaisMises",
-            .imported = false,
-            .policies_count = 1,
-            .policies = {{
-                .has_policy_name = true,
-                .policy_name = "ShapeShift",
-                .has_enabled = true,
-                .enabled = true,
-            }},
-        },
-        .sec = {
-            .has_node = true,
-            .has_mnemonic = true,
-            .passphrase_protection = false,
-            .node = {
-                .depth = 3,
-                .fingerprint = 42,
-                .child_num = 17,
-                .chain_code = {
-                    .size = 32,
-                    .bytes = "XMRXMRXMRXMRXMRXMRXMRXMRXMRXMRX",
-                },
-                .has_private_key = true,
-                .private_key = {
-                    .size = 32,
-                    .bytes = "FOXYKPKYFOXYKPKYFOXYKPKYFOXYKPK",
-                },
-                .has_public_key = true,
-                .public_key = {
-                    .size = 33,
-                    .bytes = "Who is Satoshi Nakomoto?????????",
-                },
-            },
-            .mnemonic = "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong",
-            .pin = "123456789",
-        },
-    };
-
-    char dst[482];
-    memset(dst, 0xCC, sizeof(dst));
-
-    storage_writeStorageV1(&dst[0], sizeof(dst), &src);
-
-    const char expected[483] =
-        /*   0 */ "\x0a\x00\x00\x00" // version
-        /*   4 */ "\x01"             // has_node
-                  "\x00\x00\x00"     // reserved
-        /*   8 */ "\x03\x00\x00\x00" // depth
-        /*  12 */ "\x2a\x00\x00\x00" // fingerprint
-        /*  16 */ "\x11\x00\x00\x00" // child_num
-        /*  20 */ "\x20\x00\x00\x00" // chain_code.size
-        /*  24 */ "\x58\x4d\x52\x58\x4d\x52\x58\x4d\x52\x58\x4d\x52\x58\x4d\x52\x58" // chain_code.bytes
-                  "\x4d\x52\x58\x4d\x52\x58\x4d\x52\x58\x4d\x52\x58\x4d\x52\x58\x00" // chain_code.bytes
-        /*  56 */ "\x01"             // has_private_key
-                  "\x00\x00\x00"     // reserved
-        /*  60 */ "\x20\x00\x00\x00" // private_key.size
-        /*  64 */ "\x46\x4f\x58\x59\x4b\x50\x4b\x59\x46\x4f\x58\x59\x4b\x50\x4b\x59" // private_key.bytes
-                  "\x46\x4f\x58\x59\x4b\x50\x4b\x59\x46\x4f\x58\x59\x4b\x50\x4b\x00" // private_key.bytes
-        /*  96 */ "\x01"             // has_public_key
-                  "\x00\x00\x00"     // reserved
-        /* 100 */ "\x21\x00\x00\x00" // public_key.size
-        /* 104 */ "\x57\x68\x6f\x20\x69\x73\x20\x53\x61\x74\x6f\x73\x68\x69\x20\x4e" // public_key.bytes
-                  "\x61\x6b\x6f\x6d\x6f\x74\x6f\x3f\x3f\x3f\x3f\x3f\x3f\x3f\x3f\x3f" // public_key.bytes
-        /* 136 */ "\x00"             // public_key.bytes
-        /* 137 */ "\x00\x00\x00"     // reserved
-        /* 140 */ "\x01"             // has_mnemonic
-        /* 141 */ "\x7a\x6f\x6f\x20\x7a\x6f\x6f\x20\x7a\x6f\x6f\x20\x7a\x6f\x6f\x20" // mnemonic
-                  "\x7a\x6f\x6f\x20\x7a\x6f\x6f\x20\x7a\x6f\x6f\x20\x7a\x6f\x6f\x20" // mnemonic
-                  "\x7a\x6f\x6f\x20\x7a\x6f\x6f\x20\x7a\x6f\x6f\x20\x77\x72\x6f\x6e" // menmonic
-                  "\x67\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
-                  "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
-                  "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
-                  "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
-                  "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
-                  "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
-                  "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
-                  "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
-                  "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
-                  "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
-                  "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
-                  "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // mnemonic
-                  "\x00"             // mnemonic
-        /* 382 */ "\x01"             // reserved
-        /* 383 */ "\x00"             // passphrase_protection
-        /* 384 */ "\x01"             // has_pin_failed_attempts
-                  "\x00\x00\x00"     // reserved
-        /* 388 */ "\x2a\x00\x00\x00" // pin_failed_attempts
-        /* 392 */ "\x01"             // has_pin
-        /* 393 */ "\x31\x32\x33\x34\x35\x36\x37\x38\x39\x00" // pin
-        /* 403 */ "\x01"             // has_language
-        /* 404 */ "\x65\x73\x70\x65\x72\x61\x6e\x74\x6f\x00\x00\x00\x00\x00\x00\x00" // language
-                  "\x00"             // language
-        /* 421 */ "\x01"             // has_label
-        /* 422 */ "\x4d\x65\x6e\x6f\x73\x4d\x61\x72\x78\x4d\x61\x69\x73\x4d\x69\x73" // label
-                  "\x65\x73\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" // label
-                  "\x00"             // label
-        /* 455 */ "\x01"             // has_imported
-        /* 456 */ "\x00"             // imported
-        /* 457 */ "\x00\x00\x00"     // reserved
-        /* 460 */ "\x01\x00\x00\x00" // policies_count
-        /* 464 */ "\x01"             // policies[0].has_policy_name
-        /* 465 */ "\x53\x68\x61\x70\x65\x53\x68\x69\x66\x74\x00\x00\x00\x00\x00" // policies[0].policy_name
-        /* 481 */ "\x01"             // policies[0].has_enabled
-        /* 482 */ "\x01";            // policies[0].enabled
-
-    for (int i = 0; i < sizeof(dst); ++i) {
-        ASSERT_EQ(dst[i], expected[i]) << "i: " << i;
-    }
-}
-
 TEST(Storage, WriteCacheV1) {
     const Cache src = {
         .root_seed_cache_status = 42,
@@ -541,7 +421,7 @@ TEST(Storage, StorageUpgrade_Vec) {
             EXPECT_EQ(end.storage.version, STORAGE_VERSION);
         }
 
-        EXPECT_EQ(end.cache.root_seed_cache_status,
+        EXPECT_EQ(end.storage.sec.cache.root_seed_cache_status,
                   v.root_seed_cache_status)
             << "v.version: "       << v.version << "\n"
             << "STORAGE_VERSION: " << STORAGE_VERSION;

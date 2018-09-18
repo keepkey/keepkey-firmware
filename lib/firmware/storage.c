@@ -64,7 +64,7 @@ _Static_assert(sizeof(ConfigFlash) <= FLASH_STORAGE_LEN,
 static ConfigFlash CONFIDENTIAL shadow_config;
 
 // Temporary storage for marshalling secrets in & out of flash.
-static CONFIDENTIAL char flash_temp[1024];
+static CONFIDENTIAL char flash_temp[2048];
 
 void storage_upgradePolicies(Storage *storage) {
     for (int i = storage->pub.policies_count; i < POLICY_COUNT; ++i) {
@@ -274,10 +274,12 @@ void storage_readStorageV1(Storage *storage, const char *ptr, size_t len) {
     storage_wrapStorageKey(wrapping_key, storage_key, storage->pub.wrapped_storage_key);
     memzero(wrapping_key, sizeof(wrapping_key));
     memzero(storage_key, sizeof(storage_key));
+
+    storage_readCacheV1(&storage->sec.cache, ptr + 484, 75);
 }
 
-void storage_writeStorageV1(char *ptr, size_t len, const Storage *storage) {
-    if (len < 464 + 17)
+void storage_writeStorageV3(char *ptr, size_t len, const Storage *storage) {
+    if (len < 1024)
         return;
     write_u32_le(ptr, storage->version);
     write_bool(ptr + 4, storage->sec.has_node);
@@ -310,26 +312,45 @@ void storage_writeStorageV1(char *ptr, size_t len, const Storage *storage) {
     ptr[459] = 0; // reserved
     write_u32_le(ptr + 460, 1);
     storage_writePolicy(ptr + 464, 17, &storage->pub.policies[0]);
-}
-
-void storage_writeStorageV3(char *ptr, size_t len, const Storage *storage) {
-    if (len < 800)
-        return;
-    storage_writeStorageV1(ptr, + 464 + 17, storage);
     storage_writePolicy(ptr + 464 + 18, 17, &storage->pub.policies[1]);
     // reserved bytes for policies 2:8
     write_bool(ptr + 626, storage->sec.has_auto_lock_delay_ms);
     write_u32_le(ptr + 627, storage->sec.auto_lock_delay_ms);
+    memcpy(ptr + 632, storage->pub.wrapped_storage_key, 64);
+    // reserved bytes
+    storage_writeCacheV1(ptr + 800, 75, &storage->sec.cache);
 }
 
 void storage_readStorageV3(Storage *storage, const char *ptr, size_t len) {
-    if (len < 800)
+    if (len < 1024)
         return;
-    storage_readStorageV1(storage, ptr, 464 + 18);
+    storage->version = read_u32_le(ptr);
+    storage->sec.has_node = read_bool(ptr + 4);
+    storage_readHDNode(&storage->sec.node, ptr + 8, 140);
+    storage->sec.has_mnemonic = read_bool(ptr + 140);
+    memcpy(storage->sec.mnemonic, ptr + 141, 241);
+    storage->sec.passphrase_protection = read_bool(ptr + 383);
+    storage->pub.has_pin_failed_attempts = read_bool(ptr + 384);
+    storage->pub.pin_failed_attempts = read_u32_le(ptr + 388);
+    storage->pub.has_pin = read_bool(ptr + 392);
+    memset(storage->sec.pin, 0, sizeof(storage->sec.pin));
+    memcpy(storage->sec.pin, ptr + 393, 10);
+    storage->pub.has_language = read_bool(ptr + 403);
+    memset(storage->pub.language, 0, sizeof(storage->pub.language));
+    memcpy(storage->pub.language, ptr + 404, 17);
+    storage->pub.has_label = read_bool(ptr + 421);
+    memset(storage->pub.label, 0, sizeof(storage->pub.label));
+    memcpy(storage->pub.label, ptr + 422, 33);
+    storage->pub.imported = read_bool(ptr + 456);
+    storage->pub.policies_count = 1;
+    storage_readPolicy(&storage->pub.policies[0], ptr + 464, 17);
     storage_readPolicy(&storage->pub.policies[1], ptr + 464 + 18, 18);
     // reserved bytes for policies 2:8
     storage->sec.has_auto_lock_delay_ms = read_bool(ptr + 626);
     storage->sec.auto_lock_delay_ms = read_u32_le(ptr + 627);
+    memcpy(storage->pub.wrapped_storage_key, ptr + 632, 64);
+    // reserved bytes
+    storage_readCacheV1(&storage->sec.cache, ptr + 800, 75);
 }
 
 void storage_readCacheV1(Cache *cache, const char *ptr, size_t len) {
@@ -358,7 +379,7 @@ void storage_readV1(ConfigFlash *dst, const char *flash, size_t len) {
     storage_readMeta(&dst->meta, flash, 44);
     storage_readStorageV1(&dst->storage, flash + 44, 481);
     storage_resetPolicies(&dst->storage);
-    storage_resetCache(&dst->cache);
+    storage_resetCache(&dst->storage.sec.cache);
 }
 
 void storage_readV2(ConfigFlash *dst, const char *flash, size_t len) {
@@ -366,23 +387,20 @@ void storage_readV2(ConfigFlash *dst, const char *flash, size_t len) {
         return;
     storage_readMeta(&dst->meta, flash, 44);
     storage_readStorageV1(&dst->storage, flash + 44, 481);
-    storage_readCacheV1(&dst->cache, flash + 528, 75);
 }
 
 void storage_readV3(ConfigFlash *dst, const char *flash, size_t len) {
-    if (len < 672 + 75)
+    if (len < 1024 + 75)
         return;
     storage_readMeta(&dst->meta, flash, 44);
-    storage_readStorageV3(&dst->storage, flash + 44, 800);
-    storage_readCacheV1(&dst->cache, flash + 800, 75);
+    storage_readStorageV3(&dst->storage, flash + 44, 1024);
 }
 
 void storage_writeV3(char *flash, size_t len, const ConfigFlash *src) {
-    if (len < 672 + 75)
+    if (len < 1024 + 75)
         return;
     storage_writeMeta(flash, 44, &src->meta);
-    storage_writeStorageV3(flash + 44, 800, &src->storage);
-    storage_writeCacheV1(flash + 800, 75, &src->cache);
+    storage_writeStorageV3(flash + 44, 1024, &src->storage);
 }
 
 StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
@@ -421,7 +439,7 @@ StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
             if (dst->storage.pub.policies_count == 0xFFFFFFFF)
             {
                 storage_resetPolicies(&dst->storage);
-                storage_resetCache(&dst->cache);
+                storage_resetCache(&dst->storage.sec.cache);
                 return SUS_Updated;
             }
 
@@ -495,15 +513,15 @@ static void storage_setRootSeedCache(ConfigFlash *cfg, const uint8_t *seed, cons
     if (cfg->storage.sec.passphrase_protection && strlen(sessionPassphrase))
         return;
 
-    memset(&cfg->cache, 0, sizeof(((ConfigFlash *)NULL)->cache));
+    memset(&cfg->storage.sec.cache, 0, sizeof(cfg->storage.sec.cache));
 
-    memcpy(&cfg->cache.root_seed_cache, seed,
-           sizeof(((ConfigFlash *)NULL)->cache.root_seed_cache));
+    memcpy(&cfg->storage.sec.cache.root_seed_cache, seed,
+           sizeof(cfg->storage.sec.cache.root_seed_cache));
 
-    strlcpy(cfg->cache.root_ecdsa_curve_type, curve,
-            sizeof(cfg->cache.root_ecdsa_curve_type));
+    strlcpy(cfg->storage.sec.cache.root_ecdsa_curve_type, curve,
+            sizeof(cfg->storage.sec.cache.root_ecdsa_curve_type));
 
-    cfg->cache.root_seed_cache_status = CACHE_EXISTS;
+    cfg->storage.sec.cache.root_seed_cache_status = CACHE_EXISTS;
     storage_commit();
 }
 
@@ -516,7 +534,7 @@ static void storage_setRootSeedCache(ConfigFlash *cfg, const uint8_t *seed, cons
 static bool storage_getRootSeedCache(ConfigFlash *cfg, const char *curve,
                                      bool usePassphrase, uint8_t *seed)
 {
-    if (cfg->cache.root_seed_cache_status != CACHE_EXISTS)
+    if (cfg->storage.sec.cache.root_seed_cache_status != CACHE_EXISTS)
         return false;
 
     if (usePassphrase && cfg->storage.sec.passphrase_protection &&
@@ -524,14 +542,14 @@ static bool storage_getRootSeedCache(ConfigFlash *cfg, const char *curve,
         return false;
     }
 
-    if (strcmp(cfg->cache.root_ecdsa_curve_type, curve) != 0) {
+    if (strcmp(cfg->storage.sec.cache.root_ecdsa_curve_type, curve) != 0) {
         return false;
     }
 
     memset(seed, 0, sizeof(sessionSeed));
-    memcpy(seed, &cfg->cache.root_seed_cache,
-           sizeof(cfg->cache.root_seed_cache));
-    _Static_assert(sizeof(sessionSeed) == sizeof(cfg->cache.root_seed_cache),
+    memcpy(seed, &cfg->storage.sec.cache.root_seed_cache,
+           sizeof(cfg->storage.sec.cache.root_seed_cache));
+    _Static_assert(sizeof(sessionSeed) == sizeof(cfg->storage.sec.cache.root_seed_cache),
                    "size mismatch");
     return true;
 }
@@ -637,7 +655,6 @@ void storage_reset(void)
 void storage_reset_impl(ConfigFlash *cfg)
 {
     memset(&cfg->storage, 0, sizeof(cfg->storage));
-    memset(&cfg->cache, 0, sizeof(cfg->cache));
 
     storage_resetPolicies(&cfg->storage);
 
