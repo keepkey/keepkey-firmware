@@ -205,6 +205,38 @@ void storage_writeHDNode(char *ptr, size_t len, const StorageHDNode *node) {
     memcpy(ptr + 96, node->public_key.bytes, 33);
 }
 
+void storage_deriveWrappingKey(const char *pin, uint8_t wrapping_key[64]) {
+    PBKDF2_HMAC_SHA512_CTX pctx;
+    pbkdf2_hmac_sha512_Init(&pctx, (const uint8_t *)pin, strlen(pin),
+                            (const uint8_t *)"KEEPKEY", 7);
+    for (int i = 0; i < 8; ++i) {
+        animating_progress_handler();
+        pbkdf2_hmac_sha512_Update(&pctx, BIP39_PBKDF2_ROUNDS / 8);
+    }
+    pbkdf2_hmac_sha512_Final(&pctx, wrapping_key);
+}
+
+void storage_wrapStorageKey(const uint8_t wrapping_key[64], const uint8_t key[64], uint8_t wrapped_key[64]) {
+    uint8_t iv[64];
+    memcpy(iv, wrapping_key, sizeof(iv));
+    aes_encrypt_ctx ctx;
+    aes_encrypt_key256(wrapping_key, &ctx);
+    aes_cbc_encrypt(key, wrapped_key, 64, iv + 32, &ctx);
+    memzero(&ctx, sizeof(ctx));
+    memzero(iv, sizeof(iv));
+}
+
+bool storage_unwrapStorageKey(const uint8_t wrapping_key[64], const uint8_t wrapped_key[64], uint8_t key[64]) {
+    uint8_t iv[64];
+    memcpy(iv, wrapping_key, sizeof(iv));
+    aes_decrypt_ctx ctx;
+    aes_decrypt_key256(wrapping_key, &ctx);
+    AES_RETURN ret = aes_cbc_decrypt(wrapped_key, key, 64, iv + 32, &ctx);
+    memzero(&ctx, sizeof(ctx));
+    memzero(iv, sizeof(iv));
+    return ret == EXIT_SUCCESS;
+}
+
 void storage_readStorageV1(Storage *storage, const char *ptr, size_t len) {
     if (len < 464 + 17)
         return;

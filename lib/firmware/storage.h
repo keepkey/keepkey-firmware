@@ -81,6 +81,16 @@ typedef struct _ConfigFlash {
 
 typedef struct _Cache Cache;
 
+/// Derive the wrapping key from the user's pin.
+void storage_deriveWrappingKey(const char *pin, uint8_t wrapping_key[64]);
+
+/// Wrap the storage key.
+void storage_wrapStorageKey(const uint8_t wrapping_key[64], const uint8_t key[64], uint8_t wrapped_key[64]);
+
+/// Attempt to unnwrap the storage key.
+/// \returns true iff unwrapping was successful.
+bool storage_unwrapStorageKey(const uint8_t wrapping_key[64], const uint8_t wrapped_key[64], uint8_t key[64]);
+
 void storage_resetUuid_impl(ConfigFlash *cfg);
 
 void storage_reset_impl(ConfigFlash *cfg);
