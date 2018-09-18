@@ -51,7 +51,7 @@ static bool sessionSeedCached, sessionSeedUsesPassphrase;
 static uint8_t CONFIDENTIAL sessionSeed[64];
 
 static bool sessionPinCached;
-static char CONFIDENTIAL sessionPin[17];
+static uint8_t CONFIDENTIAL sessionStorageKey[64];
 
 static bool sessionPassphraseCached;
 static char CONFIDENTIAL sessionPassphrase[51];
@@ -209,10 +209,7 @@ void storage_deriveWrappingKey(const char *pin, uint8_t wrapping_key[64]) {
     PBKDF2_HMAC_SHA512_CTX pctx;
     pbkdf2_hmac_sha512_Init(&pctx, (const uint8_t *)pin, strlen(pin),
                             (const uint8_t *)"KEEPKEY", 7);
-    for (int i = 0; i < 8; ++i) {
-        animating_progress_handler();
-        pbkdf2_hmac_sha512_Update(&pctx, BIP39_PBKDF2_ROUNDS / 8);
-    }
+    pbkdf2_hmac_sha512_Update(&pctx, 2048);
     pbkdf2_hmac_sha512_Final(&pctx, wrapping_key);
 }
 
@@ -262,6 +259,21 @@ void storage_readStorageV1(Storage *storage, const char *ptr, size_t len) {
     storage_readPolicy(&storage->pub.policies[0], ptr + 464, 17);
     storage->sec.has_auto_lock_delay_ms = true;
     storage->sec.auto_lock_delay_ms = 60 * 1000U;
+
+    _Static_assert(sizeof(storage->pub.wrapped_storage_key) == 64,
+                   "(un)wrapped key must be 64 bytes");
+
+    // Wrap the storage key using the user's pin.
+    uint8_t wrapping_key[64];
+    storage_deriveWrappingKey(storage->sec.pin, wrapping_key);
+
+    // Generate a new storage key.
+    uint8_t storage_key[64];
+    random_buffer(storage_key, sizeof(storage_key));
+
+    storage_wrapStorageKey(wrapping_key, storage_key, storage->pub.wrapped_storage_key);
+    memzero(wrapping_key, sizeof(wrapping_key));
+    memzero(storage_key, sizeof(storage_key));
 }
 
 void storage_writeStorageV1(char *ptr, size_t len, const Storage *storage) {
@@ -630,7 +642,7 @@ void session_clear(bool clear_pin)
     memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
 
     if (clear_pin) {
-        memzero(sessionPin, sizeof(sessionPin));
+        memzero(sessionStorageKey, sizeof(sessionStorageKey));
         sessionPinCached = false;
     }
 }
@@ -881,21 +893,24 @@ void storage_setPin(const char *pin)
     {
         shadow_config.storage.pub.has_pin = false;
         memset(shadow_config.storage.sec.pin, 0, sizeof(shadow_config.storage.sec.pin));
-        memzero(sessionPin, sizeof(sessionPin));
+        memzero(sessionStorageKey, sizeof(sessionStorageKey));
         sessionPinCached = false;
     }
 }
 
 void session_cachePin(const char *pin)
 {
-    memzero(sessionPin, sizeof(sessionPin));
-    strlcpy(sessionPin, pin, sizeof(sessionPin));
-    sessionPinCached = true;
+    uint8_t wrapping_key[64];
+    storage_deriveWrappingKey(pin, wrapping_key);
+    sessionPinCached = storage_unwrapStorageKey(wrapping_key,
+                                                shadow_config.storage.pub.wrapped_storage_key,
+                                                sessionStorageKey);
+    memzero(wrapping_key, sizeof(wrapping_key));
 }
 
 bool session_isPinCached(void)
 {
-    return sessionPinCached && strcmp(sessionPin, shadow_config.storage.sec.pin) == 0;
+    return sessionPinCached;
 }
 
 void storage_resetPinFails(void)

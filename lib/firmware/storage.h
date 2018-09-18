@@ -48,6 +48,7 @@ typedef struct _StorageHDNode {
 typedef struct _Storage {
     uint32_t version;
     struct Public {
+        uint8_t wrapped_storage_key[64];
         bool has_pin;
         bool has_pin_failed_attempts;
         uint32_t pin_failed_attempts;
