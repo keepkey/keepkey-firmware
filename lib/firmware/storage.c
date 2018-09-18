@@ -263,14 +263,13 @@ void storage_readStorageV1(Storage *storage, const char *ptr, size_t len) {
     _Static_assert(sizeof(storage->pub.wrapped_storage_key) == 64,
                    "(un)wrapped key must be 64 bytes");
 
-    // Wrap the storage key using the user's pin.
-    uint8_t wrapping_key[64];
-    storage_deriveWrappingKey(storage->sec.pin, wrapping_key);
-
     // Generate a new storage key.
     uint8_t storage_key[64];
     random_buffer(storage_key, sizeof(storage_key));
 
+    // Wrap the storage key using the user's pin.
+    uint8_t wrapping_key[64];
+    storage_deriveWrappingKey(storage->sec.pin, wrapping_key);
     storage_wrapStorageKey(wrapping_key, storage_key, storage->pub.wrapped_storage_key);
     memzero(wrapping_key, sizeof(wrapping_key));
     memzero(storage_key, sizeof(storage_key));
