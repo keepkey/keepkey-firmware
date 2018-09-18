@@ -231,7 +231,7 @@ void fsm_msgChangePin(ChangePin *msg)
 
     if(removal)
     {
-        storage_setPin(0);
+        storage_setPin("");
         storage_commit();
         fsm_sendSuccess("PIN removed");
     }

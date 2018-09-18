@@ -871,7 +871,7 @@ bool storage_hasPin(void)
 
 void storage_setPin(const char *pin)
 {
-    if(pin && strlen(pin) > 0)
+    if(strlen(pin) > 0)
     {
         shadow_config.storage.pub.has_pin = true;
         strlcpy(shadow_config.storage.sec.pin, pin, sizeof(shadow_config.storage.sec.pin));
