@@ -298,15 +298,7 @@ uff_exit:
     return(ret_val);
 }
 
-/*
- * storage_init_sect() - Find and initialize storage sector location
- *
- * INPUT
- *      none
- * OUTPUT
- *      none
- *
- */
+/// Find and initialize storage sector location.
 void storage_sectorInit(void)
 {
     if(!find_active_storage(&storage_location))
