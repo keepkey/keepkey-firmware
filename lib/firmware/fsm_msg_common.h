@@ -3,7 +3,7 @@ void fsm_msgInitialize(Initialize *msg)
     (void)msg;
     recovery_abort(false);
     signing_abort();
-    session_clear(false); // do not clear PIN
+    storage_init();
     layoutHome();
     fsm_msgGetFeatures(0);
 }

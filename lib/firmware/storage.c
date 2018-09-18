@@ -543,6 +543,16 @@ static bool storage_isUninitialized(const char *flash) {
 
 void storage_init(void)
 {
+    // Storage only needs to be initialized once after boot, but since we need
+    // to be able to ask the user for their pin for future storage upgrades,
+    // this must be delayed until the Initialize message is sent. That, in
+    // turn, means we must ignore the second and further calls to this
+    // function, as that would prematurely clear the session.
+    static bool init_once = false;
+    if (init_once)
+        return;
+    init_once = true;
+
 #ifndef EMULATOR
     if (strcmp("MFR", variant_getName()) == 0)
     {
@@ -603,6 +613,8 @@ void storage_init(void)
         storage_commit();
         break;
     }
+
+    session_clear(false);
 }
 
 void storage_resetUuid(void)

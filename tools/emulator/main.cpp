@@ -64,8 +64,6 @@ int main(void)
     dbg_print("Application Version %d.%d.%d\n", MAJOR_VERSION, MINOR_VERSION,
               PATCH_VERSION);
 
-    storage_init();
-
     fsm_init();
 
     led_func(SET_GREEN_LED);
