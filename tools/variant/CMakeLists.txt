@@ -33,4 +33,12 @@ if(NOT ${KK_EMULATOR})
           ${CMAKE_BINARY_DIR}/bin/variant.fox.elf
           ${CMAKE_BINARY_DIR}/bin/variant.fox.bin)
 
+  add_executable(variant.kaspersky.elf kaspersky.c)
+  add_custom_command(TARGET variant.kaspersky.elf
+      POST_BUILD
+      COMMAND ${CMAKE_OBJCOPY} ARGS -O binary
+          ${CMAKE_BINARY_DIR}/bin/variant.kaspersky.elf
+          ${CMAKE_BINARY_DIR}/bin/variant.kaspersky.bin)
+
+
 endif()
