@@ -40,5 +40,20 @@ if(NOT ${KK_EMULATOR})
           ${CMAKE_BINARY_DIR}/bin/variant.kaspersky.elf
           ${CMAKE_BINARY_DIR}/bin/variant.kaspersky.bin)
 
+  add_executable(variant.blockpit.elf blockpit.c)
+  add_custom_command(TARGET variant.blockpit.elf
+      POST_BUILD
+      COMMAND ${CMAKE_OBJCOPY} ARGS -O binary
+          ${CMAKE_BINARY_DIR}/bin/variant.blockpit.elf
+          ${CMAKE_BINARY_DIR}/bin/variant.blockpit.bin)
+
+  add_executable(variant.dash.elf dash.c)
+  add_custom_command(TARGET variant.dash.elf
+      POST_BUILD
+      COMMAND ${CMAKE_OBJCOPY} ARGS -O binary
+          ${CMAKE_BINARY_DIR}/bin/variant.dash.elf
+          ${CMAKE_BINARY_DIR}/bin/variant.dash.bin)
+
+
 
 endif()
