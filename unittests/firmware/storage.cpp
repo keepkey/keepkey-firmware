@@ -289,6 +289,31 @@ TEST(Storage, ResetPolicies) {
     }
 }
 
+TEST(Storage, SetPolicy) {
+    Storage storage;
+    memset(&storage, 0xCC, sizeof(storage));
+
+    storage_resetPolicies(&storage);
+
+    EXPECT_EQ(storage.pub.policies_count, POLICY_COUNT);
+
+    for (int i = 0; i < POLICY_COUNT; ++i) {
+        check_policyIsSame(&storage.pub.policies[i], &policies[i]);
+    }
+
+    storage_setPolicy_impl(storage.pub.policies, "ShapeShift", true);
+    EXPECT_EQ(storage.pub.policies[0].enabled, true);
+
+    storage_setPolicy_impl(storage.pub.policies, "Pin Caching", false);
+    EXPECT_EQ(storage.pub.policies[1].enabled, false);
+
+    storage_setPolicy_impl(storage.pub.policies, "ShapeShift", false);
+    EXPECT_EQ(storage.pub.policies[0].enabled, false);
+
+    storage_setPolicy_impl(storage.pub.policies, "Pin Caching", true);
+    EXPECT_EQ(storage.pub.policies[1].enabled, true);
+}
+
 TEST(Storage, ResetCache) {
     Cache src;
     memset(&src, 0xCC, sizeof(src));

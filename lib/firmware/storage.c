@@ -1150,13 +1150,17 @@ Allocation storage_getLocation(void)
     return storage_location;
 }
 
-bool storage_setPolicy(const PolicyType *policy)
+bool storage_setPolicy(const char *policy_name, bool enabled)
 {
-    for (unsigned i = 0; i < POLICY_COUNT; ++i)
-    {
-        if(strcmp(policy->policy_name, shadow_config.storage.pub.policies[i].policy_name) == 0)
-        {
-            memcpy(&shadow_config.storage.pub.policies[i], policy, sizeof(PolicyType));
+    return storage_setPolicy_impl(shadow_config.storage.pub.policies, policy_name, enabled);
+}
+
+bool storage_setPolicy_impl(PolicyType ps[POLICY_COUNT], const char *policy_name, bool enabled)
+{
+    for (unsigned i = 0; i < POLICY_COUNT; ++i) {
+        if (strcmp(policy_name, ps[i].policy_name) == 0) {
+            ps[i].has_enabled = true;
+            ps[i].enabled = enabled;
             return true;
         }
     }
@@ -1171,13 +1175,16 @@ void storage_getPolicies(PolicyType *policy_data)
     }
 }
 
-bool storage_isPolicyEnabled(char *policy_name)
+bool storage_isPolicyEnabled(const char *policy_name)
 {
-    for (unsigned i = 0; i < POLICY_COUNT; ++i)
-    {
-        if(strcmp(policy_name, shadow_config.storage.pub.policies[i].policy_name) == 0)
-        {
-            return shadow_config.storage.pub.policies[i].enabled;
+    return storage_isPolicyEnabled_impl(shadow_config.storage.pub.policies, policy_name);
+}
+
+bool storage_isPolicyEnabled_impl(const PolicyType ps[POLICY_COUNT], const char *policy_name)
+{
+    for (unsigned i = 0; i < POLICY_COUNT; ++i) {
+        if (strcmp(policy_name, ps[i].policy_name) == 0) {
+            return ps[i].enabled;
         }
     }
     return false;

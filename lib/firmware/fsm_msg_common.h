@@ -518,6 +518,9 @@ void fsm_msgCharacterAck(CharacterAck *msg)
 
 void fsm_msgApplyPolicies(ApplyPolicies *msg)
 {
+    CHECK_PARAM(msg->policy[0].has_policy_name, "Incorrect ApplyPolicies parameters");
+    CHECK_PARAM(msg->policy[0].has_enabled, "Incorrect ApplyPolicies parameters");
+
     RESP_INIT(ButtonRequest);
     resp->has_code = true;
     resp->code = ButtonRequestType_ButtonRequest_ApplyPolicies;
@@ -561,7 +564,7 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg)
 
     CHECK_PIN
 
-    if(!storage_setPolicy(&msg->policy[0]))
+    if(!storage_setPolicy(msg->policy[0].policy_name, msg->policy[0].enabled))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled,
                         "Policy could not be applied");

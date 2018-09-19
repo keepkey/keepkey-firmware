@@ -111,15 +111,16 @@ Allocation storage_getLocation(void);
 
 typedef struct _PolicyType PolicyType;
 
-/// \brief Assign policy by name
-bool storage_setPolicy(const PolicyType *policy);
+/// \brief Assign policy by name.
+/// \returns true iff assignment was successful.
+bool storage_setPolicy(const char *policy_name, bool enabled);
 
 /// \brief Copy out all the policies in storage
 /// \param policies[out]  Where to write the policies.
 void storage_getPolicies(PolicyType *policies);
 
 /// \brief Status of policy in storage
-bool storage_isPolicyEnabled(char *policy_name);
+bool storage_isPolicyEnabled(const char *policy_name);
 
 uint32_t storage_getAutoLockDelayMs(void);
 void storage_setAutoLockDelayMs(uint32_t auto_lock_delay_ms);

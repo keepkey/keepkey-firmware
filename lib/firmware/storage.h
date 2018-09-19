@@ -133,5 +133,7 @@ void storage_writeHDNode(char *ptr, size_t len, const StorageHDNode *node);
 void storage_writeStorageV3(char *ptr, size_t len, const Storage *storage);
 void storage_writeCacheV1(char *ptr, size_t len, const Cache *cache);
 
+bool storage_setPolicy_impl(PolicyType policies[POLICY_COUNT], const char *policy_name, bool enabled);
+bool storage_isPolicyEnabled_impl(const PolicyType policies[POLICY_COUNT], const char *policy_name);
 
 #endif
