@@ -148,7 +148,7 @@ void storage_writeMeta(char *ptr, size_t len, const Metadata *meta) {
     memcpy(ptr + 16, meta->uuid_str, STORAGE_UUID_STR_LEN);
 }
 
-void storage_readPolicy(PolicyType *policy, const char *ptr, size_t len) {
+void storage_readPolicyV1(PolicyType *policy, const char *ptr, size_t len) {
     if (len < 17)
         return;
     policy->has_policy_name = read_bool(ptr);
@@ -158,7 +158,7 @@ void storage_readPolicy(PolicyType *policy, const char *ptr, size_t len) {
     policy->enabled = read_bool(ptr + 17);
 }
 
-void storage_writePolicy(char *ptr, size_t len, const PolicyType *policy) {
+void storage_writePolicyV1(char *ptr, size_t len, const PolicyType *policy) {
     if (len < 17)
         return;
     write_bool(ptr, policy->has_policy_name);
@@ -256,7 +256,7 @@ void storage_readStorageV1(Storage *storage, const char *ptr, size_t len) {
     memcpy(storage->pub.label, ptr + 422, 33);
     storage->pub.imported = read_bool(ptr + 456);
     storage->pub.policies_count = 1;
-    storage_readPolicy(&storage->pub.policies[0], ptr + 464, 17);
+    storage_readPolicyV1(&storage->pub.policies[0], ptr + 464, 17);
     storage->sec.has_auto_lock_delay_ms = true;
     storage->sec.auto_lock_delay_ms = 60 * 1000U;
 
@@ -310,8 +310,8 @@ void storage_writeStorageV3(char *ptr, size_t len, const Storage *storage) {
     ptr[458] = 0; // reserved
     ptr[459] = 0; // reserved
     write_u32_le(ptr + 460, 1);
-    storage_writePolicy(ptr + 464, 17, &storage->pub.policies[0]);
-    storage_writePolicy(ptr + 464 + 18, 17, &storage->pub.policies[1]);
+    storage_writePolicyV1(ptr + 464, 17, &storage->pub.policies[0]);
+    storage_writePolicyV1(ptr + 464 + 18, 17, &storage->pub.policies[1]);
     // reserved bytes for policies 2:8
     write_bool(ptr + 626, storage->sec.has_auto_lock_delay_ms);
     write_u32_le(ptr + 627, storage->sec.auto_lock_delay_ms);
@@ -342,8 +342,8 @@ void storage_readStorageV3(Storage *storage, const char *ptr, size_t len) {
     memcpy(storage->pub.label, ptr + 422, 33);
     storage->pub.imported = read_bool(ptr + 456);
     storage->pub.policies_count = 1;
-    storage_readPolicy(&storage->pub.policies[0], ptr + 464, 17);
-    storage_readPolicy(&storage->pub.policies[1], ptr + 464 + 18, 18);
+    storage_readPolicyV1(&storage->pub.policies[0], ptr + 464, 17);
+    storage_readPolicyV1(&storage->pub.policies[1], ptr + 464 + 18, 18);
     // reserved bytes for policies 2:8
     storage->sec.has_auto_lock_delay_ms = read_bool(ptr + 626);
     storage->sec.auto_lock_delay_ms = read_u32_le(ptr + 627);

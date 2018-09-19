@@ -42,11 +42,11 @@ TEST(Storage, WriteMeta) {
     ASSERT_TRUE(memcmp(dst, "M1M\0u1u2u3u4u5u\0S1S2S3S4S5S6S7S8S9SASBS\0", sizeof(dst)) == 0);
 }
 
-TEST(Storage, ReadPolicy) {
+TEST(Storage, ReadPolicyV1) {
     PolicyType dst;
     const char src[] = "\x01N1N2N3N4N5N6N7N\x01\x01";
 
-    storage_readPolicy(&dst, src, sizeof(src));
+    storage_readPolicyV1(&dst, src, sizeof(src));
 
     ASSERT_EQ(dst.has_policy_name, true);
     ASSERT_TRUE(memcmp(dst.policy_name, "N1N2N3N4N5N6N7N8N", 15) == 0);
@@ -54,7 +54,7 @@ TEST(Storage, ReadPolicy) {
     ASSERT_EQ(dst.enabled, true);
 }
 
-TEST(Storage, WritePolicy) {
+TEST(Storage, WritePolicyV1) {
     const PolicyType src = {
         .has_policy_name = true,
         .policy_name = "0123456789ABCD",
@@ -65,7 +65,7 @@ TEST(Storage, WritePolicy) {
     char dst[18];
     memset(dst, 0, sizeof(dst));
 
-    storage_writePolicy(&dst[0], sizeof(dst), &src);
+    storage_writePolicyV1(&dst[0], sizeof(dst), &src);
 
     ASSERT_TRUE(memcmp(dst, "\x01""0123456789ABCD\0\x01\x01", sizeof(dst)) == 0);
 }
