@@ -36,8 +36,8 @@ void storage_resetUuid(void);
 /// \brief Clear configuration.
 void storage_reset(void);
 
-/// \brief Reset session states
-/// \param clear_pin  Whether to clear the session pin.
+/// \brief Reset session states.
+/// \param clear_pin whether to clear the pin as well.
 void session_clear(bool clear_pin);
 
 /// \brief Write content of configuration in shadow memory to storage partion
@@ -94,17 +94,11 @@ void storage_setMnemonicFromWords(const char (*words)[12], unsigned int num_word
 /// \brief Set config mnemonic from a recovery sentence.
 void storage_setMnemonic(const char *mnemonic);
 
-/// \returns true iff the device has a mnemonic in storage.
-bool storage_hasMnemonic(void);
-
 /// \brief Get mnemonic from shadow memory
 const char *storage_getShadowMnemonic(void);
 
 /// \returns true iff the private key stored on device was imported.
 bool storage_getImported(void);
-
-/// \returns true iff the active storage has a HDNode.
-bool storage_hasNode(void);
 
 /// \brief Get active storage location..
 Allocation storage_getLocation(void);
@@ -128,6 +122,12 @@ void storage_setAutoLockDelayMs(uint32_t auto_lock_delay_ms);
 #ifdef DEBUG_LINK
 typedef struct _HDNodeType HDNodeType;
 typedef struct _StorageHDNode StorageHDNode;
+
+/// \returns true iff the device has a mnemonic in storage.
+bool storage_hasMnemonic(void);
+
+/// \returns true iff the active storage has a HDNode.
+bool storage_hasNode(void);
 
 const char *storage_getPin(void);
 const char *storage_getMnemonic(void);

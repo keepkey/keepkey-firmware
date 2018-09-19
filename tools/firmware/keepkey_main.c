@@ -118,6 +118,9 @@ int main(void)
     dbg_print("Application Version %d.%d.%d\n\r", MAJOR_VERSION, MINOR_VERSION,
               PATCH_VERSION);
 
+    /* Init storage */
+    storage_init();
+
     /* Init protcol buffer message map and usb msg callback */
     fsm_init();
 

@@ -3,7 +3,7 @@ void fsm_msgInitialize(Initialize *msg)
     (void)msg;
     recovery_abort(false);
     signing_abort();
-    storage_init();
+    session_clear(false); // do not clear PIN
     layoutHome();
     fsm_msgGetFeatures(0);
 }
@@ -237,6 +237,7 @@ void fsm_msgChangePin(ChangePin *msg)
     }
     else
     {
+        session_cachePin("");
         if(change_pin())
         {
             storage_commit();

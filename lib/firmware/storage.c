@@ -64,7 +64,15 @@ _Static_assert(sizeof(ConfigFlash) <= FLASH_STORAGE_LEN,
 static ConfigFlash CONFIDENTIAL shadow_config;
 
 // Temporary storage for marshalling secrets in & out of flash.
-static CONFIDENTIAL char flash_temp[2048];
+static CONFIDENTIAL char flash_temp[1024];
+
+#if DEBUG_LINK
+// These won't survive resets like the stuff in flash would, but thats a
+// reasonable compromise given how testing works.
+char debuglink_pin[10];
+char debuglink_mnemonic[241];
+StorageHDNode debuglink_node;
+#endif
 
 void storage_upgradePolicies(Storage *storage) {
     for (int i = storage->pub.policies_count; i < POLICY_COUNT; ++i) {
@@ -158,6 +166,14 @@ void storage_readPolicyV1(PolicyType *policy, const char *ptr, size_t len) {
     policy->enabled = read_bool(ptr + 17);
 }
 
+void storage_readPolicyV2(PolicyType *policy, const char *policy_name, bool enabled) {
+    policy->has_policy_name = true;
+    memset(policy->policy_name, 0, sizeof(policy->policy_name));
+    strncpy(policy->policy_name, policy_name, sizeof(policy->policy_name));
+    policy->has_enabled = true;
+    policy->enabled = enabled;
+}
+
 void storage_writePolicyV1(char *ptr, size_t len, const PolicyType *policy) {
     if (len < 17)
         return;
@@ -206,11 +222,7 @@ void storage_writeHDNode(char *ptr, size_t len, const StorageHDNode *node) {
 }
 
 void storage_deriveWrappingKey(const char *pin, uint8_t wrapping_key[64]) {
-    PBKDF2_HMAC_SHA512_CTX pctx;
-    pbkdf2_hmac_sha512_Init(&pctx, (const uint8_t *)pin, strlen(pin),
-                            (const uint8_t *)"KEEPKEY", 7);
-    pbkdf2_hmac_sha512_Update(&pctx, 2048);
-    pbkdf2_hmac_sha512_Final(&pctx, wrapping_key);
+    sha512_Raw((const uint8_t*)pin, strlen(pin), wrapping_key);
 }
 
 void storage_wrapStorageKey(const uint8_t wrapping_key[64], const uint8_t key[64], uint8_t wrapped_key[64]) {
@@ -223,27 +235,99 @@ void storage_wrapStorageKey(const uint8_t wrapping_key[64], const uint8_t key[64
     memzero(iv, sizeof(iv));
 }
 
-bool storage_unwrapStorageKey(const uint8_t wrapping_key[64], const uint8_t wrapped_key[64], uint8_t key[64]) {
+void storage_unwrapStorageKey(const uint8_t wrapping_key[64], const uint8_t wrapped_key[64], uint8_t key[64]) {
     uint8_t iv[64];
     memcpy(iv, wrapping_key, sizeof(iv));
     aes_decrypt_ctx ctx;
     aes_decrypt_key256(wrapping_key, &ctx);
-    AES_RETURN ret = aes_cbc_decrypt(wrapped_key, key, 64, iv + 32, &ctx);
+    aes_cbc_decrypt(wrapped_key, key, 64, iv + 32, &ctx);
     memzero(&ctx, sizeof(ctx));
     memzero(iv, sizeof(iv));
-    return ret == EXIT_SUCCESS;
+}
+
+void storage_keyFingerprint(const uint8_t key[64], uint8_t fingerprint[32]) {
+    sha256_Raw(key, 64, fingerprint);
+}
+
+bool storage_isPinCorrect_impl(const char *pin, const uint8_t wrapped_key[64], const uint8_t fingerprint[32], uint8_t key[64]) {
+    uint8_t wrapping_key[64];
+    storage_deriveWrappingKey(pin, wrapping_key);
+    storage_unwrapStorageKey(wrapping_key, wrapped_key, key);
+
+    uint8_t fp[32];
+    storage_keyFingerprint(key, fp);
+
+    bool ret = memcmp(fp, fingerprint, 32) == 0;
+    if (!ret)
+        memzero(key, 64);
+    memzero(wrapping_key, 64);
+    memzero(fp, 32);
+    return ret;
+}
+
+void storage_secMigrate(Storage *storage, const uint8_t storage_key[64], bool encrypt) {
+    static CONFIDENTIAL char scratch[512];
+    _Static_assert(sizeof(scratch) == sizeof(storage->encrypted_sec),
+                   "Be extermely careful when changing the size of scratch.");
+    memzero(scratch, sizeof(scratch));
+
+    if (encrypt) {
+        memzero(storage->encrypted_sec, sizeof(storage->encrypted_sec));
+
+        // Serialize to scratch.
+        storage_writeHDNode(&scratch[0], 129, &storage->sec.node);
+        memcpy(&scratch[0] + 129, storage->sec.mnemonic, 241);
+        storage_writeCacheV1(&scratch[0] + 370, 75, &storage->sec.cache);
+
+        // 63 reserved bytes
+
+        // Encrypt with the storage key.
+        uint8_t iv[64];
+        memcpy(iv, storage_key, sizeof(iv));
+        aes_encrypt_ctx ctx;
+        aes_encrypt_key256(storage_key, &ctx);
+        aes_cbc_encrypt((const uint8_t*)scratch, storage->encrypted_sec,
+                        sizeof(scratch), iv + 32, &ctx);
+        memzero(&ctx, sizeof(ctx));
+        storage->encrypted_sec_version = STORAGE_VERSION;
+    } else {
+        memzero(&storage->sec, sizeof(storage->sec));
+
+        // Decrypt with the storage key.
+        uint8_t iv[64];
+        memcpy(iv, storage_key, sizeof(iv));
+        aes_decrypt_ctx ctx;
+        aes_decrypt_key256(storage_key, &ctx);
+        if (EXIT_FAILURE == aes_cbc_decrypt((const uint8_t*)storage->encrypted_sec,
+                                            (uint8_t*)&scratch[0], sizeof(scratch),
+                                            iv + 32, &ctx)) {
+            memzero(iv, sizeof(iv));
+            memzero(scratch, sizeof(scratch));
+            return;
+        }
+
+        // De-serialize from scratch.
+        storage_readHDNode(&storage->sec.node, &scratch[0], 129);
+        memcpy(storage->sec.mnemonic, &scratch[0] + 129, 241);
+        storage_readCacheV1(&storage->sec.cache, &scratch[0] + 370, 75);
+
+        // 63 reserved bytes
+
+        storage->has_sec = true;
+    }
+
+    memzero(scratch, sizeof(scratch));
 }
 
 void storage_readStorageV1(Storage *storage, const char *ptr, size_t len) {
     if (len < 464 + 17)
         return;
     storage->version = read_u32_le(ptr);
-    storage->sec.has_node = read_bool(ptr + 4);
+    storage->pub.has_node = read_bool(ptr + 4);
     storage_readHDNode(&storage->sec.node, ptr + 8, 140);
-    storage->sec.has_mnemonic = read_bool(ptr + 140);
+    storage->pub.has_mnemonic = read_bool(ptr + 140);
     memcpy(storage->sec.mnemonic, ptr + 141, 241);
-    storage->sec.passphrase_protection = read_bool(ptr + 383);
-    storage->pub.has_pin_failed_attempts = read_bool(ptr + 384);
+    storage->pub.passphrase_protection = read_bool(ptr + 383);
     storage->pub.pin_failed_attempts = read_u32_le(ptr + 388);
     storage->pub.has_pin = read_bool(ptr + 392);
     memset(storage->sec.pin, 0, sizeof(storage->sec.pin));
@@ -255,13 +339,20 @@ void storage_readStorageV1(Storage *storage, const char *ptr, size_t len) {
     memset(storage->pub.label, 0, sizeof(storage->pub.label));
     memcpy(storage->pub.label, ptr + 422, 33);
     storage->pub.imported = read_bool(ptr + 456);
-    storage->pub.policies_count = 1;
-    storage_readPolicyV1(&storage->pub.policies[0], ptr + 464, 17);
-    storage->sec.has_auto_lock_delay_ms = true;
-    storage->sec.auto_lock_delay_ms = 60 * 1000U;
+    if (storage->version == 1) {
+        storage->pub.policies_count = 0;
+    } else {
+        storage->pub.policies_count = 1;
+        storage_readPolicyV1(&storage->pub.policies[0], ptr + 464, 17);
+    }
+    storage->pub.has_auto_lock_delay_ms = true;
+    storage->pub.auto_lock_delay_ms = 60 * 1000U;
 
     _Static_assert(sizeof(storage->pub.wrapped_storage_key) == 64,
                    "(un)wrapped key must be 64 bytes");
+
+    _Static_assert(sizeof(storage->pub.storage_key_fingerprint) == 32,
+                   "key fingerprint must be 32 bytes");
 
     // Generate a new storage key.
     uint8_t storage_key[64];
@@ -269,87 +360,116 @@ void storage_readStorageV1(Storage *storage, const char *ptr, size_t len) {
 
     // Wrap the storage key using the user's pin.
     uint8_t wrapping_key[64];
-    storage_deriveWrappingKey(storage->sec.pin, wrapping_key);
+    storage_deriveWrappingKey(storage->pub.has_pin ? storage->sec.pin : "", wrapping_key);
     storage_wrapStorageKey(wrapping_key, storage_key, storage->pub.wrapped_storage_key);
-    memzero(wrapping_key, sizeof(wrapping_key));
-    memzero(storage_key, sizeof(storage_key));
 
-    storage_readCacheV1(&storage->sec.cache, ptr + 484, 75);
+    // Fingerprint the storage_key.
+    storage_keyFingerprint(sessionStorageKey,
+                           shadow_config.storage.pub.storage_key_fingerprint);
+
+    if (storage->version == 1) {
+        storage_resetPolicies(storage);
+        storage_resetCache(&storage->sec.cache);
+    } else {
+        storage_readCacheV1(&storage->sec.cache, ptr + 484, 75);
+    }
+
+    // Encrypt storage before throwing away the storage_key, and secrets.
+    storage_secMigrate(storage, storage_key, /*encrypt=*/true);
+
+    if (storage->pub.has_pin) {
+        memzero(&storage->sec, sizeof(storage->sec));
+        memzero(sessionStorageKey, sizeof(sessionStorageKey));
+        sessionPinCached = false;
+        storage->has_sec = false;
+    } else {
+        memcpy(sessionStorageKey, storage_key, sizeof(storage_key));
+        sessionPinCached = true;
+        storage->has_sec = true;
+    }
+
+    memzero(storage_key, sizeof(storage_key));
+    memzero(wrapping_key, sizeof(wrapping_key));
 }
 
-void storage_writeStorageV3(char *ptr, size_t len, const Storage *storage) {
-    if (len < 1024)
+void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage) {
+    if (len < 852)
         return;
     write_u32_le(ptr, storage->version);
-    write_bool(ptr + 4, storage->sec.has_node);
-    ptr[5] = 0; // reserved
-    ptr[6] = 0; // reserved
-    ptr[7] = 0; // reserved
-    storage_writeHDNode(ptr + 8, 140, &storage->sec.node);
-    ptr[137] = 0; // reserved
-    ptr[138] = 0; // reserved
-    ptr[139] = 0; // reserved
-    write_bool(ptr + 140, storage->sec.has_mnemonic);
-    memcpy(ptr + 141, storage->sec.mnemonic, 241);
-    write_bool(ptr + 382, true); // formerly has_passphrase_protection
-    write_bool(ptr + 383, storage->sec.passphrase_protection);
-    write_bool(ptr + 384, storage->pub.has_pin_failed_attempts);
-    ptr[385] = 0; // reserved
-    ptr[386] = 0; // reserved
-    ptr[387] = 0; // reserved
-    write_u32_le(ptr + 388, storage->pub.pin_failed_attempts);
-    write_bool(ptr + 392, storage->pub.has_pin);
-    memcpy(ptr + 393, storage->sec.pin, 10);
-    write_bool(ptr + 403, storage->pub.has_language);
-    memcpy(ptr + 404, storage->pub.language, 17);
-    write_bool(ptr + 421, storage->pub.has_label);
-    memcpy(ptr + 422, storage->pub.label, 33);
-    write_bool(ptr + 455, true); // formerly has_imported
-    write_bool(ptr + 456, storage->pub.imported);
-    ptr[457] = 0; // reserved
-    ptr[458] = 0; // reserved
-    ptr[459] = 0; // reserved
-    write_u32_le(ptr + 460, 1);
-    storage_writePolicyV1(ptr + 464, 17, &storage->pub.policies[0]);
-    storage_writePolicyV1(ptr + 464 + 18, 17, &storage->pub.policies[1]);
-    // reserved bytes for policies 2:8
-    write_bool(ptr + 626, storage->sec.has_auto_lock_delay_ms);
-    write_u32_le(ptr + 627, storage->sec.auto_lock_delay_ms);
-    memcpy(ptr + 632, storage->pub.wrapped_storage_key, 64);
-    // reserved bytes
-    storage_writeCacheV1(ptr + 800, 75, &storage->sec.cache);
+
+    uint32_t flags =
+        (storage->pub.has_pin                    ? (1u << 0) : 0) |
+        (storage->pub.has_language               ? (1u << 1) : 0) |
+        (storage->pub.has_label                  ? (1u << 2) : 0) |
+        (storage->pub.has_auto_lock_delay_ms     ? (1u << 3) : 0) |
+        (storage->pub.imported                   ? (1u << 4) : 0) |
+        (storage->pub.passphrase_protection      ? (1u << 5) : 0) |
+        (storage_isPolicyEnabled("ShapeShift")   ? (1u << 6) : 0) |
+        (storage_isPolicyEnabled("Pin Caching")  ? (1u << 7) : 0) |
+        (storage->pub.has_node                   ? (1u << 8) : 0) |
+        (storage->pub.has_mnemonic               ? (1u << 9) : 0) |
+        /* reserved 31:5 */ 0;
+    write_u32_le(ptr + 4, flags);
+
+    write_u32_le(ptr + 8, storage->pub.pin_failed_attempts);
+    write_u32_le(ptr + 12, storage->pub.auto_lock_delay_ms);
+
+    memcpy(ptr + 16, storage->pub.language, 16);
+    memcpy(ptr + 32, storage->pub.label, 48);
+
+    memcpy(ptr + 80, storage->pub.wrapped_storage_key, 64);
+    memcpy(ptr + 144, storage->pub.storage_key_fingerprint, 32);
+
+    // 288 reserved bytes
+
+    // Ignore whatever was in storage->sec. Only encrypted_sec can be committed.
+    // Yes, this is a potential footgun. No, there's nothing we can do about it here.
+
+    // Note: the encrypted_sec_version is not necessarily STORAGE_VERSION. If
+    // storage is committed without pin entry on storage upgrade, the plaintext
+    // and ciphertext storage sections will have different versions.
+    write_u32_le(ptr + 464, storage->encrypted_sec_version);
+
+    memcpy(ptr + 468, storage->encrypted_sec, sizeof(storage->encrypted_sec));
 }
 
-void storage_readStorageV3(Storage *storage, const char *ptr, size_t len) {
-    if (len < 1024)
+void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
+    if (len < 852)
         return;
+
     storage->version = read_u32_le(ptr);
-    storage->sec.has_node = read_bool(ptr + 4);
-    storage_readHDNode(&storage->sec.node, ptr + 8, 140);
-    storage->sec.has_mnemonic = read_bool(ptr + 140);
-    memcpy(storage->sec.mnemonic, ptr + 141, 241);
-    storage->sec.passphrase_protection = read_bool(ptr + 383);
-    storage->pub.has_pin_failed_attempts = read_bool(ptr + 384);
-    storage->pub.pin_failed_attempts = read_u32_le(ptr + 388);
-    storage->pub.has_pin = read_bool(ptr + 392);
-    memset(storage->sec.pin, 0, sizeof(storage->sec.pin));
-    memcpy(storage->sec.pin, ptr + 393, 10);
-    storage->pub.has_language = read_bool(ptr + 403);
+
+    uint32_t flags = read_u32_le(ptr + 4);
+    storage->pub.has_pin =                                         flags & (1u << 0);
+    storage->pub.has_language =                                    flags & (1u << 1);
+    storage->pub.has_label =                                       flags & (1u << 2);
+    storage->pub.has_auto_lock_delay_ms =                          flags & (1u << 3);
+    storage->pub.imported =                                        flags & (1u << 4);
+    storage->pub.passphrase_protection =                           flags & (1u << 5);
+    storage_readPolicyV2(&storage->pub.policies[0], "ShapeShift",  flags & (1u << 6));
+    storage_readPolicyV2(&storage->pub.policies[1], "Pin Caching", flags & (1u << 7));
+    storage->pub.policies_count = 2;
+    storage->pub.has_node =                                        flags & (1u << 8);
+    storage->pub.has_mnemonic =                                    flags & (1u << 9);
+
+    storage->pub.pin_failed_attempts = read_u32_le(ptr + 8);
+    storage->pub.auto_lock_delay_ms = read_u32_le(ptr + 12);
+
     memset(storage->pub.language, 0, sizeof(storage->pub.language));
-    memcpy(storage->pub.language, ptr + 404, 17);
-    storage->pub.has_label = read_bool(ptr + 421);
+    memcpy(storage->pub.language, ptr + 16, 16);
+
     memset(storage->pub.label, 0, sizeof(storage->pub.label));
-    memcpy(storage->pub.label, ptr + 422, 33);
-    storage->pub.imported = read_bool(ptr + 456);
-    storage->pub.policies_count = 1;
-    storage_readPolicyV1(&storage->pub.policies[0], ptr + 464, 17);
-    storage_readPolicyV1(&storage->pub.policies[1], ptr + 464 + 18, 18);
-    // reserved bytes for policies 2:8
-    storage->sec.has_auto_lock_delay_ms = read_bool(ptr + 626);
-    storage->sec.auto_lock_delay_ms = read_u32_le(ptr + 627);
-    memcpy(storage->pub.wrapped_storage_key, ptr + 632, 64);
-    // reserved bytes
-    storage_readCacheV1(&storage->sec.cache, ptr + 800, 75);
+    memcpy(storage->pub.label, ptr + 32, 48);
+
+    memcpy(storage->pub.wrapped_storage_key, ptr + 80, 64);
+    memcpy(storage->pub.storage_key_fingerprint, ptr + 144, 32);
+
+    // 288 reserved bytes
+
+    storage->has_sec = false;
+    memzero(&storage->sec, sizeof(storage->sec));
+    storage->encrypted_sec_version = read_u32_le(ptr + 464);
+    memcpy(storage->encrypted_sec, ptr + 468, sizeof(storage->encrypted_sec));
 }
 
 void storage_readCacheV1(Cache *cache, const char *ptr, size_t len) {
@@ -377,8 +497,6 @@ void storage_readV1(ConfigFlash *dst, const char *flash, size_t len) {
         return;
     storage_readMeta(&dst->meta, flash, 44);
     storage_readStorageV1(&dst->storage, flash + 44, 481);
-    storage_resetPolicies(&dst->storage);
-    storage_resetCache(&dst->storage.sec.cache);
 }
 
 void storage_readV2(ConfigFlash *dst, const char *flash, size_t len) {
@@ -388,22 +506,24 @@ void storage_readV2(ConfigFlash *dst, const char *flash, size_t len) {
     storage_readStorageV1(&dst->storage, flash + 44, 481);
 }
 
-void storage_readV3(ConfigFlash *dst, const char *flash, size_t len) {
-    if (len < 1024 + 75)
+void storage_readV11(ConfigFlash *dst, const char *flash, size_t len) {
+    if (len < 1024)
         return;
     storage_readMeta(&dst->meta, flash, 44);
-    storage_readStorageV3(&dst->storage, flash + 44, 1024);
+    storage_readStorageV11(&dst->storage, flash + 44, 852);
 }
 
-void storage_writeV3(char *flash, size_t len, const ConfigFlash *src) {
-    if (len < 1024 + 75)
+void storage_writeV11(char *flash, size_t len, const ConfigFlash *src) {
+    if (len < 1024)
         return;
     storage_writeMeta(flash, 44, &src->meta);
-    storage_writeStorageV3(flash + 44, 1024, &src->storage);
+    storage_writeStorageV11(flash + 44, 852, &src->storage);
 }
 
 StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
 {
+    memzero(dst, sizeof(*dst));
+
     // Load config values from active config node.
     enum StorageVersion version =
         version_from_int(read_u32_le(flash + 44));
@@ -449,7 +569,7 @@ StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
                 : SUS_Updated;
 
         case StorageVersion_11:
-            storage_readV3(dst, flash, STORAGE_SECTOR_LEN);
+            storage_readV11(dst, flash, STORAGE_SECTOR_LEN);
             return SUS_Valid;
 
         case StorageVersion_NONE:
@@ -509,7 +629,7 @@ static void wear_leveling_shift(void)
 static void storage_setRootSeedCache(ConfigFlash *cfg, const uint8_t *seed, const char* curve)
 {
     // Don't cache when passphrase protection is enabled.
-    if (cfg->storage.sec.passphrase_protection && strlen(sessionPassphrase))
+    if (cfg->storage.pub.passphrase_protection && strlen(sessionPassphrase))
         return;
 
     memset(&cfg->storage.sec.cache, 0, sizeof(cfg->storage.sec.cache));
@@ -521,6 +641,7 @@ static void storage_setRootSeedCache(ConfigFlash *cfg, const uint8_t *seed, cons
             sizeof(cfg->storage.sec.cache.root_ecdsa_curve_type));
 
     cfg->storage.sec.cache.root_seed_cache_status = CACHE_EXISTS;
+    cfg->storage.has_sec = true;
     storage_commit();
 }
 
@@ -533,10 +654,13 @@ static void storage_setRootSeedCache(ConfigFlash *cfg, const uint8_t *seed, cons
 static bool storage_getRootSeedCache(ConfigFlash *cfg, const char *curve,
                                      bool usePassphrase, uint8_t *seed)
 {
+    if (!cfg->storage.has_sec)
+        return false;
+
     if (cfg->storage.sec.cache.root_seed_cache_status != CACHE_EXISTS)
         return false;
 
-    if (usePassphrase && cfg->storage.sec.passphrase_protection &&
+    if (usePassphrase && cfg->storage.pub.passphrase_protection &&
         strlen(sessionPassphrase)) {
         return false;
     }
@@ -553,23 +677,13 @@ static bool storage_getRootSeedCache(ConfigFlash *cfg, const char *curve,
     return true;
 }
 
-static bool storage_isUninitialized(const char *flash) {
+static bool storage_isActiveSector(const char *flash) {
     return memcmp(((const Metadata *)flash)->magic, STORAGE_MAGIC_STR,
-                  STORAGE_MAGIC_LEN) != 0;
+                  STORAGE_MAGIC_LEN) == 0;
 }
 
 void storage_init(void)
 {
-    // Storage only needs to be initialized once after boot, but since we need
-    // to be able to ask the user for their pin for future storage upgrades,
-    // this must be delayed until the Initialize message is sent. That, in
-    // turn, means we must ignore the second and further calls to this
-    // function, as that would prematurely clear the session.
-    static bool init_once = false;
-    if (init_once)
-        return;
-    init_once = true;
-
 #ifndef EMULATOR
     if (strcmp("MFR", variant_getName()) == 0)
     {
@@ -602,9 +716,10 @@ void storage_init(void)
     // Reset shadow configuration in RAM
     storage_reset_impl(&shadow_config);
 
-    // If the storage partition is uninitialized
-    if (storage_isUninitialized(flash)) {
-        // ... then keep the storage area cleared.
+    // If the storage partition is not already active
+    if (!storage_isActiveSector(flash)) {
+        // ... activate it by pupoulating new Metadata section,
+        // and writing it to flash.
         storage_resetUuid();
         storage_commit();
         return;
@@ -631,7 +746,8 @@ void storage_init(void)
         break;
     }
 
-    session_clear(false);
+    if (!storage_hasPin())
+        session_cachePin("");
 }
 
 void storage_resetUuid(void)
@@ -658,7 +774,7 @@ void storage_reset_impl(ConfigFlash *cfg)
     storage_resetPolicies(&cfg->storage);
 
     cfg->storage.version = STORAGE_VERSION;
-    session_clear(true); // clear PIN as well
+    session_clear(/*clear_pin=*/true);
 }
 
 void session_clear(bool clear_pin)
@@ -669,9 +785,15 @@ void session_clear(bool clear_pin)
     sessionPassphraseCached = false;
     memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
 
-    if (clear_pin) {
-        memzero(sessionStorageKey, sizeof(sessionStorageKey));
-        sessionPinCached = false;
+    if (storage_hasPin()) {
+        if (clear_pin) {
+            memzero(sessionStorageKey, sizeof(sessionStorageKey));
+            sessionPinCached = false;
+            shadow_config.storage.has_sec = false;
+            memzero(&shadow_config.storage.sec, sizeof(shadow_config.storage.sec));
+        }
+    } else {
+        session_cachePin("");
     }
 }
 
@@ -682,7 +804,14 @@ void storage_commit(void) {
 void storage_commit_impl(ConfigFlash *cfg)
 {
     memzero(flash_temp, sizeof(flash_temp));
-    storage_writeV3(flash_temp, sizeof(flash_temp), cfg);
+
+    if (sessionPinCached) {
+        storage_secMigrate(&cfg->storage, sessionStorageKey, /*encrypt=*/true);
+    } else {
+        // commit what was in storage->encrypted_sec
+    }
+
+    storage_writeV11(flash_temp, sizeof(flash_temp), cfg);
 
     memcpy(cfg, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
 
@@ -753,39 +882,47 @@ void storage_commit_impl(ConfigFlash *cfg)
     }
 }
 
+// Great candidate for C++ templates... sigh.
+#define HDNODE_CONVERT \
+    dst->depth = src->depth; \
+    dst->fingerprint = src->fingerprint; \
+    dst->child_num = src->child_num; \
+    \
+    dst->chain_code.size = src->chain_code.size; \
+    memcpy(dst->chain_code.bytes, src->chain_code.bytes, \
+           sizeof(src->chain_code.bytes)); \
+    _Static_assert(sizeof(dst->chain_code.bytes) == \
+                   sizeof(src->chain_code.bytes), "chain_code type mismatch"); \
+    \
+    dst->has_private_key = src->has_private_key; \
+    if (src->has_private_key) { \
+        dst->private_key.size = src->private_key.size; \
+        memcpy(dst->private_key.bytes, src->private_key.bytes, \
+               sizeof(src->private_key.bytes)); \
+        _Static_assert(sizeof(dst->private_key.bytes) == \
+                       sizeof(src->private_key.bytes), "private_key type mismatch"); \
+    } \
+    \
+    dst->has_public_key = src->has_public_key; \
+    if (src->has_public_key) { \
+        dst->public_key.size = src->public_key.size; \
+        memcpy(dst->public_key.bytes, src->public_key.bytes, \
+               sizeof(src->public_key.bytes)); \
+        _Static_assert(sizeof(dst->public_key.bytes) == \
+                       sizeof(src->public_key.bytes), "public_key type mismatch"); \
+    }
+
 void storage_dumpNode(HDNodeType *dst, const StorageHDNode *src) {
 #if DEBUG_LINK
-    dst->depth = src->depth;
-    dst->fingerprint = src->fingerprint;
-    dst->child_num = src->child_num;
-
-    dst->chain_code.size = src->chain_code.size;
-    memcpy(dst->chain_code.bytes, src->chain_code.bytes,
-           sizeof(src->chain_code.bytes));
-    _Static_assert(sizeof(dst->chain_code.bytes) ==
-                   sizeof(src->chain_code.bytes), "chain_code type mismatch");
-
-    dst->has_private_key = src->has_private_key;
-    if (src->has_private_key) {
-        dst->private_key.size = src->private_key.size;
-        memcpy(dst->private_key.bytes, src->private_key.bytes,
-               sizeof(src->private_key.bytes));
-        _Static_assert(sizeof(dst->private_key.bytes) ==
-                       sizeof(src->private_key.bytes), "private_key type mismatch");
-    }
-
-    dst->has_public_key = src->has_public_key;
-    if (src->has_public_key) {
-        dst->public_key.size = src->public_key.size;
-        memcpy(dst->public_key.bytes, src->public_key.bytes,
-               sizeof(src->public_key.bytes));
-        _Static_assert(sizeof(dst->public_key.bytes) ==
-                       sizeof(src->public_key.bytes), "public_key type mismatch");
-    }
+    HDNODE_CONVERT
 #else
     (void)dst;
     (void)src;
 #endif
+}
+
+void storage_loadNode(StorageHDNode *dst, const HDNodeType *src) {
+    HDNODE_CONVERT
 }
 
 void storage_loadDevice(LoadDevice *msg)
@@ -794,45 +931,47 @@ void storage_loadDevice(LoadDevice *msg)
 
     shadow_config.storage.pub.imported = true;
 
-    if(msg->has_pin > 0)
-    {
+    if (msg->has_pin) {
         storage_setPin(msg->pin);
+    } else {
+        session_cachePin("");
     }
 
-    shadow_config.storage.sec.passphrase_protection =
+    shadow_config.storage.pub.passphrase_protection =
         msg->has_passphrase_protection && msg->passphrase_protection;
 
-    if(msg->has_node)
-    {
-        shadow_config.storage.sec.has_node = true;
-        shadow_config.storage.sec.has_mnemonic = false;
+    if (msg->has_node) {
+        shadow_config.storage.pub.has_node = true;
+        shadow_config.storage.pub.has_mnemonic = false;
+        shadow_config.storage.has_sec = true;
         memcpy(&shadow_config.storage.sec.node, &(msg->node), sizeof(HDNodeType));
-
+        storage_loadNode(&shadow_config.storage.sec.node, &msg->node);
+#if DEBUG_LINK
+        storage_loadNode(&debuglink_node, &msg->node);
+#endif
         sessionSeedCached = false;
         memset(&sessionSeed, 0, sizeof(sessionSeed));
-    }
-    else if(msg->has_mnemonic)
-    {
-        shadow_config.storage.sec.has_mnemonic = true;
-        shadow_config.storage.sec.has_node = false;
+    } else if(msg->has_mnemonic) {
+        shadow_config.storage.pub.has_mnemonic = true;
+        shadow_config.storage.pub.has_node = false;
+        shadow_config.storage.has_sec = true;
         strlcpy(shadow_config.storage.sec.mnemonic, msg->mnemonic,
                 sizeof(shadow_config.storage.sec.mnemonic));
-
+#if DEBUG_LINK
+        memcpy(debuglink_mnemonic, msg->mnemonic, sizeof(debuglink_mnemonic));
+#endif
         sessionSeedCached = false;
         memset(&sessionSeed, 0, sizeof(sessionSeed));
     }
 
-    if(msg->has_language)
-    {
+    if (msg->has_language) {
         storage_setLanguage(msg->language);
     }
 
-    if(msg->has_label)
-    {
+    if (msg->has_label) {
         storage_setLabel(msg->label);
     }
 }
-
 
 void storage_setLabel(const char *label)
 {
@@ -877,63 +1016,63 @@ const char *storage_getLanguage(void)
     return shadow_config.storage.pub.language;
 }
 
-bool storage_isPinCorrect(const char *pin)
-{
-    uint8_t pinIdx = 0;
-    uint32_t sumXors = UINT32_MAX;
-    uint8_t result1 = 0;
-    uint8_t result2 = 0;
-    uint8_t result3 = 0;
-    uint8_t result = 0;
-
-    // Beware when changing.
-    // This is carefully coded to take a constant amount of time.
-
-    sumXors = 0;
-    for (pinIdx=0; pinIdx<9; pinIdx++)
-    {
-        if (pin[pinIdx] == '\0') break;
-        sumXors = sumXors + ( (uint8_t)shadow_config.storage.sec.pin[pinIdx] ^ (uint8_t)pin[pinIdx] );
-    }
-
-    result1 = ('\0' == shadow_config.storage.sec.pin[pinIdx]);
-    result2 = (1 <= pinIdx);
-    result3 = (0 == sumXors);
-    result = result1 + result2 + result3;
-
-    return (result == 3);
+bool storage_isPinCorrect(const char *pin) {
+    uint8_t storage_key[64];
+    bool ret = storage_isPinCorrect_impl(pin,
+                                         shadow_config.storage.pub.wrapped_storage_key,
+                                         shadow_config.storage.pub.storage_key_fingerprint,
+                                         storage_key);
+    memzero(storage_key, 64);
+    return ret;
 }
 
 bool storage_hasPin(void)
 {
-    return shadow_config.storage.pub.has_pin && strlen(shadow_config.storage.sec.pin) > 0;
+    return shadow_config.storage.pub.has_pin;
 }
 
 void storage_setPin(const char *pin)
 {
-    if(strlen(pin) > 0)
-    {
-        shadow_config.storage.pub.has_pin = true;
-        strlcpy(shadow_config.storage.sec.pin, pin, sizeof(shadow_config.storage.sec.pin));
-        session_cachePin(pin);
-    }
-    else
-    {
-        shadow_config.storage.pub.has_pin = false;
-        memset(shadow_config.storage.sec.pin, 0, sizeof(shadow_config.storage.sec.pin));
-        memzero(sessionStorageKey, sizeof(sessionStorageKey));
-        sessionPinCached = false;
-    }
+    // Derive the wrapping key for the new pin
+    uint8_t wrapping_key[64];
+    storage_deriveWrappingKey(pin, wrapping_key);
+
+    // Derive a new storage_key.
+    random_buffer(sessionStorageKey, sizeof(sessionStorageKey));
+
+    // Wrap the new storage_key.
+    storage_wrapStorageKey(wrapping_key, sessionStorageKey,
+                           shadow_config.storage.pub.wrapped_storage_key);
+
+    // Fingerprint the storage_key.
+    storage_keyFingerprint(sessionStorageKey,
+                           shadow_config.storage.pub.storage_key_fingerprint);
+
+    // Clean up secrets to get them off the stack.
+    memzero(wrapping_key, sizeof(wrapping_key));
+
+    sessionPinCached = true;
+    shadow_config.storage.pub.has_pin = !!strlen(pin);
+
+#if DEBUG_LINK
+    strncpy(debuglink_pin, pin, sizeof(debuglink_pin));
+#endif
+
+    storage_secMigrate(&shadow_config.storage, sessionStorageKey, /*encrypt=*/true);
 }
 
 void session_cachePin(const char *pin)
 {
-    uint8_t wrapping_key[64];
-    storage_deriveWrappingKey(pin, wrapping_key);
-    sessionPinCached = storage_unwrapStorageKey(wrapping_key,
-                                                shadow_config.storage.pub.wrapped_storage_key,
-                                                sessionStorageKey);
-    memzero(wrapping_key, sizeof(wrapping_key));
+    sessionPinCached =
+        storage_isPinCorrect_impl(pin,
+                                  shadow_config.storage.pub.wrapped_storage_key,
+                                  shadow_config.storage.pub.storage_key_fingerprint,
+                                  sessionStorageKey);
+
+    if (!sessionPinCached)
+        return;
+
+    storage_secMigrate(&shadow_config.storage, sessionStorageKey, /*encrypt=*/false);
 }
 
 bool session_isPinCached(void)
@@ -943,7 +1082,6 @@ bool session_isPinCached(void)
 
 void storage_resetPinFails(void)
 {
-    shadow_config.storage.pub.has_pin_failed_attempts = false;
     shadow_config.storage.pub.pin_failed_attempts = 0;
 
     storage_commit_impl(&shadow_config);
@@ -951,7 +1089,6 @@ void storage_resetPinFails(void)
 
 void storage_increasePinFails(void)
 {
-    shadow_config.storage.pub.has_pin_failed_attempts = true;
     shadow_config.storage.pub.pin_failed_attempts++;
 
     storage_commit_impl(&shadow_config);
@@ -959,8 +1096,7 @@ void storage_increasePinFails(void)
 
 uint32_t storage_getPinFails(void)
 {
-    return shadow_config.storage.pub.has_pin_failed_attempts ?
-           shadow_config.storage.pub.pin_failed_attempts : 0;
+    return shadow_config.storage.pub.pin_failed_attempts;
 }
 
 /// \brief Calls animation callback.
@@ -982,7 +1118,11 @@ const uint8_t *storage_getSeed(const ConfigFlash *cfg, bool usePassphrase)
     }
 
     // if storage has mnemonic, convert it to node and use it
-    if (cfg->storage.sec.has_mnemonic) {
+    if (cfg->storage.pub.has_mnemonic) {
+        if (!cfg->storage.has_sec) {
+            return NULL;
+        }
+
         if (usePassphrase && !passphrase_protect()) {
             return NULL;
         }
@@ -1001,7 +1141,11 @@ const uint8_t *storage_getSeed(const ConfigFlash *cfg, bool usePassphrase)
 
 bool storage_getRootNode(const char *curve, bool usePassphrase, HDNode *node) {
     // if storage has node, decrypt and use it
-    if (shadow_config.storage.sec.has_node && strcmp(curve, SECP256K1_NAME) == 0) {
+    if (shadow_config.storage.pub.has_node && strcmp(curve, SECP256K1_NAME) == 0) {
+        if (!shadow_config.storage.has_sec) {
+            return false;
+        }
+
         if (!passphrase_protect()) {
             /* passphrased failed. Bailing */
             return false;
@@ -1015,7 +1159,7 @@ bool storage_getRootNode(const char *curve, bool usePassphrase, HDNode *node) {
             return false;
         }
 
-        if (shadow_config.storage.sec.passphrase_protection &&
+        if (shadow_config.storage.pub.passphrase_protection &&
             sessionPassphraseCached &&
             strlen(sessionPassphrase) > 0) {
             // decrypt hd node
@@ -1039,7 +1183,11 @@ bool storage_getRootNode(const char *curve, bool usePassphrase, HDNode *node) {
     }
 
     /* get node from mnemonic */
-    if (shadow_config.storage.sec.has_mnemonic) {
+    if (shadow_config.storage.pub.has_mnemonic) {
+        if (!shadow_config.storage.has_sec) {
+            return false;
+        }
+
         if (!passphrase_protect()) {
             /* passphrased failed. Bailing */
             return false;
@@ -1070,7 +1218,7 @@ bool storage_getRootNode(const char *curve, bool usePassphrase, HDNode *node) {
 
 bool storage_isInitialized(void)
 {
-    return shadow_config.storage.sec.has_node || shadow_config.storage.sec.has_mnemonic;
+    return shadow_config.storage.pub.has_node || shadow_config.storage.pub.has_mnemonic;
 }
 
 const char *storage_getUuidStr(void)
@@ -1080,12 +1228,12 @@ const char *storage_getUuidStr(void)
 
 bool storage_getPassphraseProtected(void)
 {
-    return shadow_config.storage.sec.passphrase_protection;
+    return shadow_config.storage.pub.passphrase_protection;
 }
 
 void storage_setPassphraseProtected(bool passphrase)
 {
-    shadow_config.storage.sec.passphrase_protection = passphrase;
+    shadow_config.storage.pub.passphrase_protection = passphrase;
 }
 
 void session_cachePassphrase(const char *passphrase)
@@ -1104,6 +1252,9 @@ void storage_setMnemonicFromWords(const char (*words)[12],
 {
     strlcpy(shadow_config.storage.sec.mnemonic, words[0],
             sizeof(shadow_config.storage.sec.mnemonic));
+#if DEBUG_LINK
+    strlcpy(debuglink_mnemonic, words[0], sizeof(debuglink_mnemonic));
+#endif
 
     for(uint32_t i = 1; i < word_count; i++)
     {
@@ -1111,9 +1262,14 @@ void storage_setMnemonicFromWords(const char (*words)[12],
                 sizeof(shadow_config.storage.sec.mnemonic));
         strlcat(shadow_config.storage.sec.mnemonic, words[i],
                 sizeof(shadow_config.storage.sec.mnemonic));
+#if DEBUG_LINK
+        strlcat(debuglink_mnemonic, " ", sizeof(debuglink_mnemonic));
+        strlcat(debuglink_mnemonic, words[i], sizeof(debuglink_mnemonic));
+#endif
     }
 
-    shadow_config.storage.sec.has_mnemonic = true;
+    shadow_config.storage.pub.has_mnemonic = true;
+    shadow_config.storage.has_sec = true;
 }
 
 void storage_setMnemonic(const char *m)
@@ -1122,16 +1278,23 @@ void storage_setMnemonic(const char *m)
            sizeof(shadow_config.storage.sec.mnemonic));
     strlcpy(shadow_config.storage.sec.mnemonic, m,
             sizeof(shadow_config.storage.sec.mnemonic));
-    shadow_config.storage.sec.has_mnemonic = true;
+#if DEBUG_LINK
+    memset(debuglink_mnemonic, 0, sizeof(debuglink_mnemonic));
+    strlcpy(debuglink_mnemonic, m, sizeof(debuglink_mnemonic));
+#endif
+    shadow_config.storage.pub.has_mnemonic = true;
+    shadow_config.storage.has_sec = true;
 }
 
 bool storage_hasMnemonic(void)
 {
-    return shadow_config.storage.sec.has_mnemonic;
+    return shadow_config.storage.pub.has_mnemonic;
 }
 
 const char *storage_getShadowMnemonic(void)
 {
+    if (!shadow_config.storage.has_sec)
+        return NULL;
     return shadow_config.storage.sec.mnemonic;
 }
 
@@ -1142,7 +1305,7 @@ bool storage_getImported(void)
 
 bool storage_hasNode(void)
 {
-    return shadow_config.storage.sec.has_node;
+    return shadow_config.storage.pub.has_node;
 }
 
 Allocation storage_getLocation(void)
@@ -1193,30 +1356,30 @@ bool storage_isPolicyEnabled_impl(const PolicyType ps[POLICY_COUNT], const char 
 uint32_t storage_getAutoLockDelayMs()
 {
 	const uint32_t default_delay_ms = 10 * 60 * 1000U; // 10 minutes
-	return shadow_config.storage.sec.has_auto_lock_delay_ms ? shadow_config.storage.sec.auto_lock_delay_ms : default_delay_ms;
+	return shadow_config.storage.pub.has_auto_lock_delay_ms ? shadow_config.storage.pub.auto_lock_delay_ms : default_delay_ms;
 }
 
 void storage_setAutoLockDelayMs(uint32_t auto_lock_delay_ms)
 {
 	const uint32_t min_delay_ms = 10 * 1000U; // 10 seconds
 	auto_lock_delay_ms = auto_lock_delay_ms > min_delay_ms ? auto_lock_delay_ms : min_delay_ms;
-	shadow_config.storage.sec.has_auto_lock_delay_ms = true;
-	shadow_config.storage.sec.auto_lock_delay_ms = auto_lock_delay_ms;
+	shadow_config.storage.pub.has_auto_lock_delay_ms = true;
+	shadow_config.storage.pub.auto_lock_delay_ms = auto_lock_delay_ms;
 }
 
 #if DEBUG_LINK
 const char *storage_getPin(void)
 {
-    return shadow_config.storage.pub.has_pin ? shadow_config.storage.sec.pin : NULL;
+    return shadow_config.storage.pub.has_pin ? debuglink_pin : NULL;
 }
 
 const char *storage_getMnemonic(void)
 {
-    return shadow_config.storage.sec.mnemonic;
+    return debuglink_mnemonic;
 }
 
 StorageHDNode *storage_getNode(void)
 {
-    return &shadow_config.storage.sec.node;
+    return &debuglink_node;
 }
 #endif

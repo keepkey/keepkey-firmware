@@ -49,30 +49,34 @@ typedef struct _Storage {
     uint32_t version;
     struct Public {
         uint8_t wrapped_storage_key[64];
+        uint8_t storage_key_fingerprint[32];
         bool has_pin;
-        bool has_pin_failed_attempts;
         uint32_t pin_failed_attempts;
         bool has_language;
-        char language[17];
+        char language[16];
         bool has_label;
-        char label[33];
+        char label[48];
         bool imported;
         uint32_t policies_count;
         PolicyType policies[POLICY_COUNT];
-    } pub;
-
-    struct Secret {
-        char magic[7];
+        bool has_auto_lock_delay_ms;
+        uint32_t auto_lock_delay_ms;
+        bool passphrase_protection;
+        bool initialized;
         bool has_node;
         bool has_mnemonic;
-        bool passphrase_protection;
+    } pub;
+
+    bool has_sec;
+    struct Secret {
         StorageHDNode node;
         char mnemonic[241];
         char pin[10];
-        bool has_auto_lock_delay_ms;
-        uint32_t auto_lock_delay_ms;
         Cache cache;
     } sec;
+
+    uint32_t encrypted_sec_version;
+    uint8_t encrypted_sec[512];
 } Storage;
 
 typedef struct _ConfigFlash {
@@ -87,8 +91,17 @@ void storage_deriveWrappingKey(const char *pin, uint8_t wrapping_key[64]);
 void storage_wrapStorageKey(const uint8_t wrapping_key[64], const uint8_t key[64], uint8_t wrapped_key[64]);
 
 /// Attempt to unnwrap the storage key.
-/// \returns true iff unwrapping was successful.
-bool storage_unwrapStorageKey(const uint8_t wrapping_key[64], const uint8_t wrapped_key[64], uint8_t key[64]);
+void storage_unwrapStorageKey(const uint8_t wrapping_key[64], const uint8_t wrapped_key[64], uint8_t key[64]);
+
+/// Get the fingerprint for an unwrapped storage key.
+void storage_keyFingerprint(const uint8_t key[64], uint8_t fingerprint[32]);
+
+/// Check whether a pin is correct.
+/// \returns true iff the pin was correct.
+bool storage_isPinCorrect_impl(const char *pin, const uint8_t wrapped_key[64], const uint8_t fingerprint[32], uint8_t key[64]);
+
+/// Migrate data in Storage to/from sec/encrypted_sec.
+void storage_secMigrate(Storage *storage, const uint8_t storage_key[64], bool encrypt);
 
 void storage_resetUuid_impl(ConfigFlash *cfg);
 
@@ -117,20 +130,20 @@ void storage_resetCache(Cache *cache);
 
 void storage_readV1(ConfigFlash *dst, const char *ptr, size_t len);
 void storage_readV2(ConfigFlash *dst, const char *ptr, size_t len);
-void storage_readV3(ConfigFlash *dst, const char *ptr, size_t len);
-void storage_writeV3(char *ptr, size_t len, const ConfigFlash *src);
+void storage_readV11(ConfigFlash *dst, const char *ptr, size_t len);
+void storage_writeV11(char *ptr, size_t len, const ConfigFlash *src);
 
 void storage_readMeta(Metadata *meta, const char *ptr, size_t len);
 void storage_readPolicyV1(PolicyType *policy, const char *ptr, size_t len);
 void storage_readHDNode(StorageHDNode *node, const char *ptr, size_t len);
 void storage_readStorageV1(Storage *storage, const char *ptr, size_t len);
-void storage_readStorageV3(Storage *storage, const char *ptr, size_t len);
+void storage_readStorageV11(Storage *storage, const char *ptr, size_t len);
 void storage_readCacheV1(Cache *cache, const char *ptr, size_t len);
 
 void storage_writeMeta(char *ptr, size_t len, const Metadata *meta);
 void storage_writePolicyV1(char *ptr, size_t len, const PolicyType *policy);
 void storage_writeHDNode(char *ptr, size_t len, const StorageHDNode *node);
-void storage_writeStorageV3(char *ptr, size_t len, const Storage *storage);
+void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage);
 void storage_writeCacheV1(char *ptr, size_t len, const Cache *cache);
 
 bool storage_setPolicy_impl(PolicyType policies[POLICY_COUNT], const char *policy_name, bool enabled);

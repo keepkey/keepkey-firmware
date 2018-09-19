@@ -257,7 +257,7 @@ void fsm_sendFailure(FailureType code, const char *text)
 void fsm_msgClearSession(ClearSession *msg)
 {
     (void)msg;
-    session_clear(true);
+    session_clear(/*clear_pin=*/true);
     fsm_sendSuccess("Session cleared");
 }
 

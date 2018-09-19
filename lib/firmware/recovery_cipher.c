@@ -419,12 +419,13 @@ void recovery_cipher_finalize(void)
     }
     memzero(full_mnemonic, sizeof(full_mnemonic));
 
-    if(!enforce_wordlist || mnemonic_check(storage_getShadowMnemonic()))
+    const char *entered_mnemonic = storage_getShadowMnemonic();
+    if (entered_mnemonic && (!enforce_wordlist || mnemonic_check(entered_mnemonic)))
     {
         storage_commit();
         fsm_sendSuccess("Device recovered");
     }
-    else if(!auto_completed)
+    else if (!auto_completed)
     {
         storage_reset();
         fsm_sendFailure(FailureType_Failure_SyntaxError, "Words were not entered correctly.");
