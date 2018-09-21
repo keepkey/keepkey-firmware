@@ -61,6 +61,8 @@ add_definitions(-DBOOTLOADER_PATCH_VERSION=${BOOTLOADER_PATCH_VERSION})
 
 add_definitions(-DNDEBUG)
 
+add_definitions(-DBIP39_WORDLIST_PADDED=1)
+
 if(${KK_DEBUG_LINK})
   add_definitions(-DDEBUG_LINK=1)
 else()
