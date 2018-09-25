@@ -22,7 +22,7 @@
 #include "keepkey/board/layout.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/home_sm.h"
-
+#include "keepkey/firmware/storage.h"
 
 /* Track state of home screen */
 static HomeState home_state = AT_HOME;
@@ -112,6 +112,7 @@ void toggle_screensaver(void)
         case AT_HOME:
             if(idle_time >= variant_getScreensaverTimeout())
             {
+                session_clear(/*clear_pin=*/true);
                 layout_screensaver();
                 home_state = SCREENSAVER;
             }
