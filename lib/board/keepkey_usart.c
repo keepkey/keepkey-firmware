@@ -181,9 +181,9 @@ void usart_init(void)
  * OUTPUT
  *     none
  */
-void dbg_print(char *out_str, ...)
-{
 #ifndef EMULATOR
+void dbg_print(const char *out_str, ...)
+{
     char str[LARGE_DEBUG_BUF];
     va_list arg;
 
@@ -200,12 +200,8 @@ void dbg_print(char *out_str, ...)
                  strlen(str) + 1, LARGE_DEBUG_BUF);
         display_debug_string(str);
     }
-#else
-    va_list arg;
-    va_start(arg, out_str);
-    vprintf(out_str, arg);
-#endif
 }
+#endif
 
 /*
  * dbg_trigger() - Scope trigger pulse for debugging
@@ -271,6 +267,8 @@ char read_console(void)
 #endif
 }
 #else
-void dbg_print(char *pStr, ...) {(void)pStr;}
+#ifndef EMULATOR
+void dbg_print(const char *pStr, ...) {(void)pStr;}
+#endif
 void usart_init(void) {}
 #endif

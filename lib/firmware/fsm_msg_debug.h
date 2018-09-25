@@ -54,7 +54,7 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg)
 
     resp->has_storage_hash = true;
     resp->storage_hash.size = memory_storage_hash(resp->storage_hash.bytes,
-                              get_storage_location());
+                                                  storage_getLocation());
 
     msg_debug_write(MessageType_MessageType_DebugLinkState, resp);
 }
@@ -93,9 +93,13 @@ void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg)
 
 void fsm_msgSoftReset(SoftReset *msg) {
     (void)msg;
+#ifndef EMULATOR
     if (variant_mfr_softReset)
         variant_mfr_softReset();
     else {
+#else
+    {
+#endif
         fsm_sendFailure(FailureType_Failure_Other, "SoftReset: unsupported outside of MFR firmware");
         layoutHome();
     }

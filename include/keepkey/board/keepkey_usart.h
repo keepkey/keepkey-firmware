@@ -38,7 +38,12 @@
 
 /* === Functions =========================================================== */
 
-void dbg_print(char *pStr, ...) __attribute__((format(printf,1,2)));
+#ifndef EMULATOR
+void dbg_print(const char *pStr, ...) __attribute__((format(printf,1,2)));
+#else
+#  define dbg_print(FMT, ...) do { printf(FMT, ## __VA_ARGS__); } while(0)
+#endif
+
 void usart_init(void);
 
 #endif

@@ -179,7 +179,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
         if(page_count > 1)
         {
             /* snprintf: 20 + 10 (%d) + 1 (NULL) = 31 */
-            snprintf(title, MEDIUM_STR_BUF, "Recovery Sentence %lu/%lu", current_page + 1, page_count);
+            snprintf(title, MEDIUM_STR_BUF, "Recovery Sentence %" PRIu32 "/%" PRIu32 "", current_page + 1, page_count);
         }
 
         if(!confirm(ButtonRequestType_ButtonRequest_ConfirmWord, title, "%s",

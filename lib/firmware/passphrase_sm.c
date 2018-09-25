@@ -188,12 +188,12 @@ bool passphrase_protect(void)
     bool ret = false;
     PassphraseInfo passphrase_info;
 
-    if(storage_getPassphraseProtected() && !session_is_passphrase_cached())
+    if(storage_getPassphraseProtected() && !session_isPassphraseCached())
     {
         /* Get passphrase and cache */
         if(passphrase_request(&passphrase_info))
         {
-            session_cache_passphrase(passphrase_info.passphrase);
+            session_cachePassphrase(passphrase_info.passphrase);
             ret = true;
         }
     }

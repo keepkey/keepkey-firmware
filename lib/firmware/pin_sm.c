@@ -329,7 +329,7 @@ bool pin_protect(char *prompt)
             /* authenticate user PIN */
             if(storage_isPinCorrect(pin_info.pin) && !pre_increment_cnt_flg)
             {
-                session_cache_pin(pin_info.pin);
+                session_cachePin(pin_info.pin);
                 storage_resetPinFails();
                 ret = true;
             }
@@ -358,7 +358,7 @@ bool pin_protect(char *prompt)
  */
 bool pin_protect_cached(void)
 {
-    if(session_is_pin_cached())
+    if (session_isPinCached())
     {
         return (true);
     }

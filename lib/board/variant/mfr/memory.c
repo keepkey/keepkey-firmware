@@ -106,6 +106,7 @@ uint32_t variant_mfr_sectorLength(uint8_t sector) {
 
 bool variant_mfr_flashWrite(uint8_t *dst, uint8_t *src, size_t len, bool erase)
 {
+#ifndef EMULATOR
     // Don't allow writing outside of flash.
     if (dst < (uint8_t*)FLASH_ORIGIN ||
         (uint8_t*)FLASH_END < dst + len)
@@ -152,7 +153,6 @@ bool variant_mfr_flashWrite(uint8_t *dst, uint8_t *src, size_t len, bool erase)
     if (dst_s <= fw_s && fw_e <= dst_e)
         return false;
 
-#ifndef EMULATOR
     // Tell the flash we're about to write to it.
     flash_unlock();
 
@@ -177,7 +177,7 @@ bool variant_mfr_flashWrite(uint8_t *dst, uint8_t *src, size_t len, bool erase)
 bool variant_mfr_flashHash(uint8_t *address, size_t address_len,
                             uint8_t *nonce, size_t nonce_len,
                             uint8_t *hash, size_t hash_len) {
-
+#ifndef EMULATOR
     // Is address+len outside of flash?
     if (address < (uint8_t*)FLASH_ORIGIN ||
         (uint8_t*)FLASH_END < address + address_len)
@@ -195,6 +195,9 @@ bool variant_mfr_flashHash(uint8_t *address, size_t address_len,
     sha3_Update(&ctx, (void*)address, address_len);
     sha3_Final(&ctx, hash);
     return true;
+#else
+    return false;
+#endif
 }
 
 void variant_mfr_flashDump(uint8_t *dst, uint8_t *src, size_t len) {

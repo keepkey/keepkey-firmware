@@ -6,6 +6,8 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 
 	CHECK_PIN
 
+	InputScriptType script_type = msg->has_script_type ? msg->script_type : InputScriptType_SPENDADDRESS;
+
 	const CoinType *coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
 	if (!coin) return;
 
@@ -32,7 +34,20 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 		resp->node.public_key.bytes[0] = 0;
 	}
 	resp->has_xpub = true;
-	hdnode_serialize_public(node, fingerprint, coin->xpub_magic, resp->xpub, sizeof(resp->xpub));
+
+	if (coin->xpub_magic && script_type == InputScriptType_SPENDADDRESS) {
+		hdnode_serialize_public(node, fingerprint, coin->xpub_magic, resp->xpub, sizeof(resp->xpub));
+	} else
+	if (coin->has_segwit && coin->xpub_magic_segwit_p2sh && script_type == InputScriptType_SPENDP2SHWITNESS) {
+		hdnode_serialize_public(node, fingerprint, coin->xpub_magic_segwit_p2sh, resp->xpub, sizeof(resp->xpub));
+	} else
+	if (coin->has_segwit && coin->xpub_magic_segwit_native && script_type == InputScriptType_SPENDWITNESS) {
+		hdnode_serialize_public(node, fingerprint, coin->xpub_magic_segwit_native, resp->xpub, sizeof(resp->xpub));
+	} else {
+		fsm_sendFailure(FailureType_Failure_Other, _("Invalid combination of coin and script_type"));
+		layoutHome();
+		return;
+	}
 
 	if (msg->has_show_display && msg->show_display)
 	{

@@ -1,7 +1,7 @@
 /*
- * This file is part of the KeepKey project.
+ * This file is part of the TREZOR project, https://trezor.io/
  *
- * Copyright (C) 2015 KeepKey LLC
+ * Copyright (C) 2017 Saleem Rashid <trezor@saleemrashid.com>
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -17,22 +17,16 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef INTERFACE_H
-#define INTERFACE_H
+#ifndef __EMULATOR_H__
+#define __EMULATOR_H__
 
-// Allow this file to be used from C++ by renaming an unfortunately named field:
-#define delete del
-#include "messages.pb.h"
-#undef delete
+#include <stddef.h>
 
-#include "types.pb.h"
-#include "trezor_transport.h"
+void emulatorPoll(void);
+void emulatorRandom(void *buffer, size_t size);
 
-#ifndef EMULATOR
-/* The max size of a decoded protobuf */
-#  define MAX_DECODE_SIZE (13 * 1024)
-#else
-#  define MAX_DECODE_SIZE (26 * 1024)
-#endif
+void emulatorSocketInit(void);
+size_t emulatorSocketRead(int *iface, void *buffer, size_t size);
+size_t emulatorSocketWrite(int iface, const void *buffer, size_t size);
 
 #endif

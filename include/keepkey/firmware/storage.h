@@ -22,43 +22,59 @@
 
 #include "trezor/crypto/bip32.h"
 #include "keepkey/board/memory.h"
-#include "keepkey/firmware/storagepb.h"
 
 #define STORAGE_VERSION 10 /* Must add case fallthrough in storage_fromFlash after increment*/
 #define STORAGE_RETRIES 3
 
-typedef struct _HDNodeType HDNodeType;
-typedef struct _LoadDevice LoadDevice;
-typedef struct _PolicyType PolicyType;
 
-typedef struct _Storage Storage;
-typedef struct _StorageHDNode StorageHDNode;
-typedef struct _StoragePolicy StoragePolicy;
-
+/// \brief Validate storage content and copy data to shadow memory.
 void storage_init(void);
+
+/// \brief Reset configuration UUID with random numbers.
 void storage_resetUuid(void);
+
+/// \brief Clear configuration.
 void storage_reset(void);
+
+/// \brief Reset session states
+/// \param clear_pin  Whether to clear the session pin.
 void session_clear(bool clear_pin);
+
+/// \brief Write content of configuration in shadow memory to storage partion
+///        in flash.
 void storage_commit(void);
 
-void storage_dumpNode(HDNodeType *dst, const StorageHDNode *src);
+/// \brief Load configuration data from usb message to shadow memory
+typedef struct _LoadDevice LoadDevice;
 void storage_loadDevice(LoadDevice *msg);
 
-const uint8_t *storage_getSeed(bool usePassphrase);
-bool storage_getRootNode(HDNode *node, const char *curve, bool usePassphrase);
+/// \brief Get the Root Node of the device.
+/// \param node[out]  The Root Node.
+/// \param curve[in]  ECDSA curve to use.
+/// \param usePassphrase[in]  Whether the seed uses a passphrase.
+/// \return true iff the root node was found.
+bool storage_getRootNode(const char *curve, bool usePassphrase, HDNode *node);
 
+/// \brief Set device label
 void storage_setLabel(const char *label);
+
+/// \brief Get device label
 const char *storage_getLabel(void);
 
+/// \brief Set device language.
 void storage_setLanguage(const char *lang);
+
+/// \brief Get device language.
 const char *storage_getLanguage(void);
 
+/// \brief Validate pin.
+/// \return true iff the privided pin is correct.
 bool storage_isPinCorrect(const char *pin);
+
 bool storage_hasPin(void);
 void storage_setPin(const char *pin);
-const char *storage_getPin(void);
-void session_cache_pin(const char *pin);
-bool session_is_pin_cached(void);
+void session_cachePin(const char *pin);
+bool session_isPinCached(void);
 void storage_resetPinFails(void);
 void storage_increasePinFails(void);
 uint32_t storage_getPinFails(void);
@@ -69,25 +85,50 @@ const char *storage_getUuidStr(void);
 
 bool storage_getPassphraseProtected(void);
 void storage_setPassphraseProtected(bool passphrase);
-void session_cache_passphrase(const char *passphrase);
-bool session_is_passphrase_cached(void);
+void session_cachePassphrase(const char *passphrase);
+bool session_isPassphraseCached(void);
 
+/// \brief Set config mnemonic in shadow memory from words.
 void storage_setMnemonicFromWords(const char (*words)[12], unsigned int num_words);
+
+/// \brief Set config mnemonic from a recovery sentence.
 void storage_setMnemonic(const char *mnemonic);
+
+/// \returns true iff the device has a mnemonic in storage.
 bool storage_hasMnemonic(void);
 
-const char *storage_getMnemonic(void);
+/// \brief Get mnemonic from shadow memory
 const char *storage_getShadowMnemonic(void);
 
+/// \returns true iff the private key stored on device was imported.
 bool storage_getImported(void);
 
+/// \returns true iff the active storage has a HDNode.
 bool storage_hasNode(void);
-StorageHDNode *storage_getNode(void);
 
-Allocation get_storage_location(void);
+/// \brief Get active storage location..
+Allocation storage_getLocation(void);
 
-bool storage_setPolicy(PolicyType *policy);
+typedef struct _PolicyType PolicyType;
+
+/// \brief Assign policy by name
+bool storage_setPolicy(const PolicyType *policy);
+
+/// \brief Copy out all the policies in storage
+/// \param policies[out]  Where to write the policies.
 void storage_getPolicies(PolicyType *policies);
+
+/// \brief Status of policy in storage
 bool storage_isPolicyEnabled(char *policy_name);
+
+#ifdef DEBUG_LINK
+typedef struct _HDNodeType HDNodeType;
+typedef struct _StorageHDNode StorageHDNode;
+
+const char *storage_getPin(void);
+const char *storage_getMnemonic(void);
+StorageHDNode *storage_getNode(void);
+void storage_dumpNode(HDNodeType *dst, const StorageHDNode *src);
+#endif
 
 #endif

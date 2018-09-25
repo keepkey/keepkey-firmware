@@ -37,6 +37,10 @@
 #include <assert.h>
 #include <stdint.h>
 
+#ifdef EMULATOR
+uint8_t *emulator_flash_base = NULL;
+#endif
+
 
 /* === Functions =========================================================== */
 
@@ -71,7 +75,17 @@ void memory_unlock(void) {
     // This exercises a bug in the STM32F2 that allows writing to read-only
     // sectors of flash.
     flash_unlock_option_bytes();
-    flash_program_option_bytes(0x0FFF0001);
+    
+#ifdef DEBUG_ON
+    // 0xFFFAAEC: remove wp from all sectors, no RDP (unless previously set to level 2 which is irreversible), 
+    // disable configurable resets. Low order two bits are don't care.
+    flash_program_option_bytes(0x0FFFAAEC);
+#else
+    // Even though level 2 is described as sticky, this chip has a proven bug related to this register so 
+    // to be sure rewrite the level two value for RDP for non-debug builds.
+    flash_program_option_bytes(0x0FFFCCEC);
+#endif
+
     flash_lock_option_bytes();
 #endif
 }
@@ -101,6 +115,7 @@ int memory_bootloader_hash(uint8_t *hash, bool cached)
  */
 int memory_firmware_hash(uint8_t *hash)
 {
+#ifndef EMULATOR
     SHA256_CTX ctx;
     uint32_t codelen = *((uint32_t *)FLASH_META_CODELEN);
 
@@ -118,10 +133,14 @@ int memory_firmware_hash(uint8_t *hash)
     {
         return 0;
     }
+#else
+    return 0;
+#endif
 }
 
 const char *memory_firmware_hash_str(char digest[SHA256_DIGEST_STRING_LENGTH])
 {
+#ifndef EMULATOR
     SHA256_CTX ctx;
     uint32_t codelen = *((uint32_t *)FLASH_META_CODELEN);
 
@@ -139,6 +158,9 @@ const char *memory_firmware_hash_str(char digest[SHA256_DIGEST_STRING_LENGTH])
     {
         return "No Firmware";
     }
+#else
+    return "No Firmware";
+#endif
 }
 
 /*
@@ -155,7 +177,7 @@ int memory_storage_hash(uint8_t *hash, Allocation storage_location)
     const uint8_t *storage_location_start;
     storage_location_start = (const uint8_t *)flash_write_helper(storage_location);
 
-    sha256_Raw(storage_location_start, sizeof(ConfigFlash), hash);
+    sha256_Raw(storage_location_start, STORAGE_SECTOR_LEN, hash);
     return SHA256_DIGEST_LENGTH;
 }
 

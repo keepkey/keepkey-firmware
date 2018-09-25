@@ -184,7 +184,7 @@ void recovery_word(const char *word)
 
     if (word_index + 1 == 24) {
         // last one
-        storage_setMnemonicFromWords((const char (*)[])words, word_count);
+        storage_setMnemonicFromWords(words, word_count);
 
         if (!enforce_wordlist || mnemonic_check(storage_getShadowMnemonic())) {
             storage_commit();

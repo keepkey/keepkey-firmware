@@ -35,6 +35,19 @@ Model getModel(void) {
     if (0 == strcmp(model, (STRING))) { \
         return MODEL_FOX; \
     }
+#define MODEL_ENTRY_KASPERSKY(STRING, ENUM) \
+    if (0 == strcmp(model, (STRING))) { \
+        return MODEL_KASPERSKY; \
+    }
+#define MODEL_ENTRY_BLOCKPIT(STRING, ENUM) \
+    if (0 == strcmp(model, (STRING))) { \
+        return MODEL_BLOCKPIT; \
+    }
+#define MODEL_ENTRY_DASH(STRING, ENUM) \
+    if (0 == strcmp(model, (STRING))) { \
+        return MODEL_DASH; \
+    }
+
 #include "keepkey/board/models.def"
 
     return MODEL_UNKNOWN;
@@ -96,6 +109,9 @@ const VariantInfo * __attribute__((weak)) variant_getInfo(void) {
     case MODEL_KEEPKEY: return &variant_keepkey;
     case MODEL_SALT: return &variant_salt;
     case MODEL_FOX: return &variant_keepkey;
+    case MODEL_KASPERSKY: return &variant_keepkey;
+    case MODEL_BLOCKPIT: return &variant_keepkey;
+    case MODEL_DASH: return &variant_keepkey;
     case MODEL_UNKNOWN: return &variant_keepkey;
     }
     return &variant_keepkey;

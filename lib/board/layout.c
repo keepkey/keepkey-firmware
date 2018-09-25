@@ -17,8 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "keepkey/board/draw.h"
 #include "keepkey/board/font.h"
 #include "keepkey/board/keepkey_board.h"
@@ -34,7 +32,9 @@
 #include <stdio.h>
 #include <string.h>
 
-/* === Private Variables =================================================== */
+#ifdef EMULATOR
+#  include <ctype.h>
+#endif
 
 static AnimationQueue active_queue = { NULL, 0 };
 static AnimationQueue free_queue = { NULL, 0 };
@@ -42,8 +42,6 @@ static Animation animations[ MAX_ANIMATIONS ];
 static Canvas *canvas = NULL;
 static volatile bool animate_flag = false;
 static leaving_handler_t leaving_handler;
-
-/* === Private Functions =================================================== */
 
 /*
  *  layout_home_helper() - Splash home screen helper
@@ -271,8 +269,7 @@ void call_leaving_handler(void)
 #ifdef EMULATOR
 void strupr(char *str) {
     for ( ; *str; str++)
-        if ('a' <= *str || *str <= 'z')
-            *str = *str - 'a' + 'A';
+        *str = toupper(*str);
 }
 #endif
 
@@ -601,7 +598,7 @@ bool is_animating(void)
     }
     else
     {
-        return true;
+        return animate_flag;
     }
 }
 

@@ -31,7 +31,6 @@
 #include "keepkey/crypto/curves.h"
 #include "trezor/crypto/bip32.h"
 #include "trezor/crypto/curves.h"
-#include "keepkey/firmware/storagepb.h"
 
 /*
  storage layout:
@@ -44,7 +43,7 @@
  0x0029 |  ?          |  Storage structure
  */
 
-/* === Defines ============================================================= */
+#define STORAGE_SECTOR_LEN  0x00004000
 
 #define STORAGE_MAGIC_STR   "stor"
 #define STORAGE_MAGIC_LEN   4
@@ -64,11 +63,9 @@
 #define VERSION_NUM(x) #x
 #define VERSION_STR(x) VERSION_NUM(x)
 
-/* === Typedefs ============================================================ */
-
 /* Flash metadata structure which will contains unique identifier
    information that spans device resets.  */
-typedef struct
+typedef struct _Metadata
 {
     char magic[STORAGE_MAGIC_LEN];
     uint8_t uuid[STORAGE_UUID_LEN];
@@ -76,33 +73,21 @@ typedef struct
 } Metadata;
 
 /* Cache structure */
-typedef struct
+typedef struct _Cache
 {
     /* Root node cache */
     uint8_t root_seed_cache_status;
     uint8_t root_seed_cache[64];
     char root_ecdsa_curve_type[sizeof(ecdsa_curve_type_)]; // FIXME: this will lead to field alignment pain.
-}Cache;
-
-/* Config flash overlay structure.  */
-typedef struct
-{
-    Metadata meta;
-    Storage storage;
-    Cache cache;
-} ConfigFlash;
-
-/* === Variables =========================================================== */
+} Cache;
 
 extern uintptr_t __stack_chk_guard;
-
-/* === Functions =========================================================== */
 
 void board_reset(void);
 void board_init(void);
 
 void __stack_chk_fail(void) __attribute__((noreturn));
-uint32_t calc_crc32(uint32_t *data, int word_len);
+uint32_t calc_crc32(const void *data, int word_len);
 
 void __attribute__((noreturn)) shutdown(void);
 void memset_reg(void *start, void *stop, uint32_t val);
