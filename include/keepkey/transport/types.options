@@ -13,7 +13,6 @@ CoinType.curve_name             max_size:21
 CoinType.bech32_prefix          max_size:21
 CoinType.cashaddr_prefix        max_size:16
 
-CoinTable.table                 max_count:39
 
 TxInputType.address_n			max_count:8
 TxInputType.prev_hash			max_size:32
