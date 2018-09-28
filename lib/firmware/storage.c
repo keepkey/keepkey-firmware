@@ -115,6 +115,11 @@ uint32_t storage_nextU2FCounter(void) {
 	return shadow_config.storage.pub.u2f_counter;
 }
 
+void storage_setU2FCounter(uint32_t u2f_counter) {
+	shadow_config.storage.pub.u2f_counter = u2f_counter;
+	storage_commit();
+}
+
 static bool storage_isActiveSector(const char *flash) {
     return memcmp(((const Metadata *)flash)->magic, STORAGE_MAGIC_STR,
                   STORAGE_MAGIC_LEN) == 0;
@@ -1050,6 +1055,10 @@ void storage_loadDevice(LoadDevice *msg)
 
     if (msg->has_label) {
         storage_setLabel(msg->label);
+    }
+
+    if (msg->has_u2f_counter) {
+        storage_setU2FCounter(msg->u2f_counter);
     }
 }
 
