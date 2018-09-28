@@ -425,7 +425,7 @@ done_handling:
  * OUTPUT
  *     none
  */
-static void handle_usb_rx(UsbMessage *msg)
+void handle_usb_rx(UsbMessage *msg)
 {
     usb_rx_helper(msg, NORMAL_MSG);
 }
@@ -574,7 +574,6 @@ void call_msg_debug_link_get_state_handler(DebugLinkGetState *msg)
 void msg_init(void)
 {
     usb_set_rx_callback(handle_usb_rx);
-    u2f_set_rx_callback(handle_usb_rx);
 #if DEBUG_LINK
     usb_set_debug_rx_callback(handle_debug_usb_rx);
 #endif

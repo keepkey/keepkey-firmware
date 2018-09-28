@@ -121,7 +121,7 @@ static bool storage_isActiveSector(const char *flash) {
 }
 
 void storage_upgradePolicies(Storage *storage) {
-    for (int i = storage->pub.policies_count; i < POLICY_COUNT; ++i) {
+    for (int i = storage->pub.policies_count; i < (int)(POLICY_COUNT); ++i) {
         memcpy(&storage->pub.policies[i], &policies[i], sizeof(storage->pub.policies[i]));
     }
     storage->pub.policies_count = POLICY_COUNT;
@@ -455,17 +455,18 @@ void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage) {
     write_u32_le(ptr, storage->version);
 
     uint32_t flags =
-        (storage->pub.has_pin                    ? (1u <<  0) : 0) |
-        (storage->pub.has_language               ? (1u <<  1) : 0) |
-        (storage->pub.has_label                  ? (1u <<  2) : 0) |
-        (storage->pub.has_auto_lock_delay_ms     ? (1u <<  3) : 0) |
-        (storage->pub.imported                   ? (1u <<  4) : 0) |
-        (storage->pub.passphrase_protection      ? (1u <<  5) : 0) |
-        (storage_isPolicyEnabled("ShapeShift")   ? (1u <<  6) : 0) |
-        (storage_isPolicyEnabled("Pin Caching")  ? (1u <<  7) : 0) |
-        (storage->pub.has_node                   ? (1u <<  8) : 0) |
-        (storage->pub.has_mnemonic               ? (1u <<  9) : 0) |
-        (storage->pub.has_u2froot                ? (1u << 10) : 0) |
+        (storage->pub.has_pin                     ? (1u <<  0) : 0) |
+        (storage->pub.has_language                ? (1u <<  1) : 0) |
+        (storage->pub.has_label                   ? (1u <<  2) : 0) |
+        (storage->pub.has_auto_lock_delay_ms      ? (1u <<  3) : 0) |
+        (storage->pub.imported                    ? (1u <<  4) : 0) |
+        (storage->pub.passphrase_protection       ? (1u <<  5) : 0) |
+        (storage_isPolicyEnabled("ShapeShift")    ? (1u <<  6) : 0) |
+        (storage_isPolicyEnabled("Pin Caching")   ? (1u <<  7) : 0) |
+        (storage->pub.has_node                    ? (1u <<  8) : 0) |
+        (storage->pub.has_mnemonic                ? (1u <<  9) : 0) |
+        (storage->pub.has_u2froot                 ? (1u << 10) : 0) |
+        (storage_isPolicyEnabled("U2F Transport") ? (1u << 11) : 0) |
         /* reserved 31:5 */ 0;
     write_u32_le(ptr + 4, flags);
 
@@ -501,18 +502,19 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     storage->version = read_u32_le(ptr);
 
     uint32_t flags = read_u32_le(ptr + 4);
-    storage->pub.has_pin =                                         flags & (1u <<  0);
-    storage->pub.has_language =                                    flags & (1u <<  1);
-    storage->pub.has_label =                                       flags & (1u <<  2);
-    storage->pub.has_auto_lock_delay_ms =                          flags & (1u <<  3);
-    storage->pub.imported =                                        flags & (1u <<  4);
-    storage->pub.passphrase_protection =                           flags & (1u <<  5);
-    storage_readPolicyV2(&storage->pub.policies[0], "ShapeShift",  flags & (1u <<  6));
-    storage_readPolicyV2(&storage->pub.policies[1], "Pin Caching", flags & (1u <<  7));
-    storage->pub.policies_count = 2;
-    storage->pub.has_node =                                        flags & (1u <<  8);
-    storage->pub.has_mnemonic =                                    flags & (1u <<  9);
-    storage->pub.has_u2froot =                                     flags & (1u << 10);
+    storage->pub.has_pin =                                           flags & (1u <<  0);
+    storage->pub.has_language =                                      flags & (1u <<  1);
+    storage->pub.has_label =                                         flags & (1u <<  2);
+    storage->pub.has_auto_lock_delay_ms =                            flags & (1u <<  3);
+    storage->pub.imported =                                          flags & (1u <<  4);
+    storage->pub.passphrase_protection =                             flags & (1u <<  5);
+    storage_readPolicyV2(&storage->pub.policies[0], "ShapeShift",    flags & (1u <<  6));
+    storage_readPolicyV2(&storage->pub.policies[1], "Pin Caching",   flags & (1u <<  7));
+    storage->pub.has_node =                                          flags & (1u <<  8);
+    storage->pub.has_mnemonic =                                      flags & (1u <<  9);
+    storage->pub.has_u2froot =                                       flags & (1u << 10);
+    storage_readPolicyV2(&storage->pub.policies[1], "U2F Transport", flags & (1u << 11));
+    storage->pub.policies_count = POLICY_COUNT;
 
     storage->pub.pin_failed_attempts = read_u32_le(ptr + 8);
     storage->pub.auto_lock_delay_ms = read_u32_le(ptr + 12);

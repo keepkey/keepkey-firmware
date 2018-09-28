@@ -31,6 +31,7 @@
 #include "keepkey/board/msg_dispatch.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/timer.h"
+#include "keepkey/board/u2f.h"
 #include "keepkey/board/variant.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/app_layout.h"
@@ -198,6 +199,9 @@ void fsm_init(void)
 #endif
 
     msg_init();
+
+    if (storage_isPolicyEnabled("U2F Transport"))
+        u2f_set_rx_callback(handle_usb_rx);
 }
 
 void fsm_sendSuccess(const char *text)

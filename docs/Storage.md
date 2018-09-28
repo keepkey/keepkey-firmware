@@ -94,7 +94,8 @@ it easier to extend for new features later on.
 |   has_node                |   bit 8        |              |                |
 |   has_mnemonic            |   bit 9        |              |                |
 |   has_u2froot             |   bit 10       |              |                |
-|   reserved                |   bits 10 - 31 |              |                |
+|   allow_u2f_transport     |   bit 11       |              |                |
+|   reserved                |   bits 12 - 31 |              |                |
 | pin_failed_attempts       | u32            |            4 |              8 |
 | auto_lock_delay_ms        | u32            |            4 |             12 |
 | language                  | char[16]       |           16 |             16 |
