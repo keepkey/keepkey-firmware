@@ -1,7 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2015 KeepKey LLC
+ * Copyright (C) 2018 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -20,19 +20,13 @@
 #ifndef CONFIRM_SM_H
 #define CONFIRM_SM_H
 
-/* === Includes ============================================================ */
-
 #include "keepkey/transport/interface.h"
 #include "keepkey/board/layout.h"
 
 #include <stdbool.h>
 
-/* === Defines ============================================================= */
-
 /* The number of milliseconds to wait for a confirmation */
 #define CONFIRM_TIMEOUT_MS 1200
-
-/* === Typedefs ============================================================ */
 
 typedef enum
 {
@@ -73,26 +67,52 @@ typedef struct
 typedef void (*layout_notification_t)(const char *str1, const char *str2,
                                       NotificationType type);
 
-/* === Functions =========================================================== */
-
+/// User confirmation.
+/// \param type            The kind of button request to send to the host.
+/// \param request_title   Title of confirm message.
+/// \param request_body    Body of confirm message.
+/// \returns true iff the device confirmed.
 bool confirm(ButtonRequestType type, const char *request_title, const char *request_body,
              ...) __attribute__((format(printf, 3, 4)));
 
+/// User confirmation.
+/// \param type            The kind of button request to send to the host.
+/// \param request_title   Title of confirm message.
+/// \param request_body    Body of confirm message.
+/// \returns true iff the device confirmed.
 bool confirm_with_custom_button_request(ButtonRequest *button_request,
                                         const char *request_title, const char *request_body,
                                         ...) __attribute__((format(printf, 3, 4)));
 
+/// User confirmation, custom layout.
+/// \param layout_notification_func      Layout callback.
+/// \param type            The kind of button request to send to the host.
+/// \param request_title   Title of confirm message.
+/// \param request_body    Body of confirm message.
+/// \returns true iff the device confirmed.
 bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
                                 ButtonRequestType type,
                                 const char *request_title, const char *request_body,
                                 ...) __attribute__((format(printf, 4, 5)));
 
+/// User confirmation.
+///
+/// Does not message the host for ButtonAcks.
+/// \param request_title   Title of confirm message.
+/// \param request_body    Body of confirm message.
+/// \returns true iff the device confirmed.
 bool confirm_without_button_request(const char *request_title, const char *request_body,
                                     ...) __attribute__((format(printf, 2, 3)));
 
+/// Like confirm, but always \returns true.
+/// \param request_title   Title of confirm message.
+/// \param request_body    Body of confirm message.
 bool review(ButtonRequestType type, const char *request_title, const char *request_body,
             ...) __attribute__((format(printf, 3, 4)));
 
+/// Like confirm, but always \returns true. Does not message the host for ButtonAcks.
+/// \param request_title   Title of confirm message.
+/// \param request_body    Body of confirm message.
 bool review_without_button_request(const char *request_title, const char *request_body,
                                    ...) __attribute__((format(printf, 2, 3)));
 
