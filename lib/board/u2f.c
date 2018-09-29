@@ -19,6 +19,7 @@
 
 #include "keepkey/board/u2f.h"
 
+#include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/u2f_hid.h"
@@ -230,6 +231,9 @@ void u2fhid_wink(const uint8_t *buf, uint32_t len)
 
 	if (len > 0)
 		return send_u2fhid_error(cid, ERR_INVALID_LEN);
+
+	(void)review_without_button_request("U2F Wink", "\n;-)");
+	layout_home();
 
 	U2FHID_FRAME f;
 	memset(&f, 0, sizeof(f));

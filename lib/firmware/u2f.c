@@ -32,6 +32,7 @@
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/util.h"
+#include "trezor/crypto/bip39.h"
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/hmac.h"
 #include "trezor/crypto/nist256p1.h"
@@ -60,20 +61,45 @@ typedef struct {
 	uint8_t chal[U2F_CHAL_SIZE];
 } U2F_AUTHENTICATE_SIG_STR;
 
-static void getReadableAppId(const uint8_t appid[U2F_APPID_SIZE], const char **appname) {
-	static char buf[8+2+8+1];
+const char *words_from_data(const uint8_t *data, int len)
+{
+	if (len > 32)
+		return NULL;
 
+	int mlen = len * 3 / 4;
+	static char mnemo[24 * 10];
+
+	const char *const *wordlist = mnemonic_wordlist();
+
+	int i, j, idx;
+	char *p = mnemo;
+	for (i = 0; i < mlen; i++) {
+		idx = 0;
+		for (j = 0; j < 11; j++) {
+			idx <<= 1;
+			idx += (data[(i * 11 + j) / 8] & (1 << (7 - ((i * 11 + j) % 8)))) > 0;
+		}
+		strcpy(p, wordlist[idx]);
+		p += strlen(wordlist[idx]);
+		*p = (i < mlen - 1) ? ' ' : 0;
+		p++;
+	}
+
+	return mnemo;
+}
+
+static bool getReadableAppId(const uint8_t appid[U2F_APPID_SIZE], const char **appname) {
 	for (unsigned int i = 0; i < sizeof(u2f_well_known)/sizeof(U2FWellKnown); i++) {
 		if (memcmp(appid, u2f_well_known[i].appid, U2F_APPID_SIZE) == 0) {
 			*appname = u2f_well_known[i].appname;
-			return;
+			return true;
 		}
 	}
 
-	data2hex(appid, 4, &buf[0]);
-	buf[8] = buf[9] = '.';
-	data2hex(appid + (U2F_APPID_SIZE - 4), 4, &buf[10]);
-	*appname = buf;
+	// Otherwise use the mnemonic wordlist to invent some human-readable
+	// identifier of the first 48 bits.
+	*appname = words_from_data(appid, 6);
+	return false;
 }
 
 static const HDNode *getDerivedNode(uint32_t *address_n, size_t address_n_count)
@@ -168,19 +194,14 @@ void u2f_do_register(const U2F_REGISTER_REQ *req) {
 
 	// TODO: dialog timeout
 	if (0 == memcmp(req->appId, BOGUS_APPID, U2F_APPID_SIZE)) {
-		if (!confirm_without_button_request("Register U2F", "Another U2F device was used to register in this application.")) {
-			send_u2f_error(U2F_SW_CONDITIONS_NOT_SATISFIED);
-			layoutHome();
-			return;
-		}
+		(void)review_without_button_request("Register", "Another U2F device was used to register in this application.");
 	} else {
 		const char *appname = "";
-		getReadableAppId(req->appId, &appname);
-		if (!confirm_without_button_request("Register U2F", "Register with %s?", appname)) {
-			send_u2f_error(U2F_SW_CONDITIONS_NOT_SATISFIED);
-			layoutHome();
-			return;
-		}
+		(void)review_without_button_request("Register",
+		                                    getReadableAppId(req->appId, &appname)
+		                                        ? "Enroll with %s?"
+		                                        : "Do you want to enroll this U2F application?\n\n%s",
+		                                    appname);
 	}
 	layoutHome();
 
@@ -255,12 +276,11 @@ void u2f_do_auth(const U2F_AUTHENTICATE_REQ *req) {
 
 	// TODO: dialog timeout
 	const char *appname = "";
-	getReadableAppId(req->appId, &appname);
-	if (!confirm_without_button_request("U2F Authenticate", "Log in to %s?", appname)) {
-		send_u2f_error(U2F_SW_CONDITIONS_NOT_SATISFIED);
-		layoutHome();
-		return;
-	}
+	(void)review_without_button_request("Authenticate",
+	                                    getReadableAppId(req->appId, &appname)
+	                                        ? "Log in to %s?"
+	                                        : "Do you want to log in?\n\n%s",
+	                                    appname);
 	layoutHome();
 
 	uint8_t buf[sizeof(U2F_AUTHENTICATE_RESP) + 2];
