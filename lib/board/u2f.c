@@ -23,7 +23,6 @@
 #include "keepkey/board/layout.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/u2f_hid.h"
-#include "keepkey/board/u2f_keys.h"
 #include "keepkey/board/u2f_types.h"
 #include "keepkey/board/usb_driver.h"
 #include "trezor/crypto/ecdsa.h"
