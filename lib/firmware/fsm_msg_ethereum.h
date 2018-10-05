@@ -118,64 +118,59 @@ static int process_ethereum_msg(EthereumSignTx *msg, bool *confirm_ptr)
 
 void fsm_msgEthereumSignTx(EthereumSignTx *msg)
 {
-    CHECK_INITIALIZED
+	CHECK_INITIALIZED
 
-    CHECK_PIN_TXSIGN
+	CHECK_PIN_TXSIGN
 
-    bool needs_confirm = true;
-    int msg_result = process_ethereum_msg(msg, &needs_confirm);
+	bool needs_confirm = true;
+	int msg_result = process_ethereum_msg(msg, &needs_confirm);
 
-    if(msg_result < TXOUT_OK)
-    {
-        send_fsm_co_error_message(msg_result);
-        layoutHome();
-        return;
-    }
+	if (msg_result < TXOUT_OK) {
+		send_fsm_co_error_message(msg_result);
+		layoutHome();
+		return;
+	}
 
-    /* Input node */
-    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
-    if (!node) return;
+	const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
+	if (!node) return;
 
-    ethereum_signing_init(msg, node, needs_confirm);
+	ethereum_signing_init(msg, node, needs_confirm);
 }
 
 void fsm_msgEthereumTxAck(EthereumTxAck *msg)
 {
-    ethereum_signing_txack(msg);
+	ethereum_signing_txack(msg);
 }
 
 void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 {
-    char address[43];
+	RESP_INIT(EthereumAddress);
 
-    RESP_INIT(EthereumAddress);
+	CHECK_INITIALIZED
 
-    CHECK_INITIALIZED
+	CHECK_PIN
 
-    CHECK_PIN
+	const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
+	if (!node) return;
 
-    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
-    if (!node) return;
+	resp->address.size = 20;
 
-    resp->address.size = 20;
+	if (!hdnode_get_ethereum_pubkeyhash(node, resp->address.bytes))
+		return;
 
-    if (!hdnode_get_ethereum_pubkeyhash(node, resp->address.bytes))
-        return;
+	if (msg->has_show_display && msg->show_display) {
+		char address[43];
+		format_ethereum_address(resp->address.bytes, address, sizeof(address));
 
-    if (msg->has_show_display && msg->show_display)
-    {
-        format_ethereum_address(resp->address.bytes, address, sizeof(address));
+		if (!confirm_ethereum_address("", address)) {
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
+			layoutHome();
+			return;
+		}
+	}
 
-        if (!confirm_ethereum_address("", address))
-        {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
-            layoutHome();
-            return;
-        }
-    }
-
-    msg_write(MessageType_MessageType_EthereumAddress, resp);
-    layoutHome();
+	msg_write(MessageType_MessageType_EthereumAddress, resp);
+	layoutHome();
 }
 
 void fsm_msgEthereumSignMessage(EthereumSignMessage *msg)
@@ -185,7 +180,7 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage *msg)
 	CHECK_INITIALIZED
 
 	if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, "Sign Message",
-                 "%s", msg->message.bytes)) {
+	             "%s", msg->message.bytes)) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
 		layoutHome();
 		return;
