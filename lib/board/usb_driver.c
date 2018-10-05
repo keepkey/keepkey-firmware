@@ -17,13 +17,17 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #ifndef EMULATOR
 #  include <libopencm3/stm32/gpio.h>
 #  include <libopencm3/stm32/desig.h>
 #  include <libopencm3/usb/hid.h>
+#  include <libopencm3/usb/usbd.h>
 #  include <libopencm3/stm32/rcc.h>
+#  include "keepkey/board/keepkey_board.h"
+#  include "keepkey/board/u2f.h"
+#  include "keepkey/board/u2f_types.h"
+#  include "keepkey/board/layout.h"
+#  include "keepkey/board/timer.h"
 #else
 #  include <keepkey/emulator/emulator.h>
 #endif
@@ -34,6 +38,8 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
+
+#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -44,7 +50,70 @@ usb_rx_callback_t user_rx_callback = NULL;
 usb_rx_callback_t user_debug_rx_callback = NULL;
 #endif
 
+static volatile bool u2f_transport = false;
+
+void usb_set_u2f_transport(void) {
+    u2f_transport = true;
+}
+
+void usb_set_hid_transport(void) {
+    u2f_transport = false;
+}
+
+bool usb_is_u2f_transport(void) {
+    return u2f_transport;
+}
+
 #ifndef EMULATOR
+
+#define USB_INTERFACE_INDEX_MAIN 0
+#if DEBUG_LINK
+#define USB_INTERFACE_INDEX_DEBUG 1
+#define USB_INTERFACE_INDEX_U2F 2
+#else
+#define USB_INTERFACE_INDEX_U2F 1
+#endif
+
+#define ENDPOINT_ADDRESS_IN         (0x81)
+#define ENDPOINT_ADDRESS_OUT        (0x01)
+#define ENDPOINT_ADDRESS_DEBUG_IN   (0x82)
+#define ENDPOINT_ADDRESS_DEBUG_OUT  (0x02)
+#define ENDPOINT_ADDRESS_U2F_IN     (0x83)
+#define ENDPOINT_ADDRESS_U2F_OUT    (0x03)
+
+
+#define USB_STRINGS \
+        X(MANUFACTURER, "KeyHodlers, LLC") \
+    X(PRODUCT, "KeepKey") \
+    X(SERIAL_NUMBER, serial_uuid_str) \
+    X(INTERFACE_MAIN,  "KeepKey Interface") \
+    X(INTERFACE_DEBUG, "KeepKey Debug Link Interface") \
+    X(INTERFACE_U2F,   "U2F Interface")
+
+#define X(name, value) USB_STRING_##name,
+enum {
+    USB_STRING_LANGID_CODES, // LANGID code array
+    USB_STRINGS
+};
+#undef X
+
+static char serial_uuid_str[100];
+
+#define X(name, value) value,
+static const char *usb_strings[] = {
+    USB_STRINGS
+};
+#undef X
+
+static volatile char tiny = 0;
+uint8_t v_poll = 0;
+
+char usbTiny(char set)
+{
+    char old = tiny;
+    tiny = set;
+    return old;
+}
 
 static uint8_t usbd_control_buffer[USBD_CONTROL_BUFFER_SIZE];
 
@@ -69,475 +138,71 @@ static const struct usb_device_descriptor dev_descr = {
 	.idVendor = 0x2B24,   /* KeepKey Vendor ID */
 	.idProduct = 0x0001,
 	.bcdDevice = 0x0100,
-	.iManufacturer = 1,
-	.iProduct = 2,
-	.iSerialNumber = 3,
+	.iManufacturer = USB_STRING_MANUFACTURER,
+	.iProduct = USB_STRING_PRODUCT,
+	.iSerialNumber = USB_STRING_SERIAL_NUMBER,
 	.bNumConfigurations = 1,
 };
 
-// Got via usbhid-dump from CP2110
-// Comments generated  using http://eleccelerator.com/usbdescreqparser/
 static const uint8_t hid_report_descriptor[] = {
-    0x06, 0x00, 0xFF,  // Usage Page (Vendor Defined 0xFF00)
-    0x09, 0x01,        // Usage (0x01)
-    0xA1, 0x01,        // Collection (Application)
-    0x09, 0x01,        //   Usage (0x01)
-    0x75, 0x08,        //   Report Size (8)
-    0x95, 0x40,        //   Report Count (64)
-    0x26, 0xFF, 0x00,  //   Logical Maximum (255)
-    0x15, 0x00,        //   Logical Minimum (0)
-    0x85, 0x01,        //   Report ID (1)
-    0x95, 0x01,        //   Report Count (1)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x02,        //   Report ID (2)
-    0x95, 0x02,        //   Report Count (2)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x03,        //   Report ID (3)
-    0x95, 0x03,        //   Report Count (3)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x04,        //   Report ID (4)
-    0x95, 0x04,        //   Report Count (4)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x05,        //   Report ID (5)
-    0x95, 0x05,        //   Report Count (5)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x06,        //   Report ID (6)
-    0x95, 0x06,        //   Report Count (6)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x07,        //   Report ID (7)
-    0x95, 0x07,        //   Report Count (7)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x08,        //   Report ID (8)
-    0x95, 0x08,        //   Report Count (8)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x09,        //   Report ID (9)
-    0x95, 0x09,        //   Report Count (9)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x0A,        //   Report ID (10)
-    0x95, 0x0A,        //   Report Count (10)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x0B,        //   Report ID (11)
-    0x95, 0x0B,        //   Report Count (11)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x0C,        //   Report ID (12)
-    0x95, 0x0C,        //   Report Count (12)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x0D,        //   Report ID (13)
-    0x95, 0x0D,        //   Report Count (13)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x0E,        //   Report ID (14)
-    0x95, 0x0E,        //   Report Count (14)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x0F,        //   Report ID (15)
-    0x95, 0x0F,        //   Report Count (15)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x10,        //   Report ID (16)
-    0x95, 0x10,        //   Report Count (16)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x11,        //   Report ID (17)
-    0x95, 0x11,        //   Report Count (17)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x12,        //   Report ID (18)
-    0x95, 0x12,        //   Report Count (18)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x13,        //   Report ID (19)
-    0x95, 0x13,        //   Report Count (19)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x14,        //   Report ID (20)
-    0x95, 0x14,        //   Report Count (20)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x15,        //   Report ID (21)
-    0x95, 0x15,        //   Report Count (21)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x16,        //   Report ID (22)
-    0x95, 0x16,        //   Report Count (22)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x17,        //   Report ID (23)
-    0x95, 0x17,        //   Report Count (23)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x18,        //   Report ID (24)
-    0x95, 0x18,        //   Report Count (24)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x19,        //   Report ID (25)
-    0x95, 0x19,        //   Report Count (25)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x1A,        //   Report ID (26)
-    0x95, 0x1A,        //   Report Count (26)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x1B,        //   Report ID (27)
-    0x95, 0x1B,        //   Report Count (27)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x1C,        //   Report ID (28)
-    0x95, 0x1C,        //   Report Count (28)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x1D,        //   Report ID (29)
-    0x95, 0x1D,        //   Report Count (29)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x1E,        //   Report ID (30)
-    0x95, 0x1E,        //   Report Count (30)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x1F,        //   Report ID (31)
-    0x95, 0x1F,        //   Report Count (31)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x20,        //   Report ID (32)
-    0x95, 0x20,        //   Report Count (32)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x21,        //   Report ID (33)
-    0x95, 0x21,        //   Report Count (33)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x22,        //   Report ID (34)
-    0x95, 0x22,        //   Report Count (34)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x23,        //   Report ID (35)
-    0x95, 0x23,        //   Report Count (35)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x24,        //   Report ID (36)
-    0x95, 0x24,        //   Report Count (36)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x25,        //   Report ID (37)
-    0x95, 0x25,        //   Report Count (37)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x26,        //   Report ID (38)
-    0x95, 0x26,        //   Report Count (38)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x27,        //   Report ID (39)
-    0x95, 0x27,        //   Report Count (39)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x28,        //   Report ID (40)
-    0x95, 0x28,        //   Report Count (40)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x29,        //   Report ID (41)
-    0x95, 0x29,        //   Report Count (41)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x2A,        //   Report ID (42)
-    0x95, 0x2A,        //   Report Count (42)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x2B,        //   Report ID (43)
-    0x95, 0x2B,        //   Report Count (43)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x2C,        //   Report ID (44)
-    0x95, 0x2C,        //   Report Count (44)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x2D,        //   Report ID (45)
-    0x95, 0x2D,        //   Report Count (45)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x2E,        //   Report ID (46)
-    0x95, 0x2E,        //   Report Count (46)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x2F,        //   Report ID (47)
-    0x95, 0x2F,        //   Report Count (47)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x30,        //   Report ID (48)
-    0x95, 0x30,        //   Report Count (48)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x31,        //   Report ID (49)
-    0x95, 0x31,        //   Report Count (49)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x32,        //   Report ID (50)
-    0x95, 0x32,        //   Report Count (50)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x33,        //   Report ID (51)
-    0x95, 0x33,        //   Report Count (51)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x34,        //   Report ID (52)
-    0x95, 0x34,        //   Report Count (52)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x35,        //   Report ID (53)
-    0x95, 0x35,        //   Report Count (53)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x36,        //   Report ID (54)
-    0x95, 0x36,        //   Report Count (54)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x37,        //   Report ID (55)
-    0x95, 0x37,        //   Report Count (55)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x38,        //   Report ID (56)
-    0x95, 0x38,        //   Report Count (56)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x39,        //   Report ID (57)
-    0x95, 0x39,        //   Report Count (57)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x3A,        //   Report ID (58)
-    0x95, 0x3A,        //   Report Count (58)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x3B,        //   Report ID (59)
-    0x95, 0x3B,        //   Report Count (59)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x3C,        //   Report ID (60)
-    0x95, 0x3C,        //   Report Count (60)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x3D,        //   Report ID (61)
-    0x95, 0x3D,        //   Report Count (61)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x3E,        //   Report ID (62)
-    0x95, 0x3E,        //   Report Count (62)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x3F,        //   Report ID (63)
-    0x95, 0x3F,        //   Report Count (63)
-    0x09, 0x01,        //   Usage (0x01)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x01,        //   Usage (0x01)
-    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x40,        //   Report ID (64)
-    0x95, 0x01,        //   Report Count (1)
-    0x09, 0x01,        //   Usage (0x01)
-    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x41,        //   Report ID (65)
-    0x95, 0x01,        //   Report Count (1)
-    0x09, 0x01,        //   Usage (0x01)
-    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x42,        //   Report ID (66)
-    0x95, 0x06,        //   Report Count (6)
-    0x09, 0x01,        //   Usage (0x01)
-    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x43,        //   Report ID (67)
-    0x95, 0x01,        //   Report Count (1)
-    0x09, 0x01,        //   Usage (0x01)
-    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x44,        //   Report ID (68)
-    0x95, 0x02,        //   Report Count (2)
-    0x09, 0x01,        //   Usage (0x01)
-    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x45,        //   Report ID (69)
-    0x95, 0x04,        //   Report Count (4)
-    0x09, 0x01,        //   Usage (0x01)
-    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x46,        //   Report ID (70)
-    0x95, 0x02,        //   Report Count (2)
-    0x09, 0x01,        //   Usage (0x01)
-    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x47,        //   Report ID (71)
-    0x95, 0x02,        //   Report Count (2)
-    0x09, 0x01,        //   Usage (0x01)
-    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x50,        //   Report ID (80)
-    0x95, 0x08,        //   Report Count (8)
-    0x09, 0x01,        //   Usage (0x01)
-    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x51,        //   Report ID (81)
-    0x95, 0x01,        //   Report Count (1)
-    0x09, 0x01,        //   Usage (0x01)
-    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x52,        //   Report ID (82)
-    0x95, 0x01,        //   Report Count (1)
-    0x09, 0x01,        //   Usage (0x01)
-    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x60,        //   Report ID (96)
-    0x95, 0x0A,        //   Report Count (10)
-    0x09, 0x01,        //   Usage (0x01)
-    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x61,        //   Report ID (97)
-    0x95, 0x3F,        //   Report Count (63)
-    0x09, 0x01,        //   Usage (0x01)
-    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x62,        //   Report ID (98)
-    0x95, 0x3F,        //   Report Count (63)
-    0x09, 0x01,        //   Usage (0x01)
-    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x63,        //   Report ID (99)
-    0x95, 0x3F,        //   Report Count (63)
-    0x09, 0x01,        //   Usage (0x01)
-    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x64,        //   Report ID (100)
-    0x95, 0x3F,        //   Report Count (63)
-    0x09, 0x01,        //   Usage (0x01)
-    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x65,        //   Report ID (101)
-    0x95, 0x3E,        //   Report Count (62)
-    0x09, 0x01,        //   Usage (0x01)
-    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x66,        //   Report ID (102)
-    0x95, 0x13,        //   Report Count (19)
-    0x09, 0x01,        //   Usage (0x01)
-    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0xC0,              // End Collection
+    0x06, 0x00, 0xff,  // USAGE_PAGE (Vendor Defined)
+    0x09, 0x01,        // USAGE (1)
+    0xa1, 0x01,        // COLLECTION (Application)
+    0x09, 0x20,        // USAGE (Input Report Data)
+    0x15, 0x00,        // LOGICAL_MINIMUM (0)
+    0x26, 0xff, 0x00,  // LOGICAL_MAXIMUM (255)
+    0x75, 0x08,        // REPORT_SIZE (8)
+    0x95, 0x40,        // REPORT_COUNT (64)
+    0x81, 0x02,        // INPUT (Data,Var,Abs)
+    0x09, 0x21,        // USAGE (Output Report Data)
+    0x15, 0x00,        // LOGICAL_MINIMUM (0)
+    0x26, 0xff, 0x00,  // LOGICAL_MAXIMUM (255)
+    0x75, 0x08,        // REPORT_SIZE (8)
+    0x95, 0x40,        // REPORT_COUNT (64)
+    0x91, 0x02,        // OUTPUT (Data,Var,Abs)
+    0xc0               // END_COLLECTION
 };
+
+#if DEBUG_LINK
+static const uint8_t hid_report_descriptor_debug[] = {
+    0x06, 0x01, 0xff,  // USAGE_PAGE (Vendor Defined)
+    0x09, 0x01,        // USAGE (1)
+    0xa1, 0x01,        // COLLECTION (Application)
+    0x09, 0x20,        // USAGE (Input Report Data)
+    0x15, 0x00,        // LOGICAL_MINIMUM (0)
+    0x26, 0xff, 0x00,  // LOGICAL_MAXIMUM (255)
+    0x75, 0x08,        // REPORT_SIZE (8)
+    0x95, 0x40,        // REPORT_COUNT (64)
+    0x81, 0x02,        // INPUT (Data,Var,Abs)
+    0x09, 0x21,        // USAGE (Output Report Data)
+    0x15, 0x00,        // LOGICAL_MINIMUM (0)
+    0x26, 0xff, 0x00,  // LOGICAL_MAXIMUM (255)
+    0x75, 0x08,        // REPORT_SIZE (8)
+    0x95, 0x40,        // REPORT_COUNT (64)
+    0x91, 0x02,        // OUTPUT (Data,Var,Abs)
+    0xc0               // END_COLLECTION
+};
+#endif
+
+static const uint8_t hid_report_descriptor_u2f[] = {
+    0x06, 0xd0, 0xf1,  // USAGE_PAGE (FIDO Alliance)
+    0x09, 0x01,        // USAGE (U2F HID Authenticator Device)
+    0xa1, 0x01,        // COLLECTION (Application)
+    0x09, 0x20,        // USAGE (Input Report Data)
+    0x15, 0x00,        // LOGICAL_MINIMUM (0)
+    0x26, 0xff, 0x00,  // LOGICAL_MAXIMUM (255)
+    0x75, 0x08,        // REPORT_SIZE (8)
+    0x95, 0x40,        // REPORT_COUNT (64)
+    0x81, 0x02,        // INPUT (Data,Var,Abs)
+    0x09, 0x21,        // USAGE (Output Report Data)
+    0x15, 0x00,        // LOGICAL_MINIMUM (0)
+    0x26, 0xff, 0x00,  // LOGICAL_MAXIMUM (255)
+    0x75, 0x08,        // REPORT_SIZE (8)
+    0x95, 0x40,        // REPORT_COUNT (64)
+    0x91, 0x02,        // OUTPUT (Data,Var,Abs)
+    0xc0               // END_COLLECTION
+};
+
 
 static const struct {
 	struct usb_hid_descriptor hid_descriptor;
@@ -559,7 +224,27 @@ static const struct {
 	}
 };
 
-static const struct usb_endpoint_descriptor hid_endpoints[] = {{
+static const struct {
+    struct usb_hid_descriptor hid_descriptor_u2f;
+    struct {
+        uint8_t bReportDescriptorType;
+        uint16_t wDescriptorLength;
+    } __attribute__((packed)) hid_report_u2f;
+} __attribute__((packed)) hid_function_u2f = {
+    .hid_descriptor_u2f = {
+        .bLength = sizeof(hid_function_u2f),
+        .bDescriptorType = USB_DT_HID,
+        .bcdHID = 0x0111,
+        .bCountryCode = 0,
+        .bNumDescriptors = 1,
+    },
+    .hid_report_u2f = {
+        .bReportDescriptorType = USB_DT_REPORT,
+        .wDescriptorLength = sizeof(hid_report_descriptor_u2f),
+    }
+};
+
+static const struct usb_endpoint_descriptor hid_endpoints[2] = {{
 	.bLength = USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType = USB_DT_ENDPOINT,
 	.bEndpointAddress = ENDPOINT_ADDRESS_IN,
@@ -578,20 +263,53 @@ static const struct usb_endpoint_descriptor hid_endpoints[] = {{
 static const struct usb_interface_descriptor hid_iface[] = {{
 	.bLength = USB_DT_INTERFACE_SIZE,
 	.bDescriptorType = USB_DT_INTERFACE,
-	.bInterfaceNumber = 0,
+	.bInterfaceNumber = USB_INTERFACE_INDEX_MAIN,
 	.bAlternateSetting = 0,
 	.bNumEndpoints = 2,
 	.bInterfaceClass = USB_CLASS_HID,
 	.bInterfaceSubClass = 0,
 	.bInterfaceProtocol = 0,
-	.iInterface = 0,
+	.iInterface = USB_STRING_INTERFACE_MAIN,
 	.endpoint = hid_endpoints,
 	.extra = &hid_function,
 	.extralen = sizeof(hid_function),
 }};
 
+static const struct usb_endpoint_descriptor hid_endpoints_u2f[2] = {{
+    .bLength = USB_DT_ENDPOINT_SIZE,
+    .bDescriptorType = USB_DT_ENDPOINT,
+    .bEndpointAddress = ENDPOINT_ADDRESS_U2F_IN,
+    .bmAttributes = USB_ENDPOINT_ATTR_INTERRUPT,
+    .wMaxPacketSize = 64,
+    .bInterval = 2,
+}, {
+    .bLength = USB_DT_ENDPOINT_SIZE,
+    .bDescriptorType = USB_DT_ENDPOINT,
+    .bEndpointAddress = ENDPOINT_ADDRESS_U2F_OUT,
+    .bmAttributes = USB_ENDPOINT_ATTR_INTERRUPT,
+    .wMaxPacketSize = 64,
+    .bInterval = 2,
+}};
+
+static const struct usb_interface_descriptor hid_iface_u2f[] = {{
+    .bLength = USB_DT_INTERFACE_SIZE,
+    .bDescriptorType = USB_DT_INTERFACE,
+    .bInterfaceNumber = USB_INTERFACE_INDEX_U2F,
+    .bAlternateSetting = 0,
+    .bNumEndpoints = 2,
+    .bInterfaceClass = USB_CLASS_HID,
+    .bInterfaceSubClass = 0,
+    .bInterfaceProtocol = 0,
+    .iInterface = USB_STRING_INTERFACE_U2F,
+    .endpoint = hid_endpoints_u2f,
+    .extra = &hid_function_u2f,
+    .extralen = sizeof(hid_function_u2f),
+}};
+
+
+
 #if DEBUG_LINK
-static const struct usb_endpoint_descriptor hid_endpoints_debug[] = {{
+static const struct usb_endpoint_descriptor hid_endpoints_debug[2] = {{
 	.bLength = USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType = USB_DT_ENDPOINT,
 	.bEndpointAddress = ENDPOINT_ADDRESS_DEBUG_IN,
@@ -610,13 +328,13 @@ static const struct usb_endpoint_descriptor hid_endpoints_debug[] = {{
 static const struct usb_interface_descriptor hid_iface_debug[] = {{
 	.bLength = USB_DT_INTERFACE_SIZE,
 	.bDescriptorType = USB_DT_INTERFACE,
-	.bInterfaceNumber = 1,
+	.bInterfaceNumber = USB_INTERFACE_INDEX_DEBUG,
 	.bAlternateSetting = 0,
 	.bNumEndpoints = 2,
 	.bInterfaceClass = USB_CLASS_HID,
 	.bInterfaceSubClass = 0,
 	.bInterfaceProtocol = 0,
-	.iInterface = 0,
+	.iInterface = USB_STRING_INTERFACE_DEBUG,
 	.endpoint = hid_endpoints_debug,
 	.extra = &hid_function,
 	.extralen = sizeof(hid_function),
@@ -631,6 +349,9 @@ static const struct usb_interface ifaces[] = {{
 	.num_altsetting = 1,
 	.altsetting = hid_iface_debug,
 #endif
+}, {
+    .num_altsetting = 1,
+    .altsetting = hid_iface_u2f,
 }};
 
 static const struct usb_config_descriptor config = {
@@ -638,9 +359,9 @@ static const struct usb_config_descriptor config = {
 	.bDescriptorType = USB_DT_CONFIGURATION,
 	.wTotalLength = 0,
 #if DEBUG_LINK
-	.bNumInterfaces = 2,
+	.bNumInterfaces = 3,
 #else
-	.bNumInterfaces = 1,
+	.bNumInterfaces = 2,
 #endif
 	.bConfigurationValue = 1,
 	.iConfiguration = 0,
@@ -649,16 +370,8 @@ static const struct usb_config_descriptor config = {
 	.interface = ifaces,
 };
 
-static const char *usb_strings[] = {
-	"KeepKey, LLC.",
-	"KeepKey",
-	""
-};
-
 static enum usbd_request_return_codes
-hid_control_request(usbd_device *dev, struct usb_setup_data *req,
-                    uint8_t **buf, uint16_t *len,
-                    void (**complete)(usbd_device *, struct usb_setup_data *))
+hid_control_request(usbd_device *dev, struct usb_setup_data *req, uint8_t **buf, uint16_t *len, void (**complete)(usbd_device *, struct usb_setup_data *))
 {
 	(void)complete;
 	(void)dev;
@@ -667,6 +380,21 @@ hid_control_request(usbd_device *dev, struct usb_setup_data *req,
 	    (req->bRequest != USB_REQ_GET_DESCRIPTOR) ||
 	    (req->wValue != 0x2200))
 		return USBD_REQ_NOTSUPP;
+
+    if (req->wIndex == USB_INTERFACE_INDEX_U2F) {
+        *buf = (uint8_t *)hid_report_descriptor_u2f;//_u2f
+        *len = sizeof(hid_report_descriptor_u2f);//_u2f
+        return USBD_REQ_HANDLED;
+    }
+
+#if DEBUG_LINK
+    if (req->wIndex == USB_INTERFACE_INDEX_DEBUG) {
+        *buf = (uint8_t *)hid_report_descriptor_debug;//_debug
+        *len = sizeof(hid_report_descriptor_debug);//_debug
+        return USBD_REQ_HANDLED;
+    }
+#endif
+
 
 	/* Handle the HID report descriptor. */
 	*buf = (uint8_t *)hid_report_descriptor;
@@ -698,7 +426,22 @@ static void hid_rx_callback(usbd_device *dev, uint8_t ep)
     if(rx && user_rx_callback)
     {
         m.len = rx;
+        usb_set_hid_transport();
         user_rx_callback(&m);
+    }
+}
+
+static void hid_u2f_rx_callback(usbd_device *dev, uint8_t ep)
+{
+    (void)ep;
+    static CONFIDENTIAL uint8_t buf[64] __attribute__ ((aligned(4)));
+    uint16_t rx = usbd_ep_read_packet(dev, 
+                                      ENDPOINT_ADDRESS_U2F_OUT, 
+                                      buf, 
+                                      64);
+    if (rx && user_rx_callback){
+        usb_set_u2f_transport();
+        u2fhid_read(tiny, (const U2FHID_FRAME *) (void*) buf);
     }
 }
 
@@ -747,6 +490,8 @@ static void hid_set_config_callback(usbd_device *dev, uint16_t wValue)
 
 	usbd_ep_setup(dev, ENDPOINT_ADDRESS_IN,  USB_ENDPOINT_ATTR_INTERRUPT, USB_SEGMENT_SIZE, 0);
 	usbd_ep_setup(dev, ENDPOINT_ADDRESS_OUT, USB_ENDPOINT_ATTR_INTERRUPT, USB_SEGMENT_SIZE, hid_rx_callback);
+	usbd_ep_setup(dev, ENDPOINT_ADDRESS_U2F_IN,  USB_ENDPOINT_ATTR_INTERRUPT, 64, 0);
+	usbd_ep_setup(dev, ENDPOINT_ADDRESS_U2F_OUT, USB_ENDPOINT_ATTR_INTERRUPT, 64, hid_u2f_rx_callback);
 #if DEBUG_LINK
 	usbd_ep_setup(dev, ENDPOINT_ADDRESS_DEBUG_IN,  USB_ENDPOINT_ATTR_INTERRUPT, USB_SEGMENT_SIZE, 0);
 	usbd_ep_setup(dev, ENDPOINT_ADDRESS_DEBUG_OUT, USB_ENDPOINT_ATTR_INTERRUPT, USB_SEGMENT_SIZE, hid_debug_rx_callback);
@@ -758,7 +503,7 @@ static void hid_set_config_callback(usbd_device *dev, uint16_t wValue)
 		USB_REQ_TYPE_TYPE | USB_REQ_TYPE_RECIPIENT,
 		hid_control_request);
 
-        usb_configured = true;
+	usb_configured = true;
 }
 #endif
 
@@ -798,8 +543,26 @@ static bool usb_tx_helper(uint8_t *message, uint32_t len, uint8_t endpoint)
 }
 
 #ifndef EMULATOR
+bool usb_u2f_tx_helper(uint8_t *data, uint32_t len, uint8_t endpoint){
+
+    uint32_t pos = 0;
+
+    /* Chunk out message */
+    while(pos < len)
+    {
+        uint8_t tmp_buffer[USB_SEGMENT_SIZE] = { 0 };
+
+        memcpy(tmp_buffer , data + pos, USB_SEGMENT_SIZE);
+        while(usbd_ep_write_packet(usbd_dev, endpoint, tmp_buffer, USB_SEGMENT_SIZE) == 0) {};
+
+        pos += USB_SEGMENT_SIZE;
+    }
+
+    return(true);
+}
+
 /*
- * usb_init() - Initialize USB registers and set callback functions 
+ * usb_init() - Initialize USB registers and set callback functions
  *
  * INPUT
  *     none
@@ -815,15 +578,13 @@ bool usb_init(void)
         gpio_mode_setup(USB_GPIO_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, USB_GPIO_PORT_PINS);
         gpio_set_af(USB_GPIO_PORT, GPIO_AF10, USB_GPIO_PORT_PINS);
 
-        static char serial_number[100];
-        desig_get_unique_id_as_string(serial_number, sizeof(serial_number));
-        usb_strings[NUM_USB_STRINGS-1] = serial_number;
-        usbd_dev = usbd_init(&otgfs_usb_driver, 
-                         &dev_descr, 
-                         &config, 
+        desig_get_unique_id_as_string(serial_uuid_str, sizeof(serial_uuid_str));
+        usbd_dev = usbd_init(&otgfs_usb_driver,
+                         &dev_descr,
+                         &config,
                          usb_strings,
-                         NUM_USB_STRINGS, 
-                         usbd_control_buffer, 
+                         NUM_USB_STRINGS,
+                         usbd_control_buffer,
                          sizeof(usbd_control_buffer));
         if(usbd_dev != NULL) {
             usbd_register_set_config_callback(usbd_dev, hid_set_config_callback);
@@ -832,7 +593,7 @@ bool usb_init(void)
             ret_stat = false;
         }
     }
-    
+
     return (ret_stat);
 }
 
@@ -862,7 +623,13 @@ void usb_poll(void)
 #ifndef EMULATOR
 bool usb_tx(uint8_t *message, uint32_t len)
 {
-    return usb_tx_helper(message, len, ENDPOINT_ADDRESS_IN);
+    if (usb_is_u2f_transport()) {
+        memcpy(message+len, "\x90\x00", 2);
+        send_u2f_msg(message, len+2);
+        return true;
+    } else {
+        return usb_tx_helper(message, len, ENDPOINT_ADDRESS_IN);
+    }
 }
 #endif
 
@@ -896,6 +663,7 @@ void usb_set_rx_callback(usb_rx_callback_t callback)
 {
     user_rx_callback = callback;
 }
+
 
 /*
  * usb_set_debug_rx_callback() - Setup USB receive callback function pointer for debug link

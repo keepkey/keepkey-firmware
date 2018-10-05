@@ -30,6 +30,7 @@
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/memory.h"
+#include "keepkey/board/u2f.h"
 #include "keepkey/board/variant.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/passphrase_sm.h"
@@ -38,6 +39,7 @@
 #include "keepkey/rand/rng.h"
 #include "keepkey/transport/interface.h"
 #include "trezor/crypto/aes/aes.h"
+#include "trezor/crypto/bip32.h"
 #include "trezor/crypto/bip39.h"
 #include "trezor/crypto/curves.h"
 #include "trezor/crypto/memzero.h"
@@ -71,11 +73,60 @@ static CONFIDENTIAL char flash_temp[1024];
 // reasonable compromise given how testing works.
 char debuglink_pin[10];
 char debuglink_mnemonic[241];
-StorageHDNode debuglink_node;
+HDNode debuglink_node;
 #endif
 
+static void get_u2froot_callback(uint32_t iter, uint32_t total)
+{
+	(void)iter;
+	(void)total;
+	//layoutProgress(_("Updating"), 1000 * iter / total);
+	animating_progress_handler();
+}
+
+static void storage_compute_u2froot(const char *mnemonic, HDNodeType *u2froot) {
+	static CONFIDENTIAL HDNode node;
+	mnemonic_to_seed(mnemonic, "", sessionSeed, get_u2froot_callback); // BIP-0039
+	hdnode_from_seed(sessionSeed, 64, NIST256P1_NAME, &node);
+	hdnode_private_ckd(&node, U2F_KEY_PATH);
+	u2froot->depth = node.depth;
+	u2froot->child_num = U2F_KEY_PATH;
+	u2froot->chain_code.size = sizeof(node.chain_code);
+	memcpy(u2froot->chain_code.bytes, node.chain_code, sizeof(node.chain_code));
+	u2froot->has_private_key = true;
+	u2froot->private_key.size = sizeof(node.private_key);
+	memcpy(u2froot->private_key.bytes, node.private_key, sizeof(node.private_key));
+	memzero(&node, sizeof(node));
+}
+
+bool storage_getU2FRoot(HDNode *node)
+{
+	return shadow_config.storage.pub.has_u2froot &&
+	    hdnode_from_xprv(shadow_config.storage.pub.u2froot.depth,
+	                     shadow_config.storage.pub.u2froot.child_num,
+	                     shadow_config.storage.pub.u2froot.chain_code.bytes,
+	                     shadow_config.storage.pub.u2froot.private_key.bytes,
+	                     NIST256P1_NAME, node);
+}
+
+uint32_t storage_nextU2FCounter(void) {
+	shadow_config.storage.pub.u2f_counter++;
+	storage_commit();
+	return shadow_config.storage.pub.u2f_counter;
+}
+
+void storage_setU2FCounter(uint32_t u2f_counter) {
+	shadow_config.storage.pub.u2f_counter = u2f_counter;
+	storage_commit();
+}
+
+static bool storage_isActiveSector(const char *flash) {
+    return memcmp(((const Metadata *)flash)->magic, STORAGE_MAGIC_STR,
+                  STORAGE_MAGIC_LEN) == 0;
+}
+
 void storage_upgradePolicies(Storage *storage) {
-    for (int i = storage->pub.policies_count; i < POLICY_COUNT; ++i) {
+    for (int i = storage->pub.policies_count; i < (int)(POLICY_COUNT); ++i) {
         memcpy(&storage->pub.policies[i], &policies[i], sizeof(storage->pub.policies[i]));
     }
     storage->pub.policies_count = POLICY_COUNT;
@@ -183,7 +234,7 @@ void storage_writePolicyV1(char *ptr, size_t len, const PolicyType *policy) {
     write_bool(ptr + 17, policy->enabled);
 }
 
-void storage_readHDNode(StorageHDNode *node, const char *ptr, size_t len) {
+void storage_readHDNode(HDNodeType *node, const char *ptr, size_t len) {
     if (len < 96 + 33)
         return;
     node->depth = read_u32_le(ptr);
@@ -199,7 +250,7 @@ void storage_readHDNode(StorageHDNode *node, const char *ptr, size_t len) {
     memcpy(node->public_key.bytes, ptr + 96, 33);
 }
 
-void storage_writeHDNode(char *ptr, size_t len, const StorageHDNode *node) {
+void storage_writeHDNode(char *ptr, size_t len, const HDNodeType *node) {
     if (len < 96 + 33)
         return;
     write_u32_le(ptr, node->depth);
@@ -311,6 +362,12 @@ void storage_secMigrate(Storage *storage, const uint8_t storage_key[64], bool en
         memcpy(storage->sec.mnemonic, &scratch[0] + 129, 241);
         storage_readCacheV1(&storage->sec.cache, &scratch[0] + 370, 75);
 
+        // Derive the u2froot, if we haven't already.
+        if (storage->pub.has_node && !storage->pub.has_u2froot) {
+            storage_compute_u2froot(storage->sec.mnemonic, &storage->pub.u2froot);
+            storage->pub.has_u2froot = true;
+        }
+
         // 63 reserved bytes
 
         storage->has_sec = true;
@@ -347,6 +404,11 @@ void storage_readStorageV1(Storage *storage, const char *ptr, size_t len) {
     }
     storage->pub.has_auto_lock_delay_ms = true;
     storage->pub.auto_lock_delay_ms = 60 * 1000U;
+
+    // Can't do derivation here, since the pin hasn't been entered.
+    storage->pub.has_u2froot = false;
+    memzero(&storage->pub.u2froot, sizeof(storage->pub.u2froot));
+    storage->pub.u2f_counter = 0;
 
     _Static_assert(sizeof(storage->pub.wrapped_storage_key) == 64,
                    "(un)wrapped key must be 64 bytes");
@@ -398,16 +460,18 @@ void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage) {
     write_u32_le(ptr, storage->version);
 
     uint32_t flags =
-        (storage->pub.has_pin                    ? (1u << 0) : 0) |
-        (storage->pub.has_language               ? (1u << 1) : 0) |
-        (storage->pub.has_label                  ? (1u << 2) : 0) |
-        (storage->pub.has_auto_lock_delay_ms     ? (1u << 3) : 0) |
-        (storage->pub.imported                   ? (1u << 4) : 0) |
-        (storage->pub.passphrase_protection      ? (1u << 5) : 0) |
-        (storage_isPolicyEnabled("ShapeShift")   ? (1u << 6) : 0) |
-        (storage_isPolicyEnabled("Pin Caching")  ? (1u << 7) : 0) |
-        (storage->pub.has_node                   ? (1u << 8) : 0) |
-        (storage->pub.has_mnemonic               ? (1u << 9) : 0) |
+        (storage->pub.has_pin                     ? (1u <<  0) : 0) |
+        (storage->pub.has_language                ? (1u <<  1) : 0) |
+        (storage->pub.has_label                   ? (1u <<  2) : 0) |
+        (storage->pub.has_auto_lock_delay_ms      ? (1u <<  3) : 0) |
+        (storage->pub.imported                    ? (1u <<  4) : 0) |
+        (storage->pub.passphrase_protection       ? (1u <<  5) : 0) |
+        (storage_isPolicyEnabled("ShapeShift")    ? (1u <<  6) : 0) |
+        (storage_isPolicyEnabled("Pin Caching")   ? (1u <<  7) : 0) |
+        (storage->pub.has_node                    ? (1u <<  8) : 0) |
+        (storage->pub.has_mnemonic                ? (1u <<  9) : 0) |
+        (storage->pub.has_u2froot                 ? (1u << 10) : 0) |
+        (storage_isPolicyEnabled("U2F Transport") ? (1u << 11) : 0) |
         /* reserved 31:5 */ 0;
     write_u32_le(ptr + 4, flags);
 
@@ -420,7 +484,10 @@ void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage) {
     memcpy(ptr + 80, storage->pub.wrapped_storage_key, 64);
     memcpy(ptr + 144, storage->pub.storage_key_fingerprint, 32);
 
-    // 288 reserved bytes
+    storage_writeHDNode(ptr + 176, 129, &storage->pub.u2froot);
+    write_u32_le(ptr + 305, storage->pub.u2f_counter);
+
+    // 155 reserved bytes
 
     // Ignore whatever was in storage->sec. Only encrypted_sec can be committed.
     // Yes, this is a potential footgun. No, there's nothing we can do about it here.
@@ -440,17 +507,19 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     storage->version = read_u32_le(ptr);
 
     uint32_t flags = read_u32_le(ptr + 4);
-    storage->pub.has_pin =                                         flags & (1u << 0);
-    storage->pub.has_language =                                    flags & (1u << 1);
-    storage->pub.has_label =                                       flags & (1u << 2);
-    storage->pub.has_auto_lock_delay_ms =                          flags & (1u << 3);
-    storage->pub.imported =                                        flags & (1u << 4);
-    storage->pub.passphrase_protection =                           flags & (1u << 5);
-    storage_readPolicyV2(&storage->pub.policies[0], "ShapeShift",  flags & (1u << 6));
-    storage_readPolicyV2(&storage->pub.policies[1], "Pin Caching", flags & (1u << 7));
-    storage->pub.policies_count = 2;
-    storage->pub.has_node =                                        flags & (1u << 8);
-    storage->pub.has_mnemonic =                                    flags & (1u << 9);
+    storage->pub.has_pin =                                           flags & (1u <<  0);
+    storage->pub.has_language =                                      flags & (1u <<  1);
+    storage->pub.has_label =                                         flags & (1u <<  2);
+    storage->pub.has_auto_lock_delay_ms =                            flags & (1u <<  3);
+    storage->pub.imported =                                          flags & (1u <<  4);
+    storage->pub.passphrase_protection =                             flags & (1u <<  5);
+    storage_readPolicyV2(&storage->pub.policies[0], "ShapeShift",    flags & (1u <<  6));
+    storage_readPolicyV2(&storage->pub.policies[1], "Pin Caching",   flags & (1u <<  7));
+    storage->pub.has_node =                                          flags & (1u <<  8);
+    storage->pub.has_mnemonic =                                      flags & (1u <<  9);
+    storage->pub.has_u2froot =                                       flags & (1u << 10);
+    storage_readPolicyV2(&storage->pub.policies[1], "U2F Transport", flags & (1u << 11));
+    storage->pub.policies_count = POLICY_COUNT;
 
     storage->pub.pin_failed_attempts = read_u32_le(ptr + 8);
     storage->pub.auto_lock_delay_ms = read_u32_le(ptr + 12);
@@ -464,7 +533,10 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     memcpy(storage->pub.wrapped_storage_key, ptr + 80, 64);
     memcpy(storage->pub.storage_key_fingerprint, ptr + 144, 32);
 
-    // 288 reserved bytes
+    storage_readHDNode(&storage->pub.u2froot, ptr + 176, 129);
+    storage->pub.u2f_counter = read_u32_le(ptr + 305);
+
+    // 155 reserved bytes
 
     storage->has_sec = false;
     memzero(&storage->sec, sizeof(storage->sec));
@@ -677,11 +749,6 @@ static bool storage_getRootSeedCache(ConfigFlash *cfg, const char *curve,
     return true;
 }
 
-static bool storage_isActiveSector(const char *flash) {
-    return memcmp(((const Metadata *)flash)->magic, STORAGE_MAGIC_STR,
-                  STORAGE_MAGIC_LEN) == 0;
-}
-
 void storage_init(void)
 {
 #ifndef EMULATOR
@@ -883,46 +950,63 @@ void storage_commit_impl(ConfigFlash *cfg)
 }
 
 // Great candidate for C++ templates... sigh.
-#define HDNODE_CONVERT \
-    dst->depth = src->depth; \
-    dst->fingerprint = src->fingerprint; \
-    dst->child_num = src->child_num; \
-    \
-    dst->chain_code.size = src->chain_code.size; \
-    memcpy(dst->chain_code.bytes, src->chain_code.bytes, \
-           sizeof(src->chain_code.bytes)); \
-    _Static_assert(sizeof(dst->chain_code.bytes) == \
-                   sizeof(src->chain_code.bytes), "chain_code type mismatch"); \
-    \
-    dst->has_private_key = src->has_private_key; \
-    if (src->has_private_key) { \
-        dst->private_key.size = src->private_key.size; \
-        memcpy(dst->private_key.bytes, src->private_key.bytes, \
-               sizeof(src->private_key.bytes)); \
-        _Static_assert(sizeof(dst->private_key.bytes) == \
-                       sizeof(src->private_key.bytes), "private_key type mismatch"); \
-    } \
-    \
-    dst->has_public_key = src->has_public_key; \
-    if (src->has_public_key) { \
-        dst->public_key.size = src->public_key.size; \
-        memcpy(dst->public_key.bytes, src->public_key.bytes, \
-               sizeof(src->public_key.bytes)); \
-        _Static_assert(sizeof(dst->public_key.bytes) == \
-                       sizeof(src->public_key.bytes), "public_key type mismatch"); \
-    }
-
-void storage_dumpNode(HDNodeType *dst, const StorageHDNode *src) {
+void storage_dumpNode(HDNodeType *dst, const HDNode *src) {
 #if DEBUG_LINK
-    HDNODE_CONVERT
+    dst->depth = src->depth;
+    dst->fingerprint = 0;
+    dst->child_num = src->child_num;
+
+    dst->chain_code.size = sizeof(src->chain_code);
+    memcpy(dst->chain_code.bytes, src->chain_code,
+           sizeof(src->chain_code));
+    _Static_assert(sizeof(dst->chain_code.bytes) ==
+                   sizeof(src->chain_code), "chain_code type mismatch");
+
+    dst->has_private_key = true;
+    dst->private_key.size = sizeof(src->private_key);
+    memcpy(dst->private_key.bytes, src->private_key,
+           sizeof(src->private_key));
+    _Static_assert(sizeof(dst->private_key.bytes) ==
+                   sizeof(src->private_key), "private_key type mismatch");
+
+    dst->has_public_key = true;
+    dst->public_key.size = sizeof(src->public_key);
+    memcpy(dst->public_key.bytes, src->public_key,
+           sizeof(src->public_key));
+    _Static_assert(sizeof(dst->public_key.bytes) ==
+                   sizeof(src->public_key), "public_key type mismatch");
 #else
     (void)dst;
     (void)src;
 #endif
 }
 
-void storage_loadNode(StorageHDNode *dst, const HDNodeType *src) {
-    HDNODE_CONVERT
+void storage_loadNode(HDNode *dst, const HDNodeType *src) {
+    dst->depth = src->depth;
+    dst->child_num = src->child_num;
+
+    memcpy(dst->chain_code, src->chain_code.bytes,
+           sizeof(src->chain_code.bytes));
+    _Static_assert(sizeof(dst->chain_code) ==
+                   sizeof(src->chain_code.bytes), "chain_code type mismatch");
+
+    if (src->has_private_key) {
+        memcpy(dst->private_key, src->private_key.bytes,
+               sizeof(src->private_key.bytes));
+        _Static_assert(sizeof(dst->private_key) ==
+                       sizeof(src->private_key.bytes), "private_key type mismatch");
+    } else {
+        memzero(dst->private_key, sizeof(dst->private_key));
+    }
+
+    if (src->has_public_key) {
+        memcpy(dst->public_key, src->public_key.bytes,
+               sizeof(src->public_key));
+        _Static_assert(sizeof(dst->public_key) ==
+                       sizeof(src->public_key.bytes), "public_key type mismatch");
+    } else {
+        memzero(dst->public_key, sizeof(dst->public_key));
+    }
 }
 
 void storage_loadDevice(LoadDevice *msg)
@@ -944,8 +1028,7 @@ void storage_loadDevice(LoadDevice *msg)
         shadow_config.storage.pub.has_node = true;
         shadow_config.storage.pub.has_mnemonic = false;
         shadow_config.storage.has_sec = true;
-        memcpy(&shadow_config.storage.sec.node, &(msg->node), sizeof(HDNodeType));
-        storage_loadNode(&shadow_config.storage.sec.node, &msg->node);
+        memcpy(&shadow_config.storage.sec.node, &msg->node, sizeof(msg->node));
 #if DEBUG_LINK
         storage_loadNode(&debuglink_node, &msg->node);
 #endif
@@ -960,6 +1043,8 @@ void storage_loadDevice(LoadDevice *msg)
 #if DEBUG_LINK
         memcpy(debuglink_mnemonic, msg->mnemonic, sizeof(debuglink_mnemonic));
 #endif
+        storage_compute_u2froot(shadow_config.storage.sec.mnemonic, &shadow_config.storage.pub.u2froot);
+        shadow_config.storage.pub.has_u2froot = true;
         sessionSeedCached = false;
         memset(&sessionSeed, 0, sizeof(sessionSeed));
     }
@@ -970,6 +1055,10 @@ void storage_loadDevice(LoadDevice *msg)
 
     if (msg->has_label) {
         storage_setLabel(msg->label);
+    }
+
+    if (msg->has_u2f_counter) {
+        storage_setU2FCounter(msg->u2f_counter);
     }
 }
 
@@ -1378,7 +1467,7 @@ const char *storage_getMnemonic(void)
     return debuglink_mnemonic;
 }
 
-StorageHDNode *storage_getNode(void)
+HDNode *storage_getNode(void)
 {
     return &debuglink_node;
 }

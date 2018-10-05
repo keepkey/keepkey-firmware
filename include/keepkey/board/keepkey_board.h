@@ -78,7 +78,7 @@ typedef struct _Cache
     /* Root node cache */
     uint8_t root_seed_cache_status;
     uint8_t root_seed_cache[64];
-    char root_ecdsa_curve_type[sizeof(ecdsa_curve_type_)]; // FIXME: this will lead to field alignment pain.
+    char root_ecdsa_curve_type[10];
 } Cache;
 
 extern uintptr_t __stack_chk_guard;

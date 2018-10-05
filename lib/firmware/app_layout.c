@@ -57,13 +57,9 @@ static void layout_animate_pin(void *data, uint32_t duration, uint32_t elapsed)
     DrawableParams sp;
     Canvas *canvas = layout_get_canvas();
     char *pin = (char *)data;
-    uint8_t color_stepping[] = {PIN_MATRIX_STEP1, PIN_MATRIX_STEP2, PIN_MATRIX_STEP3, PIN_MATRIX_STEP4, PIN_MATRIX_FOREGROUND};
+    const uint8_t color_stepping[] = {PIN_MATRIX_STEP1, PIN_MATRIX_STEP2, PIN_MATRIX_STEP3, PIN_MATRIX_STEP4, PIN_MATRIX_FOREGROUND};
 
     const Font *pin_font = get_pin_font();
-
-    PINAnimationConfig *cur_pos_cfg;
-    uint8_t cur_pos;
-    uint32_t cur_pos_elapsed;
 
     /* Draw matrix */
     box_params.base.color = PIN_MATRIX_BACKGROUND;
@@ -81,7 +77,7 @@ static void layout_animate_pin(void *data, uint32_t duration, uint32_t elapsed)
     }
 
     /* Configure each PIN digit animation settings */
-    PINAnimationConfig pin_animation_cfg[] =
+    const PINAnimationConfig pin_animation_cfg[] =
     {
         {SLIDE_RIGHT, 8 * PIN_SLIDE_DELAY}, // 1
         {SLIDE_UP, 7 * PIN_SLIDE_DELAY},    // 2
@@ -100,9 +96,9 @@ static void layout_animate_pin(void *data, uint32_t duration, uint32_t elapsed)
         for(uint8_t col = 0; col < 3; col++)
         {
 
-            cur_pos = col + (2 - row) * 3;
-            cur_pos_cfg = &pin_animation_cfg[cur_pos];
-            cur_pos_elapsed = elapsed - cur_pos_cfg->elapsed_start_ms;
+            uint8_t cur_pos = col + (2 - row) * 3;
+            const PINAnimationConfig *cur_pos_cfg = &pin_animation_cfg[cur_pos];
+            uint32_t cur_pos_elapsed = elapsed - cur_pos_cfg->elapsed_start_ms;
 
             /* Skip position is enough time has not passed */
             if(cur_pos_cfg->elapsed_start_ms > elapsed)

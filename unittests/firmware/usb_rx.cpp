@@ -29,7 +29,12 @@ TEST(USBRX, Overflow) {
     frame->header.pre2 = '0';
     msg.len = 63;
 
+#ifndef DEBUG_ON
+    // The real test is only in release builds now, since it's stupid slow in debug.
     for (unsigned i=0; i < 69273665; i++)
+#else
+    for (unsigned i=0; i < 10240; i++)
+#endif
         usb_rx_helper(&msg, NORMAL_MSG);
 
     // Boom!

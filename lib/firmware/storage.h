@@ -25,26 +25,6 @@
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/firmware/policy.h"
 
-typedef struct _StorageHDNode {
-    uint32_t depth;
-    uint32_t fingerprint;
-    uint32_t child_num;
-    struct {
-        uint32_t size;
-        uint8_t bytes[32];
-    } chain_code;
-    bool has_private_key;
-    struct {
-        uint32_t size;
-        uint8_t bytes[32];
-    } private_key;
-    bool has_public_key;
-    struct {
-        uint32_t size;
-        uint8_t bytes[33];
-    } public_key;
-} StorageHDNode;
-
 typedef struct _Storage {
     uint32_t version;
     struct Public {
@@ -65,11 +45,14 @@ typedef struct _Storage {
         bool initialized;
         bool has_node;
         bool has_mnemonic;
+        bool has_u2froot;
+        HDNodeType u2froot;
+        uint32_t u2f_counter;
     } pub;
 
     bool has_sec;
     struct Secret {
-        StorageHDNode node;
+        HDNodeType node;
         char mnemonic[241];
         char pin[10];
         Cache cache;
@@ -83,6 +66,8 @@ typedef struct _ConfigFlash {
     Metadata meta;
     Storage storage;
 } ConfigFlash;
+
+void storage_loadNode(HDNode *dst, const HDNodeType *src);
 
 /// Derive the wrapping key from the user's pin.
 void storage_deriveWrappingKey(const char *pin, uint8_t wrapping_key[64]);
@@ -135,14 +120,14 @@ void storage_writeV11(char *ptr, size_t len, const ConfigFlash *src);
 
 void storage_readMeta(Metadata *meta, const char *ptr, size_t len);
 void storage_readPolicyV1(PolicyType *policy, const char *ptr, size_t len);
-void storage_readHDNode(StorageHDNode *node, const char *ptr, size_t len);
+void storage_readHDNode(HDNodeType *node, const char *ptr, size_t len);
 void storage_readStorageV1(Storage *storage, const char *ptr, size_t len);
 void storage_readStorageV11(Storage *storage, const char *ptr, size_t len);
 void storage_readCacheV1(Cache *cache, const char *ptr, size_t len);
 
 void storage_writeMeta(char *ptr, size_t len, const Metadata *meta);
 void storage_writePolicyV1(char *ptr, size_t len, const PolicyType *policy);
-void storage_writeHDNode(char *ptr, size_t len, const StorageHDNode *node);
+void storage_writeHDNode(char *ptr, size_t len, const HDNodeType *node);
 void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage);
 void storage_writeCacheV1(char *ptr, size_t len, const Cache *cache);
 

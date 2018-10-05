@@ -20,14 +20,12 @@
 #ifndef MSG_DISPATCH_H
 #define MSG_DISPATCH_H
 
-/* === Includes ============================================================ */
-
 #include "keepkey/transport/interface.h"
+
+#include "keepkey/board/usb_driver.h"
 
 #include <stdint.h>
 #include <stdbool.h>
-
-/* === Defines ============================================================= */
 
 #define MSG_TINY_BFR_SZ     64
 #define MSG_TINY_TYPE_ERROR 0xFFFF
@@ -143,9 +141,8 @@ typedef enum
 
 typedef void (*raw_msg_handler_t)(RawMessage *msg, uint32_t frame_length);
 
-/* === Functions =========================================================== */
-
 bool msg_write(MessageType msg_id, const void *msg);
+bool msg_u2f_write(MessageType msg_id, const void *msg);
 
 #if DEBUG_LINK
 bool msg_debug_write(MessageType msg_id, const void *msg);
@@ -162,6 +159,8 @@ void call_msg_debug_link_get_state_handler(DebugLinkGetState *msg);
 #endif
 
 void msg_init(void);
+
+void handle_usb_rx(UsbMessage *msg);
 
 MessageType wait_for_tiny_msg(uint8_t *buf);
 MessageType check_for_tiny_msg(uint8_t *buf);

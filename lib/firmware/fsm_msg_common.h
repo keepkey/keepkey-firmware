@@ -374,52 +374,30 @@ void fsm_msgCancel(Cancel *msg)
 
 void fsm_msgApplySettings(ApplySettings *msg)
 {
-    if(msg->has_label)
-    {
-        if(!confirm(ButtonRequestType_ButtonRequest_ChangeLabel,
-                    "Change Label", "Do you want to change the label to \"%s\"?", msg->label))
-        {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                            "Apply settings cancelled");
-            layoutHome();
-            return;
+    if (msg->has_label) {
+        if (!confirm(ButtonRequestType_ButtonRequest_ChangeLabel,
+                    "Change Label", "Do you want to change the label to \"%s\"?", msg->label)) {
+            goto apply_settings_cancelled;
         }
     }
 
-    if(msg->has_language)
-    {
-        if(!confirm(ButtonRequestType_ButtonRequest_ChangeLanguage,
-                    "Change Language", "Do you want to change the language to %s?", msg->language))
-        {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                            "Apply settings cancelled");
-            layoutHome();
-            return;
+    if (msg->has_language) {
+        if (!confirm(ButtonRequestType_ButtonRequest_ChangeLanguage,
+                    "Change Language", "Do you want to change the language to %s?", msg->language)) {
+            goto apply_settings_cancelled;
         }
     }
 
-    if(msg->has_use_passphrase)
-    {
-        if(msg->use_passphrase)
-        {
-            if(!confirm(ButtonRequestType_ButtonRequest_EnablePassphrase,
-                        "Enable Passphrase", "Do you want to enable passphrase encryption?"))
-            {
-                fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                                "Apply settings cancelled");
-                layoutHome();
-                return;
+    if (msg->has_use_passphrase) {
+        if (msg->use_passphrase) {
+            if (!confirm(ButtonRequestType_ButtonRequest_EnablePassphrase,
+                         "Enable Passphrase", "Do you want to enable passphrase encryption?")) {
+                goto apply_settings_cancelled;
             }
-        }
-        else
-        {
-            if(!confirm(ButtonRequestType_ButtonRequest_DisablePassphrase,
-                        "Disable Passphrase", "Do you want to disable passphrase encryption?"))
-            {
-                fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                                "Apply settings cancelled");
-                layoutHome();
-                return;
+        } else {
+            if (!confirm(ButtonRequestType_ButtonRequest_DisablePassphrase,
+                         "Disable Passphrase", "Do you want to disable passphrase encryption?")) {
+                goto apply_settings_cancelled;
             }
         }
     }
@@ -428,14 +406,23 @@ void fsm_msgApplySettings(ApplySettings *msg)
         if (!confirm(ButtonRequestType_ButtonRequest_Other,
                      "Change auto-lock delay", "Do you want to set the auto-lock delay to %" PRIu32 " seconds?",
                      msg->auto_lock_delay_ms / 1000)) {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                            "Apply settings cancelled");
-            layoutHome();
-            return;
+            goto apply_settings_cancelled;
         }
     }
 
-    if(!msg->has_label && !msg->has_language && !msg->has_use_passphrase && !msg->has_auto_lock_delay_ms)
+    if (msg->has_u2f_counter) {
+        if (!confirm(ButtonRequestType_ButtonRequest_Other,
+                     "Set U2F Counter", "Do you want to set the U2F Counter to %" PRIu32 "?",
+                     msg->u2f_counter)) {
+            goto apply_settings_cancelled;
+        }
+    }
+
+    if (!msg->has_label &&
+        !msg->has_language &&
+        !msg->has_use_passphrase &&
+        !msg->has_auto_lock_delay_ms &&
+        !msg->has_u2f_counter)
     {
         fsm_sendFailure(FailureType_Failure_SyntaxError, "No setting provided");
         return;
@@ -443,18 +430,15 @@ void fsm_msgApplySettings(ApplySettings *msg)
 
     CHECK_PIN
 
-    if(msg->has_label)
-    {
+    if (msg->has_label) {
         storage_setLabel(msg->label);
     }
 
-    if(msg->has_language)
-    {
+    if (msg->has_language) {
         storage_setLanguage(msg->language);
     }
 
-    if(msg->has_use_passphrase)
-    {
+    if (msg->has_use_passphrase) {
         storage_setPassphraseProtected(msg->use_passphrase);
     }
 
@@ -462,10 +446,21 @@ void fsm_msgApplySettings(ApplySettings *msg)
         storage_setAutoLockDelayMs(msg->auto_lock_delay_ms);
     }
 
+    if (msg->has_u2f_counter) {
+        storage_setU2FCounter(msg->u2f_counter);
+    }
+
     storage_commit();
 
     fsm_sendSuccess("Settings applied");
     layoutHome();
+    return;
+
+apply_settings_cancelled:
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    "Apply settings cancelled");
+    layoutHome();
+    return;
 }
 
 void fsm_msgRecoveryDevice(RecoveryDevice *msg)
