@@ -186,7 +186,8 @@ void recovery_word(const char *word)
         // last one
         storage_setMnemonicFromWords(words, word_count);
 
-        if (!enforce_wordlist || mnemonic_check(storage_getShadowMnemonic())) {
+        const char *entered_mnemonic = storage_getShadowMnemonic();
+        if (entered_mnemonic && (!enforce_wordlist || mnemonic_check(entered_mnemonic))) {
             storage_commit();
             fsm_sendSuccess("Device recovered");
         } else {

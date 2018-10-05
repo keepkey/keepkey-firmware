@@ -12,7 +12,7 @@ include_directories(
 
 add_executable(firmware-unit ${sources})
 target_link_libraries(firmware-unit
-    gtest_main
+    gmock_main
     kkfirmware
     kkfirmware.keepkey
     kkboard

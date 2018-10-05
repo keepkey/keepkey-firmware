@@ -84,7 +84,7 @@ void fsm_msgSignTx(SignTx *msg)
 	CHECK_PARAM(msg->outputs_count > 0, _("Transaction must have at least one output"));
 	CHECK_PARAM(msg->inputs_count + msg->outputs_count >= msg->inputs_count, _("Value overflow"));
 
-	CHECK_PIN_UNCACHED
+	CHECK_PIN_TXSIGN
 
 	const CoinType *coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
 	if(!coin) { return; }

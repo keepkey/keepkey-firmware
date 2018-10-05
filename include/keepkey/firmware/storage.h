@@ -23,7 +23,7 @@
 #include "trezor/crypto/bip32.h"
 #include "keepkey/board/memory.h"
 
-#define STORAGE_VERSION 10 /* Must add case fallthrough in storage_fromFlash after increment*/
+#define STORAGE_VERSION 11 /* Must add case fallthrough in storage_fromFlash after increment*/
 #define STORAGE_RETRIES 3
 
 
@@ -36,8 +36,8 @@ void storage_resetUuid(void);
 /// \brief Clear configuration.
 void storage_reset(void);
 
-/// \brief Reset session states
-/// \param clear_pin  Whether to clear the session pin.
+/// \brief Reset session states.
+/// \param clear_pin whether to clear the pin as well.
 void session_clear(bool clear_pin);
 
 /// \brief Write content of configuration in shadow memory to storage partion
@@ -94,36 +94,40 @@ void storage_setMnemonicFromWords(const char (*words)[12], unsigned int num_word
 /// \brief Set config mnemonic from a recovery sentence.
 void storage_setMnemonic(const char *mnemonic);
 
-/// \returns true iff the device has a mnemonic in storage.
-bool storage_hasMnemonic(void);
-
 /// \brief Get mnemonic from shadow memory
 const char *storage_getShadowMnemonic(void);
 
 /// \returns true iff the private key stored on device was imported.
 bool storage_getImported(void);
 
-/// \returns true iff the active storage has a HDNode.
-bool storage_hasNode(void);
-
 /// \brief Get active storage location..
 Allocation storage_getLocation(void);
 
 typedef struct _PolicyType PolicyType;
 
-/// \brief Assign policy by name
-bool storage_setPolicy(const PolicyType *policy);
+/// \brief Assign policy by name.
+/// \returns true iff assignment was successful.
+bool storage_setPolicy(const char *policy_name, bool enabled);
 
 /// \brief Copy out all the policies in storage
 /// \param policies[out]  Where to write the policies.
 void storage_getPolicies(PolicyType *policies);
 
 /// \brief Status of policy in storage
-bool storage_isPolicyEnabled(char *policy_name);
+bool storage_isPolicyEnabled(const char *policy_name);
+
+uint32_t storage_getAutoLockDelayMs(void);
+void storage_setAutoLockDelayMs(uint32_t auto_lock_delay_ms);
 
 #ifdef DEBUG_LINK
 typedef struct _HDNodeType HDNodeType;
 typedef struct _StorageHDNode StorageHDNode;
+
+/// \returns true iff the device has a mnemonic in storage.
+bool storage_hasMnemonic(void);
+
+/// \returns true iff the active storage has a HDNode.
+bool storage_hasNode(void);
 
 const char *storage_getPin(void);
 const char *storage_getMnemonic(void);

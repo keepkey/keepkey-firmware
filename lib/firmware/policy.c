@@ -17,21 +17,18 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "keepkey/firmware/policy.h"
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/exchange.h"
 
-/* === Variables =========================================================== */
-
+// NOTE: when adding policies, *ONLY* add to the end. Otherwise this breaks
+// storage_upgradePolicies();
 const PolicyType policies[POLICY_COUNT] = {
-    {true, "ShapeShift", true, false}
+    {true, "ShapeShift", true, false},
+    {true, "Pin Caching", true, false}
 };
-
-/* === Functions =========================================================== */
 
 /*
  * run_policy_compile_output() - Policy wrapper around compile output

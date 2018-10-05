@@ -20,49 +20,56 @@
 #ifndef PIN_SM_H
 #define PIN_SM_H
 
-/* === Includes ============================================================ */
-
 #include "keepkey/transport/interface.h"
 
 #include <stdbool.h>
 
-/* === Defines ============================================================= */
- 
 #define PIN_BUF sizeof(((PinMatrixAck *)NULL)->pin)
 
 #define PIN_FAIL_DELAY_START    2
 #define MAX_PIN_FAIL_ATTEMPTS   32
 
-/* === Typedefs ============================================================ */
-
-/* State for PIN SM */
+/// State for PIN SM.
 typedef enum {
-    PIN_REQUEST,
+	PIN_REQUEST,
 	PIN_WAITING,
 	PIN_ACK,
 	PIN_FINISHED
 } PINState;
 
-/* While waiting for a PIN ack, these are the types of messages we expect to see.  */
+/// While waiting for a PIN ack, these are the types of messages we expect to see.
 typedef enum {
 	PIN_ACK_WAITING,
-    PIN_ACK_RECEIVED,
+	PIN_ACK_RECEIVED,
 	PIN_ACK_CANCEL_BY_INIT,
 	PIN_ACK_CANCEL
 } PINAckMsg;
 
-/* Contains PIN received info */
+/// PIN received info.
 typedef struct {
 	PinMatrixRequestType type;
 	PINAckMsg pin_ack_msg;
 	char pin[PIN_BUF];
 } PINInfo;
- 
-/* === Functions =========================================================== */
 
-const char* get_pin_matrix(void);
-bool pin_protect(char *prompt);
+/// Authenticate user PIN for device access.
+/// \param prompt Text to show user along with PIN matrix.
+/// \returns true iff the PIN was correct.
+bool pin_protect(const char *prompt);
+
+bool pin_protect_txsign(void);
+
+/// Prompt for PIN only if it is not already cached.
+/// \returns true iff the pin was correct (or already cached).
 bool pin_protect_cached(void);
+
+/// Process a PIN change.
+/// \returns true iff the PIN was successfully changed.
 bool change_pin(void);
+
+#if DEBUG_LINK
+/// Gets randomized PIN matrix.
+const char *get_pin_matrix(void);
+#endif
 
 #endif

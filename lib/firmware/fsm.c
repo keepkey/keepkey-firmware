@@ -88,12 +88,11 @@ static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
         return; \
     }
 
-#define CHECK_PIN_UNCACHED \
-    if (!pin_protect("Enter Current PIN")) { \
+#define CHECK_PIN_TXSIGN \
+    if (!pin_protect_txsign()) { \
         layoutHome(); \
         return; \
     }
-
 
 #define CHECK_PARAM(cond, errormsg) \
     if (!(cond)) { \
@@ -258,7 +257,7 @@ void fsm_sendFailure(FailureType code, const char *text)
 void fsm_msgClearSession(ClearSession *msg)
 {
     (void)msg;
-    session_clear(true);
+    session_clear(/*clear_pin=*/true);
     fsm_sendSuccess("Session cleared");
 }
 

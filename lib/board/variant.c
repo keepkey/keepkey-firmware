@@ -16,7 +16,6 @@ static const VariantAnimation *screensaver;
 static const VariantAnimation *logo;
 static const VariantAnimation *logo_reversed;
 static const char *name;
-static const uint32_t *screensaver_timeout;
 
 // Retrieves model information from storage
 Model getModel(void) {
@@ -150,13 +149,3 @@ const char *variant_getName(void) {
     name = variant_getInfo()->name;
     return name;
 }
-
-uint32_t variant_getScreensaverTimeout(void) {
-    if (screensaver_timeout) {
-        return *screensaver_timeout;
-    }
-
-    screensaver_timeout = &variant_getInfo()->screensaver_timeout;
-    return *screensaver_timeout;
-}
-

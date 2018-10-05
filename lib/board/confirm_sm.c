@@ -40,16 +40,12 @@
 #include <stdio.h>
 #include <string.h>
 
-/* === Private Variables =================================================== */
-
 /* Button request ack */
 static bool button_request_acked = false;
 
-/* === Variables =========================================================== */
-
 extern bool reset_msg_stack;
 
-/* === Private Functions =================================================== */
+static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
 
 /// Handler for push button being pressed.
 /// \param context current state context.
@@ -296,7 +292,6 @@ bool confirm(ButtonRequestType type, const char *request_title, const char *requ
 
     va_list vl;
     va_start(vl, request_body);
-    static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
@@ -320,7 +315,6 @@ bool confirm_with_custom_button_request(ButtonRequest *button_request,
 
     va_list vl;
     va_start(vl, request_body);
-    static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
@@ -340,7 +334,6 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
 
     va_list vl;
     va_start(vl, request_body);
-    static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
@@ -363,7 +356,6 @@ bool confirm_without_button_request(const char *request_title, const char *reque
 
     va_list vl;
     va_start(vl, request_body);
-    static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
@@ -379,7 +371,6 @@ bool review(ButtonRequestType type, const char *request_title, const char *reque
 
     va_list vl;
     va_start(vl, request_body);
-    static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
@@ -402,7 +393,6 @@ bool review_without_button_request(const char *request_title, const char *reques
 
     va_list vl;
     va_start(vl, request_body);
-    static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 

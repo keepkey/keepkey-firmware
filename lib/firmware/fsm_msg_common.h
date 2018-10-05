@@ -97,6 +97,8 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     /* Policies */
     resp->policies_count = POLICY_COUNT;
     storage_getPolicies(resp->policies);
+    _Static_assert(sizeof(resp->policies) / sizeof(resp->policies[0]) == POLICY_COUNT,
+                   "update messages.options to match POLICY_COUNT");
 
     msg_write(MessageType_MessageType_Features, resp);
 }
@@ -225,16 +227,17 @@ void fsm_msgChangePin(ChangePin *msg)
         return;
     }
 
-    CHECK_PIN_UNCACHED
+    CHECK_PIN_TXSIGN
 
     if(removal)
     {
-        storage_setPin(0);
+        storage_setPin("");
         storage_commit();
         fsm_sendSuccess("PIN removed");
     }
     else
     {
+        session_cachePin("");
         if(change_pin())
         {
             storage_commit();
@@ -421,7 +424,18 @@ void fsm_msgApplySettings(ApplySettings *msg)
         }
     }
 
-    if(!msg->has_label && !msg->has_language && !msg->has_use_passphrase)
+    if (msg->has_auto_lock_delay_ms) {
+        if (!confirm(ButtonRequestType_ButtonRequest_Other,
+                     "Change auto-lock delay", "Do you want to set the auto-lock delay to %" PRIu32 " seconds?",
+                     msg->auto_lock_delay_ms / 1000)) {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                            "Apply settings cancelled");
+            layoutHome();
+            return;
+        }
+    }
+
+    if(!msg->has_label && !msg->has_language && !msg->has_use_passphrase && !msg->has_auto_lock_delay_ms)
     {
         fsm_sendFailure(FailureType_Failure_SyntaxError, "No setting provided");
         return;
@@ -442,6 +456,10 @@ void fsm_msgApplySettings(ApplySettings *msg)
     if(msg->has_use_passphrase)
     {
         storage_setPassphraseProtected(msg->use_passphrase);
+    }
+
+    if (msg->has_auto_lock_delay_ms) {
+        storage_setAutoLockDelayMs(msg->auto_lock_delay_ms);
     }
 
     storage_commit();
@@ -501,6 +519,9 @@ void fsm_msgCharacterAck(CharacterAck *msg)
 
 void fsm_msgApplyPolicies(ApplyPolicies *msg)
 {
+    CHECK_PARAM(msg->policy[0].has_policy_name, "Incorrect ApplyPolicies parameters");
+    CHECK_PARAM(msg->policy[0].has_enabled, "Incorrect ApplyPolicies parameters");
+
     RESP_INIT(ButtonRequest);
     resp->has_code = true;
     resp->code = ButtonRequestType_ButtonRequest_ApplyPolicies;
@@ -544,7 +565,7 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg)
 
     CHECK_PIN
 
-    if(!storage_setPolicy(&msg->policy[0]))
+    if(!storage_setPolicy(msg->policy[0].policy_name, msg->policy[0].enabled))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled,
                         "Policy could not be applied");
