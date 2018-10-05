@@ -27,6 +27,9 @@
 
 typedef struct _EthereumSignTx EthereumSignTx;
 typedef struct _EthereumTxAck EthereumTxAck;
+typedef struct _EthereumSignMessage EthereumSignMessage;
+typedef struct _EthereumVerifyMessage EthereumVerifyMessage;
+typedef struct _EthereumMessageSignature EthereumMessageSignature;
 
 void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_confirm);
 void ethereum_signing_abort(void);
@@ -41,5 +44,8 @@ bool is_token_transaction(EthereumSignTx *msg);
  * \returns uint32_t      The number of decimals to interpret the token with
  */
 uint32_t ethereum_get_decimal(const char *token_shortcut);
+
+void ethereum_message_sign(const EthereumSignMessage *msg, const HDNode *node, EthereumMessageSignature *resp);
+int ethereum_message_verify(const EthereumVerifyMessage *msg);
 
 #endif

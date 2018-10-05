@@ -118,6 +118,16 @@ EthereumTxRequest.signature_der         max_size:73
 
 EthereumTxAck.data_chunk		max_size:1024
 
+EthereumSignMessage.address_n				max_count:8
+EthereumSignMessage.message				max_size:1024
+
+EthereumVerifyMessage.address				max_size:20
+EthereumVerifyMessage.signature				max_size:65
+EthereumVerifyMessage.message				max_size:1024
+
+EthereumMessageSignature.address			max_size:20
+EthereumMessageSignature.signature			max_size:65
+
 SignIdentity.challenge_hidden		max_size:256
 SignIdentity.challenge_visual		max_size:256
 SignIdentity.ecdsa_curve_name		max_size:32

@@ -35,6 +35,8 @@
 #include "trezor/crypto/secp256k1.h"
 #include "trezor/crypto/sha3.h"
 
+#define _(X) (X)
+
 #include <stdio.h>
 
 static bool ethereum_signing = false;
@@ -971,4 +973,80 @@ void format_ethereum_address(const uint8_t *to, char *destination_str,
 
     strlcpy(&formatted_destination[2], hex, sizeof(formatted_destination) - 2);
     strlcpy(destination_str, formatted_destination, destination_str_len);
+}
+
+static void ethereum_message_hash(const uint8_t *message, size_t message_len, uint8_t h[32])
+{
+	struct SHA3_CTX ctx;
+	sha3_256_Init(&ctx);
+	sha3_Update(&ctx, (const uint8_t *)"\x19" "Ethereum Signed Message:\n", 26);
+	uint8_t c;
+	if (message_len > 1000000000) { c = '0' + message_len / 1000000000 % 10; sha3_Update(&ctx, &c, 1); }
+	if (message_len > 100000000)  { c = '0' + message_len / 100000000  % 10; sha3_Update(&ctx, &c, 1); }
+	if (message_len > 10000000)   { c = '0' + message_len / 10000000   % 10; sha3_Update(&ctx, &c, 1); }
+	if (message_len > 1000000)    { c = '0' + message_len / 1000000    % 10; sha3_Update(&ctx, &c, 1); }
+	if (message_len > 100000)     { c = '0' + message_len / 100000     % 10; sha3_Update(&ctx, &c, 1); }
+	if (message_len > 10000)      { c = '0' + message_len / 10000      % 10; sha3_Update(&ctx, &c, 1); }
+	if (message_len > 1000)       { c = '0' + message_len / 1000       % 10; sha3_Update(&ctx, &c, 1); }
+	if (message_len > 100)        { c = '0' + message_len / 100        % 10; sha3_Update(&ctx, &c, 1); }
+	if (message_len > 10)         { c = '0' + message_len / 10         % 10; sha3_Update(&ctx, &c, 1); }
+	                                c = '0' + message_len              % 10; sha3_Update(&ctx, &c, 1);
+	sha3_Update(&ctx, message, message_len);
+	keccak_Final(&ctx, h);
+}
+
+void ethereum_message_sign(const EthereumSignMessage *msg, const HDNode *node, EthereumMessageSignature *r)
+{
+	if (!hdnode_get_ethereum_pubkeyhash(node, r->address.bytes)) {
+		return;
+	}
+	r->has_address = true;
+	r->address.size = 20;
+	ethereum_message_hash(msg->message.bytes, msg->message.size, hash);
+
+	uint8_t v;
+	if (ecdsa_sign_digest(&secp256k1, node->private_key, hash, r->signature.bytes, &v, ethereum_is_canonic) != 0) {
+		fsm_sendFailure(FailureType_Failure_Other, _("Signing failed"));
+		return;
+	}
+
+	r->has_signature = true;
+	r->signature.bytes[64] = 27 + v;
+	r->signature.size = 65;
+	msg_write(MessageType_MessageType_EthereumMessageSignature, r);
+}
+
+int ethereum_message_verify(const EthereumVerifyMessage *msg)
+{
+	if (msg->signature.size != 65 || msg->address.size != 20) {
+		fsm_sendFailure(FailureType_Failure_SyntaxError, _("Malformed data"));
+		return 1;
+	}
+
+	uint8_t pubkey[65];
+
+	ethereum_message_hash(msg->message.bytes, msg->message.size, hash);
+
+	/* v should be 27, 28 but some implementations use 0,1.  We are
+	 * compatible with both.
+	 */
+	uint8_t v = msg->signature.bytes[64];
+	if (v >= 27) {
+		v -= 27;
+	}
+	if (v >= 2 ||
+		ecdsa_verify_digest_recover(&secp256k1, pubkey, msg->signature.bytes, hash, v) != 0) {
+		return 2;
+	}
+
+	struct SHA3_CTX ctx;
+	sha3_256_Init(&ctx);
+	sha3_Update(&ctx, pubkey + 1, 64);
+	keccak_Final(&ctx, hash);
+
+	/* result are the least significant 160 bits */
+	if (memcmp(msg->address.bytes, hash + 12, 20) != 0) {
+		return 2;
+	}
+	return 0;
 }

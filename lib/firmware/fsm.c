@@ -53,6 +53,7 @@
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/util.h"
 #include "keepkey/rand/rng.h"
+#include "trezor/crypto/address.h"
 #include "trezor/crypto/aes/aes.h"
 #include "trezor/crypto/base58.h"
 #include "trezor/crypto/bip39.h"

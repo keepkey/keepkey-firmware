@@ -81,6 +81,8 @@ void fsm_msgWordAck(WordAck *msg);
 void fsm_msgEthereumGetAddress(EthereumGetAddress *msg);
 void fsm_msgEthereumSignTx(EthereumSignTx *msg);
 void fsm_msgEthereumTxAck(EthereumTxAck *msg);
+void fsm_msgEthereumSignMessage(EthereumSignMessage *msg);
+void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg);
 void fsm_msgCharacterAck(CharacterAck *msg);
 void fsm_msgApplyPolicies(ApplyPolicies *msg);
 
