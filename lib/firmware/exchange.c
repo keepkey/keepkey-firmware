@@ -97,17 +97,19 @@ static bool exchange_tx_layout_str(const CoinType *coint, uint8_t *amt, size_t a
     return false;
 }
 
-/// \returns true iff two addresses match. Ignores differencess in leading '0x'.
-bool addresses_same(const char *LHS, size_t LHS_len, const char *RHS, size_t RHS_len)
+/// \returns true iff two addresses match. Ignores differencess in leading '0x' for ETH-like addresses.
+bool addresses_same(const char *LHS, size_t LHS_len, const char *RHS, size_t RHS_len, bool isETH)
 {
-    if (LHS[0] == '0' && (LHS[1] == 'x' || LHS[1] == 'X')) {
-        LHS += 2;
-        LHS_len -= 2;
-    }
+    if (isETH) {
+        if (LHS[0] == '0' && (LHS[1] == 'x' || LHS[1] == 'X')) {
+            LHS += 2;
+            LHS_len -= 2;
+        }
 
-    if (RHS[0] == '0' && (RHS[1] == 'x' || RHS[1] == 'X')) {
-        RHS += 2;
-        RHS_len -= 2;
+        if (RHS[0] == '0' && (RHS[1] == 'x' || RHS[1] == 'X')) {
+            RHS += 2;
+            RHS_len -= 2;
+        }
     }
 
     return strncasecmp(LHS, RHS, MIN(LHS_len, RHS_len)) == 0;
@@ -152,7 +154,7 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
         {
             data2hex((char *)ethereum_addr.bytes, 20, tx_out_address);
             ret_stat = addresses_same(tx_out_address, sizeof(tx_out_address),
-                                      address_str, address_str_len);
+                                      address_str, address_str_len, true);
         }
     } else {
         const curve_info *curve = get_curve_by_name(coin->curve_name);
@@ -294,7 +296,8 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
 {
     bool ret_stat = false;
     bool is_token = false;
-    int response_raw_filled_len = 0; 
+    bool is_ethLike = false;
+    int response_raw_filled_len = 0;
     uint8_t response_raw[sizeof(ExchangeResponseV2)];
     const CoinType *response_coin;
     const CoinType *withdraw_coin;
@@ -302,7 +305,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     char tx_out_address[sizeof(((ExchangeAddress *)NULL)->address)];
     char token_shortcut[sizeof(((CoinType *)NULL)->coin_shortcut)];
     void *tx_out_amount;
-    
+
     ExchangeType *exchange;
     memset(tx_out_address, 0, sizeof(tx_out_address));
 
@@ -317,18 +320,19 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
             set_exchange_error(ERROR_EXCHANGE_RESPONSE_STRUCTURE);
             goto verify_exchange_contract_exit;
         }
-	is_token = is_token_transaction(tx_out);
-	if(is_token) {
+        is_token = is_token_transaction(tx_out);
+        if(is_token) {
             // token specific address, shorcut, and value
             data2hex(tx_out->token_to.bytes, tx_out->token_to.size, tx_out_address);
             tx_out_amount = (void *)tx_out->token_value.bytes;
             strncpy(token_shortcut, tx_out->token_shortcut, sizeof(token_shortcut));
-	}
-	else
-	{
+        }
+        else
+        {
             data2hex(tx_out->to.bytes, tx_out->to.size, tx_out_address);
             tx_out_amount = (void *)tx_out->value.bytes;
-	}
+        }
+        is_ethLike = true;
     }
     else
     {
@@ -336,6 +340,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
         exchange = &tx_out->exchange_type;
         memcpy(tx_out_address, tx_out->address, sizeof(tx_out->address));
         tx_out_amount = (void *)&tx_out->amount;
+        is_ethLike = false;
     }
 
     /* verify Exchange signature */
@@ -383,7 +388,8 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     /* verify Deposit address */
     if(!addresses_same(tx_out_address, sizeof(tx_out_address),
                exchange->signed_exchange_response.responseV2.deposit_address.address,
-               sizeof(exchange->signed_exchange_response.responseV2.deposit_address.address)))
+               sizeof(exchange->signed_exchange_response.responseV2.deposit_address.address),
+               is_ethLike))
     {
         set_exchange_error(ERROR_EXCHANGE_DEPOSIT_ADDRESS);
         goto verify_exchange_contract_exit;
