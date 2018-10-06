@@ -645,3 +645,47 @@ TEST(Storage, IsPinCorrect) {
 
     EXPECT_TRUE(memcmp(key_out, storage_key, 64) == 0);
 }
+
+TEST(Storage, Pin) {
+    storage_setPin("");
+    ASSERT_TRUE(storage_isPinCorrect(""));
+
+    storage_setPin("1234");
+    ASSERT_TRUE(storage_isPinCorrect("1234"));
+    ASSERT_FALSE(storage_isPinCorrect(""));
+    ASSERT_FALSE(storage_isPinCorrect("9876"));
+
+    storage_setPin("987654321");
+    ASSERT_FALSE(storage_isPinCorrect(""));
+    ASSERT_TRUE(storage_isPinCorrect("987654321"));
+
+    storage_setPin("");
+    ASSERT_TRUE(storage_isPinCorrect(""));
+}
+
+TEST(Storage, Reset) {
+    ConfigFlash config;
+    uint8_t storage_key[64];
+
+    storage_reset_impl(&config, storage_key);
+
+    ASSERT_TRUE(storage_isPinCorrect_impl("",
+                                          config.storage.pub.wrapped_storage_key,
+                                          config.storage.pub.storage_key_fingerprint,
+                                          storage_key));
+
+    uint8_t new_storage_key[64];
+    memset(new_storage_key, 0, sizeof(new_storage_key));
+    storage_setPin_impl(&config.storage, "1234", new_storage_key);
+
+    ASSERT_TRUE(memcmp(storage_key, new_storage_key, 64) != 0)
+        << "RNG broken?";
+
+    uint8_t newest_storage_key[64];
+    ASSERT_TRUE(storage_isPinCorrect_impl("1234",
+                                          config.storage.pub.wrapped_storage_key,
+                                          config.storage.pub.storage_key_fingerprint,
+                                          newest_storage_key));
+
+    ASSERT_TRUE(memcmp(new_storage_key, newest_storage_key, 64) == 0);
+}

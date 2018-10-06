@@ -781,7 +781,7 @@ void storage_init(void)
     const char *flash = (const char *)flash_write_helper(storage_location);
 
     // Reset shadow configuration in RAM
-    storage_reset_impl(&shadow_config);
+    storage_reset_impl(&shadow_config, sessionStorageKey);
 
     // If the storage partition is not already active
     if (!storage_isActiveSector(flash)) {
@@ -831,14 +831,16 @@ void storage_resetUuid_impl(ConfigFlash *cfg)
 
 void storage_reset(void)
 {
-    storage_reset_impl(&shadow_config);
+    storage_reset_impl(&shadow_config, sessionStorageKey);
 }
 
-void storage_reset_impl(ConfigFlash *cfg)
+void storage_reset_impl(ConfigFlash *cfg, uint8_t storage_key[64])
 {
     memset(&cfg->storage, 0, sizeof(cfg->storage));
 
     storage_resetPolicies(&cfg->storage);
+
+    storage_setPin_impl(&cfg->storage, "", storage_key);
 
     cfg->storage.version = STORAGE_VERSION;
     session_clear(/*clear_pin=*/true);
@@ -1011,15 +1013,11 @@ void storage_loadNode(HDNode *dst, const HDNodeType *src) {
 
 void storage_loadDevice(LoadDevice *msg)
 {
-    storage_reset_impl(&shadow_config);
+    storage_reset_impl(&shadow_config, sessionStorageKey);
 
     shadow_config.storage.pub.imported = true;
 
-    if (msg->has_pin) {
-        storage_setPin(msg->pin);
-    } else {
-        session_cachePin("");
-    }
+    storage_setPin(msg->has_pin ? msg->pin : "");
 
     shadow_config.storage.pub.passphrase_protection =
         msg->has_passphrase_protection && msg->passphrase_protection;
@@ -1122,32 +1120,39 @@ bool storage_hasPin(void)
 
 void storage_setPin(const char *pin)
 {
-    // Derive the wrapping key for the new pin
-    uint8_t wrapping_key[64];
-    storage_deriveWrappingKey(pin, wrapping_key);
-
-    // Derive a new storage_key.
-    random_buffer(sessionStorageKey, sizeof(sessionStorageKey));
-
-    // Wrap the new storage_key.
-    storage_wrapStorageKey(wrapping_key, sessionStorageKey,
-                           shadow_config.storage.pub.wrapped_storage_key);
-
-    // Fingerprint the storage_key.
-    storage_keyFingerprint(sessionStorageKey,
-                           shadow_config.storage.pub.storage_key_fingerprint);
-
-    // Clean up secrets to get them off the stack.
-    memzero(wrapping_key, sizeof(wrapping_key));
+    storage_setPin_impl(&shadow_config.storage, pin, sessionStorageKey);
 
     sessionPinCached = true;
-    shadow_config.storage.pub.has_pin = !!strlen(pin);
 
 #if DEBUG_LINK
     strncpy(debuglink_pin, pin, sizeof(debuglink_pin));
 #endif
 
-    storage_secMigrate(&shadow_config.storage, sessionStorageKey, /*encrypt=*/true);
+}
+
+void storage_setPin_impl(Storage *storage, const char *pin, uint8_t storage_key[64])
+{
+    // Derive the wrapping key for the new pin
+    uint8_t wrapping_key[64];
+    storage_deriveWrappingKey(pin, wrapping_key);
+
+    // Derive a new storage_key.
+    random_buffer(storage_key, 64);
+
+    // Wrap the new storage_key.
+    storage_wrapStorageKey(wrapping_key, storage_key,
+                           storage->pub.wrapped_storage_key);
+
+    // Fingerprint the storage_key.
+    storage_keyFingerprint(storage_key,
+                           storage->pub.storage_key_fingerprint);
+
+    // Clean up secrets to get them off the stack.
+    memzero(wrapping_key, sizeof(wrapping_key));
+
+    storage->pub.has_pin = !!strlen(pin);
+
+    storage_secMigrate(storage, storage_key, /*encrypt=*/true);
 }
 
 void session_cachePin(const char *pin)
@@ -1158,8 +1163,10 @@ void session_cachePin(const char *pin)
                                   shadow_config.storage.pub.storage_key_fingerprint,
                                   sessionStorageKey);
 
-    if (!sessionPinCached)
+    if (!sessionPinCached) {
+        memset(sessionStorageKey, 0, sizeof(sessionStorageKey));
         return;
+    }
 
     storage_secMigrate(&shadow_config.storage, sessionStorageKey, /*encrypt=*/false);
 }

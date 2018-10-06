@@ -90,7 +90,9 @@ void storage_secMigrate(Storage *storage, const uint8_t storage_key[64], bool en
 
 void storage_resetUuid_impl(ConfigFlash *cfg);
 
-void storage_reset_impl(ConfigFlash *cfg);
+void storage_reset_impl(ConfigFlash *cfg, uint8_t storage_key[64]);
+
+void storage_setPin_impl(Storage *storage, const char *pin, uint8_t storage_key[64]);
 
 void storage_commit_impl(ConfigFlash *cfg);
 
