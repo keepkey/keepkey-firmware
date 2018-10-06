@@ -274,7 +274,6 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
 {
     bool ret_stat = false;
     bool is_token = false;
-    bool is_ethLike = false;
     int response_raw_filled_len = 0;
     uint8_t response_raw[sizeof(ExchangeResponseV2)];
     const CoinType *response_coin;
@@ -310,7 +309,6 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
             data2hex(tx_out->to.bytes, tx_out->to.size, tx_out_address);
             tx_out_amount = (void *)tx_out->value.bytes;
         }
-        is_ethLike = true;
     }
     else
     {
@@ -318,7 +316,6 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
         exchange = &tx_out->exchange_type;
         memcpy(tx_out_address, tx_out->address, sizeof(tx_out->address));
         tx_out_amount = (void *)&tx_out->amount;
-        is_ethLike = false;
     }
 
     /* verify Exchange signature */
@@ -367,7 +364,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     if(!addresses_same(tx_out_address, sizeof(tx_out_address),
                exchange->signed_exchange_response.responseV2.deposit_address.address,
                sizeof(exchange->signed_exchange_response.responseV2.deposit_address.address),
-               is_ethLike))
+               isEthereumLike(coin->coin_name)))
     {
         set_exchange_error(ERROR_EXCHANGE_DEPOSIT_ADDRESS);
         goto verify_exchange_contract_exit;
