@@ -1,84 +1,61 @@
 static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
 {
-    int ret_val = TXOUT_COMPILE_ERROR;
-    char node_str[NODE_STRING_LENGTH], amount_str[32], token_amount_str[128+sizeof(msg->token_shortcut)+2];
-    const HDNode *node = NULL;
 
-    /* Precheck: For TRANSFER, 'to' fields should not be loaded */
-    if(msg->has_to || msg->to.size || strlen((char *)msg->to.bytes) != 0)
-    {
-        /* Bailing, error detected! */
-        goto process_ethereum_xfer_exit;
+    /* Precheck: For TRANSFER, 'to' fields must not be loaded */
+    if (msg->has_to || msg->to.size || strlen((char *)msg->to.bytes) != 0)
+        return TXOUT_COMPILE_ERROR;
+
+    char node_str[NODE_STRING_LENGTH];
+    if (!bip32_node_to_string(node_str, sizeof(node_str), coin, msg->to_address_n,
+                              msg->to_address_n_count, /*whole_account=*/false))
+        return TXOUT_COMPILE_ERROR;
+
+    ButtonRequestType button_request = ButtonRequestType_ButtonRequest_ConfirmTransferToAccount;
+    if (is_token_transaction(msg)) {
+        uint32_t decimal = ethereum_get_decimal(msg->token_shortcut);
+        if (decimal == 0)
+            return TXOUT_COMPILE_ERROR;
+
+        char token_amount_str[128+sizeof(msg->token_shortcut)+2];
+        if (!ether_token_for_display(msg->token_value.bytes,
+                                     msg->token_value.size, decimal,
+                                     token_amount_str,
+                                     sizeof(token_amount_str)))
+            return TXOUT_COMPILE_ERROR;
+
+        // append token shortcut
+        strncat(token_amount_str, " ", 1);
+        strncat(token_amount_str, msg->token_shortcut, sizeof(msg->token_shortcut));
+        if (!confirm_transfer_output(button_request, token_amount_str, node_str))
+            return TXOUT_CANCEL;
+    } else {
+        char amount_str[32];
+        if (!ether_for_display(msg->value.bytes, msg->value.size, amount_str))
+            return TXOUT_COMPILE_ERROR;
+
+        if (!confirm_transfer_output(button_request, amount_str, node_str))
+            return TXOUT_CANCEL;
     }
 
-    if(bip32_node_to_string(node_str, sizeof(node_str), coin, msg->to_address_n, msg->to_address_n_count, /*whole_account=*/false))
-    {
-        ButtonRequestType button_request = ButtonRequestType_ButtonRequest_ConfirmTransferToAccount;
-        if(is_token_transaction(msg)) {
-            uint32_t decimal = ethereum_get_decimal(msg->token_shortcut);
-            if (decimal == 0) {
-                goto process_ethereum_xfer_exit;
-            }
+    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->to_address_n, msg->to_address_n_count, NULL);
+    if (!node)
+        return TXOUT_COMPILE_ERROR;
 
-            if(ether_token_for_display(msg->token_value.bytes, msg->token_value.size, decimal, token_amount_str, sizeof(token_amount_str)))
-            {
-                // append token shortcut
-                strncat(token_amount_str, " ", 1);
-                strncat(token_amount_str, msg->token_shortcut, sizeof(msg->token_shortcut));
-                if (!confirm_transfer_output(button_request, token_amount_str, node_str))
-                {
-                       ret_val = TXOUT_CANCEL;
-                    goto process_ethereum_xfer_exit;
-                }
-            }
-            else
-            {
-                    goto process_ethereum_xfer_exit;
-            }
-        }
-        else
-        {
-                   if(ether_for_display(msg->value.bytes, msg->value.size, amount_str))
-            {
-                if(!confirm_transfer_output(button_request, amount_str, node_str))
-                {
-                    ret_val = TXOUT_CANCEL;
-                    goto process_ethereum_xfer_exit;
-                }
-            }
-            else
-            {
-                    goto process_ethereum_xfer_exit;
-            }
-        }
+    if (!hdnode_get_ethereum_pubkeyhash(node, is_token_transaction(msg)
+                                                ? msg->token_to.bytes
+                                                : msg->to.bytes))
+        return TXOUT_COMPILE_ERROR;
+
+    if (is_token_transaction(msg)) {
+        msg->has_token_to = true;
+        msg->token_to.size = 20;
+    } else {
+        msg->has_to = true;
+        msg->to.size = 20;
     }
 
-    node = fsm_getDerivedNode(SECP256K1_NAME, msg->to_address_n, msg->to_address_n_count, NULL);
-    if(node)
-    {
-        // setup "token_to" or "to" field depending on if this is a token transaction or not
-        if (is_token_transaction(msg)) {
-            if(hdnode_get_ethereum_pubkeyhash(node, msg->token_to.bytes))
-            {
-                msg->has_token_to = true;
-                msg->token_to.size = 20;
-                ret_val = TXOUT_OK;
-               }
-        }
-        else
-        {
-            if(hdnode_get_ethereum_pubkeyhash(node, msg->to.bytes))
-            {
-                msg->has_to = true;
-                msg->to.size = 20;
-                ret_val = TXOUT_OK;
-            }
-        }
-        memset((void *)node, 0, sizeof(HDNode));
-    }
-
-process_ethereum_xfer_exit:
-    return(ret_val);
+    memset((void *)node, 0, sizeof(HDNode));
+    return TXOUT_OK;
 }
 
 static int process_ethereum_msg(EthereumSignTx *msg, bool *confirm_ptr)
