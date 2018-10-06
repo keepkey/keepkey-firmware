@@ -72,38 +72,31 @@ static const uint8_t ShapeShift_api_key[64] =
  */
 static bool exchange_tx_layout_str(const CoinType *coint, uint8_t *amt, size_t amt_len, char *out, size_t out_len)
 {
-    bool ret_stat = false;
-    uint64_t amount64;
-    bool is_token = coint->has_contract_address;
-
-    if(check_ethereum_tx(coint->coin_name))
-    {
-        ret_stat = ether_for_display(amt, amt_len, out);
+    if (check_ethereum_tx(coint->coin_name)) {
+        return ether_for_display(amt, amt_len, out);
     }
-    else if(is_token)
-    {
-        ret_stat = ether_token_for_display(amt, amt_len, coint->decimals, out, out_len);
-        if(out_len <= strlen(out) + 1 + sizeof(coint->coin_shortcut) + 1) 
-        {
-            ret_stat = false;
-            return ret_stat;
+
+    if (coint->has_contract_address) {
+        bool ret_stat = ether_token_for_display(amt, amt_len, coint->decimals, out, out_len);
+        if (out_len <= strlen(out) + 1 + sizeof(coint->coin_shortcut) + 1) {
+            return false;
         }
 
         // Append token shortcut to display string
         strncat(out, " ", 1);
         strncat(out, coint->coin_shortcut, sizeof(coint->coin_shortcut)+1);
+        return ret_stat;
     }
-    else
-    {
-        if(amt_len <= sizeof(uint64_t))
-        {
-            rev_byte_order(amt, amt_len);
-            memcpy(&amount64, amt, sizeof(uint64_t));
-            coin_amnt_to_str(coint, amount64, out, out_len);
-            ret_stat = true;
-        }
+
+    if (amt_len <= sizeof(uint64_t)) {
+        uint64_t amount64;
+        rev_byte_order(amt, amt_len);
+        memcpy(&amount64, amt, sizeof(uint64_t));
+        coin_amnt_to_str(coint, amount64, out, out_len);
+        return true;
     }
-    return(ret_stat);
+
+    return false;
 }
 
 /* 
@@ -122,7 +115,7 @@ bool verify_dep_exchange_address(char *deposit_addr, char *deposit_response_addr
     bool ret_stat = false;
     if(deposit_response_addr[0] == '0' && (deposit_response_addr[1] == 'x'|| deposit_response_addr[1] == 'X'))
     {
-        if(strncasecmp(deposit_addr, deposit_response_addr + 2, 
+        if(strncasecmp(deposit_addr, deposit_response_addr + 2,
                     sizeof(((ExchangeAddress *)NULL)->address) -2) == 0)
         {
             ret_stat = true;
