@@ -13,9 +13,6 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
     ButtonRequestType button_request = ButtonRequestType_ButtonRequest_ConfirmTransferToAccount;
     if (is_token_transaction(msg)) {
         uint32_t decimal = ethereum_get_decimal(msg->token_shortcut);
-        if (decimal == 0)
-            return TXOUT_COMPILE_ERROR;
-
         char token_amount_str[128+sizeof(msg->token_shortcut)+2];
         if (!ether_token_for_display(msg->token_value.bytes,
                                      msg->token_value.size, decimal,
