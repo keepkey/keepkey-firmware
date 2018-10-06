@@ -518,7 +518,7 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     storage->pub.has_node =                                          flags & (1u <<  8);
     storage->pub.has_mnemonic =                                      flags & (1u <<  9);
     storage->pub.has_u2froot =                                       flags & (1u << 10);
-    storage_readPolicyV2(&storage->pub.policies[1], "U2F Transport", flags & (1u << 11));
+    storage_readPolicyV2(&storage->pub.policies[2], "U2F Transport", flags & (1u << 11));
     storage->pub.policies_count = POLICY_COUNT;
 
     storage->pub.pin_failed_attempts = read_u32_le(ptr + 8);
