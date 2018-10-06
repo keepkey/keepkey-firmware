@@ -43,7 +43,6 @@ typedef enum
 bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode *root, bool needs_confirm);
 ExchangeError get_exchange_error(void);
 void set_exchange_error(ExchangeError error_code);
-bool check_ethereum_tx(const char *coin_name);
 
 bool ether_for_display(const uint8_t *value, uint32_t value_len, char *out_str);
 /**

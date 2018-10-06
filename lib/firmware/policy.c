@@ -41,12 +41,9 @@ int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vi
     OutputAddressType addr_type;
 
     /* setup address type respect to coin type */
-    if(check_ethereum_tx(coin->coin_name))
-    {
-        addr_type = ((EthereumSignTx *)vin)->address_type ;
-    }
-    else
-    {
+    if (isEthereumLike(coin->coin_name)) {
+        addr_type = ((EthereumSignTx *)vin)->address_type;
+    } else {
         /* Bitcoin & Altcoins */
         if(vout == NULL)
         {
@@ -76,9 +73,9 @@ int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vi
 
     }
 
-    if(check_ethereum_tx(coin->coin_name))
+    if (isEthereumLike(coin->coin_name))
     {
-        ret_result = TXOUT_OK;          
+        ret_result = TXOUT_OK;
     }
     else
     {

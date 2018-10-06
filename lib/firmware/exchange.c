@@ -70,7 +70,7 @@ static const uint8_t ShapeShift_api_key[64] =
  */
 static bool exchange_tx_layout_str(const CoinType *coint, uint8_t *amt, size_t amt_len, char *out, size_t out_len)
 {
-    if (check_ethereum_tx(coint->coin_name)) {
+    if (isEthereumLike(coint->coin_name)) {
         return ether_for_display(amt, amt_len, out);
     }
 
@@ -145,7 +145,7 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
         goto verify_exchange_address_exit;
     }
 
-    if (check_ethereum_tx(coin->coin_name) || is_token) {
+    if (isEthereumLike(coin->coin_name) || is_token) {
         char tx_out_address[sizeof(((ExchangeAddress *)NULL)->address)];
         EthereumAddress_address_t ethereum_addr;
 
@@ -173,28 +173,6 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
 verify_exchange_address_exit:
     memzero(&node, sizeof(node));
     return(ret_stat);
-}
-
-/*
- * check_ethereum_tx() - check transaction is for Ethereum 
- *
- * INPUT 
- *      coin name
- *
- * OUTPUT 
- *      true - Ethereum transaction
- *      false - trasaction for others
- */
-bool check_ethereum_tx(const char *coin_name)
-{
-    if(strcmp(coin_name, "Ethereum") == 0 || strcmp(coin_name, "Ethereum Classic") == 0)
-    {
-        return(true);
-    }
-    else
-    {
-        return(false);
-    }
 }
 
 /*
@@ -258,7 +236,7 @@ static bool verify_exchange_dep_amount(const char *coin, void *dep_amt_ptr, Exch
     char amt_str[sizeof(exch_dep_amt->bytes)];
 
     memset(amt_str, 0, sizeof(amt_str));
-    if(check_ethereum_tx(coin))
+    if (isEthereumLike(coin))
     {
         memcpy (amt_str, exch_dep_amt->bytes, exch_dep_amt->size);
     }
@@ -309,7 +287,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     ExchangeType *exchange;
     memset(tx_out_address, 0, sizeof(tx_out_address));
 
-    if(check_ethereum_tx(coin->coin_name))
+    if (isEthereumLike(coin->coin_name))
     {
         EthereumSignTx *tx_out = (EthereumSignTx *)vtx_out;
         exchange = &tx_out->exchange_type;
@@ -503,7 +481,7 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
     /* validate contract before processing */
     if(verify_exchange_contract(coin, vtx_out, root))
     {
-        if(check_ethereum_tx(coin->coin_name))
+        if (isEthereumLike(coin->coin_name))
         {
             tx_exchange = &((EthereumSignTx *)vtx_out)->exchange_type;
             if(is_token_transaction((EthereumSignTx *)vtx_out))

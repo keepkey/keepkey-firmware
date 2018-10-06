@@ -372,3 +372,15 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin, uint
              address_n[2] & 0x7ffffff);
     return true;
 }
+
+bool isEthereumLike(const char *coin_name)
+{
+    if (strcmp(coin_name, ETHEREUM) == 0)
+        return true;
+
+    if (strcmp(coin_name, ETHEREUM_CLS) == 0)
+        return true;
+
+    return false;
+}
+
