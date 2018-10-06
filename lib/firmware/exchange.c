@@ -473,81 +473,73 @@ ExchangeError get_exchange_error(void)
  */
 bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode *root, bool needs_confirm)
 {
-    bool ret_val = false;
-    const CoinType *withdrawal_coin, *deposit_coin;
-    char amount_dep_str[128], amount_wit_str[128], node_str[100];
-    ExchangeType *tx_exchange;
-
     /* validate contract before processing */
-    if(verify_exchange_contract(coin, vtx_out, root))
+    if (!verify_exchange_contract(coin, vtx_out, root))
+        return false;
+
+    /* check if user confirmation is required */
+    if (!needs_confirm)
+        return true;
+
+    const CoinType *deposit_coin;
+    ExchangeType *tx_exchange;
+    if (isEthereumLike(coin->coin_name))
     {
-        if (isEthereumLike(coin->coin_name))
+        tx_exchange = &((EthereumSignTx *)vtx_out)->exchange_type;
+        if(is_token_transaction((EthereumSignTx *)vtx_out))
         {
-            tx_exchange = &((EthereumSignTx *)vtx_out)->exchange_type;
-            if(is_token_transaction((EthereumSignTx *)vtx_out))
-            {
-                deposit_coin = coinByShortcut(((EthereumSignTx *)vtx_out)->token_shortcut);
-            }
-            else
-            {
-                deposit_coin = coinByName(coin->coin_name);
-            }
+            deposit_coin = coinByShortcut(((EthereumSignTx *)vtx_out)->token_shortcut);
         }
         else
         {
-            tx_exchange = &((TxOutputType *)vtx_out)->exchange_type;
             deposit_coin = coinByName(coin->coin_name);
         }
-        /* check user confirmation required*/
-        if(needs_confirm)
-        {
-            withdrawal_coin = coinByName(tx_exchange->withdrawal_coin_name);
-
-            /* assemble deposit amount for display*/
-            if(!exchange_tx_layout_str(deposit_coin, 
-                        tx_exchange->signed_exchange_response.responseV2.deposit_amount.bytes,
-                        tx_exchange->signed_exchange_response.responseV2.deposit_amount.size,
-                        amount_dep_str,
-                        sizeof(amount_dep_str)))
-            {
-                set_exchange_error(ERROR_EXCHANGE_DEPOSIT_AMOUNT);
-                goto process_exchange_contract_exit;
-            }
-
-            /* assemble withdrawal amount for display*/
-            if(!exchange_tx_layout_str(withdrawal_coin, 
-                        tx_exchange->signed_exchange_response.responseV2.withdrawal_amount.bytes,
-                        tx_exchange->signed_exchange_response.responseV2.withdrawal_amount.size,
-                        amount_wit_str,
-                        sizeof(amount_wit_str)))
-             {
-                set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_AMOUNT);
-                goto process_exchange_contract_exit;
-             }
-
-            /* determine withdrawal account number */
-            if(bip32_node_to_string(node_str, sizeof(node_str), withdrawal_coin,
-                                    tx_exchange->withdrawal_address_n,
-                                    tx_exchange->withdrawal_address_n_count,
-                                    /*whole_account=*/false))
-            {
-                if(!confirm_exchange_output("ShapeShift", amount_dep_str, amount_wit_str, node_str))
-                {
-                    set_exchange_error(ERROR_EXCHANGE_CANCEL);
-                    goto process_exchange_contract_exit;
-                }
-            }
-            else
-            {
-                set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_ADDRESS);
-                goto process_exchange_contract_exit;
-            }
-        }
-
-        ret_val = true;
+    }
+    else
+    {
+        tx_exchange = &((TxOutputType *)vtx_out)->exchange_type;
+        deposit_coin = coinByName(coin->coin_name);
     }
 
-process_exchange_contract_exit:
-    return ret_val;
+    const CoinType *withdrawal_coin = coinByName(tx_exchange->withdrawal_coin_name);
+
+    /* assemble deposit amount for display*/
+    char amount_dep_str[128];
+    if (!exchange_tx_layout_str(deposit_coin,
+                tx_exchange->signed_exchange_response.responseV2.deposit_amount.bytes,
+                tx_exchange->signed_exchange_response.responseV2.deposit_amount.size,
+                amount_dep_str,
+                sizeof(amount_dep_str))) {
+        set_exchange_error(ERROR_EXCHANGE_DEPOSIT_AMOUNT);
+        return false;
+    }
+
+    /* assemble withdrawal amount for display*/
+    char amount_wit_str[128];
+    if (!exchange_tx_layout_str(withdrawal_coin,
+                tx_exchange->signed_exchange_response.responseV2.withdrawal_amount.bytes,
+                tx_exchange->signed_exchange_response.responseV2.withdrawal_amount.size,
+                amount_wit_str,
+                sizeof(amount_wit_str))) {
+        set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_AMOUNT);
+        return false;
+    }
+
+    /* determine withdrawal account number */
+    char node_str[100];
+    if (!bip32_node_to_string(node_str, sizeof(node_str), withdrawal_coin,
+                             tx_exchange->withdrawal_address_n,
+                             tx_exchange->withdrawal_address_n_count,
+                             /*whole_account=*/false)) {
+        set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_ADDRESS);
+        return false;
+    }
+
+    if (!confirm_exchange_output("ShapeShift", amount_dep_str, amount_wit_str, node_str)) {
+        set_exchange_error(ERROR_EXCHANGE_CANCEL);
+        return false;
+    }
+
+    return true;
 }
 
