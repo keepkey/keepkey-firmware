@@ -717,3 +717,16 @@ const TokenType *tokenByChainAddress(uint8_t chain_id, const uint8_t *address)
 	}
 	return UnknownToken;
 }
+
+bool tokenByTicker(uint8_t chain_id, const char *ticker, const TokenType **token) {
+	*token = NULL;
+	for (int i = 0; i < TOKENS_COUNT; i++) {
+		if (chain_id == tokens[i].chain_id && strcmp(ticker, tokens[i].ticker + 1) == 0) {
+			if (!*token)
+				*token = &tokens[i];
+			else
+				return false;
+		}
+	}
+	return *token;
+}

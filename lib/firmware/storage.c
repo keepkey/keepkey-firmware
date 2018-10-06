@@ -473,6 +473,7 @@ void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage) {
         (storage->pub.has_mnemonic                ? (1u <<  9) : 0) |
         (storage->pub.has_u2froot                 ? (1u << 10) : 0) |
         (storage_isPolicyEnabled("U2F Transport") ? (1u << 11) : 0) |
+        (storage_isPolicyEnabled("AdvancedMode")  ? (1u << 12) : 0) |
         (storage->pub.no_backup                   ? (1u << 13) : 0) |
         /* reserved 31:14 */ 0;
     write_u32_le(ptr + 4, flags);
@@ -521,6 +522,7 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     storage->pub.has_mnemonic =                                      flags & (1u <<  9);
     storage->pub.has_u2froot =                                       flags & (1u << 10);
     storage_readPolicyV2(&storage->pub.policies[2], "U2F Transport", flags & (1u << 11));
+    storage_readPolicyV2(&storage->pub.policies[3], "AdvancedMode",  flags & (1u << 12));
     storage->pub.no_backup =                                         flags & (1u << 13);
     storage->pub.policies_count = POLICY_COUNT;
 

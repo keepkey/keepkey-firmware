@@ -26,6 +26,7 @@
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/ethereum.h"
+#include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/exchange.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/policy.h"
@@ -68,33 +69,20 @@ static const uint8_t ShapeShift_api_key[64] =
  *      true/false - status
  *
  */
-static bool exchange_tx_layout_str(const CoinType *coint, uint8_t *amt, size_t amt_len, char *out, size_t out_len)
+static bool exchange_tx_layout_str(const CoinType *coin, uint8_t *amt, size_t amt_len, char *out, size_t out_len)
 {
-    if (isEthereumLike(coint->coin_name)) {
-        return ether_for_display(amt, amt_len, out);
+    const TokenType *token;
+    uint32_t chain_id = 1; // FIXME: pull this from the coin table.
+    if (isEthereumLike(coin->coin_name)) {
+        token = NULL;
+    } else {
+        token = tokenByChainAddress(chain_id, coin->contract_address.bytes);
     }
 
-    if (coint->has_contract_address) {
-        bool ret_stat = ether_token_for_display(amt, amt_len, coint->decimals, out, out_len);
-        if (out_len <= strlen(out) + 1 + sizeof(coint->coin_shortcut) + 1) {
-            return false;
-        }
-
-        // Append token shortcut to display string
-        strncat(out, " ", 1);
-        strncat(out, coint->coin_shortcut, sizeof(coint->coin_shortcut)+1);
-        return ret_stat;
-    }
-
-    if (amt_len <= sizeof(uint64_t)) {
-        uint64_t amount64;
-        rev_byte_order(amt, amt_len);
-        memcpy(&amount64, amt, sizeof(uint64_t));
-        coin_amnt_to_str(coint, amount64, out, out_len);
-        return true;
-    }
-
-    return false;
+    bignum256 value;
+    bn_from_bytes(amt, amt_len, &value);
+    ethereumFormatAmount(&value, token, chain_id, out, out_len);
+    return true;
 }
 
 /// \returns true iff two addresses match. Ignores differencess in leading '0x' for ETH-like addresses.

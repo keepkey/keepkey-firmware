@@ -1,8 +1,10 @@
+
+
 static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
 {
-
-    /* Precheck: For TRANSFER, 'to' fields must not be loaded */
-    if (msg->has_to || msg->to.size || strlen((char *)msg->to.bytes) != 0)
+    // Precheck: For TRANSFER, 'to' fields must not be already loaded.
+    if (msg->has_to || msg->to.size || strlen((char *)msg->to.bytes) != 0 ||
+        msg->has_token_to || msg->token_to.size || strlen((char*)msg->token_to.bytes) != 0)
         return TXOUT_COMPILE_ERROR;
 
     char node_str[NODE_STRING_LENGTH];
@@ -10,46 +12,53 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
                               msg->to_address_n_count, /*whole_account=*/false))
         return TXOUT_COMPILE_ERROR;
 
-    ButtonRequestType button_request = ButtonRequestType_ButtonRequest_ConfirmTransferToAccount;
+    bool *has_to;
+    size_t *to_size;
+    uint8_t *to_bytes;
+    const uint8_t *value_bytes;
+    const size_t *value_size;
+    const TokenType *token;
+
+    uint32_t chain_id = 1; // FIXME: pull this from the CoinTable.
     if (is_token_transaction(msg)) {
-        uint32_t decimal = ethereum_get_decimal(msg->token_shortcut);
-        char token_amount_str[128+sizeof(msg->token_shortcut)+2];
-        if (!ether_token_for_display(msg->token_value.bytes,
-                                     msg->token_value.size, decimal,
-                                     token_amount_str,
-                                     sizeof(token_amount_str)))
-            return TXOUT_COMPILE_ERROR;
+        has_to = &msg->has_token_to;
+        to_size = &msg->token_to.size;
+        to_bytes = msg->token_to.bytes;
+        value_bytes = msg->token_value.bytes;
+        value_size = &msg->token_value.size;
 
-        // append token shortcut
-        strncat(token_amount_str, " ", 1);
-        strncat(token_amount_str, msg->token_shortcut, sizeof(msg->token_shortcut));
-        if (!confirm_transfer_output(button_request, token_amount_str, node_str))
-            return TXOUT_CANCEL;
+        // Check that the ticker gives a unique lookup. If not, we can't
+        // reliably do the lookup this way, and must abort.
+        if (!tokenByTicker(chain_id, msg->token_shortcut, &token))
+            return TXOUT_COMPILE_ERROR;
     } else {
-        char amount_str[32];
-        if (!ether_for_display(msg->value.bytes, msg->value.size, amount_str))
-            return TXOUT_COMPILE_ERROR;
-
-        if (!confirm_transfer_output(button_request, amount_str, node_str))
-            return TXOUT_CANCEL;
+        has_to = &msg->has_to;
+        to_size = &msg->to.size;
+        to_bytes = msg->token_to.bytes;
+        value_bytes = msg->value.bytes;
+        value_size = &msg->value.size;
+        token = NULL;
     }
+
+    bignum256 value;
+    bn_from_bytes(value_bytes, *value_size, &value);
+
+    char amount_str[128+sizeof(msg->token_shortcut)+3];
+    ethereumFormatAmount(&value, token, chain_id, amount_str, sizeof(amount_str));
+
+    if (!confirm_transfer_output(ButtonRequestType_ButtonRequest_ConfirmTransferToAccount,
+                                 amount_str, node_str))
+        return TXOUT_CANCEL;
 
     const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->to_address_n, msg->to_address_n_count, NULL);
     if (!node)
         return TXOUT_COMPILE_ERROR;
 
-    if (!hdnode_get_ethereum_pubkeyhash(node, is_token_transaction(msg)
-                                                ? msg->token_to.bytes
-                                                : msg->to.bytes))
+    if (!hdnode_get_ethereum_pubkeyhash(node, to_bytes))
         return TXOUT_COMPILE_ERROR;
 
-    if (is_token_transaction(msg)) {
-        msg->has_token_to = true;
-        msg->token_to.size = 20;
-    } else {
-        msg->has_to = true;
-        msg->to.size = 20;
-    }
+    *has_to = true;
+    *to_size = 20;
 
     memset((void *)node, 0, sizeof(HDNode));
     return TXOUT_OK;
@@ -133,8 +142,17 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 		return;
 
 	if (msg->has_show_display && msg->show_display) {
-		char address[43];
-		format_ethereum_address(resp->address.bytes, address, sizeof(address));
+		uint32_t slip44 = msg->address_n[1] & 0x7fffffff;
+		bool rskip60 = false;
+		uint32_t chain_id = 0;
+		// constants from trezor-common/defs/ethereum/networks.json
+		switch (slip44) {
+			case 137: rskip60 = true; chain_id = 30; break;
+			case 37310: rskip60 = true; chain_id = 31; break;
+		}
+
+		char address[43] = { '0', 'x' };
+		ethereum_address_checksum(resp->address.bytes, address + 2, rskip60, chain_id);
 
 		if (!confirm_ethereum_address("", address)) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
@@ -181,15 +199,11 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg)
 
 	char address[43] = { '0', 'x' };
 	ethereum_address_checksum(msg->address.bytes, address + 2, false, 0);
-#if 0
-	// FIXME: verify address
-	layoutVerifyAddress(address);
-	if (!protectButton(ButtonRequestType_ButtonRequest_Other, false)) {
+	if (!confirm_address("Confirm Signer", address)) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
 		layoutHome();
 		return;
 	}
-#endif
 	if (!confirm(ButtonRequestType_ButtonRequest_Other, "Message Verified", "%s",
 	             msg->message.bytes)) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);

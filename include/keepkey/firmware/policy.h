@@ -31,6 +31,7 @@ static const PolicyType policies[] = {
     {true, "ShapeShift", true, false},
     {true, "Pin Caching", true, false},
     {true, "U2F Transport", true, false},
+    {true, "AdvancedMode", true, false},
 };
 
 int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vin, void *vout, bool needs_confirm);

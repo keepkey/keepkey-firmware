@@ -30,13 +30,14 @@ typedef struct _EthereumTxAck EthereumTxAck;
 typedef struct _EthereumSignMessage EthereumSignMessage;
 typedef struct _EthereumVerifyMessage EthereumVerifyMessage;
 typedef struct _EthereumMessageSignature EthereumMessageSignature;
+typedef struct _TokenType TokenType;
 
 void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_confirm);
 void ethereum_signing_abort(void);
 void ethereum_signing_txack(EthereumTxAck *msg);
 void format_ethereum_address(const uint8_t *to, char *destination_str,
                              uint32_t destination_str_len);
-bool is_token_transaction(EthereumSignTx *msg);
+bool is_token_transaction(const EthereumSignTx *msg);
 
 /**
  * \brief Get the number of decimals associated with an erc20 token
@@ -47,5 +48,9 @@ uint32_t ethereum_get_decimal(const char *token_shortcut);
 
 void ethereum_message_sign(const EthereumSignMessage *msg, const HDNode *node, EthereumMessageSignature *resp);
 int ethereum_message_verify(const EthereumVerifyMessage *msg);
+
+void ethereumFormatAmount(const bignum256 *amnt, const TokenType *token, uint32_t chain_id, char *buf, int buflen);
+
+void bn_from_bytes(const uint8_t *value, size_t value_len, bignum256 *val);
 
 #endif

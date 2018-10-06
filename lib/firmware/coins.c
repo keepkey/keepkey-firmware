@@ -383,4 +383,3 @@ bool isEthereumLike(const char *coin_name)
 
     return false;
 }
-
