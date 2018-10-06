@@ -10,7 +10,7 @@ Features.model              max_size:32
 Features.firmware_variant    max_size:32
 Features.firmware_hash		max_size:32
 
-CoinTable.table				max_count:8
+CoinTable.table				max_count:24
 
 ApplySettings.language			max_size:17
 ApplySettings.label			max_size:33
