@@ -429,6 +429,7 @@ TEST(Storage, StorageRoundTrip) {
     start.storage.version = 11;
     start.storage.sec.node.fingerprint = 42;
     start.storage.pub.has_pin = true;
+    start.storage.pub.no_backup = false;
     start.storage.sec.pin[0] = '\0';
     start.storage.sec.cache.root_seed_cache_status = 0xEC;
 

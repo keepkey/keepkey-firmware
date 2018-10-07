@@ -91,6 +91,9 @@ uint32_t storage_getPinFails(void);
 
 bool storage_isInitialized(void);
 
+bool storage_noBackup(void);
+void storage_setNoBackup(void);
+
 const char *storage_getUuidStr(void);
 
 bool storage_getPassphraseProtected(void);
