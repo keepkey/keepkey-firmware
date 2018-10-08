@@ -205,15 +205,11 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		if (in->amount != 0) {
 			return 0; // failed to compile output
 		}
-#if 0
-		// FIXME: confirm OP_RETURN
 		if (needs_confirm) {
-			layoutConfirmOpReturn(in->op_return_data.bytes, in->op_return_data.size);
-			if (!protectButton(ButtonRequest_ButtonRequestType_ButtonRequest_ConfirmOutput, false)) {
+			if (!confirm_op_return(in->op_return_data.bytes, in->op_return_data.size)) {
 				return -1; // user aborted
 			}
 		}
-#endif
 		uint32_t r = 0;
 		out->script_pubkey.bytes[0] = 0x6A; r++; // OP_RETURN
 		r += op_push(in->op_return_data.size, out->script_pubkey.bytes + r);
