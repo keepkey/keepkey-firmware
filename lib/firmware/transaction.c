@@ -140,11 +140,11 @@ bool compute_address(const CoinType *coin,
 			}
 			raw[0] = 0; // push version
 			raw[1] = 32; // push 32 bytes
-			memcpy(raw+2, digest, 32); // push hash
+			memcpy(raw + 2, digest, 32); // push hash
 			hasher_Raw(curve->hasher_pubkey, raw, 34, digest);
 			prelen = address_prefix_bytes_len(coin->address_type_p2sh);
 			address_write_prefix_bytes(coin->address_type_p2sh, raw);
-			ripemd160(digest, 32, raw + prelen);
+			memcpy(raw + prelen, digest, 32);
 			if (!base58_encode_check(raw, prelen + 20, curve->hasher_base58, address, MAX_ADDR_SIZE)) {
 				return 0;
 			}
@@ -445,7 +445,7 @@ uint32_t compile_script_multisig_hash(const CoinType *coin, const MultisigRedeem
 	if (!curve) return 0;
 
 	Hasher hasher;
-	hasher_Init(&hasher, curve->hasher_pubkey);
+	hasher_Init(&hasher, curve->hasher_script);
 
 	uint8_t d[2];
 	d[0] = 0x50 + m; hasher_Update(&hasher, d, 1);

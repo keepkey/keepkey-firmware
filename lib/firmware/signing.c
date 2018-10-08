@@ -746,12 +746,6 @@ static bool signing_check_output(TxOutputType *txoutput) {
 				&& memcmp(multisig_fp, h, 32) == 0) {
 				is_change = check_change_bip32_path(txoutput);
 			}
-#if 0
-		} else if (check_valid_output_address(txoutput) == false) {
-			fsm_sendFailure(FailureType_Failure_Other, "Invalid output address type");
-			signing_abort();
-			return false;
-#endif
 		} else {
 			is_change = check_change_bip32_path(txoutput);
 		}
