@@ -207,8 +207,8 @@ void fsm_msgGetAddress(GetAddress *msg)
 	if (msg->has_show_display && msg->show_display) {
 		char node_str[NODE_STRING_LENGTH];
 		if (msg->has_multisig) {
-			snprintf(node_str, sizeof(node_str), "Multisig (%" PRIu32 " of %zu)",
-			         msg->multisig.m, msg->multisig.pubkeys_count);
+			snprintf(node_str, sizeof(node_str), "Multisig (%" PRIu32 " of %" PRIu32 ")",
+			         msg->multisig.m, (uint32_t)msg->multisig.pubkeys_count);
 		} else {
 			if (!bip32_node_to_string(node_str, sizeof(node_str), coin, msg->address_n,
 			                          msg->address_n_count, /*whole_account=*/false) &&
