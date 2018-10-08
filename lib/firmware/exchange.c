@@ -196,10 +196,14 @@ static bool verify_exchange_address(char *coin_name, size_t address_n_count,
         }
         else
         {
+            const curve_info *curve = get_curve_by_name(coin->curve_name);
+            if (!curve)
+                goto verify_exchange_address_exit;
+
             char tx_out_address[36];
             hdnode_fill_public_key(&node);
-            ecdsa_get_address(node.public_key, coin->address_type, secp256k1_info.hasher_pubkey,
-                              secp256k1_info.hasher_base58, tx_out_address,
+            ecdsa_get_address(node.public_key, coin->address_type, curve->hasher_pubkey,
+                              curve->hasher_base58, tx_out_address,
                               sizeof(tx_out_address));
             if(strncmp(tx_out_address, address_str, sizeof(tx_out_address)) == 0)
             {
