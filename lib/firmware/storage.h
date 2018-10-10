@@ -48,6 +48,7 @@ typedef struct _Storage {
         bool has_u2froot;
         HDNodeType u2froot;
         uint32_t u2f_counter;
+        bool no_backup;
     } pub;
 
     bool has_sec;

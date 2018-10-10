@@ -89,6 +89,9 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     /* Are private keys imported */
     resp->has_imported = true; resp->imported = storage_getImported();
 
+    /* Are private keys known to no-one? */
+    resp->has_no_backup = true; resp->no_backup = storage_noBackup();
+
     /* Cached pin and passphrase status */
     resp->has_pin_cached = true; resp->pin_cached = session_isPinCached();
     resp->has_passphrase_cached = true;
@@ -347,7 +350,8 @@ void fsm_msgResetDevice(ResetDevice *msg)
         msg->has_passphrase_protection && msg->passphrase_protection,
         msg->has_pin_protection && msg->pin_protection,
         msg->has_language ? msg->language : 0,
-        msg->has_label ? msg->label : 0
+        msg->has_label ? msg->label : 0,
+        msg->has_no_backup ? msg->no_backup : false
     );
 }
 
