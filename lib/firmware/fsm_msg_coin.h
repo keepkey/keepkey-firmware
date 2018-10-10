@@ -294,15 +294,11 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 	layout_simple_message("Verifying Message...");
 
 	if (msg->signature.size == 65 && cryptoMessageVerify(coin, msg->message.bytes, msg->message.size, msg->address, msg->signature.bytes) == 0) {
-#if 0
-		// FIXME: confirm address
-		layoutVerifyAddress(msg->address);
-		if (!protectButton(ButtonRequestType_ButtonRequest_Other, false)) {
+		if (!confirm_address("Confirm Signer", msg->address)) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
 			layoutHome();
 			return;
 		}
-#endif
 		if (!review(ButtonRequestType_ButtonRequest_Other, "Message Verified", "%s",
 		            (char *)msg->message.bytes)) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, _("Action cancelled by user"));
