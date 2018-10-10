@@ -55,16 +55,8 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
     strength = _strength;
     no_backup = _no_backup;
 
-    random_buffer(int_entropy, 32);
-
-    static char CONFIDENTIAL ent_str[4][17];
-    data2hex(int_entropy     , 8, ent_str[0]);
-    data2hex(int_entropy +  8, 8, ent_str[1]);
-    data2hex(int_entropy + 16, 8, ent_str[2]);
-    data2hex(int_entropy + 24, 8, ent_str[3]);
-
     if (display_random && no_backup) {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "Conflicting options");
+        fsm_sendFailure(FailureType_Failure_SyntaxError, "Can't show internal entropy when no_backup is used");
         layoutHome();
         return;
     }
@@ -85,6 +77,14 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
             return;
         }
     }
+
+    random_buffer(int_entropy, 32);
+
+    static char CONFIDENTIAL ent_str[4][17];
+    data2hex(int_entropy     , 8, ent_str[0]);
+    data2hex(int_entropy +  8, 8, ent_str[1]);
+    data2hex(int_entropy + 16, 8, ent_str[2]);
+    data2hex(int_entropy + 24, 8, ent_str[3]);
 
     if (display_random) {
         if(!confirm(ButtonRequestType_ButtonRequest_ResetDevice,
