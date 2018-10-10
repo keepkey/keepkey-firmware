@@ -41,8 +41,13 @@
 #define BOGUS_APPID "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
 typedef void (*u2f_rx_callback_t)(UsbMessage* msg);
+typedef void (*u2f_debug_rx_callback_t)(UsbMessage* msg);
+
 
 void u2f_set_rx_callback(u2f_rx_callback_t callback);
+void u2f_set_debug_rx_callback(u2f_rx_callback_t callback);
+
+
 
 typedef struct {
 	uint8_t cla, ins, p1, p2;

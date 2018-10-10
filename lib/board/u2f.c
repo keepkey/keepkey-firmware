@@ -75,6 +75,14 @@ void u2f_set_rx_callback(u2f_rx_callback_t callback){
     u2f_user_rx_callback = callback;
 }
 
+#if DEBUG_LINK
+u2f_rx_callback_t u2f_user_debug_rx_callback = NULL;
+
+void u2f_set_debug_rx_callback(u2f_rx_callback_t callback){
+    u2f_user_debug_rx_callback = callback;
+}
+#endif
+
 static u2f_register_callback_t u2f_register_callback = 0;
 static u2f_authenticate_callback_t u2f_authenticate_callback = 0;
 
@@ -443,10 +451,18 @@ void u2f_authenticate(const APDU *a)
 		// unpack keyHandle raw (protobuf) message frame and dispatch
 		static UsbMessage m;
 		memset(&m, 0, sizeof(m));
-		m.len = KEY_HANDLE_LEN - 4; // 4-bytes { total_frames, frame_i, reserved, reserved & 0x7f }
+		m.len = KEY_HANDLE_LEN - 4; // 4-bytes { total_frames, frame_i, reserved, reserved & 0x3f }
 		memcpy(m.message, req->keyHandle + 4, KEY_HANDLE_LEN - 4);
-		if (u2f_user_rx_callback) {
-			u2f_user_rx_callback(&m);
+		if ((req->keyHandle[3] & 0x40) == 0x00) {
+			if (u2f_user_rx_callback) {
+				u2f_user_rx_callback(&m);
+			}
+#if DEBUG_LINK
+		} else {
+			if (u2f_user_debug_rx_callback) {
+				u2f_user_debug_rx_callback(&m);
+			}
+#endif
 		}
 		return;
 	}
