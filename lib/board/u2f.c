@@ -177,7 +177,6 @@ void u2fhid_read_start(const U2FHID_FRAME *f) {
 					cid = 0;
 					reader = 0;
 					usbTiny(0);
-					layout_home();
 					return;
 				}
 				usb_poll();
@@ -212,7 +211,6 @@ void u2fhid_read_start(const U2FHID_FRAME *f) {
 			cid = 0;
 		reader = 0;
 		usbTiny(0);
-		layout_home();
 		return;
 	}
 }
