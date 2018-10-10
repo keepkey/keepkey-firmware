@@ -39,6 +39,7 @@
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/qr_encode.h"
 #include "keepkey/firmware/coins.h"
+#include "keepkey/firmware/util.h"
 
 #include <assert.h>
 #include <stdarg.h>
@@ -401,4 +402,33 @@ bool confirm_sign_identity(const IdentityType *identity, const char *challenge)
     }
 
     return confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, "%s", body);
+}
+
+bool is_valid_ascii(const uint8_t *data, uint32_t size)
+{
+	for (uint32_t i = 0; i < size; i++) {
+		if (data[i] < ' ' || data[i] > '~') {
+			return false;
+		}
+	}
+	return true;
+}
+
+bool confirm_op_return(const uint8_t *data, uint32_t size)
+{
+	const char *str = (const char *)data;
+	char hex[50 * 2 + 1];
+	if (!is_valid_ascii(data, size)) {
+		if (size > 50)
+			size = 50;
+		memset(hex, 0, sizeof(hex));
+		data2hex(data, size, hex);
+		if (size > 50) {
+			hex[50 * 2 - 1] = '.';
+			hex[50 * 2 - 2] = '.';
+		}
+		str = hex;
+	}
+	return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Confirm OP_RETURN",
+	               "%s", str);
 }
