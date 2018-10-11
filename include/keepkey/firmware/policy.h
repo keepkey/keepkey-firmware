@@ -30,7 +30,7 @@
 static const PolicyType policies[] = {
     {true, "ShapeShift", true, false},
     {true, "Pin Caching", true, false},
-    {true, "U2F Transport", true, false},
+    {true, "Experimental", true, false},
     {true, "AdvancedMode", true, false},
 };
 

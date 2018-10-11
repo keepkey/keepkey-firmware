@@ -202,12 +202,14 @@ void fsm_init(void)
 
     msg_init();
 
-    if (storage_isPolicyEnabled("U2F Transport")) {
-        u2f_set_rx_callback(handle_usb_rx);
 #if DEBUG_LINK
-        u2f_set_debug_rx_callback(handle_debug_usb_rx);
-#endif
+    u2f_set_rx_callback(handle_usb_rx);
+    u2f_set_debug_rx_callback(handle_debug_usb_rx);
+#else
+    if (storage_isPolicyEnabled("Experimental")) {
+        u2f_set_rx_callback(handle_usb_rx);
     }
+#endif
 }
 
 void fsm_sendSuccess(const char *text)
