@@ -400,7 +400,8 @@ void usb_rx_helper(UsbMessage *msg, MessageMapType type)
     //the packetized u2f-injection device<->host protocol requires and ACK sent to be sent after every packet
     if (usb_is_u2f_transport()){
         //only send the ACK packet if the recvd message came in over the U2F transport
-        uint8_t empty_report[7] = {0x00, 0x00, 0x00, contents[1], 0x00, 0x90, 0x00}; 
+        //TODO pass in debug link and set flag here to handle framed debuglink acks
+        uint8_t empty_report[] = {0x00, 0x00, 0x00, contents[1], 0x00, 0x00, 0x90, 0x00}; 
         send_u2f_msg(empty_report, sizeof(empty_report));
     }
     goto done_handling;
@@ -439,9 +440,8 @@ void handle_usb_rx(UsbMessage *msg)
  *     none
  */
 #if DEBUG_LINK
-static void handle_debug_usb_rx(UsbMessage *msg)
+void handle_debug_usb_rx(UsbMessage *msg)
 {
-    usb_set_hid_transport();
     usb_rx_helper(msg, DEBUG_MSG);
 }
 #endif

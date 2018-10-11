@@ -73,7 +73,7 @@ typedef struct
 typedef struct
 {
     TrezorFrame frame;
-    uint8_t buffer[MAX_FRAME_SIZE+2];
+    uint8_t buffer[MAX_FRAME_SIZE+ /* DL? + U2F_OK  */ 3];
 } TrezorFrameBuffer;
 
 #pragma pack()

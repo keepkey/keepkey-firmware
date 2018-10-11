@@ -161,6 +161,9 @@ void call_msg_debug_link_get_state_handler(DebugLinkGetState *msg);
 void msg_init(void);
 
 void handle_usb_rx(UsbMessage *msg);
+void handle_debug_usb_rx(UsbMessage *msg);
+
+
 
 MessageType wait_for_tiny_msg(uint8_t *buf);
 MessageType check_for_tiny_msg(uint8_t *buf);
