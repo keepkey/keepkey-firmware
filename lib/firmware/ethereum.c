@@ -561,6 +561,19 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 
 	memset(confirm_body_message, 0, sizeof(confirm_body_message));
 	if (token == NULL && data_total > 0) {
+		// KeepKey custom: warn the user that they're trying to do something
+		// that is potentially dangerous. People (generally) aren't great at
+		// parsing raw transaction data, and we can't effectively show them
+		// what they're about to do in the general case.
+		if (!storage_isPolicyEnabled("AdvancedMode")) {
+			(void)review(ButtonRequestType_ButtonRequest_Other, "Warning",
+			             "Signing of arbitrary ETH contract data is recommended only for "
+			             "experienced users. Enable 'AdvancedMode' policy to dismiss.");
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
+			ethereum_signing_abort();
+			return;
+		}
+
 		layoutEthereumData(msg->data_initial_chunk.bytes, msg->data_initial_chunk.size, data_total,
 		                   confirm_body_message, sizeof(confirm_body_message));
 		if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Confirm Ethereum Data", "%s",
