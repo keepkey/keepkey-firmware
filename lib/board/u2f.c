@@ -453,6 +453,9 @@ void u2f_authenticate(const APDU *a)
 		memset(&m, 0, sizeof(m));
 		m.len = KEY_HANDLE_LEN - 4; // 4-bytes { total_frames, frame_i, reserved, reserved & 0x3f }
 		memcpy(m.message, req->keyHandle + 4, KEY_HANDLE_LEN - 4);
+		if (req->keyHandle[2] != 0x00) {
+			return;
+		}
 		if ((req->keyHandle[3] & 0x40) == 0x00) {
 			if (u2f_user_rx_callback) {
 				u2f_user_rx_callback(&m);

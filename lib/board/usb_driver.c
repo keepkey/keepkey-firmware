@@ -625,8 +625,8 @@ void usb_poll(void)
 bool usb_tx(uint8_t *message, uint32_t len)
 {
     if (usb_is_u2f_transport()) {
-        memcpy(message+len, "\x00\x90\x00", 3);
-        send_u2f_msg(message, len+3);
+        memcpy(message+len, "\x00\x00\x90\x00", 4);
+        send_u2f_msg(message, len + 4);
         return true;
     } else {
         return usb_tx_helper(message, len, ENDPOINT_ADDRESS_IN);
@@ -648,8 +648,8 @@ bool usb_tx(uint8_t *message, uint32_t len)
 bool usb_debug_tx(uint8_t *message, uint32_t len)
 {
     if (usb_is_u2f_transport()) {
-        memcpy(message+len, "\x40\x90\x00", 3);
-        send_u2f_msg(message, len+3);
+        memcpy(message+len, "\x00\x40\x90\x00", 4);
+        send_u2f_msg(message, len + 4);
         return true;
     } else {
         return usb_tx_helper(message, len, ENDPOINT_ADDRESS_DEBUG_IN);

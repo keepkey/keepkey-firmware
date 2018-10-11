@@ -401,7 +401,7 @@ void usb_rx_helper(UsbMessage *msg, MessageMapType type)
     if (usb_is_u2f_transport()){
         //only send the ACK packet if the recvd message came in over the U2F transport
         //TODO pass in debug link and set flag here to handle framed debuglink acks
-        uint8_t empty_report[] = {0x00, 0x00, 0x00, contents[1], 0x00, 0x00, 0x90, 0x00}; 
+        uint8_t empty_report[] = {0x00, 0x00, 0x00, contents[1],0x00, 0x00, 0x00, 0x90, 0x00}; 
         send_u2f_msg(empty_report, sizeof(empty_report));
     }
     goto done_handling;
