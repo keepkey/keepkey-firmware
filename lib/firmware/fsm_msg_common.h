@@ -557,45 +557,31 @@ void fsm_msgCharacterAck(CharacterAck *msg)
 
 void fsm_msgApplyPolicies(ApplyPolicies *msg)
 {
-    CHECK_PARAM(msg->policy[0].has_policy_name, "Incorrect ApplyPolicies parameters");
-    CHECK_PARAM(msg->policy[0].has_enabled, "Incorrect ApplyPolicies parameters");
+    CHECK_PARAM(msg->policy_count > 0, "No policies provided");
 
-    RESP_INIT(ButtonRequest);
-    resp->has_code = true;
-    resp->code = ButtonRequestType_ButtonRequest_ApplyPolicies;
-    resp->has_data = true;
-
-    if(msg->policy_count == 0)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "No policy provided");
-        layoutHome();
-        return;
+    for (size_t i = 0; i < msg->policy_count; ++i) {
+        CHECK_PARAM(msg->policy[i].has_policy_name, "Incorrect ApplyPolicies parameters");
+        CHECK_PARAM(msg->policy[i].has_enabled, "Incorrect ApplyPolicies parameters");
     }
 
-    strlcpy(resp->data, msg->policy[0].policy_name, sizeof(resp->data));
+    for (size_t i = 0; i < msg->policy_count; ++i) {
+        RESP_INIT(ButtonRequest);
+        resp->has_code = true;
+        resp->code = ButtonRequestType_ButtonRequest_ApplyPolicies;
+        resp->has_data = true;
 
-    if(msg->policy[0].enabled)
-    {
-        strlcat(resp->data, ":Enable", sizeof(resp->data));
+        strlcpy(resp->data, msg->policy[i].policy_name, sizeof(resp->data));
 
-        if(!confirm_with_custom_button_request(resp,
-                                               "Enable Policy", "Do you want to enable %s policy?", msg->policy[0].policy_name))
-        {
+        bool enabled = msg->policy[i].enabled;
+        strlcat(resp->data, enabled ? ":Enable" : ":Disable", sizeof(resp->data));
+
+        if (!confirm_with_custom_button_request(
+                resp, enabled ? "Enable Policy" : "Disable Policy",
+                "Do you want to %s %s policy?",
+                enabled ? "enable" : "disable",
+                msg->policy[i].policy_name)) {
             fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                            "Apply policy cancelled");
-            layoutHome();
-            return;
-        }
-    }
-    else
-    {
-        strlcat(resp->data, ":Disable", sizeof(resp->data));
-
-        if(!confirm_with_custom_button_request(resp,
-                                               "Disable Policy", "Do you want to disable %s policy?", msg->policy[0].policy_name))
-        {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                            "Apply policy cancelled");
+                            "Apply policies cancelled");
             layoutHome();
             return;
         }
@@ -603,12 +589,13 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg)
 
     CHECK_PIN
 
-    if(!storage_setPolicy(msg->policy[0].policy_name, msg->policy[0].enabled))
-    {
-        fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                        "Policy could not be applied");
-        layoutHome();
-        return;
+    for (size_t i = 0; i < msg->policy_count; ++i) {
+        if (!storage_setPolicy(msg->policy[i].policy_name, msg->policy[i].enabled)) {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                            "Policies could not be applied");
+            layoutHome();
+            return;
+        }
     }
 
     storage_commit();

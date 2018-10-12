@@ -135,7 +135,7 @@ SignedIdentity.address			max_size:130
 SignedIdentity.public_key		max_size:33
 SignedIdentity.signature		max_size:65
 
-ApplyPolicies.policy			max_count:1
+ApplyPolicies.policy			max_count:16
 
 # not used in firmware
 FirmwareUpload.payload_hash  max_size:32
