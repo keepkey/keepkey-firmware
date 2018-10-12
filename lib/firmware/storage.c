@@ -848,7 +848,17 @@ void storage_reset_impl(ConfigFlash *cfg, uint8_t storage_key[64])
     storage_setPin_impl(&cfg->storage, "", storage_key);
 
     cfg->storage.version = STORAGE_VERSION;
-    session_clear(/*clear_pin=*/true);
+
+    sessionPinCached = false;
+    sessionSeedCached = false;
+    sessionPassphraseCached = false;
+
+    memset(&sessionSeed, 0, sizeof(sessionSeed));
+    memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
+    memzero(sessionStorageKey, sizeof(sessionStorageKey));
+
+    shadow_config.storage.has_sec = false;
+    memzero(&shadow_config.storage.sec, sizeof(shadow_config.storage.sec));
 }
 
 void session_clear(bool clear_pin)
