@@ -71,20 +71,33 @@ static const uint8_t ShapeShift_api_key[64] =
  */
 static bool exchange_tx_layout_str(const CoinType *coin, uint8_t *amt, size_t amt_len, char *out, size_t out_len)
 {
-    if (!coin->has_forkid)
-        return false;
-
-    uint32_t chain_id = coin->forkid;
-
     const TokenType *token = NULL;
-    if (!isEthereumLike(coin->coin_name)) {
-        token = tokenByChainAddress(chain_id, coin->contract_address.bytes);
+    if (!isEthereumLike(coin->coin_name) && coin->has_contract_address) {
+        if (!coin->has_forkid)
+            return false;
+
+        token = tokenByChainAddress(coin->forkid, coin->contract_address.bytes);
     }
 
-    bignum256 value;
-    bn_from_bytes(amt, amt_len, &value);
-    ethereumFormatAmount(&value, token, chain_id, out, out_len);
-    return true;
+    if (isEthereumLike(coin->coin_name) || token) {
+        if (!coin->has_forkid)
+            return false;
+
+        bignum256 value;
+        bn_from_bytes(amt, amt_len, &value);
+        ethereumFormatAmount(&value, token, coin->forkid, out, out_len);
+        return true;
+    }
+
+    if (amt_len <= sizeof(uint64_t)) {
+        rev_byte_order(amt, amt_len);
+        uint64_t amount64;
+        memcpy(&amount64, amt, sizeof(amount64));
+        coin_amnt_to_str(coin, amount64, out, out_len);
+        return true;
+    }
+
+    return false;
 }
 
 /// \returns true iff two addresses match. Ignores differencess in leading '0x' for ETH-like addresses.
