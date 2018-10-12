@@ -71,11 +71,13 @@ static const uint8_t ShapeShift_api_key[64] =
  */
 static bool exchange_tx_layout_str(const CoinType *coin, uint8_t *amt, size_t amt_len, char *out, size_t out_len)
 {
-    const TokenType *token;
-    uint32_t chain_id = 1; // FIXME: pull this from the coin table.
-    if (isEthereumLike(coin->coin_name)) {
-        token = NULL;
-    } else {
+    if (!coin->has_forkid)
+        return false;
+
+    uint32_t chain_id = coin->forkid;
+
+    const TokenType *token = NULL;
+    if (!isEthereumLike(coin->coin_name)) {
         token = tokenByChainAddress(chain_id, coin->contract_address.bytes);
     }
 

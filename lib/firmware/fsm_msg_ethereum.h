@@ -19,7 +19,10 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
     const size_t *value_size;
     const TokenType *token;
 
-    uint32_t chain_id = 1; // FIXME: pull this from the CoinTable.
+    if (!coin->has_forkid)
+        return TXOUT_COMPILE_ERROR;
+
+    const uint32_t chain_id = coin->forkid;
     if (is_token_transaction(msg)) {
         has_to = &msg->has_token_to;
         to_size = &msg->token_to.size;
