@@ -292,6 +292,8 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     if (isEthereumLike(coin->coin_name))
     {
         EthereumSignTx *tx_out = (EthereumSignTx *)vtx_out;
+        tx_out->has_chain_id = coin->has_forkid;
+        tx_out->chain_id = coin->forkid;
         exchange = &tx_out->exchange_type;
         /*Verify response structure from client is compatible*/
         if(exchange->signed_exchange_response.has_response)

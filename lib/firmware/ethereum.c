@@ -535,6 +535,8 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 		data_total = msg->data_initial_chunk.size = 68;
 		memcpy(msg->to.bytes, token->address, 20);
 		msg->to.size = 20;
+		msg->value.size = 0;
+		memset(msg->value.bytes, 0, sizeof(msg->value.bytes));
 	}
 
 	char confirm_body_message[BODY_CHAR_MAX];
