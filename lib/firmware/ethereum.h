@@ -1,7 +1,7 @@
 /*
- * This file is part of the KeepKey project.
+ * This file is part of the TREZOR project, https://trezor.io/
  *
- * Copyright (C) 2015 KeepKey LLC
+ * Copyright (C) 2016 Alex Beregszaszi <alex@rtfs.hu>
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -17,23 +17,19 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef POLICY_H
-#define POLICY_H
+#ifndef __ETHEREUM_H__
+#define __ETHEREUM_H__
 
-#include "transaction.h"
-#include "coins.h"
+#include <stdint.h>
+#include <stdbool.h>
+#include "bip32.h"
+#include "messages.pb.h"
 
-#define POLICY_COUNT (sizeof(policies) / sizeof(policies[0]))
+void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node);
+void ethereum_signing_abort(void);
+void ethereum_signing_txack(EthereumTxAck *msg);
 
-// NOTE: when adding policies, *ONLY* add to the end. Otherwise this breaks
-// storage_upgradePolicies();
-static const PolicyType policies[] = {
-    {true, "ShapeShift", true, false},
-    {true, "Pin Caching", true, false},
-    {true, "U2F Transport", true, false},
-    {true, "AdvancedMode", true, false},
-};
-
-int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vin, void *vout, bool needs_confirm);
+void ethereum_message_sign(EthereumSignMessage *msg, const HDNode *node, EthereumMessageSignature *resp);
+int ethereum_message_verify(EthereumVerifyMessage *msg);
 
 #endif

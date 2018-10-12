@@ -95,7 +95,8 @@ it easier to extend for new features later on.
 |   has_mnemonic            |   bit 9        |              |                |
 |   has_u2froot             |   bit 10       |              |                |
 |   allow_u2f_transport     |   bit 11       |              |                |
-|   reserved                |   bits 12 - 31 |              |                |
+|   AdvancedMode policy     |   bit 12       |              |                |
+|   reserved                |   bits 13 - 31 |              |                |
 | pin_failed_attempts       | u32            |            4 |              8 |
 | auto_lock_delay_ms        | u32            |            4 |             12 |
 | language                  | char[16]       |           16 |             16 |

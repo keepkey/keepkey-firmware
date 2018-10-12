@@ -17,8 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "keepkey/board/layout.h"
 #include "keepkey/board/msg_dispatch.h"
 #include "trezor/crypto/bip32.h"
@@ -28,6 +26,7 @@
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/ethereum.h"
+#include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/exchange.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/policy.h"
@@ -37,7 +36,8 @@
 #include <string.h>
 #include <stdio.h>
 
-/* === Private Variables =================================================== */
+#define MIN(a, b) ({ typeof(a) _a = (a); typeof(b) _b = (b); _a < _b ? _a : _b; })
+
 /* exchange error variable */
 static ExchangeError exchange_error = NO_EXCHANGE_ERROR;
 
@@ -54,7 +54,6 @@ static const uint8_t ShapeShift_api_key[64] =
     0x38, 0xd6, 0xb3, 0xe9, 0x0c, 0xa8, 0x0c, 0x8e, 0x63, 0x68, 0xb6, 0x02, 
     0x14, 0x45, 0x95, 0x0b
 };
-/* === Private Functions =================================================== */
 
 /*
  * exchange_tx_layout_str() - assemble display message for exchange transaction output
@@ -70,73 +69,40 @@ static const uint8_t ShapeShift_api_key[64] =
  *      true/false - status
  *
  */
-static bool exchange_tx_layout_str(const CoinType *coint, uint8_t *amt, size_t amt_len, char *out, size_t out_len)
+static bool exchange_tx_layout_str(const CoinType *coin, uint8_t *amt, size_t amt_len, char *out, size_t out_len)
 {
-    bool ret_stat = false;
-    uint64_t amount64;
-    bool is_token = coint->has_contract_address;
+    if (!coin->has_forkid)
+        return false;
 
-    if(check_ethereum_tx(coint->coin_name))
-    {
-        ret_stat = ether_for_display(amt, amt_len, out);
-    }
-    else if(is_token)
-    {
-        ret_stat = ether_token_for_display(amt, amt_len, coint->decimals, out, out_len);
-        if(out_len <= strlen(out) + 1 + sizeof(coint->coin_shortcut) + 1) 
-        {
-            ret_stat = false;
-            return ret_stat;
-        }
+    uint32_t chain_id = coin->forkid;
 
-        // Append token shortcut to display string
-        strncat(out, " ", 1);
-        strncat(out, coint->coin_shortcut, sizeof(coint->coin_shortcut)+1);
+    const TokenType *token = NULL;
+    if (!isEthereumLike(coin->coin_name)) {
+        token = tokenByChainAddress(chain_id, coin->contract_address.bytes);
     }
-    else
-    {
-        if(amt_len <= sizeof(uint64_t))
-        {
-            rev_byte_order(amt, amt_len);
-            memcpy(&amount64, amt, sizeof(uint64_t));
-            coin_amnt_to_str(coint, amount64, out, out_len);
-            ret_stat = true;
-        }
-    }
-    return(ret_stat);
+
+    bignum256 value;
+    bn_from_bytes(amt, amt_len, &value);
+    ethereumFormatAmount(&value, token, chain_id, out, out_len);
+    return true;
 }
 
-/* 
- * verify_dep_exchange_address - verify deposit address specified in exchange contract 
- *
- * INPUT
- *      deposit_addr -  pointer to deposit address 
- *      deposit_response_addr - pointer to deposit address in exchange response 
- * 
- * OUTPUT
- *      true/false - status
- * 
- */
-bool verify_dep_exchange_address(char *deposit_addr, char *deposit_response_addr)
+/// \returns true iff two addresses match. Ignores differencess in leading '0x' for ETH-like addresses.
+bool addresses_same(const char *LHS, size_t LHS_len, const char *RHS, size_t RHS_len, bool isETH)
 {
-    bool ret_stat = false;
-    if(deposit_response_addr[0] == '0' && (deposit_response_addr[1] == 'x'|| deposit_response_addr[1] == 'X'))
-    {
-        if(strncasecmp(deposit_addr, deposit_response_addr + 2, 
-                    sizeof(((ExchangeAddress *)NULL)->address) -2) == 0)
-        {
-            ret_stat = true;
+    if (isETH) {
+        if (LHS[0] == '0' && (LHS[1] == 'x' || LHS[1] == 'X')) {
+            LHS += 2;
+            LHS_len -= 2;
+        }
+
+        if (RHS[0] == '0' && (RHS[1] == 'x' || RHS[1] == 'X')) {
+            RHS += 2;
+            RHS_len -= 2;
         }
     }
-    else
-    {
-        if(strncasecmp(deposit_addr, deposit_response_addr, 
-                    sizeof(((ExchangeAddress *)NULL)->address)) == 0)
-        {
-            ret_stat = true;
-        }
-    }
-    return(ret_stat);
+
+    return strncasecmp(LHS, RHS, MIN(LHS_len, RHS_len)) == 0;
 }
 
 /*
@@ -147,96 +113,56 @@ bool verify_dep_exchange_address(char *deposit_addr, char *deposit_response_addr
  *     address_n_count - depth of node
  *     address_n - pointer to node path
  *     address_str - string representation of address
+ *     address_str_len - address length
  *     root - root hd node
  *
  * OUTPUT
  *     true/false - success/failure
  */
 static bool verify_exchange_address(char *coin_name, size_t address_n_count,
-                                    uint32_t *address_n, char *address_str, const HDNode *root, bool is_token)
+                                    uint32_t *address_n, char *address_str, size_t address_str_len,
+                                    const HDNode *root, bool is_token)
 {
-    const CoinType *coin;
-    HDNode node;
     bool ret_stat = false;
 
-    coin = coinByName(coin_name);
+    const CoinType *coin = coinByName(coin_name);
+    if (!coin)
+        return false;
 
-    if(coin)
-    {
-        memcpy(&node, root, sizeof(HDNode));
-        if(hdnode_private_ckd_cached(&node, address_n, address_n_count, NULL) == 0)
+    static CONFIDENTIAL HDNode node;
+    memcpy(&node, root, sizeof(HDNode));
+    if (hdnode_private_ckd_cached(&node, address_n, address_n_count, NULL) == 0) {
+        goto verify_exchange_address_exit;
+    }
+
+    if (isEthereumLike(coin->coin_name) || is_token) {
+        char tx_out_address[sizeof(((ExchangeAddress *)NULL)->address)];
+        EthereumAddress_address_t ethereum_addr;
+
+        ethereum_addr.size = 20;
+        if (hdnode_get_ethereum_pubkeyhash(&node, ethereum_addr.bytes) != 0)
         {
+            data2hex((char *)ethereum_addr.bytes, 20, tx_out_address);
+            ret_stat = addresses_same(tx_out_address, sizeof(tx_out_address),
+                                      address_str, address_str_len, true);
+        }
+    } else {
+        const curve_info *curve = get_curve_by_name(coin->curve_name);
+        if (!curve)
             goto verify_exchange_address_exit;
-        }
 
-        if(check_ethereum_tx(coin->coin_name) || is_token)
-        {
-            char tx_out_address[sizeof(((ExchangeAddress *)NULL)->address)];
-            EthereumAddress_address_t ethereum_addr;
-
-            ethereum_addr.size = 20;
-            if(hdnode_get_ethereum_pubkeyhash(&node, ethereum_addr.bytes) != 0)
-            {
-                data2hex((char *)ethereum_addr.bytes, 20, tx_out_address);
-                if(address_str[0] == '0' && (address_str[1] == 'x' || address_str[1] == 'X'))
-                {
-                    if(strncasecmp(tx_out_address, address_str+2, sizeof(tx_out_address)-2) == 0)
-                    {
-                        ret_stat = true;
-                    }
-                }
-                else
-                {
-                    if(strncasecmp(tx_out_address, address_str, sizeof(tx_out_address)) == 0)
-                    {
-                        ret_stat = true;
-                    }
-                }
-            }
-        }
-        else
-        {
-            const curve_info *curve = get_curve_by_name(coin->curve_name);
-            if (!curve)
-                goto verify_exchange_address_exit;
-
-            char tx_out_address[36];
-            hdnode_fill_public_key(&node);
-            ecdsa_get_address(node.public_key, coin->address_type, curve->hasher_pubkey,
-                              curve->hasher_base58, tx_out_address,
-                              sizeof(tx_out_address));
-            if(strncmp(tx_out_address, address_str, sizeof(tx_out_address)) == 0)
-            {
-                ret_stat = true;
-            }
+        char tx_out_address[36];
+        hdnode_fill_public_key(&node);
+        ecdsa_get_address(node.public_key, coin->address_type, curve->hasher_pubkey,
+                          curve->hasher_base58, tx_out_address,
+                          sizeof(tx_out_address));
+        if (strncmp(tx_out_address, address_str, sizeof(tx_out_address)) == 0) {
+            ret_stat = true;
         }
     }
 verify_exchange_address_exit:
     memzero(&node, sizeof(node));
     return(ret_stat);
-}
-
-/* === Functions =========================================================== */
-/*
- * check_ethereum_tx() - check transaction is for Ethereum 
- *
- * INPUT 
- *      coin name
- *
- * OUTPUT 
- *      true - Ethereum transaction
- *      false - trasaction for others
- */
-bool check_ethereum_tx(const char *coin_name)
-{
-    if(strcmp(coin_name, "Ethereum") == 0 || strcmp(coin_name, "Ethereum Classic") == 0)
-    {
-        return(true);
-    }
-    else
-    {
-        return(false);
-    }
 }
 
 /*
@@ -300,7 +226,7 @@ static bool verify_exchange_dep_amount(const char *coin, void *dep_amt_ptr, Exch
     char amt_str[sizeof(exch_dep_amt->bytes)];
 
     memset(amt_str, 0, sizeof(amt_str));
-    if(check_ethereum_tx(coin))
+    if (isEthereumLike(coin))
     {
         memcpy (amt_str, exch_dep_amt->bytes, exch_dep_amt->size);
     }
@@ -338,7 +264,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
 {
     bool ret_stat = false;
     bool is_token = false;
-    int response_raw_filled_len = 0; 
+    int response_raw_filled_len = 0;
     uint8_t response_raw[sizeof(ExchangeResponseV2)];
     const CoinType *response_coin;
     const CoinType *withdraw_coin;
@@ -346,11 +272,11 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     char tx_out_address[sizeof(((ExchangeAddress *)NULL)->address)];
     char token_shortcut[sizeof(((CoinType *)NULL)->coin_shortcut)];
     void *tx_out_amount;
-    
+
     ExchangeType *exchange;
     memset(tx_out_address, 0, sizeof(tx_out_address));
 
-    if(check_ethereum_tx(coin->coin_name))
+    if (isEthereumLike(coin->coin_name))
     {
         EthereumSignTx *tx_out = (EthereumSignTx *)vtx_out;
         exchange = &tx_out->exchange_type;
@@ -361,18 +287,18 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
             set_exchange_error(ERROR_EXCHANGE_RESPONSE_STRUCTURE);
             goto verify_exchange_contract_exit;
         }
-	is_token = is_token_transaction(tx_out);
-	if(is_token) {
+        is_token = is_token_transaction(tx_out);
+        if(is_token) {
             // token specific address, shorcut, and value
             data2hex(tx_out->token_to.bytes, tx_out->token_to.size, tx_out_address);
             tx_out_amount = (void *)tx_out->token_value.bytes;
             strncpy(token_shortcut, tx_out->token_shortcut, sizeof(token_shortcut));
-	}
-	else
-	{
+        }
+        else
+        {
             data2hex(tx_out->to.bytes, tx_out->to.size, tx_out_address);
             tx_out_amount = (void *)tx_out->value.bytes;
-	}
+        }
     }
     else
     {
@@ -423,10 +349,12 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
         set_exchange_error(ERROR_EXCHANGE_DEPOSIT_COINTYPE);
         goto verify_exchange_contract_exit;
     }
-	
+
     /* verify Deposit address */
-    if(!verify_dep_exchange_address(tx_out_address, 
-               exchange->signed_exchange_response.responseV2.deposit_address.address))
+    if(!addresses_same(tx_out_address, sizeof(tx_out_address),
+               exchange->signed_exchange_response.responseV2.deposit_address.address,
+               sizeof(exchange->signed_exchange_response.responseV2.deposit_address.address),
+               isEthereumLike(coin->coin_name)))
     {
         set_exchange_error(ERROR_EXCHANGE_DEPOSIT_ADDRESS);
         goto verify_exchange_contract_exit;
@@ -454,7 +382,9 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     if(!verify_exchange_address( exchange->withdrawal_coin_name,
              exchange->withdrawal_address_n_count,
              exchange->withdrawal_address_n,
-             exchange->signed_exchange_response.responseV2.withdrawal_address.address, root, withdraw_coin->has_contract_address)) 
+             exchange->signed_exchange_response.responseV2.withdrawal_address.address,
+             sizeof(exchange->signed_exchange_response.responseV2.withdrawal_address.address),
+             root, withdraw_coin->has_contract_address)) 
     {
         set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_ADDRESS);
         goto verify_exchange_contract_exit;
@@ -475,7 +405,9 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     if(!verify_exchange_address( (char *)response_coin->coin_name,
              exchange->return_address_n_count,
              exchange->return_address_n,
-             exchange->signed_exchange_response.responseV2.return_address.address, root, response_coin->has_contract_address))
+             exchange->signed_exchange_response.responseV2.return_address.address,
+             sizeof(exchange->signed_exchange_response.responseV2.return_address.address),
+             root, response_coin->has_contract_address))
     {
         set_exchange_error(ERROR_EXCHANGE_RETURN_ADDRESS);
     }
@@ -528,81 +460,73 @@ ExchangeError get_exchange_error(void)
  */
 bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode *root, bool needs_confirm)
 {
-    bool ret_val = false;
-    const CoinType *withdrawal_coin, *deposit_coin;
-    char amount_dep_str[128], amount_wit_str[128], node_str[100];
-    ExchangeType *tx_exchange;
-
     /* validate contract before processing */
-    if(verify_exchange_contract(coin, vtx_out, root))
+    if (!verify_exchange_contract(coin, vtx_out, root))
+        return false;
+
+    /* check if user confirmation is required */
+    if (!needs_confirm)
+        return true;
+
+    const CoinType *deposit_coin;
+    ExchangeType *tx_exchange;
+    if (isEthereumLike(coin->coin_name))
     {
-        if(check_ethereum_tx(coin->coin_name))
+        tx_exchange = &((EthereumSignTx *)vtx_out)->exchange_type;
+        if(is_token_transaction((EthereumSignTx *)vtx_out))
         {
-            tx_exchange = &((EthereumSignTx *)vtx_out)->exchange_type;
-            if(is_token_transaction((EthereumSignTx *)vtx_out))
-            {
-                deposit_coin = coinByShortcut(((EthereumSignTx *)vtx_out)->token_shortcut);
-            }
-            else
-            {
-                deposit_coin = coinByName(coin->coin_name);
-            }
+            deposit_coin = coinByShortcut(((EthereumSignTx *)vtx_out)->token_shortcut);
         }
         else
         {
-            tx_exchange = &((TxOutputType *)vtx_out)->exchange_type;
             deposit_coin = coinByName(coin->coin_name);
         }
-        /* check user confirmation required*/
-        if(needs_confirm)
-        {
-            withdrawal_coin = coinByName(tx_exchange->withdrawal_coin_name);
-
-            /* assemble deposit amount for display*/
-            if(!exchange_tx_layout_str(deposit_coin, 
-                        tx_exchange->signed_exchange_response.responseV2.deposit_amount.bytes,
-                        tx_exchange->signed_exchange_response.responseV2.deposit_amount.size,
-                        amount_dep_str,
-                        sizeof(amount_dep_str)))
-            {
-                set_exchange_error(ERROR_EXCHANGE_DEPOSIT_AMOUNT);
-                goto process_exchange_contract_exit;
-            }
-
-            /* assemble withdrawal amount for display*/
-            if(!exchange_tx_layout_str(withdrawal_coin, 
-                        tx_exchange->signed_exchange_response.responseV2.withdrawal_amount.bytes,
-                        tx_exchange->signed_exchange_response.responseV2.withdrawal_amount.size,
-                        amount_wit_str,
-                        sizeof(amount_wit_str)))
-             {
-                set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_AMOUNT);
-                goto process_exchange_contract_exit;
-             }
-
-            /* determine withdrawal account number */
-            if(bip32_node_to_string(node_str, sizeof(node_str), withdrawal_coin,
-                                    tx_exchange->withdrawal_address_n,
-                                    tx_exchange->withdrawal_address_n_count,
-                                    /*whole_account=*/false))
-            {
-                if(!confirm_exchange_output("ShapeShift", amount_dep_str, amount_wit_str, node_str))
-                {
-                    set_exchange_error(ERROR_EXCHANGE_CANCEL);
-                    goto process_exchange_contract_exit;
-                }
-            }
-            else
-            {
-                set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_ADDRESS);
-                goto process_exchange_contract_exit;
-            }
-        }
-
-        ret_val = true;
+    }
+    else
+    {
+        tx_exchange = &((TxOutputType *)vtx_out)->exchange_type;
+        deposit_coin = coinByName(coin->coin_name);
     }
 
-process_exchange_contract_exit:
-    return ret_val;
+    const CoinType *withdrawal_coin = coinByName(tx_exchange->withdrawal_coin_name);
+
+    /* assemble deposit amount for display*/
+    char amount_dep_str[128];
+    if (!exchange_tx_layout_str(deposit_coin,
+                tx_exchange->signed_exchange_response.responseV2.deposit_amount.bytes,
+                tx_exchange->signed_exchange_response.responseV2.deposit_amount.size,
+                amount_dep_str,
+                sizeof(amount_dep_str))) {
+        set_exchange_error(ERROR_EXCHANGE_DEPOSIT_AMOUNT);
+        return false;
+    }
+
+    /* assemble withdrawal amount for display*/
+    char amount_wit_str[128];
+    if (!exchange_tx_layout_str(withdrawal_coin,
+                tx_exchange->signed_exchange_response.responseV2.withdrawal_amount.bytes,
+                tx_exchange->signed_exchange_response.responseV2.withdrawal_amount.size,
+                amount_wit_str,
+                sizeof(amount_wit_str))) {
+        set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_AMOUNT);
+        return false;
+    }
+
+    /* determine withdrawal account number */
+    char node_str[100];
+    if (!bip32_node_to_string(node_str, sizeof(node_str), withdrawal_coin,
+                             tx_exchange->withdrawal_address_n,
+                             tx_exchange->withdrawal_address_n_count,
+                             /*whole_account=*/false)) {
+        set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_ADDRESS);
+        return false;
+    }
+
+    if (!confirm_exchange_output("ShapeShift", amount_dep_str, amount_wit_str, node_str)) {
+        set_exchange_error(ERROR_EXCHANGE_CANCEL);
+        return false;
+    }
+
+    return true;
 }
 
