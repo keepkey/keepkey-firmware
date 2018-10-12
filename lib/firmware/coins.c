@@ -37,7 +37,7 @@ false, 0,                          /* has_address_type_p2wpkh, address_type_p2wp
 false, 0,                          /* has_address_type_p2wsh, address_type_p2wsh*/ \
 false, "",                         /* has_signed_message_header, signed_message_header*/ \
 true, 0x8000003C,                  /* has_bip44_account_path, bip44_account_path*/ \
-false, 0,                          /* has_forkid, forkid*/ \
+true, 1,                           /* has_forkid, forkid*/ \
 true, (DECIMALS),                  /* has_decimals, decimals*/ \
 true, {20, {(CONTRACT_ADDRESS)}},  /* has_contract_address, contract_address*/ \
 true, {32, {(GAS_LIMIT)}},         /* has_gas_limit, gas_limit*/ \

@@ -115,6 +115,9 @@ static void coin_from_token(CoinType *coin, const TokenType *token) {
     coin->has_coin_shortcut = true;
     strncpy(&coin->coin_shortcut[0], token->ticker, sizeof(coin->coin_shortcut));
 
+    coin->has_forkid = true;
+    coin->forkid = token->chain_id;
+
     coin->has_maxfee_kb = true;
     coin->maxfee_kb = 100000;
 
