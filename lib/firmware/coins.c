@@ -68,7 +68,8 @@ const CoinType coins[COINS_COUNT] = {
     {true, "BitcoinGold",  true, "BTG",   true,  38,    true,     500000,  true,  23,  false, 0,  false, 0,  true, "\x1d" "Bitcoin Gold Signed Message:\n",  true, 0x8000009c,   true, 79,  true,   8,  false, {0, {0}},  false, {0, {0}},  true, 76067358,  true, 76066276,  true, true,   true, true,   true, SECP256K1_STRING,  false, "",            true, "btg",   false, false,  false, 0,         true,  77429938,        false,       0 },
     {true, "ZCash",        true, "ZEC",   true, 7352,   true,    1000000,  true, 7357, false, 0,  false, 0,  true, "\x16" "ZCash Signed Message:\n",         true, 0x80000085,   false, 0,  true,   8,  false, {0, {0}},  false, {0, {0}},  true, 76067358,  true, 76066276,  false, false, false, false, true, SECP256K1_STRING,  false, "",            false, "",     false, false,  true, 63210096,   false,        0,        false,       0 },
     {true, "Zcash Testnet",true, "TAZ",   true, 7461,   true,   10000000,  true, 7354, false, 0,  false, 0,  true, "\x16" "Zcash Signed Message:\n",         true, 0x80000085,   false, 0,  true,   8,  false, {0, {0}},  false, {0, {0}},  true, 70617039,  true, 70615956,  false, false, false, false, true, SECP256K1_STRING,  false, "",            false, "",     false, false,  true, 63210096,   false,        0,        false,       0 },
-    #include "keepkey/firmware/tokens.def"
+    {true, "Bitcore",      true, "BTX",   true,   3,    true,     100000,  true,  125, false, 0,  false, 0,  true, "\x18" "BitCore Signed Message:\n",       true, 0x800000a0,   false, 0,  true,   8,  false, {0, {0}},  false, {0, {0}},  true, 76067358,  true, 76066276,  true, true,   true, false,  true, SECP256K1_STRING,  false, "",            true, "btx",    false, false,  false, 0,        false,        0,        false,       0 },
+	#include "keepkey/firmware/tokens.def"
 };
 
 _Static_assert(sizeof(coins) / sizeof(coins[0]) == COINS_COUNT,
