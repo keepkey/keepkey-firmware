@@ -73,7 +73,7 @@ int main(void)
     led_func(SET_GREEN_LED);
 
     // Emulator doesn't support FIDO u2f.
-    u2f_init(NULL, NULL);
+    u2f_init(NULL, NULL, NULL);
 
     usb_init();
     led_func(CLR_RED_LED);

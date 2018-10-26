@@ -131,7 +131,7 @@ int main(void)
     /* Enable interrupt for timer */
     cm_enable_interrupts();
 
-    u2f_init(&u2f_do_register, &u2f_do_auth);
+    u2f_init(&u2f_do_register, &u2f_do_auth, &u2f_do_version);
     usb_init();
     led_func(CLR_RED_LED);
 

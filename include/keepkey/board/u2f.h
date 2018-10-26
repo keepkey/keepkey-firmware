@@ -59,9 +59,13 @@ typedef struct {
 
 typedef void (*u2f_register_callback_t)(const U2F_REGISTER_REQ *req);
 typedef void (*u2f_authenticate_callback_t)(const U2F_AUTHENTICATE_REQ *req);
+typedef void (*u2f_version_callback_t)(const uint8_t channel[4]);
 
 void u2f_init(u2f_register_callback_t register_cb,
-              u2f_authenticate_callback_t authenticate_cb);
+              u2f_authenticate_callback_t authenticate_cb,
+              u2f_version_callback_t version_cb);
+
+const uint8_t *u2f_get_channel(void);
 
 void u2fhid_read(char tiny, const U2FHID_FRAME *buf);
 void u2fhid_init_cmd(const U2FHID_FRAME *f);

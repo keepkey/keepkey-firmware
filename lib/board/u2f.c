@@ -85,10 +85,27 @@ void u2f_set_debug_rx_callback(u2f_rx_callback_t callback){
 
 static u2f_register_callback_t u2f_register_callback = 0;
 static u2f_authenticate_callback_t u2f_authenticate_callback = 0;
+static u2f_version_callback_t u2f_version_callback = 0;
 
-void u2f_init(u2f_register_callback_t register_cb, u2f_authenticate_callback_t authenticate_cb) {
+
+void u2f_init(u2f_register_callback_t register_cb, u2f_authenticate_callback_t authenticate_cb,
+              u2f_version_callback_t version_cb) {
 	u2f_register_callback = register_cb;
 	u2f_authenticate_callback = authenticate_cb;
+	u2f_version_callback = version_cb;
+
+	// Force channel ID initialization
+	(void)u2f_get_channel();
+}
+
+const uint8_t *u2f_get_channel(void) {
+	static uint8_t channel[4] = { 0, 0, 0, 0 };
+
+	// Initialize U2F Transport channel id
+	while (memcmp(channel, "\x00\x00\x00\x00", 4) == 0)
+		random_buffer(channel, sizeof(channel));
+
+	return channel;
 }
 
 void u2fhid_read(char tiny, const U2FHID_FRAME *f)
@@ -448,14 +465,32 @@ void u2f_authenticate(const APDU *a)
 
 	is_hijack = (req->keyHandle[3] & 0x80) == 0;
 	if (is_hijack) {
-		// unpack keyHandle raw (protobuf) message frame and dispatch
-		static UsbMessage m;
-		memset(&m, 0, sizeof(m));
-		m.len = KEY_HANDLE_LEN - 4; // 4-bytes { total_frames, frame_i, reserved, reserved & 0x3f }
-		memcpy(m.message, req->keyHandle + 4, KEY_HANDLE_LEN - 4);
 		if (req->keyHandle[2] != 0x00) {
 			return;
 		}
+
+		uint8_t channel[4];
+		memcpy(channel, req->keyHandle + 4, 4);
+
+		// If the message is a brodacast,
+		if (memcmp(channel, "\x00\x00\x00\x00", 4) == 0) {
+			// ... respond with our version info
+			if (u2f_version_callback)
+				u2f_version_callback(u2f_get_channel());
+			return;
+		}
+
+		// Otherwise make sure it's for us
+		if (memcmp(channel, u2f_get_channel(), 4) != 0)
+			return;
+
+		// unpack keyHandle raw (protobuf) message frame and dispatch
+		static UsbMessage m;
+		memset(&m, 0, sizeof(m));
+		m.len = KEY_HANDLE_LEN - 8; // 8-bytes { total_frames, frame_i, reserved, reserved & 0x3f,
+		                            //           channel[0], channel[1], channel[2], channel[3] }
+		memcpy(m.message, req->keyHandle + 8, KEY_HANDLE_LEN - 8);
+
 		if ((req->keyHandle[3] & 0x40) == 0x00) {
 			if (u2f_user_rx_callback) {
 				u2f_user_rx_callback(&m);

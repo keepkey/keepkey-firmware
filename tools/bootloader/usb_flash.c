@@ -246,7 +246,7 @@ bool usb_flash_firmware(void)
                    BOOTLOADER_PATCH_VERSION);
 
     // U2F signing unsupported in bootloader mode. Only transport is supported.
-    u2f_init(0, 0);
+    u2f_init(NULL, NULL, NULL);
 
     usb_init();
     bootloader_fsm_init();

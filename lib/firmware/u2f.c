@@ -316,3 +316,38 @@ void u2f_do_auth(const U2F_AUTHENTICATE_REQ *req) {
 	             U2F_MAX_EC_SIG_SIZE + sig_len + 2);
 }
 
+void u2f_do_version(const uint8_t channel[4]) {
+	uint8_t data[4 /* channel */ +
+	             4 /* FW version major, BE */ +
+	             4 /* FW version minor, BE */ +
+	             4 /* FW version patch, BE */ +
+	             1 /* Flags */ +
+	             2 /* U2F OK */];
+
+	memcpy(data, channel, sizeof(*channel));
+
+	// Firmware version
+	data[ 4] = ((MAJOR_VERSION) >> 24) & 0xff;
+	data[ 5] = ((MAJOR_VERSION) >> 16) & 0xff;
+	data[ 6] = ((MAJOR_VERSION) >>  8) & 0xff;
+	data[ 7] = ((MAJOR_VERSION)      ) & 0xff;
+	data[ 8] = ((MINOR_VERSION) >> 24) & 0xff;
+	data[ 9] = ((MINOR_VERSION) >> 16) & 0xff;
+	data[10] = ((MINOR_VERSION) >>  8) & 0xff;
+	data[11] = ((MINOR_VERSION)      ) & 0xff;
+	data[12] = ((PATCH_VERSION) >> 24) & 0xff;
+	data[13] = ((PATCH_VERSION) >> 16) & 0xff;
+	data[14] = ((PATCH_VERSION) >>  8) & 0xff;
+	data[15] = ((PATCH_VERSION)      ) & 0xff;
+
+	// Flags, bits 2:31 reserved
+	data[16] = 0;
+#if DEBUG_LINK
+	data[16] |= (1 << 1); // debug_link
+#endif
+	data[16] |= (1 << 0); // !bootloader_mode
+
+	// Append OK
+	memcpy(data + 17, "\x90\x00", 2);
+	send_u2f_msg(data, sizeof(data));
+}
