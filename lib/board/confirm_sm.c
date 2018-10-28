@@ -40,25 +40,15 @@
 #include <stdio.h>
 #include <string.h>
 
-/* === Private Variables =================================================== */
-
 /* Button request ack */
 static bool button_request_acked = false;
 
-/* === Variables =========================================================== */
-
 extern bool reset_msg_stack;
 
-/* === Private Functions =================================================== */
+static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
 
-/*
- * handle_screen_press() - Handler for push button being pressed
- *
- * INPUT
- *     - context: current state context
- * OUTPUT
- *     none
- */
+/// Handler for push button being pressed.
+/// \param context current state context.
 static void handle_screen_press(void *context)
 {
     assert(context != NULL);
@@ -80,14 +70,8 @@ static void handle_screen_press(void *context)
     }
 }
 
-/*
- * handle_screen_release() - Handler for push button being released
- *
- * INPUT
- *     - context: current state context
- * OUTPUT
- *     none
- */
+/// Handler for push button being pressed.
+/// \param context current state context.
 static void handle_screen_release(void *context)
 {
     assert(context != NULL);
@@ -111,15 +95,8 @@ static void handle_screen_release(void *context)
     }
 }
 
-/*
- * handle_confirm_timeout() - User has held down the push button for duration as request.
- *
- * INPUT
- *     - context: current state context
- * OUTPUT
- *     none
- */
-
+/// User has held down the push button for duration as requested.
+/// \param context current state context.
 static void handle_confirm_timeout(void *context)
 {
     assert(context != NULL);
@@ -129,16 +106,10 @@ static void handle_confirm_timeout(void *context)
     si->active_layout = LAYOUT_CONFIRMED;
 }
 
-/*
- * swap_layout() - Changes the active layout of the confirmation screen
- *
- * INPUT
- *     - active_layout: layout to switch to
- *     - si: current state information
- *     - layout_notification_func: layout notification function to use to display confirm message
- * OUTPUT
- *     none
- */
+/// Changes the active layout of the confirmation screen.
+/// \param active_layout The layout to swtich to.
+/// \param si current state information.
+/// \param layout_notification_func layout callback for displaying confirm message.
 static void swap_layout(ActiveLayout active_layout, volatile StateInfo *si,
                         layout_notification_t layout_notification_func)
 {
@@ -182,16 +153,11 @@ static void swap_layout(ActiveLayout active_layout, volatile StateInfo *si,
 
 }
 
-/*
- * confirm_helper() - Common confirm function
- *
- * INPUT
- *     - request_title: title of confirmation request
- *     - request_body: body of confirmation message
- *     - layout_notification_func: layout notification function to use to display confirm message
- * OUTPUT
- *     true/false whether device confirmed
- */
+/// Common confirmation function.
+/// \param request_title  The confirmation's title.
+/// \param requesta_body  The body of the confirmation message.
+/// \param layout_notification_func  layout callback for displaying confirm message.
+/// \returns true iff the device confirmed.
 static bool confirm_helper(const char *request_title, const char *request_body,
                       layout_notification_t layout_notification_func)
 {
@@ -319,18 +285,6 @@ confirm_helper_exit:
     return(ret_stat);
 }
 
-/* === Functions =========================================================== */
-
-/*
- *  confirm() - User confirmation function interface
- *
- *  INPUT
- *      - type: type of button request to send to host
- *      - request_title: title of confirm message
- *      - request_body: body of confirm message
- *  OUTPUT
- *      true/false whether device confirmed
- */
 bool confirm(ButtonRequestType type, const char *request_title, const char *request_body,
              ...)
 {
@@ -338,7 +292,6 @@ bool confirm(ButtonRequestType type, const char *request_title, const char *requ
 
     va_list vl;
     va_start(vl, request_body);
-    static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
@@ -354,16 +307,6 @@ bool confirm(ButtonRequestType type, const char *request_title, const char *requ
     return ret;
 }
 
-/*
- *  confirm_with_custom_button_request() - User confirmation function interface
- *
- *  INPUT
- *      - button_request: custom button request to send to host
- *      - request_title: title of confirm message
- *      - request_body: body of confirm message
- *  OUTPUT
- *      true/false whether device confirmed
- */
 bool confirm_with_custom_button_request(ButtonRequest *button_request,
                                         const char *request_title, const char *request_body,
                                         ...)
@@ -372,7 +315,6 @@ bool confirm_with_custom_button_request(ButtonRequest *button_request,
 
     va_list vl;
     va_start(vl, request_body);
-    static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
@@ -384,17 +326,6 @@ bool confirm_with_custom_button_request(ButtonRequest *button_request,
     return ret;
 }
 
-/*
- *  confirm_with_custom_layout() - User confirmation function interface that allows custom layout notification
- *
- *  INPUT
- *      - layout_notification_func: custom layout notification
- *      - type: type of button request to send to host
- *      - request_title: title of confirm message
- *      - request_body: body of confirm message
- *  OUTPUT
- *      true/false whether device confirmed
- */
 bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
                                 ButtonRequestType type,
                                 const char *request_title, const char *request_body, ...)
@@ -403,7 +334,6 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
 
     va_list vl;
     va_start(vl, request_body);
-    static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
@@ -419,15 +349,6 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
     return ret;
 }
 
-/*
- * confirm_without_button_request() - User confirmation function interface without button request
- *
- * INPUT
- *     - request_title: title of confirmation request
- *     - request_body: body of confirmation message
- * OUTPUT
- *     true/false whether device confirmed
- */
 bool confirm_without_button_request(const char *request_title, const char *request_body,
                                     ...)
 {
@@ -435,7 +356,6 @@ bool confirm_without_button_request(const char *request_title, const char *reque
 
     va_list vl;
     va_start(vl, request_body);
-    static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
@@ -444,17 +364,6 @@ bool confirm_without_button_request(const char *request_title, const char *reque
     return ret;
 }
 
-/*
- * review() - Acts like confirm but always returns true even if it was canceled via host
- *
- * INPUT
- *     - type: type of button request to send to host
- *     - request_title: title of confirmation request
- *     - request_body: body of confirmation message
- * OUTPUT
- *     true/false whether device confirmed
- *
- */
 bool review(ButtonRequestType type, const char *request_title, const char *request_body,
             ...)
 {
@@ -462,7 +371,6 @@ bool review(ButtonRequestType type, const char *request_title, const char *reque
 
     va_list vl;
     va_start(vl, request_body);
-    static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
@@ -478,16 +386,6 @@ bool review(ButtonRequestType type, const char *request_title, const char *reque
     return true;
 }
 
-/*
- * review_without_button_request() - User review function interface without button request
- *
- * INPUT
- *     - request_title: title of confirmation request
- *     - request_body: body of confirmation message
- * OUTPUT
- *     true/false whether device confirmed
- *
- */
 bool review_without_button_request(const char *request_title, const char *request_body,
                                    ...)
 {
@@ -495,7 +393,6 @@ bool review_without_button_request(const char *request_title, const char *reques
 
     va_list vl;
     va_start(vl, request_body);
-    static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 

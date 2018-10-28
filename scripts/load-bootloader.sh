@@ -1,12 +1,9 @@
 #! /bin/bash
 
-BINDIR=./build/arm-none-gnu-eabi/debug/bin/
-BINNAME=bootloader_main
-ELF_FILE=$BINDIR/$BINNAME.elf
-
-openocd -s /usr/share/openocd/scripts -f interface/jlink.cfg -f board/keepkey_board.cfg -c "program $ELF_FILE verify reset"
+BIN_FILE=./bin/bootloader.bin
+openocd -s /usr/share/openocd/scripts -f interface/jlink.cfg -f ./scripts/openocd/stm32f2x.cfg  -c "program $BIN_FILE 0x08020000 verify exit"
 if [[ $? -ne 0 ]]; then
-	echo $?
-	exit
+        echo $?
+        echo "error in loading bootloader"
+        exit
 fi
-

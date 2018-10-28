@@ -27,6 +27,8 @@
 #include "keepkey/board/msg_dispatch.h"
 #include "keepkey/board/pubkeys.h"
 #include "keepkey/board/usb_driver.h"
+#include "keepkey/board/u2f.h"
+#include "keepkey/board/u2f_types.h"
 #include "keepkey/bootloader/signatures.h"
 #include "keepkey/bootloader/usb_flash.h"
 #include "trezor/crypto/sha2.h"
@@ -123,6 +125,9 @@ static void bootloader_fsm_init(void)
 #endif
 
     msg_init();
+
+    // U2F Transport is not supported in the bootloader yet:
+    //u2f_set_rx_callback(handle_usb_rx);
 }
 
 /*
@@ -240,6 +245,9 @@ bool usb_flash_firmware(void)
     layout_version(BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION,
                    BOOTLOADER_PATCH_VERSION);
 
+    // U2F signing unsupported in bootloader mode. Only transport is supported.
+    u2f_init(NULL, NULL, NULL);
+
     usb_init();
     bootloader_fsm_init();
 
@@ -298,15 +306,7 @@ uff_exit:
     return(ret_val);
 }
 
-/*
- * storage_init_sect() - Find and initialize storage sector location
- *
- * INPUT
- *      none
- * OUTPUT
- *      none
- *
- */
+/// Find and initialize storage sector location.
 void storage_sectorInit(void)
 {
     if(!find_active_storage(&storage_location))

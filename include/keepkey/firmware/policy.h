@@ -23,9 +23,16 @@
 #include "transaction.h"
 #include "coins.h"
 
-#define POLICY_COUNT 1
+#define POLICY_COUNT (sizeof(policies) / sizeof(policies[0]))
 
-extern const PolicyType policies[POLICY_COUNT];
+// NOTE: when adding policies, *ONLY* add to the end. Otherwise this breaks
+// storage_upgradePolicies();
+static const PolicyType policies[] = {
+    {true, "ShapeShift", true, false},
+    {true, "Pin Caching", true, false},
+    {true, "Experimental", true, false},
+    {true, "AdvancedMode", true, false},
+};
 
 int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vin, void *vout, bool needs_confirm);
 

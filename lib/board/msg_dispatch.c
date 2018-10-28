@@ -22,6 +22,9 @@
 #include "keepkey/board/usb_driver.h"
 #include "keepkey/board/msg_dispatch.h"
 #include "keepkey/board/variant.h"
+#include "keepkey/board/timer.h"
+#include "keepkey/board/u2f.h"
+#include "keepkey/board/layout.h"
 
 #include <nanopb.h>
 
@@ -223,7 +226,7 @@ static void tiny_dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg
     else
     {
         call_msg_failure_handler(FailureType_Failure_UnexpectedMessage,
-                                 "Could not parse protocol buffer message");
+                                 "Could not parse tiny protocol buffer message");
     }
 }
 
@@ -300,7 +303,7 @@ void usb_rx_helper(UsbMessage *msg, MessageMapType type)
 
     const MessagesMap_t *entry;
     TrezorFrame *frame = (TrezorFrame *)(msg->message);
-    TrezorFrameFragment *frame_fragment  = (TrezorFrameFragment *)(msg->message);
+    TrezorFrameFragment *frame_fragment = (TrezorFrameFragment *)(msg->message);
 
     bool last_segment;
     uint8_t *contents;
@@ -336,7 +339,8 @@ void usb_rx_helper(UsbMessage *msg, MessageMapType type)
     }
     else
     {
-        goto done_handling;
+        contents = frame_fragment->contents;
+        content_size = msg->len - 1;
     }
 
     last_segment = content_pos >= last_frame_header.len;
@@ -385,11 +389,20 @@ void usb_rx_helper(UsbMessage *msg, MessageMapType type)
         if(msg_tiny_flag)
         {
             tiny_dispatch(entry, content_buf, last_frame_header.len);
+            goto done_handling;
         }
         else
         {
             dispatch(entry, content_buf, last_frame_header.len);
+            goto done_handling;
         }
+    }
+    //the packetized u2f-injection device<->host protocol requires and ACK sent to be sent after every packet
+    if (usb_is_u2f_transport()){
+        //only send the ACK packet if the recvd message came in over the U2F transport
+        //TODO pass in debug link and set flag here to handle framed debuglink acks
+        uint8_t empty_report[] = {0x00, 0x00, 0x00, contents[1],0x00, 0x00, 0x00, 0x90, 0x00}; 
+        send_u2f_msg(empty_report, sizeof(empty_report));
     }
     goto done_handling;
 
@@ -413,7 +426,7 @@ done_handling:
  * OUTPUT
  *     none
  */
-static void handle_usb_rx(UsbMessage *msg)
+void handle_usb_rx(UsbMessage *msg)
 {
     usb_rx_helper(msg, NORMAL_MSG);
 }
@@ -427,7 +440,7 @@ static void handle_usb_rx(UsbMessage *msg)
  *     none
  */
 #if DEBUG_LINK
-static void handle_debug_usb_rx(UsbMessage *msg)
+void handle_debug_usb_rx(UsbMessage *msg)
 {
     usb_rx_helper(msg, DEBUG_MSG);
 }

@@ -31,12 +31,14 @@
 #include "keepkey/board/msg_dispatch.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/timer.h"
+#include "keepkey/board/u2f.h"
 #include "keepkey/board/variant.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/ethereum.h"
+#include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/exchange.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
@@ -51,6 +53,7 @@
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/util.h"
 #include "keepkey/rand/rng.h"
+#include "trezor/crypto/address.h"
 #include "trezor/crypto/aes/aes.h"
 #include "trezor/crypto/base58.h"
 #include "trezor/crypto/bip39.h"
@@ -88,12 +91,11 @@ static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
         return; \
     }
 
-#define CHECK_PIN_UNCACHED \
-    if (!pin_protect("Enter Current PIN")) { \
+#define CHECK_PIN_TXSIGN \
+    if (!pin_protect_txsign()) { \
         layoutHome(); \
         return; \
     }
-
 
 #define CHECK_PARAM(cond, errormsg) \
     if (!(cond)) { \
@@ -199,6 +201,15 @@ void fsm_init(void)
 #endif
 
     msg_init();
+
+#if DEBUG_LINK
+    u2f_set_rx_callback(handle_usb_rx);
+    u2f_set_debug_rx_callback(handle_debug_usb_rx);
+#else
+    if (storage_isPolicyEnabled("Experimental")) {
+        u2f_set_rx_callback(handle_usb_rx);
+    }
+#endif
 }
 
 void fsm_sendSuccess(const char *text)
@@ -258,7 +269,7 @@ void fsm_sendFailure(FailureType code, const char *text)
 void fsm_msgClearSession(ClearSession *msg)
 {
     (void)msg;
-    session_clear(true);
+    session_clear(/*clear_pin=*/true);
     fsm_sendSuccess("Session cleared");
 }
 

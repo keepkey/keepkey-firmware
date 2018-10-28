@@ -140,11 +140,11 @@ bool compute_address(const CoinType *coin,
 			}
 			raw[0] = 0; // push version
 			raw[1] = 32; // push 32 bytes
-			memcpy(raw+2, digest, 32); // push hash
+			memcpy(raw + 2, digest, 32); // push hash
 			hasher_Raw(curve->hasher_pubkey, raw, 34, digest);
 			prelen = address_prefix_bytes_len(coin->address_type_p2sh);
 			address_write_prefix_bytes(coin->address_type_p2sh, raw);
-			ripemd160(digest, 32, raw + prelen);
+			memcpy(raw + prelen, digest, 32);
 			if (!base58_encode_check(raw, prelen + 20, curve->hasher_base58, address, MAX_ADDR_SIZE)) {
 				return 0;
 			}
@@ -205,15 +205,11 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		if (in->amount != 0) {
 			return 0; // failed to compile output
 		}
-#if 0
-		// FIXME: confirm OP_RETURN
 		if (needs_confirm) {
-			layoutConfirmOpReturn(in->op_return_data.bytes, in->op_return_data.size);
-			if (!protectButton(ButtonRequest_ButtonRequestType_ButtonRequest_ConfirmOutput, false)) {
+			if (!confirm_op_return(in->op_return_data.bytes, in->op_return_data.size)) {
 				return -1; // user aborted
 			}
 		}
-#endif
 		uint32_t r = 0;
 		out->script_pubkey.bytes[0] = 0x6A; r++; // OP_RETURN
 		r += op_push(in->op_return_data.size, out->script_pubkey.bytes + r);
@@ -449,7 +445,7 @@ uint32_t compile_script_multisig_hash(const CoinType *coin, const MultisigRedeem
 	if (!curve) return 0;
 
 	Hasher hasher;
-	hasher_Init(&hasher, curve->hasher_pubkey);
+	hasher_Init(&hasher, curve->hasher_script);
 
 	uint8_t d[2];
 	d[0] = 0x50 + m; hasher_Update(&hasher, d, 1);
@@ -529,7 +525,6 @@ uint32_t tx_sequence_hash(Hasher *hasher, const TxInputType *input)
 
 uint32_t tx_output_hash(Hasher *hasher, const TxOutputBinType *output, bool decred)
 {
-	(void)decred;
 	uint32_t r = 0;
 	hasher_Update(hasher, (const uint8_t *)&output->amount, 8); r += 8;
 	if (decred) {
@@ -553,8 +548,7 @@ uint32_t tx_serialize_header(TxStruct *tx, uint8_t *out)
 	if (tx->overwintered) {
 		uint32_t ver = tx->version | TX_OVERWINTERED;
 		memcpy(out, &ver, 4);
-		uint32_t version_group_id = 0x03c48270;
-		memcpy(out + 4, &version_group_id, 4);
+		memcpy(out + 4, &(tx->version_group_id), 4);
 		r += 4;
 	} else {
 		memcpy(out, &(tx->version), 4);
@@ -572,8 +566,7 @@ uint32_t tx_serialize_header_hash(TxStruct *tx)
 	if (tx->overwintered) {
 		uint32_t ver = tx->version | TX_OVERWINTERED;
 		hasher_Update(&(tx->hasher), (const uint8_t *)&ver, 4);
-		uint32_t version_group_id = 0x03c48270;
-		hasher_Update(&(tx->hasher), (const uint8_t *)&version_group_id, 4);
+		hasher_Update(&(tx->hasher), (const uint8_t *)&(tx->version_group_id), 4);
 		r += 4;
 	} else {
 		hasher_Update(&(tx->hasher), (const uint8_t *)&(tx->version), 4);
@@ -700,9 +693,19 @@ uint32_t tx_serialize_footer(TxStruct *tx, uint8_t *out)
 {
 	memcpy(out, &(tx->lock_time), 4);
 	if (tx->overwintered) {
-		memcpy(out + 4, &(tx->expiry), 4);
-		out[8] = 0x00; // nJoinSplit
-		return 9;
+		if (tx->version == 3) {
+			memcpy(out + 4, &(tx->expiry), 4);
+			out[8] = 0x00; // nJoinSplit
+			return 9;
+		} else
+		if (tx->version == 4) {
+			memcpy(out + 4, &(tx->expiry), 4);
+			memset(out + 8, 0, 8); // valueBalance
+			out[16] = 0x00; // nShieldedSpend
+			out[17] = 0x00; // nShieldedOutput
+			out[18] = 0x00; // nJoinSplit
+			return 19;
+		}
 	}
 	if (tx->is_decred) {
 		memcpy(out + 4, &(tx->expiry), 4);
@@ -799,7 +802,7 @@ uint32_t tx_serialize_extra_data_hash(TxStruct *tx, const uint8_t *data, uint32_
 	return datalen;
 }
 
-void tx_init(TxStruct *tx, uint32_t inputs_len, uint32_t outputs_len, uint32_t version, uint32_t lock_time, uint32_t expiry, uint32_t extra_data_len, HasherType hasher_sign, bool overwintered)
+void tx_init(TxStruct *tx, uint32_t inputs_len, uint32_t outputs_len, uint32_t version, uint32_t lock_time, uint32_t expiry, uint32_t extra_data_len, HasherType hasher_sign, bool overwintered, uint32_t version_group_id)
 {
 	tx->inputs_len = inputs_len;
 	tx->outputs_len = outputs_len;
@@ -814,6 +817,7 @@ void tx_init(TxStruct *tx, uint32_t inputs_len, uint32_t outputs_len, uint32_t v
 	tx->is_segwit = false;
 	tx->is_decred = false;
 	tx->overwintered = overwintered;
+	tx->version_group_id = version_group_id;
 	hasher_Init(&(tx->hasher), hasher_sign);
 }
 

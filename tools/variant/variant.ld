@@ -15,6 +15,7 @@ SECTIONS
         *(.text*)    /* Program code */
         . = ALIGN(4);
         *(.rodata*)  /* Read-only data */
+        . = ALIGN(4);
     } >rom
 
     /* variant "code" isn't allowed to have its own state */

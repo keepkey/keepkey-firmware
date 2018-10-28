@@ -39,9 +39,10 @@ static uint32_t strength;
 static uint8_t CONFIDENTIAL int_entropy[32];
 static bool awaiting_entropy = false;
 static char CONFIDENTIAL current_words[MNEMONIC_BY_SCREEN_BUF];
+static bool no_backup;
 
 void reset_init(bool display_random, uint32_t _strength, bool passphrase_protection,
-                bool pin_protection, const char *language, const char *label)
+                bool pin_protection, const char *language, const char *label, bool _no_backup)
 {
     if(_strength != 128 && _strength != 192 && _strength != 256)
     {
@@ -52,6 +53,30 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
     }
 
     strength = _strength;
+    no_backup = _no_backup;
+
+    if (display_random && no_backup) {
+        fsm_sendFailure(FailureType_Failure_SyntaxError, "Can't show internal entropy when backup is skipped");
+        layoutHome();
+        return;
+    }
+
+    if (no_backup) {
+        // Double confirm, since this is a feature for advanced users only, and
+        // there is risk of loss of funds if this mode is used incorrectly
+        // (i.e. multisig is an absolute must with this scheme).
+        if (!confirm(ButtonRequestType_ButtonRequest_Other, "WARNING",
+                     "The 'No Backup' option was selected.\n"
+                     "Recovery sentence will *NOT* be shown,\n"
+                     "and recovery will be IMPOSSIBLE.\n") ||
+            !confirm(ButtonRequestType_ButtonRequest_Other, "WARNING",
+                     "The 'No Backup' option was selected.\n\n"
+                     "I understand, and accept the risks.\n")) {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Reset cancelled");
+            layoutHome();
+            return;
+        }
+    }
 
     random_buffer(int_entropy, 32);
 
@@ -61,8 +86,7 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
     data2hex(int_entropy + 16, 8, ent_str[2]);
     data2hex(int_entropy + 24, 8, ent_str[3]);
 
-    if(display_random)
-    {
+    if (display_random) {
         if(!confirm(ButtonRequestType_ButtonRequest_ResetDevice,
                     "Internal Entropy", "%s %s %s %s", ent_str[0], ent_str[1], ent_str[2], ent_str[3]))
         {
@@ -109,6 +133,14 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 
     memzero(int_entropy, sizeof(int_entropy));
     awaiting_entropy = false;
+
+    if (no_backup) {
+        storage_setNoBackup();
+        storage_setMnemonic(temp_mnemonic);
+        storage_commit();
+        fsm_sendSuccess("Device reset");
+        goto exit;
+    }
 
     /*
      * Format mnemonic for user review

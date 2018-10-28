@@ -89,6 +89,9 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     /* Are private keys imported */
     resp->has_imported = true; resp->imported = storage_getImported();
 
+    /* Are private keys known to no-one? */
+    resp->has_no_backup = true; resp->no_backup = storage_noBackup();
+
     /* Cached pin and passphrase status */
     resp->has_pin_cached = true; resp->pin_cached = session_isPinCached();
     resp->has_passphrase_cached = true;
@@ -97,8 +100,43 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     /* Policies */
     resp->policies_count = POLICY_COUNT;
     storage_getPolicies(resp->policies);
+    _Static_assert(sizeof(resp->policies) / sizeof(resp->policies[0]) == POLICY_COUNT,
+                   "update messages.options to match POLICY_COUNT");
 
     msg_write(MessageType_MessageType_Features, resp);
+}
+
+static void coin_from_token(CoinType *coin, const TokenType *token) {
+    memset(coin, 0, sizeof(*coin));
+
+    coin->has_coin_name = true;
+    strncpy(&coin->coin_name[0], "ERC20", sizeof(coin->coin_name));
+
+    coin->has_coin_shortcut = true;
+    strncpy(&coin->coin_shortcut[0], token->ticker, sizeof(coin->coin_shortcut));
+
+    coin->has_forkid = true;
+    coin->forkid = token->chain_id;
+
+    coin->has_maxfee_kb = true;
+    coin->maxfee_kb = 100000;
+
+    coin->has_bip44_account_path = true;
+    coin->bip44_account_path = 0x8000003C;
+
+    coin->has_decimals = true;
+    coin->decimals = token->decimals;
+
+    coin->has_contract_address = true;
+    coin->contract_address.size = 20;
+    memcpy((char*)&coin->contract_address.bytes[0], token->address, sizeof(coin->contract_address.bytes));
+
+    coin->has_gas_limit = true;
+    coin->gas_limit.size = 32;
+    memcpy((char*)&coin->gas_limit.bytes[0], "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\xe8\x48", sizeof(coin->gas_limit.bytes));
+
+    coin->has_curve_name = true;
+    strncpy(&coin->curve_name[0], "secp256k1", sizeof(coin->curve_name));
 }
 
 void fsm_msgGetCoinTable(GetCoinTable *msg)
@@ -111,8 +149,8 @@ void fsm_msgGetCoinTable(GetCoinTable *msg)
     resp->chunk_size = sizeof(resp->table) / sizeof(resp->table[0]);
 
     if (msg->has_start && msg->has_end) {
-        if (COINS_COUNT <= msg->start ||
-            COINS_COUNT < msg->end ||
+        if (COINS_COUNT + TOKENS_COUNT <= msg->start ||
+            COINS_COUNT + TOKENS_COUNT < msg->end ||
             msg->end < msg->start ||
             resp->chunk_size < msg->end - msg->start) {
             fsm_sendFailure(FailureType_Failure_Other,
@@ -123,12 +161,18 @@ void fsm_msgGetCoinTable(GetCoinTable *msg)
     }
 
     resp->has_num_coins = true;
-    resp->num_coins = COINS_COUNT;
+    resp->num_coins = COINS_COUNT + TOKENS_COUNT;
 
     if (msg->has_start && msg->has_end) {
         resp->table_count = msg->end - msg->start;
-        memcpy(&resp->table[0], &coins[msg->start],
-               resp->table_count * sizeof(resp->table[0]));
+
+        for (size_t i = 0; i < msg->end - msg->start; i++) {
+            if (msg->start + i < COINS_COUNT) {
+                resp->table[i] = coins[msg->start + i];
+            } else if (msg->start + i - COINS_COUNT < TOKENS_COUNT) {
+                coin_from_token(&resp->table[i], &tokens[msg->start + i - COINS_COUNT]);
+            }
+        }
     }
 
     msg_write(MessageType_MessageType_CoinTable, resp);
@@ -225,16 +269,17 @@ void fsm_msgChangePin(ChangePin *msg)
         return;
     }
 
-    CHECK_PIN_UNCACHED
+    CHECK_PIN_TXSIGN
 
     if(removal)
     {
-        storage_setPin(0);
+        storage_setPin("");
         storage_commit();
         fsm_sendSuccess("PIN removed");
     }
     else
     {
+        session_cachePin("");
         if(change_pin())
         {
             storage_commit();
@@ -344,7 +389,8 @@ void fsm_msgResetDevice(ResetDevice *msg)
         msg->has_passphrase_protection && msg->passphrase_protection,
         msg->has_pin_protection && msg->pin_protection,
         msg->has_language ? msg->language : 0,
-        msg->has_label ? msg->label : 0
+        msg->has_label ? msg->label : 0,
+        msg->has_no_backup ? msg->no_backup : false
     );
 }
 
@@ -371,57 +417,55 @@ void fsm_msgCancel(Cancel *msg)
 
 void fsm_msgApplySettings(ApplySettings *msg)
 {
-    if(msg->has_label)
-    {
-        if(!confirm(ButtonRequestType_ButtonRequest_ChangeLabel,
-                    "Change Label", "Do you want to change the label to \"%s\"?", msg->label))
-        {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                            "Apply settings cancelled");
-            layoutHome();
-            return;
+    if (msg->has_label) {
+        if (!confirm(ButtonRequestType_ButtonRequest_ChangeLabel,
+                    "Change Label", "Do you want to change the label to \"%s\"?", msg->label)) {
+            goto apply_settings_cancelled;
         }
     }
 
-    if(msg->has_language)
-    {
-        if(!confirm(ButtonRequestType_ButtonRequest_ChangeLanguage,
-                    "Change Language", "Do you want to change the language to %s?", msg->language))
-        {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                            "Apply settings cancelled");
-            layoutHome();
-            return;
+    if (msg->has_language) {
+        if (!confirm(ButtonRequestType_ButtonRequest_ChangeLanguage,
+                    "Change Language", "Do you want to change the language to %s?", msg->language)) {
+            goto apply_settings_cancelled;
         }
     }
 
-    if(msg->has_use_passphrase)
-    {
-        if(msg->use_passphrase)
-        {
-            if(!confirm(ButtonRequestType_ButtonRequest_EnablePassphrase,
-                        "Enable Passphrase", "Do you want to enable passphrase encryption?"))
-            {
-                fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                                "Apply settings cancelled");
-                layoutHome();
-                return;
+    if (msg->has_use_passphrase) {
+        if (msg->use_passphrase) {
+            if (!confirm(ButtonRequestType_ButtonRequest_EnablePassphrase,
+                         "Enable Passphrase", "Do you want to enable passphrase encryption?")) {
+                goto apply_settings_cancelled;
             }
-        }
-        else
-        {
-            if(!confirm(ButtonRequestType_ButtonRequest_DisablePassphrase,
-                        "Disable Passphrase", "Do you want to disable passphrase encryption?"))
-            {
-                fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                                "Apply settings cancelled");
-                layoutHome();
-                return;
+        } else {
+            if (!confirm(ButtonRequestType_ButtonRequest_DisablePassphrase,
+                         "Disable Passphrase", "Do you want to disable passphrase encryption?")) {
+                goto apply_settings_cancelled;
             }
         }
     }
 
-    if(!msg->has_label && !msg->has_language && !msg->has_use_passphrase)
+    if (msg->has_auto_lock_delay_ms) {
+        if (!confirm(ButtonRequestType_ButtonRequest_Other,
+                     "Change auto-lock delay", "Do you want to set the auto-lock delay to %" PRIu32 " seconds?",
+                     msg->auto_lock_delay_ms / 1000)) {
+            goto apply_settings_cancelled;
+        }
+    }
+
+    if (msg->has_u2f_counter) {
+        if (!confirm(ButtonRequestType_ButtonRequest_Other,
+                     "Set U2F Counter", "Do you want to set the U2F Counter to %" PRIu32 "?",
+                     msg->u2f_counter)) {
+            goto apply_settings_cancelled;
+        }
+    }
+
+    if (!msg->has_label &&
+        !msg->has_language &&
+        !msg->has_use_passphrase &&
+        !msg->has_auto_lock_delay_ms &&
+        !msg->has_u2f_counter)
     {
         fsm_sendFailure(FailureType_Failure_SyntaxError, "No setting provided");
         return;
@@ -429,25 +473,37 @@ void fsm_msgApplySettings(ApplySettings *msg)
 
     CHECK_PIN
 
-    if(msg->has_label)
-    {
+    if (msg->has_label) {
         storage_setLabel(msg->label);
     }
 
-    if(msg->has_language)
-    {
+    if (msg->has_language) {
         storage_setLanguage(msg->language);
     }
 
-    if(msg->has_use_passphrase)
-    {
+    if (msg->has_use_passphrase) {
         storage_setPassphraseProtected(msg->use_passphrase);
+    }
+
+    if (msg->has_auto_lock_delay_ms) {
+        storage_setAutoLockDelayMs(msg->auto_lock_delay_ms);
+    }
+
+    if (msg->has_u2f_counter) {
+        storage_setU2FCounter(msg->u2f_counter);
     }
 
     storage_commit();
 
     fsm_sendSuccess("Settings applied");
     layoutHome();
+    return;
+
+apply_settings_cancelled:
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    "Apply settings cancelled");
+    layoutHome();
+    return;
 }
 
 void fsm_msgRecoveryDevice(RecoveryDevice *msg)
@@ -501,42 +557,31 @@ void fsm_msgCharacterAck(CharacterAck *msg)
 
 void fsm_msgApplyPolicies(ApplyPolicies *msg)
 {
-    RESP_INIT(ButtonRequest);
-    resp->has_code = true;
-    resp->code = ButtonRequestType_ButtonRequest_ApplyPolicies;
-    resp->has_data = true;
+    CHECK_PARAM(msg->policy_count > 0, "No policies provided");
 
-    if(msg->policy_count == 0)
-    {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "No policy provided");
-        layoutHome();
-        return;
+    for (size_t i = 0; i < msg->policy_count; ++i) {
+        CHECK_PARAM(msg->policy[i].has_policy_name, "Incorrect ApplyPolicies parameters");
+        CHECK_PARAM(msg->policy[i].has_enabled, "Incorrect ApplyPolicies parameters");
     }
 
-    strlcpy(resp->data, msg->policy[0].policy_name, sizeof(resp->data));
+    for (size_t i = 0; i < msg->policy_count; ++i) {
+        RESP_INIT(ButtonRequest);
+        resp->has_code = true;
+        resp->code = ButtonRequestType_ButtonRequest_ApplyPolicies;
+        resp->has_data = true;
 
-    if(msg->policy[0].enabled)
-    {
-        strlcat(resp->data, ":Enable", sizeof(resp->data));
+        strlcpy(resp->data, msg->policy[i].policy_name, sizeof(resp->data));
 
-        if(!confirm_with_custom_button_request(resp,
-                                               "Enable Policy", "Do you want to enable %s policy?", msg->policy[0].policy_name))
-        {
+        bool enabled = msg->policy[i].enabled;
+        strlcat(resp->data, enabled ? ":Enable" : ":Disable", sizeof(resp->data));
+
+        if (!confirm_with_custom_button_request(
+                resp, enabled ? "Enable Policy" : "Disable Policy",
+                "Do you want to %s %s policy?",
+                enabled ? "enable" : "disable",
+                msg->policy[i].policy_name)) {
             fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                            "Apply policy cancelled");
-            layoutHome();
-            return;
-        }
-    }
-    else
-    {
-        strlcat(resp->data, ":Disable", sizeof(resp->data));
-
-        if(!confirm_with_custom_button_request(resp,
-                                               "Disable Policy", "Do you want to disable %s policy?", msg->policy[0].policy_name))
-        {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                            "Apply policy cancelled");
+                            "Apply policies cancelled");
             layoutHome();
             return;
         }
@@ -544,12 +589,13 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg)
 
     CHECK_PIN
 
-    if(!storage_setPolicy(&msg->policy[0]))
-    {
-        fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                        "Policy could not be applied");
-        layoutHome();
-        return;
+    for (size_t i = 0; i < msg->policy_count; ++i) {
+        if (!storage_setPolicy(msg->policy[i].policy_name, msg->policy[i].enabled)) {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                            "Policies could not be applied");
+            layoutHome();
+            return;
+        }
     }
 
     storage_commit();
