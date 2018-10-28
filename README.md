@@ -1,42 +1,53 @@
-## KeepKey Build Procedure for Ubuntu 14.04
+## KeepKey Build Procedure
 
 ### Toolchain Installation
 
-Install Docker Community Edition from: https://www.docker.com/get-docker
+Install Docker Community Edition from: `https://www.docker.com/get-docker`
 
-Download firmware source code from KeepKey respository (https://github.com/keepkey/keepkey-firmware.git)
+```
+$ docker pull kktech/firmware:v5-beta
+```
+
+### Clone the Source
+
+The sources can be obtained from github:
+
 ```
 $ git clone git@github.com:keepkey/keepkey-firmware.git
+$ git submodule update --init --recursive
 ```
 
-Build the docker image for the toolchain:
+### Build
+
+To build the firmware using the docker container, use the provided script:
 
 ```
-$ cd keepkey-firmware && docker build -t keepkey/firmware:latest .
+$ ./scripts/build/docker/device/release.sh
 ```
 
-Build the debug version of the standard firmware:
+## Verifying Published Binaries
+
+Compare the hash of a given tagged build:
 ```
-$ docker_build_keepkey_debug.sh
+$ git checkout v5.8.1
+$ git submodule update --init --recursive
+$ ./scripts/build/docker/device/release.sh
+$ shasum -a 256 ./bin/firmware.keepkey.bin
 ```
 
-Build the release version of the standard firmware:
+With that of the signed binary (ignoring signatures and firmware metadata):
 ```
-$ docker_build_keepkey_release.sh
-```
-
-Build the debug version of the SALT-branded firmware:
-```
-$ docker_build_salt_debug.sh
+$ curl -Ol https://github.com/keepkey/keepkey-firmware/releases/download/v5.8.1/firmware.keepkey.bin
+$ tail -c +257 firmware.keepkey.bin | shasum -a 256
 ```
 
-Build the release version of the SALT-branded firmware:
-```
-$ docker_build_salt_release.sh
-```
+Then inspect the metadata itself by comparing against the structure described [here](https://github.com/keepkey/keepkey-firmware/blob/f20484804285decfacceb71519ae83bc18f2266f/include/keepkey/board/memory.h#L55):
 
-The resultant binaries will be located in the ./bin/{debug,release}/{keepkey,salt} directories as appropriate.
+```
+$ head -c +256 signed_firmware.bin | xxd -
+
+```
 
 ## License
 
-If license is not specified in the header of a file, it can be assumed that it is licensed under GPLv3.
+If license is not specified in the header of a file, it can be assumed that it is licensed under LGPLv3.

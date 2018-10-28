@@ -1,0 +1,6 @@
+#ifndef LIB_FIRMWARE_SCM_REVISION_H
+#define LIB_FIRMWARE_SCM_REVISION_H
+
+#define SCM_REVISION "@GIT_SHA1@"
+
+#endif

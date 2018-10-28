@@ -1,0 +1,165 @@
+Features.vendor				max_size:33
+Features.device_id			max_size:25
+Features.language			max_size:17
+Features.label				max_size:33
+Features.coins				max_count:0
+Features.revision			max_size:41
+Features.bootloader_hash		max_size:32
+Features.policies			max_count:4
+Features.model              max_size:32
+Features.firmware_variant    max_size:32
+Features.firmware_hash		max_size:32
+
+CoinTable.table				max_count:24
+
+ApplySettings.language			max_size:17
+ApplySettings.label			max_size:33
+
+Ping.message				max_size:256
+
+Success.message				max_size:256
+
+Failure.message				max_size:256
+
+ButtonRequest.data			max_size:256
+
+PinMatrixAck.pin			max_size:10
+
+PassphraseAck.passphrase		max_size:51
+
+Entropy.entropy				max_size:1024
+
+GetPublicKey.address_n			max_count:8
+GetPublicKey.ecdsa_curve_name		max_size:32
+GetPublicKey.coin_name                 max_size:21
+
+PublicKey.xpub				max_size:113
+
+GetAddress.address_n			max_count:8
+GetAddress.coin_name			max_size:21
+
+Address.address				max_size:130
+
+EthereumGetAddress.address_n		max_count:8
+EthereumAddress.address			max_size:20
+
+LoadDevice.mnemonic			max_size:241
+LoadDevice.pin				max_size:10
+LoadDevice.language			max_size:17
+LoadDevice.label			max_size:33
+
+ResetDevice.language			max_size:17
+ResetDevice.label			max_size:33
+
+EntropyAck.entropy			max_size:128
+
+RecoveryDevice.language			max_size:17
+RecoveryDevice.label			max_size:33
+
+WordAck.word				max_size:12
+
+CharacterAck.character			max_size:2
+
+SignMessage.address_n			max_count:8
+SignMessage.message			max_size:1024
+SignMessage.coin_name			max_size:21
+
+VerifyMessage.address			max_size:130
+VerifyMessage.signature			max_size:65
+VerifyMessage.message			max_size:1024
+VerifyMessage.coin_name			max_size:21
+
+MessageSignature.address		max_size:130
+MessageSignature.signature		max_size:65
+
+EncryptMessage.pubkey			max_size:33
+EncryptMessage.message			max_size:1024
+EncryptMessage.address_n		max_count:8
+EncryptMessage.coin_name		max_size:21
+
+EncryptedMessage.nonce			max_size:33
+EncryptedMessage.message		max_size:1120
+EncryptedMessage.hmac			max_size:8
+
+DecryptMessage.address_n		max_count:8
+DecryptMessage.nonce			max_size:33
+DecryptMessage.message			max_size:1120 # 1 + 9 + 1024 + 21 + 65
+DecryptMessage.hmac			max_size:8
+
+DecryptedMessage.address		max_size:130
+DecryptedMessage.message		max_size:1024
+
+CipherKeyValue.address_n		max_count:8
+CipherKeyValue.key			max_size:256
+CipherKeyValue.value			max_size:1024
+CipherKeyValue.iv			max_size:16
+
+CipheredKeyValue.value			max_size:1024
+
+SignTx.coin_name			max_size:21
+
+EthereumSignTx.address_n		max_count:8
+EthereumSignTx.nonce			max_size:32
+EthereumSignTx.gas_price		max_size:32
+EthereumSignTx.gas_limit		max_size:32
+EthereumSignTx.to			    max_size:20
+EthereumSignTx.value			max_size:32
+EthereumSignTx.data_initial_chunk	max_size:1024
+EthereumSignTx.to_address_n		max_count:8
+EthereumSignTx.token_value      max_size:32
+EthereumSignTx.token_to         max_size:20
+EthereumSignTx.token_shortcut   max_size:8
+
+EthereumTxRequest.signature_r		max_size:32
+EthereumTxRequest.signature_s		max_size:32
+EthereumTxRequest.hash			max_size:32
+EthereumTxRequest.signature_der         max_size:73
+
+EthereumTxAck.data_chunk		max_size:1024
+
+EthereumSignMessage.address_n				max_count:8
+EthereumSignMessage.message				max_size:1024
+
+EthereumVerifyMessage.address				max_size:20
+EthereumVerifyMessage.signature				max_size:65
+EthereumVerifyMessage.message				max_size:1024
+
+EthereumMessageSignature.address			max_size:20
+EthereumMessageSignature.signature			max_size:65
+
+SignIdentity.challenge_hidden		max_size:256
+SignIdentity.challenge_visual		max_size:256
+SignIdentity.ecdsa_curve_name		max_size:32
+
+SignedIdentity.address			max_size:130
+SignedIdentity.public_key		max_size:33
+SignedIdentity.signature		max_size:65
+
+ApplyPolicies.policy			max_count:16
+
+# not used in firmware
+FirmwareUpload.payload_hash  max_size:32
+FirmwareUpload.payload			max_size:0
+
+DebugLinkState.layout			max_size:1024
+DebugLinkState.pin			max_size:10
+DebugLinkState.matrix			max_size:10
+DebugLinkState.mnemonic			max_size:241
+DebugLinkState.reset_word		max_size:133
+DebugLinkState.reset_entropy		max_size:128
+DebugLinkState.recovery_fake_word	max_size:12
+DebugLinkState.recovery_cipher      max_size:27
+DebugLinkState.recovery_auto_completed_word max_size:12
+DebugLinkState.firmware_hash    max_size:32
+DebugLinkState.storage_hash    max_size:32
+
+DebugLinkFlashDumpResponse.data max_size:1024
+
+DebugLinkLog.bucket			max_size:33
+DebugLinkLog.text			max_size:256
+
+FlashHash.challenge max_size:32
+
+FlashWrite.data max_size:1024
+
+FlashHashResponse.data max_size:32

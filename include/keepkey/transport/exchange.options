@@ -1,0 +1,17 @@
+ExchangeAddress.coin_type                       max_size:17
+ExchangeAddress.address                         max_size:130
+ExchangeAddress.dest_tag                        max_size:4
+ExchangeAddress.rs_address                      max_size:43
+
+ExchangeResponseV2.deposit_amount                 max_size:32
+ExchangeResponseV2.quoted_rate			max_size:32
+ExchangeResponseV2.withdrawal_amount              max_size:32
+ExchangeResponseV2.miner_fee                      max_size:32
+
+ExchangeResponseV2.api_key                        max_size:64
+ExchangeResponseV2.order_id                       max_size:18
+
+ExchangeResponse.api_key                        max_size:64
+ExchangeResponse.order_id                       max_size:18
+
+SignedExchangeResponse.signature                max_size:65
