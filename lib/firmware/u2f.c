@@ -324,7 +324,10 @@ void u2f_do_version(const uint8_t channel[4]) {
 	             1 /* Flags */ +
 	             2 /* U2F OK */];
 
-	memcpy(data, channel, sizeof(*channel));
+	data[0] = channel[0];
+	data[1] = channel[1];
+	data[2] = channel[2];
+	data[3] = channel[3];
 
 	// Firmware version
 	data[ 4] = ((MAJOR_VERSION) >> 24) & 0xff;
