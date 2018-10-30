@@ -411,25 +411,6 @@ void storage_readStorageV1(Storage *storage, const char *ptr, size_t len) {
     memzero(&storage->pub.u2froot, sizeof(storage->pub.u2froot));
     storage->pub.u2f_counter = 0;
 
-    _Static_assert(sizeof(storage->pub.wrapped_storage_key) == 64,
-                   "(un)wrapped key must be 64 bytes");
-
-    _Static_assert(sizeof(storage->pub.storage_key_fingerprint) == 32,
-                   "key fingerprint must be 32 bytes");
-
-    // Generate a new storage key.
-    uint8_t storage_key[64];
-    random_buffer(storage_key, sizeof(storage_key));
-
-    // Wrap the storage key using the user's pin.
-    uint8_t wrapping_key[64];
-    storage_deriveWrappingKey(storage->pub.has_pin ? storage->sec.pin : "", wrapping_key);
-    storage_wrapStorageKey(wrapping_key, storage_key, storage->pub.wrapped_storage_key);
-
-    // Fingerprint the storage_key.
-    storage_keyFingerprint(sessionStorageKey,
-                           shadow_config.storage.pub.storage_key_fingerprint);
-
     if (storage->version == 1) {
         storage_resetPolicies(storage);
         storage_resetCache(&storage->sec.cache);
@@ -437,8 +418,13 @@ void storage_readStorageV1(Storage *storage, const char *ptr, size_t len) {
         storage_readCacheV1(&storage->sec.cache, ptr + 484, 75);
     }
 
-    // Encrypt storage before throwing away the storage_key, and secrets.
-    storage_secMigrate(storage, storage_key, /*encrypt=*/true);
+    _Static_assert(sizeof(storage->pub.wrapped_storage_key) == 64,
+                   "(un)wrapped key must be 64 bytes");
+
+    _Static_assert(sizeof(storage->pub.storage_key_fingerprint) == 32,
+                   "key fingerprint must be 32 bytes");
+
+    storage_setPin_impl(storage, storage->sec.pin, sessionStorageKey);
 
     if (storage->pub.has_pin) {
         memzero(&storage->sec, sizeof(storage->sec));
@@ -446,13 +432,9 @@ void storage_readStorageV1(Storage *storage, const char *ptr, size_t len) {
         sessionPinCached = false;
         storage->has_sec = false;
     } else {
-        memcpy(sessionStorageKey, storage_key, sizeof(storage_key));
         sessionPinCached = true;
         storage->has_sec = true;
     }
-
-    memzero(storage_key, sizeof(storage_key));
-    memzero(wrapping_key, sizeof(wrapping_key));
 }
 
 void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage) {

@@ -209,6 +209,9 @@ static bool should_restore(void) {
     if (SIG_FLAG == 0)
         return false;
 
+#ifdef DEBUG_ON
+    return true;
+#else
     // Don't restore if the old firmware was unsigned.
     //
     // This protects users of custom firmware from having their storage sectors
@@ -225,6 +228,7 @@ static bool should_restore(void) {
 
     // Otherwise both the old and new must be signed by KeepKey in order to restore.
     return sig_status == SIG_OK;
+#endif
 }
 
 /*
