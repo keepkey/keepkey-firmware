@@ -1442,6 +1442,26 @@ bool storage_hasMnemonic(void)
     return shadow_config.storage.pub.has_mnemonic;
 }
 
+/* Check whether mnemonic matches storage. The mnemonic must be
+ * a null-terminated string.
+ */
+bool storage_containsMnemonic(const char *mnemonic) {
+	if (!storage_hasMnemonic())
+		return false;
+	if (!shadow_config.storage.has_sec)
+		return false;
+	/* The execution time of the following code only depends on the
+	 * (public) input.  This avoids timing attacks.
+	 */
+	char diff = 0;
+	uint32_t i = 0;
+	for (; mnemonic[i]; i++) {
+		diff |= (shadow_config.storage.sec.mnemonic[i] - mnemonic[i]);
+	}
+	diff |= shadow_config.storage.sec.mnemonic[i];
+	return diff == 0;
+}
+
 const char *storage_getShadowMnemonic(void)
 {
     if (!shadow_config.storage.has_sec)
@@ -1452,6 +1472,11 @@ const char *storage_getShadowMnemonic(void)
 bool storage_getImported(void)
 {
     return shadow_config.storage.pub.imported;
+}
+
+void storage_setImported(bool val)
+{
+    shadow_config.storage.pub.imported = val;
 }
 
 bool storage_hasNode(void)

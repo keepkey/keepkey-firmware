@@ -17,7 +17,7 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
+#include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/messages.h"
@@ -35,16 +35,15 @@
 #include <string.h>
 #include <stdio.h>
 
-
 static uint32_t word_count;
 static bool awaiting_word = false;
 static bool enforce_wordlist;
+static bool dry_run;
 static char fake_word[12];
 static uint32_t word_pos;
 static uint32_t word_index;
 static char CONFIDENTIAL word_order[24];
 static char CONFIDENTIAL words[24][12];
-
 
 void next_word(void) {
 	if (sizeof(word_order)/sizeof(word_order[0]) <= word_index) {
@@ -94,14 +93,14 @@ void next_word(void) {
 	memset(&resp, 0, sizeof(WordRequest));
 	msg_write(MessageType_MessageType_WordRequest, &resp);
 
-    memzero(title_formatted, sizeof(title_formatted));
-    memzero(body_formatted, sizeof(body_formatted));
+	memzero(title_formatted, sizeof(title_formatted));
+	memzero(body_formatted, sizeof(body_formatted));
 }
 
 void recovery_init(uint32_t _word_count, bool passphrase_protection,
                    bool pin_protection, const char *language, const char *label,
                    bool _enforce_wordlist, uint32_t _auto_lock_delay_ms,
-                   uint32_t _u2f_counter)
+                   uint32_t _u2f_counter, bool _dry_run)
 {
 	if (_word_count != 12 && _word_count != 18 && _word_count != 24) {
 		fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid word count (has to be 12, 18 or 24");
@@ -111,31 +110,37 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection,
 
 	word_count = _word_count;
 	enforce_wordlist = _enforce_wordlist;
+	dry_run = _dry_run;
 
-	if (pin_protection) {
-		if (!change_pin()) {
-			fsm_sendFailure(FailureType_Failure_ActionCancelled, "PINs do not match");
-			layoutHome();
-			return;
+	if (!dry_run) {
+		if (pin_protection) {
+			if (!change_pin()) {
+				fsm_sendFailure(FailureType_Failure_ActionCancelled, "PINs do not match");
+				layoutHome();
+				return;
+			}
+		} else {
+			storage_setPin("");
 		}
-	} else {
-		storage_setPin("");
+
+		storage_setPassphraseProtected(passphrase_protection);
+		storage_setLanguage(language);
+		storage_setLabel(label);
+		storage_setAutoLockDelayMs(_auto_lock_delay_ms);
+		storage_setU2FCounter(_u2f_counter);
+	} else if (!pin_protect("Enter Your PIN")) {
+		layoutHome();
+		return;
 	}
 
-	storage_setPassphraseProtected(passphrase_protection);
-	storage_setLanguage(language);
-	storage_setLabel(label);
-	storage_setAutoLockDelayMs(_auto_lock_delay_ms);
-	storage_setU2FCounter(_u2f_counter);
-
 	uint32_t i;
-    for (i = 0; i < word_count; i++) {
-        word_order[i] = i + 1;
-    }
-    for (i = word_count; i < 24; i++) {
-        word_order[i] = 0;
-    }
-    random_permute_char(word_order, 24);
+	for (i = 0; i < word_count; i++) {
+		word_order[i] = i + 1;
+	}
+	for (i = word_count; i < 24; i++) {
+		word_order[i] = 0;
+	}
+	random_permute_char(word_order, 24);
 	awaiting_word = true;
 	word_index = 0;
 	next_word();
@@ -173,7 +178,8 @@ void recovery_word(const char *word)
     if (word_pos == 0) {
         if (!isCorrectFake) {
             // Fake word
-            storage_reset();
+            if (!dry_run)
+                storage_reset();
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Wrong word retyped");
             layoutHome();
             return;
@@ -181,7 +187,8 @@ void recovery_word(const char *word)
     } else {
         // Real word
         if (enforce_wordlist & (!found)) {
-            storage_reset();
+            if (!dry_run)
+                storage_reset();
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Word not found in the bip39 wordlist");
             layoutHome();
             return;
@@ -190,23 +197,57 @@ void recovery_word(const char *word)
     }
 
     if (word_index + 1 == 24) {
-        // last one
-        storage_setMnemonicFromWords(words, word_count);
-
-        const char *entered_mnemonic = storage_getShadowMnemonic();
-        if (entered_mnemonic && (!enforce_wordlist || mnemonic_check(entered_mnemonic))) {
-            storage_commit();
-            fsm_sendSuccess("Device recovered");
-        } else {
-            storage_reset();
-            fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid mnemonic, are words in correct order?");
-        }
-        awaiting_word = false;
-        layoutHome();
+        recovery_done();
     } else {
         word_index++;
         next_word();
     }
+}
+
+void recovery_done(void) {
+    char new_mnemonic[241] = {0};
+    strlcpy(new_mnemonic, words[0], sizeof(new_mnemonic));
+    for (uint32_t i = 0; i < word_count; i++) {
+        strlcat(new_mnemonic, " ", sizeof(new_mnemonic));
+        strlcat(new_mnemonic, words[i], sizeof(new_mnemonic));
+    }
+
+    if (!dry_run && (!enforce_wordlist || mnemonic_check(new_mnemonic))) {
+        storage_setMnemonic(new_mnemonic);
+        memzero(new_mnemonic, sizeof(new_mnemonic));
+        if (!enforce_wordlist) {
+            // not enforcing => mark storage as imported
+            storage_setImported(true);
+        }
+        storage_commit();
+        fsm_sendSuccess("Device recovered");
+    } else if (dry_run) {
+        bool match = storage_isInitialized() && storage_containsMnemonic(new_mnemonic);
+        memzero(new_mnemonic, sizeof(new_mnemonic));
+        if (match) {
+            review(ButtonRequestType_ButtonRequest_Other, "Recovery Dry Run",
+                   "The seed is valid and MATCHES the one in the device.");
+            fsm_sendSuccess("The seed is valid and matches the one in the device.");
+        } else if (mnemonic_check(new_mnemonic)) {
+            review(ButtonRequestType_ButtonRequest_Other, "Recovery Dry Run",
+                   "The seed is valid, but DOES NOT MATCH the one in the device.");
+            fsm_sendFailure(FailureType_Failure_Other,
+                            "The seed is valid, but does not match the one in the device.");
+        } else {
+            review(ButtonRequestType_ButtonRequest_Other, "Recovery Dry Run",
+                   "The seed is INVALID, and DOES NOT MATCH the one in the device.");
+            fsm_sendFailure(FailureType_Failure_Other,
+                            "The seed is invalid, and does not match the one in the device.");
+        }
+    } else {
+        session_clear(true);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        "Invalid mnemonic, are words in correct order?");
+    }
+
+    memzero(new_mnemonic, sizeof(new_mnemonic));
+    awaiting_word = false;
+    layoutHome();
 }
 
 void recovery_abort(bool send_failure)
@@ -221,7 +262,6 @@ void recovery_abort(bool send_failure)
         layoutHome();
     }
 }
-
 
 #if DEBUG_LINK
 const char *recovery_get_fake_word(void)
