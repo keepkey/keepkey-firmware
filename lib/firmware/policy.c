@@ -37,31 +37,55 @@
 */
 int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vin, void *vout, bool needs_confirm)
 {
-    /* setup address type with respect to coin type */
+    int ret_result = TXOUT_COMPILE_ERROR;
     OutputAddressType addr_type;
-    if (isEthereumLike(coin->coin_name)) {
-        addr_type = ((EthereumSignTx *)vin)->address_type;
-    } else {
-        /* Bitcoin, Clones, Forks */
-        if (vout == NULL) {
-            return TXOUT_COMPILE_ERROR;
+
+    /* setup address type respect to coin type */
+    if(check_ethereum_tx(coin->coin_name))
+    {
+        addr_type = ((EthereumSignTx *)vin)->address_type ;
+    }
+    else
+    {
+        /* Bitcoin & Altcoins */
+        if(vout == NULL)
+        {
+            goto run_policy_compile_output_exit;
         }
         addr_type = ((TxOutputType *)vin)->address_type;
     }
 
-    if (addr_type == OutputAddressType_EXCHANGE)
+    if(addr_type == OutputAddressType_EXCHANGE)
     {
-        if (!storage_isPolicyEnabled("ShapeShift"))
-            return TXOUT_COMPILE_ERROR;
+        if(storage_isPolicyEnabled("ShapeShift"))
+        {
+            if(process_exchange_contract(coin, vin, root, needs_confirm))
+            {
+                needs_confirm = false;
+            }
+            else
+            {
+                ret_result = TXOUT_EXCHANGE_CONTRACT_ERROR;
+                goto run_policy_compile_output_exit;
+            }
+        }
+        else
+        {
+            goto run_policy_compile_output_exit;
+        }
 
-        if (!process_exchange_contract(coin, vin, root, needs_confirm))
-            return TXOUT_EXCHANGE_CONTRACT_ERROR;
-
-        needs_confirm = false;
     }
 
-    if (isEthereumLike(coin->coin_name))
-        return TXOUT_OK;
+    if(check_ethereum_tx(coin->coin_name))
+    {
+        ret_result = TXOUT_OK;          
+    }
+    else
+    {
+        ret_result = compile_output(coin, root, (TxOutputType *)vin, (TxOutputBinType *)vout, needs_confirm);
+    }
 
-    return compile_output(coin, root, (TxOutputType *)vin, (TxOutputBinType *)vout, needs_confirm);
+run_policy_compile_output_exit:
+
+    return(ret_result);
 }

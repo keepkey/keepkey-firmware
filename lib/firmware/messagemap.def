@@ -36,8 +36,6 @@
     MSG_IN(MessageType_MessageType_EthereumGetAddress,              EthereumGetAddress,          fsm_msgEthereumGetAddress,        MFRProhibited)
     MSG_IN(MessageType_MessageType_EthereumSignTx,                  EthereumSignTx,              fsm_msgEthereumSignTx,            MFRProhibited)
     MSG_IN(MessageType_MessageType_EthereumTxAck,                   EthereumTxAck,               fsm_msgEthereumTxAck,             MFRProhibited)
-    MSG_IN(MessageType_MessageType_EthereumSignMessage,             EthereumSignMessage,         fsm_msgEthereumSignMessage,       MFRProhibited)
-    MSG_IN(MessageType_MessageType_EthereumVerifyMessage,           EthereumVerifyMessage,       fsm_msgEthereumVerifyMessage,     MFRProhibited)
 
     MSG_IN(MessageType_MessageType_FlashWrite,                      FlashWrite,                  fsm_msgFlashWrite,                MFROnly)
     MSG_IN(MessageType_MessageType_FlashHash,                       FlashHash,                   fsm_msgFlashHash,                 MFROnly)
@@ -68,7 +66,6 @@
     MSG_OUT(MessageType_MessageType_CharacterRequest,               CharacterRequest,            NO_PROCESS_FUNC,                  AnyVariant)
     MSG_OUT(MessageType_MessageType_EthereumAddress,                EthereumAddress,             NO_PROCESS_FUNC,                  AnyVariant)
     MSG_OUT(MessageType_MessageType_EthereumTxRequest,              EthereumTxRequest,           NO_PROCESS_FUNC,                  AnyVariant)
-    MSG_OUT(MessageType_MessageType_EthereumMessageSignature,       EthereumMessageSignature,    NO_PROCESS_FUNC,                  AnyVariant)
 
 #if DEBUG_LINK
     /* Debug Messages */
