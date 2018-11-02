@@ -151,7 +151,10 @@ static void write_u8(char *ptr, uint8_t val) {
 }
 
 static uint32_t read_u32_le(const char *ptr) {
-    return ptr[0] | ptr[1] << 8 | ptr[2] << 16 | ((uint32_t)ptr[3]) << 24;
+    return ((uint32_t)ptr[0])       |
+           ((uint32_t)ptr[1]) <<  8 |
+           ((uint32_t)ptr[2]) << 16 |
+           ((uint32_t)ptr[3]) << 24;
 }
 
 static void write_u32_le(char *ptr, uint32_t val) {
