@@ -407,7 +407,7 @@ void storage_readStorageV1(Storage *storage, const char *ptr, size_t len) {
         storage_readPolicyV1(&storage->pub.policies[0], ptr + 464, 17);
     }
     storage->pub.has_auto_lock_delay_ms = true;
-    storage->pub.auto_lock_delay_ms = 60 * 1000U;
+    storage->pub.auto_lock_delay_ms = STORAGE_DEFAULT_SCREENSAVER_TIMEOUT;
 
     // Can't do derivation here, since the pin hasn't been entered.
     storage->pub.has_u2froot = false;

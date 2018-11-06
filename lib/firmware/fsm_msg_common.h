@@ -351,7 +351,8 @@ void fsm_msgResetDevice(ResetDevice *msg)
         msg->has_pin_protection && msg->pin_protection,
         msg->has_language ? msg->language : 0,
         msg->has_label ? msg->label : 0,
-        msg->has_no_backup ? msg->no_backup : false
+        msg->has_no_backup ? msg->no_backup : false,
+        msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT
     );
 }
 
@@ -479,7 +480,8 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg)
             msg->has_pin_protection && msg->pin_protection,
             msg->has_language ? msg->language : 0,
             msg->has_label ? msg->label : 0,
-            msg->has_enforce_wordlist ? msg->enforce_wordlist : false
+            msg->has_enforce_wordlist ? msg->enforce_wordlist : false,
+            msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT
         );
     }
     else                                                                     // legacy way of recovery
@@ -490,7 +492,8 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg)
             msg->has_pin_protection && msg->pin_protection,
             msg->has_language ? msg->language : 0,
             msg->has_label ? msg->label : 0,
-            msg->has_enforce_wordlist ? msg->enforce_wordlist : false
+            msg->has_enforce_wordlist ? msg->enforce_wordlist : false,
+            msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT
         );
     }
 }

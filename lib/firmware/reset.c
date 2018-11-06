@@ -42,7 +42,8 @@ static char CONFIDENTIAL current_words[MNEMONIC_BY_SCREEN_BUF];
 static bool no_backup;
 
 void reset_init(bool display_random, uint32_t _strength, bool passphrase_protection,
-                bool pin_protection, const char *language, const char *label, bool _no_backup)
+                bool pin_protection, const char *language, const char *label, bool _no_backup,
+                uint32_t _auto_lock_delay_ms)
 {
     if(_strength != 128 && _strength != 192 && _strength != 256)
     {
@@ -106,6 +107,7 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
     storage_setPassphraseProtected(passphrase_protection);
     storage_setLanguage(language);
     storage_setLabel(label);
+    storage_setAutoLockDelayMs(_auto_lock_delay_ms);
 
     EntropyRequest resp;
     memset(&resp, 0, sizeof(EntropyRequest));
