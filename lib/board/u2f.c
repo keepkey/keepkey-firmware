@@ -493,12 +493,12 @@ void u2f_authenticate(const APDU *a)
 
 		if ((req->keyHandle[3] & 0x40) == 0x00) {
 			if (u2f_user_rx_callback) {
-				u2f_user_rx_callback(&m);
+				u2f_user_rx_callback(&m, req);
 			}
 #if DEBUG_LINK
 		} else {
 			if (u2f_user_debug_rx_callback) {
-				u2f_user_debug_rx_callback(&m);
+				u2f_user_debug_rx_callback(&m, req);
 			}
 #endif
 		}

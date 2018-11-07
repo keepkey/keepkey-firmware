@@ -40,14 +40,13 @@
 // in https://github.com/google/u2f-ref-code/blob/master/u2f-chrome-extension/usbsignhandler.js#L118
 #define BOGUS_APPID "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
-typedef void (*u2f_rx_callback_t)(UsbMessage* msg);
-typedef void (*u2f_debug_rx_callback_t)(UsbMessage* msg);
-
+typedef void (*u2f_rx_callback_t)(UsbMessage* msg,
+                                  const U2F_AUTHENTICATE_REQ *req);
+typedef void (*u2f_debug_rx_callback_t)(UsbMessage* msg,
+                                        const U2F_AUTHENTICATE_REQ *req);
 
 void u2f_set_rx_callback(u2f_rx_callback_t callback);
 void u2f_set_debug_rx_callback(u2f_rx_callback_t callback);
-
-
 
 typedef struct {
 	uint8_t cla, ins, p1, p2;

@@ -21,6 +21,7 @@
 
 #include "scm_revision.h"
 #include "variant.h"
+#include "u2f_knownapps.h"
 
 #include "keepkey/board/check_bootloader.h"
 #include "keepkey/board/confirm_sm.h"
@@ -182,6 +183,34 @@ static void sendFailureWrapper(FailureType code, const char *text) {
 }
 #endif
 
+static void u2f_filtered_usb_rx(UsbMessage *msg,
+                                const U2F_AUTHENTICATE_REQ *req) {
+#if 1 // TODO: !DEBUG_LINK
+    if (!storage_isPolicyEnabled("Experimental") &&
+        memcmp(req->appId, U2F_SHAPESHIFT_COM->appid,     sizeof(U2F_SHAPESHIFT_COM->appid))     != 0 &&
+        memcmp(req->appId, U2F_SHAPESHIFT_IO->appid,      sizeof(U2F_SHAPESHIFT_IO->appid))      != 0 &&
+        memcmp(req->appId, U2F_SHAPESHIFT_COM_STG->appid, sizeof(U2F_SHAPESHIFT_COM_STG->appid)) != 0 &&
+        memcmp(req->appId, U2F_SHAPESHIFT_IO_STG->appid,  sizeof(U2F_SHAPESHIFT_IO_STG->appid))  != 0 &&
+        memcmp(req->appId, U2F_SHAPESHIFT_COM_DEV->appid, sizeof(U2F_SHAPESHIFT_COM_DEV->appid)) != 0 &&
+        memcmp(req->appId, U2F_SHAPESHIFT_IO_DEV->appid,  sizeof(U2F_SHAPESHIFT_IO_DEV->appid))  != 0) {
+        // Ignore the request
+        return;
+    }
+#else
+    (void)req;
+#endif
+
+    handle_usb_rx(msg);
+}
+
+#if DEBUG_LINK
+static void u2f_filtered_debug_usb_rx(UsbMessage *msg,
+                                      const U2F_AUTHENTICATE_REQ *req) {
+    (void)req; // DEBUG_LINK doesn't care who talks to it.
+    handle_debug_usb_rx(msg);
+}
+#endif
+
 void fsm_init(void)
 {
     msg_map_init(MessagesMap, sizeof(MessagesMap) / sizeof(MessagesMap_t));
@@ -200,13 +229,9 @@ void fsm_init(void)
 
     msg_init();
 
+    u2f_set_rx_callback(u2f_filtered_usb_rx);
 #if DEBUG_LINK
-    u2f_set_rx_callback(handle_usb_rx);
-    u2f_set_debug_rx_callback(handle_debug_usb_rx);
-#else
-    if (storage_isPolicyEnabled("Experimental")) {
-        u2f_set_rx_callback(handle_usb_rx);
-    }
+    u2f_set_debug_rx_callback(u2f_filtered_debug_usb_rx);
 #endif
 }
 
