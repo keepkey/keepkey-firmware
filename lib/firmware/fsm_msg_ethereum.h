@@ -37,7 +37,7 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
     } else {
         has_to = &msg->has_to;
         to_size = &msg->to.size;
-        to_bytes = msg->token_to.bytes;
+        to_bytes = msg->to.bytes;
         value_bytes = msg->value.bytes;
         value_size = &msg->value.size;
         token = NULL;

@@ -505,24 +505,12 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 		return;
 	}
 
-	// safety checks
-	if (!ethereum_signing_check(msg)) {
-		fsm_sendFailure(FailureType_Failure_SyntaxError, _("Safety check failed"));
-		ethereum_signing_abort();
-		return;
-	}
-
 	const TokenType *token = NULL;
 
-	// detect ERC-20 token
-	if (msg->to.size == 20 && msg->value.size == 0 && data_total == 68 && msg->data_initial_chunk.size == 68
-	    && memcmp(msg->data_initial_chunk.bytes, "\xa9\x05\x9c\xbb\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16) == 0) {
-		token = tokenByChainAddress(chain_id, msg->to.bytes);
-	}
-
 	// detect ERC-20 token (workaround for KeepKey client)
-	if (msg->to.size == 20 && msg->value.size == 0 && data_total == 0 && msg->data_initial_chunk.size == 0 &&
-	         msg->has_token_to && msg->has_token_shortcut) {
+	if ((msg->has_token_to && msg->token_to.size == 20) && msg->value.size == 0 &&
+	    data_total == 0 && msg->data_initial_chunk.size == 0 && msg->has_token_to &&
+	    msg->has_token_shortcut) {
 		if (!tokenByTicker(chain_id, msg->token_shortcut, &token)) {
 			fsm_sendFailure(FailureType_Failure_SyntaxError, _("Cannot uniquely determine token from ticker"));
 			ethereum_signing_abort();
@@ -537,6 +525,19 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 		msg->to.size = 20;
 		msg->value.size = 0;
 		memset(msg->value.bytes, 0, sizeof(msg->value.bytes));
+	}
+
+	// safety checks
+	if (!ethereum_signing_check(msg)) {
+		fsm_sendFailure(FailureType_Failure_SyntaxError, _("Safety check failed"));
+		ethereum_signing_abort();
+		return;
+	}
+
+	// detect ERC-20 token
+	if (msg->to.size == 20 && msg->value.size == 0 && data_total == 68 && msg->data_initial_chunk.size == 68
+	    && memcmp(msg->data_initial_chunk.bytes, "\xa9\x05\x9c\xbb\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16) == 0) {
+		token = tokenByChainAddress(chain_id, msg->to.bytes);
 	}
 
 	char confirm_body_message[BODY_CHAR_MAX];
