@@ -408,7 +408,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
     }
 
     if (msg->has_auto_lock_delay_ms) {
-        if (!confirm(ButtonRequestType_ButtonRequest_Other,
+        if (!confirm(ButtonRequestType_ButtonRequest_AutoLockDelayMs,
                      "Change auto-lock delay", "Do you want to set the auto-lock delay to %" PRIu32 " seconds?",
                      msg->auto_lock_delay_ms / 1000)) {
             goto apply_settings_cancelled;
@@ -416,7 +416,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
     }
 
     if (msg->has_u2f_counter) {
-        if (!confirm(ButtonRequestType_ButtonRequest_Other,
+        if (!confirm(ButtonRequestType_ButtonRequest_U2FCounter,
                      "Set U2F Counter", "Do you want to set the U2F Counter to %" PRIu32 "?",
                      msg->u2f_counter)) {
             goto apply_settings_cancelled;
