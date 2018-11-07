@@ -185,8 +185,10 @@ static void sendFailureWrapper(FailureType code, const char *text) {
 
 static void u2f_filtered_usb_rx(UsbMessage *msg,
                                 const U2F_AUTHENTICATE_REQ *req) {
-#if 1 // TODO: !DEBUG_LINK
     if (!storage_isPolicyEnabled("Experimental") &&
+#if DEBUG_LINK
+        memcmp(req->appId, u2f_localhost.appid,           sizeof(u2f_localhost.appid))           != 0 &&
+#endif
         memcmp(req->appId, U2F_SHAPESHIFT_COM->appid,     sizeof(U2F_SHAPESHIFT_COM->appid))     != 0 &&
         memcmp(req->appId, U2F_SHAPESHIFT_IO->appid,      sizeof(U2F_SHAPESHIFT_IO->appid))      != 0 &&
         memcmp(req->appId, U2F_SHAPESHIFT_COM_STG->appid, sizeof(U2F_SHAPESHIFT_COM_STG->appid)) != 0 &&
@@ -196,9 +198,6 @@ static void u2f_filtered_usb_rx(UsbMessage *msg,
         // Ignore the request
         return;
     }
-#else
-    (void)req;
-#endif
 
     handle_usb_rx(msg);
 }
