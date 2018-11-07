@@ -49,6 +49,8 @@
 #include <string.h>
 #include <stdint.h>
 
+#define MAX(a, b) ({ typeof(a) _a = (a); typeof(b) _b = (b); _a > _b ? _a : _b; })
+
 static bool sessionSeedCached, sessionSeedUsesPassphrase;
 static uint8_t CONFIDENTIAL sessionSeed[64];
 
@@ -512,7 +514,8 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     storage->pub.policies_count = POLICY_COUNT;
 
     storage->pub.pin_failed_attempts = read_u32_le(ptr + 8);
-    storage->pub.auto_lock_delay_ms = read_u32_le(ptr + 12);
+    storage->pub.auto_lock_delay_ms = MAX(read_u32_le(ptr + 12),
+                                          STORAGE_MIN_SCREENSAVER_TIMEOUT);
 
     memset(storage->pub.language, 0, sizeof(storage->pub.language));
     memcpy(storage->pub.language, ptr + 16, 16);
@@ -1460,16 +1463,17 @@ void storage_setNoBackup(void) {
 
 uint32_t storage_getAutoLockDelayMs()
 {
-	const uint32_t default_delay_ms = 10 * 60 * 1000U; // 10 minutes
-	return shadow_config.storage.pub.has_auto_lock_delay_ms ? shadow_config.storage.pub.auto_lock_delay_ms : default_delay_ms;
+	return shadow_config.storage.pub.has_auto_lock_delay_ms
+	    ? MAX(shadow_config.storage.pub.auto_lock_delay_ms,
+	          STORAGE_MIN_SCREENSAVER_TIMEOUT)
+	    : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT;
 }
 
 void storage_setAutoLockDelayMs(uint32_t auto_lock_delay_ms)
 {
-	const uint32_t min_delay_ms = 10 * 1000U; // 10 seconds
-	auto_lock_delay_ms = auto_lock_delay_ms > min_delay_ms ? auto_lock_delay_ms : min_delay_ms;
 	shadow_config.storage.pub.has_auto_lock_delay_ms = true;
-	shadow_config.storage.pub.auto_lock_delay_ms = auto_lock_delay_ms;
+	shadow_config.storage.pub.auto_lock_delay_ms =
+	    MAX(auto_lock_delay_ms, STORAGE_MIN_SCREENSAVER_TIMEOUT);
 }
 
 #if DEBUG_LINK

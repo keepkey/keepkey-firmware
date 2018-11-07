@@ -26,7 +26,8 @@
 #define STORAGE_VERSION 11 /* Must add case fallthrough in storage_fromFlash after increment*/
 #define STORAGE_RETRIES 3
 
-#define STORAGE_DEFAULT_SCREENSAVER_TIMEOUT (10 * 60 * 1000U)
+#define STORAGE_DEFAULT_SCREENSAVER_TIMEOUT (10U * 60U * 1000U) /* 10 minutes */
+#define STORAGE_MIN_SCREENSAVER_TIMEOUT     (      30U * 1000U) /* 30 seconds */
 
 /// \brief Validate storage content and copy data to shadow memory.
 void storage_init(void);
