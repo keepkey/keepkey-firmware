@@ -31,7 +31,7 @@
 
 #define COIN_FRACTION 100000000
 
-extern const CoinType coins[COINS_COUNT];
+extern const CoinType coins[];
 
 const CoinType *coinByShortcut(const char *shortcut);
 const CoinType *coinByName(const char *name);
@@ -56,4 +56,9 @@ bool bip32_path_to_string(char *str, size_t len, const uint32_t *address_n, size
  */
 bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin, uint32_t *address_n,
                           size_t address_n_count, bool whole_account);
+
+
+/// \returns true iff the coin_name is for an eth-like coin.
+bool isEthereumLike(const char *coin_name);
+
 #endif
