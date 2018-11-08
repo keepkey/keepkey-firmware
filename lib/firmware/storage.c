@@ -368,7 +368,7 @@ void storage_secMigrate(Storage *storage, const uint8_t storage_key[64], bool en
         storage_readCacheV1(&storage->sec.cache, &scratch[0] + 370, 75);
 
         // Derive the u2froot, if we haven't already.
-        if (storage->pub.has_node && !storage->pub.has_u2froot) {
+        if (storage->pub.has_mnemonic && !storage->pub.has_u2froot) {
             storage_compute_u2froot(storage->sec.mnemonic, &storage->pub.u2froot);
             storage->pub.has_u2froot = true;
         }
