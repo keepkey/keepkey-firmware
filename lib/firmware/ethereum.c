@@ -175,6 +175,24 @@ static int rlp_calculate_length(int length, uint8_t firstbyte)
 	}
 }
 
+static int rlp_calculate_number_length(uint32_t number)
+{
+	if (number <= 0x7f) {
+		return 1;
+	}
+	else if (number <= 0xff) {
+		return 2;
+	}
+	else if (number <= 0xffff) {
+		return 3;
+	}
+	else if (number <= 0xffffff) {
+		return 4;
+	} else {
+		return 5;
+	}
+}
+
 static void send_request_chunk(void)
 {
 #if 0
@@ -227,7 +245,9 @@ static void send_signature(void)
 	msg_tx_request.has_data_length = false;
 
 	msg_tx_request.has_signature_v = true;
-	if (chain_id) {
+	if (chain_id > MAX_CHAIN_ID) {
+		msg_tx_request.signature_v = v;
+	} else if (chain_id) {
 		msg_tx_request.signature_v = v + 2 * chain_id + 35;
 	} else {
 		msg_tx_request.signature_v = v + 27;
@@ -366,7 +386,6 @@ static void layoutEthereumData(const uint8_t *data, uint32_t len, uint32_t total
 	}
 }
 
-
 static void layoutEthereumFee(const uint8_t *value, uint32_t value_len,
 							  const uint8_t *gas_price, uint32_t gas_price_len,
 							  const uint8_t *gas_limit, uint32_t gas_limit_len,
@@ -458,7 +477,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 
 	/* eip-155 chain id */
 	if (msg->has_chain_id) {
-		if (msg->chain_id < 1 || msg->chain_id > MAX_CHAIN_ID) {
+		if (msg->chain_id < 1) {
 			fsm_sendFailure(FailureType_Failure_SyntaxError, _("Chain Id out of bounds"));
 			ethereum_signing_abort();
 			return;
@@ -483,7 +502,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 
 	if (msg->has_data_length && msg->data_length > 0) {
 		if (!msg->has_data_initial_chunk || msg->data_initial_chunk.size == 0) {
-			fsm_sendFailure(FailureType_Failure_Other, "Data length provided, but no initial chunk");
+			fsm_sendFailure(FailureType_Failure_Other, _("Data length provided, but no initial chunk"));
 			ethereum_signing_abort();
 			return;
 		}
@@ -500,7 +519,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 		data_total = 0;
 	}
 	if (msg->data_initial_chunk.size > data_total) {
-		fsm_sendFailure(FailureType_Failure_Other, "Invalid size of initial chunk");
+		fsm_sendFailure(FailureType_Failure_Other, _("Invalid size of initial chunk"));
 		ethereum_signing_abort();
 		return;
 	}
@@ -615,10 +634,10 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 	rlp_length += rlp_calculate_length(msg->value.size, msg->value.bytes[0]);
 	rlp_length += rlp_calculate_length(data_total, msg->data_initial_chunk.bytes[0]);
 	if (tx_type) {
-		rlp_length += rlp_calculate_length(1, tx_type);
+		rlp_length += rlp_calculate_number_length(tx_type);
 	}
 	if (chain_id) {
-		rlp_length += rlp_calculate_length(1, chain_id);
+		rlp_length += rlp_calculate_number_length(chain_id);
 		rlp_length += rlp_calculate_length(0, 0);
 		rlp_length += rlp_calculate_length(0, 0);
 	}
@@ -655,19 +674,19 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 void ethereum_signing_txack(EthereumTxAck *tx)
 {
 	if (!ethereum_signing) {
-		fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Signing mode");
+		fsm_sendFailure(FailureType_Failure_UnexpectedMessage, _("Not in Ethereum signing mode"));
 		layoutHome();
 		return;
 	}
 
 	if (tx->data_chunk.size > data_left) {
-		fsm_sendFailure(FailureType_Failure_Other, "Too much data");
+		fsm_sendFailure(FailureType_Failure_Other, _("Too much data"));
 		ethereum_signing_abort();
 		return;
 	}
 
 	if (data_left > 0 && (!tx->has_data_chunk || tx->data_chunk.size == 0)) {
-		fsm_sendFailure(FailureType_Failure_Other, "Empty data chunk received");
+		fsm_sendFailure(FailureType_Failure_Other, _("Empty data chunk received"));
 		ethereum_signing_abort();
 		return;
 	}
