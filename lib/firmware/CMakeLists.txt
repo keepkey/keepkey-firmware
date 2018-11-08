@@ -4,6 +4,7 @@ set(sources
     coins.c
     crypto.c
     ethereum.c
+    ethereum_tokens.c
     exchange.c
     fsm.c
     home_sm.c
