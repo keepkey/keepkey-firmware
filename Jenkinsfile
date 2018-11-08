@@ -12,9 +12,6 @@ pipeline {
                 }
             }
             post {
-                always {
-                    archiveArtifacts artifacts: 'debug.tar.bz2', fingerprint: true
-                }
                 failure {
                     githubNotify status:"FAILURE", description:"Debug Build Failed"
                 }
@@ -34,7 +31,6 @@ pipeline {
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'release.tar.bz2,bin/*.bin,bin/*.csv', fingerprint: true
                     plot csvFileName: 'binsize.csv',
                             csvSeries: [[
                                                 file: 'bin/binsize.csv',
