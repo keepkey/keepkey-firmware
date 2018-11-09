@@ -8,7 +8,6 @@ set(sources
     exchange.c
     fsm.c
     home_sm.c
-    hotpatch_bootloader.c
     passphrase_sm.c
     pin_sm.c
     policy.c

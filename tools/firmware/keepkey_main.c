@@ -25,6 +25,7 @@
 #  include <libopencm3/cm3/cortex.h>
 #endif
 
+#include "keepkey/board/check_bootloader.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/layout.h"
@@ -33,7 +34,6 @@
 #include "keepkey/board/resources.h"
 #include "keepkey/board/keepkey_usart.h"
 #include "keepkey/firmware/app_layout.h"
-#include "keepkey/firmware/hotpatch_bootloader.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
@@ -105,7 +105,7 @@ int main(void)
     /* Init board */
     board_init();
 
-    /* Bootloader hotpatching */
+    /* Bootloader Verification */
     check_bootloader();
 
     /* Program the model into OTP, if we're not in screen-test mode, and it's
