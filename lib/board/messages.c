@@ -17,10 +17,8 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
-#include "keepkey/board/usb_driver.h"
-#include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/usb.h"
+#include "keepkey/board/messages.h"
 #include "keepkey/board/variant.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/u2f.h"
@@ -30,8 +28,6 @@
 
 #include <assert.h>
 #include <string.h>
-
-/* === Private Variables =================================================== */
 
 static const MessagesMap_t *MessagesMap = NULL;
 static size_t map_size = 0;
@@ -46,15 +42,11 @@ static bool msg_tiny_flag = false;
 static CONFIDENTIAL uint8_t msg_tiny[MSG_TINY_BFR_SZ];
 static uint16_t msg_tiny_id = MSG_TINY_TYPE_ERROR; /* Default to error type */
 
-/* === Variables =========================================================== */
-
 /* Allow mapped messages to reset message stack.  This variable by itself doesn't
  * do much but messages down the line can use it to determine for to gracefully
  * exit from a message should the message stack been reset
  */
 bool reset_msg_stack = false;
-
-/* === Private Functions =================================================== */
 
 /*
  * message_map_entry() - Finds a requested message map entry
@@ -294,7 +286,7 @@ static void raw_dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_
  * OUTPUT
  *      none
  */
-void usb_rx_helper(UsbMessage *msg, MessageMapType type)
+void usb_rx_helper(const void *buf, size_t length, MessageMapType type)
 {
     static TrezorFrameHeaderFirst last_frame_header = { .id = 0xffff, .len = 0 };
     static uint8_t content_buf[MAX_FRAME_SIZE];
@@ -302,16 +294,15 @@ void usb_rx_helper(UsbMessage *msg, MessageMapType type)
     static bool mid_frame = false;
 
     const MessagesMap_t *entry;
-    TrezorFrame *frame = (TrezorFrame *)(msg->message);
-    TrezorFrameFragment *frame_fragment = (TrezorFrameFragment *)(msg->message);
+    TrezorFrame *frame = (TrezorFrame *)buf;
+    TrezorFrameFragment *frame_fragment = (TrezorFrameFragment *)buf;
 
     bool last_segment;
     uint8_t *contents;
 
     assert(msg != NULL);
 
-    if(msg->len < sizeof(TrezorFrameHeaderFirst) || frame->usb_header.hid_type != '?')
-    {
+    if (length < sizeof(TrezorFrameHeaderFirst) || frame->usb_header.hid_type != '?') {
         goto done_handling;
     }
 
@@ -326,21 +317,21 @@ void usb_rx_helper(UsbMessage *msg, MessageMapType type)
         contents = frame->contents;
 
         /* Init content pos and size */
-        content_pos = msg->len - 9;
+        content_pos = length - 9;
         content_size = content_pos;
 
     }
     else if(mid_frame)
     {
         contents = frame_fragment->contents;
-        if (check_uadd_overflow(content_pos, (size_t)(msg->len - 1), &content_pos))
+        if (check_uadd_overflow(content_pos, (size_t)(length - 1), &content_pos))
             goto reset;
-        content_size = msg->len - 1;
+        content_size = length - 1;
     }
     else
     {
         contents = frame_fragment->contents;
-        content_size = msg->len - 1;
+        content_size = length - 1;
     }
 
     last_segment = content_pos >= last_frame_header.len;
@@ -364,8 +355,8 @@ void usb_rx_helper(UsbMessage *msg, MessageMapType type)
             offset = 0;
             len = content_size;
         } else {
-            offset = content_pos - (msg->len - 1);
-            len = msg->len - 1;
+            offset = content_pos - (length - 1);
+            len = length - 1;
         }
 
         size_t end;
@@ -418,31 +409,15 @@ done_handling:
     return;
 }
 
-/*
- * handle_usb_rx() - Handler for normal USB messages from host
- *
- * INPUT
- *     - msg: pointer to message received from host
- * OUTPUT
- *     none
- */
-void handle_usb_rx(UsbMessage *msg)
+void handle_usb_rx(const void *buf, size_t len)
 {
-    usb_rx_helper(msg, NORMAL_MSG);
+    usb_rx_helper(buf, len, NORMAL_MSG);
 }
 
-/*
- * handle_debug_usb_rx() - Handler for debug USB messages from host
- *
- * INPUT
- *     - msg: pointer to message received from host
- * OUTPUT
- *     none
- */
 #if DEBUG_LINK
-void handle_debug_usb_rx(UsbMessage *msg)
+void handle_debug_usb_rx(const void *buf, size_t len)
 {
-    usb_rx_helper(msg, DEBUG_MSG);
+    usb_rx_helper(buf, len, DEBUG_MSG);
 }
 #endif
 
@@ -463,7 +438,7 @@ static MessageType tiny_msg_poll_and_buffer(bool block, uint8_t *buf)
 
     while(msg_tiny_id == MSG_TINY_TYPE_ERROR)
     {
-        usb_poll();
+        usbPoll();
 
         if(!block)
         {
@@ -480,8 +455,6 @@ static MessageType tiny_msg_poll_and_buffer(bool block, uint8_t *buf)
 
     return(msg_tiny_id);
 }
-
-/* === Functions =========================================================== */
 
 /*
  * msg_map_init() - Setup message map with corresping message type

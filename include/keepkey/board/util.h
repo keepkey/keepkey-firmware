@@ -17,16 +17,15 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef UTIL_H
-#define UTIL_H
-
-/* === Includes ============================================================ */
+#ifndef KEEPKEY_BOARD_UTIL_H
+#define KEEPKEY_BOARD_UTIL_H
 
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
 
-/* === Functions =========================================================== */
+#define MIN(a, b) ({ typeof(a) _a = (a); typeof(b) _b = (b); _a < _b ? _a : _b; })
+#define MAX(a, b) ({ typeof(a) _a = (a); typeof(b) _b = (b); _a > _b ? _a : _b; })
 
 // converts uint32 to hexa (8 digits)
 void uint32hex(uint32_t num, char *str);

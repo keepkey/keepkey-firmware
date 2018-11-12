@@ -23,6 +23,7 @@
 
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/layout.h"
+#include "keepkey/board/util.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
@@ -31,7 +32,6 @@
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/transaction.h"
-#include "keepkey/firmware/util.h"
 #include "trezor/crypto/address.h"
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/memzero.h"

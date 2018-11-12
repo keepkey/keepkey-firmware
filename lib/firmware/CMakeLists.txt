@@ -18,7 +18,6 @@ set(sources
     signing.c
     storage.c
     transaction.c
-    util.c
     u2f.c)
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/scm_revision.h.in"

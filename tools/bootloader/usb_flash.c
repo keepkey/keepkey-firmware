@@ -25,9 +25,9 @@
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/keepkey_usart.h"
 #include "keepkey/board/memory.h"
-#include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/messages.h"
 #include "keepkey/board/pubkeys.h"
-#include "keepkey/board/usb_driver.h"
+#include "keepkey/board/usb.h"
 #include "keepkey/board/u2f.h"
 #include "keepkey/board/u2f_types.h"
 #include "keepkey/board/signatures.h"
@@ -254,7 +254,7 @@ bool usb_flash_firmware(void)
     // U2F signing unsupported in bootloader mode. Only transport is supported.
     u2f_init(NULL, NULL, NULL);
 
-    usb_init();
+    usbInit();
     bootloader_fsm_init();
 
     while(1)
@@ -299,7 +299,7 @@ bool usb_flash_firmware(void)
             case RAW_MESSAGE_STARTED:
             default:
             {
-                usb_poll();
+                usbPoll();
                 animate();
                 display_refresh();
             }

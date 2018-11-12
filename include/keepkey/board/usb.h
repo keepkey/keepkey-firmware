@@ -20,16 +20,13 @@
 #ifndef USB_H
 #define USB_H
 
-/* === Includes ============================================================ */
-
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 #ifndef EMULATOR
 #  include <libopencm3/usb/usbd.h>
 #endif
-
-/* === Defines ============================================================= */
 
 /* USB Board Config */
 #define USB_GPIO_PORT GPIOA
@@ -56,18 +53,8 @@
    space for it.  */
 #define USBD_CONTROL_BUFFER_SIZE 128
 
-/* === Typedefs ============================================================ */
-
-typedef struct
-{
-    uint32_t len;
-    uint8_t message[MAX_MESSAGE_SIZE];
-} UsbMessage;
-
-typedef void (*usb_rx_callback_t)(UsbMessage* msg);
-typedef void (*usb_u2f_rx_callback_t)(UsbMessage* msg);
-
-/* === Functions =========================================================== */
+typedef void (*usb_rx_callback_t)(const void *buf, size_t len);
+typedef void (*usb_u2f_rx_callback_t)(const void *buf, size_t len);
 
 void usb_set_u2f_transport(void);
 void usb_set_hid_transport(void);
@@ -76,8 +63,9 @@ bool usb_is_u2f_transport(void);
 void usb_set_rx_callback(usb_rx_callback_t callback);
 void usb_set_u2f_rx_callback(usb_u2f_rx_callback_t callback);
 
-bool usb_init(void);
-void usb_poll(void);
+void usbInit(void);
+bool usbInitialized(void);
+void usbPoll(void);
 
 typedef struct _usbd_device usbd_device;
 usbd_device *get_usb_init_stat(void);

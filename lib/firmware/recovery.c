@@ -21,7 +21,7 @@
 
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/layout.h"
-#include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/messages.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/pin_sm.h"

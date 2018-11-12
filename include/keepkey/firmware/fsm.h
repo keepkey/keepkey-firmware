@@ -21,7 +21,7 @@
 #define FSM_H
 
 #include "keepkey/transport/interface.h"
-#include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/messages.h"
 
 #define RESP_INIT(TYPE) \
     TYPE *resp = (TYPE *)msg_resp; \

@@ -1,6 +1,6 @@
 extern "C" {
-#include "keepkey/board/msg_dispatch.h"
-#include "keepkey/board/usb_driver.h"
+#include "keepkey/board/messages.h"
+#include "keepkey/board/usb.h"
 #include "keepkey/firmware/fsm.h"
 }
 

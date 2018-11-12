@@ -28,7 +28,7 @@
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/layout.h"
-#include "keepkey/board/usb_driver.h"
+#include "keepkey/board/usb.h"
 #include "keepkey/board/u2f.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/keepkey_usart.h"
@@ -70,7 +70,7 @@ void memory_getDeviceSerialNo(char *str, size_t len) {
 
 static void exec(void)
 {
-    usb_poll();
+    usbPoll();
 
     /* Attempt to animate should a screensaver be present */
     animate();
@@ -129,7 +129,7 @@ int main(void)
     led_func(SET_GREEN_LED);
 
     u2f_init(&u2f_do_register, &u2f_do_auth, &u2f_do_version);
-    usb_init();
+    usbInit();
     led_func(CLR_RED_LED);
 
     reset_idle_time();

@@ -19,7 +19,7 @@
 
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/layout.h"
-#include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/messages.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/fsm.h"

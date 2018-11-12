@@ -21,7 +21,7 @@
 #define __U2F_H__
 
 #include "keepkey/board/u2f_hid.h"
-#include "keepkey/board/usb_driver.h"
+#include "keepkey/board/usb.h"
 #include "keepkey/board/u2f_types.h"
 
 #include <stdint.h>
@@ -40,9 +40,9 @@
 // in https://github.com/google/u2f-ref-code/blob/master/u2f-chrome-extension/usbsignhandler.js#L118
 #define BOGUS_APPID "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
-typedef void (*u2f_rx_callback_t)(UsbMessage* msg,
+typedef void (*u2f_rx_callback_t)(const void *buf, size_t len,
                                   const U2F_AUTHENTICATE_REQ *req);
-typedef void (*u2f_debug_rx_callback_t)(UsbMessage* msg,
+typedef void (*u2f_debug_rx_callback_t)(const void *buf, size_t len,
                                         const U2F_AUTHENTICATE_REQ *req);
 
 void u2f_set_rx_callback(u2f_rx_callback_t callback);

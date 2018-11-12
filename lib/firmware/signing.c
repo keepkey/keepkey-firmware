@@ -19,7 +19,8 @@
 
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/layout.h"
-#include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/messages.h"
+#include "keepkey/board/util.h"
 #include "keepkey/crypto/curves.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/coins.h"
@@ -660,8 +661,6 @@ void signing_init(const SignTx *msg, const CoinType *_coin, const HDNode *_root)
 	set_exchange_error(NO_EXCHANGE_ERROR);
 }
 
-#define MIN(a,b) (((a)<(b))?(a):(b))
-
 static bool signing_check_input(TxInputType *txinput) {
 	/* compute multisig fingerprint */
 	/* (if all input share the same fingerprint, outputs having the same fingerprint will be considered as change outputs) */
@@ -1257,7 +1256,7 @@ void signing_txack(TransactionType *tx)
 				idx2++;
 				send_req_2_prev_output();
 			} else if (tp.extra_data_len > 0) { // has extra data
-				send_req_2_prev_extradata(0, MIN(1024, tp.extra_data_len));
+				send_req_2_prev_extradata(0, MIN(1024U, tp.extra_data_len));
 				return;
 			} else {
 				/* prevtx is done */
@@ -1271,7 +1270,7 @@ void signing_txack(TransactionType *tx)
 				return;
 			}
 			if (tp.extra_data_received < tp.extra_data_len) { // still some data remanining
-				send_req_2_prev_extradata(tp.extra_data_received, MIN(1024, tp.extra_data_len - tp.extra_data_received));
+				send_req_2_prev_extradata(tp.extra_data_received, MIN(1024U, tp.extra_data_len - tp.extra_data_received));
 			} else {
 				signing_check_prevtx_hash();
 			}

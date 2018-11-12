@@ -40,7 +40,7 @@
 #include "keepkey/board/memory.h"
 #include "keepkey/board/pubkeys.h"
 #include "keepkey/board/timer.h"
-#include "keepkey/board/usb_driver.h"
+#include "keepkey/board/usb.h"
 #include "keepkey/board/variant.h"
 #include "keepkey/board/supervise.h"
 #include "keepkey/board/signatures.h"

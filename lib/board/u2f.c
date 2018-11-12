@@ -24,7 +24,8 @@
 #include "keepkey/board/timer.h"
 #include "keepkey/board/u2f_hid.h"
 #include "keepkey/board/u2f_types.h"
-#include "keepkey/board/usb_driver.h"
+#include "keepkey/board/usb.h"
+#include "keepkey/board/util.h"
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/rand.h"
 
@@ -32,8 +33,6 @@
 #  include <assert.h>
 #endif
 #include <string.h>
-
-#define MIN(a, b) ({ typeof(a) _a = (a); typeof(b) _b = (b); _a < _b ? _a : _b; })
 
 #define debugLog(L, B, T) do{}while(0)
 #define debugInt(I) do{}while(0)
@@ -198,7 +197,7 @@ void u2fhid_read(const U2FHID_FRAME *f)
 					tiny = 0;
 					return;
 				}
-				usb_poll();
+				usbPoll();
 			}
 		}
 		tiny = 0;
@@ -477,21 +476,19 @@ void u2f_authenticate(const APDU *a)
 		if (memcmp(channel, u2f_get_channel(), 4) != 0)
 			return;
 
-		// unpack keyHandle raw (protobuf) message frame and dispatch
-		static UsbMessage m;
-		memset(&m, 0, sizeof(m));
-		m.len = KEY_HANDLE_LEN - 8; // 8-bytes { total_frames, frame_i, reserved, reserved & 0x3f,
-		                            //           channel[0], channel[1], channel[2], channel[3] }
-		memcpy(m.message, req->keyHandle + 8, KEY_HANDLE_LEN - 8);
+		// At this point, keyHandle is a frame of a (possibly) larger protobuf message,
+		// with the first 8 bytes as control info specific to u2f transport:
+		// { total_frames, frame_i, reserved, reserved & 0x3f,
+		//   channel[0], channel[1], channel[2], channel[3] }
 
 		if ((req->keyHandle[3] & 0x40) == 0x00) {
 			if (u2f_user_rx_callback) {
-				u2f_user_rx_callback(&m, req);
+				u2f_user_rx_callback(req->keyHandle + 8, KEY_HANDLE_LEN - 8, req);
 			}
 #if DEBUG_LINK
 		} else {
 			if (u2f_user_debug_rx_callback) {
-				u2f_user_debug_rx_callback(&m, req);
+				u2f_user_debug_rx_callback(req->keyHandle + 8, KEY_HANDLE_LEN - 8, req);
 			}
 #endif
 		}

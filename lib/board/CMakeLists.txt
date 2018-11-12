@@ -12,16 +12,20 @@ set(sources
     layout.c
     memory.c
     mmhusr.c
-    msg_dispatch.c
+    messages.c
     pin.c
     resources.c
     signatures.c
     supervise.c
     timer.c
+    u2f.c
     udp.c
-    usb_driver.c
+    usb.c
+    usb21_standard.c
+    util.c
     variant.c
-    u2f.c)
+    webusb.c
+    winusb.c)
 
 include_directories(
   ${CMAKE_SOURCE_DIR}/include

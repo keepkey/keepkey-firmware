@@ -32,11 +32,11 @@
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/board/u2f.h"
+#include "keepkey/board/util.h"
 #include "keepkey/board/variant.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/policy.h"
-#include "keepkey/firmware/util.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/transport/interface.h"
 #include "trezor/crypto/aes/aes.h"
@@ -49,8 +49,6 @@
 
 #include <string.h>
 #include <stdint.h>
-
-#define MAX(a, b) ({ typeof(a) _a = (a); typeof(b) _b = (b); _a > _b ? _a : _b; })
 
 static bool sessionSeedCached, sessionSeedUsesPassphrase;
 static uint8_t CONFIDENTIAL sessionSeed[64];

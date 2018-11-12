@@ -22,7 +22,7 @@
 
 /* === Includes ============================================================ */
 
-#include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/messages.h"
 
 #include <stdbool.h>
 #include <stdint.h>

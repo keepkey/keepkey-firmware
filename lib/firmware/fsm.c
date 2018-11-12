@@ -29,10 +29,11 @@
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/memory.h"
-#include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/messages.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/u2f.h"
+#include "keepkey/board/util.h"
 #include "keepkey/board/variant.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/app_layout.h"
@@ -52,7 +53,6 @@
 #include "keepkey/firmware/signing.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/transaction.h"
-#include "keepkey/firmware/util.h"
 #include "keepkey/rand/rng.h"
 #include "trezor/crypto/address.h"
 #include "trezor/crypto/aes/aes.h"
@@ -185,7 +185,7 @@ static void sendFailureWrapper(FailureType code, const char *text) {
 }
 #endif
 
-static void u2f_filtered_usb_rx(UsbMessage *msg,
+static void u2f_filtered_usb_rx(const void *data, size_t len,
                                 const U2F_AUTHENTICATE_REQ *req) {
     if (!storage_isPolicyEnabled("Experimental") &&
 #if DEBUG_LINK
@@ -201,14 +201,14 @@ static void u2f_filtered_usb_rx(UsbMessage *msg,
         return;
     }
 
-    handle_usb_rx(msg);
+    handle_usb_rx(data, len);
 }
 
 #if DEBUG_LINK
-static void u2f_filtered_debug_usb_rx(UsbMessage *msg,
+static void u2f_filtered_debug_usb_rx(const void *data, size_t len,
                                       const U2F_AUTHENTICATE_REQ *req) {
     (void)req; // DEBUG_LINK doesn't care who talks to it.
-    handle_debug_usb_rx(msg);
+    handle_debug_usb_rx(data, len);
 }
 #endif
 

@@ -18,7 +18,8 @@
  */
 
 #include "keepkey/firmware/coins.h"
-#include "keepkey/firmware/util.h"
+
+#include "keepkey/board/util.h"
 
 #include <inttypes.h>
 #include <string.h>

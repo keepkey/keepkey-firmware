@@ -18,7 +18,8 @@
  */
 
 #include "keepkey/board/layout.h"
-#include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/messages.h"
+#include "keepkey/board/util.h"
 #include "trezor/crypto/bip32.h"
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/memzero.h"
@@ -30,13 +31,10 @@
 #include "keepkey/firmware/exchange.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/policy.h"
-#include "keepkey/firmware/util.h"
 #include "types.pb.h"
 
 #include <string.h>
 #include <stdio.h>
-
-#define MIN(a, b) ({ typeof(a) _a = (a); typeof(b) _b = (b); _a < _b ? _a : _b; })
 
 /* exchange error variable */
 static ExchangeError exchange_error = NO_EXCHANGE_ERROR;

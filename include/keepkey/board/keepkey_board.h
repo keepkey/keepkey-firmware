@@ -20,14 +20,12 @@
 #ifndef KEEPKEY_BOARD_H
 #define KEEPKEY_BOARD_H
 
-/* === Includes ============================================================ */
-
 #include "keepkey/board/keepkey_button.h"
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/keepkey_leds.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/timer.h"
-#include "keepkey/board/usb_driver.h"
+#include "keepkey/board/usb.h"
 #include "keepkey/crypto/curves.h"
 #include "trezor/crypto/bip32.h"
 #include "trezor/crypto/curves.h"
