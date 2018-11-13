@@ -60,7 +60,7 @@ void fsm_init(void);
 int main(void)
 {
     setup();
-    board_init();
+    kk_board_init();
 
     led_func(SET_RED_LED);
     dbg_print("Application Version %d.%d.%d\n", MAJOR_VERSION, MINOR_VERSION,

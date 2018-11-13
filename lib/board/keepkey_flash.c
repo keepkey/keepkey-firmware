@@ -21,8 +21,12 @@
 
 #ifndef EMULATOR
 #  include <libopencm3/stm32/flash.h>
+#else
+#   include <stdint.h>
+#   include <stdbool.h>
 #endif
 
+#include "keepkey/board/supervise.h"
 #include "keepkey/board/keepkey_flash.h"
 
 #include "keepkey/board/check_bootloader.h"
@@ -81,7 +85,8 @@ bool flash_chk_status(void)
 }
 
 /*
- * flash_erase_word() - Flash erase in word (32bit) size
+ * flash_erase_word() - allows unpriv code to erase certain sectors, word size at a time.
+ *                      DO NOT USE THIS IN PRIV MODE, WILL NOT ERASE BOOTSTRAP OR BOOTLOADER SECTORS
  *
  * INPUT
  *     - group: functional group
@@ -90,43 +95,20 @@ bool flash_chk_status(void)
  */
 void flash_erase_word(Allocation group)
 {
+#ifndef EMULATOR
     const FlashSector* s = flash_sector_map;
     while(s->use != FLASH_INVALID)
     {
         if(s->use == group) {
-#ifndef EMULATOR
-            flash_erase_sector(s->sector, FLASH_CR_PROGRAM_X32);
-#else
-            memset(FLASH_PTR(s->start), 0xff, s->len);
-#endif
+            svc_flash_erase_sector((uint32_t)s->sector);
         }
         ++s;
     }
+#endif
 }
 
-/*
- * flash_erase() - Flash erase in byte size
- *
- * INPUT
- *     - group: functional group 
- * OUTPUT
- *     none
- */
-void flash_erase(Allocation group)
-{
-    const FlashSector* s = flash_sector_map;
-    while(s->use != FLASH_INVALID)
-    {
-        if(s->use == group) {
-#ifndef EMULATOR
-            flash_erase_sector(s->sector, FLASH_CR_PROGRAM_X8);
-#else
-            memset(FLASH_PTR(s->start), 0xff, s->len);
-#endif
-        }
-        ++s;
-    }
-}
+
+
 
 /*
  * flash_write_word() - Flash write in word (32bit) size
@@ -152,8 +134,7 @@ bool flash_write_word(Allocation group, uint32_t offset, uint32_t len, uint8_t *
     /* Byte writes for flash start address not long-word aligned */
     if(start % sizeof(uint32_t)) {
         align_cnt = sizeof(uint32_t) - start % sizeof(uint32_t);
-        flash_program(start, data, align_cnt);
-        if(flash_chk_status() == false) {
+        if (svc_flash_pgm_blk(start, (uint32_t)data, align_cnt) == false) {
             retval = false;
             goto fww_exit;
         }
@@ -167,9 +148,7 @@ bool flash_write_word(Allocation group, uint32_t offset, uint32_t len, uint8_t *
     for(i = 0 ; i < len/sizeof(uint32_t); i++)
     {
         memcpy(data_word, data, sizeof(uint32_t));
-	    flash_program_word(start, *data_word);
-	    // check flash status register for error condition
-        if(flash_chk_status() == false) {
+        if (svc_flash_pgm_word(start, *data_word) == false) {
             retval = false;
             goto fww_exit;
         }
@@ -179,8 +158,7 @@ bool flash_write_word(Allocation group, uint32_t offset, uint32_t len, uint8_t *
 
     /* Byte write for last remaining bytes < longword */
     if(len % sizeof(uint32_t)) {
-        flash_program(start, data, len % sizeof(uint32_t));
-        if(flash_chk_status() == false) {
+        if (svc_flash_pgm_blk(start, (uint32_t)data, len % sizeof(uint32_t)) == false) {
             retval = false;
         }
     }
@@ -208,8 +186,7 @@ bool flash_write(Allocation group, uint32_t offset, uint32_t len, uint8_t* data)
 #ifndef EMULATOR
     bool retval = true;
     uint32_t start = flash_write_helper(group);
-    flash_program(start + offset, data, len);
-    if(flash_chk_status() == false) {
+    if (svc_flash_pgm_blk(start+offset, (uint32_t)data, len) == false) {
         retval = false;
     }
     return(retval);
@@ -251,26 +228,26 @@ bool is_mfg_mode(void)
  */
 bool set_mfg_mode_off(void)
 {
+    bool ret_val = false;
+    uint32_t tvar;
+
 #ifndef EMULATOR
     /* check OTP lock state before updating */
-    if (*(uint8_t *)OTP_BLK_LOCK(OTP_MFG_ADDR) == 0xFF)
+    if(*(uint8_t *)OTP_BLK_LOCK(OTP_MFG_ADDR) == 0xFF)
     {
-        flash_unlock();
-        uint32_t tvar = OTP_MFG_SIG; /* set manufactur'ed signature */
-        flash_program(OTP_MFG_ADDR, (uint8_t *)&tvar, OTP_MFG_SIG_LEN);
+        tvar = OTP_MFG_SIG; /* set manufactur'ed signature */
+        svc_flash_pgm_blk(OTP_MFG_ADDR, (uint32_t)((uint8_t *)&tvar), OTP_MFG_SIG_LEN);       
         tvar = 0x00;        /* set OTP lock */
-        flash_program(OTP_BLK_LOCK(OTP_MFG_ADDR), (uint8_t *)&tvar, 1);
-        if (flash_chk_status())
-        {
-            return true;
+        if (svc_flash_pgm_blk(OTP_BLK_LOCK(OTP_MFG_ADDR), (uint32_t)((uint8_t *)&tvar), 1)) {
+            ret_val = true;
         }
-        flash_lock();
     }
-    return false;
-#else
-    return true;
 #endif
+
+    return(ret_val);
 }
+
+
 
 const char *flash_getModel(void) {
 #ifndef EMULATOR
@@ -284,18 +261,18 @@ const char *flash_getModel(void) {
 #endif
 }
 
-bool flash_setModel(const char (*model)[32]) {
+
+
+
+bool flash_setModel(const char (*model)[MODEL_STR_SIZE]) {
 #ifndef EMULATOR
     // Check OTP lock state before updating
     if (*(uint8_t*)OTP_BLK_LOCK(OTP_MODEL_ADDR) != 0xFF)
         return false;
 
-    flash_unlock();
-    flash_program(OTP_MODEL_ADDR, (uint8_t*)model, sizeof(*model));
+    svc_flash_pgm_blk(OTP_MODEL_ADDR, (uint32_t)((uint8_t*)model), sizeof(*model));       
     uint8_t lock = 0x00;
-    flash_program(OTP_BLK_LOCK(OTP_MODEL_ADDR), &lock, sizeof(lock));
-    bool ret = flash_chk_status();
-    flash_lock();
+    bool ret = svc_flash_pgm_blk(OTP_BLK_LOCK(OTP_MODEL_ADDR), (uint32_t)&lock, sizeof(lock));       
     return ret;
 #else
     return true;
@@ -309,6 +286,7 @@ const char *flash_programModel(void) {
 
     switch (get_bootloaderKind()) {
     case BLK_v1_1_0:
+    case BLK_v2_0_0:
         return "No Model";
     case BLK_UNKNOWN:
         return "Unknown";
@@ -319,7 +297,7 @@ const char *flash_programModel(void) {
     case BLK_v1_0_3_sig:
     case BLK_v1_0_3_elf: {
 #define MODEL_ENTRY_KK(STRING, ENUM) \
-        static const char model[32] = (STRING);
+        static const char model[MODEL_STR_SIZE] = (STRING);
 #include "keepkey/board/models.def"
         if (!is_mfg_mode())
             (void)flash_setModel(&model);
@@ -327,7 +305,7 @@ const char *flash_programModel(void) {
     }
     case BLK_v1_0_4: {
 #define MODEL_ENTRY_SALT(STRING, ENUM) \
-        static const char model[32] = (STRING);
+        static const char model[MODEL_STR_SIZE] = (STRING);
 #include "keepkey/board/models.def"
         if (!is_mfg_mode())
             (void)flash_setModel(&model);

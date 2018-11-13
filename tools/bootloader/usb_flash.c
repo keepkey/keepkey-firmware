@@ -19,6 +19,7 @@
 
 /* === Includes ============================================================ */
 
+
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
@@ -29,11 +30,15 @@
 #include "keepkey/board/usb_driver.h"
 #include "keepkey/board/u2f.h"
 #include "keepkey/board/u2f_types.h"
-#include "keepkey/bootloader/signatures.h"
+#include "keepkey/board/signatures.h"
 #include "keepkey/bootloader/usb_flash.h"
 #include "trezor/crypto/sha2.h"
 #include "trezor/crypto/memzero.h"
 #include "keepkey/transport/interface.h"
+
+#include "keepkey/board/supervise.h"
+#include "keepkey/board/bl_mpu.h"
+
 
 #include <libopencm3/stm32/flash.h>
 
@@ -147,15 +152,12 @@ static bool flash_locking_write(Allocation group, size_t offset, size_t len,
 {
     bool ret_val = true;
 
-    flash_unlock();
-
     if(!flash_write(group, offset, len, data))
     {
         /* Flash error detectected */
         ret_val = false;
     }
 
-    flash_lock();
     return(ret_val);
 }
 
@@ -507,8 +509,7 @@ void handler_wipe(WipeDevice *msg)
     // Only erase the active sector, leaving the other two alone.
     Allocation storage_loc = FLASH_INVALID;
     if(find_active_storage(&storage_loc) && storage_loc != FLASH_INVALID) {
-        flash_unlock();
-        flash_erase_word(storage_loc);
+        bl_flash_erase_word(storage_loc);
         flash_lock();
     }
 
@@ -554,17 +555,14 @@ void handler_erase(FirmwareErase *msg)
         /* Save storage data in memory so it can be restored after firmware update */
         if(storage_preserve())
         {
-            flash_unlock();
-
             /* Erase config data sectors  */
             for(uint32_t i = FLASH_STORAGE1; i <= FLASH_STORAGE3; i++)
             {
-                flash_erase_word(i);
+                bl_flash_erase_word(i);
             }
 
             /* Erase application section */
-            flash_erase_word(FLASH_APP);
-            flash_lock();
+            bl_flash_erase_word(FLASH_APP);
             send_success("Firmware erased");
 
             layout_loading();
@@ -757,11 +755,9 @@ void handler_debug_link_fill_config(DebugLinkFillConfig *msg)
     /* Fill storage sector with test data */
     if(storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3)
     {
-        flash_unlock();
-        flash_erase_word(storage_location);
+        bl_flash_erase_word(storage_location);
         flash_write(storage_location, 0, STOR_FLASH_SECT_LEN,
                     fill_storage_shadow);
-        flash_lock();
     }
 }
 #endif

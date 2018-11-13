@@ -41,7 +41,7 @@
  * OUTPUT
  *     true/false status
  */
-#ifdef DEBUG_ON
+#ifdef USART_DEBUG_ON
 static bool put_console_char(int8_t c)
 {
 #ifndef EMULATOR
@@ -266,7 +266,7 @@ char read_console(void)
     return '\0';
 #endif
 }
-#else
+#else // USART_DEBUG_ON
 #ifndef EMULATOR
 void dbg_print(const char *pStr, ...) {(void)pStr;}
 #endif

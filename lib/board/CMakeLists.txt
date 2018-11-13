@@ -11,19 +11,17 @@ set(sources
     keepkey_usart.c
     layout.c
     memory.c
+    mmhusr.c
     msg_dispatch.c
     pin.c
     resources.c
+    signatures.c
+    supervise.c
     timer.c
     udp.c
     usb_driver.c
     variant.c
     u2f.c)
-
-if(NOT ${KK_EMULATOR})
-  enable_language(ASM)
-  set(sources ${sources} startup.s)
-endif()
 
 include_directories(
   ${CMAKE_SOURCE_DIR}/include

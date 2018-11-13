@@ -27,6 +27,7 @@
 #  include <libopencm3/stm32/flash.h>
 #endif
 
+#include "keepkey/board/supervise.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/memory.h"
@@ -897,14 +898,6 @@ void storage_commit_impl(ConfigFlash *cfg)
             continue; /* Retry */
         }
 
-#ifndef EMULATOR
-        /* Make sure flash is in good state before proceeding */
-        if (!flash_chk_status()) {
-            flash_clear_status_flags();
-            continue; /* Retry */
-        }
-#endif
-
         /* Make sure storage sector is valid before proceeding */
         if(storage_location < FLASH_STORAGE1 || storage_location > FLASH_STORAGE3)
         {
@@ -912,9 +905,6 @@ void storage_commit_impl(ConfigFlash *cfg)
             continue;
         }
 
-#ifndef EMULATOR
-        flash_unlock();
-#endif
         flash_erase_word(storage_location);
         wear_leveling_shift();
         flash_erase_word(storage_location);
@@ -941,10 +931,6 @@ void storage_commit_impl(ConfigFlash *cfg)
             break;
         }
     }
-
-#ifndef EMULATOR
-    flash_lock();
-#endif
 
     memzero(flash_temp, sizeof(flash_temp));
 

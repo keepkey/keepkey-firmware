@@ -1,7 +1,6 @@
 /*
- * This file is part of the TREZOR project.
  *
- * Copyright (C) 2014 Pavol Rusnak <stick@satoshilabs.com>
+ *  * Copyright (C) 2018 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -17,9 +16,9 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SIGNATURES_H
-#define SIGNATURES_H
+#ifndef __BL_MPU_H__
+#define __BL_MPU_H__
 
-int signatures_ok(void);
+void bl_flash_erase_word(Allocation group);
 
 #endif

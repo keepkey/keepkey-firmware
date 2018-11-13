@@ -23,10 +23,12 @@
 #include <inttypes.h>
 
 #define PUBKEYS 5
+#define EXP_PUBKEYS 5
 #define PUBKEY_LENGTH 65
 #define SIGNATURES 3
 
 #define SIG_OK      0x5A3CA5C3
+#define KEY_EXPIRED 0x00000001
 #define SIG_FAIL    0x00000000
 
 static const uint8_t pubkey[PUBKEYS][PUBKEY_LENGTH] =
@@ -77,5 +79,7 @@ static const uint8_t pubkey[PUBKEYS][PUBKEY_LENGTH] =
         0x69, 0x48, 0x73, 0xf3, 0x14
     }
 };
+
+extern volatile const uint8_t valid_pubkey[PUBKEYS];
 
 #endif

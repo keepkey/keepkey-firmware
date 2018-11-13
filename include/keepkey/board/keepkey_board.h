@@ -85,6 +85,7 @@ extern uintptr_t __stack_chk_guard;
 
 void board_reset(void);
 void board_init(void);
+void kk_board_init(void);
 
 void __stack_chk_fail(void) __attribute__((noreturn));
 uint32_t calc_crc32(const void *data, int word_len);

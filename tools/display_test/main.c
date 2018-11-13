@@ -32,6 +32,9 @@
 
 #include "keepkey/firmware/app_layout.h"
 
+
+void mmhisr(void);
+
 /* === Functions =========================================================== */
 
 /*
@@ -44,8 +47,13 @@
  */
 int main(void)
 {
+    _buttonusr_isr = (void *)&buttonisr_usr;
+    _timerusr_isr = (void *)&timerisr_usr;
+    _mmhusr_isr = (void *)&mmhisr;
+
     /* Init board */
-    board_init();
+    kk_board_init();
+
     led_func(SET_RED_LED);
 
     /* Draw box to consume screen with pixels */

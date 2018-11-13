@@ -20,6 +20,9 @@
 #ifndef KEEPKEY_FLASH_H
 #define KEEPKEY_FLASH_H
 
+
+#define MODEL_STR_SIZE  32
+
 /* === Includes ============================================================ */
 
 #include <stddef.h>

@@ -1,6 +1,9 @@
 if(NOT ${KK_EMULATOR})
   set(sources
-      keepkey_main.c)
+      keepkey_main.c
+      startup.s
+      ../bootloader/bl_mpu.c
+      ../bootloader/isr.s)
 
   include_directories(
       ${CMAKE_SOURCE_DIR}/include

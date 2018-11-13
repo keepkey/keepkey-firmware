@@ -17,4 +17,3 @@ _stack = _ram_end - 8;
 __stack_chk_guard = _ram_end - 8;
 
 _data_size = SIZEOF(.data);
-

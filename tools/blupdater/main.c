@@ -34,9 +34,17 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
+#ifndef EMULATOR
 #include <libopencm3/cm3/cortex.h>
 #include <libopencm3/stm32/flash.h>
+
+#include <libopencm3/cm3/mpu.h>
+#include <libopencm3/cm3/scb.h>
+#include <libopencm3/cm3/vector.h>
+#include "keepkey/board/mpudefs.h"
+#endif
 
 #include "keepkey/board/check_bootloader.h"
 #include "keepkey/board/keepkey_board.h"
@@ -51,6 +59,7 @@
 #include <string.h>
 
 #define NUM_RETRIES 8
+#define CHUNK_SIZE  0x100
 
 #ifdef DEBUG_ON
 static uint8_t bl_hash[SHA256_DIGEST_LENGTH];
@@ -61,6 +70,9 @@ static uint8_t bl_hash[SHA256_DIGEST_LENGTH];
 #  include "bin/bootloader.release.h"
 #endif
 
+void mmhisr(void);
+void mpu_blup(void);
+
 /* These variables will be used by host application to read the version info */
 static const char *const application_version
 __attribute__((used, section("version"))) = "VERSION" BL_VERSION;
@@ -68,9 +80,11 @@ __attribute__((used, section("version"))) = "VERSION" BL_VERSION;
 /// \returns true iff there was a problem while writing.
 static bool write_bootloader(void)
 {
+    const FlashSector* s = flash_sector_map;
     static uint8_t hash[SHA256_DIGEST_LENGTH];
     memset(hash, 0, sizeof(hash));
     sha256_Raw((const uint8_t*)bootloader, sizeof(bootloader), hash);
+
 
     if (memcmp(hash, BL_HASH, sizeof(hash)))
         return true;
@@ -80,10 +94,34 @@ static bool write_bootloader(void)
         memory_unlock();
         flash_unlock();
 
-        flash_erase_word(FLASH_BOOTLOADER);
+        // erase the bootloader sectors, do not use flash_erase_word()
+        while (s->use != FLASH_INVALID) {
+            if (s->use == FLASH_BOOTLOADER) {
+                // erase the sector
+                flash_erase_sector(s->sector, FLASH_CR_PROGRAM_X32);
+                // Wait for operation to complete.
+                flash_wait_for_last_operation();
+                }
+            ++s;
+        }
 
         // Write into the sector.
-        flash_program((uint32_t)FLASH_BOOT_START, bootloader, sizeof(bootloader));
+        for (size_t chunkstart = 0; chunkstart < sizeof(bootloader); chunkstart += CHUNK_SIZE) {
+            char message[20];
+            size_t chunksize;
+
+            snprintf(message, sizeof(message), "DO NOT UNPLUG! %d%%",
+                      (int)(chunkstart * 100 / sizeof(bootloader)));
+            layout_simple_message(message);
+
+            if (sizeof(bootloader) > chunkstart+CHUNK_SIZE) {
+                chunksize = CHUNK_SIZE;
+            } else {
+                chunksize = sizeof(bootloader) - chunkstart;
+            }
+
+            flash_program((uint32_t)(FLASH_BOOT_START+chunkstart), &bootloader[chunkstart], chunksize);
+        }
 
         // Disallow writing to flash.
         flash_lock();
@@ -118,6 +156,7 @@ static bool unknown_bootloader(void) {
     case BLK_v1_0_3_elf:
     case BLK_v1_0_4:
     case BLK_v1_1_0:
+    case BLK_v2_0_0:
         return false;
     }
 
@@ -184,23 +223,39 @@ static void *memmem(const void *haystack_start, size_t haystack_len,
 }
 
 int main(void)
-{
-    board_init();
+{ 
+    _buttonusr_isr = (void *)&buttonisr_usr;
+    _timerusr_isr = (void *)&timerisr_usr;
+    _mmhusr_isr = (void *)&mmhisr;
+
+    mpu_blup();
+
+    // Legacy bootloader code will have interrupts disabled at this point. To maintain compatibility, the timer
+    // and button interrupts need to be enabled and then global interrupts enabled. This is a nop in the modern
+    // scheme
     cm_enable_interrupts();
+
+    kk_board_init();
+
+    layout_warning_static("Bootloader Updater v" BL_VERSION);
+    delay_ms(2000);
 
 #ifdef DEBUG_ON
     memset(bl_hash, 0, sizeof(bl_hash));
     sha256_Raw((const uint8_t*)bootloader, sizeof(bootloader), bl_hash);
 #endif
 
+#ifndef DEBUG_ON    // for testing, update every time even if it's the same bl
     // Check if we've already updated
     static uint8_t hash[SHA256_DIGEST_LENGTH];
     memset(hash, 0, sizeof(hash));
     sha256_Raw((const uint8_t*)FLASH_BOOT_START, sizeof(bootloader), hash);
+
     if (!memcmp(hash, BL_HASH, sizeof(hash))) {
         success();
         return 0;
     }
+#endif
 
     // Check that we're familiar with this bootloader, and refuse to update
     // anything we don't recognize. This prevents use of this tool in a
@@ -227,7 +282,11 @@ int main(void)
     }
 
     layout_simple_message("Updating bootloader to v" BL_VERSION);
+    delay_ms(2000);
+    layout_simple_message("DO NOT UNPLUG!");
+
     display_refresh();
+    delay_ms(1000);
 
     // Shove the model # into OTP if it wasn't already there.
     (void)flash_programModel();
@@ -240,3 +299,51 @@ int main(void)
     success();
     return 0;
 }
+
+
+
+/* 
+   The blupdater scheme is designed to run as a privileged mode fw version. The blupdater must be signed just as
+   any other kk defined firmware, however the bootloader needs to distinguish this firmware from normal operating
+   firmware. This is the ethernet DMA isr (61), extremely unlikely to ever be required in a kk device. This unique vector
+   can be read by the bootloader that will then subsequently allow continuation in a mode appropriate for the blupdater,
+   that is, privileged mode execution using its own vector table. 
+   */
+
+void eth_isr(void) {
+    while(1);
+}
+
+
+void mpu_blup(void) {
+
+#ifndef EMULATOR
+    // basic memory protection for the blupdater. More regions can be added if needed.
+    // CAUTION: It is possible to disable access to critical resources even in privileged mode. This 
+    // can potentially brick devices
+
+    // Disable MPU
+    MPU_CTRL = 0;
+
+    // Note: later entries overwrite previous ones
+    // Flash (0x08000000 - 0x080FFFFF, 1 MiB, read-only)
+    MPU_RBAR = FLASH_BASE | MPU_RBAR_VALID | (0 << MPU_RBAR_REGION_LSB);
+    MPU_RASR = MPU_RASR_ENABLE | MPU_RASR_ATTR_FLASH | MPU_RASR_SIZE_1MB | MPU_RASR_ATTR_AP_PRW_URO;
+    // Sector 0 (bootstrap) is protected 
+    // (0x08000000 - 0x08003FFF, 16 KiB)
+    MPU_RBAR = (FLASH_BASE) | MPU_RBAR_VALID | (1 << MPU_RBAR_REGION_LSB);
+    MPU_RASR = MPU_RASR_ENABLE | MPU_RASR_ATTR_FLASH | MPU_RASR_SIZE_16KB | MPU_RASR_ATTR_AP_PRO_UNO;
+
+   // Enable MPU and allow privileged execution of the system memory map. If unprivileged access
+    // of the system memory map is desired, do not set this bit and add mpu coverage of the region.
+    MPU_CTRL = MPU_CTRL_ENABLE | MPU_CTRL_PRIVDEFENA;
+
+    // Enable memory fault handler
+    SCB_SHCSR |= SCB_SHCSR_MEMFAULTENA;
+
+    __asm__ volatile("dsb");
+    __asm__ volatile("isb");
+#endif  //EMULATOR
+}
+
+

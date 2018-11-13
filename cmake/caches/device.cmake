@@ -62,6 +62,7 @@ set(CMAKE_CXX_FLAGS "${ARCH_FLAGS} -std=gnu++11 ${OPT_FLAGS} ${WARN_FLAGS} \
 
 set(CMAKE_ASM_FLAGS "-mcpu=cortex-m3 \
     -mthumb \
+    -x assembler-with-cpp \
     -gdwarf-2" CACHE STRING "")
 
 set(CMAKE_EXE_LINKER_FLAGS

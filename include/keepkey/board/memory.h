@@ -20,33 +20,35 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
+//#include <libopencm3/cm3/mpu.h>
 #include "trezor/crypto/sha2.h"
 
 #include <stddef.h>
 #include <stdbool.h>
 #include <inttypes.h>
 
+
 /*
 
  flash memory layout:
  --------------------
-   name    |          range          |  size   |     function     | permissions
------------+-------------------------+---------+------------------+-------------
- Sector  0 | 0x08000000 - 0x08003FFF |  16 KiB | bootstrap code   | Read
- Sector  1 | 0x08004000 - 0x08007FFF |  16 KiB | storage/config   | Read  Write
------------+-------------------------+---------+------------------+-------------
- Sector  2 | 0x08008000 - 0x0800BFFF |  16 KiB | storage/config   | Read  Write
- Sector  3 | 0x0800C000 - 0x0800FFFF |  16 KiB | storage/config   | Read  Write
------------+-------------------------+---------+------------------+-------------
- Sector  4 | 0x08010000 - 0x0801FFFF |  64 KiB | empty            | Read  Write
- Sector  5 | 0x08020000 - 0x0803FFFF | 128 KiB | bootloader code  | Read
- Sector  6 | 0x08040000 - 0x0805FFFF | 128 KiB | bootloader code  | Read
- Sector  7 | 0x08060000 - 0x0807FFFF | 128 KiB | application code | Read  Write
-===========+=========================+============================+=============
- Sector  8 | 0x08080000 - 0x0809FFFF | 128 KiB | application code | Read  Write
- Sector  9 | 0x080A0000 - 0x080BFFFF | 128 KiB | application code | Read  Write
- Sector 10 | 0x080C0000 - 0x080DFFFF | 128 KiB | application code | Read  Write
- Sector 11 | 0x080E0000 - 0x080FFFFF | 128 KiB | application code | Read  Write
+   name    |          range          |  size   |     function     |   MPU Protection
+-----------+-------------------------+---------+------------------+----------------------
+ Sector  0 | 0x08000000 - 0x08003FFF |  16 KiB | bootstrap code   |  signature dependent
+ Sector  1 | 0x08004000 - 0x08007FFF |  16 KiB | storage/config   |     full access
+-----------+-------------------------+---------+------------------+----------------------
+ Sector  2 | 0x08008000 - 0x0800BFFF |  16 KiB | storage/config   |     full access
+ Sector  3 | 0x0800C000 - 0x0800FFFF |  16 KiB | storage/config   |     full access
+-----------+-------------------------+---------+------------------+----------------------
+ Sector  4 | 0x08010000 - 0x0801FFFF |  64 KiB | empty            |     full access
+ Sector  5 | 0x08020000 - 0x0803FFFF | 128 KiB | bootloader code  |  signature dependent
+ Sector  6 | 0x08040000 - 0x0805FFFF | 128 KiB | bootloader code  |  signature dependent
+ Sector  7 | 0x08060000 - 0x0807FFFF | 128 KiB | application code |     full access
+===========+=========================+============================+======================
+ Sector  8 | 0x08080000 - 0x0809FFFF | 128 KiB | application code |     full access
+ Sector  9 | 0x080A0000 - 0x080BFFFF | 128 KiB | application code |     full access
+ Sector 10 | 0x080C0000 - 0x080DFFFF | 128 KiB | application code |     full access
+ Sector 11 | 0x080E0000 - 0x080FFFFF | 128 KiB | application code |     full access
 
  Application metadata area:
  -------------------------
@@ -67,6 +69,10 @@
  flags & 0x01 -> restore storage after flashing (if signatures are ok)
 
  */
+
+/* === Defines ============================================================= */
+
+
 
 #ifdef EMULATOR
 extern uint8_t *emulator_flash_base;
@@ -91,6 +97,10 @@ extern uint8_t *emulator_flash_base;
 #define UNUSED_FLASH_SECT0_LEN  0x10000 
 #define BLDR_FLASH_SECT_LEN     0x20000
 #define APP_FLASH_SECT_LEN      0x20000
+
+#define BSTRP_FLASH_SECT_START  0x08000000
+#define BLDR_FLASH_SECT_START   0x08020000
+
 
 /* meta info */
 #define META_MAGIC_STR          "KPKY"
@@ -130,16 +140,19 @@ extern uint8_t *emulator_flash_base;
 #define FLASH_META_SIG2         (FLASH_META_SIG1        + sizeof(((app_meta_td *)NULL)->sig1))
 #define FLASH_META_SIG3         (FLASH_META_SIG2        + sizeof(((app_meta_td *)NULL)->sig2))
 
+
 #define META_MAGIC_SIZE         (sizeof(((app_meta_td *)NULL)->magic))
 
-#define FLASH_APP_START         (FLASH_META_START + FLASH_META_DESC_LEN)     //0x0806_0100 - 0x080F_FFFF
+#define FLASH_APP_START         (FLASH_META_START + FLASH_META_DESC_LEN)     //0x0806_0200 - 0x080F_FFFF
 #define FLASH_APP_LEN           (FLASH_END - FLASH_APP_START)
 
 #define SIG_FLAG                (*( uint8_t const *)FLASH_META_FLAGS)
 
 /* Misc Info. */
-#define FLASH_BOOTSTRAP_SECTOR_FIRST 0
-#define FLASH_BOOTSTRAP_SECTOR_LAST  0
+#define FLASH_BOOTSTRAP_SECTOR 0
+
+#define FLASH_BOOTSTRAP_SECTOR_FIRST   0
+#define FLASH_BOOTSTRAP_SECTOR_LAST    0
 
 #define FLASH_STORAGE_SECTOR_FIRST   1
 #define FLASH_STORAGE_SECTOR_LAST    3
@@ -209,6 +222,8 @@ static const FlashSector flash_sector_map[] =
     { -1, 0,          0,        FLASH_INVALID}
 };
 
+void mpu_config(int);
+
 void memory_protect(void);
 
 /// Enable writing. This exercises a bug in the STM32F2 that allows writing to
@@ -227,5 +242,12 @@ int memory_firmware_hash(uint8_t *hash);
 const char *memory_firmware_hash_str(char digest[SHA256_DIGEST_STRING_LENGTH]);
 int memory_storage_hash(uint8_t *hash, Allocation storage_location);
 bool find_active_storage(Allocation *storage_location);
+
+
+extern void * _timerusr_isr;
+extern void * _buttonusr_isr;
+extern void * _mmhusr_isr;
+
+
 
 #endif

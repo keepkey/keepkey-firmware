@@ -33,6 +33,10 @@
 #include "keepkey/board/u2f.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/keepkey_usart.h"
+#include "keepkey/board/memory.h"
+#include "keepkey/board/mpudefs.h"
+#include "keepkey/board/pubkeys.h"
+#include "keepkey/board/signatures.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
@@ -43,6 +47,9 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+
+
+void mmhisr(void);
 
 /* === Defines ============================================================= */
 #define APP_VERSIONS "VERSION" \
@@ -86,9 +93,12 @@ static void screen_test(void)
 {
     if(is_mfg_mode())
     {
+#ifndef DEBUG_ON
         layout_screen_test();
+#endif
     }
 }
+
 
 /* === Functions =========================================================== */
 
@@ -102,8 +112,31 @@ static void screen_test(void)
  */
 int main(void)
 {
+    _buttonusr_isr = (void *)&buttonisr_usr;
+    _timerusr_isr = (void *)&timerisr_usr;
+    _mmhusr_isr = (void *)&mmhisr;
+
+    // Legacy bootloader code will have interrupts disabled at this point. To maintain compatibility, the timer
+    // and button interrupts need to be enabled and then global interrupts enabled. This is a nop in the modern
+    // scheme
+
+    int signed_firmware = signatures_ok();
+#ifdef DEBUG_ON
+    signed_firmware = SIG_OK;
+#endif
+
+    if (SIG_OK == signed_firmware) {
+        cm_enable_interrupts();
+
+        // Turn on memory protection for good signature. KK firmware is signed
+        mpu_config(SIG_OK);
+
+        // set thread mode to unprivileged here. This will help protect against 0days
+        __asm__ volatile("msr control, %0" :: "r" (0x3));   // unpriv thread mode using psp stack
+    }
+
     /* Init board */
-    board_init();
+    kk_board_init();
 
     /* Bootloader Verification */
     check_bootloader();
@@ -127,9 +160,6 @@ int main(void)
     fsm_init();
 
     led_func(SET_GREEN_LED);
-
-    /* Enable interrupt for timer */
-    cm_enable_interrupts();
 
     u2f_init(&u2f_do_register, &u2f_do_auth, &u2f_do_version);
     usb_init();

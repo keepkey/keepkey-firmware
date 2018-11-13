@@ -55,6 +55,18 @@ typedef struct
 
 /* === Functions =========================================================== */
 
+void timerisr_usr(void);
+
+/**
+ * kk_timer_init() - Timer 4 initialization.  Main timer for round robin tasking.
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
+ **/
+void kk_timer_init(void);
+
 void timer_init(void);
 void delay_ms(uint32_t ms);
 void delay_us(uint32_t us);

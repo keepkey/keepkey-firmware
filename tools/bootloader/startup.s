@@ -19,8 +19,16 @@ memset_reg:
   .global reset_handler
   .type reset_handler, STT_FUNC
 reset_handler:
+   
+  // Initialize msp stack and start using it
+  ldr     r0, =vtor
+  ldr     r0, [r0]
+  ldr     r0, [r0]
+  msr     msp, r0
+
   ldr r0, =_ram_start // r0 - point to beginning of SRAM
-  ldr r1, =_ram_end   // r1 - point to byte after the end of SRAM
+//  ldr r1, =_ram_end   // r1 - point to byte after the end of SRAM
+  ldr r1, =_comram_end
   ldr r2, =0          // r2 - the byte-sized value to be written
   bl memset_reg
 
@@ -41,7 +49,8 @@ reset_handler:
 shutdown:
   cpsid f                 // disable interrupts
   ldr r0, =_ram_start
-  ldr r1, =_ram_end
+//  ldr r1, =_ram_end
+  ldr r1, =_comram_end
   ldr r2, =0
   bl memset_reg
   ldr r0, =0
@@ -59,4 +68,10 @@ shutdown:
   mov r12, r0
   ldr lr, =0xffffffff
   b .                     // loop forever
+
+
+  .set vtor, 0xe000ed08
+
+  .ltorg // dump literal pool (for the ldr ...,=... commands above)
+
   .end
