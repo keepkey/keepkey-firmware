@@ -110,7 +110,7 @@ BootloaderKind get_bootloaderKind(void) {
 
 void check_bootloader(void) {
 #if !defined(EMULATOR) && !defined(DEBUG_ON)
-    enum BootloaderKind kind = get_bootloaderKind();
+    BootloaderKind kind = get_bootloaderKind();
 
     switch (kind) {
     case BLK_v1_1_0:
@@ -119,15 +119,8 @@ void check_bootloader(void) {
     case BLK_v1_0_1:
     case BLK_v1_0_2:
     case BLK_v1_0_3:
-    case BLK_v1_0_3_sig:
     case BLK_v1_0_3_elf:
-    case BLK_v1_0_4:
-    case BLK_v1_0_0:
-    case BLK_v1_0_1:
-    case BLK_v1_0_2:
-    case BLK_v1_0_3:
     case BLK_v1_0_3_sig:
-    case BLK_v1_0_3_elf:
     case BLK_v1_0_4: {
         layout_warning_static("Please update your bootloader.");
         shutdown();
