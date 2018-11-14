@@ -23,7 +23,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define TOKENS_COUNT 797
+#define TOKENS_COUNT 798
 
 typedef struct _TokenType {
     uint8_t chain_id;

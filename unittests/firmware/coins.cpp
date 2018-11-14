@@ -1,11 +1,13 @@
 extern "C" {
 #include "keepkey/firmware/coins.h"
+#include "keepkey/firmware/ethereum_tokens.h"
 }
 
 #include "gtest/gtest.h"
 
 #include <sstream>
 #include <string>
+#include <cstring>
 
 static const int MaxLength = 256;
 
@@ -58,5 +60,25 @@ TEST(Coins, Bip32PathToString) {
                     << "i:               " << i << "\n";
             }
         }
+    }
+}
+
+TEST(Coins, TableSanity) {
+    for (int i = 0; i < COINS_COUNT; ++i) {
+        const auto &coin = coins[i];
+
+        if (!coin.has_contract_address)
+            continue;
+
+        const TokenType *token;
+        if (!tokenByTicker(1, coin.coin_shortcut, &token)) {
+            EXPECT_TRUE(false)
+                << "Can't uniquely find " << coin.coin_shortcut;
+            continue;
+        }
+
+        EXPECT_TRUE(memcmp(coin.contract_address.bytes, token->address,
+                           coin.contract_address.size) == 0)
+            << "Contract address mismatch for " << coin.coin_shortcut;
     }
 }
