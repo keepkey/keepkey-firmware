@@ -1,5 +1,7 @@
 #include "keepkey/firmware/ethereum_tokens.h"
 
+#include "keepkey/firmware/coins.h"
+
 #include <string.h>
 
 const TokenType tokens[] = {
@@ -696,6 +698,7 @@ const TokenType tokens[] = {
 	{ 1, "\xcb\x94\xbe\x6f\x13\xa1\x18\x2e\x4a\x4b\x61\x40\xcb\x7b\xf2\x02\x5d\x28\xe4\x1b", " TRST", 6}, // eth / TRST
 	{ 1, "\xf2\x30\xb7\x90\xe0\x53\x90\xfc\x82\x95\xf4\xd3\xf6\x03\x32\xc9\x3b\xed\x42\xe2", " TRX", 6}, // eth / Tron Lab Token
 	{ 1, "\x6b\x87\x99\x9b\xe8\x73\x58\x06\x5b\xbd\xe4\x1e\x8a\x0f\xe0\xb7\xb1\xcd\x25\x14", " TSW", 18}, // eth / TeslaWatt
+	{ 1, "\x8d\xd5\xfb\xce\x2f\x6a\x95\x6c\x30\x22\xba\x36\x63\x75\x90\x11\xdd\x51\xe7\x3e", " TUSD", 18}, // eth / TrueUSD
 	{ 1, "\x2e\xf1\xab\x8a\x26\x18\x7c\x58\xbb\x8a\xae\xb1\x1b\x2f\xc6\xd2\x5c\x5c\x07\x16", " TWN", 18}, // eth / The World News
 	{ 1, "\xfb\xd0\xd1\xc7\x7b\x50\x17\x96\xa3\x5d\x86\xcf\x91\xd6\x5d\x97\x78\xee\xe6\x95", " TWNKL", 3}, // eth / Twinkle
 	{ 1, "\x24\x69\x27\x91\xbc\x44\x4c\x5c\xd0\xb8\x1e\x3c\xbc\xab\xa4\xb0\x4a\xcd\x1f\x3b", " UKG", 18}, // eth / UnikoinGold
@@ -820,6 +823,22 @@ const TokenType *tokenByChainAddress(uint8_t chain_id, const uint8_t *address)
 
 bool tokenByTicker(uint8_t chain_id, const char *ticker, const TokenType **token) {
 	*token = NULL;
+
+	// First look in the legacy table, confirming that the entry also exists in
+	// the new table:
+	for (int i = 0; i < COINS_COUNT; i++) {
+		if (!coins[i].has_contract_address) {
+			continue;
+		}
+		if (strcmp(ticker, coins[i].coin_shortcut) == 0) {
+			*token = tokenByChainAddress(1, coins[i].contract_address.bytes);
+			if (*token == UnknownToken)
+				return false;
+			return true;
+		}
+	}
+
+	// Then look in the new table:
 	for (int i = 0; i < TOKENS_COUNT; i++) {
 		if (chain_id == tokens[i].chain_id && strcmp(ticker, tokens[i].ticker + 1) == 0) {
 			if (!*token)
