@@ -17,8 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #ifndef EMULATOR
 #  include <inttypes.h>
 #  include <stdbool.h>
@@ -48,10 +46,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-
 void mmhisr(void);
 
-/* === Defines ============================================================= */
 #define APP_VERSIONS "VERSION" \
                       VERSION_STR(MAJOR_VERSION)  "." \
                       VERSION_STR(MINOR_VERSION)  "." \
@@ -61,16 +57,6 @@ void mmhisr(void);
 static const char *const application_version
 __attribute__((used, section("version"))) = APP_VERSIONS;
 
-/* === Private Functions =================================================== */
-
-/*
- * exec() - Main loop
- *
- * INPUT
- *     none
- * OUTPUT
- *     none
- */
 static void exec(void)
 {
     usb_poll();
@@ -80,36 +66,6 @@ static void exec(void)
     display_refresh();
 }
 
-/*
- * screen_test() - Preform a screen test if device is in manufacture mode
- *
- * INPUT
- *      none
- * OUTPUT
- *      none
- *
- */
-static void screen_test(void)
-{
-    if(is_mfg_mode())
-    {
-#ifndef DEBUG_ON
-        layout_screen_test();
-#endif
-    }
-}
-
-
-/* === Functions =========================================================== */
-
-/*
- * main() - Application main entry
- *
- * INPUT
- *     none
- * OUTPUT
- *     0 when complete
- */
 int main(void)
 {
     _buttonusr_isr = (void *)&buttonisr_usr;
@@ -167,19 +123,18 @@ int main(void)
 
     reset_idle_time();
 
-    layoutHomeForced();
-
-    screen_test();
-
-    if (variant_isMFR())
+    if (is_mfg_mode())
+        layout_screen_test();
+    else if (variant_isMFR())
         layout_simple_message("keepkey.com/get-started");
+    else
+        layoutHomeForced();
 
-    while(1)
-    {
+    while (1) {
         delay_ms_with_callback(ONE_SEC, &exec, 1);
         increment_idle_time(ONE_SEC);
         toggle_screensaver();
     }
 
-    return(0);
+    return 0;
 }
