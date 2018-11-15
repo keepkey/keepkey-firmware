@@ -229,15 +229,14 @@ bool flash_write(Allocation group, uint32_t offset, uint32_t len, uint8_t* data)
  */
 bool is_mfg_mode(void)
 {
-#ifndef EMULATOR
-    if(*(uint32_t *)OTP_MFG_ADDR == OTP_MFG_SIG)
-    {
+#if defined(EMULATOR) || defined(DEBUG_ON)
+    return false;
+#else
+    if (*(uint32_t *)OTP_MFG_ADDR == OTP_MFG_SIG) {
         return false;
     }
 
     return true;
-#else
-    return false;
 #endif
 }
 
