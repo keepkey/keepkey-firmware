@@ -108,3 +108,28 @@ BootloaderKind get_bootloaderKind(void) {
     return BLK_UNKNOWN;
 }
 
+void check_bootloader(void) {
+#if !defined(EMULATOR) && !defined(DEBUG_ON)
+    BootloaderKind kind = get_bootloaderKind();
+
+    switch (kind) {
+    case BLK_v1_1_0:
+        return;
+    case BLK_v1_0_0:
+    case BLK_v1_0_1:
+    case BLK_v1_0_2:
+    case BLK_v1_0_3:
+    case BLK_v1_0_3_elf:
+    case BLK_v1_0_3_sig:
+    case BLK_v1_0_4: {
+        layout_warning_static("Please update your bootloader.");
+        shutdown();
+    } break;
+    case BLK_UNKNOWN: {
+        layout_warning_static("Unknown bootloader. Contact support.");
+        shutdown();
+    } break;
+    }
+#endif
+}
+

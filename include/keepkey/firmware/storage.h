@@ -23,9 +23,11 @@
 #include "trezor/crypto/bip32.h"
 #include "keepkey/board/memory.h"
 
-#define STORAGE_VERSION 10 /* Must add case fallthrough in storage_fromFlash after increment*/
+#define STORAGE_VERSION 11 /* Must add case fallthrough in storage_fromFlash after increment*/
 #define STORAGE_RETRIES 3
 
+#define STORAGE_DEFAULT_SCREENSAVER_TIMEOUT (10U * 60U * 1000U) /* 10 minutes */
+#define STORAGE_MIN_SCREENSAVER_TIMEOUT     (      30U * 1000U) /* 30 seconds */
 
 /// \brief Validate storage content and copy data to shadow memory.
 void storage_init(void);
@@ -36,8 +38,8 @@ void storage_resetUuid(void);
 /// \brief Clear configuration.
 void storage_reset(void);
 
-/// \brief Reset session states
-/// \param clear_pin  Whether to clear the session pin.
+/// \brief Reset session states.
+/// \param clear_pin whether to clear the pin as well.
 void session_clear(bool clear_pin);
 
 /// \brief Write content of configuration in shadow memory to storage partion
@@ -54,6 +56,16 @@ void storage_loadDevice(LoadDevice *msg);
 /// \param usePassphrase[in]  Whether the seed uses a passphrase.
 /// \return true iff the root node was found.
 bool storage_getRootNode(const char *curve, bool usePassphrase, HDNode *node);
+
+/// \brief Fetch the node used for U2F signing.
+/// \returns true iff retrieval was successful.
+bool storage_getU2FRoot(HDNode *node);
+
+/// \brief Increment and return the next value for the U2F counter.
+uint32_t storage_nextU2FCounter(void);
+
+/// \brief Assign a new value for the U2F Counter.
+void storage_setU2FCounter(uint32_t u2f_counter);
 
 /// \brief Set device label
 void storage_setLabel(const char *label);
@@ -81,6 +93,9 @@ uint32_t storage_getPinFails(void);
 
 bool storage_isInitialized(void);
 
+bool storage_noBackup(void);
+void storage_setNoBackup(void);
+
 const char *storage_getUuidStr(void);
 
 bool storage_getPassphraseProtected(void);
@@ -94,41 +109,45 @@ void storage_setMnemonicFromWords(const char (*words)[12], unsigned int num_word
 /// \brief Set config mnemonic from a recovery sentence.
 void storage_setMnemonic(const char *mnemonic);
 
-/// \returns true iff the device has a mnemonic in storage.
-bool storage_hasMnemonic(void);
-
 /// \brief Get mnemonic from shadow memory
 const char *storage_getShadowMnemonic(void);
 
 /// \returns true iff the private key stored on device was imported.
 bool storage_getImported(void);
 
-/// \returns true iff the active storage has a HDNode.
-bool storage_hasNode(void);
-
 /// \brief Get active storage location..
 Allocation storage_getLocation(void);
 
 typedef struct _PolicyType PolicyType;
 
-/// \brief Assign policy by name
-bool storage_setPolicy(const PolicyType *policy);
+/// \brief Assign policy by name.
+/// \returns true iff assignment was successful.
+bool storage_setPolicy(const char *policy_name, bool enabled);
 
 /// \brief Copy out all the policies in storage
 /// \param policies[out]  Where to write the policies.
 void storage_getPolicies(PolicyType *policies);
 
 /// \brief Status of policy in storage
-bool storage_isPolicyEnabled(char *policy_name);
+bool storage_isPolicyEnabled(const char *policy_name);
+
+uint32_t storage_getAutoLockDelayMs(void);
+void storage_setAutoLockDelayMs(uint32_t auto_lock_delay_ms);
 
 #ifdef DEBUG_LINK
 typedef struct _HDNodeType HDNodeType;
 typedef struct _StorageHDNode StorageHDNode;
 
+/// \returns true iff the device has a mnemonic in storage.
+bool storage_hasMnemonic(void);
+
+/// \returns true iff the active storage has a HDNode.
+bool storage_hasNode(void);
+
 const char *storage_getPin(void);
 const char *storage_getMnemonic(void);
-StorageHDNode *storage_getNode(void);
-void storage_dumpNode(HDNodeType *dst, const StorageHDNode *src);
+HDNode *storage_getNode(void);
+void storage_dumpNode(HDNodeType *dst, const HDNode *src);
 #endif
 
 #endif

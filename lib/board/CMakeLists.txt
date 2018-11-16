@@ -17,7 +17,8 @@ set(sources
     timer.c
     udp.c
     usb_driver.c
-    variant.c)
+    variant.c
+    u2f.c)
 
 if(NOT ${KK_EMULATOR})
   enable_language(ASM)
@@ -27,6 +28,7 @@ endif()
 include_directories(
   ${CMAKE_SOURCE_DIR}/include
   ${CMAKE_BINARY_DIR}/include
+  ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto
   ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(kkboard ${sources})

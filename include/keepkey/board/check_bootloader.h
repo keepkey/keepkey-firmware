@@ -52,5 +52,8 @@ typedef enum _BootloaderKind {
 
 BootloaderKind get_bootloaderKind(void);
 
+/// Check the authenticity of the bootloader.
+void check_bootloader(void);
+
 #endif
 

@@ -4,10 +4,10 @@ set(sources
     coins.c
     crypto.c
     ethereum.c
+    ethereum_tokens.c
     exchange.c
     fsm.c
     home_sm.c
-    hotpatch_bootloader.c
     passphrase_sm.c
     pin_sm.c
     policy.c
@@ -18,13 +18,16 @@ set(sources
     signing.c
     storage.c
     transaction.c
-    util.c)
+    util.c
+    u2f.c)
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/scm_revision.h.in"
                "${CMAKE_CURRENT_BINARY_DIR}/scm_revision.h" @ONLY)
 
-include_directories(${CMAKE_BINARY_DIR}/include
-                     ${CMAKE_CURRENT_BINARY_DIR})
+include_directories(
+  ${CMAKE_BINARY_DIR}/include
+  ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto
+  ${CMAKE_CURRENT_BINARY_DIR})
 
 add_library(kkfirmware ${sources})
 add_dependencies(kkfirmware kktransport.pb)

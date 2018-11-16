@@ -110,8 +110,7 @@ void toggle_screensaver(void)
     switch(home_state)
     {
         case AT_HOME:
-            if(idle_time >= variant_getScreensaverTimeout())
-            {
+            if (idle_time >= storage_getAutoLockDelayMs()) {
                 session_clear(/*clear_pin=*/true);
                 layout_screensaver();
                 home_state = SCREENSAVER;
@@ -120,8 +119,7 @@ void toggle_screensaver(void)
             break;
 
         case SCREENSAVER:
-            if(idle_time < variant_getScreensaverTimeout())
-            {
+            if (idle_time < storage_getAutoLockDelayMs()) {
                 layout_home();
                 home_state = AT_HOME;
             }

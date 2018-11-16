@@ -25,17 +25,19 @@
 #  include <libopencm3/cm3/cortex.h>
 #endif
 
+#include "keepkey/board/check_bootloader.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/usb_driver.h"
+#include "keepkey/board/u2f.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/keepkey_usart.h"
 #include "keepkey/firmware/app_layout.h"
-#include "keepkey/firmware/hotpatch_bootloader.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
+#include "keepkey/firmware/u2f.h"
 #include "keepkey/rand/rng.h"
 #include "trezor/crypto/rand.h"
 
@@ -103,7 +105,7 @@ int main(void)
     /* Init board */
     board_init();
 
-    /* Bootloader hotpatching */
+    /* Bootloader Verification */
     check_bootloader();
 
     /* Program the model into OTP, if we're not in screen-test mode, and it's
@@ -129,14 +131,13 @@ int main(void)
     /* Enable interrupt for timer */
     cm_enable_interrupts();
 
+    u2f_init(&u2f_do_register, &u2f_do_auth, &u2f_do_version);
     usb_init();
     led_func(CLR_RED_LED);
 
     reset_idle_time();
 
-    /* Redraw the screen if we are coming from the whitelabel bootloader image */
-    if (getModel() != MODEL_KEEPKEY)
-        layoutHomeForced();
+    layoutHomeForced();
 
     screen_test();
 

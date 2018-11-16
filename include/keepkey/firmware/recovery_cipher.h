@@ -20,22 +20,16 @@
 #ifndef RECOVERY_CIPHER_H
 #define RECOVERY_CIPHER_H
 
-/* === Includes ============================================================ */
-
 #include <stdint.h>
 #include <stdbool.h>
-
-/* === Defines ============================================================= */
 
 #define MNEMONIC_BUF            24 * 12
 #define CURRENT_WORD_BUF        32
 #define ENGLISH_ALPHABET_BUF    32
 #define ENGLISH_MAX_WORD_LEN    8
 
-/* === Functions =========================================================== */
-
 void recovery_cipher_init(bool passphrase_protection, bool pin_protection, const char *language,
-    const char *label, bool _enforce_wordlist);
+    const char *label, bool _enforce_wordlist, uint32_t _auto_lock_delay_ms);
 void next_character(void);
 void recovery_character(const char *character);
 void recovery_delete_character(void);

@@ -5,12 +5,12 @@ Features.label				max_size:33
 Features.coins				max_count:0
 Features.revision			max_size:41
 Features.bootloader_hash		max_size:32
-Features.policies			max_count:1
+Features.policies			max_count:4
 Features.model              max_size:32
 Features.firmware_variant    max_size:32
 Features.firmware_hash		max_size:32
 
-CoinTable.table				max_count:8
+CoinTable.table				max_count:24
 
 ApplySettings.language			max_size:17
 ApplySettings.label			max_size:33
@@ -106,7 +106,6 @@ EthereumSignTx.to			    max_size:20
 EthereumSignTx.value			max_size:32
 EthereumSignTx.data_initial_chunk	max_size:1024
 EthereumSignTx.to_address_n		max_count:8
-EthereumSignTx.chain_id         max_size:32
 EthereumSignTx.token_value      max_size:32
 EthereumSignTx.token_to         max_size:20
 EthereumSignTx.token_shortcut   max_size:8
@@ -118,6 +117,16 @@ EthereumTxRequest.signature_der         max_size:73
 
 EthereumTxAck.data_chunk		max_size:1024
 
+EthereumSignMessage.address_n				max_count:8
+EthereumSignMessage.message				max_size:1024
+
+EthereumVerifyMessage.address				max_size:20
+EthereumVerifyMessage.signature				max_size:65
+EthereumVerifyMessage.message				max_size:1024
+
+EthereumMessageSignature.address			max_size:20
+EthereumMessageSignature.signature			max_size:65
+
 SignIdentity.challenge_hidden		max_size:256
 SignIdentity.challenge_visual		max_size:256
 SignIdentity.ecdsa_curve_name		max_size:32
@@ -126,7 +135,7 @@ SignedIdentity.address			max_size:130
 SignedIdentity.public_key		max_size:33
 SignedIdentity.signature		max_size:65
 
-ApplyPolicies.policy			max_count:1
+ApplyPolicies.policy			max_count:16
 
 # not used in firmware
 FirmwareUpload.payload_hash  max_size:32

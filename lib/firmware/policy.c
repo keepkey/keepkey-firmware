@@ -17,21 +17,11 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "keepkey/firmware/policy.h"
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/exchange.h"
-
-/* === Variables =========================================================== */
-
-const PolicyType policies[POLICY_COUNT] = {
-    {true, "ShapeShift", true, false}
-};
-
-/* === Functions =========================================================== */
 
 /*
  * run_policy_compile_output() - Policy wrapper around compile output
@@ -47,55 +37,31 @@ const PolicyType policies[POLICY_COUNT] = {
 */
 int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vin, void *vout, bool needs_confirm)
 {
-    int ret_result = TXOUT_COMPILE_ERROR;
+    /* setup address type with respect to coin type */
     OutputAddressType addr_type;
-
-    /* setup address type respect to coin type */
-    if(check_ethereum_tx(coin->coin_name))
-    {
-        addr_type = ((EthereumSignTx *)vin)->address_type ;
-    }
-    else
-    {
-        /* Bitcoin & Altcoins */
-        if(vout == NULL)
-        {
-            goto run_policy_compile_output_exit;
+    if (isEthereumLike(coin->coin_name)) {
+        addr_type = ((EthereumSignTx *)vin)->address_type;
+    } else {
+        /* Bitcoin, Clones, Forks */
+        if (vout == NULL) {
+            return TXOUT_COMPILE_ERROR;
         }
         addr_type = ((TxOutputType *)vin)->address_type;
     }
 
-    if(addr_type == OutputAddressType_EXCHANGE)
+    if (addr_type == OutputAddressType_EXCHANGE)
     {
-        if(storage_isPolicyEnabled("ShapeShift"))
-        {
-            if(process_exchange_contract(coin, vin, root, needs_confirm))
-            {
-                needs_confirm = false;
-            }
-            else
-            {
-                ret_result = TXOUT_EXCHANGE_CONTRACT_ERROR;
-                goto run_policy_compile_output_exit;
-            }
-        }
-        else
-        {
-            goto run_policy_compile_output_exit;
-        }
+        if (!storage_isPolicyEnabled("ShapeShift"))
+            return TXOUT_COMPILE_ERROR;
 
+        if (!process_exchange_contract(coin, vin, root, needs_confirm))
+            return TXOUT_EXCHANGE_CONTRACT_ERROR;
+
+        needs_confirm = false;
     }
 
-    if(check_ethereum_tx(coin->coin_name))
-    {
-        ret_result = TXOUT_OK;          
-    }
-    else
-    {
-        ret_result = compile_output(coin, root, (TxOutputType *)vin, (TxOutputBinType *)vout, needs_confirm);
-    }
+    if (isEthereumLike(coin->coin_name))
+        return TXOUT_OK;
 
-run_policy_compile_output_exit:
-
-    return(ret_result);
+    return compile_output(coin, root, (TxOutputType *)vin, (TxOutputBinType *)vout, needs_confirm);
 }

@@ -84,7 +84,7 @@ void fsm_msgSignTx(SignTx *msg)
 	CHECK_PARAM(msg->outputs_count > 0, _("Transaction must have at least one output"));
 	CHECK_PARAM(msg->inputs_count + msg->outputs_count >= msg->inputs_count, _("Value overflow"));
 
-	CHECK_PIN_UNCACHED
+	CHECK_PIN_TXSIGN
 
 	const CoinType *coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
 	if(!coin) { return; }
@@ -207,8 +207,8 @@ void fsm_msgGetAddress(GetAddress *msg)
 	if (msg->has_show_display && msg->show_display) {
 		char node_str[NODE_STRING_LENGTH];
 		if (msg->has_multisig) {
-			snprintf(node_str, sizeof(node_str), "Multisig (%" PRIu32 " of %zu)",
-			         msg->multisig.m, msg->multisig.pubkeys_count);
+			snprintf(node_str, sizeof(node_str), "Multisig (%" PRIu32 " of %" PRIu32 ")",
+			         msg->multisig.m, (uint32_t)msg->multisig.pubkeys_count);
 		} else {
 			if (!bip32_node_to_string(node_str, sizeof(node_str), coin, msg->address_n,
 			                          msg->address_n_count, /*whole_account=*/false) &&
@@ -294,15 +294,11 @@ void fsm_msgVerifyMessage(VerifyMessage *msg)
 	layout_simple_message("Verifying Message...");
 
 	if (msg->signature.size == 65 && cryptoMessageVerify(coin, msg->message.bytes, msg->message.size, msg->address, msg->signature.bytes) == 0) {
-#if 0
-		// FIXME: confirm address
-		layoutVerifyAddress(msg->address);
-		if (!protectButton(ButtonRequestType_ButtonRequest_Other, false)) {
+		if (!confirm_address("Confirm Signer", msg->address)) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
 			layoutHome();
 			return;
 		}
-#endif
 		if (!review(ButtonRequestType_ButtonRequest_Other, "Message Verified", "%s",
 		            (char *)msg->message.bytes)) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, _("Action cancelled by user"));

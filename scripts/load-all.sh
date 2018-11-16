@@ -1,33 +1,11 @@
-#! /bin/bash
+#! /bin/bash -ex
 
-BIN_FILE=./bin/bootstrap.bin
-openocd -s /usr/share/openocd/scripts -f interface/jlink.cfg -f ./scripts/openocd/openocd.cfg -c "program $BIN_FILE 0x08000000 verify exit"
-if [[ $? -ne 0 ]]; then
-        echo $?
-        echo "error in loading bootstrap"
-        exit
-fi
+HERE="$(dirname "$(which "$0")")"
 
-BIN_FILE=./bin/bootloader.bin
-openocd -s /usr/share/openocd/scripts -f interface/jlink.cfg -f ./scripts/openocd/stm32f2x.cfg  -c "program $BIN_FILE 0x08020000 verify exit"
-if [[ $? -ne 0 ]]; then
-        echo $?
-        echo "error in loading bootloader"
-        exit
-fi
+source $HERE/load-bootstrap.sh
 
-BIN_FILE=./bin/variant.keepkey.bin
-openocd -s /usr/share/openocd/scripts -f interface/jlink.cfg -f ./scripts/openocd/stm32f2x.cfg  -c "program $BIN_FILE 0x08010000 verify exit"
-if [[ $? -ne 0 ]]; then
-        echo $?
-        echo "error in loading variant"
-        exit
-fi
+source $HERE/load-bootloader.sh
 
-BIN_FILE=./bin/firmware.keepkey.bin
-openocd -s /usr/share/openocd/scripts -f interface/jlink.cfg -f ./scripts/openocd/stm32f2x.cfg -c "program $BIN_FILE 0x08080000 verify reset"
-if [[ $? -ne 0 ]]; then
-        echo $?
-        echo "error in loading application image"
-        exit
-fi
+source $HERE/load-variant.sh
+
+#source $HERE/load-firmware.sh

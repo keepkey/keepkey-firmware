@@ -627,6 +627,18 @@ void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed)
     }
 }
 
+#if DEBUG_LINK
+static void layout_debuglink_watermark(void) {
+    const Font *font = get_body_font();
+    const char *watermark = "DEBUG_LINK";
+    DrawableParams sp;
+    sp.x = KEEPKEY_DISPLAY_WIDTH - calc_str_width(font, watermark) - BODY_FONT_LINE_PADDING;
+    sp.y = KEEPKEY_DISPLAY_HEIGHT - 2 * font_height(font) - BODY_FONT_LINE_PADDING;
+    sp.color = 0x22;
+    draw_string(canvas, font, watermark, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
+}
+#endif
+
 /*
  * layout_clear() - Clear animation queue and clear display
  *
@@ -641,6 +653,9 @@ void layout_clear(void)
 
     layout_clear_static();
 
+#if DEBUG_LINK
+    layout_debuglink_watermark();
+#endif
 }
 
 /*

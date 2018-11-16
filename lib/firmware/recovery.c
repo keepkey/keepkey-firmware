@@ -101,7 +101,9 @@ void next_word(void) {
     memzero(body_formatted, sizeof(body_formatted));
 }
 
-void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_protection, const char *language, const char *label, bool _enforce_wordlist)
+void recovery_init(uint32_t _word_count, bool passphrase_protection,
+                   bool pin_protection, const char *language, const char *label,
+                   bool _enforce_wordlist, uint32_t _auto_lock_delay_ms)
 {
 	if (_word_count != 12 && _word_count != 18 && _word_count != 24) {
 		fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid word count (has to be 12, 18 or 24");
@@ -120,6 +122,7 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection, bool pin_pr
 	storage_setPassphraseProtected(passphrase_protection);
 	storage_setLanguage(language);
 	storage_setLabel(label);
+	storage_setAutoLockDelayMs(_auto_lock_delay_ms);
 
 	uint32_t i;
     for (i = 0; i < word_count; i++) {
@@ -186,7 +189,8 @@ void recovery_word(const char *word)
         // last one
         storage_setMnemonicFromWords(words, word_count);
 
-        if (!enforce_wordlist || mnemonic_check(storage_getShadowMnemonic())) {
+        const char *entered_mnemonic = storage_getShadowMnemonic();
+        if (entered_mnemonic && (!enforce_wordlist || mnemonic_check(entered_mnemonic))) {
             storage_commit();
             fsm_sendSuccess("Device recovered");
         } else {

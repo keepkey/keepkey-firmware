@@ -212,7 +212,8 @@ bool attempt_auto_complete(char *partial_word)
  *     none
  */
 void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
-                          const char *language, const char *label, bool _enforce_wordlist)
+                          const char *language, const char *label, bool _enforce_wordlist,
+                          uint32_t _auto_lock_delay_ms)
 {
     if(pin_protection && !change_pin())
     {
@@ -223,6 +224,7 @@ void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
     storage_setPassphraseProtected(passphrase_protection);
     storage_setLanguage(language);
     storage_setLabel(label);
+    storage_setAutoLockDelayMs(_auto_lock_delay_ms);
 
     enforce_wordlist = _enforce_wordlist;
 
@@ -419,12 +421,13 @@ void recovery_cipher_finalize(void)
     }
     memzero(full_mnemonic, sizeof(full_mnemonic));
 
-    if(!enforce_wordlist || mnemonic_check(storage_getShadowMnemonic()))
+    const char *entered_mnemonic = storage_getShadowMnemonic();
+    if (entered_mnemonic && (!enforce_wordlist || mnemonic_check(entered_mnemonic)))
     {
         storage_commit();
         fsm_sendSuccess("Device recovered");
     }
-    else if(!auto_completed)
+    else if (!auto_completed)
     {
         storage_reset();
         fsm_sendFailure(FailureType_Failure_SyntaxError, "Words were not entered correctly.");
