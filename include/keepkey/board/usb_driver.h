@@ -49,9 +49,6 @@
 #define ENDPOINT_ADDRESS_DEBUG_OUT  (0x02)
 #endif
 
-#define ENDPOINT_ADDRESS_U2F_IN   (0x83)
-#define ENDPOINT_ADDRESS_U2F_OUT  (0x03)
-
 /* Control buffer for use by the USB stack.  We just allocate the 
    space for it.  */
 #define USBD_CONTROL_BUFFER_SIZE 128
@@ -65,21 +62,12 @@ typedef struct
 } UsbMessage;
 
 typedef void (*usb_rx_callback_t)(UsbMessage* msg);
-typedef void (*usb_u2f_rx_callback_t)(UsbMessage* msg);
 
 /* === Functions =========================================================== */
 
-void usb_set_u2f_transport(void);
-void usb_set_hid_transport(void);
-bool usb_is_u2f_transport(void);
-
 void usb_set_rx_callback(usb_rx_callback_t callback);
-void usb_set_u2f_rx_callback(usb_u2f_rx_callback_t callback);
-
 bool usb_init(void);
 void usb_poll(void);
-
-char usbTiny(char set);
 
 typedef struct _usbd_device usbd_device;
 usbd_device *get_usb_init_stat(void);
@@ -90,6 +78,9 @@ bool usb_debug_tx(uint8_t *message, uint32_t len);
 void usb_set_debug_rx_callback(usb_rx_callback_t callback);
 #endif
 
-bool usb_u2f_tx_helper(uint8_t *message, uint32_t len, uint8_t endpoint);
+#define usb_is_u2f_transport() (false)
+#define usbTiny(X) do {} while (0)
+#define usb_u2f_tx_helper(X, Y, Z) do {} while (0)
+#define ENDPOINT_ADDRESS_U2F_IN (0)
 
 #endif

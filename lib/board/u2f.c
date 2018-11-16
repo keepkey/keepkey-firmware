@@ -298,6 +298,7 @@ void u2fhid_init(const U2FHID_FRAME *in)
 
 void queue_u2f_pkt(const U2FHID_FRAME *u2f_pkt)
 {
+	(void)u2f_pkt;
 #ifndef EMULATOR
 	usb_u2f_tx_helper((uint8_t *) u2f_pkt, HID_RPT_SIZE, ENDPOINT_ADDRESS_U2F_IN);
 #else
