@@ -79,8 +79,10 @@ void usb_set_debug_rx_callback(usb_rx_callback_t callback);
 #endif
 
 #define usb_is_u2f_transport() (false)
-#define usbTiny(X) do {} while (0)
 #define usb_u2f_tx_helper(X, Y, Z) do {} while (0)
 #define ENDPOINT_ADDRESS_U2F_IN (0)
+#ifndef EMULATOR
+#define usbTiny(X) do {} while (0)
+#endif
 
 #endif
