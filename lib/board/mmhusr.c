@@ -34,24 +34,21 @@
 #include <stdint.h>
 #include <stdio.h>
 
-
-
 // handle memory protection faults here
 
+#define MAX_ERRMSG 40
 
-#define MAX_ERRMSG	40
-
+#ifdef 	DEBUG_ON
 static char errval[MAX_ERRMSG];
+#endif
+
 
 void mmhisr(void) {
-#ifndef	EMULATOR
-	uint32_t mmfar;
-
-	mmfar = (uint32_t)_param_1;
-
-	snprintf(errval, MAX_ERRMSG, "MMFAR: %lx", mmfar);
+#if !defined(EMULATOR) && defined(DEBUG_ON)
+    uint32_t mmfar = (uint32_t)_param_1;
+    snprintf(errval, MAX_ERRMSG, "MMFAR: %lx", mmfar);
     layout_standard_notification("MPU handler", errval, NOTIFICATION_UNPLUG);
     display_refresh();
 #endif
-    for (;;) {};
+    for (;;) {}
 }
