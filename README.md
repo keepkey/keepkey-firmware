@@ -48,6 +48,10 @@ $ head -c +256 signed_firmware.bin | xxd -
 
 ```
 
+### Docs
+
+Documentation can be found [here](https://github.com/keepkey/keepkey-firmware/tree/derivation_docs/docs).
+
 ## License
 
 If license is not specified in the header of a file, it can be assumed that it is licensed under LGPLv3.
