@@ -79,8 +79,6 @@ void usb_set_u2f_rx_callback(usb_u2f_rx_callback_t callback);
 bool usb_init(void);
 void usb_poll(void);
 
-char usbTiny(char set);
-
 typedef struct _usbd_device usbd_device;
 usbd_device *get_usb_init_stat(void);
 

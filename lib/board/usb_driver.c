@@ -105,15 +105,7 @@ static const char *usb_strings[] = {
 };
 #undef X
 
-static volatile char tiny = 0;
 uint8_t v_poll = 0;
-
-char usbTiny(char set)
-{
-    char old = tiny;
-    tiny = set;
-    return old;
-}
 
 static uint8_t usbd_control_buffer[USBD_CONTROL_BUFFER_SIZE];
 
@@ -441,7 +433,7 @@ static void hid_u2f_rx_callback(usbd_device *dev, uint8_t ep)
                                       64);
     if (rx && user_rx_callback){
         usb_set_u2f_transport();
-        u2fhid_read(tiny, (const U2FHID_FRAME *) (void*) buf);
+        u2fhid_read((const U2FHID_FRAME *) (void*) buf);
     }
 }
 

@@ -118,7 +118,15 @@ void u2fhid_init_cmd(const U2FHID_FRAME *f) {
 	cid = f->cid;
 }
 
-void u2fhid_read(char tiny, const U2FHID_FRAME *f)
+static volatile char tiny = 0;
+char usbTiny(char set)
+{
+	char old = tiny;
+	tiny = set;
+	return old;
+}
+
+void u2fhid_read(const U2FHID_FRAME *f)
 {
 	// Always handle init packets directly
 	if (f->init.cmd == U2FHID_INIT) {
