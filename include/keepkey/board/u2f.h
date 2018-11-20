@@ -68,7 +68,6 @@ const uint8_t *u2f_get_channel(void);
 
 void u2fhid_read(char tiny, const U2FHID_FRAME *buf);
 void u2fhid_init_cmd(const U2FHID_FRAME *f);
-void u2fhid_read_start(const U2FHID_FRAME *f);
 bool u2fhid_write(uint8_t *buf);
 void u2fhid_init(const U2FHID_FRAME *in);
 void u2fhid_ping(const uint8_t *buf, uint32_t len);

@@ -108,6 +108,16 @@ const uint8_t *u2f_get_channel(void) {
 	return channel;
 }
 
+void u2fhid_init_cmd(const U2FHID_FRAME *f) {
+	reader->seq = 0;
+	reader->buf_ptr = reader->buf;
+	reader->len = MSG_LEN(*f);
+	reader->cmd = f->type;
+	memcpy(reader->buf_ptr, f->init.data, sizeof(f->init.data));
+	reader->buf_ptr += sizeof(f->init.data);
+	cid = f->cid;
+}
+
 void u2fhid_read(char tiny, const U2FHID_FRAME *f)
 {
 	// Always handle init packets directly
@@ -152,20 +162,6 @@ void u2fhid_read(char tiny, const U2FHID_FRAME *f)
 		return;
 	}
 
-	u2fhid_read_start(f);
-}
-
-void u2fhid_init_cmd(const U2FHID_FRAME *f) {
-	reader->seq = 0;
-	reader->buf_ptr = reader->buf;
-	reader->len = MSG_LEN(*f);
-	reader->cmd = f->type;
-	memcpy(reader->buf_ptr, f->init.data, sizeof(f->init.data));
-	reader->buf_ptr += sizeof(f->init.data);
-	cid = f->cid;
-}
-
-void u2fhid_read_start(const U2FHID_FRAME *f) {
 	static U2F_ReadBuffer readbuffer;
 	if (f->init.cmd == 0){
 		return;
@@ -207,7 +203,7 @@ void u2fhid_read_start(const U2FHID_FRAME *f) {
 				usb_poll();
 			}
 		}
-        usbTiny(0);
+		usbTiny(0);
 		// We have all the data
 		switch (reader->cmd) {
 		case 0:
