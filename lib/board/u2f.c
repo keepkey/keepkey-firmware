@@ -118,16 +118,11 @@ void u2fhid_init_cmd(const U2FHID_FRAME *f) {
 	cid = f->cid;
 }
 
-static volatile char tiny = 0;
-char usbTiny(char set)
-{
-	char old = tiny;
-	tiny = set;
-	return old;
-}
 
 void u2fhid_read(const U2FHID_FRAME *f)
 {
+	static volatile char tiny = 0;
+
 	// Always handle init packets directly
 	if (f->init.cmd == U2FHID_INIT) {
 		u2fhid_init(f);
@@ -192,7 +187,7 @@ void u2fhid_read(const U2FHID_FRAME *f)
 	reader = &readbuffer;
 	u2fhid_init_cmd(f);
 
-	usbTiny(1);
+	tiny = 1;
 	for(;;) {
 		// Do we need to wait for more data
 		while ((reader->buf_ptr - reader->buf) < (signed)reader->len) {
@@ -204,14 +199,13 @@ void u2fhid_read(const U2FHID_FRAME *f)
 					// timeout
 					send_u2fhid_error(cid, ERR_MSG_TIMEOUT);
 					cid = 0;
-					reader = 0;
-					usbTiny(0);
+					tiny = 0;
 					return;
 				}
 				usb_poll();
 			}
 		}
-		usbTiny(0);
+		tiny = 0;
 		// We have all the data
 		switch (reader->cmd) {
 		case 0:
@@ -238,8 +232,7 @@ void u2fhid_read(const U2FHID_FRAME *f)
 		// U2F hijack packet framing requires conserved cid.
 		if (!is_hijack)
 			cid = 0;
-		reader = 0;
-		usbTiny(0);
+		tiny = 0;
 		return;
 	}
 }
