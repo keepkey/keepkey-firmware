@@ -67,8 +67,6 @@ typedef struct {
 	uint8_t cmd;
 } U2F_ReadBuffer;
 
-U2F_ReadBuffer *reader;
-
 u2f_rx_callback_t u2f_user_rx_callback = NULL;
 
 void u2f_set_rx_callback(u2f_rx_callback_t callback){
@@ -108,54 +106,7 @@ const uint8_t *u2f_get_channel(void) {
 	return channel;
 }
 
-void u2fhid_read(char tiny, const U2FHID_FRAME *f)
-{
-	// Always handle init packets directly
-	if (f->init.cmd == U2FHID_INIT) {
-		u2fhid_init(f);
-		if (tiny && reader && f->cid == cid) {
-			// abort current channel
-			reader->cmd = 0;
-			reader->len = 0;
-			reader->seq = 255;
-		}
-		return;
-	}
-
-	if (tiny) {
-		// read continue packet
-		if (reader == 0 || cid != f->cid) {
-			send_u2fhid_error(f->cid, ERR_CHANNEL_BUSY);
-			return;
-		}
-
-		if ((f->type & TYPE_INIT) && reader->seq == 255) {
-			u2fhid_init_cmd(f);
-			return;
-		}
-
-		if (reader->seq != f->cont.seq) {
-			send_u2fhid_error(f->cid, ERR_INVALID_SEQ);
-			reader->cmd = 0;
-			reader->len = 0;
-			reader->seq = 255;
-			return;
-		}
-
-		// check out of bounds
-		if ((reader->buf_ptr - reader->buf) >= (signed) reader->len
-			|| (reader->buf_ptr + sizeof(f->cont.data) - reader->buf) > (signed) sizeof(reader->buf))
-			return;
-		reader->seq++;
-		memcpy(reader->buf_ptr, f->cont.data, sizeof(f->cont.data));
-		reader->buf_ptr += sizeof(f->cont.data);
-		return;
-	}
-
-	u2fhid_read_start(f);
-}
-
-void u2fhid_init_cmd(const U2FHID_FRAME *f) {
+void u2fhid_init_cmd(U2F_ReadBuffer *reader, const U2FHID_FRAME *f) {
 	reader->seq = 0;
 	reader->buf_ptr = reader->buf;
 	reader->len = MSG_LEN(*f);
@@ -165,8 +116,53 @@ void u2fhid_init_cmd(const U2FHID_FRAME *f) {
 	cid = f->cid;
 }
 
-void u2fhid_read_start(const U2FHID_FRAME *f) {
-	static U2F_ReadBuffer readbuffer;
+void u2fhid_read(const U2FHID_FRAME *f)
+{
+	static volatile char tiny = 0;
+	static U2F_ReadBuffer reader;
+
+	// Always handle init packets directly
+	if (f->init.cmd == U2FHID_INIT) {
+		u2fhid_init(f);
+		if (tiny && f->cid == cid) {
+			// abort current channel
+			reader.cmd = 0;
+			reader.len = 0;
+			reader.seq = 255;
+		}
+		return;
+	}
+
+	if (tiny) {
+		// read continue packet
+		if (cid != f->cid) {
+			send_u2fhid_error(f->cid, ERR_CHANNEL_BUSY);
+			return;
+		}
+
+		if ((f->type & TYPE_INIT) && reader.seq == 255) {
+			u2fhid_init_cmd(&reader, f);
+			return;
+		}
+
+		if (reader.seq != f->cont.seq) {
+			send_u2fhid_error(f->cid, ERR_INVALID_SEQ);
+			reader.cmd = 0;
+			reader.len = 0;
+			reader.seq = 255;
+			return;
+		}
+
+		// check out of bounds
+		if ((reader.buf_ptr - reader.buf) >= (signed) reader.len
+			|| (reader.buf_ptr + sizeof(f->cont.data) - reader.buf) > (signed) sizeof(reader.buf))
+			return;
+		reader.seq++;
+		memcpy(reader.buf_ptr, f->cont.data, sizeof(f->cont.data));
+		reader.buf_ptr += sizeof(f->cont.data);
+		return;
+	}
+
 	if (f->init.cmd == 0){
 		return;
 	}
@@ -180,47 +176,45 @@ void u2fhid_read_start(const U2FHID_FRAME *f) {
 		return;
 	}
 
-	if ((unsigned)MSG_LEN(*f) > sizeof(reader->buf)) {
+	if ((unsigned)MSG_LEN(*f) > sizeof(reader.buf)) {
 		send_u2fhid_error(f->cid, ERR_INVALID_LEN);
 		return;
 	}
 
-	reader = &readbuffer;
-	u2fhid_init_cmd(f);
+	u2fhid_init_cmd(&reader, f);
 
-	usbTiny(1);
+	tiny = 1;
 	for(;;) {
 		// Do we need to wait for more data
-		while ((reader->buf_ptr - reader->buf) < (signed)reader->len) {
-			uint8_t lastseq = reader->seq;
-			uint8_t lastcmd = reader->cmd;
+		while ((reader.buf_ptr - reader.buf) < (signed)reader.len) {
+			uint8_t lastseq = reader.seq;
+			uint8_t lastcmd = reader.cmd;
 			int counter = U2F_TIMEOUT;
-			while (reader->seq == lastseq && reader->cmd == lastcmd) {
+			while (reader.seq == lastseq && reader.cmd == lastcmd) {
 				if (counter-- == 0) {
 					// timeout
 					send_u2fhid_error(cid, ERR_MSG_TIMEOUT);
 					cid = 0;
-					reader = 0;
-					usbTiny(0);
+					tiny = 0;
 					return;
 				}
 				usb_poll();
 			}
 		}
-        usbTiny(0);
+		tiny = 0;
 		// We have all the data
-		switch (reader->cmd) {
+		switch (reader.cmd) {
 		case 0:
 			// message was aborted by init
 			break;
 		case U2FHID_PING:
-			u2fhid_ping(reader->buf, reader->len);
+			u2fhid_ping(reader.buf, reader.len);
 			break;
 		case U2FHID_MSG:
-			u2fhid_msg((APDU *)reader->buf, reader->len);
+			u2fhid_msg((APDU *)reader.buf, reader.len);
 			break;
 		case U2FHID_WINK:
-			u2fhid_wink(reader->buf, reader->len);
+			u2fhid_wink(reader.buf, reader.len);
 			break;
 		default:
 			send_u2fhid_error(cid, ERR_INVALID_CMD);
@@ -228,14 +222,13 @@ void u2fhid_read_start(const U2FHID_FRAME *f) {
 		}
 
 		// wait for next commmand/ button press
-		reader->cmd = 0;
-		reader->seq = 255;
+		reader.cmd = 0;
+		reader.seq = 255;
 
 		// U2F hijack packet framing requires conserved cid.
 		if (!is_hijack)
 			cid = 0;
-		reader = 0;
-		usbTiny(0);
+		tiny = 0;
 		return;
 	}
 }

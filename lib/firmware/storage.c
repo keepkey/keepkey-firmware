@@ -1356,6 +1356,9 @@ void storage_setMnemonicFromWords(const char (*words)[12],
 
     shadow_config.storage.pub.has_mnemonic = true;
     shadow_config.storage.has_sec = true;
+
+    storage_compute_u2froot(shadow_config.storage.sec.mnemonic, &shadow_config.storage.pub.u2froot);
+    shadow_config.storage.pub.has_u2froot = true;
 }
 
 void storage_setMnemonic(const char *m)
@@ -1370,6 +1373,9 @@ void storage_setMnemonic(const char *m)
 #endif
     shadow_config.storage.pub.has_mnemonic = true;
     shadow_config.storage.has_sec = true;
+
+    storage_compute_u2froot(shadow_config.storage.sec.mnemonic, &shadow_config.storage.pub.u2froot);
+    shadow_config.storage.pub.has_u2froot = true;
 }
 
 bool storage_hasMnemonic(void)
