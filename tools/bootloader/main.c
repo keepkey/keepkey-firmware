@@ -18,10 +18,9 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "main.h"
 
+#include <libopencm3/stm32/desig.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/f2/rng.h>
@@ -69,6 +68,16 @@ __attribute__((used, section("version"))) = APP_VERSIONS;
 
 void mmhisr(void);
 void bl_board_init(void);
+
+void memory_getDeviceSerialNo(char *str, size_t len) {
+#ifdef DEBUG_ON
+    desig_get_unique_id_as_string(str, len);
+#else
+    // Storage isn't available to be read by the bootloader, and we don't want
+    // to use the Serial No. baked into the STM32 for privacy reasons.
+    memset(str, 0, len);
+#endif
+}
 
 /*
  * jump_to_firmware() - jump to firmware

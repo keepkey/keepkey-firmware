@@ -19,7 +19,6 @@
 
 #ifndef EMULATOR
 #  include <libopencm3/stm32/gpio.h>
-#  include <libopencm3/stm32/desig.h>
 #  include <libopencm3/usb/hid.h>
 #  include <libopencm3/usb/usbd.h>
 #  include <libopencm3/stm32/rcc.h>
@@ -571,7 +570,8 @@ bool usb_init(void)
         gpio_mode_setup(USB_GPIO_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, USB_GPIO_PORT_PINS);
         gpio_set_af(USB_GPIO_PORT, GPIO_AF10, USB_GPIO_PORT_PINS);
 
-        desig_get_unique_id_as_string(serial_uuid_str, sizeof(serial_uuid_str));
+        memory_getDeviceSerialNo(serial_uuid_str, sizeof(serial_uuid_str));
+
         usbd_dev = usbd_init(&otgfs_usb_driver,
                          &dev_descr,
                          &config,

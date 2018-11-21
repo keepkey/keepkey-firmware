@@ -21,6 +21,7 @@
 #  include <inttypes.h>
 #  include <stdbool.h>
 #  include <libopencm3/cm3/cortex.h>
+#  include <libopencm3/stm32/desig.h>
 #endif
 
 #include "keepkey/board/check_bootloader.h"
@@ -56,6 +57,16 @@ void mmhisr(void);
 /* These variables will be used by host application to read the version info */
 static const char *const application_version
 __attribute__((used, section("version"))) = APP_VERSIONS;
+
+void memory_getDeviceSerialNo(char *str, size_t len) {
+#if 0
+    desig_get_unique_id_as_string(str, len);
+#else
+    // We don't want to use the Serial No. baked into the STM32 for privacy
+    // reasons, so we fetch the one from storage instead:
+    strlcpy(str, storage_getUuidStr(), len);
+#endif
+}
 
 static void exec(void)
 {

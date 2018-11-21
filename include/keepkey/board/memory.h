@@ -243,11 +243,10 @@ const char *memory_firmware_hash_str(char digest[SHA256_DIGEST_STRING_LENGTH]);
 int memory_storage_hash(uint8_t *hash, Allocation storage_location);
 bool find_active_storage(Allocation *storage_location);
 
+void memory_getDeviceSerialNo(char *str, size_t len);
 
 extern void * _timerusr_isr;
 extern void * _buttonusr_isr;
 extern void * _mmhusr_isr;
-
-
 
 #endif
