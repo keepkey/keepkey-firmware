@@ -188,7 +188,7 @@ void u2f_do_register(const U2F_REGISTER_REQ *req) {
 	if (!storage_isInitialized()) {
 		layout_warning_static("Cannot register u2f: not initialized");
 		send_u2f_error(U2F_SW_CONDITIONS_NOT_SATISFIED);
-		delay_ms(1000);
+		delay_ms(3000);
 		return;
 	}
 
@@ -200,7 +200,7 @@ void u2f_do_register(const U2F_REGISTER_REQ *req) {
 		(void)review_without_button_request("Register",
 		                                    getReadableAppId(req->appId, &appname)
 		                                        ? "Enroll with %s?"
-		                                        : "Do you want to enroll this U2F application?\n\n%s",
+		                                        : "Do you want to enroll with this U2F application?\n\n%s",
 		                                    appname);
 	}
 	layoutHome();
@@ -262,7 +262,7 @@ void u2f_do_auth(const U2F_AUTHENTICATE_REQ *req) {
 	if (!storage_isInitialized()) {
 		layout_warning_static("Cannot authenticate u2f: not initialized");
 		send_u2f_error(U2F_SW_CONDITIONS_NOT_SATISFIED);
-		delay_ms(1000);
+		delay_ms(3000);
 		return;
 	}
 
