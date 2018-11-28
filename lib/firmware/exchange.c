@@ -206,17 +206,11 @@ const CoinType * get_response_coin(const char *response_coin_short_name)
  */
 bool verify_exchange_coin(const char *coin1, const char *coin2, uint32_t len)
 {
-    bool ret_stat = false;
     const CoinType *response_coin = get_response_coin(coin2);
+    if (!response_coin)
+        return false;
 
-    if(response_coin != 0)
-    {
-        if(strncmp(coin1, response_coin->coin_name, len) == 0)
-        {
-            ret_stat = true;
-        }
-    }
-    return(ret_stat);
+    return strncmp(coin1, response_coin->coin_name, len) == 0;
 }
 
 /*
