@@ -130,7 +130,7 @@ bool addresses_same(const char *LHS, size_t LHS_len, const char *RHS, size_t RHS
  * OUTPUT
  *     true/false - success/failure
  */
-static bool verify_exchange_address(char *coin_name, size_t address_n_count,
+static bool verify_exchange_address(const char *coin_name, size_t address_n_count,
                                     uint32_t *address_n, char *address_str, size_t address_str_len,
                                     const HDNode *root, bool is_token)
 {
@@ -185,13 +185,12 @@ verify_exchange_address_exit:
  *     pointer to coin type
  *     NULL: error
  */
-const CoinType * get_response_coin(const char *response_coin_short_name)
+const CoinType *get_response_coin(const char *response_coin_short_name)
 {
     char local_coin_name[17];
-
     strlcpy(local_coin_name, response_coin_short_name, sizeof(local_coin_name));
     strupr(local_coin_name);
-    return(coinByShortcut((const char *)local_coin_name));
+    return coinByShortcut((const char *)local_coin_name);
 }
 
 /*
@@ -206,6 +205,9 @@ const CoinType * get_response_coin(const char *response_coin_short_name)
  */
 bool verify_exchange_coin(const char *coin1, const char *coin2, uint32_t len)
 {
+    if (strncasecmp(coin1, coin2, len) == 0)
+        return true;
+
     const CoinType *response_coin = get_response_coin(coin2);
     if (!response_coin)
         return false;
@@ -233,13 +235,13 @@ static bool verify_exchange_dep_amount(const char *coin, void *dep_amt_ptr, Exch
     memset(amt_str, 0, sizeof(amt_str));
     if (isEthereumLike(coin))
     {
-        memcpy (amt_str, exch_dep_amt->bytes, exch_dep_amt->size);
+        memcpy(amt_str, exch_dep_amt->bytes, exch_dep_amt->size);
     }
     else
     {
         if(exch_dep_amt->size <= sizeof(uint64_t))
         {
-            memcpy (amt_str, exch_dep_amt->bytes, exch_dep_amt->size);
+            memcpy(amt_str, exch_dep_amt->bytes, exch_dep_amt->size);
             rev_byte_order((uint8_t *)amt_str, exch_dep_amt->size);
         }
         else
@@ -284,17 +286,26 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     void *tx_out_amount;
     char tx_out_address[sizeof(((ExchangeAddress *)NULL)->address)];
     memset(tx_out_address, 0, sizeof(tx_out_address));
+    CoinType standard_deposit;
     const CoinType *deposit_coin = NULL;
     if (isEthereumLike(coin->coin_name)) {
         EthereumSignTx *tx_out = (EthereumSignTx *)vtx_out;
         tx_out->has_chain_id = coin->has_forkid;
         tx_out->chain_id = coin->forkid;
 
-        if (is_token_transaction(tx_out)) {
+        if (ethereum_isNonStandardERC20(tx_out)) {
             // token specific address, shorcut, and value
             data2hex(tx_out->token_to.bytes, tx_out->token_to.size, tx_out_address);
             tx_out_amount = (void *)tx_out->token_value.bytes;
-            deposit_coin = coinByShortcut(tx_out->token_shortcut)
+            deposit_coin = coinByShortcut(tx_out->token_shortcut);
+        } else if (ethereum_isStandardERC20(tx_out)) {
+            if (!ethereum_getStandardERC20Recipient(tx_out, tx_out_address, sizeof(tx_out_address)) ||
+                !ethereum_getStandardERC20Amount(tx_out, &tx_out_amount) ||
+                !ethereum_getStandardERC20Coin(tx_out, &standard_deposit)) {
+                set_exchange_error(ERROR_EXCHANGE_RESPONSE_STRUCTURE);
+                return false;
+            }
+            deposit_coin = &standard_deposit;
         } else {
             data2hex(tx_out->to.bytes, tx_out->to.size, tx_out_address);
             tx_out_amount = (void *)tx_out->value.bytes;
@@ -348,7 +359,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     const char *exchange_coin_name = deposit_coin->coin_name;
     if(!verify_exchange_coin(exchange_coin_name,
                      exchange->signed_exchange_response.responseV2.deposit_address.coin_type,
-                     sizeof(coin->coin_name)))
+                     sizeof(deposit_coin->coin_name)))
     {
         set_exchange_error(ERROR_EXCHANGE_DEPOSIT_COINTYPE);
         return false;
@@ -383,7 +394,8 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
 
     /* verify Withdrawal address */
     const CoinType *withdraw_coin = get_response_coin(exchange->signed_exchange_response.responseV2.withdrawal_address.coin_type);
-    if(!verify_exchange_address( exchange->withdrawal_coin_name,
+    if(!verify_exchange_address(
+             exchange->withdrawal_coin_name,
              exchange->withdrawal_address_n_count,
              exchange->withdrawal_address_n,
              exchange->signed_exchange_response.responseV2.withdrawal_address.address,
@@ -395,7 +407,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     }
 
     /* verify Return coin type */
-    const char *return_coin_name = deposit_coin->name;
+    const char *return_coin_name = deposit_coin->coin_name;
     if(!verify_exchange_coin(return_coin_name,
              exchange->signed_exchange_response.responseV2.return_address.coin_type,
              sizeof(coin->coin_name)))
@@ -406,7 +418,8 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
 
     /* verify Return address */
     const CoinType *return_coin = get_response_coin(exchange->signed_exchange_response.responseV2.return_address.coin_type);
-    if(!verify_exchange_address( (char *)response_coin->coin_name,
+    if(!verify_exchange_address(
+             return_coin->coin_name,
              exchange->return_address_n_count,
              exchange->return_address_n,
              exchange->signed_exchange_response.responseV2.return_address.address,
@@ -466,22 +479,24 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
     if (!needs_confirm)
         return true;
 
+    CoinType standard_deposit;
     const CoinType *deposit_coin;
-    ExchangeType *tx_exchange;
-    if (isEthereumLike(coin->coin_name))
-    {
-        tx_exchange = &((EthereumSignTx *)vtx_out)->exchange_type;
-        if(is_token_transaction((EthereumSignTx *)vtx_out))
-        {
-            deposit_coin = coinByShortcut(((EthereumSignTx *)vtx_out)->token_shortcut);
-        }
-        else
-        {
+    ExchangeType *tx_exchange; // FIXME: make this const (can't because of the rev_byte_order in exchange_tx_layout_str)
+    if (isEthereumLike(coin->coin_name)) {
+        const EthereumSignTx *msg = (const EthereumSignTx *)vtx_out;
+        tx_exchange = (ExchangeType*)&msg->exchange_type; // FIXME: drop the cast
+        if (ethereum_isNonStandardERC20(msg)) {
+            deposit_coin = coinByShortcut(msg->token_shortcut);
+        } else if (ethereum_isStandardERC20(msg)) {
+            if (!ethereum_getStandardERC20Coin(msg, &standard_deposit)) {
+                set_exchange_error(ERROR_EXCHANGE_RESPONSE_STRUCTURE);
+                return false;
+            }
+            deposit_coin = &standard_deposit;
+        } else {
             deposit_coin = coinByName(coin->coin_name);
         }
-    }
-    else
-    {
+    } else {
         tx_exchange = &((TxOutputType *)vtx_out)->exchange_type;
         deposit_coin = coinByName(coin->coin_name);
     }

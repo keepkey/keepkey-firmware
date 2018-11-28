@@ -52,8 +52,49 @@ static uint32_t chain_id;
 static uint32_t tx_type;
 struct SHA3_CTX keccak_ctx;
 
-bool is_token_transaction(const EthereumSignTx *msg) {
+bool ethereum_isNonStandardERC20(const EthereumSignTx *msg) {
     return msg->has_token_shortcut && msg->has_token_value && (msg->has_token_to || msg->to_address_n_count > 0);
+}
+
+bool ethereum_isStandardERC20(const EthereumSignTx *msg) {
+	if (msg->to.size == 20 && msg->value.size == 0 && data_total == 68 && msg->data_initial_chunk.size == 68
+	    && memcmp(msg->data_initial_chunk.bytes, "\xa9\x05\x9c\xbb\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16) == 0) {
+		return true;
+	}
+	return false;
+}
+
+bool ethereum_getStandardERC20Recipient(const EthereumSignTx *msg, char *address, size_t len) {
+	if (len < 2 * 20 + 1)
+		return false;
+
+	data2hex(msg->data_initial_chunk.bytes + 16, 20, address);
+	return true;
+}
+
+bool ethereum_getStandardERC20Coin(const EthereumSignTx *msg, CoinType *coin) {
+	const TokenType *token = tokenByChainAddress(chain_id, msg->to.bytes);
+	if (token == UnknownToken)
+		return false;
+
+	coinFromToken(coin, token);
+	return true;
+}
+
+bool ethereum_getStandardERC20Amount(const EthereumSignTx *msg, void **tx_out_amount) {
+	const ExchangeType *exchange = &msg->exchange_type;
+	size_t size = exchange->signed_exchange_response.responseV2.deposit_amount.size;
+	if (32 < size)
+		return false;
+
+	// Make sure the value in data_initial_chunk contains the correct number of
+	// leading zeroes (as compared to what the exchange contract wants).
+	char *value = (char*)msg->data_initial_chunk.bytes + 36;
+	if (memcmp(value, "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32-size) != 0)
+		return false;
+
+	*tx_out_amount = value + (32 - size);
+	return true;
 }
 
 void bn_from_bytes(const uint8_t *value, size_t value_len, bignum256 *val) {
@@ -554,8 +595,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 	}
 
 	// detect ERC-20 token
-	if (msg->to.size == 20 && msg->value.size == 0 && data_total == 68 && msg->data_initial_chunk.size == 68
-	    && memcmp(msg->data_initial_chunk.bytes, "\xa9\x05\x9c\xbb\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16) == 0) {
+	if (ethereum_isStandardERC20(msg)) {
 		token = tokenByChainAddress(chain_id, msg->to.bytes);
 	}
 

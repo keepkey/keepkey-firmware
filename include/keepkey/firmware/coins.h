@@ -54,7 +54,7 @@ bool bip32_path_to_string(char *str, size_t len, const uint32_t *address_n, size
  * \param[in]   whole_account    true iff address_n refers to an entire account (not just an address)
  * \returns true iff the path matches a known bip44/bip49/bip84/etc account
  */
-bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin, uint32_t *address_n,
+bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin, const uint32_t *address_n,
                           size_t address_n_count, bool whole_account);
 
 
