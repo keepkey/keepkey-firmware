@@ -45,11 +45,11 @@ static const char *ShapeShift_pubkey = "1HxFWu1wM88q1aLkfUmpZBjhTWcdXGB6gT";
 /* exchange API Key */
 static const uint8_t ShapeShift_api_key[64] =
 {
-    0x6a, 0xd5, 0x83, 0x1b, 0x77, 0x84, 0x84, 0xbb, 0x84, 0x9d, 0xa4, 0x51, 
-    0x80, 0xac, 0x35, 0x04, 0x78, 0x48, 0xe5, 0xca, 0xc0, 0xfa, 0x66, 0x64, 
-    0x54, 0xf4, 0xff, 0x78, 0xb8, 0xc7, 0x39, 0x9f, 0xea, 0x6a, 0x8c, 0xe2, 
-    0xc7, 0xee, 0x62, 0x87, 0xbc, 0xd7, 0x8d, 0xb6, 0x61, 0x0c, 0xa3, 0xf5, 
-    0x38, 0xd6, 0xb3, 0xe9, 0x0c, 0xa8, 0x0c, 0x8e, 0x63, 0x68, 0xb6, 0x02, 
+    0x6a, 0xd5, 0x83, 0x1b, 0x77, 0x84, 0x84, 0xbb, 0x84, 0x9d, 0xa4, 0x51,
+    0x80, 0xac, 0x35, 0x04, 0x78, 0x48, 0xe5, 0xca, 0xc0, 0xfa, 0x66, 0x64,
+    0x54, 0xf4, 0xff, 0x78, 0xb8, 0xc7, 0x39, 0x9f, 0xea, 0x6a, 0x8c, 0xe2,
+    0xc7, 0xee, 0x62, 0x87, 0xbc, 0xd7, 0x8d, 0xb6, 0x61, 0x0c, 0xa3, 0xf5,
+    0x38, 0xd6, 0xb3, 0xe9, 0x0c, 0xa8, 0x0c, 0x8e, 0x63, 0x68, 0xb6, 0x02,
     0x14, 0x45, 0x95, 0x0b
 };
 
@@ -177,12 +177,12 @@ verify_exchange_address_exit:
 }
 
 /*
- *  get_response_coin() - get pointer to coin type 
+ *  get_response_coin() - get pointer to coin type
  *
  * INPUT
  *     response_coin_short_name: pointer to abbreviated coin name
  * OUTPUT
- *     pointer to coin type 
+ *     pointer to coin type
  *     NULL: error
  */
 const CoinType * get_response_coin(const char *response_coin_short_name)
@@ -214,12 +214,12 @@ bool verify_exchange_coin(const char *coin1, const char *coin2, uint32_t len)
 }
 
 /*
- * verify_exchange_dep_amount() Verify deposit amount specified in exchange contract 
+ * verify_exchange_dep_amount() Verify deposit amount specified in exchange contract
  *
  * INPUT
- *     coin - name of coin being compare for the amount value 
+ *     coin - name of coin being compare for the amount value
  *     exch_dep_amt - pointer to deposit amount in char buffer
- *      
+ *
  *
  * OUTPUT
  *      true/false - success/failure
@@ -332,7 +332,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     }
 
     /* verify Exchange API-Key */
-    if(memcmp(ShapeShift_api_key, exchange->signed_exchange_response.responseV2.api_key.bytes, 
+    if(memcmp(ShapeShift_api_key, exchange->signed_exchange_response.responseV2.api_key.bytes,
                 sizeof(ShapeShift_api_key)) != 0)
     {
         set_exchange_error(ERROR_EXCHANGE_API_KEY);
@@ -360,7 +360,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     }
 
     /* verify Deposit amount*/
-    if(!verify_exchange_dep_amount(coin->coin_name, 
+    if(!verify_exchange_dep_amount(coin->coin_name,
                 tx_out_amount, &exchange->signed_exchange_response.responseV2.deposit_amount))
     {
         set_exchange_error(ERROR_EXCHANGE_DEPOSIT_AMOUNT);
@@ -383,7 +383,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
              exchange->withdrawal_address_n,
              exchange->signed_exchange_response.responseV2.withdrawal_address.address,
              sizeof(exchange->signed_exchange_response.responseV2.withdrawal_address.address),
-             root, withdraw_coin->has_contract_address)) 
+             root, withdraw_coin->has_contract_address))
     {
         set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_ADDRESS);
         return false;
@@ -418,10 +418,10 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
 
 /*
  * set_exchange_error - set exchange error code
- * INPUT 
- *     error_code - exchange error code  
+ * INPUT
+ *     error_code - exchange error code
  * OUTPUT
- *     none 
+ *     none
  */
 void set_exchange_error(ExchangeError error_code)
 {
@@ -429,10 +429,10 @@ void set_exchange_error(ExchangeError error_code)
 }
 /*
  * get_exchange_error - get exchange error code
- * INPUT 
+ * INPUT
  *     none
  * OUTPUT
- *     exchange error code  
+ *     exchange error code
  */
 ExchangeError get_exchange_error(void)
 {
