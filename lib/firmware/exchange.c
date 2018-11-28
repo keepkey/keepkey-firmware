@@ -273,7 +273,6 @@ verify_exchange_dep_amount_exit:
  */
 static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode *root)
 {
-    bool ret_stat = false;
     bool is_token = false;
     int response_raw_filled_len = 0;
     uint8_t response_raw[sizeof(ExchangeResponseV2)];
@@ -293,13 +292,15 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
         tx_out->has_chain_id = coin->has_forkid;
         tx_out->chain_id = coin->forkid;
         exchange = &tx_out->exchange_type;
+
         /*Verify response structure from client is compatible*/
         if(exchange->signed_exchange_response.has_response)
         {
             /*Obsolete response data structure detected. Should be ExchangeResponseV2! */
             set_exchange_error(ERROR_EXCHANGE_RESPONSE_STRUCTURE);
-            goto verify_exchange_contract_exit;
+            return false;
         }
+
         is_token = is_token_transaction(tx_out);
         if(is_token) {
             // token specific address, shorcut, and value
@@ -332,7 +333,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     if(response_raw_filled_len == 0)
     {
         set_exchange_error(ERROR_EXCHANGE_SIGNATURE);
-        goto verify_exchange_contract_exit;
+        return false;
     }
 
     const CoinType *signed_coin = coinByShortcut((const char *)"BTC");
@@ -340,7 +341,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
                 (uint8_t *)exchange->signed_exchange_response.signature.bytes) != 0)
     {
         set_exchange_error(ERROR_EXCHANGE_SIGNATURE);
-        goto verify_exchange_contract_exit;
+        return false;
     }
 
     /* verify Exchange API-Key */
@@ -348,7 +349,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
                 sizeof(ShapeShift_api_key)) != 0)
     {
         set_exchange_error(ERROR_EXCHANGE_API_KEY);
-        goto verify_exchange_contract_exit;
+        return false;
     }
 
     /* verify Deposit coin type */
@@ -358,7 +359,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
                      sizeof(coin->coin_name)))
     {
         set_exchange_error(ERROR_EXCHANGE_DEPOSIT_COINTYPE);
-        goto verify_exchange_contract_exit;
+        return false;
     }
 
     /* verify Deposit address */
@@ -368,7 +369,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
                isEthereumLike(coin->coin_name)))
     {
         set_exchange_error(ERROR_EXCHANGE_DEPOSIT_ADDRESS);
-        goto verify_exchange_contract_exit;
+        return false;
     }
 
     /* verify Deposit amount*/
@@ -376,7 +377,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
                 tx_out_amount, &exchange->signed_exchange_response.responseV2.deposit_amount))
     {
         set_exchange_error(ERROR_EXCHANGE_DEPOSIT_AMOUNT);
-        goto verify_exchange_contract_exit;
+        return false;
     }
 
     /* verify Withdrawal coin type */
@@ -385,7 +386,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
              sizeof(exchange->withdrawal_coin_name)))
     {
         set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_COINTYPE);
-        goto verify_exchange_contract_exit;
+        return false;
     }
 
     /* verify Withdrawal address */
@@ -398,7 +399,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
              root, withdraw_coin->has_contract_address)) 
     {
         set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_ADDRESS);
-        goto verify_exchange_contract_exit;
+        return false;
     }
 
     /* verify Return coin type */
@@ -408,7 +409,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
              sizeof(coin->coin_name)))
     {
         set_exchange_error(ERROR_EXCHANGE_RETURN_COINTYPE);
-        goto verify_exchange_contract_exit;
+        return false;
     }
 
     /* verify Return address */
@@ -421,18 +422,12 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
              root, response_coin->has_contract_address))
     {
         set_exchange_error(ERROR_EXCHANGE_RETURN_ADDRESS);
-    }
-    else
-    {
-        set_exchange_error(NO_EXCHANGE_ERROR);
-        ret_stat = true;
+        return false;
     }
 
-verify_exchange_contract_exit:
-    return(ret_stat);
+    set_exchange_error(NO_EXCHANGE_ERROR);
+    return true;
 }
-
-/* === Functions =========================================================== */
 
 /*
  * set_exchange_error - set exchange error code
