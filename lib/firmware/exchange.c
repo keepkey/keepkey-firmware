@@ -329,17 +329,15 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
                                 response_raw, 
                                 sizeof(response_raw));
 
-    if(response_raw_filled_len != 0)
+    if(response_raw_filled_len == 0)
     {
-        const CoinType *signed_coin = coinByShortcut((const char *)"BTC");
-        if(cryptoMessageVerify(signed_coin, response_raw, response_raw_filled_len, ShapeShift_pubkey,
-                    (uint8_t *)exchange->signed_exchange_response.signature.bytes) != 0)
-        {
-            set_exchange_error(ERROR_EXCHANGE_SIGNATURE);
-            goto verify_exchange_contract_exit;
-        }
+        set_exchange_error(ERROR_EXCHANGE_SIGNATURE);
+        goto verify_exchange_contract_exit;
     }
-    else
+
+    const CoinType *signed_coin = coinByShortcut((const char *)"BTC");
+    if(cryptoMessageVerify(signed_coin, response_raw, response_raw_filled_len, ShapeShift_pubkey,
+                (uint8_t *)exchange->signed_exchange_response.signature.bytes) != 0)
     {
         set_exchange_error(ERROR_EXCHANGE_SIGNATURE);
         goto verify_exchange_contract_exit;
