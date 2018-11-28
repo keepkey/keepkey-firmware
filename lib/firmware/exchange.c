@@ -267,49 +267,41 @@ verify_exchange_dep_amount_exit:
  */
 static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode *root)
 {
-    bool is_token = false;
-    int response_raw_filled_len = 0;
-    uint8_t response_raw[sizeof(ExchangeResponseV2)];
-    const CoinType *response_coin;
-    const CoinType *withdraw_coin;
-
-    char tx_out_address[sizeof(((ExchangeAddress *)NULL)->address)];
-    char token_shortcut[sizeof(((CoinType *)NULL)->coin_shortcut)];
-    void *tx_out_amount;
-
     ExchangeType *exchange;
-    memset(tx_out_address, 0, sizeof(tx_out_address));
-
-    if (isEthereumLike(coin->coin_name))
-    {
-        EthereumSignTx *tx_out = (EthereumSignTx *)vtx_out;
-        tx_out->has_chain_id = coin->has_forkid;
-        tx_out->chain_id = coin->forkid;
-        exchange = &tx_out->exchange_type;
+    if (isEthereumLike(coin->coin_name)) {
+        exchange = &((EthereumSignTx *)vtx_out)->exchange_type;
 
         /*Verify response structure from client is compatible*/
-        if(exchange->signed_exchange_response.has_response)
-        {
+        if (exchange->signed_exchange_response.has_response) {
             /*Obsolete response data structure detected. Should be ExchangeResponseV2! */
             set_exchange_error(ERROR_EXCHANGE_RESPONSE_STRUCTURE);
             return false;
         }
+    } else {
+        exchange = &((TxOutputType *)vtx_out)->exchange_type;
+    }
+
+    bool is_token = false;
+    void *tx_out_amount;
+    char token_shortcut[sizeof(((CoinType *)NULL)->coin_shortcut)];
+    char tx_out_address[sizeof(((ExchangeAddress *)NULL)->address)];
+    memset(tx_out_address, 0, sizeof(tx_out_address));
+    if (isEthereumLike(coin->coin_name)) {
+        EthereumSignTx *tx_out = (EthereumSignTx *)vtx_out;
+        tx_out->has_chain_id = coin->has_forkid;
+        tx_out->chain_id = coin->forkid;
 
         is_token = is_token_transaction(tx_out);
-        if(is_token) {
+        if (is_token) {
             // token specific address, shorcut, and value
             data2hex(tx_out->token_to.bytes, tx_out->token_to.size, tx_out_address);
             tx_out_amount = (void *)tx_out->token_value.bytes;
             strncpy(token_shortcut, tx_out->token_shortcut, sizeof(token_shortcut));
-        }
-        else
-        {
+        } else {
             data2hex(tx_out->to.bytes, tx_out->to.size, tx_out_address);
             tx_out_amount = (void *)tx_out->value.bytes;
         }
-    }
-    else
-    {
+    } else {
         TxOutputType *tx_out = (TxOutputType *)vtx_out;
         exchange = &tx_out->exchange_type;
         memcpy(tx_out_address, tx_out->address, sizeof(tx_out->address));
@@ -317,11 +309,12 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     }
 
     /* verify Exchange signature */
+    uint8_t response_raw[sizeof(ExchangeResponseV2)];
     memset(response_raw, 0, sizeof(response_raw));
-    response_raw_filled_len = encode_pb(
-                                (const void *)&exchange->signed_exchange_response.responseV2, 
+    int response_raw_filled_len = encode_pb(
+                                (const void *)&exchange->signed_exchange_response.responseV2,
                                 ExchangeResponseV2_fields,
-                                response_raw, 
+                                response_raw,
                                 sizeof(response_raw));
 
     if(response_raw_filled_len == 0)
@@ -384,7 +377,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     }
 
     /* verify Withdrawal address */
-    withdraw_coin = get_response_coin(exchange->signed_exchange_response.responseV2.withdrawal_address.coin_type);
+    const CoinType *withdraw_coin = get_response_coin(exchange->signed_exchange_response.responseV2.withdrawal_address.coin_type);
     if(!verify_exchange_address( exchange->withdrawal_coin_name,
              exchange->withdrawal_address_n_count,
              exchange->withdrawal_address_n,
@@ -397,7 +390,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     }
 
     /* verify Return coin type */
-    const char *return_coin_name = is_token ? coinByShortcut(token_shortcut)->coin_name : coin->coin_name;
+    const char *return_coin_name = exchange_coin_name;
     if(!verify_exchange_coin(return_coin_name,
              exchange->signed_exchange_response.responseV2.return_address.coin_type,
              sizeof(coin->coin_name)))
@@ -407,7 +400,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     }
 
     /* verify Return address */
-    response_coin = get_response_coin(exchange->signed_exchange_response.responseV2.return_address.coin_type);
+    const CoinType *response_coin = get_response_coin(exchange->signed_exchange_response.responseV2.return_address.coin_type);
     if(!verify_exchange_address( (char *)response_coin->coin_name,
              exchange->return_address_n_count,
              exchange->return_address_n,
