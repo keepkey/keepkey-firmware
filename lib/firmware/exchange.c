@@ -67,7 +67,7 @@ static const uint8_t ShapeShift_api_key[64] =
  *      true/false - status
  *
  */
-static bool exchange_tx_layout_str(const CoinType *coin, uint8_t *amt, size_t amt_len, char *out, size_t out_len)
+static bool exchange_tx_layout_str(const CoinType *coin, const uint8_t *amt, size_t amt_len, char *out, size_t out_len)
 {
     const TokenType *token = NULL;
     if (!isEthereumLike(coin->coin_name) && coin->has_contract_address) {
@@ -88,9 +88,12 @@ static bool exchange_tx_layout_str(const CoinType *coin, uint8_t *amt, size_t am
     }
 
     if (amt_len <= sizeof(uint64_t)) {
-        rev_byte_order(amt, amt_len);
+        uint8_t amt_rev[sizeof(uint64_t)];
+        memset(amt_rev, 0, sizeof(amt_rev));
+        memcpy(amt_rev, amt, amt_len);
+        rev_byte_order(amt_rev, amt_len);
         uint64_t amount64;
-        memcpy(&amount64, amt, sizeof(amount64));
+        memcpy(&amount64, amt_rev, sizeof(amount64));
         coin_amnt_to_str(coin, amount64, out, out_len);
         return true;
     }
