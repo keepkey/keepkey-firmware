@@ -23,7 +23,7 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
         return TXOUT_COMPILE_ERROR;
 
     const uint32_t chain_id = coin->forkid;
-    if (is_token_transaction(msg)) {
+    if (ethereum_isNonStandardERC20(msg)) {
         has_to = &msg->has_token_to;
         to_size = &msg->token_to.size;
         to_bytes = msg->token_to.bytes;

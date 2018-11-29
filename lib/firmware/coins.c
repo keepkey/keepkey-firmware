@@ -352,7 +352,7 @@ static const char *account_prefix(const CoinType *coin,
     return NULL;
 }
 
-bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin, uint32_t *address_n,
+bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin, const uint32_t *address_n,
                           size_t address_n_count, bool whole_account)
 {
     if (address_n_count != 3 && address_n_count != 5)

@@ -32,6 +32,8 @@ typedef struct _TokenType {
     int decimals;
 } TokenType;
 
+typedef struct _CoinType CoinType;
+
 extern const TokenType tokens[];
 
 extern const TokenType *UnknownToken;
@@ -49,4 +51,5 @@ const TokenType *tokenByChainAddress(uint8_t chain_id, const uint8_t *address);
 /// \returns true iff the token can be uniquely found in the list of known tokens.
 bool tokenByTicker(uint8_t chain_id, const char *ticker, const TokenType **token);
 
+void coinFromToken(CoinType *coin, const TokenType *token);
 #endif
