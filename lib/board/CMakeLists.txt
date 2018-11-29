@@ -18,14 +18,20 @@ set(sources
     signatures.c
     supervise.c
     timer.c
-    u2f.c
-    udp.c
     usb.c
-    usb21_standard.c
+    u2f.c
     util.c
-    variant.c
-    webusb.c
-    winusb.c)
+    variant.c)
+
+if(${KK_EMULATOR})
+    set(sources ${sources}
+        udp.c)
+else()
+    set(sources ${sources}
+        usb21_standard.c
+        webusb.c
+        winusb.c)
+endif()
 
 include_directories(
   ${CMAKE_SOURCE_DIR}/include

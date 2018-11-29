@@ -458,6 +458,7 @@ static bool usb_tx_helper(uint8_t *data, uint32_t len, uint8_t endpoint) {
 	return(true);
 }
 
+#ifndef EMULATOR
 bool usb_tx(uint8_t *message, uint32_t len)
 {
 	if (usb_is_u2f_transport()) {
@@ -468,7 +469,9 @@ bool usb_tx(uint8_t *message, uint32_t len)
 		return usb_tx_helper(message, len, ENDPOINT_ADDRESS_IN);
 	}
 }
+#endif
 
+#ifndef EMULATOR
 #if DEBUG_LINK
 bool usb_debug_tx(uint8_t *message, uint32_t len)
 {
@@ -480,6 +483,7 @@ bool usb_debug_tx(uint8_t *message, uint32_t len)
 		return usb_tx_helper(message, len, ENDPOINT_ADDRESS_DEBUG_IN);
 	}
 }
+#endif
 #endif
 
 #ifndef EMULATOR

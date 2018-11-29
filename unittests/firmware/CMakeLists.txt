@@ -3,7 +3,6 @@ set(sources
     ethereum.cpp
     recovery.cpp
     storage.cpp
-    usb_rx.cpp
     u2f.cpp)
 
 include_directories(

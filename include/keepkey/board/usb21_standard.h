@@ -18,6 +18,7 @@
 
 #ifndef USB21_STANDARD_H_INCLUDED
 #define USB21_STANDARD_H_INCLUDED
+#ifndef EMULATOR
 
 #include <libopencm3/usb/usbd.h>
 
@@ -47,4 +48,5 @@ struct usb_bos_descriptor {
 
 extern void usb21_setup(usbd_device* usbd_dev, const struct usb_bos_descriptor* binary_object_store);
 
+#endif
 #endif

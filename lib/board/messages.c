@@ -388,6 +388,7 @@ void usb_rx_helper(const void *buf, size_t length, MessageMapType type)
             goto done_handling;
         }
     }
+#ifndef EMULATOR
     //the packetized u2f-injection device<->host protocol requires and ACK sent to be sent after every packet
     if (usb_is_u2f_transport()){
         //only send the ACK packet if the recvd message came in over the U2F transport
@@ -395,6 +396,7 @@ void usb_rx_helper(const void *buf, size_t length, MessageMapType type)
         uint8_t empty_report[] = {0x00, 0x00, 0x00, contents[1],0x00, 0x00, 0x00, 0x90, 0x00}; 
         send_u2f_msg(empty_report, sizeof(empty_report));
     }
+#endif
     goto done_handling;
 
 reset:

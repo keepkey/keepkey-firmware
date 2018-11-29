@@ -18,6 +18,7 @@
 
 #ifndef WEBUSB_H_INCLUDED
 #define WEBUSB_H_INCLUDED
+#ifndef EMULATOR
 
 #include <libopencm3/usb/usbd.h>
 #include "webusb_defs.h"
@@ -30,4 +31,5 @@ extern const struct webusb_platform_descriptor webusb_platform_capability_descri
 
 extern void webusb_setup(usbd_device* usbd_dev, const char* https_url);
 
+#endif
 #endif
