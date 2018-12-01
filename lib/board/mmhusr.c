@@ -24,6 +24,7 @@
 #else
 #   include <stdint.h>
 #   include <stdbool.h>
+#   include <stdlib.h>
 #endif
 
 #include "keepkey/board/supervise.h"
@@ -34,21 +35,22 @@
 #include <stdint.h>
 #include <stdio.h>
 
-// handle memory protection faults here
-
-#define MAX_ERRMSG 40
-
-#ifdef 	DEBUG_ON
-static char errval[MAX_ERRMSG];
-#endif
-
+#define MAX_ERRMSG 80
 
 void mmhisr(void) {
-#if !defined(EMULATOR) && defined(DEBUG_ON)
+#ifndef EMULATOR
+#ifdef DEBUG_ON
+    static char errval[MAX_ERRMSG];
     uint32_t mmfar = (uint32_t)_param_1;
-    snprintf(errval, MAX_ERRMSG, "MMFAR: %lx", mmfar);
-    layout_standard_notification("MPU handler", errval, NOTIFICATION_UNPLUG);
-    display_refresh();
+    uint32_t pc = (uint32_t)_param_2;
+    snprintf(errval, MAX_ERRMSG, "addr: 0x%08" PRIx32 " pc: 0x%08" PRIx32, mmfar, pc);
+    layout_standard_notification("Memory Fault Detected", errval, NOTIFICATION_UNPLUG);
+#else
+    layout_standard_notification("Memory Fault Detected", "Please unplug your device!", NOTIFICATION_UNPLUG);
 #endif
+    display_refresh();
     for (;;) {}
+#else
+    abort();
+#endif
 }
