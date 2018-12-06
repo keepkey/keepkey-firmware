@@ -25,8 +25,6 @@
 #  include <libopencm3/usb/usbd.h>
 #  include <libopencm3/stm32/rcc.h>
 #  include "keepkey/board/keepkey_board.h"
-#  include "keepkey/board/u2f.h"
-#  include "keepkey/board/u2f_types.h"
 #  include "keepkey/board/layout.h"
 #  include "keepkey/board/timer.h"
 #else
@@ -36,6 +34,7 @@
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/usb.h"
 #include "keepkey/board/util.h"
+#include "keepkey/board/u2f_hid.h"
 
 #include "keepkey/board/usb21_standard.h"
 #include "keepkey/board/webusb.h"
@@ -59,6 +58,8 @@ usb_rx_callback_t user_rx_callback = NULL;
 #if DEBUG_LINK
 usb_rx_callback_t user_debug_rx_callback = NULL;
 #endif
+
+usb_u2f_rx_callback_t user_u2f_rx_callback = NULL;
 
 #ifndef EMULATOR
 
@@ -324,8 +325,8 @@ static void u2f_rx_callback(usbd_device *dev, uint8_t ep)
 	debugLog(0, "", "u2f_rx_callback");
 	if ( usbd_ep_read_packet(dev, ENDPOINT_ADDRESS_U2F_OUT, buf, 64) != 64) return;
 
-	if (user_rx_callback) {
-		u2fhid_read((const U2FHID_FRAME *) (void*) buf);
+	if (user_u2f_rx_callback) {
+		user_u2f_rx_callback((const U2FHID_FRAME *) (void*) buf);
 	}
 }
 
@@ -484,6 +485,11 @@ void usb_set_debug_rx_callback(usb_rx_callback_t callback)
     user_debug_rx_callback = callback;
 }
 #endif
+
+void usb_set_u2f_rx_callback(usb_u2f_rx_callback_t callback)
+{
+    user_u2f_rx_callback = callback;
+}
 
 bool usbInitialized(void) {
 	return usb_inited;

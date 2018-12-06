@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include "scm_revision.h"
 #include "variant.h"
 #include "u2f_knownapps.h"
@@ -31,7 +30,6 @@
 #include "keepkey/board/messages.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/timer.h"
-#include "keepkey/board/u2f.h"
 #include "keepkey/board/util.h"
 #include "keepkey/board/variant.h"
 #include "keepkey/firmware/app_confirm.h"
@@ -52,6 +50,7 @@
 #include "keepkey/firmware/signing.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/transaction.h"
+#include "keepkey/firmware/u2f.h"
 #include "keepkey/rand/rng.h"
 #include "trezor/crypto/address.h"
 #include "trezor/crypto/aes/aes.h"
