@@ -112,39 +112,6 @@ static const pb_field_t *message_fields(MessageMapType type, MessageType msg_id,
 }
 
 /*
- * usb_write_pb() - Add usb frame header info to message buffer and perform usb transmission
- *
- * INPUT
- *     - fields: protocol buffer
- *     - msg: pointer to message buffer
- *     - id: message id
- *     - usb_tx_handler: handler to use to write data to usb endport
- * OUTPUT
- *     none
- */
-static void usb_write_pb(const pb_field_t *fields, const void *msg, MessageType id,
-                         usb_tx_handler_t usb_tx_handler)
-{
-    assert(fields != NULL);
-
-    TrezorFrameBuffer framebuf;
-    memset(&framebuf, 0, sizeof(framebuf));
-    framebuf.frame.usb_header.hid_type = '?';
-    framebuf.frame.header.pre1 = '#';
-    framebuf.frame.header.pre2 = '#';
-    framebuf.frame.header.id = __builtin_bswap16(id);
-
-    pb_ostream_t os = pb_ostream_from_buffer(framebuf.buffer,
-                      sizeof(framebuf.buffer));
-
-    if(pb_encode(&os, fields, msg))
-    {
-        framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
-        (*usb_tx_handler)((uint8_t *)&framebuf, sizeof(framebuf.frame) + os.bytes_written);
-    }
-}
-
-/*
  * pb_parse() - Process USB message by protocol buffer
  *
  * INPUT
@@ -554,51 +521,57 @@ void msg_init(void)
 #endif
 }
 
-/*
- * msg_write() - Transmit message over usb port
- *
- * INPUT
- *     - msg_id: protocol buffer message id
- *     - msg: pointer to message buffer
- * OUTPUT
- *     true/false status of write
- */
 bool msg_write(MessageType msg_id, const void *msg)
 {
     const pb_field_t *fields = message_fields(NORMAL_MSG, msg_id, OUT_MSG);
 
-    if(!fields)    // unknown message
-    {
-        return(false);
-    }
+    if (!fields)
+        return false;
 
-    /* add frame header to message and transmit out to usb */
-    usb_write_pb(fields, msg, msg_id, &usb_tx);
-    return(true);
+    TrezorFrameBuffer framebuf;
+    memset(&framebuf, 0, sizeof(framebuf));
+    framebuf.frame.usb_header.hid_type = '?';
+    framebuf.frame.header.pre1 = '#';
+    framebuf.frame.header.pre2 = '#';
+    framebuf.frame.header.id = __builtin_bswap16(msg_id);
+
+    pb_ostream_t os = pb_ostream_from_buffer(framebuf.buffer,
+                      sizeof(framebuf.buffer));
+
+    if (!pb_encode(&os, fields, msg))
+        return false;
+
+    framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
+    usb_tx((uint8_t *)&framebuf, sizeof(framebuf.frame) + os.bytes_written);
+
+    return true;
 }
 
-/*
- * msg_debug_write() - Transmit message over usb port to debug enpoint
- *
- * INPUT
- *     - msg_id: protocol buffer message id
- *     - msg: pointer to message buffer
- * OUTPUT
- *     true/false status of write
- */
 #if DEBUG_LINK
 bool msg_debug_write(MessageType msg_id, const void *msg)
 {
     const pb_field_t *fields = message_fields(DEBUG_MSG, msg_id, OUT_MSG);
 
-    if(!fields)    // unknown message
-    {
-        return(false);
-    }
+    if (!fields)
+        return false;
 
-    /* add frame header to message and transmit out to usb */
-    usb_write_pb(fields, msg, msg_id, &usb_debug_tx);
-    return(true);
+    TrezorFrameBuffer framebuf;
+    memset(&framebuf, 0, sizeof(framebuf));
+    framebuf.frame.usb_header.hid_type = '?';
+    framebuf.frame.header.pre1 = '#';
+    framebuf.frame.header.pre2 = '#';
+    framebuf.frame.header.id = __builtin_bswap16(msg_id);
+
+    pb_ostream_t os = pb_ostream_from_buffer(framebuf.buffer,
+                      sizeof(framebuf.buffer));
+
+    if (!pb_encode(&os, fields, msg))
+        return false;
+
+    framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
+    usb_debug_tx((uint8_t *)&framebuf, sizeof(framebuf.frame) + os.bytes_written);
+
+    return true;
 }
 #endif
 
