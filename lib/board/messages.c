@@ -145,22 +145,18 @@ static void dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_size
     static CONFIDENTIAL uint8_t decode_buffer[MAX_DECODE_SIZE] __attribute__((aligned(4)));
     memset(decode_buffer, 0, sizeof(decode_buffer));
 
-    if(pb_parse(entry, msg, msg_size, decode_buffer))
-    {
-        if(entry->process_func)
-        {
-            entry->process_func(decode_buffer);
-        }
-        else
-        {
-            (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unexpected message");
-        }
-    }
-    else
-    {
+    if (!pb_parse(entry, msg, msg_size, decode_buffer)) {
         (*msg_failure)(FailureType_Failure_UnexpectedMessage,
                        "Could not parse protocol buffer message");
+        return;
     }
+
+    if (!entry->process_func) {
+        (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unexpected message");
+        return;
+    }
+
+    entry->process_func(decode_buffer);
 }
 
 /*
@@ -176,17 +172,13 @@ static void dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_size
  */
 static void tiny_dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_size)
 {
-    bool status = pb_parse(entry, msg, msg_size, msg_tiny);
-
-    if(status)
-    {
-        msg_tiny_id = entry->msg_id;
-    }
-    else
-    {
+    if (!pb_parse(entry, msg, msg_size, msg_tiny)) {
         call_msg_failure_handler(FailureType_Failure_UnexpectedMessage,
                                  "Could not parse tiny protocol buffer message");
+        return;
     }
+
+    msg_tiny_id = entry->msg_id;
 }
 
 /*
@@ -654,12 +646,8 @@ int encode_pb(const void *source_ptr, const pb_field_t *fields,  uint8_t *buffer
 {
     pb_ostream_t os = pb_ostream_from_buffer(buffer, len);
 
-    if(pb_encode(&os, fields, source_ptr))
-    {
-        return(os.bytes_written);
-    }
-    else
-    {
-        return(0);
-    }
+    if (!pb_encode(&os, fields, source_ptr))
+        return 0;
+
+    return os.bytes_written;
 }
