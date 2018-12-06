@@ -28,7 +28,7 @@
 // NOTE: when adding policies, *ONLY* add to the end. Otherwise this breaks
 // storage_upgradePolicies();
 static const PolicyType policies[] = {
-    {true, "ShapeShift", true, false},
+    {true, "ShapeShift", true, true},
     {true, "Pin Caching", true, false},
     {true, "Experimental", true, false},
     {true, "AdvancedMode", true, false},

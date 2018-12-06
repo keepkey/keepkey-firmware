@@ -453,7 +453,7 @@ void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage) {
         (storage->pub.has_auto_lock_delay_ms      ? (1u <<  3) : 0) |
         (storage->pub.imported                    ? (1u <<  4) : 0) |
         (storage->pub.passphrase_protection       ? (1u <<  5) : 0) |
-        (storage_isPolicyEnabled("ShapeShift")    ? (1u <<  6) : 0) |
+        (/* ShapeShift policy, enabled always */    (1u <<  6)    ) |
         (storage_isPolicyEnabled("Pin Caching")   ? (1u <<  7) : 0) |
         (storage->pub.has_node                    ? (1u <<  8) : 0) |
         (storage->pub.has_mnemonic                ? (1u <<  9) : 0) |
@@ -502,7 +502,7 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     storage->pub.has_auto_lock_delay_ms =                            flags & (1u <<  3);
     storage->pub.imported =                                          flags & (1u <<  4);
     storage->pub.passphrase_protection =                             flags & (1u <<  5);
-    storage_readPolicyV2(&storage->pub.policies[0], "ShapeShift",    flags & (1u <<  6));
+    storage_readPolicyV2(&storage->pub.policies[0], "ShapeShift",    true);
     storage_readPolicyV2(&storage->pub.policies[1], "Pin Caching",   flags & (1u <<  7));
     storage->pub.has_node =                                          flags & (1u <<  8);
     storage->pub.has_mnemonic =                                      flags & (1u <<  9);

@@ -545,6 +545,10 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg)
         bool enabled = msg->policy[i].enabled;
         strlcat(resp->data, enabled ? ":Enable" : ":Disable", sizeof(resp->data));
 
+        // ShapeShift policy is always enabled.
+        if (strcmp(msg->policy[i].policy_name, "ShapeShift") == 0)
+            continue;
+
         if (!confirm_with_custom_button_request(
                 resp, enabled ? "Enable Policy" : "Disable Policy",
                 "Do you want to %s %s policy?",
@@ -560,6 +564,10 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg)
     CHECK_PIN
 
     for (size_t i = 0; i < msg->policy_count; ++i) {
+        // ShapeShift policy is always enabled.
+        if (strcmp(msg->policy[i].policy_name, "ShapeShift") == 0)
+            continue;
+
         if (!storage_setPolicy(msg->policy[i].policy_name, msg->policy[i].enabled)) {
             fsm_sendFailure(FailureType_Failure_ActionCancelled,
                             "Policies could not be applied");
