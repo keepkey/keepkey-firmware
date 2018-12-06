@@ -184,33 +184,6 @@ static void sendFailureWrapper(FailureType code, const char *text) {
 }
 #endif
 
-static void u2f_filtered_usb_rx(const void *data, size_t len,
-                                const U2F_AUTHENTICATE_REQ *req) {
-    if (!storage_isPolicyEnabled("Experimental") &&
-#if DEBUG_LINK
-        memcmp(req->appId, u2f_localhost.appid,           sizeof(u2f_localhost.appid))           != 0 &&
-#endif
-        memcmp(req->appId, U2F_SHAPESHIFT_COM->appid,     sizeof(U2F_SHAPESHIFT_COM->appid))     != 0 &&
-        memcmp(req->appId, U2F_SHAPESHIFT_IO->appid,      sizeof(U2F_SHAPESHIFT_IO->appid))      != 0 &&
-        memcmp(req->appId, U2F_SHAPESHIFT_COM_STG->appid, sizeof(U2F_SHAPESHIFT_COM_STG->appid)) != 0 &&
-        memcmp(req->appId, U2F_SHAPESHIFT_IO_STG->appid,  sizeof(U2F_SHAPESHIFT_IO_STG->appid))  != 0 &&
-        memcmp(req->appId, U2F_SHAPESHIFT_COM_DEV->appid, sizeof(U2F_SHAPESHIFT_COM_DEV->appid)) != 0 &&
-        memcmp(req->appId, U2F_SHAPESHIFT_IO_DEV->appid,  sizeof(U2F_SHAPESHIFT_IO_DEV->appid))  != 0) {
-        // Ignore the request
-        return;
-    }
-
-    handle_usb_rx(data, len);
-}
-
-#if DEBUG_LINK
-static void u2f_filtered_debug_usb_rx(const void *data, size_t len,
-                                      const U2F_AUTHENTICATE_REQ *req) {
-    (void)req; // DEBUG_LINK doesn't care who talks to it.
-    handle_debug_usb_rx(data, len);
-}
-#endif
-
 void fsm_init(void)
 {
     msg_map_init(MessagesMap, sizeof(MessagesMap) / sizeof(MessagesMap_t));
@@ -228,11 +201,6 @@ void fsm_init(void)
 #endif
 
     msg_init();
-
-    u2f_set_rx_callback(u2f_filtered_usb_rx);
-#if DEBUG_LINK
-    u2f_set_debug_rx_callback(u2f_filtered_debug_usb_rx);
-#endif
 }
 
 void fsm_sendSuccess(const char *text)

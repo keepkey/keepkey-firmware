@@ -56,10 +56,6 @@
 typedef void (*usb_rx_callback_t)(const void *buf, size_t len);
 typedef void (*usb_u2f_rx_callback_t)(const void *buf, size_t len);
 
-void usb_set_u2f_transport(void);
-void usb_set_hid_transport(void);
-bool usb_is_u2f_transport(void);
-
 void usb_set_rx_callback(usb_rx_callback_t callback);
 void usb_set_u2f_rx_callback(usb_u2f_rx_callback_t callback);
 

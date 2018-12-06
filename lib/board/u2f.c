@@ -43,12 +43,6 @@
 // Initialise without a cid
 static uint32_t cid = 0;
 
-// We hijack the FIDO U2F protocol to do device communication through signing
-// requests.  Authentication messages are distinguished from device transport
-// via one of the hardening bits in the key handle derivation path.  This
-// ensures that the two are mutually exclusive.
-static bool is_hijack = true;
-
 uint32_t next_cid(void)
 {
 	// extremely unlikely but hey
@@ -66,20 +60,6 @@ typedef struct {
 	uint8_t cmd;
 } U2F_ReadBuffer;
 
-u2f_rx_callback_t u2f_user_rx_callback = NULL;
-
-void u2f_set_rx_callback(u2f_rx_callback_t callback){
-    u2f_user_rx_callback = callback;
-}
-
-#if DEBUG_LINK
-u2f_rx_callback_t u2f_user_debug_rx_callback = NULL;
-
-void u2f_set_debug_rx_callback(u2f_rx_callback_t callback){
-    u2f_user_debug_rx_callback = callback;
-}
-#endif
-
 static u2f_register_callback_t u2f_register_callback = 0;
 static u2f_authenticate_callback_t u2f_authenticate_callback = 0;
 static u2f_version_callback_t u2f_version_callback = 0;
@@ -90,19 +70,6 @@ void u2f_init(u2f_register_callback_t register_cb, u2f_authenticate_callback_t a
 	u2f_register_callback = register_cb;
 	u2f_authenticate_callback = authenticate_cb;
 	u2f_version_callback = version_cb;
-
-	// Force channel ID initialization
-	(void)u2f_get_channel();
-}
-
-const uint8_t *u2f_get_channel(void) {
-	static uint8_t channel[4] = { 0, 0, 0, 0 };
-
-	// Initialize U2F Transport channel id
-	while (memcmp(channel, "\x00\x00\x00\x00", 4) == 0)
-		random_buffer(channel, sizeof(channel));
-
-	return channel;
 }
 
 void u2fhid_init_cmd(U2F_ReadBuffer *reader, const U2FHID_FRAME *f) {
@@ -224,9 +191,7 @@ void u2fhid_read(const U2FHID_FRAME *f)
 		reader.cmd = 0;
 		reader.seq = 255;
 
-		// U2F hijack packet framing requires conserved cid.
-		if (!is_hijack)
-			cid = 0;
+		cid = 0;
 		tiny = 0;
 		return;
 	}
@@ -293,7 +258,7 @@ void queue_u2f_pkt(const U2FHID_FRAME *u2f_pkt)
 #ifndef EMULATOR
 	usb_u2f_tx_helper((uint8_t *) u2f_pkt, HID_RPT_SIZE, ENDPOINT_ADDRESS_U2F_IN);
 #else
-	assert(false && "U2F transport not supported in the emulator");
+	assert(false && "Emulator does not support FIDO u2f");
 #endif
 }
 
@@ -452,46 +417,6 @@ void u2f_authenticate(const APDU *a)
 		layout_simple_message("SW_AUTH_ENF");
 		// error:bad key handle
 		send_u2f_error(U2F_SW_WRONG_DATA);
-		return;
-	}
-
-	is_hijack = (req->keyHandle[3] & 0x80) == 0;
-	if (is_hijack) {
-		if (req->keyHandle[2] != 0x00) {
-			return;
-		}
-
-		uint8_t channel[4];
-		memcpy(channel, req->keyHandle + 4, 4);
-
-		// If the message is a brodacast,
-		if (memcmp(channel, "\x00\x00\x00\x00", 4) == 0) {
-			// ... respond with our version info
-			if (u2f_version_callback)
-				u2f_version_callback(u2f_get_channel());
-			return;
-		}
-
-		// Otherwise make sure it's for us
-		if (memcmp(channel, u2f_get_channel(), 4) != 0)
-			return;
-
-		// At this point, keyHandle is a frame of a (possibly) larger protobuf message,
-		// with the first 8 bytes as control info specific to u2f transport:
-		// { total_frames, frame_i, reserved, reserved & 0x3f,
-		//   channel[0], channel[1], channel[2], channel[3] }
-
-		if ((req->keyHandle[3] & 0x40) == 0x00) {
-			if (u2f_user_rx_callback) {
-				u2f_user_rx_callback(req->keyHandle + 8, KEY_HANDLE_LEN - 8, req);
-			}
-#if DEBUG_LINK
-		} else {
-			if (u2f_user_debug_rx_callback) {
-				u2f_user_debug_rx_callback(req->keyHandle + 8, KEY_HANDLE_LEN - 8, req);
-			}
-#endif
-		}
 		return;
 	}
 

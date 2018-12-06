@@ -60,20 +60,6 @@ usb_rx_callback_t user_rx_callback = NULL;
 usb_rx_callback_t user_debug_rx_callback = NULL;
 #endif
 
-static volatile bool u2f_transport = false;
-
-void usb_set_u2f_transport(void) {
-    u2f_transport = true;
-}
-
-void usb_set_hid_transport(void) {
-    u2f_transport = false;
-}
-
-bool usb_is_u2f_transport(void) {
-    return u2f_transport;
-}
-
 #ifndef EMULATOR
 
 #define USB_INTERFACE_INDEX_MAIN 0
@@ -326,7 +312,6 @@ static void main_rx_callback(usbd_device *dev, uint8_t ep)
 	debugLog(0, "", "main_rx_callback");
 
 	if (user_rx_callback) {
-		usb_set_hid_transport();
 		user_rx_callback(buf, 64);
 	}
 }
@@ -340,7 +325,6 @@ static void u2f_rx_callback(usbd_device *dev, uint8_t ep)
 	if ( usbd_ep_read_packet(dev, ENDPOINT_ADDRESS_U2F_OUT, buf, 64) != 64) return;
 
 	if (user_rx_callback) {
-		usb_set_u2f_transport();
 		u2fhid_read((const U2FHID_FRAME *) (void*) buf);
 	}
 }
@@ -354,7 +338,6 @@ static void debug_rx_callback(usbd_device *dev, uint8_t ep)
 	debugLog(0, "", "debug_rx_callback");
 
 	if (user_debug_rx_callback) {
-		usb_set_hid_transport();
 		user_debug_rx_callback(buf, 64);
 	}
 }
@@ -461,13 +444,7 @@ static bool usb_tx_helper(uint8_t *data, uint32_t len, uint8_t endpoint) {
 #ifndef EMULATOR
 bool usb_tx(uint8_t *message, uint32_t len)
 {
-	if (usb_is_u2f_transport()) {
-		memcpy(message+len, "\x00\x00\x90\x00", 4);
-		send_u2f_msg(message, len + 4);
-		return true;
-	} else {
-		return usb_tx_helper(message, len, ENDPOINT_ADDRESS_IN);
-	}
+	return usb_tx_helper(message, len, ENDPOINT_ADDRESS_IN);
 }
 #endif
 
@@ -475,13 +452,7 @@ bool usb_tx(uint8_t *message, uint32_t len)
 #if DEBUG_LINK
 bool usb_debug_tx(uint8_t *message, uint32_t len)
 {
-	if (usb_is_u2f_transport()) {
-		memcpy(message+len, "\x00\x40\x90\x00", 4);
-		send_u2f_msg(message, len + 4);
-		return true;
-	} else {
-		return usb_tx_helper(message, len, ENDPOINT_ADDRESS_DEBUG_IN);
-	}
+	return usb_tx_helper(message, len, ENDPOINT_ADDRESS_DEBUG_IN);
 }
 #endif
 #endif
