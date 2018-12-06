@@ -139,6 +139,9 @@ typedef enum
 
 typedef void (*raw_msg_handler_t)(RawMessage *msg, uint32_t frame_length);
 
+const pb_field_t *message_fields(MessageMapType type, MessageType msg_id,
+                                 MessageMapDirection dir);
+
 bool msg_write(MessageType msg_id, const void *msg);
 bool msg_u2f_write(MessageType msg_id, const void *msg);
 

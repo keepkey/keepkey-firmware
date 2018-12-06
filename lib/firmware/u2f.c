@@ -274,15 +274,6 @@ void u2fhid_init(const U2FHID_FRAME *in)
 	queue_u2f_pkt(&f);
 }
 
-void queue_u2f_pkt(const U2FHID_FRAME *u2f_pkt)
-{
-#ifndef EMULATOR
-	usb_u2f_tx_helper((uint8_t *) u2f_pkt, HID_RPT_SIZE, ENDPOINT_ADDRESS_U2F_IN);
-#else
-	assert(false && "Emulator does not support FIDO u2f");
-#endif
-}
-
 void u2fhid_msg(const APDU *a, uint32_t len)
 {
 	if ((APDU_LEN(*a) + sizeof(APDU)) > len) {

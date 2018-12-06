@@ -74,6 +74,6 @@ bool usb_debug_tx(uint8_t *message, uint32_t len);
 void usb_set_debug_rx_callback(usb_rx_callback_t callback);
 #endif
 
-bool usb_u2f_tx_helper(uint8_t *message, uint32_t len, uint8_t endpoint);
+void queue_u2f_pkt(const U2FHID_FRAME *u2f_pkt);
 
 #endif

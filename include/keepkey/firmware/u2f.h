@@ -75,7 +75,6 @@ void u2fhid_wink(const uint8_t *buf, uint32_t len);
 void u2fhid_sync(const uint8_t *buf, uint32_t len);
 void u2fhid_lock(const uint8_t *buf, uint32_t len);
 void u2fhid_msg(const APDU *a, uint32_t len);
-void queue_u2f_pkt(const U2FHID_FRAME *u2f_pkt);
 
 uint8_t *u2f_out_data(void);
 void u2f_register(const APDU *a);

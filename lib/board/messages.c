@@ -94,8 +94,8 @@ static const MessagesMap_t *message_map_entry(MessageMapType type,
  * OUTPUT
  *      protocol buffer
  */
-static const pb_field_t *message_fields(MessageMapType type, MessageType msg_id,
-                                        MessageMapDirection dir)
+const pb_field_t *message_fields(MessageMapType type, MessageType msg_id,
+                                 MessageMapDirection dir)
 {
     assert(MessagesMap != NULL);
 
@@ -503,60 +503,6 @@ void msg_init(void)
     usb_set_debug_rx_callback(handle_debug_usb_rx);
 #endif
 }
-
-bool msg_write(MessageType msg_id, const void *msg)
-{
-    const pb_field_t *fields = message_fields(NORMAL_MSG, msg_id, OUT_MSG);
-
-    if (!fields)
-        return false;
-
-    TrezorFrameBuffer framebuf;
-    memset(&framebuf, 0, sizeof(framebuf));
-    framebuf.frame.usb_header.hid_type = '?';
-    framebuf.frame.header.pre1 = '#';
-    framebuf.frame.header.pre2 = '#';
-    framebuf.frame.header.id = __builtin_bswap16(msg_id);
-
-    pb_ostream_t os = pb_ostream_from_buffer(framebuf.buffer,
-                      sizeof(framebuf.buffer));
-
-    if (!pb_encode(&os, fields, msg))
-        return false;
-
-    framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
-    usb_tx((uint8_t *)&framebuf, sizeof(framebuf.frame) + os.bytes_written);
-
-    return true;
-}
-
-#if DEBUG_LINK
-bool msg_debug_write(MessageType msg_id, const void *msg)
-{
-    const pb_field_t *fields = message_fields(DEBUG_MSG, msg_id, OUT_MSG);
-
-    if (!fields)
-        return false;
-
-    TrezorFrameBuffer framebuf;
-    memset(&framebuf, 0, sizeof(framebuf));
-    framebuf.frame.usb_header.hid_type = '?';
-    framebuf.frame.header.pre1 = '#';
-    framebuf.frame.header.pre2 = '#';
-    framebuf.frame.header.id = __builtin_bswap16(msg_id);
-
-    pb_ostream_t os = pb_ostream_from_buffer(framebuf.buffer,
-                      sizeof(framebuf.buffer));
-
-    if (!pb_encode(&os, fields, msg))
-        return false;
-
-    framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
-    usb_debug_tx((uint8_t *)&framebuf, sizeof(framebuf.frame) + os.bytes_written);
-
-    return true;
-}
-#endif
 
 /*
  * wait_for_tiny_msg() - Wait for usb tiny message type from host
