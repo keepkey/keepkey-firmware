@@ -126,7 +126,7 @@ static bool pb_parse(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_size
                      uint8_t *buf)
 {
     pb_istream_t stream = pb_istream_from_buffer(msg, msg_size);
-    return(pb_decode(&stream, entry->fields, buf));
+    return pb_decode(&stream, entry->fields, buf);
 }
 
 /*
@@ -414,7 +414,7 @@ static MessageType tiny_msg_poll_and_buffer(bool block, uint8_t *buf)
         memcpy(buf, msg_tiny, sizeof(msg_tiny));
     }
 
-    return(msg_tiny_id);
+    return msg_tiny_id;
 }
 
 /*
@@ -578,7 +578,7 @@ bool msg_debug_write(MessageType msg_id, const void *msg)
  */
 MessageType wait_for_tiny_msg(uint8_t *buf)
 {
-    return(tiny_msg_poll_and_buffer(true, buf));
+    return tiny_msg_poll_and_buffer(true, buf);
 }
 
 /*
@@ -592,7 +592,7 @@ MessageType wait_for_tiny_msg(uint8_t *buf)
  */
 MessageType check_for_tiny_msg(uint8_t *buf)
 {
-    return(tiny_msg_poll_and_buffer(false, buf));
+    return tiny_msg_poll_and_buffer(false, buf);
 }
 
 /*
