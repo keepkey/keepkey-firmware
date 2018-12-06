@@ -20,17 +20,14 @@
 #ifndef KEEPKEY_BUTTON_H
 #define KEEPKEY_BUTTON_H
 
-/* === Includes ============================================================ */
 
 #include <stdint.h>
 
 #include "canvas.h"
 
-/* === Typedefs ============================================================ */
 
 typedef void (*Handler)(void* context);
 
-/* === Functions =========================================================== */
 
 
 /** kk_keepkey_button_init() - Initialize push botton interrupt registers

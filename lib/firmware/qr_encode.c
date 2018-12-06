@@ -22,7 +22,6 @@
  * SOFTWARE.
  */
 
-/* === Includes ============================================================ */
 
 #include "keepkey/firmware/qr_encode.h"
 #include "keepkey/firmware/qr_consts.h"
@@ -31,7 +30,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-/* === Variables =========================================================== */
 
 int m_nLevel;
 int m_nVersion;
@@ -46,7 +44,6 @@ uint8_t m_byBlockMode[QR_MAX_DATACODEWORD];
 uint8_t m_byDataCodeWord[QR_MAX_DATACODEWORD];
 uint8_t m_byRSWork[QR_MAX_CODEBLOCK];
 
-/* === Functions =========================================================== */
 
 int IsNumeralData(uint8_t c)
 {

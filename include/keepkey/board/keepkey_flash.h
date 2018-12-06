@@ -23,13 +23,11 @@
 
 #define MODEL_STR_SIZE  32
 
-/* === Includes ============================================================ */
 
 #include <stddef.h>
 
 #include "memory.h"
 
-/* === Functions =========================================================== */
 
 intptr_t flash_write_helper(Allocation group);
 void flash_erase(Allocation group);

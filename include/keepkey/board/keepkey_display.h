@@ -20,11 +20,9 @@
 #ifndef KEEPKEY_DISPLAY_H
 #define KEEPKEY_DISPLAY_H
 
-/* === Includes ============================================================ */
 
 #include "canvas.h"
 
-/* === Defines ============================================================= */
 
 #define START_COL ((uint8_t)0x1C)
 #define START_ROW ((uint8_t)0x00)
@@ -34,7 +32,6 @@
 
 #define DEFAULT_DISPLAY_BRIGHTNESS  100 /* Percent */
 
-/* === Functions =========================================================== */
 
 void display_hw_init(void);
 Canvas *display_canvas_init(void);

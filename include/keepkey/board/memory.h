@@ -44,7 +44,6 @@
  Sector  5 | 0x08020000 - 0x0803FFFF | 128 KiB | bootloader code  |  signature dependent
  Sector  6 | 0x08040000 - 0x0805FFFF | 128 KiB | bootloader code  |  signature dependent
  Sector  7 | 0x08060000 - 0x0807FFFF | 128 KiB | application code |     full access
-===========+=========================+============================+======================
  Sector  8 | 0x08080000 - 0x0809FFFF | 128 KiB | application code |     full access
  Sector  9 | 0x080A0000 - 0x080BFFFF | 128 KiB | application code |     full access
  Sector 10 | 0x080C0000 - 0x080DFFFF | 128 KiB | application code |     full access
@@ -70,7 +69,6 @@
 
  */
 
-/* === Defines ============================================================= */
 
 
 

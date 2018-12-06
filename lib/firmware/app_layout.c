@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #include "keepkey/board/layout.h"
 #include "keepkey/board/draw.h"
@@ -38,7 +37,6 @@
 #include <string.h>
 
 
-/* === Private Functions =================================================== */
 
 /*
  * layout_animate_pin() - Animate pin scramble
@@ -317,7 +315,6 @@ static void layout_animate_cipher(void *data, uint32_t duration, uint32_t elapse
                     CIPHER_HORIZONTAL_MASK_WIDTH_3, KEEPKEY_DISPLAY_HEIGHT);
 }
 
-/* === Functions =========================================================== */
 
 /*
  *  layout_screen_test() - Display screen test

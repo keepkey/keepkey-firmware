@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #ifndef EMULATOR
 #  include <libopencm3/stm32/rcc.h>
@@ -31,7 +30,6 @@
 #include <stdio.h>
 #include <string.h>
 
-/* === Private Functions =================================================== */
 
 /*
  * put_console_char() - Display a character on serial debug port
@@ -103,7 +101,6 @@ static bool get_console_input(char *read_char)
 #endif
 }
 
-/* === Functions =========================================================== */
 
 /*
  * display_debug_string() - Dump string to debug console

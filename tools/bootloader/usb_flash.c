@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 
 #include "keepkey/board/confirm_sm.h"
@@ -49,7 +48,6 @@
 #include <stdio.h>
 #include <string.h>
 
-/* === Variables =========================================================== */
 
 static Allocation storage_location = FLASH_INVALID;
 static RawMessageState upload_state = RAW_MESSAGE_NOT_STARTED;
@@ -91,7 +89,6 @@ static const MessagesMap_t MessagesMap[] =
 #endif
 };
 
-/* === Private Functions =================================================== */
 
 /*
  * check_firmware_hash - Checks flashed firmware's hash

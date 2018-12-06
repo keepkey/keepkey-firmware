@@ -22,7 +22,6 @@
  * SOFTWARE.
  */
 
-/* === Typedefs ============================================================ */
 
 typedef struct
 {
@@ -43,7 +42,6 @@ typedef struct
 	RS_BLOCKINFO RS_BlockInfo2[4];	// EC pos
 } QR_VERSIONINFO;
 
-/* === Variables =========================================================== */
 
 static const QR_VERSIONINFO QR_VersonInfo[] = {
 	{0, 0, {0, 0, 0, 0}, 0, {0, 0, 0, 0, 0, 0}, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}},

@@ -307,7 +307,6 @@ static void update_fw(void)
     }
 }
 
-/* === Functions =========================================================== */
 
 /*
  * main - Bootloader main entry function

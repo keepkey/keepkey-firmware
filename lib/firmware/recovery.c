@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/layout.h"
@@ -36,7 +35,6 @@
 #include <string.h>
 #include <stdio.h>
 
-/* === Private Variables =================================================== */
 
 static uint32_t word_count;
 static bool awaiting_word = false;
@@ -47,7 +45,6 @@ static uint32_t word_index;
 static char CONFIDENTIAL word_order[24];
 static char CONFIDENTIAL words[24][12];
 
-/* === Functions =========================================================== */
 
 void next_word(void) {
 	if (sizeof(word_order)/sizeof(word_order[0]) <= word_index) {
@@ -218,7 +215,6 @@ void recovery_abort(bool send_failure)
     }
 }
 
-/* === Debug Functions =========================================================== */
 
 #if DEBUG_LINK
 const char *recovery_get_fake_word(void)

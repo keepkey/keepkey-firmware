@@ -20,7 +20,6 @@
 #ifndef PIN_H
 #define PIN_H
 
-/* === Includes ============================================================ */
 
 #ifndef EMULATOR
 #  include <libopencm3/stm32/rcc.h>
@@ -29,13 +28,11 @@
 
 #include <inttypes.h>
 
-/* === Defines ============================================================= */
 
 #define SET_PIN(p)      GPIO_BSRR( (p).port ) = (p).pin
 #define CLEAR_PIN(p)    GPIO_BSRR( (p).port ) = ( (p).pin << 16 )
 #define TOGGLE_PIN(p)   GPIO_ODR( (p).port ) ^= (p).pin
 
-/* === Typedefs ============================================================ */
 
 typedef enum
 {
@@ -60,7 +57,6 @@ typedef struct
     uint16_t pin;
 } Pin;
 
-/* === Functions =========================================================== */
 
 void pin_init_output(const Pin *pin, OutputMode output_mode, PullMode pull_mode);
 

@@ -17,13 +17,11 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #include "keepkey/board/resources.h"
 
 #include <string.h>
 
-/* === Private Variables =================================================== */
 
 /* --- Confirm Icon Animation ---------------------------------------------- */
 
@@ -1014,7 +1012,6 @@ static const uint8_t recovery_data[372] =
 static const Image recovery_image = {29, 29, sizeof(recovery_data), recovery_data};
 const AnimationFrame recovery_frame = {221, 20, 20, 100, &recovery_image};
 
-/* === Functions =========================================================== */
 
 /*
  * get_confirm_icon_frame() - Get confirm icon frame

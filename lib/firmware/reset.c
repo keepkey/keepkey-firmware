@@ -241,7 +241,6 @@ exit:
     layoutHome();
 }
 
-/* === Debug Functions =========================================================== */
 
 #if DEBUG_LINK
 uint32_t reset_get_int_entropy(uint8_t *entropy)
