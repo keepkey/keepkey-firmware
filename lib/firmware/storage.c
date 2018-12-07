@@ -632,8 +632,12 @@ StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
                 : SUS_Updated;
 
         case StorageVersion_11:
+        case StorageVersion_12:
             storage_readV11(dst, flash, STORAGE_SECTOR_LEN);
-            return SUS_Valid;
+            dst->storage.version = STORAGE_VERSION;
+            return dst->storage.version == version
+                ? SUS_Valid
+                : SUS_Updated;
 
         case StorageVersion_NONE:
             return SUS_Invalid;
