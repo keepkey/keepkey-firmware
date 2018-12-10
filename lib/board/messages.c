@@ -21,7 +21,6 @@
 #include "keepkey/board/messages.h"
 #include "keepkey/board/variant.h"
 #include "keepkey/board/timer.h"
-#include "keepkey/board/u2f.h"
 #include "keepkey/board/layout.h"
 
 #include <nanopb.h>
@@ -95,8 +94,8 @@ static const MessagesMap_t *message_map_entry(MessageMapType type,
  * OUTPUT
  *      protocol buffer
  */
-static const pb_field_t *message_fields(MessageMapType type, MessageType msg_id,
-                                        MessageMapDirection dir)
+const pb_field_t *message_fields(MessageMapType type, MessageType msg_id,
+                                 MessageMapDirection dir)
 {
     assert(MessagesMap != NULL);
 
@@ -109,39 +108,6 @@ static const pb_field_t *message_fields(MessageMapType type, MessageType msg_id,
     }
 
     return NULL;
-}
-
-/*
- * usb_write_pb() - Add usb frame header info to message buffer and perform usb transmission
- *
- * INPUT
- *     - fields: protocol buffer
- *     - msg: pointer to message buffer
- *     - id: message id
- *     - usb_tx_handler: handler to use to write data to usb endport
- * OUTPUT
- *     none
- */
-static void usb_write_pb(const pb_field_t *fields, const void *msg, MessageType id,
-                         usb_tx_handler_t usb_tx_handler)
-{
-    assert(fields != NULL);
-
-    TrezorFrameBuffer framebuf;
-    memset(&framebuf, 0, sizeof(framebuf));
-    framebuf.frame.usb_header.hid_type = '?';
-    framebuf.frame.header.pre1 = '#';
-    framebuf.frame.header.pre2 = '#';
-    framebuf.frame.header.id = __builtin_bswap16(id);
-
-    pb_ostream_t os = pb_ostream_from_buffer(framebuf.buffer,
-                      sizeof(framebuf.buffer));
-
-    if(pb_encode(&os, fields, msg))
-    {
-        framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
-        (*usb_tx_handler)((uint8_t *)&framebuf, sizeof(framebuf.frame) + os.bytes_written);
-    }
 }
 
 /*
@@ -159,7 +125,7 @@ static bool pb_parse(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_size
                      uint8_t *buf)
 {
     pb_istream_t stream = pb_istream_from_buffer(msg, msg_size);
-    return(pb_decode(&stream, entry->fields, buf));
+    return pb_decode(&stream, entry->fields, buf);
 }
 
 /*
@@ -178,22 +144,18 @@ static void dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_size
     static CONFIDENTIAL uint8_t decode_buffer[MAX_DECODE_SIZE] __attribute__((aligned(4)));
     memset(decode_buffer, 0, sizeof(decode_buffer));
 
-    if(pb_parse(entry, msg, msg_size, decode_buffer))
-    {
-        if(entry->process_func)
-        {
-            entry->process_func(decode_buffer);
-        }
-        else
-        {
-            (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unexpected message");
-        }
-    }
-    else
-    {
+    if (!pb_parse(entry, msg, msg_size, decode_buffer)) {
         (*msg_failure)(FailureType_Failure_UnexpectedMessage,
                        "Could not parse protocol buffer message");
+        return;
     }
+
+    if (!entry->process_func) {
+        (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unexpected message");
+        return;
+    }
+
+    entry->process_func(decode_buffer);
 }
 
 /*
@@ -209,17 +171,13 @@ static void dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_size
  */
 static void tiny_dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_size)
 {
-    bool status = pb_parse(entry, msg, msg_size, msg_tiny);
-
-    if(status)
-    {
-        msg_tiny_id = entry->msg_id;
-    }
-    else
-    {
+    if (!pb_parse(entry, msg, msg_size, msg_tiny)) {
         call_msg_failure_handler(FailureType_Failure_UnexpectedMessage,
                                  "Could not parse tiny protocol buffer message");
+        return;
     }
+
+    msg_tiny_id = entry->msg_id;
 }
 
 /*
@@ -388,15 +346,7 @@ void usb_rx_helper(const void *buf, size_t length, MessageMapType type)
             goto done_handling;
         }
     }
-#ifndef EMULATOR
-    //the packetized u2f-injection device<->host protocol requires and ACK sent to be sent after every packet
-    if (usb_is_u2f_transport()){
-        //only send the ACK packet if the recvd message came in over the U2F transport
-        //TODO pass in debug link and set flag here to handle framed debuglink acks
-        uint8_t empty_report[] = {0x00, 0x00, 0x00, contents[1],0x00, 0x00, 0x00, 0x90, 0x00}; 
-        send_u2f_msg(empty_report, sizeof(empty_report));
-    }
-#endif
+
     goto done_handling;
 
 reset:
@@ -455,7 +405,7 @@ static MessageType tiny_msg_poll_and_buffer(bool block, uint8_t *buf)
         memcpy(buf, msg_tiny, sizeof(msg_tiny));
     }
 
-    return(msg_tiny_id);
+    return msg_tiny_id;
 }
 
 /*
@@ -555,54 +505,6 @@ void msg_init(void)
 }
 
 /*
- * msg_write() - Transmit message over usb port
- *
- * INPUT
- *     - msg_id: protocol buffer message id
- *     - msg: pointer to message buffer
- * OUTPUT
- *     true/false status of write
- */
-bool msg_write(MessageType msg_id, const void *msg)
-{
-    const pb_field_t *fields = message_fields(NORMAL_MSG, msg_id, OUT_MSG);
-
-    if(!fields)    // unknown message
-    {
-        return(false);
-    }
-
-    /* add frame header to message and transmit out to usb */
-    usb_write_pb(fields, msg, msg_id, &usb_tx);
-    return(true);
-}
-
-/*
- * msg_debug_write() - Transmit message over usb port to debug enpoint
- *
- * INPUT
- *     - msg_id: protocol buffer message id
- *     - msg: pointer to message buffer
- * OUTPUT
- *     true/false status of write
- */
-#if DEBUG_LINK
-bool msg_debug_write(MessageType msg_id, const void *msg)
-{
-    const pb_field_t *fields = message_fields(DEBUG_MSG, msg_id, OUT_MSG);
-
-    if(!fields)    // unknown message
-    {
-        return(false);
-    }
-
-    /* add frame header to message and transmit out to usb */
-    usb_write_pb(fields, msg, msg_id, &usb_debug_tx);
-    return(true);
-}
-#endif
-
-/*
  * wait_for_tiny_msg() - Wait for usb tiny message type from host
  *
  * INPUT
@@ -613,7 +515,7 @@ bool msg_debug_write(MessageType msg_id, const void *msg)
  */
 MessageType wait_for_tiny_msg(uint8_t *buf)
 {
-    return(tiny_msg_poll_and_buffer(true, buf));
+    return tiny_msg_poll_and_buffer(true, buf);
 }
 
 /*
@@ -627,7 +529,7 @@ MessageType wait_for_tiny_msg(uint8_t *buf)
  */
 MessageType check_for_tiny_msg(uint8_t *buf)
 {
-    return(tiny_msg_poll_and_buffer(false, buf));
+    return tiny_msg_poll_and_buffer(false, buf);
 }
 
 /*
@@ -681,12 +583,8 @@ int encode_pb(const void *source_ptr, const pb_field_t *fields,  uint8_t *buffer
 {
     pb_ostream_t os = pb_ostream_from_buffer(buffer, len);
 
-    if(pb_encode(&os, fields, source_ptr))
-    {
-        return(os.bytes_written);
-    }
-    else
-    {
-        return(0);
-    }
+    if (!pb_encode(&os, fields, source_ptr))
+        return 0;
+
+    return os.bytes_written;
 }

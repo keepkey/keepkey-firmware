@@ -19,7 +19,6 @@ set(sources
     supervise.c
     timer.c
     usb.c
-    u2f.c
     util.c
     variant.c)
 

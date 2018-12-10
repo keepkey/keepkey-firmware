@@ -44,6 +44,7 @@
 #include "keepkey/board/variant.h"
 #include "keepkey/board/supervise.h"
 #include "keepkey/board/signatures.h"
+#include "keepkey/board/u2f_hid.h"
 #include "keepkey/bootloader/usb_flash.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/variant/keepkey.h"

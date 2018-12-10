@@ -25,8 +25,6 @@
 #  include <libopencm3/usb/usbd.h>
 #  include <libopencm3/stm32/rcc.h>
 #  include "keepkey/board/keepkey_board.h"
-#  include "keepkey/board/u2f.h"
-#  include "keepkey/board/u2f_types.h"
 #  include "keepkey/board/layout.h"
 #  include "keepkey/board/timer.h"
 #else
@@ -34,19 +32,22 @@
 #endif
 
 #include "keepkey/board/keepkey_board.h"
+#include "keepkey/board/messages.h"
 #include "keepkey/board/usb.h"
 #include "keepkey/board/util.h"
+#include "keepkey/board/u2f_hid.h"
 
 #include "keepkey/board/usb21_standard.h"
 #include "keepkey/board/webusb.h"
 #include "keepkey/board/winusb.h"
 
+#include <nanopb.h>
+
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
-
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #define debugLog(L, B, T) do{}while(0)
@@ -60,19 +61,7 @@ usb_rx_callback_t user_rx_callback = NULL;
 usb_rx_callback_t user_debug_rx_callback = NULL;
 #endif
 
-static volatile bool u2f_transport = false;
-
-void usb_set_u2f_transport(void) {
-    u2f_transport = true;
-}
-
-void usb_set_hid_transport(void) {
-    u2f_transport = false;
-}
-
-bool usb_is_u2f_transport(void) {
-    return u2f_transport;
-}
+usb_u2f_rx_callback_t user_u2f_rx_callback = NULL;
 
 #ifndef EMULATOR
 
@@ -326,7 +315,6 @@ static void main_rx_callback(usbd_device *dev, uint8_t ep)
 	debugLog(0, "", "main_rx_callback");
 
 	if (user_rx_callback) {
-		usb_set_hid_transport();
 		user_rx_callback(buf, 64);
 	}
 }
@@ -339,9 +327,8 @@ static void u2f_rx_callback(usbd_device *dev, uint8_t ep)
 	debugLog(0, "", "u2f_rx_callback");
 	if ( usbd_ep_read_packet(dev, ENDPOINT_ADDRESS_U2F_OUT, buf, 64) != 64) return;
 
-	if (user_rx_callback) {
-		usb_set_u2f_transport();
-		u2fhid_read((const U2FHID_FRAME *) (void*) buf);
+	if (user_u2f_rx_callback) {
+		user_u2f_rx_callback((const U2FHID_FRAME *) (void*) buf);
 	}
 }
 
@@ -354,7 +341,6 @@ static void debug_rx_callback(usbd_device *dev, uint8_t ep)
 	debugLog(0, "", "debug_rx_callback");
 
 	if (user_debug_rx_callback) {
-		usb_set_hid_transport();
 		user_debug_rx_callback(buf, 64);
 	}
 }
@@ -435,84 +421,111 @@ char usbTiny(char set)
 
 #endif // EMULATOR
 
-static bool usb_tx_helper(uint8_t *data, uint32_t len, uint8_t endpoint) {
-	uint32_t pos = 1;
+bool msg_write(MessageType msg_id, const void *msg)
+{
+	const pb_field_t *fields = message_fields(NORMAL_MSG, msg_id, OUT_MSG);
 
-	/* Chunk out data */
-	while (pos < len) {
+	if (!fields)
+		return false;
+
+	TrezorFrameBuffer framebuf;
+	memset(&framebuf, 0, sizeof(framebuf));
+	framebuf.frame.usb_header.hid_type = '?';
+	framebuf.frame.header.pre1 = '#';
+	framebuf.frame.header.pre2 = '#';
+	framebuf.frame.header.id = __builtin_bswap16(msg_id);
+
+	pb_ostream_t os = pb_ostream_from_buffer(framebuf.buffer, sizeof(framebuf.buffer));
+
+	if (!pb_encode(&os, fields, msg))
+		return false;
+
+	framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
+
+	// Chunk out data
+	for (uint32_t pos = 1; pos < sizeof(framebuf.frame) + os.bytes_written; pos += 64 - 1) {
 		uint8_t tmp_buffer[64] = { 0 };
 
 		tmp_buffer[0] = '?';
 
-		memcpy(tmp_buffer + 1, data + pos, 64 - 1);
+		memcpy(tmp_buffer + 1, ((const uint8_t*)&framebuf) + pos, 64 - 1);
 
 #ifndef EMULATOR
-		while (usbd_ep_write_packet(usbd_dev, endpoint, tmp_buffer, 64) == 0) {};
+		while (usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_IN, tmp_buffer, 64) == 0) {};
 #else
-		emulatorSocketWrite(endpoint, tmp_buffer, sizeof(tmp_buffer));
+		emulatorSocketWrite(ENDPOINT_ADDRESS_IN, tmp_buffer, sizeof(tmp_buffer));
 #endif
-
-		pos += 64 - 1;
 	}
 
-	return(true);
+	return true;
 }
 
-#ifndef EMULATOR
-bool usb_tx(uint8_t *message, uint32_t len)
-{
-	if (usb_is_u2f_transport()) {
-		memcpy(message+len, "\x00\x00\x90\x00", 4);
-		send_u2f_msg(message, len + 4);
-		return true;
-	} else {
-		return usb_tx_helper(message, len, ENDPOINT_ADDRESS_IN);
-	}
-}
-#endif
-
-#ifndef EMULATOR
 #if DEBUG_LINK
-bool usb_debug_tx(uint8_t *message, uint32_t len)
+bool msg_debug_write(MessageType msg_id, const void *msg)
 {
-	if (usb_is_u2f_transport()) {
-		memcpy(message+len, "\x00\x40\x90\x00", 4);
-		send_u2f_msg(message, len + 4);
-		return true;
-	} else {
-		return usb_tx_helper(message, len, ENDPOINT_ADDRESS_DEBUG_IN);
-	}
-}
-#endif
-#endif
+	const pb_field_t *fields = message_fields(DEBUG_MSG, msg_id, OUT_MSG);
+
+	if (!fields)
+		return false;
+
+	TrezorFrameBuffer framebuf;
+	memset(&framebuf, 0, sizeof(framebuf));
+	framebuf.frame.usb_header.hid_type = '?';
+	framebuf.frame.header.pre1 = '#';
+	framebuf.frame.header.pre2 = '#';
+	framebuf.frame.header.id = __builtin_bswap16(msg_id);
+
+	pb_ostream_t os = pb_ostream_from_buffer(framebuf.buffer, sizeof(framebuf.buffer));
+
+	if (!pb_encode(&os, fields, msg))
+		return false;
+
+	framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
+
+	// Chunk out data
+	for (uint32_t pos = 1; pos < sizeof(framebuf.frame) + os.bytes_written; pos += 64 - 1) {
+		uint8_t tmp_buffer[64] = { 0 };
+
+		tmp_buffer[0] = '?';
+
+		memcpy(tmp_buffer + 1, ((const uint8_t*)&framebuf) + pos, 64 - 1);
 
 #ifndef EMULATOR
-bool usb_u2f_tx_helper(uint8_t *data, uint32_t len, uint8_t endpoint) {
-	uint32_t pos = 0;
-
-	/* Chunk out message */
-	while (pos < len) {
-		uint8_t tmp_buffer[64] = { 0 };
-		memcpy(tmp_buffer, data + pos, len);
-		while (usbd_ep_write_packet(usbd_dev, endpoint, tmp_buffer, 64) == 0) {};
-		pos += 64;
+		while (usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_DEBUG_IN, tmp_buffer, 64) == 0) {};
+#else
+		emulatorSocketWrite(ENDPOINT_ADDRESS_DEBUG_IN, tmp_buffer, sizeof(tmp_buffer));
+#endif
 	}
 
 	return true;
 }
 #endif
 
+void queue_u2f_pkt(const U2FHID_FRAME *u2f_pkt)
+{
+#ifndef EMULATOR
+	while (usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_U2F_IN, u2f_pkt, 64) == 0) {};
+#else
+	assert(false && "Emulator does not support FIDO u2f");
+#endif
+}
+
 void usb_set_rx_callback(usb_rx_callback_t callback)
 {
-    user_rx_callback = callback;
+	user_rx_callback = callback;
 }
 
 #if DEBUG_LINK
 void usb_set_debug_rx_callback(usb_rx_callback_t callback)
 {
-    user_debug_rx_callback = callback;
+	user_debug_rx_callback = callback;
 }
 #endif
+
+void usb_set_u2f_rx_callback(usb_u2f_rx_callback_t callback)
+{
+	user_u2f_rx_callback = callback;
+}
 
 bool usbInitialized(void) {
 	return usb_inited;

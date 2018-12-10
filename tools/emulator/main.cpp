@@ -24,8 +24,6 @@ extern "C" {
     #include "keepkey/board/keepkey_flash.h"
     #include "keepkey/board/layout.h"
     #include "keepkey/board/usb.h"
-    #include "keepkey/board/u2f.h"
-    #include "keepkey/board/u2f_types.h"
     #include "keepkey/board/resources.h"
     #include "keepkey/board/keepkey_usart.h"
     #include "keepkey/emulator/setup.h"
@@ -71,9 +69,6 @@ int main(void)
     fsm_init();
 
     led_func(SET_GREEN_LED);
-
-    // Emulator doesn't support FIDO u2f.
-    u2f_init(NULL, NULL, NULL);
 
     usbInit();
     led_func(CLR_RED_LED);
