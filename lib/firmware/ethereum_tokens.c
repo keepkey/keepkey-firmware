@@ -873,7 +873,9 @@ void coinFromToken(CoinType *coin, const TokenType *token) {
 
 	coin->has_contract_address = true;
 	coin->contract_address.size = 20;
-	memcpy((char*)&coin->contract_address.bytes[0], token->address, sizeof(coin->contract_address.bytes));
+	memcpy((char*)&coin->contract_address.bytes[0], token->address, 20);
+	_Static_assert(20 <= sizeof(coin->contract_address.bytes),
+	               "contract_address is not large enough to hold an ETH address");
 
 	coin->has_gas_limit = true;
 	coin->gas_limit.size = 32;
