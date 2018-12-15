@@ -28,8 +28,9 @@
 
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/app_resources.h"
-#include "keepkey/firmware/qr_encode.h"
 #include "keepkey/firmware/fsm.h"
+
+#include "trezor/qrenc/qr_encode.h"
 
 #include <stdarg.h>
 #include <stddef.h>

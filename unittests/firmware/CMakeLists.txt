@@ -23,5 +23,6 @@ target_link_libraries(firmware-unit
     kkboard
     kkemulator
     trezorcrypto
+    trezorqrenc
     kkrand
     kktransport)

@@ -37,8 +37,9 @@
 
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/app_layout.h"
-#include "keepkey/firmware/qr_encode.h"
 #include "keepkey/firmware/coins.h"
+
+#include "trezor/qrenc/qr_encode.h"
 
 #include <assert.h>
 #include <stdarg.h>
