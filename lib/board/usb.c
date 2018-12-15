@@ -453,7 +453,7 @@ bool msg_write(MessageType msg_id, const void *msg)
 #ifndef EMULATOR
 		while (usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_IN, tmp_buffer, 64) == 0) {};
 #else
-		emulatorSocketWrite(ENDPOINT_ADDRESS_IN, tmp_buffer, sizeof(tmp_buffer));
+		emulatorSocketWrite(0, tmp_buffer, sizeof(tmp_buffer));
 #endif
 	}
 
@@ -493,7 +493,7 @@ bool msg_debug_write(MessageType msg_id, const void *msg)
 #ifndef EMULATOR
 		while (usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_DEBUG_IN, tmp_buffer, 64) == 0) {};
 #else
-		emulatorSocketWrite(ENDPOINT_ADDRESS_DEBUG_IN, tmp_buffer, sizeof(tmp_buffer));
+		emulatorSocketWrite(1, tmp_buffer, sizeof(tmp_buffer));
 #endif
 	}
 
