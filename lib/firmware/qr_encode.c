@@ -30,28 +30,26 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+static int m_nLevel;
+static int m_nVersion;
+static int m_nMaskingNo;
+static int m_ncDataCodeWordBit, m_ncAllCodeWord, nEncodeVersion;
+static int m_ncDataBlock;
+static int m_nSymbleSize;
+static int m_nBlockLength[QR_MAX_DATACODEWORD];
+static uint8_t m_byModuleData[QR_MAX_MODULESIZE][QR_MAX_MODULESIZE]; // [x][y]
+static uint8_t m_byAllCodeWord[QR_MAX_ALLCODEWORD];
+static uint8_t m_byBlockMode[QR_MAX_DATACODEWORD];
+static uint8_t m_byDataCodeWord[QR_MAX_DATACODEWORD];
+static uint8_t m_byRSWork[QR_MAX_CODEBLOCK];
 
-int m_nLevel;
-int m_nVersion;
-int m_nMaskingNo;
-int m_ncDataCodeWordBit, m_ncAllCodeWord, nEncodeVersion;
-int m_ncDataBlock;
-int m_nSymbleSize;
-int m_nBlockLength[QR_MAX_DATACODEWORD];
-uint8_t m_byModuleData[QR_MAX_MODULESIZE][QR_MAX_MODULESIZE]; // [x][y]
-uint8_t m_byAllCodeWord[QR_MAX_ALLCODEWORD];
-uint8_t m_byBlockMode[QR_MAX_DATACODEWORD];
-uint8_t m_byDataCodeWord[QR_MAX_DATACODEWORD];
-uint8_t m_byRSWork[QR_MAX_CODEBLOCK];
-
-
-int IsNumeralData(uint8_t c)
+static int IsNumeralData(uint8_t c)
 {
 	if (c >= '0' && c <= '9') return 1;
 	return 0;
 }
 
-int IsAlphabetData(uint8_t c)
+static int IsAlphabetData(uint8_t c)
 {
 	if (c >= '0' && c <= '9') return 1;
 	if (c >= 'A' && c <= 'Z') return 1;
@@ -59,7 +57,7 @@ int IsAlphabetData(uint8_t c)
 	return 0;
 }
 
-uint8_t AlphabetToBinary(uint8_t c)
+static uint8_t AlphabetToBinary(uint8_t c)
 {
 	if (c >= '0' && c <= '9') return (uint8_t)(c - '0');
 	if (c >= 'A' && c <= 'Z') return (uint8_t)(c - 'A' + 10);
@@ -74,7 +72,7 @@ uint8_t AlphabetToBinary(uint8_t c)
 	return 44; // c == ':'
 }
 
-int SetBitStream(int nIndex, uint16_t wData, int ncData)
+static int SetBitStream(int nIndex, uint16_t wData, int ncData)
 {
 	int i;
 	if (nIndex == -1 || nIndex + ncData > QR_MAX_DATACODEWORD * 8) return -1;
@@ -86,7 +84,7 @@ int SetBitStream(int nIndex, uint16_t wData, int ncData)
 	return nIndex + ncData;
 }
 
-int GetBitLength(uint8_t nMode, int ncData, int nVerGroup)
+static int GetBitLength(uint8_t nMode, int ncData, int nVerGroup)
 {
 	int ncBits = 0;
 	switch (nMode) {
@@ -113,7 +111,7 @@ int GetBitLength(uint8_t nMode, int ncData, int nVerGroup)
 	return ncBits;
 }
 
-int EncodeSourceData(const char* lpsSource, int ncLength, int nVerGroup)
+static int EncodeSourceData(const char* lpsSource, int ncLength, int nVerGroup)
 {
 	memset(m_nBlockLength, 0, sizeof(m_nBlockLength));
 	int i, j;
@@ -438,7 +436,7 @@ int EncodeSourceData(const char* lpsSource, int ncLength, int nVerGroup)
 // Args: data mode type, data length, group version (model number)
 // Returns: data bit length
 
-int GetEncodeVersion(int nVersion, const char* lpsSource, int ncLength)
+static int GetEncodeVersion(int nVersion, const char* lpsSource, int ncLength)
 {
 	int nVerGroup = nVersion >= 27 ? QR_VERSION_L : (nVersion >= 10 ? QR_VERSION_M : QR_VERSION_S);
 	int i, j;
@@ -478,7 +476,7 @@ int GetEncodeVersion(int nVersion, const char* lpsSource, int ncLength)
 	return 0;
 }
 
-void GetRSCodeWord(uint8_t* lpbyRSWork, int ncDataCodeWord, int ncRSCodeWord)
+static void GetRSCodeWord(uint8_t* lpbyRSWork, int ncDataCodeWord, int ncRSCodeWord)
 {
 	int i, j;
 
@@ -508,7 +506,7 @@ void GetRSCodeWord(uint8_t* lpbyRSWork, int ncDataCodeWord, int ncRSCodeWord)
 	}
 }
 
-void SetFinderPattern(int x, int y)
+static void SetFinderPattern(int x, int y)
 {
 	static const uint8_t byPattern[] = {	0x7f,	// 1111111b
 											0x41,	// 1000001b
@@ -526,7 +524,7 @@ void SetFinderPattern(int x, int y)
 	}
 }
 
-void SetVersionPattern(void)
+static void SetVersionPattern(void)
 {
 	int i, j;
 
@@ -554,7 +552,7 @@ void SetVersionPattern(void)
 	}
 }
 
-void SetAlignmentPattern(int x, int y)
+static void SetAlignmentPattern(int x, int y)
 {
 	static const uint8_t byPattern[] = {	0x1f,	// 11111b
 											0x11,	// 10001b
@@ -576,7 +574,7 @@ void SetAlignmentPattern(int x, int y)
 	}
 }
 
-void SetFunctionModule(void)
+static void SetFunctionModule(void)
 {
 	int i, j;
 
@@ -621,7 +619,7 @@ void SetFunctionModule(void)
 	}
 }
 
-void SetCodeWordPattern(void)
+static void SetCodeWordPattern(void)
 {
 	int x = m_nSymbleSize;
 	int y = m_nSymbleSize - 1;
@@ -659,7 +657,7 @@ void SetCodeWordPattern(void)
 	}
 }
 
-void SetMaskingPattern(int nPatternNo)
+static void SetMaskingPattern(int nPatternNo)
 {
 	int i, j;
 
@@ -701,7 +699,7 @@ void SetMaskingPattern(int nPatternNo)
 	}
 }
 
-void SetFormatInfoPattern(int nPatternNo)
+static void SetFormatInfoPattern(int nPatternNo)
 {
 	int nFormatInfo;
 	int i;
@@ -751,7 +749,7 @@ void SetFormatInfoPattern(int nPatternNo)
 	}
 }
 
-int CountPenalty(void)
+static int CountPenalty(void)
 {
 	int nPenalty = 0;
 	int i, j, k;
@@ -877,7 +875,7 @@ int CountPenalty(void)
 	return nPenalty;
 }
 
-void FormatModule(void)
+static void FormatModule(void)
 {
 	int i, j;
 
@@ -924,7 +922,7 @@ void FormatModule(void)
 	}
 }
 
-void putBitToPos(uint32_t pos, int bw, uint8_t *bits)
+static void putBitToPos(uint32_t pos, int bw, uint8_t *bits)
 {
 	if (bw == 0) return;
 	uint32_t tmp;
@@ -941,7 +939,7 @@ void putBitToPos(uint32_t pos, int bw, uint8_t *bits)
 int qr_encode(int level, int version, const char *source, size_t source_len, uint8_t *result)
 {
 	int i, j;
-	const bool auto_extent = 1;
+	const bool auto_extent = 0;
 	m_nLevel = level;
 	m_nMaskingNo = -1;
 
@@ -978,13 +976,13 @@ int qr_encode(int level, int version, const char *source, size_t source_len, uin
 	// Terminator addition code "0000"
 	int ncDataCodeWord = QR_VersonInfo[m_nVersion].ncDataCodeWord[level];
 
-	int ncTerminater = (ncDataCodeWord * 8) - m_ncDataCodeWordBit;
-	if (ncTerminater < 4) {
-		ncTerminater = 4;
+	int ncTerminator = (ncDataCodeWord * 8) - m_ncDataCodeWordBit;
+	if (ncTerminator > 4) {
+		ncTerminator = 4;
 	}
 
-	if (ncTerminater > 0) {
-		m_ncDataCodeWordBit = SetBitStream(m_ncDataCodeWordBit, 0, ncTerminater);
+	if (ncTerminator > 0) {
+		m_ncDataCodeWordBit = SetBitStream(m_ncDataCodeWordBit, 0, ncTerminator);
 	}
 
 	// Additional padding code "11101100, 00010001"

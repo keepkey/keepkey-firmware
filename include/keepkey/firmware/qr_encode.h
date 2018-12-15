@@ -22,10 +22,13 @@
  * SOFTWARE.
  */
 
+#ifndef __QR_ENCODE_H__
+#define __QR_ENCODE_H__
 
 #include <stdlib.h>
 #include <stdint.h>
 
+// Constants
 
 // Error correction level
 #define QR_LEVEL_L         0    //  7% of codewords can be restored
@@ -70,7 +73,6 @@
 #define QR_MAX_BITDATA        ((QR_MAX_MODULESIZE * QR_MAX_MODULESIZE + 7) / 8)  // Maximum size of bit data
 #define QR_MAX_CODEBLOCK      153                                                // Maximum number of block data code word (including RS code word)
 
-
 //
 // * level - error correction level, use QR_LEVEL_? macros
 // * version - version of the code (1-40), use 0 for autodetection
@@ -81,3 +83,5 @@
 // * function returns the size of the square side
 //
 int qr_encode(int level, int version, const char *source, size_t source_len, uint8_t *result);
+
+#endif
