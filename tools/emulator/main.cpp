@@ -35,6 +35,7 @@ extern "C" {
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <signal.h>
 
 #define APP_VERSIONS "VERSION" \
                       VERSION_STR(MAJOR_VERSION)  "." \
@@ -53,6 +54,16 @@ static void exec(void)
 
 extern "C" {
 void fsm_init(void);
+}
+
+extern "C" {
+static volatile bool interrupted = false;
+static void sigintHandler(int sig_num) {
+    signal(SIGINT, sigintHandler);
+    printf("Quitting...\n");
+    fflush(stdout);
+    exit(0);
+}
 }
 
 int main(void)
@@ -77,8 +88,9 @@ int main(void)
 
     layoutHomeForced();
 
-    while(1)
-    {
+    signal(SIGINT, sigintHandler);
+
+    while (1) {
         delay_ms_with_callback(ONE_SEC, &exec, 1);
         increment_idle_time(ONE_SEC);
         toggle_screensaver();
