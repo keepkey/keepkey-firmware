@@ -43,6 +43,9 @@ CONFIDENTIAL Hasher hasher_unknown;
 
 static bool inited = false;
 static CONFIDENTIAL HDNode node;
+static CONFIDENTIAL HDNode root;
+static uint32_t address_n[8];
+static size_t address_n_count;
 static EosTxHeader header;
 static uint32_t actions_remaining = 0;
 static uint32_t unknown_total = 0;
@@ -133,6 +136,27 @@ bool eos_formatName(uint64_t name, char str[EOS_NAME_STR_SIZE]) {
     return true;
 }
 
+bool eos_derivePublicKey(const uint32_t *addr_n, size_t addr_n_count,
+                         uint8_t *public_key, size_t len) {
+    if (len < sizeof(node.public_key))
+        return false;
+
+    if (!eos_signingIsInited())
+        return false;
+
+    memcpy(&node, &root, sizeof(node));
+    if (hdnode_private_ckd_cached(&node, addr_n, addr_n_count, NULL) == 0) {
+        fsm_sendFailure(FailureType_Failure_Other, "Child key derivation failed");
+        eos_signingAbort();
+        return false;
+    }
+
+    hdnode_fill_public_key(&node);
+    memcpy(public_key, node.public_key, sizeof(node.public_key));
+    memzero(&node, sizeof(node));
+    return true;
+}
+
 bool eos_getPublicKey(const HDNode *n, const curve_info *curve, EosPublicKeyKind kind,
                       char *pubkey, size_t len) {
     (void)curve;
@@ -173,11 +197,15 @@ size_t eos_hashUInt(Hasher *hasher, uint64_t val) {
 }
 
 void eos_signingInit(const uint8_t *chain_id, uint32_t num_actions,
-                     const EosTxHeader *_header, const HDNode *_node) {
+                     const EosTxHeader *_header, const HDNode *_root,
+                     const uint32_t _address_n[8], size_t _address_n_count) {
     hasher_Init(&hasher_preimage, HASHER_SHA2);
 
     memcpy(&header, _header, sizeof(header));
-    memcpy(&node, _node, sizeof(node));
+    memzero(&node, sizeof(node));
+    memcpy(&root, _root, sizeof(root));
+    memcpy(address_n, _address_n, sizeof(address_n));
+    address_n_count = _address_n_count;
 
     hasher_Update(&hasher_preimage, chain_id, 32);
     hasher_Update(&hasher_preimage, (const uint8_t*)&header.expiration, 4);
@@ -219,6 +247,9 @@ void eos_signingAbort(void) {
     memzero(&hasher_unknown, sizeof(hasher_unknown));
     memzero(&header, sizeof(header));
     memzero(&node, sizeof(node));
+    memzero(&root, sizeof(root));
+    memzero(address_n, sizeof(address_n));
+    address_n_count = 0;
     actions_remaining = 0;
     unknown_remaining = 0;
     unknown_total = 0;
@@ -462,6 +493,13 @@ bool eos_signTx(EosSignedTx *tx) {
     tx->hash.size = 32;
     hasher_Final(&hasher_preimage, tx->hash.bytes);
 
+    memcpy(&node, &root, sizeof(node));
+    if (hdnode_private_ckd_cached(&node, address_n, address_n_count, NULL) == 0) {
+        fsm_sendFailure(FailureType_Failure_Other, "Child key derivation failed");
+        eos_signingAbort();
+        return false;
+    }
+
     uint8_t sig[64];
     uint8_t pby;
     if (ecdsa_sign_digest(&secp256k1, node.private_key, tx->hash.bytes, sig, &pby,
@@ -471,6 +509,7 @@ bool eos_signTx(EosSignedTx *tx) {
         return false;
     }
     memzero(&node, sizeof(node));
+    memzero(&root, sizeof(root));
 
     tx->has_signature_v = true;
     tx->signature_v = 27 + pby + /*compressed=*/4;

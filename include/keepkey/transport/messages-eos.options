@@ -22,5 +22,6 @@ EosAuthorization.keys                 max_count:16
 EosAuthorization.accounts             max_count:16
 EosAuthorization.waits                max_count:16
 
-EosAuthorizationKey.key               max_size:65
+EosAuthorizationKey.key               max_size:33
+EosAuthorizationKey.address_n         max_count:8
 

@@ -24,6 +24,7 @@
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/firmware/app_confirm.h"
+#include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/eos.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
@@ -429,14 +430,27 @@ static size_t eos_hashAuthorization(Hasher *h, const EosAuthorization *auth) {
 
     count += eos_hashUInt(h, auth->keys_count);
     for (size_t i = 0; i < auth->keys_count; i++) {
-        count += eos_hashUInt(NULL, auth->keys[i].type);
-        if (h) eos_hashUInt(h, auth->keys[i].type);
+        const EosAuthorizationKey *auth_key = &auth->keys[i];
 
-        count += auth->keys[i].key.size;
-        if (h) hasher_Update(h, auth->keys[i].key.bytes, auth->keys[i].key.size);
+        count += eos_hashUInt(NULL, auth_key->type);
+        if (h) eos_hashUInt(h, auth_key->type);
+
+        if (auth_key->address_n_count != 0) {
+            uint8_t public_key[33];
+            if (!eos_derivePublicKey(auth_key->address_n, auth_key->address_n_count,
+                                     public_key, sizeof(public_key))) {
+                return 0;
+            }
+
+            count += sizeof(public_key);
+            if (h) hasher_Update(h, public_key, sizeof(public_key));
+        } else {
+            count += auth_key->key.size;
+            if (h) hasher_Update(h, auth_key->key.bytes, auth_key->key.size);
+        }
 
         count += 2;
-        if (h) hasher_Update(h, (const uint8_t*)&auth->keys[i].weight, 2);
+        if (h) hasher_Update(h, (const uint8_t*)&auth_key->weight, 2);
     }
 
     count += eos_hashUInt(h, auth->accounts_count);
@@ -463,8 +477,61 @@ static size_t eos_hashAuthorization(Hasher *h, const EosAuthorization *auth) {
     return count;
 }
 
+static bool authorizationIsDeviceControlled(const EosAuthorization *auth) {
+    if (!auth->has_threshold || auth->threshold != 1)
+        return false;
+
+    if (auth->keys_count != 1)
+        return false;
+
+    if (auth->keys[0].key.size != 0)
+        return false;
+
+    if (auth->keys[0].address_n_count == 0)
+        return false;
+
+    if (auth->keys[0].weight != 1)
+        return false;
+
+    if (auth->waits_count != 0)
+        return false;
+
+    return true;
+}
+
 bool eos_compileAuthorization(const char *title, const EosAuthorization *auth) {
     CHECK_PARAM_RET(auth->has_threshold, "Required field missing", false);
+
+    if (authorizationIsDeviceControlled(auth)) {
+        const EosAuthorizationKey *auth_key = &auth->keys[0];
+
+        char node_str[NODE_STRING_LENGTH];
+        const CoinType *coin;
+        if ((coin = coinByName("EOS")) &&
+            !bip32_node_to_string(node_str, sizeof(node_str), coin,
+                                  auth_key->address_n,
+                                  auth_key->address_n_count,
+                                  /*whole_account=*/false) &&
+            !bip32_path_to_string(node_str, sizeof(node_str),
+                                  auth_key->address_n, auth_key->address_n_count)) {
+            memset(node_str, 0, sizeof(node_str));
+            fsm_sendFailure(FailureType_Failure_SyntaxError, "Cannot encode derived pubkey");
+            eos_signingAbort();
+            layoutHome();
+            return false;
+        }
+
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmEosAction,
+                     title, "Do you want to assign signing auth for %s to %s?",
+                     title, node_str)) {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Action Cancelled");
+            eos_signingAbort();
+            layoutHome();
+            return false;
+        }
+
+        return true;
+    }
 
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmEosAction,
                  title, "Require an authorization threshold of %" PRIu32 "?",
@@ -476,19 +543,40 @@ bool eos_compileAuthorization(const char *title, const EosAuthorization *auth) {
     }
 
     for (size_t i = 0; i < auth->keys_count; i++) {
-        CHECK_PARAM_RET(auth->keys[i].has_weight, "Required field missing", false);
+        const EosAuthorizationKey *auth_key = &auth->keys[i];
 
-        char pubkey[65];
-        if (!eos_publicKeyToWif(auth->keys[i].key.bytes, EosPublicKeyKind_EOS, pubkey, sizeof(pubkey))) {
-            fsm_sendFailure(FailureType_Failure_SyntaxError, "Cannot encode pubkey");
-            eos_signingAbort();
-            layoutHome();
-            return false;
+        CHECK_PARAM_RET(auth_key->has_weight, "Required field missing", false);
+        CHECK_PARAM_RET((auth_key->key.size == 33) ^ (auth_key->address_n_count != 0),
+                        "Required field missing", false);
+
+        char pubkey[MAX(65, NODE_STRING_LENGTH)];
+        if (auth_key->key.size != 0) {
+            if (!eos_publicKeyToWif(auth_key->key.bytes, EosPublicKeyKind_EOS, pubkey, sizeof(pubkey))) {
+                fsm_sendFailure(FailureType_Failure_SyntaxError, "Cannot encode pubkey");
+                eos_signingAbort();
+                layoutHome();
+                return false;
+            }
+        } else {
+            const CoinType *coin;
+            if ((coin = coinByName("EOS")) &&
+                !bip32_node_to_string(pubkey, sizeof(pubkey), coin,
+                                      auth_key->address_n,
+                                      auth_key->address_n_count,
+                                      /*whole_account=*/false) &&
+                !bip32_path_to_string(pubkey, sizeof(pubkey),
+                                      auth_key->address_n, auth_key->address_n_count)) {
+                memset(pubkey, 0, sizeof(pubkey));
+                fsm_sendFailure(FailureType_Failure_SyntaxError, "Cannot encode derived pubkey");
+                eos_signingAbort();
+                layoutHome();
+                return false;
+            }
         }
 
         if (!confirm(ButtonRequestType_ButtonRequest_ConfirmEosAction,
                      title, "Key #%" PRIu8 ":\n%s\nWeight: %" PRIu16,
-                     (uint8_t)(i + 1), pubkey, (uint16_t)auth->keys[i].weight)) {
+                     (uint8_t)(i + 1), pubkey, (uint16_t)auth_key->weight)) {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Action Cancelled");
             eos_signingAbort();
             layoutHome();
@@ -533,7 +621,8 @@ bool eos_compileAuthorization(const char *title, const EosAuthorization *auth) {
         }
     }
 
-    (void)eos_hashAuthorization(&hasher_preimage, auth);
+    if (!eos_hashAuthorization(&hasher_preimage, auth))
+        return false;
 
     return true;
 }
@@ -573,7 +662,10 @@ bool eos_compileActionUpdateAuth(const EosActionCommon *common,
     CHECK_PARAM_RET(eos_compileActionCommon(common),
                     "Cannot compile ActionCommon", false);
 
-    size_t size = 8 + 8 + 8 + eos_hashAuthorization(NULL, &action->auth);
+    size_t auth_size = eos_hashAuthorization(NULL, &action->auth);
+    CHECK_PARAM_RET(0 < auth_size, "EosAuthorization hash failed", false);
+
+    size_t size = 8 + 8 + 8 + auth_size;
     eos_hashUInt(&hasher_preimage, size);
 
     hasher_Update(&hasher_preimage, (const uint8_t*)&action->account, 8);
@@ -721,6 +813,12 @@ bool eos_compileActionNewAccount(const EosActionCommon *common,
     CHECK_PARAM_RET(action->has_owner, "Required field missing", false);
     CHECK_PARAM_RET(action->has_active, "Required field missing", false);
 
+    CHECK_PARAM_RET(authorizationIsDeviceControlled(&action->owner),
+                    "Bad owner permissions", false);
+
+    CHECK_PARAM_RET(authorizationIsDeviceControlled(&action->active),
+                    "Bad active permissions", false);
+
     char creator[EOS_NAME_STR_SIZE];
     CHECK_PARAM_RET(eos_formatName(action->creator, creator),
                     "Invalid name", false);
@@ -741,8 +839,13 @@ bool eos_compileActionNewAccount(const EosActionCommon *common,
     CHECK_PARAM_RET(eos_compileActionCommon(common),
                     "Cannot compile ActionCommon", false);
 
-    size_t size = 8 + 8 + eos_hashAuthorization(NULL, &action->owner) +
-                  eos_hashAuthorization(NULL, &action->active);
+    size_t owner_size = eos_hashAuthorization(NULL, &action->owner);
+    CHECK_PARAM_RET(0 < owner_size, "EosAuthorization hash failed", false);
+
+    size_t active_size = eos_hashAuthorization(NULL, &action->active);
+    CHECK_PARAM_RET(0 < active_size, "EosAuthorization hash failed", false);
+
+    size_t size = 8 + 8 + owner_size + active_size;
     eos_hashUInt(&hasher_preimage, size);
 
     hasher_Update(&hasher_preimage, (const uint8_t*)&action->creator, 8);

@@ -87,12 +87,12 @@ void fsm_msgEosSignTx(const EosSignTx *msg) {
 
     CHECK_PIN_TXSIGN
 
-    uint32_t fingerprint;
-    HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, &fingerprint);
-    if (!node) return;
-    hdnode_fill_public_key(node);
+    HDNode *root = fsm_getDerivedNode(SECP256K1_NAME, 0, 0, NULL);
+    if (!root) return;
+    hdnode_fill_public_key(root);
 
-    eos_signingInit(msg->chain_id.bytes, msg->num_actions, &msg->header, node);
+    eos_signingInit(msg->chain_id.bytes, msg->num_actions, &msg->header,
+                    root, msg->address_n, msg->address_n_count);
 
     RESP_INIT(EosTxActionRequest);
     msg_write(MessageType_MessageType_EosTxActionRequest, resp);
