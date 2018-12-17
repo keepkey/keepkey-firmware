@@ -87,6 +87,9 @@ void fsm_msgEosSignTx(const EosSignTx *msg) {
 
     CHECK_PIN_TXSIGN
 
+    CHECK_PARAM(storage_isPolicyEnabled("Experimental"),
+                "EOS support is experimental. Use at your own risk.");
+
     HDNode *root = fsm_getDerivedNode(SECP256K1_NAME, 0, 0, NULL);
     if (!root) return;
     hdnode_fill_public_key(root);
