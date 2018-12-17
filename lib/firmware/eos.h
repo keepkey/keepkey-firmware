@@ -1,7 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2015 KeepKey LLC
+ * Copyright (C) 2018 KeepKey
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -17,24 +17,22 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef INTERFACE_H
-#define INTERFACE_H
+#ifndef LIB_FIRMWARE_EOS_H
+#define LIB_FIRMWARE_EOS_H
 
-// Allow this file to be used from C++ by renaming an unfortunately named field:
-#define delete del
-#include "messages.pb.h"
-#undef delete
+#include "trezor/crypto/hasher.h"
 
-#include "messages-eos.pb.h"
+#define CHECK_PARAM_RET(cond, errormsg, retval) \
+    if (!(cond)) { \
+        fsm_sendFailure(FailureType_Failure_Other, (errormsg)); \
+        layoutHome(); \
+        return retval; \
+    }
 
-#include "types.pb.h"
-#include "trezor_transport.h"
+#define MAX(a, b) ({ typeof(a) _a = (a); typeof(b) _b = (b); _a > _b ? _a : _b; })
+#define MIN(a, b) ({ typeof(a) _a = (a); typeof(b) _b = (b); _a < _b ? _a : _b; })
 
-#ifndef EMULATOR
-/* The max size of a decoded protobuf */
-#  define MAX_DECODE_SIZE (13 * 1024)
-#else
-#  define MAX_DECODE_SIZE (26 * 1024)
-#endif
+extern CONFIDENTIAL Hasher hasher_preimage;
 
 #endif
+
