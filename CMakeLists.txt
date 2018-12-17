@@ -36,6 +36,10 @@ if(NOT EXISTS ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto/Makefile)
     message(ERROR "Need to 'git submodule update --init --recursive")
 endif()
 
+if(NOT EXISTS ${CMAKE_SOURCE_DIR}/deps/qrenc/trezor-qrenc/Makefile)
+    message(ERROR "Need to 'git submodule update --init --recursive")
+endif()
+
 find_program(NANOPB_GENERATOR nanopb_generator.py)
 if(${KK_EMULATOR} AND NOT NANOPB_GENERATOR)
     message(ERROR "Must install nanopb 0.2.9.2, and put nanopb-nanopb-0.2.9.2/generator on your PATH")
@@ -124,6 +128,7 @@ endif()
 add_subdirectory(lib)
 add_subdirectory(tools)
 add_subdirectory(deps/crypto)
+add_subdirectory(deps/qrenc)
 
 if(${KK_EMULATOR})
   add_subdirectory(deps/googletest)
