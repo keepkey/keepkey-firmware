@@ -382,16 +382,21 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
     if (address_n_count != 3 && address_n_count != 5)
         return false;
 
-    // Don't display this way for change addresses, discouraging their use in GetAddress.
     if (!whole_account) {
         if (address_n_count != 5)
             return false;
 
-        if (address_n[3] != 0)
+        // Don't display this way for change addresses,
+        // discouraging their use in GetAddress.
+        if (address_n[3] != 0 &&
+            !coin_isSLIP48(coin, address_n, address_n_count, SLIP48_owner) &&
+            !coin_isSLIP48(coin, address_n, address_n_count, SLIP48_active))
             return false;
     }
 
-    if (path_mismatched(coin, address_n, address_n_count, whole_account))
+    if (path_mismatched(coin, address_n, address_n_count, whole_account) &&
+        !coin_isSLIP48(coin, address_n, address_n_count, SLIP48_owner) &&
+        !coin_isSLIP48(coin, address_n, address_n_count, SLIP48_active))
         return false;
 
     const char *prefix = account_prefix(coin, address_n, address_n_count, whole_account);
@@ -405,6 +410,12 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
     if (whole_account || isEthereumLike(coin_name)) {
         snprintf(node_str, len, "%s%s Account #%" PRIu32, prefix, coin_name,
                  address_n[2] & 0x7ffffff);
+    } else if (coin_isSLIP48(coin, address_n, address_n_count, SLIP48_owner)) {
+        snprintf(node_str, len, "%s%s Account #%" PRIu32 " @owner", prefix, coin_name,
+                 address_n[3] & 0x7ffffff);
+    } else if (coin_isSLIP48(coin, address_n, address_n_count, SLIP48_active)) {
+        snprintf(node_str, len, "%s%s Account #%" PRIu32 " @active", prefix, coin_name,
+                 address_n[3] & 0x7ffffff);
     } else {
         snprintf(node_str, len, "%s%s Account #%" PRIu32 "\nAddress #%" PRIu32, prefix, coin_name,
                  address_n[2] & 0x7ffffff, address_n[4]);
@@ -422,4 +433,62 @@ bool isEthereumLike(const char *coin_name)
         return true;
 
     return false;
+}
+
+static bool role_matches(uint32_t address_n_role, SLIP48Role role) {
+    switch (role) {
+    case SLIP48_owner:
+        return address_n_role == (0x80000000 | 0x0);
+
+    case SLIP48_active:
+        return address_n_role == (0x80000000 | 0x1);
+
+    case SLIP48_memo:
+        return address_n_role == (0x80000000 | 0x3);
+
+    case SLIP48_posting:
+        return address_n_role == (0x80000000 | 0x4);
+
+    case SLIP48_UNKNOWN:
+        return false;
+    }
+
+#ifdef DEBUG_ON
+    __builtin_unreachable();
+#else
+    return false;
+#endif
+}
+
+bool coin_isSLIP48(const CoinType *coin, const uint32_t *address_n,
+                   size_t address_n_count, SLIP48Role role) {
+
+    // Assume EOS for now. We'll expand this as we add more graphene coins.
+    if (strncmp(coin->coin_name, "EOS", sizeof(coin->coin_name)))
+        return false;
+
+    if (address_n_count < 5)
+        return false;
+
+    // Purpose
+    if (address_n[address_n_count - 5] != (0x80000000 | 48))
+        return false;
+
+    // Network
+    if (address_n[address_n_count - 4] != (0x80000000 | /*EOS=*/4))
+        return false;
+
+    // Role
+    if (!role_matches(address_n[address_n_count - 3], role))
+        return false;
+
+    // Account Index
+    if (!(address_n[address_n_count - 2] & 0x80000000))
+        return false;
+
+    // Key Index
+    if (!(address_n[address_n_count - 1] & 0x80000000))
+        return false;
+
+    return true;
 }
