@@ -39,7 +39,6 @@
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
-#include "keepkey/firmware/u2f.h"
 #include "keepkey/rand/rng.h"
 #include "trezor/crypto/rand.h"
 
@@ -47,6 +46,7 @@
 #include <stdint.h>
 
 void mmhisr(void);
+void u2fInit(void);
 
 #define APP_VERSIONS "VERSION" \
                       VERSION_STR(MAJOR_VERSION)  "." \

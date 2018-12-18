@@ -50,6 +50,8 @@
 #include <string.h>
 #include <stdint.h>
 
+#define U2F_KEY_PATH 0x80553246
+
 static bool sessionSeedCached, sessionSeedUsesPassphrase;
 static uint8_t CONFIDENTIAL sessionSeed[64];
 
