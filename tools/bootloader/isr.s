@@ -354,7 +354,7 @@ mem_manage_handler:
     ldr     r0, =mmfar_reg 
     ldr     r1, [r0, #0]
 #else
-    xor     r1, r1
+    eor     r1, r1
 #endif
     ldr     r0, =_param_1
     str     r1, [r0]
@@ -384,7 +384,7 @@ m_continue:
 #ifdef DEBUG_ON
     mov   r1, r10            // pc
 #else
-    xor   r1, r1
+    eor   r1, r1
 #endif
     ldr   r2, =_param_2
     str   r1, [r2]
