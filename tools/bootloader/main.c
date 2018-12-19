@@ -76,7 +76,7 @@ void memory_getDeviceSerialNo(char *str, size_t len) {
 #else
     // Storage isn't available to be read by the bootloader, and we don't want
     // to use the Serial No. baked into the STM32 for privacy reasons.
-    memset(str, 0, len);
+    strlcpy(str, "000000000000000000000000", len);
 #endif
 }
 
