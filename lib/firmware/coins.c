@@ -70,7 +70,6 @@ const CoinType coins[COINS_COUNT] = {
     {true, "ZCash",        true, "ZEC",   true, 7352,   true,    1000000,  true, 7357, false, 0,  false, 0,  true, "\x16" "ZCash Signed Message:\n",         true, 0x80000085,   false,   0,     true,   8,  false, {0, {0}},  false, {0, {0}},  true, 76067358,  true, 76066276,  false, false, false, false, true, SECP256K1_STRING,  false, "",            false, "",     false, false,  true, 63210096,   false,        0,        false,       0 },
     {true, "Zcash Testnet",true, "TAZ",   true, 7461,   true,   10000000,  true, 7354, false, 0,  false, 0,  true, "\x16" "Zcash Signed Message:\n",         true, 0x80000085,   false,   0,     true,   8,  false, {0, {0}},  false, {0, {0}},  true, 70617039,  true, 70615956,  false, false, false, false, true, SECP256K1_STRING,  false, "",            false, "",     false, false,  true, 63210096,   false,        0,        false,       0 },
     {true, "DigiByte",     true, "DGB",   true,  30,    true,     500000,  true,  63,  false, 0,  false, 0,  true, "\x19" "DigiByte Signed Message:\n",      true, 0x80000014,   false,   0,     true,   8,  false, {0, {0}},  false, {0, {0}},  true, 76067358,  true, 76066276,  true, true,   false, false, true, SECP256K1_STRING,  false, "",            true, "dgb",   false, false,  false, 0,         false,        0,        false,       0 },
-    {true, "EOS",          true, "EOS",   false, NA,    false,         0,  false, NA,  false, 0,  false, 0,  false, {0},                                     true, 0x800000c2,   false,   0,     false,  0,  false, {0, {0}},  false, {0, {0}},  false, 0,        false, 0,        false, false, false, false, true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false, 0,         false,        0,        false,       0 },
     #include "keepkey/firmware/tokens.def"
 };
 
@@ -354,9 +353,8 @@ static const char *account_prefix(const CoinType *coin,
     return NULL;
 }
 
-bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
-                          const uint32_t *address_n, size_t address_n_count,
-                          bool whole_account)
+bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin, const uint32_t *address_n,
+                          size_t address_n_count, bool whole_account)
 {
     if (address_n_count != 3 && address_n_count != 5)
         return false;

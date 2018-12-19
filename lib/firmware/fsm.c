@@ -36,8 +36,6 @@
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
-#include "keepkey/firmware/eos.h"
-#include "keepkey/firmware/eos-contracts.h"
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/exchange.h"
@@ -67,7 +65,6 @@
 #include "trezor/crypto/secp256k1.h"
 
 #include "messages.pb.h"
-#include "messages-eos.pb.h"
 
 #include <stdio.h>
 
@@ -99,15 +96,12 @@ static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
         return; \
     }
 
-#define CHECK_PARAM_RET(cond, errormsg, retval) \
+#define CHECK_PARAM(cond, errormsg) \
     if (!(cond)) { \
         fsm_sendFailure(FailureType_Failure_Other, (errormsg)); \
         layoutHome(); \
-        return retval; \
+        return; \
     }
-
-#define CHECK_PARAM(cond, errormsg) \
-    CHECK_PARAM_RET(cond, errormsg, )
 
 static const MessagesMap_t MessagesMap[] = {
 #include "messagemap.def"
@@ -153,7 +147,7 @@ static const CoinType *fsm_getCoin(bool has_name, const char *name)
     return coin;
 }
 
-static HDNode *fsm_getDerivedNode(const char *curve, const uint32_t *address_n, size_t address_n_count, uint32_t *fingerprint)
+static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t address_n_count, uint32_t *fingerprint)
 {
     static HDNode CONFIDENTIAL node;
     if (fingerprint) {
@@ -274,4 +268,3 @@ void fsm_msgClearSession(ClearSession *msg)
 #include "fsm_msg_ethereum.h"
 #include "fsm_msg_crypto.h"
 #include "fsm_msg_debug.h"
-#include "fsm_msg_eos.h"

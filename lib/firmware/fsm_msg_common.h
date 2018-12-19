@@ -3,8 +3,6 @@ void fsm_msgInitialize(Initialize *msg)
     (void)msg;
     recovery_abort(false);
     signing_abort();
-    ethereum_signing_abort();
-    eos_signingAbort();
     session_clear(false); // do not clear PIN
     layoutHome();
     fsm_msgGetFeatures(0);
@@ -382,7 +380,6 @@ void fsm_msgCancel(Cancel *msg)
     recovery_abort(true);
     signing_abort();
     ethereum_signing_abort();
-    eos_signingAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Aborted");
 }
 

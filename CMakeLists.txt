@@ -133,7 +133,6 @@ add_subdirectory(deps/qrenc)
 if(${KK_EMULATOR})
   add_subdirectory(deps/googletest)
   add_subdirectory(unittests)
-  add_subdirectory(fuzzer)
 
   enable_testing()
   add_test(test-firmware ${CMAKE_BINARY_DIR}/bin/firmware-unit)

@@ -25,8 +25,6 @@
 #include "messages.pb.h"
 #undef delete
 
-#include "messages-eos.pb.h"
-
 #include "types.pb.h"
 #include "trezor_transport.h"
 

@@ -46,5 +46,5 @@ bool confirm_address(const char *desc, const char *address);
 bool confirm_xpub(const char *node_str, const char *xpub);
 bool confirm_sign_identity(const IdentityType *identity, const char *challenge);
 bool confirm_ethereum_address(const char *desc, const char *address);
-bool confirm_data(ButtonRequestType button_request, const char *title, const uint8_t *data, uint32_t size);
+bool confirm_op_return(const uint8_t *data, uint32_t size);
 #endif
