@@ -212,7 +212,6 @@ static Animation *animation_queue_get(AnimationQueue *queue, AnimateCallback cal
     return(result);
 }
 
-/* === Functions =========================================================== */
 
 /*
  * layout_init() - Initialize layout subsystem

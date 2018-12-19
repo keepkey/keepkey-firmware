@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #ifndef STORAGEPB_H
 #define STORAGEPB_H

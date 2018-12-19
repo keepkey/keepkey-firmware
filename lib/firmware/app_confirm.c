@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 
 #if !defined(EMULATOR)
@@ -31,15 +30,16 @@
 #include "keepkey/board/keepkey_button.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/layout.h"
-#include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/messages.h"
 #include "keepkey/board/confirm_sm.h"
-#include "keepkey/board/usb_driver.h"
+#include "keepkey/board/usb.h"
+#include "keepkey/board/util.h"
 
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/app_layout.h"
-#include "keepkey/firmware/qr_encode.h"
 #include "keepkey/firmware/coins.h"
-#include "keepkey/firmware/util.h"
+
+#include "trezor/qrenc/qr_encode.h"
 
 #include <assert.h>
 #include <stdarg.h>
@@ -49,7 +49,6 @@
 #include <stdio.h>
 #include <string.h>
 
-/* === Functions =========================================================== */
 
 /*
  * confirm_cipher() - Show cipher confirmation
@@ -252,14 +251,12 @@ bool confirm_transaction_output_no_bold(ButtonRequestType button_request,
  */
 bool confirm_transaction(const char *total_amount, const char *fee)
 {
-    if(strcmp(fee, "0.0 BTC") == 0)
-    {
+    if (!fee || strcmp(fee, "0.0 BTC") == 0) {
         return confirm(ButtonRequestType_ButtonRequest_SignTx,
-                       "Transaction", "Do you want to send %s from your wallet?",
+                       "Transaction",
+                       "Do you want to send %s from your wallet?",
                        total_amount);
-    }
-    else
-    {
+    } else {
         return confirm(ButtonRequestType_ButtonRequest_SignTx,
                        "Transaction",
                        "Do you want to send %s from your wallet? This includes a transaction fee of %s.",
@@ -414,7 +411,8 @@ bool is_valid_ascii(const uint8_t *data, uint32_t size)
 	return true;
 }
 
-bool confirm_op_return(const uint8_t *data, uint32_t size)
+bool confirm_data(ButtonRequestType button_request, const char *title,
+                  const uint8_t *data, uint32_t size)
 {
 	const char *str = (const char *)data;
 	char hex[50 * 2 + 1];
@@ -429,6 +427,5 @@ bool confirm_op_return(const uint8_t *data, uint32_t size)
 		}
 		str = hex;
 	}
-	return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Confirm OP_RETURN",
-	               "%s", str);
+	return confirm(button_request, title, "%s", str);
 }

@@ -5,26 +5,31 @@ set(sources
 set(protoc_pb_sources
     ${DEVICE_PROTOCOL}/types.proto
     ${DEVICE_PROTOCOL}/exchange.proto
+    ${DEVICE_PROTOCOL}/messages-eos.proto
     ${DEVICE_PROTOCOL}/messages.proto)
 
 set(protoc_pb_options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/types.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/exchange.options
+    ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-eos.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages.options)
 
 set(protoc_c_sources
     ${CMAKE_BINARY_DIR}/lib/transport/types.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/exchange.pb.c
+    ${CMAKE_BINARY_DIR}/lib/transport/messages-eos.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages.pb.c)
 
 set(protoc_c_headers
     ${CMAKE_BINARY_DIR}/include/types.pb.h
     ${CMAKE_BINARY_DIR}/include/exchange.pb.h
+    ${CMAKE_BINARY_DIR}/include/messages-eos.pb.h
     ${CMAKE_BINARY_DIR}/include/messages.pb.h)
 
 set(protoc_pb_sources_moved
     ${CMAKE_BINARY_DIR}/lib/transport/types.proto
     ${CMAKE_BINARY_DIR}/lib/transport/exchange.proto
+    ${CMAKE_BINARY_DIR}/lib/transport/messages-eos.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages.proto)
 
 add_custom_command(
@@ -54,6 +59,10 @@ add_custom_command(
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
       "--nanopb_out=-f exchange.options:." exchange.proto
+  COMMAND
+    ${PROTOC_BINARY} -I. -I/usr/include
+      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      "--nanopb_out=-f messages-eos.options:." messages-eos.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb

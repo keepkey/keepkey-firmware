@@ -17,21 +17,16 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #ifndef EMULATOR
 #  include <libopencm3/cm3/scb.h>
 #endif
 
-#include "keepkey/firmware/util.h"
+#include "keepkey/board/util.h"
 
 #include <inttypes.h>
 
-/* === Private Variables =================================================== */
-
 static const char *hexdigits = "0123456789ABCDEF";
-
-/* === Functions =========================================================== */
 
 void uint32hex(uint32_t num, char *str)
 {

@@ -21,7 +21,7 @@
 #define FSM_H
 
 #include "keepkey/transport/interface.h"
-#include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/messages.h"
 
 #define RESP_INIT(TYPE) \
     TYPE *resp = (TYPE *)msg_resp; \
@@ -85,6 +85,10 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage *msg);
 void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg);
 void fsm_msgCharacterAck(CharacterAck *msg);
 void fsm_msgApplyPolicies(ApplyPolicies *msg);
+
+void fsm_msgEosGetPublicKey(const EosGetPublicKey *msg);
+void fsm_msgEosSignTx(const EosSignTx *msg);
+void fsm_msgEosTxActionAck(const EosTxActionAck *msg);
 
 #if DEBUG_LINK
 //void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);

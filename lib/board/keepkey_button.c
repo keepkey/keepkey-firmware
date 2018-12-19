@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #ifndef EMULATOR
 #  include <libopencm3/stm32/rcc.h>
@@ -33,7 +32,6 @@
 
 #include <stddef.h>
 
-/* === Private Variables =================================================== */
 
 static Handler on_press_handler     = NULL;
 static Handler on_release_handler   = NULL;
@@ -49,7 +47,6 @@ static const uint32_t BUTTON_EXTI   = EXTI7;
 
 #endif
 
-/* === Functions =========================================================== */
 
 
 void kk_keepkey_button_init(void)

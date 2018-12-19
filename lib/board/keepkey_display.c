@@ -267,7 +267,6 @@ static void display_write_ram(uint8_t val)
 #endif
 }
 
-/* === Functions =========================================================== */
 
 /*
  * display_canvas_init() - Display canvas initialization

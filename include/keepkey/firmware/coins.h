@@ -26,7 +26,7 @@
 #define ETHEREUM        "Ethereum"
 #define ETHEREUM_CLS    "Ethereum Classic"
 
-#define COINS_COUNT         60
+#define COINS_COUNT         62
 #define NODE_STRING_LENGTH  50
 
 #define COIN_FRACTION 100000000
@@ -54,9 +54,9 @@ bool bip32_path_to_string(char *str, size_t len, const uint32_t *address_n, size
  * \param[in]   whole_account    true iff address_n refers to an entire account (not just an address)
  * \returns true iff the path matches a known bip44/bip49/bip84/etc account
  */
-bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin, uint32_t *address_n,
-                          size_t address_n_count, bool whole_account);
-
+bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
+                          const uint32_t *address_n, size_t address_n_count,
+                          bool whole_account);
 
 /// \returns true iff the coin_name is for an eth-like coin.
 bool isEthereumLike(const char *coin_name);

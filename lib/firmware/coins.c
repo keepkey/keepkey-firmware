@@ -18,7 +18,8 @@
  */
 
 #include "keepkey/firmware/coins.h"
-#include "keepkey/firmware/util.h"
+
+#include "keepkey/board/util.h"
 
 #include <inttypes.h>
 #include <string.h>
@@ -33,8 +34,8 @@ true, (#SYMBOL),                   /* has_coin_shortcut, coin_shortcut*/ \
 false, NA,                         /* has_address_type, address_type*/ \
 true, 100000,                      /* has_maxfee_kb, maxfee_kb*/ \
 false, NA,                         /* has_address_type_p2sh, address_type_p2sh*/ \
-false, 0,                          /* has_address_type_p2wpkh, address_type_p2wpkh*/ \
-false, 0,                          /* has_address_type_p2wsh, address_type_p2wsh*/ \
+false, 0,                          /* has_address_type_p2wpkh, address_type_p2wpkh (unused)*/ \
+false, 0,                          /* has_address_type_p2wsh, address_type_p2wsh (unused)*/ \
 false, "",                         /* has_signed_message_header, signed_message_header*/ \
 true, 0x8000003C,                  /* has_bip44_account_path, bip44_account_path*/ \
 true, 1,                           /* has_forkid, forkid*/ \
@@ -56,8 +57,8 @@ false, 0,                          /* has_xpub_magic_segwit_native, xpub_magic_s
 
 const CoinType coins[COINS_COUNT] = {
 //   coin_name             coin_shortcut  address_type  maxfee_kb          p2sh        p2wpkh     p2wsh      signed_message_header                           bip44_account_path  forkid/chain_id decimals    contract_address  gas_limit         xpub_magic       xprv_magic       segwit        force_bip143  curve_name               cashaddr_prefix       bech32_prefix  decred         version_group_id  xpub_magic_segwit_p2sh  xpub_mmagic_segwit_native
-    {true, "Bitcoin",      true, "BTC",   true,   0,    true,     100000,  true,   5,  true,  6,  true, 10,  true, "\x18" "Bitcoin Signed Message:\n",       true, 0x80000000,   false,   0,     true,   8,  false, {0, {0}},  false, {0, {0}},  true, 76067358,  true, 76066276,  true, true,   true, false,  true, SECP256K1_STRING,  false, "",            true, "bc",    false, false,  false, 0,         true,  77429938,        true, 78792518 },
-    {true, "Testnet",      true, "TEST",  true, 111,    true,   10000000,  true, 196,  true,  3,  true, 40,  true, "\x18" "Bitcoin Signed Message:\n",       true, 0x80000001,   false,   0,     true,   8,  false, {0, {0}},  false, {0, {0}},  true, 70617039,  true, 70615956,  true, true,   true, false,  true, SECP256K1_STRING,  false, "",            true, "tb",    false, false,  false, 0,         true,  71979618,        true, 73342198 },
+    {true, "Bitcoin",      true, "BTC",   true,   0,    true,     100000,  true,   5,  false, 0,  false, 0,  true, "\x18" "Bitcoin Signed Message:\n",       true, 0x80000000,   false,   0,     true,   8,  false, {0, {0}},  false, {0, {0}},  true, 76067358,  true, 76066276,  true, true,   true, false,  true, SECP256K1_STRING,  false, "",            true, "bc",    false, false,  false, 0,         true,  77429938,        true, 78792518 },
+    {true, "Testnet",      true, "TEST",  true, 111,    true,   10000000,  true, 196,  false, 0,  false, 0,  true, "\x18" "Bitcoin Signed Message:\n",       true, 0x80000001,   false,   0,     true,   8,  false, {0, {0}},  false, {0, {0}},  true, 70617039,  true, 70615956,  true, true,   true, false,  true, SECP256K1_STRING,  false, "",            true, "tb",    false, false,  false, 0,         true,  71979618,        true, 73342198 },
     {true, "BitcoinCash",  true, "BCH",   true,   0,    true,     500000,  true,   5,  false, 0,  false, 0,  true, "\x18" "Bitcoin Signed Message:\n",       true, 0x80000091,   true,    0,     true,   8,  false, {0, {0}},  false, {0, {0}},  true, 76067358,  true, 76066276,  true, false,  true, true,   true, SECP256K1_STRING,  true, "bitcoincash",  false, "",     false, false,  false, 0,         false,        0,        false,       0 },
     {true, "Namecoin",     true, "NMC",   true,  52,    true,   10000000,  true,   5,  false, 0,  false, 0,  true, "\x19" "Namecoin Signed Message:\n",      true, 0x80000007,   false,   0,     true,   8,  false, {0, {0}},  false, {0, {0}},  true, 27108450,  true, 27106558,  true, false,  true, false,  true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false, 0,         false,        0,        false,       0 },
     {true, "Litecoin",     true, "LTC",   true,  48,    true,    1000000,  true,  50,  false, 0,  false, 0,  true, "\x19" "Litecoin Signed Message:\n",      true, 0x80000002,   false,   0,     true,   8,  false, {0, {0}},  false, {0, {0}},  true, 27108450,  true, 27106558,  true, true,   true, false,  true, SECP256K1_STRING,  false, "",            true, "ltc",   false, false,  false, 0,         false,        0,        false,       0 },
@@ -68,6 +69,8 @@ const CoinType coins[COINS_COUNT] = {
     {true, "BitcoinGold",  true, "BTG",   true,  38,    true,     500000,  true,  23,  false, 0,  false, 0,  true, "\x1d" "Bitcoin Gold Signed Message:\n",  true, 0x8000009c,   true,   79,     true,   8,  false, {0, {0}},  false, {0, {0}},  true, 76067358,  true, 76066276,  true, true,   true, true,   true, SECP256K1_STRING,  false, "",            true, "btg",   false, false,  false, 0,         true,  77429938,        false,       0 },
     {true, "ZCash",        true, "ZEC",   true, 7352,   true,    1000000,  true, 7357, false, 0,  false, 0,  true, "\x16" "ZCash Signed Message:\n",         true, 0x80000085,   false,   0,     true,   8,  false, {0, {0}},  false, {0, {0}},  true, 76067358,  true, 76066276,  false, false, false, false, true, SECP256K1_STRING,  false, "",            false, "",     false, false,  true, 63210096,   false,        0,        false,       0 },
     {true, "Zcash Testnet",true, "TAZ",   true, 7461,   true,   10000000,  true, 7354, false, 0,  false, 0,  true, "\x16" "Zcash Signed Message:\n",         true, 0x80000085,   false,   0,     true,   8,  false, {0, {0}},  false, {0, {0}},  true, 70617039,  true, 70615956,  false, false, false, false, true, SECP256K1_STRING,  false, "",            false, "",     false, false,  true, 63210096,   false,        0,        false,       0 },
+    {true, "DigiByte",     true, "DGB",   true,  30,    true,     500000,  true,  63,  false, 0,  false, 0,  true, "\x19" "DigiByte Signed Message:\n",      true, 0x80000014,   false,   0,     true,   8,  false, {0, {0}},  false, {0, {0}},  true, 76067358,  true, 76066276,  true, true,   false, false, true, SECP256K1_STRING,  false, "",            true, "dgb",   false, false,  false, 0,         false,        0,        false,       0 },
+    {true, "EOS",          true, "EOS",   false, NA,    false,         0,  false, NA,  false, 0,  false, 0,  false, {0},                                     true, 0x800000c2,   false,   0,     false,  0,  false, {0, {0}},  false, {0, {0}},  false, 0,        false, 0,        false, false, false, false, true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false, 0,         false,        0,        false,       0 },
     #include "keepkey/firmware/tokens.def"
 };
 
@@ -351,8 +354,9 @@ static const char *account_prefix(const CoinType *coin,
     return NULL;
 }
 
-bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin, uint32_t *address_n,
-                          size_t address_n_count, bool whole_account)
+bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
+                          const uint32_t *address_n, size_t address_n_count,
+                          bool whole_account)
 {
     if (address_n_count != 3 && address_n_count != 5)
         return false;

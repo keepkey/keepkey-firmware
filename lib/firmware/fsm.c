@@ -17,8 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "scm_revision.h"
 #include "variant.h"
 #include "u2f_knownapps.h"
@@ -29,15 +27,17 @@
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/memory.h"
-#include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/messages.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/timer.h"
-#include "keepkey/board/u2f.h"
+#include "keepkey/board/util.h"
 #include "keepkey/board/variant.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
+#include "keepkey/firmware/eos.h"
+#include "keepkey/firmware/eos-contracts.h"
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/exchange.h"
@@ -52,7 +52,7 @@
 #include "keepkey/firmware/signing.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/transaction.h"
-#include "keepkey/firmware/util.h"
+#include "keepkey/firmware/u2f.h"
 #include "keepkey/rand/rng.h"
 #include "trezor/crypto/address.h"
 #include "trezor/crypto/aes/aes.h"
@@ -67,6 +67,7 @@
 #include "trezor/crypto/secp256k1.h"
 
 #include "messages.pb.h"
+#include "messages-eos.pb.h"
 
 #include <stdio.h>
 
@@ -98,12 +99,15 @@ static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
         return; \
     }
 
-#define CHECK_PARAM(cond, errormsg) \
+#define CHECK_PARAM_RET(cond, errormsg, retval) \
     if (!(cond)) { \
         fsm_sendFailure(FailureType_Failure_Other, (errormsg)); \
         layoutHome(); \
-        return; \
+        return retval; \
     }
+
+#define CHECK_PARAM(cond, errormsg) \
+    CHECK_PARAM_RET(cond, errormsg, )
 
 static const MessagesMap_t MessagesMap[] = {
 #include "messagemap.def"
@@ -149,7 +153,7 @@ static const CoinType *fsm_getCoin(bool has_name, const char *name)
     return coin;
 }
 
-static HDNode *fsm_getDerivedNode(const char *curve, uint32_t *address_n, size_t address_n_count, uint32_t *fingerprint)
+static HDNode *fsm_getDerivedNode(const char *curve, const uint32_t *address_n, size_t address_n_count, uint32_t *fingerprint)
 {
     static HDNode CONFIDENTIAL node;
     if (fingerprint) {
@@ -185,33 +189,6 @@ static void sendFailureWrapper(FailureType code, const char *text) {
 }
 #endif
 
-static void u2f_filtered_usb_rx(UsbMessage *msg,
-                                const U2F_AUTHENTICATE_REQ *req) {
-    if (!storage_isPolicyEnabled("Experimental") &&
-#if DEBUG_LINK
-        memcmp(req->appId, u2f_localhost.appid,           sizeof(u2f_localhost.appid))           != 0 &&
-#endif
-        memcmp(req->appId, U2F_SHAPESHIFT_COM->appid,     sizeof(U2F_SHAPESHIFT_COM->appid))     != 0 &&
-        memcmp(req->appId, U2F_SHAPESHIFT_IO->appid,      sizeof(U2F_SHAPESHIFT_IO->appid))      != 0 &&
-        memcmp(req->appId, U2F_SHAPESHIFT_COM_STG->appid, sizeof(U2F_SHAPESHIFT_COM_STG->appid)) != 0 &&
-        memcmp(req->appId, U2F_SHAPESHIFT_IO_STG->appid,  sizeof(U2F_SHAPESHIFT_IO_STG->appid))  != 0 &&
-        memcmp(req->appId, U2F_SHAPESHIFT_COM_DEV->appid, sizeof(U2F_SHAPESHIFT_COM_DEV->appid)) != 0 &&
-        memcmp(req->appId, U2F_SHAPESHIFT_IO_DEV->appid,  sizeof(U2F_SHAPESHIFT_IO_DEV->appid))  != 0) {
-        // Ignore the request
-        return;
-    }
-
-    handle_usb_rx(msg);
-}
-
-#if DEBUG_LINK
-static void u2f_filtered_debug_usb_rx(UsbMessage *msg,
-                                      const U2F_AUTHENTICATE_REQ *req) {
-    (void)req; // DEBUG_LINK doesn't care who talks to it.
-    handle_debug_usb_rx(msg);
-}
-#endif
-
 void fsm_init(void)
 {
     msg_map_init(MessagesMap, sizeof(MessagesMap) / sizeof(MessagesMap_t));
@@ -229,11 +206,6 @@ void fsm_init(void)
 #endif
 
     msg_init();
-
-    u2f_set_rx_callback(u2f_filtered_usb_rx);
-#if DEBUG_LINK
-    u2f_set_debug_rx_callback(u2f_filtered_debug_usb_rx);
-#endif
 }
 
 void fsm_sendSuccess(const char *text)
@@ -302,3 +274,4 @@ void fsm_msgClearSession(ClearSession *msg)
 #include "fsm_msg_ethereum.h"
 #include "fsm_msg_crypto.h"
 #include "fsm_msg_debug.h"
+#include "fsm_msg_eos.h"

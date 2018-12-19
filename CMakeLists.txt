@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.7.2)
 
 project(KeepKeyFirmware
 
-        VERSION 5.11.0
+        VERSION 6.0.0
 
         LANGUAGES C CXX ASM)
 
@@ -33,6 +33,10 @@ if(NOT EXISTS ${CMAKE_SOURCE_DIR}/deps/googletest/CMakeLists.txt)
 endif()
 
 if(NOT EXISTS ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto/Makefile)
+    message(ERROR "Need to 'git submodule update --init --recursive")
+endif()
+
+if(NOT EXISTS ${CMAKE_SOURCE_DIR}/deps/qrenc/trezor-qrenc/Makefile)
     message(ERROR "Need to 'git submodule update --init --recursive")
 endif()
 
@@ -124,10 +128,12 @@ endif()
 add_subdirectory(lib)
 add_subdirectory(tools)
 add_subdirectory(deps/crypto)
+add_subdirectory(deps/qrenc)
 
 if(${KK_EMULATOR})
   add_subdirectory(deps/googletest)
   add_subdirectory(unittests)
+  add_subdirectory(fuzzer)
 
   enable_testing()
   add_test(test-firmware ${CMAKE_BINARY_DIR}/bin/firmware-unit)

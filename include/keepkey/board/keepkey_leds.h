@@ -20,13 +20,11 @@
 #ifndef KEEPKEY_LEDS_H
 #define KEEPKEY_LEDS_H
 
-/* === Includes ============================================================ */
 
 #include <stdint.h>
 
 #include "canvas.h"
 
-/* === Typedefs ============================================================ */
 
 typedef enum {
     CLR_GREEN_LED,
@@ -37,7 +35,6 @@ typedef enum {
     TGL_RED_LED
 } LedAction;
 
-/* === Functions =========================================================== */
 
 void keepkey_leds_init( void);
 void led_func(LedAction act);

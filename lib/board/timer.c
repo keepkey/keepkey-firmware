@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #ifndef EMULATOR
 #  include <libopencm3/stm32/timer.h>
@@ -35,14 +34,12 @@
 
 #include <stddef.h>
 
-/* === Private Variables =================================================== */
 
 static volatile uint32_t remaining_delay = UINT32_MAX;
 static RunnableNode runnables[MAX_RUNNABLES];
 static RunnableQueue free_queue = {NULL, 0};
 static RunnableQueue active_queue = {NULL, 0};
 
-/* === Private Functions =================================================== */
 
 /*
  * runnable_queue_peek() - Get pointer to head node in task manager (queue)
@@ -217,7 +214,6 @@ static void run_runnables(void)
     }
 }
 
-/* === Functions =========================================================== */
 
 void kk_timer_init(void)
 {
@@ -229,7 +225,6 @@ void kk_timer_init(void)
 
 
 
-/* === Functions =========================================================== */
 
 /*
  * timer_init() - Timer 4 initialization.  Main timer for round robin tasking.

@@ -31,12 +31,12 @@
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/memory.h"
-#include "keepkey/board/u2f.h"
+#include "keepkey/board/util.h"
 #include "keepkey/board/variant.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/policy.h"
-#include "keepkey/firmware/util.h"
+#include "keepkey/firmware/u2f.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/transport/interface.h"
 #include "trezor/crypto/aes/aes.h"
@@ -50,7 +50,7 @@
 #include <string.h>
 #include <stdint.h>
 
-#define MAX(a, b) ({ typeof(a) _a = (a); typeof(b) _b = (b); _a > _b ? _a : _b; })
+#define U2F_KEY_PATH 0x80553246
 
 static bool sessionSeedCached, sessionSeedUsesPassphrase;
 static uint8_t CONFIDENTIAL sessionSeed[64];
@@ -67,9 +67,6 @@ static Allocation storage_location = FLASH_INVALID;
 _Static_assert(sizeof(ConfigFlash) <= FLASH_STORAGE_LEN,
                "ConfigFlash struct is too large for storage partition");
 static ConfigFlash CONFIDENTIAL shadow_config;
-
-// Temporary storage for marshalling secrets in & out of flash.
-static CONFIDENTIAL char flash_temp[1024];
 
 #if DEBUG_LINK
 // These won't survive resets like the stuff in flash would, but thats a
@@ -455,7 +452,7 @@ void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage) {
         (storage->pub.has_auto_lock_delay_ms      ? (1u <<  3) : 0) |
         (storage->pub.imported                    ? (1u <<  4) : 0) |
         (storage->pub.passphrase_protection       ? (1u <<  5) : 0) |
-        (storage_isPolicyEnabled("ShapeShift")    ? (1u <<  6) : 0) |
+        (/* ShapeShift policy, enabled always */    (1u <<  6)    ) |
         (storage_isPolicyEnabled("Pin Caching")   ? (1u <<  7) : 0) |
         (storage->pub.has_node                    ? (1u <<  8) : 0) |
         (storage->pub.has_mnemonic                ? (1u <<  9) : 0) |
@@ -504,7 +501,7 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     storage->pub.has_auto_lock_delay_ms =                            flags & (1u <<  3);
     storage->pub.imported =                                          flags & (1u <<  4);
     storage->pub.passphrase_protection =                             flags & (1u <<  5);
-    storage_readPolicyV2(&storage->pub.policies[0], "ShapeShift",    flags & (1u <<  6));
+    storage_readPolicyV2(&storage->pub.policies[0], "ShapeShift",    true);
     storage_readPolicyV2(&storage->pub.policies[1], "Pin Caching",   flags & (1u <<  7));
     storage->pub.has_node =                                          flags & (1u <<  8);
     storage->pub.has_mnemonic =                                      flags & (1u <<  9);
@@ -635,8 +632,12 @@ StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
                 : SUS_Updated;
 
         case StorageVersion_11:
+        case StorageVersion_12:
             storage_readV11(dst, flash, STORAGE_SECTOR_LEN);
-            return SUS_Valid;
+            dst->storage.version = STORAGE_VERSION;
+            return dst->storage.version == version
+                ? SUS_Valid
+                : SUS_Updated;
 
         case StorageVersion_NONE:
             return SUS_Invalid;
@@ -876,6 +877,9 @@ void storage_commit(void) {
 
 void storage_commit_impl(ConfigFlash *cfg)
 {
+    // Temporary storage for marshalling secrets in & out of flash.
+    static char flash_temp[1024];
+
     memzero(flash_temp, sizeof(flash_temp));
 
     if (sessionPinCached) {
@@ -1356,6 +1360,9 @@ void storage_setMnemonicFromWords(const char (*words)[12],
 
     shadow_config.storage.pub.has_mnemonic = true;
     shadow_config.storage.has_sec = true;
+
+    storage_compute_u2froot(shadow_config.storage.sec.mnemonic, &shadow_config.storage.pub.u2froot);
+    shadow_config.storage.pub.has_u2froot = true;
 }
 
 void storage_setMnemonic(const char *m)
@@ -1370,6 +1377,9 @@ void storage_setMnemonic(const char *m)
 #endif
     shadow_config.storage.pub.has_mnemonic = true;
     shadow_config.storage.has_sec = true;
+
+    storage_compute_u2froot(shadow_config.storage.sec.mnemonic, &shadow_config.storage.pub.u2froot);
+    shadow_config.storage.pub.has_u2froot = true;
 }
 
 bool storage_hasMnemonic(void)

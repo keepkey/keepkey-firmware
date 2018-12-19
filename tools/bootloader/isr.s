@@ -350,10 +350,15 @@ mem_manage_handler:
     push {r4-r11, lr}               // save 0x24 bytes, rest of context including lr in this stack frame
 
     // read out some regs so that unpriv handler can access them
+#ifdef DEBUG_ON
     ldr     r0, =mmfar_reg 
     ldr     r1, [r0, #0]
+#else
+    xor     r1, r1
+#endif
     ldr     r0, =_param_1
     str     r1, [r0]
+
 
     // Determine stack pointer of frame from which exception was taken
     tst     lr, #4
@@ -375,8 +380,15 @@ m_continue:
     // Do not not worry about the sp context, will never return
 
     // duplicate the exception saved stack to make a dummy return for ctx switch
-    ldmia r2!, {r4-r11}    // r4-r11 have r0,r1,r2,r3,r12,lr,pc,xpsr 
-    ldr   r11, =dummy_xpsr       // xpsr - do not use the actual one for fake "return"
+    ldmia r2!, {r4-r11}      // r4-r11 have r0,r1,r2,r3,r12,lr,pc,xpsr
+#ifdef DEBUG_ON
+    mov   r1, r10            // pc
+#else
+    xor   r1, r1
+#endif
+    ldr   r2, =_param_2
+    str   r1, [r2]
+    ldr   r11, =dummy_xpsr   // xpsr - do not use the actual one for fake "return"
     ldr   r1, =_mmhusr_isr   // pc - load pc slot with address of user isr func
     ldr   r10, [r1] 
 

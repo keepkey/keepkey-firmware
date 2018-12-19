@@ -1,9 +1,9 @@
 set(sources
     coins.cpp
+    eos.cpp
     ethereum.cpp
     recovery.cpp
     storage.cpp
-    usb_rx.cpp
     u2f.cpp)
 
 include_directories(
@@ -24,5 +24,6 @@ target_link_libraries(firmware-unit
     kkboard
     kkemulator
     trezorcrypto
+    trezorqrenc
     kkrand
     kktransport)

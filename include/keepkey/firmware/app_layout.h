@@ -20,7 +20,6 @@
 #ifndef APP_LAYOUT_H
 #define APP_LAYOUT_H
 
-/* === Includes ============================================================ */
 
 #include "keepkey/board/canvas.h"
 #include "keepkey/board/resources.h"
@@ -28,7 +27,6 @@
 
 #include <stdint.h>
 
-/* === Defines ============================================================= */
 
 /* Screen Test */
 #define TEST_COLOR      0xFF
@@ -87,7 +85,6 @@
 #define QR_DISPLAY_X            4
 #define QR_DISPLAY_Y            10
 
-/* === Typedefs ============================================================ */
 
 typedef enum
 {
@@ -109,7 +106,6 @@ typedef struct
     uint32_t elapsed_start_ms;
 } PINAnimationConfig;
 
-/* === Functions =========================================================== */
 
 void layout_screen_test(void);
 void layout_screensaver(void);
