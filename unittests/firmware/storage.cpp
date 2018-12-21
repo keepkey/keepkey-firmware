@@ -426,7 +426,7 @@ TEST(Storage, StorageRoundTrip) {
     ConfigFlash start;
     memset(&start, 0xAB, sizeof(start));
     memcpy(start.meta.magic, "stor", 4);
-    start.storage.version = 11;
+    start.storage.version = STORAGE_VERSION;
     start.storage.sec.node.fingerprint = 42;
     start.storage.pub.has_pin = true;
     start.storage.pub.has_language = true;
