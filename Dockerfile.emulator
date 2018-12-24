@@ -1,0 +1,17 @@
+FROM kktech/firmware:v8
+
+WORKDIR /kkemu
+COPY ./ /kkemu
+
+RUN cmake -C ./cmake/caches/emulator.cmake . \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_C_COMPILER=clang \
+    -DCMAKE_CXX_COMPILER=clang++ \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_COLOR_MAKEFILE=ON
+
+RUN make -j
+
+ENTRYPOINT ["./bin/kkemu"]
+EXPOSE 21324 21324/udp
+EXPOSE 21325 21325/udp
