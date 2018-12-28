@@ -17,13 +17,11 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #include "keepkey/board/font.h"
 
 #include <stddef.h>
 
-/* === Private Variables =================================================== */
 
 /* --- Pin Font ------------------------------------------------------------ */
 
@@ -3672,7 +3670,6 @@ static const Character body_font_array[] =
 static const Font body_font = { sizeof(body_font_array)/sizeof(body_font_array[0]),
                                 10, body_font_array };
 
-/* === Functions =========================================================== */
 
 /*
  * get_pin_font() - Get pointer to PIN font

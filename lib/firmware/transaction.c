@@ -21,10 +21,10 @@
 
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/layout.h"
+#include "keepkey/board/util.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
-#include "keepkey/firmware/util.h"
 #include "keepkey/transport/interface.h"
 #include "trezor/crypto/address.h"
 #include "trezor/crypto/base58.h"
@@ -35,6 +35,8 @@
 #include "trezor/crypto/segwit_addr.h"
 
 #include <string.h>
+
+#define _(X) (X)
 
 #define SEGWIT_VERSION_0 0
 
@@ -206,7 +208,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 			return 0; // failed to compile output
 		}
 		if (needs_confirm) {
-			if (!confirm_op_return(in->op_return_data.bytes, in->op_return_data.size)) {
+			if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmOutput, _("Confirm OP_RETURN"), in->op_return_data.bytes, in->op_return_data.size)) {
 				return -1; // user aborted
 			}
 		}

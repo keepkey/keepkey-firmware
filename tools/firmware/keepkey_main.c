@@ -21,14 +21,14 @@
 #  include <inttypes.h>
 #  include <stdbool.h>
 #  include <libopencm3/cm3/cortex.h>
+#  include <libopencm3/stm32/desig.h>
 #endif
 
 #include "keepkey/board/check_bootloader.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/layout.h"
-#include "keepkey/board/usb_driver.h"
-#include "keepkey/board/u2f.h"
+#include "keepkey/board/usb.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/keepkey_usart.h"
 #include "keepkey/board/memory.h"
@@ -39,7 +39,6 @@
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
-#include "keepkey/firmware/u2f.h"
 #include "keepkey/rand/rng.h"
 #include "trezor/crypto/rand.h"
 
@@ -47,6 +46,7 @@
 #include <stdint.h>
 
 void mmhisr(void);
+void u2fInit(void);
 
 #define APP_VERSIONS "VERSION" \
                       VERSION_STR(MAJOR_VERSION)  "." \
@@ -57,9 +57,19 @@ void mmhisr(void);
 static const char *const application_version
 __attribute__((used, section("version"))) = APP_VERSIONS;
 
+void memory_getDeviceSerialNo(char *str, size_t len) {
+#if 0
+    desig_get_unique_id_as_string(str, len);
+#else
+    // We don't want to use the Serial No. baked into the STM32 for privacy
+    // reasons, so we fetch the one from storage instead:
+    strlcpy(str, storage_getUuidStr(), len);
+#endif
+}
+
 static void exec(void)
 {
-    usb_poll();
+    usbPoll();
 
     /* Attempt to animate should a screensaver be present */
     animate();
@@ -117,8 +127,8 @@ int main(void)
 
     led_func(SET_GREEN_LED);
 
-    u2f_init(&u2f_do_register, &u2f_do_auth, &u2f_do_version);
-    usb_init();
+    usbInit();
+    u2fInit();
     led_func(CLR_RED_LED);
 
     reset_idle_time();

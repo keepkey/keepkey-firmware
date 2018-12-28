@@ -20,17 +20,14 @@
 #ifndef PASSPHRASE_SM_H
 #define PASSPHRASE_SM_H
 
-/* === Includes ============================================================ */
 
 #include "keepkey/transport/interface.h"
 
 #include <stdbool.h>
 
-/* === Defines ============================================================= */
 
 #define PASSPHRASE_BUF sizeof(((PassphraseAck *)NULL)->passphrase)
 
-/* === Typedefs ============================================================ */
 
 /* State for Passphrase SM */
 typedef enum {
@@ -56,7 +53,6 @@ typedef struct {
 	char passphrase[PASSPHRASE_BUF];
 } PassphraseInfo;
 
-/* === Functions =========================================================== */
 
 bool passphrase_protect(void);
 

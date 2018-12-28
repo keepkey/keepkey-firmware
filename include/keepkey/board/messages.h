@@ -22,7 +22,7 @@
 
 #include "keepkey/transport/interface.h"
 
-#include "keepkey/board/usb_driver.h"
+#include "keepkey/board/usb.h"
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -76,8 +76,6 @@
     [ID].process_func = (void (*)(void*))(PROCESS_FUNC),
 
 #define NO_PROCESS_FUNC 0
-
-/* === Typedefs ============================================================ */
 
 typedef void (*msg_handler_t)(void *ptr);
 typedef void (*msg_failure_t)(FailureType, const char *);
@@ -141,6 +139,9 @@ typedef enum
 
 typedef void (*raw_msg_handler_t)(RawMessage *msg, uint32_t frame_length);
 
+const pb_field_t *message_fields(MessageMapType type, MessageType msg_id,
+                                 MessageMapDirection dir);
+
 bool msg_write(MessageType msg_id, const void *msg);
 bool msg_u2f_write(MessageType msg_id, const void *msg);
 
@@ -160,10 +161,10 @@ void call_msg_debug_link_get_state_handler(DebugLinkGetState *msg);
 
 void msg_init(void);
 
-void handle_usb_rx(UsbMessage *msg);
-void handle_debug_usb_rx(UsbMessage *msg);
-
-
+void handle_usb_rx(const void *data, size_t len);
+#if DEBUG_LINK
+void handle_debug_usb_rx(const void *data, size_t len);
+#endif
 
 MessageType wait_for_tiny_msg(uint8_t *buf);
 MessageType check_for_tiny_msg(uint8_t *buf);

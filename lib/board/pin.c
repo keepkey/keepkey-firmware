@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #ifndef EMULATOR
 #  include <libopencm3/stm32/rcc.h>
@@ -26,7 +25,6 @@
 
 #include "keepkey/board/pin.h"
 
-/* === Functions =========================================================== */
 
 /*
  * pin_init_output() - Initialize GPIO for LED

@@ -20,7 +20,6 @@
 #ifndef LAYOUT_H
 #define LAYOUT_H
 
-/* === Includes ============================================================ */
 
 #include "keepkey/board/canvas.h"
 #include "keepkey/board/resources.h"
@@ -28,7 +27,6 @@
 
 #include <stdint.h>
 
-/* === Defines ============================================================= */
 
 #define MAX_ANIMATIONS 5
 #define ANIMATION_PERIOD 20
@@ -67,7 +65,6 @@
 /* Default Layout */
 #define NO_WIDTH 0;
 
-/* === Typedefs ============================================================ */
 
 typedef enum
 {
@@ -100,7 +97,6 @@ typedef struct
 
 } AnimationQueue;
 
-/* === Functions =========================================================== */
 
 void layout_init(Canvas *canvas);
 Canvas *layout_get_canvas(void);

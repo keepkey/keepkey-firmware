@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #include "keepkey/bootstrap/bootstrap.h"
 
@@ -27,12 +26,10 @@
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/cm3/cortex.h>
 
-/* === Private Variables =================================================== */
 
 static uint32_t * const  SCB_VTOR = (uint32_t*)0xe000ed08;
 
 
-/* === Private Functions =================================================== */
 
 /*
  * zero_out_sram() - Fill entire SRAM sector with 0
@@ -49,7 +46,6 @@ static void zero_out_sram(void)
 }
 
 
-/* === Private Functions =================================================== */
 
 /*
  * set_vector_table_bootloader() - Resets the vector table to point to the
@@ -98,7 +94,6 @@ static void bootloader_jump(void)
     bootloader_entry();
 }
 
-/* === Functions =========================================================== */
 
 /*
  * main - Bootstrap main entry function

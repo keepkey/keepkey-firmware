@@ -31,13 +31,27 @@ typedef struct _EthereumSignMessage EthereumSignMessage;
 typedef struct _EthereumVerifyMessage EthereumVerifyMessage;
 typedef struct _EthereumMessageSignature EthereumMessageSignature;
 typedef struct _TokenType TokenType;
+typedef struct _CoinType CoinType;
 
 void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_confirm);
 void ethereum_signing_abort(void);
 void ethereum_signing_txack(EthereumTxAck *msg);
 void format_ethereum_address(const uint8_t *to, char *destination_str,
                              uint32_t destination_str_len);
-bool is_token_transaction(const EthereumSignTx *msg);
+bool ethereum_isNonStandardERC20(const EthereumSignTx *msg);
+bool ethereum_isStandardERC20(const EthereumSignTx *msg);
+
+/// \pre requires that `ethereum_isStandardERC20(msg)`
+/// \returns true iff successful
+bool ethereum_getStandardERC20Recipient(const EthereumSignTx *msg, char *address, size_t len);
+
+/// \pre requires that `ethereum_isStandardERC20(msg)`
+/// \returns true iff successful
+bool ethereum_getStandardERC20Coin(const EthereumSignTx *msg, CoinType *coin);
+
+/// \pre requires that `ethereum_isStandardERC20(msg)`
+/// \returns true iff successful
+bool ethereum_getStandardERC20Amount(const EthereumSignTx *msg, void **tx_out_amount);
 
 /**
  * \brief Get the number of decimals associated with an erc20 token

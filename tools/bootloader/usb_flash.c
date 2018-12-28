@@ -17,19 +17,14 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
-
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/keepkey_usart.h"
 #include "keepkey/board/memory.h"
-#include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/messages.h"
 #include "keepkey/board/pubkeys.h"
-#include "keepkey/board/usb_driver.h"
-#include "keepkey/board/u2f.h"
-#include "keepkey/board/u2f_types.h"
+#include "keepkey/board/usb.h"
 #include "keepkey/board/signatures.h"
 #include "keepkey/bootloader/usb_flash.h"
 #include "trezor/crypto/sha2.h"
@@ -39,7 +34,6 @@
 #include "keepkey/board/supervise.h"
 #include "keepkey/board/bl_mpu.h"
 
-
 #include <libopencm3/stm32/flash.h>
 
 #include <assert.h>
@@ -48,8 +42,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-
-/* === Variables =========================================================== */
 
 static Allocation storage_location = FLASH_INVALID;
 static RawMessageState upload_state = RAW_MESSAGE_NOT_STARTED;
@@ -91,7 +83,6 @@ static const MessagesMap_t MessagesMap[] =
 #endif
 };
 
-/* === Private Functions =================================================== */
 
 /*
  * check_firmware_hash - Checks flashed firmware's hash
@@ -251,10 +242,7 @@ bool usb_flash_firmware(void)
     layout_version(BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION,
                    BOOTLOADER_PATCH_VERSION);
 
-    // U2F signing unsupported in bootloader mode. Only transport is supported.
-    u2f_init(NULL, NULL, NULL);
-
-    usb_init();
+    usbInit();
     bootloader_fsm_init();
 
     while(1)
@@ -299,7 +287,7 @@ bool usb_flash_firmware(void)
             case RAW_MESSAGE_STARTED:
             default:
             {
-                usb_poll();
+                usbPoll();
                 animate();
                 display_refresh();
             }

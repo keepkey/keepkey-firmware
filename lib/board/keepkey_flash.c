@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #ifndef EMULATOR
 #  include <libopencm3/stm32/flash.h>
@@ -34,7 +33,6 @@
 #include <string.h>
 #include <stdint.h>
 
-/* === Functions =========================================================== */
 
 /*
  * flash_write_helper() - Helper function to locate starting address of 

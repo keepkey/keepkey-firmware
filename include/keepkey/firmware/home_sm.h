@@ -20,17 +20,14 @@
 #ifndef HOME_SM_H
 #define HOME_SM_H
 
-/* === Includes ============================================================ */
 
 #include "keepkey/board/timer.h"
 
 #include <stdint.h>
 
-/* === Defines ============================================================= */
  
 #define SCREENSAVER_TIMEOUT 1
 
-/* === Typedefs ============================================================ */
 
 /* State for Home SM */
 typedef enum {
@@ -39,7 +36,6 @@ typedef enum {
 	SCREENSAVER
 } HomeState;
  
-/* === Functions =========================================================== */
 
 void layoutHome(void);
 void layoutHomeForced(void);

@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #ifndef EMULATOR
 #  include <libopencm3/stm32/rcc.h>
@@ -37,11 +36,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-/* === Variables =========================================================== */
 
 /* Stack smashing protector (SSP) canary value storage */
 uintptr_t __stack_chk_guard;
-/* === Functions =========================================================== */
 
 #ifdef EMULATOR
 /**

@@ -19,7 +19,7 @@
 
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/layout.h"
-#include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/messages.h"
 #include "trezor/crypto/bip39.h"
 #include "trezor/crypto/memzero.h"
 #include "keepkey/firmware/app_layout.h"

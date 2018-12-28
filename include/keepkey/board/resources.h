@@ -20,16 +20,13 @@
 #ifndef RESOURCES_H
 #define RESOURCES_H
 
-/* === Includes ============================================================ */
 #include "keepkey/board/variant.h"
 
 #include <stdint.h>
 #include <stdbool.h>
 
 
-/* === Defines ============================================================ */
 
-/* === Functions =========================================================== */
 
 const AnimationFrame *get_confirm_icon_frame(void);
 const AnimationFrame *get_confirmed_frame(void);

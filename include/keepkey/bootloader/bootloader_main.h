@@ -20,11 +20,9 @@
 #ifndef BOOTLOADER_MAIN_H
 #define BOOTLOADER_MAIN_H
 
-/* === Typedefs ============================================================ */
 
 typedef void (*app_entry_t)(void);
 
-/* === Functions =========================================================== */
 
 bool check_fw_is_new(void);
 
