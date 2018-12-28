@@ -261,11 +261,11 @@ const CoinType *coinBySlip44(uint32_t bip44_account_path)
 }
 
 /*
- * coin_amnt_to_str() - convert decimal coin amount to string for display 
+ * coin_amnt_to_str() - convert decimal coin amount to string for display
  *
  * INPUT -
  *      - coin: coin to use to determine bip44 path
- *      - amnt - coing amount in decimal 
+ *      - amnt - coing amount in decimal
  *      - *buf - output buffer for coin amount in string
  *      - len - length of buffer
  * OUTPUT -
@@ -312,7 +312,7 @@ void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len)
         strncpy(buf+strlen(buf), buf_fract, strlen(buf_fract));
 
         /* Drop least significant zeros in fraction part to shorten display*/
-        i = strlen(buf); 
+        i = strlen(buf);
         while(buf[i-1] == '0')
         {
             buf[i-1] = 0;
