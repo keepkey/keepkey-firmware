@@ -877,10 +877,6 @@ void coinFromToken(CoinType *coin, const TokenType *token) {
 	_Static_assert(20 <= sizeof(coin->contract_address.bytes),
 	               "contract_address is not large enough to hold an ETH address");
 
-	coin->has_gas_limit = true;
-	coin->gas_limit.size = 32;
-	memcpy((char*)&coin->gas_limit.bytes[0], "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\xe8\x48", sizeof(coin->gas_limit.bytes));
-
 	coin->has_curve_name = true;
 	strncpy(&coin->curve_name[0], "secp256k1", sizeof(coin->curve_name));
 }
