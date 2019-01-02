@@ -50,7 +50,7 @@ $ head -c +256 signed_firmware.bin | xxd -
 
 ### Docs
 
-Documentation can be found [here](https://github.com/keepkey/keepkey-firmware/tree/derivation_docs/docs).
+Documentation can be found [here](docs/README.md).
 
 ## License
 
