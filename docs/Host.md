@@ -21,16 +21,20 @@ If your device is not recognized when plugged in, you may need to use
 On linux platforms, you'll need to install UDEV rules in order to allow
 non-root users to communicate with the device.
 
-Add the following to `/etc/udev/rules.d/99-keepkey.rules`:
+Add the following [UDEV rules](https://github.com/keepkey/udev-rules/blob/master/51-usb-keepkey.rules) to `/etc/udev/rules.d/51-usb-keepkey.rules`:
 
 ```
-# HID Firmware / Bootloader
-SUBSYSTEM=="usb", ATTR{idVendor}=="2b24", ATTR{idProduct}=="0001", MODE="0666", GROUP="dialout", SYMLINK+="keepkey%n"
-KERNEL=="hidraw*", ATTRS{idVendor}=="2b24", ATTRS{idProduct}=="0001",  MODE="0666", GROUP="dialout"
+# KeepKey: Your Private Bitcoin Vault
+# http://www.keepkey.com/
+# Put this file into /usr/lib/udev/rules.d or /etc/udev/rules.d
 
-# WebUSB Firmware / Bootloader
-SUBSYSTEM=="usb", ATTR{idVendor}=="2b24", ATTR{idProduct}=="0002", MODE="0666", GROUP="dialout", SYMLINK+="keepkey%n"
-KERNEL=="hidraw*", ATTRS{idVendor}=="2b24", ATTRS{idProduct}=="0002",  MODE="0666", GROUP="dialout"
+# KeepKey HID Firmware/Bootloader
+SUBSYSTEM=="usb", ATTR{idVendor}=="2b24", ATTR{idProduct}=="0001", MODE="0666", GROUP="plugdev", TAG+="uaccess", TAG+="udev-acl", SYMLINK+="keepkey%n"
+KERNEL=="hidraw*", ATTRS{idVendor}=="2b24", ATTRS{idProduct}=="0001",  MODE="0666", GROUP="plugdev", TAG+="uaccess", TAG+="udev-acl"
+
+# KeepKey WebUSB Firmware/Bootloader
+SUBSYSTEM=="usb", ATTR{idVendor}=="2b24", ATTR{idProduct}=="0002", MODE="0666", GROUP="plugdev", TAG+="uaccess", TAG+="udev-acl", SYMLINK+="keepkey%n"
+KERNEL=="hidraw*", ATTRS{idVendor}=="2b24", ATTRS{idProduct}=="0002",  MODE="0666", GROUP="plugdev", TAG+="uaccess", TAG+="udev-acl"
 ```
 
 Then run `sudo udevadm control --reload-rules`. Unplug & replug your device.
