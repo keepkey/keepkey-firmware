@@ -208,8 +208,14 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 			return 0; // failed to compile output
 		}
 		if (needs_confirm) {
-			if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmOutput, _("Confirm OP_RETURN"), in->op_return_data.bytes, in->op_return_data.size)) {
-				return -1; // user aborted
+			if (in->op_return_data.size >= 8 && memcmp(in->op_return_data.bytes, "omni", 4) == 0) {  // OMNI transaction
+				if (!confirm_omni(ButtonRequestType_ButtonRequest_ConfirmOutput, _("Confirm OMNI"), in->op_return_data.bytes, in->op_return_data.size)) {
+					return -1; // user aborted
+				}
+			} else {
+				if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmOutput, _("Confirm OP_RETURN"), in->op_return_data.bytes, in->op_return_data.size)) {
+					return -1; // user aborted
+				}
 			}
 		}
 		uint32_t r = 0;
