@@ -67,6 +67,43 @@ void memory_getDeviceSerialNo(char *str, size_t len) {
 #endif
 }
 
+static void check_bootloader(void) {
+    BootloaderKind kind = get_bootloaderKind();
+
+    switch (kind) {
+    case BLK_v1_0_0:
+    case BLK_v1_0_1:
+    case BLK_v1_0_2:
+    case BLK_v1_0_3:
+    case BLK_v1_0_3_elf:
+    case BLK_v1_0_3_sig:
+    case BLK_v1_0_4: {
+        layout_warning_static("Please update your bootloader.");
+        shutdown();
+    } break;
+    case BLK_UNKNOWN:
+#ifndef DEBUG_ON
+        layout_warning_static("Unknown bootloader. Contact support.");
+        shutdown();
+        break;
+#endif
+    case BLK_v2_0_0:
+    case BLK_v1_1_0:
+        // Legacy bootloader code will have interrupts disabled at this point.
+        // To maintain compatibility, the timer and button interrupts need to
+        // be enabled and then global interrupts enabled. This is a nop in the
+        // modern scheme.
+        cm_enable_interrupts();
+
+        // Turn on memory protection for good signature. KK firmware is signed
+        mpu_config(SIG_OK);
+
+        // set thread mode to unprivileged here. This will help protect against 0days
+        __asm__ volatile("msr control, %0" :: "r" (0x3));   // unpriv thread mode using psp stack
+        return;
+    }
+}
+
 static void exec(void)
 {
     usbPoll();
@@ -82,30 +119,11 @@ int main(void)
     _timerusr_isr = (void *)&timerisr_usr;
     _mmhusr_isr = (void *)&mmhisr;
 
-    // Legacy bootloader code will have interrupts disabled at this point. To maintain compatibility, the timer
-    // and button interrupts need to be enabled and then global interrupts enabled. This is a nop in the modern
-    // scheme
-
-    int signed_firmware = signatures_ok();
-#ifdef DEBUG_ON
-    signed_firmware = SIG_OK;
-#endif
-
-    if (SIG_OK == signed_firmware) {
-        cm_enable_interrupts();
-
-        // Turn on memory protection for good signature. KK firmware is signed
-        mpu_config(SIG_OK);
-
-        // set thread mode to unprivileged here. This will help protect against 0days
-        __asm__ volatile("msr control, %0" :: "r" (0x3));   // unpriv thread mode using psp stack
-    }
+    /* Bootloader Verification */
+    check_bootloader();
 
     /* Init board */
     kk_board_init();
-
-    /* Bootloader Verification */
-    check_bootloader();
 
     /* Program the model into OTP, if we're not in screen-test mode, and it's
      * not already there

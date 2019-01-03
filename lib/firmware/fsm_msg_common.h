@@ -402,12 +402,12 @@ void fsm_msgApplySettings(ApplySettings *msg)
     if (msg->has_use_passphrase) {
         if (msg->use_passphrase) {
             if (!confirm(ButtonRequestType_ButtonRequest_EnablePassphrase,
-                         "Enable Passphrase", "Do you want to enable passphrase encryption?")) {
+                         "Enable Passphrase", "Do you want to enable BIP39 passphrases?")) {
                 goto apply_settings_cancelled;
             }
         } else {
             if (!confirm(ButtonRequestType_ButtonRequest_DisablePassphrase,
-                         "Disable Passphrase", "Do you want to disable passphrase encryption?")) {
+                         "Disable Passphrase", "Do you want to disable BIP39 passphrases?")) {
                 goto apply_settings_cancelled;
             }
         }

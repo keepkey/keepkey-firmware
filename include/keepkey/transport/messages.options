@@ -42,6 +42,7 @@ Address.address				max_size:130
 
 EthereumGetAddress.address_n		max_count:8
 EthereumAddress.address			max_size:20
+EthereumAddress.address_str			max_size:43
 
 LoadDevice.mnemonic			max_size:241
 LoadDevice.pin				max_size:10
