@@ -13,6 +13,6 @@
 [submodule "deps/qrenc/trezor-qrenc"]
 	path = deps/qrenc/trezor-qrenc
 	url = https://github.com/keepkey/trezor-qrenc.git
-[submodule "deps/ethereum/ethereum-lists"]
-	path = deps/ethereum/ethereum-lists
-	url = https://github.com/keepkey/ethereum-lists.git
+[submodule "deps/python-keepkey"]
+	path = deps/python-keepkey
+	url = https://github.com/keepkey/python-keepkey.git
