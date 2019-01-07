@@ -45,10 +45,12 @@
 #include "keepkey/board/supervise.h"
 #include "keepkey/board/signatures.h"
 #include "keepkey/board/u2f_hid.h"
+#include "keepkey/board/util.h"
 #include "keepkey/bootloader/usb_flash.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/variant/keepkey.h"
 #include "keepkey/variant/poweredBy.h"
+#include "trezor/crypto/memzero.h"
 #include "trezor/crypto/rand.h"
 
 #include <stdbool.h>
@@ -270,10 +272,15 @@ static void boot(void)
 
     // Signature check failed.
     if (signed_firmware != SIG_OK) {
-        char digest_str[SHA256_DIGEST_STRING_LENGTH];
+        uint8_t flashed_firmware_hash[SHA256_DIGEST_LENGTH];
+        memzero(flashed_firmware_hash, sizeof(flashed_firmware_hash));
+        memory_firmware_hash(flashed_firmware_hash);
+        char hash_str[2][2 * 16 + 1];
+        data2hex(flashed_firmware_hash,      16, hash_str[0]);
+        data2hex(flashed_firmware_hash + 16, 16, hash_str[1]);
         if (!confirm_without_button_request("Unofficial Firmware",
-                                            "Do you want to continue?\n%s",
-                                            memory_firmware_hash_str(digest_str))) {
+                                            "Do you want to continue?\n%s\n%s",
+                                            hash_str[0], hash_str[1])) {
             layout_simple_message("Boot Aborted");
             return;
         }
