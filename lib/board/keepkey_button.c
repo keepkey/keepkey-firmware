@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #ifndef EMULATOR
 #  include <libopencm3/stm32/rcc.h>
@@ -29,10 +28,10 @@
 
 #include "keepkey/board/keepkey_button.h"
 #include "keepkey/board/keepkey_leds.h"
+#include "keepkey/board/supervise.h"
 
 #include <stddef.h>
 
-/* === Private Variables =================================================== */
 
 static Handler on_press_handler     = NULL;
 static Handler on_release_handler   = NULL;
@@ -43,14 +42,26 @@ static void *on_press_handler_context   = NULL;
 #ifndef EMULATOR
 static const uint16_t BUTTON_PIN    = GPIO7;
 static const uint32_t BUTTON_PORT   = GPIOB;
-static const uint8_t BUTTON_IRQN    = NVIC_EXTI9_5_IRQ;
 static const uint32_t BUTTON_EXTI   = EXTI7;
+
+
 #endif
 
-/* === Functions =========================================================== */
+
+
+void kk_keepkey_button_init(void)
+{
+    on_press_handler = NULL;
+    on_press_handler_context = NULL;
+
+    on_release_handler = NULL;
+    on_release_handler_context = NULL;
+}
+
+
 
 /*
- * keepkey_button_init() - Initialize push botton interrupt registers
+ * keepkey_button_init() - Initialize push button interrupt registers
  * and variables
  *
  * INPUT
@@ -67,8 +78,6 @@ void keepkey_button_init(void)
     on_release_handler_context = NULL;
 
 #ifndef EMULATOR
-    nvic_enable_irq(BUTTON_IRQN);
-
     gpio_mode_setup(
         BUTTON_PORT,
         GPIO_MODE_INPUT,
@@ -85,6 +94,7 @@ void keepkey_button_init(void)
         EXTI_TRIGGER_BOTH);
 
     exti_enable_request(BUTTON_EXTI);
+
 #endif
 }
 
@@ -153,19 +163,11 @@ bool keepkey_button_down(void)
     return !keepkey_button_up();
 }
 
-/*
- * exti9_5_isr() - Interrupt service routine for push button external interrupt
- *
- * INPUT
- *     none
- * OUTPUT
- *     none
- */
-void exti9_5_isr(void)
+
+
+void buttonisr_usr(void)
 {
 #ifndef EMULATOR
-    exti_reset_request(BUTTON_EXTI);
-
     if(gpio_get(BUTTON_PORT, BUTTON_PIN) & BUTTON_PIN)
     {
         if(on_release_handler)
@@ -180,5 +182,8 @@ void exti9_5_isr(void)
             on_press_handler(on_press_handler_context);
         }
     }
+
+    svc_busr_return();   // this MUST be called last to properly clean up and return
+
 #endif
 }

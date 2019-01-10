@@ -19,7 +19,7 @@
 
 #ifdef EMULATOR
 
-#include "keepkey/board/usb_driver.h"
+#include "keepkey/board/usb.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/emulator/emulator.h"
 
@@ -34,27 +34,27 @@ extern usb_rx_callback_t user_debug_rx_callback;
 
 static volatile char tiny = 0;
 
-bool usb_init(void) {
+void usbInit(void) {
 	emulatorSocketInit();
-	return true;
 }
 
-void usb_poll(void) {
+void usbPoll(void) {
 	emulatorPoll();
 
-	static UsbMessage msg;
+	static uint8_t buf[64] __attribute__ ((aligned(4)));
+	size_t len;
 
 	int iface = 0;
-	if (0 < (msg.len = emulatorSocketRead(&iface, msg.message, sizeof(msg.message)))) {
+	if (0 < (len = emulatorSocketRead(&iface, buf, sizeof(buf)))) {
 		if (!tiny) {
 			if (iface == 0)
 			{
-				user_rx_callback(&msg);
+				user_rx_callback(&buf, len);
 			} else if (iface == 1) {
 #if DEBUG_LINK
-				user_debug_rx_callback(&msg);
+				user_debug_rx_callback(&buf, len);
 #else
-				user_rx_callback(&msg);
+				user_rx_callback(&buf, len);
 #endif
 			}
 		} else {

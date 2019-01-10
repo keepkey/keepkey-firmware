@@ -23,7 +23,7 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
         return TXOUT_COMPILE_ERROR;
 
     const uint32_t chain_id = coin->forkid;
-    if (is_token_transaction(msg)) {
+    if (ethereum_isNonStandardERC20(msg)) {
         has_to = &msg->has_token_to;
         to_size = &msg->token_to.size;
         to_bytes = msg->token_to.bytes;
@@ -144,19 +144,22 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 	if (!hdnode_get_ethereum_pubkeyhash(node, resp->address.bytes))
 		return;
 
+	uint32_t slip44 = msg->address_n[1] & 0x7fffffff;
+	bool rskip60 = false;
+	uint32_t chain_id = 0;
+	// constants from trezor-common/defs/ethereum/networks.json
+	switch (slip44) {
+		case 137: rskip60 = true; chain_id = 30; break;
+		case 37310: rskip60 = true; chain_id = 31; break;
+	}
+
+	char address[43] = { '0', 'x' };
+	ethereum_address_checksum(resp->address.bytes, address + 2, rskip60, chain_id);
+
+	resp->has_address_str = true;
+	strlcpy(resp->address_str, address, sizeof(resp->address_str));
+
 	if (msg->has_show_display && msg->show_display) {
-		uint32_t slip44 = msg->address_n[1] & 0x7fffffff;
-		bool rskip60 = false;
-		uint32_t chain_id = 0;
-		// constants from trezor-common/defs/ethereum/networks.json
-		switch (slip44) {
-			case 137: rskip60 = true; chain_id = 30; break;
-			case 37310: rskip60 = true; chain_id = 31; break;
-		}
-
-		char address[43] = { '0', 'x' };
-		ethereum_address_checksum(resp->address.bytes, address + 2, rskip60, chain_id);
-
 		if (!confirm_ethereum_address("", address)) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
 			layoutHome();

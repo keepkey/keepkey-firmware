@@ -17,11 +17,10 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 
 #include "keepkey/board/layout.h"
-#include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/messages.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/rand/rng.h"
 
@@ -31,11 +30,9 @@
 
 #include <stdbool.h>
 
-/* === Variables =========================================================== */
 
 extern bool reset_msg_stack;
 
-/* === Private Functions =================================================== */
 
 /*
  * send_passphrase_request() - Send passphrase request to USB host
@@ -173,7 +170,6 @@ static bool passphrase_request(PassphraseInfo *passphrase_info)
     return (ret);
 }
 
-/* === Functions =========================================================== */
 
 /*
  * passphrase_protect() - Set passphrase protection

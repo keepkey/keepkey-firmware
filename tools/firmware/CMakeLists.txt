@@ -1,6 +1,9 @@
 if(NOT ${KK_EMULATOR})
   set(sources
-      keepkey_main.c)
+      keepkey_main.c
+      startup.s
+      ../bootloader/bl_mpu.c
+      ../bootloader/isr.s)
 
   include_directories(
       ${CMAKE_SOURCE_DIR}/include
@@ -31,6 +34,7 @@ if(NOT ${KK_EMULATOR})
       kkvariant.salt
       kktransport
       trezorcrypto
+      trezorqrenc
       kkrand
       -lopencm3_stm32f2
       -lc
@@ -51,6 +55,7 @@ if(NOT ${KK_EMULATOR})
       kkvariant.salt
       kktransport
       trezorcrypto
+      trezorqrenc
       kkrand
       -lopencm3_stm32f2
       -lc

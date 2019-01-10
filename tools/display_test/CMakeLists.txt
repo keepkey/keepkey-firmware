@@ -1,6 +1,7 @@
 if(NOT ${KK_EMULATOR})
   set(sources
-      main.c)
+      main.c
+      startup.s)
 
   include_directories(
       ${CMAKE_SOURCE_DIR}/include

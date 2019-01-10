@@ -11,18 +11,25 @@ set(sources
     keepkey_usart.c
     layout.c
     memory.c
-    msg_dispatch.c
+    mmhusr.c
+    messages.c
     pin.c
     resources.c
+    signatures.c
+    supervise.c
     timer.c
-    udp.c
-    usb_driver.c
-    variant.c
-    u2f.c)
+    usb.c
+    util.c
+    variant.c)
 
-if(NOT ${KK_EMULATOR})
-  enable_language(ASM)
-  set(sources ${sources} startup.s)
+if(${KK_EMULATOR})
+    set(sources ${sources}
+        udp.c)
+else()
+    set(sources ${sources}
+        usb21_standard.c
+        webusb.c
+        winusb.c)
 endif()
 
 include_directories(

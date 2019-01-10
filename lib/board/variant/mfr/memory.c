@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #include "keepkey/board/variant.h"
 
@@ -27,6 +26,7 @@
 #  include <stdio.h>
 #endif
 
+#include "keepkey/board/supervise.h"
 #include "trezor/crypto/sha2.h"
 #include "trezor/crypto/sha3.h"
 
@@ -120,8 +120,7 @@ bool variant_mfr_flashWrite(uint8_t *dst, uint8_t *src, size_t len, bool erase)
         return false;
 
     // Don't allow writing to the bootstrap sector, it should be R/O
-    if (FLASH_BOOTSTRAP_SECTOR_FIRST <= sector &&
-        sector <= FLASH_BOOTSTRAP_SECTOR_LAST)
+    if (FLASH_BOOTSTRAP_SECTOR == sector)
         return false;
 
     // Don't allow writing to the bootloader sectors, they should be R/0
@@ -153,22 +152,13 @@ bool variant_mfr_flashWrite(uint8_t *dst, uint8_t *src, size_t len, bool erase)
     if (dst_s <= fw_s && fw_e <= dst_e)
         return false;
 
-    // Tell the flash we're about to write to it.
-    flash_unlock();
-
     if (erase) {
         // Erase the whole sector.
-        flash_erase_sector(variant_mfr_sectorFromAddress(dst), 0 /* 8-bit writes */);
+        svc_flash_erase_sector((uint32_t)variant_mfr_sectorFromAddress(dst));
     }
 
     // Write into the sector.
-    flash_program((uint32_t)dst, src, len);
-
-    // Disallow writing to flash.
-    flash_lock();
-
-    // Check for any errors.
-    return flash_chk_status();
+    return svc_flash_pgm_blk((uint32_t)dst, (uint32_t)src, len);
 #else
     return false;
 #endif

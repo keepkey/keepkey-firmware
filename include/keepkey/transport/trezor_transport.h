@@ -22,7 +22,6 @@
 
 #include <stdint.h>
 
-/* === Defines ============================================================= */
 
 #ifdef EMULATOR
 #  define MAX_FRAME_SIZE (64 * 1024)
@@ -30,7 +29,6 @@
 #  define MAX_FRAME_SIZE (12 * 1024)
 #endif
 
-/* === Typedefs ============================================================ */
 
 #pragma pack(1)
 

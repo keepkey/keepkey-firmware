@@ -849,3 +849,34 @@ bool tokenByTicker(uint8_t chain_id, const char *ticker, const TokenType **token
 	}
 	return *token;
 }
+
+void coinFromToken(CoinType *coin, const TokenType *token) {
+	memset(coin, 0, sizeof(*coin));
+
+	coin->has_coin_name = true;
+	strncpy(&coin->coin_name[0], token->ticker + 1, sizeof(coin->coin_name));
+
+	coin->has_coin_shortcut = true;
+	strncpy(&coin->coin_shortcut[0], token->ticker + 1, sizeof(coin->coin_shortcut));
+
+	coin->has_forkid = true;
+	coin->forkid = token->chain_id;
+
+	coin->has_maxfee_kb = true;
+	coin->maxfee_kb = 100000;
+
+	coin->has_bip44_account_path = true;
+	coin->bip44_account_path = 0x8000003C;
+
+	coin->has_decimals = true;
+	coin->decimals = token->decimals;
+
+	coin->has_contract_address = true;
+	coin->contract_address.size = 20;
+	memcpy((char*)&coin->contract_address.bytes[0], token->address, 20);
+	_Static_assert(20 <= sizeof(coin->contract_address.bytes),
+	               "contract_address is not large enough to hold an ETH address");
+
+	coin->has_curve_name = true;
+	strncpy(&coin->curve_name[0], "secp256k1", sizeof(coin->curve_name));
+}

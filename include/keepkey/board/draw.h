@@ -20,7 +20,6 @@
 #ifndef DRAW_H
 #define DRAW_H
 
-/* === Includes ============================================================ */
 
 #include <stddef.h>
 #include <stdbool.h>
@@ -30,7 +29,6 @@
 #include "resources.h"
 #include "keepkey/board/variant.h"
 
-/* === Typedefs ============================================================ */
 
 typedef struct
 {
@@ -47,7 +45,6 @@ typedef struct
     uint16_t             width;
 } BoxDrawableParams;
 
-/* === Functions =========================================================== */
 
 bool draw_char_with_shift(Canvas *canvas, DrawableParams *p,
                           uint16_t *x_shift, uint16_t *y_shift, const CharacterImage *img);

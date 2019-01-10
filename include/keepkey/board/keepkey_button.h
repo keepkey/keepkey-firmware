@@ -20,22 +20,40 @@
 #ifndef KEEPKEY_BUTTON_H
 #define KEEPKEY_BUTTON_H
 
-/* === Includes ============================================================ */
 
 #include <stdint.h>
 
 #include "canvas.h"
 
-/* === Typedefs ============================================================ */
 
 typedef void (*Handler)(void* context);
 
-/* === Functions =========================================================== */
+
+
+/** kk_keepkey_button_init() - Initialize push botton interrupt registers
+ * and variables
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
+ **/
+void kk_keepkey_button_init(void);
 
 void keepkey_button_init(void);
 void keepkey_button_set_on_press_handler( Handler handler, void* context);
 void keepkey_button_set_on_release_handler( Handler handler, void* context);
 bool keepkey_button_down(void);
 bool keepkey_button_up(void);
+
+/**
+ * buttonisr_usr() - user interrupt service routine for push button external interrupt
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
+ **/
+void buttonisr_usr(void);
 
 #endif

@@ -17,21 +17,18 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #include <stddef.h>
 
 #include "keepkey/board/keepkey_leds.h"
 #include "keepkey/board/pin.h"
 
-/* === Private Variables =================================================== */
 
 #ifndef EMULATOR
 static const Pin GREEN_LED  = { GPIOC, GPIO14 };
 static const Pin RED_LED    = { GPIOC, GPIO15 };
 #endif
 
-/* === Functions =========================================================== */
 
 /*
  * keepkey_leds_init() - Initialize gpios for LEDs

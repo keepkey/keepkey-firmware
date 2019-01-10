@@ -17,15 +17,14 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/keepkey_button.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/layout.h"
-#include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/messages.h"
 #include "keepkey/board/confirm_sm.h"
-#include "keepkey/board/usb_driver.h"
+#include "keepkey/board/usb.h"
+#include "keepkey/board/supervise.h"
 #include "trezor/crypto/memzero.h"
 
 #ifndef EMULATOR
@@ -201,17 +200,17 @@ static bool confirm_helper(const char *request_title, const char *request_body,
     while(1)
     {
 #ifndef EMULATOR
-        cm_disable_interrupts();
+        svc_disable_interrupts();
 #endif
         new_layout = state_info.active_layout;
         new_ds = state_info.display_state;
 #ifndef EMULATOR
-        cm_enable_interrupts();
+        svc_enable_interrupts();
 #endif
 
         /* Don't process usb tiny message unless usb has been initialized */
 #ifndef EMULATOR
-        if(get_usb_init_stat())
+        if (usbInitialized())
 #else
         if(1)
 #endif

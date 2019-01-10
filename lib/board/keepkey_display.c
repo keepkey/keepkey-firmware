@@ -25,6 +25,7 @@
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/pin.h"
 #include "keepkey/board/timer.h"
+#include "keepkey/board/supervise.h"
 
 #pragma GCC push_options
 #pragma GCC optimize("-O3")
@@ -54,6 +55,9 @@ static Canvas canvas;
 static void display_write_reg(uint8_t reg)
 {
 #ifndef EMULATOR
+
+    svc_disable_interrupts();
+
     /* Set up the data */
     GPIO_BSRR(GPIOA) = 0x000000FF & (uint32_t)reg;
 
@@ -96,6 +100,9 @@ static void display_write_reg(uint8_t reg)
     __asm__("nop");
     __asm__("nop");
     __asm__("nop");
+
+    svc_enable_interrupts();
+
 #endif
 }
 
@@ -129,6 +136,7 @@ static void display_reset(void)
 static void display_reset_io(void)
 {
 #ifndef EMULATOR
+    svc_disable_interrupts();
     SET_PIN(nRESET_PIN);
     CLEAR_PIN(BACKLIGHT_PWR_PIN);
     SET_PIN(nWE_PIN);
@@ -137,6 +145,7 @@ static void display_reset_io(void)
     SET_PIN(nSEL_PIN);
 
     GPIO_BSRR(GPIOA) = 0x00FF0000;
+    svc_enable_interrupts();
 #endif
 }
 
@@ -208,6 +217,8 @@ static void display_prepare_gram_write(void)
 static void display_write_ram(uint8_t val)
 {
 #ifndef EMULATOR
+    svc_disable_interrupts();
+
     /* Set up the data */
     GPIO_BSRR(GPIOA) = 0x000000FF & (uint32_t)val;
 
@@ -250,10 +261,12 @@ static void display_write_ram(uint8_t val)
     __asm__("nop");
     __asm__("nop");
     __asm__("nop");
+
+    svc_enable_interrupts();
+    
 #endif
 }
 
-/* === Functions =========================================================== */
 
 /*
  * display_canvas_init() - Display canvas initialization

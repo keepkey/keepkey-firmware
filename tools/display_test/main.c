@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -32,7 +31,9 @@
 
 #include "keepkey/firmware/app_layout.h"
 
-/* === Functions =========================================================== */
+
+void mmhisr(void);
+
 
 /*
  * main() - Application main entry
@@ -44,8 +45,13 @@
  */
 int main(void)
 {
+    _buttonusr_isr = (void *)&buttonisr_usr;
+    _timerusr_isr = (void *)&timerisr_usr;
+    _mmhusr_isr = (void *)&mmhisr;
+
     /* Init board */
-    board_init();
+    kk_board_init();
+
     led_func(SET_RED_LED);
 
     /* Draw box to consume screen with pixels */

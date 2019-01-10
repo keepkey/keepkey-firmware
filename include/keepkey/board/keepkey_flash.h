@@ -20,13 +20,14 @@
 #ifndef KEEPKEY_FLASH_H
 #define KEEPKEY_FLASH_H
 
-/* === Includes ============================================================ */
+
+#define MODEL_STR_SIZE  32
+
 
 #include <stddef.h>
 
 #include "memory.h"
 
-/* === Functions =========================================================== */
 
 intptr_t flash_write_helper(Allocation group);
 void flash_erase(Allocation group);

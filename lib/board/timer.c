@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #ifndef EMULATOR
 #  include <libopencm3/stm32/timer.h>
@@ -31,17 +30,16 @@
 
 #include "keepkey/board/keepkey_leds.h"
 #include "keepkey/board/timer.h"
+#include "keepkey/board/supervise.h"
 
 #include <stddef.h>
 
-/* === Private Variables =================================================== */
 
 static volatile uint32_t remaining_delay = UINT32_MAX;
 static RunnableNode runnables[MAX_RUNNABLES];
 static RunnableQueue free_queue = {NULL, 0};
 static RunnableQueue active_queue = {NULL, 0};
 
-/* === Private Functions =================================================== */
 
 /*
  * runnable_queue_peek() - Get pointer to head node in task manager (queue)
@@ -122,7 +120,7 @@ static RunnableNode *runnable_queue_get(RunnableQueue *queue, Runnable callback)
 static void runnable_queue_push(RunnableQueue *queue, RunnableNode *node)
 {
 #ifndef EMULATOR
-    cm_disable_interrupts();
+    svc_disable_interrupts();
 #endif
 
     if(queue->head != NULL)
@@ -138,7 +136,7 @@ static void runnable_queue_push(RunnableQueue *queue, RunnableNode *node)
     queue->size += 1;
 
 #ifndef EMULATOR
-    cm_enable_interrupts();
+    svc_enable_interrupts();
 #endif
 }
 
@@ -153,7 +151,7 @@ static void runnable_queue_push(RunnableQueue *queue, RunnableNode *node)
 static RunnableNode *runnable_queue_pop(RunnableQueue *queue)
 {
 #ifndef EMULATOR
-    cm_disable_interrupts();
+    svc_disable_interrupts();
 #endif
 
     RunnableNode *runnable_node = queue->head;
@@ -165,7 +163,7 @@ static RunnableNode *runnable_queue_pop(RunnableQueue *queue)
     }
 
 #ifndef EMULATOR
-    cm_enable_interrupts();
+    svc_enable_interrupts();
 #endif
 
     return(runnable_node);
@@ -216,7 +214,17 @@ static void run_runnables(void)
     }
 }
 
-/* === Functions =========================================================== */
+
+void kk_timer_init(void)
+{
+    for(int i = 0; i < MAX_RUNNABLES; i++)
+    {
+        runnable_queue_push(&free_queue, &runnables[ i ]);
+    }
+}
+
+
+
 
 /*
  * timer_init() - Timer 4 initialization.  Main timer for round robin tasking.
@@ -248,7 +256,6 @@ void timer_init(void)
     timer_set_period(TIM4, 1);
 
     nvic_set_priority(NVIC_TIM4_IRQ, 16 * 2);
-    nvic_enable_irq(NVIC_TIM4_IRQ);
 
     timer_enable_counter(TIM4);
 #else
@@ -320,7 +327,7 @@ void delay_ms_with_callback(uint32_t ms, callback_func_t callback_func,
 }
 
 /*
- * tim4_isr() - Timer 4 interrupt service routine
+ * timerisr_usr() - Timer 4 user mode interrupt service routine
  *
  * INPUT
  *     none
@@ -328,7 +335,7 @@ void delay_ms_with_callback(uint32_t ms, callback_func_t callback_func,
  *     none
  *
  */
-void tim4_isr(void)
+void timerisr_usr(void)
 {
     /* Decrement the delay */
     if(remaining_delay > 0)
@@ -337,14 +344,15 @@ void tim4_isr(void)
     }
 
     run_runnables();
+
 #ifndef EMULATOR
-    timer_clear_flag(TIM4, TIM_SR_UIF);
+    svc_tusr_return();   // this MUST be called last to properly clean up and return
 #endif
 }
 
 #ifdef EMULATOR
 void tim4_sighandler(int sig) {
-    tim4_isr();
+    timerisr_usr();
 }
 #endif
 

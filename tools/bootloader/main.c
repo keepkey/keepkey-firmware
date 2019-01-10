@@ -1,3 +1,4 @@
+
 /*
  * This file is part of the KeepKey project.
  *
@@ -17,15 +18,16 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
-
 #include "main.h"
 
+#include <libopencm3/stm32/desig.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/f2/rng.h>
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/cm3/cortex.h>
+#include <libopencm3/cm3/scb.h>
+#include <libopencm3/cm3/vector.h>
 
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/keepkey_board.h"
@@ -38,9 +40,11 @@
 #include "keepkey/board/memory.h"
 #include "keepkey/board/pubkeys.h"
 #include "keepkey/board/timer.h"
-#include "keepkey/board/usb_driver.h"
+#include "keepkey/board/usb.h"
 #include "keepkey/board/variant.h"
-#include "keepkey/bootloader/signatures.h"
+#include "keepkey/board/supervise.h"
+#include "keepkey/board/signatures.h"
+#include "keepkey/board/u2f_hid.h"
 #include "keepkey/bootloader/usb_flash.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/variant/keepkey.h"
@@ -52,7 +56,7 @@
 #include <stdint.h>
 #include <string.h>
 
-static uint32_t *const SCB_VTOR = (uint32_t *)0xe000ed08;
+#define BUTTON_IRQN NVIC_EXTI9_5_IRQ
 
 #define APP_VERSIONS "VERSION" \
                       VERSION_STR(BOOTLOADER_MAJOR_VERSION)  "." \
@@ -63,25 +67,21 @@ static uint32_t *const SCB_VTOR = (uint32_t *)0xe000ed08;
 static const char *const application_version
 __attribute__((used, section("version"))) = APP_VERSIONS;
 
-/*
- * set_vector_table_application() - Resets the vector table to point to the
- * applications's vector table.
- *
- * INPUT
- *     none
- * OUTPUT
- *     none
- *
- */
-static void set_vector_table_application(void)
-{
-    static const uint32_t NVIC_OFFSET_FLASH = ((uint32_t)FLASH_ORIGIN);
+void mmhisr(void);
+void bl_board_init(void);
 
-    *SCB_VTOR = NVIC_OFFSET_FLASH | ((FLASH_APP_START - FLASH_ORIGIN) & (uint32_t)0x1FFFFF80);
+void memory_getDeviceSerialNo(char *str, size_t len) {
+#ifdef DEBUG_ON
+    desig_get_unique_id_as_string(str, len);
+#else
+    // Storage isn't available to be read by the bootloader, and we don't want
+    // to use the Serial No. baked into the STM32 for privacy reasons.
+    strlcpy(str, "000000000000000000000000", len);
+#endif
 }
 
 /*
- * application_jump() - Jump to application
+ * jump_to_firmware() - jump to firmware
  *
  * INPUT
  *     none
@@ -89,16 +89,55 @@ static void set_vector_table_application(void)
  *     none
  *
  */
-static void application_jump(void)
+static inline void __attribute__((noreturn)) jump_to_firmware(const vector_table_t *new_vtable, int trust)
 {
     extern char _confidential_start[];
     extern char _confidential_end[];
+
+    // Set up and turn on memory protection
+
     memset_reg(_confidential_start, _confidential_end, 0);
 
-    uint32_t entry_address = FLASH_APP_START + 4;
-    uint32_t app_entry_address = (uint32_t)(*(uint32_t *)(entry_address));
-    app_entry_t app_entry = (app_entry_t)app_entry_address;
-    app_entry();
+    // disable interrupts until new user vectors
+    svc_disable_interrupts();    // disable interrupts until new user vectors set
+
+#ifdef  DEBUG_ON
+    // For dev devices with JTAG disabled firmware must always be trusted. Otherwise, a bootloader might be updated
+    // that locks out further bootloader updates. 
+    trust = SIG_OK;
+
+#ifdef TEST_UNSIGNED
+    trust = SIG_FAIL;
+#endif
+
+#endif //DEBUG_ON
+
+
+    if (SIG_OK == trust) {
+        if (new_vtable->irq[NVIC_ETH_IRQ] != new_vtable->irq[NVIC_ETH_WKUP_IRQ]) {
+            // If these vectors are not equal, the blupdater is in the firmware space. Let it use its own vector table.
+            // msp will be used in thread and handler mode. The NVIC_ETH_IRQ vector is at 0x08060234, this should
+            // point to the blocking handler in the blupdater.
+            // blupdater will use its own mpu
+            SCB_VTOR = (uint32_t)new_vtable;                  // new vector table
+            new_vtable->reset();    // jump to blupdater
+
+        } else {
+            // trusted firmware, memory protect and run unprivileged in firmware image
+            SCB_VTOR = (uint32_t)new_vtable;    // use fw vector table for intermediate releases
+            new_vtable->reset();    // jump to firmware
+        }
+
+    } else {
+        // Untrusted firmware, run unpriv, memory protect here
+        // Set the thread mode level to unprivileged for firmware without good sig, turn on mpu    
+        mpu_config(trust);
+        __asm__ __volatile__ ("svc %0" :: "i" (SVC_FIRMWARE_UNPRIV) : "memory"); 
+    }
+
+    // Prevent compiler from generating stack protector code (which causes CPU fault because the stack is moved)
+
+    for (;;);
 }
 
 /*
@@ -112,11 +151,13 @@ static void application_jump(void)
  */
 static void bootloader_init(void)
 {
+    cm_enable_interrupts();
     reset_rng();
     timer_init();
+    keepkey_button_init();
+    svc_enable_interrupts();    // enable the timer and button interrupts
     usart_init();
     keepkey_leds_init();
-    keepkey_button_init();
     storage_sectorInit();
     display_hw_init();
     layout_init(display_canvas_init());
@@ -208,59 +249,38 @@ const VariantInfo *variant_getInfo(void) {
     return &variant_poweredBy;
 }
 
-/*
- *  boot() - Runs through application firmware checking, and then boots
- *
- *  INPUT
- *      none
- *  OUTPUT
- *      true/false whether boot was successful
- *
- */
-static bool boot(void)
+/// Runs through application firmware checking, and then boots
+static void boot(void)
 {
-    if(magic_ok())
-    {
-        layout_home();
-
-        if(signatures_ok() != SIG_OK) /* Signature check failed */
-        {
-            delay_ms(500);
-
-#ifdef DEBUG_ON
-            if (!confirm_without_button_request("Unofficial Firmware",
-                                                "Do you want to continue booting?"))
-            {
-                layout_simple_message("Boot Aborted");
-                goto cancel_boot;
-            }
-
-            char digest_str[SHA256_DIGEST_STRING_LENGTH];
-            if (!confirm_without_button_request("Confirm Unofficial Firmware", "%s",
-                                                memory_firmware_hash_str(digest_str)))
-#endif
-            {
-                layout_simple_message("Boot Aborted");
-                goto cancel_boot;
-            }
-
-            layout_home();
-            delay_ms(800);
-        }
-
-        led_func(CLR_RED_LED);
-        cm_disable_interrupts();
-        set_vector_table_application();
-        application_jump();
-    }
-    else
-    {
+    if (!magic_ok()) {
         layout_simple_message("Please visit keepkey.com/get-started");
-        goto cancel_boot;
+        return;
     }
 
-cancel_boot:
-    return(false);
+    int signed_firmware = signatures_ok();
+
+    // Failure due to expired sig key.
+    if (signed_firmware == KEY_EXPIRED) {
+        layout_standard_notification("Firmware Update Required",
+                                     "Please disconnect and reconnect while holding the button.",
+                                     NOTIFICATION_UNPLUG);
+        display_refresh();
+        return;
+    }
+
+    // Signature check failed.
+    if (signed_firmware != SIG_OK) {
+        char digest_str[SHA256_DIGEST_STRING_LENGTH];
+        if (!confirm_without_button_request("Unofficial Firmware",
+                                            "Do you want to continue?\n%s",
+                                            memory_firmware_hash_str(digest_str))) {
+            layout_simple_message("Boot Aborted");
+            return;
+        }
+    }
+
+    led_func(CLR_RED_LED);
+    jump_to_firmware((const vector_table_t*)(FLASH_APP_START), signed_firmware);
 }
 
 /*
@@ -288,7 +308,6 @@ static void update_fw(void)
     }
 }
 
-/* === Functions =========================================================== */
 
 /*
  * main - Bootloader main entry function
@@ -304,6 +323,11 @@ int main(int argc, char *argv[])
     (void)argc;
     (void)argv;
 
+    _buttonusr_isr = (void *)&buttonisr_usr;
+    _timerusr_isr = (void *)&timerisr_usr;
+    _mmhusr_isr = (void *)&mmhisr;
+
+    bl_board_init();
     clock_init();
     bootloader_init();
 

@@ -137,6 +137,9 @@ const VariantAnimation *variant_getLogo(bool reversed) {
 }
 
 const char *variant_getName(void) {
+#ifdef EMULATOR
+    return "Emulator";
+#else
     if (name) {
         return name;
     }
@@ -148,4 +151,5 @@ const char *variant_getName(void) {
 
     name = variant_getInfo()->name;
     return name;
+#endif
 }

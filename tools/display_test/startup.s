@@ -59,4 +59,7 @@ shutdown:
   mov r12, r0
   ldr lr, =0xffffffff
   b .                     // loop forever
+
+  .ltorg // dump literal pool (for the ldr ...,=... commands above)
+
   .end

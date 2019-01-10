@@ -20,11 +20,9 @@
 #ifndef FONT_H
 #define FONT_H
 
-/* === Includes ============================================================ */
 
 #include <stdint.h>
 
-/* === Typedefs ============================================================ */
 
 /* Data pertaining to the image of a character */
 typedef struct
@@ -51,7 +49,6 @@ typedef struct
     const Character    *characters;
 } Font;
 
-/* === Functions =========================================================== */
 
 const Font *get_pin_font(void);
 const Font *get_title_font(void);

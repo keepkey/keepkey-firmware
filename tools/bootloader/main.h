@@ -22,11 +22,9 @@
 
 #include <stdbool.h>
 
-/* === Typedefs ============================================================ */
 
 typedef void (*app_entry_t)(void);
 
-/* === Functions =========================================================== */
 
 bool check_fw_is_new(void);
 

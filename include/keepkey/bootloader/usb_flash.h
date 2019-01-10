@@ -20,14 +20,12 @@
 #ifndef USB_FLASH_H
 #define USB_FLASH_H
 
-/* === Includes ============================================================ */
 
-#include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/messages.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 
-/* === Defines ============================================================= */
 
 #define RESP_INIT(TYPE) TYPE resp; memset(&resp, 0, sizeof(TYPE));
 
@@ -37,7 +35,6 @@
 
 #define FILL_CONFIG_DATA                0xaa
 
-/* === Typedefs ============================================================ */
 
 typedef enum 
 {
@@ -50,7 +47,6 @@ typedef enum
 /* Generic message handler callback type */
 typedef void (*message_handler_t)(void* msg_struct); 
 
-/* === Functions =========================================================== */
 
 bool usb_flash_firmware(void);
 void storage_sectorInit(void);

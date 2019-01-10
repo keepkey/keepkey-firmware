@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 #ifndef EMULATOR
 #  include <libopencm3/stm32/rcc.h>
@@ -31,16 +30,15 @@
 #endif
 
 #include "keepkey/board/keepkey_board.h"
+#include "keepkey/board/supervise.h"
 #include "keepkey/rand/rng.h"
 
 #include <stdint.h>
 #include <stdlib.h>
 
-/* === Variables =========================================================== */
 
 /* Stack smashing protector (SSP) canary value storage */
 uintptr_t __stack_chk_guard;
-/* === Functions =========================================================== */
 
 #ifdef EMULATOR
 /**
@@ -97,24 +95,26 @@ void board_reset(void)
 }
 
 /*
- * board_init() - Initialize board
+ * kk_board_init() - Initialize board
  *
  * INPUT
  *     none
  * OUTPUT
  *     none
  */
-void board_init(void)
+void kk_board_init(void)
 {
-    timer_init();
+    kk_timer_init();
 
+//    keepkey_leds_init();
+    led_func(CLR_GREEN_LED);
+    led_func(CLR_RED_LED);
+
+    kk_keepkey_button_init();
 #ifndef EMULATOR
-    // Enable Clock Security System
-    rcc_css_enable();
+    svc_enable_interrupts();    // This enables the timer and button interrupts
 #endif
-
-    keepkey_leds_init();
-    keepkey_button_init();
+    
     layout_init(display_canvas_init());
 }
 

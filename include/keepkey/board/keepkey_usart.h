@@ -20,7 +20,6 @@
 #ifndef KEEPKEY_USART_H
 #define KEEPKEY_USART_H
 
-/* === Includes ============================================================ */
 
 #include <stdarg.h>
 
@@ -30,13 +29,11 @@
 
 #include "timer.h"
 
-/* === Defines ============================================================= */
 
 #define SMALL_DEBUG_BUF     32
 #define MEDIUM_DEBUG_BUF    64
 #define LARGE_DEBUG_BUF     128
 
-/* === Functions =========================================================== */
 
 #ifndef EMULATOR
 void dbg_print(const char *pStr, ...) __attribute__((format(printf,1,2)));

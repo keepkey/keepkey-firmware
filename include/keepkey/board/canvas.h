@@ -20,12 +20,10 @@
 #ifndef CANVAS_H
 #define CANVAS_H
 
-/* === Includes ============================================================ */
 
 #include <stdint.h>
 #include <stdbool.h>
 
-/* === Typedefs ============================================================ */
 
 typedef struct
 {

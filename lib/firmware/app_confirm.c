@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* === Includes ============================================================ */
 
 
 #if !defined(EMULATOR)
@@ -31,15 +30,16 @@
 #include "keepkey/board/keepkey_button.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/layout.h"
-#include "keepkey/board/msg_dispatch.h"
+#include "keepkey/board/messages.h"
 #include "keepkey/board/confirm_sm.h"
-#include "keepkey/board/usb_driver.h"
+#include "keepkey/board/usb.h"
+#include "keepkey/board/util.h"
 
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/app_layout.h"
-#include "keepkey/firmware/qr_encode.h"
 #include "keepkey/firmware/coins.h"
-#include "keepkey/firmware/util.h"
+
+#include "trezor/qrenc/qr_encode.h"
 
 #include <assert.h>
 #include <stdarg.h>
@@ -49,7 +49,6 @@
 #include <stdio.h>
 #include <string.h>
 
-/* === Functions =========================================================== */
 
 /*
  * confirm_cipher() - Show cipher confirmation

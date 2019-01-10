@@ -2,8 +2,10 @@ if(NOT ${KK_EMULATOR})
 
   set(sources
       main.c
-      signatures.c
-      usb_flash.c)
+      usb_flash.c
+      bl_mpu.c
+      startup.s
+      isr.s)
 
   include_directories(
       ${CMAKE_SOURCE_DIR}/include
