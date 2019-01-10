@@ -5,7 +5,9 @@
 #include <string.h>
 
 const TokenType tokens[] = {
-#include "ethereum_tokens.def"
+#define X(CHAIN_ID, CONTRACT_ADDR, TICKER, DECIMALS) \
+    { (CHAIN_ID), (CONTRACT_ADDR), (TICKER), (DECIMALS) },
+#include "keepkey/firmware/ethereum_tokens.def"
 };
 
 _Static_assert(sizeof(tokens) / sizeof(tokens[0]) == TOKENS_COUNT,

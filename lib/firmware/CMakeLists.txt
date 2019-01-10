@@ -35,12 +35,13 @@ add_library(kkfirmware ${sources})
 add_dependencies(kkfirmware kktransport.pb trezorcrypto trezorqrenc ethereum_tokens.def)
 
 file(GLOB_RECURSE ethereum_tokens_json ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/*.*)
-add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ethereum_tokens.def
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/include/keepkey/firmware/ethereum_tokens.def
   DEPENDS ${ethereum_tokens_json}
-  COMMAND python ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/ethereum_tokens.py ${CMAKE_CURRENT_BINARY_DIR}/ethereum_tokens.def)
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/include/keepkey/firmware
+  COMMAND python ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/ethereum_tokens.py ${CMAKE_BINARY_DIR}/include/keepkey/firmware/ethereum_tokens.def)
 
 add_custom_target(ethereum_tokens.def
-  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/ethereum_tokens.def)
+  DEPENDS ${CMAKE_BINARY_DIR}/include/keepkey/firmware/ethereum_tokens.def)
 
 add_library(kkfirmware.keepkey variant/keepkey/resources.c)
 add_library(kkfirmware.mfr variant/mfr/resources.c)

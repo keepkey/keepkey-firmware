@@ -21,12 +21,46 @@
 #define COINS_H
 
 #include "keepkey/transport/interface.h"
+#include "keepkey/board/util.h"
 
 #define NA      0xFFFF  /*etherum does not use P2PH or P2SH */
 #define ETHEREUM        "Ethereum"
 #define ETHEREUM_CLS    "Ethereum Classic"
 
-#define COINS_COUNT         66
+enum {
+#define X(\
+HAS_COIN_NAME, COIN_NAME, \
+HAS_COIN_SHORTCUT, COIN_SHORTCUT, \
+HAS_ADDRESS_TYPE, ADDRESS_TYPE, \
+HAS_MAXFEE_KB, MAXFEE_KB, \
+HAS_ADDRESS_TYPE_P2SH, ADDRESS_TYPE_P2SH, \
+HAS_SIGNED_MESSAGE_HEADER, SIGNED_MESSAGE_HEADER, \
+HAS_BIP44_ACCOUNT_PATH, BIP44_ACCOUNT_PATH, \
+HAS_FORKID, FORKID, \
+HAS_DECIMALS, DECIMALS, \
+HAS_CONTRACT_ADDRESS, CONTRACT_ADDRESS, \
+HAS_XPUB_MAGIC, XPUB_MAGIC, \
+HAS_SEGWIT, SEGWIT , \
+HAS_FORCE_BIP143, FORCE_BIP143, \
+HAS_CURVE_NAME, CURVE_NAME, \
+HAS_CASHADDR_PREFIX, CASHADDR_PREFIX, \
+HAS_BECH32_PREFIX, BECH32_PREFIX, \
+HAS_DECRED, DECRED , \
+HAS_XPUB_MAGIC_SEGWIT_P2SH, XPUB_MAGIC_SEGWIT_P2SH, \
+HAS_XPUB_MAGIC_SEGWIT_NATIVE, XPUB_MAGIC_SEGWIT_NATIVE \
+) \
+    CONCAT(CoinIndex, __COUNTER__),
+#include "keepkey/firmware/coins.def"
+
+#define X(INDEX, NAME, SYMBOL, DECIMALS, CONTRACT_ADDRESS) \
+    CONCAT(CoinIndex, __COUNTER__),
+#include "keepkey/firmware/tokens.def"
+
+    CoinIndexLast,
+    CoinIndexFirst = 0
+};
+
+#define COINS_COUNT         ((size_t)CoinIndexLast-(size_t)CoinIndexFirst)
 #define NODE_STRING_LENGTH  50
 
 #define COIN_FRACTION 100000000

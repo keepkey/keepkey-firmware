@@ -20,10 +20,20 @@
 #ifndef __ETHEREUM_TOKENS_H__
 #define __ETHEREUM_TOKENS_H__
 
+#include "keepkey/board/util.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
-#define TOKENS_COUNT 1128
+enum {
+#define X(CHAIN_ID, CONTRACT_ADDR, TICKER, DECIMALS) \
+    CONCAT(TokenIndex, __COUNTER__),
+#include "keepkey/firmware/ethereum_tokens.def"
+    TokenIndexLast,
+    TokenIndexFirst = 0
+};
+
+#define TOKENS_COUNT ((size_t)TokenIndexLast)
 
 typedef struct _TokenType {
     uint8_t chain_id;

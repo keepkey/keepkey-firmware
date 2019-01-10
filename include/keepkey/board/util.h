@@ -27,6 +27,9 @@
 #define MIN(a, b) ({ typeof(a) _a = (a); typeof(b) _b = (b); _a < _b ? _a : _b; })
 #define MAX(a, b) ({ typeof(a) _a = (a); typeof(b) _b = (b); _a > _b ? _a : _b; })
 
+#define CONCAT_IMPL(A, B) A##B
+#define CONCAT(A, B) CONCAT_IMPL(A, B)
+
 // converts uint32 to hexa (8 digits)
 void uint32hex(uint32_t num, char *str);
 
