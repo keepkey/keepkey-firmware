@@ -643,6 +643,9 @@ void layout_clear(void)
  */
 void layout_clear_static(void)
 {
+    if (!canvas)
+        return;
+
     BoxDrawableParams bp;
     bp.width = canvas->width;
     bp.height = canvas->height;
@@ -676,6 +679,9 @@ void force_animation_start(void)
  */
 void animating_progress_handler(const char *desc, int permil)
 {
+    if (!canvas)
+        return;
+
     call_leaving_handler();
     layout_clear();
 
