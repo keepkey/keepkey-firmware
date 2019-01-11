@@ -60,7 +60,7 @@ HAS_XPUB_MAGIC_SEGWIT_NATIVE, XPUB_MAGIC_SEGWIT_NATIVE \
     CoinIndexFirst = 0
 };
 
-#define COINS_COUNT         ((size_t)CoinIndexLast-(size_t)CoinIndexFirst)
+#define COINS_COUNT         ((int)CoinIndexLast-(int)CoinIndexFirst)
 #define NODE_STRING_LENGTH  50
 
 #define COIN_FRACTION 100000000

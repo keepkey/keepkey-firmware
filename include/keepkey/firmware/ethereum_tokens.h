@@ -33,7 +33,7 @@ enum {
     TokenIndexFirst = 0
 };
 
-#define TOKENS_COUNT ((size_t)TokenIndexLast)
+#define TOKENS_COUNT ((int)TokenIndexLast-(int)TokenIndexFirst)
 
 typedef struct _TokenType {
     uint8_t chain_id;
