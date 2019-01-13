@@ -139,6 +139,9 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 	const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
 	if (!node) return;
 
+	const CoinType *coin = fsm_getCoin(true, ETHEREUM);
+	if (!coin) return;
+
 	resp->address.size = 20;
 
 	if (!hdnode_get_ethereum_pubkeyhash(node, resp->address.bytes))
@@ -160,7 +163,17 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 	strlcpy(resp->address_str, address, sizeof(resp->address_str));
 
 	if (msg->has_show_display && msg->show_display) {
-		if (!confirm_ethereum_address("", address)) {
+		char node_str[NODE_STRING_LENGTH];
+		if (!bip32_node_to_string(node_str, sizeof(node_str), coin,
+		                          msg->address_n,
+		                          msg->address_n_count,
+		                          /*whole_account=*/false) &&
+		    !bip32_path_to_string(node_str, sizeof(node_str),
+		                          msg->address_n, msg->address_n_count)) {
+			memset(node_str, 0, sizeof(node_str));
+		}
+
+		if (!confirm_ethereum_address(node_str, address)) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
 			layoutHome();
 			return;
