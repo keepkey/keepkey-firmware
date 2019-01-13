@@ -406,7 +406,7 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
         snprintf(node_str, len, "%s%s Account #%" PRIu32, prefix, coin_name,
                  address_n[2] & 0x7ffffff);
     } else {
-        snprintf(node_str, len, "%s%s Account #%" PRIu32 ",\nAddress #%" PRIu32, prefix, coin_name,
+        snprintf(node_str, len, "%s%s Account #%" PRIu32 "\nAddress #%" PRIu32, prefix, coin_name,
                  address_n[2] & 0x7ffffff, address_n[4]);
     }
 
