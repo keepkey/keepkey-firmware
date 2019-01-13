@@ -174,7 +174,7 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 		}
 
 		if (!confirm_ethereum_address(node_str, address)) {
-			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, _("Show address cancelled"));
 			layoutHome();
 			return;
 		}
@@ -190,7 +190,7 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage *msg)
 
 	CHECK_INITIALIZED
 
-	if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, "Sign Message",
+	if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Sign Message"),
 	             "%s", msg->message.bytes)) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
 		layoutHome();
@@ -218,12 +218,12 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg)
 
 	char address[43] = { '0', 'x' };
 	ethereum_address_checksum(msg->address.bytes, address + 2, false, 0);
-	if (!confirm_address("Confirm Signer", address)) {
+	if (!confirm_address(_("Confirm Signer"), address)) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
 		layoutHome();
 		return;
 	}
-	if (!confirm(ButtonRequestType_ButtonRequest_Other, "Message Verified", "%s",
+	if (!confirm(ButtonRequestType_ButtonRequest_Other, _("Message Verified"), "%s",
 	             msg->message.bytes)) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
 		layoutHome();
