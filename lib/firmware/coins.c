@@ -382,6 +382,15 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
     if (address_n_count != 3 && address_n_count != 5)
         return false;
 
+    // Don't display this way for change addresses, discouraging their use in GetAddress.
+    if (!whole_account) {
+        if (address_n_count != 5)
+            return false;
+
+        if (address_n[3] != 0)
+            return false;
+    }
+
     if (path_mismatched(coin, address_n, address_n_count, whole_account))
         return false;
 
@@ -393,8 +402,14 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
     bool is_token = coin->has_contract_address;
     const char *coin_name = is_token ? "Ethereum" : coin->coin_name;
 
-    snprintf(node_str, len, "%s%s Account #%" PRIu32, prefix, coin_name,
-             address_n[2] & 0x7ffffff);
+    if (whole_account) {
+        snprintf(node_str, len, "%s%s Account #%" PRIu32, prefix, coin_name,
+                 address_n[2] & 0x7ffffff);
+    } else {
+        snprintf(node_str, len, "%s%s Account #%" PRIu32 "\nAddress #%" PRIu32, prefix, coin_name,
+                 address_n[2] & 0x7ffffff, address_n[4]);
+    }
+
     return true;
 }
 
