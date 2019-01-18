@@ -878,7 +878,7 @@ void storage_commit_impl(SessionState *ss, ConfigFlash *cfg)
 
     memzero(flash_temp, sizeof(flash_temp));
 
-    if (ss->pinCached) {
+    if (ss->pinCached || !cfg->storage.pub.has_pin) {
         storage_secMigrate(ss, &cfg->storage, /*encrypt=*/true);
     } else {
         // commit what was in storage->encrypted_sec
