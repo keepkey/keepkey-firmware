@@ -145,7 +145,10 @@ TEST(Storage, ReadStorageV1) {
     Storage dst;
     memset(&dst, 0xCC, sizeof(dst));
 
-    storage_readStorageV1(&dst, &src[0], sizeof(src));
+    SessionState session;
+    memset(&session, 0, sizeof(session));
+
+    storage_readStorageV1(&session, &dst, &src[0], sizeof(src));
 
     // Check that the secret area of storage remains cleared.
     EXPECT_EQ(dst.sec.node.depth, 0);
@@ -155,7 +158,7 @@ TEST(Storage, ReadStorageV1) {
     storage_deriveWrappingKey("123456789", wrapping_key); // strongest pin evar
     uint8_t storage_key[64];
     storage_unwrapStorageKey(wrapping_key, dst.pub.wrapped_storage_key, storage_key);
-    storage_secMigrate(&dst, storage_key, /*encrypt=*/false);
+    storage_secMigrate(&session, &dst, storage_key, /*encrypt=*/false);
 
     // Check that the secret area was correctly unencrypted.
     EXPECT_EQ(dst.version, 10);
@@ -174,7 +177,7 @@ TEST(Storage, ReadStorageV1) {
     char encrypted_sec[sizeof(dst.encrypted_sec)];
     memcpy(encrypted_sec, dst.encrypted_sec, sizeof(encrypted_sec));
     memzero(dst.encrypted_sec, sizeof(encrypted_sec));
-    storage_secMigrate(&dst, storage_key, /*encrypt=*/true);
+    storage_secMigrate(&session, &dst, storage_key, /*encrypt=*/true);
     EXPECT_THAT(dst.encrypted_sec, ElementsAreArray(encrypted_sec));
 }
 
@@ -401,13 +404,16 @@ TEST(Storage, StorageUpgrade_Normal) {
     uint8_t storage_key[64];
     storage_unwrapStorageKey(wrapping_key, shadow.storage.pub.wrapped_storage_key, storage_key);
 
-    storage_secMigrate(&shadow.storage, storage_key, /*encrypt=*/false);
+    SessionState session;
+    memset(&session, 0, sizeof(session));
+
+    storage_secMigrate(&session, &shadow.storage, storage_key, /*encrypt=*/false);
 
     ConfigFlash shadow2;
     memcpy(&shadow2, &shadow, sizeof(shadow2));
     memzero(&shadow2.storage.encrypted_sec, sizeof(shadow2.storage.encrypted_sec));
 
-    storage_secMigrate(&shadow2.storage, storage_key, /*encrypt=*/true);
+    storage_secMigrate(&session, &shadow2.storage, storage_key, /*encrypt=*/true);
 
     EXPECT_TRUE(memcmp(&shadow.storage.encrypted_sec,
                        &shadow2.storage.encrypted_sec,
@@ -450,11 +456,14 @@ TEST(Storage, StorageRoundTrip) {
     uint8_t storage_key[64];
     storage_unwrapStorageKey(wrapping_key, start.storage.pub.wrapped_storage_key, storage_key);
 
-    storage_secMigrate(&start.storage, storage_key, /*encrypt=*/true);
+    SessionState session;
+    memset(&session, 0, sizeof(session));
 
-    std::vector<char> flash(1024);
+    storage_secMigrate(&session, &start.storage, storage_key, /*encrypt=*/true);
 
-    storage_writeV11(&flash[0], flash.size(), &start);
+    std::vector<uint8_t> flash(1024);
+
+    storage_writeV11((char*)&flash[0], flash.size(), &start);
 
 #if 0
     printf("        ");
@@ -471,7 +480,7 @@ TEST(Storage, StorageRoundTrip) {
     printf("\n");
 #endif
 
-    const uint8_t expected_flash[1024] = {
+    const uint8_t expected_flash[] = {
         0x73, 0x74, 0x6f, 0x72, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
         0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
         0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0x00, 0x00, 0x00, STORAGE_VERSION, 0x00, 0x00, 0x00,
@@ -542,9 +551,11 @@ TEST(Storage, StorageRoundTrip) {
 
     ConfigFlash end;
     memset(&end, 0xCC, sizeof(end));
-    EXPECT_EQ(storage_fromFlash(&end, &flash[0]), SUS_Valid);
+    EXPECT_EQ(storage_fromFlash(&end, (char*)&flash[0]), SUS_Valid);
 
-    storage_secMigrate(&end.storage, storage_key, /*encrypt=*/false);
+    memset(&session, 0, sizeof(session));
+
+    storage_secMigrate(&session, &end.storage, storage_key, /*encrypt=*/false);
 
     EXPECT_EQ(end.storage.version, STORAGE_VERSION);
 
@@ -680,7 +691,10 @@ TEST(Storage, Reset) {
     ConfigFlash config;
     uint8_t storage_key[64];
 
-    storage_reset_impl(&config, storage_key);
+    SessionState session;
+    memset(&session, 0, sizeof(session));
+
+    storage_reset_impl(&session, &config, storage_key);
 
     ASSERT_TRUE(storage_isPinCorrect_impl("",
                                           config.storage.pub.wrapped_storage_key,
@@ -689,7 +703,7 @@ TEST(Storage, Reset) {
 
     uint8_t new_storage_key[64];
     memset(new_storage_key, 0, sizeof(new_storage_key));
-    storage_setPin_impl(&config.storage, "1234", new_storage_key);
+    storage_setPin_impl(&session, &config.storage, "1234", new_storage_key);
 
     ASSERT_TRUE(memcmp(storage_key, new_storage_key, 64) != 0)
         << "RNG broken?";
