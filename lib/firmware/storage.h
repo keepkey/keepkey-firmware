@@ -133,14 +133,14 @@ void storage_resetCache(Cache *cache);
 
 void storage_readV1(SessionState *session, ConfigFlash *dst, const char *ptr, size_t len);
 void storage_readV2(SessionState *session, ConfigFlash *dst, const char *ptr, size_t len);
-void storage_readV11(SessionState *session, ConfigFlash *dst, const char *ptr, size_t len);
+void storage_readV11(ConfigFlash *dst, const char *ptr, size_t len);
 void storage_writeV11(char *ptr, size_t len, const ConfigFlash *src);
 
 void storage_readMeta(Metadata *meta, const char *ptr, size_t len);
 void storage_readPolicyV1(PolicyType *policy, const char *ptr, size_t len);
 void storage_readHDNode(HDNodeType *node, const char *ptr, size_t len);
 void storage_readStorageV1(SessionState *session, Storage *storage, const char *ptr, size_t len);
-void storage_readStorageV11(SessionState *session, Storage *storage, const char *ptr, size_t len);
+void storage_readStorageV11(Storage *storage, const char *ptr, size_t len);
 void storage_readCacheV1(Cache *cache, const char *ptr, size_t len);
 
 void storage_writeMeta(char *ptr, size_t len, const Metadata *meta);

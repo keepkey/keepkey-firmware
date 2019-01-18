@@ -483,7 +483,7 @@ void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage) {
     memcpy(ptr + 468, storage->encrypted_sec, sizeof(storage->encrypted_sec));
 }
 
-void storage_readStorageV11(SessionState *ss, Storage *storage, const char *ptr, size_t len) {
+void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     if (len < 852)
         return;
 
@@ -564,11 +564,11 @@ void storage_readV2(SessionState *ss, ConfigFlash *dst, const char *flash, size_
     storage_readStorageV1(ss, &dst->storage, flash + 44, 481);
 }
 
-void storage_readV11(SessionState *ss, ConfigFlash *dst, const char *flash, size_t len) {
+void storage_readV11(ConfigFlash *dst, const char *flash, size_t len) {
     if (len < 1024)
         return;
     storage_readMeta(&dst->meta, flash, 44);
-    storage_readStorageV11(ss, &dst->storage, flash + 44, 852);
+    storage_readStorageV11(&dst->storage, flash + 44, 852);
 }
 
 void storage_writeV11(char *flash, size_t len, const ConfigFlash *src) {
@@ -628,7 +628,7 @@ StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
 
         case StorageVersion_11:
         case StorageVersion_12:
-            storage_readV11(&session, dst, flash, STORAGE_SECTOR_LEN);
+            storage_readV11(dst, flash, STORAGE_SECTOR_LEN);
             dst->storage.version = STORAGE_VERSION;
             return dst->storage.version == version
                 ? SUS_Valid
