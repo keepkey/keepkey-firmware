@@ -156,9 +156,8 @@ TEST(Storage, ReadStorageV1) {
     // Decrypt upgraded storage.
     uint8_t wrapping_key[64];
     storage_deriveWrappingKey("123456789", wrapping_key); // strongest pin evar
-    uint8_t storage_key[64];
-    storage_unwrapStorageKey(wrapping_key, dst.pub.wrapped_storage_key, storage_key);
-    storage_secMigrate(&session, &dst, storage_key, /*encrypt=*/false);
+    storage_unwrapStorageKey(wrapping_key, dst.pub.wrapped_storage_key, session.storageKey);
+    storage_secMigrate(&session, &dst, /*encrypt=*/false);
 
     // Check that the secret area was correctly unencrypted.
     EXPECT_EQ(dst.version, 10);
@@ -177,7 +176,7 @@ TEST(Storage, ReadStorageV1) {
     char encrypted_sec[sizeof(dst.encrypted_sec)];
     memcpy(encrypted_sec, dst.encrypted_sec, sizeof(encrypted_sec));
     memzero(dst.encrypted_sec, sizeof(encrypted_sec));
-    storage_secMigrate(&session, &dst, storage_key, /*encrypt=*/true);
+    storage_secMigrate(&session, &dst, /*encrypt=*/true);
     EXPECT_THAT(dst.encrypted_sec, ElementsAreArray(encrypted_sec));
 }
 
@@ -398,22 +397,22 @@ TEST(Storage, StorageUpgrade_Normal) {
     ConfigFlash shadow;
     ASSERT_EQ(storage_fromFlash(&shadow, flash), SUS_Updated);
 
-    // Decrypt upgraded storage.
-    uint8_t wrapping_key[64];
-    storage_deriveWrappingKey("123456789", wrapping_key); // strongest pin evar
-    uint8_t storage_key[64];
-    storage_unwrapStorageKey(wrapping_key, shadow.storage.pub.wrapped_storage_key, storage_key);
-
     SessionState session;
     memset(&session, 0, sizeof(session));
 
-    storage_secMigrate(&session, &shadow.storage, storage_key, /*encrypt=*/false);
+    // Decrypt upgraded storage.
+    uint8_t wrapping_key[64];
+    storage_deriveWrappingKey("123456789", wrapping_key); // strongest pin evar
+    storage_unwrapStorageKey(wrapping_key, shadow.storage.pub.wrapped_storage_key,
+                             session.storageKey);
+
+    storage_secMigrate(&session, &shadow.storage, /*encrypt=*/false);
 
     ConfigFlash shadow2;
     memcpy(&shadow2, &shadow, sizeof(shadow2));
     memzero(&shadow2.storage.encrypted_sec, sizeof(shadow2.storage.encrypted_sec));
 
-    storage_secMigrate(&session, &shadow2.storage, storage_key, /*encrypt=*/true);
+    storage_secMigrate(&session, &shadow2.storage, /*encrypt=*/true);
 
     EXPECT_TRUE(memcmp(&shadow.storage.encrypted_sec,
                        &shadow2.storage.encrypted_sec,
@@ -451,15 +450,14 @@ TEST(Storage, StorageRoundTrip) {
     start.storage.sec.node.has_public_key = true;
     start.storage.sec.node.has_private_key = true;
 
-    uint8_t wrapping_key[64];
-    storage_deriveWrappingKey("", wrapping_key);
-    uint8_t storage_key[64];
-    storage_unwrapStorageKey(wrapping_key, start.storage.pub.wrapped_storage_key, storage_key);
-
     SessionState session;
     memset(&session, 0, sizeof(session));
 
-    storage_secMigrate(&session, &start.storage, storage_key, /*encrypt=*/true);
+    uint8_t wrapping_key[64];
+    storage_deriveWrappingKey("", wrapping_key);
+    storage_unwrapStorageKey(wrapping_key, start.storage.pub.wrapped_storage_key, session.storageKey);
+
+    storage_secMigrate(&session, &start.storage, /*encrypt=*/true);
 
     std::vector<uint8_t> flash(1024);
 
@@ -553,9 +551,7 @@ TEST(Storage, StorageRoundTrip) {
     memset(&end, 0xCC, sizeof(end));
     EXPECT_EQ(storage_fromFlash(&end, (char*)&flash[0]), SUS_Valid);
 
-    memset(&session, 0, sizeof(session));
-
-    storage_secMigrate(&session, &end.storage, storage_key, /*encrypt=*/false);
+    storage_secMigrate(&session, &end.storage, /*encrypt=*/false);
 
     EXPECT_EQ(end.storage.version, STORAGE_VERSION);
 
@@ -588,69 +584,6 @@ TEST(Storage, UpgradePolicies) {
     EXPECT_EQ(src.pub.policies[1].has_enabled, true);
     EXPECT_EQ(src.pub.policies[1].enabled, false);
 }
-
-#if 0
-TEST(Storage, WrappingKey) {
-    using ::testing::ElementsAreArray;
-
-    const struct {
-        char pin[17];
-        uint8_t key[64];
-        uint8_t wrapping[64];
-        uint8_t wrapped[64];
-    } vec[] = {
-        {
-            .pin = "0123456789",
-            .key = "\x00\x01\x02\x03\x04\x05\x06\x07"
-                   "\x00\x01\x02\x03\x04\x05\x06\x07"
-                   "\x00\x01\x02\x03\x04\x05\x06\x07"
-                   "\x00\x01\x02\x03\x04\x05\x06\x07"
-                   "\x00\x01\x02\x03\x04\x05\x06\x07"
-                   "\x00\x01\x02\x03\x04\x05\x06\x07"
-                   "\x00\x01\x02\x03\x04\x05\x06\x07"
-                   "\x00\x01\x02\x03\x04\x05\x06",
-            .wrapping = { 0x7d, 0xd4, 0xc9, 0xbe, 0xb0, 0xbd, 0x1a, 0x5c, 0x0a, 0x1f, 0xc8, 0xad, 0x88, 0xaf, 0xae, 0x5a, 0x09, 0x35, 0x1a, 0xba, 0x0e, 0xf9, 0x48, 0x38, 0xa9, 0xae, 0x46, 0xad, 0x7f, 0x30, 0x3e, 0xbc, 0x93, 0x64, 0xa1, 0x23, 0xf5, 0x8e, 0x54, 0xd3, 0x7e, 0x00, 0x7b, 0x47, 0xca, 0x97, 0xc1, 0x38, 0x5b, 0xb1, 0xc5, 0x6a, 0x7d, 0xb6, 0xb3, 0x52, 0x69, 0x55, 0xea, 0x2d, 0x8d, 0x7a, 0xfb, 0x1c },
-            .wrapped = { 0x41, 0xf3, 0xb2, 0x18, 0x54, 0xa0, 0xfc, 0xb2, 0x72, 0x45, 0xa6, 0x8c, 0xff, 0x23, 0xda, 0xfc, 0x5f, 0xc2, 0x60, 0x00, 0x59, 0xdd, 0xe1, 0x1c, 0x15, 0x7d, 0x96, 0xa4, 0x07, 0x99, 0x9c, 0xcf, 0x08, 0x44, 0x97, 0xe7, 0xbc, 0xfa, 0x1c, 0x42, 0x77, 0x82, 0x5e, 0xf2, 0xad, 0x8c, 0x6b, 0x5c, 0x1e, 0xb6, 0x35, 0x36, 0xe6, 0xa3, 0xb9, 0xb9, 0x7b, 0xa8, 0x5e, 0x20, 0x3c, 0x7f, 0x47, 0xae },
-        },
-        {
-            .pin = "",
-            .key = "Quick Shifty Fox",
-            .wrapping = { 0x8b, 0x2b, 0x2e, 0x25, 0x42, 0xd7, 0xad, 0x5d, 0xc4, 0xf1, 0xfc, 0xfb, 0x77, 0x23, 0xb5, 0xe8, 0x7c, 0x78, 0x85, 0x6d, 0x7c, 0xb6, 0xfa, 0x69, 0xae, 0xaf, 0x90, 0x53, 0xcd, 0xc1, 0x1a, 0x98, 0xee, 0x7d, 0xa8, 0x55, 0xd9, 0xd2, 0x2c, 0x60, 0x03, 0xab, 0xb3, 0x71, 0x0e, 0x1c, 0x9e, 0xc6, 0xdf, 0x82, 0xa6, 0x86, 0x87, 0xec, 0x3d, 0xdb, 0x3a, 0xe2, 0x2d, 0xf1, 0xac, 0x43, 0x3c, 0x56 },
-            .wrapped = { 0xfd, 0xb2, 0xa9, 0xcc, 0x94, 0x26, 0xf5, 0xe1, 0x29, 0x3d, 0x68, 0xa8, 0x86, 0x19, 0x0c, 0x51, 0x1c, 0xff, 0x29, 0xa4, 0x7c, 0xe7, 0xd7, 0xc5, 0x7d, 0x20, 0x57, 0xc8, 0x41, 0x35, 0x79, 0x96, 0xeb, 0x85, 0x16, 0x7d, 0x3f, 0xb4, 0x28, 0xc3, 0xb8, 0xa8, 0xc3, 0x6f, 0x76, 0x2e, 0xaa, 0x7b, 0x56, 0xf9, 0xaa, 0x8f, 0x75, 0x5b, 0x78, 0xc0, 0xbb, 0xe2, 0x22, 0x04, 0xd0, 0x69, 0x22, 0x8f },
-        },
-        {
-            .pin = "11111111",
-            .key = { 0 },
-            .wrapping = { 0xac, 0x42, 0xbb, 0xc7, 0x0b, 0x81, 0x0d, 0xbf, 0x8e, 0xea, 0xd2, 0xa2, 0xb8, 0x44, 0x53, 0xb9, 0x79, 0x30, 0xde, 0x58, 0xd4, 0xad, 0xed, 0xb5, 0x16, 0x18, 0x73, 0x4c, 0x23, 0x87, 0xe0, 0xbd, 0xac, 0x38, 0xac, 0xce, 0x9b, 0xbb, 0xc9, 0x0f, 0xcb, 0xb8, 0x47, 0xc0, 0x23, 0x73, 0x3a, 0xa2, 0x96, 0x98, 0x90, 0x6e, 0x6c, 0xab, 0xd7, 0x06, 0x44, 0x4b, 0x74, 0xee, 0x53, 0x04, 0x14, 0xee },
-            .wrapped = { 0x01, 0x28, 0xa9, 0x34, 0x6c, 0x1a, 0x4e, 0x8f, 0xd3, 0xd2, 0x2b, 0xa8, 0xe7, 0x5c, 0xa1, 0x9c, 0x6b, 0x06, 0x34, 0x78, 0xcf, 0x61, 0x8e, 0x0f, 0x38, 0x3c, 0x5b, 0x2d, 0xca, 0x8b, 0x0a, 0x8b, 0x9a, 0x87, 0x7a, 0x6d, 0x19, 0xee, 0xfb, 0xb7, 0x44, 0xda, 0x84, 0x3e, 0x03, 0x66, 0xd1, 0x17, 0x6c, 0x5e, 0x4e, 0x37, 0x53, 0x40, 0xe7, 0xc8, 0x1c, 0xe3, 0x48, 0x94, 0x47, 0x70, 0xe5, 0xdf },
-        },
-    };
-
-    for (const auto &v : vec) {
-        uint8_t wrapping_key[64];
-        storage_deriveWrappingKey(v.pin, wrapping_key);
-        //EXPECT_THAT(wrapping_key, ElementsAreArray(v.wrapping));
-
-        uint8_t wrapped_key[64];
-        storage_wrapStorageKey(wrapping_key, v.key, wrapped_key);
-        //EXPECT_THAT(wrapped_key, ElementsAreArray(v.wrapped));
-
-        uint8_t fingerprint[64];
-        storage_keyFingerprint(v.key, fingerprint);
-
-        uint8_t key_out[64];
-        EXPECT_TRUE(storage_isPinCorrect_impl(v.pin, wrapped_key, fingerprint, key_out));
-        EXPECT_THAT(key_out, ElementsAreArray(v.key));
-
-        EXPECT_FALSE(storage_isPinCorrect_impl("1234", wrapped_key, fingerprint, key_out));
-        EXPECT_THAT(key_out, ElementsAreArray((uint8_t[64]){}));
-
-        uint8_t unwrapped_key[64];
-        storage_unwrapStorageKey(wrapping_key, wrapped_key, unwrapped_key);
-        EXPECT_THAT(unwrapped_key, ElementsAreArray(v.key));
-    }
-}
-#endif
 
 TEST(Storage, IsPinCorrect) {
 
@@ -689,30 +622,28 @@ TEST(Storage, Pin) {
 
 TEST(Storage, Reset) {
     ConfigFlash config;
-    uint8_t storage_key[64];
-
     SessionState session;
     memset(&session, 0, sizeof(session));
 
-    storage_reset_impl(&session, &config, storage_key);
+    storage_reset_impl(&session, &config);
 
     ASSERT_TRUE(storage_isPinCorrect_impl("",
                                           config.storage.pub.wrapped_storage_key,
                                           config.storage.pub.storage_key_fingerprint,
-                                          storage_key));
+                                          session.storageKey));
 
-    uint8_t new_storage_key[64];
-    memset(new_storage_key, 0, sizeof(new_storage_key));
-    storage_setPin_impl(&session, &config.storage, "1234", new_storage_key);
+    uint8_t old_storage_key[64];
+    memcpy(old_storage_key, session.storageKey, sizeof(old_storage_key));
+    storage_setPin_impl(&session, &config.storage, "1234");
 
-    ASSERT_TRUE(memcmp(storage_key, new_storage_key, 64) != 0)
+    ASSERT_TRUE(memcmp(session.storageKey, old_storage_key, 64) != 0)
         << "RNG broken?";
 
-    uint8_t newest_storage_key[64];
+    uint8_t new_storage_key[64];
     ASSERT_TRUE(storage_isPinCorrect_impl("1234",
                                           config.storage.pub.wrapped_storage_key,
                                           config.storage.pub.storage_key_fingerprint,
-                                          newest_storage_key));
+                                          new_storage_key));
 
-    ASSERT_TRUE(memcmp(new_storage_key, newest_storage_key, 64) == 0);
+    ASSERT_TRUE(memcmp(session.storageKey, new_storage_key, 64) == 0);
 }

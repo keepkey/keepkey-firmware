@@ -314,8 +314,7 @@ bool storage_isPinCorrect_impl(const char *pin, const uint8_t wrapped_key[64], c
     return ret;
 }
 
-void storage_secMigrate(SessionState *ss, Storage *storage,
-                        const uint8_t storage_key[64], bool encrypt) {
+void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
     static CONFIDENTIAL char scratch[512];
     _Static_assert(sizeof(scratch) == sizeof(storage->encrypted_sec),
                    "Be extermely careful when changing the size of scratch.");
@@ -333,9 +332,9 @@ void storage_secMigrate(SessionState *ss, Storage *storage,
 
         // Encrypt with the storage key.
         uint8_t iv[64];
-        memcpy(iv, storage_key, sizeof(iv));
+        memcpy(iv, ss->storageKey, sizeof(iv));
         aes_encrypt_ctx ctx;
-        aes_encrypt_key256(storage_key, &ctx);
+        aes_encrypt_key256(ss->storageKey, &ctx);
         aes_cbc_encrypt((const uint8_t*)scratch, storage->encrypted_sec,
                         sizeof(scratch), iv + 32, &ctx);
         memzero(&ctx, sizeof(ctx));
@@ -345,9 +344,9 @@ void storage_secMigrate(SessionState *ss, Storage *storage,
 
         // Decrypt with the storage key.
         uint8_t iv[64];
-        memcpy(iv, storage_key, sizeof(iv));
+        memcpy(iv, ss->storageKey, sizeof(iv));
         aes_decrypt_ctx ctx;
-        aes_decrypt_key256(storage_key, &ctx);
+        aes_decrypt_key256(ss->storageKey, &ctx);
         if (EXIT_FAILURE == aes_cbc_decrypt((const uint8_t*)storage->encrypted_sec,
                                             (uint8_t*)&scratch[0], sizeof(scratch),
                                             iv + 32, &ctx)) {
@@ -423,7 +422,7 @@ void storage_readStorageV1(SessionState *ss, Storage *storage, const char *ptr, 
     _Static_assert(sizeof(storage->pub.storage_key_fingerprint) == 32,
                    "key fingerprint must be 32 bytes");
 
-    storage_setPin_impl(ss, storage, storage->sec.pin, ss->storageKey);
+    storage_setPin_impl(ss, storage, storage->sec.pin);
 
     if (storage->pub.has_pin) {
         memzero(&storage->sec, sizeof(storage->sec));
@@ -775,7 +774,7 @@ void storage_init(void)
     const char *flash = (const char *)flash_write_helper(storage_location);
 
     // Reset shadow configuration in RAM
-    storage_reset_impl(&session, &shadow_config, session.storageKey);
+    storage_reset_impl(&session, &shadow_config);
 
     // If the storage partition is not already active
     if (!storage_isActiveSector(flash)) {
@@ -825,16 +824,16 @@ void storage_resetUuid_impl(ConfigFlash *cfg)
 
 void storage_reset(void)
 {
-    storage_reset_impl(&session, &shadow_config, session.storageKey);
+    storage_reset_impl(&session, &shadow_config);
 }
 
-void storage_reset_impl(SessionState *ss, ConfigFlash *cfg, uint8_t storage_key[64])
+void storage_reset_impl(SessionState *ss, ConfigFlash *cfg)
 {
     memset(&cfg->storage, 0, sizeof(cfg->storage));
 
     storage_resetPolicies(&cfg->storage);
 
-    storage_setPin_impl(ss, &cfg->storage, "", storage_key);
+    storage_setPin_impl(ss, &cfg->storage, "");
 
     cfg->storage.version = STORAGE_VERSION;
 
@@ -880,7 +879,7 @@ void storage_commit_impl(SessionState *ss, ConfigFlash *cfg)
     memzero(flash_temp, sizeof(flash_temp));
 
     if (ss->pinCached) {
-        storage_secMigrate(ss, &cfg->storage, ss->storageKey, /*encrypt=*/true);
+        storage_secMigrate(ss, &cfg->storage, /*encrypt=*/true);
     } else {
         // commit what was in storage->encrypted_sec
     }
@@ -1003,7 +1002,7 @@ void storage_loadNode(HDNode *dst, const HDNodeType *src) {
 
 void storage_loadDevice(LoadDevice *msg)
 {
-    storage_reset_impl(&session, &shadow_config, session.storageKey);
+    storage_reset_impl(&session, &shadow_config);
 
     shadow_config.storage.pub.imported = true;
 
@@ -1112,7 +1111,7 @@ bool storage_hasPin(void)
 
 void storage_setPin(const char *pin)
 {
-    storage_setPin_impl(&session, &shadow_config.storage, pin, session.storageKey);
+    storage_setPin_impl(&session, &shadow_config.storage, pin);
 
     session.pinCached = true;
 
@@ -1122,22 +1121,21 @@ void storage_setPin(const char *pin)
 
 }
 
-void storage_setPin_impl(SessionState *ss, Storage *storage,
-                         const char *pin, uint8_t storage_key[64])
+void storage_setPin_impl(SessionState *ss, Storage *storage, const char *pin)
 {
     // Derive the wrapping key for the new pin
     uint8_t wrapping_key[64];
     storage_deriveWrappingKey(pin, wrapping_key);
 
-    // Derive a new storage_key.
-    random_buffer(storage_key, 64);
+    // Derive a new storageKey.
+    random_buffer(ss->storageKey, 64);
 
-    // Wrap the new storage_key.
-    storage_wrapStorageKey(wrapping_key, storage_key,
+    // Wrap the new storageKey.
+    storage_wrapStorageKey(wrapping_key, ss->storageKey,
                            storage->pub.wrapped_storage_key);
 
-    // Fingerprint the storage_key.
-    storage_keyFingerprint(storage_key,
+    // Fingerprint the storageKey.
+    storage_keyFingerprint(ss->storageKey,
                            storage->pub.storage_key_fingerprint);
 
     // Clean up secrets to get them off the stack.
@@ -1145,7 +1143,7 @@ void storage_setPin_impl(SessionState *ss, Storage *storage,
 
     storage->pub.has_pin = !!strlen(pin);
 
-    storage_secMigrate(ss, storage, storage_key, /*encrypt=*/true);
+    storage_secMigrate(ss, storage, /*encrypt=*/true);
 }
 
 void session_cachePin(const char *pin)
@@ -1166,7 +1164,7 @@ void session_cachePin_impl(SessionState *ss, ConfigFlash *cfg, const char *pin)
         return;
     }
 
-    storage_secMigrate(ss, &cfg->storage, ss->storageKey, /*encrypt=*/false);
+    storage_secMigrate(ss, &cfg->storage, /*encrypt=*/false);
 }
 
 bool session_isPinCached(void)

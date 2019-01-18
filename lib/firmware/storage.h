@@ -98,15 +98,13 @@ void storage_keyFingerprint(const uint8_t key[64], uint8_t fingerprint[32]);
 bool storage_isPinCorrect_impl(const char *pin, const uint8_t wrapped_key[64], const uint8_t fingerprint[32], uint8_t key[64]);
 
 /// Migrate data in Storage to/from sec/encrypted_sec.
-void storage_secMigrate(SessionState *state, Storage *storage,
-                        const uint8_t storage_key[64], bool encrypt);
+void storage_secMigrate(SessionState *state, Storage *storage, bool encrypt);
 
 void storage_resetUuid_impl(ConfigFlash *cfg);
 
-void storage_reset_impl(SessionState *session, ConfigFlash *cfg, uint8_t storage_key[64]);
+void storage_reset_impl(SessionState *session, ConfigFlash *cfg);
 
-void storage_setPin_impl(SessionState *session, Storage *storage,
-                         const char *pin, uint8_t storage_key[64]);
+void storage_setPin_impl(SessionState *session, Storage *storage, const char *pin);
 
 void storage_commit_impl(SessionState *state, ConfigFlash *cfg);
 
