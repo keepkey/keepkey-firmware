@@ -744,24 +744,13 @@ static bool storage_getRootSeedCache(const SessionState *ss, ConfigFlash *cfg,
 void storage_init(void)
 {
 #ifndef EMULATOR
-    if (strcmp("MFR", variant_getName()) == 0)
-    {
+    if (strcmp("MFR", variant_getName()) == 0) {
         // Storage should have been wiped due to the MANUFACTURER firmware
         // having a STORAGE_VERSION of 0, but to be absolutely safe and
         // guarante that secrets cannot leave the device via FlashHash/FlashDump,
         // we wipe them here.
 
-        ConfigFlash *stor_1 = (ConfigFlash*)flash_write_helper(FLASH_STORAGE1);
-        if (memcmp((void *)stor_1->meta.magic, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0)
-            flash_erase_word(FLASH_STORAGE1);
-
-        ConfigFlash *stor_2 = (ConfigFlash*)flash_write_helper(FLASH_STORAGE2);
-        if (memcmp((void *)stor_2->meta.magic, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0)
-            flash_erase_word(FLASH_STORAGE2);
-
-        ConfigFlash *stor_3 = (ConfigFlash*)flash_write_helper(FLASH_STORAGE3);
-        if (memcmp((void *)stor_3->meta.magic, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0)
-            flash_erase_word(FLASH_STORAGE3);
+        storage_wipe();
     }
 #endif
 
@@ -842,6 +831,13 @@ void storage_reset_impl(SessionState *ss, ConfigFlash *cfg)
     memzero(&cfg->storage.sec, sizeof(cfg->storage.sec));
 }
 
+void storage_wipe(void)
+{
+    flash_erase_word(FLASH_STORAGE1);
+    flash_erase_word(FLASH_STORAGE2);
+    flash_erase_word(FLASH_STORAGE3);
+}
+
 void session_clear(bool clear_pin) {
     session_clear_impl(&session, &shadow_config.storage, clear_pin);
 }
@@ -912,11 +908,13 @@ void storage_commit_impl(SessionState *ss, ConfigFlash *cfg)
         if (!flash_write_word(storage_location, STORAGE_MAGIC_LEN,
                               sizeof(flash_temp) - STORAGE_MAGIC_LEN,
                               (uint8_t *)flash_temp + STORAGE_MAGIC_LEN)) {
+            flash_erase_word(storage_location);
             continue; // Retry
         }
 
         if (!flash_write_word(storage_location, 0, STORAGE_MAGIC_LEN,
                               (uint8_t *)flash_temp)) {
+            flash_erase_word(storage_location);
             continue; // Retry
         }
 
@@ -934,6 +932,7 @@ void storage_commit_impl(SessionState *ss, ConfigFlash *cfg)
     memzero(flash_temp, sizeof(flash_temp));
 
     if(retries >= STORAGE_RETRIES) {
+        storage_wipe();
         layout_warning_static("Error Detected.  Reboot Device!");
         shutdown();
     }

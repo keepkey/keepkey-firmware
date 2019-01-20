@@ -271,6 +271,7 @@ void fsm_msgWipeDevice(WipeDevice *msg)
     }
 
     /* Wipe device */
+    storage_wipe();
     storage_reset();
     storage_resetUuid();
     storage_commit();
