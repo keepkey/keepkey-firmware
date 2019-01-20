@@ -647,7 +647,7 @@ TEST(Storage, CacheWrongPin) {
     storage_setPin_impl(&session, &config.storage, "1234");
 
     // Attempt to cache the wrong pin
-    session_cachePin_impl(&session, &config, "1111");
+    session_cachePin_impl(&session, &config.storage, "1111");
 
     // Check that secrets were wiped from the session
     ASSERT_FALSE(config.storage.has_sec);

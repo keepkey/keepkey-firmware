@@ -849,10 +849,10 @@ void storage_reset_impl(SessionState *ss, ConfigFlash *cfg)
 }
 
 void session_clear(bool clear_pin) {
-    session_clear_impl(&session, &shadow_config, clear_pin);
+    session_clear_impl(&session, &shadow_config.storage, clear_pin);
 }
 
-void session_clear_impl(SessionState *ss, ConfigFlash *config, bool clear_pin)
+void session_clear_impl(SessionState *ss, Storage *storage, bool clear_pin)
 {
     ss->seedCached = false;
     memset(&ss->seed, 0, sizeof(ss->seed));
@@ -860,15 +860,15 @@ void session_clear_impl(SessionState *ss, ConfigFlash *config, bool clear_pin)
     ss->passphraseCached = false;
     memset(&ss->passphrase, 0, sizeof(ss->passphrase));
 
-    if (storage_hasPin_impl(&config->storage)) {
+    if (storage_hasPin_impl(storage)) {
         if (clear_pin) {
             memzero(ss->storageKey, sizeof(ss->storageKey));
             ss->pinCached = false;
-            config->storage.has_sec = false;
-            memzero(&config->storage.sec, sizeof(config->storage.sec));
+            storage->has_sec = false;
+            memzero(&storage->sec, sizeof(storage->sec));
         }
     } else {
-        session_cachePin_impl(ss, config, "");
+        session_cachePin_impl(ss, storage, "");
     }
 }
 
@@ -1158,23 +1158,23 @@ void storage_setPin_impl(SessionState *ss, Storage *storage, const char *pin)
 
 void session_cachePin(const char *pin)
 {
-    session_cachePin_impl(&session, &shadow_config, pin);
+    session_cachePin_impl(&session, &shadow_config.storage, pin);
 }
 
-void session_cachePin_impl(SessionState *ss, ConfigFlash *cfg, const char *pin)
+void session_cachePin_impl(SessionState *ss, Storage *storage, const char *pin)
 {
     ss->pinCached =
         storage_isPinCorrect_impl(pin,
-                                  cfg->storage.pub.wrapped_storage_key,
-                                  cfg->storage.pub.storage_key_fingerprint,
+                                  storage->pub.wrapped_storage_key,
+                                  storage->pub.storage_key_fingerprint,
                                   ss->storageKey);
 
     if (!ss->pinCached) {
-        session_clear_impl(ss, cfg, /*clear_pin=*/true);
+        session_clear_impl(ss, storage, /*clear_pin=*/true);
         return;
     }
 
-    storage_secMigrate(ss, &cfg->storage, /*encrypt=*/false);
+    storage_secMigrate(ss, storage, /*encrypt=*/false);
 }
 
 bool session_isPinCached(void)
