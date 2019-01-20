@@ -862,26 +862,22 @@ void session_clear_impl(SessionState *ss, Storage *storage, bool clear_pin)
     }
 }
 
-void storage_commit(void) {
-    storage_commit_impl(&session, &shadow_config);
-}
-
-void storage_commit_impl(SessionState *ss, ConfigFlash *cfg)
+void storage_commit(void)
 {
     // Temporary storage for marshalling secrets in & out of flash.
     static char flash_temp[1024];
 
     memzero(flash_temp, sizeof(flash_temp));
 
-    if (ss->pinCached || !cfg->storage.pub.has_pin) {
-        storage_secMigrate(ss, &cfg->storage, /*encrypt=*/true);
+    if (session.pinCached || !shadow_config.storage.pub.has_pin) {
+        storage_secMigrate(&session, &shadow_config.storage, /*encrypt=*/true);
     } else {
         // commit what was in storage->encrypted_sec
     }
 
-    storage_writeV11(flash_temp, sizeof(flash_temp), cfg);
+    storage_writeV11(flash_temp, sizeof(flash_temp), &shadow_config);
 
-    memcpy(cfg, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
+    memcpy(&shadow_config, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
 
     uint32_t retries = 0;
     for (retries = 0; retries < STORAGE_RETRIES; retries++) {
@@ -1179,14 +1175,14 @@ void storage_resetPinFails(void)
 {
     shadow_config.storage.pub.pin_failed_attempts = 0;
 
-    storage_commit_impl(&session, &shadow_config);
+    storage_commit();
 }
 
 void storage_increasePinFails(void)
 {
     shadow_config.storage.pub.pin_failed_attempts++;
 
-    storage_commit_impl(&session, &shadow_config);
+    storage_commit();
 }
 
 uint32_t storage_getPinFails(void)
