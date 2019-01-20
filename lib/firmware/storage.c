@@ -373,7 +373,6 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
             if (memcmp(storage->sec_fingerprint, sec_fingerprint,
                        sizeof(sec_fingerprint)) != 0) {
                 memzero(scratch, sizeof(scratch));
-                session_clear_impl(&session, &shadow_config.storage, /*clear_pin=*/true);
                 storage_wipe();
                 layout_warning_static("Storage decrypt failure. Reboot device!");
                 shutdown();
@@ -884,16 +883,29 @@ void session_clear_impl(SessionState *ss, Storage *storage, bool clear_pin)
     ss->passphraseCached = false;
     memset(&ss->passphrase, 0, sizeof(ss->passphrase));
 
-    if (storage_hasPin_impl(storage)) {
-        if (clear_pin) {
-            memzero(ss->storageKey, sizeof(ss->storageKey));
-            ss->pinCached = false;
-            storage->has_sec = false;
-            memzero(&storage->sec, sizeof(storage->sec));
-        }
-    } else {
-        session_cachePin_impl(ss, storage, "");
+    if (!storage_hasPin_impl(storage)) {
+        ss->pinCached =
+            storage_isPinCorrect_impl("",
+                                      storage->pub.wrapped_storage_key,
+                                      storage->pub.storage_key_fingerprint,
+                                      ss->storageKey);
+
+        if (!ss->pinCached)
+            goto clear;
+
+        storage_secMigrate(ss, storage, /*encrypt=*/false);
+        return;
     }
+
+    if (!clear_pin) {
+        return;
+    }
+
+clear:
+    memzero(ss->storageKey, sizeof(ss->storageKey));
+    ss->pinCached = false;
+    storage->has_sec = false;
+    memzero(&storage->sec, sizeof(storage->sec));
 }
 
 void storage_commit(void)
@@ -962,7 +974,6 @@ void storage_commit(void)
     memzero(flash_temp, sizeof(flash_temp));
 
     if(retries >= STORAGE_RETRIES) {
-        session_clear_impl(&session, &shadow_config.storage, /*clear_pin=*/true);
         storage_wipe();
         layout_warning_static("Error Detected.  Reboot Device!");
         shutdown();
