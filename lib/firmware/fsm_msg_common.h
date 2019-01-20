@@ -248,7 +248,6 @@ void fsm_msgChangePin(ChangePin *msg)
     }
     else
     {
-        session_cachePin("");
         if(change_pin())
         {
             storage_commit();
