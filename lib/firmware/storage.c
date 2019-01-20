@@ -344,6 +344,7 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
         storage->encrypted_sec_version = STORAGE_VERSION;
     } else {
         memzero(&storage->sec, sizeof(storage->sec));
+        storage->has_sec = false;
 
         // Decrypt with the storage key.
         uint8_t iv[64];
