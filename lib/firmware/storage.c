@@ -855,7 +855,7 @@ void session_clear_impl(SessionState *ss, ConfigFlash *config, bool clear_pin)
     ss->passphraseCached = false;
     memset(&ss->passphrase, 0, sizeof(ss->passphrase));
 
-    if (storage_hasPin()) {
+    if (storage_hasPin_impl(&config->storage)) {
         if (clear_pin) {
             memzero(ss->storageKey, sizeof(ss->storageKey));
             ss->pinCached = false;
@@ -1106,7 +1106,12 @@ bool storage_isPinCorrect(const char *pin) {
 
 bool storage_hasPin(void)
 {
-    return shadow_config.storage.pub.has_pin;
+    return storage_hasPin_impl(&shadow_config.storage);
+}
+
+bool storage_hasPin_impl(const Storage *storage)
+{
+    return storage->pub.has_pin;
 }
 
 void storage_setPin(const char *pin)
@@ -1160,7 +1165,7 @@ void session_cachePin_impl(SessionState *ss, ConfigFlash *cfg, const char *pin)
                                   ss->storageKey);
 
     if (!ss->pinCached) {
-        memset(ss->storageKey, 0, sizeof(ss->storageKey));
+        session_clear_impl(ss, cfg, /*clear_pin=*/true);
         return;
     }
 

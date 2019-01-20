@@ -108,6 +108,8 @@ void storage_setPin_impl(SessionState *session, Storage *storage, const char *pi
 
 void storage_commit_impl(SessionState *state, ConfigFlash *cfg);
 
+bool storage_hasPin_impl(const Storage *storage);
+
 void session_cachePin_impl(SessionState *session, ConfigFlash *cfg, const char *pin);
 
 void session_clear_impl(SessionState *session, ConfigFlash *config, bool clear_pin);

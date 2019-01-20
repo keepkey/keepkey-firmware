@@ -620,6 +620,24 @@ TEST(Storage, Pin) {
     ASSERT_TRUE(storage_isPinCorrect(""));
 }
 
+TEST(Storage, CacheWrongPin) {
+    ConfigFlash config;
+    SessionState session;
+    memset(&session, 0, sizeof(session));
+
+    storage_reset_impl(&session, &config);
+    config.storage.has_sec = true;
+    strcpy(config.storage.sec.mnemonic, "sekret");
+    storage_setPin_impl(&session, &config.storage, "1234");
+
+    // Attempt to cache the wrong pin
+    session_cachePin_impl(&session, &config, "1111");
+
+    // Check that secrets were wiped from the session
+    ASSERT_FALSE(config.storage.has_sec);
+    ASSERT_EQ(std::string(config.storage.sec.mnemonic), "");
+}
+
 TEST(Storage, Reset) {
     ConfigFlash config;
     SessionState session;
