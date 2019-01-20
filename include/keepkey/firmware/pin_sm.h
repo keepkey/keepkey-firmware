@@ -57,11 +57,18 @@ typedef struct {
 /// \returns true iff the PIN was correct.
 bool pin_protect(const char *prompt);
 
+/// Prompt for a PIN if uncached or "Pin Caching" Policy set to false.
+/// \returns true iff the pin has been correctly authenticated.
 bool pin_protect_txsign(void);
 
 /// Prompt for PIN only if it is not already cached.
 /// \returns true iff the pin was correct (or already cached).
 bool pin_protect_cached(void);
+
+/// Prompt for PIN regardless of whether it was cached
+/// \returns true iff the pin was correct (or the device does not
+///          require a pin).
+bool pin_protect_uncached(void);
 
 /// Process a PIN change.
 /// \returns true iff the PIN was successfully changed.

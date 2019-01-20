@@ -238,7 +238,7 @@ void fsm_msgChangePin(ChangePin *msg)
         return;
     }
 
-    CHECK_PIN_TXSIGN
+    CHECK_PIN_UNCACHED
 
     if(removal)
     {
