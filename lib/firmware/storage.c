@@ -430,13 +430,7 @@ void storage_readStorageV1(SessionState *ss, Storage *storage, const char *ptr, 
     storage_setPin_impl(ss, storage, storage->sec.pin);
 
     if (storage->pub.has_pin) {
-        memzero(&storage->sec, sizeof(storage->sec));
-        memzero(ss->storageKey, sizeof(ss->storageKey));
-        ss->pinCached = false;
-        storage->has_sec = false;
-    } else {
-        ss->pinCached = true;
-        storage->has_sec = true;
+        session_clear_impl(ss, storage, /*clear_pin=*/true);
     }
 }
 
