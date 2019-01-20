@@ -578,7 +578,7 @@ void storage_writeV11(char *flash, size_t len, const ConfigFlash *src) {
     storage_writeStorageV11(flash + 44, 852, &src->storage);
 }
 
-StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
+StorageUpdateStatus storage_fromFlash(SessionState *ss, ConfigFlash *dst, const char *flash)
 {
     memzero(dst, sizeof(*dst));
 
@@ -594,7 +594,7 @@ StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
     switch (version)
     {
         case StorageVersion_1:
-            storage_readV1(&session, dst, flash, STORAGE_SECTOR_LEN);
+            storage_readV1(ss, dst, flash, STORAGE_SECTOR_LEN);
             dst->storage.version = STORAGE_VERSION;
             return SUS_Updated;
 
@@ -607,7 +607,7 @@ StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
         case StorageVersion_8:
         case StorageVersion_9:
         case StorageVersion_10:
-            storage_readV2(&session, dst, flash, STORAGE_SECTOR_LEN);
+            storage_readV2(ss, dst, flash, STORAGE_SECTOR_LEN);
             dst->storage.version = STORAGE_VERSION;
 
             /* We have to do this for users with bootloaders <= v1.0.2. This
@@ -792,7 +792,7 @@ void storage_init(void)
              shadow_config.meta.uuid_str);
 
     // Load storage from flash, and update it if necessary.
-    switch (storage_fromFlash(&shadow_config, flash)) {
+    switch (storage_fromFlash(&session, &shadow_config, flash)) {
     case SUS_Invalid:
         storage_reset();
         storage_commit();

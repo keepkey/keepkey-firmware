@@ -127,7 +127,7 @@ typedef enum {
 /// \brief Copy configuration from storage partition in flash memory to shadow
 /// memory in RAM
 /// \returns true iff successful.
-StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash);
+StorageUpdateStatus storage_fromFlash(SessionState *ss, ConfigFlash *dst, const char *flash);
 
 void storage_upgradePolicies(Storage *storage);
 void storage_resetPolicies(Storage *storage);

@@ -393,12 +393,11 @@ TEST(Storage, StorageUpgrade_Normal) {
         "\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32"
         "\x00\x73\x65\x63\x70\x32\x35\x36\x6b\x31\x00\x00";
 
-
-    ConfigFlash shadow;
-    ASSERT_EQ(storage_fromFlash(&shadow, flash), SUS_Updated);
-
     SessionState session;
     memset(&session, 0, sizeof(session));
+
+    ConfigFlash shadow;
+    ASSERT_EQ(storage_fromFlash(&session, &shadow, flash), SUS_Updated);
 
     // Decrypt upgraded storage.
     uint8_t wrapping_key[64];
@@ -549,7 +548,7 @@ TEST(Storage, StorageRoundTrip) {
 
     ConfigFlash end;
     memset(&end, 0xCC, sizeof(end));
-    EXPECT_EQ(storage_fromFlash(&end, (char*)&flash[0]), SUS_Valid);
+    EXPECT_EQ(storage_fromFlash(&session, &end, (char*)&flash[0]), SUS_Valid);
 
     storage_secMigrate(&session, &end.storage, /*encrypt=*/false);
 
