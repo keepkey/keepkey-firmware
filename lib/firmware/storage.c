@@ -72,8 +72,6 @@ HDNode debuglink_node;
 
 static void get_u2froot_callback(uint32_t iter, uint32_t total)
 {
-	(void)iter;
-	(void)total;
 	layoutProgress(_("Updating"), 1000 * iter / total);
 }
 
