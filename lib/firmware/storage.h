@@ -58,6 +58,9 @@ typedef struct _Storage {
         Cache cache;
     } sec;
 
+    bool has_sec_fingerprint;
+    uint8_t sec_fingerprint[32];
+
     uint32_t encrypted_sec_version;
     uint8_t encrypted_sec[512];
 } Storage;

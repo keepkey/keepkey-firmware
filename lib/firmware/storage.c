@@ -333,6 +333,11 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
 
         // 63 reserved bytes
 
+        // Take a fingerprint of the secrets so we can tell whether they've
+        // been correctly decrypted later.
+        storage->has_sec_fingerprint = true;
+        sha256_Raw((const uint8_t *)scratch, sizeof(scratch), storage->sec_fingerprint);
+
         // Encrypt with the storage key.
         uint8_t iv[64];
         memcpy(iv, ss->storageKey, sizeof(iv));
@@ -351,18 +356,35 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
         memcpy(iv, ss->storageKey, sizeof(iv));
         aes_decrypt_ctx ctx;
         aes_decrypt_key256(ss->storageKey, &ctx);
-        if (EXIT_FAILURE == aes_cbc_decrypt((const uint8_t*)storage->encrypted_sec,
-                                            (uint8_t*)&scratch[0], sizeof(scratch),
-                                            iv + 32, &ctx)) {
-            memzero(iv, sizeof(iv));
-            memzero(scratch, sizeof(scratch));
-            return;
-        }
+        aes_cbc_decrypt((const uint8_t*)storage->encrypted_sec,
+                        (uint8_t*)&scratch[0], sizeof(scratch),
+                        iv + 32, &ctx);
+        memzero(iv, sizeof(iv));
 
         // De-serialize from scratch.
         storage_readHDNode(&storage->sec.node, &scratch[0], 129);
         memcpy(storage->sec.mnemonic, &scratch[0] + 129, 241);
         storage_readCacheV1(&storage->sec.cache, &scratch[0] + 370, 75);
+
+        // 63 reserved bytes
+
+        // Check whether the secrets were correctly decrypted
+        uint8_t sec_fingerprint[32];
+        sha256_Raw((const uint8_t *)scratch, sizeof(scratch), sec_fingerprint);
+        if (storage->has_sec_fingerprint) {
+            if (memcmp(storage->sec_fingerprint, sec_fingerprint,
+                       sizeof(sec_fingerprint)) != 0) {
+                memzero(scratch, sizeof(scratch));
+                session_clear_impl(&session, &shadow_config.storage, /*clear_pin=*/true);
+                storage_wipe();
+                layout_warning_static("Storage decrypt failure. Reboot device!");
+                shutdown();
+            }
+        }
+
+        storage->has_sec_fingerprint = true;
+        memcpy(storage->sec_fingerprint, sec_fingerprint,
+               sizeof(sec_fingerprint));
 
         // Derive the u2froot, if we haven't already.
         if (storage->pub.has_mnemonic && !storage->pub.has_u2froot) {
@@ -370,7 +392,6 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
             storage->pub.has_u2froot = true;
         }
 
-        // 63 reserved bytes
 
         storage->has_sec = true;
     }
@@ -430,6 +451,8 @@ void storage_readStorageV1(SessionState *ss, Storage *storage, const char *ptr, 
 
     storage_setPin_impl(ss, storage, storage->sec.pin);
 
+    storage->has_sec_fingerprint = false;
+
     if (storage->pub.has_pin) {
         session_clear_impl(ss, storage, /*clear_pin=*/true);
     }
@@ -455,7 +478,8 @@ void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage) {
         (storage_isPolicyEnabled("Experimental")  ? (1u << 11) : 0) |
         (storage_isPolicyEnabled("AdvancedMode")  ? (1u << 12) : 0) |
         (storage->pub.no_backup                   ? (1u << 13) : 0) |
-        /* reserved 31:14 */ 0;
+        (storage->has_sec_fingerprint             ? (1u << 14) : 0) |
+        /* reserved 31:15 */ 0;
     write_u32_le(ptr + 4, flags);
 
     write_u32_le(ptr + 8, storage->pub.pin_failed_attempts);
@@ -470,7 +494,11 @@ void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage) {
     storage_writeHDNode(ptr + 176, 129, &storage->pub.u2froot);
     write_u32_le(ptr + 305, storage->pub.u2f_counter);
 
-    // 155 reserved bytes
+    if (storage->has_sec_fingerprint) {
+        memcpy(ptr + 309, storage->sec_fingerprint, 32);
+    }
+
+    // 123 reserved bytes
 
     // Ignore whatever was in storage->sec. Only encrypted_sec can be committed.
     // Yes, this is a potential footgun. No, there's nothing we can do about it here.
@@ -504,6 +532,7 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     storage_readPolicyV2(&storage->pub.policies[2], "Experimental",  flags & (1u << 11));
     storage_readPolicyV2(&storage->pub.policies[3], "AdvancedMode",  flags & (1u << 12));
     storage->pub.no_backup =                                         flags & (1u << 13);
+    storage->has_sec_fingerprint =                                   flags & (1u << 14);
     storage->pub.policies_count = POLICY_COUNT;
 
     storage->pub.pin_failed_attempts = read_u32_le(ptr + 8);
@@ -522,7 +551,13 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     storage_readHDNode(&storage->pub.u2froot, ptr + 176, 129);
     storage->pub.u2f_counter = read_u32_le(ptr + 305);
 
-    // 155 reserved bytes
+    if (storage->has_sec_fingerprint) {
+        memcpy(storage->sec_fingerprint, ptr + 309, 32);
+    } else {
+        memset(storage->sec_fingerprint, 0, sizeof(storage->sec_fingerprint));
+    }
+
+    // 123 reserved bytes
 
     storage->has_sec = false;
     memzero(&storage->sec, sizeof(storage->sec));
@@ -929,6 +964,7 @@ void storage_commit(void)
     memzero(flash_temp, sizeof(flash_temp));
 
     if(retries >= STORAGE_RETRIES) {
+        session_clear_impl(&session, &shadow_config.storage, /*clear_pin=*/true);
         storage_wipe();
         layout_warning_static("Error Detected.  Reboot Device!");
         shutdown();
