@@ -321,6 +321,9 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
     memzero(scratch, sizeof(scratch));
 
     if (encrypt) {
+        if (!storage->has_sec)
+            return;
+
         memzero(storage->encrypted_sec, sizeof(storage->encrypted_sec));
 
         // Serialize to scratch.
@@ -421,6 +424,8 @@ void storage_readStorageV1(SessionState *ss, Storage *storage, const char *ptr, 
 
     _Static_assert(sizeof(storage->pub.storage_key_fingerprint) == 32,
                    "key fingerprint must be 32 bytes");
+
+    storage->has_sec = true;
 
     storage_setPin_impl(ss, storage, storage->sec.pin);
 

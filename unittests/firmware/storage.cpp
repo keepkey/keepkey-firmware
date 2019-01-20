@@ -410,6 +410,8 @@ TEST(Storage, StorageUpgrade_Normal) {
     ConfigFlash shadow2;
     memcpy(&shadow2, &shadow, sizeof(shadow2));
     memzero(&shadow2.storage.encrypted_sec, sizeof(shadow2.storage.encrypted_sec));
+    ASSERT_TRUE(shadow.storage.has_sec);
+    shadow2.storage.has_sec = shadow.storage.has_sec;
 
     storage_secMigrate(&session, &shadow2.storage, /*encrypt=*/true);
 
@@ -444,6 +446,7 @@ TEST(Storage, StorageRoundTrip) {
     start.storage.pub.has_u2froot = false;
     start.storage.pub.u2froot.has_public_key = false;
     start.storage.pub.u2froot.has_private_key = true;
+    start.storage.has_sec = true;
     start.storage.sec.pin[0] = '\0';
     start.storage.sec.cache.root_seed_cache_status = 0xEC;
     start.storage.sec.node.has_public_key = true;
@@ -556,6 +559,20 @@ TEST(Storage, StorageRoundTrip) {
 
     EXPECT_EQ(end.storage.sec.cache.root_seed_cache_status,
               start.storage.sec.cache.root_seed_cache_status);
+}
+
+TEST(Storage, NoopSecMigrate) {
+    SessionState session;
+    Storage storage;
+    memset(storage.encrypted_sec, 0xAB, sizeof(storage.encrypted_sec));
+    storage.has_sec = false;
+
+    // Check that we don't blow away the encrypted_sec, if there weren't any
+    // plaintext secrets.
+    storage_secMigrate(&session, &storage, /*encrypt=*/true);
+    for (int i = 0; i < sizeof(storage.encrypted_sec); i++) {
+        ASSERT_EQ(storage.encrypted_sec[i], 0xAB);
+    }
 }
 
 TEST(Storage, UpgradePolicies) {
