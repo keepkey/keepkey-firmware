@@ -176,7 +176,7 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 			memset(node_str, 0, sizeof(node_str));
 		}
 
-		if (!confirm_address(node_str, address)) {
+		if (!confirm_ethereum_address(node_str, address)) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, _("Show address cancelled"));
 			layoutHome();
 			return;
