@@ -402,7 +402,7 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
     bool is_token = coin->has_contract_address;
     const char *coin_name = is_token ? "Ethereum" : coin->coin_name;
 
-    if (whole_account) {
+    if (whole_account || isEthereumLike(coin_name)) {
         snprintf(node_str, len, "%s%s Account #%" PRIu32, prefix, coin_name,
                  address_n[2] & 0x7ffffff);
     } else {
