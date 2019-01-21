@@ -139,21 +139,23 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 	const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
 	if (!node) return;
 
-	const CoinType *coin = fsm_getCoin(true, ETHEREUM);
-	if (!coin) return;
-
 	resp->address.size = 20;
 
 	if (!hdnode_get_ethereum_pubkeyhash(node, resp->address.bytes))
 		return;
 
-	uint32_t slip44 = msg->address_n[1] & 0x7fffffff;
+	const CoinType *coin = NULL;
 	bool rskip60 = false;
 	uint32_t chain_id = 0;
-	// constants from trezor-common/defs/ethereum/networks.json
-	switch (slip44) {
-		case 137: rskip60 = true; chain_id = 30; break;
-		case 37310: rskip60 = true; chain_id = 31; break;
+
+	if (msg->address_n_count == 5) {
+		coin = coinBySlip44(msg->address_n[1]);
+		uint32_t slip44 = msg->address_n[1] & 0x7fffffff;
+		// constants from trezor-common/defs/ethereum/networks.json
+		switch (slip44) {
+			case 137: rskip60 = true; chain_id = 30; break;
+			case 37310: rskip60 = true; chain_id = 31; break;
+		}
 	}
 
 	char address[43] = { '0', 'x' };
@@ -164,16 +166,17 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 
 	if (msg->has_show_display && msg->show_display) {
 		char node_str[NODE_STRING_LENGTH];
-		if (!bip32_node_to_string(node_str, sizeof(node_str), coin,
-		                          msg->address_n,
-		                          msg->address_n_count,
-		                          /*whole_account=*/false) &&
+		if (!(coin && isEthereumLike(coin->coin_name) &&
+		      bip32_node_to_string(node_str, sizeof(node_str), coin,
+		                           msg->address_n,
+		                           msg->address_n_count,
+		                           /*whole_account=*/false)) &&
 		    !bip32_path_to_string(node_str, sizeof(node_str),
 		                          msg->address_n, msg->address_n_count)) {
 			memset(node_str, 0, sizeof(node_str));
 		}
 
-		if (!confirm_ethereum_address(node_str, address)) {
+		if (!confirm_address(node_str, address)) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, _("Show address cancelled"));
 			layoutHome();
 			return;

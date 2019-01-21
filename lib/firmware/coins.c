@@ -194,7 +194,7 @@ bool bip32_path_to_string(char *str, size_t len, const uint32_t *address_n,
                           size_t address_n_count) {
     memset(str, 0, len);
 
-    int cx = snprintf(str, len, "m");
+    int cx = snprintf(str, len, address_n_count == 0 ? "m/" : "m");
     if (cx < 0 || len <= (size_t)cx)
         return false;
     str += cx;
