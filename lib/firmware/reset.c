@@ -102,10 +102,13 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
         memzero(ent_str, sizeof(ent_str));
     }
 
-    if(pin_protection && !change_pin())
-    {
-        layoutHome();
-        return;
+    if (pin_protection) {
+        if (!change_pin()) {
+            layoutHome();
+            return;
+        }
+    } else {
+        storage_setPin("");
     }
 
     storage_setPassphraseProtected(passphrase_protection);

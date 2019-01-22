@@ -112,9 +112,13 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection,
 	word_count = _word_count;
 	enforce_wordlist = _enforce_wordlist;
 
-	if (pin_protection && !change_pin()) {
-		layoutHome();
-		return;
+	if (pin_protection) {
+		if (!change_pin()) {
+			layoutHome();
+			return;
+		}
+	} else {
+		storage_setPin("");
 	}
 
 	storage_setPassphraseProtected(passphrase_protection);

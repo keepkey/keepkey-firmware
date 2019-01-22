@@ -215,10 +215,13 @@ void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
                           const char *language, const char *label, bool _enforce_wordlist,
                           uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter)
 {
-    if(pin_protection && !change_pin())
-    {
-        layoutHome();
-        return;
+    if (pin_protection) {
+        if (!change_pin()) {
+            layoutHome();
+            return;
+        }
+    } else {
+        storage_setPin("");
     }
 
     storage_setPassphraseProtected(passphrase_protection);
