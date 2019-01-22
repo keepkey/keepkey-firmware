@@ -217,6 +217,7 @@ void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
 {
     if (pin_protection) {
         if (!change_pin()) {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, "PINs do not match");
             layoutHome();
             return;
         }

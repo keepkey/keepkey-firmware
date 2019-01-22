@@ -325,7 +325,6 @@ bool change_pin(void)
     }
 
     if (strcmp(pin_info_first.pin, pin_info_second.pin) != 0) {
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
         return false;
     }
 

@@ -240,21 +240,21 @@ void fsm_msgChangePin(ChangePin *msg)
 
     CHECK_PIN_UNCACHED
 
-    if(removal)
-    {
+    if (removal) {
         storage_setPin("");
         storage_commit();
         fsm_sendSuccess("PIN removed");
-    }
-    else
-    {
-        if(change_pin())
-        {
-            storage_commit();
-            fsm_sendSuccess("PIN changed");
-        }
+        layoutHome();
+        return;
     }
 
+    if (!change_pin()) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, "PINs do not match");
+        layoutHome();
+        return;
+    }
+    storage_commit();
+    fsm_sendSuccess("PIN changed");
     layoutHome();
 }
 

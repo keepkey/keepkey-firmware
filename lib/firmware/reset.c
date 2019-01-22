@@ -104,6 +104,7 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 
     if (pin_protection) {
         if (!change_pin()) {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, _("PINs do not match"));
             layoutHome();
             return;
         }

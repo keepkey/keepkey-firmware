@@ -114,6 +114,7 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection,
 
 	if (pin_protection) {
 		if (!change_pin()) {
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "PINs do not match");
 			layoutHome();
 			return;
 		}
