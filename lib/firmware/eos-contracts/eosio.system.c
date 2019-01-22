@@ -94,7 +94,7 @@ bool eos_compileActionDelegate(const EosActionCommon *common,
     CHECK_PARAM_RET(eos_compileAsset(&action->cpu_quantity),
                     "Cannot compile asset: cpu_quantity", false);
 
-    uint8_t is_transfer = action->has_transfer ? 1 : 0;
+    uint8_t is_transfer = (action->has_transfer && action->transfer) ? 1 : 0;
     hasher_Update(&hasher_preimage, &is_transfer, 1);
 
     return true;
