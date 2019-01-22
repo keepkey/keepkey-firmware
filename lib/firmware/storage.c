@@ -389,6 +389,10 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
             storage->pub.has_u2froot = true;
         }
 
+#if DEBUG_LINK
+        memcpy(debuglink_mnemonic, storage->sec.mnemonic, sizeof(debuglink_mnemonic));
+        storage_loadNode(&debuglink_node, &storage->sec.node);
+#endif
 
         storage->has_sec = true;
     }
@@ -449,6 +453,12 @@ void storage_readStorageV1(SessionState *ss, Storage *storage, const char *ptr, 
     storage_setPin_impl(ss, storage, storage->sec.pin);
 
     storage->has_sec_fingerprint = false;
+
+#if DEBUG_LINK
+    strncpy(debuglink_pin, storage->sec.pin, sizeof(debuglink_pin));
+    memcpy(debuglink_mnemonic, storage->sec.mnemonic, sizeof(debuglink_mnemonic));
+    storage_loadNode(&debuglink_node, &storage->sec.node);
+#endif
 
     if (storage->pub.has_pin) {
         session_clear_impl(ss, storage, /*clear_pin=*/true);
