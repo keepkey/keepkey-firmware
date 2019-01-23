@@ -35,6 +35,8 @@
 
 #include <stdio.h>
 
+#define _(X) (X)
+
 static uint32_t strength;
 static uint8_t CONFIDENTIAL int_entropy[32];
 static bool awaiting_entropy = false;
@@ -48,7 +50,7 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
     if(_strength != 128 && _strength != 192 && _strength != 256)
     {
         fsm_sendFailure(FailureType_Failure_SyntaxError,
-                        "Invalid strength (has to be 128, 192 or 256 bits)");
+                        _("Invalid mnemonic strength (has to be 128, 192 or 256 bits)"));
         layoutHome();
         return;
     }
@@ -57,7 +59,7 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
     no_backup = _no_backup;
 
     if (display_random && no_backup) {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "Can't show internal entropy when backup is skipped");
+        fsm_sendFailure(FailureType_Failure_SyntaxError, _("Can't show internal entropy when backup is skipped"));
         layoutHome();
         return;
     }
@@ -66,14 +68,14 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
         // Double confirm, since this is a feature for advanced users only, and
         // there is risk of loss of funds if this mode is used incorrectly
         // (i.e. multisig is an absolute must with this scheme).
-        if (!confirm(ButtonRequestType_ButtonRequest_Other, "WARNING",
-                     "The 'No Backup' option was selected.\n"
-                     "Recovery sentence will *NOT* be shown,\n"
-                     "and recovery will be IMPOSSIBLE.\n") ||
-            !confirm(ButtonRequestType_ButtonRequest_Other, "WARNING",
-                     "The 'No Backup' option was selected.\n\n"
-                     "I understand, and accept the risks.\n")) {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Reset cancelled");
+        if (!confirm(ButtonRequestType_ButtonRequest_Other, _("WARNING"),
+                     _("The 'No Backup' option was selected.\n"
+                       "Recovery sentence will *NOT* be shown,\n"
+                       "and recovery will be IMPOSSIBLE.\n")) ||
+            !confirm(ButtonRequestType_ButtonRequest_Other, _("WARNING"),
+                     _("The 'No Backup' option was selected.\n\n"
+                       "I understand, and accept the risks.\n"))) {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, _("Reset cancelled"));
             layoutHome();
             return;
         }
@@ -89,11 +91,11 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
         data2hex(int_entropy + 24, 8, ent_str[3]);
 
         if(!confirm(ButtonRequestType_ButtonRequest_ResetDevice,
-                    "Internal Entropy", "%s %s %s %s",
+                    _("Internal Entropy"), "%s %s %s %s",
                     ent_str[0], ent_str[1], ent_str[2], ent_str[3]))
         {
             memzero(ent_str, sizeof(ent_str));
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Reset cancelled");
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, _("Reset cancelled"));
             layoutHome();
             return;
         }
@@ -122,7 +124,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 {
     if(!awaiting_entropy)
     {
-        fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Reset mode");
+        fsm_sendFailure(FailureType_Failure_UnexpectedMessage, _("Not in Reset mode"));
         return;
     }
 
@@ -141,7 +143,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
         storage_setNoBackup();
         storage_setMnemonic(temp_mnemonic);
         storage_commit();
-        fsm_sendSuccess("Device reset");
+        fsm_sendSuccess(_("Device reset"));
         goto exit;
     }
 
@@ -173,7 +175,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
             page_count++;
 
             if (MAX_PAGES <= page_count) {
-                fsm_sendFailure(FailureType_Failure_Other, "Too many pages of mnemonic words");
+                fsm_sendFailure(FailureType_Failure_Other, _("Too many pages of mnemonic words"));
                 storage_reset();
                 goto exit;
             }
@@ -206,7 +208,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
     /* Have user confirm mnemonic is sets of 12 words */
     for(uint32_t current_page = 0; current_page < page_count; current_page++)
     {
-        char title[MEDIUM_STR_BUF] = "Recovery Sentence";
+        char title[MEDIUM_STR_BUF] = _("Recovery Sentence");
 
         /* make current screen mnemonic available via debuglink */
         strlcpy(current_words, mnemonic_by_screen[current_page], MNEMONIC_BY_SCREEN_BUF);
@@ -214,13 +216,13 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
         if(page_count > 1)
         {
             /* snprintf: 20 + 10 (%d) + 1 (NULL) = 31 */
-            snprintf(title, MEDIUM_STR_BUF, "Recovery Sentence %" PRIu32 "/%" PRIu32 "", current_page + 1, page_count);
+            snprintf(title, MEDIUM_STR_BUF, _("Recovery Sentence %" PRIu32 "/%" PRIu32 ""), current_page + 1, page_count);
         }
 
         if(!confirm(ButtonRequestType_ButtonRequest_ConfirmWord, title, "%s",
                     formatted_mnemonic[current_page]))
         {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Reset cancelled");
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, _("Reset cancelled"));
             storage_reset();
             goto exit;
         }
@@ -230,7 +232,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
     storage_setMnemonic(temp_mnemonic);
     storage_commit();
 
-    fsm_sendSuccess("Device reset");
+    fsm_sendSuccess(_("Device reset"));
 
 exit:
     memzero(&ctx, sizeof(ctx));
