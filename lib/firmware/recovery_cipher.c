@@ -213,7 +213,7 @@ bool attempt_auto_complete(char *partial_word)
  */
 void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
                           const char *language, const char *label, bool _enforce_wordlist,
-                          uint32_t _auto_lock_delay_ms)
+                          uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter)
 {
     if(pin_protection && !change_pin())
     {
@@ -225,6 +225,7 @@ void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
     storage_setLanguage(language);
     storage_setLabel(label);
     storage_setAutoLockDelayMs(_auto_lock_delay_ms);
+    storage_setU2FCounter(_u2f_counter);
 
     enforce_wordlist = _enforce_wordlist;
 
