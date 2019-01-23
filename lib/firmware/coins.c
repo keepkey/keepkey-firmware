@@ -194,7 +194,7 @@ bool bip32_path_to_string(char *str, size_t len, const uint32_t *address_n,
                           size_t address_n_count) {
     memset(str, 0, len);
 
-    int cx = snprintf(str, len, "m");
+    int cx = snprintf(str, len, address_n_count == 0 ? "m/" : "m");
     if (cx < 0 || len <= (size_t)cx)
         return false;
     str += cx;
@@ -412,16 +412,16 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
     const char *coin_name = is_token ? "Ethereum" : coin->coin_name;
 
     if (whole_account || isEthereumLike(coin_name)) {
-        snprintf(node_str, len, "%s%s Account #%" PRIu32, prefix, coin_name,
+        snprintf(node_str, len, "%s%s Acct. #%" PRIu32, prefix, coin_name,
                  address_n[2] & 0x7fffffff);
     } else if (coin_isSLIP48(coin, address_n, address_n_count, SLIP48_owner)) {
-        snprintf(node_str, len, "%s%s Account #%" PRIu32 " @owner key #%" PRIu32,
+        snprintf(node_str, len, "%s%s Acct. #%" PRIu32 " @owner key #%" PRIu32,
                  prefix, coin_name, address_n[3] & 0x7fffffff, address_n[4] & 0x7fffffff);
     } else if (coin_isSLIP48(coin, address_n, address_n_count, SLIP48_active)) {
-        snprintf(node_str, len, "%s%s Account #%" PRIu32 " @active key #%" PRIu32,
+        snprintf(node_str, len, "%s%s Acct. #%" PRIu32 " @active key #%" PRIu32,
                  prefix, coin_name, address_n[3] & 0x7fffffff, address_n[4] & 0x7fffffff);
     } else {
-        snprintf(node_str, len, "%s%s Account #%" PRIu32 "\nAddress #%" PRIu32,
+        snprintf(node_str, len, "%s%s Acct. #%" PRIu32 "\nAddress #%" PRIu32,
                  prefix, coin_name, address_n[2] & 0x7fffffff, address_n[4]);
     }
 
