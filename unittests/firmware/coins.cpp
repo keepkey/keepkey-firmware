@@ -82,3 +82,50 @@ TEST(Coins, TableSanity) {
             << "Contract address mismatch for " << coin.coin_shortcut;
     }
 }
+
+TEST(Coins, SLIP48) {
+    struct {
+        const char *coin_name;
+        uint32_t address_n[10];
+        size_t address_n_count;
+        SLIP48Role role;
+        bool isSLIP48;
+        std::string text;
+    } vector[] = {
+        {
+          "EOS",
+          { 0x80000000|48, 0x80000000|4, 0x80000000|0, 0x80000000|0, 0x80000000|0 },
+          5, SLIP48_owner, true, "EOS Account #0 @owner"
+        },
+        {
+          "EOS",
+          { 0x80000000|48, 0x80000000|4, 0x80000000|1, 0x80000000|3, 0x80000000|0 },
+          5, SLIP48_active, true, "EOS Account #3 @active"
+        },
+        {
+          "EOS",
+          { 0x80000000|48, 0x80000000|4, 0x80000000|1, 0x80000000|7, 0x80000000|0 },
+          5, SLIP48_active, true, "EOS Account #7 @active"
+        },
+        {
+          "EOS",
+          { 0x80000000|48, 0x80000000|4, 0x80000000|1, 0x80000000|0, 0x80000000|0 },
+          4, SLIP48_UNKNOWN, false, ""
+        },
+    };
+
+    for (const auto &vec : vector) {
+        EXPECT_EQ(coin_isSLIP48(coinByName(vec.coin_name), vec.address_n,
+                                vec.address_n_count, vec.role), vec.isSLIP48);
+
+        if (vec.isSLIP48) {
+            char node_str[NODE_STRING_LENGTH];
+            ASSERT_TRUE(bip32_node_to_string(node_str, sizeof(node_str),
+                                             coinByName(vec.coin_name),
+                                             vec.address_n,
+                                             vec.address_n_count,
+                                             /*whole_account=*/false));
+            EXPECT_EQ(vec.text, node_str);
+        }
+    }
+}

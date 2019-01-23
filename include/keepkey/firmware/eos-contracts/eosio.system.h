@@ -20,6 +20,8 @@
 #ifndef KEEPKEY_FIRMWARE_EOS_CONTRACTS_EOSIOSYSTEM_H
 #define KEEPKEY_FIRMWARE_EOS_CONTRACTS_EOSIOSYSTEM_H
 
+#include "keepkey/firmware/coins.h"
+
 #include <stdbool.h>
 
 typedef struct _EosActionBuyRam EosActionBuyRam;
@@ -66,7 +68,8 @@ bool eos_compileActionVoteProducer(const EosActionCommon *common,
                                    const EosActionVoteProducer *action);
 
 /// \returns true iff successful.
-bool eos_compileAuthorization(const char *title, const EosAuthorization *auth);
+bool eos_compileAuthorization(const char *title, const EosAuthorization *auth,
+                              SLIP48Role role);
 
 /// \returns true iff successful.
 bool eos_compileActionUpdateAuth(const EosActionCommon *common,
