@@ -104,7 +104,6 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 
     if(pin_protection && !change_pin())
     {
-        memzero(ent_str, sizeof(ent_str));
         layoutHome();
         return;
     }
