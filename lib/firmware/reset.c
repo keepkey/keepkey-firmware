@@ -81,20 +81,23 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
 
     random_buffer(int_entropy, 32);
 
-    static char CONFIDENTIAL ent_str[4][17];
-    data2hex(int_entropy     , 8, ent_str[0]);
-    data2hex(int_entropy +  8, 8, ent_str[1]);
-    data2hex(int_entropy + 16, 8, ent_str[2]);
-    data2hex(int_entropy + 24, 8, ent_str[3]);
-
     if (display_random) {
+        static char CONFIDENTIAL ent_str[4][17];
+        data2hex(int_entropy     , 8, ent_str[0]);
+        data2hex(int_entropy +  8, 8, ent_str[1]);
+        data2hex(int_entropy + 16, 8, ent_str[2]);
+        data2hex(int_entropy + 24, 8, ent_str[3]);
+
         if(!confirm(ButtonRequestType_ButtonRequest_ResetDevice,
-                    "Internal Entropy", "%s %s %s %s", ent_str[0], ent_str[1], ent_str[2], ent_str[3]))
+                    "Internal Entropy", "%s %s %s %s",
+                    ent_str[0], ent_str[1], ent_str[2], ent_str[3]))
         {
+            memzero(ent_str, sizeof(ent_str));
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Reset cancelled");
             layoutHome();
             return;
         }
+        memzero(ent_str, sizeof(ent_str));
     }
 
     if(pin_protection && !change_pin())
@@ -113,8 +116,6 @@ void reset_init(bool display_random, uint32_t _strength, bool passphrase_protect
     memset(&resp, 0, sizeof(EntropyRequest));
     msg_write(MessageType_MessageType_EntropyRequest, &resp);
     awaiting_entropy = true;
-
-    memzero(ent_str, sizeof(ent_str));
 }
 
 void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
