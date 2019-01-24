@@ -146,6 +146,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
     if (no_backup) {
         storage_setNoBackup();
         storage_setMnemonic(temp_mnemonic);
+        mnemonic_clear();
         storage_commit();
         fsm_sendSuccess(_("Device reset"));
         goto exit;
@@ -234,6 +235,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 
     /* Save mnemonic */
     storage_setMnemonic(temp_mnemonic);
+    mnemonic_clear();
     storage_commit();
 
     fsm_sendSuccess(_("Device reset"));
