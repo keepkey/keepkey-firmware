@@ -25,7 +25,7 @@
 
 #define NA      0xFFFF  /*etherum does not use P2PH or P2SH */
 #define ETHEREUM        "Ethereum"
-#define ETHEREUM_CLS    "Ethereum Classic"
+#define ETHEREUM_CLS    "ETH Classic"
 
 enum {
 #define X(\

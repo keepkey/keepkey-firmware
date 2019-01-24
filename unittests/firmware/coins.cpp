@@ -96,17 +96,17 @@ TEST(Coins, SLIP48) {
         {
           "EOS",
           { 0x80000000|48, 0x80000000|4, 0x80000000|0, 0x80000000|0, 0x80000000|0 },
-          5, SLIP48_owner, true, "EOS Acct. #0 @owner key #0"
+          5, SLIP48_owner, true, "EOS Account #0 @owner key #0"
         },
         {
           "EOS",
           { 0x80000000|48, 0x80000000|4, 0x80000000|1, 0x80000000|3, 0x80000000|5 },
-          5, SLIP48_active, true, "EOS Acct. #3 @active key #5"
+          5, SLIP48_active, true, "EOS Account #3 @active key #5"
         },
         {
           "EOS",
           { 0x80000000|48, 0x80000000|4, 0x80000000|1, 0x80000000|7, 0x80000000|0 },
-          5, SLIP48_active, true, "EOS Acct. #7 @active key #0"
+          5, SLIP48_active, true, "EOS Account #7 @active key #0"
         },
         {
           "EOS",
