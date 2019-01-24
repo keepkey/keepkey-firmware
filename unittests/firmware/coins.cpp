@@ -33,7 +33,7 @@ TEST(Coins, Bip32PathToString) {
     } vector[] = {
         {{ 0x80000000 | 44, 0x80000000 | 0, 0x80000000 | 0, 0, 0 }, 5, "m/44'/0'/0'/0/0"},
         {{ 0x80000000 | 44, 0x80000000 | 0, 0x80000000 | 0 },       3, "m/44'/0'/0'"},
-        {{ }, 0, "m"},
+        {{ }, 0, "m/"},
         {{ 0 }, 1, "m/0"},
         {{ 0,0,0,0,0,0,0,0,0,0 }, 10, "m/0/0/0/0/0/0/0/0/0/0" },
         {{ 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
@@ -44,7 +44,8 @@ TEST(Coins, Bip32PathToString) {
     for (const auto &vec : vector) {
         // Check that we get it right when provided with exactly enough characters.
         std::vector<char> exact_len(vec.expected.size() + 1);
-        ASSERT_TRUE(bip32_path_to_string(&exact_len[0], exact_len.size(), &vec.address_n[0], vec.address_n_count));
+        ASSERT_TRUE(bip32_path_to_string(&exact_len[0], exact_len.size(), &vec.address_n[0], vec.address_n_count))
+            << vec.expected;
         ASSERT_EQ(&exact_len[0], vec.expected)
             << "address_n:       " << arrayToStr(vec.address_n) << "\n"
             << "address_n_count: " << vec.address_n_count << "\n";
@@ -95,17 +96,17 @@ TEST(Coins, SLIP48) {
         {
           "EOS",
           { 0x80000000|48, 0x80000000|4, 0x80000000|0, 0x80000000|0, 0x80000000|0 },
-          5, SLIP48_owner, true, "EOS Account #0 @owner"
+          5, SLIP48_owner, true, "EOS Acct. #0 @owner key #0"
         },
         {
           "EOS",
-          { 0x80000000|48, 0x80000000|4, 0x80000000|1, 0x80000000|3, 0x80000000|0 },
-          5, SLIP48_active, true, "EOS Account #3 @active"
+          { 0x80000000|48, 0x80000000|4, 0x80000000|1, 0x80000000|3, 0x80000000|5 },
+          5, SLIP48_active, true, "EOS Acct. #3 @active key #5"
         },
         {
           "EOS",
           { 0x80000000|48, 0x80000000|4, 0x80000000|1, 0x80000000|7, 0x80000000|0 },
-          5, SLIP48_active, true, "EOS Account #7 @active"
+          5, SLIP48_active, true, "EOS Acct. #7 @active key #0"
         },
         {
           "EOS",
@@ -124,7 +125,8 @@ TEST(Coins, SLIP48) {
                                              coinByName(vec.coin_name),
                                              vec.address_n,
                                              vec.address_n_count,
-                                             /*whole_account=*/false));
+                                             /*whole_account=*/false))
+                << vec.text;
             EXPECT_EQ(vec.text, node_str);
         }
     }
