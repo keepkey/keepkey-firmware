@@ -131,3 +131,53 @@ TEST(Coins, SLIP48) {
         }
     }
 }
+
+TEST(Coins, BIP32AccountName) {
+    struct {
+        const char *coin_name;
+        uint32_t address_n[10];
+        size_t address_n_count;
+        bool expected;
+        std::string text;
+    } vector[] = {
+        {
+          "Bitcoin",
+          { 0x80000000|44, 0x80000000|0, 0x80000000|0, 0, 0 },
+          5, true, "Bitcoin Account #0\nAddress #0"
+        },
+        {
+          "Bitcoin",
+          { 0x80000000|44, 0x80000000|0, 0x80000000|0, 0, 1 },
+          5, true, "Bitcoin Account #0\nAddress #1"
+        },
+        {
+          "Bitcoin",
+          { 0x80000000|44, 0x80000000|0, 0x80000000|1, 0, 0 },
+          5, true, "Bitcoin Account #1\nAddress #0"
+        },
+        {
+          "Bitcoin",
+          { 0x80000000|44, 0x80000000|0, 0x80000000|1, 0, 1 },
+          5, true, "Bitcoin Account #1\nAddress #1"
+        },
+        {
+          "Bitcoin",
+          { 0x80000000|44, 0x80000000|0, 0x80000000|1, 1, 1 },
+          5, false, ""
+        },
+    };
+
+    for (const auto &vec : vector) {
+        char node_str[NODE_STRING_LENGTH];
+        ASSERT_EQ(bip32_node_to_string(node_str, sizeof(node_str),
+                                       coinByName(vec.coin_name),
+                                       vec.address_n,
+                                       vec.address_n_count,
+                                       /*whole_account=*/false),
+                  vec.expected)
+            << vec.text;
+        if (vec.expected) {
+            EXPECT_EQ(vec.text, node_str);
+        }
+    }
+}
