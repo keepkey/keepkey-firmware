@@ -94,9 +94,11 @@ it easier to extend for new features later on.
 |   has_node                |   bit 8        |              |                |
 |   has_mnemonic            |   bit 9        |              |                |
 |   has_u2froot             |   bit 10       |              |                |
-|   allow_u2f_transport     |   bit 11       |              |                |
+|   Experinemtal policy     |   bit 11       |              |                |
 |   AdvancedMode policy     |   bit 12       |              |                |
-|   reserved                |   bits 13 - 31 |              |                |
+|   no backup (seedless)    |   bit 13       |              |                |
+|   has_sec_fingerprint     |   bit 14       |              |                |
+|   reserved                |   bits 15 - 31 |              |                |
 | pin_failed_attempts       | u32            |            4 |              8 |
 | auto_lock_delay_ms        | u32            |            4 |             12 |
 | language                  | char[16]       |           16 |             16 |
@@ -105,7 +107,8 @@ it easier to extend for new features later on.
 | storage_key_fingerprint   | char[64]       |            8 |            144 |
 | u2froot                   | StorageHDNode  |          129 |            176 |
 | u2f_counter               | u32            |            4 |            305 |
-| reserved                  | char[155]      |          155 |            309 |
+| sec_fingerprint           | char[32]       |           32 |            309 |
+| reserved                  | char[123]      |          123 |            341 |
 | encrypted_secrets_version | u32            |            4 |            464 |
 | encrypted_secrets         | char[512]      |          512 |            468 |
 

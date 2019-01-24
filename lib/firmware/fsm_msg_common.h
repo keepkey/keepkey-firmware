@@ -238,24 +238,23 @@ void fsm_msgChangePin(ChangePin *msg)
         return;
     }
 
-    CHECK_PIN_TXSIGN
+    CHECK_PIN_UNCACHED
 
-    if(removal)
-    {
+    if (removal) {
         storage_setPin("");
         storage_commit();
         fsm_sendSuccess("PIN removed");
-    }
-    else
-    {
-        session_cachePin("");
-        if(change_pin())
-        {
-            storage_commit();
-            fsm_sendSuccess("PIN changed");
-        }
+        layoutHome();
+        return;
     }
 
+    if (!change_pin()) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, "PINs do not match");
+        layoutHome();
+        return;
+    }
+    storage_commit();
+    fsm_sendSuccess("PIN changed");
     layoutHome();
 }
 
@@ -272,6 +271,7 @@ void fsm_msgWipeDevice(WipeDevice *msg)
     }
 
     /* Wipe device */
+    storage_wipe();
     storage_reset();
     storage_resetUuid();
     storage_commit();
