@@ -353,7 +353,7 @@ void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len)
 
 bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
                           const uint32_t *address_n, size_t address_n_count,
-                          bool whole_account)
+                          bool whole_account, bool allow_change)
 {
     if (address_n_count != 3 && address_n_count != 5)
         return false;
@@ -372,7 +372,7 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
         // Don't display this way for change addresses,
         // discouraging their use in GetAddress.
         if (address_n[3] != 0 && !isSLIP48)
-            return false;
+            return allow_change;
     }
 
     if (path_mismatched(coin, address_n, address_n_count, whole_account) &&

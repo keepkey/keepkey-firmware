@@ -9,7 +9,8 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
 
     char node_str[NODE_STRING_LENGTH];
     if (!bip32_node_to_string(node_str, sizeof(node_str), coin, msg->to_address_n,
-                              msg->to_address_n_count, /*whole_account=*/false))
+                              msg->to_address_n_count, /*whole_account=*/false,
+                              /*allow_change=*/false))
         return TXOUT_COMPILE_ERROR;
 
     bool *has_to;
@@ -170,7 +171,8 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 		      bip32_node_to_string(node_str, sizeof(node_str), coin,
 		                           msg->address_n,
 		                           msg->address_n_count,
-		                           /*whole_account=*/false)) &&
+		                           /*whole_account=*/false,
+		                           /*allow_change=*/false)) &&
 		    !bip32_path_to_string(node_str, sizeof(node_str),
 		                          msg->address_n, msg->address_n_count)) {
 			memset(node_str, 0, sizeof(node_str));

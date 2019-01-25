@@ -533,7 +533,8 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
     if (!bip32_node_to_string(node_str, sizeof(node_str), withdrawal_coin,
                              tx_exchange->withdrawal_address_n,
                              tx_exchange->withdrawal_address_n_count,
-                             /*whole_account=*/false)) {
+                             /*whole_account=*/false,
+                             /*allow_change=*/true)) {
         set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_ADDRESS);
         return false;
     }
