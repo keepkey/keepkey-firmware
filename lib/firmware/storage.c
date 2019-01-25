@@ -68,9 +68,6 @@ _Static_assert(sizeof(ConfigFlash) <= FLASH_STORAGE_LEN,
                "ConfigFlash struct is too large for storage partition");
 static ConfigFlash CONFIDENTIAL shadow_config;
 
-// Temporary storage for marshalling secrets in & out of flash.
-static CONFIDENTIAL char flash_temp[1024];
-
 #if DEBUG_LINK
 // These won't survive resets like the stuff in flash would, but thats a
 // reasonable compromise given how testing works.
@@ -880,6 +877,9 @@ void storage_commit(void) {
 
 void storage_commit_impl(ConfigFlash *cfg)
 {
+    // Temporary storage for marshalling secrets in & out of flash.
+    static char flash_temp[1024];
+
     memzero(flash_temp, sizeof(flash_temp));
 
     if (sessionPinCached) {

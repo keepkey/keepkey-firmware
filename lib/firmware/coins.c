@@ -65,7 +65,7 @@ const CoinType coins[] = {
     {true, "Zcash",        true, "ZEC",   true, 7352,   true,    1000000,  true, 7357, true, "\x16" "Zcash Signed Message:\n",         true, 0x80000085,   false,   0,     true,   8,  false, {0, {0}},  true, 76067358,  false, false, false, false, true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false,        0,        false,       0 },
     {true, "Zcash Testnet",true, "TAZ",   true, 7461,   true,   10000000,  true, 7354, true, "\x16" "Zcash Signed Message:\n",         true, 0x80000085,   false,   0,     true,   8,  false, {0, {0}},  true, 70617039,  false, false, false, false, true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false,        0,        false,       0 },
     {true, "DigiByte",     true, "DGB",   true,  30,    true,     500000,  true,  63,  true, "\x19" "DigiByte Signed Message:\n",      true, 0x80000014,   false,   0,     true,   8,  false, {0, {0}},  true, 76067358,  true, true,   false, false, true, SECP256K1_STRING,  false, "",            true, "dgb",   false, false,  false,        0,        false,       0 },
-//  {true, "EOS",          true, "EOS",   false, NA,    false,         0,  false, NA,  false, {0},                                     true, 0x800000c2,   false,   0,     false,  0,  false, {0, {0}},  false, 0,        false, false, false, false, true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false,        0,        false,       0 },
+    {true, "EOS",          true, "EOS",   false, NA,    false,         0,  false, NA,  false, {0},                                     true, 0x800000c2,   false,   0,     false,  0,  false, {0, {0}},  false, 0,        false, false, false, false, true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false,        0,        false,       0 },
     {true, "Axe",          true, "AXE",   true,  55,    true,     100000,  true,  16,  true, "\x19" "DarkCoin Signed Message:\n",      true, 0x80001092,   false,   0,     true,   8,  false, {0, {0}},  true, 50221772,  true, false,  true, false,  true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false,        0,        false,       0 },
     {true, "Bitcore",      true, "BTX",   true,   3,    true,     100000,  true,  125, true, "\x18" "BitCore Signed Message:\n",       true, 0x800000a0,   false,   0,     true,   8,  false, {0, {0}},  true, 76067358,  true, true,   true, false,  true, SECP256K1_STRING,  false, "",            true, "btx",   false, false,  true,  77429938,        true, 78792518 },
     #include "keepkey/firmware/tokens.def"
@@ -351,8 +351,9 @@ static const char *account_prefix(const CoinType *coin,
     return NULL;
 }
 
-bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin, const uint32_t *address_n,
-                          size_t address_n_count, bool whole_account)
+bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
+                          const uint32_t *address_n, size_t address_n_count,
+                          bool whole_account)
 {
     if (address_n_count != 3 && address_n_count != 5)
         return false;

@@ -1,20 +1,10 @@
-set(sources
-    coins.cpp
-    eos.cpp
-    ethereum.cpp
-    recovery.cpp
-    storage.cpp
-    u2f.cpp)
-
 include_directories(
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/lib/firmware
     ${CMAKE_BINARY_DIR}/include
     ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto)
 
-add_executable(firmware-unit ${sources})
-target_link_libraries(firmware-unit
-    gmock_main
+set(libraries
     kkfirmware
     kkfirmware.keepkey
     kkboard
@@ -27,3 +17,9 @@ target_link_libraries(firmware-unit
     trezorqrenc
     kkrand
     kktransport)
+
+add_executable(fuzz-eos_formatName eos_formatName.cpp)
+target_link_libraries(fuzz-eos_formatName ${libraries})
+
+add_executable(fuzz-eos_formatAsset eos_formatAsset.cpp)
+target_link_libraries(fuzz-eos_formatAsset ${libraries})

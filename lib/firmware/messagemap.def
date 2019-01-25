@@ -39,6 +39,10 @@
     MSG_IN(MessageType_MessageType_EthereumSignMessage,             EthereumSignMessage,         fsm_msgEthereumSignMessage,       MFRProhibited)
     MSG_IN(MessageType_MessageType_EthereumVerifyMessage,           EthereumVerifyMessage,       fsm_msgEthereumVerifyMessage,     MFRProhibited)
 
+    MSG_IN(MessageType_MessageType_EosGetPublicKey,                 EosGetPublicKey,             fsm_msgEosGetPublicKey,           MFRProhibited)
+    MSG_IN(MessageType_MessageType_EosSignTx,                       EosSignTx,                   fsm_msgEosSignTx,                 MFRProhibited)
+    MSG_IN(MessageType_MessageType_EosTxActionAck,                  EosTxActionAck,              fsm_msgEosTxActionAck,            MFRProhibited)
+
     MSG_IN(MessageType_MessageType_FlashWrite,                      FlashWrite,                  fsm_msgFlashWrite,                MFROnly)
     MSG_IN(MessageType_MessageType_FlashHash,                       FlashHash,                   fsm_msgFlashHash,                 MFROnly)
     MSG_IN(MessageType_MessageType_SoftReset,                       SoftReset,                   fsm_msgSoftReset,                 MFROnly)
@@ -69,6 +73,10 @@
     MSG_OUT(MessageType_MessageType_EthereumAddress,                EthereumAddress,             NO_PROCESS_FUNC,                  AnyVariant)
     MSG_OUT(MessageType_MessageType_EthereumTxRequest,              EthereumTxRequest,           NO_PROCESS_FUNC,                  AnyVariant)
     MSG_OUT(MessageType_MessageType_EthereumMessageSignature,       EthereumMessageSignature,    NO_PROCESS_FUNC,                  AnyVariant)
+
+    MSG_OUT(MessageType_MessageType_EosPublicKey,                   EosPublicKey,                NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_EosTxActionRequest,             EosTxActionRequest,          NO_PROCESS_FUNC,                  AnyVariant)
+    MSG_OUT(MessageType_MessageType_EosSignedTx,                    EosSignedTx,                 NO_PROCESS_FUNC,                  AnyVariant)
 
 #if DEBUG_LINK
     /* Debug Messages */

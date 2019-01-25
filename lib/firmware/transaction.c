@@ -36,6 +36,8 @@
 
 #include <string.h>
 
+#define _(X) (X)
+
 #define SEGWIT_VERSION_0 0
 
 #define CASHADDR_P2KH (0)
@@ -206,7 +208,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 			return 0; // failed to compile output
 		}
 		if (needs_confirm) {
-			if (!confirm_op_return(in->op_return_data.bytes, in->op_return_data.size)) {
+			if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmOutput, _("Confirm OP_RETURN"), in->op_return_data.bytes, in->op_return_data.size)) {
 				return -1; // user aborted
 			}
 		}
