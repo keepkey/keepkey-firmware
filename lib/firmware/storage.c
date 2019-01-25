@@ -51,15 +51,9 @@
 #include <stdint.h>
 
 #define U2F_KEY_PATH 0x80553246
+#define _(X) (X)
 
-static bool sessionSeedCached, sessionSeedUsesPassphrase;
-static uint8_t CONFIDENTIAL sessionSeed[64];
-
-static bool sessionPinCached;
-static uint8_t CONFIDENTIAL sessionStorageKey[64];
-
-static bool sessionPassphraseCached;
-static char CONFIDENTIAL sessionPassphrase[51];
+static SessionState CONFIDENTIAL session;
 
 static Allocation storage_location = FLASH_INVALID;
 
@@ -78,16 +72,15 @@ HDNode debuglink_node;
 
 static void get_u2froot_callback(uint32_t iter, uint32_t total)
 {
-	(void)iter;
-	(void)total;
-	//layoutProgress(_("Updating"), 1000 * iter / total);
-	animating_progress_handler();
+	layoutProgress(_("Updating"), 1000 * iter / total);
 }
 
-static void storage_compute_u2froot(const char *mnemonic, HDNodeType *u2froot) {
+static void storage_compute_u2froot(SessionState *ss,
+                                    const char *mnemonic,
+                                    HDNodeType *u2froot) {
 	static CONFIDENTIAL HDNode node;
-	mnemonic_to_seed(mnemonic, "", sessionSeed, get_u2froot_callback); // BIP-0039
-	hdnode_from_seed(sessionSeed, 64, NIST256P1_NAME, &node);
+	mnemonic_to_seed(mnemonic, "", ss->seed, get_u2froot_callback); // BIP-0039
+	hdnode_from_seed(ss->seed, 64, NIST256P1_NAME, &node);
 	hdnode_private_ckd(&node, U2F_KEY_PATH);
 	u2froot->depth = node.depth;
 	u2froot->child_num = U2F_KEY_PATH;
@@ -319,13 +312,16 @@ bool storage_isPinCorrect_impl(const char *pin, const uint8_t wrapped_key[64], c
     return ret;
 }
 
-void storage_secMigrate(Storage *storage, const uint8_t storage_key[64], bool encrypt) {
+void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
     static CONFIDENTIAL char scratch[512];
     _Static_assert(sizeof(scratch) == sizeof(storage->encrypted_sec),
                    "Be extermely careful when changing the size of scratch.");
     memzero(scratch, sizeof(scratch));
 
     if (encrypt) {
+        if (!storage->has_sec)
+            return;
+
         memzero(storage->encrypted_sec, sizeof(storage->encrypted_sec));
 
         // Serialize to scratch.
@@ -335,43 +331,67 @@ void storage_secMigrate(Storage *storage, const uint8_t storage_key[64], bool en
 
         // 63 reserved bytes
 
+        // Take a fingerprint of the secrets so we can tell whether they've
+        // been correctly decrypted later.
+        storage->has_sec_fingerprint = true;
+        sha256_Raw((const uint8_t *)scratch, sizeof(scratch), storage->sec_fingerprint);
+
         // Encrypt with the storage key.
         uint8_t iv[64];
-        memcpy(iv, storage_key, sizeof(iv));
+        memcpy(iv, ss->storageKey, sizeof(iv));
         aes_encrypt_ctx ctx;
-        aes_encrypt_key256(storage_key, &ctx);
+        aes_encrypt_key256(ss->storageKey, &ctx);
         aes_cbc_encrypt((const uint8_t*)scratch, storage->encrypted_sec,
                         sizeof(scratch), iv + 32, &ctx);
         memzero(&ctx, sizeof(ctx));
         storage->encrypted_sec_version = STORAGE_VERSION;
     } else {
         memzero(&storage->sec, sizeof(storage->sec));
+        storage->has_sec = false;
 
         // Decrypt with the storage key.
         uint8_t iv[64];
-        memcpy(iv, storage_key, sizeof(iv));
+        memcpy(iv, ss->storageKey, sizeof(iv));
         aes_decrypt_ctx ctx;
-        aes_decrypt_key256(storage_key, &ctx);
-        if (EXIT_FAILURE == aes_cbc_decrypt((const uint8_t*)storage->encrypted_sec,
-                                            (uint8_t*)&scratch[0], sizeof(scratch),
-                                            iv + 32, &ctx)) {
-            memzero(iv, sizeof(iv));
-            memzero(scratch, sizeof(scratch));
-            return;
-        }
+        aes_decrypt_key256(ss->storageKey, &ctx);
+        aes_cbc_decrypt((const uint8_t*)storage->encrypted_sec,
+                        (uint8_t*)&scratch[0], sizeof(scratch),
+                        iv + 32, &ctx);
+        memzero(iv, sizeof(iv));
 
         // De-serialize from scratch.
         storage_readHDNode(&storage->sec.node, &scratch[0], 129);
         memcpy(storage->sec.mnemonic, &scratch[0] + 129, 241);
         storage_readCacheV1(&storage->sec.cache, &scratch[0] + 370, 75);
 
+        // 63 reserved bytes
+
+        // Check whether the secrets were correctly decrypted
+        uint8_t sec_fingerprint[32];
+        sha256_Raw((const uint8_t *)scratch, sizeof(scratch), sec_fingerprint);
+        if (storage->has_sec_fingerprint) {
+            if (memcmp(storage->sec_fingerprint, sec_fingerprint,
+                       sizeof(sec_fingerprint)) != 0) {
+                memzero(scratch, sizeof(scratch));
+                layout_warning_static("Storage decrypt failure. Reboot device!");
+                shutdown();
+            }
+        }
+
+        storage->has_sec_fingerprint = true;
+        memcpy(storage->sec_fingerprint, sec_fingerprint,
+               sizeof(sec_fingerprint));
+
         // Derive the u2froot, if we haven't already.
         if (storage->pub.has_mnemonic && !storage->pub.has_u2froot) {
-            storage_compute_u2froot(storage->sec.mnemonic, &storage->pub.u2froot);
+            storage_compute_u2froot(ss, storage->sec.mnemonic, &storage->pub.u2froot);
             storage->pub.has_u2froot = true;
         }
 
-        // 63 reserved bytes
+#if DEBUG_LINK
+        memcpy(debuglink_mnemonic, storage->sec.mnemonic, sizeof(debuglink_mnemonic));
+        storage_loadNode(&debuglink_node, &storage->sec.node);
+#endif
 
         storage->has_sec = true;
     }
@@ -379,7 +399,7 @@ void storage_secMigrate(Storage *storage, const uint8_t storage_key[64], bool en
     memzero(scratch, sizeof(scratch));
 }
 
-void storage_readStorageV1(Storage *storage, const char *ptr, size_t len) {
+void storage_readStorageV1(SessionState *ss, Storage *storage, const char *ptr, size_t len) {
     if (len < 464 + 17)
         return;
     storage->version = read_u32_le(ptr);
@@ -427,16 +447,20 @@ void storage_readStorageV1(Storage *storage, const char *ptr, size_t len) {
     _Static_assert(sizeof(storage->pub.storage_key_fingerprint) == 32,
                    "key fingerprint must be 32 bytes");
 
-    storage_setPin_impl(storage, storage->sec.pin, sessionStorageKey);
+    storage->has_sec = true;
+
+    storage_setPin_impl(ss, storage, storage->sec.pin);
+
+    storage->has_sec_fingerprint = false;
+
+#if DEBUG_LINK
+    strncpy(debuglink_pin, storage->sec.pin, sizeof(debuglink_pin));
+    memcpy(debuglink_mnemonic, storage->sec.mnemonic, sizeof(debuglink_mnemonic));
+    storage_loadNode(&debuglink_node, &storage->sec.node);
+#endif
 
     if (storage->pub.has_pin) {
-        memzero(&storage->sec, sizeof(storage->sec));
-        memzero(sessionStorageKey, sizeof(sessionStorageKey));
-        sessionPinCached = false;
-        storage->has_sec = false;
-    } else {
-        sessionPinCached = true;
-        storage->has_sec = true;
+        session_clear_impl(ss, storage, /*clear_pin=*/true);
     }
 }
 
@@ -460,7 +484,8 @@ void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage) {
         (storage_isPolicyEnabled("Experimental")  ? (1u << 11) : 0) |
         (storage_isPolicyEnabled("AdvancedMode")  ? (1u << 12) : 0) |
         (storage->pub.no_backup                   ? (1u << 13) : 0) |
-        /* reserved 31:14 */ 0;
+        (storage->has_sec_fingerprint             ? (1u << 14) : 0) |
+        /* reserved 31:15 */ 0;
     write_u32_le(ptr + 4, flags);
 
     write_u32_le(ptr + 8, storage->pub.pin_failed_attempts);
@@ -475,7 +500,11 @@ void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage) {
     storage_writeHDNode(ptr + 176, 129, &storage->pub.u2froot);
     write_u32_le(ptr + 305, storage->pub.u2f_counter);
 
-    // 155 reserved bytes
+    if (storage->has_sec_fingerprint) {
+        memcpy(ptr + 309, storage->sec_fingerprint, 32);
+    }
+
+    // 123 reserved bytes
 
     // Ignore whatever was in storage->sec. Only encrypted_sec can be committed.
     // Yes, this is a potential footgun. No, there's nothing we can do about it here.
@@ -509,6 +538,7 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     storage_readPolicyV2(&storage->pub.policies[2], "Experimental",  flags & (1u << 11));
     storage_readPolicyV2(&storage->pub.policies[3], "AdvancedMode",  flags & (1u << 12));
     storage->pub.no_backup =                                         flags & (1u << 13);
+    storage->has_sec_fingerprint =                                   flags & (1u << 14);
     storage->pub.policies_count = POLICY_COUNT;
 
     storage->pub.pin_failed_attempts = read_u32_le(ptr + 8);
@@ -527,7 +557,13 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     storage_readHDNode(&storage->pub.u2froot, ptr + 176, 129);
     storage->pub.u2f_counter = read_u32_le(ptr + 305);
 
-    // 155 reserved bytes
+    if (storage->has_sec_fingerprint) {
+        memcpy(storage->sec_fingerprint, ptr + 309, 32);
+    } else {
+        memset(storage->sec_fingerprint, 0, sizeof(storage->sec_fingerprint));
+    }
+
+    // 123 reserved bytes
 
     storage->has_sec = false;
     memzero(&storage->sec, sizeof(storage->sec));
@@ -555,18 +591,18 @@ _Static_assert(offsetof(Cache, root_seed_cache) == 1, "rsc");
 _Static_assert(offsetof(Cache, root_ecdsa_curve_type) == 65, "rect");
 _Static_assert(sizeof(((Cache*)0)->root_ecdsa_curve_type) == 10, "rect");
 
-void storage_readV1(ConfigFlash *dst, const char *flash, size_t len) {
+void storage_readV1(SessionState *ss, ConfigFlash *dst, const char *flash, size_t len) {
     if (len < 44 + 528)
         return;
     storage_readMeta(&dst->meta, flash, 44);
-    storage_readStorageV1(&dst->storage, flash + 44, 481);
+    storage_readStorageV1(ss, &dst->storage, flash + 44, 481);
 }
 
-void storage_readV2(ConfigFlash *dst, const char *flash, size_t len) {
+void storage_readV2(SessionState *ss, ConfigFlash *dst, const char *flash, size_t len) {
     if (len < 528 + 75)
         return;
     storage_readMeta(&dst->meta, flash, 44);
-    storage_readStorageV1(&dst->storage, flash + 44, 481);
+    storage_readStorageV1(ss, &dst->storage, flash + 44, 481);
 }
 
 void storage_readV11(ConfigFlash *dst, const char *flash, size_t len) {
@@ -583,7 +619,7 @@ void storage_writeV11(char *flash, size_t len, const ConfigFlash *src) {
     storage_writeStorageV11(flash + 44, 852, &src->storage);
 }
 
-StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
+StorageUpdateStatus storage_fromFlash(SessionState *ss, ConfigFlash *dst, const char *flash)
 {
     memzero(dst, sizeof(*dst));
 
@@ -599,7 +635,7 @@ StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
     switch (version)
     {
         case StorageVersion_1:
-            storage_readV1(dst, flash, STORAGE_SECTOR_LEN);
+            storage_readV1(ss, dst, flash, STORAGE_SECTOR_LEN);
             dst->storage.version = STORAGE_VERSION;
             return SUS_Updated;
 
@@ -612,7 +648,7 @@ StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash)
         case StorageVersion_8:
         case StorageVersion_9:
         case StorageVersion_10:
-            storage_readV2(dst, flash, STORAGE_SECTOR_LEN);
+            storage_readV2(ss, dst, flash, STORAGE_SECTOR_LEN);
             dst->storage.version = STORAGE_VERSION;
 
             /* We have to do this for users with bootloaders <= v1.0.2. This
@@ -693,10 +729,12 @@ static void wear_leveling_shift(void)
 /// \param cfg[in]    The active storage sector.
 /// \param seed[in]   Root seed to write into storage.
 /// \param curve[in]  ECDSA curve name being used.
-static void storage_setRootSeedCache(ConfigFlash *cfg, const uint8_t *seed, const char* curve)
+static void storage_setRootSeedCache(const SessionState *ss,
+                                     ConfigFlash *cfg, const uint8_t *seed,
+                                     const char* curve)
 {
     // Don't cache when passphrase protection is enabled.
-    if (cfg->storage.pub.passphrase_protection && strlen(sessionPassphrase))
+    if (cfg->storage.pub.passphrase_protection && strlen(ss->passphrase))
         return;
 
     memset(&cfg->storage.sec.cache, 0, sizeof(cfg->storage.sec.cache));
@@ -718,8 +756,9 @@ static void storage_setRootSeedCache(ConfigFlash *cfg, const uint8_t *seed, cons
 /// \param curve[in] ECDSA curve name being used.
 /// \param seed[out] The root seed value.
 /// \returns true on success.
-static bool storage_getRootSeedCache(ConfigFlash *cfg, const char *curve,
-                                     bool usePassphrase, uint8_t *seed)
+static bool storage_getRootSeedCache(const SessionState *ss, ConfigFlash *cfg,
+                                     const char *curve, bool usePassphrase,
+                                     uint8_t *seed)
 {
     if (!cfg->storage.has_sec)
         return false;
@@ -728,7 +767,7 @@ static bool storage_getRootSeedCache(ConfigFlash *cfg, const char *curve,
         return false;
 
     if (usePassphrase && cfg->storage.pub.passphrase_protection &&
-        strlen(sessionPassphrase)) {
+        strlen(ss->passphrase)) {
         return false;
     }
 
@@ -736,10 +775,10 @@ static bool storage_getRootSeedCache(ConfigFlash *cfg, const char *curve,
         return false;
     }
 
-    memset(seed, 0, sizeof(sessionSeed));
+    memset(seed, 0, sizeof(ss->seed));
     memcpy(seed, &cfg->storage.sec.cache.root_seed_cache,
            sizeof(cfg->storage.sec.cache.root_seed_cache));
-    _Static_assert(sizeof(sessionSeed) == sizeof(cfg->storage.sec.cache.root_seed_cache),
+    _Static_assert(sizeof(ss->seed) == sizeof(cfg->storage.sec.cache.root_seed_cache),
                    "size mismatch");
     return true;
 }
@@ -747,24 +786,13 @@ static bool storage_getRootSeedCache(ConfigFlash *cfg, const char *curve,
 void storage_init(void)
 {
 #ifndef EMULATOR
-    if (strcmp("MFR", variant_getName()) == 0)
-    {
+    if (strcmp("MFR", variant_getName()) == 0) {
         // Storage should have been wiped due to the MANUFACTURER firmware
         // having a STORAGE_VERSION of 0, but to be absolutely safe and
         // guarante that secrets cannot leave the device via FlashHash/FlashDump,
         // we wipe them here.
 
-        ConfigFlash *stor_1 = (ConfigFlash*)flash_write_helper(FLASH_STORAGE1);
-        if (memcmp((void *)stor_1->meta.magic, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0)
-            flash_erase_word(FLASH_STORAGE1);
-
-        ConfigFlash *stor_2 = (ConfigFlash*)flash_write_helper(FLASH_STORAGE2);
-        if (memcmp((void *)stor_2->meta.magic, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0)
-            flash_erase_word(FLASH_STORAGE2);
-
-        ConfigFlash *stor_3 = (ConfigFlash*)flash_write_helper(FLASH_STORAGE3);
-        if (memcmp((void *)stor_3->meta.magic, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0)
-            flash_erase_word(FLASH_STORAGE3);
+        storage_wipe();
     }
 #endif
 
@@ -776,7 +804,7 @@ void storage_init(void)
     const char *flash = (const char *)flash_write_helper(storage_location);
 
     // Reset shadow configuration in RAM
-    storage_reset_impl(&shadow_config, sessionStorageKey);
+    storage_reset_impl(&session, &shadow_config);
 
     // If the storage partition is not already active
     if (!storage_isActiveSector(flash)) {
@@ -794,7 +822,7 @@ void storage_init(void)
              shadow_config.meta.uuid_str);
 
     // Load storage from flash, and update it if necessary.
-    switch (storage_fromFlash(&shadow_config, flash)) {
+    switch (storage_fromFlash(&session, &shadow_config, flash)) {
     case SUS_Invalid:
         storage_reset();
         storage_commit();
@@ -826,71 +854,85 @@ void storage_resetUuid_impl(ConfigFlash *cfg)
 
 void storage_reset(void)
 {
-    storage_reset_impl(&shadow_config, sessionStorageKey);
+    storage_reset_impl(&session, &shadow_config);
 }
 
-void storage_reset_impl(ConfigFlash *cfg, uint8_t storage_key[64])
+void storage_reset_impl(SessionState *ss, ConfigFlash *cfg)
 {
     memset(&cfg->storage, 0, sizeof(cfg->storage));
 
     storage_resetPolicies(&cfg->storage);
 
-    storage_setPin_impl(&cfg->storage, "", storage_key);
+    storage_setPin_impl(ss, &cfg->storage, "");
 
     cfg->storage.version = STORAGE_VERSION;
 
-    sessionPinCached = false;
-    sessionSeedCached = false;
-    sessionPassphraseCached = false;
+    memzero(ss, sizeof(*ss));
 
-    memset(&sessionSeed, 0, sizeof(sessionSeed));
-    memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
-    memzero(sessionStorageKey, sizeof(sessionStorageKey));
-
-    shadow_config.storage.has_sec = false;
-    memzero(&shadow_config.storage.sec, sizeof(shadow_config.storage.sec));
+    cfg->storage.has_sec = false;
+    memzero(&cfg->storage.sec, sizeof(cfg->storage.sec));
 }
 
-void session_clear(bool clear_pin)
+void storage_wipe(void)
 {
-    sessionSeedCached = false;
-    memset(&sessionSeed, 0, sizeof(sessionSeed));
+    flash_erase_word(FLASH_STORAGE1);
+    flash_erase_word(FLASH_STORAGE2);
+    flash_erase_word(FLASH_STORAGE3);
+}
 
-    sessionPassphraseCached = false;
-    memset(&sessionPassphrase, 0, sizeof(sessionPassphrase));
+void session_clear(bool clear_pin) {
+    session_clear_impl(&session, &shadow_config.storage, clear_pin);
+}
 
-    if (storage_hasPin()) {
-        if (clear_pin) {
-            memzero(sessionStorageKey, sizeof(sessionStorageKey));
-            sessionPinCached = false;
-            shadow_config.storage.has_sec = false;
-            memzero(&shadow_config.storage.sec, sizeof(shadow_config.storage.sec));
-        }
-    } else {
-        session_cachePin("");
+void session_clear_impl(SessionState *ss, Storage *storage, bool clear_pin)
+{
+    ss->seedCached = false;
+    memset(&ss->seed, 0, sizeof(ss->seed));
+
+    ss->passphraseCached = false;
+    memset(&ss->passphrase, 0, sizeof(ss->passphrase));
+
+    if (!storage_hasPin_impl(storage)) {
+        ss->pinCached =
+            storage_isPinCorrect_impl("",
+                                      storage->pub.wrapped_storage_key,
+                                      storage->pub.storage_key_fingerprint,
+                                      ss->storageKey);
+
+        if (!ss->pinCached)
+            goto clear;
+
+        storage_secMigrate(ss, storage, /*encrypt=*/false);
+        return;
     }
+
+    if (!clear_pin) {
+        return;
+    }
+
+clear:
+    memzero(ss->storageKey, sizeof(ss->storageKey));
+    ss->pinCached = false;
+    storage->has_sec = false;
+    memzero(&storage->sec, sizeof(storage->sec));
 }
 
-void storage_commit(void) {
-    storage_commit_impl(&shadow_config);
-}
-
-void storage_commit_impl(ConfigFlash *cfg)
+void storage_commit(void)
 {
     // Temporary storage for marshalling secrets in & out of flash.
     static char flash_temp[1024];
 
     memzero(flash_temp, sizeof(flash_temp));
 
-    if (sessionPinCached) {
-        storage_secMigrate(&cfg->storage, sessionStorageKey, /*encrypt=*/true);
+    if (session.pinCached || !shadow_config.storage.pub.has_pin) {
+        storage_secMigrate(&session, &shadow_config.storage, /*encrypt=*/true);
     } else {
         // commit what was in storage->encrypted_sec
     }
 
-    storage_writeV11(flash_temp, sizeof(flash_temp), cfg);
+    storage_writeV11(flash_temp, sizeof(flash_temp), &shadow_config);
 
-    memcpy(cfg, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
+    memcpy(&shadow_config, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
 
     uint32_t retries = 0;
     for (retries = 0; retries < STORAGE_RETRIES; retries++) {
@@ -917,11 +959,13 @@ void storage_commit_impl(ConfigFlash *cfg)
         if (!flash_write_word(storage_location, STORAGE_MAGIC_LEN,
                               sizeof(flash_temp) - STORAGE_MAGIC_LEN,
                               (uint8_t *)flash_temp + STORAGE_MAGIC_LEN)) {
+            flash_erase_word(storage_location);
             continue; // Retry
         }
 
         if (!flash_write_word(storage_location, 0, STORAGE_MAGIC_LEN,
                               (uint8_t *)flash_temp)) {
+            flash_erase_word(storage_location);
             continue; // Retry
         }
 
@@ -939,6 +983,7 @@ void storage_commit_impl(ConfigFlash *cfg)
     memzero(flash_temp, sizeof(flash_temp));
 
     if(retries >= STORAGE_RETRIES) {
+        storage_wipe();
         layout_warning_static("Error Detected.  Reboot Device!");
         shutdown();
     }
@@ -1006,7 +1051,7 @@ void storage_loadNode(HDNode *dst, const HDNodeType *src) {
 
 void storage_loadDevice(LoadDevice *msg)
 {
-    storage_reset_impl(&shadow_config, sessionStorageKey);
+    storage_reset_impl(&session, &shadow_config);
 
     shadow_config.storage.pub.imported = true;
 
@@ -1024,8 +1069,8 @@ void storage_loadDevice(LoadDevice *msg)
 #if DEBUG_LINK
         storage_loadNode(&debuglink_node, &msg->node);
 #endif
-        sessionSeedCached = false;
-        memset(&sessionSeed, 0, sizeof(sessionSeed));
+        session.seedCached = false;
+        memset(&session.seed, 0, sizeof(session.seed));
     } else if(msg->has_mnemonic) {
         shadow_config.storage.pub.has_mnemonic = true;
         shadow_config.storage.pub.has_node = false;
@@ -1035,10 +1080,11 @@ void storage_loadDevice(LoadDevice *msg)
 #if DEBUG_LINK
         memcpy(debuglink_mnemonic, msg->mnemonic, sizeof(debuglink_mnemonic));
 #endif
-        storage_compute_u2froot(shadow_config.storage.sec.mnemonic, &shadow_config.storage.pub.u2froot);
+        storage_compute_u2froot(&session, shadow_config.storage.sec.mnemonic,
+                                &shadow_config.storage.pub.u2froot);
         shadow_config.storage.pub.has_u2froot = true;
-        sessionSeedCached = false;
-        memset(&sessionSeed, 0, sizeof(sessionSeed));
+        session.seedCached = false;
+        memset(&session.seed, 0, sizeof(session.seed));
     }
 
     if (msg->has_language) {
@@ -1109,14 +1155,19 @@ bool storage_isPinCorrect(const char *pin) {
 
 bool storage_hasPin(void)
 {
-    return shadow_config.storage.pub.has_pin;
+    return storage_hasPin_impl(&shadow_config.storage);
+}
+
+bool storage_hasPin_impl(const Storage *storage)
+{
+    return storage->pub.has_pin;
 }
 
 void storage_setPin(const char *pin)
 {
-    storage_setPin_impl(&shadow_config.storage, pin, sessionStorageKey);
+    storage_setPin_impl(&session, &shadow_config.storage, pin);
 
-    sessionPinCached = true;
+    session.pinCached = true;
 
 #if DEBUG_LINK
     strncpy(debuglink_pin, pin, sizeof(debuglink_pin));
@@ -1124,21 +1175,21 @@ void storage_setPin(const char *pin)
 
 }
 
-void storage_setPin_impl(Storage *storage, const char *pin, uint8_t storage_key[64])
+void storage_setPin_impl(SessionState *ss, Storage *storage, const char *pin)
 {
     // Derive the wrapping key for the new pin
     uint8_t wrapping_key[64];
     storage_deriveWrappingKey(pin, wrapping_key);
 
-    // Derive a new storage_key.
-    random_buffer(storage_key, 64);
+    // Derive a new storageKey.
+    random_buffer(ss->storageKey, 64);
 
-    // Wrap the new storage_key.
-    storage_wrapStorageKey(wrapping_key, storage_key,
+    // Wrap the new storageKey.
+    storage_wrapStorageKey(wrapping_key, ss->storageKey,
                            storage->pub.wrapped_storage_key);
 
-    // Fingerprint the storage_key.
-    storage_keyFingerprint(storage_key,
+    // Fingerprint the storageKey.
+    storage_keyFingerprint(ss->storageKey,
                            storage->pub.storage_key_fingerprint);
 
     // Clean up secrets to get them off the stack.
@@ -1146,42 +1197,47 @@ void storage_setPin_impl(Storage *storage, const char *pin, uint8_t storage_key[
 
     storage->pub.has_pin = !!strlen(pin);
 
-    storage_secMigrate(storage, storage_key, /*encrypt=*/true);
+    storage_secMigrate(ss, storage, /*encrypt=*/true);
 }
 
 void session_cachePin(const char *pin)
 {
-    sessionPinCached =
-        storage_isPinCorrect_impl(pin,
-                                  shadow_config.storage.pub.wrapped_storage_key,
-                                  shadow_config.storage.pub.storage_key_fingerprint,
-                                  sessionStorageKey);
+    session_cachePin_impl(&session, &shadow_config.storage, pin);
+}
 
-    if (!sessionPinCached) {
-        memset(sessionStorageKey, 0, sizeof(sessionStorageKey));
+void session_cachePin_impl(SessionState *ss, Storage *storage, const char *pin)
+{
+    ss->pinCached =
+        storage_isPinCorrect_impl(pin,
+                                  storage->pub.wrapped_storage_key,
+                                  storage->pub.storage_key_fingerprint,
+                                  ss->storageKey);
+
+    if (!ss->pinCached) {
+        session_clear_impl(ss, storage, /*clear_pin=*/true);
         return;
     }
 
-    storage_secMigrate(&shadow_config.storage, sessionStorageKey, /*encrypt=*/false);
+    storage_secMigrate(ss, storage, /*encrypt=*/false);
 }
 
 bool session_isPinCached(void)
 {
-    return sessionPinCached;
+    return session.pinCached;
 }
 
 void storage_resetPinFails(void)
 {
     shadow_config.storage.pub.pin_failed_attempts = 0;
 
-    storage_commit_impl(&shadow_config);
+    storage_commit();
 }
 
 void storage_increasePinFails(void)
 {
     shadow_config.storage.pub.pin_failed_attempts++;
 
-    storage_commit_impl(&shadow_config);
+    storage_commit();
 }
 
 uint32_t storage_getPinFails(void)
@@ -1194,17 +1250,15 @@ uint32_t storage_getPinFails(void)
 /// \param total Total iterations.
 static void get_root_node_callback(uint32_t iter, uint32_t total)
 {
-    (void)iter;
-    (void)total;
-    animating_progress_handler();
+    animating_progress_handler(_("Waking up"), 1000 * iter / total);
 }
 
 const uint8_t *storage_getSeed(const ConfigFlash *cfg, bool usePassphrase)
 {
     // root node is properly cached
-    if (usePassphrase == sessionSeedUsesPassphrase
-        && sessionSeedCached) {
-        return sessionSeed;
+    if (usePassphrase == session.seedUsesPassphrase
+        && session.seedCached) {
+        return session.seed;
     }
 
     // if storage has mnemonic, convert it to node and use it
@@ -1217,13 +1271,12 @@ const uint8_t *storage_getSeed(const ConfigFlash *cfg, bool usePassphrase)
             return NULL;
         }
 
-        layout_loading();
         mnemonic_to_seed(cfg->storage.sec.mnemonic,
-                         usePassphrase ? sessionPassphrase : "",
-                         sessionSeed, get_root_node_callback); // BIP-0039
-        sessionSeedCached = true;
-        sessionSeedUsesPassphrase = usePassphrase;
-        return sessionSeed;
+                         usePassphrase ? session.passphrase : "",
+                         session.seed, get_root_node_callback); // BIP-0039
+        session.seedCached = true;
+        session.seedUsesPassphrase = usePassphrase;
+        return session.seed;
     }
 
     return NULL;
@@ -1250,12 +1303,12 @@ bool storage_getRootNode(const char *curve, bool usePassphrase, HDNode *node) {
         }
 
         if (shadow_config.storage.pub.passphrase_protection &&
-            sessionPassphraseCached &&
-            strlen(sessionPassphrase) > 0) {
+            session.passphraseCached &&
+            strlen(session.passphrase) > 0) {
             // decrypt hd node
             static uint8_t CONFIDENTIAL secret[64];
             PBKDF2_HMAC_SHA512_CTX pctx;
-            pbkdf2_hmac_sha512_Init(&pctx, (const uint8_t *)sessionPassphrase, strlen(sessionPassphrase), (const uint8_t *)"TREZORHD", 8, 1);
+            pbkdf2_hmac_sha512_Init(&pctx, (const uint8_t *)session.passphrase, strlen(session.passphrase), (const uint8_t *)"TREZORHD", 8, 1);
             for (int i = 0; i < 8; i++) {
                 pbkdf2_hmac_sha512_Update(&pctx, BIP39_PBKDF2_ROUNDS / 8);
                 get_root_node_callback((i + 1) * BIP39_PBKDF2_ROUNDS / 8, BIP39_PBKDF2_ROUNDS);
@@ -1283,22 +1336,22 @@ bool storage_getRootNode(const char *curve, bool usePassphrase, HDNode *node) {
             return false;
         }
 
-        if(!sessionSeedCached) {
-            sessionSeedCached = storage_getRootSeedCache(&shadow_config, curve, usePassphrase, sessionSeed);
+        if(!session.seedCached) {
+            session.seedCached = storage_getRootSeedCache(&session, &shadow_config, curve, usePassphrase, session.seed);
 
-            if(!sessionSeedCached) {
+            if(!session.seedCached) {
                 /* calculate session seed and update the global sessionSeed/sessionSeedCached variables */
                 storage_getSeed(&shadow_config, usePassphrase);
 
-                if (!sessionSeedCached) {
+                if (!session.seedCached) {
                     return false;
                 }
 
-                storage_setRootSeedCache(&shadow_config, sessionSeed, curve);
+                storage_setRootSeedCache(&session, &shadow_config, session.seed, curve);
             }
         }
 
-        if (hdnode_from_seed(sessionSeed, 64, curve, node) == 1) {
+        if (hdnode_from_seed(session.seed, 64, curve, node) == 1) {
             return true;
         }
     }
@@ -1328,13 +1381,13 @@ void storage_setPassphraseProtected(bool passphrase)
 
 void session_cachePassphrase(const char *passphrase)
 {
-    strlcpy(sessionPassphrase, passphrase, sizeof(sessionPassphrase));
-    sessionPassphraseCached = true;
+    strlcpy(session.passphrase, passphrase, sizeof(session.passphrase));
+    session.passphraseCached = true;
 }
 
 bool session_isPassphraseCached(void)
 {
-    return sessionPassphraseCached;
+    return session.passphraseCached;
 }
 
 void storage_setMnemonicFromWords(const char (*words)[12],
@@ -1361,7 +1414,8 @@ void storage_setMnemonicFromWords(const char (*words)[12],
     shadow_config.storage.pub.has_mnemonic = true;
     shadow_config.storage.has_sec = true;
 
-    storage_compute_u2froot(shadow_config.storage.sec.mnemonic, &shadow_config.storage.pub.u2froot);
+    storage_compute_u2froot(&session, shadow_config.storage.sec.mnemonic,
+                            &shadow_config.storage.pub.u2froot);
     shadow_config.storage.pub.has_u2froot = true;
 }
 
@@ -1378,7 +1432,8 @@ void storage_setMnemonic(const char *m)
     shadow_config.storage.pub.has_mnemonic = true;
     shadow_config.storage.has_sec = true;
 
-    storage_compute_u2froot(shadow_config.storage.sec.mnemonic, &shadow_config.storage.pub.u2froot);
+    storage_compute_u2froot(&session, shadow_config.storage.sec.mnemonic,
+                            &shadow_config.storage.pub.u2froot);
     shadow_config.storage.pub.has_u2froot = true;
 }
 

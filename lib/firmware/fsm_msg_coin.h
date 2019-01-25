@@ -196,7 +196,7 @@ void fsm_msgGetAddress(GetAddress *msg)
 
 	char address[MAX_ADDR_SIZE];
 	if (msg->has_multisig) {  // use progress bar only for multisig
-		animating_progress_handler(); // layoutProgress(_("Computing address"), 0);
+		animating_progress_handler(_("Computing address"), 0);
 	}
 	if (!compute_address(coin, msg->script_type, node, msg->has_multisig, &msg->multisig, address)) {
 		fsm_sendFailure(FailureType_Failure_Other, _("Can't encode address"));
@@ -266,7 +266,7 @@ void fsm_msgSignMessage(SignMessage *msg)
 	HDNode *node = fsm_getDerivedNode(coin->curve_name, msg->address_n, msg->address_n_count, NULL);
 	if (!node) return;
 
-	animating_progress_handler(); // layoutProgressSwipe(_("Signing"), 0);
+	animating_progress_handler(_("Signing"), 0);
 	if (cryptoMessageSign(coin, node, msg->script_type, msg->message.bytes, msg->message.size, resp->signature.bytes) == 0) {
 		resp->has_address = true;
 		hdnode_fill_public_key(node);

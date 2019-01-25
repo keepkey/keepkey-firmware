@@ -93,6 +93,12 @@ static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
         return; \
     }
 
+#define CHECK_PIN_UNCACHED \
+    if (!pin_protect_uncached()) { \
+        layoutHome(); \
+        return; \
+    }
+
 #define CHECK_PIN_TXSIGN \
     if (!pin_protect_txsign()) { \
         layoutHome(); \

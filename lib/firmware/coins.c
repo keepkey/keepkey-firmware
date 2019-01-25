@@ -27,47 +27,71 @@
 
 #define SECP256K1_STRING "secp256k1"
 
-#define TOKEN_ENTRY(INDEX, NAME, SYMBOL, DECIMALS, CONTRACT_ADDRESS) \
-{   \
-true, (#NAME),                     /* has_coin_name, coin_name*/ \
-true, (#SYMBOL),                   /* has_coin_shortcut, coin_shortcut*/ \
-false, NA,                         /* has_address_type, address_type*/ \
-true, 100000,                      /* has_maxfee_kb, maxfee_kb*/ \
-false, NA,                         /* has_address_type_p2sh, address_type_p2sh*/ \
-false, "",                         /* has_signed_message_header, signed_message_header*/ \
-true, 0x8000003C,                  /* has_bip44_account_path, bip44_account_path*/ \
-true, 1,                           /* has_forkid, forkid*/ \
-true, (DECIMALS),                  /* has_decimals, decimals*/ \
-true, {20, {(CONTRACT_ADDRESS)}},  /* has_contract_address, contract_address*/ \
-false, 0,                          /* has_xpub_magic, xpub_magic*/ \
-false, false,                      /* has_segwit, segwit */ \
-false, false,                      /* has_force_bip143, force_bip143*/ \
-true, SECP256K1_STRING,            /* has_curve_name, curve_name*/ \
-false, "",                         /* has_cashaddr_prefix, cashaddr_prefix*/ \
-false, "",                         /* has_bech32_prefix, bech32_prefix*/ \
-false, false,                      /* has_decred, decred */ \
-false, 0,                          /* has_xpub_magic_segwit_p2sh, xpub_magic_segwit_p2sh*/ \
-false, 0,                          /* has_xpub_magic_segwit_native, xpub_magic_segwit_native*/ \
-},
+const CoinType coins[COINS_COUNT] = {
+#define X(\
+HAS_COIN_NAME, COIN_NAME, \
+HAS_COIN_SHORTCUT, COIN_SHORTCUT, \
+HAS_ADDRESS_TYPE, ADDRESS_TYPE, \
+HAS_MAXFEE_KB, MAXFEE_KB, \
+HAS_ADDRESS_TYPE_P2SH, ADDRESS_TYPE_P2SH, \
+HAS_SIGNED_MESSAGE_HEADER, SIGNED_MESSAGE_HEADER, \
+HAS_BIP44_ACCOUNT_PATH, BIP44_ACCOUNT_PATH, \
+HAS_FORKID, FORKID, \
+HAS_DECIMALS, DECIMALS, \
+HAS_CONTRACT_ADDRESS, CONTRACT_ADDRESS, \
+HAS_XPUB_MAGIC, XPUB_MAGIC, \
+HAS_SEGWIT, SEGWIT , \
+HAS_FORCE_BIP143, FORCE_BIP143, \
+HAS_CURVE_NAME, CURVE_NAME, \
+HAS_CASHADDR_PREFIX, CASHADDR_PREFIX, \
+HAS_BECH32_PREFIX, BECH32_PREFIX, \
+HAS_DECRED, DECRED, \
+HAS_XPUB_MAGIC_SEGWIT_P2SH, XPUB_MAGIC_SEGWIT_P2SH, \
+HAS_XPUB_MAGIC_SEGWIT_NATIVE, XPUB_MAGIC_SEGWIT_NATIVE \
+) \
+    { HAS_COIN_NAME, COIN_NAME, \
+      HAS_COIN_SHORTCUT, COIN_SHORTCUT, \
+      HAS_ADDRESS_TYPE, ADDRESS_TYPE, \
+      HAS_MAXFEE_KB, MAXFEE_KB, \
+      HAS_ADDRESS_TYPE_P2SH, ADDRESS_TYPE_P2SH, \
+      HAS_SIGNED_MESSAGE_HEADER, SIGNED_MESSAGE_HEADER, \
+      HAS_BIP44_ACCOUNT_PATH, BIP44_ACCOUNT_PATH, \
+      HAS_FORKID, FORKID, \
+      HAS_DECIMALS, DECIMALS, \
+      HAS_CONTRACT_ADDRESS, CONTRACT_ADDRESS, \
+      HAS_XPUB_MAGIC, XPUB_MAGIC, \
+      HAS_SEGWIT, SEGWIT , \
+      HAS_FORCE_BIP143, FORCE_BIP143, \
+      HAS_CURVE_NAME, CURVE_NAME, \
+      HAS_CASHADDR_PREFIX, CASHADDR_PREFIX, \
+      HAS_BECH32_PREFIX, BECH32_PREFIX, \
+      HAS_DECRED, DECRED, \
+      HAS_XPUB_MAGIC_SEGWIT_P2SH, XPUB_MAGIC_SEGWIT_P2SH, \
+      HAS_XPUB_MAGIC_SEGWIT_NATIVE, XPUB_MAGIC_SEGWIT_NATIVE },
+    #include "keepkey/firmware/coins.def"
 
-const CoinType coins[] = {
-//   coin_name             coin_shortcut  address_type  maxfee_kb          p2sh        signed_message_header                           bip44_account_path  forkid/chain_id decimals    contract_address  xpub_magic       segwit        force_bip143  curve_name               cashaddr_prefix       bech32_prefix  decred         xpub_magic_segwit_p2sh  xpub_mmagic_segwit_native
-    {true, "Bitcoin",      true, "BTC",   true,   0,    true,     100000,  true,   5,  true, "\x18" "Bitcoin Signed Message:\n",       true, 0x80000000,   false,   0,     true,   8,  false, {0, {0}},  true, 76067358,  true, true,   true, false,  true, SECP256K1_STRING,  false, "",            true, "bc",    false, false,  true,  77429938,        true, 78792518 },
-    {true, "Testnet",      true, "TEST",  true, 111,    true,   10000000,  true, 196,  true, "\x18" "Bitcoin Signed Message:\n",       true, 0x80000001,   false,   0,     true,   8,  false, {0, {0}},  true, 70617039,  true, true,   true, false,  true, SECP256K1_STRING,  false, "",            true, "tb",    false, false,  true,  71979618,        true, 73342198 },
-    {true, "BitcoinCash",  true, "BCH",   true,   0,    true,     500000,  true,   5,  true, "\x18" "Bitcoin Signed Message:\n",       true, 0x80000091,   true,    0,     true,   8,  false, {0, {0}},  true, 76067358,  true, false,  true, true,   true, SECP256K1_STRING,  true, "bitcoincash",  false, "",     false, false,  false,        0,        false,       0 },
-    {true, "Namecoin",     true, "NMC",   true,  52,    true,   10000000,  true,   5,  true, "\x19" "Namecoin Signed Message:\n",      true, 0x80000007,   false,   0,     true,   8,  false, {0, {0}},  true, 27108450,  true, false,  true, false,  true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false,        0,        false,       0 },
-    {true, "Litecoin",     true, "LTC",   true,  48,    true,    1000000,  true,  50,  true, "\x19" "Litecoin Signed Message:\n",      true, 0x80000002,   false,   0,     true,   8,  false, {0, {0}},  true, 27108450,  true, true,   true, false,  true, SECP256K1_STRING,  false, "",            true, "ltc",   false, false,  false,        0,        false,       0 },
-    {true, "Dogecoin",     true, "DOGE",  true,  30,    true, 1000000000,  true,  22,  true, "\x19" "Dogecoin Signed Message:\n",      true, 0x80000003,   false,   0,     true,   8,  false, {0, {0}},  true, 49990397,  true, false,  true, false,  true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false,        0,        false,       0 },
-    {true, "Dash",         true, "DASH",  true,  76,    true,     100000,  true,  16,  true, "\x19" "DarkCoin Signed Message:\n",      true, 0x80000005,   false,   0,     true,   8,  false, {0, {0}},  true, 50221772,  true, false,  true, false,  true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false,        0,        false,       0 },
-    {true, ETHEREUM,       true, "ETH",   true,  NA,    true,     100000,  true,  NA,  true, "\x19" "Ethereum Signed Message:\n",      true, 0x8000003c,   true,    1,     true,  18,  false, {0, {0}},  false, 0,        true, false,  true, false,  true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false,        0,        false,       0 },
-    {true, ETHEREUM_CLS,   true, "ETC",   true,  NA,    true,     100000,  true,  NA,  true, "\x19" "Ethereum Signed Message:\n",      true, 0x8000003d,   true,   62,     true,  18,  false, {0, {0}},  false, 0,        true, false,  true, false,  true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false,        0,        false,       0 },
-    {true, "BitcoinGold",  true, "BTG",   true,  38,    true,     500000,  true,  23,  true, "\x1d" "Bitcoin Gold Signed Message:\n",  true, 0x8000009c,   true,   79,     true,   8,  false, {0, {0}},  true, 76067358,  true, true,   true, true,   true, SECP256K1_STRING,  false, "",            true, "btg",   false, false,  true,  77429938,        false,       0 },
-    {true, "Zcash",        true, "ZEC",   true, 7352,   true,    1000000,  true, 7357, true, "\x16" "Zcash Signed Message:\n",         true, 0x80000085,   false,   0,     true,   8,  false, {0, {0}},  true, 76067358,  false, false, false, false, true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false,        0,        false,       0 },
-    {true, "Zcash Testnet",true, "TAZ",   true, 7461,   true,   10000000,  true, 7354, true, "\x16" "Zcash Signed Message:\n",         true, 0x80000085,   false,   0,     true,   8,  false, {0, {0}},  true, 70617039,  false, false, false, false, true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false,        0,        false,       0 },
-    {true, "DigiByte",     true, "DGB",   true,  30,    true,     500000,  true,  63,  true, "\x19" "DigiByte Signed Message:\n",      true, 0x80000014,   false,   0,     true,   8,  false, {0, {0}},  true, 76067358,  true, true,   false, false, true, SECP256K1_STRING,  false, "",            true, "dgb",   false, false,  false,        0,        false,       0 },
-    {true, "EOS",          true, "EOS",   false, NA,    false,         0,  false, NA,  false, {0},                                     true, 0x800000c2,   false,   0,     false,  0,  false, {0, {0}},  false, 0,        false, false, false, false, true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false,        0,        false,       0 },
-    {true, "Axe",          true, "AXE",   true,  55,    true,     100000,  true,  16,  true, "\x19" "DarkCoin Signed Message:\n",      true, 0x80001092,   false,   0,     true,   8,  false, {0, {0}},  true, 50221772,  true, false,  true, false,  true, SECP256K1_STRING,  false, "",            false, "",     false, false,  false,        0,        false,       0 },
-    {true, "Bitcore",      true, "BTX",   true,   3,    true,     100000,  true,  125, true, "\x18" "BitCore Signed Message:\n",       true, 0x800000a0,   false,   0,     true,   8,  false, {0, {0}},  true, 76067358,  true, true,   true, false,  true, SECP256K1_STRING,  false, "",            true, "btx",   false, false,  true,  77429938,        true, 78792518 },
+#define X(INDEX, NAME, SYMBOL, DECIMALS, CONTRACT_ADDRESS) \
+    {   \
+      true, (#NAME),                     /* has_coin_name, coin_name*/ \
+      true, (#SYMBOL),                   /* has_coin_shortcut, coin_shortcut*/ \
+      false, NA,                         /* has_address_type, address_type*/ \
+      true, 100000,                      /* has_maxfee_kb, maxfee_kb*/ \
+      false, NA,                         /* has_address_type_p2sh, address_type_p2sh*/ \
+      false, "",                         /* has_signed_message_header, signed_message_header*/ \
+      true, 0x8000003C,                  /* has_bip44_account_path, bip44_account_path*/ \
+      true, 1,                           /* has_forkid, forkid*/ \
+      true, (DECIMALS),                  /* has_decimals, decimals*/ \
+      true, {20, {(CONTRACT_ADDRESS)}},  /* has_contract_address, contract_address*/ \
+      false, 0,                          /* has_xpub_magic, xpub_magic*/ \
+      false, false,                      /* has_segwit, segwit */ \
+      false, false,                      /* has_force_bip143, force_bip143*/ \
+      true, SECP256K1_STRING,            /* has_curve_name, curve_name*/ \
+      false, "",                         /* has_cashaddr_prefix, cashaddr_prefix*/ \
+      false, "",                         /* has_bech32_prefix, bech32_prefix*/ \
+      false, false,                      /* has_decred, decred */ \
+      false, 0,                          /* has_xpub_magic_segwit_p2sh, xpub_magic_segwit_p2sh*/ \
+      false, 0,                          /* has_xpub_magic_segwit_native, xpub_magic_segwit_native*/ \
+    },
     #include "keepkey/firmware/tokens.def"
 };
 
@@ -170,7 +194,7 @@ bool bip32_path_to_string(char *str, size_t len, const uint32_t *address_n,
                           size_t address_n_count) {
     memset(str, 0, len);
 
-    int cx = snprintf(str, len, "m");
+    int cx = snprintf(str, len, address_n_count == 0 ? "m/" : "m");
     if (cx < 0 || len <= (size_t)cx)
         return false;
     str += cx;
@@ -327,30 +351,6 @@ void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len)
     }
 }
 
-static const char *account_prefix(const CoinType *coin,
-                                  const uint32_t *address_n,
-                                  size_t address_n_count,
-                                  bool whole_account) {
-    if (!coin->has_segwit || !coin->segwit)
-        return "";
-
-    if (address_n_count < (whole_account ? 3 : 5))
-        return NULL;
-
-    uint32_t purpose = address_n[address_n_count - (whole_account ? 3 : 5)];
-
-    if (purpose == (0x80000000 | 44))
-        return "Legacy ";
-
-    if (purpose == (0x80000000 | 49))
-        return "SegWit ";
-
-    if (purpose == (0x80000000 | 84))
-        return "";
-
-    return NULL;
-}
-
 bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
                           const uint32_t *address_n, size_t address_n_count,
                           bool whole_account)
@@ -358,19 +358,45 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
     if (address_n_count != 3 && address_n_count != 5)
         return false;
 
-    if (path_mismatched(coin, address_n, address_n_count, whole_account))
+    bool isSLIP48 =
+        coin_isSLIP48(coin, address_n, address_n_count, SLIP48_owner) ||
+        coin_isSLIP48(coin, address_n, address_n_count, SLIP48_active);
+
+    if (strncmp(coin->coin_name, "EOS", sizeof(coin->coin_name)) == 0 && !isSLIP48)
         return false;
 
-    const char *prefix = account_prefix(coin, address_n, address_n_count, whole_account);
-    if (!prefix)
+    if (!whole_account) {
+        if (address_n_count != 5)
+            return false;
+
+        // Don't display this way for change addresses,
+        // discouraging their use in GetAddress.
+        if (address_n[3] != 0 && !isSLIP48)
+            return false;
+    }
+
+    if (path_mismatched(coin, address_n, address_n_count, whole_account) &&
+        !isSLIP48)
         return false;
 
     // If it is a token, we still refer to the destination as an Ethereum account.
     bool is_token = coin->has_contract_address;
     const char *coin_name = is_token ? "Ethereum" : coin->coin_name;
 
-    snprintf(node_str, len, "%s%s Account #%" PRIu32, prefix, coin_name,
-             address_n[2] & 0x7ffffff);
+    if (whole_account || isEthereumLike(coin_name)) {
+        snprintf(node_str, len, "%s Account #%" PRIu32, coin_name,
+                 address_n[2] & 0x7fffffff);
+    } else if (coin_isSLIP48(coin, address_n, address_n_count, SLIP48_owner)) {
+        snprintf(node_str, len, "%s Account #%" PRIu32 " @owner key #%" PRIu32,
+                 coin_name, address_n[3] & 0x7fffffff, address_n[4] & 0x7fffffff);
+    } else if (coin_isSLIP48(coin, address_n, address_n_count, SLIP48_active)) {
+        snprintf(node_str, len, "%s Account #%" PRIu32 " @active key #%" PRIu32,
+                 coin_name, address_n[3] & 0x7fffffff, address_n[4] & 0x7fffffff);
+    } else {
+        snprintf(node_str, len, "%s Account #%" PRIu32 "\nAddress #%" PRIu32,
+                 coin_name, address_n[2] & 0x7fffffff, address_n[4]);
+    }
+
     return true;
 }
 
@@ -383,4 +409,62 @@ bool isEthereumLike(const char *coin_name)
         return true;
 
     return false;
+}
+
+static bool role_matches(uint32_t address_n_role, SLIP48Role role) {
+    switch (role) {
+    case SLIP48_owner:
+        return address_n_role == (0x80000000 | 0x0);
+
+    case SLIP48_active:
+        return address_n_role == (0x80000000 | 0x1);
+
+    case SLIP48_memo:
+        return address_n_role == (0x80000000 | 0x3);
+
+    case SLIP48_posting:
+        return address_n_role == (0x80000000 | 0x4);
+
+    case SLIP48_UNKNOWN:
+        return false;
+    }
+
+#ifdef DEBUG_ON
+    __builtin_unreachable();
+#else
+    return false;
+#endif
+}
+
+bool coin_isSLIP48(const CoinType *coin, const uint32_t *address_n,
+                   size_t address_n_count, SLIP48Role role) {
+
+    // Assume EOS for now. We'll expand this as we add more graphene coins.
+    if (strncmp(coin->coin_name, "EOS", sizeof(coin->coin_name)))
+        return false;
+
+    if (address_n_count < 5)
+        return false;
+
+    // Purpose
+    if (address_n[address_n_count - 5] != (0x80000000 | 48))
+        return false;
+
+    // Network
+    if (address_n[address_n_count - 4] != (0x80000000 | /*EOS=*/4))
+        return false;
+
+    // Role
+    if (!role_matches(address_n[address_n_count - 3], role))
+        return false;
+
+    // Account Index
+    if (!(address_n[address_n_count - 2] & 0x80000000))
+        return false;
+
+    // Key Index
+    if (!(address_n[address_n_count - 1] & 0x80000000))
+        return false;
+
+    return true;
 }

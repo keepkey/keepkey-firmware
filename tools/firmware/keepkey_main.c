@@ -67,6 +67,32 @@ void memory_getDeviceSerialNo(char *str, size_t len) {
 #endif
 }
 
+static void drop_privs(void) {
+    // Legacy bootloader code will have interrupts disabled at this point.
+    // To maintain compatibility, the timer and button interrupts need to
+    // be enabled and then global interrupts enabled. This is a nop in the
+    // modern scheme.
+    cm_enable_interrupts();
+
+    // Turn on memory protection for good signature. KK firmware is signed
+    mpu_config(SIG_OK);
+
+    // set thread mode to unprivileged here. This will help protect against 0days
+    __asm__ volatile("msr control, %0" :: "r" (0x3));   // unpriv thread mode using psp stack
+}
+
+#ifndef DEBUG_ON
+static void unknown_bootloader(void) {
+    layout_warning_static("Unknown bootloader. Contact support.");
+    shutdown();
+}
+#endif
+
+static void update_bootloader(void) {
+    layout_warning_static("Please update your bootloader.");
+    shutdown();
+}
+
 static void check_bootloader(void) {
     BootloaderKind kind = get_bootloaderKind();
 
@@ -77,31 +103,24 @@ static void check_bootloader(void) {
     case BLK_v1_0_3:
     case BLK_v1_0_3_elf:
     case BLK_v1_0_3_sig:
-    case BLK_v1_0_4: {
-        layout_warning_static("Please update your bootloader.");
-        shutdown();
-    } break;
+    case BLK_v1_0_4:
+        update_bootloader();
+        return;
     case BLK_UNKNOWN:
 #ifndef DEBUG_ON
-        layout_warning_static("Unknown bootloader. Contact support.");
-        shutdown();
-        break;
+        unknown_bootloader();
 #endif
+        return;
     case BLK_v2_0_0:
     case BLK_v1_1_0:
-        // Legacy bootloader code will have interrupts disabled at this point.
-        // To maintain compatibility, the timer and button interrupts need to
-        // be enabled and then global interrupts enabled. This is a nop in the
-        // modern scheme.
-        cm_enable_interrupts();
-
-        // Turn on memory protection for good signature. KK firmware is signed
-        mpu_config(SIG_OK);
-
-        // set thread mode to unprivileged here. This will help protect against 0days
-        __asm__ volatile("msr control, %0" :: "r" (0x3));   // unpriv thread mode using psp stack
         return;
     }
+
+#ifdef DEBUG_ON
+    __builtin_unreachable();
+#else
+    unknown_bootloader();
+#endif
 }
 
 static void exec(void)
@@ -119,8 +138,8 @@ int main(void)
     _timerusr_isr = (void *)&timerisr_usr;
     _mmhusr_isr = (void *)&mmhisr;
 
-    /* Bootloader Verification */
-    check_bootloader();
+    /* Drop privileges */
+    drop_privs();
 
     /* Init board */
     kk_board_init();
@@ -132,6 +151,9 @@ int main(void)
 
     /* Init for safeguard against stack overflow (-fstack-protector-all) */
     __stack_chk_guard = (uintptr_t)random32();
+
+    /* Bootloader Verification */
+    check_bootloader();
 
     led_func(SET_RED_LED);
     dbg_print("Application Version %d.%d.%d\n\r", MAJOR_VERSION, MINOR_VERSION,

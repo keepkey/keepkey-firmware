@@ -26,6 +26,7 @@
 #include "keepkey/firmware/pin_sm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
+#include "trezor/crypto/memzero.h"
 
 #include <stdbool.h>
 #include <inttypes.h>
@@ -226,6 +227,14 @@ static bool pin_request(const char *prompt, PINInfo *pin_info)
     return (ret);
 }
 
+static char warn_msg_fmt[MEDIUM_STR_BUF];
+static volatile uint32_t total_wait = 0;
+static volatile uint32_t remaining_wait = 0;
+
+static void pin_fail_wait_handler(void) {
+    layoutProgress(warn_msg_fmt, (total_wait - remaining_wait) * 1000 / total_wait);
+}
+
 bool pin_protect(const char *prompt)
 {
     if (!storage_hasPin()) {
@@ -241,14 +250,16 @@ bool pin_protect(const char *prompt)
             : 0xFFFFFFFFu;
 
         // snprintf: 36 + 10 (%u) + 1 (NULL) = 47
-        char warn_msg_fmt[MEDIUM_STR_BUF];
+        memzero(warn_msg_fmt, sizeof(warn_msg_fmt));
         snprintf(warn_msg_fmt, sizeof(warn_msg_fmt),
-                 "Previous PIN Failures: Wait %" PRIu32 " Seconds",
+                 "Previous PIN Failures:\nWait %" PRIu32 " seconds",
                  wait);
         layout_warning(warn_msg_fmt);
 
-        while (--wait > 0) {
-            delay_ms_with_callback(ONE_SEC, &animating_progress_handler, 20);
+        remaining_wait = total_wait = wait;
+
+        while (--remaining_wait > 0) {
+            delay_ms_with_callback(ONE_SEC, &pin_fail_wait_handler, 20);
         }
     }
 
@@ -285,13 +296,15 @@ bool pin_protect_txsign(void) {
     return pin_protect_cached();
 }
 
-/// Prompt for PIN only if it is not already cached
-/// \returns true iff the pin was correct (or already cached).
 bool pin_protect_cached(void) {
     if (session_isPinCached()) {
         return true;
     }
 
+    return pin_protect("Enter Your PIN");
+}
+
+bool pin_protect_uncached(void) {
     return pin_protect("Enter Your PIN");
 }
 
@@ -312,7 +325,6 @@ bool change_pin(void)
     }
 
     if (strcmp(pin_info_first.pin, pin_info_second.pin) != 0) {
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN change failed");
         return false;
     }
 

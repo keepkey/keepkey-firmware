@@ -94,7 +94,7 @@ bool eos_compileActionDelegate(const EosActionCommon *common,
     CHECK_PARAM_RET(eos_compileAsset(&action->cpu_quantity),
                     "Cannot compile asset: cpu_quantity", false);
 
-    uint8_t is_transfer = action->has_transfer ? 1 : 0;
+    uint8_t is_transfer = (action->has_transfer && action->transfer) ? 1 : 0;
     hasher_Update(&hasher_preimage, &is_transfer, 1);
 
     return true;
@@ -499,10 +499,14 @@ static bool authorizationIsDeviceControlled(const EosAuthorization *auth) {
     return true;
 }
 
-bool eos_compileAuthorization(const char *title, const EosAuthorization *auth) {
+bool eos_compileAuthorization(const char *title, const EosAuthorization *auth,
+                              SLIP48Role role) {
     CHECK_PARAM_RET(auth->has_threshold, "Required field missing", false);
 
-    if (authorizationIsDeviceControlled(auth)) {
+
+    if (authorizationIsDeviceControlled(auth) &&
+        coin_isSLIP48(coinByName("EOS"), auth->keys[0].address_n,
+                      auth->keys[0].address_n_count, role)) {
         const EosAuthorizationKey *auth_key = &auth->keys[0];
 
         char node_str[NODE_STRING_LENGTH];
@@ -522,7 +526,7 @@ bool eos_compileAuthorization(const char *title, const EosAuthorization *auth) {
         }
 
         if (!confirm(ButtonRequestType_ButtonRequest_ConfirmEosAction,
-                     title, "Do you want to assign signing auth for %s to %s?",
+                     title, "Do you want to assign signing auth for\n%s to\n%s?",
                      title, node_str)) {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Action Cancelled");
             eos_signingAbort();
@@ -560,10 +564,6 @@ bool eos_compileAuthorization(const char *title, const EosAuthorization *auth) {
         } else {
             const CoinType *coin;
             if ((coin = coinByName("EOS")) &&
-                !bip32_node_to_string(pubkey, sizeof(pubkey), coin,
-                                      auth_key->address_n,
-                                      auth_key->address_n_count,
-                                      /*whole_account=*/false) &&
                 !bip32_path_to_string(pubkey, sizeof(pubkey),
                                       auth_key->address_n, auth_key->address_n_count)) {
                 memset(pubkey, 0, sizeof(pubkey));
@@ -627,6 +627,14 @@ bool eos_compileAuthorization(const char *title, const EosAuthorization *auth) {
     return true;
 }
 
+static SLIP48Role roleFromPermission(uint64_t permission) {
+    switch (permission) {
+    case EOS_Owner: return SLIP48_owner;
+    case EOS_Active: return SLIP48_active;
+    default: return SLIP48_UNKNOWN;
+    }
+}
+
 bool eos_compileActionUpdateAuth(const EosActionCommon *common,
                                  const EosActionUpdateAuth *action) {
     CHECK_COMMON(EOS_UpdateAuth);
@@ -672,7 +680,9 @@ bool eos_compileActionUpdateAuth(const EosActionCommon *common,
     hasher_Update(&hasher_preimage, (const uint8_t*)&action->permission, 8);
     hasher_Update(&hasher_preimage, (const uint8_t*)&action->parent, 8);
 
-    if (!eos_compileAuthorization(title, &action->auth))
+    snprintf(title, sizeof(title), "%s@%s", account, permission);
+    if (!eos_compileAuthorization(title, &action->auth,
+                                  roleFromPermission(action->permission)))
         return false;
 
     return true;
@@ -853,11 +863,11 @@ bool eos_compileActionNewAccount(const EosActionCommon *common,
 
     char title[SMALL_STR_BUF];
     snprintf(title, sizeof(title), "%s@owner", name);
-    if (!eos_compileAuthorization(title, &action->owner))
+    if (!eos_compileAuthorization(title, &action->owner, SLIP48_owner))
         return false;
 
     snprintf(title, sizeof(title), "%s@active", name);
-    if (!eos_compileAuthorization(title, &action->active))
+    if (!eos_compileAuthorization(title, &action->active, SLIP48_active))
         return false;
 
     return true;

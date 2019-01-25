@@ -58,6 +58,9 @@ typedef struct _Storage {
         Cache cache;
     } sec;
 
+    bool has_sec_fingerprint;
+    uint8_t sec_fingerprint[32];
+
     uint32_t encrypted_sec_version;
     uint8_t encrypted_sec[512];
 } Storage;
@@ -66,6 +69,18 @@ typedef struct _ConfigFlash {
     Metadata meta;
     Storage storage;
 } ConfigFlash;
+
+typedef struct _SessionState {
+    bool seedUsesPassphrase;
+    bool seedCached;
+    uint8_t seed[64];
+
+    bool pinCached;
+    uint8_t storageKey[64];
+
+    bool passphraseCached;
+    char passphrase[51];
+} SessionState;
 
 void storage_loadNode(HDNode *dst, const HDNodeType *src);
 
@@ -86,15 +101,19 @@ void storage_keyFingerprint(const uint8_t key[64], uint8_t fingerprint[32]);
 bool storage_isPinCorrect_impl(const char *pin, const uint8_t wrapped_key[64], const uint8_t fingerprint[32], uint8_t key[64]);
 
 /// Migrate data in Storage to/from sec/encrypted_sec.
-void storage_secMigrate(Storage *storage, const uint8_t storage_key[64], bool encrypt);
+void storage_secMigrate(SessionState *state, Storage *storage, bool encrypt);
 
 void storage_resetUuid_impl(ConfigFlash *cfg);
 
-void storage_reset_impl(ConfigFlash *cfg, uint8_t storage_key[64]);
+void storage_reset_impl(SessionState *session, ConfigFlash *cfg);
 
-void storage_setPin_impl(Storage *storage, const char *pin, uint8_t storage_key[64]);
+void storage_setPin_impl(SessionState *session, Storage *storage, const char *pin);
 
-void storage_commit_impl(ConfigFlash *cfg);
+bool storage_hasPin_impl(const Storage *storage);
+
+void session_cachePin_impl(SessionState *session, Storage *storage, const char *pin);
+
+void session_clear_impl(SessionState *session, Storage *storage, bool clear_pin);
 
 /// \brief Get user private seed.
 /// \returns NULL on error, otherwise \returns the private seed.
@@ -109,21 +128,21 @@ typedef enum {
 /// \brief Copy configuration from storage partition in flash memory to shadow
 /// memory in RAM
 /// \returns true iff successful.
-StorageUpdateStatus storage_fromFlash(ConfigFlash *dst, const char *flash);
+StorageUpdateStatus storage_fromFlash(SessionState *ss, ConfigFlash *dst, const char *flash);
 
 void storage_upgradePolicies(Storage *storage);
 void storage_resetPolicies(Storage *storage);
 void storage_resetCache(Cache *cache);
 
-void storage_readV1(ConfigFlash *dst, const char *ptr, size_t len);
-void storage_readV2(ConfigFlash *dst, const char *ptr, size_t len);
+void storage_readV1(SessionState *session, ConfigFlash *dst, const char *ptr, size_t len);
+void storage_readV2(SessionState *session, ConfigFlash *dst, const char *ptr, size_t len);
 void storage_readV11(ConfigFlash *dst, const char *ptr, size_t len);
 void storage_writeV11(char *ptr, size_t len, const ConfigFlash *src);
 
 void storage_readMeta(Metadata *meta, const char *ptr, size_t len);
 void storage_readPolicyV1(PolicyType *policy, const char *ptr, size_t len);
 void storage_readHDNode(HDNodeType *node, const char *ptr, size_t len);
-void storage_readStorageV1(Storage *storage, const char *ptr, size_t len);
+void storage_readStorageV1(SessionState *session, Storage *storage, const char *ptr, size_t len);
 void storage_readStorageV11(Storage *storage, const char *ptr, size_t len);
 void storage_readCacheV1(Cache *cache, const char *ptr, size_t len);
 

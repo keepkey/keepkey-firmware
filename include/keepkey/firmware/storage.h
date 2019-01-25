@@ -38,6 +38,9 @@ void storage_resetUuid(void);
 /// \brief Clear configuration.
 void storage_reset(void);
 
+/// \brief Clear storage.
+void storage_wipe(void);
+
 /// \brief Reset session states.
 /// \param clear_pin whether to clear the pin as well.
 void session_clear(bool clear_pin);

@@ -35,9 +35,8 @@ $ ./scripts/build/docker/device/release.sh
 $ shasum -a 256 ./bin/firmware.keepkey.bin
 ```
 
-With that of the signed binary (ignoring signatures and firmware metadata):
+With that of the [signed v5.8.1 binary on github](https://github.com/keepkey/keepkey-firmware/releases/download/v5.8.1/firmware.keepkey.bin), ignoring signatures and firmware metadata:
 ```
-$ curl -Ol https://github.com/keepkey/keepkey-firmware/releases/download/v5.8.1/firmware.keepkey.bin
 $ tail -c +257 firmware.keepkey.bin | shasum -a 256
 ```
 
