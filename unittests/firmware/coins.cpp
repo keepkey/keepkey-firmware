@@ -125,7 +125,8 @@ TEST(Coins, SLIP48) {
                                              coinByName(vec.coin_name),
                                              vec.address_n,
                                              vec.address_n_count,
-                                             /*whole_account=*/false))
+                                             /*whole_account=*/false,
+                                             /*allow_change=*/false))
                 << vec.text;
             EXPECT_EQ(vec.text, node_str);
         }
@@ -137,34 +138,46 @@ TEST(Coins, BIP32AccountName) {
         const char *coin_name;
         uint32_t address_n[10];
         size_t address_n_count;
+        bool allow_change;
         bool expected;
         std::string text;
     } vector[] = {
         {
           "Bitcoin",
           { 0x80000000|44, 0x80000000|0, 0x80000000|0, 0, 0 },
-          5, true, "Bitcoin Account #0\nAddress #0"
+          5, false, true, "Bitcoin Account #0\nAddress #0"
         },
         {
           "Bitcoin",
           { 0x80000000|44, 0x80000000|0, 0x80000000|0, 0, 1 },
-          5, true, "Bitcoin Account #0\nAddress #1"
+          5, false, true, "Bitcoin Account #0\nAddress #1"
         },
         {
           "Bitcoin",
           { 0x80000000|44, 0x80000000|0, 0x80000000|1, 0, 0 },
-          5, true, "Bitcoin Account #1\nAddress #0"
+          5, false, true, "Bitcoin Account #1\nAddress #0"
         },
         {
           "Bitcoin",
           { 0x80000000|44, 0x80000000|0, 0x80000000|1, 0, 1 },
-          5, true, "Bitcoin Account #1\nAddress #1"
+          5, false, true, "Bitcoin Account #1\nAddress #1"
         },
         {
           "Bitcoin",
           { 0x80000000|44, 0x80000000|0, 0x80000000|1, 1, 1 },
-          5, false, ""
+          5, false, false, ""
         },
+        {
+          "Bitcoin",
+          { 0x80000000|44, 0x80000000|0, 0x80000000|1, 1, 1 },
+          5, true, true, "Bitcoin Account #1\nAddress #1"
+        },
+        {
+          "Bitcoin",
+          { 0x80000000|44, 0x80000000|0, 0x80000000|1, 1, 1 },
+          5, false, false, ""
+        },
+
     };
 
     for (const auto &vec : vector) {
@@ -173,7 +186,8 @@ TEST(Coins, BIP32AccountName) {
                                        coinByName(vec.coin_name),
                                        vec.address_n,
                                        vec.address_n_count,
-                                       /*whole_account=*/false),
+                                       /*whole_account=*/false,
+                                       vec.allow_change),
                   vec.expected)
             << vec.text;
         if (vec.expected) {
