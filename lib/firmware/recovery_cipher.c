@@ -33,6 +33,8 @@
 #include <string.h>
 #include <stdio.h>
 
+#define MAX_UNCYPHERED_WORDS (3)
+
 static bool enforce_wordlist;
 static bool awaiting_character;
 static CONFIDENTIAL char mnemonic[MNEMONIC_BUF];
@@ -341,9 +343,12 @@ void recovery_character(const char *character)
         return;
     }
 
+    // Count of words we think the user has entered without using the cipher:
+    static int uncyphered_word_count = 0;
     static CONFIDENTIAL char ciphered_word[12];
 
     if (!mnemonic[0]) {
+        uncyphered_word_count = 0;
         memzero(ciphered_word, sizeof(ciphered_word));
     }
 
@@ -352,10 +357,11 @@ void recovery_character(const char *character)
         strlcat(ciphered_word, character, sizeof(ciphered_word));
 
         // Check & bail if the user is entering their seed without using the
-        // cipher. Note that this can give false positives about ~0.4% of the
-        // time (2048/26^4).
+        // cipher. Note that for each word, this can give false positives about
+        // ~0.4% of the time (2048/26^4).
         if (enforce_wordlist && 4 <= strlen(ciphered_word) &&
-            attempt_auto_complete(ciphered_word)) {
+            attempt_auto_complete(ciphered_word) &&
+            MAX_UNCYPHERED_WORDS < uncyphered_word_count++) {
             recovery_abort();
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Words were not entered correctly.");
             layoutHome();
