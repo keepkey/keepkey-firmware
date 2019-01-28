@@ -533,8 +533,59 @@ void extract_input_bip32_path(const TxInputType *tinput)
 	}
 }
 
+static bool isCrossAccountSegwitChange(const TxOutputType *toutput)
+{
+	size_t count = toutput->address_n_count;
+	if (count < 5)
+		return false;
+
+	if (count != in_address_n_count)
+		return false;
+
+	// Only do this for coins that support segwit
+	if (!coin->has_segwit || !coin->segwit)
+		return false;
+
+	// purpose
+	uint32_t in_purpose = in_address_n[count - 5];
+	uint32_t out_purpose = toutput->address_n[count - 5];
+	if (in_purpose == out_purpose)
+		return false;
+
+	if (in_purpose != (0x80000000|44) &&
+	    in_purpose != (0x80000000|49) &&
+	    in_purpose != (0x80000000|84))
+		return false;
+
+	if (out_purpose != (0x80000000|44) &&
+	    out_purpose != (0x80000000|49) &&
+	    out_purpose != (0x80000000|84))
+		return false;
+
+	// coin_type
+	if (in_address_n[count - 4] != toutput->address_n[count - 4])
+		return false;
+
+	// account
+	if (in_address_n[count - 3] != toutput->address_n[count - 3])
+		return false;
+
+	// change
+	if (BIP32_CHANGE_CHAIN < toutput->address_n[count - 2])
+		return false;
+
+	// address_index
+	if (BIP32_MAX_LAST_ELEMENT < toutput->address_n[count - 1])
+		return false;
+
+	return true;
+}
+
 bool check_change_bip32_path(const TxOutputType *toutput)
 {
+	if (isCrossAccountSegwitChange(toutput))
+		return true;
+
 	size_t count = toutput->address_n_count;
 
 	// Check that the change path has the same bip32 path length,
