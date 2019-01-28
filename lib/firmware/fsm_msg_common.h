@@ -514,16 +514,12 @@ void fsm_msgWordAck(WordAck *msg)
 
 void fsm_msgCharacterAck(CharacterAck *msg)
 {
-    if(msg->has_delete && msg->del)
-    {
+    if (msg->has_delete && msg->del) {
         recovery_delete_character();
-    }
-    else if(msg->has_done && msg->done)
-    {
+    } else if(msg->has_done && msg->done) {
         recovery_cipher_finalize();
-    }
-    else
-    {
+    } else {
+        msg->character[1] = '\0';
         recovery_character(msg->character);
     }
 }

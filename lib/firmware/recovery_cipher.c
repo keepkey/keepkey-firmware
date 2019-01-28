@@ -47,6 +47,12 @@ static void format_current_word(char *current_word, bool auto_completed);
 static uint32_t get_current_word_pos(void);
 static void get_current_word(char *current_word);
 
+static void recovery_abort(void) {
+    awaiting_character = false;
+    memzero(mnemonic, sizeof(mnemonic));
+    memzero(cipher, sizeof(cipher));
+}
+
 /// Formats the passed word to show position in mnemonic as well as characters
 /// left.
 ///
@@ -217,6 +223,7 @@ void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
 {
     if (pin_protection) {
         if (!change_pin()) {
+            recovery_abort();
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "PINs do not match");
             layoutHome();
             return;
@@ -261,11 +268,11 @@ void next_character(void)
     /* Words should never be longer than 4 characters */
     if (strlen(current_word) > 4) {
         memzero(current_word, sizeof(current_word));
-        awaiting_character = false;
-        layoutHome();
 
         storage_reset();
+        recovery_abort();
         fsm_sendFailure(FailureType_Failure_SyntaxError, "Words were not entered correctly.");
+        layoutHome();
         return;
     }
 
@@ -310,12 +317,14 @@ void next_character(void)
 void recovery_character(const char *character)
 {
     if (!awaiting_character) {
+        recovery_abort();
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
         layoutHome();
         return;
     }
 
     if (strlen(mnemonic) + 1 > MNEMONIC_BUF - 1) {
+        recovery_abort();
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                         "Too many characters attempted during recovery");
         layoutHome();
@@ -326,16 +335,37 @@ void recovery_character(const char *character)
 
     // If not a space and not a legitmate cipher character, send failure.
     if (character[0] != ' ' && pos == NULL) {
-        awaiting_character = false;
+        recovery_abort();
         fsm_sendFailure(FailureType_Failure_SyntaxError, "Character must be from a to z");
         layoutHome();
         return;
     }
 
+    static CONFIDENTIAL char ciphered_word[12];
+
+    if (!mnemonic[0]) {
+        memzero(ciphered_word, sizeof(ciphered_word));
+    }
+
     char decoded_character[2] = " ";
     if (character[0] != ' ') {
-        // Decode character using cipher if not space */
+        strlcat(ciphered_word, character, sizeof(ciphered_word));
+
+        // Check & bail if the user is entering their seed without using the
+        // cipher. Note that this can give false positives about ~0.4% of the
+        // time (2048/26^4).
+        if (enforce_wordlist && 4 <= strlen(ciphered_word) &&
+            attempt_auto_complete(ciphered_word)) {
+            recovery_abort();
+            fsm_sendFailure(FailureType_Failure_SyntaxError, "Words were not entered correctly.");
+            layoutHome();
+            return;
+        }
+
+        // Decode character using cipher if not space
         decoded_character[0] = english_alphabet[(int)(pos - cipher)];
+    } else {
+        memzero(ciphered_word, sizeof(ciphered_word));
     }
 
     // concat to mnemonic
@@ -419,7 +449,7 @@ void recovery_cipher_finalize(void)
                         "Invalid mnemonic, are words in correct order?");
     }
 
-    awaiting_character = false;
+    recovery_abort();
     layoutHome();
 }
 
