@@ -317,56 +317,39 @@ void next_character(void)
  */
 void recovery_character(const char *character)
 {
+    if (!awaiting_character) {
+        fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
+        layoutHome();
+        return;
+    }
 
-    char decoded_character[2] = " ", *pos;
-
-    if(strlen(mnemonic) + 1 > MNEMONIC_BUF - 1)
-    {
+    if (strlen(mnemonic) + 1 > MNEMONIC_BUF - 1) {
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                         "Too many characters attempted during recovery");
         layoutHome();
-        goto finished;
+        return;
     }
-    else if(awaiting_character)
-    {
 
-        pos = strchr(cipher, character[0]);
+    char *pos = strchr(cipher, character[0]);
 
-        if(character[0] != ' ' &&
-                pos == NULL)      /* If not a space and not a legitmate cipher character, send failure */
-        {
-
-            awaiting_character = false;
-            fsm_sendFailure(FailureType_Failure_SyntaxError, "Character must be from a to z");
-            layoutHome();
-            goto finished;
-
-        }
-        else if(character[0] !=
-                ' ')                /* Decode character using cipher if not space */
-        {
-
-            decoded_character[0] = english_alphabet[(int)(pos - cipher)];
-
-        }
-
-        // concat to mnemonic
-        strlcat(mnemonic, decoded_character, MNEMONIC_BUF);
-
-        next_character();
-
-    }
-    else
-    {
-
-        fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
+    // If not a space and not a legitmate cipher character, send failure.
+    if (character[0] != ' ' && pos == NULL) {
+        awaiting_character = false;
+        fsm_sendFailure(FailureType_Failure_SyntaxError, "Character must be from a to z");
         layoutHome();
-        goto finished;
-
+        return;
     }
 
-finished:
-    return;
+    char decoded_character[2] = " ";
+    if (character[0] != ' ') {
+        // Decode character using cipher if not space */
+        decoded_character[0] = english_alphabet[(int)(pos - cipher)];
+    }
+
+    // concat to mnemonic
+    strlcat(mnemonic, decoded_character, MNEMONIC_BUF);
+
+    next_character();
 }
 
 /*
