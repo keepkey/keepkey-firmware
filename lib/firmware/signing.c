@@ -500,6 +500,57 @@ void phase2_request_next_input(void)
 	}
 }
 
+/// Compares two BIP32 paths, returning true iff the paths match for mixed-mode
+/// p2pkh + ph2sh-p2wsh + p2wsh accounts.
+static bool isCrossAccountSegwitChangeAllowed(
+    const uint32_t *lhs_address_n, size_t lhs_address_n_count,
+    const uint32_t *rhs_address_n, size_t rhs_address_n_count)
+{
+	size_t count = rhs_address_n_count;
+	if (count < 5)
+		return false;
+
+	if (count != lhs_address_n_count)
+		return false;
+
+	// Only do this for coins that support segwit
+	if (!coin->has_segwit || !coin->segwit)
+		return false;
+
+	// purpose
+	uint32_t in_purpose = lhs_address_n[count - 5];
+	if (in_purpose != (0x80000000|44) &&
+	    in_purpose != (0x80000000|49) &&
+	    in_purpose != (0x80000000|84))
+		return false;
+
+	uint32_t out_purpose = rhs_address_n[count - 5];
+	if (out_purpose != (0x80000000|44) &&
+	    out_purpose != (0x80000000|49) &&
+	    out_purpose != (0x80000000|84))
+		return false;
+
+	// coin_type
+	if (lhs_address_n[count - 4] != rhs_address_n[count - 4])
+		return false;
+
+	// account
+	if (lhs_address_n[count - 3] != rhs_address_n[count - 3])
+		return false;
+
+	// change
+	if (BIP32_CHANGE_CHAIN < lhs_address_n[count - 2] ||
+	    BIP32_CHANGE_CHAIN < rhs_address_n[count - 2])
+		return false;
+
+	// address_index
+	if (BIP32_MAX_LAST_ELEMENT < lhs_address_n[count - 1] ||
+	    BIP32_MAX_LAST_ELEMENT < rhs_address_n[count - 1])
+		return false;
+
+	return true;
+}
+
 void extract_input_bip32_path(const TxInputType *tinput)
 {
 	if (in_address_n_count == BIP32_NOCHANGEALLOWED) {
@@ -524,6 +575,9 @@ void extract_input_bip32_path(const TxInputType *tinput)
 		in_address_n_count = BIP32_NOCHANGEALLOWED;
 		return;
 	}
+	if (isCrossAccountSegwitChangeAllowed(in_address_n, in_address_n_count,
+	                                      tinput->address_n, tinput->address_n_count))
+		return;
 	// check that the bip32 path up to the account matches
 	if (memcmp(in_address_n, tinput->address_n,
 			   (count - BIP32_WALLET_DEPTH) * sizeof(uint32_t)) != 0) {
@@ -533,57 +587,10 @@ void extract_input_bip32_path(const TxInputType *tinput)
 	}
 }
 
-static bool isCrossAccountSegwitChange(const TxOutputType *toutput)
-{
-	size_t count = toutput->address_n_count;
-	if (count < 5)
-		return false;
-
-	if (count != in_address_n_count)
-		return false;
-
-	// Only do this for coins that support segwit
-	if (!coin->has_segwit || !coin->segwit)
-		return false;
-
-	// purpose
-	uint32_t in_purpose = in_address_n[count - 5];
-	uint32_t out_purpose = toutput->address_n[count - 5];
-	if (in_purpose == out_purpose)
-		return false;
-
-	if (in_purpose != (0x80000000|44) &&
-	    in_purpose != (0x80000000|49) &&
-	    in_purpose != (0x80000000|84))
-		return false;
-
-	if (out_purpose != (0x80000000|44) &&
-	    out_purpose != (0x80000000|49) &&
-	    out_purpose != (0x80000000|84))
-		return false;
-
-	// coin_type
-	if (in_address_n[count - 4] != toutput->address_n[count - 4])
-		return false;
-
-	// account
-	if (in_address_n[count - 3] != toutput->address_n[count - 3])
-		return false;
-
-	// change
-	if (BIP32_CHANGE_CHAIN < toutput->address_n[count - 2])
-		return false;
-
-	// address_index
-	if (BIP32_MAX_LAST_ELEMENT < toutput->address_n[count - 1])
-		return false;
-
-	return true;
-}
-
 bool check_change_bip32_path(const TxOutputType *toutput)
 {
-	if (isCrossAccountSegwitChange(toutput))
+	if (isCrossAccountSegwitChangeAllowed(in_address_n, in_address_n_count,
+	                                      toutput->address_n, toutput->address_n_count))
 		return true;
 
 	size_t count = toutput->address_n_count;
@@ -618,7 +625,9 @@ bool compile_input_script_sig(TxInputType *tinput)
 		size_t count = tinput->address_n_count;
 		if (count < 2
 			|| count != in_address_n_count
-			|| 0 != memcmp(in_address_n, tinput->address_n, (count - 2) * sizeof(uint32_t))) {
+			|| (0 != memcmp(in_address_n, tinput->address_n, (count - 2) * sizeof(uint32_t)) &&
+			    !isCrossAccountSegwitChangeAllowed(in_address_n, in_address_n_count,
+			                                       tinput->address_n, tinput->address_n_count))) {
 			return false;
 		}
 	}
