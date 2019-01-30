@@ -3,6 +3,8 @@ void fsm_msgInitialize(Initialize *msg)
     (void)msg;
     recovery_abort(false);
     signing_abort();
+    ethereum_signing_abort();
+    eos_signingAbort();
     session_clear(false); // do not clear PIN
     layoutHome();
     fsm_msgGetFeatures(0);
@@ -236,24 +238,23 @@ void fsm_msgChangePin(ChangePin *msg)
         return;
     }
 
-    CHECK_PIN_TXSIGN
+    CHECK_PIN_UNCACHED
 
-    if(removal)
-    {
+    if (removal) {
         storage_setPin("");
         storage_commit();
         fsm_sendSuccess("PIN removed");
-    }
-    else
-    {
-        session_cachePin("");
-        if(change_pin())
-        {
-            storage_commit();
-            fsm_sendSuccess("PIN changed");
-        }
+        layoutHome();
+        return;
     }
 
+    if (!change_pin()) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, "PINs do not match");
+        layoutHome();
+        return;
+    }
+    storage_commit();
+    fsm_sendSuccess("PIN changed");
     layoutHome();
 }
 
@@ -270,6 +271,7 @@ void fsm_msgWipeDevice(WipeDevice *msg)
     }
 
     /* Wipe device */
+    storage_wipe();
     storage_reset();
     storage_resetUuid();
     storage_commit();
@@ -358,7 +360,8 @@ void fsm_msgResetDevice(ResetDevice *msg)
         msg->has_language ? msg->language : 0,
         msg->has_label ? msg->label : 0,
         msg->has_no_backup ? msg->no_backup : false,
-        msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT
+        msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT,
+        msg->has_u2f_counter ? msg->u2f_counter : 0
     );
 }
 
@@ -380,6 +383,7 @@ void fsm_msgCancel(Cancel *msg)
     recovery_abort(true);
     signing_abort();
     ethereum_signing_abort();
+    eos_signingAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Aborted");
 }
 
@@ -423,8 +427,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
 
     if (msg->has_u2f_counter) {
         if (!confirm(ButtonRequestType_ButtonRequest_U2FCounter,
-                     "Set U2F Counter", "Do you want to set the U2F Counter to %" PRIu32 "?",
-                     msg->u2f_counter)) {
+                     "Set U2F Counter", "Do you want to set the U2F Counter?")) {
             goto apply_settings_cancelled;
         }
     }
@@ -478,8 +481,8 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg)
 {
     CHECK_NOT_INITIALIZED
 
-    if(msg->has_use_character_cipher &&
-            msg->use_character_cipher == true)   // recovery via character cipher
+    if (msg->has_use_character_cipher &&
+        msg->use_character_cipher)   // recovery via character cipher
     {
         recovery_cipher_init(
             msg->has_passphrase_protection && msg->passphrase_protection,
@@ -487,11 +490,10 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg)
             msg->has_language ? msg->language : 0,
             msg->has_label ? msg->label : 0,
             msg->has_enforce_wordlist ? msg->enforce_wordlist : false,
-            msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT
+            msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT,
+            msg->has_u2f_counter ? msg->u2f_counter : 0
         );
-    }
-    else                                                                     // legacy way of recovery
-    {
+    } else {                                     // legacy way of recovery
         recovery_init(
             msg->has_word_count ? msg->word_count : 12,
             msg->has_passphrase_protection && msg->passphrase_protection,
@@ -499,7 +501,8 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg)
             msg->has_language ? msg->language : 0,
             msg->has_label ? msg->label : 0,
             msg->has_enforce_wordlist ? msg->enforce_wordlist : false,
-            msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT
+            msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT,
+            msg->has_u2f_counter ? msg->u2f_counter : 0
         );
     }
 }
@@ -511,16 +514,12 @@ void fsm_msgWordAck(WordAck *msg)
 
 void fsm_msgCharacterAck(CharacterAck *msg)
 {
-    if(msg->has_delete && msg->del)
-    {
+    if (msg->has_delete && msg->del) {
         recovery_delete_character();
-    }
-    else if(msg->has_done && msg->done)
-    {
+    } else if(msg->has_done && msg->done) {
         recovery_cipher_finalize();
-    }
-    else
-    {
+    } else {
+        msg->character[1] = '\0';
         recovery_character(msg->character);
     }
 }

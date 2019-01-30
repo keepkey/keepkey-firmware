@@ -86,6 +86,10 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg);
 void fsm_msgCharacterAck(CharacterAck *msg);
 void fsm_msgApplyPolicies(ApplyPolicies *msg);
 
+void fsm_msgEosGetPublicKey(const EosGetPublicKey *msg);
+void fsm_msgEosSignTx(const EosSignTx *msg);
+void fsm_msgEosTxActionAck(const EosTxActionAck *msg);
+
 #if DEBUG_LINK
 //void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
 void fsm_msgDebugLinkGetState(DebugLinkGetState *msg);

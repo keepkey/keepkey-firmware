@@ -500,6 +500,57 @@ void phase2_request_next_input(void)
 	}
 }
 
+/// Compares two BIP32 paths, returning true iff the paths match for mixed-mode
+/// p2pkh + ph2sh-p2wsh + p2wsh accounts.
+static bool isCrossAccountSegwitChangeAllowed(
+    const uint32_t *lhs_address_n, size_t lhs_address_n_count,
+    const uint32_t *rhs_address_n, size_t rhs_address_n_count)
+{
+	size_t count = rhs_address_n_count;
+	if (count < 5)
+		return false;
+
+	if (count != lhs_address_n_count)
+		return false;
+
+	// Only do this for coins that support segwit
+	if (!coin->has_segwit || !coin->segwit)
+		return false;
+
+	// purpose
+	uint32_t in_purpose = lhs_address_n[count - 5];
+	if (in_purpose != (0x80000000|44) &&
+	    in_purpose != (0x80000000|49) &&
+	    in_purpose != (0x80000000|84))
+		return false;
+
+	uint32_t out_purpose = rhs_address_n[count - 5];
+	if (out_purpose != (0x80000000|44) &&
+	    out_purpose != (0x80000000|49) &&
+	    out_purpose != (0x80000000|84))
+		return false;
+
+	// coin_type
+	if (lhs_address_n[count - 4] != rhs_address_n[count - 4])
+		return false;
+
+	// account
+	if (lhs_address_n[count - 3] != rhs_address_n[count - 3])
+		return false;
+
+	// change
+	if (BIP32_CHANGE_CHAIN < lhs_address_n[count - 2] ||
+	    BIP32_CHANGE_CHAIN < rhs_address_n[count - 2])
+		return false;
+
+	// address_index
+	if (BIP32_MAX_LAST_ELEMENT < lhs_address_n[count - 1] ||
+	    BIP32_MAX_LAST_ELEMENT < rhs_address_n[count - 1])
+		return false;
+
+	return true;
+}
+
 void extract_input_bip32_path(const TxInputType *tinput)
 {
 	if (in_address_n_count == BIP32_NOCHANGEALLOWED) {
@@ -524,6 +575,9 @@ void extract_input_bip32_path(const TxInputType *tinput)
 		in_address_n_count = BIP32_NOCHANGEALLOWED;
 		return;
 	}
+	if (isCrossAccountSegwitChangeAllowed(in_address_n, in_address_n_count,
+	                                      tinput->address_n, tinput->address_n_count))
+		return;
 	// check that the bip32 path up to the account matches
 	if (memcmp(in_address_n, tinput->address_n,
 			   (count - BIP32_WALLET_DEPTH) * sizeof(uint32_t)) != 0) {
@@ -535,6 +589,10 @@ void extract_input_bip32_path(const TxInputType *tinput)
 
 bool check_change_bip32_path(const TxOutputType *toutput)
 {
+	if (isCrossAccountSegwitChangeAllowed(in_address_n, in_address_n_count,
+	                                      toutput->address_n, toutput->address_n_count))
+		return true;
+
 	size_t count = toutput->address_n_count;
 
 	// Check that the change path has the same bip32 path length,
@@ -567,7 +625,9 @@ bool compile_input_script_sig(TxInputType *tinput)
 		size_t count = tinput->address_n_count;
 		if (count < 2
 			|| count != in_address_n_count
-			|| 0 != memcmp(in_address_n, tinput->address_n, (count - 2) * sizeof(uint32_t))) {
+			|| (0 != memcmp(in_address_n, tinput->address_n, (count - 2) * sizeof(uint32_t)) &&
+			    !isCrossAccountSegwitChangeAllowed(in_address_n, in_address_n_count,
+			                                       tinput->address_n, tinput->address_n_count))) {
 			return false;
 		}
 	}
@@ -655,7 +715,7 @@ void signing_init(const SignTx *msg, const CoinType *_coin, const HDNode *_root)
 		hasher_Init(&hasher_check, curve->hasher_sign);
 	}
 
-	animating_progress_handler(); //layoutProgressSwipe(_("Signing transaction"), 0);
+	layoutProgressSwipe(_("Signing transaction"), 0);
 
 	send_req_1_input();
 	set_exchange_error(NO_EXCHANGE_ERROR);
@@ -778,7 +838,7 @@ static bool signing_check_output(TxOutputType *txoutput) {
 	spending += txoutput->amount;
 	int co = run_policy_compile_output(coin, root, txoutput, &bin_output, !is_change);
 	if (!is_change) {
-		animating_progress_handler(); // layoutProgress(_("Signing transaction"), progress);
+		layoutProgress(_("Signing transaction"), progress);
 	}
 	if (co <= TXOUT_COMPILE_ERROR) {
 		send_fsm_co_error_message(co);
@@ -861,7 +921,7 @@ static void phase1_request_next_output(void) {
 		}
 		// Everything was checked, now phase 2 begins and the transaction is signed.
 		progress_meta_step = progress_step / (inputs_count + outputs_count);
-		animating_progress_handler(); //layoutProgress(_("Signing transaction"), progress);
+		layoutProgress(_("Signing transaction"), progress);
 		idx1 = 0;
 		if (coin->decred) {
 			// Decred prefix serialized in Phase 1, skip Phase 2
@@ -1097,7 +1157,7 @@ void signing_txack(TransactionType *tx)
 
 	static int update_ctr = 0;
 	if (update_ctr++ == 20) {
-		animating_progress_handler(); //layoutProgress(_("Signing transaction"), progress);
+		layoutProgress(_("Signing transaction"), progress);
 		update_ctr = 0;
 	}
 
@@ -1354,7 +1414,7 @@ void signing_txack(TransactionType *tx)
 				// since this took a longer time, update progress
 				signatures++;
 				progress = 500 + ((signatures * progress_step) >> PROGRESS_PRECISION);
-				animating_progress_handler(); //layoutProgress(_("Signing transaction"), progress);
+				layoutProgress(_("Signing transaction"), progress);
 				update_ctr = 0;
 				if (idx1 < inputs_count - 1) {
 					idx1++;
@@ -1412,7 +1472,7 @@ void signing_txack(TransactionType *tx)
 				// since this took a longer time, update progress
 				signatures++;
 				progress = 500 + ((signatures * progress_step) >> PROGRESS_PRECISION);
-				animating_progress_handler(); // layoutProgress(_("Signing transaction"), progress);
+				layoutProgress(_("Signing transaction"), progress);
 				update_ctr = 0;
 			} else if (tx->inputs[0].script_type == InputScriptType_SPENDP2SHWITNESS
 					   && !tx->inputs[0].has_multisig) {
@@ -1482,7 +1542,7 @@ void signing_txack(TransactionType *tx)
 			}
 			signatures++;
 			progress = 500 + ((signatures * progress_step) >> PROGRESS_PRECISION);
-			animating_progress_handler(); // layoutProgress(_("Signing transaction"), progress);
+			layoutProgress(_("Signing transaction"), progress);
 			update_ctr = 0;
 			if (idx1 < inputs_count - 1) {
 				idx1++;
@@ -1532,7 +1592,7 @@ void signing_txack(TransactionType *tx)
 			// since this took a longer time, update progress
 			signatures++;
 			progress = 500 + ((signatures * progress_step) >> PROGRESS_PRECISION);
-			animating_progress_handler(); // layoutProgress(_("Signing transaction"), progress);
+			layoutProgress(_("Signing transaction"), progress);
 			update_ctr = 0;
 			if (idx1 < inputs_count - 1) {
 				idx1++;

@@ -21,12 +21,46 @@
 #define COINS_H
 
 #include "keepkey/transport/interface.h"
+#include "keepkey/board/util.h"
 
 #define NA      0xFFFF  /*etherum does not use P2PH or P2SH */
 #define ETHEREUM        "Ethereum"
-#define ETHEREUM_CLS    "Ethereum Classic"
+#define ETHEREUM_CLS    "ETH Classic"
 
-#define COINS_COUNT         63
+enum {
+#define X(\
+HAS_COIN_NAME, COIN_NAME, \
+HAS_COIN_SHORTCUT, COIN_SHORTCUT, \
+HAS_ADDRESS_TYPE, ADDRESS_TYPE, \
+HAS_MAXFEE_KB, MAXFEE_KB, \
+HAS_ADDRESS_TYPE_P2SH, ADDRESS_TYPE_P2SH, \
+HAS_SIGNED_MESSAGE_HEADER, SIGNED_MESSAGE_HEADER, \
+HAS_BIP44_ACCOUNT_PATH, BIP44_ACCOUNT_PATH, \
+HAS_FORKID, FORKID, \
+HAS_DECIMALS, DECIMALS, \
+HAS_CONTRACT_ADDRESS, CONTRACT_ADDRESS, \
+HAS_XPUB_MAGIC, XPUB_MAGIC, \
+HAS_SEGWIT, SEGWIT , \
+HAS_FORCE_BIP143, FORCE_BIP143, \
+HAS_CURVE_NAME, CURVE_NAME, \
+HAS_CASHADDR_PREFIX, CASHADDR_PREFIX, \
+HAS_BECH32_PREFIX, BECH32_PREFIX, \
+HAS_DECRED, DECRED , \
+HAS_XPUB_MAGIC_SEGWIT_P2SH, XPUB_MAGIC_SEGWIT_P2SH, \
+HAS_XPUB_MAGIC_SEGWIT_NATIVE, XPUB_MAGIC_SEGWIT_NATIVE \
+) \
+    CONCAT(CoinIndex, __COUNTER__),
+#include "keepkey/firmware/coins.def"
+
+#define X(INDEX, NAME, SYMBOL, DECIMALS, CONTRACT_ADDRESS) \
+    CONCAT(CoinIndex, __COUNTER__),
+#include "keepkey/firmware/tokens.def"
+
+    CoinIndexLast,
+    CoinIndexFirst = 0
+};
+
+#define COINS_COUNT         ((int)CoinIndexLast-(int)CoinIndexFirst)
 #define NODE_STRING_LENGTH  50
 
 #define COIN_FRACTION 100000000
@@ -52,13 +86,25 @@ bool bip32_path_to_string(char *str, size_t len, const uint32_t *address_n, size
  * \param[in]   address_n        node path
  * \param[in]   address_n_count  size of address_n array
  * \param[in]   whole_account    true iff address_n refers to an entire account (not just an address)
+ * \param[in]   allow_change     whether to allow display for change addressses
  * \returns true iff the path matches a known bip44/bip49/bip84/etc account
  */
-bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin, const uint32_t *address_n,
-                          size_t address_n_count, bool whole_account);
-
+bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
+                          const uint32_t *address_n, size_t address_n_count,
+                          bool whole_account, bool allow_change);
 
 /// \returns true iff the coin_name is for an eth-like coin.
 bool isEthereumLike(const char *coin_name);
+
+typedef enum _SLIP48Role {
+    SLIP48_owner   = 0x0,
+    SLIP48_active  = 0x1,
+    SLIP48_memo    = 0x3,
+    SLIP48_posting = 0x4,
+    SLIP48_UNKNOWN = 0xffffffff,
+} SLIP48Role;
+
+bool coin_isSLIP48(const CoinType *coin, const uint32_t *address_n,
+                   size_t address_n_count, SLIP48Role role);
 
 #endif

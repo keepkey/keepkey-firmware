@@ -236,14 +236,7 @@ static int rlp_calculate_number_length(uint32_t number)
 
 static void send_request_chunk(void)
 {
-#if 0
-	int progress = 1000 - (data_total > 1000000
-						   ? data_left / (data_total/800)
-						   : data_left * 800 / data_total);
-	layoutProgress(_("Signing"), progress);
-#else
-	animating_progress_handler();
-#endif
+	layoutProgress(_("Signing"), (data_total - data_left) * 1000 / data_total);
 	msg_tx_request.has_data_length = true;
 	msg_tx_request.data_length = data_left <= 1024 ? data_left : 1024;
 	msg_write(MessageType_MessageType_EthereumTxRequest, &msg_tx_request);
@@ -259,11 +252,7 @@ static void send_signature(void)
 {
 	uint8_t hash[32], sig[64];
 	uint8_t v;
-#if 0
 	layoutProgress(_("Signing"), 1000);
-#else
-	animating_progress_handler(); // layoutProgress("Signing", 1000);
-#endif
 
 	/* eip-155 replay protection */
 	if (chain_id) {
@@ -660,12 +649,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 	
 	/* Stage 1: Calculate total RLP length */
 	uint32_t rlp_length = 0;
-#if 0
 	layoutProgress(_("Signing"), 0);
-#else
-	layout_loading();
-	animating_progress_handler();
-#endif
 
 	rlp_length += rlp_calculate_length(msg->nonce.size, msg->nonce.bytes[0]);
 	rlp_length += rlp_calculate_length(msg->gas_price.size, msg->gas_price.bytes[0]);
@@ -684,11 +668,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 
 	/* Stage 2: Store header fields */
 	hash_rlp_list_length(rlp_length);
-#if 0
 	layoutProgress(_("Signing"), 100);
-#else
-	animating_progress_handler();
-#endif
 
 	if (tx_type) {
 		hash_rlp_number(tx_type);

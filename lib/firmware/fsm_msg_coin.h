@@ -55,7 +55,8 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 		if (!bip32_node_to_string(node_str, sizeof(node_str), coin,
 		                          msg->address_n,
 		                          msg->address_n_count,
-		                          /*whole_account=*/true) &&
+		                          /*whole_account=*/true,
+		                          /*allow_change=*/false) &&
 		    !bip32_path_to_string(node_str, sizeof(node_str),
 		                          msg->address_n, msg->address_n_count)) {
 			memset(node_str, 0, sizeof(node_str));
@@ -196,7 +197,7 @@ void fsm_msgGetAddress(GetAddress *msg)
 
 	char address[MAX_ADDR_SIZE];
 	if (msg->has_multisig) {  // use progress bar only for multisig
-		animating_progress_handler(); // layoutProgress(_("Computing address"), 0);
+		animating_progress_handler(_("Computing address"), 0);
 	}
 	if (!compute_address(coin, msg->script_type, node, msg->has_multisig, &msg->multisig, address)) {
 		fsm_sendFailure(FailureType_Failure_Other, _("Can't encode address"));
@@ -211,7 +212,8 @@ void fsm_msgGetAddress(GetAddress *msg)
 			         msg->multisig.m, (uint32_t)msg->multisig.pubkeys_count);
 		} else {
 			if (!bip32_node_to_string(node_str, sizeof(node_str), coin, msg->address_n,
-			                          msg->address_n_count, /*whole_account=*/false) &&
+			                          msg->address_n_count, /*whole_account=*/false,
+			                          /*allow_change=*/false) &&
 			    !bip32_path_to_string(node_str, sizeof(node_str),
 			                          msg->address_n, msg->address_n_count)) {
 				memset(node_str, 0, sizeof(node_str));
@@ -266,7 +268,7 @@ void fsm_msgSignMessage(SignMessage *msg)
 	HDNode *node = fsm_getDerivedNode(coin->curve_name, msg->address_n, msg->address_n_count, NULL);
 	if (!node) return;
 
-	animating_progress_handler(); // layoutProgressSwipe(_("Signing"), 0);
+	animating_progress_handler(_("Signing"), 0);
 	if (cryptoMessageSign(coin, node, msg->script_type, msg->message.bytes, msg->message.size, resp->signature.bytes) == 0) {
 		resp->has_address = true;
 		hdnode_fill_public_key(node);

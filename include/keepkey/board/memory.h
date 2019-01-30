@@ -237,7 +237,6 @@ void memory_unlock(void);
 int memory_bootloader_hash(uint8_t *hash, bool cached);
 
 int memory_firmware_hash(uint8_t *hash);
-const char *memory_firmware_hash_str(char digest[SHA256_DIGEST_STRING_LENGTH]);
 int memory_storage_hash(uint8_t *hash, Allocation storage_location);
 bool find_active_storage(Allocation *storage_location);
 

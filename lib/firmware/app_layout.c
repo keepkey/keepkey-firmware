@@ -468,7 +468,6 @@ void layout_xpub_notification(const char *desc, const char *xpub,
 void layout_ethereum_address_notification(const char *desc, const char *address,
         NotificationType type)
 {
-    (void)desc;
     DrawableParams sp;
     const Font *address_font = get_body_font();;
     Canvas *canvas = layout_get_canvas();
@@ -476,8 +475,17 @@ void layout_ethereum_address_notification(const char *desc, const char *address,
     call_leaving_handler();
     layout_clear();
 
+    if (strcmp(desc, "") != 0) {
+        const Font *title_font = get_title_font();
+        sp.y = TOP_MARGIN_FOR_TWO_LINES;
+        sp.x = LEFT_MARGIN + 65;
+        sp.color = BODY_COLOR;
+        draw_string(canvas, title_font, desc, &sp, TRANSACTION_WIDTH - 2,
+                    font_height(title_font) + BODY_FONT_LINE_PADDING);
+    }
+
     /* Body */
-    sp.y =  TOP_MARGIN_FOR_TWO_LINES + TOP_MARGIN;
+    sp.y =  TOP_MARGIN_FOR_TWO_LINES + TOP_MARGIN + TOP_MARGIN;
     sp.x = LEFT_MARGIN + 65;
     sp.color = BODY_COLOR;
 
@@ -525,9 +533,16 @@ void layout_address_notification(const char *desc, const char *address,
                 font_height(address_font) + BODY_FONT_LINE_PADDING);
 
     /* Draw description */
-    if(strcmp(desc, "") != 0)
-    {
-        sp.y = TOP_MARGIN_FOR_ONE_LINE;
+    if (strcmp(desc, "") != 0) {
+        const uint32_t title_line_count = calc_str_line(address_font, desc, BODY_WIDTH);
+
+        sp.y = TOP_MARGIN;
+        if (title_line_count == ONE_LINE) {
+            sp.y = TOP_MARGIN_FOR_ONE_LINE;
+        } else if(title_line_count == TWO_LINES) {
+            sp.y = TOP_MARGIN_FOR_TWO_LINES;
+        }
+
         sp.x = MULTISIG_LEFT_MARGIN;
         sp.color = BODY_COLOR;
         draw_string(canvas, address_font, desc, &sp, TRANSACTION_WIDTH - 2,

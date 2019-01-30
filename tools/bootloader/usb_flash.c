@@ -538,22 +538,26 @@ void handler_erase(FirmwareErase *msg)
 {
     (void)msg;
     if (should_erase()) {
-        layout_simple_message("Preparing For Upgrade...");
+        layoutProgress("Preparing for upgrade", 0);
 
         /* Save storage data in memory so it can be restored after firmware update */
         if(storage_preserve())
         {
             /* Erase config data sectors  */
-            for(uint32_t i = FLASH_STORAGE1; i <= FLASH_STORAGE3; i++)
-            {
+            for (uint32_t i = FLASH_STORAGE1; i <= FLASH_STORAGE3; i++) {
                 bl_flash_erase_word(i);
+                layoutProgress("Preparing for upgrade", (i * 1000 / 9));
             }
 
             /* Erase application section */
-            bl_flash_erase_word(FLASH_APP);
-            send_success("Firmware erased");
+            for (int i = 7; i <= 11; ++i) {
+                bl_flash_erase_word(i);
+                layoutProgress("Preparing for upgrade", ((i + 3 - 7 + 2) * 1000 / 9));
+            }
 
-            layout_loading();
+            flash_lock();
+            layoutProgress("Preparing for upgrade", 1000);
+            send_success("Firmware erased");
         }
         else
         {
@@ -592,6 +596,8 @@ void raw_handler_upload(RawMessage *msg, uint32_t frame_length)
         /* Start firmware load */
         if(upload_state == RAW_MESSAGE_NOT_STARTED)
         {
+            layoutProgress("Uploading Firmware", 0);
+
             upload_state = RAW_MESSAGE_STARTED;
             flash_offset = 0;
 
@@ -633,6 +639,12 @@ void raw_handler_upload(RawMessage *msg, uint32_t frame_length)
                         goto rhu_exit;
                     }
 
+                }
+
+                static int update_ctr = 60;
+                if (update_ctr++ == 60) {
+                    layoutProgress("Uploading Firmware\n", flash_offset * 1000 / frame_length);
+                    update_ctr = 0;
                 }
 
                 /* Begin writing to flash */

@@ -519,30 +519,6 @@ void layout_home_reversed(void)
 }
 
 /*
- * layout_loading() - Loading animation
- *
- * INPUT
- *     none
- * OUTPUT
- *     none
- *
- */
-void layout_loading(void)
-{
-    const VariantAnimation *loading_animation = get_loading_animation();
-    
-
-    call_leaving_handler();
-    layout_clear();
-
-    layout_add_animation(
-            &layout_animate_images, 
-            (void *)loading_animation, 
-            0);
-    force_animation_start();
-}
-
-/*
  * animate() - Attempt to animate if there are animations in the queue
  *
  * INPUT
@@ -667,6 +643,9 @@ void layout_clear(void)
  */
 void layout_clear_static(void)
 {
+    if (!canvas)
+        return;
+
     BoxDrawableParams bp;
     bp.width = canvas->width;
     bp.height = canvas->height;
@@ -698,13 +677,68 @@ void force_animation_start(void)
  * OUTPUT
  *     none
  */
-void animating_progress_handler(void)
+void animating_progress_handler(const char *desc, int permil)
 {
-    if(is_animating())
-    {
-        animate();
-        display_refresh();
+    if (!canvas)
+        return;
+
+    call_leaving_handler();
+    layout_clear();
+
+    permil = permil >= 1000 ? 1000 : permil;
+    permil = permil <=    0 ?    0 : permil;
+
+    const Font *font = get_body_font();
+
+    /* Draw Message */
+    const uint32_t body_line_count = calc_str_line(font, desc, BODY_WIDTH);
+    DrawableParams sp;
+    sp.x = LEFT_MARGIN;
+    sp.y = (KEEPKEY_DISPLAY_HEIGHT / 2) - (body_line_count * font_height(font) / 2);
+    sp.color = TITLE_COLOR;
+    draw_string(canvas, font, desc, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
+
+    uint32_t width = 256 - 2 * LEFT_MARGIN;
+    uint32_t finished_width = (width * permil) / 1000;
+    uint32_t height = 6;
+    uint32_t x = LEFT_MARGIN;
+    uint32_t y = 48;
+
+    BoxDrawableParams bp;
+    bp.width = width;
+    bp.height = height;
+    bp.base.x = x;
+    bp.base.y = y;
+    bp.base.color = 0xcc;
+    draw_box(canvas, &bp);
+
+    bp.width = finished_width;
+    bp.height = height - 2;
+    bp.base.x = x + 1;
+    bp.base.y = y + 1;
+    bp.base.color = 0xff;
+    if (permil > 0) {
+        draw_box(canvas, &bp);
     }
+
+    bp.width = width - finished_width - 2;
+    bp.height = height - 2;
+    bp.base.x = x + finished_width + 1;
+    bp.base.y = y + 1;
+    bp.base.color = 0x00;
+    if (permil < 1000) {
+        draw_box(canvas, &bp);
+    }
+
+    display_refresh();
+}
+
+void layoutProgress(const char *desc, int permil) {
+    animating_progress_handler(desc, permil);
+}
+
+void layoutProgressSwipe(const char *desc, int permil) {
+    animating_progress_handler(desc, permil);
 }
 
 /*

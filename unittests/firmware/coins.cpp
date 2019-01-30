@@ -33,7 +33,7 @@ TEST(Coins, Bip32PathToString) {
     } vector[] = {
         {{ 0x80000000 | 44, 0x80000000 | 0, 0x80000000 | 0, 0, 0 }, 5, "m/44'/0'/0'/0/0"},
         {{ 0x80000000 | 44, 0x80000000 | 0, 0x80000000 | 0 },       3, "m/44'/0'/0'"},
-        {{ }, 0, "m"},
+        {{ }, 0, "m/"},
         {{ 0 }, 1, "m/0"},
         {{ 0,0,0,0,0,0,0,0,0,0 }, 10, "m/0/0/0/0/0/0/0/0/0/0" },
         {{ 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
@@ -44,7 +44,8 @@ TEST(Coins, Bip32PathToString) {
     for (const auto &vec : vector) {
         // Check that we get it right when provided with exactly enough characters.
         std::vector<char> exact_len(vec.expected.size() + 1);
-        ASSERT_TRUE(bip32_path_to_string(&exact_len[0], exact_len.size(), &vec.address_n[0], vec.address_n_count));
+        ASSERT_TRUE(bip32_path_to_string(&exact_len[0], exact_len.size(), &vec.address_n[0], vec.address_n_count))
+            << vec.expected;
         ASSERT_EQ(&exact_len[0], vec.expected)
             << "address_n:       " << arrayToStr(vec.address_n) << "\n"
             << "address_n_count: " << vec.address_n_count << "\n";
@@ -80,5 +81,117 @@ TEST(Coins, TableSanity) {
         EXPECT_TRUE(memcmp(coin.contract_address.bytes, token->address,
                            coin.contract_address.size) == 0)
             << "Contract address mismatch for " << coin.coin_shortcut;
+    }
+}
+
+TEST(Coins, SLIP48) {
+    struct {
+        const char *coin_name;
+        uint32_t address_n[10];
+        size_t address_n_count;
+        SLIP48Role role;
+        bool isSLIP48;
+        std::string text;
+    } vector[] = {
+        {
+          "EOS",
+          { 0x80000000|48, 0x80000000|4, 0x80000000|0, 0x80000000|0, 0x80000000|0 },
+          5, SLIP48_owner, true, "EOS Account #0 @owner key #0"
+        },
+        {
+          "EOS",
+          { 0x80000000|48, 0x80000000|4, 0x80000000|1, 0x80000000|3, 0x80000000|5 },
+          5, SLIP48_active, true, "EOS Account #3 @active key #5"
+        },
+        {
+          "EOS",
+          { 0x80000000|48, 0x80000000|4, 0x80000000|1, 0x80000000|7, 0x80000000|0 },
+          5, SLIP48_active, true, "EOS Account #7 @active key #0"
+        },
+        {
+          "EOS",
+          { 0x80000000|48, 0x80000000|4, 0x80000000|1, 0x80000000|0, 0x80000000|0 },
+          4, SLIP48_UNKNOWN, false, ""
+        },
+    };
+
+    for (const auto &vec : vector) {
+        EXPECT_EQ(coin_isSLIP48(coinByName(vec.coin_name), vec.address_n,
+                                vec.address_n_count, vec.role), vec.isSLIP48);
+
+        if (vec.isSLIP48) {
+            char node_str[NODE_STRING_LENGTH];
+            ASSERT_TRUE(bip32_node_to_string(node_str, sizeof(node_str),
+                                             coinByName(vec.coin_name),
+                                             vec.address_n,
+                                             vec.address_n_count,
+                                             /*whole_account=*/false,
+                                             /*allow_change=*/false))
+                << vec.text;
+            EXPECT_EQ(vec.text, node_str);
+        }
+    }
+}
+
+TEST(Coins, BIP32AccountName) {
+    struct {
+        const char *coin_name;
+        uint32_t address_n[10];
+        size_t address_n_count;
+        bool allow_change;
+        bool expected;
+        std::string text;
+    } vector[] = {
+        {
+          "Bitcoin",
+          { 0x80000000|44, 0x80000000|0, 0x80000000|0, 0, 0 },
+          5, false, true, "Bitcoin Account #0\nAddress #0"
+        },
+        {
+          "Bitcoin",
+          { 0x80000000|44, 0x80000000|0, 0x80000000|0, 0, 1 },
+          5, false, true, "Bitcoin Account #0\nAddress #1"
+        },
+        {
+          "Bitcoin",
+          { 0x80000000|44, 0x80000000|0, 0x80000000|1, 0, 0 },
+          5, false, true, "Bitcoin Account #1\nAddress #0"
+        },
+        {
+          "Bitcoin",
+          { 0x80000000|44, 0x80000000|0, 0x80000000|1, 0, 1 },
+          5, false, true, "Bitcoin Account #1\nAddress #1"
+        },
+        {
+          "Bitcoin",
+          { 0x80000000|44, 0x80000000|0, 0x80000000|1, 1, 1 },
+          5, false, false, ""
+        },
+        {
+          "Bitcoin",
+          { 0x80000000|44, 0x80000000|0, 0x80000000|1, 1, 1 },
+          5, true, true, "Bitcoin Account #1\nAddress #1"
+        },
+        {
+          "Bitcoin",
+          { 0x80000000|44, 0x80000000|0, 0x80000000|1, 1, 1 },
+          5, false, false, ""
+        },
+
+    };
+
+    for (const auto &vec : vector) {
+        char node_str[NODE_STRING_LENGTH];
+        ASSERT_EQ(bip32_node_to_string(node_str, sizeof(node_str),
+                                       coinByName(vec.coin_name),
+                                       vec.address_n,
+                                       vec.address_n_count,
+                                       /*whole_account=*/false,
+                                       vec.allow_change),
+                  vec.expected)
+            << vec.text;
+        if (vec.expected) {
+            EXPECT_EQ(vec.text, node_str);
+        }
     }
 }
