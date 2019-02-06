@@ -537,7 +537,7 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
         return false;
     }
 
-    if (!confirm_exchange_output("ShapeShift", amount_dep_str, amount_wit_str, node_str)) {
+    if (!confirm_exchange_output(amount_dep_str, amount_wit_str, node_str)) {
         set_exchange_error(ERROR_EXCHANGE_CANCEL);
         return false;
     }

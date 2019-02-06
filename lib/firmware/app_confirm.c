@@ -136,22 +136,21 @@ bool confirm_decrypt_msg(const char *msg, const char *address)
  * confirm_exchange_output() - Show exchange output confirmation
  *
  * INPUT -
- *      - exchange: name of exchange
  *      - dep_amt: source amount to convert
  *      - wit_amt: destination amount to received
- *      - address: destination
+ *      - destination: where to send the funds (usually an account)
  * OUTPUT -
  *     true/false of confirmation
  *
  */
-bool confirm_exchange_output(const char *exchange, const char *dep_amt,
+bool confirm_exchange_output(const char *dep_amt,
                              const char *wit_amt, const char *address)
 {
     return confirm_with_custom_layout(&layout_notification_no_title_bold,
                                       ButtonRequestType_ButtonRequest_SignExchange,
                                       "",
-                                      "Trade %s for\n%s with %s and send to %s",
-                                      dep_amt, wit_amt, exchange, address);
+                                      "ShapeShift %s into\n%s and send to %s",
+                                      dep_amt, wit_amt, address);
 }
 
 /*
