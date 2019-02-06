@@ -497,6 +497,50 @@ void layout_ethereum_address_notification(const char *desc, const char *address,
 }
 
 /*
+ * layout_nano_address_notification() - Display nano address notification
+ *
+ * INPUT
+ *     - desc: description of address being shown (normal or multisig)
+ *     - address: nano address to display both as string and QR
+ *     - type: notification type
+ * OUTPUT
+ *      none
+ */
+void layout_nano_address_notification(const char *desc, const char *address,
+        NotificationType type)
+{
+    call_leaving_handler();
+    layout_clear();
+
+    Canvas *canvas = layout_get_canvas();
+    DrawableParams sp;
+    const Font *font = NULL;
+
+    /* Title */
+    if(strcmp(desc, "") != 0)
+    {
+        font = get_title_font();
+        sp.y = TOP_MARGIN;
+        sp.x = LEFT_MARGIN + 65;
+        sp.color = BODY_COLOR;
+        draw_string(canvas, font, desc, &sp, 140,
+                    font_height(font) + BODY_FONT_LINE_PADDING);
+    }
+
+    /* Body */
+    font = get_body_font();
+    sp.y = TOP_MARGIN_FOR_TWO_LINES + TOP_MARGIN;
+    sp.x = LEFT_MARGIN + 65;
+    sp.color = BODY_COLOR;
+
+    draw_string(canvas, font, address, &sp, 140,
+                font_height(font) + BODY_FONT_LINE_PADDING);
+
+    layout_address(address, QR_LARGE);
+    layout_notification_icon(type, &sp);
+}
+
+/*
  * layout_address_notification() - Display address notification
  *
  * INPUT
