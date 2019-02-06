@@ -137,8 +137,6 @@ static bool verify_exchange_address(const char *coin_name, size_t address_n_coun
                                     uint32_t *address_n, char *address_str, size_t address_str_len,
                                     const HDNode *root, bool is_token)
 {
-    bool ret_stat = false;
-
     const CoinType *coin = coinByName(coin_name);
     if (!coin)
         return false;
@@ -146,7 +144,8 @@ static bool verify_exchange_address(const char *coin_name, size_t address_n_coun
     static CONFIDENTIAL HDNode node;
     memcpy(&node, root, sizeof(HDNode));
     if (hdnode_private_ckd_cached(&node, address_n, address_n_count, NULL) == 0) {
-        goto verify_exchange_address_exit;
+        memzero(&node, sizeof(node));
+        return false;
     }
 
     if (isEthereumLike(coin->coin_name) || is_token) {
@@ -154,29 +153,30 @@ static bool verify_exchange_address(const char *coin_name, size_t address_n_coun
         EthereumAddress_address_t ethereum_addr;
 
         ethereum_addr.size = 20;
-        if (hdnode_get_ethereum_pubkeyhash(&node, ethereum_addr.bytes) != 0)
-        {
-            data2hex((char *)ethereum_addr.bytes, 20, tx_out_address);
-            ret_stat = addresses_same(tx_out_address, sizeof(tx_out_address),
-                                      address_str, address_str_len, true);
+        if (hdnode_get_ethereum_pubkeyhash(&node, ethereum_addr.bytes) == 0) {
+            memzero(&node, sizeof(node));
+            return false;
         }
-    } else {
-        const curve_info *curve = get_curve_by_name(coin->curve_name);
-        if (!curve)
-            goto verify_exchange_address_exit;
 
-        char tx_out_address[36];
-        hdnode_fill_public_key(&node);
-        ecdsa_get_address(node.public_key, coin->address_type, curve->hasher_pubkey,
-                          curve->hasher_base58, tx_out_address,
-                          sizeof(tx_out_address));
-        if (strncmp(tx_out_address, address_str, sizeof(tx_out_address)) == 0) {
-            ret_stat = true;
-        }
+        data2hex((char *)ethereum_addr.bytes, 20, tx_out_address);
+        return addresses_same(tx_out_address, sizeof(tx_out_address),
+                              address_str, address_str_len, true);
     }
-verify_exchange_address_exit:
+
+    const curve_info *curve = get_curve_by_name(coin->curve_name);
+    if (!curve) {
+        memzero(&node, sizeof(node));
+        return false;
+    }
+
+    char tx_out_address[36];
+    hdnode_fill_public_key(&node);
+    ecdsa_get_address(node.public_key, coin->address_type, curve->hasher_pubkey,
+                      curve->hasher_base58, tx_out_address,
+                      sizeof(tx_out_address));
+
     memzero(&node, sizeof(node));
-    return(ret_stat);
+    return strncmp(tx_out_address, address_str, sizeof(tx_out_address)) == 0;
 }
 
 /*
