@@ -239,8 +239,7 @@ void fsm_msgNanoSignTx(NanoSignTx *msg)
     } else if (!is_send) {
         // don't bother confirming pure receives
         needs_confirm = false;
-    } else if (msg->has_address_type &&
-               msg->address_type == OutputAddressType_TRANSFER &&
+    } else if (msg->link_recipient_n_count > 0 &&
                !nano_path_mismatched(coin, msg->link_recipient_n,
                                      msg->link_recipient_n_count)) {
         is_transfer = true;
