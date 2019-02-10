@@ -51,6 +51,7 @@ void fsm_msgNanoGetAddress(NanoGetAddress *msg)
         }
     }
 
+    resp->has_address = true;
     strlcpy(resp->address, address, sizeof(resp->address));
     msg_write(MessageType_MessageType_NanoAddress, resp);
     layoutHome();
@@ -82,14 +83,17 @@ void fsm_msgNanoSignTx(NanoSignTx *msg)
             && msg->parent_block.parent_hash.size != 32;
         invalid |= msg->parent_block.has_link
             && msg->parent_block.link.size != 32;
-        invalid |= msg->parent_block.balance.size != 16;
+        invalid |= !msg->parent_block.has_representative;
+        invalid |= !msg->parent_block.has_balance
+            || msg->parent_block.balance.size != 16;
     }
     if (!msg->has_parent_block) {
         invalid |= !msg->has_link_hash; // first block must be a receive block
     }
     invalid |= (int)msg->has_link_hash + (int)msg->has_link_recipient + (int)(msg->link_recipient_n_count != 0) > 1;
     invalid |= msg->has_link_hash && msg->link_hash.size != 32;
-    invalid |= msg->balance.size != 16;
+    invalid |= !msg->has_representative;
+    invalid |= !msg->has_balance || msg->balance.size != 16;
     if (invalid) {
         fsm_sendFailure(FailureType_Failure_Other, _("Block data invalid"));
         layoutHome();
@@ -300,8 +304,10 @@ void fsm_msgNanoSignTx(NanoSignTx *msg)
     memset(signature, 0, sizeof(signature));
     hdnode_sign_digest(node, block_hash, signature, NULL, NULL);
     
+    resp->has_signature = true;
     resp->signature.size = sizeof(signature);
     memcpy(resp->signature.bytes, signature, resp->signature.size);
+    resp->has_block_hash = true;
     resp->block_hash.size = sizeof(block_hash);
     memcpy(resp->block_hash.bytes, block_hash, resp->block_hash.size);
     msg_write(MessageType_MessageType_NanoSignedTx, resp);
