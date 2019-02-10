@@ -301,18 +301,19 @@ void fsm_msgNanoSignTx(NanoSignTx *msg)
     node = fsm_getDerivedNode(coin->curve_name, msg->address_n, msg->address_n_count, NULL);
     if (!node) return;
 
-    uint8_t signature[64];
-    memset(signature, 0, sizeof(signature));
-    hdnode_sign_digest(node, block_hash, signature, NULL, NULL);
+    memset(resp->signature.bytes, 0, sizeof(resp->signature.bytes));
+    _Static_assert(sizeof(resp->signature.bytes) >= 64, "Signature field not large enough");
+    resp->has_signature = true;
+    resp->signature.size = 64;
+    hdnode_sign_digest(node, block_hash, resp->signature.bytes, NULL, NULL);
     memzero(node, sizeof(*node));
     node = NULL;
     
-    resp->has_signature = true;
-    resp->signature.size = sizeof(signature);
-    memcpy(resp->signature.bytes, signature, resp->signature.size);
+    _Static_assert(sizeof(resp->block_hash.bytes) >= 32, "Block hash field not large enough");
     resp->has_block_hash = true;
     resp->block_hash.size = sizeof(block_hash);
-    memcpy(resp->block_hash.bytes, block_hash, resp->block_hash.size);
+    memcpy(resp->block_hash.bytes, block_hash, sizeof(block_hash));
+
     msg_write(MessageType_MessageType_NanoSignedTx, resp);
     layoutHome();
 }
