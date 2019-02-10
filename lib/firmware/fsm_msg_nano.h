@@ -69,12 +69,14 @@ void fsm_msgNanoSignTx(NanoSignTx *msg)
     const CoinType *coin = fsm_getCoin(true, coin_name);
     if (!coin) return;
 
+    // Extract account public key for hash calculations
+    ed25519_public_key account_pk;
     HDNode *node = fsm_getDerivedNode(coin->curve_name, msg->address_n, msg->address_n_count, NULL);
     if (!node) return;
     hdnode_fill_public_key(node);
-
-    ed25519_public_key account_pk;
     memcpy(account_pk, &node->public_key[1], sizeof(account_pk));
+    memzero(node, sizeof(*node));
+    node = NULL;
 
     // Validate input data
     bool invalid = false;
@@ -151,7 +153,8 @@ void fsm_msgNanoSignTx(NanoSignTx *msg)
         if (!node) return;
         hdnode_fill_public_key(node);
         memcpy(link, &node->public_key[1], sizeof(link));
-        node = NULL; // invalidate data and force fsm_getDerivedNode call
+        memzero(node, sizeof(*node));
+        node = NULL;
     } else if (msg->has_link_recipient) {
         invalid |= !nano_validate_address(
             coin->nanoaddr_prefix, strlen(coin->nanoaddr_prefix),
@@ -295,14 +298,14 @@ void fsm_msgNanoSignTx(NanoSignTx *msg)
     }
 
     // Sign hash and return the signature
-    if (!node) {
-        node = fsm_getDerivedNode(coin->curve_name, msg->address_n, msg->address_n_count, NULL);
-        if (!node) return;
-    }
+    node = fsm_getDerivedNode(coin->curve_name, msg->address_n, msg->address_n_count, NULL);
+    if (!node) return;
 
     uint8_t signature[64];
     memset(signature, 0, sizeof(signature));
     hdnode_sign_digest(node, block_hash, signature, NULL, NULL);
+    memzero(node, sizeof(*node));
+    node = NULL;
     
     resp->has_signature = true;
     resp->signature.size = sizeof(signature);
