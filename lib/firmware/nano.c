@@ -15,26 +15,14 @@ bool nano_path_mismatched(const CoinType *coin,
                           const uint32_t *address_n,
                           const uint32_t address_n_count)
 {
-    bool mismatch = false;
-
-    // m : no path
-    if (address_n_count == 0) {
-        return false;
-    }
-
-    // m/44' : BIP44
+    // m/44' : BIP44-like path
     // m / purpose' / bip44_account_path' / account'
-    if (address_n[0] == (0x80000000 + 44)) {
-        mismatch |= address_n_count < 3;
-        mismatch |= address_n_count > 1 && (address_n[1] != coin->bip44_account_path);
-        mismatch |= address_n_count > 2 && (address_n[2] & 0x80000000) == 0;
-        mismatch |= address_n_count > 3 && (address_n[3] & 0x80000000) == 0;
-        mismatch |= address_n_count > 4 && (address_n[4] & 0x80000000) == 0;
-        mismatch |= address_n_count > 5;
-        return mismatch;
-    }
-
-    return false;
+    bool mismatch = false;
+    mismatch |= address_n_count != 3;
+    mismatch |= address_n_count > 0 && (address_n[0] != (0x80000000 + 44));
+    mismatch |= address_n_count > 1 && (address_n[1] != coin->bip44_account_path);
+    mismatch |= address_n_count > 2 && (address_n[2] & 0x80000000) == 0;
+    return mismatch;
 }
 
 bool nano_bip32_to_string(char *node_str, size_t len,
@@ -42,10 +30,10 @@ bool nano_bip32_to_string(char *node_str, size_t len,
                           const uint32_t *address_n,
                           const size_t address_n_count)
 {
-    if (nano_path_mismatched(coin, address_n, address_n_count))
+    if (address_n_count != 3)
         return false;
 
-    if (address_n_count != 3)
+    if (nano_path_mismatched(coin, address_n, address_n_count))
         return false;
 
     snprintf(node_str, len, "%s Account #%" PRIu32, coin->coin_name,
