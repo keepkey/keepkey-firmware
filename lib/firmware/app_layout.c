@@ -500,7 +500,7 @@ void layout_ethereum_address_notification(const char *desc, const char *address,
  * layout_nano_address_notification() - Display nano address notification
  *
  * INPUT
- *     - desc: description of address being shown (normal or multisig)
+ *     - desc: description of address being shown
  *     - address: nano address to display both as string and QR
  *     - type: notification type
  * OUTPUT
