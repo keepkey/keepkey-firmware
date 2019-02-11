@@ -188,7 +188,7 @@ const CoinType *get_response_coin(const char *response_coin_short_name)
 {
     char local_coin_name[17];
     strlcpy(local_coin_name, response_coin_short_name, sizeof(local_coin_name));
-    strupr(local_coin_name);
+    kk_strupr(local_coin_name);
     return coinByShortcut((const char *)local_coin_name);
 }
 
