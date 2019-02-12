@@ -356,7 +356,7 @@ bool confirm_sign_identity(const IdentityType *identity, const char *challenge)
     if(identity->has_proto && identity->proto[0])
     {
         strlcpy(title, identity->proto, sizeof(title));
-        strupr(title);
+        kk_strupr(title);
         strlcat(title, " login to: ", sizeof(title));
     }
     else

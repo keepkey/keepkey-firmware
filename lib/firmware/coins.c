@@ -255,6 +255,37 @@ const CoinType *coinByName(const char *name)
     return 0;
 }
 
+const CoinType *coinByNameOrTicker(const char *name)
+{
+    const CoinType *coin = coinByName(name);
+    if (coin)
+        return coin;
+
+    return coinByShortcut(name);
+}
+
+const CoinType *coinByChainAddress(uint8_t chain_id, const uint8_t *address)
+{
+    if (chain_id != 1)
+        return NULL;
+
+    if (!address)
+        return NULL;
+
+    for (int i = 0; i < COINS_COUNT; i++) {
+        if (!coins[i].has_contract_address)
+            continue;
+
+        if (coins[i].contract_address.size != 20)
+            continue;
+
+        if (memcmp(address, coins[i].contract_address.bytes, 20) == 0)
+            return &coins[i];
+    }
+
+    return NULL;
+}
+
 const CoinType *coinByAddressType(uint32_t address_type)
 {
     int i;
