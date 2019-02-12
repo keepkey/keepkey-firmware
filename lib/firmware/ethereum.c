@@ -73,6 +73,12 @@ bool ethereum_getStandardERC20Recipient(const EthereumSignTx *msg, char *address
 }
 
 bool ethereum_getStandardERC20Coin(const EthereumSignTx *msg, CoinType *coin) {
+	const CoinType *found = coinByChainAddress(chain_id, msg->to.bytes);
+	if (found) {
+		memcpy(coin, found, sizeof(*coin));
+		return true;
+	}
+
 	const TokenType *token = tokenByChainAddress(chain_id, msg->to.bytes);
 	if (token == UnknownToken)
 		return false;
