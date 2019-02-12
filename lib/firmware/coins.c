@@ -255,6 +255,15 @@ const CoinType *coinByName(const char *name)
     return 0;
 }
 
+const CoinType *coinByNameOrTicker(const char *name)
+{
+    const CoinType *coin = coinByName(name);
+    if (coin)
+        return coin;
+
+    return coinByShortcut(name);
+}
+
 const CoinType *coinByAddressType(uint32_t address_type)
 {
     int i;

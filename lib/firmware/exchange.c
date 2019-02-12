@@ -222,7 +222,7 @@ static const CoinType *getWithdrawCoin(const ExchangeType *exchange)
     const CoinType *coin = get_response_coin(exchange->signed_exchange_response.responseV2.withdrawal_address.coin_type);
 
     if (!coin)
-        coin = coinByName(exchange->withdrawal_coin_name);
+        coin = coinByNameOrTicker(exchange->withdrawal_coin_name);
 
     return coin;
 }
@@ -426,7 +426,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
         return false;
     }
 
-    if (!verify_coins_match(withdraw_coin, coinByName(exchange->withdrawal_coin_name))) {
+    if (!verify_coins_match(withdraw_coin, coinByNameOrTicker(exchange->withdrawal_coin_name))) {
         set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_COINTYPE);
         return false;
     }

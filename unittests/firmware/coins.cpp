@@ -195,3 +195,12 @@ TEST(Coins, BIP32AccountName) {
         }
     }
 }
+
+TEST(Coins, CoinByNameOrTicker) {
+    const CoinType *ticker = coinByNameOrTicker("ZRX");
+    const CoinType *name = coinByNameOrTicker("0x");
+    ASSERT_NE(ticker, nullptr);
+    ASSERT_NE(name, nullptr);
+    ASSERT_EQ(name, ticker);
+    EXPECT_EQ(ticker->coin_name, std::string("0x"));
+}
