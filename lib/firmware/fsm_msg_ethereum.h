@@ -113,6 +113,7 @@ void fsm_msgEthereumSignTx(EthereumSignTx *msg)
 	int msg_result = process_ethereum_msg(msg, &needs_confirm);
 
 	if (msg_result < TXOUT_OK) {
+		ethereum_signing_abort();
 		send_fsm_co_error_message(msg_result);
 		layoutHome();
 		return;
