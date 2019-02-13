@@ -561,7 +561,8 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
                              tx_exchange->withdrawal_address_n,
                              tx_exchange->withdrawal_address_n_count,
                              /*whole_account=*/false,
-                             /*allow_change=*/true)) {
+                             /*allow_change=*/true,
+                             /*show_addridx=*/false)) {
         set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_ADDRESS);
         return false;
     }

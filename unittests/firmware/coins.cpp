@@ -126,7 +126,8 @@ TEST(Coins, SLIP48) {
                                              vec.address_n,
                                              vec.address_n_count,
                                              /*whole_account=*/false,
-                                             /*allow_change=*/false))
+                                             /*allow_change=*/false,
+                                             /*show_addrix=*/true))
                 << vec.text;
             EXPECT_EQ(vec.text, node_str);
         }
@@ -187,7 +188,8 @@ TEST(Coins, BIP32AccountName) {
                                        vec.address_n,
                                        vec.address_n_count,
                                        /*whole_account=*/false,
-                                       vec.allow_change),
+                                       vec.allow_change,
+                                       /*show_addridx=*/true),
                   vec.expected)
             << vec.text;
         if (vec.expected) {
