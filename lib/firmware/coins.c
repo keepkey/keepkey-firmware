@@ -408,7 +408,7 @@ static const char *account_prefix(const CoinType *coin,
 
 bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
                           const uint32_t *address_n, size_t address_n_count,
-                          bool whole_account, bool allow_change)
+                          bool whole_account, bool allow_change, bool show_addridx)
 {
     if (address_n_count != 3 && address_n_count != 5)
         return false;
@@ -442,7 +442,7 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
     bool is_token = coin->has_contract_address;
     const char *coin_name = is_token ? "Ethereum" : coin->coin_name;
 
-    if (whole_account || isEthereumLike(coin_name)) {
+    if (whole_account || isEthereumLike(coin_name) || !show_addridx) {
         snprintf(node_str, len, "%s%s Account #%" PRIu32, prefix, coin_name,
                  address_n[2] & 0x7fffffff);
     } else if (coin_isSLIP48(coin, address_n, address_n_count, SLIP48_owner)) {
