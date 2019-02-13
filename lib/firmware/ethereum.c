@@ -57,7 +57,7 @@ bool ethereum_isNonStandardERC20(const EthereumSignTx *msg) {
 }
 
 bool ethereum_isStandardERC20(const EthereumSignTx *msg) {
-	if (msg->to.size == 20 && msg->value.size == 0 && data_total == 68 && msg->data_initial_chunk.size == 68
+	if (msg->to.size == 20 && msg->value.size == 0 && msg->data_initial_chunk.size == 68
 	    && memcmp(msg->data_initial_chunk.bytes, "\xa9\x05\x9c\xbb\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16) == 0) {
 		return true;
 	}
@@ -73,7 +73,13 @@ bool ethereum_getStandardERC20Recipient(const EthereumSignTx *msg, char *address
 }
 
 bool ethereum_getStandardERC20Coin(const EthereumSignTx *msg, CoinType *coin) {
-	const TokenType *token = tokenByChainAddress(chain_id, msg->to.bytes);
+	const CoinType *found = coinByChainAddress(msg->has_chain_id ? msg->chain_id : 1, msg->to.bytes);
+	if (found) {
+		memcpy(coin, found, sizeof(*coin));
+		return true;
+	}
+
+	const TokenType *token = tokenByChainAddress(msg->has_chain_id ? msg->chain_id : 1, msg->to.bytes);
 	if (token == UnknownToken)
 		return false;
 
@@ -584,7 +590,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 	}
 
 	// detect ERC-20 token
-	if (ethereum_isStandardERC20(msg)) {
+	if (data_total == 68 && ethereum_isStandardERC20(msg)) {
 		token = tokenByChainAddress(chain_id, msg->to.bytes);
 	}
 
