@@ -176,23 +176,6 @@ static bool verify_exchange_address(const CoinType *coin, size_t address_n_count
 }
 
 /*
- *  get_response_coin() - get pointer to coin type
- *
- * INPUT
- *     response_coin_short_name: pointer to abbreviated coin name
- * OUTPUT
- *     pointer to coin type
- *     NULL: error
- */
-const CoinType *get_response_coin(const char *response_coin_short_name)
-{
-    char local_coin_name[17];
-    strlcpy(local_coin_name, response_coin_short_name, sizeof(local_coin_name));
-    kk_strupr(local_coin_name);
-    return coinByShortcut((const char *)local_coin_name);
-}
-
-/*
  * verify_exchange_coin() - Verify coin type in exchange contract
  *
  * INPUT
@@ -207,7 +190,7 @@ bool verify_exchange_coin(const char *coin1, const char *coin2, uint32_t len)
     if (strncasecmp(coin1, coin2, len) == 0)
         return true;
 
-    const CoinType *response_coin = get_response_coin(coin2);
+    const CoinType *response_coin = coinByNameOrTicker(coin2);
     if (!response_coin)
         return false;
 
@@ -219,7 +202,7 @@ bool verify_exchange_coin(const char *coin1, const char *coin2, uint32_t len)
 
 static const CoinType *getWithdrawCoin(const ExchangeType *exchange)
 {
-    const CoinType *coin = get_response_coin(exchange->signed_exchange_response.responseV2.withdrawal_address.coin_type);
+    const CoinType *coin = coinByNameOrTicker(exchange->signed_exchange_response.responseV2.withdrawal_address.coin_type);
 
     if (!coin)
         coin = coinByNameOrTicker(exchange->withdrawal_coin_name);
@@ -229,12 +212,12 @@ static const CoinType *getWithdrawCoin(const ExchangeType *exchange)
 
 static const CoinType *getDepositCoin(const ExchangeType *exchange)
 {
-    return get_response_coin(exchange->signed_exchange_response.responseV2.deposit_address.coin_type);
+    return coinByNameOrTicker(exchange->signed_exchange_response.responseV2.deposit_address.coin_type);
 }
 
 static const CoinType *getReturnCoin(const ExchangeType *exchange)
 {
-    return get_response_coin(exchange->signed_exchange_response.responseV2.return_address.coin_type);
+    return coinByNameOrTicker(exchange->signed_exchange_response.responseV2.return_address.coin_type);
 }
 
 /*
