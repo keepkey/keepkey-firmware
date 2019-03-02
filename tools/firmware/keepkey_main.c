@@ -86,12 +86,12 @@ static void unknown_bootloader(void) {
     layout_warning_static("Unknown bootloader. Contact support.");
     shutdown();
 }
-#endif
 
 static void update_bootloader(void) {
     layout_warning_static("Please update your bootloader.");
     shutdown();
 }
+#endif
 
 static void check_bootloader(void) {
     BootloaderKind kind = get_bootloaderKind();
@@ -104,7 +104,9 @@ static void check_bootloader(void) {
     case BLK_v1_0_3_elf:
     case BLK_v1_0_3_sig:
     case BLK_v1_0_4:
+#ifndef DEBUG_ON
         update_bootloader();
+#endif
         return;
     case BLK_UNKNOWN:
 #ifndef DEBUG_ON

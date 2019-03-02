@@ -368,7 +368,8 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 				memset(node_str, 0, sizeof(node_str));
 				if (!bip32_node_to_string(node_str, sizeof(node_str), coin, in->address_n,
 				                          in->address_n_count, /*whole_account=*/false,
-				                          /*allow_change=*/true))
+				                          /*allow_change=*/true,
+				                          /*show_addridx=*/true))
 					break;
 				if (!confirm_transfer_output(ButtonRequestType_ButtonRequest_ConfirmTransferToAccount, amount_str, node_str))
 					return TXOUT_CANCEL;

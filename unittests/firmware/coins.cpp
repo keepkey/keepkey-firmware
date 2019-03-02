@@ -126,7 +126,8 @@ TEST(Coins, SLIP48) {
                                              vec.address_n,
                                              vec.address_n_count,
                                              /*whole_account=*/false,
-                                             /*allow_change=*/false))
+                                             /*allow_change=*/false,
+                                             /*show_addrix=*/true))
                 << vec.text;
             EXPECT_EQ(vec.text, node_str);
         }
@@ -187,11 +188,34 @@ TEST(Coins, BIP32AccountName) {
                                        vec.address_n,
                                        vec.address_n_count,
                                        /*whole_account=*/false,
-                                       vec.allow_change),
+                                       vec.allow_change,
+                                       /*show_addridx=*/true),
                   vec.expected)
             << vec.text;
         if (vec.expected) {
             EXPECT_EQ(vec.text, node_str);
         }
     }
+}
+
+TEST(Coins, CoinByNameOrTicker) {
+    const CoinType *ticker = coinByNameOrTicker("ZRX");
+    const CoinType *name = coinByNameOrTicker("0x");
+    ASSERT_NE(ticker, nullptr);
+    ASSERT_NE(name, nullptr);
+    ASSERT_EQ(name, ticker);
+    EXPECT_EQ(ticker->coin_name, std::string("0x"));
+}
+
+TEST(Coins, CoinByChainAddress) {
+    const CoinType *zrx = coinByChainAddress(1, (const uint8_t*)"\xE4\x1d\x24\x89\x57\x1d\x32\x21\x89\x24\x6D\xaF\xA5\xeb\xDe\x1F\x46\x99\xF4\x98");
+    ASSERT_NE(zrx, nullptr);
+    EXPECT_EQ(zrx->coin_name, std::string("0x"));
+    EXPECT_EQ(zrx->coin_shortcut, std::string("ZRX"));
+}
+
+TEST(Coins, TokenByChainAddress) {
+    const TokenType *zrx = tokenByChainAddress(1, (const uint8_t*)"\xE4\x1d\x24\x89\x57\x1d\x32\x21\x89\x24\x6D\xaF\xA5\xeb\xDe\x1F\x46\x99\xF4\x98");
+    ASSERT_NE(zrx, nullptr);
+    EXPECT_EQ(zrx->ticker, std::string(" ZRX"));
 }

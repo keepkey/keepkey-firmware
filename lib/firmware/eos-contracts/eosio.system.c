@@ -516,7 +516,8 @@ bool eos_compileAuthorization(const char *title, const EosAuthorization *auth,
                                   auth_key->address_n,
                                   auth_key->address_n_count,
                                   /*whole_account=*/false,
-                                  /*allow_change=*/false) &&
+                                  /*allow_change=*/false,
+                                  /*show_addridx=*/true) &&
             !bip32_path_to_string(node_str, sizeof(node_str),
                                   auth_key->address_n, auth_key->address_n_count)) {
             memset(node_str, 0, sizeof(node_str));
