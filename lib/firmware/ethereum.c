@@ -52,11 +52,11 @@ static uint32_t chain_id;
 static uint32_t tx_type;
 struct SHA3_CTX keccak_ctx;
 
-bool ethereum_isNonStandardERC20(const EthereumSignTx *msg) {
+bool ethereum_isNonStandardERC20Transfer(const EthereumSignTx *msg) {
     return msg->has_token_shortcut && msg->has_token_value && (msg->has_token_to || msg->to_address_n_count > 0);
 }
 
-bool ethereum_isStandardERC20(const EthereumSignTx *msg) {
+bool ethereum_isStandardERC20Transfer(const EthereumSignTx *msg) {
 	if (msg->to.size == 20 && msg->value.size == 0 && msg->data_initial_chunk.size == 68
 	    && memcmp(msg->data_initial_chunk.bytes, "\xa9\x05\x9c\xbb\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16) == 0) {
 		return true;
@@ -590,7 +590,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 	}
 
 	// detect ERC-20 token
-	if (data_total == 68 && ethereum_isStandardERC20(msg)) {
+	if (data_total == 68 && ethereum_isStandardERC20Transfer(msg)) {
 		token = tokenByChainAddress(chain_id, msg->to.bytes);
 	}
 
