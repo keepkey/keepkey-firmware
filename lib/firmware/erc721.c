@@ -67,7 +67,10 @@ bool erc721_isTransferFrom(uint32_t data_total, const EthereumSignTx *msg,
     if (data_total != msg->data_initial_chunk.size)
         return false;
 
-    if (memcmp(msg->data_initial_chunk.bytes, "\x23\xb8\x72\xdd", 4) != 0)
+    // transferFrom(address,address,uint256)
+    // safeTransferFrom(address,address,uint256)
+    if (memcmp(msg->data_initial_chunk.bytes, "\x23\xb8\x72\xdd", 4) != 0 &&
+        memcmp(msg->data_initial_chunk.bytes, "\x42\x84\x2e\x0e", 4) != 0)
         return false;
 
     // 'from' padding
@@ -101,8 +104,11 @@ bool erc721_confirmTransferFrom(const EthereumSignTx *msg)
     char token_id[32*2+1];
     data2hex(msg->data_initial_chunk.bytes + 68, 32, token_id);
 
+    bool isSafeTransfer = memcmp(msg->data_initial_chunk.bytes, "\x42\x84\x2e\x0e", 4) == 0;
+
     return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                   "Transfer", "Take ownership of %s token with id %s?",
+                   isSafeTransfer ? "Safe Transfer" : "Transfer",
+                   "Take ownership of %s token with id %s?",
                    erc721->name, token_id);
 }
 
