@@ -67,7 +67,10 @@ bool erc721_isTransferFrom(uint32_t data_total, const EthereumSignTx *msg,
     if (data_total != msg->data_initial_chunk.size)
         return false;
 
-    if (memcmp(msg->data_initial_chunk.bytes, "\x23\xb8\x72\xdd", 4) != 0)
+    // transferFrom(address,address,uint256)
+    // safeTransferFrom(address,address,uint256)
+    if (memcmp(msg->data_initial_chunk.bytes, "\x23\xb8\x72\xdd", 4) != 0 &&
+        memcmp(msg->data_initial_chunk.bytes, "\x42\x84\x2e\x0e", 4) != 0)
         return false;
 
     // 'from' padding
