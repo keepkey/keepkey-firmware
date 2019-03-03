@@ -135,7 +135,7 @@ bool erc721_confirmApprove(const EthereumSignTx *msg)
         return false;
 
     char address[43] = "0x";
-    ethereum_address_checksum(msg->data_initial_chunk.bytes + 4,
+    ethereum_address_checksum(msg->data_initial_chunk.bytes + 16,
                               address + 2, false, msg->chain_id);
 
     char token_id[32*2+1];
