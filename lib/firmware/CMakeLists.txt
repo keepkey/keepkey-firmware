@@ -9,6 +9,7 @@ set(sources
     ethereum.c
     ethereum_contracts.c
     ethereum_tokens.c
+    erc721.c
     exchange.c
     fsm.c
     home_sm.c
