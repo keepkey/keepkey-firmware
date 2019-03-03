@@ -58,6 +58,11 @@ bool erc721_isKnown(const EthereumSignTx *msg)
     return erc721_byContractAddress(msg->to.bytes);
 }
 
+static bool isZeroAddress(const uint8_t *address)
+{
+    return memcmp(address, "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 20) == 0;
+}
+
 bool erc721_isTransferFrom(uint32_t data_total, const EthereumSignTx *msg,
                            const HDNode *node)
 {
@@ -140,6 +145,11 @@ bool erc721_confirmApprove(const EthereumSignTx *msg)
 
     char token_id[32*2+1];
     data2hex(msg->data_initial_chunk.bytes + 68, 32, token_id);
+
+    if (isZeroAddress(msg->data_initial_chunk.bytes + 16))
+        return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                       "Approve", "Revoke transfer of %s token with id %s?",
+                       erc721->name, token_id);
 
     return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                    "Approve", "Grant %s permission to take %s token with id %s?",
