@@ -104,11 +104,8 @@ bool erc721_confirmTransferFrom(const EthereumSignTx *msg)
     char token_id[32*2+1];
     data2hex(msg->data_initial_chunk.bytes + 68, 32, token_id);
 
-    bool isSafeTransfer = memcmp(msg->data_initial_chunk.bytes, "\x42\x84\x2e\x0e", 4) == 0;
-
     return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                   isSafeTransfer ? "Safe Transfer" : "Transfer",
-                   "Take ownership of %s token with id %s?",
+                   "Transfer", "Take ownership of %s token with id %s?",
                    erc721->name, token_id);
 }
 
