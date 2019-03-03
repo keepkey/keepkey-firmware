@@ -14,7 +14,7 @@ const ERC721Token erc721s[] = {
    { "CryptoKitty", "\x06\x01\x2c\x8c\xf9\x7b\xea\xd5\xde\xae\x23\x70\x70\xf9\x58\x7f\x8e\x7a\x26\x6d" },
 };
 
-static const ERC721Token *erc721ByContractAddress(const uint8_t *contract) {
+static const ERC721Token *erc721_byContractAddress(const uint8_t *contract) {
     for (size_t i = 0; i < sizeof(erc721s)/sizeof(erc721s[0]); i++)
         if (memcmp(contract, erc721s[i].contract, 20) == 0)
             return &erc721s[i];
@@ -22,15 +22,15 @@ static const ERC721Token *erc721ByContractAddress(const uint8_t *contract) {
     return NULL;
 }
 
-static bool isKnownERC721(const EthereumSignTx *msg)
+static bool erc721_isKnown(const EthereumSignTx *msg)
 {
     if (msg->to.size != 20)
         return false;
 
-    return erc721ByContractAddress(msg->to.bytes);
+    return erc721_byContractAddress(msg->to.bytes);
 }
 
-static bool isERC721TransferFrom(uint32_t data_total, const EthereumSignTx *msg,
+static bool erc721_isTransferFrom(uint32_t data_total, const EthereumSignTx *msg,
                                  const HDNode *node)
 {
     if (data_total != 4 + 32 + 32 + 32)
@@ -64,9 +64,9 @@ static bool isERC721TransferFrom(uint32_t data_total, const EthereumSignTx *msg,
     return true;
 }
 
-static bool confirmERC721TransferFrom(const EthereumSignTx *msg)
+static bool erc721_confirmTransferFrom(const EthereumSignTx *msg)
 {
-    const ERC721Token *erc721 = erc721ByContractAddress(msg->to.bytes);
+    const ERC721Token *erc721 = erc721_byContractAddress(msg->to.bytes);
     if (!erc721)
         return false;
 
@@ -78,7 +78,7 @@ static bool confirmERC721TransferFrom(const EthereumSignTx *msg)
                    erc721->name, token_id);
 }
 
-static bool isERC721Approve(uint32_t data_total, const EthereumSignTx *msg)
+static bool erc721_isApprove(uint32_t data_total, const EthereumSignTx *msg)
 {
     if (data_total != 4 + 32 + 32)
         return false;
@@ -97,9 +97,9 @@ static bool isERC721Approve(uint32_t data_total, const EthereumSignTx *msg)
     return true;
 }
 
-static bool confirmERC721Approve(const EthereumSignTx *msg)
+static bool erc721_confirmApprove(const EthereumSignTx *msg)
 {
-    const ERC721Token *erc721 = erc721ByContractAddress(msg->to.bytes);
+    const ERC721Token *erc721 = erc721_byContractAddress(msg->to.bytes);
     if (!erc721)
         return false;
 
@@ -119,11 +119,11 @@ static bool confirmERC721Approve(const EthereumSignTx *msg)
 bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx *msg,
                               const HDNode *node)
 {
-    if (isKnownERC721(msg)) {
-        if (isERC721TransferFrom(data_total, msg, node))
+    if (erc721_isKnown(msg)) {
+        if (erc721_isTransferFrom(data_total, msg, node))
             return true;
 
-        if (isERC721Approve(data_total, msg))
+        if (erc721_isApprove(data_total, msg))
             return true;
     }
 
@@ -133,12 +133,12 @@ bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx *msg,
 bool ethereum_contractConfirmed(uint32_t data_total, const EthereumSignTx *msg,
                                 const HDNode *node)
 {
-    if (isKnownERC721(msg)) {
-        if (isERC721TransferFrom(data_total, msg, node))
-            return confirmERC721TransferFrom(msg);
+    if (erc721_isKnown(msg)) {
+        if (erc721_isTransferFrom(data_total, msg, node))
+            return erc721_confirmTransferFrom(msg);
 
-        if (isERC721Approve(data_total, msg))
-            return confirmERC721Approve(msg);
+        if (erc721_isApprove(data_total, msg))
+            return erc721_confirmApprove(msg);
     }
 
     return false;

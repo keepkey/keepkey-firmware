@@ -1,4 +1,4 @@
-#/*
+/*
  * This file is part of the KeepKey project.
  *
  * Copyright (C) 2019 ShapeShift
