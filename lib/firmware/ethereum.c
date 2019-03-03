@@ -29,6 +29,7 @@
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
+#include "keepkey/firmware/ethereum_contracts.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/transaction.h"
@@ -614,6 +615,17 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 		return;
 	}
 
+	bool data_needs_confirm = true;
+	if (ethereum_contractHandled(data_total, msg, node)) {
+		if (!ethereum_contractConfirmed(data_total, msg, node)) {
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
+			ethereum_signing_abort();
+			return;
+		}
+		needs_confirm = false;
+		data_needs_confirm = false;
+	}
+
 	// detect ERC-20 token
 	if (data_total == 68 && ethereum_isStandardERC20Transfer(msg)) {
 		token = tokenByChainAddress(chain_id, msg->to.bytes);
@@ -656,7 +668,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 	}
 
 	memset(confirm_body_message, 0, sizeof(confirm_body_message));
-	if (token == NULL && data_total > 0) {
+	if (token == NULL && data_total > 0 && data_needs_confirm) {
 		// KeepKey custom: warn the user that they're trying to do something
 		// that is potentially dangerous. People (generally) aren't great at
 		// parsing raw transaction data, and we can't effectively show them
