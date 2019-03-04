@@ -1,10 +1,12 @@
-#ifndef __FIRMWARE_NANO_H__
-#define __FIRMWARE_NANO_H__
+#ifndef KEEPKEY_FIRMWARE_NANO_H
+#define KEEPKEY_FIRMWARE_NANO_H
+
+#include "keepkey/transport/interface.h"
+#include "trezor/crypto/bip32.h"
+#include "trezor/crypto/nano.h"
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "trezor/crypto/nano.h"
-#include "keepkey/transport/interface.h"
 
 #define MAX_NANO_ADDR_SIZE 100
 
@@ -26,4 +28,11 @@ void nano_hash_block_data(const uint8_t account_pk[32],
 
 void nano_truncate_address(const CoinType *coin, char *str);
 
-#endif // __FIRMWARE_NANO_H__
+void nano_signingAbort(void);
+bool nano_signingInit(const NanoSignTx *msg, const HDNode *node, const CoinType *coin);
+bool nano_parentHash(const NanoSignTx *msg);
+bool nano_currentHash(const NanoSignTx *msg, const HDNode *recip);
+bool nano_sanityCheck(const NanoSignTx *nano);
+bool nano_signTx(const NanoSignTx *msg, HDNode *node, NanoSignedTx *resp);
+
+#endif
