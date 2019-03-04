@@ -36,7 +36,7 @@ static uint8_t const NANO_BLOCK_HASH_PREAMBLE[32] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06,
 };
 
-bool nano_path_mismatched(const CoinType *coin,
+bool nano_path_mismatched(const CoinType *_coin,
                           const uint32_t *address_n,
                           const uint32_t address_n_count)
 {
@@ -45,23 +45,23 @@ bool nano_path_mismatched(const CoinType *coin,
     bool mismatch = false;
     mismatch |= address_n_count != 3;
     mismatch |= address_n_count > 0 && (address_n[0] != (0x80000000 + 44));
-    mismatch |= address_n_count > 1 && (address_n[1] != coin->bip44_account_path);
+    mismatch |= address_n_count > 1 && (address_n[1] != _coin->bip44_account_path);
     mismatch |= address_n_count > 2 && (address_n[2] & 0x80000000) == 0;
     return mismatch;
 }
 
 bool nano_bip32_to_string(char *node_str, size_t len,
-                          const CoinType *coin,
+                          const CoinType *_coin,
                           const uint32_t *address_n,
                           const size_t address_n_count)
 {
     if (address_n_count != 3)
         return false;
 
-    if (nano_path_mismatched(coin, address_n, address_n_count))
+    if (nano_path_mismatched(_coin, address_n, address_n_count))
         return false;
 
-    snprintf(node_str, len, "%s Account #%" PRIu32, coin->coin_name,
+    snprintf(node_str, len, "%s Account #%" PRIu32, _coin->coin_name,
              address_n[2] & 0x7ffffff);
     return true;
 }
@@ -86,8 +86,8 @@ void nano_hash_block_data(const uint8_t _account_pk[32],
     blake2b_Final(&ctx, _out_hash, 32);
 }
 
-void nano_truncate_address(const CoinType *coin, char *str) {
-    const size_t prefix_len = strlen(coin->nanoaddr_prefix);
+void nano_truncate_address(const CoinType *_coin, char *str) {
+    const size_t prefix_len = strlen(_coin->nanoaddr_prefix);
     const size_t str_len = strlen(str);
 
     if (str_len < prefix_len + 12)
