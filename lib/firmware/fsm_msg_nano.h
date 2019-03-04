@@ -192,9 +192,6 @@ void fsm_msgNanoSignTx(NanoSignTx *msg)
             memset(representative_address, 0, sizeof(representative_address));
         }
     }
-    if (strlen(representative_address) > 0) {
-        nano_truncate_address(coin, representative_address);
-    }
 
     bool is_send = false;
     if (bn_is_less(&balance, &parent_balance)) {
@@ -247,6 +244,7 @@ void fsm_msgNanoSignTx(NanoSignTx *msg)
 
     if (needs_confirm) {
         if (strlen(representative_address) > 0) {
+            nano_truncate_address(coin, representative_address);
             if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                          "Representative", "Set account representative to %s?",
                          representative_address)) {
@@ -307,7 +305,7 @@ void fsm_msgNanoSignTx(NanoSignTx *msg)
     hdnode_sign_digest(node, block_hash, resp->signature.bytes, NULL, NULL);
     memzero(node, sizeof(*node));
     node = NULL;
-    
+
     _Static_assert(sizeof(resp->block_hash.bytes) >= 32, "Block hash field not large enough");
     resp->has_block_hash = true;
     resp->block_hash.size = sizeof(block_hash);
