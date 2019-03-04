@@ -70,6 +70,8 @@ extern const CoinType coins[];
 
 const CoinType *coinByShortcut(const char *shortcut);
 const CoinType *coinByName(const char *name);
+const CoinType *coinByNameOrTicker(const char *name);
+const CoinType *coinByChainAddress(uint8_t chain_id, const uint8_t *address);
 const CoinType *coinByAddressType(uint32_t address_type);
 const CoinType *coinBySlip44(uint32_t bip44_account_path);
 void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len);
@@ -88,11 +90,13 @@ bool bip32_path_to_string(char *str, size_t len, const uint32_t *address_n, size
  * \param[in]   address_n_count  size of address_n array
  * \param[in]   whole_account    true iff address_n refers to an entire account (not just an address)
  * \param[in]   allow_change     whether to allow display for change addressses
+ * \param[in]   show_addridx     whether to display address indexes
  * \returns true iff the path matches a known bip44/bip49/bip84/etc account
  */
 bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
                           const uint32_t *address_n, size_t address_n_count,
-                          bool whole_account, bool allow_change);
+                          bool whole_account, bool allow_change,
+                          bool show_addridx);
 
 /// \returns true iff the coin_name is for an eth-like coin.
 bool isEthereumLike(const char *coin_name);

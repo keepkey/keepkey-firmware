@@ -149,7 +149,7 @@ bool confirm_exchange_output(const char *dep_amt,
     return confirm_with_custom_layout(&layout_notification_no_title_bold,
                                       ButtonRequestType_ButtonRequest_SignExchange,
                                       "",
-                                      "ShapeShift %s into\n%s and send to %s",
+                                      "ShapeShift %s into\n%s and send to\n%s",
                                       dep_amt, wit_amt, address);
 }
 
@@ -370,7 +370,7 @@ bool confirm_sign_identity(const IdentityType *identity, const char *challenge)
     if(identity->has_proto && identity->proto[0])
     {
         strlcpy(title, identity->proto, sizeof(title));
-        strupr(title);
+        kk_strupr(title);
         strlcat(title, " login to: ", sizeof(title));
     }
     else
