@@ -86,18 +86,6 @@ void nano_hash_block_data(const uint8_t _account_pk[32],
     blake2b_Final(&ctx, _out_hash, 32);
 }
 
-void nano_truncate_address(const CoinType *_coin, char *str) {
-    const size_t prefix_len = strlen(_coin->nanoaddr_prefix);
-    const size_t str_len = strlen(str);
-
-    if (str_len < prefix_len + 12)
-        return;
-
-    memset(&str[prefix_len + 5], '.', 2);
-    memmove(&str[prefix_len + 7], &str[str_len - 5], 5);
-    str[prefix_len+12] = '\0';
-}
-
 void nano_signingAbort(void)
 {
     bn_zero(&parent_balance);
@@ -249,7 +237,6 @@ bool nano_sanityCheck(const NanoSignTx *msg)
                              strlen(coin->nanoaddr_prefix),
                              recipient_address, sizeof(recipient_address));
         }
-        nano_truncate_address(coin, recipient_address);
     } else {
         // For receives make sure that the link_hash was specified and that it's
         invalid |= !msg->has_link_hash;
@@ -279,7 +266,6 @@ bool nano_signTx(const NanoSignTx *msg, HDNode *node, NanoSignedTx *resp)
 
     if (needs_confirm) {
         if (strlen(representative_address) > 0) {
-            nano_truncate_address(coin, representative_address);
             if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                          "Representative", "Set account representative to %s?",
                          representative_address)) {

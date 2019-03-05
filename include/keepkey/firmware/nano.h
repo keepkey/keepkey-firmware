@@ -26,8 +26,6 @@ void nano_hash_block_data(const uint8_t account_pk[32],
                           const uint8_t balance[16],
                           uint8_t out_hash[32]);
 
-void nano_truncate_address(const CoinType *coin, char *str);
-
 void nano_signingAbort(void);
 bool nano_signingInit(const NanoSignTx *msg, const HDNode *node, const CoinType *coin);
 bool nano_parentHash(const NanoSignTx *msg);
