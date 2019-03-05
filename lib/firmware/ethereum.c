@@ -390,9 +390,17 @@ static void layoutEthereumConfirmTx(const uint8_t *to, uint32_t to_len, const ui
 		ethereum_address_checksum(to, address + 2, false, chain_id);
 	}
 
+	bool approve_all = approve && value_len == 32 &&
+	    memcmp(value,      "\xff\xff\xff\xff\xff\xff\xff\xff", 8) == 0 &&
+	    memcmp(value + 8,  "\xff\xff\xff\xff\xff\xff\xff\xff", 8) == 0 &&
+	    memcmp(value + 16, "\xff\xff\xff\xff\xff\xff\xff\xff", 8) == 0 &&
+	    memcmp(value + 24, "\xff\xff\xff\xff\xff\xff\xff\xff", 8) == 0;
+
 	int cx;
 	if (approve && bn_is_zero(&val) && token) {
 		cx = snprintf(out_str, out_str_len, "Remove ability for %s to withdraw %s?", address, token->ticker + 1);
+	} else if (approve_all) {
+		cx = snprintf(out_str, out_str_len, "Unlock full %s balance for withdrawal by %s?", token->ticker + 1, address);
 	} else if (approve) {
 		cx = snprintf(out_str, out_str_len, "Approve withdrawal of up to %s by %s?", amount, address);
 	} else {
