@@ -307,6 +307,7 @@ bool confirm_xpub(const char *node_str, const char *xpub)
                                       ButtonRequestType_ButtonRequest_Address, node_str, "%s", xpub);
 
 }
+
 /*
  * confirm_ethereum_address() - Show ethereum address confirmation
  *
@@ -322,6 +323,7 @@ bool confirm_ethereum_address(const char *desc, const char *address)
     return confirm_with_custom_layout(&layout_ethereum_address_notification,
                                       ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
 }
+
 /*
  * confirm_nano_address() - Show nano address confirmation
  *
@@ -336,7 +338,9 @@ bool confirm_nano_address(const char *desc, const char *address)
 {
     return confirm_with_custom_layout(&layout_nano_address_notification,
                                       ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
-}/*
+}
+
+/*
  * confirm_address() - Show address confirmation
  *
  * INPUT
