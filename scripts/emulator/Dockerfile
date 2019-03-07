@@ -3,6 +3,14 @@ FROM kktech/firmware:v8
 WORKDIR /kkemu
 COPY ./ /kkemu
 
+RUN python -m ensurepip
+RUN pip install \
+    "ecdsa>=0.9" \
+    "protobuf>=3.0.0" \
+    "mnemonic>=0.8" \
+    requests \
+    pytest
+
 RUN cmake -C ./cmake/caches/emulator.cmake . \
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_C_COMPILER=clang \
@@ -13,5 +21,4 @@ RUN cmake -C ./cmake/caches/emulator.cmake . \
 RUN make -j
 
 ENTRYPOINT ["./bin/kkemu"]
-EXPOSE 21324 21324/udp
-EXPOSE 21325 21325/udp
+EXPOSE 21324/udp 21325

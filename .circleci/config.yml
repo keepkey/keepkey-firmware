@@ -1,0 +1,51 @@
+version: 2
+jobs:
+  emulator-build-test-publish:
+    docker:
+      - image: docker:17.05.0-ce-git
+    steps:
+      - checkout
+      - run:
+          name: Update Submodules
+          command: |
+            git submodule update --init --recursive
+      - setup_remote_docker
+      - run:
+          name: Build Emulator
+          command: |
+            docker build -t kktech/kkemu:$CIRCLE_SHA1 . -f ./scripts/emulator/Dockerfile
+      - run:
+          name: Docker Create
+          command: |
+            docker create -v /kkemu --name dummy kktech/kkemu:$CIRCLE_SHA1 /bin/true
+      - run:
+          name: Emulator Unittests
+          command: |
+            set +e
+            docker run --volumes-from dummy --entrypoint '/bin/sh' kktech/kkemu:$CIRCLE_SHA1 -c "make xunit"
+            UNIT_STATUS="$?"
+            docker run --volumes-from dummy --entrypoint '/bin/sh' kktech/kkemu:$CIRCLE_SHA1 -c "source ./scripts/emulator/test.sh"
+            TEST_STATUS="$?"
+            set -e
+            mkdir -p test-reports/unittests
+            mkdir -p test-reports/python-keepkey
+            docker cp dummy:/kkemu/unittests/. test-reports/unittests
+            docker cp dummy:/kkemu/bin/junit.xml test-reports/python-keepkey
+            (exit $UNIT_STATUS) && (exit $TEST_STATUS)
+      - store_test_results:
+          path: test-reports
+      - run:
+          name: Docker RM
+          command: |
+            docker rm -f dummy
+      - deploy:
+          name: Publish Emulator
+          command: |
+            docker login -u $DOCKER_LOGIN -p $DOCKER_PWD
+            docker push kktech/kkemu:$CIRCLE_SHA1
+workflows:
+  version: 2
+  emulator:
+    jobs:
+      - emulator-build-test-publish
+

@@ -1,3 +1,5 @@
+[![CircleCI](https://circleci.com/gh/keepkey/keepkey-firmware.svg?style=svg)](https://circleci.com/gh/keepkey/keepkey-firmware)
+
 ## KeepKey Build Procedure
 
 ### Toolchain Installation
