@@ -122,4 +122,6 @@ void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed);
 void layout_clear(void);
 void layout_clear_animations(void);
 void layout_clear_static(void);
+
+void kk_strupr(char *str);
 #endif

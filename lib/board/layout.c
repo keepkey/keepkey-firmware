@@ -27,14 +27,11 @@
 #include "keepkey/board/variant.h"
 #include "keepkey/firmware/fsm.h"
 
+#include <ctype.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
-
-#ifdef EMULATOR
-#  include <ctype.h>
-#endif
 
 static AnimationQueue active_queue = { NULL, 0 };
 static AnimationQueue free_queue = { NULL, 0 };
@@ -265,12 +262,10 @@ void call_leaving_handler(void)
     }
 }
 
-#ifdef EMULATOR
-void strupr(char *str) {
+void kk_strupr(char *str) {
     for ( ; *str; str++)
         *str = toupper(*str);
 }
-#endif
 
 /*
  * layout_standard_notification() - Display standard notification
@@ -308,7 +303,7 @@ void layout_standard_notification(const char *str1, const char *str2,
     /* Format Title */
     char upper_str1[TITLE_CHAR_MAX];
     strlcpy(upper_str1, str1, TITLE_CHAR_MAX);
-    strupr(upper_str1);
+    kk_strupr(upper_str1);
 
     /* Title */
     sp.x = LEFT_MARGIN;
@@ -449,7 +444,7 @@ void layout_simple_message(const char *str)
     /* Format Message */
     char upper_str[TITLE_CHAR_MAX];
     strlcpy(upper_str, str, TITLE_CHAR_MAX);
-    strupr(upper_str);
+    kk_strupr(upper_str);
 
     /* Draw Message */
     DrawableParams sp;
@@ -712,7 +707,7 @@ void animating_progress_handler(const char *desc, int permil)
     bp.base.color = 0xcc;
     draw_box(canvas, &bp);
 
-    bp.width = finished_width;
+    bp.width = finished_width - 1;
     bp.height = height - 2;
     bp.base.x = x + 1;
     bp.base.y = y + 1;
