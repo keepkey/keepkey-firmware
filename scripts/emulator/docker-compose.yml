@@ -1,0 +1,10 @@
+version: '3'
+services:
+  kkemu:
+    build:
+      context: '../../'
+      dockerfile: 'scripts/emulator/Dockerfile'
+    image: kktech/kkemu:latest
+    ports:
+      - "127.0.0.1:21324:21324/udp"
+      - "127.0.0.1:21325:21325/udp"
