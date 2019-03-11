@@ -2,5 +2,5 @@
 set -e
 
 ./bin/kkemu&
-python ./scripts/emulator/bridge.py&
+FLASK_APP=./scripts/emulator/bridge.py flask run &
 

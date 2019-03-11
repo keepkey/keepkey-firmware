@@ -31,7 +31,7 @@ def exchange(kind):
 
     if request.method == 'GET':
         data = s.recv(PACKET_SIZE)
-        body = '{"data":"' + binascii.hexlify(data) + '"}'
+        body = '{"data":"' + binascii.hexlify(data).decode("utf-8") + '"}'
         return Response(body, status=200, mimetype='application/json')
 
     return Response('{}', status=404, mimetype='application/json')
