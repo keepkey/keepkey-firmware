@@ -49,6 +49,7 @@
 #include "keepkey/firmware/policy.h"
 #include "keepkey/firmware/recovery_cipher.h"
 #include "keepkey/firmware/reset.h"
+#include "keepkey/firmware/ripple.h"
 #include "keepkey/firmware/signing.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/transaction.h"
@@ -70,6 +71,7 @@
 #include "messages-cosmos.pb.h"
 #include "messages-eos.pb.h"
 #include "messages-nano.pb.h"
+#include "messages-ripple.pb.h"
 
 #include <stdio.h>
 
@@ -296,3 +298,4 @@ void fsm_msgClearSession(ClearSession *msg)
 #include "fsm_msg_debug.h"
 #include "fsm_msg_eos.h"
 #include "fsm_msg_cosmos.h"
+#include "fsm_msg_ripple.h"

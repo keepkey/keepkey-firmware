@@ -78,15 +78,23 @@ void fsm_msgDecryptMessage(DecryptMessage *msg);
 //void fsm_msgPassphraseAck(PassphraseAck *msg);
 void fsm_msgRecoveryDevice(RecoveryDevice *msg);
 void fsm_msgWordAck(WordAck *msg);
+
 void fsm_msgEthereumGetAddress(EthereumGetAddress *msg);
 void fsm_msgEthereumSignTx(EthereumSignTx *msg);
 void fsm_msgEthereumTxAck(EthereumTxAck *msg);
 void fsm_msgEthereumSignMessage(EthereumSignMessage *msg);
 void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg);
+
 void fsm_msgCharacterAck(CharacterAck *msg);
 void fsm_msgApplyPolicies(ApplyPolicies *msg);
+
 void fsm_msgNanoGetAddress(NanoGetAddress *msg);
 void fsm_msgNanoSignTx(NanoSignTx *msg);
+
+/// Modifies the RippleSignTx, setting the flag to indicate
+/// that the ECDSA sig is canonical.
+void fsm_msgRippleSignTx(RippleSignTx *msg);
+void fsm_msgRippleGetAddress(const RippleGetAddress *msg);
 
 void fsm_msgEosGetPublicKey(const EosGetPublicKey *msg);
 void fsm_msgEosSignTx(const EosSignTx *msg);

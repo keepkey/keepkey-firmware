@@ -20,6 +20,8 @@ set(sources
     policy.c
     recovery_cipher.c
     reset.c
+    ripple.c
+    ripple_base58.c
     signing.c
     storage.c
     transaction.c
