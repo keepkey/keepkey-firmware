@@ -1,8 +1,8 @@
-version: 2
+version: 2.1
 jobs:
   emulator-build-test:
     docker:
-      - image: circleci/python:2.7
+      - image: circleci/python:2.7.15
     steps:
       - checkout
       - run:
@@ -10,6 +10,26 @@ jobs:
           command: |
             git submodule update --init --recursive
       - setup_remote_docker
+      - run:
+          name: Build Emulator
+          command: |
+            docker build -t kktech/kkemu:$CIRCLE_SHA1 . -f ./scripts/emulator/Dockerfile
+      - run:
+          name: Docker Create
+          command: |
+            docker create -v /kkemu --name dummy kktech/kkemu:$CIRCLE_SHA1 /bin/true
+      - run:
+          name: Bridge Unittests
+          command: |
+            docker run -p 5000:5000 --volumes-from dummy kktech/kkemu:$CIRCLE_SHA1 &
+            mkdir -p test-reports/bridgetests
+            cd scripts/emulator
+            set +e
+            pip install --user pytest
+            python -m pytest bridge_test.py --junitxml=../../test-reports/bridgetests/junit.xml
+            TEST_STATUS="$?"
+            set -e
+            exit $TEST_STATUS
       - run:
           name: Emulator Tests
           command: |

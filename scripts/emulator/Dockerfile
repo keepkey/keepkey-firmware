@@ -9,6 +9,7 @@ RUN pip install \
     "protobuf>=3.0.0" \
     "mnemonic>=0.8" \
     requests \
+    flask \
     pytest
 
 RUN cmake -C ./cmake/caches/emulator.cmake . \
@@ -20,5 +21,6 @@ RUN cmake -C ./cmake/caches/emulator.cmake . \
 
 RUN make -j
 
-ENTRYPOINT ["./bin/kkemu"]
 EXPOSE 21324/udp 21325/udp
+EXPOSE 5000
+CMD ["/kkemu/scripts/emulator/run.sh"]
