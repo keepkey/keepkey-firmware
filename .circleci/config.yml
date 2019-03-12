@@ -27,7 +27,7 @@ jobs:
             sudo pip install pipenv
             #pipenv install
 
-            docker run -p 127.0.0.1:5000:5000 --volumes-from dummy kktech/kkemu:$CIRCLE_SHA1 
+            docker run -p 5000:5000 --volumes-from dummy kktech/kkemu:$CIRCLE_SHA1 &
             mkdir -p test-reports/bridgetests
             cd scripts/emulator
             set +e

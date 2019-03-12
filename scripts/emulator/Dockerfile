@@ -21,6 +21,6 @@ RUN cmake -C ./cmake/caches/emulator.cmake . \
 
 RUN make -j
 
-ENTRYPOINT ["/kkemu/scripts/emulator/run.sh"]
-EXPOSE 21324/udp 21325
+EXPOSE 21324/udp 21325/udp
 EXPOSE 5000
+CMD ["/kkemu/scripts/emulator/run.sh"]
