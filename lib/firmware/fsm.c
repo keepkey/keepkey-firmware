@@ -68,6 +68,7 @@
 
 #include "messages.pb.h"
 #include "messages-eos.pb.h"
+#include "messages-nano.pb.h"
 
 #include <stdio.h>
 
@@ -278,6 +279,7 @@ void fsm_msgClearSession(ClearSession *msg)
 #include "fsm_msg_common.h"
 #include "fsm_msg_coin.h"
 #include "fsm_msg_ethereum.h"
+#include "fsm_msg_nano.h"
 #include "fsm_msg_crypto.h"
 #include "fsm_msg_debug.h"
 #include "fsm_msg_eos.h"

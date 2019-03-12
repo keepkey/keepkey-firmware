@@ -11,6 +11,7 @@ set(sources
     exchange.c
     fsm.c
     home_sm.c
+    nano.c
     passphrase_sm.c
     pin_sm.c
     policy.c
