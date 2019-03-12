@@ -707,7 +707,7 @@ void animating_progress_handler(const char *desc, int permil)
     bp.base.color = 0xcc;
     draw_box(canvas, &bp);
 
-    bp.width = finished_width;
+    bp.width = finished_width - 1;
     bp.height = height - 2;
     bp.base.x = x + 1;
     bp.base.y = y + 1;

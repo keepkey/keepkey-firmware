@@ -111,7 +111,7 @@ const char *nano_getKnownRepName(const char *addr) {
         { "Official Rep 8 ",     "xrb_1hza3f7wiiqa7ig3jczyxj5yo86yegcmqk3criaz838j91sxcckpfhbhhra1" },
     };
 
-    for (int i = 0; i < sizeof(reps)/sizeof(reps[0]); i++) {
+    for (size_t i = 0; i < sizeof(reps)/sizeof(reps[0]); i++) {
         if (strcmp(addr, reps[i].addr) == 0)
             return reps[i].name;
     }
