@@ -315,7 +315,7 @@ bool nano_signTx(const NanoSignTx *msg, HDNode *node, NanoSignedTx *resp)
             if (rep_name)
                 nano_truncateAddress(coin, representative_address);
             if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                         "Representative", "Set account representative to %s%s?",
+                         "Representative", "Set account representative to\n%s%s?",
                          rep_name ? rep_name : "", representative_address)) {
                 fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
                 layoutHome();
