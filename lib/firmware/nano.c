@@ -86,6 +86,51 @@ void nano_hash_block_data(const uint8_t _account_pk[32],
     blake2b_Final(&ctx, _out_hash, 32);
 }
 
+const char *nano_getKnownRepName(const char *addr) {
+    static const struct {
+        const char *name;
+        const char *addr;
+    } reps[] = {
+        { "@meltingice ",        "xrb_1x7biz69cem95oo7gxkrw6kzhfywq4x5dupw4z1bdzkb74dk9kpxwzjbdhhs" },
+        { "@nanovault-rep ",     "xrb_3rw4un6ys57hrb39sy1qx8qy5wukst1iiponztrz9qiz6qqa55kxzx4491or" },
+        { "@nanowallet_rep1 ",   "xrb_3pczxuorp48td8645bs3m6c3xotxd3idskrenmi65rbrga5zmkemzhwkaznh" },
+        { "Binance Rep ",        "xrb_3jwrszth46rk1mu7rmb4rhm54us8yg1gw3ipodftqtikf5yqdyr7471nsg1k" },
+        { "BrainBlocks Rep ",    "xrb_1brainb3zz81wmhxndsbrjb94hx3fhr1fyydmg6iresyk76f3k7y7jiazoji" },
+        { "Genesis ",            "xrb_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3" },
+        { "KuCoin 1 ",           "xrb_1niabkx3gbxit5j5yyqcpas71dkffggbr6zpd3heui8rpoocm5xqbdwq44oh" },
+        { "NanoWallet Bot Rep ", "xrb_16k5pimotz9zehjk795wa4qcx54mtusk8hc5mdsjgy57gnhbj3hj6zaib4ic" },
+        { "Nanode Rep ",         "xrb_1nanode8ngaakzbck8smq6ru9bethqwyehomf79sae1k7xd47dkidjqzffeg" },
+        { "OKEx Rep ",           "xrb_1tig1rio7iskejqgy6ap75rima35f9mexjazdqqquthmyu48118jiewny7zo" },
+        { "Official Rep 1 ",     "xrb_3arg3asgtigae3xckabaaewkx3bzsh7nwz7jkmjos79ihyaxwphhm6qgjps4" },
+        { "Official Rep 2 ",     "xrb_1stofnrxuz3cai7ze75o174bpm7scwj9jn3nxsn8ntzg784jf1gzn1jjdkou" },
+        { "Official Rep 3 ",     "xrb_1q3hqecaw15cjt7thbtxu3pbzr1eihtzzpzxguoc37bj1wc5ffoh7w74gi6p" },
+        { "Official Rep 4 ",     "xrb_3dmtrrws3pocycmbqwawk6xs7446qxa36fcncush4s1pejk16ksbmakis78m" },
+        { "Official Rep 5 ",     "xrb_3hd4ezdgsp15iemx7h81in7xz5tpxi43b6b41zn3qmwiuypankocw3awes5k" },
+        { "Official Rep 6 ",     "xrb_1awsn43we17c1oshdru4azeqjz9wii41dy8npubm4rg11so7dx3jtqgoeahy" },
+        { "Official Rep 7 ",     "xrb_1anrzcuwe64rwxzcco8dkhpyxpi8kd7zsjc1oeimpc3ppca4mrjtwnqposrs" },
+        { "Official Rep 8 ",     "xrb_1hza3f7wiiqa7ig3jczyxj5yo86yegcmqk3criaz838j91sxcckpfhbhhra1" },
+    };
+
+    for (int i = 0; i < sizeof(reps)/sizeof(reps[0]); i++) {
+        if (strcmp(addr, reps[i].addr) == 0)
+            return reps[i].name;
+    }
+
+    return NULL;
+}
+
+void nano_truncateAddress(const CoinType *_coin, char *str) {
+    const size_t prefix_len = strlen(_coin->nanoaddr_prefix);
+    const size_t str_len = strlen(str);
+
+    if (str_len < prefix_len + 12)
+        return;
+
+    memset(&str[prefix_len + 5], '.', 2);
+    memmove(&str[prefix_len + 7], &str[str_len - 5], 5);
+    str[prefix_len+12] = '\0';
+}
+
 void nano_signingAbort(void)
 {
     bn_zero(&parent_balance);
@@ -266,9 +311,12 @@ bool nano_signTx(const NanoSignTx *msg, HDNode *node, NanoSignedTx *resp)
 
     if (needs_confirm) {
         if (strlen(representative_address) > 0) {
+            const char *rep_name = nano_getKnownRepName(representative_address);
+            if (rep_name)
+                nano_truncateAddress(coin, representative_address);
             if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                         "Representative", "Set account representative to %s?",
-                         representative_address)) {
+                         "Representative", "Set account representative to %s%s?",
+                         rep_name ? rep_name : "", representative_address)) {
                 fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
                 layoutHome();
                 return false;

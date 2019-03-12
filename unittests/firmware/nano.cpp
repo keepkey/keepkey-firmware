@@ -6,6 +6,43 @@ extern "C" {
 #include "gtest/gtest.h"
 #include <string>
 
+static void test_truncateAddress(
+  const CoinType *coin,
+  const std::string &addr,
+  const std::string &expected)
+{
+  char value[100];
+  strlcpy(value, addr.c_str(), sizeof(value));
+
+  nano_truncateAddress(coin, value);
+
+  ASSERT_EQ(expected, std::string(value));
+}
+
+TEST(Nano, GetKnownRepName) {
+    EXPECT_EQ(std::string("Official Rep 1 "), nano_getKnownRepName("xrb_3arg3asgtigae3xckabaaewkx3bzsh7nwz7jkmjos79ihyaxwphhm6qgjps4"));
+    EXPECT_EQ(nullptr, nano_getKnownRepName("xrb_notarealrepresentative"));
+}
+
+TEST(Nano, TruncateAddress) {
+  CoinType coin;
+  memcpy(&coin, coinByName("Nano"), sizeof(coin));
+
+  strcpy(coin.nanoaddr_prefix, "xrb_");
+  test_truncateAddress(
+    &coin,
+    "xrb_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3",
+    "xrb_3t6k3..uohr3");
+  test_truncateAddress(&coin, "xrb_3t6k35gi95", "xrb_3t6k35gi95");
+  test_truncateAddress(&coin, "", "");
+
+  strcpy(coin.nanoaddr_prefix, "nano_");
+  test_truncateAddress(
+    &coin,
+    "nano_1nanode8ngaakzbck8smq6ru9bethqwyehomf79sae1k7xd47dkidjqzffeg",
+    "nano_1nano..zffeg");
+}
+
 static std::string bytes_to_hex(const uint8_t *buf, const size_t size)
 {
     static const char *ALPHABET = "0123456789ABCDEF";
