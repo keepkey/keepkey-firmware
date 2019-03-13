@@ -14,6 +14,8 @@ debug = ('0.0.0.0', 21325)
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 s.connect(device)
 
+app = Flask(__name__)
+
 @app.route('/exchange/<string:kind>', methods=['GET', 'POST'])
 def exchange(kind):
 
@@ -36,4 +38,5 @@ def exchange(kind):
 
     return Response('{}', status=404, mimetype='application/json')
 
-
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0')
