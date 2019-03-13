@@ -11,22 +11,13 @@ jobs:
             git submodule update --init --recursive
       - setup_remote_docker
       - run:
-          name: Build Emulator
-          command: |
-            docker build -t kktech/kkemu:$CIRCLE_SHA1 . -f ./scripts/emulator/Dockerfile
-      - run:
-          name: Docker Create
-          command: |
-            docker create -v /kkemu --name dummy kktech/kkemu:$CIRCLE_SHA1 /bin/true
-      - run:
           name: Bridge Unittests
           command: |
             mkdir -p test-reports/bridgetests
             cd scripts/emulator
             set +e
-            pip install --user pytest
-            python -m pytest bridge_test.py --junitxml=../../test-reports/bridgetests/junit.xml
-            TEST_STATUS="$?"
+            docker-compose up --build bridge-tests
+            BRIDGE_RESULTS="$?"
             set -e
             exit $TEST_STATUS
       - run:
