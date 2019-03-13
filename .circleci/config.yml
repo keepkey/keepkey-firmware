@@ -42,7 +42,8 @@ jobs:
           name: Publish Emulator
           command: |
             docker login -u $DOCKER_LOGIN -p $DOCKER_PWD
-            docker push kktech/kkemu:$CIRCLE_SHA1
+            docker tag kktech/kkemu:$CIRCLE_SHA1 kktech/kkemu:$CIRCLE_BRANCH
+            docker push kktech/kkemu:$CIRCLE_BRANCH
 workflows:
   version: 2
   emulator:
