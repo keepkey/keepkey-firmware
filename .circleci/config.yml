@@ -43,6 +43,8 @@ jobs:
           command: |
             docker login -u $DOCKER_LOGIN -p $DOCKER_PWD
             docker push kktech/kkemu:$CIRCLE_SHA1
+            docker tag kktech/kkemu:$CIRCLE_SHA1 kktech/kkemu:latest
+            docker push kktech/kkemu:latest
 workflows:
   version: 2
   emulator:
