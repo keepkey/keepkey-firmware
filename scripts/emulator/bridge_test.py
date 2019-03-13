@@ -2,7 +2,7 @@ import requests
 import json
 import binascii
 
-url = 'http://localhost:5000/exchange/device'
+url = 'http://127.0.0.1:5000/exchange/device'
 
 def test_single_packet_write_read():
     # send ping
