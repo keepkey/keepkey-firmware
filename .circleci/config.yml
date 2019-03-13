@@ -2,7 +2,7 @@ version: 2
 jobs:
   emulator-build-test-publish:
     docker:
-      - image: docker:17.05.0-ce-git
+      - image: circleci/python:2.7
     steps:
       - checkout
       - run:
@@ -11,38 +11,25 @@ jobs:
             git submodule update --init --recursive
       - setup_remote_docker
       - run:
-          name: Build Emulator
+          name: Emulator Tests
           command: |
-            docker build -t kktech/kkemu:$CIRCLE_SHA1 . -f ./scripts/emulator/Dockerfile
-      - run:
-          name: Docker Create
-          command: |
-            docker create -v /kkemu --name dummy kktech/kkemu:$CIRCLE_SHA1 /bin/true
-      - run:
-          name: Emulator Unittests
-          command: |
+            cd ./scripts/emulator
             set +e
-            docker run --volumes-from dummy --entrypoint '/bin/sh' kktech/kkemu:$CIRCLE_SHA1 -c "make xunit"
-            UNIT_STATUS="$?"
-            docker run --volumes-from dummy --entrypoint '/bin/sh' kktech/kkemu:$CIRCLE_SHA1 -c "source ./scripts/emulator/test.sh"
-            TEST_STATUS="$?"
+            docker-compose up --build firmware-unit
+            UNIT_RESULTS="$?"
+            docker-compose up --build python-keepkey
+            TEST_RESULTS="$?"
             set -e
-            mkdir -p test-reports/unittests
-            mkdir -p test-reports/python-keepkey
-            docker cp dummy:/kkemu/unittests/. test-reports/unittests
-            docker cp dummy:/kkemu/bin/junit.xml test-reports/python-keepkey
-            (exit $UNIT_STATUS) && (exit $TEST_STATUS)
+            (exit $UNIT_RESULTS) || (exit $TEST_RESULTS)
       - store_test_results:
-          path: test-reports
-      - run:
-          name: Docker RM
-          command: |
-            docker rm -f dummy
+          path: scripts/emulator/test-reports
       - deploy:
           name: Publish Emulator
           command: |
-            docker login -u $DOCKER_LOGIN -p $DOCKER_PWD
-            docker tag kktech/kkemu:$CIRCLE_SHA1 kktech/kkemu:$CIRCLE_BRANCH
+            docker login -u "$DOCKER_LOGIN" -p "$DOCKER_PWD"
+            docker tag kktech/kkemu:latest kktech/kkemu:$CIRCLE_SHA1
+            docker tag kktech/kkemu:latest kktech/kkemu:$CIRCLE_BRANCH
+            docker push kktech/kkemu:$CIRCLE_SHA1
             docker push kktech/kkemu:$CIRCLE_BRANCH
 workflows:
   version: 2

@@ -1,10 +1,36 @@
 version: '3'
 services:
   kkemu:
+    image: kktech/kkemu:latest
     build:
       context: '../../'
       dockerfile: 'scripts/emulator/Dockerfile'
-    image: kktech/kkemu:latest
+    networks:
+      - local-net
     ports:
-      - "127.0.0.1:21324:21324/udp"
-      - "127.0.0.1:21325:21325/udp"
+      - "21324:21324/udp"
+      - "21325:21325/udp"
+  python-keepkey:
+    build:
+      context: '../../'
+      dockerfile: 'scripts/emulator/python-keepkey.Dockerfile'
+    volumes:
+      - $PWD/test-reports:/kkemu/test-reports:rw
+    networks:
+      - local-net
+    depends_on:
+      - kkemu
+  firmware-unit:
+    build:
+      context: '../../'
+      dockerfile: 'scripts/emulator/Dockerfile'
+    volumes:
+      - $PWD/test-reports:/kkemu/test-reports:rw
+    entrypoint: ['scripts/emulator/firmware-unit.sh']
+    networks:
+      - local-net
+    depends_on:
+      - kkemu
+networks:
+  local-net:
+    external: false
