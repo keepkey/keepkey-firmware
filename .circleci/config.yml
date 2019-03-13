@@ -21,7 +21,6 @@ jobs:
       - run:
           name: Bridge Unittests
           command: |
-            docker run -p 5000:5000 --volumes-from dummy kktech/kkemu:$CIRCLE_SHA1 &
             mkdir -p test-reports/bridgetests
             cd scripts/emulator
             set +e
