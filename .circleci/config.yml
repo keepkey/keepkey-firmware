@@ -1,6 +1,6 @@
 version: 2
 jobs:
-  emulator-build-test-publish:
+  emulator-build-test:
     docker:
       - image: circleci/python:2.7
     steps:
@@ -26,17 +26,9 @@ jobs:
             (exit $UNIT_RESULTS) || (exit $TEST_RESULTS)
       - store_test_results:
           path: test-reports
-      - deploy:
-          name: Publish Emulator
-          command: |
-            docker login -u "$DOCKER_LOGIN" -p "$DOCKER_PWD"
-            docker tag kktech/kkemu:latest kktech/kkemu:$CIRCLE_SHA1
-            docker tag kktech/kkemu:latest kktech/kkemu:$CIRCLE_BRANCH
-            docker push kktech/kkemu:$CIRCLE_SHA1
-            docker push kktech/kkemu:$CIRCLE_BRANCH
 workflows:
   version: 2
   emulator:
     jobs:
-      - emulator-build-test-publish
+      - emulator-build-test
 
