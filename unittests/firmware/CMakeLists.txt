@@ -2,6 +2,7 @@ set(sources
     coins.cpp
     eos.cpp
     ethereum.cpp
+    nano.cpp
     recovery.cpp
     storage.cpp
     u2f.cpp)

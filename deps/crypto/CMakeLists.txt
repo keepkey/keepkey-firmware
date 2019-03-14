@@ -16,10 +16,12 @@ set(sources
     trezor-crypto/ed25519-donna/curve25519-donna-helpers.c
     trezor-crypto/ed25519-donna/ed25519-keccak.c
     trezor-crypto/ed25519-donna/ed25519-sha3.c
+    trezor-crypto/ed25519-donna/ed25519-blake2b.c
     trezor-crypto/ed25519-donna/ed25519-donna-basepoint-table.c
     trezor-crypto/ed25519-donna/modm-donna-32bit.c
     trezor-crypto/ed25519-donna/curve25519-donna-32bit.c
     trezor-crypto/ed25519-donna/ed25519-donna-impl-base.c
+    trezor-crypto/nano.c
     trezor-crypto/nem.c
     trezor-crypto/secp256k1.c
     trezor-crypto/bignum.c

@@ -63,6 +63,7 @@ add_definitions(-DED25519_FORCE_32BIT=1)
 add_definitions(-DUSE_ETHEREUM=1)
 add_definitions(-DUSE_CARDANO=0)
 add_definitions(-DUSE_MONERO=0)
+add_definitions(-DUSE_NANO=1)
 
 add_definitions(-DRAND_PLATFORM_INDEPENDENT=0)
 
