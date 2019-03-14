@@ -4,7 +4,6 @@ import binascii
 import os
 
 url = 'http://{}/exchange/device'.format(os.getenv('KK_BRIDGE', '127.0.0.1:5000'))
-print('KK_BRIDGE', os.getenv('KK_BRIDGE'))
 
 def test_single_packet_write_read():
     # send ping with short message

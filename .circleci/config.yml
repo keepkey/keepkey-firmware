@@ -3,8 +3,8 @@ jobs:
   emulator-build-test-publish:
     docker:
       - image: circleci/python:2.7.15
-        environment:
-          PIPENV_VENV_IN_PROJECT: true
+        #environment:
+          #PIPENV_VENV_IN_PROJECT: true
     steps:
       - checkout
       - run:
@@ -23,17 +23,11 @@ jobs:
       - run:
           name: Bridge Unittests
           command: |
-            sudo pip install pipenv
-            #docker run -p 5000:5000 -d --volumes-from dummy kktech/kkemu:$CIRCLE_SHA1
-            #mkdir -p test-reports/bridgetests
+            #sudo pip install pipenv
             cd ./scripts/emulator
             set +e
             docker-compose up --build bridge-tests
             BRIDGE_RESULTS="$?"
-
-            #pip install --user pytest
-            #python -m pytest bridge_test.py --junitxml=../../test-reports/bridgetests/junit.xml
-            #TEST_STATUS="$?"
             set -e
             exit $TEST_STATUS
       - run:
