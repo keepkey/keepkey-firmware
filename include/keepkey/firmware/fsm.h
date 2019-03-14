@@ -85,6 +85,8 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage *msg);
 void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg);
 void fsm_msgCharacterAck(CharacterAck *msg);
 void fsm_msgApplyPolicies(ApplyPolicies *msg);
+void fsm_msgNanoGetAddress(NanoGetAddress *msg);
+void fsm_msgNanoSignTx(NanoSignTx *msg);
 
 void fsm_msgEosGetPublicKey(const EosGetPublicKey *msg);
 void fsm_msgEosSignTx(const EosSignTx *msg);

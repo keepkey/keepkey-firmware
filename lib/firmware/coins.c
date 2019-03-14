@@ -26,6 +26,7 @@
 #include <stdio.h>
 
 #define SECP256K1_STRING "secp256k1"
+#define ED25519_BLAKE2B_NANO_STRING  "ed25519-blake2b-nano"
 
 const CoinType coins[COINS_COUNT] = {
 #define X(\
@@ -47,7 +48,8 @@ HAS_CASHADDR_PREFIX, CASHADDR_PREFIX, \
 HAS_BECH32_PREFIX, BECH32_PREFIX, \
 HAS_DECRED, DECRED, \
 HAS_XPUB_MAGIC_SEGWIT_P2SH, XPUB_MAGIC_SEGWIT_P2SH, \
-HAS_XPUB_MAGIC_SEGWIT_NATIVE, XPUB_MAGIC_SEGWIT_NATIVE \
+HAS_XPUB_MAGIC_SEGWIT_NATIVE, XPUB_MAGIC_SEGWIT_NATIVE, \
+HAS_NANOADDR_PREFIX, NANOADDR_PREFIX \
 ) \
     { HAS_COIN_NAME, COIN_NAME, \
       HAS_COIN_SHORTCUT, COIN_SHORTCUT, \
@@ -67,7 +69,8 @@ HAS_XPUB_MAGIC_SEGWIT_NATIVE, XPUB_MAGIC_SEGWIT_NATIVE \
       HAS_BECH32_PREFIX, BECH32_PREFIX, \
       HAS_DECRED, DECRED, \
       HAS_XPUB_MAGIC_SEGWIT_P2SH, XPUB_MAGIC_SEGWIT_P2SH, \
-      HAS_XPUB_MAGIC_SEGWIT_NATIVE, XPUB_MAGIC_SEGWIT_NATIVE },
+      HAS_XPUB_MAGIC_SEGWIT_NATIVE, XPUB_MAGIC_SEGWIT_NATIVE, \
+      HAS_NANOADDR_PREFIX, NANOADDR_PREFIX },
     #include "keepkey/firmware/coins.def"
 
 #define X(INDEX, NAME, SYMBOL, DECIMALS, CONTRACT_ADDRESS) \
@@ -91,6 +94,7 @@ HAS_XPUB_MAGIC_SEGWIT_NATIVE, XPUB_MAGIC_SEGWIT_NATIVE \
       false, false,                      /* has_decred, decred */ \
       false, 0,                          /* has_xpub_magic_segwit_p2sh, xpub_magic_segwit_p2sh*/ \
       false, 0,                          /* has_xpub_magic_segwit_native, xpub_magic_segwit_native*/ \
+      false, "",                         /* has_nanoaddr_prefix, nanoaddr_prefix*/ \
     },
     #include "keepkey/firmware/tokens.def"
 };
