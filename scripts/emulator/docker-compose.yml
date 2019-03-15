@@ -8,8 +8,19 @@ services:
     networks:
       - local-net
     ports:
-      - "21324:21324/udp"
-      - "21325:21325/udp"
+      - "127.0.0.1:21324:21324/udp"
+      - "127.0.0.1:21325:21325/udp"
+      - "127.0.0.1:5000:5000"
+  bridge-tests:
+    build:
+      context: '../..'
+      dockerfile: 'scripts/emulator/bridge.Dockerfile'
+    volumes:
+      - test-reports:/kkemu/test-reports:rw
+    networks:
+      - local-net
+    depends_on:
+      - kkemu
   python-keepkey:
     build:
       context: '../../'
