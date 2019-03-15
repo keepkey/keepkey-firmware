@@ -23,7 +23,7 @@ jobs:
             docker cp "$(docker-compose ps -q firmware-unit)":/kkemu/test-reports/. ../../test-reports/
             docker cp "$(docker-compose ps -q python-keepkey)":/kkemu/test-reports/. ../../test-reports/
             popd
-            (exit $UNIT_RESULTS) || (exit $TEST_RESULTS)
+            (exit $UNIT_RESULTS) && (exit $TEST_RESULTS)
       - store_test_results:
           path: test-reports
 workflows:
