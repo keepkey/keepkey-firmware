@@ -23,6 +23,7 @@ jobs:
             TEST_RESULTS="$?"
             set -e
             docker cp "$(docker-compose ps -q firmware-unit)":/kkemu/test-reports/. ../../test-reports/
+            docker cp "$(docker-compose ps -q bridge-tests)":/kkemu/test-reports/. ../../test-reports/
             docker cp "$(docker-compose ps -q python-keepkey)":/kkemu/test-reports/. ../../test-reports/
             popd
             (exit $UNIT_RESULTS) && (exit $BRIDGE_RESULTS) && (exit $TEST_RESULTS)
