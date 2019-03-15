@@ -11,29 +11,21 @@ jobs:
             git submodule update --init --recursive
       - setup_remote_docker
       - run:
-          name: Bridge Unittests
-          command: |
-            mkdir -p test-reports/bridgetests
-            cd scripts/emulator
-            set +e
-            docker-compose up --build bridge-tests
-            BRIDGE_RESULTS="$?"
-            set -e
-            exit $TEST_STATUS
-      - run:
           name: Emulator Tests
           command: |
             pushd ./scripts/emulator
             set +e
             docker-compose up --build firmware-unit
             UNIT_RESULTS="$?"
+            docker-compose up --build bridge-tests
+            BRIDGE_RESULTS="$?"
             docker-compose up --build python-keepkey
             TEST_RESULTS="$?"
             set -e
             docker cp "$(docker-compose ps -q firmware-unit)":/kkemu/test-reports/. ../../test-reports/
             docker cp "$(docker-compose ps -q python-keepkey)":/kkemu/test-reports/. ../../test-reports/
             popd
-            (exit $UNIT_RESULTS) && (exit $TEST_RESULTS)
+            (exit $UNIT_RESULTS) && (exit $BRIDGE_RESULTS) && (exit $TEST_RESULTS)
       - store_test_results:
           path: test-reports
 workflows:
