@@ -17,8 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
-
 #if !defined(EMULATOR)
 // FIXME: cortex.h should really have these includes inside it.
 #  include <inttypes.h>
@@ -39,8 +37,6 @@
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/coins.h"
 
-#include "trezor/qrenc/qr_encode.h"
-
 #include <assert.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -48,7 +44,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-
 
 /*
  * confirm_cipher() - Show cipher confirmation

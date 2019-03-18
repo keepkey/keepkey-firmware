@@ -1,9 +1,8 @@
 set(sources
-    trezor-qrenc/qr_encode.c)
-
+    QR-Code-generator/c/qrcodegen.c)
 
 include_directories(
-  ${CMAKE_SOURCE_DIR}/deps/qrenc/trezor-qrenc
+  ${CMAKE_SOURCE_DIR}/deps/qrenc/QR-Code-generator/c
   ${OPENSSL_INCLUDE_DIR})
 
-add_library(trezorqrenc ${sources})
+add_library(qrcodegenerator ${sources})

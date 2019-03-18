@@ -68,7 +68,6 @@ add_definitions(-DUSE_NANO=1)
 add_definitions(-DRAND_PLATFORM_INDEPENDENT=0)
 
 add_definitions(-DPB_FIELD_16BIT=1)
-add_definitions(-DQR_MAX_VERSION=0)
 
 add_definitions(-DMAJOR_VERSION=${PROJECT_VERSION_MAJOR})
 add_definitions(-DMINOR_VERSION=${PROJECT_VERSION_MINOR})
