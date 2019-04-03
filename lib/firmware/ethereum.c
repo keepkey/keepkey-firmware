@@ -432,6 +432,9 @@ static void layoutEthereumFee(const uint8_t *value, uint32_t value_len,
 	char tx_value[32];
 	char gas_value[32];
 
+	memzero(tx_value, sizeof(tx_value));
+	memzero(gas_value, sizeof(gas_value));
+
 	memset(pad_val, 0, sizeof(pad_val));
 	memcpy(pad_val + (32 - gas_price_len), gas_price, gas_price_len);
 	bn_read_be(pad_val, &val);
