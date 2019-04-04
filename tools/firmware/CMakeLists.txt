@@ -34,7 +34,7 @@ if(NOT ${KK_EMULATOR})
       kkvariant.salt
       kktransport
       trezorcrypto
-      trezorqrenc
+      qrcodegenerator
       kkrand
       -lopencm3_stm32f2
       -lc
@@ -55,7 +55,7 @@ if(NOT ${KK_EMULATOR})
       kkvariant.salt
       kktransport
       trezorcrypto
-      trezorqrenc
+      qrcodegenerator
       kkrand
       -lopencm3_stm32f2
       -lc

@@ -14,7 +14,7 @@ set(libraries
     kkboard
     kkemulator
     trezorcrypto
-    trezorqrenc
+    qrcodegenerator
     kkrand
     kktransport)
 

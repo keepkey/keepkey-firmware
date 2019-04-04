@@ -17,7 +17,7 @@ target_link_libraries(board-unit
     kkvariant.salt
     kkboard
     trezorcrypto
-    trezorqrenc
+    qrcodegenerator
     kkemulator
     kkrand
     kktransport)

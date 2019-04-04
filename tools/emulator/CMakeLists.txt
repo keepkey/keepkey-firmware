@@ -19,7 +19,7 @@ if(${KK_EMULATOR})
       kkvariant.salt
       kktransport
       trezorcrypto
-      trezorqrenc
+      qrcodegenerator
       kkrand
       kkemulator)
 endif()

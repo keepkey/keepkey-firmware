@@ -33,7 +33,7 @@ include_directories(
   ${CMAKE_CURRENT_BINARY_DIR})
 
 add_library(kkfirmware ${sources})
-add_dependencies(kkfirmware kktransport.pb trezorcrypto trezorqrenc ethereum_tokens.def)
+add_dependencies(kkfirmware kktransport.pb trezorcrypto qrcodegenerator ethereum_tokens.def)
 
 file(GLOB_RECURSE ethereum_tokens_json ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/*.*)
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/include/keepkey/firmware/ethereum_tokens.def
