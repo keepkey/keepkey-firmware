@@ -712,7 +712,7 @@ void animating_progress_handler(const char *desc, int permil)
     bp.base.x = x + 1;
     bp.base.y = y + 1;
     bp.base.color = 0xff;
-    if (permil > 0) {
+    if (finished_width > 1) {
         draw_box(canvas, &bp);
     }
 
@@ -721,9 +721,7 @@ void animating_progress_handler(const char *desc, int permil)
     bp.base.x = x + finished_width + 1;
     bp.base.y = y + 1;
     bp.base.color = 0x00;
-    if (permil < 1000) {
-        draw_box(canvas, &bp);
-    }
+    draw_box(canvas, &bp);
 
     display_refresh();
 }
