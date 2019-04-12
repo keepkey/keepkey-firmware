@@ -95,25 +95,22 @@ static bool write_bootloader(void)
         flash_unlock();
 
         // erase the bootloader sectors, do not use flash_erase_word()
+        layoutProgress("Updating. DO NOT UNPLUG", 0);
         while (s->use != FLASH_INVALID) {
             if (s->use == FLASH_BOOTLOADER) {
                 // erase the sector
                 flash_erase_sector(s->sector, FLASH_CR_PROGRAM_X32);
                 // Wait for operation to complete.
                 flash_wait_for_last_operation();
-                }
+            }
             ++s;
         }
 
         // Write into the sector.
         for (size_t chunkstart = 0; chunkstart < sizeof(bootloader); chunkstart += CHUNK_SIZE) {
-            char message[20];
+            layoutProgress("Updating. DO NOT UNPLUG", (int)(chunkstart * 1000 / sizeof(bootloader)));
+
             size_t chunksize;
-
-            snprintf(message, sizeof(message), "DO NOT UNPLUG! %d%%",
-                      (int)(chunkstart * 100 / sizeof(bootloader)));
-            layout_simple_message(message);
-
             if (sizeof(bootloader) > chunkstart+CHUNK_SIZE) {
                 chunksize = CHUNK_SIZE;
             } else {
@@ -166,7 +163,7 @@ static bool unknown_bootloader(void) {
 /// \brief Success: everything went smoothly as expected, and the device has a
 ///        new bootloader installed.
 static void success(void) {
-    layout_warning_static("Bootloader successfully updated to v" BL_VERSION);
+    layout_simple_message("Bootloader Update Complete");
     display_refresh();
     delay_ms(5000);
 
@@ -237,9 +234,6 @@ int main(void)
 
     kk_board_init();
 
-    layout_warning_static("Bootloader Updater v" BL_VERSION);
-    delay_ms(2000);
-
 #ifdef DEBUG_ON
     memset(bl_hash, 0, sizeof(bl_hash));
     sha256_Raw((const uint8_t*)bootloader, sizeof(bootloader), bl_hash);
@@ -281,13 +275,6 @@ int main(void)
 #endif
     }
 
-    layout_simple_message("Updating bootloader to v" BL_VERSION);
-    delay_ms(2000);
-    layout_simple_message("DO NOT UNPLUG!");
-
-    display_refresh();
-    delay_ms(1000);
-
     // Shove the model # into OTP if it wasn't already there.
     (void)flash_programModel();
 
@@ -300,9 +287,7 @@ int main(void)
     return 0;
 }
 
-
-
-/* 
+/*
    The blupdater scheme is designed to run as a privileged mode fw version. The blupdater must be signed just as
    any other kk defined firmware, however the bootloader needs to distinguish this firmware from normal operating
    firmware. This is the ethernet DMA isr (61), extremely unlikely to ever be required in a kk device. This unique vector
