@@ -10,9 +10,9 @@
 [submodule "code-signing-keys"]
 	path = code-signing-keys
 	url = https://github.com/keepkey/code-signing-keys.git
-[submodule "deps/qrenc/trezor-qrenc"]
-	path = deps/qrenc/trezor-qrenc
-	url = https://github.com/keepkey/trezor-qrenc.git
 [submodule "deps/python-keepkey"]
 	path = deps/python-keepkey
 	url = https://github.com/keepkey/python-keepkey.git
+[submodule "deps/qrenc/QR-Code-generator"]
+	path = deps/qrenc/QR-Code-generator
+	url = https://github.com/keepkey/QR-Code-generator.git
