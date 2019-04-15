@@ -61,11 +61,10 @@
 #define NUM_RETRIES 8
 #define CHUNK_SIZE  0x100
 
-#ifdef DEBUG_ON
-#  define BL_VERSION "DEBUG"
-#else
-#  define BL_VERSION
-#endif
+#define BL_VERSION \
+    VERSION_STR(BOOTLOADER_MAJOR_VERSION)  "." \
+    VERSION_STR(BOOTLOADER_MINOR_VERSION)  "." \
+    VERSION_STR(BOOTLOADER_PATCH_VERSION)
 
 static uint8_t payload_hash[SHA256_DIGEST_LENGTH];
 extern const uint8_t _binary_payload_bin_start[];
