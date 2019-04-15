@@ -61,14 +61,15 @@
 #define NUM_RETRIES 8
 #define CHUNK_SIZE  0x100
 
-#ifdef DEBUG_ON
-static uint8_t bl_hash[SHA256_DIGEST_LENGTH];
-#  define BL_HASH bl_hash
-#  define BL_VERSION "DEBUG"
-#  include "bin/bootloader.debug.h"
-#else
-#  include "bin/bootloader.release.h"
-#endif
+#define BL_VERSION \
+    VERSION_STR(BOOTLOADER_MAJOR_VERSION)  "." \
+    VERSION_STR(BOOTLOADER_MINOR_VERSION)  "." \
+    VERSION_STR(BOOTLOADER_PATCH_VERSION)
+
+static uint8_t payload_hash[SHA256_DIGEST_LENGTH];
+extern const uint8_t _binary_payload_bin_start[];
+extern const uint8_t _binary_payload_bin_end[];
+static int _binary_payload_bin_size;
 
 void mmhisr(void);
 void mpu_blup(void);
@@ -83,11 +84,7 @@ static bool write_bootloader(void)
     const FlashSector* s = flash_sector_map;
     static uint8_t hash[SHA256_DIGEST_LENGTH];
     memset(hash, 0, sizeof(hash));
-    sha256_Raw((const uint8_t*)bootloader, sizeof(bootloader), hash);
-
-
-    if (memcmp(hash, BL_HASH, sizeof(hash)))
-        return true;
+    sha256_Raw((const uint8_t*)_binary_payload_bin_start, _binary_payload_bin_size, hash);
 
     for (int i = 0; i < NUM_RETRIES; ++i) {
         // Enable writing to the read-only sectors
@@ -95,32 +92,29 @@ static bool write_bootloader(void)
         flash_unlock();
 
         // erase the bootloader sectors, do not use flash_erase_word()
+        layoutProgress("Updating. DO NOT UNPLUG", 0);
         while (s->use != FLASH_INVALID) {
             if (s->use == FLASH_BOOTLOADER) {
                 // erase the sector
                 flash_erase_sector(s->sector, FLASH_CR_PROGRAM_X32);
                 // Wait for operation to complete.
                 flash_wait_for_last_operation();
-                }
+            }
             ++s;
         }
 
         // Write into the sector.
-        for (size_t chunkstart = 0; chunkstart < sizeof(bootloader); chunkstart += CHUNK_SIZE) {
-            char message[20];
+        for (int chunkstart = 0; chunkstart < _binary_payload_bin_size; chunkstart += CHUNK_SIZE) {
+            layoutProgress("Updating. DO NOT UNPLUG", (int)(chunkstart * 1000 / _binary_payload_bin_size));
+
             size_t chunksize;
-
-            snprintf(message, sizeof(message), "DO NOT UNPLUG! %d%%",
-                      (int)(chunkstart * 100 / sizeof(bootloader)));
-            layout_simple_message(message);
-
-            if (sizeof(bootloader) > chunkstart+CHUNK_SIZE) {
+            if (_binary_payload_bin_size > chunkstart+CHUNK_SIZE) {
                 chunksize = CHUNK_SIZE;
             } else {
-                chunksize = sizeof(bootloader) - chunkstart;
+                chunksize = _binary_payload_bin_size - chunkstart;
             }
 
-            flash_program((uint32_t)(FLASH_BOOT_START+chunkstart), &bootloader[chunkstart], chunksize);
+            flash_program((uint32_t)(FLASH_BOOT_START+chunkstart), &_binary_payload_bin_start[chunkstart], chunksize);
         }
 
         // Disallow writing to flash.
@@ -130,9 +124,9 @@ static bool write_bootloader(void)
         flash_clear_status_flags();
 
         memset(hash, 0, sizeof(hash));
-        sha256_Raw((const uint8_t*)FLASH_BOOT_START, sizeof(bootloader), hash);
+        sha256_Raw((const uint8_t*)FLASH_BOOT_START, _binary_payload_bin_size, hash);
 
-        if (!memcmp(hash, BL_HASH, sizeof(hash))) {
+        if (!memcmp(hash, payload_hash, sizeof(hash))) {
             // Success
             return false;
         }
@@ -166,7 +160,7 @@ static bool unknown_bootloader(void) {
 /// \brief Success: everything went smoothly as expected, and the device has a
 ///        new bootloader installed.
 static void success(void) {
-    layout_warning_static("Bootloader successfully updated to v" BL_VERSION);
+    layout_simple_message("Bootloader Update Complete");
     display_refresh();
     delay_ms(5000);
 
@@ -223,7 +217,7 @@ static void *memmem(const void *haystack_start, size_t haystack_len,
 }
 
 int main(void)
-{ 
+{
     _buttonusr_isr = (void *)&buttonisr_usr;
     _timerusr_isr = (void *)&timerisr_usr;
     _mmhusr_isr = (void *)&mmhisr;
@@ -237,21 +231,17 @@ int main(void)
 
     kk_board_init();
 
-    layout_warning_static("Bootloader Updater v" BL_VERSION);
-    delay_ms(2000);
-
-#ifdef DEBUG_ON
-    memset(bl_hash, 0, sizeof(bl_hash));
-    sha256_Raw((const uint8_t*)bootloader, sizeof(bootloader), bl_hash);
-#endif
+    memset(payload_hash, 0, sizeof(payload_hash));
+    _binary_payload_bin_size = _binary_payload_bin_end - _binary_payload_bin_start;
+    sha256_Raw((const uint8_t*)_binary_payload_bin_start, _binary_payload_bin_size, payload_hash);
 
 #ifndef DEBUG_ON    // for testing, update every time even if it's the same bl
     // Check if we've already updated
     static uint8_t hash[SHA256_DIGEST_LENGTH];
     memset(hash, 0, sizeof(hash));
-    sha256_Raw((const uint8_t*)FLASH_BOOT_START, sizeof(bootloader), hash);
+    sha256_Raw((const uint8_t*)FLASH_BOOT_START, _binary_payload_bin_size, hash);
 
-    if (!memcmp(hash, BL_HASH, sizeof(hash))) {
+    if (!memcmp(hash, payload_hash, sizeof(hash))) {
         success();
         return 0;
     }
@@ -272,7 +262,7 @@ int main(void)
     // that's actually in the bootloader we're about to write to the device.
     // This implies that the version of blupdater, and the bootloader it writes
     // must always be the same.
-    if (!memmem((const char*)bootloader, sizeof(bootloader),
+    if (!memmem((const char*)_binary_payload_bin_start, _binary_payload_bin_size,
                 application_version, strlen(application_version))) {
 #ifndef DEBUG_ON
         layout_warning_static("version mismatch");
@@ -280,13 +270,6 @@ int main(void)
         return 0;
 #endif
     }
-
-    layout_simple_message("Updating bootloader to v" BL_VERSION);
-    delay_ms(2000);
-    layout_simple_message("DO NOT UNPLUG!");
-
-    display_refresh();
-    delay_ms(1000);
 
     // Shove the model # into OTP if it wasn't already there.
     (void)flash_programModel();
@@ -300,9 +283,7 @@ int main(void)
     return 0;
 }
 
-
-
-/* 
+/*
    The blupdater scheme is designed to run as a privileged mode fw version. The blupdater must be signed just as
    any other kk defined firmware, however the bootloader needs to distinguish this firmware from normal operating
    firmware. This is the ethernet DMA isr (61), extremely unlikely to ever be required in a kk device. This unique vector

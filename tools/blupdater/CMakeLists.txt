@@ -24,8 +24,29 @@ if(NOT ${KK_EMULATOR})
       -lc
       -lm)
 
+  add_library(payload
+      STATIC payload.o)
+
+  add_custom_command(OUTPUT payload.o
+      DEPENDS ${CMAKE_BINARY_DIR}/bin/bootloader.elf
+      COMMAND ${CMAKE_OBJCOPY} ARGS -O binary
+          ${CMAKE_BINARY_DIR}/bin/bootloader.elf
+          ${CMAKE_BINARY_DIR}/bin/payload.bin
+      COMMAND cd ${CMAKE_BINARY_DIR}/bin && ${CMAKE_LINKER} -r -b binary -o ${CMAKE_CURRENT_BINARY_DIR}/payload.o payload.bin
+      COMMAND ${CMAKE_OBJCOPY} --rename-section .data=.rodata,alloc,load,readonly,data,contents ${CMAKE_CURRENT_BINARY_DIR}/payload.o ${CMAKE_CURRENT_BINARY_DIR}/payload.o)
+
+  set_source_files_properties(payload.o
+      PROPERTIES
+      EXTERNAL_OBJECT true
+      GENERATED true)
+
+  set_target_properties(payload
+      PROPERTIES
+      LINKER_LANGUAGE C)
+
   add_executable(blupdater.elf ${sources})
   target_link_libraries(blupdater.elf
+      payload
       kkboard
       trezorcrypto
       kkrand
