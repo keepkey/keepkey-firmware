@@ -69,16 +69,6 @@ void memory_getDeviceLabel(char *str, size_t len) {
     }
 }
 
-void memory_getDeviceSerialNo(char *str, size_t len) {
-#if 0
-    desig_get_unique_id_as_string(str, len);
-#else
-    // We don't want to use the Serial No. baked into the STM32 for privacy
-    // reasons, so we fetch the one from storage instead:
-    strlcpy(str, storage_getUuidStr(), len);
-#endif
-}
-
 static void drop_privs(void) {
     // Legacy bootloader code will have interrupts disabled at this point.
     // To maintain compatibility, the timer and button interrupts need to

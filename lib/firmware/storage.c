@@ -25,6 +25,7 @@
 
 #ifndef EMULATOR
 #  include <libopencm3/stm32/flash.h>
+#  include <libopencm3/stm32/desig.h>
 #endif
 
 #include "keepkey/board/supervise.h"
@@ -847,8 +848,13 @@ void storage_resetUuid(void)
 
 void storage_resetUuid_impl(ConfigFlash *cfg)
 {
-    // set random uuid
+#ifdef EMULATOR
     random_buffer(cfg->meta.uuid, sizeof(cfg->meta.uuid));
+#else
+    _Static_assert(sizeof(cfg->meta.uuid) == 3 * sizeof(uint32_t),
+                   "uuid not large enough");
+    desig_get_unique_id((uint32_t*)cfg->meta.uuid);
+#endif
     data2hex(cfg->meta.uuid, sizeof(cfg->meta.uuid), cfg->meta.uuid_str);
 }
 
