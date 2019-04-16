@@ -66,19 +66,7 @@ static const MessagesMap_t *message_map_entry(MessageMapType type,
     if (map_size > msg_id && m[msg_id].msg_id == msg_id &&
         m[msg_id].type == type && m[msg_id].dir == dir)
     {
-        switch (m[msg_id].msg_perms) {
-        case MFROnly:
-            return variant_isMFR() ? &m[msg_id] : NULL;
-        case MFRProhibited:
-            return variant_isMFR() ? NULL : &m[msg_id];
-        case AnyVariant:
-            return &m[msg_id];
-        }
-#if defined(DEBUG_ON)
-        __builtin_unreachable();
-#else
-        return NULL;
-#endif
+        return &m[msg_id];
     }
 
     return NULL;
