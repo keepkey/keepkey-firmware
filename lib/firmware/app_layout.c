@@ -29,7 +29,7 @@
 #include "keepkey/firmware/app_resources.h"
 #include "keepkey/firmware/fsm.h"
 
-#include "trezor/qrenc/qrcodegen.h"
+#include "qrenc/qrcodegen.h"
 
 #include <stdarg.h>
 #include <stddef.h>
