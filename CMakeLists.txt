@@ -26,24 +26,24 @@ include(GetGitRevisionDescription)
 get_git_head_revision(GIT_REFSPEC GIT_SHA1)
 
 if(NOT EXISTS ${DEVICE_PROTOCOL})
-    message(ERROR "Missing deps/device-protocol symlink?")
+    message(FATAL_ERROR "Missing deps/device-protocol symlink?")
 endif()
 
 if(NOT EXISTS ${CMAKE_SOURCE_DIR}/deps/googletest/CMakeLists.txt)
-    message(ERROR "Need to 'git submodule update --init --recursive")
+    message(FATAL_ERROR "googletest missing. Need to 'git submodule update --init --recursive")
 endif()
 
-if(NOT EXISTS ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto/Makefile)
-    message(ERROR "Need to 'git submodule update --init --recursive")
+if(NOT EXISTS ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-firmware/crypto/Makefile)
+    message(FATAL_ERROR " trezor-crypto missing. Need to 'git submodule update --init --recursive")
 endif()
 
-if(NOT EXISTS ${CMAKE_SOURCE_DIR}/deps/qrenc/trezor-qrenc/Makefile)
-    message(ERROR "Need to 'git submodule update --init --recursive")
+if(NOT EXISTS ${CMAKE_SOURCE_DIR}/deps/qrenc/QR-Code-generator/c/Makefile)
+    message(FATAL_ERROR " QR-Code-generator missing. Need to 'git submodule update --init --recursive")
 endif()
 
 find_program(NANOPB_GENERATOR nanopb_generator.py)
 if(${KK_EMULATOR} AND NOT NANOPB_GENERATOR)
-    message(ERROR "Must install nanopb 0.2.9.2, and put nanopb-nanopb-0.2.9.2/generator on your PATH")
+    message(FATAL_ERROR "Must install nanopb 0.2.9.2, and put nanopb-nanopb-0.2.9.2/generator on your PATH")
 endif()
 
 if(${KK_EMULATOR})
