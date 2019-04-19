@@ -200,6 +200,9 @@ static bool isFirmwareUpdateMode(void)
     if (keepkey_button_down())
         return true;
 
+    if (!magic_ok())
+        return true;
+
     int signed_firmware = signatures_ok();
 
     // Check if the firmware wants us to boot into firmware update mode.
@@ -218,16 +221,12 @@ static bool isFirmwareUpdateMode(void)
 
 bool magic_ok(void)
 {
-#ifndef DEBUG_ON
     bool ret_val = false;
     app_meta_td *app_meta = (app_meta_td *)FLASH_META_MAGIC;
 
     ret_val = (memcmp((void *)&app_meta->magic, META_MAGIC_STR,
                       META_MAGIC_SIZE) == 0) ? true : false;
-    return(ret_val);
-#else
-    return(true);
-#endif
+    return ret_val;
 }
 
 const VariantInfo *variant_getInfo(void) {
@@ -251,7 +250,7 @@ const VariantInfo *variant_getInfo(void) {
     return &variant_poweredBy;
 }
 
-/// Runs through application firmware checking, and then boots
+/// Runs through application firmware checking, and then boots.
 static void boot(void)
 {
     if (!magic_ok()) {
@@ -303,17 +302,14 @@ static void update_fw(void)
 {
     led_func(CLR_GREEN_LED);
 
-    if(usb_flash_firmware())
-    {
+    if (usb_flash_firmware()) {
         layout_standard_notification("Firmware Update Complete",
                                      "Your device will now restart",
                                      NOTIFICATION_CONFIRMED);
         display_refresh();
         delay_ms(3000);
         board_reset();
-    }
-    else
-    {
+    } else {
         layout_simple_message("Firmware Update Failure, Try Again");
         display_refresh();
     }
