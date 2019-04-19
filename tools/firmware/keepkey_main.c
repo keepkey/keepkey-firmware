@@ -35,6 +35,7 @@
 #include "keepkey/board/mpudefs.h"
 #include "keepkey/board/pubkeys.h"
 #include "keepkey/board/signatures.h"
+#include "keepkey/board/util.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
@@ -44,6 +45,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
 void mmhisr(void);
 void u2fInit(void);
@@ -56,6 +58,16 @@ void u2fInit(void);
 /* These variables will be used by host application to read the version info */
 static const char *const application_version
 __attribute__((used, section("version"))) = APP_VERSIONS;
+
+void memory_getDeviceLabel(char *str, size_t len) {
+    const char *label = storage_getLabel();
+
+    if (label && is_valid_ascii((const uint8_t*)label, strlen(label))) {
+        snprintf(str, len, "KeepKey - %s", label);
+    } else {
+        strlcpy(str, "KeepKey", len);
+    }
+}
 
 void memory_getDeviceSerialNo(char *str, size_t len) {
 #if 0

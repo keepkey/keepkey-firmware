@@ -413,16 +413,6 @@ bool confirm_sign_identity(const IdentityType *identity, const char *challenge)
     return confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, "%s", body);
 }
 
-bool is_valid_ascii(const uint8_t *data, uint32_t size)
-{
-	for (uint32_t i = 0; i < size; i++) {
-		if (data[i] < ' ' || data[i] > '~') {
-			return false;
-		}
-	}
-	return true;
-}
-
 bool confirm_data(ButtonRequestType button_request, const char *title,
                   const uint8_t *data, uint32_t size)
 {
