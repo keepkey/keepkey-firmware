@@ -72,6 +72,10 @@ __attribute__((used, section("version"))) = APP_VERSIONS;
 void mmhisr(void);
 void bl_board_init(void);
 
+void memory_getDeviceLabel(char *str, size_t len) {
+    strlcpy(str, "KeepKey", len);
+}
+
 void memory_getDeviceSerialNo(char *str, size_t len) {
 #ifdef DEBUG_ON
     desig_get_unique_id_as_string(str, len);

@@ -86,7 +86,7 @@ usb_u2f_rx_callback_t user_u2f_rx_callback = NULL;
 
 #define USB_STRINGS \
 	X(MANUFACTURER, "KeyHodlers, LLC") \
-	X(PRODUCT, "KeepKey") \
+	X(PRODUCT, device_label) \
 	X(SERIAL_NUMBER, serial_uuid_str) \
 	X(INTERFACE_MAIN,  "KeepKey Interface") \
 	X(INTERFACE_DEBUG, "KeepKey Debug Link Interface") \
@@ -99,6 +99,7 @@ enum {
 };
 #undef X
 
+static char device_label[33];
 static char serial_uuid_str[100];
 
 #define X(name, value) value,
@@ -386,6 +387,7 @@ void usbInit(void)
 	gpio_set_af(USB_GPIO_PORT, GPIO_AF10, USB_GPIO_PORT_PINS);
 
 	memory_getDeviceSerialNo(serial_uuid_str, sizeof(serial_uuid_str));
+	memory_getDeviceLabel(device_label, sizeof(device_label));
 
 	usbd_dev = usbd_init(&otgfs_usb_driver, &dev_descr, &config, usb_strings, sizeof(usb_strings) / sizeof(*usb_strings), usbd_control_buffer, sizeof(usbd_control_buffer));
 	usbd_register_set_config_callback(usbd_dev, set_config);

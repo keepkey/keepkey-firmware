@@ -102,3 +102,13 @@ void dec64_to_str(uint64_t dec64_val, char *str)
     sbfr++;
 }
 
+bool is_valid_ascii(const uint8_t *data, uint32_t size)
+{
+	for (uint32_t i = 0; i < size; i++) {
+		if (data[i] < ' ' || data[i] > '~') {
+			return false;
+		}
+	}
+	return true;
+}
+
