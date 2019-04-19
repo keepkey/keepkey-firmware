@@ -101,7 +101,7 @@ static bool check_firmware_hash(void)
 
     memory_firmware_hash(flashed_firmware_hash);
 
-    return(memcmp(firmware_hash, flashed_firmware_hash, SHA256_DIGEST_LENGTH) == 0);
+    return memcmp(firmware_hash, flashed_firmware_hash, SHA256_DIGEST_LENGTH) == 0;
 }
 
 /*
@@ -151,7 +151,7 @@ static bool flash_locking_write(Allocation group, size_t offset, size_t len,
         ret_val = false;
     }
 
-    return(ret_val);
+    return ret_val;
 }
 
 /*
@@ -173,7 +173,7 @@ static bool storage_restore(void)
                                       storage_sav);
     }
 
-    return(ret_val);
+    return ret_val;
 }
 
 /*
@@ -195,7 +195,7 @@ static bool storage_preserve(void)
         ret_val = true;
     }
 
-    return(ret_val);
+    return ret_val;
 }
 
 /// \return true iff storage should be restored after this firmware update.
@@ -316,7 +316,7 @@ bool usb_flash_firmware(void)
 uff_exit:
     /* Clear the shadow before exiting */
     memzero(storage_sav, sizeof(storage_sav));
-    return(ret_val);
+    return ret_val;
 }
 
 /// Find and initialize storage sector location.
