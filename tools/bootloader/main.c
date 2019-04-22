@@ -291,7 +291,7 @@ static void boot(void)
 }
 
 /*
- *  update_fw() - Firmware update mode
+ *  update_fw() - Firmware update mode. Resets the device on successful firmware upload
  *
  *  INPUT
  *      none
@@ -306,12 +306,15 @@ static void update_fw(void)
     if(usb_flash_firmware())
     {
         layout_standard_notification("Firmware Update Complete",
-                                     "Please disconnect and reconnect.", NOTIFICATION_UNPLUG);
+                                     "Your device will now restart", NOTIFICATION_CONFIRMED);
         display_refresh();
+        delay_ms(4000);
+        board_reset();
     }
     else
     {
         layout_simple_message("Firmware Update Failure, Try Again");
+        display_refresh();
     }
 }
 
