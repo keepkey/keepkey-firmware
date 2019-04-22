@@ -189,22 +189,22 @@ static void clock_init(void)
     rcc_periph_clock_enable(RCC_CRC);
 }
 
-/*
- *  is_fw_update_mode() - Determines whether in firmware update mode or not
- *
- *  INPUT
- *      none
- *  OUTPUT
- *      true/false whether firmware is in update mode
- *
- */
-static bool is_fw_update_mode(void)
+/// \returns true iff the device should enter firmware update mode.
+static bool isFirmwareUpdateMode(void)
 {
-#if 0 // DEBUG_LINK
-    return true;
-#else
-    return keepkey_button_down();
-#endif
+    if (keepkey_button_down())
+        return true;
+
+    // Check if the firmware wants us to boot into firmware update mode.
+    // This is used to skip a hard reset after bootloader update, and drop the
+    // user right back into the firmware update flow.
+    if ((SIG_FLAG & 2) != 0) {
+        int signed_firmware = signatures_ok();
+        if (signed_firmware == SIG_OK)
+            return true;
+    }
+
+    return false;
 }
 
 /*
@@ -357,20 +357,12 @@ int main(int argc, char *argv[])
     dbg_print("BootLoader Version %d.%d.%d\n\r", BOOTLOADER_MAJOR_VERSION,
               BOOTLOADER_MINOR_VERSION, BOOTLOADER_PATCH_VERSION);
 
-    if(is_fw_update_mode())
-    {
+    if (isFirmwareUpdateMode()) {
         update_fw();
-    }
-    else
-    {
+    } else {
         boot();
     }
 
-#if DEBUG_LINK
-    board_reset();
-#else
-    shutdown(); /* Loops forever */
-#endif
-
-    return(0); /* Should never get here */
+    shutdown();
+    return 0; // Should never get here
 }
