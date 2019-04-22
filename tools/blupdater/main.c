@@ -162,12 +162,8 @@ static bool unknown_bootloader(void) {
 static void success(void) {
     layout_simple_message("Bootloader Update Complete");
     display_refresh();
-    delay_ms(5000);
-
-    layout_standard_notification("Bootloader Update Complete",
-                                 "Please disconnect and reconnect while holding the button.",
-                                 NOTIFICATION_UNPLUG);
-    display_refresh();
+    delay_ms(3000);
+    board_reset();
 }
 
 /// \brief Hard Failure: something went wrong during the write, and it's
