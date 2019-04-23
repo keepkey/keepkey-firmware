@@ -506,8 +506,9 @@ void handler_get_features(GetFeatures *msg)
     handler_initialize(0);
 }
 
+
 /*
- * handler_wipe() - Handler to wipe secret storage
+ * handler_wipe() - Handler to wipe all application data and secret storage
  *
  * INPUT -
  *     - msg: WipeDevice protocol buffer message
@@ -519,19 +520,27 @@ void handler_wipe(WipeDevice *msg)
 {
     (void)msg;
     if(!confirm(ButtonRequestType_ButtonRequest_WipeDevice, "Wipe Device",
-                "Do you want to erase your private keys and settings?"))
+                "Do you want to erase your private keys, settings and firmware?"))
     {
         send_failure(FailureType_Failure_ActionCancelled, "Wipe cancelled");
         layout_home();
         return;
     }
 
-    // Only erase the active sector, leaving the other two alone.
-    Allocation storage_loc = FLASH_INVALID;
-    if(find_active_storage(&storage_loc) && storage_loc != FLASH_INVALID) {
-        bl_flash_erase_word(storage_loc);
-        flash_lock();
+    /* Erase config data sectors  */
+    for (uint32_t i = FLASH_STORAGE1; i <= FLASH_STORAGE3; i++) {
+        bl_flash_erase_word(i);
+        layoutProgress("Preparing for upgrade", (i * 1000 / 9));
     }
+
+    /* Erase application section */
+    for (int i = 7; i <= 11; ++i) {
+        bl_flash_erase_word(i);
+        layoutProgress("Preparing for upgrade", ((i + 3 - 7 + 2) * 1000 / 9));
+    }
+
+    flash_lock();
+    layoutProgress("Preparing for upgrade", 100);
 
     layout_home();
     send_success("Device wiped");
