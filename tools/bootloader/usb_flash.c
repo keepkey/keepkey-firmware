@@ -17,6 +17,8 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "main.h"
+
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
@@ -199,7 +201,7 @@ static bool storage_preserve(void)
 /// \return true iff storage should be restored after this firmware update.
 static bool should_restore(void) {
     // If the firmware metadata requests a wipe, honor that.
-    if (SIG_FLAG == 0)
+    if ((SIG_FLAG & 1) == 0)
         return false;
 
 #ifdef DEBUG_ON
@@ -224,6 +226,19 @@ static bool should_restore(void) {
 #endif
 }
 
+static bool isUpdateRequired(int signed_firmware) {
+    if (!magic_ok())
+        return true;
+
+    if ((SIG_FLAG & 2) == 1)
+        return true;
+
+    if (signed_firmware == KEY_EXPIRED)
+        return true;
+
+    return false;
+}
+
 /*
  * usb_flash_firmware() - Update firmware over usb bus
  *
@@ -236,9 +251,13 @@ static bool should_restore(void) {
 bool usb_flash_firmware(void)
 {
     bool ret_val = false;
-    old_firmware_was_unsigned = signatures_ok() != SIG_OK;
 
-    layout_simple_message("Firmware Update Mode");
+    int signed_firmware = signatures_ok();
+    old_firmware_was_unsigned = signed_firmware != SIG_OK && signed_firmware != KEY_EXPIRED;
+
+    layout_simple_message(isUpdateRequired(signed_firmware)
+                              ? "Firmware Update Required"
+                              : "Firmware Update Mode");
     layout_version(BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION,
                    BOOTLOADER_PATCH_VERSION);
 

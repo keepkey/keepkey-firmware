@@ -160,14 +160,12 @@ static bool unknown_bootloader(void) {
 /// \brief Success: everything went smoothly as expected, and the device has a
 ///        new bootloader installed.
 static void success(void) {
-    layout_simple_message("Bootloader Update Complete");
-    display_refresh();
-    delay_ms(5000);
-
     layout_standard_notification("Bootloader Update Complete",
-                                 "Please disconnect and reconnect while holding the button.",
-                                 NOTIFICATION_UNPLUG);
+                                 "Your device will now restart",
+                                 NOTIFICATION_CONFIRMED);
     display_refresh();
+    delay_ms(3000);
+    board_reset();
 }
 
 /// \brief Hard Failure: something went wrong during the write, and it's

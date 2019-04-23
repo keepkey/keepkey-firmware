@@ -193,34 +193,30 @@ static void clock_init(void)
     rcc_periph_clock_enable(RCC_CRC);
 }
 
-/*
- *  is_fw_update_mode() - Determines whether in firmware update mode or not
- *
- *  INPUT
- *      none
- *  OUTPUT
- *      true/false whether firmware is in update mode
- *
- */
-static bool is_fw_update_mode(void)
+/// \returns true iff the device should enter firmware update mode.
+static bool isFirmwareUpdateMode(void)
 {
-#if 0 // DEBUG_LINK
-    return true;
-#else
-    return keepkey_button_down();
-#endif
+    // User asked for an update.
+    if (keepkey_button_down())
+        return true;
+
+    int signed_firmware = signatures_ok();
+
+    // Check if the firmware wants us to boot into firmware update mode.
+    // This is used to skip a hard reset after bootloader update, and drop the
+    // user right back into the firmware update flow.
+    if ((SIG_FLAG & 2) == 2)
+        return true;
+
+    // If the firmware was signed with old signing keys, we also need to update.
+    if (signed_firmware == KEY_EXPIRED)
+        return true;
+
+    // Attempt to boot.
+    return false;
 }
 
-/*
- *  magic_ok() - Check application magic
- *
- *  INPUT
- *      none
- *  OUTPUT
- *      true/false if application has correct magic
- *
- */
-static bool magic_ok(void)
+bool magic_ok(void)
 {
 #ifndef DEBUG_ON
     bool ret_val = false;
@@ -283,7 +279,7 @@ static void boot(void)
         data2hex(flashed_firmware_hash,      16, hash_str[0]);
         data2hex(flashed_firmware_hash + 16, 16, hash_str[1]);
         if (!confirm_without_button_request("Unofficial Firmware",
-                                            "Do you want to continue?\n%s\n%s",
+                                            "Are you willing to take the risk?\n%s\n%s",
                                             hash_str[0], hash_str[1])) {
             layout_simple_message("Boot Aborted");
             return;
@@ -295,7 +291,7 @@ static void boot(void)
 }
 
 /*
- *  update_fw() - Firmware update mode
+ *  update_fw() - Firmware update mode. Resets the device on successful firmware upload
  *
  *  INPUT
  *      none
@@ -310,12 +306,16 @@ static void update_fw(void)
     if(usb_flash_firmware())
     {
         layout_standard_notification("Firmware Update Complete",
-                                     "Please disconnect and reconnect.", NOTIFICATION_UNPLUG);
+                                     "Your device will now restart",
+                                     NOTIFICATION_CONFIRMED);
         display_refresh();
+        delay_ms(3000);
+        board_reset();
     }
     else
     {
         layout_simple_message("Firmware Update Failure, Try Again");
+        display_refresh();
     }
 }
 
@@ -361,20 +361,12 @@ int main(int argc, char *argv[])
     dbg_print("BootLoader Version %d.%d.%d\n\r", BOOTLOADER_MAJOR_VERSION,
               BOOTLOADER_MINOR_VERSION, BOOTLOADER_PATCH_VERSION);
 
-    if(is_fw_update_mode())
-    {
+    if (isFirmwareUpdateMode()) {
         update_fw();
-    }
-    else
-    {
+    } else {
         boot();
     }
 
-#if DEBUG_LINK
-    board_reset();
-#else
-    shutdown(); /* Loops forever */
-#endif
-
-    return(0); /* Should never get here */
+    shutdown();
+    return 0; // Should never get here
 }
