@@ -302,9 +302,10 @@ static void update_fw(void)
     if(usb_flash_firmware())
     {
         layout_standard_notification("Firmware Update Complete",
-                                     "Your device will now restart", NOTIFICATION_CONFIRMED);
+                                     "Your device will now restart",
+                                     NOTIFICATION_CONFIRMED);
         display_refresh();
-        delay_ms(4000);
+        delay_ms(3000);
         board_reset();
     }
     else

@@ -160,7 +160,9 @@ static bool unknown_bootloader(void) {
 /// \brief Success: everything went smoothly as expected, and the device has a
 ///        new bootloader installed.
 static void success(void) {
-    layout_simple_message("Bootloader Update Complete");
+    layout_standard_notification("Bootloader Update Complete",
+                                 "Your device will now restart",
+                                 NOTIFICATION_CONFIRMED);
     display_refresh();
     delay_ms(3000);
     board_reset();
