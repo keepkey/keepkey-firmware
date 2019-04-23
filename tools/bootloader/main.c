@@ -279,7 +279,7 @@ static void boot(void)
         data2hex(flashed_firmware_hash,      16, hash_str[0]);
         data2hex(flashed_firmware_hash + 16, 16, hash_str[1]);
         if (!confirm_without_button_request("Unofficial Firmware",
-                                            "Do you want to continue?\n%s\n%s",
+                                            "Are you willing to take the risk?\n%s\n%s",
                                             hash_str[0], hash_str[1])) {
             layout_simple_message("Boot Aborted");
             return;
