@@ -66,7 +66,7 @@
  0x0100 |  32K-256 B  |  persistent storage
 
  flags & 0x01 -> restore storage after flashing (if signatures are ok)
- flags & 0x02 -> boot into firmware update mode (if signatures are ok)
+ flags & 0x02 -> boot into firmware update mode
 
  */
 
