@@ -192,31 +192,30 @@ static void clock_init(void)
 /// \returns true iff the device should enter firmware update mode.
 static bool isFirmwareUpdateMode(void)
 {
+    // User asked for an update.
     if (keepkey_button_down())
         return true;
+
+    int signed_firmware = signatures_ok();
 
     // Check if the firmware wants us to boot into firmware update mode.
     // This is used to skip a hard reset after bootloader update, and drop the
     // user right back into the firmware update flow.
     if ((SIG_FLAG & 2) != 0) {
-        int signed_firmware = signatures_ok();
-        if (signed_firmware == SIG_OK)
+        if (signed_firmware == SIG_OK ||
+            signed_firmware == KEY_EXPIRED)
             return true;
     }
 
+    // If the firmware was signed with old signing keys, we also need to update.
+    if (signed_firmware == KEY_EXPIRED)
+        return true;
+
+    // Attempt to boot.
     return false;
 }
 
-/*
- *  magic_ok() - Check application magic
- *
- *  INPUT
- *      none
- *  OUTPUT
- *      true/false if application has correct magic
- *
- */
-static bool magic_ok(void)
+bool magic_ok(void)
 {
 #ifndef DEBUG_ON
     bool ret_val = false;
