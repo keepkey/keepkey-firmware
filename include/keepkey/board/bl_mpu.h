@@ -19,6 +19,9 @@
 #ifndef __BL_MPU_H__
 #define __BL_MPU_H__
 
+#include "memory.h"
+
 void bl_flash_erase_word(Allocation group);
+void bl_flash_erase_sector(int sector);
 
 #endif

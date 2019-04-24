@@ -200,6 +200,7 @@ static bool isFirmwareUpdateMode(void)
     if (keepkey_button_down())
         return true;
 
+    // Firmware isn't there?
     if (!magic_ok())
         return true;
 
