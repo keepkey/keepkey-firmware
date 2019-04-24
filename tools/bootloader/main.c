@@ -222,12 +222,14 @@ static bool isFirmwareUpdateMode(void)
 
 bool magic_ok(void)
 {
-    bool ret_val = false;
+#ifndef DEBUG_ON
     app_meta_td *app_meta = (app_meta_td *)FLASH_META_MAGIC;
 
-    ret_val = (memcmp((void *)&app_meta->magic, META_MAGIC_STR,
-                      META_MAGIC_SIZE) == 0) ? true : false;
-    return ret_val;
+    return memcmp((void *)&app_meta->magic, META_MAGIC_STR,
+                   META_MAGIC_SIZE) == 0;
+#else
+    return true;
+#endif
 }
 
 const VariantInfo *variant_getInfo(void) {
