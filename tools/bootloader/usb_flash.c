@@ -530,17 +530,17 @@ void handler_wipe(WipeDevice *msg)
     /* Erase config data sectors  */
     for (uint32_t i = FLASH_STORAGE1; i <= FLASH_STORAGE3; i++) {
         bl_flash_erase_word(i);
-        layoutProgress("Erasing secrets", (i * 1000 / 9));
+        layoutProgress("Erasing Secrets", (i * 1000 / 8));
     }
 
     /* Erase application section */
     for (int i = 7; i <= 11; ++i) {
-        bl_flash_erase_word(i);
-        layoutProgress("Erasing firmware", ((i + 3 - 7 + 2) * 1000 / 9));
+        bl_flash_erase_sector(i);
+        layoutProgress("Erasing Firmware", ((i + 3 - 7 + 2) * 1000 / 8));
     }
 
     flash_lock();
-    layoutProgress("Erasing firmware", 1000);
+    layoutProgress("Erasing Firmware", 1000);
 
     layout_home();
     send_success("Device wiped");
