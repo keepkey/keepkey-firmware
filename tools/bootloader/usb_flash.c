@@ -141,15 +141,12 @@ static void bootloader_fsm_init(void)
 static bool flash_locking_write(Allocation group, size_t offset, size_t len,
                                 uint8_t *data)
 {
-    bool ret_val = true;
-
-    if (!flash_write(group, offset, len, data))
-    {
+    if (!flash_write(group, offset, len, data)) {
         /* Flash error detectected */
-        ret_val = false;
+        return false;
     }
 
-    return ret_val;
+    return true;
 }
 
 /*
@@ -163,15 +160,12 @@ static bool flash_locking_write(Allocation group, size_t offset, size_t len,
  */
 static bool storage_restore(void)
 {
-    bool ret_val = false;
-
-    if (storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3)
-    {
-        ret_val = flash_locking_write(storage_location, 0, STOR_FLASH_SECT_LEN,
-                                      storage_sav);
+    if (storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3) {
+        return flash_locking_write(storage_location, 0, STOR_FLASH_SECT_LEN,
+                                   storage_sav);
     }
 
-    return ret_val;
+    return false;
 }
 
 /*
@@ -184,16 +178,13 @@ static bool storage_restore(void)
  */
 static bool storage_preserve(void)
 {
-    bool ret_val = false;
-
     /* Search active storage sector and save in shadow memory  */
-    if (storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3)
-    {
+    if (storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3) {
         memcpy(storage_sav, (void *)flash_write_helper(storage_location), STOR_FLASH_SECT_LEN);
-        ret_val = true;
+        return true;
     }
 
-    return ret_val;
+    return false;
 }
 
 /// \return true iff storage should be restored after this firmware update.
@@ -248,8 +239,6 @@ static bool isUpdateRequired(int signed_firmware) {
  */
 bool usb_flash_firmware(void)
 {
-    bool ret_val = false;
-
     int signed_firmware = signatures_ok();
     old_firmware_was_unsigned = signed_firmware != SIG_OK && signed_firmware != KEY_EXPIRED;
 
@@ -282,34 +271,34 @@ bool usb_flash_firmware(void)
             {
                 // Only restore the storage sector / keys if the old firmware's
                 // signedness matches the new firmware's signedness.
-                if (should_restore())
-                {
+                if (should_restore()) {
                     // Restore storage data.
-                    if (!storage_restore())
-                    {
-                        /* Bailing early */
-                        goto uff_exit;
+                    if (!storage_restore()) {
+                        memzero(storage_sav, sizeof(storage_sav));
+                        return false;
                     }
                 }
 
                 /* Check CRC of firmware that was flashed */
-                if (check_firmware_hash())
-                {
+                if (check_firmware_hash()) {
                     /* Fingerprint has been verified.  Install "KPKY" magic in meta header */
-                    if (flash_locking_write(FLASH_APP, 0, META_MAGIC_SIZE, (uint8_t *)META_MAGIC_STR) == true)
-                    {
+                    if (flash_locking_write(FLASH_APP, 0, META_MAGIC_SIZE,
+                                            (uint8_t *)META_MAGIC_STR) == true) {
                         send_success("Upload complete");
-                        ret_val = true;
+                        memzero(storage_sav, sizeof(storage_sav));
+                        return true;
                     }
                 }
 
-                goto uff_exit;
+                memzero(storage_sav, sizeof(storage_sav));
+                return false;
             }
 
             case RAW_MESSAGE_ERROR:
             {
                 dbg_print("Error: Firmware update error...\n\r");
-                goto uff_exit;
+                memzero(storage_sav, sizeof(storage_sav));
+                return false;
             }
 
             case RAW_MESSAGE_NOT_STARTED:
@@ -323,10 +312,9 @@ bool usb_flash_firmware(void)
         }
     }
 
-uff_exit:
     /* Clear the shadow before exiting */
     memzero(storage_sav, sizeof(storage_sav));
-    return ret_val;
+    return false;
 }
 
 /// Find and initialize storage sector location.
