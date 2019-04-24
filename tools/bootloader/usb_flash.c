@@ -37,6 +37,7 @@
 #include "keepkey/board/bl_mpu.h"
 
 #include <libopencm3/stm32/flash.h>
+#include <libopencm3/stm32/desig.h>
 
 #include <assert.h>
 #include <inttypes.h>
@@ -101,7 +102,7 @@ static bool check_firmware_hash(void)
 
     memory_firmware_hash(flashed_firmware_hash);
 
-    return(memcmp(firmware_hash, flashed_firmware_hash, SHA256_DIGEST_LENGTH) == 0);
+    return memcmp(firmware_hash, flashed_firmware_hash, SHA256_DIGEST_LENGTH) == 0;
 }
 
 /*
@@ -151,7 +152,7 @@ static bool flash_locking_write(Allocation group, size_t offset, size_t len,
         ret_val = false;
     }
 
-    return(ret_val);
+    return ret_val;
 }
 
 /*
@@ -173,7 +174,7 @@ static bool storage_restore(void)
                                       storage_sav);
     }
 
-    return(ret_val);
+    return ret_val;
 }
 
 /*
@@ -195,7 +196,7 @@ static bool storage_preserve(void)
         ret_val = true;
     }
 
-    return(ret_val);
+    return ret_val;
 }
 
 /// \return true iff storage should be restored after this firmware update.
@@ -255,11 +256,23 @@ bool usb_flash_firmware(void)
     int signed_firmware = signatures_ok();
     old_firmware_was_unsigned = signed_firmware != SIG_OK && signed_firmware != KEY_EXPIRED;
 
-    layout_simple_message(isUpdateRequired(signed_firmware)
-                              ? "Firmware Update Required"
-                              : "Firmware Update Mode");
-    layout_version(BOOTLOADER_MAJOR_VERSION, BOOTLOADER_MINOR_VERSION,
-                   BOOTLOADER_PATCH_VERSION);
+    char serial[96 / 8 * 2 + 1];
+    desig_get_unique_id_as_string(serial, sizeof(serial));
+
+    char body[256];
+    snprintf(body, sizeof(body),
+             "Bootloader Version: "
+             VERSION_STR(BOOTLOADER_MAJOR_VERSION) "."
+             VERSION_STR(BOOTLOADER_MINOR_VERSION) "."
+             VERSION_STR(BOOTLOADER_PATCH_VERSION)
+             "\nSerial: %s", serial);
+    layout_standard_notification(isUpdateRequired(signed_firmware)
+                                     ? "FIRMWARE UPDATE REQUIRED"
+                                     : "FIRMWARE UPDATE MODE",
+                                 body, NOTIFICATION_LOGO);
+#if DEBUG_LINK
+    layout_debuglink_watermark();
+#endif
 
     usbInit();
     bootloader_fsm_init();
@@ -316,7 +329,7 @@ bool usb_flash_firmware(void)
 uff_exit:
     /* Clear the shadow before exiting */
     memzero(storage_sav, sizeof(storage_sav));
-    return(ret_val);
+    return ret_val;
 }
 
 /// Find and initialize storage sector location.
