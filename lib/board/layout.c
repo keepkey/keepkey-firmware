@@ -26,6 +26,7 @@
 #include "keepkey/board/timer.h"
 #include "keepkey/board/variant.h"
 #include "keepkey/firmware/fsm.h"
+#include "keepkey/variant/keepkey.h"
 
 #include <ctype.h>
 #include <stdarg.h>
@@ -366,6 +367,13 @@ void layout_notification_icon(NotificationType type, DrawableParams *sp)
             draw_bitmap_mono_rle(canvas, get_recovery_frame(), false);
             break;
 
+        case NOTIFICATION_LOGO: {
+            const Image *image = variant_keepkey.logo->frames[variant_keepkey.logo->count - 1].image;
+            const AnimationFrame frame = { 190, 9, 0, 100, image };
+            draw_bitmap_mono_rle(canvas, &frame, false);
+            break;
+        }
+
         case NOTIFICATION_INFO:
         default:
             /* no action requires */
@@ -598,12 +606,12 @@ void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed)
 }
 
 #if DEBUG_LINK
-static void layout_debuglink_watermark(void) {
+void layout_debuglink_watermark(void) {
     const Font *font = get_body_font();
     const char *watermark = "DEBUG_LINK";
     DrawableParams sp;
     sp.x = KEEPKEY_DISPLAY_WIDTH - calc_str_width(font, watermark) - BODY_FONT_LINE_PADDING;
-    sp.y = KEEPKEY_DISPLAY_HEIGHT - 2 * font_height(font) - BODY_FONT_LINE_PADDING;
+    sp.y = KEEPKEY_DISPLAY_HEIGHT - 1 * font_height(font);
     sp.color = 0x22;
     draw_string(canvas, font, watermark, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
 }

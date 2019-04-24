@@ -48,6 +48,8 @@ if(NOT ${KK_EMULATOR})
   target_link_libraries(blupdater.elf
       payload
       kkboard
+      kkboard.keepkey
+      kkvariant.keepkey
       trezorcrypto
       kkrand
       -lopencm3_stm32f2

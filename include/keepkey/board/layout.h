@@ -74,7 +74,8 @@ typedef enum
     NOTIFICATION_RECOVERY,
     NOTIFICATION_UNPLUG,
     NOTIFICATION_CONFIRM_ANIMATION,
-    NOTIFICATION_CONFIRMED
+    NOTIFICATION_CONFIRMED,
+    NOTIFICATION_LOGO,
 } NotificationType;
 
 typedef void (*AnimateCallback)(void *data, uint32_t duration, uint32_t elapsed);
@@ -120,6 +121,9 @@ void layoutProgressSwipe(const char *desc, int permil);
 void layout_add_animation(AnimateCallback callback, void *data, uint32_t duration);
 void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed);
 void layout_clear(void);
+#if DEBUG_LINK
+void layout_debuglink_watermark(void);
+#endif
 void layout_clear_animations(void);
 void layout_clear_static(void);
 
