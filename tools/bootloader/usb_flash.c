@@ -146,7 +146,7 @@ static bool flash_locking_write(Allocation group, size_t offset, size_t len,
 {
     bool ret_val = true;
 
-    if(!flash_write(group, offset, len, data))
+    if (!flash_write(group, offset, len, data))
     {
         /* Flash error detectected */
         ret_val = false;
@@ -168,7 +168,7 @@ static bool storage_restore(void)
 {
     bool ret_val = false;
 
-    if(storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3)
+    if (storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3)
     {
         ret_val = flash_locking_write(storage_location, 0, STOR_FLASH_SECT_LEN,
                                       storage_sav);
@@ -190,7 +190,7 @@ static bool storage_preserve(void)
     bool ret_val = false;
 
     /* Search active storage sector and save in shadow memory  */
-    if(storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3)
+    if (storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3)
     {
         memcpy(storage_sav, (void *)flash_write_helper(storage_location), STOR_FLASH_SECT_LEN);
         ret_val = true;
@@ -277,7 +277,7 @@ bool usb_flash_firmware(void)
     usbInit();
     bootloader_fsm_init();
 
-    while(1)
+    while (1)
     {
         switch(upload_state)
         {
@@ -288,7 +288,7 @@ bool usb_flash_firmware(void)
                 if (should_restore())
                 {
                     // Restore storage data.
-                    if(!storage_restore())
+                    if (!storage_restore())
                     {
                         /* Bailing early */
                         goto uff_exit;
@@ -296,10 +296,10 @@ bool usb_flash_firmware(void)
                 }
 
                 /* Check CRC of firmware that was flashed */
-                if(check_firmware_hash())
+                if (check_firmware_hash())
                 {
                     /* Fingerprint has been verified.  Install "KPKY" magic in meta header */
-                    if(flash_locking_write(FLASH_APP, 0, META_MAGIC_SIZE, (uint8_t *)META_MAGIC_STR) == true)
+                    if (flash_locking_write(FLASH_APP, 0, META_MAGIC_SIZE, (uint8_t *)META_MAGIC_STR) == true)
                     {
                         send_success("Upload complete");
                         ret_val = true;
@@ -335,7 +335,7 @@ uff_exit:
 /// Find and initialize storage sector location.
 void storage_sectorInit(void)
 {
-    if(!find_active_storage(&storage_location))
+    if (!find_active_storage(&storage_location))
     {
         /* Set to storage sector1 as default if no sector has been initialized */
         storage_location = STORAGE_SECT_DEFAULT;
@@ -359,7 +359,7 @@ void send_success(const char *text)
 {
     RESP_INIT(Success);
 
-    if(text)
+    if (text)
     {
         resp.has_message = true;
         strlcpy(resp.message, text, sizeof(resp.message));
@@ -381,7 +381,7 @@ void send_success(const char *text)
  */
 void send_failure(FailureType code, const char *text)
 {
-    if(reset_msg_stack)
+    if (reset_msg_stack)
     {
         handler_initialize((Initialize *)0);
         reset_msg_stack = false;
@@ -393,7 +393,7 @@ void send_failure(FailureType code, const char *text)
     resp.has_code = true;
     resp.code = code;
 
-    if(text)
+    if (text)
     {
         resp.has_message = true;
         strlcpy(resp.message, text, sizeof(resp.message));
@@ -416,7 +416,7 @@ void handler_ping(Ping *msg)
 {
     RESP_INIT(Success);
 
-    if(msg->has_message)
+    if (msg->has_message)
     {
         resp.has_message = true;
         memcpy(resp.message, &(msg->message), sizeof(resp.message));
@@ -519,7 +519,7 @@ void handler_get_features(GetFeatures *msg)
 void handler_wipe(WipeDevice *msg)
 {
     (void)msg;
-    if(!confirm(ButtonRequestType_ButtonRequest_WipeDevice, "Wipe Device",
+    if (!confirm(ButtonRequestType_ButtonRequest_WipeDevice, "Wipe Device",
                 "Do you want to erase your private keys, settings and firmware?"))
     {
         send_failure(FailureType_Failure_ActionCancelled, "Wipe cancelled");
@@ -527,13 +527,13 @@ void handler_wipe(WipeDevice *msg)
         return;
     }
 
-    /* Erase config data sectors  */
+    // Erase config data sectors.
     for (uint32_t i = FLASH_STORAGE1; i <= FLASH_STORAGE3; i++) {
         bl_flash_erase_word(i);
         layoutProgress("Erasing Secrets", (i * 1000 / 8));
     }
 
-    /* Erase application section */
+    // Erase application section.
     for (int i = 7; i <= 11; ++i) {
         bl_flash_erase_sector(i);
         layoutProgress("Erasing Firmware", ((i + 3 - 7 + 2) * 1000 / 8));
@@ -549,7 +549,7 @@ void handler_wipe(WipeDevice *msg)
 /// \returns true iff the storage has been initialized
 static bool is_initialized(void) {
     Allocation storage_loc = FLASH_INVALID;
-    if(find_active_storage(&storage_loc) && storage_loc != FLASH_INVALID)
+    if (find_active_storage(&storage_loc) && storage_loc != FLASH_INVALID)
         return true;
     return false;
 }
@@ -578,39 +578,37 @@ static bool should_erase(void) {
 void handler_erase(FirmwareErase *msg)
 {
     (void)msg;
-    if (should_erase()) {
-        layoutProgress("Preparing for upgrade", 0);
 
-        /* Save storage data in memory so it can be restored after firmware update */
-        if(storage_preserve())
-        {
-            /* Erase config data sectors  */
-            for (uint32_t i = FLASH_STORAGE1; i <= FLASH_STORAGE3; i++) {
-                bl_flash_erase_word(i);
-                layoutProgress("Preparing for upgrade", (i * 1000 / 9));
-            }
-
-            /* Erase application section */
-            for (int i = 7; i <= 11; ++i) {
-                bl_flash_erase_word(i);
-                layoutProgress("Preparing for upgrade", ((i + 3 - 7 + 2) * 1000 / 9));
-            }
-
-            flash_lock();
-            layoutProgress("Preparing for upgrade", 1000);
-            send_success("Firmware erased");
-        }
-        else
-        {
-            upload_state = RAW_MESSAGE_ERROR;
-            send_failure(FailureType_Failure_Other, "Firmware erase error");
-        }
-    }
-    else
-    {
+    if (!should_erase()) {
         upload_state = RAW_MESSAGE_ERROR;
         send_failure(FailureType_Failure_ActionCancelled, "Firmware erase cancelled");
+        return;
     }
+
+    layoutProgress("Preparing for upgrade", 0);
+
+    /* Save storage data in memory so it can be restored after firmware update */
+    if (!storage_preserve()) {
+        upload_state = RAW_MESSAGE_ERROR;
+        send_failure(FailureType_Failure_Other, "Firmware erase error");
+        return;
+    }
+
+    /* Erase config data sectors  */
+    for (uint32_t i = FLASH_STORAGE1; i <= FLASH_STORAGE3; i++) {
+        bl_flash_erase_word(i);
+        layoutProgress("Preparing for upgrade", (i * 1000 / 9));
+    }
+
+    /* Erase application section */
+    for (int i = 7; i <= 11; ++i) {
+        bl_flash_erase_word(i);
+        layoutProgress("Preparing for upgrade", ((i + 3 - 7 + 2) * 1000 / 9));
+    }
+
+    flash_lock();
+    layoutProgress("Preparing for upgrade", 1000);
+    send_success("Firmware erased");
 }
 
 /* --- Raw Message Handlers ------------------------------------------------ */
@@ -632,104 +630,92 @@ void raw_handler_upload(RawMessage *msg, uint32_t frame_length)
     static uint32_t flash_offset;
 
     /* Check file size is within allocated space */
-    if(frame_length < (FLASH_APP_LEN + FLASH_META_DESC_LEN))
-    {
-        /* Start firmware load */
-        if(upload_state == RAW_MESSAGE_NOT_STARTED)
-        {
-            layoutProgress("Uploading Firmware", 0);
-
-            upload_state = RAW_MESSAGE_STARTED;
-            flash_offset = 0;
-
-            /*
-             * Parse firmware hash
-             */
-            memcpy(firmware_hash, msg->buffer + PROTOBUF_FIRMWARE_HASH_START, SHA256_DIGEST_LENGTH);
-
-            /*
-             * Parse application start
-             */
-            msg->length -= PROTOBUF_FIRMWARE_START;
-            msg->buffer = (uint8_t *)(msg->buffer + PROTOBUF_FIRMWARE_START);
-        }
-
-        /* Process firmware upload */
-        if(upload_state == RAW_MESSAGE_STARTED)
-        {
-            /* Check if the image is bigger than allocated space */
-            if((flash_offset + msg->length) < (FLASH_APP_LEN + FLASH_META_DESC_LEN))
-            {
-                if(flash_offset == 0)
-                {
-                    /* Check that image is prepared with KeepKey magic */
-                    if(memcmp(msg->buffer, META_MAGIC_STR, META_MAGIC_SIZE) == 0)
-                    {
-                        msg->length -= META_MAGIC_SIZE;
-                        msg->buffer = (uint8_t *)(msg->buffer + META_MAGIC_SIZE);
-                        flash_offset = META_MAGIC_SIZE;
-                        /* Unlock the flash for writing */
-                        flash_unlock();
-                    }
-                    else
-                    {
-                        /* Invalid KeepKey magic detected */
-                        send_failure(FailureType_Failure_FirmwareError, "Not valid firmware");
-                        upload_state = RAW_MESSAGE_ERROR;
-                        dbg_print("Error: invalid Magic Key detected... \n\r");
-                        goto rhu_exit;
-                    }
-
-                }
-
-                static int update_ctr = 60;
-                if (update_ctr++ == 60) {
-                    layoutProgress("Uploading Firmware\n", flash_offset * 1000 / frame_length);
-                    update_ctr = 0;
-                }
-
-                /* Begin writing to flash */
-                if(!flash_write(FLASH_APP, flash_offset, msg->length, msg->buffer))
-                {
-                    /* Error: flash write error */
-                    flash_lock();
-                    send_failure(FailureType_Failure_FirmwareError,
-                                 "Encountered error while writing to flash");
-                    upload_state = RAW_MESSAGE_ERROR;
-                    dbg_print("Error: flash write error... \n\r");
-                    goto rhu_exit;
-                }
-
-                flash_offset += msg->length;
-            }
-            else
-            {
-                /* Error: frame overrun detected during the image update */
-                flash_lock();
-                send_failure(FailureType_Failure_FirmwareError, "Firmware too large");
-                upload_state = RAW_MESSAGE_ERROR;
-                dbg_print("Error: frame overrun detected during the image update... \n\r");
-                goto rhu_exit;
-            }
-
-            /* Finish firmware update */
-            if(flash_offset >= frame_length - PROTOBUF_FIRMWARE_START)
-            {
-                flash_lock();
-                upload_state = RAW_MESSAGE_COMPLETE;
-            }
-        }
-    }
-    else
-    {
+    if (frame_length >= (FLASH_APP_LEN + FLASH_META_DESC_LEN)) {
         send_failure(FailureType_Failure_FirmwareError, "Firmware too large");
         dbg_print("Error: image too large to fit in the allocated space : 0x%" PRIx32 " ...\n\r",
                   frame_length);
         upload_state = RAW_MESSAGE_ERROR;
+        return;
     }
 
-rhu_exit:
-    return;
+    /* Start firmware load */
+    if (upload_state == RAW_MESSAGE_NOT_STARTED)
+    {
+        layoutProgress("Uploading Firmware", 0);
+
+        upload_state = RAW_MESSAGE_STARTED;
+        flash_offset = 0;
+
+        /*
+         * Parse firmware hash
+         */
+        memcpy(firmware_hash, msg->buffer + PROTOBUF_FIRMWARE_HASH_START, SHA256_DIGEST_LENGTH);
+
+        /*
+         * Parse application start
+         */
+        msg->length -= PROTOBUF_FIRMWARE_START;
+        msg->buffer = (uint8_t *)(msg->buffer + PROTOBUF_FIRMWARE_START);
+    }
+
+    /* Process firmware upload */
+    if (upload_state != RAW_MESSAGE_STARTED)
+        return;
+
+    /* Check if the image is bigger than allocated space */
+    if ((flash_offset + msg->length) >= (FLASH_APP_LEN + FLASH_META_DESC_LEN)) {
+        /* Error: frame overrun detected during the image update */
+        flash_lock();
+        send_failure(FailureType_Failure_FirmwareError, "Firmware too large");
+        upload_state = RAW_MESSAGE_ERROR;
+        dbg_print("Error: frame overrun detected during the image update... \n\r");
+        return;
+    }
+
+    if (flash_offset == 0)
+    {
+        /* Check that image is prepared with KeepKey magic */
+        if (memcmp(msg->buffer, META_MAGIC_STR, META_MAGIC_SIZE) != 0) {
+            /* Invalid KeepKey magic detected */
+            send_failure(FailureType_Failure_FirmwareError, "Not valid firmware");
+            upload_state = RAW_MESSAGE_ERROR;
+            dbg_print("Error: invalid Magic Key detected... \n\r");
+            return;
+        }
+
+        msg->length -= META_MAGIC_SIZE;
+        msg->buffer = (uint8_t *)(msg->buffer + META_MAGIC_SIZE);
+        flash_offset = META_MAGIC_SIZE;
+        /* Unlock the flash for writing */
+        flash_unlock();
+    }
+
+    static int update_ctr = 60;
+    if (update_ctr++ == 60) {
+        layoutProgress("Uploading Firmware\n", flash_offset * 1000 / frame_length);
+        update_ctr = 0;
+    }
+
+    /* Begin writing to flash */
+    if (!flash_write(FLASH_APP, flash_offset, msg->length, msg->buffer))
+    {
+        /* Error: flash write error */
+        flash_lock();
+        send_failure(FailureType_Failure_FirmwareError,
+                     "Encountered error while writing to flash");
+        upload_state = RAW_MESSAGE_ERROR;
+        dbg_print("Error: flash write error... \n\r");
+        return;
+    }
+
+    flash_offset += msg->length;
+
+    /* Finish firmware update */
+    if (flash_offset >= frame_length - PROTOBUF_FIRMWARE_START)
+    {
+        flash_lock();
+        upload_state = RAW_MESSAGE_COMPLETE;
+    }
 }
 
 /* --- Debug Message Handlers ---------------------------------------------- */
@@ -750,7 +736,7 @@ void handler_debug_link_get_state(DebugLinkGetState *msg)
     RESP_INIT(DebugLinkState);
 
     /* App fingerprint */
-    if((resp.firmware_hash.size = memory_firmware_hash(resp.firmware_hash.bytes)) != 0)
+    if ((resp.firmware_hash.size = memory_firmware_hash(resp.firmware_hash.bytes)) != 0)
     {
         resp.has_firmware_hash = true;
     }
@@ -794,7 +780,7 @@ void handler_debug_link_fill_config(DebugLinkFillConfig *msg)
     memset(fill_storage_shadow, FILL_CONFIG_DATA, STOR_FLASH_SECT_LEN);
 
     /* Fill storage sector with test data */
-    if(storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3)
+    if (storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3)
     {
         bl_flash_erase_word(storage_location);
         flash_write(storage_location, 0, STOR_FLASH_SECT_LEN,
