@@ -124,9 +124,6 @@ static void bootloader_fsm_init(void)
 #endif
 
     msg_init();
-
-    // U2F Transport is not supported in the bootloader yet:
-    //u2f_set_rx_callback(handle_usb_rx);
 }
 
 /*
