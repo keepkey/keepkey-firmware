@@ -45,25 +45,4 @@ if(NOT ${KK_EMULATOR})
           ${CMAKE_BINARY_DIR}/bin/firmware.keepkey.elf
           ${CMAKE_BINARY_DIR}/bin/firmware.keepkey.bin)
 
-  add_executable(firmware.mfr.elf ${sources})
-  target_link_libraries(firmware.mfr.elf
-      kkfirmware
-      kkfirmware.mfr
-      kkboard
-      -Wl,--whole-archive kkboard.mfr -Wl,--no-whole-archive
-      kkvariant.keepkey
-      kkvariant.salt
-      kktransport
-      trezorcrypto
-      qrcodegenerator
-      kkrand
-      -lopencm3_stm32f2
-      -lc
-      -lm)
-  add_custom_command(TARGET firmware.mfr.elf
-      POST_BUILD
-      COMMAND ${CMAKE_OBJCOPY} ARGS -O binary
-          ${CMAKE_BINARY_DIR}/bin/firmware.mfr.elf
-          ${CMAKE_BINARY_DIR}/bin/firmware.mfr.bin)
-
 endif()

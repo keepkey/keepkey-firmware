@@ -262,7 +262,6 @@ bool find_active_storage(Allocation *storage_location);
 Allocation next_storage(Allocation active);
 
 void memory_getDeviceLabel(char *str, size_t len);
-void memory_getDeviceSerialNo(char *str, size_t len);
 
 /// Write the marker that allows the firmware to boot with secrets preserved.
 bool storage_protect_off(void);

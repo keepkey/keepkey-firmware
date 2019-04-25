@@ -76,16 +76,6 @@ void memory_getDeviceLabel(char *str, size_t len) {
     strlcpy(str, "KeepKey", len);
 }
 
-void memory_getDeviceSerialNo(char *str, size_t len) {
-#ifdef DEBUG_ON
-    desig_get_unique_id_as_string(str, len);
-#else
-    // Storage isn't available to be read by the bootloader, and we don't want
-    // to use the Serial No. baked into the STM32 for privacy reasons.
-    strlcpy(str, "000000000000000000000000", len);
-#endif
-}
-
 /// Dispatch into firmware
 static inline void __attribute__((noreturn)) jump_to_firmware(int trust)
 {
