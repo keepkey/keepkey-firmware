@@ -48,7 +48,6 @@
 
 static Allocation storage_location = FLASH_INVALID;
 static RawMessageState upload_state = RAW_MESSAGE_NOT_STARTED;
-static uint8_t CONFIDENTIAL storage_sav[STOR_FLASH_SECT_LEN];
 static uint8_t firmware_hash[SHA256_DIGEST_LENGTH];
 static bool old_firmware_was_unsigned;
 extern bool reset_msg_stack;
@@ -124,67 +123,6 @@ static void bootloader_fsm_init(void)
 #endif
 
     msg_init();
-}
-
-/*
- *  flash_locking_write - Restore storage partition in flash for firmware update
- *
- *  INPUT -
- *      - group: flash partition
- *      - offset: flash offset within partition to begin write
- *      - len: length to write
- *      - data: pointer to source data
- *
- *  OUTPUT -
- *      status of flash write
- */
-static bool flash_locking_write(Allocation group, size_t offset, size_t len,
-                                uint8_t *data)
-{
-    if (!flash_write(group, offset, len, data)) {
-        /* Flash error detectected */
-        return false;
-    }
-
-    return true;
-}
-
-/*
- * storage_restore() - Restore config data
- *
- * INPUT -
- *      none
- * OUTPUT -
- *      restore status
- *
- */
-static bool storage_restore(void)
-{
-    if (storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3) {
-        return flash_locking_write(storage_location, 0, STOR_FLASH_SECT_LEN,
-                                   storage_sav);
-    }
-
-    return false;
-}
-
-/*
- * storage_preserve() - Preserve storage data in ram
- *
- * INPUT -
- *      none
- * OUTPUT -
- *      preserve status
- */
-static bool storage_preserve(void)
-{
-    /* Search active storage sector and save in shadow memory  */
-    if (storage_location >= FLASH_STORAGE1 && storage_location <= FLASH_STORAGE3) {
-        memcpy(storage_sav, (void *)flash_write_helper(storage_location), STOR_FLASH_SECT_LEN);
-        return true;
-    }
-
-    return false;
 }
 
 /// \return true iff storage should be restored after this firmware update.
@@ -271,33 +209,36 @@ bool usb_flash_firmware(void)
             {
                 // Only restore the storage sector / keys if the old firmware's
                 // signedness matches the new firmware's signedness.
-                if (should_restore()) {
-                    // Restore storage data.
-                    if (!storage_restore()) {
-                        memzero(storage_sav, sizeof(storage_sav));
-                        return false;
-                    }
+                //
+                // Also wipe if we failed to turn off storage_protect.
+                if (!fi_defense_delay(should_restore()) ||
+                    !storage_protect_off()) {
+                    flash_unlock();
+                    bl_flash_erase_word(FLASH_STORAGE1);
+                    bl_flash_erase_word(FLASH_STORAGE2);
+                    bl_flash_erase_word(FLASH_STORAGE3);
+                    flash_lock();
                 }
 
                 /* Check CRC of firmware that was flashed */
                 if (check_firmware_hash()) {
                     /* Fingerprint has been verified.  Install "KPKY" magic in meta header */
-                    if (flash_locking_write(FLASH_APP, 0, META_MAGIC_SIZE,
-                                            (uint8_t *)META_MAGIC_STR) == true) {
+                    if (flash_write(FLASH_APP, 0, META_MAGIC_SIZE,
+                                    (uint8_t *)META_MAGIC_STR) == true) {
+                        flash_lock();
                         send_success("Upload complete");
-                        memzero(storage_sav, sizeof(storage_sav));
                         return true;
                     }
                 }
 
-                memzero(storage_sav, sizeof(storage_sav));
+                flash_lock();
                 return false;
             }
 
             case RAW_MESSAGE_ERROR:
             {
+                flash_lock();
                 dbg_print("Error: Firmware update error...\n\r");
-                memzero(storage_sav, sizeof(storage_sav));
                 return false;
             }
 
@@ -313,7 +254,7 @@ bool usb_flash_firmware(void)
     }
 
     /* Clear the shadow before exiting */
-    memzero(storage_sav, sizeof(storage_sav));
+    flash_lock();
     return false;
 }
 
@@ -327,19 +268,7 @@ void storage_sectorInit(void)
     }
 }
 
-/* --- Message Out Writing ------------------------------------------------- */
-
-/*
- * send_success() - Send success message to host
- *
- * INPUT
- *     - text: success message
- *
- * OUTPUT
- *     none
- *
- */
-
+/// Send success message to host.
 void send_success(const char *text)
 {
     RESP_INIT(Success);
@@ -353,17 +282,7 @@ void send_success(const char *text)
     msg_write(MessageType_MessageType_Success, &resp);
 }
 
-/*
- * send_falure() -  Send failure message to host
- *
- * INPUT
- *     - code: failure code
- *     - text: failure message
- *
- * OUTPUT
- *     none
- *
- */
+/// Send failure message to host.
 void send_failure(FailureType code, const char *text)
 {
     if (reset_msg_stack)
@@ -387,16 +306,7 @@ void send_failure(FailureType code, const char *text)
     msg_write(MessageType_MessageType_Failure, &resp);
 }
 
-/* --- Message Handlers ---------------------------------------------------- */
-
-/*
- * handler_ping() - Handler to respond to ping message
- *
- * INPUT -
- *     - msg: ping protocol buffer message
- * OUTPUT -
- *     none
- */
+/// Handler to respond to ping messages.
 void handler_ping(Ping *msg)
 {
     RESP_INIT(Success);
@@ -410,14 +320,7 @@ void handler_ping(Ping *msg)
     msg_write(MessageType_MessageType_Success, &resp);
 }
 
-/*
- * handler_initialize() - Handler to respond to initialize message
- *
- * INPUT -
- *      - msg: initialize protocol buffer message
- * OUTPUT -
- *      none
- */
+// Handler to respond to initialize message.
 void handler_initialize(Initialize *msg)
 {
     (void)msg;
@@ -477,30 +380,14 @@ void handler_initialize(Initialize *msg)
     msg_write(MessageType_MessageType_Features, &resp);
 }
 
-/*
- * handler_get_features() - Handler to respond to GetFeatures message
- *
- * INPUT -
- *      - msg: GetFeatures protocol buffer message
- * OUTPUT -
- *      none
- */
+/// Handler to respond to GetFeatures message.
 void handler_get_features(GetFeatures *msg)
 {
     (void)msg;
     handler_initialize(0);
 }
 
-
-/*
- * handler_wipe() - Handler to wipe all application data and secret storage
- *
- * INPUT -
- *     - msg: WipeDevice protocol buffer message
- * OUTPUT
- *     none
- *
- */
+/// Handler to wipe all application data and secret storage.
 void handler_wipe(WipeDevice *msg)
 {
     (void)msg;
@@ -551,15 +438,7 @@ static bool should_erase(void) {
     }
 }
 
-/*
- * handler_erase() - Handler to wipe application firmware
- *
- * INPUT -
- *     - msg: firmware erase protocol buffer message
- * OUTPUT
- *     none
- *
- */
+/// Handler to wipe application firmware
 void handler_erase(FirmwareErase *msg)
 {
     (void)msg;
@@ -572,23 +451,17 @@ void handler_erase(FirmwareErase *msg)
 
     layoutProgress("Preparing for upgrade", 0);
 
-    /* Save storage data in memory so it can be restored after firmware update */
-    if (!storage_preserve()) {
-        upload_state = RAW_MESSAGE_ERROR;
-        send_failure(FailureType_Failure_Other, "Firmware erase error");
-        return;
+    if (!fi_defense_delay(storage_protect_on())) {
+        flash_unlock();
+        bl_flash_erase_word(FLASH_STORAGE1);
+        bl_flash_erase_word(FLASH_STORAGE2);
+        bl_flash_erase_word(FLASH_STORAGE3);
+        flash_lock();
     }
 
-    /* Erase config data sectors  */
-    for (uint32_t i = FLASH_STORAGE1; i <= FLASH_STORAGE3; i++) {
-        bl_flash_erase_word(i);
-        layoutProgress("Preparing for upgrade", (i * 1000 / 9));
-    }
-
-    /* Erase application section */
     for (int i = 7; i <= 11; ++i) {
         bl_flash_erase_word(i);
-        layoutProgress("Preparing for upgrade", ((i + 3 - 7 + 2) * 1000 / 9));
+        layoutProgress("Preparing for upgrade", ((i - 7) * 1000 / (11 - 7)));
     }
 
     flash_lock();
@@ -596,20 +469,7 @@ void handler_erase(FirmwareErase *msg)
     send_success("Firmware erased");
 }
 
-/* --- Raw Message Handlers ------------------------------------------------ */
-
-/*
- * raw_handler_upload() - Main firmware upload handler that parses USB message
- * and writes image to flash
- *
- * INPUT -
- *     - msg: raw message
- *     - frame_length: total size that should be expected
- *
- * OUTPUT
- *     none
- *
- */
+/// Main firmware upload handler that parses USB message
 void raw_handler_upload(RawMessage *msg, uint32_t frame_length)
 {
     static uint32_t flash_offset;
@@ -703,18 +563,7 @@ void raw_handler_upload(RawMessage *msg, uint32_t frame_length)
     }
 }
 
-/* --- Debug Message Handlers ---------------------------------------------- */
-
 #if DEBUG_LINK
-/*
- * handler_debug_link_get_state() - Handler for debug link get state
- *
- * INPUT
- *     - msg: debug link get state protocol buffer message
- *
- * OUTPUT
- *     none
- */
 void handler_debug_link_get_state(DebugLinkGetState *msg)
 {
     (void)msg;
@@ -733,30 +582,12 @@ void handler_debug_link_get_state(DebugLinkGetState *msg)
     msg_debug_write(MessageType_MessageType_DebugLinkState, &resp);
 }
 
-/*
- * handler_debug_link_stop() - Handler for debug link stop
- *
- * INPUT
- *     - msg: debug link stop protocol buffer message
- *
- * OUTPUT
- *     none
- */
 void handler_debug_link_stop(DebugLinkStop *msg)
 {
     (void)msg;
 }
 
-/*
- * handler_debug_link_fill_config() - Fills config area with sample data (used
- * for testing firmware upload)
- *
- * INPUT
- *     - msg: debug link fill config protocol buffer message
- *
- * OUTPUT
- *     none
- */
+/// Fills config area with sample data (used for testing firmware upload)
 void handler_debug_link_fill_config(DebugLinkFillConfig *msg)
 {
     (void)msg;

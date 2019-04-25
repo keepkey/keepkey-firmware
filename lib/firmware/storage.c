@@ -975,6 +975,7 @@ void storage_commit(void)
                        sizeof(flash_temp) / sizeof(uint32_t));
 
         if (shadow_flash_crc32 == shadow_ram_crc32) {
+            storage_protect_off();
             /* Commit successful, break to exit */
             break;
         }

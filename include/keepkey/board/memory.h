@@ -91,7 +91,7 @@ extern uint8_t *emulator_flash_base;
 
 #define BSTRP_FLASH_SECT_LEN    0x4000
 #define STOR_FLASH_SECT_LEN     0x4000
-#define UNUSED_FLASH_SECT0_LEN  0x10000 
+#define UNUSED_FLASH_SECT0_LEN  0x10000
 #define BLDR_FLASH_SECT_LEN     0x20000
 #define APP_FLASH_SECT_LEN      0x20000
 
@@ -164,6 +164,25 @@ extern uint8_t *emulator_flash_base;
 #define FLASH_APP_SECTOR_LAST   11
 
 #define STORAGE_SECT_DEFAULT FLASH_STORAGE1
+
+// Storage Protection:
+//
+// Due to a disclosure at 35c3 by Dmitry Nedospasov, Josh Datko and Thomas
+// Roth, we cannot load read the secrets into ram anymore during firmware
+// update. To mitigate this, and still allow preservation of secrets across
+// firmware updates, we check for the presence of some magic bytes at the
+// beginning of the storage sector immediately following the active sector.
+// If the bytes do not match the known magic, secrets are wiped before booting.
+//
+// We use a non-trivial sequence of bytes for the magic in order to severely
+// increase difficulty of glitching past the check:
+//
+// echo -n "boot allowed" | shasum -a 256
+#define STORAGE_PROTECT_OFF_MAGIC  "\x31\x88\x4e\xb8\x48\x2a\x28\x09\xe3\x74\x61\xd9\x6a\xd7\xf0\xed\x8c\xdd\x7c\xa6\x07\x3e\x68\x6a\x15\xc0\x89\xc6\x11\x89\x95\xa0"
+#define STORAGE_PROTECT_ON_MAGIC   "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+
+#define STORAGE_PROTECT_DISABLED 0x5ac35ac3
+#define STORAGE_PROTECT_ENABLED  0x00000000
 
 /* Application Meta format */
 typedef struct
@@ -239,8 +258,23 @@ int memory_firmware_hash(uint8_t *hash);
 int memory_storage_hash(uint8_t *hash, Allocation storage_location);
 bool find_active_storage(Allocation *storage_location);
 
+/// Find the storage location *after* the active one.
+Allocation next_storage(Allocation active);
+
 void memory_getDeviceLabel(char *str, size_t len);
 void memory_getDeviceSerialNo(char *str, size_t len);
+
+/// Write the marker that allows the firmware to boot with secrets preserved.
+bool storage_protect_off(void);
+
+/// Clear the marker that allows the firmware to boot with secrets preserved.
+bool storage_protect_on(void);
+
+/// Wipe if the status is not STORAGE_PROTECT_DISABLED
+void storage_protect_wipe(uint32_t status);
+
+/// \returns STORAGE_PROTECT_{ENABLED,DISABLED}
+uint32_t storage_protect_status(void);
 
 extern void * _timerusr_isr;
 extern void * _buttonusr_isr;
