@@ -37,6 +37,8 @@
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/coins.h"
 
+#include "trezor/crypto/bignum.h"
+
 #include <assert.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -44,6 +46,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+
+#define BITCOIN_DIVISIBILITY (8)
+#define _(X) (X)
 
 /*
  * confirm_cipher() - Show cipher confirmation
@@ -413,6 +418,35 @@ bool confirm_sign_identity(const IdentityType *identity, const char *challenge)
     return confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, "%s", body);
 }
 
+bool confirm_omni(ButtonRequestType button_request, const char *title, const uint8_t *data, uint32_t size)
+{
+	const uint32_t tx_type = *(const uint32_t *)(data + 4);
+	if (tx_type == 0x00000000 && size == 20) {  // OMNI simple send
+		char str_out[32];
+		const uint32_t currency = *(const uint32_t *)(data + 8);
+		const char *suffix = "UNKN";
+		switch (currency) {
+			case 1:
+				suffix = " OMNI";
+				break;
+			case 2:
+				suffix = " tOMNI";
+				break;
+			case 3:
+				suffix = " MAID";
+				break;
+			case 31:
+				suffix = " USDT";
+				break;
+		}
+		const uint64_t amount = *(const uint64_t *)(data + 12);
+		bn_format_uint64(amount, NULL, suffix, BITCOIN_DIVISIBILITY, 0, false, str_out, sizeof(str_out));
+		return confirm(button_request, title, _("Do you want to send %s?"), str_out);
+	} else {
+		return confirm(button_request, title, _("Unknown Transaction"));
+	}
+}
+
 bool confirm_data(ButtonRequestType button_request, const char *title,
                   const uint8_t *data, uint32_t size)
 {
@@ -431,3 +465,4 @@ bool confirm_data(ButtonRequestType button_request, const char *title,
 	}
 	return confirm(button_request, title, "%s", str);
 }
+
