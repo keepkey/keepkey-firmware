@@ -144,11 +144,6 @@ const char *variant_getName(void) {
         return name;
     }
 
-    if (variant_isMFR()) {
-        name = "MFR";
-        return name;
-    }
-
     name = variant_getInfo()->name;
     return name;
 #endif
