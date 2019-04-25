@@ -707,6 +707,7 @@ void animating_progress_handler(const char *desc, int permil)
     uint32_t x = LEFT_MARGIN;
     uint32_t y = 48;
 
+    // Outline
     BoxDrawableParams bp;
     bp.width = width;
     bp.height = height;
@@ -715,6 +716,7 @@ void animating_progress_handler(const char *desc, int permil)
     bp.base.color = 0xcc;
     draw_box(canvas, &bp);
 
+    // Finished
     bp.width = finished_width - 1;
     bp.height = height - 2;
     bp.base.x = x + 1;
@@ -724,12 +726,15 @@ void animating_progress_handler(const char *desc, int permil)
         draw_box(canvas, &bp);
     }
 
+    // Not Finished
     bp.width = width - finished_width - 2;
     bp.height = height - 2;
     bp.base.x = x + finished_width + 1;
     bp.base.y = y + 1;
     bp.base.color = 0x00;
-    draw_box(canvas, &bp);
+    if (width > finished_width + 2) {
+        draw_box(canvas, &bp);
+    }
 
     display_refresh();
 }
