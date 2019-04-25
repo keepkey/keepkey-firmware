@@ -121,22 +121,22 @@ static const MessagesMap_t MessagesMap[] = {
 };
 
 #undef MSG_IN
-#define MSG_IN(ID, STRUCT_NAME, PROCESS_FUNC, MSG_PERMS) \
+#define MSG_IN(ID, STRUCT_NAME, PROCESS_FUNC) \
   _Static_assert(sizeof(STRUCT_NAME) <= MAX_DECODE_SIZE, "Message too big");
 
 #undef MSG_OUT
-#define MSG_OUT(ID, STRUCT_NAME, PROCESS_FUNC, MSG_PERMS)
+#define MSG_OUT(ID, STRUCT_NAME, PROCESS_FUNC)
 
 #undef RAW_IN
-#define RAW_IN(ID, STRUCT_NAME, PROCESS_FUNC, MSG_PERMS) \
+#define RAW_IN(ID, STRUCT_NAME, PROCESS_FUNC) \
   _Static_assert(sizeof(STRUCT_NAME) <= MAX_DECODE_SIZE, "Message too big");
 
 #undef DEBUG_IN
-#define DEBUG_IN(ID, STRUCT_NAME, PROCESS_FUNC, MSG_PERMS) \
+#define DEBUG_IN(ID, STRUCT_NAME, PROCESS_FUNC) \
   _Static_assert(sizeof(STRUCT_NAME) <= MAX_DECODE_SIZE, "Message too big");
 
 #undef DEBUG_OUT
-#define DEBUG_OUT(ID, STRUCT_NAME, PROCESS_FUNC, MSG_PERMS)
+#define DEBUG_OUT(ID, STRUCT_NAME, PROCESS_FUNC)
 
 #include "messagemap.def"
 

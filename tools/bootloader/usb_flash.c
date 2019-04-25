@@ -56,33 +56,33 @@ extern bool reset_msg_stack;
 static const MessagesMap_t MessagesMap[] =
 {
     /* Normal Messages */
-    MSG_IN(MessageType_MessageType_Initialize,              Initialize,          handler_initialize,                AnyVariant)
-    MSG_IN(MessageType_MessageType_GetFeatures,             GetFeatures,         handler_get_features,              AnyVariant)
-    MSG_IN(MessageType_MessageType_Ping,                    Ping,                handler_ping,                      AnyVariant)
-    MSG_IN(MessageType_MessageType_WipeDevice,              WipeDevice,          handler_wipe,                      AnyVariant)
-    MSG_IN(MessageType_MessageType_FirmwareErase,           FirmwareErase,       handler_erase,                     AnyVariant)
-    MSG_IN(MessageType_MessageType_ButtonAck,               ButtonAck,           NO_PROCESS_FUNC,                   AnyVariant)
-    MSG_IN(MessageType_MessageType_Cancel,                  Cancel,              NO_PROCESS_FUNC,                   AnyVariant)
+    MSG_IN(MessageType_MessageType_Initialize,              Initialize,          handler_initialize)
+    MSG_IN(MessageType_MessageType_GetFeatures,             GetFeatures,         handler_get_features)
+    MSG_IN(MessageType_MessageType_Ping,                    Ping,                handler_ping)
+    MSG_IN(MessageType_MessageType_WipeDevice,              WipeDevice,          handler_wipe)
+    MSG_IN(MessageType_MessageType_FirmwareErase,           FirmwareErase,       handler_erase)
+    MSG_IN(MessageType_MessageType_ButtonAck,               ButtonAck,           NO_PROCESS_FUNC)
+    MSG_IN(MessageType_MessageType_Cancel,                  Cancel,              NO_PROCESS_FUNC)
 
     /* Normal Raw Messages */
-    RAW_IN(MessageType_MessageType_FirmwareUpload,          FirmwareUpload,      raw_handler_upload,                AnyVariant)
+    RAW_IN(MessageType_MessageType_FirmwareUpload,          FirmwareUpload,      raw_handler_upload)
 
     /* Normal Out Messages */
-    MSG_OUT(MessageType_MessageType_Features,               Features,            NO_PROCESS_FUNC,                   AnyVariant)
-    MSG_OUT(MessageType_MessageType_Success,                Success,             NO_PROCESS_FUNC,                   AnyVariant)
-    MSG_OUT(MessageType_MessageType_Failure,                Failure,             NO_PROCESS_FUNC,                   AnyVariant)
-    MSG_OUT(MessageType_MessageType_ButtonRequest,          ButtonRequest,       NO_PROCESS_FUNC,                   AnyVariant)
+    MSG_OUT(MessageType_MessageType_Features,               Features,            NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_Success,                Success,             NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_Failure,                Failure,             NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_ButtonRequest,          ButtonRequest,       NO_PROCESS_FUNC)
 
 #if DEBUG_LINK
     /* Debug Messages */
-    DEBUG_IN(MessageType_MessageType_DebugLinkDecision,     DebugLinkDecision,   NO_PROCESS_FUNC,                   AnyVariant)
-    DEBUG_IN(MessageType_MessageType_DebugLinkGetState,     DebugLinkGetState,   handler_debug_link_get_state,      AnyVariant)
-    DEBUG_IN(MessageType_MessageType_DebugLinkStop,         DebugLinkStop,       handler_debug_link_stop,           AnyVariant)
-    DEBUG_IN(MessageType_MessageType_DebugLinkFillConfig,   DebugLinkFillConfig, handler_debug_link_fill_config,    AnyVariant)
+    DEBUG_IN(MessageType_MessageType_DebugLinkDecision,     DebugLinkDecision,   NO_PROCESS_FUNC)
+    DEBUG_IN(MessageType_MessageType_DebugLinkGetState,     DebugLinkGetState,   handler_debug_link_get_state)
+    DEBUG_IN(MessageType_MessageType_DebugLinkStop,         DebugLinkStop,       handler_debug_link_stop)
+    DEBUG_IN(MessageType_MessageType_DebugLinkFillConfig,   DebugLinkFillConfig, handler_debug_link_fill_config)
 
     /* Debug Out Messages */
-    DEBUG_OUT(MessageType_MessageType_DebugLinkState,       DebugLinkState,      NO_PROCESS_FUNC,                   AnyVariant)
-    DEBUG_OUT(MessageType_MessageType_DebugLinkLog,         DebugLinkLog,        NO_PROCESS_FUNC,                   AnyVariant)
+    DEBUG_OUT(MessageType_MessageType_DebugLinkState,       DebugLinkState,      NO_PROCESS_FUNC)
+    DEBUG_OUT(MessageType_MessageType_DebugLinkLog,         DebugLinkLog,        NO_PROCESS_FUNC)
 #endif
 };
 
@@ -124,9 +124,6 @@ static void bootloader_fsm_init(void)
 #endif
 
     msg_init();
-
-    // U2F Transport is not supported in the bootloader yet:
-    //u2f_set_rx_callback(handle_usb_rx);
 }
 
 /*

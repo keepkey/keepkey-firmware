@@ -189,7 +189,7 @@ int main(void)
 
     if (is_mfg_mode())
         layout_screen_test();
-    else if (variant_isMFR())
+    else if (!storage_isInitialized())
         layout_simple_message("keepkey.com/get-started");
     else
         layoutHomeForced();

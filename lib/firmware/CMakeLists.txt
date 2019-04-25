@@ -45,4 +45,3 @@ add_custom_target(ethereum_tokens.def
   DEPENDS ${CMAKE_BINARY_DIR}/include/keepkey/firmware/ethereum_tokens.def)
 
 add_library(kkfirmware.keepkey variant/keepkey/resources.c)
-add_library(kkfirmware.mfr variant/mfr/resources.c)

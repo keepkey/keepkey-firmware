@@ -63,7 +63,6 @@ void fsm_msgDebugLinkStop(DebugLinkStop *msg)
 {
     (void)msg;
 }
-#endif
 
 void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg)
 {
@@ -78,12 +77,7 @@ void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg)
 
     RESP_INIT(DebugLinkFlashDumpResponse);
 
-#  if DEBUG_LINK
     memcpy(resp->data.bytes, (void*)msg->address, msg->length);
-#  else
-    if (variant_mfr_flashDump)
-        variant_mfr_flashDump(resp->data.bytes, (void*)msg->address, msg->length);
-#  endif
 
     resp->has_data = true;
     resp->data.size = msg->length;
@@ -91,115 +85,4 @@ void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg)
 #endif
 }
 
-void fsm_msgSoftReset(SoftReset *msg) {
-    (void)msg;
-#ifndef EMULATOR
-    if (variant_mfr_softReset)
-        variant_mfr_softReset();
-    else {
-#else
-    {
 #endif
-        fsm_sendFailure(FailureType_Failure_Other, "SoftReset: unsupported outside of MFR firmware");
-        layoutHome();
-    }
-}
-
-void fsm_msgFlashWrite(FlashWrite *msg) {
-#ifndef EMULATOR
-    if (!variant_mfr_flashWrite || !variant_mfr_flashHash ||
-        !variant_mfr_sectorFromAddress || !variant_mfr_sectorLength ||
-        !variant_mfr_sectorStart) {
-#endif
-        fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: this isn't MFR firmware");
-        layoutHome();
-        return;
-#ifndef EMULATOR
-    }
-
-    if (!msg->has_address || !msg->has_data || msg->data.size > 1024) {
-        fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: invalid parameters");
-        layoutHome();
-        return;
-    }
-
-    uint8_t sector = variant_mfr_sectorFromAddress((uint8_t*)msg->address);
-    if (variant_mfr_sectorLength(sector) < (uint8_t*)msg->address -
-                                  (uint8_t*)variant_mfr_sectorStart(sector) +
-                                  msg->data.size) {
-        fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: write must not span more than one sector");
-        layoutHome();
-        return;
-    }
-
-    _Static_assert(FLASH_BOOTSTRAP_SECTOR_FIRST == FLASH_BOOTSTRAP_SECTOR_LAST,
-                   "Bootstrap isn't one sector?");
-    if (FLASH_BOOTSTRAP_SECTOR_FIRST == sector ||
-        (FLASH_VARIANT_SECTOR_FIRST <= sector &&
-         sector <= FLASH_VARIANT_SECTOR_LAST) ||
-        (FLASH_BOOT_SECTOR_FIRST <= sector &&
-         sector <= FLASH_BOOT_SECTOR_LAST)) {
-        fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: cannot write to read-only sector");
-        layoutHome();
-        return;
-    }
-
-    if (!variant_mfr_flashWrite((uint8_t*)msg->address, msg->data.bytes, msg->data.size,
-                                 msg->has_erase ? msg->erase : false)) {
-        fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: write failed");
-        layoutHome();
-        return;
-    }
-
-    if (memcmp((void*)msg->address, (void*)msg->data.bytes, msg->data.size) != 0) {
-        fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: write / read-back mismatch");
-        layoutHome();
-        return;
-    }
-
-    RESP_INIT(FlashHashResponse);
-
-    if (!variant_mfr_flashHash((uint8_t*)msg->address, msg->data.size, 0, 0,
-                                resp->data.bytes, sizeof(resp->data.bytes))) {
-        fsm_sendFailure(FailureType_Failure_Other, "FlashWrite: FlashHash failed");
-        layoutHome();
-        return;
-    }
-
-    resp->has_data = true;
-    resp->data.size = sizeof(resp->data.bytes);
-    msg_write(MessageType_MessageType_FlashHashResponse, resp);
-#endif
-}
-
-void fsm_msgFlashHash(FlashHash *msg) {
-#ifndef EMULATOR
-    if (!variant_mfr_flashHash) {
-#endif
-        fsm_sendFailure(FailureType_Failure_Other, "FlashHash: this isn't MFR firmware");
-        layoutHome();
-        return;
-#ifndef EMULATOR
-    }
-
-    if (!msg->has_address || !msg->has_length || !msg->has_challenge) {
-        fsm_sendFailure(FailureType_Failure_Other, "FlashHash: invalid parameters");
-        layoutHome();
-        return;
-    }
-
-    RESP_INIT(FlashHashResponse);
-
-    if (!variant_mfr_flashHash((uint8_t*)msg->address, msg->length,
-                                msg->challenge.bytes, msg->challenge.size,
-                                resp->data.bytes, sizeof(resp->data.bytes))) {
-        fsm_sendFailure(FailureType_Failure_Other, "FlashHash: failed");
-        layoutHome();
-        return;
-    }
-
-    resp->has_data = true;
-    resp->data.size = sizeof(resp->data.bytes);
-    msg_write(MessageType_MessageType_FlashHashResponse, resp);
-#endif
-}
