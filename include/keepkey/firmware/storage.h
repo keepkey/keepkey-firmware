@@ -115,8 +115,14 @@ void storage_setMnemonic(const char *mnemonic);
 /// \brief Get mnemonic from shadow memory
 const char *storage_getShadowMnemonic(void);
 
+/// \returns true iff storage is unlocked, and contains the provided mnemonic.
+bool storage_containsMnemonic(const char *mnemonic);
+
 /// \returns true iff the private key stored on device was imported.
 bool storage_getImported(void);
+
+/// \brief marks the private key stored on the device as imported/not.
+void storage_setImported(bool val);
 
 /// \brief Get active storage location..
 Allocation storage_getLocation(void);

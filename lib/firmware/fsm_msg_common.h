@@ -479,10 +479,14 @@ apply_settings_cancelled:
 
 void fsm_msgRecoveryDevice(RecoveryDevice *msg)
 {
-    CHECK_NOT_INITIALIZED
+    if (msg->has_dry_run && msg->dry_run) {
+        CHECK_INITIALIZED
+    } else {
+        CHECK_NOT_INITIALIZED
+    }
 
     if (msg->has_use_character_cipher &&
-        msg->use_character_cipher)   // recovery via character cipher
+        msg->use_character_cipher)               // recovery via character cipher
     {
         recovery_cipher_init(
             msg->has_passphrase_protection && msg->passphrase_protection,
@@ -491,7 +495,8 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg)
             msg->has_label ? msg->label : 0,
             msg->has_enforce_wordlist ? msg->enforce_wordlist : false,
             msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT,
-            msg->has_u2f_counter ? msg->u2f_counter : 0
+            msg->has_u2f_counter ? msg->u2f_counter : 0,
+            msg->has_dry_run ? msg->dry_run : false
         );
     } else {                                     // legacy way of recovery
         recovery_init(
@@ -502,7 +507,8 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg)
             msg->has_label ? msg->label : 0,
             msg->has_enforce_wordlist ? msg->enforce_wordlist : false,
             msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT,
-            msg->has_u2f_counter ? msg->u2f_counter : 0
+            msg->has_u2f_counter ? msg->u2f_counter : 0,
+            msg->has_dry_run ? msg->dry_run : false
         );
     }
 }
