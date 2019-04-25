@@ -240,7 +240,6 @@ int memory_storage_hash(uint8_t *hash, Allocation storage_location);
 bool find_active_storage(Allocation *storage_location);
 
 void memory_getDeviceLabel(char *str, size_t len);
-void memory_getDeviceSerialNo(char *str, size_t len);
 
 extern void * _timerusr_isr;
 extern void * _buttonusr_isr;
