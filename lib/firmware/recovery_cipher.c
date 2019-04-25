@@ -462,7 +462,6 @@ void recovery_cipher_finalize(void)
         fsm_sendSuccess("Device recovered");
     } else if (dry_run) {
         bool match = storage_isInitialized() && storage_containsMnemonic(new_mnemonic);
-        memzero(new_mnemonic, sizeof(new_mnemonic));
         if (match) {
             review(ButtonRequestType_ButtonRequest_Other, "Recovery Dry Run",
                    "The seed is valid and MATCHES the one in the device.");
@@ -478,6 +477,7 @@ void recovery_cipher_finalize(void)
             fsm_sendFailure(FailureType_Failure_Other,
                             "The seed is invalid, and does not match the one in the device.");
         }
+        memzero(new_mnemonic, sizeof(new_mnemonic));
     } else {
         session_clear(true);
         fsm_sendFailure(FailureType_Failure_SyntaxError,

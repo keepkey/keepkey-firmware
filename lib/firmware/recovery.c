@@ -207,7 +207,7 @@ void recovery_word(const char *word)
 void recovery_done(void) {
     char new_mnemonic[241] = {0};
     strlcpy(new_mnemonic, words[0], sizeof(new_mnemonic));
-    for (uint32_t i = 0; i < word_count; i++) {
+    for (uint32_t i = 1; i < word_count; i++) {
         strlcat(new_mnemonic, " ", sizeof(new_mnemonic));
         strlcat(new_mnemonic, words[i], sizeof(new_mnemonic));
     }
@@ -223,7 +223,6 @@ void recovery_done(void) {
         fsm_sendSuccess("Device recovered");
     } else if (dry_run) {
         bool match = storage_isInitialized() && storage_containsMnemonic(new_mnemonic);
-        memzero(new_mnemonic, sizeof(new_mnemonic));
         if (match) {
             review(ButtonRequestType_ButtonRequest_Other, "Recovery Dry Run",
                    "The seed is valid and MATCHES the one in the device.");
@@ -239,6 +238,7 @@ void recovery_done(void) {
             fsm_sendFailure(FailureType_Failure_Other,
                             "The seed is invalid, and does not match the one in the device.");
         }
+        memzero(new_mnemonic, sizeof(new_mnemonic));
     } else {
         session_clear(true);
         fsm_sendFailure(FailureType_Failure_SyntaxError,
