@@ -31,6 +31,7 @@
 #include "keepkey/board/keepkey_leds.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/supervise.h"
+#include "trezor/crypto/rand.h"
 
 #include <stddef.h>
 
@@ -263,6 +264,16 @@ void timer_init(void)
     signal(SIGALRM, tim4_sighandler);
     ualarm(1000, 1000);
 #endif
+}
+
+uint32_t fi_defense_delay(volatile uint32_t value) {
+#ifndef EMULATOR
+    uint32_t cnt = random32() & 0x4fff;
+    while (cnt--) {
+        __asm__ __volatile__("nop");
+    }
+#endif
+    return value;
 }
 
 /*

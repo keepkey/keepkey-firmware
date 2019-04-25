@@ -76,82 +76,80 @@ void memory_getDeviceLabel(char *str, size_t len) {
     strlcpy(str, "KeepKey", len);
 }
 
-/*
- * jump_to_firmware() - jump to firmware
- *
- * INPUT
- *     none
- * OUTPUT
- *     none
- *
- */
-static inline void __attribute__((noreturn)) jump_to_firmware(const vector_table_t *new_vtable, int trust)
+/// Dispatch into firmware
+static inline void __attribute__((noreturn)) jump_to_firmware(int trust)
 {
     extern char _confidential_start[];
     extern char _confidential_end[];
-
-    // Set up and turn on memory protection
-
     memset_reg(_confidential_start, _confidential_end, 0);
 
-    // disable interrupts until new user vectors
-    svc_disable_interrupts();    // disable interrupts until new user vectors set
+    // Disable interrupts until new user vectors are set.
+    svc_disable_interrupts();
 
 #ifdef  DEBUG_ON
-    // For dev devices with JTAG disabled firmware must always be trusted. Otherwise, a bootloader might be updated
-    // that locks out further bootloader updates. 
+    // For dev devices with JTAG disabled, firmware must always be trusted.
+    // Otherwise, a bootloader might be updated that locks out further
+    // bootloader updates.
     trust = SIG_OK;
 
-#ifdef TEST_UNSIGNED
+#  ifdef TEST_UNSIGNED
     trust = SIG_FAIL;
+#  endif
+
 #endif
 
-#endif //DEBUG_ON
+    // Set up and turn on memory protection, if needed.
+    if (SIG_OK == fi_defense_delay(trust)) {
 
+        // Trusted firmware is allowed to provide its own vtable.
+        const vector_table_t *new_vtable = (const vector_table_t*)(FLASH_APP_START);
 
-    if (SIG_OK == trust) {
         if (new_vtable->irq[NVIC_ETH_IRQ] != new_vtable->irq[NVIC_ETH_WKUP_IRQ]) {
-            // If these vectors are not equal, the blupdater is in the firmware space. Let it use its own vector table.
-            // msp will be used in thread and handler mode. The NVIC_ETH_IRQ vector is at 0x08060234, this should
-            // point to the blocking handler in the blupdater.
-            // blupdater will use its own mpu
-            SCB_VTOR = (uint32_t)new_vtable;                  // new vector table
-            new_vtable->reset();    // jump to blupdater
+            // If these vectors are not equal, the blupdater is in the firmware
+            // space. Let it use its own vector table. msp will be used in
+            // thread and handler mode. The NVIC_ETH_IRQ vector is at
+            // 0x08060234, this should point to the blocking handler in the
+            // blupdater. blupdater will use its own mpu.
 
+            // New vector table.
+            SCB_VTOR = (uint32_t)new_vtable;
+
+            // Jump to blupdater.
+            new_vtable->reset();
         } else {
-            // trusted firmware, memory protect and run unprivileged in firmware image
-            SCB_VTOR = (uint32_t)new_vtable;    // use fw vector table for intermediate releases
-            new_vtable->reset();    // jump to firmware
-        }
+            // Trusted firmware, memory protect and run unprivileged in firmware image.
 
+            // Use fw vector table for intermediate releases.
+            SCB_VTOR = (uint32_t)new_vtable;
+
+            // Jump to firmware.
+            new_vtable->reset();
+        }
     } else {
-        // Untrusted firmware, run unpriv, memory protect here
-        // Set the thread mode level to unprivileged for firmware without good sig, turn on mpu    
+        // Untrusted firmware must use the bootloader's vtable, and use
+        // supervisor calls to handle things like timer interrupts, and write
+        // flash.
+
+        // Configure the MPU
         mpu_config(trust);
-        __asm__ __volatile__ ("svc %0" :: "i" (SVC_FIRMWARE_UNPRIV) : "memory"); 
+
+        // Drop privileges
+        __asm__ __volatile__ ("svc %0" :: "i" (SVC_FIRMWARE_UNPRIV) : "memory");
     }
 
-    // Prevent compiler from generating stack protector code (which causes CPU fault because the stack is moved)
-
+    // Prevent compiler from generating stack protector code (which causes CPU
+    // fault because the stack is moved)
     for (;;);
 }
 
-/*
- * bootloader_init() - Initialization for bootloader
- *
- * INPUT
- *     none
- * OUTPUT
- *     none
- *
- */
+/// Bootloader Board Initialization
 static void bootloader_init(void)
 {
     cm_enable_interrupts();
     reset_rng();
     timer_init();
     keepkey_button_init();
-    svc_enable_interrupts();    // enable the timer and button interrupts
+    svc_enable_interrupts();
     usart_init();
     keepkey_leds_init();
     storage_sectorInit();
@@ -159,15 +157,7 @@ static void bootloader_init(void)
     layout_init(display_canvas_init());
 }
 
-/*
- * clock_init() - Clock initialization
- *
- * INPUT
- *     none
- * OUTPUT
- *     none
- *
- */
+/// Enable the timer interrupts
 static void clock_init(void)
 {
     struct rcc_clock_scale clock = rcc_hse_8mhz_3v3[RCC_CLOCK_3V3_120MHZ];
@@ -194,6 +184,8 @@ static bool isFirmwareUpdateMode(void)
     if (!magic_ok())
         return true;
 
+    // When debugging over jtag, these are triggering, sending us into update mode.
+#ifndef DEBUG_ON
     int signed_firmware = signatures_ok();
 
     // Check if the firmware wants us to boot into firmware update mode.
@@ -205,6 +197,7 @@ static bool isFirmwareUpdateMode(void)
     // If the firmware was signed with old signing keys, we also need to update.
     if (signed_firmware == KEY_EXPIRED)
         return true;
+#endif
 
     // Attempt to boot.
     return false;
@@ -212,12 +205,14 @@ static bool isFirmwareUpdateMode(void)
 
 bool magic_ok(void)
 {
-    bool ret_val = false;
+#ifndef DEBUG_ON
     app_meta_td *app_meta = (app_meta_td *)FLASH_META_MAGIC;
 
-    ret_val = (memcmp((void *)&app_meta->magic, META_MAGIC_STR,
-                      META_MAGIC_SIZE) == 0) ? true : false;
-    return ret_val;
+    return memcmp((void *)&app_meta->magic, META_MAGIC_STR,
+                   META_MAGIC_SIZE) == 0;
+#else
+    return true;
+#endif
 }
 
 const VariantInfo *variant_getInfo(void) {
@@ -277,18 +272,10 @@ static void boot(void)
     }
 
     led_func(CLR_RED_LED);
-    jump_to_firmware((const vector_table_t*)(FLASH_APP_START), signed_firmware);
+    jump_to_firmware(signed_firmware);
 }
 
-/*
- *  update_fw() - Firmware update mode. Resets the device on successful firmware upload
- *
- *  INPUT
- *      none
- *  OUTPUT
- *      none
- *
- */
+/// Firmware update mode. Resets the device on successful firmware upload.
 static void update_fw(void)
 {
     led_func(CLR_GREEN_LED);
@@ -301,26 +288,15 @@ static void update_fw(void)
         delay_ms(3000);
         board_reset();
     } else {
-        layout_simple_message("Firmware Update Failure, Try Again");
+        layout_standard_notification("Firmware Update Failure",
+                                     "There was a problem while uploading firmware. Please try again.",
+                                     NOTIFICATION_UNPLUG);
         display_refresh();
     }
 }
 
-
-/*
- * main - Bootloader main entry function
- *
- * INPUT
- *     - argc: (not used)
- *     - argv: (not used)
- * OUTPUT
- *     0 when complete
- */
-int main(int argc, char *argv[])
+int main(void)
 {
-    (void)argc;
-    (void)argv;
-
     _buttonusr_isr = (void *)&buttonisr_usr;
     _timerusr_isr = (void *)&timerisr_usr;
     _mmhusr_isr = (void *)&mmhisr;
@@ -339,7 +315,7 @@ int main(int argc, char *argv[])
 #endif
 
     /* Initialize stack guard with random value (-fstack_protector_all) */
-    __stack_chk_guard = random32();
+    __stack_chk_guard = fi_defense_delay(random32());
 
     led_func(SET_GREEN_LED);
     led_func(SET_RED_LED);
@@ -347,6 +323,8 @@ int main(int argc, char *argv[])
     dbg_print("\n\rKeepKey LLC, Copyright (C) 2018\n\r");
     dbg_print("BootLoader Version %d.%d.%d\n\r", BOOTLOADER_MAJOR_VERSION,
               BOOTLOADER_MINOR_VERSION, BOOTLOADER_PATCH_VERSION);
+
+    storage_protect_wipe(fi_defense_delay(storage_protect_status()));
 
     if (isFirmwareUpdateMode()) {
         update_fw();
@@ -357,3 +335,4 @@ int main(int argc, char *argv[])
     shutdown();
     return 0; // Should never get here
 }
+

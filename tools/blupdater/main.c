@@ -272,6 +272,12 @@ int main(void)
     // Shove the model # into OTP if it wasn't already there.
     (void)flash_programModel();
 
+    // Add Storage Protection magic, since older firmwares have never written it.
+    Allocation active_storage;
+    if (find_active_storage(&active_storage)) {
+        storage_protect_off();
+    }
+
     if (write_bootloader()) {
         failure();
         return 0;

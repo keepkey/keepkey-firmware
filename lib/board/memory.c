@@ -268,3 +268,89 @@ bool find_active_storage(Allocation *storage_location)
     return(ret_stat);
 }
 
+Allocation next_storage(Allocation active) {
+    switch (active) {
+    case FLASH_STORAGE1:
+        return FLASH_STORAGE2;
+    case FLASH_STORAGE2:
+        return FLASH_STORAGE3;
+    case FLASH_STORAGE3:
+        return FLASH_STORAGE1;
+    default:
+        assert(false && "Unsupported storage sector provided");
+        return FLASH_STORAGE1;
+    }
+}
+
+/// Write the marker that allows the firmware to boot.
+/// \returns true iff successful
+bool storage_protect_off(void)
+{
+    Allocation active;
+    if (!find_active_storage(&active))
+        return false;
+
+    Allocation marker_sector = next_storage(active);
+    flash_erase_word(marker_sector);
+    bool ret = flash_write(marker_sector, 0, sizeof(STORAGE_PROTECT_OFF_MAGIC),
+                           (const uint8_t *)STORAGE_PROTECT_OFF_MAGIC);
+    return ret;
+}
+
+/// Clear the marker that allows the firmware to boot.
+/// \returns true iff successful
+bool storage_protect_on(void)
+{
+    _Static_assert(sizeof(STORAGE_PROTECT_ON_MAGIC) == sizeof(STORAGE_PROTECT_OFF_MAGIC),
+                   "Storage protection markers must be the same length");
+
+    Allocation active;
+    if (!find_active_storage(&active))
+        return false;
+
+    Allocation marker_sector = next_storage(active);
+    flash_erase_word(marker_sector);
+    bool ret = flash_write(marker_sector, 0, sizeof(STORAGE_PROTECT_ON_MAGIC),
+                           (const uint8_t*)STORAGE_PROTECT_ON_MAGIC);
+    return ret;
+}
+
+static const char *sector_start(Allocation a) {
+    const FlashSector *sector = flash_sector_map;
+    while (sector->use != FLASH_INVALID) {
+        if (sector->use == a) {
+            return (const char *)sector->start;
+        }
+        sector++;
+    }
+    return NULL;
+}
+
+uint32_t storage_protect_status(void)
+{
+    Allocation active;
+    if (!find_active_storage(&active))
+        return STORAGE_PROTECT_DISABLED;
+
+    Allocation marker_sector = next_storage(active);
+
+    const char *start = sector_start(marker_sector);
+    if (!start)
+        return STORAGE_PROTECT_ENABLED;
+
+    return memcmp(STORAGE_PROTECT_OFF_MAGIC, start, sizeof(STORAGE_PROTECT_OFF_MAGIC))
+                  ? STORAGE_PROTECT_ENABLED : STORAGE_PROTECT_DISABLED;
+}
+
+void storage_protect_wipe(uint32_t storage_protect_status) {
+    // Don't move this check into the caller. It was done this way to play
+    // nicely with storage_protect_status() / fi_defense_delay(), so that we're
+    // protected from fault injection during this branch:
+    if (STORAGE_PROTECT_DISABLED == storage_protect_status)
+        return;
+
+    flash_erase_word(FLASH_STORAGE1);
+    flash_erase_word(FLASH_STORAGE2);
+    flash_erase_word(FLASH_STORAGE3);
+}
+

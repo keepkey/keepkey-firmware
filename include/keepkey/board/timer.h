@@ -66,6 +66,11 @@ void kk_timer_init(void);
 void timer_init(void);
 void delay_ms(uint32_t ms);
 void delay_us(uint32_t us);
+
+/// Defense against Fault Injection: random delay of a few miliseconds
+/// \returns the argument passed
+uint32_t fi_defense_delay(volatile uint32_t value);
+
 void delay_ms_with_callback(uint32_t ms, callback_func_t callback_func,
                             uint32_t frequency_ms);
 void post_delayed(Runnable runnable, void *context, uint32_t ms_delay);
