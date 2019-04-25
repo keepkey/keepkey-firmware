@@ -454,14 +454,17 @@ void handler_erase(FirmwareErase *msg)
     if (!fi_defense_delay(storage_protect_on())) {
         flash_unlock();
         bl_flash_erase_word(FLASH_STORAGE1);
+        layoutProgress("Preparing for upgrade", (1 * 1000 / (3 + 11 - 7)));
         bl_flash_erase_word(FLASH_STORAGE2);
+        layoutProgress("Preparing for upgrade", (2 * 1000 / (3 + 11 - 7)));
         bl_flash_erase_word(FLASH_STORAGE3);
+        layoutProgress("Preparing for upgrade", (3 * 1000 / (3 + 11 - 7)));
         flash_lock();
     }
 
     for (int i = 7; i <= 11; ++i) {
-        bl_flash_erase_word(i);
-        layoutProgress("Preparing for upgrade", ((i - 7) * 1000 / (11 - 7)));
+        bl_flash_erase_sector(i);
+        layoutProgress("Preparing for upgrade", ((3 + i - 7) * 1000 / (3 + 11 - 7)));
     }
 
     flash_lock();
