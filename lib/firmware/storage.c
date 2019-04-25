@@ -628,11 +628,6 @@ StorageUpdateStatus storage_fromFlash(SessionState *ss, ConfigFlash *dst, const 
     enum StorageVersion version =
         version_from_int(read_u32_le(flash + 44));
 
-    // Don't restore storage in MFR firmware
-    if (variant_isMFR()) {
-        version = StorageVersion_NONE;
-    }
-
     switch (version)
     {
         case StorageVersion_1:
@@ -786,17 +781,6 @@ static bool storage_getRootSeedCache(const SessionState *ss, ConfigFlash *cfg,
 
 void storage_init(void)
 {
-#ifndef EMULATOR
-    if (strcmp("MFR", variant_getName()) == 0) {
-        // Storage should have been wiped due to the MANUFACTURER firmware
-        // having a STORAGE_VERSION of 0, but to be absolutely safe and
-        // guarante that secrets cannot leave the device via FlashHash/FlashDump,
-        // we wipe them here.
-
-        storage_wipe();
-    }
-#endif
-
     // Find storage sector with valid data and set storage_location variable.
     if (!find_active_storage(&storage_location)) {
         // Otherwise initialize it to the default sector.
