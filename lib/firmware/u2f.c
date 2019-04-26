@@ -583,9 +583,9 @@ void u2f_register(const APDU *a)
 		//(void)review_without_button_request("Register", "Another U2F device was used to register in this application.");
 	} else {
 		const char *appname = "";
-		(void)review_without_button_request("Register",
+		(void)review_without_button_request("U2F Register",
 		                                    getReadableAppId(req->appId, &appname)
-		                                        ? "Enroll with %s?"
+		                                        ? "Do you want to register with %s?"
 		                                        : "Do you want to enroll with this U2F application?\n\n%s",
 		                                    appname);
 	}
@@ -695,7 +695,7 @@ void u2f_authenticate(const APDU *a)
 
 	// TODO: dialog timeout
 	const char *appname = "";
-	(void)review_without_button_request("Authenticate",
+	(void)review_without_button_request("U2F Authenticate",
 	                                    getReadableAppId(req->appId, &appname)
 	                                        ? "Log in to %s?"
 	                                        : "Do you want to log in?\n\n%s",
