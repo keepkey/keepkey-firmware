@@ -586,7 +586,7 @@ void u2f_register(const APDU *a)
 		(void)review_without_button_request("U2F Register",
 		                                    getReadableAppId(req->appId, &appname)
 		                                        ? "Do you want to register with %s?"
-		                                        : "Do you want to enroll with this U2F application?\n\n%s",
+		                                        : "Do you want to register with this U2F application?\n\n%s",
 		                                    appname);
 	}
 	layoutHome();
