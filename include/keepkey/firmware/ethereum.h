@@ -38,18 +38,18 @@ void ethereum_signing_abort(void);
 void ethereum_signing_txack(EthereumTxAck *msg);
 void format_ethereum_address(const uint8_t *to, char *destination_str,
                              uint32_t destination_str_len);
-bool ethereum_isNonStandardERC20(const EthereumSignTx *msg);
-bool ethereum_isStandardERC20(const EthereumSignTx *msg);
+bool ethereum_isNonStandardERC20Transfer(const EthereumSignTx *msg);
+bool ethereum_isStandardERC20Transfer(const EthereumSignTx *msg);
 
-/// \pre requires that `ethereum_isStandardERC20(msg)`
+/// \pre requires that `ethereum_isStandardERC20Transfer(msg)`
 /// \returns true iff successful
 bool ethereum_getStandardERC20Recipient(const EthereumSignTx *msg, char *address, size_t len);
 
-/// \pre requires that `ethereum_isStandardERC20(msg)`
+/// \pre requires that `ethereum_isStandardERC20Transfer(msg)`
 /// \returns true iff successful
 bool ethereum_getStandardERC20Coin(const EthereumSignTx *msg, CoinType *coin);
 
-/// \pre requires that `ethereum_isStandardERC20(msg)`
+/// \pre requires that `ethereum_isStandardERC20Transfer(msg)`
 /// \returns true iff successful
 bool ethereum_getStandardERC20Amount(const EthereumSignTx *msg, void **tx_out_amount);
 
