@@ -580,7 +580,7 @@ void u2f_register(const APDU *a)
 
 	// TODO: dialog timeout
 	if (0 == memcmp(req->appId, BOGUS_APPID, U2F_APPID_SIZE)) {
-		(void)review_without_button_request("Register", "Another U2F device was used to register in this application.");
+		//(void)review_without_button_request("Register", "Another U2F device was used to register in this application.");
 	} else {
 		const char *appname = "";
 		(void)review_without_button_request("Register",
