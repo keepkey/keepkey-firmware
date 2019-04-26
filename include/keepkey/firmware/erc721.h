@@ -33,6 +33,10 @@ const ERC721Token *erc721_byContractAddress(const uint8_t *contract);
 
 bool erc721_isKnown(const EthereumSignTx *msg);
 
+bool erc721_isTransfer(uint32_t data_total, const EthereumSignTx *msg);
+
+bool erc721_confirmTransfer(const EthereumSignTx *msg);
+
 bool erc721_isTransferFrom(uint32_t data_total, const EthereumSignTx *msg,
                            const HDNode *node);
 

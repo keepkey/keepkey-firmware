@@ -63,6 +63,45 @@ static bool isZeroAddress(const uint8_t *address)
     return memcmp(address, "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 20) == 0;
 }
 
+bool erc721_isTransfer(uint32_t data_total, const EthereumSignTx *msg)
+{
+    if (data_total != 4 + 32 + 32)
+        return false;
+
+    if (data_total != msg->data_initial_chunk.size)
+        return false;
+
+    // transfer(address,uint256)
+    if (memcmp(msg->data_initial_chunk.bytes, "\xa9\x05\x9c\xbb", 4) != 0)
+        return false;
+
+    // 'to' padding
+    if (memcmp(msg->data_initial_chunk.bytes + 4,
+               "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 12) != 0)
+        return false;
+
+    return true;
+}
+
+bool erc721_confirmTransfer(const EthereumSignTx *msg)
+{
+    const ERC721Token *erc721 = erc721_byContractAddress(msg->to.bytes);
+    if (!erc721)
+        return false;
+
+    char address[43] = { '0', 'x' };
+    ethereum_address_checksum(msg->data_initial_chunk.bytes + 4 + 12,
+                              address + 2, false,
+                              msg->has_chain_id ? msg->chain_id : 1);
+
+    char token_id[32*2+1];
+    data2hex(msg->data_initial_chunk.bytes + 4 + 32, 32, token_id);
+
+    return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                   "Transfer", "Transfer %s token with id %s to %s?",
+                   erc721->name, token_id, address);
+}
+
 bool erc721_isTransferFrom(uint32_t data_total, const EthereumSignTx *msg,
                            const HDNode *node)
 {
