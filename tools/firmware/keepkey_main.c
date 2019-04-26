@@ -180,7 +180,8 @@ int main(void)
     if (is_mfg_mode())
         layout_screen_test();
     else if (!storage_isInitialized())
-        layout_simple_message("keepkey.com/get-started");
+        layout_standard_notification("Welcome", "keepkey.com/get-started",
+                                     NOTIFICATION_LOGO);
     else
         layoutHomeForced();
 
