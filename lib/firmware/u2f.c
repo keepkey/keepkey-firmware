@@ -650,7 +650,6 @@ void u2f_authenticate(const APDU *a)
 
 	if (APDU_LEN(*a) < 64) { /// FIXME: decent value
 		debugLog(0, "", "u2f authenticate - badlen");
-		layout_simple_message("SW_WRONG_LENGTH");
 		send_u2f_error(U2F_SW_WRONG_LENGTH);
 		return;
 	}
@@ -665,7 +664,6 @@ void u2f_authenticate(const APDU *a)
 
 	if (a->p1 == U2F_AUTH_CHECK_ONLY) {
 		debugLog(0, "", "u2f authenticate check");
-		layout_simple_message("SW_COND_NOT_SAT");
 		// This is a success for a good keyhandle
 		// A failed check would have happened earlier
 		// error: testof-user-presence is required
@@ -675,7 +673,6 @@ void u2f_authenticate(const APDU *a)
 
 	if (a->p1 != U2F_AUTH_ENFORCE) {
 		debugLog(0, "", "u2f authenticate unknown");
-		layout_simple_message("SW_AUTH_ENF");
 		// error:bad key handle
 		send_u2f_error(U2F_SW_WRONG_DATA);
 		return;
