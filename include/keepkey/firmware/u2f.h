@@ -1,113 +1,62 @@
-/**
- * Copyright FIDO Alliance, 2017
+/*
+ * This file is part of the TREZOR project, https://trezor.io/
  *
- * Licensed under CC-BY:
- * https://creativecommons.org/licenses/by/4.0/legalcode
+ * Copyright (C) 2015 Mark Bryars <mbryars@google.com>
  *
- * Editor: Jakob Ehrensvard, Yubico, jakob@yubico.com
+ * This library is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __U2F_H_INCLUDED__
-#define __U2F_H_INCLUDED__
+#ifndef __U2F_H__
+#define __U2F_H__
 
-#ifdef _MSC_VER  // Windows
-typedef unsigned char     uint8_t;
-typedef unsigned short    uint16_t;
-typedef unsigned int      uint32_t;
-typedef unsigned long int uint64_t;
-#else
+#include "keepkey/firmware/u2f/u2f_hid.h"
+
 #include <stdint.h>
+#include <stdbool.h>
+
+#define U2F_KEY_PATH 0x80553246
+
+typedef struct {
+	uint8_t cla, ins, p1, p2;
+	uint8_t lc1, lc2, lc3;
+	uint8_t data[];
+} APDU;
+
+#define APDU_LEN(A) (uint32_t)(((A).lc1 << 16) + ((A).lc2 << 8) + ((A).lc3))
+
+void u2fhid_read(char tiny, const U2FHID_FRAME *buf);
+void u2fhid_init_cmd(const U2FHID_FRAME *f);
+void u2fhid_read_start(const U2FHID_FRAME *f);
+bool u2fhid_write(uint8_t *buf);
+void u2fhid_init(const U2FHID_FRAME *in);
+void u2fhid_ping(const uint8_t *buf, uint32_t len);
+void u2fhid_wink(const uint8_t *buf, uint32_t len);
+void u2fhid_sync(const uint8_t *buf, uint32_t len);
+void u2fhid_lock(const uint8_t *buf, uint32_t len);
+void u2fhid_msg(const APDU *a, uint32_t len);
+void queue_u2f_pkt(const U2FHID_FRAME *u2f_pkt);
+
+uint8_t *u2f_out_data(void);
+void u2f_register(const APDU *a);
+void u2f_version(const APDU *a);
+void u2f_authenticate(const APDU *a);
+
+void send_u2f_msg(const uint8_t *data, uint32_t len);
+void send_u2f_error(uint16_t err);
+
+void send_u2fhid_msg(const uint8_t cmd, const uint8_t *data,
+		     const uint32_t len);
+void send_u2fhid_error(uint32_t fcid, uint8_t err);
+
 #endif
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-// General constants
-
-#define U2F_EC_KEY_SIZE         32      // EC key size in bytes
-#define U2F_EC_POINT_SIZE       ((U2F_EC_KEY_SIZE * 2) + 1) // Size of EC point
-#define U2F_MAX_KH_SIZE         128     // Max size of key handle
-#define U2F_MAX_ATT_CERT_SIZE   2048    // Max size of attestation certificate
-#define U2F_MAX_EC_SIG_SIZE     72      // Max size of DER coded EC signature
-#define U2F_CTR_SIZE            4       // Size of counter field
-#define U2F_APPID_SIZE          32      // Size of application id
-#define U2F_CHAL_SIZE           32      // Size of challenge
-
-#define ENC_SIZE(x)             ((x + 7) & 0xfff8)
-
-// EC (uncompressed) point
-
-#define U2F_POINT_UNCOMPRESSED  0x04    // Uncompressed point format
-
-typedef struct __attribute__((packed)) {
-    uint8_t pointFormat;                // Point type
-    uint8_t x[U2F_EC_KEY_SIZE];         // X-value
-    uint8_t y[U2F_EC_KEY_SIZE];         // Y-value
-} U2F_EC_POINT;
-
-// U2F native commands
-
-#define U2F_REGISTER            0x01    // Registration command
-#define U2F_AUTHENTICATE        0x02    // Authenticate/sign command
-#define U2F_VERSION             0x03    // Read version string command
-
-#define U2F_VENDOR_FIRST        0x40    // First vendor defined command
-#define U2F_VENDOR_LAST         0xbf    // Last vendor defined command
-
-// U2F_CMD_REGISTER command defines
-
-#define U2F_REGISTER_ID         0x05    // Version 2 registration identifier
-#define U2F_REGISTER_HASH_ID    0x00    // Version 2 hash identintifier
-
-typedef struct __attribute__((packed)) {
-    uint8_t chal[U2F_CHAL_SIZE];        // Challenge
-    uint8_t appId[U2F_APPID_SIZE];      // Application id
-} U2F_REGISTER_REQ;
-
-typedef struct __attribute__((packed)) {
-    uint8_t registerId;                 // Registration identifier (U2F_REGISTER_ID_V2)
-    U2F_EC_POINT pubKey;                // Generated public key
-    uint8_t keyHandleLen;               // Length of key handle
-    uint8_t keyHandleCertSig[
-        U2F_MAX_KH_SIZE +               // Key handle
-        U2F_MAX_ATT_CERT_SIZE +         // Attestation certificate
-        U2F_MAX_EC_SIG_SIZE];           // Registration signature
-} U2F_REGISTER_RESP;
-
-// U2F_CMD_AUTHENTICATE command defines
-
-// Authentication control byte
-
-#define U2F_AUTH_ENFORCE        0x03    // Enforce user presence and sign
-#define U2F_AUTH_CHECK_ONLY     0x07    // Check only
-#define U2F_AUTH_FLAG_TUP       0x01    // Test of user presence set
-
-typedef struct __attribute__((packed)) {
-    uint8_t chal[U2F_CHAL_SIZE];        // Challenge
-    uint8_t appId[U2F_APPID_SIZE];      // Application id
-    uint8_t keyHandleLen;               // Length of key handle
-    uint8_t keyHandle[U2F_MAX_KH_SIZE]; // Key handle
-} U2F_AUTHENTICATE_REQ;
-
-typedef struct __attribute__((packed)) {
-    uint8_t flags;                      // U2F_AUTH_FLAG_ values
-    uint8_t ctr[U2F_CTR_SIZE];          // Counter field (big-endian)
-    uint8_t sig[U2F_MAX_EC_SIG_SIZE];   // Signature
-} U2F_AUTHENTICATE_RESP;
-
-// Command status responses
-
-#define U2F_SW_NO_ERROR                 0x9000 // SW_NO_ERROR
-#define U2F_SW_WRONG_LENGTH             0x6700 // SW_WRONG_LENGTH
-#define U2F_SW_WRONG_DATA               0x6A80 // SW_WRONG_DATA
-#define U2F_SW_CONDITIONS_NOT_SATISFIED 0x6985 // SW_CONDITIONS_NOT_SATISFIED
-#define U2F_SW_COMMAND_NOT_ALLOWED      0x6986 // SW_COMMAND_NOT_ALLOWED
-#define U2F_SW_INS_NOT_SUPPORTED        0x6D00 // SW_INS_NOT_SUPPORTED
-#define U2F_SW_CLA_NOT_SUPPORTED        0x6E00 // SW_CLA_NOT_SUPPORTED
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif  // __U2F_H_INCLUDED__

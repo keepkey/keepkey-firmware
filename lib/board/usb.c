@@ -330,7 +330,7 @@ static void u2f_rx_callback(usbd_device *dev, uint8_t ep)
 	if ( usbd_ep_read_packet(dev, ENDPOINT_ADDRESS_U2F_OUT, buf, 64) != 64) return;
 
 	if (user_u2f_rx_callback) {
-		user_u2f_rx_callback((const U2FHID_FRAME *) (void*) buf);
+		user_u2f_rx_callback(tiny, (const U2FHID_FRAME *) (void*) buf);
 	}
 }
 

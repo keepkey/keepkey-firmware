@@ -711,3 +711,24 @@ void layout_address(const char *address, QRSize qr_size)
         }
     }
 }
+
+void layoutU2FDialog(bool request, const char *title, const char *body, ...)
+{
+    char strbuf[BODY_CHAR_MAX];
+
+    va_list vl;
+    va_start(vl, body);
+    vsnprintf(strbuf, BODY_CHAR_MAX, body, vl);
+    va_end(vl);
+
+    layout_standard_notification(title, strbuf,
+                                 request
+                                     ? NOTIFICATION_REQUEST_NO_ANIMATION
+                                     : NOTIFICATION_CONFIRM_ANIMATION);
+    display_refresh();
+
+    while (!request && is_animating()) {
+        animate();
+        display_refresh();
+    }
+}
