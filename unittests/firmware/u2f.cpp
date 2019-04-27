@@ -14,8 +14,8 @@ TEST(U2F, WordsFromData) {
     const uint8_t buff2[32] = "keepkeykeepkeykeepkey";
     ASSERT_EQ(std::string(words_from_data(buff2, 6)), "hidden clinic foster strategy");
 
-    ASSERT_EQ(std::string(u2f_well_known[6].appname), "Google");
-    ASSERT_EQ(std::string(words_from_data(u2f_well_known[6].appid, 6)), "pipe crime prosper easily");
+    ASSERT_EQ(std::string(u2f_well_known[6].appname), "Bitbucket");
+    ASSERT_EQ(std::string(words_from_data(u2f_well_known[6].appid, 6)), "bar peace tonight cement");
 }
 
 TEST(U2F, ShapeShift) {
