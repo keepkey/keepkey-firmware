@@ -668,9 +668,6 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 			(void)review(ButtonRequestType_ButtonRequest_Other, "Warning",
 			             "Signing of arbitrary ETH contract data is recommended only for "
 			             "experienced users. Enable 'AdvancedMode' policy to dismiss.");
-			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
-			ethereum_signing_abort();
-			return;
 		}
 
 		layoutEthereumData(msg->data_initial_chunk.bytes, msg->data_initial_chunk.size, data_total,
