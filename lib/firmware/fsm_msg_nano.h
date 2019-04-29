@@ -61,7 +61,7 @@ void fsm_msgNanoSignTx(NanoSignTx *msg)
 {
     CHECK_INITIALIZED
 
-    CHECK_PIN_TXSIGN
+    CHECK_PIN
 
     const char *coin_name = msg->has_coin_name ? msg->coin_name : "Nano";
     const CoinType *coin = fsm_getCoin(true, coin_name);

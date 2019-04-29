@@ -288,14 +288,6 @@ bool pin_protect(const char *prompt)
     return true;
 }
 
-bool pin_protect_txsign(void) {
-    if (!storage_isPolicyEnabled("Pin Caching")) {
-        return pin_protect("Enter Your Pin");
-    }
-
-    return pin_protect_cached();
-}
-
 bool pin_protect_cached(void) {
     if (session_isPinCached()) {
         return true;

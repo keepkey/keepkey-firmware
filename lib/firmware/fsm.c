@@ -100,12 +100,6 @@ static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
         return; \
     }
 
-#define CHECK_PIN_TXSIGN \
-    if (!pin_protect_txsign()) { \
-        layoutHome(); \
-        return; \
-    }
-
 #define CHECK_PARAM_RET(cond, errormsg, retval) \
     if (!(cond)) { \
         fsm_sendFailure(FailureType_Failure_Other, (errormsg)); \

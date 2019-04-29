@@ -295,14 +295,14 @@ TEST(Storage, SetPolicy) {
     storage_setPolicy_impl(storage.pub.policies, "ShapeShift", true);
     EXPECT_EQ(storage.pub.policies[0].enabled, true);
 
-    storage_setPolicy_impl(storage.pub.policies, "Pin Caching", false);
-    EXPECT_EQ(storage.pub.policies[1].enabled, false);
+    storage_setPolicy_impl(storage.pub.policies, "AdvancedMode", false);
+    EXPECT_EQ(storage.pub.policies[3].enabled, false);
 
     storage_setPolicy_impl(storage.pub.policies, "ShapeShift", false);
     EXPECT_EQ(storage.pub.policies[0].enabled, false);
 
-    storage_setPolicy_impl(storage.pub.policies, "Pin Caching", true);
-    EXPECT_EQ(storage.pub.policies[1].enabled, true);
+    storage_setPolicy_impl(storage.pub.policies, "AdvancedMode", true);
+    EXPECT_EQ(storage.pub.policies[3].enabled, true);
 }
 
 TEST(Storage, ResetCache) {
@@ -425,7 +425,7 @@ TEST(Storage, StorageUpgrade_Normal) {
     EXPECT_EQ(std::string(shadow.storage.pub.policies[0].policy_name), "ShapeShift");
     EXPECT_EQ(shadow.storage.pub.policies[0].enabled, true);
     EXPECT_EQ(std::string(shadow.storage.pub.policies[1].policy_name), "Pin Caching");
-    EXPECT_EQ(shadow.storage.pub.policies[1].enabled, false);
+    EXPECT_EQ(shadow.storage.pub.policies[1].enabled, true);
 }
 
 TEST(Storage, StorageRoundTrip) {
@@ -484,7 +484,7 @@ TEST(Storage, StorageRoundTrip) {
         0x73, 0x74, 0x6f, 0x72, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
         0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
         0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0x00, 0x00, 0x00, STORAGE_VERSION, 0x00, 0x00, 0x00,
-        0x7f, 0x42, 0x00, 0x00, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
+        0xff, 0x42, 0x00, 0x00, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
         0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
         0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
         0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
@@ -598,7 +598,7 @@ TEST(Storage, UpgradePolicies) {
     EXPECT_EQ(src.pub.policies[1].has_policy_name, true);
     EXPECT_EQ(std::string(src.pub.policies[1].policy_name), "Pin Caching");
     EXPECT_EQ(src.pub.policies[1].has_enabled, true);
-    EXPECT_EQ(src.pub.policies[1].enabled, false);
+    EXPECT_EQ(src.pub.policies[1].enabled, true);
 }
 
 TEST(Storage, IsPinCorrect) {

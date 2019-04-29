@@ -442,7 +442,7 @@ void fsm_msgApplySettings(ApplySettings *msg)
         return;
     }
 
-    CHECK_PIN
+    CHECK_PIN_UNCACHED
 
     if (msg->has_label) {
         storage_setLabel(msg->label);
@@ -566,7 +566,7 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg)
         }
     }
 
-    CHECK_PIN
+    CHECK_PIN_UNCACHED
 
     for (size_t i = 0; i < msg->policy_count; ++i) {
         // ShapeShift policy is always enabled.
