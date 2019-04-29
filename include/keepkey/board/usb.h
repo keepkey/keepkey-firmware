@@ -56,11 +56,12 @@
 #define USBD_CONTROL_BUFFER_SIZE 128
 
 typedef void (*usb_rx_callback_t)(const void *buf, size_t len);
-typedef void (*usb_u2f_rx_callback_t)(const U2FHID_FRAME *buf);
+typedef void (*usb_u2f_rx_callback_t)(char tiny, const U2FHID_FRAME *buf);
 
 void usb_set_rx_callback(usb_rx_callback_t callback);
 void usb_set_u2f_rx_callback(usb_u2f_rx_callback_t callback);
 
+char usbTiny(char set);
 void usbInit(void);
 bool usbInitialized(void);
 void usbPoll(void);
@@ -73,7 +74,5 @@ bool usb_tx(uint8_t *message, uint32_t len);
 bool usb_debug_tx(uint8_t *message, uint32_t len);
 void usb_set_debug_rx_callback(usb_rx_callback_t callback);
 #endif
-
-void queue_u2f_pkt(const U2FHID_FRAME *u2f_pkt);
 
 #endif

@@ -43,11 +43,7 @@ static void *on_press_handler_context   = NULL;
 static const uint16_t BUTTON_PIN    = GPIO7;
 static const uint32_t BUTTON_PORT   = GPIOB;
 static const uint32_t BUTTON_EXTI   = EXTI7;
-
-
 #endif
-
-
 
 void kk_keepkey_button_init(void)
 {
@@ -57,8 +53,6 @@ void kk_keepkey_button_init(void)
     on_release_handler = NULL;
     on_release_handler_context = NULL;
 }
-
-
 
 /*
  * keepkey_button_init() - Initialize push button interrupt registers
@@ -162,8 +156,6 @@ bool keepkey_button_down(void)
 {
     return !keepkey_button_up();
 }
-
-
 
 void buttonisr_usr(void)
 {

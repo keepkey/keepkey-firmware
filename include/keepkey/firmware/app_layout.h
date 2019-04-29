@@ -129,4 +129,6 @@ void layout_cipher(const char *current_word, const char *cipher);
 void layout_address(const char *address, QRSize qr_size);
 void set_leaving_handler(leaving_handler_t leaving_func);
 
+void layoutU2FDialog(bool request, const char *title, const char *body, ...) __attribute__((format(printf, 3, 4)));
+
 #endif

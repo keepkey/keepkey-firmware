@@ -22,19 +22,22 @@
 #include "storage.h"
 #include "u2f_knownapps.h"
 
+#include "keepkey/board/keepkey_button.h"
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/u2f_hid.h"
 #include "keepkey/board/usb.h"
 #include "keepkey/board/util.h"
+#include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
-#include "keepkey/firmware/u2f_keys.h"
-#include "keepkey/firmware/u2f_types.h"
+#include "keepkey/firmware/u2f/u2f.h"
+#include "keepkey/firmware/u2f/u2f_keys.h"
 #include "trezor/crypto/bip39.h"
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/hmac.h"
+#include "trezor/crypto/memzero.h"
 #include "trezor/crypto/nist256p1.h"
 #include "trezor/crypto/rand.h"
 
@@ -46,12 +49,25 @@
 #endif
 #include <string.h>
 
+// About 1/2 Second according to values used in protect.c
+#define U2F_TIMEOUT (800000/2)
+#define U2F_OUT_PKT_BUFFER_LEN 130
+
 #define debugLog(L, B, T) do{}while(0)
 #define debugInt(I) do{}while(0)
 
+// Initialise without a cid
+static uint32_t cid = 0;
+
+#if 0
+// Circular Output buffer
+static uint32_t u2f_out_start = 0;
+static uint32_t u2f_out_end = 0;
+static uint8_t u2f_out_packets[U2F_OUT_PKT_BUFFER_LEN][HID_RPT_SIZE];
+#endif
+
 #define U2F_PUBKEY_LEN 65
 #define KEY_PATH_LEN 32
-#define SHA256_DIGEST_LENGTH 32
 #define KEY_HANDLE_LEN (KEY_PATH_LEN + SHA256_DIGEST_LENGTH)
 
 // Derivation path is m/U2F'/r'/r'/r'/r'/r'/r'/r'/r'
@@ -61,32 +77,16 @@
 // in https://github.com/google/u2f-ref-code/blob/master/u2f-chrome-extension/usbsignhandler.js#L118
 #define BOGUS_APPID "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
-typedef struct {
-	uint8_t cla, ins, p1, p2;
-	uint8_t lc1, lc2, lc3;
-	uint8_t data[];
-} APDU;
+// Auth/Register request state machine
+typedef enum {
+	INIT = 0,
+	AUTH = 10,
+	AUTH_PASS = 11,
+	REG = 20,
+	REG_PASS = 21
+} U2F_STATE;
 
-#define APDU_LEN(A) (uint32_t)(((A).lc1 << 16) + ((A).lc2 << 8) + ((A).lc3))
-
-void u2fhid_init(const U2FHID_FRAME *in);
-void u2fhid_ping(const uint8_t *buf, uint32_t len);
-void u2fhid_wink(const uint8_t *buf, uint32_t len);
-void u2fhid_sync(const uint8_t *buf, uint32_t len);
-void u2fhid_lock(const uint8_t *buf, uint32_t len);
-void u2fhid_msg(const APDU *a, uint32_t len);
-
-uint8_t *u2f_out_data(void);
-void u2f_register(const APDU *a);
-void u2f_version(const APDU *a);
-void u2f_authenticate(const APDU *a);
-
-void send_u2f_msg(const uint8_t *data, uint32_t len);
-void send_u2f_error(uint16_t err);
- 
-void send_u2fhid_msg(const uint8_t cmd, const uint8_t *data,
-                    const uint32_t len);
-void send_u2fhid_error(uint32_t fcid, uint8_t err);
+static U2F_STATE last_req_state = INIT;
 
 typedef struct {
 	uint8_t reserved;
@@ -103,11 +103,7 @@ typedef struct {
 	uint8_t chal[U2F_CHAL_SIZE];
 } U2F_AUTHENTICATE_SIG_STR;
 
-// About 1/2 Second according to values used in protect.c
-#define U2F_TIMEOUT (800000/2)
-
-// Initialise without a cid
-static uint32_t cid = 0;
+static uint32_t dialog_timeout = 0;
 
 uint32_t next_cid(void)
 {
@@ -131,7 +127,56 @@ typedef struct {
 	uint8_t cmd;
 } U2F_ReadBuffer;
 
-void u2fhid_init_cmd(U2F_ReadBuffer *reader, const U2FHID_FRAME *f) {
+U2F_ReadBuffer *reader;
+
+void u2fhid_read(char tiny, const U2FHID_FRAME *f)
+{
+	// Always handle init packets directly
+	if (f->init.cmd == U2FHID_INIT) {
+		u2fhid_init(f);
+		if (tiny && reader && f->cid == cid) {
+			// abort current channel
+			reader->cmd = 0;
+			reader->len = 0;
+			reader->seq = 255;
+		}
+		return;
+	}
+
+	if (tiny) {
+		// read continue packet
+		if (reader == 0 || cid != f->cid) {
+			send_u2fhid_error(f->cid, ERR_CHANNEL_BUSY);
+			return;
+		}
+
+		if ((f->type & TYPE_INIT) && reader->seq == 255) {
+			u2fhid_init_cmd(f);
+			return;
+		}
+
+		if (reader->seq != f->cont.seq) {
+			send_u2fhid_error(f->cid, ERR_INVALID_SEQ);
+			reader->cmd = 0;
+			reader->len = 0;
+			reader->seq = 255;
+			return;
+		}
+
+		// check out of bounds
+		if ((reader->buf_ptr - reader->buf) >= (signed) reader->len
+			|| (reader->buf_ptr + sizeof(f->cont.data) - reader->buf) > (signed) sizeof(reader->buf))
+			return;
+		reader->seq++;
+		memcpy(reader->buf_ptr, f->cont.data, sizeof(f->cont.data));
+		reader->buf_ptr += sizeof(f->cont.data);
+		return;
+	}
+
+	u2fhid_read_start(f);
+}
+
+void u2fhid_init_cmd(const U2FHID_FRAME *f) {
 	reader->seq = 0;
 	reader->buf_ptr = reader->buf;
 	reader->len = MSG_LEN(*f);
@@ -141,56 +186,10 @@ void u2fhid_init_cmd(U2F_ReadBuffer *reader, const U2FHID_FRAME *f) {
 	cid = f->cid;
 }
 
-static void u2fhid_read(const U2FHID_FRAME *f)
-{
-	static volatile char tiny = 0;
-	static U2F_ReadBuffer reader;
+void u2fhid_read_start(const U2FHID_FRAME *f) {
+	U2F_ReadBuffer readbuffer;
+	memzero(&readbuffer, sizeof(readbuffer));
 
-	// Always handle init packets directly
-	if (f->init.cmd == U2FHID_INIT) {
-		u2fhid_init(f);
-		if (tiny && f->cid == cid) {
-			// abort current channel
-			reader.cmd = 0;
-			reader.len = 0;
-			reader.seq = 255;
-		}
-		return;
-	}
-
-	if (tiny) {
-		// read continue packet
-		if (cid != f->cid) {
-			send_u2fhid_error(f->cid, ERR_CHANNEL_BUSY);
-			return;
-		}
-
-		if ((f->type & TYPE_INIT) && reader.seq == 255) {
-			u2fhid_init_cmd(&reader, f);
-			return;
-		}
-
-		if (reader.seq != f->cont.seq) {
-			send_u2fhid_error(f->cid, ERR_INVALID_SEQ);
-			reader.cmd = 0;
-			reader.len = 0;
-			reader.seq = 255;
-			return;
-		}
-
-		// check out of bounds
-		if ((reader.buf_ptr - reader.buf) >= (signed) reader.len
-			|| (reader.buf_ptr + sizeof(f->cont.data) - reader.buf) > (signed) sizeof(reader.buf))
-			return;
-		reader.seq++;
-		memcpy(reader.buf_ptr, f->cont.data, sizeof(f->cont.data));
-		reader.buf_ptr += sizeof(f->cont.data);
-		return;
-	}
-
-	if (f->init.cmd == 0){
-		return;
-	}
 	if (!(f->type & TYPE_INIT)) {
 		return;
 	}
@@ -201,45 +200,48 @@ static void u2fhid_read(const U2FHID_FRAME *f)
 		return;
 	}
 
-	if ((unsigned)MSG_LEN(*f) > sizeof(reader.buf)) {
+	if ((unsigned)MSG_LEN(*f) > sizeof(reader->buf)) {
 		send_u2fhid_error(f->cid, ERR_INVALID_LEN);
 		return;
 	}
 
-	u2fhid_init_cmd(&reader, f);
+	reader = &readbuffer;
+	u2fhid_init_cmd(f);
 
-	tiny = 1;
+	usbTiny(1);
 	for(;;) {
 		// Do we need to wait for more data
-		while ((reader.buf_ptr - reader.buf) < (signed)reader.len) {
-			uint8_t lastseq = reader.seq;
-			uint8_t lastcmd = reader.cmd;
+		while ((reader->buf_ptr - reader->buf) < (signed)reader->len) {
+			uint8_t lastseq = reader->seq;
+			uint8_t lastcmd = reader->cmd;
 			int counter = U2F_TIMEOUT;
-			while (reader.seq == lastseq && reader.cmd == lastcmd) {
+			while (reader->seq == lastseq && reader->cmd == lastcmd) {
 				if (counter-- == 0) {
 					// timeout
 					send_u2fhid_error(cid, ERR_MSG_TIMEOUT);
 					cid = 0;
-					tiny = 0;
+					reader = 0;
+					usbTiny(0);
+					layoutHome();
 					return;
 				}
 				usbPoll();
 			}
 		}
-		tiny = 0;
+
 		// We have all the data
-		switch (reader.cmd) {
+		switch (reader->cmd) {
 		case 0:
 			// message was aborted by init
 			break;
 		case U2FHID_PING:
-			u2fhid_ping(reader.buf, reader.len);
+			u2fhid_ping(reader->buf, reader->len);
 			break;
 		case U2FHID_MSG:
-			u2fhid_msg((APDU *)reader.buf, reader.len);
+			u2fhid_msg((APDU *)reader->buf, reader->len);
 			break;
 		case U2FHID_WINK:
-			u2fhid_wink(reader.buf, reader.len);
+			u2fhid_wink(reader->buf, reader->len);
 			break;
 		default:
 			send_u2fhid_error(cid, ERR_INVALID_CMD);
@@ -247,12 +249,28 @@ static void u2fhid_read(const U2FHID_FRAME *f)
 		}
 
 		// wait for next commmand/ button press
-		reader.cmd = 0;
-		reader.seq = 255;
+		reader->cmd = 0;
+		reader->seq = 255;
+		while (dialog_timeout > 0 && reader->cmd == 0) {
+			dialog_timeout--;
+			usbPoll(); // may trigger new request
+			//buttonUpdate();
+			if (keepkey_button_down() &&
+				(last_req_state == AUTH || last_req_state == REG)) {
+				last_req_state++;
+				// standard requires to remember button press for 10 seconds.
+				dialog_timeout = 10 * U2F_TIMEOUT;
+			}
+		}
 
-		cid = 0;
-		tiny = 0;
-		return;
+		if (reader->cmd == 0) {
+			last_req_state = INIT;
+			cid = 0;
+			reader = 0;
+			usbTiny(0);
+			layoutHome();
+			return;
+		}
 	}
 }
 
@@ -274,11 +292,11 @@ void u2fhid_wink(const uint8_t *buf, uint32_t len)
 	if (len > 0)
 		return send_u2fhid_error(cid, ERR_INVALID_LEN);
 
-	(void)review_without_button_request("U2F Wink", "\n;-)");
-	layout_home();
+	if (dialog_timeout > 0)
+		dialog_timeout = U2F_TIMEOUT;
 
 	U2FHID_FRAME f;
-	memset(&f, 0, sizeof(f));
+	memzero(&f, sizeof(f));
 	f.cid = cid;
 	f.init.cmd = U2FHID_WINK;
 	f.init.bcntl = 0;
@@ -290,8 +308,7 @@ void u2fhid_init(const U2FHID_FRAME *in)
 	const U2FHID_INIT_REQ *init_req = (const U2FHID_INIT_REQ *)&in->init.data;
 	U2FHID_FRAME f;
 	U2FHID_INIT_RESP resp;
-
-	memset(&resp, 0, sizeof(resp));
+	memzero(&resp, sizeof(resp));
 
 	debugLog(0, "", "u2fhid_init");
 
@@ -300,7 +317,7 @@ void u2fhid_init(const U2FHID_FRAME *in)
 		return;
 	}
 
-	memset(&f, 0, sizeof(f));
+	memzero(&f, sizeof(f));
 	f.cid = in->cid;
 	f.init.cmd = U2FHID_INIT;
 	f.init.bcnth = 0;
@@ -317,6 +334,30 @@ void u2fhid_init(const U2FHID_FRAME *in)
 
 	queue_u2f_pkt(&f);
 }
+
+#if 0
+void queue_u2f_pkt(const U2FHID_FRAME *u2f_pkt)
+{
+	// debugLog(0, "", "u2f_write_pkt");
+	uint32_t next = (u2f_out_end + 1) % U2F_OUT_PKT_BUFFER_LEN;
+	if (u2f_out_start == next) {
+		debugLog(0, "", "u2f_write_pkt full");
+		return; // Buffer full :(
+	}
+	memcpy(u2f_out_packets[u2f_out_end], u2f_pkt, HID_RPT_SIZE);
+	u2f_out_end = next;
+}
+
+uint8_t *u2f_out_data(void)
+{
+	if (u2f_out_start == u2f_out_end)
+		return NULL; // No data
+	// debugLog(0, "", "u2f_out_data");
+	uint32_t t = u2f_out_start;
+	u2f_out_start = (u2f_out_start + 1) % U2F_OUT_PKT_BUFFER_LEN;
+	return u2f_out_packets[t];
+}
+#endif
 
 void u2fhid_msg(const APDU *a, uint32_t len)
 {
@@ -363,7 +404,7 @@ void send_u2fhid_msg(const uint8_t cmd, const uint8_t *data, const uint32_t len)
 
 	// debugLog(0, "", "send_u2fhid_msg");
 
-	memset(&f, 0, sizeof(f));
+	memzero(&f, sizeof(f));
 	f.cid = cid;
 	f.init.cmd = cmd;
 	f.init.bcnth = len >> 8;
@@ -379,26 +420,24 @@ void send_u2fhid_msg(const uint8_t cmd, const uint8_t *data, const uint32_t len)
 	// Cont packet(s)
 	for (; l > 0; l -= psz, p += psz) {
 		// debugLog(0, "", "send_u2fhid_msg con");
-		memset(&f.cont.data, 0, sizeof(f.cont.data));
+		memzero(&f.cont.data, sizeof(f.cont.data));
 		f.cont.seq = seq++;
 		psz = MIN(sizeof(f.cont.data), l);
 		memcpy(f.cont.data, p, psz);
 		queue_u2f_pkt(&f);
 	}
 
-#if 0
 	if (data + len != p) {
 		debugLog(0, "", "send_u2fhid_msg is bad");
 		debugInt(data + len - p);
 	}
-#endif
 }
 
 void send_u2fhid_error(uint32_t fcid, uint8_t err)
 {
 	U2FHID_FRAME f;
 
-	memset(&f, 0, sizeof(f));
+	memzero(&f, sizeof(f));
 	f.cid = fcid;
 	f.init.cmd = U2FHID_ERROR;
 	f.init.bcntl = 1;
@@ -419,19 +458,6 @@ void u2f_version(const APDU *a)
 						   'V', '2', 0x90, 0x00};
 	debugLog(0, "", "u2f version");
 	send_u2f_msg(version_response, sizeof(version_response));
-}
-
-void send_u2f_error(const uint16_t err)
-{
-	uint8_t data[2];
-	data[0] = err >> 8 & 0xFF;
-	data[1] = err & 0xFF;
-	send_u2f_msg(data, 2);
-}
-
-void send_u2f_msg(const uint8_t *data, const uint32_t len)
-{
-	send_u2fhid_msg(U2FHID_MSG, data, len);
 }
 
 const char *words_from_data(const uint8_t *data, int len)
@@ -520,7 +546,7 @@ static const HDNode *generateKeyHandle(const uint8_t app_id[], uint8_t key_handl
 	memcpy(&keybase[0], app_id, U2F_APPID_SIZE);
 	memcpy(&keybase[U2F_APPID_SIZE], key_handle, KEY_PATH_LEN);
 	hmac_sha256(node->private_key, sizeof(node->private_key),
-	            keybase, sizeof(keybase), &key_handle[KEY_PATH_LEN]);
+					keybase, sizeof(keybase), &key_handle[KEY_PATH_LEN]);
 
 	// Done!
 	return node;
@@ -549,7 +575,7 @@ static const HDNode *validateKeyHandle(const uint8_t app_id[], const uint8_t key
 
 	uint8_t hmac[SHA256_DIGEST_LENGTH];
 	hmac_sha256(node->private_key, sizeof(node->private_key),
-	            keybase, sizeof(keybase), hmac);
+				keybase, sizeof(keybase), hmac);
 
 	if (memcmp(&key_handle[KEY_PATH_LEN], hmac, SHA256_DIGEST_LENGTH) != 0)
 		return NULL;
@@ -558,10 +584,40 @@ static const HDNode *validateKeyHandle(const uint8_t app_id[], const uint8_t key
 	return node;
 }
 
+static void promptRegister(bool request, const U2F_REGISTER_REQ *req)
+{
+#if 0
+	// Users find it confusing when a Ledger and a KeepKey are plugged in
+	// at the same time. To avoid that, we elect not to show a message in
+	// this case.
+	if (0 == memcmp(req->appId, BOGUS_APPID, U2F_APPID_SIZE)) {
+		layoutU2FDialog(request, "U2f Register",
+		                "Another U2F device was used to register in this application.");
+	} else {
+#else
+	{
+#endif
+		const char *appname = "";
+		bool readable = getReadableAppId(req->appId, &appname);
+		layoutU2FDialog(request, "U2F Register",
+		                readable
+		                    ? "Do you want to register with %s?"
+		                    : "Do you want to register with this U2F application?\n\n%s",
+		                appname);
+	}
+}
 
 void u2f_register(const APDU *a)
 {
+	static U2F_REGISTER_REQ last_req;
 	const U2F_REGISTER_REQ *req = (U2F_REGISTER_REQ *)a->data;
+
+	if (!storage_isInitialized()) {
+		layout_warning_static("Cannot register u2f: not initialized");
+		send_u2f_error(U2F_SW_CONDITIONS_NOT_SATISFIED);
+		delay_ms(3000);
+		return;
+	}
 
 	// Validate basic request parameters
 	debugLog(0, "", "u2f register");
@@ -571,86 +627,118 @@ void u2f_register(const APDU *a)
 		return;
 	}
 
+	// If this request is different from last request, reset state machine
+	if (memcmp(&last_req, req, sizeof(last_req)) != 0) {
+		memcpy(&last_req, req, sizeof(last_req));
+		last_req_state = INIT;
+	}
+
+	// First Time request, return not present and display request dialog
+	if (last_req_state == INIT) {
+		// error: testof-user-presence is required
+		//buttonUpdate();
+		promptRegister(true, req);
+		last_req_state = REG;
+	}
+
+	// Still awaiting Keypress
+	if (last_req_state == REG) {
+		// error: testof-user-presence is required
+		send_u2f_error(U2F_SW_CONDITIONS_NOT_SATISFIED);
+		dialog_timeout = U2F_TIMEOUT;
+		return;
+	}
+
+	// Buttons said yes
+	if (last_req_state == REG_PASS) {
+		uint8_t data[sizeof(U2F_REGISTER_RESP) + 2];
+		U2F_REGISTER_RESP *resp = (U2F_REGISTER_RESP *)&data;
+		memzero(data, sizeof(data));
+
+		resp->registerId = U2F_REGISTER_ID;
+		resp->keyHandleLen = KEY_HANDLE_LEN;
+		// Generate keypair for this appId
+		const HDNode *node =
+			generateKeyHandle(req->appId, (uint8_t*)&resp->keyHandleCertSig);
+
+		if (!node) {
+			debugLog(0, "", "getDerivedNode Fail");
+			send_u2f_error(U2F_SW_WRONG_DATA); // error:bad key handle
+			return;
+		}
+
+		ecdsa_get_public_key65(node->curve->params, node->private_key,
+				       (uint8_t *)&resp->pubKey);
+
+		memcpy(resp->keyHandleCertSig + resp->keyHandleLen,
+		       U2F_ATT_CERT, sizeof(U2F_ATT_CERT));
+
+		uint8_t sig[64];
+		U2F_REGISTER_SIG_STR sig_base;
+		sig_base.reserved = 0;
+		memcpy(sig_base.appId, req->appId, U2F_APPID_SIZE);
+		memcpy(sig_base.chal, req->chal, U2F_CHAL_SIZE);
+		memcpy(sig_base.keyHandle, &resp->keyHandleCertSig, KEY_HANDLE_LEN);
+		memcpy(sig_base.pubKey, &resp->pubKey, U2F_PUBKEY_LEN);
+		if (ecdsa_sign(&nist256p1, HASHER_SHA2, U2F_ATT_PRIV_KEY, (uint8_t *)&sig_base, sizeof(sig_base), sig, NULL, NULL) != 0) {
+			send_u2f_error(U2F_SW_WRONG_DATA);
+			return;
+		}
+
+		// Where to write the signature in the response
+		uint8_t *resp_sig = resp->keyHandleCertSig +
+				    resp->keyHandleLen + sizeof(U2F_ATT_CERT);
+		// Convert to der for the response
+		const uint8_t sig_len = ecdsa_sig_to_der(sig, resp_sig);
+
+		// Append success bytes
+		memcpy(resp->keyHandleCertSig + resp->keyHandleLen +
+			   sizeof(U2F_ATT_CERT) + sig_len,
+		       "\x90\x00", 2);
+
+		int l = 1 /* registerId */ + U2F_PUBKEY_LEN +
+			1 /* keyhandleLen */ + resp->keyHandleLen +
+			sizeof(U2F_ATT_CERT) + sig_len + 2;
+
+		last_req_state = INIT;
+		dialog_timeout = 0;
+		send_u2f_msg(data, l);
+
+		promptRegister(false, req);
+		return;
+	}
+
+	// Didnt expect to get here
+	dialog_timeout = 0;
+}
+
+static void promptAuthenticate(bool request, const U2F_AUTHENTICATE_REQ *req)
+{
+	const char *appname = "";
+	bool readable = getReadableAppId(req->appId, &appname);
+	layoutU2FDialog(request,
+	                "U2F Authenticate",
+	                readable
+	                    ? "Log in to %s?"
+	                    : "Do you want to log in?\n\n%s",
+	                appname);
+}
+
+
+void u2f_authenticate(const APDU *a)
+{
+	const U2F_AUTHENTICATE_REQ *req = (U2F_AUTHENTICATE_REQ *)a->data;
+	static U2F_AUTHENTICATE_REQ last_req;
+
 	if (!storage_isInitialized()) {
-		layout_warning_static("Cannot register u2f: not initialized");
+		layout_warning_static("Cannot authenticate u2f: not initialized");
 		send_u2f_error(U2F_SW_CONDITIONS_NOT_SATISFIED);
 		delay_ms(3000);
 		return;
 	}
 
-	// TODO: dialog timeout
-	if (0 == memcmp(req->appId, BOGUS_APPID, U2F_APPID_SIZE)) {
-		(void)review_without_button_request("Register", "Another U2F device was used to register in this application.");
-	} else {
-		const char *appname = "";
-		(void)review_without_button_request("Register",
-		                                    getReadableAppId(req->appId, &appname)
-		                                        ? "Enroll with %s?"
-		                                        : "Do you want to enroll with this U2F application?\n\n%s",
-		                                    appname);
-	}
-	layoutHome();
-
-	uint8_t data[sizeof(U2F_REGISTER_RESP) + 2];
-	U2F_REGISTER_RESP *resp = (U2F_REGISTER_RESP *)&data;
-	memset(data, 0, sizeof(data));
-
-	resp->registerId = U2F_REGISTER_ID;
-	resp->keyHandleLen = KEY_HANDLE_LEN;
-	// Generate keypair for this appId
-	const HDNode *node =
-	    generateKeyHandle(req->appId, (uint8_t*)&resp->keyHandleCertSig);
-
-	if (!node) {
-		debugLog(0, "", "getDerivedNode Fail");
-		send_u2f_error(U2F_SW_WRONG_DATA); // error:bad key handle
-		return;
-	}
-
-	ecdsa_get_public_key65(node->curve->params, node->private_key,
-	                       (uint8_t *)&resp->pubKey);
-
-	memcpy(resp->keyHandleCertSig + resp->keyHandleLen,
-	       U2F_ATT_CERT, sizeof(U2F_ATT_CERT));
-
-	uint8_t sig[64];
-	U2F_REGISTER_SIG_STR sig_base;
-	sig_base.reserved = 0;
-	memcpy(sig_base.appId, req->appId, U2F_APPID_SIZE);
-	memcpy(sig_base.chal, req->chal, U2F_CHAL_SIZE);
-	memcpy(sig_base.keyHandle, &resp->keyHandleCertSig, KEY_HANDLE_LEN);
-	memcpy(sig_base.pubKey, &resp->pubKey, U2F_PUBKEY_LEN);
-	if (ecdsa_sign(&nist256p1, HASHER_SHA2, U2F_ATT_PRIV_KEY, (uint8_t *)&sig_base, sizeof(sig_base), sig, NULL, NULL) != 0) {
-		send_u2f_error(U2F_SW_WRONG_DATA);
-		return;
-	}
-
-	// Where to write the signature in the response
-	uint8_t *resp_sig = resp->keyHandleCertSig +
-	    resp->keyHandleLen + sizeof(U2F_ATT_CERT);
-	// Convert to der for the response
-	const uint8_t sig_len = ecdsa_sig_to_der(sig, resp_sig);
-
-	// Append success bytes
-	memcpy(resp->keyHandleCertSig + resp->keyHandleLen +
-	       sizeof(U2F_ATT_CERT) + sig_len,
-	       "\x90\x00", 2);
-
-	int l = 1 /* registerId */ + U2F_PUBKEY_LEN +
-	    1 /* keyhandleLen */ + resp->keyHandleLen +
-	    sizeof(U2F_ATT_CERT) + sig_len + 2;
-
-	send_u2f_msg(data, l);
-	return;
-}
-
-void u2f_authenticate(const APDU *a)
-{
-	const U2F_AUTHENTICATE_REQ *req = (U2F_AUTHENTICATE_REQ *)a->data;
-
 	if (APDU_LEN(*a) < 64) { /// FIXME: decent value
 		debugLog(0, "", "u2f authenticate - badlen");
-		layout_simple_message("SW_WRONG_LENGTH");
 		send_u2f_error(U2F_SW_WRONG_LENGTH);
 		return;
 	}
@@ -661,11 +749,17 @@ void u2f_authenticate(const APDU *a)
 		return;
 	}
 
-	// support auth check only
+	const HDNode *node =
+	    validateKeyHandle(req->appId, req->keyHandle);
+
+	if (!node) {
+		debugLog(0, "", "u2f auth - bad keyhandle len");
+		send_u2f_error(U2F_SW_WRONG_DATA); // error:bad key handle
+		return;
+	}
 
 	if (a->p1 == U2F_AUTH_CHECK_ONLY) {
 		debugLog(0, "", "u2f authenticate check");
-		layout_simple_message("SW_COND_NOT_SAT");
 		// This is a success for a good keyhandle
 		// A failed check would have happened earlier
 		// error: testof-user-presence is required
@@ -675,65 +769,84 @@ void u2f_authenticate(const APDU *a)
 
 	if (a->p1 != U2F_AUTH_ENFORCE) {
 		debugLog(0, "", "u2f authenticate unknown");
-		layout_simple_message("SW_AUTH_ENF");
 		// error:bad key handle
 		send_u2f_error(U2F_SW_WRONG_DATA);
 		return;
 	}
 
-	if (!storage_isInitialized()) {
-		layout_warning_static("Cannot authenticate u2f: not initialized");
+	debugLog(0, "", "u2f authenticate enforce");
+
+	if (memcmp(&last_req, req, sizeof(last_req)) != 0) {
+		memcpy(&last_req, req, sizeof(last_req));
+		last_req_state = INIT;
+	}
+
+	if (last_req_state == INIT) {
+		// error: testof-user-presence is required
+		//buttonUpdate(); // Clear button state
+		promptAuthenticate(true, req);
+		last_req_state = AUTH;
+	}
+
+	// Awaiting Keypress
+	if (last_req_state == AUTH) {
+		// error: testof-user-presence is required
 		send_u2f_error(U2F_SW_CONDITIONS_NOT_SATISFIED);
-		delay_ms(3000);
+		dialog_timeout = U2F_TIMEOUT;
 		return;
 	}
 
-	const HDNode *node = validateKeyHandle(req->appId, req->keyHandle);
+	// Buttons said yes
+	if (last_req_state == AUTH_PASS) {
+		uint8_t buf[sizeof(U2F_AUTHENTICATE_RESP) + 2];
+		U2F_AUTHENTICATE_RESP *resp =
+			(U2F_AUTHENTICATE_RESP *)&buf;
 
-	if (!node) {
-		debugLog(0, "", "u2f auth - bad keyhandle len");
-		send_u2f_error(U2F_SW_WRONG_DATA); // error:bad key handle
-		return;
+		const uint32_t ctr = storage_nextU2FCounter();
+		resp->flags = U2F_AUTH_FLAG_TUP;
+		resp->ctr[0] = ctr >> 24 & 0xff;
+		resp->ctr[1] = ctr >> 16 & 0xff;
+		resp->ctr[2] = ctr >> 8 & 0xff;
+		resp->ctr[3] = ctr & 0xff;
+
+		// Build and sign response
+		U2F_AUTHENTICATE_SIG_STR sig_base;
+		uint8_t sig[64];
+		memcpy(sig_base.appId, req->appId, U2F_APPID_SIZE);
+		sig_base.flags = resp->flags;
+		memcpy(sig_base.ctr, resp->ctr, 4);
+		memcpy(sig_base.chal, req->chal, U2F_CHAL_SIZE);
+		if (ecdsa_sign(&nist256p1, HASHER_SHA2, node->private_key, (uint8_t *)&sig_base, sizeof(sig_base), sig, NULL, NULL) != 0) {
+			send_u2f_error(U2F_SW_WRONG_DATA);
+			return;
+		}
+
+		// Copy DER encoded signature into response
+		const uint8_t sig_len = ecdsa_sig_to_der(sig, resp->sig);
+
+		// Append OK
+		memcpy(buf + sizeof(U2F_AUTHENTICATE_RESP) -
+			   U2F_MAX_EC_SIG_SIZE + sig_len,
+			   "\x90\x00", 2);
+		last_req_state = INIT;
+		dialog_timeout = 0;
+		send_u2f_msg(buf, sizeof(U2F_AUTHENTICATE_RESP) -
+					  U2F_MAX_EC_SIG_SIZE + sig_len +
+					  2);
+
+		promptAuthenticate(false, req);
 	}
+}
 
-	// TODO: dialog timeout
-	const char *appname = "";
-	(void)review_without_button_request("Authenticate",
-	                                    getReadableAppId(req->appId, &appname)
-	                                        ? "Log in to %s?"
-	                                        : "Do you want to log in?\n\n%s",
-	                                    appname);
-	layoutHome();
+void send_u2f_error(const uint16_t err)
+{
+	uint8_t data[2];
+	data[0] = err >> 8 & 0xFF;
+	data[1] = err & 0xFF;
+	send_u2f_msg(data, 2);
+}
 
-	uint8_t buf[sizeof(U2F_AUTHENTICATE_RESP) + 2];
-	U2F_AUTHENTICATE_RESP *resp = (U2F_AUTHENTICATE_RESP *)&buf;
-
-	const uint32_t ctr = storage_nextU2FCounter();
-	resp->flags = U2F_AUTH_FLAG_TUP;
-	resp->ctr[0] = ctr >> 24 & 0xff;
-	resp->ctr[1] = ctr >> 16 & 0xff;
-	resp->ctr[2] = ctr >> 8 & 0xff;
-	resp->ctr[3] = ctr & 0xff;
-
-	// Build and sign response
-	U2F_AUTHENTICATE_SIG_STR sig_base;
-	uint8_t sig[64];
-	memcpy(sig_base.appId, req->appId, U2F_APPID_SIZE);
-	sig_base.flags = resp->flags;
-	memcpy(sig_base.ctr, resp->ctr, 4);
-	memcpy(sig_base.chal, req->chal, U2F_CHAL_SIZE);
-	if (ecdsa_sign(&nist256p1, HASHER_SHA2, node->private_key, (uint8_t *)&sig_base, sizeof(sig_base), sig, NULL, NULL) != 0) {
-		send_u2f_error(U2F_SW_WRONG_DATA);
-		return;
-	}
-
-	// Copy DER encoded signature into response
-	const uint8_t sig_len = ecdsa_sig_to_der(sig, resp->sig);
-
-	// Append OK
-	memcpy(buf + sizeof(U2F_AUTHENTICATE_RESP) -
-	       U2F_MAX_EC_SIG_SIZE + sig_len,
-	       "\x90\x00", 2);
-	send_u2f_msg(buf, sizeof(U2F_AUTHENTICATE_RESP) -
-	             U2F_MAX_EC_SIG_SIZE + sig_len + 2);
+void send_u2f_msg(const uint8_t *data, const uint32_t len)
+{
+	send_u2fhid_msg(U2FHID_MSG, data, len);
 }

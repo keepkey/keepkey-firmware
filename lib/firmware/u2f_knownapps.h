@@ -20,7 +20,7 @@
 #ifndef __U2F_KNOWNAPPS_H_INCLUDED__
 #define __U2F_KNOWNAPPS_H_INCLUDED__
 
-#include "keepkey/firmware/u2f.h"
+#include "keepkey/firmware/u2f/u2f.h"
 
 #include <stdint.h>
 
