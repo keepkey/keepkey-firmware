@@ -452,22 +452,58 @@ void handler_erase(FirmwareErase *msg)
     layoutProgress("Preparing for upgrade", 0);
 
     if (!fi_defense_delay(storage_protect_on())) {
+        // Something went wrong during a prevous firmware upload, resulting in
+        // the storage protection magic getting wiped. To protect the user's
+        // secrets from malicious behavior, wipe them here:
+
         flash_unlock();
+
         bl_flash_erase_word(FLASH_STORAGE1);
-        layoutProgress("Preparing for upgrade", (1 * 1000 / (3 + 11 - 7)));
+        layoutProgress("Preparing for upgrade", 1 * 1000 / 8);
+
         bl_flash_erase_word(FLASH_STORAGE2);
-        layoutProgress("Preparing for upgrade", (2 * 1000 / (3 + 11 - 7)));
+        layoutProgress("Preparing for upgrade", 2 * 1000 / 8);
+
         bl_flash_erase_word(FLASH_STORAGE3);
-        layoutProgress("Preparing for upgrade", (3 * 1000 / (3 + 11 - 7)));
+        layoutProgress("Preparing for upgrade", 3 * 1000 / 8);
+
+        bl_flash_erase_sector(7);
+        layoutProgress("Preparing for upgrade", 4 * 1000 / 8);
+
+        bl_flash_erase_sector(8);
+        layoutProgress("Preparing for upgrade", 5 * 1000 / 8);
+
+        bl_flash_erase_sector(9);
+        layoutProgress("Preparing for upgrade", 6 * 1000 / 8);
+
+        bl_flash_erase_sector(10);
+        layoutProgress("Preparing for upgrade", 7 * 1000 / 8);
+
+        bl_flash_erase_sector(11);
+        layoutProgress("Preparing for upgrade", 8 * 1000 / 8);
+
+        flash_lock();
+    } else {
+        flash_unlock();
+
+        bl_flash_erase_sector(7);
+        layoutProgress("Preparing for upgrade", 1 * 1000 / 5);
+
+        bl_flash_erase_sector(8);
+        layoutProgress("Preparing for upgrade", 2 * 1000 / 5);
+
+        bl_flash_erase_sector(9);
+        layoutProgress("Preparing for upgrade", 3 * 1000 / 5);
+
+        bl_flash_erase_sector(10);
+        layoutProgress("Preparing for upgrade", 4 * 1000 / 5);
+
+        bl_flash_erase_sector(11);
+        layoutProgress("Preparing for upgrade", 5 * 1000 / 5);
+
         flash_lock();
     }
 
-    for (int i = 7; i <= 11; ++i) {
-        bl_flash_erase_sector(i);
-        layoutProgress("Preparing for upgrade", ((3 + i - 7) * 1000 / (3 + 11 - 7)));
-    }
-
-    flash_lock();
     layoutProgress("Preparing for upgrade", 1000);
     send_success("Firmware erased");
 }
