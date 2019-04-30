@@ -3,7 +3,8 @@ if(NOT ${KK_EMULATOR})
       main.c
       startup.s
       ../bootloader/bl_mpu.c
-      ../bootloader/isr.s)
+      ../bootloader/isr.s
+      header.s)
 
   include_directories(
       ${CMAKE_SOURCE_DIR}/include
