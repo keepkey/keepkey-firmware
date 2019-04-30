@@ -3,7 +3,8 @@ if(NOT ${KK_EMULATOR})
       main.c
       startup.s
       ../bootloader/bl_mpu.c
-      ../bootloader/isr.s)
+      ../bootloader/isr.s
+      header.s)
 
   include_directories(
       ${CMAKE_SOURCE_DIR}/include
@@ -60,5 +61,10 @@ if(NOT ${KK_EMULATOR})
       COMMAND ${CMAKE_OBJCOPY} ARGS -O binary
           ${CMAKE_BINARY_DIR}/bin/blupdater.elf
           ${CMAKE_BINARY_DIR}/bin/blupdater.bin)
+
+  add_custom_command(TARGET blupdater.elf
+      POST_BUILD
+      COMMAND echo "Bootloader Hash:"
+      COMMAND cat ${CMAKE_BINARY_DIR}/bin/bootloader.bin | openssl dgst -sha256 -binary | openssl dgst -sha256)
 
 endif()

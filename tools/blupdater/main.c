@@ -81,7 +81,6 @@ __attribute__((used, section("version"))) = "VERSION" BL_VERSION;
 /// \returns true iff there was a problem while writing.
 static bool write_bootloader(void)
 {
-    const FlashSector* s = flash_sector_map;
     static uint8_t hash[SHA256_DIGEST_LENGTH];
     memset(hash, 0, sizeof(hash));
     sha256_Raw((const uint8_t*)_binary_payload_bin_start, _binary_payload_bin_size, hash);
@@ -93,19 +92,15 @@ static bool write_bootloader(void)
 
         // erase the bootloader sectors, do not use flash_erase_word()
         layoutProgress("Updating. DO NOT UNPLUG", 0);
-        while (s->use != FLASH_INVALID) {
-            if (s->use == FLASH_BOOTLOADER) {
-                // erase the sector
-                flash_erase_sector(s->sector, FLASH_CR_PROGRAM_X32);
-                // Wait for operation to complete.
-                flash_wait_for_last_operation();
-            }
-            ++s;
-        }
+        flash_erase_sector(5, FLASH_CR_PROGRAM_X32);
+        flash_wait_for_last_operation();
+        layoutProgress("Updating. DO NOT UNPLUG", 100);
+        flash_erase_sector(6, FLASH_CR_PROGRAM_X32);
+        flash_wait_for_last_operation();
 
         // Write into the sector.
         for (int chunkstart = 0; chunkstart < _binary_payload_bin_size; chunkstart += CHUNK_SIZE) {
-            layoutProgress("Updating. DO NOT UNPLUG", (int)(chunkstart * 1000 / _binary_payload_bin_size));
+            layoutProgress("Updating. DO NOT UNPLUG", 200 + chunkstart * 800 / _binary_payload_bin_size);
 
             size_t chunksize;
             if (_binary_payload_bin_size > chunkstart+CHUNK_SIZE) {
@@ -115,6 +110,7 @@ static bool write_bootloader(void)
             }
 
             flash_program((uint32_t)(FLASH_BOOT_START+chunkstart), &_binary_payload_bin_start[chunkstart], chunksize);
+            flash_wait_for_last_operation();
         }
 
         // Disallow writing to flash.
