@@ -90,7 +90,7 @@ it easier to extend for new features later on.
 |   imported                |   bit 4        |              |                |
 |   passphrase_protection   |   bit 5        |              |                |
 |   ShapeShift policy       |   bit 6        |              |                |
-|   Pin Caching policy      |   bit 7        |              |                |
+|   formerly: Pin Caching   |   bit 7        |              |                |
 |   has_node                |   bit 8        |              |                |
 |   has_mnemonic            |   bit 9        |              |                |
 |   has_u2froot             |   bit 10       |              |                |

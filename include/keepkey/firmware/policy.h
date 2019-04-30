@@ -29,7 +29,7 @@
 // storage_upgradePolicies();
 static const PolicyType policies[] = {
     {true, "ShapeShift", true, true},
-    {true, "Pin Caching", true, false},
+    {true, "Pin Caching", true, true},
     {true, "Experimental", true, false},
     {true, "AdvancedMode", true, false},
 };

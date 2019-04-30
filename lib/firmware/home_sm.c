@@ -19,6 +19,7 @@
 
 #include "variant.h"
 
+#include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/home_sm.h"
@@ -28,6 +29,18 @@
 static HomeState home_state = AT_HOME;
 
 static uint32_t idle_time = 0;
+
+static void layoutLockedState(void)
+{
+    const Font *font = get_body_font();
+    const char *state = (!storage_hasPin() || session_isPinCached()) ? "\x02" : "\x03";
+    DrawableParams sp;
+    sp.x = 2;
+    sp.y = KEEPKEY_DISPLAY_HEIGHT - 1 * font_height(font) - 6;
+    sp.color = 0x22;
+    draw_string(layout_get_canvas(), font, state, &sp, KEEPKEY_DISPLAY_WIDTH,
+                font_height(font));
+}
 
 /*
  * layoutHome() - Returns to home screen
@@ -48,9 +61,11 @@ void layoutHome(void)
         case SCREENSAVER:
         case AT_HOME:
         default:
-            /* no action requires */
+            /* no action required */
             break;
     }
+
+    layoutLockedState();
 }
 
 /*
@@ -64,9 +79,12 @@ void layoutHome(void)
 void layoutHomeForced(void)
 {
     layout_home();
+    layoutLockedState();
     reset_idle_time();
     home_state = AT_HOME;
 }
+
+
 
 /*
  * leave_home() - Leaves home screen
