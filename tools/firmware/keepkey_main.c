@@ -69,7 +69,31 @@ void memory_getDeviceLabel(char *str, size_t len) {
     }
 }
 
-static void drop_privs(void) {
+static bool canDropPrivs(void)
+{
+    switch (get_bootloaderKind()) {
+    case BLK_v1_0_0:
+    case BLK_v1_0_1:
+    case BLK_v1_0_2:
+    case BLK_v1_0_3:
+    case BLK_v1_0_3_elf:
+    case BLK_v1_0_3_sig:
+    case BLK_v1_0_4:
+    case BLK_UNKNOWN:
+        return true;
+    case BLK_v1_1_0:
+        return true;
+    case BLK_v2_0_0:
+        return SIG_OK == signatures_ok();
+    }
+    __builtin_unreachable();
+}
+
+static void drop_privs(void)
+{
+    if (!canDropPrivs())
+        return;
+
     // Legacy bootloader code will have interrupts disabled at this point.
     // To maintain compatibility, the timer and button interrupts need to
     // be enabled and then global interrupts enabled. This is a nop in the
