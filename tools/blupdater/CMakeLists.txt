@@ -61,4 +61,9 @@ if(NOT ${KK_EMULATOR})
           ${CMAKE_BINARY_DIR}/bin/blupdater.elf
           ${CMAKE_BINARY_DIR}/bin/blupdater.bin)
 
+  add_custom_command(TARGET blupdater.elf
+      POST_BUILD
+      COMMAND echo "Bootloader Hash:"
+      COMMAND cat ${CMAKE_BINARY_DIR}/bin/bootloader.bin | openssl dgst -sha256 -binary | openssl dgst -sha256)
+
 endif()
