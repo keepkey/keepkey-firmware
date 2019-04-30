@@ -1,7 +1,7 @@
 MEMORY
 {
     /* Bootloader ROM */
-    rom (rx)  : ORIGIN = 0x08020000, LENGTH = 0x00040000 
+    rom (rx)  : ORIGIN = 0x08020000, LENGTH = 0x00040000
 
     /* ram shared by bootloader and firmware, contains psp */
     ram (rwx) : ORIGIN = 0x20000000, LENGTH = 0x1F800
@@ -32,6 +32,13 @@ SECTIONS
     .version : {
         KEEP(*(version))
     } >rom
+
+    /* Pad the bootloader with zeroes */
+    .fill : {
+        FILL(0x00000000);
+        . = ORIGIN(rom) + LENGTH(rom) - 1;
+        BYTE(0x00);
+    } > rom
 }
 
 _ram_start = ORIGIN(ram);
@@ -40,7 +47,7 @@ _bram_end = ORIGIN(bram) + LENGTH(bram);
 _comram_end = ORIGIN(comram) + LENGTH(comram);
 
 /* this is the msp. Make stack 8-byte aligned */
-_stack = _bram_end - 24;                
+_stack = _bram_end - 24;
 __stack_chk_guard = _bram_end - 24;
 
 /* protected bootloader statics */
@@ -49,18 +56,13 @@ _uisr = _bram_end - 12;
 button_sp_ctx = _bram_end - 8;
 timer_sp_ctx = _bram_end - 4; 
 
-
 /* common block vars to be accessed by both bootloader and firmware */
-
 _mmhusr_isr = _comram_end - 24;
 _param_3 = _comram_end - 20;
 _param_2 = _comram_end - 16;
 _param_1 = _comram_end - 12;
-_timerusr_isr = _comram_end - 8; 
+_timerusr_isr = _comram_end - 8;
 _buttonusr_isr = _comram_end - 4;
 
-
 _data_size = SIZEOF(.data);
-
-
 
