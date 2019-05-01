@@ -35,6 +35,7 @@
 #include "keepkey/board/mpudefs.h"
 #include "keepkey/board/pubkeys.h"
 #include "keepkey/board/signatures.h"
+#include "keepkey/board/util.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
@@ -44,6 +45,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
 void mmhisr(void);
 void u2fInit(void);
@@ -57,17 +59,41 @@ void u2fInit(void);
 static const char *const application_version
 __attribute__((used, section("version"))) = APP_VERSIONS;
 
-void memory_getDeviceSerialNo(char *str, size_t len) {
-#if 0
-    desig_get_unique_id_as_string(str, len);
-#else
-    // We don't want to use the Serial No. baked into the STM32 for privacy
-    // reasons, so we fetch the one from storage instead:
-    strlcpy(str, storage_getUuidStr(), len);
-#endif
+void memory_getDeviceLabel(char *str, size_t len) {
+    const char *label = storage_getLabel();
+
+    if (label && is_valid_ascii((const uint8_t*)label, strlen(label))) {
+        snprintf(str, len, "KeepKey - %s", label);
+    } else {
+        strlcpy(str, "KeepKey", len);
+    }
 }
 
-static void drop_privs(void) {
+static bool canDropPrivs(void)
+{
+    switch (get_bootloaderKind()) {
+    case BLK_v1_0_0:
+    case BLK_v1_0_1:
+    case BLK_v1_0_2:
+    case BLK_v1_0_3:
+    case BLK_v1_0_3_elf:
+    case BLK_v1_0_3_sig:
+    case BLK_v1_0_4:
+    case BLK_UNKNOWN:
+        return true;
+    case BLK_v1_1_0:
+        return true;
+    case BLK_v2_0_0:
+        return SIG_OK == signatures_ok();
+    }
+    __builtin_unreachable();
+}
+
+static void drop_privs(void)
+{
+    if (!canDropPrivs())
+        return;
+
     // Legacy bootloader code will have interrupts disabled at this point.
     // To maintain compatibility, the timer and button interrupts need to
     // be enabled and then global interrupts enabled. This is a nop in the
@@ -177,8 +203,9 @@ int main(void)
 
     if (is_mfg_mode())
         layout_screen_test();
-    else if (variant_isMFR())
-        layout_simple_message("keepkey.com/get-started");
+    else if (!storage_isInitialized())
+        layout_standard_notification("Welcome", "keepkey.com/get-started",
+                                     NOTIFICATION_LOGO);
     else
         layoutHomeForced();
 

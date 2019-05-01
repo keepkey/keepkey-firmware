@@ -28,6 +28,7 @@ if(NOT ${KK_EMULATOR})
       kkfirmware.keepkey
       kkboard
       kkboard.keepkey
+      kkvariant.keepkey
       kktransport
       trezorcrypto
       kkrand

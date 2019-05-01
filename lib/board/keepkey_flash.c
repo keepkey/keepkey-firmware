@@ -119,7 +119,7 @@ void flash_erase_word(Allocation group)
  * OUTPUT:
  *     true/false status of write
  */
-bool flash_write_word(Allocation group, uint32_t offset, uint32_t len, uint8_t *data)
+bool flash_write_word(Allocation group, uint32_t offset, uint32_t len, const uint8_t *data)
 {
 #ifndef EMULATOR
     bool retval = true;
@@ -179,7 +179,7 @@ fww_exit:
  * OUTPUT:
  *     true/false status of write
  */
-bool flash_write(Allocation group, uint32_t offset, uint32_t len, uint8_t* data)
+bool flash_write(Allocation group, uint32_t offset, uint32_t len, const uint8_t *data)
 {
 #ifndef EMULATOR
     bool retval = true;

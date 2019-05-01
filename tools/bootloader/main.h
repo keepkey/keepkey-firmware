@@ -22,10 +22,11 @@
 
 #include <stdbool.h>
 
-
 typedef void (*app_entry_t)(void);
 
-
 bool check_fw_is_new(void);
+
+/// \returns true iff firmware has correct magic
+bool magic_ok(void);
 
 #endif

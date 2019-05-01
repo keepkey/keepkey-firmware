@@ -79,6 +79,7 @@ static uint32_t lock_time = 0;
 static uint32_t expiry = 0;
 static bool overwintered = false;
 static uint32_t version_group_id = 0;
+static uint32_t branch_id = 0;
 static uint32_t next_nonsegwit_input;
 static uint32_t progress, progress_step, progress_meta_step;
 static bool multisig_fp_set, multisig_fp_mismatch;
@@ -658,6 +659,18 @@ void signing_init(const SignTx *msg, const CoinType *_coin, const HDNode *_root)
 	expiry = msg->expiry;
 	overwintered = msg->has_overwintered && msg->overwintered;
 	version_group_id = msg->version_group_id;
+	branch_id = msg->branch_id;
+	// set default values for Zcash if branch_id is unset
+	if (overwintered && (branch_id == 0)) {
+		switch (version) {
+			case 3:
+				branch_id = 0x5BA81B19; // Overwinter
+				break;
+			case 4:
+				branch_id = 0x76B809BB; // Sapling
+				break;
+		}
+	}
 
 	uint32_t size = TXSIZE_HEADER + TXSIZE_FOOTER + ser_length_size(inputs_count) + ser_length_size(outputs_count);
 	if (coin->decred) {
@@ -704,9 +717,9 @@ void signing_init(const SignTx *msg, const CoinType *_coin, const HDNode *_root)
 
 	// segwit hashes for hashPrevouts and hashSequence
 	if (overwintered) {
-		hasher_Init(&hasher_prevouts, HASHER_OVERWINTER_PREVOUTS);
-		hasher_Init(&hasher_sequence, HASHER_OVERWINTER_SEQUENCE);
-		hasher_Init(&hasher_outputs, HASHER_OVERWINTER_OUTPUTS);
+		hasher_InitParam(&hasher_prevouts, HASHER_BLAKE2B_PERSONAL, "ZcashPrevoutHash", 16);
+		hasher_InitParam(&hasher_sequence, HASHER_BLAKE2B_PERSONAL, "ZcashSequencHash", 16);
+		hasher_InitParam(&hasher_outputs, HASHER_BLAKE2B_PERSONAL, "ZcashOutputsHash", 16);
 		hasher_Init(&hasher_check, curve->hasher_sign);
 	} else {
 		hasher_Init(&hasher_prevouts, curve->hasher_sign);
@@ -951,8 +964,11 @@ static void signing_hash_bip143(const TxInputType *txinput, uint8_t *hash) {
 
 static void signing_hash_zip143(const TxInputType *txinput, uint8_t *hash) {
 	uint32_t hash_type = signing_hash_type();
+	uint8_t personal[16];
+	memcpy(personal, "ZcashSigHash", 12);
+	memcpy(personal + 12, &branch_id, 4);
 	Hasher hasher_preimage;
-	hasher_Init(&hasher_preimage, HASHER_OVERWINTER_PREIMAGE);
+	hasher_InitParam(&hasher_preimage, HASHER_BLAKE2B_PERSONAL, personal, sizeof(personal));
 	uint32_t ver = version | TX_OVERWINTERED;												// 1. nVersion | fOverwintered
 	hasher_Update(&hasher_preimage, (const uint8_t *)&ver, 4);
 	hasher_Update(&hasher_preimage, (const uint8_t *)&version_group_id, 4);			// 2. nVersionGroupId
@@ -975,8 +991,11 @@ static void signing_hash_zip143(const TxInputType *txinput, uint8_t *hash) {
 
 static void signing_hash_zip243(const TxInputType *txinput, uint8_t *hash) {
 	uint32_t hash_type = signing_hash_type();
+	uint8_t personal[16];
+	memcpy(personal, "ZcashSigHash", 12);
+	memcpy(personal + 12, &branch_id, 4);
 	Hasher hasher_preimage;
-	hasher_Init(&hasher_preimage, HASHER_SAPLING_PREIMAGE);
+	hasher_InitParam(&hasher_preimage, HASHER_BLAKE2B_PERSONAL, personal, sizeof(personal));
 	uint32_t ver = version | TX_OVERWINTERED;													// 1. nVersion | fOverwintered
 	hasher_Update(&hasher_preimage, (const uint8_t *)&ver, 4);
 	hasher_Update(&hasher_preimage, (const uint8_t *)&version_group_id, 4);						// 2. nVersionGroupId

@@ -356,10 +356,6 @@ bool eos_compileActionUnknown(const EosActionCommon *common,
         (void)review(ButtonRequestType_ButtonRequest_Other, "Warning",
                      "Signing of arbitrary EOS actions is recommended only for "
                      "experienced users. Enable 'AdvancedMode' policy to dismiss.");
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
-        eos_signingAbort();
-        layoutHome();
-        return false;
     }
 
     if (unknown_remaining == 0) {

@@ -23,6 +23,7 @@
 // Allow this file to be used from C++ by renaming an unfortunately named field:
 #define delete del
 #include "messages.pb.h"
+#include "messages-nano.pb.h"
 #undef delete
 
 #include "messages-eos.pb.h"

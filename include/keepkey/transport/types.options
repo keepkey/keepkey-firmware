@@ -11,6 +11,7 @@ CoinType.contract_address               max_size:20
 CoinType.curve_name             max_size:21
 CoinType.bech32_prefix          max_size:21
 CoinType.cashaddr_prefix        max_size:16
+CoinType.nanoaddr_prefix        max_size:16
 
 
 TxInputType.address_n			max_count:8

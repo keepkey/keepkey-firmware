@@ -5,7 +5,7 @@
 MEMORY
 {
     /* blupdater ROM */
-    rom (rx)   : ORIGIN = 0x08060100, LENGTH = 0x00100000 - 0x00060100
+    rom (rx)   : ORIGIN = 0x08060000, LENGTH = 0x00100000 - 0x00060000
 
     /* ram shared by bootloader and firmware, contains msp (blupdater does not use psp) */
     ram (rwx) : ORIGIN = 0x20000000, LENGTH = 0x0001FF00
@@ -14,6 +14,12 @@ MEMORY
     comram (rwx) : ORIGIN = 0x2001FF00, LENGTH = 0x100
 }
 
+SECTIONS
+{
+    .header : ALIGN(4) {
+        KEEP(*(.header));
+    } >rom AT >rom
+}
 INCLUDE libopencm3_stm32f2.ld
 
 SECTIONS
@@ -35,7 +41,7 @@ _comram_end = ORIGIN(comram) + LENGTH(comram);
 /* potential bootloader/firmware isr vector changes. */
 
 /* this is the msp for the blupdater. Make stacks 8-byte aligned. */
-_stack = _ram_end - 24;                
+_stack = _ram_end - 24;
 __stack_chk_guard = _ram_end - 24;
 
 /* statics needed for the blupdater */
@@ -51,13 +57,10 @@ _mmhusr_isr = _comram_end - 24;
 _param_3 = _comram_end - 20;
 _param_2 = _comram_end - 16;
 _param_1 = _comram_end - 12;
-_timerusr_isr = _comram_end - 8; 
+_timerusr_isr = _comram_end - 8;
 _buttonusr_isr = _comram_end - 4;
 
 
 _data_size = SIZEOF(.data);
 
-
-
-
-
+_codelen = SIZEOF(.text) + SIZEOF(.data) + SIZEOF(.ARM.exidx) + SIZEOF(.version);

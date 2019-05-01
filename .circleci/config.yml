@@ -1,0 +1,37 @@
+version: 2.1
+jobs:
+  emulator-build-test:
+    docker:
+      - image: circleci/python:2.7.15
+    steps:
+      - checkout
+      - run:
+          name: Update Submodules
+          command: |
+            git submodule update --init --recursive
+      - setup_remote_docker
+      - run:
+          name: Emulator Tests
+          command: |
+            pushd ./scripts/emulator
+            set +e
+            docker-compose up --build firmware-unit
+            UNIT_RESULTS="$?"
+            docker-compose up --build bridge-tests
+            BRIDGE_RESULTS="$?"
+            docker-compose up --build python-keepkey
+            TEST_RESULTS="$?"
+            set -e
+            docker cp "$(docker-compose ps -q firmware-unit)":/kkemu/test-reports/. ../../test-reports/
+            docker cp "$(docker-compose ps -q bridge-tests)":/kkemu/test-reports/. ../../test-reports/
+            docker cp "$(docker-compose ps -q python-keepkey)":/kkemu/test-reports/. ../../test-reports/
+            popd
+            (exit $UNIT_RESULTS) && (exit $BRIDGE_RESULTS) && (exit $TEST_RESULTS)
+      - store_test_results:
+          path: test-reports
+workflows:
+  version: 2
+  emulator:
+    jobs:
+      - emulator-build-test
+

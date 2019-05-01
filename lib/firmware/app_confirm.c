@@ -17,8 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
-
 #if !defined(EMULATOR)
 // FIXME: cortex.h should really have these includes inside it.
 #  include <inttypes.h>
@@ -39,7 +37,7 @@
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/coins.h"
 
-#include "trezor/qrenc/qr_encode.h"
+#include "trezor/crypto/bignum.h"
 
 #include <assert.h>
 #include <stdarg.h>
@@ -49,6 +47,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#define BITCOIN_DIVISIBILITY (8)
+#define _(X) (X)
 
 /*
  * confirm_cipher() - Show cipher confirmation
@@ -307,6 +307,7 @@ bool confirm_xpub(const char *node_str, const char *xpub)
                                       ButtonRequestType_ButtonRequest_Address, node_str, "%s", xpub);
 
 }
+
 /*
  * confirm_ethereum_address() - Show ethereum address confirmation
  *
@@ -322,6 +323,23 @@ bool confirm_ethereum_address(const char *desc, const char *address)
     return confirm_with_custom_layout(&layout_ethereum_address_notification,
                                       ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
 }
+
+/*
+ * confirm_nano_address() - Show nano address confirmation
+ *
+ * INPUT
+ *      - desc: description to show with address
+ *      - address: address to display both as string and in QR
+ * OUTPUT
+ *     true/false of confirmation
+ *
+ */
+bool confirm_nano_address(const char *desc, const char *address)
+{
+    return confirm_with_custom_layout(&layout_nano_address_notification,
+                                      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
+}
+
 /*
  * confirm_address() - Show address confirmation
  *
@@ -400,14 +418,33 @@ bool confirm_sign_identity(const IdentityType *identity, const char *challenge)
     return confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, "%s", body);
 }
 
-bool is_valid_ascii(const uint8_t *data, uint32_t size)
+bool confirm_omni(ButtonRequestType button_request, const char *title, const uint8_t *data, uint32_t size)
 {
-	for (uint32_t i = 0; i < size; i++) {
-		if (data[i] < ' ' || data[i] > '~') {
-			return false;
+	const uint32_t tx_type = *(const uint32_t *)(data + 4);
+	if (tx_type == 0x00000000 && size == 20) {  // OMNI simple send
+		char str_out[32];
+		const uint32_t currency = *(const uint32_t *)(data + 8);
+		const char *suffix = "UNKN";
+		switch (currency) {
+			case 1:
+				suffix = " OMNI";
+				break;
+			case 2:
+				suffix = " tOMNI";
+				break;
+			case 3:
+				suffix = " MAID";
+				break;
+			case 31:
+				suffix = " USDT";
+				break;
 		}
+		const uint64_t amount = *(const uint64_t *)(data + 12);
+		bn_format_uint64(amount, NULL, suffix, BITCOIN_DIVISIBILITY, 0, false, str_out, sizeof(str_out));
+		return confirm(button_request, title, _("Do you want to send %s?"), str_out);
+	} else {
+		return confirm(button_request, title, _("Unknown Transaction"));
 	}
-	return true;
 }
 
 bool confirm_data(ButtonRequestType button_request, const char *title,
@@ -428,3 +465,4 @@ bool confirm_data(ButtonRequestType button_request, const char *title,
 	}
 	return confirm(button_request, title, "%s", str);
 }
+

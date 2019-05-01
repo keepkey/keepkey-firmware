@@ -25,6 +25,7 @@
 
 #ifndef EMULATOR
 #  include <libopencm3/stm32/flash.h>
+#  include <libopencm3/stm32/desig.h>
 #endif
 
 #include "keepkey/board/supervise.h"
@@ -477,7 +478,7 @@ void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage) {
         (storage->pub.imported                    ? (1u <<  4) : 0) |
         (storage->pub.passphrase_protection       ? (1u <<  5) : 0) |
         (/* ShapeShift policy, enabled always */    (1u <<  6)    ) |
-        (storage_isPolicyEnabled("Pin Caching")   ? (1u <<  7) : 0) |
+        (/* Pin Caching policy, enabled always */   (1u <<  7)    ) |
         (storage->pub.has_node                    ? (1u <<  8) : 0) |
         (storage->pub.has_mnemonic                ? (1u <<  9) : 0) |
         (storage->pub.has_u2froot                 ? (1u << 10) : 0) |
@@ -531,7 +532,7 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     storage->pub.imported =                                          flags & (1u <<  4);
     storage->pub.passphrase_protection =                             flags & (1u <<  5);
     storage_readPolicyV2(&storage->pub.policies[0], "ShapeShift",    true);
-    storage_readPolicyV2(&storage->pub.policies[1], "Pin Caching",   flags & (1u <<  7));
+    storage_readPolicyV2(&storage->pub.policies[1], "Pin Caching",   true);
     storage->pub.has_node =                                          flags & (1u <<  8);
     storage->pub.has_mnemonic =                                      flags & (1u <<  9);
     storage->pub.has_u2froot =                                       flags & (1u << 10);
@@ -626,11 +627,6 @@ StorageUpdateStatus storage_fromFlash(SessionState *ss, ConfigFlash *dst, const 
     // Load config values from active config node.
     enum StorageVersion version =
         version_from_int(read_u32_le(flash + 44));
-
-    // Don't restore storage in MFR firmware
-    if (variant_isMFR()) {
-        version = StorageVersion_NONE;
-    }
 
     switch (version)
     {
@@ -785,17 +781,6 @@ static bool storage_getRootSeedCache(const SessionState *ss, ConfigFlash *cfg,
 
 void storage_init(void)
 {
-#ifndef EMULATOR
-    if (strcmp("MFR", variant_getName()) == 0) {
-        // Storage should have been wiped due to the MANUFACTURER firmware
-        // having a STORAGE_VERSION of 0, but to be absolutely safe and
-        // guarante that secrets cannot leave the device via FlashHash/FlashDump,
-        // we wipe them here.
-
-        storage_wipe();
-    }
-#endif
-
     // Find storage sector with valid data and set storage_location variable.
     if (!find_active_storage(&storage_location)) {
         // Otherwise initialize it to the default sector.
@@ -847,8 +832,13 @@ void storage_resetUuid(void)
 
 void storage_resetUuid_impl(ConfigFlash *cfg)
 {
-    // set random uuid
+#ifdef EMULATOR
     random_buffer(cfg->meta.uuid, sizeof(cfg->meta.uuid));
+#else
+    _Static_assert(sizeof(cfg->meta.uuid) == 3 * sizeof(uint32_t),
+                   "uuid not large enough");
+    desig_get_unique_id((uint32_t*)cfg->meta.uuid);
+#endif
     data2hex(cfg->meta.uuid, sizeof(cfg->meta.uuid), cfg->meta.uuid_str);
 }
 
@@ -975,6 +965,7 @@ void storage_commit(void)
                        sizeof(flash_temp) / sizeof(uint32_t));
 
         if (shadow_flash_crc32 == shadow_ram_crc32) {
+            storage_protect_off();
             /* Commit successful, break to exit */
             break;
         }
@@ -1442,6 +1433,26 @@ bool storage_hasMnemonic(void)
     return shadow_config.storage.pub.has_mnemonic;
 }
 
+/* Check whether mnemonic matches storage. The mnemonic must be
+ * a null-terminated string.
+ */
+bool storage_containsMnemonic(const char *mnemonic) {
+	if (!storage_hasMnemonic())
+		return false;
+	if (!shadow_config.storage.has_sec)
+		return false;
+	/* The execution time of the following code only depends on the
+	 * (public) input.  This avoids timing attacks.
+	 */
+	char diff = 0;
+	uint32_t i = 0;
+	for (; mnemonic[i]; i++) {
+		diff |= (shadow_config.storage.sec.mnemonic[i] - mnemonic[i]);
+	}
+	diff |= shadow_config.storage.sec.mnemonic[i];
+	return diff == 0;
+}
+
 const char *storage_getShadowMnemonic(void)
 {
     if (!shadow_config.storage.has_sec)
@@ -1452,6 +1463,11 @@ const char *storage_getShadowMnemonic(void)
 bool storage_getImported(void)
 {
     return shadow_config.storage.pub.imported;
+}
+
+void storage_setImported(bool val)
+{
+    shadow_config.storage.pub.imported = val;
 }
 
 bool storage_hasNode(void)

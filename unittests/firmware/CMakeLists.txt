@@ -2,6 +2,7 @@ set(sources
     coins.cpp
     eos.cpp
     ethereum.cpp
+    nano.cpp
     recovery.cpp
     storage.cpp
     u2f.cpp)
@@ -24,6 +25,6 @@ target_link_libraries(firmware-unit
     kkboard
     kkemulator
     trezorcrypto
-    trezorqrenc
+    qrcodegenerator
     kkrand
     kktransport)

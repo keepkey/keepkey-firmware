@@ -17,6 +17,8 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "keepkey/board/bl_mpu.h"
+
 #ifndef EMULATOR
 #include <libopencm3/stm32/flash.h>
 #include <libopencm3/stm32/timer.h>
@@ -33,52 +35,52 @@
 #include <stdio.h>
 
 
-/*
- * bl_flash_erase_word() - bootloader-only version of flash erase in word (32bit) size
- *
- * Must be run from bootloader with privileged access or may cause a memory protect failure
- * INPUT
- *     - group: functional group
- * OUTPUT
- *     none
- */
+/// \brief bootloader-only version of flash erase in word (32bit) size
+///
+/// Must be run from bootloader with privileged access or it may cause a memory
+/// protect failure.
 void bl_flash_erase_word(Allocation group)
 {
 #ifndef EMULATOR
     const FlashSector* s = flash_sector_map;
-    while(s->use != FLASH_INVALID)
-    {
-        if(s->use == group) {
-			// unlock the flash
-			flash_clear_status_flags();
-			flash_unlock();
-
-			// erase the sector
-			flash_erase_sector(s->sector, FLASH_CR_PROGRAM_X32);
-
-			// lock the flash
-			/* Wait for any write operation to complete. */
-			flash_wait_for_last_operation();
-			/* Disable writes to flash. */
-			FLASH_CR &= ~FLASH_CR_PG;
-			/* lock flash register */
-			FLASH_CR |= FLASH_CR_LOCK;
-			/* return flash status register */
+    while (s->use != FLASH_INVALID) {
+        if (s->use == group) {
+            bl_flash_erase_sector(s->sector);
         }
         ++s;
     }
 #endif
 }
 
+/// bootloader-only: flash-erase that erases a given sector in 32bit chunks
+void bl_flash_erase_sector(int sector) {
+#ifndef EMULATOR
+    const FlashSector* s = flash_sector_map;
+    while (s->use != FLASH_INVALID) {
+        if (s->sector == sector) {
+            // unlock the flash
+            flash_clear_status_flags();
+            flash_unlock();
 
-/*
- * bl_board_init() - Initialize board
- *
- * INPUT
- *     none
- * OUTPUT
- *     none
- */
+            // erase the sector
+            flash_erase_sector(s->sector, FLASH_CR_PROGRAM_X32);
+
+            // lock the flash
+            /* Wait for any write operation to complete. */
+            flash_wait_for_last_operation();
+            /* Disable writes to flash. */
+            FLASH_CR &= ~FLASH_CR_PG;
+            /* lock flash register */
+            FLASH_CR |= FLASH_CR_LOCK;
+            /* return flash status register */
+            break;
+        }
+        ++s;
+    }
+#endif
+}
+
+/// Initialize Board
 void bl_board_init(void)
 {
 #ifndef EMULATOR
@@ -86,9 +88,4 @@ void bl_board_init(void)
     rcc_css_enable();
 #endif
 }
-
-
-
-
-
 

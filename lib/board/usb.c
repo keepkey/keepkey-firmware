@@ -23,6 +23,7 @@
 #  include <libopencm3/stm32/gpio.h>
 #  include <libopencm3/usb/hid.h>
 #  include <libopencm3/usb/usbd.h>
+#  include <libopencm3/stm32/desig.h>
 #  include <libopencm3/stm32/rcc.h>
 #  include "keepkey/board/keepkey_board.h"
 #  include "keepkey/board/layout.h"
@@ -86,7 +87,7 @@ usb_u2f_rx_callback_t user_u2f_rx_callback = NULL;
 
 #define USB_STRINGS \
 	X(MANUFACTURER, "KeyHodlers, LLC") \
-	X(PRODUCT, "KeepKey") \
+	X(PRODUCT, device_label) \
 	X(SERIAL_NUMBER, serial_uuid_str) \
 	X(INTERFACE_MAIN,  "KeepKey Interface") \
 	X(INTERFACE_DEBUG, "KeepKey Debug Link Interface") \
@@ -99,6 +100,7 @@ enum {
 };
 #undef X
 
+static char device_label[33];
 static char serial_uuid_str[100];
 
 #define X(name, value) value,
@@ -110,7 +112,7 @@ static const char *usb_strings[] = {
 static const struct usb_device_descriptor dev_descr = {
 	.bLength = USB_DT_DEVICE_SIZE,
 	.bDescriptorType = USB_DT_DEVICE,
-	.bcdUSB = 0x0210,
+	.bcdUSB = 0x0201,
 	.bDeviceClass = 0,
 	.bDeviceSubClass = 0,
 	.bDeviceProtocol = 0,
@@ -328,7 +330,7 @@ static void u2f_rx_callback(usbd_device *dev, uint8_t ep)
 	if ( usbd_ep_read_packet(dev, ENDPOINT_ADDRESS_U2F_OUT, buf, 64) != 64) return;
 
 	if (user_u2f_rx_callback) {
-		user_u2f_rx_callback((const U2FHID_FRAME *) (void*) buf);
+		user_u2f_rx_callback(tiny, (const U2FHID_FRAME *) (void*) buf);
 	}
 }
 
@@ -385,7 +387,8 @@ void usbInit(void)
 	gpio_mode_setup(USB_GPIO_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, USB_GPIO_PORT_PINS);
 	gpio_set_af(USB_GPIO_PORT, GPIO_AF10, USB_GPIO_PORT_PINS);
 
-	memory_getDeviceSerialNo(serial_uuid_str, sizeof(serial_uuid_str));
+	desig_get_unique_id_as_string(serial_uuid_str, sizeof(serial_uuid_str));
+	memory_getDeviceLabel(device_label, sizeof(device_label));
 
 	usbd_dev = usbd_init(&otgfs_usb_driver, &dev_descr, &config, usb_strings, sizeof(usb_strings) / sizeof(*usb_strings), usbd_control_buffer, sizeof(usbd_control_buffer));
 	usbd_register_set_config_callback(usbd_dev, set_config);

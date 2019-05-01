@@ -20,6 +20,7 @@
 #ifndef KEEPKEY_BOARD_UTIL_H
 #define KEEPKEY_BOARD_UTIL_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
@@ -40,5 +41,7 @@ void data2hex(const void *data, uint32_t len, char *str);
 uint32_t readprotobufint(uint8_t **ptr);
 void rev_byte_order(uint8_t *bfr, size_t len);
 void dec64_to_str(uint64_t dec64_val, char *str);
+
+bool is_valid_ascii(const uint8_t *data, uint32_t size);
 
 #endif

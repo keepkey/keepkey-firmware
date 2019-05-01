@@ -52,13 +52,21 @@ static uint32_t chain_id;
 static uint32_t tx_type;
 struct SHA3_CTX keccak_ctx;
 
-bool ethereum_isNonStandardERC20(const EthereumSignTx *msg) {
+bool ethereum_isNonStandardERC20Transfer(const EthereumSignTx *msg) {
     return msg->has_token_shortcut && msg->has_token_value && (msg->has_token_to || msg->to_address_n_count > 0);
 }
 
-bool ethereum_isStandardERC20(const EthereumSignTx *msg) {
+bool ethereum_isStandardERC20Transfer(const EthereumSignTx *msg) {
 	if (msg->to.size == 20 && msg->value.size == 0 && msg->data_initial_chunk.size == 68
 	    && memcmp(msg->data_initial_chunk.bytes, "\xa9\x05\x9c\xbb\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16) == 0) {
+		return true;
+	}
+	return false;
+}
+
+bool ethereum_isStandardERC20Approve(const EthereumSignTx *msg) {
+	if (msg->to.size == 20 && msg->value.size == 0 && msg->data_initial_chunk.size == 68
+	    && memcmp(msg->data_initial_chunk.bytes, "\x09\x5e\xa7\xb3\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16) == 0) {
 		return true;
 	}
 	return false;
@@ -337,14 +345,14 @@ void ethereumFormatAmount(const bignum256 *amnt, const TokenType *token, uint32_
 			switch (cid) {
 				case    1: suffix = " ETH";  break;  // Ethereum
 				case    2: suffix = " EXP";  break;  // Expanse
-				case    3: suffix = " tETH"; break;  // Ethereum Testnet Ropsten
-				case    4: suffix = " tETH"; break;  // Ethereum Testnet Rinkeby
+				case    3: suffix = " tROP"; break;  // Ethereum Testnet Ropsten
+				case    4: suffix = " tRIN"; break;  // Ethereum Testnet Rinkeby
 				case    8: suffix = " UBQ";  break;  // UBIQ
 				case   20: suffix = " EOSC"; break;  // EOS Classic
 				case   28: suffix = " ETSC"; break;  // Ethereum Social
-				case   30: suffix = " RSK";  break;  // RSK
-				case   31: suffix = " tRSK"; break;  // RSK Testnet
-				case   42: suffix = " tETH"; break;  // Ethereum Testnet Kovan
+				case   30: suffix = " RBTC"; break;  // RSK
+				case   31: suffix = " tRBTC";break;  // RSK Testnet
+				case   42: suffix = " tKOV"; break;  // Ethereum Testnet Kovan
 				case   61: suffix = " ETC";  break;  // Ethereum Classic
 				case   62: suffix = " tETC"; break;  // Ethereum Classic Testnet
 				case   64: suffix = " ELLA"; break;  // Ellaism
@@ -358,7 +366,7 @@ void ethereumFormatAmount(const bignum256 *amnt, const TokenType *token, uint32_
 }
 
 static void layoutEthereumConfirmTx(const uint8_t *to, uint32_t to_len, const uint8_t *value, uint32_t value_len, const TokenType *token,
-                                    char *out_str, size_t out_str_len)
+                                    char *out_str, size_t out_str_len, bool approve)
 {
 	bignum256 val;
 	uint8_t pad_val[32];
@@ -382,7 +390,24 @@ static void layoutEthereumConfirmTx(const uint8_t *to, uint32_t to_len, const ui
 		ethereum_address_checksum(to, address + 2, false, chain_id);
 	}
 
-	if (out_str_len <= (size_t)snprintf(out_str, out_str_len, "Send %s to %s", amount, to_len ? address : "new contract?")) {
+	bool approve_all = approve && value_len == 32 &&
+	    memcmp(value,      "\xff\xff\xff\xff\xff\xff\xff\xff", 8) == 0 &&
+	    memcmp(value + 8,  "\xff\xff\xff\xff\xff\xff\xff\xff", 8) == 0 &&
+	    memcmp(value + 16, "\xff\xff\xff\xff\xff\xff\xff\xff", 8) == 0 &&
+	    memcmp(value + 24, "\xff\xff\xff\xff\xff\xff\xff\xff", 8) == 0;
+
+	int cx;
+	if (approve && bn_is_zero(&val) && token) {
+		cx = snprintf(out_str, out_str_len, "Remove ability for %s to withdraw %s?", address, token->ticker + 1);
+	} else if (approve_all) {
+		cx = snprintf(out_str, out_str_len, "Unlock full %s balance for withdrawal by %s?", token->ticker + 1, address);
+	} else if (approve) {
+		cx = snprintf(out_str, out_str_len, "Approve withdrawal of up to %s by %s?", amount, address);
+	} else {
+		cx = snprintf(out_str, out_str_len, "Send %s to %s", amount, to_len ? address : "new contract?");
+	}
+
+	if (out_str_len <= (size_t)cx) {
 		/*error detected. Clear the buffer */
 		memset(out_str, 0, out_str_len);
 	}
@@ -431,6 +456,9 @@ static void layoutEthereumFee(const uint8_t *value, uint32_t value_len,
 	uint8_t pad_val[32];
 	char tx_value[32];
 	char gas_value[32];
+
+	memzero(tx_value, sizeof(tx_value));
+	memzero(gas_value, sizeof(gas_value));
 
 	memset(pad_val, 0, sizeof(pad_val));
 	memcpy(pad_val + (32 - gas_price_len), gas_price, gas_price_len);
@@ -590,8 +618,14 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 	}
 
 	// detect ERC-20 token
-	if (data_total == 68 && ethereum_isStandardERC20(msg)) {
+	if (data_total == 68 && ethereum_isStandardERC20Transfer(msg)) {
 		token = tokenByChainAddress(chain_id, msg->to.bytes);
+	}
+
+	bool is_approve = false;
+	if (data_total == 68 && ethereum_isStandardERC20Approve(msg)) {
+		token = tokenByChainAddress(chain_id, msg->to.bytes);
+		is_approve = true;
 	}
 
 	char confirm_body_message[BODY_CHAR_MAX];
@@ -599,17 +633,25 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 		memset(confirm_body_message, 0, sizeof(confirm_body_message));
 		if (token != NULL) {
 			layoutEthereumConfirmTx(msg->data_initial_chunk.bytes + 16, 20, msg->data_initial_chunk.bytes + 36, 32, token,
-			                        confirm_body_message, sizeof(confirm_body_message));
+			                        confirm_body_message, sizeof(confirm_body_message), /*approve=*/is_approve);
 		} else {
 			layoutEthereumConfirmTx(msg->to.bytes, msg->to.size, msg->value.bytes, msg->value.size, NULL,
-			                        confirm_body_message, sizeof(confirm_body_message));
+			                        confirm_body_message, sizeof(confirm_body_message), /*approve=*/false);
 		}
 		bool is_transfer = msg->address_type == OutputAddressType_TRANSFER;
-		ButtonRequestType BRT = is_transfer
-		    ? ButtonRequestType_ButtonRequest_ConfirmTransferToAccount
-		    : ButtonRequestType_ButtonRequest_ConfirmOutput;
-		if (!confirm(BRT, is_transfer ? "Transfer" : "Send", "%s",
-		             confirm_body_message)) {
+		const char *title;
+		ButtonRequestType BRT;
+		if (is_approve) {
+			title = "Approve";
+			BRT = ButtonRequestType_ButtonRequest_ConfirmOutput;
+		} else if (is_transfer) {
+			title = "Transfer";
+			BRT = ButtonRequestType_ButtonRequest_ConfirmTransferToAccount;
+		} else {
+			title = "Send";
+			BRT = ButtonRequestType_ButtonRequest_ConfirmOutput;
+		}
+		if (!confirm(BRT, title, "%s", confirm_body_message)) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
 			ethereum_signing_abort();
 			return;
@@ -626,9 +668,6 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 			(void)review(ButtonRequestType_ButtonRequest_Other, "Warning",
 			             "Signing of arbitrary ETH contract data is recommended only for "
 			             "experienced users. Enable 'AdvancedMode' policy to dismiss.");
-			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
-			ethereum_signing_abort();
-			return;
 		}
 
 		layoutEthereumData(msg->data_initial_chunk.bytes, msg->data_initial_chunk.size, data_total,
@@ -639,6 +678,10 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 			ethereum_signing_abort();
 			return;
 		}
+	}
+
+	if (is_approve) {
+		token = NULL;
 	}
 
 	memset(confirm_body_message, 0, sizeof(confirm_body_message));

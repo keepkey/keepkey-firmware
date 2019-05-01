@@ -87,7 +87,7 @@ void fsm_msgEosSignTx(const EosSignTx *msg) {
 
     CHECK_INITIALIZED
 
-    CHECK_PIN_TXSIGN
+    CHECK_PIN
 
     HDNode *root = fsm_getDerivedNode(SECP256K1_NAME, 0, 0, NULL);
     if (!root) return;

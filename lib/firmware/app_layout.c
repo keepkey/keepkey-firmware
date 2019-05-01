@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include "keepkey/board/layout.h"
 #include "keepkey/board/draw.h"
 #include "keepkey/board/font.h"
@@ -30,14 +29,15 @@
 #include "keepkey/firmware/app_resources.h"
 #include "keepkey/firmware/fsm.h"
 
-#include "trezor/qrenc/qr_encode.h"
+#include "qrenc/qrcodegen.h"
 
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
-
+#define QR_LARGE_VERSION 8
+#define QR_MAX_VERSION 9
 
 /*
  * layout_animate_pin() - Animate pin scramble
@@ -497,6 +497,50 @@ void layout_ethereum_address_notification(const char *desc, const char *address,
 }
 
 /*
+ * layout_nano_address_notification() - Display nano address notification
+ *
+ * INPUT
+ *     - desc: description of address being shown
+ *     - address: nano address to display both as string and QR
+ *     - type: notification type
+ * OUTPUT
+ *      none
+ */
+void layout_nano_address_notification(const char *desc, const char *address,
+        NotificationType type)
+{
+    call_leaving_handler();
+    layout_clear();
+
+    Canvas *canvas = layout_get_canvas();
+    DrawableParams sp;
+    const Font *font = NULL;
+
+    /* Title */
+    if(strcmp(desc, "") != 0)
+    {
+        font = get_title_font();
+        sp.y = TOP_MARGIN;
+        sp.x = LEFT_MARGIN + 65;
+        sp.color = BODY_COLOR;
+        draw_string(canvas, font, desc, &sp, 140,
+                    font_height(font) + BODY_FONT_LINE_PADDING);
+    }
+
+    /* Body */
+    font = get_body_font();
+    sp.y = TOP_MARGIN_FOR_TWO_LINES + TOP_MARGIN;
+    sp.x = LEFT_MARGIN + 65;
+    sp.color = BODY_COLOR;
+
+    draw_string(canvas, font, address, &sp, 140,
+                font_height(font) + BODY_FONT_LINE_PADDING);
+
+    layout_address(address, QR_LARGE);
+    layout_notification_icon(type, &sp);
+}
+
+/*
  * layout_address_notification() - Display address notification
  *
  * INPUT
@@ -628,43 +672,63 @@ void layout_cipher(const char *current_word, const char *cipher)
  */
 void layout_address(const char *address, QRSize qr_size)
 {
-    static unsigned char bitdata[QR_MAX_BITDATA];
     Canvas *canvas = layout_get_canvas();
 
-    int a, i, j, side, y_pos = QR_DISPLAY_Y;
+    uint8_t codedata[qrcodegen_BUFFER_LEN_FOR_VERSION(QR_MAX_VERSION)];
+    uint8_t tempdata[qrcodegen_BUFFER_LEN_FOR_VERSION(QR_MAX_VERSION)];
 
-    if(qr_size == QR_SMALL)
-    {
-        side = qr_encode(QR_LEVEL_M, 0, address, 0, bitdata);
+    int y_pos = qr_size == QR_SMALL
+        ? QR_DISPLAY_Y
+        : QR_DISPLAY_Y - 4;
+
+    int side = 0;
+    if (qrcodegen_encodeText(address, tempdata, codedata, qrcodegen_Ecc_LOW,
+                             qr_size == QR_SMALL
+                                 ? qrcodegen_VERSION_MIN
+                                 : QR_LARGE_VERSION,
+                             QR_MAX_VERSION,
+                             qrcodegen_Mask_AUTO, true)) {
+        side = qrcodegen_getSize(codedata);
     }
-    else
-    {
-        side = qr_encode(QR_LEVEL_M, 8, address, 0, bitdata);
-        y_pos -= 4;
-    }
 
-    /* Limit QR to version 1-9 (QR size <= 53) */
-    if(side > 0 && side <= 53)
-    {
-        /* Draw QR background */
-        draw_box_simple(canvas, 0xFF, QR_DISPLAY_X, y_pos,
-                        (side + 2) * QR_DISPLAY_SCALE, (side + 2) * QR_DISPLAY_SCALE);
+    // Limit QR to version 1-9
+    if (side < 0 || 53 < side)
+        return;
 
-        /* Fill in QR */
-        for(i = 0; i < side; i++)
-        {
-            for(j = 0; j < side; j++)
-            {
-                a = j * side + i;
+    // Draw QR background
+    draw_box_simple(canvas, 0xFF, QR_DISPLAY_X, y_pos,
+                    (side + 2) * QR_DISPLAY_SCALE, (side + 2) * QR_DISPLAY_SCALE);
 
-                if(bitdata[a / 8] & (1 << (7 - a % 8)))
-                {
-                    draw_box_simple(canvas, 0x00,
-                                    QR_DISPLAY_SCALE + (i + QR_DISPLAY_X) * QR_DISPLAY_SCALE,
-                                    QR_DISPLAY_SCALE + (j + y_pos) * QR_DISPLAY_SCALE,
-                                    QR_DISPLAY_SCALE, QR_DISPLAY_SCALE);
-                }
+    // Fill in QR
+    for (int i = 0; i < side; i++) {
+        for (int j = 0; j < side; j++) {
+            if (qrcodegen_getModule(codedata, i, j)) {
+                draw_box_simple(canvas, 0x00,
+                                QR_DISPLAY_SCALE + (i + QR_DISPLAY_X) * QR_DISPLAY_SCALE,
+                                QR_DISPLAY_SCALE + (j + y_pos) * QR_DISPLAY_SCALE,
+                                QR_DISPLAY_SCALE, QR_DISPLAY_SCALE);
             }
         }
+    }
+}
+
+void layoutU2FDialog(bool request, const char *title, const char *body, ...)
+{
+    char strbuf[BODY_CHAR_MAX];
+
+    va_list vl;
+    va_start(vl, body);
+    vsnprintf(strbuf, BODY_CHAR_MAX, body, vl);
+    va_end(vl);
+
+    layout_standard_notification(title, strbuf,
+                                 request
+                                     ? NOTIFICATION_REQUEST_NO_ANIMATION
+                                     : NOTIFICATION_CONFIRM_ANIMATION);
+    display_refresh();
+
+    while (!request && is_animating()) {
+        animate();
+        display_refresh();
     }
 }
