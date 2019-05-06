@@ -439,7 +439,8 @@ bool confirm_omni(ButtonRequestType button_request, const char *title, const uin
 				suffix = " USDT";
 				break;
 		}
-		const uint64_t amount = *(const uint64_t *)(data + 12);
+		uint64_t amount;
+		memcpy(&amount, data + 12, sizeof(uint64_t));
 		bn_format_uint64(amount, NULL, suffix, BITCOIN_DIVISIBILITY, 0, false, str_out, sizeof(str_out));
 		return confirm(button_request, title, _("Do you want to send %s?"), str_out);
 	} else {
