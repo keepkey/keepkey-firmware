@@ -178,11 +178,16 @@ TEST(Coins, BIP32AccountName) {
           { 0x80000000|44, 0x80000000|0, 0x80000000|1, 1, 1 },
           5, false, false, ""
         },
-
+        {
+          "Bitcoin",
+          { 0x80000000|44, 0x80000000|0, 0x80000000|1, 1, 1 },
+          5, true, true, "Bitcoin Account #1\nAddress #1"
+        },
     };
 
     for (const auto &vec : vector) {
         char node_str[NODE_STRING_LENGTH];
+        memset(node_str, 0, sizeof(node_str));
         ASSERT_EQ(bip32_node_to_string(node_str, sizeof(node_str),
                                        coinByName(vec.coin_name),
                                        vec.address_n,
@@ -191,7 +196,12 @@ TEST(Coins, BIP32AccountName) {
                                        vec.allow_change,
                                        /*show_addridx=*/true),
                   vec.expected)
-            << vec.text;
+            << "element: " << (&vec - &vector[0]) << "\n"
+            << "coin: " << vec.coin_name << "\n"
+            << "allow_change: " << vec.allow_change << "\n"
+            << "expected: " << vec.expected << "\n"
+            << "text:     \"" << vec.text << "\n"
+            << "node_str: \"" << node_str << "\n";
         if (vec.expected) {
             EXPECT_EQ(vec.text, node_str);
         }

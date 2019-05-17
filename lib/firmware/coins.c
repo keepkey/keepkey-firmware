@@ -430,8 +430,8 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
 
         // Don't display this way for change addresses,
         // discouraging their use in GetAddress.
-        if (address_n[3] != 0 && !isSLIP48)
-            return allow_change;
+        if (address_n[3] != 0 && !isSLIP48 && !allow_change)
+            return false;
     }
 
     if (path_mismatched(coin, address_n, address_n_count, whole_account) &&
