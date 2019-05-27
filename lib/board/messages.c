@@ -22,6 +22,7 @@
 #include "keepkey/board/variant.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/layout.h"
+#include "keepkey/board/util.h"
 
 #include <nanopb.h>
 
@@ -180,7 +181,7 @@ static void tiny_dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg
  * OUTPUT
  *     none
  */
-static void raw_dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_size,
+static void raw_dispatch(const MessagesMap_t *entry, const uint8_t *msg, uint32_t msg_size,
                          uint32_t frame_length)
 {
     static RawMessage raw_msg;
@@ -223,141 +224,177 @@ static void raw_dispatch(const MessagesMap_t *entry, uint8_t *msg, uint32_t msg_
     })
 #endif
 
-/*
- * usb_rx_helper() - Common helper that handles USB messages from host
- *
- * INPUT
- *     - msg: pointer to message received from host
- *     - type: message map type (normal or debug)
- * OUTPUT
- *      none
- */
-void usb_rx_helper(const void *buf, size_t length, MessageMapType type)
+/// Common helper that handles USB messages from host
+void usb_rx_helper(const uint8_t *buf, size_t length, MessageMapType type)
 {
-    static TrezorFrameHeaderFirst last_frame_header = { .id = 0xffff, .len = 0 };
-    static uint8_t content_buf[MAX_FRAME_SIZE];
-    static size_t content_pos = 0, content_size = 0;
-    static bool mid_frame = false;
+    static bool firstFrame = true;
 
-    const MessagesMap_t *entry;
-    TrezorFrame *frame = (TrezorFrame *)buf;
-    TrezorFrameFragment *frame_fragment = (TrezorFrameFragment *)buf;
+    static uint16_t msgId;
+    static uint32_t msgSize;
+    static uint8_t msg[MAX_FRAME_SIZE];
+    static size_t cursor; //< Index into msg where the current frame is to be written.
+    static const MessagesMap_t *entry;
 
-    bool last_segment;
-    uint8_t *contents;
-
-    assert(msg != NULL);
-
-    if (length < sizeof(TrezorFrameHeaderFirst) || frame->usb_header.hid_type != '?') {
-        goto done_handling;
+    if (firstFrame) {
+        msgId = 0xffff;
+        msgSize = 0;
+        memset(msg, 0, sizeof(msg));
+        cursor = 0;
+        entry = NULL;
     }
 
-    /* Check to see if this is the first frame of a series, * or a
-       continuation/fragment.  */
-    if(frame->header.pre1 == '#' && frame->header.pre2 == '#' && !mid_frame)
-    {
-        /* Byte swap in place. */
-        last_frame_header.id = __builtin_bswap16(frame->header.id);
-        last_frame_header.len = __builtin_bswap32(frame->header.len);
+    assert(buf != NULL);
 
-        contents = frame->contents;
-
-        /* Init content pos and size */
-        content_pos = length - 9;
-        content_size = content_pos;
-
-    }
-    else if(mid_frame)
-    {
-        contents = frame_fragment->contents;
-        if (check_uadd_overflow(content_pos, (size_t)(length - 1), &content_pos))
-            goto reset;
-        content_size = length - 1;
-    }
-    else
-    {
-        contents = frame_fragment->contents;
-        content_size = length - 1;
+    if (length < 1 + 2 + 2 + 4) {
+        (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Buffer too small");
+        goto reset;
     }
 
-    last_segment = content_pos >= last_frame_header.len;
-    mid_frame = !last_segment;
+    if (buf[0] != '?') {
+        (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Malformed packet");
+        goto reset;
+    }
 
-    /* Determine callback handler and message map type */
-    entry = message_map_entry(type, last_frame_header.id, IN_MSG);
+    if (firstFrame && (buf[1] != '#' || buf[2] != '#')) {
+        (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Malformed packet");
+        goto reset;
+    }
 
-    if(entry && entry->dispatch == RAW)
-    {
+    // Details of the chunk being copied out of the current frame.
+    const uint8_t *frame;
+    size_t frameSize;
+
+    if (firstFrame) {
+        // Reset the buffer that we're writing fragments into.
+        memset(msg, 0, sizeof(msg));
+
+        // Then fish out the id / size, which are big-endian uint16 /
+        // uint32's respectively.
+        msgId = buf[4] | ((uint16_t)buf[3]) << 8;
+        msgSize =    buf[8]        |
+          ((uint32_t)buf[7]) <<  8 |
+          ((uint32_t)buf[6]) << 16 |
+          ((uint32_t)buf[5]) << 24;
+
+        // Determine callback handler and message map type.
+        entry = message_map_entry(type, msgId, IN_MSG);
+
+        // And reset the cursor.
+        cursor = 0;
+
+        // Then take note of the fragment boundaries.
+        frame = &buf[9];
+        frameSize = MIN(length - 9, msgSize);
+    } else {
+        // Otherwise it's a continuation/fragment.
+        frame = &buf[1];
+        frameSize = length - 1;
+    }
+
+    // If the msgId wasn't in our map, bail.
+    if (!entry) {
+        (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message");
+        goto reset;
+    }
+
+    if (entry->dispatch == RAW) {
         /* Call dispatch for every segment since we are not buffering and parsing, and
          * assume the raw dispatched callbacks will handle their own state and
          * buffering internally
          */
-        raw_dispatch(entry, contents, content_size, last_frame_header.len);
-    }
-    else if(entry)
-    {
-        size_t offset, len;
-        if (content_size == content_pos) {
-            offset = 0;
-            len = content_size;
-        } else {
-            offset = content_pos - (length - 1);
-            len = length - 1;
-        }
-
-        size_t end;
-        if (check_uadd_overflow(offset, len, &end) || sizeof(content_buf) < end)
-            goto reset;
-
-        /* Copy content to frame buffer */
-        memcpy(content_buf + offset, contents, len);
+        raw_dispatch(entry, frame, frameSize, msgSize);
+        return;
     }
 
-    /*
-     * Only parse and message map if all segments have been buffered
-     * and this message type is parsable
-     */
-    if(last_segment && !entry)
-    {
-        (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message");
-    }
-    else if(last_segment && entry->dispatch != RAW)
-    {
-        if(msg_tiny_flag)
-        {
-            tiny_dispatch(entry, content_buf, last_frame_header.len);
-            goto done_handling;
-        }
-        else
-        {
-            dispatch(entry, content_buf, last_frame_header.len);
-            goto done_handling;
-        }
+    size_t end;
+    if (check_uadd_overflow(cursor, frameSize, &end) || sizeof(msg) < end) {
+        (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Malformed message");
+        goto reset;
     }
 
-    goto done_handling;
+    // Copy content to frame buffer.
+    memcpy(&msg[cursor], frame, frameSize);
+
+    // Advance the cursor.
+    cursor = end;
+
+    // Only parse and message map if all segments have been buffered.
+    bool last_segment = cursor >= msgSize;
+    if (!last_segment) {
+        firstFrame = false;
+        return;
+    }
+
+    dispatch(entry, msg, msgSize);
 
 reset:
-    last_frame_header.id = 0xffff;
-    last_frame_header.len = 0;
-    memset(content_buf, 0, sizeof(content_buf));
-    content_pos = 0;
-    content_size = 0;
-    mid_frame = false;
-
-done_handling:
-    return;
+    msgId = 0xffff;
+    msgSize = 0;
+    memset(msg, 0, sizeof(msg));
+    cursor = 0;
+    firstFrame = true;
+    entry = NULL;
 }
 
-void handle_usb_rx(const void *buf, size_t len)
+void handle_usb_rx(const void *msg, size_t len)
 {
-    usb_rx_helper(buf, len, NORMAL_MSG);
+    if (msg_tiny_flag) {
+        uint8_t buf[64];
+        memcpy(buf, msg, sizeof(buf));
+
+        uint16_t msgId = buf[4] | ((uint16_t)buf[3]) << 8;
+        uint32_t msgSize = buf[8]        |
+                ((uint32_t)buf[7]) <<  8 |
+                ((uint32_t)buf[6]) << 16 |
+                ((uint32_t)buf[5]) << 24;
+
+        if (msgSize > 64 - 9) {
+            (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Malformed tiny packet");
+            return;
+        }
+
+        // Determine callback handler and message map type.
+        const MessagesMap_t *entry = message_map_entry(NORMAL_MSG, msgId, IN_MSG);
+        if (!entry) {
+            (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message");
+            return;
+        }
+
+        tiny_dispatch(entry, buf + 9, msgSize);
+    } else {
+        usb_rx_helper(msg, len, NORMAL_MSG);
+    }
 }
 
 #if DEBUG_LINK
-void handle_debug_usb_rx(const void *buf, size_t len)
+void handle_debug_usb_rx(const void *msg, size_t len)
 {
-    usb_rx_helper(buf, len, DEBUG_MSG);
+    if (msg_tiny_flag) {
+        uint8_t buf[64];
+        memcpy(buf, msg, sizeof(buf));
+
+        uint16_t msgId = buf[4] | ((uint16_t)buf[3]) << 8;
+        uint32_t msgSize = buf[8]        |
+                ((uint32_t)buf[7]) <<  8 |
+                ((uint32_t)buf[6]) << 16 |
+                ((uint32_t)buf[5]) << 24;
+
+        if (msgSize > 64 - 9) {
+            (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Malformed tiny packet");
+            return;
+        }
+
+        // Determine callback handler and message map type.
+        const MessagesMap_t *entry = message_map_entry(DEBUG_MSG, msgId, IN_MSG);
+        if (!entry) {
+            (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message");
+            return;
+        }
+
+        tiny_dispatch(entry, buf + 9, msgSize);
+    } else {
+        usb_rx_helper(msg, len, DEBUG_MSG);
+    }
 }
 #endif
 
@@ -539,7 +576,7 @@ uint32_t parse_pb_varint(RawMessage *msg, uint8_t varint_count)
     /*
      * Parse varints
      */
-    stream = pb_istream_from_buffer(msg->buffer, msg->length);
+    stream = pb_istream_from_buffer((uint8_t*)msg->buffer, msg->length);
     skip = stream.bytes_left;
     for(i = 0; i < varint_count; ++i)
     {
