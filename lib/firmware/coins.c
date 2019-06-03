@@ -435,6 +435,15 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
         // Only 0/1 for internal/external are valid paths on UTXO coins.
         if (!isSLIP48 && !isEthereumLike(coin_name) && address_n[3] != 0 && address_n[3] != 1)
             return false;
+
+        // KeepKey only puts ETH-like coins on m/44'/coin'/account'/0/0 paths
+        if (isEthereumLike(coin_name)) {
+            if (address_n[3] != 0)
+                return false;
+
+            if (address_n[4] != 0)
+                return false;
+        }
     }
 
     if (path_mismatched(coin, address_n, address_n_count, whole_account) &&

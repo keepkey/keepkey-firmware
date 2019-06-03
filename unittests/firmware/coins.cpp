@@ -181,6 +181,26 @@ TEST(Coins, BIP32AccountName) {
           { 0x80000000|44, 0x80000000|0, 0x80000000|1, 1, 1 },
           5, true, "Bitcoin Account #1\nChange Address #1"
         },
+        {
+          "Ethereum",
+          { 0x80000000|44, 0x80000000|60, 0x80000000|1, 0, 0 },
+          5, true, "Ethereum Account #1"
+        },
+        {
+          "SALT",
+          { 0x80000000|44, 0x80000000|60, 0x80000000|1, 0, 0 },
+          5, true, "Ethereum Account #1"
+        },
+        {
+          "Ethereum",
+          { 0x80000000|44, 0x80000000|60, 0x80000000|1, 1, 0 },
+          5, false, ""
+        },
+        {
+          "Ethereum",
+          { 0x80000000|44, 0x80000000|60, 0x80000000|1, 0, 1 },
+          5, false, ""
+        },
     };
 
     for (const auto &vec : vector) {
