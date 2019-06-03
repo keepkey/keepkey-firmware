@@ -412,7 +412,7 @@ static const char *account_prefix(const CoinType *coin,
 
 bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
                           const uint32_t *address_n, size_t address_n_count,
-                          bool whole_account, bool allow_change, bool show_addridx)
+                          bool whole_account, bool show_addridx)
 {
     if (address_n_count != 3 && address_n_count != 5)
         return false;
@@ -424,13 +424,16 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
     if (strncmp(coin->coin_name, "EOS", sizeof(coin->coin_name)) == 0 && !isSLIP48)
         return false;
 
+    // If it is a token, we still refer to the destination as an Ethereum account.
+    bool is_token = coin->has_contract_address;
+    const char *coin_name = is_token ? "Ethereum" : coin->coin_name;
+
     if (!whole_account) {
         if (address_n_count != 5)
             return false;
 
-        // Don't display this way for change addresses,
-        // discouraging their use in GetAddress.
-        if (address_n[3] != 0 && !isSLIP48 && !allow_change)
+        // Only 0/1 for internal/external are valid paths on UTXO coins.
+        if (!isSLIP48 && !isEthereumLike(coin_name) && address_n[3] != 0 && address_n[3] != 1)
             return false;
     }
 
@@ -442,10 +445,6 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
     if (!prefix)
         return false;
 
-    // If it is a token, we still refer to the destination as an Ethereum account.
-    bool is_token = coin->has_contract_address;
-    const char *coin_name = is_token ? "Ethereum" : coin->coin_name;
-
     if (whole_account || isEthereumLike(coin_name) || !show_addridx) {
         snprintf(node_str, len, "%s%s Account #%" PRIu32, prefix, coin_name,
                  address_n[2] & 0x7fffffff);
@@ -456,8 +455,10 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
         snprintf(node_str, len, "%s%s Account #%" PRIu32 " @active key #%" PRIu32,
                  prefix, coin_name, address_n[3] & 0x7fffffff, address_n[4] & 0x7fffffff);
     } else {
-        snprintf(node_str, len, "%s%s Account #%" PRIu32 "\nAddress #%" PRIu32,
-                 prefix, coin_name, address_n[2] & 0x7fffffff, address_n[4]);
+        bool is_change = address_n[3] == 1;
+        snprintf(node_str, len, "%s%s Account #%" PRIu32 "\n%sAddress #%" PRIu32,
+                 prefix, coin_name, address_n[2] & 0x7fffffff,
+                 is_change ? "Change " : "", address_n[4]);
     }
 
     return true;

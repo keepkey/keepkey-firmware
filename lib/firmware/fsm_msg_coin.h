@@ -56,7 +56,6 @@ void fsm_msgGetPublicKey(GetPublicKey *msg)
 		                          msg->address_n,
 		                          msg->address_n_count,
 		                          /*whole_account=*/true,
-		                          /*allow_change=*/false,
 		                          /*show_addridx=*/false) &&
 		    !bip32_path_to_string(node_str, sizeof(node_str),
 		                          msg->address_n, msg->address_n_count)) {
@@ -214,7 +213,7 @@ void fsm_msgGetAddress(GetAddress *msg)
 		} else {
 			if (!bip32_node_to_string(node_str, sizeof(node_str), coin, msg->address_n,
 			                          msg->address_n_count, /*whole_account=*/false,
-			                          /*allow_change=*/false, /*show_addridx=*/true) &&
+			                          /*show_addridx=*/true) &&
 			    !bip32_path_to_string(node_str, sizeof(node_str),
 			                          msg->address_n, msg->address_n_count)) {
 				memset(node_str, 0, sizeof(node_str));
