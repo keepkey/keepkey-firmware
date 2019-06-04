@@ -114,6 +114,21 @@ static bool path_mismatched(const CoinType *coin, const uint32_t *address_n,
 		return false;
 	}
 
+	// Special case (not needed in the other copy of this function):
+	// KeepKey only puts ETH-like coins on m/44'/coin'/account'/0/0 paths
+	if (address_n_count == 5 &&
+		(strncmp(coin->coin_name, ETHEREUM, strlen(ETHEREUM)) == 0 ||
+		 strncmp(coin->coin_name, ETHEREUM_CLS, sizeof(ETHEREUM_CLS)) == 0 ||
+		 coin->has_contract_address)) {
+		if (whole_account)
+			return true;
+		// Check that the path is m/44'/bip44_account_path/y/0/0
+		if (address_n[3] != 0)
+			return true;
+		if (address_n[4] != 0)
+			return true;
+	}
+
 	// m/44' : BIP44 Legacy
 	// m / purpose' / bip44_account_path' / account' / change / address_index
 	if (address_n[0] == (0x80000000 + 44)) {
@@ -178,17 +193,6 @@ static bool path_mismatched(const CoinType *coin, const uint32_t *address_n,
 			mismatch |= (address_n[4] & 0x80000000) == 0x80000000;
 		}
 		return mismatch;
-	}
-
-	// Special case (not needed in the other copy of this function):
-	if (address_n_count == 5 &&
-		(strncmp(coin->coin_name, ETHEREUM, strlen(ETHEREUM)) == 0 ||
-		 strncmp(coin->coin_name, ETHEREUM_CLS, sizeof(ETHEREUM_CLS)) == 0)) {
-		// Check that the path is m/44'/bip44_account_path/y/0/0
-		if (address_n[3] != 0)
-			return true;
-		if (address_n[4] != 0)
-			return true;
 	}
 
 	return false;
@@ -435,15 +439,6 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
         // Only 0/1 for internal/external are valid paths on UTXO coins.
         if (!isSLIP48 && !isEthereumLike(coin_name) && address_n[3] != 0 && address_n[3] != 1)
             return false;
-
-        // KeepKey only puts ETH-like coins on m/44'/coin'/account'/0/0 paths
-        if (isEthereumLike(coin_name)) {
-            if (address_n[3] != 0)
-                return false;
-
-            if (address_n[4] != 0)
-                return false;
-        }
     }
 
     if (path_mismatched(coin, address_n, address_n_count, whole_account) &&
