@@ -52,6 +52,10 @@ static uint32_t get_current_word_pos(void);
 static void get_current_word(char *current_word);
 
 static void recovery_abort(void) {
+    if (!dry_run) {
+        storage_reset();
+    }
+
     awaiting_character = false;
     memzero(mnemonic, sizeof(mnemonic));
     memzero(cipher, sizeof(cipher));
@@ -250,6 +254,17 @@ void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
         return;
     }
 
+    if (!confirm(ButtonRequestType_ButtonRequest_Other,
+                 dry_run ? "Reovery Dry Run" : "Recovery",
+                 "When entering your recovery seed, be sure to use the substitution cipher "
+                 "and check that each word shows up correctly on the screen.")) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Recovery cancelled");
+        if (!dry_run)
+            storage_reset();
+        layoutHome();
+        return;
+    }
+
     /* Clear mnemonic */
     memset(mnemonic, 0, sizeof(mnemonic) / sizeof(char));
 
@@ -278,10 +293,6 @@ void next_character(void)
     /* Words should never be longer than 4 characters */
     if (strlen(current_word) > 4) {
         memzero(current_word, sizeof(current_word));
-
-        if (!dry_run) {
-            storage_reset();
-        }
 
         recovery_abort();
         fsm_sendFailure(FailureType_Failure_SyntaxError, "Words were not entered correctly.");
@@ -374,7 +385,8 @@ void recovery_character(const char *character)
             attempt_auto_complete(ciphered_word) &&
             MAX_UNCYPHERED_WORDS < uncyphered_word_count++) {
             recovery_abort();
-            fsm_sendFailure(FailureType_Failure_SyntaxError, "Words were not entered correctly.");
+            fsm_sendFailure(FailureType_Failure_SyntaxError,
+                            "Words were not entered correctly. Make sure you are using the substition cipher.");
             layoutHome();
             return;
         }
@@ -482,11 +494,13 @@ void recovery_cipher_finalize(void)
         session_clear(true);
         fsm_sendFailure(FailureType_Failure_SyntaxError,
                         "Invalid mnemonic, are words in correct order?");
+        recovery_abort();
     }
 
-    recovery_abort();
     memzero(new_mnemonic, sizeof(new_mnemonic));
     awaiting_character = false;
+    memzero(mnemonic, sizeof(mnemonic));
+    memzero(cipher, sizeof(cipher));
     layoutHome();
 }
 
