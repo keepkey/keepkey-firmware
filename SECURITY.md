@@ -14,8 +14,8 @@ the subject line.
 
 Please include the following information in your email:
 
-Your name, nickname, handle, or what you’d like to be called while we
-communicate with you.
+*  Your name, nickname, handle, or what you’d like to be called while we
+   communicate with you.
 *  The date/time you first identified the vulnerability.
 *  How you identified the vulnerability.
 *  As much detail about the vulnerability as you can.
