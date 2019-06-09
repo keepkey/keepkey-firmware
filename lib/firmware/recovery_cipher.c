@@ -256,7 +256,7 @@ void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other,
                  dry_run ? "Reovery Dry Run" : "Recovery",
-                 "When entering your recovery seed, be sure to use the substitution cipher "
+                 "When entering your recovery seed, use the substitution cipher "
                  "and check that each word shows up correctly on the screen.")) {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, "Recovery cancelled");
         if (!dry_run)
