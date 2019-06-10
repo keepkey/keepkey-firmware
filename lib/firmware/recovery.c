@@ -68,7 +68,7 @@ void next_word(void) {
         /* snprintf: 18 + 12 (fake_word) + 1 (NULL) = 31 */
 		snprintf(body_formatted, MEDIUM_STR_BUF, "Enter the word \"%s\".", fake_word);
 
-        layout_standard_notification(title_formatted, body_formatted, NOTIFICATION_RECOVERY);
+		layout_standard_notification(title_formatted, body_formatted, NOTIFICATION_RECOVERY);
 	} else {
 		fake_word[0] = 0;
 
@@ -129,6 +129,17 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection,
 		storage_setAutoLockDelayMs(_auto_lock_delay_ms);
 		storage_setU2FCounter(_u2f_counter);
 	} else if (!pin_protect("Enter Your PIN")) {
+		layoutHome();
+		return;
+	}
+
+	if (!confirm(ButtonRequestType_ButtonRequest_Other,
+	             dry_run ? "Reovery Dry Run" : "Recovery",
+	             "When entering your recovery seed, enter the words in the order "
+	             "that the device asks for them, not in the 'normal' order.")) {
+		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Recovery cancelled");
+		if (!dry_run)
+			storage_reset();
 		layoutHome();
 		return;
 	}
@@ -242,7 +253,7 @@ void recovery_done(void) {
     } else {
         session_clear(true);
         fsm_sendFailure(FailureType_Failure_SyntaxError,
-                        "Invalid mnemonic, are words in correct order?");
+                        "Invalid mnemonic. Make sure you are entering words in the order that the device asks for them.");
     }
 
     memzero(new_mnemonic, sizeof(new_mnemonic));
