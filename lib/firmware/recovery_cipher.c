@@ -295,7 +295,8 @@ void next_character(void)
         memzero(current_word, sizeof(current_word));
 
         recovery_abort();
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "Words were not entered correctly.");
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        "Words were not entered correctly. Make sure you are using the substition cipher.");
         layoutHome();
         return;
     }
@@ -454,7 +455,8 @@ void recovery_cipher_finalize(void)
         if (!dry_run) {
             storage_reset();
         }
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "Words were not entered correctly.");
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        "Words were not entered correctly. Make sure you are using the substition cipher.");
         awaiting_character = false;
         layoutHome();
         return;

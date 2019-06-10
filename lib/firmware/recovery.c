@@ -253,7 +253,7 @@ void recovery_done(void) {
     } else {
         session_clear(true);
         fsm_sendFailure(FailureType_Failure_SyntaxError,
-                        "Invalid mnemonic, are words in correct order?");
+                        "Invalid mnemonic. Make sure you are entering words in the order that the device asks for them.");
     }
 
     memzero(new_mnemonic, sizeof(new_mnemonic));
