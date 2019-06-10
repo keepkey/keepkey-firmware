@@ -22,6 +22,14 @@ set(sources
     util.c
     variant.c)
 
+if(NOT ${KK_HAVE_STRLCPY})
+    set(sources ${sources} strlcpy.c)
+endif()
+
+if(NOT ${KK_HAVE_STRLCAT})
+    set(sources ${sources} strlcat.c)
+endif()
+
 if(${KK_EMULATOR})
     set(sources ${sources}
         udp.c)
