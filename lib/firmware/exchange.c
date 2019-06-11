@@ -134,7 +134,9 @@ bool addresses_same(const char *LHS, size_t LHS_len, const char *RHS, size_t RHS
  *     true/false - success/failure
  */
 static bool verify_exchange_address(const CoinType *coin, size_t address_n_count,
-                                    uint32_t *address_n, char *address_str, size_t address_str_len,
+                                    uint32_t *address_n, bool has_script_type,
+                                    InputScriptType script_type,
+                                    char *address_str, size_t address_str_len,
                                     const HDNode *root, bool is_token)
 {
     static CONFIDENTIAL HDNode node;
@@ -165,11 +167,19 @@ static bool verify_exchange_address(const CoinType *coin, size_t address_n_count
         return false;
     }
 
-    char tx_out_address[36];
+    if (!has_script_type)
+        script_type = InputScriptType_SPENDADDRESS;
+
+    char tx_out_address[MAX_ADDR_SIZE];
     hdnode_fill_public_key(&node);
-    ecdsa_get_address(node.public_key, coin->address_type, curve->hasher_pubkey,
-                      curve->hasher_base58, tx_out_address,
-                      sizeof(tx_out_address));
+
+    // Unfortunately we can't do multisig here, since it makes the ExchangeType
+    // message too large from having two MultisigRedeemScriptType members for
+    // return/withdrawal respectively.
+    if (!compute_address(coin, script_type, &node, false, NULL, tx_out_address)) {
+        memzero(&node, sizeof(node));
+        return false;
+    }
 
     memzero(&node, sizeof(node));
     return strncmp(tx_out_address, address_str, sizeof(tx_out_address)) == 0;
@@ -418,6 +428,8 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
              withdraw_coin,
              exchange->withdrawal_address_n_count,
              exchange->withdrawal_address_n,
+             exchange->has_withdrawal_script_type,
+             exchange->withdrawal_script_type,
              exchange->signed_exchange_response.responseV2.withdrawal_address.address,
              sizeof(exchange->signed_exchange_response.responseV2.withdrawal_address.address),
              root, withdraw_coin->has_contract_address))
@@ -443,6 +455,8 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
              return_coin,
              exchange->return_address_n_count,
              exchange->return_address_n,
+             exchange->has_return_script_type,
+             exchange->return_script_type,
              exchange->signed_exchange_response.responseV2.return_address.address,
              sizeof(exchange->signed_exchange_response.responseV2.return_address.address),
              root, return_coin->has_contract_address))

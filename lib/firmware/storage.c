@@ -450,7 +450,7 @@ void storage_readStorageV1(SessionState *ss, Storage *storage, const char *ptr, 
 
     storage->has_sec = true;
 
-    storage_setPin_impl(ss, storage, storage->sec.pin);
+    storage_setPin_impl(ss, storage, storage->pub.has_pin ? storage->sec.pin : "");
 
     storage->has_sec_fingerprint = false;
 
