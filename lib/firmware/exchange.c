@@ -176,11 +176,22 @@ static bool verify_exchange_address(const CoinType *coin, size_t address_n_count
     // Unfortunately we can't do multisig here, since it makes the ExchangeType
     // message too large from having two MultisigRedeemScriptType members for
     // return/withdrawal respectively.
-    if (!compute_address(coin, script_type, &node, false, NULL, tx_out_address)) {
+    if (compute_address(coin, script_type, &node, false, NULL, tx_out_address) &&
+        strncmp(tx_out_address, address_str, sizeof(tx_out_address)) == 0) {
+        memzero(&node, sizeof(node));
+        return true;
+    }
+
+    if (!coin->has_cashaddr_prefix) {
         memzero(&node, sizeof(node));
         return false;
     }
 
+    // On coins supporting cashaddr (BCH, BSV), also support address comparison
+    // on the legacy format.
+    ecdsa_get_address(node.public_key, coin->address_type, curve->hasher_pubkey,
+                      curve->hasher_base58, tx_out_address,
+                      sizeof(tx_out_address));
     memzero(&node, sizeof(node));
     return strncmp(tx_out_address, address_str, sizeof(tx_out_address)) == 0;
 }
