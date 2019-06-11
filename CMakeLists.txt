@@ -10,10 +10,6 @@ set(BOOTLOADER_MAJOR_VERSION 2)
 set(BOOTLOADER_MINOR_VERSION 0)
 set(BOOTLOADER_PATCH_VERSION 0)
 
-include(CheckSymbolExists)
-check_symbol_exists(strlcpy "string.h" KK_HAVE_STRLCPY)
-check_symbol_exists(strlcat "string.h" KK_HAVE_STRLCAT)
-
 option(KK_EMULATOR "Build the emulator" OFF)
 option(KK_DEBUG_LINK "Build with debug-link enabled" OFF)
 option(KK_BUILD_FUZZERS "Build the fuzzers?" OFF)
