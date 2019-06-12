@@ -112,7 +112,7 @@ typedef struct
 
 typedef struct
 {
-    uint8_t *buffer;
+    const uint8_t *buffer;
     uint32_t length;
 } RawMessage;
 
