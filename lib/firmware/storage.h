@@ -82,6 +82,8 @@ typedef struct _SessionState {
     char passphrase[51];
 } SessionState;
 
+#define MAX_MNEMONIC_LEN 240
+
 void storage_loadNode(HDNode *dst, const HDNodeType *src);
 
 /// Derive the wrapping key from the user's pin.

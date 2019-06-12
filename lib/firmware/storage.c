@@ -1437,20 +1437,28 @@ bool storage_hasMnemonic(void)
  * a null-terminated string.
  */
 bool storage_containsMnemonic(const char *mnemonic) {
-	if (!storage_hasMnemonic())
-		return false;
-	if (!shadow_config.storage.has_sec)
-		return false;
-	/* The execution time of the following code only depends on the
-	 * (public) input.  This avoids timing attacks.
-	 */
-	char diff = 0;
-	uint32_t i = 0;
-	for (; mnemonic[i]; i++) {
-		diff |= (shadow_config.storage.sec.mnemonic[i] - mnemonic[i]);
-	}
-	diff |= shadow_config.storage.sec.mnemonic[i];
-	return diff == 0;
+    if (!storage_hasMnemonic())
+        return false;
+    if (!shadow_config.storage.has_sec)
+        return false;
+
+    // Compare the digests to mitigate side-channel attacks.
+    uint8_t digest_stored[SHA256_DIGEST_LENGTH];
+    sha256_Raw((const uint8_t*)shadow_config.storage.sec.mnemonic,
+               strnlen(shadow_config.storage.sec.mnemonic, MAX_MNEMONIC_LEN),
+               digest_stored);
+
+    uint8_t digest_input[SHA256_DIGEST_LENGTH];
+    sha256_Raw((const uint8_t*)mnemonic, strnlen(mnemonic, MAX_MNEMONIC_LEN),
+               digest_input);
+
+    uint8_t diff = 0;
+    for (size_t i = 0; i < sizeof(digest_input); i++) {
+        diff |= (digest_stored[i] - digest_input[i]);
+    }
+    memzero(digest_stored, sizeof(digest_stored));
+    memzero(digest_input, sizeof(digest_input));
+    return diff == 0;
 }
 
 const char *storage_getShadowMnemonic(void)
