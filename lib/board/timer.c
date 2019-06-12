@@ -28,6 +28,7 @@
 #  include <unistd.h>
 #endif
 
+#include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_leds.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/supervise.h"
@@ -268,9 +269,19 @@ void timer_init(void)
 
 uint32_t fi_defense_delay(volatile uint32_t value) {
 #ifndef EMULATOR
-    uint32_t cnt = random32() & 0x4fff;
-    while (cnt--) {
-        __asm__ __volatile__("nop");
+    int wait = random32() & 0x4fff;
+    volatile int i = 0;
+    volatile int j = wait;
+    while (i < wait) {
+      if (i + j != wait) {
+        shutdown();
+      }
+      ++i;
+      --j;
+    }
+    // Double-check loop completion.
+    if (i != wait || j != 0) {
+      shutdown();
     }
 #endif
     return value;
