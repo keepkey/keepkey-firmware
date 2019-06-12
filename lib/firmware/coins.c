@@ -114,6 +114,21 @@ static bool path_mismatched(const CoinType *coin, const uint32_t *address_n,
 		return false;
 	}
 
+	// Special case (not needed in the other copy of this function):
+	// KeepKey only puts ETH-like coins on m/44'/coin'/account'/0/0 paths
+	if (address_n_count == 5 &&
+		(strncmp(coin->coin_name, ETHEREUM, strlen(ETHEREUM)) == 0 ||
+		 strncmp(coin->coin_name, ETHEREUM_CLS, sizeof(ETHEREUM_CLS)) == 0 ||
+		 coin->has_contract_address)) {
+		if (whole_account)
+			return true;
+		// Check that the path is m/44'/bip44_account_path/y/0/0
+		if (address_n[3] != 0)
+			return true;
+		if (address_n[4] != 0)
+			return true;
+	}
+
 	// m/44' : BIP44 Legacy
 	// m / purpose' / bip44_account_path' / account' / change / address_index
 	if (address_n[0] == (0x80000000 + 44)) {
@@ -178,17 +193,6 @@ static bool path_mismatched(const CoinType *coin, const uint32_t *address_n,
 			mismatch |= (address_n[4] & 0x80000000) == 0x80000000;
 		}
 		return mismatch;
-	}
-
-	// Special case (not needed in the other copy of this function):
-	if (address_n_count == 5 &&
-		(strncmp(coin->coin_name, ETHEREUM, strlen(ETHEREUM)) == 0 ||
-		 strncmp(coin->coin_name, ETHEREUM_CLS, sizeof(ETHEREUM_CLS)) == 0)) {
-		// Check that the path is m/44'/bip44_account_path/y/0/0
-		if (address_n[3] != 0)
-			return true;
-		if (address_n[4] != 0)
-			return true;
 	}
 
 	return false;
@@ -412,7 +416,7 @@ static const char *account_prefix(const CoinType *coin,
 
 bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
                           const uint32_t *address_n, size_t address_n_count,
-                          bool whole_account, bool allow_change, bool show_addridx)
+                          bool whole_account, bool show_addridx)
 {
     if (address_n_count != 3 && address_n_count != 5)
         return false;
@@ -424,14 +428,17 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
     if (strncmp(coin->coin_name, "EOS", sizeof(coin->coin_name)) == 0 && !isSLIP48)
         return false;
 
+    // If it is a token, we still refer to the destination as an Ethereum account.
+    bool is_token = coin->has_contract_address;
+    const char *coin_name = is_token ? "Ethereum" : coin->coin_name;
+
     if (!whole_account) {
         if (address_n_count != 5)
             return false;
 
-        // Don't display this way for change addresses,
-        // discouraging their use in GetAddress.
-        if (address_n[3] != 0 && !isSLIP48)
-            return allow_change;
+        // Only 0/1 for internal/external are valid paths on UTXO coins.
+        if (!isSLIP48 && !isEthereumLike(coin_name) && address_n[3] != 0 && address_n[3] != 1)
+            return false;
     }
 
     if (path_mismatched(coin, address_n, address_n_count, whole_account) &&
@@ -441,10 +448,6 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
     const char *prefix = account_prefix(coin, address_n, address_n_count, whole_account);
     if (!prefix)
         return false;
-
-    // If it is a token, we still refer to the destination as an Ethereum account.
-    bool is_token = coin->has_contract_address;
-    const char *coin_name = is_token ? "Ethereum" : coin->coin_name;
 
     if (whole_account || isEthereumLike(coin_name) || !show_addridx) {
         snprintf(node_str, len, "%s%s Account #%" PRIu32, prefix, coin_name,
@@ -456,8 +459,10 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
         snprintf(node_str, len, "%s%s Account #%" PRIu32 " @active key #%" PRIu32,
                  prefix, coin_name, address_n[3] & 0x7fffffff, address_n[4] & 0x7fffffff);
     } else {
-        snprintf(node_str, len, "%s%s Account #%" PRIu32 "\nAddress #%" PRIu32,
-                 prefix, coin_name, address_n[2] & 0x7fffffff, address_n[4]);
+        bool is_change = address_n[3] == 1;
+        snprintf(node_str, len, "%s%s Account #%" PRIu32 "\n%sAddress #%" PRIu32,
+                 prefix, coin_name, address_n[2] & 0x7fffffff,
+                 is_change ? "Change " : "", address_n[4]);
     }
 
     return true;

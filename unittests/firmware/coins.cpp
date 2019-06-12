@@ -126,7 +126,6 @@ TEST(Coins, SLIP48) {
                                              vec.address_n,
                                              vec.address_n_count,
                                              /*whole_account=*/false,
-                                             /*allow_change=*/false,
                                              /*show_addrix=*/true))
                 << vec.text;
             EXPECT_EQ(vec.text, node_str);
@@ -139,59 +138,86 @@ TEST(Coins, BIP32AccountName) {
         const char *coin_name;
         uint32_t address_n[10];
         size_t address_n_count;
-        bool allow_change;
         bool expected;
         std::string text;
     } vector[] = {
         {
           "Bitcoin",
           { 0x80000000|44, 0x80000000|0, 0x80000000|0, 0, 0 },
-          5, false, true, "Bitcoin Account #0\nAddress #0"
+          5, true, "Bitcoin Account #0\nAddress #0"
         },
         {
           "Bitcoin",
           { 0x80000000|44, 0x80000000|0, 0x80000000|0, 0, 1 },
-          5, false, true, "Bitcoin Account #0\nAddress #1"
+          5, true, "Bitcoin Account #0\nAddress #1"
         },
         {
           "Bitcoin",
-          { 0x80000000|44, 0x80000000|0, 0x80000000|1, 0, 0 },
-          5, false, true, "Bitcoin Account #1\nAddress #0"
+          { 0x80000000|44, 0x80000000|0, 0x80000000|0, 1, 0 },
+          5, true, "Bitcoin Account #0\nChange Address #0"
         },
         {
           "Bitcoin",
-          { 0x80000000|44, 0x80000000|0, 0x80000000|1, 0, 1 },
-          5, false, true, "Bitcoin Account #1\nAddress #1"
+          { 0x80000000|44, 0x80000000|0, 0x80000000|0, 1, 1 },
+          5, true, "Bitcoin Account #0\nChange Address #1"
+        },
+        {
+          "Bitcoin",
+          { 0x80000000|44, 0x80000000|0, 0x80000000|1, 2, 0 },
+          5, false, ""
+        },
+        {
+          "Bitcoin",
+          { 0x80000000|44, 0x80000000|0, 0x80000000|1, 2, 1 },
+          5, false, ""
+        },
+        {
+          "Bitcoin",
+          { 0x80000000|44, 0x80000000|0, 0x80000000|1, 1, 1, 1 },
+          6, false, ""
         },
         {
           "Bitcoin",
           { 0x80000000|44, 0x80000000|0, 0x80000000|1, 1, 1 },
-          5, false, false, ""
+          5, true, "Bitcoin Account #1\nChange Address #1"
         },
         {
-          "Bitcoin",
-          { 0x80000000|44, 0x80000000|0, 0x80000000|1, 1, 1 },
-          5, true, true, "Bitcoin Account #1\nAddress #1"
+          "Ethereum",
+          { 0x80000000|44, 0x80000000|60, 0x80000000|1, 0, 0 },
+          5, true, "Ethereum Account #1"
         },
         {
-          "Bitcoin",
-          { 0x80000000|44, 0x80000000|0, 0x80000000|1, 1, 1 },
-          5, false, false, ""
+          "SALT",
+          { 0x80000000|44, 0x80000000|60, 0x80000000|1, 0, 0 },
+          5, true, "Ethereum Account #1"
         },
-
+        {
+          "Ethereum",
+          { 0x80000000|44, 0x80000000|60, 0x80000000|1, 1, 0 },
+          5, false, ""
+        },
+        {
+          "Ethereum",
+          { 0x80000000|44, 0x80000000|60, 0x80000000|1, 0, 1 },
+          5, false, ""
+        },
     };
 
     for (const auto &vec : vector) {
         char node_str[NODE_STRING_LENGTH];
+        memset(node_str, 0, sizeof(node_str));
         ASSERT_EQ(bip32_node_to_string(node_str, sizeof(node_str),
                                        coinByName(vec.coin_name),
                                        vec.address_n,
                                        vec.address_n_count,
                                        /*whole_account=*/false,
-                                       vec.allow_change,
                                        /*show_addridx=*/true),
                   vec.expected)
-            << vec.text;
+            << "element: " << (&vec - &vector[0]) << "\n"
+            << "coin: " << vec.coin_name << "\n"
+            << "expected: " << vec.expected << "\n"
+            << "text:     \"" << vec.text << "\n"
+            << "node_str: \"" << node_str << "\n";
         if (vec.expected) {
             EXPECT_EQ(vec.text, node_str);
         }

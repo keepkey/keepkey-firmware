@@ -54,7 +54,6 @@ void fsm_msgEosGetPublicKey(const EosGetPublicKey *msg) {
                                   msg->address_n,
                                   msg->address_n_count,
                                   /*whole_account=*/false,
-                                  /*allow_change=*/false,
                                   /*show_addridx=*/true) &&
             !bip32_path_to_string(node_str, sizeof(node_str),
                                   msg->address_n, msg->address_n_count)) {
