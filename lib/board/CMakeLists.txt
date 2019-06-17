@@ -25,12 +25,12 @@ set(sources
     variant.c)
 
 check_symbol_exists(strlcpy "string.h" KK_HAVE_STRLCPY)
-if(NOT ${KK_HAVE_STRLCPY})
+if(NOT KK_HAVE_STRLCPY)
     set(sources ${sources} strlcpy.c)
 endif()
 
 check_symbol_exists(strlcat "string.h" KK_HAVE_STRLCAT)
-if(NOT ${KK_HAVE_STRLCAT})
+if(NOT KK_HAVE_STRLCAT)
     set(sources ${sources} strlcat.c)
 endif()
 
