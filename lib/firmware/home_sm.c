@@ -21,9 +21,12 @@
 
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/layout.h"
+#include "keepkey/board/util.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
+
+#include <stdio.h>
 
 /* Track state of home screen */
 static HomeState home_state = AT_HOME;
@@ -33,7 +36,13 @@ static uint32_t idle_time = 0;
 static void layoutLockedState(void)
 {
     const Font *font = get_body_font();
-    const char *state = (!storage_hasPin() || session_isPinCached()) ? "\x02" : "\x03";
+    const char *label = storage_getLabel();
+    if (!label || !is_valid_ascii((const uint8_t*)label, strlen(label)))
+        label = "";
+    char state[64];
+    snprintf(state, sizeof(state), "%s %s",
+             (!storage_hasPin() || session_isPinCached()) ? "\x02" : "\x03",
+             label);
     DrawableParams sp;
     sp.x = 2;
     sp.y = KEEPKEY_DISPLAY_HEIGHT - 1 * font_height(font) - 6;
