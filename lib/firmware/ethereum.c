@@ -482,7 +482,7 @@ static void layoutEthereumFee(const uint8_t *value, uint32_t value_len,
 	}
 
 	if((uint32_t)snprintf(out_str, out_str_len,
-	                      _("Send %s from your wallet? This includes up to %s for gas."),
+	                      _("Send %s from your wallet, paying up to %s for gas?"),
 	                      tx_value, gas_value) >= out_str_len) {
 		/*error detected.  Clear the buffer */
 		memset(out_str, 0, out_str_len);
