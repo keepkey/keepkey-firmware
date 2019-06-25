@@ -493,7 +493,7 @@ bool makerdao_isFree(const EthereumSignTx *msg)
     if (!getCupId(getParam(msg, 1), &cupId))
         return false;
 
-    return false;
+    return true;
 }
 
 bool makerdao_confirmFree(const EthereumSignTx *msg)
