@@ -212,6 +212,12 @@ static void getETHValue(const EthereumSignTx *msg, bignum256 *val)
     bn_read_be(pad_val, val);
 }
 
+static bool isETHValueZero(const EthereumSignTx *msg) {
+    bignum256 val;
+    getETHValue(msg, &val);
+    return bn_is_zero(&val);
+}
+
 bool makerdao_isOpen(const EthereumSignTx *msg)
 {
     // `open(address)`
@@ -246,6 +252,9 @@ bool makerdao_isClose(const EthereumSignTx *msg)
     if (!getCupId(getParam(msg, 1), &cupId))
         return false;
 
+    if (!isETHValueZero(msg))
+        return false;
+
     return true;
 }
 
@@ -278,6 +287,9 @@ bool makerdao_isGive(const EthereumSignTx *msg)
 
     uint32_t cupId;
     if (!getCupId(getParam(msg, 1), &cupId))
+        return false;
+
+    if (!isETHValueZero(msg))
         return false;
 
     return true;
@@ -414,6 +426,9 @@ bool makerdao_isDraw(const EthereumSignTx *msg)
     if (!getCupId(getParam(msg, 1), &cupId))
         return false;
 
+    if (!isETHValueZero(msg))
+        return false;
+
     return true;
 }
 
@@ -493,6 +508,9 @@ bool makerdao_isFree(const EthereumSignTx *msg)
     if (!getCupId(getParam(msg, 1), &cupId))
         return false;
 
+    if (!isETHValueZero(msg))
+        return false;
+
     return true;
 }
 
@@ -526,6 +544,9 @@ bool makerdao_isWipe(const EthereumSignTx *msg)
 
     uint32_t cupId;
     if (!getCupId(getParam(msg, 1), &cupId))
+        return false;
+
+    if (!isETHValueZero(msg))
         return false;
 
     return true;
@@ -573,6 +594,9 @@ bool makerdao_isWipeAndFree(const EthereumSignTx *msg)
 
     uint32_t cupId;
     if (!getCupId(getParam(msg, 1), &cupId))
+        return false;
+
+    if (!isETHValueZero(msg))
         return false;
 
     return true;
