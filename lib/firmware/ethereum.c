@@ -447,7 +447,7 @@ static void layoutEthereumData(const uint8_t *data, uint32_t len, uint32_t total
 	if (total_len == printed)
 		summarystart = summary + 4;
 
-	if((uint32_t)snprintf(out_str, out_str_len, "%s%s%s%s", hexdata[0], hexdata[1],
+	if((uint32_t)snprintf(out_str, out_str_len, "%s%s\n%s%s", hexdata[0], hexdata[1],
 	                      hexdata[2], summarystart) >= out_str_len) {
 		/*error detected.  Clear the buffer */
 		memset(out_str, 0, out_str_len);
