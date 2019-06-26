@@ -399,8 +399,8 @@ static void layoutEthereumConfirmTx(const uint8_t *to, uint32_t to_len, const ui
 	    memcmp(value + 24, "\xff\xff\xff\xff\xff\xff\xff\xff", 8) == 0;
 
 	const char *address = addr;
-	if (to_len && makerdao_isMakerOTCAddress(to, chain_id)) {
-		address = "MakerOTC";
+	if (to_len && makerdao_isOasisDEXAddress(to, chain_id)) {
+		address = "OasisDEX";
 	}
 
 	int cx;

@@ -38,7 +38,7 @@ static bool getCupId(const uint8_t *param, uint32_t *val)
     return true;
 }
 
-static bool isParamTub(const uint8_t *param, uint32_t chain_id, bool is_confirm)
+static bool confirmParamIsTub(const uint8_t *param, uint32_t chain_id)
 {
     if (memcmp(param, "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 12) != 0)
         return false;
@@ -55,18 +55,14 @@ static bool isParamTub(const uint8_t *param, uint32_t chain_id, bool is_confirm)
     if (chain_id == 42 && memcmp(address, "\xa7\x19\x37\x14\x7b\x55\xde\xb8\xa5\x30\xc7\x22\x9c\x44\x2f\xd3\xf3\x1b\x7d\xb2", 20) == 0)
         return true;
 
-    if (is_confirm) {
-        char contract[43] = "0x";
-        ethereum_address_checksum(address, contract + 2, false, chain_id);
+    char contract[43] = "0x";
+    ethereum_address_checksum(address, contract + 2, false, chain_id);
 
-        return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "MakerDAO",
-                       "Confirm TUB:\n%s", contract);
-    }
-
-    return true;
+    return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "MakerDAO",
+                   "Confirm TUB:\n%s", contract);
 }
 
-bool makerdao_isMakerOTCAddress(const uint8_t *address, uint32_t chain_id)
+bool makerdao_isOasisDEXAddress(const uint8_t *address, uint32_t chain_id)
 {
     // Mainnet
     // https://github.com/makerdao/scd-cdp-portal/blob/fac7b0571dc4128e89dcd5f7f8d44ded4b66073b/src/settings.json#L17
@@ -80,28 +76,27 @@ bool makerdao_isMakerOTCAddress(const uint8_t *address, uint32_t chain_id)
     return false;
 }
 
-static bool isParamMakerOTCAddress(const uint8_t *param, uint32_t chain_id, bool is_confirm)
+static bool confirmParamIsOTCProvider(const uint8_t *param, uint32_t chain_id, const char **otcProvider)
 {
     if (memcmp(param, "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 12) != 0)
         return false;
 
     const uint8_t *address = param + 12;
 
-    if (makerdao_isMakerOTCAddress(address, chain_id))
+    if (makerdao_isOasisDEXAddress(address, chain_id)) {
+        if (otcProvider)
+            *otcProvider = " via OasisDEX";
         return true;
-
-    if (is_confirm) {
-        char contract[43] = "0x";
-        ethereum_address_checksum(address, contract + 2, false, chain_id);
-
-        return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "MakerDAO",
-                       "Confirm OTC:\n%s", contract);
     }
 
-    return true;
+    char contract[43] = "0x";
+    ethereum_address_checksum(address, contract + 2, false, chain_id);
+
+    return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "MakerDAO",
+                   "Confirm OTC:\n%s", contract);
 }
 
-static bool isParamRegistryAddress(const uint8_t *param, uint32_t chain_id, bool is_confirm)
+static bool confirmParamIsRegistryAddress(const uint8_t *param, uint32_t chain_id)
 {
     if (memcmp(param, "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 12) != 0)
         return false;
@@ -117,18 +112,14 @@ static bool isParamRegistryAddress(const uint8_t *param, uint32_t chain_id, bool
     if (chain_id == 42 && memcmp(address, "\x64\xa4\x36\xae\x83\x1c\x16\x72\xae\x81\xf6\x74\xca\xb8\xb6\x77\x5d\xf3\x47\x5c", 20) == 0)
         return true;
 
-    if (is_confirm) {
-        char contract[43] = "0x";
-        ethereum_address_checksum(address, contract + 2, false, chain_id);
+    char contract[43] = "0x";
+    ethereum_address_checksum(address, contract + 2, false, chain_id);
 
-        return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "MakerDAO",
-                       "Confirm Proxy Registry:\n%s", contract);
-    }
-
-    return true;
+    return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "MakerDAO",
+                   "Confirm Proxy Registry:\n%s", contract);
 }
 
-static bool isSaiProxyCreateAndExecuteAddress(const uint8_t *address, uint32_t chain_id, bool is_confirm)
+static bool confirmSaiProxyCreateAndExecuteAddress(const uint8_t *address, uint32_t chain_id)
 {
     // Mainnet
     // https://github.com/makerdao/scd-cdp-portal/blob/fac7b0571dc4128e89dcd5f7f8d44ded4b66073b/src/settings.json#L22
@@ -143,15 +134,11 @@ static bool isSaiProxyCreateAndExecuteAddress(const uint8_t *address, uint32_t c
     if (chain_id == 42 && memcmp(address, "\x96\xfc\x00\x5a\x8b\xa8\x2b\x84\xb1\x1e\x0f\xf2\x11\xa2\xa1\x36\x2f\x10\x7e\xf0", 20) == 0)
         return true;
 
-    if (is_confirm) {
-        char contract[43] = "0x";
-        ethereum_address_checksum(address, contract + 2, false, chain_id);
+    char contract[43] = "0x";
+    ethereum_address_checksum(address, contract + 2, false, chain_id);
 
-        return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "MakerDAO",
-                       "Confirm SaiProxyCreateAndExecute:\n%s", contract);
-    }
-
-    return true;
+    return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "MakerDAO",
+                   "Confirm SaiProxyCreateAndExecute:\n%s", contract);
 }
 
 static bool isProxyCall(const EthereumSignTx *msg) {
@@ -159,12 +146,6 @@ static bool isProxyCall(const EthereumSignTx *msg) {
         return false;
 
     if (msg->data_initial_chunk.size < 4 + 32 + 32 + 32)
-        return false;
-
-    if (memcmp(msg->data_initial_chunk.bytes + 4, "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 12) != 0)
-        return false;
-
-    if (!isSaiProxyCreateAndExecuteAddress(msg->data_initial_chunk.bytes + 4 + 12, msg->chain_id, false))
         return false;
 
     bignum256 offset;
@@ -183,6 +164,17 @@ static bool isProxyCall(const EthereumSignTx *msg) {
         return false;
 
     if (msg->data_initial_chunk.size < 4 + 3 * 32 + bn_write_uint32(&length))
+        return false;
+
+    return true;
+}
+
+static bool confirmProxyCall(const EthereumSignTx *msg)
+{
+    if (memcmp(msg->data_initial_chunk.bytes + 4, "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 12) != 0)
+        return false;
+
+    if (!confirmSaiProxyCreateAndExecuteAddress(msg->data_initial_chunk.bytes + 4 + 12, msg->chain_id))
         return false;
 
     return true;
@@ -259,15 +251,12 @@ bool makerdao_isOpen(const EthereumSignTx *msg)
     if (!isMethod(msg, "\xc7\x40\x73\xa1", 1))
         return false;
 
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, false))
-        return false;
-
     return true;
 }
 
 bool makerdao_confirmOpen(const EthereumSignTx *msg)
 {
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, true))
+    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
         return false;
 
     return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "MakerDAO",
@@ -282,9 +271,6 @@ bool makerdao_isClose(const EthereumSignTx *msg)
         !isMethod(msg, "\x79\x20\x37\xe3", 3))
         return false;
 
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, false))
-        return false;
-
     uint32_t cupId;
     if (!getCupId(getParam(msg, 1), &cupId))
         return false;
@@ -297,7 +283,7 @@ bool makerdao_isClose(const EthereumSignTx *msg)
 
 bool makerdao_confirmClose(const EthereumSignTx *msg)
 {
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, true))
+    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
         return false;
 
     uint32_t cupId;
@@ -306,10 +292,8 @@ bool makerdao_confirmClose(const EthereumSignTx *msg)
 
     const char *otcProvider = "";
     if (isMethod(msg, "\x79\x20\x37\xe3", 3)) {
-        if (isParamMakerOTCAddress(getParam(msg, 2), msg->chain_id, true))
-            otcProvider = " via MakerOTC";
-        else
-            otcProvider = " via Unknown OTC";
+        if (confirmParamIsOTCProvider(getParam(msg, 2), msg->chain_id, &otcProvider))
+            return false;
     }
 
     return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "MakerDAO",
@@ -320,9 +304,6 @@ bool makerdao_isGive(const EthereumSignTx *msg)
 {
     // `give(address,bytes32,address)`
     if (!isMethod(msg, "\xda\x93\xdf\xcf", 3))
-        return false;
-
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, false))
         return false;
 
     uint32_t cupId;
@@ -337,7 +318,7 @@ bool makerdao_isGive(const EthereumSignTx *msg)
 
 bool makerdao_confirmGive(const EthereumSignTx *msg)
 {
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, true))
+    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
         return false;
 
     uint32_t cupId;
@@ -357,15 +338,12 @@ bool makerdao_isLockAndDraw2(const EthereumSignTx *msg)
     if (!isMethod(msg, "\x51\x6e\x9a\xec", 2))
         return false;
 
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, false))
-        return false;
-
     return true;
 }
 
 bool makerdao_confirmLockAndDraw2(const EthereumSignTx *msg)
 {
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, true))
+    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
         return false;
 
     bignum256 deposit_val;
@@ -395,21 +373,15 @@ bool makerdao_isCreateOpenLockAndDraw(const EthereumSignTx *msg)
     if (!isMethod(msg, "\xd3\x14\x0a\x65", 3))
         return false;
 
-    if (!isParamRegistryAddress(getParam(msg, 0), msg->chain_id, false))
-        return false;
-
-    if (!isParamTub(getParam(msg, 1), msg->chain_id, false))
-        return false;
-
     return true;
 }
 
 bool makerdao_confirmCreateOpenLockAndDraw(const EthereumSignTx *msg)
 {
-    if (!isParamRegistryAddress(getParam(msg, 0), msg->chain_id, true))
+    if (!confirmParamIsRegistryAddress(getParam(msg, 0), msg->chain_id))
         return false;
 
-    if (!isParamTub(getParam(msg, 1), msg->chain_id, true))
+    if (!confirmParamIsTub(getParam(msg, 1), msg->chain_id))
         return false;
 
     bignum256 deposit_val;
@@ -439,9 +411,6 @@ bool makerdao_isLock(const EthereumSignTx *msg)
     if (!isMethod(msg, "\xbc\x25\xa8\x10", 2))
         return false;
 
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, false))
-        return false;
-
     uint32_t cupId;
     if (!getCupId(getParam(msg, 1), &cupId))
         return false;
@@ -451,7 +420,7 @@ bool makerdao_isLock(const EthereumSignTx *msg)
 
 bool makerdao_confirmLock(const EthereumSignTx *msg)
 {
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, true))
+    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
         return false;
 
     bignum256 deposit_val;
@@ -474,9 +443,6 @@ bool makerdao_isDraw(const EthereumSignTx *msg)
     if (!isMethod(msg, "\x03\x44\xa3\x6f", 3))
         return false;
 
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, false))
-        return false;
-
     uint32_t cupId;
     if (!getCupId(getParam(msg, 1), &cupId))
         return false;
@@ -489,7 +455,7 @@ bool makerdao_isDraw(const EthereumSignTx *msg)
 
 bool makerdao_confirmDraw(const EthereumSignTx *msg)
 {
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, true))
+    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
         return false;
 
     uint32_t cupId;
@@ -516,9 +482,6 @@ bool makerdao_isLockAndDraw3(const EthereumSignTx *msg)
     if (!isMethod(msg, "\x1e\xdf\x0c\x1e", 3))
         return false;
 
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, false))
-        return false;
-
     uint32_t cupId;
     if (!getCupId(getParam(msg, 1), &cupId))
         return false;
@@ -528,7 +491,7 @@ bool makerdao_isLockAndDraw3(const EthereumSignTx *msg)
 
 bool makerdao_confirmLockAndDraw3(const EthereumSignTx *msg)
 {
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, true))
+    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
         return false;
 
     bignum256 deposit_val;
@@ -562,9 +525,6 @@ bool makerdao_isFree(const EthereumSignTx *msg)
     if (!isMethod(msg, "\xf9\xef\x04\xbe", 3))
         return false;
 
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, false))
-        return false;
-
     uint32_t cupId;
     if (!getCupId(getParam(msg, 1), &cupId))
         return false;
@@ -577,7 +537,7 @@ bool makerdao_isFree(const EthereumSignTx *msg)
 
 bool makerdao_confirmFree(const EthereumSignTx *msg)
 {
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, true))
+    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
         return false;
 
     uint32_t cupId;
@@ -603,9 +563,6 @@ bool makerdao_isWipe(const EthereumSignTx *msg)
         !isMethod(msg, "\x8a\x9f\xc4\x75", 4))
         return false;
 
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, false))
-        return false;
-
     uint32_t cupId;
     if (!getCupId(getParam(msg, 1), &cupId))
         return false;
@@ -618,7 +575,7 @@ bool makerdao_isWipe(const EthereumSignTx *msg)
 
 bool makerdao_confirmWipe(const EthereumSignTx *msg)
 {
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, true))
+    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
         return false;
 
     uint32_t cupId;
@@ -637,10 +594,8 @@ bool makerdao_confirmWipe(const EthereumSignTx *msg)
 
     const char *otcProvider = "";
     if (isMethod(msg, "\x8a\x9f\xc4\x75", 4)) {
-        if (isParamMakerOTCAddress(getParam(msg, 2), msg->chain_id, true))
-            otcProvider = " via MakerOTC";
-        else
-            otcProvider = " via Unknown OTC";
+        if (confirmParamIsOTCProvider(getParam(msg, 2), msg->chain_id, &otcProvider))
+            return false;
     }
 
     return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "MakerDAO",
@@ -656,9 +611,6 @@ bool makerdao_isWipeAndFree(const EthereumSignTx *msg)
         !isMethod(msg, "\x1b\x96\x81\x60", 5))
         return false;
 
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, false))
-        return false;
-
     uint32_t cupId;
     if (!getCupId(getParam(msg, 1), &cupId))
         return false;
@@ -671,7 +623,7 @@ bool makerdao_isWipeAndFree(const EthereumSignTx *msg)
 
 bool makerdao_confirmWipeAndFree(const EthereumSignTx *msg)
 {
-    if (!isParamTub(getParam(msg, 0), msg->chain_id, true))
+    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
         return false;
 
     uint32_t cupId;
@@ -696,10 +648,8 @@ bool makerdao_confirmWipeAndFree(const EthereumSignTx *msg)
 
     const char *otcProvider = "";
     if (isMethod(msg, "\x1b\x96\x81\x60", 5)) {
-        if (isParamMakerOTCAddress(getParam(msg, 4), msg->chain_id, true))
-            otcProvider = " via MakerOTC";
-        else
-            otcProvider = " via Unknown OTC";
+        if (!confirmParamIsOTCProvider(getParam(msg, 4), msg->chain_id, &otcProvider))
+            return false;
     }
 
     return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "MakerDAO",
@@ -715,10 +665,6 @@ bool makerdao_isMakerDAO(uint32_t data_total, const EthereumSignTx *msg)
     if (data_total != msg->data_initial_chunk.size)
         return false;
 
-    if (!isProxyCall(msg) &&
-        !isSaiProxyCreateAndExecuteAddress(msg->to.bytes, msg->chain_id, false))
-        return false;
-
     return true;
 }
 
@@ -726,9 +672,15 @@ bool makerdao_confirmMakerDAO(uint32_t data_total, const EthereumSignTx *msg)
 {
     (void)data_total;
 
-    if (!isProxyCall(msg) &&
-        !isSaiProxyCreateAndExecuteAddress(msg->to.bytes, msg->chain_id, true))
-        return false;
+    if (isProxyCall(msg)) {
+        if (!confirmProxyCall(msg)) {
+            return false;
+        }
+    } else {
+        if (!confirmSaiProxyCreateAndExecuteAddress(msg->to.bytes, msg->chain_id)) {
+            return false;
+        }
+    }
 
     if (makerdao_isOpen(msg))
         return makerdao_confirmOpen(msg);
@@ -765,3 +717,4 @@ bool makerdao_confirmMakerDAO(uint32_t data_total, const EthereumSignTx *msg)
 
     return false;
 }
+
