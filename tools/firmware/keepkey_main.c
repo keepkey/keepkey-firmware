@@ -195,7 +195,7 @@ int main(void)
 
     led_func(SET_GREEN_LED);
 
-    usbInit();
+    usbInit(storage_isInitialized() ? "keepkey.com/wallet" : "keepkey.com/get-started");
     u2fInit();
     led_func(CLR_RED_LED);
 
