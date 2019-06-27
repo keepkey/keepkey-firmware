@@ -112,7 +112,7 @@ static const char *usb_strings[] = {
 static const struct usb_device_descriptor dev_descr = {
 	.bLength = USB_DT_DEVICE_SIZE,
 	.bDescriptorType = USB_DT_DEVICE,
-	.bcdUSB = 0x0201,
+	.bcdUSB = 0x0210,
 	.bDeviceClass = 0,
 	.bDeviceSubClass = 0,
 	.bDeviceProtocol = 0,
@@ -372,7 +372,7 @@ static usbd_device *usbd_dev;
 static uint8_t usbd_control_buffer[256] __attribute__ ((aligned (2)));
 
 static const struct usb_device_capability_descriptor* capabilities[] = {
-	(const struct usb_device_capability_descriptor*)&webusb_platform_capability_descriptor_no_landing_page,
+	(const struct usb_device_capability_descriptor*)&webusb_platform_capability_descriptor,
 };
 
 static const struct usb_bos_descriptor bos_descriptor = {
@@ -382,7 +382,7 @@ static const struct usb_bos_descriptor bos_descriptor = {
 	.capabilities = capabilities
 };
 
-void usbInit(void)
+void usbInit(const char *origin_url)
 {
 	gpio_mode_setup(USB_GPIO_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, USB_GPIO_PORT_PINS);
 	gpio_set_af(USB_GPIO_PORT, GPIO_AF10, USB_GPIO_PORT_PINS);
@@ -393,7 +393,6 @@ void usbInit(void)
 	usbd_dev = usbd_init(&otgfs_usb_driver, &dev_descr, &config, usb_strings, sizeof(usb_strings) / sizeof(*usb_strings), usbd_control_buffer, sizeof(usbd_control_buffer));
 	usbd_register_set_config_callback(usbd_dev, set_config);
 	usb21_setup(usbd_dev, &bos_descriptor);
-	static const char* origin_url = "keepkey.com/get-started";
 	webusb_setup(usbd_dev, origin_url);
 	// Debug link interface does not have WinUSB set;
 	// if you really need debug link on windows, edit the descriptor in winusb.c
