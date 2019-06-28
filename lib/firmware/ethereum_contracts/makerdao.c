@@ -668,7 +668,40 @@ bool makerdao_isMakerDAO(uint32_t data_total, const EthereumSignTx *msg)
     if (data_total != msg->data_initial_chunk.size)
         return false;
 
-    return true;
+    if (makerdao_isOpen(msg))
+        return true;
+
+    if (makerdao_isClose(msg))
+        return true;
+
+    if (makerdao_isGive(msg))
+        return true;
+
+    if (makerdao_isLockAndDraw2(msg))
+        return true;
+
+    if (makerdao_isCreateOpenLockAndDraw(msg))
+        return true;
+
+    if (makerdao_isLock(msg))
+        return true;
+
+    if (makerdao_isDraw(msg))
+        return true;
+
+    if (makerdao_isLockAndDraw3(msg))
+        return true;
+
+    if (makerdao_isFree(msg))
+        return true;
+
+    if (makerdao_isWipe(msg))
+        return true;
+
+    if (makerdao_isWipeAndFree(msg))
+        return true;
+
+    return false;
 }
 
 bool makerdao_confirmMakerDAO(uint32_t data_total, const EthereumSignTx *msg)
