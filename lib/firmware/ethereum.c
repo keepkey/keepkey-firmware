@@ -29,6 +29,8 @@
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
+#include "keepkey/firmware/ethereum_contracts.h"
+#include "keepkey/firmware/ethereum_contracts/makerdao.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/transaction.h"
@@ -385,9 +387,9 @@ static void layoutEthereumConfirmTx(const uint8_t *to, uint32_t to_len, const ui
 		ethereumFormatAmount(&val, token, chain_id, amount, sizeof(amount));
 	}
 
-	char address[43] = "0x";
+	char addr[43] = "0x";
 	if (to_len) {
-		ethereum_address_checksum(to, address + 2, false, chain_id);
+		ethereum_address_checksum(to, addr + 2, false, chain_id);
 	}
 
 	bool approve_all = approve && value_len == 32 &&
@@ -395,6 +397,11 @@ static void layoutEthereumConfirmTx(const uint8_t *to, uint32_t to_len, const ui
 	    memcmp(value + 8,  "\xff\xff\xff\xff\xff\xff\xff\xff", 8) == 0 &&
 	    memcmp(value + 16, "\xff\xff\xff\xff\xff\xff\xff\xff", 8) == 0 &&
 	    memcmp(value + 24, "\xff\xff\xff\xff\xff\xff\xff\xff", 8) == 0;
+
+	const char *address = addr;
+	if (to_len && makerdao_isOasisDEXAddress(to, chain_id)) {
+		address = "OasisDEX";
+	}
 
 	int cx;
 	if (approve && bn_is_zero(&val) && token) {
@@ -617,6 +624,17 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 		return;
 	}
 
+	bool data_needs_confirm = true;
+	if (ethereum_contractHandled(data_total, msg, node)) {
+		if (!ethereum_contractConfirmed(data_total, msg, node)) {
+			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
+			ethereum_signing_abort();
+			return;
+		}
+		needs_confirm = false;
+		data_needs_confirm = false;
+	}
+
 	// detect ERC-20 token
 	if (data_total == 68 && ethereum_isStandardERC20Transfer(msg)) {
 		token = tokenByChainAddress(chain_id, msg->to.bytes);
@@ -659,7 +677,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node, bool needs_c
 	}
 
 	memset(confirm_body_message, 0, sizeof(confirm_body_message));
-	if (token == NULL && data_total > 0) {
+	if (token == NULL && data_total > 0 && data_needs_confirm) {
 		// KeepKey custom: warn the user that they're trying to do something
 		// that is potentially dangerous. People (generally) aren't great at
 		// parsing raw transaction data, and we can't effectively show them
