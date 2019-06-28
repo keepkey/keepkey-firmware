@@ -62,7 +62,7 @@ void usb_set_rx_callback(usb_rx_callback_t callback);
 void usb_set_u2f_rx_callback(usb_u2f_rx_callback_t callback);
 
 char usbTiny(char set);
-void usbInit(void);
+void usbInit(const char *origin_url);
 bool usbInitialized(void);
 void usbPoll(void);
 
