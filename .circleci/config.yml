@@ -16,17 +16,14 @@ jobs:
             pushd ./scripts/emulator
             set +e
             docker-compose up --build firmware-unit
-            UNIT_RESULTS="$?"
             docker-compose up --build bridge-tests
-            BRIDGE_RESULTS="$?"
             docker-compose up --build python-keepkey
-            TEST_RESULTS="$?"
             set -e
             docker cp "$(docker-compose ps -q firmware-unit)":/kkemu/test-reports/. ../../test-reports/
             docker cp "$(docker-compose ps -q bridge-tests)":/kkemu/test-reports/. ../../test-reports/
             docker cp "$(docker-compose ps -q python-keepkey)":/kkemu/test-reports/. ../../test-reports/
             popd
-            [ "${UNIT_RESULTS}${BRIDGE_RESULTS}${TEST_RESULTS}" == "000" ] || exit 1
+            [ "$(cat test-reports/python-keepkey/status)$(cat test-reports/bridge-tests/status)$(cat test-reports/firmware-unit/status)" == "000" ] || exit 1
       - store_test_results:
           path: test-reports
 workflows:
