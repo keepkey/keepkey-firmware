@@ -158,12 +158,12 @@ static bool isProxyCall(const EthereumSignTx *msg) {
         return false;
 
     bignum256 length;
-    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 32, 32, &length);
+    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 32 + 32, 32, &length);
 
     if (32 < bn_bitcount(&length))
         return false;
 
-    if (msg->data_initial_chunk.size < 4 + 3 * 32 + bn_write_uint32(&length))
+    if (msg->data_initial_chunk.size == 4 + 3 * 32 + (bn_write_uint32(&length) - 4))
         return false;
 
     return true;
