@@ -187,7 +187,7 @@ static inline bool hasParams(const EthereumSignTx *msg, size_t count)
 
 static inline bool hasProxiedParams(const EthereumSignTx *msg, size_t count)
 {
-    return msg->data_initial_chunk.size >= 4 + 3 * 32 + 4 + count * 32;
+    return msg->data_initial_chunk.size == 4 + 3 * 32 + 4 + count * 32 + (32 - 4);
 }
 
 static inline const uint8_t *getMethod(const EthereumSignTx *msg)
