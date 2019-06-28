@@ -310,6 +310,9 @@ bool makerdao_isGive(const EthereumSignTx *msg)
     if (!getCupId(getParam(msg, 1), &cupId))
         return false;
 
+    if (memcmp(getParam(msg, 2), "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 12) != 0)
+        return false;
+
     if (!isETHValueZero(msg))
         return false;
 
@@ -326,7 +329,7 @@ bool makerdao_confirmGive(const EthereumSignTx *msg)
         return false;
 
     char new_owner[43] = "0x";
-    ethereum_address_checksum(getParam(msg, 2), new_owner + 2, false, msg->chain_id);
+    ethereum_address_checksum(getParam(msg, 2) + 12, new_owner + 2, false, msg->chain_id);
 
     return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "MakerDAO",
                    "Move CDP %" PRIu32 " to %s?", cupId, new_owner);
