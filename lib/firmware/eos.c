@@ -47,6 +47,7 @@ static CONFIDENTIAL HDNode root;
 static uint32_t address_n[8];
 static size_t address_n_count;
 static EosTxHeader header;
+static uint32_t actions_total = 0;
 static uint32_t actions_remaining = 0;
 static uint32_t unknown_total = 0;
 static uint32_t unknown_remaining = 0;
@@ -225,7 +226,7 @@ void eos_signingInit(const uint8_t *chain_id, uint32_t num_actions,
     unknown_total = 0;
     hasher_Init(&hasher_unknown, HASHER_SHA2);
 
-    actions_remaining = num_actions;
+    actions_remaining = actions_total = num_actions;
     inited = true;
 }
 
@@ -241,6 +242,10 @@ uint32_t eos_actionsRemaining(void) {
     return actions_remaining;
 }
 
+uint32_t eos_actionIndex(void) {
+    return actions_total - actions_remaining;
+}
+
 void eos_signingAbort(void) {
     inited = false;
     memzero(&hasher_preimage, sizeof(hasher_preimage));
@@ -250,6 +255,7 @@ void eos_signingAbort(void) {
     memzero(&root, sizeof(root));
     memzero(address_n, sizeof(address_n));
     address_n_count = 0;
+    actions_total = 0;
     actions_remaining = 0;
     unknown_remaining = 0;
     unknown_total = 0;
@@ -315,8 +321,17 @@ bool eos_compilePermissionLevel(const EosPermissionLevel *auth) {
     return true;
 }
 
-bool eos_hasActionUnknownDataRemaining(void) {
-    return 0 < unknown_remaining;
+uint32_t eos_getActionUnknownDataRemaining(void) {
+    return unknown_remaining;
+}
+
+uint32_t eos_getActionUnknownRequestOffset(void) {
+    return unknown_total - unknown_remaining;
+}
+
+uint32_t eos_getActionUnknownRequestSize(void) {
+    return MIN(eos_getActionUnknownDataRemaining(),
+               sizeof(((EosActionUnknown*)0)->data_chunk.bytes));
 }
 
 static bool isSupportedAction(const EosActionCommon *common) {
@@ -374,7 +389,8 @@ bool eos_compileActionUnknown(const EosActionCommon *common,
         return false;
     }
 
-    if (unknown_remaining < action->data_chunk.size) {
+    if (unknown_total != unknown_remaining &&
+        unknown_remaining < action->data_chunk.size) {
         fsm_sendFailure(FailureType_Failure_SyntaxError,
                         "EosActionUnknown unexpected data chunk size");
         eos_signingAbort();
@@ -382,11 +398,13 @@ bool eos_compileActionUnknown(const EosActionCommon *common,
         return false;
     }
 
-    hasher_Update(&hasher_unknown, (const uint8_t*)action->data_chunk.bytes,
-                  action->data_chunk.size);
-    hasher_Update(&hasher_preimage, (const uint8_t*)action->data_chunk.bytes,
-                  action->data_chunk.size);
-    unknown_remaining -= action->data_chunk.size;
+    if (action->data_chunk.size) {
+        hasher_Update(&hasher_unknown, (const uint8_t*)action->data_chunk.bytes,
+                      action->data_chunk.size);
+        hasher_Update(&hasher_preimage, (const uint8_t*)action->data_chunk.bytes,
+                      action->data_chunk.size);
+        unknown_remaining -= action->data_chunk.size;
+    }
 
     if (unknown_remaining == 0) {
         char name[EOS_NAME_STR_SIZE];

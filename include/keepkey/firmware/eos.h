@@ -84,7 +84,13 @@ bool eos_signingIsFinished(void);
 
 uint32_t eos_actionsRemaining(void);
 
-bool eos_hasActionUnknownDataRemaining(void);
+uint32_t eos_actionIndex(void);
+
+uint32_t eos_getActionUnknownDataRemaining(void);
+
+uint32_t eos_getActionUnknownRequestOffset(void);
+
+uint32_t eos_getActionUnknownRequestSize(void);
 
 /// \returns true iff successful.
 bool eos_compileActionUnknown(const EosActionCommon *common,

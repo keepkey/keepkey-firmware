@@ -121,7 +121,7 @@ void fsm_msgEosTxActionAck(const EosTxActionAck *msg) {
         0;
     CHECK_PARAM(action_count == 1, "Eos signing can only handle one action at a time");
 
-    if (eos_hasActionUnknownDataRemaining()) {
+    if (eos_getActionUnknownDataRemaining()) {
         if (!msg->has_unknown) {
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Expected more EOSActionUnknown data chunks");
             eos_signingAbort();
@@ -186,6 +186,18 @@ void fsm_msgEosTxActionAck(const EosTxActionAck *msg) {
 
     if (!eos_signingIsFinished()) {
         RESP_INIT(EosTxActionRequest);
+
+        resp->action_index = eos_actionIndex();
+        resp->has_action_index = true;
+
+        if (eos_getActionUnknownDataRemaining()) {
+            resp->data_offset = eos_getActionUnknownRequestOffset();
+            resp->has_data_offset = true;
+
+            resp->data_size = eos_getActionUnknownRequestSize();
+            resp->has_data_size = true;
+        }
+
         msg_write(MessageType_MessageType_EosTxActionRequest, resp);
         return;
     }
