@@ -99,15 +99,4 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
 /// \returns true iff the coin_name is for an eth-like coin.
 bool isEthereumLike(const char *coin_name);
 
-typedef enum _SLIP48Role {
-    SLIP48_owner   = 0x0,
-    SLIP48_active  = 0x1,
-    SLIP48_memo    = 0x3,
-    SLIP48_posting = 0x4,
-    SLIP48_UNKNOWN = 0xffffffff,
-} SLIP48Role;
-
-bool coin_isSLIP48(const CoinType *coin, const uint32_t *address_n,
-                   size_t address_n_count, SLIP48Role role);
-
 #endif
