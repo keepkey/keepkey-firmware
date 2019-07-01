@@ -535,6 +535,9 @@ bool eos_compileAuthorization(const char *title, const EosAuthorization *auth,
             return false;
         }
 
+        if (!eos_hashAuthorization(&hasher_preimage, auth))
+            return false;
+
         return true;
     }
 
