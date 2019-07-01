@@ -882,7 +882,9 @@ static bool signing_check_fee(void) {
 	coin_amnt_to_str(coin, fee, fee_str, sizeof(fee_str));
 	if (fee > ((uint64_t) tx_weight * coin->maxfee_kb)/4000) {
 		if (!confirm(ButtonRequestType_ButtonRequest_FeeOverThreshold,
-		             "Confirm Fee", "%s", fee_str)) {
+		             "Confirm Fee", "Really spend %s on fees? Except in times of high "
+		             "network congestion, fees should be less than %lld sat/byte.",
+		             fee_str, coin->maxfee_kb / 1000)) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
 			signing_abort();
 			return false;
