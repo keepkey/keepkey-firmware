@@ -414,60 +414,6 @@ static const char *account_prefix(const CoinType *coin,
     return NULL;
 }
 
-bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
-                          const uint32_t *address_n, size_t address_n_count,
-                          bool whole_account, bool show_addridx)
-{
-    if (address_n_count != 3 && address_n_count != 5)
-        return false;
-
-    bool isSLIP48 =
-        coin_isSLIP48(coin, address_n, address_n_count, SLIP48_owner) ||
-        coin_isSLIP48(coin, address_n, address_n_count, SLIP48_active);
-
-    if (strncmp(coin->coin_name, "EOS", sizeof(coin->coin_name)) == 0 && !isSLIP48)
-        return false;
-
-    // If it is a token, we still refer to the destination as an Ethereum account.
-    bool is_token = coin->has_contract_address;
-    const char *coin_name = is_token ? "Ethereum" : coin->coin_name;
-
-    if (!whole_account) {
-        if (address_n_count != 5)
-            return false;
-
-        // Only 0/1 for internal/external are valid paths on UTXO coins.
-        if (!isSLIP48 && !isEthereumLike(coin_name) && address_n[3] != 0 && address_n[3] != 1)
-            return false;
-    }
-
-    if (path_mismatched(coin, address_n, address_n_count, whole_account) &&
-        !isSLIP48)
-        return false;
-
-    const char *prefix = account_prefix(coin, address_n, address_n_count, whole_account);
-    if (!prefix)
-        return false;
-
-    if (whole_account || isEthereumLike(coin_name) || !show_addridx) {
-        snprintf(node_str, len, "%s%s Account #%" PRIu32, prefix, coin_name,
-                 address_n[2] & 0x7fffffff);
-    } else if (coin_isSLIP48(coin, address_n, address_n_count, SLIP48_owner)) {
-        snprintf(node_str, len, "%s%s Account #%" PRIu32 " @owner key #%" PRIu32,
-                 prefix, coin_name, address_n[3] & 0x7fffffff, address_n[4] & 0x7fffffff);
-    } else if (coin_isSLIP48(coin, address_n, address_n_count, SLIP48_active)) {
-        snprintf(node_str, len, "%s%s Account #%" PRIu32 " @active key #%" PRIu32,
-                 prefix, coin_name, address_n[3] & 0x7fffffff, address_n[4] & 0x7fffffff);
-    } else {
-        bool is_change = address_n[3] == 1;
-        snprintf(node_str, len, "%s%s Account #%" PRIu32 "\n%sAddress #%" PRIu32,
-                 prefix, coin_name, address_n[2] & 0x7fffffff,
-                 is_change ? "Change " : "", address_n[4]);
-    }
-
-    return true;
-}
-
 bool isEthereumLike(const char *coin_name)
 {
     if (strcmp(coin_name, ETHEREUM) == 0)
@@ -479,60 +425,51 @@ bool isEthereumLike(const char *coin_name)
     return false;
 }
 
-static bool role_matches(uint32_t address_n_role, SLIP48Role role) {
-    switch (role) {
-    case SLIP48_owner:
-        return address_n_role == (0x80000000 | 0x0);
+static bool isEOS(const char *coin_name) {
+    if (strcmp(coin_name, "EOS") == 0)
+        return true;
 
-    case SLIP48_active:
-        return address_n_role == (0x80000000 | 0x1);
-
-    case SLIP48_memo:
-        return address_n_role == (0x80000000 | 0x3);
-
-    case SLIP48_posting:
-        return address_n_role == (0x80000000 | 0x4);
-
-    case SLIP48_UNKNOWN:
-        return false;
-    }
-
-#ifdef DEBUG_ON
-    __builtin_unreachable();
-#else
     return false;
-#endif
 }
 
-bool coin_isSLIP48(const CoinType *coin, const uint32_t *address_n,
-                   size_t address_n_count, SLIP48Role role) {
-
-    // Assume EOS for now. We'll expand this as we add more graphene coins.
-    if (strncmp(coin->coin_name, "EOS", sizeof(coin->coin_name)))
+bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
+                          const uint32_t *address_n, size_t address_n_count,
+                          bool whole_account, bool show_addridx)
+{
+    if (address_n_count != 3 && address_n_count != 5)
         return false;
 
-    if (address_n_count < 5)
+    // If it is a token, we still refer to the destination as an Ethereum account.
+    bool is_token = coin->has_contract_address;
+    const char *coin_name = is_token ? "Ethereum" : coin->coin_name;
+
+    if (!whole_account) {
+        if (address_n_count != 5)
+            return false;
+
+        // Only 0/1 for internal/external are valid paths on UTXO coins.
+        if (!isEthereumLike(coin_name) && !isEOS(coin_name) &&
+            address_n[3] != 0 && address_n[3] != 1)
+            return false;
+    }
+
+    if (path_mismatched(coin, address_n, address_n_count, whole_account))
         return false;
 
-    // Purpose
-    if (address_n[address_n_count - 5] != (0x80000000 | 48))
+    const char *prefix = account_prefix(coin, address_n, address_n_count, whole_account);
+    if (!prefix)
         return false;
 
-    // Network
-    if (address_n[address_n_count - 4] != (0x80000000 | /*EOS=*/4))
-        return false;
-
-    // Role
-    if (!role_matches(address_n[address_n_count - 3], role))
-        return false;
-
-    // Account Index
-    if (!(address_n[address_n_count - 2] & 0x80000000))
-        return false;
-
-    // Key Index
-    if (!(address_n[address_n_count - 1] & 0x80000000))
-        return false;
+    if (whole_account || isEthereumLike(coin_name) || isEOS(coin_name) || !show_addridx) {
+        snprintf(node_str, len, "%s%s Account #%" PRIu32, prefix, coin_name,
+                 address_n[2] & 0x7fffffff);
+    } else {
+        bool is_change = address_n[3] == 1;
+        snprintf(node_str, len, "%s%s Account #%" PRIu32 "\n%sAddress #%" PRIu32,
+                 prefix, coin_name, address_n[2] & 0x7fffffff,
+                 is_change ? "Change " : "", address_n[4]);
+    }
 
     return true;
 }
+
