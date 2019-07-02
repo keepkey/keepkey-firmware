@@ -34,7 +34,8 @@
 
 void reset_init(bool display_random, uint32_t _strength, bool passphrase_protection,
                 bool pin_protection, const char *language, const char *label,
-                bool no_backup, uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter);
+                bool no_backup, uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter,
+                bool _webusb_landing);
 void reset_entropy(const uint8_t *ext_entropy, uint32_t len);
 uint32_t reset_get_int_entropy(uint8_t *entropy);
 const char *reset_get_word(void);

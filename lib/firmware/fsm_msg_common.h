@@ -99,6 +99,10 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     resp->has_passphrase_cached = true;
     resp->passphrase_cached = session_isPassphraseCached();
 
+    /* Is the WebUSB landing page enabled? */
+    resp->has_webusb_landing_page = true;
+    resp->webusb_landing_page = storage_webusbLandingPage();
+
     /* Policies */
     resp->policies_count = POLICY_COUNT;
     storage_getPolicies(resp->policies);
@@ -361,7 +365,8 @@ void fsm_msgResetDevice(ResetDevice *msg)
         msg->has_label ? msg->label : 0,
         msg->has_no_backup ? msg->no_backup : false,
         msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT,
-        msg->has_u2f_counter ? msg->u2f_counter : 0
+        msg->has_u2f_counter ? msg->u2f_counter : 0,
+        msg->has_enable_webusb_landing_page ? msg->enable_webusb_landing_page : false
     );
 }
 
@@ -432,11 +437,26 @@ void fsm_msgApplySettings(ApplySettings *msg)
         }
     }
 
+    if (msg->has_enable_webusb_landing_page) {
+        if (msg->enable_webusb_landing_page) {
+            if (!confirm(ButtonRequestType_ButtonRequest_WebUSBLandingPage,
+                         "Push Notifications", "Do you want to enable push notifications when you plug in your KeepKey?")) {
+                goto apply_settings_cancelled;
+            }
+        } else {
+            if (!confirm(ButtonRequestType_ButtonRequest_WebUSBLandingPage,
+                         "Push Notifications", "Do you want to disable push notifications when you plug in your KeepKey?")) {
+                goto apply_settings_cancelled;
+            }
+        }
+    }
+
     if (!msg->has_label &&
         !msg->has_language &&
         !msg->has_use_passphrase &&
         !msg->has_auto_lock_delay_ms &&
-        !msg->has_u2f_counter)
+        !msg->has_u2f_counter &&
+        !msg->has_enable_webusb_landing_page)
     {
         fsm_sendFailure(FailureType_Failure_SyntaxError, "No setting provided");
         return;
@@ -462,6 +482,10 @@ void fsm_msgApplySettings(ApplySettings *msg)
 
     if (msg->has_u2f_counter) {
         storage_setU2FCounter(msg->u2f_counter);
+    }
+
+    if (msg->has_enable_webusb_landing_page) {
+        storage_setWebusbLandingPage(msg->enable_webusb_landing_page);
     }
 
     storage_commit();
@@ -496,7 +520,8 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg)
             msg->has_enforce_wordlist ? msg->enforce_wordlist : false,
             msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT,
             msg->has_u2f_counter ? msg->u2f_counter : 0,
-            msg->has_dry_run ? msg->dry_run : false
+            msg->has_dry_run ? msg->dry_run : false,
+            msg->has_enable_webusb_landing_page ? msg->enable_webusb_landing_page : false
         );
     } else {                                     // legacy way of recovery
         recovery_init(
@@ -508,7 +533,8 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg)
             msg->has_enforce_wordlist ? msg->enforce_wordlist : false,
             msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT,
             msg->has_u2f_counter ? msg->u2f_counter : 0,
-            msg->has_dry_run ? msg->dry_run : false
+            msg->has_dry_run ? msg->dry_run : false,
+            msg->has_enable_webusb_landing_page ? msg->enable_webusb_landing_page : false
         );
     }
 }

@@ -26,7 +26,7 @@
 void recovery_init(uint32_t _word_count, bool passphrase_protection,
                    bool pin_protection, const char *language, const char *label,
                    bool _enforce_wordlist, uint32_t _auto_lock_delay_ms,
-                   uint32_t _u2f_counter, bool _dry_run);
+                   uint32_t _u2f_counter, bool _dry_run, bool _webusb_landing);
 void recovery_word(const char *word);
 void recovery_done(void);
 void recovery_abort(bool send_failure);

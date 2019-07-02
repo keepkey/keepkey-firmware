@@ -227,7 +227,8 @@ bool attempt_auto_complete(char *partial_word)
  */
 void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
                           const char *language, const char *label, bool _enforce_wordlist,
-                          uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter, bool _dry_run)
+                          uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter, bool _dry_run,
+                          bool _webusb_landing)
 {
     enforce_wordlist = _enforce_wordlist;
     dry_run = _dry_run;
@@ -249,6 +250,7 @@ void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
         storage_setLabel(label);
         storage_setAutoLockDelayMs(_auto_lock_delay_ms);
         storage_setU2FCounter(_u2f_counter);
+        storage_setWebusbLandingPage(_webusb_landing);
     } else if (!pin_protect("Enter Your PIN")) {
         layoutHome();
         return;

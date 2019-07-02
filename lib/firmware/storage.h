@@ -48,6 +48,7 @@ typedef struct _Storage {
         HDNodeType u2froot;
         uint32_t u2f_counter;
         bool no_backup;
+        bool disable_webusb_landing_page;
     } pub;
 
     bool has_sec;

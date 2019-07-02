@@ -420,6 +420,7 @@ void storage_readStorageV1(SessionState *ss, Storage *storage, const char *ptr, 
     memset(storage->pub.label, 0, sizeof(storage->pub.label));
     memcpy(storage->pub.label, ptr + 422, 33);
     storage->pub.no_backup = false;
+    storage->pub.disable_webusb_landing_page = false;
     storage->pub.imported = read_bool(ptr + 456);
     if (storage->version == 1) {
         storage->pub.policies_count = 0;
@@ -486,7 +487,8 @@ void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage) {
         (storage_isPolicyEnabled("AdvancedMode")  ? (1u << 12) : 0) |
         (storage->pub.no_backup                   ? (1u << 13) : 0) |
         (storage->has_sec_fingerprint             ? (1u << 14) : 0) |
-        /* reserved 31:15 */ 0;
+        (storage->pub.disable_webusb_landing_page ? (1u << 15) : 0) |
+        /* reserved 31:16 */ 0;
     write_u32_le(ptr + 4, flags);
 
     write_u32_le(ptr + 8, storage->pub.pin_failed_attempts);
@@ -540,6 +542,7 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     storage_readPolicyV2(&storage->pub.policies[3], "AdvancedMode",  flags & (1u << 12));
     storage->pub.no_backup =                                         flags & (1u << 13);
     storage->has_sec_fingerprint =                                   flags & (1u << 14);
+    storage->pub.disable_webusb_landing_page =                       flags & (1u << 15);
     storage->pub.policies_count = POLICY_COUNT;
 
     storage->pub.pin_failed_attempts = read_u32_le(ptr + 8);
@@ -1089,6 +1092,10 @@ void storage_loadDevice(LoadDevice *msg)
     if (msg->has_u2f_counter) {
         storage_setU2FCounter(msg->u2f_counter);
     }
+
+    if (msg->has_enable_webusb_landing_page) {
+        storage_setWebusbLandingPage(msg->enable_webusb_landing_page);
+    }
 }
 
 void storage_setLabel(const char *label)
@@ -1132,6 +1139,14 @@ const char *storage_getLanguage(void)
     }
 
     return shadow_config.storage.pub.language;
+}
+
+void storage_setWebusbLandingPage(bool enabled) {
+    shadow_config.storage.pub.disable_webusb_landing_page = !enabled;
+}
+
+bool storage_webusbLandingPage(void) {
+    return !shadow_config.storage.pub.disable_webusb_landing_page;
 }
 
 bool storage_isPinCorrect(const char *pin) {

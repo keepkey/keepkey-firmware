@@ -82,6 +82,12 @@ void storage_setLanguage(const char *lang);
 /// \brief Get device language.
 const char *storage_getLanguage(void);
 
+/// \brief Enable/disable the WebUSB landing page.
+void storage_setWebusbLandingPage(bool enabled);
+
+/// \brife Get whether the WebUSB landing page is enabled.
+bool storage_webusbLandingPage(void);
+
 /// \brief Validate pin.
 /// \return true iff the privided pin is correct.
 bool storage_isPinCorrect(const char *pin);

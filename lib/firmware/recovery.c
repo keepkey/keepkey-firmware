@@ -100,7 +100,7 @@ void next_word(void) {
 void recovery_init(uint32_t _word_count, bool passphrase_protection,
                    bool pin_protection, const char *language, const char *label,
                    bool _enforce_wordlist, uint32_t _auto_lock_delay_ms,
-                   uint32_t _u2f_counter, bool _dry_run)
+                   uint32_t _u2f_counter, bool _dry_run, bool _webusb_landing)
 {
 	if (_word_count != 12 && _word_count != 18 && _word_count != 24) {
 		fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid word count (has to be 12, 18 or 24");
@@ -128,6 +128,7 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection,
 		storage_setLabel(label);
 		storage_setAutoLockDelayMs(_auto_lock_delay_ms);
 		storage_setU2FCounter(_u2f_counter);
+		storage_setWebusbLandingPage(_webusb_landing);
 	} else if (!pin_protect("Enter Your PIN")) {
 		layoutHome();
 		return;

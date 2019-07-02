@@ -371,16 +371,23 @@ static void set_config(usbd_device *dev, uint16_t wValue)
 static usbd_device *usbd_dev;
 static uint8_t usbd_control_buffer[256] __attribute__ ((aligned (2)));
 
-static const struct usb_device_capability_descriptor* capabilities[] = {
-	(const struct usb_device_capability_descriptor*)&webusb_platform_capability_descriptor,
-};
+static const struct usb_bos_descriptor *getBOSDescriptor(bool enable_landing_page) {
+	static const struct usb_device_capability_descriptor *capabilities[1];
 
-static const struct usb_bos_descriptor bos_descriptor = {
-	.bLength = USB_DT_BOS_SIZE,
-	.bDescriptorType = USB_DT_BOS,
-	.bNumDeviceCaps = sizeof(capabilities)/sizeof(capabilities[0]),
-	.capabilities = capabilities
-};
+	if (enable_landing_page)
+		capabilities[0] = (const struct usb_device_capability_descriptor*)&webusb_platform_capability_descriptor;
+	else
+		capabilities[0] = (const struct usb_device_capability_descriptor*)&webusb_platform_capability_descriptor_no_landing_page;
+
+	static const struct usb_bos_descriptor bos_descriptor = {
+		.bLength = USB_DT_BOS_SIZE,
+		.bDescriptorType = USB_DT_BOS,
+		.bNumDeviceCaps = sizeof(capabilities)/sizeof(capabilities[0]),
+		.capabilities = capabilities
+	};
+
+	return &bos_descriptor;
+}
 
 void usbInit(const char *origin_url)
 {
@@ -392,8 +399,8 @@ void usbInit(const char *origin_url)
 
 	usbd_dev = usbd_init(&otgfs_usb_driver, &dev_descr, &config, usb_strings, sizeof(usb_strings) / sizeof(*usb_strings), usbd_control_buffer, sizeof(usbd_control_buffer));
 	usbd_register_set_config_callback(usbd_dev, set_config);
-	usb21_setup(usbd_dev, &bos_descriptor);
-	webusb_setup(usbd_dev, origin_url);
+	usb21_setup(usbd_dev, getBOSDescriptor(!!origin_url));
+	webusb_setup(usbd_dev, origin_url ? origin_url : "");
 	// Debug link interface does not have WinUSB set;
 	// if you really need debug link on windows, edit the descriptor in winusb.c
 	winusb_setup(usbd_dev, USB_INTERFACE_INDEX_MAIN);

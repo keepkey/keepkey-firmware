@@ -441,6 +441,7 @@ TEST(Storage, StorageRoundTrip) {
     start.storage.pub.imported = true;
     start.storage.pub.passphrase_protection = true;
     start.storage.pub.no_backup = false;
+    start.storage.pub.disable_webusb_landing_page = false;
     start.storage.pub.has_node = false;
     start.storage.pub.has_mnemonic = true;
     start.storage.pub.has_u2froot = false;

@@ -195,7 +195,12 @@ int main(void)
 
     led_func(SET_GREEN_LED);
 
-    usbInit(storage_isInitialized() ? "keepkey.com/wallet" : "keepkey.com/get-started");
+    const char *origin_url = "";
+    if (!storage_isInitialized())
+        origin_url = "keepkey.com/get-started";
+    else if (storage_webusbLandingPage())
+        origin_url = "keepkey.com/wallet";
+    usbInit(origin_url);
     u2fInit();
     led_func(CLR_RED_LED);
 
