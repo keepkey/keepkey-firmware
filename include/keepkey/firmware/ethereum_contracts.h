@@ -33,4 +33,15 @@ bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx *msg,
 bool ethereum_contractConfirmed(uint32_t data_total, const EthereumSignTx *msg,
                                 const HDNode *node);
 
+
+bool ethereum_contractIsMethod(const EthereumSignTx *msg, const char *hash, size_t arg_count);
+const uint8_t *ethereum_contractGetMethod(const EthereumSignTx *msg);
+bool ethereum_contractHasParams(const EthereumSignTx *msg, size_t count);
+const uint8_t *ethereum_contractGetParam(const EthereumSignTx *msg, size_t idx);
+bool ethereum_contractHasProxiedParams(const EthereumSignTx *msg, size_t count);
+const uint8_t *ethereum_contractGetProxiedMethod(const EthereumSignTx *msg);
+bool ethereum_contractIsProxyCall(const EthereumSignTx *msg);
+void ethereum_contractGetETHValue(const EthereumSignTx *msg, bignum256 *val);
+bool ethereum_contractIsETHValueZero(const EthereumSignTx *msg);
+
 #endif

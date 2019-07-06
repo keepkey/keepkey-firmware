@@ -22,6 +22,7 @@
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/util.h"
 #include "keepkey/firmware/ethereum.h"
+#include "keepkey/firmware/ethereum_contracts.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/fsm.h"
 #include "trezor/crypto/address.h"
@@ -141,34 +142,6 @@ static bool confirmSaiProxyCreateAndExecuteAddress(const uint8_t *address, uint3
                    "Confirm SaiProxyCreateAndExecute:\n%s", contract);
 }
 
-static bool isProxyCall(const EthereumSignTx *msg) {
-    if (memcmp(msg->data_initial_chunk.bytes, "\x1c\xff\x79\xcd", 4) != 0)
-        return false;
-
-    if (msg->data_initial_chunk.size < 4 + 32 + 32 + 32)
-        return false;
-
-    bignum256 offset;
-    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 32, 32, &offset);
-
-    if (32 < bn_bitcount(&offset))
-        return false;
-
-    if (64 != bn_write_uint32(&offset))
-        return false;
-
-    bignum256 length;
-    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 32 + 32, 32, &length);
-
-    if (32 < bn_bitcount(&length))
-        return false;
-
-    if (msg->data_initial_chunk.size == 4 + 3 * 32 + (bn_write_uint32(&length) - 4))
-        return false;
-
-    return true;
-}
-
 static bool confirmProxyCall(const EthereumSignTx *msg)
 {
     if (memcmp(msg->data_initial_chunk.bytes + 4, "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 12) != 0)
@@ -180,75 +153,10 @@ static bool confirmProxyCall(const EthereumSignTx *msg)
     return true;
 }
 
-static inline bool hasParams(const EthereumSignTx *msg, size_t count)
-{
-    return msg->data_initial_chunk.size == 4 + count * 32;
-}
-
-static inline bool hasProxiedParams(const EthereumSignTx *msg, size_t count)
-{
-    return msg->data_initial_chunk.size == 4 + 3 * 32 + 4 + count * 32 + (32 - 4);
-}
-
-static inline const uint8_t *getMethod(const EthereumSignTx *msg)
-{
-    return msg->data_initial_chunk.bytes;
-}
-
-static inline const uint8_t *getParam(const EthereumSignTx *msg, size_t idx)
-{
-    if (isProxyCall(msg)) {
-        return msg->data_initial_chunk.bytes + 4 + 3 * 32 + 4 + idx * 32;
-    }
-
-    return msg->data_initial_chunk.bytes + 4 + idx * 32;
-}
-
-static inline const uint8_t *getProxiedMethod(const EthereumSignTx *msg)
-{
-    return msg->data_initial_chunk.bytes + 4 + 3 * 32;
-}
-
-static bool isMethod(const EthereumSignTx *msg, const char *hash,
-                     size_t arg_count)
-{
-    if (isProxyCall(msg)) {
-        if (!hasProxiedParams(msg, arg_count))
-            return false;
-
-        if (memcmp(getProxiedMethod(msg), hash, 4) != 0)
-            return false;
-
-        return true;
-    }
-
-    if (!hasParams(msg, arg_count))
-        return false;
-
-    if (memcmp(getMethod(msg), hash, 4) != 0)
-        return false;
-
-    return true;
-}
-
-static void getETHValue(const EthereumSignTx *msg, bignum256 *val)
-{
-    uint8_t pad_val[32];
-    memset(pad_val, 0, sizeof(pad_val));
-    memcpy(pad_val + (32 - msg->value.size), msg->value.bytes, msg->value.size);
-    bn_read_be(pad_val, val);
-}
-
-static bool isETHValueZero(const EthereumSignTx *msg) {
-    bignum256 val;
-    getETHValue(msg, &val);
-    return bn_is_zero(&val);
-}
-
 bool makerdao_isOpen(const EthereumSignTx *msg)
 {
     // `open(address)`
-    if (!isMethod(msg, "\xc7\x40\x73\xa1", 1))
+    if (!ethereum_contractIsMethod(msg, "\xc7\x40\x73\xa1", 1))
         return false;
 
     return true;
@@ -256,7 +164,7 @@ bool makerdao_isOpen(const EthereumSignTx *msg)
 
 bool makerdao_confirmOpen(const EthereumSignTx *msg)
 {
-    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
+    if (!confirmParamIsTub(ethereum_contractGetParam(msg, 0), msg->chain_id))
         return false;
 
     return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "MakerDAO",
@@ -267,15 +175,15 @@ bool makerdao_isClose(const EthereumSignTx *msg)
 {
     // `shut(address,bytes32)`
     // `shut(address,bytes32,address)`
-    if (!isMethod(msg, "\xbc\x24\x4c\x11", 2) &&
-        !isMethod(msg, "\x79\x20\x37\xe3", 3))
+    if (!ethereum_contractIsMethod(msg, "\xbc\x24\x4c\x11", 2) &&
+        !ethereum_contractIsMethod(msg, "\x79\x20\x37\xe3", 3))
         return false;
 
     uint32_t cupId;
-    if (!getCupId(getParam(msg, 1), &cupId))
+    if (!getCupId(ethereum_contractGetParam(msg, 1), &cupId))
         return false;
 
-    if (!isETHValueZero(msg))
+    if (!ethereum_contractIsETHValueZero(msg))
         return false;
 
     return true;
@@ -283,16 +191,16 @@ bool makerdao_isClose(const EthereumSignTx *msg)
 
 bool makerdao_confirmClose(const EthereumSignTx *msg)
 {
-    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
+    if (!confirmParamIsTub(ethereum_contractGetParam(msg, 0), msg->chain_id))
         return false;
 
     uint32_t cupId;
-    if (!getCupId(getParam(msg, 1), &cupId))
+    if (!getCupId(ethereum_contractGetParam(msg, 1), &cupId))
         return false;
 
     const char *otcProvider = "";
-    if (isMethod(msg, "\x79\x20\x37\xe3", 3)) {
-        if (confirmParamIsOTCProvider(getParam(msg, 2), msg->chain_id, &otcProvider))
+    if (ethereum_contractIsMethod(msg, "\x79\x20\x37\xe3", 3)) {
+        if (confirmParamIsOTCProvider(ethereum_contractGetParam(msg, 2), msg->chain_id, &otcProvider))
             return false;
     }
 
@@ -303,17 +211,17 @@ bool makerdao_confirmClose(const EthereumSignTx *msg)
 bool makerdao_isGive(const EthereumSignTx *msg)
 {
     // `give(address,bytes32,address)`
-    if (!isMethod(msg, "\xda\x93\xdf\xcf", 3))
+    if (!ethereum_contractIsMethod(msg, "\xda\x93\xdf\xcf", 3))
         return false;
 
     uint32_t cupId;
-    if (!getCupId(getParam(msg, 1), &cupId))
+    if (!getCupId(ethereum_contractGetParam(msg, 1), &cupId))
         return false;
 
-    if (memcmp(getParam(msg, 2), "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 12) != 0)
+    if (memcmp(ethereum_contractGetParam(msg, 2), "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 12) != 0)
         return false;
 
-    if (!isETHValueZero(msg))
+    if (!ethereum_contractIsETHValueZero(msg))
         return false;
 
     return true;
@@ -321,15 +229,15 @@ bool makerdao_isGive(const EthereumSignTx *msg)
 
 bool makerdao_confirmGive(const EthereumSignTx *msg)
 {
-    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
+    if (!confirmParamIsTub(ethereum_contractGetParam(msg, 0), msg->chain_id))
         return false;
 
     uint32_t cupId;
-    if (!getCupId(getParam(msg, 1), &cupId))
+    if (!getCupId(ethereum_contractGetParam(msg, 1), &cupId))
         return false;
 
     char new_owner[43] = "0x";
-    ethereum_address_checksum(getParam(msg, 2) + 12, new_owner + 2, false, msg->chain_id);
+    ethereum_address_checksum(ethereum_contractGetParam(msg, 2) + 12, new_owner + 2, false, msg->chain_id);
 
     return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "MakerDAO",
                    "Move CDP %" PRIu32 " to %s?", cupId, new_owner);
@@ -338,7 +246,7 @@ bool makerdao_confirmGive(const EthereumSignTx *msg)
 bool makerdao_isLockAndDraw2(const EthereumSignTx *msg)
 {
     // `lockAndDraw(address,uint256)`
-    if (!isMethod(msg, "\x51\x6e\x9a\xec", 2))
+    if (!ethereum_contractIsMethod(msg, "\x51\x6e\x9a\xec", 2))
         return false;
 
     return true;
@@ -346,11 +254,11 @@ bool makerdao_isLockAndDraw2(const EthereumSignTx *msg)
 
 bool makerdao_confirmLockAndDraw2(const EthereumSignTx *msg)
 {
-    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
+    if (!confirmParamIsTub(ethereum_contractGetParam(msg, 0), msg->chain_id))
         return false;
 
     bignum256 deposit_val;
-    getETHValue(msg, &deposit_val);
+    ethereum_contractGetETHValue(msg, &deposit_val);
 
     char deposit[32];
     ethereumFormatAmount(&deposit_val, NULL, msg->chain_id, deposit, sizeof(deposit));
@@ -360,7 +268,7 @@ bool makerdao_confirmLockAndDraw2(const EthereumSignTx *msg)
         return false;
 
     bignum256 withdraw_val;
-    bn_from_bytes(getParam(msg, 1), 32, &withdraw_val);
+    bn_from_bytes(ethereum_contractGetParam(msg, 1), 32, &withdraw_val);
 
     char withdraw[32];
     ethereumFormatAmount(&withdraw_val, DAI, msg->chain_id, withdraw, sizeof(withdraw));
@@ -373,7 +281,7 @@ bool makerdao_confirmLockAndDraw2(const EthereumSignTx *msg)
 bool makerdao_isCreateOpenLockAndDraw(const EthereumSignTx *msg)
 {
     // `createOpenLockAndDraw(address,address,uint256)`
-    if (!isMethod(msg, "\xd3\x14\x0a\x65", 3))
+    if (!ethereum_contractIsMethod(msg, "\xd3\x14\x0a\x65", 3))
         return false;
 
     return true;
@@ -381,14 +289,14 @@ bool makerdao_isCreateOpenLockAndDraw(const EthereumSignTx *msg)
 
 bool makerdao_confirmCreateOpenLockAndDraw(const EthereumSignTx *msg)
 {
-    if (!confirmParamIsRegistryAddress(getParam(msg, 0), msg->chain_id))
+    if (!confirmParamIsRegistryAddress(ethereum_contractGetParam(msg, 0), msg->chain_id))
         return false;
 
-    if (!confirmParamIsTub(getParam(msg, 1), msg->chain_id))
+    if (!confirmParamIsTub(ethereum_contractGetParam(msg, 1), msg->chain_id))
         return false;
 
     bignum256 deposit_val;
-    getETHValue(msg, &deposit_val);
+    ethereum_contractGetETHValue(msg, &deposit_val);
 
     char deposit[32];
     ethereumFormatAmount(&deposit_val, NULL, msg->chain_id, deposit, sizeof(deposit));
@@ -398,7 +306,7 @@ bool makerdao_confirmCreateOpenLockAndDraw(const EthereumSignTx *msg)
         return false;
 
     bignum256 withdraw_val;
-    bn_from_bytes(getParam(msg, 2), 32, &withdraw_val);
+    bn_from_bytes(ethereum_contractGetParam(msg, 2), 32, &withdraw_val);
 
     char withdraw[32];
     ethereumFormatAmount(&withdraw_val, DAI, msg->chain_id, withdraw, sizeof(withdraw));
@@ -411,11 +319,11 @@ bool makerdao_confirmCreateOpenLockAndDraw(const EthereumSignTx *msg)
 bool makerdao_isLock(const EthereumSignTx *msg)
 {
     // `lock(address,bytes32)`
-    if (!isMethod(msg, "\xbc\x25\xa8\x10", 2))
+    if (!ethereum_contractIsMethod(msg, "\xbc\x25\xa8\x10", 2))
         return false;
 
     uint32_t cupId;
-    if (!getCupId(getParam(msg, 1), &cupId))
+    if (!getCupId(ethereum_contractGetParam(msg, 1), &cupId))
         return false;
 
     return true;
@@ -423,17 +331,17 @@ bool makerdao_isLock(const EthereumSignTx *msg)
 
 bool makerdao_confirmLock(const EthereumSignTx *msg)
 {
-    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
+    if (!confirmParamIsTub(ethereum_contractGetParam(msg, 0), msg->chain_id))
         return false;
 
     bignum256 deposit_val;
-    getETHValue(msg, &deposit_val);
+    ethereum_contractGetETHValue(msg, &deposit_val);
 
     char deposit[32];
     ethereumFormatAmount(&deposit_val, NULL, msg->chain_id, deposit, sizeof(deposit));
 
     uint32_t cupId;
-    if (!getCupId(getParam(msg, 1), &cupId))
+    if (!getCupId(ethereum_contractGetParam(msg, 1), &cupId))
         return false;
 
     return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "MakerDAO",
@@ -443,14 +351,14 @@ bool makerdao_confirmLock(const EthereumSignTx *msg)
 bool makerdao_isDraw(const EthereumSignTx *msg)
 {
     // `draw(address,bytes32,uint256)`
-    if (!isMethod(msg, "\x03\x44\xa3\x6f", 3))
+    if (!ethereum_contractIsMethod(msg, "\x03\x44\xa3\x6f", 3))
         return false;
 
     uint32_t cupId;
-    if (!getCupId(getParam(msg, 1), &cupId))
+    if (!getCupId(ethereum_contractGetParam(msg, 1), &cupId))
         return false;
 
-    if (!isETHValueZero(msg))
+    if (!ethereum_contractIsETHValueZero(msg))
         return false;
 
     return true;
@@ -458,15 +366,15 @@ bool makerdao_isDraw(const EthereumSignTx *msg)
 
 bool makerdao_confirmDraw(const EthereumSignTx *msg)
 {
-    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
+    if (!confirmParamIsTub(ethereum_contractGetParam(msg, 0), msg->chain_id))
         return false;
 
     uint32_t cupId;
-    if (!getCupId(getParam(msg, 1), &cupId))
+    if (!getCupId(ethereum_contractGetParam(msg, 1), &cupId))
         return false;
 
     bignum256 withdraw_val;
-    bn_from_bytes(getParam(msg, 2), 32, &withdraw_val);
+    bn_from_bytes(ethereum_contractGetParam(msg, 2), 32, &withdraw_val);
 
     const TokenType *DAI;
     if (!tokenByTicker(msg->chain_id, "DAI", &DAI))
@@ -482,11 +390,11 @@ bool makerdao_confirmDraw(const EthereumSignTx *msg)
 bool makerdao_isLockAndDraw3(const EthereumSignTx *msg)
 {
     // `lockAndDraw(address,bytes32,uint256)`
-    if (!isMethod(msg, "\x1e\xdf\x0c\x1e", 3))
+    if (!ethereum_contractIsMethod(msg, "\x1e\xdf\x0c\x1e", 3))
         return false;
 
     uint32_t cupId;
-    if (!getCupId(getParam(msg, 1), &cupId))
+    if (!getCupId(ethereum_contractGetParam(msg, 1), &cupId))
         return false;
 
     return true;
@@ -494,21 +402,21 @@ bool makerdao_isLockAndDraw3(const EthereumSignTx *msg)
 
 bool makerdao_confirmLockAndDraw3(const EthereumSignTx *msg)
 {
-    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
+    if (!confirmParamIsTub(ethereum_contractGetParam(msg, 0), msg->chain_id))
         return false;
 
     bignum256 deposit_val;
-    getETHValue(msg, &deposit_val);
+    ethereum_contractGetETHValue(msg, &deposit_val);
 
     char deposit[32];
     ethereumFormatAmount(&deposit_val, NULL, msg->chain_id, deposit, sizeof(deposit));
 
     uint32_t cupId;
-    if (!getCupId(getParam(msg, 1), &cupId))
+    if (!getCupId(ethereum_contractGetParam(msg, 1), &cupId))
         return false;
 
     bignum256 withdraw_val;
-    bn_from_bytes(getParam(msg, 2), 32, &withdraw_val);
+    bn_from_bytes(ethereum_contractGetParam(msg, 2), 32, &withdraw_val);
 
     const TokenType *DAI;
     if (!tokenByTicker(msg->chain_id, "DAI", &DAI))
@@ -525,14 +433,14 @@ bool makerdao_confirmLockAndDraw3(const EthereumSignTx *msg)
 bool makerdao_isFree(const EthereumSignTx *msg)
 {
     // `free(address,bytes32,uint256)`
-    if (!isMethod(msg, "\xf9\xef\x04\xbe", 3))
+    if (!ethereum_contractIsMethod(msg, "\xf9\xef\x04\xbe", 3))
         return false;
 
     uint32_t cupId;
-    if (!getCupId(getParam(msg, 1), &cupId))
+    if (!getCupId(ethereum_contractGetParam(msg, 1), &cupId))
         return false;
 
-    if (!isETHValueZero(msg))
+    if (!ethereum_contractIsETHValueZero(msg))
         return false;
 
     return true;
@@ -540,15 +448,15 @@ bool makerdao_isFree(const EthereumSignTx *msg)
 
 bool makerdao_confirmFree(const EthereumSignTx *msg)
 {
-    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
+    if (!confirmParamIsTub(ethereum_contractGetParam(msg, 0), msg->chain_id))
         return false;
 
     uint32_t cupId;
-    if (!getCupId(getParam(msg, 1), &cupId))
+    if (!getCupId(ethereum_contractGetParam(msg, 1), &cupId))
         return false;
 
     bignum256 withdraw_val;
-    bn_from_bytes(getParam(msg, 2), 32, &withdraw_val);
+    bn_from_bytes(ethereum_contractGetParam(msg, 2), 32, &withdraw_val);
 
     char withdraw[32];
     ethereumFormatAmount(&withdraw_val, NULL, msg->chain_id, withdraw, sizeof(withdraw));
@@ -562,15 +470,15 @@ bool makerdao_isWipe(const EthereumSignTx *msg)
 {
     // `wipe(address,bytes,uint256)`
     // `wipe(address,bytes,uint256,address)`
-    if (!isMethod(msg, "\xa3\xdc\x65\xa7", 3) &&
-        !isMethod(msg, "\x8a\x9f\xc4\x75", 4))
+    if (!ethereum_contractIsMethod(msg, "\xa3\xdc\x65\xa7", 3) &&
+        !ethereum_contractIsMethod(msg, "\x8a\x9f\xc4\x75", 4))
         return false;
 
     uint32_t cupId;
-    if (!getCupId(getParam(msg, 1), &cupId))
+    if (!getCupId(ethereum_contractGetParam(msg, 1), &cupId))
         return false;
 
-    if (!isETHValueZero(msg))
+    if (!ethereum_contractIsETHValueZero(msg))
         return false;
 
     return true;
@@ -578,15 +486,15 @@ bool makerdao_isWipe(const EthereumSignTx *msg)
 
 bool makerdao_confirmWipe(const EthereumSignTx *msg)
 {
-    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
+    if (!confirmParamIsTub(ethereum_contractGetParam(msg, 0), msg->chain_id))
         return false;
 
     uint32_t cupId;
-    if (!getCupId(getParam(msg, 1), &cupId))
+    if (!getCupId(ethereum_contractGetParam(msg, 1), &cupId))
         return false;
 
     bignum256 deposit_val;
-    bn_from_bytes(getParam(msg, 2), 32, &deposit_val);
+    bn_from_bytes(ethereum_contractGetParam(msg, 2), 32, &deposit_val);
 
     const TokenType *DAI;
     if (!tokenByTicker(msg->chain_id, "DAI", &DAI))
@@ -596,8 +504,8 @@ bool makerdao_confirmWipe(const EthereumSignTx *msg)
     ethereumFormatAmount(&deposit_val, DAI, msg->chain_id, deposit, sizeof(deposit));
 
     const char *otcProvider = "";
-    if (isMethod(msg, "\x8a\x9f\xc4\x75", 4)) {
-        if (confirmParamIsOTCProvider(getParam(msg, 2), msg->chain_id, &otcProvider))
+    if (ethereum_contractIsMethod(msg, "\x8a\x9f\xc4\x75", 4)) {
+        if (confirmParamIsOTCProvider(ethereum_contractGetParam(msg, 2), msg->chain_id, &otcProvider))
             return false;
     }
 
@@ -610,15 +518,15 @@ bool makerdao_isWipeAndFree(const EthereumSignTx *msg)
 {
     // `wipeAndFree(address,bytes32,uint256,uint256)`
     // `wipeAndFree(address,bytes32,uint256,uint256,address)`
-    if (!isMethod(msg, "\xfa\xed\x77\xab", 4) &&
-        !isMethod(msg, "\x1b\x96\x81\x60", 5))
+    if (!ethereum_contractIsMethod(msg, "\xfa\xed\x77\xab", 4) &&
+        !ethereum_contractIsMethod(msg, "\x1b\x96\x81\x60", 5))
         return false;
 
     uint32_t cupId;
-    if (!getCupId(getParam(msg, 1), &cupId))
+    if (!getCupId(ethereum_contractGetParam(msg, 1), &cupId))
         return false;
 
-    if (!isETHValueZero(msg))
+    if (!ethereum_contractIsETHValueZero(msg))
         return false;
 
     return true;
@@ -626,15 +534,15 @@ bool makerdao_isWipeAndFree(const EthereumSignTx *msg)
 
 bool makerdao_confirmWipeAndFree(const EthereumSignTx *msg)
 {
-    if (!confirmParamIsTub(getParam(msg, 0), msg->chain_id))
+    if (!confirmParamIsTub(ethereum_contractGetParam(msg, 0), msg->chain_id))
         return false;
 
     uint32_t cupId;
-    if (!getCupId(getParam(msg, 1), &cupId))
+    if (!getCupId(ethereum_contractGetParam(msg, 1), &cupId))
         return false;
 
     bignum256 deposit_val;
-    bn_from_bytes(getParam(msg, 2), 32, &deposit_val);
+    bn_from_bytes(ethereum_contractGetParam(msg, 2), 32, &deposit_val);
 
     const TokenType *DAI;
     if (!tokenByTicker(msg->chain_id, "DAI", &DAI))
@@ -644,14 +552,14 @@ bool makerdao_confirmWipeAndFree(const EthereumSignTx *msg)
     ethereumFormatAmount(&deposit_val, DAI, msg->chain_id, deposit, sizeof(deposit));
 
     bignum256 withdraw_val;
-    bn_from_bytes(getParam(msg, 2), 32, &withdraw_val);
+    bn_from_bytes(ethereum_contractGetParam(msg, 2), 32, &withdraw_val);
 
     char withdraw[32];
     ethereumFormatAmount(&withdraw_val, NULL, msg->chain_id, withdraw, sizeof(withdraw));
 
     const char *otcProvider = "";
-    if (isMethod(msg, "\x1b\x96\x81\x60", 5)) {
-        if (!confirmParamIsOTCProvider(getParam(msg, 4), msg->chain_id, &otcProvider))
+    if (ethereum_contractIsMethod(msg, "\x1b\x96\x81\x60", 5)) {
+        if (!confirmParamIsOTCProvider(ethereum_contractGetParam(msg, 4), msg->chain_id, &otcProvider))
             return false;
     }
 
@@ -708,7 +616,7 @@ bool makerdao_confirmMakerDAO(uint32_t data_total, const EthereumSignTx *msg)
 {
     (void)data_total;
 
-    if (isProxyCall(msg)) {
+    if (ethereum_contractIsProxyCall(msg)) {
         if (!confirmProxyCall(msg)) {
             return false;
         }

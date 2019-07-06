@@ -19,8 +19,11 @@
 
 #include "keepkey/firmware/ethereum_contracts.h"
 
+#include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_contracts/compound.h"
 #include "keepkey/firmware/ethereum_contracts/makerdao.h"
+#include "keepkey/firmware/fsm.h"
+#include "trezor/crypto/bignum.h"
 
 bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx *msg,
                               const HDNode *node)
@@ -49,3 +52,97 @@ bool ethereum_contractConfirmed(uint32_t data_total, const EthereumSignTx *msg,
 
     return false;
 }
+
+bool ethereum_contractIsMethod(const EthereumSignTx *msg, const char *hash,
+                              size_t arg_count)
+{
+    if (ethereum_contractIsProxyCall(msg)) {
+        if (!ethereum_contractHasProxiedParams(msg, arg_count))
+            return false;
+
+        if (memcmp(ethereum_contractGetProxiedMethod(msg), hash, 4) != 0)
+            return false;
+
+        return true;
+    }
+
+    if (!ethereum_contractHasParams(msg, arg_count))
+        return false;
+
+    if (memcmp(ethereum_contractGetMethod(msg), hash, 4) != 0)
+        return false;
+
+    return true;
+}
+
+const uint8_t *ethereum_contractGetMethod(const EthereumSignTx *msg)
+{
+    return msg->data_initial_chunk.bytes;
+}
+
+bool ethereum_contractHasParams(const EthereumSignTx *msg, size_t count)
+{
+    return msg->data_initial_chunk.size == 4 + count * 32;
+}
+
+const uint8_t *ethereum_contractGetParam(const EthereumSignTx *msg, size_t idx)
+{
+    if (ethereum_contractIsProxyCall(msg)) {
+        return msg->data_initial_chunk.bytes + 4 + 3 * 32 + 4 + idx * 32;
+    }
+
+    return msg->data_initial_chunk.bytes + 4 + idx * 32;
+}
+
+bool ethereum_contractHasProxiedParams(const EthereumSignTx *msg, size_t count)
+{
+    return msg->data_initial_chunk.size == 4 + 3 * 32 + 4 + count * 32 + (32 - 4);
+}
+
+const uint8_t *ethereum_contractGetProxiedMethod(const EthereumSignTx *msg)
+{
+    return msg->data_initial_chunk.bytes + 4 + 3 * 32;
+}
+
+bool ethereum_contractIsProxyCall(const EthereumSignTx *msg) {
+    if (memcmp(msg->data_initial_chunk.bytes, "\x1c\xff\x79\xcd", 4) != 0)
+        return false;
+
+    if (msg->data_initial_chunk.size < 4 + 32 + 32 + 32)
+        return false;
+
+    bignum256 offset;
+    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 32, 32, &offset);
+
+    if (32 < bn_bitcount(&offset))
+        return false;
+
+    if (64 != bn_write_uint32(&offset))
+        return false;
+
+    bignum256 length;
+    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 32 + 32, 32, &length);
+
+    if (32 < bn_bitcount(&length))
+        return false;
+
+    if (msg->data_initial_chunk.size == 4 + 3 * 32 + (bn_write_uint32(&length) - 4))
+        return false;
+
+    return true;
+}
+
+void ethereum_contractGetETHValue(const EthereumSignTx *msg, bignum256 *val)
+{
+    uint8_t pad_val[32];
+    memset(pad_val, 0, sizeof(pad_val));
+    memcpy(pad_val + (32 - msg->value.size), msg->value.bytes, msg->value.size);
+    bn_read_be(pad_val, val);
+}
+
+bool ethereum_contractIsETHValueZero(const EthereumSignTx *msg) {
+    bignum256 val;
+    ethereum_contractGetETHValue(msg, &val);
+    return bn_is_zero(&val);
+}
+

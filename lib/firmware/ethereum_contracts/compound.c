@@ -22,6 +22,7 @@
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/util.h"
 #include "keepkey/firmware/ethereum.h"
+#include "keepkey/firmware/ethereum_contracts.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/fsm.h"
 #include "trezor/crypto/address.h"
@@ -68,45 +69,10 @@ static CompoundContract *contractBySymbol(uint32_t chain_id, const char *symbol)
     return NULL;
 }
 
-static void getETHValue(const EthereumSignTx *msg, bignum256 *val)
-{
-    uint8_t pad_val[32];
-    memset(pad_val, 0, sizeof(pad_val));
-    memcpy(pad_val + (32 - msg->value.size), msg->value.bytes, msg->value.size);
-    bn_read_be(pad_val, val);
-}
-
-static inline const uint8_t *getMethod(const EthereumSignTx *msg)
-{
-    return msg->data_initial_chunk.bytes;
-}
-
-static inline bool hasParams(const EthereumSignTx *msg, size_t count)
-{
-    return msg->data_initial_chunk.size == 4 + count * 32;
-}
-
-static inline const uint8_t *getParam(const EthereumSignTx *msg, size_t idx)
-{
-    return msg->data_initial_chunk.bytes + 4 + idx * 32;
-}
-
-static bool isMethod(const EthereumSignTx *msg, const char *hash,
-                     size_t arg_count)
-{
-    if (!hasParams(msg, arg_count))
-        return false;
-
-    if (memcmp(getMethod(msg), hash, 4) != 0)
-        return false;
-
-    return true;
-}
-
 static bool isMintCEther(const EthereumSignTx *msg)
 {
     // `mint()`
-    if (!isMethod(msg, "\x12\x49\xc5\x8b", 0))
+    if (!ethereum_contractIsMethod(msg, "\x12\x49\xc5\x8b", 0))
         return false;
 
     if (contractByAddress(msg->to.bytes) != contractBySymbol(msg->chain_id, "cETH"))
@@ -118,7 +84,7 @@ static bool isMintCEther(const EthereumSignTx *msg)
 static bool confirmMintCEther(const EthereumSignTx *msg)
 {
     bignum256 deposit_val;
-    getETHValue(msg, &deposit_val);
+    ethereum_contractGetETHValue(msg, &deposit_val);
 
     char deposit[32];
     ethereumFormatAmount(&deposit_val, NULL, msg->chain_id, deposit, sizeof(deposit));
@@ -130,7 +96,7 @@ static bool confirmMintCEther(const EthereumSignTx *msg)
 static bool isMintCErc20(const EthereumSignTx *msg)
 {
     // `mint(uint256)`
-    if (!isMethod(msg, "\xa0\x71\x2d\x68", 1))
+    if (!ethereum_contractIsMethod(msg, "\xa0\x71\x2d\x68", 1))
         return false;
 
     if (contractByAddress(msg->to.bytes) == contractBySymbol(msg->chain_id, "cETH"))
@@ -146,7 +112,7 @@ static bool confirmMintCErc20(const EthereumSignTx *msg)
         return false;
 
     bignum256 value;
-    bn_from_bytes(getParam(msg, 0), 32, &value);
+    bn_from_bytes(ethereum_contractGetParam(msg, 0), 32, &value);
 
     char deposit[32];
     ethereumFormatAmount(&value, &CC->token, msg->chain_id, deposit, sizeof(deposit));
@@ -158,7 +124,7 @@ static bool confirmMintCErc20(const EthereumSignTx *msg)
 static bool isRedeem(const EthereumSignTx *msg)
 {
     // `redeem(uint256)`
-    if (!isMethod(msg, "\xdb\x00\x6a\x75", 1))
+    if (!ethereum_contractIsMethod(msg, "\xdb\x00\x6a\x75", 1))
         return false;
 
     return true;
@@ -171,7 +137,7 @@ static bool confirmRedeem(const EthereumSignTx *msg)
         return false;
 
     bignum256 value;
-    bn_from_bytes(getParam(msg, 0), 32, &value);
+    bn_from_bytes(ethereum_contractGetParam(msg, 0), 32, &value);
 
     char redeem[32];
     ethereumFormatAmount(&value, &CC->ctoken, msg->chain_id, redeem, sizeof(redeem));
@@ -183,7 +149,7 @@ static bool confirmRedeem(const EthereumSignTx *msg)
 static bool isRedeemUnderlying(const EthereumSignTx *msg)
 {
     // `redeemUnderlying(uint256)`
-    if (!isMethod(msg, "\x85\x2a\x12\xe3", 1))
+    if (!ethereum_contractIsMethod(msg, "\x85\x2a\x12\xe3", 1))
         return false;
 
     return true;
@@ -198,7 +164,7 @@ static bool confirmRedeemUnderlying(const EthereumSignTx *msg)
     bool iscETH = CC == contractBySymbol(msg->chain_id, "cETH");
 
     bignum256 value;
-    bn_from_bytes(getParam(msg, 0), 32, &value);
+    bn_from_bytes(ethereum_contractGetParam(msg, 0), 32, &value);
 
     char redeem[32];
     ethereumFormatAmount(&value, iscETH ? NULL : &CC->token, msg->chain_id, redeem, sizeof(redeem));
@@ -210,7 +176,7 @@ static bool confirmRedeemUnderlying(const EthereumSignTx *msg)
 static bool isBorrow(const EthereumSignTx *msg)
 {
     // `borrow(uint256)`
-    if (!isMethod(msg, "\xc5\xeb\xea\xec", 1))
+    if (!ethereum_contractIsMethod(msg, "\xc5\xeb\xea\xec", 1))
         return false;
 
     return true;
@@ -225,7 +191,7 @@ static bool confirmBorrow(const EthereumSignTx *msg)
     bool iscETH = CC == contractBySymbol(msg->chain_id, "cETH");
 
     bignum256 value;
-    bn_from_bytes(getParam(msg, 0), 32, &value);
+    bn_from_bytes(ethereum_contractGetParam(msg, 0), 32, &value);
 
     char borrow[32];
     ethereumFormatAmount(&value, iscETH ? NULL : &CC->token, msg->chain_id, borrow, sizeof(borrow));
@@ -237,7 +203,7 @@ static bool confirmBorrow(const EthereumSignTx *msg)
 static bool isRepayBorrowCErc20(const EthereumSignTx *msg)
 {
     // `repayBorrow(uint256)`
-    if (!isMethod(msg, "\x0e\x75\x27\x02", 1))
+    if (!ethereum_contractIsMethod(msg, "\x0e\x75\x27\x02", 1))
         return false;
 
     if (contractByAddress(msg->to.bytes) == contractBySymbol(msg->chain_id, "cETH"))
@@ -252,12 +218,12 @@ static bool confirmRepayBorrowCErc20(const EthereumSignTx *msg)
     if (!CC)
         return false;
 
-    if (memcmp(getParam(msg, 0), "\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff", 32) == 0)
+    if (memcmp(ethereum_contractGetParam(msg, 0), "\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff", 32) == 0)
         return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Compound",
                    "Repay full %s debt?", CC->token.ticker);
 
     bignum256 value;
-    bn_from_bytes(getParam(msg, 0), 32, &value);
+    bn_from_bytes(ethereum_contractGetParam(msg, 0), 32, &value);
 
     char repay[32];
     ethereumFormatAmount(&value, &CC->token, msg->chain_id, repay, sizeof(repay));
@@ -269,7 +235,7 @@ static bool confirmRepayBorrowCErc20(const EthereumSignTx *msg)
 static bool isRepayBorrowCEther(const EthereumSignTx *msg)
 {
     // `repayBorrow()`
-    if (!isMethod(msg, "\x4e\x4d\x9f\xea", 1))
+    if (!ethereum_contractIsMethod(msg, "\x4e\x4d\x9f\xea", 1))
         return false;
 
     if (contractByAddress(msg->to.bytes) != contractBySymbol(msg->chain_id, "cETH"))
@@ -285,7 +251,7 @@ static bool confirmRepayBorrowCEther(const EthereumSignTx *msg)
         return false;
 
     bignum256 value;
-    getETHValue(msg, &value);
+    ethereum_contractGetETHValue(msg, &value);
 
     char repay[32];
     ethereumFormatAmount(&value, NULL, msg->chain_id, repay, sizeof(repay));
@@ -297,7 +263,7 @@ static bool confirmRepayBorrowCEther(const EthereumSignTx *msg)
 static bool isRepayBorrowBehalfCErc20(const EthereumSignTx *msg)
 {
     // `repayBorrowBehalf(address,uint256)`
-    if (!isMethod(msg, "\x26\x08\xf8\x18", 2))
+    if (!ethereum_contractIsMethod(msg, "\x26\x08\xf8\x18", 2))
         return false;
 
     if (contractByAddress(msg->to.bytes) == contractBySymbol(msg->chain_id, "cETH"))
@@ -313,14 +279,14 @@ static bool confirmRepayBorrowBehalfCErc20(const EthereumSignTx *msg)
         return false;
 
     char borrower[43] = "0x";
-    ethereum_address_checksum(getParam(msg, 0) + 12, borrower + 2, false, msg->chain_id);
+    ethereum_address_checksum(ethereum_contractGetParam(msg, 0) + 12, borrower + 2, false, msg->chain_id);
 
-    if (memcmp(getParam(msg, 1), "\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff", 32) == 0)
+    if (memcmp(ethereum_contractGetParam(msg, 1), "\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff", 32) == 0)
         return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Compound",
                    "Repay full %s debt on behalf of %s?", CC->token.ticker, borrower);
 
     bignum256 value;
-    bn_from_bytes(getParam(msg, 1), 32, &value);
+    bn_from_bytes(ethereum_contractGetParam(msg, 1), 32, &value);
 
     char repay[32];
     ethereumFormatAmount(&value, &CC->token, msg->chain_id, repay, sizeof(repay));
@@ -332,7 +298,7 @@ static bool confirmRepayBorrowBehalfCErc20(const EthereumSignTx *msg)
 static bool isRepayBorrowBehalfCEther(const EthereumSignTx *msg)
 {
     // `repayBorrowBehalf(address)`
-    if (!isMethod(msg, "\xe5\x97\x46\x19", 1))
+    if (!ethereum_contractIsMethod(msg, "\xe5\x97\x46\x19", 1))
         return false;
 
     if (contractByAddress(msg->to.bytes) != contractBySymbol(msg->chain_id, "cETH"))
@@ -348,10 +314,10 @@ static bool confirmRepayBorrowBehalfCEther(const EthereumSignTx *msg)
         return false;
 
     char borrower[43] = "0x";
-    ethereum_address_checksum(getParam(msg, 0) + 12, borrower + 2, false, msg->chain_id);
+    ethereum_address_checksum(ethereum_contractGetParam(msg, 0) + 12, borrower + 2, false, msg->chain_id);
 
     bignum256 value;
-    getETHValue(msg, &value);
+    ethereum_contractGetETHValue(msg, &value);
 
     char repay[32];
     ethereumFormatAmount(&value, NULL, msg->chain_id, repay, sizeof(repay));
@@ -363,7 +329,7 @@ static bool confirmRepayBorrowBehalfCEther(const EthereumSignTx *msg)
 static bool isLiquidateBorrowCErc20(const EthereumSignTx *msg)
 {
     // `liquidateBorrow(address,uint256,address)`
-    if (!isMethod(msg, "\xf5\xe3\xc4\x62", 3))
+    if (!ethereum_contractIsMethod(msg, "\xf5\xe3\xc4\x62", 3))
         return false;
 
     if (contractByAddress(msg->to.bytes) == contractBySymbol(msg->chain_id, "cETH"))
@@ -379,16 +345,16 @@ static bool confirmLiquidateBorrowCErc20(const EthereumSignTx *msg)
         return false;
 
     char borrower[43] = "0x";
-    ethereum_address_checksum(getParam(msg, 0) + 12, borrower + 2, false, msg->chain_id);
+    ethereum_address_checksum(ethereum_contractGetParam(msg, 0) + 12, borrower + 2, false, msg->chain_id);
 
     bignum256 value;
-    bn_from_bytes(getParam(msg, 1), 32, &value);
+    bn_from_bytes(ethereum_contractGetParam(msg, 1), 32, &value);
 
     char repay[32];
     ethereumFormatAmount(&value, &CC->token, msg->chain_id, repay, sizeof(repay));
 
     char collateral[43] = "0x";
-    ethereum_address_checksum(getParam(msg, 2) + 12, collateral + 2, false, msg->chain_id);
+    ethereum_address_checksum(ethereum_contractGetParam(msg, 2) + 12, collateral + 2, false, msg->chain_id);
 
     return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Compound",
                    "Liquidate %s debt on %s taking collateral from %s?",
@@ -398,7 +364,7 @@ static bool confirmLiquidateBorrowCErc20(const EthereumSignTx *msg)
 static bool isLiquidateBorrowCEther(const EthereumSignTx *msg)
 {
     // `liquidateBorrow(address,address)`
-    if (!isMethod(msg, "\xaa\xe4\x0a\x2a", 2))
+    if (!ethereum_contractIsMethod(msg, "\xaa\xe4\x0a\x2a", 2))
         return false;
 
     if (contractByAddress(msg->to.bytes) != contractBySymbol(msg->chain_id, "cETH"))
@@ -414,16 +380,16 @@ static bool confirmLiquidateBorrowCEther(const EthereumSignTx *msg)
         return false;
 
     char borrower[43] = "0x";
-    ethereum_address_checksum(getParam(msg, 0) + 12, borrower + 2, false, msg->chain_id);
+    ethereum_address_checksum(ethereum_contractGetParam(msg, 0) + 12, borrower + 2, false, msg->chain_id);
 
     bignum256 value;
-    getETHValue(msg, &value);
+    ethereum_contractGetETHValue(msg, &value);
 
     char repay[32];
     ethereumFormatAmount(&value, NULL, msg->chain_id, repay, sizeof(repay));
 
     char collateral[43] = "0x";
-    ethereum_address_checksum(getParam(msg, 1) + 12, collateral + 2, false, msg->chain_id);
+    ethereum_address_checksum(ethereum_contractGetParam(msg, 1) + 12, collateral + 2, false, msg->chain_id);
 
     return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Compound",
                    "Liquidate %s debt on %s taking collateral from %s?",
@@ -447,6 +413,11 @@ bool compound_isCompound(uint32_t data_total, const EthereumSignTx *msg)
 
     if (contract->ctoken.chain_id != msg->chain_id)
         return false;
+
+    if (ethereum_contractIsProxyCall(msg))
+        return false;
+
+
 
     if (isMintCEther(msg))
         return true;
