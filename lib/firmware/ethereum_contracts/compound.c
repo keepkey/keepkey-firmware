@@ -50,7 +50,7 @@ static CompoundContract contracts[] = {
 
 static CompoundContract *contractByAddress(const uint8_t *address)
 {
-    for (int i = 0; i < sizeof(contracts)/sizeof(contracts[0]); i++) {
+    for (size_t i = 0; i < sizeof(contracts)/sizeof(contracts[0]); i++) {
         if (memcmp(address, contracts[i].ctoken.address, 20) == 0)
             return &contracts[i];
     }
@@ -60,7 +60,7 @@ static CompoundContract *contractByAddress(const uint8_t *address)
 
 static CompoundContract *contractBySymbol(uint32_t chain_id, const char *symbol)
 {
-    for (int i = 0; i < sizeof(contracts)/sizeof(contracts[0]); i++) {
+    for (size_t i = 0; i < sizeof(contracts)/sizeof(contracts[0]); i++) {
         if (chain_id == contracts[i].ctoken.chain_id &&
             strcmp(symbol, contracts[i].ctoken.ticker) == 0)
             return &contracts[i];
