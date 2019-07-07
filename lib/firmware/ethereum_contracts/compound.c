@@ -396,11 +396,78 @@ static bool confirmLiquidateBorrowCEther(const EthereumSignTx *msg)
                    repay, borrower, collateral);
 }
 
-bool compound_isCompound(uint32_t data_total, const EthereumSignTx *msg)
+static bool isEnterMarkets(const EthereumSignTx *msg)
 {
-    if (!msg->has_chain_id)
+    // `enterMarkets(address[])`
+    if (memcmp(ethereum_contractGetMethod(msg), "\xc2\x99\x82\x38", 4) != 0)
         return false;
 
+    bignum256 offset;
+    bn_from_bytes(msg->data_initial_chunk.bytes + 4, 32, &offset);
+
+    if (32 < bn_bitcount(&offset))
+        return false;
+
+    if (32 != bn_write_uint32(&offset))
+        return false;
+
+    bignum256 length;
+    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 32, 32, &length);
+
+    if (32 < bn_bitcount(&length))
+        return false;
+
+    uint32_t len = bn_write_uint32(&length);
+    if (len & 0x3f)
+        return false;
+
+    return true;
+}
+
+static bool confirmEnterMarkets(const EthereumSignTx *msg)
+{
+    if (memcmp(msg->to.bytes, "\x3d\x98\x19\x21\x0a\x31\xb4\x96\x1b\x30\xef\x54\xbe\x2a\xed\x79\xb9\xc9\xcd\x3b", 20) != 0) {
+        char comptroller[43] = "0x";
+        ethereum_address_checksum(msg->to.bytes, comptroller + 2, false, msg->chain_id);
+
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Compound",
+                     "Confirm Comptroller:\n%s", comptroller))
+            return false;
+    }
+
+    bignum256 length;
+    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 32, 32, &length);
+    uint32_t len = bn_write_uint32(&length);
+
+    return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Compound",
+                   "Enter %" PRIu32 " markets?", len / 32);
+}
+
+static bool isExitMarket(const EthereumSignTx *msg)
+{
+    // `exitMarket(address)`
+    if (!ethereum_contractIsMethod(msg, "\xed\xe4\xed\xd0", 1))
+        return false;
+
+    const CompoundContract *contract = contractByAddress(ethereum_contractGetParam(msg, 0));
+    if (!contract)
+        return false;
+
+    return true;
+}
+
+static bool confirmExitMarket(const EthereumSignTx *msg)
+{
+    const CompoundContract *contract = contractByAddress(ethereum_contractGetParam(msg, 0));
+    if (!contract)
+        return false;
+
+    return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Compound",
+                   "Exit %s market?", contract->ctoken.ticker);
+}
+
+static bool isCTokenAction(uint32_t data_total, const EthereumSignTx *msg)
+{
     if (data_total != msg->data_initial_chunk.size)
         return false;
 
@@ -412,9 +479,6 @@ bool compound_isCompound(uint32_t data_total, const EthereumSignTx *msg)
         return false;
 
     if (contract->ctoken.chain_id != msg->chain_id)
-        return false;
-
-    if (ethereum_contractIsProxyCall(msg))
         return false;
 
 
@@ -449,16 +513,34 @@ bool compound_isCompound(uint32_t data_total, const EthereumSignTx *msg)
     if (isLiquidateBorrowCErc20(msg))
         return true;
 
-   if (isLiquidateBorrowCEther(msg))
+    if (isLiquidateBorrowCEther(msg))
         return true;
 
     return false;
 }
 
-bool compound_confirmCompound(uint32_t data_total, const EthereumSignTx *msg)
+bool compound_isCompound(uint32_t data_total, const EthereumSignTx *msg)
 {
-    (void)data_total;
+    if (!msg->has_chain_id)
+        return false;
 
+    if (ethereum_contractIsProxyCall(msg))
+        return false;
+
+    if (isCTokenAction(data_total, msg))
+        return true;
+
+    if (isEnterMarkets(msg))
+        return true;
+
+    if (isExitMarket(msg))
+        return data_total == msg->data_initial_chunk.size;
+
+    return false;
+}
+
+static bool confirmCTokenAction(const EthereumSignTx *msg)
+{
     if (isMintCEther(msg))
         return confirmMintCEther(msg);
 
@@ -491,6 +573,20 @@ bool compound_confirmCompound(uint32_t data_total, const EthereumSignTx *msg)
 
     if (isLiquidateBorrowCEther(msg))
         return confirmLiquidateBorrowCEther(msg);
+
+    return false;
+}
+
+bool compound_confirmCompound(uint32_t data_total, const EthereumSignTx *msg)
+{
+    if (isCTokenAction(data_total, msg))
+        return confirmCTokenAction(msg);
+
+    if (isEnterMarkets(msg))
+        return confirmEnterMarkets(msg);
+
+    if (isExitMarket(msg))
+        return confirmExitMarket(msg);
 
     return false;
 }
