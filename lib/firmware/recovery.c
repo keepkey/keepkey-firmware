@@ -134,7 +134,7 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection,
 	}
 
 	if (!confirm(ButtonRequestType_ButtonRequest_Other,
-	             dry_run ? "Reovery Dry Run" : "Recovery",
+	             dry_run ? "Recovery Dry Run" : "Recovery",
 	             "When entering your recovery seed, enter the words in the order "
 	             "that the device asks for them, not in the 'normal' order.")) {
 		fsm_sendFailure(FailureType_Failure_ActionCancelled, "Recovery cancelled");
