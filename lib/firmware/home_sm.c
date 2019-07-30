@@ -84,8 +84,6 @@ void layoutHomeForced(void)
     home_state = AT_HOME;
 }
 
-
-
 /*
  * leave_home() - Leaves home screen
  *
@@ -139,6 +137,7 @@ void toggle_screensaver(void)
         case SCREENSAVER:
             if (idle_time < storage_getAutoLockDelayMs()) {
                 layout_home();
+                layoutLockedState();
                 home_state = AT_HOME;
             }
 
