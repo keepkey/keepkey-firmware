@@ -614,8 +614,8 @@ void layout_pin(const char *str, char pin[])
 
     /* Draw prompt */
     const Font *font = get_body_font();
-    sp.y = 29;
-    sp.x = (140 - calc_str_width(font, str)) / 2;
+    sp.y = 24;
+    sp.x = 128 + 10;
     sp.color = BODY_COLOR;
     draw_string(canvas, font, str, &sp, TITLE_WIDTH, font_height(font));
     display_refresh();

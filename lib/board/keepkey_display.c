@@ -324,6 +324,12 @@ void display_refresh(void)
         return;
     }
 
+    for (int y = 0; y < 64; y++) {
+        for (int x = 0; x < 128; x++) {
+            canvas.buffer[y * 256 + x] = 255 - canvas.buffer[y * 256 + x + 128];
+        }
+    }
+
     display_prepare_gram_write();
 
     int num_writes = canvas.width * canvas.height;

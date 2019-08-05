@@ -53,7 +53,7 @@
 #define PIN_MATRIX_FOREGROUND               0xFF
 #define PIN_SLIDE_DELAY                     20
 #define PIN_MAX_ANIMATION_MS                1000
-#define PIN_LEFT_MARGIN                     140
+#define PIN_LEFT_MARGIN                     195
 
 /* Recovery Cypher */
 #define CIPHER_ROWS                     2
