@@ -43,6 +43,7 @@ static const Pin BACKLIGHT_PWR_PIN = { GPIOB, GPIO0 };
 
 static uint8_t canvas_buffer[ KEEPKEY_DISPLAY_HEIGHT * KEEPKEY_DISPLAY_WIDTH ];
 static Canvas canvas;
+bool constant_power = false;
 
 /*
  * display_write_reg() - Write data to display register
@@ -324,9 +325,11 @@ void display_refresh(void)
         return;
     }
 
-    for (int y = 0; y < 64; y++) {
-        for (int x = 0; x < 128; x++) {
-            canvas.buffer[y * 256 + x] = 255 - canvas.buffer[y * 256 + x + 128];
+    if (constant_power) {
+        for (int y = 0; y < 64; y++) {
+            for (int x = 0; x < 128; x++) {
+                canvas.buffer[y * 256 + x] = 255 - canvas.buffer[y * 256 + x + 128];
+            }
         }
     }
 
@@ -378,7 +381,10 @@ void display_turn_off(void)
     display_write_reg((uint8_t)0xAE);
 }
 
-
+void display_constant_power(bool enabled)
+{
+    constant_power = enabled;
+}
 
 /*
  * display_hw_init(void)  - Display hardware initialization

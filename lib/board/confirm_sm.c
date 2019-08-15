@@ -158,7 +158,8 @@ static void swap_layout(ActiveLayout active_layout, volatile StateInfo *si,
 /// \param layout_notification_func  layout callback for displaying confirm message.
 /// \returns true iff the device confirmed.
 static bool confirm_helper(const char *request_title, const char *request_body,
-                      layout_notification_t layout_notification_func)
+                      layout_notification_t layout_notification_func,
+                      bool constant_power)
 {
     bool ret_stat = false;
     volatile StateInfo state_info;
@@ -272,6 +273,8 @@ static bool confirm_helper(const char *request_title, const char *request_body,
 
 #endif
 
+        display_constant_power(constant_power);
+
         display_refresh();
         animate();
     }
@@ -301,10 +304,34 @@ bool confirm(ButtonRequestType type, const char *request_title, const char *requ
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification);
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false);
     memzero(strbuf, sizeof(strbuf));
     return ret;
 }
+
+bool confirm_constant_power(ButtonRequestType type, const char *request_title, const char *request_body,
+             ...)
+{
+    button_request_acked = false;
+
+    va_list vl;
+    va_start(vl, request_body);
+    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    va_end(vl);
+
+    /* Send button request */
+    ButtonRequest resp;
+    memset(&resp, 0, sizeof(ButtonRequest));
+    resp.has_code = true;
+    resp.code = type;
+    msg_write(MessageType_MessageType_ButtonRequest, &resp);
+
+    bool ret = confirm_helper(request_title, strbuf, &layout_constant_power_notification, true);
+    memzero(strbuf, sizeof(strbuf));
+    return ret;
+}
+
+
 
 bool confirm_with_custom_button_request(ButtonRequest *button_request,
                                         const char *request_title, const char *request_body,
@@ -320,7 +347,7 @@ bool confirm_with_custom_button_request(ButtonRequest *button_request,
     /* Send button request */
     msg_write(MessageType_MessageType_ButtonRequest, button_request);
 
-    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification);
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false);
     memzero(strbuf, sizeof(strbuf));
     return ret;
 }
@@ -343,7 +370,7 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    bool ret = confirm_helper(request_title, strbuf, layout_notification_func);
+    bool ret = confirm_helper(request_title, strbuf, layout_notification_func, false);
     memzero(strbuf, sizeof(strbuf));
     return ret;
 }
@@ -358,7 +385,7 @@ bool confirm_without_button_request(const char *request_title, const char *reque
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
-    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification);
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false);
     memzero(strbuf, sizeof(strbuf));
     return ret;
 }
@@ -380,7 +407,7 @@ bool review(ButtonRequestType type, const char *request_title, const char *reque
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    (void)confirm_helper(request_title, strbuf, &layout_standard_notification);
+    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false);
     memzero(strbuf, sizeof(strbuf));
     return true;
 }
@@ -395,7 +422,7 @@ bool review_without_button_request(const char *request_title, const char *reques
     vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
     va_end(vl);
 
-    (void)confirm_helper(request_title, strbuf, &layout_standard_notification);
+    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false);
     memzero(strbuf, sizeof(strbuf));
     return true;
 }

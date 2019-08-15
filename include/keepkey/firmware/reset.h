@@ -25,7 +25,7 @@
 
 #define MAX_WORDS               24
 #define MAX_WORD_LEN            10
-#define MAX_PAGES               3
+#define MAX_PAGES               6
 #define ADDITIONAL_WORD_PAD     5
 #define WORDS_PER_SCREEN        24
 #define TOKENED_MNEMONIC_BUF    MAX_WORDS * (MAX_WORD_LEN + 1) + 1

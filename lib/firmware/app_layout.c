@@ -612,6 +612,8 @@ void layout_pin(const char *str, char pin[])
     call_leaving_handler();
     layout_clear();
 
+    display_constant_power(true);
+
     /* Draw prompt */
     const Font *font = get_body_font();
     sp.y = 24;

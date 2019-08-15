@@ -178,7 +178,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
 
     while(tok)
     {
-        snprintf(formatted_word, MAX_WORD_LEN + ADDITIONAL_WORD_PAD, "%lu.%s",
+        snprintf(formatted_word, MAX_WORD_LEN + ADDITIONAL_WORD_PAD, (word_count & 1) ? "%lu.%s\n" : "%lu.%s",
                  (unsigned long)(word_count + 1), tok);
 
         /* Check that we have enough room on display to show word */
@@ -220,10 +220,12 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
     // Switch from 0-indexing to 1-indexing
     page_count++;
 
+    display_constant_power(true);
+
     /* Have user confirm mnemonic is sets of 12 words */
     for(uint32_t current_page = 0; current_page < page_count; current_page++)
     {
-        char title[MEDIUM_STR_BUF] = _("Recovery Seed Backup");
+        char title[MEDIUM_STR_BUF] = _("Backup");
 
         /* make current screen mnemonic available via debuglink */
         strlcpy(current_words, mnemonic_by_screen[current_page], MNEMONIC_BY_SCREEN_BUF);
@@ -231,11 +233,11 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
         if(page_count > 1)
         {
             /* snprintf: 20 + 10 (%d) + 1 (NULL) = 31 */
-            snprintf(title, MEDIUM_STR_BUF, _("Recovery Seed Backup %" PRIu32 "/%" PRIu32 ""), current_page + 1, page_count);
+            snprintf(title, MEDIUM_STR_BUF, _("Backup %" PRIu32 "/%" PRIu32 ""), current_page + 1, page_count);
         }
 
-        if(!confirm(ButtonRequestType_ButtonRequest_ConfirmWord, title, "%s",
-                    formatted_mnemonic[current_page]))
+        if(!confirm_constant_power(ButtonRequestType_ButtonRequest_ConfirmWord, title, "%s",
+                                   formatted_mnemonic[current_page]))
         {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, _("Reset cancelled"));
             storage_reset();
