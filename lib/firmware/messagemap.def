@@ -65,7 +65,6 @@
     MSG_OUT(MessageType_MessageType_DecryptedMessage,               DecryptedMessage,            NO_PROCESS_FUNC)
 */
     MSG_OUT(MessageType_MessageType_PassphraseRequest,              PassphraseRequest,           NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_TxSize,                         TxSize,                      NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_WordRequest,                    WordRequest,                 NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_CharacterRequest,               CharacterRequest,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EthereumAddress,                EthereumAddress,             NO_PROCESS_FUNC)

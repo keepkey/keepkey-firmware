@@ -374,6 +374,7 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
             if (memcmp(storage->sec_fingerprint, sec_fingerprint,
                        sizeof(sec_fingerprint)) != 0) {
                 memzero(scratch, sizeof(scratch));
+                storage_wipe();
                 layout_warning_static("Storage decrypt failure. Reboot device!");
                 shutdown();
             }

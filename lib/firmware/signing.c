@@ -821,17 +821,6 @@ static bool signing_check_output(TxOutputType *txoutput) {
 		} else {
 			is_change = check_change_bip32_path(txoutput);
 		}
-		/*
-		 * only allow segwit change if amount is smaller than what segwit inputs paid.
-		 * this was added during the times segwit was not yet fully activated
-		 * to make sure the user is not tricked to use witness change output
-		 * instead of regular one therefore creating ANYONECANSPEND output
-		 */
-		if ((txoutput->script_type == OutputScriptType_PAYTOWITNESS
-			 || txoutput->script_type == OutputScriptType_PAYTOP2SHWITNESS)
-			&& txoutput->amount > authorized_amount) {
-			is_change = false;
-		}
 	}
 
 	if (is_change) {
@@ -893,7 +882,9 @@ static bool signing_check_fee(void) {
 	coin_amnt_to_str(coin, fee, fee_str, sizeof(fee_str));
 	if (fee > ((uint64_t) tx_weight * coin->maxfee_kb)/4000) {
 		if (!confirm(ButtonRequestType_ButtonRequest_FeeOverThreshold,
-		             "Confirm Fee", "%s", fee_str)) {
+		             "Confirm Fee", "Really spend %s on fees? Except in times of high "
+		             "network congestion, fees should be less than %" PRIu64 " sat/byte.",
+		             fee_str, coin->maxfee_kb / 1000)) {
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Fee over threshold. Signing cancelled.");
 			signing_abort();
 			return false;

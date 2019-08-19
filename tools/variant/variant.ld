@@ -1,11 +1,15 @@
 MEMORY
 {
-    rom (rx)  : ORIGIN = 0x08010100, LENGTH = 0x0001FFFF-0x100
+    rom (rx)  : ORIGIN = 0x08010000, LENGTH = 0x0001FFFF
 }
 
 SECTIONS
 {
     . = ORIGIN(rom);
+
+    .header : ALIGN(4) {
+        KEEP(*(.header));
+    } >rom AT >rom
 
     .variant_info : {
         KEEP(*(variant_info))
@@ -26,3 +30,6 @@ SECTIONS
         *(.data*)
     }
 }
+
+_codelen = SIZEOF(.variant_info) + SIZEOF(.text);
+

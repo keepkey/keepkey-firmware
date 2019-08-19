@@ -303,6 +303,7 @@ void usb_rx_helper(const uint8_t *buf, size_t length, MessageMapType type)
          * buffering internally
          */
         raw_dispatch(entry, frame, frameSize, msgSize);
+        firstFrame = false;
         return;
     }
 

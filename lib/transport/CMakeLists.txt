@@ -80,6 +80,8 @@ add_custom_command(
     ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/lib/transport/*.pb.h
        ${CMAKE_BINARY_DIR}/include
   COMMAND
+    sh -c "! grep -r pb_callback_t ${CMAKE_BINARY_DIR}/include/*.pb.h" || (echo "pb_callback_t forbidden. missing .options entry?" && false)
+  COMMAND
     ${CMAKE_COMMAND} -E touch ${CMAKE_BINARY_DIR}/lib/transport/kktransport.pb.stamp
   DEPENDS
     ${protoc_pb_sources} ${protoc_pb_options})

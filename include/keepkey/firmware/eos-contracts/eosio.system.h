@@ -68,8 +68,7 @@ bool eos_compileActionVoteProducer(const EosActionCommon *common,
                                    const EosActionVoteProducer *action);
 
 /// \returns true iff successful.
-bool eos_compileAuthorization(const char *title, const EosAuthorization *auth,
-                              SLIP48Role role);
+bool eos_compileAuthorization(const char *title, const EosAuthorization *auth);
 
 /// \returns true iff successful.
 bool eos_compileActionUpdateAuth(const EosActionCommon *common,

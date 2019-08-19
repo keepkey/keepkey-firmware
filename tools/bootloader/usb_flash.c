@@ -198,7 +198,7 @@ bool usb_flash_firmware(void)
     layout_debuglink_watermark();
 #endif
 
-    usbInit();
+    usbInit("keepkey.com/update");
     bootloader_fsm_init();
 
     while (1)

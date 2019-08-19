@@ -477,7 +477,7 @@ static size_t eos_hashAuthorization(Hasher *h, const EosAuthorization *auth) {
     return count;
 }
 
-static bool authorizationIsDeviceControlled(const EosAuthorization *auth) {
+static bool isStandardAuthorization(const EosAuthorization *auth) {
     if (!auth->has_threshold || auth->threshold != 1)
         return false;
 
@@ -499,46 +499,40 @@ static bool authorizationIsDeviceControlled(const EosAuthorization *auth) {
     return true;
 }
 
-bool eos_compileAuthorization(const char *title, const EosAuthorization *auth,
-                              SLIP48Role role) {
-    CHECK_PARAM_RET(auth->has_threshold, "Required field missing", false);
-
-
-    if (authorizationIsDeviceControlled(auth) &&
-        coin_isSLIP48(coinByName("EOS"), auth->keys[0].address_n,
-                      auth->keys[0].address_n_count, role)) {
-        const EosAuthorizationKey *auth_key = &auth->keys[0];
-
-        char node_str[NODE_STRING_LENGTH];
-        const CoinType *coin;
-        if ((coin = coinByName("EOS")) &&
-            !bip32_node_to_string(node_str, sizeof(node_str), coin,
-                                  auth_key->address_n,
-                                  auth_key->address_n_count,
-                                  /*whole_account=*/false,
-                                  /*allow_change=*/false,
-                                  /*show_addridx=*/true) &&
-            !bip32_path_to_string(node_str, sizeof(node_str),
-                                  auth_key->address_n, auth_key->address_n_count)) {
-            memset(node_str, 0, sizeof(node_str));
-            fsm_sendFailure(FailureType_Failure_SyntaxError, "Cannot encode derived pubkey");
-            eos_signingAbort();
-            layoutHome();
-            return false;
-        }
-
-        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmEosAction,
-                     title, "Do you want to assign signing auth for\n%s to\n%s?",
-                     title, node_str)) {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Action Cancelled");
-            eos_signingAbort();
-            layoutHome();
-            return false;
-        }
-
-        return true;
+static bool confirmStandardAuthorization(const char *title, const EosAuthorization *auth)
+{
+    char node_str[NODE_STRING_LENGTH];
+    const CoinType *coin;
+    const EosAuthorizationKey *auth_key = &auth->keys[0];
+    if ((coin = coinByName("EOS")) &&
+        !bip32_node_to_string(node_str, sizeof(node_str), coin,
+                              auth_key->address_n,
+                              auth_key->address_n_count,
+                              /*whole_account=*/false,
+                              /*show_addridx=*/true) &&
+        !bip32_path_to_string(node_str, sizeof(node_str),
+                              auth_key->address_n, auth_key->address_n_count)) {
+        memset(node_str, 0, sizeof(node_str));
+        fsm_sendFailure(FailureType_Failure_SyntaxError, "Cannot encode derived pubkey");
+        eos_signingAbort();
+        layoutHome();
+        return false;
     }
 
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmEosAction,
+                 title, "Do you want to assign signing auth for\n%s to\n%s?",
+                 title, node_str)) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Action Cancelled");
+        eos_signingAbort();
+        layoutHome();
+        return false;
+    }
+
+    return true;
+}
+
+static bool confirmArbitraryAuthorization(const char *title, const EosAuthorization *auth)
+{
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmEosAction,
                  title, "Require an authorization threshold of %" PRIu32 "?",
                  auth->threshold)) {
@@ -623,18 +617,24 @@ bool eos_compileAuthorization(const char *title, const EosAuthorization *auth,
         }
     }
 
+    return true;
+}
+
+bool eos_compileAuthorization(const char *title, const EosAuthorization *auth) {
+    CHECK_PARAM_RET(auth->has_threshold, "Required field missing", false);
+
+    if (isStandardAuthorization(auth)) {
+        if (!confirmStandardAuthorization(title, auth))
+            return false;
+    } else {
+        if (!confirmArbitraryAuthorization(title, auth))
+            return false;
+    }
+
     if (!eos_hashAuthorization(&hasher_preimage, auth))
         return false;
 
     return true;
-}
-
-static SLIP48Role roleFromPermission(uint64_t permission) {
-    switch (permission) {
-    case EOS_Owner: return SLIP48_owner;
-    case EOS_Active: return SLIP48_active;
-    default: return SLIP48_UNKNOWN;
-    }
 }
 
 bool eos_compileActionUpdateAuth(const EosActionCommon *common,
@@ -683,8 +683,7 @@ bool eos_compileActionUpdateAuth(const EosActionCommon *common,
     hasher_Update(&hasher_preimage, (const uint8_t*)&action->parent, 8);
 
     snprintf(title, sizeof(title), "%s@%s", account, permission);
-    if (!eos_compileAuthorization(title, &action->auth,
-                                  roleFromPermission(action->permission)))
+    if (!eos_compileAuthorization(title, &action->auth))
         return false;
 
     return true;
@@ -825,12 +824,6 @@ bool eos_compileActionNewAccount(const EosActionCommon *common,
     CHECK_PARAM_RET(action->has_owner, "Required field missing", false);
     CHECK_PARAM_RET(action->has_active, "Required field missing", false);
 
-    CHECK_PARAM_RET(authorizationIsDeviceControlled(&action->owner),
-                    "Bad owner permissions", false);
-
-    CHECK_PARAM_RET(authorizationIsDeviceControlled(&action->active),
-                    "Bad active permissions", false);
-
     char creator[EOS_NAME_STR_SIZE];
     CHECK_PARAM_RET(eos_formatName(action->creator, creator),
                     "Invalid name", false);
@@ -865,11 +858,11 @@ bool eos_compileActionNewAccount(const EosActionCommon *common,
 
     char title[SMALL_STR_BUF];
     snprintf(title, sizeof(title), "%s@owner", name);
-    if (!eos_compileAuthorization(title, &action->owner, SLIP48_owner))
+    if (!eos_compileAuthorization(title, &action->owner))
         return false;
 
     snprintf(title, sizeof(title), "%s@active", name);
-    if (!eos_compileAuthorization(title, &action->active, SLIP48_active))
+    if (!eos_compileAuthorization(title, &action->active))
         return false;
 
     return true;

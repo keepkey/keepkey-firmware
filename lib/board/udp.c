@@ -34,7 +34,8 @@ extern usb_rx_callback_t user_debug_rx_callback;
 
 static volatile char tiny = 0;
 
-void usbInit(void) {
+void usbInit(const char *origin_url) {
+	(void)origin_url;
 	emulatorSocketInit();
 }
 
