@@ -56,3 +56,38 @@ Documentation can be found [here](docs/README.md).
 ## License
 
 If license is not specified in the header of a file, it can be assumed that it is licensed under LGPLv3.
+
+
+## Dev
+
+Install submodules
+```
+git submodule update --init --recursive
+```
+
+install go-keepkey
+```
+go get -u github.com/solipsis/go-keepkey
+go install github.com/solipsis/go-keepkey
+```
+
+bump version
+```
+CMakeLists.txt
+```
+
+build-debug
+```
+./scripts/build/docker/device/debug.sh
+```
+
+upload firmware
+```
+go-keepkey uploadFirmware --filepath ./bin/build/bin/firmware.keepkey.bin
+```
+
+verify version
+```
+go-keepkey getFeatures
+```
+
