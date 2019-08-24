@@ -65,10 +65,20 @@ Install submodules
 git submodule update --init --recursive
 ```
 
+install libusb
+```
+sudo dnf install libusb*
+```
+
 install go-keepkey
 ```
 go get -u github.com/solipsis/go-keepkey
 go install github.com/solipsis/go-keepkey
+```
+
+install docker
+```
+sudo dnf install docker
 ```
 
 bump version

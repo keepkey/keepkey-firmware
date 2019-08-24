@@ -79,7 +79,7 @@ void fsm_msgDecryptMessage(DecryptMessage *msg);
 void fsm_msgRecoveryDevice(RecoveryDevice *msg);
 void fsm_msgWordAck(WordAck *msg);
 //void fsm_msgCosmosGetAddress(CosmosGetAddress *msg);
-void fsm_msgCosmosSignTx(CosmosSignTx *msg);
+//void fsm_msgCosmosSignTx(CosmosSignTx *msg);
 //void fsm_msgCosmosTxAck(CosmosTxAck *msg);
 void fsm_msgEthereumGetAddress(EthereumGetAddress *msg);
 void fsm_msgEthereumSignTx(EthereumSignTx *msg);
