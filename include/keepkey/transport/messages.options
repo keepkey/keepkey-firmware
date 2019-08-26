@@ -40,10 +40,6 @@ GetAddress.coin_name			max_size:21
 
 Address.address				max_size:130
 
-EthereumGetAddress.address_n		max_count:8
-EthereumAddress.address			max_size:20
-EthereumAddress.address_str			max_size:43
-
 LoadDevice.mnemonic			max_size:241
 LoadDevice.pin				max_size:10
 LoadDevice.language			max_size:17
@@ -99,6 +95,10 @@ CipheredKeyValue.value			max_size:1024
 
 SignTx.coin_name			max_size:21
 
+
+EthereumGetAddress.address_n		max_count:8
+EthereumAddress.address			max_size:20
+EthereumAddress.address_str			max_size:43
 EthereumSignTx.address_n		max_count:8
 EthereumSignTx.nonce			max_size:32
 EthereumSignTx.gas_price		max_size:32
@@ -110,23 +110,45 @@ EthereumSignTx.to_address_n		max_count:8
 EthereumSignTx.token_value      max_size:32
 EthereumSignTx.token_to         max_size:20
 EthereumSignTx.token_shortcut   max_size:8
-
 EthereumTxRequest.signature_r		max_size:32
 EthereumTxRequest.signature_s		max_size:32
 EthereumTxRequest.hash			max_size:32
 EthereumTxRequest.signature_der         max_size:73
-
 EthereumTxAck.data_chunk		max_size:1024
-
 EthereumSignMessage.address_n				max_count:8
 EthereumSignMessage.message				max_size:1024
-
 EthereumVerifyMessage.address				max_size:20
 EthereumVerifyMessage.signature				max_size:65
 EthereumVerifyMessage.message				max_size:1024
-
 EthereumMessageSignature.address			max_size:20
 EthereumMessageSignature.signature			max_size:65
+
+CosmosGetAddress.address_n		max_count:8
+CosmosAddress.address			max_size:20
+CosmosAddress.address_str			max_size:43
+CosmosSignTx.address_n		max_count:8
+CosmosSignTx.nonce			max_size:32
+CosmosSignTx.gas_price		max_size:32
+CosmosSignTx.gas_limit		max_size:32
+CosmosSignTx.to			    max_size:20
+CosmosSignTx.value			max_size:32
+CosmosSignTx.data_initial_chunk	max_size:1024
+CosmosSignTx.to_address_n		max_count:8
+CosmosSignTx.token_value      max_size:32
+CosmosSignTx.token_to         max_size:20
+CosmosSignTx.token_shortcut   max_size:8
+CosmosTxRequest.signature_r		max_size:32
+CosmosTxRequest.signature_s		max_size:32
+CosmosTxRequest.hash			max_size:32
+CosmosTxRequest.signature_der         max_size:73
+CosmosTxAck.data_chunk		max_size:1024
+CosmosSignMessage.address_n				max_count:8
+CosmosSignMessage.message				max_size:1024
+CosmosVerifyMessage.address				max_size:20
+CosmosVerifyMessage.signature				max_size:65
+CosmosVerifyMessage.message				max_size:1024
+CosmosMessageSignature.address			max_size:20
+CosmosMessageSignature.signature			max_size:65
 
 SignIdentity.challenge_hidden		max_size:256
 SignIdentity.challenge_visual		max_size:256

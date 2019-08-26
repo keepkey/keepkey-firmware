@@ -39,6 +39,7 @@
 #include "keepkey/firmware/eos.h"
 #include "keepkey/firmware/eos-contracts.h"
 #include "keepkey/firmware/ethereum.h"
+#include "keepkey/firmware/cosmos.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/exchange.h"
 #include "keepkey/firmware/fsm.h"
