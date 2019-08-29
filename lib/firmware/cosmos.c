@@ -53,7 +53,7 @@ static uint32_t chain_id;
 static uint32_t tx_type;
 struct SHA3_CTX keccak_ctx;
 
-bool ethereum_isNonStandardERC20Transfer(const CosmosSignTx *msg) {
+bool cosmos_isNonStandardERC20Transfer(const CosmosSignTx *msg) {
     return msg->has_token_shortcut && msg->has_token_value && (msg->has_token_to || msg->to_address_n_count > 0);
 }
 
@@ -618,8 +618,8 @@ void cosmos_signing_init(CosmosSignTx *msg, const HDNode *node, bool needs_confi
     }
 
     bool data_needs_confirm = true;
-    if (cosmos_contractHandled(data_total, msg, node)) {
-        if (!cosmos_contractConfirmed(data_total, msg, node)) {
+    if (ethereum_contractHandled(data_total, msg, node)) {
+        if (!ethereum_contractConfirmed(data_total, msg, node)) {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
             cosmos_signing_abort();
             return;
