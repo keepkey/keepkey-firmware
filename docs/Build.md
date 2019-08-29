@@ -21,6 +21,11 @@ version libprotoc 3.6.1
 
 ```tar -xvf nanopb-0.2.9.2.tar.gz```
 
+Build protobuf libs
+
+```cd nanopb-0.2.9.2
+make```
+
 move to home dir
 ```
 cp -R nanopb-nanopb-0.2.9.2 ../
@@ -79,7 +84,7 @@ $ make test
 ```
 
 
-#troubleshool
+# troubleshoot
 
 Error:
 
