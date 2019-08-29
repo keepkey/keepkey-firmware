@@ -29,7 +29,6 @@
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
-#include "keepkey/firmware/cosmos_contracts.h"
 #include "keepkey/firmware/cosmos_contracts/makerdao.h"
 #include "keepkey/firmware/cosmos_tokens.h"
 #include "keepkey/firmware/storage.h"
@@ -54,7 +53,7 @@ static uint32_t chain_id;
 static uint32_t tx_type;
 struct SHA3_CTX keccak_ctx;
 
-bool cosmos_isNonStandardERC20Transfer(const CosmosSignTx *msg) {
+bool ethereum_isNonStandardERC20Transfer(const CosmosSignTx *msg) {
     return msg->has_token_shortcut && msg->has_token_value && (msg->has_token_to || msg->to_address_n_count > 0);
 }
 

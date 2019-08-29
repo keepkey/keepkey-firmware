@@ -6,6 +6,7 @@ set(sources
     eos.c
     eos-contracts/eosio.system.c
     eos-contracts/eosio.token.c
+    cosmos.c
     ethereum.c
     ethereum_contracts.c
     ethereum_contracts/makerdao.c

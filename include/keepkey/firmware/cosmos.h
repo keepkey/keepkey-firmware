@@ -26,8 +26,8 @@ void cosmos_signing_abort(void);
 void cosmos_signing_txack(CosmosTxAck *msg);
 void format_cosmos_address(const uint8_t *to, char *destination_str,
                              uint32_t destination_str_len);
-bool cosmos_isNonStandardERC20Transfer(const CosmosSignTx *msg);
-bool cosmos_isStandardERC20Transfer(const CosmosSignTx *msg);
+//bool ethereum_isNonStandardERC20Transfer(const CosmosSignTx *msg);
+//bool ethereum_isStandardERC20Transfer(const CosmosSignTx *msg);
 
 /// \pre requires that `cosmos_isStandardERC20Transfer(msg)`
 /// \returns true iff successful

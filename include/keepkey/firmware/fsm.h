@@ -88,8 +88,8 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg);
 void fsm_msgCosmosGetAddress(CosmosGetAddress *msg);
 void fsm_msgCosmosSignTx(CosmosSignTx *msg);
 void fsm_msgCosmosTxAck(CosmosTxAck *msg);
-void fsm_msgCosmosSignMessage(CosmosSignMessage *msg);
-void fsm_msgCosmosVerifyMessage(const CosmosVerifyMessage *msg);
+//void fsm_msgCosmosSignMessage(CosmosSignMessage *msg);
+//void fsm_msgCosmosVerifyMessage(const CosmosVerifyMessage *msg);
 
 void fsm_msgCharacterAck(CharacterAck *msg);
 void fsm_msgApplyPolicies(ApplyPolicies *msg);

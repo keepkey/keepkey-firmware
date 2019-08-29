@@ -88,6 +88,13 @@ $ cd build
 $ make test
 ```
 
+Run Emulator
+-----------------
+
+```
+./kkemu
+```
+
 
 # troubleshoot
 
