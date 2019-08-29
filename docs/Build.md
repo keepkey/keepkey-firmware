@@ -23,8 +23,7 @@ version libprotoc 3.6.1
 
 Build protobuf libs
 
-```cd nanopb-0.2.9.2
-make```
+```cd nanopb-0.2.9.2/generator/proto \n make```
 
 move to home dir
 ```
