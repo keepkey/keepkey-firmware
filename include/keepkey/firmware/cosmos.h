@@ -5,8 +5,8 @@
  */
 
 
-#ifndef __COSMOS_H__
-#define __COSMOS_H__
+//#ifndef __COSMOS_H__
+//#define __COSMOS_H__
 
 #include "trezor/crypto/bip32.h"
 
@@ -53,4 +53,4 @@ int cosmos_message_verify(const CosmosVerifyMessage *msg);
 
 void cosmosFormatAmount(const bignum256 *amnt, const TokenType *token, uint32_t chain_id, char *buf, int buflen);
 
-void bn_from_bytes(const uint8_t *value, size_t value_len, bignum256 *val);
+//void bn_from_bytes(const uint8_t *value, size_t value_len, bignum256 *val);

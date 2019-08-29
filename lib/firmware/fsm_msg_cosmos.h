@@ -1,85 +1,241 @@
 
 
-//void fsm_msgCosmosSignTx(CosmosSignTx *msg)
-//{
-//    CHECK_INITIALIZED
-//
-//            CHECK_PIN
-//
-//    bool needs_confirm = true;
-//    int msg_result = process_cosmos_msg(msg, &needs_confirm);
-//
-//    if (msg_result < TXOUT_OK) {
-//        cosmos_signing_abort();
-//        send_fsm_co_error_message(msg_result);
-//        layoutHome();
-//        return;
-//    }
-//
-//    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
-//    if (!node) return;
-//
-//    cosmos_signing_init(msg, node, needs_confirm);
-//}
+static int process_cosmos_xfer(const CoinType *coin, CosmosSignTx *msg)
+{
+    // Precheck: For TRANSFER, 'to' fields must not be already loaded.
+    if (msg->has_to || msg->to.size || strlen((char *)msg->to.bytes) != 0 ||
+        msg->has_token_to || msg->token_to.size || strlen((char*)msg->token_to.bytes) != 0)
+        return TXOUT_COMPILE_ERROR;
 
-//void fsm_msgCosmosTxAck(CosmosTxAck *msg)
-//{
-//    cosmos_signing_txack(msg);
-//}
+    char node_str[NODE_STRING_LENGTH];
+    if (!bip32_node_to_string(node_str, sizeof(node_str), coin, msg->to_address_n,
+                              msg->to_address_n_count, /*whole_account=*/false,
+            /*show_addridx=*/false))
+        return TXOUT_COMPILE_ERROR;
 
-//void fsm_msgCosmosGetAddress(CosmosGetAddress *msg)
-//{
-//    RESP_INIT(Address);
-//
-//    CHECK_INITIALIZED
-//
-//            CHECK_PIN
-//
-//    const CoinType *coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
-//    if (!coin) return;
-//    HDNode *node = fsm_getDerivedNode(coin->curve_name, msg->address_n, msg->address_n_count, NULL);
-//    if (!node) return;
-//    hdnode_fill_public_key(node);
-//
-//    char address[MAX_ADDR_SIZE];
-//    if (!compute_address(coin, msg->script_type, node, msg->has_multisig, &msg->multisig, address)) {
-//        fsm_sendFailure(FailureType_Failure_Other, _("Can't encode address"));
-//        layoutHome();
-//        return;
-//    }
-//
-//    if (msg->has_show_display && msg->show_display) {
-//        char node_str[NODE_STRING_LENGTH];
-//        if (msg->has_multisig) {
-//            snprintf(node_str, sizeof(node_str), "Multisig (%" PRIu32 " of %" PRIu32 ")",
-//                    msg->multisig.m, (uint32_t)msg->multisig.pubkeys_count);
-//        } else {
-//            if (!bip32_node_to_string(node_str, sizeof(node_str), coin, msg->address_n,
-//                                      msg->address_n_count, /*whole_account=*/false,
-//                    /*show_addridx=*/true) &&
-//                !bip32_path_to_string(node_str, sizeof(node_str),
-//                                      msg->address_n, msg->address_n_count)) {
-//                memset(node_str, 0, sizeof(node_str));
-//            }
-//        }
-//
-//        bool mismatch = path_mismatched(coin, msg);
-//
-//        size_t prefix_len = coin->has_cashaddr_prefix
-//                            ? strlen(coin->cashaddr_prefix) + 1
-//                            : 0;
-//
-//        if(!confirm_address(node_str, address + prefix_len))
-//        {
-//            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
-//            layoutHome();
-//            return;
-//        }
-//    }
-//
-//    strlcpy(resp->address, address, sizeof(resp->address));
-//    msg_write(MessageType_MessageType_Address, resp);
-//    layoutHome();
-//}
+    bool *has_to;
+    size_t *to_size;
+    uint8_t *to_bytes;
+    const uint8_t *value_bytes;
+    const size_t *value_size;
+    const TokenType *token;
 
+    if (!coin->has_forkid)
+        return TXOUT_COMPILE_ERROR;
 
+    const uint32_t chain_id = coin->forkid;
+    if (cosmos_isNonStandardERC20Transfer(msg)) {
+        has_to = &msg->has_token_to;
+        to_size = &msg->token_to.size;
+        to_bytes = msg->token_to.bytes;
+        value_bytes = msg->token_value.bytes;
+        value_size = &msg->token_value.size;
+
+        // Check that the ticker gives a unique lookup. If not, we can't
+        // reliably do the lookup this way, and must abort.
+        if (!tokenByTicker(chain_id, msg->token_shortcut, &token))
+            return TXOUT_COMPILE_ERROR;
+    } else {
+        has_to = &msg->has_to;
+        to_size = &msg->to.size;
+        to_bytes = msg->to.bytes;
+        value_bytes = msg->value.bytes;
+        value_size = &msg->value.size;
+        token = NULL;
+    }
+
+    bignum256 value;
+    bn_from_bytes(value_bytes, *value_size, &value);
+
+    char amount_str[128+sizeof(msg->token_shortcut)+3];
+    cosmosFormatAmount(&value, token, chain_id, amount_str, sizeof(amount_str));
+
+    if (!confirm_transfer_output(ButtonRequestType_ButtonRequest_ConfirmTransferToAccount,
+                                 amount_str, node_str))
+        return TXOUT_CANCEL;
+
+    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->to_address_n, msg->to_address_n_count, NULL);
+    if (!node)
+        return TXOUT_COMPILE_ERROR;
+
+    if (!hdnode_get_ethereum_pubkeyhash(node, to_bytes))
+        return TXOUT_COMPILE_ERROR;
+
+    *has_to = true;
+    *to_size = 20;
+
+    memset((void *)node, 0, sizeof(HDNode));
+    return TXOUT_OK;
+}
+
+static int process_cosmos_msg(CosmosSignTx *msg, bool *confirm_ptr)
+{
+    int ret_result = TXOUT_COMPILE_ERROR;
+    const CoinType *coin = fsm_getCoin(true, ETHEREUM);
+
+    if(coin != NULL)
+    {
+        switch(msg->address_type)
+        {
+            case OutputAddressType_EXCHANGE:
+            {
+                /*prep for exchange type transaction*/
+                HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0, NULL); /* root node */
+                ret_result = run_policy_compile_output(coin, root_node, (void *)msg, (void *)NULL, true);
+                if(ret_result < TXOUT_OK) {
+                    memset((void *)root_node, 0, sizeof(HDNode));
+                }
+                *confirm_ptr = false;
+                break;
+            }
+            case OutputAddressType_TRANSFER:
+            {
+                /*prep transfer type transaction*/
+                ret_result = process_cosmos_xfer(coin, msg);
+                *confirm_ptr = false;
+                break;
+            }
+            default:
+                ret_result = TXOUT_OK;
+                break;
+        }
+    }
+    return(ret_result);
+}
+
+void fsm_msgCosmosSignTx(CosmosSignTx *msg)
+{
+    CHECK_INITIALIZED
+
+            CHECK_PIN
+
+    bool needs_confirm = true;
+    int msg_result = process_cosmos_msg(msg, &needs_confirm);
+
+    if (msg_result < TXOUT_OK) {
+        cosmos_signing_abort();
+        send_fsm_co_error_message(msg_result);
+        layoutHome();
+        return;
+    }
+
+    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
+    if (!node) return;
+
+    cosmos_signing_init(msg, node, needs_confirm);
+}
+
+void fsm_msgCosmosTxAck(CosmosTxAck *msg)
+{
+    cosmos_signing_txack(msg);
+}
+
+void fsm_msgCosmosGetAddress(CosmosGetAddress *msg)
+{
+    RESP_INIT(CosmosAddress);
+
+    CHECK_INITIALIZED
+
+            CHECK_PIN
+
+    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
+    if (!node) return;
+
+    resp->address.size = 20;
+
+    if (!hdnode_get_ethereum_pubkeyhash(node, resp->address.bytes))
+        return;
+
+    const CoinType *coin = NULL;
+    bool rskip60 = false;
+    uint32_t chain_id = 0;
+
+    if (msg->address_n_count == 5) {
+        coin = coinBySlip44(msg->address_n[1]);
+        uint32_t slip44 = msg->address_n[1] & 0x7fffffff;
+        // constants from trezor-common/defs/cosmos/networks.json
+        switch (slip44) {
+            case 137: rskip60 = true; chain_id = 30; break;
+            case 37310: rskip60 = true; chain_id = 31; break;
+        }
+    }
+
+    char address[43] = { '0', 'x' };
+    ethereum_address_checksum(resp->address.bytes, address + 2, rskip60, chain_id);
+
+    resp->has_address_str = true;
+    strlcpy(resp->address_str, address, sizeof(resp->address_str));
+
+    if (msg->has_show_display && msg->show_display) {
+        char node_str[NODE_STRING_LENGTH];
+        if (!(coin && isEthereumLike(coin->coin_name) &&
+              bip32_node_to_string(node_str, sizeof(node_str), coin,
+                                   msg->address_n,
+                                   msg->address_n_count,
+                      /*whole_account=*/false,
+                      /*show_addridx=*/false)) &&
+            !bip32_path_to_string(node_str, sizeof(node_str),
+                                  msg->address_n, msg->address_n_count)) {
+            memset(node_str, 0, sizeof(node_str));
+        }
+
+        if (!confirm_ethereum_address(node_str, address)) {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, _("Show address cancelled"));
+            layoutHome();
+            return;
+        }
+    }
+
+    msg_write(MessageType_MessageType_CosmosAddress, resp);
+    layoutHome();
+}
+
+void fsm_msgCosmosSignMessage(CosmosSignMessage *msg)
+{
+    RESP_INIT(CosmosMessageSignature);
+
+    CHECK_INITIALIZED
+
+    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Sign Message"),
+                 "%s", msg->message.bytes)) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        layoutHome();
+        return;
+    }
+
+    CHECK_PIN
+
+    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
+    if (!node) return;
+
+    cosmos_message_sign(msg, node, resp);
+    layoutHome();
+}
+
+void fsm_msgCosmosVerifyMessage(const CosmosVerifyMessage *msg)
+{
+    CHECK_PARAM(msg->has_address, _("No address provided"));
+    CHECK_PARAM(msg->has_message, _("No message provided"));
+
+    if (cosmos_message_verify(msg) != 0) {
+        fsm_sendFailure(FailureType_Failure_SyntaxError, _("Invalid signature"));
+        return;
+    }
+
+    char address[43] = { '0', 'x' };
+    ethereum_address_checksum(msg->address.bytes, address + 2, false, 0);
+    if (!confirm_address(_("Confirm Signer"), address)) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        layoutHome();
+        return;
+    }
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, _("Message Verified"), "%s",
+                 msg->message.bytes)) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        layoutHome();
+        return;
+    }
+    fsm_sendSuccess(_("Message verified"));
+
+    layoutHome();
+}
