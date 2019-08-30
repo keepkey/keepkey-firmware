@@ -50,7 +50,7 @@ set generator in $PATH for
 View PATH
 ```
 echo $PATH
-
+```
 linux
 ```
 PATH=$PATH:/home/*username*/nanopb-nanopb-0.2.9.2/generator
