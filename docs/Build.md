@@ -52,7 +52,14 @@ Building the Emulator
 Build repo
 ```
 git clone https://github.com/keepkey/keepkey-firmware.git
+
 ```
+
+init submodules
+```
+git submodule update --init --recursive
+```
+
 
 ## Compile Emulator
 
