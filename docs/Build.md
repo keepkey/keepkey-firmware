@@ -1,9 +1,9 @@
 Prerequisites
 -------------
 
-# linux (fedora 30)
+### linux (fedora 30)
 
-# OSX
+### OSX
 
 ```
 brew install protobuf
