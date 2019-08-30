@@ -34,6 +34,12 @@ Build protobuf libs
 make
 ```make```
 
+note: warning is normal
+```
+[libprotobuf WARNING google/protobuf/compiler/parser.cc:647] No syntax specified for the proto file: google/protobuf/descriptor.proto. Please use 'syntax = "proto2";' or 'syntax = "proto3";' to specify a syntax version. (Defaulted to proto2 syntax.)
+```
+
+
 move to home dir
 ```
 cp -R nanopb-nanopb-0.2.9.2 ../
