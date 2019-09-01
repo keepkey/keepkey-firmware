@@ -1,7 +1,7 @@
 /*
  *  Cosmos Core module
  *          -highlander
- * 
+ *
  */
 
 
@@ -48,8 +48,8 @@ bool cosmos_getStandardERC20Amount(const CosmosSignTx *msg, void **tx_out_amount
  */
 uint32_t cosmos_get_decimal(const char *token_shortcut);
 
-void cosmos_message_sign(const CosmosSignMessage *msg, const HDNode *node, CosmosMessageSignature *resp);
-int cosmos_message_verify(const CosmosVerifyMessage *msg);
+//void cosmos_message_sign(const CosmosSignMessage *msg, const HDNode *node, CosmosMessageSignature *resp);
+//int cosmos_message_verify(const CosmosVerifyMessage *msg);
 
 void cosmosFormatAmount(const bignum256 *amnt, const TokenType *token, uint32_t chain_id, char *buf, int buflen);
 

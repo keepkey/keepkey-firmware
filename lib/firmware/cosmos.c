@@ -37,7 +37,7 @@
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/memzero.h"
 #include "trezor/crypto/secp256k1.h"
-#include "trezor/crypto/sha3.h"
+//#include "trezor/crypto/sha3.h"
 
 #include <stdio.h>
 
@@ -51,7 +51,7 @@ static CosmosTxRequest msg_tx_request;
 static CONFIDENTIAL uint8_t privkey[32];
 static uint32_t chain_id;
 static uint32_t tx_type;
-struct SHA3_CTX keccak_ctx;
+struct SHA3_CTX keccak_ctx_2;
 
 bool cosmos_isNonStandardERC20Transfer(const CosmosSignTx *msg) {
     return msg->has_token_shortcut && msg->has_token_value && (msg->has_token_to || msg->to_address_n_count > 0);
@@ -116,7 +116,7 @@ bool cosmos_getStandardERC20Amount(const CosmosSignTx *msg, void **tx_out_amount
 
 static inline void hash_data(const uint8_t *buf, size_t size)
 {
-    sha3_Update(&keccak_ctx, buf, size);
+    sha3_Update(&keccak_ctx_2, buf, size);
 }
 
 /*
@@ -245,7 +245,7 @@ static int rlp_calculate_number_length(uint32_t number)
 
 static void send_request_chunk(void)
 {
-    layoutProgress(_("Signing"), (data_total - data_left) * 1000 / data_total);
+    layoutProgress(_("Cosmos Signing"), (data_total - data_left) * 1000 / data_total);
     msg_tx_request.has_data_length = true;
     msg_tx_request.data_length = data_left <= 1024 ? data_left : 1024;
     msg_write(MessageType_MessageType_CosmosTxRequest, &msg_tx_request);
@@ -271,9 +271,9 @@ static void send_signature(void)
         hash_rlp_length(0, 0);
     }
 
-    keccak_Final(&keccak_ctx, hash);
+    keccak_Final(&keccak_ctx_2, hash);
     if (ecdsa_sign_digest(&secp256k1, privkey, hash, sig, &v, cosmos_is_canonic) != 0) {
-        fsm_sendFailure(FailureType_Failure_Other, "Signing failed");
+        fsm_sendFailure(FailureType_Failure_Other, "Cosmos Signing failed");
         cosmos_signing_abort();
         return;
     }
@@ -482,7 +482,7 @@ static void layoutCosmosFee(const uint8_t *value, uint32_t value_len,
     }
 
     if((uint32_t)snprintf(out_str, out_str_len,
-                          _("Send %s from your wallet, paying up to %s for gas?"),
+                          _("Send %s from your wallet, paying up to %s for cosmos gas?"),
                           tx_value, gas_value) >= out_str_len) {
         /*error detected.  Clear the buffer */
         memset(out_str, 0, out_str_len);
@@ -526,7 +526,7 @@ static bool cosmos_signing_check(CosmosSignTx *msg)
 void cosmos_signing_init(CosmosSignTx *msg, const HDNode *node, bool needs_confirm)
 {
     cosmos_signing = true;
-    sha3_256_Init(&keccak_ctx);
+    sha3_256_Init(&keccak_ctx_2);
 
     memset(&msg_tx_request, 0, sizeof(CosmosTxRequest));
     /* set fields to 0, to avoid conditions later */
@@ -618,15 +618,15 @@ void cosmos_signing_init(CosmosSignTx *msg, const HDNode *node, bool needs_confi
     }
 
     bool data_needs_confirm = true;
-    if (ethereum_contractHandled(data_total, msg, node)) {
-        if (!ethereum_contractConfirmed(data_total, msg, node)) {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
-            cosmos_signing_abort();
-            return;
-        }
-        needs_confirm = false;
-        data_needs_confirm = false;
-    }
+//    if (ethereum_contractHandled(data_total, msg, node)) {
+//        if (!ethereum_contractConfirmed(data_total, msg, node)) {
+//            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
+//            cosmos_signing_abort();
+//            return;
+//        }
+//        needs_confirm = false;
+//        data_needs_confirm = false;
+//    }
 
     // detect ERC-20 token
     if (data_total == 68 && cosmos_isStandardERC20Transfer(msg)) {
@@ -677,7 +677,7 @@ void cosmos_signing_init(CosmosSignTx *msg, const HDNode *node, bool needs_confi
         // what they're about to do in the general case.
         if (!storage_isPolicyEnabled("AdvancedMode")) {
             (void)review(ButtonRequestType_ButtonRequest_Other, "Warning",
-                         "Signing of arbitrary ETH contract data is recommended only for "
+                         "Signing of arbitrary Cosmos contract data is recommended only for "
                          "experienced users. Enable 'AdvancedMode' policy to dismiss.");
         }
 
@@ -791,81 +791,81 @@ void cosmos_signing_abort(void)
     }
 }
 
-static void cosmos_message_hash(const uint8_t *message, size_t message_len, uint8_t hash[32])
-{
-    struct SHA3_CTX ctx;
-    sha3_256_Init(&ctx);
-    sha3_Update(&ctx, (const uint8_t *)"\x19" "Cosmos Signed Message:\n", 26);
-    uint8_t c;
-    if (message_len >= 1000000000) { c = '0' + message_len / 1000000000 % 10; sha3_Update(&ctx, &c, 1); }
-    if (message_len >= 100000000)  { c = '0' + message_len / 100000000  % 10; sha3_Update(&ctx, &c, 1); }
-    if (message_len >= 10000000)   { c = '0' + message_len / 10000000   % 10; sha3_Update(&ctx, &c, 1); }
-    if (message_len >= 1000000)    { c = '0' + message_len / 1000000    % 10; sha3_Update(&ctx, &c, 1); }
-    if (message_len >= 100000)     { c = '0' + message_len / 100000     % 10; sha3_Update(&ctx, &c, 1); }
-    if (message_len >= 10000)      { c = '0' + message_len / 10000      % 10; sha3_Update(&ctx, &c, 1); }
-    if (message_len >= 1000)       { c = '0' + message_len / 1000       % 10; sha3_Update(&ctx, &c, 1); }
-    if (message_len >= 100)        { c = '0' + message_len / 100        % 10; sha3_Update(&ctx, &c, 1); }
-    if (message_len >= 10)         { c = '0' + message_len / 10         % 10; sha3_Update(&ctx, &c, 1); }
-    c = '0' + message_len              % 10; sha3_Update(&ctx, &c, 1);
-    sha3_Update(&ctx, message, message_len);
-    keccak_Final(&ctx, hash);
-}
+//static void cosmos_message_hash(const uint8_t *message, size_t message_len, uint8_t hash[32])
+//{
+//    struct SHA3_CTX ctx;
+//    sha3_256_Init(&ctx);
+//    sha3_Update(&ctx, (const uint8_t *)"\x19" "Cosmos Signed Message:\n", 26);
+//    uint8_t c;
+//    if (message_len >= 1000000000) { c = '0' + message_len / 1000000000 % 10; sha3_Update(&ctx, &c, 1); }
+//    if (message_len >= 100000000)  { c = '0' + message_len / 100000000  % 10; sha3_Update(&ctx, &c, 1); }
+//    if (message_len >= 10000000)   { c = '0' + message_len / 10000000   % 10; sha3_Update(&ctx, &c, 1); }
+//    if (message_len >= 1000000)    { c = '0' + message_len / 1000000    % 10; sha3_Update(&ctx, &c, 1); }
+//    if (message_len >= 100000)     { c = '0' + message_len / 100000     % 10; sha3_Update(&ctx, &c, 1); }
+//    if (message_len >= 10000)      { c = '0' + message_len / 10000      % 10; sha3_Update(&ctx, &c, 1); }
+//    if (message_len >= 1000)       { c = '0' + message_len / 1000       % 10; sha3_Update(&ctx, &c, 1); }
+//    if (message_len >= 100)        { c = '0' + message_len / 100        % 10; sha3_Update(&ctx, &c, 1); }
+//    if (message_len >= 10)         { c = '0' + message_len / 10         % 10; sha3_Update(&ctx, &c, 1); }
+//    c = '0' + message_len              % 10; sha3_Update(&ctx, &c, 1);
+//    sha3_Update(&ctx, message, message_len);
+//    keccak_Final(&ctx, hash);
+//}
 
-void cosmos_message_sign(const CosmosSignMessage *msg, const HDNode *node, CosmosMessageSignature *resp)
-{
-    uint8_t hash[32];
+//void cosmos_message_sign(const CosmosSignMessage *msg, const HDNode *node, CosmosMessageSignature *resp)
+//{
+//    uint8_t hash[32];
+//
+//    if (!hdnode_get_ethereum_pubkeyhash(node, resp->address.bytes)) {
+//        return;
+//    }
+//    resp->has_address = true;
+//    resp->address.size = 20;
+//    cosmos_message_hash(msg->message.bytes, msg->message.size, hash);
+//
+//    uint8_t v;
+//    if (ecdsa_sign_digest(&secp256k1, node->private_key, hash, resp->signature.bytes, &v, cosmos_is_canonic) != 0) {
+//        fsm_sendFailure(FailureType_Failure_Other, _("Signing failed"));
+//        return;
+//    }
+//
+//    resp->has_signature = true;
+//    resp->signature.bytes[64] = 27 + v;
+//    resp->signature.size = 65;
+//    msg_write(MessageType_MessageType_CosmosMessageSignature, resp);
+//}
 
-    if (!hdnode_get_ethereum_pubkeyhash(node, resp->address.bytes)) {
-        return;
-    }
-    resp->has_address = true;
-    resp->address.size = 20;
-    cosmos_message_hash(msg->message.bytes, msg->message.size, hash);
-
-    uint8_t v;
-    if (ecdsa_sign_digest(&secp256k1, node->private_key, hash, resp->signature.bytes, &v, cosmos_is_canonic) != 0) {
-        fsm_sendFailure(FailureType_Failure_Other, _("Signing failed"));
-        return;
-    }
-
-    resp->has_signature = true;
-    resp->signature.bytes[64] = 27 + v;
-    resp->signature.size = 65;
-    msg_write(MessageType_MessageType_CosmosMessageSignature, resp);
-}
-
-int cosmos_message_verify(const CosmosVerifyMessage *msg)
-{
-    if (msg->signature.size != 65 || msg->address.size != 20) {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, _("Malformed data"));
-        return 1;
-    }
-
-    uint8_t pubkey[65];
-    uint8_t hash[32];
-
-    cosmos_message_hash(msg->message.bytes, msg->message.size, hash);
-
-    /* v should be 27, 28 but some implementations use 0,1.  We are
-     * compatible with both.
-     */
-    uint8_t v = msg->signature.bytes[64];
-    if (v >= 27) {
-        v -= 27;
-    }
-    if (v >= 2 ||
-        ecdsa_recover_pub_from_sig(&secp256k1, pubkey, msg->signature.bytes, hash, v) != 0) {
-        return 2;
-    }
-
-    struct SHA3_CTX ctx;
-    sha3_256_Init(&ctx);
-    sha3_Update(&ctx, pubkey + 1, 64);
-    keccak_Final(&ctx, hash);
-
-    /* result are the least significant 160 bits */
-    if (memcmp(msg->address.bytes, hash + 12, 20) != 0) {
-        return 2;
-    }
-    return 0;
-}
+//int cosmos_message_verify(const CosmosVerifyMessage *msg)
+//{
+//    if (msg->signature.size != 65 || msg->address.size != 20) {
+//        fsm_sendFailure(FailureType_Failure_SyntaxError, _("Malformed data"));
+//        return 1;
+//    }
+//
+//    uint8_t pubkey[65];
+//    uint8_t hash[32];
+//
+//    cosmos_message_hash(msg->message.bytes, msg->message.size, hash);
+//
+//    /* v should be 27, 28 but some implementations use 0,1.  We are
+//     * compatible with both.
+//     */
+//    uint8_t v = msg->signature.bytes[64];
+//    if (v >= 27) {
+//        v -= 27;
+//    }
+//    if (v >= 2 ||
+//        ecdsa_recover_pub_from_sig(&secp256k1, pubkey, msg->signature.bytes, hash, v) != 0) {
+//        return 2;
+//    }
+//
+//    struct SHA3_CTX ctx;
+//    sha3_256_Init(&ctx);
+//    sha3_Update(&ctx, pubkey + 1, 64);
+//    keccak_Final(&ctx, hash);
+//
+//    /* result are the least significant 160 bits */
+//    if (memcmp(msg->address.bytes, hash + 12, 20) != 0) {
+//        return 2;
+//    }
+//    return 0;
+//}

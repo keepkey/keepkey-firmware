@@ -4,7 +4,8 @@
   "scripts": {
     "repo-rise": "./repo-rinse.sh",
     "submodules":"git submodule update --init --recursive",
-    "build-debug": "./scripts/build/docker/device/debug.sh",
+    "build-debug-release": "./scripts/build/docker/device/debug.sh",
+    "build-debug-release-emulator": "./scripts/build/docker/device/debug.sh",
     "build-release": "./scripts/build/docker/device/release.sh",
     "upload-firmware": "./go-keepkey uploadFirmware --filepath ./bin/build/bin/firmware.keepkey.bin",
     "get-version-info": "./go-keepkey getFeatures",

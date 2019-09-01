@@ -178,52 +178,52 @@ void fsm_msgCosmosGetAddress(CosmosGetAddress *msg)
     layoutHome();
 }
 
-void fsm_msgCosmosSignMessage(CosmosSignMessage *msg)
-{
-    RESP_INIT(CosmosMessageSignature);
+//void fsm_msgCosmosSignMessage(CosmosSignMessage *msg)
+//{
+//    RESP_INIT(CosmosMessageSignature);
+//
+//    CHECK_INITIALIZED
+//
+//    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Sign Message"),
+//                 "%s", msg->message.bytes)) {
+//        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+//        layoutHome();
+//        return;
+//    }
+//
+//    CHECK_PIN
+//
+//    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
+//    if (!node) return;
+//
+//    cosmos_message_sign(msg, node, resp);
+//    layoutHome();
+//}
 
-    CHECK_INITIALIZED
-
-    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Sign Message"),
-                 "%s", msg->message.bytes)) {
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-        layoutHome();
-        return;
-    }
-
-    CHECK_PIN
-
-    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
-    if (!node) return;
-
-    cosmos_message_sign(msg, node, resp);
-    layoutHome();
-}
-
-void fsm_msgCosmosVerifyMessage(const CosmosVerifyMessage *msg)
-{
-    CHECK_PARAM(msg->has_address, _("No address provided"));
-    CHECK_PARAM(msg->has_message, _("No message provided"));
-
-    if (cosmos_message_verify(msg) != 0) {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, _("Invalid signature"));
-        return;
-    }
-
-    char address[43] = { '0', 'x' };
-    ethereum_address_checksum(msg->address.bytes, address + 2, false, 0);
-    if (!confirm_address(_("Confirm Signer"), address)) {
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-        layoutHome();
-        return;
-    }
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, _("Message Verified"), "%s",
-                 msg->message.bytes)) {
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-        layoutHome();
-        return;
-    }
-    fsm_sendSuccess(_("Message verified"));
-
-    layoutHome();
-}
+//void fsm_msgCosmosVerifyMessage(const CosmosVerifyMessage *msg)
+//{
+//    CHECK_PARAM(msg->has_address, _("No address provided"));
+//    CHECK_PARAM(msg->has_message, _("No message provided"));
+//
+//    if (cosmos_message_verify(msg) != 0) {
+//        fsm_sendFailure(FailureType_Failure_SyntaxError, _("Invalid signature"));
+//        return;
+//    }
+//
+//    char address[43] = { '0', 'x' };
+//    ethereum_address_checksum(msg->address.bytes, address + 2, false, 0);
+//    if (!confirm_address(_("Confirm Signer"), address)) {
+//        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+//        layoutHome();
+//        return;
+//    }
+//    if (!confirm(ButtonRequestType_ButtonRequest_Other, _("Message Verified"), "%s",
+//                 msg->message.bytes)) {
+//        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+//        layoutHome();
+//        return;
+//    }
+//    fsm_sendSuccess(_("Message verified"));
+//
+//    layoutHome();
+//}

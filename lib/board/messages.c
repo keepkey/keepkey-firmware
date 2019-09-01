@@ -64,6 +64,8 @@ static const MessagesMap_t *message_map_entry(MessageMapType type,
 {
     const MessagesMap_t *m = MessagesMap;
 
+    //printf("\n checkpoint MessagesMap_t");
+
     if (map_size > msg_id && m[msg_id].msg_id == msg_id &&
         m[msg_id].type == type && m[msg_id].dir == dir)
     {
@@ -235,6 +237,7 @@ void usb_rx_helper(const uint8_t *buf, size_t length, MessageMapType type)
     static size_t cursor; //< Index into msg where the current frame is to be written.
     static const MessagesMap_t *entry;
 
+
     if (firstFrame) {
         msgId = 0xffff;
         msgSize = 0;
@@ -276,8 +279,11 @@ void usb_rx_helper(const uint8_t *buf, size_t length, MessageMapType type)
           ((uint32_t)buf[6]) << 16 |
           ((uint32_t)buf[5]) << 24;
 
+
         // Determine callback handler and message map type.
         entry = message_map_entry(type, msgId, IN_MSG);
+
+
 
         // And reset the cursor.
         cursor = 0;
@@ -285,15 +291,23 @@ void usb_rx_helper(const uint8_t *buf, size_t length, MessageMapType type)
         // Then take note of the fragment boundaries.
         frame = &buf[9];
         frameSize = MIN(length - 9, msgSize);
+        printf("\n frameSize: %d", frameSize);
+
+
+        printf("\n msgId: %d", msgId);
+        //printf("\n IN_MSG: %s", IN_MSG);
+        //printf("\n entry: %d", entry);
+
     } else {
         // Otherwise it's a continuation/fragment.
         frame = &buf[1];
         frameSize = length - 1;
     }
 
+
     // If the msgId wasn't in our map, bail.
     if (!entry) {
-        (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message");
+        (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message1");
         goto reset;
     }
 
@@ -357,7 +371,7 @@ void handle_usb_rx(const void *msg, size_t len)
         // Determine callback handler and message map type.
         const MessagesMap_t *entry = message_map_entry(NORMAL_MSG, msgId, IN_MSG);
         if (!entry) {
-            (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message");
+            (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message2");
             return;
         }
 
@@ -388,7 +402,7 @@ void handle_debug_usb_rx(const void *msg, size_t len)
         // Determine callback handler and message map type.
         const MessagesMap_t *entry = message_map_entry(DEBUG_MSG, msgId, IN_MSG);
         if (!entry) {
-            (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message");
+            (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message3");
             return;
         }
 

@@ -29,7 +29,9 @@ void cosmos_signing_init(CosmosSignTx *msg, const HDNode *node);
 void cosmos_signing_abort(void);
 void cosmos_signing_txack(CosmosTxAck *msg);
 
-void cosmos_message_sign(CosmosSignMessage *msg, const HDNode *node, CosmosMessageSignature *resp);
-int cosmos_message_verify(CosmosVerifyMessage *msg);
+//void cosmos_message_sign(CosmosSignMessage *msg, const HDNode *node, CosmosMessageSignature *resp);
+//int cosmos_message_verify(CosmosVerifyMessage *msg);
+
+
 
 #endif

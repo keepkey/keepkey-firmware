@@ -12,7 +12,7 @@ static void test_truncateAddress(
   const std::string &expected)
 {
   char value[100];
-  strlcpy(value, addr.c_str(), sizeof(value));
+  strncpy(value, addr.c_str(), sizeof(value));
 
   nano_truncateAddress(coin, value);
 
