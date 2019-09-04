@@ -92,16 +92,23 @@ create build dir
  cd build
 ```
 
-make
+make (linux)
 ```
  cmake -C ../cmake/caches/emulator.cmake .. -DNANOPB_DIR=/home/*username*/nanopb-nanopb-0.2.9.2/generator -DPROTOC_BINARY=/usr/bin/protoc
  make -j8
+```
+(OSX)
+
+```
+cmake -C ../cmake/caches/emulator.cmake .. -DNANOPB_DIR=/Users/tester/nanopb-nanopb-0.2.9.2/generator -DPROTOC_BINARY=/usr/local/bin/protoc
 ```
 
 param1: Path to cmake (tracked)
 param2: Path to source (up one level)
 param3: Path to nanopb source code (Sample assumes HOME)
 param4: Path to protoc bin (linux)
+
+
 
 
 skip tests
