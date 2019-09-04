@@ -37,6 +37,7 @@
 #include "keepkey/board/signatures.h"
 #include "keepkey/board/util.h"
 #include "keepkey/firmware/app_layout.h"
+#include "keepkey/board/confirm_sm.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
@@ -114,8 +115,11 @@ static void unknown_bootloader(void) {
 }
 
 static void update_bootloader(void) {
-    layout_warning_static("Please update your bootloader.");
-    shutdown();
+    review_without_button_request(
+        "Update Recommended",
+        "This device's bootloader has a known security issue. "
+        "https://bit.ly/2jUTbnk "
+        "Please update your bootloader.");
 }
 #endif
 
