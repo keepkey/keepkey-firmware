@@ -4,7 +4,7 @@ extern "C" {
 }
 
 #include "gtest/gtest.h"
-#include <string>
+#include <cstring>
 
 static void test_truncateAddress(
   const CoinType *coin,
@@ -12,7 +12,8 @@ static void test_truncateAddress(
   const std::string &expected)
 {
   char value[100];
-  strlcpy(value, addr.c_str(), sizeof(value));
+  strncpy(value, addr.c_str(), sizeof(value));
+  value[sizeof(value)-1] = '\0';
 
   nano_truncateAddress(coin, value);
 
@@ -116,46 +117,32 @@ TEST(Nano, BlockHashing) {
     "F8FBAD162C5911405364035D620B0AEDB4F7D882513F8DD4BC47637C594F7CD0");
 }
 
-static void test_bip32_string(
-  const CoinType *coin,
-  const uint32_t *address_n,
-  const size_t address_n_count,
-  const bool expected_ok,
-  const std::string &expected_string)
-{
-  char out_string[200];
-  memset(out_string, 0, sizeof(out_string));
-
-  bool ok = nano_bip32_to_string(
-    out_string, sizeof(out_string),
-    coin, address_n, address_n_count);
-
-  ASSERT_EQ(expected_ok, ok)
-    << "Unexpected success value";
-  ASSERT_EQ(expected_string, std::string(out_string))
-    << "Unexpected string result";
-}
-
 TEST(Nano, Bip32ToString) {
   const CoinType *coin = coinByName("Nano");
 
-  test_bip32_string(
-    coin,
-    (uint32_t[]){ 44  + 0x80000000,
-                  165 + 0x80000000,
-                  12  + 0x80000000 },
-    3, true, "Nano Account #12");
-  test_bip32_string(
-    coin,
-    (uint32_t[]){ 44  + 0x80000000,
-                  100 + 0x80000000,
-                  12  + 0x80000000 },
-    3, false, "");
-  test_bip32_string(
-    coin,
-    (uint32_t[]){ 44  + 0x80000000,
-                  165 + 0x80000000,
-                  0   + 0x80000000,
-                  12  + 0x80000000 },
-    4, false, "");
+  struct {
+      uint32_t address_n[5];
+      uint32_t address_n_count;
+      bool expected_ok;
+      const char *expected_string;
+  } vec[] = {
+      { { 0x80000000 | 44, 0x80000000 | 165, 0x80000000 | 12 }, 3, true, "Nano Account #12" },
+      { { 0x80000000 | 44, 0x80000000 | 100, 0x80000000 | 12 }, 3, false, "" },
+      { { 0x80000000 | 44, 0x80000000 | 165, 0x80000000 | 0, 0x80000000 | 12 }, 4, false, "" },
+  };
+
+  for (const auto &v : vec) {
+
+    char out_string[200];
+    memset(out_string, 0, sizeof(out_string));
+
+    bool ok = nano_bip32_to_string(
+      out_string, sizeof(out_string),
+      coin, v.address_n, v.address_n_count);
+
+    ASSERT_EQ(v.expected_ok, ok)
+      << "Unexpected success value";
+    ASSERT_EQ(v.expected_string, std::string(out_string))
+      << "Unexpected string result";
+  }
 }
