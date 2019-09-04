@@ -53,9 +53,9 @@ static uint32_t chain_id;
 static uint32_t tx_type;
 struct SHA3_CTX keccak_ctx;
 
-bool cosmos_isNonStandardERC20Transfer(const CosmosSignTx *msg) {
-    return msg->has_token_shortcut && msg->has_token_value && (msg->has_token_to || msg->to_address_n_count > 0);
-}
+//bool cosmos_isNonStandardERC20Transfer(const CosmosSignTx *msg) {
+//    return msg->has_token_shortcut && msg->has_token_value && (msg->has_token_to || msg->to_address_n_count > 0);
+//}
 
 bool cosmos_isStandardERC20Transfer(const CosmosSignTx *msg) {
     if (msg->to.size == 20 && msg->value.size == 0 && msg->data_initial_chunk.size == 68
