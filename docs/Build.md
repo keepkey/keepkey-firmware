@@ -1,7 +1,13 @@
 Prerequisites
 -------------
 
-#linux (fedora 30)
+### linux (fedora 30)
+
+### OSX
+
+```
+brew install protobuf
+```
 
 ## install protoc
 ```
@@ -23,7 +29,16 @@ version libprotoc 3.6.1
 
 Build protobuf libs
 
-```cd nanopb-0.2.9.2/generator/proto \n make```
+```cd nanopb-0.2.9.2/generator/proto ```
+
+make
+```make```
+
+note: warning is normal
+```
+[libprotobuf WARNING google/protobuf/compiler/parser.cc:647] No syntax specified for the proto file: google/protobuf/descriptor.proto. Please use 'syntax = "proto2";' or 'syntax = "proto3";' to specify a syntax version. (Defaulted to proto2 syntax.)
+```
+
 
 move to home dir
 ```
@@ -36,8 +51,16 @@ View PATH
 ```
 echo $PATH
 ```
+linux
+```
+PATH=$PATH:/home/*username*/nanopb-nanopb-0.2.9.2/generator
+```
 
-```PATH=$PATH:/home/*username*/nanopb-nanopb-0.2.9.2/generator```
+OSX
+```
+PATH=$PATH:/Users/*username*/nanopb-nanopb-0.2.9.2/generator
+```
+
 
 #windows
 TODO
@@ -52,7 +75,14 @@ Building the Emulator
 Build repo
 ```
 git clone https://github.com/keepkey/keepkey-firmware.git
+
 ```
+
+init submodules
+```
+git submodule update --init --recursive
+```
+
 
 ## Compile Emulator
 
@@ -62,16 +92,23 @@ create build dir
  cd build
 ```
 
-make
+make (linux)
 ```
  cmake -C ../cmake/caches/emulator.cmake .. -DNANOPB_DIR=/home/*username*/nanopb-nanopb-0.2.9.2/generator -DPROTOC_BINARY=/usr/bin/protoc
  make -j8
+```
+(OSX)
+
+```
+cmake -C ../cmake/caches/emulator.cmake .. -DNANOPB_DIR=/Users/tester/nanopb-nanopb-0.2.9.2/generator -DPROTOC_BINARY=/usr/local/bin/protoc
 ```
 
 param1: Path to cmake (tracked)
 param2: Path to source (up one level)
 param3: Path to nanopb source code (Sample assumes HOME)
 param4: Path to protoc bin (linux)
+
+
 
 
 skip tests
