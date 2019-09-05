@@ -53,67 +53,6 @@ static uint32_t chain_id;
 static uint32_t tx_type;
 struct SHA3_CTX keccak_ctx_2;
 
-//bool cosmos_isNonStandardERC20Transfer(const CosmosSignTx *msg) {
-//    return msg->has_token_shortcut && msg->has_token_value && (msg->has_token_to || msg->to_address_n_count > 0);
-//}
-
-bool cosmos_isStandardERC20Transfer(const CosmosSignTx *msg) {
-    if (msg->to.size == 20 && msg->value.size == 0 && msg->data_initial_chunk.size == 68
-        && memcmp(msg->data_initial_chunk.bytes, "\xa9\x05\x9c\xbb\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16) == 0) {
-        return true;
-    }
-    return false;
-}
-
-bool cosmos_isStandardERC20Approve(const CosmosSignTx *msg) {
-    if (msg->to.size == 20 && msg->value.size == 0 && msg->data_initial_chunk.size == 68
-        && memcmp(msg->data_initial_chunk.bytes, "\x09\x5e\xa7\xb3\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16) == 0) {
-        return true;
-    }
-    return false;
-}
-
-bool cosmos_getStandardERC20Recipient(const CosmosSignTx *msg, char *address, size_t len) {
-    if (len < 2 * 20 + 1)
-        return false;
-
-    data2hex(msg->data_initial_chunk.bytes + 16, 20, address);
-    return true;
-}
-
-bool cosmos_getStandardERC20Coin(const CosmosSignTx *msg, CoinType *coin) {
-    const CoinType *found = coinByChainAddress(msg->has_chain_id ? msg->chain_id : 1, msg->to.bytes);
-    if (found) {
-        memcpy(coin, found, sizeof(*coin));
-        return true;
-    }
-
-    const TokenType *token = tokenByChainAddress(msg->has_chain_id ? msg->chain_id : 1, msg->to.bytes);
-    if (token == UnknownToken)
-        return false;
-
-    coinFromToken(coin, token);
-    return true;
-}
-
-bool cosmos_getStandardERC20Amount(const CosmosSignTx *msg, void **tx_out_amount) {
-    const ExchangeType *exchange = &msg->exchange_type;
-    size_t size = exchange->signed_exchange_response.responseV2.deposit_amount.size;
-    if (32 < size)
-        return false;
-
-    // Make sure the value in data_initial_chunk contains the correct number of
-    // leading zeroes (as compared to what the exchange contract wants).
-    char *value = (char*)msg->data_initial_chunk.bytes + 36;
-    if (memcmp(value, "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32-size) != 0)
-        return false;
-
-    *tx_out_amount = value + (32 - size);
-    return true;
-}
-
-
-
 static inline void hash_data(const uint8_t *buf, size_t size)
 {
     sha3_Update(&keccak_ctx_2, buf, size);
@@ -489,6 +428,25 @@ static void layoutCosmosFee(const uint8_t *value, uint32_t value_len,
     }
 }
 
+
+const CoinType *fsm_getCoin(bool has_name, const char *name)
+{
+    const CoinType *coin;
+    if (has_name) {
+        coin = coinByName(name);
+    } else {
+        coin = coinByName("Bitcoin");
+    }
+    if(!coin)
+    {
+        fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
+        layoutHome();
+        return 0;
+    }
+
+    return coin;
+}
+
 /*
  * RLP fields:
  * - nonce (0 .. 32)
@@ -528,6 +486,8 @@ void cosmos_signing_init(CosmosSignTx *msg, const HDNode *node, bool needs_confi
     cosmos_signing = true;
     sha3_256_Init(&keccak_ctx_2);
 
+    bool is_approve = false;
+
     memset(&msg_tx_request, 0, sizeof(CosmosTxRequest));
     /* set fields to 0, to avoid conditions later */
     if (!msg->has_value)
@@ -539,30 +499,6 @@ void cosmos_signing_init(CosmosSignTx *msg, const HDNode *node, bool needs_confi
     if (!msg->has_nonce)
         msg->nonce.size = 0;
 
-    /* eip-155 chain id */
-    if (msg->has_chain_id) {
-        if (msg->chain_id < 1) {
-            fsm_sendFailure(FailureType_Failure_SyntaxError, _("Chain Id out of bounds"));
-            cosmos_signing_abort();
-            return;
-        }
-        chain_id = msg->chain_id;
-    } else {
-        chain_id = 0;
-    }
-
-    /* Wanchain txtype */
-    if (msg->has_tx_type) {
-        if (msg->tx_type == 1 || msg->tx_type == 6) {
-            tx_type = msg->tx_type;
-        } else {
-            fsm_sendFailure(FailureType_Failure_SyntaxError, _("Txtype out of bounds"));
-            cosmos_signing_abort();
-            return;
-        }
-    } else {
-        tx_type = 0;
-    }
 
     if (msg->has_data_length && msg->data_length > 0) {
         if (!msg->has_data_initial_chunk || msg->data_initial_chunk.size == 0) {
@@ -590,25 +526,6 @@ void cosmos_signing_init(CosmosSignTx *msg, const HDNode *node, bool needs_confi
 
     const TokenType *token = NULL;
 
-    // detect ERC-20 token (workaround for KeepKey client)
-    if ((msg->has_token_to && msg->token_to.size == 20) && msg->value.size == 0 &&
-        data_total == 0 && msg->data_initial_chunk.size == 0 && msg->has_token_to &&
-        msg->has_token_shortcut) {
-        if (!tokenByTicker(chain_id, msg->token_shortcut, &token)) {
-            fsm_sendFailure(FailureType_Failure_SyntaxError, _("Cannot uniquely determine token from ticker"));
-            cosmos_signing_abort();
-            return;
-        }
-        memset(msg->data_initial_chunk.bytes, 0, 68);
-        memcpy(msg->data_initial_chunk.bytes, "\xa9\x05\x9c\xbb\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16);
-        memcpy(msg->data_initial_chunk.bytes + 16, msg->token_to.bytes, 20);
-        memcpy(msg->data_initial_chunk.bytes + 36 + (32 - msg->token_value.size), msg->token_value.bytes, msg->token_value.size);
-        data_total = msg->data_initial_chunk.size = 68;
-        memcpy(msg->to.bytes, token->address, 20);
-        msg->to.size = 20;
-        msg->value.size = 0;
-        memset(msg->value.bytes, 0, sizeof(msg->value.bytes));
-    }
 
     // safety checks
     if (!cosmos_signing_check(msg)) {
@@ -618,37 +535,14 @@ void cosmos_signing_init(CosmosSignTx *msg, const HDNode *node, bool needs_confi
     }
 
     bool data_needs_confirm = true;
-//    if (ethereum_contractHandled(data_total, msg, node)) {
-//        if (!ethereum_contractConfirmed(data_total, msg, node)) {
-//            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled by user");
-//            cosmos_signing_abort();
-//            return;
-//        }
-//        needs_confirm = false;
-//        data_needs_confirm = false;
-//    }
-
-    // detect ERC-20 token
-    if (data_total == 68 && cosmos_isStandardERC20Transfer(msg)) {
-        token = tokenByChainAddress(chain_id, msg->to.bytes);
-    }
-
-    bool is_approve = false;
-    if (data_total == 68 && cosmos_isStandardERC20Approve(msg)) {
-        token = tokenByChainAddress(chain_id, msg->to.bytes);
-        is_approve = true;
-    }
 
     char confirm_body_message[BODY_CHAR_MAX];
     if (needs_confirm) {
         memset(confirm_body_message, 0, sizeof(confirm_body_message));
-        if (token != NULL) {
-            layoutCosmosConfirmTx(msg->data_initial_chunk.bytes + 16, 20, msg->data_initial_chunk.bytes + 36, 32, token,
-                                    confirm_body_message, sizeof(confirm_body_message), /*approve=*/is_approve);
-        } else {
-            layoutCosmosConfirmTx(msg->to.bytes, msg->to.size, msg->value.bytes, msg->value.size, NULL,
-                                    confirm_body_message, sizeof(confirm_body_message), /*approve=*/false);
-        }
+
+        layoutCosmosConfirmTx(msg->to.bytes, msg->to.size, msg->value.bytes, msg->value.size, NULL,
+                                confirm_body_message, sizeof(confirm_body_message), /*approve=*/false);
+
         bool is_transfer = msg->address_type == OutputAddressType_TRANSFER;
         const char *title;
         ButtonRequestType BRT;
@@ -691,10 +585,6 @@ void cosmos_signing_init(CosmosSignTx *msg, const HDNode *node, bool needs_confi
         }
     }
 
-    if (is_approve) {
-        token = NULL;
-    }
-
     memset(confirm_body_message, 0, sizeof(confirm_body_message));
     layoutCosmosFee(msg->value.bytes, msg->value.size,
                       msg->gas_price.bytes, msg->gas_price.size,
@@ -706,6 +596,24 @@ void cosmos_signing_init(CosmosSignTx *msg, const HDNode *node, bool needs_confi
         cosmos_signing_abort();
         return;
     }
+
+    /*
+     *   BEGIN cosmos inject
+     */
+
+    const char *TX_RAW = "{\"account_number\":\"1\",\"chain_id\":\"tendermint_test\",\"fee\":{\"amount\":[{\"amount\":\"0\",\"denom\":\"\"}],\"gas\":\"21906\"},\"memo\":\"\",\"msgs\":[{\"type\":\"cosmos-sdk/MsgDelegate\",\"value\":{\"msg\":[{\"type\":\"cosmos-sdk/MsgDelegate\",\"value\":{\"delegation\":{\"amount\":\"100\",\"denom\":\"STAKE\"},\"delegator_address\":\"cosmos1zymku32dmnwwy0gwggxzzqqvzzfa2r0xthdlw0\",\"validator_address\":\"cosmosvaloper199mlc7fr6ll5t54w7tts7f4s0cvnqgc59nmuxf\"}}]}}],\"sequence\":\"0\"}";
+    printf("\n %s:",TX_RAW);
+
+    //get Cosmos as coin
+    const CoinType *coin = fsm_getCoin(true, "Cosmos");
+    if (!coin) return;
+
+
+
+    /*
+     *   END cosmos inject
+     */
+
 
     /* Stage 1: Calculate total RLP length */
     uint32_t rlp_length = 0;
@@ -750,6 +658,8 @@ void cosmos_signing_init(CosmosSignTx *msg, const HDNode *node, bool needs_confi
         send_signature();
     }
 }
+
+
 
 void cosmos_signing_txack(CosmosTxAck *tx)
 {
