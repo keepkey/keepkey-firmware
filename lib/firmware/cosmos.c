@@ -608,6 +608,15 @@ void cosmos_signing_init(CosmosSignTx *msg, const HDNode *node, bool needs_confi
     const CoinType *coin = fsm_getCoin(true, "Cosmos");
     if (!coin) return;
 
+    //get curve
+    const curve_info *curve = get_curve_by_name(coin->curve_name);
+
+    //
+
+    //get hash
+    //cryptoMessageHash(coin, curve, TX_RAW, message_len, hash)
+
+    //sign hash
 
 
     /*
@@ -659,6 +668,44 @@ void cosmos_signing_init(CosmosSignTx *msg, const HDNode *node, bool needs_confi
     }
 }
 
+static void cryptoMessageHash(const CoinType *coin, const curve_info *curve, const uint8_t *message, size_t message_len, uint8_t hash[HASHER_DIGEST_LENGTH]) {
+    Hasher hasher;
+    hasher_Init(&hasher, curve->hasher_sign);
+    hasher_Update(&hasher, (const uint8_t *)coin->signed_message_header, strlen(coin->signed_message_header));
+    uint8_t varint[5];
+    uint32_t l = ser_length(message_len, varint);
+    hasher_Update(&hasher, varint, l);
+    hasher_Update(&hasher, message, message_len);
+    hasher_Final(&hasher, hash);
+}
+
+int cryptoMessageSign(const CoinType *coin, HDNode *node, InputScriptType script_type, const uint8_t *message, size_t message_len, uint8_t *signature)
+{
+    const curve_info *curve = get_curve_by_name(coin->curve_name);
+    if (!curve) return 1;
+    uint8_t hash[HASHER_DIGEST_LENGTH];
+    cryptoMessageHash(coin, curve, message, message_len, hash);
+
+    uint8_t pby;
+    int result = hdnode_sign_digest(node, hash, signature + 1, &pby, NULL);
+    if (result == 0) {
+        switch (script_type) {
+            case InputScriptType_SPENDP2SHWITNESS:
+                // segwit-in-p2sh
+                signature[0] = 35 + pby;
+                break;
+            case InputScriptType_SPENDWITNESS:
+                // segwit
+                signature[0] = 39 + pby;
+                break;
+            default:
+                // p2pkh
+                signature[0] = 31 + pby;
+                break;
+        }
+    }
+    return result;
+}
 
 
 void cosmos_signing_txack(CosmosTxAck *tx)
