@@ -24,6 +24,7 @@
 #include "trezor/crypto/memzero.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/board/confirm_sm.h"
+#include "keepkey/board/util.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/pin_sm.h"
@@ -37,8 +38,8 @@
 #define MAX_UNCYPHERED_WORDS (3)
 
 static bool recovery_started = false;
-static bool enforce_wordlist;
-static bool dry_run;
+static bool enforce_wordlist = true;
+static bool dry_run = true;
 static bool awaiting_character;
 static CONFIDENTIAL char mnemonic[MNEMONIC_BUF];
 static char english_alphabet[ENGLISH_ALPHABET_BUF] = "abcdefghijklmnopqrstuvwxyz";
@@ -59,6 +60,8 @@ static void recovery_abort(void) {
 
     recovery_started = false;
     awaiting_character = false;
+    enforce_wordlist = true;
+    dry_run = true;
     memzero(mnemonic, sizeof(mnemonic));
     memzero(cipher, sizeof(cipher));
 }
@@ -476,6 +479,9 @@ void recovery_cipher_finalize(void)
     static char CONFIDENTIAL temp_word[CURRENT_WORD_BUF];
     volatile bool auto_completed = true;
 
+    memzero(new_mnemonic, sizeof(new_mnemonic));
+    memzero(temp_word, sizeof(temp_word));
+
     /* Attempt to autocomplete each word */
     char *tok = strtok(mnemonic, " ");
 
@@ -541,6 +547,8 @@ void recovery_cipher_finalize(void)
 
     memzero(new_mnemonic, sizeof(new_mnemonic));
     awaiting_character = false;
+    enforce_wordlist = true;
+    dry_run = true;
     memzero(mnemonic, sizeof(mnemonic));
     memzero(cipher, sizeof(cipher));
     layoutHome();
