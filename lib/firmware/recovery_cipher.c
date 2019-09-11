@@ -36,6 +36,7 @@
 
 #define MAX_UNCYPHERED_WORDS (3)
 
+static bool recovery_started = false;
 static bool enforce_wordlist;
 static bool dry_run;
 static bool awaiting_character;
@@ -56,6 +57,7 @@ static void recovery_abort(void) {
         storage_reset();
     }
 
+    recovery_started = false;
     awaiting_character = false;
     memzero(mnemonic, sizeof(mnemonic));
     memzero(cipher, sizeof(cipher));
@@ -270,6 +272,7 @@ void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
 
     /* Set to recovery cipher mode and generate and show next cipher */
     awaiting_character = true;
+    recovery_started = true;
     next_character();
 }
 
@@ -283,6 +286,13 @@ void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
  */
 void next_character(void)
 {
+    if (!recovery_started) {
+        recovery_abort();
+        fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
+        layoutHome();
+        return;
+    }
+
     /* Scramble cipher */
     strlcpy(cipher, english_alphabet, ENGLISH_ALPHABET_BUF);
     random_permute_char(cipher, strlen(cipher));
@@ -341,7 +351,7 @@ void next_character(void)
  */
 void recovery_character(const char *character)
 {
-    if (!awaiting_character) {
+    if (!awaiting_character || !recovery_started) {
         recovery_abort();
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
         layoutHome();
@@ -430,6 +440,13 @@ void recovery_character(const char *character)
  */
 void recovery_delete_character(void)
 {
+    if (!recovery_started) {
+        recovery_abort();
+        fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
+        layoutHome();
+        return;
+    }
+
     if(strlen(mnemonic) > 0)
     {
         mnemonic[strlen(mnemonic) - 1] = '\0';
@@ -448,6 +465,13 @@ void recovery_delete_character(void)
  */
 void recovery_cipher_finalize(void)
 {
+    if (!recovery_started) {
+        recovery_abort();
+        fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
+        layoutHome();
+        return;
+    }
+
     static char CONFIDENTIAL new_mnemonic[MNEMONIC_BUF] = "";
     static char CONFIDENTIAL temp_word[CURRENT_WORD_BUF];
     volatile bool auto_completed = true;
@@ -479,7 +503,7 @@ void recovery_cipher_finalize(void)
     }
 
     /* Truncate additional space at the end */
-    new_mnemonic[strlen(new_mnemonic) - 1] = '\0';
+    new_mnemonic[MAX(0u, strnlen(new_mnemonic, sizeof(new_mnemonic)) - 1)] = '\0';
 
     if (!dry_run && (!enforce_wordlist || mnemonic_check(new_mnemonic))) {
         storage_setMnemonic(new_mnemonic);
@@ -532,6 +556,8 @@ void recovery_cipher_finalize(void)
  */
 bool recovery_cipher_abort(void)
 {
+    recovery_started = false;
+
     if (awaiting_character) {
         awaiting_character = false;
         return true;
