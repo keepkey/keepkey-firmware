@@ -164,11 +164,12 @@ bool eos_getPublicKey(const HDNode *n, const curve_info *curve, EosPublicKeyKind
 }
 
 bool eos_publicKeyToWif(const uint8_t *public_key, EosPublicKeyKind kind, char *pubkey, size_t len) {
-    const char *prefix = NULL;
+    const char *prefix = "";
     switch (kind) {
     case EosPublicKeyKind_EOS: prefix = "EOS"; break;
     case EosPublicKeyKind_EOS_K1: prefix = "EOS_K1_"; break;
     case EosPublicKeyKind_EOS_R1: return false;
+    default: return false;
     }
 
     const size_t prefix_len = strlen(prefix);

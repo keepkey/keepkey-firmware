@@ -92,3 +92,14 @@ TEST(EOS, FormatAssetVec) {
         EXPECT_EQ(v.expected, str);
     }
 }
+
+TEST(EOS, PublicKeyToWIF) {
+    uint8_t public_key[33];
+    memset(public_key, 0, sizeof(public_key));
+    char pubkey[64];
+    memset(pubkey, 0, sizeof(pubkey));
+    ASSERT_FALSE(eos_publicKeyToWif(public_key, (EosPublicKeyKind)42, pubkey, sizeof(pubkey)));
+
+    ASSERT_TRUE(eos_publicKeyToWif(public_key, EosPublicKeyKind_EOS_K1, pubkey, sizeof(pubkey)));
+    ASSERT_EQ(pubkey, std::string("EOS_K1_1111111111111111111111111111111114T1Anm"));
+}
