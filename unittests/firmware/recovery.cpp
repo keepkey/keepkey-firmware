@@ -1,5 +1,6 @@
 extern "C" {
 #include "keepkey/firmware/recovery_cipher.h"
+#include "trezor/crypto/bip39_english.h"
 }
 
 #include "gtest/gtest.h"
@@ -30,4 +31,15 @@ TEST(Recovery, AutoComplete) {
     memcpy(partial_word, "allways\0", sizeof(partial_word));
     ASSERT_FALSE(attempt_auto_complete(partial_word));
     ASSERT_TRUE(memcmp(partial_word, "allways\0", sizeof(partial_word)) == 0);
+}
+
+TEST(Recovery, WordlistLengths) {
+    for (int i = 0; wordlist[i]; i++) {
+        const char *word = wordlist[i];
+        size_t len = strlen(word);
+        for (int c = len; c <= BIP39_MAX_WORD_LEN; c++) {
+            ASSERT_EQ(word[c], '\0')
+                << "bip39 word list must be padded";
+        }
+    }
 }

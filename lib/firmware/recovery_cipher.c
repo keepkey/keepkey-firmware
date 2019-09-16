@@ -35,6 +35,10 @@
 #include <string.h>
 #include <stdio.h>
 
+#if DEBUG_LINK
+#  include <assert.h>
+#endif
+
 #define MAX_UNCYPHERED_WORDS (3)
 
 static uint32_t word_count = 0;
@@ -141,6 +145,8 @@ static void get_current_word(char *current_word)
     }
 }
 
+_Static_assert(BIP39_WORDLIST_PADDED, "bip39 wordlist must be padded to 9 characters");
+
 bool exact_str_match(const char *str1, const char *str2, uint32_t len)
 {
     volatile uint32_t match = 0;
@@ -150,7 +156,7 @@ bool exact_str_match(const char *str1, const char *str2, uint32_t len)
     const char volatile * volatile str1_v = str1;
     const char volatile * volatile str2_v = str2;
 
-    for(uint32_t i = 0; i < len && i < CURRENT_WORD_BUF; i++)
+    for(uint32_t i = 0; i < len && i < CURRENT_WORD_BUF && i <= BIP39_MAX_WORD_LEN; i++)
     {
         if(str1_v[i] == str2_v[i])
         {
@@ -163,6 +169,8 @@ bool exact_str_match(const char *str1, const char *str2, uint32_t len)
     return match == len;
 }
 
+#define BIP39_MAX_WORD_LEN 8
+
 bool attempt_auto_complete(char *partial_word)
 {
     // Do lookup through volatile pointers to prevent the compiler from
@@ -172,6 +180,18 @@ bool attempt_auto_complete(char *partial_word)
 
     uint32_t partial_word_len = strlen(partial_word), match = 0, found = 0;
     bool precise_match = false;
+
+    // Because we build with -DBIP39_WORDLIST_PADDED=1, exact_str_match is
+    // allowed to read longer than the normal strlen of a given word, which has
+    // been null-padded to make constant-time comparisons possible.
+    if (partial_word_len > BIP39_MAX_WORD_LEN) {
+#if DEBUG_LINK && defined(EMULATOR)
+        assert(false);
+#endif
+        return false;
+    }
+
+
 
     static uint16_t CONFIDENTIAL permute[2049];
     for (int i = 0; i < 2049; i++) {
