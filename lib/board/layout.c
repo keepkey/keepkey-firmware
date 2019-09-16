@@ -717,7 +717,7 @@ void animating_progress_handler(const char *desc, int permil)
     draw_box(canvas, &bp);
 
     // Finished
-    bp.width = finished_width - 1;
+    bp.width = finished_width >= 1 ? finished_width - 1 : 0;
     bp.height = height - 2;
     bp.base.x = x + 1;
     bp.base.y = y + 1;
@@ -727,7 +727,8 @@ void animating_progress_handler(const char *desc, int permil)
     }
 
     // Not Finished
-    bp.width = width - finished_width - 2;
+    uint32_t remaining = width - finished_width;
+    bp.width = remaining >= 2 ? remaining - 2 : 0;
     bp.height = height - 2;
     bp.base.x = x + finished_width + 1;
     bp.base.y = y + 1;
