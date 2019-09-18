@@ -39,13 +39,8 @@ add_dependencies(kkfirmware kktransport.pb trezorcrypto qrcodegenerator ethereum
 
 set(ETHEREUM_TOKENS ${CMAKE_BINARY_DIR}/include/keepkey/firmware/ethereum_tokens)
 
-add_custom_command(OUTPUT ${ETHEREUM_TOKENS}.def ${ETHEREUM_TOKENS}.phony
-  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/include/keepkey/firmware
-  COMMAND test -f ${ETHEREUM_TOKENS}.def || touch ${ETHEREUM_TOKENS}.def
-  COMMAND python ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/ethereum_tokens.py ${ETHEREUM_TOKENS}.temp
-  COMMAND diff -q ${ETHEREUM_TOKENS}.temp ${ETHEREUM_TOKENS}.def || cp ${ETHEREUM_TOKENS}.temp ${ETHEREUM_TOKENS}.def)
-
 add_custom_target(ethereum_tokens.def
-  DEPENDS ${CMAKE_BINARY_DIR}/include/keepkey/firmware/ethereum_tokens.def)
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/include/keepkey/firmware
+  COMMAND python ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/ethereum_tokens.py ${ETHEREUM_TOKENS}.def)
 
 add_library(kkfirmware.keepkey variant/keepkey/resources.c)
