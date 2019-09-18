@@ -69,6 +69,7 @@ static void recovery_abort(void) {
     enforce_wordlist = true;
     dry_run = true;
     words_entered = 0;
+    word_count = 0;
     memzero(mnemonic, sizeof(mnemonic));
     memzero(cipher, sizeof(cipher));
 }
@@ -602,6 +603,7 @@ void recovery_cipher_finalize(void)
     enforce_wordlist = true;
     dry_run = true;
     words_entered = 0;
+    word_count = 0;
     memzero(mnemonic, sizeof(mnemonic));
     memzero(cipher, sizeof(cipher));
     layoutHome();
