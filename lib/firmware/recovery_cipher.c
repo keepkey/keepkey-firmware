@@ -259,8 +259,9 @@ void recovery_cipher_init(uint32_t _word_count, bool passphrase_protection, bool
                           const char *language, const char *label, bool _enforce_wordlist,
                           uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter, bool _dry_run)
 {
-    if (_word_count != 12 && _word_count != 18 && _word_count != 24) {
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid word count (has to be 12, 18 or 24");
+    // If word_count is known ahead of time, enforce that it's one of the standard ones:
+    if (_word_count && _word_count != 12 && _word_count != 18 && _word_count != 24) {
+        fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid word count (must be 12, 18 or 24)");
         layoutHome();
         return;
     }
@@ -467,6 +468,13 @@ void recovery_character(const char *character)
         memzero(coded_word, sizeof(coded_word));
         memzero(decoded_word, sizeof(decoded_word));
         words_entered++;
+
+        if (words_entered > 24 || (word_count && words_entered > word_count)) {
+            recovery_abort();
+            fsm_sendFailure(FailureType_Failure_SyntaxError, "Too many words entered");
+            layoutHome();
+            return;
+        }
     }
 
     // concat to mnemonic
@@ -521,11 +529,22 @@ void recovery_cipher_finalize(void)
         return;
     }
 
-    if (words_entered != word_count) {
-        recovery_abort();
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "Not enough words entered");
-        layoutHome();
-        return;
+    if (word_count) {
+        // If word_count is known ahead of time, also enforce that the correct
+        // number of words has been entered:
+        if (words_entered != word_count) {
+            recovery_abort();
+            fsm_sendFailure(FailureType_Failure_SyntaxError, "Not enough words entered");
+            layoutHome();
+            return;
+        }
+    } else {
+        // Otherwise just enforce that the number of words entered is a standard count:
+        if (words_entered != 12 && words_entered != 18 && words_entered != 24) {
+            fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid word count (must be 12, 18 or 24)");
+            layoutHome();
+            return;
+        }
     }
 
     static char CONFIDENTIAL new_mnemonic[MNEMONIC_BUF] = "";
