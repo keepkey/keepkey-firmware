@@ -24,6 +24,7 @@
 #include "trezor/crypto/memzero.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/board/confirm_sm.h"
+#include "keepkey/board/util.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/pin_sm.h"
@@ -34,10 +35,17 @@
 #include <string.h>
 #include <stdio.h>
 
+#if DEBUG_LINK
+#  include <assert.h>
+#endif
+
 #define MAX_UNCYPHERED_WORDS (3)
 
-static bool enforce_wordlist;
-static bool dry_run;
+static uint32_t word_count = 0;
+static uint32_t words_entered = 0;
+static bool recovery_started = false;
+static bool enforce_wordlist = true;
+static bool dry_run = true;
 static bool awaiting_character;
 static CONFIDENTIAL char mnemonic[MNEMONIC_BUF];
 static char english_alphabet[ENGLISH_ALPHABET_BUF] = "abcdefghijklmnopqrstuvwxyz";
@@ -47,7 +55,7 @@ static CONFIDENTIAL char cipher[ENGLISH_ALPHABET_BUF];
 static char auto_completed_word[CURRENT_WORD_BUF];
 #endif
 
-static void format_current_word(char *current_word, bool auto_completed);
+static void format_current_word(uint32_t word_pos, char *current_word, bool auto_completed);
 static uint32_t get_current_word_pos(void);
 static void get_current_word(char *current_word);
 
@@ -56,7 +64,12 @@ static void recovery_abort(void) {
         storage_reset();
     }
 
+    recovery_started = false;
     awaiting_character = false;
+    enforce_wordlist = true;
+    dry_run = true;
+    words_entered = 0;
+    word_count = 0;
     memzero(mnemonic, sizeof(mnemonic));
     memzero(cipher, sizeof(cipher));
 }
@@ -66,10 +79,10 @@ static void recovery_abort(void) {
 ///
 /// \param current_word[in]    The string to format.
 /// \param auto_completed[in]  Whether to format as an auto completed word.
-static void format_current_word(char *current_word, bool auto_completed)
+static void format_current_word(uint32_t word_pos, char *current_word, bool auto_completed)
 {
     static char CONFIDENTIAL temp_word[CURRENT_WORD_BUF];
-    uint32_t word_num = get_current_word_pos() + 1;
+    uint32_t word_num = word_pos + 1;
 
     snprintf(temp_word, CURRENT_WORD_BUF, "%" PRIu32 ".%s", word_num, current_word);
 
@@ -133,6 +146,8 @@ static void get_current_word(char *current_word)
     }
 }
 
+_Static_assert(BIP39_WORDLIST_PADDED, "bip39 wordlist must be padded to 9 characters");
+
 bool exact_str_match(const char *str1, const char *str2, uint32_t len)
 {
     volatile uint32_t match = 0;
@@ -142,7 +157,7 @@ bool exact_str_match(const char *str1, const char *str2, uint32_t len)
     const char volatile * volatile str1_v = str1;
     const char volatile * volatile str2_v = str2;
 
-    for(uint32_t i = 0; i < len && i < CURRENT_WORD_BUF; i++)
+    for(uint32_t i = 0; i < len && i < CURRENT_WORD_BUF && i <= BIP39_MAX_WORD_LEN; i++)
     {
         if(str1_v[i] == str2_v[i])
         {
@@ -155,6 +170,8 @@ bool exact_str_match(const char *str1, const char *str2, uint32_t len)
     return match == len;
 }
 
+#define BIP39_MAX_WORD_LEN 8
+
 bool attempt_auto_complete(char *partial_word)
 {
     // Do lookup through volatile pointers to prevent the compiler from
@@ -164,6 +181,18 @@ bool attempt_auto_complete(char *partial_word)
 
     uint32_t partial_word_len = strlen(partial_word), match = 0, found = 0;
     bool precise_match = false;
+
+    // Because we build with -DBIP39_WORDLIST_PADDED=1, exact_str_match is
+    // allowed to read longer than the normal strlen of a given word, which has
+    // been null-padded to make constant-time comparisons possible.
+    if (partial_word_len > BIP39_MAX_WORD_LEN) {
+#if DEBUG_LINK && defined(EMULATOR)
+        assert(false);
+#endif
+        return false;
+    }
+
+
 
     static uint16_t CONFIDENTIAL permute[2049];
     for (int i = 0; i < 2049; i++) {
@@ -217,6 +246,7 @@ bool attempt_auto_complete(char *partial_word)
  * recovery_cipher_init() - Display standard notification on LCD screen
  *
  * INPUT
+ *     - _word_count: Number of words in the recovery sentence
  *     - passphrase_protection: whether to use passphrase protection
  *     - pin_protection: whether to use pin protection
  *     - language: language for device
@@ -225,10 +255,18 @@ bool attempt_auto_complete(char *partial_word)
  * OUTPUT
  *     none
  */
-void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
+void recovery_cipher_init(uint32_t _word_count, bool passphrase_protection, bool pin_protection,
                           const char *language, const char *label, bool _enforce_wordlist,
                           uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter, bool _dry_run)
 {
+    // If word_count is known ahead of time, enforce that it's one of the standard ones:
+    if (_word_count && _word_count != 12 && _word_count != 18 && _word_count != 24) {
+        fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid word count (must be 12, 18 or 24)");
+        layoutHome();
+        return;
+    }
+
+    word_count = _word_count;
     enforce_wordlist = _enforce_wordlist;
     dry_run = _dry_run;
 
@@ -270,6 +308,8 @@ void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
 
     /* Set to recovery cipher mode and generate and show next cipher */
     awaiting_character = true;
+    recovery_started = true;
+    words_entered = 1;
     next_character();
 }
 
@@ -283,6 +323,13 @@ void recovery_cipher_init(bool passphrase_protection, bool pin_protection,
  */
 void next_character(void)
 {
+    if (!recovery_started) {
+        recovery_abort();
+        fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
+        layoutHome();
+        return;
+    }
+
     /* Scramble cipher */
     strlcpy(cipher, english_alphabet, ENGLISH_ALPHABET_BUF);
     random_permute_char(cipher, strlen(cipher));
@@ -301,10 +348,18 @@ void next_character(void)
         return;
     }
 
+    uint32_t word_pos = get_current_word_pos();
+    if (word_pos + 1 != words_entered) {
+        recovery_abort();
+        fsm_sendFailure(FailureType_Failure_SyntaxError, "Sanity check failed");
+        layoutHome();
+        return;
+    }
+
     CharacterRequest resp;
     memset(&resp, 0, sizeof(CharacterRequest));
 
-    resp.word_pos = get_current_word_pos();
+    resp.word_pos = word_pos;
     resp.character_pos = strlen(current_word);
 
     msg_write(MessageType_MessageType_CharacterRequest, &resp);
@@ -324,7 +379,7 @@ void next_character(void)
 #endif
 
     /* Format current word and display it along with cipher */
-    format_current_word(current_word, auto_completed);
+    format_current_word(word_pos, current_word, auto_completed);
 
     /* Show cipher and partial word */
     layout_cipher(current_word, cipher);
@@ -341,7 +396,7 @@ void next_character(void)
  */
 void recovery_character(const char *character)
 {
-    if (!awaiting_character) {
+    if (!awaiting_character || !recovery_started) {
         recovery_abort();
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
         layoutHome();
@@ -412,6 +467,14 @@ void recovery_character(const char *character)
     } else {
         memzero(coded_word, sizeof(coded_word));
         memzero(decoded_word, sizeof(decoded_word));
+        words_entered++;
+
+        if (words_entered > 24 || (word_count && words_entered > word_count)) {
+            recovery_abort();
+            fsm_sendFailure(FailureType_Failure_SyntaxError, "Too many words entered");
+            layoutHome();
+            return;
+        }
     }
 
     // concat to mnemonic
@@ -430,9 +493,20 @@ void recovery_character(const char *character)
  */
 void recovery_delete_character(void)
 {
-    if(strlen(mnemonic) > 0)
+    if (!recovery_started) {
+        recovery_abort();
+        fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
+        layoutHome();
+        return;
+    }
+
+    size_t len = strlen(mnemonic);
+    if (len > 0)
     {
-        mnemonic[strlen(mnemonic) - 1] = '\0';
+        if (mnemonic[len - 1] == ' ')
+            words_entered--;
+
+        mnemonic[len - 1] = '\0';
     }
 
     next_character();
@@ -448,9 +522,37 @@ void recovery_delete_character(void)
  */
 void recovery_cipher_finalize(void)
 {
+    if (!recovery_started) {
+        recovery_abort();
+        fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
+        layoutHome();
+        return;
+    }
+
+    if (word_count) {
+        // If word_count is known ahead of time, also enforce that the correct
+        // number of words has been entered:
+        if (words_entered != word_count) {
+            recovery_abort();
+            fsm_sendFailure(FailureType_Failure_SyntaxError, "Not enough words entered");
+            layoutHome();
+            return;
+        }
+    } else {
+        // Otherwise just enforce that the number of words entered is a standard count:
+        if (words_entered != 12 && words_entered != 18 && words_entered != 24) {
+            fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid word count (must be 12, 18 or 24)");
+            layoutHome();
+            return;
+        }
+    }
+
     static char CONFIDENTIAL new_mnemonic[MNEMONIC_BUF] = "";
     static char CONFIDENTIAL temp_word[CURRENT_WORD_BUF];
     volatile bool auto_completed = true;
+
+    memzero(new_mnemonic, sizeof(new_mnemonic));
+    memzero(temp_word, sizeof(temp_word));
 
     /* Attempt to autocomplete each word */
     char *tok = strtok(mnemonic, " ");
@@ -479,7 +581,7 @@ void recovery_cipher_finalize(void)
     }
 
     /* Truncate additional space at the end */
-    new_mnemonic[strlen(new_mnemonic) - 1] = '\0';
+    new_mnemonic[MAX(0u, strnlen(new_mnemonic, sizeof(new_mnemonic)) - 1)] = '\0';
 
     if (!dry_run && (!enforce_wordlist || mnemonic_check(new_mnemonic))) {
         storage_setMnemonic(new_mnemonic);
@@ -517,6 +619,10 @@ void recovery_cipher_finalize(void)
 
     memzero(new_mnemonic, sizeof(new_mnemonic));
     awaiting_character = false;
+    enforce_wordlist = true;
+    dry_run = true;
+    words_entered = 0;
+    word_count = 0;
     memzero(mnemonic, sizeof(mnemonic));
     memzero(cipher, sizeof(cipher));
     layoutHome();
@@ -532,6 +638,8 @@ void recovery_cipher_finalize(void)
  */
 bool recovery_cipher_abort(void)
 {
+    recovery_started = false;
+
     if (awaiting_character) {
         awaiting_character = false;
         return true;

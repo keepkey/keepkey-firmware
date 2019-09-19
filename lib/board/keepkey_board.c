@@ -114,7 +114,7 @@ void kk_board_init(void)
 #ifndef EMULATOR
     svc_enable_interrupts();    // This enables the timer and button interrupts
 #endif
-    
+
     layout_init(display_canvas_init());
 }
 
@@ -148,7 +148,7 @@ uint32_t calc_crc32(const void *data, int word_len)
 #else
     /// http://www.hackersdelight.org/hdcodetxt/crc.c.txt
     crc32 = 0xFFFFFFFF;
-    for (size_t i = 0; i < word_len; i++) {
+    for (int i = 0; i < word_len; i++) {
        uint32_t byte = ((const char *)data)[i];  // Get next byte.
        byte = reverse(byte);                     // 32-bit reversal.
        for (int j = 0; j <= 7; j++) {            // Do eight times.

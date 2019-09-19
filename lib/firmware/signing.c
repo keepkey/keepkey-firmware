@@ -1027,7 +1027,7 @@ static bool signing_sign_hash(TxInputType *txinput, const uint8_t* private_key, 
 	resp.serialized.signature_index = idx1;
 	resp.serialized.has_signature = true;
 	resp.serialized.has_serialized_tx = true;
-	if (ecdsa_sign_digest(curve->params, private_key, hash, sig, NULL, NULL) != 0) {
+	if (!curve->params || ecdsa_sign_digest(curve->params, private_key, hash, sig, NULL, NULL) != 0) {
 		fsm_sendFailure(FailureType_Failure_Other, _("Signing failed"));
 		signing_abort();
 		return false;

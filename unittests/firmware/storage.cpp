@@ -25,7 +25,7 @@ TEST(Storage, ReadMeta) {
     ASSERT_TRUE(memcmp(dst.uuid, "u1u2u3u4u5u6", 12) == 0);
     ASSERT_TRUE(memcmp(dst.uuid_str, "S1S2S3S4S5S6S7S8S9SASBSC", 24) == 0);
 
-    for (int i = 0; i < sizeof(src); i++) {
+    for (size_t i = 0; i < sizeof(src); i++) {
         ASSERT_EQ(src[i], ((char *)&dst)[i]) << "i: " << i;
     }
 }

@@ -161,6 +161,12 @@ static HDNode *fsm_getDerivedNode(const char *curve, const uint32_t *address_n, 
         *fingerprint = 0;
     }
 
+    if (!get_curve_by_name(curve)) {
+        fsm_sendFailure(FailureType_Failure_SyntaxError, "Unknown ecdsa curve");
+        layoutHome();
+        return 0;
+    }
+
     if(!storage_getRootNode(curve, true, &node))
     {
         fsm_sendFailure(FailureType_Failure_NotInitialized,

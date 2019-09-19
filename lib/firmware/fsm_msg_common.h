@@ -489,6 +489,7 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg)
         msg->use_character_cipher)               // recovery via character cipher
     {
         recovery_cipher_init(
+            msg->has_word_count ? msg->word_count : 0,
             msg->has_passphrase_protection && msg->passphrase_protection,
             msg->has_pin_protection && msg->pin_protection,
             msg->has_language ? msg->language : 0,

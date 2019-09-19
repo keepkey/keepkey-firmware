@@ -410,7 +410,7 @@ bool confirm_sign_identity(const IdentityType *identity, const char *challenge)
     }
 
     /* Format challenge */
-    if(strlen(challenge) != 0)
+    if (challenge && strlen(challenge) != 0)
     {
         strlcat(body, challenge, sizeof(body));
     }
