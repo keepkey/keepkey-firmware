@@ -14,7 +14,8 @@ increment the reported productId of the device. WebUSB devices will report
 `vid=0x2b24, pid=0x0002`, whereas HID devices report `vid=0x2b24, pid=0x0001`.
 
 If your device is not recognized when plugged in, you may need to use
-[Zadig](https://zadig.akeo.ie/) to select the correct device driver: `libusb0 (v1.2.6.0)`.
+[Zadig](https://zadig.akeo.ie/) to select `libusb0 (v1.2.6.0)` as the device
+driver for `KeepKey Interface (Interface 0)`.
 
 ## Linux
 
