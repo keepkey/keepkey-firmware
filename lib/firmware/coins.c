@@ -26,6 +26,7 @@
 #include <stdio.h>
 
 #define SECP256K1_STRING "secp256k1"
+#define ED25519_STRING "ed25519"
 #define ED25519_BLAKE2B_NANO_STRING  "ed25519-blake2b-nano"
 
 const CoinType coins[COINS_COUNT] = {

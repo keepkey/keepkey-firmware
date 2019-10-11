@@ -162,6 +162,11 @@ TEST(Coins, BIP32AccountName) {
           { 0x80000000|44, 0x80000000|194, 0x80000000|42, 0, 0 },
           5, true, "EOS Account #42"
         },
+        {
+          "Stellar",
+          { 0x80000000|44, 0x80000000|148, 0x80000000|73 },
+          3, false, "Stellar Account #73"
+        }
     };
 
     for (const auto &vec : vector) {
