@@ -9,6 +9,7 @@ set(protoc_pb_sources
     ${DEVICE_PROTOCOL}/messages-eos.proto
     ${DEVICE_PROTOCOL}/messages-nano.proto
     ${DEVICE_PROTOCOL}/messages-cosmos.proto
+    ${DEVICE_PROTOCOL}/messages-stellar.proto
     ${DEVICE_PROTOCOL}/messages.proto)
 
 set(protoc_pb_options
@@ -17,6 +18,7 @@ set(protoc_pb_options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-eos.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-nano.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-cosmos.options
+    ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-stellar.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages.options)
 
 set(protoc_c_sources
@@ -25,6 +27,7 @@ set(protoc_c_sources
     ${CMAKE_BINARY_DIR}/lib/transport/messages-eos.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-nano.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-cosmos.pb.c
+    ${CMAKE_BINARY_DIR}/lib/transport/messages-stellar.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages.pb.c)
 
 set(protoc_c_headers
@@ -33,6 +36,7 @@ set(protoc_c_headers
     ${CMAKE_BINARY_DIR}/include/messages-eos.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-nano.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-cosmos.pb.h
+    ${CMAKE_BINARY_DIR}/include/messages-stellar.pb.h
     ${CMAKE_BINARY_DIR}/include/messages.pb.h)
 
 set(protoc_pb_sources_moved
@@ -41,6 +45,7 @@ set(protoc_pb_sources_moved
     ${CMAKE_BINARY_DIR}/lib/transport/messages-eos.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-nano.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-cosmos.proto
+    ${CMAKE_BINARY_DIR}/lib/transport/messages-stellar.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages.proto)
 
 add_custom_command(
@@ -82,6 +87,10 @@ add_custom_command(
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
       "--nanopb_out=-f messages-cosmos.options:." messages-cosmos.proto
+  COMMAND
+    ${PROTOC_BINARY} -I. -I/usr/include
+      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      "--nanopb_out=-f messages-stellar.options:." messages-stellar.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb

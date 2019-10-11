@@ -296,3 +296,4 @@ void fsm_msgClearSession(ClearSession *msg)
 #include "fsm_msg_debug.h"
 #include "fsm_msg_eos.h"
 #include "fsm_msg_cosmos.h"
+#include "fsm_msg_stellar.h"

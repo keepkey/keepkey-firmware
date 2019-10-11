@@ -165,6 +165,11 @@ TEST(Coins, BIP32AccountName) {
           "Cosmos",
           { 0x80000000|44, 0x80000000|118, 0x80000000|9, 0, 0 },
           5, true, "Cosmos Account #9"
+        },
+        {
+          "Stellar",
+          { 0x80000000|44, 0x80000000|148, 0x80000000|73 },
+          3, false, "Stellar Account #73"
         }
     };
 
