@@ -501,6 +501,43 @@ void phase2_request_next_input(void)
 	}
 }
 
+/// Compares two BIP32 paths, returning true iff there is something mismatched
+/// about the mixed-mode change.
+static bool isCrossAccountSegwitChangeForbidden(
+    const uint32_t *lhs_address_n, size_t lhs_address_n_count,
+    const uint32_t *rhs_address_n, size_t rhs_address_n_count,
+    OutputScriptType rhs_script_type)
+{
+	(void)lhs_address_n;
+
+	size_t count = rhs_address_n_count;
+	if (count < 5)
+		return false;
+
+	if (count != lhs_address_n_count)
+		return false;
+
+	// purpose
+	uint32_t out_purpose = rhs_address_n[count - 5];
+
+	// Don't allow *creating* mixed-mode change if the script type doesn't
+	// match the purpose. On the other hand, we allow spending it even if
+	// it is "wrong".
+	if (out_purpose == (0x80000000|44) &&
+	    rhs_script_type != OutputScriptType_PAYTOADDRESS)
+		return true;
+
+	if (out_purpose == (0x80000000|49) &&
+	    rhs_script_type != OutputScriptType_PAYTOP2SHWITNESS)
+		return true;
+
+	if (out_purpose == (0x80000000|84) &&
+	    rhs_script_type != OutputScriptType_PAYTOWITNESS)
+		return true;
+
+	return false;
+}
+
 /// Compares two BIP32 paths, returning true iff the paths match for mixed-mode
 /// p2pkh + ph2sh-p2wsh + p2wsh accounts.
 static bool isCrossAccountSegwitChangeAllowed(
@@ -590,6 +627,12 @@ void extract_input_bip32_path(const TxInputType *tinput)
 
 bool check_change_bip32_path(const TxOutputType *toutput)
 {
+	if (isCrossAccountSegwitChangeForbidden(
+	        in_address_n, in_address_n_count,
+	        toutput->address_n, toutput->address_n_count,
+	        toutput->script_type))
+		return false;
+
 	if (isCrossAccountSegwitChangeAllowed(in_address_n, in_address_n_count,
 	                                      toutput->address_n, toutput->address_n_count))
 		return true;
