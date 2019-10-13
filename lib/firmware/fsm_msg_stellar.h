@@ -17,10 +17,10 @@ void fsm_msgStellarGetAddress(const StellarGetAddress *msg)
         fsm_sendFailure(FailureType_Failure_FirmwareError,
                         _("Stellar coin type lookup failed"));
     };
-    const HDNode *node = fsm_getDerivedNode(coin->curve_name, msg->address_n, msg->address_n_count, NULL);
+    HDNode *node = fsm_getDerivedNode(coin->curve_name, msg->address_n, msg->address_n_count, NULL);
     if (!node)
     {
-        fsm_sendFailure(FailureType_Failure_ProcessError,
+        fsm_sendFailure(FailureType_Failure_FirmwareError,
                         _("Failed to derive private key"));
         return;
     }
@@ -31,7 +31,7 @@ void fsm_msgStellarGetAddress(const StellarGetAddress *msg)
       node->public_key + 1,
       coin->address_type,
       address, sizeof(address))) {
-        fsm_sendFailure(FailureType_Failure_ProcessError, _("Can't encode address"));
+        fsm_sendFailure(FailureType_Failure_FirmwareError, _("Can't encode address"));
         layoutHome();
         return;
     }
