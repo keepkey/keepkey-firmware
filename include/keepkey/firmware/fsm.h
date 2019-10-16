@@ -36,6 +36,8 @@
 #define STR(X) #X
 #define VERSTR(X) STR(X)
 
+#define _(X) (X)
+
 void fsm_init(void);
 
 void fsm_sendSuccess(const char *text);

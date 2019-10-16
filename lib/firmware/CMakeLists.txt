@@ -21,6 +21,7 @@ set(sources
     recovery_cipher.c
     reset.c
     signing.c
+    stellar.c
     storage.c
     transaction.c
     u2f.c)
