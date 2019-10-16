@@ -72,8 +72,6 @@
 
 #include <stdio.h>
 
-#define _(X) (X)
-
 static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
 
 #define CHECK_INITIALIZED \

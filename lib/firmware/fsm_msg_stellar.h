@@ -1,5 +1,3 @@
-// this file was made by me and not at all copied from the trezor firmware no siree /s
-
 #include "keepkey/firmware/stellar.h"
 
 void fsm_msgStellarGetAddress(const StellarGetAddress *msg)
@@ -26,7 +24,7 @@ void fsm_msgStellarGetAddress(const StellarGetAddress *msg)
     }
     hdnode_fill_public_key(node);
 
-    char address[MAX_STELLAR_ADDR_SIZE];
+    char address[STELLAR_ADDRESS_SIZE];
     if (!stellar_get_address(
       node->public_key + 1,
       coin->address_type,
