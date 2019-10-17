@@ -151,7 +151,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
         fsm_sendSuccess(_("Device reset"));
         goto exit;
     } else {
-        if (!confirm(ButtonRequestType_ButtonRequest_Other, _("Recovery Seed Bakcup"),
+        if (!confirm(ButtonRequestType_ButtonRequest_Other, _("Recovery Seed Backup"),
                      "This recovery seed will only be shown ONCE. "
                      "Please write it down carefully,\n"
                      "and DO NOT share it with anyone. ")) {
