@@ -69,6 +69,7 @@
 #include "messages.pb.h"
 #include "messages-cosmos.pb.h"
 #include "messages-eos.pb.h"
+#include "messages-stellar.pb.h"
 #include "messages-nano.pb.h"
 
 #include <stdio.h>

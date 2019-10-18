@@ -39,6 +39,8 @@
     MSG_IN(MessageType_MessageType_EthereumVerifyMessage,           EthereumVerifyMessage,       fsm_msgEthereumVerifyMessage)
     MSG_IN(MessageType_MessageType_NanoGetAddress,                  NanoGetAddress,              fsm_msgNanoGetAddress)
     MSG_IN(MessageType_MessageType_NanoSignTx,                      NanoSignTx,                  fsm_msgNanoSignTx)
+    MSG_IN(MessageType_MessageType_StellarGetAddress,               StellarGetAddress,           fsm_msgStellarGetAddress)
+    MSG_IN(MessageType_MessageType_StellarSignTx,                   StellarSignTx,               fsm_msgStellarSignTx)
 
     MSG_IN(MessageType_MessageType_CosmosGetAddress,                CosmosGetAddress,            fsm_msgCosmosGetAddress)
     MSG_IN(MessageType_MessageType_CosmosSignTx,                    CosmosSignTx,                fsm_msgCosmosSignTx)
@@ -75,6 +77,7 @@
     MSG_OUT(MessageType_MessageType_EthereumMessageSignature,       EthereumMessageSignature,    NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_NanoAddress,                    NanoAddress,                 NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_NanoSignedTx,                   NanoSignedTx,                NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_StellarAddress,                 StellarAddress,              NO_PROCESS_FUNC)
 
     MSG_OUT(MessageType_MessageType_CosmosAddress,                  CosmosAddress,               NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_CosmosMsgRequest,               CosmosMsgRequest,            NO_PROCESS_FUNC)
