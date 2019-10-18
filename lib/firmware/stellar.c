@@ -677,8 +677,7 @@ bool stellar_confirmSetOptionsOp(const StellarSetOptionsOp *msg)
             row_idx++;
         }
 
-        
-        if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, str_title, "%s\n%s\n%s\n%s", rows[0], rows[1], rows[2], rows[3]))
+                if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, str_title, "%s\n%s\n%s\n%s", rows[0], rows[1], rows[2], rows[3]))
         {
             stellar_signingAbort(_("User canceled"));
             return false;
@@ -1846,7 +1845,7 @@ bool stellar_get_address(const uint8_t *pubkey, const uint32_t version_byte, cha
 
     uint8_t keylen = 35;
     uint8_t bytes_full[keylen];
-    bytes_full[0] = 6 << 3; // 'G'
+    bytes_full[0] = vb8; // 'G'
     memcpy(bytes_full + 1, pubkey, 32);
 
     uint16_t checksum = stellar_crc16(bytes_full, 33);
