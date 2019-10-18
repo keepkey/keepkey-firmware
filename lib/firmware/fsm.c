@@ -76,11 +76,10 @@
 
 static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
 
-#define CHECK_INITIALIZED                                                              \
-    if (!storage_isInitialized())                                                      \
-    {                                                                                  \
+#define CHECK_INITIALIZED \
+    if (!storage_isInitialized()) { \
         fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized"); \
-        return;                                                                        \
+        return; \
     }
 
 #define CHECK_NOT_INITIALIZED                                                                                     \
