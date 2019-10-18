@@ -42,6 +42,18 @@
     MSG_IN(MessageType_MessageType_NanoSignTx,                      NanoSignTx,                  fsm_msgNanoSignTx)
     MSG_IN(MessageType_MessageType_StellarGetAddress,               StellarGetAddress,           fsm_msgStellarGetAddress)
     MSG_IN(MessageType_MessageType_StellarSignTx,                   StellarSignTx,               fsm_msgStellarSignTx)
+    MSG_IN(MessageType_MessageType_StellarCreateAccountOp,          StellarCreateAccountOp,      fsm_msgStellarCreateAccountOp)
+    MSG_IN(MessageType_MessageType_StellarPaymentOp,                StellarPaymentOp,            fsm_msgStellarPaymentOp)
+    MSG_IN(MessageType_MessageType_StellarPathPaymentOp,            StellarPathPaymentOp,        fsm_msgStellarPathPaymentOp)
+    MSG_IN(MessageType_MessageType_StellarManageOfferOp,            StellarManageOfferOp,        fsm_msgStellarManageOfferOp)
+    MSG_IN(MessageType_MessageType_StellarCreatePassiveOfferOp,     StellarCreatePassiveOfferOp, fsm_msgStellarCreatePassiveOfferOp)
+    MSG_IN(MessageType_MessageType_StellarSetOptionsOp,             StellarSetOptionsOp,         fsm_msgStellarSetOptionsOp)
+    MSG_IN(MessageType_MessageType_StellarChangeTrustOp,            StellarChangeTrustOp,        fsm_msgStellarChangeTrustOp)
+    MSG_IN(MessageType_MessageType_StellarAllowTrustOp,             StellarAllowTrustOp,         fsm_msgStellarAllowTrustOp)
+    MSG_IN(MessageType_MessageType_StellarAccountMergeOp,           StellarAccountMergeOp,       fsm_msgStellarAccountMergeOp)
+    MSG_IN(MessageType_MessageType_StellarManageDataOp,             StellarManageDataOp,         fsm_msgStellarManageDataOp)
+    MSG_IN(MessageType_MessageType_StellarBumpSequenceOp,           StellarBumpSequenceOp,       fsm_msgStellarBumpSequenceOp)
+
 
     MSG_IN(MessageType_MessageType_EosGetPublicKey,                 EosGetPublicKey,             fsm_msgEosGetPublicKey)
     MSG_IN(MessageType_MessageType_EosSignTx,                       EosSignTx,                   fsm_msgEosSignTx)
@@ -75,6 +87,9 @@
     MSG_OUT(MessageType_MessageType_NanoAddress,                    NanoAddress,                 NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_NanoSignedTx,                   NanoSignedTx,                NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_StellarAddress,                 StellarAddress,              NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_StellarSignedTx,                StellarSignedTx,             NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_StellarTxOpRequest,             StellarTxOpRequest,          NO_PROCESS_FUNC)
+
 
     MSG_OUT(MessageType_MessageType_EosPublicKey,                   EosPublicKey,                NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EosTxActionRequest,             EosTxActionRequest,          NO_PROCESS_FUNC)

@@ -36,15 +36,12 @@ void fsm_msgStellarGetAddress(const StellarGetAddress *msg)
 
 void fsm_msgStellarSignTx(const StellarSignTx *msg)
 {
-    uint32_t a = *msg->address_n;
-    a = a + 1;
-    /*
     CHECK_INITIALIZED
     CHECK_PIN
 
     if (!stellar_signingInit(msg))
     {
-        fsm_sendFailure(FailureType_Failure_ProcessError,
+        fsm_sendFailure(FailureType_Failure_FirmwareError,
                         _("Failed to derive private key"));
         layoutHome();
         return;
@@ -57,9 +54,7 @@ void fsm_msgStellarSignTx(const StellarSignTx *msg)
     RESP_INIT(StellarTxOpRequest);
 
     msg_write(MessageType_MessageType_StellarTxOpRequest, resp);
-    */
 }
-/*
 
 void fsm_msgStellarCreateAccountOp(const StellarCreateAccountOp *msg)
 {
@@ -305,4 +300,3 @@ void fsm_msgStellarBumpSequenceOp(const StellarBumpSequenceOp *msg)
         msg_write(MessageType_MessageType_StellarTxOpRequest, resp);
     }
 }
-*/

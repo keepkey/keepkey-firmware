@@ -96,6 +96,17 @@ void fsm_msgEosTxActionAck(const EosTxActionAck *msg);
 
 void fsm_msgStellarGetAddress(const StellarGetAddress *msg);
 void fsm_msgStellarSignTx(const StellarSignTx *msg);
+void fsm_msgStellarCreateAccountOp(const StellarCreateAccountOp *msg);
+void fsm_msgStellarPaymentOp(const StellarPaymentOp *msg);
+void fsm_msgStellarPathPaymentOp(const StellarPathPaymentOp *msg);
+void fsm_msgStellarManageOfferOp(const StellarManageOfferOp *msg);
+void fsm_msgStellarCreatePassiveOfferOp(const StellarCreatePassiveOfferOp *msg);
+void fsm_msgStellarSetOptionsOp(const StellarSetOptionsOp *msg);
+void fsm_msgStellarChangeTrustOp(const StellarChangeTrustOp *msg);
+void fsm_msgStellarAllowTrustOp(const StellarAllowTrustOp *msg);
+void fsm_msgStellarAccountMergeOp(const StellarAccountMergeOp *msg);
+void fsm_msgStellarManageDataOp(const StellarManageDataOp *msg);
+void fsm_msgStellarBumpSequenceOp(const StellarBumpSequenceOp *msg);
 
 #if DEBUG_LINK
 //void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
