@@ -8,47 +8,32 @@ void fsm_msgStellarGetAddress(const StellarGetAddress *msg)
 
     CHECK_PIN
 
-    const char *coin_name = "Stellar";
-    const CoinType *coin = fsm_getCoin(true, coin_name);
-    if (!coin)
-    {
-        fsm_sendFailure(FailureType_Failure_FirmwareError,
-                        _("Stellar coin type lookup failed"));
-    };
-    HDNode *node = fsm_getDerivedNode(coin->curve_name, msg->address_n, msg->address_n_count, NULL);
+    const HDNode *node = stellar_deriveNode(msg->address_n, msg->address_n_count);
     if (!node)
     {
         fsm_sendFailure(FailureType_Failure_FirmwareError,
                         _("Failed to derive private key"));
         return;
     }
-    hdnode_fill_public_key(node);
 
-    char address[STELLAR_ADDRESS_SIZE];
-    if (!stellar_get_address(
-      node->public_key + 1,
-      coin->address_type,
-      address, sizeof(address))) {
-        fsm_sendFailure(FailureType_Failure_FirmwareError, _("Can't encode address"));
-        layoutHome();
-        return;
-    }
-
-    if (msg->has_show_display && msg->show_display) {
-        char node_str[NODE_STRING_LENGTH];
-        if (!bip32_path_to_string(node_str, sizeof(node_str), msg->address_n, msg->address_n_count)) {
-            memset(node_str, 0, sizeof(node_str));
+    stellar_publicAddressAsStr(node->public_key + 1, resp->address,
+                               sizeof(resp->address));
+    if (msg->has_show_display && msg->show_display)
+    {
+        if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Share public account ID?"), "%s", resp->address))
+        {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+            layoutHome();
+            return;
         }
-
-        // TODO: handle mismatch and confirm
     }
 
     resp->has_address = true;
-    strlcpy(resp->address, address, sizeof(resp->address));
-    msg_write(MessageType_MessageType_StellarAddress, resp);
+
     layoutHome();
+    msg_write(MessageType_MessageType_StellarAddress, resp);
 }
-/*
+
 void fsm_msgStellarSignTx(const StellarSignTx *msg)
 {
     CHECK_INITIALIZED
@@ -56,7 +41,7 @@ void fsm_msgStellarSignTx(const StellarSignTx *msg)
 
     if (!stellar_signingInit(msg))
     {
-        fsm_sendFailure(FailureType_Failure_ProcessError,
+        fsm_sendFailure(FailureType_Failure_FirmwareError,
                         _("Failed to derive private key"));
         layoutHome();
         return;
@@ -315,4 +300,3 @@ void fsm_msgStellarBumpSequenceOp(const StellarBumpSequenceOp *msg)
         msg_write(MessageType_MessageType_StellarTxOpRequest, resp);
     }
 }
-*/

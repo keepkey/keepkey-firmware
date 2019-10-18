@@ -23,15 +23,15 @@
 #include "keepkey/transport/interface.h"
 #include "keepkey/board/messages.h"
 
-#define RESP_INIT(TYPE) \
-    TYPE *resp = (TYPE *)msg_resp; \
-    _Static_assert(sizeof(msg_resp) >= sizeof(TYPE), #TYPE" is too large"); \
+#define RESP_INIT(TYPE)                                                      \
+    TYPE *resp = (TYPE *)msg_resp;                                           \
+    _Static_assert(sizeof(msg_resp) >= sizeof(TYPE), #TYPE " is too large"); \
     memset(resp, 0, sizeof(TYPE));
 
 #define ENTROPY_BUF sizeof(((Entropy *)NULL)->entropy.bytes)
 
-#define BTC_ADDRESS_SIZE           35
-#define RAW_TX_ACK_VARINT_COUNT    4
+#define BTC_ADDRESS_SIZE 35
+#define RAW_TX_ACK_VARINT_COUNT 4
 
 #define STR(X) #X
 #define VERSTR(X) STR(X)
@@ -93,6 +93,20 @@ void fsm_msgNanoSignTx(NanoSignTx *msg);
 void fsm_msgEosGetPublicKey(const EosGetPublicKey *msg);
 void fsm_msgEosSignTx(const EosSignTx *msg);
 void fsm_msgEosTxActionAck(const EosTxActionAck *msg);
+
+void fsm_msgStellarGetAddress(const StellarGetAddress *msg);
+void fsm_msgStellarSignTx(const StellarSignTx *msg);
+void fsm_msgStellarCreateAccountOp(const StellarCreateAccountOp *msg);
+void fsm_msgStellarPaymentOp(const StellarPaymentOp *msg);
+void fsm_msgStellarPathPaymentOp(const StellarPathPaymentOp *msg);
+void fsm_msgStellarManageOfferOp(const StellarManageOfferOp *msg);
+void fsm_msgStellarCreatePassiveOfferOp(const StellarCreatePassiveOfferOp *msg);
+void fsm_msgStellarSetOptionsOp(const StellarSetOptionsOp *msg);
+void fsm_msgStellarChangeTrustOp(const StellarChangeTrustOp *msg);
+void fsm_msgStellarAllowTrustOp(const StellarAllowTrustOp *msg);
+void fsm_msgStellarAccountMergeOp(const StellarAccountMergeOp *msg);
+void fsm_msgStellarManageDataOp(const StellarManageDataOp *msg);
+void fsm_msgStellarBumpSequenceOp(const StellarBumpSequenceOp *msg);
 
 #if DEBUG_LINK
 //void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
