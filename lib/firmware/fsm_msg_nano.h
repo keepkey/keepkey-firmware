@@ -5,7 +5,7 @@ void fsm_msgNanoGetAddress(NanoGetAddress *msg)
     RESP_INIT(NanoAddress);
 
     CHECK_INITIALIZED
- 
+
     CHECK_PIN
 
     const char *coin_name = msg->has_coin_name ? msg->coin_name : "Nano";
