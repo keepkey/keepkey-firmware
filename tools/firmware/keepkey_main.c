@@ -24,6 +24,7 @@
 #  include <libopencm3/stm32/desig.h>
 #endif
 
+#include "keepkey/board/common.h"
 #include "keepkey/board/check_bootloader.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
