@@ -29,6 +29,7 @@
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
 #include "trezor/crypto/bip39.h"
+#include "trezor/crypto/bip39_english.h"
 #include "trezor/crypto/memzero.h"
 #include "trezor/crypto/rand.h"
 
@@ -61,8 +62,8 @@ void next_word(void) {
 	snprintf(title_formatted, SMALL_STR_BUF, "Device Recovery Step %lu/24", (unsigned long)(word_index + 1));
 
 	if (word_pos == 0) {
-		const char * const *wl = mnemonic_wordlist();
-        strlcpy(fake_word, wl[random_uniform(2048)], sizeof(fake_word));
+		const char * const *wl = wordlist;
+		strlcpy(fake_word, wl[random_uniform(2048)], sizeof(fake_word));
 
 		/* Format body for fake word */
         /* snprintf: 18 + 12 (fake_word) + 1 (NULL) = 31 */
@@ -158,7 +159,7 @@ void recovery_init(uint32_t _word_count, bool passphrase_protection,
 }
 
 static bool isInWordList(const char *word) {
-    const char * const *wl = mnemonic_wordlist();
+    const char * const *wl = wordlist;
     while (*wl)
     {
         if (strcmp(word, *wl) == 0)
