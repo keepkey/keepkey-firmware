@@ -209,6 +209,11 @@ void send_fsm_co_error_message(int co_error)
                     fsm_sendFailure(FailureType_Failure_Other, "Obsolete Response structure error");
                     break;
                 }
+                case ERROR_EXCHANGE_TYPE:
+                {
+                    fsm_sendFailure(FailureType_Failure_Other, "Unknown exchange type");
+                    break;
+                }
                 default:
                 case NO_EXCHANGE_ERROR:
                 {

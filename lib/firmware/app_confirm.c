@@ -138,19 +138,18 @@ bool confirm_decrypt_msg(const char *msg, const char *address)
  * INPUT -
  *      - dep_amt: source amount to convert
  *      - wit_amt: destination amount to received
- *      - destination: where to send the funds (usually an account)
  * OUTPUT -
  *     true/false of confirmation
  *
  */
 bool confirm_exchange_output(const char *dep_amt,
-                             const char *wit_amt, const char *address)
+                             const char *wit_amt)
 {
     return confirm_with_custom_layout(&layout_notification_no_title_bold,
                                       ButtonRequestType_ButtonRequest_SignExchange,
                                       "",
-                                      "ShapeShift %s into\n%s and send to\n%s",
-                                      dep_amt, wit_amt, address);
+                                      "ShapeShift %s into\n%s",
+                                      dep_amt, wit_amt);
 }
 
 /*
