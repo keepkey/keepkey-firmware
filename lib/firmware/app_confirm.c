@@ -145,10 +145,10 @@ bool confirm_decrypt_msg(const char *msg, const char *address)
 bool confirm_exchange_output(const char *dep_amt,
                              const char *wit_amt)
 {
-    return confirm_with_custom_layout(&layout_notification_no_title_bold,
+    return confirm_with_custom_layout(&layout_standard_notification,
                                       ButtonRequestType_ButtonRequest_SignExchange,
-                                      "",
-                                      "ShapeShift %s into\n%s",
+                                      "ShapeShift",
+                                      "Sell: %s\nBuy: %s",
                                       dep_amt, wit_amt);
 }
 
