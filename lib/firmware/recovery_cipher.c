@@ -17,20 +17,22 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "keepkey/firmware/recovery_cipher.h"
+
+#include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/messages.h"
-#include "trezor/crypto/bip39.h"
-#include "trezor/crypto/memzero.h"
-#include "keepkey/firmware/app_layout.h"
-#include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/util.h"
+#include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/pin_sm.h"
-#include "keepkey/firmware/recovery_cipher.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
+#include "trezor/crypto/bip39.h"
+#include "trezor/crypto/bip39_english.h"
+#include "trezor/crypto/memzero.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -176,8 +178,8 @@ bool attempt_auto_complete(char *partial_word)
 {
     // Do lookup through volatile pointers to prevent the compiler from
     // optimizing this loop into something that can leak timing information.
-    const char *const volatile * volatile wordlist =
-        (const char *const volatile *)mnemonic_wordlist();
+    const char *const volatile * volatile words =
+        (const char *const volatile *)wordlist;
 
     uint32_t partial_word_len = strlen(partial_word), match = 0, found = 0;
     bool precise_match = false;
@@ -208,9 +210,9 @@ bool attempt_auto_complete(char *partial_word)
     asm volatile ("" ::: "memory");
 
     // Look for precise matches first (including null termination)
-    for (uint32_t volatile i = 0; wordlist[permute[i]] != 0; i++) {
-        if (exact_str_match(partial_word, wordlist[permute[i]], partial_word_len + 1)) {
-            strlcpy(partial_word, wordlist[permute[i]], CURRENT_WORD_BUF);
+    for (uint32_t volatile i = 0; words[permute[i]] != 0; i++) {
+        if (exact_str_match(partial_word, words[permute[i]], partial_word_len + 1)) {
+            strlcpy(partial_word, words[permute[i]], CURRENT_WORD_BUF);
             precise_match = true;
         }
     }
@@ -219,8 +221,8 @@ bool attempt_auto_complete(char *partial_word)
     asm volatile ("" ::: "memory");
 
     // Followed by partial matches (ignoring null termination)
-    for (uint32_t volatile i = 0; wordlist[permute[i]] != 0; i++) {
-        if (exact_str_match(partial_word, wordlist[permute[i]], partial_word_len)) {
+    for (uint32_t volatile i = 0; words[permute[i]] != 0; i++) {
+        if (exact_str_match(partial_word, words[permute[i]], partial_word_len)) {
             match++;
             found = i;
         }
@@ -233,7 +235,7 @@ bool attempt_auto_complete(char *partial_word)
 
     /* Autocomplete if we can */
     if (match == 1) {
-        strlcpy(partial_word, wordlist[permute[found]], CURRENT_WORD_BUF);
+        strlcpy(partial_word, words[permute[found]], CURRENT_WORD_BUF);
         memzero(permute, sizeof(permute));
         return true;
     }
