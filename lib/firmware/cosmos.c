@@ -8,8 +8,7 @@
 #include <stdbool.h>
 #include <time.h>
 
-static bool stellar_signing = false;
-static StellarTransaction stellar_activeTx;
+static char* signing_template = "{\"account_number\":\"%d\",\"chain_id\":\"%s\",\"fee\":{\"amount\":[{\"amount\":\"%d\",\"denom\":\"uatom\"}],\"gas\":\"%d\"},\"memo\":\"%s\",\"msgs\":[{\"type\":\"cosmos-sdk/MsgSend\",\"value\":{\"amount\":[{\"amount\":\"%d\",\"denom\":\"uatom\"}],\"from_address\":\"%s\",\"to_address\":\"%s\"}}],\"sequence\":\"%d\"}";
 
 /*
  * Starts the signing process and parses the transaction header
