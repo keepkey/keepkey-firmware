@@ -27,6 +27,7 @@
 #undef delete
 
 #include "messages-eos.pb.h"
+#include "messages-cosmos.pb.h"
 
 #include "types.pb.h"
 #include "trezor_transport.h"

@@ -2,6 +2,7 @@ set(sources
     app_confirm.c
     app_layout.c
     coins.c
+    cosmos.c
     crypto.c
     eos.c
     eos-contracts/eosio.system.c
