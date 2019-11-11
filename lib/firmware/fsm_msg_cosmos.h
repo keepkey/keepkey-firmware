@@ -8,9 +8,9 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
 
     CHECK_PIN
 
-    uint32_t fingerprint;
-    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, &fingerprint);
+    HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
     if (!node) { return; }
+    hdnode_fill_public_key(node);
 
     cosmos_getAddress(node->public_key, resp->address);
 
@@ -35,19 +35,19 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
     CHECK_INITIALIZED
     CHECK_PIN
 
-    uint32_t fingerprint;
-    const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, &fingerprint);
+    HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
     if (!node) { return; }
+    hdnode_fill_public_key(node);
 
     // Confirm transaction basics
-    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Main Details"), "From: %s\nTo: %s\nAmount: %f ATOM", msg->msg.from_address, msg->msg.to_address, (float)msg->msg.amount * 1E-6))
+    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Main Details"), "From: %s\nTo: %s\nAmount: %f ATOM", msg->from_address, msg->to_address, (float)msg->amount * 1E-6))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
         layoutHome();
         return;
     }
 
-    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Fee Details"), "Fee: %"PRIu32" uATOM\nGas: %"PRIu32"", msg->fee.amount, msg->fee.gas))
+    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Fee Details"), "Fee: %"PRIu32" uATOM\nGas: %"PRIu32"", msg->fee_amount, msg->gas))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
         layoutHome();
@@ -67,13 +67,13 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
                        msg->account_number,
                        msg->chain_id,
                        strlen(msg->chain_id),
-                       msg->fee.amount,
-                       msg->fee.gas,
+                       msg->fee_amount,
+                       msg->gas,
                        msg->memo,
                        strlen(msg->memo),
-                       msg->msg.amount,
-                       msg->msg.from_address,
-                       msg->msg.to_address,
+                       msg->amount,
+                       msg->from_address,
+                       msg->to_address,
                        msg->sequence,
                        resp->signature.bytes))
     {
