@@ -468,7 +468,7 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
     if (!prefix)
         return false;
 
-    if (whole_account || isEthereumLike(coin_name) || isEOS(coin_name) || isAccountBased(coin_name) || !show_addridx) {
+    if (whole_account || isAccountBased(coin_name) || !show_addridx) {
         snprintf(node_str, len, "%s%s Account #%" PRIu32, prefix, coin_name,
                  address_n[2] & 0x7fffffff);
     } else {
