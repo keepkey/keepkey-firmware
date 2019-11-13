@@ -35,6 +35,7 @@
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/coins.h"
+#include "keepkey/firmware/cosmos.h"
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/eos.h"
 #include "keepkey/firmware/eos-contracts.h"
@@ -77,35 +78,40 @@
 
 static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
 
-#define CHECK_INITIALIZED \
-    if (!storage_isInitialized()) { \
+#define CHECK_INITIALIZED                                                              \
+    if (!storage_isInitialized())                                                      \
+    {                                                                                  \
         fsm_sendFailure(FailureType_Failure_NotInitialized, "Device not initialized"); \
-        return; \
+        return;                                                                        \
     }
 
-#define CHECK_NOT_INITIALIZED \
-    if (storage_isInitialized()) { \
+#define CHECK_NOT_INITIALIZED                                                                                     \
+    if (storage_isInitialized())                                                                                  \
+    {                                                                                                             \
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Device is already initialized. Use Wipe first."); \
-        return; \
+        return;                                                                                                   \
     }
 
-#define CHECK_PIN \
-    if (!pin_protect_cached()) { \
-        layoutHome(); \
-        return; \
+#define CHECK_PIN              \
+    if (!pin_protect_cached()) \
+    {                          \
+        layoutHome();          \
+        return;                \
     }
 
-#define CHECK_PIN_UNCACHED \
-    if (!pin_protect_uncached()) { \
-        layoutHome(); \
-        return; \
+#define CHECK_PIN_UNCACHED       \
+    if (!pin_protect_uncached()) \
+    {                            \
+        layoutHome();            \
+        return;                  \
     }
 
-#define CHECK_PARAM_RET(cond, errormsg, retval) \
-    if (!(cond)) { \
+#define CHECK_PARAM_RET(cond, errormsg, retval)                 \
+    if (!(cond))                                                \
+    {                                                           \
         fsm_sendFailure(FailureType_Failure_Other, (errormsg)); \
-        layoutHome(); \
-        return retval; \
+        layoutHome();                                           \
+        return retval;                                          \
     }
 
 #define CHECK_PARAM(cond, errormsg) \
@@ -117,18 +123,18 @@ static const MessagesMap_t MessagesMap[] = {
 
 #undef MSG_IN
 #define MSG_IN(ID, STRUCT_NAME, PROCESS_FUNC) \
-  _Static_assert(sizeof(STRUCT_NAME) <= MAX_DECODE_SIZE, "Message too big");
+    _Static_assert(sizeof(STRUCT_NAME) <= MAX_DECODE_SIZE, "Message too big");
 
 #undef MSG_OUT
 #define MSG_OUT(ID, STRUCT_NAME, PROCESS_FUNC)
 
 #undef RAW_IN
 #define RAW_IN(ID, STRUCT_NAME, PROCESS_FUNC) \
-  _Static_assert(sizeof(STRUCT_NAME) <= MAX_DECODE_SIZE, "Message too big");
+    _Static_assert(sizeof(STRUCT_NAME) <= MAX_DECODE_SIZE, "Message too big");
 
 #undef DEBUG_IN
 #define DEBUG_IN(ID, STRUCT_NAME, PROCESS_FUNC) \
-  _Static_assert(sizeof(STRUCT_NAME) <= MAX_DECODE_SIZE, "Message too big");
+    _Static_assert(sizeof(STRUCT_NAME) <= MAX_DECODE_SIZE, "Message too big");
 
 #undef DEBUG_OUT
 #define DEBUG_OUT(ID, STRUCT_NAME, PROCESS_FUNC)
@@ -140,12 +146,15 @@ extern bool reset_msg_stack;
 static const CoinType *fsm_getCoin(bool has_name, const char *name)
 {
     const CoinType *coin;
-    if (has_name) {
+    if (has_name)
+    {
         coin = coinByName(name);
-    } else {
+    }
+    else
+    {
         coin = coinByName("Bitcoin");
     }
-    if(!coin)
+    if (!coin)
     {
         fsm_sendFailure(FailureType_Failure_Other, "Invalid coin name");
         layoutHome();
@@ -158,17 +167,19 @@ static const CoinType *fsm_getCoin(bool has_name, const char *name)
 static HDNode *fsm_getDerivedNode(const char *curve, const uint32_t *address_n, size_t address_n_count, uint32_t *fingerprint)
 {
     static HDNode CONFIDENTIAL node;
-    if (fingerprint) {
+    if (fingerprint)
+    {
         *fingerprint = 0;
     }
 
-    if (!get_curve_by_name(curve)) {
+    if (!get_curve_by_name(curve))
+    {
         fsm_sendFailure(FailureType_Failure_SyntaxError, "Unknown ecdsa curve");
         layoutHome();
         return 0;
     }
 
-    if(!storage_getRootNode(curve, true, &node))
+    if (!storage_getRootNode(curve, true, &node))
     {
         fsm_sendFailure(FailureType_Failure_NotInitialized,
                         "Device not initialized or passphrase request cancelled");
@@ -176,12 +187,12 @@ static HDNode *fsm_getDerivedNode(const char *curve, const uint32_t *address_n, 
         return 0;
     }
 
-    if(!address_n || address_n_count == 0)
+    if (!address_n || address_n_count == 0)
     {
         return &node;
     }
 
-    if(hdnode_private_ckd_cached(&node, address_n, address_n_count, fingerprint) == 0)
+    if (hdnode_private_ckd_cached(&node, address_n, address_n_count, fingerprint) == 0)
     {
         fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
         layoutHome();
@@ -192,7 +203,8 @@ static HDNode *fsm_getDerivedNode(const char *curve, const uint32_t *address_n, 
 }
 
 #if DEBUG_LINK
-static void sendFailureWrapper(FailureType code, const char *text) {
+static void sendFailureWrapper(FailureType code, const char *text)
+{
     fsm_sendFailure(code, text);
 }
 #endif
@@ -218,7 +230,7 @@ void fsm_init(void)
 
 void fsm_sendSuccess(const char *text)
 {
-    if(reset_msg_stack)
+    if (reset_msg_stack)
     {
         fsm_msgInitialize((Initialize *)0);
         reset_msg_stack = false;
@@ -227,7 +239,7 @@ void fsm_sendSuccess(const char *text)
 
     RESP_INIT(Success);
 
-    if(text)
+    if (text)
     {
         resp->has_message = true;
         strlcpy(resp->message, text, sizeof(resp->message));
@@ -242,7 +254,7 @@ void fsm_sendFailureDebug(FailureType code, const char *text, const char *source
 void fsm_sendFailure(FailureType code, const char *text)
 #endif
 {
-    if(reset_msg_stack)
+    if (reset_msg_stack)
     {
         fsm_msgInitialize((Initialize *)0);
         reset_msg_stack = false;
@@ -256,7 +268,8 @@ void fsm_sendFailure(FailureType code, const char *text)
 #if DEBUG_LINK
     resp->has_message = true;
     strlcpy(resp->message, source, sizeof(resp->message));
-    if (text) {
+    if (text)
+    {
         strlcat(resp->message, text, sizeof(resp->message));
     }
 #else
@@ -268,7 +281,6 @@ void fsm_sendFailure(FailureType code, const char *text)
 #endif
     msg_write(MessageType_MessageType_Failure, resp);
 }
-
 
 void fsm_msgClearSession(ClearSession *msg)
 {

@@ -1,4 +1,3 @@
-#include "keepkey/firmware/cosmos.h"
 
 void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
 {
@@ -9,7 +8,10 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
     CHECK_PIN
 
     HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
-    if (!node) { return; }
+    if (!node)
+    {
+        return;
+    }
     hdnode_fill_public_key(node);
 
     cosmos_getAddress(node->public_key, resp->address);
@@ -36,7 +38,10 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
     CHECK_PIN
 
     HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
-    if (!node) { return; }
+    if (!node)
+    {
+        return;
+    }
     hdnode_fill_public_key(node);
 
     // Confirm transaction basics
@@ -47,14 +52,14 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
         return;
     }
 
-    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Fee Details"), "Fee: %"PRIu32" uATOM\nGas: %"PRIu32"", msg->fee_amount, msg->gas))
+    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Fee Details"), "Fee: %" PRIu32 " uATOM\nGas: %" PRIu32 "", msg->fee_amount, msg->gas))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
         layoutHome();
         return;
     }
 
-    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Aux Details"), "Memo: \"%s\"\nChain ID: %s\nAccount #: %"PRIu64"", msg->memo, msg->chain_id, msg->account_number))
+    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Aux Details"), "Memo: \"%s\"\nChain ID: %s\nAccount #: %" PRIu64 "", msg->memo, msg->chain_id, msg->account_number))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
         layoutHome();
