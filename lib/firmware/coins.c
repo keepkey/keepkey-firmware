@@ -432,6 +432,13 @@ static bool isEOS(const char *coin_name) {
     return false;
 }
 
+static bool isAccountBased(const char* coin_name)
+{
+    if (strcmp(coin_name, "Cosmos") == 0) { return true; }
+    if (isEthereumLike(coin_name)) { return true; }
+    return false;
+}
+
 bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
                           const uint32_t *address_n, size_t address_n_count,
                           bool whole_account, bool show_addridx)
@@ -448,7 +455,7 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
             return false;
 
         // Only 0/1 for internal/external are valid paths on UTXO coins.
-        if (!isEthereumLike(coin_name) && !isEOS(coin_name) &&
+        if (!isEthereumLike(coin_name) && !isEOS(coin_name) && !isAccountBased(coin_name)
             address_n[3] != 0 && address_n[3] != 1)
             return false;
     }
@@ -460,7 +467,7 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
     if (!prefix)
         return false;
 
-    if (whole_account || isEthereumLike(coin_name) || isEOS(coin_name) || !show_addridx) {
+    if (whole_account || isEthereumLike(coin_name) || isEOS(coin_name) || isAccountBased(coin_name) || !show_addridx) {
         snprintf(node_str, len, "%s%s Account #%" PRIu32, prefix, coin_name,
                  address_n[2] & 0x7fffffff);
     } else {

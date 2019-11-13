@@ -21,8 +21,9 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
 
     if (msg->has_show_display && msg->show_display) {
         char node_str[NODE_STRING_LENGTH];
-        if (!nano_bip32_to_string(node_str, sizeof(node_str), coin, msg->address_n,
-                                  msg->address_n_count) &&
+        if (!bip32_node_to_string(node_str, sizeof(node_str), coin, msg->address_n,
+                                  msg->address_n_count, /*whole_account=*/false,
+                                  /*show_addridx=*/true) &&
             !bip32_path_to_string(node_str, sizeof(node_str),
                                   msg->address_n, msg->address_n_count)) {
             memset(node_str, 0, sizeof(node_str));
@@ -62,8 +63,17 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
     }
     hdnode_fill_public_key(node);
 
+    char node_str[NODE_STRING_LENGTH];
+    if (!bip32_node_to_string(node_str, sizeof(node_str), coin, msg->address_n,
+                              msg->address_n_count, /*whole_account=*/false,
+                              /*show_addridx=*/true) &&
+        !bip32_path_to_string(node_str, sizeof(node_str),
+                              msg->address_n, msg->address_n_count)) {
+        memset(node_str, 0, sizeof(node_str));
+    }
+
     // Confirm transaction basics
-    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Main Details"), "From: %s\nTo: %s\nAmount: %f ATOM", msg->from_address, msg->to_address, (float)msg->amount * 1E-6))
+    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Main Details"), "From: %s\nTo: %s\nAmount: %f ATOM", node_str, msg->to_address, (float)msg->amount * 1E-6))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
         layoutHome();
