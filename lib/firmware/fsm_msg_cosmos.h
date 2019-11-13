@@ -12,9 +12,8 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
     {
         return;
     }
-    hdnode_fill_public_key(node);
 
-    cosmos_getAddress(node->public_key, resp->address);
+    cosmos_getAddress(node, resp->address);
 
     if (msg->has_show_display && msg->show_display)
     {
