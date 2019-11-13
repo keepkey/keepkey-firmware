@@ -9,7 +9,10 @@
 #include "messages.pb.h"
 #include "trezor/crypto/bip32.h"
 
-bool cosmos_getAddress(const uint8_t *public_key, char *address);
+bool cosmos_path_mismatched(const CoinType *_coin,
+                            const uint32_t *address_n,
+                            const uint32_t address_n_count);
+bool cosmos_getAddress(const HDNode *node, char *address);
 bool cosmos_signTx(const uint8_t* private_key,
                    const uint64_t account_number,
                    const char* chain_id,

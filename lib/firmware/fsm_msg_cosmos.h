@@ -7,13 +7,15 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
 
     CHECK_PIN
 
-    const char *coin_name = msg->has_coin_name ? msg->coin_name : "Cosmos";
+    const char *coin_name = "Cosmos";
     const CoinType *coin = fsm_getCoin(true, coin_name);
     if (!coin) { return; }
     HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
     if (!node) { return; }
 
-    if (!cosmos_getAddress(node, resp->address) {
+    hdnode_fill_public_key(node);
+
+    if (!cosmos_getAddress(node, resp->address)) {
         fsm_sendFailure(FailureType_Failure_Other, _("Can't encode address"));
         layoutHome();
         return;
@@ -38,7 +40,7 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
             }
         }
 
-        if(!confirm_address(node_str, address)) {
+        if(!confirm_address(node_str, resp->address)) {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
             layoutHome();
             return;
@@ -56,6 +58,9 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
     CHECK_INITIALIZED
     CHECK_PIN
 
+    const char *coin_name = "Cosmos";
+    const CoinType *coin = fsm_getCoin(true, coin_name);
+    if (!coin) { return; }
     HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
     if (!node)
     {

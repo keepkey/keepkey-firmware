@@ -132,9 +132,13 @@ int cryptoGetECDHSessionKey(const HDNode *node, const uint8_t *peer_public_key, 
 	return 0;
 }
 
+_Static_assert(sizeof(((CoinType*)0)->signed_message_header) < 256, "Message header too long");
+
 static void cryptoMessageHash(const CoinType *coin, const curve_info *curve, const uint8_t *message, size_t message_len, uint8_t hash[HASHER_DIGEST_LENGTH]) {
 	Hasher hasher;
 	hasher_Init(&hasher, curve->hasher_sign);
+	uint8_t header_len = strlen(coin->signed_message_header);
+	hasher_Update(&hasher, &header_len, 1);
 	hasher_Update(&hasher, (const uint8_t *)coin->signed_message_header, strlen(coin->signed_message_header));
 	uint8_t varint[5];
 	uint32_t l = ser_length(message_len, varint);
@@ -147,6 +151,9 @@ int cryptoMessageSign(const CoinType *coin, HDNode *node, InputScriptType script
 {
 	const curve_info *curve = get_curve_by_name(coin->curve_name);
 	if (!curve) return 1;
+
+	if (!coin->has_signed_message_header) return 1;
+
 	uint8_t hash[HASHER_DIGEST_LENGTH];
 	cryptoMessageHash(coin, curve, message, message_len, hash);
 
@@ -180,6 +187,8 @@ int cryptoMessageVerify(const CoinType *coin, const uint8_t *message, size_t mes
 
 	const curve_info *curve = get_curve_by_name(coin->curve_name);
 	if (!curve) return 1;
+
+	if (!coin->has_signed_message_header) return 1;
 
 	uint8_t hash[HASHER_DIGEST_LENGTH];
 	cryptoMessageHash(coin, curve, message, message_len, hash);

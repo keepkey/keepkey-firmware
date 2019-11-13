@@ -119,6 +119,7 @@ static bool path_mismatched(const CoinType *coin, const uint32_t *address_n,
 	if (address_n_count == 5 &&
 		(strncmp(coin->coin_name, ETHEREUM, strlen(ETHEREUM)) == 0 ||
 		 strncmp(coin->coin_name, ETHEREUM_CLS, sizeof(ETHEREUM_CLS)) == 0 ||
+		 strncmp(coin->coin_name, ETHEREUM_TST, sizeof(ETHEREUM_TST)) == 0 ||
 		 coin->has_contract_address)) {
 		if (whole_account)
 			return true;
@@ -420,6 +421,9 @@ bool isEthereumLike(const char *coin_name)
         return true;
 
     if (strcmp(coin_name, ETHEREUM_CLS) == 0)
+        return true;
+
+    if (strcmp(coin_name, ETHEREUM_TST) == 0)
         return true;
 
     return false;

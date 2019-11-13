@@ -2,6 +2,7 @@ include(CheckSymbolExists)
 
 set(sources
     check_bootloader.c
+    common.c
     confirm_sm.c
     draw.c
     font.c

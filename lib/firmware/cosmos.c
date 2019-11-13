@@ -30,34 +30,34 @@ bool cosmos_path_mismatched(const CoinType *_coin,
  * need guidance on the way you want to handle syncing the locked commit,
  * keepkey@HEAD, and the new commit.
  */
-static int convert_bits(uint8_t *out, size_t *outlen, int outbits, const uint8_t *in, size_t inlen, int inbits, int pad)
-{
-    uint32_t val = 0;
-    int bits = 0;
-    uint32_t maxv = (((uint32_t)1) << outbits) - 1;
-    while (inlen--)
-    {
-        val = (val << inbits) | *(in++);
-        bits += inbits;
-        while (bits >= outbits)
-        {
-            bits -= outbits;
-            out[(*outlen)++] = (val >> bits) & maxv;
-        }
-    }
-    if (pad)
-    {
-        if (bits)
-        {
-            out[(*outlen)++] = (val << (outbits - bits)) & maxv;
-        }
-    }
-    else if (((val << (outbits - bits)) & maxv) || bits >= inbits)
-    {
-        return 0;
-    }
-    return 1;
-}
+// static int convert_bits(uint8_t *out, size_t *outlen, int outbits, const uint8_t *in, size_t inlen, int inbits, int pad)
+// {
+//     uint32_t val = 0;
+//     int bits = 0;
+//     uint32_t maxv = (((uint32_t)1) << outbits) - 1;
+//     while (inlen--)
+//     {
+//         val = (val << inbits) | *(in++);
+//         bits += inbits;
+//         while (bits >= outbits)
+//         {
+//             bits -= outbits;
+//             out[(*outlen)++] = (val >> bits) & maxv;
+//         }
+//     }
+//     if (pad)
+//     {
+//         if (bits)
+//         {
+//             out[(*outlen)++] = (val << (outbits - bits)) & maxv;
+//         }
+//     }
+//     else if (((val << (outbits - bits)) & maxv) || bits >= inbits)
+//     {
+//         return 0;
+//     }
+//     return 1;
+// }
 
 /*
  * Gets the address
@@ -69,8 +69,6 @@ static int convert_bits(uint8_t *out, size_t *outlen, int outbits, const uint8_t
  */
 bool cosmos_getAddress(const HDNode *node, char *address)
 {
-    hdnode_fill_public_key(node);
-
     uint8_t hash160Buf[RIPEMD160_DIGEST_LENGTH];
     ecdsa_get_pubkeyhash(node->public_key, HASHER_SHA2_RIPEMD, hash160Buf);
 

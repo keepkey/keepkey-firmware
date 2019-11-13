@@ -35,6 +35,7 @@
 #include "keepkey/firmware/u2f/u2f.h"
 #include "keepkey/firmware/u2f/u2f_keys.h"
 #include "trezor/crypto/bip39.h"
+#include "trezor/crypto/bip39_english.h"
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/hmac.h"
 #include "trezor/crypto/memzero.h"
@@ -467,8 +468,6 @@ const char *words_from_data(const uint8_t *data, int len)
 
 	int mlen = len * 3 / 4;
 	static char mnemo[24 * 10];
-
-	const char *const *wordlist = mnemonic_wordlist();
 
 	int i, j, idx;
 	char *p = mnemo;

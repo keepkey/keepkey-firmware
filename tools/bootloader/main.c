@@ -30,6 +30,7 @@
 #include <libopencm3/cm3/vector.h>
 
 #include "keepkey/board/confirm_sm.h"
+#include "keepkey/board/common.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_button.h"
 #include "keepkey/board/keepkey_display.h"
@@ -147,6 +148,7 @@ static void bootloader_init(void)
 {
     cm_enable_interrupts();
     reset_rng();
+    drbg_init();
     timer_init();
     keepkey_button_init();
     svc_enable_interrupts();

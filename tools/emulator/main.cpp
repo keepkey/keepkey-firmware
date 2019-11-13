@@ -20,6 +20,7 @@
 #include "display.h"
 
 extern "C" {
+    #include "keepkey/board/common.h"
     #include "keepkey/board/keepkey_board.h"
     #include "keepkey/board/keepkey_flash.h"
     #include "keepkey/board/layout.h"
@@ -70,6 +71,7 @@ int main(void)
 {
     setup();
     kk_board_init();
+    drbg_init();
 
     led_func(SET_RED_LED);
     dbg_print("Application Version %d.%d.%d\n", MAJOR_VERSION, MINOR_VERSION,
