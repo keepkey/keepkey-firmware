@@ -24,8 +24,8 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
     if (msg->has_show_display && msg->show_display) {
         char node_str[NODE_STRING_LENGTH];
         if (!bip32_node_to_string(node_str, sizeof(node_str), coin, msg->address_n,
-                                  msg->address_n_count, /*whole_account=*/false,
-                                  /*show_addridx=*/true) &&
+                                  msg->address_n_count, /*whole_account=*/true,
+                                  /*show_addridx=*/false) &&
             !bip32_path_to_string(node_str, sizeof(node_str),
                                   msg->address_n, msg->address_n_count)) {
             memset(node_str, 0, sizeof(node_str));
@@ -62,10 +62,8 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
     const CoinType *coin = fsm_getCoin(true, coin_name);
     if (!coin) { return; }
     HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
-    if (!node)
-    {
-        return;
-    }
+    if (!node) { return; }
+
     hdnode_fill_public_key(node);
 
     char node_str[NODE_STRING_LENGTH];

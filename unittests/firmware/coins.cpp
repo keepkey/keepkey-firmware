@@ -162,9 +162,9 @@ TEST(Coins, BIP32AccountName) {
           5, true, "EOS Account #42"
         },
         {
-          "Cosmos"
+          "Cosmos",
           { 0x80000000|44, 0x80000000|118, 0x80000000|9, 0, 0 },
-          5, true, "Cosmos Account #9\nAddress #0"
+          5, true, "Cosmos Account #9"
         }
     };
 
