@@ -75,15 +75,9 @@
     MSG_OUT(MessageType_MessageType_EthereumMessageSignature,       EthereumMessageSignature,    NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_NanoAddress,                    NanoAddress,                 NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_NanoSignedTx,                   NanoSignedTx,                NO_PROCESS_FUNC)
-<<<<<<< HEAD
-=======
-    MSG_OUT(MessageType_MessageType_StellarAddress,                 StellarAddress,              NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_StellarSignedTx,                StellarSignedTx,             NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_StellarTxOpRequest,             StellarTxOpRequest,          NO_PROCESS_FUNC)
 
     MSG_OUT(MessageType_MessageType_CosmosAddress,                  CosmosAddress,               NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_CosmosSignedTx,                 CosmosSignedTx,              NO_PROCESS_FUNC)
->>>>>>> 2c99a843... boil your plates
 
     MSG_OUT(MessageType_MessageType_EosPublicKey,                   EosPublicKey,                NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EosTxActionRequest,             EosTxActionRequest,          NO_PROCESS_FUNC)
