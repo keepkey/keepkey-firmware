@@ -9,6 +9,22 @@
 #include <stdbool.h>
 #include <time.h>
 
+bool cosmos_path_mismatched(const CoinType *_coin,
+                            const uint32_t *address_n,
+                            const uint32_t address_n_count)
+{
+    // m/44' : BIP44-like path
+    // m / purpose' / bip44_account_path' / account' / x / y
+    bool mismatch = false;
+    mismatch |= address_n_count != 5;
+    mismatch |= address_n_count > 0 && (address_n[0] != (0x80000000 + 44));
+    mismatch |= address_n_count > 1 && (address_n[1] != _coin->bip44_account_path);
+    mismatch |= address_n_count > 2 && (address_n[2] & 0x80000000) == 0;
+    mismatch |= address_n_count > 2 && (address_n[3] & 0x80000000) == 0;
+    mismatch |= address_n_count > 2 && (address_n[4] & 0x80000000) == 0;
+    return mismatch;
+}
+
 /* This was inlined from the trezor firmware because it was not exported.
  * Forking the repository to expose this function is an option but we will
  * need guidance on the way you want to handle syncing the locked commit,

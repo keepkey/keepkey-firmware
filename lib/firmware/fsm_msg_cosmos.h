@@ -7,19 +7,38 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
 
     CHECK_PIN
 
+    const char *coin_name = msg->has_coin_name ? msg->coin_name : "Cosmos";
+    const CoinType *coin = fsm_getCoin(true, coin_name);
+    if (!coin) { return; }
     HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
-    if (!node)
-    {
+    if (!node) { return; }
+
+    if (!cosmos_getAddress(node, resp->address) {
+        fsm_sendFailure(FailureType_Failure_Other, _("Can't encode address"));
+        layoutHome();
         return;
     }
 
-    cosmos_getAddress(node, resp->address);
+    if (msg->has_show_display && msg->show_display) {
+        char node_str[NODE_STRING_LENGTH];
+        if (!nano_bip32_to_string(node_str, sizeof(node_str), coin, msg->address_n,
+                                  msg->address_n_count) &&
+            !bip32_path_to_string(node_str, sizeof(node_str),
+                                  msg->address_n, msg->address_n_count)) {
+            memset(node_str, 0, sizeof(node_str));
+        }
+        bool mismatch = cosmos_path_mismatched(coin, msg->address_n, msg->address_n_count);
 
-    if (msg->has_show_display && msg->show_display)
-    {
-        if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Share public account ID?"), "%s", resp->address))
-        {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        if (mismatch) {
+            if (!confirm(ButtonRequestType_ButtonRequest_Other, "WARNING", "Wrong address path for selected coin. Continue at your own risk!")) {
+                fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+                layoutHome();
+                return;
+            }
+        }
+
+        if(!confirm_address(node_str, address)) {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
             layoutHome();
             return;
         }
