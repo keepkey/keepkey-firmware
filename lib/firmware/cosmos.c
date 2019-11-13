@@ -49,7 +49,7 @@ bool cosmos_getAddress(const uint8_t *public_key, char *address)
     uint8_t hash160Buf[RIPEMD160_DIGEST_LENGTH];
     ecdsa_get_pubkeyhash(public_key, HASHER_SHA2_RIPEMD, hash160Buf);
 
-    uint8_t fiveBitExpanded[32]; // RIPEMD160_DIGEST_LENGTH * 8 / 5
+    uint8_t fiveBitExpanded[RIPEMD160_DIGEST_LENGTH * 8 / 5];
     size_t len = 0;
     convert_bits(fiveBitExpanded, &len, 5, hash160Buf, 20, 8, 1);
     // bech32encode
