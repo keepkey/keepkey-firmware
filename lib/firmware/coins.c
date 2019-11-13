@@ -436,6 +436,7 @@ static bool isAccountBased(const char* coin_name)
 {
     if (strcmp(coin_name, "Cosmos") == 0) { return true; }
     if (isEthereumLike(coin_name)) { return true; }
+    if (isEOS(coin_name)) { return true; }
     return false;
 }
 
