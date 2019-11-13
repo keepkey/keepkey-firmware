@@ -456,7 +456,7 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
             return false;
 
         // Only 0/1 for internal/external are valid paths on UTXO coins.
-        if (!isEthereumLike(coin_name) && !isEOS(coin_name) && !isAccountBased(coin_name)
+        if (!isAccountBased(coin_name) &&
             address_n[3] != 0 && address_n[3] != 1)
             return false;
     }
