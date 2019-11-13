@@ -79,9 +79,47 @@ bool cosmos_getAddress(const HDNode *node, char *address)
     return bech32_encode(address, "cosmos", fiveBitExpanded, len) == 1;
 }
 
-#define SIGNING_TEMPLATE "{\"account_number\":\"%" PRIu64 "\",\"chain_id\":\"%s\",\"fee\":{\"amount\":[{\"amount\":\"%" PRIu32 "\",\"denom\":\"uatom\"}],\"gas\":\"%" PRIu32 "\"},\"memo\":\"%s\",\"msgs\":[{\"type\":\"cosmos-sdk/MsgSend\",\"value\":{\"amount\":[{\"amount\":\"%" PRIu64 "\",\"denom\":\"uatom\"}],\"from_address\":\"%s\",\"to_address\":\"%s\"}}],\"sequence\":\"%" PRIu64 "\"}"
+// Each segment guaranteed to be less than 64 bytes
+// 19 + ^20 + 14 = ^53
+#define SIGNING_TEMPLATE_SEG1 "{\"account_number\":\"%" PRIu64 "\",\"chain_id\":\""
+// <escape chain_id>
+// 30 + ^10 + 24 = ^64
+#define SIGNING_TEMPLATE_SEG2 "\",\"fee\":{\"amount\":[{\"amount\":\"%" PRIu32 "\",\"denom\":\"uatom\"}],\"gas"
+// 3 + ^10 + 11 = ^23
+#define SIGNING_TEMPLATE_SEG3 "\":\"%" PRIu32 "\"},\"memo\":\""
+// <escape memo>
+// 64
+#define SIGNING_TEMPLATE_SEG4 "\",\"msgs\":[{\"type\":\"cosmos-sdk/MsgSend\",\"value\":{\"amount\":[{\"amou"
+// 5 + ^20 + 36 = ^61
+#define SIGNING_TEMPLATE_SEG5 "nt\":\"%" PRIu64 "\",\"denom\":\"uatom\"}],\"from_address\":\""
+// 45 + 16 = 61
+#define SIGNING_TEMPLATE_SEG6 "%s\",\"to_address\":\""
+// 45 + 17 = 62
+#define SIGNING_TEMPLATE_SEG7 "%s\"}}],\"sequence\":\""
+// ^20 + 2 = ^22
+#define SIGNING_TEMPLATE_SEG8 "%" PRIu64 "\"}"
 
-// 411 + memo + chain_id + NULL terminator
+void sha256UpdateEscaped(SHA256_CTX *ctx, const char *s, size_t len)
+{
+    while (len > 0)
+    {
+        if (s[0] == '"')
+        {
+            sha256_Update(ctx, (uint8_t *)"\\\"", 2);
+        }
+        else if (s[0] == '\\')
+        {
+            sha256_Update(ctx, (uint8_t *)"\\\\", 2);
+        }
+        else
+        {
+            sha256_Update(ctx, (uint8_t *)&s[0], 1);
+        }
+        s = &s[1];
+        len--;
+    }
+}
+
 bool cosmos_signTx(const uint8_t *private_key,
                    const uint64_t account_number,
                    const char *chain_id,
@@ -96,10 +134,57 @@ bool cosmos_signTx(const uint8_t *private_key,
                    const uint64_t sequence,
                    uint8_t *signature)
 {
-    size_t len = 412 + memo_length + chain_id_length;
-    char signBytes[len];
-    snprintf(signBytes, len, SIGNING_TEMPLATE, account_number, chain_id, fee_uatom_amount, gas, memo, amount, from_address, to_address, sequence);
+    SHA256_CTX ctx;
+    int n;
+    sha256_Init(&ctx);
+    char buffer[SHA256_BLOCK_LENGTH + 1]; // NULL TERMINATOR NOT PART OF HASH
+    n = snprintf(buffer, SHA256_BLOCK_LENGTH + 1, SIGNING_TEMPLATE_SEG1, account_number);
+    if (n < 0)
+    {
+        return false;
+    }
+    sha256_Update(&ctx, (uint8_t *)buffer, n);
+    sha256UpdateEscaped(&ctx, chain_id, chain_id_length);
+    n = snprintf(buffer, SHA256_BLOCK_LENGTH + 1, SIGNING_TEMPLATE_SEG2, fee_uatom_amount);
+    if (n < 0)
+    {
+        return false;
+    }
+    sha256_Update(&ctx, (uint8_t *)buffer, n);
+    n = snprintf(buffer, SHA256_BLOCK_LENGTH + 1, SIGNING_TEMPLATE_SEG3, gas);
+    if (n < 0)
+    {
+        return false;
+    }
+    sha256_Update(&ctx, (uint8_t *)buffer, n);
+    sha256UpdateEscaped(&ctx, memo, memo_length);
+    sha256_Update(&ctx, (uint8_t *)SIGNING_TEMPLATE_SEG4, 64); // no interpolation needed
+    n = snprintf(buffer, SHA256_BLOCK_LENGTH + 1, SIGNING_TEMPLATE_SEG5, amount);
+    if (n < 0)
+    {
+        return false;
+    }
+    sha256_Update(&ctx, (uint8_t *)buffer, n);
+    n = snprintf(buffer, SHA256_BLOCK_LENGTH + 1, SIGNING_TEMPLATE_SEG6, from_address);
+    if (n < 0)
+    {
+        return false;
+    }
+    sha256_Update(&ctx, (uint8_t *)buffer, n);
+    n = snprintf(buffer, SHA256_BLOCK_LENGTH + 1, SIGNING_TEMPLATE_SEG7, to_address);
+    if (n < 0)
+    {
+        return false;
+    }
+    sha256_Update(&ctx, (uint8_t *)buffer, n);
+    n = snprintf(buffer, SHA256_BLOCK_LENGTH + 1, SIGNING_TEMPLATE_SEG8, sequence);
+    if (n < 0)
+    {
+        return false;
+    }
+    sha256_Update(&ctx, (uint8_t *)buffer, n);
+
     uint8_t hash[SHA256_DIGEST_LENGTH];
-    sha256_Raw((uint8_t *)signBytes, strlen(signBytes), hash);
+    sha256_Final(&ctx, hash);
     return ecdsa_sign_digest(&secp256k1, private_key, hash, signature, NULL, NULL) == 0;
 }
