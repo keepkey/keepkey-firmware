@@ -20,18 +20,18 @@ static uint32_t msgs_remaining;
 static uint64_t sequence;
 
 bool cosmos_path_mismatched(const CoinType *_coin,
-                            const uint32_t *address_n,
-                            const uint32_t address_n_count)
+                            const uint32_t *_address_n,
+                            const uint32_t _address_n_count)
 {
     // m/44' : BIP44-like path
     // m / purpose' / bip44_account_path' / account' / x / y
     bool mismatch = false;
-    mismatch |= address_n_count != 5;
-    mismatch |= address_n_count > 0 && (address_n[0] != (0x80000000 + 44));
-    mismatch |= address_n_count > 1 && (address_n[1] != _coin->bip44_account_path);
-    mismatch |= address_n_count > 2 && (address_n[2] & 0x80000000) == 0;
-    mismatch |= address_n_count > 3 && (address_n[3] & 0x80000000) != 0;
-    mismatch |= address_n_count > 4 && (address_n[4] & 0x80000000) != 0;
+    mismatch |= _address_n_count != 5;
+    mismatch |= _address_n_count > 0 && (_address_n[0] != (0x80000000 + 44));
+    mismatch |= _address_n_count > 1 && (_address_n[1] != _coin->bip44_account_path);
+    mismatch |= _address_n_count > 2 && (_address_n[2] & 0x80000000) == 0;
+    mismatch |= _address_n_count > 3 && (_address_n[3] & 0x80000000) != 0;
+    mismatch |= _address_n_count > 4 && (_address_n[4] & 0x80000000) != 0;
     return mismatch;
 }
 
@@ -43,10 +43,10 @@ bool cosmos_path_mismatched(const CoinType *_coin,
  *
  * returns true if successful
  */
-bool cosmos_getAddress(const HDNode *node, char *address)
+bool cosmos_getAddress(const HDNode *_node, char *address)
 {
     uint8_t hash160Buf[RIPEMD160_DIGEST_LENGTH];
-    ecdsa_get_pubkeyhash(node->public_key, HASHER_SHA2_RIPEMD, hash160Buf);
+    ecdsa_get_pubkeyhash(_node->public_key, HASHER_SHA2_RIPEMD, hash160Buf);
 
     uint8_t fiveBitExpanded[RIPEMD160_DIGEST_LENGTH * 8 / 5];
     size_t len = 0;
@@ -79,21 +79,21 @@ bool cosmos_getAddress(const HDNode *node, char *address)
 // 16 + ^20 = ^36
 #define SIGNING_TEMPLATE_END_SEG1 "],\"sequence\":\"%" PRIu64 "\"}"
 
-void sha256UpdateEscaped(SHA256_CTX *ctx, const char *s, size_t len)
+void sha256UpdateEscaped(SHA256_CTX *_ctx, const char *s, size_t len)
 {
     while (len > 0)
     {
         if (s[0] == '"')
         {
-            sha256_Update(ctx, (uint8_t *)"\\\"", 2);
+            sha256_Update(_ctx, (uint8_t *)"\\\"", 2);
         }
         else if (s[0] == '\\')
         {
-            sha256_Update(ctx, (uint8_t *)"\\\\", 2);
+            sha256_Update(_ctx, (uint8_t *)"\\\\", 2);
         }
         else
         {
-            sha256_Update(ctx, (uint8_t *)&s[0], 1);
+            sha256_Update(_ctx, (uint8_t *)&s[0], 1);
         }
         s = &s[1];
         len--;
@@ -144,7 +144,7 @@ bool cosmos_signTxInit(const HDNode* _node,
 
     sha256UpdateEscaped(&ctx, memo, memo_length);
 
-    sha256_Update(&ctx, SIGNING_TEMPLATE_START_SEG4, sizeof(SIGNING_TEMPLATE_START_SEG4) - 1);
+    sha256_Update(&ctx, (uint8_t *)SIGNING_TEMPLATE_START_SEG4, sizeof(SIGNING_TEMPLATE_START_SEG4) - 1);
 
     return true;
 }
@@ -157,7 +157,7 @@ bool cosmos_signTxUpdateMsgSend(const uint64_t amount,
     char buffer[SHA256_BLOCK_LENGTH + 1]; // NULL TERMINATOR NOT PART OF HASH
 
     size_t decoded_len;
-    char hrp[7];
+    char hrp[45];
     uint8_t decoded[38];
     if (!bech32_decode(hrp, decoded, &decoded_len, from_address)) { return false; }
     if (!bech32_decode(hrp, decoded, &decoded_len, to_address)) { return false; }
@@ -205,11 +205,11 @@ bool cosmos_signTxFinalize(uint8_t* public_key, uint8_t* signature)
     return ecdsa_sign_digest(&secp256k1, node.private_key, hash, signature, NULL, NULL) == 0;
 }
 
-bool cosmos_signingIsInited() {
+bool cosmos_signingIsInited(void) {
     return initialized;
 }
 
-bool cosmos_signingIsFinished() {
+bool cosmos_signingIsFinished(void) {
     return msgs_remaining == 0;
 }
 
@@ -223,7 +223,7 @@ void cosmos_signAbort(void) {
     sequence = 0;
 }
 
-size_t cosmos_getAddressNCount() {
+size_t cosmos_getAddressNCount(void) {
     return address_n_count;
 }
 

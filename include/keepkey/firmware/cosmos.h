@@ -10,9 +10,9 @@
 #include "trezor/crypto/bip32.h"
 
 bool cosmos_path_mismatched(const CoinType *_coin,
-                            const uint32_t *address_n,
-                            const uint32_t address_n_count);
-bool cosmos_getAddress(const HDNode *node, char *address);
+                            const uint32_t *_address_n,
+                            const uint32_t _address_n_count);
+bool cosmos_getAddress(const HDNode *_node, char *address);
 bool cosmos_signTxInit(const HDNode* _node,
                        const uint32_t _address_n[8],
                        const size_t _address_n_count,
@@ -29,10 +29,10 @@ bool cosmos_signTxUpdateMsgSend(const uint64_t amount,
                                 const char *from_address,
                                 const char *to_address);
 bool cosmos_signTxFinalize(uint8_t* public_key, uint8_t* signature);
-bool cosmos_signingIsInited();
-bool cosmos_signingIsFinished();
+bool cosmos_signingIsInited(void);
+bool cosmos_signingIsFinished(void);
 void cosmos_signAbort(void);
-size_t cosmos_getAddressNCount();
+size_t cosmos_getAddressNCount(void);
 bool cosmos_getAddressN(uint32_t* address_n, size_t address_n_count);
 // bool cosmos_signTx(const uint8_t* private_key,
 //                    const uint64_t account_number,

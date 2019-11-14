@@ -58,13 +58,20 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
     CHECK_INITIALIZED
     CHECK_PIN
 
-    
+    if (!msg->has_account_number ||
+        !msg->has_chain_id ||
+        !msg->has_fee_amount ||
+        !msg->has_gas ||
+        !msg->has_sequence) {
+        fsm_sendFailure(FailureType_Failure_SyntaxError, "Missing Fields On Message");
+        layoutHome();
+        return;
+    }
+
     HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
     if (!node) { return; }
 
     hdnode_fill_public_key(node);
-
-    
 
     if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Fee Details"), "Fee: %" PRIu32 " uATOM\nGas: %" PRIu32 "", msg->fee_amount, msg->gas))
     {
@@ -90,8 +97,8 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
                            strlen(msg->chain_id),
                            msg->fee_amount,
                            msg->gas,
-                           msg->memo,
-                           strlen(msg->memo),
+                           msg->has_memo ? msg->memo : "",
+                           msg->has_memo ? strlen(msg->memo) : 0,
                            msg->sequence,
                            msg->msg_count))
     {
@@ -110,7 +117,7 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
 void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     // Confirm transaction basics
     CHECK_PARAM(cosmos_signingIsInited(), "Must call CosmosSignTx to initiate signing");
-    if (!msg->has_send) {
+    if (!msg->has_send || !msg->send.has_from_address || !msg->send.has_to_address || !msg->send.has_amount) {
         cosmos_signAbort();
         fsm_sendFailure(FailureType_Failure_FirmwareError,
                         _("Invalid Cosmos Message Type"));
