@@ -43,6 +43,7 @@
 
     MSG_IN(MessageType_MessageType_CosmosGetAddress,                CosmosGetAddress,            fsm_msgCosmosGetAddress)
     MSG_IN(MessageType_MessageType_CosmosSignTx,                    CosmosSignTx,                fsm_msgCosmosSignTx)
+    MSG_IN(MessageType_MessageType_CosmosMsgAck,                    CosmosMsgAck,                fsm_msgCosmosMsgAck)
 
     MSG_IN(MessageType_MessageType_EosGetPublicKey,                 EosGetPublicKey,             fsm_msgEosGetPublicKey)
     MSG_IN(MessageType_MessageType_EosSignTx,                       EosSignTx,                   fsm_msgEosSignTx)
@@ -77,6 +78,7 @@
     MSG_OUT(MessageType_MessageType_NanoSignedTx,                   NanoSignedTx,                NO_PROCESS_FUNC)
 
     MSG_OUT(MessageType_MessageType_CosmosAddress,                  CosmosAddress,               NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_CosmosMsgRequest,               CosmosMsgRequest,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_CosmosSignedTx,                 CosmosSignedTx,              NO_PROCESS_FUNC)
 
     MSG_OUT(MessageType_MessageType_EosPublicKey,                   EosPublicKey,                NO_PROCESS_FUNC)

@@ -58,30 +58,13 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
     CHECK_INITIALIZED
     CHECK_PIN
 
-    const char *coin_name = "Cosmos";
-    const CoinType *coin = fsm_getCoin(true, coin_name);
-    if (!coin) { return; }
+    
     HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
     if (!node) { return; }
 
     hdnode_fill_public_key(node);
 
-    char node_str[NODE_STRING_LENGTH];
-    if (!bip32_node_to_string(node_str, sizeof(node_str), coin, msg->address_n,
-                              msg->address_n_count, /*whole_account=*/false,
-                              /*show_addridx=*/true) &&
-        !bip32_path_to_string(node_str, sizeof(node_str),
-                              msg->address_n, msg->address_n_count)) {
-        memset(node_str, 0, sizeof(node_str));
-    }
-
-    // Confirm transaction basics
-    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Main Details"), "From: %s\nTo: %s\nAmount: %f ATOM", node_str, msg->to_address, (float)msg->amount * 1E-6))
-    {
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-        layoutHome();
-        return;
-    }
+    
 
     if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Fee Details"), "Fee: %" PRIu32 " uATOM\nGas: %" PRIu32 "", msg->fee_amount, msg->gas))
     {
@@ -90,41 +73,83 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
         return;
     }
 
-    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Aux Details"), "Memo: \"%s\"\nChain ID: %s\nAccount #: %" PRIu64 "", msg->memo, msg->chain_id, msg->account_number))
+    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Aux Details"), "Memo: \"%s\"\nChain ID: %s", msg->memo, msg->chain_id))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
         layoutHome();
         return;
     }
 
-    RESP_INIT(CosmosSignedTx);
+    RESP_INIT(CosmosMsgRequest);
 
-    if (!cosmos_signTx(node->private_key,
-                       msg->account_number,
-                       msg->chain_id,
-                       strlen(msg->chain_id),
-                       msg->fee_amount,
-                       msg->gas,
-                       msg->memo,
-                       strlen(msg->memo),
-                       msg->amount,
-                       msg->from_address,
-                       msg->to_address,
-                       msg->sequence,
-                       resp->signature.bytes))
+    if (!cosmos_signTxInit(node,
+                           msg->address_n,
+                           msg->address_n_count,
+                           msg->account_number,
+                           msg->chain_id,
+                           strlen(msg->chain_id),
+                           msg->fee_amount,
+                           msg->gas,
+                           msg->memo,
+                           strlen(msg->memo),
+                           msg->sequence,
+                           msg->msg_count))
     {
         fsm_sendFailure(FailureType_Failure_FirmwareError,
-                        _("Failed to sign transaction"));
+                        _("Failed to initialize transaction signing"));
         layoutHome();
         return;
     }
-    resp->signature.size = 64;
-    resp->has_signature = true;
+
+
+
+    layoutHome();
+    msg_write(MessageType_MessageType_CosmosMsgRequest, resp);
+}
+
+void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
+    // Confirm transaction basics
+    CHECK_PARAM(cosmos_signingIsInited(), "Must call CosmosSignTx to initiate signing");
+    if (!msg->has_send) {
+        cosmos_signAbort();
+        fsm_sendFailure(FailureType_Failure_FirmwareError,
+                        _("Invalid Cosmos Message Type"));
+        layoutHome();
+        return;
+    }
+
+    const char *coin_name = "Cosmos";
+    const CoinType *coin = fsm_getCoin(true, coin_name);
+    if (!coin) { return; }
+
+    uint32_t address_n[8];
+    cosmos_getAddressN(address_n);
+    size_t address_n_count = cosmos_getAddressNCount();
+    char node_str[NODE_STRING_LENGTH];
+    if (!bip32_node_to_string(node_str, sizeof(node_str), coin, address_n,
+                              address_n_count, /*whole_account=*/false,
+                              /*show_addridx=*/true) &&
+        !bip32_path_to_string(node_str, sizeof(node_str),
+                              address_n, address_n_count)) {
+        memset(node_str, 0, sizeof(node_str));
+    }
+
+    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Send Details"), "From: %s\nTo: %s\nAmount: %f ATOM", node_str, msg->send.to_address, (float)msg->send.amount * 1E-6))
+    {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        layoutHome();
+        return;
+    }
+
+    if (!cosmos_signingIsFinished()) {
+        RESP_INIT(CosmosMsgRequest);
+        msg_write(MessageType_MessageType_CosmosMsgRequest, resp);
+        return;
+    }
+
+    RESP_INIT(CosmosSignedTx);
 
     memcpy(resp->public_key.bytes, node->public_key, 33);
     resp->public_key.size = 33;
     resp->has_public_key = true;
-
-    layoutHome();
-    msg_write(MessageType_MessageType_CosmosSignedTx, resp);
 }

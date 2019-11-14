@@ -4,10 +4,10 @@ CosmosAddress.address                                  max_size:46
 
 CosmosSignTx.address_n                                 max_count:10
 CosmosSignTx.chain_id                                  max_size:32
-CosmosSignTx.from_address                              max_size:46
-CosmosSignTx.to_address                                max_size:46
 CosmosSignTx.memo                                      max_size:256
 
+CosmosMsgSend.from_address                              max_size:46
+CosmosMsgSend.to_address                                max_size:46
 
 CosmosSignedTx.public_key                              max_size:33
 CosmosSignedTx.signature                               max_size:64
