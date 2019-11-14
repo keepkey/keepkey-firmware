@@ -144,7 +144,7 @@ bool cosmos_signTxInit(const HDNode* _node,
 
     sha256UpdateEscaped(&ctx, memo, memo_length);
 
-    sha256_Update(&ctx, SIGNING_TEMPLATE_START_SEG4, 10);
+    sha256_Update(&ctx, SIGNING_TEMPLATE_START_SEG4, sizeof(SIGNING_TEMPLATE_START_SEG4) - 1);
 
     return true;
 }
