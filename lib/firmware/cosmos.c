@@ -144,6 +144,8 @@ bool cosmos_signTxInit(const HDNode* _node,
 
     sha256UpdateEscaped(&ctx, memo, memo_length);
 
+    sha256_Update(&ctx, SIGNING_TEMPLATE_START_SEG4, 10);
+
     return true;
 }
 
@@ -160,17 +162,13 @@ bool cosmos_signTxUpdateMsgSend(const uint64_t amount,
     if (!bech32_decode(hrp, decoded, &decoded_len, from_address)) { return false; }
     if (!bech32_decode(hrp, decoded, &decoded_len, to_address)) { return false; }
 
-    char* start_ptr;
     if (has_message) {
-        buffer[0] = ',';
-        start_ptr = buffer + 1;
-    } else {
-        start_ptr = buffer;
+        sha256_Update(&ctx, (uint8_t*)",", 1);
     }
 
-    n = snprintf(start_ptr, SHA256_BLOCK_LENGTH + 1 - has_message, SIGNING_TEMPLATE_MSG_SEND_SEG1);
+    n = snprintf(buffer, SHA256_BLOCK_LENGTH + 1, SIGNING_TEMPLATE_MSG_SEND_SEG1);
     if (n < 0) { return false; }
-    sha256_Update(&ctx, (uint8_t *)buffer, n + has_message);
+    sha256_Update(&ctx, (uint8_t *)buffer, n);
 
 
     n = snprintf(buffer, SHA256_BLOCK_LENGTH + 1, SIGNING_TEMPLATE_MSG_SEND_SEG2, amount);
