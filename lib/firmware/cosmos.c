@@ -114,6 +114,7 @@ bool cosmos_signTxInit(const HDNode* _node,
                        const uint32_t msg_count)
 {
 
+    initialized = true;
     msgs_remaining = msg_count;
     has_message = false;
     sequence = _sequence;
