@@ -101,7 +101,7 @@ void sha256UpdateEscaped(SHA256_CTX *ctx, const char *s, size_t len)
 }
 
 bool cosmos_signTxInit(const HDNode* _node,
-                       const uint32_t _address_n[8],
+                       const uint32_t* _address_n,
                        const size_t _address_n_count,
                        const uint64_t account_number,
                        const char *chain_id,
@@ -155,9 +155,11 @@ bool cosmos_signTxUpdateMsgSend(const uint64_t amount,
     char buffer[SHA256_DIGEST_LENGTH + 1]; // NULL TERMINATOR NOT PART OF HASH
 
     size_t decoded_len;
-    uint8_t decoded[33];
+    uint8_t decoded[38];
     if (!bech32_decode("cosmos", decoded, &decoded_len, from_address)) { return false; }
     if (!bech32_decode("cosmos", decoded, &decoded_len, to_address)) { return false; }
+
+    return false; // TODO: REMOVE THIS
 
     char* start_ptr;
     if (has_message) {
@@ -188,7 +190,7 @@ bool cosmos_signTxUpdateMsgSend(const uint64_t amount,
     return true;
 }
 
-bool cosmos_signTxFinalize(uint8_t* signature)
+bool cosmos_signTxFinalize(uint8_t* public_key, uint8_t* signature)
 {
     int n;
     char buffer[SHA256_DIGEST_LENGTH + 1]; // NULL TERMINATOR NOT PART OF HASH
@@ -196,6 +198,9 @@ bool cosmos_signTxFinalize(uint8_t* signature)
     n = snprintf(buffer, SHA256_DIGEST_LENGTH + 1, SIGNING_TEMPLATE_END_SEG1, sequence);
     if (n < 0) { return false; }
     sha256_Update(&ctx, (uint8_t*)buffer, n);
+
+    hdnode_fill_public_key(&node);
+    memcpy(public_key, node.public_key, 33);
 
     uint8_t hash[SHA256_DIGEST_LENGTH];
     sha256_Final(&ctx, hash);
@@ -218,6 +223,19 @@ void cosmos_signAbort(void) {
     memzero(&sequence, sizeof(sequence));
     msgs_remaining = 0;
     sequence = 0;
+}
+
+size_t cosmos_getAddressNCount() {
+    return address_n_count;
+}
+
+bool cosmos_getAddressN(uint32_t* _address_n, size_t _address_n_count)
+{
+    if (_address_n_count < address_n_count) {
+        return false;
+    }
+    memcpy(_address_n, address_n, sizeof(uint32_t) * address_n_count);
+    return true;
 }
 
 // bool cosmos_signTx(const uint8_t *private_key,

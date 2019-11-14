@@ -123,7 +123,11 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     if (!coin) { return; }
 
     uint32_t address_n[8];
-    cosmos_getAddressN(address_n);
+    if(!cosmos_getAddressN(address_n, 8)) {
+        cosmos_signAbort();
+        fsm_sendFailure(FailureType_Failure_FirmwareError, "Failed to get derivation path");
+        return;
+    }
     size_t address_n_count = cosmos_getAddressNCount();
     char node_str[NODE_STRING_LENGTH];
     if (!bip32_node_to_string(node_str, sizeof(node_str), coin, address_n,
@@ -136,8 +140,15 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
 
     if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Send Details"), "From: %s\nTo: %s\nAmount: %f ATOM", node_str, msg->send.to_address, (float)msg->send.amount * 1E-6))
     {
+        cosmos_signAbort();
         fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
         layoutHome();
+        return;
+    }
+
+    if(!cosmos_signTxUpdateMsgSend(msg->send.amount, msg->send.from_address, msg->send.to_address)) {
+        cosmos_signAbort();
+        fsm_sendFailure(FailureType_Failure_FirmwareError, "Failed to include send message in transaction");
         return;
     }
 
@@ -149,7 +160,16 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
 
     RESP_INIT(CosmosSignedTx);
 
-    memcpy(resp->public_key.bytes, node->public_key, 33);
+    if(!cosmos_signTxFinalize(resp->public_key.bytes, resp->signature.bytes)) {
+        fsm_sendFailure(FailureType_Failure_FirmwareError, "Failed to finalize signature");
+        layoutHome();
+        return;
+    }
+
     resp->public_key.size = 33;
     resp->has_public_key = true;
+    resp->signature.size = 64;
+    resp->has_signature = true;
+    layoutHome();
+    msg_write(MessageType_MessageType_CosmosSignedTx, resp);
 }
