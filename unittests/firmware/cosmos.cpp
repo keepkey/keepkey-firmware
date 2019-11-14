@@ -38,7 +38,6 @@ TEST(Cosmos, CosmosSignTx)
     const uint8_t *expected = (uint8_t *)"\x41\x99\x66\x30\x08\xef\xea\x75\x93\x56\x35\xe6\x1a\x11\xdf\xa3\x3c\xeb\xeb\x91\xc1\xca\xed\xc6\x0e\x5e\xef\x3c\xa2\xc0\x1f\x83\x48\x08\x36\xe6\x21\x89\x51\x14\x36\x64\x7f\xac\x5a\xbd\xc2\x9f\x54\xae\x3d\x7e\x47\x56\x43\xca\x33\xc7\xad\x2c\x8a\x53\x2b\x39";
     const uint32_t address_n[5] = {0x80000000|44, 0x80000000|118, 0x80000000, 0, 0};
     ASSERT_TRUE(cosmos_signTxInit(&node, address_n, 5, 0, "cosmoshub-2", strlen("cosmoshub-2"), 5000, 200000, "", 0, 0, 1));
-    // vvv this is the part that is segfaulting right now, I think it's the bech32 decodes, hence the immediate return false afterwards vvv
     ASSERT_TRUE(cosmos_signTxUpdateMsgSend(100000, "cosmos1am058pdux3hyulcmfgj4m3hhrlfn8nzm88u80q", "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v")); 
     // ASSERT_TRUE(cosmos_signTxFinalize(privkey, 0, "cosmoshub-2", strlen("cosmoshub-2"), 5000, 200000, "", 0, 100000, "cosmos1am058pdux3hyulcmfgj4m3hhrlfn8nzm88u80q", "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", 0, signature));
     // EXPECT_TRUE(memcmp(expected, signature, 64) == 0);

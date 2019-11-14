@@ -152,14 +152,13 @@ bool cosmos_signTxUpdateMsgSend(const uint64_t amount,
                                 const char *to_address)
 {
     int n;
-    char buffer[SHA256_DIGEST_LENGTH + 1]; // NULL TERMINATOR NOT PART OF HASH
+    char buffer[SHA256_BLOCK_LENGTH + 1]; // NULL TERMINATOR NOT PART OF HASH
 
     size_t decoded_len;
+    char hrp[7];
     uint8_t decoded[38];
-    if (!bech32_decode("cosmos", decoded, &decoded_len, from_address)) { return false; }
-    if (!bech32_decode("cosmos", decoded, &decoded_len, to_address)) { return false; }
-
-    return false; // TODO: REMOVE THIS
+    if (!bech32_decode(hrp, decoded, &decoded_len, from_address)) { return false; }
+    if (!bech32_decode(hrp, decoded, &decoded_len, to_address)) { return false; }
 
     char* start_ptr;
     if (has_message) {
@@ -169,9 +168,10 @@ bool cosmos_signTxUpdateMsgSend(const uint64_t amount,
         start_ptr = buffer;
     }
 
-    n = snprintf(start_ptr, SHA256_BLOCK_LENGTH + 1 - (start_ptr == buffer ? 0 : 1), SIGNING_TEMPLATE_MSG_SEND_SEG1);
+    n = snprintf(start_ptr, SHA256_BLOCK_LENGTH + 1 - has_message, SIGNING_TEMPLATE_MSG_SEND_SEG1);
     if (n < 0) { return false; }
-    sha256_Update(&ctx, (uint8_t *)buffer, n);
+    sha256_Update(&ctx, (uint8_t *)buffer, n + has_message);
+
 
     n = snprintf(buffer, SHA256_BLOCK_LENGTH + 1, SIGNING_TEMPLATE_MSG_SEND_SEG2, amount);
     if (n < 0) { return false; }
