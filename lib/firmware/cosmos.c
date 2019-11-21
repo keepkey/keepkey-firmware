@@ -38,7 +38,7 @@ bool cosmos_path_mismatched(const CoinType *_coin,
 /*
  * Gets the address
  *
- * public_key: 33 byte compressed secp256k1 key
+ * _node: HDNode from which the address is to be derived
  * address: output buffer
  *
  * returns true if successful
@@ -133,7 +133,6 @@ bool cosmos_signTxInit(const HDNode* _node,
 }
 
 bool cosmos_signTxUpdateMsgSend(const uint64_t amount,
-                                const char *from_address,
                                 const char *to_address)
 {
     int n;
@@ -142,8 +141,9 @@ bool cosmos_signTxUpdateMsgSend(const uint64_t amount,
     size_t decoded_len;
     char hrp[45];
     uint8_t decoded[38];
-    if (!bech32_decode(hrp, decoded, &decoded_len, from_address)) { return false; }
     if (!bech32_decode(hrp, decoded, &decoded_len, to_address)) { return false; }
+    char from_address[46];
+    if (!cosmos_getAddress(&node, from_address)) { return false; }
 
     if (has_message) {
         sha256_Update(&ctx, (uint8_t*)",", 1);

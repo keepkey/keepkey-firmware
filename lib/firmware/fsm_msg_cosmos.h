@@ -155,7 +155,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
         return;
     }
 
-    if(!cosmos_signTxUpdateMsgSend(msg->send.amount, msg->send.from_address, msg->send.to_address)) {
+    if(!cosmos_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address)) {
         cosmos_signAbort();
         fsm_sendFailure(FailureType_Failure_FirmwareError, "Failed to include send message in transaction");
         return;

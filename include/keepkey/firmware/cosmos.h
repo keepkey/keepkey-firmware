@@ -26,7 +26,6 @@ bool cosmos_signTxInit(const HDNode* _node,
                        const uint64_t _sequence,
                        const uint32_t msg_count);
 bool cosmos_signTxUpdateMsgSend(const uint64_t amount,
-                                const char *from_address,
                                 const char *to_address);
 bool cosmos_signTxFinalize(uint8_t* public_key, uint8_t* signature);
 bool cosmos_signingIsInited(void);
