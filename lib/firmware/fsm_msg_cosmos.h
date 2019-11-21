@@ -16,7 +16,7 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
     hdnode_fill_public_key(node);
 
     if (!cosmos_getAddress(node, resp->address)) {
-        fsm_sendFailure(FailureType_Failure_Other, _("Can't encode address"));
+        fsm_sendFailure(FailureType_Failure_FirmwareError, _("Can't encode address"));
         layoutHome();
         return;
     }
@@ -29,6 +29,8 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
             !bip32_path_to_string(node_str, sizeof(node_str),
                                   msg->address_n, msg->address_n_count)) {
             memset(node_str, 0, sizeof(node_str));
+            fsm_sendFailure(FailureType_Failure_FirmwareError, _("Can't create Bip32 Path String"));
+            layoutHome();
         }
         bool mismatch = cosmos_path_mismatched(coin, msg->address_n, msg->address_n_count);
 
