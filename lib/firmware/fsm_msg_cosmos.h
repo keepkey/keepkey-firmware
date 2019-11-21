@@ -119,7 +119,7 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
 void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     // Confirm transaction basics
     CHECK_PARAM(cosmos_signingIsInited(), "Must call CosmosSignTx to initiate signing");
-    if (!msg->has_send || !msg->send.has_from_address || !msg->send.has_to_address || !msg->send.has_amount) {
+    if (!msg->has_send || !msg->send.has_to_address || !msg->send.has_amount) {
         cosmos_signAbort();
         fsm_sendFailure(FailureType_Failure_FirmwareError,
                         _("Invalid Cosmos Message Type"));
