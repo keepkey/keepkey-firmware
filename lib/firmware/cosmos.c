@@ -51,7 +51,6 @@ bool cosmos_getAddress(const HDNode *_node, char *address)
     uint8_t fiveBitExpanded[RIPEMD160_DIGEST_LENGTH * 8 / 5];
     size_t len = 0;
     convert_bits(fiveBitExpanded, &len, 5, hash160Buf, 20, 8, 1);
-    // bech32encode
     return bech32_encode(address, "cosmos", fiveBitExpanded, len) == 1;
 }
 
