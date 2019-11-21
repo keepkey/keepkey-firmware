@@ -82,7 +82,7 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
         return;
     }
 
-    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Aux Details"), "Memo: \"%s\"\nChain ID: %s", msg->memo, msg->chain_id))
+    if (msg->has_memo && !confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Aux Details"), "Memo: \"%s\"\nChain ID: %s", msg->memo, msg->chain_id))
     {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
         layoutHome();
