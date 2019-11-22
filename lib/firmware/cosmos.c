@@ -103,28 +103,32 @@ bool cosmos_signTxInit(const HDNode* _node,
 
     int n;
     sha256_Init(&ctx);
-    char buffer[SHA256_BLOCK_LENGTH + 1]; // NULL TERMINATOR NOT PART OF HASH
+    char buffer[64 + 1];
 
     // Each segment guaranteed to be less than or equal to 64 bytes
-    // 19 + ^20 + 14 = ^53
-    n = snprintf(buffer, SHA256_BLOCK_LENGTH + 1, "{\"account_number\":\"%" PRIu64 "\",\"chain_id\":\"", account_number);
+    // 19 + ^20 + 1 = ^40
+    n = snprintf(buffer, sizeof(buffer), "{\"account_number\":\"%" PRIu64 "\"", account_number);
     if (n < 0) { return false; }
     sha256_Update(&ctx, (uint8_t *)buffer, n);
 
     // <escape chain_id>
+    const char *const chainid_prefix = ",\"chain_id\":\"";
+    sha256_Update(&ctx, (uint8_t *)chainid_prefix, strlen(chainid_prefix));
     sha256UpdateEscaped(&ctx, chain_id, chain_id_length);
 
-    // 30 + ^10 + 24 = ^64
-    n = snprintf(buffer, SHA256_BLOCK_LENGTH + 1, "\",\"fee\":{\"amount\":[{\"amount\":\"%" PRIu32 "\",\"denom\":\"uatom\"}],\"gas", fee_uatom_amount);
+    // 30 + ^10 + 19 = ^59
+    n = snprintf(buffer, sizeof(buffer), "\",\"fee\":{\"amount\":[{\"amount\":\"%" PRIu32 "\",\"denom\":\"uatom\"}]", fee_uatom_amount);
     if (n < 0) { return false; }
     sha256_Update(&ctx, (uint8_t *)buffer, n);
 
-    // 3 + ^10 + 11 = ^23
-    n = snprintf(buffer, SHA256_BLOCK_LENGTH + 1, "\":\"%" PRIu32 "\"},\"memo\":\"", gas);
+    // 8 + ^10 + 2 = ^20
+    n = snprintf(buffer, sizeof(buffer), ",\"gas\":\"%" PRIu32 "\"}", gas);
     if (n < 0) { return false; }
     sha256_Update(&ctx, (uint8_t *)buffer, n);
 
     // <escape memo>
+    const char *const memo_prefix = ",\"memo\":\"";
+    sha256_Update(&ctx, (uint8_t *)memo_prefix, strlen(memo_prefix));
     sha256UpdateEscaped(&ctx, memo, memo_length);
 
     // 10
@@ -137,12 +141,13 @@ bool cosmos_signTxUpdateMsgSend(const uint64_t amount,
                                 const char *to_address)
 {
     int n;
-    char buffer[SHA256_BLOCK_LENGTH + 1]; // NULL TERMINATOR NOT PART OF HASH
+    char buffer[64 + 1];
 
     size_t decoded_len;
     char hrp[45];
     uint8_t decoded[38];
     if (!bech32_decode(hrp, decoded, &decoded_len, to_address)) { return false; }
+
     char from_address[46];
     if (!cosmos_getAddress(&node, from_address)) { return false; }
 
@@ -150,24 +155,21 @@ bool cosmos_signTxUpdateMsgSend(const uint64_t amount,
         sha256_Update(&ctx, (uint8_t*)",", 1);
     }
 
-    // 59
-    n = snprintf(buffer, SHA256_BLOCK_LENGTH + 1, "{\"type\":\"cosmos-sdk/MsgSend\",\"value\":{\"amount\":[{\"amount\":\"");
-    if (n < 0) { return false; }
-    sha256_Update(&ctx, (uint8_t *)buffer, n);
+    const char *const prelude = "{\"type\":\"cosmos-sdk/MsgSend\",\"value\":{";
+    sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
 
-
-    // ^20 + 36 = ^56
-    n = snprintf(buffer, SHA256_BLOCK_LENGTH + 1, "%" PRIu64 "\",\"denom\":\"uatom\"}],\"from_address\":\"", amount);
+    // 21 + ^20 + 19 = ^60
+    n = snprintf(buffer, sizeof(buffer), "\"amount\":[{\"amount\":\"%" PRIu64 "\",\"denom\":\"uatom\"}]", amount);
     if (n < 0) { return false; }
     sha256_Update(&ctx, (uint8_t*)buffer, n);
 
-    // 45 + 16 = 61
-    n = snprintf(buffer, SHA256_BLOCK_LENGTH + 1, "%s\",\"to_address\":\"", from_address);
+    // 17 + 45 + 1 = 63
+    n = snprintf(buffer, sizeof(buffer), ",\"from_address\":\"%s\"", from_address);
     if (n < 0) { return false; }
     sha256_Update(&ctx, (uint8_t*)buffer, n);
 
-    // 45 + 3 = 48
-    n = snprintf(buffer, SHA256_BLOCK_LENGTH + 1, "%s\"}}", to_address);
+    // 15 + 45 + 3 = 63
+    n = snprintf(buffer, sizeof(buffer), ",\"to_address\":\"%s\"}}", to_address);
     if (n < 0) { return false; }
     sha256_Update(&ctx, (uint8_t*)buffer, n);
 
@@ -221,6 +223,7 @@ bool cosmos_getAddressN(uint32_t* _address_n, size_t _address_n_count)
     if (_address_n_count < address_n_count) {
         return false;
     }
+
     memcpy(_address_n, address_n, sizeof(uint32_t) * address_n_count);
     return true;
 }
