@@ -24,7 +24,7 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
     if (msg->has_show_display && msg->show_display) {
         char node_str[NODE_STRING_LENGTH];
         if (!bip32_node_to_string(node_str, sizeof(node_str), coin, msg->address_n,
-                                  msg->address_n_count, /*whole_account=*/true,
+                                  msg->address_n_count, /*whole_account=*/false,
                                   /*show_addridx=*/false) &&
             !bip32_path_to_string(node_str, sizeof(node_str),
                                   msg->address_n, msg->address_n_count)) {
@@ -146,7 +146,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     char node_str[NODE_STRING_LENGTH];
     if (!bip32_node_to_string(node_str, sizeof(node_str), coin, address_n,
                               address_n_count, /*whole_account=*/false,
-                              /*show_addridx=*/true) &&
+                              /*show_addridx=*/false) &&
         !bip32_path_to_string(node_str, sizeof(node_str),
                               address_n, address_n_count)) {
         memset(node_str, 0, sizeof(node_str));
