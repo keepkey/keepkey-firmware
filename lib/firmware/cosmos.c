@@ -31,7 +31,7 @@ bool cosmos_path_mismatched(const CoinType *_coin,
     mismatch |= _address_n_count > 1 && (_address_n[1] != _coin->bip44_account_path);
     mismatch |= _address_n_count > 2 && (_address_n[2] & 0x80000000) == 0;
     mismatch |= _address_n_count > 3 && _address_n[3] != 0;
-    mismatch |= _address_n_count > 4 && (_address_n[4] & 0x80000000) != 0;
+    mismatch |= _address_n_count > 4 && _address_n[4] != 0;
     return mismatch;
 }
 
