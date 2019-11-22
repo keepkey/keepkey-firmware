@@ -97,7 +97,8 @@ bool cosmos_signTxInit(const HDNode* _node,
     memzero(&node, sizeof(node));
     memcpy(&node, _node, sizeof(node));
     memzero(address_n, sizeof(address_n));
-    memcpy(address_n, _address_n, sizeof(address_n));
+    if (_address_n_count > sizeof(address_n)/sizeof(address_n[0])) { return false; }
+    memcpy(address_n, _address_n, _address_n_count * sizeof(*address_n));
     address_n_count = _address_n_count;
 
     int n;
