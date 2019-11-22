@@ -384,7 +384,7 @@ static void msg_read_tiny(const uint8_t *msg, size_t len) {
         if (status) {
             msg_tiny_id = msgId;
         } else {
-            (*msg_failure)(FailureType_Failure_SyntaxError, stream.errmsg);
+            (*msg_failure)(FailureType_Failure_SyntaxError, "Malformed tiny packet");
             msg_tiny_id = 0xffff;
         }
     } else {
