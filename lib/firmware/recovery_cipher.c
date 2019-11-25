@@ -61,7 +61,7 @@ static void format_current_word(uint32_t word_pos, char *current_word, bool auto
 static uint32_t get_current_word_pos(void);
 static void get_current_word(char *current_word);
 
-static void recovery_abort(void) {
+void recovery_cipher_abort(void) {
     if (!dry_run) {
         storage_reset();
     }
@@ -275,7 +275,7 @@ void recovery_cipher_init(uint32_t _word_count, bool passphrase_protection, bool
     if (!dry_run) {
         if (pin_protection) {
             if (!change_pin()) {
-                recovery_abort();
+                recovery_cipher_abort();
                 fsm_sendFailure(FailureType_Failure_ActionCancelled, "PINs do not match");
                 layoutHome();
                 return;
@@ -326,7 +326,7 @@ void recovery_cipher_init(uint32_t _word_count, bool passphrase_protection, bool
 void next_character(void)
 {
     if (!recovery_started) {
-        recovery_abort();
+        recovery_cipher_abort();
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
         layoutHome();
         return;
@@ -343,7 +343,7 @@ void next_character(void)
     if (strlen(current_word) > 4) {
         memzero(current_word, sizeof(current_word));
 
-        recovery_abort();
+        recovery_cipher_abort();
         fsm_sendFailure(FailureType_Failure_SyntaxError,
                         "Words were not entered correctly. Make sure you are using the substition cipher.");
         layoutHome();
@@ -352,7 +352,7 @@ void next_character(void)
 
     uint32_t word_pos = get_current_word_pos();
     if (word_pos + 1 != words_entered) {
-        recovery_abort();
+        recovery_cipher_abort();
         fsm_sendFailure(FailureType_Failure_SyntaxError, "Sanity check failed");
         layoutHome();
         return;
@@ -399,14 +399,14 @@ void next_character(void)
 void recovery_character(const char *character)
 {
     if (!awaiting_character || !recovery_started) {
-        recovery_abort();
+        recovery_cipher_abort();
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
         layoutHome();
         return;
     }
 
     if (strlen(mnemonic) + 1 > MNEMONIC_BUF - 1) {
-        recovery_abort();
+        recovery_cipher_abort();
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                         "Too many characters attempted during recovery");
         layoutHome();
@@ -417,7 +417,7 @@ void recovery_character(const char *character)
 
     // If not a space and not a legitmate cipher character, send failure.
     if (character[0] != ' ' && pos == NULL) {
-        recovery_abort();
+        recovery_cipher_abort();
         fsm_sendFailure(FailureType_Failure_SyntaxError, "Character must be from a to z");
         layoutHome();
         return;
@@ -459,7 +459,7 @@ void recovery_character(const char *character)
                 definitely_using_cipher = true;
             } else if (maybe_not_using_cipher && !definitely_using_cipher &&
                        MAX_UNCYPHERED_WORDS < uncyphered_word_count++) {
-                recovery_abort();
+                recovery_cipher_abort();
                 fsm_sendFailure(FailureType_Failure_SyntaxError,
                                 "Words were not entered correctly. Make sure you are using the substition cipher.");
                 layoutHome();
@@ -472,7 +472,7 @@ void recovery_character(const char *character)
         words_entered++;
 
         if (words_entered > 24 || (word_count && words_entered > word_count)) {
-            recovery_abort();
+            recovery_cipher_abort();
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Too many words entered");
             layoutHome();
             return;
@@ -496,7 +496,7 @@ void recovery_character(const char *character)
 void recovery_delete_character(void)
 {
     if (!recovery_started) {
-        recovery_abort();
+        recovery_cipher_abort();
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
         layoutHome();
         return;
@@ -525,7 +525,7 @@ void recovery_delete_character(void)
 void recovery_cipher_finalize(void)
 {
     if (!recovery_started) {
-        recovery_abort();
+        recovery_cipher_abort();
         fsm_sendFailure(FailureType_Failure_UnexpectedMessage, "Not in Recovery mode");
         layoutHome();
         return;
@@ -535,7 +535,7 @@ void recovery_cipher_finalize(void)
         // If word_count is known ahead of time, also enforce that the correct
         // number of words has been entered:
         if (words_entered != word_count) {
-            recovery_abort();
+            recovery_cipher_abort();
             fsm_sendFailure(FailureType_Failure_SyntaxError, "Not enough words entered");
             layoutHome();
             return;
@@ -616,7 +616,7 @@ void recovery_cipher_finalize(void)
         session_clear(true);
         fsm_sendFailure(FailureType_Failure_SyntaxError,
                         "Invalid mnemonic, are words in correct order?");
-        recovery_abort();
+        recovery_cipher_abort();
     }
 
     memzero(new_mnemonic, sizeof(new_mnemonic));
@@ -628,25 +628,6 @@ void recovery_cipher_finalize(void)
     memzero(mnemonic, sizeof(mnemonic));
     memzero(cipher, sizeof(cipher));
     layoutHome();
-}
-
-/*
- * recovery_cipher_abort() - Aborts recovery cipher process
- *
- * INPUT
- *     none
- * OUTPUT
- *     true/false of whether recovery was aborted
- */
-bool recovery_cipher_abort(void)
-{
-    recovery_started = false;
-
-    if (awaiting_character) {
-        awaiting_character = false;
-        return true;
-    }
-    return false;
 }
 
 #if DEBUG_LINK

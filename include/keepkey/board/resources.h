@@ -28,7 +28,6 @@
 const AnimationFrame *get_confirm_icon_frame(void);
 const AnimationFrame *get_confirmed_frame(void);
 const AnimationFrame *get_unplug_frame(void);
-const AnimationFrame *get_recovery_frame(void);
 const AnimationFrame *get_warning_frame(void);
 const AnimationFrame *get_logo_frame(void);
 
