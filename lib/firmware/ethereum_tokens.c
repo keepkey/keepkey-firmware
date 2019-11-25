@@ -6,7 +6,7 @@
 
 const TokenType tokens[] = {
 #define X(CHAIN_ID, CONTRACT_ADDR, TICKER, DECIMALS) \
-    { (CHAIN_ID), (CONTRACT_ADDR), (TICKER), (DECIMALS) },
+    { (CONTRACT_ADDR), (TICKER), (CHAIN_ID), (DECIMALS) },
 #include "keepkey/firmware/ethereum_tokens.def"
 };
 
