@@ -30,7 +30,6 @@
 */
     MSG_IN(MessageType_MessageType_PassphraseAck,                   PassphraseAck,               NO_PROCESS_FUNC)
     MSG_IN(MessageType_MessageType_RecoveryDevice,                  RecoveryDevice,              fsm_msgRecoveryDevice)
-    MSG_IN(MessageType_MessageType_WordAck,                         WordAck,                     fsm_msgWordAck)
     MSG_IN(MessageType_MessageType_CharacterAck,                    CharacterAck,                fsm_msgCharacterAck)
     MSG_IN(MessageType_MessageType_ApplyPolicies,                   ApplyPolicies,               fsm_msgApplyPolicies)
     MSG_IN(MessageType_MessageType_EthereumGetAddress,              EthereumGetAddress,          fsm_msgEthereumGetAddress)

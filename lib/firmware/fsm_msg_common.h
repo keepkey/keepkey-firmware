@@ -1,7 +1,7 @@
 void fsm_msgInitialize(Initialize *msg)
 {
     (void)msg;
-    recovery_abort(false);
+    recovery_cipher_abort();
     signing_abort();
     ethereum_signing_abort();
     eos_signingAbort();
@@ -380,7 +380,7 @@ void fsm_msgEntropyAck(EntropyAck *msg)
 void fsm_msgCancel(Cancel *msg)
 {
     (void)msg;
-    recovery_abort(true);
+    recovery_cipher_abort();
     signing_abort();
     ethereum_signing_abort();
     eos_signingAbort();
@@ -485,38 +485,17 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg)
         CHECK_NOT_INITIALIZED
     }
 
-    if (msg->has_use_character_cipher &&
-        msg->use_character_cipher)               // recovery via character cipher
-    {
-        recovery_cipher_init(
-            msg->has_word_count ? msg->word_count : 0,
-            msg->has_passphrase_protection && msg->passphrase_protection,
-            msg->has_pin_protection && msg->pin_protection,
-            msg->has_language ? msg->language : 0,
-            msg->has_label ? msg->label : 0,
-            msg->has_enforce_wordlist ? msg->enforce_wordlist : false,
-            msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT,
-            msg->has_u2f_counter ? msg->u2f_counter : 0,
-            msg->has_dry_run ? msg->dry_run : false
-        );
-    } else {                                     // legacy way of recovery
-        recovery_init(
-            msg->has_word_count ? msg->word_count : 12,
-            msg->has_passphrase_protection && msg->passphrase_protection,
-            msg->has_pin_protection && msg->pin_protection,
-            msg->has_language ? msg->language : 0,
-            msg->has_label ? msg->label : 0,
-            msg->has_enforce_wordlist ? msg->enforce_wordlist : false,
-            msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT,
-            msg->has_u2f_counter ? msg->u2f_counter : 0,
-            msg->has_dry_run ? msg->dry_run : false
-        );
-    }
-}
-
-void fsm_msgWordAck(WordAck *msg)
-{
-    recovery_word(msg->word);
+    recovery_cipher_init(
+         msg->has_word_count ? msg->word_count : 0,
+         msg->has_passphrase_protection && msg->passphrase_protection,
+         msg->has_pin_protection && msg->pin_protection,
+         msg->has_language ? msg->language : 0,
+         msg->has_label ? msg->label : 0,
+         msg->has_enforce_wordlist ? msg->enforce_wordlist : false,
+         msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT,
+         msg->has_u2f_counter ? msg->u2f_counter : 0,
+         msg->has_dry_run ? msg->dry_run : false
+    );
 }
 
 void fsm_msgCharacterAck(CharacterAck *msg)

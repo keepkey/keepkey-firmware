@@ -36,10 +36,10 @@ enum {
 #define TOKENS_COUNT ((int)TokenIndexLast-(int)TokenIndexFirst)
 
 typedef struct _TokenType {
-    uint8_t chain_id;
     const char * const address;
     const char * const ticker;
-    int decimals;
+    uint8_t chain_id;
+    uint8_t decimals;
 } TokenType;
 
 typedef struct _CoinType CoinType;

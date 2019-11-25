@@ -47,7 +47,6 @@
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/pin_sm.h"
 #include "keepkey/firmware/policy.h"
-#include "keepkey/firmware/recovery.h"
 #include "keepkey/firmware/recovery_cipher.h"
 #include "keepkey/firmware/reset.h"
 #include "keepkey/firmware/signing.h"

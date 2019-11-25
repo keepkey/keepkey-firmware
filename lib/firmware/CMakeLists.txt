@@ -18,7 +18,6 @@ set(sources
     passphrase_sm.c
     pin_sm.c
     policy.c
-    recovery.c
     recovery_cipher.c
     reset.c
     signing.c
