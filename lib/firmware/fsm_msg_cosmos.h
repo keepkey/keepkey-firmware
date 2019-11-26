@@ -188,6 +188,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     resp->has_public_key = true;
     resp->signature.size = 64;
     resp->has_signature = true;
+    cosmos_signAbort();
     layoutHome();
     msg_write(MessageType_MessageType_CosmosSignedTx, resp);
 }
