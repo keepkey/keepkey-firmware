@@ -18,7 +18,7 @@ MEMORY
     comram (rwx) : ORIGIN = 0x2001F800, LENGTH = 0x800
 }
 
-INCLUDE libopencm3_stm32f2.ld
+INCLUDE cortex-m-generic.ld
 
 SECTIONS
 {
