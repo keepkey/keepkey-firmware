@@ -361,12 +361,6 @@ void layout_notification_icon(NotificationType type, DrawableParams *sp)
             draw_bitmap_mono_rle(canvas, get_unplug_frame(), false);
             break;
 
-        case NOTIFICATION_RECOVERY:
-            sp->x = 221;
-            sp->y = 20;
-            draw_bitmap_mono_rle(canvas, get_recovery_frame(), false);
-            break;
-
         case NOTIFICATION_LOGO: {
             const Image *image = variant_keepkey.logo->frames[variant_keepkey.logo->count - 1].image;
             const AnimationFrame frame = { 190, 9, 0, 100, image };

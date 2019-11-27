@@ -19,13 +19,6 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg)
     resp->has_reset_word = true;
     strlcpy(resp->reset_word, reset_get_word(), sizeof(resp->reset_word));
 
-    resp->has_recovery_fake_word = true;
-    strlcpy(resp->recovery_fake_word, recovery_get_fake_word(),
-            sizeof(resp->recovery_fake_word));
-
-    resp->has_recovery_word_pos = true;
-    resp->recovery_word_pos = recovery_get_word_pos();
-
     if(storage_hasMnemonic())
     {
         resp->has_mnemonic = true;
