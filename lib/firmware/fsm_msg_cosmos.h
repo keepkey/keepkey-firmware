@@ -76,36 +76,11 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
 
     hdnode_fill_public_key(node);
 
-    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Fee Details"), "Fee: %" PRIu32 " uATOM\nGas: %" PRIu32 "", msg->fee_amount, msg->gas))
-    {
-        cosmos_signAbort();
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-        layoutHome();
-        return;
-    }
 
-    if (msg->has_memo && !confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Aux Details"), "Memo: \"%s\"\nChain ID: %s", msg->memo, msg->chain_id))
-    {
-        cosmos_signAbort();
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-        layoutHome();
-        return;
-    }
 
     RESP_INIT(CosmosMsgRequest);
 
-    if (!cosmos_signTxInit(node,
-                           msg->address_n,
-                           msg->address_n_count,
-                           msg->account_number,
-                           msg->chain_id,
-                           strlen(msg->chain_id),
-                           msg->fee_amount,
-                           msg->gas,
-                           msg->has_memo ? msg->memo : "",
-                           msg->has_memo ? strlen(msg->memo) : 0,
-                           msg->sequence,
-                           msg->msg_count))
+    if (!cosmos_signTxInit(node, msg))
     {
         cosmos_signAbort();
         fsm_sendFailure(FailureType_Failure_FirmwareError,
@@ -113,8 +88,6 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
         layoutHome();
         return;
     }
-
-
 
     layoutHome();
     msg_write(MessageType_MessageType_CosmosMsgRequest, resp);
@@ -135,27 +108,13 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     const CoinType *coin = fsm_getCoin(true, coin_name);
     if (!coin) { return; }
 
-    uint32_t address_n[8];
-    if(!cosmos_getAddressN(address_n, 8)) {
-        cosmos_signAbort();
-        fsm_sendFailure(FailureType_Failure_FirmwareError, "Failed to get derivation path");
-        layoutHome();
-        return;
-    }
-    size_t address_n_count = cosmos_getAddressNCount();
-    char node_str[NODE_STRING_LENGTH];
-    if (!bip32_node_to_string(node_str, sizeof(node_str), coin, address_n,
-                              address_n_count, /*whole_account=*/false,
-                              /*show_addridx=*/false) &&
-        !bip32_path_to_string(node_str, sizeof(node_str),
-                              address_n, address_n_count)) {
-        memset(node_str, 0, sizeof(node_str));
-    }
+    const CosmosSignTx *sign_tx = cosmos_getCosmosSignTx();
 
-    char canonicFormatAmount[32];
-    bn_format_uint64(msg->send.amount, NULL, NULL, 6, 0, false, canonicFormatAmount, sizeof(canonicFormatAmount));
-    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Confirm Send Details"), "From: %s\nTo: %s\nAmount: %s ATOM", node_str, msg->send.to_address, canonicFormatAmount))
-    {
+    char amount_str[32];
+    bn_format_uint64(msg->send.amount, NULL, " ATOM", 6, 0, false, amount_str, sizeof(amount_str));
+    if (!confirm_transaction_output(
+            ButtonRequestType_ButtonRequest_ConfirmOutput,
+            amount_str, msg->send.to_address)) {
         cosmos_signAbort();
         fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
         layoutHome();
@@ -164,7 +123,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
 
     if(!cosmos_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address)) {
         cosmos_signAbort();
-        fsm_sendFailure(FailureType_Failure_FirmwareError, "Failed to include send message in transaction");
+        fsm_sendFailure(FailureType_Failure_SyntaxError, "Failed to include send message in transaction");
         layoutHome();
         return;
     }
@@ -175,11 +134,39 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
         return;
     }
 
+    if (sign_tx->has_memo && !confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s", sign_tx->memo))
+    {
+        cosmos_signAbort();
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        layoutHome();
+        return;
+    }
+
+    char node_str[NODE_STRING_LENGTH];
+    if (!bip32_node_to_string(node_str, sizeof(node_str), coin, sign_tx->address_n,
+                              sign_tx->address_n_count, /*whole_account=*/false,
+                              /*show_addridx=*/false) &&
+        !bip32_path_to_string(node_str, sizeof(node_str),
+                              sign_tx->address_n, sign_tx->address_n_count)) {
+        memset(node_str, 0, sizeof(node_str));
+    }
+
+    if (!confirm(ButtonRequestType_ButtonRequest_SignTx, node_str,
+                 "Sign this Cosmos transaction on %s? "
+                 "It includes a fee of %" PRIu32 " uATOM and %" PRIu32 " gas.",
+                 sign_tx->chain_id, sign_tx->fee_amount, sign_tx->gas))
+    {
+        cosmos_signAbort();
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        layoutHome();
+        return;
+    }
+
     RESP_INIT(CosmosSignedTx);
 
     if(!cosmos_signTxFinalize(resp->public_key.bytes, resp->signature.bytes)) {
         cosmos_signAbort();
-        fsm_sendFailure(FailureType_Failure_FirmwareError, "Failed to finalize signature");
+        fsm_sendFailure(FailureType_Failure_SyntaxError, "Failed to finalize signature");
         layoutHome();
         return;
     }
