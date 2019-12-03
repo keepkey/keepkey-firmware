@@ -181,10 +181,10 @@ bool cosmos_signTxUpdateMsgSend(const uint64_t amount,
 bool cosmos_signTxFinalize(uint8_t* public_key, uint8_t* signature)
 {
     int n;
-    char buffer[SHA256_DIGEST_LENGTH + 1]; // NULL TERMINATOR NOT PART OF HASH
+    char buffer[64 + 1];
 
     // 16 + ^20 = ^36
-    n = snprintf(buffer, SHA256_DIGEST_LENGTH + 1, "],\"sequence\":\"%" PRIu64 "\"}", sequence);
+    n = snprintf(buffer, sizeof(buffer), "],\"sequence\":\"%" PRIu64 "\"}", sequence);
     if (n < 0) { return false; }
     sha256_Update(&ctx, (uint8_t*)buffer, n);
 
