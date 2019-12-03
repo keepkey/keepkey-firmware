@@ -1,5 +1,6 @@
 set(sources
     coins.cpp
+    cosmos.cpp
     eos.cpp
     ethereum.cpp
     nano.cpp
