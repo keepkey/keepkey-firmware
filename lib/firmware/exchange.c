@@ -43,17 +43,6 @@ static ExchangeError exchange_error = NO_EXCHANGE_ERROR;
 /* exchange public key for signature varification */
 static const char *ShapeShift_pubkey = "1HxFWu1wM88q1aLkfUmpZBjhTWcdXGB6gT";
 
-/* exchange API Key */
-static const uint8_t ShapeShift_api_key[64] =
-{
-    0x6a, 0xd5, 0x83, 0x1b, 0x77, 0x84, 0x84, 0xbb, 0x84, 0x9d, 0xa4, 0x51,
-    0x80, 0xac, 0x35, 0x04, 0x78, 0x48, 0xe5, 0xca, 0xc0, 0xfa, 0x66, 0x64,
-    0x54, 0xf4, 0xff, 0x78, 0xb8, 0xc7, 0x39, 0x9f, 0xea, 0x6a, 0x8c, 0xe2,
-    0xc7, 0xee, 0x62, 0x87, 0xbc, 0xd7, 0x8d, 0xb6, 0x61, 0x0c, 0xa3, 0xf5,
-    0x38, 0xd6, 0xb3, 0xe9, 0x0c, 0xa8, 0x0c, 0x8e, 0x63, 0x68, 0xb6, 0x02,
-    0x14, 0x45, 0x95, 0x0b
-};
-
 /*
  * exchange_tx_layout_str() - assemble display message for exchange transaction output
  *
@@ -388,14 +377,6 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
                 (uint8_t *)exchange->signed_exchange_response.signature.bytes) != 0)
     {
         set_exchange_error(ERROR_EXCHANGE_SIGNATURE);
-        return false;
-    }
-
-    /* verify Exchange API-Key */
-    if(memcmp(ShapeShift_api_key, exchange->signed_exchange_response.responseV2.api_key.bytes,
-                sizeof(ShapeShift_api_key)) != 0)
-    {
-        set_exchange_error(ERROR_EXCHANGE_API_KEY);
         return false;
     }
 
