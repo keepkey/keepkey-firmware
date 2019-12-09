@@ -148,7 +148,7 @@ bool confirm_exchange_output(const char *dep_amt,
     return confirm_with_custom_layout(&layout_standard_notification,
                                       ButtonRequestType_ButtonRequest_SignExchange,
                                       "ShapeShift",
-                                      "Sell: %s\nBuy: %s",
+                                      "Trade %s with ShapeShift in exchange for %s?",
                                       dep_amt, wit_amt);
 }
 
