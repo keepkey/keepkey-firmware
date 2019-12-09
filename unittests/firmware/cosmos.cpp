@@ -1,7 +1,7 @@
-extern "C"
-{
+extern "C" {
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/cosmos.h"
+#include "trezor/crypto/secp256k1.h"
 }
 
 #include "gtest/gtest.h"
@@ -34,13 +34,24 @@ TEST(Cosmos, CosmosSignTx)
         &secp256k1_info
     };
     hdnode_fill_public_key(&node);
-    const uint8_t *privkey = (uint8_t *)"\x04\xde\xc0\xcc\x01\x3c\xd8\xab\x70\x87\xca\x14\x96\x0b\x76\x8c\x3d\x83\x45\x24\x48\xaa\x00\x64\xda\xe6\xfb\x04\xb5\xd9\x34\x76";
-    const uint8_t *expected = (uint8_t *)"\x41\x99\x66\x30\x08\xef\xea\x75\x93\x56\x35\xe6\x1a\x11\xdf\xa3\x3c\xeb\xeb\x91\xc1\xca\xed\xc6\x0e\x5e\xef\x3c\xa2\xc0\x1f\x83\x48\x08\x36\xe6\x21\x89\x51\x14\x36\x64\x7f\xac\x5a\xbd\xc2\x9f\x54\xae\x3d\x7e\x47\x56\x43\xca\x33\xc7\xad\x2c\x8a\x53\x2b\x39";
-    const uint32_t address_n[8] = {0x80000000|44, 0x80000000|118, 0x80000000, 0, 0};
-    ASSERT_TRUE(cosmos_signTxInit(&node, address_n, 5, 0, "cosmoshub-2", strlen("cosmoshub-2"), 5000, 200000, "", 0, 0, 1));
+
+    const CosmosSignTx msg = {
+      5, {0x80000000|44, 0x80000000|118, 0x80000000, 0, 0}, // address_n
+      true, 0,             // account_number
+      true, "cosmoshub-2", // chain_id
+      true, 5000,          // fee_amount
+      true, 200000,        // gas
+      true, "",            // memo
+      true, 0,             // sequence
+      true, 1              // msg_count
+    };
+    ASSERT_TRUE(cosmos_signTxInit(&node, &msg));
+
     ASSERT_TRUE(cosmos_signTxUpdateMsgSend(100000, "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v"));
+
     uint8_t public_key[33];
     uint8_t signature[64];
     ASSERT_TRUE(cosmos_signTxFinalize(public_key, signature));
-    EXPECT_TRUE(memcmp(expected, signature, 64) == 0);
+
+    EXPECT_TRUE(memcmp(signature, (uint8_t *)"\x41\x99\x66\x30\x08\xef\xea\x75\x93\x56\x35\xe6\x1a\x11\xdf\xa3\x3c\xeb\xeb\x91\xc1\xca\xed\xc6\x0e\x5e\xef\x3c\xa2\xc0\x1f\x83\x48\x08\x36\xe6\x21\x89\x51\x14\x36\x64\x7f\xac\x5a\xbd\xc2\x9f\x54\xae\x3d\x7e\x47\x56\x43\xca\x33\xc7\xad\x2c\x8a\x53\x2b\x39", 64) == 0);
 }

@@ -4,9 +4,11 @@
 #include "keepkey/board/util.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
+#include "trezor/crypto/secp256k1.h"
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/memzero.h"
 #include "trezor/crypto/segwit_addr.h"
+
 #include <stdbool.h>
 #include <time.h>
 
@@ -14,10 +16,8 @@ static CONFIDENTIAL HDNode node;
 static SHA256_CTX ctx;
 static bool has_message;
 static bool initialized;
-static uint32_t address_n[8];
-static size_t address_n_count;
 static uint32_t msgs_remaining;
-static uint64_t sequence;
+static CosmosSignTx msg;
 
 bool cosmos_path_mismatched(const CoinType *_coin,
                             const uint32_t *_address_n,
@@ -35,13 +35,18 @@ bool cosmos_path_mismatched(const CoinType *_coin,
     return mismatch;
 }
 
-/*
+const CosmosSignTx *cosmos_getCosmosSignTx(void)
+{
+    return &msg;
+}
+
+/**
  * Gets the address
  *
- * _node: HDNode from which the address is to be derived
- * address: output buffer
+ * \param node    HDNode from which the address is to be derived
+ * \param address Output buffer
  *
- * returns true if successful
+ * \returns true if successful
  */
 bool cosmos_getAddress(const HDNode *_node, char *address)
 {
@@ -75,31 +80,15 @@ void sha256UpdateEscaped(SHA256_CTX *_ctx, const char *s, size_t len)
     }
 }
 
-bool cosmos_signTxInit(const HDNode* _node,
-                       const uint32_t* _address_n,
-                       const size_t _address_n_count,
-                       const uint64_t account_number,
-                       const char *chain_id,
-                       const size_t chain_id_length,
-                       const uint32_t fee_uatom_amount,
-                       const uint32_t gas,
-                       const char *memo,
-                       const size_t memo_length,
-                       const uint64_t _sequence,
-                       const uint32_t msg_count)
+bool cosmos_signTxInit(const HDNode* _node, const CosmosSignTx *_msg)
 {
-
     initialized = true;
-    msgs_remaining = msg_count;
+    msgs_remaining = _msg->msg_count;
     has_message = false;
-    sequence = _sequence;
 
     memzero(&node, sizeof(node));
     memcpy(&node, _node, sizeof(node));
-    memzero(address_n, sizeof(address_n));
-    if (_address_n_count > sizeof(address_n)/sizeof(address_n[0])) { return false; }
-    memcpy(address_n, _address_n, _address_n_count * sizeof(*address_n));
-    address_n_count = _address_n_count;
+    memcpy(&msg, _msg, sizeof(msg));
 
     int n;
     sha256_Init(&ctx);
@@ -107,29 +96,31 @@ bool cosmos_signTxInit(const HDNode* _node,
 
     // Each segment guaranteed to be less than or equal to 64 bytes
     // 19 + ^20 + 1 = ^40
-    n = snprintf(buffer, sizeof(buffer), "{\"account_number\":\"%" PRIu64 "\"", account_number);
+    n = snprintf(buffer, sizeof(buffer), "{\"account_number\":\"%" PRIu64 "\"", msg.account_number);
     if (n < 0) { return false; }
     sha256_Update(&ctx, (uint8_t *)buffer, n);
 
     // <escape chain_id>
     const char *const chainid_prefix = ",\"chain_id\":\"";
     sha256_Update(&ctx, (uint8_t *)chainid_prefix, strlen(chainid_prefix));
-    sha256UpdateEscaped(&ctx, chain_id, chain_id_length);
+    sha256UpdateEscaped(&ctx, msg.chain_id, strlen(msg.chain_id));
 
     // 30 + ^10 + 19 = ^59
-    n = snprintf(buffer, sizeof(buffer), "\",\"fee\":{\"amount\":[{\"amount\":\"%" PRIu32 "\",\"denom\":\"uatom\"}]", fee_uatom_amount);
+    n = snprintf(buffer, sizeof(buffer), "\",\"fee\":{\"amount\":[{\"amount\":\"%" PRIu32 "\",\"denom\":\"uatom\"}]", msg.fee_amount);
     if (n < 0) { return false; }
     sha256_Update(&ctx, (uint8_t *)buffer, n);
 
     // 8 + ^10 + 2 = ^20
-    n = snprintf(buffer, sizeof(buffer), ",\"gas\":\"%" PRIu32 "\"}", gas);
+    n = snprintf(buffer, sizeof(buffer), ",\"gas\":\"%" PRIu32 "\"}", msg.gas);
     if (n < 0) { return false; }
     sha256_Update(&ctx, (uint8_t *)buffer, n);
 
     // <escape memo>
     const char *const memo_prefix = ",\"memo\":\"";
     sha256_Update(&ctx, (uint8_t *)memo_prefix, strlen(memo_prefix));
-    sha256UpdateEscaped(&ctx, memo, memo_length);
+    if (msg.has_memo) {
+        sha256UpdateEscaped(&ctx, msg.memo, strlen(msg.memo));
+    }
 
     // 10
     sha256_Update(&ctx, (uint8_t *)"\",\"msgs\":[", 10);
@@ -181,10 +172,10 @@ bool cosmos_signTxUpdateMsgSend(const uint64_t amount,
 bool cosmos_signTxFinalize(uint8_t* public_key, uint8_t* signature)
 {
     int n;
-    char buffer[SHA256_DIGEST_LENGTH + 1]; // NULL TERMINATOR NOT PART OF HASH
+    char buffer[64 + 1];
 
     // 16 + ^20 = ^36
-    n = snprintf(buffer, SHA256_DIGEST_LENGTH + 1, "],\"sequence\":\"%" PRIu64 "\"}", sequence);
+    n = snprintf(buffer, sizeof(buffer), "],\"sequence\":\"%" PRIu64 "\"}", msg.sequence);
     if (n < 0) { return false; }
     sha256_Update(&ctx, (uint8_t*)buffer, n);
 
@@ -207,23 +198,7 @@ bool cosmos_signingIsFinished(void) {
 void cosmos_signAbort(void) {
     initialized = false;
     has_message = false;
-    memzero(&ctx, sizeof(ctx));
-    memzero(&node, sizeof(node));
-    memzero(&sequence, sizeof(sequence));
     msgs_remaining = 0;
-    sequence = 0;
-}
-
-size_t cosmos_getAddressNCount(void) {
-    return address_n_count;
-}
-
-bool cosmos_getAddressN(uint32_t* _address_n, size_t _address_n_count)
-{
-    if (_address_n_count < address_n_count) {
-        return false;
-    }
-
-    memcpy(_address_n, address_n, sizeof(uint32_t) * address_n_count);
-    return true;
+    memzero(&msg, sizeof(msg));
+    memzero(&node, sizeof(node));
 }
