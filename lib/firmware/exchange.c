@@ -626,21 +626,14 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
             set_exchange_error(ERROR_EXCHANGE_CANCEL);
             return false;
         }
-    } else if (withdraw->has_dest_tag) {
-        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                     "Confirm External Address", "ShapeShift will send the %s to:\n%s tag:%s",
-                     withdraw_symbol, withdraw->address,
-                     withdraw->dest_tag)) {
-            set_exchange_error(ERROR_EXCHANGE_CANCEL);
-            return false;
-        }
     } else {
         if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                     "Confirm External Address", "ShapeShift will send the %s to:\n%s",
-                     withdraw_symbol,
-                     withdraw->has_rs_address
-                         ? withdraw->rs_address
-                         : withdraw->address)) {
+                     "Confirm External Address",
+                     withdraw->has_dest_tag
+                       ? "ShapeShift will send the %s to:\n%s tag:%s"
+                       : "ShapeShift will send the %s to:\n%s",
+                     withdraw_symbol, withdraw->address,
+                     withdraw->dest_tag)) {
             set_exchange_error(ERROR_EXCHANGE_CANCEL);
             return false;
         }
