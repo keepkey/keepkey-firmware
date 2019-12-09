@@ -621,7 +621,7 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
         }
 
         if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                     "Confirm", "ShapeShift will send the %s back to:\n%s",
+                     "Confirm", "ShapeShift will send the %s to:\n%s",
                      withdraw_symbol, node_str)) {
             set_exchange_error(ERROR_EXCHANGE_CANCEL);
             return false;
