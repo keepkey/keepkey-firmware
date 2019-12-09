@@ -4,6 +4,7 @@
 |-------------------|------------------|------------------------|--------------------|--------------------|---------------|----------------|
 | Bitcoin           | secp256k1        | `m/p'/c'/a'`           | `m/p'/c'/a'/h/i`   | `m/p'/c'/a'/h/i`   | BIP-32        | [1](#Bitcoin)  |
 | Ethereum          | secp256k1        | `m/44'/60'/0'`         | `m/44'/60'/a'/0/0` | `m/44'/60'/a'/0/0` | BIP-32        | [2](#Ethereum) |
+| Cosmos            | secp256k1        | `m/44'/118'/0'`        | `m/44'/118'/a'/0/0`| `m/44'/118'/a'/0/0`| BIP-32        | -              |
 
 Where `p` is the [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki) purpose described further in [1](#Bitcoin).
 

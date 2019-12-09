@@ -20,7 +20,8 @@ SECTIONS
         KEEP(*(.header));
     } >rom AT >rom
 }
-INCLUDE libopencm3_stm32f2.ld
+
+INCLUDE cortex-m-generic.ld
 
 SECTIONS
 {
