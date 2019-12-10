@@ -18,6 +18,7 @@
  */
 
 #include "keepkey/board/layout.h"
+#include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/messages.h"
 #include "keepkey/board/util.h"
 #include "trezor/crypto/bip32.h"
@@ -41,17 +42,6 @@ static ExchangeError exchange_error = NO_EXCHANGE_ERROR;
 
 /* exchange public key for signature varification */
 static const char *ShapeShift_pubkey = "1HxFWu1wM88q1aLkfUmpZBjhTWcdXGB6gT";
-
-/* exchange API Key */
-static const uint8_t ShapeShift_api_key[64] =
-{
-    0x6a, 0xd5, 0x83, 0x1b, 0x77, 0x84, 0x84, 0xbb, 0x84, 0x9d, 0xa4, 0x51,
-    0x80, 0xac, 0x35, 0x04, 0x78, 0x48, 0xe5, 0xca, 0xc0, 0xfa, 0x66, 0x64,
-    0x54, 0xf4, 0xff, 0x78, 0xb8, 0xc7, 0x39, 0x9f, 0xea, 0x6a, 0x8c, 0xe2,
-    0xc7, 0xee, 0x62, 0x87, 0xbc, 0xd7, 0x8d, 0xb6, 0x61, 0x0c, 0xa3, 0xf5,
-    0x38, 0xd6, 0xb3, 0xe9, 0x0c, 0xa8, 0x0c, 0x8e, 0x63, 0x68, 0xb6, 0x02,
-    0x14, 0x45, 0x95, 0x0b
-};
 
 /*
  * exchange_tx_layout_str() - assemble display message for exchange transaction output
@@ -316,15 +306,14 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     ExchangeType *exchange;
     if (isEthereumLike(coin->coin_name)) {
         exchange = &((EthereumSignTx *)vtx_out)->exchange_type;
-
-        /*Verify response structure from client is compatible*/
-        if (exchange->signed_exchange_response.has_response) {
-            /*Obsolete response data structure detected. Should be ExchangeResponseV2! */
-            set_exchange_error(ERROR_EXCHANGE_RESPONSE_STRUCTURE);
-            return false;
-        }
     } else {
         exchange = &((TxOutputType *)vtx_out)->exchange_type;
+    }
+
+    if (!exchange->has_signed_exchange_response ||
+        !exchange->signed_exchange_response.has_responseV2) {
+        set_exchange_error(ERROR_EXCHANGE_RESPONSE_STRUCTURE);
+        return false;
     }
 
     void *tx_out_amount;
@@ -372,10 +361,10 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     uint8_t response_raw[sizeof(ExchangeResponseV2)];
     memset(response_raw, 0, sizeof(response_raw));
     int response_raw_filled_len = encode_pb(
-                                (const void *)&exchange->signed_exchange_response.responseV2,
-                                ExchangeResponseV2_fields,
-                                response_raw,
-                                sizeof(response_raw));
+        (const void *)&exchange->signed_exchange_response.responseV2,
+        ExchangeResponseV2_fields,
+        response_raw,
+        sizeof(response_raw));
 
     if(response_raw_filled_len == 0)
     {
@@ -384,18 +373,18 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     }
 
     const CoinType *signed_coin = coinByShortcut((const char *)"BTC");
-    if(cryptoMessageVerify(signed_coin, response_raw, response_raw_filled_len, ShapeShift_pubkey,
+
+#if DEBUG_LINK
+    if (memcmp(exchange->signed_exchange_response.signature.bytes,
+               "FAKE_SIG", sizeof("FAKE_SIG")) != 0 &&
+        cryptoMessageVerify(signed_coin, response_raw, response_raw_filled_len, ShapeShift_pubkey,
                 (uint8_t *)exchange->signed_exchange_response.signature.bytes) != 0)
+#else
+    if (cryptoMessageVerify(signed_coin, response_raw, response_raw_filled_len, ShapeShift_pubkey,
+                (uint8_t *)exchange->signed_exchange_response.signature.bytes) != 0)
+#endif
     {
         set_exchange_error(ERROR_EXCHANGE_SIGNATURE);
-        return false;
-    }
-
-    /* verify Exchange API-Key */
-    if(memcmp(ShapeShift_api_key, exchange->signed_exchange_response.responseV2.api_key.bytes,
-                sizeof(ShapeShift_api_key)) != 0)
-    {
-        set_exchange_error(ERROR_EXCHANGE_API_KEY);
         return false;
     }
 
@@ -425,28 +414,34 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
 
     /* verify Withdrawal address */
     const CoinType *withdraw_coin = getWithdrawCoin(exchange);
-    if (!withdraw_coin) {
-        set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_COINTYPE);
-        return false;
-    }
+    if (withdraw_coin) {
+        if (!verify_coins_match(withdraw_coin, coinByNameOrTicker(exchange->withdrawal_coin_name))) {
+            set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_COINTYPE);
+            return false;
+        }
 
-    if (!verify_coins_match(withdraw_coin, coinByNameOrTicker(exchange->withdrawal_coin_name))) {
-        set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_COINTYPE);
-        return false;
-    }
-
-    if (!verify_exchange_address(
-             withdraw_coin,
-             exchange->withdrawal_address_n_count,
-             exchange->withdrawal_address_n,
-             exchange->has_withdrawal_script_type,
-             exchange->withdrawal_script_type,
-             exchange->signed_exchange_response.responseV2.withdrawal_address.address,
-             sizeof(exchange->signed_exchange_response.responseV2.withdrawal_address.address),
-             root, withdraw_coin->has_contract_address))
-    {
-        set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_ADDRESS);
-        return false;
+        if (exchange->withdrawal_address_n_count) {
+            if (!verify_exchange_address(
+                 withdraw_coin,
+                 exchange->withdrawal_address_n_count,
+                 exchange->withdrawal_address_n,
+                 exchange->has_withdrawal_script_type,
+                 exchange->withdrawal_script_type,
+                 exchange->signed_exchange_response.responseV2.withdrawal_address.address,
+                 sizeof(exchange->signed_exchange_response.responseV2.withdrawal_address.address),
+                 root, withdraw_coin->has_contract_address))
+            {
+                set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_ADDRESS);
+                return false;
+            }
+        }
+    } else {
+        // If the firmware doesn't support the output coin, it can't check the
+        // deposit address belongs to it.
+        if (exchange->withdrawal_address_n_count) {
+            set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_ADDRESS);
+            return false;
+        }
     }
 
     /* verify Return coin type */
@@ -552,12 +547,6 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
         return false;
     }
 
-    const CoinType *withdrawal_coin = getWithdrawCoin(tx_exchange);
-    if (!withdrawal_coin) {
-        set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_COINTYPE);
-        return false;
-    }
-
     /* assemble deposit amount for display*/
     char amount_dep_str[128];
     if (!exchange_tx_layout_str(deposit_coin,
@@ -569,31 +558,85 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
         return false;
     }
 
+    const CoinType *withdraw_coin = getWithdrawCoin(tx_exchange);
+
+    const ExchangeAddress *withdraw =
+        &tx_exchange->signed_exchange_response.responseV2.withdrawal_address;
+
+    char withdraw_symbol[sizeof(withdraw->coin_type)];
+    strlcpy(withdraw_symbol, withdraw->coin_type, sizeof(withdraw_symbol));
+    kk_strupr(withdraw_symbol);
+
     /* assemble withdrawal amount for display*/
     char amount_wit_str[128];
-    if (!exchange_tx_layout_str(withdrawal_coin,
-                tx_exchange->signed_exchange_response.responseV2.withdrawal_amount.bytes,
-                tx_exchange->signed_exchange_response.responseV2.withdrawal_amount.size,
-                amount_wit_str,
-                sizeof(amount_wit_str))) {
-        set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_AMOUNT);
+    switch (tx_exchange->signed_exchange_response.responseV2.type) {
+    case OrderType_Precise: {
+        if (!withdraw_coin) {
+            set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_COINTYPE);
+            return false;
+        }
+
+        if (!tx_exchange->signed_exchange_response.responseV2.has_withdrawal_amount ||
+            !exchange_tx_layout_str(withdraw_coin,
+                    tx_exchange->signed_exchange_response.responseV2.withdrawal_amount.bytes,
+                    tx_exchange->signed_exchange_response.responseV2.withdrawal_amount.size,
+                    amount_wit_str,
+                    sizeof(amount_wit_str))) {
+            set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_AMOUNT);
+            return false;
+        }
+        break;
+    }
+    case OrderType_Quick: {
+        strlcpy(amount_wit_str,
+                withdraw_symbol,
+                sizeof(amount_wit_str));
+        strlcat(amount_wit_str, " at market rate", sizeof(amount_wit_str));
+        break;
+    }
+    default: {
+        set_exchange_error(ERROR_EXCHANGE_TYPE);
+        return false;
+    }
+    }
+
+    if (!confirm_exchange_output(amount_dep_str, amount_wit_str)) {
+         set_exchange_error(ERROR_EXCHANGE_CANCEL);
         return false;
     }
 
-    /* determine withdrawal account number */
-    char node_str[100];
-    if (!bip32_node_to_string(node_str, sizeof(node_str), withdrawal_coin,
-                             tx_exchange->withdrawal_address_n,
-                             tx_exchange->withdrawal_address_n_count,
-                             /*whole_account=*/false,
-                             /*show_addridx=*/false)) {
-        set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_ADDRESS);
-        return false;
-    }
+    // Determine withdrawal account / address
+    if (withdraw_coin && tx_exchange->withdrawal_address_n_count) {
+        char node_str[100];
+        memzero(node_str, sizeof(node_str));
 
-    if (!confirm_exchange_output(amount_dep_str, amount_wit_str, node_str)) {
-        set_exchange_error(ERROR_EXCHANGE_CANCEL);
-        return false;
+        if (!bip32_node_to_string(
+                node_str, sizeof(node_str), withdraw_coin,
+                tx_exchange->withdrawal_address_n,
+                tx_exchange->withdrawal_address_n_count,
+                /*whole_account=*/false,
+                /*show_addridx=*/true)) {
+            set_exchange_error(ERROR_EXCHANGE_WITHDRAWAL_ADDRESS);
+            return false;
+        }
+
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                     "Confirm", "ShapeShift will send the %s to:\n%s",
+                     withdraw_symbol, node_str)) {
+            set_exchange_error(ERROR_EXCHANGE_CANCEL);
+            return false;
+        }
+    } else {
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                     "Confirm External Address",
+                     withdraw->has_dest_tag
+                       ? "ShapeShift will send the %s to:\n%s tag:%s"
+                       : "ShapeShift will send the %s to:\n%s",
+                     withdraw_symbol, withdraw->address,
+                     withdraw->dest_tag)) {
+            set_exchange_error(ERROR_EXCHANGE_CANCEL);
+            return false;
+        }
     }
 
     return true;
