@@ -39,6 +39,7 @@
 
 /* exchange error variable */
 static ExchangeError exchange_error = NO_EXCHANGE_ERROR;
+static const char *exchange_msg = NULL;
 
 /* exchange public key for signature varification */
 static const char *ShapeShift_pubkey = "1HxFWu1wM88q1aLkfUmpZBjhTWcdXGB6gT";
@@ -482,9 +483,14 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
  * OUTPUT
  *     none
  */
-void set_exchange_error(ExchangeError error_code)
-{
+#if DEBUG_LINK
+void set_exchange_errorDebug(ExchangeError error_code, const char *_msg) {
+#else
+void set_exchange_error(ExchangeError error_code) {
+    const char *_msg = NULL;
+#endif
     exchange_error = error_code;
+    exchange_msg = _msg;
 }
 /*
  * get_exchange_error - get exchange error code
@@ -496,6 +502,11 @@ void set_exchange_error(ExchangeError error_code)
 ExchangeError get_exchange_error(void)
 {
     return(exchange_error);
+}
+
+const char *get_exchange_msg(void)
+{
+    return exchange_msg;
 }
 
 /*

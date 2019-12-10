@@ -144,7 +144,11 @@ void send_fsm_co_error_message(int co_error)
 
 	for (size_t i = 0; i < sizeof(errorCodes)/sizeof(errorCodes[0]); i++) {
 		if (errorCodes[i].code == co_error) {
+#if DEBUG_LINK
+			fsm_sendFailureDebug(errorCodes[i].type, errorCodes[i].msg, get_exchange_msg());
+#else
 			fsm_sendFailure(errorCodes[i].type, errorCodes[i].msg);
+#endif
 			return;
 		}
 	}
@@ -171,7 +175,11 @@ void send_fsm_co_error_message(int co_error)
 	ExchangeError error = get_exchange_error();
 	for (size_t i = 0; i < sizeof(exchangeCodes)/sizeof(exchangeCodes[0]); i++) {
 		if (exchangeCodes[i].code == error) {
+#if DEBUG_LINK
+			fsm_sendFailureDebug(exchangeCodes[i].type, exchangeCodes[i].msg, get_exchange_msg());
+#else
 			fsm_sendFailure(exchangeCodes[i].type, exchangeCodes[i].msg);
+#endif
 			return;
 		}
 	}
