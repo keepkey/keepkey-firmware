@@ -76,8 +76,6 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
 
     hdnode_fill_public_key(node);
 
-
-
     RESP_INIT(CosmosMsgRequest);
 
     if (!cosmos_signTxInit(node, msg))
@@ -110,15 +108,42 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
 
     const CosmosSignTx *sign_tx = cosmos_getCosmosSignTx();
 
-    char amount_str[32];
-    bn_format_uint64(msg->send.amount, NULL, " ATOM", 6, 0, false, amount_str, sizeof(amount_str));
-    if (!confirm_transaction_output(
-            ButtonRequestType_ButtonRequest_ConfirmOutput,
-            amount_str, msg->send.to_address)) {
-        cosmos_signAbort();
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-        layoutHome();
-        return;
+    switch (msg->send.address_type) {
+    case OutputAddressType_EXCHANGE: {
+        HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0, NULL);
+        if (!root_node) {
+            cosmos_signAbort();
+            fsm_sendFailure(FailureType_Failure_FirmwareError, NULL);
+            layoutHome();
+            return;
+        }
+
+        int ret = run_policy_compile_output(coin, root_node, (void *)&msg->send, (void *)NULL, true);
+        if (ret < TXOUT_OK) {
+            memzero((void *)root_node, sizeof(*root_node));
+            cosmos_signAbort();
+            send_fsm_co_error_message(ret);
+            layoutHome();
+            return;
+        }
+
+        break;
+    }
+    case OutputAddressType_TRANSFER:
+    default: {
+        char amount_str[32];
+        bn_format_uint64(msg->send.amount, NULL, " ATOM", 6, 0, false, amount_str, sizeof(amount_str));
+        if (!confirm_transaction_output(
+                ButtonRequestType_ButtonRequest_ConfirmOutput,
+                amount_str, msg->send.to_address)) {
+            cosmos_signAbort();
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+            layoutHome();
+            return;
+        }
+
+        break;
+    }
     }
 
     if(!cosmos_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address)) {
