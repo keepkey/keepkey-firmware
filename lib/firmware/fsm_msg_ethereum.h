@@ -64,7 +64,7 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
     *has_to = true;
     *to_size = 20;
 
-    memset((void *)node, 0, sizeof(HDNode));
+    memzero((void *)node, sizeof(HDNode));
     return TXOUT_OK;
 }
 
@@ -83,7 +83,7 @@ static int process_ethereum_msg(EthereumSignTx *msg, bool *needs_confirm)
 
         int ret = run_policy_compile_output(coin, root_node, (void *)msg, (void *)NULL, true);
         if(ret < TXOUT_OK) {
-            memset((void *)root_node, 0, sizeof(HDNode));
+            memzero((void *)root_node, sizeof(HDNode));
         }
         *needs_confirm = false;
         return ret;
