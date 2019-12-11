@@ -26,6 +26,7 @@
 #include "trezor/crypto/memzero.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/coins.h"
+#include "keepkey/firmware/cosmos.h"
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_tokens.h"
@@ -39,6 +40,7 @@
 
 /* exchange error variable */
 static ExchangeError exchange_error = NO_EXCHANGE_ERROR;
+static const char *exchange_msg = NULL;
 
 /* exchange public key for signature varification */
 static const char *ShapeShift_pubkey = "1HxFWu1wM88q1aLkfUmpZBjhTWcdXGB6gT";
@@ -151,6 +153,16 @@ static bool verify_exchange_address(const CoinType *coin, size_t address_n_count
                               address_str, address_str_len, true);
     }
 
+    if (strcmp("Cosmos", coin->coin_name) == 0) {
+        char cosmos_addr[sizeof(((CosmosAddress *)0)->address)];
+        if (!cosmos_getAddress(&node, cosmos_addr)) {
+            memzero(&node, sizeof(node));
+            return false;
+        }
+
+        return strncmp(cosmos_addr, address_str, address_str_len);
+    }
+
     const curve_info *curve = get_curve_by_name(coin->curve_name);
     if (!curve) {
         memzero(&node, sizeof(node));
@@ -245,33 +257,22 @@ static const CoinType *getReturnCoin(const ExchangeType *exchange)
  */
 static bool verify_exchange_dep_amount(const char *coin, void *dep_amt_ptr, ExchangeResponseV2_deposit_amount_t *exch_dep_amt)
 {
-    bool ret_stat = false;
     char amt_str[sizeof(exch_dep_amt->bytes)];
-
     memset(amt_str, 0, sizeof(amt_str));
-    if (isEthereumLike(coin))
-    {
+    if (isEthereumLike(coin)) {
         memcpy(amt_str, exch_dep_amt->bytes, exch_dep_amt->size);
-    }
-    else
-    {
-        if(exch_dep_amt->size <= sizeof(uint64_t))
-        {
-            memcpy(amt_str, exch_dep_amt->bytes, exch_dep_amt->size);
-            rev_byte_order((uint8_t *)amt_str, exch_dep_amt->size);
-        }
-        else
-        {
-            goto verify_exchange_dep_amount_exit;
-        }
+    } else if (strcmp("Cosmos", coin) == 0) {
+        memcpy(amt_str, exch_dep_amt->bytes, exch_dep_amt->size);
+        rev_byte_order((uint8_t *)amt_str, exch_dep_amt->size);
+    } else {
+        if (exch_dep_amt->size > sizeof(uint64_t))
+            return false;
+
+        memcpy(amt_str, exch_dep_amt->bytes, exch_dep_amt->size);
+        rev_byte_order((uint8_t *)amt_str, exch_dep_amt->size);
     }
 
-    if(memcmp(amt_str, dep_amt_ptr, exch_dep_amt->size) == 0)
-    {
-        ret_stat = true;
-    }
-verify_exchange_dep_amount_exit:
-    return(ret_stat);
+    return memcmp(amt_str, dep_amt_ptr, exch_dep_amt->size) == 0;
 }
 
 /// \brief Loose matching of two coins.
@@ -306,6 +307,8 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
     ExchangeType *exchange;
     if (isEthereumLike(coin->coin_name)) {
         exchange = &((EthereumSignTx *)vtx_out)->exchange_type;
+    } else if (strcmp("Cosmos", coin->coin_name) == 0) {
+        exchange = &((CosmosMsgSend *)vtx_out)->exchange_type;
     } else {
         exchange = &((TxOutputType *)vtx_out)->exchange_type;
     }
@@ -344,6 +347,12 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
             tx_out_amount = (void *)tx_out->value.bytes;
             deposit_coin = coin;
         }
+    } else if (strcmp("Cosmos", coin->coin_name) == 0) {
+        CosmosMsgSend *tx_out = (CosmosMsgSend *)vtx_out;
+        exchange = &tx_out->exchange_type;
+        memcpy(tx_out_address, tx_out->to_address, sizeof(tx_out->to_address));
+        tx_out_amount = (void *)&tx_out->amount;
+        deposit_coin = coin;
     } else {
         TxOutputType *tx_out = (TxOutputType *)vtx_out;
         exchange = &tx_out->exchange_type;
@@ -482,9 +491,14 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
  * OUTPUT
  *     none
  */
-void set_exchange_error(ExchangeError error_code)
-{
+#if DEBUG_LINK
+void set_exchange_errorDebug(ExchangeError error_code, const char *_msg) {
+#else
+void set_exchange_error(ExchangeError error_code) {
+    const char *_msg = NULL;
+#endif
     exchange_error = error_code;
+    exchange_msg = _msg;
 }
 /*
  * get_exchange_error - get exchange error code
@@ -496,6 +510,11 @@ void set_exchange_error(ExchangeError error_code)
 ExchangeError get_exchange_error(void)
 {
     return(exchange_error);
+}
+
+const char *get_exchange_msg(void)
+{
+    return exchange_msg;
 }
 
 /*
@@ -537,6 +556,9 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
         } else {
             deposit_coin = coinByName(coin->coin_name);
         }
+    } else if (strcmp("Cosmos", coin->coin_name) == 0) {
+        tx_exchange = &((CosmosMsgSend *)vtx_out)->exchange_type;
+        deposit_coin = coinByName(coin->coin_name);
     } else {
         tx_exchange = &((TxOutputType *)vtx_out)->exchange_type;
         deposit_coin = coinByName(coin->coin_name);

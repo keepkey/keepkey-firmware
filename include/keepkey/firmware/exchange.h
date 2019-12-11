@@ -31,7 +31,6 @@ typedef enum {
     ERROR_EXCHANGE_WITHDRAWAL_AMOUNT,
     ERROR_EXCHANGE_RETURN_COINTYPE,
     ERROR_EXCHANGE_RETURN_ADDRESS,
-    ERROR_EXCHANGE_API_KEY,
     ERROR_EXCHANGE_CANCEL,
     ERROR_EXCHANGE_RESPONSE_STRUCTURE,
     ERROR_EXCHANGE_TYPE,
@@ -39,7 +38,14 @@ typedef enum {
 
 bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode *root, bool needs_confirm);
 ExchangeError get_exchange_error(void);
+const char *get_exchange_msg(void);
+
+#if DEBUG_LINK
+#define set_exchange_error(error_code) set_exchange_errorDebug((error_code), __FILE__ ":" VERSTR(__LINE__) ":")
+void set_exchange_errorDebug(ExchangeError error_code, const char *msg);
+#else
 void set_exchange_error(ExchangeError error_code);
+#endif
 
 bool ether_for_display(const uint8_t *value, uint32_t value_len, char *out_str);
 

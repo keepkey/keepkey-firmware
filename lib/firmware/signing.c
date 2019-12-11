@@ -133,101 +133,58 @@ enum {
  */
 void send_fsm_co_error_message(int co_error)
 {
-    switch(co_error)
-    {
-        case(TXOUT_COMPILE_ERROR):
-        {
-            fsm_sendFailure(FailureType_Failure_Other, "Failed to compile output");
-            break;
-        }
-        case(TXOUT_CANCEL):
-        {
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, "Transaction cancelled");
-            break;
-        }
-        case (TXOUT_EXCHANGE_CONTRACT_ERROR):
-        {
-            switch(get_exchange_error())
-            {
-                case ERROR_EXCHANGE_SIGNATURE:
-                {
-                    fsm_sendFailure(FailureType_Failure_Other, "Exchange signature error");
-                    break;
-                }
-                case ERROR_EXCHANGE_DEPOSIT_COINTYPE:
-                {
-                    fsm_sendFailure(FailureType_Failure_Other, "Exchange deposit coin type error");
-                    break;
-                }
-                case ERROR_EXCHANGE_DEPOSIT_ADDRESS:
-                {
-                    fsm_sendFailure(FailureType_Failure_Other, "Exchange deposit address error");
-                    break;
-                }
-                case ERROR_EXCHANGE_DEPOSIT_AMOUNT:
-                {
-                    fsm_sendFailure(FailureType_Failure_Other, "Exchange deposit amount error");
-                    break;
-                }
-                case ERROR_EXCHANGE_WITHDRAWAL_COINTYPE:
-                {
-                    fsm_sendFailure(FailureType_Failure_Other, "Exchange withdrawal coin type error");
-                    break;
-                }
-                case ERROR_EXCHANGE_WITHDRAWAL_ADDRESS:
-                {
-                    fsm_sendFailure(FailureType_Failure_Other, "Exchange withdrawal address error");
-                    break;
-                }
-                case ERROR_EXCHANGE_WITHDRAWAL_AMOUNT:
-                {
-                    fsm_sendFailure(FailureType_Failure_Other, "Exchange withdrawal amount error");
-                    break;
-                }
-                case ERROR_EXCHANGE_RETURN_COINTYPE:
-                {
-                    fsm_sendFailure(FailureType_Failure_Other, "Exchange return coin type error");
-                    break;
-                }
-                case ERROR_EXCHANGE_RETURN_ADDRESS:
-                {
-                    fsm_sendFailure(FailureType_Failure_Other, "Exchange return address error");
-                    break;
-                }
-                case ERROR_EXCHANGE_API_KEY:
-                {
-                    fsm_sendFailure(FailureType_Failure_Other, "Exchange api key error");
-                    break;
-                }
-                case ERROR_EXCHANGE_CANCEL:
-                {
-                    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Exchange transaction cancelled");
-                    break;
-                }
-                case ERROR_EXCHANGE_RESPONSE_STRUCTURE:
-                {
-                    fsm_sendFailure(FailureType_Failure_Other, "Obsolete Response structure error");
-                    break;
-                }
-                case ERROR_EXCHANGE_TYPE:
-                {
-                    fsm_sendFailure(FailureType_Failure_Other, "Unknown exchange type");
-                    break;
-                }
-                default:
-                case NO_EXCHANGE_ERROR:
-                {
-                    break;
-                }
-            }
-            break;
-        }
-        default:
-        {
-            fsm_sendFailure(FailureType_Failure_Other, "Unknown TxOut compilation error");
-            break;
-        }
-    }
+	struct {
+		int code;
+		const char *msg;
+		FailureType type;
+	} errorCodes[] = {
+		{ TXOUT_COMPILE_ERROR, "Failed to compile output", FailureType_Failure_Other },
+		{ TXOUT_CANCEL, "Transaction cancelled", FailureType_Failure_ActionCancelled },
+	};
+
+	for (size_t i = 0; i < sizeof(errorCodes)/sizeof(errorCodes[0]); i++) {
+		if (errorCodes[i].code == co_error) {
+#if DEBUG_LINK
+			fsm_sendFailureDebug(errorCodes[i].type, errorCodes[i].msg, get_exchange_msg());
+#else
+			fsm_sendFailure(errorCodes[i].type, errorCodes[i].msg);
+#endif
+			return;
+		}
+	}
+
+	struct {
+		ExchangeError code;
+		const char *msg;
+		FailureType type;
+	} exchangeCodes[] = {
+		{ ERROR_EXCHANGE_SIGNATURE, "Exchange signature error", FailureType_Failure_Other },
+		{ ERROR_EXCHANGE_DEPOSIT_COINTYPE, "Exchange deposit coin type error", FailureType_Failure_Other },
+		{ ERROR_EXCHANGE_DEPOSIT_ADDRESS, "Exchange deposit address error", FailureType_Failure_Other },
+		{ ERROR_EXCHANGE_DEPOSIT_AMOUNT, "Exchange deposit amount error", FailureType_Failure_Other },
+		{ ERROR_EXCHANGE_WITHDRAWAL_COINTYPE, "Exchange withdrawal coin type error", FailureType_Failure_Other },
+		{ ERROR_EXCHANGE_WITHDRAWAL_ADDRESS, "Exchange withdrawal address error", FailureType_Failure_Other },
+		{ ERROR_EXCHANGE_WITHDRAWAL_AMOUNT, "Exchange withdrawal amount error", FailureType_Failure_Other },
+		{ ERROR_EXCHANGE_RETURN_ADDRESS, "Exchange return address error", FailureType_Failure_Other },
+		{ ERROR_EXCHANGE_RETURN_COINTYPE, "Exchange return coin type error", FailureType_Failure_Other },
+		{ ERROR_EXCHANGE_CANCEL, "Exchange transaction cancelled", FailureType_Failure_ActionCancelled },
+		{ ERROR_EXCHANGE_RESPONSE_STRUCTURE, "Obsolete Response structure error", FailureType_Failure_Other },
+		{ ERROR_EXCHANGE_TYPE, "Unknown exchange type", FailureType_Failure_Other },
+	};
+
+	ExchangeError error = get_exchange_error();
+	for (size_t i = 0; i < sizeof(exchangeCodes)/sizeof(exchangeCodes[0]); i++) {
+		if (exchangeCodes[i].code == error) {
+#if DEBUG_LINK
+			fsm_sendFailureDebug(exchangeCodes[i].type, exchangeCodes[i].msg, get_exchange_msg());
+#else
+			fsm_sendFailure(exchangeCodes[i].type, exchangeCodes[i].msg);
+#endif
+			return;
+		}
+	}
+
+	fsm_sendFailure(FailureType_Failure_Other, "Unknown TxOut compilation error");
 }
 
 /*
