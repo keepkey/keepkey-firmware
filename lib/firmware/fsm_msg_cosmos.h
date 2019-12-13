@@ -42,7 +42,7 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
             }
         }
 
-        if(!confirm_address(node_str, resp->address)) {
+        if(!confirm_ethereum_address(node_str, resp->address)) {
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
             layoutHome();
             return;
