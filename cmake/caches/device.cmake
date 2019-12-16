@@ -44,21 +44,22 @@ set(WARN_FLAGS
     -Wuninitialized \
     -Werror")
 
-set(CMAKE_C_FLAGS_DEBUG "-O1 -g" CACHE STRING "")
-set(CMAKE_C_FLAGS_MINSIZEREL "-Os" CACHE STRING "")
-set(CMAKE_C_FLAGS_RELEASE "-Os" CACHE STRING "")
-set(CMAKE_CXX_FLAGS_DEBUG "-O1 -g" CACHE STRING "")
-set(CMAKE_CXX_FLAGS_MINSIZEREL "-Os" CACHE STRING "")
-set(CMAKE_CXX_FLAGS_RELEASE "-Os" CACHE STRING "")
 
-set(CMAKE_C_FLAGS "${ARCH_FLAGS} -std=gnu99 ${WARN_FLAGS}" CACHE STRING "")
-set(CMAKE_CXX_FLAGS "${ARCH_FLAGS} -std=gnu++11 ${WARN_FLAGS} \
+set(KK_C_FLAGS "${ARCH_FLAGS} -std=gnu99 ${WARN_FLAGS}" CACHE STRING "")
+set(KK_CXX_FLAGS "${ARCH_FLAGS} -std=gnu++11 ${WARN_FLAGS} \
     -fno-exceptions \
     -fno-rtti \
     -fno-threadsafe-statics \
     -fuse-cxa-atexit \
     -Woverloaded-virtual \
     -Weffc++" CACHE STRING "")
+
+set(CMAKE_C_FLAGS_DEBUG "${KK_C_FLAGS} -Os -g" CACHE STRING "")
+set(CMAKE_C_FLAGS_MINSIZEREL "${KK_C_FLAGS} -Os" CACHE STRING "")
+set(CMAKE_C_FLAGS_RELEASE "${KK_C_FLAGS} -Os" CACHE STRING "")
+set(CMAKE_CXX_FLAGS_DEBUG "${KK_CXX_FLAGS} -Os -g" CACHE STRING "")
+set(CMAKE_CXX_FLAGS_MINSIZEREL "${KK_CXX_FLAGS} -Os" CACHE STRING "")
+set(CMAKE_CXX_FLAGS_RELEASE "${KK_CXX_FLAGS} -Os" CACHE STRING "")
 
 set(CMAKE_ASM_FLAGS "-mcpu=cortex-m3 \
     -mthumb \
