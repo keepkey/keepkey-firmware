@@ -10,7 +10,8 @@ RUN pip install \
     "mnemonic>=0.8" \
     requests \
     flask \
-    pytest
+    pytest \
+    semver
 
 RUN cmake -C ./cmake/caches/emulator.cmake . \
     -DCMAKE_BUILD_TYPE=Debug \

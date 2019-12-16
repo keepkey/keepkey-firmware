@@ -6,7 +6,8 @@ RUN python -m ensurepip
 RUN pip install \
     requests \
     flask \
-    pytest
+    pytest \
+    semver
 
 EXPOSE 5000
 CMD ["/kkemu/scripts/emulator/bridge.sh"]
