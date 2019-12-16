@@ -13,7 +13,8 @@ const TokenType tokens[] = {
 _Static_assert(sizeof(tokens) / sizeof(tokens[0]) == TOKENS_COUNT,
                "TOKENS_COUNT mismatch");
 
-const TokenType *UnknownToken = (const TokenType *)1;
+static const TokenType Unknown = { "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", " UNKN", 1, 0 };
+const TokenType *UnknownToken = (const TokenType *)&Unknown;
 
 const TokenType *tokenByChainAddress(uint8_t chain_id, const uint8_t *address)
 {
