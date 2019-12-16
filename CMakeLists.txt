@@ -96,6 +96,7 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
   add_definitions(-DDEBUG_ON)
   add_definitions(-DMEMORY_PROTECT=0)
 elseif("${CMAKE_BUILD_TYPE}" STREQUAL "Release" OR
+       "${CMAKE_BUILD_TYPE}" STREQUAL "MinSizeRel" OR
        "${CMAKE_BUILD_TYPE}" STREQUAL "")
   add_definitions(-DMEMORY_PROTECT=1)
   if(NOT ${KK_EMULATOR})
