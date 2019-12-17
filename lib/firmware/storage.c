@@ -667,6 +667,7 @@ StorageUpdateStatus storage_fromFlash(SessionState *ss, ConfigFlash *dst, const 
         case StorageVersion_11:
         case StorageVersion_12:
         case StorageVersion_13:
+        case StorageVersion_14:
             storage_readV11(dst, flash, STORAGE_SECTOR_LEN);
             dst->storage.version = STORAGE_VERSION;
             return dst->storage.version == version
