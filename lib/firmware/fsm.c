@@ -36,6 +36,7 @@
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/cosmos.h"
+#include "keepkey/firmware/binance.h"
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/eos.h"
 #include "keepkey/firmware/eos-contracts.h"
@@ -51,6 +52,7 @@
 #include "keepkey/firmware/reset.h"
 #include "keepkey/firmware/signing.h"
 #include "keepkey/firmware/storage.h"
+#include "keepkey/firmware/tendermint.h"
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/u2f.h"
 #include "keepkey/rand/rng.h"
@@ -67,6 +69,7 @@
 #include "trezor/crypto/secp256k1.h"
 
 #include "messages.pb.h"
+#include "messages-binance.pb.h"
 #include "messages-cosmos.pb.h"
 #include "messages-eos.pb.h"
 #include "messages-nano.pb.h"
@@ -296,3 +299,4 @@ void fsm_msgClearSession(ClearSession *msg)
 #include "fsm_msg_debug.h"
 #include "fsm_msg_eos.h"
 #include "fsm_msg_cosmos.h"
+#include "fsm_msg_binance.h"

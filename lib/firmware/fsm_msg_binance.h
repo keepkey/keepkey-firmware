@@ -1,20 +1,21 @@
 
-void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
+void fsm_msgBinanceGetAddress(const BinanceGetAddress *msg)
 {
-    RESP_INIT(CosmosAddress);
+    RESP_INIT(BinanceAddress);
 
     CHECK_INITIALIZED
 
     CHECK_PIN
 
-    const CoinType *coin = fsm_getCoin(true, "Cosmos");
+    const char *coin_name = "Binance";
+    const CoinType *coin = fsm_getCoin(true, coin_name);
     if (!coin) { return; }
     HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
     if (!node) { return; }
 
     hdnode_fill_public_key(node);
 
-    if (!tendermint_getAddress(node, "cosmos", resp->address)) {
+    if (!tendermint_getAddress(node, "bnb", resp->address)) {
         fsm_sendFailure(FailureType_Failure_FirmwareError, _("Can't encode address"));
         layoutHome();
         return;
@@ -52,35 +53,24 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
     resp->has_address = true;
 
     layoutHome();
-    msg_write(MessageType_MessageType_CosmosAddress, resp);
+    msg_write(MessageType_MessageType_BinanceAddress, resp);
 }
 
-void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
+void fsm_msgBinanceSignTx(const BinanceSignTx *msg)
 {
     CHECK_INITIALIZED
     CHECK_PIN
-
-    if (!msg->has_account_number ||
-        !msg->has_chain_id ||
-        !msg->has_fee_amount ||
-        !msg->has_gas ||
-        !msg->has_sequence) {
-        cosmos_signAbort();
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "Missing Fields On Message");
-        layoutHome();
-        return;
-    }
 
     HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
     if (!node) { return; }
 
     hdnode_fill_public_key(node);
 
-    RESP_INIT(CosmosMsgRequest);
+    RESP_INIT(BinanceTxRequest);
 
-    if (!cosmos_signTxInit(node, msg))
+    if (!binance_signTxInit(node, msg))
     {
-        cosmos_signAbort();
+        binance_signAbort();
         fsm_sendFailure(FailureType_Failure_FirmwareError,
                         _("Failed to initialize transaction signing"));
         layoutHome();
@@ -88,80 +78,55 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
     }
 
     layoutHome();
-    msg_write(MessageType_MessageType_CosmosMsgRequest, resp);
+    msg_write(MessageType_MessageType_BinanceTxRequest, resp);
 }
 
-void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
-    // Confirm transaction basics
-    CHECK_PARAM(cosmos_signingIsInited(), "Signing not in progress");
-    if (!msg->has_send || !msg->send.has_to_address || !msg->send.has_amount) {
-        cosmos_signAbort();
-        fsm_sendFailure(FailureType_Failure_FirmwareError,
-                        _("Invalid Cosmos Message Type"));
-        layoutHome();
-        return;
-    }
+static void binance_response(void);
 
-    const CoinType *coin = fsm_getCoin(true, "Cosmos");
+void fsm_msgBinanceTransferMsg(const BinanceTransferMsg *msg) {
+    CHECK_PARAM(binance_signingIsInited(), "Signing not in progress?");
+    CHECK_PARAM(msg->inputs_count == 1, "Malformed BinanceTransferMsg")
+    CHECK_PARAM(msg->inputs[0].coins_count == 1, "Malformed BinanceTransferMsg")
+    CHECK_PARAM(msg->outputs_count == 1, "Malformed BinanceTransferMsg")
+    CHECK_PARAM(msg->outputs[0].coins_count == 1, "Malformed BinanceTransferMsg")
+    CHECK_PARAM(msg->inputs[0].coins[0].amount ==
+                msg->outputs[0].coins[0].amount, "Malformed BinanceTransferMsg")
+    CHECK_PARAM(strcmp(msg->inputs[0].coins[0].denom,
+                       msg->outputs[0].coins[0].denom) == 0,
+                       "Malformed BinanceTransferMsg")
+
+    const CoinType *coin = fsm_getCoin(true, "Binance");
     if (!coin) { return; }
 
-    const CosmosSignTx *sign_tx = cosmos_getCosmosSignTx();
+    const BinanceSignTx *sign_tx = binance_getBinanceSignTx();
 
-    switch (msg->send.address_type) {
-    case OutputAddressType_EXCHANGE: {
-        HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0, NULL);
-        if (!root_node) {
-            cosmos_signAbort();
-            fsm_sendFailure(FailureType_Failure_FirmwareError, NULL);
-            layoutHome();
-            return;
-        }
-
-        int ret = run_policy_compile_output(coin, root_node, (void *)&msg->send, (void *)NULL, true);
-        if (ret < TXOUT_OK) {
-            memzero((void *)root_node, sizeof(*root_node));
-            cosmos_signAbort();
-            send_fsm_co_error_message(ret);
-            layoutHome();
-            return;
-        }
-
-        break;
-    }
-    case OutputAddressType_TRANSFER:
-    default: {
-        char amount_str[32];
-        bn_format_uint64(msg->send.amount, NULL, " ATOM", 6, 0, false, amount_str, sizeof(amount_str));
-        if (!confirm_transaction_output(
-                ButtonRequestType_ButtonRequest_ConfirmOutput,
-                amount_str, msg->send.to_address)) {
-            cosmos_signAbort();
-            fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-            layoutHome();
-            return;
-        }
-
-        break;
-    }
-    }
-
-    if(!cosmos_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address)) {
-        cosmos_signAbort();
-        fsm_sendFailure(FailureType_Failure_SyntaxError, "Failed to include send message in transaction");
+    if (!binance_signTxUpdateTransfer(msg)) {
+        binance_signAbort();
+        fsm_sendFailure(FailureType_Failure_SyntaxError, "Failed to include transfer message in transaction");
         layoutHome();
         return;
     }
 
-    if (!cosmos_signingIsFinished()) {
-        RESP_INIT(CosmosMsgRequest);
-        msg_write(MessageType_MessageType_CosmosMsgRequest, resp);
+    binance_response();
+}
+
+static void binance_response(void)
+{
+    if (!binance_signingIsFinished()) {
+        RESP_INIT(BinanceTxRequest);
+        msg_write(MessageType_MessageType_BinanceTxRequest, resp);
         return;
     }
+
+    const CoinType *coin = fsm_getCoin(true, "Binance");
+    if (!coin) { return; }
+
+    const BinanceSignTx *sign_tx = binance_getBinanceSignTx();
 
     if (sign_tx->has_memo && !confirm(ButtonRequestType_ButtonRequest_ConfirmMemo,
                                       _("Memo"), "%s", sign_tx->memo))
     {
-        cosmos_signAbort();
+        binance_signAbort();
         fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
         layoutHome();
         return;
@@ -177,20 +142,19 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     }
 
     if (!confirm(ButtonRequestType_ButtonRequest_SignTx, node_str,
-                 "Sign this Cosmos transaction on %s? "
-                 "It includes a fee of %" PRIu32 " uATOM and %" PRIu32 " gas.",
-                 sign_tx->chain_id, sign_tx->fee_amount, sign_tx->gas))
+                 "Sign this Binance transaction on %s?",
+                 sign_tx->chain_id))
     {
-        cosmos_signAbort();
+        binance_signAbort();
         fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
         layoutHome();
         return;
     }
 
-    RESP_INIT(CosmosSignedTx);
+    RESP_INIT(BinanceSignedTx);
 
-    if(!cosmos_signTxFinalize(resp->public_key.bytes, resp->signature.bytes)) {
-        cosmos_signAbort();
+    if (!binance_signTxFinalize(resp->public_key.bytes, resp->signature.bytes)) {
+        binance_signAbort();
         fsm_sendFailure(FailureType_Failure_SyntaxError, "Failed to finalize signature");
         layoutHome();
         return;
@@ -200,7 +164,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     resp->has_public_key = true;
     resp->signature.size = 64;
     resp->has_signature = true;
-    cosmos_signAbort();
+    binance_signAbort();
     layoutHome();
-    msg_write(MessageType_MessageType_CosmosSignedTx, resp);
+    msg_write(MessageType_MessageType_BinanceSignedTx, resp);
 }

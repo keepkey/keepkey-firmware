@@ -33,6 +33,7 @@
 #include "keepkey/firmware/exchange.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/policy.h"
+#include "keepkey/firmware/tendermint.h"
 #include "types.pb.h"
 
 #include <string.h>
@@ -155,7 +156,7 @@ static bool verify_exchange_address(const CoinType *coin, size_t address_n_count
 
     if (strcmp("Cosmos", coin->coin_name) == 0) {
         char cosmos_addr[sizeof(((CosmosAddress *)0)->address)];
-        if (!cosmos_getAddress(&node, cosmos_addr)) {
+        if (!tendermint_getAddress(&node, "cosmos", cosmos_addr)) {
             memzero(&node, sizeof(node));
             return false;
         }
