@@ -1,5 +1,6 @@
 set(sources
     trezor-firmware/crypto/bip39.c
+    trezor-firmware/crypto/bip39_english.c
     trezor-firmware/crypto/hmac.c
     trezor-firmware/crypto/hmac_drbg.c
     trezor-firmware/crypto/sha2.c
