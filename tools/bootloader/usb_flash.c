@@ -157,7 +157,7 @@ static bool isUpdateRequired(int signed_firmware) {
     if (!magic_ok())
         return true;
 
-    if ((SIG_FLAG & 2) == 1)
+    if ((SIG_FLAG & 2) == 2)
         return true;
 
     if (signed_firmware == KEY_EXPIRED)
