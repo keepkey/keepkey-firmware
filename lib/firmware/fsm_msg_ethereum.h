@@ -24,18 +24,7 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
         return TXOUT_COMPILE_ERROR;
 
     const uint32_t chain_id = coin->forkid;
-    if (ethereum_isNonStandardERC20Transfer(msg)) {
-        has_to = &msg->has_token_to;
-        to_size = &msg->token_to.size;
-        to_bytes = msg->token_to.bytes;
-        value_bytes = msg->token_value.bytes;
-        value_size = &msg->token_value.size;
-
-        // Check that the ticker gives a unique lookup. If not, we can't
-        // reliably do the lookup this way, and must abort.
-        if (!tokenByTicker(chain_id, msg->token_shortcut, &token))
-            return TXOUT_COMPILE_ERROR;
-    } else {
+    {
         has_to = &msg->has_to;
         to_size = &msg->to.size;
         to_bytes = msg->to.bytes;
