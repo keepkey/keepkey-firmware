@@ -14,10 +14,10 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
         return TXOUT_COMPILE_ERROR;
 
     bool *has_to;
-    size_t *to_size;
+    uint32_t *to_size;
     uint8_t *to_bytes;
     const uint8_t *value_bytes;
-    const size_t *value_size;
+    const uint32_t *value_size;
     const TokenType *token;
 
     if (!coin->has_forkid)
