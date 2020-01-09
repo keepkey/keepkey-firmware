@@ -73,7 +73,6 @@ add_definitions(-DRAND_PLATFORM_INDEPENDENT=0)
 add_definitions(-DPB_FIELD_16BIT=1)
 add_definitions(-DPB_NO_ERRMSG=1)
 add_definitions(-DPB_BUFFER_ONLY=1)
-add_definitions(-DPB_FIELD_32BIT=1)
 
 add_definitions(-DMAJOR_VERSION=${PROJECT_VERSION_MAJOR})
 add_definitions(-DMINOR_VERSION=${PROJECT_VERSION_MINOR})
