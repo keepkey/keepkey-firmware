@@ -512,10 +512,12 @@ ExchangeError get_exchange_error(void)
     return(exchange_error);
 }
 
+#if DEBUG_LINK
 const char *get_exchange_msg(void)
 {
-    return exchange_msg;
+    return exchange_msg ? exchange_msg : "";
 }
+#endif
 
 /*
  * process_exchange_contract() - validate contract from exchange and populate the transaction
