@@ -169,8 +169,8 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
     static char CONFIDENTIAL tokened_mnemonic[TOKENED_MNEMONIC_BUF];
     static char CONFIDENTIAL mnemonic_by_screen[MAX_PAGES][MNEMONIC_BY_SCREEN_BUF];
     static char CONFIDENTIAL formatted_mnemonic[MAX_PAGES][FORMATTED_MNEMONIC_BUF];
-    static char CONFIDENTIAL mnemonic_display[FORMATTED_MNEMONIC_BUF];
     static char CONFIDENTIAL formatted_word[MAX_WORD_LEN + ADDITIONAL_WORD_PAD];
+    static char CONFIDENTIAL mnemonic_display[FORMATTED_MNEMONIC_BUF + 3 + sizeof(formatted_word)];
 
     strlcpy(tokened_mnemonic, temp_mnemonic, TOKENED_MNEMONIC_BUF);
 
@@ -182,7 +182,7 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
                  (unsigned long)(word_count + 1), tok);
 
         /* Check that we have enough room on display to show word */
-        snprintf(mnemonic_display, FORMATTED_MNEMONIC_BUF, "%s   %s",
+        snprintf(mnemonic_display, sizeof(mnemonic_display), "%s   %s",
                  formatted_mnemonic[page_count], formatted_word);
 
         if(calc_str_line(get_body_font(), mnemonic_display, BODY_WIDTH) > 3)
@@ -195,8 +195,8 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
                 goto exit;
             }
 
-            snprintf(mnemonic_display, FORMATTED_MNEMONIC_BUF, "%s   %s",
-                 formatted_mnemonic[page_count], formatted_word);
+            snprintf(mnemonic_display, sizeof(mnemonic_display), "%s   %s",
+                     formatted_mnemonic[page_count], formatted_word);
         }
 
         strlcpy(formatted_mnemonic[page_count], mnemonic_display,
