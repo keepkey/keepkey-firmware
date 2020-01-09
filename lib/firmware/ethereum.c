@@ -55,7 +55,7 @@ static uint32_t tx_type;
 struct SHA3_CTX keccak_ctx;
 
 bool ethereum_isStandardERC20Transfer(const EthereumSignTx *msg) {
-	if (msg->to.size == 20 && msg->value.size == 0 && msg->data_initial_chunk.size == 68
+	if (msg->has_to && msg->to.size == 20 && msg->value.size == 0 && msg->data_initial_chunk.size == 68
 	    && memcmp(msg->data_initial_chunk.bytes, "\xa9\x05\x9c\xbb\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16) == 0) {
 		return true;
 	}
@@ -63,7 +63,7 @@ bool ethereum_isStandardERC20Transfer(const EthereumSignTx *msg) {
 }
 
 bool ethereum_isStandardERC20Approve(const EthereumSignTx *msg) {
-	if (msg->to.size == 20 && msg->value.size == 0 && msg->data_initial_chunk.size == 68
+	if (msg->has_to && msg->to.size == 20 && msg->value.size == 0 && msg->data_initial_chunk.size == 68
 	    && memcmp(msg->data_initial_chunk.bytes, "\x09\x5e\xa7\xb3\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16) == 0) {
 		return true;
 	}
