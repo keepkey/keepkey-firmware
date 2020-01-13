@@ -469,6 +469,13 @@ void recovery_character(const char *character)
     } else {
         memzero(coded_word, sizeof(coded_word));
         memzero(decoded_word, sizeof(decoded_word));
+
+        if (word_count && words_entered == word_count) {
+            strlcat(mnemonic, " ", MNEMONIC_BUF);
+            recovery_cipher_finalize();
+            return;
+        }
+
         words_entered++;
 
         if (words_entered > 24 || (word_count && words_entered > word_count)) {
