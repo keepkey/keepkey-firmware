@@ -2,9 +2,7 @@
 
 static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
 {
-    // Precheck: For TRANSFER, 'to' fields must not be already loaded.
-    if (msg->has_to || msg->to.size || strlen((char *)msg->to.bytes) != 0 ||
-        msg->has_token_to || msg->token_to.size || strlen((char*)msg->token_to.bytes) != 0)
+    if (!ethereum_isStandardERC20Transfer(msg) && msg->data_length != 0)
         return TXOUT_COMPILE_ERROR;
 
     char node_str[NODE_STRING_LENGTH];
@@ -13,39 +11,27 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
                               /*show_addridx=*/false))
         return TXOUT_COMPILE_ERROR;
 
-    bool *has_to;
-    pb_size_t *to_size;
-    uint8_t *to_bytes;
-    const uint8_t *value_bytes;
-    const pb_size_t *value_size;
-    const TokenType *token;
-
     if (!coin->has_forkid)
         return TXOUT_COMPILE_ERROR;
 
     const uint32_t chain_id = coin->forkid;
-    if (ethereum_isNonStandardERC20Transfer(msg)) {
-        has_to = &msg->has_token_to;
-        to_size = &msg->token_to.size;
-        to_bytes = msg->token_to.bytes;
-        value_bytes = msg->token_value.bytes;
-        value_size = &msg->token_value.size;
 
-        // Check that the ticker gives a unique lookup. If not, we can't
-        // reliably do the lookup this way, and must abort.
-        if (!tokenByTicker(chain_id, msg->token_shortcut, &token))
-            return TXOUT_COMPILE_ERROR;
+    const uint8_t *value_bytes;
+    size_t value_size;
+    const TokenType *token;
+
+    if (ethereum_isStandardERC20Transfer(msg)) {
+        value_bytes = msg->data_initial_chunk.bytes + 4 + 32;
+        value_size = 32;
+        token = tokenByChainAddress(chain_id, msg->to.bytes);
     } else {
-        has_to = &msg->has_to;
-        to_size = &msg->to.size;
-        to_bytes = msg->to.bytes;
         value_bytes = msg->value.bytes;
-        value_size = &msg->value.size;
+        value_size = msg->value.size;
         token = NULL;
     }
 
     bignum256 value;
-    bn_from_bytes(value_bytes, *value_size, &value);
+    bn_from_bytes(value_bytes, value_size, &value);
 
     char amount_str[128+sizeof(msg->token_shortcut)+3];
     ethereumFormatAmount(&value, token, chain_id, amount_str, sizeof(amount_str));
@@ -58,11 +44,18 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg)
     if (!node)
         return TXOUT_COMPILE_ERROR;
 
+    uint8_t to_bytes[20];
     if (!hdnode_get_ethereum_pubkeyhash(node, to_bytes))
         return TXOUT_COMPILE_ERROR;
 
-    *has_to = true;
-    *to_size = 20;
+    if (ethereum_isStandardERC20Transfer(msg)) {
+        if (memcmp(msg->data_initial_chunk.bytes + 4 + (32 - 20), to_bytes, 20) != 0)
+            return TXOUT_COMPILE_ERROR;
+    } else {
+        msg->has_to = true;
+        msg->to.size = 20;
+        memcpy(msg->to.bytes, to_bytes, sizeof(to_bytes));
+    }
 
     memzero((void *)node, sizeof(HDNode));
     return TXOUT_OK;

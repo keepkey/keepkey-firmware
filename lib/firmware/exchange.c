@@ -329,12 +329,7 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
         tx_out->has_chain_id = coin->has_forkid;
         tx_out->chain_id = coin->forkid;
 
-        if (ethereum_isNonStandardERC20Transfer(tx_out)) {
-            // token specific address, shorcut, and value
-            data2hex(tx_out->token_to.bytes, tx_out->token_to.size, tx_out_address);
-            tx_out_amount = (void *)tx_out->token_value.bytes;
-            deposit_coin = coinByShortcut(tx_out->token_shortcut);
-        } else if (ethereum_isStandardERC20Transfer(tx_out)) {
+        if (ethereum_isStandardERC20Transfer(tx_out)) {
             if (!ethereum_getStandardERC20Recipient(tx_out, tx_out_address, sizeof(tx_out_address)) ||
                 !ethereum_getStandardERC20Amount(tx_out, &tx_out_amount) ||
                 !ethereum_getStandardERC20Coin(tx_out, &standard_deposit)) {
@@ -512,10 +507,12 @@ ExchangeError get_exchange_error(void)
     return(exchange_error);
 }
 
+#if DEBUG_LINK
 const char *get_exchange_msg(void)
 {
-    return exchange_msg;
+    return exchange_msg ? exchange_msg : "";
 }
+#endif
 
 /*
  * process_exchange_contract() - validate contract from exchange and populate the transaction
@@ -545,9 +542,7 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
     if (isEthereumLike(coin->coin_name)) {
         const EthereumSignTx *msg = (const EthereumSignTx *)vtx_out;
         tx_exchange = (ExchangeType*)&msg->exchange_type; // FIXME: drop the cast
-        if (ethereum_isNonStandardERC20Transfer(msg)) {
-            deposit_coin = coinByShortcut(msg->token_shortcut);
-        } else if (ethereum_isStandardERC20Transfer(msg)) {
+        if (ethereum_isStandardERC20Transfer(msg)) {
             if (!ethereum_getStandardERC20Coin(msg, &standard_deposit)) {
                 set_exchange_error(ERROR_EXCHANGE_RESPONSE_STRUCTURE);
                 return false;

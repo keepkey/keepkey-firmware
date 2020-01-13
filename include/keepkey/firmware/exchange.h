@@ -38,7 +38,10 @@ typedef enum {
 
 bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode *root, bool needs_confirm);
 ExchangeError get_exchange_error(void);
+
+#if DEBUG_LINK
 const char *get_exchange_msg(void);
+#endif
 
 #if DEBUG_LINK
 #define set_exchange_error(error_code) set_exchange_errorDebug((error_code), __FILE__ ":" VERSTR(__LINE__) ":")
