@@ -309,6 +309,8 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
         exchange = &((EthereumSignTx *)vtx_out)->exchange_type;
     } else if (strcmp("Cosmos", coin->coin_name) == 0) {
         exchange = &((CosmosMsgSend *)vtx_out)->exchange_type;
+    } else if (strcmp("Binance", coin->coin_name) == 0) {
+        exchange = &((BinanceTransferMsg *)vtx_out)->outputs[0].exchange_type;
     } else {
         exchange = &((TxOutputType *)vtx_out)->exchange_type;
     }
@@ -347,6 +349,12 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
         exchange = &tx_out->exchange_type;
         memcpy(tx_out_address, tx_out->to_address, sizeof(tx_out->to_address));
         tx_out_amount = (void *)&tx_out->amount;
+        deposit_coin = coin;
+    } else if (strcmp("Binance", coin->coin_name) == 0) {
+        BinanceTransferMsg *tx_out = (BinanceTransferMsg *)vtx_out;
+        exchange = &tx_out->outputs[0].exchange_type;
+        memcpy(tx_out_address, tx_out->outputs[0].address, sizeof(tx_out->outputs[0].address));
+        tx_out_amount = (void *)&tx_out->outputs[0].coins[0].amount;
         deposit_coin = coin;
     } else {
         TxOutputType *tx_out = (TxOutputType *)vtx_out;
@@ -549,14 +557,17 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
             }
             deposit_coin = &standard_deposit;
         } else {
-            deposit_coin = coinByName(coin->coin_name);
+            deposit_coin = coin;
         }
     } else if (strcmp("Cosmos", coin->coin_name) == 0) {
         tx_exchange = &((CosmosMsgSend *)vtx_out)->exchange_type;
-        deposit_coin = coinByName(coin->coin_name);
+        deposit_coin = coin;
+    } else if (strcmp("Binance", coin->coin_name) == 0) {
+        tx_exchange = &((BinanceTransferMsg *)vtx_out)->outputs[0].exchange_type;
+        deposit_coin = coin;
     } else {
         tx_exchange = &((TxOutputType *)vtx_out)->exchange_type;
-        deposit_coin = coinByName(coin->coin_name);
+        deposit_coin = coin;
     }
 
     if (!deposit_coin) {

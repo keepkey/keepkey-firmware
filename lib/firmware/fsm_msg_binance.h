@@ -91,6 +91,8 @@ void fsm_msgBinanceTransferMsg(const BinanceTransferMsg *msg) {
     CHECK_PARAM(msg->outputs[0].coins_count == 1, "Malformed BinanceTransferMsg")
     CHECK_PARAM(msg->inputs[0].coins[0].amount ==
                 msg->outputs[0].coins[0].amount, "Malformed BinanceTransferMsg")
+    CHECK_PARAM(strcmp(msg->inputs[0].coins[0].denom, "BNB") == 0,
+                "Other BNB tokens not yet supported")
     CHECK_PARAM(strcmp(msg->inputs[0].coins[0].denom,
                        msg->outputs[0].coins[0].denom) == 0,
                        "Malformed BinanceTransferMsg")
@@ -99,6 +101,43 @@ void fsm_msgBinanceTransferMsg(const BinanceTransferMsg *msg) {
     if (!coin) { return; }
 
     const BinanceSignTx *sign_tx = binance_getBinanceSignTx();
+
+    switch (msg->outputs[0].address_type) {
+    case OutputAddressType_EXCHANGE: {
+        HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0, NULL);
+        if (!root_node) {
+            binance_signAbort();
+            fsm_sendFailure(FailureType_Failure_FirmwareError, NULL);
+            layoutHome();
+            return;
+        }
+
+        int ret = run_policy_compile_output(coin, root_node, (void *)&msg, (void *)NULL, true);
+        if (ret < TXOUT_OK) {
+            memzero((void *)root_node, sizeof(*root_node));
+            binance_signAbort();
+            send_fsm_co_error_message(ret);
+            layoutHome();
+            return;
+        }
+
+        break;
+    }
+    case OutputAddressType_TRANSFER:
+    default: {
+        char amount_str[32];
+        bn_format_uint64(msg->outputs[0].coins[0].amount, NULL, " BNB", 8, 0, false, amount_str, sizeof(amount_str));
+        if (!confirm_transaction_output(
+                ButtonRequestType_ButtonRequest_ConfirmOutput,
+                amount_str, msg->outputs[0].address)) {
+            binance_signAbort();
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+            layoutHome();
+            return;
+        }
+        break;
+    }
+    }
 
     if (!binance_signTxUpdateTransfer(msg)) {
         binance_signAbort();
