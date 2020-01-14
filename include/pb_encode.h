@@ -3,8 +3,8 @@
  * field descriptions created by nanopb_generator.py.
  */
 
-#ifndef _PB_ENCODE_H_
-#define _PB_ENCODE_H_
+#ifndef PB_ENCODE_H_INCLUDED
+#define PB_ENCODE_H_INCLUDED
 
 #include "pb.h"
 
@@ -24,7 +24,7 @@ extern "C" {
  * 4) Substreams will modify max_size and bytes_written. Don't use them
  *    to calculate any pointers.
  */
-struct _pb_ostream_t
+struct pb_ostream_s
 {
 #ifdef PB_BUFFER_ONLY
     /* Callback pointer is not used in buffer-only configuration.
@@ -35,7 +35,7 @@ struct _pb_ostream_t
      */
     int *callback;
 #else
-    bool (*callback)(pb_ostream_t *stream, const uint8_t *buf, size_t count);
+    bool (*callback)(pb_ostream_t *stream, const pb_byte_t *buf, size_t count);
 #endif
     void *state;          /* Free field for use by callback implementation. */
     size_t max_size;      /* Limit number of output bytes written (or use SIZE_MAX). */
@@ -71,6 +71,12 @@ bool pb_encode(pb_ostream_t *stream, const pb_field_t fields[], const void *src_
  */
 bool pb_encode_delimited(pb_ostream_t *stream, const pb_field_t fields[], const void *src_struct);
 
+/* Same as pb_encode, but appends a null byte to the message for termination.
+ * NOTE: This behaviour is not supported in most other protobuf implementations, so pb_encode_delimited()
+ * is a better option for compatibility.
+ */
+bool pb_encode_nullterminated(pb_ostream_t *stream, const pb_field_t fields[], const void *src_struct);
+
 /* Encode the message to get the size of the encoded data, but do not store
  * the data. */
 bool pb_get_encoded_size(size_t *size, const pb_field_t fields[], const void *src_struct);
@@ -86,7 +92,7 @@ bool pb_get_encoded_size(size_t *size, const pb_field_t fields[], const void *sr
  * Alternatively, you can use a custom stream that writes directly to e.g.
  * a file or a network socket.
  */
-pb_ostream_t pb_ostream_from_buffer(uint8_t *buf, size_t bufsize);
+pb_ostream_t pb_ostream_from_buffer(pb_byte_t *buf, size_t bufsize);
 
 /* Pseudo-stream for measuring the size of a message without actually storing
  * the encoded data.
@@ -106,7 +112,7 @@ pb_ostream_t pb_ostream_from_buffer(uint8_t *buf, size_t bufsize);
 /* Function to write into a pb_ostream_t stream. You can use this if you need
  * to append or prepend some custom headers to the message.
  */
-bool pb_write(pb_ostream_t *stream, const uint8_t *buf, size_t count);
+bool pb_write(pb_ostream_t *stream, const pb_byte_t *buf, size_t count);
 
 
 /************************************************
@@ -123,22 +129,32 @@ bool pb_encode_tag(pb_ostream_t *stream, pb_wire_type_t wiretype, uint32_t field
 
 /* Encode an integer in the varint format.
  * This works for bool, enum, int32, int64, uint32 and uint64 field types. */
+#ifndef PB_WITHOUT_64BIT
 bool pb_encode_varint(pb_ostream_t *stream, uint64_t value);
+#else
+bool pb_encode_varint(pb_ostream_t *stream, uint32_t value);
+#endif
 
 /* Encode an integer in the zig-zagged svarint format.
  * This works for sint32 and sint64. */
+#ifndef PB_WITHOUT_64BIT
 bool pb_encode_svarint(pb_ostream_t *stream, int64_t value);
+#else
+bool pb_encode_svarint(pb_ostream_t *stream, int32_t value);
+#endif
 
 /* Encode a string or bytes type field. For strings, pass strlen(s) as size. */
-bool pb_encode_string(pb_ostream_t *stream, const uint8_t *buffer, size_t size);
+bool pb_encode_string(pb_ostream_t *stream, const pb_byte_t *buffer, size_t size);
 
 /* Encode a fixed32, sfixed32 or float value.
  * You need to pass a pointer to a 4-byte wide C variable. */
 bool pb_encode_fixed32(pb_ostream_t *stream, const void *value);
 
+#ifndef PB_WITHOUT_64BIT
 /* Encode a fixed64, sfixed64 or double value.
  * You need to pass a pointer to a 8-byte wide C variable. */
 bool pb_encode_fixed64(pb_ostream_t *stream, const void *value);
+#endif
 
 /* Encode a submessage field.
  * You need to pass the pb_field_t array and pointer to struct, just like

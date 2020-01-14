@@ -1,4 +1,5 @@
 set(sources
+    pb_common.c
     pb_encode.c
     pb_decode.c)
 

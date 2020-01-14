@@ -44,7 +44,7 @@ RUN python setup.py install
 
 # Install nanopb
 WORKDIR /root
-RUN git clone --branch nanopb-0.2.9.2 https://github.com/nanopb/nanopb/
+RUN git clone --branch nanopb-0.3.9.4 https://github.com/nanopb/nanopb/
 WORKDIR /root/nanopb/generator/proto
 RUN make
 
