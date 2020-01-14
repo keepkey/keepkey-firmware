@@ -353,7 +353,7 @@ void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len)
     }
     else
     {
-        strncpy(buf, "0.", 2);
+        strncpy(buf, "0.", len);
     }
 
     /* Convert Fraction value to string */

@@ -52,7 +52,7 @@
     [ID].dir = (IN_MSG), \
     [ID].fields = (STRUCT_NAME ## _fields), \
     [ID].dispatch = (RAW), \
-    [ID].process_func = (void (*)(void*))(PROCESS_FUNC),
+    [ID].process_func = (void (*)(void*))(void*)(PROCESS_FUNC),
 
 #define DEBUG_IN(ID, STRUCT_NAME, PROCESS_FUNC) \
     [ID].msg_id = (ID), \

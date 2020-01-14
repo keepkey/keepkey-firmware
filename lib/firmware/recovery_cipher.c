@@ -57,7 +57,6 @@ static CONFIDENTIAL char cipher[ENGLISH_ALPHABET_BUF];
 static char auto_completed_word[CURRENT_WORD_BUF];
 #endif
 
-static void format_current_word(uint32_t word_pos, char *current_word, bool auto_completed);
 static uint32_t get_current_word_pos(void);
 static void get_current_word(char *current_word);
 
@@ -81,32 +80,26 @@ void recovery_cipher_abort(void) {
 ///
 /// \param current_word[in]    The string to format.
 /// \param auto_completed[in]  Whether to format as an auto completed word.
-static void format_current_word(uint32_t word_pos, char *current_word, bool auto_completed)
+static void format_current_word(uint32_t word_pos, const char *current_word,
+                                bool auto_completed, char (*formatted_word)[CURRENT_WORD_BUF + 10])
 {
-    static char CONFIDENTIAL temp_word[CURRENT_WORD_BUF];
     uint32_t word_num = word_pos + 1;
 
-    snprintf(temp_word, CURRENT_WORD_BUF, "%" PRIu32 ".%s", word_num, current_word);
+    snprintf(*formatted_word, sizeof(*formatted_word), "%" PRIu32 ".%s", word_num, current_word);
 
     /* Pad with dashes */
     size_t pos_len = strlen(current_word);
-    if (pos_len < 4)
-    {
-        for (size_t i = 0; i < 4 - pos_len; i++)
-        {
-            strlcat(temp_word, "-", CURRENT_WORD_BUF);
+    if (pos_len < 4) {
+        for (size_t i = 0; i < 4 - pos_len; i++) {
+            strlcat(*formatted_word, "-", sizeof(*formatted_word));
         }
     }
 
     /* Mark as auto completed */
-    if(auto_completed)
-    {
-        temp_word[strlen(temp_word) + 1] = '\0';
-        temp_word[strlen(temp_word)] = '~';
+    if (auto_completed) {
+        (*formatted_word)[strlen(*formatted_word) + 1] = '\0';
+        (*formatted_word)[strlen(*formatted_word)] = '~';
     }
-
-    strlcpy(current_word, temp_word, CURRENT_WORD_BUF);
-    memzero(temp_word, sizeof(temp_word));
 }
 
 /*
@@ -381,11 +374,13 @@ void next_character(void)
 #endif
 
     /* Format current word and display it along with cipher */
-    format_current_word(word_pos, current_word, auto_completed);
+    static char CONFIDENTIAL formatted_word[CURRENT_WORD_BUF + 10];
+    format_current_word(word_pos, current_word, auto_completed, &formatted_word);
+    memzero(current_word, sizeof(current_word));
 
     /* Show cipher and partial word */
-    layout_cipher(current_word, cipher);
-    memzero(current_word, sizeof(current_word));
+    layout_cipher(formatted_word, cipher);
+    memzero(formatted_word, sizeof(formatted_word));
 }
 
 /*
