@@ -1,9 +1,9 @@
 Prerequisites
 -------------
 
-Install nanopb-0.2.9.2 from:
+Install nanopb-0.3.9.4 from:
 
-`https://github.com/nanopb/nanopb/releases/tag/nanopb-0.2.9.2`
+`https://github.com/nanopb/nanopb/releases/tag/nanopb-0.3.9.4`
 
 
 Building the Emulator
