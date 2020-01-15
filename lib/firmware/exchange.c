@@ -126,9 +126,9 @@ bool addresses_same(const char *LHS, size_t LHS_len, const char *RHS, size_t RHS
  *     true/false - success/failure
  */
 static bool verify_exchange_address(const CoinType *coin, size_t address_n_count,
-                                    uint32_t *address_n, bool has_script_type,
+                                    const uint32_t *address_n, bool has_script_type,
                                     InputScriptType script_type,
-                                    char *address_str, size_t address_str_len,
+                                    const char *address_str, size_t address_str_len,
                                     const HDNode *root, bool is_token)
 {
     static CONFIDENTIAL HDNode node;
@@ -255,7 +255,9 @@ static const CoinType *getReturnCoin(const ExchangeType *exchange)
  *      true/false - success/failure
  *
  */
-static bool verify_exchange_dep_amount(const char *coin, void *dep_amt_ptr, ExchangeResponseV2_deposit_amount_t *exch_dep_amt)
+static bool verify_exchange_dep_amount(
+    const char *coin, void *dep_amt_ptr,
+    const ExchangeResponseV2_deposit_amount_t *exch_dep_amt)
 {
     char amt_str[sizeof(exch_dep_amt->bytes)];
     memset(amt_str, 0, sizeof(amt_str));
@@ -301,7 +303,7 @@ static bool verify_coins_match(const CoinType *lhs, const CoinType *rhs)
  */
 static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode *root)
 {
-    ExchangeType *exchange;
+    const ExchangeType *exchange;
     if (isEthereumLike(coin->coin_name)) {
         exchange = &((EthereumSignTx *)vtx_out)->exchange_type;
     } else if (strcmp("Cosmos", coin->coin_name) == 0) {
@@ -535,10 +537,10 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
 
     CoinType standard_deposit;
     const CoinType *deposit_coin = NULL;
-    ExchangeType *tx_exchange; // FIXME: make this const (can't because of the rev_byte_order in exchange_tx_layout_str)
+    const ExchangeType *tx_exchange;
     if (isEthereumLike(coin->coin_name)) {
         const EthereumSignTx *msg = (const EthereumSignTx *)vtx_out;
-        tx_exchange = (ExchangeType*)&msg->exchange_type; // FIXME: drop the cast
+        tx_exchange = &msg->exchange_type;
         if (ethereum_isStandardERC20Transfer(msg)) {
             if (!ethereum_getStandardERC20Coin(msg, &standard_deposit)) {
                 set_exchange_error(ERROR_EXCHANGE_RESPONSE_STRUCTURE);
