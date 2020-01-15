@@ -261,9 +261,6 @@ static bool verify_exchange_dep_amount(const char *coin, void *dep_amt_ptr, Exch
     memset(amt_str, 0, sizeof(amt_str));
     if (isEthereumLike(coin)) {
         memcpy(amt_str, exch_dep_amt->bytes, exch_dep_amt->size);
-    } else if (strcmp("Cosmos", coin) == 0) {
-        memcpy(amt_str, exch_dep_amt->bytes, exch_dep_amt->size);
-        rev_byte_order((uint8_t *)amt_str, exch_dep_amt->size);
     } else {
         if (exch_dep_amt->size > sizeof(uint64_t))
             return false;
