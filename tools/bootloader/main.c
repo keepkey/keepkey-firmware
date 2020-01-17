@@ -271,6 +271,8 @@ static void boot(void)
         data2hex(flashed_firmware_hash + 20, 4, hash_str[5]);
         data2hex(flashed_firmware_hash + 24, 4, hash_str[6]);
         data2hex(flashed_firmware_hash + 28, 4, hash_str[7]);
+        for (int i = 0; i < 8; i++)
+            kk_strlwr(hash_str[i]);
         if (!confirm_without_button_request("Unofficial Firmware",
                                             "Are you willing to take the risk?\n"
                                             "%s %s %s %s\n"
