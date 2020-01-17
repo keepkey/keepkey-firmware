@@ -262,12 +262,21 @@ static void boot(void)
         uint8_t flashed_firmware_hash[SHA256_DIGEST_LENGTH];
         memzero(flashed_firmware_hash, sizeof(flashed_firmware_hash));
         memory_firmware_hash(flashed_firmware_hash);
-        char hash_str[2][2 * 16 + 1];
-        data2hex(flashed_firmware_hash,      16, hash_str[0]);
-        data2hex(flashed_firmware_hash + 16, 16, hash_str[1]);
+        char hash_str[8][2 * 4 + 1];
+        data2hex(flashed_firmware_hash,      4, hash_str[0]);
+        data2hex(flashed_firmware_hash +  4, 4, hash_str[1]);
+        data2hex(flashed_firmware_hash +  8, 4, hash_str[2]);
+        data2hex(flashed_firmware_hash + 12, 4, hash_str[3]);
+        data2hex(flashed_firmware_hash + 16, 4, hash_str[4]);
+        data2hex(flashed_firmware_hash + 20, 4, hash_str[5]);
+        data2hex(flashed_firmware_hash + 24, 4, hash_str[6]);
+        data2hex(flashed_firmware_hash + 28, 4, hash_str[7]);
         if (!confirm_without_button_request("Unofficial Firmware",
-                                            "Are you willing to take the risk?\n%s\n%s",
-                                            hash_str[0], hash_str[1])) {
+                                            "Are you willing to take the risk?\n"
+                                            "%s %s %s %s\n"
+                                            "%s %s %s %s",
+                                            hash_str[0], hash_str[1], hash_str[2], hash_str[3],
+                                            hash_str[4], hash_str[5], hash_str[6], hash_str[7])) {
             layout_simple_message("Boot Aborted");
             return;
         }
