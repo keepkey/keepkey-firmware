@@ -98,7 +98,8 @@ it easier to extend for new features later on.
 |   AdvancedMode policy     |   bit 12       |              |                |
 |   no backup (seedless)    |   bit 13       |              |                |
 |   has_sec_fingerprint     |   bit 14       |              |                |
-|   reserved                |   bits 15 - 31 |              |                |
+|   sca_hardened            |   bit 15       |              |                |
+|   reserved                |   bits 16 - 31 |              |                |
 | pin_failed_attempts       | u32            |            4 |              8 |
 | auto_lock_delay_ms        | u32            |            4 |             12 |
 | language                  | char[16]       |           16 |             16 |

@@ -28,6 +28,10 @@
 #  include <libopencm3/stm32/desig.h>
 #endif
 
+#ifndef EMULATOR
+#  include "aes_sca/aes128_cbc.h"
+#endif
+
 #include "keepkey/board/supervise.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
@@ -276,14 +280,18 @@ void storage_deriveWrappingKey(const char *pin, uint8_t wrapping_key[64]) {
 void storage_wrapStorageKey(const uint8_t wrapping_key[64], const uint8_t key[64], uint8_t wrapped_key[64]) {
     uint8_t iv[64];
     memcpy(iv, wrapping_key, sizeof(iv));
-    aes_encrypt_ctx ctx;
-    aes_encrypt_key256(wrapping_key, &ctx);
-    aes_cbc_encrypt(key, wrapped_key, 64, iv + 32, &ctx);
-    memzero(&ctx, sizeof(ctx));
+    aes128_cbc_sca_encrypt(wrapping_key, key, wrapped_key, 64, iv + 32);
     memzero(iv, sizeof(iv));
 }
 
 void storage_unwrapStorageKey(const uint8_t wrapping_key[64], const uint8_t wrapped_key[64], uint8_t key[64]) {
+    uint8_t iv[64];
+    memcpy(iv, wrapping_key, sizeof(iv));
+    aes128_cbc_sca_decrypt(wrapping_key, wrapped_key, key, 64, iv + 32);
+    memzero(iv, sizeof(iv));
+}
+
+void storage_unwrapStorageKey256(const uint8_t wrapping_key[64], const uint8_t wrapped_key[64], uint8_t key[64]) {
     uint8_t iv[64];
     memcpy(iv, wrapping_key, sizeof(iv));
     aes_decrypt_ctx ctx;
@@ -297,15 +305,45 @@ void storage_keyFingerprint(const uint8_t key[64], uint8_t fingerprint[32]) {
     sha256_Raw(key, 64, fingerprint);
 }
 
-bool storage_isPinCorrect_impl(const char *pin, const uint8_t wrapped_key[64], const uint8_t fingerprint[32], uint8_t key[64]) {
+pintest_t storage_isPinCorrect_impl(const char *pin, uint8_t wrapped_key[64], const uint8_t fingerprint[32], bool *sca_hardened, uint8_t key[64]) {
+/*
+    This function tests whether the PIN is correct. It will return
+        PIN_WRONG     - PIN is incorrect
+        PIN_GOOD        - PIN is correct
+        PIN_REWRAP -> PIN is correct, storage key was rewrapped, CALLING FUNCTION SHOULD storage_commit()
+
+    If the pin is correct, the storage key may have been rewrapped and returned in the wrapped_key parameter. 
+    Since the *_impl functions are assumed to not touch the stored config state, the
+    rewrapped storage key will not have been saved to flash on exit from this function. Thus, if the return is 
+    PIN_REWRAP, then the calling function is required to update the flash with a storage_commit().
+*/
     uint8_t wrapping_key[64];
     storage_deriveWrappingKey(pin, wrapping_key);
-    storage_unwrapStorageKey(wrapping_key, wrapped_key, key);
+
+    // unwrap the storage key for fingerprint test
+    if (*sca_hardened) {
+        // key was wrapped using the sca-hardened method
+        storage_unwrapStorageKey(wrapping_key, wrapped_key, key);
+    } else {
+        // key was wrapped using deprecated method, unwrap for test
+        storage_unwrapStorageKey256(wrapping_key, wrapped_key, key);
+    }
 
     uint8_t fp[32];
     storage_keyFingerprint(key, fp);
 
-    bool ret = memcmp(fp, fingerprint, 32) == 0;
+    pintest_t ret = PIN_WRONG;
+    if (memcmp(fp, fingerprint, 32) == 0)
+        ret = PIN_GOOD; 
+    if (ret == PIN_GOOD) {
+        if (!*sca_hardened) {
+            // PIN is correct but storage key needs rewrap
+            storage_wrapStorageKey(wrapping_key, key, wrapped_key);
+            *sca_hardened = true;
+            ret = PIN_REWRAP;
+        }
+    }
+
     if (!ret)
         memzero(key, 64);
     memzero(wrapping_key, 64);
@@ -463,6 +501,7 @@ void storage_readStorageV1(SessionState *ss, Storage *storage, const char *ptr, 
 
     if (storage->pub.has_pin) {
         session_clear_impl(ss, storage, /*clear_pin=*/true);
+        // No need to storage_commit() here, it will get done
     }
 }
 
@@ -487,7 +526,8 @@ void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage) {
         (storage_isPolicyEnabled("AdvancedMode")  ? (1u << 12) : 0) |
         (storage->pub.no_backup                   ? (1u << 13) : 0) |
         (storage->has_sec_fingerprint             ? (1u << 14) : 0) |
-        /* reserved 31:15 */ 0;
+        (storage->pub.sca_hardened                ? (1u << 15) : 0) |
+        /* reserved 31:16 */ 0;
     write_u32_le(ptr + 4, flags);
 
     write_u32_le(ptr + 8, storage->pub.pin_failed_attempts);
@@ -541,6 +581,8 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     storage_readPolicyV2(&storage->pub.policies[3], "AdvancedMode",  flags & (1u << 12));
     storage->pub.no_backup =                                         flags & (1u << 13);
     storage->has_sec_fingerprint =                                   flags & (1u << 14);
+    storage->pub.sca_hardened =                                      flags & (1u << 15);                                    
+
     storage->pub.policies_count = POLICY_COUNT;
 
     storage->pub.pin_failed_attempts = read_u32_le(ptr + 8);
@@ -668,6 +710,7 @@ StorageUpdateStatus storage_fromFlash(SessionState *ss, ConfigFlash *dst, const 
         case StorageVersion_12:
         case StorageVersion_13:
         case StorageVersion_14:
+        case StorageVersion_15:
             storage_readV11(dst, flash, STORAGE_SECTOR_LEN);
             dst->storage.version = STORAGE_VERSION;
             return dst->storage.version == version
@@ -874,11 +917,27 @@ void storage_wipe(void)
 }
 
 void session_clear(bool clear_pin) {
-    session_clear_impl(&session, &shadow_config.storage, clear_pin);
+    if (PIN_REWRAP == session_clear_impl(&session, &shadow_config.storage, clear_pin)) {
+        storage_commit();
+    }
 }
 
-void session_clear_impl(SessionState *ss, Storage *storage, bool clear_pin)
+pintest_t session_clear_impl(SessionState *ss, Storage *storage, bool clear_pin)
 {
+/*
+    This is a *_impl() function that is assumed to not modify the flash storage config state. Because this function
+    calls storage_isPinCorrect_impl(), the storage config may need updating:
+    This function will return
+        PIN_WRONG     - PIN is incorrect
+        PIN_GOOD        - PIN is correct
+        PIN_REWRAP -> PIN is correct, storage key was rewrapped, CALLING FUNCTION SHOULD storage_commit()
+
+    If the pin is correct, the shadow config may be out of sync with the storage config in flash. 
+    Thus, if the return is PIN_REWRAP, then the calling function is required to update the flash with a 
+    storage_commit().
+*/
+    pintest_t ret = PIN_WRONG;
+
     ss->seedCached = false;
     memset(&ss->seed, 0, sizeof(ss->seed));
 
@@ -886,21 +945,27 @@ void session_clear_impl(SessionState *ss, Storage *storage, bool clear_pin)
     memset(&ss->passphrase, 0, sizeof(ss->passphrase));
 
     if (!storage_hasPin_impl(storage)) {
-        ss->pinCached =
-            storage_isPinCorrect_impl("",
+            ret = storage_isPinCorrect_impl("",
                                       storage->pub.wrapped_storage_key,
                                       storage->pub.storage_key_fingerprint,
+                                      &storage->pub.sca_hardened,
                                       ss->storageKey);
+
+        if (ret == PIN_WRONG) {
+            ss->pinCached = false;
+        } else {
+            ss->pinCached = true;
+        }
 
         if (!ss->pinCached)
             goto clear;
 
         storage_secMigrate(ss, storage, /*encrypt=*/false);
-        return;
+        return(ret);
     }
 
     if (!clear_pin) {
-        return;
+        return(ret);
     }
 
 clear:
@@ -908,6 +973,7 @@ clear:
     ss->pinCached = false;
     storage->has_sec = false;
     memzero(&storage->sec, sizeof(storage->sec));
+    return(ret);
 }
 
 void storage_commit(void)
@@ -1139,10 +1205,17 @@ const char *storage_getLanguage(void)
 
 bool storage_isPinCorrect(const char *pin) {
     uint8_t storage_key[64];
-    bool ret = storage_isPinCorrect_impl(pin,
+
+    pintest_t ret = storage_isPinCorrect_impl(pin,
                                          shadow_config.storage.pub.wrapped_storage_key,
                                          shadow_config.storage.pub.storage_key_fingerprint,
+                                         &shadow_config.storage.pub.sca_hardened,
                                          storage_key);
+    
+    if (ret == PIN_REWRAP) {
+        storage_commit();
+    }
+
     memzero(storage_key, 64);
     return ret;
 }
@@ -1181,6 +1254,7 @@ void storage_setPin_impl(SessionState *ss, Storage *storage, const char *pin)
     // Wrap the new storageKey.
     storage_wrapStorageKey(wrapping_key, ss->storageKey,
                            storage->pub.wrapped_storage_key);
+    storage->pub.sca_hardened = true;
 
     // Fingerprint the storageKey.
     storage_keyFingerprint(ss->storageKey,
@@ -1196,23 +1270,45 @@ void storage_setPin_impl(SessionState *ss, Storage *storage, const char *pin)
 
 void session_cachePin(const char *pin)
 {
-    session_cachePin_impl(&session, &shadow_config.storage, pin);
+    if (PIN_REWRAP == session_cachePin_impl(&session, &shadow_config.storage, pin)) {
+        storage_commit();
+    }
 }
 
-void session_cachePin_impl(SessionState *ss, Storage *storage, const char *pin)
+pintest_t session_cachePin_impl(SessionState *ss, Storage *storage, const char *pin)
 {
-    ss->pinCached =
+/*
+    This is a *_impl() function that is assumed to not modify the flash storage config state. Because this function
+    calls storage_isPinCorrect_impl(), the storage config may need updating:
+    This function will return
+        PIN_WRONG     - PIN is incorrect
+        PIN_GOOD        - PIN is correct
+        PIN_REWRAP -> PIN is correct, storage key was rewrapped, CALLING FUNCTION SHOULD storage_commit()
+
+    If the pin is correct, the shadow config may be out of sync with the storage config in flash. 
+    Thus, if the return is PIN_REWRAP, then the calling function is required to update the flash with a 
+    storage_commit().
+*/
+    pintest_t ret =
         storage_isPinCorrect_impl(pin,
                                   storage->pub.wrapped_storage_key,
                                   storage->pub.storage_key_fingerprint,
+                                  &storage->pub.sca_hardened,
                                   ss->storageKey);
+
+    if (ret == PIN_WRONG) {
+        ss->pinCached = false;
+    } else {
+        ss->pinCached = true;
+    }
 
     if (!ss->pinCached) {
         session_clear_impl(ss, storage, /*clear_pin=*/true);
-        return;
+        return(ret);
     }
 
     storage_secMigrate(ss, storage, /*encrypt=*/false);
+    return(ret);
 }
 
 bool session_isPinCached(void)

@@ -28,5 +28,6 @@ target_link_libraries(firmware-unit
     kkemulator
     trezorcrypto
     qrcodegenerator
+    SecAESSTM32
     kkrand
     kktransport)

@@ -18,6 +18,7 @@ target_link_libraries(board-unit
     kkboard
     trezorcrypto
     qrcodegenerator
+    SecAESSTM32
     kkemulator
     kkrand
     kktransport)
