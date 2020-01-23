@@ -31,13 +31,14 @@ $ ./scripts/build/docker/device/release.sh
 
 Compare the hash of a given tagged build:
 ```
-$ git checkout v5.8.1
+$ git checkout v6.2.0
 $ git submodule update --init --recursive
 $ ./scripts/build/docker/device/release.sh
-$ shasum -a 256 ./bin/firmware.keepkey.bin
+$ tail -c +257 ./bin/firmware.keepkey.bin | shasum -a 256
 ```
 
-With that of the [signed v5.8.1 binary on github](https://github.com/keepkey/keepkey-firmware/releases/download/v5.8.1/firmware.keepkey.bin), ignoring signatures and firmware metadata:
+With that of the [signed v6.2.0 binary on github](https://github.com/keepkey/keepkey-firmware/releases/download/v6.2.0/firmware.keepkey.bin), ignoring signatures and firmware metadata:
+
 ```
 $ tail -c +257 firmware.keepkey.bin | shasum -a 256
 ```
@@ -48,6 +49,10 @@ Then inspect the metadata itself by comparing against the structure described [h
 $ head -c +256 signed_firmware.bin | xxd -
 
 ```
+
+Caveats:
+1. v6.2.2 and v6.3.0 had an issue with build reproducibility. See [#212](https://github.com/keepkey/keepkey-firmware/issues/212).
+1. As of v6.1.0 and later, we started prepending empty slots for signatures as part of the build, and prior firmwares were emitted without that metadata section. See [87b9ebb84](https://github.com/keepkey/keepkey-firmware/commit/87b9ebb846b241e6357f296e37fd29808ddfa51a)
 
 ### Docs
 
