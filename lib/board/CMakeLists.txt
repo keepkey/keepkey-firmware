@@ -42,7 +42,8 @@ else()
     set(sources ${sources}
         usb21_standard.c
         webusb.c
-        winusb.c)
+        winusb.c
+        memcmp_s.S)
 endif()
 
 include_directories(

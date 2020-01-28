@@ -31,6 +31,7 @@
 #include "keepkey/board/supervise.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
+#include "keepkey/board/memcmp_s.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/board/util.h"
 #include "keepkey/board/variant.h"
@@ -305,7 +306,7 @@ bool storage_isPinCorrect_impl(const char *pin, const uint8_t wrapped_key[64], c
     uint8_t fp[32];
     storage_keyFingerprint(key, fp);
 
-    bool ret = memcmp(fp, fingerprint, 32) == 0;
+    bool ret = memcmp_s(fp, fingerprint, 32) == 0;
     if (!ret)
         memzero(key, 64);
     memzero(wrapping_key, 64);
@@ -371,8 +372,8 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
         uint8_t sec_fingerprint[32];
         sha256_Raw((const uint8_t *)scratch, sizeof(scratch), sec_fingerprint);
         if (storage->has_sec_fingerprint) {
-            if (memcmp(storage->sec_fingerprint, sec_fingerprint,
-                       sizeof(sec_fingerprint)) != 0) {
+            if (memcmp_s(storage->sec_fingerprint, sec_fingerprint,
+                         sizeof(sec_fingerprint)) != 0) {
                 memzero(scratch, sizeof(scratch));
                 storage_wipe();
                 layout_warning_static("Storage decrypt failure. Reboot device!");
