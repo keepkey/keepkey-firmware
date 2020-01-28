@@ -308,6 +308,9 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
         exchange = &((EthereumSignTx *)vtx_out)->exchange_type;
     } else if (strcmp("Cosmos", coin->coin_name) == 0) {
         exchange = &((CosmosMsgSend *)vtx_out)->exchange_type;
+    } else if (strcmp("Ripple", coin->coin_name) == 0) {
+        // TODO: Support Ripple exchanges.
+        return false;
     } else {
         exchange = &((TxOutputType *)vtx_out)->exchange_type;
     }
@@ -553,6 +556,9 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
     } else if (strcmp("Cosmos", coin->coin_name) == 0) {
         tx_exchange = &((CosmosMsgSend *)vtx_out)->exchange_type;
         deposit_coin = coinByName(coin->coin_name);
+    } else if (strcmp("Ripple", coin->coin_name) == 0) {
+        // TODO: Support Ripple exchanges.
+        return false;
     } else {
         tx_exchange = &((TxOutputType *)vtx_out)->exchange_type;
         deposit_coin = coinByName(coin->coin_name);
