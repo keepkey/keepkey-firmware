@@ -9,10 +9,6 @@
 
 typedef struct _CosmosSignTx CosmosSignTx;
 
-bool cosmos_path_mismatched(const CoinType *_coin,
-                            const uint32_t *_address_n,
-                            const uint32_t _address_n_count);
-bool cosmos_getAddress(const HDNode *_node, char *address);
 bool cosmos_signTxInit(const HDNode *_node, const CosmosSignTx *_msg);
 bool cosmos_signTxUpdateMsgSend(const uint64_t amount,
                                 const char *to_address);
