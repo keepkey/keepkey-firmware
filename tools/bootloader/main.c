@@ -262,12 +262,15 @@ static void boot(void)
         uint8_t flashed_firmware_hash[SHA256_DIGEST_LENGTH];
         memzero(flashed_firmware_hash, sizeof(flashed_firmware_hash));
         memory_firmware_hash(flashed_firmware_hash);
-        char hash_str[2][2 * 16 + 1];
-        data2hex(flashed_firmware_hash,      16, hash_str[0]);
-        data2hex(flashed_firmware_hash + 16, 16, hash_str[1]);
+        char hash_str[2 * 32 + 1];
+        data2hex(flashed_firmware_hash, 32, hash_str);
+        kk_strlwr(hash_str);
         if (!confirm_without_button_request("Unofficial Firmware",
-                                            "Are you willing to take the risk?\n%s\n%s",
-                                            hash_str[0], hash_str[1])) {
+                                            "Are you willing to take the risk?\n"
+                                            "%.8s %.8s %.8s %.8s\n"
+                                            "%.8s %.8s %.8s %.8s",
+                                            hash_str,      hash_str +  8, hash_str + 16, hash_str + 24,
+                                            hash_str + 32, hash_str + 40, hash_str + 48, hash_str + 56)) {
             layout_simple_message("Boot Aborted");
             return;
         }
