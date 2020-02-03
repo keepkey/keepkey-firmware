@@ -65,9 +65,6 @@ bool binance_serializeCoin(const BinanceCoin *coin)
 
 bool binance_serializeInputOutput(const BinanceInputOutput *io)
 {
-    bool success = true;
-    char buffer[64 + 1];
-
     size_t decoded_len;
     char hrp[45];
     uint8_t decoded[38];
@@ -79,6 +76,7 @@ bool binance_serializeInputOutput(const BinanceInputOutput *io)
     sha256_Update(&ctx, (const uint8_t*)io->address, strlen(io->address));
     sha256_Update(&ctx, (const uint8_t*)"\",\"coins\":[", 11);
 
+    bool success = true;
     for (int i = 0; i < io->coins_count; i++) {
         success &= binance_serializeCoin(&io->coins[i]);
         if (i + 1 != io->coins_count)
@@ -90,23 +88,23 @@ bool binance_serializeInputOutput(const BinanceInputOutput *io)
     return success;
 }
 
-bool binance_signTxUpdateTransfer(const BinanceTransferMsg *msg)
+bool binance_signTxUpdateTransfer(const BinanceTransferMsg *_msg)
 {
     bool success = true;
 
     sha256_Update(&ctx, (const uint8_t*)"{\"inputs\":[", 11);
 
-    for (int i = 0; i < msg->inputs_count; i++) {
-        success &= binance_serializeInputOutput(&msg->inputs[i]);
-        if (i + 1 != msg->inputs_count)
+    for (int i = 0; i < _msg->inputs_count; i++) {
+        success &= binance_serializeInputOutput(&_msg->inputs[i]);
+        if (i + 1 != _msg->inputs_count)
             sha256_Update(&ctx, (const uint8_t*)",", 1);
     }
 
     sha256_Update(&ctx, (const uint8_t*)"],\"outputs\":[", 13);
 
-    for (int i = 0; i < msg->outputs_count; i++) {
-        success &= binance_serializeInputOutput(&msg->outputs[i]);
-        if (i + 1 != msg->outputs_count)
+    for (int i = 0; i < _msg->outputs_count; i++) {
+        success &= binance_serializeInputOutput(&_msg->outputs[i]);
+        if (i + 1 != _msg->outputs_count)
             sha256_Update(&ctx, (const uint8_t*)",", 1);
     }
 
@@ -119,7 +117,6 @@ bool binance_signTxUpdateTransfer(const BinanceTransferMsg *msg)
 
 bool binance_signTxFinalize(uint8_t *public_key, uint8_t *signature)
 {
-    bool success = true;
     char buffer[64 + 1];
 
     if (!tendermint_snprintf(&ctx, buffer, sizeof(buffer),

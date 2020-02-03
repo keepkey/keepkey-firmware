@@ -100,8 +100,6 @@ void fsm_msgBinanceTransferMsg(const BinanceTransferMsg *msg) {
     const CoinType *coin = fsm_getCoin(true, "Binance");
     if (!coin) { return; }
 
-    const BinanceSignTx *sign_tx = binance_getBinanceSignTx();
-
     switch (msg->outputs[0].address_type) {
     case OutputAddressType_EXCHANGE: {
         HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0, NULL);
