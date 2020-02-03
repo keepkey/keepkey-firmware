@@ -44,7 +44,7 @@ bool tendermint_getAddress(const HDNode *node, const char *prefix, char *address
 
 void tendermint_sha256UpdateEscaped(SHA256_CTX *ctx, const char *s, size_t len)
 {
-    for (int i = 0; i < len; i++) {
+    for (size_t i = 0; i != len; i++) {
         if (s[i] == '"') {
             sha256_Update(ctx, (const uint8_t *)"\\\"", 2);
         } else if (s[i] == '\\') {

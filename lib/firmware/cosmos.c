@@ -116,7 +116,6 @@ bool cosmos_signTxUpdateMsgSend(const uint64_t amount,
 
 bool cosmos_signTxFinalize(uint8_t* public_key, uint8_t* signature)
 {
-    bool success = true;
     char buffer[64 + 1];
 
     // 16 + ^20 = ^36
