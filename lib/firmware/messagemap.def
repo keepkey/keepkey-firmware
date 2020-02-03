@@ -58,6 +58,10 @@
     MSG_IN(MessageType_MessageType_CosmosSignTx,                    CosmosSignTx,                fsm_msgCosmosSignTx)
     MSG_IN(MessageType_MessageType_CosmosMsgAck,                    CosmosMsgAck,                fsm_msgCosmosMsgAck)
 
+    MSG_IN(MessageType_MessageType_BinanceGetAddress,               BinanceGetAddress,           fsm_msgBinanceGetAddress)
+    MSG_IN(MessageType_MessageType_BinanceSignTx,                   BinanceSignTx,               fsm_msgBinanceSignTx)
+    MSG_IN(MessageType_MessageType_BinanceTransferMsg,              BinanceTransferMsg,          fsm_msgBinanceTransferMsg)
+
     MSG_IN(MessageType_MessageType_EosGetPublicKey,                 EosGetPublicKey,             fsm_msgEosGetPublicKey)
     MSG_IN(MessageType_MessageType_EosSignTx,                       EosSignTx,                   fsm_msgEosSignTx)
     MSG_IN(MessageType_MessageType_EosTxActionAck,                  EosTxActionAck,              fsm_msgEosTxActionAck)
@@ -97,6 +101,11 @@
     MSG_OUT(MessageType_MessageType_CosmosAddress,                  CosmosAddress,               NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_CosmosMsgRequest,               CosmosMsgRequest,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_CosmosSignedTx,                 CosmosSignedTx,              NO_PROCESS_FUNC)
+
+    MSG_OUT(MessageType_MessageType_BinanceAddress,                 BinanceAddress,              NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_BinancePublicKey,               BinancePublicKey,            NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_BinanceTxRequest,               BinanceTxRequest,            NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_BinanceSignedTx,                BinanceSignedTx,             NO_PROCESS_FUNC)
 
     MSG_OUT(MessageType_MessageType_EosPublicKey,                   EosPublicKey,                NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EosTxActionRequest,             EosTxActionRequest,          NO_PROCESS_FUNC)

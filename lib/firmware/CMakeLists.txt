@@ -1,6 +1,7 @@
 set(sources
     app_confirm.c
     app_layout.c
+    binance.c
     coins.c
     cosmos.c
     crypto.c
@@ -23,6 +24,7 @@ set(sources
     signing.c
     stellar.c
     storage.c
+    tendermint.c
     transaction.c
     u2f.c)
 

@@ -127,4 +127,5 @@ void layout_clear_animations(void);
 void layout_clear_static(void);
 
 void kk_strupr(char *str);
+void kk_strlwr(char *str);
 #endif

@@ -26,8 +26,9 @@
 #include "messages-nano.pb.h"
 #undef delete
 
-#include "messages-eos.pb.h"
+#include "messages-binance.pb.h"
 #include "messages-cosmos.pb.h"
+#include "messages-eos.pb.h"
 #include "messages-stellar.pb.h"
 
 #include "types.pb.h"

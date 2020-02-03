@@ -1,6 +1,7 @@
 extern "C" {
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/cosmos.h"
+#include "keepkey/firmware/tendermint.h"
 #include "trezor/crypto/secp256k1.h"
 }
 
@@ -18,7 +19,7 @@ TEST(Cosmos, CosmosGetAddress)
         {0x03, 0xb7, 0x32, 0x9f, 0x67, 0x8e, 0x0a, 0xc1, 0x21, 0x4b, 0x77, 0x23, 0x57, 0x54, 0x66, 0x21, 0x9c, 0x77, 0xfe, 0xdb, 0xdd, 0x95, 0x5c, 0x33, 0x29, 0x1a, 0x74, 0xf1, 0x8b, 0xf5, 0xc8, 0xa4, 0xe2},
         &secp256k1_info};
     char addr[46];
-    ASSERT_TRUE(cosmos_getAddress(&node, addr));
+    ASSERT_TRUE(tendermint_getAddress(&node, "cosmos", addr));
     EXPECT_EQ(std::string("cosmos1am058pdux3hyulcmfgj4m3hhrlfn8nzm88u80q"), addr);
 }
 

@@ -268,6 +268,11 @@ void kk_strupr(char *str) {
         *str = toupper(*str);
 }
 
+void kk_strlwr(char *str) {
+    for ( ; *str; str++)
+        *str = tolower(*str);
+}
+
 /*
  * layout_standard_notification() - Display standard notification
  *
