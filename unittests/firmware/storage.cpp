@@ -31,11 +31,10 @@ TEST(Storage, ReadMeta) {
 }
 
 TEST(Storage, WriteMeta) {
-    const Metadata src = {
-        .magic = "M1M",
-        .uuid = "u1u2u3u4u5u",
-        .uuid_str = "S1S2S3S4S5S6S7S8S9SASBS",
-    };
+    Metadata src;
+    memcpy(&src.magic[0], "M1M", sizeof(src.magic));
+    memcpy(&src.uuid[0], "u1u2u3u4u5u", sizeof(src.uuid));
+    memcpy(&src.uuid_str[0], "S1S2S3S4S5S6S7S8S9SASBS\0", sizeof(src.uuid_str));
 
     char dst[41];
     memset(dst, 0, sizeof(dst));
@@ -58,12 +57,11 @@ TEST(Storage, ReadPolicyV1) {
 }
 
 TEST(Storage, WritePolicyV1) {
-    const PolicyType src = {
-        .has_policy_name = true,
-        .policy_name = "0123456789ABCD",
-        .has_enabled = true,
-        .enabled = true,
-    };
+    PolicyType src;
+    src.has_policy_name = true;
+    memcpy(&src.policy_name[0], "0123456789ABCD", 15);
+    src.has_enabled = true;
+    src.enabled = true;
 
     char dst[18];
     memset(dst, 0, sizeof(dst));
@@ -181,11 +179,10 @@ TEST(Storage, ReadStorageV1) {
 }
 
 TEST(Storage, WriteCacheV1) {
-    const Cache src = {
-        .root_seed_cache_status = 42,
-        .root_seed_cache = "012345678901234567890123456789012345678901234567890123456789012",
-        .root_ecdsa_curve_type = "secp256k1",
-    };
+    Cache src;
+    src.root_seed_cache_status = 42;
+    memcpy(&src.root_seed_cache[0], "012345678901234567890123456789012345678901234567890123456789012", sizeof(src.root_seed_cache));
+    memcpy(&src.root_ecdsa_curve_type[0], "secp256k1", 10);
 
     char dst[75];
     memset(dst, 0xCC, sizeof(dst));
@@ -220,13 +217,17 @@ TEST(Storage, ReadCacheV1) {
 
 TEST(Storage, DumpNode) {
     HDNodeType dst;
-    HDNode src = {
-      .depth = 42,
-      .child_num = 11,
-      .chain_code = { 1, 2, 3, 4 },
-      .private_key = { 5, 6, 7 },
-      .public_key = { 74 },
-    };
+    HDNode src;
+    src.depth = 42;
+    src.child_num = 11;
+    src.chain_code[0] = 1;
+    src.chain_code[1] = 2;
+    src.chain_code[3] = 3;
+    src.chain_code[4] = 4;
+    src.private_key[0] = 5;
+    src.private_key[1] = 6;
+    src.private_key[2] = 7;
+    src.public_key[0] = 74;
 
     memset(&dst, 0, sizeof(dst));
     storage_dumpNode(&dst, &src);
@@ -576,17 +577,12 @@ TEST(Storage, NoopSecMigrate) {
 }
 
 TEST(Storage, UpgradePolicies) {
-    Storage src = {
-        .pub = {
-            .policies_count = 1,
-            .policies = {{
-                .has_policy_name = true,
-                .policy_name = "ShapeShift",
-                .has_enabled = true,
-                .enabled = true,
-            }},
-        },
-    };
+    Storage src;
+    src.pub.policies_count = 1;
+    src.pub.policies[0].has_policy_name = true;
+    memcpy(&src.pub.policies[0].policy_name[0], "ShapeShift", 11);
+    src.pub.policies[0].has_enabled = true;
+    src.pub.policies[0].enabled = true;
 
     storage_upgradePolicies(&src);
 
