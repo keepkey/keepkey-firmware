@@ -92,6 +92,10 @@ void fsm_msgEosGetPublicKey(const EosGetPublicKey *msg);
 void fsm_msgEosSignTx(const EosSignTx *msg);
 void fsm_msgEosTxActionAck(const EosTxActionAck *msg);
 
+void fsm_msgBinanceGetAddress(const BinanceGetAddress *msg);
+void fsm_msgBinanceSignTx(const BinanceSignTx *msg);
+void fsm_msgBinanceTransferMsg(const BinanceTransferMsg *msg);
+
 void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg);
 void fsm_msgCosmosSignTx(const CosmosSignTx *msg);
 void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg);

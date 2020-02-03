@@ -130,7 +130,6 @@ const pb_field_t *message_fields(MessageMapType type, MessageType msg_id,
                                  MessageMapDirection dir);
 
 bool msg_write(MessageType msg_id, const void *msg);
-bool msg_u2f_write(MessageType msg_id, const void *msg);
 
 #if DEBUG_LINK
 bool msg_debug_write(MessageType msg_id, const void *msg);
