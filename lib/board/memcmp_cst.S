@@ -3,7 +3,7 @@
 
         // Compares up to 256 bytes in constant time.
         // Roughly:
-        // int memcmp_s(const void *lhs, const void *rhs, size_t len) {
+        // int memcmp_cst(const void *lhs, const void *rhs, size_t len) {
         //    char permute[len];
         //
         //    for (int i = 0; i < len; i++) {
@@ -21,8 +21,8 @@
         //
         //    return res == 0;
         // }
-        .global memcmp_s
-memcmp_s:
+        .global memcmp_cst
+memcmp_cst:
         push    {r4, r5, r6, r7, lr}
         add     r7, sp, #12
         push.w  {r8, r9, r10}
@@ -36,7 +36,7 @@ memcmp_s:
 
         mov     r0, r5
         mov     r1, r2
-        bl      fill                   // fill(permute, len)
+        bl      asc_fill               // asc_fill(permute, len)
 
         mov     r0, r5
         mov     r1, r4
@@ -79,18 +79,20 @@ permuted_compare:
         orr.w   r0, r0, r5             // r0 = r0 | r5
         bne     .permuted_compare.loop
 
-        clz     r0, r0
-        lsrs    r0, r0, #5             // r0 = r0 == 0
+        cmp     r0, #0
+        it      ne
+        movne   r0, #1                 // r0 = !!r0
 
         pop     {r4, r5, r7, r8, pc}
 
         // Fill an array with the numbers [0, 1, 2, ... len)
-        // void fill(const char *array, size_t len)
-fill:
+        // void asc_fill(const char *array, size_t len)
+        .global asc_fill
+asc_fill:
         movs    r2, #0
-.fill.loop:
+.asc_fill.loop:
         strb    r2, [r0, r2]
         adds    r2, #1
         cmp     r1, r2
-        bne     .fill.loop
+        bne     .asc_fill.loop
         bx      lr
