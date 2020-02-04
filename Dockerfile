@@ -7,7 +7,7 @@ RUN apk add --update --no-cache \
     ca-certificates \
     git \
     openssl \
-    python \
+    python3 \
     scons \
     tar \
     w3m \
@@ -15,6 +15,16 @@ RUN apk add --update --no-cache \
     py-setuptools \
     make \
     cmake
+
+RUN python3 -m ensurepip
+RUN pip3 install \
+    "ecdsa>=0.9" \
+    "protobuf>=3.0.0" \
+    "mnemonic>=0.8" \
+    requests \
+    flask \
+    pytest \
+    semver
 
 # Install gcc-arm-none-eabi
 WORKDIR /root
