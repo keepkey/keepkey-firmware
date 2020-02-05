@@ -402,7 +402,7 @@ static void layoutEthereumConfirmTx(const uint8_t *to, uint32_t to_len, const ui
 	int cx;
 	if (approve && bn_is_zero(&val) && token) {
 		cx = snprintf(out_str, out_str_len, "Remove ability for %s to withdraw %s?", address, token->ticker + 1);
-	} else if (approve_all) {
+	} else if (approve_all && token) {
 		cx = snprintf(out_str, out_str_len, "Unlock full %s balance for withdrawal by %s?", token->ticker + 1, address);
 	} else if (approve) {
 		cx = snprintf(out_str, out_str_len, "Approve withdrawal of up to %s by %s?", amount, address);
