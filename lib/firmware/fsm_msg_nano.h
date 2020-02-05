@@ -20,6 +20,7 @@ void fsm_msgNanoGetAddress(NanoGetAddress *msg)
         &node->public_key[1],
         coin->nanoaddr_prefix, strlen(coin->nanoaddr_prefix),
         address, sizeof(address))) {
+        memzero(node, sizeof(*node));
         fsm_sendFailure(FailureType_Failure_Other, _("Can't encode address"));
         layoutHome();
         return;
@@ -38,6 +39,7 @@ void fsm_msgNanoGetAddress(NanoGetAddress *msg)
 
         if (mismatch) {
             if (!confirm(ButtonRequestType_ButtonRequest_Other, "WARNING", "Wrong address path for selected coin. Continue at your own risk!")) {
+                memzero(node, sizeof(*node));
                 fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
                 layoutHome();
                 return;
@@ -45,6 +47,7 @@ void fsm_msgNanoGetAddress(NanoGetAddress *msg)
         }
 
         if(!confirm_nano_address(node_str, address)) {
+            memzero(node, sizeof(*node));
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
             layoutHome();
             return;
@@ -53,6 +56,7 @@ void fsm_msgNanoGetAddress(NanoGetAddress *msg)
 
     resp->has_address = true;
     strlcpy(resp->address, address, sizeof(resp->address));
+    memzero(node, sizeof(*node));
     msg_write(MessageType_MessageType_NanoAddress, resp);
     layoutHome();
 }
@@ -73,6 +77,7 @@ void fsm_msgNanoSignTx(NanoSignTx *msg)
     hdnode_fill_public_key(node);
 
     if (!nano_signingInit(msg, node, coin)) {
+        memzero(node, sizeof(*node));
         fsm_sendFailure(FailureType_Failure_Other, _("Block data invalid"));
         layoutHome();
         return;
@@ -82,6 +87,7 @@ void fsm_msgNanoSignTx(NanoSignTx *msg)
 
     if (!nano_parentHash(msg)) {
         nano_signingAbort();
+        memzero(node, sizeof(*node));
         fsm_sendFailure(FailureType_Failure_Other, _("Parent block data invalid"));
         layoutHome();
         return;
@@ -95,6 +101,7 @@ void fsm_msgNanoSignTx(NanoSignTx *msg)
                                    NULL);
         if (!recip) {
             nano_signingAbort();
+            memzero(node, sizeof(*node));
             fsm_sendFailure(FailureType_Failure_Other, _("Could not derive node"));
             layoutHome();
             return;
@@ -104,6 +111,7 @@ void fsm_msgNanoSignTx(NanoSignTx *msg)
 
     if (!nano_currentHash(msg, recip)) {
         nano_signingAbort();
+        memzero(node, sizeof(*node));
         fsm_sendFailure(FailureType_Failure_Other, _("Current block data invalid"));
         layoutHome();
         return;
@@ -116,6 +124,7 @@ void fsm_msgNanoSignTx(NanoSignTx *msg)
 
     if (!nano_sanityCheck(msg)) {
         nano_signingAbort();
+        memzero(node, sizeof(*node));
         fsm_sendFailure(FailureType_Failure_Other, _("Failed sanity check"));
         layoutHome();
         return;

@@ -32,6 +32,7 @@ void fsm_msgRippleGetAddress(const RippleGetAddress *msg)
   const CoinType *coin = fsm_getCoin(true, "Ripple");
 
   if (!ripple_getAddress(node->public_key, resp->address)) {
+      memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_Other, _("Address derivation failed"));
       layoutHome();
       return;
@@ -52,12 +53,14 @@ void fsm_msgRippleGetAddress(const RippleGetAddress *msg)
       }
 
       if (!confirm_ethereum_address(node_str, resp->address)) {
+          memzero(node, sizeof(*node));
           fsm_sendFailure(FailureType_Failure_ActionCancelled, _("Show address cancelled"));
           layoutHome();
           return;
       }
   }
 
+  memzero(node, sizeof(*node));
   msg_write(MessageType_MessageType_RippleAddress, resp);
   layoutHome();
 }
@@ -80,6 +83,7 @@ void fsm_msgRippleSignTx(RippleSignTx *msg)
   hdnode_fill_public_key(node);
 
   if (!msg->has_fee || msg->fee < RIPPLE_MIN_FEE || msg->fee > RIPPLE_MAX_FEE) {
+      memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       _("Fee must be between 10 and 1,000,000 drops"));
       return;
@@ -99,6 +103,7 @@ void fsm_msgRippleSignTx(RippleSignTx *msg)
                    amount_string,
                    msg->payment.destination,
                    msg->payment.destination_tag)) {
+          memzero(node, sizeof(*node));
           fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
           layoutHome();
           return;
@@ -108,12 +113,14 @@ void fsm_msgRippleSignTx(RippleSignTx *msg)
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx,
                "Transaction", "Really send %s, with a transaction fee of %s?",
                amount_string, fee_string)) {
+      memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
       layoutHome();
       return;
   }
 
   ripple_signTx(node, msg, resp);
+  memzero(node, sizeof(*node));
   msg_write(MessageType_MessageType_RippleSignedTx, resp);
   layoutHome();
 }
