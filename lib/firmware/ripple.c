@@ -269,6 +269,7 @@ void ripple_signTx(const HDNode *node, RippleSignTx *tx,
     uint8_t sig[64];
     if (ecdsa_sign_digest(&secp256k1, node->private_key, hash, sig, NULL, NULL) != 0) {
         // Failure
+        return;
     }
 
     resp->signature.size = ecdsa_sig_to_der(sig, resp->signature.bytes);
