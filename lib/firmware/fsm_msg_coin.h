@@ -95,7 +95,6 @@ void fsm_msgSignTx(SignTx *msg)
     layout_simple_message("Preparing Transaction...");
 
 	signing_init(msg, coin, node);
-	memzero(node, sizeof(*node));
 }
 
 void fsm_msgTxAck(TxAck *msg)
