@@ -45,6 +45,6 @@ set(ETHEREUM_TOKENS ${CMAKE_BINARY_DIR}/include/keepkey/firmware/ethereum_tokens
 
 add_custom_target(ethereum_tokens.def
   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/include/keepkey/firmware
-  COMMAND python ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/ethereum_tokens.py ${ETHEREUM_TOKENS}.def)
+  COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/ethereum_tokens.py ${ETHEREUM_TOKENS}.def)
 
 add_library(kkfirmware.keepkey variant/keepkey/resources.c)
