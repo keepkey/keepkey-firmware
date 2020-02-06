@@ -9,7 +9,7 @@ Install nanopb-0.3.9.4 from:
 Building the Emulator
 ---------------------
 
-```
+```sh
 $ git clone https://github.com/keepkey/keepkey-firmware.git
 $ git submodule update --init --recursive
 $ mkdir build
@@ -24,7 +24,7 @@ $ make -j
 Running the tests
 -----------------
 
-```
+```sh
 $ cd build
 $ make all test
 ```
