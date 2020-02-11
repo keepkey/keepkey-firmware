@@ -284,7 +284,8 @@ void storage_writeHDNode(char *ptr, size_t len, const HDNodeType *node) {
 
 void storage_deriveWrappingKey(
     const char *pin, uint8_t wrapping_key[64], bool sca_hardened,
-    uint8_t random_salt[RANDOM_SALT_LEN])
+    uint8_t random_salt[RANDOM_SALT_LEN],
+    const char *message)
 {
     size_t pin_len = strlen(pin);
     if (sca_hardened && pin_len > 0) {
@@ -296,7 +297,7 @@ void storage_deriveWrappingKey(
         PBKDF2_HMAC_SHA256_CTX ctx = {0};
         pbkdf2_hmac_sha256_Init(&ctx, (const uint8_t*)pin, pin_len, salt, sizeof(salt), 1);
         for (int i = 0; i < PIN_ITER_COUNT; i += PIN_ITER_CHUNK) {
-	        layoutProgress(_("Verifying PIN"), 1000 * i / (PIN_ITER_COUNT * 2));
+	        layoutProgress(message, 1000 * i / (PIN_ITER_COUNT * 2));
             pbkdf2_hmac_sha256_Update(&ctx, PIN_ITER_CHUNK);
         }
         pbkdf2_hmac_sha256_Final(&ctx, wrapping_key);
@@ -304,10 +305,10 @@ void storage_deriveWrappingKey(
         memzero(&ctx, sizeof(ctx));
         pbkdf2_hmac_sha256_Init(&ctx, (const uint8_t*)pin, pin_len, salt, sizeof(salt), 2);
         for (int i = 0; i < PIN_ITER_COUNT; i += PIN_ITER_CHUNK) {
-	        layoutProgress(_("Verifying PIN"), 1000 * (i + PIN_ITER_COUNT) / (PIN_ITER_COUNT * 2));
+	        layoutProgress(message, 1000 * (i + PIN_ITER_COUNT) / (PIN_ITER_COUNT * 2));
             pbkdf2_hmac_sha256_Update(&ctx, PIN_ITER_CHUNK);
         }
-	    layoutProgress(_("Verifying PIN"), 1000);
+	    layoutProgress(message, 1000);
         pbkdf2_hmac_sha256_Final(&ctx, wrapping_key + 32);
 
         memzero(salt, sizeof(salt));
@@ -360,7 +361,8 @@ pintest_t storage_isPinCorrect_impl(
     PIN_REWRAP, then the calling function is required to update the flash with a storage_commit().
 */
     uint8_t wrapping_key[64];
-    storage_deriveWrappingKey(pin, wrapping_key, sca_hardened, random_salt);
+    storage_deriveWrappingKey(pin, wrapping_key, sca_hardened, random_salt,
+        _("Verifying PIN"));
 
     // unwrap the storage key for fingerprint test
     if (*sca_hardened) {
@@ -1296,7 +1298,8 @@ void storage_setPin_impl(SessionState *ss, Storage *storage, const char *pin)
 {
     // Derive the wrapping key for the new pin
     uint8_t wrapping_key[64];
-    storage_deriveWrappingKey(pin, wrapping_key, /*sca_hardened=*/true, storage->pub.random_salt);
+    storage_deriveWrappingKey(pin, wrapping_key, /*sca_hardened=*/true,
+        storage->pub.random_salt, _("Encrypting Secrets"));
 
     // Derive a new storageKey.
     random_buffer(ss->storageKey, 64);

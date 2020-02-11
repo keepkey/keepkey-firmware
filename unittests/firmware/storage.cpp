@@ -154,7 +154,7 @@ TEST(Storage, ReadStorageV1) {
 
     // Decrypt upgraded storage.
     uint8_t wrapping_key[64];
-    storage_deriveWrappingKey("123456789", wrapping_key, dst.pub.sca_hardened, dst.pub.random_salt); // strongest pin evar
+    storage_deriveWrappingKey("123456789", wrapping_key, dst.pub.sca_hardened, dst.pub.random_salt, ""); // strongest pin evar
     storage_unwrapStorageKey(wrapping_key, dst.pub.wrapped_storage_key, session.storageKey);
     storage_secMigrate(&session, &dst, /*encrypt=*/false);
 
@@ -403,7 +403,7 @@ TEST(Storage, StorageUpgrade_Normal) {
 
     // Decrypt upgraded storage.
     uint8_t wrapping_key[64];
-    storage_deriveWrappingKey("123456789", wrapping_key, shadow.storage.pub.sca_hardened, shadow.storage.pub.random_salt); // strongest pin evar
+    storage_deriveWrappingKey("123456789", wrapping_key, shadow.storage.pub.sca_hardened, shadow.storage.pub.random_salt, ""); // strongest pin evar
     storage_unwrapStorageKey(wrapping_key, shadow.storage.pub.wrapped_storage_key,
                              session.storageKey);
 
@@ -459,7 +459,7 @@ TEST(Storage, StorageRoundTrip) {
     memset(&session, 0, sizeof(session));
 
     uint8_t wrapping_key[64];
-    storage_deriveWrappingKey("", wrapping_key, start.storage.pub.sca_hardened, start.storage.pub.random_salt);
+    storage_deriveWrappingKey("", wrapping_key, start.storage.pub.sca_hardened, start.storage.pub.random_salt, "");
     storage_unwrapStorageKey(wrapping_key, start.storage.pub.wrapped_storage_key, session.storageKey);
 
     storage_secMigrate(&session, &start.storage, /*encrypt=*/true);
@@ -605,7 +605,7 @@ TEST(Storage, IsPinCorrect) {
     uint8_t wrapping_key[64];
     uint8_t random_salt[32];
     memset(random_salt, 0, sizeof(random_salt));
-    storage_deriveWrappingKey("1234", wrapping_key, sca_hardened, random_salt);
+    storage_deriveWrappingKey("1234", wrapping_key, sca_hardened, random_salt, "");
 
     const uint8_t storage_key[64] = "Quick blue fox";
     uint8_t wrapped_key[64];
@@ -651,7 +651,7 @@ TEST(Storage, Vuln1996) {
         memcpy(wrapped_key1, config.storage.pub.wrapped_storage_key, sizeof(wrapped_key1));
     
         // Check storage wrapping update by starting with unhardened aes256 version
-        storage_deriveWrappingKey(v.pin, wrapping_key, config.storage.pub.sca_hardened, random_salt);
+        storage_deriveWrappingKey(v.pin, wrapping_key, config.storage.pub.sca_hardened, random_salt, "");
         storage_unwrapStorageKey(wrapping_key, config.storage.pub.wrapped_storage_key, storage_key);
         uint8_t iv[64];
         memcpy(iv, wrapping_key, sizeof(iv));

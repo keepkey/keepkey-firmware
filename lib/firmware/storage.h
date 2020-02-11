@@ -96,7 +96,9 @@ typedef enum {
 void storage_loadNode(HDNode *dst, const HDNodeType *src);
 
 /// Derive the wrapping key from the user's pin.
-void storage_deriveWrappingKey(const char *pin, uint8_t wrapping_key[64], bool sca_hardened, uint8_t random_salt[RANDOM_SALT_LEN]);
+void storage_deriveWrappingKey(const char *pin, uint8_t wrapping_key[64],
+    bool sca_hardened, uint8_t random_salt[RANDOM_SALT_LEN],
+    const char *message);
 
 /// Wrap the storage key.
 void storage_wrapStorageKey(const uint8_t wrapping_key[64], const uint8_t key[64], uint8_t wrapped_key[64]);
