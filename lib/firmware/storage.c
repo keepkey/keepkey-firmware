@@ -56,7 +56,7 @@
 #include <string.h>
 #include <stdint.h>
 
-#ifdef EMULATOR
+#if defined(EMULATOR) || defined(DEBUG_ON)
 #  define PIN_ITER_COUNT 1000
 #  define PIN_ITER_CHUNK 10
 #else
