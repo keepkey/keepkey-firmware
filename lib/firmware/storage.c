@@ -55,6 +55,7 @@
 
 #include <string.h>
 #include <stdint.h>
+#include <assert.h>
 
 #if defined(EMULATOR) || defined(DEBUG_ON)
 #  define PIN_ITER_COUNT 1000
@@ -456,6 +457,7 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
         if (storage->has_sec_fingerprint) {
             if (memcmp(storage->sec_fingerprint, sec_fingerprint,
                        sizeof(sec_fingerprint)) != 0) {
+                assert(false && "storage decrypt failure");
                 memzero(scratch, sizeof(scratch));
                 storage_wipe();
                 layout_warning_static("Storage decrypt failure. Reboot device!");
