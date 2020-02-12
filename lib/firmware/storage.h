@@ -132,11 +132,6 @@ bool storage_hasPin_impl(const Storage *storage);
 /// \return: PIN_WRONG     - PIN is incorrect
 ///          PIN_GOOD        - PIN is correct
 ///          PIN_REWRAP -> PIN is correct, storage key was rewrapped, CALLING FUNCTION SHOULD storage_commit()
-pintest_t session_cachePin_impl(SessionState *session, Storage *storage, const char *pin);
-
-/// \return: PIN_WRONG     - PIN is incorrect
-///          PIN_GOOD        - PIN is correct
-///          PIN_REWRAP -> PIN is correct, storage key was rewrapped, CALLING FUNCTION SHOULD storage_commit()
 pintest_t session_clear_impl(SessionState *session, Storage *storage, bool clear_pin);
 
 /// \brief Get user private seed.

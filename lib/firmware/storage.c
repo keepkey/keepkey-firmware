@@ -920,8 +920,14 @@ void storage_init(void)
         break;
     }
 
-    if (!storage_hasPin())
-        session_cachePin("");
+    if (!storage_hasPin()) {
+        // Cache the PIN
+#ifndef NDEBUG
+        bool ret =
+#endif
+        storage_isPinCorrect("");
+        assert(ret && "Empty PIN not cached?");
+    }
 }
 
 void storage_resetUuid(void)
@@ -1258,20 +1264,31 @@ const char *storage_getLanguage(void)
 }
 
 bool storage_isPinCorrect(const char *pin) {
-    uint8_t storage_key[64];
-
     pintest_t ret = storage_isPinCorrect_impl(pin,
-                                         shadow_config.storage.pub.wrapped_storage_key,
-                                         shadow_config.storage.pub.storage_key_fingerprint,
-                                         &shadow_config.storage.pub.sca_hardened,
-                                         storage_key,
-                                         shadow_config.storage.pub.random_salt);
-    
-    if (ret == PIN_REWRAP) {
+        shadow_config.storage.pub.wrapped_storage_key,
+        shadow_config.storage.pub.storage_key_fingerprint,
+        &shadow_config.storage.pub.sca_hardened,
+        session.storageKey,
+        shadow_config.storage.pub.random_salt);
+
+    switch (ret) {
+    case PIN_REWRAP:
+        session.pinCached = true;
         storage_commit();
+        storage_secMigrate(&session, &shadow_config.storage, /*encrypt=*/false);
+        break;
+    case PIN_GOOD:
+        session.pinCached = true;
+        storage_secMigrate(&session, &shadow_config.storage, /*encrypt=*/false);
+        break;
+    case PIN_WRONG:
+    default:
+        session.pinCached = false;
+        session_clear_impl(&session, &shadow_config.storage, /*clear_pin=*/true);
+        memzero(session.storageKey, sizeof(session.storageKey));
+        break;
     }
 
-    memzero(storage_key, 64);
     return ret;
 }
 
@@ -1321,50 +1338,6 @@ void storage_setPin_impl(SessionState *ss, Storage *storage, const char *pin)
     storage->pub.has_pin = !!strlen(pin);
 
     storage_secMigrate(ss, storage, /*encrypt=*/true);
-}
-
-void session_cachePin(const char *pin)
-{
-    if (PIN_REWRAP == session_cachePin_impl(&session, &shadow_config.storage, pin)) {
-        storage_commit();
-    }
-}
-
-pintest_t session_cachePin_impl(SessionState *ss, Storage *storage, const char *pin)
-{
-/*
-    This is a *_impl() function that is assumed to not modify the flash storage config state. Because this function
-    calls storage_isPinCorrect_impl(), the storage config may need updating:
-    This function will return
-        PIN_WRONG     - PIN is incorrect
-        PIN_GOOD        - PIN is correct
-        PIN_REWRAP -> PIN is correct, storage key was rewrapped, CALLING FUNCTION SHOULD storage_commit()
-
-    If the pin is correct, the shadow config may be out of sync with the storage config in flash. 
-    Thus, if the return is PIN_REWRAP, then the calling function is required to update the flash with a 
-    storage_commit().
-*/
-    pintest_t ret =
-        storage_isPinCorrect_impl(pin,
-                                  storage->pub.wrapped_storage_key,
-                                  storage->pub.storage_key_fingerprint,
-                                  &storage->pub.sca_hardened,
-                                  ss->storageKey,
-                                  shadow_config.storage.pub.random_salt);
-
-    if (ret == PIN_WRONG) {
-        ss->pinCached = false;
-    } else {
-        ss->pinCached = true;
-    }
-
-    if (!ss->pinCached) {
-        session_clear_impl(ss, storage, /*clear_pin=*/true);
-        return(ret);
-    }
-
-    storage_secMigrate(ss, storage, /*encrypt=*/false);
-    return(ret);
 }
 
 bool session_isPinCached(void)
