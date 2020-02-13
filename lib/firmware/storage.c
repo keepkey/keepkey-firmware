@@ -315,7 +315,7 @@ void storage_deriveWrappingKey(
 
         memzero(salt, sizeof(salt));
     } else {
-        sha512_Raw((const uint8_t*)pin, strlen(pin), wrapping_key);
+        sha512_Raw((const uint8_t*)pin, pin_len, wrapping_key);
     }
 }
 
