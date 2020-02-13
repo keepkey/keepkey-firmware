@@ -14,6 +14,7 @@ set(sources
     keepkey_usart.c
     layout.c
     memory.c
+    memcmp_s.c
     mmhusr.c
     messages.c
     pin.c
@@ -43,7 +44,8 @@ else()
         otp.c
         usb21_standard.c
         webusb.c
-        winusb.c)
+        winusb.c
+        memcmp_cst.S)
 endif()
 
 include_directories(

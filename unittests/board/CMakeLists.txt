@@ -1,4 +1,5 @@
 set(sources
+    memcmp_s.cpp
     board.cpp)
 
 include_directories(
