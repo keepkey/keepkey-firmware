@@ -40,6 +40,7 @@ if(${KK_EMULATOR})
         udp.c)
 else()
     set(sources ${sources}
+        otp.c
         usb21_standard.c
         webusb.c
         winusb.c)

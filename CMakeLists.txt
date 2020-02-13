@@ -82,8 +82,6 @@ add_definitions(-DBOOTLOADER_MAJOR_VERSION=${BOOTLOADER_MAJOR_VERSION})
 add_definitions(-DBOOTLOADER_MINOR_VERSION=${BOOTLOADER_MINOR_VERSION})
 add_definitions(-DBOOTLOADER_PATCH_VERSION=${BOOTLOADER_PATCH_VERSION})
 
-add_definitions(-DNDEBUG)
-
 add_definitions(-DBIP39_WORDLIST_PADDED=1)
 
 add_definitions(-DAES_128=1)
@@ -100,6 +98,7 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 elseif("${CMAKE_BUILD_TYPE}" STREQUAL "Release" OR
        "${CMAKE_BUILD_TYPE}" STREQUAL "MinSizeRel" OR
        "${CMAKE_BUILD_TYPE}" STREQUAL "")
+  add_definitions(-DNDEBUG)
   add_definitions(-DMEMORY_PROTECT=1)
   if(NOT ${KK_EMULATOR})
     message(WARNING

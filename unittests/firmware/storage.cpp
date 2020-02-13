@@ -154,7 +154,7 @@ TEST(Storage, ReadStorageV1) {
 
     // Decrypt upgraded storage.
     uint8_t wrapping_key[64];
-    storage_deriveWrappingKey("123456789", wrapping_key); // strongest pin evar
+    storage_deriveWrappingKey("123456789", wrapping_key, dst.pub.sca_hardened, dst.pub.random_salt, ""); // strongest pin evar
     storage_unwrapStorageKey(wrapping_key, dst.pub.wrapped_storage_key, session.storageKey);
     storage_secMigrate(&session, &dst, /*encrypt=*/false);
 
@@ -403,7 +403,7 @@ TEST(Storage, StorageUpgrade_Normal) {
 
     // Decrypt upgraded storage.
     uint8_t wrapping_key[64];
-    storage_deriveWrappingKey("123456789", wrapping_key); // strongest pin evar
+    storage_deriveWrappingKey("123456789", wrapping_key, shadow.storage.pub.sca_hardened, shadow.storage.pub.random_salt, ""); // strongest pin evar
     storage_unwrapStorageKey(wrapping_key, shadow.storage.pub.wrapped_storage_key,
                              session.storageKey);
 
@@ -448,6 +448,7 @@ TEST(Storage, StorageRoundTrip) {
     start.storage.pub.has_u2froot = false;
     start.storage.pub.u2froot.has_public_key = false;
     start.storage.pub.u2froot.has_private_key = true;
+    start.storage.pub.sca_hardened = false;
     start.storage.has_sec = true;
     start.storage.sec.pin[0] = '\0';
     start.storage.sec.cache.root_seed_cache_status = 0xEC;
@@ -458,7 +459,7 @@ TEST(Storage, StorageRoundTrip) {
     memset(&session, 0, sizeof(session));
 
     uint8_t wrapping_key[64];
-    storage_deriveWrappingKey("", wrapping_key);
+    storage_deriveWrappingKey("", wrapping_key, start.storage.pub.sca_hardened, start.storage.pub.random_salt, "");
     storage_unwrapStorageKey(wrapping_key, start.storage.pub.wrapped_storage_key, session.storageKey);
 
     storage_secMigrate(&session, &start.storage, /*encrypt=*/true);
@@ -482,12 +483,11 @@ TEST(Storage, StorageRoundTrip) {
     printf("\n");
 #endif
 
-
     const uint8_t expected_flash[] = {
         0x73, 0x74, 0x6f, 0x72, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
         0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
         0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0x00, 0x00, 0x00, STORAGE_VERSION, 0x00, 0x00, 0x00,
-        0xff, 0xc2, 0x00, 0x00, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
+        0xff, 0x42, 0x00, 0x00, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
         0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
         0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
         0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
@@ -508,9 +508,9 @@ TEST(Storage, StorageRoundTrip) {
         0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
         0xab, 0xab, 0x68, 0x9a, 0xf4, 0xaa, 0x5f, 0x36, 0xb1, 0x9c, 0x8c, 0x5a, 0xfb, 0xaa, 0x6e, 0xc3,
         0xd9, 0xfb, 0x6c, 0xee, 0x31, 0xed, 0xf2, 0xb3, 0x08, 0x53, 0x19, 0x8b, 0x20, 0xf1, 0x15, 0x02,
-        0x73, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x73, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
+        0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
+        0xab, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -600,9 +600,12 @@ TEST(Storage, UpgradePolicies) {
 }
 
 TEST(Storage, IsPinCorrect) {
+    bool sca_hardened = true;
 
     uint8_t wrapping_key[64];
-    storage_deriveWrappingKey("1234", wrapping_key);
+    uint8_t random_salt[32];
+    memset(random_salt, 0, sizeof(random_salt));
+    storage_deriveWrappingKey("1234", wrapping_key, sca_hardened, random_salt, "");
 
     const uint8_t storage_key[64] = "Quick blue fox";
     uint8_t wrapped_key[64];
@@ -611,8 +614,8 @@ TEST(Storage, IsPinCorrect) {
     uint8_t fingerprint[32];
     storage_keyFingerprint(storage_key, fingerprint);
 
-    uint8_t key_out[64]; bool sca_hardened = true;
-    EXPECT_TRUE(storage_isPinCorrect_impl("1234", wrapped_key, fingerprint, &sca_hardened, key_out));
+    uint8_t key_out[64];
+    EXPECT_TRUE(storage_isPinCorrect_impl("1234", wrapped_key, fingerprint, &sca_hardened, key_out, random_salt));
 
     EXPECT_TRUE(memcmp(key_out, storage_key, 64) == 0);
 }
@@ -620,33 +623,35 @@ TEST(Storage, IsPinCorrect) {
 TEST(Storage, Vuln1996) {
     ConfigFlash config;
     SessionState session;
-    uint8_t wrapping_key[64], wrapped_key1[64], storage_key[64];
+    uint8_t wrapping_key[64], wrapped_key1[64], storage_key[64], random_salt[32];
 
     struct {
         const char *pin;
     } vec[] = {
         { "" },
         { "1234" },
-        { "000000000" }, // etc
+        { "000000000" },
     };
 
     for (const auto &v : vec) {
         memset(&session, 0, sizeof(session));
         memset(&config, 0, sizeof(config));
+        memset(random_salt, 0, sizeof(random_salt));
         storage_reset_impl(&session, &config);
     
         storage_setPin_impl(&session, &config.storage, v.pin);
 
         ASSERT_TRUE(PIN_GOOD == storage_isPinCorrect_impl(v.pin,
-                                             config.storage.pub.wrapped_storage_key,
-                                             config.storage.pub.storage_key_fingerprint,
-                                             &config.storage.pub.sca_hardened,
-                                             storage_key));
+            config.storage.pub.wrapped_storage_key,
+            config.storage.pub.storage_key_fingerprint,
+            &config.storage.pub.sca_hardened,
+            storage_key,
+            random_salt));
         ASSERT_TRUE(config.storage.pub.sca_hardened == true);
         memcpy(wrapped_key1, config.storage.pub.wrapped_storage_key, sizeof(wrapped_key1));
     
         // Check storage wrapping update by starting with unhardened aes256 version
-        storage_deriveWrappingKey(v.pin, wrapping_key);
+        storage_deriveWrappingKey(v.pin, wrapping_key, config.storage.pub.sca_hardened, random_salt, "");
         storage_unwrapStorageKey(wrapping_key, config.storage.pub.wrapped_storage_key, storage_key);
         uint8_t iv[64];
         memcpy(iv, wrapping_key, sizeof(iv));
@@ -660,49 +665,14 @@ TEST(Storage, Vuln1996) {
         ASSERT_TRUE(memcmp(wrapped_key1, config.storage.pub.wrapped_storage_key, sizeof(wrapped_key1)) != 0);
 
         ASSERT_TRUE(storage_isPinCorrect_impl(v.pin,
-                                             config.storage.pub.wrapped_storage_key,
-                                             config.storage.pub.storage_key_fingerprint,
-                                             &config.storage.pub.sca_hardened,
-                                             storage_key));
+            config.storage.pub.wrapped_storage_key,
+            config.storage.pub.storage_key_fingerprint,
+            &config.storage.pub.sca_hardened,
+            storage_key,
+            random_salt));
         ASSERT_TRUE(memcmp(wrapped_key1, config.storage.pub.wrapped_storage_key, sizeof(wrapped_key1)) == 0);
         ASSERT_TRUE(config.storage.pub.sca_hardened == true);
     }
-}
-
-TEST(Storage, Pin) {
-
-    storage_setPin("");
-    ASSERT_TRUE(storage_isPinCorrect(""));
-
-    storage_setPin("1234");
-    ASSERT_TRUE(storage_isPinCorrect("1234"));
-    ASSERT_FALSE(storage_isPinCorrect(""));
-    ASSERT_FALSE(storage_isPinCorrect("9876"));
-
-    storage_setPin("987654321");
-    ASSERT_FALSE(storage_isPinCorrect(""));
-    ASSERT_TRUE(storage_isPinCorrect("987654321"));
-
-    storage_setPin("");
-    ASSERT_TRUE(storage_isPinCorrect(""));
-}
-
-TEST(Storage, CacheWrongPin) {
-    ConfigFlash config;
-    SessionState session;
-    memset(&session, 0, sizeof(session));
-
-    storage_reset_impl(&session, &config);
-    config.storage.has_sec = true;
-    strcpy(config.storage.sec.mnemonic, "sekret");
-    storage_setPin_impl(&session, &config.storage, "1234");
-
-    // Attempt to cache the wrong pin
-    session_cachePin_impl(&session, &config.storage, "1111");
-
-    // Check that secrets were wiped from the session
-    ASSERT_FALSE(config.storage.has_sec);
-    ASSERT_EQ(std::string(config.storage.sec.mnemonic), "");
 }
 
 TEST(Storage, Reset) {
@@ -713,10 +683,11 @@ TEST(Storage, Reset) {
     storage_reset_impl(&session, &config);
 
     ASSERT_TRUE(storage_isPinCorrect_impl("",
-                                          config.storage.pub.wrapped_storage_key,
-                                          config.storage.pub.storage_key_fingerprint,
-                                          &config.storage.pub.sca_hardened,
-                                          session.storageKey));
+        config.storage.pub.wrapped_storage_key,
+        config.storage.pub.storage_key_fingerprint,
+        &config.storage.pub.sca_hardened,
+        session.storageKey,
+        config.storage.pub.random_salt));
 
     uint8_t old_storage_key[64];
     memcpy(old_storage_key, session.storageKey, sizeof(old_storage_key));
@@ -727,10 +698,11 @@ TEST(Storage, Reset) {
 
     uint8_t new_storage_key[64];
     ASSERT_TRUE(storage_isPinCorrect_impl("1234",
-                                          config.storage.pub.wrapped_storage_key,
-                                          config.storage.pub.storage_key_fingerprint,
-                                          &config.storage.pub.sca_hardened,
-                                          new_storage_key));
+        config.storage.pub.wrapped_storage_key,
+        config.storage.pub.storage_key_fingerprint,
+        &config.storage.pub.sca_hardened,
+        new_storage_key,
+        config.storage.pub.random_salt));
 
     ASSERT_TRUE(memcmp(session.storageKey, new_storage_key, 64) == 0);
 }

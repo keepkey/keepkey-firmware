@@ -40,4 +40,7 @@ bool set_mfg_mode_off(void);
 const char *flash_getModel(void);
 bool flash_setModel(const char (*model)[32]);
 const char *flash_programModel(void);
+
+void flash_collectHWEntropy(bool privileged);
+void flash_readHWEntropy(uint8_t *buff, size_t size);
 #endif

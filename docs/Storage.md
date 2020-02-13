@@ -109,7 +109,8 @@ it easier to extend for new features later on.
 | u2froot                   | StorageHDNode  |          129 |            176 |
 | u2f_counter               | u32            |            4 |            305 |
 | sec_fingerprint           | char[32]       |           32 |            309 |
-| reserved                  | char[123]      |          123 |            341 |
+| random_salt               | char[32]       |           32 |            341 |
+| reserved                  | char[91]       |           91 |            373 |
 | encrypted_secrets_version | u32            |            4 |            464 |
 | encrypted_secrets         | char[512]      |          512 |            468 |
 
