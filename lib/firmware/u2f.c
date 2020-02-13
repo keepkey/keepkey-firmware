@@ -585,17 +585,16 @@ static const HDNode *validateKeyHandle(const uint8_t app_id[], const uint8_t key
 
 static void promptRegister(bool request, const U2F_REGISTER_REQ *req)
 {
-#if 0
-	// Users find it confusing when a Ledger and a KeepKey are plugged in
-	// at the same time. To avoid that, we elect not to show a message in
-	// this case.
 	if (0 == memcmp(req->appId, BOGUS_APPID, U2F_APPID_SIZE)) {
-		layoutU2FDialog(request, "U2f Register",
-		                "Another U2F device was used to register in this application.");
-	} else {
+#if 1
+	    // Users find it confusing when a Ledger and a KeepKey are plugged in
+	    // at the same time. To avoid that, we elect not to show a message in
+	    // this case.
 #else
-	{
+		layoutU2FDialog(request, "U2F Register",
+		                "Another U2F device was used to register in this application.");
 #endif
+	} else {
 		const char *appname = "";
 		bool readable = getReadableAppId(req->appId, &appname);
 		layoutU2FDialog(request, "U2F Register",
