@@ -107,10 +107,11 @@ void fsm_msgEthereumSignTx(EthereumSignTx *msg)
 		return;
 	}
 
-	const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
+	HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
 	if (!node) return;
 
 	ethereum_signing_init(msg, node, needs_confirm);
+	memzero(node, sizeof(*node));
 }
 
 void fsm_msgEthereumTxAck(EthereumTxAck *msg)
@@ -126,13 +127,15 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 
 	CHECK_PIN
 
-	const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
+	HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
 	if (!node) return;
 
 	resp->address.size = 20;
 
-	if (!hdnode_get_ethereum_pubkeyhash(node, resp->address.bytes))
+	if (!hdnode_get_ethereum_pubkeyhash(node, resp->address.bytes)) {
+		memzero(node, sizeof(*node));
 		return;
+	}
 
 	const CoinType *coin = NULL;
 	bool rskip60 = false;
@@ -168,12 +171,14 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg)
 		}
 
 		if (!confirm_ethereum_address(node_str, address)) {
+			memzero(node, sizeof(*node));
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, _("Show address cancelled"));
 			layoutHome();
 			return;
 		}
 	}
 
+	memzero(node, sizeof(*node));
 	msg_write(MessageType_MessageType_EthereumAddress, resp);
 	layoutHome();
 }
@@ -193,10 +198,11 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage *msg)
 
 	CHECK_PIN
 
-	const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
+	HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n, msg->address_n_count, NULL);
 	if (!node) return;
 
 	ethereum_message_sign(msg, node, resp);
+	memzero(node, sizeof(*node));
 	layoutHome();
 }
 

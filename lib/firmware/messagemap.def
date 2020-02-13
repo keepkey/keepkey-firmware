@@ -52,6 +52,9 @@
     MSG_IN(MessageType_MessageType_EosSignTx,                       EosSignTx,                   fsm_msgEosSignTx)
     MSG_IN(MessageType_MessageType_EosTxActionAck,                  EosTxActionAck,              fsm_msgEosTxActionAck)
 
+    MSG_IN(MessageType_MessageType_RippleGetAddress,                RippleGetAddress,            fsm_msgRippleGetAddress)
+    MSG_IN(MessageType_MessageType_RippleSignTx,                    RippleSignTx,                fsm_msgRippleSignTx)
+
     /* Normal Out Messages */
     MSG_OUT(MessageType_MessageType_Success,                        Success,                     NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_Failure,                        Failure,                     NO_PROCESS_FUNC)
@@ -92,6 +95,9 @@
     MSG_OUT(MessageType_MessageType_EosPublicKey,                   EosPublicKey,                NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EosTxActionRequest,             EosTxActionRequest,          NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EosSignedTx,                    EosSignedTx,                 NO_PROCESS_FUNC)
+
+    MSG_OUT(MessageType_MessageType_RippleAddress,                  RippleAddress,               NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_RippleSignedTx,                 RippleSignedTx,              NO_PROCESS_FUNC)
 
 #if DEBUG_LINK
     /* Debug Messages */
