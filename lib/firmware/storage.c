@@ -302,8 +302,8 @@ void storage_deriveWrappingKey(
             pbkdf2_hmac_sha256_Update(&ctx, PIN_ITER_CHUNK);
         }
         pbkdf2_hmac_sha256_Final(&ctx, wrapping_key);
-
         memzero(&ctx, sizeof(ctx));
+
         pbkdf2_hmac_sha256_Init(&ctx, (const uint8_t*)pin, pin_len, salt, sizeof(salt), 2);
         for (int i = 0; i < PIN_ITER_COUNT; i += PIN_ITER_CHUNK) {
 	        layoutProgress(message, 1000 * (i + PIN_ITER_COUNT) / (PIN_ITER_COUNT * 2));
@@ -311,6 +311,7 @@ void storage_deriveWrappingKey(
         }
 	    layoutProgress(message, 1000);
         pbkdf2_hmac_sha256_Final(&ctx, wrapping_key + 32);
+        memzero(&ctx, sizeof(ctx));
 
         memzero(salt, sizeof(salt));
     } else {
