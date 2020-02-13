@@ -70,6 +70,7 @@ static void sigintHandler(int sig_num) {
 int main(void)
 {
     setup();
+    flash_collectHWEntropy(false);
     kk_board_init();
     drbg_init();
 
