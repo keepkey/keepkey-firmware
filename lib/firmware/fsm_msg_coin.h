@@ -203,7 +203,7 @@ void fsm_msgGetAddress(GetAddress *msg)
 		animating_progress_handler(_("Computing address"), 0);
 	}
 	if (!compute_address(coin, msg->script_type, node, msg->has_multisig, &msg->multisig, address)) {
-	    memzero(node, sizeof(*node));
+		memzero(node, sizeof(*node));
 		fsm_sendFailure(FailureType_Failure_Other, _("Can't encode address"));
 		layoutHome();
 		return;
@@ -228,7 +228,7 @@ void fsm_msgGetAddress(GetAddress *msg)
 
 		if (mismatch) {
 			if (!confirm(ButtonRequestType_ButtonRequest_Other, "WARNING", "Wrong address path for selected coin. Continue at your own risk!")) {
-	            memzero(node, sizeof(*node));
+				memzero(node, sizeof(*node));
 				fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
 				layoutHome();
 				return;
@@ -241,7 +241,7 @@ void fsm_msgGetAddress(GetAddress *msg)
 
 		if(!confirm_address(node_str, address + prefix_len))
 		{
-	        memzero(node, sizeof(*node));
+			memzero(node, sizeof(*node));
 			fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
 			layoutHome();
 			return;
@@ -280,17 +280,17 @@ void fsm_msgSignMessage(SignMessage *msg)
 		resp->has_address = true;
 		hdnode_fill_public_key(node);
 		if (!compute_address(coin, msg->script_type, node, false, NULL, resp->address)) {
-	        memzero(node, sizeof(*node));
+			memzero(node, sizeof(*node));
 			fsm_sendFailure(FailureType_Failure_Other, _("Error computing address"));
 			layoutHome();
 			return;
 		}
 		resp->has_signature = true;
 		resp->signature.size = 65;
-	    memzero(node, sizeof(*node));
+		memzero(node, sizeof(*node));
 		msg_write(MessageType_MessageType_MessageSignature, resp);
 	} else {
-	    memzero(node, sizeof(*node));
+		memzero(node, sizeof(*node));
 		fsm_sendFailure(FailureType_Failure_Other, _("Error signing message"));
 	}
 	layoutHome();
