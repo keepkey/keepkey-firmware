@@ -23,7 +23,7 @@
 #include "trezor/crypto/bip32.h"
 #include "keepkey/board/memory.h"
 
-#define STORAGE_VERSION 14 /* Must add case fallthrough in storage_fromFlash after increment*/
+#define STORAGE_VERSION 15 /* Must add case fallthrough in storage_fromFlash after increment*/
 #define STORAGE_RETRIES 3
 
 #define STORAGE_DEFAULT_SCREENSAVER_TIMEOUT (10U * 60U * 1000U) /* 10 minutes */

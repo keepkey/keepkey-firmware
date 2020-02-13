@@ -15,6 +15,7 @@ set(libraries
     kkemulator
     trezorcrypto
     qrcodegenerator
+    SecAESSTM32
     kkrand
     kktransport)
 
