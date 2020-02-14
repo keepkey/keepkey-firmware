@@ -5,6 +5,10 @@ Install nanopb-0.3.9.4 from:
 
 `https://github.com/nanopb/nanopb/releases/tag/nanopb-0.3.9.4`
 
+Install the python-protobuf dependency:
+
+`pip install protobuf`
+
 
 Building the Emulator
 ---------------------
