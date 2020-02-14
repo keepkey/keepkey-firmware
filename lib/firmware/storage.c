@@ -28,9 +28,8 @@
 #  include <libopencm3/stm32/desig.h>
 #endif
 
-#ifndef EMULATOR
-#  include "aes_sca/aes128_cbc.h"
-#endif
+#include "aes_sca/aes128_cbc.h"
+
 
 #include "keepkey/board/common.h"
 #include "keepkey/board/supervise.h"
