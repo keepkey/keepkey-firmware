@@ -30,7 +30,6 @@
 
 #include "aes_sca/aes128_cbc.h"
 
-
 #include "keepkey/board/common.h"
 #include "keepkey/board/supervise.h"
 #include "keepkey/board/keepkey_board.h"
