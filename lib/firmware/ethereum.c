@@ -345,6 +345,7 @@ void ethereumFormatAmount(const bignum256 *amnt, const TokenType *token, uint32_
 				case    2: suffix = " EXP";  break;  // Expanse
 				case    3: suffix = " tROP"; break;  // Ethereum Testnet Ropsten
 				case    4: suffix = " tRIN"; break;  // Ethereum Testnet Rinkeby
+				case    5: suffix = " tGOR"; break;  // Ethereum Testnet Goerli
 				case    8: suffix = " UBQ";  break;  // UBIQ
 				case   20: suffix = " EOSC"; break;  // EOS Classic
 				case   28: suffix = " ETSC"; break;  // Ethereum Social
