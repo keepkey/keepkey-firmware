@@ -623,7 +623,7 @@ TEST(Storage, IsPinCorrect) {
 TEST(Storage, Vuln1996) {
     ConfigFlash config;
     SessionState session;
-    uint8_t wrapping_key[64], wrapped_key1[64], storage_key[64], random_salt[32];
+    uint8_t wrapping_key[64], wrapped_key1[64], wrapping_key_upin[64], storage_key[64], random_salt[32];
 
     struct {
         const char *pin;
@@ -649,21 +649,31 @@ TEST(Storage, Vuln1996) {
             random_salt));
         ASSERT_TRUE(config.storage.pub.sca_hardened == true);
         memcpy(wrapped_key1, config.storage.pub.wrapped_storage_key, sizeof(wrapped_key1));
-    
-        // Check storage wrapping update by starting with unhardened aes256 version
+
+        // wrapped_key1 should be wrapped with aes128-pinstretch
+
+        // Check storage wrapping update by generating parameters consistent with aes256-pinnostretch
+
+        // first obtain the storage key generated above 
         storage_deriveWrappingKey(v.pin, wrapping_key, config.storage.pub.sca_hardened, random_salt, "");
         storage_unwrapStorageKey(wrapping_key, config.storage.pub.wrapped_storage_key, storage_key);
+
+        // now derive a wrapping key from unstretched pin and wrap the storage key with it
+        storage_deriveWrappingKey(v.pin, wrapping_key_upin, false, random_salt, "");
         uint8_t iv[64];
-        memcpy(iv, wrapping_key, sizeof(iv));
+        memcpy(iv, wrapping_key_upin, sizeof(iv));
         aes_encrypt_ctx ctx;
-        aes_encrypt_key256(wrapping_key, &ctx);
+        aes_encrypt_key256(wrapping_key_upin, &ctx);
         aes_cbc_encrypt(storage_key, config.storage.pub.wrapped_storage_key, 64, iv + 32, &ctx);
-        config.storage.pub.sca_hardened = false;
+        config.storage.pub.sca_hardened = false;    // indicate this is an unhardened wrap key
     
-        // wrapped_key1 under aes128.  Config version is wrapped under aes256 for test. This check ensures
-        // that test conditions are correct.
+        // wrapped_key1 is aes128-pinstretch.  Config version is wrapped aes256-pinnostretch 
+        // for test. 
+
+        // This check ensures that test conditions are correct.
         ASSERT_TRUE(memcmp(wrapped_key1, config.storage.pub.wrapped_storage_key, sizeof(wrapped_key1)) != 0);
 
+        // now check that aes256-nopinstretch turns into aes128-pinstretched wrapping key
         ASSERT_TRUE(storage_isPinCorrect_impl(v.pin,
             config.storage.pub.wrapped_storage_key,
             config.storage.pub.storage_key_fingerprint,

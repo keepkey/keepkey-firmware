@@ -362,7 +362,7 @@ pintest_t storage_isPinCorrect_impl(
     PIN_REWRAP, then the calling function is required to update the flash with a storage_commit().
 */
     uint8_t wrapping_key[64];
-    storage_deriveWrappingKey(pin, wrapping_key, sca_hardened, random_salt,
+    storage_deriveWrappingKey(pin, wrapping_key, *sca_hardened, random_salt,
         _("Verifying PIN"));
 
     // unwrap the storage key for fingerprint test
@@ -383,7 +383,10 @@ pintest_t storage_isPinCorrect_impl(
 
     if (ret == PIN_GOOD) {
         if (!*sca_hardened) {
-            // PIN is correct but storage key needs rewrap
+            // PIN is correct but:
+            //   1. wrapping key needs to be regenerated using stretched key
+            //   2. storage key needs a rewrap with new wrapping key and algorithm
+            storage_deriveWrappingKey(pin, wrapping_key, true/* sca_hardened */, random_salt, _("Verifying PIN"));
             storage_wrapStorageKey(wrapping_key, key, wrapped_key);
             *sca_hardened = true;
             ret = PIN_REWRAP;
