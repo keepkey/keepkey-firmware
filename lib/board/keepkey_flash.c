@@ -20,19 +20,26 @@
 
 #ifndef EMULATOR
 #  include <libopencm3/stm32/flash.h>
+#  include <libopencm3/stm32/desig.h>
 #else
 #   include <stdint.h>
 #   include <stdbool.h>
 #endif
 
-#include "keepkey/board/supervise.h"
-#include "keepkey/board/keepkey_flash.h"
-
 #include "keepkey/board/check_bootloader.h"
+#include "keepkey/board/common.h"
+#include "keepkey/board/otp.h"
+#include "keepkey/board/keepkey_flash.h"
+#include "keepkey/board/supervise.h"
+#include "keepkey/board/util.h"
+#include "keepkey/rand/rng.h"
+#include "trezor/crypto/memzero.h"
+#include "trezor/crypto/rand.h"
 
 #include <string.h>
 #include <stdint.h>
 
+uint8_t HW_ENTROPY_DATA[HW_ENTROPY_LEN];
 
 /*
  * flash_write_helper() - Helper function to locate starting address of 
@@ -104,9 +111,6 @@ void flash_erase_word(Allocation group)
     }
 #endif
 }
-
-
-
 
 /*
  * flash_write_word() - Flash write in word (32bit) size
@@ -244,8 +248,6 @@ bool set_mfg_mode_off(void)
     return(ret_val);
 }
 
-
-
 const char *flash_getModel(void) {
 #ifndef EMULATOR
     if (*((uint8_t*)OTP_MODEL_ADDR) == 0xFF)
@@ -257,9 +259,6 @@ const char *flash_getModel(void) {
     return "K1-14AM";
 #endif
 }
-
-
-
 
 bool flash_setModel(const char (*model)[MODEL_STR_SIZE]) {
 #ifndef EMULATOR
@@ -315,4 +314,34 @@ const char *flash_programModel(void) {
 #else
     return "Unknown";
 #endif
+}
+
+void flash_collectHWEntropy(bool privileged) {
+#ifdef EMULATOR
+  (void)privileged;
+  memzero(HW_ENTROPY_DATA, HW_ENTROPY_LEN);
+#else
+  if (privileged) {
+    desig_get_unique_id((uint32_t *)HW_ENTROPY_DATA);
+    // set entropy in the OTP randomness block
+    if (!flash_otp_is_locked(FLASH_OTP_BLOCK_RANDOMNESS)) {
+      uint8_t entropy[FLASH_OTP_BLOCK_SIZE] = {0};
+      random_buffer(entropy, FLASH_OTP_BLOCK_SIZE);
+      flash_otp_write(FLASH_OTP_BLOCK_RANDOMNESS, 0, entropy,
+                      FLASH_OTP_BLOCK_SIZE);
+      flash_otp_lock(FLASH_OTP_BLOCK_RANDOMNESS);
+    }
+    // collect entropy from OTP randomness block
+    flash_otp_read(FLASH_OTP_BLOCK_RANDOMNESS, 0, HW_ENTROPY_DATA + 12,
+                   FLASH_OTP_BLOCK_SIZE);
+  } else {
+    // unprivileged mode => use fixed HW_ENTROPY
+    memset(HW_ENTROPY_DATA, 0x3C, HW_ENTROPY_LEN);
+  }
+#endif
+}
+
+void flash_readHWEntropy(uint8_t *buff, size_t size)
+{
+    memcpy(buff, HW_ENTROPY_DATA, MIN(sizeof(HW_ENTROPY_DATA), size));
 }

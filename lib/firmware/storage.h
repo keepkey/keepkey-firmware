@@ -22,6 +22,7 @@
 #define STORAGEPB_H
 
 #include "keepkey/board/keepkey_board.h"
+#include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/policy.h"
 
 typedef struct _Storage {
@@ -48,6 +49,8 @@ typedef struct _Storage {
         HDNodeType u2froot;
         uint32_t u2f_counter;
         bool no_backup;
+        bool sca_hardened;
+        uint8_t random_salt[32];
     } pub;
 
     bool has_sec;
@@ -82,12 +85,20 @@ typedef struct _SessionState {
     char passphrase[51];
 } SessionState;
 
+typedef enum {
+    PIN_WRONG,      // PIN incorrect
+    PIN_GOOD,       // PIN correct
+    PIN_REWRAP      // PIN correct but storage key rewrapped, requires storage update
+} pintest_t;
+
 #define MAX_MNEMONIC_LEN 240
 
 void storage_loadNode(HDNode *dst, const HDNodeType *src);
 
 /// Derive the wrapping key from the user's pin.
-void storage_deriveWrappingKey(const char *pin, uint8_t wrapping_key[64]);
+void storage_deriveWrappingKey(const char *pin, uint8_t wrapping_key[64],
+    bool sca_hardened, uint8_t random_salt[RANDOM_SALT_LEN],
+    const char *message);
 
 /// Wrap the storage key.
 void storage_wrapStorageKey(const uint8_t wrapping_key[64], const uint8_t key[64], uint8_t wrapped_key[64]);
@@ -95,12 +106,17 @@ void storage_wrapStorageKey(const uint8_t wrapping_key[64], const uint8_t key[64
 /// Attempt to unnwrap the storage key.
 void storage_unwrapStorageKey(const uint8_t wrapping_key[64], const uint8_t wrapped_key[64], uint8_t key[64]);
 
+/// Attempt to unnwrap the storage key using aes256.
+void storage_unwrapStorageKey256(const uint8_t wrapping_key[64], const uint8_t wrapped_key[64], uint8_t key[64]);
+
 /// Get the fingerprint for an unwrapped storage key.
 void storage_keyFingerprint(const uint8_t key[64], uint8_t fingerprint[32]);
 
-/// Check whether a pin is correct.
-/// \returns true iff the pin was correct.
-bool storage_isPinCorrect_impl(const char *pin, const uint8_t wrapped_key[64], const uint8_t fingerprint[32], uint8_t key[64]);
+/// \return: PIN_WRONG     - PIN is incorrect
+///          PIN_GOOD      - PIN is correct
+///          PIN_REWRAPPED -> PIN is correct, storage key was rewrapped, CALLING FUNCTION SHOULD storage_commit()
+pintest_t storage_isPinCorrect_impl(const char *pin, uint8_t wrapped_key[64], const uint8_t fingerprint[32], bool *sca_hardened, uint8_t key[64],
+    uint8_t random_salt[RANDOM_SALT_LEN]);
 
 /// Migrate data in Storage to/from sec/encrypted_sec.
 void storage_secMigrate(SessionState *state, Storage *storage, bool encrypt);
@@ -113,9 +129,10 @@ void storage_setPin_impl(SessionState *session, Storage *storage, const char *pi
 
 bool storage_hasPin_impl(const Storage *storage);
 
-void session_cachePin_impl(SessionState *session, Storage *storage, const char *pin);
-
-void session_clear_impl(SessionState *session, Storage *storage, bool clear_pin);
+/// \return: PIN_WRONG     - PIN is incorrect
+///          PIN_GOOD        - PIN is correct
+///          PIN_REWRAP -> PIN is correct, storage key was rewrapped, CALLING FUNCTION SHOULD storage_commit()
+pintest_t session_clear_impl(SessionState *session, Storage *storage, bool clear_pin);
 
 /// \brief Get user private seed.
 /// \returns NULL on error, otherwise \returns the private seed.

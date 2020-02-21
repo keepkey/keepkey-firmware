@@ -1,4 +1,5 @@
 set(sources
+    memcmp_s.cpp
     board.cpp)
 
 include_directories(
@@ -18,6 +19,7 @@ target_link_libraries(board-unit
     kkboard
     trezorcrypto
     qrcodegenerator
+    SecAESSTM32
     kkemulator
     kkrand
     kktransport)

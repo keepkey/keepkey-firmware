@@ -37,6 +37,7 @@ void fsm_msgEosGetPublicKey(const EosGetPublicKey *msg) {
 
     if (!eos_getPublicKey(node, curve, msg->kind,
                           resp->wif_public_key, sizeof(resp->wif_public_key))) {
+        memzero(node, sizeof(*node));
         fsm_sendFailure(FailureType_Failure_Other, "Could not derive EOS pubkey");
         layoutHome();
         return;
@@ -62,6 +63,7 @@ void fsm_msgEosGetPublicKey(const EosGetPublicKey *msg) {
 
         if (!confirm(ButtonRequestType_ButtonRequest_Address, node_str,
                      "%s", resp->wif_public_key)) {
+            memzero(node, sizeof(*node));
             fsm_sendFailure(FailureType_Failure_ActionCancelled,
                             "Show EOS public key cancelled.");
             layoutHome();
@@ -69,8 +71,9 @@ void fsm_msgEosGetPublicKey(const EosGetPublicKey *msg) {
         }
     }
 
-    layoutHome();
+    memzero(node, sizeof(*node));
     msg_write(MessageType_MessageType_EosPublicKey, resp);
+    layoutHome();
 }
 
 void fsm_msgEosSignTx(const EosSignTx *msg) {
@@ -95,6 +98,7 @@ void fsm_msgEosSignTx(const EosSignTx *msg) {
     eos_signingInit(msg->chain_id.bytes, msg->num_actions, &msg->header,
                     root, msg->address_n, msg->address_n_count);
 
+    memzero(root, sizeof(*root));
     RESP_INIT(EosTxActionRequest);
     msg_write(MessageType_MessageType_EosTxActionRequest, resp);
 }

@@ -15,6 +15,7 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
     hdnode_fill_public_key(node);
 
     if (!tendermint_getAddress(node, "cosmos", resp->address)) {
+        memzero(node, sizeof(*node));
         fsm_sendFailure(FailureType_Failure_FirmwareError, _("Can't encode address"));
         layoutHome();
         return;
@@ -28,6 +29,7 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
             !bip32_path_to_string(node_str, sizeof(node_str),
                                   msg->address_n, msg->address_n_count)) {
             memset(node_str, 0, sizeof(node_str));
+            memzero(node, sizeof(*node));
             fsm_sendFailure(FailureType_Failure_FirmwareError, _("Can't create Bip32 Path String"));
             layoutHome();
         }
@@ -36,6 +38,7 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
         if (mismatch) {
             if (!confirm(ButtonRequestType_ButtonRequest_Other, "WARNING",
                          "Wrong address path for selected coin. Continue at your own risk!")) {
+                memzero(node, sizeof(*node));
                 fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
                 layoutHome();
                 return;
@@ -43,6 +46,7 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
         }
 
         if(!confirm_ethereum_address(node_str, resp->address)) {
+            memzero(node, sizeof(*node));
             fsm_sendFailure(FailureType_Failure_ActionCancelled, "Show address cancelled");
             layoutHome();
             return;
@@ -51,8 +55,9 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg)
 
     resp->has_address = true;
 
-    layoutHome();
+    memzero(node, sizeof(*node));
     msg_write(MessageType_MessageType_CosmosAddress, resp);
+    layoutHome();
 }
 
 void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
@@ -81,14 +86,16 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg)
     if (!cosmos_signTxInit(node, msg))
     {
         cosmos_signAbort();
+        memzero(node, sizeof(*node));
         fsm_sendFailure(FailureType_Failure_FirmwareError,
                         _("Failed to initialize transaction signing"));
         layoutHome();
         return;
     }
 
-    layoutHome();
+    memzero(node, sizeof(*node));
     msg_write(MessageType_MessageType_CosmosMsgRequest, resp);
+    layoutHome();
 }
 
 void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {

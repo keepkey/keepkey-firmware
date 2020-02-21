@@ -311,6 +311,9 @@ static bool verify_exchange_contract(const CoinType *coin, void *vtx_out, const 
         exchange = &((CosmosMsgSend *)vtx_out)->exchange_type;
     } else if (strcmp("Binance", coin->coin_name) == 0) {
         exchange = &((BinanceTransferMsg *)vtx_out)->outputs[0].exchange_type;
+    } else if (strcmp("Ripple", coin->coin_name) == 0) {
+        // TODO: Support Ripple exchanges.
+        return false;
     } else {
         exchange = &((TxOutputType *)vtx_out)->exchange_type;
     }
@@ -565,6 +568,9 @@ bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode
     } else if (strcmp("Binance", coin->coin_name) == 0) {
         tx_exchange = &((BinanceTransferMsg *)vtx_out)->outputs[0].exchange_type;
         deposit_coin = coin;
+    } else if (strcmp("Ripple", coin->coin_name) == 0) {
+        // TODO: Support Ripple exchanges.
+        return false;
     } else {
         tx_exchange = &((TxOutputType *)vtx_out)->exchange_type;
         deposit_coin = coin;

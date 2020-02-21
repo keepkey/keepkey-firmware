@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.7.2)
 
 project(KeepKeyFirmware
 
-        VERSION 6.3.0
+        VERSION 6.4.0
 
         LANGUAGES C CXX ASM)
 
@@ -82,9 +82,9 @@ add_definitions(-DBOOTLOADER_MAJOR_VERSION=${BOOTLOADER_MAJOR_VERSION})
 add_definitions(-DBOOTLOADER_MINOR_VERSION=${BOOTLOADER_MINOR_VERSION})
 add_definitions(-DBOOTLOADER_PATCH_VERSION=${BOOTLOADER_PATCH_VERSION})
 
-add_definitions(-DNDEBUG)
-
 add_definitions(-DBIP39_WORDLIST_PADDED=1)
+
+add_definitions(-DAES_128=1)
 
 if(${KK_DEBUG_LINK})
   add_definitions(-DDEBUG_LINK=1)
@@ -98,6 +98,7 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 elseif("${CMAKE_BUILD_TYPE}" STREQUAL "Release" OR
        "${CMAKE_BUILD_TYPE}" STREQUAL "MinSizeRel" OR
        "${CMAKE_BUILD_TYPE}" STREQUAL "")
+  add_definitions(-DNDEBUG)
   add_definitions(-DMEMORY_PROTECT=1)
   if(NOT ${KK_EMULATOR})
     message(WARNING
@@ -136,6 +137,7 @@ add_subdirectory(lib)
 add_subdirectory(tools)
 add_subdirectory(deps/crypto)
 add_subdirectory(deps/qrenc)
+add_subdirectory(deps/sca-hardening)
 
 if(${KK_EMULATOR})
   add_subdirectory(deps/googletest)
@@ -155,4 +157,3 @@ if(${KK_EMULATOR})
       COMMAND ${CMAKE_BINARY_DIR}/bin/crypto-unit --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/crypto.xml)
 
 endif()
-
