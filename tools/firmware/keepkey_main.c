@@ -86,6 +86,7 @@ static bool canDropPrivs(void)
     case BLK_v1_1_0:
         return true;
     case BLK_v2_0_0:
+    case BLK_v2_1_0:
         return SIG_OK == signatures_ok();
     }
     __builtin_unreachable();
@@ -144,6 +145,7 @@ static void check_bootloader(void) {
         unknown_bootloader();
 #endif
         return;
+    case BLK_v2_1_0:
     case BLK_v2_0_0:
     case BLK_v1_1_0:
         return;

@@ -38,6 +38,7 @@ extern char bl_hash_v1_0_4_unpatched[32];
 
 extern char bl_hash_v1_1_0[32];
 extern char bl_hash_v2_0_0[32];
+extern char bl_hash_v2_1_0[32];
 
 
 typedef enum _BootloaderKind {
@@ -50,7 +51,8 @@ typedef enum _BootloaderKind {
     BLK_v1_0_3_elf,
     BLK_v1_0_4,
     BLK_v1_1_0,
-    BLK_v2_0_0
+    BLK_v2_0_0,
+    BLK_v2_1_0
 } BootloaderKind;
 
 BootloaderKind get_bootloaderKind(void);
