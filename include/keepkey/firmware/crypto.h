@@ -36,31 +36,41 @@ uint32_t ser_length(uint32_t len, uint8_t *out);
 uint32_t ser_length_hash(Hasher *hasher, uint32_t len);
 uint32_t deser_length(const uint8_t *in, uint32_t *out);
 
-int sshMessageSign(HDNode *node, const uint8_t *message, size_t message_len, uint8_t *signature);
+int sshMessageSign(HDNode *node, const uint8_t *message, size_t message_len,
+                   uint8_t *signature);
 
-int gpgMessageSign(HDNode *node, const uint8_t *message, size_t message_len, uint8_t *signature);
+int gpgMessageSign(HDNode *node, const uint8_t *message, size_t message_len,
+                   uint8_t *signature);
 
-int cryptoGetECDHSessionKey(const HDNode *node, const uint8_t *peer_public_key, uint8_t *session_key);
+int cryptoGetECDHSessionKey(const HDNode *node, const uint8_t *peer_public_key,
+                            uint8_t *session_key);
 
-int cryptoMessageSign(const CoinType *coin, HDNode *node, InputScriptType script_type, const uint8_t *message, size_t message_len, uint8_t *signature);
+int cryptoMessageSign(const CoinType *coin, HDNode *node,
+                      InputScriptType script_type, const uint8_t *message,
+                      size_t message_len, uint8_t *signature);
 
-int cryptoMessageVerify(const CoinType *coin, const uint8_t *message, size_t message_len, const char *address, const uint8_t *signature);
+int cryptoMessageVerify(const CoinType *coin, const uint8_t *message,
+                        size_t message_len, const char *address,
+                        const uint8_t *signature);
 
 /* ECIES disabled
 // ECIES: http://memwallet.info/btcmssgs.html
-int cryptoMessageEncrypt(curve_point *pubkey, const uint8_t *msg, size_t msg_size,
-                         bool display_only, uint8_t *nonce, size_t *nonce_len, uint8_t *payload,
-                         size_t *payload_len, uint8_t *hmac, size_t *hmac_len, const uint8_t *privkey,
-                         const uint8_t *address_raw);
-int cryptoMessageDecrypt(curve_point *nonce, uint8_t *payload, size_t payload_len,
-                         const uint8_t *hmac, size_t hmac_len, const uint8_t *privkey, uint8_t *msg,
-                         size_t *msg_len, bool *display_only, bool *signing, uint8_t *address_raw);
+int cryptoMessageEncrypt(curve_point *pubkey, const uint8_t *msg, size_t
+msg_size, bool display_only, uint8_t *nonce, size_t *nonce_len, uint8_t
+*payload, size_t *payload_len, uint8_t *hmac, size_t *hmac_len, const uint8_t
+*privkey, const uint8_t *address_raw); int cryptoMessageDecrypt(curve_point
+*nonce, uint8_t *payload, size_t payload_len, const uint8_t *hmac, size_t
+hmac_len, const uint8_t *privkey, uint8_t *msg, size_t *msg_len, bool
+*display_only, bool *signing, uint8_t *address_raw);
 */
 
-uint8_t *cryptoHDNodePathToPubkey(const CoinType *coin, const HDNodePathType *hdnodepath);
-int cryptoMultisigPubkeyIndex(const CoinType *coin, const MultisigRedeemScriptType *multisig,
+uint8_t *cryptoHDNodePathToPubkey(const CoinType *coin,
+                                  const HDNodePathType *hdnodepath);
+int cryptoMultisigPubkeyIndex(const CoinType *coin,
+                              const MultisigRedeemScriptType *multisig,
                               const uint8_t *pubkey);
-int cryptoMultisigFingerprint(const MultisigRedeemScriptType *multisig, uint8_t *hash);
+int cryptoMultisigFingerprint(const MultisigRedeemScriptType *multisig,
+                              uint8_t *hash);
 int cryptoIdentityFingerprint(const IdentityType *identity, uint8_t *hash);
 
 #endif

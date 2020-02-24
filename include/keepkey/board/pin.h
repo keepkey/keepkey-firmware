@@ -20,44 +20,38 @@
 #ifndef PIN_H
 #define PIN_H
 
-
 #ifndef EMULATOR
-#  include <libopencm3/stm32/rcc.h>
-#  include <libopencm3/stm32/gpio.h>
+#include <libopencm3/stm32/rcc.h>
+#include <libopencm3/stm32/gpio.h>
 #endif
 
 #include <inttypes.h>
 
+#define SET_PIN(p) GPIO_BSRR((p).port) = (p).pin
+#define CLEAR_PIN(p) GPIO_BSRR((p).port) = ((p).pin << 16)
+#define TOGGLE_PIN(p) GPIO_ODR((p).port) ^= (p).pin
 
-#define SET_PIN(p)      GPIO_BSRR( (p).port ) = (p).pin
-#define CLEAR_PIN(p)    GPIO_BSRR( (p).port ) = ( (p).pin << 16 )
-#define TOGGLE_PIN(p)   GPIO_ODR( (p).port ) ^= (p).pin
+typedef enum {
+  PUSH_PULL_MODE,
+  OPEN_DRAIN_MODE,
 
-
-typedef enum
-{
-    PUSH_PULL_MODE,
-    OPEN_DRAIN_MODE,
-
-    NUM_PIN_MODES
+  NUM_PIN_MODES
 } OutputMode;
 
-typedef enum
-{
-    PULL_UP_MODE,
-    PULL_DOWN_MODE,
-    NO_PULL_MODE,
+typedef enum {
+  PULL_UP_MODE,
+  PULL_DOWN_MODE,
+  NO_PULL_MODE,
 
-    NUM_PULL_MODES
+  NUM_PULL_MODES
 } PullMode;
 
-typedef struct
-{
-    uint32_t port;
-    uint16_t pin;
+typedef struct {
+  uint32_t port;
+  uint16_t pin;
 } Pin;
 
-
-void pin_init_output(const Pin *pin, OutputMode output_mode, PullMode pull_mode);
+void pin_init_output(const Pin *pin, OutputMode output_mode,
+                     PullMode pull_mode);
 
 #endif

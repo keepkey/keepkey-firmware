@@ -5,10 +5,10 @@
 #include <cinttypes>
 
 struct KKDisplay {
-    virtual void setPixel(int x, int y, uint8_t r, uint8_t g, uint8_t b) = 0;
-    virtual void swapOnVSync() = 0;
+  virtual void setPixel(int x, int y, uint8_t r, uint8_t g, uint8_t b) = 0;
+  virtual void swapOnVSync() = 0;
 
-    static KKDisplay *CreateMatrix();
+  static KKDisplay *CreateMatrix();
 };
 
 #endif

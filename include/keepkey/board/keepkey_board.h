@@ -41,42 +41,40 @@
  0x0029 |  ?          |  Storage structure
  */
 
-#define STORAGE_SECTOR_LEN  0x00004000
+#define STORAGE_SECTOR_LEN 0x00004000
 
-#define STORAGE_MAGIC_STR   "stor"
-#define STORAGE_MAGIC_LEN   4
+#define STORAGE_MAGIC_STR "stor"
+#define STORAGE_MAGIC_LEN 4
 
-#define CACHE_EXISTS        0xCA
+#define CACHE_EXISTS 0xCA
 
 /* Specify the length of the uuid binary string */
-#define STORAGE_UUID_LEN    12
+#define STORAGE_UUID_LEN 12
 
 /* Length of the uuid binary converted to readable ASCII.  */
 #define STORAGE_UUID_STR_LEN ((STORAGE_UUID_LEN * 2) + 1)
 
-#define SMALL_STR_BUF       32
-#define MEDIUM_STR_BUF      64
-#define LARGE_STR_BUF       128
+#define SMALL_STR_BUF 32
+#define MEDIUM_STR_BUF 64
+#define LARGE_STR_BUF 128
 
 #define VERSION_NUM(x) #x
 #define VERSION_STR(x) VERSION_NUM(x)
 
 /* Flash metadata structure which will contains unique identifier
    information that spans device resets.  */
-typedef struct _Metadata
-{
-    char magic[STORAGE_MAGIC_LEN];
-    uint8_t uuid[STORAGE_UUID_LEN];
-    char uuid_str[STORAGE_UUID_STR_LEN];
+typedef struct _Metadata {
+  char magic[STORAGE_MAGIC_LEN];
+  uint8_t uuid[STORAGE_UUID_LEN];
+  char uuid_str[STORAGE_UUID_STR_LEN];
 } Metadata;
 
 /* Cache structure */
-typedef struct _Cache
-{
-    /* Root node cache */
-    uint8_t root_seed_cache_status;
-    uint8_t root_seed_cache[64];
-    char root_ecdsa_curve_type[10];
+typedef struct _Cache {
+  /* Root node cache */
+  uint8_t root_seed_cache_status;
+  uint8_t root_seed_cache[64];
+  char root_ecdsa_curve_type[10];
 } Cache;
 
 extern uintptr_t __stack_chk_guard;

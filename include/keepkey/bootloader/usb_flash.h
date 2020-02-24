@@ -20,49 +20,46 @@
 #ifndef USB_FLASH_H
 #define USB_FLASH_H
 
-
 #include "keepkey/board/messages.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 
+#define RESP_INIT(TYPE) \
+  TYPE resp;            \
+  memset(&resp, 0, sizeof(TYPE));
 
-#define RESP_INIT(TYPE) TYPE resp; memset(&resp, 0, sizeof(TYPE));
+#define UPLOAD_STATUS_FREQUENCY 1024
+#define PROTOBUF_FIRMWARE_HASH_START 2
+#define PROTOBUF_FIRMWARE_START 38
 
-#define UPLOAD_STATUS_FREQUENCY		    1024
-#define PROTOBUF_FIRMWARE_HASH_START    2
-#define PROTOBUF_FIRMWARE_START	        38
+#define FILL_CONFIG_DATA 0xaa
 
-#define FILL_CONFIG_DATA                0xaa
-
-
-typedef enum 
-{
-    UPLOAD_NOT_STARTED,
-    UPLOAD_STARTED,
-    UPLOAD_COMPLETE,
-    UPLOAD_ERROR
+typedef enum {
+  UPLOAD_NOT_STARTED,
+  UPLOAD_STARTED,
+  UPLOAD_COMPLETE,
+  UPLOAD_ERROR
 } FirmwareUploadState;
 
 /* Generic message handler callback type */
-typedef void (*message_handler_t)(void* msg_struct); 
-
+typedef void (*message_handler_t)(void* msg_struct);
 
 bool usb_flash_firmware(void);
 void storage_sectorInit(void);
-void send_success(const char *text);
-void send_failure(FailureType code, const char *text);
+void send_success(const char* text);
+void send_failure(FailureType code, const char* text);
 void handler_initialize(Initialize* msg);
 void handler_get_features(GetFeatures* msg);
 void handler_ping(Ping* msg);
 void handler_erase(FirmwareErase* msg);
 void handler_wipe(WipeDevice* msg);
-void raw_handler_upload(RawMessage *msg, uint32_t frame_length);
+void raw_handler_upload(RawMessage* msg, uint32_t frame_length);
 
 #if DEBUG_LINK
-void handler_debug_link_get_state(DebugLinkGetState *msg);
-void handler_debug_link_stop(DebugLinkStop *msg);
-void handler_debug_link_fill_config(DebugLinkFillConfig *msg);
+void handler_debug_link_get_state(DebugLinkGetState* msg);
+void handler_debug_link_stop(DebugLinkStop* msg);
+void handler_debug_link_fill_config(DebugLinkFillConfig* msg);
 #endif
 
 #endif

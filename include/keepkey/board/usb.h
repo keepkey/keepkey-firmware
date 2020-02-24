@@ -27,7 +27,7 @@
 #include <stddef.h>
 
 #ifndef EMULATOR
-#  include <libopencm3/usb/usbd.h>
+#include <libopencm3/usb/usbd.h>
 #endif
 
 /* USB Board Config */
@@ -40,18 +40,18 @@
 #define NUM_USB_STRINGS (sizeof(usb_strings) / sizeof(usb_strings[0]))
 
 /* USB endpoint */
-#define ENDPOINT_ADDRESS_IN         (0x81)
-#define ENDPOINT_ADDRESS_OUT        (0x01)
+#define ENDPOINT_ADDRESS_IN (0x81)
+#define ENDPOINT_ADDRESS_OUT (0x01)
 
 #if DEBUG_LINK
-#define ENDPOINT_ADDRESS_DEBUG_IN   (0x82)
-#define ENDPOINT_ADDRESS_DEBUG_OUT  (0x02)
+#define ENDPOINT_ADDRESS_DEBUG_IN (0x82)
+#define ENDPOINT_ADDRESS_DEBUG_OUT (0x02)
 #endif
 
-#define ENDPOINT_ADDRESS_U2F_IN   (0x83)
-#define ENDPOINT_ADDRESS_U2F_OUT  (0x03)
+#define ENDPOINT_ADDRESS_U2F_IN (0x83)
+#define ENDPOINT_ADDRESS_U2F_OUT (0x03)
 
-/* Control buffer for use by the USB stack.  We just allocate the 
+/* Control buffer for use by the USB stack.  We just allocate the
    space for it.  */
 #define USBD_CONTROL_BUFFER_SIZE 128
 

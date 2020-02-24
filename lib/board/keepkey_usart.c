@@ -17,11 +17,10 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef EMULATOR
-#  include <libopencm3/stm32/rcc.h>
-#  include <libopencm3/stm32/gpio.h>
-#  include <libopencm3/stm32/usart.h>
+#include <libopencm3/stm32/rcc.h>
+#include <libopencm3/stm32/gpio.h>
+#include <libopencm3/stm32/usart.h>
 #endif
 
 #include "keepkey/board/timer.h"
@@ -29,7 +28,6 @@
 
 #include <stdio.h>
 #include <string.h>
-
 
 /*
  * put_console_char() - Display a character on serial debug port
@@ -40,29 +38,25 @@
  *     true/false status
  */
 #ifdef USART_DEBUG_ON
-static bool put_console_char(int8_t c)
-{
+static bool put_console_char(int8_t c) {
 #ifndef EMULATOR
-    int timeout_cnt = 100; /* allow 100msec for USART busy timeout*/
-    bool ret_stat = false;
+  int timeout_cnt = 100; /* allow 100msec for USART busy timeout*/
+  bool ret_stat = false;
 
-    do
-    {
-        /* check Tx register ready transmissiion */
-        if(USART_SR(USART3_BASE) & USART_SR_TXE)
-        {
-            USART_DR(USART3_BASE) = c;
-            ret_stat = true;
-            break;
-        }
-
-        delay_ms(1);   /* 1 ms sampling */
+  do {
+    /* check Tx register ready transmissiion */
+    if (USART_SR(USART3_BASE) & USART_SR_TXE) {
+      USART_DR(USART3_BASE) = c;
+      ret_stat = true;
+      break;
     }
-    while(--timeout_cnt);
 
-    return(ret_stat);
+    delay_ms(1); /* 1 ms sampling */
+  } while (--timeout_cnt);
+
+  return (ret_stat);
 #else
-    return false;
+  return false;
 #endif
 }
 
@@ -74,33 +68,28 @@ static bool put_console_char(int8_t c)
  * OUTPUT
  *     true/false update status
  */
-static bool get_console_input(char *read_char)
-{
+static bool get_console_input(char *read_char) {
 #ifndef EMULATOR
-    int timeout_cnt = 100; /* allow 100msec for USART busy timeout*/
-    bool ret_stat = false;
+  int timeout_cnt = 100; /* allow 100msec for USART busy timeout*/
+  bool ret_stat = false;
 
-    do
-    {
-        /* check Rx register ready for read*/
-        if(USART_SR(USART3_BASE) & USART_SR_RXNE)
-        {
-            /* data received */
-            *read_char = USART_DR(USART3_BASE);
-            ret_stat = true;
-            break;
-        }
-
-        delay_ms(1);   /* 1 ms sampling */
+  do {
+    /* check Rx register ready for read*/
+    if (USART_SR(USART3_BASE) & USART_SR_RXNE) {
+      /* data received */
+      *read_char = USART_DR(USART3_BASE);
+      ret_stat = true;
+      break;
     }
-    while(--timeout_cnt);
 
-    return (ret_stat);
+    delay_ms(1); /* 1 ms sampling */
+  } while (--timeout_cnt);
+
+  return (ret_stat);
 #else
-    return false;
+  return false;
 #endif
 }
-
 
 /*
  * display_debug_string() - Dump string to debug console
@@ -110,13 +99,10 @@ static bool get_console_input(char *read_char)
  * OUTPUT
  *     none
  */
-static void display_debug_string(char *str)
-{
-    do
-    {
-        put_console_char(*str);
-    }
-    while(*(str++));
+static void display_debug_string(char *str) {
+  do {
+    put_console_char(*str);
+  } while (*(str++));
 }
 
 /*
@@ -127,46 +113,45 @@ static void display_debug_string(char *str)
  * OUTPUT
  *     none
  */
-void usart_init(void)
-{
+void usart_init(void) {
 #ifndef EMULATOR
-    /* Setup PB10 for USART-TX */
-    gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO10);
-    gpio_set_output_options(GPIOB, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO10);
+  /* Setup PB10 for USART-TX */
+  gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO10);
+  gpio_set_output_options(GPIOB, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO10);
 
-    /* Setup PB11 for USART-RX */
-    gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO11);
-    gpio_set_output_options(GPIOB, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO11);
+  /* Setup PB11 for USART-RX */
+  gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO11);
+  gpio_set_output_options(GPIOB, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO11);
 
-    /* Set PB10 and PB11 to USART3 alternate aunction */
-    gpio_set_af(GPIOB, 7, GPIO10);
-    gpio_set_af(GPIOB, 7, GPIO11);
+  /* Set PB10 and PB11 to USART3 alternate aunction */
+  gpio_set_af(GPIOB, 7, GPIO10);
+  gpio_set_af(GPIOB, 7, GPIO11);
 
-    /*enable USART3 clock source */
-    rcc_periph_clock_enable(RCC_USART3);
+  /*enable USART3 clock source */
+  rcc_periph_clock_enable(RCC_USART3);
 
-    /* disable USART3 before you are allow to write to USART3 registers */
-    usart_disable(USART3_BASE)  ;
+  /* disable USART3 before you are allow to write to USART3 registers */
+  usart_disable(USART3_BASE);
 
-    /* set Word Length */
-    usart_set_databits(USART3_BASE, 8);
+  /* set Word Length */
+  usart_set_databits(USART3_BASE, 8);
 
-    /* Set Transmit/Receive mode */
-    usart_set_mode(USART3_BASE, USART_CR1_RE | USART_CR1_TE);
+  /* Set Transmit/Receive mode */
+  usart_set_mode(USART3_BASE, USART_CR1_RE | USART_CR1_TE);
 
-    usart_set_stopbits(USART3_BASE, USART_CR2_STOPBITS_1);
+  usart_set_stopbits(USART3_BASE, USART_CR2_STOPBITS_1);
 
-    /* disable parity */
-    usart_set_parity(USART3_BASE, 0); /* USART_CR1_PCE */
+  /* disable parity */
+  usart_set_parity(USART3_BASE, 0); /* USART_CR1_PCE */
 
-    usart_set_flow_control(USART3_BASE, 0);
+  usart_set_flow_control(USART3_BASE, 0);
 
-    usart_set_baudrate(USART3_BASE, 115200);
+  usart_set_baudrate(USART3_BASE, 115200);
 
-    /* enable USART */
-    usart_enable(USART3_BASE);
+  /* enable USART */
+  usart_enable(USART3_BASE);
 
-    /* Note : RDR= Read data, TDR=Transmit data */
+  /* Note : RDR= Read data, TDR=Transmit data */
 #endif
 }
 
@@ -179,24 +164,21 @@ void usart_init(void)
  *     none
  */
 #ifndef EMULATOR
-void dbg_print(const char *out_str, ...)
-{
-    char str[LARGE_DEBUG_BUF];
-    va_list arg;
+void dbg_print(const char *out_str, ...) {
+  char str[LARGE_DEBUG_BUF];
+  va_list arg;
 
-    va_start(arg, out_str);
-    vsnprintf(str, LARGE_DEBUG_BUF, out_str, arg);
+  va_start(arg, out_str);
+  vsnprintf(str, LARGE_DEBUG_BUF, out_str, arg);
 
-    if(strlen(str) + 1 <= LARGE_DEBUG_BUF)
-    {
-        display_debug_string(str);
-    }
-    else
-    {
-        snprintf(str, LARGE_DEBUG_BUF, "error: Debug string(%d) exceeds buffer size(%d)\n\r",
-                 strlen(str) + 1, LARGE_DEBUG_BUF);
-        display_debug_string(str);
-    }
+  if (strlen(str) + 1 <= LARGE_DEBUG_BUF) {
+    display_debug_string(str);
+  } else {
+    snprintf(str, LARGE_DEBUG_BUF,
+             "error: Debug string(%d) exceeds buffer size(%d)\n\r",
+             strlen(str) + 1, LARGE_DEBUG_BUF);
+    display_debug_string(str);
+  }
 }
 #endif
 
@@ -208,64 +190,58 @@ void dbg_print(const char *out_str, ...)
  * OUTPUT
  *     none
  */
-void dbg_trigger(uint32_t color)
-{
+void dbg_trigger(uint32_t color) {
 #ifndef EMULATOR
-    switch(color)
-    {
-        case 1:
-            led_func(CLR_RED_LED);
-            led_func(SET_RED_LED);
-            break;
+  switch (color) {
+    case 1:
+      led_func(CLR_RED_LED);
+      led_func(SET_RED_LED);
+      break;
 
-        case 2:
-            led_func(CLR_GREEN_LED);
-            led_func(SET_GREEN_LED);
-    }
+    case 2:
+      led_func(CLR_GREEN_LED);
+      led_func(SET_GREEN_LED);
+  }
 #else
-    switch (color)
-    {
-        case 1:
-            printf("dbg trigger 1\n");
-            break;
-        case 2:
-            printf("dbg trigger 2\n");
-            break;
-    }
+  switch (color) {
+    case 1:
+      printf("dbg trigger 1\n");
+      break;
+    case 2:
+      printf("dbg trigger 2\n");
+      break;
+  }
 #endif
 }
 
 /*
  * read_console() - Read debug console port for user input
- * 
+ *
  * INPUT
  *     none
  * OUTPUT
  *     character read from console
  */
-char read_console(void)
-{
+char read_console(void) {
 #ifndef EMULATOR
-    char char_read = 0, str_dbg[SMALL_DEBUG_BUF];
+  char char_read = 0, str_dbg[SMALL_DEBUG_BUF];
 
-    while(1)
-    {
-        if(get_console_input(&char_read))
-        {
-            /* print for debug only */
-            snprintf(str_dbg, SMALL_DEBUG_BUF, "%c\n\r", char_read);
-            display_debug_string(str_dbg);
-        }
+  while (1) {
+    if (get_console_input(&char_read)) {
+      /* print for debug only */
+      snprintf(str_dbg, SMALL_DEBUG_BUF, "%c\n\r", char_read);
+      display_debug_string(str_dbg);
     }
+  }
 
-    return(char_read);
+  return (char_read);
 #else
-    return '\0';
+  return '\0';
 #endif
 }
-#else // USART_DEBUG_ON
+#else  // USART_DEBUG_ON
 #ifndef EMULATOR
-void dbg_print(const char *pStr, ...) {(void)pStr;}
+void dbg_print(const char *pStr, ...) { (void)pStr; }
 #endif
 void usart_init(void) {}
 #endif

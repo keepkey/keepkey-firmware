@@ -20,13 +20,11 @@
 #ifndef LAYOUT_H
 #define LAYOUT_H
 
-
 #include "keepkey/board/canvas.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/draw.h"
 
 #include <stdint.h>
-
 
 #define MAX_ANIMATIONS 5
 #define ANIMATION_PERIOD 20
@@ -39,64 +37,60 @@
 #define TOP_MARGIN_FOR_THREE_LINES 0
 
 /* Margin */
-#define TOP_MARGIN  7
+#define TOP_MARGIN 7
 #define LEFT_MARGIN 4
 
 /* Title */
-#define TITLE_COLOR             0xFF
-#define TITLE_WIDTH             206
-#define TITLE_ROWS              1
+#define TITLE_COLOR 0xFF
+#define TITLE_WIDTH 206
+#define TITLE_ROWS 1
 #define TITLE_FONT_LINE_PADDING 0
-#define TITLE_CHAR_MAX          128
+#define TITLE_CHAR_MAX 128
 
 /* Body */
-#define BODY_TOP_MARGIN         7
-#define BODY_COLOR              0xFF
-#define BODY_WIDTH              225
-#define BODY_ROWS               3
-#define BODY_FONT_LINE_PADDING  4
-#define BODY_CHAR_MAX           352
+#define BODY_TOP_MARGIN 7
+#define BODY_COLOR 0xFF
+#define BODY_WIDTH 225
+#define BODY_ROWS 3
+#define BODY_FONT_LINE_PADDING 4
+#define BODY_CHAR_MAX 352
 
 /* Warning */
-#define WARNING_COLOR               0xFF
-#define WARNING_ROWS                1
-#define WARNING_FONT_LINE_PADDING   0
+#define WARNING_COLOR 0xFF
+#define WARNING_ROWS 1
+#define WARNING_FONT_LINE_PADDING 0
 
 /* Default Layout */
 #define NO_WIDTH 0;
 
-
-typedef enum
-{
-    NOTIFICATION_INFO,
-    NOTIFICATION_REQUEST,
-    NOTIFICATION_REQUEST_NO_ANIMATION,
-    NOTIFICATION_UNPLUG,
-    NOTIFICATION_CONFIRM_ANIMATION,
-    NOTIFICATION_CONFIRMED,
-    NOTIFICATION_LOGO,
+typedef enum {
+  NOTIFICATION_INFO,
+  NOTIFICATION_REQUEST,
+  NOTIFICATION_REQUEST_NO_ANIMATION,
+  NOTIFICATION_UNPLUG,
+  NOTIFICATION_CONFIRM_ANIMATION,
+  NOTIFICATION_CONFIRMED,
+  NOTIFICATION_LOGO,
 } NotificationType;
 
-typedef void (*AnimateCallback)(void *data, uint32_t duration, uint32_t elapsed);
+typedef void (*AnimateCallback)(void *data, uint32_t duration,
+                                uint32_t elapsed);
 typedef struct Animation Animation;
 typedef void (*leaving_handler_t)(void);
 
-struct Animation
-{
-    uint32_t        duration;
-    uint32_t        elapsed;
-    void            *data;
-    AnimateCallback animate_callback;
-    Animation       *next;
+struct Animation {
+  uint32_t duration;
+  uint32_t elapsed;
+  void *data;
+  AnimateCallback animate_callback;
+  Animation *next;
 };
 
-typedef struct
-{
-    Animation  *head;
-    int         size;
+typedef struct {
+  Animation *head;
+  int size;
 
 } AnimationQueue;
-
 
 void layout_init(Canvas *canvas);
 Canvas *layout_get_canvas(void);
@@ -104,6 +98,7 @@ void call_leaving_handler(void);
 void layout_firmware_update_confirmation(void);
 void layout_standard_notification(const char *str1, const char *str2,
                                   NotificationType type);
+void layout_constant_power_notification(const char *str1, const char *str2, NotificationType type);
 void layout_notification_icon(NotificationType type, DrawableParams *sp);
 void layout_warning(const char *prompt);
 void layout_warning_static(const char *str);
@@ -117,7 +112,8 @@ void force_animation_start(void);
 void animating_progress_handler(const char *desc, int permil);
 void layoutProgress(const char *desc, int permil);
 void layoutProgressSwipe(const char *desc, int permil);
-void layout_add_animation(AnimateCallback callback, void *data, uint32_t duration);
+void layout_add_animation(AnimateCallback callback, void *data,
+                          uint32_t duration);
 void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed);
 void layout_clear(void);
 #if DEBUG_LINK

@@ -23,10 +23,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define MNEMONIC_BUF            24 * 12
-#define CURRENT_WORD_BUF        32
-#define ENGLISH_ALPHABET_BUF    32
-#define BIP39_MAX_WORD_LEN       8
+#define MNEMONIC_BUF 24 * 12
+#define CURRENT_WORD_BUF 32
+#define ENGLISH_ALPHABET_BUF 32
+#define BIP39_MAX_WORD_LEN 8
 
 void recovery_cipher_init(uint32_t _word_count, bool passphrase_protection,
                           bool pin_protection, const char *language,
@@ -40,10 +40,9 @@ void recovery_cipher_finalize(void);
 void recovery_cipher_abort(void);
 
 #if DEBUG_LINK
-const char* recovery_get_cipher(void);
-const char* recovery_get_auto_completed_word(void);
+const char *recovery_get_cipher(void);
+const char *recovery_get_auto_completed_word(void);
 #endif
-
 
 /// Determine if two strings are exact matches for length passed
 /// (does not stop at null termination)
@@ -55,8 +54,8 @@ bool exact_str_match(const char *str1, const char *str2, uint32_t len);
 
 /// \brief Attempts to auto complete a partial word
 ///
-/// \param partial_word[in/out]   word that will be attempted to be auto completed.
-/// \returns true iff partial_word was auto completed
+/// \param partial_word[in/out]   word that will be attempted to be auto
+/// completed. \returns true iff partial_word was auto completed
 bool attempt_auto_complete(char *partial_word);
 
 #endif

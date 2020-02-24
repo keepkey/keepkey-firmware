@@ -18,13 +18,13 @@
  */
 
 #ifndef EMULATOR
-#   include <libopencm3/stm32/flash.h>
-#   include <libopencm3/stm32/timer.h>
-#   include <libopencm3/stm32/f2/nvic.h>
+#include <libopencm3/stm32/flash.h>
+#include <libopencm3/stm32/timer.h>
+#include <libopencm3/stm32/f2/nvic.h>
 #else
-#   include <stdint.h>
-#   include <stdbool.h>
-#   include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdlib.h>
 #endif
 
 #include "keepkey/board/supervise.h"
@@ -40,17 +40,22 @@
 void mmhisr(void) {
 #ifndef EMULATOR
 #ifdef DEBUG_ON
-    static char errval[MAX_ERRMSG];
-    uint32_t mmfar = (uint32_t)_param_1;
-    uint32_t pc = (uint32_t)_param_2;
-    snprintf(errval, MAX_ERRMSG, "addr: 0x%08" PRIx32 " pc: 0x%08" PRIx32, mmfar, pc);
-    layout_standard_notification("Memory Fault Detected", errval, NOTIFICATION_UNPLUG);
+  static char errval[MAX_ERRMSG];
+  uint32_t mmfar = (uint32_t)_param_1;
+  uint32_t pc = (uint32_t)_param_2;
+  snprintf(errval, MAX_ERRMSG, "addr: 0x%08" PRIx32 " pc: 0x%08" PRIx32, mmfar,
+           pc);
+  layout_standard_notification("Memory Fault Detected", errval,
+                               NOTIFICATION_UNPLUG);
 #else
-    layout_standard_notification("Memory Fault Detected", "Please unplug your device!", NOTIFICATION_UNPLUG);
+  layout_standard_notification("Memory Fault Detected",
+                               "Please unplug your device!",
+                               NOTIFICATION_UNPLUG);
 #endif
-    display_refresh();
-    for (;;) {}
+  display_refresh();
+  for (;;) {
+  }
 #else
-    abort();
+  abort();
 #endif
 }

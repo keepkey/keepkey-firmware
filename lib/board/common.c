@@ -25,7 +25,7 @@
 #include "trezor/crypto/rand.h"
 
 #ifndef EMULATOR
-#  include <libopencm3/stm32/desig.h>
+#include <libopencm3/stm32/desig.h>
 #endif
 
 #include <stdio.h>

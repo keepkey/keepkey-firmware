@@ -39,52 +39,53 @@ static void setup_urandom(void);
 static void setup_flash(void);
 
 void setup(void) {
-	setup_urandom();
-	setup_flash();
+  setup_urandom();
+  setup_flash();
 }
 
 void emulatorRandom(void *buffer, size_t size) {
-	ssize_t n = read(urandom, buffer, size);
-	if (n < 0 || ((size_t) n) != size) {
-		perror("Failed to read /dev/urandom");
-		exit(1);
-	}
+  ssize_t n = read(urandom, buffer, size);
+  if (n < 0 || ((size_t)n) != size) {
+    perror("Failed to read /dev/urandom");
+    exit(1);
+  }
 }
 
 static void setup_urandom(void) {
-	urandom = open("/dev/urandom", O_RDONLY);
-	if (urandom < 0) {
-		perror("Failed to open /dev/urandom");
-		exit(1);
-	}
+  urandom = open("/dev/urandom", O_RDONLY);
+  if (urandom < 0) {
+    perror("Failed to open /dev/urandom");
+    exit(1);
+  }
 }
 
 static void setup_flash(void) {
-	int fd = open(EMULATOR_FLASH_FILE, O_RDWR | O_SYNC | O_CREAT, 0644);
-	if (fd < 0) {
-		perror("Failed to open flash emulation file");
-		exit(1);
-	}
+  int fd = open(EMULATOR_FLASH_FILE, O_RDWR | O_SYNC | O_CREAT, 0644);
+  if (fd < 0) {
+    perror("Failed to open flash emulation file");
+    exit(1);
+  }
 
-	off_t length = lseek(fd, 0, SEEK_END);
-	if (length < 0) {
-		perror("Failed to read length of flash emulation file");
-		exit(1);
-	}
+  off_t length = lseek(fd, 0, SEEK_END);
+  if (length < 0) {
+    perror("Failed to read length of flash emulation file");
+    exit(1);
+  }
 
-	emulator_flash_base = mmap(NULL, FLASH_TOTAL_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (emulator_flash_base == MAP_FAILED) {
-		perror("Failed to map flash emulation file");
-		exit(1);
-	}
+  emulator_flash_base =
+      mmap(NULL, FLASH_TOTAL_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  if (emulator_flash_base == MAP_FAILED) {
+    perror("Failed to map flash emulation file");
+    exit(1);
+  }
 
-	if (length < FLASH_TOTAL_SIZE) {
-		if (ftruncate(fd, FLASH_TOTAL_SIZE) != 0) {
-			perror("Failed to initialize flash emulation file");
-			exit(1);
-		}
+  if (length < FLASH_TOTAL_SIZE) {
+    if (ftruncate(fd, FLASH_TOTAL_SIZE) != 0) {
+      perror("Failed to initialize flash emulation file");
+      exit(1);
+    }
 
-		/* Initialize the flash */
-		memset(emulator_flash_base, 0xff, FLASH_TOTAL_SIZE);
-	}
+    /* Initialize the flash */
+    memset(emulator_flash_base, 0xff, FLASH_TOTAL_SIZE);
+  }
 }

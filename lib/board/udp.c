@@ -35,51 +35,49 @@ extern usb_rx_callback_t user_debug_rx_callback;
 static volatile char tiny = 0;
 
 void usbInit(const char *origin_url) {
-	(void)origin_url;
-	emulatorSocketInit();
+  (void)origin_url;
+  emulatorSocketInit();
 }
 
 void usbPoll(void) {
-	emulatorPoll();
+  emulatorPoll();
 
-	static uint8_t buf[64] __attribute__ ((aligned(4)));
-	size_t len;
+  static uint8_t buf[64] __attribute__((aligned(4)));
+  size_t len;
 
-	int iface = 0;
-	if (0 < (len = emulatorSocketRead(&iface, buf, sizeof(buf)))) {
-		if (!tiny) {
-			if (iface == 0)
-			{
-				user_rx_callback(&buf, len);
-			} else if (iface == 1) {
+  int iface = 0;
+  if (0 < (len = emulatorSocketRead(&iface, buf, sizeof(buf)))) {
+    if (!tiny) {
+      if (iface == 0) {
+        user_rx_callback(&buf, len);
+      } else if (iface == 1) {
 #if DEBUG_LINK
-				user_debug_rx_callback(&buf, len);
+        user_debug_rx_callback(&buf, len);
 #else
-				user_rx_callback(&buf, len);
+        user_rx_callback(&buf, len);
 #endif
-			}
-		} else {
-			assert(false && "not yet implemented");
-			//msg_read_tiny(msg.message, sizeof(msg.message));
-		}
-	}
+      }
+    } else {
+      assert(false && "not yet implemented");
+      // msg_read_tiny(msg.message, sizeof(msg.message));
+    }
+  }
 }
 
 bool usb_tx(uint8_t *msg, uint32_t len) {
-	return emulatorSocketWrite(0, msg, len);
+  return emulatorSocketWrite(0, msg, len);
 }
 
 #if DEBUG_LINK
 bool usb_debug_tx(uint8_t *msg, uint32_t len) {
-	return emulatorSocketWrite(1, msg, len);
+  return emulatorSocketWrite(1, msg, len);
 }
 #endif
 
 char usbTiny(char set) {
-	char old = tiny;
-	tiny = set;
-	return old;
+  char old = tiny;
+  tiny = set;
+  return old;
 }
 
 #endif
-

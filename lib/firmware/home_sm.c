@@ -30,16 +30,16 @@ static HomeState home_state = AT_HOME;
 
 static uint32_t idle_time = 0;
 
-static void layoutLockedState(void)
-{
-    const Font *font = get_body_font();
-    const char *state = (!storage_hasPin() || session_isPinCached()) ? "\x02" : "\x03";
-    DrawableParams sp;
-    sp.x = 2;
-    sp.y = KEEPKEY_DISPLAY_HEIGHT - 1 * font_height(font) - 6;
-    sp.color = 0x22;
-    draw_string(layout_get_canvas(), font, state, &sp, KEEPKEY_DISPLAY_WIDTH,
-                font_height(font));
+static void layoutLockedState(void) {
+  const Font *font = get_body_font();
+  const char *state =
+      (!storage_hasPin() || session_isPinCached()) ? "\x02" : "\x03";
+  DrawableParams sp;
+  sp.x = 2;
+  sp.y = KEEPKEY_DISPLAY_HEIGHT - 1 * font_height(font) - 6;
+  sp.color = 0x22;
+  draw_string(layout_get_canvas(), font, state, &sp, KEEPKEY_DISPLAY_WIDTH,
+              font_height(font));
 }
 
 /*
@@ -50,22 +50,20 @@ static void layoutLockedState(void)
  * OUTPUT
  *     none
  */
-void layoutHome(void)
-{
-    switch(home_state)
-    {
-        case AWAY_FROM_HOME:
-            layoutHomeForced();
-            break;
+void layoutHome(void) {
+  switch (home_state) {
+    case AWAY_FROM_HOME:
+      layoutHomeForced();
+      break;
 
-        case SCREENSAVER:
-        case AT_HOME:
-        default:
-            /* no action required */
-            break;
-    }
+    case SCREENSAVER:
+    case AT_HOME:
+    default:
+      /* no action required */
+      break;
+  }
 
-    layoutLockedState();
+  layoutLockedState();
 }
 
 /*
@@ -76,12 +74,11 @@ void layoutHome(void)
  * OUTPUT
  *     none
  */
-void layoutHomeForced(void)
-{
-    layout_home();
-    layoutLockedState();
-    reset_idle_time();
-    home_state = AT_HOME;
+void layoutHomeForced(void) {
+  layout_home();
+  layoutLockedState();
+  reset_idle_time();
+  home_state = AT_HOME;
 }
 
 /*
@@ -92,25 +89,23 @@ void layoutHomeForced(void)
  * OUTPUT
  *     none
  */
-void leave_home(void)
-{
-    switch(home_state)
-    {
-        case AT_HOME:
-            layout_home_reversed();
-            reset_idle_time();
-            home_state = AWAY_FROM_HOME;
-            break;
+void leave_home(void) {
+  switch (home_state) {
+    case AT_HOME:
+      layout_home_reversed();
+      reset_idle_time();
+      home_state = AWAY_FROM_HOME;
+      break;
 
-        case SCREENSAVER:
-            home_state = AWAY_FROM_HOME;
-            break;
+    case SCREENSAVER:
+      home_state = AWAY_FROM_HOME;
+      break;
 
-        case AWAY_FROM_HOME:
-        default:
-            /* no action requires */
-            break;
-    }
+    case AWAY_FROM_HOME:
+    default:
+      /* no action requires */
+      break;
+  }
 }
 
 /*
@@ -121,33 +116,31 @@ void leave_home(void)
  * OUTPUT
  *     none
  */
-void toggle_screensaver(void)
-{
-    switch(home_state)
-    {
-        case AT_HOME:
-            if (idle_time >= storage_getAutoLockDelayMs()) {
-                session_clear(/*clear_pin=*/true);
-                layout_screensaver();
-                home_state = SCREENSAVER;
-            }
+void toggle_screensaver(void) {
+  switch (home_state) {
+    case AT_HOME:
+      if (idle_time >= storage_getAutoLockDelayMs()) {
+        session_clear(/*clear_pin=*/true);
+        layout_screensaver();
+        home_state = SCREENSAVER;
+      }
 
-            break;
+      break;
 
-        case SCREENSAVER:
-            if (idle_time < storage_getAutoLockDelayMs()) {
-                layout_home();
-                layoutLockedState();
-                home_state = AT_HOME;
-            }
+    case SCREENSAVER:
+      if (idle_time < storage_getAutoLockDelayMs()) {
+        layout_home();
+        layoutLockedState();
+        home_state = AT_HOME;
+      }
 
-            break;
+      break;
 
-        case AWAY_FROM_HOME:
-        default:
-            /* no action requires */
-            break;
-    }
+    case AWAY_FROM_HOME:
+    default:
+      /* no action requires */
+      break;
+  }
 }
 
 /*
@@ -158,10 +151,7 @@ void toggle_screensaver(void)
  * OUTPUT
  *     none
  */
-void increment_idle_time(uint32_t increment_ms)
-{
-    idle_time += increment_ms;
-}
+void increment_idle_time(uint32_t increment_ms) { idle_time += increment_ms; }
 
 /*
  * reset_idle_time() - Resets idle time
@@ -171,7 +161,4 @@ void increment_idle_time(uint32_t increment_ms)
  * OUTPUT
  *     none
  */
-void reset_idle_time(void)
-{
-    idle_time = 0;
-}
+void reset_idle_time(void) { idle_time = 0; }

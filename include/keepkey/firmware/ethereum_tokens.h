@@ -27,19 +27,19 @@
 
 enum {
 #define X(CHAIN_ID, CONTRACT_ADDR, TICKER, DECIMALS) \
-    CONCAT(TokenIndex, __COUNTER__),
+  CONCAT(TokenIndex, __COUNTER__),
 #include "keepkey/firmware/ethereum_tokens.def"
-    TokenIndexLast,
-    TokenIndexFirst = 0
+  TokenIndexLast,
+  TokenIndexFirst = 0
 };
 
-#define TOKENS_COUNT ((int)TokenIndexLast-(int)TokenIndexFirst)
+#define TOKENS_COUNT ((int)TokenIndexLast - (int)TokenIndexFirst)
 
 typedef struct _TokenType {
-    const char * const address;
-    const char * const ticker;
-    uint8_t chain_id;
-    uint8_t decimals;
+  const char *const address;
+  const char *const ticker;
+  uint8_t chain_id;
+  uint8_t decimals;
 } TokenType;
 
 typedef struct _CoinType CoinType;
@@ -50,7 +50,8 @@ extern const TokenType *UnknownToken;
 
 const TokenType *tokenByChainAddress(uint8_t chain_id, const uint8_t *address);
 
-/// Tokens don't have unique tickers, so this might not return the one you're looking for :/
+/// Tokens don't have unique tickers, so this might not return the one you're
+/// looking for :/
 ///
 /// This is necessary because the way the KeepKey client handles TRANSFER
 /// messages, relying on the ticker to uniquely identify the token... which is a
@@ -58,8 +59,10 @@ const TokenType *tokenByChainAddress(uint8_t chain_id, const uint8_t *address);
 /// EthereumSignTx message, and get rid of this function.
 ///
 /// \param[out] token The found token, assuming it was uniquely determinable.
-/// \returns true iff the token can be uniquely found in the list of known tokens.
-bool tokenByTicker(uint8_t chain_id, const char *ticker, const TokenType **token);
+/// \returns true iff the token can be uniquely found in the list of known
+/// tokens.
+bool tokenByTicker(uint8_t chain_id, const char *ticker,
+                   const TokenType **token);
 
 void coinFromToken(CoinType *coin, const TokenType *token);
 #endif
