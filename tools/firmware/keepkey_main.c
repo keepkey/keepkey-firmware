@@ -171,6 +171,8 @@ int main(void)
     _timerusr_isr = (void *)&timerisr_usr;
     _mmhusr_isr = (void *)&mmhisr;
 
+    flash_collectHWEntropy(SIG_OK == signatures_ok());
+
     /* Drop privileges */
     drop_privs();
 

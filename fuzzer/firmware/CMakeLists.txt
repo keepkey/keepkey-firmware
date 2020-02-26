@@ -15,6 +15,7 @@ set(libraries
     kkemulator
     trezorcrypto
     qrcodegenerator
+    SecAESSTM32
     kkrand
     kktransport)
 
@@ -23,3 +24,6 @@ target_link_libraries(fuzz-eos_formatName ${libraries})
 
 add_executable(fuzz-eos_formatAsset eos_formatAsset.cpp)
 target_link_libraries(fuzz-eos_formatAsset ${libraries})
+
+add_executable(fuzz-ripple_decode ripple_decode.cpp)
+target_link_libraries(fuzz-ripple_decode ${libraries})

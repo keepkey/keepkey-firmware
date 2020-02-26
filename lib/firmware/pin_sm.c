@@ -283,7 +283,6 @@ bool pin_protect(const char *prompt)
         return false;
     }
 
-    session_cachePin(pin_info.pin);
     storage_resetPinFails();
     return true;
 }

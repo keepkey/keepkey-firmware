@@ -20,6 +20,7 @@ if(${KK_EMULATOR})
       kktransport
       trezorcrypto
       qrcodegenerator
+      SecAESSTM32
       kkrand
       kkemulator)
 endif()

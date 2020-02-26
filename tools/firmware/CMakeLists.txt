@@ -36,6 +36,7 @@ if(NOT ${KK_EMULATOR})
       kktransport
       trezorcrypto
       qrcodegenerator
+      SecAESSTM32
       kkrand
       -lopencm3_stm32f2
       -lc

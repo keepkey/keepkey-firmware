@@ -19,13 +19,18 @@
 
 #include "keepkey/board/common.h"
 
+#include "keepkey/board/otp.h"
 #include "keepkey/rand/rng.h"
 #include "trezor/crypto/hmac_drbg.h"
 #include "trezor/crypto/rand.h"
 
-#include <stdio.h>
+#ifndef EMULATOR
+#  include <libopencm3/stm32/desig.h>
+#endif
 
-uint8_t HW_ENTROPY_DATA[HW_ENTROPY_LEN];
+#include <stdio.h>
+#include <stdbool.h>
+#include <string.h>
 
 static HMAC_DRBG_CTX drbg_ctx;
 

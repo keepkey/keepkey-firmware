@@ -25,6 +25,7 @@
 #include "keepkey/board/keepkey_button.h"
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/layout.h"
+#include "keepkey/board/memcmp_s.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/u2f_hid.h"
 #include "keepkey/board/usb.h"
@@ -576,7 +577,7 @@ static const HDNode *validateKeyHandle(const uint8_t app_id[], const uint8_t key
 	hmac_sha256(node->private_key, sizeof(node->private_key),
 				keybase, sizeof(keybase), hmac);
 
-	if (memcmp(&key_handle[KEY_PATH_LEN], hmac, SHA256_DIGEST_LENGTH) != 0)
+	if (memcmp_s(&key_handle[KEY_PATH_LEN], hmac, SHA256_DIGEST_LENGTH) != 0)
 		return NULL;
 
 	// Done!

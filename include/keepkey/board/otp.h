@@ -1,7 +1,7 @@
 /*
- * This file is part of the KeepKey project.
+ * This file is part of the Trezor project, https://trezor.io/
  *
- * Copyright (C) 2015 KeepKey LLC
+ * Copyright (C) 2019 Pavol Rusnak <stick@satoshilabs.com>
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -17,28 +17,22 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef INTERFACE_H
-#define INTERFACE_H
+#ifndef __OTP_H__
+#define __OTP_H__
 
-// Allow this file to be used from C++ by renaming an unfortunately named field:
-#define delete del
-#include "messages.pb.h"
-#include "messages-nano.pb.h"
-#undef delete
+#include <stdbool.h>
+#include <stdint.h>
 
-#include "messages-binance.pb.h"
-#include "messages-cosmos.pb.h"
-#include "messages-eos.pb.h"
-#include "messages-ripple.pb.h"
+#define FLASH_OTP_NUM_BLOCKS 16
+#define FLASH_OTP_BLOCK_SIZE 32
 
-#include "types.pb.h"
-#include "trezor_transport.h"
+#define FLASH_OTP_BLOCK_RANDOMNESS 3
 
-#ifndef EMULATOR
-/* The max size of a decoded protobuf */
-#  define MAX_DECODE_SIZE (13 * 1024)
-#else
-#  define MAX_DECODE_SIZE (26 * 1024)
-#endif
+bool flash_otp_is_locked(uint8_t block);
+bool flash_otp_lock(uint8_t block);
+bool flash_otp_read(uint8_t block, uint8_t offset, uint8_t *data,
+                    uint8_t datalen);
+bool flash_otp_write(uint8_t block, uint8_t offset, const uint8_t *data,
+                     uint8_t datalen);
 
 #endif
