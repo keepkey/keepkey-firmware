@@ -25,9 +25,13 @@
 
 
 #include <stddef.h>
+#include <libopencm3/stm32/flash.h>
 
 #include "memory.h"
 
+// This sequence ensures that the flash unlock sequence is reset before attempting
+// an unlock. If an unlock is called when the flash is unlocked, a hard fault exception is thrown
+#define flash_unlock(void);	flash_lock(void);flash_unlock(void);
 
 intptr_t flash_write_helper(Allocation group);
 void flash_erase(Allocation group);
