@@ -393,6 +393,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		} else {
 			prefix_len = 0;
 		}
+
 		if (!confirm_transaction_output(ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
 		                                prefix_len + in->address)) {
 			return -1; // user aborted

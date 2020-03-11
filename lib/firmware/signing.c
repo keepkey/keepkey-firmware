@@ -38,6 +38,10 @@
 
 #include "types.pb.h"
 
+
+bool confirm_transaction_input(ButtonRequestType button_request, const char *from, const char *stage);
+
+
 #define _(X) (X)
 
 static uint32_t inputs_count;
@@ -1160,7 +1164,18 @@ static bool signing_sign_decred_input(TxInputType *txinput) {
 	return true;
 }
 
+void hash_to_str(char *str, TxInputType_prev_hash_t* hash) {
+	uint32_t ctr;
+	char bytestr[3] = "";
+	for(ctr=0; ctr<hash->size; ctr+=2) {
+		snprintf(bytestr, 3, "%02x", hash->bytes[ctr]);
+		strncat(str, bytestr, 2);
+	}
+}
+
+
 #define ENABLE_SEGWIT_NONSEGWIT_MIXING  1
+
 
 void signing_txack(TransactionType *tx)
 {
@@ -1258,6 +1273,11 @@ void signing_txack(TransactionType *tx)
 				to.is_segwit = true;
 #endif
 				to_spend += tx->inputs[0].amount;
+				{
+				char txin_str[130] = "";
+				hash_to_str(txin_str, &(tx->inputs[0].prev_hash));
+				confirm_transaction_input(ButtonRequestType_ButtonRequest_ConfirmOutput, txin_str, "initial");
+				}
 				authorized_amount += tx->inputs[0].amount;
 				phase1_request_next_input();
 			} else {
@@ -1351,7 +1371,11 @@ void signing_txack(TransactionType *tx)
 			}
 			return;
 		case STAGE_REQUEST_3_OUTPUT:
-			if (!signing_check_output(&tx->outputs[0])) {
+/*			txin_str = 
+			if (!confirm_transaction_input(ButtonRequestType_ButtonRequest_ConfirmOutput, txin_str)) {
+		    	return -1;
+			}
+*/			if (!signing_check_output(&tx->outputs[0])) {
 				return;
 			}
 			tx_weight += tx_output_weight(coin, curve, &tx->outputs[0]);
@@ -1555,6 +1579,13 @@ void signing_txack(TransactionType *tx)
 			if (!signing_sign_segwit_input(&tx->inputs[0])) {
 				return;
 			}
+
+			{
+			char txin_str[130] = "";
+			hash_to_str(txin_str, &(tx->inputs[0].prev_hash));
+			confirm_transaction_input(ButtonRequestType_ButtonRequest_ConfirmOutput, txin_str, "segwit");
+			}
+
 			signatures++;
 			progress = 500 + ((signatures * progress_step) >> PROGRESS_PRECISION);
 			layoutProgress(_("Signing transaction"), progress);

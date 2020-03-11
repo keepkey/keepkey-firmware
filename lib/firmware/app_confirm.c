@@ -192,6 +192,26 @@ bool confirm_transaction_output(ButtonRequestType button_request, const char *am
                                       "Send %s to\n%s", amount, to);
 }
 
+/*
+ * confirm_transaction_output() - Show transaction output confirmation
+ *
+ * INPUT -
+ *      - button_request: button request type
+ *      - amount: amount to send
+ *      - to: who to send to
+ * OUTPUT -
+ *     true/false of confirmation
+ *
+ */
+bool confirm_transaction_input(ButtonRequestType button_request, const char *from, const char *stage)
+{
+    return confirm_with_custom_layout(&layout_notification_no_title_bold,
+                                      button_request,
+                                      "",
+                                      "From %s\n%s", stage, from);
+}
+
+
 
 /*
  * confirm_erc_token_transfer() - Show transaction output confirmation without bold

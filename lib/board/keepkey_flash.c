@@ -250,6 +250,11 @@ bool set_mfg_mode_off(void)
 
 const char *flash_getModel(void) {
 #ifndef EMULATOR
+
+    #ifdef DEBUG_ON
+        return "K1-14AM";   // return a model number for debugger builds
+    #endif
+
     if (*((uint8_t*)OTP_MODEL_ADDR) == 0xFF)
         return NULL;
 
