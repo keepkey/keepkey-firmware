@@ -39,9 +39,6 @@
 #include "types.pb.h"
 
 
-bool confirm_transaction_input(ButtonRequestType button_request, const char *from, const char *stage);
-
-
 #define _(X) (X)
 
 static uint32_t inputs_count;
@@ -126,6 +123,77 @@ enum {
  * progress per input in permille with these many additional bits.
  */
 #define PROGRESS_PRECISION 16
+
+
+#define AMT_STR_LEN 		32
+#define	ADDR_STR_LEN 		130
+#define	DIGEST_STR_LEN 		65
+
+static uint8_t txin_current_digest[SHA256_DIGEST_LENGTH];	/* current tx txins digest */
+static char txin_current_digest_str[DIGEST_STR_LEN];		/* current tx txins digest str */
+
+// these values help give a hint if malware is changing segwit txids in an attempt to create false txs
+static uint8_t txin_last_digest[SHA256_DIGEST_LENGTH];		/* last tx digest */
+static char txin_last_digest_str[DIGEST_STR_LEN];		/* last tx digest str */
+static char last_amount_str[AMT_STR_LEN];					/* spend value of last tx */
+static char last_addr_str[ADDR_STR_LEN];					/* last spend-to address */
+static SHA256_CTX txin_hash_ctx;
+
+// initialize the txin digest machine
+void txin_dgst_initialize(void) {
+	memzero(txin_current_digest, SHA256_DIGEST_LENGTH);
+	memzero(txin_last_digest, SHA256_DIGEST_LENGTH);
+	memzero(last_amount_str, AMT_STR_LEN);
+	memzero(last_addr_str, ADDR_STR_LEN);
+	sha256_Init(&txin_hash_ctx);
+}
+
+// hash in a txin
+void txin_dgst_addto(const uint8_t *data, size_t len) {
+	sha256_Update(&txin_hash_ctx, data, len);
+}
+
+// finalize txin digest
+void txin_dgst_final(void) {
+	sha256_Final(&txin_hash_ctx, txin_current_digest);
+}
+
+// compare dgst, amt, addr
+// returns True if warning condition met
+bool txin_dgst_compare(const char *amt_str, const char *addr_str) {
+	// if amt and addr are same AND digest is different, then warn
+	if ((strncmp(amt_str, last_amount_str, AMT_STR_LEN)==0) && 
+			(strncmp(addr_str, last_addr_str, ADDR_STR_LEN)==0)) {
+		if ((memcmp(txin_current_digest, txin_last_digest, SHA256_DIGEST_LENGTH)!=0)) {
+			return(true);
+		}
+	}
+	return(false);
+}
+
+// return string pointers to digests
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-but-set-parameter"
+void txin_dgst_getstrs(char *prev, char *cur) {
+	data2hex(txin_current_digest, SHA256_DIGEST_LENGTH, txin_current_digest_str);
+	kk_strlwr(txin_current_digest_str);
+	data2hex(txin_last_digest, SHA256_DIGEST_LENGTH, txin_last_digest_str);
+	kk_strlwr(txin_last_digest_str);
+	cur = txin_current_digest_str;
+	prev = txin_last_digest_str;
+	return;
+}
+#pragma GCC diagnostic pop
+
+// save last state and reset for next tx request
+void txin_dgst_save_and_reset(char *amt_str, char *addr_str) {
+	memcpy(txin_last_digest, txin_current_digest, SHA256_DIGEST_LENGTH);
+	memcpy(last_amount_str, amt_str, AMT_STR_LEN);
+	memcpy(last_addr_str, addr_str, ADDR_STR_LEN);
+	memzero(txin_current_digest, SHA256_DIGEST_LENGTH);
+	sha256_Init(&txin_hash_ctx);
+}
+
 
 /*
  * send_co_failed_message() - send transaction output error message to client
@@ -1164,18 +1232,7 @@ static bool signing_sign_decred_input(TxInputType *txinput) {
 	return true;
 }
 
-void hash_to_str(char *str, TxInputType_prev_hash_t* hash) {
-	uint32_t ctr;
-	char bytestr[3] = "";
-	for(ctr=0; ctr<hash->size; ctr+=2) {
-		snprintf(bytestr, 3, "%02x", hash->bytes[ctr]);
-		strncat(str, bytestr, 2);
-	}
-}
-
-
 #define ENABLE_SEGWIT_NONSEGWIT_MIXING  1
-
 
 void signing_txack(TransactionType *tx)
 {
@@ -1273,18 +1330,17 @@ void signing_txack(TransactionType *tx)
 				to.is_segwit = true;
 #endif
 				to_spend += tx->inputs[0].amount;
-				{
-				char txin_str[130] = "";
-				hash_to_str(txin_str, &(tx->inputs[0].prev_hash));
-				confirm_transaction_input(ButtonRequestType_ButtonRequest_ConfirmOutput, txin_str, "initial");
-				}
 				authorized_amount += tx->inputs[0].amount;
+
+				txin_dgst_addto(tx->inputs[0].prev_hash.bytes, sizeof(TxInputType_prev_hash_t));
+
 				phase1_request_next_input();
 			} else {
 				fsm_sendFailure(FailureType_Failure_SyntaxError, _("Wrong input script type"));
 				signing_abort();
 				return;
 			}
+
 			return;
 		case STAGE_REQUEST_2_PREV_META:
 			if (tx->outputs_cnt <= input.prev_index) {
@@ -1371,11 +1427,10 @@ void signing_txack(TransactionType *tx)
 			}
 			return;
 		case STAGE_REQUEST_3_OUTPUT:
-/*			txin_str = 
-			if (!confirm_transaction_input(ButtonRequestType_ButtonRequest_ConfirmOutput, txin_str)) {
-		    	return -1;
-			}
-*/			if (!signing_check_output(&tx->outputs[0])) {
+			
+			txin_dgst_final();
+
+			if (!signing_check_output(&tx->outputs[0])) {
 				return;
 			}
 			tx_weight += tx_output_weight(coin, curve, &tx->outputs[0]);
@@ -1579,13 +1634,6 @@ void signing_txack(TransactionType *tx)
 			if (!signing_sign_segwit_input(&tx->inputs[0])) {
 				return;
 			}
-
-			{
-			char txin_str[130] = "";
-			hash_to_str(txin_str, &(tx->inputs[0].prev_hash));
-			confirm_transaction_input(ButtonRequestType_ButtonRequest_ConfirmOutput, txin_str, "segwit");
-			}
-
 			signatures++;
 			progress = 500 + ((signatures * progress_step) >> PROGRESS_PRECISION);
 			layoutProgress(_("Signing transaction"), progress);

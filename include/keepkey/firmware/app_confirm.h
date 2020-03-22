@@ -34,6 +34,8 @@ bool confirm_decrypt_msg(const char *msg, const char *address);
 bool confirm_exchange_output(const char *from_amount, const char *to_amount);
 bool confirm_transfer_output(ButtonRequestType button_request, const char *amount, const char *to);
 bool confirm_transaction_output(ButtonRequestType button_request, const char *amount, const char *to);
+bool confirm_transaction_warning(ButtonRequestType button_request, const char *prev, const char *cur);
+
 bool confirm_transaction_output_no_bold(ButtonRequestType button_request,
                                         const char *amount, const char *to);
 

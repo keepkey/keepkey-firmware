@@ -25,6 +25,7 @@
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
+#include "keepkey/firmware/signing.h"
 #include "keepkey/transport/interface.h"
 #include "trezor/crypto/address.h"
 #include "trezor/crypto/base58.h"
@@ -398,6 +399,16 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		                                prefix_len + in->address)) {
 			return -1; // user aborted
 		}
+
+		// Check for near-identical tx that could be fraud
+		if (txin_dgst_compare(amount_str, prefix_len + in->address)) {
+			char *prev = NULL, *cur = NULL;
+			txin_dgst_getstrs(prev, cur);
+			if (!confirm_transaction_warning(ButtonRequestType_ButtonRequest_ConfirmOutput, prev, cur)) {
+				return -1;	// user aborted
+			}
+		}
+		txin_dgst_save_and_reset(amount_str, prefix_len + in->address);
 	}
 
 	return out->script_pubkey.size;

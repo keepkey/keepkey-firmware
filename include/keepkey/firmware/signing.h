@@ -25,6 +25,10 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+void txin_dgst_initialize(void);
+bool txin_dgst_compare(const char *amt_str, const char *addr_str);
+void txin_dgst_getstrs(char *prev, char *cur);
+void txin_dgst_save_and_reset(char *amt_str, char *addr_str);
 void signing_init(const SignTx *msg, const CoinType *_coin, const HDNode *_root);
 void signing_abort(void);
 void signing_txack(TransactionType *tx);

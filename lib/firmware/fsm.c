@@ -230,6 +230,9 @@ void fsm_init(void)
 #endif
 
     msg_init();
+
+    txin_dgst_initialize();
+
 }
 
 void fsm_sendSuccess(const char *text)
