@@ -192,6 +192,7 @@ bool confirm_transaction_output(ButtonRequestType button_request, const char *am
                                       "Send %s to\n%s", amount, to);
 }
 
+
 /*
  * confirm_erc_token_transfer() - Show transaction output confirmation without bold
  *
@@ -211,6 +212,10 @@ bool confirm_erc_token_transfer(ButtonRequestType button_request,
             "",
             "Send %s", msg_body);
 }
+
+
+
+
 
 /*
  * confirm_transaction_output_no_bold() - Show transaction output confirmation without bold

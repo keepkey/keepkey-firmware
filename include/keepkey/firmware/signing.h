@@ -25,7 +25,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-
 void signing_init(const SignTx *msg, const CoinType *_coin, const HDNode *_root);
 void signing_abort(void);
 void signing_txack(TransactionType *tx);
