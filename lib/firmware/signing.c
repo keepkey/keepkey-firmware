@@ -31,6 +31,7 @@
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/policy.h"
 #include "keepkey/firmware/signing.h"
+#include "keepkey/firmware/txin_check.h"
 #include "keepkey/firmware/transaction.h"
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/memzero.h"
@@ -123,77 +124,6 @@ enum {
  * progress per input in permille with these many additional bits.
  */
 #define PROGRESS_PRECISION 16
-
-
-#define AMT_STR_LEN 		32
-#define	ADDR_STR_LEN 		130
-#define	DIGEST_STR_LEN 		65
-
-static uint8_t txin_current_digest[SHA256_DIGEST_LENGTH];	/* current tx txins digest */
-static char txin_current_digest_str[DIGEST_STR_LEN];		/* current tx txins digest str */
-
-// these values help give a hint if malware is changing segwit txids in an attempt to create false txs
-static uint8_t txin_last_digest[SHA256_DIGEST_LENGTH];		/* last tx digest */
-static char txin_last_digest_str[DIGEST_STR_LEN];		/* last tx digest str */
-static char last_amount_str[AMT_STR_LEN];					/* spend value of last tx */
-static char last_addr_str[ADDR_STR_LEN];					/* last spend-to address */
-static SHA256_CTX txin_hash_ctx;
-
-// initialize the txin digest machine
-void txin_dgst_initialize(void) {
-	memzero(txin_current_digest, SHA256_DIGEST_LENGTH);
-	memzero(txin_last_digest, SHA256_DIGEST_LENGTH);
-	memzero(last_amount_str, AMT_STR_LEN);
-	memzero(last_addr_str, ADDR_STR_LEN);
-	sha256_Init(&txin_hash_ctx);
-}
-
-// hash in a txin
-void txin_dgst_addto(const uint8_t *data, size_t len) {
-	sha256_Update(&txin_hash_ctx, data, len);
-}
-
-// finalize txin digest
-void txin_dgst_final(void) {
-	sha256_Final(&txin_hash_ctx, txin_current_digest);
-}
-
-// compare dgst, amt, addr
-// returns True if warning condition met
-bool txin_dgst_compare(const char *amt_str, const char *addr_str) {
-	// if amt and addr are same AND digest is different, then warn
-	if ((strncmp(amt_str, last_amount_str, AMT_STR_LEN)==0) && 
-			(strncmp(addr_str, last_addr_str, ADDR_STR_LEN)==0)) {
-		if ((memcmp(txin_current_digest, txin_last_digest, SHA256_DIGEST_LENGTH)!=0)) {
-			return(true);
-		}
-	}
-	return(false);
-}
-
-// return string pointers to digests
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-but-set-parameter"
-void txin_dgst_getstrs(char *prev, char *cur) {
-	data2hex(txin_current_digest, SHA256_DIGEST_LENGTH, txin_current_digest_str);
-	kk_strlwr(txin_current_digest_str);
-	data2hex(txin_last_digest, SHA256_DIGEST_LENGTH, txin_last_digest_str);
-	kk_strlwr(txin_last_digest_str);
-	cur = txin_current_digest_str;
-	prev = txin_last_digest_str;
-	return;
-}
-#pragma GCC diagnostic pop
-
-// save last state and reset for next tx request
-void txin_dgst_save_and_reset(char *amt_str, char *addr_str) {
-	memcpy(txin_last_digest, txin_current_digest, SHA256_DIGEST_LENGTH);
-	memcpy(last_amount_str, amt_str, AMT_STR_LEN);
-	memcpy(last_addr_str, addr_str, ADDR_STR_LEN);
-	memzero(txin_current_digest, SHA256_DIGEST_LENGTH);
-	sha256_Init(&txin_hash_ctx);
-}
-
 
 /*
  * send_co_failed_message() - send transaction output error message to client

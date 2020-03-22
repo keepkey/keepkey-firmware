@@ -27,6 +27,7 @@ set(sources
     storage.c
     tendermint.c
     transaction.c
+    txin_check.c
     u2f.c)
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/scm_revision.h.in"

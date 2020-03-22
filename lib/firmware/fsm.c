@@ -55,6 +55,7 @@
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/tendermint.h"
 #include "keepkey/firmware/transaction.h"
+#include "keepkey/firmware/txin_check.h"
 #include "keepkey/firmware/u2f.h"
 #include "keepkey/rand/rng.h"
 #include "trezor/crypto/address.h"

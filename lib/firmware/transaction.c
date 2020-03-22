@@ -26,6 +26,7 @@
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/signing.h"
+#include "keepkey/firmware/txin_check.h"
 #include "keepkey/transport/interface.h"
 #include "trezor/crypto/address.h"
 #include "trezor/crypto/base58.h"
@@ -400,13 +401,17 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 			return -1; // user aborted
 		}
 
-		// Check for near-identical tx that could be fraud
+		// Check for tx with the same output as previous but different inputs. Could be host malware
 		if (txin_dgst_compare(amount_str, prefix_len + in->address)) {
-			char *prev = NULL, *cur = NULL;
-			txin_dgst_getstrs(prev, cur);
-			if (!confirm_transaction_warning(ButtonRequestType_ButtonRequest_ConfirmOutput, prev, cur)) {
-				return -1;	// user aborted
-			}
+			char prev[DIGEST_STR_LEN], cur[DIGEST_STR_LEN];
+			txin_dgst_getstrs(prev, cur, DIGEST_STR_LEN);
+        	if (!confirm_without_button_request("Warning: Input Changed",
+                                            "with same outputs as last transaction\n"
+                                            "This txin fingerprint: %.10s\n"
+                                            "Last txin fingerprint: %.10s",
+                                            cur, prev)) {
+        		return -1; // user aborted
+        	}
 		}
 		txin_dgst_save_and_reset(amount_str, prefix_len + in->address);
 	}

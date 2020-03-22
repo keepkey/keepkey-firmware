@@ -193,27 +193,6 @@ bool confirm_transaction_output(ButtonRequestType button_request, const char *am
 }
 
 /*
- * confirm_transaction_warning() - Warn of potential tx fraud
- *
- * INPUT -
- *      - button_request: button request type
- *      - prev: previous txin digest
- *      - cur: current txin digest
- * OUTPUT -
- *     true/false of confirmation
- *
- */
-bool confirm_transaction_warning(ButtonRequestType button_request, const char *prev, const char *cur)
-{
-    return confirm_with_custom_layout(&layout_notification_no_title_bold,
-                                      button_request,
-                                      "WARNING",
-                                      "Last transaction had different inputs for identical outputs\n\n\
-previous txin digest: %s\n\
-current  txin digest: %s", prev, cur);
-}
-
-/*
  * confirm_erc_token_transfer() - Show transaction output confirmation without bold
  *
  * INPUT -
@@ -232,10 +211,6 @@ bool confirm_erc_token_transfer(ButtonRequestType button_request,
             "",
             "Send %s", msg_body);
 }
-
-
-
-
 
 /*
  * confirm_transaction_output_no_bold() - Show transaction output confirmation without bold
