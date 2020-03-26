@@ -387,6 +387,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 
 	if (needs_confirm) {
 		char amount_str[32];
+		int retval = 0;
 		coin_amnt_to_str(coin, in->amount, amount_str, sizeof(amount_str));
 		if (coin->has_cashaddr_prefix) {
 			prefix_len = strlen(coin->cashaddr_prefix) + 1;
@@ -405,15 +406,16 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		if (txin_dgst_compare(amount_str, prefix_len + in->address)) {
 			char prev[DIGEST_STR_LEN], cur[DIGEST_STR_LEN];
 			txin_dgst_getstrs(prev, cur, DIGEST_STR_LEN);
-        	if (!confirm_without_button_request("Warning: Input Changed",
-                                            "with same outputs as last transaction\n"
-                                            "This txin fingerprint: %.10s\n"
-                                            "Last txin fingerprint: %.10s",
-                                            cur, prev)) {
-        		return -1; // user aborted
-        	}
+			confirm_without_button_request("WARNING: Duplicate Transaction!",
+                                            "Already signed a tx with the same outputs\n"
+                                            "To try again, unplug/replug KeepKey.");
+			retval = -1; // abort
 		}
 		txin_dgst_save_and_reset(amount_str, prefix_len + in->address);
+
+		if (retval == -1) {
+			return retval;
+		}
 	}
 
 	return out->script_pubkey.size;
