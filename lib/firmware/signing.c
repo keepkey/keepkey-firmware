@@ -31,12 +31,14 @@
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/policy.h"
 #include "keepkey/firmware/signing.h"
+#include "keepkey/firmware/txin_check.h"
 #include "keepkey/firmware/transaction.h"
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/memzero.h"
 #include "trezor/crypto/secp256k1.h"
 
 #include "types.pb.h"
+
 
 #define _(X) (X)
 
@@ -1259,12 +1261,16 @@ void signing_txack(TransactionType *tx)
 #endif
 				to_spend += tx->inputs[0].amount;
 				authorized_amount += tx->inputs[0].amount;
+
+				txin_dgst_addto(tx->inputs[0].prev_hash.bytes, sizeof(TxInputType_prev_hash_t));
+
 				phase1_request_next_input();
 			} else {
 				fsm_sendFailure(FailureType_Failure_SyntaxError, _("Wrong input script type"));
 				signing_abort();
 				return;
 			}
+
 			return;
 		case STAGE_REQUEST_2_PREV_META:
 			if (tx->outputs_cnt <= input.prev_index) {
@@ -1351,6 +1357,9 @@ void signing_txack(TransactionType *tx)
 			}
 			return;
 		case STAGE_REQUEST_3_OUTPUT:
+			
+			txin_dgst_final();
+
 			if (!signing_check_output(&tx->outputs[0])) {
 				return;
 			}

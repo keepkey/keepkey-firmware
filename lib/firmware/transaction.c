@@ -25,6 +25,8 @@
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
+#include "keepkey/firmware/signing.h"
+#include "keepkey/firmware/txin_check.h"
 #include "keepkey/transport/interface.h"
 #include "trezor/crypto/address.h"
 #include "trezor/crypto/base58.h"
@@ -385,6 +387,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 
 	if (needs_confirm) {
 		char amount_str[32];
+		int retval = 0;
 		coin_amnt_to_str(coin, in->amount, amount_str, sizeof(amount_str));
 		if (coin->has_cashaddr_prefix) {
 			prefix_len = strlen(coin->cashaddr_prefix) + 1;
@@ -393,9 +396,25 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 		} else {
 			prefix_len = 0;
 		}
+
 		if (!confirm_transaction_output(ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
 		                                prefix_len + in->address)) {
 			return -1; // user aborted
+		}
+
+		// Check for tx with the same output as previous but different inputs. Could be host malware
+		if (txin_dgst_compare(amount_str, prefix_len + in->address)) {
+			char prev[DIGEST_STR_LEN], cur[DIGEST_STR_LEN];
+			txin_dgst_getstrs(prev, cur, DIGEST_STR_LEN);
+			confirm_without_button_request("WARNING: Duplicate Transaction!",
+                                            "Already signed a tx with the same outputs\n"
+                                            "To try again, unplug/replug KeepKey.");
+			retval = -1; // abort
+		}
+		txin_dgst_save_and_reset(amount_str, prefix_len + in->address);
+
+		if (retval == -1) {
+			return retval;
 		}
 	}
 
