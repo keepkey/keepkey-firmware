@@ -2,7 +2,7 @@ version: 2.1
 jobs:
   emulator-build-test:
     docker:
-      - image: circleci/python:3.7
+      - image: mcchadwick/kkemu-builder:1.0
     steps:
       - checkout
       - run:

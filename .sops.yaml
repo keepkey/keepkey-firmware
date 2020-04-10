@@ -1,0 +1,8 @@
+creation_rules:
+  #staging
+  - path_regex: config\/staging\.json$
+    kms: "arn:aws:kms:eu-west-1:053006496257:alias/$CLUSTER_NAME+arn:aws:iam::053006496257:role/ecs-$CLUSTER_NAME-secrets"
+
+  # production
+  - path_regex: config\/production\.json$
+    kms: "arn:aws:kms:eu-west-1:499107126473:alias/$CLUSTER_NAME+arn:aws:iam::499107126473:role/$CLUSTER_NAME-secrets"
