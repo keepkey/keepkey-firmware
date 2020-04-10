@@ -52,16 +52,16 @@ jobs:
       - store_test_results:
           path: test-reports
       - run:
-        name: Publish Emulator
-        command: |
-          pushd ./scripts/emulator
-          docker login -u $KKTECH_DOCKERHUB_USER -p $KKTECH_DOCKERHUB_PASS
-          docker push kktech/kkemu
-          LATEST_IMAGE_ID=$(docker images | grep -i kktech/kkemu | grep -i latest | awk '{print $3}' )
-          FW_VERSION=$(cat ./CMakeLists.txt | tr -d '\n' | awk -v FS="(KeepKeyFirmwareVERSION|LANGUAGES)" '{print $1}' | awk '{print $4}')
-          docker tag $LATEST_IMAGE_ID kktech/kkemu:v$FW_VERSION
-          docker push kktech/kkemu
-          popd
+          name: Publish Emulator
+          command: |
+            pushd ./scripts/emulator
+            docker login -u $KKTECH_DOCKERHUB_USER -p $KKTECH_DOCKERHUB_PASS
+            docker push kktech/kkemu
+            LATEST_IMAGE_ID=$(docker images | grep -i kktech/kkemu | grep -i latest | awk '{print $3}' )
+            FW_VERSION=$(cat ./CMakeLists.txt | tr -d '\n' | awk -v FS="(KeepKeyFirmwareVERSION|LANGUAGES)" '{print $1}' | awk '{print $4}')
+            docker tag $LATEST_IMAGE_ID kktech/kkemu:v$FW_VERSION
+            docker push kktech/kkemu
+            popd
 
 workflows:
   version: 2
