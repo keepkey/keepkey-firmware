@@ -58,7 +58,7 @@ jobs:
             # docker login -u $KK_DOCKERHUB_USER -p $KK_DOCKERHUB_PASS
             docker login -u $MC_DOCKERHUB_USER -p $MC_DOCKERHUB_PASS
             # docker push kktech/kkemu
-            docker push mcchadwick/kkemu
+            # docker push mcchadwick/kkemu
             LATEST_IMAGE_ID=$(docker images | grep -i kktech/kkemu | grep -i latest | awk '{print $3}' )
             FW_VERSION=$(cat ./CMakeLists.txt | tr -d '\n' | awk -v FS="(KeepKeyFirmwareVERSION|LANGUAGES)" '{print $1}' | awk '{print $4}')
             # docker tag $LATEST_IMAGE_ID kktech/kkemu:v$FW_VERSION
