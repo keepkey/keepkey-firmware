@@ -71,7 +71,10 @@ workflows:
   version: 2
   emulator:
     jobs:
-      - emulator-build-test
+      - emulator-build-test:
+          filters:
+            branches:
+              ignore: automate-emulator-push
       - emulator-publish:
           filters:
             branches:
