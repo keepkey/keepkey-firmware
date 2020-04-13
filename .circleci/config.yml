@@ -68,8 +68,8 @@ workflows:
       - emulator-build-test:
           filters:
             branches:
-              ignore: master
+              ignore: automate-emulator-push
       - emulator-publish:
           filters:
             branches:
-              only: master
+              only: automate-emulator-push
