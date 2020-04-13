@@ -54,7 +54,6 @@ jobs:
       - run:
           name: Publish Emulator
           command: |
-            pushd ./scripts/emulator
             # docker login -u $KK_DOCKERHUB_USER -p $KK_DOCKERHUB_PASS
             docker login -u $MC_DOCKERHUB_USER -p $MC_DOCKERHUB_PASS
             # docker push kktech/kkemu
@@ -65,7 +64,6 @@ jobs:
             docker tag $LATEST_IMAGE_ID mcchadwick/kkemu:v$FW_VERSION
             # docker push kktech/kkemu
             docker push mcchadwick/kkemu
-            popd
 
 workflows:
   version: 2
