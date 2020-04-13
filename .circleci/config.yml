@@ -2,7 +2,7 @@ version: 2.1
 jobs:
   emulator-build-test:
     docker:
-      - image: mcchadwick/kkemu-builder:1.0
+      - image: circleci/python:3.7
     steps:
       - checkout
       - run:
@@ -55,12 +55,16 @@ jobs:
           name: Publish Emulator
           command: |
             pushd ./scripts/emulator
-            docker login -u $KKTECH_DOCKERHUB_USER -p $KKTECH_DOCKERHUB_PASS
-            docker push kktech/kkemu
+            # docker login -u $KK_DOCKERHUB_USER -p $KK_DOCKERHUB_PASS
+            docker login -u $MC_DOCKERHUB_USER -p $MC_DOCKERHUB_PASS
+            # docker push kktech/kkemu
+            docker push mcchadwick/kkemu
             LATEST_IMAGE_ID=$(docker images | grep -i kktech/kkemu | grep -i latest | awk '{print $3}' )
             FW_VERSION=$(cat ./CMakeLists.txt | tr -d '\n' | awk -v FS="(KeepKeyFirmwareVERSION|LANGUAGES)" '{print $1}' | awk '{print $4}')
-            docker tag $LATEST_IMAGE_ID kktech/kkemu:v$FW_VERSION
-            docker push kktech/kkemu
+            # docker tag $LATEST_IMAGE_ID kktech/kkemu:v$FW_VERSION
+            docker tag $LATEST_IMAGE_ID mcchadwick/kkemu:v$FW_VERSION
+            # docker push kktech/kkemu
+            docker push mcchadwick/kkemu
             popd
 
 workflows:
@@ -71,4 +75,5 @@ workflows:
       - emulator-publish:
           filters:
             branches:
-              only: master
+              only: automate-emulator-push
+              # only: master
