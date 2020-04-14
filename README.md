@@ -30,6 +30,7 @@ $ ./scripts/build/docker/device/release.sh
 ## Verifying Published Binaries
 
 Compare the hash of a given tagged build:
+
 ```
 $ git checkout v6.2.0
 $ git submodule update --init --recursive
@@ -51,6 +52,7 @@ $ head -c +256 signed_firmware.bin | xxd -
 ```
 
 Caveats:
+
 1. v6.2.2 and v6.3.0 had an issue with build reproducibility. See [#212](https://github.com/keepkey/keepkey-firmware/issues/212).
 1. As of v6.1.0 and later, we started prepending empty slots for signatures as part of the build, and prior firmwares were emitted without that metadata section. See [87b9ebb84](https://github.com/keepkey/keepkey-firmware/commit/87b9ebb846b241e6357f296e37fd29808ddfa51a)
 
