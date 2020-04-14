@@ -39,7 +39,9 @@ jobs:
       - run:
           name: Build Emulator
           command: |
+            pushd ./scripts/emulator
             docker-compose build kkemu
+            popd
       - run:
           name: Publish Emulator
           command: |
