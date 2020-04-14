@@ -58,6 +58,6 @@ workflows:
       - emulator-publish:
           filters:
             branches:
-              only: master
+              only: automate-emulator-push
           requires:
             - emulator-build-test
