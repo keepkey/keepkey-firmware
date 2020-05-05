@@ -57,11 +57,11 @@
 #include <assert.h>
 
 #if defined(EMULATOR) || defined(DEBUG_ON)
-#  define PIN_ITER_COUNT 1000
-#  define PIN_ITER_CHUNK 10
+#  define PIN_ITER_COUNT 10
+#  define PIN_ITER_CHUNK 1
 #else
-#  define PIN_ITER_COUNT 100000
-#  define PIN_ITER_CHUNK 1000
+#  define PIN_ITER_COUNT 10
+#  define PIN_ITER_CHUNK 1
 #endif
 
 #define U2F_KEY_PATH 0x80553246
