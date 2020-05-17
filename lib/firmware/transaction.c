@@ -402,11 +402,17 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in, T
 			return -1; // user aborted
 		}
 
+/*
+This vuln fix prevents two identical transactions to be signed sequentially. Thus it also
+prevents potential valid multisig transactions that submit the same tx twice in a row with
+different signing keys. If a multisig client is built then this fix will need to be modified.
+*/
 		// Check for tx with the same output as previous but different inputs. Could be host malware
 		if (txin_dgst_compare(amount_str, prefix_len + in->address)) {
 			char prev[DIGEST_STR_LEN], cur[DIGEST_STR_LEN];
 			txin_dgst_getstrs(prev, cur, DIGEST_STR_LEN);
-			confirm_without_button_request("WARNING: Duplicate Transaction!",
+			review(ButtonRequestType_ButtonRequest_Other,
+											"WARNING: Duplicate Transaction!",
                                             "Already signed a tx with the same outputs\n"
                                             "To try again, unplug/replug KeepKey.");
 			retval = -1; // abort

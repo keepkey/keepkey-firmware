@@ -345,6 +345,9 @@ void fsm_msgLoadDevice(LoadDevice *msg)
     storage_loadDevice(msg);
 
     storage_commit();
+
+    txin_dgst_initialize();     // reset tx tracking if seed words are loaded
+
     fsm_sendSuccess("Device loaded");
     layoutHome();
 }
