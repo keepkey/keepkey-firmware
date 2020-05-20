@@ -25,12 +25,18 @@
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/policy.h"
 
+// The length of the external salt in bytes.
+#define EXTERNAL_SALT_SIZE 32
+
 typedef struct _Storage {
     uint32_t version;
     struct Public {
         uint8_t wrapped_storage_key[64];
         uint8_t storage_key_fingerprint[32];
+        uint8_t wrapped_wipe_code_key[64];
+        uint8_t wipe_code_key_fingerprint[32];
         bool has_pin;
+        bool has_wipe_code;
         uint32_t pin_failed_attempts;
         bool has_language;
         char language[16];
@@ -129,6 +135,10 @@ void storage_setPin_impl(SessionState *session, Storage *storage, const char *pi
 
 bool storage_hasPin_impl(const Storage *storage);
 
+void storage_setWipeCode_impl(SessionState *session, Storage *storage, const char *wipe_code);
+
+bool storage_hasWipeCode_impl(const Storage *storage)
+
 /// \return: PIN_WRONG     - PIN is incorrect
 ///          PIN_GOOD        - PIN is correct
 ///          PIN_REWRAP -> PIN is correct, storage key was rewrapped, CALLING FUNCTION SHOULD storage_commit()
@@ -173,5 +183,8 @@ void storage_writeCacheV1(char *ptr, size_t len, const Cache *cache);
 
 bool storage_setPolicy_impl(PolicyType policies[POLICY_COUNT], const char *policy_name, bool enabled);
 bool storage_isPolicyEnabled_impl(const PolicyType policies[POLICY_COUNT], const char *policy_name);
+
+bool storageHasWipeCode(void);
+bool storageChangeWipeCode(uint32_t pin, const uint8_t *ext_salt, uint32_t wipe_code);
 
 #endif

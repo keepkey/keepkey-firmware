@@ -400,6 +400,59 @@ pintest_t storage_isPinCorrect_impl(
     return ret;
 }
 
+pintest_t storage_isWipeCodeCorrect_impl(
+    const char *pin, uint8_t wrapped_key[64], const uint8_t fingerprint[32],
+    bool *sca_hardened, uint8_t key[64], uint8_t random_salt[RANDOM_SALT_LEN])
+{
+/*
+    This function tests whether the PIN entered is the wipe code. It will return
+        PIN_WRONG     - PIN is not wipe code
+        PIN_GOOD        - PIN is wipe code
+
+    If the pin is correct, the storage key may have been rewrapped and returned in the wrapped_key parameter. 
+    Since the *_impl functions are assumed to not touch the stored config state, the
+    rewrapped storage key will not have been saved to flash on exit from this function. Thus, if the return is 
+    PIN_REWRAP, then the calling function is required to update the flash with a storage_commit().
+*/
+    uint8_t wrapping_key[64];
+    storage_deriveWrappingKey(pin, wrapping_key, *sca_hardened, random_salt,
+        _("Verifying PIN"));
+
+    // unwrap the storage key for fingerprint test
+    if (*sca_hardened) {
+        // key was wrapped using the sca-hardened method
+        storage_unwrapStorageKey(wrapping_key, wrapped_key, key);
+    } else {
+        // key was wrapped using deprecated method, unwrap for test
+        storage_unwrapStorageKey256(wrapping_key, wrapped_key, key);
+    }
+
+    uint8_t fp[32];
+    storage_keyFingerprint(key, fp);
+
+    pintest_t ret = PIN_WRONG;
+    if (memcmp_s(fp, fingerprint, 32) == 0)
+        ret = PIN_GOOD;
+
+    if (ret == PIN_GOOD) {
+        if (!*sca_hardened) {
+            // PIN is correct but:
+            //   1. wrapping key needs to be regenerated using stretched key
+            //   2. storage key needs a rewrap with new wrapping key and algorithm
+            storage_deriveWrappingKey(pin, wrapping_key, true/* sca_hardened */, random_salt, _("Verifying PIN"));
+            storage_wrapStorageKey(wrapping_key, key, wrapped_key);
+            *sca_hardened = true;
+            ret = PIN_REWRAP;
+        }
+    }
+
+    if (!ret)
+        memzero(key, 64);
+    memzero(wrapping_key, 64);
+    memzero(fp, 32);
+    return ret;
+}
+
 void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
     static CONFIDENTIAL char scratch[512];
     _Static_assert(sizeof(scratch) == sizeof(storage->encrypted_sec),
@@ -1343,6 +1396,83 @@ void storage_setPin_impl(SessionState *ss, Storage *storage, const char *pin)
     storage_secMigrate(ss, storage, /*encrypt=*/true);
 }
 
+bool storage_isWipeCodeCorrect(const char *pin) {
+    uint8_t scratch_buf[64];
+    pintest_t ret = storage_isWipeCodeCorrect_impl(pin,
+        shadow_config.storage.pub.wrapped_wipe_code_key,
+        shadow_config.storage.pub.wipe_code_key_fingerprint,
+        &shadow_config.storage.pub.sca_hardened,
+        scratch_buf,
+        shadow_config.storage.pub.random_salt);
+
+    switch (ret) {
+    case PIN_REWRAP:
+        session.pinCached = true;
+        storage_commit();
+        storage_secMigrate(&session, &shadow_config.storage, /*encrypt=*/false);
+        break;
+    case PIN_GOOD:
+        session.pinCached = true;
+        storage_secMigrate(&session, &shadow_config.storage, /*encrypt=*/false);
+        break;
+    case PIN_WRONG:
+    default:
+        session.pinCached = false;
+        session_clear_impl(&session, &shadow_config.storage, /*clear_pin=*/true);
+        memzero(session.storageKey, sizeof(session.storageKey));
+        break;
+    }
+    memzero(scratch_buf, sizeof(scratch_buf));
+    return ret;
+}
+
+bool storage_hasWipeCode(void)
+{
+    return storage_hasWipeCode_impl(&shadow_config.storage);
+}
+
+bool storage_hasWipeCode_impl(const Storage *storage)
+{
+    return storage->pub.has_wipe_code;
+}
+
+void storage_setWipeCode(const char *wipe_code){
+    storage_setWipeCode_impl(&session, &shadow_config.storage, wipe_code);
+
+#if DEBUG_LINK
+    strncpy(debuglink_wipe_code, debuglink_wipe_code, sizeof(debuglink_wipe_code));
+#endif
+}
+
+void storage_setWipeCode_impl(SessionState *ss, Storage *storage, const char *wipe_code)
+{
+    uint8_t scratch_key[64];
+    // Derive the wrapping key for the new wipe code
+    uint8_t wrapping_key[64];
+    storage_deriveWrappingKey(wipe_code, wrapping_key, /*sca_hardened=*/true,
+        storage->pub.random_salt, _("Encrypting Secrets"));
+
+    // Derive a new storageKey.
+    random_buffer(scratch_key, 64);
+
+    // Wrap the new storageKey.
+    storage_wrapStorageKey(wrapping_key, scratch_key,
+                           storage->pub.wrapped_storage_key);
+    storage->pub.sca_hardened = true;
+
+    // Fingerprint the storageKey.
+    storage_keyFingerprint(scratch_key,
+                           storage->pub.storage_key_fingerprint);
+
+    // Clean up secrets to get them off the stack.
+    memzero(wrapping_key, sizeof(wrapping_key));
+    memzero(scratch_key, sizeof(scratch_key));
+
+    storage->pub.has_wipe_code = !!strlen(wipe_code);
+
+    //storage_secMigrate(ss, storage, /*encrypt=*/true);
+}
+
 bool session_isPinCached(void)
 {
     return session.pinCached;
@@ -1681,6 +1811,35 @@ void storage_setAutoLockDelayMs(uint32_t auto_lock_delay_ms)
 	shadow_config.storage.pub.auto_lock_delay_ms =
 	    MAX(auto_lock_delay_ms, STORAGE_MIN_SCREENSAVER_TIMEOUT);
 }
+
+// bool storage_hasWipeCode(void) {
+//   if (sectrue != initialized || sectrue != unlocked) {
+//     return secfalse;
+//   }
+
+//   return is_not_wipe_code(WIPE_CODE_EMPTY);
+// }
+
+// bool storage_setWipeCode(const char *pin, const uint8_t *ext_salt,
+//                                  const char *wipe_code) {
+//     bool ret = false;
+//     if (storage_hasPin() && (pin == wipe_code)) {
+//         memzero(&pin, sizeof(pin));
+//         memzero(&wipe_code, sizeof(wipe_code));
+//         return false;
+//     }
+
+//     ui_total = DERIVE_SECS;
+//     ui_rem = ui_total;
+//     ui_message = (pin != PIN_EMPTY && wipe_code == PIN_EMPTY) ? VERIFYING_PIN_MSG
+//                                                             : PROCESSING_MSG;
+//     if (storage_isPinCorrect(pin)) {
+//         ret = set_wipe_code(wipe_code);
+//     }
+//     memzero(&pin, sizeof(pin));
+//     memzero(&wipe_code, sizeof(wipe_code));
+//     return ret;
+// }
 
 #if DEBUG_LINK
 const char *storage_getPin(void)

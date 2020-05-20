@@ -48,6 +48,7 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     resp->has_pin_protection = true; resp->pin_protection = storage_hasPin();
     resp->has_passphrase_protection = true;
     resp->passphrase_protection = storage_getPassphraseProtected();
+    resp->has_wipe_code_protection = storage_has_wipe_code();
 
 #ifdef SCM_REVISION
     int len = sizeof(SCM_REVISION) - 1;
@@ -250,6 +251,65 @@ void fsm_msgChangePin(ChangePin *msg)
     }
 
     if (!change_pin()) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, "PINs do not match");
+        layoutHome();
+        return;
+    }
+    storage_commit();
+    fsm_sendSuccess("PIN changed");
+    layoutHome();
+}
+
+void fsm_msgChangeWipeCode(ChangeWipeCode *msg) {
+    CHECK_INITIALIZED
+
+    bool removal = msg->has_remove && msg->remove;
+    bool has_wipe_code = config_hasWipeCode();
+
+    if (removal) {
+    // Note that if storage is locked, then config_hasWipeCode() returns false.
+        if (has_wipe_code || !session_isUnlocked()) {
+            if(!confirm(ButtonRequestType_ButtonRequest_ChangeWipeCode), 
+                "Change Wipe Code",
+                "Do you really want to disable wipe code protection?") {
+                    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe code removal cancelled");
+            } else {
+                fsm_sendSuccess("Wipe code removed");
+                return;
+            }
+        } 
+    } else {
+        if (has_wipe_code) {
+            if(!confirm(ButtonRequestType_ButtonRequestChangeWipeCode), "Change Wipe Code",
+                        "Do you really want to change the current wipe code?"){
+                fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe code change cancelled");
+            } else {
+                fsm_send_Success("Wipe code changed");
+            }
+        } else {
+            if(!confirm(ButtonRequestType_ButtonRequestChangeWipeCode), "Set New Code",
+                        "Do you really want to set a new wipe code?"){
+                fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe code set cancelled");
+            } else {
+                fsm_send_Success("Wipe code set");
+            }
+        }
+    }
+    if (!protectButton(ButtonRequestType_ButtonRequest_ProtectCall, false)) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        layoutHome();
+        return;
+    }
+
+    if (removal) {
+        storage_setWipeCode("");
+        storage_commit();
+        fsm_sendSuccess("Wipe code removed");
+        layoutHome();
+        return;
+    }
+
+    if (!change_wipe_code()) {
         fsm_sendFailure(FailureType_Failure_ActionCancelled, "PINs do not match");
         layoutHome();
         return;

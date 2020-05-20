@@ -70,6 +70,10 @@ bool pin_protect_uncached(void);
 /// \returns true iff the PIN was successfully changed.
 bool change_pin(void);
 
+/// Process a wipe code change.
+/// \returns true iff the wipe code was successfully changed.
+bool change_wipe_code(void);
+
 #if DEBUG_LINK
 /// Gets randomized PIN matrix.
 const char *get_pin_matrix(void);
