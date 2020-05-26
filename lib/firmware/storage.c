@@ -80,6 +80,7 @@ static ConfigFlash CONFIDENTIAL shadow_config;
 // These won't survive resets like the stuff in flash would, but thats a
 // reasonable compromise given how testing works.
 char debuglink_pin[10];
+char debuglink_wipe_code[10];
 char debuglink_mnemonic[241];
 HDNode debuglink_node;
 #endif
@@ -703,7 +704,6 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     memcpy(storage->pub.label, ptr + 32, 48);
 
     memcpy(storage->pub.wrapped_storage_key, ptr + 80, 64);
-    memcpy(storage->pub.storage_key_fingerprint, ptr + 144, 32);
 
     storage_readHDNode(&storage->pub.u2froot, ptr + 176, 129);
     storage->pub.u2f_counter = read_u32_le(ptr + 305);
@@ -722,6 +722,125 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     memzero(&storage->sec, sizeof(storage->sec));
     storage->encrypted_sec_version = read_u32_le(ptr + 464);
     memcpy(storage->encrypted_sec, ptr + 468, sizeof(storage->encrypted_sec));
+}
+
+void storage_writeStorageV16(char *ptr, size_t len, const Storage *storage) {
+    if (len < 852)
+        return;
+    write_u32_le(ptr, storage->version);
+
+    uint32_t flags =
+        (storage->pub.has_pin                     ? (1u <<  0) : 0) |
+        (storage->pub.has_language                ? (1u <<  1) : 0) |
+        (storage->pub.has_label                   ? (1u <<  2) : 0) |
+        (storage->pub.has_auto_lock_delay_ms      ? (1u <<  3) : 0) |
+        (storage->pub.imported                    ? (1u <<  4) : 0) |
+        (storage->pub.passphrase_protection       ? (1u <<  5) : 0) |
+        (/* ShapeShift policy, enabled always */    (1u <<  6)    ) |
+        (/* Pin Caching policy, enabled always */   (1u <<  7)    ) |
+        (storage->pub.has_node                    ? (1u <<  8) : 0) |
+        (storage->pub.has_mnemonic                ? (1u <<  9) : 0) |
+        (storage->pub.has_u2froot                 ? (1u << 10) : 0) |
+        (storage_isPolicyEnabled("Experimental")  ? (1u << 11) : 0) |
+        (storage_isPolicyEnabled("AdvancedMode")  ? (1u << 12) : 0) |
+        (storage->pub.no_backup                   ? (1u << 13) : 0) |
+        (storage->has_sec_fingerprint             ? (1u << 14) : 0) |
+        (storage->pub.sca_hardened                ? (1u << 15) : 0) |
+        (storage->pub.has_wipe_code               ? (1u << 16) : 0) |
+        /* reserved 31:17 */ 0;
+    write_u32_le(ptr + 4, flags);
+
+    write_u32_le(ptr + 8, storage->pub.pin_failed_attempts);
+    write_u32_le(ptr + 12, storage->pub.auto_lock_delay_ms);
+
+    memcpy(ptr + 16, storage->pub.language, 16);
+    memcpy(ptr + 32, storage->pub.label, 48);
+
+    memcpy(ptr + 80, storage->pub.wrapped_storage_key, 64);
+    memcpy(ptr + 144, storage->pub.storage_key_fingerprint, 32);
+    memcpy(ptr + 176, storage->pub.wrapped_wipe_code_key, 64);
+    memcpy(ptr + 240, storage->pub.wipe_code_key_fingerprint, 32);
+
+    storage_writeHDNode(ptr + 272, 129, &storage->pub.u2froot);
+    write_u32_le(ptr + 401, storage->pub.u2f_counter);
+
+    if (storage->has_sec_fingerprint) {
+        memcpy(ptr + 405, storage->sec_fingerprint, 32);
+    }
+
+    memcpy(ptr + 437, storage->pub.random_salt, 32);
+    // 1028 reserved bytes 
+
+    // Ignore whatever was in storage->sec. Only encrypted_sec can be committed.
+    // Yes, this is a potential footgun. No, there's nothing we can do about it here.
+
+    // Note: the encrypted_sec_version is not necessarily STORAGE_VERSION. If
+    // storage is committed without pin entry on storage upgrade, the plaintext
+    // and ciphertext storage sections will have different versions.
+    write_u32_le(ptr + 1497, storage->encrypted_sec_version);
+
+    memcpy(ptr + 1501, storage->encrypted_sec, sizeof(storage->encrypted_sec));
+}
+
+void storage_readStorageV16(Storage *storage, const char *ptr, size_t len) {
+    if (len < 852)
+        return;
+
+    storage->version = read_u32_le(ptr);
+
+    uint32_t flags = read_u32_le(ptr + 4);
+    storage->pub.has_pin =                                           flags & (1u <<  0);
+    storage->pub.has_language =                                      flags & (1u <<  1);
+    storage->pub.has_label =                                         flags & (1u <<  2);
+    storage->pub.has_auto_lock_delay_ms =                            flags & (1u <<  3);
+    storage->pub.imported =                                          flags & (1u <<  4);
+    storage->pub.passphrase_protection =                             flags & (1u <<  5);
+    storage_readPolicyV2(&storage->pub.policies[0], "ShapeShift",    true);
+    storage_readPolicyV2(&storage->pub.policies[1], "Pin Caching",   true);
+    storage->pub.has_node =                                          flags & (1u <<  8);
+    storage->pub.has_mnemonic =                                      flags & (1u <<  9);
+    storage->pub.has_u2froot =                                       flags & (1u << 10);
+    storage_readPolicyV2(&storage->pub.policies[2], "Experimental",  flags & (1u << 11));
+    storage_readPolicyV2(&storage->pub.policies[3], "AdvancedMode",  flags & (1u << 12));
+    storage->pub.no_backup =                                         flags & (1u << 13);
+    storage->has_sec_fingerprint =                                   flags & (1u << 14);
+    storage->pub.sca_hardened =                                      flags & (1u << 15);
+    storage->pub.has_wipe_code =                                     flags & (1u << 16);                                    
+
+    storage->pub.policies_count = POLICY_COUNT;
+
+    storage->pub.pin_failed_attempts = read_u32_le(ptr + 8);
+    storage->pub.auto_lock_delay_ms = MAX(read_u32_le(ptr + 12),
+                                          STORAGE_MIN_SCREENSAVER_TIMEOUT);
+
+    memset(storage->pub.language, 0, sizeof(storage->pub.language));
+    memcpy(storage->pub.language, ptr + 16, 16);
+
+    memset(storage->pub.label, 0, sizeof(storage->pub.label));
+    memcpy(storage->pub.label, ptr + 32, 48);
+
+    memcpy(storage->pub.wrapped_storage_key, ptr + 80, 64);
+    memcpy(storage->pub.storage_key_fingerprint, ptr + 144, 32);
+
+    memcpy(storage->pub.wrapped_wipe_code_key, ptr + 176, 64);
+    memcpy(storage->pub.wipe_code_key_fingerprint, ptr + 240, 32);
+
+    storage_readHDNode(&storage->pub.u2froot, ptr + 272, 129);
+    storage->pub.u2f_counter = read_u32_le(ptr + 401);
+
+    if (storage->has_sec_fingerprint) {
+        memcpy(storage->sec_fingerprint, ptr + 405, 32);
+    } else {
+        memset(storage->sec_fingerprint, 0, sizeof(storage->sec_fingerprint));
+    }
+
+    memcpy(storage->pub.random_salt, ptr + 437, 32);
+    // 1028 reserved bytes
+
+    storage->has_sec = false;
+    memzero(&storage->sec, sizeof(storage->sec));
+    storage->encrypted_sec_version = read_u32_le(ptr + 1497);
+    memcpy(storage->encrypted_sec, ptr + 1501, sizeof(storage->encrypted_sec));
 }
 
 void storage_readCacheV1(Cache *cache, const char *ptr, size_t len) {
@@ -770,6 +889,20 @@ void storage_writeV11(char *flash, size_t len, const ConfigFlash *src) {
         return;
     storage_writeMeta(flash, 44, &src->meta);
     storage_writeStorageV11(flash + 44, 852, &src->storage);
+}
+
+void storage_readV16(ConfigFlash *dst, const char *flash, size_t len) {
+    if (len < 1024)
+        return;
+    storage_readMeta(&dst->meta, flash, 44);
+    storage_readStorageV16(&dst->storage, flash + 44, 852);
+}
+
+void storage_writeV16(char *flash, size_t len, const ConfigFlash *src) {
+    if (len < 1024)
+        return;
+    storage_writeMeta(flash, 44, &src->meta);
+    storage_writeStorageV16(flash + 44, 852, &src->storage);
 }
 
 StorageUpdateStatus storage_fromFlash(SessionState *ss, ConfigFlash *dst, const char *flash)
@@ -821,6 +954,12 @@ StorageUpdateStatus storage_fromFlash(SessionState *ss, ConfigFlash *dst, const 
         case StorageVersion_14:
         case StorageVersion_15:
             storage_readV11(dst, flash, STORAGE_SECTOR_LEN);
+            dst->storage.version = STORAGE_VERSION;
+            return dst->storage.version == version
+                ? SUS_Valid
+                : SUS_Updated;
+        case StorageVersion_16:
+            storage_readV16(dst, flash, STORAGE_SECTOR_LEN );
             dst->storage.version = STORAGE_VERSION;
             return dst->storage.version == version
                 ? SUS_Valid
@@ -1105,7 +1244,7 @@ void storage_commit(void)
         // commit what was in storage->encrypted_sec
     }
 
-    storage_writeV11(flash_temp, sizeof(flash_temp), &shadow_config);
+    storage_writeV16(flash_temp, sizeof(flash_temp), &shadow_config);
 
     memcpy(&shadow_config, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
 
@@ -1440,7 +1579,7 @@ void storage_setWipeCode(const char *wipe_code){
     storage_setWipeCode_impl(&session, &shadow_config.storage, wipe_code);
 
 #if DEBUG_LINK
-    strncpy(debuglink_wipe_code, debuglink_wipe_code, sizeof(debuglink_wipe_code));
+    strncpy(debuglink_wipe_code, wipe_code, sizeof(debuglink_wipe_code));
 #endif
 }
 
@@ -1450,19 +1589,19 @@ void storage_setWipeCode_impl(SessionState *ss, Storage *storage, const char *wi
     // Derive the wrapping key for the new wipe code
     uint8_t wrapping_key[64];
     storage_deriveWrappingKey(wipe_code, wrapping_key, /*sca_hardened=*/true,
-        storage->pub.random_salt, _("Encrypting Secrets"));
+        storage->pub.random_salt, _("Updating Wipe Code"));
 
-    // Derive a new storageKey.
+    // Derive a new wipe code key .
     random_buffer(scratch_key, 64);
 
-    // Wrap the new storageKey.
+    // Wrap the new wipe code key.
     storage_wrapStorageKey(wrapping_key, scratch_key,
-                           storage->pub.wrapped_storage_key);
+                           storage->pub.wrapped_wipe_code_key);
     storage->pub.sca_hardened = true;
 
-    // Fingerprint the storageKey.
+    // Fingerprint the wipe code key.
     storage_keyFingerprint(scratch_key,
-                           storage->pub.storage_key_fingerprint);
+                           storage->pub.wipe_code_key_fingerprint);
 
     // Clean up secrets to get them off the stack.
     memzero(wrapping_key, sizeof(wrapping_key));
@@ -1470,7 +1609,7 @@ void storage_setWipeCode_impl(SessionState *ss, Storage *storage, const char *wi
 
     storage->pub.has_wipe_code = !!strlen(wipe_code);
 
-    //storage_secMigrate(ss, storage, /*encrypt=*/true);
+    storage_secMigrate(ss, storage, /*encrypt=*/true);
 }
 
 bool session_isPinCached(void)
@@ -1811,35 +1950,6 @@ void storage_setAutoLockDelayMs(uint32_t auto_lock_delay_ms)
 	shadow_config.storage.pub.auto_lock_delay_ms =
 	    MAX(auto_lock_delay_ms, STORAGE_MIN_SCREENSAVER_TIMEOUT);
 }
-
-// bool storage_hasWipeCode(void) {
-//   if (sectrue != initialized || sectrue != unlocked) {
-//     return secfalse;
-//   }
-
-//   return is_not_wipe_code(WIPE_CODE_EMPTY);
-// }
-
-// bool storage_setWipeCode(const char *pin, const uint8_t *ext_salt,
-//                                  const char *wipe_code) {
-//     bool ret = false;
-//     if (storage_hasPin() && (pin == wipe_code)) {
-//         memzero(&pin, sizeof(pin));
-//         memzero(&wipe_code, sizeof(wipe_code));
-//         return false;
-//     }
-
-//     ui_total = DERIVE_SECS;
-//     ui_rem = ui_total;
-//     ui_message = (pin != PIN_EMPTY && wipe_code == PIN_EMPTY) ? VERIFYING_PIN_MSG
-//                                                             : PROCESSING_MSG;
-//     if (storage_isPinCorrect(pin)) {
-//         ret = set_wipe_code(wipe_code);
-//     }
-//     memzero(&pin, sizeof(pin));
-//     memzero(&wipe_code, sizeof(wipe_code));
-//     return ret;
-// }
 
 #if DEBUG_LINK
 const char *storage_getPin(void)

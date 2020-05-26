@@ -23,7 +23,7 @@
 #include "trezor/crypto/bip32.h"
 #include "keepkey/board/memory.h"
 
-#define STORAGE_VERSION 15 /* Must add case fallthrough in storage_fromFlash after increment*/
+#define STORAGE_VERSION 16 /* Must add case fallthrough in storage_fromFlash after increment*/
 #define STORAGE_RETRIES 3
 
 #define RANDOM_SALT_LEN 32
@@ -87,6 +87,11 @@ const char *storage_getLanguage(void);
 /// \brief Validate pin.
 /// \return true iff the privided pin is correct.
 bool storage_isPinCorrect(const char *pin);
+
+/// \brief Validate wipe code.
+/// \return true iff the privided wipe code is correct.
+bool storage_isWipeCodeCorrect(const char *wipe_code);
+
 
 bool storage_hasPin(void);
 void storage_setPin(const char *pin);

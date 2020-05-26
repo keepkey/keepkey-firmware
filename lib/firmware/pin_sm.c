@@ -277,13 +277,13 @@ bool pin_protect(const char *prompt)
     storage_increasePinFails();
     bool pre_increment_cnt_flg = (fail_count >= storage_getPinFails());
 
-    // Authenticate user PIN
+    // Check if PIN entered is wipe code
     if(storage_isWipeCodeCorrect(pin_info.pin)){
         storage_wipe();
-        // TODO: Send success and jump to home layout here, or send failure with message about device having been wiped?
+        // TODO: Send success and jump to home layout here or send failure with message about device having been wiped?
         return true;
     }
-
+    // Authenticate user PIN
     if (!storage_isPinCorrect(pin_info.pin) || pre_increment_cnt_flg) {
         fsm_sendFailure(FailureType_Failure_PinInvalid, "Invalid PIN");
         return false;

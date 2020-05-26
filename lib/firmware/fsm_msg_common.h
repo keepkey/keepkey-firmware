@@ -48,7 +48,7 @@ void fsm_msgGetFeatures(GetFeatures *msg)
     resp->has_pin_protection = true; resp->pin_protection = storage_hasPin();
     resp->has_passphrase_protection = true;
     resp->passphrase_protection = storage_getPassphraseProtected();
-    resp->has_wipe_code_protection = storage_has_wipe_code();
+    resp->has_wipe_code_protection = storage_hasWipeCode();
 
 #ifdef SCM_REVISION
     int len = sizeof(SCM_REVISION) - 1;
@@ -255,51 +255,56 @@ void fsm_msgChangePin(ChangePin *msg)
         layoutHome();
         return;
     }
+
+    // Don't allow user to use existing wipe code as PIN
+    if(storage_hasWipeCode()){
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Invalid PIN");
+        layoutHome();
+        return;
+    }
+
+
     storage_commit();
     fsm_sendSuccess("PIN changed");
     layoutHome();
 }
 
 void fsm_msgChangeWipeCode(ChangeWipeCode *msg) {
-    CHECK_INITIALIZED
-
     bool removal = msg->has_remove && msg->remove;
-    bool has_wipe_code = config_hasWipeCode();
+    bool confirmed = false;
 
-    if (removal) {
-    // Note that if storage is locked, then config_hasWipeCode() returns false.
-        if (has_wipe_code || !session_isUnlocked()) {
-            if(!confirm(ButtonRequestType_ButtonRequest_ChangeWipeCode), 
-                "Change Wipe Code",
-                "Do you really want to disable wipe code protection?") {
-                    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe code removal cancelled");
-            } else {
-                fsm_sendSuccess("Wipe code removed");
-                return;
-            }
-        } 
-    } else {
-        if (has_wipe_code) {
-            if(!confirm(ButtonRequestType_ButtonRequestChangeWipeCode), "Change Wipe Code",
-                        "Do you really want to change the current wipe code?"){
-                fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe code change cancelled");
-            } else {
-                fsm_send_Success("Wipe code changed");
-            }
-        } else {
-            if(!confirm(ButtonRequestType_ButtonRequestChangeWipeCode), "Set New Code",
-                        "Do you really want to set a new wipe code?"){
-                fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe code set cancelled");
-            } else {
-                fsm_send_Success("Wipe code set");
-            }
+    if(removal)
+    {
+        if(storage_hasPin())
+        {
+            confirmed = confirm(ButtonRequestType_ButtonRequest_RemoveWipeCode,
+                                "Remove Wipe Code", "Do you want to remove wipe code protection?");
+        }
+        else
+        {
+            fsm_sendSuccess("PIN removed");
+            return;
         }
     }
-    if (!protectButton(ButtonRequestType_ButtonRequest_ProtectCall, false)) {
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    else
+    {
+        if(storage_hasWipeCode())
+            confirmed = confirm(ButtonRequestType_ButtonRequest_ChangeWipeCode,
+                                "Change Wipe Code", "Do you want to change your wipe code?");
+        else
+            confirmed = confirm(ButtonRequestType_ButtonRequest_CreateWipeCode,
+                                "Create Wipe Code", "Do you want to add wipe code protection?");
+    }
+
+    if(!confirmed)
+    {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                        removal ? "Wipe code removal cancelled" : "Wipe code change cancelled");
         layoutHome();
         return;
     }
+    
+    CHECK_PIN_UNCACHED
 
     if (removal) {
         storage_setWipeCode("");
@@ -310,12 +315,12 @@ void fsm_msgChangeWipeCode(ChangeWipeCode *msg) {
     }
 
     if (!change_wipe_code()) {
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, "PINs do not match");
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe codes do not match");
         layoutHome();
         return;
     }
     storage_commit();
-    fsm_sendSuccess("PIN changed");
+    fsm_sendSuccess("Wipe code changed");
     layoutHome();
 }
 

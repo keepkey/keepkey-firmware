@@ -135,9 +135,9 @@ void storage_setPin_impl(SessionState *session, Storage *storage, const char *pi
 
 bool storage_hasPin_impl(const Storage *storage);
 
-void storage_setWipeCode_impl(SessionState *session, Storage *storage, const char *wipe_code);
+void storage_setWipeCode_impl(SessionState *ss, Storage *storage, const char *wipe_code);
 
-bool storage_hasWipeCode_impl(const Storage *storage)
+bool storage_hasWipeCode_impl(const Storage *storage);
 
 /// \return: PIN_WRONG     - PIN is incorrect
 ///          PIN_GOOD        - PIN is correct

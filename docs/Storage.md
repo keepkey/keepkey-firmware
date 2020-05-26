@@ -105,7 +105,7 @@ it easier to extend for new features later on.
 | language                  | char[16]       |           16 |             16 |
 | label                     | char[48]       |           48 |             32 |
 | wrapped_storage_key       | char[64]       |           64 |             80 |
-| storage_key_fingerprint   | char[64]       |            8 |            144 |
+| storage_key_fingerprint   | char[64]       |           32 |            144 |
 | u2froot                   | StorageHDNode  |          129 |            176 |
 | u2f_counter               | u32            |            4 |            305 |
 | sec_fingerprint           | char[32]       |           32 |            309 |
@@ -113,6 +113,70 @@ it easier to extend for new features later on.
 | reserved                  | char[91]       |           91 |            373 |
 | encrypted_secrets_version | u32            |            4 |            464 |
 | encrypted_secrets         | char[512]      |          512 |            468 |
+
+
+#### Secret Storage
+
+| Field                     | Type           | Size (bytes) | Offset (bytes) |
+| ------------------------- | -------------- | ------------ | -------------- |
+| node                      | StorageHDNode  |          129 |              0 |
+| mnemonic                  | char[241]      |          241 |            129 |
+| root_seed_cache_status    | u8             |            1 |            370 |
+| root_seed_cache           | char[64]       |           64 |            371 |
+| root_ecdsa_curve_type     | char[10]       |           10 |            435 |
+| reserved                  | char[63]       |           63 |            445 |
+
+
+STORAGE_VERSION 16 layout
+-------------------------
+
+This is the third generation of storage layouts. It leverages a clean breaking
+point to compactify fields, and arrange things in two sections: one for
+secrets, and one for public(ish) information.  The secret area is then aes256
+encrypted with a randomly generated 64-bit key, which is then wrapped with the
+user's pin.  This further hardens the security of a powered-down device.
+Additionally, it leaves reserved bytes & bits open for future additions, making
+it easier to extend for new features later on.
+
+#### Public(ish) Storage
+
+| Field                     | Type           | Size (bytes) | Offset (bytes) |
+| ------------------------- | -------------- | ------------ | -------------- |
+| version                   | u32            |            4 |              0 |
+| flags                     | u32            |            4 |              4 |
+|   has_pin                 |   bit 0        |              |                |
+|   has_language            |   bit 1        |              |                |
+|   has_label               |   bit 2        |              |                |
+|   has_auto_lock_delay_ms  |   bit 3        |              |                |
+|   imported                |   bit 4        |              |                |
+|   passphrase_protection   |   bit 5        |              |                |
+|   ShapeShift policy       |   bit 6        |              |                |
+|   formerly: Pin Caching   |   bit 7        |              |                |
+|   has_node                |   bit 8        |              |                |
+|   has_mnemonic            |   bit 9        |              |                |
+|   has_u2froot             |   bit 10       |              |                |
+|   Experinemtal policy     |   bit 11       |              |                |
+|   AdvancedMode policy     |   bit 12       |              |                |
+|   no backup (seedless)    |   bit 13       |              |                |
+|   has_sec_fingerprint     |   bit 14       |              |                |
+|   sca_hardened            |   bit 15       |              |                |
+|   has_wipe_code           |   bit 16       |              |                |
+|   reserved                |   bits 17 - 31 |              |                |
+| pin_failed_attempts       | u32            |            4 |              8 |
+| auto_lock_delay_ms        | u32            |            4 |             12 |
+| language                  | char[16]       |           16 |             16 |
+| label                     | char[48]       |           48 |             32 |
+| wrapped_storage_key       | char[64]       |           64 |             80 |
+| storage_key_fingerprint   | char[64]       |           32 |            144 |
+| wrapped_wipe_code_key     | char[64]       |           64 |            176 |
+| wipe_code_key_fingerprint | char[64]       |           32 |            240 |
+| u2froot                   | StorageHDNode  |          129 |            272 |
+| u2f_counter               | u32            |            4 |            401 |
+| sec_fingerprint           | char[32]       |           32 |            405 |
+| random_salt               | char[32]       |           32 |            437 |
+| reserved                  | char[1028]     |         1028 |            469 |
+| encrypted_secrets_version | u32            |            4 |           1497 |
+| encrypted_secrets         | char[512]      |          512 |           1501 |
 
 
 #### Secret Storage

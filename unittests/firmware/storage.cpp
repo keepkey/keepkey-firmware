@@ -466,7 +466,7 @@ TEST(Storage, StorageRoundTrip) {
 
     std::vector<uint8_t> flash(1024);
 
-    storage_writeV11((char*)&flash[0], flash.size(), &start);
+    storage_writeV16((char*)&flash[0], flash.size(), &start);
 
 #if 0
     printf("        ");
@@ -620,6 +620,27 @@ TEST(Storage, IsPinCorrect) {
     EXPECT_TRUE(memcmp(key_out, storage_key, 64) == 0);
 }
 
+TEST(Storage, IsWipeCodeCorrect) {
+    bool sca_hardened = true;
+
+    uint8_t wrapping_key[64];
+    uint8_t random_salt[32];
+    memset(random_salt, 0, sizeof(random_salt));
+    storage_deriveWrappingKey("2222", wrapping_key, sca_hardened, random_salt, "");
+
+    const uint8_t storage_key[64] = "Quick blue fox";
+    uint8_t wrapped_key[64];
+    storage_wrapStorageKey(wrapping_key, storage_key, wrapped_key);
+
+    uint8_t fingerprint[32];
+    storage_keyFingerprint(storage_key, fingerprint);
+
+    uint8_t key_out[64];
+    EXPECT_TRUE(storage_isWipeCodeCorrect_impl("2222", wrapped_key, fingerprint, &sca_hardened, key_out, random_salt));
+
+    EXPECT_TRUE(memcmp(key_out, storage_key, 64) == 0);
+}
+
 TEST(Storage, Vuln1996) {
     ConfigFlash config;
     SessionState session;
@@ -688,6 +709,7 @@ TEST(Storage, Vuln1996) {
 TEST(Storage, Reset) {
     ConfigFlash config;
     SessionState session;
+    uint8_t scratch_buf[64];
     memset(&session, 0, sizeof(session));
 
     storage_reset_impl(&session, &config);
@@ -702,6 +724,7 @@ TEST(Storage, Reset) {
     uint8_t old_storage_key[64];
     memcpy(old_storage_key, session.storageKey, sizeof(old_storage_key));
     storage_setPin_impl(&session, &config.storage, "1234");
+    storage_setWipeCode_impl(&session, &config.storage, "2222");
 
     ASSERT_TRUE(memcmp(session.storageKey, old_storage_key, 64) != 0)
         << "RNG broken?";
@@ -712,6 +735,14 @@ TEST(Storage, Reset) {
         config.storage.pub.storage_key_fingerprint,
         &config.storage.pub.sca_hardened,
         new_storage_key,
+        config.storage.pub.random_salt));
+
+
+    ASSERT_TRUE(storage_isWipeCodeCorrect_impl("2222",
+        config.storage.pub.wrapped_wipe_code_key,
+        config.storage.pub.wipe_code_key_fingerprint,
+        &config.storage.pub.sca_hardened,
+        scratch_buf,
         config.storage.pub.random_salt));
 
     ASSERT_TRUE(memcmp(session.storageKey, new_storage_key, 64) == 0);
