@@ -43,6 +43,9 @@ void storage_reset(void);
 /// \brief Clear storage.
 void storage_wipe(void);
 
+/// \brief Clear storage key and storage key fingerprint.
+void storage_clearKeys(void);
+
 /// \brief Reset session states.
 /// \param clear_pin whether to clear the pin as well.
 void session_clear(bool clear_pin);

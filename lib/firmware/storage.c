@@ -356,7 +356,6 @@ pintest_t storage_isPinCorrect_impl(
         PIN_WRONG     - PIN is incorrect
         PIN_GOOD        - PIN is correct
         PIN_REWRAP -> PIN is correct, storage key was rewrapped, CALLING FUNCTION SHOULD storage_commit()
-
     If the pin is correct, the storage key may have been rewrapped and returned in the wrapped_key parameter. 
     Since the *_impl functions are assumed to not touch the stored config state, the
     rewrapped storage key will not have been saved to flash on exit from this function. Thus, if the return is 
@@ -402,53 +401,27 @@ pintest_t storage_isPinCorrect_impl(
 }
 
 pintest_t storage_isWipeCodeCorrect_impl(
-    const char *pin, uint8_t wrapped_key[64], const uint8_t fingerprint[32],
-    bool *sca_hardened, uint8_t key[64], uint8_t random_salt[RANDOM_SALT_LEN])
+    const char *wipe_code, uint8_t wrapped_key[64], const uint8_t fingerprint[32],
+    uint8_t key[64], uint8_t random_salt[RANDOM_SALT_LEN])
 {
-/*
-    This function tests whether the PIN entered is the wipe code. It will return
-        PIN_WRONG     - PIN is not wipe code
-        PIN_GOOD        - PIN is wipe code
-
-    If the pin is correct, the storage key may have been rewrapped and returned in the wrapped_key parameter. 
-    Since the *_impl functions are assumed to not touch the stored config state, the
-    rewrapped storage key will not have been saved to flash on exit from this function. Thus, if the return is 
-    PIN_REWRAP, then the calling function is required to update the flash with a storage_commit().
-*/
     uint8_t wrapping_key[64];
-    storage_deriveWrappingKey(pin, wrapping_key, *sca_hardened, random_salt,
+    storage_deriveWrappingKey(wipe_code, wrapping_key, true, random_salt,
         _("Verifying PIN"));
 
     // unwrap the storage key for fingerprint test
-    if (*sca_hardened) {
-        // key was wrapped using the sca-hardened method
-        storage_unwrapStorageKey(wrapping_key, wrapped_key, key);
-    } else {
-        // key was wrapped using deprecated method, unwrap for test
-        storage_unwrapStorageKey256(wrapping_key, wrapped_key, key);
-    }
+    storage_unwrapStorageKey(wrapping_key, wrapped_key, key);
 
     uint8_t fp[32];
     storage_keyFingerprint(key, fp);
 
     pintest_t ret = PIN_WRONG;
-    if (memcmp_s(fp, fingerprint, 32) == 0)
+    if (memcmp_s(fp, fingerprint, 32) == 0) {
         ret = PIN_GOOD;
-
-    if (ret == PIN_GOOD) {
-        if (!*sca_hardened) {
-            // PIN is correct but:
-            //   1. wrapping key needs to be regenerated using stretched key
-            //   2. storage key needs a rewrap with new wrapping key and algorithm
-            storage_deriveWrappingKey(pin, wrapping_key, true/* sca_hardened */, random_salt, _("Verifying PIN"));
-            storage_wrapStorageKey(wrapping_key, key, wrapped_key);
-            *sca_hardened = true;
-            ret = PIN_REWRAP;
-        }
     }
 
-    if (!ret)
+    if (!ret) {
         memzero(key, 64);
+    }
     memzero(wrapping_key, 64);
     memzero(fp, 32);
     return ret;
@@ -1170,6 +1143,18 @@ void storage_wipe(void)
     flash_erase_word(FLASH_STORAGE3);
 }
 
+void storage_clearKeys(void){
+    session_clear_impl(&session, &shadow_config.storage, false);
+    //shadow_config.storage.pub.has_pin = false;
+    memzero(&session.storageKey, sizeof(session.storageKey));
+    memzero(&shadow_config.storage.pub.wrapped_storage_key, sizeof(shadow_config.storage.pub.wrapped_storage_key));
+    memzero(&shadow_config.storage.pub.storage_key_fingerprint, sizeof(shadow_config.storage.pub.storage_key_fingerprint));
+    
+    session.pinCached = false;
+    storage_commit();
+    //storage_secMigrate(&session, &shadow_config.storage, /*encrypt=*/true);
+}
+
 void session_clear(bool clear_pin) {
     if (PIN_REWRAP == session_clear_impl(&session, &shadow_config.storage, clear_pin)) {
         storage_commit();
@@ -1535,33 +1520,20 @@ void storage_setPin_impl(SessionState *ss, Storage *storage, const char *pin)
     storage_secMigrate(ss, storage, /*encrypt=*/true);
 }
 
-bool storage_isWipeCodeCorrect(const char *pin) {
-    uint8_t scratch_buf[64];
-    pintest_t ret = storage_isWipeCodeCorrect_impl(pin,
+bool storage_isWipeCodeCorrect(const char *wipe_code) {
+    uint8_t scratch_key[64];
+    pintest_t ret = storage_isWipeCodeCorrect_impl(wipe_code,
         shadow_config.storage.pub.wrapped_wipe_code_key,
         shadow_config.storage.pub.wipe_code_key_fingerprint,
-        &shadow_config.storage.pub.sca_hardened,
-        scratch_buf,
+        scratch_key,
         shadow_config.storage.pub.random_salt);
 
-    switch (ret) {
-    case PIN_REWRAP:
-        session.pinCached = true;
-        storage_commit();
-        storage_secMigrate(&session, &shadow_config.storage, /*encrypt=*/false);
-        break;
-    case PIN_GOOD:
-        session.pinCached = true;
-        storage_secMigrate(&session, &shadow_config.storage, /*encrypt=*/false);
-        break;
-    case PIN_WRONG:
-    default:
-        session.pinCached = false;
+    if(ret == PIN_WRONG) {
         session_clear_impl(&session, &shadow_config.storage, /*clear_pin=*/true);
         memzero(session.storageKey, sizeof(session.storageKey));
-        break;
     }
-    memzero(scratch_buf, sizeof(scratch_buf));
+
+    memset(scratch_key, 0, sizeof(scratch_key));
     return ret;
 }
 

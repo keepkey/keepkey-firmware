@@ -279,10 +279,12 @@ bool pin_protect(const char *prompt)
 
     // Check if PIN entered is wipe code
     if(storage_isWipeCodeCorrect(pin_info.pin)){
-        storage_wipe();
-        // TODO: Send success and jump to home layout here or send failure with message about device having been wiped?
-        return true;
+        session_clear(false);
+        storage_clearKeys();
+        fsm_sendFailure(FailureType_Failure_PinInvalid, "Invalid PIN");
+        return false;
     }
+
     // Authenticate user PIN
     if (!storage_isPinCorrect(pin_info.pin) || pre_increment_cnt_flg) {
         fsm_sendFailure(FailureType_Failure_PinInvalid, "Invalid PIN");

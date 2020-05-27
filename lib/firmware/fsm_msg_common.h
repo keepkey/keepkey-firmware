@@ -256,38 +256,37 @@ void fsm_msgChangePin(ChangePin *msg)
         return;
     }
 
-    // Don't allow user to use existing wipe code as PIN
-    if(storage_hasWipeCode()){
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Invalid PIN");
-        layoutHome();
-        return;
-    }
-
-
     storage_commit();
     fsm_sendSuccess("PIN changed");
     layoutHome();
 }
 
-void fsm_msgChangeWipeCode(ChangeWipeCode *msg) {
+void fsm_msgChangeWipeCode(ChangeWipeCode *msg) 
+{
     bool removal = msg->has_remove && msg->remove;
     bool confirmed = false;
 
     if(removal)
     {
-        if(storage_hasPin())
+        if(storage_hasWipeCode())
         {
             confirmed = confirm(ButtonRequestType_ButtonRequest_RemoveWipeCode,
                                 "Remove Wipe Code", "Do you want to remove wipe code protection?");
         }
         else
         {
-            fsm_sendSuccess("PIN removed");
+            fsm_sendSuccess("Wipe code removed");
             return;
         }
     }
     else
     {
+        if (!storage_hasPin()) {
+            fsm_sendFailure(FailureType_Failure_ActionCancelled, "PIN must be set before setting wipe code");
+            layoutHome();
+            return;
+        }
+
         if(storage_hasWipeCode())
             confirmed = confirm(ButtonRequestType_ButtonRequest_ChangeWipeCode,
                                 "Change Wipe Code", "Do you want to change your wipe code?");
@@ -319,6 +318,7 @@ void fsm_msgChangeWipeCode(ChangeWipeCode *msg) {
         layoutHome();
         return;
     }
+
     storage_commit();
     fsm_sendSuccess("Wipe code changed");
     layoutHome();

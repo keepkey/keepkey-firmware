@@ -124,6 +124,9 @@ void storage_keyFingerprint(const uint8_t key[64], uint8_t fingerprint[32]);
 pintest_t storage_isPinCorrect_impl(const char *pin, uint8_t wrapped_key[64], const uint8_t fingerprint[32], bool *sca_hardened, uint8_t key[64],
     uint8_t random_salt[RANDOM_SALT_LEN]);
 
+pintest_t storage_isWipeCodeCorrect_impl(const char *wipe_code, uint8_t wrapped_key[64], const uint8_t fingerprint[32], uint8_t key[64],
+    uint8_t random_salt[RANDOM_SALT_LEN]);
+
 /// Migrate data in Storage to/from sec/encrypted_sec.
 void storage_secMigrate(SessionState *state, Storage *storage, bool encrypt);
 
@@ -166,7 +169,9 @@ void storage_resetCache(Cache *cache);
 void storage_readV1(SessionState *session, ConfigFlash *dst, const char *ptr, size_t len);
 void storage_readV2(SessionState *session, ConfigFlash *dst, const char *ptr, size_t len);
 void storage_readV11(ConfigFlash *dst, const char *ptr, size_t len);
+void storage_readV16(ConfigFlash *dst, const char *ptr, size_t len);
 void storage_writeV11(char *ptr, size_t len, const ConfigFlash *src);
+void storage_writeV16(char *ptr, size_t len, const ConfigFlash *src);
 
 void storage_readMeta(Metadata *meta, const char *ptr, size_t len);
 void storage_readPolicyV1(PolicyType *policy, const char *ptr, size_t len);
