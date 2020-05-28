@@ -1219,7 +1219,8 @@ void storage_commit(void)
 {
     // Temporary storage for marshalling secrets in & out of flash.
     //static char flash_temp[1024];
-    static char flash_temp[2048];
+    // Size of v16 storage layout (2013 bytes) + size of meta (44 bytes) + 1
+    static char flash_temp[2058];
 
     memzero(flash_temp, sizeof(flash_temp));
 
