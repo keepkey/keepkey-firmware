@@ -677,6 +677,7 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
     memcpy(storage->pub.label, ptr + 32, 48);
 
     memcpy(storage->pub.wrapped_storage_key, ptr + 80, 64);
+    memcpy(storage->pub.storage_key_fingerprint, ptr + 144, 32);
 
     storage_readHDNode(&storage->pub.u2froot, ptr + 176, 129);
     storage->pub.u2f_counter = read_u32_le(ptr + 305);
