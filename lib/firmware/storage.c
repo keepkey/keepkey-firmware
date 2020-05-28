@@ -1146,14 +1146,12 @@ void storage_wipe(void)
 
 void storage_clearKeys(void){
     session_clear_impl(&session, &shadow_config.storage, false);
-    //shadow_config.storage.pub.has_pin = false;
     memzero(&session.storageKey, sizeof(session.storageKey));
     memzero(&shadow_config.storage.pub.wrapped_storage_key, sizeof(shadow_config.storage.pub.wrapped_storage_key));
     memzero(&shadow_config.storage.pub.storage_key_fingerprint, sizeof(shadow_config.storage.pub.storage_key_fingerprint));
     
     session.pinCached = false;
     storage_commit();
-    //storage_secMigrate(&session, &shadow_config.storage, /*encrypt=*/true);
 }
 
 void session_clear(bool clear_pin) {
@@ -1220,7 +1218,8 @@ clear:
 void storage_commit(void)
 {
     // Temporary storage for marshalling secrets in & out of flash.
-    static char flash_temp[1024];
+    //static char flash_temp[1024];
+    static char flash_temp[2048];
 
     memzero(flash_temp, sizeof(flash_temp));
 
