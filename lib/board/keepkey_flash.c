@@ -17,13 +17,12 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef EMULATOR
-#  include <libopencm3/stm32/flash.h>
-#  include <libopencm3/stm32/desig.h>
+#include <libopencm3/stm32/flash.h>
+#include <libopencm3/stm32/desig.h>
 #else
-#   include <stdint.h>
-#   include <stdbool.h>
+#include <stdint.h>
+#include <stdbool.h>
 #endif
 
 #include "keepkey/board/check_bootloader.h"
@@ -42,28 +41,25 @@
 uint8_t HW_ENTROPY_DATA[HW_ENTROPY_LEN];
 
 /*
- * flash_write_helper() - Helper function to locate starting address of 
+ * flash_write_helper() - Helper function to locate starting address of
  * the functional group
- * 
+ *
  * INPUT
  *     - group: functional group
  * OUTPUT
  *     starting address of functional group
  */
-intptr_t flash_write_helper(Allocation group)
-{
-    intptr_t start = 0;
-    const FlashSector* s = flash_sector_map;
-    while(s->use != FLASH_INVALID)
-    {
-        if(s->use == group)
-        {
-            start = s->start;
-            break;
-        }
-        ++s;
+intptr_t flash_write_helper(Allocation group) {
+  intptr_t start = 0;
+  const FlashSector *s = flash_sector_map;
+  while (s->use != FLASH_INVALID) {
+    if (s->use == group) {
+      start = s->start;
+      break;
     }
-    return (intptr_t)FLASH_PTR(start);
+    ++s;
+  }
+  return (intptr_t)FLASH_PTR(start);
 }
 
 /*
@@ -74,41 +70,40 @@ intptr_t flash_write_helper(Allocation group)
  * OUTPUT
  *     true/false flash operation status
  */
-bool flash_chk_status(void)
-{
+bool flash_chk_status(void) {
 #ifndef EMULATOR
-    if(FLASH_SR & (FLASH_SR_PGAERR | FLASH_SR_PGPERR | FLASH_SR_PGSERR | FLASH_SR_WRPERR)) {
-        /* Flash error detected */
-        return(false);
-    }else {
-        /* Flash operation successful */
-        return(true);
-    }
+  if (FLASH_SR &
+      (FLASH_SR_PGAERR | FLASH_SR_PGPERR | FLASH_SR_PGSERR | FLASH_SR_WRPERR)) {
+    /* Flash error detected */
+    return (false);
+  } else {
+    /* Flash operation successful */
+    return (true);
+  }
 #else
-    return true;
+  return true;
 #endif
 }
 
 /*
- * flash_erase_word() - allows unpriv code to erase certain sectors, word size at a time.
- *                      DO NOT USE THIS IN PRIV MODE, WILL NOT ERASE BOOTSTRAP OR BOOTLOADER SECTORS
+ * flash_erase_word() - allows unpriv code to erase certain sectors, word size
+ * at a time. DO NOT USE THIS IN PRIV MODE, WILL NOT ERASE BOOTSTRAP OR
+ * BOOTLOADER SECTORS
  *
  * INPUT
  *     - group: functional group
  * OUTPUT
  *     none
  */
-void flash_erase_word(Allocation group)
-{
+void flash_erase_word(Allocation group) {
 #ifndef EMULATOR
-    const FlashSector* s = flash_sector_map;
-    while(s->use != FLASH_INVALID)
-    {
-        if(s->use == group) {
-            svc_flash_erase_sector((uint32_t)s->sector);
-        }
-        ++s;
+  const FlashSector *s = flash_sector_map;
+  while (s->use != FLASH_INVALID) {
+    if (s->use == group) {
+      svc_flash_erase_sector((uint32_t)s->sector);
     }
+    ++s;
+  }
 #endif
 }
 
@@ -119,63 +114,63 @@ void flash_erase_word(Allocation group)
  *     - group: functional group
  *     - offset: flash address offset
  *     - len: length of source data
- *     - data: pointer to source data 
+ *     - data: pointer to source data
  * OUTPUT:
  *     true/false status of write
  */
-bool flash_write_word(Allocation group, uint32_t offset, uint32_t len, const uint8_t *data)
-{
+bool flash_write_word(Allocation group, uint32_t offset, uint32_t len,
+                      const uint8_t *data) {
 #ifndef EMULATOR
-    bool retval = true;
-    uint32_t start = flash_write_helper(group);
-    uint32_t data_word[1];
-    uint32_t i, align_cnt = 0;
+  bool retval = true;
+  uint32_t start = flash_write_helper(group);
+  uint32_t data_word[1];
+  uint32_t i, align_cnt = 0;
 
-    start += offset ;
+  start += offset;
 
-    /* Byte writes for flash start address not long-word aligned */
-    if(start % sizeof(uint32_t)) {
-        align_cnt = sizeof(uint32_t) - start % sizeof(uint32_t);
-        if (svc_flash_pgm_blk(start, (uint32_t)data, align_cnt) == false) {
-            retval = false;
-            goto fww_exit;
-        }
-        /* Update new start address/data & len */
-        start += align_cnt;
-        data += align_cnt;
-        len -= align_cnt;
+  /* Byte writes for flash start address not long-word aligned */
+  if (start % sizeof(uint32_t)) {
+    align_cnt = sizeof(uint32_t) - start % sizeof(uint32_t);
+    if (svc_flash_pgm_blk(start, (uint32_t)data, align_cnt) == false) {
+      retval = false;
+      goto fww_exit;
     }
+    /* Update new start address/data & len */
+    start += align_cnt;
+    data += align_cnt;
+    len -= align_cnt;
+  }
 
-    /* Long word writes */
-    for(i = 0 ; i < len/sizeof(uint32_t); i++)
-    {
-        memcpy(data_word, data, sizeof(uint32_t));
-        if (svc_flash_pgm_word(start, *data_word) == false) {
-            retval = false;
-            goto fww_exit;
-        }
-        start += sizeof(uint32_t);
-        data += sizeof(uint32_t);
+  /* Long word writes */
+  for (i = 0; i < len / sizeof(uint32_t); i++) {
+    memcpy(data_word, data, sizeof(uint32_t));
+    if (svc_flash_pgm_word(start, *data_word) == false) {
+      retval = false;
+      goto fww_exit;
     }
+    start += sizeof(uint32_t);
+    data += sizeof(uint32_t);
+  }
 
-    /* Byte write for last remaining bytes < longword */
-    if(len % sizeof(uint32_t)) {
-        if (svc_flash_pgm_blk(start, (uint32_t)data, len % sizeof(uint32_t)) == false) {
-            retval = false;
-        }
+  /* Byte write for last remaining bytes < longword */
+  if (len % sizeof(uint32_t)) {
+    if (svc_flash_pgm_blk(start, (uint32_t)data, len % sizeof(uint32_t)) ==
+        false) {
+      retval = false;
     }
+  }
 fww_exit:
-    return(retval);
+  return (retval);
 #else
-    memcpy((void*)(flash_write_helper(group) + offset), data, len);
-    return true;
+  memcpy((void *)(flash_write_helper(group) + offset), data, len);
+  return true;
 #endif
 }
 
 /*
  * flash_write() - Flash write in byte size
  *
- * INPUT : 
+ * INPUT :
  *     - group: functional group
  *     - offset: flash address offset
  *     - len: length of source data
@@ -183,39 +178,38 @@ fww_exit:
  * OUTPUT:
  *     true/false status of write
  */
-bool flash_write(Allocation group, uint32_t offset, uint32_t len, const uint8_t *data)
-{
+bool flash_write(Allocation group, uint32_t offset, uint32_t len,
+                 const uint8_t *data) {
 #ifndef EMULATOR
-    bool retval = true;
-    uint32_t start = flash_write_helper(group);
-    if (svc_flash_pgm_blk(start+offset, (uint32_t)data, len) == false) {
-        retval = false;
-    }
-    return(retval);
+  bool retval = true;
+  uint32_t start = flash_write_helper(group);
+  if (svc_flash_pgm_blk(start + offset, (uint32_t)data, len) == false) {
+    retval = false;
+  }
+  return (retval);
 #else
-    memcpy((void*)(flash_write_helper(group) + offset), data, len);
-    return true;
+  memcpy((void *)(flash_write_helper(group) + offset), data, len);
+  return true;
 #endif
 }
 
 /*
  * is_mfg_mode() - Is device in manufacture mode
  *
- * INPUT - 
+ * INPUT -
  *      none
  * OUTPUT -
  *      none
  */
-bool is_mfg_mode(void)
-{
+bool is_mfg_mode(void) {
 #if defined(EMULATOR) || defined(DEBUG_ON)
-    return false;
+  return false;
 #else
-    if (*(uint32_t *)OTP_MFG_ADDR == OTP_MFG_SIG) {
-        return false;
-    }
+  if (*(uint32_t *)OTP_MFG_ADDR == OTP_MFG_SIG) {
+    return false;
+  }
 
-    return true;
+  return true;
 #endif
 }
 
@@ -224,74 +218,73 @@ bool is_mfg_mode(void)
  *
  * INPUT -
  *      none
- * OUTPUT - 
+ * OUTPUT -
  *      none
  */
-bool set_mfg_mode_off(void)
-{
-    bool ret_val = false;
-    uint32_t tvar;
+bool set_mfg_mode_off(void) {
+  bool ret_val = false;
+  uint32_t tvar;
 
 #ifndef EMULATOR
-    /* check OTP lock state before updating */
-    if(*(uint8_t *)OTP_BLK_LOCK(OTP_MFG_ADDR) == 0xFF)
-    {
-        tvar = OTP_MFG_SIG; /* set manufactur'ed signature */
-        svc_flash_pgm_blk(OTP_MFG_ADDR, (uint32_t)((uint8_t *)&tvar), OTP_MFG_SIG_LEN);       
-        tvar = 0x00;        /* set OTP lock */
-        if (svc_flash_pgm_blk(OTP_BLK_LOCK(OTP_MFG_ADDR), (uint32_t)((uint8_t *)&tvar), 1)) {
-            ret_val = true;
-        }
+  /* check OTP lock state before updating */
+  if (*(uint8_t *)OTP_BLK_LOCK(OTP_MFG_ADDR) == 0xFF) {
+    tvar = OTP_MFG_SIG; /* set manufactur'ed signature */
+    svc_flash_pgm_blk(OTP_MFG_ADDR, (uint32_t)((uint8_t *)&tvar),
+                      OTP_MFG_SIG_LEN);
+    tvar = 0x00; /* set OTP lock */
+    if (svc_flash_pgm_blk(OTP_BLK_LOCK(OTP_MFG_ADDR),
+                          (uint32_t)((uint8_t *)&tvar), 1)) {
+      ret_val = true;
     }
+  }
 #endif
 
-    return(ret_val);
+  return (ret_val);
 }
 
 const char *flash_getModel(void) {
 #ifndef EMULATOR
 
-    #ifdef DEBUG_ON
-        return "K1-14AM";   // return a model number for debugger builds
-    #endif
+#ifdef DEBUG_ON
+  return "K1-14AM";  // return a model number for debugger builds
+#endif
 
-    if (*((uint8_t*)OTP_MODEL_ADDR) == 0xFF)
-        return NULL;
+  if (*((uint8_t *)OTP_MODEL_ADDR) == 0xFF) return NULL;
 
-    return (char*)OTP_MODEL_ADDR;
+  return (char *)OTP_MODEL_ADDR;
 #else
-    // TODO: actually make this settable in the emulator
-    return "K1-14AM";
+  // TODO: actually make this settable in the emulator
+  return "K1-14AM";
 #endif
 }
 
 bool flash_setModel(const char (*model)[MODEL_STR_SIZE]) {
 #ifndef EMULATOR
-    // Check OTP lock state before updating
-    if (*(uint8_t*)OTP_BLK_LOCK(OTP_MODEL_ADDR) != 0xFF)
-        return false;
+  // Check OTP lock state before updating
+  if (*(uint8_t *)OTP_BLK_LOCK(OTP_MODEL_ADDR) != 0xFF) return false;
 
-    svc_flash_pgm_blk(OTP_MODEL_ADDR, (uint32_t)((uint8_t*)model), sizeof(*model));       
-    uint8_t lock = 0x00;
-    bool ret = svc_flash_pgm_blk(OTP_BLK_LOCK(OTP_MODEL_ADDR), (uint32_t)&lock, sizeof(lock));       
-    return ret;
+  svc_flash_pgm_blk(OTP_MODEL_ADDR, (uint32_t)((uint8_t *)model),
+                    sizeof(*model));
+  uint8_t lock = 0x00;
+  bool ret = svc_flash_pgm_blk(OTP_BLK_LOCK(OTP_MODEL_ADDR), (uint32_t)&lock,
+                               sizeof(lock));
+  return ret;
 #else
-    return true;
+  return true;
 #endif
 }
 
 const char *flash_programModel(void) {
-    const char *ret = flash_getModel();
-    if (ret)
-        return ret;
+  const char *ret = flash_getModel();
+  if (ret) return ret;
 
-    switch (get_bootloaderKind()) {
+  switch (get_bootloaderKind()) {
     case BLK_v1_1_0:
     case BLK_v2_0_0:
     case BLK_v2_1_0:
-        return "No Model";
+      return "No Model";
     case BLK_UNKNOWN:
-        return "Unknown";
+      return "Unknown";
     case BLK_v1_0_0:
     case BLK_v1_0_1:
     case BLK_v1_0_2:
@@ -299,26 +292,24 @@ const char *flash_programModel(void) {
     case BLK_v1_0_3_sig:
     case BLK_v1_0_3_elf: {
 #define MODEL_ENTRY_KK(STRING, ENUM) \
-        static const char model[MODEL_STR_SIZE] = (STRING);
+  static const char model[MODEL_STR_SIZE] = (STRING);
 #include "keepkey/board/models.def"
-        if (!is_mfg_mode())
-            (void)flash_setModel(&model);
-        return model;
+      if (!is_mfg_mode()) (void)flash_setModel(&model);
+      return model;
     }
     case BLK_v1_0_4: {
 #define MODEL_ENTRY_SALT(STRING, ENUM) \
-        static const char model[MODEL_STR_SIZE] = (STRING);
+  static const char model[MODEL_STR_SIZE] = (STRING);
 #include "keepkey/board/models.def"
-        if (!is_mfg_mode())
-            (void)flash_setModel(&model);
-        return model;
+      if (!is_mfg_mode()) (void)flash_setModel(&model);
+      return model;
     }
-    }
+  }
 
 #ifdef DEBUG_ON
-     __builtin_unreachable();
+  __builtin_unreachable();
 #else
-    return "Unknown";
+  return "Unknown";
 #endif
 }
 
@@ -347,7 +338,6 @@ void flash_collectHWEntropy(bool privileged) {
 #endif
 }
 
-void flash_readHWEntropy(uint8_t *buff, size_t size)
-{
-    memcpy(buff, HW_ENTROPY_DATA, MIN(sizeof(HW_ENTROPY_DATA), size));
+void flash_readHWEntropy(uint8_t *buff, size_t size) {
+  memcpy(buff, HW_ENTROPY_DATA, MIN(sizeof(HW_ENTROPY_DATA), size));
 }

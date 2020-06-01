@@ -38,5 +38,5 @@ const VariantAnimation *get_logo_reversed_animation(void);
 
 uint32_t get_image_animation_duration(const VariantAnimation *animation);
 int get_image_animation_frame(const VariantAnimation *animation,
-                                       const uint32_t elapsed, bool loop);
+                              const uint32_t elapsed, bool loop);
 #endif

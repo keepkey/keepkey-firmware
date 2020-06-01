@@ -26,68 +26,70 @@
 #include "trezor/crypto/memzero.h"
 #include "trezor/crypto/sha2.h"
 
-static uint8_t txin_current_digest[SHA256_DIGEST_LENGTH];	/* current tx txins digest */
+static uint8_t
+    txin_current_digest[SHA256_DIGEST_LENGTH]; /* current tx txins digest */
 
-// these values help give a hint if malware is changing segwit txids in an attempt to create false txs
-static uint8_t txin_last_digest[SHA256_DIGEST_LENGTH];		/* last tx digest */
-static char last_amount_str[AMT_STR_LEN];					/* spend value of last tx */
-static char last_addr_str[ADDR_STR_LEN];					/* last spend-to address */
+// these values help give a hint if malware is changing segwit txids in an
+// attempt to create false txs
+static uint8_t txin_last_digest[SHA256_DIGEST_LENGTH]; /* last tx digest */
+static char last_amount_str[AMT_STR_LEN]; /* spend value of last tx */
+static char last_addr_str[ADDR_STR_LEN];  /* last spend-to address */
 static SHA256_CTX txin_hash_ctx;
 
 // initialize the txin digest machine
 void txin_dgst_initialize(void) {
-	memzero(txin_current_digest, SHA256_DIGEST_LENGTH);
-	memzero(txin_last_digest, SHA256_DIGEST_LENGTH);
-	memzero(last_amount_str, AMT_STR_LEN);
-	memzero(last_addr_str, ADDR_STR_LEN);
-	sha256_Init(&txin_hash_ctx);
-	return;
+  memzero(txin_current_digest, SHA256_DIGEST_LENGTH);
+  memzero(txin_last_digest, SHA256_DIGEST_LENGTH);
+  memzero(last_amount_str, AMT_STR_LEN);
+  memzero(last_addr_str, ADDR_STR_LEN);
+  sha256_Init(&txin_hash_ctx);
+  return;
 }
 
 // hash in a txin
 void txin_dgst_addto(const uint8_t *data, size_t len) {
-	sha256_Update(&txin_hash_ctx, data, len);
-	return;
+  sha256_Update(&txin_hash_ctx, data, len);
+  return;
 }
 
 // finalize txin digest
 void txin_dgst_final(void) {
-	sha256_Final(&txin_hash_ctx, txin_current_digest);
-	return;
+  sha256_Final(&txin_hash_ctx, txin_current_digest);
+  return;
 }
 
 // compare dgst, amt, addr
 // returns True if warning condition met
 bool txin_dgst_compare(const char *amt_str, const char *addr_str) {
-	// if amt and addr are same AND digest is different, then warn
-	if ((strncmp(amt_str, last_amount_str, AMT_STR_LEN)==0) && 
-			(strncmp(addr_str, last_addr_str, ADDR_STR_LEN)==0)) {
-		if ((memcmp(txin_current_digest, txin_last_digest, SHA256_DIGEST_LENGTH)!=0)) {
-			return(true);
-		}
-	}
-	return(false);
+  // if amt and addr are same AND digest is different, then warn
+  if ((strncmp(amt_str, last_amount_str, AMT_STR_LEN) == 0) &&
+      (strncmp(addr_str, last_addr_str, ADDR_STR_LEN) == 0)) {
+    if ((memcmp(txin_current_digest, txin_last_digest, SHA256_DIGEST_LENGTH) !=
+         0)) {
+      return (true);
+    }
+  }
+  return (false);
 }
 
 // return string pointers to digests
 void txin_dgst_getstrs(char *prev, char *cur, size_t len) {
-	if (len != DIGEST_STR_LEN) {
-		return;
-	}
-	data2hex(txin_current_digest, SHA256_DIGEST_LENGTH, cur);
-	kk_strlwr(cur);
-	data2hex(txin_last_digest, SHA256_DIGEST_LENGTH, prev);
-	kk_strlwr(prev);
-	return;
+  if (len != DIGEST_STR_LEN) {
+    return;
+  }
+  data2hex(txin_current_digest, SHA256_DIGEST_LENGTH, cur);
+  kk_strlwr(cur);
+  data2hex(txin_last_digest, SHA256_DIGEST_LENGTH, prev);
+  kk_strlwr(prev);
+  return;
 }
 
 // save last state and reset for next tx request
 void txin_dgst_save_and_reset(char *amt_str, char *addr_str) {
-	memcpy(txin_last_digest, txin_current_digest, SHA256_DIGEST_LENGTH);
-	memcpy(last_amount_str, amt_str, AMT_STR_LEN);
-	memcpy(last_addr_str, addr_str, ADDR_STR_LEN);
-	memzero(txin_current_digest, SHA256_DIGEST_LENGTH);
-	sha256_Init(&txin_hash_ctx);
-	return;
+  memcpy(txin_last_digest, txin_current_digest, SHA256_DIGEST_LENGTH);
+  memcpy(last_amount_str, amt_str, AMT_STR_LEN);
+  memcpy(last_addr_str, addr_str, ADDR_STR_LEN);
+  memzero(txin_current_digest, SHA256_DIGEST_LENGTH);
+  sha256_Init(&txin_hash_ctx);
+  return;
 }
-

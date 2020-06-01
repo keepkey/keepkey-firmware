@@ -20,18 +20,15 @@
 #ifndef KEEPKEY_DISPLAY_H
 #define KEEPKEY_DISPLAY_H
 
-
 #include "canvas.h"
-
 
 #define START_COL ((uint8_t)0x1C)
 #define START_ROW ((uint8_t)0x00)
 
-#define KEEPKEY_DISPLAY_HEIGHT  64
-#define KEEPKEY_DISPLAY_WIDTH   256
+#define KEEPKEY_DISPLAY_HEIGHT 64
+#define KEEPKEY_DISPLAY_WIDTH 256
 
-#define DEFAULT_DISPLAY_BRIGHTNESS  100 /* Percent */
-
+#define DEFAULT_DISPLAY_BRIGHTNESS 100 /* Percent */
 
 void display_hw_init(void);
 Canvas *display_canvas_init(void);
@@ -41,7 +38,7 @@ void display_set_brightness(int percentage);
 void display_turn_on(void);
 void display_turn_off(void);
 
-typedef void (*DumpDisplayCallback)(const uint8_t*);
+typedef void (*DumpDisplayCallback)(const uint8_t *);
 void display_set_dump_callback(DumpDisplayCallback d);
 
 #endif

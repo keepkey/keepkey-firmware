@@ -20,41 +20,36 @@
 #ifndef TIMER_H
 #define TIMER_H
 
-
 #include <stdint.h>
 #include <stdbool.h>
 
-
-#define ONE_SEC         1100    /* Count for 1 second  */
-#define HALF_SEC        500     /* Count for 0.5 second */
-#define MAX_RUNNABLES   3       /* Max number of queue for task manager */
-
+#define ONE_SEC 1100    /* Count for 1 second  */
+#define HALF_SEC 500    /* Count for 0.5 second */
+#define MAX_RUNNABLES 3 /* Max number of queue for task manager */
 
 typedef void (*callback_func_t)(void);
 typedef void (*Runnable)(void *context);
 typedef struct RunnableNode RunnableNode;
 
-struct RunnableNode
-{
-    uint32_t    remaining;
-    Runnable    runnable;
-    void        *context;
-    uint32_t    period;
-    bool        repeating;
-    RunnableNode *next;
+struct RunnableNode {
+  uint32_t remaining;
+  Runnable runnable;
+  void *context;
+  uint32_t period;
+  bool repeating;
+  RunnableNode *next;
 };
 
-typedef struct
-{
-    RunnableNode   *head;
-    int             size;
+typedef struct {
+  RunnableNode *head;
+  int size;
 } RunnableQueue;
-
 
 void timerisr_usr(void);
 
 /**
- * kk_timer_init() - Timer 4 initialization.  Main timer for round robin tasking.
+ * kk_timer_init() - Timer 4 initialization.  Main timer for round robin
+ *tasking.
  *
  * INPUT
  *     none

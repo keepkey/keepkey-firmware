@@ -19,9 +19,9 @@
 
 #if !defined(EMULATOR)
 // FIXME: cortex.h should really have these includes inside it.
-#  include <inttypes.h>
-#  include <stdbool.h>
-#  include <libopencm3/cm3/cortex.h>
+#include <inttypes.h>
+#include <stdbool.h>
+#include <libopencm3/cm3/cortex.h>
 #endif
 
 #include "keepkey/board/keepkey_display.h"
@@ -59,22 +59,18 @@
  * OUTPUT
  *     true/false of confirmation
  */
-bool confirm_cipher(bool encrypt, const char *key)
-{
-    bool ret_stat;
+bool confirm_cipher(bool encrypt, const char *key) {
+  bool ret_stat;
 
-    if(encrypt)
-    {
-        ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
-                           "Encrypt Key Value", "%s", key);
-    }
-    else
-    {
-        ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
-                           "Decrypt Key Value", "%s", key);
-    }
+  if (encrypt) {
+    ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
+                       "Encrypt Key Value", "%s", key);
+  } else {
+    ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
+                       "Decrypt Key Value", "%s", key);
+  }
 
-    return(ret_stat);
+  return (ret_stat);
 }
 
 /*
@@ -86,22 +82,18 @@ bool confirm_cipher(bool encrypt, const char *key)
  * OUTPUT
  *     true/false of confirmation
  */
-bool confirm_encrypt_msg(const char *msg, bool signing)
-{
-    bool ret_stat;
+bool confirm_encrypt_msg(const char *msg, bool signing) {
+  bool ret_stat;
 
-    if(signing)
-    {
-        ret_stat = confirm(ButtonRequestType_ButtonRequest_EncryptAndSignMessage,
-                           "Encrypt and Sign Message", "%s", msg);
-    }
-    else
-    {
-        ret_stat = confirm(ButtonRequestType_ButtonRequest_EncryptMessage,
-                           "Encrypt Message", "%s", msg);
-    }
+  if (signing) {
+    ret_stat = confirm(ButtonRequestType_ButtonRequest_EncryptAndSignMessage,
+                       "Encrypt and Sign Message", "%s", msg);
+  } else {
+    ret_stat = confirm(ButtonRequestType_ButtonRequest_EncryptMessage,
+                       "Encrypt Message", "%s", msg);
+  }
 
-    return(ret_stat);
+  return (ret_stat);
 }
 
 /*
@@ -114,22 +106,18 @@ bool confirm_encrypt_msg(const char *msg, bool signing)
  *     true/false of confirmation
  *
  */
-bool confirm_decrypt_msg(const char *msg, const char *address)
-{
-    bool ret_stat;
+bool confirm_decrypt_msg(const char *msg, const char *address) {
+  bool ret_stat;
 
-    if(address)
-    {
-        ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
-                           "Decrypted Signed Message", "%s", msg);
-    }
-    else
-    {
-        ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
-                           "Decrypted Message", "%s", msg);
-    }
+  if (address) {
+    ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
+                       "Decrypted Signed Message", "%s", msg);
+  } else {
+    ret_stat = confirm(ButtonRequestType_ButtonRequest_Other,
+                       "Decrypted Message", "%s", msg);
+  }
 
-    return(ret_stat);
+  return (ret_stat);
 }
 
 /*
@@ -142,14 +130,11 @@ bool confirm_decrypt_msg(const char *msg, const char *address)
  *     true/false of confirmation
  *
  */
-bool confirm_exchange_output(const char *dep_amt,
-                             const char *wit_amt)
-{
-    return confirm_with_custom_layout(&layout_standard_notification,
-                                      ButtonRequestType_ButtonRequest_SignExchange,
-                                      "ShapeShift",
-                                      "Trade %s with ShapeShift in exchange for %s?",
-                                      dep_amt, wit_amt);
+bool confirm_exchange_output(const char *dep_amt, const char *wit_amt) {
+  return confirm_with_custom_layout(
+      &layout_standard_notification,
+      ButtonRequestType_ButtonRequest_SignExchange, "ShapeShift",
+      "Trade %s with ShapeShift in exchange for %s?", dep_amt, wit_amt);
 }
 
 /*
@@ -163,13 +148,11 @@ bool confirm_exchange_output(const char *dep_amt,
  *     true/false of confirmation
  *
  */
-bool confirm_transfer_output(ButtonRequestType button_request, const char *amount,
-                             const char *to)
-{
-    return confirm_with_custom_layout(&layout_notification_no_title_bold,
-                                      button_request,
-                                      "",
-                                      "Transfer %s\nto %s", amount, to);
+bool confirm_transfer_output(ButtonRequestType button_request,
+                             const char *amount, const char *to) {
+  return confirm_with_custom_layout(&layout_notification_no_title_bold,
+                                    button_request, "", "Transfer %s\nto %s",
+                                    amount, to);
 }
 
 /*
@@ -183,18 +166,16 @@ bool confirm_transfer_output(ButtonRequestType button_request, const char *amoun
  *     true/false of confirmation
  *
  */
-bool confirm_transaction_output(ButtonRequestType button_request, const char *amount,
-                                const char *to)
-{
-    return confirm_with_custom_layout(&layout_notification_no_title_bold,
-                                      button_request,
-                                      "",
-                                      "Send %s to\n%s", amount, to);
+bool confirm_transaction_output(ButtonRequestType button_request,
+                                const char *amount, const char *to) {
+  return confirm_with_custom_layout(&layout_notification_no_title_bold,
+                                    button_request, "", "Send %s to\n%s",
+                                    amount, to);
 }
 
-
 /*
- * confirm_erc_token_transfer() - Show transaction output confirmation without bold
+ * confirm_erc_token_transfer() - Show transaction output confirmation without
+ * bold
  *
  * INPUT -
  *      - button_request: button request type
@@ -205,20 +186,14 @@ bool confirm_transaction_output(ButtonRequestType button_request, const char *am
  *
  */
 bool confirm_erc_token_transfer(ButtonRequestType button_request,
-                                        const char *msg_body)
-{
-    return confirm_with_custom_layout(&layout_notification_no_title_no_bold,
-            button_request,
-            "",
-            "Send %s", msg_body);
+                                const char *msg_body) {
+  return confirm_with_custom_layout(&layout_notification_no_title_no_bold,
+                                    button_request, "", "Send %s", msg_body);
 }
 
-
-
-
-
 /*
- * confirm_transaction_output_no_bold() - Show transaction output confirmation without bold
+ * confirm_transaction_output_no_bold() - Show transaction output confirmation
+ * without bold
  *
  * INPUT -
  *      - button_request: button request type
@@ -229,12 +204,10 @@ bool confirm_erc_token_transfer(ButtonRequestType button_request,
  *
  */
 bool confirm_transaction_output_no_bold(ButtonRequestType button_request,
-                                        const char *amount, const char *to)
-{
-    return confirm_with_custom_layout(&layout_notification_no_title_no_bold,
-            button_request,
-            "",
-            "Send %s to\n%s", amount, to);
+                                        const char *amount, const char *to) {
+  return confirm_with_custom_layout(&layout_notification_no_title_no_bold,
+                                    button_request, "", "Send %s to\n%s",
+                                    amount, to);
 }
 
 /*
@@ -247,19 +220,16 @@ bool confirm_transaction_output_no_bold(ButtonRequestType button_request,
  *     true/false of confirmation
  *
  */
-bool confirm_transaction(const char *total_amount, const char *fee)
-{
-    if (!fee || strcmp(fee, "0.0 BTC") == 0) {
-        return confirm(ButtonRequestType_ButtonRequest_SignTx,
-                       "Transaction",
-                       "Do you want to send %s from your wallet?",
-                       total_amount);
-    } else {
-        return confirm(ButtonRequestType_ButtonRequest_SignTx,
-                       "Transaction",
-                       "Do you want to send %s from your wallet? This includes a transaction fee of %s.",
-                       total_amount, fee);
-    }
+bool confirm_transaction(const char *total_amount, const char *fee) {
+  if (!fee || strcmp(fee, "0.0 BTC") == 0) {
+    return confirm(ButtonRequestType_ButtonRequest_SignTx, "Transaction",
+                   "Do you want to send %s from your wallet?", total_amount);
+  } else {
+    return confirm(ButtonRequestType_ButtonRequest_SignTx, "Transaction",
+                   "Do you want to send %s from your wallet? This includes a "
+                   "transaction fee of %s.",
+                   total_amount, fee);
+  }
 }
 
 /*
@@ -271,24 +241,22 @@ bool confirm_transaction(const char *total_amount, const char *fee)
  *     true/false of confirmation
  *
  */
-bool confirm_load_device(bool is_node)
-{
-    bool ret_stat;
+bool confirm_load_device(bool is_node) {
+  bool ret_stat;
 
-    if(is_node)
-    {
-        ret_stat = confirm(ButtonRequestType_ButtonRequest_ImportPrivateKey,
-                           "Import Private Key",
-                           "Importing is not recommended unless you understand the risks. Do you want to import private key?");
-    }
-    else
-    {
-        ret_stat = confirm(ButtonRequestType_ButtonRequest_ImportRecoverySentence,
-                           "Import Recovery Sentence",
-                           "Importing is not recommended unless you understand the risks. Do you want to import recovery sentence?");
-    }
+  if (is_node) {
+    ret_stat = confirm(ButtonRequestType_ButtonRequest_ImportPrivateKey,
+                       "Import Private Key",
+                       "Importing is not recommended unless you understand the "
+                       "risks. Do you want to import private key?");
+  } else {
+    ret_stat = confirm(ButtonRequestType_ButtonRequest_ImportRecoverySentence,
+                       "Import Recovery Sentence",
+                       "Importing is not recommended unless you understand the "
+                       "risks. Do you want to import recovery sentence?");
+  }
 
-    return(ret_stat);
+  return (ret_stat);
 }
 
 /*
@@ -300,11 +268,10 @@ bool confirm_load_device(bool is_node)
  *     true/false of confirmation
  *
  */
-bool confirm_xpub(const char *node_str, const char *xpub)
-{
-    return confirm_with_custom_layout(&layout_xpub_notification,
-                                      ButtonRequestType_ButtonRequest_Address, node_str, "%s", xpub);
-
+bool confirm_xpub(const char *node_str, const char *xpub) {
+  return confirm_with_custom_layout(&layout_xpub_notification,
+                                    ButtonRequestType_ButtonRequest_Address,
+                                    node_str, "%s", xpub);
 }
 
 /*
@@ -317,10 +284,10 @@ bool confirm_xpub(const char *node_str, const char *xpub)
  *     true/false of confirmation
  *
  */
-bool confirm_ethereum_address(const char *desc, const char *address)
-{
-    return confirm_with_custom_layout(&layout_ethereum_address_notification,
-                                      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
+bool confirm_ethereum_address(const char *desc, const char *address) {
+  return confirm_with_custom_layout(&layout_ethereum_address_notification,
+                                    ButtonRequestType_ButtonRequest_Address,
+                                    desc, "%s", address);
 }
 
 /*
@@ -333,10 +300,10 @@ bool confirm_ethereum_address(const char *desc, const char *address)
  *     true/false of confirmation
  *
  */
-bool confirm_nano_address(const char *desc, const char *address)
-{
-    return confirm_with_custom_layout(&layout_nano_address_notification,
-                                      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
+bool confirm_nano_address(const char *desc, const char *address) {
+  return confirm_with_custom_layout(&layout_nano_address_notification,
+                                    ButtonRequestType_ButtonRequest_Address,
+                                    desc, "%s", address);
 }
 
 /*
@@ -349,10 +316,10 @@ bool confirm_nano_address(const char *desc, const char *address)
  *     true/false of confirmation
  *
  */
-bool confirm_address(const char *desc, const char *address)
-{
-    return confirm_with_custom_layout(&layout_address_notification,
-                                      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
+bool confirm_address(const char *desc, const char *address) {
+  return confirm_with_custom_layout(&layout_address_notification,
+                                    ButtonRequestType_ButtonRequest_Address,
+                                    desc, "%s", address);
 }
 
 /*
@@ -365,106 +332,97 @@ bool confirm_address(const char *desc, const char *address)
  *     true/false of confirmation
  *
  */
-bool confirm_sign_identity(const IdentityType *identity, const char *challenge)
-{
-    char title[CONFIRM_SIGN_IDENTITY_TITLE], body[CONFIRM_SIGN_IDENTITY_BODY];
+bool confirm_sign_identity(const IdentityType *identity,
+                           const char *challenge) {
+  char title[CONFIRM_SIGN_IDENTITY_TITLE], body[CONFIRM_SIGN_IDENTITY_BODY];
 
-    /* Format protocol */
-    if(identity->has_proto && identity->proto[0])
-    {
-        strlcpy(title, identity->proto, sizeof(title));
-        kk_strupr(title);
-        strlcat(title, " login to: ", sizeof(title));
-    }
-    else
-    {
-        strlcpy(title, "Login to: ", sizeof(title));
-    }
+  /* Format protocol */
+  if (identity->has_proto && identity->proto[0]) {
+    strlcpy(title, identity->proto, sizeof(title));
+    kk_strupr(title);
+    strlcat(title, " login to: ", sizeof(title));
+  } else {
+    strlcpy(title, "Login to: ", sizeof(title));
+  }
 
-    /* Format host and port */
-    if(identity->has_host && identity->host[0])
-    {
-        strlcpy(body, "host: ", sizeof(body));
-        strlcat(body, identity->host, sizeof(body));
+  /* Format host and port */
+  if (identity->has_host && identity->host[0]) {
+    strlcpy(body, "host: ", sizeof(body));
+    strlcat(body, identity->host, sizeof(body));
 
-        if(identity->has_port && identity->port[0])
-        {
-            strlcat(body, ":", sizeof(body));
-            strlcat(body, identity->port, sizeof(body));
-        }
-
-        strlcat(body, "\n", sizeof(body));
-    }
-    else
-    {
-        body[0] = 0;
+    if (identity->has_port && identity->port[0]) {
+      strlcat(body, ":", sizeof(body));
+      strlcat(body, identity->port, sizeof(body));
     }
 
-    /* Format user */
-    if(identity->has_user && identity->user[0])
-    {
-        strlcat(body, "user: ", sizeof(body));
-        strlcat(body, identity->user, sizeof(body));
-        strlcat(body, "\n", sizeof(body));
-    }
+    strlcat(body, "\n", sizeof(body));
+  } else {
+    body[0] = 0;
+  }
 
-    /* Format challenge */
-    if (challenge && strlen(challenge) != 0)
-    {
-        strlcat(body, challenge, sizeof(body));
-    }
+  /* Format user */
+  if (identity->has_user && identity->user[0]) {
+    strlcat(body, "user: ", sizeof(body));
+    strlcat(body, identity->user, sizeof(body));
+    strlcat(body, "\n", sizeof(body));
+  }
 
-    return confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, "%s", body);
+  /* Format challenge */
+  if (challenge && strlen(challenge) != 0) {
+    strlcat(body, challenge, sizeof(body));
+  }
+
+  return confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, "%s",
+                 body);
 }
 
-bool confirm_omni(ButtonRequestType button_request, const char *title, const uint8_t *data, uint32_t size)
-{
-	uint32_t tx_type, currency;
-	REVERSE32(*(const uint32_t *)(data + 4), tx_type);
-	if (tx_type == 0x00000000 && size == 20) {  // OMNI simple send
-		char str_out[32];
-		REVERSE32(*(const uint32_t *)(data + 8), currency);
-		const char *suffix = "UNKN";
-		switch (currency) {
-			case 1:
-				suffix = " OMNI";
-				break;
-			case 2:
-				suffix = " tOMNI";
-				break;
-			case 3:
-				suffix = " MAID";
-				break;
-			case 31:
-				suffix = " USDT";
-				break;
-		}
-		uint64_t amount_be, amount;
-		memcpy(&amount_be, data + 12, sizeof(uint64_t));
-		REVERSE64(amount_be, amount);
-		bn_format_uint64(amount, NULL, suffix, BITCOIN_DIVISIBILITY, 0, false, str_out, sizeof(str_out));
-		return confirm(button_request, title, _("Do you want to send %s?"), str_out);
-	} else {
-		return confirm(button_request, title, _("Unknown Transaction"));
-	}
+bool confirm_omni(ButtonRequestType button_request, const char *title,
+                  const uint8_t *data, uint32_t size) {
+  uint32_t tx_type, currency;
+  REVERSE32(*(const uint32_t *)(data + 4), tx_type);
+  if (tx_type == 0x00000000 && size == 20) {  // OMNI simple send
+    char str_out[32];
+    REVERSE32(*(const uint32_t *)(data + 8), currency);
+    const char *suffix = "UNKN";
+    switch (currency) {
+      case 1:
+        suffix = " OMNI";
+        break;
+      case 2:
+        suffix = " tOMNI";
+        break;
+      case 3:
+        suffix = " MAID";
+        break;
+      case 31:
+        suffix = " USDT";
+        break;
+    }
+    uint64_t amount_be, amount;
+    memcpy(&amount_be, data + 12, sizeof(uint64_t));
+    REVERSE64(amount_be, amount);
+    bn_format_uint64(amount, NULL, suffix, BITCOIN_DIVISIBILITY, 0, false,
+                     str_out, sizeof(str_out));
+    return confirm(button_request, title, _("Do you want to send %s?"),
+                   str_out);
+  } else {
+    return confirm(button_request, title, _("Unknown Transaction"));
+  }
 }
 
 bool confirm_data(ButtonRequestType button_request, const char *title,
-                  const uint8_t *data, uint32_t size)
-{
-	const char *str = (const char *)data;
-	char hex[50 * 2 + 1];
-	if (!is_valid_ascii(data, size)) {
-		if (size > 50)
-			size = 50;
-		memset(hex, 0, sizeof(hex));
-		data2hex(data, size, hex);
-		if (size > 50) {
-			hex[50 * 2 - 1] = '.';
-			hex[50 * 2 - 2] = '.';
-		}
-		str = hex;
-	}
-	return confirm(button_request, title, "%s", str);
+                  const uint8_t *data, uint32_t size) {
+  const char *str = (const char *)data;
+  char hex[50 * 2 + 1];
+  if (!is_valid_ascii(data, size)) {
+    if (size > 50) size = 50;
+    memset(hex, 0, sizeof(hex));
+    data2hex(data, size, hex);
+    if (size > 50) {
+      hex[50 * 2 - 1] = '.';
+      hex[50 * 2 - 2] = '.';
+    }
+    str = hex;
+  }
+  return confirm(button_request, title, "%s", str);
 }
-

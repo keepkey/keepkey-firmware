@@ -17,57 +17,56 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef EMULATOR
-#  include <libopencm3/stm32/rcc.h>
-#  include <libopencm3/stm32/gpio.h>
+#include <libopencm3/stm32/rcc.h>
+#include <libopencm3/stm32/gpio.h>
 #endif
 
 #include "keepkey/board/pin.h"
-
 
 /*
  * pin_init_output() - Initialize GPIO for LED
  *
  * INPUT
- *     - pin: pointer pin assignment 
- *     - output_mode: pin output state 
- *     - pull_mode: input mode 
+ *     - pin: pointer pin assignment
+ *     - output_mode: pin output state
+ *     - pull_mode: input mode
  * OUTPUT
- *     none 
+ *     none
  */
-void pin_init_output(const Pin *pin, OutputMode output_mode, PullMode pull_mode)
-{
+void pin_init_output(const Pin *pin, OutputMode output_mode,
+                     PullMode pull_mode) {
 #ifndef EMULATOR
-    uint8_t output_mode_setpoint;
-    uint8_t pull_mode_setpoint;
+  uint8_t output_mode_setpoint;
+  uint8_t pull_mode_setpoint;
 
-    switch( output_mode ) {
-        case OPEN_DRAIN_MODE:
-            output_mode_setpoint = GPIO_OTYPE_OD;
-            break;
-        case PUSH_PULL_MODE:
-        default:
-            output_mode_setpoint = GPIO_OTYPE_PP;
-            break;
-    }
+  switch (output_mode) {
+    case OPEN_DRAIN_MODE:
+      output_mode_setpoint = GPIO_OTYPE_OD;
+      break;
+    case PUSH_PULL_MODE:
+    default:
+      output_mode_setpoint = GPIO_OTYPE_PP;
+      break;
+  }
 
-    switch( pull_mode ) {
-        case PULL_UP_MODE:
-            pull_mode_setpoint = GPIO_PUPD_PULLUP;
-            break;
-        case PULL_DOWN_MODE:
-            pull_mode_setpoint = GPIO_PUPD_PULLDOWN;
-            break;
+  switch (pull_mode) {
+    case PULL_UP_MODE:
+      pull_mode_setpoint = GPIO_PUPD_PULLUP;
+      break;
+    case PULL_DOWN_MODE:
+      pull_mode_setpoint = GPIO_PUPD_PULLDOWN;
+      break;
 
-        case NO_PULL_MODE:
-        default:
-            pull_mode_setpoint = GPIO_PUPD_NONE;
-            break;
-    }
+    case NO_PULL_MODE:
+    default:
+      pull_mode_setpoint = GPIO_PUPD_NONE;
+      break;
+  }
 
-    /* Set up port A */
-    gpio_mode_setup( pin->port, GPIO_MODE_OUTPUT, pull_mode_setpoint, pin->pin );
-    gpio_set_output_options( pin->port, output_mode_setpoint, GPIO_OSPEED_100MHZ, pin->pin );
+  /* Set up port A */
+  gpio_mode_setup(pin->port, GPIO_MODE_OUTPUT, pull_mode_setpoint, pin->pin);
+  gpio_set_output_options(pin->port, output_mode_setpoint, GPIO_OSPEED_100MHZ,
+                          pin->pin);
 #endif
 }

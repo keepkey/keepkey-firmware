@@ -28,40 +28,31 @@
 /* The number of milliseconds to wait for a confirmation */
 #define CONFIRM_TIMEOUT_MS 1200
 
-typedef enum
-{
-    HOME,
-    CONFIRM_WAIT,
-    CONFIRMED,
-    FINISHED
-} DisplayState;
+typedef enum { HOME, CONFIRM_WAIT, CONFIRMED, FINISHED } DisplayState;
 
-typedef enum
-{
-    LAYOUT_REQUEST,
-    LAYOUT_REQUEST_NO_ANIMATION,
-    LAYOUT_CONFIRM_ANIMATION,
-    LAYOUT_CONFIRMED,
-    LAYOUT_FINISHED,
-    LAYOUT_NUM_LAYOUTS,
-    LAYOUT_INVALID
+typedef enum {
+  LAYOUT_REQUEST,
+  LAYOUT_REQUEST_NO_ANIMATION,
+  LAYOUT_CONFIRM_ANIMATION,
+  LAYOUT_CONFIRMED,
+  LAYOUT_FINISHED,
+  LAYOUT_NUM_LAYOUTS,
+  LAYOUT_INVALID
 } ActiveLayout;
 
 /* Define the given layout dialog texts for each screen */
-typedef struct
-{
-    const char *request_title;
-    const char *request_body;
+typedef struct {
+  const char *request_title;
+  const char *request_body;
 } ScreenLine;
 
 typedef ScreenLine ScreenLines;
 typedef ScreenLines DialogLines[LAYOUT_NUM_LAYOUTS];
 
-typedef struct
-{
-    DialogLines lines;
-    DisplayState display_state;
-    ActiveLayout active_layout;
+typedef struct {
+  DialogLines lines;
+  DisplayState display_state;
+  ActiveLayout active_layout;
 } StateInfo;
 
 typedef void (*layout_notification_t)(const char *str1, const char *str2,
@@ -72,8 +63,9 @@ typedef void (*layout_notification_t)(const char *str1, const char *str2,
 /// \param request_title   Title of confirm message.
 /// \param request_body    Body of confirm message.
 /// \returns true iff the device confirmed.
-bool confirm(ButtonRequestType type, const char *request_title, const char *request_body,
-             ...) __attribute__((format(printf, 3, 4)));
+bool confirm(ButtonRequestType type, const char *request_title,
+             const char *request_body, ...)
+    __attribute__((format(printf, 3, 4)));
 
 /// User confirmation.
 /// \param type            The kind of button request to send to the host.
@@ -81,8 +73,9 @@ bool confirm(ButtonRequestType type, const char *request_title, const char *requ
 /// \param request_body    Body of confirm message.
 /// \returns true iff the device confirmed.
 bool confirm_with_custom_button_request(ButtonRequest *button_request,
-                                        const char *request_title, const char *request_body,
-                                        ...) __attribute__((format(printf, 3, 4)));
+                                        const char *request_title,
+                                        const char *request_body, ...)
+    __attribute__((format(printf, 3, 4)));
 
 /// User confirmation, custom layout.
 /// \param layout_notification_func      Layout callback.
@@ -92,8 +85,9 @@ bool confirm_with_custom_button_request(ButtonRequest *button_request,
 /// \returns true iff the device confirmed.
 bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
                                 ButtonRequestType type,
-                                const char *request_title, const char *request_body,
-                                ...) __attribute__((format(printf, 4, 5)));
+                                const char *request_title,
+                                const char *request_body, ...)
+    __attribute__((format(printf, 4, 5)));
 
 /// User confirmation.
 ///
@@ -101,19 +95,22 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
 /// \param request_title   Title of confirm message.
 /// \param request_body    Body of confirm message.
 /// \returns true iff the device confirmed.
-bool confirm_without_button_request(const char *request_title, const char *request_body,
-                                    ...) __attribute__((format(printf, 2, 3)));
+bool confirm_without_button_request(const char *request_title,
+                                    const char *request_body, ...)
+    __attribute__((format(printf, 2, 3)));
 
 /// Like confirm, but always \returns true.
 /// \param request_title   Title of confirm message.
 /// \param request_body    Body of confirm message.
-bool review(ButtonRequestType type, const char *request_title, const char *request_body,
-            ...) __attribute__((format(printf, 3, 4)));
+bool review(ButtonRequestType type, const char *request_title,
+            const char *request_body, ...)
+    __attribute__((format(printf, 3, 4)));
 
-/// Like confirm, but always \returns true. Does not message the host for ButtonAcks.
-/// \param request_title   Title of confirm message.
-/// \param request_body    Body of confirm message.
-bool review_without_button_request(const char *request_title, const char *request_body,
-                                   ...) __attribute__((format(printf, 2, 3)));
+/// Like confirm, but always \returns true. Does not message the host for
+/// ButtonAcks. \param request_title   Title of confirm message. \param
+/// request_body    Body of confirm message.
+bool review_without_button_request(const char *request_title,
+                                   const char *request_body, ...)
+    __attribute__((format(printf, 2, 3)));
 
 #endif

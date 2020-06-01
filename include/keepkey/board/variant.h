@@ -10,44 +10,43 @@
 #define VARIANTINFO_MAGIC "KKWL"
 
 typedef struct Image_ {
-    uint16_t w;
-    uint16_t h;
-    uint32_t length;
-    const uint8_t *data;
+  uint16_t w;
+  uint16_t h;
+  uint32_t length;
+  const uint8_t *data;
 } Image;
 
 typedef struct AnimationFrame_ {
-    uint16_t x;
-    uint16_t y;
-    uint16_t duration;
-    uint8_t color;
-    const Image *image;
+  uint16_t x;
+  uint16_t y;
+  uint16_t duration;
+  uint8_t color;
+  const Image *image;
 } AnimationFrame;
 
 typedef struct VariantAnimation_ {
-    uint16_t count;
-    AnimationFrame frames[];
+  uint16_t count;
+  AnimationFrame frames[];
 } VariantAnimation;
 
 typedef struct VariantInfo_ {
-    uint16_t version;
-    const char *name;
-    const VariantAnimation *logo;
-    const VariantAnimation *logo_reversed;
-    uint32_t screensaver_timeout; // DEPRECATED
-    const VariantAnimation *screensaver;
+  uint16_t version;
+  const char *name;
+  const VariantAnimation *logo;
+  const VariantAnimation *logo_reversed;
+  uint32_t screensaver_timeout;  // DEPRECATED
+  const VariantAnimation *screensaver;
 } VariantInfo;
 
 typedef struct SignedVariantInfo_ {
-    app_meta_td meta;
-    VariantInfo info;
+  app_meta_td meta;
+  VariantInfo info;
 } SignedVariantInfo;
 
 typedef enum Model_ {
-    MODEL_UNKNOWN,
-    #define MODEL_ENTRY(STRING, ENUM) \
-        MODEL_ ##ENUM,
-    #include "keepkey/board/models.def"
+  MODEL_UNKNOWN,
+#define MODEL_ENTRY(STRING, ENUM) MODEL_##ENUM,
+#include "keepkey/board/models.def"
 } Model;
 
 /// Get the model of the device (Keepkey/SALT/etc)

@@ -23,10 +23,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-
-#define	DIGEST_STR_LEN 		(2*SHA256_DIGEST_LENGTH)+1
-#define AMT_STR_LEN 		32
-#define	ADDR_STR_LEN 		130
+#define DIGEST_STR_LEN (2 * SHA256_DIGEST_LENGTH) + 1
+#define AMT_STR_LEN 32
+#define ADDR_STR_LEN 130
 
 void txin_dgst_addto(const uint8_t *data, size_t len);
 void txin_dgst_initialize(void);

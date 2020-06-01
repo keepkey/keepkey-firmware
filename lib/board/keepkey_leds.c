@@ -17,18 +17,15 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include <stddef.h>
 
 #include "keepkey/board/keepkey_leds.h"
 #include "keepkey/board/pin.h"
 
-
 #ifndef EMULATOR
-static const Pin GREEN_LED  = { GPIOC, GPIO14 };
-static const Pin RED_LED    = { GPIOC, GPIO15 };
+static const Pin GREEN_LED = {GPIOC, GPIO14};
+static const Pin RED_LED = {GPIOC, GPIO15};
 #endif
-
 
 /*
  * keepkey_leds_init() - Initialize gpios for LEDs
@@ -38,14 +35,13 @@ static const Pin RED_LED    = { GPIOC, GPIO15 };
  * OUTPUT
  *     none
  */
-void keepkey_leds_init(void)
-{
+void keepkey_leds_init(void) {
 #ifndef EMULATOR
-    pin_init_output(&GREEN_LED, PUSH_PULL_MODE, NO_PULL_MODE);
-    pin_init_output(&RED_LED, PUSH_PULL_MODE, NO_PULL_MODE);
+  pin_init_output(&GREEN_LED, PUSH_PULL_MODE, NO_PULL_MODE);
+  pin_init_output(&RED_LED, PUSH_PULL_MODE, NO_PULL_MODE);
 
-    led_func(CLR_GREEN_LED);
-    led_func(CLR_RED_LED);
+  led_func(CLR_GREEN_LED);
+  led_func(CLR_RED_LED);
 #endif
 }
 
@@ -57,38 +53,36 @@ void keepkey_leds_init(void)
  * OUTPUT
  *     none
  */
-void led_func(LedAction act)
-{
+void led_func(LedAction act) {
 #ifndef EMULATOR
-    switch(act)
-    {
-        case CLR_GREEN_LED:
-            SET_PIN(GREEN_LED);
-            break;
+  switch (act) {
+    case CLR_GREEN_LED:
+      SET_PIN(GREEN_LED);
+      break;
 
-        case SET_GREEN_LED:
-            CLEAR_PIN(GREEN_LED);
-            break;
+    case SET_GREEN_LED:
+      CLEAR_PIN(GREEN_LED);
+      break;
 
-        case TGL_GREEN_LED:
-            TOGGLE_PIN(GREEN_LED);
-            break;
+    case TGL_GREEN_LED:
+      TOGGLE_PIN(GREEN_LED);
+      break;
 
-        case CLR_RED_LED:
-            SET_PIN(RED_LED);
-            break;
+    case CLR_RED_LED:
+      SET_PIN(RED_LED);
+      break;
 
-        case SET_RED_LED:
-            CLEAR_PIN(RED_LED);
-            break;
+    case SET_RED_LED:
+      CLEAR_PIN(RED_LED);
+      break;
 
-        case TGL_RED_LED:
-            TOGGLE_PIN(RED_LED);
-            break;
+    case TGL_RED_LED:
+      TOGGLE_PIN(RED_LED);
+      break;
 
-        default:
-            /* No action */
-            break;
-    }
+    default:
+      /* No action */
+      break;
+  }
 #endif
 }

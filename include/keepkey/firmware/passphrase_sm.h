@@ -20,39 +20,35 @@
 #ifndef PASSPHRASE_SM_H
 #define PASSPHRASE_SM_H
 
-
 #include "keepkey/transport/interface.h"
 
 #include <stdbool.h>
 
-
 #define PASSPHRASE_BUF sizeof(((PassphraseAck *)NULL)->passphrase)
-
 
 /* State for Passphrase SM */
 typedef enum {
-    PASSPHRASE_REQUEST,
-	PASSPHRASE_WAITING,
-	PASSPHRASE_ACK,
-	PASSPHRASE_FINISHED
+  PASSPHRASE_REQUEST,
+  PASSPHRASE_WAITING,
+  PASSPHRASE_ACK,
+  PASSPHRASE_FINISHED
 } PassphraseState;
 
-/* While waiting for a passphrase ack, these are the types of messages we expect to
- * see.
+/* While waiting for a passphrase ack, these are the types of messages we expect
+ * to see.
  */
 typedef enum {
-	PASSPHRASE_ACK_WAITING,
-    PASSPHRASE_ACK_RECEIVED,
-	PASSPHRASE_ACK_CANCEL_BY_INIT,
-	PASSPHRASE_ACK_CANCEL
+  PASSPHRASE_ACK_WAITING,
+  PASSPHRASE_ACK_RECEIVED,
+  PASSPHRASE_ACK_CANCEL_BY_INIT,
+  PASSPHRASE_ACK_CANCEL
 } PassphraseAckMsg;
 
 /* Contains passphrase received info */
 typedef struct {
-	PassphraseAckMsg passphrase_ack_msg;
-	char passphrase[PASSPHRASE_BUF];
+  PassphraseAckMsg passphrase_ack_msg;
+  char passphrase[PASSPHRASE_BUF];
 } PassphraseInfo;
-
 
 bool passphrase_protect(void);
 

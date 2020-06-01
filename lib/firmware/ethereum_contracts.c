@@ -22,23 +22,20 @@
 #include "keepkey/firmware/ethereum_contracts/makerdao.h"
 
 bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx *msg,
-                              const HDNode *node)
-{
-    (void)node;
+                              const HDNode *node) {
+  (void)node;
 
-    if (makerdao_isMakerDAO(data_total, msg))
-        return true;
+  if (makerdao_isMakerDAO(data_total, msg)) return true;
 
-    return false;
+  return false;
 }
 
 bool ethereum_contractConfirmed(uint32_t data_total, const EthereumSignTx *msg,
-                                const HDNode *node)
-{
-    (void)node;
+                                const HDNode *node) {
+  (void)node;
 
-    if (makerdao_isMakerDAO(data_total, msg))
-        return makerdao_confirmMakerDAO(data_total, msg);
+  if (makerdao_isMakerDAO(data_total, msg))
+    return makerdao_confirmMakerDAO(data_total, msg);
 
-    return false;
+  return false;
 }

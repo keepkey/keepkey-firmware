@@ -34,6 +34,7 @@ static const PolicyType policies[] = {
     {true, "AdvancedMode", true, false},
 };
 
-int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vin, void *vout, bool needs_confirm);
+int run_policy_compile_output(const CoinType *coin, const HDNode *root,
+                              void *vin, void *vout, bool needs_confirm);
 
 #endif

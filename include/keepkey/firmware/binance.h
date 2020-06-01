@@ -16,8 +16,7 @@ bool binance_signTxInit(const HDNode *node, const BinanceSignTx *msg);
 bool binance_serializeCoin(const BinanceCoin *coin);
 bool binance_serializeInputOutput(const BinanceInputOutput *io);
 bool binance_signTxUpdateTransfer(const BinanceTransferMsg *msg);
-bool binance_signTxUpdateMsgSend(const uint64_t amount,
-                                 const char *to_address);
+bool binance_signTxUpdateMsgSend(const uint64_t amount, const char *to_address);
 bool binance_signTxFinalize(uint8_t *public_key, uint8_t *signature);
 bool binance_signingIsInited(void);
 bool binance_signingIsFinished(void);

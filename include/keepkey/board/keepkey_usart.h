@@ -20,7 +20,6 @@
 #ifndef KEEPKEY_USART_H
 #define KEEPKEY_USART_H
 
-
 #include <stdarg.h>
 
 #include "keepkey_leds.h"
@@ -29,16 +28,17 @@
 
 #include "timer.h"
 
-
-#define SMALL_DEBUG_BUF     32
-#define MEDIUM_DEBUG_BUF    64
-#define LARGE_DEBUG_BUF     128
-
+#define SMALL_DEBUG_BUF 32
+#define MEDIUM_DEBUG_BUF 64
+#define LARGE_DEBUG_BUF 128
 
 #ifndef EMULATOR
-void dbg_print(const char *pStr, ...) __attribute__((format(printf,1,2)));
+void dbg_print(const char *pStr, ...) __attribute__((format(printf, 1, 2)));
 #else
-#  define dbg_print(FMT, ...) do { printf(FMT, ## __VA_ARGS__); } while(0)
+#define dbg_print(FMT, ...)     \
+  do {                          \
+    printf(FMT, ##__VA_ARGS__); \
+  } while (0)
 #endif
 
 void usart_init(void);

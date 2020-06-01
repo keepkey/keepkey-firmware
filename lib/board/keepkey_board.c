@@ -17,16 +17,15 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef EMULATOR
-#  include <libopencm3/stm32/rcc.h>
-#  include <libopencm3/stm32/gpio.h>
-#  include <libopencm3/cm3/scb.h>
-#  include <libopencm3/stm32/spi.h>
-#  include <libopencm3/stm32/f2/rng.h>
-#  include <libopencm3/stm32/f2/crc.h>
-#  include <libopencm3/cm3/cortex.h>
-#  include <libopencm3/stm32/desig.h>
+#include <libopencm3/stm32/rcc.h>
+#include <libopencm3/stm32/gpio.h>
+#include <libopencm3/cm3/scb.h>
+#include <libopencm3/stm32/spi.h>
+#include <libopencm3/stm32/f2/rng.h>
+#include <libopencm3/stm32/f2/crc.h>
+#include <libopencm3/cm3/cortex.h>
+#include <libopencm3/stm32/desig.h>
 #endif
 
 #include "keepkey/board/keepkey_board.h"
@@ -36,7 +35,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-
 /* Stack smashing protector (SSP) canary value storage */
 uintptr_t __stack_chk_guard;
 
@@ -44,12 +42,8 @@ uintptr_t __stack_chk_guard;
 /**
  * \brief System Halt
  */
-void __attribute__((noreturn)) shutdown(void)
-{
-    exit(1);
-}
+void __attribute__((noreturn)) shutdown(void) { exit(1); }
 #endif
-
 
 /*
  * __stack_chk_fail() - Stack smashing protector (SSP) call back funcation
@@ -60,22 +54,20 @@ void __attribute__((noreturn)) shutdown(void)
  * OUTPUT
  *     none
  */
-__attribute__((noreturn)) void __stack_chk_fail(void)
-{
-    layout_warning_static("Error Detected.  Reboot Device!");
-    shutdown();
+__attribute__((noreturn)) void __stack_chk_fail(void) {
+  layout_warning_static("Error Detected.  Reboot Device!");
+  shutdown();
 }
 
 #ifndef EMULATOR
 /// Non-maskable interrupt handler
-void nmi_handler(void)
-{
-    // Look for the clock instability interrupt. This is a security measure
-    // that helps prevent clock glitching.
-    if ((RCC_CIR & RCC_CIR_CSSF) != 0) {
-        layout_warning_static("Clock instability detected. Reboot Device!");
-        shutdown();
-    }
+void nmi_handler(void) {
+  // Look for the clock instability interrupt. This is a security measure
+  // that helps prevent clock glitching.
+  if ((RCC_CIR & RCC_CIR_CSSF) != 0) {
+    layout_warning_static("Clock instability detected. Reboot Device!");
+    shutdown();
+  }
 }
 #endif
 
@@ -87,10 +79,9 @@ void nmi_handler(void)
  * OUTPUT
  *     none
  */
-void board_reset(void)
-{
+void board_reset(void) {
 #ifndef EMULATOR
-    scb_reset_system();
+  scb_reset_system();
 #endif
 }
 
@@ -102,32 +93,30 @@ void board_reset(void)
  * OUTPUT
  *     none
  */
-void kk_board_init(void)
-{
-    kk_timer_init();
+void kk_board_init(void) {
+  kk_timer_init();
 
-//    keepkey_leds_init();
-    led_func(CLR_GREEN_LED);
-    led_func(CLR_RED_LED);
+  //    keepkey_leds_init();
+  led_func(CLR_GREEN_LED);
+  led_func(CLR_RED_LED);
 
-    kk_keepkey_button_init();
+  kk_keepkey_button_init();
 #ifndef EMULATOR
-    svc_enable_interrupts();    // This enables the timer and button interrupts
+  svc_enable_interrupts();  // This enables the timer and button interrupts
 #endif
 
-    layout_init(display_canvas_init());
+  layout_init(display_canvas_init());
 }
 
 #ifdef EMULATOR
 /// Reverses (reflects) bits in a 32-bit word.
 /// http://www.hackersdelight.org/hdcodetxt/crc.c.txt
 static uint32_t reverse(unsigned x) {
-   x = ((x & 0x55555555) <<  1) | ((x >>  1) & 0x55555555);
-   x = ((x & 0x33333333) <<  2) | ((x >>  2) & 0x33333333);
-   x = ((x & 0x0F0F0F0F) <<  4) | ((x >>  4) & 0x0F0F0F0F);
-   x = (x << 24) | ((x & 0xFF00) << 8) |
-       ((x >> 8) & 0xFF00) | (x >> 24);
-   return x;
+  x = ((x & 0x55555555) << 1) | ((x >> 1) & 0x55555555);
+  x = ((x & 0x33333333) << 2) | ((x >> 2) & 0x33333333);
+  x = ((x & 0x0F0F0F0F) << 4) | ((x >> 4) & 0x0F0F0F0F);
+  x = (x << 24) | ((x & 0xFF00) << 8) | ((x >> 8) & 0xFF00) | (x >> 24);
+  return x;
 }
 #endif
 
@@ -138,29 +127,28 @@ static uint32_t reverse(unsigned x) {
  * OUTPUT
  *     crc32 of data
  */
-uint32_t calc_crc32(const void *data, int word_len)
-{
-    uint32_t crc32 = 0;
+uint32_t calc_crc32(const void *data, int word_len) {
+  uint32_t crc32 = 0;
 
 #ifndef EMULATOR
-    crc_reset();
-    crc32 = crc_calculate_block((uint32_t*)data, word_len);
+  crc_reset();
+  crc32 = crc_calculate_block((uint32_t *)data, word_len);
 #else
-    /// http://www.hackersdelight.org/hdcodetxt/crc.c.txt
-    crc32 = 0xFFFFFFFF;
-    for (int i = 0; i < word_len; i++) {
-       uint32_t byte = ((const char *)data)[i];  // Get next byte.
-       byte = reverse(byte);                     // 32-bit reversal.
-       for (int j = 0; j <= 7; j++) {            // Do eight times.
-          if ((int)(crc32 ^ byte) < 0)
-               crc32 = (crc32 << 1) ^ 0x04C11DB7;
-          else crc32 = crc32 << 1;
-          byte = byte << 1;                      // Ready next msg bit.
-       }
+  /// http://www.hackersdelight.org/hdcodetxt/crc.c.txt
+  crc32 = 0xFFFFFFFF;
+  for (int i = 0; i < word_len; i++) {
+    uint32_t byte = ((const char *)data)[i];  // Get next byte.
+    byte = reverse(byte);                     // 32-bit reversal.
+    for (int j = 0; j <= 7; j++) {            // Do eight times.
+      if ((int)(crc32 ^ byte) < 0)
+        crc32 = (crc32 << 1) ^ 0x04C11DB7;
+      else
+        crc32 = crc32 << 1;
+      byte = byte << 1;  // Ready next msg bit.
     }
-    crc32 = reverse(~crc32);
+  }
+  crc32 = reverse(~crc32);
 #endif
 
-    return crc32;
+  return crc32;
 }
-

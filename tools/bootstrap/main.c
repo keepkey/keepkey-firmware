@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include "keepkey/bootstrap/bootstrap.h"
 
 #include "keepkey/board/memory.h"
@@ -26,10 +25,7 @@
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/cm3/cortex.h>
 
-
-static uint32_t * const  SCB_VTOR = (uint32_t*)0xe000ed08;
-
-
+static uint32_t* const SCB_VTOR = (uint32_t*)0xe000ed08;
 
 /*
  * zero_out_sram() - Fill entire SRAM sector with 0
@@ -40,12 +36,7 @@ static uint32_t * const  SCB_VTOR = (uint32_t*)0xe000ed08;
  *     none
  *
  */
-static void zero_out_sram(void)
-{
-    memset_reg(_ram_start, _ram_end, 0);
-}
-
-
+static void zero_out_sram(void) { memset_reg(_ram_start, _ram_end, 0); }
 
 /*
  * set_vector_table_bootloader() - Resets the vector table to point to the
@@ -57,11 +48,11 @@ static void zero_out_sram(void)
  *     none
  *
  */
-static void set_vector_table_bootloader(void)
-{ 
-    static const uint32_t NVIC_OFFSET_FLASH = ((uint32_t)FLASH_ORIGIN);
+static void set_vector_table_bootloader(void) {
+  static const uint32_t NVIC_OFFSET_FLASH = ((uint32_t)FLASH_ORIGIN);
 
-    *SCB_VTOR = NVIC_OFFSET_FLASH | ((FLASH_BOOT_START - FLASH_ORIGIN) & (uint32_t)0x1FFFFF80);
+  *SCB_VTOR = NVIC_OFFSET_FLASH |
+              ((FLASH_BOOT_START - FLASH_ORIGIN) & (uint32_t)0x1FFFFF80);
 }
 
 /*
@@ -72,9 +63,9 @@ static void set_vector_table_bootloader(void)
  * OUTPUT
  *     none
  */
-static void __attribute__((noreturn)) bootstrap_halt(void)
-{
-    for(;;); /* Loops forever */
+static void __attribute__((noreturn)) bootstrap_halt(void) {
+  for (;;)
+    ; /* Loops forever */
 }
 
 /*
@@ -86,14 +77,13 @@ static void __attribute__((noreturn)) bootstrap_halt(void)
  *     none
  *
  */
-static void bootloader_jump(void)
-{
-    uint32_t entry_address = FLASH_BOOT_START + 4;
-    uint32_t bootloader_entry_address = (uint32_t)(*(uint32_t*)(entry_address));
-    bootloader_entry_t bootloader_entry = (bootloader_entry_t)bootloader_entry_address;
-    bootloader_entry();
+static void bootloader_jump(void) {
+  uint32_t entry_address = FLASH_BOOT_START + 4;
+  uint32_t bootloader_entry_address = (uint32_t)(*(uint32_t*)(entry_address));
+  bootloader_entry_t bootloader_entry =
+      (bootloader_entry_t)bootloader_entry_address;
+  bootloader_entry();
 }
-
 
 /*
  * main - Bootstrap main entry function
@@ -104,17 +94,16 @@ static void bootloader_jump(void)
  * OUTPUT
  *     0 when complete
  */
-int main(int argc, char* argv[])
-{
-    (void)argc;
-    (void)argv;
+int main(int argc, char* argv[]) {
+  (void)argc;
+  (void)argv;
 
-    /* Main loop for bootloader to transition to next step */
-	cm_disable_interrupts();
-    zero_out_sram();
-    set_vector_table_bootloader();
-    bootloader_jump();
-    bootstrap_halt();
+  /* Main loop for bootloader to transition to next step */
+  cm_disable_interrupts();
+  zero_out_sram();
+  set_vector_table_bootloader();
+  bootloader_jump();
+  bootstrap_halt();
 
-    return(0); /* Should never get here */
+  return (0); /* Should never get here */
 }

@@ -17,12 +17,11 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include <stdbool.h>
 #include <stdint.h>
 
 #ifndef EMULATOR
-#  include <libopencm3/cm3/cortex.h>
+#include <libopencm3/cm3/cortex.h>
 #endif
 
 #include "keepkey/board/keepkey_board.h"
@@ -31,9 +30,7 @@
 
 #include "keepkey/firmware/app_layout.h"
 
-
 void mmhisr(void);
-
 
 /*
  * main() - Application main entry
@@ -43,22 +40,22 @@ void mmhisr(void);
  * OUTPUT
  *     0 when complete
  */
-int main(void)
-{
-    _buttonusr_isr = (void *)&buttonisr_usr;
-    _timerusr_isr = (void *)&timerisr_usr;
-    _mmhusr_isr = (void *)&mmhisr;
+int main(void) {
+  _buttonusr_isr = (void *)&buttonisr_usr;
+  _timerusr_isr = (void *)&timerisr_usr;
+  _mmhusr_isr = (void *)&mmhisr;
 
-    /* Init board */
-    kk_board_init();
+  /* Init board */
+  kk_board_init();
 
-    led_func(SET_RED_LED);
+  led_func(SET_RED_LED);
 
-    /* Draw box to consume screen with pixels */
-    layout_screen_test();
-    display_refresh();
+  /* Draw box to consume screen with pixels */
+  layout_screen_test();
+  display_refresh();
 
-    for(;;);  /* Loops forever */
+  for (;;)
+    ; /* Loops forever */
 
-    return(0);
+  return (0);
 }
