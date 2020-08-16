@@ -163,7 +163,7 @@ static void raw_dispatch(const MessagesMap_t *entry, const uint8_t *msg, uint32_
 
     if(entry->process_func)
     {
-        ((raw_msg_handler_t)entry->process_func)(&raw_msg, frame_length);
+        ((raw_msg_handler_t)(void*)entry->process_func)(&raw_msg, frame_length);
     }
 }
 

@@ -1,7 +1,9 @@
 set(sources
     app_confirm.c
     app_layout.c
+    binance.c
     coins.c
+    cosmos.c
     crypto.c
     eos.c
     eos-contracts/eosio.system.c
@@ -19,8 +21,11 @@ set(sources
     policy.c
     recovery_cipher.c
     reset.c
+    ripple.c
+    ripple_base58.c
     signing.c
     storage.c
+    tendermint.c
     transaction.c
     u2f.c)
 
@@ -40,6 +45,6 @@ set(ETHEREUM_TOKENS ${CMAKE_BINARY_DIR}/include/keepkey/firmware/ethereum_tokens
 
 add_custom_target(ethereum_tokens.def
   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/include/keepkey/firmware
-  COMMAND python ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/ethereum_tokens.py ${ETHEREUM_TOKENS}.def)
+  COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/ethereum_tokens.py ${ETHEREUM_TOKENS}.def)
 
 add_library(kkfirmware.keepkey variant/keepkey/resources.c)

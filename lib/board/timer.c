@@ -247,7 +247,7 @@ void timer_init(void)
 
 #ifndef EMULATOR
     // Set up the timer.
-    timer_reset(TIM4);
+    rcc_periph_reset_pulse(RST_TIM4);
     timer_enable_irq(TIM4, TIM_DIER_UIE);
     timer_set_mode(TIM4, TIM_CR1_CKD_CK_INT, TIM_CR1_CMS_EDGE, TIM_CR1_DIR_UP);
 

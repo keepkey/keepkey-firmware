@@ -11,8 +11,7 @@ extern "C" {
 
 static const int MaxLength = 256;
 
-template<int size>
-static std::string arrayToStr(const uint32_t (&address_n)[size]) {
+template<int size> static std::string arrayToStr(const uint32_t (&address_n)[size]) {
     std::string str;
     std::stringstream OS(str);
     OS << "{";
@@ -162,6 +161,11 @@ TEST(Coins, BIP32AccountName) {
           { 0x80000000|44, 0x80000000|194, 0x80000000|42, 0, 0 },
           5, true, "EOS Account #42"
         },
+        {
+          "Cosmos",
+          { 0x80000000|44, 0x80000000|118, 0x80000000|9, 0, 0 },
+          5, true, "Cosmos Account #9"
+        }
     };
 
     for (const auto &vec : vector) {

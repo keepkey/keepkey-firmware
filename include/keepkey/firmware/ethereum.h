@@ -38,7 +38,6 @@ void ethereum_signing_abort(void);
 void ethereum_signing_txack(EthereumTxAck *msg);
 void format_ethereum_address(const uint8_t *to, char *destination_str,
                              uint32_t destination_str_len);
-bool ethereum_isNonStandardERC20Transfer(const EthereumSignTx *msg);
 bool ethereum_isStandardERC20Transfer(const EthereumSignTx *msg);
 
 /// \pre requires that `ethereum_isStandardERC20Transfer(msg)`

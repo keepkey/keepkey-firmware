@@ -17,11 +17,10 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef EXCHANGE_H 
-#define  EXCHANGE_H
+#ifndef EXCHANGE_H
+#define EXCHANGE_H
 
-typedef enum
-{
+typedef enum {
     NO_EXCHANGE_ERROR,
     ERROR_EXCHANGE_SIGNATURE,
     ERROR_EXCHANGE_DEPOSIT_COINTYPE,
@@ -32,16 +31,27 @@ typedef enum
     ERROR_EXCHANGE_WITHDRAWAL_AMOUNT,
     ERROR_EXCHANGE_RETURN_COINTYPE,
     ERROR_EXCHANGE_RETURN_ADDRESS,
-    ERROR_EXCHANGE_API_KEY,
     ERROR_EXCHANGE_CANCEL,
     ERROR_EXCHANGE_RESPONSE_STRUCTURE,
-}ExchangeError;
+    ERROR_EXCHANGE_TYPE,
+} ExchangeError;
 
 bool process_exchange_contract(const CoinType *coin, void *vtx_out, const HDNode *root, bool needs_confirm);
 ExchangeError get_exchange_error(void);
+
+#if DEBUG_LINK
+const char *get_exchange_msg(void);
+#endif
+
+#if DEBUG_LINK
+#define set_exchange_error(error_code) set_exchange_errorDebug((error_code), __FILE__ ":" VERSTR(__LINE__) ":")
+void set_exchange_errorDebug(ExchangeError error_code, const char *msg);
+#else
 void set_exchange_error(ExchangeError error_code);
+#endif
 
 bool ether_for_display(const uint8_t *value, uint32_t value_len, char *out_str);
+
 /**
  * \brief Format an ethereum token value with the proper number of decimals
  * \param value         The token value interpreted as a 32byte big endian number

@@ -52,7 +52,7 @@
     [ID].dir = (IN_MSG), \
     [ID].fields = (STRUCT_NAME ## _fields), \
     [ID].dispatch = (RAW), \
-    [ID].process_func = (void (*)(void*))(PROCESS_FUNC),
+    [ID].process_func = (void (*)(void*))(void*)(PROCESS_FUNC),
 
 #define DEBUG_IN(ID, STRUCT_NAME, PROCESS_FUNC) \
     [ID].msg_id = (ID), \
@@ -130,7 +130,6 @@ const pb_field_t *message_fields(MessageMapType type, MessageType msg_id,
                                  MessageMapDirection dir);
 
 bool msg_write(MessageType msg_id, const void *msg);
-bool msg_u2f_write(MessageType msg_id, const void *msg);
 
 #if DEBUG_LINK
 bool msg_debug_write(MessageType msg_id, const void *msg);

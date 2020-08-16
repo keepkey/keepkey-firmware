@@ -98,7 +98,8 @@ it easier to extend for new features later on.
 |   AdvancedMode policy     |   bit 12       |              |                |
 |   no backup (seedless)    |   bit 13       |              |                |
 |   has_sec_fingerprint     |   bit 14       |              |                |
-|   reserved                |   bits 15 - 31 |              |                |
+|   sca_hardened            |   bit 15       |              |                |
+|   reserved                |   bits 16 - 31 |              |                |
 | pin_failed_attempts       | u32            |            4 |              8 |
 | auto_lock_delay_ms        | u32            |            4 |             12 |
 | language                  | char[16]       |           16 |             16 |
@@ -108,7 +109,8 @@ it easier to extend for new features later on.
 | u2froot                   | StorageHDNode  |          129 |            176 |
 | u2f_counter               | u32            |            4 |            305 |
 | sec_fingerprint           | char[32]       |           32 |            309 |
-| reserved                  | char[123]      |          123 |            341 |
+| random_salt               | char[32]       |           32 |            341 |
+| reserved                  | char[91]       |           91 |            373 |
 | encrypted_secrets_version | u32            |            4 |            464 |
 | encrypted_secrets         | char[512]      |          512 |            468 |
 

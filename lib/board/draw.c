@@ -118,6 +118,10 @@ bool draw_char_with_shift(Canvas *canvas, DrawableParams *p,
 void draw_string(Canvas *canvas, const Font *font, const char *str_write,
                  DrawableParams *p, uint16_t width, uint16_t line_height)
 {
+    if (!canvas) {
+        return;
+    }
+
     bool have_space = true;
     uint16_t x_offset = 0;
     DrawableParams char_params = *p;
@@ -296,7 +300,7 @@ void draw_box_simple(Canvas *canvas, uint8_t color, uint16_t x, uint16_t y, uint
  */
 bool draw_bitmap_mono_rle(Canvas *canvas, const AnimationFrame *frame, bool erase)
 {
-    if (frame == NULL) {
+    if (!frame || !canvas) {
         return false;
     }
 

@@ -3,8 +3,8 @@
  * field descriptions created by nanopb_generator.py.
  */
 
-#ifndef _PB_DECODE_H_
-#define _PB_DECODE_H_
+#ifndef PB_DECODE_H_INCLUDED
+#define PB_DECODE_H_INCLUDED
 
 #include "pb.h"
 
@@ -25,7 +25,7 @@ extern "C" {
  *    is different than from the main stream. Don't use bytes_left to compute
  *    any pointers.
  */
-struct _pb_istream_t
+struct pb_istream_s
 {
 #ifdef PB_BUFFER_ONLY
     /* Callback pointer is not used in buffer-only configuration.
@@ -34,7 +34,7 @@ struct _pb_istream_t
      */
     int *callback;
 #else
-    bool (*callback)(pb_istream_t *stream, uint8_t *buf, size_t count);
+    bool (*callback)(pb_istream_t *stream, pb_byte_t *buf, size_t count);
 #endif
 
     void *state; /* Free field for use by callback implementation */
@@ -85,6 +85,18 @@ bool pb_decode_noinit(pb_istream_t *stream, const pb_field_t fields[], void *des
  */
 bool pb_decode_delimited(pb_istream_t *stream, const pb_field_t fields[], void *dest_struct);
 
+/* Same as pb_decode_delimited, except that it does not initialize the destination structure.
+ * See pb_decode_noinit
+ */
+bool pb_decode_delimited_noinit(pb_istream_t *stream, const pb_field_t fields[], void *dest_struct);
+
+/* Same as pb_decode, except allows the message to be terminated with a null byte.
+ * NOTE: Until nanopb-0.4.0, pb_decode() also allows null-termination. This behaviour
+ * is not supported in most other protobuf implementations, so pb_decode_delimited()
+ * is a better option for compatibility.
+ */
+bool pb_decode_nullterminated(pb_istream_t *stream, const pb_field_t fields[], void *dest_struct);
+
 #ifdef PB_ENABLE_MALLOC
 /* Release any allocated pointer fields. If you use dynamic allocation, you should
  * call this for any successfully decoded message when you are done with it. If
@@ -103,12 +115,12 @@ void pb_release(const pb_field_t fields[], void *dest_struct);
  * Alternatively, you can use a custom stream that reads directly from e.g.
  * a file or a network socket.
  */
-pb_istream_t pb_istream_from_buffer(uint8_t *buf, size_t bufsize);
+pb_istream_t pb_istream_from_buffer(const pb_byte_t *buf, size_t bufsize);
 
 /* Function to read from a pb_istream_t. You can use this if you need to
  * read some custom header data, or to read data in field callbacks.
  */
-bool pb_read(pb_istream_t *stream, uint8_t *buf, size_t count);
+bool pb_read(pb_istream_t *stream, pb_byte_t *buf, size_t count);
 
 
 /************************************************
@@ -122,25 +134,42 @@ bool pb_decode_tag(pb_istream_t *stream, pb_wire_type_t *wire_type, uint32_t *ta
 /* Skip the field payload data, given the wire type. */
 bool pb_skip_field(pb_istream_t *stream, pb_wire_type_t wire_type);
 
-/* Decode an integer in the varint format. This works for bool, enum, int32,
+/* Decode an integer in the varint format. This works for enum, int32,
  * int64, uint32 and uint64 field types. */
+#ifndef PB_WITHOUT_64BIT
 bool pb_decode_varint(pb_istream_t *stream, uint64_t *dest);
+#else
+#define pb_decode_varint pb_decode_varint32
+#endif
+
+/* Decode an integer in the varint format. This works for enum, int32,
+ * and uint32 field types. */
+bool pb_decode_varint32(pb_istream_t *stream, uint32_t *dest);
+
+/* Decode a bool value in varint format. */
+bool pb_decode_bool(pb_istream_t *stream, bool *dest);
 
 /* Decode an integer in the zig-zagged svarint format. This works for sint32
  * and sint64. */
+#ifndef PB_WITHOUT_64BIT
 bool pb_decode_svarint(pb_istream_t *stream, int64_t *dest);
+#else
+bool pb_decode_svarint(pb_istream_t *stream, int32_t *dest);
+#endif
 
 /* Decode a fixed32, sfixed32 or float value. You need to pass a pointer to
  * a 4-byte wide C variable. */
 bool pb_decode_fixed32(pb_istream_t *stream, void *dest);
 
+#ifndef PB_WITHOUT_64BIT
 /* Decode a fixed64, sfixed64 or double value. You need to pass a pointer to
  * a 8-byte wide C variable. */
 bool pb_decode_fixed64(pb_istream_t *stream, void *dest);
+#endif
 
 /* Make a limited-length substream for reading a PB_WT_STRING field. */
 bool pb_make_string_substream(pb_istream_t *stream, pb_istream_t *substream);
-void pb_close_string_substream(pb_istream_t *stream, pb_istream_t *substream);
+bool pb_close_string_substream(pb_istream_t *stream, pb_istream_t *substream);
 
 #ifdef __cplusplus
 } /* extern "C" */

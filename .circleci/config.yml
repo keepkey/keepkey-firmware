@@ -2,7 +2,7 @@ version: 2.1
 jobs:
   emulator-build-test:
     docker:
-      - image: circleci/python:2.7.15
+      - image: circleci/python:3.7
     steps:
       - checkout
       - run:
@@ -11,24 +11,55 @@ jobs:
             git submodule update --init --recursive
       - setup_remote_docker
       - run:
-          name: Emulator Tests
+          name: Build Emulator and Run Tests
           command: |
             pushd ./scripts/emulator
             set +e
             docker-compose up --build firmware-unit
-            docker-compose up --build bridge-tests
             docker-compose up --build python-keepkey
             set -e
+            mkdir -p ../../test-reports
             docker cp "$(docker-compose ps -q firmware-unit)":/kkemu/test-reports/. ../../test-reports/
-            docker cp "$(docker-compose ps -q bridge-tests)":/kkemu/test-reports/. ../../test-reports/
             docker cp "$(docker-compose ps -q python-keepkey)":/kkemu/test-reports/. ../../test-reports/
             popd
-            [ "$(cat test-reports/python-keepkey/status)$(cat test-reports/bridge-tests/status)$(cat test-reports/firmware-unit/status)" == "000" ] || exit 1
+            [ "$(cat test-reports/python-keepkey/status)$(cat test-reports/firmware-unit/status)" == "00" ] || exit 1
       - store_test_results:
           path: test-reports
+
+  emulator-publish:
+    docker:
+      - image: circleci/python:3.7
+    steps:
+      - checkout
+      - run:
+          name: Update Submodules
+          command: |
+            git submodule update --init --recursive
+      - setup_remote_docker
+      - run:
+          name: Build Emulator
+          command: |
+            pushd ./scripts/emulator
+            docker-compose build kkemu
+            popd
+      - run:
+          name: Publish Emulator
+          command: |
+            docker login -u $KK_DOCKERHUB_USER -p $KK_DOCKERHUB_PASS
+            docker push kktech/kkemu
+            LATEST_IMAGE_ID=$(docker images | grep -i kktech/kkemu | grep -i latest | awk '{print $3}' )
+            FW_VERSION=$(cat ./CMakeLists.txt | tr -d '\n' | awk -v FS="(KeepKeyFirmwareVERSION|LANGUAGES)" '{print $1}' | awk '{print $4}')
+            docker tag $LATEST_IMAGE_ID kktech/kkemu:v$FW_VERSION
+            docker push kktech/kkemu
+
 workflows:
   version: 2
   emulator:
     jobs:
       - emulator-build-test
-
+      - emulator-publish:
+          filters:
+            branches:
+              only: master
+          requires:
+            - emulator-build-test
