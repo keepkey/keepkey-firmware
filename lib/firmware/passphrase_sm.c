@@ -17,6 +17,7 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/messages.h"
 #include "keepkey/board/timer.h"
@@ -143,6 +144,12 @@ static bool passphrase_request(PassphraseInfo *passphrase_info) {
 
   /* Check for passphrase cancel */
   if (passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_RECEIVED) {
+    review(ButtonRequestType_ButtonRequest_Other,
+          "passphrase confirmation",
+          "If this is wrong, unplug/replug Keepkey:"
+          "%51s",
+          passphrase_info->passphrase
+          );
     ret = true;
   } else {
     if (passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_CANCEL_BY_INIT) {
