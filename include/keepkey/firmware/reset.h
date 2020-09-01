@@ -23,15 +23,14 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define MAX_WORDS 24
-#define MAX_WORD_LEN 10
-#define MAX_PAGES 3
-#define ADDITIONAL_WORD_PAD 5
-#define WORDS_PER_SCREEN 24
-#define TOKENED_MNEMONIC_BUF MAX_WORDS *(MAX_WORD_LEN + 1) + 1
-#define FORMATTED_MNEMONIC_BUF \
-  MAX_WORDS *(MAX_WORD_LEN + ADDITIONAL_WORD_PAD) + 1
-#define MNEMONIC_BY_SCREEN_BUF WORDS_PER_SCREEN *(MAX_WORD_LEN + 1) + 1
+#define MAX_WORDS               24
+#define MAX_WORD_LEN            10
+#define MAX_PAGES               6
+#define ADDITIONAL_WORD_PAD     5
+#define WORDS_PER_SCREEN        24
+#define TOKENED_MNEMONIC_BUF    MAX_WORDS * (MAX_WORD_LEN + 1) + 1
+#define FORMATTED_MNEMONIC_BUF  MAX_WORDS * (MAX_WORD_LEN + ADDITIONAL_WORD_PAD) + 1
+#define MNEMONIC_BY_SCREEN_BUF  WORDS_PER_SCREEN * (MAX_WORD_LEN + 1) + 1
 
 void reset_init(bool display_random, uint32_t _strength,
                 bool passphrase_protection, bool pin_protection,

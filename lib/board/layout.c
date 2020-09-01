@@ -41,6 +41,8 @@ static Canvas *canvas = NULL;
 static volatile bool animate_flag = false;
 static leaving_handler_t leaving_handler;
 
+extern bool constant_power;
+
 /*
  *  layout_home_helper() - Splash home screen helper
  *
@@ -291,6 +293,49 @@ void layout_standard_notification(const char *str1, const char *str2,
               font_height(body_font) + BODY_FONT_LINE_PADDING);
 
   layout_notification_icon(type, &sp);
+}
+
+void layout_constant_power_notification(const char *str1, const char *str2,
+                                        NotificationType type)
+{
+    call_leaving_handler();
+    layout_clear();
+
+    DrawableParams sp;
+    const Font *title_font = get_title_font();
+    const Font *body_font = get_body_font();
+    const uint32_t body_line_count = calc_str_line(body_font, str2, BODY_WIDTH);
+
+    /* Determine vertical alignment and body width */
+    sp.y = TOP_MARGIN;
+
+    if(body_line_count == ONE_LINE)
+    {
+        sp.y = TOP_MARGIN_FOR_ONE_LINE;
+    }
+    else if(body_line_count == TWO_LINES)
+    {
+        sp.y = TOP_MARGIN_FOR_TWO_LINES;
+    }
+
+    /* Format Title */
+    char upper_str1[TITLE_CHAR_MAX];
+    strlcpy(upper_str1, str1, TITLE_CHAR_MAX);
+    kk_strupr(upper_str1);
+
+    /* Title */
+    sp.x = 128 + LEFT_MARGIN;
+    sp.color = TITLE_COLOR;
+    draw_string(canvas, title_font, upper_str1, &sp, TITLE_WIDTH, font_height(title_font));
+
+    /* Body */
+    sp.y += font_height(body_font) + BODY_TOP_MARGIN;
+    sp.x = 128 + LEFT_MARGIN;
+    sp.color = BODY_COLOR;
+    draw_string(canvas, body_font, str2, &sp, BODY_WIDTH,
+                font_height(body_font) + BODY_FONT_LINE_PADDING);
+
+    layout_notification_icon(type, &sp);
 }
 
 /*
@@ -593,17 +638,14 @@ void layout_clear(void) {
  * OUTPUT
  *     none
  */
-void layout_clear_static(void) {
-  if (!canvas) return;
+void layout_clear_static(void)
+{
+    if (!canvas)
+        return;
 
-  BoxDrawableParams bp;
-  bp.width = canvas->width;
-  bp.height = canvas->height;
-  bp.base.x = 0;
-  bp.base.y = 0;
-  bp.base.color = 0x00;
+    display_constant_power(false);
 
-  draw_box(canvas, &bp);
+    memset(canvas->buffer, 0, canvas->width * canvas->height);
 }
 
 /*
