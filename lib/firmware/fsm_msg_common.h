@@ -256,6 +256,7 @@ void fsm_msgChangeWipeCode(ChangeWipeCode *msg) {
   bool removal = msg->has_remove && msg->remove;
   bool confirmed = false;
 
+#ifdef ENABLE_WIPECODE  // disable until oled-vuln and automated test is in place
   if (removal) {
     if (storage_hasWipeCode()) {
       confirmed = confirm(ButtonRequestType_ButtonRequest_RemoveWipeCode,
@@ -311,6 +312,15 @@ void fsm_msgChangeWipeCode(ChangeWipeCode *msg) {
   storage_commit();
   fsm_sendSuccess("Wipe code changed");
   layoutHome();
+
+#else   // ENABLE_WIPECODE
+  (void)removal;
+  (void)confirmed;
+
+  fsm_sendSuccess("Wipe code function not available for this device");
+  layoutHome();
+#endif
+
 }
 
 void fsm_msgWipeDevice(WipeDevice *msg) {

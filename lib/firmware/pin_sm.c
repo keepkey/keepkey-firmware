@@ -279,35 +279,6 @@ bool pin_protect_uncached(void) {
     return pin_protect("Enter\nYour PIN");
 }
 
-bool change_pin(void)
-{
-    PINInfo pin_info_first, pin_info_second;
-
-    /* Set request types */
-    pin_info_first.type =   PinMatrixRequestType_PinMatrixRequestType_NewFirst;
-    pin_info_second.type =  PinMatrixRequestType_PinMatrixRequestType_NewSecond;
-
-    if (!pin_request("Enter\nNew PIN", &pin_info_first)) {
-        return false;
-    }
-
-    if (!pin_request("Re-Enter\nNew PIN", &pin_info_second)) {
-        return false;
-    }
-
-    if (strcmp(pin_info_first.pin, pin_info_second.pin) != 0) {
-        return false;
-    }
-
-    storage_setPin(pin_info_first.pin);
-    return true;
-  }
-
-  return pin_protect("Enter Your PIN");
-}
-
-bool pin_protect_uncached(void) { return pin_protect("Enter Your PIN"); }
-
 bool change_pin(void) {
   PINInfo pin_info_first, pin_info_second;
 
@@ -315,11 +286,11 @@ bool change_pin(void) {
   pin_info_first.type = PinMatrixRequestType_PinMatrixRequestType_NewFirst;
   pin_info_second.type = PinMatrixRequestType_PinMatrixRequestType_NewSecond;
 
-  if (!pin_request("Enter New PIN", &pin_info_first)) {
+  if (!pin_request("Enter New\nPIN", &pin_info_first)) {
     return false;
   }
 
-  if (!pin_request("Re-Enter New PIN", &pin_info_second)) {
+  if (!pin_request("Re-Enter\nNew PIN", &pin_info_second)) {
     return false;
   }
 
