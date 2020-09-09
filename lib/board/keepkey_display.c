@@ -43,6 +43,7 @@ static const Pin BACKLIGHT_PWR_PIN = {GPIOB, GPIO0};
 
 static uint8_t canvas_buffer[KEEPKEY_DISPLAY_HEIGHT * KEEPKEY_DISPLAY_WIDTH];
 static Canvas canvas;
+bool constant_power = false;
 
 /*
  * display_write_reg() - Write data to display register
@@ -290,20 +291,30 @@ void display_set_dump_callback(DumpDisplayCallback d) { DumpDisplay = d; }
  * OUTPUT
  *     none
  */
-void display_refresh(void) {
-  if (DumpDisplay) {
-    DumpDisplay(canvas.buffer);
-  }
+void display_refresh(void)
+{
+    if (DumpDisplay) {
+        DumpDisplay(canvas.buffer);
+    }
 
-  if (!canvas.dirty) {
-    return;
-  }
+    if(!canvas.dirty)
+    {
+        return;
+    }
 
-  display_prepare_gram_write();
+    if (constant_power) {
+        for (int y = 0; y < 64; y++) {
+            for (int x = 0; x < 128; x++) {
+                canvas.buffer[y * 256 + x] = 255 - canvas.buffer[y * 256 + x + 128];
+            }
+        }
+    }
 
-  int num_writes = canvas.width * canvas.height;
+    display_prepare_gram_write();
 
-  int i;
+    int num_writes = canvas.width * canvas.height;
+
+    int i;
 #ifdef INVERT_DISPLAY
 
   for (i = num_writes; i > 0; i -= 2) {
@@ -337,7 +348,15 @@ void display_turn_on(void) { display_write_reg((uint8_t)0xAF); }
  * OUTPUT
  *     none
  */
-void display_turn_off(void) { display_write_reg((uint8_t)0xAE); }
+void display_turn_off(void)
+{
+    display_write_reg((uint8_t)0xAE);
+}
+
+void display_constant_power(bool enabled)
+{
+    constant_power = enabled;
+}
 
 /*
  * display_hw_init(void)  - Display hardware initialization

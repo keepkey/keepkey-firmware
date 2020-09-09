@@ -580,23 +580,26 @@ void layout_address_notification(const char *desc, const char *address,
  * OUTPUT
  *     none
  */
-void layout_pin(const char *str, char pin[]) {
-  DrawableParams sp;
-  Canvas *canvas = layout_get_canvas();
+void layout_pin(const char *str, char pin[])
+{
+    DrawableParams sp;
+    Canvas *canvas = layout_get_canvas();
 
-  call_leaving_handler();
-  layout_clear();
+    call_leaving_handler();
+    layout_clear();
 
-  /* Draw prompt */
-  const Font *font = get_body_font();
-  sp.y = 29;
-  sp.x = (140 - calc_str_width(font, str)) / 2;
-  sp.color = BODY_COLOR;
-  draw_string(canvas, font, str, &sp, TITLE_WIDTH, font_height(font));
-  display_refresh();
+    display_constant_power(true);
 
-  /* Animate pin scrambling */
-  layout_add_animation(&layout_animate_pin, (void *)pin, PIN_MAX_ANIMATION_MS);
+    /* Draw prompt */
+    const Font *font = get_body_font();
+    sp.y = 24;
+    sp.x = 128 + 10;
+    sp.color = BODY_COLOR;
+    draw_string(canvas, font, str, &sp, TITLE_WIDTH, font_height(font));
+    display_refresh();
+
+    /* Animate pin scrambling */
+    layout_add_animation(&layout_animate_pin, (void *)pin, PIN_MAX_ANIMATION_MS);
 }
 
 /*

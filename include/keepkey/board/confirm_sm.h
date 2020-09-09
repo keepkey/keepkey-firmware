@@ -67,6 +67,9 @@ bool confirm(ButtonRequestType type, const char *request_title,
              const char *request_body, ...)
     __attribute__((format(printf, 3, 4)));
 
+bool confirm_constant_power(ButtonRequestType type, const char *request_title, const char *request_body,
+             ...) __attribute__((format(printf, 3, 4)));
+
 /// User confirmation.
 /// \param type            The kind of button request to send to the host.
 /// \param request_title   Title of confirm message.

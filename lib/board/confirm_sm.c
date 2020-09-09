@@ -153,13 +153,15 @@ static void swap_layout(ActiveLayout active_layout, volatile StateInfo *si,
 /// \param layout_notification_func  layout callback for displaying confirm
 /// message. \returns true iff the device confirmed.
 static bool confirm_helper(const char *request_title, const char *request_body,
-                           layout_notification_t layout_notification_func) {
-  bool ret_stat = false;
-  volatile StateInfo state_info;
-  ActiveLayout new_layout, cur_layout;
-  DisplayState new_ds;
-  uint16_t tiny_msg;
-  static CONFIDENTIAL uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
+                      layout_notification_t layout_notification_func,
+                      bool constant_power)
+{
+    bool ret_stat = false;
+    volatile StateInfo state_info;
+    ActiveLayout new_layout, cur_layout;
+    DisplayState new_ds;
+    uint16_t tiny_msg;
+    static CONFIDENTIAL uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
 
 #if DEBUG_LINK
   DebugLinkDecision *dld;
@@ -207,65 +209,71 @@ static bool confirm_helper(const char *request_title, const char *request_body,
 #ifndef EMULATOR
     if (usbInitialized())
 #else
-    if (1)
+        if(1)
 #endif
-    {
-      /* Listen for tiny messages */
-      tiny_msg = check_for_tiny_msg(msg_tiny_buf);
+        {
+            /* Listen for tiny messages */
+            tiny_msg = check_for_tiny_msg(msg_tiny_buf);
 
-      switch (tiny_msg) {
-        case MessageType_MessageType_ButtonAck:
-          button_request_acked = true;
-          break;
+            switch(tiny_msg)
+            {
+                case MessageType_MessageType_ButtonAck:
+                    button_request_acked = true;
+                    break;
 
-        case MessageType_MessageType_Cancel:
-        case MessageType_MessageType_Initialize:
-          if (tiny_msg == MessageType_MessageType_Initialize) {
-            reset_msg_stack = true;
-          }
+                case MessageType_MessageType_Cancel:
+                case MessageType_MessageType_Initialize:
+                    if(tiny_msg == MessageType_MessageType_Initialize)
+                    {
+                        reset_msg_stack = true;
+                    }
 
-          ret_stat = false;
-          goto confirm_helper_exit;
+                    ret_stat  = false;
+                    goto confirm_helper_exit;
 #if DEBUG_LINK
 
-        case MessageType_MessageType_DebugLinkDecision:
-          dld = (DebugLinkDecision *)msg_tiny_buf;
-          ret_stat = dld->yes_no;
-          debug_decided = true;
-          break;
+                case MessageType_MessageType_DebugLinkDecision:
+                    dld = (DebugLinkDecision *)msg_tiny_buf;
+                    ret_stat = dld->yes_no;
+                    debug_decided = true;
+                    break;
 
-        case MessageType_MessageType_DebugLinkGetState:
-          call_msg_debug_link_get_state_handler(
-              (DebugLinkGetState *)msg_tiny_buf);
-          break;
+                case MessageType_MessageType_DebugLinkGetState:
+                    call_msg_debug_link_get_state_handler((DebugLinkGetState *)msg_tiny_buf);
+                    break;
 #endif
 
-        default:
-          break; /* break from switch statement and stay in the while loop*/
-      }
-    }
+                default:
+                    break; /* break from switch statement and stay in the while loop*/
+            }
+        }
 
-    if (new_ds == FINISHED) {
-      ret_stat = true;
-      break; /* confirmation done.  Exiting function */
-    }
+        if(new_ds == FINISHED)
+        {
+            ret_stat = true;
+            break; /* confirmation done.  Exiting function */
+        }
 
-    if (cur_layout != new_layout) {
-      swap_layout(new_layout, &state_info, layout_notification_func);
-      cur_layout = new_layout;
-    }
+        if(cur_layout != new_layout)
+        {
+            swap_layout(new_layout, &state_info, layout_notification_func);
+            cur_layout = new_layout;
+        }
 
 #if DEBUG_LINK
 
-    if (debug_decided && button_request_acked) {
-      break; /* confirmation done via debug link.  Exiting function */
-    }
+        if(debug_decided && button_request_acked)
+        {
+            break; /* confirmation done via debug link.  Exiting function */
+        }
 
 #endif
 
-    display_refresh();
-    animate();
-  }
+        display_constant_power(constant_power);
+
+        display_refresh();
+        animate();
+    }
 
 confirm_helper_exit:
 
@@ -275,116 +283,142 @@ confirm_helper_exit:
   return (ret_stat);
 }
 
-bool confirm(ButtonRequestType type, const char *request_title,
-             const char *request_body, ...) {
-  button_request_acked = false;
+bool confirm(ButtonRequestType type, const char *request_title, const char *request_body,
+             ...)
+{
+    button_request_acked = false;
 
-  va_list vl;
-  va_start(vl, request_body);
-  vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
-  va_end(vl);
+    va_list vl;
+    va_start(vl, request_body);
+    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    va_end(vl);
 
-  /* Send button request */
-  ButtonRequest resp;
-  memset(&resp, 0, sizeof(ButtonRequest));
-  resp.has_code = true;
-  resp.code = type;
-  msg_write(MessageType_MessageType_ButtonRequest, &resp);
+    /* Send button request */
+    ButtonRequest resp;
+    memset(&resp, 0, sizeof(ButtonRequest));
+    resp.has_code = true;
+    resp.code = type;
+    msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-  bool ret =
-      confirm_helper(request_title, strbuf, &layout_standard_notification);
-  memzero(strbuf, sizeof(strbuf));
-  return ret;
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false);
+    memzero(strbuf, sizeof(strbuf));
+    return ret;
 }
 
+bool confirm_constant_power(ButtonRequestType type, const char *request_title, const char *request_body,
+             ...)
+{
+    button_request_acked = false;
+
+    va_list vl;
+    va_start(vl, request_body);
+    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    va_end(vl);
+
+    /* Send button request */
+    ButtonRequest resp;
+    memset(&resp, 0, sizeof(ButtonRequest));
+    resp.has_code = true;
+    resp.code = type;
+    msg_write(MessageType_MessageType_ButtonRequest, &resp);
+
+    bool ret = confirm_helper(request_title, strbuf, &layout_constant_power_notification, true);
+    memzero(strbuf, sizeof(strbuf));
+    return ret;
+}
+
+
+
 bool confirm_with_custom_button_request(ButtonRequest *button_request,
-                                        const char *request_title,
-                                        const char *request_body, ...) {
-  button_request_acked = false;
+                                        const char *request_title, const char *request_body,
+                                        ...)
+{
+    button_request_acked = false;
 
-  va_list vl;
-  va_start(vl, request_body);
-  vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
-  va_end(vl);
+    va_list vl;
+    va_start(vl, request_body);
+    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    va_end(vl);
 
-  /* Send button request */
-  msg_write(MessageType_MessageType_ButtonRequest, button_request);
+    /* Send button request */
+    msg_write(MessageType_MessageType_ButtonRequest, button_request);
 
-  bool ret =
-      confirm_helper(request_title, strbuf, &layout_standard_notification);
-  memzero(strbuf, sizeof(strbuf));
-  return ret;
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false);
+    memzero(strbuf, sizeof(strbuf));
+    return ret;
 }
 
 bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
                                 ButtonRequestType type,
-                                const char *request_title,
-                                const char *request_body, ...) {
-  button_request_acked = false;
+                                const char *request_title, const char *request_body, ...)
+{
+    button_request_acked = false;
 
-  va_list vl;
-  va_start(vl, request_body);
-  vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
-  va_end(vl);
+    va_list vl;
+    va_start(vl, request_body);
+    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    va_end(vl);
 
-  /* Send button request */
-  ButtonRequest resp;
-  memset(&resp, 0, sizeof(ButtonRequest));
-  resp.has_code = true;
-  resp.code = type;
-  msg_write(MessageType_MessageType_ButtonRequest, &resp);
+    /* Send button request */
+    ButtonRequest resp;
+    memset(&resp, 0, sizeof(ButtonRequest));
+    resp.has_code = true;
+    resp.code = type;
+    msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-  bool ret = confirm_helper(request_title, strbuf, layout_notification_func);
-  memzero(strbuf, sizeof(strbuf));
-  return ret;
+    bool ret = confirm_helper(request_title, strbuf, layout_notification_func, false);
+    memzero(strbuf, sizeof(strbuf));
+    return ret;
 }
 
-bool confirm_without_button_request(const char *request_title,
-                                    const char *request_body, ...) {
-  button_request_acked = true;
+bool confirm_without_button_request(const char *request_title, const char *request_body,
+                                    ...)
+{
+    button_request_acked = true;
 
-  va_list vl;
-  va_start(vl, request_body);
-  vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
-  va_end(vl);
+    va_list vl;
+    va_start(vl, request_body);
+    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    va_end(vl);
 
-  bool ret =
-      confirm_helper(request_title, strbuf, &layout_standard_notification);
-  memzero(strbuf, sizeof(strbuf));
-  return ret;
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false);
+    memzero(strbuf, sizeof(strbuf));
+    return ret;
 }
 
-bool review(ButtonRequestType type, const char *request_title,
-            const char *request_body, ...) {
-  button_request_acked = false;
+bool review(ButtonRequestType type, const char *request_title, const char *request_body,
+            ...)
+{
+    button_request_acked = false;
 
-  va_list vl;
-  va_start(vl, request_body);
-  vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
-  va_end(vl);
+    va_list vl;
+    va_start(vl, request_body);
+    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    va_end(vl);
 
-  /* Send button request */
-  ButtonRequest resp;
-  memset(&resp, 0, sizeof(ButtonRequest));
-  resp.has_code = true;
-  resp.code = type;
-  msg_write(MessageType_MessageType_ButtonRequest, &resp);
+    /* Send button request */
+    ButtonRequest resp;
+    memset(&resp, 0, sizeof(ButtonRequest));
+    resp.has_code = true;
+    resp.code = type;
+    msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-  (void)confirm_helper(request_title, strbuf, &layout_standard_notification);
-  memzero(strbuf, sizeof(strbuf));
-  return true;
+    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false);
+    memzero(strbuf, sizeof(strbuf));
+    return true;
 }
 
-bool review_without_button_request(const char *request_title,
-                                   const char *request_body, ...) {
-  button_request_acked = true;
+bool review_without_button_request(const char *request_title, const char *request_body,
+                                   ...)
+{
+    button_request_acked = true;
 
-  va_list vl;
-  va_start(vl, request_body);
-  vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
-  va_end(vl);
+    va_list vl;
+    va_start(vl, request_body);
+    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    va_end(vl);
 
-  (void)confirm_helper(request_title, strbuf, &layout_standard_notification);
-  memzero(strbuf, sizeof(strbuf));
-  return true;
+    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false);
+    memzero(strbuf, sizeof(strbuf));
+    return true;
 }
