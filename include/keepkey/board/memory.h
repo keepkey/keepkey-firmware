@@ -27,32 +27,29 @@
 #include <stdbool.h>
 #include <inttypes.h>
 
+// clang-format off
 /*
 
  flash memory layout:
  --------------------
-   name    |          range          |  size   |     function     |   MPU
-Protection
+   name    |          range          |  size   |     function     |   MPU Protection
 -----------+-------------------------+---------+------------------+----------------------
- Sector  0 | 0x08000000 - 0x08003FFF |  16 KiB | bootstrap code   |  signature
-dependent Sector  1 | 0x08004000 - 0x08007FFF |  16 KiB | storage/config   |
-full access
+ Sector  0 | 0x08000000 - 0x08003FFF |  16 KiB | bootstrap code   |  signature dependent 
+ Sector  1 | 0x08004000 - 0x08007FFF |  16 KiB | storage/config   |     full access
 -----------+-------------------------+---------+------------------+----------------------
- Sector  2 | 0x08008000 - 0x0800BFFF |  16 KiB | storage/config   |     full
-access Sector  3 | 0x0800C000 - 0x0800FFFF |  16 KiB | storage/config   | full
-access
+ Sector  2 | 0x08008000 - 0x0800BFFF |  16 KiB | storage/config   |     full access
+ Sector  3 | 0x0800C000 - 0x0800FFFF |  16 KiB | storage/config   |     full access
 -----------+-------------------------+---------+------------------+----------------------
- Sector  4 | 0x08010000 - 0x0801FFFF |  64 KiB | empty            |     full
-access Sector  5 | 0x08020000 - 0x0803FFFF | 128 KiB | bootloader code  |
-signature dependent Sector  6 | 0x08040000 - 0x0805FFFF | 128 KiB | bootloader
-code  |  signature dependent Sector  7 | 0x08060000 - 0x0807FFFF | 128 KiB |
-application code |     full access Sector  8 | 0x08080000 - 0x0809FFFF | 128 KiB
-| application code |     full access Sector  9 | 0x080A0000 - 0x080BFFFF | 128
-KiB | application code |     full access Sector 10 | 0x080C0000 - 0x080DFFFF |
-128 KiB | application code |     full access Sector 11 | 0x080E0000 - 0x080FFFFF
-| 128 KiB | application code |     full access
+ Sector  4 | 0x08010000 - 0x0801FFFF |  64 KiB | empty            |     full access
+ Sector  5 | 0x08020000 - 0x0803FFFF | 128 KiB | bootloader code  |  signature dependent
+ Sector  6 | 0x08040000 - 0x0805FFFF | 128 KiB | bootloader code  |  signature dependent
+ Sector  7 | 0x08060000 - 0x0807FFFF | 128 KiB | application code |     full access
+ Sector  8 | 0x08080000 - 0x0809FFFF | 128 KiB | application code |     full access
+ Sector  9 | 0x080A0000 - 0x080BFFFF | 128 KiB | application code |     full access
+ Sector 10 | 0x080C0000 - 0x080DFFFF | 128 KiB | application code |     full access
+ Sector 11 | 0x080E0000 - 0x080FFFFF | 128 KiB | application code |     full access
 
- Application metadata area:
+ Application metadata area (first 256 bytes of application code)
  -------------------------
  offset | type/length |  description
 --------+-------------+-------------------------------
@@ -61,17 +58,19 @@ KiB | application code |     full access Sector 10 | 0x080C0000 - 0x080DFFFF |
  0x0008 |  uint8      |  signature index #1
  0x0009 |  uint8      |  signature index #2
  0x000A |  uint8      |  signature index #3
- 0x000B |  uint8      |  flags
- 0x000C |  52 bytes   |  reserved
+ 0x000B |  uint8      |  SIG_FLAG (old bootloaders test this entire byte as a flag)
+ 0x000C |  uint32     |  META_FLAGS
+ 0x0010 |  48 bytes   |  reserved
  0x0040 |  64 bytes   |  signature #1
  0x0080 |  64 bytes   |  signature #2
  0x00C0 |  64 bytes   |  signature #3
  0x0100 |  32K-256 B  |  persistent storage
 
- flags & 0x01 -> restore storage after flashing (if signatures are ok)
- flags & 0x02 -> boot into firmware update mode
+ SIG_FLAG != 0 -> restore storage after flashing (if signatures are ok)
+ META_FLAGS & 0x00000001 == true -> boot into firmware update mode
 
  */
+// clang-format on
 
 #ifdef EMULATOR
 extern uint8_t *emulator_flash_base;
@@ -135,10 +134,12 @@ extern uint8_t *emulator_flash_base;
   (FLASH_META_SIGINDEX1 + sizeof(((app_meta_td *)NULL)->sig_index1))
 #define FLASH_META_SIGINDEX3 \
   (FLASH_META_SIGINDEX2 + sizeof(((app_meta_td *)NULL)->sig_index2))
-#define FLASH_META_FLAGS \
+#define FLASH_SIG_FLAG \
   (FLASH_META_SIGINDEX3 + sizeof(((app_meta_td *)NULL)->sig_index3))
+#define FLASH_META_FLAGS \
+  (FLASH_SIG_FLAG + sizeof(((app_meta_td *)NULL)->sig_flag))
 #define FLASH_META_RESERVE \
-  (FLASH_META_FLAGS + sizeof(((app_meta_td *)NULL)->flag))
+  (FLASH_META_FLAGS + sizeof(((app_meta_td *)NULL)->meta_flags))
 #define FLASH_META_SIG1 \
   (FLASH_META_RESERVE + sizeof(((app_meta_td *)NULL)->rsv))
 #define FLASH_META_SIG2 (FLASH_META_SIG1 + sizeof(((app_meta_td *)NULL)->sig1))
@@ -150,7 +151,10 @@ extern uint8_t *emulator_flash_base;
   (FLASH_META_START + FLASH_META_DESC_LEN)  // 0x0806_0200 - 0x080F_FFFF
 #define FLASH_APP_LEN (FLASH_END - FLASH_APP_START)
 
-#define SIG_FLAG (*(uint8_t const *)FLASH_META_FLAGS)
+#define SIG_FLAG (*(uint8_t const *)FLASH_SIG_FLAG)
+
+#define META_FLAGS (*(uint8_t const *)FLASH_META_FLAGS)
+
 
 /* Misc Info. */
 #define FLASH_BOOTSTRAP_SECTOR 0
@@ -202,8 +206,9 @@ typedef struct {
   uint8_t sig_index1;
   uint8_t sig_index2;
   uint8_t sig_index3;
-  uint8_t flag;
-  uint8_t rsv[52];
+  uint8_t sig_flag;
+  uint32_t meta_flags;
+  uint8_t rsv[48];
   uint8_t sig1[64];
   uint8_t sig2[64];
   uint8_t sig3[64];

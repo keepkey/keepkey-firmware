@@ -55,6 +55,7 @@ typedef struct _Storage {
     uint32_t u2f_counter;
     bool no_backup;
     bool sca_hardened;
+    bool v15_16_trans;
     uint8_t random_salt[32];
   } pub;
 
@@ -103,6 +104,7 @@ void storage_loadNode(HDNode *dst, const HDNodeType *src);
 /// Derive the wrapping key from the user's pin.
 void storage_deriveWrappingKey(const char *pin, uint8_t wrapping_key[64],
                                bool sca_hardened,
+                               bool v15_16_trans,
                                uint8_t random_salt[RANDOM_SALT_LEN],
                                const char *message);
 
@@ -128,7 +130,9 @@ void storage_keyFingerprint(const uint8_t key[64], uint8_t fingerprint[32]);
 ///          FUNCTION SHOULD storage_commit()
 pintest_t storage_isPinCorrect_impl(const char *pin, uint8_t wrapped_key[64],
                                     const uint8_t fingerprint[32],
-                                    bool *sca_hardened, uint8_t key[64],
+                                    bool *sca_hardened, 
+                                    bool *v15_16_trans, 
+                                    uint8_t key[64],
                                     uint8_t random_salt[RANDOM_SALT_LEN]);
 
 pintest_t storage_isWipeCodeCorrect_impl(const char *wipe_code,

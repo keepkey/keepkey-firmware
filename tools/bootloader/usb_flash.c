@@ -134,7 +134,7 @@ static void bootloader_fsm_init(void) {
 /// \return true iff storage should be restored after this firmware update.
 static bool should_restore(void) {
   // If the firmware metadata requests a wipe, honor that.
-  if ((SIG_FLAG & 1) == 0) return false;
+  if (SIG_FLAG == 0) return false;
 
 #ifdef DEBUG_ON
   return true;
@@ -161,7 +161,7 @@ static bool should_restore(void) {
 static bool isUpdateRequired(int signed_firmware) {
   if (!magic_ok()) return true;
 
-  if ((SIG_FLAG & 2) == 2) return true;
+  if ((META_FLAGS & 1) == 1) return true;
 
   if (signed_firmware == KEY_EXPIRED) return true;
 

@@ -130,14 +130,6 @@ it easier to extend for new features later on.
 STORAGE_VERSION 16 layout
 -------------------------
 
-This is the third generation of storage layouts. It leverages a clean breaking
-point to compactify fields, and arrange things in two sections: one for
-secrets, and one for public(ish) information.  The secret area is then aes256
-encrypted with a randomly generated 64-bit key, which is then wrapped with the
-user's pin.  This further hardens the security of a powered-down device.
-Additionally, it leaves reserved bytes & bits open for future additions, making
-it easier to extend for new features later on.
-
 #### Public(ish) Storage
 
 | Field                     | Type           | Size (bytes) | Offset (bytes) |
@@ -161,7 +153,8 @@ it easier to extend for new features later on.
 |   has_sec_fingerprint     |   bit 14       |              |                |
 |   sca_hardened            |   bit 15       |              |                |
 |   has_wipe_code           |   bit 16       |              |                |
-|   reserved                |   bits 17 - 31 |              |                |
+|   v15_16_trans            |   bit 17       |              |                |
+|   reserved                |   bits 18 - 31 |              |                |
 | pin_failed_attempts       | u32            |            4 |              8 |
 | auto_lock_delay_ms        | u32            |            4 |             12 |
 | language                  | char[16]       |           16 |             16 |

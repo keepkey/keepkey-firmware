@@ -189,7 +189,7 @@ static bool isFirmwareUpdateMode(void) {
   // Check if the firmware wants us to boot into firmware update mode.
   // This is used to skip a hard reset after bootloader update, and drop the
   // user right back into the firmware update flow.
-  if ((SIG_FLAG & 2) == 2) return true;
+  if ((FLASH_META_FLAGS & 1) == 1) return true;
 
   // If the firmware was signed with old signing keys, we also need to update.
   if (signed_firmware == KEY_EXPIRED) return true;
