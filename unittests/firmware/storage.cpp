@@ -196,6 +196,7 @@ TEST(Storage, ReadStorageV1) {
   // Decrypt upgraded storage.
   uint8_t wrapping_key[64];
   storage_deriveWrappingKey("123456789", wrapping_key, dst.pub.sca_hardened,
+                            dst.pub.v15_16_trans,
                             dst.pub.random_salt, "");  // strongest pin evar
   storage_unwrapStorageKey(wrapping_key, dst.pub.wrapped_storage_key,
                            session.storageKey);
@@ -465,6 +466,7 @@ TEST(Storage, StorageUpgrade_Normal) {
   uint8_t wrapping_key[64];
   storage_deriveWrappingKey(
       "123456789", wrapping_key, shadow.storage.pub.sca_hardened,
+      shadow.storage.pub.v15_16_trans, 
       shadow.storage.pub.random_salt, "");  // strongest pin evar
   storage_unwrapStorageKey(wrapping_key, shadow.storage.pub.wrapped_storage_key,
                            session.storageKey);
@@ -514,6 +516,7 @@ TEST(Storage, StorageRoundTrip) {
   start.storage.pub.u2froot.has_public_key = false;
   start.storage.pub.u2froot.has_private_key = true;
   start.storage.pub.sca_hardened = false;
+  start.storage.pub.v15_16_trans = false;
   start.storage.has_sec = true;
   start.storage.sec.pin[0] = '\0';
   start.storage.sec.cache.root_seed_cache_status = 0xEC;
@@ -525,6 +528,7 @@ TEST(Storage, StorageRoundTrip) {
 
   uint8_t wrapping_key[64];
   storage_deriveWrappingKey("", wrapping_key, start.storage.pub.sca_hardened,
+                            start.storage.pub.v15_16_trans,
                             start.storage.pub.random_salt, "");
   storage_unwrapStorageKey(wrapping_key, start.storage.pub.wrapped_storage_key,
                            session.storageKey);
@@ -775,12 +779,13 @@ TEST(Storage, UpgradePolicies) {
 
 TEST(Storage, IsPinCorrect) {
   bool sca_hardened = true;
+  bool v15_16_trans = true;
 
   uint8_t wrapping_key[64];
   uint8_t random_salt[32];
   memset(random_salt, 0, sizeof(random_salt));
-  storage_deriveWrappingKey("1234", wrapping_key, sca_hardened, random_salt,
-                            "");
+  storage_deriveWrappingKey("1234", wrapping_key, sca_hardened, 
+                            v15_16_trans, random_salt, "");
 
   const uint8_t storage_key[64] = "Quick blue fox";
   uint8_t wrapped_key[64];
@@ -791,7 +796,8 @@ TEST(Storage, IsPinCorrect) {
 
   uint8_t key_out[64];
   EXPECT_TRUE(storage_isPinCorrect_impl("1234", wrapped_key, fingerprint,
-                                        &sca_hardened, key_out, random_salt));
+                                        &sca_hardened, &v15_16_trans, 
+                                        key_out, random_salt));
 
   EXPECT_TRUE(memcmp(key_out, storage_key, 64) == 0);
 }
@@ -800,7 +806,7 @@ TEST(Storage, IsWipeCodeCorrect) {
   uint8_t wrapping_key[64];
   uint8_t random_salt[32];
   memset(random_salt, 0, sizeof(random_salt));
-  storage_deriveWrappingKey("2222", wrapping_key, true, random_salt, "");
+  storage_deriveWrappingKey("2222", wrapping_key, true, true, random_salt, "");
 
   const uint8_t storage_key[64] = "Quick blue fox";
   uint8_t wrapped_key[64];
@@ -841,7 +847,9 @@ TEST(Storage, Vuln1996) {
     ASSERT_TRUE(PIN_GOOD == storage_isPinCorrect_impl(
                                 v.pin, config.storage.pub.wrapped_storage_key,
                                 config.storage.pub.storage_key_fingerprint,
-                                &config.storage.pub.sca_hardened, storage_key,
+                                &config.storage.pub.sca_hardened, 
+                                &config.storage.pub.v15_16_trans,
+                                storage_key,
                                 random_salt));
     ASSERT_TRUE(config.storage.pub.sca_hardened == true);
     memcpy(wrapped_key1, config.storage.pub.wrapped_storage_key,
@@ -854,13 +862,15 @@ TEST(Storage, Vuln1996) {
 
     // first obtain the storage key generated above
     storage_deriveWrappingKey(v.pin, wrapping_key,
-                              config.storage.pub.sca_hardened, random_salt, "");
+                              config.storage.pub.sca_hardened, 
+                              config.storage.pub.v15_16_trans,
+                              random_salt, "");
     storage_unwrapStorageKey(
         wrapping_key, config.storage.pub.wrapped_storage_key, storage_key);
 
     // now derive a wrapping key from unstretched pin and wrap the storage key
     // with it
-    storage_deriveWrappingKey(v.pin, wrapping_key_upin, false, random_salt, "");
+    storage_deriveWrappingKey(v.pin, wrapping_key_upin, false, false, random_salt, "");
     uint8_t iv[64];
     memcpy(iv, wrapping_key_upin, sizeof(iv));
     aes_encrypt_ctx ctx;
@@ -882,7 +892,9 @@ TEST(Storage, Vuln1996) {
     ASSERT_TRUE(storage_isPinCorrect_impl(
         v.pin, config.storage.pub.wrapped_storage_key,
         config.storage.pub.storage_key_fingerprint,
-        &config.storage.pub.sca_hardened, storage_key, random_salt));
+        &config.storage.pub.sca_hardened, 
+        &config.storage.pub.v15_16_trans,
+        storage_key, random_salt));
     ASSERT_TRUE(memcmp(wrapped_key1, config.storage.pub.wrapped_storage_key,
                        sizeof(wrapped_key1)) == 0);
     ASSERT_TRUE(config.storage.pub.sca_hardened == true);
@@ -900,7 +912,9 @@ TEST(Storage, Reset) {
   ASSERT_TRUE(storage_isPinCorrect_impl(
       "", config.storage.pub.wrapped_storage_key,
       config.storage.pub.storage_key_fingerprint,
-      &config.storage.pub.sca_hardened, session.storageKey,
+      &config.storage.pub.sca_hardened, 
+      &config.storage.pub.v15_16_trans,
+      session.storageKey,
       config.storage.pub.random_salt));
 
   uint8_t old_storage_key[64];
@@ -915,7 +929,9 @@ TEST(Storage, Reset) {
   ASSERT_TRUE(storage_isPinCorrect_impl(
       "1234", config.storage.pub.wrapped_storage_key,
       config.storage.pub.storage_key_fingerprint,
-      &config.storage.pub.sca_hardened, new_storage_key,
+      &config.storage.pub.sca_hardened, 
+      &config.storage.pub.sca_hardened, 
+      new_storage_key,
       config.storage.pub.random_salt));
 
   ASSERT_TRUE(storage_isWipeCodeCorrect_impl(
