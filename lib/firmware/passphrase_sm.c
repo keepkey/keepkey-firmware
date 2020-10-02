@@ -17,8 +17,7 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
-
+#include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/messages.h"
 #include "keepkey/board/timer.h"
@@ -30,9 +29,7 @@
 
 #include <stdbool.h>
 
-
 extern bool reset_msg_stack;
-
 
 /*
  * send_passphrase_request() - Send passphrase request to USB host
@@ -42,11 +39,10 @@ extern bool reset_msg_stack;
  * OUTPUT
  *     none
  */
-static void send_passphrase_request(void)
-{
-    PassphraseRequest resp;
-    memset(&resp, 0, sizeof(PassphraseRequest));
-    msg_write(MessageType_MessageType_PassphraseRequest, &resp);
+static void send_passphrase_request(void) {
+  PassphraseRequest resp;
+  memset(&resp, 0, sizeof(PassphraseRequest));
+  msg_write(MessageType_MessageType_PassphraseRequest, &resp);
 }
 
 /*
@@ -57,34 +53,33 @@ static void send_passphrase_request(void)
  * OUTPUT
  *     none
  */
-static void wait_for_passphrase_ack(PassphraseInfo *passphrase_info)
-{
-    /* Listen for tiny messages */
-    uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
-    uint16_t tiny_msg = wait_for_tiny_msg(msg_tiny_buf);
+static void wait_for_passphrase_ack(PassphraseInfo *passphrase_info) {
+  /* Listen for tiny messages */
+  uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
+  uint16_t tiny_msg = wait_for_tiny_msg(msg_tiny_buf);
 
-    switch(tiny_msg)
-    {
-        /* Check for standard passphrase ack */
-        case MessageType_MessageType_PassphraseAck :
-            passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_RECEIVED;
-            PassphraseAck *ppa = (PassphraseAck *)msg_tiny_buf;
+  switch (tiny_msg) {
+    /* Check for standard passphrase ack */
+    case MessageType_MessageType_PassphraseAck:
+      passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_RECEIVED;
+      PassphraseAck *ppa = (PassphraseAck *)msg_tiny_buf;
 
-            strlcpy(passphrase_info->passphrase, ppa->passphrase, PASSPHRASE_BUF);
-            break;
+      strlcpy(passphrase_info->passphrase, ppa->passphrase, PASSPHRASE_BUF);
+      break;
 
-        case MessageType_MessageType_Cancel :   /* Check for cancel or initialize messages */
-            passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_CANCEL;
-            break;
+    case MessageType_MessageType_Cancel: /* Check for cancel or initialize
+                                            messages */
+      passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_CANCEL;
+      break;
 
-        case MessageType_MessageType_Initialize :
-            passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_CANCEL_BY_INIT;
-            break;
+    case MessageType_MessageType_Initialize:
+      passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_CANCEL_BY_INIT;
+      break;
 
-        case MSG_TINY_TYPE_ERROR:
-        default:
-            break;
-    }
+    case MSG_TINY_TYPE_ERROR:
+    default:
+      break;
+  }
 }
 
 /*
@@ -97,36 +92,32 @@ static void wait_for_passphrase_ack(PassphraseInfo *passphrase_info)
  *     none
  */
 static void run_passphrase_state(PassphraseState *passphrase_state,
-                                 PassphraseInfo *passphrase_info)
-{
-    switch(*passphrase_state)
-    {
+                                 PassphraseInfo *passphrase_info) {
+  switch (*passphrase_state) {
+    /* Send passphrase request */
+    case PASSPHRASE_REQUEST:
+      send_passphrase_request();
+      *passphrase_state = PASSPHRASE_WAITING;
 
-        /* Send passphrase request */
-        case PASSPHRASE_REQUEST:
-            send_passphrase_request();
-            *passphrase_state = PASSPHRASE_WAITING;
+      layout_simple_message("Waiting for Passphrase...");
 
-            layout_simple_message("Waiting for Passphrase...");
+      break;
 
-            break;
+    /* Wait for a passphrase */
+    case PASSPHRASE_WAITING:
+      wait_for_passphrase_ack(passphrase_info);
 
-        /* Wait for a passphrase */
-        case PASSPHRASE_WAITING:
-            wait_for_passphrase_ack(passphrase_info);
+      if (passphrase_info->passphrase_ack_msg != PASSPHRASE_ACK_WAITING) {
+        *passphrase_state = PASSPHRASE_FINISHED;
+      }
 
-            if(passphrase_info->passphrase_ack_msg != PASSPHRASE_ACK_WAITING)
-            {
-                *passphrase_state = PASSPHRASE_FINISHED;
-            }
+      break;
 
-            break;
-
-        case PASSPHRASE_ACK:
-        case PASSPHRASE_FINISHED:
-        default:
-            break;
-    }
+    case PASSPHRASE_ACK:
+    case PASSPHRASE_FINISHED:
+    default:
+      break;
+  }
 }
 
 /*
@@ -137,39 +128,37 @@ static void run_passphrase_state(PassphraseState *passphrase_state,
  * OUTPUT
  *      true/false whether passphrase was received
  */
-static bool passphrase_request(PassphraseInfo *passphrase_info)
-{
-    bool ret = false;
-    reset_msg_stack = false;
-    PassphraseState passphrase_state = PASSPHRASE_REQUEST;
+static bool passphrase_request(PassphraseInfo *passphrase_info) {
+  bool ret = false;
+  reset_msg_stack = false;
+  PassphraseState passphrase_state = PASSPHRASE_REQUEST;
 
-    /* Run SM */
-    while(1)
-    {
-        run_passphrase_state(&passphrase_state, passphrase_info);
+  /* Run SM */
+  while (1) {
+    run_passphrase_state(&passphrase_state, passphrase_info);
 
-        if(passphrase_state == PASSPHRASE_FINISHED)
-        {
-            break;
-        }
+    if (passphrase_state == PASSPHRASE_FINISHED) {
+      break;
     }
+  }
 
-    /* Check for passphrase cancel */
-    if(passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_RECEIVED)
-    {
-        ret = true;
+  /* Check for passphrase cancel */
+  if (passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_RECEIVED) {
+    review(ButtonRequestType_ButtonRequest_Other,
+          "passphrase confirmation",
+          "If this is wrong, unplug/replug Keepkey:"
+          "%51s",
+          passphrase_info->passphrase
+          );
+    ret = true;
+  } else {
+    if (passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_CANCEL_BY_INIT) {
+      reset_msg_stack = true;
     }
-    else
-    {
-        if(passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_CANCEL_BY_INIT)
-        {
-            reset_msg_stack = true;
-        }
-    }
+  }
 
-    return (ret);
+  return (ret);
 }
-
 
 /*
  * passphrase_protect() - Set passphrase protection
@@ -179,24 +168,19 @@ static bool passphrase_request(PassphraseInfo *passphrase_info)
  * OUTPUT
  *     true/false whether passphrase was received
  */
-bool passphrase_protect(void)
-{
-    bool ret = false;
-    PassphraseInfo passphrase_info;
+bool passphrase_protect(void) {
+  bool ret = false;
+  PassphraseInfo passphrase_info;
 
-    if(storage_getPassphraseProtected() && !session_isPassphraseCached())
-    {
-        /* Get passphrase and cache */
-        if(passphrase_request(&passphrase_info))
-        {
-            session_cachePassphrase(passphrase_info.passphrase);
-            ret = true;
-        }
+  if (storage_getPassphraseProtected() && !session_isPassphraseCached()) {
+    /* Get passphrase and cache */
+    if (passphrase_request(&passphrase_info)) {
+      session_cachePassphrase(passphrase_info.passphrase);
+      ret = true;
     }
-    else
-    {
-        ret = true;
-    }
+  } else {
+    ret = true;
+  }
 
-    return (ret);
+  return (ret);
 }

@@ -18,10 +18,10 @@
  */
 
 #ifndef EMULATOR
-#  include <inttypes.h>
-#  include <stdbool.h>
-#  include <libopencm3/cm3/cortex.h>
-#  include <libopencm3/stm32/desig.h>
+#include <inttypes.h>
+#include <stdbool.h>
+#include <libopencm3/cm3/cortex.h>
+#include <libopencm3/stm32/desig.h>
 #endif
 
 #include "keepkey/board/common.h"
@@ -52,28 +52,26 @@
 void mmhisr(void);
 void u2fInit(void);
 
-#define APP_VERSIONS "VERSION" \
-                      VERSION_STR(MAJOR_VERSION)  "." \
-                      VERSION_STR(MINOR_VERSION)  "." \
-                      VERSION_STR(PATCH_VERSION)
+#define APP_VERSIONS                                    \
+  "VERSION" VERSION_STR(MAJOR_VERSION) "." VERSION_STR( \
+      MINOR_VERSION) "." VERSION_STR(PATCH_VERSION)
 
 /* These variables will be used by host application to read the version info */
 static const char *const application_version
-__attribute__((used, section("version"))) = APP_VERSIONS;
+    __attribute__((used, section("version"))) = APP_VERSIONS;
 
 void memory_getDeviceLabel(char *str, size_t len) {
-    const char *label = storage_getLabel();
+  const char *label = storage_getLabel();
 
-    if (label && is_valid_ascii((const uint8_t*)label, strlen(label))) {
-        snprintf(str, len, "KeepKey - %s", label);
-    } else {
-        strlcpy(str, "KeepKey", len);
-    }
+  if (label && is_valid_ascii((const uint8_t *)label, strlen(label))) {
+    snprintf(str, len, "KeepKey - %s", label);
+  } else {
+    strlcpy(str, "KeepKey", len);
+  }
 }
 
-static bool canDropPrivs(void)
-{
-    switch (get_bootloaderKind()) {
+static bool canDropPrivs(void) {
+  switch (get_bootloaderKind()) {
     case BLK_v1_0_0:
     case BLK_v1_0_1:
     case BLK_v1_0_2:
@@ -82,52 +80,52 @@ static bool canDropPrivs(void)
     case BLK_v1_0_3_sig:
     case BLK_v1_0_4:
     case BLK_UNKNOWN:
-        return true;
+      return true;
     case BLK_v1_1_0:
-        return true;
+      return true;
     case BLK_v2_0_0:
-        return SIG_OK == signatures_ok();
-    }
-    __builtin_unreachable();
+    case BLK_v2_1_0:
+      return SIG_OK == signatures_ok();
+  }
+  __builtin_unreachable();
 }
 
-static void drop_privs(void)
-{
-    if (!canDropPrivs())
-        return;
+static void drop_privs(void) {
+  if (!canDropPrivs()) return;
 
-    // Legacy bootloader code will have interrupts disabled at this point.
-    // To maintain compatibility, the timer and button interrupts need to
-    // be enabled and then global interrupts enabled. This is a nop in the
-    // modern scheme.
-    cm_enable_interrupts();
+  // Legacy bootloader code will have interrupts disabled at this point.
+  // To maintain compatibility, the timer and button interrupts need to
+  // be enabled and then global interrupts enabled. This is a nop in the
+  // modern scheme.
+  cm_enable_interrupts();
 
-    // Turn on memory protection for good signature. KK firmware is signed
-    mpu_config(SIG_OK);
+  // Turn on memory protection for good signature. KK firmware is signed
+  mpu_config(SIG_OK);
 
-    // set thread mode to unprivileged here. This will help protect against 0days
-    __asm__ volatile("msr control, %0" :: "r" (0x3));   // unpriv thread mode using psp stack
+  // set thread mode to unprivileged here. This will help protect against 0days
+  __asm__ volatile(
+      "msr control, %0" ::"r"(0x3));  // unpriv thread mode using psp stack
 }
 
 #ifndef DEBUG_ON
 static void unknown_bootloader(void) {
-    layout_warning_static("Unknown bootloader. Contact support.");
-    shutdown();
+  layout_warning_static("Unknown bootloader. Contact support.");
+  shutdown();
 }
 
 static void update_bootloader(void) {
-    review_without_button_request(
-        "Update Recommended",
-        "This device's bootloader has a known security issue. "
-        "https://bit.ly/2jUTbnk "
-        "Please update your bootloader.");
+  review_without_button_request(
+      "Update Recommended",
+      "This device's bootloader has a known security issue. "
+      "https://bit.ly/2jUTbnk "
+      "Please update your bootloader.");
 }
 #endif
 
 static void check_bootloader(void) {
-    BootloaderKind kind = get_bootloaderKind();
+  BootloaderKind kind = get_bootloaderKind();
 
-    switch (kind) {
+  switch (kind) {
     case BLK_v1_0_0:
     case BLK_v1_0_1:
     case BLK_v1_0_2:
@@ -136,93 +134,93 @@ static void check_bootloader(void) {
     case BLK_v1_0_3_sig:
     case BLK_v1_0_4:
 #ifndef DEBUG_ON
-        update_bootloader();
+      update_bootloader();
 #endif
-        return;
+      return;
     case BLK_UNKNOWN:
 #ifndef DEBUG_ON
-        unknown_bootloader();
+      unknown_bootloader();
 #endif
-        return;
+      return;
+    case BLK_v2_1_0:
     case BLK_v2_0_0:
     case BLK_v1_1_0:
-        return;
-    }
+      return;
+  }
 
 #ifdef DEBUG_ON
-    __builtin_unreachable();
+  __builtin_unreachable();
 #else
-    unknown_bootloader();
+  unknown_bootloader();
 #endif
 }
 
-static void exec(void)
-{
-    usbPoll();
+static void exec(void) {
+  usbPoll();
 
-    /* Attempt to animate should a screensaver be present */
-    animate();
-    display_refresh();
+  /* Attempt to animate should a screensaver be present */
+  animate();
+  display_refresh();
 }
 
-int main(void)
-{
-    _buttonusr_isr = (void *)&buttonisr_usr;
-    _timerusr_isr = (void *)&timerisr_usr;
-    _mmhusr_isr = (void *)&mmhisr;
+int main(void) {
+  _buttonusr_isr = (void *)&buttonisr_usr;
+  _timerusr_isr = (void *)&timerisr_usr;
+  _mmhusr_isr = (void *)&mmhisr;
 
-    flash_collectHWEntropy(SIG_OK == signatures_ok());
+  flash_collectHWEntropy(SIG_OK == signatures_ok());
 
-    /* Drop privileges */
-    drop_privs();
+  /* Drop privileges */
+  drop_privs();
 
-    /* Init board */
-    kk_board_init();
+  /* Init board */
+  kk_board_init();
 
-    /* Program the model into OTP, if we're not in screen-test mode, and it's
-     * not already there
-     */
-    (void)flash_programModel();
+  /* Program the model into OTP, if we're not in screen-test mode, and it's
+   * not already there
+   */
+  (void)flash_programModel();
 
-    /* Init for safeguard against stack overflow (-fstack-protector-all) */
-    __stack_chk_guard = (uintptr_t)random32();
+  /* Init for safeguard against stack overflow (-fstack-protector-all) */
+  __stack_chk_guard = (uintptr_t)random32();
 
-    drbg_init();
+  drbg_init();
 
-    /* Bootloader Verification */
-    check_bootloader();
+  /* Bootloader Verification */
+  check_bootloader();
 
-    led_func(SET_RED_LED);
-    dbg_print("Application Version %d.%d.%d\n\r", MAJOR_VERSION, MINOR_VERSION,
-              PATCH_VERSION);
+  led_func(SET_RED_LED);
+  dbg_print("Application Version %d.%d.%d\n\r", MAJOR_VERSION, MINOR_VERSION,
+            PATCH_VERSION);
 
-    /* Init storage */
-    storage_init();
+  /* Init storage */
+  storage_init();
 
-    /* Init protcol buffer message map and usb msg callback */
-    fsm_init();
+  /* Init protcol buffer message map and usb msg callback */
+  fsm_init();
 
-    led_func(SET_GREEN_LED);
+  led_func(SET_GREEN_LED);
 
-    usbInit(storage_isInitialized() ? "keepkey.com/wallet" : "keepkey.com/get-started");
-    u2fInit();
-    led_func(CLR_RED_LED);
+  usbInit(storage_isInitialized() ? "keepkey.com/wallet"
+                                  : "keepkey.com/get-started");
+  u2fInit();
+  led_func(CLR_RED_LED);
 
-    reset_idle_time();
+  reset_idle_time();
 
-    if (is_mfg_mode())
-        layout_screen_test();
-    else if (!storage_isInitialized())
-        layout_standard_notification("Welcome", "keepkey.com/get-started",
-                                     NOTIFICATION_LOGO);
-    else
-        layoutHomeForced();
+  if (is_mfg_mode())
+    layout_screen_test();
+  else if (!storage_isInitialized())
+    layout_standard_notification("Welcome", "keepkey.com/get-started",
+                                 NOTIFICATION_LOGO);
+  else
+    layoutHomeForced();
 
-    while (1) {
-        delay_ms_with_callback(ONE_SEC, &exec, 1);
-        increment_idle_time(ONE_SEC);
-        toggle_screensaver();
-    }
+  while (1) {
+    delay_ms_with_callback(ONE_SEC, &exec, 1);
+    increment_idle_time(ONE_SEC);
+    toggle_screensaver();
+  }
 
-    return 0;
+  return 0;
 }

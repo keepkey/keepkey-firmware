@@ -17,18 +17,21 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SIGNING_H
-#define SIGNING_H
-
-#include "trezor/crypto/bip32.h"
-#include "keepkey/transport/interface.h"
+#ifndef TXIN_CHECK_H
+#define TXIN_CHECK_H
 
 #include <stdint.h>
 #include <stdbool.h>
-void signing_init(const SignTx *msg, const CoinType *_coin,
-                  const HDNode *_root);
-void signing_abort(void);
-void signing_txack(TransactionType *tx);
-void send_fsm_co_error_message(int co_error);
+
+#define DIGEST_STR_LEN (2 * SHA256_DIGEST_LENGTH) + 1
+#define AMT_STR_LEN 32
+#define ADDR_STR_LEN 130
+
+void txin_dgst_addto(const uint8_t *data, size_t len);
+void txin_dgst_initialize(void);
+bool txin_dgst_compare(const char *amt_str, const char *addr_str);
+void txin_dgst_final(void);
+void txin_dgst_getstrs(char *prev, char *cur, size_t len);
+void txin_dgst_save_and_reset(char *amt_str, char *addr_str);
 
 #endif

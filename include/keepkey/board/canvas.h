@@ -20,18 +20,14 @@
 #ifndef CANVAS_H
 #define CANVAS_H
 
-
 #include <stdint.h>
 #include <stdbool.h>
 
-
-typedef struct
-{
-	uint8_t* 	buffer;
-	uint16_t 	height;
-	uint16_t 	width;
-	bool 		dirty;
+typedef struct {
+  uint8_t* buffer;
+  uint16_t height;
+  uint16_t width;
+  bool dirty;
 } Canvas;
 
 #endif
-

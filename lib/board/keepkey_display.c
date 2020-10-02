@@ -18,8 +18,8 @@
  */
 
 #ifndef EMULATOR
-#  include <libopencm3/stm32/rcc.h>
-#  include <libopencm3/stm32/gpio.h>
+#include <libopencm3/stm32/rcc.h>
+#include <libopencm3/stm32/gpio.h>
 #endif
 
 #include "keepkey/board/keepkey_display.h"
@@ -31,18 +31,19 @@
 #pragma GCC optimize("-O3")
 
 #ifndef EMULATOR
-static const Pin nOE_PIN       = { GPIOA, GPIO8 };
-static const Pin nWE_PIN       = { GPIOA, GPIO9 };
-static const Pin nDC_PIN       = { GPIOB, GPIO1 };
+static const Pin nOE_PIN = {GPIOA, GPIO8};
+static const Pin nWE_PIN = {GPIOA, GPIO9};
+static const Pin nDC_PIN = {GPIOB, GPIO1};
 
-static const Pin nSEL_PIN      = { GPIOA, GPIO10 };
-static const Pin nRESET_PIN    = { GPIOB, GPIO5 };
+static const Pin nSEL_PIN = {GPIOA, GPIO10};
+static const Pin nRESET_PIN = {GPIOB, GPIO5};
 
-static const Pin BACKLIGHT_PWR_PIN = { GPIOB, GPIO0 };
+static const Pin BACKLIGHT_PWR_PIN = {GPIOB, GPIO0};
 #endif
 
-static uint8_t canvas_buffer[ KEEPKEY_DISPLAY_HEIGHT * KEEPKEY_DISPLAY_WIDTH ];
+static uint8_t canvas_buffer[KEEPKEY_DISPLAY_HEIGHT * KEEPKEY_DISPLAY_WIDTH];
 static Canvas canvas;
+bool constant_power = false;
 
 /*
  * display_write_reg() - Write data to display register
@@ -52,56 +53,55 @@ static Canvas canvas;
  * OUTPUT
  *     none
  */
-static void display_write_reg(uint8_t reg)
-{
+static void display_write_reg(uint8_t reg) {
 #ifndef EMULATOR
 
-    svc_disable_interrupts();
+  svc_disable_interrupts();
 
-    /* Set up the data */
-    GPIO_BSRR(GPIOA) = 0x000000FF & (uint32_t)reg;
+  /* Set up the data */
+  GPIO_BSRR(GPIOA) = 0x000000FF & (uint32_t)reg;
 
-    /* Set nOLED_SEL low, nMEM_OE high, and nMEM_WE high. */
-    CLEAR_PIN(nSEL_PIN);
-    SET_PIN(nOE_PIN);
-    SET_PIN(nWE_PIN);
+  /* Set nOLED_SEL low, nMEM_OE high, and nMEM_WE high. */
+  CLEAR_PIN(nSEL_PIN);
+  SET_PIN(nOE_PIN);
+  SET_PIN(nWE_PIN);
 
-    __asm__("nop");
-    __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
 
-    /* Set nDC low */
-    CLEAR_PIN(nDC_PIN);
+  /* Set nDC low */
+  CLEAR_PIN(nDC_PIN);
 
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
 
-    /* Set nMEM_WE low */
-    CLEAR_PIN(nWE_PIN);
+  /* Set nMEM_WE low */
+  CLEAR_PIN(nWE_PIN);
 
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
 
-    /* Set nMEM_WE high */
-    SET_PIN(nWE_PIN);
+  /* Set nMEM_WE high */
+  SET_PIN(nWE_PIN);
 
-    __asm__("nop");
-    __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
 
-    /* Set nOLED_SEL high */
-    SET_PIN(nSEL_PIN);
-    GPIO_BSRR(GPIOA) = 0x00FF0000;
+  /* Set nOLED_SEL high */
+  SET_PIN(nSEL_PIN);
+  GPIO_BSRR(GPIOA) = 0x00FF0000;
 
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
 
-    svc_enable_interrupts();
+  svc_enable_interrupts();
 
 #endif
 }
@@ -114,16 +114,15 @@ static void display_write_reg(uint8_t reg)
  * OUTPUT
  *     none
  */
-static void display_reset(void)
-{
+static void display_reset(void) {
 #ifndef EMULATOR
-    CLEAR_PIN(nRESET_PIN);
+  CLEAR_PIN(nRESET_PIN);
 
-    delay_ms(10);
+  delay_ms(10);
 
-    SET_PIN(nRESET_PIN);
+  SET_PIN(nRESET_PIN);
 
-    delay_ms(50);
+  delay_ms(50);
 #endif
 }
 
@@ -133,19 +132,18 @@ static void display_reset(void)
  * INPUT -  none
  * OUTPUT -  none
  */
-static void display_reset_io(void)
-{
+static void display_reset_io(void) {
 #ifndef EMULATOR
-    svc_disable_interrupts();
-    SET_PIN(nRESET_PIN);
-    CLEAR_PIN(BACKLIGHT_PWR_PIN);
-    SET_PIN(nWE_PIN);
-    SET_PIN(nOE_PIN);
-    SET_PIN(nDC_PIN);
-    SET_PIN(nSEL_PIN);
+  svc_disable_interrupts();
+  SET_PIN(nRESET_PIN);
+  CLEAR_PIN(BACKLIGHT_PWR_PIN);
+  SET_PIN(nWE_PIN);
+  SET_PIN(nOE_PIN);
+  SET_PIN(nDC_PIN);
+  SET_PIN(nSEL_PIN);
 
-    GPIO_BSRR(GPIOA) = 0x00FF0000;
-    svc_enable_interrupts();
+  GPIO_BSRR(GPIOA) = 0x00FF0000;
+  svc_enable_interrupts();
 #endif
 }
 
@@ -157,37 +155,26 @@ static void display_reset_io(void)
  * OUTPUT
  *     none
  */
-static void display_configure_io(void)
-{
+static void display_configure_io(void) {
 #ifndef EMULATOR
-    /* Set up port A */
-    gpio_mode_setup(
-        GPIOA,
-        GPIO_MODE_OUTPUT,
-        GPIO_PUPD_NONE,
-        GPIO0 | GPIO1 | GPIO2 | GPIO3 | GPIO4 | GPIO5 | GPIO6 | GPIO7 | GPIO8 | GPIO9 | GPIO10);
+  /* Set up port A */
+  gpio_mode_setup(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE,
+                  GPIO0 | GPIO1 | GPIO2 | GPIO3 | GPIO4 | GPIO5 | GPIO6 |
+                      GPIO7 | GPIO8 | GPIO9 | GPIO10);
 
-    gpio_set_output_options(
-        GPIOA,
-        GPIO_OTYPE_PP,
-        GPIO_OSPEED_100MHZ,
-        GPIO0 | GPIO1 | GPIO2 | GPIO3 | GPIO4 | GPIO5 | GPIO6 | GPIO7 | GPIO8 | GPIO9 | GPIO10);
+  gpio_set_output_options(GPIOA, GPIO_OTYPE_PP, GPIO_OSPEED_100MHZ,
+                          GPIO0 | GPIO1 | GPIO2 | GPIO3 | GPIO4 | GPIO5 |
+                              GPIO6 | GPIO7 | GPIO8 | GPIO9 | GPIO10);
 
-    /* Set up port B */
-    gpio_mode_setup(
-        GPIOB,
-        GPIO_MODE_OUTPUT,
-        GPIO_PUPD_NONE,
-        GPIO0 | GPIO1 | GPIO5);
+  /* Set up port B */
+  gpio_mode_setup(GPIOB, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE,
+                  GPIO0 | GPIO1 | GPIO5);
 
-    gpio_set_output_options(
-        GPIOB,
-        GPIO_OTYPE_PP,
-        GPIO_OSPEED_100MHZ,
-        GPIO0 | GPIO1 | GPIO5);
+  gpio_set_output_options(GPIOB, GPIO_OTYPE_PP, GPIO_OSPEED_100MHZ,
+                          GPIO0 | GPIO1 | GPIO5);
 
-    /* Set to defaults */
-    display_reset_io();
+  /* Set to defaults */
+  display_reset_io();
 #endif
 }
 
@@ -199,10 +186,9 @@ static void display_configure_io(void)
  * OUTPUT
  *     none
  */
-static void display_prepare_gram_write(void)
-{
+static void display_prepare_gram_write(void) {
 #ifndef EMULATOR
-    display_write_reg((uint8_t)0x5C);
+  display_write_reg((uint8_t)0x5C);
 #endif
 }
 
@@ -214,59 +200,57 @@ static void display_prepare_gram_write(void)
  * OUTPUT
  *     none
  */
-static void display_write_ram(uint8_t val)
-{
+static void display_write_ram(uint8_t val) {
 #ifndef EMULATOR
-    svc_disable_interrupts();
+  svc_disable_interrupts();
 
-    /* Set up the data */
-    GPIO_BSRR(GPIOA) = 0x000000FF & (uint32_t)val;
+  /* Set up the data */
+  GPIO_BSRR(GPIOA) = 0x000000FF & (uint32_t)val;
 
-    /* Set nOLED_SEL low, nMEM_OE high, and nMEM_WE high. */
-    CLEAR_PIN(nSEL_PIN);
-    SET_PIN(nOE_PIN);
-    SET_PIN(nWE_PIN);
+  /* Set nOLED_SEL low, nMEM_OE high, and nMEM_WE high. */
+  CLEAR_PIN(nSEL_PIN);
+  SET_PIN(nOE_PIN);
+  SET_PIN(nWE_PIN);
 
-    __asm__("nop");
-    __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
 
-    /* Set nDC high */
-    SET_PIN(nDC_PIN);
+  /* Set nDC high */
+  SET_PIN(nDC_PIN);
 
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
 
-    /* Set nMEM_WE low */
-    CLEAR_PIN(nWE_PIN);
+  /* Set nMEM_WE low */
+  CLEAR_PIN(nWE_PIN);
 
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
 
-    /* Set nMEM_WE high */
-    SET_PIN(nWE_PIN);
+  /* Set nMEM_WE high */
+  SET_PIN(nWE_PIN);
 
-    __asm__("nop");
-    __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
 
-    /* Set nOLED_SEL high */
-    SET_PIN(nSEL_PIN);
-    GPIO_BSRR(GPIOA) = 0x00FF0000;
+  /* Set nOLED_SEL high */
+  SET_PIN(nSEL_PIN);
+  GPIO_BSRR(GPIOA) = 0x00FF0000;
 
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
-    __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
+  __asm__("nop");
 
-    svc_enable_interrupts();
-    
+  svc_enable_interrupts();
+
 #endif
 }
-
 
 /*
  * display_canvas_init() - Display canvas initialization
@@ -276,15 +260,14 @@ static void display_write_ram(uint8_t val)
  * OUTPUT
  *     pointer to canvas
  */
-Canvas *display_canvas_init(void)
-{
-    /* Prepare the canvas */
-    canvas.buffer   = canvas_buffer;
-    canvas.width    = KEEPKEY_DISPLAY_WIDTH;
-    canvas.height   = KEEPKEY_DISPLAY_HEIGHT;
-    canvas.dirty    = false;
+Canvas *display_canvas_init(void) {
+  /* Prepare the canvas */
+  canvas.buffer = canvas_buffer;
+  canvas.width = KEEPKEY_DISPLAY_WIDTH;
+  canvas.height = KEEPKEY_DISPLAY_HEIGHT;
+  canvas.dirty = false;
 
-    return &canvas;
+  return &canvas;
 }
 
 /*
@@ -295,15 +278,10 @@ Canvas *display_canvas_init(void)
  * OUTPUT
  *     pointer to canvas
  */
-Canvas *display_canvas(void)
-{
-    return &canvas;
-}
+Canvas *display_canvas(void) { return &canvas; }
 
 void (*DumpDisplay)(const uint8_t *buf) = 0;
-void display_set_dump_callback(DumpDisplayCallback d) {
-    DumpDisplay = d;
-}
+void display_set_dump_callback(DumpDisplayCallback d) { DumpDisplay = d; }
 
 /*
  * display_refresh() - Refresh display
@@ -324,6 +302,14 @@ void display_refresh(void)
         return;
     }
 
+    if (constant_power) {
+        for (int y = 0; y < 64; y++) {
+            for (int x = 0; x < 128; x++) {
+                canvas.buffer[y * 256 + x] = 255 - canvas.buffer[y * 256 + x + 128];
+            }
+        }
+    }
+
     display_prepare_gram_write();
 
     int num_writes = canvas.width * canvas.height;
@@ -331,19 +317,17 @@ void display_refresh(void)
     int i;
 #ifdef INVERT_DISPLAY
 
-    for(i = num_writes; i > 0; i -= 2)
-    {
-        uint8_t v = (0xF0 & canvas.buffer[ i ]) | (canvas.buffer[ i - 1 ] >> 4);
+  for (i = num_writes; i > 0; i -= 2) {
+    uint8_t v = (0xF0 & canvas.buffer[i]) | (canvas.buffer[i - 1] >> 4);
 #else
 
-    for(i = 0; i < num_writes; i += 2)
-    {
-        uint8_t v = (0xF0 & canvas.buffer[ i ]) | (canvas.buffer[ i + 1 ] >> 4);
+  for (i = 0; i < num_writes; i += 2) {
+    uint8_t v = (0xF0 & canvas.buffer[i]) | (canvas.buffer[i + 1] >> 4);
 #endif
-        display_write_ram(v);
-    }
+    display_write_ram(v);
+  }
 
-    canvas.dirty = false;
+  canvas.dirty = false;
 }
 
 /*
@@ -354,10 +338,7 @@ void display_refresh(void)
  * OUTPUT
  *     none
  */
-void display_turn_on(void)
-{
-    display_write_reg((uint8_t)0xAF);
-}
+void display_turn_on(void) { display_write_reg((uint8_t)0xAF); }
 
 /*
  * display_turn_off() - Turn off display
@@ -372,7 +353,10 @@ void display_turn_off(void)
     display_write_reg((uint8_t)0xAE);
 }
 
-
+void display_constant_power(bool enabled)
+{
+    constant_power = enabled;
+}
 
 /*
  * display_hw_init(void)  - Display hardware initialization
@@ -382,118 +366,115 @@ void display_turn_off(void)
  * OUTPUT
  *     none
  */
-void display_hw_init(void)
-{
+void display_hw_init(void) {
 #ifndef EMULATOR
-    display_configure_io();
+  display_configure_io();
 
-    CLEAR_PIN(BACKLIGHT_PWR_PIN);
+  CLEAR_PIN(BACKLIGHT_PWR_PIN);
 
-    display_reset();
+  display_reset();
 
-    display_write_reg((uint8_t)0xFD);
-    display_write_ram((uint8_t)0x12);
+  display_write_reg((uint8_t)0xFD);
+  display_write_ram((uint8_t)0x12);
 
-    display_turn_off();
+  display_turn_off();
 
-    /* Divide DIVSET by 2 */
-    display_write_reg((uint8_t)0xB3);
-    display_write_ram((uint8_t)0x91);
+  /* Divide DIVSET by 2 */
+  display_write_reg((uint8_t)0xB3);
+  display_write_ram((uint8_t)0x91);
 
-    display_write_reg((uint8_t)0xCA);
-    display_write_ram((uint8_t)0x3F);
+  display_write_reg((uint8_t)0xCA);
+  display_write_ram((uint8_t)0x3F);
 
-    display_write_reg((uint8_t)0xA2);
+  display_write_reg((uint8_t)0xA2);
+  display_write_ram((uint8_t)0x00);
+
+  display_write_reg((uint8_t)0xA1);
+  display_write_ram((uint8_t)0x00);
+
+  uint8_t row_start = START_ROW;
+  uint8_t row_end = row_start + 64 - 1;
+
+  /* Width is in units of 4 pixels/column (2 bytes at 4 bits/pixel) */
+  int width = (256 / 4);
+  uint8_t col_start = START_COL;
+  uint8_t col_end = col_start + width - 1;
+
+  display_write_reg((uint8_t)0x75);
+  display_write_ram(row_start);
+  display_write_ram(row_end);
+  display_write_reg((uint8_t)0x15);
+  display_write_ram(col_start);
+  display_write_ram(col_end);
+
+  /* Horizontal address increment */
+  /* Disable colum address re-map */
+  /* Disable nibble re-map */
+  /* Scan from COM0 to COM[n-1] */
+  /* Disable dual COM mode */
+  display_write_reg((uint8_t)0xA0);
+  display_write_ram((uint8_t)0x14);
+  display_write_ram((uint8_t)0x11);
+
+  /* GPIO0: pin HiZ, Input disabled */
+  /* GPIO1: pin HiZ, Input disabled */
+  display_write_reg((uint8_t)0xB5);
+  display_write_ram((uint8_t)0x00);
+
+  /* Enable internal Vdd regulator */
+  display_write_reg((uint8_t)0xAB);
+  display_write_ram((uint8_t)0x01);
+
+  display_write_reg((uint8_t)0xB4);
+  display_write_ram((uint8_t)0xA0);
+  display_write_ram((uint8_t)0xFD);
+
+  display_set_brightness(DEFAULT_DISPLAY_BRIGHTNESS);
+
+  display_write_reg((uint8_t)0xC7);
+  display_write_ram((uint8_t)0x0F);
+
+  display_write_reg((uint8_t)0xB9);
+
+  display_write_reg((uint8_t)0xB1);
+  display_write_ram((uint8_t)0xE2);
+
+  display_write_reg((uint8_t)0xD1);
+  display_write_ram((uint8_t)0x82);
+  display_write_ram((uint8_t)0x20);
+
+  display_write_reg((uint8_t)0xBB);
+  display_write_ram((uint8_t)0x1F);
+
+  display_write_reg((uint8_t)0xB6);
+  display_write_ram((uint8_t)0x08);
+
+  display_write_reg((uint8_t)0xBE);
+  display_write_ram((uint8_t)0x07);
+
+  display_write_reg((uint8_t)0xA6);
+
+  delay_ms(10);
+
+  /* Set the screen to display-writing mode */
+  display_prepare_gram_write();
+
+  delay_ms(10);
+
+  /* Make the display blank */
+  int end = 64 * 256;
+  int i;
+
+  for (i = 0; i < end; i += 2) {
     display_write_ram((uint8_t)0x00);
+  }
 
-    display_write_reg((uint8_t)0xA1);
-    display_write_ram((uint8_t)0x00);
+  /* Turn on 12V */
+  SET_PIN(BACKLIGHT_PWR_PIN);
 
+  delay_ms(100);
 
-    uint8_t row_start = START_ROW;
-    uint8_t row_end = row_start + 64 - 1;
-
-    /* Width is in units of 4 pixels/column (2 bytes at 4 bits/pixel) */
-    int width = (256 / 4);
-    uint8_t col_start = START_COL;
-    uint8_t col_end = col_start + width - 1;
-
-    display_write_reg((uint8_t)0x75);
-    display_write_ram(row_start);
-    display_write_ram(row_end);
-    display_write_reg((uint8_t)0x15);
-    display_write_ram(col_start);
-    display_write_ram(col_end);
-
-    /* Horizontal address increment */
-    /* Disable colum address re-map */
-    /* Disable nibble re-map */
-    /* Scan from COM0 to COM[n-1] */
-    /* Disable dual COM mode */
-    display_write_reg((uint8_t)0xA0);
-    display_write_ram((uint8_t)0x14);
-    display_write_ram((uint8_t)0x11);
-
-    /* GPIO0: pin HiZ, Input disabled */
-    /* GPIO1: pin HiZ, Input disabled */
-    display_write_reg((uint8_t)0xB5);
-    display_write_ram((uint8_t)0x00);
-
-    /* Enable internal Vdd regulator */
-    display_write_reg((uint8_t)0xAB);
-    display_write_ram((uint8_t)0x01);
-
-    display_write_reg((uint8_t)0xB4);
-    display_write_ram((uint8_t)0xA0);
-    display_write_ram((uint8_t)0xFD);
-
-    display_set_brightness(DEFAULT_DISPLAY_BRIGHTNESS);
-
-    display_write_reg((uint8_t)0xC7);
-    display_write_ram((uint8_t)0x0F);
-
-    display_write_reg((uint8_t)0xB9);
-
-    display_write_reg((uint8_t)0xB1);
-    display_write_ram((uint8_t)0xE2);
-
-    display_write_reg((uint8_t)0xD1);
-    display_write_ram((uint8_t)0x82);
-    display_write_ram((uint8_t)0x20);
-
-    display_write_reg((uint8_t)0xBB);
-    display_write_ram((uint8_t)0x1F);
-
-    display_write_reg((uint8_t)0xB6);
-    display_write_ram((uint8_t)0x08);
-
-    display_write_reg((uint8_t)0xBE);
-    display_write_ram((uint8_t)0x07);
-
-    display_write_reg((uint8_t)0xA6);
-
-    delay_ms(10);
-
-    /* Set the screen to display-writing mode */
-    display_prepare_gram_write();
-
-    delay_ms(10);
-
-    /* Make the display blank */
-    int end = 64  * 256;
-    int i;
-
-    for(i = 0; i < end; i += 2)
-    {
-        display_write_ram((uint8_t)0x00);
-    }
-
-    /* Turn on 12V */
-    SET_PIN(BACKLIGHT_PWR_PIN);
-
-    delay_ms(100);
-
-    display_turn_on();
+  display_turn_on();
 #endif
 }
 
@@ -505,23 +486,21 @@ void display_hw_init(void)
  * OUTPUT
  *     none
  */
-void display_set_brightness(int percentage)
-{
+void display_set_brightness(int percentage) {
 #ifndef EMULATOR
-    int v = percentage;
+  int v = percentage;
 
-    /* Clip to be 0 <= value <= 100 */
-    v = (v >= 0) ? v : 0;
-    v = (v > 100) ? 100 : v;
+  /* Clip to be 0 <= value <= 100 */
+  v = (v >= 0) ? v : 0;
+  v = (v > 100) ? 100 : v;
 
-    v = (0xFF * v) / 100;
+  v = (0xFF * v) / 100;
 
-    uint8_t reg_value = (uint8_t)v;
+  uint8_t reg_value = (uint8_t)v;
 
-    display_write_reg((uint8_t)0xC1);
-    display_write_ram(reg_value);
+  display_write_reg((uint8_t)0xC1);
+  display_write_ram(reg_value);
 #endif
 }
 
 #pragma GCC pop_options
-

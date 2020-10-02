@@ -27,48 +27,33 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define MSG_TINY_BFR_SZ     64
+#define MSG_TINY_BFR_SZ 64
 #define MSG_TINY_TYPE_ERROR 0xFFFF
 
-#define MSG_IN(ID, STRUCT_NAME, PROCESS_FUNC) \
-    [ID].msg_id = (ID), \
-    [ID].type = (NORMAL_MSG), \
-    [ID].dir = (IN_MSG), \
-    [ID].fields = (STRUCT_NAME ## _fields), \
-    [ID].dispatch = (PARSABLE), \
-    [ID].process_func = (void (*)(void*))(PROCESS_FUNC),
+#define MSG_IN(ID, STRUCT_NAME, PROCESS_FUNC)                        \
+  [ID].msg_id = (ID), [ID].type = (NORMAL_MSG), [ID].dir = (IN_MSG), \
+  [ID].fields = (STRUCT_NAME##_fields), [ID].dispatch = (PARSABLE),  \
+  [ID].process_func = (void (*)(void *))(PROCESS_FUNC),
 
-#define MSG_OUT(ID, STRUCT_NAME, PROCESS_FUNC) \
-    [ID].msg_id = (ID), \
-    [ID].type = (NORMAL_MSG), \
-    [ID].dir = (OUT_MSG), \
-    [ID].fields = (STRUCT_NAME ## _fields), \
-    [ID].dispatch = (PARSABLE), \
-    [ID].process_func = (void (*)(void*))(PROCESS_FUNC),
+#define MSG_OUT(ID, STRUCT_NAME, PROCESS_FUNC)                        \
+  [ID].msg_id = (ID), [ID].type = (NORMAL_MSG), [ID].dir = (OUT_MSG), \
+  [ID].fields = (STRUCT_NAME##_fields), [ID].dispatch = (PARSABLE),   \
+  [ID].process_func = (void (*)(void *))(PROCESS_FUNC),
 
-#define RAW_IN(ID, STRUCT_NAME, PROCESS_FUNC) \
-    [ID].msg_id = (ID), \
-    [ID].type = (NORMAL_MSG), \
-    [ID].dir = (IN_MSG), \
-    [ID].fields = (STRUCT_NAME ## _fields), \
-    [ID].dispatch = (RAW), \
-    [ID].process_func = (void (*)(void*))(void*)(PROCESS_FUNC),
+#define RAW_IN(ID, STRUCT_NAME, PROCESS_FUNC)                        \
+  [ID].msg_id = (ID), [ID].type = (NORMAL_MSG), [ID].dir = (IN_MSG), \
+  [ID].fields = (STRUCT_NAME##_fields), [ID].dispatch = (RAW),       \
+  [ID].process_func = (void (*)(void *))(void *)(PROCESS_FUNC),
 
-#define DEBUG_IN(ID, STRUCT_NAME, PROCESS_FUNC) \
-    [ID].msg_id = (ID), \
-    [ID].type = (DEBUG_MSG), \
-    [ID].dir = (IN_MSG), \
-    [ID].fields = (STRUCT_NAME ## _fields), \
-    [ID].dispatch = (PARSABLE), \
-    [ID].process_func = (void (*)(void*))(PROCESS_FUNC),
+#define DEBUG_IN(ID, STRUCT_NAME, PROCESS_FUNC)                     \
+  [ID].msg_id = (ID), [ID].type = (DEBUG_MSG), [ID].dir = (IN_MSG), \
+  [ID].fields = (STRUCT_NAME##_fields), [ID].dispatch = (PARSABLE), \
+  [ID].process_func = (void (*)(void *))(PROCESS_FUNC),
 
-#define DEBUG_OUT(ID, STRUCT_NAME, PROCESS_FUNC) \
-    [ID].msg_id = (ID), \
-    [ID].type = (DEBUG_MSG), \
-    [ID].dir = (OUT_MSG), \
-    [ID].fields = (STRUCT_NAME ## _fields), \
-    [ID].dispatch = (PARSABLE), \
-    [ID].process_func = (void (*)(void*))(PROCESS_FUNC),
+#define DEBUG_OUT(ID, STRUCT_NAME, PROCESS_FUNC)                     \
+  [ID].msg_id = (ID), [ID].type = (DEBUG_MSG), [ID].dir = (OUT_MSG), \
+  [ID].fields = (STRUCT_NAME##_fields), [ID].dispatch = (PARSABLE),  \
+  [ID].process_func = (void (*)(void *))(PROCESS_FUNC),
 
 #define NO_PROCESS_FUNC 0
 
@@ -80,48 +65,36 @@ typedef bool (*usb_tx_handler_t)(uint8_t *, uint32_t);
 typedef void (*msg_debug_link_get_state_t)(DebugLinkGetState *);
 #endif
 
-typedef enum
-{
-    NORMAL_MSG,
+typedef enum {
+  NORMAL_MSG,
 #if DEBUG_LINK
-    DEBUG_MSG,
+  DEBUG_MSG,
 #endif
 } MessageMapType;
 
-typedef enum
-{
-    IN_MSG,
-    OUT_MSG
-} MessageMapDirection;
+typedef enum { IN_MSG, OUT_MSG } MessageMapDirection;
 
-typedef enum
-{
-    PARSABLE,
-    RAW
-} MessageMapDispatch;
+typedef enum { PARSABLE, RAW } MessageMapDispatch;
 
-typedef struct
-{
-    const pb_field_t *fields;
-    msg_handler_t process_func;
-    MessageMapDispatch dispatch;
-    MessageMapType type;
-    MessageMapDirection dir;
-    MessageType msg_id;
+typedef struct {
+  const pb_field_t *fields;
+  msg_handler_t process_func;
+  MessageMapDispatch dispatch;
+  MessageMapType type;
+  MessageMapDirection dir;
+  MessageType msg_id;
 } MessagesMap_t;
 
-typedef struct
-{
-    const uint8_t *buffer;
-    uint32_t length;
+typedef struct {
+  const uint8_t *buffer;
+  uint32_t length;
 } RawMessage;
 
-typedef enum 
-{
-    RAW_MESSAGE_NOT_STARTED,
-    RAW_MESSAGE_STARTED,
-    RAW_MESSAGE_COMPLETE,
-    RAW_MESSAGE_ERROR
+typedef enum {
+  RAW_MESSAGE_NOT_STARTED,
+  RAW_MESSAGE_STARTED,
+  RAW_MESSAGE_COMPLETE,
+  RAW_MESSAGE_ERROR
 } RawMessageState;
 
 typedef void (*raw_msg_handler_t)(RawMessage *msg, uint32_t frame_length);
@@ -140,8 +113,8 @@ void set_msg_failure_handler(msg_failure_t failure_func);
 void call_msg_failure_handler(FailureType code, const char *text);
 
 #if DEBUG_LINK
-void set_msg_debug_link_get_state_handler(msg_debug_link_get_state_t
-        debug_link_get_state_func);
+void set_msg_debug_link_get_state_handler(
+    msg_debug_link_get_state_t debug_link_get_state_func);
 void call_msg_debug_link_get_state_handler(DebugLinkGetState *msg);
 #endif
 
@@ -156,5 +129,6 @@ MessageType wait_for_tiny_msg(uint8_t *buf);
 MessageType check_for_tiny_msg(uint8_t *buf);
 
 uint32_t parse_pb_varint(RawMessage *msg, uint8_t varint_count);
-int encode_pb(const void *source_ptr, const pb_field_t *fields,  uint8_t *buffer, uint32_t len );
+int encode_pb(const void *source_ptr, const pb_field_t *fields, uint8_t *buffer,
+              uint32_t len);
 #endif

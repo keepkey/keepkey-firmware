@@ -3,7 +3,4 @@
 #include "keepkey/board/timer.h"
 #include "keepkey/board/variant.h"
 
-const VariantInfo variant_salt = {
-    VARIANTINFO_SALT
-};
-
+const VariantInfo variant_salt = {VARIANTINFO_SALT};

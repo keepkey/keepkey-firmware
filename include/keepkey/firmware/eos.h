@@ -27,31 +27,31 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-#define EOS_NAME_STR_SIZE  (12 + 1 + 1)
+#define EOS_NAME_STR_SIZE (12 + 1 + 1)
 #define EOS_ASSET_STR_SIZE (1 + 21 + 1 + 12 + 1)
 
 // C++ constexpr would be neat here...
 typedef enum _EosActionName {
-    EOS_Transfer     = 0xcdcd3c2d57000000L,
-    EOS_Owner        = 0xa726ab8000000000L,
-    EOS_Active       = 0x3232eda800000000L,
-    EOS_DelegateBW   = 0x4aa2a61b2a3f0000L,
-    EOS_UndelegateBW = 0xd4d2a8a986ca8fc0L,
-    EOS_Refund       = 0xba97a9a400000000L,
-    EOS_BuyRam       = 0x3ebd734800000000L,
-    EOS_BuyRamBytes  = 0x3ebd7348fecab000L,
-    EOS_SellRam      = 0xc2a31b9a40000000L,
-    EOS_VoteProducer = 0xdd32aade89d21570L,
-    EOS_UpdateAuth   = 0xd5526ca8dacb4000L,
-    EOS_DeleteAuth   = 0x4aa2aca8dacb4000L,
-    EOS_LinkAuth     = 0x8ba7036b2d000000L,
-    EOS_UnlinkAuth   = 0xd4e2e9c0dacb4000L,
-    EOS_NewAccount   = 0x9ab864229a9e4000L,
+  EOS_Transfer = 0xcdcd3c2d57000000L,
+  EOS_Owner = 0xa726ab8000000000L,
+  EOS_Active = 0x3232eda800000000L,
+  EOS_DelegateBW = 0x4aa2a61b2a3f0000L,
+  EOS_UndelegateBW = 0xd4d2a8a986ca8fc0L,
+  EOS_Refund = 0xba97a9a400000000L,
+  EOS_BuyRam = 0x3ebd734800000000L,
+  EOS_BuyRamBytes = 0x3ebd7348fecab000L,
+  EOS_SellRam = 0xc2a31b9a40000000L,
+  EOS_VoteProducer = 0xdd32aade89d21570L,
+  EOS_UpdateAuth = 0xd5526ca8dacb4000L,
+  EOS_DeleteAuth = 0x4aa2aca8dacb4000L,
+  EOS_LinkAuth = 0x8ba7036b2d000000L,
+  EOS_UnlinkAuth = 0xd4e2e9c0dacb4000L,
+  EOS_NewAccount = 0x9ab864229a9e4000L,
 } EosActionName;
 
 typedef enum _EosContractName {
-    EOS_eosio = 0x5530ea0000000000L,
-    EOS_eosio_token  = 0x5530ea033482a600L,
+  EOS_eosio = 0x5530ea0000000000L,
+  EOS_eosio_token = 0x5530ea033482a600L,
 } EosContractName;
 
 /// \returns true iff the asset can be correctly decoded.

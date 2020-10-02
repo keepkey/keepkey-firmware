@@ -22,15 +22,13 @@
 
 #include "trezor/crypto/hasher.h"
 
-#define CHECK_PARAM_RET(cond, errormsg, retval) \
-    if (!(cond)) { \
-        fsm_sendFailure(FailureType_Failure_Other, (errormsg)); \
-        layoutHome(); \
-        return retval; \
-    }
-
+#define CHECK_PARAM_RET(cond, errormsg, retval)             \
+  if (!(cond)) {                                            \
+    fsm_sendFailure(FailureType_Failure_Other, (errormsg)); \
+    layoutHome();                                           \
+    return retval;                                          \
+  }
 
 extern CONFIDENTIAL Hasher hasher_preimage;
 
 #endif
-

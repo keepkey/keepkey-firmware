@@ -21,4 +21,3 @@
 void oledInit(void) {}
 void oledRefresh(void) {}
 void emulatorPoll(void) {}
-

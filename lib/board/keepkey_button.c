@@ -17,13 +17,12 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef EMULATOR
-#  include <libopencm3/stm32/rcc.h>
-#  include <libopencm3/stm32/gpio.h>
-#  include <libopencm3/stm32/exti.h>
-#  include <libopencm3/stm32/f2/nvic.h>
-#  include <libopencm3/stm32/syscfg.h>
+#include <libopencm3/stm32/rcc.h>
+#include <libopencm3/stm32/gpio.h>
+#include <libopencm3/stm32/exti.h>
+#include <libopencm3/stm32/f2/nvic.h>
+#include <libopencm3/stm32/syscfg.h>
 #endif
 
 #include "keepkey/board/keepkey_button.h"
@@ -32,26 +31,24 @@
 
 #include <stddef.h>
 
-
-static Handler on_press_handler     = NULL;
-static Handler on_release_handler   = NULL;
+static Handler on_press_handler = NULL;
+static Handler on_release_handler = NULL;
 
 static void *on_release_handler_context = NULL;
-static void *on_press_handler_context   = NULL;
+static void *on_press_handler_context = NULL;
 
 #ifndef EMULATOR
-static const uint16_t BUTTON_PIN    = GPIO7;
-static const uint32_t BUTTON_PORT   = GPIOB;
-static const uint32_t BUTTON_EXTI   = EXTI7;
+static const uint16_t BUTTON_PIN = GPIO7;
+static const uint32_t BUTTON_PORT = GPIOB;
+static const uint32_t BUTTON_EXTI = EXTI7;
 #endif
 
-void kk_keepkey_button_init(void)
-{
-    on_press_handler = NULL;
-    on_press_handler_context = NULL;
+void kk_keepkey_button_init(void) {
+  on_press_handler = NULL;
+  on_press_handler_context = NULL;
 
-    on_release_handler = NULL;
-    on_release_handler_context = NULL;
+  on_release_handler = NULL;
+  on_release_handler_context = NULL;
 }
 
 /*
@@ -63,31 +60,22 @@ void kk_keepkey_button_init(void)
  * OUTPUT
  *     none
  */
-void keepkey_button_init(void)
-{
-    on_press_handler = NULL;
-    on_press_handler_context = NULL;
+void keepkey_button_init(void) {
+  on_press_handler = NULL;
+  on_press_handler_context = NULL;
 
-    on_release_handler = NULL;
-    on_release_handler_context = NULL;
+  on_release_handler = NULL;
+  on_release_handler_context = NULL;
 
 #ifndef EMULATOR
-    gpio_mode_setup(
-        BUTTON_PORT,
-        GPIO_MODE_INPUT,
-        GPIO_PUPD_NONE,
-        BUTTON_PIN);
+  gpio_mode_setup(BUTTON_PORT, GPIO_MODE_INPUT, GPIO_PUPD_NONE, BUTTON_PIN);
 
-    /* Configure the EXTI subsystem. */
-    exti_select_source(
-        BUTTON_EXTI,
-        GPIOB);
+  /* Configure the EXTI subsystem. */
+  exti_select_source(BUTTON_EXTI, GPIOB);
 
-    exti_set_trigger(
-        BUTTON_EXTI,
-        EXTI_TRIGGER_BOTH);
+  exti_set_trigger(BUTTON_EXTI, EXTI_TRIGGER_BOTH);
 
-    exti_enable_request(BUTTON_EXTI);
+  exti_enable_request(BUTTON_EXTI);
 
 #endif
 }
@@ -103,10 +91,9 @@ void keepkey_button_init(void)
  *     none
  *
  */
-void keepkey_button_set_on_press_handler(Handler handler, void *context)
-{
-    on_press_handler = handler;
-    on_press_handler_context = context;
+void keepkey_button_set_on_press_handler(Handler handler, void *context) {
+  on_press_handler = handler;
+  on_press_handler_context = context;
 }
 
 /*
@@ -120,10 +107,9 @@ void keepkey_button_set_on_press_handler(Handler handler, void *context)
  *     none
  *
  */
-void keepkey_button_set_on_release_handler(Handler handler, void *context)
-{
-    on_release_handler = handler;
-    on_release_handler_context = context;
+void keepkey_button_set_on_release_handler(Handler handler, void *context) {
+  on_release_handler = handler;
+  on_release_handler_context = context;
 }
 
 /*
@@ -134,13 +120,12 @@ void keepkey_button_set_on_release_handler(Handler handler, void *context)
  * OUTPUT
  *     true/false state of push button up
  */
-bool keepkey_button_up(void)
-{
+bool keepkey_button_up(void) {
 #ifndef EMULATOR
-    uint16_t port = gpio_port_read(BUTTON_PORT);
-    return port & BUTTON_PIN;
+  uint16_t port = gpio_port_read(BUTTON_PORT);
+  return port & BUTTON_PIN;
 #else
-    return false;
+  return false;
 #endif
 }
 
@@ -152,30 +137,22 @@ bool keepkey_button_up(void)
  * OUTPUT
  *     true/false state of push button down
  */
-bool keepkey_button_down(void)
-{
-    return !keepkey_button_up();
-}
+bool keepkey_button_down(void) { return !keepkey_button_up(); }
 
-void buttonisr_usr(void)
-{
+void buttonisr_usr(void) {
 #ifndef EMULATOR
-    if(gpio_get(BUTTON_PORT, BUTTON_PIN) & BUTTON_PIN)
-    {
-        if(on_release_handler)
-        {
-            on_release_handler(on_release_handler_context);
-        }
+  if (gpio_get(BUTTON_PORT, BUTTON_PIN) & BUTTON_PIN) {
+    if (on_release_handler) {
+      on_release_handler(on_release_handler_context);
     }
-    else
-    {
-        if(on_press_handler)
-        {
-            on_press_handler(on_press_handler_context);
-        }
+  } else {
+    if (on_press_handler) {
+      on_press_handler(on_press_handler_context);
     }
+  }
 
-    svc_busr_return();   // this MUST be called last to properly clean up and return
+  svc_busr_return();  // this MUST be called last to properly clean up and
+                      // return
 
 #endif
 }

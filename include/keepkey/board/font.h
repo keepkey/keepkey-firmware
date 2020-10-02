@@ -20,35 +20,27 @@
 #ifndef FONT_H
 #define FONT_H
 
-
 #include <stdint.h>
 
-
 /* Data pertaining to the image of a character */
-typedef struct
-{
-    const uint8_t  *data;
-    uint16_t        width;
-    uint16_t        height;
+typedef struct {
+  const uint8_t *data;
+  uint16_t width;
+  uint16_t height;
 } CharacterImage;
 
-
 /* Character information. */
-typedef struct
-{
-    long int                code;
-    const CharacterImage   *image;
+typedef struct {
+  long int code;
+  const CharacterImage *image;
 } Character;
 
-
 /* A complete font package. */
-typedef struct
-{
-    int                 length;
-    int                 size;
-    const Character    *characters;
+typedef struct {
+  int length;
+  int size;
+  const Character *characters;
 } Font;
-
 
 const Font *get_pin_font(void);
 const Font *get_title_font(void);
