@@ -101,8 +101,6 @@ void fsm_msgBinanceTransferMsg(const BinanceTransferMsg *msg) {
   CHECK_PARAM(msg->outputs[0].coins_count == 1, "Malformed BinanceTransferMsg")
   CHECK_PARAM(msg->inputs[0].coins[0].amount == msg->outputs[0].coins[0].amount,
               "Malformed BinanceTransferMsg")
-  CHECK_PARAM(strcmp(msg->inputs[0].coins[0].denom, "BNB") == 0,
-              "Other BNB tokens not yet supported")
   CHECK_PARAM(strcmp(msg->inputs[0].coins[0].denom,
                      msg->outputs[0].coins[0].denom) == 0,
               "Malformed BinanceTransferMsg")
@@ -136,8 +134,10 @@ void fsm_msgBinanceTransferMsg(const BinanceTransferMsg *msg) {
     }
     case OutputAddressType_TRANSFER:
     default: {
-      char amount_str[32];
-      bn_format_uint64(msg->outputs[0].coins[0].amount, NULL, " BNB", 8, 0,
+      char amount_str[42];
+      char denom_str[14];
+      snprintf(denom_str, strlen(msg->outputs[0].coins[0].denom) + 2, " %s", msg->outputs[0].coins[0].denom);
+      bn_format_uint64(msg->outputs[0].coins[0].amount, NULL, denom_str, 8, 0,
                        false, amount_str, sizeof(amount_str));
       if (!confirm_transaction_output(
               ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
