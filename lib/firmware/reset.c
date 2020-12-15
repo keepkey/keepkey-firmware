@@ -254,7 +254,6 @@ void reset_entropy(const uint8_t *ext_entropy, uint32_t len)
     storage_commit();
     fsm_sendSuccess(_("Device reset"));
 
-
 exit:
   memzero(&ctx, sizeof(ctx));
   memzero(tokened_mnemonic, sizeof(tokened_mnemonic));
