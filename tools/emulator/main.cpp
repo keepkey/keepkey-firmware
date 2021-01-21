@@ -81,7 +81,7 @@ int main(void) {
 
   led_func(SET_GREEN_LED);
 
-  usbInit("keepkey.com/get-started");
+  usbInit("beta.shapeshift.com");
   led_func(CLR_RED_LED);
 
   reset_idle_time();

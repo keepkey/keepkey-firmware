@@ -200,7 +200,7 @@ bool usb_flash_firmware(void) {
   layout_debuglink_watermark();
 #endif
 
-  usbInit("keepkey.com/update");
+  usbInit("beta.shapeshift.com");
   bootloader_fsm_init();
 
   while (1) {
