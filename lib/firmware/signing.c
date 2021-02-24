@@ -78,6 +78,7 @@ static uint64_t to_spend, authorized_bip143_in, spending, change_spend;
 static uint32_t version = 1;
 static uint32_t lock_time = 0;
 static uint32_t expiry = 0;
+static uint32_t timestamp = 0;
 static bool overwintered = false;
 static uint32_t version_group_id = 0;
 static uint32_t branch_id = 0;
@@ -638,6 +639,7 @@ void signing_init(const SignTx *msg, const CoinType *_coin,
   version = msg->version;
   lock_time = msg->lock_time;
   expiry = msg->expiry;
+  timestamp = msg->timestamp;
   overwintered = msg->has_overwintered && msg->overwintered;
   version_group_id = msg->version_group_id;
   branch_id = msg->branch_id;
@@ -687,14 +689,14 @@ void signing_init(const SignTx *msg, const CoinType *_coin,
   if (!curve) curve = get_curve_by_name(SECP256K1_NAME);
 
   tx_init(&to, inputs_count, outputs_count, version, lock_time, expiry, 0,
-          curve->hasher_sign, overwintered, version_group_id);
+          curve->hasher_sign, overwintered, version_group_id, timestamp);
 
   if (coin->decred) {
     to.version |= (DECRED_SERIALIZE_FULL << 16);
     to.is_decred = true;
 
     tx_init(&ti, inputs_count, outputs_count, version, lock_time, expiry, 0,
-            curve->hasher_sign, overwintered, version_group_id);
+            curve->hasher_sign, overwintered, version_group_id, 0);
     ti.version |= (DECRED_SERIALIZE_NO_WITNESS << 16);
     ti.is_decred = true;
   }
@@ -1499,7 +1501,7 @@ void signing_txack(TransactionType *tx) {
       }
       tx_init(&tp, tx->inputs_cnt, tx->outputs_cnt, tx->version, tx->lock_time,
               tx->expiry, tx->extra_data_len, curve->hasher_sign, overwintered,
-              version_group_id);
+              version_group_id, tx->timestamp);
       if (coin->decred) {
         tp.version |= (DECRED_SERIALIZE_NO_WITNESS << 16);
         tp.is_decred = true;
@@ -1610,7 +1612,7 @@ void signing_txack(TransactionType *tx) {
                  PROGRESS_PRECISION);
       if (idx2 == 0) {
         tx_init(&ti, inputs_count, outputs_count, version, lock_time, expiry, 0,
-                curve->hasher_sign, overwintered, version_group_id);
+                curve->hasher_sign, overwintered, version_group_id, 0);
         hasher_Reset(&hasher_check);
       }
       // check prevouts and script type
@@ -1865,13 +1867,13 @@ void signing_txack(TransactionType *tx) {
       if (idx1 == 0) {
         // witness
         tx_init(&to, inputs_count, outputs_count, version, lock_time, expiry, 0,
-                curve->hasher_sign, overwintered, version_group_id);
+                curve->hasher_sign, overwintered, version_group_id, 0);
         to.is_decred = true;
       }
 
       // witness hash
       tx_init(&ti, inputs_count, outputs_count, version, lock_time, expiry, 0,
-              curve->hasher_sign, overwintered, version_group_id);
+              curve->hasher_sign, overwintered, version_group_id, 0);
       ti.version |= (DECRED_SERIALIZE_WITNESS_SIGNING << 16);
       ti.is_decred = true;
       if (!compile_input_script_sig(&tx->inputs[0])) {

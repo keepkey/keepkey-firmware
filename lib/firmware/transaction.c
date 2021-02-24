@@ -772,6 +772,10 @@ uint32_t tx_serialize_middle_hash(TxStruct *tx) {
 
 uint32_t tx_serialize_footer(TxStruct *tx, uint8_t *out) {
   memcpy(out, &(tx->lock_time), 4);
+  if (tx->timestamp) {
+    memcpy(out + 4, &(tx->timestamp), 4);
+    return 8;
+  }
   if (tx->overwintered) {
     if (tx->version == 3) {
       memcpy(out + 4, &(tx->expiry), 4);
@@ -795,6 +799,10 @@ uint32_t tx_serialize_footer(TxStruct *tx, uint8_t *out) {
 
 uint32_t tx_serialize_footer_hash(TxStruct *tx) {
   hasher_Update(&(tx->hasher), (const uint8_t *)&(tx->lock_time), 4);
+  if (tx->timestamp) {
+    hasher_Update(&(tx->hasher), (const uint8_t *)&(tx->timestamp), 4);
+    return 8;
+  }
   if (tx->overwintered) {
     hasher_Update(&(tx->hasher), (const uint8_t *)&(tx->expiry), 4);
     hasher_Update(&(tx->hasher), (const uint8_t *)"\x00", 1);  // nJoinSplit
@@ -883,7 +891,7 @@ uint32_t tx_serialize_extra_data_hash(TxStruct *tx, const uint8_t *data,
 void tx_init(TxStruct *tx, uint32_t inputs_len, uint32_t outputs_len,
              uint32_t version, uint32_t lock_time, uint32_t expiry,
              uint32_t extra_data_len, HasherType hasher_sign, bool overwintered,
-             uint32_t version_group_id) {
+             uint32_t version_group_id, uint32_t timestamp) {
   tx->inputs_len = inputs_len;
   tx->outputs_len = outputs_len;
   tx->version = version;
@@ -898,6 +906,7 @@ void tx_init(TxStruct *tx, uint32_t inputs_len, uint32_t outputs_len,
   tx->is_decred = false;
   tx->overwintered = overwintered;
   tx->version_group_id = version_group_id;
+  tx->timestamp = timestamp;
   hasher_Init(&(tx->hasher), hasher_sign);
 }
 
