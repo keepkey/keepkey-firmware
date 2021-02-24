@@ -1,7 +1,7 @@
 [submodule "deps/device-protocol"]
 	path = deps/device-protocol
-	url = https://github.com/keepkey/device-protocol.git
-	branch = master
+	url = https://github.com/greatwolf/device-protocol.git
+	branch = master-UNOFFICIAL
 [submodule "deps/trezor-firmware"]
 	path = deps/crypto/trezor-firmware
 	url = https://github.com/keepkey/trezor-firmware.git
