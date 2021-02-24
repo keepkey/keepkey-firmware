@@ -28,6 +28,7 @@
 enum {
 #define X(CHAIN_ID, CONTRACT_ADDR, TICKER, DECIMALS) \
   CONCAT(TokenIndex, __COUNTER__),
+#include "keepkey/firmware/uniswap_tokens.def"
 #include "keepkey/firmware/ethereum_tokens.def"
   TokenIndexLast,
   TokenIndexFirst = 0
