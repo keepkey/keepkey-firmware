@@ -56,6 +56,10 @@
     MSG_IN(MessageType_MessageType_RippleGetAddress,                RippleGetAddress,            fsm_msgRippleGetAddress)
     MSG_IN(MessageType_MessageType_RippleSignTx,                    RippleSignTx,                fsm_msgRippleSignTx)
 
+    MSG_IN(MessageType_MessageType_ThorChainGetAddress,             ThorChainGetAddress,         fsm_msgThorChainGetAddress)
+    MSG_IN(MessageType_MessageType_ThorChainSignTx,                 ThorChainSignTx,             fsm_msgThorChainSignTx)
+    MSG_IN(MessageType_MessageType_ThorChainMsgAck,                 ThorChainMsgAck,             fsm_msgThorChainMsgAck)
+
     /* Normal Out Messages */
     MSG_OUT(MessageType_MessageType_Success,                        Success,                     NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_Failure,                        Failure,                     NO_PROCESS_FUNC)
@@ -99,6 +103,10 @@
 
     MSG_OUT(MessageType_MessageType_RippleAddress,                  RippleAddress,               NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_RippleSignedTx,                 RippleSignedTx,              NO_PROCESS_FUNC)
+
+    MSG_OUT(MessageType_MessageType_ThorChainAddress,               ThorChainAddress,            NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_ThorChainMsgRequest,            ThorChainMsgRequest,         NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_ThorChainSignedTx,              ThorChainSignedTx,           NO_PROCESS_FUNC)
 
 #if DEBUG_LINK
     /* Debug Messages */

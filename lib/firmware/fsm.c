@@ -54,6 +54,7 @@
 #include "keepkey/firmware/signing.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/tendermint.h"
+#include "keepkey/firmware/thorchain.h"
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/txin_check.h"
 #include "keepkey/firmware/u2f.h"
@@ -76,6 +77,7 @@
 #include "messages-eos.pb.h"
 #include "messages-nano.pb.h"
 #include "messages-ripple.pb.h"
+#include "messages-thorchain.pb.h"
 
 #include <stdio.h>
 
@@ -286,3 +288,4 @@ void fsm_msgClearSession(ClearSession *msg) {
 #include "fsm_msg_cosmos.h"
 #include "fsm_msg_binance.h"
 #include "fsm_msg_ripple.h"
+#include "fsm_msg_thorchain.h"

@@ -1,0 +1,13 @@
+ThorChainGetAddress.address_n                             max_count:10
+
+ThorChainAddress.address                                  max_size:46
+
+ThorChainSignTx.address_n                                 max_count:10
+ThorChainSignTx.chain_id                                  max_size:32
+ThorChainSignTx.memo                                      max_size:256
+
+ThorChainMsgSend.from_address                             max_size:46
+ThorChainMsgSend.to_address                               max_size:46
+
+ThorChainSignedTx.public_key                              max_size:33
+ThorChainSignedTx.signature                               max_size:64
