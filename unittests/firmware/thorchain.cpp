@@ -8,7 +8,7 @@ extern "C" {
 #include "gtest/gtest.h"
 #include <cstring>
 
-TEST(ThorChain, ThorChainGetAddress) {
+TEST(Thorchain, ThorchainGetAddress) {
   HDNode node = {
       0,
       0,
@@ -27,7 +27,7 @@ TEST(ThorChain, ThorChainGetAddress) {
   EXPECT_EQ(std::string("thor1am058pdux3hyulcmfgj4m3hhrlfn8nzm88u80q"), addr);
 }
 
-TEST(ThorChain, ThorChainSignTx) {
+TEST(Thorchain, ThorchainSignTx) {
   HDNode node = {
       0,
       0,
@@ -43,10 +43,10 @@ TEST(ThorChain, ThorChainSignTx) {
       &secp256k1_info};
   hdnode_fill_public_key(&node);
 
-  const ThorChainSignTx msg = {
-      5,    {0x80000000 | 44, 0x80000000 | 118, 0x80000000, 0, 0},  // address_n
+  const ThorchainSignTx msg = {
+      5,    {0x80000000 | 44, 0x80000000 | 934, 0x80000000, 0, 0},  // address_n
       true, 0,              // account_number
-      true, "cosmoshub-2",  // chain_id
+      true, "thorchain",  // chain_id
       true, 5000,           // fee_amount
       true, 200000,         // gas
       true, "",             // memo
@@ -56,7 +56,7 @@ TEST(ThorChain, ThorChainSignTx) {
   ASSERT_TRUE(thorchain_signTxInit(&node, &msg));
 
   ASSERT_TRUE(thorchain_signTxUpdateMsgSend(
-      100000, "thorchain18vhdczjut44gpsy804crfhnd5nq003nz0nf20v"));
+      100000, "thor18vhdczjut44gpsy804crfhnd5nq003nz0nf20v"));
 
   uint8_t public_key[33];
   uint8_t signature[64];

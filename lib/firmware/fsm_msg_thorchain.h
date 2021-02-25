@@ -1,12 +1,12 @@
 
-void fsm_msgThorChainGetAddress(const ThorChainGetAddress *msg) {
-  RESP_INIT(ThorChainAddress);
+void fsm_msgThorchainGetAddress(const ThorchainGetAddress *msg) {
+  RESP_INIT(ThorchainAddress);
 
   CHECK_INITIALIZED
 
   CHECK_PIN
 
-  const CoinType *coin = fsm_getCoin(true, "ThorChain");
+  const CoinType *coin = fsm_getCoin(true, "THORChain");
   if (!coin) {
     return;
   }
@@ -65,11 +65,11 @@ void fsm_msgThorChainGetAddress(const ThorChainGetAddress *msg) {
   resp->has_address = true;
 
   memzero(node, sizeof(*node));
-  msg_write(MessageType_MessageType_ThorChainAddress, resp);
+  msg_write(MessageType_MessageType_ThorchainAddress, resp);
   layoutHome();
 }
 
-void fsm_msgThorChainSignTx(const ThorChainSignTx *msg) {
+void fsm_msgThorchainSignTx(const ThorchainSignTx *msg) {
   CHECK_INITIALIZED
   CHECK_PIN
 
@@ -90,7 +90,7 @@ void fsm_msgThorChainSignTx(const ThorChainSignTx *msg) {
 
   hdnode_fill_public_key(node);
 
-  RESP_INIT(ThorChainMsgRequest);
+  RESP_INIT(ThorchainMsgRequest);
 
   if (!thorchain_signTxInit(node, msg)) {
     thorchain_signAbort();
@@ -102,27 +102,27 @@ void fsm_msgThorChainSignTx(const ThorChainSignTx *msg) {
   }
 
   memzero(node, sizeof(*node));
-  msg_write(MessageType_MessageType_ThorChainMsgRequest, resp);
+  msg_write(MessageType_MessageType_ThorchainMsgRequest, resp);
   layoutHome();
 }
 
-void fsm_msgThorChainMsgAck(const ThorChainMsgAck *msg) {
+void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg) {
   // Confirm transaction basics
   CHECK_PARAM(thorchain_signingIsInited(), "Signing not in progress");
   if (!msg->has_send || !msg->send.has_to_address || !msg->send.has_amount) {
     thorchain_signAbort();
     fsm_sendFailure(FailureType_Failure_FirmwareError,
-                    _("Invalid ThorChain Message Type"));
+                    _("Invalid THORChain Message Type"));
     layoutHome();
     return;
   }
 
-  const CoinType *coin = fsm_getCoin(true, "ThorChain");
+  const CoinType *coin = fsm_getCoin(true, "THORChain");
   if (!coin) {
     return;
   }
 
-  const ThorChainSignTx *sign_tx = thorchain_getThorChainSignTx();
+  const ThorchainSignTx *sign_tx = thorchain_getThorchainSignTx();
 
   switch (msg->send.address_type) {
     case OutputAddressType_EXCHANGE: {
@@ -173,8 +173,8 @@ void fsm_msgThorChainMsgAck(const ThorChainMsgAck *msg) {
   }
 
   if (!thorchain_signingIsFinished()) {
-    RESP_INIT(ThorChainMsgRequest);
-    msg_write(MessageType_MessageType_ThorChainMsgRequest, resp);
+    RESP_INIT(ThorchainMsgRequest);
+    msg_write(MessageType_MessageType_ThorchainMsgRequest, resp);
     return;
   }
 
@@ -197,8 +197,8 @@ void fsm_msgThorChainMsgAck(const ThorChainMsgAck *msg) {
   }
 
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, node_str,
-               "Sign this ThorChain transaction on %s? "
-               "It includes a fee of %" PRIu32 " uATOM and %" PRIu32 " gas.",
+               "Sign this THORChain transaction on %s? "
+               "It includes a fee of %" PRIu32 " RUNE and %" PRIu32 " gas.",
                sign_tx->chain_id, sign_tx->fee_amount, sign_tx->gas)) {
     thorchain_signAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
@@ -206,7 +206,7 @@ void fsm_msgThorChainMsgAck(const ThorChainMsgAck *msg) {
     return;
   }
 
-  RESP_INIT(ThorChainSignedTx);
+  RESP_INIT(ThorchainSignedTx);
 
   if (!thorchain_signTxFinalize(resp->public_key.bytes, resp->signature.bytes)) {
     thorchain_signAbort();
@@ -222,5 +222,5 @@ void fsm_msgThorChainMsgAck(const ThorChainMsgAck *msg) {
   resp->has_signature = true;
   thorchain_signAbort();
   layoutHome();
-  msg_write(MessageType_MessageType_ThorChainSignedTx, resp);
+  msg_write(MessageType_MessageType_ThorchainSignedTx, resp);
 }

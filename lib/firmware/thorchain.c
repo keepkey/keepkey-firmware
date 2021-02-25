@@ -1,5 +1,4 @@
 #include "keepkey/firmware/thorchain.h"
-
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/util.h"
 #include "keepkey/firmware/home_sm.h"
@@ -18,11 +17,11 @@ static SHA256_CTX ctx;
 static bool has_message;
 static bool initialized;
 static uint32_t msgs_remaining;
-static ThorChainSignTx msg;
+static ThorchainSignTx msg;
 
-const ThorChainSignTx *thorchain_getThorChainSignTx(void) { return &msg; }
+const ThorchainSignTx *thorchain_getThorchainSignTx(void) { return &msg; }
 
-bool thorchain_signTxInit(const HDNode *_node, const ThorChainSignTx *_msg) {
+bool thorchain_signTxInit(const HDNode *_node, const ThorchainSignTx *_msg) {
   initialized = true;
   msgs_remaining = _msg->msg_count;
   has_message = false;
@@ -51,7 +50,7 @@ bool thorchain_signTxInit(const HDNode *_node, const ThorChainSignTx *_msg) {
   success &=
       tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                           "\",\"fee\":{\"amount\":[{\"amount\":\"%" PRIu32
-                          "\",\"denom\":\"uatom\"}]",
+                          "\",\"denom\":\"rune\"}]",
                           msg.fee_amount);
 
   // 8 + ^10 + 2 = ^20
@@ -92,13 +91,13 @@ bool thorchain_signTxUpdateMsgSend(const uint64_t amount, const char *to_address
 
   bool success = true;
 
-  const char *const prelude = "{\"type\":\"thorchain-sdk/MsgSend\",\"value\":{";
+  const char *const prelude = "{\"type\":\"thorchain/MsgSend\",\"value\":{";
   sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
 
   // 21 + ^20 + 19 = ^60
   success &= tendermint_snprintf(
       &ctx, buffer, sizeof(buffer),
-      "\"amount\":[{\"amount\":\"%" PRIu64 "\",\"denom\":\"uatom\"}]", amount);
+      "\"amount\":[{\"amount\":\"%" PRIu64 "\",\"denom\":\"rune\"}]", amount);
 
   // 17 + 45 + 1 = 63
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
