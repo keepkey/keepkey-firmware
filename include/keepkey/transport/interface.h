@@ -30,6 +30,7 @@
 #include "messages-cosmos.pb.h"
 #include "messages-eos.pb.h"
 #include "messages-ripple.pb.h"
+#include "messages-thorchain.pb.h"
 
 #include "types.pb.h"
 #include "trezor_transport.h"

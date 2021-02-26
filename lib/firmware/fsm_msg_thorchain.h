@@ -149,7 +149,7 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg) {
     case OutputAddressType_TRANSFER:
     default: {
       char amount_str[32];
-      bn_format_uint64(msg->send.amount, NULL, " ATOM", 6, 0, false, amount_str,
+      bn_format_uint64(msg->send.amount, NULL, " RUNE", 8, 0, false, amount_str,
                        sizeof(amount_str));
       if (!confirm_transaction_output(
               ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,

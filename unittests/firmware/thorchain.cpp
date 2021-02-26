@@ -44,7 +44,7 @@ TEST(Thorchain, ThorchainSignTx) {
   hdnode_fill_public_key(&node);
 
   const ThorchainSignTx msg = {
-      5,    {0x80000000 | 44, 0x80000000 | 934, 0x80000000, 0, 0},  // address_n
+      5,    {0x80000000 | 44, 0x80000000 | 931, 0x80000000, 0, 0},  // address_n
       true, 0,              // account_number
       true, "thorchain",  // chain_id
       true, 5000,           // fee_amount

@@ -26,6 +26,7 @@ set(sources
     signing.c
     storage.c
     tendermint.c
+    thorchain.c
     transaction.c
     txin_check.c
     u2f.c)
