@@ -12,13 +12,22 @@ void fsm_msgThorchainGetAddress(const ThorchainGetAddress *msg) {
   }
   HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
+  char mainnet[] = "thor";
+  char testnet[] = "tthor";
+  char *pfix;
+  
   if (!node) {
     return;
   }
 
   hdnode_fill_public_key(node);
 
-  if (!tendermint_getAddress(node, "thorchain", resp->address)) {
+  pfix = mainnet;
+  if (msg->has_testnet && msg->testnet) {
+    pfix = testnet;
+  }
+
+  if (!tendermint_getAddress(node, pfix, resp->address)) {
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_FirmwareError,
                     _("Can't encode address"));
