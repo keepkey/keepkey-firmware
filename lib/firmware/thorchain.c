@@ -18,6 +18,7 @@ static bool has_message;
 static bool initialized;
 static uint32_t msgs_remaining;
 static ThorchainSignTx msg;
+static bool testnet;
 
 const ThorchainSignTx *thorchain_getThorchainSignTx(void) { return &msg; }
 
@@ -25,6 +26,11 @@ bool thorchain_signTxInit(const HDNode *_node, const ThorchainSignTx *_msg) {
   initialized = true;
   msgs_remaining = _msg->msg_count;
   has_message = false;
+  testnet = false;
+
+  if (_msg->has_testnet) {
+    testnet = _msg->testnet;
+  }
 
   memzero(&node, sizeof(node));
   memcpy(&node, _node, sizeof(node));
@@ -71,6 +77,9 @@ bool thorchain_signTxInit(const HDNode *_node, const ThorchainSignTx *_msg) {
 }
 
 bool thorchain_signTxUpdateMsgSend(const uint64_t amount, const char *to_address) {
+  char mainnetp[] = "thor";
+  char testnetp[] = "tthor";
+  char *pfix;
   char buffer[64 + 1];
 
   size_t decoded_len;
@@ -81,7 +90,13 @@ bool thorchain_signTxUpdateMsgSend(const uint64_t amount, const char *to_address
   }
 
   char from_address[46];
-  if (!tendermint_getAddress(&node, "thor", from_address)) {
+
+  pfix = mainnetp;
+  if (testnet) {
+    pfix = testnetp;
+  }
+
+  if (!tendermint_getAddress(&node, pfix, from_address)) {
     return false;
   }
 
