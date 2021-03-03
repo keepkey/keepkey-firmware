@@ -111,6 +111,10 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg);
 void fsm_msgCosmosSignTx(const CosmosSignTx *msg);
 void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg);
 
+void fsm_msgThorchainGetAddress(const ThorchainGetAddress *msg);
+void fsm_msgThorchainSignTx(const ThorchainSignTx *msg);
+void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg);
+
 #if DEBUG_LINK
 // void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
 void fsm_msgDebugLinkGetState(DebugLinkGetState *msg);
