@@ -47,10 +47,8 @@ bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx *msg) {
     (void)data_total;
     const TokenType *from, *to;
     uint8_t *fromAddress, *toAddress;
-    char constr1[20], constr2[20];
-    //bignum256 sellTokenAmount, minBuyTokenAmount;
-    (void)constr2;
-    
+    char constr1[40], constr2[40];
+
     fromAddress = (uint8_t *)(msg->data_initial_chunk.bytes + 4 + 6*32 + 12);
     toAddress = (uint8_t *)(msg->data_initial_chunk.bytes + 4 + 7*32 + 4 + 12);
 
@@ -63,20 +61,24 @@ bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx *msg) {
                  "Confirm Uniswap Swap:\n%s", constr1)) {
         return false;
     }
-    /*
-    // Get trade value data
+    
+    // Get token trade amount data
+    bignum256 sellTokenAmount, minBuyTokenAmount;
     bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 32, 32, &sellTokenAmount);
     bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 2*32, 32, &minBuyTokenAmount);
 
-    char withdraw[32];
-    ethereumFormatAmount(&sellTokenAmount, DAI, msg->chain_id, withdraw,
-                       sizeof(withdraw));
+    char sellToken[32];
+    char minBuyToken[32];
+    ethereumFormatAmount(&sellTokenAmount, from, msg->chain_id, sellToken,
+                       sizeof(sellToken));
+    ethereumFormatAmount(&minBuyTokenAmount, to, msg->chain_id, minBuyToken,
+                       sizeof(minBuyToken));
 
-
-    snprintf(constr1, 20, "%s %d", from->ticker, to->ticker);
+    snprintf(constr1, 32, "%s", sellToken);
+    snprintf(constr2, 32, "%s", minBuyToken);
 
     return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Uniswap",
-                 "Sell %s:\nBuy at least: %s", constr1, constr2);
-    */
+                 "Sell %s\nBuy at least %s", constr1, constr2);
+    
    return true;
 }
