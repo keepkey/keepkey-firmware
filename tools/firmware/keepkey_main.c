@@ -201,8 +201,8 @@ int main(void) {
 
   led_func(SET_GREEN_LED);
 
-  usbInit(storage_isInitialized() ? "keepkey.com/wallet"
-                                  : "keepkey.com/get-started");
+  usbInit("beta.shapeshift.com");
+
   u2fInit();
   led_func(CLR_RED_LED);
 

@@ -271,7 +271,7 @@ bool pin_protect_cached(void) {
     if (session_isPinCached()) {
         return true;
     }
-    
+
     return pin_protect("Enter\nYour PIN");
 }
 
@@ -303,28 +303,28 @@ bool change_pin(void) {
 }
 
 bool change_wipe_code(void) {
-    PINInfo wipe_code_info_first, wipe_code_info_second;
-    
-    /* Set request types */
-    wipe_code_info_first.type =
-    PinMatrixRequestType_PinMatrixRequestType_NewFirst;
-    wipe_code_info_second.type =
-    PinMatrixRequestType_PinMatrixRequestType_NewSecond;
-    
-    if (!pin_request("Enter New Wipe Code", &wipe_code_info_first)) {
-        return false;
-    }
-    
-    if (!pin_request("Re-Enter New Wipe Code", &wipe_code_info_second)) {
-        return false;
-    }
-    
-    if (strcmp(wipe_code_info_first.pin, wipe_code_info_second.pin) != 0) {
-        return false;
-    }
-    
-    storage_setWipeCode(wipe_code_info_first.pin);
-    return true;
+  PINInfo wipe_code_info_first, wipe_code_info_second;
+
+  /* Set request types */
+  wipe_code_info_first.type =
+      PinMatrixRequestType_PinMatrixRequestType_NewFirst;
+  wipe_code_info_second.type =
+      PinMatrixRequestType_PinMatrixRequestType_NewSecond;
+
+  if (!pin_request("Enter New Wipe Code", &wipe_code_info_first)) {
+    return false;
+  }
+
+  if (!pin_request("Re-Enter New Wipe Code", &wipe_code_info_second)) {
+    return false;
+  }
+
+  if (strcmp(wipe_code_info_first.pin, wipe_code_info_second.pin) != 0) {
+    return false;
+  }
+
+  storage_setWipeCode(wipe_code_info_first.pin);
+  return true;
 }
 
 #if DEBUG_LINK
