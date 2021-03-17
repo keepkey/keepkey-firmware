@@ -19,11 +19,15 @@
 
 #include "keepkey/firmware/ethereum_contracts.h"
 
+#include "keepkey/firmware/ethereum_contracts/zxswap.h"
 #include "keepkey/firmware/ethereum_contracts/makerdao.h"
 
 bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx *msg,
                               const HDNode *node) {
   (void)node;
+
+
+  if (zx_isZxSwap(msg)) return true;
 
   if (makerdao_isMakerDAO(data_total, msg)) return true;
 
@@ -34,6 +38,9 @@ bool ethereum_contractConfirmed(uint32_t data_total, const EthereumSignTx *msg,
                                 const HDNode *node) {
   (void)node;
 
+  if (zx_isZxSwap(msg))
+    return zx_confirmZxSwap(data_total, msg);
+  
   if (makerdao_isMakerDAO(data_total, msg))
     return makerdao_confirmMakerDAO(data_total, msg);
 
