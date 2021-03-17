@@ -48,9 +48,25 @@ bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx *msg) {
     const TokenType *from, *to;
     uint8_t *fromAddress, *toAddress;
     char constr1[40], constr2[40];
+    uint32_t numOfTokens, adder;
 
-    fromAddress = (uint8_t *)(msg->data_initial_chunk.bytes + 4 + 6*32 + 12);
-    toAddress = (uint8_t *)(msg->data_initial_chunk.bytes + 4 + 7*32 + 4 + 12);
+    numOfTokens = read_be(msg->data_initial_chunk.bytes + 4 + 5*32 - 4);
+
+    switch (numOfTokens) {
+        case 2:
+            adder = 0;  // only two tokens, swap to token second
+            break;
+        case 3:
+            adder = 1;  // swap to token last in the list of 3
+            break;
+        default:        // can't interpret 0, 1, or >3 tokens
+            return false;
+            break;
+    }
+
+    fromAddress = (uint8_t *)(msg->data_initial_chunk.bytes + 4 + 5*32 + 12);
+    toAddress = (uint8_t *)(msg->data_initial_chunk.bytes + 4 + (6+adder)*32 + 12);
+
 
     from = tokenByChainAddress(msg->chain_id, fromAddress);
     to = tokenByChainAddress(msg->chain_id, toAddress);
