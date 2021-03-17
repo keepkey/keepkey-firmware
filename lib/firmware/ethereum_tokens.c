@@ -20,6 +20,12 @@ static const TokenType Unknown = {
     " UNKN", 1, 0};
 const TokenType *UnknownToken = (const TokenType *)&Unknown;
 
+static const TokenType Ethtest = {
+    "\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee"
+    "\xee\xee",
+    "  ETH", 1, 18};
+const TokenType *EthTestToken = (const TokenType *)&Ethtest;
+
 const TokenType *tokenByChainAddress(uint8_t chain_id, const uint8_t *address) {
   if (!address) return 0;
   for (int i = 0; i < TOKENS_COUNT; i++) {
@@ -28,6 +34,10 @@ const TokenType *tokenByChainAddress(uint8_t chain_id, const uint8_t *address) {
       return &(tokens[i]);
     }
   }
+  if (memcmp(address, Ethtest.address, 20) == 0) {
+    return EthTestToken;
+  }
+
   return UnknownToken;
 }
 
