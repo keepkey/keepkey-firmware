@@ -187,8 +187,7 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg) {
     return;
   }
 
-  if (sign_tx->has_memo && !confirm(ButtonRequestType_ButtonRequest_ConfirmMemo,
-                                    _("Memo"), "%s", sign_tx->memo)) {
+  if (sign_tx->has_memo && !thorchain_parseConfirmSwap(sign_tx->memo)) {
     thorchain_signAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
