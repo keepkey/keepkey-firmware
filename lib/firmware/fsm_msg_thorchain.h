@@ -187,12 +187,19 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg) {
     return;
   }
 
-  if (sign_tx->has_memo && !thorchain_parseConfirmSwap(sign_tx->memo)) {
-    thorchain_signAbort();
-    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-    layoutHome();
-    return;
+  if (sign_tx->has_memo) {
+    // See if we can parse the memo
+    if (!thorchain_parseConfirmSwap(sign_tx->memo, sizeof(sign_tx->memo))) {
+      // Memo not recognizable, ask to confirm it
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s", sign_tx->memo)) {
+        thorchain_signAbort();
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        layoutHome();
+        return;
+      }
+    }
   }
+
 
   char node_str[NODE_STRING_LENGTH];
   if (!bip32_node_to_string(node_str, sizeof(node_str), coin,

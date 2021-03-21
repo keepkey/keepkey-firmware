@@ -157,15 +157,10 @@ void thorchain_signAbort(void) {
 }
 
 
+bool thorchain_parseConfirmSwap(const char *swapStr, size_t size) {
 /*
-static bool confirmSwap(char *restOfData) {
-    trans = tok;
-    tok = strtok(NULL, ":");
-}
-*/
-
-bool thorchain_parseConfirmSwap(const char *swapStr) {
-/*
+  Input: swapStr is candidate thorchain data
+         size is the size of swapStr (<= 256)
   Memos should be of the form:
   transaction:asset:ticker-id:destination:limit
 
@@ -182,7 +177,9 @@ bool thorchain_parseConfirmSwap(const char *swapStr) {
 
 // check if memo data is recognized
 
-  strncpy(memoBuf, swapStr, 256);
+  if (size > 256) return false;
+  strncpy(memoBuf, swapStr, size);
+  memoBuf[255] = '\0';            // ensure null termination
   tok = strtok(memoBuf, ":");
 
 // get transaction and asset
@@ -195,11 +192,15 @@ bool thorchain_parseConfirmSwap(const char *swapStr) {
       }
   }
  
+  if (ctr != 3) {
+    // Must have three tokens at this point: transaction, chain, asset. If not, just confirm data
+    return false;
+  }
+  
   // Check for swap
   if (strncmp(parseTokPtrs[0], "SWAP", 4) == 0 ||
       strncmp(parseTokPtrs[0], "S", 1) == 0 || 
       strncmp(parseTokPtrs[0], "=", 1) == 0) {
-
     // This is a swap, set up destination and limit
     // This is the dest, may be blank which means swap to self
     parseTokPtrs[3] = "self";
@@ -215,7 +216,6 @@ bool thorchain_parseConfirmSwap(const char *swapStr) {
         parseTokPtrs[4] = tok;
       }
     }
-   
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Thorchain swap",
                                       "Confirm swap asset %s", parseTokPtrs[2])) {
       return false;
@@ -228,13 +228,9 @@ bool thorchain_parseConfirmSwap(const char *swapStr) {
                                       "Confirm limit %s", parseTokPtrs[4])) {
       return false;
     }
-
   } else {
-    // Just confirm memo if no intention data parsable
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo,
-                                      "Memo", "%s", swapStr)) {
-      return false;
-    }  
+    // Just confirm whatever coin data if no thorchain intention data parsable
+    return false;
   }
 
   return true;
