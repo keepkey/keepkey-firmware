@@ -79,7 +79,6 @@ bool ethereum_isStandardERC20Approve(const EthereumSignTx *msg) {
 
 bool ethereum_isThorchainSwap(const EthereumSignTx *msg) {
   if (msg->has_to && msg->to.size == 20 && msg->value.size == 0 &&
-      msg->data_initial_chunk.size == 68 &&
       memcmp(msg->data_initial_chunk.bytes,
              "\x1f\xec\xe7\xb4\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 
              16) == 0) {
@@ -94,7 +93,7 @@ uint8_t ethereum_extractThorchainSwapData(const EthereumSignTx *msg,
   uint16_t offset = 328;
   int16_t len = msg->data_length - offset;
   if (msg->has_data_length && len > 0) {
-    memcpy(buffer, msg->data_initial_chunk.bytes, msg->data_length);
+    memcpy(buffer, msg->data_initial_chunk.bytes + offset, len);
     // String length must be < 255 characters
     return len < 256 ? (uint8_t)len : 0;
   }
@@ -674,6 +673,19 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
     data_needs_confirm = false;
   }
 
+    // Detect THORChain swap
+  if (ethereum_isThorchainSwap(msg)) {
+    if (token == NULL && data_total > 0 && data_needs_confirm) {
+      char swap_data[256] = {'\0'};
+      uint8_t swap_data_len = ethereum_extractThorchainSwapData(msg, swap_data);
+      if (!thorchain_parseConfirmSwap(swap_data, swap_data_len)) {
+        fsm_sendFailure(FailureType_Failure_Other, NULL);
+        ethereum_signing_abort();
+        return;
+      }
+    }
+  }
+
   // detect ERC-20 token
   if (data_total == 68 && ethereum_isStandardERC20Transfer(msg)) {
     token = tokenByChainAddress(chain_id, msg->to.bytes);
@@ -716,29 +728,6 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
                       "Signing cancelled by user");
       ethereum_signing_abort();
       return;
-    }
-  }
-
-  // Detect THORChain swap
-  if (ethereum_isThorchainSwap(msg)) {
-    memset(confirm_body_message, 0, sizeof(confirm_body_message));
-    if (token == NULL && data_total > 0 && data_needs_confirm) {
-      char swap_data[256] = {'\0'};
-      uint8_t swap_data_len = ethereum_extractThorchainSwapData(msg, swap_data);
-      if (!thorchain_parseConfirmSwap(swap_data, swap_data_len)) {
-        fsm_sendFailure(FailureType_Failure_Other, NULL);
-        ethereum_signing_abort();
-        return;
-      }
-      layoutEthereumData(msg->data_initial_chunk.bytes,
-                         msg->data_initial_chunk.size, data_total,
-                         confirm_body_message, sizeof(confirm_body_message));
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                   "Confirm Ethereum Data", "%s", confirm_body_message)) {
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-        ethereum_signing_abort();
-        return;
-      }
     }
   }
 
