@@ -17,4 +17,12 @@ bool thorchain_signingIsFinished(void);
 void thorchain_signAbort(void);
 const ThorchainSignTx *thorchain_getThorchainSignTx(void);
 
+// Thorchain swap data parse and confirm
+//      input: 
+//          swapStr - string in thorchain swap format
+//          size - size of input string (must be <= 256)
+//      output:
+//          true if thorchain data parsed and confirmed by user, false otherwise
+bool thorchain_parseConfirmSwap(const char *swapStr, size_t size);
+
 #endif
