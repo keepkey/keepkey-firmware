@@ -33,6 +33,7 @@
 #include "keepkey/firmware/ethereum_contracts/makerdao.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/storage.h"
+#include "keepkey/firmware/thorchain.h"
 #include "keepkey/firmware/transaction.h"
 #include "trezor/crypto/address.h"
 #include "trezor/crypto/ecdsa.h"
@@ -74,6 +75,30 @@ bool ethereum_isStandardERC20Approve(const EthereumSignTx *msg) {
     return true;
   }
   return false;
+}
+
+bool ethereum_isThorchainSwap(const EthereumSignTx *msg) {
+  if (msg->has_to && msg->to.size == 20 && msg->value.size == 0 &&
+      memcmp(msg->data_initial_chunk.bytes,
+             "\x1f\xec\xe7\xb4\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 
+             16) == 0) {
+    return true;
+  }
+  return false;
+}
+
+uint8_t ethereum_extractThorchainSwapData(const EthereumSignTx *msg,
+                                          char *buffer) {
+  // Swap data begins 164 chars into data buffer:
+  // offset = deposit function hash + address + address + uint256
+  uint16_t offset = 4 + (5 * 32);
+  int16_t len = msg->data_length - offset;
+  if (msg->has_data_length && len > 0) {
+    memcpy(buffer, msg->data_initial_chunk.bytes + offset, len);
+    // String length must be < 255 characters
+    return len < 256 ? (uint8_t)len : 0;
+  }
+  return 0;
 }
 
 bool ethereum_getStandardERC20Recipient(const EthereumSignTx *msg,
@@ -647,6 +672,21 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
     }
     needs_confirm = false;
     data_needs_confirm = false;
+  }
+
+  // Detect THORChain swap
+  if (ethereum_isThorchainSwap(msg)) {
+    if (token == NULL && data_total > 0 && data_needs_confirm) {
+      char swap_data[256] = {'\0'};
+      uint8_t swap_data_len = ethereum_extractThorchainSwapData(msg, swap_data);
+      if (!thorchain_parseConfirmSwap(swap_data, swap_data_len)) {
+        fsm_sendFailure(FailureType_Failure_Other, _("Malformed THORChain swap data"));
+        ethereum_signing_abort();
+        return;
+      }
+      needs_confirm = false;
+      data_needs_confirm = false;
+    }
   }
 
   // detect ERC-20 token
