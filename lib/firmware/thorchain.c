@@ -170,7 +170,7 @@ bool thorchain_parseConfirmSwap(const char *swapStr, size_t size) {
   Swap transactions can be indicated by "SWAP" or "s" or "="
 */
 
-  char *parseTokPtrs[7]; // we can parse up to 7 tokens
+  char *parseTokPtrs[7] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL}; // we can parse up to 7 tokens
   char *tok;
   char memoBuf[256];
   uint16_t ctr;
@@ -178,6 +178,7 @@ bool thorchain_parseConfirmSwap(const char *swapStr, size_t size) {
 // check if memo data is recognized
 
   if (size > 256) return false;
+  memzero(memoBuf, sizeof(memoBuf));
   strncpy(memoBuf, swapStr, size);
   memoBuf[255] = '\0';            // ensure null termination
   tok = strtok(memoBuf, ":");
