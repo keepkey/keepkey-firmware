@@ -170,14 +170,15 @@ bool thorchain_parseConfirmSwap(const char *swapStr, size_t size) {
   Swap transactions can be indicated by "SWAP" or "s" or "="
 */
 
-  char *parseTokPtrs[7] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL}; // we can parse up to NUMTOK tokens
+  char *parseTokPtrs[7] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL}; // we can parse up to 7 tokens
   char *tok;
-  char memoBuf[256] = "";
+  char memoBuf[256];
   uint16_t ctr;
 
 // check if memo data is recognized
 
   if (size > 256) return false;
+  memzero(memoBuf, sizeof(memoBuf));
   strncpy(memoBuf, swapStr, size);
   memoBuf[255] = '\0';            // ensure null termination
   tok = strtok(memoBuf, ":");
@@ -199,8 +200,8 @@ bool thorchain_parseConfirmSwap(const char *swapStr, size_t size) {
   
   // Check for swap
   if (strncmp(parseTokPtrs[0], "SWAP", 4) == 0 ||
-      strncmp(parseTokPtrs[0], "S", 1) == 0 || 
-      strncmp(parseTokPtrs[0], "=", 1) == 0) {
+      *parseTokPtrs[0] == 'S' || 
+      *parseTokPtrs[0] ==  '=') {
     // This is a swap, set up destination and limit
     // This is the dest, may be blank which means swap to self
     parseTokPtrs[3] = "self";
