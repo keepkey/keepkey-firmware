@@ -32,5 +32,7 @@ void ethereum_signing_txack(EthereumTxAck *msg);
 void ethereum_message_sign(EthereumSignMessage *msg, const HDNode *node,
                            EthereumMessageSignature *resp);
 int ethereum_message_verify(EthereumVerifyMessage *msg);
-
+bool ethereum_isThorchainTx(const EthereumSignTx *msg);
+uint8_t ethereum_extractThorchainData(const EthereumSignTx *msg,
+                                          char *buffer);
 #endif

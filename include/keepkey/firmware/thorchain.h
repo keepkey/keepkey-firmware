@@ -23,6 +23,6 @@ const ThorchainSignTx *thorchain_getThorchainSignTx(void);
 //          size - size of input string (must be <= 256)
 //      output:
 //          true if thorchain data parsed and confirmed by user, false otherwise
-bool thorchain_parseConfirmSwap(const char *swapStr, size_t size);
+bool thorchain_parseConfirmMemo(const char *swapStr, size_t size);
 
 #endif
