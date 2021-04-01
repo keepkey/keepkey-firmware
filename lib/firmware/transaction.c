@@ -229,7 +229,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in,
         }
       } else {
         // is this thorchain data?
-        if (!thorchain_parseConfirmSwap((const char *)in->op_return_data.bytes, (size_t)in->op_return_data.size)) {
+        if (!thorchain_parseConfirmMemo((const char *)in->op_return_data.bytes, (size_t)in->op_return_data.size)) {
           if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmOutput,
                           _("Confirm OP_RETURN"), in->op_return_data.bytes,
                           in->op_return_data.size)) {

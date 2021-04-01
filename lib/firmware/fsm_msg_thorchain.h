@@ -189,7 +189,7 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg) {
 
   if (sign_tx->has_memo) {
     // See if we can parse the memo
-    if (!thorchain_parseConfirmSwap(sign_tx->memo, sizeof(sign_tx->memo))) {
+    if (!thorchain_parseConfirmMemo(sign_tx->memo, sizeof(sign_tx->memo))) {
       // Memo not recognizable, ask to confirm it
       if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s", sign_tx->memo)) {
         thorchain_signAbort();

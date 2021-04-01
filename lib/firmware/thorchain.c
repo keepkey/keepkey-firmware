@@ -76,7 +76,8 @@ bool thorchain_signTxInit(const HDNode *_node, const ThorchainSignTx *_msg) {
   return success;
 }
 
-bool thorchain_signTxUpdateMsgSend(const uint64_t amount, const char *to_address) {
+bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
+                                   const char *to_address) {
   char mainnetp[] = "thor";
   char testnetp[] = "tthor";
   char *pfix;
@@ -156,58 +157,58 @@ void thorchain_signAbort(void) {
   memzero(&node, sizeof(node));
 }
 
+bool thorchain_parseConfirmMemo(const char *swapStr, size_t size) {
+  /*
+    Input: swapStr is candidate thorchain data
+           size is the size of swapStr (<= 256)
+    Memos should be of the form:
+    transaction:asset:ticker-id:destination:limit
 
-bool thorchain_parseConfirmSwap(const char *swapStr, size_t size) {
-/*
-  Input: swapStr is candidate thorchain data
-         size is the size of swapStr (<= 256)
-  Memos should be of the form:
-  transaction:asset:ticker-id:destination:limit
+    So, swap USDT to dest address 0x41e55..., limit 420
+    SWAP:ETH.USDT-0xdac17f958d2ee523a2206206994597c13d831ec7:0x41e5560054824ea6b0732e656e3ad64e20e94e45:420
 
-  So, swap USDT to dest address 0x41e55..., limit 420
-  SWAP:ETH.USDT-0xdac17f958d2ee523a2206206994597c13d831ec7:0x41e5560054824ea6b0732e656e3ad64e20e94e45:420
+    Swap transactions can be indicated by "SWAP" or "s" or "="
+  */
 
-  Swap transactions can be indicated by "SWAP" or "s" or "="
-*/
-
-  char *parseTokPtrs[7] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL}; // we can parse up to 7 tokens
+  char *parseTokPtrs[7] = {NULL, NULL, NULL, NULL,
+                           NULL, NULL, NULL};  // we can parse up to 7 tokens
   char *tok;
   char memoBuf[256];
   uint16_t ctr;
 
-// check if memo data is recognized
+  // check if memo data is recognized
 
   if (size > 256) return false;
   memzero(memoBuf, sizeof(memoBuf));
   strncpy(memoBuf, swapStr, size);
-  memoBuf[255] = '\0';            // ensure null termination
+  memoBuf[255] = '\0';  // ensure null termination
   tok = strtok(memoBuf, ":");
 
-// get transaction and asset
-  for (ctr=0; ctr<3; ctr++) {
-      if (tok != NULL) {
-        parseTokPtrs[ctr] = tok;
-        tok = strtok(NULL, ":.");
-      } else {
-        break;
-      }
+  // get transaction and asset
+  for (ctr = 0; ctr < 3; ctr++) {
+    if (tok != NULL) {
+      parseTokPtrs[ctr] = tok;
+      tok = strtok(NULL, ":.");
+    } else {
+      break;
+    }
   }
- 
+
   if (ctr != 3) {
-    // Must have three tokens at this point: transaction, chain, asset. If not, just confirm data
+    // Must have three tokens at this point: transaction, chain, asset. If
+    // not, just confirm data
     return false;
   }
-  
+
   // Check for swap
-  if (strncmp(parseTokPtrs[0], "SWAP", 4) == 0 ||
-      *parseTokPtrs[0] == 'S' || 
-      *parseTokPtrs[0] ==  '=') {
+  if (strncmp(parseTokPtrs[0], "SWAP", 4) == 0 || *parseTokPtrs[0] == 's' ||
+      *parseTokPtrs[0] == '=') {
     // This is a swap, set up destination and limit
     // This is the dest, may be blank which means swap to self
     parseTokPtrs[3] = "self";
     parseTokPtrs[4] = "none";
     if (tok != NULL) {
-      if ((uint32_t)(tok - (parseTokPtrs[2]+strlen(parseTokPtrs[2]))) == 1) {
+      if ((uint32_t)(tok - (parseTokPtrs[2] + strlen(parseTokPtrs[2]))) == 1) {
         // has dest address
         parseTokPtrs[3] = tok;
         tok = strtok(NULL, ":");
@@ -217,22 +218,42 @@ bool thorchain_parseConfirmSwap(const char *swapStr, size_t size) {
         parseTokPtrs[4] = tok;
       }
     }
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Thorchain swap",
-                                      "Confirm swap asset %s", parseTokPtrs[2])) {
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                 "Thorchain swap", "Confirm swap asset %s", parseTokPtrs[2])) {
       return false;
     }
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Thorchain swap",
-                                      "Confirm to %s", parseTokPtrs[3])) {
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                 "Thorchain swap", "Confirm to %s", parseTokPtrs[3])) {
       return false;
     }
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Thorchain swap",
-                                      "Confirm limit %s", parseTokPtrs[4])) {
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                 "Thorchain swap", "Confirm limit %s", parseTokPtrs[4])) {
       return false;
     }
+    return true;
+  }
+
+  // Check for add liquidity
+  else if (strncmp(parseTokPtrs[0], "ADD", 3) == 0 || *parseTokPtrs[0] == 'a' ||
+           *parseTokPtrs[0] == '+') {
+    if (tok != NULL) {
+      // add liquidity pool address
+      parseTokPtrs[3] = tok;
+    } else {
+      return false;
+    }
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                 "Thorchain add liquidity", "Confirm add liquidity to %s pool",
+                 parseTokPtrs[2])) {
+      return false;
+    }
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                 "Thorchain add liquidity", "Confirm to %s", parseTokPtrs[3])) {
+      return false;
+    }
+    return true;
   } else {
     // Just confirm whatever coin data if no thorchain intention data parsable
     return false;
   }
-
-  return true;
 }
