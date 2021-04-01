@@ -194,14 +194,15 @@ bool thorchain_parseConfirmMemo(const char *swapStr, size_t size) {
     }
   }
 
+  if (ctr != 3) {
+    // Must have three tokens at this point: transaction, chain, asset. If
+    // not, just confirm data
+    return false;
+  }
+
   // Check for swap
   if (strncmp(parseTokPtrs[0], "SWAP", 4) == 0 || *parseTokPtrs[0] == 's' ||
       *parseTokPtrs[0] == '=') {
-    if (ctr != 3) {
-      // Must have three tokens at this point: transaction, chain, asset. If
-      // not, just confirm data
-      return false;
-    }
     // This is a swap, set up destination and limit
     // This is the dest, may be blank which means swap to self
     parseTokPtrs[3] = "self";
@@ -231,14 +232,10 @@ bool thorchain_parseConfirmMemo(const char *swapStr, size_t size) {
     }
     return true;
   }
+
   // Check for add liquidity
-  else if (strncmp(parseTokPtrs[0], "ADD", 4) == 0 || *parseTokPtrs[0] == 'a' ||
+  else if (strncmp(parseTokPtrs[0], "ADD", 3) == 0 || *parseTokPtrs[0] == 'a' ||
            *parseTokPtrs[0] == '+') {
-    if (ctr != 3) {
-      // Must have three tokens at this point: transaction, asset (chain + symbol).
-      // If not, just confirm data
-      return false;
-    }
     if (tok != NULL) {
       // add liquidity pool address
       parseTokPtrs[3] = tok;
