@@ -49,6 +49,8 @@ extern const TokenType tokens[];
 
 extern const TokenType *UnknownToken;
 
+const TokenType *tokenIter(int32_t *ctr);
+
 const TokenType *tokenByChainAddress(uint8_t chain_id, const uint8_t *address);
 
 /// Tokens don't have unique tickers, so this might not return the one you're
