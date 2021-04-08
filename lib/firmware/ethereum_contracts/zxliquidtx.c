@@ -33,6 +33,8 @@
 #include "trezor/crypto/memzero.h"
 #include "trezor/crypto/sha3.h"
 
+#include <time.h>
+
 static HDNode *zx_getDerivedNode(const char *curve, const uint32_t *address_n,
                                   size_t address_n_count,
                                   uint32_t *fingerprint) {
@@ -165,9 +167,10 @@ bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx *msg) {
     snprintf(constr1, 32, "%s", tokbuf);
     confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
                  "Minimum %s", constr1);
+
     snprintf(constr1, 32, "%lld", deadline);
     confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
-                 "Deadline (unix ref) %s", constr1);
+                 "Deadline %s", ctime((const time_t *)&deadline));
     
     return true;
 }
