@@ -96,9 +96,10 @@ bool zx_confirmApproveLiquidity(uint32_t data_total, const EthereumSignTx *msg) 
         amt = amtStr;
     }
 
-    confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "uniswap approve liquidity",
+    char *appStr = "uniswap approve liquidity";
+    confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr,
                  "Amount: %s", amt);
-    confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "uniswap approve liquidity",
+    confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr,
                  "approve for pool %s %s", tikstr, poolstr);
     return true;
 }

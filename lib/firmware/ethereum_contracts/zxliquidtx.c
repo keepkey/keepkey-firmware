@@ -61,7 +61,6 @@ static HDNode *zx_getDerivedNode(const char *curve, const uint32_t *address_n,
     return &node;
 }
 
-
 static bool isAddLiquidityEthCall(const EthereumSignTx *msg) {
     if (memcmp(msg->data_initial_chunk.bytes, "\xf3\x05\xd7\x19", 4) == 0)
         return true;
@@ -76,9 +75,9 @@ static bool isRemoveLiquidityEthCall(const EthereumSignTx *msg) {
     return false;
 }
 
-static bool confirmFromAccountMatch(const EthereumSignTx *msg) {
+static bool confirmFromAccountMatch(const EthereumSignTx *msg, char *addremStr) {
     // Determine withdrawal address
-    char addressStr[43] = {'0', 'x'};
+    char addressStr[43] = {'0', 'x', '\0'};
     char *fromSrc;
     uint8_t *fromAddress;
     uint8_t addressBytes[20];
@@ -91,27 +90,6 @@ static bool confirmFromAccountMatch(const EthereumSignTx *msg) {
         memzero(node, sizeof(*node));
     }
 
-    bool rskip60 = false;
-    uint32_t chain_id = 0;
-
-    if (msg->address_n_count == 5) {
-        uint32_t slip44 = msg->address_n[1] & 0x7fffffff;
-        // constants from trezor-common/defs/ethereum/networks.json
-        switch (slip44) {
-            case 137:
-                rskip60 = true;
-                chain_id = 30;
-                break;
-            case 37310:
-                rskip60 = true;
-                chain_id = 31;
-            break;
-        }
-    }
-
-    ethereum_address_checksum(addressBytes, addressStr + 2, rskip60,
-                            chain_id);
-
     fromAddress = (uint8_t *)(msg->data_initial_chunk.bytes + 4 + 5*32 - 20);
 
     if (memcmp(fromAddress, addressBytes, 20) == 0) {
@@ -120,8 +98,12 @@ static bool confirmFromAccountMatch(const EthereumSignTx *msg) {
         fromSrc = "NOT this wallet";
     }
 
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Uniswap Add Liquidity",
-                  "Confirming ETH sending from %s: %s", fromSrc, addressStr)) {
+    for (uint32_t ctr=0; ctr<20; ctr++) {
+        snprintf(&addressStr[2+ctr*2], 3, "%02x", fromAddress[ctr]);
+    }
+
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, addremStr,
+                  "Confirming ETH address is %s: %s", fromSrc, addressStr)) {
        return false;
     }
     return true;
@@ -140,53 +122,52 @@ bool zx_isZxLiquidTx(const EthereumSignTx *msg) {
 bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx *msg) {
     (void)data_total;
     const TokenType *token;
-    char constr1[40], constr2[40];
+    char constr1[40], constr2[40], *arStr = "";
     uint8_t *tokenAddress, *deadlineBytes;
     bignum256 tokenAmount, tokenMinAmount, ethMinAmount;
     uint64_t deadline;
 
-    if (isAddLiquidityEthCall(msg)) {                     // add liquidity confirm
-        tokenAddress = (uint8_t *)(msg->data_initial_chunk.bytes + 4 + 32 - 20);
-        token = tokenByChainAddress(msg->chain_id, tokenAddress);
-        bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 32, 32, &tokenAmount);
-        bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 2*32, 32, &tokenMinAmount);
-        bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 3*32, 32, &ethMinAmount);
+    if (isAddLiquidityEthCall(msg)) {
+        arStr = "uniswap add liquidity";
+    } else if (isRemoveLiquidityEthCall(msg)) {
+        arStr = "uniswap remove liquidity";
+    } else {
+        return false;
+    }
 
-        // bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 6*32 - 8, 8, &deadline);
-        deadlineBytes = (uint8_t *)(msg->data_initial_chunk.bytes + 4 + 6*32 - 8);
-        deadline = ((uint64_t)deadlineBytes[0] << 8*7) |
-                   ((uint64_t)deadlineBytes[1] << 8*6) |
-                   ((uint64_t)deadlineBytes[2] << 8*5) |
-                   ((uint64_t)deadlineBytes[3] << 8*4) |
-                   ((uint64_t)deadlineBytes[4] << 8*3) |
-                   ((uint64_t)deadlineBytes[5] << 8*2) |
-                   ((uint64_t)deadlineBytes[6] << 8*1) |
-                   ((uint64_t)deadlineBytes[7]);
-            
-        char tokbuf[32];
-        ethereumFormatAmount(&tokenAmount, token, msg->chain_id, tokbuf, sizeof(tokbuf));
-        snprintf(constr1, 32, "%s", tokbuf);
-        ethereumFormatAmount(&tokenMinAmount, token, msg->chain_id, tokbuf, sizeof(tokbuf));
-        snprintf(constr2, 32, "%s", tokbuf);
-
-        confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "uniswap add liquidity",
-                     "Add %s\nMinimum %s", constr1, constr2);
-
-        if (!confirmFromAccountMatch(msg)) {
-            return false;
-        }
+    tokenAddress = (uint8_t *)(msg->data_initial_chunk.bytes + 4 + 32 - 20);
+    token = tokenByChainAddress(msg->chain_id, tokenAddress);
+    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 32, 32, &tokenAmount);
+    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 2*32, 32, &tokenMinAmount);
+    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 3*32, 32, &ethMinAmount);
+    deadlineBytes = (uint8_t *)(msg->data_initial_chunk.bytes + 4 + 6*32 - 8);
+    deadline = ((uint64_t)deadlineBytes[0] << 8*7) |
+               ((uint64_t)deadlineBytes[1] << 8*6) |
+               ((uint64_t)deadlineBytes[2] << 8*5) |
+               ((uint64_t)deadlineBytes[3] << 8*4) |
+               ((uint64_t)deadlineBytes[4] << 8*3) |
+               ((uint64_t)deadlineBytes[5] << 8*2) |
+               ((uint64_t)deadlineBytes[6] << 8*1) |
+               ((uint64_t)deadlineBytes[7]);
         
-        ethereumFormatAmount(&ethMinAmount, NULL, msg->chain_id, tokbuf, sizeof(tokbuf));
-        snprintf(constr1, 32, "%s", tokbuf);
-        confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "uniswap add liquidity",
-                     "Add Minimum %s", constr1);
-
-        snprintf(constr1, 32, "%lld", deadline);
-        confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "uniswap add liquidity",
-                     "Deadline (unix ref) %s", constr1);
-
-        return true;
+    char tokbuf[32];
+    ethereumFormatAmount(&tokenAmount, token, msg->chain_id, tokbuf, sizeof(tokbuf));
+    snprintf(constr1, 32, "%s", tokbuf);
+    ethereumFormatAmount(&tokenMinAmount, token, msg->chain_id, tokbuf, sizeof(tokbuf));
+    snprintf(constr2, 32, "%s", tokbuf);
+    confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
+                 "%s\nMinimum %s", constr1, constr2);
+    if (!confirmFromAccountMatch(msg, arStr)) {
+        return false;
     }
     
-   return true;
+    ethereumFormatAmount(&ethMinAmount, NULL, msg->chain_id, tokbuf, sizeof(tokbuf));
+    snprintf(constr1, 32, "%s", tokbuf);
+    confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
+                 "Minimum %s", constr1);
+    snprintf(constr1, 32, "%lld", deadline);
+    confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
+                 "Deadline (unix ref) %s", constr1);
+    
+    return true;
 }
