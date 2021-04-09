@@ -588,8 +588,7 @@ void recovery_cipher_finalize(void) {
   }
 
   /* Truncate additional space at the end */
-  new_mnemonic[MAX(1u, strnlen(new_mnemonic, sizeof(new_mnemonic)) - 1u)] = '\0';
-
+  new_mnemonic[MAX(1u, strnlen(new_mnemonic, sizeof(new_mnemonic))) - 1u] = '\0';
   if (!dry_run && (!enforce_wordlist || mnemonic_check(new_mnemonic))) {
     storage_setMnemonic(new_mnemonic);
     memzero(new_mnemonic, sizeof(new_mnemonic));
