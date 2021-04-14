@@ -168,7 +168,6 @@ bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx *msg) {
     confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
                  "Minimum %s", constr1);
 
-    snprintf(constr1, 32, "%lld", deadline);
     confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
                  "Deadline %s", ctime((const time_t *)&deadline));
     
