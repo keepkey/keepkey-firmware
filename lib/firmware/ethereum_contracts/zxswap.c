@@ -96,5 +96,5 @@ bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx *msg) {
     return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, exchange,
                  "Sell %s\nBuy at least %s", constr1, constr2);
     
-   return true;
+    return true;
 }
