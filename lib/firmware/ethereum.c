@@ -77,30 +77,6 @@ bool ethereum_isStandardERC20Approve(const EthereumSignTx *msg) {
   return false;
 }
 
-bool ethereum_isThorchainTx(const EthereumSignTx *msg) {
-  if (msg->has_to && msg->to.size == 20 &&
-      memcmp(msg->data_initial_chunk.bytes,
-             "\x1f\xec\xe7\xb4\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 
-             16) == 0) {
-    return true;
-  }
-  return false;
-}
-
-uint8_t ethereum_extractThorchainData(const EthereumSignTx *msg,
-                                          char *buffer) {
-  // Swap data begins 164 chars into data buffer:
-  // offset = deposit function hash + address + address + uint256
-  uint16_t offset = 4 + (5 * 32);
-  int16_t len = msg->data_length - offset;
-  if (msg->has_data_length && len > 0 && len < 256) {
-    memcpy(buffer, msg->data_initial_chunk.bytes + offset, len);
-    // String length must be < 255 characters
-    return (uint8_t)len;
-  }
-  return 0;
-}
-
 bool ethereum_getStandardERC20Recipient(const EthereumSignTx *msg,
                                         char *address, size_t len) {
   if (len < 2 * 20 + 1) return false;
@@ -672,21 +648,6 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
     }
     needs_confirm = false;
     data_needs_confirm = false;
-  }
-
-  // Detect THORChain transaction data in memo
-  if (ethereum_isThorchainTx(msg)) {
-    if (token == NULL && data_total > 0 && data_needs_confirm) {
-      char swap_data[256] = {'\0'};
-      uint8_t swap_data_len = ethereum_extractThorchainData(msg, swap_data);
-      if (!thorchain_parseConfirmMemo(swap_data, swap_data_len)) {
-        fsm_sendFailure(FailureType_Failure_Other, _("Malformed THORChain swap data"));
-        ethereum_signing_abort();
-        return;
-      }
-      needs_confirm = false;
-      data_needs_confirm = false;
-    }
   }
 
   // detect ERC-20 token

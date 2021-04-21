@@ -124,9 +124,9 @@ bool zx_isZxLiquidTx(const EthereumSignTx *msg) {
 bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx *msg) {
     (void)data_total;
     const TokenType *token;
-    char constr1[40], constr2[40], *arStr = "";
+    char constr1[40], constr2[40], tokbuf[32], *arStr = "";
     uint8_t *tokenAddress, *deadlineBytes;
-    bignum256 tokenAmount, tokenMinAmount, ethMinAmount;
+    bignum256 Amount;
     uint64_t deadline;
 
     if (isAddLiquidityEthCall(msg)) {
@@ -139,9 +139,6 @@ bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx *msg) {
 
     tokenAddress = (uint8_t *)(msg->data_initial_chunk.bytes + 4 + 32 - 20);
     token = tokenByChainAddress(msg->chain_id, tokenAddress);
-    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 32, 32, &tokenAmount);
-    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 2*32, 32, &tokenMinAmount);
-    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 3*32, 32, &ethMinAmount);
     deadlineBytes = (uint8_t *)(msg->data_initial_chunk.bytes + 4 + 6*32 - 8);
     deadline = ((uint64_t)deadlineBytes[0] << 8*7) |
                ((uint64_t)deadlineBytes[1] << 8*6) |
@@ -152,18 +149,21 @@ bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx *msg) {
                ((uint64_t)deadlineBytes[6] << 8*1) |
                ((uint64_t)deadlineBytes[7]);
         
-    char tokbuf[32];
-    ethereumFormatAmount(&tokenAmount, token, msg->chain_id, tokbuf, sizeof(tokbuf));
+    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 32, 32, &Amount);   // token amount
+    ethereumFormatAmount(&Amount, token, msg->chain_id, tokbuf, sizeof(tokbuf));
     snprintf(constr1, 32, "%s", tokbuf);
-    ethereumFormatAmount(&tokenMinAmount, token, msg->chain_id, tokbuf, sizeof(tokbuf));
+    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 2*32, 32, &Amount); // token min amount
+    ethereumFormatAmount(&Amount, token, msg->chain_id, tokbuf, sizeof(tokbuf));
     snprintf(constr2, 32, "%s", tokbuf);
     confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
                  "%s\nMinimum %s", constr1, constr2);
     if (!confirmFromAccountMatch(msg, arStr)) {
         return false;
     }
-    
-    ethereumFormatAmount(&ethMinAmount, NULL, msg->chain_id, tokbuf, sizeof(tokbuf));
+
+    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 3*32, 32, &Amount);   // eth min amount    
+    ethereumFormatAmount(&Amount, NULL, msg->chain_id, tokbuf, sizeof(tokbuf));
+
     snprintf(constr1, 32, "%s", tokbuf);
     confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
                  "Minimum %s", constr1);

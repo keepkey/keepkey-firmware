@@ -162,7 +162,8 @@ bool thorchain_parseConfirmMemo(const char *swapStr, size_t size) {
     Input: swapStr is candidate thorchain data
            size is the size of swapStr (<= 256)
     Memos should be of the form:
-    transaction:asset:ticker-id:destination:limit
+    transaction:chain.ticker-id:destination:limit
+                ^^^^^^^^^^^^^^----------asset
 
     So, swap USDT to dest address 0x41e55..., limit 420
     SWAP:ETH.USDT-0xdac17f958d2ee523a2206206994597c13d831ec7:0x41e5560054824ea6b0732e656e3ad64e20e94e45:420
@@ -218,8 +219,9 @@ bool thorchain_parseConfirmMemo(const char *swapStr, size_t size) {
         parseTokPtrs[4] = tok;
       }
     }
+
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Thorchain swap", "Confirm swap asset %s", parseTokPtrs[2])) {
+                 "Thorchain swap", "Confirm swap asset %s\n on chain %s", parseTokPtrs[2], parseTokPtrs[1])) {
       return false;
     }
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
@@ -239,19 +241,38 @@ bool thorchain_parseConfirmMemo(const char *swapStr, size_t size) {
     if (tok != NULL) {
       // add liquidity pool address
       parseTokPtrs[3] = tok;
-    } else {
+    } 
+
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                 "Thorchain add liquidity", "Confirm add asset %s\n on chain %s pool",
+                 parseTokPtrs[2], parseTokPtrs[1])) {
       return false;
     }
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Thorchain add liquidity", "Confirm add liquidity to %s pool",
-                 parseTokPtrs[2])) {
-      return false;
-    }
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+    if (tok != NULL) {
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                  "Thorchain add liquidity", "Confirm to %s", parseTokPtrs[3])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // Check for withdraw liquidity
+  else if (strncmp(parseTokPtrs[0], "WITHDRAW", 8) == 0 || strncmp(parseTokPtrs[0], "wd", 2) == 0 ||
+           *parseTokPtrs[0] == '-') {
+    if (tok != NULL) {
+      // add liquidity pool address
+      parseTokPtrs[3] = tok;
+    } 
+
+    float percent = (float)(atoi(parseTokPtrs[3])) / 100;
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                 "Thorchain withdraw liquidity", "Confirm withdraw %3.2f%% of asset %s on chain %s",
+                 percent, parseTokPtrs[2], parseTokPtrs[1])) {
       return false;
     }
     return true;
+
   } else {
     // Just confirm whatever coin data if no thorchain intention data parsable
     return false;

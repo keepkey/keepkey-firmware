@@ -15,7 +15,7 @@ void fsm_msgThorchainGetAddress(const ThorchainGetAddress *msg) {
   char mainnet[] = "thor";
   char testnet[] = "tthor";
   char *pfix;
-  
+
   if (!node) {
     return;
   }
@@ -191,7 +191,8 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg) {
     // See if we can parse the memo
     if (!thorchain_parseConfirmMemo(sign_tx->memo, sizeof(sign_tx->memo))) {
       // Memo not recognizable, ask to confirm it
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s", sign_tx->memo)) {
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",
+                   sign_tx->memo)) {
         thorchain_signAbort();
         fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
         layoutHome();
@@ -199,7 +200,6 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg) {
       }
     }
   }
-
 
   char node_str[NODE_STRING_LENGTH];
   if (!bip32_node_to_string(node_str, sizeof(node_str), coin,
@@ -212,9 +212,9 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg) {
   }
 
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, node_str,
-               "Sign this THORChain transaction on %s? "
-               "It includes a fee of %" PRIu32 " RUNE and %" PRIu32 " gas.",
-               sign_tx->chain_id, sign_tx->fee_amount, sign_tx->gas)) {
+               "Sign this RUNE transaction on %s? "
+               "Additional network fees apply.",
+               sign_tx->chain_id)) {
     thorchain_signAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
@@ -223,7 +223,8 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg) {
 
   RESP_INIT(ThorchainSignedTx);
 
-  if (!thorchain_signTxFinalize(resp->public_key.bytes, resp->signature.bytes)) {
+  if (!thorchain_signTxFinalize(resp->public_key.bytes,
+                                resp->signature.bytes)) {
     thorchain_signAbort();
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     "Failed to finalize signature");

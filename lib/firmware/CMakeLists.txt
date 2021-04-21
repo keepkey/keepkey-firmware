@@ -12,6 +12,7 @@ set(sources
     ethereum_contracts.c
     ethereum_contracts/makerdao.c
     ethereum_contracts/zxappliquid.c
+    ethereum_contracts/thortx.c
     ethereum_contracts/zxliquidtx.c
     ethereum_contracts/zxswap.c
     ethereum_tokens.c
