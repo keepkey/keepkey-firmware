@@ -28,11 +28,11 @@ RUN pip3 install \
 
 # Install gcc-arm-none-eabi
 WORKDIR /root
-RUN wget https://developer.arm.com/-/media/Files/downloads/gnu-rm/9-2019q4/RC2.1/gcc-arm-none-eabi-9-2019-q4-major-x86_64-linux.tar.bz2
-RUN tar xvf gcc-arm-none-eabi-9-2019-q4-major-x86_64-linux.tar.bz2
-RUN cp -r gcc-arm-none-eabi-9-2019-q4-major/* /usr/local
-RUN rm gcc-arm-none-eabi-9-2019-q4-major-x86_64-linux.tar.bz2
-RUN rm -rf gcc-arm-none-eabi-9-2019-q4-major
+RUN wget https://developer.arm.com/-/media/Files/downloads/gnu-rm/10-2020q4/gcc-arm-none-eabi-10-2020-q4-major-x86_64-linux.tar.bz2
+RUN tar xvf gcc-arm-none-eabi-10-2020-q4-major-x86_64-linux.tar.bz2
+RUN cp -r gcc-arm-none-eabi-10-2020-q4-major/* /usr/local
+RUN rm gcc-arm-none-eabi-10-2020-q4-major-x86_64-linux.tar.bz2
+RUN rm -rf gcc-arm-none-eabi-10-2020-q4-major
 
 # Install protobuf-compiler v3.5.1
 WORKDIR /root
