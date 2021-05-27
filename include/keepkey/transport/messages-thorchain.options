@@ -9,5 +9,9 @@ ThorchainSignTx.memo                                      max_size:256
 ThorchainMsgSend.from_address                             max_size:46
 ThorchainMsgSend.to_address                               max_size:46
 
+ThorchainMsgDeposit.asset                                 max_size:20
+ThorchainMsgDeposit.memo                                  max_size:256
+ThorchainMsgDeposit.signer                                max_size:46
+
 ThorchainSignedTx.public_key                              max_size:33
 ThorchainSignedTx.signature                               max_size:64

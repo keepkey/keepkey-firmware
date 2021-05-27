@@ -41,17 +41,6 @@ bool thorchain_signTxInit(const HDNode *_node, const ThorchainSignTx *_msg) {
 
   sha256_Init(&ctx);
 
-  // Each segment guaranteed to be less than or equal to 64 bytes
-  // 19 + ^20 + 1 = ^40
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "{\"account_number\":\"%" PRIu64 "\"",
-                                 msg.account_number);
-
-  // <escape chain_id>
-  const char *const chainid_prefix = ",\"chain_id\":\"";
-  sha256_Update(&ctx, (uint8_t *)chainid_prefix, strlen(chainid_prefix));
-  tendermint_sha256UpdateEscaped(&ctx, msg.chain_id, strlen(msg.chain_id));
-
   // 30 + ^10 + 19 = ^59
   success &=
       tendermint_snprintf(&ctx, buffer, sizeof(buffer),
@@ -71,7 +60,7 @@ bool thorchain_signTxInit(const HDNode *_node, const ThorchainSignTx *_msg) {
   }
 
   // 10
-  sha256_Update(&ctx, (uint8_t *)"\",\"msgs\":[", 10);
+  sha256_Update(&ctx, (uint8_t *)"\",\"msg\":[", 10);
 
   return success;
 }
@@ -128,6 +117,33 @@ bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
   return success;
 }
 
+bool thorchain_signTxUpdateMsgDeposit(const ThorchainMsgDeposit *depmsg) {
+  char buffer[64 + 1];
+
+  bool success = true;
+
+  const char *const prelude = "{\"type\":\"thorchain/MsgDeposit\",\"value\":{";
+  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+
+  // 21 + ^20 + 19 = ^60
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      "\"coins\":[{\"asset\":\"%s\",\"amount\":\"%" PRIu64 "\"}]", depmsg->asset, depmsg->amount);
+
+  // <escape memo>
+  const char *const memo_prefix = ",\"memo\":\"";
+  sha256_Update(&ctx, (uint8_t *)memo_prefix, strlen(memo_prefix));
+  tendermint_sha256UpdateEscaped(&ctx, depmsg->memo, strlen(depmsg->memo));
+
+  // 17 + 45 + 1 = 63
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 ",\"signer\":\"%s\"}}", depmsg->signer);
+
+  has_message = true;
+  msgs_remaining--;
+  return success;
+}
+
 bool thorchain_signTxFinalize(uint8_t *public_key, uint8_t *signature) {
   char buffer[64 + 1];
 
@@ -135,6 +151,18 @@ bool thorchain_signTxFinalize(uint8_t *public_key, uint8_t *signature) {
   if (!tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                            "],\"sequence\":\"%" PRIu64 "\"}", msg.sequence))
     return false;
+
+  // Each segment guaranteed to be less than or equal to 64 bytes
+  // 19 + ^20 + 1 = ^40
+  if (!tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "{\"account_number\":\"%" PRIu64 "\"",
+                                 msg.account_number))
+    return false;
+
+  // <escape chain_id>
+  const char *const chainid_prefix = ",\"chain_id\":\"";
+  sha256_Update(&ctx, (uint8_t *)chainid_prefix, strlen(chainid_prefix));
+  tendermint_sha256UpdateEscaped(&ctx, msg.chain_id, strlen(msg.chain_id));
 
   hdnode_fill_public_key(&node);
   memcpy(public_key, node.public_key, 33);
@@ -263,7 +291,9 @@ bool thorchain_parseConfirmMemo(const char *swapStr, size_t size) {
     if (tok != NULL) {
       // add liquidity pool address
       parseTokPtrs[3] = tok;
-    } 
+    } else {
+      return false;     // malformed memo
+    }
 
     float percent = (float)(atoi(parseTokPtrs[3])) / 100;
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
