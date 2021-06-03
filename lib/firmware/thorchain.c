@@ -130,10 +130,15 @@ bool thorchain_signTxUpdateMsgDeposit(const ThorchainMsgDeposit *depmsg) {
   const char *const prelude = "{\"type\":\"thorchain/MsgDeposit\",\"value\":{";
   sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
 
-  // 21 + ^20 + 19 = ^60
+  // 20 + ^20 + 1 = ^41
   success &= tendermint_snprintf(
       &ctx, buffer, sizeof(buffer),
-      "\"coins\":[{\"amount\":\"%" PRIu64 "\",\"asset\":\"%s\"}]", depmsg->amount, depmsg->asset);
+      "\"coins\":[{\"amount\":\"%" PRIu64 "\"", depmsg->amount);
+
+  // 10 + ^20 + 3 = ^33
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      ",\"asset\":\"%s\"}]", depmsg->asset);
 
   // <escape memo>
   const char *const memo_prefix = ",\"memo\":\"";
