@@ -19,6 +19,7 @@
 
 #include "keepkey/firmware/ethereum_contracts.h"
 
+#include "keepkey/firmware/ethereum_contracts/saproxy.h"
 #include "keepkey/firmware/ethereum_contracts/thortx.h"
 #include "keepkey/firmware/ethereum_contracts/zxappliquid.h"
 #include "keepkey/firmware/ethereum_contracts/zxliquidtx.h"
@@ -29,7 +30,7 @@ bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx *msg,
                               const HDNode *node) {
   (void)node;
 
-
+  if (sa_isWithdrawFromSalary(msg)) return true;
   if (zx_isZxSwap(msg)) return true;
   if (zx_isZxLiquidTx(msg)) return true;
   if (zx_isZxApproveLiquid(msg)) return true;
@@ -44,6 +45,9 @@ bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx *msg,
 bool ethereum_contractConfirmed(uint32_t data_total, const EthereumSignTx *msg,
                                 const HDNode *node) {
   (void)node;
+
+  if (sa_isWithdrawFromSalary(msg))
+    return sa_confirmWithdrawFromSalary(data_total, msg);
 
   if (zx_isZxSwap(msg))
     return zx_confirmZxSwap(data_total, msg);
