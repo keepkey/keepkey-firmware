@@ -52,6 +52,7 @@
 #include "keepkey/firmware/reset.h"
 #include "keepkey/firmware/ripple.h"
 #include "keepkey/firmware/signing.h"
+#include "keepkey/firmware/signtx_tendermint.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/tendermint.h"
 #include "keepkey/firmware/thorchain.h"
@@ -288,4 +289,5 @@ void fsm_msgClearSession(ClearSession *msg) {
 #include "fsm_msg_cosmos.h"
 #include "fsm_msg_binance.h"
 #include "fsm_msg_ripple.h"
+#include "fsm_msg_tendermint.h"
 #include "fsm_msg_thorchain.h"

@@ -3,7 +3,7 @@ void fsm_msgInitialize(Initialize *msg) {
   recovery_cipher_abort();
   signing_abort();
   ethereum_signing_abort();
-  cosmos_signAbort();
+  tendermint_signAbort();
   eos_signingAbort();
   session_clear(false);  // do not clear PIN
   layoutHome();
@@ -433,7 +433,7 @@ void fsm_msgCancel(Cancel *msg) {
   recovery_cipher_abort();
   signing_abort();
   ethereum_signing_abort();
-  cosmos_signAbort();
+  tendermint_signAbort();
   eos_signingAbort();
   fsm_sendFailure(FailureType_Failure_ActionCancelled, "Aborted");
 }

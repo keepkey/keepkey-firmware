@@ -1,0 +1,22 @@
+TendermintGetAddress.address_n                             max_count:10
+TendermintGetAddress.address_prefix                        max_size:10
+TendermintGetAddress.chain_name                            max_size:15
+
+TendermintAddress.address                                  max_size:46
+
+TendermintMsgAck.denom                                     max_size:10
+TendermintMsgAck.chain_name                                max_size:15
+TendermintMsgAck.message_type_prefix                       max_size:25
+
+TendermintSignTx.address_n                                 max_count:10
+TendermintSignTx.chain_id                                  max_size:32
+TendermintSignTx.memo                                      max_size:256
+TendermintSignTx.denom                                     max_size:10
+TendermintSignTx.chain_name                                max_size:15
+TendermintSignTx.message_type_prefix                       max_size:25
+
+TendermintMsgSend.from_address                             max_size:46
+TendermintMsgSend.to_address                               max_size:46
+
+TendermintSignedTx.public_key                              max_size:33
+TendermintSignedTx.signature                               max_size:64

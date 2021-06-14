@@ -3,7 +3,6 @@ set(sources
     app_layout.c
     binance.c
     coins.c
-    cosmos.c
     crypto.c
     eos.c
     eos-contracts/eosio.system.c
@@ -29,6 +28,7 @@ set(sources
     ripple.c
     ripple_base58.c
     signing.c
+    signtx_tendermint.c
     storage.c
     tendermint.c
     thorchain.c
