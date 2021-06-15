@@ -14,6 +14,7 @@ set(sources
     ethereum_contracts/zxappliquid.c
     ethereum_contracts/thortx.c
     ethereum_contracts/zxliquidtx.c
+    ethereum_contracts/zxtransERC20.c
     ethereum_contracts/zxswap.c
     ethereum_tokens.c
     exchange.c
