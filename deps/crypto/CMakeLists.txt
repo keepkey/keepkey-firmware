@@ -1,3 +1,5 @@
+add_definitions(-DUSE_NANO=1)
+
 set(sources
     trezor-firmware/crypto/bip39.c
     trezor-firmware/crypto/bip39_english.c
@@ -71,5 +73,6 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/trezor-firmware/
   ${CMAKE_CURRENT_SOURCE_DIR}/trezor-firmware/crypto/ed25519-donna
   ${OPENSSL_INCLUDE_DIR})
+
 
 add_library(trezorcrypto ${sources})

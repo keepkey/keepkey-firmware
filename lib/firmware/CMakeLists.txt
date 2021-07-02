@@ -10,7 +10,7 @@ set(sources
     ethereum.c
     ethereum_contracts.c
     ethereum_contracts/makerdao.c
-    ethereum_contracts/saProxy.c
+    ethereum_contracts/saproxy.c
     ethereum_contracts/zxappliquid.c
     ethereum_contracts/thortx.c
     ethereum_contracts/zxliquidtx.c

@@ -2,12 +2,12 @@ FROM frolvlad/alpine-glibc:glibc-2.27
 
 MAINTAINER tech@keepkey.com
 
+RUN apk add --no-cache python3 py3-pip
 RUN apk add --update --no-cache \
     bzip2-dev \
     ca-certificates \
     git \
     openssl \
-    python3 \
     scons \
     tar \
     w3m \
@@ -16,8 +16,8 @@ RUN apk add --update --no-cache \
     make \
     cmake
 
-RUN python3 -m ensurepip
 RUN pip3 install \
+    "MarkupSafe==1.1.1" \
     "ecdsa>=0.9" \
     "protobuf>=3.0.0" \
     "mnemonic>=0.8" \
@@ -54,7 +54,7 @@ RUN python setup.py install
 
 # Install nanopb
 WORKDIR /root
-RUN git clone --branch nanopb-0.3.9.4 https://github.com/nanopb/nanopb/
+RUN git clone --branch nanopb-0.3.9.8 https://github.com/nanopb/nanopb/
 WORKDIR /root/nanopb/generator/proto
 RUN make
 
