@@ -290,7 +290,7 @@ bool confirm(ButtonRequestType type, const char *request_title, const char *requ
 
     va_list vl;
     va_start(vl, request_body);
-    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
     /* Send button request */
@@ -312,7 +312,7 @@ bool confirm_constant_power(ButtonRequestType type, const char *request_title, c
 
     va_list vl;
     va_start(vl, request_body);
-    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
     /* Send button request */
@@ -337,7 +337,7 @@ bool confirm_with_custom_button_request(ButtonRequest *button_request,
 
     va_list vl;
     va_start(vl, request_body);
-    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
     /* Send button request */
@@ -356,7 +356,7 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
 
     va_list vl;
     va_start(vl, request_body);
-    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
     /* Send button request */
@@ -378,7 +378,7 @@ bool confirm_without_button_request(const char *request_title, const char *reque
 
     va_list vl;
     va_start(vl, request_body);
-    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
     bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false);
@@ -393,7 +393,7 @@ bool review(ButtonRequestType type, const char *request_title, const char *reque
 
     va_list vl;
     va_start(vl, request_body);
-    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
     /* Send button request */
@@ -415,7 +415,7 @@ bool review_without_button_request(const char *request_title, const char *reques
 
     va_list vl;
     va_start(vl, request_body);
-    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
     (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false);

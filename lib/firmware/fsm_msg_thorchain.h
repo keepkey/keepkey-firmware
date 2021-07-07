@@ -191,7 +191,7 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg) {
     char amount_str[32];
     char asset_str[21];
     asset_str[0] = ' ';
-    strlcpy(&(asset_str[1]), msg->deposit.asset, 20);
+    strlcpy(&(asset_str[1]), msg->deposit.asset, sizeof(asset_str) - 1);
     bn_format_uint64(msg->deposit.amount, NULL, asset_str, 8, 0, false, amount_str,
                      sizeof(amount_str));
     if (!confirm_transaction_output(
