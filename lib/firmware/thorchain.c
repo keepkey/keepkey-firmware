@@ -224,7 +224,7 @@ bool thorchain_parseConfirmMemo(const char *swapStr, size_t size) {
 
   if (size > 256) return false;
   memzero(memoBuf, sizeof(memoBuf));
-  strncpy(memoBuf, swapStr, size);
+  strlcpy(memoBuf, swapStr, size);
   memoBuf[255] = '\0';  // ensure null termination
   tok = strtok(memoBuf, ":");
 

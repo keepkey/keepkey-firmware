@@ -91,10 +91,10 @@ void coinFromToken(CoinType *coin, const TokenType *token) {
   memset(coin, 0, sizeof(*coin));
 
   coin->has_coin_name = true;
-  strncpy(&coin->coin_name[0], token->ticker + 1, sizeof(coin->coin_name));
+  strlcpy(&coin->coin_name[0], token->ticker + 1, sizeof(coin->coin_name));
 
   coin->has_coin_shortcut = true;
-  strncpy(&coin->coin_shortcut[0], token->ticker + 1,
+  strlcpy(&coin->coin_shortcut[0], token->ticker + 1,
           sizeof(coin->coin_shortcut));
 
   coin->has_forkid = true;
@@ -116,5 +116,5 @@ void coinFromToken(CoinType *coin, const TokenType *token) {
                  "contract_address is not large enough to hold an ETH address");
 
   coin->has_curve_name = true;
-  strncpy(&coin->curve_name[0], "secp256k1", sizeof(coin->curve_name));
+  strlcpy(&coin->curve_name[0], "secp256k1", sizeof(coin->curve_name));
 }

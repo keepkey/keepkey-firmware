@@ -225,7 +225,7 @@ void storage_readPolicyV2(PolicyType *policy, const char *policy_name,
                           bool enabled) {
   policy->has_policy_name = true;
   memset(policy->policy_name, 0, sizeof(policy->policy_name));
-  strncpy(policy->policy_name, policy_name, sizeof(policy->policy_name));
+  strlcpy(policy->policy_name, policy_name, sizeof(policy->policy_name));
   policy->has_enabled = true;
   policy->enabled = enabled;
 }
@@ -589,7 +589,7 @@ void storage_readStorageV1(SessionState *ss, Storage *storage, const char *ptr,
   storage->has_sec_fingerprint = false;
 
 #if DEBUG_LINK
-  strncpy(debuglink_pin, storage->sec.pin, sizeof(debuglink_pin));
+  strlcpy(debuglink_pin, storage->sec.pin, sizeof(debuglink_pin));
   memcpy(debuglink_mnemonic, storage->sec.mnemonic, sizeof(debuglink_mnemonic));
   storage_loadNode(&debuglink_node, &storage->sec.node);
 #endif
@@ -1466,7 +1466,7 @@ void storage_setPin(const char *pin) {
   session.pinCached = true;
 
 #if DEBUG_LINK
-  strncpy(debuglink_pin, pin, sizeof(debuglink_pin));
+  strlcpy(debuglink_pin, pin, sizeof(debuglink_pin));
 #endif
 }
 
@@ -1525,7 +1525,7 @@ void storage_setWipeCode(const char *wipe_code) {
   storage_setWipeCode_impl(&session, &shadow_config.storage, wipe_code);
 
 #if DEBUG_LINK
-  strncpy(debuglink_wipe_code, wipe_code, sizeof(debuglink_wipe_code));
+  strlcpy(debuglink_wipe_code, wipe_code, sizeof(debuglink_wipe_code));
 #endif
 }
 
