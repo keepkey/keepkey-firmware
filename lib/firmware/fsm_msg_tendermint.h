@@ -19,7 +19,7 @@ void fsm_msgTendermintGetAddress(const TendermintGetAddress *msg) {
   hdnode_fill_public_key(node);
 
   if (!tendermint_getAddress(node, msg->chain_name, resp->address)) {
-    memzero(node, sizeof(*node));
+    memzero((void *)node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_FirmwareError,
                     _("Can't encode address"));
     layoutHome();
