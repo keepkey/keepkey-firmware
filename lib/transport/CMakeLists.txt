@@ -11,6 +11,7 @@ set(protoc_pb_sources
     ${DEVICE_PROTOCOL}/messages-binance.proto
     ${DEVICE_PROTOCOL}/messages-cosmos.proto
     ${DEVICE_PROTOCOL}/messages-ripple.proto
+    ${DEVICE_PROTOCOL}/messages-tendermint.proto
     ${DEVICE_PROTOCOL}/messages-thorchain.proto
     ${DEVICE_PROTOCOL}/messages.proto)
 
@@ -22,6 +23,7 @@ set(protoc_pb_options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-binance.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-cosmos.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-ripple.options
+    ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-tendermint.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-thorchain.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages.options)
 
@@ -33,6 +35,7 @@ set(protoc_c_sources
     ${CMAKE_BINARY_DIR}/lib/transport/messages-binance.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-cosmos.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-ripple.pb.c
+    ${CMAKE_BINARY_DIR}/lib/transport/messages-tendermint.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-thorchain.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages.pb.c)
 
@@ -44,6 +47,7 @@ set(protoc_c_headers
     ${CMAKE_BINARY_DIR}/include/messages-binance.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-cosmos.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-ripple.pb.h
+    ${CMAKE_BINARY_DIR}/include/messages-tendermint.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-thorchain.pb.h
     ${CMAKE_BINARY_DIR}/include/messages.pb.h)
 
@@ -55,6 +59,7 @@ set(protoc_pb_sources_moved
     ${CMAKE_BINARY_DIR}/lib/transport/messages-binance.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-cosmos.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-ripple.proto
+    ${CMAKE_BINARY_DIR}/lib/transport/messages-tendermint.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-thorchain.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages.proto)
 
@@ -105,6 +110,10 @@ add_custom_command(
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
       "--nanopb_out=-f messages-ripple.options:." messages-ripple.proto
+  COMMAND
+    ${PROTOC_BINARY} -I. -I/usr/include
+      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      "--nanopb_out=-f messages-tendermint.options:." messages-tendermint.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb

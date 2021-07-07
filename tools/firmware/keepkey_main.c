@@ -85,7 +85,8 @@ static bool canDropPrivs(void) {
       return true;
     case BLK_v2_0_0:
     case BLK_v2_1_0:
-      return SIG_OK == signatures_ok();
+      // sigs already checked in bootloader. If a sig is present we are in priv mode, drop privs.
+      return *((uint8_t *)FLASH_META_SIGINDEX1) != 0;
   }
   __builtin_unreachable();
 }

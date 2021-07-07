@@ -3,7 +3,6 @@ set(sources
     app_layout.c
     binance.c
     coins.c
-    cosmos.c
     crypto.c
     eos.c
     eos-contracts/eosio.system.c
@@ -11,9 +10,11 @@ set(sources
     ethereum.c
     ethereum_contracts.c
     ethereum_contracts/makerdao.c
+    ethereum_contracts/saproxy.c
     ethereum_contracts/zxappliquid.c
     ethereum_contracts/thortx.c
     ethereum_contracts/zxliquidtx.c
+    ethereum_contracts/zxtransERC20.c
     ethereum_contracts/zxswap.c
     ethereum_tokens.c
     exchange.c
@@ -28,6 +29,7 @@ set(sources
     ripple.c
     ripple_base58.c
     signing.c
+    signtx_tendermint.c
     storage.c
     tendermint.c
     thorchain.c

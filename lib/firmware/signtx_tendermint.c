@@ -1,8 +1,27 @@
-#include "keepkey/firmware/cosmos.h"
+/*
+ * This file is part of the Keepkey project.
+ *
+ * Copyright (C) 2021 Shapeshift 
+ * 
+ * This library is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
+#include "keepkey/firmware/cosmos.h"
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/util.h"
 #include "keepkey/firmware/home_sm.h"
+#include "keepkey/firmware/signtx_tendermint.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/tendermint.h"
 #include "trezor/crypto/secp256k1.h"
@@ -18,18 +37,29 @@ static SHA256_CTX ctx;
 static bool has_message;
 static bool initialized;
 static uint32_t msgs_remaining;
-static CosmosSignTx msg;
+static TendermintSignTx tmsg;
 
-const CosmosSignTx *cosmos_getCosmosSignTx(void) { return &msg; }
+const void *tendermint_getSignTx(void) { return (void *)&tmsg; }
 
-bool cosmos_signTxInit(const HDNode *_node, const CosmosSignTx *_msg) {
+bool tendermint_signTxInit(const HDNode *_node, const void *_msg, const size_t msgsize, const char *denom) {
   initialized = true;
-  msgs_remaining = _msg->msg_count;
+  msgs_remaining = ((TendermintSignTx *)_msg)->msg_count;
   has_message = false;
 
   memzero(&node, sizeof(node));
   memcpy(&node, _node, sizeof(node));
-  memcpy(&msg, _msg, sizeof(msg));
+
+/*
+  _msg is expected to be of type TendermintSignTx, CosmosSignTx or ThorchainSignTx. These messages all have
+  common overlapping fields with TendermintSignTx having extra parameters. Copy the _msg memory into a static
+  TendermintSignTx type and parse from there.
+*/
+
+  if (msgsize > sizeof(tmsg)) {
+    return false;
+  }
+
+  memcpy((void *)&tmsg, _msg, msgsize);
 
   bool success = true;
   char buffer[64 + 1];
@@ -40,29 +70,29 @@ bool cosmos_signTxInit(const HDNode *_node, const CosmosSignTx *_msg) {
   // 19 + ^20 + 1 = ^40
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  "{\"account_number\":\"%" PRIu64 "\"",
-                                 msg.account_number);
+                                 tmsg.account_number);
 
   // <escape chain_id>
   const char *const chainid_prefix = ",\"chain_id\":\"";
   sha256_Update(&ctx, (uint8_t *)chainid_prefix, strlen(chainid_prefix));
-  tendermint_sha256UpdateEscaped(&ctx, msg.chain_id, strlen(msg.chain_id));
+  tendermint_sha256UpdateEscaped(&ctx, tmsg.chain_id, strlen(tmsg.chain_id));
 
   // 30 + ^10 + 19 = ^59
   success &=
       tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                           "\",\"fee\":{\"amount\":[{\"amount\":\"%" PRIu32
-                          "\",\"denom\":\"uatom\"}]",
-                          msg.fee_amount);
+                          "\",\"denom\":\"%s\"}]",
+                          tmsg.fee_amount, denom);
 
   // 8 + ^10 + 2 = ^20
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 ",\"gas\":\"%" PRIu32 "\"}", msg.gas);
+                                 ",\"gas\":\"%" PRIu32 "\"}", tmsg.gas);
 
   // <escape memo>
   const char *const memo_prefix = ",\"memo\":\"";
   sha256_Update(&ctx, (uint8_t *)memo_prefix, strlen(memo_prefix));
-  if (msg.has_memo) {
-    tendermint_sha256UpdateEscaped(&ctx, msg.memo, strlen(msg.memo));
+  if (tmsg.has_memo) {
+    tendermint_sha256UpdateEscaped(&ctx, tmsg.memo, strlen(tmsg.memo));
   }
 
   // 10
@@ -71,18 +101,19 @@ bool cosmos_signTxInit(const HDNode *_node, const CosmosSignTx *_msg) {
   return success;
 }
 
-bool cosmos_signTxUpdateMsgSend(const uint64_t amount, const char *to_address) {
+bool tendermint_signTxUpdateMsgSend(const uint64_t amount, const char *to_address, const char *chainstr, 
+                                    const char *denom, const char *msgTypePrefix) {
   char buffer[64 + 1];
-
   size_t decoded_len;
   char hrp[45];
   uint8_t decoded[38];
+
   if (!bech32_decode(hrp, decoded, &decoded_len, to_address)) {
     return false;
   }
 
   char from_address[46];
-  if (!tendermint_getAddress(&node, "cosmos", from_address)) {
+  if (!tendermint_getAddress(&node, chainstr, from_address)) {
     return false;
   }
 
@@ -90,15 +121,19 @@ bool cosmos_signTxUpdateMsgSend(const uint64_t amount, const char *to_address) {
     sha256_Update(&ctx, (uint8_t *)",", 1);
   }
 
+  if (strnlen(msgTypePrefix, 26) > 25 || strnlen(denom, 11) > 10 || strnlen(chainstr, 13) > 12) {
+    return false;
+  }
+
   bool success = true;
 
-  const char *const prelude = "{\"type\":\"cosmos-sdk/MsgSend\",\"value\":{";
-  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+  // 9 + ^25 + 19 = ^53
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "{\"type\":\"%s/MsgSend\",\"value\":{", msgTypePrefix);
 
   // 21 + ^20 + 19 = ^60
   success &= tendermint_snprintf(
       &ctx, buffer, sizeof(buffer),
-      "\"amount\":[{\"amount\":\"%" PRIu64 "\",\"denom\":\"uatom\"}]", amount);
+      "\"amount\":[{\"amount\":\"%" PRIu64 "\",\"denom\":\"%s\"}]", amount, denom);
 
   // 17 + 45 + 1 = 63
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
@@ -113,12 +148,12 @@ bool cosmos_signTxUpdateMsgSend(const uint64_t amount, const char *to_address) {
   return success;
 }
 
-bool cosmos_signTxFinalize(uint8_t *public_key, uint8_t *signature) {
+bool tendermint_signTxFinalize(uint8_t *public_key, uint8_t *signature) {
   char buffer[64 + 1];
 
   // 16 + ^20 = ^36
   if (!tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                           "],\"sequence\":\"%" PRIu64 "\"}", msg.sequence))
+                           "],\"sequence\":\"%" PRIu64 "\"}", tmsg.sequence))
     return false;
 
   hdnode_fill_public_key(&node);
@@ -130,14 +165,14 @@ bool cosmos_signTxFinalize(uint8_t *public_key, uint8_t *signature) {
                            NULL) == 0;
 }
 
-bool cosmos_signingIsInited(void) { return initialized; }
+bool tendermint_signingIsInited(void) { return initialized; }
 
-bool cosmos_signingIsFinished(void) { return msgs_remaining == 0; }
+bool tendermint_signingIsFinished(void) { return msgs_remaining == 0; }
 
-void cosmos_signAbort(void) {
+void tendermint_signAbort(void) {
   initialized = false;
   has_message = false;
   msgs_remaining = 0;
-  memzero(&msg, sizeof(msg));
+  memzero(&tmsg, sizeof(tmsg));
   memzero(&node, sizeof(node));
 }
