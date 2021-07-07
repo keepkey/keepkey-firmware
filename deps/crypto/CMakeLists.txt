@@ -1,5 +1,3 @@
-add_definitions(-DUSE_NANO=1)
-
 set(sources
     trezor-firmware/crypto/bip39.c
     trezor-firmware/crypto/bip39_english.c
