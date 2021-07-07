@@ -23,7 +23,7 @@
 #include <inttypes.h>
 
 #define PUBKEYS 5
-#define EXP_PUBKEYS 5
+#define BLK_v2_0_0_PUBKEYS 5
 #define PUBKEY_LENGTH 65
 #define SIGNATURES 3
 
