@@ -268,9 +268,12 @@ int cryptoMessageVerify(const CoinType *coin, const uint8_t *message,
 
 uint8_t *cryptoHDNodePathToPubkey(const CoinType *coin,
                                   const HDNodePathType *hdnodepath) {
-  if (!hdnodepath->node.has_public_key ||
-      hdnodepath->node.public_key.size != 33)
+  if (!hdnodepath ||
+      !hdnodepath->node.has_public_key ||
+      hdnodepath->node.public_key.size != 33) {
     return 0;
+  }
+
   static HDNode node;
   if (hdnode_from_xpub(hdnodepath->node.depth, hdnodepath->node.child_num,
                        hdnodepath->node.chain_code.bytes,
