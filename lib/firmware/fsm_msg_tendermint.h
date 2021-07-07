@@ -123,7 +123,7 @@ void fsm_msgTendermintMsgAck(const TendermintMsgAck *msg) {
   }
 
   const CoinType *coin = fsm_getCoin(true, msg->chain_name);
-  if (!coin) {
+  if (!coin ||!coin->has_coin_shortcut || !coin->has_decimals) {
     return;
   }
 
@@ -154,7 +154,9 @@ void fsm_msgTendermintMsgAck(const TendermintMsgAck *msg) {
     case OutputAddressType_TRANSFER:
     default: {
       char amount_str[32];
-      bn_format_uint64(msg->send.amount, NULL, msg->denom, 6, 0, false, amount_str,
+      char suffix[sizeof(coin->coin_shortcut) + 1];
+      snprintf(suffix, sizeof(suffix), " %s", coin->coin_shortcut);
+      bn_format_uint64(msg->send.amount, NULL, suffix, coin->decimals, 0, false, amount_str,
                        sizeof(amount_str));
       if (!confirm_transaction_output(
               ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
