@@ -112,9 +112,9 @@ void fsm_msgTendermintMsgAck(const TendermintMsgAck *msg) {
   CHECK_PARAM(tendermint_signingIsInited(), "Signing not in progress");
   if (!msg->has_send || !msg->send.has_to_address || !msg->send.has_amount) {
     tendermint_signAbort();
-    // 21 + ^15 + 1 = 37
+    // 8 + ^14 + 13 + 1 = 36
     char failmsg[40];
-    snprintf(failmsg, 40, "Invalid %s Message Type", msg->chain_name);
+    snprintf(failmsg, sizeof(failmsg), "Invalid %s Message Type", msg->chain_name);
 
     fsm_sendFailure(FailureType_Failure_FirmwareError,
                     _(failmsg));
