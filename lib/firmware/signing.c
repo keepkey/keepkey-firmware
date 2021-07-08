@@ -26,7 +26,6 @@
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/crypto.h"
-#include "keepkey/firmware/exchange.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/policy.h"
@@ -145,56 +144,7 @@ void send_fsm_co_error_message(int co_error) {
 
   for (size_t i = 0; i < sizeof(errorCodes) / sizeof(errorCodes[0]); i++) {
     if (errorCodes[i].code == co_error) {
-#if DEBUG_LINK
-      fsm_sendFailureDebug(errorCodes[i].type, errorCodes[i].msg,
-                           get_exchange_msg());
-#else
       fsm_sendFailure(errorCodes[i].type, errorCodes[i].msg);
-#endif
-      return;
-    }
-  }
-
-  struct {
-    ExchangeError code;
-    const char *msg;
-    FailureType type;
-  } exchangeCodes[] = {
-      {ERROR_EXCHANGE_SIGNATURE, "Exchange signature error",
-       FailureType_Failure_Other},
-      {ERROR_EXCHANGE_DEPOSIT_COINTYPE, "Exchange deposit coin type error",
-       FailureType_Failure_Other},
-      {ERROR_EXCHANGE_DEPOSIT_ADDRESS, "Exchange deposit address error",
-       FailureType_Failure_Other},
-      {ERROR_EXCHANGE_DEPOSIT_AMOUNT, "Exchange deposit amount error",
-       FailureType_Failure_Other},
-      {ERROR_EXCHANGE_WITHDRAWAL_COINTYPE,
-       "Exchange withdrawal coin type error", FailureType_Failure_Other},
-      {ERROR_EXCHANGE_WITHDRAWAL_ADDRESS, "Exchange withdrawal address error",
-       FailureType_Failure_Other},
-      {ERROR_EXCHANGE_WITHDRAWAL_AMOUNT, "Exchange withdrawal amount error",
-       FailureType_Failure_Other},
-      {ERROR_EXCHANGE_RETURN_ADDRESS, "Exchange return address error",
-       FailureType_Failure_Other},
-      {ERROR_EXCHANGE_RETURN_COINTYPE, "Exchange return coin type error",
-       FailureType_Failure_Other},
-      {ERROR_EXCHANGE_CANCEL, "Exchange transaction cancelled",
-       FailureType_Failure_ActionCancelled},
-      {ERROR_EXCHANGE_RESPONSE_STRUCTURE, "Obsolete Response structure error",
-       FailureType_Failure_Other},
-      {ERROR_EXCHANGE_TYPE, "Unknown exchange type", FailureType_Failure_Other},
-  };
-
-  ExchangeError error = get_exchange_error();
-  for (size_t i = 0; i < sizeof(exchangeCodes) / sizeof(exchangeCodes[0]);
-       i++) {
-    if (exchangeCodes[i].code == error) {
-#if DEBUG_LINK
-      fsm_sendFailureDebug(exchangeCodes[i].type, exchangeCodes[i].msg,
-                           get_exchange_msg());
-#else
-      fsm_sendFailure(exchangeCodes[i].type, exchangeCodes[i].msg);
-#endif
       return;
     }
   }
@@ -718,7 +668,6 @@ void signing_init(const SignTx *msg, const CoinType *_coin,
   layoutProgressSwipe(_("Signing transaction"), 0);
 
   send_req_1_input();
-  set_exchange_error(NO_EXCHANGE_ERROR);
 }
 
 static bool is_multisig_input_script_type(const TxInputType *txinput) {
