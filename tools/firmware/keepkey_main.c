@@ -86,8 +86,9 @@ static bool canDropPrivs(void) {
     case BLK_v2_0_0:
     case BLK_v2_1_0: {
       // sigs already checked in bootloader. If a sig is present we are in priv mode, drop privs.
-      fi_defense_delay(); // delay before the fetch from flash
-      uint8_t sigindex1 = *((uint8_t *)FLASH_META_SIGINDEX1);
+      uint8_t sigindex1 = 0;
+      fi_defense_delay(sigindex1); // delay before the fetch from flash
+      sigindex1 = *((uint8_t *)FLASH_META_SIGINDEX1);
       // Future signature format enhancements may use higher indexes for different keys, but
       // existing v2 bootloaders only recognize signatures up to BLK_v2_0_0_PUBKEYS. As such,
       // even if a sig with a higher index is present, these bootloaders will have dropped privs
