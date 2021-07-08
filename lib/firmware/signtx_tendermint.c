@@ -59,10 +59,14 @@ bool tendermint_signTxInit(const HDNode *_node, const void *_msg, const size_t m
     return false;
   }
 
+  if (strnlen(denom, 10) > 9) {
+    return false;
+  }
+
   memcpy((void *)&tmsg, _msg, msgsize);
 
   bool success = true;
-  char buffer[64 + 1];
+  char buffer[128];
 
   sha256_Init(&ctx);
 
@@ -77,7 +81,7 @@ bool tendermint_signTxInit(const HDNode *_node, const void *_msg, const size_t m
   sha256_Update(&ctx, (uint8_t *)chainid_prefix, strlen(chainid_prefix));
   tendermint_sha256UpdateEscaped(&ctx, tmsg.chain_id, strlen(tmsg.chain_id));
 
-  // 30 + ^10 + 19 = ^59
+  // 30 + ^10 + 11 + ^9 + 3 = ^63
   success &=
       tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                           "\",\"fee\":{\"amount\":[{\"amount\":\"%" PRIu32
@@ -103,7 +107,7 @@ bool tendermint_signTxInit(const HDNode *_node, const void *_msg, const size_t m
 
 bool tendermint_signTxUpdateMsgSend(const uint64_t amount, const char *to_address, const char *chainstr, 
                                     const char *denom, const char *msgTypePrefix) {
-  char buffer[64 + 1];
+  char buffer[128];
   size_t decoded_len;
   char hrp[45];
   uint8_t decoded[38];
@@ -112,7 +116,12 @@ bool tendermint_signTxUpdateMsgSend(const uint64_t amount, const char *to_addres
     return false;
   }
 
-  char from_address[46];
+  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 || strnlen(chainstr, 15) > 14) {
+    return false;
+  }
+
+  // ^14 + 39 + 1 = ^54
+  char from_address[54];
   if (!tendermint_getAddress(&node, chainstr, from_address)) {
     return false;
   }
@@ -121,25 +130,21 @@ bool tendermint_signTxUpdateMsgSend(const uint64_t amount, const char *to_addres
     sha256_Update(&ctx, (uint8_t *)",", 1);
   }
 
-  if (strnlen(msgTypePrefix, 26) > 25 || strnlen(denom, 11) > 10 || strnlen(chainstr, 13) > 12) {
-    return false;
-  }
-
   bool success = true;
 
-  // 9 + ^25 + 19 = ^53
+  // 9 + ^24 + 19 = ^52
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "{\"type\":\"%s/MsgSend\",\"value\":{", msgTypePrefix);
 
-  // 21 + ^20 + 19 = ^60
+  // 21 + ^20 + 11 + ^9 + 3 = ^64
   success &= tendermint_snprintf(
       &ctx, buffer, sizeof(buffer),
       "\"amount\":[{\"amount\":\"%" PRIu64 "\",\"denom\":\"%s\"}]", amount, denom);
 
-  // 17 + 45 + 1 = 63
+  // 17 + ^53 + 1 = ^71
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  ",\"from_address\":\"%s\"", from_address);
 
-  // 15 + 45 + 3 = 63
+  // 15 + ^53 + 3 = ^71
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  ",\"to_address\":\"%s\"}}", to_address);
 
@@ -149,9 +154,9 @@ bool tendermint_signTxUpdateMsgSend(const uint64_t amount, const char *to_addres
 }
 
 bool tendermint_signTxFinalize(uint8_t *public_key, uint8_t *signature) {
-  char buffer[64 + 1];
+  char buffer[128];
 
-  // 16 + ^20 = ^36
+  // 14 + ^20 + 2 = ^36
   if (!tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                            "],\"sequence\":\"%" PRIu64 "\"}", tmsg.sequence))
     return false;

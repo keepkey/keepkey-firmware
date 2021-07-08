@@ -168,7 +168,7 @@ void fsm_msgPing(Ping *msg) {
   if (is_mfg_mode() && msg->has_message && isValidModelNumber(msg->message)) {
     set_mfg_mode_off();
     char message[32];
-    strncpy(message, msg->message, sizeof(message));
+    strlcpy(message, msg->message, sizeof(message));
     message[31] = 0;
     flash_setModel(&message);
   }

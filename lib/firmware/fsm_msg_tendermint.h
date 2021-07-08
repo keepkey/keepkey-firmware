@@ -112,9 +112,9 @@ void fsm_msgTendermintMsgAck(const TendermintMsgAck *msg) {
   CHECK_PARAM(tendermint_signingIsInited(), "Signing not in progress");
   if (!msg->has_send || !msg->send.has_to_address || !msg->send.has_amount) {
     tendermint_signAbort();
-    // 21 + ^15 + 1 = 37
+    // 8 + ^14 + 13 + 1 = 36
     char failmsg[40];
-    snprintf(failmsg, 40, "Invalid %s Message Type", msg->chain_name);
+    snprintf(failmsg, sizeof(failmsg), "Invalid %s Message Type", msg->chain_name);
 
     fsm_sendFailure(FailureType_Failure_FirmwareError,
                     _(failmsg));
@@ -123,7 +123,7 @@ void fsm_msgTendermintMsgAck(const TendermintMsgAck *msg) {
   }
 
   const CoinType *coin = fsm_getCoin(true, msg->chain_name);
-  if (!coin) {
+  if (!coin ||!coin->has_coin_shortcut || !coin->has_decimals) {
     return;
   }
 
@@ -154,7 +154,10 @@ void fsm_msgTendermintMsgAck(const TendermintMsgAck *msg) {
     case OutputAddressType_TRANSFER:
     default: {
       char amount_str[32];
-      bn_format_uint64(msg->send.amount, NULL, msg->denom, 6, 0, false, amount_str,
+      char suffix[sizeof(coin->coin_shortcut) + 1]; // sizeof(coin->coin_shortcut) includes space for the terminator
+      strlcpy(suffix, " ", sizeof(suffix));
+      strlcat(suffix, coin->coin_shortcut, sizeof(suffix));
+      bn_format_uint64(msg->send.amount, NULL, suffix, coin->decimals, 0, false, amount_str,
                        sizeof(amount_str));
       if (!confirm_transaction_output(
               ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
