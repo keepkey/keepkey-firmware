@@ -57,6 +57,9 @@ typedef struct _Storage {
     bool sca_hardened;
     bool v15_16_trans;
     uint8_t random_salt[32];
+    uint8_t fw_version_major;
+    uint8_t fw_version_minor;
+    uint8_t fw_version_patch;
   } pub;
 
   bool has_sec;

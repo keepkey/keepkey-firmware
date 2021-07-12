@@ -31,6 +31,7 @@
 #include "aes_sca/aes128_cbc.h"
 
 #include "keepkey/board/common.h"
+#include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/supervise.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
@@ -759,7 +760,11 @@ void storage_writeStorageV16(char *ptr, size_t len, const Storage *storage) {
   }
 
   memcpy(ptr + 437, storage->pub.random_salt, 32);
-  // 1028 reserved bytes
+
+  write_u8(ptr + 469, storage->pub.fw_version_major);
+  write_u8(ptr + 470, storage->pub.fw_version_minor);
+  write_u8(ptr + 471, storage->pub.fw_version_patch);
+  // 1025 reserved bytes
 
   // Ignore whatever was in storage->sec. Only encrypted_sec can be committed.
   // Yes, this is a potential footgun. No, there's nothing we can do about it
@@ -828,7 +833,11 @@ void storage_readStorageV16(Storage *storage, const char *ptr, size_t len) {
   }
 
   memcpy(storage->pub.random_salt, ptr + 437, 32);
-  // 1028 reserved bytes
+
+  storage->pub.fw_version_major = read_u8(ptr + 469);
+  storage->pub.fw_version_minor = read_u8(ptr + 470);
+  storage->pub.fw_version_patch = read_u8(ptr + 471);
+  // 1025 reserved bytes
 
   storage->has_sec = false;
   memzero(&storage->sec, sizeof(storage->sec));
@@ -883,13 +892,61 @@ void storage_writeV11(char *flash, size_t len, const ConfigFlash *src) {
 void storage_readV16(ConfigFlash *dst, const char *flash, size_t len) {
   if (len < 1024) return;
   storage_readMeta(&dst->meta, flash, 44);
-  storage_readStorageV16(&dst->storage, flash + 44, 852);
+  storage_readStorageV16(&dst->storage, flash + 44, 855);
 }
 
 void storage_writeV16(char *flash, size_t len, const ConfigFlash *src) {
   if (len < 1024) return;
   storage_writeMeta(flash, 44, &src->meta);
-  storage_writeStorageV16(flash + 44, 852, &src->storage);
+  storage_writeStorageV16(flash + 44, 855, &src->storage);
+}
+
+StorageUpdateStatus storage_checkFWVersion(Storage* storage) {
+  int major = storage->pub.fw_version_major;
+  int minor = storage->pub.fw_version_minor;
+  int patch = storage->pub.fw_version_patch;
+
+  bool fromCurrentFwVersion =
+      major == MAJOR_VERSION &&
+      minor == MINOR_VERSION &&
+      patch == PATCH_VERSION;
+  bool fromOldFwVersion =
+      (major < MAJOR_VERSION) ||
+      (major == MAJOR_VERSION && minor < MINOR_VERSION) ||
+      (major == MAJOR_VERSION && minor == MINOR_VERSION && patch < PATCH_VERSION);
+
+  // If the version information matches exactly, it's valid and we don't need to update it.
+  if (storage->version == STORAGE_VERSION && fromCurrentFwVersion) return SUS_Valid;
+  // If the version information is from a newer firmware version, it's invalid.
+  if (!(fromOldFwVersion || fromCurrentFwVersion)) return SUS_Invalid;
+
+  storage->version = STORAGE_VERSION;
+  storage->pub.fw_version_major = MAJOR_VERSION;
+  storage->pub.fw_version_minor = MINOR_VERSION;
+  storage->pub.fw_version_patch = PATCH_VERSION;
+
+  // If we've gotten here, then something had to be updated, and the storage needs to be rewritten.
+  return SUS_Updated;
+}
+
+bool storage_confirmDowngrade(Storage* storage) {
+  int major = storage->pub.fw_version_major;
+  int minor = storage->pub.fw_version_minor;
+  int patch = storage->pub.fw_version_patch;
+
+  char titleBuf[BODY_CHAR_MAX];
+  snprintf(
+      titleBuf,
+      sizeof(titleBuf),
+      "Downgrade from v%d.%d.%d to v%d.%d.%d?",
+      major, minor, patch,
+      MAJOR_VERSION, MINOR_VERSION, PATCH_VERSION
+  );
+
+  return confirm_without_button_request(
+    titleBuf,
+    "This will erase your private keys. Continue ONLY if you have your recovery phrase; or unplug and then update."
+  );
 }
 
 StorageUpdateStatus storage_fromFlash(SessionState *ss, ConfigFlash *dst,
@@ -939,6 +996,7 @@ StorageUpdateStatus storage_fromFlash(SessionState *ss, ConfigFlash *dst,
       dst->storage.version = STORAGE_VERSION;
       return dst->storage.version == version ? SUS_Valid : SUS_Updated;
     case StorageVersion_16:
+    case StorageVersion_17:
       storage_readV16(dst, flash, STORAGE_SECTOR_LEN);
       dst->storage.version = STORAGE_VERSION;
       return dst->storage.version == version ? SUS_Valid : SUS_Updated;
@@ -1082,6 +1140,31 @@ void storage_init(void) {
       break;
   }
 
+  switch (storage_checkFWVersion(&shadow_config.storage)) {
+    case SUS_Invalid: {
+      if (!storage_confirmDowngrade(&shadow_config.storage)) {
+        layout_standard_notification(
+          "Firmware Update Required",
+          "Please disconnect and reconnect while holding the button.",
+          NOTIFICATION_UNPLUG);
+        display_refresh();
+        shutdown();
+        return;
+      }
+      
+      storage_reset();
+      storage_commit();
+      break;
+    }
+    case SUS_Valid:
+      break;
+    case SUS_Updated:
+      // If the fw version metadata was updated, write the new storage to flash
+      // so that the user's keys are protected against a downgrade attack.
+      storage_commit();
+      break;
+  }
+
   if (!storage_hasPin()) {
     // Cache the PIN
 #ifndef NDEBUG
@@ -1113,6 +1196,10 @@ void storage_reset_impl(SessionState *ss, ConfigFlash *cfg) {
   storage_resetPolicies(&cfg->storage);
 
   storage_setPin_impl(ss, &cfg->storage, "");
+
+  cfg->storage.pub.fw_version_major = MAJOR_VERSION;
+  cfg->storage.pub.fw_version_minor = MINOR_VERSION;
+  cfg->storage.pub.fw_version_patch = PATCH_VERSION;
 
   cfg->storage.version = STORAGE_VERSION;
 

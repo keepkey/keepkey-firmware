@@ -24,7 +24,7 @@
 #include "keepkey/board/memory.h"
 
 #define STORAGE_VERSION \
-  16 /* Must add case fallthrough in storage_fromFlash after increment*/
+  17 /* Must add case fallthrough in storage_fromFlash after increment*/
 #define STORAGE_RETRIES 3
 
 #define RANDOM_SALT_LEN 32
