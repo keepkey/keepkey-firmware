@@ -95,7 +95,7 @@ static bool canDropPrivs(void) {
       // by this point already, and trying to drop privs *again* will cause a fault.
       bool sigPresent = sigindex1 >= 1 && sigindex1 <= BLK_v2_0_0_PUBKEYS;
       // delay before the security-critical branch instruction
-      return !fi_defense_delay(sigPresent);
+      return fi_defense_delay(sigPresent);
     }
   }
   __builtin_unreachable();
