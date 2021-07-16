@@ -91,7 +91,7 @@ static bool canDropPrivs(void) {
       sigindex1 = *((uint8_t *)FLASH_META_SIGINDEX1);
       bool sigPresent = sigindex1 >= 1;
       // delay before the security-critical branch instruction
-      return !fi_defense_delay(sigPresent);
+      return fi_defense_delay(sigPresent);
     }
   }
   __builtin_unreachable();
