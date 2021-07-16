@@ -17,7 +17,6 @@ set(sources
     ethereum_contracts/zxtransERC20.c
     ethereum_contracts/zxswap.c
     ethereum_tokens.c
-    exchange.c
     fsm.c
     home_sm.c
     nano.c

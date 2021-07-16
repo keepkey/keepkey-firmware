@@ -42,7 +42,6 @@
 #include "keepkey/firmware/eos-contracts.h"
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_tokens.h"
-#include "keepkey/firmware/exchange.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/passphrase_sm.h"
@@ -241,12 +240,7 @@ void fsm_sendSuccess(const char *text) {
   msg_write(MessageType_MessageType_Success, resp);
 }
 
-#if DEBUG_LINK
-void fsm_sendFailureDebug(FailureType code, const char *text,
-                          const char *source)
-#else
 void fsm_sendFailure(FailureType code, const char *text)
-#endif
 {
   if (reset_msg_stack) {
     fsm_msgInitialize((Initialize *)0);
@@ -258,18 +252,10 @@ void fsm_sendFailure(FailureType code, const char *text)
   resp->has_code = true;
   resp->code = code;
 
-#if DEBUG_LINK
-  resp->has_message = true;
-  strlcpy(resp->message, source, sizeof(resp->message));
-  if (text) {
-    strlcat(resp->message, text, sizeof(resp->message));
-  }
-#else
   if (text) {
     resp->has_message = true;
     strlcpy(resp->message, text, sizeof(resp->message));
   }
-#endif
   msg_write(MessageType_MessageType_Failure, resp);
 }
 

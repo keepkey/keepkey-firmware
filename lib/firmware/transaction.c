@@ -376,8 +376,10 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in,
       } break;
 
       case OutputAddressType_EXCHANGE: {
+        // this is obsolete, should never hit this case
         if (!in->has_exchange_type) return false;
       } break;
+
     }
   }
 
