@@ -89,11 +89,7 @@ static bool canDropPrivs(void) {
       uint8_t sigindex1 = 0;
       fi_defense_delay(sigindex1); // delay before the fetch from flash
       sigindex1 = *((uint8_t *)FLASH_META_SIGINDEX1);
-      // Future signature format enhancements may use higher indexes for different keys, but
-      // existing v2 bootloaders only recognize signatures up to BLK_v2_0_0_PUBKEYS. As such,
-      // even if a sig with a higher index is present, these bootloaders will have dropped privs
-      // by this point already, and trying to drop privs *again* will cause a fault.
-      bool sigPresent = sigindex1 >= 1 && sigindex1 <= BLK_v2_0_0_PUBKEYS;
+      bool sigPresent = sigindex1 >= 1;
       // delay before the security-critical branch instruction
       return !fi_defense_delay(sigPresent);
     }
