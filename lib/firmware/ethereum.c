@@ -260,7 +260,7 @@ static void send_request_chunk(void) {
   msg_write(MessageType_MessageType_EthereumTxRequest, &msg_tx_request);
 }
 
-static int ethereum_is_canonic(uint8_t v, uint8_t signature[64]) {
+int ethereum_is_canonic(uint8_t v, uint8_t signature[64]) {
   (void)signature;
   return (v & 2) == 0;
 }

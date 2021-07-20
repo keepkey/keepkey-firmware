@@ -38,6 +38,7 @@
     MSG_IN(MessageType_MessageType_EthereumTxAck,                   EthereumTxAck,               fsm_msgEthereumTxAck)
     MSG_IN(MessageType_MessageType_EthereumSignMessage,             EthereumSignMessage,         fsm_msgEthereumSignMessage)
     MSG_IN(MessageType_MessageType_EthereumVerifyMessage,           EthereumVerifyMessage,       fsm_msgEthereumVerifyMessage)
+
     MSG_IN(MessageType_MessageType_NanoGetAddress,                  NanoGetAddress,              fsm_msgNanoGetAddress)
     MSG_IN(MessageType_MessageType_NanoSignTx,                      NanoSignTx,                  fsm_msgNanoSignTx)
 
@@ -59,6 +60,14 @@
     MSG_IN(MessageType_MessageType_ThorchainGetAddress,             ThorchainGetAddress,         fsm_msgThorchainGetAddress)
     MSG_IN(MessageType_MessageType_ThorchainSignTx,                 ThorchainSignTx,             fsm_msgThorchainSignTx)
     MSG_IN(MessageType_MessageType_ThorchainMsgAck,                 ThorchainMsgAck,             fsm_msgThorchainMsgAck)
+
+    MSG_IN(MessageType_MessageType_EIP712Init,                      EIP712Init,                  fsm_msgEIP712Init)
+    MSG_IN(MessageType_MessageType_EIP712Sign,                      EIP712Sign,                  fsm_msgEIP712Sign)
+    MSG_IN(MessageType_MessageType_EIP712Verify,                    EIP712Verify,                fsm_msgEIP712Verify)
+    MSG_IN(MessageType_MessageType_EIP712PushFrame,                 EIP712PushFrame,             fsm_msgEIP712PushFrame)
+    MSG_IN(MessageType_MessageType_EIP712PopFrame,             EIP712PopFrame,         fsm_msgEIP712PopFrame)
+    MSG_IN(MessageType_MessageType_EIP712AppendAtomicField,         EIP712AppendAtomicField,     fsm_msgEIP712AppendAtomicField)
+    MSG_IN(MessageType_MessageType_EIP712AppendDynamicData,         EIP712AppendDynamicData,     fsm_msgEIP712AppendDynamicData)
 
     /* Normal Out Messages */
     MSG_OUT(MessageType_MessageType_Success,                        Success,                     NO_PROCESS_FUNC)
@@ -107,6 +116,8 @@
     MSG_OUT(MessageType_MessageType_ThorchainAddress,               ThorchainAddress,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_ThorchainMsgRequest,            ThorchainMsgRequest,         NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_ThorchainSignedTx,              ThorchainSignedTx,           NO_PROCESS_FUNC)
+
+    MSG_OUT(MessageType_MessageType_EIP712ContextInfo,              EIP712ContextInfo,           NO_PROCESS_FUNC)
 
 #if DEBUG_LINK
     /* Debug Messages */

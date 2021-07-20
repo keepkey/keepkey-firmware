@@ -1,0 +1,9 @@
+EIP712Sign.address_n                    max_count:8
+EIP712Verify.address                    max_size:20
+EIP712Verify.signature                  max_size:65
+EIP712PushFrame.encodedType             max_length:1024
+EIP712PushFrame.fieldName               max_length:63
+EIP712AppendAtomicField.encodedType     max_length:63
+EIP712AppendAtomicField.fieldName       max_length:63
+EIP712AppendAtomicField.data            max_size:32
+EIP712AppendDynamicData.data            max_size:1024

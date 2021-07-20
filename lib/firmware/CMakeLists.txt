@@ -4,6 +4,16 @@ set(sources
     binance.c
     coins.c
     crypto.c
+    eip712/display.c
+    eip712/eip712.c
+    eip712/encoded_types.c
+    eip712/extended_types.c
+    eip712/session/frame/array.c
+    eip712/session/frame/dynamicData.c
+    eip712/session/frame/frame.c
+    eip712/session/frame/struct.c
+    eip712/session/session.c
+    eip712/util.c
     eos.c
     eos-contracts/eosio.system.c
     eos-contracts/eosio.token.c

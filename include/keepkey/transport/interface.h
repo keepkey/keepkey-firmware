@@ -32,6 +32,7 @@
 #include "messages-ripple.pb.h"
 #include "messages-tendermint.pb.h"
 #include "messages-thorchain.pb.h"
+#include "messages-eip712.pb.h"
 
 #include "types.pb.h"
 #include "trezor_transport.h"

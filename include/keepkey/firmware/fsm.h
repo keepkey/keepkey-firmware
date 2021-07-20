@@ -107,6 +107,14 @@ void fsm_msgThorchainGetAddress(const ThorchainGetAddress *msg);
 void fsm_msgThorchainSignTx(const ThorchainSignTx *msg);
 void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg);
 
+void fsm_msgEIP712Init(const EIP712Init *msg);
+void fsm_msgEIP712Sign(const EIP712Sign *msg);
+void fsm_msgEIP712Verify(const EIP712Verify *msg);
+void fsm_msgEIP712PushFrame(const EIP712PushFrame *msg);
+void fsm_msgEIP712PopFrame(const EIP712PopFrame *msg);
+void fsm_msgEIP712AppendAtomicField(const EIP712AppendAtomicField *msg);
+void fsm_msgEIP712AppendDynamicData(const EIP712AppendDynamicData *msg);
+
 #if DEBUG_LINK
 // void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
 void fsm_msgDebugLinkGetState(DebugLinkGetState *msg);

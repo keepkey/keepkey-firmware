@@ -38,6 +38,7 @@
 #include "keepkey/firmware/cosmos.h"
 #include "keepkey/firmware/binance.h"
 #include "keepkey/firmware/crypto.h"
+#include "keepkey/firmware/eip712.h"
 #include "keepkey/firmware/eos.h"
 #include "keepkey/firmware/eos-contracts.h"
 #include "keepkey/firmware/ethereum.h"
@@ -78,6 +79,7 @@
 #include "messages-nano.pb.h"
 #include "messages-ripple.pb.h"
 #include "messages-thorchain.pb.h"
+#include "messages-eip712.pb.h"
 
 #include <stdio.h>
 
@@ -119,6 +121,15 @@ static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
   }
 
 #define CHECK_PARAM(cond, errormsg) CHECK_PARAM_RET(cond, errormsg, )
+
+#define CHECK_CONFIRM_RET(cond, errormsg, retval)                     \
+  if (!(cond)) {                                                      \
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, (errormsg)); \
+    layoutHome();                                                     \
+    return retval;                                                    \
+  }
+
+#define CHECK_CONFIRM(cond, errormsg) CHECK_CONFIRM_RET(cond, errormsg, )
 
 static const MessagesMap_t MessagesMap[] = {
 #include "messagemap.def"
@@ -268,6 +279,7 @@ void fsm_msgClearSession(ClearSession *msg) {
 #include "fsm_msg_common.h"
 #include "fsm_msg_coin.h"
 #include "fsm_msg_ethereum.h"
+#include "eip712/fsm.h"
 #include "fsm_msg_nano.h"
 #include "fsm_msg_crypto.h"
 #include "fsm_msg_debug.h"

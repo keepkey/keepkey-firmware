@@ -33,6 +33,8 @@ typedef struct _EthereumMessageSignature EthereumMessageSignature;
 typedef struct _TokenType TokenType;
 typedef struct _CoinType CoinType;
 
+int ethereum_is_canonic(uint8_t v, uint8_t signature[64]);
+
 void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
                            bool needs_confirm);
 void ethereum_signing_abort(void);
