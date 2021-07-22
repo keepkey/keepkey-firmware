@@ -99,17 +99,19 @@ CipheredKeyValue.value			max_size:1024
 
 SignTx.coin_name			max_size:21
 
-EthereumSignTx.address_n		max_count:8
-EthereumSignTx.nonce			max_size:32
-EthereumSignTx.gas_price		max_size:32
-EthereumSignTx.gas_limit		max_size:32
-EthereumSignTx.to			    max_size:20
-EthereumSignTx.value			max_size:32
-EthereumSignTx.data_initial_chunk	max_size:1024
-EthereumSignTx.to_address_n		max_count:8
-EthereumSignTx.token_value      max_size:32
-EthereumSignTx.token_to         max_size:0
-EthereumSignTx.token_shortcut   max_size:8
+EthereumSignTx.address_n		        max_count:8
+EthereumSignTx.nonce			        max_size:32
+EthereumSignTx.gas_price		        max_size:32
+EthereumSignTx.gas_limit		        max_size:32
+EthereumSignTx.max_fee_per_gas          max_size:32
+EthereumSignTx.max_priority_fee_per_gas max_size:32
+EthereumSignTx.to			            max_size:20
+EthereumSignTx.value			        max_size:32
+EthereumSignTx.data_initial_chunk	    max_size:1024
+EthereumSignTx.to_address_n		        max_count:8
+EthereumSignTx.token_value              max_size:32
+EthereumSignTx.token_to                 max_size:0
+EthereumSignTx.token_shortcut           max_size:8
 
 EthereumTxRequest.signature_r		max_size:32
 EthereumTxRequest.signature_s		max_size:32
