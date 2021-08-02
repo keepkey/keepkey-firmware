@@ -71,40 +71,22 @@ void memory_getDeviceLabel(char *str, size_t len) {
 }
 
 static bool canDropPrivs(void) {
-  switch (get_bootloaderKind()) {
-    case BLK_v1_0_0:
-    case BLK_v1_0_1:
-    case BLK_v1_0_2:
-    case BLK_v1_0_3:
-    case BLK_v1_0_3_elf:
-    case BLK_v1_0_3_sig:
-    case BLK_v1_0_4:
-    case BLK_UNKNOWN:
-      return true;
-    case BLK_v1_1_0:
-      return true;
-    case BLK_v2_0_0:
-    case BLK_v2_1_0: 
-      {
-      // Check to see if we are in priv mode. If not, return true to drop privs.
-      uint32_t creg =0xffff;
 
-      // CONTROL register nPRIV,bit[0]: 
-      //    0 Thread mode has privileged access
-      //    1 Thread mode has unprivileged access. 
-      // Note: In Handler mode, execution is always privileged.
+  // Check to see if we are in priv mode. If not, return true to drop privs.
+  uint32_t creg = 0xffff;
+  // CONTROL register nPRIV,bit[0]: 
+  //    0 Thread mode has privileged access
+  //    1 Thread mode has unprivileged access. 
+  // Note: In Handler mode, execution is always privileged
+  fi_defense_delay(creg);  // vary access time
+  __asm__ volatile(
+       "mrs %0, control" : "=r" (creg));
+  fi_defense_delay(creg);  // vary test time
+  if (creg & 0x0001) 
+    return false;          // can't drop privs
+  else
+    return true;
 
-      fi_defense_delay(creg);  // vary access time
-      __asm__ volatile(
-           "mrs %0, control" : "=r" (creg));
-
-      fi_defense_delay(creg);  // vary test time
-      if (creg & 0x0001) 
-        return false;     // can't drop privs
-      else
-        return true;
-    }
-  }
   __builtin_unreachable();
 }
 
