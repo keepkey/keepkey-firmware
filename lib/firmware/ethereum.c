@@ -487,32 +487,69 @@ static void layoutEthereumData(const uint8_t *data, uint32_t len,
   }
 }
 
-static void layoutEthereumFee(const uint8_t *value, uint32_t value_len,
-                              const uint8_t *gas_price, uint32_t gas_price_len,
-                              const uint8_t *gas_limit, uint32_t gas_limit_len,
-                              bool is_token, char *out_str,
-                              size_t out_str_len) {
-  bignum256 val, gas;
+static void formatEthereumFee(bignum256 *fee, const uint8_t *gas_price,
+                              const uint8_t gas_price_len) {
   uint8_t pad_val[32];
-  char tx_value[32];
-  char gas_value[32];
 
-  memzero(tx_value, sizeof(tx_value));
-  memzero(gas_value, sizeof(gas_value));
-
+  bn_zero(fee);
   memset(pad_val, 0, sizeof(pad_val));
   memcpy(pad_val + (32 - gas_price_len), gas_price, gas_price_len);
-  bn_read_be(pad_val, &val);
+  bn_read_be(pad_val, fee);
+}
+
+static void formatEthereumFeeEIP1559(
+    bignum256 *fee, const uint8_t *max_fee_per_gas,
+    const uint8_t max_fee_per_gas_len, const uint8_t *max_priority_fee_per_gas,
+    const uint8_t max_priority_fee_per_gas_len) {
+  bignum256 max_fee, max_pfee;
+  uint8_t pad_val[32];
+
+  bn_zero(fee);
 
   memset(pad_val, 0, sizeof(pad_val));
-  memcpy(pad_val + (32 - gas_limit_len), gas_limit, gas_limit_len);
+  memcpy(pad_val + (32 - max_fee_per_gas_len), max_fee_per_gas,
+         max_fee_per_gas_len);
+  bn_read_be(pad_val, &max_fee);
+
+  memset(pad_val, 0, sizeof(pad_val));
+  memcpy(pad_val + (32 - max_priority_fee_per_gas_len),
+         max_priority_fee_per_gas, max_priority_fee_per_gas_len);
+  bn_read_be(pad_val, &max_pfee);
+
+  bn_add(fee, &max_fee);
+  if (max_priority_fee_per_gas_len) {
+    bn_add(fee, &max_pfee);
+  }
+}
+
+static void layoutEthereumFee(const EthereumSignTx *msg, bool is_token,
+                              char *out_str, size_t out_str_len) {
+  bignum256 val, gas;
+  char gas_value[32];
+  char tx_value[32];
+  uint8_t pad_val[32];
+
+  memzero(gas_value, sizeof(gas_value));
+  memzero(tx_value, sizeof(tx_value));
+
+  if (msg->has_max_fee_per_gas) {
+    formatEthereumFeeEIP1559(&val, msg->max_fee_per_gas.bytes,
+                             msg->max_fee_per_gas.size,
+                             msg->max_priority_fee_per_gas.bytes,
+                             msg->max_priority_fee_per_gas.size);
+  } else {
+    formatEthereumFee(&val, msg->gas_price.bytes, msg->gas_price.size);
+  }
+
+  memset(pad_val, 0, sizeof(pad_val));
+  memcpy(pad_val + (32 - msg->gas_limit.size), msg->gas_limit.bytes,
+         msg->gas_limit.size);
   bn_read_be(pad_val, &gas);
   bn_multiply(&val, &gas, &secp256k1.prime);
-
   ethereumFormatAmount(&gas, NULL, chain_id, gas_value, sizeof(gas_value));
 
   memset(pad_val, 0, sizeof(pad_val));
-  memcpy(pad_val + (32 - value_len), value, value_len);
+  memcpy(pad_val + (32 - msg->value.size), msg->value.bytes, msg->value.size);
   bn_read_be(pad_val, &val);
 
   if (bn_is_zero(&val)) {
@@ -541,7 +578,11 @@ static void layoutEthereumFee(const uint8_t *value, uint32_t value_len,
  */
 
 static bool ethereum_signing_check(EthereumSignTx *msg) {
-  if (!msg->has_gas_price || !msg->has_gas_limit) {
+  if (!msg->has_gas_limit) {
+    return false;
+  }
+
+  if (!(msg->has_gas_price || msg->has_max_fee_per_gas)) {
     return false;
   }
 
@@ -724,9 +765,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
   }
 
   memset(confirm_body_message, 0, sizeof(confirm_body_message));
-  layoutEthereumFee(msg->value.bytes, msg->value.size, msg->gas_price.bytes,
-                    msg->gas_price.size, msg->gas_limit.bytes,
-                    msg->gas_limit.size, token != NULL, confirm_body_message,
+  layoutEthereumFee(msg, token != NULL, confirm_body_message,
                     sizeof(confirm_body_message));
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Transaction", "%s",
                confirm_body_message)) {
