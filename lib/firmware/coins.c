@@ -404,6 +404,22 @@ static const char *account_prefix(const CoinType *coin,
   return NULL;
 }
 
+bool isTendermint(const char *coin_name) {
+  if (strcmp(coin_name, "Cosmos") == 0) return true;
+
+  if (strcmp(coin_name, "Binance") == 0) return true;
+
+  if (strcmp(coin_name, "THORChain") == 0) return true;
+
+  if (strcmp(coin_name, "Terra") == 0) return true;
+
+  if (strcmp(coin_name, "Kava") == 0) return true;
+
+  if (strcmp(coin_name, "Secret") == 0) return true;
+
+  return false;
+}
+
 bool isEthereumLike(const char *coin_name) {
   if (strcmp(coin_name, ETHEREUM) == 0) return true;
 
@@ -420,14 +436,23 @@ static bool isEOS(const char *coin_name) {
   return false;
 }
 
-static bool isAccountBased(const char *coin_name) {
-  if (strcmp(coin_name, "Cosmos") == 0) {
+static bool isRipple(const char *coin_name) {
+  if (strcmp(coin_name, "Ripple") == 0) return true;
+
+  return false;
+}
+
+bool isAccountBased(const char *coin_name) {
+  if (isTendermint(coin_name)) {
     return true;
   }
   if (isEthereumLike(coin_name)) {
     return true;
   }
   if (isEOS(coin_name)) {
+    return true;
+  }
+  if (isRipple(coin_name)) {
     return true;
   }
   return false;

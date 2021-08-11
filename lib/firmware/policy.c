@@ -36,19 +36,12 @@
  */
 int run_policy_compile_output(const CoinType *coin, const HDNode *root,
                               void *vin, void *vout, bool needs_confirm) {
-  /* setup address type with respect to coin type */
-  if (isEthereumLike(coin->coin_name)) {
-  } else if (strcmp("Cosmos", coin->coin_name) == 0) {
-  } else {
-    /* Bitcoin, Clones, Forks */
-    if (vout == NULL) {
-      return TXOUT_COMPILE_ERROR;
-    }
+  if (isAccountBased(coin->coin_name)) return TXOUT_OK;
+
+  /* Bitcoin, Clones, Forks */
+  if (vout == NULL) {
+    return TXOUT_COMPILE_ERROR;
   }
-
-  if (isEthereumLike(coin->coin_name)) return TXOUT_OK;
-
-  if (strcmp("Cosmos", coin->coin_name) == 0) return TXOUT_OK;
 
   return compile_output(coin, root, (TxOutputType *)vin,
                         (TxOutputBinType *)vout, needs_confirm);
