@@ -31,7 +31,6 @@
 bool confirm_cipher(bool encrypt, const char *key);
 bool confirm_encrypt_msg(const char *msg, bool signing);
 bool confirm_decrypt_msg(const char *msg, const char *address);
-bool confirm_exchange_output(const char *from_amount, const char *to_amount);
 bool confirm_transfer_output(ButtonRequestType button_request,
                              const char *amount, const char *to);
 bool confirm_transaction_output(ButtonRequestType button_request,

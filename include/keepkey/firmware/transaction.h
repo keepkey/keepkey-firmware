@@ -33,7 +33,6 @@
 #define TXOUT_OK 1
 #define TXOUT_COMPILE_ERROR 0
 #define TXOUT_CANCEL -1
-#define TXOUT_EXCHANGE_CONTRACT_ERROR -2
 
 typedef struct {
   uint32_t inputs_len;

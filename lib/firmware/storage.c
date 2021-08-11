@@ -667,7 +667,7 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
   storage->pub.has_auto_lock_delay_ms = flags & (1u << 3);
   storage->pub.imported = flags & (1u << 4);
   storage->pub.passphrase_protection = flags & (1u << 5);
-  storage_readPolicyV2(&storage->pub.policies[0], "ShapeShift", true);
+  storage_readPolicyV2(&storage->pub.policies[0], "ShapeShift", false);
   storage_readPolicyV2(&storage->pub.policies[1], "Pin Caching", true);
   storage->pub.has_node = flags & (1u << 8);
   storage->pub.has_mnemonic = flags & (1u << 9);
@@ -785,7 +785,7 @@ void storage_readStorageV16(Storage *storage, const char *ptr, size_t len) {
   storage->pub.has_auto_lock_delay_ms = flags & (1u << 3);
   storage->pub.imported = flags & (1u << 4);
   storage->pub.passphrase_protection = flags & (1u << 5);
-  storage_readPolicyV2(&storage->pub.policies[0], "ShapeShift", true);
+  storage_readPolicyV2(&storage->pub.policies[0], "ShapeShift", false);
   storage_readPolicyV2(&storage->pub.policies[1], "Pin Caching", true);
   storage->pub.has_node = flags & (1u << 8);
   storage->pub.has_mnemonic = flags & (1u << 9);

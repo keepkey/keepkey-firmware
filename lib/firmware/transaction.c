@@ -374,12 +374,6 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in,
         if (in->address_type == OutputAddressType_TRANSFER)
           if (in->address_n_count < 5 || in->address_n[3] != 0) return 0;
       } break;
-
-      case OutputAddressType_EXCHANGE: {
-        // this is obsolete, should never hit this case
-        if (!in->has_exchange_type) return false;
-      } break;
-
     }
   }
 

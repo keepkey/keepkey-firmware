@@ -121,23 +121,6 @@ bool confirm_decrypt_msg(const char *msg, const char *address) {
 }
 
 /*
- * confirm_exchange_output() - Show exchange output confirmation
- *
- * INPUT -
- *      - dep_amt: source amount to convert
- *      - wit_amt: destination amount to received
- * OUTPUT -
- *     true/false of confirmation
- *
- */
-bool confirm_exchange_output(const char *dep_amt, const char *wit_amt) {
-  return confirm_with_custom_layout(
-      &layout_standard_notification,
-      ButtonRequestType_ButtonRequest_SignExchange, "ShapeShift",
-      "Trade %s with ShapeShift in exchange for %s?", dep_amt, wit_amt);
-}
-
-/*
  * confirm_transfer_output() - Show transfer output confirmation
  *
  * INPUT -

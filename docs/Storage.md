@@ -89,7 +89,7 @@ it easier to extend for new features later on.
 |   has_auto_lock_delay_ms  |   bit 3        |              |                |
 |   imported                |   bit 4        |              |                |
 |   passphrase_protection   |   bit 5        |              |                |
-|   ShapeShift policy       |   bit 6        |              |                |
+|   formerly: ShapeShift    |   bit 6        |              |                |
 |   formerly: Pin Caching   |   bit 7        |              |                |
 |   has_node                |   bit 8        |              |                |
 |   has_mnemonic            |   bit 9        |              |                |
@@ -142,7 +142,7 @@ STORAGE_VERSION 16 layout
 |   has_auto_lock_delay_ms  |   bit 3        |              |                |
 |   imported                |   bit 4        |              |                |
 |   passphrase_protection   |   bit 5        |              |                |
-|   ShapeShift policy       |   bit 6        |              |                |
+|   formerly: ShapeShift    |   bit 6        |              |                |
 |   formerly: Pin Caching   |   bit 7        |              |                |
 |   has_node                |   bit 8        |              |                |
 |   has_mnemonic            |   bit 9        |              |                |

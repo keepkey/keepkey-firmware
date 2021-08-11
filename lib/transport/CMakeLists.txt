@@ -5,7 +5,6 @@ set(sources
 
 set(protoc_pb_sources
     ${DEVICE_PROTOCOL}/types.proto
-    ${DEVICE_PROTOCOL}/exchange.proto
     ${DEVICE_PROTOCOL}/messages-eos.proto
     ${DEVICE_PROTOCOL}/messages-nano.proto
     ${DEVICE_PROTOCOL}/messages-binance.proto
@@ -17,7 +16,6 @@ set(protoc_pb_sources
 
 set(protoc_pb_options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/types.options
-    ${CMAKE_SOURCE_DIR}/include/keepkey/transport/exchange.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-eos.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-nano.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-binance.options
@@ -29,7 +27,6 @@ set(protoc_pb_options
 
 set(protoc_c_sources
     ${CMAKE_BINARY_DIR}/lib/transport/types.pb.c
-    ${CMAKE_BINARY_DIR}/lib/transport/exchange.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-eos.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-nano.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-binance.pb.c
@@ -41,7 +38,6 @@ set(protoc_c_sources
 
 set(protoc_c_headers
     ${CMAKE_BINARY_DIR}/include/types.pb.h
-    ${CMAKE_BINARY_DIR}/include/exchange.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-eos.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-nano.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-binance.pb.h
@@ -53,7 +49,6 @@ set(protoc_c_headers
 
 set(protoc_pb_sources_moved
     ${CMAKE_BINARY_DIR}/lib/transport/types.proto
-    ${CMAKE_BINARY_DIR}/lib/transport/exchange.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-eos.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-nano.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-binance.proto
@@ -86,10 +81,6 @@ add_custom_command(
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
       "--nanopb_out=-f types.options:." types.proto
-  COMMAND
-    ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f exchange.options:." exchange.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
