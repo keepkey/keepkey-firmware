@@ -57,8 +57,7 @@ static EthereumTxRequest msg_tx_request;
 static CONFIDENTIAL uint8_t privkey[32];
 static uint32_t chain_id;
 static uint32_t wanchain_tx_type;  // Wanchain only
-static uint32_t
-    ethereum_tx_type;  // Ethereum tx type (0=Legacy, 1=EIP-2930, 2=EIP-1559)
+static uint32_t ethereum_tx_type;  // Ethereum tx type (0=Legacy, 1=EIP-2930, 2=EIP-1559)
 struct SHA3_CTX keccak_ctx;
 
 bool ethereum_isStandardERC20Transfer(const EthereumSignTx *msg) {
@@ -805,27 +804,26 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
     rlp_length += rlp_calculate_length(msg->max_fee_per_gas.size,
                                        msg->max_fee_per_gas.bytes[0]);
     if (msg->has_max_priority_fee_per_gas) {
-      rlp_length +=
-          rlp_calculate_length(msg->max_priority_fee_per_gas.size,
-                               msg->max_priority_fee_per_gas.bytes[0]);
+      rlp_length += rlp_calculate_length(msg->max_priority_fee_per_gas.size,
+                                         msg->max_priority_fee_per_gas.bytes[0]);
     }
   } else {
-    rlp_length +=
-        rlp_calculate_length(msg->gas_price.size, msg->gas_price.bytes[0]);
+    rlp_length += rlp_calculate_length(msg->gas_price.size, msg->gas_price.bytes[0]);
   }
 
-  rlp_length +=
-      rlp_calculate_length(msg->gas_limit.size, msg->gas_limit.bytes[0]);
+  rlp_length += rlp_calculate_length(msg->gas_limit.size, msg->gas_limit.bytes[0]);
   rlp_length += rlp_calculate_length(msg->to.size, msg->to.bytes[0]);
   rlp_length += rlp_calculate_length(msg->value.size, msg->value.bytes[0]);
-  rlp_length +=
-      rlp_calculate_length(data_total, msg->data_initial_chunk.bytes[0]);
+  rlp_length += rlp_calculate_length(data_total, msg->data_initial_chunk.bytes[0]);
+    
   if (wanchain_tx_type) {
     rlp_length += rlp_calculate_number_length(wanchain_tx_type);
   }
+    
   if (ethereum_tx_type) {
     rlp_length += rlp_calculate_number_length(ethereum_tx_type);
   }
+    
   if (chain_id) {
     rlp_length += rlp_calculate_number_length(chain_id);
     rlp_length += rlp_calculate_length(0, 0);
@@ -843,6 +841,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
   }
 
   hash_rlp_field(msg->nonce.bytes, msg->nonce.size);
+    
   if (msg->has_max_fee_per_gas) {
     hash_rlp_field(msg->max_fee_per_gas.bytes, msg->max_fee_per_gas.size);
     if (msg->has_max_priority_fee_per_gas) {
@@ -852,6 +851,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
   } else {
     hash_rlp_field(msg->gas_price.bytes, msg->gas_price.size);
   }
+    
   hash_rlp_field(msg->gas_limit.bytes, msg->gas_limit.size);
   hash_rlp_field(msg->to.bytes, msg->to.size);
   hash_rlp_field(msg->value.bytes, msg->value.size);
