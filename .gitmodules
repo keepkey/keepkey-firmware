@@ -14,7 +14,7 @@
 [submodule "deps/python-keepkey"]
 	path = deps/python-keepkey
 	url = https://github.com/keepkey/python-keepkey.git
-	branch = eip-1559-fix
+	branch = master
 [submodule "deps/qrenc/QR-Code-generator"]
 	path = deps/qrenc/QR-Code-generator
 	url = https://github.com/keepkey/QR-Code-generator.git
