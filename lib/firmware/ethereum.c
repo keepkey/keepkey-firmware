@@ -47,9 +47,9 @@
 
 #define MAX_CHAIN_ID 2147483630
 
-#define ETHEREUM_TX_TYPE_LEGACY 0
-#define ETHEREUM_TX_TYPE_EIP_2930 1
-#define ETHEREUM_TX_TYPE_EIP_1559 2
+#define ETHEREUM_TX_TYPE_LEGACY 0UL
+#define ETHEREUM_TX_TYPE_EIP_2930 1UL
+#define ETHEREUM_TX_TYPE_EIP_1559 2UL
 
 static bool ethereum_signing = false;
 static uint32_t data_total, data_left;
@@ -801,12 +801,12 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
 
   rlp_length += rlp_calculate_length(msg->nonce.size, msg->nonce.bytes[0]);
   if (msg->has_max_fee_per_gas) {
-    rlp_length += rlp_calculate_length(msg->max_fee_per_gas.size,
-                                       msg->max_fee_per_gas.bytes[0]);
     if (msg->has_max_priority_fee_per_gas) {
       rlp_length += rlp_calculate_length(msg->max_priority_fee_per_gas.size,
                                          msg->max_priority_fee_per_gas.bytes[0]);
     }
+    rlp_length += rlp_calculate_length(msg->max_fee_per_gas.size,
+                                       msg->max_fee_per_gas.bytes[0]);    
   } else {
     rlp_length += rlp_calculate_length(msg->gas_price.size, msg->gas_price.bytes[0]);
   }
@@ -819,10 +819,11 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
   if (wanchain_tx_type) {
     rlp_length += rlp_calculate_number_length(wanchain_tx_type);
   }
-    
-  if (ethereum_tx_type) {
-    rlp_length += rlp_calculate_number_length(ethereum_tx_type);
-  }
+  
+  // TODO: Determins whether type field should be hashed
+  // if (ethereum_tx_type) {
+  //   rlp_length += rlp_calculate_number_length(ethereum_tx_type);
+  // }
     
   if (chain_id) {
     rlp_length += rlp_calculate_number_length(chain_id);
@@ -833,9 +834,11 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
   /* Stage 2: Store header fields */
   hash_rlp_list_length(rlp_length);
   layoutProgress(_("Signing"), 100);
-  if (ethereum_tx_type) {
-    hash_rlp_number(ethereum_tx_type);
-  }
+
+  // TODO: Determins whether type field should be hashed
+  // if (ethereum_tx_type) {
+  //   hash_rlp_number(ethereum_tx_type);
+  // }
   if (wanchain_tx_type) {
     hash_rlp_number(wanchain_tx_type);
   }
@@ -843,11 +846,11 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
   hash_rlp_field(msg->nonce.bytes, msg->nonce.size);
     
   if (msg->has_max_fee_per_gas) {
-    hash_rlp_field(msg->max_fee_per_gas.bytes, msg->max_fee_per_gas.size);
     if (msg->has_max_priority_fee_per_gas) {
       hash_rlp_field(msg->max_priority_fee_per_gas.bytes,
                      msg->max_priority_fee_per_gas.size);
     }
+    hash_rlp_field(msg->max_fee_per_gas.bytes, msg->max_fee_per_gas.size);
   } else {
     hash_rlp_field(msg->gas_price.bytes, msg->gas_price.size);
   }
