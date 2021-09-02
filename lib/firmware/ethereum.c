@@ -136,6 +136,17 @@ void bn_from_bytes(const uint8_t *value, size_t value_len, bignum256 *val) {
 
 static inline void hash_data(const uint8_t *buf, size_t size) {
   sha3_Update(&keccak_ctx, buf, size);
+  // {
+  //   // let's see the data
+  //   char pstr[65] = {0};
+  //   uint16_t ctr;
+
+  //   for (ctr=0; ctr<=size; ctr+=2) {
+  //     sprintf(&pstr[ctr], "%02x", buf[ctr/2]);
+  //   }
+  //   review(ButtonRequestType_ButtonRequest_Other, "hashed data", "%s", pstr);
+  // }
+
 }
 
 /*
@@ -287,6 +298,17 @@ static void send_signature(void) {
     ethereum_signing_abort();
     return;
   }
+
+  // {
+  //   // let's see the digest
+  //   char pstr[65] = {0};
+  //   uint16_t ctr;
+
+  //   for (ctr=0; ctr<=64; ctr+=2) {
+  //     sprintf(&pstr[ctr], "%02x", hash[ctr/2]);
+  //   }
+  //   review(ButtonRequestType_ButtonRequest_Other, "eth tx hash", "%s", pstr);
+  // }
 
   memzero(privkey, sizeof(privkey));
 
@@ -802,8 +824,10 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
   layoutProgress(_("Signing"), 0);
 
   if (ethereum_tx_type == 2) {
-    // This is the chain ID length for 1559 tx
-    rlp_length += 1; 
+    // This is the chain ID length for 1559 tx (only one byte for now)
+    rlp_length += rlp_calculate_number_length(chain_id);
+
+    //rlp_length += 1;
   }
 
   rlp_length += rlp_calculate_length(msg->nonce.size, msg->nonce.bytes[0]);
@@ -861,8 +885,8 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
   }
 
   if (ethereum_tx_type == 2) {
-    // chain id goes here for 1559
-    hash_rlp_field((uint8_t *)(&chain_id), sizeof(chain_id));
+    // chain id goes here for 1559 (only one byte for now)
+    hash_rlp_field((uint8_t *)(&chain_id), sizeof(uint8_t));
   }
 
   hash_rlp_field(msg->nonce.bytes, msg->nonce.size);
