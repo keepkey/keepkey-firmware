@@ -136,17 +136,6 @@ void bn_from_bytes(const uint8_t *value, size_t value_len, bignum256 *val) {
 
 static inline void hash_data(const uint8_t *buf, size_t size) {
   sha3_Update(&keccak_ctx, buf, size);
-  // {
-  //   // let's see the data
-  //   char pstr[65] = {0};
-  //   uint16_t ctr;
-
-  //   for (ctr=0; ctr<=size; ctr+=2) {
-  //     sprintf(&pstr[ctr], "%02x", buf[ctr/2]);
-  //   }
-  //   review(ButtonRequestType_ButtonRequest_Other, "hashed data", "%s", pstr);
-  // }
-
 }
 
 /*
@@ -298,17 +287,6 @@ static void send_signature(void) {
     ethereum_signing_abort();
     return;
   }
-
-  // {
-  //   // let's see the digest
-  //   char pstr[65] = {0};
-  //   uint16_t ctr;
-
-  //   for (ctr=0; ctr<=64; ctr+=2) {
-  //     sprintf(&pstr[ctr], "%02x", hash[ctr/2]);
-  //   }
-  //   review(ButtonRequestType_ButtonRequest_Other, "eth tx hash", "%s", pstr);
-  // }
 
   memzero(privkey, sizeof(privkey));
 
