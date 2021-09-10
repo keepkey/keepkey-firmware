@@ -653,7 +653,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
 
   /* Ethereum tx type */
   if (msg->has_type) {
-    if (msg->type == 0 || msg->type == 1 || msg->type == 2) {
+    if (msg->type == 0 || msg->type == 2) {
       ethereum_tx_type = msg->type;
     } else {
       fsm_sendFailure(FailureType_Failure_SyntaxError,
