@@ -801,7 +801,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
   uint32_t rlp_length = 0;
   layoutProgress(_("Signing"), 0);
 
-  if (ethereum_tx_type == 2) {
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
     // This is the chain ID length for 1559 tx (only one byte for now)
     rlp_length += rlp_calculate_number_length(chain_id);
 
@@ -825,7 +825,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
   rlp_length += rlp_calculate_length(msg->value.size, msg->value.bytes[0]);
   rlp_length += rlp_calculate_length(data_total, msg->data_initial_chunk.bytes[0]);
     
-  if (ethereum_tx_type == 2) {
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
     // access list size
     rlp_length += 1;  // c0, keepkey does not support >0 length access list at this time
   }
@@ -849,7 +849,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
 
   // tx type should never be greater than one byte in length
   // https://github.com/ethereum/EIPs/blob/master/EIPS/eip-2718.md#transactiontype-only-goes-up-to-0x7f
-  if (ethereum_tx_type == 2) {
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
     uint8_t datbuf[1] = {0x02};
     hash_data(datbuf, sizeof(datbuf));
   }
@@ -862,7 +862,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
     hash_rlp_number(wanchain_tx_type);
   }
 
-  if (ethereum_tx_type == 2) {
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
     // chain id goes here for 1559 (only one byte for now)
     hash_rlp_field((uint8_t *)(&chain_id), sizeof(uint8_t));
   }
@@ -886,7 +886,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
   hash_data(msg->data_initial_chunk.bytes, msg->data_initial_chunk.size);
   data_left = data_total - msg->data_initial_chunk.size;
 
-  if (ethereum_tx_type == 2) {
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
     // Keepkey does not support an access list size >0 at this time
     uint8_t datbuf[1] = {0xC0};   // size of empty access list
     hash_data(datbuf, sizeof(datbuf));
