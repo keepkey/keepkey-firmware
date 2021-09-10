@@ -653,11 +653,11 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
 
   /* Ethereum tx type */
   if (msg->has_type) {
-    if (msg->type == ETHEREUM_TX_TYPE_EIP_1559) {
+    if (msg->type == 0 || msg->type == 1 || msg->type == 2) {
       ethereum_tx_type = msg->type;
     } else {
       fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      _("Ethereum tx type not supported"));
+                      _("Ethereum tx type out of bounds"));
       ethereum_signing_abort();
       return;
     }
