@@ -20,11 +20,6 @@ MEMORY
 
 SECTIONS
 {
-    .confidential (NOLOAD) : {
-       *(confidential)
-        ASSERT ((SIZEOF(.confidential) <= 32K), "Error: Confidential section too large");
-    } >ram
-
     .header : ALIGN(4) {
         KEEP(*(.header));
     } >rom AT >rom

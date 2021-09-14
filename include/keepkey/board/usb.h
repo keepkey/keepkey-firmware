@@ -20,8 +20,6 @@
 #ifndef USB_H
 #define USB_H
 
-#include "keepkey/board/u2f_hid.h"
-
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -55,15 +53,7 @@
    space for it.  */
 #define USBD_CONTROL_BUFFER_SIZE 128
 
-typedef void (*usb_rx_callback_t)(const void *buf, size_t len);
-typedef void (*usb_u2f_rx_callback_t)(char tiny, const U2FHID_FRAME *buf);
-
-void usb_set_rx_callback(usb_rx_callback_t callback);
-void usb_set_u2f_rx_callback(usb_u2f_rx_callback_t callback);
-
-char usbTiny(char set);
 void usbInit(const char *origin_url);
-bool usbInitialized(void);
 void usbPoll(void);
 
 typedef struct _usbd_device usbd_device;
@@ -72,7 +62,6 @@ usbd_device *get_usb_init_stat(void);
 bool usb_tx(uint8_t *message, uint32_t len);
 #if DEBUG_LINK
 bool usb_debug_tx(uint8_t *message, uint32_t len);
-void usb_set_debug_rx_callback(usb_rx_callback_t callback);
 #endif
 
 #endif

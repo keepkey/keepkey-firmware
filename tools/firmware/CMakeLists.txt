@@ -2,14 +2,11 @@ if(NOT ${KK_EMULATOR})
   set(sources
       keepkey_main.c
       startup.s
-      ../bootloader/bl_mpu.c
-      ../bootloader/isr.s
       header.s)
 
   include_directories(
       ${CMAKE_SOURCE_DIR}/include
-      ${CMAKE_BINARY_DIR}/include
-      ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto)
+      ${CMAKE_BINARY_DIR}/include)
 
   set(linker_script ${CMAKE_CURRENT_SOURCE_DIR}/keepkey.ld)
 
@@ -19,8 +16,6 @@ if(NOT ${KK_EMULATOR})
   set(LINK_FLAGS
       kkfirmware
       kkboard
-      kktransport
-      trezorcrypto
       -lopencm3_stm32f2
       -lc
       -lm)
@@ -28,15 +23,7 @@ if(NOT ${KK_EMULATOR})
   add_executable(firmware.keepkey.elf ${sources})
   target_link_libraries(firmware.keepkey.elf
       kkfirmware
-      kkfirmware.keepkey
       kkboard
-      kkboard.keepkey
-      kkvariant.keepkey
-      kkvariant.salt
-      kktransport
-      trezorcrypto
-      qrcodegenerator
-      SecAESSTM32
       kkrand
       -lopencm3_stm32f2
       -lc

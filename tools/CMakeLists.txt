@@ -1,8 +1,3 @@
-add_subdirectory(blupdater)
-add_subdirectory(bootloader)
 add_subdirectory(bootstrap)
-add_subdirectory(display_test)
 add_subdirectory(emulator)
 add_subdirectory(firmware)
-add_subdirectory(rle-dump)
-add_subdirectory(variant)

@@ -22,17 +22,10 @@
 #include "keepkey/board/usb.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/emulator/emulator.h"
+#include "keepkey/firmware/rust.h"
 
 #include <stdint.h>
 #include <assert.h>
-
-extern usb_rx_callback_t user_rx_callback;
-
-#if DEBUG_LINK
-extern usb_rx_callback_t user_debug_rx_callback;
-#endif
-
-static volatile char tiny = 0;
 
 void usbInit(const char *origin_url) {
   (void)origin_url;
@@ -40,8 +33,6 @@ void usbInit(const char *origin_url) {
 }
 
 void usbPoll(void) {
-  emulatorPoll();
-
   static uint8_t buf[64] __attribute__((aligned(4)));
   size_t len;
 
@@ -49,12 +40,12 @@ void usbPoll(void) {
   if (0 < (len = emulatorSocketRead(&iface, buf, sizeof(buf)))) {
     if (!tiny) {
       if (iface == 0) {
-        user_rx_callback(&buf, len);
+        rust_usb_rx_callback(ENDPOINT_ADDRESS_MAIN_OUT, &buf, len);
       } else if (iface == 1) {
 #if DEBUG_LINK
-        user_debug_rx_callback(&buf, len);
+        rust_usb_rx_callback(ENDPOINT_ADDRESS_DEBUG_OUT, &buf, len);
 #else
-        user_rx_callback(&buf, len);
+        rust_usb_rx_callback(ENDPOINT_ADDRESS_MAIN_OUT, &buf, len);
 #endif
       }
     } else {
@@ -73,11 +64,5 @@ bool usb_debug_tx(uint8_t *msg, uint32_t len) {
   return emulatorSocketWrite(1, msg, len);
 }
 #endif
-
-char usbTiny(char set) {
-  char old = tiny;
-  tiny = set;
-  return old;
-}
 
 #endif

@@ -1,7 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2015 KeepKey LLC
+ * Copyright (C) 2021 Reid Rankin <reidrankin@gmail.com>
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -17,20 +17,14 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TIMER_H
-#define TIMER_H
+#include "scm_revision.h"
 
-#include <stdint.h>
-#include <stdbool.h>
+#include <stddef.h>
 
-void timerisr_usr(void);
-
-void timer_init(void);
-void delay_ms(uint32_t ms);
-void delay_us(uint32_t us);
-
-/// Defense against Fault Injection: random delay of a few miliseconds
-/// \returns the argument passed
-uint32_t fi_defense_delay(volatile uint32_t value);
-
+const char* get_scm_revision(void) {
+#ifdef SCM_REVISION
+  return SCM_REVISION;
+#else
+  return NULL;
 #endif
+}

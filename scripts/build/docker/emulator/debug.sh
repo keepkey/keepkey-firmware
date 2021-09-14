@@ -18,6 +18,5 @@ docker run -t \
         -DCMAKE_BUILD_TYPE=Debug \
         -DCMAKE_COLOR_MAKEFILE=ON &&\
       make all && \
-      (make xunit || true) && \
       cp -r /root/build /root/keepkey-firmware/build && \
       chown -R \`stat -c \"%u:%g\" /root/keepkey-firmware\` /root/keepkey-firmware/build"

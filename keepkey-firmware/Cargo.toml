@@ -1,0 +1,17 @@
+[package]
+name = "keepkey-firmware"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cortex-m = "0.7.3"
+cortex-m-rt = { version = "0.7.0", features = ["device"] }
+embedded-hal = "0.2.6"
+panic-halt = "0.2.0"
+stm32f2 = { version = "0.13.0", features = ["stm32f215", "rt"] }
+stm32-hal2 = { version = "^1.0.3", features = ["f302", "f3rt", "embedded-hal"] }
+stm32-usbd = "0.6.0"
+usb-device = "0.2.8"
+usbd-webusb = "1.0.2"

@@ -23,13 +23,8 @@ extern "C" {
 #include "keepkey/board/common.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
-#include "keepkey/board/layout.h"
 #include "keepkey/board/usb.h"
-#include "keepkey/board/resources.h"
-#include "keepkey/board/keepkey_usart.h"
 #include "keepkey/emulator/setup.h"
-#include "keepkey/firmware/app_layout.h"
-#include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
 }
@@ -52,10 +47,6 @@ static void exec(void) {
 }
 
 extern "C" {
-void fsm_init(void);
-}
-
-extern "C" {
 static volatile bool interrupted = false;
 static void sigintHandler(int sig_num) {
   signal(SIGINT, sigintHandler);
@@ -69,31 +60,20 @@ int main(void) {
   setup();
   flash_collectHWEntropy(false);
   kk_board_init();
-  drbg_init();
 
   led_func(SET_RED_LED);
-  dbg_print("Application Version %d.%d.%d\n", MAJOR_VERSION, MINOR_VERSION,
-            PATCH_VERSION);
-
-  storage_init();
-
-  fsm_init();
+  rust_init();
 
   led_func(SET_GREEN_LED);
 
   usbInit("beta.shapeshift.com");
   led_func(CLR_RED_LED);
 
-  reset_idle_time();
-
-  layoutHomeForced();
-
   signal(SIGINT, sigintHandler);
 
   while (1) {
-    delay_ms_with_callback(ONE_SEC, &exec, 1);
-    increment_idle_time(ONE_SEC);
-    toggle_screensaver();
+    exec();
+    delay_ms(1);
   }
 
   return 0;

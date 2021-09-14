@@ -21,7 +21,6 @@
 #define MEMORY_H
 
 //#include <libopencm3/cm3/mpu.h>
-#include "trezor/crypto/sha2.h"
 
 #include <stddef.h>
 #include <stdbool.h>
@@ -249,41 +248,17 @@ static const FlashSector flash_sector_map[] = {
     {11, 0x080E0000, APP_FLASH_SECT_LEN, FLASH_APP},
     {-1, 0, 0, FLASH_INVALID}};
 
-void mpu_config(int);
+void mpu_config(void);
 
-void memory_protect(void);
-
-/// Enable writing. This exercises a bug in the STM32F2 that allows writing to
-/// read-only sectors of flash.
-void memory_unlock(void);
-
-/// Double sha256 hash of the bootloader.
-///
-/// \param hash    Buffer to be filled with hash.
-///                Must be at least SHA256_DIGEST_LENGTH bytes long.
-/// \param cached  Whether a cached value is acceptable.
-int memory_bootloader_hash(uint8_t *hash, bool cached);
-
-int memory_firmware_hash(uint8_t *hash);
-int memory_storage_hash(uint8_t *hash, Allocation storage_location);
 bool find_active_storage(Allocation *storage_location);
 
-/// Find the storage location *after* the active one.
+/// Find the storage location fff*after* the active one.
 Allocation next_storage(Allocation active);
 
 void memory_getDeviceLabel(char *str, size_t len);
 
 /// Write the marker that allows the firmware to boot with secrets preserved.
 bool storage_protect_off(void);
-
-/// Clear the marker that allows the firmware to boot with secrets preserved.
-bool storage_protect_on(void);
-
-/// Wipe if the status is not STORAGE_PROTECT_DISABLED
-void storage_protect_wipe(uint32_t status);
-
-/// \returns STORAGE_PROTECT_{ENABLED,DISABLED}
-uint32_t storage_protect_status(void);
 
 extern void *_timerusr_isr;
 extern void *_buttonusr_isr;

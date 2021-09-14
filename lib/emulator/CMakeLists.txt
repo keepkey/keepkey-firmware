@@ -1,7 +1,6 @@
 if(${KK_EMULATOR})
 
   set(sources
-      oled.c
       udp.c
       setup.c)
 

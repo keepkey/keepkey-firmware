@@ -38,9 +38,13 @@ void display_set_brightness(int percentage);
 void display_turn_on(void);
 void display_turn_off(void);
 
-void display_constant_power(bool enabled);
+typedef enum {
+  LAYOUT_WARNING_STATIC_TYPE_UNKNOWN,
+  LAYOUT_WARNING_STATIC_TYPE_SSP,
+  LAYOUT_WARNING_STATIC_TYPE_CSS,
+  LAYOUT_WARNING_STATIC_TYPE_MEMFAULT,
+} LayoutWarningStaticType;
 
-typedef void (*DumpDisplayCallback)(const uint8_t*);
-void display_set_dump_callback(DumpDisplayCallback d);
+void layout_warning_static(LayoutWarningStaticType type);
 
 #endif

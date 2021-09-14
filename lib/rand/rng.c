@@ -19,8 +19,6 @@
 
 #include "keepkey/rand/rng.h"
 
-#include "trezor/crypto/rand.h"
-
 #ifndef EMULATOR
 #include <libopencm3/cm3/common.h>
 #include <libopencm3/stm32/memorymap.h>
@@ -82,21 +80,12 @@ uint32_t random32(void) {
 #endif
 }
 
-// I miss C++ templates sooo bad.
-#define RANDOM_PERMUTE(BUFF, COUNT)           \
-  do {                                        \
-    for (size_t i = (COUNT)-1; i >= 1; i--) { \
-      size_t j = random_uniform(i + 1);       \
-      typeof(*(BUFF)) t = (BUFF)[j];          \
-      (BUFF)[j] = (BUFF)[i];                  \
-      (BUFF)[i] = t;                          \
-    }                                         \
-  } while (0)
-
-void random_permute_char(char *str, size_t len) { RANDOM_PERMUTE(str, len); }
-
-void random_permute_u16(uint16_t *buf, size_t count) {
-  RANDOM_PERMUTE(buf, count);
+void random_buffer(uint8_t *buf, size_t len) {
+  uint32_t r = 0;
+  for (size_t i = 0; i < len; i++) {
+    if (i % 4 == 0) {
+      r = random32();
+    }
+    buf[i] = (r >> ((i % 4) * 8)) & 0xFF;
+  }
 }
-
-#undef RANDOM_PERMUTE

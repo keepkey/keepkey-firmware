@@ -20,8 +20,6 @@
 #ifndef LIB_BOOTSTRAP_BOOTSTRAP_H
 #define LIB_BOOTSTRAP_BOOTSTRAP_H
 
-#include "keepkey/firmware/app_resources.h"
-
 #include <inttypes.h>
 
 typedef void (*bootloader_entry_t)(void);

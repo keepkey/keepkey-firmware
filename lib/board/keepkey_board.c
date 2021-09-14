@@ -26,9 +26,11 @@
 #include <libopencm3/stm32/f2/crc.h>
 #include <libopencm3/cm3/cortex.h>
 #include <libopencm3/stm32/desig.h>
+#include <libopencm3/stm32/common/crc_common_all.h>
 #endif
 
 #include "keepkey/board/keepkey_board.h"
+#include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/supervise.h"
 #include "keepkey/rand/rng.h"
 
@@ -55,7 +57,7 @@ void __attribute__((noreturn)) shutdown(void) { exit(1); }
  *     none
  */
 __attribute__((noreturn)) void __stack_chk_fail(void) {
-  layout_warning_static("Error Detected.  Reboot Device!");
+  layout_warning_static(LAYOUT_WARNING_STATIC_TYPE_SSP);
   shutdown();
 }
 
@@ -65,7 +67,7 @@ void nmi_handler(void) {
   // Look for the clock instability interrupt. This is a security measure
   // that helps prevent clock glitching.
   if ((RCC_CIR & RCC_CIR_CSSF) != 0) {
-    layout_warning_static("Clock instability detected. Reboot Device!");
+    layout_warning_static(LAYOUT_WARNING_STATIC_TYPE_CSS);
     shutdown();
   }
 }
@@ -94,18 +96,16 @@ void board_reset(void) {
  *     none
  */
 void kk_board_init(void) {
-  kk_timer_init();
-
-  //    keepkey_leds_init();
+  keepkey_leds_init();
   led_func(CLR_GREEN_LED);
   led_func(CLR_RED_LED);
 
-  kk_keepkey_button_init();
+  keepkey_button_init();
 #ifndef EMULATOR
   svc_enable_interrupts();  // This enables the timer and button interrupts
 #endif
 
-  layout_init(display_canvas_init());
+  display_canvas_init();
 }
 
 #ifdef EMULATOR
@@ -118,24 +118,15 @@ static uint32_t reverse(unsigned x) {
   x = (x << 24) | ((x & 0xFF00) << 8) | ((x >> 8) & 0xFF00) | (x >> 24);
   return x;
 }
-#endif
 
-/* calc_crc32() - Calculate crc32 for block of memory
- *
- * INPUT
- *     none
- * OUTPUT
- *     crc32 of data
- */
-uint32_t calc_crc32(const void *data, int word_len) {
-  uint32_t crc32 = 0;
+static uint32_t crc32 = 0xFFFFFFFF;
 
-#ifndef EMULATOR
-  crc_reset();
-  crc32 = crc_calculate_block((uint32_t *)data, word_len);
-#else
+void crc_reset(void) {
+  crc_value = 0xFFFFFFFF;
+}
+
+uint32_t crc_calculate_block(const uint32_t* data, size_t len) {
   /// http://www.hackersdelight.org/hdcodetxt/crc.c.txt
-  crc32 = 0xFFFFFFFF;
   for (int i = 0; i < word_len; i++) {
     uint32_t byte = ((const char *)data)[i];  // Get next byte.
     byte = reverse(byte);                     // 32-bit reversal.
@@ -147,8 +138,6 @@ uint32_t calc_crc32(const void *data, int word_len) {
       byte = byte << 1;  // Ready next msg bit.
     }
   }
-  crc32 = reverse(~crc32);
-#endif
-
-  return crc32;
+  return reverse(~crc32);
 }
+#endif // EMULATOR

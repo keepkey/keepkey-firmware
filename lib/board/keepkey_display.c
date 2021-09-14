@@ -26,6 +26,9 @@
 #include "keepkey/board/pin.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/supervise.h"
+#include "keepkey/firmware/rust.h"
+
+#include <string.h>
 
 #pragma GCC push_options
 #pragma GCC optimize("-O3")
@@ -280,9 +283,6 @@ Canvas *display_canvas_init(void) {
  */
 Canvas *display_canvas(void) { return &canvas; }
 
-void (*DumpDisplay)(const uint8_t *buf) = 0;
-void display_set_dump_callback(DumpDisplayCallback d) { DumpDisplay = d; }
-
 /*
  * display_refresh() - Refresh display
  *
@@ -291,16 +291,8 @@ void display_set_dump_callback(DumpDisplayCallback d) { DumpDisplay = d; }
  * OUTPUT
  *     none
  */
-void display_refresh(void)
-{
-    if (DumpDisplay) {
-        DumpDisplay(canvas.buffer);
-    }
-
-    if(!canvas.dirty)
-    {
-        return;
-    }
+void display_refresh(void) {
+    if (!canvas.dirty) return;
 
     if (constant_power) {
         for (int y = 0; y < 64; y++) {
@@ -348,13 +340,11 @@ void display_turn_on(void) { display_write_reg((uint8_t)0xAF); }
  * OUTPUT
  *     none
  */
-void display_turn_off(void)
-{
+void display_turn_off(void) {
     display_write_reg((uint8_t)0xAE);
 }
 
-void display_constant_power(bool enabled)
-{
+void display_constant_power(bool enabled) {
     constant_power = enabled;
 }
 
@@ -501,6 +491,14 @@ void display_set_brightness(int percentage) {
   display_write_reg((uint8_t)0xC1);
   display_write_ram(reg_value);
 #endif
+}
+
+void layout_warning_static(LayoutWarningStaticType type) {
+  display_constant_power(false);
+  canvas.dirty = true;
+  memset(canvas.buffer, 0, canvas.width * canvas.height);
+  rust_layout_warning_static(type);
+  display_refresh();
 }
 
 #pragma GCC pop_options

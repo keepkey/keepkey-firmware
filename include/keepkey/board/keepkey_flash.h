@@ -26,6 +26,9 @@
 
 #include "memory.h"
 
+#define HW_ENTROPY_LEN (12 + 32)
+extern uint8_t HW_ENTROPY_DATA[HW_ENTROPY_LEN];
+
 #ifndef EMULATOR
 #include <libopencm3/stm32/flash.h>
 // This sequence ensures that the flash unlock sequence is reset before
@@ -37,20 +40,19 @@
   flash_unlock(void);
 #endif
 
-intptr_t flash_write_helper(Allocation group);
+const uint8_t* flash_write_helper(Allocation group, size_t* pLen, size_t skip);
 void flash_erase(Allocation group);
 void flash_erase_word(Allocation group);
-bool flash_write(Allocation group, uint32_t offset, uint32_t len,
-                 const uint8_t *data);
-bool flash_write_word(Allocation group, uint32_t offset, uint32_t len,
-                      const uint8_t *data);
+bool flash_write(Allocation group, uint32_t offset, uint32_t len, const uint8_t *data);
+bool flash_write_word(Allocation group, uint32_t offset, uint32_t len, const uint8_t *data);
 bool flash_chk_status(void);
+
 bool is_mfg_mode(void);
 bool set_mfg_mode_off(void);
+
 const char *flash_getModel(void);
-bool flash_setModel(const char (*model)[32]);
-const char *flash_programModel(void);
+bool flash_setModel(const char* buf, size_t len);
 
 void flash_collectHWEntropy(bool privileged);
-void flash_readHWEntropy(uint8_t *buff, size_t size);
+size_t flash_readHWEntropy(uint8_t *buf, size_t len) ;
 #endif

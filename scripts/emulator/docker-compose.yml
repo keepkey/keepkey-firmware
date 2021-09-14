@@ -11,27 +11,6 @@ services:
       - "127.0.0.1:21324:21324/udp"
       - "127.0.0.1:21325:21325/udp"
       - "127.0.0.1:5000:5000"
-  python-keepkey:
-    build:
-      context: '../../'
-      dockerfile: 'scripts/emulator/python-keepkey.Dockerfile'
-    volumes:
-      - test-reports:/kkemu/test-reports:rw
-    networks:
-      - local-net
-    depends_on:
-      - kkemu
-  firmware-unit:
-    build:
-      context: '../../'
-      dockerfile: 'scripts/emulator/Dockerfile'
-    volumes:
-      - test-reports:/kkemu/test-reports:rw
-    entrypoint: ['scripts/emulator/firmware-unit.sh']
-    networks:
-      - local-net
-    depends_on:
-      - kkemu
 networks:
   local-net:
     external: false

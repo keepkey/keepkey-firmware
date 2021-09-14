@@ -26,23 +26,19 @@
 #include <libopencm3/stm32/desig.h>
 #include <libopencm3/stm32/rcc.h>
 #include "keepkey/board/keepkey_board.h"
-#include "keepkey/board/layout.h"
 #include "keepkey/board/timer.h"
 #else
 #include <keepkey/emulator/emulator.h>
 #endif
 
 #include "keepkey/board/keepkey_board.h"
-#include "keepkey/board/messages.h"
 #include "keepkey/board/usb.h"
 #include "keepkey/board/util.h"
-#include "keepkey/board/u2f_hid.h"
+#include "keepkey/firmware/rust.h"
 
 #include "keepkey/board/usb21_standard.h"
 #include "keepkey/board/webusb.h"
 #include "keepkey/board/winusb.h"
-
-#include <nanopb.h>
 
 #include <assert.h>
 #include <stdbool.h>
@@ -50,21 +46,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-
-#define debugLog(L, B, T) \
-  do {                    \
-  } while (0)
-
-static bool usb_inited = false;
-
-/* This optional callback is configured by the user to handle receive events. */
-usb_rx_callback_t user_rx_callback = NULL;
-
-#if DEBUG_LINK
-usb_rx_callback_t user_debug_rx_callback = NULL;
-#endif
-
-usb_u2f_rx_callback_t user_u2f_rx_callback = NULL;
 
 #ifndef EMULATOR
 
@@ -307,68 +288,30 @@ static enum usbd_request_return_codes hid_control_request(
       (req->bRequest != USB_REQ_GET_DESCRIPTOR) || (req->wValue != 0x2200))
     return 0;
 
-  debugLog(0, "", "hid_control_request u2f");
+  // debugLog(0, "", "hid_control_request u2f");
   *buf = (uint8_t *)hid_report_descriptor_u2f;
   *len = MIN(*len, sizeof(hid_report_descriptor_u2f));
   return 1;
 }
 
-static volatile char tiny = 0;
-
-static void main_rx_callback(usbd_device *dev, uint8_t ep) {
-  (void)ep;
-  static CONFIDENTIAL uint8_t buf[64] __attribute__((aligned(4)));
-  if (usbd_ep_read_packet(dev, ENDPOINT_ADDRESS_MAIN_OUT, buf, 64) != 64)
-    return;
-  debugLog(0, "", "main_rx_callback");
-
-  if (user_rx_callback) {
-    user_rx_callback(buf, 64);
-  }
-}
-
-static void u2f_rx_callback(usbd_device *dev, uint8_t ep) {
-  (void)ep;
-  static CONFIDENTIAL uint8_t buf[64] __attribute__((aligned(4)));
-
-  debugLog(0, "", "u2f_rx_callback");
-  if (usbd_ep_read_packet(dev, ENDPOINT_ADDRESS_U2F_OUT, buf, 64) != 64) return;
-
-  if (user_u2f_rx_callback) {
-    user_u2f_rx_callback(tiny, (const U2FHID_FRAME *)(void *)buf);
-  }
-}
-
-#if DEBUG_LINK
-static void debug_rx_callback(usbd_device *dev, uint8_t ep) {
+static void usb_rx_callback(usbd_device *dev, uint8_t ep) {
   (void)ep;
   static uint8_t buf[64] __attribute__((aligned(4)));
-  if (usbd_ep_read_packet(dev, ENDPOINT_ADDRESS_DEBUG_OUT, buf, 64) != 64)
-    return;
-  debugLog(0, "", "debug_rx_callback");
-
-  if (user_debug_rx_callback) {
-    user_debug_rx_callback(buf, 64);
-  }
+  memset(buf, 0, sizeof(buf));
+  if (usbd_ep_read_packet(dev, ep, buf, 64) != 64) return;
+  rust_usb_rx_callback(ep, buf, 64);
 }
-#endif
 
 static void set_config(usbd_device *dev, uint16_t wValue) {
   (void)wValue;
 
-  usbd_ep_setup(dev, ENDPOINT_ADDRESS_MAIN_IN, USB_ENDPOINT_ATTR_INTERRUPT, 64,
-                0);
-  usbd_ep_setup(dev, ENDPOINT_ADDRESS_MAIN_OUT, USB_ENDPOINT_ATTR_INTERRUPT, 64,
-                main_rx_callback);
-  usbd_ep_setup(dev, ENDPOINT_ADDRESS_U2F_IN, USB_ENDPOINT_ATTR_INTERRUPT, 64,
-                0);
-  usbd_ep_setup(dev, ENDPOINT_ADDRESS_U2F_OUT, USB_ENDPOINT_ATTR_INTERRUPT, 64,
-                u2f_rx_callback);
+  usbd_ep_setup(dev, ENDPOINT_ADDRESS_MAIN_IN, USB_ENDPOINT_ATTR_INTERRUPT, 64, 0);
+  usbd_ep_setup(dev, ENDPOINT_ADDRESS_MAIN_OUT, USB_ENDPOINT_ATTR_INTERRUPT, 64, usb_rx_callback);
+  usbd_ep_setup(dev, ENDPOINT_ADDRESS_U2F_IN, USB_ENDPOINT_ATTR_INTERRUPT, 64, 0);
+  usbd_ep_setup(dev, ENDPOINT_ADDRESS_U2F_OUT, USB_ENDPOINT_ATTR_INTERRUPT, 64, usb_rx_callback);
 #if DEBUG_LINK
-  usbd_ep_setup(dev, ENDPOINT_ADDRESS_DEBUG_IN, USB_ENDPOINT_ATTR_INTERRUPT, 64,
-                0);
-  usbd_ep_setup(dev, ENDPOINT_ADDRESS_DEBUG_OUT, USB_ENDPOINT_ATTR_INTERRUPT,
-                64, debug_rx_callback);
+  usbd_ep_setup(dev, ENDPOINT_ADDRESS_DEBUG_IN, USB_ENDPOINT_ATTR_INTERRUPT, 64, 0);
+  usbd_ep_setup(dev, ENDPOINT_ADDRESS_DEBUG_OUT, USB_ENDPOINT_ATTR_INTERRUPT, 64, usb_rx_callback);
 #endif
 
   usbd_register_control_callback(
@@ -395,7 +338,10 @@ void usbInit(const char *origin_url) {
                   USB_GPIO_PORT_PINS);
   gpio_set_af(USB_GPIO_PORT, GPIO_AF10, USB_GPIO_PORT_PINS);
 
-  desig_get_unique_id_as_string(serial_uuid_str, sizeof(serial_uuid_str));
+	uint8_t serial_uuid[12];
+	desig_get_unique_id((uint32_t *)serial_uuid);
+  data2hex(serial_uuid, sizeof(serial_uuid), serial_uuid_str);
+
   memory_getDeviceLabel(device_label, sizeof(device_label));
 
   usbd_dev = usbd_init(&otgfs_usb_driver, &dev_descr, &config, usb_strings,
@@ -407,8 +353,6 @@ void usbInit(const char *origin_url) {
   // Debug link interface does not have WinUSB set;
   // if you really need debug link on windows, edit the descriptor in winusb.c
   winusb_setup(usbd_dev, USB_INTERFACE_INDEX_MAIN);
-
-  usb_inited = true;
 }
 
 void usbPoll(void) {
@@ -422,118 +366,4 @@ void usbReconnect(void) {
   usbd_disconnect(usbd_dev, 0);
 }
 
-char usbTiny(char set) {
-  char old = tiny;
-  tiny = set;
-  return old;
-}
-
 #endif  // EMULATOR
-
-bool msg_write(MessageType msg_id, const void *msg) {
-  const pb_field_t *fields = message_fields(NORMAL_MSG, msg_id, OUT_MSG);
-
-  if (!fields) return false;
-
-  TrezorFrameBuffer framebuf;
-  memset(&framebuf, 0, sizeof(framebuf));
-  framebuf.frame.usb_header.hid_type = '?';
-  framebuf.frame.header.pre1 = '#';
-  framebuf.frame.header.pre2 = '#';
-  framebuf.frame.header.id = __builtin_bswap16(msg_id);
-
-  pb_ostream_t os =
-      pb_ostream_from_buffer(framebuf.buffer, sizeof(framebuf.buffer));
-
-  if (!pb_encode(&os, fields, msg)) return false;
-
-  framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
-
-  // Chunk out data
-  for (uint32_t pos = 1; pos < sizeof(framebuf.frame) + os.bytes_written;
-       pos += 64 - 1) {
-    uint8_t tmp_buffer[64] = {0};
-
-    tmp_buffer[0] = '?';
-
-    memcpy(tmp_buffer + 1, ((const uint8_t *)&framebuf) + pos, 64 - 1);
-
-#ifndef EMULATOR
-    while (usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_IN, tmp_buffer,
-                                64) == 0) {
-    };
-#else
-    emulatorSocketWrite(0, tmp_buffer, sizeof(tmp_buffer));
-#endif
-  }
-
-  return true;
-}
-
-#if DEBUG_LINK
-bool msg_debug_write(MessageType msg_id, const void *msg) {
-  const pb_field_t *fields = message_fields(DEBUG_MSG, msg_id, OUT_MSG);
-
-  if (!fields) return false;
-
-  TrezorFrameBuffer framebuf;
-  memset(&framebuf, 0, sizeof(framebuf));
-  framebuf.frame.usb_header.hid_type = '?';
-  framebuf.frame.header.pre1 = '#';
-  framebuf.frame.header.pre2 = '#';
-  framebuf.frame.header.id = __builtin_bswap16(msg_id);
-
-  pb_ostream_t os =
-      pb_ostream_from_buffer(framebuf.buffer, sizeof(framebuf.buffer));
-
-  if (!pb_encode(&os, fields, msg)) return false;
-
-  framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
-
-  // Chunk out data
-  for (uint32_t pos = 1; pos < sizeof(framebuf.frame) + os.bytes_written;
-       pos += 64 - 1) {
-    uint8_t tmp_buffer[64] = {0};
-
-    tmp_buffer[0] = '?';
-
-    memcpy(tmp_buffer + 1, ((const uint8_t *)&framebuf) + pos, 64 - 1);
-
-#ifndef EMULATOR
-    while (usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_DEBUG_IN, tmp_buffer,
-                                64) == 0) {
-    };
-#else
-    emulatorSocketWrite(1, tmp_buffer, sizeof(tmp_buffer));
-#endif
-  }
-
-  return true;
-}
-#endif
-
-void queue_u2f_pkt(const U2FHID_FRAME *u2f_pkt) {
-#ifndef EMULATOR
-  while (usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_U2F_IN, u2f_pkt, 64) ==
-         0) {
-  };
-#else
-  assert(false && "Emulator does not support FIDO u2f");
-#endif
-}
-
-void usb_set_rx_callback(usb_rx_callback_t callback) {
-  user_rx_callback = callback;
-}
-
-#if DEBUG_LINK
-void usb_set_debug_rx_callback(usb_rx_callback_t callback) {
-  user_debug_rx_callback = callback;
-}
-#endif
-
-void usb_set_u2f_rx_callback(usb_u2f_rx_callback_t callback) {
-  user_u2f_rx_callback = callback;
-}
-
-bool usbInitialized(void) { return usb_inited; }

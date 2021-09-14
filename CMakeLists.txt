@@ -2,89 +2,28 @@ cmake_minimum_required(VERSION 3.7.2)
 
 project(KeepKeyFirmware
 
-        VERSION 7.1.7
+        VERSION 8.0.0
 
         LANGUAGES C CXX ASM)
 
-set(BOOTLOADER_MAJOR_VERSION 2)
-set(BOOTLOADER_MINOR_VERSION 1)
-set(BOOTLOADER_PATCH_VERSION 0)
-
 option(KK_EMULATOR "Build the emulator" OFF)
 option(KK_DEBUG_LINK "Build with debug-link enabled" OFF)
-option(KK_BUILD_FUZZERS "Build the fuzzers?" OFF)
 set(LIBOPENCM3_PATH /root/libopencm3 CACHE PATH "Path to an already-built libopencm3")
-set(PROTOC_BINARY protoc CACHE PATH "Path to the protobuf compiler binary")
-set(NANOPB_DIR /root/nanopb CACHE PATH "Path to the nanopb build")
-set(DEVICE_PROTOCOL ${CMAKE_SOURCE_DIR}/deps/device-protocol CACHE PATH "Path to device-protocol")
 set(CMAKE_DEBUG_POSTFIX CACHE STRING "Debug library name postfix")
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules/")
 include(GetGitRevisionDescription)
 get_git_head_revision(GIT_REFSPEC GIT_SHA1)
 
-if(NOT EXISTS ${DEVICE_PROTOCOL})
-    message(FATAL_ERROR "Missing deps/device-protocol symlink?")
-endif()
-
-if(NOT EXISTS ${CMAKE_SOURCE_DIR}/deps/googletest/CMakeLists.txt)
-    message(FATAL_ERROR "googletest missing. Need to 'git submodule update --init --recursive")
-endif()
-
-if(NOT EXISTS ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-firmware/crypto/Makefile)
-    message(FATAL_ERROR " trezor-crypto missing. Need to 'git submodule update --init --recursive")
-endif()
-
-if(NOT EXISTS ${CMAKE_SOURCE_DIR}/deps/qrenc/QR-Code-generator/c/Makefile)
-    message(FATAL_ERROR " QR-Code-generator missing. Need to 'git submodule update --init --recursive")
-endif()
-
-find_program(NANOPB_GENERATOR nanopb_generator.py)
-if(${KK_EMULATOR} AND NOT NANOPB_GENERATOR)
-    message(FATAL_ERROR "Must install nanopb 0.3.9.4, and put nanopb-nanopb-0.3.9.4/generator on your PATH")
-endif()
-
 if(${KK_EMULATOR})
   add_definitions(-DEMULATOR)
-  add_definitions(-DCONFIDENTIAL=)
-else()
-  add_definitions(-DCONFIDENTIAL=__attribute__\(\(section\("confidential"\)\)\))
 endif()
 
 add_definitions(-DSTM32F2=1)
 
-add_definitions(-DED25519_CUSTOMHASH=1)
-add_definitions(-DED25519_CUSTOMRANDOM=1)
-add_definitions(-DED25519_NO_INLINE_ASM)
-add_definitions(-DED25519_FORCE_32BIT=1)
-
-add_definitions(-DUSE_PRECOMPUTED_CP=0)
-
-add_definitions(-DUSE_ETHEREUM=1)
-add_definitions(-DUSE_KECCAK=1)
-add_definitions(-DUSE_GRAPHENE=0)
-add_definitions(-DUSE_CARDANO=0)
-add_definitions(-DUSE_MONERO=0)
-add_definitions(-DUSE_NEM=0)
-add_definitions(-DUSE_NANO=1)
-
-add_definitions(-DRAND_PLATFORM_INDEPENDENT=0)
-
-add_definitions(-DPB_FIELD_16BIT=1)
-add_definitions(-DPB_NO_ERRMSG=1)
-add_definitions(-DPB_BUFFER_ONLY=1)
-
 add_definitions(-DMAJOR_VERSION=${PROJECT_VERSION_MAJOR})
 add_definitions(-DMINOR_VERSION=${PROJECT_VERSION_MINOR})
 add_definitions(-DPATCH_VERSION=${PROJECT_VERSION_PATCH})
-
-add_definitions(-DBOOTLOADER_MAJOR_VERSION=${BOOTLOADER_MAJOR_VERSION})
-add_definitions(-DBOOTLOADER_MINOR_VERSION=${BOOTLOADER_MINOR_VERSION})
-add_definitions(-DBOOTLOADER_PATCH_VERSION=${BOOTLOADER_PATCH_VERSION})
-
-add_definitions(-DBIP39_WORDLIST_PADDED=1)
-
-add_definitions(-DAES_128=1)
 
 if(${KK_DEBUG_LINK})
   add_definitions(-DDEBUG_LINK=1)
@@ -94,20 +33,10 @@ endif()
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
   add_definitions(-DDEBUG_ON)
-  add_definitions(-DMEMORY_PROTECT=0)
 elseif("${CMAKE_BUILD_TYPE}" STREQUAL "Release" OR
        "${CMAKE_BUILD_TYPE}" STREQUAL "MinSizeRel" OR
        "${CMAKE_BUILD_TYPE}" STREQUAL "")
   add_definitions(-DNDEBUG)
-  add_definitions(-DMEMORY_PROTECT=1)
-  if(NOT ${KK_EMULATOR})
-    message(WARNING
-      "*********************************************************************\n"
-      "* You are about to build a release version of KeepKey firmware. The *\n"
-      "* resulting bootloader image will memory protect the flash on your  *\n"
-      "* device, so please use it with extreme care.                       *\n"
-      "*********************************************************************")
-  endif()
 else()
   message(ERROR "Must pick Release *or* Debug CMAKE_BUILD_TYPE")
 endif()
@@ -135,25 +64,3 @@ endif()
 
 add_subdirectory(lib)
 add_subdirectory(tools)
-add_subdirectory(deps/crypto)
-add_subdirectory(deps/qrenc)
-add_subdirectory(deps/sca-hardening)
-
-if(${KK_EMULATOR})
-  add_subdirectory(deps/googletest)
-  add_subdirectory(unittests)
-  if(${KK_BUILD_FUZZERS})
-    add_subdirectory(fuzzer)
-  endif()
-
-  enable_testing()
-  add_test(test-firmware ${CMAKE_BINARY_DIR}/bin/firmware-unit)
-  add_test(test-board ${CMAKE_BINARY_DIR}/bin/board-unit)
-  add_test(test-crypto ${CMAKE_BINARY_DIR}/bin/crypto-unit)
-
-  add_custom_target(xunit
-      COMMAND ${CMAKE_BINARY_DIR}/bin/firmware-unit --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/firmware.xml
-      COMMAND ${CMAKE_BINARY_DIR}/bin/board-unit --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/board.xml
-      COMMAND ${CMAKE_BINARY_DIR}/bin/crypto-unit --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/crypto.xml)
-
-endif()

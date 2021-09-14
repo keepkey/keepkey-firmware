@@ -1,7 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2015 KeepKey LLC
+ * Copyright (C) 2021 Reid Rankin <reidrankin@gmail.com>
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -17,20 +17,31 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TIMER_H
-#define TIMER_H
-
 #include <stdint.h>
+#include <stddef.h>
 #include <stdbool.h>
 
-void timerisr_usr(void);
+#include "keepkey/firmware/rust.h"
 
-void timer_init(void);
-void delay_ms(uint32_t ms);
-void delay_us(uint32_t us);
+void rust_init(void) {}
 
-/// Defense against Fault Injection: random delay of a few miliseconds
-/// \returns the argument passed
-uint32_t fi_defense_delay(volatile uint32_t value);
+void rust_exec(void) {}
 
-#endif
+void rust_usb_rx_callback(uint8_t ep, uint8_t* buf, size_t len) {
+  (void)ep;
+  (void)buf;
+  (void)len;
+}
+
+void rust_get_label(char* buf, size_t len) {
+  (void)buf;
+  (void)len;
+}
+
+void rust_button_handler(bool pressed) {
+  (void)pressed;
+}
+
+void rust_layout_warning_static(LayoutWarningStaticType type) {
+  (void)type;
+}

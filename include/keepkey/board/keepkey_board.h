@@ -23,12 +23,8 @@
 #include "keepkey/board/keepkey_button.h"
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/keepkey_leds.h"
-#include "keepkey/board/layout.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/usb.h"
-#include "keepkey/crypto/curves.h"
-#include "trezor/crypto/bip32.h"
-#include "trezor/crypto/curves.h"
 
 /*
  storage layout:
@@ -67,24 +63,19 @@ typedef struct _Metadata {
   char magic[STORAGE_MAGIC_LEN];
   uint8_t uuid[STORAGE_UUID_LEN];
   char uuid_str[STORAGE_UUID_STR_LEN];
-} Metadata;
-
-/* Cache structure */
-typedef struct _Cache {
-  /* Root node cache */
-  uint8_t root_seed_cache_status;
-  uint8_t root_seed_cache[64];
-  char root_ecdsa_curve_type[10];
-} Cache;
+} __attribute__((packed)) Metadata;
 
 extern uintptr_t __stack_chk_guard;
 
 void board_reset(void);
-void board_init(void);
 void kk_board_init(void);
 
 void __stack_chk_fail(void) __attribute__((noreturn));
-uint32_t calc_crc32(const void *data, int word_len);
+
+#ifdef EMULATOR
+void crc_reset(void);
+uint32_t crc_calculate_block(const uint32_t* data, size_t len);
+#endif
 
 void __attribute__((noreturn)) shutdown(void);
 void memset_reg(void *start, void *stop, uint32_t val);

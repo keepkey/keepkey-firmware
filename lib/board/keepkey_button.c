@@ -28,28 +28,15 @@
 #include "keepkey/board/keepkey_button.h"
 #include "keepkey/board/keepkey_leds.h"
 #include "keepkey/board/supervise.h"
+#include "keepkey/firmware/rust.h"
 
 #include <stddef.h>
-
-static Handler on_press_handler = NULL;
-static Handler on_release_handler = NULL;
-
-static void *on_release_handler_context = NULL;
-static void *on_press_handler_context = NULL;
 
 #ifndef EMULATOR
 static const uint16_t BUTTON_PIN = GPIO7;
 static const uint32_t BUTTON_PORT = GPIOB;
 static const uint32_t BUTTON_EXTI = EXTI7;
 #endif
-
-void kk_keepkey_button_init(void) {
-  on_press_handler = NULL;
-  on_press_handler_context = NULL;
-
-  on_release_handler = NULL;
-  on_release_handler_context = NULL;
-}
 
 /*
  * keepkey_button_init() - Initialize push button interrupt registers
@@ -61,12 +48,6 @@ void kk_keepkey_button_init(void) {
  *     none
  */
 void keepkey_button_init(void) {
-  on_press_handler = NULL;
-  on_press_handler_context = NULL;
-
-  on_release_handler = NULL;
-  on_release_handler_context = NULL;
-
 #ifndef EMULATOR
   gpio_mode_setup(BUTTON_PORT, GPIO_MODE_INPUT, GPIO_PUPD_NONE, BUTTON_PIN);
 
@@ -78,38 +59,6 @@ void keepkey_button_init(void) {
   exti_enable_request(BUTTON_EXTI);
 
 #endif
-}
-
-/*
- * keepkey_button_set_on_press_handler() - Set callback handler for
- * button pressed
- *
- * INPUT
- *     - handler: handler function
- *     - context: pointer to release handler state info.
- * OUTPUT
- *     none
- *
- */
-void keepkey_button_set_on_press_handler(Handler handler, void *context) {
-  on_press_handler = handler;
-  on_press_handler_context = context;
-}
-
-/*
- * keepkey_button_set_on_release_handler() - Set handler for
- * button released
- *
- * INPUT
- *     - handler: handler function
- *     - context: pointer to release handler state info.
- * OUTPUT
- *     none
- *
- */
-void keepkey_button_set_on_release_handler(Handler handler, void *context) {
-  on_release_handler = handler;
-  on_release_handler_context = context;
 }
 
 /*
@@ -141,18 +90,8 @@ bool keepkey_button_down(void) { return !keepkey_button_up(); }
 
 void buttonisr_usr(void) {
 #ifndef EMULATOR
-  if (gpio_get(BUTTON_PORT, BUTTON_PIN) & BUTTON_PIN) {
-    if (on_release_handler) {
-      on_release_handler(on_release_handler_context);
-    }
-  } else {
-    if (on_press_handler) {
-      on_press_handler(on_press_handler_context);
-    }
-  }
+  rust_button_handler(keepkey_button_down());
 
-  svc_busr_return();  // this MUST be called last to properly clean up and
-                      // return
-
+  svc_busr_return();  // this MUST be called last to properly clean up and return
 #endif
 }

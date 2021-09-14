@@ -24,33 +24,21 @@
 #include <libopencm3/stm32/desig.h>
 #endif
 
-#include "keepkey/board/common.h"
-#include "keepkey/board/check_bootloader.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
-#include "keepkey/board/layout.h"
 #include "keepkey/board/usb.h"
-#include "keepkey/board/resources.h"
-#include "keepkey/board/keepkey_usart.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/board/mpudefs.h"
-#include "keepkey/board/pubkeys.h"
-#include "keepkey/board/signatures.h"
 #include "keepkey/board/util.h"
-#include "keepkey/firmware/app_layout.h"
-#include "keepkey/board/confirm_sm.h"
-#include "keepkey/firmware/fsm.h"
-#include "keepkey/firmware/home_sm.h"
+#include "keepkey/firmware/rust.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
-#include "trezor/crypto/rand.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 
 void mmhisr(void);
-void u2fInit(void);
 
 #define APP_VERSIONS                                    \
   "VERSION" VERSION_STR(MAJOR_VERSION) "." VERSION_STR( \
@@ -61,48 +49,37 @@ static const char *const application_version
     __attribute__((used, section("version"))) = APP_VERSIONS;
 
 void memory_getDeviceLabel(char *str, size_t len) {
-  const char *label = storage_getLabel();
+  char label[33] = { 0 };
+  rust_get_label(label, sizeof(label) - 1);
 
-  if (label && is_valid_ascii((const uint8_t *)label, strlen(label))) {
+  if (is_valid_ascii((const uint8_t *)label, strlen(label))) {
     snprintf(str, len, "KeepKey - %s", label);
   } else {
-    strlcpy(str, "KeepKey", len);
+    memcpy(str, "KeepKey", MIN(len, sizeof("KeepKey")));
   }
 }
 
-static bool canDropPrivs(void) {
-  switch (get_bootloaderKind()) {
-    case BLK_v1_0_0:
-    case BLK_v1_0_1:
-    case BLK_v1_0_2:
-    case BLK_v1_0_3:
-    case BLK_v1_0_3_elf:
-    case BLK_v1_0_3_sig:
-    case BLK_v1_0_4:
-    case BLK_UNKNOWN:
-      return true;
-    case BLK_v1_1_0:
-      return true;
-    case BLK_v2_0_0:
-    case BLK_v2_1_0: {
-      // sigs already checked in bootloader. If a sig is present we are in priv mode, drop privs.
-      uint8_t sigindex1 = 0;
-      fi_defense_delay(sigindex1); // delay before the fetch from flash
-      sigindex1 = *((uint8_t *)FLASH_META_SIGINDEX1);
-      // Future signature format enhancements may use higher indexes for different keys, but
-      // existing v2 bootloaders only recognize signatures up to BLK_v2_0_0_PUBKEYS. As such,
-      // even if a sig with a higher index is present, these bootloaders will have dropped privs
-      // by this point already, and trying to drop privs *again* will cause a fault.
-      bool sigPresent = sigindex1 >= 1 && sigindex1 <= BLK_v2_0_0_PUBKEYS;
-      // delay before the security-critical branch instruction
-      return fi_defense_delay(sigPresent);
-    }
-  }
+bool inPrivilegedMode(void) {
+  // Check to see if we are in priv mode.
+  uint32_t creg = 0xffff;
+  // CONTROL register nPRIV,bit[0]: 
+  //    0 Thread mode has privileged access
+  //    1 Thread mode has unprivileged access. 
+  // Note: In Handler mode, execution is always privileged
+  fi_defense_delay(creg);  // vary access time
+  __asm__ volatile(
+       "mrs %0, control" : "=r" (creg));
+  fi_defense_delay(creg);  // vary test time
+  if (creg & 0x0001) 
+    return false;          // can't drop privs
+  else
+    return true;
+
   __builtin_unreachable();
 }
 
 static void drop_privs(void) {
-  if (!canDropPrivs()) return;
+  if (!inPrivilegedMode()) return;
 
   // Legacy bootloader code will have interrupts disabled at this point.
   // To maintain compatibility, the timer and button interrupts need to
@@ -111,66 +88,16 @@ static void drop_privs(void) {
   cm_enable_interrupts();
 
   // Turn on memory protection for good signature. KK firmware is signed
-  mpu_config(SIG_OK);
+  mpu_config();
 
   // set thread mode to unprivileged here. This will help protect against 0days
   __asm__ volatile(
       "msr control, %0" ::"r"(0x3));  // unpriv thread mode using psp stack
 }
 
-#ifndef DEBUG_ON
-static void unknown_bootloader(void) {
-  layout_warning_static("Unknown bootloader. Contact support.");
-  shutdown();
-}
-
-static void update_bootloader(void) {
-  review_without_button_request(
-      "Update Recommended",
-      "This device's bootloader has a known security issue. "
-      "https://bit.ly/2jUTbnk "
-      "Please update your bootloader.");
-}
-#endif
-
-static void check_bootloader(void) {
-  BootloaderKind kind = get_bootloaderKind();
-
-  switch (kind) {
-    case BLK_v1_0_0:
-    case BLK_v1_0_1:
-    case BLK_v1_0_2:
-    case BLK_v1_0_3:
-    case BLK_v1_0_3_elf:
-    case BLK_v1_0_3_sig:
-    case BLK_v1_0_4:
-#ifndef DEBUG_ON
-      update_bootloader();
-#endif
-      return;
-    case BLK_UNKNOWN:
-#ifndef DEBUG_ON
-      unknown_bootloader();
-#endif
-      return;
-    case BLK_v2_1_0:
-    case BLK_v2_0_0:
-    case BLK_v1_1_0:
-      return;
-  }
-
-#ifdef DEBUG_ON
-  __builtin_unreachable();
-#else
-  unknown_bootloader();
-#endif
-}
-
 static void exec(void) {
   usbPoll();
-
-  /* Attempt to animate should a screensaver be present */
-  animate();
+  rust_exec();
   display_refresh();
 }
 
@@ -179,7 +106,7 @@ int main(void) {
   _timerusr_isr = (void *)&timerisr_usr;
   _mmhusr_isr = (void *)&mmhisr;
 
-  flash_collectHWEntropy(SIG_OK == signatures_ok());
+  flash_collectHWEntropy(inPrivilegedMode());
 
   /* Drop privileges */
   drop_privs();
@@ -187,50 +114,25 @@ int main(void) {
   /* Init board */
   kk_board_init();
 
-  /* Program the model into OTP, if we're not in screen-test mode, and it's
-   * not already there
-   */
-  (void)flash_programModel();
-
   /* Init for safeguard against stack overflow (-fstack-protector-all) */
   __stack_chk_guard = (uintptr_t)random32();
 
-  drbg_init();
-
-  /* Bootloader Verification */
-  check_bootloader();
-
   led_func(SET_RED_LED);
-  dbg_print("Application Version %d.%d.%d\n\r", MAJOR_VERSION, MINOR_VERSION,
-            PATCH_VERSION);
+  // dbg_print("Application Version %d.%d.%d\n\r", MAJOR_VERSION, MINOR_VERSION,
+  //           PATCH_VERSION);
 
-  /* Init storage */
-  storage_init();
-
-  /* Init protcol buffer message map and usb msg callback */
-  fsm_init();
+  /* Init Rust code */
+  rust_init();
 
   led_func(SET_GREEN_LED);
 
   usbInit("beta.shapeshift.com");
 
-  u2fInit();
   led_func(CLR_RED_LED);
 
-  reset_idle_time();
-
-  if (is_mfg_mode())
-    layout_screen_test();
-  else if (!storage_isInitialized())
-    layout_standard_notification("Welcome", "keepkey.com/get-started",
-                                 NOTIFICATION_LOGO);
-  else
-    layoutHomeForced();
-
   while (1) {
-    delay_ms_with_callback(ONE_SEC, &exec, 1);
-    increment_idle_time(ONE_SEC);
-    toggle_screensaver();
+    exec();
+    delay_ms(1);
   }
 
   return 0;

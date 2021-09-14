@@ -20,7 +20,6 @@
 #ifndef EMULATOR
 #include <libopencm3/stm32/flash.h>
 #include <libopencm3/stm32/timer.h>
-#include <libopencm3/stm32/f2/nvic.h>
 #else
 #include <stdint.h>
 #include <stdbool.h>
@@ -28,8 +27,8 @@
 #endif
 
 #include "keepkey/board/supervise.h"
+#include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_display.h"
-#include "keepkey/board/layout.h"
 
 #include <string.h>
 #include <stdint.h>
@@ -38,23 +37,10 @@
 #define MAX_ERRMSG 80
 
 void mmhisr(void) {
+  layout_warning_static(LAYOUT_WARNING_STATIC_TYPE_MEMFAULT);
 #ifndef EMULATOR
-#ifdef DEBUG_ON
-  static char errval[MAX_ERRMSG];
-  uint32_t mmfar = (uint32_t)_param_1;
-  uint32_t pc = (uint32_t)_param_2;
-  snprintf(errval, MAX_ERRMSG, "addr: 0x%08" PRIx32 " pc: 0x%08" PRIx32, mmfar,
-           pc);
-  layout_standard_notification("Memory Fault Detected", errval,
-                               NOTIFICATION_UNPLUG);
-#else
-  layout_standard_notification("Memory Fault Detected",
-                               "Please unplug your device!",
-                               NOTIFICATION_UNPLUG);
-#endif
-  display_refresh();
-  for (;;) {
-  }
+  shutdown();
+  for (;;) {}
 #else
   abort();
 #endif
