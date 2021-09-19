@@ -13,6 +13,12 @@ if(NOT ${KK_EMULATOR})
   set(CMAKE_EXE_LINKER_FLAGS
       "${CMAKE_EXE_LINKER_FLAGS} -T${linker_script} -L${CMAKE_BINARY_DIR}/lib")
 
+  if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+    link_directories(${CMAKE_SOURCE_DIR}/keepkey-rs/target/thumbv7m-none-eabi/debug)
+  else()
+    link_directories(${CMAKE_SOURCE_DIR}/keepkey-rs/target/thumbv7m-none-eabi/release)
+  endif()
+
   set(LINK_FLAGS
       kkfirmware
       kkboard
@@ -27,7 +33,11 @@ if(NOT ${KK_EMULATOR})
       kkrand
       -lopencm3_stm32f2
       -lc
-      -lm)
+      -lm
+      keepkey_rs
+      kkfirmware
+      kkboard
+      kkrand)
   add_custom_command(TARGET firmware.keepkey.elf
       POST_BUILD
       COMMAND ${CMAKE_OBJCOPY} ARGS -O binary

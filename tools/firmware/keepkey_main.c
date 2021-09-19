@@ -96,9 +96,8 @@ static void drop_privs(void) {
 }
 
 static void exec(void) {
-  usbPoll();
+  // usbPoll();
   rust_exec();
-  display_refresh();
 }
 
 int main(void) {
@@ -117,18 +116,19 @@ int main(void) {
   /* Init for safeguard against stack overflow (-fstack-protector-all) */
   __stack_chk_guard = (uintptr_t)random32();
 
-  led_func(SET_RED_LED);
   // dbg_print("Application Version %d.%d.%d\n\r", MAJOR_VERSION, MINOR_VERSION,
   //           PATCH_VERSION);
 
   /* Init Rust code */
+  led_func(SET_RED_LED);
+  led_func(CLR_GREEN_LED);
+
   rust_init();
 
-  led_func(SET_GREEN_LED);
-
-  usbInit("beta.shapeshift.com");
-
+  led_func(CLR_GREEN_LED);
   led_func(CLR_RED_LED);
+
+  // usbInit("beta.shapeshift.com");
 
   while (1) {
     exec();

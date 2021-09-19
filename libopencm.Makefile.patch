@@ -1,0 +1,4 @@
+27c27
+< SRCLIBDIR:= $(subst $(space),\$(space),$(realpath lib))
+---
+> SRCLIBDIR:= $(patsubst %\,%,$(subst $(space),\$(space),$(realpath lib)))

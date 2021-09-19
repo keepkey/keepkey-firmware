@@ -334,8 +334,7 @@ static const struct usb_bos_descriptor bos_descriptor = {
     .capabilities = capabilities};
 
 void usbInit(const char *origin_url) {
-  gpio_mode_setup(USB_GPIO_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE,
-                  USB_GPIO_PORT_PINS);
+  gpio_mode_setup(USB_GPIO_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, USB_GPIO_PORT_PINS);
   gpio_set_af(USB_GPIO_PORT, GPIO_AF10, USB_GPIO_PORT_PINS);
 
 	uint8_t serial_uuid[12];

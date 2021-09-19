@@ -40,8 +40,11 @@ extern uint32_t _param_3;
 
 void svc_busr_return(void);
 void svc_tusr_return(void);
+
+extern uint32_t interruptLockoutCounter;
 void svc_enable_interrupts(void);
 void svc_disable_interrupts(void);
+uint32_t interrupt_lockout_count(void);
 
 /// svc calls to erase and write the flash should not be done in bootloader, use
 /// direct erase and write functions

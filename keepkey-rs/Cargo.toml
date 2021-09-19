@@ -1,0 +1,25 @@
+[package]
+name = "keepkey-rs"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+cstr_core = { version = "0.2.4", default-features = false }
+embedded-graphics = "0.7.1"
+embedded-layout = "0.2.0"
+embedded-text = "0.5.0"
+heapless = { version = "0.7.5", features = ["ufmt-impl"] }
+safemem = { version = "0.3.3", default-features = false }
+spin = "0.9.2"
+ufmt = "0.1.0"

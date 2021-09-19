@@ -67,6 +67,20 @@ typedef struct _Metadata {
 
 extern uintptr_t __stack_chk_guard;
 
+typedef enum {
+  SHUTDOWN_ERROR_NONE = 0,
+  SHUTDOWN_ERROR_RUST_PANIC,
+  SHUTDOWN_ERROR_SSP,
+  SHUTDOWN_ERROR_CSS,
+  SHUTDOWN_ERROR_MEMFAULT,
+  SHUTDOWN_ERROR_NMI,
+  SHUTDOWN_ERROR_RESET_FAILED,
+  SHUTDOWN_ERROR_FI_DEFENSE,
+} ShutdownError;
+_Static_assert(sizeof(ShutdownError) == sizeof(uint8_t), "ShutdownError is not backed by a uint8_t");
+
+void __attribute__((noreturn)) shutdown_with_error(ShutdownError type);
+
 void board_reset(void);
 void kk_board_init(void);
 

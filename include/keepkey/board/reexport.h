@@ -1,7 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2015 KeepKey LLC
+ * Copyright (C) 2021 Reid Rankin <reidrankin@gmail.com>
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -17,26 +17,12 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef KEEPKEY_DISPLAY_H
-#define KEEPKEY_DISPLAY_H
+#ifndef REEXPORT_H
+#define REEXPORT_H
 
-#include <assert.h>
-#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
 
-#include "canvas.h"
+void desig_get_unique_id2(uint32_t* result);
 
-#define START_COL ((uint8_t)0x1C)
-#define START_ROW ((uint8_t)0x00)
-
-#define KEEPKEY_DISPLAY_HEIGHT 64
-#define KEEPKEY_DISPLAY_WIDTH 256
-
-#define DEFAULT_DISPLAY_BRIGHTNESS 100 /* Percent */
-
-void display_hw_init(void);
-void display_refresh(Canvas* canvas);
-size_t get_display_height(void);
-size_t get_display_width(void);
-uint8_t* get_static_canvas_buf(size_t len);
-
-#endif
+#endif // REEXPORT_H

@@ -9,6 +9,7 @@ set(sources
     memory.c
     mmhusr.c
     pin.c
+    reexport.c
     supervise.c
     timer.c
     usb.c

@@ -40,14 +40,25 @@ void svc_tusr_return(void) {
   __asm__ __volatile__("svc %0" ::"i"(SVC_TUSR_RET) : "memory");
 }
 
+/// The board starts with interrupts disabled.
+uint32_t interruptLockoutCounter = 1;
+
 /// Enable interrupts
 void svc_enable_interrupts(void) {
-  __asm__ __volatile__("svc %0" ::"i"(SVC_ENA_INTR) : "memory");
+  if (interruptLockoutCounter > 0) {
+    interruptLockoutCounter--;
+    __asm__ __volatile__("svc %0" ::"i"(SVC_ENA_INTR) : "memory");
+  }
 }
 
 /// Return context from user isr processing
 void svc_disable_interrupts(void) {
-  __asm__ __volatile__("svc %0" ::"i"(SVC_DIS_INTR) : "memory");
+  if (interruptLockoutCounter == 0) __asm__ __volatile__("svc %0" ::"i"(SVC_DIS_INTR) : "memory");
+  if (interruptLockoutCounter < UINT32_MAX) interruptLockoutCounter++;
+}
+
+uint32_t interrupt_lockout_count(void) {
+  return interruptLockoutCounter;
 }
 
 /// \brief Erase a flash sector.

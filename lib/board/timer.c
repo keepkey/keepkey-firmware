@@ -79,14 +79,14 @@ uint32_t fi_defense_delay(volatile uint32_t value) {
   volatile int j = wait;
   while (i < wait) {
     if (i + j != wait) {
-      shutdown();
+      shutdown_with_error(SHUTDOWN_ERROR_FI_DEFENSE);
     }
     ++i;
     --j;
   }
   // Double-check loop completion.
   if (i != wait || j != 0) {
-    shutdown();
+    shutdown_with_error(SHUTDOWN_ERROR_FI_DEFENSE);
   }
 #endif
   return value;
@@ -121,9 +121,11 @@ void delay_us(uint32_t us) {
  *     none
  */
 void delay_ms(uint32_t ms) {
-  remaining_delay = ms;
-
-  while (remaining_delay > 0) {
+  if (interruptLockoutCounter > 0) {
+    delay_us(ms * 1000);
+  } else {
+    remaining_delay = ms;
+    while (remaining_delay > 0) { }
   }
 }
 

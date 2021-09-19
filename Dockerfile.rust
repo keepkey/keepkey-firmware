@@ -1,0 +1,7 @@
+FROM rust:1.55.0
+ARG CARGO_TARGET
+RUN rustup target install ${CARGO_TARGET}
+WORKDIR /root/keepkey-firmware/keepkey-rs
+RUN cargo init --lib
+COPY keepkey-rs/Cargo.toml keepkey-rs/Cargo.lock ./
+RUN mkdir -p /root/.cargo /root/cargo-vendor && cargo vendor --locked /root/cargo-vendor > /root/.cargo/config

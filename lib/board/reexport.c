@@ -17,14 +17,10 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "scm_revision.h"
+#include <libopencm3/stm32/desig.h>
 
-#include <stddef.h>
+#include "keepkey/board/keepkey_board.h"
 
-const char* get_scm_revision(void) {
-#ifdef SCM_REVISION
-  return SCM_REVISION;
-#else
-  return NULL;
-#endif
+void desig_get_unique_id2(uint32_t* result) {
+  desig_get_unique_id(result);
 }

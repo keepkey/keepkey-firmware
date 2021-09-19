@@ -17,31 +17,39 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdint.h>
+#include "keepkey/firmware/version.h"
+#include "scm_revision.h"
+
 #include <stddef.h>
-#include <stdbool.h>
 
-#include "keepkey/firmware/rust.h"
-
-void rust_init(void) {}
-
-void rust_exec(void) {}
-
-void rust_usb_rx_callback(uint8_t ep, uint8_t* buf, size_t len) {
-  (void)ep;
-  (void)buf;
-  (void)len;
+uint8_t get_major_version(void) {
+#ifdef MAJOR_VERSION
+  return MAJOR_VERSION;
+#else
+  return 0;
+#endif
 }
 
-void rust_get_label(char* buf, size_t len) {
-  (void)buf;
-  (void)len;
+uint8_t get_minor_version(void) {
+#ifdef MINOR_VERSION
+  return MINOR_VERSION;
+#else
+  return 0;
+#endif
 }
 
-void rust_button_handler(bool pressed) {
-  (void)pressed;
+uint8_t get_patch_version(void) {
+#ifdef PATCH_VERSION
+  return PATCH_VERSION;
+#else
+  return 0;
+#endif
 }
 
-void rust_layout_warning_static(LayoutWarningStaticType type) {
-  (void)type;
+const char* get_scm_revision(void) {
+#ifdef SCM_REVISION
+  return SCM_REVISION;
+#else
+  return NULL;
+#endif
 }

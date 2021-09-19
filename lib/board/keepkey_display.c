@@ -44,10 +44,6 @@ static const Pin nRESET_PIN = {GPIOB, GPIO5};
 static const Pin BACKLIGHT_PWR_PIN = {GPIOB, GPIO0};
 #endif
 
-static uint8_t canvas_buffer[KEEPKEY_DISPLAY_HEIGHT * KEEPKEY_DISPLAY_WIDTH];
-static Canvas canvas;
-bool constant_power = false;
-
 /*
  * display_write_reg() - Write data to display register
  *
@@ -256,73 +252,6 @@ static void display_write_ram(uint8_t val) {
 }
 
 /*
- * display_canvas_init() - Display canvas initialization
- *
- * INPUT
- *     none
- * OUTPUT
- *     pointer to canvas
- */
-Canvas *display_canvas_init(void) {
-  /* Prepare the canvas */
-  canvas.buffer = canvas_buffer;
-  canvas.width = KEEPKEY_DISPLAY_WIDTH;
-  canvas.height = KEEPKEY_DISPLAY_HEIGHT;
-  canvas.dirty = false;
-
-  return &canvas;
-}
-
-/*
- * display_canvas() - Get pointer canvas
- *
- * INPUT
- *     none
- * OUTPUT
- *     pointer to canvas
- */
-Canvas *display_canvas(void) { return &canvas; }
-
-/*
- * display_refresh() - Refresh display
- *
- * INPUT
- *     none
- * OUTPUT
- *     none
- */
-void display_refresh(void) {
-    if (!canvas.dirty) return;
-
-    if (constant_power) {
-        for (int y = 0; y < 64; y++) {
-            for (int x = 0; x < 128; x++) {
-                canvas.buffer[y * 256 + x] = 255 - canvas.buffer[y * 256 + x + 128];
-            }
-        }
-    }
-
-    display_prepare_gram_write();
-
-    int num_writes = canvas.width * canvas.height;
-
-    int i;
-#ifdef INVERT_DISPLAY
-
-  for (i = num_writes; i > 0; i -= 2) {
-    uint8_t v = (0xF0 & canvas.buffer[i]) | (canvas.buffer[i - 1] >> 4);
-#else
-
-  for (i = 0; i < num_writes; i += 2) {
-    uint8_t v = (0xF0 & canvas.buffer[i]) | (canvas.buffer[i + 1] >> 4);
-#endif
-    display_write_ram(v);
-  }
-
-  canvas.dirty = false;
-}
-
-/*
  * display_turn_on() - Turn on display
  *
  * INPUT
@@ -344,8 +273,92 @@ void display_turn_off(void) {
     display_write_reg((uint8_t)0xAE);
 }
 
-void display_constant_power(bool enabled) {
-    constant_power = enabled;
+
+/*
+ * display_set_brightness() - Set display brightness in percentage
+ *
+ * INPUT
+ *     - percentage: brightness percentage
+ * OUTPUT
+ *     none
+ */
+void display_set_brightness(int percentage) {
+#ifndef EMULATOR
+  int v = percentage;
+
+  /* Clip to be 0 <= value <= 100 */
+  v = (v >= 0) ? v : 0;
+  v = (v > 100) ? 100 : v;
+
+  v = (0xFF * v) / 100;
+
+  uint8_t reg_value = (uint8_t)v;
+
+  display_write_reg((uint8_t)0xC1);
+  display_write_ram(reg_value);
+#endif
+}
+
+/*
+ * display_refresh() - Refresh display
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
+ */
+void display_refresh(Canvas* canvas) {
+  // bool didSomething = false;
+  if (canvas->powered_dirty) {
+    if (canvas->powered) {
+      display_turn_on();
+    } else {
+      display_turn_off();
+    }
+    canvas->powered_dirty = false;
+    // didSomething = true;
+  }
+
+  if (canvas->brightness_dirty) {
+    display_set_brightness(canvas->brightness);
+    canvas->brightness_dirty = false;
+    // didSomething = true;
+  }
+
+  if (canvas->buffer_dirty) {
+    display_prepare_gram_write();
+
+    size_t half_width = canvas->width / 2;
+#ifdef INVERT_DISPLAY
+    for (size_t i = 0, j = canvas->width * canvas->height; j > 0; i += 2, j -= 2) {
+#else
+    for (size_t i = 0, j = 0; j < canvas->width * canvas->height; i += 2, j += 2) {
+#endif
+      if (i >= canvas->width) i -= canvas->width;
+      size_t k = j;
+      if (canvas->constant_power && i < half_width) k += half_width;
+      uint8_t p1 = canvas->buffer[k];
+#ifdef INVERT_DISPLAY
+      uint8_t p2 = canvas->buffer[k - 1];
+#else
+      uint8_t p2 = canvas->buffer[k + 1];
+#endif
+      if (canvas->constant_power && i < half_width) {
+        p1 = 0xFF - p1;
+        p2 = 0xFF - p2;
+      }
+      uint8_t v = (0xF0 & p1) | (p2 >> 4);
+
+      display_write_ram(v);
+    }
+
+    canvas->buffer_dirty = false;
+    // didSomething = true;
+  }
+
+  // if (didSomething) {
+    // led_func(TGL_RED_LED);
+  // }
 }
 
 /*
@@ -468,37 +481,14 @@ void display_hw_init(void) {
 #endif
 }
 
-/*
- * display_set_brightness() - Set display brightness in percentage
- *
- * INPUT
- *     - percentage: brightness percentage
- * OUTPUT
- *     none
- */
-void display_set_brightness(int percentage) {
-#ifndef EMULATOR
-  int v = percentage;
-
-  /* Clip to be 0 <= value <= 100 */
-  v = (v >= 0) ? v : 0;
-  v = (v > 100) ? 100 : v;
-
-  v = (0xFF * v) / 100;
-
-  uint8_t reg_value = (uint8_t)v;
-
-  display_write_reg((uint8_t)0xC1);
-  display_write_ram(reg_value);
-#endif
+uint8_t* get_static_canvas_buf(size_t len) {
+  static uint8_t canvas_buf[KEEPKEY_DISPLAY_HEIGHT * KEEPKEY_DISPLAY_WIDTH] = { 0 };
+  if (len > sizeof(canvas_buf)) return NULL;
+  return canvas_buf;
 }
 
-void layout_warning_static(LayoutWarningStaticType type) {
-  display_constant_power(false);
-  canvas.dirty = true;
-  memset(canvas.buffer, 0, canvas.width * canvas.height);
-  rust_layout_warning_static(type);
-  display_refresh();
-}
+size_t get_display_height(void) { return KEEPKEY_DISPLAY_HEIGHT; }
+
+size_t get_display_width(void) { return KEEPKEY_DISPLAY_WIDTH; }
 
 #pragma GCC pop_options

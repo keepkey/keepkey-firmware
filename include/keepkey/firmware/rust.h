@@ -20,7 +20,7 @@
 #ifndef RUST_H
 #define RUST_H
 
-#include "keepkey/board/keepkey_display.h"
+#include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/keepkey_leds.h"
 
@@ -32,42 +32,6 @@ extern void rust_exec(void);
 extern void rust_usb_rx_callback(uint8_t ep, uint8_t* buf, size_t len);
 extern void rust_get_label(char* buf, size_t len);
 extern void rust_button_handler(bool pressed);
-extern void rust_layout_warning_static(LayoutWarningStaticType type);
-
-// void shutdown(void);
-// void board_reset(void);
-
-// uint32_t fi_defense_delay(volatile uint32_t value);
-// void delay_us(uint32_t us);
-// void delay_ms(uint32_t ms);
-// uint64_t get_clock_ms(void);
-
-// const char* get_scm_revision(void);
-// void desig_get_unique_id(uint32_t result[3]);
-
-// bool is_mfg_mode(void);
-// bool set_mfg_mode_off(void);
-
-// const char* flash_getModel(void);
-// bool flash_setModel(const char* buf, size_t len);
-
-// // For hashing bootloader, etc.
-// const uint8_t* flash_write_helper(Allocation group, size_t* pLen, size_t skip);
-
-// bool storage_read(uint8_t* buf, size_t len);
-// void storage_wipe(void);
-// bool storage_write(const uint8_t* buf, size_t len);
-
-// bool keepkey_button_down(void);
-
-// Canvas* display_canvas(void);
-
-// void led_func(LedAction act);
-
-// bool usb_tx(uint8_t *msg, uint32_t len);
-// #if DEBUG_LINK
-// bool usb_debug_tx(uint8_t *message, uint32_t len);
-// #endif
-// void usbReconnect(void);
+extern void rust_shutdown_hook(ShutdownError type);
 
 #endif // RUST_H

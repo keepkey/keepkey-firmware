@@ -81,7 +81,7 @@ void storage_wipe(void) {
   flash_erase_word(FLASH_STORAGE3);
 }
 
-bool storage_commit(const uint8_t* buf, size_t len) {
+bool storage_write(const uint8_t* buf, size_t len) {
   if (len > FLASH_STORAGE_LEN - STORAGE_MAGIC_LEN) return false;
   if (len % sizeof(uint32_t) != 0) return false; // buffer size must be a whole number of words
 

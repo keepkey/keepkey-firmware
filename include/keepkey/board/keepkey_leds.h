@@ -21,8 +21,7 @@
 #define KEEPKEY_LEDS_H
 
 #include <stdint.h>
-
-#include "canvas.h"
+#include <assert.h>
 
 typedef enum {
   CLR_GREEN_LED,
@@ -30,8 +29,9 @@ typedef enum {
   TGL_GREEN_LED,
   CLR_RED_LED,
   SET_RED_LED,
-  TGL_RED_LED
+  TGL_RED_LED,
 } LedAction;
+_Static_assert(sizeof(LedAction) == sizeof(uint8_t), "LedAction is not backed by a uint8_t");
 
 void keepkey_leds_init(void);
 void led_func(LedAction act);

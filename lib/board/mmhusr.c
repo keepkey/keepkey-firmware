@@ -34,14 +34,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#define MAX_ERRMSG 80
-
-void mmhisr(void) {
-  layout_warning_static(LAYOUT_WARNING_STATIC_TYPE_MEMFAULT);
-#ifndef EMULATOR
-  shutdown();
-  for (;;) {}
-#else
-  abort();
-#endif
+void __attribute__((noreturn)) mmhisr(void) {
+  shutdown_with_error(SHUTDOWN_ERROR_MEMFAULT);
 }

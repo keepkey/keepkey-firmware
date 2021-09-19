@@ -25,6 +25,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <inttypes.h>
+#include <assert.h>
 
 // clang-format off
 /*
@@ -124,28 +125,6 @@ extern uint8_t *emulator_flash_base;
 #define FLASH_META_START (FLASH_BOOT_START + FLASH_BOOT_LEN)  // 0x0806_0000
 #define FLASH_META_DESC_LEN (0x100)
 
-#define FLASH_META_MAGIC (FLASH_META_START)
-#define FLASH_META_CODELEN \
-  (FLASH_META_MAGIC + sizeof(((app_meta_td *)NULL)->magic))
-#define FLASH_META_SIGINDEX1 \
-  (FLASH_META_CODELEN + sizeof(((app_meta_td *)NULL)->code_len))
-#define FLASH_META_SIGINDEX2 \
-  (FLASH_META_SIGINDEX1 + sizeof(((app_meta_td *)NULL)->sig_index1))
-#define FLASH_META_SIGINDEX3 \
-  (FLASH_META_SIGINDEX2 + sizeof(((app_meta_td *)NULL)->sig_index2))
-#define FLASH_SIG_FLAG \
-  (FLASH_META_SIGINDEX3 + sizeof(((app_meta_td *)NULL)->sig_index3))
-#define FLASH_META_FLAGS \
-  (FLASH_SIG_FLAG + sizeof(((app_meta_td *)NULL)->sig_flag))
-#define FLASH_META_RESERVE \
-  (FLASH_META_FLAGS + sizeof(((app_meta_td *)NULL)->meta_flags))
-#define FLASH_META_SIG1 \
-  (FLASH_META_RESERVE + sizeof(((app_meta_td *)NULL)->rsv))
-#define FLASH_META_SIG2 (FLASH_META_SIG1 + sizeof(((app_meta_td *)NULL)->sig1))
-#define FLASH_META_SIG3 (FLASH_META_SIG2 + sizeof(((app_meta_td *)NULL)->sig2))
-
-#define META_MAGIC_SIZE (sizeof(((app_meta_td *)NULL)->magic))
-
 #define FLASH_APP_START \
   (FLASH_META_START + FLASH_META_DESC_LEN)  // 0x0806_0200 - 0x080F_FFFF
 #define FLASH_APP_LEN (FLASH_END - FLASH_APP_START)
@@ -195,24 +174,7 @@ extern uint8_t *emulator_flash_base;
   "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" \
   "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
 
-#define STORAGE_PROTECT_DISABLED 0x5ac35ac3
-#define STORAGE_PROTECT_ENABLED 0x00000000
-
 /* Application Meta format */
-typedef struct {
-  uint32_t magic;
-  uint32_t code_len;
-  uint8_t sig_index1;
-  uint8_t sig_index2;
-  uint8_t sig_index3;
-  uint8_t sig_flag;
-  uint32_t meta_flags;
-  uint8_t rsv[48];
-  uint8_t sig1[64];
-  uint8_t sig2[64];
-  uint8_t sig3[64];
-} app_meta_td;
-
 typedef enum {
   FLASH_INVALID,
   FLASH_BOOTSTRAP,
@@ -221,8 +183,9 @@ typedef enum {
   FLASH_STORAGE3,
   FLASH_UNUSED0,
   FLASH_BOOTLOADER,
-  FLASH_APP
+  FLASH_APP,
 } Allocation;
+_Static_assert(sizeof(Allocation) == sizeof(uint8_t), "Allocation is not backed by a uint8_t");
 
 typedef struct {
   int sector;
@@ -230,8 +193,6 @@ typedef struct {
   uint32_t len;
   Allocation use;
 } FlashSector;
-
-typedef void (*progress_handler_t)(void);
 
 static const FlashSector flash_sector_map[] = {
     {0, 0x08000000, BSTRP_FLASH_SECT_LEN, FLASH_BOOTSTRAP},

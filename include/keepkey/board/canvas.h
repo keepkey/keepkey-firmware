@@ -24,10 +24,15 @@
 #include <stdbool.h>
 
 typedef struct {
-  uint8_t* buffer;
   uint16_t height;
   uint16_t width;
-  bool dirty;
+  bool constant_power;
+  uint8_t* buffer;
+  bool buffer_dirty;
+  uint8_t brightness;
+  bool brightness_dirty;
+  bool powered;
+  bool powered_dirty;
 } Canvas;
 
 #endif

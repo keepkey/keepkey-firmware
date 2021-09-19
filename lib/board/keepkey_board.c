@@ -32,6 +32,7 @@
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/supervise.h"
+#include "keepkey/firmware/rust.h"
 #include "keepkey/rand/rng.h"
 
 #include <stdint.h>
@@ -47,6 +48,14 @@ uintptr_t __stack_chk_guard;
 void __attribute__((noreturn)) shutdown(void) { exit(1); }
 #endif
 
+void __attribute__((noreturn)) shutdown_with_error(ShutdownError error) {
+  if (error != SHUTDOWN_ERROR_RUST_PANIC) {
+    svc_disable_interrupts();
+    rust_shutdown_hook(error);
+  }
+  shutdown();
+}
+
 /*
  * __stack_chk_fail() - Stack smashing protector (SSP) call back funcation
  * for -fstack-protector-all GCC option
@@ -56,19 +65,19 @@ void __attribute__((noreturn)) shutdown(void) { exit(1); }
  * OUTPUT
  *     none
  */
-__attribute__((noreturn)) void __stack_chk_fail(void) {
-  layout_warning_static(LAYOUT_WARNING_STATIC_TYPE_SSP);
-  shutdown();
+void __attribute__((noreturn)) __stack_chk_fail(void) {
+  shutdown_with_error(SHUTDOWN_ERROR_SSP);
 }
 
 #ifndef EMULATOR
 /// Non-maskable interrupt handler
-void nmi_handler(void) {
+void __attribute__((noreturn)) nmi_handler(void) {
   // Look for the clock instability interrupt. This is a security measure
   // that helps prevent clock glitching.
   if ((RCC_CIR & RCC_CIR_CSSF) != 0) {
-    layout_warning_static(LAYOUT_WARNING_STATIC_TYPE_CSS);
-    shutdown();
+    shutdown_with_error(SHUTDOWN_ERROR_CSS);
+  } else {
+    shutdown_with_error(SHUTDOWN_ERROR_NMI);
   }
 }
 #endif
@@ -81,10 +90,11 @@ void nmi_handler(void) {
  * OUTPUT
  *     none
  */
-void board_reset(void) {
+void __attribute__((noreturn)) board_reset(void) {
 #ifndef EMULATOR
   scb_reset_system();
 #endif
+  shutdown_with_error(SHUTDOWN_ERROR_RESET_FAILED);
 }
 
 /*
@@ -97,15 +107,13 @@ void board_reset(void) {
  */
 void kk_board_init(void) {
   keepkey_leds_init();
-  led_func(CLR_GREEN_LED);
+  led_func(SET_GREEN_LED);
   led_func(CLR_RED_LED);
 
-  keepkey_button_init();
+  // keepkey_button_init();
 #ifndef EMULATOR
   svc_enable_interrupts();  // This enables the timer and button interrupts
 #endif
-
-  display_canvas_init();
 }
 
 #ifdef EMULATOR
