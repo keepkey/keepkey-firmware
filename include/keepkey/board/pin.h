@@ -20,10 +20,8 @@
 #ifndef PIN_H
 #define PIN_H
 
-#ifndef EMULATOR
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
-#endif
 
 #include <inttypes.h>
 

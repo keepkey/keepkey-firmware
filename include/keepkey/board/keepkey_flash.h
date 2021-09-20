@@ -29,7 +29,6 @@
 #define HW_ENTROPY_LEN (12 + 32)
 extern uint8_t HW_ENTROPY_DATA[HW_ENTROPY_LEN];
 
-#ifndef EMULATOR
 #include <libopencm3/stm32/flash.h>
 // This sequence ensures that the flash unlock sequence is reset before
 // attempting an unlock. If an unlock is called when the flash is unlocked, a
@@ -38,7 +37,6 @@ extern uint8_t HW_ENTROPY_DATA[HW_ENTROPY_LEN];
   ;                        \
   flash_lock(void);        \
   flash_unlock(void);
-#endif
 
 const uint8_t* flash_write_helper(Allocation group, size_t* pLen, size_t skip);
 void flash_erase(Allocation group);

@@ -27,10 +27,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-extern void rust_init(void);
-extern void rust_exec(void);
-extern void rust_usb_rx_callback(uint8_t ep, uint8_t* buf, size_t len);
-extern void rust_get_label(char* buf, size_t len);
+extern void rust_main(void);
 extern void rust_button_handler(bool pressed);
 extern void rust_shutdown_hook(ShutdownError type);
 

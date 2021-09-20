@@ -6,7 +6,6 @@ project(KeepKeyFirmware
 
         LANGUAGES C CXX ASM)
 
-option(KK_EMULATOR "Build the emulator" OFF)
 option(KK_DEBUG_LINK "Build with debug-link enabled" OFF)
 set(LIBOPENCM3_PATH /root/libopencm3 CACHE PATH "Path to an already-built libopencm3")
 set(CMAKE_DEBUG_POSTFIX CACHE STRING "Debug library name postfix")
@@ -14,10 +13,6 @@ set(CMAKE_DEBUG_POSTFIX CACHE STRING "Debug library name postfix")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules/")
 include(GetGitRevisionDescription)
 get_git_head_revision(GIT_REFSPEC GIT_SHA1)
-
-if(${KK_EMULATOR})
-  add_definitions(-DEMULATOR)
-endif()
 
 add_definitions(-DSTM32F2=1)
 
@@ -47,20 +42,18 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-if(NOT ${KK_EMULATOR})
-  link_directories(${LIBOPENCM3_PATH}/lib)
-  include_directories(${LIBOPENCM3_PATH}/include)
+link_directories(${LIBOPENCM3_PATH}/lib)
+include_directories(${LIBOPENCM3_PATH}/include)
 
-  # Dummy empty libraries for stack smashing protection support, since we
-  # implement __stack_chk_guard and __stack_chk_fail ourselves.
-  file(WRITE ${CMAKE_BINARY_DIR}/ssp.c "")
-  add_library(ssp ${CMAKE_BINARY_DIR}/ssp.c)
-  add_library(ssp_nonshared ${CMAKE_BINARY_DIR}/ssp.c)
-  set_property(TARGET ssp PROPERTY LINKER_LANGUAGE CXX)
-  set_property(TARGET ssp_nonshared PROPERTY LINKER_LANGUAGE CXX)
-  set_target_properties(ssp ssp_nonshared
-      PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-endif()
+# Dummy empty libraries for stack smashing protection support, since we
+# implement __stack_chk_guard and __stack_chk_fail ourselves.
+file(WRITE ${CMAKE_BINARY_DIR}/ssp.c "")
+add_library(ssp ${CMAKE_BINARY_DIR}/ssp.c)
+add_library(ssp_nonshared ${CMAKE_BINARY_DIR}/ssp.c)
+set_property(TARGET ssp PROPERTY LINKER_LANGUAGE CXX)
+set_property(TARGET ssp_nonshared PROPERTY LINKER_LANGUAGE CXX)
+set_target_properties(ssp ssp_nonshared
+    PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 add_subdirectory(lib)
 add_subdirectory(tools)

@@ -19,14 +19,11 @@
 
 #include "keepkey/rand/rng.h"
 
-#ifndef EMULATOR
 #include <libopencm3/cm3/common.h>
 #include <libopencm3/stm32/memorymap.h>
 #include <libopencm3/stm32/f2/rng.h>
-#endif
 
 void reset_rng(void) {
-#ifndef EMULATOR
   /* disable RNG */
   RNG_CR &= ~(RNG_CR_IE | RNG_CR_RNGEN);
   /* reset Seed/Clock/ error status */
@@ -45,11 +42,9 @@ void reset_rng(void) {
   // Section 20.3.1 we don't use the first random number generated after setting
   // the RNGEN bit in setup
   random32();
-#endif
 }
 
 uint32_t random32(void) {
-#ifndef EMULATOR
   uint32_t rng_samples = 0, rng_sr_img;
   static uint32_t last = 0, new = 0;
 
@@ -75,9 +70,6 @@ uint32_t random32(void) {
   }
   last = new;
   return new;
-#else
-  return random();
-#endif
 }
 
 void random_buffer(uint8_t *buf, size_t len) {

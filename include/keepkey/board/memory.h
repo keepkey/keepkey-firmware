@@ -72,12 +72,7 @@
  */
 // clang-format on
 
-#ifdef EMULATOR
-extern uint8_t *emulator_flash_base;
-#define FLASH_PTR(x) (emulator_flash_base + (x - FLASH_ORIGIN))
-#else
 #define FLASH_PTR(x) (const uint8_t *)(x)
-#endif
 
 #define OPTION_BYTES_1 ((uint64_t *)0x1FFFC000)
 #define OPTION_BYTES_2 ((uint64_t *)0x1FFFC008)

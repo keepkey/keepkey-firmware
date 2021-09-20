@@ -17,14 +17,8 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef EMULATOR
 #include <libopencm3/stm32/flash.h>
 #include <libopencm3/stm32/timer.h>
-#else
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#endif
 
 #include "keepkey/board/supervise.h"
 #include "keepkey/board/keepkey_board.h"

@@ -17,9 +17,7 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef EMULATOR
 #include <libopencm3/cm3/scb.h>
-#endif
 
 #include "keepkey/board/util.h"
 
@@ -27,7 +25,6 @@
 
 static const char *hexdigits = "0123456789ABCDEF";
 
-// converts data to hexa
 void data2hex(const void *data, uint32_t len, char *str) {
   uint32_t i;
   const uint8_t *cdata = (uint8_t *)data;
@@ -36,13 +33,4 @@ void data2hex(const void *data, uint32_t len, char *str) {
     str[i * 2 + 1] = hexdigits[cdata[i] & 0xF];
   }
   str[len * 2] = 0;
-}
-
-bool is_valid_ascii(const uint8_t *data, uint32_t size) {
-  for (uint32_t i = 0; i < size; i++) {
-    if (data[i] < ' ' || data[i] > '~') {
-      return false;
-    }
-  }
-  return true;
 }

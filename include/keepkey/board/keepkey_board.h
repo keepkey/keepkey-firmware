@@ -24,7 +24,6 @@
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/keepkey_leds.h"
 #include "keepkey/board/timer.h"
-#include "keepkey/board/usb.h"
 
 /*
  storage layout:
@@ -85,11 +84,6 @@ void board_reset(void);
 void kk_board_init(void);
 
 void __stack_chk_fail(void) __attribute__((noreturn));
-
-#ifdef EMULATOR
-void crc_reset(void);
-uint32_t crc_calculate_block(const uint32_t* data, size_t len);
-#endif
 
 void __attribute__((noreturn)) shutdown(void);
 void memset_reg(void *start, void *stop, uint32_t val);

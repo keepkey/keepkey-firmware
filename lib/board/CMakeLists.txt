@@ -8,23 +8,12 @@ set(sources
     keepkey_leds.c
     memory.c
     mmhusr.c
+    otp.c
     pin.c
     reexport.c
     supervise.c
     timer.c
-    usb.c
     util.c)
-
-if(${KK_EMULATOR})
-    set(sources ${sources}
-        udp.c)
-else()
-    set(sources ${sources}
-        otp.c
-        usb21_standard.c
-        webusb.c
-        winusb.c)
-endif()
 
 include_directories(
   ${CMAKE_SOURCE_DIR}/include

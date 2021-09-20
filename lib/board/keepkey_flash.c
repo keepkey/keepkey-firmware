@@ -17,13 +17,8 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef EMULATOR
 #include <libopencm3/stm32/flash.h>
 #include <libopencm3/stm32/desig.h>
-#else
-#include <stdint.h>
-#include <stdbool.h>
-#endif
 
 #include "keepkey/board/otp.h"
 #include "keepkey/board/keepkey_flash.h"
@@ -71,7 +66,6 @@ const uint8_t* flash_write_helper(Allocation group, size_t* pLen, size_t skip) {
  *     true/false flash operation status
  */
 bool flash_chk_status(void) {
-#ifndef EMULATOR
   if (FLASH_SR &
       (FLASH_SR_PGAERR | FLASH_SR_PGPERR | FLASH_SR_PGSERR | FLASH_SR_WRPERR)) {
     /* Flash error detected */
@@ -80,9 +74,6 @@ bool flash_chk_status(void) {
     /* Flash operation successful */
     return (true);
   }
-#else
-  return true;
-#endif
 }
 
 /*
@@ -96,7 +87,6 @@ bool flash_chk_status(void) {
  *     none
  */
 void flash_erase_word(Allocation group) {
-#ifndef EMULATOR
   const FlashSector *s = flash_sector_map;
   while (s->use != FLASH_INVALID) {
     if (s->use == group) {
@@ -104,7 +94,6 @@ void flash_erase_word(Allocation group) {
     }
     ++s;
   }
-#endif
 }
 
 /*
@@ -120,7 +109,6 @@ void flash_erase_word(Allocation group) {
  */
 bool flash_write_word(Allocation group, uint32_t offset, uint32_t len,
                       const uint8_t *data) {
-#ifndef EMULATOR
   bool retval = true;
   intptr_t start = (intptr_t)flash_write_helper(group, NULL, 0);
   uint32_t data_word[1];
@@ -161,10 +149,6 @@ bool flash_write_word(Allocation group, uint32_t offset, uint32_t len,
   }
 fww_exit:
   return (retval);
-#else
-  memcpy(flash_write_helper(group, NULL, 0) + offset, data, len);
-  return true;
-#endif
 }
 
 /*
@@ -180,17 +164,12 @@ fww_exit:
  */
 bool flash_write(Allocation group, uint32_t offset, uint32_t len,
                  const uint8_t *data) {
-#ifndef EMULATOR
   bool retval = true;
   const uint8_t* start = flash_write_helper(group, NULL, 0);
   if (svc_flash_pgm_blk((intptr_t)(start + offset), (uint32_t)data, len) == false) {
     retval = false;
   }
   return (retval);
-#else
-  memcpy(flash_write_helper(group, NULL, 0) + offset, data, len);
-  return true;
-#endif
 }
 
 /*
@@ -202,7 +181,7 @@ bool flash_write(Allocation group, uint32_t offset, uint32_t len,
  *      none
  */
 bool is_mfg_mode(void) {
-#if defined(EMULATOR) || defined(DEBUG_ON)
+#ifdef DEBUG_ON
   return false;
 #else
   if (*(uint32_t *)OTP_MFG_ADDR == OTP_MFG_SIG) {
@@ -225,7 +204,6 @@ bool set_mfg_mode_off(void) {
   bool ret_val = false;
   uint32_t tvar;
 
-#ifndef EMULATOR
   /* check OTP lock state before updating */
   if (*(uint8_t *)OTP_BLK_LOCK(OTP_MFG_ADDR) == 0xFF) {
     tvar = OTP_MFG_SIG; /* set manufactur'ed signature */
@@ -237,14 +215,11 @@ bool set_mfg_mode_off(void) {
       ret_val = true;
     }
   }
-#endif
 
   return (ret_val);
 }
 
 const char *flash_getModel(void) {
-#ifndef EMULATOR
-
 #ifdef DEBUG_ON
   return "K1-14AM";  // return a model number for debugger builds
 #endif
@@ -252,17 +227,10 @@ const char *flash_getModel(void) {
   if (*((uint8_t *)OTP_MODEL_ADDR) == 0xFF) return NULL;
 
   return (char *)OTP_MODEL_ADDR;
-#else
-  // TODO: actually make this settable in the emulator
-  return "K1-14AM";
-#endif
 }
 
 bool flash_setModel(const char* buf, size_t len) {
   if (len > MODEL_STR_SIZE - 1) return false;
-#ifdef EMULATOR
-  return true;
-#else
   char model[MODEL_STR_SIZE] = { 0 };
   memcpy(model, buf, len);
 
@@ -273,14 +241,9 @@ bool flash_setModel(const char* buf, size_t len) {
                     sizeof(*model));
   uint8_t lock = 0x00;
   return svc_flash_pgm_blk(OTP_BLK_LOCK(OTP_MODEL_ADDR), (uint32_t)&lock, sizeof(lock));
-#endif
 }
 
 void flash_collectHWEntropy(bool privileged) {
-#ifdef EMULATOR
-  (void)privileged;
-  memset(HW_ENTROPY_DATA, 0, HW_ENTROPY_LEN);
-#else
   if (privileged) {
     desig_get_unique_id((uint32_t *)HW_ENTROPY_DATA);
     // set entropy in the OTP randomness block
@@ -298,7 +261,6 @@ void flash_collectHWEntropy(bool privileged) {
     // unprivileged mode => use fixed HW_ENTROPY
     memset(HW_ENTROPY_DATA, 0x3C, HW_ENTROPY_LEN);
   }
-#endif
 }
 
 size_t flash_readHWEntropy(uint8_t *buf, size_t len) {

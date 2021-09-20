@@ -1,19 +1,21 @@
-use core::convert::TryFrom;
 use super::canvas_mutex_guard::CanvasMutexGuard;
 use super::bindings;
 use super::types::{Allocation, Canvas, ShutdownError, LedAction};
+use super::usb::{Usb, UsbBus, UsbBusAllocator};
 
 pub struct KeepKeyBoard {
   _0: (),
 }
 
 static CANVAS: spin::Once<spin::Mutex<Canvas>> = spin::Once::new();
+static mut EP_MEMORY: [u32; 1024] = [0; 1024];
+static USB_BUS_ALLOCATOR: spin::Once<spin::Mutex<UsbBusAllocator<UsbBus<Usb>>>> = spin::Once::new();
 
 impl KeepKeyBoard {
   pub fn shutdown_with_error(error: ShutdownError) -> ! { unsafe { bindings::shutdown_with_error(error); } }
   pub fn board_reset() -> ! { unsafe { bindings::board_reset() } }
 
-  pub fn get_unique_id() -> [u8; 12] {
+  pub fn serial_number() -> [u8; 12] {
     let mut out = [0; 12];
     unsafe { bindings::desig_get_unique_id2(&mut out as *mut u8 as *mut u32); }
     return out;
@@ -22,7 +24,7 @@ impl KeepKeyBoard {
   pub fn fi_defense_delay() { unsafe { bindings::fi_defense_delay(0); } }
   pub fn delay_us(us: u32) { unsafe { bindings::delay_us(us) } }
   pub fn delay_ms(ms: u32) { unsafe { bindings::delay_ms(ms) } }
-  pub fn get_clock_ms() -> u64 { unsafe { bindings::get_clock_ms() } }
+  pub fn clock_ms() -> u64 { unsafe { bindings::get_clock_ms() } }
 
   pub fn is_mfg_mode() -> bool { unsafe { bindings::is_mfg_mode() } }
   pub fn set_mfg_mode_off() -> Result<(), ()> {
@@ -82,20 +84,6 @@ impl KeepKeyBoard {
 
   pub fn set_led(act: LedAction) { unsafe { bindings::led_func(act) } }
 
-  pub fn usb_tx(data: &[u8]) -> Result<(), ()> {
-    match unsafe { bindings::usb_tx(data.as_ptr(), u32::try_from(data.len()).unwrap()) } {
-      true => Ok(()),
-      false => Err(()),
-    }
-  }
-  pub fn usb_debug_tx(data: &[u8]) -> Result<(), ()> {
-    match unsafe { bindings::usb_debug_tx(data.as_ptr(), u32::try_from(data.len()).unwrap()) } {
-      true => Ok(()),
-      false => Err(()),
-    }
-  }
-  pub fn usb_reconnect() { unsafe { bindings::usbReconnect() } }
-
   pub fn do_without_interrupts<F>(mut func: F) -> F::Output where F: FnMut() {
     unsafe { bindings::svc_disable_interrupts(); }
     let out = func();
@@ -104,4 +92,9 @@ impl KeepKeyBoard {
   }
 
   pub fn interrupt_lockout_count() -> u32 { unsafe { bindings::interrupt_lockout_count() } }
+
+  pub fn usb() -> spin::MutexGuard<'static, UsbBusAllocator<UsbBus<Usb>>> {
+    USB_BUS_ALLOCATOR.call_once(|| spin::Mutex::new(UsbBus::new(Usb(), unsafe { &mut EP_MEMORY })));
+    USB_BUS_ALLOCATOR.wait().try_lock().unwrap()
+  }
 }

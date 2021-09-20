@@ -17,10 +17,8 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef EMULATOR
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
-#endif
 
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/pin.h"
@@ -33,7 +31,6 @@
 #pragma GCC push_options
 #pragma GCC optimize("-O3")
 
-#ifndef EMULATOR
 static const Pin nOE_PIN = {GPIOA, GPIO8};
 static const Pin nWE_PIN = {GPIOA, GPIO9};
 static const Pin nDC_PIN = {GPIOB, GPIO1};
@@ -42,7 +39,6 @@ static const Pin nSEL_PIN = {GPIOA, GPIO10};
 static const Pin nRESET_PIN = {GPIOB, GPIO5};
 
 static const Pin BACKLIGHT_PWR_PIN = {GPIOB, GPIO0};
-#endif
 
 /*
  * display_write_reg() - Write data to display register
@@ -53,8 +49,6 @@ static const Pin BACKLIGHT_PWR_PIN = {GPIOB, GPIO0};
  *     none
  */
 static void display_write_reg(uint8_t reg) {
-#ifndef EMULATOR
-
   svc_disable_interrupts();
 
   /* Set up the data */
@@ -101,8 +95,6 @@ static void display_write_reg(uint8_t reg) {
   __asm__("nop");
 
   svc_enable_interrupts();
-
-#endif
 }
 
 /*
@@ -114,7 +106,6 @@ static void display_write_reg(uint8_t reg) {
  *     none
  */
 static void display_reset(void) {
-#ifndef EMULATOR
   CLEAR_PIN(nRESET_PIN);
 
   delay_ms(10);
@@ -122,7 +113,6 @@ static void display_reset(void) {
   SET_PIN(nRESET_PIN);
 
   delay_ms(50);
-#endif
 }
 
 /*
@@ -132,7 +122,6 @@ static void display_reset(void) {
  * OUTPUT -  none
  */
 static void display_reset_io(void) {
-#ifndef EMULATOR
   svc_disable_interrupts();
   SET_PIN(nRESET_PIN);
   CLEAR_PIN(BACKLIGHT_PWR_PIN);
@@ -143,7 +132,6 @@ static void display_reset_io(void) {
 
   GPIO_BSRR(GPIOA) = 0x00FF0000;
   svc_enable_interrupts();
-#endif
 }
 
 /*
@@ -155,7 +143,6 @@ static void display_reset_io(void) {
  *     none
  */
 static void display_configure_io(void) {
-#ifndef EMULATOR
   /* Set up port A */
   gpio_mode_setup(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE,
                   GPIO0 | GPIO1 | GPIO2 | GPIO3 | GPIO4 | GPIO5 | GPIO6 |
@@ -174,7 +161,6 @@ static void display_configure_io(void) {
 
   /* Set to defaults */
   display_reset_io();
-#endif
 }
 
 /*
@@ -186,9 +172,7 @@ static void display_configure_io(void) {
  *     none
  */
 static void display_prepare_gram_write(void) {
-#ifndef EMULATOR
   display_write_reg((uint8_t)0x5C);
-#endif
 }
 
 /*
@@ -200,7 +184,6 @@ static void display_prepare_gram_write(void) {
  *     none
  */
 static void display_write_ram(uint8_t val) {
-#ifndef EMULATOR
   svc_disable_interrupts();
 
   /* Set up the data */
@@ -247,8 +230,6 @@ static void display_write_ram(uint8_t val) {
   __asm__("nop");
 
   svc_enable_interrupts();
-
-#endif
 }
 
 /*
@@ -283,7 +264,6 @@ void display_turn_off(void) {
  *     none
  */
 void display_set_brightness(int percentage) {
-#ifndef EMULATOR
   int v = percentage;
 
   /* Clip to be 0 <= value <= 100 */
@@ -296,7 +276,6 @@ void display_set_brightness(int percentage) {
 
   display_write_reg((uint8_t)0xC1);
   display_write_ram(reg_value);
-#endif
 }
 
 /*
@@ -370,7 +349,6 @@ void display_refresh(Canvas* canvas) {
  *     none
  */
 void display_hw_init(void) {
-#ifndef EMULATOR
   display_configure_io();
 
   CLEAR_PIN(BACKLIGHT_PWR_PIN);
@@ -478,7 +456,6 @@ void display_hw_init(void) {
   delay_ms(100);
 
   display_turn_on();
-#endif
 }
 
 uint8_t* get_static_canvas_buf(size_t len) {

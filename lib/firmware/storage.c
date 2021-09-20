@@ -19,11 +19,9 @@
 
 #include "keepkey/firmware/storage.h"
 
-#ifndef EMULATOR
 #include <libopencm3/stm32/crc.h>
 #include <libopencm3/stm32/desig.h>
 #include <libopencm3/stm32/flash.h>
-#endif
 
 #include "keepkey/board/supervise.h"
 #include "keepkey/board/keepkey_board.h"
@@ -43,12 +41,8 @@ static bool storage_isActiveSector(const void* flash) {
 }
 
 static void storage_resetUuid(Metadata *meta) {
-#ifdef EMULATOR
-  random_buffer(meta->uuid, sizeof(meta->uuid));
-#else
   _Static_assert(sizeof(meta->uuid) == 3 * sizeof(uint32_t), "uuid not large enough");
   desig_get_unique_id((uint32_t *)meta->uuid);
-#endif
   data2hex(meta->uuid, sizeof(meta->uuid), meta->uuid_str);
 }
 

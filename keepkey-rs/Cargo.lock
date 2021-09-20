@@ -3,6 +3,15 @@
 version = 3
 
 [[package]]
+name = "aligned"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a785a543aea40f5e4e2e93bb2655d31bc21bb391fff65697150973e383f16bb"
+dependencies = [
+ "as-slice",
+]
+
+[[package]]
 name = "ansi-parser"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -30,7 +39,7 @@ version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a93ba5d6053837dbb76fd0ae26fd4f0c1859a008a783b0ce072b797c07f0f27"
 dependencies = [
- "cortex-m",
+ "cortex-m 0.7.3",
 ]
 
 [[package]]
@@ -65,6 +74,19 @@ name = "byteorder"
 version = "1.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
+
+[[package]]
+name = "cortex-m"
+version = "0.6.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9075300b07c6a56263b9b582c214d0ff037b00d45ec9fde1cc711490c56f1bb9"
+dependencies = [
+ "aligned",
+ "bare-metal",
+ "bitfield",
+ "cortex-m 0.7.3",
+ "volatile-register",
+]
 
 [[package]]
 name = "cortex-m"
@@ -240,17 +262,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "hex"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
 name = "keepkey-rs"
 version = "0.1.0"
 dependencies = [
+ "cortex-m 0.7.3",
  "cstr_core",
  "embedded-graphics",
  "embedded-layout",
  "embedded-text",
  "heapless 0.7.5",
+ "hex",
  "safemem",
  "spin",
+ "stm32f2",
+ "synopsys-usb-otg",
  "ufmt",
+ "usb-device",
+ "usbd-webusb",
 ]
 
 [[package]]
@@ -390,6 +424,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 
 [[package]]
+name = "stm32f2"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c67f4f67fdfa5f1c6e5e63deded45a8842e7deefece168918cc0a421e60537fc"
+dependencies = [
+ "bare-metal",
+ "cortex-m 0.7.3",
+ "vcell",
+]
+
+[[package]]
 name = "syn"
 version = "1.0.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -398,6 +443,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-xid",
+]
+
+[[package]]
+name = "synopsys-usb-otg"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1216cb0fe29f65bfffe03c364640202eed1291d85d2f62bbadbe670106786e5"
+dependencies = [
+ "cortex-m 0.6.7",
+ "usb-device",
+ "vcell",
 ]
 
 [[package]]
@@ -440,6 +496,21 @@ name = "unicode-xid"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ccb82d61f80a663efe1f787a51b16b5a51e3314d6ac365b08639f52387b33f3"
+
+[[package]]
+name = "usb-device"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6be90410d4772074ea49525e2e753b65920b94b57eee21a6ef7b6a6fe6296245"
+
+[[package]]
+name = "usbd-webusb"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed33ecaa7a26365f13059e753bfa23f0a4a557565499f46d255c51e737464bd8"
+dependencies = [
+ "usb-device",
+]
 
 [[package]]
 name = "vcell"

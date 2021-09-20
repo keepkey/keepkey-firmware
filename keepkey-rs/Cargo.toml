@@ -7,19 +7,31 @@ edition = "2018"
 
 [profile.dev]
 panic = "abort"
+opt-level = 'z'
+lto = true
+codegen-units = 1
 
 [profile.release]
 panic = "abort"
+opt-level = 'z'
+lto = true
+codegen-units = 1
 
 [lib]
 crate-type = ["staticlib"]
 
 [dependencies]
+cortex-m = "0.7.3"
 cstr_core = { version = "0.2.4", default-features = false }
 embedded-graphics = "0.7.1"
 embedded-layout = "0.2.0"
 embedded-text = "0.5.0"
 heapless = { version = "0.7.5", features = ["ufmt-impl"] }
+hex = { version = "0.4.3", default-features = false }
 safemem = { version = "0.3.3", default-features = false }
 spin = "0.9.2"
+stm32f2 = { version = "0.13.0", features = ["stm32f215"] }
+synopsys-usb-otg = { version = "0.2.4", features = ["cortex-m", "fs"] }
 ufmt = "0.1.0"
+usb-device = "0.2.8"
+usbd-webusb = "1.0.2"

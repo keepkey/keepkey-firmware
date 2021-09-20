@@ -17,15 +17,11 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef EMULATOR
 #include <libopencm3/stm32/flash.h>
 #include <libopencm3/cm3/mpu.h>
 #include <libopencm3/cm3/nvic.h>
 #include <libopencm3/cm3/scb.h>
 #include "keepkey/board/mpudefs.h"
-#else
-#include <stdio.h>
-#endif
 
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/memory.h"
@@ -35,15 +31,10 @@
 #include <assert.h>
 #include <stdint.h>
 
-#ifdef EMULATOR
-uint8_t *emulator_flash_base = NULL;
-#endif
-
 void mpu_config(void) {
   // CAUTION: It is possible to disable access to critical resources even in
   // privileged mode. This can potentially birck device
 
-#ifndef EMULATOR
   MPU_CTRL = 0;
 
   // Note: later entries overwrite previous ones
@@ -111,7 +102,6 @@ void mpu_config(void) {
 
   __asm__ volatile("dsb");
   __asm__ volatile("isb");
-#endif  // EMULATOR
 }
 
 /*

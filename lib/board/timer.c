@@ -17,15 +17,10 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef EMULATOR
 #include <libopencm3/stm32/timer.h>
 #include <libopencm3/stm32/f2/nvic.h>
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/cm3/cortex.h>
-#else
-#include <signal.h>
-#include <unistd.h>
-#endif
 
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/timer.h"
@@ -50,7 +45,6 @@ uint64_t get_clock_ms(void) {
  *     none
  */
 void timer_init(void) {
-#ifndef EMULATOR
   // Set up the timer.
   rcc_periph_reset_pulse(RST_TIM4);
   timer_enable_irq(TIM4, TIM_DIER_UIE);
@@ -65,15 +59,9 @@ void timer_init(void) {
   nvic_set_priority(NVIC_TIM4_IRQ, 16 * 2);
 
   timer_enable_counter(TIM4);
-#else
-  void tim4_sighandler(int sig);
-  signal(SIGALRM, tim4_sighandler);
-  ualarm(1000, 1000);
-#endif
 }
 
 uint32_t fi_defense_delay(volatile uint32_t value) {
-#ifndef EMULATOR
   int wait = random32() & 0x4fff;
   volatile int i = 0;
   volatile int j = wait;
@@ -88,7 +76,6 @@ uint32_t fi_defense_delay(volatile uint32_t value) {
   if (i != wait || j != 0) {
     shutdown_with_error(SHUTDOWN_ERROR_FI_DEFENSE);
   }
-#endif
   return value;
 }
 
@@ -101,15 +88,11 @@ uint32_t fi_defense_delay(volatile uint32_t value) {
  *     none
  */
 void delay_us(uint32_t us) {
-#ifndef EMULATOR
   uint32_t cnt = us * 20;
 
   while (cnt--) {
     __asm__("nop");
   }
-#else
-  usleep(us);
-#endif
 }
 
 /*
@@ -145,12 +128,6 @@ void timerisr_usr(void) {
   /* Decrement the delay */
   if (remaining_delay > 0) remaining_delay--;
 
-#ifndef EMULATOR
   svc_tusr_return();  // this MUST be called last to properly clean up and
                       // return
-#endif
 }
-
-#ifdef EMULATOR
-void tim4_sighandler(int sig) { timerisr_usr(); }
-#endif

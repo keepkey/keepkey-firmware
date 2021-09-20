@@ -17,13 +17,11 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef EMULATOR
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/exti.h>
 #include <libopencm3/stm32/f2/nvic.h>
 #include <libopencm3/stm32/syscfg.h>
-#endif
 
 #include "keepkey/board/keepkey_button.h"
 #include "keepkey/board/keepkey_leds.h"
@@ -32,11 +30,9 @@
 
 #include <stddef.h>
 
-#ifndef EMULATOR
 static const uint16_t BUTTON_PIN = GPIO7;
 static const uint32_t BUTTON_PORT = GPIOB;
 static const uint32_t BUTTON_EXTI = EXTI7;
-#endif
 
 /*
  * keepkey_button_init() - Initialize push button interrupt registers
@@ -48,17 +44,12 @@ static const uint32_t BUTTON_EXTI = EXTI7;
  *     none
  */
 void keepkey_button_init(void) {
-#ifndef EMULATOR
   gpio_mode_setup(BUTTON_PORT, GPIO_MODE_INPUT, GPIO_PUPD_NONE, BUTTON_PIN);
 
   /* Configure the EXTI subsystem. */
   exti_select_source(BUTTON_EXTI, GPIOB);
-
   exti_set_trigger(BUTTON_EXTI, EXTI_TRIGGER_BOTH);
-
   exti_enable_request(BUTTON_EXTI);
-
-#endif
 }
 
 /*
@@ -70,12 +61,8 @@ void keepkey_button_init(void) {
  *     true/false state of push button up
  */
 bool keepkey_button_up(void) {
-#ifndef EMULATOR
   uint16_t port = gpio_port_read(BUTTON_PORT);
   return port & BUTTON_PIN;
-#else
-  return false;
-#endif
 }
 
 /*
@@ -89,9 +76,14 @@ bool keepkey_button_up(void) {
 bool keepkey_button_down(void) { return !keepkey_button_up(); }
 
 void buttonisr_usr(void) {
-#ifndef EMULATOR
-  rust_button_handler(keepkey_button_down());
+  static bool last_pressed_state = false;
+  static bool last_pressed_state_initialized = false;
+
+  bool pressed_state = keepkey_button_down();
+  if (!last_pressed_state_initialized || pressed_state != last_pressed_state) {
+    last_pressed_state = pressed_state;
+    rust_button_handler(pressed_state);
+  }
 
   svc_busr_return();  // this MUST be called last to properly clean up and return
-#endif
 }

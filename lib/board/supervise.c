@@ -15,20 +15,13 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef EMULATOR
 #include <libopencm3/stm32/flash.h>
-#else
-#include <stdint.h>
-#include <stdbool.h>
-#endif
 
 #include <stdint.h>
 #include <string.h>
 #include "keepkey/board/supervise.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/board/keepkey_flash.h"
-
-#ifndef EMULATOR
 
 /// Return context from user isr processing
 void svc_busr_return(void) {
@@ -232,5 +225,3 @@ void svc_handler_main(uint32_t *stack) {
       break;
   }
 }
-
-#endif

@@ -17,16 +17,13 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef EMULATOR
 #include <inttypes.h>
 #include <stdbool.h>
 #include <libopencm3/cm3/cortex.h>
 #include <libopencm3/stm32/desig.h>
-#endif
 
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
-#include "keepkey/board/usb.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/board/mpudefs.h"
 #include "keepkey/board/util.h"
@@ -47,17 +44,6 @@ void mmhisr(void);
 /* These variables will be used by host application to read the version info */
 static const char *const application_version
     __attribute__((used, section("version"))) = APP_VERSIONS;
-
-void memory_getDeviceLabel(char *str, size_t len) {
-  char label[33] = { 0 };
-  rust_get_label(label, sizeof(label) - 1);
-
-  if (is_valid_ascii((const uint8_t *)label, strlen(label))) {
-    snprintf(str, len, "KeepKey - %s", label);
-  } else {
-    memcpy(str, "KeepKey", MIN(len, sizeof("KeepKey")));
-  }
-}
 
 bool inPrivilegedMode(void) {
   // Check to see if we are in priv mode.
@@ -95,11 +81,6 @@ static void drop_privs(void) {
       "msr control, %0" ::"r"(0x3));  // unpriv thread mode using psp stack
 }
 
-static void exec(void) {
-  // usbPoll();
-  rust_exec();
-}
-
 int main(void) {
   _buttonusr_isr = (void *)&buttonisr_usr;
   _timerusr_isr = (void *)&timerisr_usr;
@@ -123,17 +104,8 @@ int main(void) {
   led_func(SET_RED_LED);
   led_func(CLR_GREEN_LED);
 
-  rust_init();
+  rust_main();
 
-  led_func(CLR_GREEN_LED);
-  led_func(CLR_RED_LED);
-
-  // usbInit("beta.shapeshift.com");
-
-  while (1) {
-    exec();
-    delay_ms(1);
-  }
-
+  shutdown();
   return 0;
 }

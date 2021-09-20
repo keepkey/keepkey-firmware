@@ -2,7 +2,6 @@
 
 mod kklib;
 
-use core::sync::atomic::{AtomicBool, Ordering};
 use core::ops::DerefMut;
 use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::*;
@@ -15,9 +14,14 @@ use embedded_text::{
 };
 use kklib::{LedAction, KeepKeyBoard, ShutdownError, ShutdownMessage};
 use ufmt::*;
+use usbd_webusb::*;
+use usb_device::prelude::*;
 
 #[no_mangle]
-pub extern "C" fn rust_init() {
+pub extern "C" fn rust_main() -> ! {
+  KeepKeyBoard::set_led(LedAction::SetRedLed);
+  KeepKeyBoard::set_led(LedAction::ClrGreenLed);
+
   let mut canvas = KeepKeyBoard::display_canvas();
   // canvas.set_constant_power(true);
   // let style = MonoTextStyle::new(&FONT_6X10, GrayColor::WHITE);
@@ -25,7 +29,7 @@ pub extern "C" fn rust_init() {
 
   // canvas.draw_iter(IntoIter::new([Pixel(center, GrayColor::WHITE)])).unwrap();
 
-  let mut text: heapless::String<32> = heapless::String::new();
+  let mut text: heapless::String<512> = heapless::String::new();
   uwrite!(&mut text, "Hello, world! ({}, {})", center.x, center.y).unwrap();
 
   // Text::new(&text, center + Point::new(0, 10), style)
@@ -53,29 +57,53 @@ pub extern "C" fn rust_init() {
     .align_to(&canvas.bounding_box(), horizontal::Center, vertical::Center)
     .draw(canvas.deref_mut())
     .unwrap();
+
+  core::mem::drop(canvas);
+
+  KeepKeyBoard::set_led(LedAction::ClrRedLed);
+  KeepKeyBoard::set_led(LedAction::ClrGreenLed);
+
+  let usb = KeepKeyBoard::usb();
+  let mut winusb = kklib::usb::WinUsb::new(&usb, 1);
+  let mut wusb = WebUsb::new(&usb, url_scheme::HTTPS, "beta.shapeshift.com");
+  let mut kk_interface = kklib::usb::KeepKeyInterface::new(&usb, "KeepKey Interface");
+  let mut kk_debug_link = kklib::usb::KeepKeyInterface::new(&usb, "KeepKey Debug Link Interface");
+
+  let mut serial_number_buf: [u8; 24] = [0; 24];
+  hex::encode_to_slice(KeepKeyBoard::serial_number(), &mut serial_number_buf).unwrap();
+  let serial_number = core::str::from_utf8_mut(&mut serial_number_buf).unwrap();
+  serial_number.make_ascii_uppercase();
+
+  let mut usb_dev = UsbDeviceBuilder::new(&usb, UsbVidPid(0x2B24, 0x0002))
+    .product("KeepKey")
+    .manufacturer("KeyHodlers, LLC")
+    .serial_number(serial_number)
+    .max_packet_size_0(64)
+    .build();
+
+  loop {
+    if usb_dev.poll(&mut [&mut winusb, &mut wusb, &mut kk_interface, &mut kk_debug_link]) {
+      kk_interface.poll();
+    }
+
+    let mut text: heapless::String<512> = heapless::String::new();
+    uwrite!(&mut text, "Hello, world! ({})", KeepKeyBoard::clock_ms()).unwrap();
+    
+    let mut canvas = KeepKeyBoard::display_canvas();
+    canvas.clear(GrayColor::BLACK).unwrap();
+
+    let text_box = TextBox::with_textbox_style(&text, bounds, character_style, textbox_style);
+    let _ = LinearLayout::vertical(Chain::new(text_box))
+      .with_alignment(horizontal::Center)
+      .arrange()
+      .align_to(&canvas.bounding_box(), horizontal::Center, vertical::Center)
+      .draw(canvas.deref_mut())
+      .unwrap();
+  }
 }
 
 #[no_mangle]
-pub extern "C" fn rust_exec() {
-  // for _ in 0..KeepKeyBoard::interrupt_lockout_count() {
-    KeepKeyBoard::set_led(LedAction::SetGreenLed);
-    KeepKeyBoard::delay_ms(100);
-    KeepKeyBoard::set_led(LedAction::ClrGreenLed);
-    KeepKeyBoard::delay_ms(100);
-  // }
-  // KeepKeyBoard::delay_ms(1000);
-}
-
-#[no_mangle]
-pub extern "C" fn rust_usb_rx_callback(_ep: u8, _buf: *const u8, _len: usize) { }
-
-static BUTTON_STATE: AtomicBool = AtomicBool::new(false);
-
-#[no_mangle]
-pub extern "C" fn rust_button_handler(pressed: bool) {
-  let last_button_state = BUTTON_STATE.swap(pressed, Ordering::Relaxed);
-  if last_button_state == pressed { return }
-
+pub extern "C" fn rust_button_handler(_pressed: bool) {
   // KeepKeyBoard::set_led(LedAction::TglRedLed);
 
   // let mut canvas = KeepKeyBoard::display_canvas();
@@ -107,27 +135,24 @@ pub fn layout_shutdown_message(message: ShutdownMessage) {
   let text_ref: &str = (|| -> Option<()> {
     match message {
       ShutdownMessage::String(msg) => {
-        KeepKeyBoard::set_led(LedAction::ClrRedLed);
-        KeepKeyBoard::set_led(LedAction::ClrGreenLed);
         uwrite!(&mut text, "{}", msg).ok()?;
       },
-      ShutdownMessage::PanicInfo(panic_info) => {
+      #[cfg(debug_assertions)]
+      ShutdownMessage::Panic(panic_info) => {
         match panic_info.payload().downcast_ref::<&str>() {
-          None => {
-            KeepKeyBoard::set_led(LedAction::SetRedLed);
-            KeepKeyBoard::set_led(LedAction::ClrGreenLed);
-            uwrite!(&mut text, "Panic").ok()?;
-          }
-          Some(payload) => {
-            KeepKeyBoard::set_led(LedAction::SetRedLed);
-            KeepKeyBoard::set_led(LedAction::SetGreenLed);
-            uwrite!(&mut text, "Panic: {}", payload).ok()?;
-          }
+          None => uwrite!(&mut text, "Panic").ok()?,
+          Some(payload) => uwrite!(&mut text, "Panic: {}", *payload).ok()?,
         }
         if let Some(location) = panic_info.location() {
           uwrite!(&mut text, "\n{}:{}:{}", location.file(), location.line(), location.column()).ok()?;
         }
-      }
+      },
+      #[cfg(not(debug_assertions))]
+      ShutdownMessage::Panic => uwrite!(&mut text, "Panic").ok()?,
+      // #[cfg(not(debug_assertions))]
+      // ShutdownMessage::Panic(None) => uwrite!(&mut text, "Panic").ok()?,
+      // #[cfg(not(debug_assertions))]
+      // ShutdownMessage::Panic(Some(payload)) => uwrite!(&mut text, "Panic: {}", payload).ok()?,
     }
     Some(())
   })().map_or("Error Layout Failed", |_| &text);
@@ -139,18 +164,20 @@ pub fn layout_shutdown_message(message: ShutdownMessage) {
       .paragraph_spacing(6)
       .build();
 
-  let canvas = unsafe { KeepKeyBoard::display_canvas_leak() };
-  canvas.clear(GrayColor::BLACK).unwrap();
+  KeepKeyBoard::do_without_interrupts(|| {
+    let canvas = unsafe { KeepKeyBoard::display_canvas_leak() };
+    canvas.clear(GrayColor::BLACK).unwrap();
 
-  let bounds = Rectangle::new(Point::zero(), Size::new(canvas.bounding_box().size.width, 0));
-  let text_box = TextBox::with_textbox_style(text_ref, bounds, character_style, textbox_style);
-  let _ = LinearLayout::vertical(Chain::new(text_box))
-    .with_alignment(horizontal::Center)
-    .arrange()
-    .align_to(&canvas.bounding_box(), horizontal::Center, vertical::Center)
-    .draw(canvas)
-    .unwrap();
+    let bounds = Rectangle::new(Point::zero(), Size::new(canvas.bounding_box().size.width, 0));
+    let text_box = TextBox::with_textbox_style(text_ref, bounds, character_style, textbox_style);
+    let _ = LinearLayout::vertical(Chain::new(text_box))
+      .with_alignment(horizontal::Center)
+      .arrange()
+      .align_to(&canvas.bounding_box(), horizontal::Center, vertical::Center)
+      .draw(canvas)
+      .unwrap();
 
-  // We have to do this manually because we stole the canvas from its mutex earlier
-  KeepKeyBoard::display_refresh(canvas);
+    // We have to do this manually because we stole the canvas from its mutex earlier
+    KeepKeyBoard::display_refresh(canvas);
+  });
 }

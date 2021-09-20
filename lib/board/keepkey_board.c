@@ -17,7 +17,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef EMULATOR
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/cm3/scb.h>
@@ -27,7 +26,6 @@
 #include <libopencm3/cm3/cortex.h>
 #include <libopencm3/stm32/desig.h>
 #include <libopencm3/stm32/common/crc_common_all.h>
-#endif
 
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_display.h"
@@ -40,13 +38,6 @@
 
 /* Stack smashing protector (SSP) canary value storage */
 uintptr_t __stack_chk_guard;
-
-#ifdef EMULATOR
-/**
- * \brief System Halt
- */
-void __attribute__((noreturn)) shutdown(void) { exit(1); }
-#endif
 
 void __attribute__((noreturn)) shutdown_with_error(ShutdownError error) {
   if (error != SHUTDOWN_ERROR_RUST_PANIC) {
@@ -69,7 +60,6 @@ void __attribute__((noreturn)) __stack_chk_fail(void) {
   shutdown_with_error(SHUTDOWN_ERROR_SSP);
 }
 
-#ifndef EMULATOR
 /// Non-maskable interrupt handler
 void __attribute__((noreturn)) nmi_handler(void) {
   // Look for the clock instability interrupt. This is a security measure
@@ -80,7 +70,6 @@ void __attribute__((noreturn)) nmi_handler(void) {
     shutdown_with_error(SHUTDOWN_ERROR_NMI);
   }
 }
-#endif
 
 /*
  * board_reset() - Request board reset
@@ -91,9 +80,7 @@ void __attribute__((noreturn)) nmi_handler(void) {
  *     none
  */
 void __attribute__((noreturn)) board_reset(void) {
-#ifndef EMULATOR
   scb_reset_system();
-#endif
   shutdown_with_error(SHUTDOWN_ERROR_RESET_FAILED);
 }
 
@@ -110,42 +97,9 @@ void kk_board_init(void) {
   led_func(SET_GREEN_LED);
   led_func(CLR_RED_LED);
 
+  gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, (GPIO11 | GPIO12));
+  gpio_set_af(GPIOA, GPIO_AF10, (GPIO11 | GPIO12));
+
   // keepkey_button_init();
-#ifndef EMULATOR
   svc_enable_interrupts();  // This enables the timer and button interrupts
-#endif
 }
-
-#ifdef EMULATOR
-/// Reverses (reflects) bits in a 32-bit word.
-/// http://www.hackersdelight.org/hdcodetxt/crc.c.txt
-static uint32_t reverse(unsigned x) {
-  x = ((x & 0x55555555) << 1) | ((x >> 1) & 0x55555555);
-  x = ((x & 0x33333333) << 2) | ((x >> 2) & 0x33333333);
-  x = ((x & 0x0F0F0F0F) << 4) | ((x >> 4) & 0x0F0F0F0F);
-  x = (x << 24) | ((x & 0xFF00) << 8) | ((x >> 8) & 0xFF00) | (x >> 24);
-  return x;
-}
-
-static uint32_t crc32 = 0xFFFFFFFF;
-
-void crc_reset(void) {
-  crc_value = 0xFFFFFFFF;
-}
-
-uint32_t crc_calculate_block(const uint32_t* data, size_t len) {
-  /// http://www.hackersdelight.org/hdcodetxt/crc.c.txt
-  for (int i = 0; i < word_len; i++) {
-    uint32_t byte = ((const char *)data)[i];  // Get next byte.
-    byte = reverse(byte);                     // 32-bit reversal.
-    for (int j = 0; j <= 7; j++) {            // Do eight times.
-      if ((int)(crc32 ^ byte) < 0)
-        crc32 = (crc32 << 1) ^ 0x04C11DB7;
-      else
-        crc32 = crc32 << 1;
-      byte = byte << 1;  // Ready next msg bit.
-    }
-  }
-  return reverse(~crc32);
-}
-#endif // EMULATOR

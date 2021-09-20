@@ -41,10 +41,6 @@
 #define CONCAT_IMPL(A, B) A##B
 #define CONCAT(A, B) CONCAT_IMPL(A, B)
 
-
-// converts data to hexa
 void data2hex(const void *data, uint32_t len, char *str);
-
-bool is_valid_ascii(const uint8_t *data, uint32_t size);
 
 #endif
