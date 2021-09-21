@@ -24,13 +24,11 @@ impl WinUsb {
   }
 }
 
-static mut foo: heapless::String<32> = heapless::String::new();
 impl<B: UsbBus> UsbClass<B> for WinUsb {
   fn get_string(&self, index: StringIndex, _lang_id: u16) -> Option<&str> {
-    // if u8::from(index) == MS_OS_STRING_DESCRIPTOR_INDEX {
-      // panic!();
+    if u8::from(index) == MS_OS_STRING_DESCRIPTOR_INDEX {
       return Some("MSFT100!")
-    // }
+    }
 
     None
   }
