@@ -44,6 +44,7 @@
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
+#include "keepkey/firmware/osmosis.h"
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/pin_sm.h"
 #include "keepkey/firmware/policy.h"
@@ -78,6 +79,7 @@
 #include "messages-nano.pb.h"
 #include "messages-ripple.pb.h"
 #include "messages-thorchain.pb.h"
+#include "messages-osmosis.pb.h"
 
 #include <stdio.h>
 
@@ -277,3 +279,4 @@ void fsm_msgClearSession(ClearSession *msg) {
 #include "fsm_msg_ripple.h"
 #include "fsm_msg_tendermint.h"
 #include "fsm_msg_thorchain.h"
+#include "fsm_msg_osmosis.h"
