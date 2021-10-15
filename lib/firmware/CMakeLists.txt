@@ -20,6 +20,7 @@ set(sources
     fsm.c
     home_sm.c
     nano.c
+    osmosis.c
     passphrase_sm.c
     pin_sm.c
     policy.c

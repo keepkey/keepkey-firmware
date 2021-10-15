@@ -1,0 +1,23 @@
+OsmosisGetAddress.address_n                             max_count:10
+
+OsmosisAddress.address                                  max_size:46
+
+OsmosisSignTx.address_n                                 max_count:10
+OsmosisSignTx.chain_id                                  max_size:32
+OsmosisSignTx.memo                                      max_size:256
+
+OsmosisMsgSend.from_address                             max_size:46
+OsmosisMsgSend.to_address                               max_size:46
+
+OsmosisMsgDelegate.delegator_address                    max_size:46
+OsmosisMsgDelegate.validator_address                    max_size:53
+
+OsmosisMsgUndelegate.delegator_address                  max_size:46
+OsmosisMsgUndelegate.validator_address                  max_size:53
+
+OsmosisMsgClaim.delegator_address                       max_size:46
+OsmosisMsgClaim.validator_address                       max_size:53
+
+
+OsmosisSignedTx.public_key                              max_size:33
+OsmosisSignedTx.signature                               max_size:64
