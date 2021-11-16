@@ -18,6 +18,30 @@ OsmosisMsgUndelegate.validator_address                  max_size:53
 OsmosisMsgClaim.delegator_address                       max_size:46
 OsmosisMsgClaim.validator_address                       max_size:53
 
+OsmosisMsgLPAdd.sender                                  max_size:46
+OsmosisMsgLPAdd.pool_id                                 max_size:16
+
+OsmosisMsgLPRemove.sender                               max_size:46
+OsmosisMsgLPRemove.pool_id                              max_size:16
+
+OsmosisMsgFarmTokens.owner                              max_size:46
+
+OsmosisMsgIBCDeposit.source_port                        max_size:16
+OsmosisMsgIBCDeposit.source_channel                     max_size:16
+OsmosisMsgIBCDeposit.sender                             max_size:46
+OsmosisMsgIBCDeposit.receiver                           max_size:46
+
+OsmosisMsgIBCWithdrawal.source_port                     max_size:16
+OsmosisMsgIBCWithdrawal.source_channel                  max_size:16
+OsmosisMsgIBCWithdrawal.sender                          max_size:46
+OsmosisMsgIBCWithdrawal.receiver                        max_size:46
+
+OsmosisMsgSwap.sender                                   max_size:46
+OsmosisMsgSwap.pool_id                                  max_size:16
+OsmosisMsgSwap.token_out_denom                          max_size:8
 
 OsmosisSignedTx.public_key                              max_size:33
 OsmosisSignedTx.signature                               max_size:64
+
+OsmosisToken.denom                                      max_size:72
+

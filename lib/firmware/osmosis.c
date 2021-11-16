@@ -156,13 +156,16 @@ bool osmosis_signTxUpdateMsgDelegate(const OsmosisMsgDelegate *delegatemsg) {
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
                                  delegatemsg->delegator_address);
 
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"validator_address\":");
+
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
                                  delegatemsg->validator_address);
 
   success &= tendermint_snprintf(
       &ctx, buffer, sizeof(buffer),
-      "\"amount\":{\"denom\":\"uosmo\",\"amount\":\"%" PRIu64 "\"}}}",
-      delegatemsg->amount);
+      "\"amount\":{\"denom\":\"%s\",\"amount\":\"%" PRIu64 "\"}}}",
+      delegatemsg->token.denom, delegatemsg->token.amount);
 
   msgs_remaining--;
   return success;
@@ -184,14 +187,225 @@ bool osmosis_signTxUpdateMsgUndelegate(
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
                                  undelegatemsg->delegator_address);
 
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"validator_address\":");
+
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
                                  undelegatemsg->validator_address);
 
   success &= tendermint_snprintf(
       &ctx, buffer, sizeof(buffer),
-      "\"amount\":{\"denom\":\"uosmo\",\"amount\":\"%" PRIu64 "\"}}}",
-      undelegatemsg->amount);
+      "\"amount\":{\"denom\":\"%s\",\"amount\":\"%" PRIu64 "\"}}}",
+      undelegatemsg->token.denom, undelegatemsg->token.amount);
 
+  msgs_remaining--;
+  return success;
+}
+
+bool osmosis_signTxUpdateMsgLPAdd(const OsmosisMsgLPAdd *lpaddmsg) {
+  char buffer[64 + 1];
+
+  bool success = true;
+
+  const char *const prelude =
+      "{\"type\":\"osmosis/gamm/join-pool\",\"value\":{";
+  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"sender\":");
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
+                                 lpaddmsg->sender);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"poolId\":");
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
+                                 lpaddmsg->pool_id);
+
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"shareOutAmount\":");
+
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%" PRIu64 "\",",
+                          lpaddmsg->share_out_amount);
+
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"tokenInMaxs\":[{");
+
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      "\"amount\":{\"denom\":\"%s\",\"amount\":\"%" PRIu64 "\"},",
+      lpaddmsg->token_in_max_a.denom, lpaddmsg->token_in_max_a.amount);
+
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      "\"amount\":{\"denom\":\"%s\",\"amount\":\"%" PRIu64 "\"}]}}",
+      lpaddmsg->token_in_max_b.denom, lpaddmsg->token_in_max_b.amount);
+
+  msgs_remaining--;
+  return success;
+}
+
+bool osmosis_signTxUpdateMsgLPRemove(const OsmosisMsgLPRemove *lpremovemsg) {
+  char buffer[64 + 1];
+
+  bool success = true;
+
+  const char *const prelude =
+      "{\"type\":\"osmosis/gamm/exit-pool\",\"value\":{";
+  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"sender\":");
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
+                                 lpremovemsg->sender);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"poolId\":");
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
+                                 lpremovemsg->pool_id);
+
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"shareOutAmount\":");
+
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%" PRIu64 "\",",
+                          lpremovemsg->share_out_amount);
+
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"tokenInMaxs\":[{");
+
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      "\"amount\":{\"denom\":\"%s\",\"amount\":\"%" PRIu64 "\"},",
+      lpremovemsg->token_out_min_a.denom, lpremovemsg->token_out_min_a.amount);
+
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      "\"amount\":{\"denom\":\"%s\",\"amount\":\"%" PRIu64 "\"}]}}",
+      lpremovemsg->token_out_min_b.denom, lpremovemsg->token_out_min_b.amount);
+
+  msgs_remaining--;
+  return success;
+}
+
+bool osmosis_signTxUpdateMsgFarmTokens(
+    const OsmosisMsgFarmTokens *msgfarmtokens) {
+  char buffer[64 + 1];
+
+  bool success = true;
+
+  const char *const prelude =
+      "{\"type\":\"osmosis/lockup/lock-tokens\",\"value\":{";
+  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"owner\":");
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
+                                 msgfarmtokens->owner);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"duration\":");
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"%" PRIu64 "\",", msgfarmtokens->duration);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"coins\":[{");
+
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      "\"denom\":\"%s\",\"amount\":\"%" PRIu64 "\"}]}}",
+      msgfarmtokens->token.denom, msgfarmtokens->token.amount);
+
+  msgs_remaining--;
+  return success;
+}
+
+bool osmosis_signTxUpdateMsgIBCDeposit(
+    const OsmosisMsgIBCDeposit *ibcdepositmsg) {
+  char buffer[64 + 1];
+
+  bool success = true;
+
+  const char *const prelude =
+      "{\"type\":\"cosmos-sdk/MsgTransfer\",\"value\":{";
+  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"source_port\":");
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
+                                 ibcdepositmsg->sender);
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"source_channel\":");
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
+                                 ibcdepositmsg->sender);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"token\":{\"denom\":");
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
+                                 ibcdepositmsg->token.denom);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"amount\":");
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%" PRIu64 "\"},",
+                          ibcdepositmsg->token.amount);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"sender\":");
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
+                                 ibcdepositmsg->sender);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"receiver\":");
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
+                                 ibcdepositmsg->sender);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"timeout_height\":{\"revision_height\":");
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%" PRIu64 "\",",
+                          ibcdepositmsg->timeout_height.revision_number);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"amount\":");
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%" PRIu64 "\"}}},",
+                          ibcdepositmsg->timeout_height.revision_height);
+  msgs_remaining--;
+  return success;
+}
+
+bool osmosis_signTxUpdateMsgIBCWithdrawal(
+    const OsmosisMsgIBCWithdrawal *ibcwithdrawalmsg) {
+  char buffer[64 + 1];
+
+  bool success = true;
+
+  const char *const prelude =
+      "{\"type\":\"cosmos-sdk/MsgTransfer\",\"value\":{";
+  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"source_port\":");
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
+                                 ibcwithdrawalmsg->sender);
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"source_channel\":");
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
+                                 ibcwithdrawalmsg->sender);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"token\":{\"denom\":\"ibc/");
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s",
+                          &(ibcwithdrawalmsg->token.denom[3]));
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\",\"amount\":");
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%" PRIu64 "\"},",
+                          ibcwithdrawalmsg->token.amount);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"sender\":");
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
+                                 ibcwithdrawalmsg->sender);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"receiver\":");
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
+                                 ibcwithdrawalmsg->sender);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"timeout_height\":{\"revision_height\":");
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%" PRIu64 "\",",
+                          ibcwithdrawalmsg->timeout_height.revision_number);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"amount\":");
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%" PRIu64 "\"}}},",
+                          ibcwithdrawalmsg->timeout_height.revision_height);
   msgs_remaining--;
   return success;
 }
@@ -201,7 +415,8 @@ bool osmosis_signTxUpdateMsgClaim(const OsmosisMsgClaim *claimmsg) {
 
   bool success = true;
 
-  const char *const prelude = "{\"type\":\"cosmos-sdk/MsgClaim\",\"value\":{";
+  const char *const prelude =
+      "{\"type\":\"cosmos-sdk/MsgWithdrawDelegatorReward\",\"value\":{";
   sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
 
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
@@ -215,8 +430,41 @@ bool osmosis_signTxUpdateMsgClaim(const OsmosisMsgClaim *claimmsg) {
 
   success &= tendermint_snprintf(
       &ctx, buffer, sizeof(buffer),
-      "\"amount\":{\"denom\":\"uosmo\",\"amount\":\"%" PRIu64 "\"}}}",
-      claimmsg->amount);
+      "\"amount\":{\"denom\":\"%s\",\"amount\":\"%" PRIu64 "\"}}}",
+      claimmsg->token.denom, claimmsg->token.amount);
+
+  msgs_remaining--;
+  return success;
+}
+
+bool osmosis_signTxUpdateMsgSwap(const OsmosisMsgSwap *swapmsg) {
+  char buffer[64 + 1];
+
+  bool success = true;
+
+  const char *const prelude =
+      "{\"type\":\"osmosis/gamm/swap-exact-amount-in\",\"value\":{";
+  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"sender\":");
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
+                                 swapmsg->sender);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"routes\":[{");
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"poolId\":%s\",", swapmsg->pool_id);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"tokenOutDenom\":%s\"}],",
+                                 swapmsg->token_out_denom);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"tokenIn\":{");
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"denom\":%s\",", swapmsg->token_in.denom);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"amount\":\"%" PRIu64 "\"},",
+                                 swapmsg->token_in.amount);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"tokenOutMinAmount\":\"%" PRIu64 "\"}}",
+                                 swapmsg->token_out_min_amount);
 
   msgs_remaining--;
   return success;
