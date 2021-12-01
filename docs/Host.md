@@ -38,5 +38,11 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="2b24", ATTR{idProduct}=="0002", MODE="0666", 
 KERNEL=="hidraw*", ATTRS{idVendor}=="2b24", ATTRS{idProduct}=="0002",  MODE="0666", GROUP="plugdev", TAG+="uaccess", TAG+="udev-acl"
 ```
 
+## Ubuntu
+snap update usb
+```
+ snap connect  chromium:raw-usb :raw-usb
+```
+
 Then run `sudo udevadm control --reload-rules`. Unplug & replug your device.
 You do not need to restart your machine.
