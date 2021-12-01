@@ -70,9 +70,8 @@ void memory_getDeviceLabel(char *str, size_t len) {
   }
 }
 
-static bool canDropPrivs(void) {
-
-  // Check to see if we are in priv mode. If not, return true to drop privs.
+bool inPrivilegedMode(void) {
+  // Check to see if we are in priv mode. If so, return true to drop privs.
   uint32_t creg = 0xffff;
   // CONTROL register nPRIV,bit[0]: 
   //    0 Thread mode has privileged access
@@ -91,7 +90,7 @@ static bool canDropPrivs(void) {
 }
 
 static void drop_privs(void) {
-  if (!canDropPrivs()) return;
+  if (!inPrivilegedMode()) return;
 
   // Legacy bootloader code will have interrupts disabled at this point.
   // To maintain compatibility, the timer and button interrupts need to
