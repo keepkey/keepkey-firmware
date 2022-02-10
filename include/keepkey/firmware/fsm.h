@@ -23,15 +23,15 @@
 #include "keepkey/transport/interface.h"
 #include "keepkey/board/messages.h"
 
-#define RESP_INIT(TYPE) \
-    TYPE *resp = (TYPE *)msg_resp; \
-    _Static_assert(sizeof(msg_resp) >= sizeof(TYPE), #TYPE" is too large"); \
-    memset(resp, 0, sizeof(TYPE));
+#define RESP_INIT(TYPE)                                                    \
+  TYPE *resp = (TYPE *)msg_resp;                                           \
+  _Static_assert(sizeof(msg_resp) >= sizeof(TYPE), #TYPE " is too large"); \
+  memset(resp, 0, sizeof(TYPE));
 
 #define ENTROPY_BUF sizeof(((Entropy *)NULL)->entropy.bytes)
 
-#define BTC_ADDRESS_SIZE           35
-#define RAW_TX_ACK_VARINT_COUNT    4
+#define BTC_ADDRESS_SIZE 35
+#define RAW_TX_ACK_VARINT_COUNT 4
 
 #define STR(X) #X
 #define VERSTR(X) STR(X)
@@ -40,19 +40,14 @@ void fsm_init(void);
 
 void fsm_sendSuccess(const char *text);
 
-#if DEBUG_LINK
-void fsm_sendFailureDebug(FailureType code, const char *text, const char *source);
-
-#define fsm_sendFailure(code, text) fsm_sendFailureDebug((code), (text), __FILE__ ":" VERSTR(__LINE__) ":")
-#else
 void fsm_sendFailure(FailureType code, const char *text);
-#endif
 
 void fsm_msgInitialize(Initialize *msg);
 void fsm_msgGetFeatures(GetFeatures *msg);
 void fsm_msgGetCoinTable(GetCoinTable *msg);
 void fsm_msgPing(Ping *msg);
 void fsm_msgChangePin(ChangePin *msg);
+void fsm_msgChangeWipeCode(ChangeWipeCode *msg);
 void fsm_msgWipeDevice(WipeDevice *msg);
 void fsm_msgFirmwareErase(FirmwareErase *msg);
 void fsm_msgFirmwareUpload(FirmwareUpload *msg);
@@ -61,13 +56,13 @@ void fsm_msgGetPublicKey(GetPublicKey *msg);
 void fsm_msgLoadDevice(LoadDevice *msg);
 void fsm_msgResetDevice(ResetDevice *msg);
 void fsm_msgSignTx(SignTx *msg);
-//void fsm_msgPinMatrixAck(PinMatrixAck *msg);
+// void fsm_msgPinMatrixAck(PinMatrixAck *msg);
 void fsm_msgCancel(Cancel *msg);
 void fsm_msgTxAck(TxAck *msg);
 void fsm_msgCipherKeyValue(CipherKeyValue *msg);
 void fsm_msgClearSession(ClearSession *msg);
 void fsm_msgApplySettings(ApplySettings *msg);
-//void fsm_msgButtonAck(ButtonAck *msg);
+// void fsm_msgButtonAck(ButtonAck *msg);
 void fsm_msgGetAddress(GetAddress *msg);
 void fsm_msgEntropyAck(EntropyAck *msg);
 void fsm_msgSignMessage(SignMessage *msg);
@@ -75,7 +70,7 @@ void fsm_msgVerifyMessage(VerifyMessage *msg);
 void fsm_msgSignIdentity(SignIdentity *msg);
 void fsm_msgEncryptMessage(EncryptMessage *msg);
 void fsm_msgDecryptMessage(DecryptMessage *msg);
-//void fsm_msgPassphraseAck(PassphraseAck *msg);
+// void fsm_msgPassphraseAck(PassphraseAck *msg);
 void fsm_msgRecoveryDevice(RecoveryDevice *msg);
 void fsm_msgWordAck(WordAck *msg);
 
@@ -108,8 +103,12 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg);
 void fsm_msgCosmosSignTx(const CosmosSignTx *msg);
 void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg);
 
+void fsm_msgThorchainGetAddress(const ThorchainGetAddress *msg);
+void fsm_msgThorchainSignTx(const ThorchainSignTx *msg);
+void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg);
+
 #if DEBUG_LINK
-//void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
+// void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
 void fsm_msgDebugLinkGetState(DebugLinkGetState *msg);
 void fsm_msgDebugLinkStop(DebugLinkStop *msg);
 #endif

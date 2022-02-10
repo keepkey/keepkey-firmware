@@ -28,7 +28,7 @@
 #include "trezor/crypto/memzero.h"
 
 #ifndef EMULATOR
-#  include <libopencm3/cm3/cortex.h>
+#include <libopencm3/cm3/cortex.h>
 #endif
 
 #include <assert.h>
@@ -48,117 +48,113 @@ static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
 
 /// Handler for push button being pressed.
 /// \param context current state context.
-static void handle_screen_press(void *context)
-{
-    assert(context != NULL);
+static void handle_screen_press(void *context) {
+  assert(context != NULL);
 
-    StateInfo *si = (StateInfo *)context;
+  StateInfo *si = (StateInfo *)context;
 
-    if(button_request_acked)
-    {
-        switch(si->display_state)
-        {
-            case HOME:
-                si->active_layout = LAYOUT_CONFIRM_ANIMATION;
-                si->display_state = CONFIRM_WAIT;
-                break;
+  if (button_request_acked) {
+    switch (si->display_state) {
+      case HOME:
+        si->active_layout = LAYOUT_CONFIRM_ANIMATION;
+        si->display_state = CONFIRM_WAIT;
+        break;
 
-            default:
-                break;
-        }
+      default:
+        break;
     }
+  }
 }
 
 /// Handler for push button being pressed.
 /// \param context current state context.
-static void handle_screen_release(void *context)
-{
-    assert(context != NULL);
+static void handle_screen_release(void *context) {
+  assert(context != NULL);
 
-    StateInfo *si = (StateInfo *)context;
+  StateInfo *si = (StateInfo *)context;
 
-    switch(si->display_state)
-    {
-        case CONFIRM_WAIT:
-            si->active_layout = LAYOUT_REQUEST_NO_ANIMATION;
-            si->display_state = HOME;
-            break;
+  switch (si->display_state) {
+    case CONFIRM_WAIT:
+      si->active_layout = LAYOUT_REQUEST_NO_ANIMATION;
+      si->display_state = HOME;
+      break;
 
-        case CONFIRMED:
-            si->active_layout = LAYOUT_FINISHED;
-            si->display_state = FINISHED;
-            break;
+    case CONFIRMED:
+      si->active_layout = LAYOUT_FINISHED;
+      si->display_state = FINISHED;
+      break;
 
-        default:
-            break;
-    }
+    default:
+      break;
+  }
 }
 
 /// User has held down the push button for duration as requested.
 /// \param context current state context.
-static void handle_confirm_timeout(void *context)
-{
-    assert(context != NULL);
+static void handle_confirm_timeout(void *context) {
+  assert(context != NULL);
 
-    StateInfo *si = (StateInfo *)context;
-    si->display_state = CONFIRMED;
-    si->active_layout = LAYOUT_CONFIRMED;
+  StateInfo *si = (StateInfo *)context;
+  si->display_state = CONFIRMED;
+  si->active_layout = LAYOUT_CONFIRMED;
 }
 
 /// Changes the active layout of the confirmation screen.
 /// \param active_layout The layout to swtich to.
 /// \param si current state information.
-/// \param layout_notification_func layout callback for displaying confirm message.
+/// \param layout_notification_func layout callback for displaying confirm
+/// message.
 static void swap_layout(ActiveLayout active_layout, volatile StateInfo *si,
-                        layout_notification_t layout_notification_func)
-{
-    switch(active_layout)
-    {
-        case LAYOUT_REQUEST:
-            (*layout_notification_func)(si->lines[active_layout].request_title,
-                                        si->lines[active_layout].request_body, NOTIFICATION_REQUEST);
-            remove_runnable(&handle_confirm_timeout);
-            break;
+                        layout_notification_t layout_notification_func) {
+  switch (active_layout) {
+    case LAYOUT_REQUEST:
+      (*layout_notification_func)(si->lines[active_layout].request_title,
+                                  si->lines[active_layout].request_body,
+                                  NOTIFICATION_REQUEST);
+      remove_runnable(&handle_confirm_timeout);
+      break;
 
-        case LAYOUT_REQUEST_NO_ANIMATION:
-            (*layout_notification_func)(si->lines[active_layout].request_title,
-                                        si->lines[active_layout].request_body, NOTIFICATION_REQUEST_NO_ANIMATION);
-            remove_runnable(&handle_confirm_timeout);
-            break;
+    case LAYOUT_REQUEST_NO_ANIMATION:
+      (*layout_notification_func)(si->lines[active_layout].request_title,
+                                  si->lines[active_layout].request_body,
+                                  NOTIFICATION_REQUEST_NO_ANIMATION);
+      remove_runnable(&handle_confirm_timeout);
+      break;
 
-        case LAYOUT_CONFIRM_ANIMATION:
-            (*layout_notification_func)(si->lines[active_layout].request_title,
-                                        si->lines[active_layout].request_body, NOTIFICATION_CONFIRM_ANIMATION);
-            post_delayed(&handle_confirm_timeout, (void *)si, CONFIRM_TIMEOUT_MS);
-            break;
+    case LAYOUT_CONFIRM_ANIMATION:
+      (*layout_notification_func)(si->lines[active_layout].request_title,
+                                  si->lines[active_layout].request_body,
+                                  NOTIFICATION_CONFIRM_ANIMATION);
+      post_delayed(&handle_confirm_timeout, (void *)si, CONFIRM_TIMEOUT_MS);
+      break;
 
-        case LAYOUT_CONFIRMED:
+    case LAYOUT_CONFIRMED:
 
-            /* Finish confirming animation */
-            while(is_animating())
-            {
-                animate();
-                display_refresh();
-            }
+      /* Finish confirming animation */
+      while (is_animating()) {
+        animate();
+        display_refresh();
+      }
 
-            (*layout_notification_func)(si->lines[active_layout].request_title,
-                                        si->lines[active_layout].request_body, NOTIFICATION_CONFIRMED);
-            remove_runnable(&handle_confirm_timeout);
-            break;
+      (*layout_notification_func)(si->lines[active_layout].request_title,
+                                  si->lines[active_layout].request_body,
+                                  NOTIFICATION_CONFIRMED);
+      remove_runnable(&handle_confirm_timeout);
+      break;
 
-        default:
-            assert(0);
-    };
-
+    default:
+      assert(0);
+  };
 }
 
 /// Common confirmation function.
 /// \param request_title  The confirmation's title.
 /// \param requesta_body  The body of the confirmation message.
-/// \param layout_notification_func  layout callback for displaying confirm message.
-/// \returns true iff the device confirmed.
+/// \param layout_notification_func  layout callback for displaying confirm
+/// message. \returns true iff the device confirmed.
 static bool confirm_helper(const char *request_title, const char *request_body,
-                      layout_notification_t layout_notification_func)
+                      layout_notification_t layout_notification_func,
+                      bool constant_power)
 {
     bool ret_stat = false;
     volatile StateInfo state_info;
@@ -168,49 +164,50 @@ static bool confirm_helper(const char *request_title, const char *request_body,
     static CONFIDENTIAL uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
 
 #if DEBUG_LINK
-    DebugLinkDecision *dld;
-    bool debug_decided = false;
+  DebugLinkDecision *dld;
+  bool debug_decided = false;
 #endif
 
-    reset_msg_stack = false;
+  reset_msg_stack = false;
 
-    memset((void *)&state_info, 0, sizeof(state_info));
-    state_info.display_state = HOME;
-    state_info.active_layout = LAYOUT_REQUEST;
+  memset((void *)&state_info, 0, sizeof(state_info));
+  state_info.display_state = HOME;
+  state_info.active_layout = LAYOUT_REQUEST;
 
-    /* Request */
-    state_info.lines[LAYOUT_REQUEST].request_title = request_title;
-    state_info.lines[LAYOUT_REQUEST].request_body = request_body;
-    state_info.lines[LAYOUT_REQUEST_NO_ANIMATION].request_title = request_title;
-    state_info.lines[LAYOUT_REQUEST_NO_ANIMATION].request_body = request_body;
+  /* Request */
+  state_info.lines[LAYOUT_REQUEST].request_title = request_title;
+  state_info.lines[LAYOUT_REQUEST].request_body = request_body;
+  state_info.lines[LAYOUT_REQUEST_NO_ANIMATION].request_title = request_title;
+  state_info.lines[LAYOUT_REQUEST_NO_ANIMATION].request_body = request_body;
 
-    /* Confirming */
-    state_info.lines[LAYOUT_CONFIRM_ANIMATION].request_title = request_title;
-    state_info.lines[LAYOUT_CONFIRM_ANIMATION].request_body = request_body;
+  /* Confirming */
+  state_info.lines[LAYOUT_CONFIRM_ANIMATION].request_title = request_title;
+  state_info.lines[LAYOUT_CONFIRM_ANIMATION].request_body = request_body;
 
-    /* Confirmed */
-    state_info.lines[LAYOUT_CONFIRMED].request_title = request_title;
-    state_info.lines[LAYOUT_CONFIRMED].request_body = request_body;
+  /* Confirmed */
+  state_info.lines[LAYOUT_CONFIRMED].request_title = request_title;
+  state_info.lines[LAYOUT_CONFIRMED].request_body = request_body;
 
-    keepkey_button_set_on_press_handler(&handle_screen_press, (void *)&state_info);
-    keepkey_button_set_on_release_handler(&handle_screen_release, (void *)&state_info);
+  keepkey_button_set_on_press_handler(&handle_screen_press,
+                                      (void *)&state_info);
+  keepkey_button_set_on_release_handler(&handle_screen_release,
+                                        (void *)&state_info);
 
-    cur_layout = LAYOUT_INVALID;
+  cur_layout = LAYOUT_INVALID;
 
-    while(1)
-    {
+  while (1) {
 #ifndef EMULATOR
-        svc_disable_interrupts();
+    svc_disable_interrupts();
 #endif
-        new_layout = state_info.active_layout;
-        new_ds = state_info.display_state;
+    new_layout = state_info.active_layout;
+    new_ds = state_info.display_state;
 #ifndef EMULATOR
-        svc_enable_interrupts();
+    svc_enable_interrupts();
 #endif
 
-        /* Don't process usb tiny message unless usb has been initialized */
+    /* Don't process usb tiny message unless usb has been initialized */
 #ifndef EMULATOR
-        if (usbInitialized())
+    if (usbInitialized())
 #else
         if(1)
 #endif
@@ -272,16 +269,18 @@ static bool confirm_helper(const char *request_title, const char *request_body,
 
 #endif
 
+        display_constant_power(constant_power);
+
         display_refresh();
         animate();
     }
 
 confirm_helper_exit:
 
-    keepkey_button_set_on_press_handler(NULL, NULL);
-    keepkey_button_set_on_release_handler(NULL, NULL);
+  keepkey_button_set_on_press_handler(NULL, NULL);
+  keepkey_button_set_on_release_handler(NULL, NULL);
 
-    return(ret_stat);
+  return (ret_stat);
 }
 
 bool confirm(ButtonRequestType type, const char *request_title, const char *request_body,
@@ -291,7 +290,7 @@ bool confirm(ButtonRequestType type, const char *request_title, const char *requ
 
     va_list vl;
     va_start(vl, request_body);
-    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
     /* Send button request */
@@ -301,10 +300,34 @@ bool confirm(ButtonRequestType type, const char *request_title, const char *requ
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification);
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false);
     memzero(strbuf, sizeof(strbuf));
     return ret;
 }
+
+bool confirm_constant_power(ButtonRequestType type, const char *request_title, const char *request_body,
+             ...)
+{
+    button_request_acked = false;
+
+    va_list vl;
+    va_start(vl, request_body);
+    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+    va_end(vl);
+
+    /* Send button request */
+    ButtonRequest resp;
+    memset(&resp, 0, sizeof(ButtonRequest));
+    resp.has_code = true;
+    resp.code = type;
+    msg_write(MessageType_MessageType_ButtonRequest, &resp);
+
+    bool ret = confirm_helper(request_title, strbuf, &layout_constant_power_notification, true);
+    memzero(strbuf, sizeof(strbuf));
+    return ret;
+}
+
+
 
 bool confirm_with_custom_button_request(ButtonRequest *button_request,
                                         const char *request_title, const char *request_body,
@@ -314,13 +337,13 @@ bool confirm_with_custom_button_request(ButtonRequest *button_request,
 
     va_list vl;
     va_start(vl, request_body);
-    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
     /* Send button request */
     msg_write(MessageType_MessageType_ButtonRequest, button_request);
 
-    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification);
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false);
     memzero(strbuf, sizeof(strbuf));
     return ret;
 }
@@ -333,7 +356,7 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
 
     va_list vl;
     va_start(vl, request_body);
-    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
     /* Send button request */
@@ -343,7 +366,7 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    bool ret = confirm_helper(request_title, strbuf, layout_notification_func);
+    bool ret = confirm_helper(request_title, strbuf, layout_notification_func, false);
     memzero(strbuf, sizeof(strbuf));
     return ret;
 }
@@ -355,10 +378,10 @@ bool confirm_without_button_request(const char *request_title, const char *reque
 
     va_list vl;
     va_start(vl, request_body);
-    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
-    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification);
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false);
     memzero(strbuf, sizeof(strbuf));
     return ret;
 }
@@ -370,7 +393,7 @@ bool review(ButtonRequestType type, const char *request_title, const char *reque
 
     va_list vl;
     va_start(vl, request_body);
-    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
     /* Send button request */
@@ -380,7 +403,7 @@ bool review(ButtonRequestType type, const char *request_title, const char *reque
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    (void)confirm_helper(request_title, strbuf, &layout_standard_notification);
+    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false);
     memzero(strbuf, sizeof(strbuf));
     return true;
 }
@@ -392,10 +415,10 @@ bool review_without_button_request(const char *request_title, const char *reques
 
     va_list vl;
     va_start(vl, request_body);
-    vsnprintf(strbuf, BODY_CHAR_MAX, request_body, vl);
+    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
-    (void)confirm_helper(request_title, strbuf, &layout_standard_notification);
+    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false);
     memzero(strbuf, sizeof(strbuf));
     return true;
 }

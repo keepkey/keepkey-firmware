@@ -3,7 +3,6 @@ set(sources
     app_layout.c
     binance.c
     coins.c
-    cosmos.c
     crypto.c
     eos.c
     eos-contracts/eosio.system.c
@@ -11,8 +10,13 @@ set(sources
     ethereum.c
     ethereum_contracts.c
     ethereum_contracts/makerdao.c
+    ethereum_contracts/saproxy.c
+    ethereum_contracts/zxappliquid.c
+    ethereum_contracts/thortx.c
+    ethereum_contracts/zxliquidtx.c
+    ethereum_contracts/zxtransERC20.c
+    ethereum_contracts/zxswap.c
     ethereum_tokens.c
-    exchange.c
     fsm.c
     home_sm.c
     nano.c
@@ -24,9 +28,12 @@ set(sources
     ripple.c
     ripple_base58.c
     signing.c
+    signtx_tendermint.c
     storage.c
     tendermint.c
+    thorchain.c
     transaction.c
+    txin_check.c
     u2f.c)
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/scm_revision.h.in"
@@ -42,9 +49,11 @@ add_library(kkfirmware ${sources})
 add_dependencies(kkfirmware kktransport.pb trezorcrypto qrcodegenerator ethereum_tokens.def)
 
 set(ETHEREUM_TOKENS ${CMAKE_BINARY_DIR}/include/keepkey/firmware/ethereum_tokens)
+set(UNISWAP_TOKENS ${CMAKE_BINARY_DIR}/include/keepkey/firmware/uniswap_tokens)
 
 add_custom_target(ethereum_tokens.def
   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/include/keepkey/firmware
-  COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/ethereum_tokens.py ${ETHEREUM_TOKENS}.def)
+  COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/ethereum_tokens.py ${ETHEREUM_TOKENS}.def
+  COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/uniswap_tokens.py ${UNISWAP_TOKENS}.def)
 
 add_library(kkfirmware.keepkey variant/keepkey/resources.c)

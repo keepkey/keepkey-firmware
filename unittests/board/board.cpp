@@ -5,5 +5,5 @@ extern "C" {
 #include "gtest/gtest.h"
 
 TEST(Board, Shutdown) {
-    EXPECT_EXIT(shutdown(), ::testing::ExitedWithCode(1), "");
+  EXPECT_EXIT(shutdown(), ::testing::ExitedWithCode(1), "");
 }

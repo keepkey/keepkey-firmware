@@ -9,8 +9,8 @@ import binascii
 
 PACKET_SIZE = 64
 
-main = ('0.0.0.0', 21324)
-debug = ('0.0.0.0', 21325)
+main = ('0.0.0.0', 11044)
+debug = ('0.0.0.0', 11045)
 
 ms = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 ms.connect(main)

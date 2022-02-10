@@ -25,11 +25,7 @@
 #include <stdint.h>
 
 /* State for Home SM */
-typedef enum {
-    AT_HOME,
-    AWAY_FROM_HOME,
-    SCREENSAVER
-} HomeState;
+typedef enum { AT_HOME, AWAY_FROM_HOME, SCREENSAVER } HomeState;
 
 void layoutHome(void);
 void layoutHomeForced(void);

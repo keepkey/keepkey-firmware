@@ -473,7 +473,7 @@ svhandler_start_firmware:
     eor     r6, r6
     eor     r7, r7
     eor     r8, r8
-    eor     r8, r9
+    eor     r9, r9
        
     ldr     r11, =dummy_xpsr      // xpsr - do not use the actual one for fake "return"
     ldr     r1, =fwreset          // pc - load pc slot with the firmware reset vector

@@ -1,7 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2015 KeepKey LLC
+ * Copyright (C) 2021 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -30,15 +30,17 @@
 #include "messages-cosmos.pb.h"
 #include "messages-eos.pb.h"
 #include "messages-ripple.pb.h"
+#include "messages-tendermint.pb.h"
+#include "messages-thorchain.pb.h"
 
 #include "types.pb.h"
 #include "trezor_transport.h"
 
 #ifndef EMULATOR
 /* The max size of a decoded protobuf */
-#  define MAX_DECODE_SIZE (13 * 1024)
+#define MAX_DECODE_SIZE (13 * 1024)
 #else
-#  define MAX_DECODE_SIZE (26 * 1024)
+#define MAX_DECODE_SIZE (26 * 1024)
 #endif
 
 #endif

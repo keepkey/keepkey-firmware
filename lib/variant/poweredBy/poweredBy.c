@@ -4,7 +4,4 @@
 #include "keepkey/board/timer.h"
 #include "keepkey/board/variant.h"
 
-const VariantInfo variant_poweredBy = {
-    VARIANTINFO_POWERED_BY
-};
-
+const VariantInfo variant_poweredBy = {VARIANTINFO_POWERED_BY};

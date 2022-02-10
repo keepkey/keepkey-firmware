@@ -26,30 +26,26 @@
 
 #define PIN_BUF sizeof(((PinMatrixAck *)NULL)->pin)
 
-#define PIN_FAIL_DELAY_START    2
-#define MAX_PIN_FAIL_ATTEMPTS   32
+#define PIN_FAIL_DELAY_START 2
+#define MAX_PIN_FAIL_ATTEMPTS 32
 
 /// State for PIN SM.
-typedef enum {
-	PIN_REQUEST,
-	PIN_WAITING,
-	PIN_ACK,
-	PIN_FINISHED
-} PINState;
+typedef enum { PIN_REQUEST, PIN_WAITING, PIN_ACK, PIN_FINISHED } PINState;
 
-/// While waiting for a PIN ack, these are the types of messages we expect to see.
+/// While waiting for a PIN ack, these are the types of messages we expect to
+/// see.
 typedef enum {
-	PIN_ACK_WAITING,
-	PIN_ACK_RECEIVED,
-	PIN_ACK_CANCEL_BY_INIT,
-	PIN_ACK_CANCEL
+  PIN_ACK_WAITING,
+  PIN_ACK_RECEIVED,
+  PIN_ACK_CANCEL_BY_INIT,
+  PIN_ACK_CANCEL
 } PINAckMsg;
 
 /// PIN received info.
 typedef struct {
-	PinMatrixRequestType type;
-	PINAckMsg pin_ack_msg;
-	char pin[PIN_BUF];
+  PinMatrixRequestType type;
+  PINAckMsg pin_ack_msg;
+  char pin[PIN_BUF];
 } PINInfo;
 
 /// Authenticate user PIN for device access.
@@ -69,6 +65,10 @@ bool pin_protect_uncached(void);
 /// Process a PIN change.
 /// \returns true iff the PIN was successfully changed.
 bool change_pin(void);
+
+/// Process a wipe code change.
+/// \returns true iff the wipe code was successfully changed.
+bool change_wipe_code(void);
 
 #if DEBUG_LINK
 /// Gets randomized PIN matrix.

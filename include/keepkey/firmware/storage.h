@@ -23,13 +23,15 @@
 #include "trezor/crypto/bip32.h"
 #include "keepkey/board/memory.h"
 
-#define STORAGE_VERSION 15 /* Must add case fallthrough in storage_fromFlash after increment*/
+#define STORAGE_VERSION \
+  16 /* Must add case fallthrough in storage_fromFlash after increment*/
 #define STORAGE_RETRIES 3
 
 #define RANDOM_SALT_LEN 32
 
-#define STORAGE_DEFAULT_SCREENSAVER_TIMEOUT (10U * 60U * 1000U) /* 10 minutes */
-#define STORAGE_MIN_SCREENSAVER_TIMEOUT     (      30U * 1000U) /* 30 seconds */
+#define STORAGE_DEFAULT_SCREENSAVER_TIMEOUT (10U * 60U * 1000U) /* 10 minutes \
+                                                                 */
+#define STORAGE_MIN_SCREENSAVER_TIMEOUT (30U * 1000U)           /* 30 seconds */
 
 /// \brief Validate storage content and copy data to shadow memory.
 void storage_init(void);
@@ -42,6 +44,9 @@ void storage_reset(void);
 
 /// \brief Clear storage.
 void storage_wipe(void);
+
+/// \brief Clear storage key and storage key fingerprint.
+void storage_clearKeys(void);
 
 /// \brief Reset session states.
 /// \param clear_pin whether to clear the pin as well.
@@ -88,10 +93,16 @@ const char *storage_getLanguage(void);
 /// \return true iff the privided pin is correct.
 bool storage_isPinCorrect(const char *pin);
 
+/// \brief Validate wipe code.
+/// \return true iff the privided wipe code is correct.
+bool storage_isWipeCodeCorrect(const char *wipe_code);
+
 bool storage_hasPin(void);
 void storage_setPin(const char *pin);
 void session_cachePin(const char *pin);
 bool session_isPinCached(void);
+bool storage_hasWipeCode(void);
+void storage_setWipeCode(const char *wipe_code);
 void storage_resetPinFails(void);
 void storage_increasePinFails(void);
 uint32_t storage_getPinFails(void);
@@ -109,7 +120,8 @@ void session_cachePassphrase(const char *passphrase);
 bool session_isPassphraseCached(void);
 
 /// \brief Set config mnemonic in shadow memory from words.
-void storage_setMnemonicFromWords(const char (*words)[12], unsigned int num_words);
+void storage_setMnemonicFromWords(const char (*words)[12],
+                                  unsigned int num_words);
 
 /// \brief Set config mnemonic from a recovery sentence.
 void storage_setMnemonic(const char *mnemonic);

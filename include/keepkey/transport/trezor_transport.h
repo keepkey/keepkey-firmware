@@ -22,56 +22,49 @@
 
 #include <stdint.h>
 
-
 #ifdef EMULATOR
-#  define MAX_FRAME_SIZE (64 * 1024)
+#define MAX_FRAME_SIZE (64 * 1024)
 #else
-#  define MAX_FRAME_SIZE (12 * 1024)
+#define MAX_FRAME_SIZE (12 * 1024)
 #endif
-
 
 #pragma pack(1)
 
 /* This structure is derived from the Trezor protocol.  Note that the values
 come in as big endian, so they'll need to be swapped. */
-typedef struct
-{
-    uint8_t hid_type; /* First byte is always 0x3f */
+typedef struct {
+  uint8_t hid_type; /* First byte is always 0x3f */
 } UsbHeader;
 
 /* Trezor frame header */
-typedef struct
-{
-    /* Start of Trezor frame */
-    uint8_t pre1;
-    uint8_t pre2;
+typedef struct {
+  /* Start of Trezor frame */
+  uint8_t pre1;
+  uint8_t pre2;
 
-    /* Protobuf ID */
-    uint16_t id;
+  /* Protobuf ID */
+  uint16_t id;
 
-    /* Length of the following message */
-    uint32_t len;
+  /* Length of the following message */
+  uint32_t len;
 
 } TrezorFrameHeaderFirst;
 
 /* Second+ continuation fragment. */
-typedef struct
-{
-    UsbHeader header;
-    uint8_t contents[0];
+typedef struct {
+  UsbHeader header;
+  uint8_t contents[0];
 } TrezorFrameFragment;
 
-typedef struct
-{
-    UsbHeader usb_header;
-    TrezorFrameHeaderFirst header;
-    uint8_t contents[0];
+typedef struct {
+  UsbHeader usb_header;
+  TrezorFrameHeaderFirst header;
+  uint8_t contents[0];
 } TrezorFrame;
 
-typedef struct
-{
-    TrezorFrame frame;
-    uint8_t buffer[MAX_FRAME_SIZE+ /* VERSION + DL? + U2F_OK  */ 4];
+typedef struct {
+  TrezorFrame frame;
+  uint8_t buffer[MAX_FRAME_SIZE + /* VERSION + DL? + U2F_OK  */ 4];
 } TrezorFrameBuffer;
 
 #pragma pack()

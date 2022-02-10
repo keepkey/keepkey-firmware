@@ -21,7 +21,6 @@
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/storage.h"
-#include "keepkey/firmware/exchange.h"
 
 /*
  * run_policy_compile_output() - Policy wrapper around compile output
@@ -34,39 +33,23 @@
  *     - needs_confirm: whether confirm is required
  * OUTPUT
  *     integer determining whether operation was succesful
-*/
-int run_policy_compile_output(const CoinType *coin, const HDNode *root, void *vin, void *vout, bool needs_confirm)
-{
-    /* setup address type with respect to coin type */
-    OutputAddressType addr_type;
-    if (isEthereumLike(coin->coin_name)) {
-        addr_type = ((EthereumSignTx *)vin)->address_type;
-    } else if (strcmp("Cosmos", coin->coin_name) == 0) {
-        addr_type = ((CosmosMsgSend *)vin)->address_type;
-    } else {
-        /* Bitcoin, Clones, Forks */
-        if (vout == NULL) {
-            return TXOUT_COMPILE_ERROR;
-        }
-        addr_type = ((TxOutputType *)vin)->address_type;
+ */
+int run_policy_compile_output(const CoinType *coin, const HDNode *root,
+                              void *vin, void *vout, bool needs_confirm) {
+  /* setup address type with respect to coin type */
+  if (isEthereumLike(coin->coin_name)) {
+  } else if (strcmp("Cosmos", coin->coin_name) == 0) {
+  } else {
+    /* Bitcoin, Clones, Forks */
+    if (vout == NULL) {
+      return TXOUT_COMPILE_ERROR;
     }
+  }
 
-    if (addr_type == OutputAddressType_EXCHANGE)
-    {
-        if (!storage_isPolicyEnabled("ShapeShift"))
-            return TXOUT_COMPILE_ERROR;
+  if (isEthereumLike(coin->coin_name)) return TXOUT_OK;
 
-        if (!process_exchange_contract(coin, vin, root, needs_confirm))
-            return TXOUT_EXCHANGE_CONTRACT_ERROR;
+  if (strcmp("Cosmos", coin->coin_name) == 0) return TXOUT_OK;
 
-        needs_confirm = false;
-    }
-
-    if (isEthereumLike(coin->coin_name))
-        return TXOUT_OK;
-
-    if (strcmp("Cosmos", coin->coin_name) == 0)
-        return TXOUT_OK;
-
-    return compile_output(coin, root, (TxOutputType *)vin, (TxOutputBinType *)vout, needs_confirm);
+  return compile_output(coin, root, (TxOutputType *)vin,
+                        (TxOutputBinType *)vout, needs_confirm);
 }

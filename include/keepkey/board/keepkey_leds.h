@@ -20,24 +20,20 @@
 #ifndef KEEPKEY_LEDS_H
 #define KEEPKEY_LEDS_H
 
-
 #include <stdint.h>
 
 #include "canvas.h"
 
-
 typedef enum {
-    CLR_GREEN_LED,
-    SET_GREEN_LED,
-    TGL_GREEN_LED,
-    CLR_RED_LED,
-    SET_RED_LED,
-    TGL_RED_LED
+  CLR_GREEN_LED,
+  SET_GREEN_LED,
+  TGL_GREEN_LED,
+  CLR_RED_LED,
+  SET_RED_LED,
+  TGL_RED_LED
 } LedAction;
 
-
-void keepkey_leds_init( void);
+void keepkey_leds_init(void);
 void led_func(LedAction act);
 
 #endif
-
