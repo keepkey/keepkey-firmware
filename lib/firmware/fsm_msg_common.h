@@ -113,7 +113,7 @@ void fsm_msgGetFeatures(GetFeatures *msg) {
       "update messages.options to match POLICY_COUNT");
 
   /* Auto-lock delay */
-  uint32_t auto_lock_delay = storage_getAutoLockDelayMs()
+  uint32_t auto_lock_delay = storage_getAutoLockDelayMs();
   resp->has_auto_lock_delay_ms = auto_lock_delay ? true : false;
   resp->auto_lock_delay_ms = auto_lock_delay;
 
