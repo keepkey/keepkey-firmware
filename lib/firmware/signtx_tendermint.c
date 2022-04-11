@@ -1,8 +1,8 @@
 /*
  * This file is part of the Keepkey project.
  *
- * Copyright (C) 2021 Shapeshift 
- * 
+ * Copyright (C) 2021 Shapeshift
+ *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -41,7 +41,8 @@ static TendermintSignTx tmsg;
 
 const void *tendermint_getSignTx(void) { return (void *)&tmsg; }
 
-bool tendermint_signTxInit(const HDNode *_node, const void *_msg, const size_t msgsize, const char *denom) {
+bool tendermint_signTxInit(const HDNode *_node, const void *_msg,
+                           const size_t msgsize, const char *denom) {
   initialized = true;
   msgs_remaining = ((TendermintSignTx *)_msg)->msg_count;
   has_message = false;
@@ -49,11 +50,12 @@ bool tendermint_signTxInit(const HDNode *_node, const void *_msg, const size_t m
   memzero(&node, sizeof(node));
   memcpy(&node, _node, sizeof(node));
 
-/*
-  _msg is expected to be of type TendermintSignTx, CosmosSignTx or ThorchainSignTx. These messages all have
-  common overlapping fields with TendermintSignTx having extra parameters. Copy the _msg memory into a static
-  TendermintSignTx type and parse from there.
-*/
+  /*
+    _msg is expected to be of type TendermintSignTx, CosmosSignTx or
+    ThorchainSignTx. These messages all have common overlapping fields with
+    TendermintSignTx having extra parameters. Copy the _msg memory into a static
+    TendermintSignTx type and parse from there.
+  */
 
   if (msgsize > sizeof(tmsg)) {
     return false;
@@ -82,11 +84,10 @@ bool tendermint_signTxInit(const HDNode *_node, const void *_msg, const size_t m
   tendermint_sha256UpdateEscaped(&ctx, tmsg.chain_id, strlen(tmsg.chain_id));
 
   // 30 + ^10 + 11 + ^9 + 3 = ^63
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                          "\",\"fee\":{\"amount\":[{\"amount\":\"%" PRIu32
-                          "\",\"denom\":\"%s\"}]",
-                          tmsg.fee_amount, denom);
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      "\",\"fee\":{\"amount\":[{\"amount\":\"%" PRIu32 "\",\"denom\":\"%s\"}]",
+      tmsg.fee_amount, denom);
 
   // 8 + ^10 + 2 = ^20
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
@@ -105,8 +106,10 @@ bool tendermint_signTxInit(const HDNode *_node, const void *_msg, const size_t m
   return success;
 }
 
-bool tendermint_signTxUpdateMsgSend(const uint64_t amount, const char *to_address, const char *chainstr, 
-                                    const char *denom, const char *msgTypePrefix) {
+bool tendermint_signTxUpdateMsgSend(const uint64_t amount,
+                                    const char *to_address,
+                                    const char *chainstr, const char *denom,
+                                    const char *msgTypePrefix) {
   char buffer[128];
   size_t decoded_len;
   char hrp[45];
@@ -116,7 +119,8 @@ bool tendermint_signTxUpdateMsgSend(const uint64_t amount, const char *to_addres
     return false;
   }
 
-  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 || strnlen(chainstr, 15) > 14) {
+  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 ||
+      strnlen(chainstr, 15) > 14) {
     return false;
   }
 
@@ -133,12 +137,15 @@ bool tendermint_signTxUpdateMsgSend(const uint64_t amount, const char *to_addres
   bool success = true;
 
   // 9 + ^24 + 19 = ^52
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "{\"type\":\"%s/MsgSend\",\"value\":{", msgTypePrefix);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "{\"type\":\"%s/MsgSend\",\"value\":{",
+                                 msgTypePrefix);
 
   // 21 + ^20 + 11 + ^9 + 3 = ^64
-  success &= tendermint_snprintf(
-      &ctx, buffer, sizeof(buffer),
-      "\"amount\":[{\"amount\":\"%" PRIu64 "\",\"denom\":\"%s\"}]", amount, denom);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"amount\":[{\"amount\":\"%" PRIu64
+                                 "\",\"denom\":\"%s\"}]",
+                                 amount, denom);
 
   // 17 + ^53 + 1 = ^71
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
@@ -147,6 +154,307 @@ bool tendermint_signTxUpdateMsgSend(const uint64_t amount, const char *to_addres
   // 15 + ^53 + 3 = ^71
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  ",\"to_address\":\"%s\"}}", to_address);
+
+  has_message = true;
+  msgs_remaining--;
+  return success;
+}
+
+bool tendermint_signTxUpdateMsgDelegate(const uint64_t amount,
+                                        const char *delegator_address,
+                                        const char *validator_address,
+                                        const char *chainstr, const char *denom,
+                                        const char *msgTypePrefix) {
+  char buffer[128];
+  size_t decoded_len;
+  char hrp[45];
+  uint8_t decoded[38];
+
+  if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
+    return false;
+  }
+
+  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 ||
+      strnlen(chainstr, 15) > 14) {
+    return false;
+  }
+
+  // ^14 + 39 + 1 = ^54
+  char from_address[54];
+  if (!tendermint_getAddress(&node, chainstr, from_address)) {
+    return false;
+  }
+
+  if (has_message) {
+    sha256_Update(&ctx, (uint8_t *)",", 1);
+  }
+
+  bool success = true;
+
+  // 9 + ^24 + 23 = ^56
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "{\"type\":\"%s/MsgDelegate\",\"value\":{",
+                                 msgTypePrefix);
+
+  // 20 + ^20 + 11 + ^9 + 2 = ^62
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"amount\":{\"amount\":\"%" PRIu64
+                                 "\",\"denom\":\"%s\"}",
+                                 amount, denom);
+
+  // 22 + ^53 + 1 = ^76
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                          ",\"delegator_address\":\"%s\"", delegator_address);
+
+  // 22 + ^53 + 3 = ^76
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                          ",\"validator_address\":\"%s\"}}", validator_address);
+
+  has_message = true;
+  msgs_remaining--;
+  return success;
+}
+bool tendermint_signTxUpdateMsgUndelegate(const uint64_t amount,
+                                          const char *delegator_address,
+                                          const char *validator_address,
+                                          const char *chainstr,
+                                          const char *denom,
+                                          const char *msgTypePrefix) {
+  char buffer[128];
+  size_t decoded_len;
+  char hrp[45];
+  uint8_t decoded[38];
+
+  if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
+    return false;
+  }
+
+  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 ||
+      strnlen(chainstr, 15) > 14) {
+    return false;
+  }
+
+  // ^14 + 39 + 1 = ^54
+  char from_address[54];
+  if (!tendermint_getAddress(&node, chainstr, from_address)) {
+    return false;
+  }
+
+  if (has_message) {
+    sha256_Update(&ctx, (uint8_t *)",", 1);
+  }
+
+  bool success = true;
+
+  // 9 + ^24 + 25 = ^58
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "{\"type\":\"%s/MsgUndelegate\",\"value\":{",
+                                 msgTypePrefix);
+
+  // 20 + ^20 + 11 + ^9 + 2 = ^62
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"amount\":{\"amount\":\"%" PRIu64
+                                 "\",\"denom\":\"%s\"}",
+                                 amount, denom);
+
+  // 22 + ^53 + 1 = ^76
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                          ",\"delegator_address\":\"%s\"", delegator_address);
+
+  // 22 + ^53 + 3 = ^76
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                          ",\"validator_address\":\"%s\"}}", validator_address);
+
+  has_message = true;
+  msgs_remaining--;
+  return success;
+}
+
+bool tendermint_signTxUpdateMsgRedelegate(
+    const uint64_t amount, const char *delegator_address,
+    const char *validator_src_address, const char *validator_dst_address,
+    const char *chainstr, const char *denom, const char *msgTypePrefix) {
+  char buffer[128];
+  size_t decoded_len;
+  char hrp[45];
+  uint8_t decoded[38];
+
+  if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
+    return false;
+  }
+
+  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 ||
+      strnlen(chainstr, 15) > 14) {
+    return false;
+  }
+
+  // ^14 + 39 + 1 = ^54
+  char from_address[54];
+  if (!tendermint_getAddress(&node, chainstr, from_address)) {
+    return false;
+  }
+
+  if (has_message) {
+    sha256_Update(&ctx, (uint8_t *)",", 1);
+  }
+
+  bool success = true;
+
+  // 9 + ^24 + 30 = ^66
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      "{\"type\":\"%s/MsgBeginRedelegate\",\"value\":{", msgTypePrefix);
+
+  // 20 + ^20 + 11 + ^9 + 2 = ^62
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"amount\":{\"amount\":\"%" PRIu64
+                                 "\",\"denom\":\"%s\"}",
+                                 amount, denom);
+
+  // 22 + ^53 + 1 = ^76
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                          ",\"delegator_address\":\"%s\"", delegator_address);
+
+  // 26 + ^53 + 2 = ^79
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 ",\"validator_dst_address\":\"%s\",",
+                                 validator_dst_address);
+
+  // 26 + ^53 + 3 = ^80
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 ",\"validator_src_address\":\"%s\"}}",
+                                 validator_src_address);
+
+  has_message = true;
+  msgs_remaining--;
+  return success;
+}
+
+bool tendermint_signTxUpdateMsgRewards(const uint64_t amount,
+                                       const char *delegator_address,
+                                       const char *validator_address,
+                                       const char *chainstr, const char *denom,
+                                       const char *msgTypePrefix) {
+  char buffer[128];
+  size_t decoded_len;
+  char hrp[45];
+  uint8_t decoded[38];
+
+  if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
+    return false;
+  }
+
+  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 ||
+      strnlen(chainstr, 15) > 14) {
+    return false;
+  }
+
+  // ^14 + 39 + 1 = ^54
+  char from_address[54];
+  if (!tendermint_getAddress(&node, chainstr, from_address)) {
+    return false;
+  }
+
+  if (has_message) {
+    sha256_Update(&ctx, (uint8_t *)",", 1);
+  }
+
+  bool success = true;
+
+  // 9 + ^24 + 38 = ^72
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      "{\"type\":\"%s/MsgWithdrawDelegatorReward\",\"value\":{", msgTypePrefix);
+
+  // 20 + ^20 + 11 + ^9 + 2 = ^64
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"amount\":{\"amount\":\"%" PRIu64
+                                 "\",\"denom\":\"%s\"}",
+                                 amount, denom);
+
+  // 22 + ^53 + 1 = ^76
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                          ",\"delegator_address\":\"%s\"", delegator_address);
+
+  // 22 + ^53 + 3 = ^76
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                          ",\"validator_address\":\"%s\"}}", validator_address);
+
+  has_message = true;
+  msgs_remaining--;
+  return success;
+}
+
+bool tendermint_signTxUpdateMsgIBCTransfer(
+    const uint64_t amount, const char *sender, const char *receiver,
+    const char *source_channel, const char *source_port,
+    const char *revision_number, const char *revision_height,
+    const char *chainstr, const char *denom, const char *msgTypePrefix) {
+  char buffer[128];
+  size_t decoded_len;
+  char hrp[45];
+  uint8_t decoded[38];
+
+  if (!bech32_decode(hrp, decoded, &decoded_len, receiver)) {
+    return false;
+  }
+
+  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 ||
+      strnlen(chainstr, 15) > 14) {
+    return false;
+  }
+
+  // ^14 + 39 + 1 = ^54
+  char from_address[54];
+  if (!tendermint_getAddress(&node, chainstr, from_address)) {
+    return false;
+  }
+
+  if (has_message) {
+    sha256_Update(&ctx, (uint8_t *)",", 1);
+  }
+
+  bool success = true;
+
+  // 9 + ^24 + 23 = ^56
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "{\"type\":\"%s/MsgTransfer\",\"value\":{",
+                                 msgTypePrefix);
+
+  // 13 + ^53 + 1 = ^67
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 ",\"receiver\":\"%s\"", receiver);
+
+  // 11 + ^53 + 1 = ^65
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 ",\"sender\":\"%s\"", sender);
+
+  // 19 + ^32 + 1 = ^52
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 ",\"source_channel\":\"%s\"", source_channel);
+
+  // 16 + ^32 + 1 = ^39
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 ",\"source_port\":\"%s\"", source_port);
+
+  // 37 + ^16 + 21 + ^9 + 3 = ^86
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"timeout_height\":{\"revision_height\":\"%"
+                                 "s\",\"revision_number\":\"%s\"},",
+                                 revision_height, revision_number);
+
+  // 20 + ^20 + 11 + ^9 + 3 = ^63
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"token\":{\"amount\":\"%" PRIu64
+                                 "\",\"denom\":\"%s\"}}",
+                                 amount, denom);
 
   has_message = true;
   msgs_remaining--;
