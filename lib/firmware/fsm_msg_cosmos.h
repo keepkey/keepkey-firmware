@@ -92,7 +92,8 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg) {
 
   RESP_INIT(CosmosMsgRequest);
 
-  if (!tendermint_signTxInit(node, (void *)msg, sizeof(CosmosSignTx), "uatom")) {
+  if (!tendermint_signTxInit(node, (void *)msg, sizeof(CosmosSignTx),
+                             "uatom")) {
     tendermint_signAbort();
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_FirmwareError,
@@ -109,13 +110,6 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg) {
 void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
   // Confirm transaction basics
   CHECK_PARAM(tendermint_signingIsInited(), "Signing not in progress");
-  if (!msg->has_send || !msg->send.has_to_address || !msg->send.has_amount) {
-    tendermint_signAbort();
-    fsm_sendFailure(FailureType_Failure_FirmwareError,
-                    _("Invalid Cosmos Message Type"));
-    layoutHome();
-    return;
-  }
 
   const CoinType *coin = fsm_getCoin(true, "Cosmos");
   if (!coin) {
@@ -124,52 +118,365 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
 
   const CosmosSignTx *sign_tx = (CosmosSignTx *)tendermint_getSignTx();
 
-  switch (msg->send.address_type) {
-    case OutputAddressType_EXCHANGE: {
-      HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0, NULL);
-      if (!root_node) {
-        tendermint_signAbort();
-        fsm_sendFailure(FailureType_Failure_FirmwareError, NULL);
-        layoutHome();
-        return;
-      }
-
-      int ret = run_policy_compile_output(coin, root_node, (void *)&msg->send,
-                                          (void *)NULL, true);
-      if (ret < TXOUT_OK) {
-        memzero((void *)root_node, sizeof(*root_node));
-        tendermint_signAbort();
-        send_fsm_co_error_message(ret);
-        layoutHome();
-        return;
-      }
-
-      break;
+  if (msg->has_send) {
+    if (!msg->send.has_to_address || !msg->send.has_amount) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_FirmwareError,
+                      _("Invalid Cosmos Message Type"));
+      layoutHome();
+      return;
     }
-    case OutputAddressType_TRANSFER:
-    default: {
-      char amount_str[32];
-      bn_format_uint64(msg->send.amount, NULL, " ATOM", 6, 0, false, amount_str,
-                       sizeof(amount_str));
-      if (!confirm_transaction_output(
-              ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
-              msg->send.to_address)) {
-        tendermint_signAbort();
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-        layoutHome();
-        return;
+    switch (msg->send.address_type) {
+      case OutputAddressType_EXCHANGE: {
+        HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0, NULL);
+        if (!root_node) {
+          tendermint_signAbort();
+          fsm_sendFailure(FailureType_Failure_FirmwareError, NULL);
+          layoutHome();
+          return;
+        }
+
+        int ret = run_policy_compile_output(coin, root_node, (void *)&msg->send,
+                                            (void *)NULL, true);
+        if (ret < TXOUT_OK) {
+          memzero((void *)root_node, sizeof(*root_node));
+          tendermint_signAbort();
+          send_fsm_co_error_message(ret);
+          layoutHome();
+          return;
+        }
+
+        break;
       }
+      case OutputAddressType_TRANSFER:
+      default: {
+        char amount_str[32];
+        bn_format_uint64(msg->send.amount, NULL, " ATOM", 6, 0, false,
+                         amount_str, sizeof(amount_str));
+        if (!confirm_transaction_output(
+                ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
+                msg->send.to_address)) {
+          tendermint_signAbort();
+          fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+          layoutHome();
+          return;
+        }
 
-      break;
+        break;
+      }
     }
-  }
 
-  if (!tendermint_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address, "cosmos", "uatom", "cosmos-sdk")) {
-    tendermint_signAbort();
-    fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    "Failed to include send message in transaction");
-    layoutHome();
-    return;
+    if (!tendermint_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address,
+                                        "cosmos", "uatom", "cosmos-sdk")) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Failed to include send message in transaction");
+      layoutHome();
+      return;
+    }
+  } else if (msg->has_delegate) {
+    /** Confirm required transaction parameters exist */
+    if (!msg->delegate.has_delegator_address ||
+        !msg->delegate.has_validator_address || !msg->delegate.has_amount) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_FirmwareError,
+                      _("Invalid Cosmos Message Type"));
+      layoutHome();
+      return;
+    }
+    /** Confirm transaction parameters on-screen */
+    char amount_str[32];
+    bn_format_uint64(msg->delegate.amount, NULL, " ATOM", 6, 0, false,
+                     amount_str, sizeof(amount_str));
+
+    if (!confirm_address("Confirm delegator address", msg->delegate.delegator_address)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_address("Confirm validator address", msg->delegate.validator_address)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_with_custom_layout(
+            &layout_notification_no_title_bold,
+            ButtonRequestType_ButtonRequest_ConfirmOutput, "", "Delegate %s?",
+            amount_str)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!tendermint_signTxUpdateMsgDelegate(
+            msg->delegate.amount, msg->delegate.delegator_address,
+            msg->delegate.validator_address, "cosmos", "uatom", "cosmos-sdk")) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Failed to include delegate message in transaction");
+      layoutHome();
+      return;
+    }
+  } else if (msg->has_undelegate) {
+    /** Confirm required transaction parameters exist */
+    if (!msg->undelegate.has_delegator_address ||
+        !msg->undelegate.has_validator_address || !msg->undelegate.has_amount) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_FirmwareError,
+                      _("Invalid Cosmos Message Type"));
+      layoutHome();
+      return;
+    }
+    /** Confirm transaction parameters on-screen */
+    char amount_str[32];
+    bn_format_uint64(msg->undelegate.amount, NULL, " ATOM", 6, 0, false,
+                     amount_str, sizeof(amount_str));
+
+    if (!confirm_address("Confirm delegator address", msg->undelegate.delegator_address)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_address("Confirm validator address", msg->undelegate.validator_address)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_with_custom_layout(
+            &layout_notification_no_title_bold,
+            ButtonRequestType_ButtonRequest_ConfirmOutput, "", "Undelegate %s?",
+            amount_str)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!tendermint_signTxUpdateMsgUndelegate(
+            msg->undelegate.amount, msg->undelegate.delegator_address,
+            msg->undelegate.validator_address, "cosmos", "uatom",
+            "cosmos-sdk")) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Failed to include undelegate message in transaction");
+      layoutHome();
+      return;
+    }
+  } else if (msg->has_redelegate) {
+    /** Confirm required transaction parameters exist */
+    if (!msg->redelegate.has_delegator_address ||
+        !msg->redelegate.has_validator_src_address ||
+        !msg->redelegate.has_validator_dst_address ||
+        !msg->redelegate.has_amount) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_FirmwareError,
+                      _("Invalid Cosmos Message Type"));
+      layoutHome();
+      return;
+    }
+    /** Confirm transaction parameters on-screen */
+    char amount_str[32];
+    bn_format_uint64(msg->redelegate.amount, NULL, " ATOM", 6, 0, false,
+                     amount_str, sizeof(amount_str));
+
+    if (!confirm_address("Confirm delegator address", msg->redelegate.delegator_address)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_address("Confirm validator source address",
+                         msg->redelegate.validator_src_address)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_address("Confirm validator destination address",
+                         msg->redelegate.validator_dst_address)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_with_custom_layout(
+            &layout_notification_no_title_bold,
+            ButtonRequestType_ButtonRequest_ConfirmOutput, "", "Redelegate %s?",
+            amount_str)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!tendermint_signTxUpdateMsgRedelegate(
+            msg->redelegate.amount, msg->redelegate.delegator_address,
+            msg->redelegate.validator_src_address,
+            msg->redelegate.validator_dst_address, "cosmos", "uatom",
+            "cosmos-sdk")) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Failed to include redelegate message in transaction");
+      layoutHome();
+      return;
+    }
+  } else if (msg->has_rewards) {
+    /** Confirm required transaction parameters exist */
+    if (!msg->rewards.has_delegator_address ||
+        !msg->rewards.has_validator_address || !msg->rewards.has_amount) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_FirmwareError,
+                      _("Invalid Cosmos Message Type"));
+      layoutHome();
+      return;
+    }
+    /** Confirm transaction parameters on-screen */
+    char amount_str[32];
+    bn_format_uint64(msg->rewards.amount, NULL, " ATOM", 6, 0, false,
+                     amount_str, sizeof(amount_str));
+
+    if (!confirm_address("Confirm delegator address", msg->rewards.delegator_address)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_address("Confirm validator address", msg->rewards.validator_address)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_with_custom_layout(
+            &layout_notification_no_title_bold,
+            ButtonRequestType_ButtonRequest_ConfirmOutput, "", "Claim %s?",
+            amount_str)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_transaction_output(
+            ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
+            msg->send.to_address)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!tendermint_signTxUpdateMsgRewards(
+            msg->rewards.amount, msg->rewards.delegator_address,
+            msg->rewards.validator_address, "cosmos", "uatom", "cosmos-sdk")) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Failed to include rewards message in transaction");
+      layoutHome();
+      return;
+    }
+  } else if (msg->has_ibc_transfer) {
+    /** Confirm required transaction parameters exist */
+    if (!msg->ibc_transfer.has_sender ||
+        !msg->ibc_transfer.has_source_channel ||
+        !msg->ibc_transfer.has_source_port ||
+        !msg->ibc_transfer.has_revision_height ||
+        !msg->ibc_transfer.has_revision_number ||
+        !msg->ibc_transfer.has_denom) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_FirmwareError,
+                      _("Invalid Cosmos Message Type"));
+      layoutHome();
+      return;
+    }
+    /** Confirm transaction parameters on-screen */
+    char amount_str[32];
+    bn_format_uint64(msg->ibc_transfer.amount, NULL, " ATOM", 6, 0, false,
+                     amount_str, sizeof(amount_str));
+
+    if (!confirm_address("Confirm sender address", msg->ibc_transfer.sender)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_with_custom_layout(
+            &layout_notification_no_title_bold,
+            ButtonRequestType_ButtonRequest_ConfirmOutput, "Source Channel",
+            "%s", msg->ibc_transfer.source_channel)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_with_custom_layout(
+            &layout_notification_no_title_bold,
+            ButtonRequestType_ButtonRequest_ConfirmOutput, "Source Port", "%s",
+            msg->ibc_transfer.source_port)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_with_custom_layout(
+            &layout_notification_no_title_bold,
+            ButtonRequestType_ButtonRequest_ConfirmOutput, "Revision Height",
+            "%s", msg->ibc_transfer.revision_height)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_with_custom_layout(
+            &layout_notification_no_title_bold,
+            ButtonRequestType_ButtonRequest_ConfirmOutput, "Revision Number",
+            "%s", msg->ibc_transfer.revision_number)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_with_custom_layout(
+            &layout_notification_no_title_bold,
+            ButtonRequestType_ButtonRequest_ConfirmOutput, "IBC Transfer",
+            "Transfer %s?", amount_str)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!tendermint_signTxUpdateMsgIBCTransfer(
+            msg->ibc_transfer.amount, msg->ibc_transfer.sender,
+            msg->ibc_transfer.receiver, msg->ibc_transfer.source_channel,
+            msg->ibc_transfer.source_port, msg->ibc_transfer.revision_number,
+            msg->ibc_transfer.revision_height, "cosmos", "uatom",
+            "cosmos-sdk")) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Failed to include send message in transaction");
+      layoutHome();
+      return;
+    }
   }
 
   if (!tendermint_signingIsFinished()) {
@@ -208,7 +515,8 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
 
   RESP_INIT(CosmosSignedTx);
 
-  if (!tendermint_signTxFinalize(resp->public_key.bytes, resp->signature.bytes)) {
+  if (!tendermint_signTxFinalize(resp->public_key.bytes,
+                                 resp->signature.bytes)) {
     tendermint_signAbort();
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     "Failed to finalize signature");

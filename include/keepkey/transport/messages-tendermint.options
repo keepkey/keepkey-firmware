@@ -18,5 +18,26 @@ TendermintSignTx.message_type_prefix                       max_length:24
 TendermintMsgSend.from_address                             max_length:53
 TendermintMsgSend.to_address                               max_length:53
 
+TendermintMsgDelegate.delegator_address                    max_size:53
+TendermintMsgDelegate.validator_address                    max_size:53
+
+TendermintMsgUndelegate.delegator_address                  max_size:53
+TendermintMsgUndelegate.validator_address                  max_size:53
+
+TendermintMsgRedelegate.delegator_address                  max_size:53
+TendermintMsgRedelegate.validator_src_address              max_size:53
+TendermintMsgRedelegate.validator_dst_address              max_size:53
+
+TendermintMsgRewards.delegator_address                     max_size:53
+TendermintMsgRewards.validator_address                     max_size:53
+
+TendermintMsgIBCTransfer.sender                            max_size:53
+TendermintMsgIBCTransfer.receiver                          max_size:53
+TendermintMsgIBCTransfer.source_channel                    max_size:32
+TendermintMsgIBCTransfer.source_port                       max_size:32
+TendermintMsgIBCTransfer.revision_height                   max_size:16
+TendermintMsgIBCTransfer.revision_number                   max_size:9
+TendermintMsgIBCTransfer.denom                             max_size:9
+
 TendermintSignedTx.public_key                              max_size:33
 TendermintSignedTx.signature                               max_size:64
