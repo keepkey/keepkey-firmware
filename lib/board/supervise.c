@@ -116,10 +116,10 @@ void svc_flash_erase_sector(uint32_t sector) {
   __asm__ __volatile__("svc %0" ::"i"(SVC_FLASH_ERASE) : "memory");
 }
 
-bool svc_flash_pgm_blk(uint32_t beginAddr, uint32_t data, uint32_t align) {
+bool svc_flash_pgm_blk(uint32_t beginAddr, uint32_t data, uint32_t length) {
   _param_1 = beginAddr;
   _param_2 = data;
-  _param_3 = align;
+  _param_3 = length;
   __asm__ __volatile__("svc %0" ::"i"(SVC_FLASH_PGM_BLK) : "memory");
   return !!_param_1;
 }
