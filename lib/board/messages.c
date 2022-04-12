@@ -303,7 +303,7 @@ reset:
 }
 
 /* Tiny messages */
-static bool msg_tiny_flag = false;
+bool msg_tiny_flag = false;
 static CONFIDENTIAL uint8_t msg_tiny[MSG_TINY_BFR_SZ];
 static uint16_t msg_tiny_id = MSG_TINY_TYPE_ERROR; /* Default to error type */
 
