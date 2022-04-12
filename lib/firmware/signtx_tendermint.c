@@ -78,10 +78,17 @@ bool tendermint_signTxInit(const HDNode *_node, const void *_msg,
                                  "{\"account_number\":\"%" PRIu64 "\"",
                                  tmsg.account_number);
 
+  // confirm_without_button_request("SIGNTX INIT",
+  //                                "{\"account_number\":\"%" PRIu64 "\"",
+  //                                tmsg.account_number);
+
   // <escape chain_id>
   const char *const chainid_prefix = ",\"chain_id\":\"";
   sha256_Update(&ctx, (uint8_t *)chainid_prefix, strlen(chainid_prefix));
   tendermint_sha256UpdateEscaped(&ctx, tmsg.chain_id, strlen(tmsg.chain_id));
+
+  // confirm_without_button_request("SIGNTX INIT", ",\"chain_id\":\"%s",
+  //                                tmsg.chain_id);
 
   // 30 + ^10 + 11 + ^9 + 3 = ^63
   success &= tendermint_snprintf(
@@ -89,9 +96,17 @@ bool tendermint_signTxInit(const HDNode *_node, const void *_msg,
       "\",\"fee\":{\"amount\":[{\"amount\":\"%" PRIu32 "\",\"denom\":\"%s\"}]",
       tmsg.fee_amount, denom);
 
+  // confirm_without_button_request(
+  //     "SIGNTX INIT",
+  //     "\",\"fee\":{\"amount\":[{\"amount\":\"%" PRIu32 "\",\"denom\":\"%s\"}]",
+  //     tmsg.fee_amount, denom);
+
   // 8 + ^10 + 2 = ^20
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  ",\"gas\":\"%" PRIu32 "\"}", tmsg.gas);
+
+  // confirm_without_button_request("SIGNTX INIT", ",\"gas\":\"%" PRIu32 "\"}",
+  //                                tmsg.gas);
 
   // <escape memo>
   const char *const memo_prefix = ",\"memo\":\"";
@@ -99,9 +114,12 @@ bool tendermint_signTxInit(const HDNode *_node, const void *_msg,
   if (tmsg.has_memo) {
     tendermint_sha256UpdateEscaped(&ctx, tmsg.memo, strlen(tmsg.memo));
   }
+  // confirm_without_button_request("SIGNTX INIT", ",\"memo\":\"%s", tmsg.memo);
 
-  // 10
-  sha256_Update(&ctx, (uint8_t *)"\",\"msgs\":[", 10);
+  // 9
+  sha256_Update(&ctx, (uint8_t *)"\",\"msg\":[", 9);
+
+  // confirm_without_button_request("SIGNTX INIT", "\",\"msg\":[");
 
   return success;
 }
@@ -147,13 +165,21 @@ bool tendermint_signTxUpdateMsgSend(const uint64_t amount,
                                  "\",\"denom\":\"%s\"}]",
                                  amount, denom);
 
-  // 17 + ^53 + 1 = ^71
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 ",\"from_address\":\"%s\"", from_address);
+  // 17
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), ",\"from_address\":\"");
 
-  // 15 + ^53 + 3 = ^71
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 ",\"to_address\":\"%s\"}}", to_address);
+  // ^53 + 1 = ^54
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"", from_address);
+
+  // 15
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), ",\"to_address\":\"");
+
+  // ^53 + 3 = ^56
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}", to_address);
 
   has_message = true;
   msgs_remaining--;
@@ -196,21 +222,47 @@ bool tendermint_signTxUpdateMsgDelegate(const uint64_t amount,
                                  "{\"type\":\"%s/MsgDelegate\",\"value\":{",
                                  msgTypePrefix);
 
+  // confirm_without_button_request("SIGNTX DELEGATE",
+  //                                "{\"type\":\"%s/MsgDelegate\",\"value\":{",
+  //                                msgTypePrefix);
+
   // 20 + ^20 + 11 + ^9 + 2 = ^62
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  "\"amount\":{\"amount\":\"%" PRIu64
                                  "\",\"denom\":\"%s\"}",
                                  amount, denom);
 
-  // 22 + ^53 + 1 = ^76
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                          ",\"delegator_address\":\"%s\"", delegator_address);
+  // confirm_without_button_request("SIGNTX DELEGATE",
+  //                                "\"amount\":{\"amount\":\"%" PRIu64
+  //                                "\",\"denom\":\"%s\"}",
+  //                                amount, denom);
 
-  // 22 + ^53 + 3 = ^76
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                          ",\"validator_address\":\"%s\"}}", validator_address);
+  // 22
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 ",\"delegator_address\":\"");
+
+  // confirm_without_button_request("SIGNTX DELEGATE",
+  //                                ",\"delegator_address\":\"");
+
+  // ^53 + 3 = ^56
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\",\"",
+                                 delegator_address);
+
+  // confirm_without_button_request("SIGNTX DELEGATE", "%s\",\"",
+  //                                delegator_address);
+
+  // 20
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "validator_address\":\"");
+
+  // confirm_without_button_request("SIGNTX DELEGATE", "validator_address\":\"");
+
+  // ^53 + 3 = ^56
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}",
+                                 validator_address);
+
+  // confirm_without_button_request("SIGNTX DELEGATE", "%s\"}}",
+  //                                validator_address);
 
   has_message = true;
   msgs_remaining--;
@@ -259,15 +311,21 @@ bool tendermint_signTxUpdateMsgUndelegate(const uint64_t amount,
                                  "\",\"denom\":\"%s\"}",
                                  amount, denom);
 
-  // 22 + ^53 + 1 = ^76
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                          ",\"delegator_address\":\"%s\"", delegator_address);
+  // 22
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 ",\"delegator_address\":\"");
 
-  // 22 + ^53 + 3 = ^76
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                          ",\"validator_address\":\"%s\"}}", validator_address);
+  // ^53 + 3 = ^56
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\",\"",
+                                 delegator_address);
+
+  // 20
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "validator_address\":\"");
+
+  // ^53 + 3 = ^56
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}",
+                                 validator_address);
 
   has_message = true;
   msgs_remaining--;
@@ -304,14 +362,14 @@ bool tendermint_signTxUpdateMsgRedelegate(
 
   bool success = true;
 
-  // 9 + ^24 + 30 = ^66
+  // 9 + ^24 + 28 = ^64
   success &= tendermint_snprintf(
       &ctx, buffer, sizeof(buffer),
-      "{\"type\":\"%s/MsgBeginRedelegate\",\"value\":{", msgTypePrefix);
+      "{\"type\":\"%s/MsgBeginRedelegate\",\"value\"", msgTypePrefix);
 
-  // 20 + ^20 + 11 + ^9 + 2 = ^62
+  // 22 + ^20 + 11 + ^9 + 2 = ^64
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"amount\":{\"amount\":\"%" PRIu64
+                                 ":{\"amount\":{\"amount\":\"%" PRIu64
                                  "\",\"denom\":\"%s\"}",
                                  amount, denom);
 
@@ -320,14 +378,24 @@ bool tendermint_signTxUpdateMsgRedelegate(
       tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                           ",\"delegator_address\":\"%s\"", delegator_address);
 
-  // 26 + ^53 + 2 = ^79
+  // ^53 + 3 = ^56
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\",\"",
+                                 delegator_address);
+
+  // 24
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 ",\"validator_dst_address\":\"%s\",",
+                                 "validator_dst_address\":\"");
+
+  // ^53 + 2 = ^55
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\",",
                                  validator_dst_address);
 
-  // 26 + ^53 + 3 = ^80
+  // 26
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 ",\"validator_src_address\":\"%s\"}}",
+                                 ",\"validator_src_address\":\"");
+
+  // ^53 + 3 = ^56
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}",
                                  validator_src_address);
 
   has_message = true;
@@ -377,15 +445,21 @@ bool tendermint_signTxUpdateMsgRewards(const uint64_t amount,
                                  "\",\"denom\":\"%s\"}",
                                  amount, denom);
 
-  // 22 + ^53 + 1 = ^76
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                          ",\"delegator_address\":\"%s\"", delegator_address);
+  // 22
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 ",\"delegator_address\":\"");
 
-  // 22 + ^53 + 3 = ^76
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                          ",\"validator_address\":\"%s\"}}", validator_address);
+  // ^53 + 3 = ^56
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\",\"",
+                                 delegator_address);
+
+  // 20
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "validator_address\":\"");
+
+  // ^53 + 3 = ^56
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}",
+                                 validator_address);
 
   has_message = true;
   msgs_remaining--;
@@ -428,13 +502,20 @@ bool tendermint_signTxUpdateMsgIBCTransfer(
                                  "{\"type\":\"%s/MsgTransfer\",\"value\":{",
                                  msgTypePrefix);
 
-  // 13 + ^53 + 1 = ^67
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 ",\"receiver\":\"%s\"", receiver);
+  // 13
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), ",\"receiver\":\"");
 
-  // 11 + ^53 + 1 = ^65
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 ",\"sender\":\"%s\"", sender);
+  // ^53 + 1 = ^54
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"", receiver);
+
+  // 11
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), ",\"sender\":\"");
+
+  // ^53 + 1 = ^54
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"", sender);
 
   // 19 + ^32 + 1 = ^52
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
@@ -444,11 +525,15 @@ bool tendermint_signTxUpdateMsgIBCTransfer(
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  ",\"source_port\":\"%s\"", source_port);
 
-  // 37 + ^16 + 21 + ^9 + 3 = ^86
+  // 37 + ^16 = ^53
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"timeout_height\":{\"revision_height\":\"%"
-                                 "s\",\"revision_number\":\"%s\"},",
-                                 revision_height, revision_number);
+                                 "\"timeout_height\":{\"revision_height\":\"%s",
+                                 revision_height);
+
+  // 21 + ^9 + 3 = ^33
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                          "\",\"revision_number\":\"%s\"},", revision_number);
 
   // 20 + ^20 + 11 + ^9 + 3 = ^63
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
@@ -466,8 +551,11 @@ bool tendermint_signTxFinalize(uint8_t *public_key, uint8_t *signature) {
 
   // 14 + ^20 + 2 = ^36
   if (!tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                           "],\"sequence\":\"%" PRIu64 "\"}", tmsg.sequence))
+                           "],\"sequence\":\"%" PRIu64 "\"}", tmsg.sequence)) {
     return false;
+  }
+  // confirm_without_button_request(
+  //     "SIGNTX FINALIZE", "],\"sequence\":\"%" PRIu64 "\"}", tmsg.sequence);
 
   hdnode_fill_public_key(&node);
   memcpy(public_key, node.public_key, 33);
