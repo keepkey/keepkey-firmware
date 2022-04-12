@@ -122,7 +122,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
     if (!msg->send.has_to_address || !msg->send.has_amount) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
-                      _("Invalid Cosmos Message Type"));
+                      _("Message is missing required parameters"));
       layoutHome();
       return;
     }
@@ -180,7 +180,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
         !msg->delegate.has_validator_address || !msg->delegate.has_amount) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
-                      _("Invalid Cosmos Message Type"));
+                      _("Message is missing required parameters"));
       layoutHome();
       return;
     }
@@ -189,14 +189,16 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
     bn_format_uint64(msg->delegate.amount, NULL, " ATOM", 6, 0, false,
                      amount_str, sizeof(amount_str));
 
-    if (!confirm_address("Confirm delegator address", msg->delegate.delegator_address)) {
+    if (!confirm_cosmos_address("Confirm delegator address",
+                         msg->delegate.delegator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm_address("Confirm validator address", msg->delegate.validator_address)) {
+    if (!confirm_cosmos_address("Confirm validator address",
+                         msg->delegate.validator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -228,7 +230,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
         !msg->undelegate.has_validator_address || !msg->undelegate.has_amount) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
-                      _("Invalid Cosmos Message Type"));
+                      _("Message is missing required parameters"));
       layoutHome();
       return;
     }
@@ -237,14 +239,16 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
     bn_format_uint64(msg->undelegate.amount, NULL, " ATOM", 6, 0, false,
                      amount_str, sizeof(amount_str));
 
-    if (!confirm_address("Confirm delegator address", msg->undelegate.delegator_address)) {
+    if (!confirm_cosmos_address("Confirm delegator address",
+                         msg->undelegate.delegator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm_address("Confirm validator address", msg->undelegate.validator_address)) {
+    if (!confirm_cosmos_address("Confirm validator address",
+                         msg->undelegate.validator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -279,7 +283,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
         !msg->redelegate.has_amount) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
-                      _("Invalid Cosmos Message Type"));
+                      _("Message is missing required parameters"));
       layoutHome();
       return;
     }
@@ -288,14 +292,15 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
     bn_format_uint64(msg->redelegate.amount, NULL, " ATOM", 6, 0, false,
                      amount_str, sizeof(amount_str));
 
-    if (!confirm_address("Confirm delegator address", msg->redelegate.delegator_address)) {
+    if (!confirm_cosmos_address("Confirm delegator address",
+                         msg->redelegate.delegator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm_address("Confirm validator source address",
+    if (!confirm_cosmos_address("Confirm validator source address",
                          msg->redelegate.validator_src_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
@@ -303,7 +308,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
       return;
     }
 
-    if (!confirm_address("Confirm validator destination address",
+    if (!confirm_cosmos_address("Confirm validator destination address",
                          msg->redelegate.validator_dst_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
@@ -338,7 +343,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
         !msg->rewards.has_validator_address || !msg->rewards.has_amount) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
-                      _("Invalid Cosmos Message Type"));
+                      _("Message is missing required parameters"));
       layoutHome();
       return;
     }
@@ -347,14 +352,16 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
     bn_format_uint64(msg->rewards.amount, NULL, " ATOM", 6, 0, false,
                      amount_str, sizeof(amount_str));
 
-    if (!confirm_address("Confirm delegator address", msg->rewards.delegator_address)) {
+    if (!confirm_cosmos_address("Confirm delegator address",
+                         msg->rewards.delegator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm_address("Confirm validator address", msg->rewards.validator_address)) {
+    if (!confirm_cosmos_address("Confirm validator address",
+                         msg->rewards.validator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -399,7 +406,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
         !msg->ibc_transfer.has_denom) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
-                      _("Invalid Cosmos Message Type"));
+                      _("Message is missing required parameters"));
       layoutHome();
       return;
     }
@@ -408,7 +415,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
     bn_format_uint64(msg->ibc_transfer.amount, NULL, " ATOM", 6, 0, false,
                      amount_str, sizeof(amount_str));
 
-    if (!confirm_address("Confirm sender address", msg->ibc_transfer.sender)) {
+    if (!confirm_cosmos_address("Confirm sender address", msg->ibc_transfer.sender)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -477,6 +484,12 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
       layoutHome();
       return;
     }
+  } else {
+    tendermint_signAbort();
+    fsm_sendFailure(FailureType_Failure_FirmwareError,
+                    _("Invalid Cosmos message type"));
+    layoutHome();
+    return;
   }
 
   if (!tendermint_signingIsFinished()) {
