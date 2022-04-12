@@ -432,6 +432,48 @@ void layout_xpub_notification(const char *desc, const char *xpub,
 }
 
 /*
+ * layout_cosmos_address_notification() - Display cosmos address
+ * notification
+ *
+ * INPUT
+ *     - desc: description of address being shown (normal or multisig)
+ *     - address: cosmos address to display both as string and QR
+ *     - type: notification type
+ * OUTPUT
+ *      none
+ */
+void layout_cosmos_address_notification(const char *desc, const char *address,
+                                        NotificationType type) {
+  DrawableParams sp;
+  const Font *address_font = get_body_font();
+  ;
+  Canvas *canvas = layout_get_canvas();
+
+  call_leaving_handler();
+  layout_clear();
+
+  if (strcmp(desc, "") != 0) {
+    const Font *title_font = get_title_font();
+    sp.y = TOP_MARGIN_FOR_TWO_LINES;
+    sp.x = LEFT_MARGIN + 65;
+    sp.color = BODY_COLOR;
+    draw_string(canvas, title_font, desc, &sp, TRANSACTION_WIDTH - 2,
+                font_height(title_font) + BODY_FONT_LINE_PADDING);
+  }
+
+  /* Body */
+  sp.y = TOP_MARGIN_FOR_TWO_LINES + TOP_MARGIN + TOP_MARGIN;
+  sp.x = LEFT_MARGIN + 65;
+  sp.color = BODY_COLOR;
+
+  draw_string(canvas, address_font, address, &sp, 140,
+              font_height(address_font) + BODY_FONT_LINE_PADDING);
+
+  layout_address(address, QR_LARGE);
+  layout_notification_icon(type, &sp);
+}
+
+/*
  * layout_ethereum_address_notification() - Display ethereum address
  * notification
  *
@@ -580,26 +622,25 @@ void layout_address_notification(const char *desc, const char *address,
  * OUTPUT
  *     none
  */
-void layout_pin(const char *str, char pin[])
-{
-    DrawableParams sp;
-    Canvas *canvas = layout_get_canvas();
+void layout_pin(const char *str, char pin[]) {
+  DrawableParams sp;
+  Canvas *canvas = layout_get_canvas();
 
-    call_leaving_handler();
-    layout_clear();
+  call_leaving_handler();
+  layout_clear();
 
-    display_constant_power(true);
+  display_constant_power(true);
 
-    /* Draw prompt */
-    const Font *font = get_body_font();
-    sp.y = 24;
-    sp.x = 128 + 10;
-    sp.color = BODY_COLOR;
-    draw_string(canvas, font, str, &sp, TITLE_WIDTH, font_height(font));
-    display_refresh();
+  /* Draw prompt */
+  const Font *font = get_body_font();
+  sp.y = 24;
+  sp.x = 128 + 10;
+  sp.color = BODY_COLOR;
+  draw_string(canvas, font, str, &sp, TITLE_WIDTH, font_height(font));
+  display_refresh();
 
-    /* Animate pin scrambling */
-    layout_add_animation(&layout_animate_pin, (void *)pin, PIN_MAX_ANIMATION_MS);
+  /* Animate pin scrambling */
+  layout_add_animation(&layout_animate_pin, (void *)pin, PIN_MAX_ANIMATION_MS);
 }
 
 /*
