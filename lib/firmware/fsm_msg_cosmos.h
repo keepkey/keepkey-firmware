@@ -190,7 +190,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
                      amount_str, sizeof(amount_str));
 
     if (!confirm_cosmos_address("Confirm delegator address",
-                         msg->delegate.delegator_address)) {
+                                msg->delegate.delegator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -198,7 +198,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
     }
 
     if (!confirm_cosmos_address("Confirm validator address",
-                         msg->delegate.validator_address)) {
+                                msg->delegate.validator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -240,7 +240,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
                      amount_str, sizeof(amount_str));
 
     if (!confirm_cosmos_address("Confirm delegator address",
-                         msg->undelegate.delegator_address)) {
+                                msg->undelegate.delegator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -248,7 +248,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
     }
 
     if (!confirm_cosmos_address("Confirm validator address",
-                         msg->undelegate.validator_address)) {
+                                msg->undelegate.validator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -292,34 +292,32 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
     bn_format_uint64(msg->redelegate.amount, NULL, " ATOM", 6, 0, false,
                      amount_str, sizeof(amount_str));
 
-    if (!confirm_cosmos_address("Confirm delegator address",
-                         msg->redelegate.delegator_address)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Redelegate",
+                 "Redelegate %s?", amount_str)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm_cosmos_address("Confirm validator source address",
-                         msg->redelegate.validator_src_address)) {
+    if (!confirm_cosmos_address("Delegator address",
+                                msg->redelegate.delegator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm_cosmos_address("Confirm validator destination address",
-                         msg->redelegate.validator_dst_address)) {
+    if (!confirm_cosmos_address("Validator source address",
+                                msg->redelegate.validator_src_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm_with_custom_layout(
-            &layout_notification_no_title_bold,
-            ButtonRequestType_ButtonRequest_ConfirmOutput, "", "Redelegate %s?",
-            amount_str)) {
+    if (!confirm_cosmos_address("Validator dest. address",
+                                msg->redelegate.validator_dst_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -352,8 +350,16 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
     bn_format_uint64(msg->rewards.amount, NULL, " ATOM", 6, 0, false,
                      amount_str, sizeof(amount_str));
 
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Claim Rewards",
+                 "Claim %s?", amount_str)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
     if (!confirm_cosmos_address("Confirm delegator address",
-                         msg->rewards.delegator_address)) {
+                                msg->rewards.delegator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -361,26 +367,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
     }
 
     if (!confirm_cosmos_address("Confirm validator address",
-                         msg->rewards.validator_address)) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-      layoutHome();
-      return;
-    }
-
-    if (!confirm_with_custom_layout(
-            &layout_notification_no_title_bold,
-            ButtonRequestType_ButtonRequest_ConfirmOutput, "", "Claim %s?",
-            amount_str)) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-      layoutHome();
-      return;
-    }
-
-    if (!confirm_transaction_output(
-            ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
-            msg->send.to_address)) {
+                                msg->rewards.validator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -415,57 +402,43 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
     bn_format_uint64(msg->ibc_transfer.amount, NULL, " ATOM", 6, 0, false,
                      amount_str, sizeof(amount_str));
 
-    if (!confirm_cosmos_address("Confirm sender address", msg->ibc_transfer.sender)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "IBC Transfer",
+                 "Transfer %s to %s?", amount_str, msg->ibc_transfer.sender)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm_with_custom_layout(
-            &layout_notification_no_title_bold,
-            ButtonRequestType_ButtonRequest_ConfirmOutput, "Source Channel",
-            "%s", msg->ibc_transfer.source_channel)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_Other,
+                 "Confirm Source Channel", "%s",
+                 msg->ibc_transfer.source_channel)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm_with_custom_layout(
-            &layout_notification_no_title_bold,
-            ButtonRequestType_ButtonRequest_ConfirmOutput, "Source Port", "%s",
-            msg->ibc_transfer.source_port)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Source Port",
+                 "%s", msg->ibc_transfer.source_port)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm_with_custom_layout(
-            &layout_notification_no_title_bold,
-            ButtonRequestType_ButtonRequest_ConfirmOutput, "Revision Height",
-            "%s", msg->ibc_transfer.revision_height)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_Other,
+                 "Confirm Revision Height", "%s",
+                 msg->ibc_transfer.revision_height)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm_with_custom_layout(
-            &layout_notification_no_title_bold,
-            ButtonRequestType_ButtonRequest_ConfirmOutput, "Revision Number",
-            "%s", msg->ibc_transfer.revision_number)) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-      layoutHome();
-      return;
-    }
-
-    if (!confirm_with_custom_layout(
-            &layout_notification_no_title_bold,
-            ButtonRequestType_ButtonRequest_ConfirmOutput, "IBC Transfer",
-            "Transfer %s?", amount_str)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_Other,
+                 "Confirm Revision Number", "%s",
+                 msg->ibc_transfer.revision_number)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -498,12 +471,14 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
     return;
   }
 
-  if (sign_tx->has_memo && !confirm(ButtonRequestType_ButtonRequest_ConfirmMemo,
-                                    _("Memo"), "%s", sign_tx->memo)) {
-    tendermint_signAbort();
-    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-    layoutHome();
-    return;
+  if (sign_tx->has_memo && (strlen(sign_tx->memo) > 0)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",
+                 sign_tx->memo)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
   }
 
   char node_str[NODE_STRING_LENGTH];
