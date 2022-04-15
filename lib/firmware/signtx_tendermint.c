@@ -364,7 +364,7 @@ bool tendermint_signTxUpdateMsgRedelegate(
   return success;
 }
 
-bool tendermint_signTxUpdateMsgRewards(const uint64_t amount,
+bool tendermint_signTxUpdateMsgRewards(const uint64_t *amount,
                                        const char *delegator_address,
                                        const char *validator_address,
                                        const char *chainstr, const char *denom,
@@ -400,15 +400,17 @@ bool tendermint_signTxUpdateMsgRewards(const uint64_t amount,
       &ctx, buffer, sizeof(buffer),
       "{\"type\":\"%s/MsgWithdrawDelegatorReward\",\"value\":{", msgTypePrefix);
 
-  // 20 + ^20 + 11 + ^9 + 2 = ^64
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"amount\":{\"amount\":\"%" PRIu64
-                                 "\",\"denom\":\"%s\"}",
-                                 amount, denom);
+  // 20 + ^20 + 11 + ^9 + 3 = ^65
+  if (amount != NULL) {
+    success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                   "\"amount\":{\"amount\":\"%" PRIu64
+                                   "\",\"denom\":\"%s\"},",
+                                   *amount, denom);
+  }
 
-  // 22
+  // 21
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 ",\"delegator_address\":\"");
+                                 "\"delegator_address\":\"");
 
   // ^53 + 3 = ^56
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\",\"",

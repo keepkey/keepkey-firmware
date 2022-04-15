@@ -338,24 +338,35 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
   } else if (msg->has_rewards) {
     /** Confirm required transaction parameters exist */
     if (!msg->rewards.has_delegator_address ||
-        !msg->rewards.has_validator_address || !msg->rewards.has_amount) {
+        !msg->rewards.has_validator_address) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));
       layoutHome();
       return;
     }
-    /** Confirm transaction parameters on-screen */
-    char amount_str[32];
-    bn_format_uint64(msg->rewards.amount, NULL, " ATOM", 6, 0, false,
-                     amount_str, sizeof(amount_str));
 
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Claim Rewards",
-                 "Claim %s?", amount_str)) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-      layoutHome();
-      return;
+    if (msg->rewards.has_amount) {
+      /** Confirm transaction parameters on-screen */
+      char amount_str[32];
+      bn_format_uint64(msg->rewards.amount, NULL, " ATOM", 6, 0, false,
+                      amount_str, sizeof(amount_str));
+
+      if (!confirm(ButtonRequestType_ButtonRequest_Other, "Claim Rewards",
+                  "Claim %s?", amount_str)) {
+        tendermint_signAbort();
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        layoutHome();
+        return;
+      }
+    } else {
+      if (!confirm(ButtonRequestType_ButtonRequest_Other, "Claim Rewards",
+                  "Claim all available rewards?")) {
+        tendermint_signAbort();
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        layoutHome();
+        return;
+      }
     }
 
     if (!confirm_cosmos_address("Confirm delegator address",
@@ -375,8 +386,9 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
     }
 
     if (!tendermint_signTxUpdateMsgRewards(
-            msg->rewards.amount, msg->rewards.delegator_address,
-            msg->rewards.validator_address, "cosmos", "uatom", "cosmos-sdk")) {
+            msg->rewards.has_amount ? &msg->rewards.amount : NULL,
+            msg->rewards.delegator_address, msg->rewards.validator_address,
+            "cosmos", "uatom", "cosmos-sdk")) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include rewards message in transaction");
