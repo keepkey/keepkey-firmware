@@ -398,7 +398,7 @@ bool tendermint_signTxUpdateMsgRewards(const uint64_t *amount,
   // 9 + ^24 + 38 = ^72
   success &= tendermint_snprintf(
       &ctx, buffer, sizeof(buffer),
-      "{\"type\":\"%s/MsgWithdrawDelegatorReward\",\"value\":{", msgTypePrefix);
+      "{\"type\":\"%s/MsgWithdrawDelegationReward\",\"value\":{", msgTypePrefix);
 
   // 20 + ^20 + 11 + ^9 + 3 = ^65
   if (amount != NULL) {
