@@ -32,7 +32,7 @@ bool tendermint_signTxUpdateMsgRedelegate(
     const uint64_t amount, const char *delegator_address,
     const char *validator_src_address, const char *validator_dst_address,
     const char *chainstr, const char *denom, const char *msgTypePrefix);
-bool tendermint_signTxUpdateMsgRewards(const uint64_t amount,
+bool tendermint_signTxUpdateMsgRewards(const uint64_t *amount,
                                        const char *delegator_address,
                                        const char *validator_address,
                                        const char *chainstr, 
