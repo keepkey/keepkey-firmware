@@ -133,6 +133,8 @@ static void check_bootloader(void) {
     case BLK_v1_0_3_elf:
     case BLK_v1_0_3_sig:
     case BLK_v1_0_4:
+    case BLK_v1_1_0:
+    case BLK_v2_0_0:
 #ifndef DEBUG_ON
       update_bootloader();
 #endif
@@ -143,8 +145,6 @@ static void check_bootloader(void) {
 #endif
       return;
     case BLK_v2_1_0:
-    case BLK_v2_0_0:
-    case BLK_v1_1_0:
       return;
   }
 

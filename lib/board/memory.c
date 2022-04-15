@@ -114,9 +114,9 @@ void mpu_config(int priv_level) {
   MPU_RASR = MPU_RASR_ENABLE | MPU_RASR_ATTR_PERIPH | MPU_RASR_SIZE_1KB |
              MPU_RASR_ATTR_AP_PRW_URW | MPU_RASR_ATTR_XN;
 
-  // Enable MPU and use the default system memory privileges as the background
-  // execution of the system memory map.
-  MPU_CTRL = MPU_CTRL_ENABLE | MPU_CTRL_PRIVDEFENA;
+  // Enable MPU, use the default system memory privileges as the background
+  // execution of the system memory map, and keep the MPU on during interrupts.
+  MPU_CTRL = MPU_CTRL_ENABLE | MPU_CTRL_PRIVDEFENA | MPU_CTRL_HFNMIENA;
 
   // Enable memory fault handler
   SCB_SHCSR |= SCB_SHCSR_MEMFAULTENA;
