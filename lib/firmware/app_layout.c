@@ -437,7 +437,7 @@ void layout_xpub_notification(const char *desc, const char *xpub,
  *
  * INPUT
  *     - desc: description of address being shown (normal or multisig)
- *     - address: cosmos address to display both as string and QR
+ *     - address: cosmos address to display
  *     - type: notification type
  * OUTPUT
  *      none
