@@ -153,6 +153,9 @@ static bool unknown_bootloader(void) {
     case BLK_v2_0_0:
     case BLK_v2_1_0:
     case BLK_v2_1_1:
+    case BLK_v2_1_2:
+    case BLK_v2_1_3:
+    case BLK_v2_1_4:
       return false;
   }
 

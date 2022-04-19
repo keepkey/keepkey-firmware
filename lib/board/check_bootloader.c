@@ -87,6 +87,15 @@ char bl_hash_v2_1_0[32] =
 char bl_hash_v2_1_1[32] =
     "\xa3\xf8\xc7\x45\xff\x33\xcd\x92\xa7\xe9\x5d\x37\xc7\x6c\x65\x52\x3d\x25"
     "\x8a\x70\x35\x2e\xa4\x4a\x23\x20\x38\xec\x4e\xc3\x8d\xea";
+char bl_hash_v2_1_2[32] =
+    "\x3b\x97\x59\x6e\xd6\x12\xaa\x29\xa7\x4a\x7f\x51\xf3\x3e\xa8\x5f\xd6\xe0"
+    "\xcf\xe7\x34\x0d\xfb\xb9\x6f\x0c\x17\x07\x7b\x36\x34\x98";
+char bl_hash_v2_1_3[32] =
+    "\xe6\x68\x5a\xb1\x48\x44\xd0\xa3\x81\xd6\x58\xd7\x7e\x13\xd6\x14\x5f\xe7"
+    "\xae\x80\x46\x9e\x5a\x53\x60\x21\x0a\xe9\xc3\x44\x7a\x77";
+char bl_hash_v2_1_4[32] =
+    "\xfe\x98\x45\x4e\x7e\xbd\x4a\xef\x4a\x6d\xb5\xbd\x4c\x60\xf5\x2c\xf3\xf5"
+    "\x8b\x97\x42\x83\xa7\xc1\xe1\xfc\xc5\xfe\xa0\x2c\xf3\xeb";
 
 BootloaderKind get_bootloaderKind(void) {
   static uint8_t bl_hash[SHA256_DIGEST_LENGTH];
@@ -102,6 +111,12 @@ BootloaderKind get_bootloaderKind(void) {
   if (0 == memcmp(bl_hash, bl_hash_v2_1_0, 32)) return BLK_v2_1_0;
 
   if (0 == memcmp(bl_hash, bl_hash_v2_1_1, 32)) return BLK_v2_1_1;
+
+  if (0 == memcmp(bl_hash, bl_hash_v2_1_2, 32)) return BLK_v2_1_2;
+
+  if (0 == memcmp(bl_hash, bl_hash_v2_1_3, 32)) return BLK_v2_1_3;
+
+  if (0 == memcmp(bl_hash, bl_hash_v2_1_4, 32)) return BLK_v2_1_4;
 
   // Hotpatched bootloaders
   // ----------------------

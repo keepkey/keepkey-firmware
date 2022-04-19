@@ -135,7 +135,12 @@ static void check_bootloader(void) {
     case BLK_v1_0_4:
     case BLK_v1_1_0:
     case BLK_v2_0_0:
+    // The security issue with bootloaders 2.1.0 - 2.1.3 is just that no one
+    // should actually have them -- they were internal release candidate builds.
     case BLK_v2_1_0:
+    case BLK_v2_1_1:
+    case BLK_v2_1_2:
+    case BLK_v2_1_3:
 #ifndef DEBUG_ON
       update_bootloader();
 #endif
@@ -145,7 +150,7 @@ static void check_bootloader(void) {
       unknown_bootloader();
 #endif
       return;
-    case BLK_v2_1_1:
+    case BLK_v2_1_4:
       return;
   }
 
