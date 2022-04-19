@@ -181,9 +181,8 @@ static bool isFirmwareUpdateMode(void) {
   // Firmware isn't there?
   if (!magic_ok()) return true;
 
-    // When debugging over jtag, these are triggering, sending us into update
-    // mode.
-#ifndef DEBUG_ON
+  // When debugging over jtag, these are triggering, sending us into update
+  // mode.
   int signed_firmware = signatures_ok();
 
   // Check if the firmware wants us to boot into firmware update mode.
@@ -193,7 +192,6 @@ static bool isFirmwareUpdateMode(void) {
 
   // If the firmware was signed with old signing keys, we also need to update.
   if (signed_firmware == KEY_EXPIRED) return true;
-#endif
 
   // Attempt to boot.
   return false;
