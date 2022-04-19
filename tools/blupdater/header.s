@@ -12,7 +12,7 @@ g_header:
     .byte 0                // sigindex2
     .byte 0                // sigindex3
     .byte 1                // sig_flag: Preserve
-    .word 1                // meta_flags: UpdateAfter
+    .word 0                // meta_flags: UpdateAfter
     . = . + 48             // reserved
     . = . + 64             // sig1
     . = . + 64             // sig2

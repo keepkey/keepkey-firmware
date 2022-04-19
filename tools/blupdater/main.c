@@ -91,17 +91,17 @@ static bool write_bootloader(void) {
     flash_unlock();
 
     // erase the bootloader sectors, do not use flash_erase_word()
-    layoutProgress("Updating. DO NOT UNPLUG", 0);
+    layoutProgress("Updating bootloader. DO NOT UNPLUG", 0);
     flash_erase_sector(5, FLASH_CR_PROGRAM_X32);
     flash_wait_for_last_operation();
-    layoutProgress("Updating. DO NOT UNPLUG", 100);
+    layoutProgress("Updating bootloader. DO NOT UNPLUG", 100);
     flash_erase_sector(6, FLASH_CR_PROGRAM_X32);
     flash_wait_for_last_operation();
 
     // Write into the sector.
     for (int chunkstart = 0; chunkstart < _binary_payload_bin_size;
          chunkstart += CHUNK_SIZE) {
-      layoutProgress("Updating. DO NOT UNPLUG",
+      layoutProgress("Updating bootloader. DO NOT UNPLUG",
                      200 + chunkstart * 800 / _binary_payload_bin_size);
 
       size_t chunksize;
@@ -162,6 +162,33 @@ static bool unknown_bootloader(void) {
 /// \brief Success: everything went smoothly as expected, and the device has a
 ///        new bootloader installed.
 static void success(void) {
+  for (int i = 0; i < NUM_RETRIES; ++i) {
+    // Enable writing to the read-only sectors
+    memory_unlock();
+    flash_unlock();
+
+    flash_program_word(FLASH_META_FLAGS, META_FLAGS | 1);
+    flash_wait_for_last_operation();
+
+    if ((META_FLAGS & 1) == 1) {
+      break;
+    }
+  }
+
+  // Disallow writing to flash.
+  flash_lock();
+
+  // Ignore any reported errors, we only care about the end result.
+  flash_clear_status_flags();
+
+  if ((META_FLAGS & 1) != 1) {
+    layout_standard_notification("Bootloader Update Complete",
+                                 "Please unplug your device.",
+                                 NOTIFICATION_CONFIRMED);
+    display_refresh();
+    shutdown();
+  }
+
   layout_standard_notification("Bootloader Update Complete",
                                "Your device will now restart",
                                NOTIFICATION_CONFIRMED);
