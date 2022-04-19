@@ -313,6 +313,8 @@ static enum usbd_request_return_codes hid_control_request(
   return 1;
 }
 
+static volatile char tiny = 0;
+
 static void main_rx_callback(usbd_device *dev, uint8_t ep) {
   (void)ep;
   static CONFIDENTIAL uint8_t buf[64] __attribute__((aligned(4)));
@@ -333,7 +335,7 @@ static void u2f_rx_callback(usbd_device *dev, uint8_t ep) {
   if (usbd_ep_read_packet(dev, ENDPOINT_ADDRESS_U2F_OUT, buf, 64) != 64) return;
 
   if (user_u2f_rx_callback) {
-    user_u2f_rx_callback(msg_tiny_flag, (const U2FHID_FRAME *)(void *)buf);
+    user_u2f_rx_callback(tiny, (const U2FHID_FRAME *)(void *)buf);
   }
 }
 
@@ -421,8 +423,8 @@ void usbReconnect(void) {
 }
 
 char usbTiny(char set) {
-  char old = msg_tiny_flag;
-  msg_tiny_flag = set;
+  char old = tiny;
+  tiny = set;
   return old;
 }
 

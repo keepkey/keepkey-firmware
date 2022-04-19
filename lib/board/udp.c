@@ -20,7 +20,6 @@
 #ifdef EMULATOR
 
 #include "keepkey/board/usb.h"
-#include "keepkey/board/messages.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/emulator/emulator.h"
 
@@ -32,6 +31,8 @@ extern usb_rx_callback_t user_rx_callback;
 #if DEBUG_LINK
 extern usb_rx_callback_t user_debug_rx_callback;
 #endif
+
+static volatile char tiny = 0;
 
 void usbInit(const char *origin_url) {
   (void)origin_url;
@@ -46,7 +47,7 @@ void usbPoll(void) {
 
   int iface = 0;
   if (0 < (len = emulatorSocketRead(&iface, buf, sizeof(buf)))) {
-    if (!msg_tiny_flag) {
+    if (!tiny) {
       if (iface == 0) {
         user_rx_callback(&buf, len);
       } else if (iface == 1) {
@@ -74,8 +75,8 @@ bool usb_debug_tx(uint8_t *msg, uint32_t len) {
 #endif
 
 char usbTiny(char set) {
-  char old = msg_tiny_flag;
-  msg_tiny_flag = set;
+  char old = tiny;
+  tiny = set;
   return old;
 }
 

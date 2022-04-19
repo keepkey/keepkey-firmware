@@ -97,8 +97,6 @@ typedef enum {
   RAW_MESSAGE_ERROR
 } RawMessageState;
 
-extern bool msg_tiny_flag;
-
 typedef void (*raw_msg_handler_t)(RawMessage *msg, uint32_t frame_length);
 
 const pb_field_t *message_fields(MessageMapType type, MessageType msg_id,
