@@ -257,11 +257,13 @@ void u2fhid_read_start(const U2FHID_FRAME *f) {
     // wait for next commmand/ button press
     reader->cmd = 0;
     reader->seq = 255;
+    bool saw_button_up_at_least_once = false;
     while (dialog_timeout > 0 && reader->cmd == 0) {
       dialog_timeout--;
+      saw_button_up_at_least_once = saw_button_up_at_least_once || keepkey_button_up();
       usbPoll();  // may trigger new request
       // buttonUpdate();
-      if (keepkey_button_down() &&
+      if (saw_button_up_at_least_once && keepkey_button_down() &&
           (last_req_state == AUTH || last_req_state == REG)) {
         last_req_state++;
         // standard requires to remember button press for 10 seconds.
