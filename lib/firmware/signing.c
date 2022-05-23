@@ -40,6 +40,30 @@
 
 #define _(X) (X)
 
+#define DEBUG_DISPLAY_VAL(TITLE,VALNAME,SIZE,BYTES) 
+#define DEBUG_DISPLAY(TITLE) 
+// Set DEBUG_UTXO to non-zero to display each stage of the utxo signing sequence
+#define DEBUG_UTXO  0
+#if DEBUG_ON && DEBUG_UTXO
+  #undef DEBUG_DISPLAY
+  #undef  DEBUG_DISPLAY_VAL
+  #define DEBUG_DISPLAY(TITLE) \
+  {\
+    (void)review(ButtonRequestType_ButtonRequest_Other, TITLE, " ");\
+  }
+  #define DEBUG_DISPLAY_VAL(TITLE,VALNAME,SIZE,BYTES) \
+  {\
+    char str[SIZE+1];\
+    int ctr;\
+    for (ctr=0; ctr<SIZE/2; ctr++) {\
+      snprintf(&str[2*ctr], 3, "%02x", BYTES);\
+    }\
+    (void)review(ButtonRequestType_ButtonRequest_Other, TITLE,\
+                 VALNAME, str);\
+  }
+#endif
+
+
 static uint32_t inputs_count;
 static uint32_t outputs_count;
 static const CoinType *coin;
@@ -232,6 +256,7 @@ scriptSig Compute hash_witness
 */
 
 void send_req_1_input(void) {
+  DEBUG_DISPLAY("send_req_1_input");
   signing_stage = STAGE_REQUEST_1_INPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXINPUT;
@@ -242,6 +267,7 @@ void send_req_1_input(void) {
 }
 
 void send_req_2_prev_meta(void) {
+  DEBUG_DISPLAY("send_req_2_prev_meta");
   signing_stage = STAGE_REQUEST_2_PREV_META;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXMETA;
@@ -254,6 +280,7 @@ void send_req_2_prev_meta(void) {
 }
 
 void send_req_2_prev_input(void) {
+  DEBUG_DISPLAY("send_req_2_prev_input");
   signing_stage = STAGE_REQUEST_2_PREV_INPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXINPUT;
@@ -268,6 +295,7 @@ void send_req_2_prev_input(void) {
 }
 
 void send_req_2_prev_output(void) {
+  DEBUG_DISPLAY("send_req_2_prev_output");
   signing_stage = STAGE_REQUEST_2_PREV_OUTPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXOUTPUT;
@@ -282,6 +310,7 @@ void send_req_2_prev_output(void) {
 }
 
 void send_req_2_prev_extradata(uint32_t chunk_offset, uint32_t chunk_len) {
+  DEBUG_DISPLAY("send_req_2_prev_extradata");
   signing_stage = STAGE_REQUEST_2_PREV_EXTRADATA;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXEXTRADATA;
@@ -298,6 +327,7 @@ void send_req_2_prev_extradata(uint32_t chunk_offset, uint32_t chunk_len) {
 }
 
 void send_req_3_output(void) {
+  DEBUG_DISPLAY("send_req_3_output");
   signing_stage = STAGE_REQUEST_3_OUTPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXOUTPUT;
@@ -308,6 +338,7 @@ void send_req_3_output(void) {
 }
 
 void send_req_4_input(void) {
+  DEBUG_DISPLAY("send_req_4_input");
   signing_stage = STAGE_REQUEST_4_INPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXINPUT;
@@ -318,6 +349,7 @@ void send_req_4_input(void) {
 }
 
 void send_req_4_output(void) {
+  DEBUG_DISPLAY("send_req_4_output");
   signing_stage = STAGE_REQUEST_4_OUTPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXOUTPUT;
@@ -328,6 +360,7 @@ void send_req_4_output(void) {
 }
 
 void send_req_segwit_input(void) {
+  DEBUG_DISPLAY("send_req_segwit_input");
   signing_stage = STAGE_REQUEST_SEGWIT_INPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXINPUT;
@@ -338,6 +371,7 @@ void send_req_segwit_input(void) {
 }
 
 void send_req_segwit_witness(void) {
+  DEBUG_DISPLAY("send_req_segwit_witness");
   signing_stage = STAGE_REQUEST_SEGWIT_WITNESS;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXINPUT;
@@ -348,6 +382,7 @@ void send_req_segwit_witness(void) {
 }
 
 void send_req_decred_witness(void) {
+  DEBUG_DISPLAY("send_req_decred_witness");
   signing_stage = STAGE_REQUEST_DECRED_WITNESS;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXINPUT;
@@ -358,6 +393,7 @@ void send_req_decred_witness(void) {
 }
 
 void send_req_5_output(void) {
+  DEBUG_DISPLAY("send_req_5_output");
   signing_stage = STAGE_REQUEST_5_OUTPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXOUTPUT;
@@ -368,6 +404,7 @@ void send_req_5_output(void) {
 }
 
 void send_req_finished(void) {
+  DEBUG_DISPLAY("send_req_finished");
   resp.has_request_type = true;
   resp.request_type = RequestType_TXFINISHED;
   msg_write(MessageType_MessageType_TxRequest, &resp);
@@ -719,7 +756,7 @@ static bool is_segwit_input_script_type(const TxInputType *txinput) {
 static bool signing_validate_input(const TxInputType *txinput) {
   if (txinput->prev_hash.size != 32) {
     fsm_sendFailure(FailureType_Failure_Other,
-                    _("Encountered invalid prevhash"));
+                    _("Encountered invalid prevhash 1"));
     signing_abort();
     return false;
   }
@@ -893,7 +930,7 @@ static bool signing_check_prevtx_hash(void) {
   tx_hash_final(&tp, hash, true);
   if (memcmp(hash, input.prev_hash.bytes, 32) != 0) {
     fsm_sendFailure(FailureType_Failure_Other,
-                    _("Encountered invalid prevhash"));
+                    _("Encountered invalid prevhash 2"));
     signing_abort();
     return false;
   }
