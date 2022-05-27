@@ -26,11 +26,27 @@ reset_handler:
   ldr     r0, [r0]
   msr     msp, r0
 
+  // Save any reset parameters from the SRAM wipe
+  ldr r0, =_param_1
+  ldr r3, [r0]
+  ldr r0, =_param_2
+  ldr r4, [r0]
+  ldr r0, =_param_3
+  ldr r5, [r0]
+
   ldr r0, =_ram_start // r0 - point to beginning of SRAM
 //  ldr r1, =_ram_end   // r1 - point to byte after the end of SRAM
   ldr r1, =_comram_end
   ldr r2, =0          // r2 - the byte-sized value to be written
   bl memset_reg
+
+  // Restore any reset parameters
+  ldr r0, =_param_1
+  str r3, [r0]
+  ldr r0, =_param_2
+  str r4, [r0]
+  ldr r0, =_param_3
+  str r5, [r0]
 
   // copy .data section from flash to SRAM
   ldr r0, =_data          // dst addr

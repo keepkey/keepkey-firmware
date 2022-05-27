@@ -70,9 +70,8 @@ void memory_getDeviceLabel(char *str, size_t len) {
   }
 }
 
-static bool canDropPrivs(void) {
-
-  // Check to see if we are in priv mode. If not, return true to drop privs.
+bool inPrivilegedMode(void) {
+  // Check to see if we are in priv mode. If so, return true to drop privs.
   uint32_t creg = 0xffff;
   // CONTROL register nPRIV,bit[0]: 
   //    0 Thread mode has privileged access
@@ -91,7 +90,7 @@ static bool canDropPrivs(void) {
 }
 
 static void drop_privs(void) {
-  if (!canDropPrivs()) return;
+  if (!inPrivilegedMode()) return;
 
   // Legacy bootloader code will have interrupts disabled at this point.
   // To maintain compatibility, the timer and button interrupts need to
@@ -133,6 +132,14 @@ static void check_bootloader(void) {
     case BLK_v1_0_3_elf:
     case BLK_v1_0_3_sig:
     case BLK_v1_0_4:
+    case BLK_v1_1_0:
+    case BLK_v2_0_0:
+    // The security issue with bootloaders 2.1.0 - 2.1.3 is just that no one
+    // should actually have them -- they were internal release candidate builds.
+    case BLK_v2_1_0:
+    case BLK_v2_1_1:
+    case BLK_v2_1_2:
+    case BLK_v2_1_3:
 #ifndef DEBUG_ON
       update_bootloader();
 #endif
@@ -142,9 +149,7 @@ static void check_bootloader(void) {
       unknown_bootloader();
 #endif
       return;
-    case BLK_v2_1_0:
-    case BLK_v2_0_0:
-    case BLK_v1_1_0:
+    case BLK_v2_1_4:
       return;
   }
 
@@ -201,7 +206,7 @@ int main(void) {
 
   led_func(SET_GREEN_LED);
 
-  usbInit("beta.shapeshift.com");
+  usbInit("app.shapeshift.com");
 
   u2fInit();
   led_func(CLR_RED_LED);

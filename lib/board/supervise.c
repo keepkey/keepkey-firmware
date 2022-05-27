@@ -30,6 +30,63 @@
 
 #ifndef EMULATOR
 
+bool do_memory_ranges_overlap(size_t range1Start, size_t range1End, size_t range2Start, size_t range2End) {
+  if (range1Start <= range2Start) {
+    return range2Start < range1End;
+  } else {
+    return range1Start < range2End;
+  }
+}
+
+bool allow_svhandler_flash_sector(const FlashSector* sector) {
+  return sector->use == FLASH_STORAGE1 ||
+         sector->use == FLASH_STORAGE2 ||
+         sector->use == FLASH_STORAGE3 ||
+         sector->use == FLASH_UNUSED0 ||
+         sector->use == FLASH_APP;
+}
+
+bool allow_svhandler_flash_sector_num(int sector) {
+  for (const FlashSector *s = flash_sector_map; s->use != FLASH_INVALID; s++) {
+    if (s->sector == sector) return allow_svhandler_flash_sector(s);
+  }
+  return false;
+}
+
+bool allow_svhandler_flash_range(size_t start, size_t end) {
+  // Protect from overflow.
+  if (start > end) return false;
+
+  // Disallow non-flash writes.
+  if (start < FLASH_ORIGIN || end > FLASH_END) return false;
+
+  // Disallow writes to any sectors which aren't allowed.
+  bool startAllowed = false;
+  bool endAllowed = false;
+  for (const FlashSector* s = flash_sector_map; s->use != FLASH_INVALID; s++) {
+    if (allow_svhandler_flash_sector(s)) {
+      if (!startAllowed &&
+          start + 1 > start &&
+          do_memory_ranges_overlap(start, start + 1, s->start, s->start + s->len)) {
+        startAllowed = true;
+      }
+      if (!endAllowed &&
+          end - 1 < end &&
+          do_memory_ranges_overlap(end - 1, end, s->start, s->start + s->len)) {
+        endAllowed = true;
+      }
+    } else {
+      if (do_memory_ranges_overlap(start, end, s->start, s->start + s->len)) return false;
+    }
+  }
+
+  // Ensure writes start and end in allowed sectors. As long as flash_sector_map consists of
+  // contiguous sectors, this will ensure no writes can target flash outside the map.
+  if (!startAllowed || !endAllowed) return false;
+
+  return true;
+}
+
 /// Return context from user isr processing
 void svc_busr_return(void) {
   __asm__ __volatile__("svc %0" ::"i"(SVC_BUSR_RET) : "memory");
@@ -59,10 +116,10 @@ void svc_flash_erase_sector(uint32_t sector) {
   __asm__ __volatile__("svc %0" ::"i"(SVC_FLASH_ERASE) : "memory");
 }
 
-bool svc_flash_pgm_blk(uint32_t beginAddr, uint32_t data, uint32_t align) {
+bool svc_flash_pgm_blk(uint32_t beginAddr, uint32_t data, uint32_t length) {
   _param_1 = beginAddr;
   _param_2 = data;
-  _param_3 = align;
+  _param_3 = length;
   __asm__ __volatile__("svc %0" ::"i"(SVC_FLASH_PGM_BLK) : "memory");
   return !!_param_1;
 }
@@ -76,13 +133,10 @@ bool svc_flash_pgm_word(uint32_t beginAddr, uint32_t data) {
 }
 
 void svhandler_flash_erase_sector(void) {
-  uint32_t sector = _param_1;
+  uint8_t sector = _param_1;
 
-  // Do not allow firmware to erase bootstrap or bootloader sectors.
-  if ((sector == FLASH_BOOTSTRAP_SECTOR) ||
-      (sector >= FLASH_BOOT_SECTOR_FIRST && sector <= FLASH_BOOT_SECTOR_LAST)) {
-    return;
-  }
+  // Verify requested sector is allowed.
+  if (!allow_svhandler_flash_sector_num(sector)) return;
 
   // Unlock flash.
   flash_clear_status_flags();
@@ -111,25 +165,8 @@ void svhandler_flash_pgm_blk(void) {
   uint32_t data = _param_2;
   uint32_t length = _param_3;
 
-  // Protect from overflow.
-  if (beginAddr + length < beginAddr) return;
-
-  // Do not allow firmware to erase bootstrap or bootloader sectors.
-  if (((beginAddr >= BSTRP_FLASH_SECT_START) &&
-       (beginAddr <= (BSTRP_FLASH_SECT_START + BSTRP_FLASH_SECT_LEN - 1))) ||
-      (((beginAddr + length) >= BSTRP_FLASH_SECT_START) &&
-       ((beginAddr + length) <=
-        (BSTRP_FLASH_SECT_START + BSTRP_FLASH_SECT_LEN - 1)))) {
-    return;
-  }
-
-  if (((beginAddr >= BLDR_FLASH_SECT_START) &&
-       (beginAddr <= (BLDR_FLASH_SECT_START + 2 * BLDR_FLASH_SECT_LEN - 1))) ||
-      (((beginAddr + length) >= BLDR_FLASH_SECT_START) &&
-       ((beginAddr + length) <=
-        (BLDR_FLASH_SECT_START + 2 * BLDR_FLASH_SECT_LEN - 1)))) {
-    return;
-  }
+  // Verify requested address range is allowed.
+  if (!allow_svhandler_flash_range(beginAddr, beginAddr + length)) return;
 
   // Unlock flash.
   flash_clear_status_flags();
@@ -157,16 +194,8 @@ void svhandler_flash_pgm_word(void) {
   uint32_t dst = _param_1;
   uint32_t src = _param_2;
 
-  // Do not allow firmware to erase bootstrap or bootloader sectors.
-  if ((dst >= BSTRP_FLASH_SECT_START) &&
-      (dst <= (BSTRP_FLASH_SECT_START + BSTRP_FLASH_SECT_LEN))) {
-    return;
-  }
-
-  if ((dst >= BLDR_FLASH_SECT_START) &&
-      (dst <= (BLDR_FLASH_SECT_START + 2 * BLDR_FLASH_SECT_LEN))) {
-    return;
-  }
+  // Verify requested address range is allowed.
+  if (!allow_svhandler_flash_range(dst, dst + sizeof(uint32_t))) return;
 
   // Unlock flash.
   flash_clear_status_flags();
