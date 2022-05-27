@@ -61,6 +61,10 @@
 #define VERSION_NUM(x) #x
 #define VERSION_STR(x) VERSION_NUM(x)
 
+#define RESET_PARAM_NONE 0
+// This is the ASCII string "UPDT" interpreted as an integer in little-endian form.
+#define RESET_PARAM_REQUEST_UPDATE 0x54445055
+
 /* Flash metadata structure which will contains unique identifier
    information that spans device resets.  */
 typedef struct _Metadata {
@@ -79,7 +83,7 @@ typedef struct _Cache {
 
 extern uintptr_t __stack_chk_guard;
 
-void board_reset(void);
+void board_reset(uint32_t reset_param);
 void board_init(void);
 void kk_board_init(void);
 

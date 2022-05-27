@@ -143,6 +143,26 @@ static inline void __attribute__((noreturn)) jump_to_firmware(int trust) {
     ;
 }
 
+uint32_t reset_param = 0;
+
+void capture_reset_param(void) {
+  // Capture the reset parameter value. Because SRAM starts up from a cold boot
+  // in an undefined state, a simple redundancy-based check is used to validate
+  // that a parameter was in fact passed: _param_1 and _param_3 must match, and
+  // _param_2 must be their bitwise inverse.
+  //
+  // Currently, this is only used by the blupdater to request that the firmware
+  // enter update mode, by passing RESET_PARAM_REQUEST_UPDATE.
+  if (_param_1 == ~_param_2 && _param_1 == _param_3) {
+    reset_param = _param_1;
+  }
+
+  // Clear the shared memory section used for communicating the reset parameter.
+  _param_1 = 0;
+  _param_2 = 0;
+  _param_3 = 0;
+}
+
 /// Bootloader Board Initialization
 static void bootloader_init(void) {
   cm_enable_interrupts();
@@ -156,6 +176,7 @@ static void bootloader_init(void) {
   storage_sectorInit();
   display_hw_init();
   layout_init(display_canvas_init());
+  capture_reset_param();
 }
 
 /// Enable the timer interrupts
@@ -175,25 +196,26 @@ static void clock_init(void) {
 
 /// \returns true iff the device should enter firmware update mode.
 static bool isFirmwareUpdateMode(void) {
+  // Firmware asked for an update.
+  if (reset_param == RESET_PARAM_REQUEST_UPDATE) return true;
+
   // User asked for an update.
   if (keepkey_button_down()) return true;
 
   // Firmware isn't there?
   if (!magic_ok()) return true;
 
-    // When debugging over jtag, these are triggering, sending us into update
-    // mode.
-#ifndef DEBUG_ON
+  // When debugging over jtag, these are triggering, sending us into update
+  // mode.
   int signed_firmware = signatures_ok();
 
   // Check if the firmware wants us to boot into firmware update mode.
   // This is used to skip a hard reset after bootloader update, and drop the
   // user right back into the firmware update flow.
-  if ((FLASH_META_FLAGS & 1) == 1) return true;
+  if ((META_FLAGS & 1) == 1) return true;
 
   // If the firmware was signed with old signing keys, we also need to update.
   if (signed_firmware == KEY_EXPIRED) return true;
-#endif
 
   // Attempt to boot.
   return false;
@@ -282,7 +304,7 @@ static void update_fw(void) {
                                  NOTIFICATION_CONFIRMED);
     display_refresh();
     delay_ms(3000);
-    board_reset();
+    board_reset(RESET_PARAM_NONE);
   } else {
     layout_standard_notification(
         "Firmware Update Failure",

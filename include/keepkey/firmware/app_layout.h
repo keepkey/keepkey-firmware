@@ -110,6 +110,8 @@ void layout_xpub_notification(const char *desc, const char *xpub,
                               NotificationType type);
 void layout_address_notification(const char *desc, const char *address,
                                  NotificationType type);
+void layout_cosmos_address_notification(const char *desc, const char *address,
+                                          NotificationType type);                                 
 void layout_ethereum_address_notification(const char *desc, const char *address,
                                           NotificationType type);
 void layout_nano_address_notification(const char *desc, const char *address,

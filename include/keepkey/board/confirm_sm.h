@@ -25,6 +25,24 @@
 
 #include <stdbool.h>
 
+/* implement a means to display debug information */
+#ifdef DEBUG_ON
+  #define DEBUG_DISPLAY(TITLE) \
+  {\
+    (void)review(ButtonRequestType_ButtonRequest_Other, TITLE, " ");\
+  }
+  #define DEBUG_DISPLAY_VAL(TITLE,VALNAME,SIZE,BYTES) \
+  {\
+    char str[SIZE+1];\
+    int ctr;\
+    for (ctr=0; ctr<SIZE/2; ctr++) {\
+      snprintf(&str[2*ctr], 3, "%02x", BYTES);\
+    }\
+    (void)review(ButtonRequestType_ButtonRequest_Other, TITLE,\
+                 VALNAME, str);\
+  }
+#endif
+
 /* The number of milliseconds to wait for a confirmation */
 #define CONFIRM_TIMEOUT_MS 1200
 
