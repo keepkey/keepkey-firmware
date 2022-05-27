@@ -48,6 +48,10 @@
     MSG_IN(MessageType_MessageType_CosmosSignTx,                    CosmosSignTx,                fsm_msgCosmosSignTx)
     MSG_IN(MessageType_MessageType_CosmosMsgAck,                    CosmosMsgAck,                fsm_msgCosmosMsgAck)
 
+    MSG_IN(MessageType_MessageType_CosmosGetAddress,                OsmosisGetAddress,           fsm_msgOsmosisGetAddress)
+    MSG_IN(MessageType_MessageType_OsmosisSignTx,                   OsmosisSignTx,               fsm_msgOsmosisSignTx)
+    MSG_IN(MessageType_MessageType_OsmosisMsgAck,                   OsmosisMsgAck,               fsm_msgOsmosisMsgAck)
+
     MSG_IN(MessageType_MessageType_BinanceGetAddress,               BinanceGetAddress,           fsm_msgBinanceGetAddress)
     MSG_IN(MessageType_MessageType_BinanceSignTx,                   BinanceSignTx,               fsm_msgBinanceSignTx)
     MSG_IN(MessageType_MessageType_BinanceTransferMsg,              BinanceTransferMsg,          fsm_msgBinanceTransferMsg)
@@ -62,11 +66,6 @@
     MSG_IN(MessageType_MessageType_ThorchainGetAddress,             ThorchainGetAddress,         fsm_msgThorchainGetAddress)
     MSG_IN(MessageType_MessageType_ThorchainSignTx,                 ThorchainSignTx,             fsm_msgThorchainSignTx)
     MSG_IN(MessageType_MessageType_ThorchainMsgAck,                 ThorchainMsgAck,             fsm_msgThorchainMsgAck)
-
-    MSG_IN(MessageType_MessageType_OsmosisGetAddress,               OsmosisGetAddress,           fsm_msgOsmosisGetAddress)
-    MSG_IN(MessageType_MessageType_OsmosisSignTx,                   OsmosisSignTx,               fsm_msgOsmosisSignTx)
-    MSG_IN(MessageType_MessageType_OsmosisMsgAck,                   OsmosisMsgAck,               fsm_msgOsmosisMsgAck)
-
 
     /* Normal Out Messages */
     MSG_OUT(MessageType_MessageType_Success,                        Success,                     NO_PROCESS_FUNC)
@@ -103,6 +102,10 @@
     MSG_OUT(MessageType_MessageType_CosmosMsgRequest,               CosmosMsgRequest,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_CosmosSignedTx,                 CosmosSignedTx,              NO_PROCESS_FUNC)
 
+    MSG_OUT(MessageType_MessageType_OsmosisAddress,                 OsmosisAddress,              NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_OsmosisMsgRequest,              OsmosisMsgRequest,           NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_OsmosisSignedTx,                OsmosisSignedTx,             NO_PROCESS_FUNC)
+
     MSG_OUT(MessageType_MessageType_BinanceAddress,                 BinanceAddress,              NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_BinancePublicKey,               BinancePublicKey,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_BinanceTxRequest,               BinanceTxRequest,            NO_PROCESS_FUNC)
@@ -118,10 +121,6 @@
     MSG_OUT(MessageType_MessageType_ThorchainAddress,               ThorchainAddress,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_ThorchainMsgRequest,            ThorchainMsgRequest,         NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_ThorchainSignedTx,              ThorchainSignedTx,           NO_PROCESS_FUNC)
-
-    MSG_OUT(MessageType_MessageType_OsmosisAddress,                 OsmosisAddress,              NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_OsmosisMsgRequest,              OsmosisMsgRequest,           NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_OsmosisSignedTx,                OsmosisSignedTx,             NO_PROCESS_FUNC)
 
 #if DEBUG_LINK
     /* Debug Messages */

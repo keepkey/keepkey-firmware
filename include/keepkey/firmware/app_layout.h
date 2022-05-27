@@ -39,19 +39,19 @@
 #define NO_TITLE_WIDTH 250
 
 /* PIN Matrix */
-#define MATRIX_MASK_COLOR                   0x00
-#define MATRIX_MASK_MARGIN                  3
-#define PIN_MATRIX_GRID_SIZE                18
-#define PIN_MATRIX_ANIMATION_FREQUENCY_MS   40
-#define PIN_MATRIX_BACKGROUND               0x11
-#define PIN_MATRIX_STEP1                    0x11
-#define PIN_MATRIX_STEP2                    0x33
-#define PIN_MATRIX_STEP3                    0x77
-#define PIN_MATRIX_STEP4                    0xBB
-#define PIN_MATRIX_FOREGROUND               0xFF
-#define PIN_SLIDE_DELAY                     20
-#define PIN_MAX_ANIMATION_MS                1000
-#define PIN_LEFT_MARGIN                     195
+#define MATRIX_MASK_COLOR 0x00
+#define MATRIX_MASK_MARGIN 3
+#define PIN_MATRIX_GRID_SIZE 18
+#define PIN_MATRIX_ANIMATION_FREQUENCY_MS 40
+#define PIN_MATRIX_BACKGROUND 0x11
+#define PIN_MATRIX_STEP1 0x11
+#define PIN_MATRIX_STEP2 0x33
+#define PIN_MATRIX_STEP3 0x77
+#define PIN_MATRIX_STEP4 0xBB
+#define PIN_MATRIX_FOREGROUND 0xFF
+#define PIN_SLIDE_DELAY 20
+#define PIN_MAX_ANIMATION_MS 1000
+#define PIN_LEFT_MARGIN 195
 
 /* Recovery Cypher */
 #define CIPHER_ROWS 2
@@ -111,7 +111,9 @@ void layout_xpub_notification(const char *desc, const char *xpub,
 void layout_address_notification(const char *desc, const char *address,
                                  NotificationType type);
 void layout_cosmos_address_notification(const char *desc, const char *address,
-                                          NotificationType type);                                 
+                                        NotificationType type);
+void layout_osmosis_address_notification(const char *desc, const char *address,
+                                         NotificationType type);
 void layout_ethereum_address_notification(const char *desc, const char *address,
                                           NotificationType type);
 void layout_nano_address_notification(const char *desc, const char *address,

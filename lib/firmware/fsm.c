@@ -76,11 +76,11 @@
 #include "messages-ethereum.pb.h"
 #include "messages-binance.pb.h"
 #include "messages-cosmos.pb.h"
+#include "messages-osmosis.pb.h"
 #include "messages-eos.pb.h"
 #include "messages-nano.pb.h"
 #include "messages-ripple.pb.h"
 #include "messages-thorchain.pb.h"
-#include "messages-osmosis.pb.h"
 
 #include <stdio.h>
 
@@ -276,8 +276,8 @@ void fsm_msgClearSession(ClearSession *msg) {
 #include "fsm_msg_debug.h"
 #include "fsm_msg_eos.h"
 #include "fsm_msg_cosmos.h"
+#include "fsm_msg_osmosis.h"
 #include "fsm_msg_binance.h"
 #include "fsm_msg_ripple.h"
 #include "fsm_msg_tendermint.h"
 #include "fsm_msg_thorchain.h"
-#include "fsm_msg_osmosis.h"

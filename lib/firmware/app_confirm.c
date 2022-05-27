@@ -273,6 +273,22 @@ bool confirm_xpub(const char *node_str, const char *xpub) {
                                       desc, "%s", address);
   }
 
+    /*
+   * confirm_osmosis_address() - Show osmosis address confirmation
+   *
+   * INPUT
+   *      - desc: description to show with address
+   *      - address: address to display both as string and in QR
+   * OUTPUT
+   *     true/false of confirmation
+   *
+   */
+  bool confirm_osmosis_address(const char *desc, const char *address) {
+    return confirm_with_custom_layout(&layout_osmosis_address_notification,
+                                      ButtonRequestType_ButtonRequest_Address,
+                                      desc, "%s", address);
+  }
+
   /*
    * confirm_ethereum_address() - Show ethereum address confirmation
    *
