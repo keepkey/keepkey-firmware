@@ -24,7 +24,7 @@
 #include <string.h>
 #include <sys/socket.h>
 
-#define TREZOR_UDP_PORT 21324
+#define KEEPKEY_UDP_PORT 11044
 
 struct usb_socket {
   int fd;
@@ -95,9 +95,9 @@ static size_t socket_read(struct usb_socket *sock, void *buffer, size_t size) {
 }
 
 void emulatorSocketInit(void) {
-  usb_main.fd = socket_setup(TREZOR_UDP_PORT);
+  usb_main.fd = socket_setup(KEEPKEY_UDP_PORT);
   usb_main.fromlen = 0;
-  usb_debug.fd = socket_setup(TREZOR_UDP_PORT + 1);
+  usb_debug.fd = socket_setup(KEEPKEY_UDP_PORT + 1);
   usb_debug.fromlen = 0;
 }
 

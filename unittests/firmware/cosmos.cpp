@@ -1,6 +1,7 @@
 extern "C" {
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/cosmos.h"
+#include "keepkey/firmware/signtx_tendermint.h"
 #include "keepkey/firmware/tendermint.h"
 #include "trezor/crypto/secp256k1.h"
 }
@@ -53,14 +54,14 @@ TEST(Cosmos, CosmosSignTx) {
       true, 0,              // sequence
       true, 1               // msg_count
   };
-  ASSERT_TRUE(cosmos_signTxInit(&node, &msg));
+  ASSERT_TRUE(tendermint_signTxInit(&node, &msg, sizeof(CosmosSignTx), "uatom"));
 
-  ASSERT_TRUE(cosmos_signTxUpdateMsgSend(
-      100000, "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v"));
+  ASSERT_TRUE(tendermint_signTxUpdateMsgSend(100000, "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", "cosmos", "uatom", "cosmos-sdk"));
+
 
   uint8_t public_key[33];
   uint8_t signature[64];
-  ASSERT_TRUE(cosmos_signTxFinalize(public_key, signature));
+  ASSERT_TRUE(tendermint_signTxFinalize(public_key, signature));
 
   EXPECT_TRUE(
       memcmp(signature,

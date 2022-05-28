@@ -200,7 +200,7 @@ bool usb_flash_firmware(void) {
   layout_debuglink_watermark();
 #endif
 
-  usbInit("beta.shapeshift.com");
+  usbInit("app.shapeshift.com");
   bootloader_fsm_init();
 
   while (1) {

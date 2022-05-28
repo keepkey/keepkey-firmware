@@ -91,17 +91,17 @@ static bool write_bootloader(void) {
     flash_unlock();
 
     // erase the bootloader sectors, do not use flash_erase_word()
-    layoutProgress("Updating. DO NOT UNPLUG", 0);
+    layoutProgress("Updating Bootloader. DO NOT UNPLUG", 0);
     flash_erase_sector(5, FLASH_CR_PROGRAM_X32);
     flash_wait_for_last_operation();
-    layoutProgress("Updating. DO NOT UNPLUG", 100);
+    layoutProgress("Updating Bootloader. DO NOT UNPLUG", 100);
     flash_erase_sector(6, FLASH_CR_PROGRAM_X32);
     flash_wait_for_last_operation();
 
     // Write into the sector.
     for (int chunkstart = 0; chunkstart < _binary_payload_bin_size;
          chunkstart += CHUNK_SIZE) {
-      layoutProgress("Updating. DO NOT UNPLUG",
+      layoutProgress("Updating Bootloader. DO NOT UNPLUG",
                      200 + chunkstart * 800 / _binary_payload_bin_size);
 
       size_t chunksize;
@@ -152,6 +152,10 @@ static bool unknown_bootloader(void) {
     case BLK_v1_1_0:
     case BLK_v2_0_0:
     case BLK_v2_1_0:
+    case BLK_v2_1_1:
+    case BLK_v2_1_2:
+    case BLK_v2_1_3:
+    case BLK_v2_1_4:
       return false;
   }
 
@@ -166,7 +170,7 @@ static void success(void) {
                                NOTIFICATION_CONFIRMED);
   display_refresh();
   delay_ms(3000);
-  board_reset();
+  board_reset(RESET_PARAM_REQUEST_UPDATE);
 }
 
 /// \brief Hard Failure: something went wrong during the write, and it's

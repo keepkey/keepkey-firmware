@@ -79,8 +79,11 @@ void nmi_handler(void) {
  * OUTPUT
  *     none
  */
-void board_reset(void) {
+void board_reset(uint32_t reset_param) {
 #ifndef EMULATOR
+  _param_1 = reset_param;
+  _param_2 = ~reset_param;
+  _param_3 = reset_param;
   scb_reset_system();
 #endif
 }

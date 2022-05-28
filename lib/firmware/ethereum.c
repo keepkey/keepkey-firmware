@@ -47,12 +47,17 @@
 
 #define MAX_CHAIN_ID 2147483630
 
+#define ETHEREUM_TX_TYPE_LEGACY 0UL
+#define ETHEREUM_TX_TYPE_EIP_2930 1UL
+#define ETHEREUM_TX_TYPE_EIP_1559 2UL
+
 static bool ethereum_signing = false;
 static uint32_t data_total, data_left;
 static EthereumTxRequest msg_tx_request;
 static CONFIDENTIAL uint8_t privkey[32];
 static uint32_t chain_id;
-static uint32_t tx_type;
+static uint32_t wanchain_tx_type;  // Wanchain only
+static uint32_t ethereum_tx_type;  // Ethereum tx type (0=Legacy, 1=EIP-2930, 2=EIP-1559)
 struct SHA3_CTX keccak_ctx;
 
 bool ethereum_isStandardERC20Transfer(const EthereumSignTx *msg) {
@@ -265,12 +270,14 @@ static void send_signature(void) {
   uint8_t v;
   layoutProgress(_("Signing"), 1000);
 
-  /* eip-155 replay protection */
-  if (chain_id) {
-    /* hash v=chain_id, r=0, s=0 */
-    hash_rlp_number(chain_id);
-    hash_rlp_length(0, 0);
-    hash_rlp_length(0, 0);
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_LEGACY) {
+    /* legacy eip-155 replay protection */
+    if (chain_id) {
+      /* hash v=chain_id, r=0, s=0 */
+      hash_rlp_number(chain_id);
+      hash_rlp_length(0, 0);
+      hash_rlp_length(0, 0);
+    }
   }
 
   keccak_Final(&keccak_ctx, hash);
@@ -287,7 +294,8 @@ static void send_signature(void) {
   msg_tx_request.has_data_length = false;
 
   msg_tx_request.has_signature_v = true;
-  if (chain_id > MAX_CHAIN_ID) {
+  if (chain_id > MAX_CHAIN_ID ||
+      ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
     msg_tx_request.signature_v = v;
   } else if (chain_id) {
     msg_tx_request.signature_v = v + 2 * chain_id + 35;
@@ -335,7 +343,7 @@ void ethereumFormatAmount(const bignum256 *amnt, const TokenType *token,
     suffix = " Wei";
     decimals = 0;
   } else {
-    if (tx_type == 1 || tx_type == 6) {
+    if (wanchain_tx_type == 1 || wanchain_tx_type == 6) {
       suffix = " WAN";
     } else {
       // constants from trezor-common/defs/ethereum/networks.json
@@ -487,32 +495,69 @@ static void layoutEthereumData(const uint8_t *data, uint32_t len,
   }
 }
 
-static void layoutEthereumFee(const uint8_t *value, uint32_t value_len,
-                              const uint8_t *gas_price, uint32_t gas_price_len,
-                              const uint8_t *gas_limit, uint32_t gas_limit_len,
-                              bool is_token, char *out_str,
-                              size_t out_str_len) {
-  bignum256 val, gas;
+static void formatEthereumFee(bignum256 *fee, const uint8_t *gas_price,
+                              const uint8_t gas_price_len) {
   uint8_t pad_val[32];
-  char tx_value[32];
-  char gas_value[32];
 
-  memzero(tx_value, sizeof(tx_value));
-  memzero(gas_value, sizeof(gas_value));
-
+  bn_zero(fee);
   memset(pad_val, 0, sizeof(pad_val));
   memcpy(pad_val + (32 - gas_price_len), gas_price, gas_price_len);
-  bn_read_be(pad_val, &val);
+  bn_read_be(pad_val, fee);
+}
+
+static void formatEthereumFeeEIP1559(
+    bignum256 *fee, const uint8_t *max_fee_per_gas,
+    const uint8_t max_fee_per_gas_len, const uint8_t *max_priority_fee_per_gas,
+    const uint8_t max_priority_fee_per_gas_len) {
+  bignum256 max_fee, max_pfee;
+  uint8_t pad_val[32];
+
+  bn_zero(fee);
 
   memset(pad_val, 0, sizeof(pad_val));
-  memcpy(pad_val + (32 - gas_limit_len), gas_limit, gas_limit_len);
+  memcpy(pad_val + (32 - max_fee_per_gas_len), max_fee_per_gas,
+         max_fee_per_gas_len);
+  bn_read_be(pad_val, &max_fee);
+
+  memset(pad_val, 0, sizeof(pad_val));
+  memcpy(pad_val + (32 - max_priority_fee_per_gas_len),
+         max_priority_fee_per_gas, max_priority_fee_per_gas_len);
+  bn_read_be(pad_val, &max_pfee);
+
+  bn_add(fee, &max_fee);
+  if (max_priority_fee_per_gas_len) {
+    bn_add(fee, &max_pfee);
+  }
+}
+
+static void layoutEthereumFee(const EthereumSignTx *msg, bool is_token,
+                              char *out_str, size_t out_str_len) {
+  bignum256 val, gas;
+  char gas_value[32];
+  char tx_value[32];
+  uint8_t pad_val[32];
+
+  memzero(gas_value, sizeof(gas_value));
+  memzero(tx_value, sizeof(tx_value));
+
+  if (msg->has_max_fee_per_gas) {
+    formatEthereumFeeEIP1559(&val, msg->max_fee_per_gas.bytes,
+                             msg->max_fee_per_gas.size,
+                             msg->max_priority_fee_per_gas.bytes,
+                             msg->max_priority_fee_per_gas.size);
+  } else {
+    formatEthereumFee(&val, msg->gas_price.bytes, msg->gas_price.size);
+  }
+
+  memset(pad_val, 0, sizeof(pad_val));
+  memcpy(pad_val + (32 - msg->gas_limit.size), msg->gas_limit.bytes,
+         msg->gas_limit.size);
   bn_read_be(pad_val, &gas);
   bn_multiply(&val, &gas, &secp256k1.prime);
-
   ethereumFormatAmount(&gas, NULL, chain_id, gas_value, sizeof(gas_value));
 
   memset(pad_val, 0, sizeof(pad_val));
-  memcpy(pad_val + (32 - value_len), value, value_len);
+  memcpy(pad_val + (32 - msg->value.size), msg->value.bytes, msg->value.size);
   bn_read_be(pad_val, &val);
 
   if (bn_is_zero(&val)) {
@@ -531,7 +576,7 @@ static void layoutEthereumFee(const uint8_t *value, uint32_t value_len,
 }
 
 /*
- * RLP fields:
+ * RLP fields: (legacy)
  * - nonce (0 .. 32)
  * - gas_price (0 .. 32)
  * - gas_limit (0 .. 32)
@@ -541,7 +586,11 @@ static void layoutEthereumFee(const uint8_t *value, uint32_t value_len,
  */
 
 static bool ethereum_signing_check(EthereumSignTx *msg) {
-  if (!msg->has_gas_price || !msg->has_gas_limit) {
+  if (!msg->has_gas_limit) {
+    return false;
+  }
+
+  if (!(msg->has_gas_price || msg->has_max_fee_per_gas)) {
     return false;
   }
 
@@ -591,7 +640,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
   /* Wanchain txtype */
   if (msg->has_tx_type) {
     if (msg->tx_type == 1 || msg->tx_type == 6) {
-      tx_type = msg->tx_type;
+      wanchain_tx_type = msg->tx_type;
     } else {
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       _("Txtype out of bounds"));
@@ -599,7 +648,21 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
       return;
     }
   } else {
-    tx_type = 0;
+    wanchain_tx_type = 0;
+  }
+
+  /* Ethereum tx type */
+  if (msg->has_type) {
+    if (msg->type == 0 || msg->type == 2) {
+      ethereum_tx_type = msg->type;
+    } else {
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Ethereum tx type out of bounds"));
+      ethereum_signing_abort();
+      return;
+    }
+  } else {
+    ethereum_tx_type = ETHEREUM_TX_TYPE_LEGACY;
   }
 
   if (msg->has_data_length && msg->data_length > 0) {
@@ -724,9 +787,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
   }
 
   memset(confirm_body_message, 0, sizeof(confirm_body_message));
-  layoutEthereumFee(msg->value.bytes, msg->value.size, msg->gas_price.bytes,
-                    msg->gas_price.size, msg->gas_limit.bytes,
-                    msg->gas_limit.size, token != NULL, confirm_body_message,
+  layoutEthereumFee(msg, token != NULL, confirm_body_message,
                     sizeof(confirm_body_message));
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Transaction", "%s",
                confirm_body_message)) {
@@ -740,39 +801,96 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
   uint32_t rlp_length = 0;
   layoutProgress(_("Signing"), 0);
 
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
+    // This is the chain ID length for 1559 tx (only one byte for now)
+    rlp_length += rlp_calculate_number_length(chain_id);
+
+    //rlp_length += 1;
+  }
+
   rlp_length += rlp_calculate_length(msg->nonce.size, msg->nonce.bytes[0]);
-  rlp_length +=
-      rlp_calculate_length(msg->gas_price.size, msg->gas_price.bytes[0]);
-  rlp_length +=
-      rlp_calculate_length(msg->gas_limit.size, msg->gas_limit.bytes[0]);
+  if (msg->has_max_fee_per_gas) {
+    if (msg->has_max_priority_fee_per_gas) {
+      rlp_length += rlp_calculate_length(msg->max_priority_fee_per_gas.size,
+                                         msg->max_priority_fee_per_gas.bytes[0]);
+    }
+    rlp_length += rlp_calculate_length(msg->max_fee_per_gas.size,
+                                       msg->max_fee_per_gas.bytes[0]);    
+  } else {
+    rlp_length += rlp_calculate_length(msg->gas_price.size, msg->gas_price.bytes[0]);
+  }
+
+  rlp_length += rlp_calculate_length(msg->gas_limit.size, msg->gas_limit.bytes[0]);
   rlp_length += rlp_calculate_length(msg->to.size, msg->to.bytes[0]);
   rlp_length += rlp_calculate_length(msg->value.size, msg->value.bytes[0]);
-  rlp_length +=
-      rlp_calculate_length(data_total, msg->data_initial_chunk.bytes[0]);
-  if (tx_type) {
-    rlp_length += rlp_calculate_number_length(tx_type);
-  }
-  if (chain_id) {
-    rlp_length += rlp_calculate_number_length(chain_id);
-    rlp_length += rlp_calculate_length(0, 0);
-    rlp_length += rlp_calculate_length(0, 0);
+  rlp_length += rlp_calculate_length(data_total, msg->data_initial_chunk.bytes[0]);
+    
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
+    // access list size
+    rlp_length += 1;  // c0, keepkey does not support >0 length access list at this time
   }
 
+  if (wanchain_tx_type) {
+    rlp_length += rlp_calculate_number_length(wanchain_tx_type);
+  }
+      
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_LEGACY) {
+    // legacy EIP-155 replay protection
+    if (chain_id) {
+      rlp_length += rlp_calculate_number_length(chain_id);
+      rlp_length += rlp_calculate_length(0, 0);
+      rlp_length += rlp_calculate_length(0, 0);
+    }
+  }
+
+  // Start the hash:
+  // keccak256(0x02 || rlp([chain_id, nonce, max_priority_fee_per_gas, max_fee_per_gas, 
+  //           gas_limit, destination, amount, data, access_list]))  
+
+  // tx type should never be greater than one byte in length
+  // https://github.com/ethereum/EIPs/blob/master/EIPS/eip-2718.md#transactiontype-only-goes-up-to-0x7f
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
+    uint8_t datbuf[1] = {0x02};
+    hash_data(datbuf, sizeof(datbuf));
+  }
+
+  layoutProgress(_("Signing"), 100);
   /* Stage 2: Store header fields */
   hash_rlp_list_length(rlp_length);
-  layoutProgress(_("Signing"), 100);
 
-  if (tx_type) {
-    hash_rlp_number(tx_type);
+  if (wanchain_tx_type) {
+    hash_rlp_number(wanchain_tx_type);
   }
+
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
+    // chain id goes here for 1559 (only one byte for now)
+    hash_rlp_field((uint8_t *)(&chain_id), sizeof(uint8_t));
+  }
+
   hash_rlp_field(msg->nonce.bytes, msg->nonce.size);
-  hash_rlp_field(msg->gas_price.bytes, msg->gas_price.size);
+    
+  if (msg->has_max_fee_per_gas) {
+    if (msg->has_max_priority_fee_per_gas) {
+      hash_rlp_field(msg->max_priority_fee_per_gas.bytes,
+                     msg->max_priority_fee_per_gas.size);
+    }
+    hash_rlp_field(msg->max_fee_per_gas.bytes, msg->max_fee_per_gas.size);
+  } else {
+    hash_rlp_field(msg->gas_price.bytes, msg->gas_price.size);
+  }
+    
   hash_rlp_field(msg->gas_limit.bytes, msg->gas_limit.size);
   hash_rlp_field(msg->to.bytes, msg->to.size);
   hash_rlp_field(msg->value.bytes, msg->value.size);
   hash_rlp_length(data_total, msg->data_initial_chunk.bytes[0]);
   hash_data(msg->data_initial_chunk.bytes, msg->data_initial_chunk.size);
   data_left = data_total - msg->data_initial_chunk.size;
+
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
+    // Keepkey does not support an access list size >0 at this time
+    uint8_t datbuf[1] = {0xC0};   // size of empty access list
+    hash_data(datbuf, sizeof(datbuf));
+  }
 
   memcpy(privkey, node->private_key, 32);
 

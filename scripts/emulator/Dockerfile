@@ -1,4 +1,4 @@
-FROM kktech/firmware:v14
+FROM kktech/firmware:v15
 
 WORKDIR /kkemu
 COPY ./ /kkemu
@@ -12,7 +12,7 @@ RUN cmake -C ./cmake/caches/emulator.cmake . \
 
 RUN make -j
 
-EXPOSE 21324/udp 21325/udp
+EXPOSE 11044/udp 11045/udp
 EXPOSE 5000
 CMD ["/kkemu/scripts/emulator/run.sh"]
 

@@ -111,27 +111,6 @@ void fsm_msgBinanceTransferMsg(const BinanceTransferMsg *msg) {
   }
 
   switch (msg->outputs[0].address_type) {
-    case OutputAddressType_EXCHANGE: {
-      HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0, NULL);
-      if (!root_node) {
-        binance_signAbort();
-        fsm_sendFailure(FailureType_Failure_FirmwareError, NULL);
-        layoutHome();
-        return;
-      }
-
-      int ret = run_policy_compile_output(coin, root_node, (void *)&msg,
-                                          (void *)NULL, true);
-      if (ret < TXOUT_OK) {
-        memzero((void *)root_node, sizeof(*root_node));
-        binance_signAbort();
-        send_fsm_co_error_message(ret);
-        layoutHome();
-        return;
-      }
-
-      break;
-    }
     case OutputAddressType_TRANSFER:
     default: {
       char amount_str[42];

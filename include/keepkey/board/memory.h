@@ -153,7 +153,7 @@ extern uint8_t *emulator_flash_base;
 
 #define SIG_FLAG (*(uint8_t const *)FLASH_SIG_FLAG)
 
-#define META_FLAGS (*(uint8_t const *)FLASH_META_FLAGS)
+#define META_FLAGS (*(uint32_t const *)FLASH_META_FLAGS)
 
 
 /* Misc Info. */

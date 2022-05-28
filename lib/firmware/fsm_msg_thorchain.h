@@ -117,8 +117,14 @@ void fsm_msgThorchainSignTx(const ThorchainSignTx *msg) {
 
 void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg) {
   // Confirm transaction basics
+  // supports only 1 message ack
   CHECK_PARAM(thorchain_signingIsInited(), "Signing not in progress");
-  if (!msg->has_send || !msg->send.has_to_address || !msg->send.has_amount) {
+  if (msg->has_send && msg->send.has_to_address && msg->send.has_amount) {
+    // pass
+  } else if (msg->has_deposit && msg->deposit.has_asset && msg->deposit.has_amount &&
+             msg->deposit.has_memo && msg->deposit.has_signer) {
+               // pass
+  } else {
     thorchain_signAbort();
     fsm_sendFailure(FailureType_Failure_FirmwareError,
                     _("Invalid THORChain Message Type"));
@@ -133,53 +139,72 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg) {
 
   const ThorchainSignTx *sign_tx = thorchain_getThorchainSignTx();
 
-  switch (msg->send.address_type) {
-    case OutputAddressType_EXCHANGE: {
-      HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0, NULL);
-      if (!root_node) {
-        thorchain_signAbort();
-        fsm_sendFailure(FailureType_Failure_FirmwareError, NULL);
-        layoutHome();
-        return;
-      }
+  if (msg->has_send) {
+    switch (msg->send.address_type) {
+      case OutputAddressType_TRANSFER:
+      default: {
+        char amount_str[32];
+        bn_format_uint64(msg->send.amount, NULL, " RUNE", 8, 0, false, amount_str,
+                         sizeof(amount_str));
+        if (!confirm_transaction_output(
+                ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
+                msg->send.to_address)) {
+          thorchain_signAbort();
+          fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+          layoutHome();
+          return;
+        }
 
-      int ret = run_policy_compile_output(coin, root_node, (void *)&msg->send,
-                                          (void *)NULL, true);
-      if (ret < TXOUT_OK) {
-        memzero((void *)root_node, sizeof(*root_node));
-        thorchain_signAbort();
-        send_fsm_co_error_message(ret);
-        layoutHome();
-        return;
+        break;
       }
-
-      break;
     }
-    case OutputAddressType_TRANSFER:
-    default: {
-      char amount_str[32];
-      bn_format_uint64(msg->send.amount, NULL, " RUNE", 8, 0, false, amount_str,
-                       sizeof(amount_str));
-      if (!confirm_transaction_output(
-              ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
-              msg->send.to_address)) {
-        thorchain_signAbort();
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-        layoutHome();
-        return;
-      }
+    if (!thorchain_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address)) {
+      thorchain_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Failed to include send message in transaction");
+      layoutHome();
+      return;
+    }
 
-      break;
+  } else if (msg->has_deposit) {
+    char amount_str[32];
+    char asset_str[21];
+    asset_str[0] = ' ';
+    strlcpy(&(asset_str[1]), msg->deposit.asset, sizeof(asset_str) - 1);
+    bn_format_uint64(msg->deposit.amount, NULL, asset_str, 8, 0, false, amount_str,
+                     sizeof(amount_str));
+    if (!confirm_transaction_output(
+            ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
+            msg->deposit.signer)) {
+      thorchain_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (msg->deposit.has_memo) {
+      // See if we can parse the memo
+      if (!thorchain_parseConfirmMemo(msg->deposit.memo, sizeof(msg->deposit.memo))) {
+        // Memo not recognizable, ask to confirm it
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",
+                     msg->deposit.memo)) {
+          thorchain_signAbort();
+          fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+          layoutHome();
+          return;
+        }
+      }
+    }
+
+    if (!thorchain_signTxUpdateMsgDeposit(&(msg->deposit))) {
+      thorchain_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Failed to include deposit message in transaction");
+      layoutHome();
+      return;
     }
   }
 
-  if (!thorchain_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address)) {
-    thorchain_signAbort();
-    fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    "Failed to include send message in transaction");
-    layoutHome();
-    return;
-  }
 
   if (!thorchain_signingIsFinished()) {
     RESP_INIT(ThorchainMsgRequest);
@@ -187,8 +212,8 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg) {
     return;
   }
 
-  if (sign_tx->has_memo) {
-    // See if we can parse the memo
+  if (sign_tx->has_memo && !msg->deposit.has_memo) {
+    // See if we can parse the tx memo. This memo ignored if deposit msg has memo
     if (!thorchain_parseConfirmMemo(sign_tx->memo, sizeof(sign_tx->memo))) {
       // Memo not recognizable, ask to confirm it
       if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",

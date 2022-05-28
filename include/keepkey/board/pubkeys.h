@@ -22,8 +22,12 @@
 
 #include <inttypes.h>
 
+// The firmware has been designed to allow future key rotations on a 5 key basis
+// i.e, the current keys are indexed 0-4, the next future set of keys will be 5-9, etc.
+// When new keys are rotated in, the old keys must be recognized as expired. 
+
 #define PUBKEYS 5
-#define EXP_PUBKEYS 5
+#define EXP_PUBKEYS 5       // This is a nop prior to future key rotation, intended to indicate which keys are expired.
 #define PUBKEY_LENGTH 65
 #define SIGNATURES 3
 

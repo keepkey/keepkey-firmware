@@ -26,7 +26,6 @@
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/crypto.h"
-#include "keepkey/firmware/exchange.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/policy.h"
@@ -40,6 +39,16 @@
 #include "types.pb.h"
 
 #define _(X) (X)
+
+// Set DEBUG_UTXO to non-zero to display each stage of the utxo signing sequence
+#define D_DISPLAY_UTXO_STAGE(STAGE) 
+#define DEBUG_UTXO  0
+#ifdef DEBUG_ON
+  #if DEBUG_UTXO
+    #undef D_DISPLAY_UTXO_STAGE
+    #define D_DISPLAY_UTXO_STAGE(STAGE) DEBUG_DISPLAY(STAGE)
+  #endif
+#endif
 
 static uint32_t inputs_count;
 static uint32_t outputs_count;
@@ -145,56 +154,7 @@ void send_fsm_co_error_message(int co_error) {
 
   for (size_t i = 0; i < sizeof(errorCodes) / sizeof(errorCodes[0]); i++) {
     if (errorCodes[i].code == co_error) {
-#if DEBUG_LINK
-      fsm_sendFailureDebug(errorCodes[i].type, errorCodes[i].msg,
-                           get_exchange_msg());
-#else
       fsm_sendFailure(errorCodes[i].type, errorCodes[i].msg);
-#endif
-      return;
-    }
-  }
-
-  struct {
-    ExchangeError code;
-    const char *msg;
-    FailureType type;
-  } exchangeCodes[] = {
-      {ERROR_EXCHANGE_SIGNATURE, "Exchange signature error",
-       FailureType_Failure_Other},
-      {ERROR_EXCHANGE_DEPOSIT_COINTYPE, "Exchange deposit coin type error",
-       FailureType_Failure_Other},
-      {ERROR_EXCHANGE_DEPOSIT_ADDRESS, "Exchange deposit address error",
-       FailureType_Failure_Other},
-      {ERROR_EXCHANGE_DEPOSIT_AMOUNT, "Exchange deposit amount error",
-       FailureType_Failure_Other},
-      {ERROR_EXCHANGE_WITHDRAWAL_COINTYPE,
-       "Exchange withdrawal coin type error", FailureType_Failure_Other},
-      {ERROR_EXCHANGE_WITHDRAWAL_ADDRESS, "Exchange withdrawal address error",
-       FailureType_Failure_Other},
-      {ERROR_EXCHANGE_WITHDRAWAL_AMOUNT, "Exchange withdrawal amount error",
-       FailureType_Failure_Other},
-      {ERROR_EXCHANGE_RETURN_ADDRESS, "Exchange return address error",
-       FailureType_Failure_Other},
-      {ERROR_EXCHANGE_RETURN_COINTYPE, "Exchange return coin type error",
-       FailureType_Failure_Other},
-      {ERROR_EXCHANGE_CANCEL, "Exchange transaction cancelled",
-       FailureType_Failure_ActionCancelled},
-      {ERROR_EXCHANGE_RESPONSE_STRUCTURE, "Obsolete Response structure error",
-       FailureType_Failure_Other},
-      {ERROR_EXCHANGE_TYPE, "Unknown exchange type", FailureType_Failure_Other},
-  };
-
-  ExchangeError error = get_exchange_error();
-  for (size_t i = 0; i < sizeof(exchangeCodes) / sizeof(exchangeCodes[0]);
-       i++) {
-    if (exchangeCodes[i].code == error) {
-#if DEBUG_LINK
-      fsm_sendFailureDebug(exchangeCodes[i].type, exchangeCodes[i].msg,
-                           get_exchange_msg());
-#else
-      fsm_sendFailure(exchangeCodes[i].type, exchangeCodes[i].msg);
-#endif
       return;
     }
   }
@@ -282,6 +242,7 @@ scriptSig Compute hash_witness
 */
 
 void send_req_1_input(void) {
+  D_DISPLAY_UTXO_STAGE("send_req_1_input");
   signing_stage = STAGE_REQUEST_1_INPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXINPUT;
@@ -292,6 +253,7 @@ void send_req_1_input(void) {
 }
 
 void send_req_2_prev_meta(void) {
+  D_DISPLAY_UTXO_STAGE("send_req_2_prev_meta");
   signing_stage = STAGE_REQUEST_2_PREV_META;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXMETA;
@@ -304,6 +266,7 @@ void send_req_2_prev_meta(void) {
 }
 
 void send_req_2_prev_input(void) {
+  D_DISPLAY_UTXO_STAGE("send_req_2_prev_input");
   signing_stage = STAGE_REQUEST_2_PREV_INPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXINPUT;
@@ -318,6 +281,7 @@ void send_req_2_prev_input(void) {
 }
 
 void send_req_2_prev_output(void) {
+  D_DISPLAY_UTXO_STAGE("send_req_2_prev_output");
   signing_stage = STAGE_REQUEST_2_PREV_OUTPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXOUTPUT;
@@ -332,6 +296,7 @@ void send_req_2_prev_output(void) {
 }
 
 void send_req_2_prev_extradata(uint32_t chunk_offset, uint32_t chunk_len) {
+  D_DISPLAY_UTXO_STAGE("send_req_2_prev_extradata");
   signing_stage = STAGE_REQUEST_2_PREV_EXTRADATA;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXEXTRADATA;
@@ -348,6 +313,7 @@ void send_req_2_prev_extradata(uint32_t chunk_offset, uint32_t chunk_len) {
 }
 
 void send_req_3_output(void) {
+  D_DISPLAY_UTXO_STAGE("send_req_3_output");
   signing_stage = STAGE_REQUEST_3_OUTPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXOUTPUT;
@@ -358,6 +324,7 @@ void send_req_3_output(void) {
 }
 
 void send_req_4_input(void) {
+  D_DISPLAY_UTXO_STAGE("send_req_4_input");
   signing_stage = STAGE_REQUEST_4_INPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXINPUT;
@@ -368,6 +335,7 @@ void send_req_4_input(void) {
 }
 
 void send_req_4_output(void) {
+  D_DISPLAY_UTXO_STAGE("send_req_4_output");
   signing_stage = STAGE_REQUEST_4_OUTPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXOUTPUT;
@@ -378,6 +346,7 @@ void send_req_4_output(void) {
 }
 
 void send_req_segwit_input(void) {
+  D_DISPLAY_UTXO_STAGE("send_req_segwit_input");
   signing_stage = STAGE_REQUEST_SEGWIT_INPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXINPUT;
@@ -388,6 +357,7 @@ void send_req_segwit_input(void) {
 }
 
 void send_req_segwit_witness(void) {
+  D_DISPLAY_UTXO_STAGE("send_req_segwit_witness");
   signing_stage = STAGE_REQUEST_SEGWIT_WITNESS;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXINPUT;
@@ -398,6 +368,7 @@ void send_req_segwit_witness(void) {
 }
 
 void send_req_decred_witness(void) {
+  D_DISPLAY_UTXO_STAGE("send_req_decred_witness");
   signing_stage = STAGE_REQUEST_DECRED_WITNESS;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXINPUT;
@@ -408,6 +379,7 @@ void send_req_decred_witness(void) {
 }
 
 void send_req_5_output(void) {
+  D_DISPLAY_UTXO_STAGE("send_req_5_output");
   signing_stage = STAGE_REQUEST_5_OUTPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXOUTPUT;
@@ -418,6 +390,7 @@ void send_req_5_output(void) {
 }
 
 void send_req_finished(void) {
+  D_DISPLAY_UTXO_STAGE("send_req_finished");
   resp.has_request_type = true;
   resp.request_type = RequestType_TXFINISHED;
   msg_write(MessageType_MessageType_TxRequest, &resp);
@@ -718,7 +691,6 @@ void signing_init(const SignTx *msg, const CoinType *_coin,
   layoutProgressSwipe(_("Signing transaction"), 0);
 
   send_req_1_input();
-  set_exchange_error(NO_EXCHANGE_ERROR);
 }
 
 static bool is_multisig_input_script_type(const TxInputType *txinput) {
@@ -770,7 +742,7 @@ static bool is_segwit_input_script_type(const TxInputType *txinput) {
 static bool signing_validate_input(const TxInputType *txinput) {
   if (txinput->prev_hash.size != 32) {
     fsm_sendFailure(FailureType_Failure_Other,
-                    _("Encountered invalid prevhash"));
+                    _("Encountered invalid prevhash 1"));
     signing_abort();
     return false;
   }
@@ -944,7 +916,7 @@ static bool signing_check_prevtx_hash(void) {
   tx_hash_final(&tp, hash, true);
   if (memcmp(hash, input.prev_hash.bytes, 32) != 0) {
     fsm_sendFailure(FailureType_Failure_Other,
-                    _("Encountered invalid prevhash"));
+                    _("Encountered invalid prevhash 2"));
     signing_abort();
     return false;
   }

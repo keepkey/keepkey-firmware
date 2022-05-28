@@ -66,19 +66,6 @@ static int process_ethereum_msg(EthereumSignTx *msg, bool *needs_confirm) {
   if (!coin) return TXOUT_COMPILE_ERROR;
 
   switch (msg->address_type) {
-    case OutputAddressType_EXCHANGE: {
-      // prep for exchange type transaction
-      HDNode *root_node = fsm_getDerivedNode(SECP256K1_NAME, 0, 0, NULL);
-      if (!root_node) return TXOUT_COMPILE_ERROR;
-
-      int ret = run_policy_compile_output(coin, root_node, (void *)msg,
-                                          (void *)NULL, true);
-      if (ret < TXOUT_OK) {
-        memzero((void *)root_node, sizeof(HDNode));
-      }
-      *needs_confirm = false;
-      return ret;
-    }
     case OutputAddressType_TRANSFER: {
       // prep transfer type transaction
       *needs_confirm = false;

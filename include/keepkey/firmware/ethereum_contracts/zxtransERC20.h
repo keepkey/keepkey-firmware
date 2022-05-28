@@ -1,7 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
- * Copyright (C) 2021 KeepKey LLC
+ * Copyright (C) 2021 ShapeShift
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -17,30 +17,17 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef INTERFACE_H
-#define INTERFACE_H
+#ifndef KEEPKEY_FIRMWARE_ETHEREUMCONTRACTS_ZXTRANSERC20_H
+#define KEEPKEY_FIRMWARE_ETHEREUMCONTRACTS_ZXTRANSERC20_H
 
-// Allow this file to be used from C++ by renaming an unfortunately named field:
-#define delete del
-#include "messages.pb.h"
-#include "messages-nano.pb.h"
-#undef delete
+#include <inttypes.h>
+#include <stdbool.h>
 
-#include "messages-binance.pb.h"
-#include "messages-cosmos.pb.h"
-#include "messages-eos.pb.h"
-#include "messages-ripple.pb.h"
-#include "messages-tendermint.pb.h"
-#include "messages-thorchain.pb.h"
+#define ZXSWAP_ADDRESS "\xde\xf1\xc0\xde\xd9\xbe\xc7\xf1\xa1\x67\x08\x19\x83\x32\x40\xf0\x27\xb2\x5e\xff"
 
-#include "types.pb.h"
-#include "trezor_transport.h"
+typedef struct _EthereumSignTx EthereumSignTx;
 
-#ifndef EMULATOR
-/* The max size of a decoded protobuf */
-#define MAX_DECODE_SIZE (13 * 1024)
-#else
-#define MAX_DECODE_SIZE (26 * 1024)
-#endif
+bool zx_isZxTransformERC20(const EthereumSignTx *msg);
+bool zx_confirmZxTransERC20(uint32_t data_total, const EthereumSignTx *msg);
 
 #endif

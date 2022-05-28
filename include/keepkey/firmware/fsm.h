@@ -40,15 +40,7 @@ void fsm_init(void);
 
 void fsm_sendSuccess(const char *text);
 
-#if DEBUG_LINK
-void fsm_sendFailureDebug(FailureType code, const char *text,
-                          const char *source);
-
-#define fsm_sendFailure(code, text) \
-  fsm_sendFailureDebug((code), (text), __FILE__ ":" VERSTR(__LINE__) ":")
-#else
 void fsm_sendFailure(FailureType code, const char *text);
-#endif
 
 void fsm_msgInitialize(Initialize *msg);
 void fsm_msgGetFeatures(GetFeatures *msg);
