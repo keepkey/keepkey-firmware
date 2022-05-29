@@ -1,13 +1,34 @@
 CosmosGetAddress.address_n                             max_count:10
 
-CosmosAddress.address                                  max_size:46
+CosmosAddress.address                                  max_size:53
 
 CosmosSignTx.address_n                                 max_count:10
 CosmosSignTx.chain_id                                  max_size:32
 CosmosSignTx.memo                                      max_size:256
 
-CosmosMsgSend.from_address                             max_size:46
-CosmosMsgSend.to_address                               max_size:46
+CosmosMsgSend.from_address                             max_size:53
+CosmosMsgSend.to_address                               max_size:53
+
+CosmosMsgDelegate.delegator_address                    max_size:53
+CosmosMsgDelegate.validator_address                    max_size:53
+
+CosmosMsgUndelegate.delegator_address                  max_size:53
+CosmosMsgUndelegate.validator_address                  max_size:53
+
+CosmosMsgRedelegate.delegator_address                  max_size:53
+CosmosMsgRedelegate.validator_src_address              max_size:53
+CosmosMsgRedelegate.validator_dst_address              max_size:53
+
+CosmosMsgRewards.delegator_address                     max_size:53
+CosmosMsgRewards.validator_address                     max_size:53
+
+CosmosMsgIBCTransfer.sender                            max_size:53
+CosmosMsgIBCTransfer.receiver                          max_size:53
+CosmosMsgIBCTransfer.source_channel                    max_size:32
+CosmosMsgIBCTransfer.source_port                       max_size:32
+CosmosMsgIBCTransfer.revision_height                   max_size:16
+CosmosMsgIBCTransfer.revision_number                   max_size:9
+CosmosMsgIBCTransfer.denom                             max_size:9
 
 CosmosSignedTx.public_key                              max_size:33
 CosmosSignedTx.signature                               max_size:64
