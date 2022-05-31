@@ -173,7 +173,7 @@ TEST(Coins, BIP32AccountName) {
                  {0x80000000 | 44, 0x80000000 | 931, 0x80000000 | 69, 0, 0},
                  5,
                  true,
-                 "THORChain Account #69\nAddress #0"}};
+                 "THORChain Account #69"}};
 
   for (const auto &vec : vector) {
     char node_str[NODE_STRING_LENGTH];

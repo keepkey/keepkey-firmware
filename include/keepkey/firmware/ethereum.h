@@ -50,11 +50,6 @@ bool ethereum_getStandardERC20Recipient(const EthereumSignTx *msg,
 /// \returns true iff successful
 bool ethereum_getStandardERC20Coin(const EthereumSignTx *msg, CoinType *coin);
 
-/// \pre requires that `ethereum_isStandardERC20Transfer(msg)`
-/// \returns true iff successful
-bool ethereum_getStandardERC20Amount(const EthereumSignTx *msg,
-                                     void **tx_out_amount);
-
 /**
  * \brief Get the number of decimals associated with an erc20 token
  * \param   token_shorcut String corresponding to a token_shortcut in coins

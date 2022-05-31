@@ -91,4 +91,7 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
 /// \returns true iff the coin_name is for an eth-like coin.
 bool isEthereumLike(const char *coin_name);
 
+/// \returns true iff the coin_name is for an account-based coin.
+bool isAccountBased(const char *coin_name);
+
 #endif

@@ -976,15 +976,6 @@ static bool signing_check_output(TxOutputType *txoutput) {
     send_fsm_co_error_message(co);
     signing_abort();
     return false;
-  } else if (co < 0) {
-    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-    signing_abort();
-    return false;
-  } else if (co == 0) {
-    fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("Failed to compile output"));
-    signing_abort();
-    return false;
   }
   if (coin->decred) {
     // serialize Decred prefix in Phase 1
