@@ -72,6 +72,7 @@
 #include "trezor/crypto/secp256k1.h"
 
 #include "messages.pb.h"
+#include "messages-ethereum.pb.h"
 #include "messages-binance.pb.h"
 #include "messages-cosmos.pb.h"
 #include "messages-eos.pb.h"
