@@ -263,8 +263,9 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash *msg) {
     return;
   }
 
-  ethereum_address_checksum(pubkeyhash, resp->address, false, 0);
-  // ethereum_address_checksum adds trailing zero
+  resp->address[0] = '0';
+  resp->address[1] = 'x';
+  ethereum_address_checksum(pubkeyhash, resp->address+2, false, 0);
 
   // No message hash when setting primaryType="EIP712Domain"
   // https://ethereum-magicians.org/t/eip-712-standards-clarification-primarytype-as-domaintype/3286
