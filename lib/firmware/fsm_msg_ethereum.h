@@ -279,7 +279,7 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash *msg) {
     for (ctr=0; ctr<64/2; ctr++) {
       snprintf(&str[2*ctr], 3, "%02x", msg->domain_separator_hash.bytes[ctr]);
     }
-    confirm(ButtonRequestType_ButtonRequest_Other, hashTitleStr, "Confirm address: %s", str);
+    confirm(ButtonRequestType_ButtonRequest_Other, hashTitleStr, "Confirm hash digest: %s", str);
   }
 
   ethereum_typed_hash_sign(msg, node, resp);
