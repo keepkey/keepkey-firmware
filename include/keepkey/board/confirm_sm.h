@@ -31,6 +31,8 @@
   {\
     (void)review(ButtonRequestType_ButtonRequest_Other, TITLE, " ");\
   }
+  // Example
+  // DEBUG_DISPLAY_VAL("sig", "sig %s", 65, resp->signature.bytes[ctr]);
   #define DEBUG_DISPLAY_VAL(TITLE,VALNAME,SIZE,BYTES) \
   {\
     char str[SIZE+1];\

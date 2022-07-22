@@ -1,4 +1,22 @@
 
+/*
+ * This file is part of the Keepkey project
+ *
+ * Copyright (C) 2022
+ *
+ * This library is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg) {
   if (!ethereum_isStandardERC20Transfer(msg) && msg->data_length != 0)
@@ -219,5 +237,51 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg) {
   }
   fsm_sendSuccess(_("Message verified"));
 
+  layoutHome();
+}
+
+void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash *msg) {
+  RESP_INIT(EthereumTypedDataSignature);
+
+  CHECK_INITIALIZED
+
+  CHECK_PIN
+
+  if (msg->domain_separator_hash.size != 32 ||
+      (msg->has_message_hash && msg->message_hash.size != 32)) {
+    fsm_sendFailure(FailureType_Failure_Other, _("Invalid EIP-712 hash length"));
+    return;
+  }
+
+  const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+                                          msg->address_n_count, NULL);
+  if (!node) return;
+
+  uint8_t pubkeyhash[20] = {0};
+  if (!hdnode_get_ethereum_pubkeyhash(node, pubkeyhash)) {
+    layoutHome();
+    return;
+  }
+
+  resp->address[0] = '0';
+  resp->address[1] = 'x';
+  ethereum_address_checksum(pubkeyhash, resp->address+2, false, 0);
+
+  // No message hash when setting primaryType="EIP712Domain"
+  // https://ethereum-magicians.org/t/eip-712-standards-clarification-primarytype-as-domaintype/3286
+  if (msg->has_message_hash) {
+    char str[64+1];
+    int ctr;
+    char *addrTitleStr = "Verify Address";
+    confirm(ButtonRequestType_ButtonRequest_Other, addrTitleStr, "Confirm address: %s", resp->address);
+
+    char *hashTitleStr = "EIP-712 domain hash";
+    for (ctr=0; ctr<64/2; ctr++) {
+      snprintf(&str[2*ctr], 3, "%02x", msg->domain_separator_hash.bytes[ctr]);
+    }
+    confirm(ButtonRequestType_ButtonRequest_Other, hashTitleStr, "Confirm hash digest: %s", str);
+  }
+
+  ethereum_typed_hash_sign(msg, node, resp);
   layoutHome();
 }

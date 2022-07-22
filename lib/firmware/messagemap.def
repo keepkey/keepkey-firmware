@@ -38,6 +38,9 @@
     MSG_IN(MessageType_MessageType_EthereumTxAck,                   EthereumTxAck,               fsm_msgEthereumTxAck)
     MSG_IN(MessageType_MessageType_EthereumSignMessage,             EthereumSignMessage,         fsm_msgEthereumSignMessage)
     MSG_IN(MessageType_MessageType_EthereumVerifyMessage,           EthereumVerifyMessage,       fsm_msgEthereumVerifyMessage)
+
+    MSG_IN(MessageType_MessageType_EthereumSignTypedHash,           EthereumSignTypedHash,       fsm_msgEthereumSignTypedHash)
+
     MSG_IN(MessageType_MessageType_NanoGetAddress,                  NanoGetAddress,              fsm_msgNanoGetAddress)
     MSG_IN(MessageType_MessageType_NanoSignTx,                      NanoSignTx,                  fsm_msgNanoSignTx)
 
@@ -85,6 +88,9 @@
     MSG_OUT(MessageType_MessageType_EthereumAddress,                EthereumAddress,             NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EthereumTxRequest,              EthereumTxRequest,           NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EthereumMessageSignature,       EthereumMessageSignature,    NO_PROCESS_FUNC)
+
+    MSG_OUT(MessageType_MessageType_EthereumTypedDataSignature,     EthereumTypedDataSignature,  NO_PROCESS_FUNC)
+
     MSG_OUT(MessageType_MessageType_NanoAddress,                    NanoAddress,                 NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_NanoSignedTx,                   NanoSignedTx,                NO_PROCESS_FUNC)
 

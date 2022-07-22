@@ -20,10 +20,10 @@
 #ifndef __ETHEREUM_H__
 #define __ETHEREUM_H__
 
-#include "trezor/crypto/bip32.h"
-
 #include <stdint.h>
 #include <stdbool.h>
+#include "trezor/crypto/bip32.h"
+#include "messages-ethereum.pb.h"
 
 typedef struct _EthereumSignTx EthereumSignTx;
 typedef struct _EthereumTxAck EthereumTxAck;
@@ -66,5 +66,12 @@ void ethereumFormatAmount(const bignum256 *amnt, const TokenType *token,
                           uint32_t chain_id, char *buf, int buflen);
 
 void bn_from_bytes(const uint8_t *value, size_t value_len, bignum256 *val);
+
+
+void ethereum_typed_hash_sign(const EthereumSignTypedHash *msg,
+                              const HDNode *node,
+                              EthereumTypedDataSignature *resp);
+bool ethereum_path_check(uint32_t address_n_count, const uint32_t *address_n,
+                         bool pubkey_export, uint64_t chain);
 
 #endif
