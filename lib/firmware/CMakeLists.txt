@@ -4,6 +4,7 @@ set(sources
     binance.c
     coins.c
     crypto.c
+    eip712.c
     eos.c
     eos-contracts/eosio.system.c
     eos-contracts/eosio.token.c
@@ -32,6 +33,7 @@ set(sources
     storage.c
     tendermint.c
     thorchain.c
+    tiny-json.c
     transaction.c
     txin_check.c
     u2f.c)
