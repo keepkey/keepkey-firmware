@@ -34,6 +34,7 @@
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/thorchain.h"
+#include "keepkey/firmware/tiny-json.h"
 #include "keepkey/firmware/transaction.h"
 #include "trezor/crypto/address.h"
 #include "trezor/crypto/ecdsa.h"
@@ -1063,5 +1064,102 @@ void ethereum_typed_hash_sign(const EthereumSignTypedHash *msg,
 
   resp->signature.bytes[64] = 27 + v;
   resp->signature.size = 65;
+  msg_write(MessageType_MessageType_EthereumTypedDataSignature, resp);
+}
+
+#define JSON_OBJ_POOL_SIZE  100
+static json_t memTypes[JSON_OBJ_POOL_SIZE];
+static json_t memVals[JSON_OBJ_POOL_SIZE];
+static json_t memPType[4];
+
+json_t const *json;
+json_t const* jsonT;
+json_t const* jsonV;
+json_t const* jsonPT;
+
+static const unsigned char *typesJsonStr;
+static const unsigned char *primaryTypeJsonStr;
+static const unsigned char *valuesJsonStr;
+
+typedef enum {
+  TYPES_REQ = 0,
+  DOMAIN_DATA,
+  MESSAGE_DATA
+} e712State;
+
+static e712State currentState;
+
+static void e712_reset(void) {
+  currentState = TYPES_REQ;
+  memzero(memTypes, JSON_OBJ_POOL_SIZE);
+  memzero(memVals, JSON_OBJ_POOL_SIZE);
+  memzero(memPType, 4);
+}
+int encode(const json_t *jsonTypes, const json_t *jsonVals, const char *typeS, uint8_t *hashRet);
+
+void e712_types(const E712Types *msg, EthereumTypedDataSignature *resp) {
+  
+  if (currentState != TYPES_REQ) {
+    e712_reset();
+    fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 state machine error 1"));
+    return;
+  }
+
+  typesJsonStr = msg->eip712types.bytes;
+  primaryTypeJsonStr = msg->eip712primetype.bytes;
+
+  jsonT = json_create((char *)typesJsonStr, memTypes, sizeof memTypes / sizeof *memTypes );
+  jsonPT = json_create((char *)primaryTypeJsonStr, memPType, sizeof memPType / sizeof *memPType );
+
+  if (!jsonT) {
+    fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 type property data error"));
+    return;
+  } 
+  if (!jsonPT) {
+    fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 primaryType property data error"));
+    return;
+  }
+
+  resp->eip712typevals = 1;   // request "domain" property next
+
+  currentState = DOMAIN_DATA;
+  msg_write(MessageType_MessageType_EthereumTypedDataSignature, resp);
+}
+
+void e712_values(const E712ValuesRequest *msg, EthereumTypedDataSignature *resp) {
+
+  if (currentState == DOMAIN_DATA || currentState == MESSAGE_DATA) {
+    valuesJsonStr = msg->eip712data.bytes;
+    jsonV = json_create((char *)valuesJsonStr, memVals, sizeof memVals / sizeof *memVals );
+  } else {
+    e712_reset();
+    fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 state machine error 2"));
+    return;
+  }
+
+  if (!jsonV) {
+    fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 type values data error"));
+    return;
+  }
+
+  if (currentState == DOMAIN_DATA) {
+
+    // Compute domain seperator hash
+    encode(jsonT, jsonV, "EIP712Domain", resp->domain_separator_hash.bytes);
+
+    memzero(memVals, JSON_OBJ_POOL_SIZE);   // clear out domain values  
+    resp->eip712typevals = 2;               // request "message" property next
+
+  } else if (currentState == MESSAGE_DATA) {
+
+    const char *primeType = json_getValue(json_getProperty(jsonPT, "primaryType"));
+
+    // Compute message hash
+
+    encode(jsonT, jsonV, primeType, resp->message_hash.bytes);
+
+    e712_reset();
+  }
+
   msg_write(MessageType_MessageType_EthereumTypedDataSignature, resp);
 }

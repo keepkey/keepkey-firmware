@@ -285,3 +285,36 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash *msg) {
   ethereum_typed_hash_sign(msg, node, resp);
   layoutHome();
 }
+
+
+
+
+
+void fsm_msgE712Types(const E712Types *msg) {
+  RESP_INIT(EthereumTypedDataSignature);
+
+  CHECK_INITIALIZED
+
+  CHECK_PIN
+
+  if (msg->eip712types.size == 0) {
+    fsm_sendFailure(FailureType_Failure_Other, _("Invalid EIP-712 types property string"));
+    return;
+  }
+
+  e712_types(msg, resp);
+
+  layoutHome();
+}
+
+void fsm_msgE712ValuesRequest(const E712ValuesRequest *msg) {
+  RESP_INIT(EthereumTypedDataSignature);
+
+  CHECK_INITIALIZED
+
+  CHECK_PIN
+
+  e712_values(msg, resp);
+
+  layoutHome();
+}

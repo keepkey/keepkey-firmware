@@ -37,13 +37,14 @@ EthereumSignTypedHash.address_n             max_count:8
 EthereumSignTypedHash.domain_separator_hash max_size:32
 EthereumSignTypedHash.message_hash          max_size:32
 
-EthereumTypedDataSignature.address      max_size:43
-EthereumTypedDataSignature.signature    max_size:65
+EthereumTypedDataSignature.address                max_size:43
+EthereumTypedDataSignature.signature              max_size:65
+EthereumTypedDataSignature.domain_separator_hash  max_size:32
+EthereumTypedDataSignature.message_hash           max_size:32
 
-E712TypesProp.address_n                 max_count:8
-E712TypesProp.eip712types               max_size:2048
+E712Types.eip712types               max_size:2048
+E712Types.eip712primetype           max_size:80
 
-E712PrimeTypeProp.eip712primetype       max_size:80
-
-E712Values.eip712data			              max_size:2048
+E712ValuesRequest.address_n                    max_count:8
+E712ValuesRequest.eip712data			              max_size:2048
 

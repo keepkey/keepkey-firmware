@@ -65,7 +65,7 @@ typedef enum {
     TOO_MANY_UDEFS
 } basicType;
 
-const char *udefList[MAX_USERDEF_TYPES] = {0};
+static const char *udefList[MAX_USERDEF_TYPES] = {0};
 
 int encodableType(const char *typeStr) {
     int ctr;
@@ -513,6 +513,54 @@ int parseVals(const json_t *eip712Types, const json_t *jType, const json_t *next
         }
         tarray = json_getSibling(tarray); 
     }
+    return 1;
+}
+
+int encode(const json_t *jsonTypes, const json_t *jsonVals, const char *typeS, uint8_t *hashRet) {
+    int ctr;
+    char encTypeStr[STRBUFSIZE+1] = {0};
+    uint8_t typeHash[32];
+    struct SHA3_CTX finalCtx = {0};
+
+    // clear out the user-defined types list
+    for(ctr=0; ctr<MAX_USERDEF_TYPES; ctr++) {
+        udefList[ctr] = NULL;
+    }  
+
+    parseType(json_getProperty(jsonTypes, "types"), typeS,   // e.g., "EIP712Domain"
+              encTypeStr                                      // will return with typestr
+              );                                                            
+    sha3_256_Init(&finalCtx);
+    sha3_Update(&finalCtx, (const unsigned char *)encTypeStr, (size_t)strlen(encTypeStr));
+    keccak_Final(&finalCtx, typeHash);
+
+    // They typehash must be the first message of the final hash, this is the start 
+    sha3_256_Init(&finalCtx);
+    sha3_Update(&finalCtx, (const unsigned char *)typeHash, (size_t)sizeof(typeHash));
+
+    if (0 == strncmp(typeS, "EIP712Domain", sizeof("EIP712Domain"))) {
+        parseVals(json_getProperty(jsonTypes, "types"),
+              json_getProperty(json_getProperty(jsonTypes, "types"), typeS),   // e.g., "EIP712Domain" 
+              json_getChild(json_getProperty(jsonVals, "domain" )),                // where to get the values
+              &finalCtx                                                         // val hash happens in parse, this is the return
+              );
+    } else {
+        // This is the message value encoding
+        if (NULL == json_getChild(json_getProperty(jsonVals, "message" ))) {
+            // return 2 for null message hash (this is a legal value)
+            return 2;
+        }
+        parseVals(json_getProperty(jsonTypes, "types"),
+              json_getProperty(json_getProperty(jsonTypes, "types"), typeS),   // e.g., "EIP712Domain" 
+              json_getChild(json_getProperty(jsonVals, "message" )),                // where to get the values
+              &finalCtx                                                         // val hash happens in parse, this is the return
+              );
+    }
+
+    keccak_Final(&finalCtx, hashRet);
+    // clear typeStr
+    memzero(encTypeStr, sizeof(encTypeStr));
+
     return 1;
 }
 

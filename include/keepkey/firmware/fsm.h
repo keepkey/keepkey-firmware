@@ -84,6 +84,8 @@ void fsm_msgEthereumTxAck(EthereumTxAck *msg);
 void fsm_msgEthereumSignMessage(EthereumSignMessage *msg);
 void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg);
 void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash *msg);
+void fsm_msgE712Types(const E712Types *msg);
+void fsm_msgE712ValuesRequest(const E712ValuesRequest *msg);
 
 void fsm_msgNanoGetAddress(NanoGetAddress *msg);
 void fsm_msgNanoSignTx(NanoSignTx *msg);
