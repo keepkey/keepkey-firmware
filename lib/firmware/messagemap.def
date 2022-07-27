@@ -41,8 +41,7 @@
 
     MSG_IN(MessageType_MessageType_EthereumSignTypedHash,           EthereumSignTypedHash,       fsm_msgEthereumSignTypedHash)
 
-    MSG_IN(MessageType_MessageType_E712Types,                       E712Types,                   fsm_msgE712Types)
-    MSG_IN(MessageType_MessageType_E712ValuesRequest,               E712ValuesRequest,           fsm_msgE712ValuesRequest)
+    MSG_IN(MessageType_MessageType_Ethereum712TypesValues,          Ethereum712TypesValues,      fsm_msgEthereum712TypesValues)
 
     MSG_IN(MessageType_MessageType_NanoGetAddress,                  NanoGetAddress,              fsm_msgNanoGetAddress)
     MSG_IN(MessageType_MessageType_NanoSignTx,                      NanoSignTx,                  fsm_msgNanoSignTx)

@@ -145,12 +145,22 @@ int parseType(const json_t *eip712Types, const char *typeS, char *typeStr) {
     int encTest;
     const char *typeType = NULL;
 
-    jType = json_getProperty(eip712Types, typeS);
+    // {
+    // char bufff[65] = {0};
+    // snprintf(bufff, 64, "eip712Types ptr %p", (void *)&eip712Types);
+    // DEBUG_DISPLAY(bufff);
+    // void *p = NULL;
+    // snprintf(bufff, 64, "approx stack ptr %p", (void *)&p);
+    // DEBUG_DISPLAY(bufff);
+    // }
 
+    jType = json_getProperty(eip712Types, typeS);
+    
     strncat(typeStr, json_getName(jType), STRBUFSIZE - strlen((const char *)typeStr));
     strncat(typeStr, "(", STRBUFSIZE - strlen((const char *)typeStr));
 
     tarray = json_getChild(jType);
+
     while (tarray != 0) {
         pairs = json_getChild(tarray);
         // should be type JSON_TEXT
@@ -279,16 +289,18 @@ int encodeBytesN(const char *typeT, const char *string, uint8_t *encoded) {
 }
 
 int confirmName(const char *name, bool valAvailable) {
+    (void)name;
     if (valAvailable) {
-        printf("\nConfirm\n%s ", name);
+        //printf("\nConfirm\n%s ", name);
     } else {
-        printf("\"%s\" values, press button to continue\n", name);
+        //printf("\"%s\" values, press button to continue\n", name);
     }
     return 1;
 }
 
 int confirmValue(const char *value) {
-    printf("%s\n", value);
+    (void)value;
+    //printf("%s\n", value);
     return 1;
 }
 
@@ -527,6 +539,17 @@ int encode(const json_t *jsonTypes, const json_t *jsonVals, const char *typeS, u
         udefList[ctr] = NULL;
     }  
 
+    // {
+    // char bufff[65] = {0};
+    // snprintf(bufff, 64, "json ptr %p", (void *)&jsonTypes);
+    // DEBUG_DISPLAY(bufff);
+    // void *p = NULL;
+    // snprintf(bufff, 64, "approx stack ptr %p", (void *)&p);
+    // DEBUG_DISPLAY(bufff);
+    // }
+
+
+
     parseType(json_getProperty(jsonTypes, "types"), typeS,   // e.g., "EIP712Domain"
               encTypeStr                                      // will return with typestr
               );                                                            
@@ -539,6 +562,7 @@ int encode(const json_t *jsonTypes, const json_t *jsonVals, const char *typeS, u
     sha3_Update(&finalCtx, (const unsigned char *)typeHash, (size_t)sizeof(typeHash));
 
     if (0 == strncmp(typeS, "EIP712Domain", sizeof("EIP712Domain"))) {
+
         parseVals(json_getProperty(jsonTypes, "types"),
               json_getProperty(json_getProperty(jsonTypes, "types"), typeS),   // e.g., "EIP712Domain" 
               json_getChild(json_getProperty(jsonVals, "domain" )),                // where to get the values
