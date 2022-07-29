@@ -67,6 +67,17 @@ typedef enum {
 
 static const char *udefList[MAX_USERDEF_TYPES] = {0};
 
+int memcheck(void);
+extern unsigned end;
+
+int memcheck() {
+    char buf[33] = {0};
+    void *p;
+    snprintf(buf, 64, "RAM available %u", (unsigned)&p - (unsigned)&end);
+    DEBUG_DISPLAY(buf);
+    return(1);
+}
+
 int encodableType(const char *typeStr) {
     int ctr;
 
@@ -181,9 +192,11 @@ int parseType(const json_t *eip712Types, const char *typeS, char *typeStr) {
                     }
 
                     strtok(typeNoArrTok, "[");
+                    memcheck();
                     parseType(eip712Types, typeNoArrTok, append);
                 } else {
-                parseType(eip712Types, typeType, append);
+                    memcheck();
+                    parseType(eip712Types, typeType, append);
                 }
             } else if (encTest == TOO_MANY_UDEFS) {
                 //TODO fix this  printf ("too many user defined types!");
@@ -288,19 +301,27 @@ int encodeBytesN(const char *typeT, const char *string, uint8_t *encoded) {
     return 1;
 }
 
+typedef enum {
+    DOMAIN = 1,
+    MESSAGE = 2
+} dm;
+dm confirmProp;
+
+char *confirmTitle[2] = {"EIP-712 DOMAIN", 
+                         "EIP-712 MESSAGE"};
+const char *nameForValue;
 int confirmName(const char *name, bool valAvailable) {
-    (void)name;
     if (valAvailable) {
-        //printf("\nConfirm\n%s ", name);
+        nameForValue = name;
+        //(void)review(ButtonRequestType_ButtonRequest_Other, confirmTitle[confirmProp-1], "%s", name);
     } else {
-        //printf("\"%s\" values, press button to continue\n", name);
+        (void)review(ButtonRequestType_ButtonRequest_Other, confirmTitle[confirmProp-1], "Press button to continue for\n\"%s\" values", name);
     }
     return 1;
 }
 
 int confirmValue(const char *value) {
-    (void)value;
-    //printf("%s\n", value);
+    (void)review(ButtonRequestType_ButtonRequest_Other, confirmTitle[confirmProp-1], "%s %s", nameForValue, value);
     return 1;
 }
 
@@ -473,8 +494,10 @@ int parseVals(const json_t *eip712Types, const json_t *jType, const json_t *next
                             return 0;
                         }
                         strtok(typeNoArrTok, "[");
+                        memcheck();
                         parseType(eip712Types, typeNoArrTok, encSubTypeStr);
                     } else {
+                        memcheck();
                         parseType(eip712Types, typeType, encSubTypeStr);
                     }
                     sha3_256_Init(&valCtx);
@@ -493,6 +516,7 @@ int parseVals(const json_t *eip712Types, const json_t *jType, const json_t *next
                         while (0 != udefVals) {
                             sha3_256_Init(&eleCtx);
                             sha3_Update(&eleCtx, (const unsigned char *)encBytes, 32);
+                            memcheck();
                             parseVals(
                                   eip712Types,
                                   json_getProperty(eip712Types, strtok(typeNoArrTok, "]")),
@@ -509,6 +533,7 @@ int parseVals(const json_t *eip712Types, const json_t *jType, const json_t *next
                     } else {
                         sha3_256_Init(&valCtx);
                         sha3_Update(&valCtx, (const unsigned char *)encBytes, (size_t)sizeof(encBytes));
+                        memcheck();
                         parseVals(
                                   eip712Types,
                                   json_getProperty(eip712Types, typeType),
@@ -562,7 +587,7 @@ int encode(const json_t *jsonTypes, const json_t *jsonVals, const char *typeS, u
     sha3_Update(&finalCtx, (const unsigned char *)typeHash, (size_t)sizeof(typeHash));
 
     if (0 == strncmp(typeS, "EIP712Domain", sizeof("EIP712Domain"))) {
-
+        confirmProp = DOMAIN;
         parseVals(json_getProperty(jsonTypes, "types"),
               json_getProperty(json_getProperty(jsonTypes, "types"), typeS),   // e.g., "EIP712Domain" 
               json_getChild(json_getProperty(jsonVals, "domain" )),                // where to get the values
@@ -570,6 +595,7 @@ int encode(const json_t *jsonTypes, const json_t *jsonVals, const char *typeS, u
               );
     } else {
         // This is the message value encoding
+        confirmProp = MESSAGE;
         if (NULL == json_getChild(json_getProperty(jsonVals, "message" ))) {
             // return 2 for null message hash (this is a legal value)
             return 2;

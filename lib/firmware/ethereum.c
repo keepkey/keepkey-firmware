@@ -1107,12 +1107,16 @@ void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *
   if (msg->eip712typevals == 1) {
     // Compute domain seperator hash
     encode(jsonT, jsonV, "EIP712Domain", resp->domain_separator_hash.bytes);
-    resp->has_domain_separator_hash = 1;
-    DEBUG_DISPLAY_VAL("domain separator hash", "%s", 65, resp->domain_separator_hash.bytes[ctr]);
+    resp->has_domain_separator_hash = true;
+    resp->domain_separator_hash.size = 32;
+    //DEBUG_DISPLAY_VAL("domain separator hash", "%s", 65, resp->domain_separator_hash.bytes[ctr]);
 
   } else {
     primeType = json_getValue(json_getProperty(jsonPT, "primaryType"));
     encode(jsonT, jsonV, primeType, resp->message_hash.bytes);
+    // Compute message hash
+    resp->has_message_hash = true;
+    resp->message_hash.size = 32;
   }
 
   msg_write(MessageType_MessageType_EthereumTypedDataSignature, resp);

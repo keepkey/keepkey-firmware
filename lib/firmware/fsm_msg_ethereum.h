@@ -297,13 +297,6 @@ void fsm_msgEthereum712TypesValues(Ethereum712TypesValues *msg) {
     fsm_sendFailure(FailureType_Failure_Other, _("Invalid EIP-712 types property string"));
     return;
   }
-
-    // {
-    // char bufff[65]={0};
-    // void *p = NULL;
-    // snprintf(bufff, 64, "stack ptr in fsm_ %p", (void *)&p);
-    // DEBUG_DISPLAY(bufff);
-    // }
   e712_types_values(msg, resp);
 
   layoutHome();
