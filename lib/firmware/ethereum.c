@@ -29,6 +29,7 @@
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
+#include "keepkey/firmware/eip712.h"
 #include "keepkey/firmware/ethereum_contracts.h"
 #include "keepkey/firmware/ethereum_contracts/makerdao.h"
 #include "keepkey/firmware/ethereum_tokens.h"
@@ -1069,12 +1070,57 @@ void ethereum_typed_hash_sign(const EthereumSignTypedHash *msg,
 
 #define JSON_OBJ_POOL_SIZE  100
 int encode(const json_t *jsonTypes, const json_t *jsonVals, const char *typeS, uint8_t *hashRet);
+void failMessage(int err);
+
+const char *failMsgReturn[LAST_ERROR - 2] = {
+                        "EIP-712 general error", 
+                        "EIP-712 user defined type name too long",
+                        "EIP-712 too many user defined types",
+                        "EIP-712 user defined type array name error",
+                        "EIP-712 address string overflow",
+                        "EIP-712 bytesN string overflow",
+                        "EIP-712 bytesN size error",
+                        "EIP-712 INT and UINT array parsing not implemented",
+                        "EIP-712 bytesN array parsing not implemented",
+                        "EIP-712 boolean array parsing not implemented",
+                        "EIP-712 not enough memory to parse message",
+                        "EIP-712 primaryType name error",
+                        "EIP-712 primaryType value error",
+                        "EIP-712 types property error",
+                        "EIP-712 typeS (typestring) property error",
+                        "EIP-712 domain property name error",
+                        "EIP-712 domain property value error",
+                        "EIP-712 message property name error",
+                        "EIP-712 primary type object error",
+                        "EIP-712 typeS not found in eip712types",
+                        "EIP-712 typeS name missing",
+                        "EIP-712 no tarray (jType child)",
+                        "EIP-712 pairs are NULL",
+                        "EIP-712 json pair type is not JSON_TEXT",
+                        "EIP-712 pair does not have a sibling",
+                        "EIP-712 typeType not encodable, possibly NULL",
+                        "EIP-712 pair value is NULL",
+                        "EIP-712 pair name is NULL",
+                        "EIP-712 typeType has no name in parseVals",
+                        "EIP-712 address string is NULL",
+                        "EIP-712 no value for type during walkVals",
+                        };
+
+void failMessage(int err) {
+  if (err < GENERAL_ERROR || err > LAST_ERROR) {
+    // unknown error number
+    fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 unknown failure"));
+  } else {
+    fsm_sendFailure(FailureType_Failure_Other, _(failMsgReturn[err-3]));
+  }
+  return;
+}
 
 void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *resp) {
+  int errRet = SUCCESS;
   json_t memTypes[JSON_OBJ_POOL_SIZE] = {0};
   json_t memVals[JSON_OBJ_POOL_SIZE] = {0};
   json_t memPType[4] = {0};
-
   json_t const* jsonT;
   json_t const* jsonV;
   json_t const* jsonPT;
@@ -1082,6 +1128,7 @@ void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *
   char *primaryTypeJsonStr;
   char *valuesJsonStr;
   const char *primeType;
+  json_t const* obTest;
 
   typesJsonStr = msg->eip712types;
   primaryTypeJsonStr = msg->eip712primetype;
@@ -1106,14 +1153,32 @@ void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *
 
   if (msg->eip712typevals == 1) {
     // Compute domain seperator hash
-    encode(jsonT, jsonV, "EIP712Domain", resp->domain_separator_hash.bytes);
+    if ((int)SUCCESS != (errRet = 
+      encode(jsonT, jsonV, "EIP712Domain", resp->domain_separator_hash.bytes)
+    )) {
+      failMessage(errRet);
+      return;
+    }
     resp->has_domain_separator_hash = true;
     resp->domain_separator_hash.size = 32;
     //DEBUG_DISPLAY_VAL("domain separator hash", "%s", 65, resp->domain_separator_hash.bytes[ctr]);
 
   } else {
-    primeType = json_getValue(json_getProperty(jsonPT, "primaryType"));
-    encode(jsonT, jsonV, primeType, resp->message_hash.bytes);
+    if (NULL == (obTest = json_getProperty(jsonPT, "primaryType"))) {
+      failMessage(JSON_PTYPENAMEERR);
+      return;
+    }
+    if (0 == (primeType = json_getValue(obTest))) {
+      failMessage(JSON_PTYPEVALERR);
+      return;
+    }
+    errRet = encode(jsonT, jsonV, primeType, resp->message_hash.bytes);
+    if (!(SUCCESS == errRet || NULL_MSG_HASH == errRet)) {
+      //(void)review(ButtonRequestType_ButtonRequest_Other, "error val", "%d", errRet);
+
+      failMessage(errRet);
+      return;
+    }
     // Compute message hash
     resp->has_message_hash = true;
     resp->message_hash.size = 32;
