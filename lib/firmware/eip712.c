@@ -160,10 +160,7 @@ int parseType(const json_t *eip712Types, const char *typeS, char *typeStr) {
     strncat(typeStr, nameTest, STRBUFSIZE - strlen((const char *)typeStr));
     strncat(typeStr, "(", STRBUFSIZE - strlen((const char *)typeStr));
 
-    if (NULL == (tarray = json_getChild(jType))) {
-        errRet = JSON_NO_TARRAY;
-        return errRet;
-    }
+    tarray = json_getChild(jType);
     while (tarray != 0) {
         if (NULL == (pairs = json_getChild(tarray))) {
             errRet = JSON_NO_PAIRS;
@@ -353,10 +350,8 @@ int parseVals(const json_t *eip712Types, const json_t *jType, const json_t *next
     bool hasValue = 0;
     int errRet = SUCCESS;
 
-    if (NULL == (tarray = json_getChild(jType))) {
-        errRet = JSON_NO_TARRAY;
-        return errRet;
-    }
+    tarray = json_getChild(jType);
+
     while (tarray != 0) {
         if (NULL == (pairs = json_getChild(tarray))) {
             errRet = JSON_NO_PAIRS;
@@ -671,8 +666,10 @@ int encode(const json_t *jsonTypes, const json_t *jsonVals, const char *typeS, u
         return errRet;
     } 
     if (NULL == (valsProp = json_getChild(domainOrMessageProp))) {                    // "message" or "domain" property values
-        errRet = JSON_DPROPVALSERR;
-        return errRet;
+        if (confirmProp == MESSAGE) {
+            errRet = NULL_MSG_HASH;         // this is legal, not an error.
+            return errRet;
+        }
     } 
 
     if (SUCCESS != (errRet = parseVals(typesProp, typeSprop, valsProp, &finalCtx))) {

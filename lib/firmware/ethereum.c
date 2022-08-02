@@ -1073,7 +1073,7 @@ int encode(const json_t *jsonTypes, const json_t *jsonVals, const char *typeS, u
 void failMessage(int err);
 
 const char *failMsgReturn[LAST_ERROR - 2] = {
-                        "EIP-712 general error", 
+                        "EIP-712 general error",                              //  3
                         "EIP-712 user defined type name too long",
                         "EIP-712 too many user defined types",
                         "EIP-712 user defined type array name error",
@@ -1082,19 +1082,19 @@ const char *failMsgReturn[LAST_ERROR - 2] = {
                         "EIP-712 bytesN size error",
                         "EIP-712 INT and UINT array parsing not implemented",
                         "EIP-712 bytesN array parsing not implemented",
-                        "EIP-712 boolean array parsing not implemented",
-                        "EIP-712 not enough memory to parse message",
+                        "EIP-712 boolean array parsing not implemented",    
+                        "EIP-712 not enough memory to parse message",         // 13
                         "EIP-712 primaryType name error",
                         "EIP-712 primaryType value error",
                         "EIP-712 types property error",
                         "EIP-712 typeS (typestring) property error",
                         "EIP-712 domain property name error",
-                        "EIP-712 domain property value error",
+                        "EIP-712 unused error 19",
                         "EIP-712 message property name error",
                         "EIP-712 primary type object error",
                         "EIP-712 typeS not found in eip712types",
-                        "EIP-712 typeS name missing",
-                        "EIP-712 no tarray (jType child)",
+                        "EIP-712 typeS name missing",                         // 23
+                        "EIP-712 unused error 24",
                         "EIP-712 pairs are NULL",
                         "EIP-712 json pair type is not JSON_TEXT",
                         "EIP-712 pair does not have a sibling",
@@ -1103,7 +1103,7 @@ const char *failMsgReturn[LAST_ERROR - 2] = {
                         "EIP-712 pair name is NULL",
                         "EIP-712 typeType has no name in parseVals",
                         "EIP-712 address string is NULL",
-                        "EIP-712 no value for type during walkVals",
+                        "EIP-712 no value for type during walkVals",          // 33
                         };
 
 void failMessage(int err) {
@@ -1172,16 +1172,19 @@ void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *
       failMessage(JSON_PTYPEVALERR);
       return;
     }
-    errRet = encode(jsonT, jsonV, primeType, resp->message_hash.bytes);
-    if (!(SUCCESS == errRet || NULL_MSG_HASH == errRet)) {
-      //(void)review(ButtonRequestType_ButtonRequest_Other, "error val", "%d", errRet);
+    
+    if (0 != strncmp(primeType, "EIP712Domain", strlen(primeType))) { // if primaryType is "EIP712Domain", message hash is NULL
+      errRet = encode(jsonT, jsonV, primeType, resp->message_hash.bytes);
+      if (!(SUCCESS == errRet || NULL_MSG_HASH == errRet)) {
+        //(void)review(ButtonRequestType_ButtonRequest_Other, "error val", "%d", errRet);
 
-      failMessage(errRet);
-      return;
+        failMessage(errRet);
+        return;
+      }
+      // Compute message hash
+      resp->has_message_hash = true;
+      resp->message_hash.size = 32;
     }
-    // Compute message hash
-    resp->has_message_hash = true;
-    resp->message_hash.size = 32;
   }
 
   msg_write(MessageType_MessageType_EthereumTypedDataSignature, resp);
