@@ -35,6 +35,8 @@
 #ifndef EIP712_H
 #define EIP712_H
 
+#include "keepkey/firmware/tiny-json.h"
+
 #define USE_KECCAK 1
 #define ADDRESS_SIZE        42
 #define JSON_OBJ_POOL_SIZE  100
@@ -102,8 +104,8 @@ typedef enum {
 
 #define LAST_ERROR         JSON_TYPE_WNOVAL
 
-
 int memcheck(void);
+int encode(const json_t *jsonTypes, const json_t *jsonVals, const char *typeS, uint8_t *hashRet);
 
 #endif
 

@@ -1074,9 +1074,6 @@ void ethereum_typed_hash_sign(const EthereumSignTypedHash *msg,
   msg_write(MessageType_MessageType_EthereumTypedDataSignature, resp);
 }
 
-#define JSON_OBJ_POOL_SIZE  100
-int encode(const json_t *jsonTypes, const json_t *jsonVals, const char *typeS, uint8_t *hashRet);
-
 void failMessage(int err);
 
 const char *failMsgReturn[LAST_ERROR - 2] = {
