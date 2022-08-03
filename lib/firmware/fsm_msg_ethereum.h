@@ -297,7 +297,22 @@ void fsm_msgEthereum712TypesValues(Ethereum712TypesValues *msg) {
     fsm_sendFailure(FailureType_Failure_Other, _("Invalid EIP-712 types property string"));
     return;
   }
-  e712_types_values(msg, resp);
+
+  const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+                                          msg->address_n_count, NULL);
+  if (!node) return;
+
+  uint8_t pubkeyhash[20] = {0};
+  if (!hdnode_get_ethereum_pubkeyhash(node, pubkeyhash)) {
+    layoutHome();
+    return;
+  }
+
+  resp->address[0] = '0';
+  resp->address[1] = 'x';
+  ethereum_address_checksum(pubkeyhash, resp->address+2, false, 0);
+
+  e712_types_values(msg, resp, node);
 
   layoutHome();
 }

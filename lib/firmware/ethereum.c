@@ -1048,17 +1048,23 @@ static void ethereum_typed_hash(const uint8_t domain_separator_hash[32],
   keccak_Final(&ctx, hash);
 }
 
+static int eip712_sign(const uint8_t *ds_hash, const uint8_t *msg_hash, bool has_msg_hash, 
+                        const HDNode *node, uint8_t *v, uint8_t *sig) {
+
+  uint8_t hash[32] = {0};
+
+  ethereum_typed_hash(ds_hash, msg_hash, has_msg_hash, hash);
+
+  return ecdsa_sign_digest(&secp256k1, node->private_key, hash, sig, v, ethereum_is_canonic);
+}
+
 void ethereum_typed_hash_sign(const EthereumSignTypedHash *msg,
                               const HDNode *node,
                               EthereumTypedDataSignature *resp) {
-  uint8_t hash[32] = {0};
-
-  ethereum_typed_hash(msg->domain_separator_hash.bytes, msg->message_hash.bytes,
-                      msg->has_message_hash, hash);
 
   uint8_t v = 0;
-  if (ecdsa_sign_digest(&secp256k1, node->private_key, hash,
-                        resp->signature.bytes, &v, ethereum_is_canonic) != 0) {
+  if (0 != eip712_sign(msg->domain_separator_hash.bytes, msg->message_hash.bytes, 
+              msg->has_message_hash, node, &v, resp->signature.bytes)) {
     fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 typed hash signing failed"));
     return;
   }
@@ -1070,6 +1076,7 @@ void ethereum_typed_hash_sign(const EthereumSignTypedHash *msg,
 
 #define JSON_OBJ_POOL_SIZE  100
 int encode(const json_t *jsonTypes, const json_t *jsonVals, const char *typeS, uint8_t *hashRet);
+
 void failMessage(int err);
 
 const char *failMsgReturn[LAST_ERROR - 2] = {
@@ -1089,7 +1096,7 @@ const char *failMsgReturn[LAST_ERROR - 2] = {
                         "EIP-712 types property error",
                         "EIP-712 typeS (typestring) property error",
                         "EIP-712 domain property name error",
-                        "EIP-712 unused error 19",
+                        "EIP-712 domain seperator hash must be calculated first",
                         "EIP-712 message property name error",
                         "EIP-712 primary type object error",
                         "EIP-712 typeS not found in eip712types",
@@ -1116,7 +1123,8 @@ void failMessage(int err) {
   return;
 }
 
-void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *resp) {
+
+void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *resp, const HDNode *node) {
   int errRet = SUCCESS;
   json_t memTypes[JSON_OBJ_POOL_SIZE] = {0};
   json_t memVals[JSON_OBJ_POOL_SIZE] = {0};
@@ -1129,6 +1137,9 @@ void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *
   char *valuesJsonStr;
   const char *primeType;
   json_t const* obTest;
+  static uint8_t domainSeparatorHash[32]={0};
+  static uint8_t messageHash[32]={0};
+  static bool have_ds=false;
 
   typesJsonStr = msg->eip712types;
   primaryTypeJsonStr = msg->eip712primetype;
@@ -1153,17 +1164,25 @@ void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *
 
   if (msg->eip712typevals == 1) {
     // Compute domain seperator hash
+    have_ds = false;
+    memzero(domainSeparatorHash, 32);
     if ((int)SUCCESS != (errRet = 
       encode(jsonT, jsonV, "EIP712Domain", resp->domain_separator_hash.bytes)
     )) {
       failMessage(errRet);
       return;
     }
+    have_ds = true;
+    memcpy(domainSeparatorHash, resp->domain_separator_hash.bytes, 32);
     resp->has_domain_separator_hash = true;
     resp->domain_separator_hash.size = 32;
-    //DEBUG_DISPLAY_VAL("domain separator hash", "%s", 65, resp->domain_separator_hash.bytes[ctr]);
+    resp->has_msg_hash = false;
 
   } else {
+    if (!have_ds) {
+      failMessage(MSG_NO_DS);
+      return;
+    }
     if (NULL == (obTest = json_getProperty(jsonPT, "primaryType"))) {
       failMessage(JSON_PTYPENAMEERR);
       return;
@@ -1172,19 +1191,41 @@ void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *
       failMessage(JSON_PTYPEVALERR);
       return;
     }
-    
     if (0 != strncmp(primeType, "EIP712Domain", strlen(primeType))) { // if primaryType is "EIP712Domain", message hash is NULL
       errRet = encode(jsonT, jsonV, primeType, resp->message_hash.bytes);
       if (!(SUCCESS == errRet || NULL_MSG_HASH == errRet)) {
-        //(void)review(ButtonRequestType_ButtonRequest_Other, "error val", "%d", errRet);
-
         failMessage(errRet);
         return;
       }
-      // Compute message hash
+    } else {
+      errRet = NULL_MSG_HASH;
+    }
+    
+    if (NULL_MSG_HASH == errRet) {
+      resp->has_message_hash = false;
+      resp->has_msg_hash = false;
+    } else {
+      memcpy(messageHash, resp->message_hash.bytes, 32);
       resp->has_message_hash = true;
       resp->message_hash.size = 32;
+      resp->has_msg_hash = true;
     }
+    memcpy(resp->domain_separator_hash.bytes, domainSeparatorHash, 32);
+    resp->has_domain_separator_hash = true;
+    resp->domain_separator_hash.size = 32;
+
+    uint8_t v = 0;
+    if (0 != eip712_sign(domainSeparatorHash, messageHash, resp->has_msg_hash, node, &v, resp->signature.bytes)) {
+      fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 typed hash signing failed"));
+      return;
+    }
+
+    resp->signature.bytes[64] = 27 + v;
+    resp->signature.size = 65;
+
+    memzero(domainSeparatorHash, 32);
+    memzero(messageHash, 32);
+    have_ds = false;
   }
 
   msg_write(MessageType_MessageType_EthereumTypedDataSignature, resp);

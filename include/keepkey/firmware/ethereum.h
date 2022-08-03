@@ -73,6 +73,6 @@ void ethereum_typed_hash_sign(const EthereumSignTypedHash *msg,
                               EthereumTypedDataSignature *resp);
 bool ethereum_path_check(uint32_t address_n_count, const uint32_t *address_n,
                          bool pubkey_export, uint64_t chain);
-void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *resp);
+void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *resp, const HDNode *node);
 
 #endif

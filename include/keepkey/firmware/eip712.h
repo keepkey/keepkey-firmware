@@ -84,7 +84,7 @@ typedef enum {
 #define JSON_TYPESPROPERR   16
 #define JSON_TYPE_SPROPERR  17
 #define JSON_DPROPERR       18
-#define UNUSED_ERR_1        19          // available for re-use
+#define MSG_NO_DS           19
 #define JSON_MPROPERR       20
 #define JSON_PTYPESOBJERR   21
 #define JSON_TYPE_S_ERR     22

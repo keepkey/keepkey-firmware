@@ -53,10 +53,10 @@ static char *confirmTitle[2] = {
 static const char *nameForValue;
 
 int memcheck() {
-    char buf[33] = {0};
+    // char buf[33] = {0};
     void *stackBottom;    // this is the bottom of the stack, it is shrinking toward static mem at variable "end".
-    snprintf(buf, 64, "RAM available %u", (unsigned)&stackBottom - (unsigned)&end);
-    DEBUG_DISPLAY(buf);
+    // snprintf(buf, 64, "RAM available %u", (unsigned)&stackBottom - (unsigned)&end);
+    // DEBUG_DISPLAY(buf);
     if (STACK_SIZE_GUARD > ((unsigned)&stackBottom - (unsigned)&end)) {
         return RECURSION_ERROR;
     } else {
