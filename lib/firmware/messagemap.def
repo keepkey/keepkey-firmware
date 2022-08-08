@@ -45,7 +45,7 @@
     MSG_IN(MessageType_MessageType_CosmosSignTx,                    CosmosSignTx,                fsm_msgCosmosSignTx)
     MSG_IN(MessageType_MessageType_CosmosMsgAck,                    CosmosMsgAck,                fsm_msgCosmosMsgAck)
 
-    MSG_IN(MessageType_MessageType_CosmosGetAddress,                OsmosisGetAddress,           fsm_msgOsmosisGetAddress)
+    MSG_IN(MessageType_MessageType_OsmosisGetAddress,                OsmosisGetAddress,           fsm_msgOsmosisGetAddress)
     MSG_IN(MessageType_MessageType_OsmosisSignTx,                   OsmosisSignTx,               fsm_msgOsmosisSignTx)
     MSG_IN(MessageType_MessageType_OsmosisMsgAck,                   OsmosisMsgAck,               fsm_msgOsmosisMsgAck)
 
