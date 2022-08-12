@@ -38,6 +38,7 @@
 #include <string.h>
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/firmware/eip712.h"
+#include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/tiny-json.h"
 #include "trezor/crypto/sha3.h"
 #include "trezor/crypto/memzero.h"
@@ -45,10 +46,6 @@
 extern unsigned end;    // This is at the end of the data + bss, used for recursion guard
 static const char *udefList[MAX_USERDEF_TYPES] = {0};
 static dm confirmProp;
-static char *confirmTitle[2] = {
-                                "EIP-712 DOMAIN", 
-                                "EIP-712 MESSAGE"
-                                };
 
 static const char *nameForValue;
 
@@ -118,7 +115,6 @@ int encodableType(const char *typeStr) {
         }
     }
     if (ctr == MAX_USERDEF_TYPES) {
-        //TODO fix this  printf("could not add %d %s\n", ctr, typeStr);
         return TOO_MANY_UDEFS;
     }
 
@@ -184,7 +180,6 @@ int parseType(const json_t *eip712Types, const char *typeS, char *typeStr) {
                     char typeNoArrTok[MAX_TYPESTRING] = {0};
                     strncpy(typeNoArrTok, typeType, sizeof(typeNoArrTok)-1);
                     if (strlen(typeNoArrTok) < strlen(typeType)) {
-                        //TODO fix this  printf("ERROR: UDEF array type name is >32: %s, %lu\n", typeType, strlen(typeType));
                         return UDEF_NAME_ERROR;
                     }
 
@@ -290,14 +285,12 @@ int encodeBytesN(const char *typeT, const char *string, uint8_t *encoded) {
     unsigned ctr;
 
     if (MAX_ENCBYTEN_SIZE < strlen(string)) {
-        //TODO fix this  printf("ERROR: bytesN string too big %lu\n", strlen(string));
         return BYTESN_STRING_ERROR;
     }
 
     // parse out the length val
     uint8_t byteTypeSize = (uint8_t)(strtol((typeT+5), NULL, 10));
     if (32 < byteTypeSize) {
-        //TODO fix this  printf("byteN size error, N>32:%u/n", byteTypeSize);
         return BYTESN_SIZE_ERROR;
     }
     for (ctr=0; ctr<32; ctr++) {
@@ -317,13 +310,60 @@ int confirmName(const char *name, bool valAvailable) {
     if (valAvailable) {
         nameForValue = name;
     } else {
-        (void)review(ButtonRequestType_ButtonRequest_Other, confirmTitle[confirmProp-1], "Press button to continue for\n\"%s\" values", name);
+        (void)review(ButtonRequestType_ButtonRequest_Other, "MESSAGE DATA", "Press button to continue for\n\"%s\" values", name);
     }
     return SUCCESS;
 }
 
 int confirmValue(const char *value) {
-    (void)review(ButtonRequestType_ButtonRequest_Other, confirmTitle[confirmProp-1], "%s %s", nameForValue, value);
+    (void)review(ButtonRequestType_ButtonRequest_Other, "MESSAGE DATA", "%s %s", nameForValue, value);
+    return SUCCESS;
+}
+
+int dsConfirm(const char *value) {
+    static const char *name=NULL, *version=NULL, *chainId=NULL, *verifyingContract=NULL;
+
+    if (0 == strncmp(nameForValue, "name", sizeof("name"))) {
+        name = value;
+    }
+    if (0 == strncmp(nameForValue, "version", sizeof("version"))) {
+        version = value;
+    }
+    if (0 == strncmp(nameForValue, "chainId", sizeof("chainId"))) {
+        chainId = value;
+    }
+    if (0 == strncmp(nameForValue, "verifyingContract", sizeof("verifyingContract"))) {
+        verifyingContract = value;
+    }
+
+    if (name != NULL && version != NULL && chainId != NULL && verifyingContract != NULL) {
+        // First check if we recognize the contract
+        const TokenType *assetToken;
+        uint8_t addrHexStr[20];
+        uint32_t chainInt;
+        int ctr;
+        char title[33] = {0};
+
+        for (ctr=2; ctr<42; ctr+=2) {
+            sscanf((char *)&verifyingContract[ctr], "%2hhx", &addrHexStr[(ctr-2)/2]);
+        }
+        sscanf((char *)chainId, "%ld", &chainInt);
+
+        assetToken = tokenByChainAddress(chainInt, (uint8_t *)addrHexStr);
+        if (strncmp(assetToken->ticker, " UNKN", 5) == 0) {
+        } else {
+            verifyingContract = assetToken->ticker;
+        }
+        strncat(title, name, 32-strlen(name));
+        strncat(title, " version ", 32-strlen(title));
+        strncat(title, version, 32-strlen(title));
+        (void)review(ButtonRequestType_ButtonRequest_Other, title, "chain %s,  verifyingContract: %s",
+                        chainId, verifyingContract);
+        name = NULL;
+        version = NULL;
+        chainId = NULL;
+        verifyingContract = NULL;
+    }
     return SUCCESS;
 }
 
@@ -348,7 +388,12 @@ int parseVals(const json_t *eip712Types, const json_t *jType, const json_t *next
     char byteStrBuf[3] = {0};
     struct SHA3_CTX valCtx = {0};   // local hash context
     bool hasValue = 0;
+    bool ds_vals = 0;           // domain sep values are confirmed on a single screen
     int errRet = SUCCESS;
+
+    if (0 == strncmp(json_getName(jType), "EIP712Domain", sizeof("EIP712Domain"))) {
+        ds_vals = true;
+    }
 
     tarray = json_getChild(jType);
 
@@ -404,7 +449,12 @@ int parseVals(const json_t *eip712Types, const json_t *jType, const json_t *next
                         sha3_256_Init(&valCtx);     // hash of concatenated encoded strings
                         while (0 != addrVals) {
                             // just walk the string values assuming, for fixed sizes, all values are there.
-                            confirmValue(json_getValue(addrVals));
+                            if (ds_vals) {
+                                dsConfirm(json_getValue(addrVals));
+                            } else {
+                                confirmValue(json_getValue(addrVals));
+                            }
+
                             errRet = encAddress(json_getValue(addrVals), encBytes);
                             if (SUCCESS != errRet) {
                                 return errRet;
@@ -414,7 +464,11 @@ int parseVals(const json_t *eip712Types, const json_t *jType, const json_t *next
                         }
                         keccak_Final(&valCtx, encBytes);
                     } else {
-                        confirmValue(valStr);
+                        if (ds_vals) {
+                            dsConfirm(valStr);
+                        } else {
+                            confirmValue(valStr);
+                        }
                         errRet = encAddress(valStr, encBytes);
                         if (SUCCESS != errRet) {
                             return errRet;
@@ -429,7 +483,11 @@ int parseVals(const json_t *eip712Types, const json_t *jType, const json_t *next
                         sha3_256_Init(&valCtx);     // hash of concatenated encoded strings
                         while (0 != stringVals) {
                             // just walk the string values assuming, for fixed sizes, all values are there.
-                            confirmValue(json_getValue(stringVals));
+                            if (ds_vals) {
+                                dsConfirm(json_getValue(stringVals));
+                            } else {
+                                confirmValue(json_getValue(stringVals));
+                            }
                             errRet = encString(json_getValue(stringVals), strEncBytes);
                             if (SUCCESS != errRet) {
                                 return errRet;
@@ -439,7 +497,11 @@ int parseVals(const json_t *eip712Types, const json_t *jType, const json_t *next
                         }
                         keccak_Final(&valCtx, encBytes);
                     } else {
-                        confirmValue(valStr);
+                        if (ds_vals) {
+                            dsConfirm(valStr);
+                        } else {
+                            confirmValue(valStr);
+                        }
                         errRet = encString(valStr, encBytes);
                         if (SUCCESS != errRet) {
                             return errRet;
@@ -450,10 +512,13 @@ int parseVals(const json_t *eip712Types, const json_t *jType, const json_t *next
                            (0 == strncmp("int", typeType, strlen("int")-1))) {
 
                     if (']' == typeType[strlen(typeType)-1]) {
-                        //TODO fix this  printf("ERROR: INT and UINT arrays not yet implemented\n");
                         return INT_ARRAY_ERROR;
                     } else {
-                        confirmValue(valStr);
+                        if (ds_vals) {
+                            dsConfirm(valStr);
+                        } else {
+                            confirmValue(valStr);
+                        }
                         uint8_t negInt = 0;     // 0 is positive, 1 is negative
                         if (0 == strncmp("int", typeType, strlen("int")-1)) {
                             if (*valStr == '-') {
@@ -479,11 +544,14 @@ int parseVals(const json_t *eip712Types, const json_t *jType, const json_t *next
 
                 } else if (0 == strncmp("bytes", typeType, strlen("bytes"))) {
                     if (']' == typeType[strlen(typeType)-1]) {
-                        //TODO fix this  printf("ERROR: bytesN arrays not yet implemented\n");
                         return BYTESN_ARRAY_ERROR;
                     } else {
                         // This could be 'bytes', 'bytes1', ..., 'bytes32'
-                        confirmValue(valStr);
+                        if (ds_vals) {
+                            dsConfirm(valStr);
+                        } else {
+                            confirmValue(valStr);
+                        }
                         if (0 == strcmp(typeType, "bytes")) {
                            errRet = encodeBytes(valStr, encBytes);
                         if (SUCCESS != errRet) {
@@ -500,10 +568,13 @@ int parseVals(const json_t *eip712Types, const json_t *jType, const json_t *next
 
                 } else if (0 == strncmp("bool", typeType, strlen(typeType))) {
                     if (']' == typeType[strlen(typeType)-1]) {
-                        //TODO fix this  printf("ERROR: bool arrays not yet implemented\n");
                         return BOOL_ARRAY_ERROR;
                     } else {
-                        confirmValue(valStr);
+                        if (ds_vals) {
+                            dsConfirm(valStr);
+                        } else {
+                            confirmValue(valStr);
+                        }
                         for (ctr=0; ctr<32; ctr++) {
                             // leading zeros in bool
                             encBytes[ctr] = 0;
@@ -527,7 +598,6 @@ int parseVals(const json_t *eip712Types, const json_t *jType, const json_t *next
                         // array of structs. To parse name, remove array tokens.
                         strncpy(typeNoArrTok, typeType, sizeof(typeNoArrTok)-1);
                         if (strlen(typeNoArrTok) < strlen(typeType)) {
-                            //TODO fix this  printf("ERROR: UDEF array type name is >32: %s, %lu\n", typeType, strlen(typeType));
                             return UDEF_ARRAY_NAME_ERR;
                         }
                         strtok(typeNoArrTok, "[");
