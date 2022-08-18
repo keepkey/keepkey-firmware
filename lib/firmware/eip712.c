@@ -342,23 +342,38 @@ int dsConfirm(const char *value) {
         uint8_t addrHexStr[20];
         uint32_t chainInt;
         int ctr;
+        IconType iconNum = NO_ICON;
         char title[33] = {0};
+        char *fillerStr = NULL;
+        char chainStr[33];
 
         for (ctr=2; ctr<42; ctr+=2) {
             sscanf((char *)&verifyingContract[ctr], "%2hhx", &addrHexStr[(ctr-2)/2]);
         }
         sscanf((char *)chainId, "%ld", &chainInt);
 
+        // As more chains are supported, add icon choice below
+        if (chainInt == 1) {
+            iconNum = ETHEREUM_ICON;
+        }
+
         assetToken = tokenByChainAddress(chainInt, (uint8_t *)addrHexStr);
         if (strncmp(assetToken->ticker, " UNKN", 5) == 0) {
+            fillerStr = "";
         } else {
-            verifyingContract = assetToken->ticker;
+            //verifyingContract = assetToken->ticker;
+            //fillerStr = "\n\n";
+            fillerStr = "";
         }
-        strncat(title, name, 32-strlen(name));
+        strncpy(title, name, 20);
         strncat(title, " version ", 32-strlen(title));
         strncat(title, version, 32-strlen(title));
-        (void)review(ButtonRequestType_ButtonRequest_Other, title, "chain %s,  verifyingContract: %s",
-                        chainId, verifyingContract);
+        if (iconNum == NO_ICON) {
+            snprintf(chainStr, 32, "chain %s,  ", chainId);
+        }
+        //snprintf(contractStr, 64, "verifyingContract: %s", verifyingContract);
+        (void)review_with_icon(ButtonRequestType_ButtonRequest_Other, iconNum,
+                                title, "%sverifyingContract: %s%s", chainStr, verifyingContract, fillerStr);
         name = NULL;
         version = NULL;
         chainId = NULL;
