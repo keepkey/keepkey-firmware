@@ -2,7 +2,8 @@
 /*
  * This file is part of the Keepkey project
  *
- * Copyright (C) 2022
+ * Copyright (C) 2022 markrypto
+ * Copyright (C) 2018 keepkey
  *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -190,19 +191,47 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg) {
   layoutHome();
 }
 
+#define MSG_MAX (38*3)    // 38 chars per line, three lines max
 void fsm_msgEthereumSignMessage(EthereumSignMessage *msg) {
+  char msgBuf[MSG_MAX+1] = {0};
+  char *typeIndicator;
+  unsigned ctr;
+  unsigned msgLen = 0;
+  bool canPrint = true;
+
   RESP_INIT(EthereumMessageSignature);
 
   CHECK_INITIALIZED
 
-  if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _("Sign Message"),
-               "%s", msg->message.bytes)) {
+  CHECK_PIN
+
+  // truncate to display size if too long
+  msgLen = msg->message.size * 2;
+  if (msgLen > MSG_MAX) {
+    msgLen = MSG_MAX;
+  }
+  for (ctr=0; ctr<msg->message.size; ctr++) {
+    if (isprint(msg->message.bytes[ctr]) == false) {
+      canPrint = false;
+      break;
+    }
+  }
+  if (canPrint) {
+    typeIndicator = "Sign Message";
+    strncpy(msgBuf, (char *)msg->message.bytes, MSG_MAX+1);
+  } else {
+    typeIndicator = "Sign Bytes";
+    for (ctr=0; ctr<msgLen/2; ctr++) {
+      snprintf(&msgBuf[2*ctr], 3, "%02x", msg->message.bytes[ctr]);
+    }
+  }
+  
+  if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _(typeIndicator),
+               "%s", msgBuf)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
     return;
   }
-
-  CHECK_PIN
 
   HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
@@ -214,6 +243,12 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage *msg) {
 }
 
 void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg) {
+  char msgBuf[MSG_MAX+1] = {0};
+  char *typeIndicator;
+  unsigned ctr;
+  unsigned msgLen = 0;
+  bool canPrint = true;
+
   CHECK_PARAM(msg->has_address, _("No address provided"));
   CHECK_PARAM(msg->has_message, _("No message provided"));
 
@@ -229,8 +264,29 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg) {
     layoutHome();
     return;
   }
-  if (!confirm(ButtonRequestType_ButtonRequest_Other, _("Message Verified"),
-               "%s", msg->message.bytes)) {
+
+  // truncate to display size if too long
+  msgLen = msg->message.size;
+  if (msgLen > MSG_MAX) {
+    msgLen = MSG_MAX;
+  }
+  for (ctr=0; ctr<msgLen; ctr++) {
+    if (isprint(msg->message.bytes[ctr]) == false) {
+      canPrint = false;
+      break;
+    }
+  }
+  if (canPrint) {
+    typeIndicator = "Message Verified";
+    strncpy(msgBuf, (char *)msg->message.bytes, MSG_MAX+1);
+  } else {
+    typeIndicator = "Bytes Verified";
+    for (ctr=0; ctr<msgLen/2; ctr++) {
+      snprintf(&msgBuf[2*ctr], 3, "%02x", msg->message.bytes[ctr]);
+    }
+  }
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, _(typeIndicator),
+               "%s", msgBuf)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
     return;

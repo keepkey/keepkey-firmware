@@ -1,6 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
+ * Copyright (c) 2022 markrypto
  * Copyright (C) 2018 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
@@ -74,6 +75,8 @@ typedef struct {
   DisplayState display_state;
   ActiveLayout active_layout;
 } StateInfo;
+
+#define isprint(c)   ((c) >= 0x20 && (c) < 0x7f)
 
 typedef void (*layout_notification_t)(const char *str1, const char *str2,
                                       NotificationType type);

@@ -1,6 +1,7 @@
 /*
  * This file is part of the TREZOR project.
  *
+ * Copyright (C) 2022 markrypto <cryptoakorn@gmail.com>
  * Copyright (C) 2016 Alex Beregszaszi <alex@rtfs.hu>
  * Copyright (C) 2016 Pavol Rusnak <stick@satoshilabs.com>
  * Copyright (C) 2016 Jochen Hoenicke <hoenicke@gmail.com>
@@ -925,9 +926,10 @@ void ethereum_signing_abort(void) {
 static void ethereum_message_hash(const uint8_t *message, size_t message_len,
                                   uint8_t hash[32]) {
   struct SHA3_CTX ctx;
+  uint8_t c;
+
   sha3_256_Init(&ctx);
   sha3_Update(&ctx, (const uint8_t *)"\x19" "Ethereum Signed Message:\n", 26);
-  uint8_t c;
   if (message_len >= 1000000000) {
     c = '0' + message_len / 1000000000 % 10;
     sha3_Update(&ctx, &c, 1);
@@ -979,6 +981,7 @@ void ethereum_message_sign(const EthereumSignMessage *msg, const HDNode *node,
   }
   resp->has_address = true;
   resp->address.size = 20;
+  
   ethereum_message_hash(msg->message.bytes, msg->message.size, hash);
 
   uint8_t v;
