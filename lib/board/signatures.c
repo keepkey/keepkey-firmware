@@ -85,7 +85,7 @@ int signatures_ok(void) {
   if (ecdsa_verify_digest(&secp256k1, pubkey[sigindex3 - 1],
                           (uint8_t *)FLASH_META_SIG3,
                           firmware_fingerprint) != 0) { /* Failure */
-    return KEY_EXPIRED;
+    return SIG_FAIL;
   }
 
   return SIG_OK;

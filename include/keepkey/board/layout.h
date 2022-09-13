@@ -39,10 +39,12 @@
 /* Margin */
 #define TOP_MARGIN 7
 #define LEFT_MARGIN 4
+#define LEFT_MARGIN_WITH_ICON 40
 
 /* Title */
 #define TITLE_COLOR 0xFF
 #define TITLE_WIDTH 206
+#define TITLE_WIDTH_WITH_ICON TITLE_WIDTH-LEFT_MARGIN_WITH_ICON
 #define TITLE_ROWS 1
 #define TITLE_FONT_LINE_PADDING 0
 #define TITLE_CHAR_MAX 128
@@ -51,6 +53,7 @@
 #define BODY_TOP_MARGIN 7
 #define BODY_COLOR 0xFF
 #define BODY_WIDTH 225
+#define BODY_WIDTH_WITH_ICON  BODY_WIDTH-LEFT_MARGIN_WITH_ICON
 #define BODY_ROWS 3
 #define BODY_FONT_LINE_PADDING 4
 #define BODY_CHAR_MAX 352
@@ -73,6 +76,11 @@ typedef enum {
   NOTIFICATION_LOGO,
 } NotificationType;
 
+typedef enum {
+  NO_ICON=0,
+  ETHEREUM_ICON,
+} IconType;
+
 typedef void (*AnimateCallback)(void *data, uint32_t duration,
                                 uint32_t elapsed);
 typedef struct Animation Animation;
@@ -92,6 +100,7 @@ typedef struct {
 
 } AnimationQueue;
 
+void layout_has_icon(bool tf);
 void layout_init(Canvas *canvas);
 Canvas *layout_get_canvas(void);
 void call_leaving_handler(void);
@@ -100,6 +109,7 @@ void layout_standard_notification(const char *str1, const char *str2,
                                   NotificationType type);
 void layout_constant_power_notification(const char *str1, const char *str2, NotificationType type);
 void layout_notification_icon(NotificationType type, DrawableParams *sp);
+void layout_add_icon(IconType type);
 void layout_warning(const char *prompt);
 void layout_warning_static(const char *str);
 void layout_simple_message(const char *str);

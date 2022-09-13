@@ -2,13 +2,13 @@ cmake_minimum_required(VERSION 3.7.2)
 
 project(KeepKeyFirmware
 
-        VERSION 7.4.0
+        VERSION 7.5.0
 
         LANGUAGES C CXX ASM)
 
 set(BOOTLOADER_MAJOR_VERSION 2)
 set(BOOTLOADER_MINOR_VERSION 1)
-set(BOOTLOADER_PATCH_VERSION 4)
+set(BOOTLOADER_PATCH_VERSION 5)
 
 option(KK_EMULATOR "Build the emulator" OFF)
 option(KK_DEBUG_LINK "Build with debug-link enabled" OFF)
