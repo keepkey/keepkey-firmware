@@ -165,6 +165,12 @@ static bool isValidModelNumber(const char *model) {
   return false;
 }
 
+
+
+
+bool generateAuthenticator(char msgStr[], size_t len, char *digestStr);
+bool initializeAuthenticator(const char *seedStr);
+
 void fsm_msgPing(Ping *msg) {
   RESP_INIT(Success);
 
@@ -178,29 +184,65 @@ void fsm_msgPing(Ping *msg) {
     flash_setModel(&message);
   }
 
-  if (msg->has_button_protection && msg->button_protection)
-    if (!confirm(ButtonRequestType_ButtonRequest_Ping, "Ping", "%s",
-                 msg->message)) {
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
-      layoutHome();
-      return;
+
+
+
+
+  // check for authenticator messages
+  const char *initAuth = {"\x15" "initializeAuth:"};
+  const char *genAuth = {"\x16" "generateOTPFrom:"};
+  (void)genAuth;
+
+  if (msg->has_message && 0 == strncmp(msg->message, initAuth, 16)) {
+    // initialize authenticator
+    if (msg->has_pin_protection && msg->pin_protection) {
+      CHECK_PIN
     }
 
-  if (msg->has_pin_protection && msg->pin_protection) {
-    CHECK_PIN
-  }
+    initializeAuthenticator(&msg->message[16]);
+    resp->has_message = false;
 
-  if (msg->has_passphrase_protection && msg->passphrase_protection) {
-    if (!passphrase_protect()) {
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
-      layoutHome();
-      return;
+  } else if (msg->has_message && 0 == strncmp(msg->message, genAuth, 17)) {
+    // generate authenticator otp
+    char digestStr[SHA1_DIGEST_STRING_LENGTH] = {0};
+    if (msg->has_pin_protection && msg->pin_protection) {
+      CHECK_PIN
     }
-  }
-
-  if (msg->has_message) {
+    generateAuthenticator(&msg->message[17], strlen(&msg->message[17]), digestStr);
+    DEBUG_DISPLAY("after return");
     resp->has_message = true;
-    memcpy(&(resp->message), &(msg->message), sizeof(resp->message));
+    strncpy(resp->message, digestStr, 41);
+    //memcpy(&(resp->message), digeststr, sizeof(resp->message));
+
+    DEBUG_DISPLAY("AFTER COPY");
+
+
+
+  } else {
+
+    if (msg->has_button_protection && msg->button_protection)
+      if (!confirm(ButtonRequestType_ButtonRequest_Ping, "Ping", "%s",
+                   msg->message)) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
+        layoutHome();
+        return;
+      }
+
+    if (msg->has_pin_protection && msg->pin_protection) {
+      CHECK_PIN
+    }
+
+    if (msg->has_passphrase_protection && msg->passphrase_protection) {
+      if (!passphrase_protect()) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
+        layoutHome();
+        return;
+      }
+    }
+    if (msg->has_message) {
+      resp->has_message = true;
+      memcpy(&(resp->message), &(msg->message), sizeof(resp->message));
+    }
   }
 
   msg_write(MessageType_MessageType_Success, resp);
