@@ -46,20 +46,20 @@ void hmac_sha1(const uint8_t *key, const uint32_t keylen, const uint8_t *msg,
                  const uint32_t msglen, uint8_t *hmac);
 
 
-static char AuthenticatorSecret[32];
+static char AuthenticatorSecret[16] = {0};
 static uint32_t AuthSecretSize;
 static bool AuthenticatorHasSecret = false;
 
 bool initializeAuthenticator(char *seedStr) {
 
-  char bufStr[65] = {0}, tmpStr[3];
+  //char bufStr[65] = {0}, tmpStr[3];
+  char bufStr[135] = {0}, tmpStr[3];
 
   AuthenticatorHasSecret = (NULL != base32_decode((const char *)seedStr, strlen(seedStr), 
-                            (uint8_t *)AuthenticatorSecret, 
-                            sizeof(AuthenticatorSecret), BASE32_ALPHABET_RFC4648));
+                                      (uint8_t *)AuthenticatorSecret, 
+                                      sizeof(AuthenticatorSecret), BASE32_ALPHABET_RFC4648));
   
   AuthSecretSize = strlen(AuthenticatorSecret);
-  AuthSecretSize > 64 ? AuthSecretSize=64 : true ;
   for (unsigned i=0; i<AuthSecretSize; i++) {
     snprintf(tmpStr, 3, "%02x", AuthenticatorSecret[i]);
     strncat(bufStr, tmpStr, 2);
@@ -71,42 +71,42 @@ bool initializeAuthenticator(char *seedStr) {
   return AuthenticatorHasSecret;
 }
 
-bool generateAuthenticator(char msgStr[], size_t len, char *digestStr) {
+bool generateAuthenticator(char msgStr[], size_t len, char digestStr[]) {
 
-  char bufStr[33]={0}, tmpStr[3];
+  char bufStr[len], tmpStr[3]={0};
   uint8_t hmac[SHA1_DIGEST_LENGTH];           // hmac-sha1 digest length is 160 bits
+  uint8_t msgVal[len/2];
 
-  bufStr[32] = 0;
+  memzero(bufStr, len);
 
-  for (unsigned i=0; i<len; i++) {
-    snprintf(tmpStr, 3, "%02x", msgStr[i]);
+  for (unsigned i=0; i<len/2; i++) {
+    strncpy(tmpStr, &msgStr[i*2], 2);
+    msgVal[i] = (uint8_t)(strtol(tmpStr, NULL, 16));
+  }
+
+  for (unsigned i=0; i<len/2; i++) {
+    snprintf(tmpStr, 3, "%02x", msgVal[i]);
     strncat(bufStr, tmpStr, 2);
   }
 
-  confirm_with_custom_layout(&layout_notification_no_title_no_bold,
-                                    ButtonRequestType_ButtonRequest_Other, "", "Hexval: %s",
-                                    bufStr);
+  // confirm_with_custom_layout(&layout_notification_no_title_no_bold,
+  //                                   ButtonRequestType_ButtonRequest_Other, "", "message: %s",
+  //                                   bufStr);
 
-  {
   hmac_sha1((const uint8_t*)AuthenticatorSecret, (const uint32_t)AuthSecretSize, 
-                  (const uint8_t*)msgStr, (const uint32_t)len, (uint8_t *)hmac);
-  }
-
+                  (const uint8_t*)msgVal, (const uint32_t)len/2, (uint8_t *)hmac);
 
   for (unsigned i=0; i<SHA1_DIGEST_LENGTH; i++) {
     snprintf(tmpStr, 3, "%02x", hmac[i]);
     strncat(digestStr, tmpStr, 2);
   }
 
-  confirm_with_custom_layout(&layout_notification_no_title_no_bold,
-                                    ButtonRequestType_ButtonRequest_Other, "", "hmac-sha1: %s",
-                                    digestStr);
-
-
+  // confirm_with_custom_layout(&layout_notification_no_title_no_bold,
+  //                                   ButtonRequestType_ButtonRequest_Other, "", "hmac-sha1: %s",
+  //                                   digestStr);
 
   // TODO: Truncate to 6 digits and display
 
-  DEBUG_DISPLAY("TRY TO RETURN");
   return true;
 }
 

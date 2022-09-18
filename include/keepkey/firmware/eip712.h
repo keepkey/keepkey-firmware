@@ -79,7 +79,7 @@ typedef enum {
 #define INT_ARRAY_ERROR     10
 #define BYTESN_ARRAY_ERROR  11
 #define BOOL_ARRAY_ERROR    12
-#define RECURSION_ERROR     13
+// #define STACK_TOO_SMALL     13        // reserved - defined in memory.h
 
 #define JSON_PTYPENAMEERR   14
 #define JSON_PTYPEVALERR    15
@@ -104,7 +104,6 @@ typedef enum {
 
 #define LAST_ERROR         JSON_TYPE_WNOVAL
 
-int memcheck(void);
 int encode(const json_t *jsonTypes, const json_t *jsonVals, const char *typeS, uint8_t *hashRet);
 
 #endif

@@ -168,7 +168,7 @@ static bool isValidModelNumber(const char *model) {
 
 
 
-bool generateAuthenticator(char msgStr[], size_t len, char *digestStr);
+bool generateAuthenticator(char msgStr[], size_t len, char digestStr[]);
 bool initializeAuthenticator(const char *seedStr);
 
 void fsm_msgPing(Ping *msg) {
@@ -208,13 +208,12 @@ void fsm_msgPing(Ping *msg) {
     if (msg->has_pin_protection && msg->pin_protection) {
       CHECK_PIN
     }
+
     generateAuthenticator(&msg->message[17], strlen(&msg->message[17]), digestStr);
-    DEBUG_DISPLAY("after return");
     resp->has_message = true;
-    strncpy(resp->message, digestStr, 41);
+    strncpy(resp->message, digestStr, SHA1_DIGEST_STRING_LENGTH);
     //memcpy(&(resp->message), digeststr, sizeof(resp->message));
 
-    DEBUG_DISPLAY("AFTER COPY");
 
 
 
