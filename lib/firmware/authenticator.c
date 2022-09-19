@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2022 markrypto
  *
- * TOPT generation as described in https://www.rfc-editor.org/rfc/rfc3238
+ * TOPT generation as described in https://www.rfc-editor.org/rfc/rfc6238
  * 
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -71,7 +71,7 @@ bool initializeAuthenticator(char *seedStr) {
   return AuthenticatorHasSecret;
 }
 
-bool generateAuthenticator(char msgStr[], size_t len, char digestStr[]) {
+bool generateAuthenticator(char msgStr[], size_t len, char otpStr[]) {
 
   char bufStr[len], tmpStr[3]={0};
   uint8_t hmac[SHA1_DIGEST_LENGTH];           // hmac-sha1 digest length is 160 bits
@@ -96,16 +96,32 @@ bool generateAuthenticator(char msgStr[], size_t len, char digestStr[]) {
   hmac_sha1((const uint8_t*)AuthenticatorSecret, (const uint32_t)AuthSecretSize, 
                   (const uint8_t*)msgVal, (const uint32_t)len/2, (uint8_t *)hmac);
 
-  for (unsigned i=0; i<SHA1_DIGEST_LENGTH; i++) {
-    snprintf(tmpStr, 3, "%02x", hmac[i]);
-    strncat(digestStr, tmpStr, 2);
-  }
+  // for (unsigned i=0; i<SHA1_DIGEST_LENGTH; i++) {
+  //   snprintf(tmpStr, 3, "%02x", hmac[i]);
+  //   strncat(digestStr, tmpStr, 2);
+  // }
 
   // confirm_with_custom_layout(&layout_notification_no_title_no_bold,
   //                                   ButtonRequestType_ButtonRequest_Other, "", "hmac-sha1: %s",
   //                                   digestStr);
 
-  // TODO: Truncate to 6 digits and display
+  // extract the otp code  https://www.rfc-editor.org/rfc/rfc4226#section-5.4
+  unsigned offset = 0x0f & hmac[SHA1_DIGEST_LENGTH-1];
+  unsigned bin_code = (hmac[offset] & 0x7f) << 24
+                    | (hmac[offset+1] & 0xff) << 16
+                    | (hmac[offset+2] & 0xff) << 8
+                    | (hmac[offset+3] & 0xff);
+  unsigned digits = 6;  // number of otp digits desired, e.g., 6,7,8
+  unsigned modnum = 1;
+  // simplified pow(10, 6)
+  for (unsigned i=0; i<digits; i++) {
+    modnum *= 10;
+  }
+  unsigned otp = bin_code % (unsigned long)modnum;
+
+  snprintf(otpStr, 9, "%06d", otp);
+  DEBUG_DISPLAY(otpStr);
+
 
   return true;
 }

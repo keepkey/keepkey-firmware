@@ -184,14 +184,9 @@ void fsm_msgPing(Ping *msg) {
     flash_setModel(&message);
   }
 
-
-
-
-
   // check for authenticator messages
   const char *initAuth = {"\x15" "initializeAuth:"};
   const char *genAuth = {"\x16" "generateOTPFrom:"};
-  (void)genAuth;
 
   if (msg->has_message && 0 == strncmp(msg->message, initAuth, 16)) {
     // initialize authenticator
@@ -204,18 +199,14 @@ void fsm_msgPing(Ping *msg) {
 
   } else if (msg->has_message && 0 == strncmp(msg->message, genAuth, 17)) {
     // generate authenticator otp
-    char digestStr[SHA1_DIGEST_STRING_LENGTH] = {0};
+    char otp[9] = {0};    // allow room for an 8 digit otp
     if (msg->has_pin_protection && msg->pin_protection) {
       CHECK_PIN
     }
 
-    generateAuthenticator(&msg->message[17], strlen(&msg->message[17]), digestStr);
+    generateAuthenticator(&msg->message[17], strlen(&msg->message[17]), otp);
     resp->has_message = true;
-    strncpy(resp->message, digestStr, SHA1_DIGEST_STRING_LENGTH);
-    //memcpy(&(resp->message), digeststr, sizeof(resp->message));
-
-
-
+    strncpy(resp->message, otp, 9);
 
   } else {
 
