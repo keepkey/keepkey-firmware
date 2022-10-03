@@ -19,6 +19,7 @@
 
 #include "keepkey/board/layout.h"
 #include "keepkey/board/confirm_sm.h"
+#include "keepkey/firmware/authenticator.h"
 #include "keepkey/firmware/crypto.h"
 #include "trezor/crypto/aes/aes.h"
 #include "trezor/crypto/base32.h"
@@ -32,51 +33,77 @@
 #include <string.h>
 #include <stdio.h>
 
-typedef struct _HMAC_SHA1_CTX {
-  uint8_t o_key_pad[SHA1_BLOCK_LENGTH];
-  SHA1_CTX ctx;
-} HMAC_SHA1_CTX;
 
-void hmac_sha1_Init(HMAC_SHA1_CTX *hctx, const uint8_t *key,
-                      const uint32_t keylen);
-void hmac_sha1_Update(HMAC_SHA1_CTX *hctx, const uint8_t *msg,
-                        const uint32_t msglen);
-void hmac_sha1_Final(HMAC_SHA1_CTX *hctx, uint8_t *hmac);
-void hmac_sha1(const uint8_t *key, const uint32_t keylen, const uint8_t *msg,
-                 const uint32_t msglen, uint8_t *hmac);
+static authStruct authData[AUTHDATA_SIZE] = {0};
 
+unsigned addAuthSeed(char *accountWithSeed) {
+  char *account, *seedStr;
+  unsigned ctr;
+  char authSecret[20];          // 128-bit key len is the recommended minimum, this is room for 160-bit
 
-static char AuthenticatorSecret[16] = {0};
-static uint32_t AuthSecretSize;
-static bool AuthenticatorHasSecret = false;
-
-bool initializeAuthenticator(char *seedStr) {
-
-  //char bufStr[65] = {0}, tmpStr[3];
-  char bufStr[135] = {0}, tmpStr[3];
-
-  AuthenticatorHasSecret = (NULL != base32_decode((const char *)seedStr, strlen(seedStr), 
-                                      (uint8_t *)AuthenticatorSecret, 
-                                      sizeof(AuthenticatorSecret), BASE32_ALPHABET_RFC4648));
-  
-  AuthSecretSize = strlen(AuthenticatorSecret);
-  for (unsigned i=0; i<AuthSecretSize; i++) {
-    snprintf(tmpStr, 3, "%02x", AuthenticatorSecret[i]);
-    strncat(bufStr, tmpStr, 2);
+  // accountWithSeed should be of the form "account:seedStr"
+  account = strtok(accountWithSeed, ":");   // get the account string token
+  if (0 == strlen(account) || (ACCOUNT_SIZE <= strlen(account))) {
+    return 3;
   }
-    
-  confirm(ButtonRequestType_ButtonRequest_Other, "Authenticator Initialization", 
-          "Confirm seed value: %s", seedStr);
+  seedStr = strtok(NULL, "");   // get the seed string string token
+  if (0 == strlen(seedStr)) {
+    return 3;
+  }
 
-  return AuthenticatorHasSecret;
+  // look for first empty slot
+  for (ctr=0; ctr<AUTHDATA_SIZE; ctr++) {
+    if (authData[ctr].secretSize == 0) {
+      break;
+    }
+  }
+  if (ctr == AUTHDATA_SIZE) {
+    return 1;       // no empty slots
+  }
+
+  if (NULL == base32_decode((const char *)seedStr, strlen(seedStr), (uint8_t *)authSecret,
+                            sizeof(authSecret), BASE32_ALPHABET_RFC4648)) {
+    return 2;       // bad decode
+  }
+
+  // {
+  //   char bufStr[65] = {0}, tmpStr[3];
+  //   for (unsigned i=0; i<authData[ctr].secretSize; i++) {
+  //     snprintf(tmpStr, 3, "%02x", authSecret[i]);
+  //     strncat(bufStr, tmpStr, 2);
+  //   }
+  // }
+
+  confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Auth Initialization",
+          "Account: %.*s\nSeed value: %s", ACCOUNT_SIZE, account, seedStr);
+
+  authData[ctr].secretSize = strlen(authSecret);
+  strncpy(authData[ctr].authSecret, authSecret, authData[ctr].secretSize);
+  strlcpy(authData[ctr].account, account, ACCOUNT_SIZE);
+
+  return 0;   // success
 }
 
-bool generateAuthenticator(char msgStr[], size_t len, char otpStr[]) {
+unsigned generateAuthenticator(char *accountWithMsg, char otpStr[]) {
 
-  char bufStr[len], tmpStr[3]={0};
+  char *account, *msgStr;
+  size_t len = 0;
+  char tmpStr[3]={0};
   uint8_t hmac[SHA1_DIGEST_LENGTH];           // hmac-sha1 digest length is 160 bits
-  uint8_t msgVal[len/2];
+  unsigned ctr;
 
+  // accountWithSeed should be of the form "account:msgStr"
+  account = strtok(accountWithMsg, ":");   // get the account string token
+  if (0 == strlen(account) || (ACCOUNT_SIZE <= strlen(account))) {
+    return 3;
+  }
+  msgStr = strtok(NULL, "");   // get the message string string token
+  if (0 == (len = strlen(msgStr))) {
+    return 3;
+  }
+
+  uint8_t msgVal[len/2];
+  char bufStr[len];
   memzero(bufStr, len);
 
   for (unsigned i=0; i<len/2; i++) {
@@ -93,7 +120,18 @@ bool generateAuthenticator(char msgStr[], size_t len, char otpStr[]) {
   //                                   ButtonRequestType_ButtonRequest_Other, "", "message: %s",
   //                                   bufStr);
 
-  hmac_sha1((const uint8_t*)AuthenticatorSecret, (const uint32_t)AuthSecretSize, 
+  // look for account
+  for (ctr=0; ctr<AUTHDATA_SIZE; ctr++) {
+    if (0 == strncmp(authData[ctr].account, account, ACCOUNT_SIZE-1)) {
+      break;
+    }
+  }
+  if (ctr == AUTHDATA_SIZE) {
+    return 1;       // account not found
+  }
+
+
+  hmac_sha1((const uint8_t*)authData[ctr].authSecret, (const uint32_t)authData[ctr].secretSize,
                   (const uint8_t*)msgVal, (const uint32_t)len/2, (uint8_t *)hmac);
 
   // for (unsigned i=0; i<SHA1_DIGEST_LENGTH; i++) {
@@ -120,11 +158,33 @@ bool generateAuthenticator(char msgStr[], size_t len, char otpStr[]) {
   unsigned otp = bin_code % (unsigned long)modnum;
 
   snprintf(otpStr, 9, "%06d", otp);
-  DEBUG_DISPLAY(otpStr);
+  char otpStrLarge[10] = {0};
+  snprintf(otpStrLarge, 9, "\x19%06d", otp);
+  (void)review(ButtonRequestType_ButtonRequest_Other, otpStrLarge, "\n%s", authData[ctr].account);
 
-
-  return true;
+  return 0;
 }
+
+unsigned removeAuthAccount(char *account) {
+  unsigned ctr;
+
+  // look for account
+  for (ctr=0; ctr<AUTHDATA_SIZE; ctr++) {
+    if (0 == strncmp(authData[ctr].account, account, ACCOUNT_SIZE-1)) {
+      break;
+    }
+  }
+  if (ctr == AUTHDATA_SIZE) {
+    return 1;       // account not found
+  }
+
+  confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Delete Account",
+          "PERMANENTLY delete account %.*s?", ACCOUNT_SIZE-1, account);
+
+  memzero((void *)&authData[ctr], sizeof(authStruct));
+  return 0;   // success
+}
+
 
 void hmac_sha1_Init(HMAC_SHA1_CTX *hctx, const uint8_t *key,
                       const uint32_t keylen) {

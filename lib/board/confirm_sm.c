@@ -152,16 +152,18 @@ static void swap_layout(ActiveLayout active_layout, volatile StateInfo *si,
 /// \param requesta_body  The body of the confirmation message.
 /// \param layout_notification_func  layout callback for displaying confirm
 /// message. \returns true iff the device confirmed.
-static bool confirm_helper(const char *request_title, const char *request_body,
+static bool confirm_helper(const char *request_title_param, const char *request_body,
                       layout_notification_t layout_notification_func,
                       bool constant_power, IconType iconNum)
 {
-    bool ret_stat = false;
-    volatile StateInfo state_info;
-    ActiveLayout new_layout, cur_layout;
-    DisplayState new_ds;
-    uint16_t tiny_msg;
-    static CONFIDENTIAL uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
+  bool ret_stat = false;
+  volatile StateInfo state_info;
+  ActiveLayout new_layout, cur_layout;
+  DisplayState new_ds;
+  uint16_t tiny_msg;
+  static CONFIDENTIAL uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
+  const char *request_title;
+  request_title = request_title_param;
 
 #if DEBUG_LINK
   DebugLinkDecision *dld;

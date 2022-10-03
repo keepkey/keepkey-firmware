@@ -261,13 +261,22 @@ void layout_has_icon(bool tf) {
  * OUTPUT
  *     none
  */
-void layout_standard_notification(const char *str1, const char *str2,
+void layout_standard_notification(const char *str1_param, const char *str2,
                                   NotificationType type) {
+  const char *str1;
+
   call_leaving_handler();
   layout_clear();
 
   DrawableParams sp;
   const Font *title_font = get_title_font();
+
+  str1 = str1_param;
+  if ('\x19' == str1[0]) {
+    str1 = &str1_param[1];
+    title_font = get_pin_font();
+  }
+
   const Font *body_font = get_body_font();
   uint32_t body_line_count;
   uint16_t left_margin, body_width, title_width;

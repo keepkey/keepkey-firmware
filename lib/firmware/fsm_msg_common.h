@@ -168,8 +168,7 @@ static bool isValidModelNumber(const char *model) {
 
 
 
-bool generateAuthenticator(char msgStr[], size_t len, char digestStr[]);
-bool initializeAuthenticator(const char *seedStr);
+
 
 void fsm_msgPing(Ping *msg) {
   RESP_INIT(Success);
@@ -184,9 +183,20 @@ void fsm_msgPing(Ping *msg) {
     flash_setModel(&message);
   }
 
+  // authenticator errors
+  const char *slotsFull = "Authenticator secret storage full";
+  const char *cantDecode = "Authenticator secret can't be decoded";
+  const char *unkErr = "Auth secret unknown error";
+  const char *tokenError = "Account name missing or too long, or seed/message string missing";
+  const char *noAccount = "Account not found";
+  const char *errmsg;
+  unsigned errcode;
+
   // check for authenticator messages
   const char *initAuth = {"\x15" "initializeAuth:"};
   const char *genAuth = {"\x16" "generateOTPFrom:"};
+  const char *delAuth = {"\x17" "removeAccount:"};
+
 
   if (msg->has_message && 0 == strncmp(msg->message, initAuth, 16)) {
     // initialize authenticator
@@ -194,19 +204,64 @@ void fsm_msgPing(Ping *msg) {
       CHECK_PIN
     }
 
-    initializeAuthenticator(&msg->message[16]);
+    DEBUG_DISPLAY("\x19" "01234567");
+    if (0 != (errcode = addAuthSeed(&msg->message[16]))) {
+      switch (errcode) {
+        case 1:
+          errmsg = slotsFull;
+          break;
+        case 2:
+          errmsg = cantDecode;
+          break;
+        case 3:
+          errmsg = tokenError;
+          break;
+        default:
+          errmsg = unkErr;
+          break;
+      }
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, errmsg);
+      layoutHome();
+      return;
+    }
+
     resp->has_message = false;
 
   } else if (msg->has_message && 0 == strncmp(msg->message, genAuth, 17)) {
     // generate authenticator otp
     char otp[9] = {0};    // allow room for an 8 digit otp
+
+    if (msg->has_pin_protection && msg->pin_protection) {
+      CHECK_PIN
+    }
+    if (0 != (errcode = generateAuthenticator(&msg->message[17], otp))) {
+      switch (errcode) {
+        case 1:
+          errmsg = noAccount;
+          break;
+        default:
+          errmsg = unkErr;
+          break;
+      }
+      DEBUG_DISPLAY(errmsg);
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, errmsg);
+      layoutHome();
+      return;
+    }
+
+    resp->has_message = true;
+    strlcpy(resp->message, otp, 9);
+
+  } else if (msg->has_message && 0 == strncmp(msg->message, delAuth, 15)) {
+    // delete data from an auth slot
     if (msg->has_pin_protection && msg->pin_protection) {
       CHECK_PIN
     }
 
-    generateAuthenticator(&msg->message[17], strlen(&msg->message[17]), otp);
+    removeAuthAccount(&msg->message[15]);
     resp->has_message = true;
-    strncpy(resp->message, otp, 9);
+    //strlcpy(resp->message, , 9);
+
 
   } else {
 
