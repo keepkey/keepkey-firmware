@@ -1,6 +1,6 @@
 /*
- * This file is part of the TREZOR project, https://trezor.io/
- *
+ * 
+ * Copyright (C) 2022 markrypto <cryptoakorn@gmail.com>
  * Copyright (C) 2014 Pavol Rusnak <stick@satoshilabs.com>
  *
  * This library is free software: you can redistribute it and/or modify
@@ -25,27 +25,28 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-enum {
-#define X(CHAIN_ID, CONTRACT_ADDR, TICKER, DECIMALS) \
-  CONCAT(TokenIndex, __COUNTER__),
-#include "keepkey/firmware/uniswap_tokens.def"
-#include "keepkey/firmware/ethereum_tokens.def"
-  TokenIndexLast,
-  TokenIndexFirst = 0
-};
+#define TOKENS_COUNT 2
 
-#define TOKENS_COUNT ((int)TokenIndexLast - (int)TokenIndexFirst)
+// ethereum message verify status and errors
+#define MV_OK         0       // no error
+#define MV_MALDATA    1       // malformed data
+#define MV_INVALSIG   2       // invalid sig
+#define MV_STOKOK     3       // signed token received and added status
+#define MV_TDERR      4       // JSON token data error
+#define MV_TRESET     5       // token reset token received status
+#define MV_TLISTFULL  6       // token list full, reset list to add new token
 
 typedef struct _TokenType {
-  const char *const address;
-  const char *const ticker;
+  bool validToken;             // false if data not validated
+  char address[20];
+  char ticker[10];
   uint8_t chain_id;
   uint8_t decimals;
 } TokenType;
 
 typedef struct _CoinType CoinType;
 
-extern const TokenType tokens[];
+extern TokenType tokens[];
 
 extern const TokenType *UnknownToken;
 

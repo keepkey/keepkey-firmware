@@ -997,10 +997,106 @@ void ethereum_message_sign(const EthereumSignMessage *msg, const HDNode *node,
   msg_write(MessageType_MessageType_EthereumMessageSignature, resp);
 }
 
+int evp_parse(const unsigned char *tokenVals) {
+  json_t memTV[5] = {0};
+  json_t const* jsonTV, *obTest;
+  const char *tokenAddrStr, *ticker, *chainIdStr, *decimalStr;
+  uint32_t chainId, decimals;
+  uint16_t tokCtr;
+
+  jsonTV = json_create((char *)tokenVals, memTV, sizeof memTV / sizeof *memTV );
+  if (!jsonTV) {
+    fsm_sendFailure(FailureType_Failure_Other, _("Malformed token data json string"));
+    return MV_TDERR;
+  }
+
+  if (NULL == (obTest = json_getProperty(jsonTV, "address"))) {
+    fsm_sendFailure(FailureType_Failure_Other, _("Token data address property error"));
+    return MV_TDERR;
+  }
+  if (0 == (tokenAddrStr = json_getValue(obTest))) {
+    fsm_sendFailure(FailureType_Failure_Other, _("Token data address value error"));
+    return MV_TDERR;
+  }
+  if (NULL == (obTest = json_getProperty(jsonTV, "ticker"))) {
+    fsm_sendFailure(FailureType_Failure_Other, _("Token data ticker property error"));
+    return MV_TDERR;
+  }
+  if (0 == (ticker = json_getValue(obTest))) {
+    fsm_sendFailure(FailureType_Failure_Other, _("Token data ticker value error"));
+    return MV_TDERR;
+  }
+  if (NULL == (obTest = json_getProperty(jsonTV, "chainId"))) {
+    fsm_sendFailure(FailureType_Failure_Other, _("Token data chainId property error"));
+    return MV_TDERR;
+  }
+  if (0 == (chainIdStr = json_getValue(obTest))) {
+    fsm_sendFailure(FailureType_Failure_Other, _("Token data chainId value error"));
+    return MV_TDERR;
+  }
+  sscanf((char *)chainIdStr, "%ld", &chainId);
+
+  if (NULL == (obTest = json_getProperty(jsonTV, "decimals"))) {
+    fsm_sendFailure(FailureType_Failure_Other, _("Token data decimals property error"));
+    return MV_TDERR;
+  }
+  if (0 == (decimalStr = json_getValue(obTest))) {
+    fsm_sendFailure(FailureType_Failure_Other, _("Token data decimals value error"));
+    return MV_TDERR;
+  }
+  sscanf((char *)decimalStr, "%ld", &decimals);
+
+  // Is this the token list reset token?
+  if ((0 == strncmp(tokenAddrStr, "00000000000000000000", 20)) && (0 == strncmp(ticker, "RESET", 5)) && (0 == chainId) && (0 == decimals)) {
+    for (tokCtr=0; tokCtr<TOKENS_COUNT; tokCtr++) {
+      memzero(&tokens[tokCtr], sizeof(TokenType));
+    }
+    return MV_TRESET;
+  }
+
+  // determine where token should go in token list
+  for (tokCtr=0; tokCtr<TOKENS_COUNT; tokCtr++) {
+    if (!tokens[tokCtr].validToken) {
+        // fill in this slot
+        break;
+    }
+  }
+
+  if (tokCtr == TOKENS_COUNT) {
+    return MV_TLISTFULL;
+  } else {
+    // add token to tokCtr position
+    tokens[tokCtr].validToken = true;
+
+    const char *pos = tokenAddrStr;
+    for (int cctr=0; cctr<20; cctr++) {
+      sscanf(pos, "%2hhx", &tokens[tokCtr].address[cctr]);
+      pos += 2;
+    }
+
+    strcpy(tokens[tokCtr].ticker, " ");
+    strncat(tokens[tokCtr].ticker, json_getValue(json_getProperty(jsonTV, "ticker")), 9);
+    tokens[tokCtr].chain_id = (uint8_t)chainId;
+    tokens[tokCtr].decimals = (uint8_t)decimals;
+
+    //DEBUG_DISPLAY_VAL("addr", "%s", 21, hash[_ctr+12]);
+    // char bf[41] = {0};
+    // DEBUG_DISPLAY(tokens[tokCtr].address);
+    // DEBUG_DISPLAY(tokens[tokCtr].ticker);
+    // snprintf(bf, 40, "indx %3d chain %3d dec %3d", tokCtr, tokens[tokCtr].chain_id, tokens[tokCtr].decimals);
+    // DEBUG_DISPLAY(bf);
+
+  }
+
+  return MV_STOKOK;
+}
+
 int ethereum_message_verify(const EthereumVerifyMessage *msg) {
-  if (msg->signature.size != 65 || msg->address.size != 20) {
+  int retval = MV_OK;
+
+  if (msg->signature.size != 65 || (msg->has_address && msg->address.size != 20)) {
     fsm_sendFailure(FailureType_Failure_SyntaxError, _("Malformed data"));
-    return 1;
+    return MV_MALDATA;
   }
 
   uint8_t pubkey[65];
@@ -1015,21 +1111,32 @@ int ethereum_message_verify(const EthereumVerifyMessage *msg) {
   if (v >= 27) {
     v -= 27;
   }
+
   if (v >= 2 || ecdsa_recover_pub_from_sig(
                     &secp256k1, pubkey, msg->signature.bytes, hash, v) != 0) {
-    return 2;
+    return MV_INVALSIG;
   }
+
+  //uint32_t addrN[5] = {0x8000002c, 0x8000003c, 0x80000001, 0, 0};
+  const uint8_t tokenPubkey[20] = "\x6a\x32\x03\x04\x47\xa4\xc7\x51\xe6\x51\xdb\x90\x3c\x35\x13\xf7\xe1\x38\x0c\x98";
 
   struct SHA3_CTX ctx;
   sha3_256_Init(&ctx);
   sha3_Update(&ctx, pubkey + 1, 64);
   keccak_Final(&ctx, hash);
 
+  //DEBUG_DISPLAY_VAL("addr", "%s", 21, hash[_ctr+12]);
+  if (0 == memcmp(tokenPubkey, &hash[12], 20)) {
+    // this is a signed token message
+    retval = evp_parse(msg->message.bytes);
+    return retval;
+  }
+
   /* result are the least significant 160 bits */
   if (memcmp(msg->address.bytes, hash + 12, 20) != 0) {
-    return 2;
+    return MV_INVALSIG;
   }
-  return 0;
+  return retval;
 }
 
 

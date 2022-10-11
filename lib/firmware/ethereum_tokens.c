@@ -1,26 +1,21 @@
 #include "keepkey/firmware/ethereum_tokens.h"
 
 #include "keepkey/firmware/coins.h"
+#include "keepkey/board/confirm_sm.h"
 
 #include <string.h>
 
-const TokenType tokens[] = {
-#define X(CHAIN_ID, CONTRACT_ADDR, TICKER, DECIMALS) \
-  {(CONTRACT_ADDR), (TICKER), (CHAIN_ID), (DECIMALS)},
-#include "keepkey/firmware/uniswap_tokens.def"
-#include "keepkey/firmware/ethereum_tokens.def"
-};
-
-_Static_assert(sizeof(tokens) / sizeof(tokens[0]) == TOKENS_COUNT,
-               "TOKENS_COUNT mismatch");
+TokenType tokens[TOKENS_COUNT] = {0};
 
 static const TokenType Unknown = {
+    true,
     "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
     "\x00\x00",
     " UNKN", 1, 0};
 const TokenType *UnknownToken = (const TokenType *)&Unknown;
 
 static const TokenType Ethtest = {
+    true,
     "\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee"
     "\xee\xee",
     "  ETH", 1, 18};
@@ -45,9 +40,11 @@ const TokenType *tokenIter(int32_t *ctr) {
 const TokenType *tokenByChainAddress(uint8_t chain_id, const uint8_t *address) {
   if (!address) return 0;
   for (int i = 0; i < TOKENS_COUNT; i++) {
-    if (chain_id == tokens[i].chain_id &&
-        memcmp(address, tokens[i].address, 20) == 0) {
-      return &(tokens[i]);
+    if (tokens[i].validToken) {
+      if (chain_id == tokens[i].chain_id &&
+          memcmp(address, tokens[i].address, 20) == 0) {
+        return &(tokens[i]);
+      }
     }
   }
   if (memcmp(address, Ethtest.address, 20) == 0) {

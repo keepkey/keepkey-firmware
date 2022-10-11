@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.7.2)
 
 project(KeepKeyFirmware
 
-        VERSION 7.5.0
+        VERSION 7.6.0
 
         LANGUAGES C CXX ASM)
 

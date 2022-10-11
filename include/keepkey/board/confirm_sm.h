@@ -33,16 +33,16 @@
     (void)review(ButtonRequestType_ButtonRequest_Other, TITLE, " ");\
   }
   // Example
-  // DEBUG_DISPLAY_VAL("sig", "sig %s", 65, resp->signature.bytes[ctr]);
+  // DEBUG_DISPLAY_VAL("sig", "sig %s", 65, resp->signature.bytes[_ctr]);
   #define DEBUG_DISPLAY_VAL(TITLE,VALNAME,SIZE,BYTES) \
   {\
-    char str[SIZE+1];\
-    int ctr;\
-    for (ctr=0; ctr<SIZE/2; ctr++) {\
-      snprintf(&str[2*ctr], 3, "%02x", BYTES);\
+    char _str[SIZE+1];\
+    int _ctr;\
+    for (_ctr=0; _ctr<SIZE/2; _ctr++) {\
+      snprintf(&_str[2*_ctr], 3, "%02x", BYTES);\
     }\
     (void)review(ButtonRequestType_ButtonRequest_Other, TITLE,\
-                 VALNAME, str);\
+                 VALNAME, _str);\
   }
 #endif
 

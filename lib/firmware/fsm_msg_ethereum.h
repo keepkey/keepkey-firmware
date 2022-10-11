@@ -248,15 +248,45 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg) {
   unsigned ctr;
   unsigned msgLen = 0;
   bool canPrint = true;
+  unsigned verifyReturn = 0;
 
-  CHECK_PARAM(msg->has_address, _("No address provided"));
   CHECK_PARAM(msg->has_message, _("No message provided"));
 
-  if (ethereum_message_verify(msg) != 0) {
-    fsm_sendFailure(FailureType_Failure_SyntaxError, _("Invalid signature"));
-    return;
+  verifyReturn = ethereum_message_verify(msg);
+  switch (verifyReturn) {
+    case MV_OK:
+      // this is not a token message
+      break;
+
+    case MV_MALDATA:
+    case MV_INVALSIG:
+      fsm_sendFailure(FailureType_Failure_SyntaxError, _("Invalid signature"));
+      return;
+
+    case MV_STOKOK:
+      // This is a signed token message
+      fsm_sendSuccess(_("Signed token received"));
+      return;
+
+    case MV_TDERR:
+      // json token data error
+      return;
+
+    case MV_TRESET:
+      // This is a signed token message
+      fsm_sendSuccess(_("token list reset successfully"));
+      return;
+
+    case MV_TLISTFULL:
+      // can't add token, list is full
+      return;
+
+    default:
+      fsm_sendFailure(FailureType_Failure_SyntaxError, _("Unknown error"));
+      return;
   }
 
+  CHECK_PARAM(msg->has_address, _("No address provided"));
   char address[43] = {'0', 'x'};
   ethereum_address_checksum(msg->address.bytes, address + 2, false, 0);
   if (!confirm_address(_("Confirm Signer"), address)) {
@@ -264,7 +294,6 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg) {
     layoutHome();
     return;
   }
-
   // truncate to display size if too long
   msgLen = msg->message.size;
   if (msgLen > MSG_MAX) {
