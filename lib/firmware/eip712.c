@@ -350,7 +350,11 @@ int dsConfirm(const char *value) {
         for (ctr=2; ctr<42; ctr+=2) {
             sscanf((char *)&verifyingContract[ctr], "%2hhx", &addrHexStr[(ctr-2)/2]);
         }
+#ifdef EMULATOR
+        sscanf((char *)chainId, "%d", &chainInt);
+#else
         sscanf((char *)chainId, "%ld", &chainInt);
+#endif
 
         // As more chains are supported, add icon choice below
         if (chainInt == 1) {

@@ -21,6 +21,22 @@ static const TokenType Ethtest = {
     "  ETH", 1, 18};
 const TokenType *EthTestToken = (const TokenType *)&Ethtest;
 
+// WETH is hard coded because uniswap needs this token data, see zxappliquid.c
+static const TokenType weth = {
+    true,
+    "\xC0\x2a\xaA\x39\xb2\x23\xFE\x8D\x0A\x0e\x5C\x4F\x27\xeA\xD9\x08\x3C\x75\x6C\xc2",
+    " WETH", 1, 18};
+const TokenType *wethToken = (const TokenType *)&weth;
+
+// DAI is hard coded because makerDAO contract needs this token data, see makerdao.c
+static const TokenType dai = {
+    true,
+    "\x89\xd2\x4a\x6b\x4c\xcb\x1b\x6f\xaa\x26\x25\xfe\x56\x2b\xdd\x9a\x23\x26\x03\x59",
+    // "\x6b\x17\x54\x74\xe8\x90\x94\xc4\x4d\xa9\x8b\x95\x4e\xed\xea\xc4\x95\x27\x1d\x0f",
+    " DAI", 1, 18};
+const TokenType *daiToken = (const TokenType *)&dai;
+
+
 const TokenType *tokenIter(int32_t *ctr) {
   // return the next tok in the list.
   // input: *ctr = position of desired token (0 to TOKENS_COUNT)
@@ -47,6 +63,16 @@ const TokenType *tokenByChainAddress(uint8_t chain_id, const uint8_t *address) {
       }
     }
   }
+
+  // check for special tokens
+  if (chain_id == wethToken->chain_id && (memcmp(address, wethToken->address, 20) == 0)) {
+    return wethToken;
+  }
+
+  if (chain_id == daiToken->chain_id && (memcmp(address, daiToken->address, 20) == 0)) {
+    return daiToken;
+  }
+
   if (memcmp(address, Ethtest.address, 20) == 0) {
     return EthTestToken;
   }
@@ -69,6 +95,17 @@ bool tokenByTicker(uint8_t chain_id, const char *ticker,
       if (*token == UnknownToken) return false;
       return true;
     }
+  }
+
+  // check for special tokens
+  if (chain_id == wethToken->chain_id && strcmp(ticker, wethToken->ticker + 1) == 0) {
+    *token = wethToken;
+    return true;
+  }
+
+  if (chain_id == daiToken->chain_id && strcmp(ticker, daiToken->ticker + 1) == 0) {
+    *token = daiToken;
+    return true;
   }
 
   // Then look in the new table:

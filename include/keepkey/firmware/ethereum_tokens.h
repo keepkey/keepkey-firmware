@@ -38,7 +38,7 @@
 
 typedef struct _TokenType {
   bool validToken;             // false if data not validated
-  char address[20];
+  uint8_t address[20];
   char ticker[10];
   uint8_t chain_id;
   uint8_t decimals;
@@ -69,4 +69,6 @@ bool tokenByTicker(uint8_t chain_id, const char *ticker,
                    const TokenType **token);
 
 void coinFromToken(CoinType *coin, const TokenType *token);
+int evp_parse(unsigned char *tokenVals);
+
 #endif

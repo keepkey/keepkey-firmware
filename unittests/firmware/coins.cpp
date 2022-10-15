@@ -69,23 +69,24 @@ TEST(Coins, Bip32PathToString) {
   }
 }
 
-TEST(Coins, TableSanity) {
-  for (int i = 0; i < COINS_COUNT; ++i) {
-    const auto &coin = coins[i];
+// This test is obsolete for new token extended validation protocol
+// TEST(Coins, TableSanity) {
+//   for (int i = 0; i < COINS_COUNT; ++i) {
+//     const auto &coin = coins[i];
 
-    if (!coin.has_contract_address) continue;
+//     if (!coin.has_contract_address) continue;
 
-    const TokenType *token;
-    if (!tokenByTicker(1, coin.coin_shortcut, &token)) {
-      EXPECT_TRUE(false) << "Can't uniquely find " << coin.coin_shortcut;
-      continue;
-    }
+//     const TokenType *token;
+//     if (!tokenByTicker(1, coin.coin_shortcut, &token)) {
+//       EXPECT_TRUE(false) << "Can't uniquely find " << coin.coin_shortcut;
+//       continue;
+//     }
 
-    EXPECT_TRUE(memcmp(coin.contract_address.bytes, token->address,
-                       coin.contract_address.size) == 0)
-        << "Contract address mismatch for " << coin.coin_shortcut;
-  }
-}
+//     EXPECT_TRUE(memcmp(coin.contract_address.bytes, token->address,
+//                        coin.contract_address.size) == 0)
+//         << "Contract address mismatch for " << coin.coin_shortcut;
+//   }
+// }
 
 TEST(Coins, BIP32AccountName) {
   struct {
@@ -212,6 +213,8 @@ TEST(Coins, CoinByChainAddress) {
 }
 
 TEST(Coins, TokenByChainAddress) {
+  unsigned char tokStr[128] = "{\"address\": \"E41d2489571d322189246DaFA5ebDe1F4699F498\", \"ticker\": \"ZRX\", \"chainId\": 1, \"decimals\": 18}";
+  evp_parse((unsigned char *)tokStr);
   const TokenType *zrx = tokenByChainAddress(1, (const uint8_t*)"\xE4\x1d\x24\x89\x57\x1d\x32\x21\x89\x24\x6D\xaF\xA5\xeb\xDe\x1F\x46\x99\xF4\x98");
   ASSERT_NE(zrx, nullptr);
   EXPECT_EQ(zrx->ticker, std::string(" ZRX"));

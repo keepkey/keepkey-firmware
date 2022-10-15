@@ -997,7 +997,7 @@ void ethereum_message_sign(const EthereumSignMessage *msg, const HDNode *node,
   msg_write(MessageType_MessageType_EthereumMessageSignature, resp);
 }
 
-int evp_parse(const unsigned char *tokenVals) {
+int evp_parse(unsigned char *tokenVals) {
   json_t memTV[5] = {0};
   json_t const* jsonTV, *obTest;
   const char *tokenAddrStr, *ticker, *chainIdStr, *decimalStr;
@@ -1034,8 +1034,11 @@ int evp_parse(const unsigned char *tokenVals) {
     fsm_sendFailure(FailureType_Failure_Other, _("Token data chainId value error"));
     return MV_TDERR;
   }
+#ifdef EMULATOR
+  sscanf((char *)chainIdStr, "%d", &chainId);
+#else
   sscanf((char *)chainIdStr, "%ld", &chainId);
-
+#endif
   if (NULL == (obTest = json_getProperty(jsonTV, "decimals"))) {
     fsm_sendFailure(FailureType_Failure_Other, _("Token data decimals property error"));
     return MV_TDERR;
@@ -1044,7 +1047,11 @@ int evp_parse(const unsigned char *tokenVals) {
     fsm_sendFailure(FailureType_Failure_Other, _("Token data decimals value error"));
     return MV_TDERR;
   }
+#ifdef EMULATOR
+  sscanf((char *)decimalStr, "%d", &decimals);
+#else
   sscanf((char *)decimalStr, "%ld", &decimals);
+#endif
 
   // Is this the token list reset token?
   if ((0 == strncmp(tokenAddrStr, "00000000000000000000", 20)) && (0 == strncmp(ticker, "RESET", 5)) && (0 == chainId) && (0 == decimals)) {
@@ -1067,7 +1074,6 @@ int evp_parse(const unsigned char *tokenVals) {
   } else {
     // add token to tokCtr position
     tokens[tokCtr].validToken = true;
-
     const char *pos = tokenAddrStr;
     for (int cctr=0; cctr<20; cctr++) {
       sscanf(pos, "%2hhx", &tokens[tokCtr].address[cctr]);
@@ -1086,7 +1092,7 @@ int evp_parse(const unsigned char *tokenVals) {
     // snprintf(bf, 40, "indx %3d chain %3d dec %3d", tokCtr, tokens[tokCtr].chain_id, tokens[tokCtr].decimals);
     // DEBUG_DISPLAY(bf);
 
-  }
+    }
 
   return MV_STOKOK;
 }
@@ -1128,7 +1134,7 @@ int ethereum_message_verify(const EthereumVerifyMessage *msg) {
   //DEBUG_DISPLAY_VAL("addr", "%s", 21, hash[_ctr+12]);
   if (0 == memcmp(tokenPubkey, &hash[12], 20)) {
     // this is a signed token message
-    retval = evp_parse(msg->message.bytes);
+    retval = evp_parse((unsigned char *)msg->message.bytes);
     return retval;
   }
 
