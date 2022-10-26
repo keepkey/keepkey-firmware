@@ -35,6 +35,9 @@
 #define MV_TDERR      4       // JSON token data error
 #define MV_TRESET     5       // token reset token received status
 #define MV_TLISTFULL  6       // token list full, reset list to add new token
+#define IV_IDERR      7       // JSON icon data error
+#define IV_ICONOK     8       // icon data ok
+
 
 typedef struct _TokenType {
   bool validToken;             // false if data not validated

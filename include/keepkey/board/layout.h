@@ -1,6 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
+ * Copyright (C) 2022 markrypto
  * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
@@ -76,11 +77,6 @@ typedef enum {
   NOTIFICATION_LOGO,
 } NotificationType;
 
-typedef enum {
-  NO_ICON=0,
-  ETHEREUM_ICON,
-} IconType;
-
 typedef void (*AnimateCallback)(void *data, uint32_t duration,
                                 uint32_t elapsed);
 typedef struct Animation Animation;
@@ -109,7 +105,7 @@ void layout_standard_notification(const char *str1, const char *str2,
                                   NotificationType type);
 void layout_constant_power_notification(const char *str1, const char *str2, NotificationType type);
 void layout_notification_icon(NotificationType type, DrawableParams *sp);
-void layout_add_icon(IconType type);
+void layout_add_icon(void);
 void layout_warning(const char *prompt);
 void layout_warning_static(const char *str);
 void layout_simple_message(const char *str);

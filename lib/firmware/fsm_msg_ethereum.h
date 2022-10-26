@@ -281,6 +281,16 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg) {
       // can't add token, list is full
       return;
 
+    case IV_IDERR:
+      // json token data error
+      return;
+
+    case IV_ICONOK:
+      // This is a signed token message
+      fsm_sendSuccess(_("Signed icon data received"));
+      return;
+
+
     default:
       fsm_sendFailure(FailureType_Failure_SyntaxError, _("Unknown error"));
       return;

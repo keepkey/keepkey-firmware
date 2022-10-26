@@ -1,6 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
+ * Copyright (C) 2022 markrypto
  * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
@@ -323,17 +324,9 @@ void layout_standard_notification(const char *str1, const char *str2,
  * OUTPUT
  *     none
  */
-void layout_add_icon(IconType type) {
-  switch (type) {
-    case ETHEREUM_ICON:
-      draw_bitmap_mono_rle(canvas, get_ethereum_icon_frame(), false);
-      break;
-
-    default:
-      /* no action requires */
-      break;
-  }
-
+void layout_add_icon() {
+  draw_bitmap_mono_rle(canvas, &(get_icon_frame()->aniFrame), false);
+  return;
 }
 
 void layout_constant_power_notification(const char *str1, const char *str2,

@@ -1,6 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
+ * Copyright (C) 2022 markrypto
  * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
@@ -25,7 +26,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-const AnimationFrame *get_ethereum_icon_frame(void);
+const SignedIconFrame *get_icon_frame(void);
 const AnimationFrame *get_confirm_icon_frame(void);
 const AnimationFrame *get_confirmed_frame(void);
 const AnimationFrame *get_unplug_frame(void);
@@ -40,4 +41,8 @@ const VariantAnimation *get_logo_reversed_animation(void);
 uint32_t get_image_animation_duration(const VariantAnimation *animation);
 int get_image_animation_frame(const VariantAnimation *animation,
                               const uint32_t elapsed, bool loop);
+
+int set_icon_data(const char *dataStr, uint32_t chainId);
+bool have_icon(uint32_t chainId);
+
 #endif

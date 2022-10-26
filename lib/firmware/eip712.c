@@ -37,6 +37,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "keepkey/board/confirm_sm.h"
+#include "keepkey/board/resources.h"
 #include "keepkey/firmware/eip712.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/tiny-json.h"
@@ -342,7 +343,6 @@ int dsConfirm(const char *value) {
         uint8_t addrHexStr[20];
         uint32_t chainInt;
         int ctr;
-        IconType iconNum = NO_ICON;
         char title[33] = {0};
         char *fillerStr = NULL;
         char chainStr[33];
@@ -355,12 +355,6 @@ int dsConfirm(const char *value) {
 #else
         sscanf((char *)chainId, "%ld", &chainInt);
 #endif
-
-        // As more chains are supported, add icon choice below
-        if (chainInt == 1) {
-            iconNum = ETHEREUM_ICON;
-        }
-
         assetToken = tokenByChainAddress(chainInt, (uint8_t *)addrHexStr);
         if (strncmp(assetToken->ticker, " UNKN", 5) == 0) {
             fillerStr = "";
@@ -372,11 +366,12 @@ int dsConfirm(const char *value) {
         strncpy(title, name, 20);
         strncat(title, " version ", 32-strlen(title));
         strncat(title, version, 32-strlen(title));
-        if (iconNum == NO_ICON) {
+        // see if we have the icon for the chain stored
+        if (!have_icon(chainInt)) {
             snprintf(chainStr, 32, "chain %s,  ", chainId);
         }
         //snprintf(contractStr, 64, "verifyingContract: %s", verifyingContract);
-        (void)review_with_icon(ButtonRequestType_ButtonRequest_Other, iconNum,
+        (void)review_with_icon(ButtonRequestType_ButtonRequest_Other, chainInt,
                                 title, "%sverifyingContract: %s%s", chainStr, verifyingContract, fillerStr);
         name = NULL;
         version = NULL;

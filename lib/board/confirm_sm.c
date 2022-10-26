@@ -1,6 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
+ * Copyright (C) 2022 markrypto
  * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
@@ -154,7 +155,7 @@ static void swap_layout(ActiveLayout active_layout, volatile StateInfo *si,
 /// message. \returns true iff the device confirmed.
 static bool confirm_helper(const char *request_title, const char *request_body,
                       layout_notification_t layout_notification_func,
-                      bool constant_power, IconType iconNum)
+                      bool constant_power, uint32_t chainId, bool displayIcon)
 {
     bool ret_stat = false;
     volatile StateInfo state_info;
@@ -168,7 +169,11 @@ static bool confirm_helper(const char *request_title, const char *request_body,
   bool debug_decided = false;
 #endif
 
-  layout_has_icon(iconNum == NO_ICON ? false : true);
+  if (displayIcon) {
+    layout_has_icon(have_icon(chainId));
+  } else {
+    layout_has_icon(false);
+  }
 
   reset_msg_stack = false;
 
@@ -271,8 +276,8 @@ static bool confirm_helper(const char *request_title, const char *request_body,
 
 #endif
 
-        if (iconNum != NO_ICON) {
-          layout_add_icon(iconNum);
+        if (have_icon(chainId)) {
+          layout_add_icon();
         }
 
         display_constant_power(constant_power);
@@ -306,7 +311,7 @@ bool confirm(ButtonRequestType type, const char *request_title, const char *requ
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false, NO_ICON);
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false, 0, false);
     memzero(strbuf, sizeof(strbuf));
     return ret;
 }
@@ -328,7 +333,7 @@ bool confirm_constant_power(ButtonRequestType type, const char *request_title, c
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    bool ret = confirm_helper(request_title, strbuf, &layout_constant_power_notification, true, NO_ICON);
+    bool ret = confirm_helper(request_title, strbuf, &layout_constant_power_notification, true, 0, false);
     memzero(strbuf, sizeof(strbuf));
     return ret;
 }
@@ -349,7 +354,7 @@ bool confirm_with_custom_button_request(ButtonRequest *button_request,
     /* Send button request */
     msg_write(MessageType_MessageType_ButtonRequest, button_request);
 
-    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false, NO_ICON);
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false, 0, false);
     memzero(strbuf, sizeof(strbuf));
     return ret;
 }
@@ -372,7 +377,7 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    bool ret = confirm_helper(request_title, strbuf, layout_notification_func, false, NO_ICON);
+    bool ret = confirm_helper(request_title, strbuf, layout_notification_func, false, 0, false);
     memzero(strbuf, sizeof(strbuf));
     return ret;
 }
@@ -387,7 +392,7 @@ bool confirm_without_button_request(const char *request_title, const char *reque
     vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
-    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false, NO_ICON);
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false, 0, false);
     memzero(strbuf, sizeof(strbuf));
     return ret;
 }
@@ -409,7 +414,7 @@ bool review(ButtonRequestType type, const char *request_title, const char *reque
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false, NO_ICON);
+    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false, 0, false);
     memzero(strbuf, sizeof(strbuf));
     return true;
 }
@@ -424,12 +429,12 @@ bool review_without_button_request(const char *request_title, const char *reques
     vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
-    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false, NO_ICON);
+    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false, 0, false);
     memzero(strbuf, sizeof(strbuf));
     return true;
 }
 
-bool review_with_icon(ButtonRequestType type, IconType iconNum, const char *request_title, const char *request_body,
+bool review_with_icon(ButtonRequestType type, uint32_t chainId, const char *request_title, const char *request_body,
             ...)
 {
     button_request_acked = false;
@@ -446,7 +451,7 @@ bool review_with_icon(ButtonRequestType type, IconType iconNum, const char *requ
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false, iconNum);
+    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false, chainId, true);
     memzero(strbuf, sizeof(strbuf));
     return true;
 }

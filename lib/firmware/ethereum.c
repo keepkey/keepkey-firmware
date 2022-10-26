@@ -1084,17 +1084,50 @@ int evp_parse(unsigned char *tokenVals) {
     strncat(tokens[tokCtr].ticker, json_getValue(json_getProperty(jsonTV, "ticker")), 9);
     tokens[tokCtr].chain_id = (uint8_t)chainId;
     tokens[tokCtr].decimals = (uint8_t)decimals;
-
-    //DEBUG_DISPLAY_VAL("addr", "%s", 21, hash[_ctr+12]);
-    // char bf[41] = {0};
-    // DEBUG_DISPLAY(tokens[tokCtr].address);
-    // DEBUG_DISPLAY(tokens[tokCtr].ticker);
-    // snprintf(bf, 40, "indx %3d chain %3d dec %3d", tokCtr, tokens[tokCtr].chain_id, tokens[tokCtr].decimals);
-    // DEBUG_DISPLAY(bf);
-
     }
 
   return MV_STOKOK;
+}
+
+int icon_parse(unsigned char *iconVals) {
+  json_t memIV[5] = {0};
+  json_t const* jsonIV, *obTest;
+  const char *chainIdStr, *iconDataStr;
+  uint32_t chainId;
+
+  jsonIV = json_create((char *)iconVals, memIV, sizeof memIV / sizeof *memIV );
+  if (!jsonIV) {
+    fsm_sendFailure(FailureType_Failure_Other, _("Malformed icon data json string"));
+    return IV_IDERR;
+  }
+
+  if (NULL == (obTest = json_getProperty(jsonIV, "chainId"))) {
+    fsm_sendFailure(FailureType_Failure_Other, _("Icon chainId property error"));
+    return IV_IDERR;
+  }
+  if (0 == (chainIdStr = json_getValue(obTest))) {
+    fsm_sendFailure(FailureType_Failure_Other, _("Icon chainId value error"));
+    return IV_IDERR;
+  }
+  if (NULL == (obTest = json_getProperty(jsonIV, "iconData"))) {
+    fsm_sendFailure(FailureType_Failure_Other, _("icon iconData property error"));
+    return IV_IDERR;
+  }
+  if (0 == (iconDataStr = json_getValue(obTest))) {
+    fsm_sendFailure(FailureType_Failure_Other, _("icon iconData value error"));
+    return IV_IDERR;
+  }
+#ifdef EMULATOR
+  sscanf((char *)chainIdStr, "%d", &chainId);
+#else
+  sscanf((char *)chainIdStr, "%ld", &chainId);
+#endif
+
+  if (!set_icon_data(iconDataStr, chainId)) {
+    return IV_IDERR;
+  }
+
+  return IV_ICONOK;
 }
 
 int ethereum_message_verify(const EthereumVerifyMessage *msg) {
@@ -1120,11 +1153,12 @@ int ethereum_message_verify(const EthereumVerifyMessage *msg) {
 
   if (v >= 2 || ecdsa_recover_pub_from_sig(
                     &secp256k1, pubkey, msg->signature.bytes, hash, v) != 0) {
-    return MV_INVALSIG;
   }
 
   //uint32_t addrN[5] = {0x8000002c, 0x8000003c, 0x80000001, 0, 0};
   const uint8_t tokenPubkey[20] = "\x6a\x32\x03\x04\x47\xa4\xc7\x51\xe6\x51\xdb\x90\x3c\x35\x13\xf7\xe1\x38\x0c\x98";
+  //uint32_t addrN[5] = {0x8000002c, 0x8000003c, 0x80000002, 0, 0};
+  const uint8_t iconPubkey[20] =  "\xa5\x43\xf9\xa4\xd4\xe0\xe6\x00\x07\x67\x64\x2f\x3a\xdb\x2d\xc3\xf0\x7f\x34\x42";
 
   struct SHA3_CTX ctx;
   sha3_256_Init(&ctx);
@@ -1135,6 +1169,12 @@ int ethereum_message_verify(const EthereumVerifyMessage *msg) {
   if (0 == memcmp(tokenPubkey, &hash[12], 20)) {
     // this is a signed token message
     retval = evp_parse((unsigned char *)msg->message.bytes);
+    return retval;
+  }
+
+  if (0 == memcmp(iconPubkey, &hash[12], 20)) {
+    // this is a signed icon data message
+    retval = icon_parse((unsigned char *)msg->message.bytes);
     return retval;
   }
 

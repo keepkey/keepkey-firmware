@@ -1,6 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
+ * Copyright (C) 2022 markrypto
  * Copyright (C) 2021 ShapeShift
  *
  * This library is free software: you can redistribute it and/or modify
@@ -68,8 +69,8 @@ bool zx_confirmZxTransERC20(uint32_t data_total, const EthereumSignTx *msg) {
     snprintf(constr1, 32, "%s", inToken);
     snprintf(constr2, 32, "%s", outToken);
 
-    return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Transform ERC20",
-                 "Input %s\nOutput %s", constr1, constr2);
+    (void)review_with_icon(ButtonRequestType_ButtonRequest_Other, msg->chain_id,
+                                "Transform ERC20", "Input %s\nOutput %s", constr1, constr2);
     
     return true;
 }

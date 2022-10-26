@@ -24,6 +24,12 @@ typedef struct AnimationFrame_ {
   const Image *image;
 } AnimationFrame;
 
+typedef struct SignedIconFrame_ {
+  AnimationFrame aniFrame;
+  uint32_t chainId;
+  bool valid;
+} SignedIconFrame;
+
 typedef struct VariantAnimation_ {
   uint16_t count;
   AnimationFrame frames[];

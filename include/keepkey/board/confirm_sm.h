@@ -139,7 +139,7 @@ bool review_without_button_request(const char *request_title,
                                    const char *request_body, ...)
     __attribute__((format(printf, 2, 3)));
 
-bool review_with_icon(ButtonRequestType type, IconType iconNum, const char *request_title,
+bool review_with_icon(ButtonRequestType type, uint32_t chainId, const char *request_title,
                       const char *request_body, ...)
       __attribute__((format(printf, 4, 5)));
 
