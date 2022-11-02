@@ -1,6 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
+ * Copyright (C) 2022 markrypto
  * Copyright (C) 2021 ShapeShift
  *
  * This library is free software: you can redistribute it and/or modify
@@ -93,8 +94,8 @@ bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx *msg) {
     snprintf(constr1, 32, "%s", sellToken);
     snprintf(constr2, 32, "%s", minBuyToken);
 
-    return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, exchange,
-                 "Sell %s\nBuy at least %s", constr1, constr2);
+    (void)review_with_icon(ButtonRequestType_ButtonRequest_ConfirmOutput, msg->chain_id, exchange,
+                                "Sell %s\nBuy at least %s", constr1, constr2);
     
     return true;
 }

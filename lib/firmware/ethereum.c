@@ -370,6 +370,9 @@ void ethereumFormatAmount(const bignum256 *amnt, const TokenType *token,
         case 64:
           suffix = " ELLA";
           break;  // Ellaism
+        case 100:
+          suffix = " xDAI";
+          break;
         case 820:
           suffix = " CLO";
           break;  // Callisto
@@ -733,7 +736,8 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
       title = "Send";
       BRT = ButtonRequestType_ButtonRequest_ConfirmOutput;
     }
-    if (!confirm(BRT, title, "%s", confirm_body_message)) {
+
+    if (!review_with_icon(BRT, msg->chain_id, title, "%s", confirm_body_message)) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       "Signing cancelled by user");
       ethereum_signing_abort();
