@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+const AnimationFrame *get_ethereum_icon_frame(void);
 const AnimationFrame *get_confirm_icon_frame(void);
 const AnimationFrame *get_confirmed_frame(void);
 const AnimationFrame *get_unplug_frame(void);

@@ -1,6 +1,7 @@
 /*
  * This file is part of the TREZOR project.
  *
+ * Copyright (C) 2022 markrypto <cryptoakorn@gmail.com>
  * Copyright (C) 2016 Alex Beregszaszi <alex@rtfs.hu>
  * Copyright (C) 2016 Pavol Rusnak <stick@satoshilabs.com>
  * Copyright (C) 2016 Jochen Hoenicke <hoenicke@gmail.com>
@@ -29,11 +30,13 @@
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
+#include "keepkey/firmware/eip712.h"
 #include "keepkey/firmware/ethereum_contracts.h"
 #include "keepkey/firmware/ethereum_contracts/makerdao.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/thorchain.h"
+#include "keepkey/firmware/tiny-json.h"
 #include "keepkey/firmware/transaction.h"
 #include "trezor/crypto/address.h"
 #include "trezor/crypto/ecdsa.h"
@@ -923,9 +926,10 @@ void ethereum_signing_abort(void) {
 static void ethereum_message_hash(const uint8_t *message, size_t message_len,
                                   uint8_t hash[32]) {
   struct SHA3_CTX ctx;
+  uint8_t c;
+
   sha3_256_Init(&ctx);
   sha3_Update(&ctx, (const uint8_t *)"\x19" "Ethereum Signed Message:\n", 26);
-  uint8_t c;
   if (message_len >= 1000000000) {
     c = '0' + message_len / 1000000000 % 10;
     sha3_Update(&ctx, &c, 1);
@@ -977,6 +981,7 @@ void ethereum_message_sign(const EthereumSignMessage *msg, const HDNode *node,
   }
   resp->has_address = true;
   resp->address.size = 20;
+  
   ethereum_message_hash(msg->message.bytes, msg->message.size, hash);
 
   uint8_t v;
@@ -1046,22 +1051,182 @@ static void ethereum_typed_hash(const uint8_t domain_separator_hash[32],
   keccak_Final(&ctx, hash);
 }
 
+static int eip712_sign(const uint8_t *ds_hash, const uint8_t *msg_hash, bool has_msg_hash, 
+                        const HDNode *node, uint8_t *v, uint8_t *sig) {
+
+  uint8_t hash[32] = {0};
+
+  ethereum_typed_hash(ds_hash, msg_hash, has_msg_hash, hash);
+
+  return ecdsa_sign_digest(&secp256k1, node->private_key, hash, sig, v, ethereum_is_canonic);
+}
+
 void ethereum_typed_hash_sign(const EthereumSignTypedHash *msg,
                               const HDNode *node,
                               EthereumTypedDataSignature *resp) {
-  uint8_t hash[32] = {0};
-
-  ethereum_typed_hash(msg->domain_separator_hash.bytes, msg->message_hash.bytes,
-                      msg->has_message_hash, hash);
 
   uint8_t v = 0;
-  if (ecdsa_sign_digest(&secp256k1, node->private_key, hash,
-                        resp->signature.bytes, &v, ethereum_is_canonic) != 0) {
+  if (0 != eip712_sign(msg->domain_separator_hash.bytes, msg->message_hash.bytes, 
+              msg->has_message_hash, node, &v, resp->signature.bytes)) {
     fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 typed hash signing failed"));
     return;
   }
 
   resp->signature.bytes[64] = 27 + v;
   resp->signature.size = 65;
+  msg_write(MessageType_MessageType_EthereumTypedDataSignature, resp);
+}
+
+void failMessage(int err);
+
+const char *failMsgReturn[LAST_ERROR - 2] = {
+                        "EIP-712 general error",                              //  3
+                        "EIP-712 user defined type name too long",
+                        "EIP-712 too many user defined types",
+                        "EIP-712 user defined type array name error",
+                        "EIP-712 address string overflow",
+                        "EIP-712 bytesN string overflow",
+                        "EIP-712 bytesN size error",
+                        "EIP-712 INT and UINT array parsing not implemented",
+                        "EIP-712 bytesN array parsing not implemented",
+                        "EIP-712 boolean array parsing not implemented",    
+                        "EIP-712 not enough memory to parse message",         // 13
+                        "EIP-712 primaryType name error",
+                        "EIP-712 primaryType value error",
+                        "EIP-712 types property error",
+                        "EIP-712 typeS (typestring) property error",
+                        "EIP-712 domain property name error",
+                        "EIP-712 domain seperator hash must be calculated first",
+                        "EIP-712 message property name error",
+                        "EIP-712 primary type object error",
+                        "EIP-712 typeS not found in eip712types",
+                        "EIP-712 typeS name missing",                         // 23
+                        "EIP-712 unused error 24",
+                        "EIP-712 pairs are NULL",
+                        "EIP-712 json pair type is not JSON_TEXT",
+                        "EIP-712 pair does not have a sibling",
+                        "EIP-712 typeType not encodable, possibly NULL",
+                        "EIP-712 pair value is NULL",
+                        "EIP-712 pair name is NULL",
+                        "EIP-712 typeType has no name in parseVals",
+                        "EIP-712 address string is NULL",
+                        "EIP-712 no value for type during walkVals",          // 33
+                        };
+
+void failMessage(int err) {
+  if (err < GENERAL_ERROR || err > LAST_ERROR) {
+    // unknown error number
+    fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 unknown failure"));
+  } else {
+    fsm_sendFailure(FailureType_Failure_Other, _(failMsgReturn[err-3]));
+  }
+  return;
+}
+
+
+void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *resp, const HDNode *node) {
+  int errRet = SUCCESS;
+  json_t memTypes[JSON_OBJ_POOL_SIZE] = {0};
+  json_t memVals[JSON_OBJ_POOL_SIZE] = {0};
+  json_t memPType[4] = {0};
+  json_t const* jsonT;
+  json_t const* jsonV;
+  json_t const* jsonPT;
+  char *typesJsonStr;
+  char *primaryTypeJsonStr;
+  char *valuesJsonStr;
+  const char *primeType;
+  json_t const* obTest;
+  static uint8_t domainSeparatorHash[32]={0};
+  static uint8_t messageHash[32]={0};
+  static bool have_ds=false;
+
+  typesJsonStr = msg->eip712types;
+  primaryTypeJsonStr = msg->eip712primetype;
+  valuesJsonStr = msg->eip712data;
+
+  jsonT = json_create(typesJsonStr, memTypes, sizeof memTypes / sizeof *memTypes );
+  jsonPT = json_create(primaryTypeJsonStr, memPType, sizeof memPType / sizeof *memPType );
+  jsonV = json_create(valuesJsonStr, memVals, sizeof memVals / sizeof *memVals );
+
+  if (!jsonT) {
+    fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 type property data error"));
+    return;
+  } 
+  if (!jsonPT) {
+    fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 primaryType property data error"));
+    return;
+  }
+  if (!jsonV) {
+    fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 values data error"));
+    return;
+  }
+
+  if (msg->eip712typevals == 1) {
+    // Compute domain seperator hash
+    have_ds = false;
+    memzero(domainSeparatorHash, 32);
+    if ((int)SUCCESS != (errRet = 
+      encode(jsonT, jsonV, "EIP712Domain", resp->domain_separator_hash.bytes)
+    )) {
+      failMessage(errRet);
+      return;
+    }
+    have_ds = true;
+    memcpy(domainSeparatorHash, resp->domain_separator_hash.bytes, 32);
+    resp->has_domain_separator_hash = true;
+    resp->domain_separator_hash.size = 32;
+    resp->has_msg_hash = false;
+
+  } else {
+    if (!have_ds) {
+      failMessage(MSG_NO_DS);
+      return;
+    }
+    if (NULL == (obTest = json_getProperty(jsonPT, "primaryType"))) {
+      failMessage(JSON_PTYPENAMEERR);
+      return;
+    }
+    if (0 == (primeType = json_getValue(obTest))) {
+      failMessage(JSON_PTYPEVALERR);
+      return;
+    }
+    if (0 != strncmp(primeType, "EIP712Domain", strlen(primeType))) { // if primaryType is "EIP712Domain", message hash is NULL
+      errRet = encode(jsonT, jsonV, primeType, resp->message_hash.bytes);
+      if (!(SUCCESS == errRet || NULL_MSG_HASH == errRet)) {
+        failMessage(errRet);
+        return;
+      }
+    } else {
+      errRet = NULL_MSG_HASH;
+    }
+    
+    if (NULL_MSG_HASH == errRet) {
+      resp->has_message_hash = false;
+      resp->has_msg_hash = false;
+    } else {
+      memcpy(messageHash, resp->message_hash.bytes, 32);
+      resp->has_message_hash = true;
+      resp->message_hash.size = 32;
+      resp->has_msg_hash = true;
+    }
+    memcpy(resp->domain_separator_hash.bytes, domainSeparatorHash, 32);
+    resp->has_domain_separator_hash = true;
+    resp->domain_separator_hash.size = 32;
+
+    uint8_t v = 0;
+    if (0 != eip712_sign(domainSeparatorHash, messageHash, resp->has_msg_hash, node, &v, resp->signature.bytes)) {
+      fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 typed hash signing failed"));
+      return;
+    }
+
+    resp->signature.bytes[64] = 27 + v;
+    resp->signature.size = 65;
+
+    memzero(domainSeparatorHash, 32);
+    memzero(messageHash, 32);
+    have_ds = false;
+  }
+
   msg_write(MessageType_MessageType_EthereumTypedDataSignature, resp);
 }

@@ -40,6 +40,7 @@ static Animation animations[MAX_ANIMATIONS];
 static Canvas *canvas = NULL;
 static volatile bool animate_flag = false;
 static leaving_handler_t leaving_handler;
+static bool iconLayout = false;
 
 extern bool constant_power;
 
@@ -245,6 +246,11 @@ void kk_strlwr(char *str) {
   for (; *str; str++) *str = tolower(*str);
 }
 
+void layout_has_icon(bool tf) {
+  iconLayout = tf;
+  return;
+}
+
 /*
  * layout_standard_notification() - Display standard notification
  *
@@ -263,7 +269,20 @@ void layout_standard_notification(const char *str1, const char *str2,
   DrawableParams sp;
   const Font *title_font = get_title_font();
   const Font *body_font = get_body_font();
-  const uint32_t body_line_count = calc_str_line(body_font, str2, BODY_WIDTH);
+  uint32_t body_line_count;
+  uint16_t left_margin, body_width, title_width;
+
+  if (iconLayout) {
+    left_margin = LEFT_MARGIN_WITH_ICON;
+    body_width = BODY_WIDTH_WITH_ICON;
+    title_width = TITLE_WIDTH_WITH_ICON;
+  } else {
+    left_margin = LEFT_MARGIN;
+    body_width = BODY_WIDTH;
+    title_width = TITLE_WIDTH;
+  }
+
+  body_line_count = calc_str_line(body_font, str2, body_width);
 
   /* Determine vertical alignment and body width */
   sp.y = TOP_MARGIN;
@@ -280,19 +299,41 @@ void layout_standard_notification(const char *str1, const char *str2,
   kk_strupr(upper_str1);
 
   /* Title */
-  sp.x = LEFT_MARGIN;
+  sp.x = left_margin;
   sp.color = TITLE_COLOR;
-  draw_string(canvas, title_font, upper_str1, &sp, TITLE_WIDTH,
+  draw_string(canvas, title_font, upper_str1, &sp, title_width,
               font_height(title_font));
 
   /* Body */
   sp.y += font_height(body_font) + BODY_TOP_MARGIN;
-  sp.x = LEFT_MARGIN;
+  sp.x = left_margin;
   sp.color = BODY_COLOR;
-  draw_string(canvas, body_font, str2, &sp, BODY_WIDTH,
+  draw_string(canvas, body_font, str2, &sp, body_width,
               font_height(body_font) + BODY_FONT_LINE_PADDING);
 
   layout_notification_icon(type, &sp);
+}
+
+
+/*
+ * layout_add_icon() - Display standard notification
+ *
+ * INPUT
+ *     - type: notification type
+ * OUTPUT
+ *     none
+ */
+void layout_add_icon(IconType type) {
+  switch (type) {
+    case ETHEREUM_ICON:
+      draw_bitmap_mono_rle(canvas, get_ethereum_icon_frame(), false);
+      break;
+
+    default:
+      /* no action requires */
+      break;
+  }
+
 }
 
 void layout_constant_power_notification(const char *str1, const char *str2,

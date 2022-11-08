@@ -159,11 +159,10 @@ static bool should_restore(void) {
 }
 
 static bool isUpdateRequired(int signed_firmware) {
+  (void)signed_firmware;
   if (!magic_ok()) return true;
 
   if ((META_FLAGS & 1) == 1) return true;
-
-  if (signed_firmware == KEY_EXPIRED) return true;
 
   return false;
 }

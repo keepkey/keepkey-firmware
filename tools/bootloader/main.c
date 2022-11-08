@@ -205,17 +205,10 @@ static bool isFirmwareUpdateMode(void) {
   // Firmware isn't there?
   if (!magic_ok()) return true;
 
-  // When debugging over jtag, these are triggering, sending us into update
-  // mode.
-  int signed_firmware = signatures_ok();
-
   // Check if the firmware wants us to boot into firmware update mode.
   // This is used to skip a hard reset after bootloader update, and drop the
   // user right back into the firmware update flow.
   if ((META_FLAGS & 1) == 1) return true;
-
-  // If the firmware was signed with old signing keys, we also need to update.
-  if (signed_firmware == KEY_EXPIRED) return true;
 
   // Attempt to boot.
   return false;
@@ -260,26 +253,23 @@ static void boot(void) {
 
   int signed_firmware = signatures_ok();
 
-  // Failure due to expired sig key.
-  if (signed_firmware == KEY_EXPIRED) {
-    layout_standard_notification(
-        "Firmware Update Required",
-        "Please disconnect and reconnect while holding the button.",
-        NOTIFICATION_UNPLUG);
-    display_refresh();
-    return;
-  }
-
   // Signature check failed.
   if (signed_firmware != SIG_OK) {
+    const char *unoffFwMsg = "Unrecognized firmware";
+    const char *keyExpMsg = "Expired firmware";
+    const char *msgPtr = unoffFwMsg;
     uint8_t flashed_firmware_hash[SHA256_DIGEST_LENGTH];
+
+    if (signed_firmware == KEY_EXPIRED) {
+      msgPtr = keyExpMsg;
+    }
     memzero(flashed_firmware_hash, sizeof(flashed_firmware_hash));
     memory_firmware_hash(flashed_firmware_hash);
     char hash_str[2 * 32 + 1];
     data2hex(flashed_firmware_hash, 32, hash_str);
     kk_strlwr(hash_str);
     if (!confirm_without_button_request(
-            "Unofficial Firmware",
+            msgPtr,
             "Are you willing to take the risk?\n"
             "%.8s %.8s %.8s %.8s\n"
             "%.8s %.8s %.8s %.8s",
@@ -322,6 +312,8 @@ int main(void) {
   bl_board_init();
   clock_init();
   bootloader_init();
+
+  layout_simple_message("booting...");
 
 #if !defined(DEBUG_ON) && (MEMORY_PROTECT == 0)
 #error "To compile release version, please set MEMORY_PROTECT flag"
