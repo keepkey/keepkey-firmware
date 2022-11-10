@@ -205,7 +205,7 @@ void fsm_msgPing(Ping *msg) {
     }
 
     DEBUG_DISPLAY("\x19" "01234567");
-    if (0 != (errcode = addAuthSeed(&msg->message[16]))) {
+    if (0 != (errcode = addAuthAccount(&msg->message[16]))) {
       switch (errcode) {
         case 1:
           errmsg = slotsFull;

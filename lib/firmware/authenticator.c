@@ -36,7 +36,7 @@
 
 static authStruct authData[AUTHDATA_SIZE] = {0};
 
-unsigned addAuthSeed(char *accountWithSeed) {
+unsigned addAuthAccount(char *accountWithSeed) {
   char *account, *seedStr;
   unsigned ctr;
   char authSecret[20];          // 128-bit key len is the recommended minimum, this is room for 160-bit

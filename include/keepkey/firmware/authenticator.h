@@ -41,7 +41,7 @@ void hmac_sha1(const uint8_t *key, const uint32_t keylen, const uint8_t *msg,
                  const uint32_t msglen, uint8_t *hmac);
 
 unsigned generateAuthenticator(char *accountWithMsg, char otpStr[]);
-unsigned addAuthSeed(char *accountWithSeed);
+unsigned addAuthAccount(char *accountWithSeed);
 unsigned removeAuthAccount(char *account);
 
 #endif
