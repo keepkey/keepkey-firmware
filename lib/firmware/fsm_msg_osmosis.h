@@ -248,6 +248,272 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
       layoutHome();
       return;
     }
+  } else if (msg->has_lp_add) {
+    /** Confirm required transaction parameters exist */
+    if (!msg->lp_add.has_sender || !msg->lp_add.has_pool_id ||
+        !msg->lp_add.has_share_out_amount || !msg->lp_add.has_denom_in_max_a ||
+        !msg->lp_add.has_amount_in_max_a || !msg->lp_add.has_denom_in_max_b ||
+        !msg->lp_add.has_amount_in_max_b) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_FirmwareError,
+                      _("Message is missing required parameters"));
+      layoutHome();
+      return;
+    }
+
+    /** Confirm transaction parameters on-screen */
+    char amount_str_a[32];
+    char denom_str_a[12];
+    sprintf(denom_str_a, " %s", msg->lp_add.denom_in_max_a);
+    bn_format_uint64(msg->lp_add.amount_in_max_a, NULL, denom_str_a, 6, 0,
+                     false, amount_str_a, sizeof(amount_str_a));
+    char amount_str_b[32];
+    char denom_str_b[12];
+    sprintf(denom_str_b, " %s", msg->lp_add.denom_in_max_b);
+    bn_format_uint64(msg->lp_add.amount_in_max_b, NULL, denom_str_b, 6, 0,
+                     false, amount_str_b, sizeof(amount_str_b));
+
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Add Liquidity",
+                 "Deposit %s and %s?", amount_str_a, amount_str_b)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm pool ID", "%s",
+                 msg->lp_add.pool_id)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    // TODO: Should this be a percentage? If so, multiply by 100 and add percent
+    // sign
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Pool share amount",
+                 "%llu", msg->lp_add.share_out_amount)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    // TODO: Create signTxUpdateMsgLPAdd function
+    if (!tendermint_signTxUpdateMsgLPAdd(
+            msg->lp_add.sender, msg->lp_add.pool_id,
+            msg->lp_add.share_out_amount, msg->lp_add.denom_in_max_a,
+            msg->lp_add.amount_in_max_a, msg->lp_add.denom_in_max_b,
+            msg->lp_add.amount_in_max_b, "osmosis", "uosmo", "cosmos-sdk")) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Failed to include rewards message in transaction");
+      layoutHome();
+      return;
+    }
+  } else if (msg->has_lp_remove) {
+    /** Confirm required transaction parameters exist */
+    if (!msg->lp_remove.has_sender || !msg->lp_remove.has_pool_id ||
+        !msg->lp_remove.has_share_out_amount ||
+        !msg->lp_remove.has_denom_out_min_a ||
+        !msg->lp_remove.has_amount_out_min_a ||
+        !msg->lp_remove.has_denom_out_min_b ||
+        !msg->lp_remove.has_amount_out_min_b) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_FirmwareError,
+                      _("Message is missing required parameters"));
+      layoutHome();
+      return;
+    }
+
+    /** Confirm transaction parameters on-screen */
+    char amount_str_a[32];
+    char denom_str_a[12];
+    sprintf(denom_str_a, " %s", msg->lp_remove.denom_out_min_a);
+    bn_format_uint64(msg->lp_remove.amount_out_min_a, NULL, denom_str_a, 6, 0,
+                     false, amount_str_a, sizeof(amount_str_a));
+    char amount_str_b[32];
+    char denom_str_b[12];
+    sprintf(denom_str_b, " %s", msg->lp_remove.denom_out_min_b);
+    bn_format_uint64(msg->lp_remove.amount_out_min_b, NULL, denom_str_b, 6, 0,
+                     false, amount_str_b, sizeof(amount_str_b));
+
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Remove Liquidity",
+                 "Withdraw %s and %s?", amount_str_a, amount_str_b)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm pool ID", "%s",
+                 msg->lp_remove.pool_id)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    // TODO: Should this be a percentage? If so, multiply by 100 and add percent
+    // sign
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Pool share amount",
+                 "%llu", msg->lp_remove.share_out_amount)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    // TODO: Create signTxUpdateMsgLPAdd function
+    // if (!tendermint_signTxUpdateMsgLPRemove(
+    //         msg->lp_remove.sender, msg->lp_remove.pool_id,
+    //         msg->lp_remove.share_out_amount, msg->lp_remove.denom_out_min_a,
+    //         msg->lp_remove.amount_out_min_a, msg->lp_remove.denom_out_min_b,
+    //         msg->lp_remove.amount_out_min_b, "osmosis", "uosmo",
+    //         "cosmos-sdk")) {
+    //   tendermint_signAbort();
+    //   fsm_sendFailure(FailureType_Failure_SyntaxError,
+    //                   "Failed to include rewards message in transaction");
+    //   layoutHome();
+    //   return;
+    // }
+    if (!osmosis_signTxUpdateMsgLPRemove(msg)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Failed to include rewards message in transaction");
+      layoutHome();
+      return;
+    }
+  } else if (msg->has_lp_stake) {
+    char *lockup_duration;
+    char *supported_lockup_durations[] = {"1 day", "1 week", "2 weeks"};
+    /** Confirm required transaction parameters exist */
+    if (!msg->lp_stake.has_owner || !msg->lp_stake.has_duration ||
+        !msg->lp_stake.has_denom || !msg->lp_stake.has_amount) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_FirmwareError,
+                      _("Message is missing required parameters"));
+      layoutHome();
+      return;
+    }
+    switch (msg->lp_stake.duration) {
+      case 86400:
+        /* 1 day in seconds */
+        lockup_duration = supported_lockup_durations[0];
+        break;
+      case 604800:
+        /* 1 week in seconds */
+        lockup_duration = supported_lockup_durations[1];
+        break;
+      case 1209600:
+        /* 2 weeks in seconds */
+        lockup_duration = supported_lockup_durations[2];
+        break;
+      default:
+        tendermint_signAbort();
+        fsm_sendFailure(FailureType_Failure_FirmwareError,
+                        _("Unsupported lockup duration"));
+        layoutHome();
+        return;
+    }
+
+    /** Confirm transaction parameters on-screen */
+    char amount_str[32];
+    char denom_str[12];
+    sprintf(denom_str, " %s", msg->lp_stake.denom);
+    bn_format_uint64(msg->lp_stake.amount, NULL, denom_str, 6, 0, false,
+                     amount_str, sizeof(amount_str));
+
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Bonding", "Bond %s?",
+                 amount_str)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm lockup period",
+                 "Lock tokens for %s?", lockup_duration)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    // if (!tendermint_signTxUpdateMsgLPStake(
+    //         msg->lp_stake.owner, msg->lp_stake.duration,
+    //         msg->lp_stake.amount, "osmosis", "uosmo", "cosmos-sdk")) {
+    //   tendermint_signAbort();
+    //   fsm_sendFailure(FailureType_Failure_SyntaxError,
+    //                   "Failed to include rewards message in transaction");
+    //   layoutHome();
+    //   return;
+    // }
+    if (!osmosis_signTxUpdateMsgLPStake(msg)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Failed to include rewards message in transaction");
+      layoutHome();
+      return;
+    }
+  } else if (msg->has_lp_unstake) {
+    /** Confirm required transaction parameters exist */
+    if (!msg->lp_unstake.has_owner || !msg->lp_unstake.has_id) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_FirmwareError,
+                      _("Message is missing required parameters"));
+      layoutHome();
+      return;
+    }
+
+    // if (msg->lp_unstake.has_amount) {
+    //   /** Confirm transaction parameters on-screen */
+    //   char amount_str[32];
+    //   bn_format_uint64(msg->lp_unstake.amount, NULL, " OSMO", 6, 0, false,
+    //                    amount_str, sizeof(amount_str));
+
+    //   if (!confirm(ButtonRequestType_ButtonRequest_Other, "Claim Rewards",
+    //                "Claim %s?", amount_str)) {
+    //     tendermint_signAbort();
+    //     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    //     layoutHome();
+    //     return;
+    //   }
+    // } else {
+    //   if (!confirm(ButtonRequestType_ButtonRequest_Other, "Claim Rewards",
+    //                "Claim all available lp_unstake?")) {
+    //     tendermint_signAbort();
+    //     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    //     layoutHome();
+    //     return;
+    //   }
+    // }
+
+    // if (!confirm_osmosis_address("Confirm delegator address",
+    //                              msg->lp_unstake.delegator_address)) {
+    //   tendermint_signAbort();
+    //   fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    //   layoutHome();
+    //   return;
+    // }
+
+    // if (!confirm_osmosis_address("Confirm validator address",
+    //                              msg->lp_unstake.validator_address)) {
+    //   tendermint_signAbort();
+    //   fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    //   layoutHome();
+    //   return;
+    // }
+
+    if (!tendermint_signTxUpdateMsgLPUnstake(msg->lp_unstake.owner,
+                                             msg->lp_unstake.id, "osmosis",
+                                             "uosmo", "cosmos-sdk")) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Failed to include lp_unstake message in transaction");
+      layoutHome();
+      return;
+    }
   } else if (msg->has_redelegate) {
     /** Confirm required transaction parameters exist */
     if (!msg->redelegate.has_delegator_address ||
@@ -368,12 +634,12 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
       layoutHome();
       return;
     }
-  } else if (msg->has_lp_add) {
+  } else if (msg->has_swap) {
     /** Confirm required transaction parameters exist */
-    if (!msg->lp_add.has_sender || !msg->lp_add.has_pool_id ||
-        !msg->lp_add.has_share_out_amount || !msg->lp_add.has_denom_in_max_a ||
-        !msg->lp_add.has_amount_in_max_a || !msg->lp_add.has_denom_in_max_b ||
-        !msg->lp_add.has_amount_in_max_b) {
+    if (!msg->swap.has_sender ||
+        !msg->swap.has_pool_id | !msg->swap.has_token_out_denom ||
+        !msg->swap.has_token_in_denom || !msg->swap.has_token_in_amount ||
+        !msg->swap.has_token_out_min_amount) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));
@@ -382,19 +648,21 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     }
 
     /** Confirm transaction parameters on-screen */
-    char amount_str_a[32];
-    char denom_str_a[12];
-    sprintf(denom_str_a, " %s", msg->lp_add.denom_in_max_a);
-    bn_format_uint64(msg->lp_add.amount_in_max_a, NULL, denom_str_a, 6, 0,
-                     false, amount_str_a, sizeof(amount_str_a));
-    char amount_str_b[32];
-    char denom_str_b[12];
-    sprintf(denom_str_b, " %s", msg->lp_add.denom_in_max_b);
-    bn_format_uint64(msg->lp_add.amount_in_max_b, NULL, denom_str_b, 6, 0,
-                     false, amount_str_b, sizeof(amount_str_b));
+    char token_in_amount_str[32];
+    char token_in_denom_str[12];
+    sprintf(token_in_denom_str, " %s", msg->swap.token_in_denom);
+    bn_format_uint64(msg->swap.token_in_amount, NULL, token_in_denom_str, 6, 0,
+                     false, token_in_amount_str, sizeof(token_in_amount_str));
+    char token_out_amount_str[32];
+    char token_out_denom_str[12];
+    sprintf(token_out_denom_str, " %s", msg->swap.token_out_denom);
+    bn_format_uint64(msg->swap.token_out_min_amount, NULL, token_out_denom_str,
+                     6, 0, false, token_out_amount_str,
+                     sizeof(token_out_amount_str));
 
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Add Liquidity",
-                 "Deposit %s and %s?", amount_str_a, amount_str_b)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Swap",
+                 "Swap %s for at least %s?", token_in_amount_str,
+                 token_out_amount_str)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -402,224 +670,33 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     }
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm pool ID", "%s",
-                 msg->lp_add.pool_id)) {
+                 msg->swap.pool_id)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    // TODO: Should this be a percentage? If so, multiply by 100 and add percent
-    // sign
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Pool share amount",
-                 "%llu", msg->lp_add.share_out_amount)) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-      layoutHome();
-      return;
-    }
-
-    // TODO: Create signTxUpdateMsgLPAdd function
-    if (!tendermint_signTxUpdateMsgLPAdd(
-            msg->lp_add.sender, msg->lp_add.pool_id,
-            msg->lp_add.share_out_amount, msg->lp_add.denom_in_max_a,
-            msg->lp_add.amount_in_max_a, msg->lp_add.denom_in_max_b,
-            msg->lp_add.amount_in_max_b, "osmosis", "uosmo", "cosmos-sdk")) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      "Failed to include rewards message in transaction");
-      layoutHome();
-      return;
-    }
-  } else if (msg->has_lp_remove) {
-    /** Confirm required transaction parameters exist */
-    if (!msg->lp_remove.has_sender || !msg->lp_remove.has_pool_id ||
-        !msg->lp_remove.has_share_out_amount ||
-        !msg->lp_remove.has_denom_out_min_a ||
-        !msg->lp_remove.has_amount_out_min_a ||
-        !msg->lp_remove.has_denom_out_min_b ||
-        !msg->lp_remove.has_amount_out_min_b) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_FirmwareError,
-                      _("Message is missing required parameters"));
-      layoutHome();
-      return;
-    }
-
-    /** Confirm transaction parameters on-screen */
-    char amount_str_a[32];
-    char denom_str_a[12];
-    sprintf(denom_str_a, " %s", msg->lp_remove.denom_out_min_a);
-    bn_format_uint64(msg->lp_remove.amount_out_min_a, NULL, denom_str_a, 6, 0,
-                     false, amount_str_a, sizeof(amount_str_a));
-    char amount_str_b[32];
-    char denom_str_b[12];
-    sprintf(denom_str_b, " %s", msg->lp_remove.denom_out_min_b);
-    bn_format_uint64(msg->lp_remove.amount_out_min_b, NULL, denom_str_b, 6, 0,
-                     false, amount_str_b, sizeof(amount_str_b));
-
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Remove Liquidity",
-                 "Withdraw %s and %s?", amount_str_a, amount_str_b)) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-      layoutHome();
-      return;
-    }
-
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm pool ID", "%s",
-                 msg->lp_remove.pool_id)) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-      layoutHome();
-      return;
-    }
-
-    // TODO: Should this be a percentage? If so, multiply by 100 and add percent
-    // sign
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Pool share amount",
-                 "%llu", msg->lp_remove.share_out_amount)) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-      layoutHome();
-      return;
-    }
-
-    // TODO: Create signTxUpdateMsgLPAdd function
-    if (!tendermint_signTxUpdateMsgLPRemove(
-            msg->lp_remove.sender, msg->lp_remove.pool_id,
-            msg->lp_remove.share_out_amount, msg->lp_remove.denom_out_min_a,
-            msg->lp_remove.amount_out_min_a, msg->lp_remove.denom_out_min_b,
-            msg->lp_remove.amount_out_min_b, "osmosis", "uosmo",
-            "cosmos-sdk")) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      "Failed to include rewards message in transaction");
-      layoutHome();
-      return;
-    }
-  } else if (msg->has_lp_stake) {
-    char *lockup_duration;
-    char *supported_lockup_durations[] = {"1 day", "1 week", "2 weeks"};
-    /** Confirm required transaction parameters exist */
-    if (!msg->lp_stake.has_owner || !msg->lp_stake.has_duration ||
-        !msg->lp_stake.has_denom || !msg->lp_stake.has_amount) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_FirmwareError,
-                      _("Message is missing required parameters"));
-      layoutHome();
-      return;
-    }
-    switch (msg->lp_stake.duration) {
-      case 86400:
-        /* 1 day in seconds */
-        lockup_duration = supported_lockup_durations[0];
-        break;
-      case 604800:
-        /* 1 week in seconds */
-        lockup_duration = supported_lockup_durations[1];
-        break;
-      case 1209600:
-        /* 2 weeks in seconds */
-        lockup_duration = supported_lockup_durations[2];
-        break;
-      default:
-        tendermint_signAbort();
-        fsm_sendFailure(FailureType_Failure_FirmwareError,
-                        _("Unsupported lockup duration"));
-        layoutHome();
-        return;
-    }
-
-    /** Confirm transaction parameters on-screen */
-    char amount_str[32];
-    char denom_str[12];
-    sprintf(denom_str, " %s", msg->lp_stake.denom);
-    bn_format_uint64(msg->lp_stake.amount, NULL, denom_str, 6, 0, false,
-                     amount_str, sizeof(amount_str));
-
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Bonding", "Bond %s?",
-                 amount_str)) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-      layoutHome();
-      return;
-    }
-
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm lockup period",
-                 "Lock tokens for %s?", lockup_duration)) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-      layoutHome();
-      return;
-    }
-
-    if (!tendermint_signTxUpdateMsgLPStake(
-            msg->lp_stake.owner, msg->lp_stake.duration, msg->lp_stake.amount,
-            "osmosis", "uosmo", "cosmos-sdk")) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      "Failed to include rewards message in transaction");
-      layoutHome();
-      return;
-    }
-  } else if (msg->has_lp_unstake) {
-    /** Confirm required transaction parameters exist */
-    if (!msg->lp_unstake.has_owner || !msg->lp_unstake.has_id) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_FirmwareError,
-                      _("Message is missing required parameters"));
-      layoutHome();
-      return;
-    }
-
-    // if (msg->lp_unstake.has_amount) {
-    //   /** Confirm transaction parameters on-screen */
-    //   char amount_str[32];
-    //   bn_format_uint64(msg->lp_unstake.amount, NULL, " OSMO", 6, 0, false,
-    //                    amount_str, sizeof(amount_str));
-
-    //   if (!confirm(ButtonRequestType_ButtonRequest_Other, "Claim Rewards",
-    //                "Claim %s?", amount_str)) {
-    //     tendermint_signAbort();
-    //     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-    //     layoutHome();
-    //     return;
-    //   }
-    // } else {
-    //   if (!confirm(ButtonRequestType_ButtonRequest_Other, "Claim Rewards",
-    //                "Claim all available lp_unstake?")) {
-    //     tendermint_signAbort();
-    //     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-    //     layoutHome();
-    //     return;
-    //   }
-    // }
-
-    // if (!confirm_osmosis_address("Confirm delegator address",
-    //                              msg->lp_unstake.delegator_address)) {
+    // if (!tendermint_signTxUpdateMsgSwap(
+    //         msg->swap.sender, msg->swap.pool_id, msg->swap.token_out_denom,
+    //         msg->swap.token_in_denom, msg->swap.token_in_amount,
+    //         msg->swap.token_out_min_amount, "osmosis", "uosmo",
+    //         "cosmos-sdk")) {
     //   tendermint_signAbort();
-    //   fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    //   fsm_sendFailure(FailureType_Failure_SyntaxError,
+    //                   "Failed to include swap message in transaction");
     //   layoutHome();
     //   return;
     // }
 
-    // if (!confirm_osmosis_address("Confirm validator address",
-    //                              msg->lp_unstake.validator_address)) {
-    //   tendermint_signAbort();
-    //   fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-    //   layoutHome();
-    //   return;
-    // }
-
-    if (!tendermint_signTxUpdateMsgLPUnstake(msg->lp_unstake.owner,
-                                             msg->lp_unstake.id, "osmosis",
-                                             "uosmo", "cosmos-sdk")) {
+    if (!osmosis_signTxUpdateMsgSwap(msg)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      "Failed to include lp_unstake message in transaction");
+                      "Failed to include swap message in transaction");
       layoutHome();
       return;
     }
+
   } else if (msg->has_ibc_transfer) {
     /** Confirm required transaction parameters exist */
     if (!msg->ibc_transfer.has_sender ||
@@ -691,59 +768,6 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include IBC transfer message in transaction");
-      layoutHome();
-      return;
-    }
-  } else if (msg->has_swap) {
-    /** Confirm required transaction parameters exist */
-    if (!msg->swap.has_sender ||
-        !msg->swap.has_pool_id | !msg->swap.has_token_out_denom ||
-        !msg->swap.has_token_in_denom || !msg->swap.has_token_in_amount ||
-        !msg->swap.has_token_out_min_amount) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_FirmwareError,
-                      _("Message is missing required parameters"));
-      layoutHome();
-      return;
-    }
-
-    /** Confirm transaction parameters on-screen */
-    char token_in_amount_str[32];
-    char token_in_denom_str[12];
-    sprintf(token_in_denom_str, " %s", msg->swap.token_in_denom);
-    bn_format_uint64(msg->swap.token_in_amount, NULL, token_in_denom_str, 6, 0,
-                     false, token_in_amount_str, sizeof(token_in_amount_str));
-    char token_out_amount_str[32];
-    char token_out_denom_str[12];
-    sprintf(token_out_denom_str, " %s", msg->swap.token_out_denom);
-    bn_format_uint64(msg->swap.token_out_min_amount, NULL, token_out_denom_str,
-                     6, 0, false, token_out_amount_str,
-                     sizeof(token_out_amount_str));
-
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Swap",
-                 "Swap %s for at least %s?", token_in_amount_str,
-                 token_out_amount_str)) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-      layoutHome();
-      return;
-    }
-
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm pool ID", "%s",
-                 msg->swap.pool_id)) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-      layoutHome();
-      return;
-    }
-
-    if (!tendermint_signTxUpdateMsgSwap(
-            msg->swap.sender, msg->swap.pool_id, msg->swap.token_out_denom,
-            msg->swap.token_in_denom, msg->swap.token_in_amount,
-            msg->swap.token_out_min_amount, "osmosis", "uosmo", "cosmos-sdk")) {
-      tendermint_signAbort();
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      "Failed to include swap message in transaction");
       layoutHome();
       return;
     }
