@@ -165,11 +165,6 @@ static bool isValidModelNumber(const char *model) {
   return false;
 }
 
-
-
-
-
-
 void fsm_msgPing(Ping *msg) {
   RESP_INIT(Success);
 
@@ -199,10 +194,13 @@ void fsm_msgPing(Ping *msg) {
 
 
   if (msg->has_message && 0 == strncmp(msg->message, initAuth, 16)) {
-    // initialize authenticator
-    if (msg->has_pin_protection && msg->pin_protection) {
-      CHECK_PIN
-    }
+
+    CHECK_PIN
+
+    // // initialize authenticator
+    // if (msg->has_pin_protection && msg->pin_protection) {
+    //   CHECK_PIN
+    // }
 
     DEBUG_DISPLAY("\x19" "01234567");
     if (0 != (errcode = addAuthAccount(&msg->message[16]))) {
@@ -231,9 +229,11 @@ void fsm_msgPing(Ping *msg) {
     // generate authenticator otp
     char otp[9] = {0};    // allow room for an 8 digit otp
 
-    if (msg->has_pin_protection && msg->pin_protection) {
-      CHECK_PIN
-    }
+    CHECK_PIN
+
+    // if (msg->has_pin_protection && msg->pin_protection) {
+    //   CHECK_PIN
+    // }
     if (0 != (errcode = generateAuthenticator(&msg->message[17], otp))) {
       switch (errcode) {
         case 1:
