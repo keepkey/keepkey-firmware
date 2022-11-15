@@ -353,9 +353,10 @@ int dsConfirm(const char *value) {
         sscanf((char *)chainId, "%ld", &chainInt);
 
         // As more chains are supported, add icon choice below
-        if (chainInt == 1) {
-            iconNum = ETHEREUM_ICON;
-        }
+        // TBD: not implemented for first release
+        // if (chainInt == 1) {
+        //     iconNum = ETHEREUM_ICON;
+        // }
 
         assetToken = tokenByChainAddress(chainInt, (uint8_t *)addrHexStr);
         if (strncmp(assetToken->ticker, " UNKN", 5) == 0) {
