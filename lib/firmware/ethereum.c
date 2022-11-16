@@ -1,5 +1,5 @@
 /*
- * This file is part of the TREZOR project.
+ * This file is part of the KeepKey project.
  *
  * Copyright (C) 2022 markrypto <cryptoakorn@gmail.com>
  * Copyright (C) 2016 Alex Beregszaszi <alex@rtfs.hu>
@@ -1068,7 +1068,7 @@ void ethereum_typed_hash_sign(const EthereumSignTypedHash *msg,
   uint8_t v = 0;
   if (0 != eip712_sign(msg->domain_separator_hash.bytes, msg->message_hash.bytes, 
               msg->has_message_hash, node, &v, resp->signature.bytes)) {
-    fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 typed hash signing failed"));
+    fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 hash signing failed"));
     return;
   }
 
