@@ -18,6 +18,7 @@
  */
 
 #include "keepkey/firmware/cosmos.h"
+#include "keepkey/firmware/osmosis.h"
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/util.h"
 #include "keepkey/firmware/home_sm.h"
@@ -430,34 +431,6 @@ bool tendermint_signTxUpdateMsgRewards(const uint64_t *amount,
   return success;
 }
 
-// bool tendermint_signTxUpdateMsgLPAdd(
-//     const char *sender, const char *pool_id, const uint64_t share_out_amount,
-//     const char *denom_in_max_a, const uint64_t amount_in_max_a,
-//     const char *denom_in_max_b, const uint64_t amount_in_max_b,
-//     const char *chainstr, const char *denom, const char *msgTypePrefix) {
-//   return false;
-// }
-// bool tendermint_signTxUpdateMsgLPRemove(
-//     const char *sender, const char *pool_id, const uint64_t share_out_amount,
-//     const char *denom_out_min_a, const uint64_t amount_out_min_a,
-//     const char *denom_out_min_b, const uint64_t amount_out_min_b,
-//     const char *chainstr, const char *denom, const char *msgTypePrefix) {
-//   return false;
-// }
-// bool tendermint_signTxUpdateMsgLPStake(const char *owner,
-//                                        const uint64_t duration,
-//                                        const uint64_t amount,
-//                                        const char *chainstr, const char
-//                                        *denom, const char *msgTypePrefix) {
-//   return false;
-// }
-// bool tendermint_signTxUpdateMsgLPUnstake(const char *owner, const char *id,
-//                                          const char *chainstr,
-//                                          const char *denom,
-//                                          const char *msgTypePrefix) {
-//   return false;
-// }
-
 bool tendermint_signTxUpdateMsgIBCTransfer(
     const uint64_t amount, const char *sender, const char *receiver,
     const char *source_channel, const char *source_port,
@@ -537,16 +510,6 @@ bool tendermint_signTxUpdateMsgIBCTransfer(
   msgs_remaining--;
   return success;
 }
-
-// bool tendermint_signTxUpdateMsgSwap(const char *sender, const char *pool_id,
-//                                     const char *token_out_denom,
-//                                     const char *token_in_denom,
-//                                     const uint64_t token_in_amount,
-//                                     const uint64_t token_out_min_amount,
-//                                     const char *chainstr, const char *denom,
-//                                     const char *msgTypePrefix) {
-//   return false;
-// }
 
 bool tendermint_signTxFinalize(uint8_t *public_key, uint8_t *signature) {
   char buffer[128];
