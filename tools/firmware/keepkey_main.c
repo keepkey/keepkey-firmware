@@ -206,7 +206,7 @@ int main(void) {
 
   led_func(SET_GREEN_LED);
 
-  usbInit("app.shapeshift.com");
+  usbInit("keepkey.com");
 
   u2fInit();
   led_func(CLR_RED_LED);

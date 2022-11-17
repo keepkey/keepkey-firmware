@@ -199,7 +199,7 @@ bool usb_flash_firmware(void) {
   layout_debuglink_watermark();
 #endif
 
-  usbInit("app.shapeshift.com");
+  usbInit("keepkey.com");
   bootloader_fsm_init();
 
   while (1) {
