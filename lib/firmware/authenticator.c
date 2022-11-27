@@ -19,6 +19,7 @@
 
 #include "keepkey/board/layout.h"
 #include "keepkey/board/confirm_sm.h"
+#include "keepkey/board/timer.h"
 #include "keepkey/firmware/authenticator.h"
 #include "keepkey/firmware/crypto.h"
 #include "trezor/crypto/aes/aes.h"
@@ -37,27 +38,34 @@
 static authStruct authData[AUTHDATA_SIZE] = {0};
 
 unsigned addAuthAccount(char *accountWithSeed) {
-  char *account, *seedStr;
-  unsigned ctr;
+  char *domain, *account, *seedStr;
+  unsigned slot;
   char authSecret[20];          // 128-bit key len is the recommended minimum, this is room for 160-bit
 
-  // accountWithSeed should be of the form "account:seedStr"
-  account = strtok(accountWithSeed, ":");   // get the account string token
-  if (0 == strlen(account) || (ACCOUNT_SIZE <= strlen(account))) {
+  // accountWithSeed should be of the form "domain:account:seedStr"
+  domain = strtok(accountWithSeed, ":");   // get the domain string token
+  if (0 == strlen(domain)) {
+    return 3;
+  }
+  account = strtok(NULL, ":");   // get the account string token
+  if (0 == strlen(account)) {
     return 3;
   }
   seedStr = strtok(NULL, "");   // get the seed string string token
   if (0 == strlen(seedStr)) {
     return 3;
   }
+  if (AUTHSECRET_SIZE_MAX < strlen(seedStr)) {
+    return 5;
+  }
 
   // look for first empty slot
-  for (ctr=0; ctr<AUTHDATA_SIZE; ctr++) {
-    if (authData[ctr].secretSize == 0) {
+  for (slot=0; slot<AUTHDATA_SIZE; slot++) {
+    if (authData[slot].secretSize == 0) {
       break;
     }
   }
-  if (ctr == AUTHDATA_SIZE) {
+  if (slot == AUTHDATA_SIZE) {
     return 1;       // no empty slots
   }
 
@@ -66,83 +74,87 @@ unsigned addAuthAccount(char *accountWithSeed) {
     return 2;       // bad decode
   }
 
-  // {
-  //   char bufStr[65] = {0}, tmpStr[3];
-  //   for (unsigned i=0; i<authData[ctr].secretSize; i++) {
-  //     snprintf(tmpStr, 3, "%02x", authSecret[i]);
-  //     strncat(bufStr, tmpStr, 2);
-  //   }
-  // }
+  confirm(ButtonRequestType_ButtonRequest_Other, "Confirm add account",
+          "Domain: %.*s\nAccount: %.*s\nSeed value: %s", DOMAIN_SIZE, domain, ACCOUNT_SIZE, account, seedStr);
 
-  confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Auth Initialization",
-          "Account: %.*s\nSeed value: %s", ACCOUNT_SIZE, account, seedStr);
-
-  authData[ctr].secretSize = strlen(authSecret);
-  strncpy(authData[ctr].authSecret, authSecret, authData[ctr].secretSize);
-  strlcpy(authData[ctr].account, account, ACCOUNT_SIZE);
+  authData[slot].secretSize = strlen(authSecret);
+  strncpy(authData[slot].authSecret, authSecret, authData[slot].secretSize);
+  strlcpy(authData[slot].domain, domain, DOMAIN_SIZE);
+  strlcpy(authData[slot].account, account, ACCOUNT_SIZE);
 
   return 0;   // success
 }
 
-unsigned generateAuthenticator(char *accountWithMsg, char otpStr[]) {
+unsigned generateOTP(char *accountWithMsg, char otpStr[]) {
 
-  char *account, *msgStr;
-  size_t len = 0;
+  char *domain, *account, *tIntervalStr, *tRemainStr;
+  size_t lenI = 0;
   char tmpStr[3]={0};
   uint8_t hmac[SHA1_DIGEST_LENGTH];           // hmac-sha1 digest length is 160 bits
-  unsigned ctr;
+  unsigned slot;
+  uint32_t t0;
 
-  // accountWithSeed should be of the form "account:msgStr"
-  account = strtok(accountWithMsg, ":");   // get the account string token
-  if (0 == strlen(account) || (ACCOUNT_SIZE <= strlen(account))) {
+  t0 = getSysTime();
+
+  // accountWithSeed should be of the form "domain:account:msgStr"
+
+  domain = strtok(accountWithMsg, ":");   // get the domain string token
+  if (0 == strlen(domain)) {
     return 3;
   }
-  msgStr = strtok(NULL, "");   // get the message string string token
-  if (0 == (len = strlen(msgStr))) {
+  account = strtok(NULL, ":");   // get the account string token
+  if (0 == strlen(account)) {
+    return 3;
+  }
+  tIntervalStr = strtok(NULL, ":");   // get the message string string token
+  if (0 == (lenI = strlen(tIntervalStr))) {
+    return 3;
+  }
+  tRemainStr = strtok(NULL, "");   // get the message string string token
+  if (0 == (strlen(tRemainStr))) {
     return 3;
   }
 
-  uint8_t msgVal[len/2];
-  char bufStr[len];
-  memzero(bufStr, len);
+  // convert time interval string to bytes
+  uint8_t tIntervalVal[lenI/2];
+  char bufStr[lenI];
+  memzero(bufStr, lenI);
 
-  for (unsigned i=0; i<len/2; i++) {
-    strncpy(tmpStr, &msgStr[i*2], 2);
-    msgVal[i] = (uint8_t)(strtol(tmpStr, NULL, 16));
+  for (unsigned i=0; i<lenI/2; i++) {
+    strncpy(tmpStr, &tIntervalStr[i*2], 2);
+    tIntervalVal[i] = (uint8_t)(strtol(tmpStr, NULL, 16));
   }
 
-  for (unsigned i=0; i<len/2; i++) {
-    snprintf(tmpStr, 3, "%02x", msgVal[i]);
+  for (unsigned i=0; i<lenI/2; i++) {
+    snprintf(tmpStr, 3, "%02x", tIntervalVal[i]);
     strncat(bufStr, tmpStr, 2);
   }
 
-  // confirm_with_custom_layout(&layout_notification_no_title_no_bold,
-  //                                   ButtonRequestType_ButtonRequest_Other, "", "message: %s",
-  //                                   bufStr);
+  // convert time remaining to int
+  long tRemainVal = (strtol(tRemainStr, NULL, 10));
 
   // look for account
-  for (ctr=0; ctr<AUTHDATA_SIZE; ctr++) {
-    if (0 == strncmp(authData[ctr].account, account, ACCOUNT_SIZE-1)) {
+  for (slot=0; slot<AUTHDATA_SIZE; slot++) {
+    if (
+      (0 == strncmp(authData[slot].domain, domain, DOMAIN_SIZE-1)) &&
+      (0 == strncmp(authData[slot].account, account, ACCOUNT_SIZE-1))) {
       break;
     }
   }
-  if (ctr == AUTHDATA_SIZE) {
-    return 1;       // account not found
+
+  if (slot == AUTHDATA_SIZE) {
+    return 4;       // account not found
   }
 
-
-  hmac_sha1((const uint8_t*)authData[ctr].authSecret, (const uint32_t)authData[ctr].secretSize,
-                  (const uint8_t*)msgVal, (const uint32_t)len/2, (uint8_t *)hmac);
+  hmac_sha1((const uint8_t*)authData[slot].authSecret, (const uint32_t)authData[slot].secretSize,
+                  (const uint8_t*)tIntervalVal, (const uint32_t)lenI/2, (uint8_t *)hmac);
 
   // for (unsigned i=0; i<SHA1_DIGEST_LENGTH; i++) {
   //   snprintf(tmpStr, 3, "%02x", hmac[i]);
   //   strncat(digestStr, tmpStr, 2);
   // }
 
-  // confirm_with_custom_layout(&layout_notification_no_title_no_bold,
-  //                                   ButtonRequestType_ButtonRequest_Other, "", "hmac-sha1: %s",
-  //                                   digestStr);
-
+  // totp: https://www.rfc-editor.org/rfc/rfc6238
   // extract the otp code  https://www.rfc-editor.org/rfc/rfc4226#section-5.4
   unsigned offset = 0x0f & hmac[SHA1_DIGEST_LENGTH-1];
   unsigned bin_code = (hmac[offset] & 0x7f) << 24
@@ -159,32 +171,78 @@ unsigned generateAuthenticator(char *accountWithMsg, char otpStr[]) {
 
   snprintf(otpStr, 9, "%06d", otp);
   char otpStrLarge[10] = {0};
-  snprintf(otpStrLarge, 9, "\x19%06d", otp);
-  (void)review(ButtonRequestType_ButtonRequest_Other, otpStrLarge, "\n%s", authData[ctr].account);
+  // snprintf(otpStrLarge, 9, "\x19%06d", otp);
+  snprintf(otpStrLarge, 9, "%06d", otp);
+  (void)review(ButtonRequestType_ButtonRequest_Other, "display OTP", "Press button to display OTP");
 
+  // Check to see if user needs to regenerate OTP
+  tRemainVal -= (getSysTime()-t0)/1000;     // time since kk received time value
+  if (tRemainVal < 4) {
+    (void)review(ButtonRequestType_ButtonRequest_Other, "OTP Timeout", "OTP time slice timed out, regenerate OTP");
+  } else {
+    char accStr[DOMAIN_SIZE+ACCOUNT_SIZE+2] = {0};
+    strncpy(accStr, authData[slot].domain, DOMAIN_SIZE);
+    strcat(accStr, " ");
+    strncat(accStr, authData[slot].account, ACCOUNT_SIZE);
+    unsigned remainingdmSec = tRemainVal*10;    // how many 1/10 secs remaining
+    layoutProgressForAuth(otpStrLarge, accStr, (1000*remainingdmSec)/300);
+    for (; remainingdmSec > 0; remainingdmSec--) {
+      delay_ms(100);
+      layoutProgressForAuth(otpStrLarge, accStr, (1000*remainingdmSec)/300);
+    }
+  }
   return 0;
 }
 
-unsigned removeAuthAccount(char *account) {
-  unsigned ctr;
+unsigned getAuthAccount(char *slotStr, char acc[]) {
+  uint8_t val;
+  val = (uint8_t)(strtol(slotStr, NULL, 10));
 
-  // look for account
-  for (ctr=0; ctr<AUTHDATA_SIZE; ctr++) {
-    if (0 == strncmp(authData[ctr].account, account, ACCOUNT_SIZE-1)) {
+  if (val >= AUTHDATA_SIZE) {
+    return 2;   // slot index error, has to be less than size of struct
+  }
+
+  if (authData[val].secretSize == 0) {
+    return 4;   // no account in slot
+  }
+
+  snprintf(acc, DOMAIN_SIZE+ACCOUNT_SIZE+2, "%s:%s", authData[val].domain, authData[val].account);
+  return 0;
+}
+
+unsigned removeAuthAccount(char *domAcc) {
+  char *domain, *account;
+  unsigned slot;
+
+  // accountWithSeed should be of the form "domain:account"
+  domain = strtok(domAcc, ":");   // get the domain string token
+  if (0 == strlen(domain)) {
+    return 3;
+  }
+  account = strtok(NULL, "");   // get the account string token
+  if (0 == strlen(account)) {
+    return 3;
+  }
+
+  // find slot for account
+  for (slot=0; slot<AUTHDATA_SIZE; slot++) {
+    if (
+      (0 == strncmp(authData[slot].domain, domain, DOMAIN_SIZE-1)) &&
+      (0 == strncmp(authData[slot].account, account, ACCOUNT_SIZE-1))) {
       break;
     }
   }
-  if (ctr == AUTHDATA_SIZE) {
-    return 1;       // account not found
+
+  if (slot == AUTHDATA_SIZE) {
+    return 4;       // account not found
   }
 
   confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Delete Account",
-          "PERMANENTLY delete account %.*s?", ACCOUNT_SIZE-1, account);
+          "Do you want to PERMANENTLY delete account %.*s:%.*s?", DOMAIN_SIZE-1, domain, ACCOUNT_SIZE-1, account);
 
-  memzero((void *)&authData[ctr], sizeof(authStruct));
+  memzero((void *)&authData[slot], sizeof(authStruct));
   return 0;   // success
 }
-
 
 void hmac_sha1_Init(HMAC_SHA1_CTX *hctx, const uint8_t *key,
                       const uint32_t keylen) {

@@ -1,6 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
+ * Copyright (C) 2022 markrypto
  * Copyright (C) 2018 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify

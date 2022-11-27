@@ -184,25 +184,24 @@ void fsm_msgPing(Ping *msg) {
   const char *unkErr = "Auth secret unknown error";
   const char *tokenError = "Account name missing or too long, or seed/message string missing";
   const char *noAccount = "Account not found";
+  const char *outOfRangeSlot = "Slot request out of range";
+  const char *authSecTooBig = "Authenticator secret seed too large";
   const char *errmsg;
   unsigned errcode;
 
   // check for authenticator messages
   const char *initAuth = {"\x15" "initializeAuth:"};
   const char *genAuth = {"\x16" "generateOTPFrom:"};
-  const char *delAuth = {"\x17" "removeAccount:"};
+  const char *getAcc = {"\x17" "getAccount:"};
+  const char *delAuth = {"\x18" "removeAccount:"};
 
 
   if (msg->has_message && 0 == strncmp(msg->message, initAuth, 16)) {
 
     CHECK_PIN
 
-    // // initialize authenticator
-    // if (msg->has_pin_protection && msg->pin_protection) {
-    //   CHECK_PIN
-    // }
+    // initialize authenticator
 
-    DEBUG_DISPLAY("\x19" "01234567");
     if (0 != (errcode = addAuthAccount(&msg->message[16]))) {
       switch (errcode) {
         case 1:
@@ -213,6 +212,12 @@ void fsm_msgPing(Ping *msg) {
           break;
         case 3:
           errmsg = tokenError;
+          break;
+        case 4:
+          errmsg = noAccount;
+          break;
+        case 5:
+          errmsg = authSecTooBig;
           break;
         default:
           errmsg = unkErr;
@@ -230,38 +235,78 @@ void fsm_msgPing(Ping *msg) {
     char otp[9] = {0};    // allow room for an 8 digit otp
 
     CHECK_PIN
-
-    // if (msg->has_pin_protection && msg->pin_protection) {
-    //   CHECK_PIN
-    // }
-    if (0 != (errcode = generateAuthenticator(&msg->message[17], otp))) {
+    
+    if (0 != (errcode = generateOTP(&msg->message[17], otp))) {
       switch (errcode) {
-        case 1:
+        case 3:
+          errmsg = tokenError;
+          break;
+        case 4:
           errmsg = noAccount;
           break;
         default:
           errmsg = unkErr;
           break;
       }
-      DEBUG_DISPLAY(errmsg);
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, errmsg);
+      layoutHome();
+      return;
+    }
+
+    resp->has_message = false;
+    //strlcpy(resp->message, otp, 9);
+
+  } else if (msg->has_message && 0 == strncmp(msg->message, getAcc, 12)) {
+    char acc[DOMAIN_SIZE+ACCOUNT_SIZE+2] = {0};    // allow room for domain + ":" + account
+
+    CHECK_PIN
+
+    if (0 != (errcode = getAuthAccount(&msg->message[12], acc))) {
+      switch (errcode) {
+        case 2:
+          errmsg = outOfRangeSlot;
+          break;
+        case 3:
+          errmsg = tokenError;
+          break;
+        case 4:
+          errmsg = noAccount;
+          break;
+        default:
+          errmsg = unkErr;
+          break;
+      }
       fsm_sendFailure(FailureType_Failure_ActionCancelled, errmsg);
       layoutHome();
       return;
     }
 
     resp->has_message = true;
-    strlcpy(resp->message, otp, 9);
+    strlcpy(resp->message, acc, DOMAIN_SIZE+ACCOUNT_SIZE+2);
 
   } else if (msg->has_message && 0 == strncmp(msg->message, delAuth, 15)) {
     // delete data from an auth slot
-    if (msg->has_pin_protection && msg->pin_protection) {
-      CHECK_PIN
+
+    CHECK_PIN
+
+    if (0 != (errcode = removeAuthAccount(&msg->message[15]))) {
+      switch (errcode) {
+        case 3:
+          errmsg = tokenError;
+          break;
+        case 4:
+          errmsg = noAccount;
+          break;
+        default:
+          errmsg = unkErr;
+          break;
+      }
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, errmsg);
+      layoutHome();
+      return;
     }
 
-    removeAuthAccount(&msg->message[15]);
-    resp->has_message = true;
-    //strlcpy(resp->message, , 9);
-
+    resp->has_message = false;
 
   } else {
 
