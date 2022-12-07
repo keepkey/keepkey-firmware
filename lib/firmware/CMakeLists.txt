@@ -11,6 +11,7 @@ set(sources
     ethereum.c
     ethereum_contracts.c
     ethereum_contracts/makerdao.c
+    ethereum_contracts/gnosisproxy.c
     ethereum_contracts/saproxy.c
     ethereum_contracts/zxappliquid.c
     ethereum_contracts/thortx.c
