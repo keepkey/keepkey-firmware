@@ -24,7 +24,7 @@
 #define DOMAIN_SIZE         12  // allow 11 chars for domain
 #define ACCOUNT_SIZE        12  // allow 11 chars for account string
 #define AUTHSECRET_SIZE_MAX 20  // 128-bit key len is the recommended minimum, this is room for 160-bit
-#define AUTHDATA_SIZE        5  // WARNING: This value must be coordinated with the size of uint8_t encrypted_sec[] in 
+#define AUTHDATA_SIZE       10  // WARNING: This value must be coordinated with the size of uint8_t encrypted_sec[] in
                                 // in lib/firmware/storage.h and the storage version must be bumped
 
 
@@ -38,7 +38,7 @@ typedef struct _authStruct {
   char account[ACCOUNT_SIZE];
   char authSecret[AUTHSECRET_SIZE_MAX];
   uint8_t secretSize;                   // this is zero if slot is not filled
-} authStruct;
+} authType;
 
 void hmac_sha1_Init(HMAC_SHA1_CTX *hctx, const uint8_t *key,
                       const uint32_t keylen);

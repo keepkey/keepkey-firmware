@@ -445,7 +445,7 @@ pintest_t storage_isWipeCodeCorrect_impl(const char *wipe_code,
 }
 
 void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
-  static CONFIDENTIAL char scratch[512];
+  static CONFIDENTIAL char scratch[V17_ENCSEC_SIZE];
   _Static_assert(sizeof(scratch) == sizeof(storage->encrypted_sec),
                  "Be extermely careful when changing the size of scratch.");
   memzero(scratch, sizeof(scratch));
@@ -642,7 +642,7 @@ void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage) {
 
   memcpy(ptr + 341, storage->pub.random_salt, 32);
 
-  // 91 reserved bytes
+  // 1028 reserved bytes
 
   // Ignore whatever was in storage->sec. Only encrypted_sec can be committed.
   // Yes, this is a potential footgun. No, there's nothing we can do about it
@@ -708,7 +708,7 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
 
   memcpy(storage->pub.random_salt, ptr + 341, 32);
 
-  // 91 reserved bytes
+  // 1028 reserved bytes
 
   storage->has_sec = false;
   memzero(&storage->sec, sizeof(storage->sec));
@@ -716,7 +716,7 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
   memcpy(storage->encrypted_sec, ptr + 468, sizeof(storage->encrypted_sec));
 }
 
-void storage_writeStorageV16(char *ptr, size_t len, const Storage *storage) {
+void storage_writeStorageV16Plaintext(char *ptr, size_t len, const Storage *storage) {
   if (len < 852) return;
   write_u32_le(ptr, storage->version);
 
@@ -760,6 +760,13 @@ void storage_writeStorageV16(char *ptr, size_t len, const Storage *storage) {
   }
 
   memcpy(ptr + 437, storage->pub.random_salt, 32);
+  return;
+}
+
+void storage_writeStorageV16(char *ptr, size_t len, const Storage *storage) {
+  // V16 shares the same non-secret storage format as V17
+
+  storage_writeStorageV16Plaintext(ptr, len, storage);
   // 1028 reserved bytes
 
   // Ignore whatever was in storage->sec. Only encrypted_sec can be committed.
@@ -774,7 +781,8 @@ void storage_writeStorageV16(char *ptr, size_t len, const Storage *storage) {
   memcpy(ptr + 1501, storage->encrypted_sec, sizeof(storage->encrypted_sec));
 }
 
-void storage_readStorageV16(Storage *storage, const char *ptr, size_t len) {
+
+void storage_readStorageV16Plaintext(Storage *storage, const char *ptr, size_t len) {
   if (len < 852) return;
 
   storage->version = read_u32_le(ptr);
@@ -829,6 +837,45 @@ void storage_readStorageV16(Storage *storage, const char *ptr, size_t len) {
   }
 
   memcpy(storage->pub.random_salt, ptr + 437, 32);
+  return;
+}
+
+void storage_readStorageV16(Storage *storage, const char *ptr, size_t len) {
+
+  // V16 shares the same non-secret storage format as V17
+  storage_readStorageV16Plaintext(storage, ptr, len);
+
+  // 1028 reserved bytes
+
+  storage->has_sec = false;
+  memzero(&storage->sec, sizeof(storage->sec));
+  storage->encrypted_sec_version = read_u32_le(ptr + 1497);
+  memcpy(storage->encrypted_sec, ptr + 1501, V16_ENCSEC_SIZE sizeof(storage->encrypted_sec));
+}
+
+void storage_writeStorageV17(char *ptr, size_t len, const Storage *storage) {
+  // V16 shares the same non-secret storage format as V17
+
+  storage_writeStorageV16Plaintext(ptr, len, storage);
+  // 1028 reserved bytes
+
+  // Ignore whatever was in storage->sec. Only encrypted_sec can be committed.
+  // Yes, this is a potential footgun. No, there's nothing we can do about it
+  // here.
+
+  // Note: the encrypted_sec_version is not necessarily STORAGE_VERSION. If
+  // storage is committed without pin entry on storage upgrade, the plaintext
+  // and ciphertext storage sections will have different versions.
+  write_u32_le(ptr + 1497, storage->encrypted_sec_version);
+
+  memcpy(ptr + 1501, storage->encrypted_sec, sizeof(storage->encrypted_sec));
+}
+
+void storage_readStorageV17(Storage *storage, const char *ptr, size_t len) {
+
+  // V16 shares the same non-secret storage format as V17
+  storage_readStorageV16Plaintext(storage, ptr, len);
+
   // 1028 reserved bytes
 
   storage->has_sec = false;
@@ -836,6 +883,7 @@ void storage_readStorageV16(Storage *storage, const char *ptr, size_t len) {
   storage->encrypted_sec_version = read_u32_le(ptr + 1497);
   memcpy(storage->encrypted_sec, ptr + 1501, sizeof(storage->encrypted_sec));
 }
+
 
 void storage_readCacheV1(Cache *cache, const char *ptr, size_t len) {
   if (len < 65 + 10) return;
@@ -893,6 +941,18 @@ void storage_writeV16(char *flash, size_t len, const ConfigFlash *src) {
   storage_writeStorageV16(flash + 44, 852, &src->storage);
 }
 
+void storage_readV17(ConfigFlash *dst, const char *flash, size_t len) {
+  if (len < 1024) return;
+  storage_readMeta(&dst->meta, flash, 44);
+  storage_readStorageV17(&dst->storage, flash + 44, 852);
+}
+
+void storage_writeV17(char *flash, size_t len, const ConfigFlash *src) {
+  if (len < 1024) return;
+  storage_writeMeta(flash, 44, &src->meta);
+  storage_writeStorageV17(flash + 44, 852, &src->storage);
+}
+
 StorageUpdateStatus storage_fromFlash(SessionState *ss, ConfigFlash *dst,
                                       const char *flash) {
   memzero(dst, sizeof(*dst));
@@ -941,6 +1001,10 @@ StorageUpdateStatus storage_fromFlash(SessionState *ss, ConfigFlash *dst,
       return dst->storage.version == version ? SUS_Valid : SUS_Updated;
     case StorageVersion_16:
       storage_readV16(dst, flash, STORAGE_SECTOR_LEN);
+      dst->storage.version = STORAGE_VERSION;
+      return dst->storage.version == version ? SUS_Valid : SUS_Updated;
+    case StorageVersion_17:
+      storage_readV17(dst, flash, STORAGE_SECTOR_LEN);
       dst->storage.version = STORAGE_VERSION;
       return dst->storage.version == version ? SUS_Valid : SUS_Updated;
 

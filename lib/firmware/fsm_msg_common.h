@@ -195,12 +195,10 @@ void fsm_msgPing(Ping *msg) {
   const char *getAcc = {"\x17" "getAccount:"};
   const char *delAuth = {"\x18" "removeAccount:"};
 
-
   if (msg->has_message && 0 == strncmp(msg->message, initAuth, 16)) {
 
+    CHECK_INITIALIZED
     CHECK_PIN
-
-    // initialize authenticator
 
     if (0 != (errcode = addAuthAccount(&msg->message[16]))) {
       switch (errcode) {
@@ -234,6 +232,7 @@ void fsm_msgPing(Ping *msg) {
     // generate authenticator otp
     char otp[9] = {0};    // allow room for an 8 digit otp
 
+    CHECK_INITIALIZED
     CHECK_PIN
     
     if (0 != (errcode = generateOTP(&msg->message[17], otp))) {
@@ -259,6 +258,7 @@ void fsm_msgPing(Ping *msg) {
   } else if (msg->has_message && 0 == strncmp(msg->message, getAcc, 12)) {
     char acc[DOMAIN_SIZE+ACCOUNT_SIZE+2] = {0};    // allow room for domain + ":" + account
 
+    CHECK_INITIALIZED
     CHECK_PIN
 
     if (0 != (errcode = getAuthAccount(&msg->message[12], acc))) {
@@ -287,6 +287,7 @@ void fsm_msgPing(Ping *msg) {
   } else if (msg->has_message && 0 == strncmp(msg->message, delAuth, 15)) {
     // delete data from an auth slot
 
+    CHECK_INITIALIZED
     CHECK_PIN
 
     if (0 != (errcode = removeAuthAccount(&msg->message[15]))) {

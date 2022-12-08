@@ -22,6 +22,7 @@
 #include "keepkey/board/timer.h"
 #include "keepkey/firmware/authenticator.h"
 #include "keepkey/firmware/crypto.h"
+#include "keepkey/firmware/storage.h"
 #include "trezor/crypto/aes/aes.h"
 #include "trezor/crypto/base32.h"
 #include "trezor/crypto/hmac.h"
@@ -35,7 +36,19 @@
 #include <stdio.h>
 
 
-static authStruct authData[AUTHDATA_SIZE] = {0};
+static CONFIDENTIAL authType authData[AUTHDATA_SIZE] = {0};
+
+
+// getAuthData() gets the storage version of authData and updates the local version
+// setAuthData() updates the storage version with the local version
+
+static void getAuthData(void) {
+  memcpy(authData, storage_getAuthData(), sizeof(authData));
+}
+
+static void setAuthData(void) {
+  storage_setAuthData(authData);
+}
 
 unsigned addAuthAccount(char *accountWithSeed) {
   char *domain, *account, *seedStr;
@@ -59,6 +72,8 @@ unsigned addAuthAccount(char *accountWithSeed) {
     return 5;
   }
 
+  getAuthData();
+
   // look for first empty slot
   for (slot=0; slot<AUTHDATA_SIZE; slot++) {
     if (authData[slot].secretSize == 0) {
@@ -81,6 +96,8 @@ unsigned addAuthAccount(char *accountWithSeed) {
   strncpy(authData[slot].authSecret, authSecret, authData[slot].secretSize);
   strlcpy(authData[slot].domain, domain, DOMAIN_SIZE);
   strlcpy(authData[slot].account, account, ACCOUNT_SIZE);
+
+  setAuthData();
 
   return 0;   // success
 }
@@ -132,6 +149,8 @@ unsigned generateOTP(char *accountWithMsg, char otpStr[]) {
 
   // convert time remaining to int
   long tRemainVal = (strtol(tRemainStr, NULL, 10));
+
+  getAuthData();    // in theory an OTP could be requested on a dirty local copy
 
   // look for account
   for (slot=0; slot<AUTHDATA_SIZE; slot++) {
@@ -198,6 +217,8 @@ unsigned getAuthAccount(char *slotStr, char acc[]) {
   uint8_t val;
   val = (uint8_t)(strtol(slotStr, NULL, 10));
 
+  getAuthData();
+
   if (val >= AUTHDATA_SIZE) {
     return 2;   // slot index error, has to be less than size of struct
   }
@@ -224,6 +245,8 @@ unsigned removeAuthAccount(char *domAcc) {
     return 3;
   }
 
+  getAuthData();  // in theory there could be a request for a removal on a dirty local copy
+
   // find slot for account
   for (slot=0; slot<AUTHDATA_SIZE; slot++) {
     if (
@@ -240,7 +263,8 @@ unsigned removeAuthAccount(char *domAcc) {
   confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Delete Account",
           "Do you want to PERMANENTLY delete account %.*s:%.*s?", DOMAIN_SIZE-1, domain, ACCOUNT_SIZE-1, account);
 
-  memzero((void *)&authData[slot], sizeof(authStruct));
+  memzero((void *)&authData[slot], sizeof(authType));
+  setAuthData();
   return 0;   // success
 }
 
