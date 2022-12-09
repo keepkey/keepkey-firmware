@@ -699,7 +699,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
   }
 
   // contract function may be recognized even though contract is not, e.g., gnosis safe execTransaction
-  if (ethereum_cFuncHandled(msg)) {
+  if (msg->to.size && ethereum_cFuncHandled(msg)) {
     // confirm contract address
     char addr[43] = "0x";
     ethereum_address_checksum(msg->to.bytes, addr + 2, false, chain_id);
