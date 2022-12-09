@@ -17,7 +17,7 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "keepkey/firmware/ethereum_contracts/contractfuncs.h"
+#include "keepkey/firmware/ethereum_contracts/confuncs.h"
 
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/util.h"
