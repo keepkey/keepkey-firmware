@@ -159,9 +159,9 @@ bool storage_isPolicyEnabled(const char *policy_name);
 uint32_t storage_getAutoLockDelayMs(void);
 void storage_setAutoLockDelayMs(uint32_t auto_lock_delay_ms);
 
-void storage_setAuthData(const authType *authData);
+void storage_getAuthData(authType *returnData);
+void storage_setAuthData(authType *setData);
 
-authType *storage_getAuthData(void);
 
 #ifdef DEBUG_LINK
 typedef struct _HDNodeType HDNodeType;

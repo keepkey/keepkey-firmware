@@ -43,7 +43,12 @@ static CONFIDENTIAL authType authData[AUTHDATA_SIZE] = {0};
 // setAuthData() updates the storage version with the local version
 
 static void getAuthData(void) {
-  memcpy(authData, storage_getAuthData(), sizeof(authData));
+  static bool localAuthdataUpdate = true; /* initialization trick */
+  if (localAuthdataUpdate) {
+    storage_getAuthData(authData);
+    localAuthdataUpdate = false;  
+  }
+  return;
 }
 
 static void setAuthData(void) {

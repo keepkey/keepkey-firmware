@@ -31,6 +31,10 @@
 
 #include "aes_sca/aes128_cbc.h"
 
+#include "keepkey/board/confirm_sm.h"
+#include "keepkey/firmware/home_sm.h"
+
+
 #include "keepkey/board/common.h"
 #include "keepkey/board/supervise.h"
 #include "keepkey/board/keepkey_board.h"
@@ -459,8 +463,9 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
     storage_writeHDNode(&scratch[0], 129, &storage->sec.node);
     memcpy(&scratch[0] + 129, storage->sec.mnemonic, 241);
     storage_writeCacheV1(&scratch[0] + 370, 75, &storage->sec.cache);
+    memcpy(&scratch[0] + 445, storage->sec.authData, sizeof(storage->sec.authData));
 
-    // 63 reserved bytes
+    // 129 reserved bytes
 
     // Take a fingerprint of the secrets so we can tell whether they've
     // been correctly decrypted later.
@@ -486,8 +491,13 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
     memcpy(iv, ss->storageKey, sizeof(iv));
     aes_decrypt_ctx ctx;
     aes_decrypt_key256(ss->storageKey, &ctx);
-    aes_cbc_decrypt((const uint8_t *)storage->encrypted_sec,
-                    (uint8_t *)&scratch[0], sizeof(scratch), iv + 32, &ctx);
+    if (storage->encrypted_sec_version <= StorageVersion_16) {
+      aes_cbc_decrypt((const uint8_t *)storage->encrypted_sec,
+                      (uint8_t *)&scratch[0], V16_ENCSEC_SIZE, iv + 32, &ctx);
+    } else {
+      aes_cbc_decrypt((const uint8_t *)storage->encrypted_sec,
+                      (uint8_t *)&scratch[0], sizeof(scratch), iv + 32, &ctx);
+    }
     memzero(iv, sizeof(iv));
 
     // De-serialize from scratch.
@@ -495,7 +505,15 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
     memcpy(storage->sec.mnemonic, &scratch[0] + 129, 241);
     storage_readCacheV1(&storage->sec.cache, &scratch[0] + 370, 75);
 
-    // 63 reserved bytes
+    if (storage->encrypted_sec_version <= StorageVersion_16) {
+      // no mem copy because scratch is already zeroed
+    } else {
+      memcpy(storage->sec.authData, &scratch[0] + 445, sizeof(storage->sec.authData));
+    }
+    storage->encrypted_sec_version = STORAGE_VERSION;
+    storage->pub.authdata_initialized = true;
+
+    // 129 reserved bytes
 
     // Check whether the secrets were correctly decrypted
     uint8_t sec_fingerprint[32];
@@ -530,6 +548,17 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
   }
 
   memzero(scratch, sizeof(scratch));
+}
+
+void storage_getAuthData(authType *returnData) {
+  memcpy(returnData, shadow_config.storage.sec.authData, sizeof(shadow_config.storage.sec.authData));
+  return;
+}
+
+void storage_setAuthData(authType *setData) {
+  memcpy(shadow_config.storage.sec.authData, setData, sizeof(shadow_config.storage.sec.authData));
+  storage_commit();
+  return;
 }
 
 void storage_readStorageV1(SessionState *ss, Storage *storage, const char *ptr,
@@ -850,7 +879,7 @@ void storage_readStorageV16(Storage *storage, const char *ptr, size_t len) {
   storage->has_sec = false;
   memzero(&storage->sec, sizeof(storage->sec));
   storage->encrypted_sec_version = read_u32_le(ptr + 1497);
-  memcpy(storage->encrypted_sec, ptr + 1501, V16_ENCSEC_SIZE sizeof(storage->encrypted_sec));
+  memcpy(storage->encrypted_sec, ptr + 1501, V16_ENCSEC_SIZE);
 }
 
 void storage_writeStorageV17(char *ptr, size_t len, const Storage *storage) {
@@ -1268,8 +1297,8 @@ clear:
 
 void storage_commit(void) {
   // Temporary storage for marshalling secrets in & out of flash.
-  // Size of v16 storage layout (2013 bytes) + size of meta (44 bytes) + 1
-  static char flash_temp[2058];
+  // Size of v17 storage layout (2525 bytes) + size of meta (44 bytes) + 1
+  static char flash_temp[2570];
 
   memzero(flash_temp, sizeof(flash_temp));
 
@@ -1558,7 +1587,6 @@ void storage_setPin_impl(SessionState *ss, Storage *storage, const char *pin) {
   memzero(wrapping_key, sizeof(wrapping_key));
 
   storage->pub.has_pin = !!strlen(pin);
-
   storage_secMigrate(ss, storage, /*encrypt=*/true);
 }
 
