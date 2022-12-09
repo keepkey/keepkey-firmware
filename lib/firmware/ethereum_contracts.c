@@ -20,7 +20,7 @@
 
 #include "keepkey/firmware/ethereum_contracts.h"
 
-#include "keepkey/firmware/ethereum_contracts/gnosisproxy.h"
+#include "keepkey/firmware/ethereum_contracts/contractfuncs.h"
 #include "keepkey/firmware/ethereum_contracts/saproxy.h"
 #include "keepkey/firmware/ethereum_contracts/thortx.h"
 #include "keepkey/firmware/ethereum_contracts/zxappliquid.h"
@@ -29,11 +29,23 @@
 #include "keepkey/firmware/ethereum_contracts/zxswap.h"
 #include "keepkey/firmware/ethereum_contracts/makerdao.h"
 
+
+bool ethereum_cFuncHandled(const EthereumSignTx *msg) {
+  if (cf_isExecTx(msg)) return true;   // used in gnosis proxy contracts
+  return false;
+}
+
+bool ethereum_cFuncConfirmed(uint32_t data_total, const EthereumSignTx *msg) {
+  if (cf_isExecTx(msg)) {
+    return cf_confirmExecTx(data_total, msg);
+  }
+  return false;
+}
+
 bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx *msg,
                               const HDNode *node) {
   (void)node;
 
-  if (gn_isGnosisProxy(msg)) return true;
   if (sa_isWithdrawFromSalary(msg)) return true;
   if (zx_isZxTransformERC20(msg)) return true;
   if (zx_isZxSwap(msg)) return true;
@@ -50,9 +62,6 @@ bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx *msg,
 bool ethereum_contractConfirmed(uint32_t data_total, const EthereumSignTx *msg,
                                 const HDNode *node) {
   (void)node;
-
-  if (gn_isGnosisProxy(msg))
-    return gn_confirmExecTx(data_total, msg);
 
   if (sa_isWithdrawFromSalary(msg))
     return sa_confirmWithdrawFromSalary(data_total, msg);

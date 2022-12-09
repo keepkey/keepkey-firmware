@@ -1,6 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
+ * Copyright (C) 2022 markrypto
  * Copyright (C) 2019 ShapeShift
  *
  * This library is free software: you can redistribute it and/or modify
@@ -32,5 +33,9 @@ bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx *msg,
 /// \return true iff the user has confirmed the custom ETH signing request
 bool ethereum_contractConfirmed(uint32_t data_total, const EthereumSignTx *msg,
                                 const HDNode *node);
+
+bool ethereum_cFuncHandled(const EthereumSignTx *msg);
+
+bool ethereum_cFuncConfirmed(uint32_t data_total, const EthereumSignTx *msg);
 
 #endif
