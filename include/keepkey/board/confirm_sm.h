@@ -44,6 +44,14 @@
     (void)review(ButtonRequestType_ButtonRequest_Other, TITLE,\
                  VALNAME, str);\
   }
+  // Example
+  // DEBUG_DISPLAY_FMT("%d", storage->encrypted_sec_version);
+  #define DEBUG_DISPLAY_FMT(FMTSTR,VAL)\
+  {\
+    char _str[61]={0};\
+    snprintf(_str, 60, FMTSTR, VAL);\
+    (void)review(ButtonRequestType_ButtonRequest_Other, _str, " ");\
+  }
 #endif
 
 /* The number of milliseconds to wait for a confirmation */

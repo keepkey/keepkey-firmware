@@ -506,18 +506,20 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
     storage_readCacheV1(&storage->sec.cache, &scratch[0] + 370, 75);
 
     if (storage->encrypted_sec_version <= StorageVersion_16) {
-      // no mem copy because scratch is already zeroed
+      // no mem copy because no auth data and scratch is already zeroed
     } else {
       memcpy(storage->sec.authData, &scratch[0] + 445, sizeof(storage->sec.authData));
     }
-    storage->encrypted_sec_version = STORAGE_VERSION;
-    storage->pub.authdata_initialized = true;
 
     // 129 reserved bytes
 
     // Check whether the secrets were correctly decrypted
     uint8_t sec_fingerprint[32];
-    sha256_Raw((const uint8_t *)scratch, sizeof(scratch), sec_fingerprint);
+    if (storage->encrypted_sec_version <= StorageVersion_16) {
+      sha256_Raw((const uint8_t *)scratch, V16_ENCSEC_SIZE, sec_fingerprint);
+    } else {
+      sha256_Raw((const uint8_t *)scratch, sizeof(scratch), sec_fingerprint);
+    }
     if (storage->has_sec_fingerprint) {
       if (memcmp_s(storage->sec_fingerprint, sec_fingerprint,
                    sizeof(sec_fingerprint)) != 0) {
@@ -537,6 +539,8 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
       storage_compute_u2froot(ss, storage->sec.mnemonic, &storage->pub.u2froot);
       storage->pub.has_u2froot = true;
     }
+
+    storage->pub.authdata_initialized = true;
 
 #if DEBUG_LINK
     memcpy(debuglink_mnemonic, storage->sec.mnemonic,
@@ -1244,14 +1248,14 @@ void session_clear(bool clear_pin) {
 pintest_t session_clear_impl(SessionState *ss, Storage *storage,
                              bool clear_pin) {
   /*
-      This is a *_impl() function that is assumed to not modify the flash
+     This is a *_impl() function that is assumed to not modify the flash
      storage config state. Because this function calls
      storage_isPinCorrect_impl(), the storage config may need updating: This
      function will return PIN_WRONG  - PIN is incorrect PIN_GOOD   - PIN is
      correct PIN_REWRAP -> PIN is correct, storage key was rewrapped, CALLING
      FUNCTION SHOULD storage_commit()
 
-      If the pin is correct, the shadow config may be out of sync with the
+     If the pin is correct, the shadow config may be out of sync with the
      storage config in flash. Thus, if the return is PIN_REWRAP, then the
      calling function is required to update the flash with a storage_commit().
   */
@@ -1278,7 +1282,6 @@ pintest_t session_clear_impl(SessionState *ss, Storage *storage,
     }
 
     if (!ss->pinCached) goto clear;
-
     storage_secMigrate(ss, storage, /*encrypt=*/false);
     return (ret);
   }
@@ -1517,6 +1520,7 @@ const char *storage_getLanguage(void) {
 }
 
 bool storage_isPinCorrect(const char *pin) {
+
   pintest_t ret = storage_isPinCorrect_impl(
       pin, shadow_config.storage.pub.wrapped_storage_key,
       shadow_config.storage.pub.storage_key_fingerprint,
