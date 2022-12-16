@@ -70,16 +70,15 @@ bool osmosis_signTxInit(const HDNode *_node, const OsmosisSignTx *_msg) {
   sha256_Update(&ctx, (uint8_t *)chainid_prefix, strlen(chainid_prefix));
   tendermint_sha256UpdateEscaped(&ctx, msg.chain_id, strlen(msg.chain_id));
 
-  // 30 + ^10 + 19 = ^59
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                          "\",\"fee\":{\"amount\":[{\"amount\":\"%" PRIu32
-                          "\",\"denom\":\"uosmo\"}]",
-                          msg.fee_amount);
-
-  // 8 + ^10 + 2 = ^20
+  // 16 + ^10 + 2 = ^28
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 ",\"gas\":\"%" PRIu32 "\"}", msg.gas);
+                                 "\",\"fee\":{\"gas\":\"%" PRIu32 "\",", msg.gas);
+
+  //  + ^10 + 19 = ^59
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"amount\":[{\"amount\":\"%" PRIu32
+                                 "\",\"denom\":\"uosmo\"}]}",
+                                 msg.fee_amount);
 
   // <escape memo>
   const char *const memo_prefix = ",\"memo\":\"";
