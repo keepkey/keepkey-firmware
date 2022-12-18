@@ -235,8 +235,17 @@ This version increased the size of the secret storage to accomodate the authenti
 | ------------------------- | -------------- | ------------ | -------------- |
 | node                      | StorageHDNode  |          129 |              0 |
 | mnemonic                  | char[241]      |          241 |            129 |
-| root_seed_cache_status    | u8             |            1 |            370 |
-| root_seed_cache           | char[64]       |           64 |            371 |
-| root_ecdsa_curve_type     | char[10]       |           10 |            435 |
-| authStruct                | 10 * char[45]  |          450 |            445 |
+| cache->
+|   root_seed_cache_status  | u8             |            1 |            370 |
+|   root_seed_cache         | char[64]       |           64 |            371 |
+|   root_ecdsa_curve_type   | char[10]       |           10 |            435 |
+| authenticator_accounts    | 10 * char[45]  |          450 |            445 |
 | reserved                  | char[129]      |          129 |            895 |
+
+
+typedef struct _Cache {
+  /* Root node cache */
+  uint8_t root_seed_cache_status;
+  uint8_t root_seed_cache[64];
+  char root_ecdsa_curve_type[10];
+} Cache;
