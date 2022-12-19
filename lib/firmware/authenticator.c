@@ -76,7 +76,7 @@ unsigned addAuthAccount(char *accountWithSeed) {
   if (0 == strlen(account)) {
     return 3;
   }
-  
+
   seedStr = strtok(NULL, "");   // get the seed string string token
   if (NULL == seedStr) {
     return 3;
