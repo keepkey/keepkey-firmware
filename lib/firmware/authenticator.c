@@ -62,14 +62,25 @@ unsigned addAuthAccount(char *accountWithSeed) {
 
   // accountWithSeed should be of the form "domain:account:seedStr"
   domain = strtok(accountWithSeed, ":");   // get the domain string token
+  if (NULL == domain) {
+    return 3;
+  }
   if (0 == strlen(domain)) {
     return 3;
   }
+
   account = strtok(NULL, ":");   // get the account string token
+  if (NULL == account) {
+    return 3;
+  }
   if (0 == strlen(account)) {
     return 3;
   }
+  
   seedStr = strtok(NULL, "");   // get the seed string string token
+  if (NULL == seedStr) {
+    return 3;
+  }
   if (0 == strlen(seedStr)) {
     return 3;
   }
@@ -121,18 +132,30 @@ unsigned generateOTP(char *accountWithMsg, char otpStr[]) {
   // accountWithSeed should be of the form "domain:account:msgStr"
 
   domain = strtok(accountWithMsg, ":");   // get the domain string token
+  if (NULL == domain) {
+    return 3;
+  }
   if (0 == strlen(domain)) {
     return 3;
   }
   account = strtok(NULL, ":");   // get the account string token
+  if (NULL == account) {
+    return 3;
+  }
   if (0 == strlen(account)) {
     return 3;
   }
   tIntervalStr = strtok(NULL, ":");   // get the message string string token
+  if (NULL == tIntervalStr) {
+    return 3;
+  }
   if (0 == (lenI = strlen(tIntervalStr))) {
     return 3;
   }
   tRemainStr = strtok(NULL, "");   // get the message string string token
+  if (NULL == tRemainStr) {
+    return 3;
+  }
   if (0 == (strlen(tRemainStr))) {
     return 3;
   }
@@ -242,10 +265,16 @@ unsigned removeAuthAccount(char *domAcc) {
 
   // accountWithSeed should be of the form "domain:account"
   domain = strtok(domAcc, ":");   // get the domain string token
+  if (NULL == domain) {
+    return 3;
+  }
   if (0 == strlen(domain)) {
     return 3;
   }
   account = strtok(NULL, "");   // get the account string token
+  if (NULL == account) {
+    return 3;
+  }
   if (0 == strlen(account)) {
     return 3;
   }
