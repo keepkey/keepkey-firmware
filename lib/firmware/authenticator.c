@@ -122,7 +122,6 @@ unsigned generateOTP(char *accountWithMsg, char otpStr[]) {
 
   char *domain, *account, *tIntervalStr, *tRemainStr;
   size_t lenI = 0;
-  char tmpStr[3]={0};
   uint8_t hmac[SHA1_DIGEST_LENGTH];           // hmac-sha1 digest length is 160 bits
   unsigned slot;
   uint32_t t0;
@@ -160,20 +159,14 @@ unsigned generateOTP(char *accountWithMsg, char otpStr[]) {
     return 3;
   }
 
-  // convert time interval string to bytes
-  uint8_t tIntervalVal[lenI/2];
-  char bufStr[lenI];
-  memzero(bufStr, lenI);
-
-  for (unsigned i=0; i<lenI/2; i++) {
-    strncpy(tmpStr, &tIntervalStr[i*2], 2);
-    tIntervalVal[i] = (uint8_t)(strtol(tmpStr, NULL, 16));
-  }
-
-  for (unsigned i=0; i<lenI/2; i++) {
-    snprintf(tmpStr, 3, "%02x", tIntervalVal[i]);
-    strncat(bufStr, tmpStr, 2);
-  }
+  // convert time interval string to long int
+  long tIntervalVal = strtol(tIntervalStr, NULL, 10);
+  // get big endian representation
+  uint8_t tIntervalBytes[8] = {0};
+  tIntervalBytes[4] = (tIntervalVal >> 24) & 0xff;
+  tIntervalBytes[5] = (tIntervalVal >> 16) & 0xff;
+  tIntervalBytes[6] = (tIntervalVal >> 8) & 0xff;
+  tIntervalBytes[7] = tIntervalVal & 0xff;
 
   // convert time remaining to int
   long tRemainVal = (strtol(tRemainStr, NULL, 10));
@@ -194,12 +187,7 @@ unsigned generateOTP(char *accountWithMsg, char otpStr[]) {
   }
 
   hmac_sha1((const uint8_t*)authData[slot].authSecret, (const uint32_t)authData[slot].secretSize,
-                  (const uint8_t*)tIntervalVal, (const uint32_t)lenI/2, (uint8_t *)hmac);
-
-  // for (unsigned i=0; i<SHA1_DIGEST_LENGTH; i++) {
-  //   snprintf(tmpStr, 3, "%02x", hmac[i]);
-  //   strncat(digestStr, tmpStr, 2);
-  // }
+                  (const uint8_t*)tIntervalBytes, (const uint32_t)sizeof(tIntervalBytes), (uint8_t *)hmac);
 
   // totp: https://www.rfc-editor.org/rfc/rfc6238
   // extract the otp code  https://www.rfc-editor.org/rfc/rfc4226#section-5.4
