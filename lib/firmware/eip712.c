@@ -370,7 +370,11 @@ void dsConfirm(void) {
 
     if (NULL != dschainId) {
         noChain = false;
+#ifdef EMULATOR
+        sscanf((char *)dschainId, "%d", &chainInt);
+#else
         sscanf((char *)dschainId, "%ld", &chainInt);
+#endif
         // As more chains are supported, add icon choice below
         // TBD: not implemented for first release
         // if (chainInt == 1) {
