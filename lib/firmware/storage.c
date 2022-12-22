@@ -1,5 +1,4 @@
 /*
- * This file is part of the TREZOR project.
  *
  * Copyright (C) 2022 markrypto <cryptoakorn@gmail.com>
  * Copyright (C) 2014 Pavol Rusnak <stick@satoshilabs.com>
