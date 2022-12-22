@@ -208,12 +208,12 @@ unsigned generateOTP(char *accountWithMsg, char otpStr[]) {
   char otpStrLarge[10] = {0};
   // snprintf(otpStrLarge, 9, "\x19%06d", otp);
   snprintf(otpStrLarge, 9, "%06d", otp);
-  (void)review(ButtonRequestType_ButtonRequest_Other, "display OTP", "Press button to display OTP");
+  (void)review_immediate(ButtonRequestType_ButtonRequest_Other, "display OTP", "Press button to display OTP");
 
   // Check to see if user needs to regenerate OTP
   tRemainVal -= (getSysTime()-t0)/1000;     // time since kk received time value
   if (tRemainVal < 4) {
-    (void)review(ButtonRequestType_ButtonRequest_Other, "OTP Timeout", "OTP time slice timed out, regenerate OTP");
+    (void)review_immediate(ButtonRequestType_ButtonRequest_Other, "OTP Timeout", "OTP time slice timed out, regenerate OTP");
   } else {
     char accStr[DOMAIN_SIZE+ACCOUNT_SIZE+2] = {0};
     strncpy(accStr, authData[slot].domain, DOMAIN_SIZE);
