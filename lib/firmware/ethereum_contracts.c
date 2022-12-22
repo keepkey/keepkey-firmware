@@ -1,6 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
+ * Copyright (C) 2022 markrypto
  * Copyright (C) 2019 ShapeShift
  *
  * This library is free software: you can redistribute it and/or modify
@@ -19,6 +20,7 @@
 
 #include "keepkey/firmware/ethereum_contracts.h"
 
+#include "keepkey/firmware/ethereum_contracts/confuncs.h"
 #include "keepkey/firmware/ethereum_contracts/saproxy.h"
 #include "keepkey/firmware/ethereum_contracts/thortx.h"
 #include "keepkey/firmware/ethereum_contracts/zxappliquid.h"
@@ -26,6 +28,19 @@
 #include "keepkey/firmware/ethereum_contracts/zxtransERC20.h"
 #include "keepkey/firmware/ethereum_contracts/zxswap.h"
 #include "keepkey/firmware/ethereum_contracts/makerdao.h"
+
+
+bool ethereum_cFuncHandled(const EthereumSignTx *msg) {
+  if (cf_isExecTx(msg)) return true;   // used in gnosis proxy contracts
+  return false;
+}
+
+bool ethereum_cFuncConfirmed(uint32_t data_total, const EthereumSignTx *msg) {
+  if (cf_isExecTx(msg)) {
+    return cf_confirmExecTx(data_total, msg);
+  }
+  return false;
+}
 
 bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx *msg,
                               const HDNode *node) {
