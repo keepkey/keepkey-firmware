@@ -1,11 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
-<<<<<<< HEAD
- * Copyright (C) 2022 markrypto
-=======
  * Copyright (C) 2022 markrypto <cryptoakorn@gmail.com>
->>>>>>> feature-auth
  * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify

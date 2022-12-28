@@ -37,11 +37,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "keepkey/board/confirm_sm.h"
-<<<<<<< HEAD
 #include "keepkey/board/resources.h"
-=======
 #include "keepkey/board/memory.h"
->>>>>>> feature-auth
 #include "keepkey/firmware/eip712.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/tiny-json.h"
@@ -339,7 +336,6 @@ void dsConfirm(void) {
     uint32_t chainInt;
     bool noChain = true;
     int ctr;
-    IconType iconNum = NO_ICON;
     char title[64] = {0};
     char *fillerStr = "";
     char chainStr[33] = {0};
@@ -352,30 +348,10 @@ void dsConfirm(void) {
         strncpy(version, dsversion, 10);
     }
 
-<<<<<<< HEAD
-    if (name != NULL && version != NULL && chainId != NULL && verifyingContract != NULL) {
-        // First check if we recognize the contract
-        const TokenType *assetToken;
-        uint8_t addrHexStr[20];
-        uint32_t chainInt;
-        int ctr;
-        char title[33] = {0};
-        char *fillerStr = NULL;
-        char chainStr[33];
-
-=======
     if (dsverifyingContract != NULL) {
->>>>>>> feature-auth
         for (ctr=2; ctr<42; ctr+=2) {
             sscanf((char *)&dsverifyingContract[ctr], "%2hhx", &addrHexStr[(ctr-2)/2]);
         }
-<<<<<<< HEAD
-#ifdef EMULATOR
-        sscanf((char *)chainId, "%d", &chainInt);
-#else
-        sscanf((char *)chainId, "%ld", &chainInt);
-#endif
-=======
         strcat(verifyingContract, "Verifying Contract: ");
         strncat(verifyingContract, dsverifyingContract, sizeof(verifyingContract) - sizeof("Verifying Contract: "));
     }
@@ -394,7 +370,6 @@ void dsConfirm(void) {
         // }
     }
     if (noChain == false && dsverifyingContract != NULL) {
->>>>>>> feature-auth
         assetToken = tokenByChainAddress(chainInt, (uint8_t *)addrHexStr);
         if (strncmp(assetToken->ticker, " UNKN", 5) == 0) {
             fillerStr = "";
@@ -403,23 +378,6 @@ void dsConfirm(void) {
             //fillerStr = "\n\n";
             fillerStr = "";
         }
-<<<<<<< HEAD
-        strncpy(title, name, 20);
-        strncat(title, " version ", 32-strlen(title));
-        strncat(title, version, 32-strlen(title));
-        // see if we have the icon for the chain stored
-        if (!have_icon(chainInt)) {
-            snprintf(chainStr, 32, "chain %s,  ", chainId);
-        }
-        //snprintf(contractStr, 64, "verifyingContract: %s", verifyingContract);
-        (void)review_with_icon(ButtonRequestType_ButtonRequest_Other, chainInt,
-                                title, "%sverifyingContract: %s%s", chainStr, verifyingContract, fillerStr);
-        name = NULL;
-        version = NULL;
-        chainId = NULL;
-        verifyingContract = NULL;
-=======
->>>>>>> feature-auth
     }
 
     strncpy(title, name, 40);
@@ -431,7 +389,7 @@ void dsConfirm(void) {
         snprintf(chainStr, 32, "chain %s,  ", dschainId);
     }
     //snprintf(contractStr, 64, "verifyingContract: %s", verifyingContract);
-    (void)review_with_icon(ButtonRequestType_ButtonRequest_Other, iconNum,
+    (void)review_with_icon(ButtonRequestType_ButtonRequest_Other, chainInt,
                             title, "%s %s%s", chainStr, verifyingContract, fillerStr);
     dsname = NULL;
     dsversion = NULL;

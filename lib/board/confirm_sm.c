@@ -318,7 +318,7 @@ bool confirm(ButtonRequestType type, const char *request_title, const char *requ
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false, 0, false);
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false, 0, false, false);
     memzero(strbuf, sizeof(strbuf));
     return ret;
 }
@@ -340,7 +340,7 @@ bool confirm_constant_power(ButtonRequestType type, const char *request_title, c
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    bool ret = confirm_helper(request_title, strbuf, &layout_constant_power_notification, true, 0, false);
+    bool ret = confirm_helper(request_title, strbuf, &layout_constant_power_notification, true, 0, false, false);
     memzero(strbuf, sizeof(strbuf));
     return ret;
 }
@@ -361,7 +361,7 @@ bool confirm_with_custom_button_request(ButtonRequest *button_request,
     /* Send button request */
     msg_write(MessageType_MessageType_ButtonRequest, button_request);
 
-    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false, 0, false);
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false, 0, false, false);
     memzero(strbuf, sizeof(strbuf));
     return ret;
 }
@@ -384,7 +384,7 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    bool ret = confirm_helper(request_title, strbuf, layout_notification_func, false, 0, false);
+    bool ret = confirm_helper(request_title, strbuf, layout_notification_func, false, 0, false, false);
     memzero(strbuf, sizeof(strbuf));
     return ret;
 }
@@ -399,7 +399,7 @@ bool confirm_without_button_request(const char *request_title, const char *reque
     vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
-    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false, 0, false);
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false, 0, false, false);
     memzero(strbuf, sizeof(strbuf));
     return ret;
 }
@@ -421,7 +421,7 @@ bool review(ButtonRequestType type, const char *request_title, const char *reque
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false, 0, false);
+    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false, 0, false, false);
     memzero(strbuf, sizeof(strbuf));
     return true;
 }
@@ -436,7 +436,7 @@ bool review_without_button_request(const char *request_title, const char *reques
     vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
     va_end(vl);
 
-    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false, 0, false);
+    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false, 0, false, false);
     memzero(strbuf, sizeof(strbuf));
     return true;
 }
@@ -458,7 +458,7 @@ bool review_with_icon(ButtonRequestType type, uint32_t chainId, const char *requ
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false, chainId, true);
+    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false, chainId, true, false);
     memzero(strbuf, sizeof(strbuf));
     return true;
 }
@@ -480,7 +480,7 @@ bool review_immediate(ButtonRequestType type, const char *request_title, const c
     resp.code = type;
     msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false, chainId, true);
+    (void)confirm_helper(request_title, strbuf, &layout_standard_notification, false, 0, false, true);
     memzero(strbuf, sizeof(strbuf));
     return true;
 }
