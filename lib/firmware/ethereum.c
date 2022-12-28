@@ -1,5 +1,5 @@
 /*
- * This file is part of the TREZOR project.
+ * This file is part of the KeepKey project.
  *
  * Copyright (C) 2022 markrypto <cryptoakorn@gmail.com>
  * Copyright (C) 2016 Alex Beregszaszi <alex@rtfs.hu>
@@ -600,6 +600,8 @@ static bool ethereum_signing_check(EthereumSignTx *msg) {
 
 void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
                            bool needs_confirm) {
+  char confirm_body_message[121] = {0};
+
   ethereum_signing = true;
   sha3_256_Init(&keccak_ctx);
 
@@ -699,6 +701,30 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
     data_needs_confirm = false;
   }
 
+  // contract function may be recognized even though contract is not, e.g., gnosis safe execTransaction
+  if (msg->to.size && ethereum_cFuncHandled(msg)) {
+    // confirm contract address
+    char addr[43] = "0x";
+    ethereum_address_checksum(msg->to.bytes, addr + 2, false, chain_id);
+
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "contract address", "%s", addr)) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      "Signing cancelled by user");
+      ethereum_signing_abort();
+      return;
+    }
+
+    // confirm contract data
+    if (!ethereum_cFuncConfirmed(data_total, msg)) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      "Signing cancelled by user");
+      ethereum_signing_abort();
+      return;
+    }
+    needs_confirm = false;
+    data_needs_confirm = false;
+  }
+
   // detect ERC-20 token
   if (data_total == 68 && ethereum_isStandardERC20Transfer(msg)) {
     token = tokenByChainAddress(chain_id, msg->to.bytes);
@@ -710,9 +736,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
     is_approve = true;
   }
 
-  char confirm_body_message[BODY_CHAR_MAX];
   if (needs_confirm) {
-    memset(confirm_body_message, 0, sizeof(confirm_body_message));
     if (token != NULL) {
       layoutEthereumConfirmTx(
           msg->data_initial_chunk.bytes + 16, 20,
@@ -1225,7 +1249,7 @@ void ethereum_typed_hash_sign(const EthereumSignTypedHash *msg,
   uint8_t v = 0;
   if (0 != eip712_sign(msg->domain_separator_hash.bytes, msg->message_hash.bytes, 
               msg->has_message_hash, node, &v, resp->signature.bytes)) {
-    fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 typed hash signing failed"));
+    fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 hash signing failed"));
     return;
   }
 

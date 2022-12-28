@@ -1,7 +1,11 @@
 /*
  * This file is part of the KeepKey project.
  *
+<<<<<<< HEAD
  * Copyright (C) 2022 markrypto
+=======
+ * Copyright (C) 2022 markrypto <cryptoakorn@gmail.com>
+>>>>>>> feature-auth
  * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
@@ -262,13 +266,22 @@ void layout_has_icon(bool tf) {
  * OUTPUT
  *     none
  */
-void layout_standard_notification(const char *str1, const char *str2,
+void layout_standard_notification(const char *str1_param, const char *str2,
                                   NotificationType type) {
+  const char *str1;
+
   call_leaving_handler();
   layout_clear();
 
   DrawableParams sp;
   const Font *title_font = get_title_font();
+
+  str1 = str1_param;
+  if ('\x19' == str1[0]) {
+    str1 = &str1_param[1];
+    title_font = get_pin_font();
+  }
+
   const Font *body_font = get_body_font();
   uint32_t body_line_count;
   uint16_t left_margin, body_width, title_width;
@@ -696,11 +709,13 @@ void force_animation_start(void) { animate_flag = true; }
  * animating_progress_handler() - Animate storage update progress
  *
  * INPUT
- *     none
+ *     otp - optional display an OTP in large font
+ *     desc - text to display
+ *     permil - progress in units of 1 to 1000
  * OUTPUT
  *     none
  */
-void animating_progress_handler(const char *desc, int permil) {
+void animating_progress_handler(const char *otp, const char *desc, int permil) {
   if (!canvas) return;
 
   call_leaving_handler();
@@ -710,14 +725,25 @@ void animating_progress_handler(const char *desc, int permil) {
   permil = permil <= 0 ? 0 : permil;
 
   const Font *font = get_body_font();
+  const Font *otpfont = get_pin_font();
+
+  uint32_t body_line_count;
+  DrawableParams sp;
+
+  /* Draw OTP if available */
+  if (0 < strlen(otp) && 11 > strlen(otp)) {
+    sp.x = LEFT_MARGIN;
+    sp.y = 10;
+    sp.color = TITLE_COLOR;
+    draw_string(canvas, otpfont, otp, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(otpfont));
+  }
 
   /* Draw Message */
-  const uint32_t body_line_count = calc_str_line(font, desc, BODY_WIDTH);
-  DrawableParams sp;
+  body_line_count = calc_str_line(font, desc, BODY_WIDTH);
   sp.x = LEFT_MARGIN;
   sp.y =
       (KEEPKEY_DISPLAY_HEIGHT / 2) - (body_line_count * font_height(font) / 2);
-  sp.color = TITLE_COLOR;
+  sp.color = BODY_COLOR;
   draw_string(canvas, font, desc, &sp, KEEPKEY_DISPLAY_WIDTH,
               font_height(font));
 
@@ -761,11 +787,15 @@ void animating_progress_handler(const char *desc, int permil) {
 }
 
 void layoutProgress(const char *desc, int permil) {
-  animating_progress_handler(desc, permil);
+  animating_progress_handler("", desc, permil);
+}
+
+void layoutProgressForAuth(const char *otp, const char *desc, int permil) {
+  animating_progress_handler(otp, desc, permil);
 }
 
 void layoutProgressSwipe(const char *desc, int permil) {
-  animating_progress_handler(desc, permil);
+  animating_progress_handler("", desc, permil);
 }
 
 /*

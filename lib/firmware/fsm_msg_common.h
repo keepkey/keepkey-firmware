@@ -178,29 +178,166 @@ void fsm_msgPing(Ping *msg) {
     flash_setModel(&message);
   }
 
-  if (msg->has_button_protection && msg->button_protection)
-    if (!confirm(ButtonRequestType_ButtonRequest_Ping, "Ping", "%s",
-                 msg->message)) {
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
-      layoutHome();
-      return;
-    }
+  // authenticator errors
+  const char *slotsFull = "Authenticator secret storage full";
+  const char *cantDecode = "Authenticator secret can't be decoded";
+  const char *unkErr = "Auth secret unknown error";
+  const char *tokenError = "Account name missing or too long, or seed/message string missing";
+  const char *noAccount = "Account not found";
+  const char *outOfRangeSlot = "Slot request out of range";
+  const char *authSecTooBig = "Authenticator secret seed too large";
+  const char *errmsg;
+  unsigned errcode;
 
-  if (msg->has_pin_protection && msg->pin_protection) {
+  // check for authenticator messages
+  const char *initAuth = {"\x15" "initializeAuth:"};
+  const char *genAuth = {"\x16" "generateOTPFrom:"};
+  const char *getAcc = {"\x17" "getAccount:"};
+  const char *delAuth = {"\x18" "removeAccount:"};
+
+  if (msg->has_message && 0 == strncmp(msg->message, initAuth, 16)) {
+
+    //CHECK_INITIALIZED
     CHECK_PIN
-  }
 
-  if (msg->has_passphrase_protection && msg->passphrase_protection) {
-    if (!passphrase_protect()) {
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
+    if (0 != (errcode = addAuthAccount(&msg->message[16]))) {
+      switch (errcode) {
+        case 1:
+          errmsg = slotsFull;
+          break;
+        case 2:
+          errmsg = cantDecode;
+          break;
+        case 3:
+          errmsg = tokenError;
+          break;
+        case 4:
+          errmsg = noAccount;
+          break;
+        case 5:
+          errmsg = authSecTooBig;
+          break;
+        default:
+          errmsg = unkErr;
+          break;
+      }
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, errmsg);
       layoutHome();
       return;
     }
-  }
 
-  if (msg->has_message) {
+    resp->has_message = false;
+
+  } else if (msg->has_message && 0 == strncmp(msg->message, genAuth, 17)) {
+    // generate authenticator otp
+    char otp[9] = {0};    // allow room for an 8 digit otp
+
+    //CHECK_INITIALIZED
+    CHECK_PIN
+    
+    if (0 != (errcode = generateOTP(&msg->message[17], otp))) {
+      switch (errcode) {
+        case 3:
+          errmsg = tokenError;
+          break;
+        case 4:
+          errmsg = noAccount;
+          break;
+        default:
+          errmsg = unkErr;
+          break;
+      }
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, errmsg);
+      layoutHome();
+      return;
+    }
+
+#ifdef DEBUG_LINK
     resp->has_message = true;
-    memcpy(&(resp->message), &(msg->message), sizeof(resp->message));
+    strlcpy(resp->message, otp, 9);
+#else
+    resp->has_message = false;
+#endif
+
+  } else if (msg->has_message && 0 == strncmp(msg->message, getAcc, 12)) {
+    char acc[DOMAIN_SIZE+ACCOUNT_SIZE+2] = {0};    // allow room for domain + ":" + account
+
+    //CHECK_INITIALIZED
+    CHECK_PIN
+
+    if (0 != (errcode = getAuthAccount(&msg->message[12], acc))) {
+      switch (errcode) {
+        case 2:
+          errmsg = outOfRangeSlot;
+          break;
+        case 3:
+          errmsg = tokenError;
+          break;
+        case 4:
+          errmsg = noAccount;
+          break;
+        default:
+          errmsg = unkErr;
+          break;
+      }
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, errmsg);
+      layoutHome();
+      return;
+    }
+
+    resp->has_message = true;
+    strlcpy(resp->message, acc, DOMAIN_SIZE+ACCOUNT_SIZE+2);
+
+  } else if (msg->has_message && 0 == strncmp(msg->message, delAuth, 15)) {
+    // delete data from an auth slot
+
+    //CHECK_INITIALIZED
+    CHECK_PIN
+
+    if (0 != (errcode = removeAuthAccount(&msg->message[15]))) {
+      switch (errcode) {
+        case 3:
+          errmsg = tokenError;
+          break;
+        case 4:
+          errmsg = noAccount;
+          break;
+        default:
+          errmsg = unkErr;
+          break;
+      }
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, errmsg);
+      layoutHome();
+      return;
+    }
+
+    resp->has_message = false;
+
+  } else {
+
+    if (msg->has_button_protection && msg->button_protection)
+      if (!confirm(ButtonRequestType_ButtonRequest_Ping, "Ping", "%s",
+                   msg->message)) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
+        layoutHome();
+        return;
+      }
+
+    if (msg->has_pin_protection && msg->pin_protection) {
+      CHECK_PIN
+    }
+
+    if (msg->has_passphrase_protection && msg->passphrase_protection) {
+      if (!passphrase_protect()) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
+        layoutHome();
+        return;
+      }
+    }
+    if (msg->has_message) {
+      resp->has_message = true;
+      memcpy(&(resp->message), &(msg->message), sizeof(resp->message));
+    }
   }
 
   msg_write(MessageType_MessageType_Success, resp);

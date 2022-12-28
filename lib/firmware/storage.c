@@ -1,6 +1,6 @@
 /*
- * This file is part of the TREZOR project.
  *
+ * Copyright (C) 2022 markrypto <cryptoakorn@gmail.com>
  * Copyright (C) 2014 Pavol Rusnak <stick@satoshilabs.com>
  *
  * This library is free software: you can redistribute it and/or modify
@@ -29,6 +29,10 @@
 #endif
 
 #include "aes_sca/aes128_cbc.h"
+
+#include "keepkey/board/confirm_sm.h"
+#include "keepkey/firmware/home_sm.h"
+
 
 #include "keepkey/board/common.h"
 #include "keepkey/board/supervise.h"
@@ -444,7 +448,7 @@ pintest_t storage_isWipeCodeCorrect_impl(const char *wipe_code,
 }
 
 void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
-  static CONFIDENTIAL char scratch[512];
+  static CONFIDENTIAL char scratch[V17_ENCSEC_SIZE];
   _Static_assert(sizeof(scratch) == sizeof(storage->encrypted_sec),
                  "Be extermely careful when changing the size of scratch.");
   memzero(scratch, sizeof(scratch));
@@ -458,8 +462,9 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
     storage_writeHDNode(&scratch[0], 129, &storage->sec.node);
     memcpy(&scratch[0] + 129, storage->sec.mnemonic, 241);
     storage_writeCacheV1(&scratch[0] + 370, 75, &storage->sec.cache);
+    memcpy(&scratch[0] + 445, storage->sec.authData, sizeof(storage->sec.authData));
 
-    // 63 reserved bytes
+    // 129 reserved bytes
 
     // Take a fingerprint of the secrets so we can tell whether they've
     // been correctly decrypted later.
@@ -485,8 +490,13 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
     memcpy(iv, ss->storageKey, sizeof(iv));
     aes_decrypt_ctx ctx;
     aes_decrypt_key256(ss->storageKey, &ctx);
-    aes_cbc_decrypt((const uint8_t *)storage->encrypted_sec,
-                    (uint8_t *)&scratch[0], sizeof(scratch), iv + 32, &ctx);
+    if (storage->encrypted_sec_version <= StorageVersion_16) {
+      aes_cbc_decrypt((const uint8_t *)storage->encrypted_sec,
+                      (uint8_t *)&scratch[0], V16_ENCSEC_SIZE, iv + 32, &ctx);
+    } else {
+      aes_cbc_decrypt((const uint8_t *)storage->encrypted_sec,
+                      (uint8_t *)&scratch[0], sizeof(scratch), iv + 32, &ctx);
+    }
     memzero(iv, sizeof(iv));
 
     // De-serialize from scratch.
@@ -494,11 +504,21 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
     memcpy(storage->sec.mnemonic, &scratch[0] + 129, 241);
     storage_readCacheV1(&storage->sec.cache, &scratch[0] + 370, 75);
 
-    // 63 reserved bytes
+    if (storage->encrypted_sec_version <= StorageVersion_16) {
+      // no mem copy because no auth data and scratch is already zeroed
+    } else {
+      memcpy(storage->sec.authData, &scratch[0] + 445, sizeof(storage->sec.authData));
+    }
+
+    // 129 reserved bytes
 
     // Check whether the secrets were correctly decrypted
     uint8_t sec_fingerprint[32];
-    sha256_Raw((const uint8_t *)scratch, sizeof(scratch), sec_fingerprint);
+    if (storage->encrypted_sec_version <= StorageVersion_16) {
+      sha256_Raw((const uint8_t *)scratch, V16_ENCSEC_SIZE, sec_fingerprint);
+    } else {
+      sha256_Raw((const uint8_t *)scratch, sizeof(scratch), sec_fingerprint);
+    }
     if (storage->has_sec_fingerprint) {
       if (memcmp_s(storage->sec_fingerprint, sec_fingerprint,
                    sizeof(sec_fingerprint)) != 0) {
@@ -519,6 +539,8 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
       storage->pub.has_u2froot = true;
     }
 
+    storage->pub.authdata_initialized = true;
+
 #if DEBUG_LINK
     memcpy(debuglink_mnemonic, storage->sec.mnemonic,
            sizeof(debuglink_mnemonic));
@@ -529,6 +551,17 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
   }
 
   memzero(scratch, sizeof(scratch));
+}
+
+void storage_getAuthData(authType *returnData) {
+  memcpy(returnData, shadow_config.storage.sec.authData, sizeof(shadow_config.storage.sec.authData));
+  return;
+}
+
+void storage_setAuthData(authType *setData) {
+  memcpy(shadow_config.storage.sec.authData, setData, sizeof(shadow_config.storage.sec.authData));
+  storage_commit();
+  return;
 }
 
 void storage_readStorageV1(SessionState *ss, Storage *storage, const char *ptr,
@@ -641,7 +674,7 @@ void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage) {
 
   memcpy(ptr + 341, storage->pub.random_salt, 32);
 
-  // 91 reserved bytes
+  // 1028 reserved bytes
 
   // Ignore whatever was in storage->sec. Only encrypted_sec can be committed.
   // Yes, this is a potential footgun. No, there's nothing we can do about it
@@ -707,7 +740,7 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
 
   memcpy(storage->pub.random_salt, ptr + 341, 32);
 
-  // 91 reserved bytes
+  // 1028 reserved bytes
 
   storage->has_sec = false;
   memzero(&storage->sec, sizeof(storage->sec));
@@ -715,7 +748,7 @@ void storage_readStorageV11(Storage *storage, const char *ptr, size_t len) {
   memcpy(storage->encrypted_sec, ptr + 468, sizeof(storage->encrypted_sec));
 }
 
-void storage_writeStorageV16(char *ptr, size_t len, const Storage *storage) {
+void storage_writeStorageV16Plaintext(char *ptr, size_t len, const Storage *storage) {
   if (len < 852) return;
   write_u32_le(ptr, storage->version);
 
@@ -759,6 +792,13 @@ void storage_writeStorageV16(char *ptr, size_t len, const Storage *storage) {
   }
 
   memcpy(ptr + 437, storage->pub.random_salt, 32);
+  return;
+}
+
+void storage_writeStorageV16(char *ptr, size_t len, const Storage *storage) {
+  // V16 shares the same non-secret storage format as V17
+
+  storage_writeStorageV16Plaintext(ptr, len, storage);
   // 1028 reserved bytes
 
   // Ignore whatever was in storage->sec. Only encrypted_sec can be committed.
@@ -773,7 +813,8 @@ void storage_writeStorageV16(char *ptr, size_t len, const Storage *storage) {
   memcpy(ptr + 1501, storage->encrypted_sec, sizeof(storage->encrypted_sec));
 }
 
-void storage_readStorageV16(Storage *storage, const char *ptr, size_t len) {
+
+void storage_readStorageV16Plaintext(Storage *storage, const char *ptr, size_t len) {
   if (len < 852) return;
 
   storage->version = read_u32_le(ptr);
@@ -828,6 +869,45 @@ void storage_readStorageV16(Storage *storage, const char *ptr, size_t len) {
   }
 
   memcpy(storage->pub.random_salt, ptr + 437, 32);
+  return;
+}
+
+void storage_readStorageV16(Storage *storage, const char *ptr, size_t len) {
+
+  // V16 shares the same non-secret storage format as V17
+  storage_readStorageV16Plaintext(storage, ptr, len);
+
+  // 1028 reserved bytes
+
+  storage->has_sec = false;
+  memzero(&storage->sec, sizeof(storage->sec));
+  storage->encrypted_sec_version = read_u32_le(ptr + 1497);
+  memcpy(storage->encrypted_sec, ptr + 1501, V16_ENCSEC_SIZE);
+}
+
+void storage_writeStorageV17(char *ptr, size_t len, const Storage *storage) {
+  // V16 shares the same non-secret storage format as V17
+
+  storage_writeStorageV16Plaintext(ptr, len, storage);
+  // 1028 reserved bytes
+
+  // Ignore whatever was in storage->sec. Only encrypted_sec can be committed.
+  // Yes, this is a potential footgun. No, there's nothing we can do about it
+  // here.
+
+  // Note: the encrypted_sec_version is not necessarily STORAGE_VERSION. If
+  // storage is committed without pin entry on storage upgrade, the plaintext
+  // and ciphertext storage sections will have different versions.
+  write_u32_le(ptr + 1497, storage->encrypted_sec_version);
+
+  memcpy(ptr + 1501, storage->encrypted_sec, sizeof(storage->encrypted_sec));
+}
+
+void storage_readStorageV17(Storage *storage, const char *ptr, size_t len) {
+
+  // V16 shares the same non-secret storage format as V17
+  storage_readStorageV16Plaintext(storage, ptr, len);
+
   // 1028 reserved bytes
 
   storage->has_sec = false;
@@ -835,6 +915,7 @@ void storage_readStorageV16(Storage *storage, const char *ptr, size_t len) {
   storage->encrypted_sec_version = read_u32_le(ptr + 1497);
   memcpy(storage->encrypted_sec, ptr + 1501, sizeof(storage->encrypted_sec));
 }
+
 
 void storage_readCacheV1(Cache *cache, const char *ptr, size_t len) {
   if (len < 65 + 10) return;
@@ -892,6 +973,18 @@ void storage_writeV16(char *flash, size_t len, const ConfigFlash *src) {
   storage_writeStorageV16(flash + 44, 852, &src->storage);
 }
 
+void storage_readV17(ConfigFlash *dst, const char *flash, size_t len) {
+  if (len < 1024) return;
+  storage_readMeta(&dst->meta, flash, 44);
+  storage_readStorageV17(&dst->storage, flash + 44, 852);
+}
+
+void storage_writeV17(char *flash, size_t len, const ConfigFlash *src) {
+  if (len < 1024) return;
+  storage_writeMeta(flash, 44, &src->meta);
+  storage_writeStorageV17(flash + 44, 852, &src->storage);
+}
+
 StorageUpdateStatus storage_fromFlash(SessionState *ss, ConfigFlash *dst,
                                       const char *flash) {
   memzero(dst, sizeof(*dst));
@@ -940,6 +1033,10 @@ StorageUpdateStatus storage_fromFlash(SessionState *ss, ConfigFlash *dst,
       return dst->storage.version == version ? SUS_Valid : SUS_Updated;
     case StorageVersion_16:
       storage_readV16(dst, flash, STORAGE_SECTOR_LEN);
+      dst->storage.version = STORAGE_VERSION;
+      return dst->storage.version == version ? SUS_Valid : SUS_Updated;
+    case StorageVersion_17:
+      storage_readV17(dst, flash, STORAGE_SECTOR_LEN);
       dst->storage.version = STORAGE_VERSION;
       return dst->storage.version == version ? SUS_Valid : SUS_Updated;
 
@@ -1150,14 +1247,14 @@ void session_clear(bool clear_pin) {
 pintest_t session_clear_impl(SessionState *ss, Storage *storage,
                              bool clear_pin) {
   /*
-      This is a *_impl() function that is assumed to not modify the flash
+     This is a *_impl() function that is assumed to not modify the flash
      storage config state. Because this function calls
      storage_isPinCorrect_impl(), the storage config may need updating: This
      function will return PIN_WRONG  - PIN is incorrect PIN_GOOD   - PIN is
      correct PIN_REWRAP -> PIN is correct, storage key was rewrapped, CALLING
      FUNCTION SHOULD storage_commit()
 
-      If the pin is correct, the shadow config may be out of sync with the
+     If the pin is correct, the shadow config may be out of sync with the
      storage config in flash. Thus, if the return is PIN_REWRAP, then the
      calling function is required to update the flash with a storage_commit().
   */
@@ -1184,7 +1281,6 @@ pintest_t session_clear_impl(SessionState *ss, Storage *storage,
     }
 
     if (!ss->pinCached) goto clear;
-
     storage_secMigrate(ss, storage, /*encrypt=*/false);
     return (ret);
   }
@@ -1203,8 +1299,8 @@ clear:
 
 void storage_commit(void) {
   // Temporary storage for marshalling secrets in & out of flash.
-  // Size of v16 storage layout (2013 bytes) + size of meta (44 bytes) + 1
-  static char flash_temp[2058];
+  // Size of v17 storage layout (2525 bytes) + size of meta (44 bytes) + 1
+  static char flash_temp[2570];
 
   memzero(flash_temp, sizeof(flash_temp));
 
@@ -1423,6 +1519,7 @@ const char *storage_getLanguage(void) {
 }
 
 bool storage_isPinCorrect(const char *pin) {
+
   pintest_t ret = storage_isPinCorrect_impl(
       pin, shadow_config.storage.pub.wrapped_storage_key,
       shadow_config.storage.pub.storage_key_fingerprint,
@@ -1493,7 +1590,6 @@ void storage_setPin_impl(SessionState *ss, Storage *storage, const char *pin) {
   memzero(wrapping_key, sizeof(wrapping_key));
 
   storage->pub.has_pin = !!strlen(pin);
-
   storage_secMigrate(ss, storage, /*encrypt=*/true);
 }
 
@@ -1580,7 +1676,7 @@ uint32_t storage_getPinFails(void) {
 /// \param iter Current iteration.
 /// \param total Total iterations.
 static void get_root_node_callback(uint32_t iter, uint32_t total) {
-  animating_progress_handler(_("Waking up"), 1000 * iter / total);
+  animating_progress_handler("", _("Waking up"), 1000 * iter / total);
 }
 
 const uint8_t *storage_getSeed(const ConfigFlash *cfg, bool usePassphrase) {

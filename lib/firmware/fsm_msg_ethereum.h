@@ -364,17 +364,23 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash *msg) {
 
   // No message hash when setting primaryType="EIP712Domain"
   // https://ethereum-magicians.org/t/eip-712-standards-clarification-primarytype-as-domaintype/3286
-  if (msg->has_message_hash) {
-    char str[64+1];
-    int ctr;
-    char *addrTitleStr = "Verify Address";
-    confirm(ButtonRequestType_ButtonRequest_Other, addrTitleStr, "Confirm address: %s", resp->address);
+  char str[64+1];
+  int ctr;
 
-    char *hashTitleStr = "EIP-712 domain hash";
+  confirm(ButtonRequestType_ButtonRequest_Other, "Verify Address", "Confirm address: %s", resp->address);
+
+  for (ctr=0; ctr<64/2; ctr++) {
+    snprintf(&str[2*ctr], 3, "%02x", msg->domain_separator_hash.bytes[ctr]);
+  }
+  confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data domain", "Confirm hash digest: %s", str);
+
+  if (msg->has_message_hash) {
     for (ctr=0; ctr<64/2; ctr++) {
-      snprintf(&str[2*ctr], 3, "%02x", msg->domain_separator_hash.bytes[ctr]);
+      snprintf(&str[2*ctr], 3, "%02x", msg->message_hash.bytes[ctr]);
     }
-    confirm(ButtonRequestType_ButtonRequest_Other, hashTitleStr, "Confirm hash digest: %s", str);
+    confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message", "Confirm hash digest: %s", str);
+  } else {
+    confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message", "Confirm: No message");
   }
 
   ethereum_typed_hash_sign(msg, node, resp);

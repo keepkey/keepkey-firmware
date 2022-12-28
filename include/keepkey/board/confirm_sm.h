@@ -28,9 +28,14 @@
 
 /* implement a means to display debug information */
 #ifdef DEBUG_ON
-  #define DEBUG_DISPLAY(TITLE) \
+  // Examples
+  // DEBUG_DISPLAY("here");
+  // DEBUG_DISPLAY("%d %s", slot, account);
+  #define DEBUG_DISPLAY(...)\
   {\
-    (void)review(ButtonRequestType_ButtonRequest_Other, TITLE, " ");\
+    char _str[61]={0};\
+    snprintf(_str, 60, __VA_ARGS__);\
+    (void)review(ButtonRequestType_ButtonRequest_Other, _str, " ");\
   }
   // Example
   // DEBUG_DISPLAY_VAL("sig", "sig %s", 65, resp->signature.bytes[_ctr]);
@@ -58,7 +63,7 @@ typedef enum {
   LAYOUT_CONFIRMED,
   LAYOUT_FINISHED,
   LAYOUT_NUM_LAYOUTS,
-  LAYOUT_INVALID
+  LAYOUT_INVALID,
 } ActiveLayout;
 
 /* Define the given layout dialog texts for each screen */
@@ -74,6 +79,7 @@ typedef struct {
   DialogLines lines;
   DisplayState display_state;
   ActiveLayout active_layout;
+  bool immediate;
 } StateInfo;
 
 #define isprint(c)   ((c) >= 0x20 && (c) < 0x7f)
@@ -142,5 +148,12 @@ bool review_without_button_request(const char *request_title,
 bool review_with_icon(ButtonRequestType type, uint32_t chainId, const char *request_title,
                       const char *request_body, ...)
       __attribute__((format(printf, 4, 5)));
+
+/// Like confirm, but always \returns true and immediately.
+/// \param request_title   Title of confirm message.
+/// \param request_body    Body of confirm message.
+bool review_immediate(ButtonRequestType type, const char *request_title,
+            const char *request_body, ...)
+    __attribute__((format(printf, 3, 4)));
 
 #endif

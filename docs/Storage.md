@@ -124,7 +124,7 @@ it easier to extend for new features later on.
 | root_seed_cache_status    | u8             |            1 |            370 |
 | root_seed_cache           | char[64]       |           64 |            371 |
 | root_ecdsa_curve_type     | char[10]       |           10 |            435 |
-| reserved                  | char[63]       |           63 |            445 |
+| reserved                  | char[67]       |           67 |            445 |
 
 
 STORAGE_VERSION 16 layout
@@ -181,4 +181,71 @@ STORAGE_VERSION 16 layout
 | root_seed_cache_status    | u8             |            1 |            370 |
 | root_seed_cache           | char[64]       |           64 |            371 |
 | root_ecdsa_curve_type     | char[10]       |           10 |            435 |
-| reserved                  | char[63]       |           63 |            445 |
+| reserved                  | char[67]       |           67 |            445 |
+
+STORAGE_VERSION 17 layout
+-------------------------
+This version increased the size of the secret storage to accomodate the authenticator feature secrets
+#### Public(ish) Storage
+
+| Field                     | Type           | Size (bytes) | Offset (bytes) |
+| ------------------------- | -------------- | ------------ | -------------- |
+| version                   | u32            |            4 |              0 |
+| flags                     | u32            |            4 |              4 |
+|   has_pin                 |   bit 0        |              |                |
+|   has_language            |   bit 1        |              |                |
+|   has_label               |   bit 2        |              |                |
+|   has_auto_lock_delay_ms  |   bit 3        |              |                |
+|   imported                |   bit 4        |              |                |
+|   passphrase_protection   |   bit 5        |              |                |
+|   formerly: ShapeShift    |   bit 6        |              |                |
+|   formerly: Pin Caching   |   bit 7        |              |                |
+|   has_node                |   bit 8        |              |                |
+|   has_mnemonic            |   bit 9        |              |                |
+|   has_u2froot             |   bit 10       |              |                |
+|   Experimental policy     |   bit 11       |              |                |
+|   AdvancedMode policy     |   bit 12       |              |                |
+|   no backup (seedless)    |   bit 13       |              |                |
+|   has_sec_fingerprint     |   bit 14       |              |                |
+|   sca_hardened            |   bit 15       |              |                |
+|   has_wipe_code           |   bit 16       |              |                |
+|   v15_16_trans            |   bit 17       |              |                |
+|   authdata_initialized    |   bit 18       |              |                |
+|   reserved                |   bits 19 - 31 |              |                |
+| pin_failed_attempts       | u32            |            4 |              8 |
+| auto_lock_delay_ms        | u32            |            4 |             12 |
+| language                  | char[16]       |           16 |             16 |
+| label                     | char[48]       |           48 |             32 |
+| wrapped_storage_key       | char[64]       |           64 |             80 |
+| storage_key_fingerprint   | char[64]       |           32 |            144 |
+| wrapped_wipe_code_key     | char[64]       |           64 |            176 |
+| wipe_code_key_fingerprint | char[64]       |           32 |            240 |
+| u2froot                   | StorageHDNode  |          129 |            272 |
+| u2f_counter               | u32            |            4 |            401 |
+| sec_fingerprint           | char[32]       |           32 |            405 |
+| random_salt               | char[32]       |           32 |            437 |
+| reserved                  | char[1028]     |         1028 |            469 |
+| encrypted_secrets_version | u32            |            4 |           1497 |
+| encrypted_secrets         | char[1024]     |          512 |           1501 |
+
+
+#### Secret Storage
+
+| Field                     | Type           | Size (bytes) | Offset (bytes) |
+| ------------------------- | -------------- | ------------ | -------------- |
+| node                      | StorageHDNode  |          129 |              0 |
+| mnemonic                  | char[241]      |          241 |            129 |
+| cache->
+|   root_seed_cache_status  | u8             |            1 |            370 |
+|   root_seed_cache         | char[64]       |           64 |            371 |
+|   root_ecdsa_curve_type   | char[10]       |           10 |            435 |
+| authenticator_accounts    | 10 * char[45]  |          450 |            445 |
+| reserved                  | char[129]      |          129 |            895 |
+
+
+typedef struct _Cache {
+  /* Root node cache */
+  uint8_t root_seed_cache_status;
+  uint8_t root_seed_cache[64];
+  char root_ecdsa_curve_type[10];
+} Cache;

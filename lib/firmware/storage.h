@@ -1,6 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
+ * Copyright (C) 2022 markrypto
  * Copyright (C) 2018 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
@@ -21,11 +22,15 @@
 #define STORAGEPB_H
 
 #include "keepkey/board/keepkey_board.h"
+#include "keepkey/firmware/authenticator.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/policy.h"
 
 // The length of the external salt in bytes.
 #define EXTERNAL_SALT_SIZE 32
+
+#define V16_ENCSEC_SIZE   512   // for reading old encrypted sec size
+#define V17_ENCSEC_SIZE   1024   
 
 typedef struct _Storage {
   uint32_t version;
@@ -56,6 +61,7 @@ typedef struct _Storage {
     bool no_backup;
     bool sca_hardened;
     bool v15_16_trans;
+    bool authdata_initialized;
     uint8_t random_salt[32];
   } pub;
 
@@ -65,13 +71,14 @@ typedef struct _Storage {
     char mnemonic[241];
     char pin[10];
     Cache cache;
+    authType authData[AUTHDATA_SIZE];
   } sec;
 
   bool has_sec_fingerprint;
   uint8_t sec_fingerprint[32];
 
   uint32_t encrypted_sec_version;
-  uint8_t encrypted_sec[512];
+  uint8_t encrypted_sec[V17_ENCSEC_SIZE];
 } Storage;
 
 typedef struct _ConfigFlash {
@@ -97,7 +104,7 @@ typedef enum {
   PIN_REWRAP  // PIN correct but storage key rewrapped, requires storage update
 } pintest_t;
 
-#define MAX_MNEMONIC_LEN 240
+#define MAX_MNEMONIC_LEN  240
 
 void storage_loadNode(HDNode *dst, const HDNodeType *src);
 

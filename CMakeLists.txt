@@ -2,7 +2,11 @@ cmake_minimum_required(VERSION 3.7.2)
 
 project(KeepKeyFirmware
 
+<<<<<<< HEAD
         VERSION 7.7.0
+=======
+        VERSION 7.6.0
+>>>>>>> feature-auth
 
         LANGUAGES C CXX ASM)
 
