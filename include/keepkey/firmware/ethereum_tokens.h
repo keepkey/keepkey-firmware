@@ -21,6 +21,7 @@
 #define __ETHEREUM_TOKENS_H__
 
 #include "keepkey/board/util.h"
+#include "keepkey/firmware/tiny-json.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -43,8 +44,10 @@ typedef struct _TokenType {
   bool validToken;             // false if data not validated
   uint8_t address[20];
   char ticker[10];
-  uint8_t chain_id;
+  uint32_t chain_id;
   uint8_t decimals;
+  char name[25];
+  char blockchain[25];
 } TokenType;
 
 typedef struct _CoinType CoinType;
@@ -73,5 +76,7 @@ bool tokenByTicker(uint8_t chain_id, const char *ticker,
 
 void coinFromToken(CoinType *coin, const TokenType *token);
 int evp_parse(unsigned char *tokenVals);
+int evpTokenParse(json_t const *jsonTV);
+int evpDappVerify(json_t const *jsonDV);
 
 #endif

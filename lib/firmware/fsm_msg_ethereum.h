@@ -265,11 +265,12 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg) {
 
     case MV_STOKOK:
       // This is a signed token message
-      fsm_sendSuccess(_("Signed token received"));
+      fsm_sendSuccess(_("Signed evp data received"));
       return;
 
     case MV_TDERR:
       // json token data error
+      fsm_sendFailure(FailureType_Failure_SyntaxError, _("json string error"));      
       return;
 
     case MV_TRESET:
@@ -278,11 +279,13 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg) {
       return;
 
     case MV_TLISTFULL:
+      fsm_sendFailure(FailureType_Failure_SyntaxError, _("token list full"));      
       // can't add token, list is full
       return;
 
     case IV_IDERR:
       // json token data error
+      fsm_sendFailure(FailureType_Failure_SyntaxError, _("json string error"));      
       return;
 
     case IV_ICONOK:

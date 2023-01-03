@@ -30,21 +30,27 @@ static const TokenType Unknown = {
     true,
     "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
     "\x00\x00",
-    " UNKN", 1, 0};
+    " UNKN", 1, 0,
+    "unknown",
+    "none"};
 const TokenType *UnknownToken = (const TokenType *)&Unknown;
 
 static const TokenType Ethtest = {
     true,
     "\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee"
     "\xee\xee",
-    "  ETH", 1, 18};
+    "  ETH", 1, 18,
+    "Ethereum test token",
+    "Ethereum"};
 const TokenType *EthTestToken = (const TokenType *)&Ethtest;
 
 // WETH is hard coded because uniswap needs this token data, see zxappliquid.c
 static const TokenType weth = {
     true,
     "\xC0\x2a\xaA\x39\xb2\x23\xFE\x8D\x0A\x0e\x5C\x4F\x27\xeA\xD9\x08\x3C\x75\x6C\xc2",
-    " WETH", 1, 18};
+    " WETH", 1, 18,
+    "Wrapped Ethereum",
+    "Ethereum"};
 const TokenType *wethToken = (const TokenType *)&weth;
 
 // DAI is hard coded because makerDAO contract needs this token data, see makerdao.c
@@ -52,7 +58,10 @@ static const TokenType dai = {
     true,
     "\x89\xd2\x4a\x6b\x4c\xcb\x1b\x6f\xaa\x26\x25\xfe\x56\x2b\xdd\x9a\x23\x26\x03\x59",
     // "\x6b\x17\x54\x74\xe8\x90\x94\xc4\x4d\xa9\x8b\x95\x4e\xed\xea\xc4\x95\x27\x1d\x0f",
-    " DAI", 1, 18};
+    " DAI", 1, 18,
+    "DAI Stablecoin",
+    "Ethereum"
+    };
 const TokenType *daiToken = (const TokenType *)&dai;
 
 
