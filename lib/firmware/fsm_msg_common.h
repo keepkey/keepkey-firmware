@@ -165,6 +165,18 @@ static bool isValidModelNumber(const char *model) {
   return false;
 }
 
+
+
+void checkPassphrase(void) {
+  if (!passphrase_protect()) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, "authenticator needs passphrase");
+    layoutHome();
+    return;
+  }
+}
+
+
+
 void fsm_msgPing(Ping *msg) {
   RESP_INIT(Success);
 
@@ -186,6 +198,7 @@ void fsm_msgPing(Ping *msg) {
   const char *noAccount = "Account not found";
   const char *outOfRangeSlot = "Slot request out of range";
   const char *authSecTooBig = "Authenticator secret seed too large";
+  const char *badAuthdataKey = "passphrase incorrect for authdata";
   const char *errmsg;
   unsigned errcode;
 
@@ -197,8 +210,8 @@ void fsm_msgPing(Ping *msg) {
 
   if (msg->has_message && 0 == strncmp(msg->message, initAuth, 16)) {
 
-    //CHECK_INITIALIZED
     CHECK_PIN
+    checkPassphrase();
 
     if (0 != (errcode = addAuthAccount(&msg->message[16]))) {
       switch (errcode) {
@@ -217,6 +230,9 @@ void fsm_msgPing(Ping *msg) {
         case 5:
           errmsg = authSecTooBig;
           break;
+        case 6:
+          errmsg = badAuthdataKey;
+          break;
         default:
           errmsg = unkErr;
           break;
@@ -232,9 +248,9 @@ void fsm_msgPing(Ping *msg) {
     // generate authenticator otp
     char otp[9] = {0};    // allow room for an 8 digit otp
 
-    //CHECK_INITIALIZED
     CHECK_PIN
-    
+    checkPassphrase();
+
     if (0 != (errcode = generateOTP(&msg->message[17], otp))) {
       switch (errcode) {
         case 3:
@@ -242,6 +258,9 @@ void fsm_msgPing(Ping *msg) {
           break;
         case 4:
           errmsg = noAccount;
+          break;
+        case 6:
+          errmsg = badAuthdataKey;
           break;
         default:
           errmsg = unkErr;
@@ -262,8 +281,8 @@ void fsm_msgPing(Ping *msg) {
   } else if (msg->has_message && 0 == strncmp(msg->message, getAcc, 12)) {
     char acc[DOMAIN_SIZE+ACCOUNT_SIZE+2] = {0};    // allow room for domain + ":" + account
 
-    //CHECK_INITIALIZED
     CHECK_PIN
+    checkPassphrase();
 
     if (0 != (errcode = getAuthAccount(&msg->message[12], acc))) {
       switch (errcode) {
@@ -275,6 +294,9 @@ void fsm_msgPing(Ping *msg) {
           break;
         case 4:
           errmsg = noAccount;
+          break;
+        case 6:
+          errmsg = badAuthdataKey;
           break;
         default:
           errmsg = unkErr;
@@ -291,8 +313,8 @@ void fsm_msgPing(Ping *msg) {
   } else if (msg->has_message && 0 == strncmp(msg->message, delAuth, 15)) {
     // delete data from an auth slot
 
-    //CHECK_INITIALIZED
     CHECK_PIN
+    checkPassphrase();
 
     if (0 != (errcode = removeAuthAccount(&msg->message[15]))) {
       switch (errcode) {
@@ -301,6 +323,9 @@ void fsm_msgPing(Ping *msg) {
           break;
         case 4:
           errmsg = noAccount;
+          break;
+        case 6:
+          errmsg = badAuthdataKey;
           break;
         default:
           errmsg = unkErr;

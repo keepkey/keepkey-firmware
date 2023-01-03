@@ -224,7 +224,8 @@ This version increased the size of the secret storage to accomodate the authenti
 | u2f_counter               | u32            |            4 |            401 |
 | sec_fingerprint           | char[32]       |           32 |            405 |
 | random_salt               | char[32]       |           32 |            437 |
-| reserved                  | char[1028]     |         1028 |            469 |
+| authdata_fingerprint      | char[32]       |           32 |            469 | 
+| reserved                  | char[996]      |         1028 |            501 |
 | encrypted_secrets_version | u32            |            4 |           1497 |
 | encrypted_secrets         | char[1024]     |          512 |           1501 |
 
@@ -240,8 +241,14 @@ This version increased the size of the secret storage to accomodate the authenti
 |   root_seed_cache         | char[64]       |           64 |            371 |
 |   root_ecdsa_curve_type   | char[10]       |           10 |            435 |
 | authenticator_accounts    | 10 * char[45]  |          450 |            445 |
-| reserved                  | char[129]      |          129 |            895 |
+| authenticator_reserved    | char[62]       |           62 |            895 | 
+| reserved                  | char[67]       |           67 |            957 |
 
+Secret storage size must be a multiple of an AES block size, i.e., N*256 bytes.
+Because the authenticator data is encrypted independently with the bip39 passphrase,
+  sizeof(authenticator_accounts) + sizeof(authenticator_reserved) % 256 == 0.
+
+Cache specifics:
 
 typedef struct _Cache {
   /* Root node cache */

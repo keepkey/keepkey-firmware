@@ -32,6 +32,11 @@
 #define V16_ENCSEC_SIZE   512   // for reading old encrypted sec size
 #define V17_ENCSEC_SIZE   1024   
 
+typedef struct _authBlockType {
+  authType authData[AUTHDATA_SIZE];                        // 450
+  uint8_t reserved[512-sizeof(authType)*AUTHDATA_SIZE];    // 62
+} authBlockType;   
+
 typedef struct _Storage {
   uint32_t version;
   struct Public {
@@ -63,15 +68,17 @@ typedef struct _Storage {
     bool v15_16_trans;
     bool authdata_initialized;
     uint8_t random_salt[32];
+    uint8_t authdata_fingerprint[32];
   } pub;
 
   bool has_sec;
+
   struct Secret {
     HDNodeType node;
     char mnemonic[241];
     char pin[10];
     Cache cache;
-    authType authData[AUTHDATA_SIZE];
+    authBlockType authBlock;   
   } sec;
 
   bool has_sec_fingerprint;

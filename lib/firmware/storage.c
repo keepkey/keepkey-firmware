@@ -462,7 +462,7 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
     storage_writeHDNode(&scratch[0], 129, &storage->sec.node);
     memcpy(&scratch[0] + 129, storage->sec.mnemonic, 241);
     storage_writeCacheV1(&scratch[0] + 370, 75, &storage->sec.cache);
-    memcpy(&scratch[0] + 445, storage->sec.authData, sizeof(storage->sec.authData));
+    memcpy(&scratch[0] + 445, &storage->sec.authBlock, sizeof(storage->sec.authBlock));
 
     // 129 reserved bytes
 
@@ -507,7 +507,11 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
     if (storage->encrypted_sec_version <= StorageVersion_16) {
       // no mem copy because no auth data and scratch is already zeroed
     } else {
-      memcpy(storage->sec.authData, &scratch[0] + 445, sizeof(storage->sec.authData));
+      memcpy((void *)&storage->sec.authBlock, &scratch[0] + 445, sizeof(storage->sec.authBlock));
+      if (storage->pub.authdata_initialized == false) {
+        // initialize authdata fingerprint
+        sha256_Raw((const uint8_t *)&storage->sec.authBlock, sizeof(storage->sec.authBlock), storage->pub.authdata_fingerprint);
+      }
     }
 
     // 129 reserved bytes
@@ -553,14 +557,89 @@ void storage_secMigrate(SessionState *ss, Storage *storage, bool encrypt) {
   memzero(scratch, sizeof(scratch));
 }
 
-void storage_getAuthData(authType *returnData) {
-  memcpy(returnData, shadow_config.storage.sec.authData, sizeof(shadow_config.storage.sec.authData));
+#define AUTHDATA_BLOCKSIZE  512
+
+void storage_deriveAuthdataKey(const char *passphrase, uint8_t authdataKey[64]) {
+  storage_deriveWrappingKey(passphrase, authdataKey,
+                               /*sca_hardened*/ true,
+                               /*v15_16_trans*/ true,
+                               shadow_config.storage.pub.random_salt,
+                               "deriving authdata key");
   return;
 }
 
+
+static void storage_cipherBlock(bool encrypt, uint8_t *key, 
+                uint8_t *plaintextBlock, uint8_t *ciphertextBlock, size_t blockSize) {
+  uint8_t iv[64];
+  if (encrypt) {
+    memcpy(iv, key, sizeof(iv));
+    aes_encrypt_ctx ctx;
+    aes_encrypt_key256(key, &ctx);
+    aes_cbc_encrypt((const uint8_t *)plaintextBlock, ciphertextBlock,
+                    blockSize, iv + 32, &ctx);
+    memzero(&ctx, sizeof(ctx));
+  } else {
+    // decrypt
+    memcpy(iv, key, sizeof(iv));
+    aes_decrypt_ctx ctx;
+    aes_decrypt_key256(key, &ctx);
+    aes_cbc_decrypt((const uint8_t *)ciphertextBlock,
+                      plaintextBlock, blockSize, iv + 32, &ctx);
+    memzero(iv, sizeof(iv));
+  }
+    
+  return;
+}
+
+
+bool storage_getAuthData(authType *returnData) {
+  uint8_t authdataKey[64] = {0};
+  uint8_t testFp[32] = {0};
+  authBlockType plaintextAuthBlock = {0};
+
+  if (shadow_config.storage.pub.passphrase_protection && session.passphraseCached) {
+    storage_deriveAuthdataKey(session.passphrase, authdataKey);
+    storage_cipherBlock(false /*encrypt*/, authdataKey, (unsigned char *)&plaintextAuthBlock, 
+                        (unsigned char *)&shadow_config.storage.sec.authBlock, sizeof(shadow_config.storage.sec.authBlock));
+    sha256_Raw((const uint8_t *)&plaintextAuthBlock, sizeof(plaintextAuthBlock), testFp);
+  } else {
+    // no passphrase available
+    sha256_Raw((const uint8_t *)&shadow_config.storage.sec.authBlock, sizeof(shadow_config.storage.sec.authBlock), testFp);
+  }
+  // if fingerprints don't match, passphrase is not valid for authdata
+  if (0 != memcmp(shadow_config.storage.pub.authdata_fingerprint, testFp, sizeof(shadow_config.storage.pub.authdata_fingerprint))) {
+    return false;
+  }
+
+  memcpy(returnData, &plaintextAuthBlock.authData, sizeof(plaintextAuthBlock.authData));
+  return true;
+
+}
+
 void storage_setAuthData(authType *setData) {
-  memcpy(shadow_config.storage.sec.authData, setData, sizeof(shadow_config.storage.sec.authData));
+  authBlockType plaintextAuthBlock = {0};
+  uint8_t authBlock_fingerprint[32] = {0};
+  uint8_t authdataKey[64] = {0};
+
+  memcpy((void *)plaintextAuthBlock.authData, (void *)setData, sizeof(plaintextAuthBlock.authData));
+  // randomize remaining zeros in reserved area
+  random_buffer(plaintextAuthBlock.reserved, sizeof(plaintextAuthBlock.reserved));
+
+  // fingerprint authdata
+  sha256_Raw((const uint8_t *)&plaintextAuthBlock, sizeof(plaintextAuthBlock), authBlock_fingerprint);
+
+  // encrypt if passphrase available
+  if (shadow_config.storage.pub.passphrase_protection && session.passphraseCached) {
+    storage_deriveAuthdataKey(session.passphrase, authdataKey);
+    storage_cipherBlock(true /*encrypt*/, authdataKey, (uint8_t *)&plaintextAuthBlock, (uint8_t *)&shadow_config.storage.sec.authBlock, 
+                        sizeof(shadow_config.storage.sec.authBlock));
+  } else {
+    memcpy((void *)&shadow_config.storage.sec.authBlock, (const void *)&plaintextAuthBlock, sizeof(shadow_config.storage.sec.authBlock));
+  }
   storage_commit();
+
+  memzero((void *)&plaintextAuthBlock, sizeof(plaintextAuthBlock));
   return;
 }
 
@@ -886,10 +965,11 @@ void storage_readStorageV16(Storage *storage, const char *ptr, size_t len) {
 }
 
 void storage_writeStorageV17(char *ptr, size_t len, const Storage *storage) {
-  // V16 shares the same non-secret storage format as V17
-
+  // V16 shares most of the same non-secret storage format as V17
   storage_writeStorageV16Plaintext(ptr, len, storage);
-  // 1028 reserved bytes
+  memcpy(ptr + 469, storage->pub.authdata_fingerprint, 32);
+
+  // 996 reserved bytes
 
   // Ignore whatever was in storage->sec. Only encrypted_sec can be committed.
   // Yes, this is a potential footgun. No, there's nothing we can do about it
@@ -905,10 +985,11 @@ void storage_writeStorageV17(char *ptr, size_t len, const Storage *storage) {
 
 void storage_readStorageV17(Storage *storage, const char *ptr, size_t len) {
 
-  // V16 shares the same non-secret storage format as V17
+  // V16 shares most of the same non-secret storage format as V17
   storage_readStorageV16Plaintext(storage, ptr, len);
+  memcpy(storage->pub.authdata_fingerprint, ptr + 469, 32);
 
-  // 1028 reserved bytes
+  // 996 reserved bytes
 
   storage->has_sec = false;
   memzero(&storage->sec, sizeof(storage->sec));
