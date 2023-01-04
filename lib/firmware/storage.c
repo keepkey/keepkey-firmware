@@ -889,6 +889,12 @@ void storage_writeStorageV17(char *ptr, size_t len, const Storage *storage) {
   // V16 shares the same non-secret storage format as V17
 
   storage_writeStorageV16Plaintext(ptr, len, storage);
+
+  // V17 additions
+  uint32_t flags = read_u32_le(ptr + 4);
+  flags |= (storage->pub.authdata_initialized ? (1u << 18) : 0);
+  write_u32_le(ptr + 4, flags);
+
   // 1028 reserved bytes
 
   // Ignore whatever was in storage->sec. Only encrypted_sec can be committed.
@@ -907,6 +913,10 @@ void storage_readStorageV17(Storage *storage, const char *ptr, size_t len) {
 
   // V16 shares the same non-secret storage format as V17
   storage_readStorageV16Plaintext(storage, ptr, len);
+  
+  // V17 additions
+  uint32_t flags = read_u32_le(ptr + 4);
+  storage->pub.authdata_initialized = flags & (1u << 18);
 
   // 1028 reserved bytes
 
