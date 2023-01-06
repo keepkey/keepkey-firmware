@@ -211,7 +211,8 @@ This version increased the size of the secret storage to accomodate the authenti
 |   has_wipe_code           |   bit 16       |              |                |
 |   v15_16_trans            |   bit 17       |              |                |
 |   authdata_initialized    |   bit 18       |              |                |
-|   reserved                |   bits 19 - 31 |              |                |
+|   authdata_encrypted      |   bit 19       |              |                |
+|   reserved                |   bits 20 - 31 |              |                |
 | pin_failed_attempts       | u32            |            4 |              8 |
 | auto_lock_delay_ms        | u32            |            4 |             12 |
 | language                  | char[16]       |           16 |             16 |
@@ -232,19 +233,20 @@ This version increased the size of the secret storage to accomodate the authenti
 
 #### Secret Storage
 
-| Field                     | Type           | Size (bytes) | Offset (bytes) |
-| ------------------------- | -------------- | ------------ | -------------- |
-| node                      | StorageHDNode  |          129 |              0 |
-| mnemonic                  | char[241]      |          241 |            129 |
+| Field                     | section        | Type           | Size (bytes) | Offset (bytes) |
+| ------------------------- | -------------- |--------------- | ------------ | -------------- |
+| node                      | crypto         |StorageHDNode   |          129 |              0 |
+| mnemonic                  | crypto         | char[241]      |          241 |            129 |
 | cache->
-|   root_seed_cache_status  | u8             |            1 |            370 |
-|   root_seed_cache         | char[64]       |           64 |            371 |
-|   root_ecdsa_curve_type   | char[10]       |           10 |            435 |
-| authenticator_accounts    | 10 * char[45]  |          450 |            445 |
-| authenticator_reserved    | char[62]       |           62 |            895 | 
-| reserved                  | char[67]       |           67 |            957 |
+|   root_seed_cache_status  | crypto         | u8             |            1 |            370 |
+|   root_seed_cache         | crypto         | char[64]       |           64 |            371 |
+|   root_ecdsa_curve_type   | crypto         | char[10]       |           10 |            435 |
+| sec_reserved              | crypto         | char[67]       |           67 |            445 |
+|                    Block boundary - N*256 bytes above, M*256 bytes below
+| authenticator_accounts    | authenticator  | 10 * char[45]  |          450 |            512 |
+| authenticator_reserved    | authenticator  | char[62]       |           62 |            962 | 
 
-Secret storage size must be a multiple of an AES block size, i.e., N*256 bytes.
+Secret storage is split into two sections block-multiple size sections, crypto secrets and authenticator secrets.
 Because the authenticator data is encrypted independently with the bip39 passphrase,
   sizeof(authenticator_accounts) + sizeof(authenticator_reserved) % 256 == 0.
 

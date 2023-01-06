@@ -67,6 +67,7 @@ typedef struct _Storage {
     bool sca_hardened;
     bool v15_16_trans;
     bool authdata_initialized;
+    bool authdata_encrypted;
     uint8_t random_salt[32];
     uint8_t authdata_fingerprint[32];
   } pub;
@@ -78,7 +79,7 @@ typedef struct _Storage {
     char mnemonic[241];
     char pin[10];
     Cache cache;
-    authBlockType authBlock;   
+    uint8_t authBlock[sizeof(authBlockType)];   
   } sec;
 
   bool has_sec_fingerprint;
