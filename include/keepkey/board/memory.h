@@ -253,6 +253,8 @@ static const FlashSector flash_sector_map[] = {
     {-1, 0, 0, FLASH_INVALID}};
 
 
+#define STACK_REENTRANCY_REQ    1280    // calculate this from a re-entrant call (unsigned)&p - (unsigned)&end)
+#define STACK_SIZE_GUARD        (STACK_REENTRANCY_REQ + 64) // Can't recurse without this much stack available
 int memcheck(unsigned stackGuardSize);
 
 void mpu_config(int);

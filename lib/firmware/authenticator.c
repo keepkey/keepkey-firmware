@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 markrypto
+ * Copyright (C) 2023 markrypto
  *
  * TOPT generation as described in https://www.rfc-editor.org/rfc/rfc6238
  * 
@@ -42,13 +42,17 @@ static CONFIDENTIAL authType authData[AUTHDATA_SIZE] = {0};
 // getAuthData() gets the storage version of authData and updates the local version
 // setAuthData() updates the storage version with the local version
 
-static void getAuthData(void) {
+static bool getAuthData(void) {
   static bool localAuthdataUpdate = true; /* initialization trick */
   if (localAuthdataUpdate) {
-    storage_getAuthData(authData);
-    localAuthdataUpdate = false;  
+    if (storage_getAuthData(authData)) {
+      localAuthdataUpdate = false;
+    } else {
+      // a return of false means the authdata fingerprint did not match
+      return false;
+    }
   }
-  return;
+  return true;
 }
 
 static void setAuthData(void) {
@@ -88,7 +92,9 @@ unsigned addAuthAccount(char *accountWithSeed) {
     return 5;
   }
 
-  getAuthData();
+  if (!getAuthData()) {
+    return 6;   // fingerprint did not match, passphrase incorrect
+  }
 
   // look for first empty slot
   for (slot=0; slot<AUTHDATA_SIZE; slot++) {
@@ -171,7 +177,9 @@ unsigned generateOTP(char *accountWithMsg, char otpStr[]) {
   // convert time remaining to int
   long tRemainVal = (strtol(tRemainStr, NULL, 10));
 
-  getAuthData();    // in theory an OTP could be requested on a dirty local copy
+  if (!getAuthData()) { // in theory an OTP could be requested on a dirty local copy
+    return 6;   // fingerprint did not match, passphrase incorrect
+  }
 
   // look for account
   for (slot=0; slot<AUTHDATA_SIZE; slot++) {
@@ -233,7 +241,9 @@ unsigned getAuthAccount(char *slotStr, char acc[]) {
   uint8_t val;
   val = (uint8_t)(strtol(slotStr, NULL, 10));
 
-  getAuthData();
+  if (!getAuthData()) {
+    return 6;   // fingerprint did not match, passphrase incorrect
+  }
 
   if (val >= AUTHDATA_SIZE) {
     return 2;   // slot index error, has to be less than size of struct
@@ -267,7 +277,9 @@ unsigned removeAuthAccount(char *domAcc) {
     return 3;
   }
 
-  getAuthData();  // in theory there could be a request for a removal on a dirty local copy
+  if (!getAuthData()) {
+    return 6;   // fingerprint did not match, passphrase incorrect
+  }
 
   // find slot for account
   for (slot=0; slot<AUTHDATA_SIZE; slot++) {
