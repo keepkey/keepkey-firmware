@@ -589,7 +589,6 @@ static void storage_cipherBlock(bool encrypt, uint8_t *key,
   return;
 }
 
-
 bool storage_getAuthData(authType *returnData) {
   uint8_t authdataKey[64] = {0};
   uint8_t testFp[32] = {0};
@@ -1777,7 +1776,7 @@ uint32_t storage_getPinFails(void) {
 /// \param iter Current iteration.
 /// \param total Total iterations.
 static void get_root_node_callback(uint32_t iter, uint32_t total) {
-  animating_progress_handler("", _("Waking up"), 1000 * iter / total);
+  animating_progress_handler(_("Waking up"), 1000 * iter / total);
 }
 
 const uint8_t *storage_getSeed(const ConfigFlash *cfg, bool usePassphrase) {

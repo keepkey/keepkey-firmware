@@ -262,21 +262,13 @@ void layout_has_icon(bool tf) {
  * OUTPUT
  *     none
  */
-void layout_standard_notification(const char *str1_param, const char *str2,
+void layout_standard_notification(const char *str1, const char *str2,
                                   NotificationType type) {
-  const char *str1;
-
   call_leaving_handler();
   layout_clear();
 
   DrawableParams sp;
   const Font *title_font = get_title_font();
-
-  str1 = str1_param;
-  if ('\x19' == str1[0]) {
-    str1 = &str1_param[1];
-    title_font = get_pin_font();
-  }
 
   const Font *body_font = get_body_font();
   uint32_t body_line_count;
@@ -709,17 +701,21 @@ void layout_clear_static(void)
  */
 void force_animation_start(void) { animate_flag = true; }
 
+
+// point to otp string or null string for no otp display, set in layoutProgressForAuth()
+static const char *_otpStr = "";
+
 /*
  * animating_progress_handler() - Animate storage update progress
  *
  * INPUT
- *     otp - optional display an OTP in large font
+ *     static global char *_otpStr -  if not null string, optional display an OTP in large font
  *     desc - text to display
  *     permil - progress in units of 1 to 1000
  * OUTPUT
  *     none
  */
-void animating_progress_handler(const char *otp, const char *desc, int permil) {
+void animating_progress_handler(const char *desc, int permil) {
   if (!canvas) return;
 
   call_leaving_handler();
@@ -735,11 +731,11 @@ void animating_progress_handler(const char *otp, const char *desc, int permil) {
   DrawableParams sp;
 
   /* Draw OTP if available */
-  if (0 < strlen(otp) && 11 > strlen(otp)) {
+  if (0 < strlen(_otpStr) && 11 > strlen(_otpStr)) {
     sp.x = LEFT_MARGIN;
     sp.y = 10;
     sp.color = TITLE_COLOR;
-    draw_string(canvas, otpfont, otp, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(otpfont));
+    draw_string(canvas, otpfont, _otpStr, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(otpfont));
   }
 
   /* Draw Message */
@@ -791,15 +787,18 @@ void animating_progress_handler(const char *otp, const char *desc, int permil) {
 }
 
 void layoutProgress(const char *desc, int permil) {
-  animating_progress_handler("", desc, permil);
+  animating_progress_handler(desc, permil);
 }
 
 void layoutProgressForAuth(const char *otp, const char *desc, int permil) {
-  animating_progress_handler(otp, desc, permil);
+  /* Use the static global otpStr to display otp in large font */
+  _otpStr = otp;
+  animating_progress_handler(desc, permil);
+  _otpStr = "";
 }
 
 void layoutProgressSwipe(const char *desc, int permil) {
-  animating_progress_handler("", desc, permil);
+  animating_progress_handler(desc, permil);
 }
 
 /*

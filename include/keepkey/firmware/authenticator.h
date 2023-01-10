@@ -27,6 +27,19 @@
 #define AUTHDATA_SIZE       10  // WARNING: This value must be coordinated with the size of uint8_t encrypted_sec[] in
                                 // in lib/firmware/storage.h and the storage version must be bumped
 
+enum AUTH_ERR_TYPE {
+  NOERR = 0,
+  STORFULL,
+  BADSECRET,
+  TOKERR,
+  NOACC,
+  NOSLOT,
+  LARGESEED,
+  BADPASS,
+  UNKERR,
+  NUM_AUTHERRS
+};
+
 
 typedef struct _HMAC_SHA1_CTX {
   uint8_t o_key_pad[SHA1_BLOCK_LENGTH];
@@ -52,5 +65,7 @@ unsigned generateOTP(char *accountWithMsg, char otpStr[]);
 unsigned addAuthAccount(char *accountWithSeed);
 unsigned getAuthAccount(char *slotStr, char acc[]);
 unsigned removeAuthAccount(char *account);
-
+#if DEBUG_LINK
+void getAuthSlot(char *authSlotData);
+#endif
 #endif

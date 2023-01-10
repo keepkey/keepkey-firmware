@@ -119,7 +119,7 @@ void layout_home_reversed(void);
 void animate(void);
 bool is_animating(void);
 void force_animation_start(void);
-void animating_progress_handler(const char *otp, const char *desc, int permil);
+void animating_progress_handler(const char *desc, int permil);
 void layoutProgress(const char *desc, int permil);
 void layoutProgressForAuth(const char *otp, const char *desc, int permil);
 void layoutProgressSwipe(const char *desc, int permil);
