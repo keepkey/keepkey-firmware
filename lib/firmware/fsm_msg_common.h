@@ -186,17 +186,7 @@ void fsm_msgPing(Ping *msg) {
     flash_setModel(&message);
   }
 
-  // authenticator errors
-  // const char *slotsFull = "Authenticator secret storage full";
-  // const char *cantDecode = "Authenticator secret can't be decoded";
-  // const char *unkErr = "Auth secret unknown error";
-  // const char *tokenError = "Account name missing or too long, or seed/message string missing";
-  // const char *noAccount = "Account not found";
-  // const char *outOfRangeSlot = "Slot request out of range";
-  // const char *authSecTooBig = "Authenticator secret seed too large";
-  // const char *badAuthdataKey = "passphrase incorrect for authdata";
-
-  const char * errMsgStr[NUM_AUTHERRS] = {
+  const char *errMsgStr[NUM_AUTHERRS] = {
     "noerr",
     "Authenticator secret storage full",                                
     "Authenticator secret can't be decoded",                            
@@ -208,19 +198,12 @@ void fsm_msgPing(Ping *msg) {
     "Auth secret unknown error",
 };
 
-  //const char *errmsg;
-
-  // check for authenticator messages
-  // const char *initAuth = {"\x15" "initializeAuth:"};
-  // const char *genAuth = {"\x16" "generateOTPFrom:"};
-  // const char *getAcc = {"\x17" "getAccount:"};
-  // const char *delAuth = {"\x18" "removeAccount:"};
-
   typedef enum _AUTH_MSG_TYPE {
     INITAUTH = 0,
     GENOTP,
     GETACC,
     REMACC,
+    WIPEADATA,
     NUM_AUTHMESSAGES
   } AUTH_MSG_TYPE;
 
@@ -230,6 +213,7 @@ void fsm_msgPing(Ping *msg) {
     "\x16" "generateOTPFrom:",
     "\x17" "getAccount:",
     "\x18" "removeAccount:",
+    "\x19" "wipeAuthdata:",
   };
 
   AUTH_MSG_TYPE authMsg;
@@ -279,6 +263,12 @@ void fsm_msgPing(Ping *msg) {
 
       case REMACC:
         errcode = removeAuthAccount(&msg->message[strlen(authMesStr[authMsg])]);
+        resp->has_message = false;
+        break;
+
+      case WIPEADATA:
+        wipeAuthData();
+        errcode = NOERR;
         resp->has_message = false;
         break;
 

@@ -65,6 +65,7 @@ unsigned generateOTP(char *accountWithMsg, char otpStr[]);
 unsigned addAuthAccount(char *accountWithSeed);
 unsigned getAuthAccount(char *slotStr, char acc[]);
 unsigned removeAuthAccount(char *account);
+void wipeAuthData(void);
 #if DEBUG_LINK
 void getAuthSlot(char *authSlotData);
 #endif

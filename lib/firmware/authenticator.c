@@ -42,10 +42,15 @@ static CONFIDENTIAL authType authData[AUTHDATA_SIZE] = {0};
 // getAuthData() gets the storage version of authData and updates the local version
 // setAuthData() updates the storage version with the local version
 
+static bool localAuthdataUpdate = true; /* initialization trick, only need to fetch a local copy once successfully */
 static bool getAuthData(void) {
-  if (!storage_getAuthData(authData)) {
-    // a return of false means the authdata fingerprint did not match
-    return false;
+  if (localAuthdataUpdate) {
+    if (storage_getAuthData(authData)) {
+      localAuthdataUpdate = false;
+    } else {
+      // a return of false means the authdata fingerprint did not match
+      return false;
+    }
   }
   return true;
 }
@@ -73,6 +78,18 @@ void getAuthSlot(char *authSlotData) {
 
 }
 #endif
+
+void wipeAuthData(void) {
+  confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Wipe Authdata",
+          "Do you want to PERMANENTLY delete all authenticator accounts?\n If not, unplug Keepkey now." );
+
+  // wipe storage and reset authdata encryption flag
+  storage_wipeAuthData();
+  // wipe local copy
+  memzero(authData, sizeof(authData));
+  localAuthdataUpdate = true;
+  return;
+}
 
 unsigned addAuthAccount(char *accountWithSeed) {
   char *domain, *account, *seedStr;

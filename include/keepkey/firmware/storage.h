@@ -161,7 +161,7 @@ void storage_setAutoLockDelayMs(uint32_t auto_lock_delay_ms);
 
 bool storage_getAuthData(authType *returnData);
 void storage_setAuthData(authType *setData);
-
+void storage_wipeAuthData(void);
 
 #ifdef DEBUG_LINK
 typedef struct _HDNodeType HDNodeType;

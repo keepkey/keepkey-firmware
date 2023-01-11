@@ -589,31 +589,68 @@ static void storage_cipherBlock(bool encrypt, uint8_t *key,
   return;
 }
 
+void storage_wipeAuthData() {
+  authBlockType plaintextAuthBlock = {0};
+
+  memzero((void *)&plaintextAuthBlock, sizeof(plaintextAuthBlock.authData));
+
+  // randomize remaining zeros in reserved area
+  random_buffer(plaintextAuthBlock.reserved, sizeof(plaintextAuthBlock.reserved));
+
+  // fingerprint authdata
+  sha256_Raw((const uint8_t *)&plaintextAuthBlock, sizeof(plaintextAuthBlock), shadow_config.storage.pub.authdata_fingerprint);
+
+  shadow_config.storage.pub.authdata_encrypted = false;
+  memcpy((void *)&shadow_config.storage.sec.authBlock, (const void *)&plaintextAuthBlock, sizeof(shadow_config.storage.sec.authBlock));
+
+  storage_commit();
+
+  memzero((void *)&plaintextAuthBlock, sizeof(plaintextAuthBlock));
+  return;
+}
+
 bool storage_getAuthData(authType *returnData) {
   uint8_t authdataKey[64] = {0};
   uint8_t testFp[32] = {0};
   authBlockType plaintextAuthBlock = {0};
 
-  // copy the auth block to plaintext block and determine if it is encrypted
+  if (shadow_config.storage.pub.passphrase_protection && 
+        session.passphraseCached && 
+        0 != strlen(session.passphrase) &&
+        !shadow_config.storage.pub.authdata_encrypted) {
+      // This is the case where we have a non-null passphrase but the stored authblock is in plaintext.
+      // This happens in the special case where a passphrase is first entered or an upgrade to firmware that supports
+      // the authenticator feature (upgrade from storage version <= 16). Read-encrypt-write the authblock.
+    memcpy((uint8_t *)&plaintextAuthBlock, (unsigned char *)&shadow_config.storage.sec.authBlock, 
+            sizeof(shadow_config.storage.sec.authBlock));
+    storage_deriveAuthdataKey(session.passphrase, authdataKey);
+    storage_cipherBlock(true /*encrypt*/, authdataKey, (unsigned char *)&plaintextAuthBlock, 
+                        (unsigned char *)&shadow_config.storage.sec.authBlock, sizeof(shadow_config.storage.sec.authBlock));
+    shadow_config.storage.pub.authdata_encrypted = true;
+    storage_commit();
+  }
+
+  // copy the auth block to candidate plaintext block and determine if it is encrypted
   memcpy((uint8_t *)&plaintextAuthBlock, (unsigned char *)&shadow_config.storage.sec.authBlock, 
             sizeof(shadow_config.storage.sec.authBlock));
 
-  if (shadow_config.storage.pub.passphrase_protection && session.passphraseCached && 0 != strlen(session.passphrase)) {
-    storage_deriveAuthdataKey(session.passphrase, authdataKey);
-    if (!shadow_config.storage.pub.authdata_encrypted) {
-      // The authblock is in plaintext format and needs to be encrypted. This happens at initialization of the authkey data 
-      // (storage migration to V17+) or when a passphrase is added
-      storage_cipherBlock(true /*encrypt*/, authdataKey, (uint8_t *)&plaintextAuthBlock, (uint8_t *)&shadow_config.storage.sec.authBlock, 
-                      sizeof(shadow_config.storage.sec.authBlock));
-      shadow_config.storage.pub.authdata_encrypted = true;
-      storage_commit();
-    }
-    storage_cipherBlock(false /*encrypt*/, authdataKey, (unsigned char *)&plaintextAuthBlock, 
+  if (shadow_config.storage.pub.authdata_encrypted) {
+    if (shadow_config.storage.pub.passphrase_protection && session.passphraseCached && 0 != strlen(session.passphrase)) {
+      // encrypted, candidate passphrase available
+      storage_deriveAuthdataKey(session.passphrase, authdataKey);
+      storage_cipherBlock(false /*encrypt*/, authdataKey, (unsigned char *)&plaintextAuthBlock, 
                         (unsigned char *)&shadow_config.storage.sec.authBlock, sizeof(shadow_config.storage.sec.authBlock));
+    } else {
+      // encrypted, passphrase not available
+      return false;
+    }
   } else {
-    // no passphrase available, passphrase null or not used
+    // not encrypted. If a passphrase is available, encrypt the
   }
+
+  // fingerprint authdata
   sha256_Raw((const uint8_t *)&plaintextAuthBlock, sizeof(plaintextAuthBlock), testFp);
+
   // if fingerprints don't match, passphrase, or lack thereof, is not valid for authdata
   if (0 != memcmp(shadow_config.storage.pub.authdata_fingerprint, testFp, sizeof(shadow_config.storage.pub.authdata_fingerprint))) {
     return false;
@@ -635,15 +672,16 @@ void storage_setAuthData(authType *setData) {
 
   // fingerprint authdata
   sha256_Raw((const uint8_t *)&plaintextAuthBlock, sizeof(plaintextAuthBlock), shadow_config.storage.pub.authdata_fingerprint);
-
   // encrypt if passphrase available
-  if (shadow_config.storage.pub.passphrase_protection && session.passphraseCached) {
+  if (shadow_config.storage.pub.passphrase_protection && session.passphraseCached && 0 != strlen(session.passphrase)) {
     storage_deriveAuthdataKey(session.passphrase, authdataKey);
     storage_cipherBlock(true /*encrypt*/, authdataKey, (uint8_t *)&plaintextAuthBlock, (uint8_t *)&shadow_config.storage.sec.authBlock, 
                         sizeof(shadow_config.storage.sec.authBlock));
     shadow_config.storage.pub.authdata_encrypted = true;
+  } else {
+    // not encrypted
+    memcpy((void *)&shadow_config.storage.sec.authBlock, (const void *)&plaintextAuthBlock, sizeof(shadow_config.storage.sec.authBlock));
   }
-  memcpy((void *)&shadow_config.storage.sec.authBlock, (const void *)&plaintextAuthBlock, sizeof(shadow_config.storage.sec.authBlock));
 
   storage_commit();
 
