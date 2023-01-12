@@ -1,6 +1,7 @@
 /*
  * This file is part of the TREZOR project.
  *
+ * Copyright (C) 2022 markrypto <cryptoakorn@gmail.com>
  * Copyright (C) 2014 Pavol Rusnak <stick@satoshilabs.com>
  *
  * This library is free software: you can redistribute it and/or modify
@@ -22,9 +23,10 @@
 
 #include "trezor/crypto/bip32.h"
 #include "keepkey/board/memory.h"
+#include "keepkey/firmware/authenticator.h"
 
 #define STORAGE_VERSION \
-  16 /* Must add case fallthrough in storage_fromFlash after increment*/
+  17 /* Must add case fallthrough in storage_fromFlash after increment*/
 #define STORAGE_RETRIES 3
 
 #define RANDOM_SALT_LEN 32
@@ -156,6 +158,10 @@ bool storage_isPolicyEnabled(const char *policy_name);
 
 uint32_t storage_getAutoLockDelayMs(void);
 void storage_setAutoLockDelayMs(uint32_t auto_lock_delay_ms);
+
+bool storage_getAuthData(authType *returnData);
+void storage_setAuthData(authType *setData);
+void storage_wipeAuthData(void);
 
 #ifdef DEBUG_LINK
 typedef struct _HDNodeType HDNodeType;

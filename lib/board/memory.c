@@ -30,6 +30,7 @@
 #include "trezor/crypto/sha2.h"
 #include "trezor/crypto/sha3.h"
 
+#include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/board/keepkey_flash.h"
@@ -37,10 +38,25 @@
 #include <string.h>
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #ifdef EMULATOR
 uint8_t *emulator_flash_base = NULL;
 #endif
+
+extern unsigned end;    // This is at the end of the data + bss, used for recursion guard
+int memcheck(unsigned stackGuardSize) {
+    void *stackBottom;    // this is the bottom of the stack, it is shrinking toward static mem at variable "end".
+    //char buf[33] = {0};
+    //snprintf(buf, 64, "RAM available %u", (unsigned)&stackBottom - (unsigned)&end);
+    //snprintf(buf, 64, "stack bottom %x", (unsigned)&stackBottom);
+    //DEBUG_DISPLAY(buf);
+    if (stackGuardSize > ((unsigned)&stackBottom - (unsigned)&end)) {
+        return STACK_TOO_SMALL;
+    } else {
+        return STACK_GOOD;
+    }
+}
 
 void mpu_config(int priv_level) {
   // Entry:

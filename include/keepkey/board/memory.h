@@ -79,6 +79,9 @@ extern uint8_t *emulator_flash_base;
 #define FLASH_PTR(x) (const uint8_t *)(x)
 #endif
 
+#define STACK_GOOD          1         // do not change this value, must equal SUCCESS in eip712 error list
+#define STACK_TOO_SMALL     13        // do not change this value, used in eip712 error list
+
 #define OPTION_BYTES_1 ((uint64_t *)0x1FFFC000)
 #define OPTION_BYTES_2 ((uint64_t *)0x1FFFC008)
 #define OPTION_RDP 0xCCFF
@@ -248,6 +251,11 @@ static const FlashSector flash_sector_map[] = {
     {10, 0x080C0000, APP_FLASH_SECT_LEN, FLASH_APP},
     {11, 0x080E0000, APP_FLASH_SECT_LEN, FLASH_APP},
     {-1, 0, 0, FLASH_INVALID}};
+
+
+#define STACK_REENTRANCY_REQ    1280    // calculate this from a re-entrant call (unsigned)&p - (unsigned)&end)
+#define STACK_SIZE_GUARD        (STACK_REENTRANCY_REQ + 64) // Can't recurse without this much stack available
+int memcheck(unsigned stackGuardSize);
 
 void mpu_config(int);
 

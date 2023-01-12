@@ -36,6 +36,7 @@
 #include <stddef.h>
 
 static volatile uint32_t remaining_delay = UINT32_MAX;
+static volatile uint32_t timeSinceWakeup = 0;
 static RunnableNode runnables[MAX_RUNNABLES];
 static RunnableQueue free_queue = {NULL, 0};
 static RunnableQueue active_queue = {NULL, 0};
@@ -313,6 +314,17 @@ void delay_ms_with_callback(uint32_t ms, callback_func_t callback_func,
 }
 
 /*
+ * getSysTime() - return number of milliseconds since wakeup
+ *
+ * INPUT
+ * OUTPUT
+ *     ms since wakeup
+ */
+uint32_t getSysTime(void) {
+  return timeSinceWakeup;
+}
+
+/*
  * timerisr_usr() - Timer 4 user mode interrupt service routine
  *
  * INPUT
@@ -326,6 +338,9 @@ void timerisr_usr(void) {
   if (remaining_delay > 0) {
     remaining_delay--;
   }
+
+  // current power-on epoch. Rolls over every 1000+ hours
+  timeSinceWakeup++;
 
   run_runnables();
 

@@ -1,6 +1,7 @@
 set(sources
     app_confirm.c
     app_layout.c
+    authenticator.c
     binance.c
     coins.c
     crypto.c

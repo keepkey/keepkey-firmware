@@ -61,6 +61,7 @@ void kk_timer_init(void);
 void timer_init(void);
 void delay_ms(uint32_t ms);
 void delay_us(uint32_t us);
+uint32_t getSysTime(void);
 
 /// Defense against Fault Injection: random delay of a few miliseconds
 /// \returns the argument passed

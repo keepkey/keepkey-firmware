@@ -37,29 +37,17 @@
 #include <stdlib.h>
 #include <string.h>
 #include "keepkey/board/confirm_sm.h"
+#include "keepkey/board/memory.h"
 #include "keepkey/firmware/eip712.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/tiny-json.h"
 #include "trezor/crypto/sha3.h"
 #include "trezor/crypto/memzero.h"
 
-extern unsigned end;    // This is at the end of the data + bss, used for recursion guard
 static const char *udefList[MAX_USERDEF_TYPES] = {0};
 static dm confirmProp;
 
 static const char *nameForValue;
-
-int memcheck() {
-    // char buf[33] = {0};
-    void *stackBottom;    // this is the bottom of the stack, it is shrinking toward static mem at variable "end".
-    // snprintf(buf, 64, "RAM available %u", (unsigned)&stackBottom - (unsigned)&end);
-    // DEBUG_DISPLAY(buf);
-    if (STACK_SIZE_GUARD > ((unsigned)&stackBottom - (unsigned)&end)) {
-        return RECURSION_ERROR;
-    } else {
-        return SUCCESS;
-    }
-}
 
 int encodableType(const char *typeStr) {
     int ctr;
@@ -184,14 +172,14 @@ int parseType(const json_t *eip712Types, const char *typeS, char *typeStr) {
                     }
 
                     strtok(typeNoArrTok, "[");
-                    if (SUCCESS != (errRet = memcheck())) {
+                    if (STACK_GOOD != (errRet = memcheck(STACK_SIZE_GUARD))) {
                         return errRet;
                     }
                     if (SUCCESS != (errRet = parseType(eip712Types, typeNoArrTok, append))) {
                         return errRet;
                     }
                 } else {
-                    if (SUCCESS != (errRet = memcheck())) {
+                    if (STACK_GOOD != (errRet = memcheck(STACK_SIZE_GUARD))) {
                         return errRet;
                     }
                     if (SUCCESS != (errRet = parseType(eip712Types, typeType, append))) {
@@ -647,14 +635,14 @@ int parseVals(const json_t *eip712Types, const json_t *jType, const json_t *next
                             return UDEF_ARRAY_NAME_ERR;
                         }
                         strtok(typeNoArrTok, "[");
-                        if (SUCCESS != (errRet = memcheck())) {
+                        if (STACK_GOOD != (errRet = memcheck(STACK_SIZE_GUARD))) {
                             return errRet;
                         }
                         if (SUCCESS != (errRet = parseType(eip712Types, typeNoArrTok, encSubTypeStr))) {
                             return errRet;
                         }
                     } else {
-                        if (SUCCESS != (errRet = memcheck())) {
+                        if (STACK_GOOD != (errRet = memcheck(STACK_SIZE_GUARD))) {
                             return errRet;
                         }
                         if (SUCCESS != (errRet = parseType(eip712Types, typeType, encSubTypeStr))) {
@@ -677,7 +665,7 @@ int parseVals(const json_t *eip712Types, const json_t *jType, const json_t *next
                         while (0 != udefVals) {
                             sha3_256_Init(&eleCtx);
                             sha3_Update(&eleCtx, (const unsigned char *)encBytes, 32);
-                            if (SUCCESS != (errRet = memcheck())) {
+                            if (STACK_GOOD != (errRet = memcheck(STACK_SIZE_GUARD))) {
                                 return errRet;
                             }
                             if (SUCCESS != (errRet = 
@@ -700,7 +688,7 @@ int parseVals(const json_t *eip712Types, const json_t *jType, const json_t *next
                     } else {
                         sha3_256_Init(&valCtx);
                         sha3_Update(&valCtx, (const unsigned char *)encBytes, (size_t)sizeof(encBytes));
-                        if (SUCCESS != (errRet = memcheck())) {
+                        if (STACK_GOOD != (errRet = memcheck(STACK_SIZE_GUARD))) {
                             return errRet;
                         }
                         if (SUCCESS != (errRet = 

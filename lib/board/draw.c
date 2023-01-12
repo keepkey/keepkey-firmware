@@ -110,8 +110,15 @@ bool draw_char_with_shift(Canvas *canvas, DrawableParams *p, uint16_t *x_shift,
  */
 void draw_string(Canvas *canvas, const Font *font, const char *str_write,
                  DrawableParams *p, uint16_t width, uint16_t line_height) {
+
+  uint16_t sepPixels = 0;   // font char separation pixels for large font (pin font)
+
   if (!canvas) {
     return;
+  }
+
+  if (font == get_pin_font()) {
+    sepPixels = 2;
   }
 
   bool have_space = true;
@@ -156,6 +163,7 @@ void draw_string(Canvas *canvas, const Font *font, const char *str_write,
     }
 
     /* Draw Character */
+    x_offset += sepPixels;
     char_params.x = x_offset + p->x;
     have_space =
         draw_char_with_shift(canvas, &char_params, &x_offset, NULL, img);
