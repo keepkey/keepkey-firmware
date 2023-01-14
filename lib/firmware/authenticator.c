@@ -59,7 +59,7 @@ static void setAuthData(void) {
   storage_setAuthData(authData);
 }
 
-#ifdef DEBUG_LINK
+#if DEBUG_LINK
 static unsigned _otpSlot = 0;
 void getAuthSlot(char *authSlotData) {
   snprintf(authSlotData, 30, ":slot=%2d:secsiz=%2d:", _otpSlot, authData[_otpSlot].secretSize);
@@ -226,7 +226,7 @@ unsigned generateOTP(char *accountWithMsg, char otpStr[]) {
     return NOACC;       // account not found
   }
 
-#ifdef DEBUG_LINK
+#if DEBUG_LINK
   _otpSlot = slot;   // used to get slot data
 #endif
 
