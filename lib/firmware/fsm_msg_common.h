@@ -243,7 +243,7 @@ void fsm_msgPing(Ping *msg) {
       case GENOTP:
         //DEBUG_DISPLAY("genotp %s", &msg->message[strlen(authMesStr[authMsg])])
         errcode = generateOTP(&msg->message[strlen(authMesStr[authMsg])], otp);
-      #ifdef DEBUG_LINK
+      #if DEBUG_LINK
         char authSlot[128] = {0};  // debug link only
         getAuthSlot(authSlot);
         resp->has_message = true;
