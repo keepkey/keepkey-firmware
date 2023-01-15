@@ -165,6 +165,14 @@ static bool isValidModelNumber(const char *model) {
   return false;
 }
 
+void checkPassphrase(void) {
+  if (!passphrase_protect()) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, "authenticator needs passphrase");
+    layoutHome();
+    return;
+  }
+}
+
 void fsm_msgPing(Ping *msg) {
   RESP_INIT(Success);
 
@@ -178,140 +186,103 @@ void fsm_msgPing(Ping *msg) {
     flash_setModel(&message);
   }
 
-  // authenticator errors
-  const char *slotsFull = "Authenticator secret storage full";
-  const char *cantDecode = "Authenticator secret can't be decoded";
-  const char *unkErr = "Auth secret unknown error";
-  const char *tokenError = "Account name missing or too long, or seed/message string missing";
-  const char *noAccount = "Account not found";
-  const char *outOfRangeSlot = "Slot request out of range";
-  const char *authSecTooBig = "Authenticator secret seed too large";
-  const char *errmsg;
-  unsigned errcode;
+  const char *errMsgStr[NUM_AUTHERRS] = {
+    "noerr",
+    "Authenticator secret storage full",                                
+    "Authenticator secret can't be decoded",                            
+    "Account name missing or too long, or seed/message string missing", 
+    "Account not found",                                                
+    "Slot request out of range",
+    "Authenticator secret seed too large",                              
+    "passphrase incorrect for authdata",                                
+    "Auth secret unknown error",
+};
 
-  // check for authenticator messages
-  const char *initAuth = {"\x15" "initializeAuth:"};
-  const char *genAuth = {"\x16" "generateOTPFrom:"};
-  const char *getAcc = {"\x17" "getAccount:"};
-  const char *delAuth = {"\x18" "removeAccount:"};
+  typedef enum _AUTH_MSG_TYPE {
+    INITAUTH = 0,
+    GENOTP,
+    GETACC,
+    REMACC,
+    WIPEADATA,
+    NUM_AUTHMESSAGES
+  } AUTH_MSG_TYPE;
 
-  if (msg->has_message && 0 == strncmp(msg->message, initAuth, 16)) {
 
-    //CHECK_INITIALIZED
-    CHECK_PIN
+  const char * const authMesStr[NUM_AUTHMESSAGES] = {
+    "\x15" "initializeAuth:",
+    "\x16" "generateOTPFrom:",
+    "\x17" "getAccount:",
+    "\x18" "removeAccount:",
+    "\x19" "wipeAuthdata:",
+  };
 
-    if (0 != (errcode = addAuthAccount(&msg->message[16]))) {
-      switch (errcode) {
-        case 1:
-          errmsg = slotsFull;
-          break;
-        case 2:
-          errmsg = cantDecode;
-          break;
-        case 3:
-          errmsg = tokenError;
-          break;
-        case 4:
-          errmsg = noAccount;
-          break;
-        case 5:
-          errmsg = authSecTooBig;
-          break;
-        default:
-          errmsg = unkErr;
-          break;
-      }
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, errmsg);
-      layoutHome();
-      return;
+  AUTH_MSG_TYPE authMsg;
+  for (authMsg=INITAUTH; authMsg<NUM_AUTHMESSAGES; authMsg++) {
+    if (msg->has_message && 0 == strncmp(msg->message, authMesStr[authMsg], strlen(authMesStr[authMsg]))) {
+      break;
     }
+  }
 
-    resp->has_message = false;
-
-  } else if (msg->has_message && 0 == strncmp(msg->message, genAuth, 17)) {
-    // generate authenticator otp
+  if (authMsg < NUM_AUTHMESSAGES) {
+    // this is an authenticator message
+    unsigned errcode;
     char otp[9] = {0};    // allow room for an 8 digit otp
-
-    //CHECK_INITIALIZED
-    CHECK_PIN
-    
-    if (0 != (errcode = generateOTP(&msg->message[17], otp))) {
-      switch (errcode) {
-        case 3:
-          errmsg = tokenError;
-          break;
-        case 4:
-          errmsg = noAccount;
-          break;
-        default:
-          errmsg = unkErr;
-          break;
-      }
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, errmsg);
-      layoutHome();
-      return;
-    }
-
-#ifdef DEBUG_LINK
-    resp->has_message = true;
-    strlcpy(resp->message, otp, 9);
-#else
-    resp->has_message = false;
-#endif
-
-  } else if (msg->has_message && 0 == strncmp(msg->message, getAcc, 12)) {
     char acc[DOMAIN_SIZE+ACCOUNT_SIZE+2] = {0};    // allow room for domain + ":" + account
 
-    //CHECK_INITIALIZED
     CHECK_PIN
+    checkPassphrase();
 
-    if (0 != (errcode = getAuthAccount(&msg->message[12], acc))) {
-      switch (errcode) {
-        case 2:
-          errmsg = outOfRangeSlot;
-          break;
-        case 3:
-          errmsg = tokenError;
-          break;
-        case 4:
-          errmsg = noAccount;
-          break;
-        default:
-          errmsg = unkErr;
-          break;
-      }
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, errmsg);
+    switch (authMsg) {
+
+      case INITAUTH:
+        //DEBUG_DISPLAY("secret %s", &msg->message[strlen(authMesStr[authMsg])])
+        errcode = addAuthAccount(&msg->message[strlen(authMesStr[authMsg])]);
+        resp->has_message = false;
+        break;
+
+      case GENOTP:
+        //DEBUG_DISPLAY("genotp %s", &msg->message[strlen(authMesStr[authMsg])])
+        errcode = generateOTP(&msg->message[strlen(authMesStr[authMsg])], otp);
+      #if DEBUG_LINK
+        char authSlot[128] = {0};  // debug link only
+        getAuthSlot(authSlot);
+        resp->has_message = true;
+        strlcpy(resp->message, otp, 9);
+        strcat(resp->message, ":");
+        strcat(resp->message, authSlot);
+      #else
+        resp->has_message = false;
+      #endif        
+        break;
+
+      case GETACC:
+        errcode = getAuthAccount(&msg->message[strlen(authMesStr[authMsg])], acc);
+        resp->has_message = true;
+        strlcpy(resp->message, acc, DOMAIN_SIZE+ACCOUNT_SIZE+2);
+        break;
+
+      case REMACC:
+        errcode = removeAuthAccount(&msg->message[strlen(authMesStr[authMsg])]);
+        resp->has_message = false;
+        break;
+
+      case WIPEADATA:
+        wipeAuthData();
+        errcode = NOERR;
+        resp->has_message = false;
+        break;
+
+      default:
+        // should not be able to reach this default.
+        errcode = NOERR;
+        break;
+    }
+
+    if (errcode != NOERR) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, errMsgStr[errcode]);
       layoutHome();
       return;
     }
-
-    resp->has_message = true;
-    strlcpy(resp->message, acc, DOMAIN_SIZE+ACCOUNT_SIZE+2);
-
-  } else if (msg->has_message && 0 == strncmp(msg->message, delAuth, 15)) {
-    // delete data from an auth slot
-
-    //CHECK_INITIALIZED
-    CHECK_PIN
-
-    if (0 != (errcode = removeAuthAccount(&msg->message[15]))) {
-      switch (errcode) {
-        case 3:
-          errmsg = tokenError;
-          break;
-        case 4:
-          errmsg = noAccount;
-          break;
-        default:
-          errmsg = unkErr;
-          break;
-      }
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, errmsg);
-      layoutHome();
-      return;
-    }
-
-    resp->has_message = false;
 
   } else {
 

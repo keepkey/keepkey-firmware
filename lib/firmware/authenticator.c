@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 markrypto
+ * Copyright (C) 2023 markrypto
  *
  * TOPT generation as described in https://www.rfc-editor.org/rfc/rfc6238
  * 
@@ -42,17 +42,53 @@ static CONFIDENTIAL authType authData[AUTHDATA_SIZE] = {0};
 // getAuthData() gets the storage version of authData and updates the local version
 // setAuthData() updates the storage version with the local version
 
-static void getAuthData(void) {
-  static bool localAuthdataUpdate = true; /* initialization trick */
+static bool localAuthdataUpdate = true; /* initialization trick, only need to fetch a local copy once successfully */
+static bool getAuthData(void) {
   if (localAuthdataUpdate) {
-    storage_getAuthData(authData);
-    localAuthdataUpdate = false;  
+    if (storage_getAuthData(authData)) {
+      localAuthdataUpdate = false;
+    } else {
+      // a return of false means the authdata fingerprint did not match
+      return false;
+    }
   }
-  return;
+  return true;
 }
 
 static void setAuthData(void) {
   storage_setAuthData(authData);
+}
+
+#if DEBUG_LINK
+static unsigned _otpSlot = 0;
+void getAuthSlot(char *authSlotData) {
+  snprintf(authSlotData, 30, ":slot=%2d:secsiz=%2d:", _otpSlot, authData[_otpSlot].secretSize);
+  strncat(authSlotData, authData[_otpSlot].domain, DOMAIN_SIZE);
+  strncat(authSlotData, ":", 2);
+  strncat(authSlotData, authData[_otpSlot].account, ACCOUNT_SIZE);
+  strncat(authSlotData, ":", 2);
+
+  char str[40+1];
+  int ctr;
+  for (ctr=0; ctr<40/2; ctr++) {
+    snprintf(&str[2*ctr], 3, "%02x", authData[_otpSlot].authSecret[ctr]);
+  }
+  strncat(authSlotData, str, 41);
+  return;
+
+}
+#endif
+
+void wipeAuthData(void) {
+  confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Wipe Authdata",
+          "Do you want to PERMANENTLY delete all authenticator accounts?\n If not, unplug Keepkey now." );
+
+  // wipe storage and reset authdata encryption flag
+  storage_wipeAuthData();
+  // wipe local copy
+  memzero(authData, sizeof(authData));
+  localAuthdataUpdate = true;
+  return;
 }
 
 unsigned addAuthAccount(char *accountWithSeed) {
@@ -63,32 +99,34 @@ unsigned addAuthAccount(char *accountWithSeed) {
   // accountWithSeed should be of the form "domain:account:seedStr"
   domain = strtok(accountWithSeed, ":");   // get the domain string token
   if (NULL == domain) {
-    return 3;
+    return TOKERR;
   }
   if (0 == strlen(domain)) {
-    return 3;
+    return TOKERR;
   }
 
   account = strtok(NULL, ":");   // get the account string token
   if (NULL == account) {
-    return 3;
+    return TOKERR;
   }
   if (0 == strlen(account)) {
-    return 3;
+    return TOKERR;
   }
 
   seedStr = strtok(NULL, "");   // get the seed string string token
   if (NULL == seedStr) {
-    return 3;
+    return TOKERR;
   }
   if (0 == strlen(seedStr)) {
-    return 3;
+    return TOKERR;
   }
   if (AUTHSECRET_SIZE_MAX < strlen(seedStr)) {
-    return 5;
+    return LARGESEED;
   }
 
-  getAuthData();
+  if (!getAuthData()) {
+    return BADPASS;   // fingerprint did not match, passphrase incorrect
+  }
 
   // look for first empty slot
   for (slot=0; slot<AUTHDATA_SIZE; slot++) {
@@ -97,12 +135,12 @@ unsigned addAuthAccount(char *accountWithSeed) {
     }
   }
   if (slot == AUTHDATA_SIZE) {
-    return 1;       // no empty slots
+    return NOSLOT;       // no empty slots
   }
 
   if (NULL == base32_decode((const char *)seedStr, strlen(seedStr), (uint8_t *)authSecret,
                             sizeof(authSecret), BASE32_ALPHABET_RFC4648)) {
-    return 2;       // bad decode
+    return BADSECRET;       // bad decode
   }
 
   confirm(ButtonRequestType_ButtonRequest_Other, "Confirm add account",
@@ -115,7 +153,7 @@ unsigned addAuthAccount(char *accountWithSeed) {
 
   setAuthData();
 
-  return 0;   // success
+  return NOERR;   // success
 }
 
 unsigned generateOTP(char *accountWithMsg, char otpStr[]) {
@@ -132,31 +170,31 @@ unsigned generateOTP(char *accountWithMsg, char otpStr[]) {
 
   domain = strtok(accountWithMsg, ":");   // get the domain string token
   if (NULL == domain) {
-    return 3;
+    return TOKERR;
   }
   if (0 == strlen(domain)) {
-    return 3;
+    return TOKERR;
   }
   account = strtok(NULL, ":");   // get the account string token
   if (NULL == account) {
-    return 3;
+    return TOKERR;
   }
   if (0 == strlen(account)) {
-    return 3;
+    return TOKERR;
   }
   tIntervalStr = strtok(NULL, ":");   // get the message string string token
   if (NULL == tIntervalStr) {
-    return 3;
+    return TOKERR;
   }
   if (0 == (lenI = strlen(tIntervalStr))) {
-    return 3;
+    return TOKERR;
   }
   tRemainStr = strtok(NULL, "");   // get the message string string token
   if (NULL == tRemainStr) {
-    return 3;
+    return TOKERR;
   }
   if (0 == (strlen(tRemainStr))) {
-    return 3;
+    return TOKERR;
   }
 
   // convert time interval string to long int
@@ -171,7 +209,9 @@ unsigned generateOTP(char *accountWithMsg, char otpStr[]) {
   // convert time remaining to int
   long tRemainVal = (strtol(tRemainStr, NULL, 10));
 
-  getAuthData();    // in theory an OTP could be requested on a dirty local copy
+  if (!getAuthData()) { // in theory an OTP could be requested on a dirty local copy
+    return BADPASS;   // fingerprint did not match, passphrase incorrect
+  }
 
   // look for account
   for (slot=0; slot<AUTHDATA_SIZE; slot++) {
@@ -183,8 +223,12 @@ unsigned generateOTP(char *accountWithMsg, char otpStr[]) {
   }
 
   if (slot == AUTHDATA_SIZE) {
-    return 4;       // account not found
+    return NOACC;       // account not found
   }
+
+#if DEBUG_LINK
+  _otpSlot = slot;   // used to get slot data
+#endif
 
   hmac_sha1((const uint8_t*)authData[slot].authSecret, (const uint32_t)authData[slot].secretSize,
                   (const uint8_t*)tIntervalBytes, (const uint32_t)sizeof(tIntervalBytes), (uint8_t *)hmac);
@@ -226,25 +270,27 @@ unsigned generateOTP(char *accountWithMsg, char otpStr[]) {
       layoutProgressForAuth(otpStrLarge, accStr, (1000*remainingdmSec)/300);
     }
   }
-  return 0;
+  return NOERR;
 }
 
 unsigned getAuthAccount(char *slotStr, char acc[]) {
   uint8_t val;
   val = (uint8_t)(strtol(slotStr, NULL, 10));
 
-  getAuthData();
+  if (!getAuthData()) {
+    return BADPASS;   // fingerprint did not match, passphrase incorrect
+  }
 
   if (val >= AUTHDATA_SIZE) {
-    return 2;   // slot index error, has to be less than size of struct
+    return NOSLOT;   // slot index error, has to be less than size of struct
   }
 
   if (authData[val].secretSize == 0) {
-    return 4;   // no account in slot
+    return NOACC;   // no account in slot
   }
 
   snprintf(acc, DOMAIN_SIZE+ACCOUNT_SIZE+2, "%s:%s", authData[val].domain, authData[val].account);
-  return 0;
+  return NOERR;
 }
 
 unsigned removeAuthAccount(char *domAcc) {
@@ -254,20 +300,22 @@ unsigned removeAuthAccount(char *domAcc) {
   // accountWithSeed should be of the form "domain:account"
   domain = strtok(domAcc, ":");   // get the domain string token
   if (NULL == domain) {
-    return 3;
+    return TOKERR;
   }
   if (0 == strlen(domain)) {
-    return 3;
+    return TOKERR;
   }
   account = strtok(NULL, "");   // get the account string token
   if (NULL == account) {
-    return 3;
+    return TOKERR;
   }
   if (0 == strlen(account)) {
-    return 3;
+    return TOKERR;
   }
 
-  getAuthData();  // in theory there could be a request for a removal on a dirty local copy
+  if (!getAuthData()) {
+    return BADPASS;   // fingerprint did not match, passphrase incorrect
+  }
 
   // find slot for account
   for (slot=0; slot<AUTHDATA_SIZE; slot++) {
@@ -279,7 +327,7 @@ unsigned removeAuthAccount(char *domAcc) {
   }
 
   if (slot == AUTHDATA_SIZE) {
-    return 4;       // account not found
+    return NOACC;       // account not found
   }
 
   confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Delete Account",
@@ -287,7 +335,7 @@ unsigned removeAuthAccount(char *domAcc) {
 
   memzero((void *)&authData[slot], sizeof(authType));
   setAuthData();
-  return 0;   // success
+  return NOERR;   // success
 }
 
 void hmac_sha1_Init(HMAC_SHA1_CTX *hctx, const uint8_t *key,

@@ -44,8 +44,6 @@
 #define MAX_USERDEF_TYPES   10      // This is max number of user defined type allowed
 #define MAX_TYPESTRING      33      // maximum size for a type string
 #define MAX_ENCBYTEN_SIZE   66
-#define STACK_REENTRANCY_REQ    1280    // calculate this from a re-entrant call (unsigned)&p - (unsigned)&end)
-#define STACK_SIZE_GUARD        (STACK_REENTRANCY_REQ + 64) // Can't recurse without this much stack available
 
 typedef enum {
     NOT_ENCODABLE = 0,
