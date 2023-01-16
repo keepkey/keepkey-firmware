@@ -5,7 +5,7 @@ reporting program. The website includes a GPG key to encrypt vulnerability repor
 below:
 
 <summary>GPG Key</summary>
-```
+
 -----BEGIN PGP PUBLIC KEY BLOCK-----
 mQINBGO4eXYBEAC3uXhD/3vkkMm+sLBeVFipCRCnY+nOgwcmiQ9juAoLJl7/y3jS
 gOlJZXpnIlVeV/Aca0v4EkVITxdiBHQWtuOmpD/nToDkzJnAd4WBLRTYwd8WCcTo
