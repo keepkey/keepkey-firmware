@@ -32,6 +32,8 @@
 #include <stdbool.h>
 #include <time.h>
 
+#if KK_TENDERMINT
+
 static CONFIDENTIAL HDNode node;
 static SHA256_CTX ctx;
 static bool has_message;
@@ -538,3 +540,5 @@ void tendermint_signAbort(void) {
   memzero(&tmsg, sizeof(tmsg));
   memzero(&node, sizeof(node));
 }
+
+#endif // KK_TENDERMINT

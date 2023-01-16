@@ -1,4 +1,5 @@
 
+#if KK_BINANCE
 void fsm_msgBinanceGetAddress(const BinanceGetAddress *msg) {
   RESP_INIT(BinanceAddress);
 
@@ -199,3 +200,5 @@ static void binance_response(void) {
   layoutHome();
   msg_write(MessageType_MessageType_BinanceSignedTx, resp);
 }
+
+#endif  // KK_BINANCE

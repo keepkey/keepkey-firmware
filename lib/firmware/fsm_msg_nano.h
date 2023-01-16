@@ -1,3 +1,5 @@
+#if KK_NANO
+
 #include "keepkey/firmware/nano.h"
 
 void fsm_msgNanoGetAddress(NanoGetAddress *msg) {
@@ -158,3 +160,4 @@ void fsm_msgNanoSignTx(NanoSignTx *msg) {
   msg_write(MessageType_MessageType_NanoSignedTx, resp);
   layoutHome();
 }
+#endif // KK_NANO

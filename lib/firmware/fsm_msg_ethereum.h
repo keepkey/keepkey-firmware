@@ -19,6 +19,8 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if KK_ETHEREUM
+
 static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg) {
   if (!ethereum_isStandardERC20Transfer(msg) && msg->data_length != 0)
     return TXOUT_COMPILE_ERROR;
@@ -378,3 +380,5 @@ void fsm_msgEthereum712TypesValues(Ethereum712TypesValues *msg) {
 
   layoutHome();
 }
+
+#endif // ETHEREUM

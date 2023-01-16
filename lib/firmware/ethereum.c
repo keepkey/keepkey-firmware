@@ -20,6 +20,8 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if KK_ETHEREUM
+
 #include "keepkey/firmware/ethereum.h"
 
 #include "keepkey/board/confirm_sm.h"
@@ -107,14 +109,6 @@ bool ethereum_getStandardERC20Coin(const EthereumSignTx *msg, CoinType *coin) {
 
   coinFromToken(coin, token);
   return true;
-}
-
-void bn_from_bytes(const uint8_t *value, size_t value_len, bignum256 *val) {
-  uint8_t pad_val[32];
-  memset(pad_val, 0, sizeof(pad_val));
-  memcpy(pad_val + (32 - value_len), value, value_len);
-  bn_read_be(pad_val, val);
-  memzero(pad_val, sizeof(pad_val));
 }
 
 static inline void hash_data(const uint8_t *buf, size_t size) {
@@ -1254,3 +1248,5 @@ void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *
 
   msg_write(MessageType_MessageType_EthereumTypedDataSignature, resp);
 }
+
+#endif // ETHEREUM

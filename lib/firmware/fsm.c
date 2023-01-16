@@ -148,6 +148,14 @@ static const MessagesMap_t MessagesMap[] = {
 
 extern bool reset_msg_stack;
 
+#if  (KK_ETHEREUM ||\
+      KK_BITCOIN ||\
+      KK_EOS ||\
+      KK_BINANCE ||\
+      KK_RIPPLE ||\
+      KK_TENDERMINT ||\
+      KK_NANO)
+// not needed unless there is a coin defined
 static const CoinType *fsm_getCoin(bool has_name, const char *name) {
   const CoinType *coin;
   if (has_name) {
@@ -163,6 +171,7 @@ static const CoinType *fsm_getCoin(bool has_name, const char *name) {
 
   return coin;
 }
+#endif
 
 static HDNode *fsm_getDerivedNode(const char *curve, const uint32_t *address_n,
                                   size_t address_n_count,

@@ -65,9 +65,6 @@ int ethereum_message_verify(const EthereumVerifyMessage *msg);
 void ethereumFormatAmount(const bignum256 *amnt, const TokenType *token,
                           uint32_t chain_id, char *buf, int buflen);
 
-void bn_from_bytes(const uint8_t *value, size_t value_len, bignum256 *val);
-
-
 void ethereum_typed_hash_sign(const EthereumSignTypedHash *msg,
                               const HDNode *node,
                               EthereumTypedDataSignature *resp);

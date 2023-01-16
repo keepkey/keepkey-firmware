@@ -31,6 +31,8 @@
 #include <stdbool.h>
 #include <time.h>
 
+#if KK_TENDERMINT
+
 static CONFIDENTIAL HDNode node;
 static SHA256_CTX ctx;
 static bool initialized;
@@ -199,6 +201,8 @@ void thorchain_signAbort(void) {
   memzero(&msg, sizeof(msg));
   memzero(&node, sizeof(node));
 }
+
+#endif // KK_TENDERMINT
 
 bool thorchain_parseConfirmMemo(const char *swapStr, size_t size) {
   /*

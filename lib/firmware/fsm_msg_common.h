@@ -1,10 +1,18 @@
 void fsm_msgInitialize(Initialize *msg) {
   (void)msg;
   recovery_cipher_abort();
+#if KK_BITCOIN
   signing_abort();
+#endif
+#if KK_ETHEREUM
   ethereum_signing_abort();
+#endif
+#if KK_TENDERMINT
   tendermint_signAbort();
+#endif
+#if KK_EOS
   eos_signingAbort();
+#endif
   session_clear(false);  // do not clear PIN
   layoutHome();
   fsm_msgGetFeatures(0);
@@ -544,10 +552,18 @@ void fsm_msgEntropyAck(EntropyAck *msg) {
 void fsm_msgCancel(Cancel *msg) {
   (void)msg;
   recovery_cipher_abort();
+#if KK_BITCOIN
   signing_abort();
+#endif
+#if KK_ETHEREUM
   ethereum_signing_abort();
+#endif
+#if KK_TENDERMINT
   tendermint_signAbort();
+#endif
+#if KK_EOS
   eos_signingAbort();
+#endif
   fsm_sendFailure(FailureType_Failure_ActionCancelled, "Aborted");
 }
 
@@ -725,4 +741,34 @@ void fsm_msgApplyPolicies(ApplyPolicies *msg) {
 
   fsm_sendSuccess("Policies applied");
   layoutHome();
+}
+
+/*
+ * send_co_failed_message() - send transaction output error message to client
+ *
+ * INPUT
+ *     co_error - Transaction output compilation error id
+ * OUTPUT
+ *     none
+ */
+void send_fsm_co_error_message(int co_error) {
+  struct {
+    int code;
+    const char *msg;
+    FailureType type;
+  } errorCodes[] = {
+      {TXOUT_COMPILE_ERROR, "Failed to compile output",
+       FailureType_Failure_Other},
+      {TXOUT_CANCEL, "Transaction cancelled",
+       FailureType_Failure_ActionCancelled},
+  };
+
+  for (size_t i = 0; i < sizeof(errorCodes) / sizeof(errorCodes[0]); i++) {
+    if (errorCodes[i].code == co_error) {
+      fsm_sendFailure(errorCodes[i].type, errorCodes[i].msg);
+      return;
+    }
+  }
+
+  fsm_sendFailure(FailureType_Failure_Other, "Unknown TxOut compilation error");
 }

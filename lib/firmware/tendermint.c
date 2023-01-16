@@ -7,6 +7,8 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+#if KK_TENDERMINT
+
 bool tendermint_pathMismatched(const CoinType *coin, const uint32_t *address_n,
                                const uint32_t address_n_count) {
   // m / 44' / coin' / account' / 0 / 0
@@ -70,3 +72,5 @@ bool tendermint_snprintf(SHA256_CTX *ctx, char *temp, size_t len,
   sha256_Update(ctx, (const uint8_t *)temp, n);
   return true;
 }
+
+#endif // KK_TENDERMINT

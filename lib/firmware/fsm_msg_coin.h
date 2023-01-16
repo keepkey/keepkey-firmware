@@ -1,3 +1,4 @@
+#if KK_BITCOIN
 void fsm_msgGetPublicKey(GetPublicKey *msg) {
   RESP_INIT(PublicKey);
 
@@ -339,3 +340,4 @@ void fsm_msgVerifyMessage(VerifyMessage *msg) {
   }
   layoutHome();
 }
+#endif // KK_BITCOIN

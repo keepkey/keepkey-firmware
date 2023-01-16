@@ -7,6 +7,8 @@
 
 #include "messages-binance.pb.h"
 
+#if KK_BINANCE
+
 static CONFIDENTIAL HDNode node;
 static SHA256_CTX ctx;
 static bool has_message;
@@ -137,3 +139,5 @@ void binance_signAbort(void) {
   memzero(&msg, sizeof(msg));
   memzero(&node, sizeof(node));
 }
+
+#endif // KK_BINANCE

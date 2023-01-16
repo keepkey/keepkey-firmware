@@ -1,3 +1,4 @@
+#if KK_TENDERMINT
 
 void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg) {
   RESP_INIT(CosmosAddress);
@@ -511,3 +512,5 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
   layoutHome();
   msg_write(MessageType_MessageType_CosmosSignedTx, resp);
 }
+
+#endif // KK_TENDERMINT

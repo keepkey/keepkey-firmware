@@ -1,3 +1,4 @@
+#if KK_TENDERMINT
 
 void fsm_msgThorchainGetAddress(const ThorchainGetAddress *msg) {
   RESP_INIT(ThorchainAddress);
@@ -265,3 +266,4 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg) {
   layoutHome();
   msg_write(MessageType_MessageType_ThorchainSignedTx, resp);
 }
+#endif // KK_TENDERMINT

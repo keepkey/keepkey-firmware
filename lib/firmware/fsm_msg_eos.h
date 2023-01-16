@@ -17,6 +17,8 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if KK_EOS
+
 void fsm_msgEosGetPublicKey(const EosGetPublicKey *msg) {
   CHECK_INITIALIZED
 
@@ -198,3 +200,5 @@ action_compile_failed:
   layoutHome();
   return;
 }
+
+#endif // KK_EOS

@@ -25,6 +25,8 @@
 
 #include <assert.h>
 
+#if KK_RIPPLE
+
 const RippleFieldMapping RFM_account = {.type = RFT_ACCOUNT, .key = 1};
 const RippleFieldMapping RFM_amount = {.type = RFT_AMOUNT, .key = 1};
 const RippleFieldMapping RFM_destination = {.type = RFT_ACCOUNT, .key = 3};
@@ -280,3 +282,5 @@ void ripple_signTx(const HDNode *node, RippleSignTx *tx, RippleSignedTx *resp) {
   resp->has_serialized_tx = true;
   resp->serialized_tx.size = buf - resp->serialized_tx.bytes;
 }
+
+#endif // KK_RIPPLE

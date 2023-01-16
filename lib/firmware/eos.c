@@ -38,6 +38,8 @@
 #include <stdio.h>
 #include <time.h>
 
+#if KK_EOS
+
 CONFIDENTIAL Hasher hasher_preimage;
 CONFIDENTIAL Hasher hasher_unknown;
 
@@ -582,3 +584,5 @@ bool eos_signTx(EosSignedTx *tx) {
 
   return true;
 }
+
+#endif  // KK_EOS

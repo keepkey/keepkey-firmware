@@ -38,6 +38,8 @@
 
 #include "types.pb.h"
 
+#if KK_BITCOIN
+
 #define _(X) (X)
 
 // Set DEBUG_UTXO to non-zero to display each stage of the utxo signing sequence
@@ -131,36 +133,6 @@ enum {
  * progress per input in permille with these many additional bits.
  */
 #define PROGRESS_PRECISION 16
-
-/*
- * send_co_failed_message() - send transaction output error message to client
- *
- * INPUT
- *     co_error - Transaction output compilation error id
- * OUTPUT
- *     none
- */
-void send_fsm_co_error_message(int co_error) {
-  struct {
-    int code;
-    const char *msg;
-    FailureType type;
-  } errorCodes[] = {
-      {TXOUT_COMPILE_ERROR, "Failed to compile output",
-       FailureType_Failure_Other},
-      {TXOUT_CANCEL, "Transaction cancelled",
-       FailureType_Failure_ActionCancelled},
-  };
-
-  for (size_t i = 0; i < sizeof(errorCodes) / sizeof(errorCodes[0]); i++) {
-    if (errorCodes[i].code == co_error) {
-      fsm_sendFailure(errorCodes[i].type, errorCodes[i].msg);
-      return;
-    }
-  }
-
-  fsm_sendFailure(FailureType_Failure_Other, "Unknown TxOut compilation error");
-}
 
 /*
 
@@ -1890,3 +1862,5 @@ void signing_abort(void) {
   memzero(&root, sizeof(root));
   memzero(&node, sizeof(node));
 }
+
+#endif // KK_BITCOIN

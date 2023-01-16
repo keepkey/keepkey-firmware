@@ -51,6 +51,16 @@ else()
   add_definitions(-DCONFIDENTIAL=__attribute__\(\(section\("confidential"\)\)\))
 endif()
 
+# chain support
+add_definitions(-DKK_ETHEREUM=0)
+add_definitions(-DKK_BITCOIN=0)
+add_definitions(-DKK_EOS=0)
+add_definitions(-DKK_BINANCE=0)
+add_definitions(-DKK_RIPPLE=0)
+add_definitions(-DKK_TENDERMINT=0)  # cosmos, thorchain
+add_definitions(-DKK_NANO=0)
+
+
 add_definitions(-DSTM32F2=1)
 
 add_definitions(-DED25519_CUSTOMHASH=1)

@@ -24,6 +24,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
+#include "trezor/crypto/bip32.h"
+#include "trezor/crypto/memzero.h"
 
 #define MIN(a, b)       \
   ({                    \
@@ -53,5 +55,6 @@ void rev_byte_order(uint8_t *bfr, size_t len);
 void dec64_to_str(uint64_t dec64_val, char *str);
 
 bool is_valid_ascii(const uint8_t *data, uint32_t size);
+void bn_from_bytes(const uint8_t *value, size_t value_len, bignum256 *val);
 
 #endif

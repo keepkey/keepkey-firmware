@@ -1,3 +1,4 @@
+#if KK_TENDERMINT
 
 void fsm_msgTendermintGetAddress(const TendermintGetAddress *msg) {
   RESP_INIT(TendermintAddress);
@@ -212,3 +213,4 @@ void fsm_msgTendermintMsgAck(const TendermintMsgAck *msg) {
   layoutHome();
   msg_write(MessageType_MessageType_TendermintSignedTx, resp);
 }
+#endif // KK_TENDERMINT

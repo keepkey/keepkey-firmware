@@ -15,6 +15,7 @@
 #include <assert.h>
 #endif
 
+#if KK_NANO
 static ed25519_public_key account_pk;
 static bignum256 parent_balance;
 static bignum256 balance;
@@ -369,3 +370,5 @@ bool nano_signTx(const NanoSignTx *msg, HDNode *node, NanoSignedTx *resp) {
   memcpy(resp->block_hash.bytes, block_hash, sizeof(block_hash));
   return true;
 }
+
+#endif // KK_NANO
