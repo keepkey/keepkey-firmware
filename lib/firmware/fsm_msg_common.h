@@ -165,6 +165,14 @@ static bool isValidModelNumber(const char *model) {
   return false;
 }
 
+void checkPassphrase(void) {
+  if (!passphrase_protect()) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, "authenticator needs passphrase");
+    layoutHome();
+    return;
+  }
+}
+
 void fsm_msgPing(Ping *msg) {
   RESP_INIT(Success);
 
@@ -178,29 +186,129 @@ void fsm_msgPing(Ping *msg) {
     flash_setModel(&message);
   }
 
-  if (msg->has_button_protection && msg->button_protection)
-    if (!confirm(ButtonRequestType_ButtonRequest_Ping, "Ping", "%s",
-                 msg->message)) {
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
-      layoutHome();
-      return;
-    }
+  const char *errMsgStr[NUM_AUTHERRS] = {
+    "noerr",
+    "Authenticator secret storage full",                                
+    "Authenticator secret can't be decoded",                            
+    "Account name missing or too long, or seed/message string missing", 
+    "Account not found",                                                
+    "Slot request out of range",
+    "Authenticator secret seed too large",                              
+    "passphrase incorrect for authdata",                                
+    "Auth secret unknown error",
+};
 
-  if (msg->has_pin_protection && msg->pin_protection) {
+  typedef enum _AUTH_MSG_TYPE {
+    INITAUTH = 0,
+    GENOTP,
+    GETACC,
+    REMACC,
+    WIPEADATA,
+    NUM_AUTHMESSAGES
+  } AUTH_MSG_TYPE;
+
+
+  const char * const authMesStr[NUM_AUTHMESSAGES] = {
+    "\x15" "initializeAuth:",
+    "\x16" "generateOTPFrom:",
+    "\x17" "getAccount:",
+    "\x18" "removeAccount:",
+    "\x19" "wipeAuthdata:",
+  };
+
+  AUTH_MSG_TYPE authMsg;
+  for (authMsg=INITAUTH; authMsg<NUM_AUTHMESSAGES; authMsg++) {
+    if (msg->has_message && 0 == strncmp(msg->message, authMesStr[authMsg], strlen(authMesStr[authMsg]))) {
+      break;
+    }
+  }
+
+  if (authMsg < NUM_AUTHMESSAGES) {
+    // this is an authenticator message
+    unsigned errcode;
+    char otp[9] = {0};    // allow room for an 8 digit otp
+    char acc[DOMAIN_SIZE+ACCOUNT_SIZE+2] = {0};    // allow room for domain + ":" + account
+
     CHECK_PIN
-  }
+    checkPassphrase();
 
-  if (msg->has_passphrase_protection && msg->passphrase_protection) {
-    if (!passphrase_protect()) {
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
+    switch (authMsg) {
+
+      case INITAUTH:
+        //DEBUG_DISPLAY("secret %s", &msg->message[strlen(authMesStr[authMsg])])
+        errcode = addAuthAccount(&msg->message[strlen(authMesStr[authMsg])]);
+        resp->has_message = false;
+        break;
+
+      case GENOTP:
+        //DEBUG_DISPLAY("genotp %s", &msg->message[strlen(authMesStr[authMsg])])
+        errcode = generateOTP(&msg->message[strlen(authMesStr[authMsg])], otp);
+      #if DEBUG_LINK
+        char authSlot[128] = {0};  // debug link only
+        getAuthSlot(authSlot);
+        resp->has_message = true;
+        strlcpy(resp->message, otp, 9);
+        strcat(resp->message, ":");
+        strcat(resp->message, authSlot);
+      #else
+        resp->has_message = false;
+      #endif        
+        break;
+
+      case GETACC:
+        errcode = getAuthAccount(&msg->message[strlen(authMesStr[authMsg])], acc);
+        resp->has_message = true;
+        strlcpy(resp->message, acc, DOMAIN_SIZE+ACCOUNT_SIZE+2);
+        break;
+
+      case REMACC:
+        errcode = removeAuthAccount(&msg->message[strlen(authMesStr[authMsg])]);
+        resp->has_message = false;
+        break;
+
+      case WIPEADATA:
+        wipeAuthData();
+        errcode = NOERR;
+        resp->has_message = false;
+        break;
+
+      default:
+        // should not be able to reach this default.
+        errcode = NOERR;
+        break;
+    }
+
+    if (errcode != NOERR) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, errMsgStr[errcode]);
       layoutHome();
       return;
     }
-  }
 
-  if (msg->has_message) {
-    resp->has_message = true;
-    memcpy(&(resp->message), &(msg->message), sizeof(resp->message));
+  } else {
+
+    if (msg->has_button_protection && msg->button_protection)
+      if (!confirm(ButtonRequestType_ButtonRequest_Ping, "Ping", "%s",
+                   msg->message)) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
+        layoutHome();
+        return;
+      }
+
+    if (msg->has_pin_protection && msg->pin_protection) {
+      CHECK_PIN
+    }
+
+    if (msg->has_passphrase_protection && msg->passphrase_protection) {
+      if (!passphrase_protect()) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, "Ping cancelled");
+        layoutHome();
+        return;
+      }
+    }
+    if (msg->has_message) {
+      resp->has_message = true;
+      memcpy(&(resp->message), &(msg->message), sizeof(resp->message));
+    }
   }
 
   msg_write(MessageType_MessageType_Success, resp);

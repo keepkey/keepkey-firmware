@@ -1,6 +1,7 @@
 /*
  * This file is part of the KeepKey project.
  *
+ * Copyright (C) 2022 markrypto <cryptoakorn@gmail.com>
  * Copyright (C) 2015 KeepKey LLC
  *
  * This library is free software: you can redistribute it and/or modify
@@ -268,6 +269,7 @@ void layout_standard_notification(const char *str1, const char *str2,
 
   DrawableParams sp;
   const Font *title_font = get_title_font();
+
   const Font *body_font = get_body_font();
   uint32_t body_line_count;
   uint16_t left_margin, body_width, title_width;
@@ -699,11 +701,17 @@ void layout_clear_static(void)
  */
 void force_animation_start(void) { animate_flag = true; }
 
+
+// point to otp string or null string for no otp display, set in layoutProgressForAuth()
+static const char *_otpStr = "";
+
 /*
  * animating_progress_handler() - Animate storage update progress
  *
  * INPUT
- *     none
+ *     static global char *_otpStr -  if not null string, optional display an OTP in large font
+ *     desc - text to display
+ *     permil - progress in units of 1 to 1000
  * OUTPUT
  *     none
  */
@@ -717,14 +725,25 @@ void animating_progress_handler(const char *desc, int permil) {
   permil = permil <= 0 ? 0 : permil;
 
   const Font *font = get_body_font();
+  const Font *otpfont = get_pin_font();
+
+  uint32_t body_line_count;
+  DrawableParams sp;
+
+  /* Draw OTP if available */
+  if (0 < strlen(_otpStr) && 11 > strlen(_otpStr)) {
+    sp.x = LEFT_MARGIN;
+    sp.y = 10;
+    sp.color = TITLE_COLOR;
+    draw_string(canvas, otpfont, _otpStr, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(otpfont));
+  }
 
   /* Draw Message */
-  const uint32_t body_line_count = calc_str_line(font, desc, BODY_WIDTH);
-  DrawableParams sp;
+  body_line_count = calc_str_line(font, desc, BODY_WIDTH);
   sp.x = LEFT_MARGIN;
   sp.y =
       (KEEPKEY_DISPLAY_HEIGHT / 2) - (body_line_count * font_height(font) / 2);
-  sp.color = TITLE_COLOR;
+  sp.color = BODY_COLOR;
   draw_string(canvas, font, desc, &sp, KEEPKEY_DISPLAY_WIDTH,
               font_height(font));
 
@@ -769,6 +788,13 @@ void animating_progress_handler(const char *desc, int permil) {
 
 void layoutProgress(const char *desc, int permil) {
   animating_progress_handler(desc, permil);
+}
+
+void layoutProgressForAuth(const char *otp, const char *desc, int permil) {
+  /* Use the static global otpStr to display otp in large font */
+  _otpStr = otp;
+  animating_progress_handler(desc, permil);
+  _otpStr = "";
 }
 
 void layoutProgressSwipe(const char *desc, int permil) {

@@ -1,6 +1,7 @@
 set(sources
     app_confirm.c
     app_layout.c
+    authenticator.c
     binance.c
     coins.c
     crypto.c
@@ -11,6 +12,7 @@ set(sources
     ethereum.c
     ethereum_contracts.c
     ethereum_contracts/makerdao.c
+    ethereum_contracts/contractfuncs.c
     ethereum_contracts/saproxy.c
     ethereum_contracts/zxappliquid.c
     ethereum_contracts/thortx.c
