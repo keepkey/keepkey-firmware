@@ -75,7 +75,8 @@ bool tokenByTicker(uint8_t chain_id, const char *ticker,
                    const TokenType **token);
 
 void coinFromToken(CoinType *coin, const TokenType *token);
-int evp_parse(unsigned char *tokenVals);
+
+int evp_parse(unsigned char *evpVals);
 int evpTokenParse(json_t const *jsonTV);
 int evpDappVerify(json_t const *jsonDV);
 

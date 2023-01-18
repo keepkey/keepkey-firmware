@@ -34,8 +34,4 @@ bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx *msg,
 bool ethereum_contractConfirmed(uint32_t data_total, const EthereumSignTx *msg,
                                 const HDNode *node);
 
-bool ethereum_cFuncHandled(const EthereumSignTx *msg);
-
-bool ethereum_cFuncConfirmed(uint32_t data_total, const EthereumSignTx *msg);
-
 #endif

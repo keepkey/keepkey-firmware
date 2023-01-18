@@ -30,6 +30,10 @@
 #ifndef _TINY_JSON_H_
 #define	_TINY_JSON_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdbool.h>

@@ -213,9 +213,10 @@ TEST(Coins, CoinByChainAddress) {
 }
 
 TEST(Coins, TokenByChainAddress) {
-  unsigned char tokStr[128] = "{\"address\": \"E41d2489571d322189246DaFA5ebDe1F4699F498\", \"ticker\": \"ZRX\", \"chainId\": 1, \"decimals\": 18}";
+  unsigned char tokStr[200] = "{\"type\": \"token\",\"name\": \"US Dollar Coin\",\"contract\": \"A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\
+\"blockchain\": \"Ethereum mainnet\",\"decimals\": 6,\"symbol\": \"USDC\",\"chainId\": 1}";
   evp_parse((unsigned char *)tokStr);
-  const TokenType *zrx = tokenByChainAddress(1, (const uint8_t*)"\xE4\x1d\x24\x89\x57\x1d\x32\x21\x89\x24\x6D\xaF\xA5\xeb\xDe\x1F\x46\x99\xF4\x98");
+  const TokenType *zrx = tokenByChainAddress(1, (const uint8_t*)"\xA0\xb8\x69\x91\xc6\x21\x8b\x36\xc1\xd1\x9D\x4a\x2e\x9E\xb0\xcE\x36\x06\xeB\x48");
   ASSERT_NE(zrx, nullptr);
-  EXPECT_EQ(zrx->ticker, std::string(" ZRX"));
+  EXPECT_EQ(zrx->ticker, std::string(" USDC"));
 }
