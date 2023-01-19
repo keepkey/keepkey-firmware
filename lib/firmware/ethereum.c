@@ -1021,6 +1021,7 @@ int evp_parse(unsigned char *evpVals) {
     fsm_sendFailure(FailureType_Failure_Other, _("EVP type value error"));
     return MV_TDERR;
   }
+
   // look for the particular data type
   if (0 == strncmp(typeStr, "token", strlen("token"))) {
     return evpTokenParse(jsonEVP);
@@ -1102,6 +1103,7 @@ int evpTokenParse(json_t const *jsonTV) {
     fsm_sendFailure(FailureType_Failure_Other, _("Token data symbol value error"));
     return MV_TDERR;
   }
+
   if (NULL == (obTest = json_getProperty(jsonTV, "chainId"))) {
     fsm_sendFailure(FailureType_Failure_Other, _("Token data chainId property error"));
     return MV_TDERR;
@@ -1231,28 +1233,30 @@ int ethereum_message_verify(const EthereumVerifyMessage *msg) {
                     &secp256k1, pubkey, msg->signature.bytes, hash, v) != 0) {
   }
 
-  //uint32_t addrN[5] = {0x8000002c, 0x8000003c, 0x80000001, 0, 0};
-  //const uint8_t evpPubkey[20] = "\x6a\x32\x03\x04\x47\xa4\xc7\x51\xe6\x51\xdb\x90\x3c\x35\x13\xf7\xe1\x38\x0c\x98";
+  // This is the keepkey pubkey
+  const uint8_t kkPubKey[20] = "\x23\x56\xa1\x50\x42\xf9\x8f\x0a\x53\x78\x4f\x42\x23\x7b\xd4\xb2\x87\x3a\xad\xcf";
 
-  // get the actual pubkey from keepkey
-  const uint8_t evpPubkey[20] = "\x23\x56\xa1\x50\x42\xf9\x8f\x0a\x53\x78\x4f\x42\x23\x7b\xd4\xb2\x87\x3a\xad\xcf";
   struct SHA3_CTX ctx;
   sha3_256_Init(&ctx);
   sha3_Update(&ctx, pubkey + 1, 64);
   keccak_Final(&ctx, hash);
 
-  //DEBUG_DISPLAY_VAL("addr", "%s", 21, hash[_ctr+12]);
-  if (0 == memcmp(evpPubkey, &hash[12], 20)) {
+  if (0 == memcmp(kkPubKey, &hash[12], 20)) {
     // this is evp signed data message
     retval = evp_parse((unsigned char *)msg->message.bytes);
     return retval;
   }
 
-  // if (0 == memcmp(iconPubkey, &hash[12], 20)) {
-  //   // this is a signed icon data message
-  //   retval = icon_parse((unsigned char *)msg->message.bytes);
-  //   return retval;
-  // }
+#if DEBUG_LINK
+  // for consistent python tests, use reproducible pubkey
+  //uint32_t addrN[5] = {0x8000002c, 0x8000003c, 0x80000001, 0, 0};
+  const uint8_t testPubKey[20] = "\x6a\x32\x03\x04\x47\xa4\xc7\x51\xe6\x51\xdb\x90\x3c\x35\x13\xf7\xe1\x38\x0c\x98";
+  if (0 == memcmp(testPubKey, &hash[12], 20)) {
+    // this is evp test signed data message
+    retval = evp_parse((unsigned char *)msg->message.bytes);
+    return retval;
+  }
+#endif
 
   /* result are the least significant 160 bits */
   if (memcmp(msg->address.bytes, hash + 12, 20) != 0) {
