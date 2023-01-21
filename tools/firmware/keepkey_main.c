@@ -173,26 +173,33 @@ int main(void) {
   _timerusr_isr = (void *)&timerisr_usr;
   _mmhusr_isr = (void *)&mmhisr;
 
-  flash_collectHWEntropy(SIG_OK == signatures_ok());
+  { // limit sigRet lifetime to this block
+    int sigRet = SIG_FAIL;
+    sigRet = signatures_ok();
+    flash_collectHWEntropy(SIG_OK == sigRet);
 
-  /* Drop privileges */
-  drop_privs();
+    /* Drop privileges */
+    drop_privs();
 
-  /* Init board */
-  kk_board_init();
+    /* Init board */
+    kk_board_init();
 
-  /* Program the model into OTP, if we're not in screen-test mode, and it's
-   * not already there
-   */
-  (void)flash_programModel();
+    /* Program the model into OTP, if we're not in screen-test mode, and it's
+     * not already there
+     */
+    (void)flash_programModel();
 
-  /* Init for safeguard against stack overflow (-fstack-protector-all) */
-  __stack_chk_guard = (uintptr_t)random32();
+    /* Init for safeguard against stack overflow (-fstack-protector-all) */
+    __stack_chk_guard = (uintptr_t)random32();
 
-  drbg_init();
+    drbg_init();
 
-  /* Bootloader Verification */
-  check_bootloader();
+    /* Bootloader Verification. Only check if valid signed firmware on-board, allow any other firmware
+    to run with any bootloader. This allows unsigned release firmware to run after warning */
+    if (SIG_OK == sigRet) {
+      check_bootloader();
+    }
+  }
 
   led_func(SET_RED_LED);
   dbg_print("Application Version %d.%d.%d\n\r", MAJOR_VERSION, MINOR_VERSION,
