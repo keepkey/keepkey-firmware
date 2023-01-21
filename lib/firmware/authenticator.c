@@ -150,7 +150,7 @@ unsigned addAuthAccount(char *accountWithSeed) {
           "Domain: %.*s\nAccount: %.*s\nSeed value: %s", DOMAIN_SIZE, domain, ACCOUNT_SIZE, account, seedStr);
 
   authData[slot].secretSize = authSecretLen;
-  strncpy(authData[slot].authSecret, authSecret, authData[slot].secretSize);
+  memcpy(authData[slot].authSecret, authSecret, authData[slot].secretSize);
   strlcpy(authData[slot].domain, domain, DOMAIN_SIZE);
   strlcpy(authData[slot].account, account, ACCOUNT_SIZE);
 
