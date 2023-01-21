@@ -102,9 +102,6 @@ unsigned addAuthAccount(char *accountWithSeed) {
   if (NULL == domain) {
     return TOKERR;
   }
-  if (0 == strlen(domain)) {
-    return TOKERR;
-  }
 
   account = strtok(NULL, ":");   // get the account string token
   if (NULL == account) {
@@ -173,9 +170,6 @@ unsigned generateOTP(char *accountWithMsg, char otpStr[]) {
 
   domain = strtok(accountWithMsg, ":");   // get the domain string token
   if (NULL == domain) {
-    return TOKERR;
-  }
-  if (0 == strlen(domain)) {
     return TOKERR;
   }
   account = strtok(NULL, ":");   // get the account string token
@@ -303,9 +297,6 @@ unsigned removeAuthAccount(char *domAcc) {
   // accountWithSeed should be of the form "domain:account"
   domain = strtok(domAcc, ":");   // get the domain string token
   if (NULL == domain) {
-    return TOKERR;
-  }
-  if (0 == strlen(domain)) {
     return TOKERR;
   }
   account = strtok(NULL, "");   // get the account string token
