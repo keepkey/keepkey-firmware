@@ -94,14 +94,12 @@ void wipeAuthData(void) {
 unsigned addAuthAccount(char *accountWithSeed) {
   char *domain, *account, *seedStr;
   unsigned slot;
-  char authSecret[20];          // 128-bit key len is the recommended minimum, this is room for 160-bit
+  char authSecret[AUTHSECRET_SIZE_MAX];          // 128-bit key len is the recommended minimum, this is room for 160-bit
+  size_t authSecretLen;
 
   // accountWithSeed should be of the form "domain:account:seedStr"
   domain = strtok(accountWithSeed, ":");   // get the domain string token
   if (NULL == domain) {
-    return TOKERR;
-  }
-  if (0 == strlen(domain)) {
     return TOKERR;
   }
 
@@ -120,7 +118,9 @@ unsigned addAuthAccount(char *accountWithSeed) {
   if (0 == strlen(seedStr)) {
     return TOKERR;
   }
-  if (AUTHSECRET_SIZE_MAX < strlen(seedStr)) {
+
+  authSecretLen = base32_decoded_length(strlen(seedStr));
+  if (AUTHSECRET_SIZE_MAX < authSecretLen) {
     return LARGESEED;
   }
 
@@ -146,8 +146,8 @@ unsigned addAuthAccount(char *accountWithSeed) {
   confirm(ButtonRequestType_ButtonRequest_Other, "Confirm add account",
           "Domain: %.*s\nAccount: %.*s\nSeed value: %s", DOMAIN_SIZE, domain, ACCOUNT_SIZE, account, seedStr);
 
-  authData[slot].secretSize = strlen(authSecret);
-  strncpy(authData[slot].authSecret, authSecret, authData[slot].secretSize);
+  authData[slot].secretSize = authSecretLen;
+  memcpy(authData[slot].authSecret, authSecret, authData[slot].secretSize);
   strlcpy(authData[slot].domain, domain, DOMAIN_SIZE);
   strlcpy(authData[slot].account, account, ACCOUNT_SIZE);
 
@@ -170,9 +170,6 @@ unsigned generateOTP(char *accountWithMsg, char otpStr[]) {
 
   domain = strtok(accountWithMsg, ":");   // get the domain string token
   if (NULL == domain) {
-    return TOKERR;
-  }
-  if (0 == strlen(domain)) {
     return TOKERR;
   }
   account = strtok(NULL, ":");   // get the account string token
@@ -300,9 +297,6 @@ unsigned removeAuthAccount(char *domAcc) {
   // accountWithSeed should be of the form "domain:account"
   domain = strtok(domAcc, ":");   // get the domain string token
   if (NULL == domain) {
-    return TOKERR;
-  }
-  if (0 == strlen(domain)) {
     return TOKERR;
   }
   account = strtok(NULL, "");   // get the account string token
