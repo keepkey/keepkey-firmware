@@ -144,7 +144,7 @@ unsigned addAuthAccount(char *accountWithSeed) {
   }
 
   confirm(ButtonRequestType_ButtonRequest_Other, "Confirm add account",
-          "Domain: %.*s\nAccount: %.*s\nSeed value: %s", DOMAIN_SIZE, domain, ACCOUNT_SIZE, account, seedStr);
+          "Domain: %.*s\nAccount: %.*s\nSecret: %s", DOMAIN_SIZE, domain, ACCOUNT_SIZE, account, seedStr);
 
   authData[slot].secretSize = authSecretLen;
   memcpy(authData[slot].authSecret, authSecret, authData[slot].secretSize);
