@@ -485,7 +485,7 @@ void layout_cosmos_address_notification(const char *desc, const char *address,
  *      none
  */
 void layout_osmosis_address_notification(const char *desc, const char *address,
-                                        NotificationType type) {
+                                         NotificationType type) {
   DrawableParams sp;
   const Font *address_font = get_body_font();
   ;
@@ -508,7 +508,7 @@ void layout_osmosis_address_notification(const char *desc, const char *address,
   sp.x = LEFT_MARGIN + 65;
   sp.color = BODY_COLOR;
 
-  draw_string(canvas, address_font, address, &sp, 140,
+  draw_string(canvas, address_font, address, &sp, 160,
               font_height(address_font) + BODY_FONT_LINE_PADDING);
 
   layout_address(address, QR_LARGE);

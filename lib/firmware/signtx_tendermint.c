@@ -18,7 +18,6 @@
  */
 
 #include "keepkey/firmware/cosmos.h"
-#include "keepkey/firmware/osmosis.h"
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/util.h"
 #include "keepkey/firmware/home_sm.h"

@@ -11,13 +11,22 @@ void fsm_msgOsmosisGetAddress(const OsmosisGetAddress *msg) {
   }
   HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
+  char mainnet[] = "osmo";
+  char testnet[] = "tosmo";
+  char *pfix;
+
   if (!node) {
     return;
   }
 
   hdnode_fill_public_key(node);
 
-  if (!tendermint_getAddress(node, "osmo", resp->address)) {
+  pfix = mainnet;
+  if (msg->has_testnet && msg->testnet) {
+    pfix = testnet;
+  }
+
+  if (!tendermint_getAddress(node, pfix, resp->address)) {
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_FirmwareError,
                     _("Can't encode address"));
@@ -93,6 +102,7 @@ void fsm_msgOsmosisSignTx(const OsmosisSignTx *msg) {
 
   if (!osmosis_signTxInit(node, msg)) {
     osmosis_signAbort();
+
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_FirmwareError,
                     _("Failed to initialize transaction signing"));
@@ -125,9 +135,8 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
       return;
     }
 
-    char amount_str[32];
-    bn_format_uint64(msg->send.amount, NULL, " OSMO", 6, 0, false, amount_str,
-                     sizeof(amount_str));
+    char amount_str[40];
+    sprintf(amount_str, "%s OSMO", msg->send.amount);
     if (!confirm_transaction_output(
             ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
             msg->send.to_address)) {
@@ -137,14 +146,14 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
       return;
     }
 
-    if (!osmosis_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address,
-                                     msg->send.denom)) {
+    if (!osmosis_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include send message in transaction");
       layoutHome();
       return;
     }
+
   } else if (msg->has_delegate) {
     /** Confirm required transaction parameters exist */
     if (!msg->delegate.has_delegator_address ||
@@ -156,10 +165,6 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
       return;
     }
     /** Confirm transaction parameters on-screen */
-    char amount_str[32];
-    bn_format_uint64(msg->delegate.amount, NULL, " OSMO", 6, 0, false,
-                     amount_str, sizeof(amount_str));
-
     if (!confirm_osmosis_address("Confirm delegator address",
                                  msg->delegate.delegator_address)) {
       osmosis_signAbort();
@@ -178,8 +183,8 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
 
     if (!confirm_with_custom_layout(
             &layout_notification_no_title_bold,
-            ButtonRequestType_ButtonRequest_ConfirmOutput, "", "Delegate %s?",
-            amount_str)) {
+            ButtonRequestType_ButtonRequest_ConfirmOutput, "",
+            "Delegate %s OSMO?", msg->delegate.amount)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -206,9 +211,6 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
       return;
     }
     /** Confirm transaction parameters on-screen */
-    char amount_str[32];
-    bn_format_uint64(msg->undelegate.amount, NULL, " OSMO", 6, 0, false,
-                     amount_str, sizeof(amount_str));
 
     if (!confirm_osmosis_address("Confirm delegator address",
                                  msg->undelegate.delegator_address)) {
@@ -228,8 +230,8 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
 
     if (!confirm_with_custom_layout(
             &layout_notification_no_title_bold,
-            ButtonRequestType_ButtonRequest_ConfirmOutput, "", "Undelegate %s?",
-            amount_str)) {
+            ButtonRequestType_ButtonRequest_ConfirmOutput, "",
+            "Undelegate %s OSMO?", msg->undelegate.amount)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -259,19 +261,15 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     }
 
     /** Confirm transaction parameters on-screen */
-    char amount_str_a[86];
-    char denom_str_a[70];
-    sprintf(denom_str_a, " %s", msg->lp_add.denom_in_max_a);
-    bn_format_uint64(msg->lp_add.amount_in_max_a, NULL, denom_str_a, 6, 0,
-                     false, amount_str_a, sizeof(amount_str_a));
-    char amount_str_b[86];
-    char denom_str_b[70];
-    sprintf(denom_str_b, " %s", msg->lp_add.denom_in_max_b);
-    bn_format_uint64(msg->lp_add.amount_in_max_b, NULL, denom_str_b, 6, 0,
-                     false, amount_str_b, sizeof(amount_str_b));
+    char share_out_amount_buf[33] = {0};
+    share_out_amount_buf[0] = msg->lp_add.share_out_amount[0];
+    share_out_amount_buf[1] = '.';
+    strncpy(&share_out_amount_buf[2], &msg->lp_add.share_out_amount[1],
+            (sizeof(share_out_amount_buf) / sizeof(char)) - 2);
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Add Liquidity",
-                 "Deposit %s and...", amount_str_a)) {
+                 "Deposit %s %s and...", msg->lp_add.amount_in_max_a,
+                 msg->lp_add.denom_in_max_a)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -279,32 +277,36 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     }
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Add Liquidity",
-                 "...  %s?", amount_str_b)) {
+                 "...  %s %s?", msg->lp_add.amount_in_max_b,
+                 msg->lp_add.denom_in_max_b)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm pool ID", "%s",
-                 msg->lp_add.pool_id)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm pool ID",
+                 "%lld", msg->lp_add.pool_id)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm(
-            ButtonRequestType_ButtonRequest_Other, "Pool share amount",
-            "Receive %.19f LP shares?",
-            (double)msg->lp_add.share_out_amount / 1000000000000000000.0f)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Pool share amount",
+                 "Receive %s LP shares?", share_out_amount_buf)) {
+      // (double)msg->lp_add.share_out_amount / 1000000000000000000.0f)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!osmosis_signTxUpdateMsgLPAdd(msg->lp_add)) {
+    if (!osmosis_signTxUpdateMsgLPAdd(
+            msg->lp_add.pool_id, msg->lp_add.sender,
+            msg->lp_add.share_out_amount, msg->lp_add.amount_in_max_a,
+            msg->lp_add.denom_in_max_a, msg->lp_add.amount_in_max_b,
+            msg->lp_add.denom_in_max_b)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include LP add message in transaction");
@@ -327,19 +329,15 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     }
 
     /** Confirm transaction parameters on-screen */
-    char amount_str_a[86];
-    char denom_str_a[70];
-    sprintf(denom_str_a, " %s", msg->lp_remove.denom_out_min_a);
-    bn_format_uint64(msg->lp_remove.amount_out_min_a, NULL, denom_str_a, 6, 0,
-                     false, amount_str_a, sizeof(amount_str_a));
-    char amount_str_b[86];
-    char denom_str_b[70];
-    sprintf(denom_str_b, " %s", msg->lp_remove.denom_out_min_b);
-    bn_format_uint64(msg->lp_remove.amount_out_min_b, NULL, denom_str_b, 6, 0,
-                     false, amount_str_b, sizeof(amount_str_b));
+    char share_out_amount_buf[33] = {0};
+    share_out_amount_buf[0] = msg->lp_remove.share_out_amount[0];
+    share_out_amount_buf[1] = '.';
+    strncpy(&share_out_amount_buf[2], &msg->lp_remove.share_out_amount[1],
+            (sizeof(share_out_amount_buf) / sizeof(char)) - 2);
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Remove Liquidity",
-                 "Withdraw %s and...", amount_str_a)) {
+                 "Withdraw %s %s and...", msg->lp_remove.amount_out_min_a,
+                 msg->lp_remove.denom_out_min_a)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -347,32 +345,35 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     }
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Remove Liquidity",
-                 "...  %s?", amount_str_b)) {
+                 "...  %s %s ?", msg->lp_remove.amount_out_min_b,
+                 msg->lp_remove.denom_out_min_b)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm pool ID", "%s",
-                 msg->lp_remove.pool_id)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm pool ID",
+                 "%lld", msg->lp_remove.pool_id)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm(
-            ButtonRequestType_ButtonRequest_Other, "Pool share amount",
-            "Redeem %.19f LP shares?",
-            (double)msg->lp_remove.share_out_amount / 1000000000000000000.0f)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Pool share amount",
+                 "Redeem %s LP shares?", share_out_amount_buf)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!osmosis_signTxUpdateMsgLPRemove(msg->lp_remove)) {
+    if (!osmosis_signTxUpdateMsgLPRemove(
+            msg->lp_remove.pool_id, msg->lp_remove.sender,
+            msg->lp_remove.share_out_amount, msg->lp_remove.amount_out_min_a,
+            msg->lp_remove.denom_out_min_a, msg->lp_remove.amount_out_min_b,
+            msg->lp_remove.denom_out_min_b)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include rewards message in transaction");
@@ -413,21 +414,19 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     }
 
     /** Confirm transaction parameters on-screen */
-    char amount_str[86];
-    char denom_str[70];
-    sprintf(denom_str, " %s", msg->lp_stake.denom);
-    bn_format_uint64(msg->lp_stake.amount, NULL, denom_str, 6, 0, false,
-                     amount_str, sizeof(amount_str));
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Lock Tokens",
-                 "Lock %s tokens for %s?", amount_str, lockup_duration)) {
+                 "Lock %s %s for %s?", msg->lp_stake.amount,
+                 msg->lp_stake.denom, lockup_duration)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!osmosis_signTxUpdateMsgLPStake(msg->lp_stake)) {
+    if (!osmosis_signTxUpdateMsgLPStake(
+            msg->lp_stake.amount, msg->lp_stake.denom, msg->lp_stake.duration,
+            msg->lp_stake.owner)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include lp stake message in transaction");
@@ -452,7 +451,8 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
       return;
     }
 
-    if (!osmosis_signTxUpdateMsgLPUnstake(msg->lp_unstake)) {
+    if (!osmosis_signTxUpdateMsgLPUnstake(msg->lp_unstake.id,
+                                          msg->lp_unstake.owner)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include lp_unstake message in transaction");
@@ -472,12 +472,9 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
       return;
     }
     /** Confirm transaction parameters on-screen */
-    char amount_str[32];
-    bn_format_uint64(msg->redelegate.amount, NULL, " OSMO", 6, 0, false,
-                     amount_str, sizeof(amount_str));
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Redelegate",
-                 "Redelegate %s?", amount_str)) {
+                 "Redelegate %s OSMO?", msg->redelegate.amount)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -529,27 +526,12 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
       return;
     }
 
-    if (msg->rewards.has_amount) {
-      /** Confirm transaction parameters on-screen */
-      char amount_str[32];
-      bn_format_uint64(msg->rewards.amount, NULL, " OSMO", 6, 0, false,
-                       amount_str, sizeof(amount_str));
-
-      if (!confirm(ButtonRequestType_ButtonRequest_Other, "Claim Rewards",
-                   "Claim %s?", amount_str)) {
-        osmosis_signAbort();
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-        layoutHome();
-        return;
-      }
-    } else {
-      if (!confirm(ButtonRequestType_ButtonRequest_Other, "Claim Rewards",
-                   "Claim all available rewards?")) {
-        osmosis_signAbort();
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-        layoutHome();
-        return;
-      }
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Claim Rewards",
+                 "Claim all available rewards?")) {
+      osmosis_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
     }
 
     if (!confirm_osmosis_address("Confirm delegator address",
@@ -568,10 +550,8 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
       return;
     }
 
-    if (!osmosis_signTxUpdateMsgRewards(
-            msg->rewards.has_amount ? &msg->rewards.amount : NULL,
-            msg->rewards.delegator_address, msg->rewards.validator_address,
-            msg->rewards.denom)) {
+    if (!osmosis_signTxUpdateMsgRewards(msg->rewards.delegator_address,
+                                        msg->rewards.validator_address)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include rewards message in transaction");
@@ -592,36 +572,29 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     }
 
     /** Confirm transaction parameters on-screen */
-    char token_in_amount_str[86];
-    char token_in_denom_str[70];
-    sprintf(token_in_denom_str, " %s", msg->swap.token_in_denom);
-    bn_format_uint64(msg->swap.token_in_amount, NULL, token_in_denom_str, 6, 0,
-                     false, token_in_amount_str, sizeof(token_in_amount_str));
-    char token_out_amount_str[86];
-    char token_out_denom_str[70];
-    sprintf(token_out_denom_str, " %s", msg->swap.token_out_denom);
-    bn_format_uint64(msg->swap.token_out_min_amount, NULL, token_out_denom_str,
-                     6, 0, false, token_out_amount_str,
-                     sizeof(token_out_amount_str));
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Swap",
-                 "Swap %s for at least %s?", token_in_amount_str,
-                 token_out_amount_str)) {
+                 "Swap %s %s for at least %s %s?", msg->swap.token_in_amount,
+                 msg->swap.token_in_denom, msg->swap.token_out_min_amount,
+                 msg->swap.token_out_denom)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm pool ID", "%s",
-                 msg->swap.pool_id)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm pool ID",
+                 "%lld", msg->swap.pool_id)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!osmosis_signTxUpdateMsgSwap(msg->swap)) {
+    if (!osmosis_signTxUpdateMsgSwap(
+            msg->swap.pool_id, msg->swap.token_out_denom, msg->swap.sender,
+            msg->swap.token_in_amount, msg->swap.token_in_denom,
+            msg->swap.token_out_min_amount)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include swap message in transaction");
@@ -644,12 +617,10 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
       return;
     }
     /** Confirm transaction parameters on-screen */
-    char amount_str[32];
-    bn_format_uint64(msg->ibc_transfer.amount, NULL, " OSMO", 6, 0, false,
-                     amount_str, sizeof(amount_str));
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "IBC Transfer",
-                 "Transfer %s to %s?", amount_str, msg->ibc_transfer.sender)) {
+                 "Transfer %s %s to %s?", msg->ibc_transfer.amount,
+                 msg->ibc_transfer.denom, msg->ibc_transfer.sender)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -748,8 +719,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
 
   RESP_INIT(OsmosisSignedTx);
 
-  if (!tendermint_signTxFinalize(resp->public_key.bytes,
-                                 resp->signature.bytes)) {
+  if (!osmosis_signTxFinalize(resp->public_key.bytes, resp->signature.bytes)) {
     osmosis_signAbort();
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     "Failed to finalize signature");

@@ -54,7 +54,7 @@ bool osmosis_signTxInit(const HDNode *_node, const OsmosisSignTx *_msg) {
   memcpy(&msg, _msg, sizeof(msg));
 
   bool success = true;
-  char buffer[64 + 1];
+  char buffer[64 + 1] = {0};
 
   sha256_Init(&ctx);
 
@@ -68,21 +68,24 @@ bool osmosis_signTxInit(const HDNode *_node, const OsmosisSignTx *_msg) {
   // <escape chain_id>
   const char *const chainid_prefix = ",\"chain_id\":\"";
   sha256_Update(&ctx, (uint8_t *)chainid_prefix, strlen(chainid_prefix));
+
   tendermint_sha256UpdateEscaped(&ctx, msg.chain_id, strlen(msg.chain_id));
 
-  // 16 + ^10 + 2 = ^28
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\",\"fee\":{\"gas\":\"%" PRIu32 "\",", msg.gas);
+  // 30 + ^10 + 19 = ^59
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                          "\",\"fee\":{\"amount\":[{\"amount\":\"%" PRIu32
+                          "\",\"denom\":\"uosmo\"}]",
+                          msg.fee_amount);
 
-  //  + ^10 + 19 = ^59
+  // 8 + ^10 + 2 = ^20
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"amount\":[{\"amount\":\"%" PRIu32
-                                 "\",\"denom\":\"uosmo\"}]}",
-                                 msg.fee_amount);
+                                 ",\"gas\":\"%" PRIu32 "\"}", msg.gas);
 
   // <escape memo>
   const char *const memo_prefix = ",\"memo\":\"";
   sha256_Update(&ctx, (uint8_t *)memo_prefix, strlen(memo_prefix));
+
   if (msg.has_memo) {
     tendermint_sha256UpdateEscaped(&ctx, msg.memo, strlen(msg.memo));
   }
@@ -93,194 +96,15 @@ bool osmosis_signTxInit(const HDNode *_node, const OsmosisSignTx *_msg) {
   return success;
 }
 
-bool osmosis_signTxUpdateMsgLPAdd(const OsmosisMsgLPAdd msglpadd) {
-  char buffer[96 + 1];
-
-  bool success = true;
-
-  const char *const prelude =
-      "{\"type\":\"osmosis/gamm/join-pool\",\"value\":{";
-  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"pool_id\":\"%s\",", msglpadd.pool_id);
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"sender\":");
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
-                                 msglpadd.sender);
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"share_out_amount\":");
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"%" PRIu64 "\",", msglpadd.share_out_amount);
-
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"token_in_maxs\":[{");
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"amount\":\"%" PRIu64 "\",",
-                                 msglpadd.amount_in_max_a);
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"denom\":\"%s\"},", msglpadd.denom_in_max_a);
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"amount\":\"%" PRIu64 "\",",
-                                 msglpadd.amount_in_max_b);
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"denom\":\"%s\"},", msglpadd.denom_in_max_b);
-
-  msgs_remaining--;
-  return success;
-}
-
-bool osmosis_signTxUpdateMsgLPRemove(const OsmosisMsgLPRemove msglpremove) {
-  char buffer[96 + 1];
-
-  bool success = true;
-
-  const char *const prelude =
-      "{\"type\":\"osmosis/gamm/exit-pool\",\"value\":{";
-  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"pool_id\":");
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
-                                 msglpremove.pool_id);
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"sender\":");
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
-                                 msglpremove.sender);
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"share_out_amount\":");
-
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%" PRIu64 "\",",
-                          msglpremove.share_out_amount);
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"token_out_mins\":[{");
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"amount\":\"%" PRIu64 "\",",
-                                 msglpremove.amount_out_min_a);
-
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"denom\":\"%s\"},",
-                          msglpremove.denom_out_min_a);
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"amount\":\"%" PRIu64 "\",",
-                                 msglpremove.amount_out_min_b);
-
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"denom\":\"%s\"},",
-                          msglpremove.denom_out_min_b);
-
-  msgs_remaining--;
-  return success;
-}
-
-bool osmosis_signTxUpdateMsgLPStake(const OsmosisMsgLPStake msgstake) {
-  char buffer[96 + 1];
-
-  bool success = true;
-
-  const char *const prelude =
-      "{\"type\":\"osmosis/lockup/lock-tokens\",\"value\":{";
-  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"coins\":[{");
-
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                          "\"amount\":\"%" PRIu64 "\",\"denom\":\"%s\"}],",
-                          msgstake.amount, msgstake.denom);
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"duration\":");
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"%" PRIu64 "\",", msgstake.duration);
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"owner\":");
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
-                                 msgstake.owner);
-
-  msgs_remaining--;
-  return success;
-}
-
-bool osmosis_signTxUpdateMsgLPUnstake(const OsmosisMsgLPUnstake msgunstake) {
-  char buffer[96 + 1];
-
-  bool success = true;
-
-  const char *const prelude =
-      "{\"type\":\"osmosis/lockup/begin-unlock-period-lock\",\"value\":";
-  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "{\"ID\":\"%s\",", msgunstake.id);
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"owner\":\"%s\"}}", msgunstake.owner);
-
-  msgs_remaining--;
-  return success;
-}
-
-bool osmosis_signTxUpdateMsgSwap(const OsmosisMsgSwap msgswap) {
-  char buffer[96 + 1];
-
-  bool success = true;
-
-  const char *const prelude =
-      "{\"type\":\"osmosis/gamm/swap-exact-amount-in\",\"value\":{";
-  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"routes\":[{");
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"pool_id\":%s\",", msgswap.pool_id);
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"token_out_denom\":%s\"}],",
-                                 msgswap.token_out_denom);
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"sender\":");
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
-                                 msgswap.sender);
-
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"token_in\":{");
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                          "\"amount\":%" PRIu64 "\",", msgswap.token_in_amount);
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"denom\":\"%s\"},", msgswap.token_in_denom);
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"token_out_min_amount\":\"%" PRIu64 "\"}}",
-                                 msgswap.token_out_min_amount);
-
-  msgs_remaining--;
-  return success;
-}
-
-bool osmosis_signTxUpdateMsgSend(const uint64_t amount, const char *to_address,
-                                 const char *denom) {
+bool osmosis_signTxUpdateMsgSend(const char *amount, const char *to_address) {
   char mainnetp[] = "osmo";
   char testnetp[] = "tosmo";
   char *pfix;
   char buffer[64 + 1];
 
   size_t decoded_len;
-  char hrp[45];
-  uint8_t decoded[38];
+  char hrp[45] = {0};
+  uint8_t decoded[38] = {0};
   if (!bech32_decode(hrp, decoded, &decoded_len, to_address)) {
     return false;
   }
@@ -302,10 +126,9 @@ bool osmosis_signTxUpdateMsgSend(const uint64_t amount, const char *to_address,
   sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
 
   // 21 + ^20 + 19 = ^60
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"amount\":[{\"amount\":\"%" PRIu64
-                                 "\",\"denom\":\"%s\"}]",
-                                 amount, denom);
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      "\"amount\":[{\"amount\":\"%s\",\"denom\":\"uosmo\"}]", amount);
 
   // 17 + 45 + 1 = 63
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
@@ -319,7 +142,7 @@ bool osmosis_signTxUpdateMsgSend(const uint64_t amount, const char *to_address,
   return success;
 }
 
-bool osmosis_signTxUpdateMsgDelegate(const uint64_t amount,
+bool osmosis_signTxUpdateMsgDelegate(const char *amount,
                                      const char *delegator_address,
                                      const char *validator_address,
                                      const char *denom) {
@@ -327,17 +150,17 @@ bool osmosis_signTxUpdateMsgDelegate(const uint64_t amount,
   char testnetp[] = "tosmo";
   char *pfix;
 
-  char buffer[128];
+  char buffer[128] = {0};
   size_t decoded_len;
-  char hrp[45];
-  uint8_t decoded[38];
+  char hrp[45] = {0};
+  uint8_t decoded[38] = {0};
 
   if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
     return false;
   }
 
   // ^14 + 39 + 1 = ^54
-  char from_address[54];
+  char from_address[54] = {0};
 
   pfix = mainnetp;
   if (testnet) {
@@ -356,10 +179,9 @@ bool osmosis_signTxUpdateMsgDelegate(const uint64_t amount,
                           "{\"type\":\"cosmos-sdk/MsgDelegate\",\"value\":{");
 
   // 20 + ^20 + 11 + ^9 + 2 = ^62
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"amount\":{\"amount\":\"%" PRIu64
-                                 "\",\"denom\":\"%s\"}",
-                                 amount, denom);
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      "\"amount\":{\"amount\":\"%s\",\"denom\":\"%s\"}", amount, denom);
 
   // 22
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
@@ -381,7 +203,7 @@ bool osmosis_signTxUpdateMsgDelegate(const uint64_t amount,
   return success;
 }
 
-bool osmosis_signTxUpdateMsgUndelegate(const uint64_t amount,
+bool osmosis_signTxUpdateMsgUndelegate(const char *amount,
                                        const char *delegator_address,
                                        const char *validator_address,
                                        const char *denom) {
@@ -389,17 +211,17 @@ bool osmosis_signTxUpdateMsgUndelegate(const uint64_t amount,
   char testnetp[] = "tosmo";
   char *pfix;
 
-  char buffer[128];
+  char buffer[128] = {0};
   size_t decoded_len;
-  char hrp[45];
-  uint8_t decoded[38];
+  char hrp[45] = {0};
+  uint8_t decoded[38] = {0};
 
   if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
     return false;
   }
 
   // ^14 + 39 + 1 = ^54
-  char from_address[54];
+  char from_address[54] = {0};
 
   pfix = mainnetp;
   if (testnet) {
@@ -417,10 +239,9 @@ bool osmosis_signTxUpdateMsgUndelegate(const uint64_t amount,
                           "{\"type\":\"cosmos-sdk/MsgUndelegate\",\"value\":{");
 
   // 20 + ^20 + 11 + ^9 + 2 = ^62
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"amount\":{\"amount\":\"%" PRIu64
-                                 "\",\"denom\":\"%s\"}",
-                                 amount, denom);
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      "\"amount\":{\"amount\":\"%s\",\"denom\":\"%s\"}", amount, denom);
 
   // 22
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
@@ -442,7 +263,7 @@ bool osmosis_signTxUpdateMsgUndelegate(const uint64_t amount,
   return success;
 }
 
-bool osmosis_signTxUpdateMsgRedelegate(const uint64_t amount,
+bool osmosis_signTxUpdateMsgRedelegate(const char *amount,
                                        const char *delegator_address,
                                        const char *validator_src_address,
                                        const char *validator_dst_address,
@@ -451,17 +272,17 @@ bool osmosis_signTxUpdateMsgRedelegate(const uint64_t amount,
   char testnetp[] = "tosmo";
   char *pfix;
 
-  char buffer[128];
+  char buffer[128] = {0};
   size_t decoded_len;
-  char hrp[45];
-  uint8_t decoded[38];
+  char hrp[45] = {0};
+  uint8_t decoded[38] = {0};
 
   if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
     return false;
   }
 
   // ^14 + 39 + 1 = ^54
-  char from_address[54];
+  char from_address[54] = {0};
   pfix = mainnetp;
   if (testnet) {
     pfix = testnetp;
@@ -478,10 +299,9 @@ bool osmosis_signTxUpdateMsgRedelegate(const uint64_t amount,
       "{\"type\":\"cosmos-sdk/MsgBeginRedelegate\",\"value\"");
 
   // 22 + ^20 + 11 + ^9 + 2 = ^64
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 ":{\"amount\":{\"amount\":\"%" PRIu64
-                                 "\",\"denom\":\"%s\"}",
-                                 amount, denom);
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      ":{\"amount\":{\"amount\":\"%s\",\"denom\":\"%s\"}", amount, denom);
 
   // 22
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
@@ -511,18 +331,160 @@ bool osmosis_signTxUpdateMsgRedelegate(const uint64_t amount,
   return success;
 }
 
-bool osmosis_signTxUpdateMsgRewards(const uint64_t *amount,
-                                    const char *delegator_address,
-                                    const char *validator_address,
-                                    const char *denom) {
+bool osmosis_signTxUpdateMsgLPAdd(const uint64_t pool_id, const char *sender,
+                                  const char *share_out_amount,
+                                  const char *amount_in_max_a,
+                                  const char *denom_in_max_a,
+                                  const char *amount_in_max_b,
+                                  const char *denom_in_max_b) {
+  char buffer[96 + 1] = {0};
+
+  bool success = true;
+
+  const char *const prelude =
+      "{\"type\":\"osmosis/gamm/join-pool\",\"value\":{";
+  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"pool_id\":\"%" PRIu64 "\",", pool_id);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"sender\":");
+
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",", sender);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"share_out_amount\":");
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
+                                 share_out_amount);
+
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"token_in_maxs\":[{");
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"amount\":\"%s\",", amount_in_max_a);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"denom\":\"%s\"},", denom_in_max_a);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "{\"amount\":\"%s\",", amount_in_max_b);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"denom\":\"%s\"}]}}", denom_in_max_b);
+
+  msgs_remaining--;
+  return success;
+}
+
+bool osmosis_signTxUpdateMsgLPRemove(const uint64_t pool_id, const char *sender,
+                                     const char *share_out_amount,
+                                     const char *amount_out_min_a,
+                                     const char *denom_out_min_a,
+                                     const char *amount_out_min_b,
+                                     const char *denom_out_min_b) {
+  char buffer[96 + 1] = {0};
+
+  bool success = true;
+
+  const char *const prelude =
+      "{\"type\":\"osmosis/gamm/exit-pool\",\"value\":{";
+  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"pool_id\":\"%" PRIu64 "\",", pool_id);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"sender\":");
+
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",", sender);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"share_out_amount\":");
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
+                                 share_out_amount);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"token_out_mins\":[{");
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"amount\":\"%s\",", amount_out_min_a);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"denom\":\"%s\"},", denom_out_min_a);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "{\"amount\":\"%s\",", amount_out_min_b);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"denom\":\"%s\"}]}}", denom_out_min_b);
+
+  msgs_remaining--;
+  return success;
+}
+
+bool osmosis_signTxUpdateMsgLPStake(const char *amount, const char *denom,
+                                    const uint64_t duration,
+                                    const char *owner) {
+  char buffer[96 + 1] = {0};
+
+  bool success = true;
+
+  const char *const prelude =
+      "{\"type\":\"osmosis/lockup/lock-tokens\",\"value\":{";
+  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"coins\":[{");
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"amount\":\"%s\",\"denom\":\"%s\"}],",
+                                 amount, denom);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"duration\":");
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"%" PRIu64 "\",", duration);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"owner\":");
+
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",", owner);
+
+  msgs_remaining--;
+  return success;
+}
+
+bool osmosis_signTxUpdateMsgLPUnstake(const char *id, const char *owner) {
+  char buffer[96 + 1];
+
+  bool success = true;
+
+  const char *const prelude =
+      "{\"type\":\"osmosis/lockup/begin-unlock-period-lock\",\"value\":";
+  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "{\"ID\":\"%s\",", id);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"owner\":\"%s\"}}", owner);
+
+  msgs_remaining--;
+  return success;
+}
+
+bool osmosis_signTxUpdateMsgRewards(const char *delegator_address,
+                                    const char *validator_address) {
   char mainnetp[] = "osmo";
   char testnetp[] = "tosmo";
   char *pfix;
 
-  char buffer[128];
+  char buffer[128] = {0};
   size_t decoded_len;
-  char hrp[45];
-  uint8_t decoded[38];
+  char hrp[45] = {0};
+  uint8_t decoded[38] = {0};
 
   if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
     return false;
@@ -534,7 +496,7 @@ bool osmosis_signTxUpdateMsgRewards(const uint64_t *amount,
   }
 
   // ^14 + 39 + 1 = ^54
-  char from_address[54];
+  char from_address[54] = {0};
   if (!tendermint_getAddress(&node, pfix, from_address)) {
     return false;
   }
@@ -545,14 +507,6 @@ bool osmosis_signTxUpdateMsgRewards(const uint64_t *amount,
   success &= tendermint_snprintf(
       &ctx, buffer, sizeof(buffer),
       "{\"type\":\"cosmos-sdk/MsgWithdrawDelegationReward\",\"value\":{");
-
-  // 20 + ^20 + 11 + ^9 + 3 = ^65
-  if (amount != NULL) {
-    success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                   "\"amount\":{\"amount\":\"%" PRIu64
-                                   "\",\"denom\":\"%s\"},",
-                                   *amount, denom);
-  }
 
   // 21
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
@@ -574,19 +528,21 @@ bool osmosis_signTxUpdateMsgRewards(const uint64_t *amount,
   return success;
 }
 
-bool osmosis_signTxUpdateMsgIBCTransfer(
-    const uint64_t amount, const char *sender, const char *receiver,
-    const char *source_channel, const char *source_port,
-    const char *revision_number, const char *revision_height,
-    const char *denom) {
+bool osmosis_signTxUpdateMsgIBCTransfer(const char *amount, const char *sender,
+                                        const char *receiver,
+                                        const char *source_channel,
+                                        const char *source_port,
+                                        const char *revision_number,
+                                        const char *revision_height,
+                                        const char *denom) {
   char mainnetp[] = "osmo";
   char testnetp[] = "tosmo";
   char *pfix;
 
-  char buffer[128];
+  char buffer[128] = {0};
   size_t decoded_len;
-  char hrp[45];
-  uint8_t decoded[38];
+  char hrp[45] = {0};
+  uint8_t decoded[38] = {0};
 
   if (!bech32_decode(hrp, decoded, &decoded_len, receiver)) {
     return false;
@@ -598,7 +554,7 @@ bool osmosis_signTxUpdateMsgIBCTransfer(
   }
 
   // ^14 + 39 + 1 = ^54
-  char from_address[54];
+  char from_address[54] = {0};
   if (!tendermint_getAddress(&node, pfix, from_address)) {
     return false;
   }
@@ -644,28 +600,76 @@ bool osmosis_signTxUpdateMsgIBCTransfer(
                           "\",\"revision_number\":\"%s\"},", revision_number);
 
   // 20 + ^20 + 11 + ^9 + 3 = ^63
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      "\"token\":{\"amount\":\"%s\",\"denom\":\"%s\"}}}", amount, denom);
+
+  msgs_remaining--;
+  return success;
+}
+
+bool osmosis_signTxUpdateMsgSwap(const uint64_t pool_id,
+                                 const char *token_out_denom,
+                                 const char *sender,
+                                 const char *token_in_amount,
+                                 const char *token_in_denom,
+                                 const char *token_out_min_amount) {
+  char buffer[96 + 1] = {0};
+
+  // TODO: add testnet support
+
+  bool success = true;
+
+  const char *const prelude =
+      "{\"type\":\"osmosis/gamm/swap-exact-amount-in\",\"value\":{";
+  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"routes\":[{");
+
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"token\":{\"amount\":\"%" PRIu64
-                                 "\",\"denom\":\"%s\"}}}",
-                                 amount, denom);
+                                 "\"pool_id\":\"%" PRIu64 "\",", pool_id);
+
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                          "\"token_out_denom\":%s\"}],", token_out_denom);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"sender\":");
+
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",", sender);
+
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"token_in\":{");
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"amount\":\"%s\",", token_in_amount);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"denom\":\"%s\"},", token_in_denom);
+
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"token_out_min_amount\":\"%s\"}}",
+                                 token_out_min_amount);
 
   msgs_remaining--;
   return success;
 }
 
 bool osmosis_signTxFinalize(uint8_t *public_key, uint8_t *signature) {
-  char buffer[64 + 1];
+  char buffer[128] = {0};
 
-  // 16 + ^20 = ^36
+  // 14 + ^20 + 2 = ^36
   if (!tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                           "],\"sequence\":\"%" PRIu64 "\"}", msg.sequence))
+                           "],\"sequence\":\"%" PRIu64 "\"}", msg.sequence)) {
     return false;
+  }
 
   hdnode_fill_public_key(&node);
   memcpy(public_key, node.public_key, 33);
 
   uint8_t hash[SHA256_DIGEST_LENGTH];
   sha256_Final(&ctx, hash);
+  debug_final_hash(hash);
   return ecdsa_sign_digest(&secp256k1, node.private_key, hash, signature, NULL,
                            NULL) == 0;
 }
