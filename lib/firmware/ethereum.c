@@ -698,30 +698,6 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
     data_needs_confirm = false;
   }
 
-  // contract function may be recognized even though contract is not, e.g., gnosis safe execTransaction
-  if (msg->to.size && ethereum_cFuncHandled(msg)) {
-    // confirm contract address
-    char addr[43] = "0x";
-    ethereum_address_checksum(msg->to.bytes, addr + 2, false, chain_id);
-
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "contract address", "%s", addr)) {
-      fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                      "Signing cancelled by user");
-      ethereum_signing_abort();
-      return;
-    }
-
-    // confirm contract data
-    if (!ethereum_cFuncConfirmed(data_total, msg)) {
-      fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                      "Signing cancelled by user");
-      ethereum_signing_abort();
-      return;
-    }
-    needs_confirm = false;
-    data_needs_confirm = false;
-  }
-
   // detect ERC-20 token
   if (data_total == 68 && ethereum_isStandardERC20Transfer(msg)) {
     token = tokenByChainAddress(chain_id, msg->to.bytes);
