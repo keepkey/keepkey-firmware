@@ -43,7 +43,7 @@ OsmosisMsgLPRemove.denom_out_min_a                      max_size:69
 OsmosisMsgLPRemove.denom_out_min_b                      max_size:69
 OsmosisMsgLPRemove.amount_out_min_a                     max_size:33
 OsmosisMsgLPRemove.amount_out_min_b                     max_size:33
-OsmosisMsgLPRemove.share_out_amount                     max_size:33
+OsmosisMsgLPRemove.share_in_amount                     max_size:33
 
 OsmosisMsgLPStake.owner                                 max_size:53
 OsmosisMsgLPStake.denom                                 max_size:69
