@@ -400,8 +400,8 @@ bool osmosis_signTxUpdateMsgLPRemove(const uint64_t pool_id, const char *sender,
   success &=
       tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",", sender);
 
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"share_out_amount\":");
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"share_in_amount\":");
 
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",",
                                  share_out_amount);
@@ -420,56 +420,6 @@ bool osmosis_signTxUpdateMsgLPRemove(const uint64_t pool_id, const char *sender,
 
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  "\"denom\":\"%s\"}]}}", denom_out_min_b);
-
-  msgs_remaining--;
-  return success;
-}
-
-bool osmosis_signTxUpdateMsgLPStake(const char *amount, const char *denom,
-                                    const uint64_t duration,
-                                    const char *owner) {
-  char buffer[96 + 1] = {0};
-
-  bool success = true;
-
-  const char *const prelude =
-      "{\"type\":\"osmosis/lockup/lock-tokens\",\"value\":{";
-  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"coins\":[{");
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"amount\":\"%s\",\"denom\":\"%s\"}],",
-                                 amount, denom);
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"duration\":");
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"%" PRIu64 "\",", duration);
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"owner\":");
-
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",", owner);
-
-  msgs_remaining--;
-  return success;
-}
-
-bool osmosis_signTxUpdateMsgLPUnstake(const char *id, const char *owner) {
-  char buffer[96 + 1];
-
-  bool success = true;
-
-  const char *const prelude =
-      "{\"type\":\"osmosis/lockup/begin-unlock-period-lock\",\"value\":";
-  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
-
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "{\"ID\":\"%s\",", id);
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"owner\":\"%s\"}}", owner);
 
   msgs_remaining--;
   return success;
@@ -621,28 +571,23 @@ bool osmosis_signTxUpdateMsgSwap(const uint64_t pool_id,
   bool success = true;
 
   const char *const prelude =
-      "{\"type\":\"osmosis/gamm/swap-exact-amount-in\",\"value\":{";
+      "{\"type\":\"osmosis/gamm/swap-exact-amount-in\",";
   sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
 
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"routes\":[{");
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"pool_id\":\"%" PRIu64 "\",", pool_id);
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      "\"value\":{\"routes\":[{\"pool_id\":\"%" PRIu64 "\",", pool_id);
 
   success &=
       tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                          "\"token_out_denom\":%s\"}],", token_out_denom);
-
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"sender\":");
-
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"%s\",", sender);
-
-  success &=
-      tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"token_in\":{");
+                          "\"token_out_denom\":\"%s\"}],", token_out_denom);
 
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"amount\":\"%s\",", token_in_amount);
+                                 "\"sender\":\"%s\",", sender);
+
+  success &=
+      tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                          "\"token_in\":{\"amount\":\"%s\",", token_in_amount);
 
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  "\"denom\":\"%s\"},", token_in_denom);
@@ -669,7 +614,6 @@ bool osmosis_signTxFinalize(uint8_t *public_key, uint8_t *signature) {
 
   uint8_t hash[SHA256_DIGEST_LENGTH];
   sha256_Final(&ctx, hash);
-  debug_final_hash(hash);
   return ecdsa_sign_digest(&secp256k1, node.private_key, hash, signature, NULL,
                            NULL) == 0;
 }

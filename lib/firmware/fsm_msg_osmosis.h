@@ -316,7 +316,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
   } else if (msg->has_lp_remove) {
     /** Confirm required transaction parameters exist */
     if (!msg->lp_remove.has_sender || !msg->lp_remove.has_pool_id ||
-        !msg->lp_remove.has_share_out_amount ||
+        !msg->lp_remove.has_share_in_amount ||
         !msg->lp_remove.has_denom_out_min_a ||
         !msg->lp_remove.has_amount_out_min_a ||
         !msg->lp_remove.has_denom_out_min_b ||
@@ -330,9 +330,9 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
 
     /** Confirm transaction parameters on-screen */
     char share_out_amount_buf[33] = {0};
-    share_out_amount_buf[0] = msg->lp_remove.share_out_amount[0];
+    share_out_amount_buf[0] = msg->lp_remove.share_in_amount[0];
     share_out_amount_buf[1] = '.';
-    strncpy(&share_out_amount_buf[2], &msg->lp_remove.share_out_amount[1],
+    strncpy(&share_out_amount_buf[2], &msg->lp_remove.share_in_amount[1],
             (sizeof(share_out_amount_buf) / sizeof(char)) - 2);
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Remove Liquidity",
@@ -371,91 +371,12 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
 
     if (!osmosis_signTxUpdateMsgLPRemove(
             msg->lp_remove.pool_id, msg->lp_remove.sender,
-            msg->lp_remove.share_out_amount, msg->lp_remove.amount_out_min_a,
+            msg->lp_remove.share_in_amount, msg->lp_remove.amount_out_min_a,
             msg->lp_remove.denom_out_min_a, msg->lp_remove.amount_out_min_b,
             msg->lp_remove.denom_out_min_b)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include rewards message in transaction");
-      layoutHome();
-      return;
-    }
-  } else if (msg->has_lp_stake) {
-    char *lockup_duration;
-    char *supported_lockup_durations[] = {"1 day", "1 week", "2 weeks"};
-    /** Confirm required transaction parameters exist */
-    if (!msg->lp_stake.has_owner || !msg->lp_stake.has_duration ||
-        !msg->lp_stake.has_denom || !msg->lp_stake.has_amount) {
-      osmosis_signAbort();
-      fsm_sendFailure(FailureType_Failure_FirmwareError,
-                      _("Message is missing required parameters"));
-      layoutHome();
-      return;
-    }
-    switch (msg->lp_stake.duration) {
-      case 86400:
-        /* 1 day in seconds */
-        lockup_duration = supported_lockup_durations[0];
-        break;
-      case 604800:
-        /* 1 week in seconds */
-        lockup_duration = supported_lockup_durations[1];
-        break;
-      case 1209600:
-        /* 2 weeks in seconds */
-        lockup_duration = supported_lockup_durations[2];
-        break;
-      default:
-        osmosis_signAbort();
-        fsm_sendFailure(FailureType_Failure_FirmwareError,
-                        _("Unsupported lockup duration"));
-        layoutHome();
-        return;
-    }
-
-    /** Confirm transaction parameters on-screen */
-
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Lock Tokens",
-                 "Lock %s %s for %s?", msg->lp_stake.amount,
-                 msg->lp_stake.denom, lockup_duration)) {
-      osmosis_signAbort();
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-      layoutHome();
-      return;
-    }
-
-    if (!osmosis_signTxUpdateMsgLPStake(
-            msg->lp_stake.amount, msg->lp_stake.denom, msg->lp_stake.duration,
-            msg->lp_stake.owner)) {
-      osmosis_signAbort();
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      "Failed to include lp stake message in transaction");
-      layoutHome();
-      return;
-    }
-  } else if (msg->has_lp_unstake) {
-    /** Confirm required transaction parameters exist */
-    if (!msg->lp_unstake.has_owner || !msg->lp_unstake.has_id) {
-      osmosis_signAbort();
-      fsm_sendFailure(FailureType_Failure_FirmwareError,
-                      _("Message is missing required parameters"));
-      layoutHome();
-      return;
-    }
-
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Unlock Tokens",
-                 "Begin unbonding time for all bonded tokens in all pools?")) {
-      osmosis_signAbort();
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-      layoutHome();
-      return;
-    }
-
-    if (!osmosis_signTxUpdateMsgLPUnstake(msg->lp_unstake.id,
-                                          msg->lp_unstake.owner)) {
-      osmosis_signAbort();
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      "Failed to include lp_unstake message in transaction");
       layoutHome();
       return;
     }

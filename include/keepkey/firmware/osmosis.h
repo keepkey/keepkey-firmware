@@ -10,8 +10,6 @@
 typedef struct _OsmosisSignTx OsmosisSignTx;
 typedef struct _OsmosisMsgLPAdd OsmosisMsgLPAdd;
 typedef struct _OsmosisMsgLPRemove OsmosisMsgLPRemove;
-typedef struct _OsmosisMsgLPStake OsmosisMsgLPStake;
-typedef struct _OsmosisMsgLPUnstake OsmosisMsgLPUnstake;
 typedef struct _OsmosisMsgSwap OsmosisMsgSwap;
 
 void debug_intermediate_hash(void);
@@ -49,11 +47,6 @@ bool osmosis_signTxUpdateMsgLPRemove(const uint64_t pool_id, const char *sender,
                                      const char *denom_out_min_a,
                                      const char *amount_out_min_b,
                                      const char *denom_out_min_b);
-
-bool osmosis_signTxUpdateMsgLPStake(const char *amount, const char *denom,
-                                    const uint64_t duration, const char *owner);
-
-bool osmosis_signTxUpdateMsgLPUnstake(const char *id, const char *owner);
 
 bool osmosis_signTxUpdateMsgRewards(const char *delegator_address,
                                     const char *validator_address);
