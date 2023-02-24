@@ -407,6 +407,8 @@ static const char *account_prefix(const CoinType *coin,
 bool isTendermint(const char *coin_name) {
   if (strcmp(coin_name, "Cosmos") == 0) return true;
 
+  if (strcmp(coin_name, "Osmosis") == 0) return true;
+
   if (strcmp(coin_name, "Binance") == 0) return true;
 
   if (strcmp(coin_name, "THORChain") == 0) return true;

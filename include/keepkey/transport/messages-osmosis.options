@@ -1,0 +1,71 @@
+OsmosisGetAddress.address_n                             max_count:10
+
+OsmosisAddress.address                                  max_size:53
+
+OsmosisSignTx.address_n                                 max_count:10
+OsmosisSignTx.chain_id                                  max_size:32
+OsmosisSignTx.memo                                      max_size:256
+
+OsmosisMsgSend.from_address                             max_size:53
+OsmosisMsgSend.to_address                               max_size:53 
+OsmosisMsgSend.denom                                    max_size:69
+OsmosisMsgSend.amount                                   max_size:33
+
+OsmosisMsgDelegate.delegator_address                    max_size:53
+OsmosisMsgDelegate.validator_address                    max_size:53
+OsmosisMsgDelegate.denom                                max_size:69
+OsmosisMsgDelegate.amount                               max_size:33
+
+OsmosisMsgUndelegate.delegator_address                  max_size:53
+OsmosisMsgUndelegate.validator_address                  max_size:53
+OsmosisMsgUndelegate.denom                              max_size:69
+OsmosisMsgUndelegate.amount                             max_size:33
+
+OsmosisMsgRedelegate.delegator_address                  max_size:53
+OsmosisMsgRedelegate.validator_src_address              max_size:53
+OsmosisMsgRedelegate.validator_dst_address              max_size:53
+OsmosisMsgRedelegate.denom                              max_size:69
+OsmosisMsgRedelegate.amount                             max_size:33
+OsmosisMsgRedelegate.amount                             max_size:33
+
+OsmosisMsgRewards.delegator_address                     max_size:53
+OsmosisMsgRewards.validator_address                     max_size:53
+
+OsmosisMsgLPAdd.sender                                  max_size:53
+OsmosisMsgLPAdd.denom_in_max_a                          max_size:69
+OsmosisMsgLPAdd.denom_in_max_b                          max_size:69
+OsmosisMsgLPAdd.amount_in_max_a                         max_size:33
+OsmosisMsgLPAdd.amount_in_max_b                         max_size:33
+OsmosisMsgLPAdd.share_out_amount                        max_size:33
+
+OsmosisMsgLPRemove.sender                               max_size:53
+OsmosisMsgLPRemove.denom_out_min_a                      max_size:69
+OsmosisMsgLPRemove.denom_out_min_b                      max_size:69
+OsmosisMsgLPRemove.amount_out_min_a                     max_size:33
+OsmosisMsgLPRemove.amount_out_min_b                     max_size:33
+OsmosisMsgLPRemove.share_in_amount                     max_size:33
+
+OsmosisMsgLPStake.owner                                 max_size:53
+OsmosisMsgLPStake.denom                                 max_size:69
+OsmosisMsgLPStake.amount                                max_size:33
+
+OsmosisMsgLPUnstake.owner                               max_size:53
+OsmosisMsgLPUnstake.id                                  max_size:129
+
+OsmosisMsgIBCTransfer.sender                            max_size:53
+OsmosisMsgIBCTransfer.receiver                          max_size:53
+OsmosisMsgIBCTransfer.source_channel                    max_size:32
+OsmosisMsgIBCTransfer.source_port                       max_size:32
+OsmosisMsgIBCTransfer.revision_height                   max_size:16
+OsmosisMsgIBCTransfer.revision_number                   max_size:9
+OsmosisMsgIBCTransfer.denom                             max_size:69
+OsmosisMsgIBCTransfer.amount                            max_size:33
+
+OsmosisMsgSwap.sender                                   max_size:53
+OsmosisMsgSwap.token_out_denom                          max_size:69
+OsmosisMsgSwap.token_in_denom                           max_size:69
+OsmosisMsgSwap.token_in_amount                          max_size:33
+OsmosisMsgSwap.token_out_min_amount                     max_size:33
+
+OsmosisSignedTx.public_key                              max_size:33
+OsmosisSignedTx.signature                               max_size:64

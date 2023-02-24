@@ -13,14 +13,12 @@ bool tendermint_signTxInit(const HDNode *_node, const void *_msg,
                            const size_t msgsize, const char *denom);
 bool tendermint_signTxUpdateMsgSend(const uint64_t amount,
                                     const char *to_address,
-                                    const char *chainstr, 
-                                    const char *denom,
+                                    const char *chainstr, const char *denom,
                                     const char *msgTypePrefix);
 bool tendermint_signTxUpdateMsgDelegate(const uint64_t amount,
                                         const char *delegator_address,
                                         const char *validator_address,
-                                        const char *chainstr, 
-                                        const char *denom,
+                                        const char *chainstr, const char *denom,
                                         const char *msgTypePrefix);
 bool tendermint_signTxUpdateMsgUndelegate(const uint64_t amount,
                                           const char *delegator_address,
@@ -35,8 +33,7 @@ bool tendermint_signTxUpdateMsgRedelegate(
 bool tendermint_signTxUpdateMsgRewards(const uint64_t *amount,
                                        const char *delegator_address,
                                        const char *validator_address,
-                                       const char *chainstr, 
-                                       const char *denom,
+                                       const char *chainstr, const char *denom,
                                        const char *msgTypePrefix);
 bool tendermint_signTxUpdateMsgIBCTransfer(
     const uint64_t amount, const char *sender, const char *receiver,

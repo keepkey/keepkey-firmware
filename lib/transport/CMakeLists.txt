@@ -10,6 +10,7 @@ set(protoc_pb_sources
     ${DEVICE_PROTOCOL}/messages-nano.proto
     ${DEVICE_PROTOCOL}/messages-binance.proto
     ${DEVICE_PROTOCOL}/messages-cosmos.proto
+    ${DEVICE_PROTOCOL}/messages-osmosis.proto
     ${DEVICE_PROTOCOL}/messages-ripple.proto
     ${DEVICE_PROTOCOL}/messages-tendermint.proto
     ${DEVICE_PROTOCOL}/messages-thorchain.proto
@@ -22,6 +23,7 @@ set(protoc_pb_options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-nano.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-binance.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-cosmos.options
+    ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-osmosis.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-ripple.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-tendermint.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-thorchain.options
@@ -34,6 +36,7 @@ set(protoc_c_sources
     ${CMAKE_BINARY_DIR}/lib/transport/messages-nano.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-binance.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-cosmos.pb.c
+    ${CMAKE_BINARY_DIR}/lib/transport/messages-osmosis.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-ripple.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-tendermint.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-thorchain.pb.c
@@ -46,6 +49,7 @@ set(protoc_c_headers
     ${CMAKE_BINARY_DIR}/include/messages-nano.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-binance.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-cosmos.pb.h
+    ${CMAKE_BINARY_DIR}/include/messages-osmosis.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-ripple.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-tendermint.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-thorchain.pb.h
@@ -58,6 +62,7 @@ set(protoc_pb_sources_moved
     ${CMAKE_BINARY_DIR}/lib/transport/messages-nano.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-binance.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-cosmos.proto
+    ${CMAKE_BINARY_DIR}/lib/transport/messages-osmosis.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-ripple.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-tendermint.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-thorchain.proto
@@ -106,6 +111,10 @@ add_custom_command(
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
       "--nanopb_out=-f messages-cosmos.options:." messages-cosmos.proto
+  COMMAND
+    ${PROTOC_BINARY} -I. -I/usr/include
+      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      "--nanopb_out=-f messages-osmosis.options:." messages-osmosis.proto    
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb

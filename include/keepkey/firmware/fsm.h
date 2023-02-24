@@ -106,6 +106,10 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg);
 void fsm_msgCosmosSignTx(const CosmosSignTx *msg);
 void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg);
 
+void fsm_msgOsmosisGetAddress(const OsmosisGetAddress *msg);
+void fsm_msgOsmosisSignTx(const OsmosisSignTx *msg);
+void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg);
+
 void fsm_msgThorchainGetAddress(const ThorchainGetAddress *msg);
 void fsm_msgThorchainSignTx(const ThorchainSignTx *msg);
 void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg);

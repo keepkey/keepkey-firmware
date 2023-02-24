@@ -50,6 +50,10 @@
     MSG_IN(MessageType_MessageType_CosmosSignTx,                    CosmosSignTx,                fsm_msgCosmosSignTx)
     MSG_IN(MessageType_MessageType_CosmosMsgAck,                    CosmosMsgAck,                fsm_msgCosmosMsgAck)
 
+    MSG_IN(MessageType_MessageType_OsmosisGetAddress,               OsmosisGetAddress,           fsm_msgOsmosisGetAddress)
+    MSG_IN(MessageType_MessageType_OsmosisSignTx,                   OsmosisSignTx,               fsm_msgOsmosisSignTx)
+    MSG_IN(MessageType_MessageType_OsmosisMsgAck,                   OsmosisMsgAck,               fsm_msgOsmosisMsgAck)
+
     MSG_IN(MessageType_MessageType_BinanceGetAddress,               BinanceGetAddress,           fsm_msgBinanceGetAddress)
     MSG_IN(MessageType_MessageType_BinanceSignTx,                   BinanceSignTx,               fsm_msgBinanceSignTx)
     MSG_IN(MessageType_MessageType_BinanceTransferMsg,              BinanceTransferMsg,          fsm_msgBinanceTransferMsg)
@@ -99,6 +103,10 @@
     MSG_OUT(MessageType_MessageType_CosmosAddress,                  CosmosAddress,               NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_CosmosMsgRequest,               CosmosMsgRequest,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_CosmosSignedTx,                 CosmosSignedTx,              NO_PROCESS_FUNC)
+
+    MSG_OUT(MessageType_MessageType_OsmosisAddress,                 OsmosisAddress,              NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_OsmosisMsgRequest,              OsmosisMsgRequest,           NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_OsmosisSignedTx,                OsmosisSignedTx,             NO_PROCESS_FUNC)
 
     MSG_OUT(MessageType_MessageType_BinanceAddress,                 BinanceAddress,              NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_BinancePublicKey,               BinancePublicKey,            NO_PROCESS_FUNC)
