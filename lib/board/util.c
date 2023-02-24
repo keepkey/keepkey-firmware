@@ -102,3 +102,35 @@ bool is_valid_ascii(const uint8_t *data, uint32_t size) {
   }
   return true;
 }
+
+/* convert number in base units to specified decimal precision */
+int base_to_precision(uint8_t *dest, const uint8_t *value,
+                      const uint8_t dest_len, const uint8_t value_len,
+                      const uint8_t precision) {
+  if (!(dest && value)) {
+    // invalid pointer
+    return -1;
+  }
+  if (value_len + 1 > dest_len) {
+    // value too large for output buffer
+    return -1;
+  }
+  memset(dest, '0', dest_len);
+  uint8_t leading_digits =
+      ((value_len - precision) > 0) ? (value_len - precision) : 0;
+
+  if (!leading_digits) {
+    memcpy(dest, "0.", 2);
+    uint8_t offset =
+        2 + (((precision - value_len) > 0) ? (precision - value_len) : 0);
+    strlcpy((char *)&dest[offset], (char *)value, value_len);
+  } else {
+    uint8_t copy_len = MIN((value_len - leading_digits), precision);
+    memcpy(dest, value, leading_digits);
+    dest[leading_digits] = '.';
+    strlcpy((char *)&dest[leading_digits + 1], (char *)&value[leading_digits],
+            copy_len);
+  }
+  dest[dest_len] = '\0';
+  return 0;
+}
