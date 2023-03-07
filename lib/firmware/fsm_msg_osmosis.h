@@ -576,9 +576,17 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     /** Confirm transaction parameters on-screen */
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "IBC Transfer",
-                 "Transfer %.6f %s to %s?",
+                 "Transfer %.6f %s?",
                  atof(msg->ibc_transfer.amount) / pow(10, OSMOSIS_PRECISION),
-                 msg->ibc_transfer.denom, msg->ibc_transfer.receiver)) {
+                 msg->ibc_transfer.denom)) {
+      osmosis_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Dest. Addr",
+                 "%s", msg->ibc_transfer.receiver)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
