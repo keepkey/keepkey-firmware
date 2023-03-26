@@ -343,12 +343,27 @@ void ethereumFormatAmount(const bignum256 *amnt, const TokenType *token,
         case 4:
           suffix = " tRIN";
           break;  // Ethereum Testnet Rinkeby
+        case 5:
+          suffix = " GOR";
+          break;  // Goerli
+        case 7:
+          suffix = " TCH";
+          break;  // ThunderCore
         case 8:
           suffix = " UBQ";
           break;  // UBIQ
+        case 14:
+          suffix = " FLR";
+          break;  // Flare
         case 20:
           suffix = " EOSC";
           break;  // EOS Classic
+        case 25:
+          suffix = " CRO";
+          break;  // Crypto.com
+        case 27:
+          suffix = " SHIB";
+          break;  // Shiba Inu
         case 28:
           suffix = " ETSC";
           break;  // Ethereum Social
@@ -361,6 +376,27 @@ void ethereumFormatAmount(const bignum256 *amnt, const TokenType *token,
         case 42:
           suffix = " tKOV";
           break;  // Ethereum Testnet Kovan
+        case 52:
+          suffix = " CET";
+          break;  // Crypto.com Chain
+        case 55:
+          suffix = " ZYX";
+          break;  // Zilliqa
+        case 56:
+          suffix = " BNB";
+          break;  // Binance Chain
+        case 57:
+          suffix = " SYS";
+          break;  // Syscoin
+        case 58:
+          suffix = " ONG";
+          break;  // Ontology
+        case 59:
+          suffix = " EOS";
+          break;  // EOS
+        case 60:
+          suffix = " GO";
+          break;  // GoChain
         case 61:
           suffix = " ETC";
           break;  // Ethereum Classic
@@ -370,12 +406,90 @@ void ethereumFormatAmount(const bignum256 *amnt, const TokenType *token,
         case 64:
           suffix = " ELLA";
           break;  // Ellaism
+        case 69:
+          suffix = " KOR";
+          break;  // KORE
+        case 74:
+          suffix = " EIDI";
+          break;  // Eidoo
+        case 76:
+          suffix = " MIX";
+          break;  // Mix
+        case 77:
+          suffix = " SPOA";
+          break;  // Spartan Protocol
+        case 87:
+          suffix = " SNT";
+          break;  // Status Network Token
+        case 88:
+          suffix = " TOMO";
+          break;  // TomoChain
+        case 96:
+          suffix = " NEXT";
+          break;  // Near
+        case 99:
+          suffix = " POA";
+          break;  // POA Network
+        case 98:
+          suffix = " xDAI";
+          break;  // xDAI Chain
+        case 100:
+          suffix = " xDAI";
+          break;  // xDAI Chain
+        case 111:
+          suffix = " ETL";
+          break;  // Ethereum Light
+        case 122:
+          suffix = " FUSE";
+          break;  // Fuse
+        case 137:
+          suffix = " MATIC";
+          break;  // Matic
+        case 142:
+          suffix = " BTT";
+          break;  // BitTorrent
+        case 369:
+          suffix = " PLS";
+          break;  // Polygon
+        case 787:
+          suffix = " ACA";
+          break;  // Acala
         case 820:
           suffix = " CLO";
           break;  // Callisto
+        case 888:
+          suffix = " WAN";
+          break;  // Wanchain
+        case 999:
+          suffix = " L99";
+          break;  // Loom Network
         case 1987:
           suffix = " EGEM";
           break;  // EtherGem
+        case 5315:
+          suffix = " UZMI";
+          break;  // Unstoppable Domains
+        case 9001:
+          suffix = " EVMOS";
+          break;  // EVM Oasis
+        case 10000:
+          suffix = " BCH";
+          break;  // Bitcoin Cash
+        case 11111:
+          suffix = " WGM";
+          break;  // Waves Go
+        case 42161:
+          suffix = " ARB";
+          break;  // Arbitrum
+        case 42220:
+          suffix = " CELO";
+          break;  // Celo
+        case 43110:
+          suffix = " ATH";
+          break;  // Atheios
+        case 43114:
+          suffix = " AVAX";
+          break;  // Avalanche
         default:
           suffix = " UNKN";
           break;  // unknown chain
