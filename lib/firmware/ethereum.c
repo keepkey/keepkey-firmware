@@ -337,15 +337,12 @@ void ethereumFormatAmount(const bignum256 *amnt, const TokenType *token,
         case 2:
           suffix = " EXP";
           break;  // Expanse
-        case 3:
-          suffix = " tROP";
-          break;  // Ethereum Testnet Ropsten
-        case 4:
-          suffix = " tRIN";
-          break;  // Ethereum Testnet Rinkeby
         case 8:
           suffix = " UBQ";
           break;  // UBIQ
+        case 10:
+          suffix = " OP";
+          break;  // Optimism
         case 20:
           suffix = " EOSC";
           break;  // EOS Classic
@@ -354,31 +351,25 @@ void ethereumFormatAmount(const bignum256 *amnt, const TokenType *token,
           break;  // Ethereum Social
         case 30:
           suffix = " RBTC";
-          break;  // RSK
-        case 31:
-          suffix = " tRBTC";
-          break;  // RSK Testnet
-        case 42:
-          suffix = " tKOV";
-          break;  // Ethereum Testnet Kovan
+          break;  // Rootstock
+        case 40:
+          suffix = " TLOS";
+          break;  // Telos
+        case 56: 
+          suffix = " BNB";
+          break;  // BNB Chain
         case 61:
           suffix = " ETC";
           break;  // Ethereum Classic
-        case 62:
-          suffix = " tETC";
-          break;  // Ethereum Classic Testnet
         case 64:
           suffix = " ELLA";
           break;  // Ellaism
-        case 820:
-          suffix = " CLO";
-          break;  // Callisto
-        case 1987:
-          suffix = " EGEM";
-          break;  // EtherGem
-        default:
-          suffix = " UNKN";
-          break;  // unknown chain
+        case 100:
+          suffix = " xDAI";
+          break;  //  Gnosis Chain
+        case 137:
+          suffix = " MATIC";
+          break;  //  Polygon Mainnet
       }
     }
   }
