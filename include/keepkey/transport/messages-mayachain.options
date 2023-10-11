@@ -1,0 +1,17 @@
+MayachainGetAddress.address_n                             max_count:10
+
+MayachainAddress.address                                  max_size:46
+
+MayachainSignTx.address_n                                 max_count:10
+MayachainSignTx.chain_id                                  max_size:32
+MayachainSignTx.memo                                      max_size:256
+
+MayachainMsgSend.from_address                             max_size:46
+MayachainMsgSend.to_address                               max_size:46
+
+MayachainMsgDeposit.asset                                 max_size:20
+MayachainMsgDeposit.memo                                  max_size:256
+MayachainMsgDeposit.signer                                max_size:46
+
+MayachainSignedTx.public_key                              max_size:33
+MayachainSignedTx.signature                               max_size:64
