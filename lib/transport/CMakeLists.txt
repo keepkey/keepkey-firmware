@@ -135,7 +135,7 @@ add_custom_command(
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f messages-thorchain.options:." messages-mayachain.proto
+      "--nanopb_out=-f messages-mayachain.options:." messages-mayachain.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
