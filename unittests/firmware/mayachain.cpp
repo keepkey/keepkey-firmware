@@ -48,7 +48,7 @@ TEST(Mayachain, MayachainSignTx) {
       true, 0,              // account_number
       true, "mayachain",  // chain_id
       true, 5000,           // fee_amount
-      true, 200000,         // gas
+      true, 100000000,         // gas
       true, "",             // memo
       true, 0,              // sequence
       true, 1               // msg_count
