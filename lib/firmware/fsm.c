@@ -284,3 +284,4 @@ void fsm_msgClearSession(ClearSession *msg) {
 #include "fsm_msg_ripple.h"
 #include "fsm_msg_tendermint.h"
 #include "fsm_msg_thorchain.h"
+#include "fsm_msg_mayachain.h"
