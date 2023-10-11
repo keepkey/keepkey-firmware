@@ -173,7 +173,12 @@ TEST(Coins, BIP32AccountName) {
                  {0x80000000 | 44, 0x80000000 | 931, 0x80000000 | 69, 0, 0},
                  5,
                  true,
-                 "THORChain Account #69"}};
+                 "THORChain Account #69"},
+                 {"MAYAChain",
+                 {0x80000000 | 44, 0x80000000 | 931, 0x80000000 | 69, 0, 0},
+                 5,
+                 true,
+                 "MAYAChain Account #69"}};
 
   for (const auto &vec : vector) {
     char node_str[NODE_STRING_LENGTH];
