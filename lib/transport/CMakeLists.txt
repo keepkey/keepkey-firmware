@@ -143,6 +143,10 @@ add_custom_command(
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      "--nanopb_out=-f messages-kujira.options:." messages-kujira.proto
+  COMMAND
+    ${PROTOC_BINARY} -I. -I/usr/include
+      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
       "--nanopb_out=-f messages.options:." messages.proto
   COMMAND
     ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/lib/transport/*.pb.h
