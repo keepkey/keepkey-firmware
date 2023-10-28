@@ -118,6 +118,10 @@ void fsm_msgMayachainGetAddress(const MayachainGetAddress *msg);
 void fsm_msgMayachainSignTx(const MayachainSignTx *msg);
 void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg);
 
+void fsm_msgKujiraGetAddress(const KujiraGetAddress *msg);
+void fsm_msgKujiraSignTx(const KujiraSignTx *msg);
+void fsm_msgKujiraMsgAck(const KujiraMsgAck *msg);
+
 #if DEBUG_LINK
 // void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
 void fsm_msgDebugLinkGetState(DebugLinkGetState *msg);
