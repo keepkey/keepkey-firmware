@@ -121,9 +121,10 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg) {
   CHECK_PARAM(mayachain_signingIsInited(), "Signing not in progress");
   if (msg->has_send && msg->send.has_to_address && msg->send.has_amount) {
     // pass
-  } else if (msg->has_deposit && msg->deposit.has_asset && msg->deposit.has_amount &&
-             msg->deposit.has_memo && msg->deposit.has_signer) {
-               // pass
+  } else if (msg->has_deposit && msg->deposit.has_asset &&
+             msg->deposit.has_amount && msg->deposit.has_memo &&
+             msg->deposit.has_signer) {
+    // pass
   } else {
     mayachain_signAbort();
     fsm_sendFailure(FailureType_Failure_FirmwareError,
@@ -144,12 +145,12 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg) {
       case OutputAddressType_TRANSFER:
       default: {
         char amount_str[32];
-        bn_format_uint64(msg->send.amount, NULL, " CACAO", 8, 0, false, amount_str,
-                         sizeof(amount_str));
+        bn_format_uint64(msg->send.amount, NULL, " cacao", 10, 0, false,
+                         amount_str, sizeof(amount_str));
         if (!confirm_transaction_output(
                 ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
                 msg->send.to_address)) {
-          Mayachain_signAbort();
+          mayachain_signAbort();
           fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
           layoutHome();
           return;
@@ -158,7 +159,8 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg) {
         break;
       }
     }
-    if (!mayachain_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address)) {
+    if (!mayachain_signTxUpdateMsgSend(msg->send.amount,
+                                       msg->send.to_address)) {
       mayachain_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include send message in transaction");
@@ -171,8 +173,8 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg) {
     char asset_str[21];
     asset_str[0] = ' ';
     strlcpy(&(asset_str[1]), msg->deposit.asset, sizeof(asset_str) - 1);
-    bn_format_uint64(msg->deposit.amount, NULL, asset_str, 8, 0, false, amount_str,
-                     sizeof(amount_str));
+    bn_format_uint64(msg->deposit.amount, NULL, asset_str, 10, 0, false,
+                     amount_str, sizeof(amount_str));
     if (!confirm_transaction_output(
             ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
             msg->deposit.signer)) {
@@ -184,10 +186,11 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg) {
 
     if (msg->deposit.has_memo) {
       // See if we can parse the memo
-      if (!mayachain_parseConfirmMemo(msg->deposit.memo, sizeof(msg->deposit.memo))) {
+      if (!mayachain_parseConfirmMemo(msg->deposit.memo,
+                                      sizeof(msg->deposit.memo))) {
         // Memo not recognizable, ask to confirm it
-        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",
-                     msg->deposit.memo)) {
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
+                     "%s", msg->deposit.memo)) {
           mayachain_signAbort();
           fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
           layoutHome();
@@ -205,7 +208,6 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg) {
     }
   }
 
-
   if (!mayachain_signingIsFinished()) {
     RESP_INIT(MayachainMsgRequest);
     msg_write(MessageType_MessageType_MayachainMsgRequest, resp);
@@ -213,7 +215,8 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg) {
   }
 
   if (sign_tx->has_memo && !msg->deposit.has_memo) {
-    // See if we can parse the tx memo. This memo ignored if deposit msg has memo
+    // See if we can parse the tx memo. This memo ignored if deposit msg has
+    // memo
     if (!mayachain_parseConfirmMemo(sign_tx->memo, sizeof(sign_tx->memo))) {
       // Memo not recognizable, ask to confirm it
       if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",
