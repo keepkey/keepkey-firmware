@@ -47,7 +47,6 @@ bool confirm_address(const char *desc, const char *address);
 bool confirm_xpub(const char *node_str, const char *xpub);
 bool confirm_sign_identity(const IdentityType *identity, const char *challenge);
 bool confirm_cosmos_address(const char *desc, const char *address);
-;
 bool confirm_osmosis_address(const char *desc, const char *address);
 bool confirm_ethereum_address(const char *desc, const char *address);
 bool confirm_nano_address(const char *desc, const char *address);
