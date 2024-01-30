@@ -114,8 +114,6 @@ void layout_cosmos_address_notification(const char *desc, const char *address,
                                         NotificationType type);
 void layout_osmosis_address_notification(const char *desc, const char *address,
                                          NotificationType type);
-void layout_kujira_address_notification(const char *desc, const char *address,
-                                        NotificationType type);
 void layout_ethereum_address_notification(const char *desc, const char *address,
                                           NotificationType type);
 void layout_nano_address_notification(const char *desc, const char *address,

@@ -29,7 +29,6 @@ set(protoc_pb_options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-tendermint.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-thorchain.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-mayachain.options
-    ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-kujira.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages.options)
 
 set(protoc_c_sources
@@ -44,7 +43,6 @@ set(protoc_c_sources
     ${CMAKE_BINARY_DIR}/lib/transport/messages-tendermint.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-thorchain.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-mayachain.pb.c
-    ${CMAKE_BINARY_DIR}/lib/transport/messages-kujira.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages.pb.c)
 
 set(protoc_c_headers
@@ -59,7 +57,6 @@ set(protoc_c_headers
     ${CMAKE_BINARY_DIR}/include/messages-tendermint.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-thorchain.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-mayachain.pb.h
-    ${CMAKE_BINARY_DIR}/include/messages-kujira.pb.h
     ${CMAKE_BINARY_DIR}/include/messages.pb.h)
 
 set(protoc_pb_sources_moved
@@ -74,7 +71,6 @@ set(protoc_pb_sources_moved
     ${CMAKE_BINARY_DIR}/lib/transport/messages-tendermint.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-thorchain.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-mayachain.proto
-    ${CMAKE_BINARY_DIR}/lib/transport/messages-kujira.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages.proto)
 
 add_custom_command(
@@ -140,10 +136,6 @@ add_custom_command(
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
       "--nanopb_out=-f messages-mayachain.options:." messages-mayachain.proto
-  COMMAND
-    ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f messages-kujira.options:." messages-kujira.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb

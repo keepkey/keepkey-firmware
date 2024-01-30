@@ -409,8 +409,6 @@ bool isTendermint(const char *coin_name) {
 
   if (strcmp(coin_name, "Osmosis") == 0) return true;
 
-  if (strcmp(coin_name, "Kujira") == 0) return true;
-
   if (strcmp(coin_name, "MAYAChain") == 0) return true;
 
   if (strcmp(coin_name, "Binance") == 0) return true;

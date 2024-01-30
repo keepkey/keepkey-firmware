@@ -21,7 +21,6 @@ set(sources
     ethereum_tokens.c
     fsm.c
     home_sm.c
-    kujira.c
     mayachain.c
     nano.c
     osmosis.c

@@ -45,7 +45,6 @@
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
-#include "keepkey/firmware/kujira.h"
 #include "keepkey/firmware/mayachain.h"
 #include "keepkey/firmware/osmosis.h"
 #include "keepkey/firmware/passphrase_sm.h"
@@ -247,8 +246,7 @@ void fsm_sendSuccess(const char *text) {
   msg_write(MessageType_MessageType_Success, resp);
 }
 
-void fsm_sendFailure(FailureType code, const char *text)
-{
+void fsm_sendFailure(FailureType code, const char *text) {
   if (reset_msg_stack) {
     fsm_msgInitialize((Initialize *)0);
     reset_msg_stack = false;
@@ -286,4 +284,3 @@ void fsm_msgClearSession(ClearSession *msg) {
 #include "fsm_msg_tendermint.h"
 #include "fsm_msg_thorchain.h"
 #include "fsm_msg_mayachain.h"
-#include "fsm_msg_kujira.h"

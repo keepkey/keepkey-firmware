@@ -257,203 +257,187 @@ bool confirm_xpub(const char *node_str, const char *xpub) {
                                     node_str, "%s", xpub);
 }
 
-  /*
-   * confirm_cosmos_address() - Show cosmos address confirmation
-   *
-   * INPUT
-   *      - desc: description to show with address
-   *      - address: address to display both as string and in QR
-   * OUTPUT
-   *     true/false of confirmation
-   *
-   */
-  bool confirm_cosmos_address(const char *desc, const char *address) {
-    return confirm_with_custom_layout(&layout_cosmos_address_notification,
-                                      ButtonRequestType_ButtonRequest_Address,
-                                      desc, "%s", address);
+/*
+ * confirm_cosmos_address() - Show cosmos address confirmation
+ *
+ * INPUT
+ *      - desc: description to show with address
+ *      - address: address to display both as string and in QR
+ * OUTPUT
+ *     true/false of confirmation
+ *
+ */
+bool confirm_cosmos_address(const char *desc, const char *address) {
+  return confirm_with_custom_layout(&layout_cosmos_address_notification,
+                                    ButtonRequestType_ButtonRequest_Address,
+                                    desc, "%s", address);
+}
+
+/*
+ * confirm_osmosis_address() - Show osmosis address confirmation
+ *
+ * INPUT
+ *      - desc: description to show with address
+ *      - address: address to display both as string and in QR
+ * OUTPUT
+ *     true/false of confirmation
+ *
+ */
+bool confirm_osmosis_address(const char *desc, const char *address) {
+  return confirm_with_custom_layout(&layout_osmosis_address_notification,
+                                    ButtonRequestType_ButtonRequest_Address,
+                                    desc, "%s", address);
+}
+
+/*
+ * confirm_ethereum_address() - Show ethereum address confirmation
+ *
+ * INPUT
+ *      - desc: description to show with address
+ *      - address: address to display both as string and in QR
+ * OUTPUT
+ *     true/false of confirmation
+ *
+ */
+bool confirm_ethereum_address(const char *desc, const char *address) {
+  return confirm_with_custom_layout(&layout_ethereum_address_notification,
+                                    ButtonRequestType_ButtonRequest_Address,
+                                    desc, "%s", address);
+}
+
+/*
+ * confirm_nano_address() - Show nano address confirmation
+ *
+ * INPUT
+ *      - desc: description to show with address
+ *      - address: address to display both as string and in QR
+ * OUTPUT
+ *     true/false of confirmation
+ *
+ */
+bool confirm_nano_address(const char *desc, const char *address) {
+  return confirm_with_custom_layout(&layout_nano_address_notification,
+                                    ButtonRequestType_ButtonRequest_Address,
+                                    desc, "%s", address);
+}
+
+/*
+ * confirm_address() - Show address confirmation
+ *
+ * INPUT
+ *      - desc: description to show with address
+ *      - address: address to display both as string and in QR
+ * OUTPUT
+ *     true/false of confirmation
+ *
+ */
+bool confirm_address(const char *desc, const char *address) {
+  return confirm_with_custom_layout(&layout_address_notification,
+                                    ButtonRequestType_ButtonRequest_Address,
+                                    desc, "%s", address);
+}
+
+/*
+ * confirm_sign_identity() - Show identity confirmation
+ *
+ * INPUT
+ *      - identity: identity information from protocol buffer
+ *      - challenge: challenge string
+ * OUTPUT
+ *     true/false of confirmation
+ *
+ */
+bool confirm_sign_identity(const IdentityType *identity,
+                           const char *challenge) {
+  char title[CONFIRM_SIGN_IDENTITY_TITLE], body[CONFIRM_SIGN_IDENTITY_BODY];
+
+  /* Format protocol */
+  if (identity->has_proto && identity->proto[0]) {
+    strlcpy(title, identity->proto, sizeof(title));
+    kk_strupr(title);
+    strlcat(title, " login to: ", sizeof(title));
+  } else {
+    strlcpy(title, "Login to: ", sizeof(title));
   }
 
- /*
-   * confirm_kujira_address() - Show kujira address confirmation
-   *
-   * INPUT
-   *      - desc: description to show with address
-   *      - address: address to display both as string and in QR
-   * OUTPUT
-   *     true/false of confirmation
-   *
-   */
-  bool confirm_kujira_address(const char *desc, const char *address) {
-    return confirm_with_custom_layout(&layout_kujira_address_notification,
-                                      ButtonRequestType_ButtonRequest_Address,
-                                      desc, "%s", address);
-  }
+  /* Format host and port */
+  if (identity->has_host && identity->host[0]) {
+    strlcpy(body, "host: ", sizeof(body));
+    strlcat(body, identity->host, sizeof(body));
 
-    /*
-   * confirm_osmosis_address() - Show osmosis address confirmation
-   *
-   * INPUT
-   *      - desc: description to show with address
-   *      - address: address to display both as string and in QR
-   * OUTPUT
-   *     true/false of confirmation
-   *
-   */
-  bool confirm_osmosis_address(const char *desc, const char *address) {
-    return confirm_with_custom_layout(&layout_osmosis_address_notification,
-                                      ButtonRequestType_ButtonRequest_Address,
-                                      desc, "%s", address);
-  }
-
-  /*
-   * confirm_ethereum_address() - Show ethereum address confirmation
-   *
-   * INPUT
-   *      - desc: description to show with address
-   *      - address: address to display both as string and in QR
-   * OUTPUT
-   *     true/false of confirmation
-   *
-   */
-  bool confirm_ethereum_address(const char *desc, const char *address) {
-    return confirm_with_custom_layout(&layout_ethereum_address_notification,
-                                      ButtonRequestType_ButtonRequest_Address,
-                                      desc, "%s", address);
-  }
-
-  /*
-   * confirm_nano_address() - Show nano address confirmation
-   *
-   * INPUT
-   *      - desc: description to show with address
-   *      - address: address to display both as string and in QR
-   * OUTPUT
-   *     true/false of confirmation
-   *
-   */
-  bool confirm_nano_address(const char *desc, const char *address) {
-    return confirm_with_custom_layout(&layout_nano_address_notification,
-                                      ButtonRequestType_ButtonRequest_Address,
-                                      desc, "%s", address);
-  }
-
-  /*
-   * confirm_address() - Show address confirmation
-   *
-   * INPUT
-   *      - desc: description to show with address
-   *      - address: address to display both as string and in QR
-   * OUTPUT
-   *     true/false of confirmation
-   *
-   */
-  bool confirm_address(const char *desc, const char *address) {
-    return confirm_with_custom_layout(&layout_address_notification,
-                                      ButtonRequestType_ButtonRequest_Address,
-                                      desc, "%s", address);
-  }
-
-  /*
-   * confirm_sign_identity() - Show identity confirmation
-   *
-   * INPUT
-   *      - identity: identity information from protocol buffer
-   *      - challenge: challenge string
-   * OUTPUT
-   *     true/false of confirmation
-   *
-   */
-  bool confirm_sign_identity(const IdentityType *identity,
-                             const char *challenge) {
-    char title[CONFIRM_SIGN_IDENTITY_TITLE], body[CONFIRM_SIGN_IDENTITY_BODY];
-
-    /* Format protocol */
-    if (identity->has_proto && identity->proto[0]) {
-      strlcpy(title, identity->proto, sizeof(title));
-      kk_strupr(title);
-      strlcat(title, " login to: ", sizeof(title));
-    } else {
-      strlcpy(title, "Login to: ", sizeof(title));
+    if (identity->has_port && identity->port[0]) {
+      strlcat(body, ":", sizeof(body));
+      strlcat(body, identity->port, sizeof(body));
     }
 
-    /* Format host and port */
-    if (identity->has_host && identity->host[0]) {
-      strlcpy(body, "host: ", sizeof(body));
-      strlcat(body, identity->host, sizeof(body));
-
-      if (identity->has_port && identity->port[0]) {
-        strlcat(body, ":", sizeof(body));
-        strlcat(body, identity->port, sizeof(body));
-      }
-
-      strlcat(body, "\n", sizeof(body));
-    } else {
-      body[0] = 0;
-    }
-
-    /* Format user */
-    if (identity->has_user && identity->user[0]) {
-      strlcat(body, "user: ", sizeof(body));
-      strlcat(body, identity->user, sizeof(body));
-      strlcat(body, "\n", sizeof(body));
-    }
-
-    /* Format challenge */
-    if (challenge && strlen(challenge) != 0) {
-      strlcat(body, challenge, sizeof(body));
-    }
-
-    return confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, "%s",
-                   body);
+    strlcat(body, "\n", sizeof(body));
+  } else {
+    body[0] = 0;
   }
 
-  bool confirm_omni(ButtonRequestType button_request, const char *title,
-                    const uint8_t *data, uint32_t size) {
-    uint32_t tx_type, currency;
-    REVERSE32(*(const uint32_t *)(data + 4), tx_type);
-    if (tx_type == 0x00000000 && size == 20) {  // OMNI simple send
-      char str_out[32];
-      REVERSE32(*(const uint32_t *)(data + 8), currency);
-      const char *suffix = "UNKN";
-      switch (currency) {
-        case 1:
-          suffix = " OMNI";
-          break;
-        case 2:
-          suffix = " tOMNI";
-          break;
-        case 3:
-          suffix = " MAID";
-          break;
-        case 31:
-          suffix = " USDT";
-          break;
-      }
-      uint64_t amount_be, amount;
-      memcpy(&amount_be, data + 12, sizeof(uint64_t));
-      REVERSE64(amount_be, amount);
-      bn_format_uint64(amount, NULL, suffix, BITCOIN_DIVISIBILITY, 0, false,
-                       str_out, sizeof(str_out));
-      return confirm(button_request, title, _("Do you want to send %s?"),
-                     str_out);
-    } else {
-      return confirm(button_request, title, _("Unknown Transaction"));
-    }
+  /* Format user */
+  if (identity->has_user && identity->user[0]) {
+    strlcat(body, "user: ", sizeof(body));
+    strlcat(body, identity->user, sizeof(body));
+    strlcat(body, "\n", sizeof(body));
   }
 
-  bool confirm_data(ButtonRequestType button_request, const char *title,
-                    const uint8_t *data, uint32_t size) {
-    const char *str = (const char *)data;
-    char hex[50 * 2 + 1];
-    if (!is_valid_ascii(data, size)) {
-      if (size > 50) size = 50;
-      memset(hex, 0, sizeof(hex));
-      data2hex(data, size, hex);
-      if (size > 50) {
-        hex[50 * 2 - 1] = '.';
-        hex[50 * 2 - 2] = '.';
-      }
-      str = hex;
-    }
-    return confirm(button_request, title, "%s", str);
+  /* Format challenge */
+  if (challenge && strlen(challenge) != 0) {
+    strlcat(body, challenge, sizeof(body));
   }
+
+  return confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, "%s",
+                 body);
+}
+
+bool confirm_omni(ButtonRequestType button_request, const char *title,
+                  const uint8_t *data, uint32_t size) {
+  uint32_t tx_type, currency;
+  REVERSE32(*(const uint32_t *)(data + 4), tx_type);
+  if (tx_type == 0x00000000 && size == 20) {  // OMNI simple send
+    char str_out[32];
+    REVERSE32(*(const uint32_t *)(data + 8), currency);
+    const char *suffix = "UNKN";
+    switch (currency) {
+      case 1:
+        suffix = " OMNI";
+        break;
+      case 2:
+        suffix = " tOMNI";
+        break;
+      case 3:
+        suffix = " MAID";
+        break;
+      case 31:
+        suffix = " USDT";
+        break;
+    }
+    uint64_t amount_be, amount;
+    memcpy(&amount_be, data + 12, sizeof(uint64_t));
+    REVERSE64(amount_be, amount);
+    bn_format_uint64(amount, NULL, suffix, BITCOIN_DIVISIBILITY, 0, false,
+                     str_out, sizeof(str_out));
+    return confirm(button_request, title, _("Do you want to send %s?"),
+                   str_out);
+  } else {
+    return confirm(button_request, title, _("Unknown Transaction"));
+  }
+}
+
+bool confirm_data(ButtonRequestType button_request, const char *title,
+                  const uint8_t *data, uint32_t size) {
+  const char *str = (const char *)data;
+  char hex[50 * 2 + 1];
+  if (!is_valid_ascii(data, size)) {
+    if (size > 50) size = 50;
+    memset(hex, 0, sizeof(hex));
+    data2hex(data, size, hex);
+    if (size > 50) {
+      hex[50 * 2 - 1] = '.';
+      hex[50 * 2 - 2] = '.';
+    }
+    str = hex;
+  }
+  return confirm(button_request, title, "%s", str);
+}
