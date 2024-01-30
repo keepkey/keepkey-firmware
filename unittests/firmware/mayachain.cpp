@@ -28,7 +28,6 @@ TEST(Mayachain, MayachainGetAddress) {
 }
 
 TEST(Mayachain, MayachainSignTx) {
-  // alcohol woman abuse
   HDNode node = {
       0,
       0,
@@ -70,6 +69,6 @@ TEST(Mayachain, MayachainSignTx) {
                         "\xac\xc0\xb5\xa3\x3d\x18\xb1\xe6\x54\x26\x70\x8f\x93"
                         "\x69\x67\xd5\x21\x84\xbb\x6b\x58\x3d\xe3\x21\xd0\x3e"
                         "\x26\xb2\xd8\x00\x7d\x81\x84\x34\x82\x5a\xfa\xa2\x80"
-                        "\x54\x88\x90\xc6\xec\xf0\x3b\xf5\x33\x0f\x3e\x9",
+                        "\x54\x88\x90\xc6\xec\xf0\x3b\xf5\x33\x0f\x3e\x9a",
              64) == 0);
 }
