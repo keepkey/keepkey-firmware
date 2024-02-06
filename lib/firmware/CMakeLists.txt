@@ -21,6 +21,7 @@ set(sources
     ethereum_tokens.c
     fsm.c
     home_sm.c
+    mayachain.c
     nano.c
     osmosis.c
     passphrase_sm.c

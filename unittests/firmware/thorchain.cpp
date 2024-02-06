@@ -45,13 +45,13 @@ TEST(Thorchain, ThorchainSignTx) {
 
   const ThorchainSignTx msg = {
       5,    {0x80000000 | 44, 0x80000000 | 931, 0x80000000, 0, 0},  // address_n
-      true, 0,              // account_number
+      true, 0,            // account_number
       true, "thorchain",  // chain_id
-      true, 5000,           // fee_amount
-      true, 200000,         // gas
-      true, "",             // memo
-      true, 0,              // sequence
-      true, 1               // msg_count
+      true, 5000,         // fee_amount
+      true, 200000,       // gas
+      true, "",           // memo
+      true, 0,            // sequence
+      true, 1             // msg_count
   };
   ASSERT_TRUE(thorchain_signTxInit(&node, &msg));
 
@@ -60,6 +60,7 @@ TEST(Thorchain, ThorchainSignTx) {
 
   uint8_t public_key[33];
   uint8_t signature[64];
+
   ASSERT_TRUE(thorchain_signTxFinalize(public_key, signature));
 
   EXPECT_TRUE(

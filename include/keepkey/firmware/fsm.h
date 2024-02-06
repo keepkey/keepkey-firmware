@@ -114,6 +114,10 @@ void fsm_msgThorchainGetAddress(const ThorchainGetAddress *msg);
 void fsm_msgThorchainSignTx(const ThorchainSignTx *msg);
 void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg);
 
+void fsm_msgMayachainGetAddress(const MayachainGetAddress *msg);
+void fsm_msgMayachainSignTx(const MayachainSignTx *msg);
+void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg);
+
 #if DEBUG_LINK
 // void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
 void fsm_msgDebugLinkGetState(DebugLinkGetState *msg);

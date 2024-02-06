@@ -69,6 +69,10 @@
     MSG_IN(MessageType_MessageType_ThorchainSignTx,                 ThorchainSignTx,             fsm_msgThorchainSignTx)
     MSG_IN(MessageType_MessageType_ThorchainMsgAck,                 ThorchainMsgAck,             fsm_msgThorchainMsgAck)
 
+    MSG_IN(MessageType_MessageType_MayachainGetAddress,             MayachainGetAddress,         fsm_msgMayachainGetAddress)
+    MSG_IN(MessageType_MessageType_MayachainSignTx,                 MayachainSignTx,             fsm_msgMayachainSignTx)
+    MSG_IN(MessageType_MessageType_MayachainMsgAck,                 MayachainMsgAck,             fsm_msgMayachainMsgAck)
+
     /* Normal Out Messages */
     MSG_OUT(MessageType_MessageType_Success,                        Success,                     NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_Failure,                        Failure,                     NO_PROCESS_FUNC)
@@ -123,6 +127,10 @@
     MSG_OUT(MessageType_MessageType_ThorchainAddress,               ThorchainAddress,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_ThorchainMsgRequest,            ThorchainMsgRequest,         NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_ThorchainSignedTx,              ThorchainSignedTx,           NO_PROCESS_FUNC)
+
+    MSG_OUT(MessageType_MessageType_MayachainAddress,               MayachainAddress,            NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_MayachainMsgRequest,            MayachainMsgRequest,         NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_MayachainSignedTx,              MayachainSignedTx,           NO_PROCESS_FUNC)
 
 #if DEBUG_LINK
     /* Debug Messages */
