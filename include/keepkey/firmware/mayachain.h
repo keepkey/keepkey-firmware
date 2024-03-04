@@ -11,7 +11,7 @@ typedef struct _MayachainSignTx MayachainSignTx;
 typedef struct _MayachainMsgDeposit MayachainMsgDeposit;
 
 bool mayachain_signTxInit(const HDNode *_node, const MayachainSignTx *_msg);
-bool mayachain_signTxUpdateMsgSend(const uint64_t amount, const char *to_address);
+bool mayachain_signTxUpdateMsgSend(const uint64_t amount, const char *to_address, const char *denom);
 bool mayachain_signTxUpdateMsgDeposit(const MayachainMsgDeposit *depmsg);
 bool mayachain_signTxFinalize(uint8_t *public_key, uint8_t *signature);
 bool mayachain_signingIsInited(void);

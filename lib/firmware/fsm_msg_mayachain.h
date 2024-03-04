@@ -119,7 +119,7 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg) {
   // Confirm transaction basics
   // supports only 1 message ack
   CHECK_PARAM(mayachain_signingIsInited(), "Signing not in progress");
-  if (msg->has_send && msg->send.has_to_address && msg->send.has_amount) {
+  if (msg->has_send && msg->send.has_to_address && msg->send.has_amount && msg->send.has_denom) {
     // pass
   } else if (msg->has_deposit && msg->deposit.has_asset &&
              msg->deposit.has_amount && msg->deposit.has_memo &&
@@ -145,7 +145,9 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg) {
       case OutputAddressType_TRANSFER:
       default: {
         char amount_str[32];
-        bn_format_uint64(msg->send.amount, NULL, " cacao", 10, 0, false,
+        char denom_str[71];
+        sprintf(denom_str, " %s", msg->send.denom);
+        bn_format_uint64(msg->send.amount, NULL, denom_str, 10, 0, false,
                          amount_str, sizeof(amount_str));
         if (!confirm_transaction_output(
                 ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
@@ -160,7 +162,8 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg) {
       }
     }
     if (!mayachain_signTxUpdateMsgSend(msg->send.amount,
-                                       msg->send.to_address)) {
+                                       msg->send.to_address,
+                                       msg->send.denom)) {
       mayachain_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include send message in transaction");
@@ -240,8 +243,8 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg) {
   }
 
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, node_str,
-               "Sign this CACAO transaction on %s? "
-               "Additional network fees apply.",
+               "Sign this %s transaction on %s? "
+               "Additional network fees apply.", msg->has_send ? msg->send.denom : "CACAO",
                sign_tx->chain_id)) {
     mayachain_signAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);

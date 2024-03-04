@@ -95,7 +95,8 @@ bool mayachain_signTxInit(const HDNode *_node, const MayachainSignTx *_msg) {
 }
 
 bool mayachain_signTxUpdateMsgSend(const uint64_t amount,
-                                   const char *to_address) {
+                                   const char *to_address,
+                                   const char *denom) {
   char mainnetp[] = "maya";
   char testnetp[] = "smaya";
   char *pfix;
@@ -124,10 +125,10 @@ bool mayachain_signTxUpdateMsgSend(const uint64_t amount,
   const char *const prelude = "{\"type\":\"mayachain/MsgSend\",\"value\":{";
   sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
 
-  // 21 + ^20 + 19 = ^60
+  // 21 + ^20 + 11 + ^69 + 3 = ^124
   success &= tendermint_snprintf(
       &ctx, buffer, sizeof(buffer),
-      "\"amount\":[{\"amount\":\"%" PRIu64 "\",\"denom\":\"cacao\"}]", amount);
+      "\"amount\":[{\"amount\":\"%" PRIu64 "\",\"denom\":\"%s\"}]", amount, denom);
 
   // 17 + 45 + 1 = 63
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
