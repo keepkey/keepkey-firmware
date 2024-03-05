@@ -8,6 +8,7 @@ MayachainSignTx.memo                                      max_size:256
 
 MayachainMsgSend.from_address                             max_size:46
 MayachainMsgSend.to_address                               max_size:46
+MayachainMsgSend.denom                                    max_size:69
 
 MayachainMsgDeposit.asset                                 max_size:20
 MayachainMsgDeposit.memo                                  max_size:256
