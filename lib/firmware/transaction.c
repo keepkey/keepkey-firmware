@@ -1,6 +1,7 @@
 /*
- * This file is part of the TREZOR project.
+ * This file is part of the KEEPKEY project, derived from TREZOR.
  *
+ * Copyright (C) 2025 markrypto
  * Copyright (C) 2014 Pavol Rusnak <stick@satoshilabs.com>
  *
  * This library is free software: you can redistribute it and/or modify
@@ -54,13 +55,17 @@
 /* size of a pubkey */
 #define TXSIZE_PUBKEY 33
 /* size of a DER signature (3 type bytes, 3 len bytes, 33 R, 32 S, 1 sighash */
-#define TXSIZE_SIGNATURE 72
+#define TXSIZE_DER_SIGNATURE 72
+/* size of a Schnorr signature (32 R, 32 S, no sighash) */
+#define TXSIZE_SCHNORR_SIGNATURE 64
 /* size of a multiscript without pubkey (1 M, 1 N, 1 checksig) */
 #define TXSIZE_MULTISIGSCRIPT 3
 /* size of a p2wpkh script (1 version, 1 push, 20 hash) */
 #define TXSIZE_WITNESSPKHASH 22
 /* size of a p2wsh script (1 version, 1 push, 32 hash) */
 #define TXSIZE_WITNESSSCRIPT 34
+/* size of a p2tr script (1 version, 1 push, 32 hash) */
+#define TXSIZE_TAPROOT 34
 /* size of a p2pkh script (dup, hash, push, 20 pubkeyhash, equal, checksig) */
 #define TXSIZE_P2PKHASH 25
 /* size of a p2sh script (hash, push, 20 scripthash, equal) */
@@ -180,6 +185,10 @@ bool compute_address(const CoinType *coin, InputScriptType script_type,
                             digest, 20)) {
       return 0;
     }
+  } else if (script_type == InputScriptType_SPENDTAPROOT) {
+    // we don't handle spendtaproot input types
+      return 0;
+
   } else if (script_type == InputScriptType_SPENDP2SHWITNESS) {
     // segwit p2wpkh embedded in p2sh
     if (!coin->has_segwit || !coin->segwit) {
@@ -344,6 +353,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in,
     }
   } else if (coin->has_bech32_prefix) {
     int witver;
+
     if (!segwit_addr_decode(&witver, addr_raw, &addr_raw_len,
                             coin->bech32_prefix, in->address)) {
       return 0;
@@ -386,7 +396,8 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in,
         break;
       case OutputScriptType_PAYTOADDRESS:
       case OutputScriptType_PAYTOWITNESS:
-      case OutputScriptType_PAYTOP2SHWITNESS: {
+      case OutputScriptType_PAYTOP2SHWITNESS:
+      case OutputScriptType_PAYTOTAPROOT: {
         char amount_str[32];
         char node_str[NODE_STRING_LENGTH];
         coin_amnt_to_str(coin, in->amount, amount_str, sizeof(amount_str));
@@ -918,11 +929,11 @@ static uint32_t tx_input_script_size(const TxInputType *txinput) {
         TXSIZE_MULTISIGSCRIPT +
         txinput->multisig.pubkeys_count * (1 + TXSIZE_PUBKEY);
     input_script_size = 1  // the OP_FALSE bug in multisig
-                        + txinput->multisig.m * (1 + TXSIZE_SIGNATURE) +
+                        + txinput->multisig.m * (1 + TXSIZE_DER_SIGNATURE) +
                         op_push_size(multisig_script_size) +
                         multisig_script_size;
   } else {
-    input_script_size = (1 + TXSIZE_SIGNATURE + 1 + TXSIZE_PUBKEY);
+    input_script_size = (1 + TXSIZE_DER_SIGNATURE + 1 + TXSIZE_PUBKEY);
   }
 
   return input_script_size;
@@ -962,6 +973,8 @@ uint32_t tx_output_weight(const CoinType *coin, const curve_info *curve,
     if (txoutput->script_type == OutputScriptType_PAYTOWITNESS) {
       output_script_size =
           txoutput->has_multisig ? TXSIZE_WITNESSSCRIPT : TXSIZE_WITNESSPKHASH;
+    } else if (txoutput->script_type == OutputScriptType_PAYTOTAPROOT) {
+      output_script_size = TXSIZE_TAPROOT;
     } else if (txoutput->script_type == OutputScriptType_PAYTOP2SHWITNESS) {
       output_script_size = TXSIZE_P2SCRIPT;
     } else {

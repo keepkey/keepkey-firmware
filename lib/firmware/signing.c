@@ -1,6 +1,7 @@
 /*
- * This file is part of the TREZOR project.
+ * This file is part of the KEEPKEY project, derived from TREZOR.
  *
+ * Copyright (c) 2025 markrypto
  * Copyright (C) 2014 Pavol Rusnak <stick@satoshilabs.com>
  *
  * This library is free software: you can redistribute it and/or modify
@@ -41,12 +42,14 @@
 #define _(X) (X)
 
 // Set DEBUG_UTXO to non-zero to display each stage of the utxo signing sequence
-#define D_DISPLAY_UTXO_STAGE(STAGE) 
+#define D_DISPLAY_UTXO_STAGE(STAGE, IDX)
 #define DEBUG_UTXO  0
 #ifdef DEBUG_ON
   #if DEBUG_UTXO
     #undef D_DISPLAY_UTXO_STAGE
-    #define D_DISPLAY_UTXO_STAGE(STAGE) DEBUG_DISPLAY(STAGE)
+    #define D_DISPLAY_UTXO_STAGE(STAGE, IDX) DEBUG_DISPLAY("%s, idx=%ld", STAGE, IDX)
+  // DEBUG_DISPLAY("%d %s", slot, account);
+
   #endif
 #endif
 
@@ -242,7 +245,7 @@ scriptSig Compute hash_witness
 */
 
 void send_req_1_input(void) {
-  D_DISPLAY_UTXO_STAGE("send_req_1_input");
+  D_DISPLAY_UTXO_STAGE("send_req_1_input", idx1);
   signing_stage = STAGE_REQUEST_1_INPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXINPUT;
@@ -253,7 +256,7 @@ void send_req_1_input(void) {
 }
 
 void send_req_2_prev_meta(void) {
-  D_DISPLAY_UTXO_STAGE("send_req_2_prev_meta");
+  D_DISPLAY_UTXO_STAGE("send_req_2_prev_meta", -1L);
   signing_stage = STAGE_REQUEST_2_PREV_META;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXMETA;
@@ -266,7 +269,7 @@ void send_req_2_prev_meta(void) {
 }
 
 void send_req_2_prev_input(void) {
-  D_DISPLAY_UTXO_STAGE("send_req_2_prev_input");
+  D_DISPLAY_UTXO_STAGE("send_req_2_prev_input", idx2);
   signing_stage = STAGE_REQUEST_2_PREV_INPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXINPUT;
@@ -281,7 +284,7 @@ void send_req_2_prev_input(void) {
 }
 
 void send_req_2_prev_output(void) {
-  D_DISPLAY_UTXO_STAGE("send_req_2_prev_output");
+  D_DISPLAY_UTXO_STAGE("send_req_2_prev_output", idx2);
   signing_stage = STAGE_REQUEST_2_PREV_OUTPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXOUTPUT;
@@ -296,7 +299,7 @@ void send_req_2_prev_output(void) {
 }
 
 void send_req_2_prev_extradata(uint32_t chunk_offset, uint32_t chunk_len) {
-  D_DISPLAY_UTXO_STAGE("send_req_2_prev_extradata");
+  D_DISPLAY_UTXO_STAGE("send_req_2_prev_extradata", -1L);
   signing_stage = STAGE_REQUEST_2_PREV_EXTRADATA;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXEXTRADATA;
@@ -313,7 +316,7 @@ void send_req_2_prev_extradata(uint32_t chunk_offset, uint32_t chunk_len) {
 }
 
 void send_req_3_output(void) {
-  D_DISPLAY_UTXO_STAGE("send_req_3_output");
+  D_DISPLAY_UTXO_STAGE("send_req_3_output", idx1);
   signing_stage = STAGE_REQUEST_3_OUTPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXOUTPUT;
@@ -324,7 +327,7 @@ void send_req_3_output(void) {
 }
 
 void send_req_4_input(void) {
-  D_DISPLAY_UTXO_STAGE("send_req_4_input");
+  D_DISPLAY_UTXO_STAGE("send_req_4_input", idx2);
   signing_stage = STAGE_REQUEST_4_INPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXINPUT;
@@ -335,7 +338,7 @@ void send_req_4_input(void) {
 }
 
 void send_req_4_output(void) {
-  D_DISPLAY_UTXO_STAGE("send_req_4_output");
+  D_DISPLAY_UTXO_STAGE("send_req_4_output", idx2);
   signing_stage = STAGE_REQUEST_4_OUTPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXOUTPUT;
@@ -346,7 +349,7 @@ void send_req_4_output(void) {
 }
 
 void send_req_segwit_input(void) {
-  D_DISPLAY_UTXO_STAGE("send_req_segwit_input");
+  D_DISPLAY_UTXO_STAGE("send_req_segwit_input", idx1);
   signing_stage = STAGE_REQUEST_SEGWIT_INPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXINPUT;
@@ -357,7 +360,7 @@ void send_req_segwit_input(void) {
 }
 
 void send_req_segwit_witness(void) {
-  D_DISPLAY_UTXO_STAGE("send_req_segwit_witness");
+  D_DISPLAY_UTXO_STAGE("send_req_segwit_witness", idx1);
   signing_stage = STAGE_REQUEST_SEGWIT_WITNESS;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXINPUT;
@@ -368,7 +371,7 @@ void send_req_segwit_witness(void) {
 }
 
 void send_req_decred_witness(void) {
-  D_DISPLAY_UTXO_STAGE("send_req_decred_witness");
+  D_DISPLAY_UTXO_STAGE("send_req_decred_witness", idx1);
   signing_stage = STAGE_REQUEST_DECRED_WITNESS;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXINPUT;
@@ -379,7 +382,7 @@ void send_req_decred_witness(void) {
 }
 
 void send_req_5_output(void) {
-  D_DISPLAY_UTXO_STAGE("send_req_5_output");
+  D_DISPLAY_UTXO_STAGE("send_req_5_output", idx1);
   signing_stage = STAGE_REQUEST_5_OUTPUT;
   resp.has_request_type = true;
   resp.request_type = RequestType_TXOUTPUT;
@@ -390,7 +393,7 @@ void send_req_5_output(void) {
 }
 
 void send_req_finished(void) {
-  D_DISPLAY_UTXO_STAGE("send_req_finished");
+  D_DISPLAY_UTXO_STAGE("send_req_finished", -1L);
   resp.has_request_type = true;
   resp.request_type = RequestType_TXFINISHED;
   msg_write(MessageType_MessageType_TxRequest, &resp);
@@ -817,6 +820,15 @@ static bool signing_validate_output(TxOutputType *txoutput) {
       signing_abort();
       return false;
     }
+
+    if (txoutput->script_type == OutputScriptType_PAYTOTAPROOT &&
+        !coin->has_taproot) {
+      fsm_sendFailure(FailureType_Failure_Other,
+                      _("Taproot not enabled on this coin."));
+      signing_abort();
+      return false;
+    }
+
     if (txoutput->amount != 0) {
       fsm_sendFailure(FailureType_Failure_Other,
                       _("OP_RETURN output with non-zero amount"));
