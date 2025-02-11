@@ -39,7 +39,8 @@ enum {
           HAS_CASHADDR_PREFIX, CASHADDR_PREFIX, HAS_BECH32_PREFIX,             \
           BECH32_PREFIX, HAS_DECRED, DECRED, HAS_XPUB_MAGIC_SEGWIT_P2SH,       \
           XPUB_MAGIC_SEGWIT_P2SH, HAS_XPUB_MAGIC_SEGWIT_NATIVE,                \
-          XPUB_MAGIC_SEGWIT_NATIVE, HAS_NANOADDR_PREFIX, NANOADDR_PREFIX)      \
+          XPUB_MAGIC_SEGWIT_NATIVE, HAS_NANOADDR_PREFIX, NANOADDR_PREFIX,      \
+          HAS_TAPROOT, TAPROOT)                                                \
   CONCAT(CoinIndex, __COUNTER__),
 #include "keepkey/firmware/coins.def"
 
@@ -55,6 +56,13 @@ enum {
 #define NODE_STRING_LENGTH 50
 
 #define COIN_FRACTION 100000000
+
+// SLIP-44 hardened coin type for Bitcoin
+#define SLIP44_BITCOIN 0x80000000
+
+// SLIP-44 hardened coin type for all Testnet coins
+#define SLIP44_TESTNET 0x80000001
+
 
 extern const CoinType coins[];
 

@@ -39,7 +39,8 @@ const CoinType coins[COINS_COUNT] = {
           HAS_CASHADDR_PREFIX, CASHADDR_PREFIX, HAS_BECH32_PREFIX,             \
           BECH32_PREFIX, HAS_DECRED, DECRED, HAS_XPUB_MAGIC_SEGWIT_P2SH,       \
           XPUB_MAGIC_SEGWIT_P2SH, HAS_XPUB_MAGIC_SEGWIT_NATIVE,                \
-          XPUB_MAGIC_SEGWIT_NATIVE, HAS_NANOADDR_PREFIX, NANOADDR_PREFIX)      \
+          XPUB_MAGIC_SEGWIT_NATIVE, HAS_NANOADDR_PREFIX, NANOADDR_PREFIX,      \
+          HAS_TAPROOT, TAPROOT)                                                \
   {HAS_COIN_NAME,                                                              \
    COIN_NAME,                                                                  \
    HAS_COIN_SHORTCUT,                                                          \
@@ -79,7 +80,9 @@ const CoinType coins[COINS_COUNT] = {
    HAS_XPUB_MAGIC_SEGWIT_NATIVE,                                               \
    XPUB_MAGIC_SEGWIT_NATIVE,                                                   \
    HAS_NANOADDR_PREFIX,                                                        \
-   NANOADDR_PREFIX},
+   NANOADDR_PREFIX,                                                            \
+   HAS_TAPROOT,                                                                \
+   TAPROOT},
 #include "keepkey/firmware/coins.def"
 
 #define X(INDEX, NAME, SYMBOL, DECIMALS, CONTRACT_ADDRESS)                    \
@@ -124,6 +127,7 @@ const CoinType coins[COINS_COUNT] = {
       0, /* has_xpub_magic_segwit_native, xpub_magic_segwit_native*/          \
       false,                                                                  \
       "", /* has_nanoaddr_prefix, nanoaddr_prefix*/                           \
+      false, false, /* has_taproot, taproot*/                                 \
   },
 #include "keepkey/firmware/tokens.def"
 };
