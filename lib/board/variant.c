@@ -118,7 +118,11 @@ const VariantInfo *__attribute__((weak)) variant_getInfo(void) {
     case MODEL_KEEPKEY:
       return &variant_keepkey;
     case MODEL_SALT:
+#ifndef BITCOIN_ONLY
       return &variant_salt;
+#else 
+      return &variant_keepkey;
+#endif
     case MODEL_FOX:
       return &variant_keepkey;
     case MODEL_KASPERSKY:

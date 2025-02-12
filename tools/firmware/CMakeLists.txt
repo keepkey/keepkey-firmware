@@ -1,4 +1,12 @@
 if(NOT ${KK_EMULATOR})
+
+  set(TARGESTR "firmware.keepkey.elf")
+  set(TARGBSTR "firmware.keepkey.bin")
+  if("${COIN_SUPPORT}" STREQUAL "BTC")
+    set(TARGESTR "firmware.keepkeybtc.elf")
+    set(TARGBSTR "firmware.keepkeybtc.bin")
+  endif()
+
   set(sources
       keepkey_main.c
       startup.s
@@ -25,26 +33,37 @@ if(NOT ${KK_EMULATOR})
       -lc
       -lm)
 
-  add_executable(firmware.keepkey.elf ${sources})
-  target_link_libraries(firmware.keepkey.elf
-      kkfirmware
-      kkfirmware.keepkey
-      kkboard
-      kkboard.keepkey
-      kkvariant.keepkey
-      kkvariant.salt
-      kktransport
-      trezorcrypto
-      qrcodegenerator
-      SecAESSTM32
-      kkrand
+  add_executable(${TARGESTR} ${sources})
+
+  set(libraries
+    kkfirmware
+    kkfirmware.keepkey
+    kkboard
+    kkboard.keepkey
+    kkvariant.keepkey
+    kktransport
+    trezorcrypto
+    qrcodegenerator
+    SecAESSTM32
+    kkrand)
+
+if("${COIN_SUPPORT}" STREQUAL "BTC")
+else()
+  list(APPEND libraries
+    kkvariant.salt
+  )
+endif()
+
+  target_link_libraries(${TARGESTR}
+      ${libraries}
       -lopencm3_stm32f2
       -lc
       -lm)
-  add_custom_command(TARGET firmware.keepkey.elf
-      POST_BUILD
-      COMMAND ${CMAKE_OBJCOPY} ARGS -O binary
-          ${CMAKE_BINARY_DIR}/bin/firmware.keepkey.elf
-          ${CMAKE_BINARY_DIR}/bin/firmware.keepkey.bin)
+
+  add_custom_command(TARGET ${TARGESTR}
+    POST_BUILD
+    COMMAND ${CMAKE_OBJCOPY} ARGS -O binary
+      ${CMAKE_BINARY_DIR}/bin/${TARGESTR}
+      ${CMAKE_BINARY_DIR}/bin/${TARGBSTR})
 
 endif()

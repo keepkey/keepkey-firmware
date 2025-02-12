@@ -1,6 +1,8 @@
 extern "C" {
 #include "keepkey/firmware/coins.h"
+#ifndef BITCOIN_ONLY
 #include "keepkey/firmware/ethereum_tokens.h"
+#endif // BITCOIN_ONLY
 }
 
 #include "gtest/gtest.h"
@@ -74,7 +76,7 @@ TEST(Coins, TableSanity) {
     const auto &coin = coins[i];
 
     if (!coin.has_contract_address) continue;
-
+#ifndef BITCOIN_ONLY
     const TokenType *token;
     if (!tokenByTicker(1, coin.coin_shortcut, &token)) {
       EXPECT_TRUE(false) << "Can't uniquely find " << coin.coin_shortcut;
@@ -84,6 +86,7 @@ TEST(Coins, TableSanity) {
     EXPECT_TRUE(memcmp(coin.contract_address.bytes, token->address,
                        coin.contract_address.size) == 0)
         << "Contract address mismatch for " << coin.coin_shortcut;
+#endif // BITCOIN_ONLY
   }
 }
 
@@ -134,6 +137,7 @@ TEST(Coins, BIP32AccountName) {
                  5,
                  true,
                  "Bitcoin Account #1\nChange Address #1"},
+#ifndef  BITCOIN_ONLY
                 {"Ethereum",
                  {0x80000000 | 44, 0x80000000 | 60, 0x80000000 | 1, 0, 0},
                  5,
@@ -178,7 +182,9 @@ TEST(Coins, BIP32AccountName) {
                  {0x80000000 | 44, 0x80000000 | 931, 0x80000000 | 69, 0, 0},
                  5,
                  true,
-                 "MAYAChain Account #69"}};
+                 "MAYAChain Account #69"}
+#endif // BITCOIN_ONLY
+              };
 
   for (const auto &vec : vector) {
     char node_str[NODE_STRING_LENGTH];
@@ -200,6 +206,7 @@ TEST(Coins, BIP32AccountName) {
   }
 }
 
+#ifndef BITCOIN_ONLY
 TEST(Coins, CoinByNameOrTicker) {
   const CoinType *ticker = coinByNameOrTicker("ZRX");
   const CoinType *name = coinByNameOrTicker("0x");
@@ -221,3 +228,4 @@ TEST(Coins, TokenByChainAddress) {
   ASSERT_NE(zrx, nullptr);
   EXPECT_EQ(zrx->ticker, std::string(" ZRX"));
 }
+#endif // BITCOIN_ONLY

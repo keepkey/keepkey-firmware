@@ -236,7 +236,9 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in,
                           in->op_return_data.size)) {
           return -1;  // user aborted
         }
-      } else {
+      } 
+#ifndef  BITCOIN_ONLY
+      else {
         // is this thorchain data?
         if (!thorchain_parseConfirmMemo((const char *)in->op_return_data.bytes, (size_t)in->op_return_data.size)) {
           if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmOutput,
@@ -246,6 +248,7 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in,
           }
         }
       }
+#endif // BITCOIN_ONLY
     }
     uint32_t r = 0;
     out->script_pubkey.bytes[0] = 0x6A;

@@ -8,17 +8,28 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto)
 
 add_executable(crypto-unit ${sources})
-target_link_libraries(crypto-unit
-    gtest_main
-    kkfirmware
-    kkfirmware.keepkey
-    kkboard
-    kkboard.keepkey
-    kkvariant.keepkey
+
+set(libraries
+  gtest_main
+  kkfirmware
+  kkfirmware.keepkey
+  kkboard
+  kkboard.keepkey
+  kkvariant.keepkey
+  kkboard
+  kkemulator
+  qrcodegenerator
+  kkrand
+  trezorcrypto
+  kktransport)
+
+if("${COIN_SUPPORT}" STREQUAL "BTC")
+else()
+  list(APPEND libraries
     kkvariant.salt
-    kkboard
-    kkemulator
-    qrcodegenerator
-    kkrand
-    trezorcrypto
-    kktransport)
+  )
+endif()
+
+target_link_libraries(crypto-unit
+  ${libraries}
+  )

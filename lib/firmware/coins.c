@@ -85,6 +85,7 @@ const CoinType coins[COINS_COUNT] = {
    TAPROOT},
 #include "keepkey/firmware/coins.def"
 
+#ifndef BITCOIN_ONLY
 #define X(INDEX, NAME, SYMBOL, DECIMALS, CONTRACT_ADDRESS)                    \
   {                                                                           \
       true,                                                                   \
@@ -130,6 +131,7 @@ const CoinType coins[COINS_COUNT] = {
       false, false, /* has_taproot, taproot*/                                 \
   },
 #include "keepkey/firmware/tokens.def"
+#endif // BITCOIN_ONLY
 };
 
 _Static_assert(sizeof(coins) / sizeof(coins[0]) == COINS_COUNT,

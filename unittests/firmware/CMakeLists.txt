@@ -1,14 +1,19 @@
 set(sources
     coins.cpp
-    cosmos.cpp
-    eos.cpp
-    ethereum.cpp
-    nano.cpp
     recovery.cpp
-    ripple.cpp
     storage.cpp
     usb_rx.cpp
     u2f.cpp)
+
+if("${COIN_SUPPORT}" STREQUAL "BTC")
+else()    
+  list(APPEND sources
+  cosmos.cpp
+  eos.cpp
+  ethereum.cpp
+  nano.cpp
+  ripple.cpp)
+endif()
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/include

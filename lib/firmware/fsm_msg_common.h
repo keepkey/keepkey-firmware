@@ -2,9 +2,11 @@ void fsm_msgInitialize(Initialize *msg) {
   (void)msg;
   recovery_cipher_abort();
   signing_abort();
+#ifndef  BITCOIN_ONLY
   ethereum_signing_abort();
   tendermint_signAbort();
   eos_signingAbort();
+#endif
   session_clear(false);  // do not clear PIN
   layoutHome();
   fsm_msgGetFeatures(0);
@@ -149,9 +151,12 @@ void fsm_msgGetCoinTable(GetCoinTable *msg) {
     for (size_t i = 0; i < msg->end - msg->start; i++) {
       if (msg->start + i < COINS_COUNT) {
         resp->table[i] = coins[msg->start + i];
-      } else if (msg->start + i - COINS_COUNT < TOKENS_COUNT) {
+      }
+#ifndef BITCOIN_ONLY
+      else if (msg->start + i - COINS_COUNT < TOKENS_COUNT) {
         coinFromToken(&resp->table[i], &tokens[msg->start + i - COINS_COUNT]);
       }
+#endif // BITCOIN_ONLY
     }
   }
 
@@ -545,9 +550,11 @@ void fsm_msgCancel(Cancel *msg) {
   (void)msg;
   recovery_cipher_abort();
   signing_abort();
+#ifndef BITCOIN_ONLY
   ethereum_signing_abort();
   tendermint_signAbort();
   eos_signingAbort();
+#endif // BITCOIN_ONLY
   fsm_sendFailure(FailureType_Failure_ActionCancelled, "Aborted");
 }
 

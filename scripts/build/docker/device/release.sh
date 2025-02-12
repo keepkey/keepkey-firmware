@@ -12,6 +12,7 @@ docker run -t \
   $IMAGETAG /bin/sh -c "\
       mkdir /root/build && cd /root/build && \
       cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
+        -DVARIANTS=NoObsoleteVariants \
         -DCMAKE_BUILD_TYPE=MinSizeRel \
         -DCMAKE_COLOR_MAKEFILE=ON &&\
       make && \
