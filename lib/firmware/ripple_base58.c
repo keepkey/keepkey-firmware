@@ -23,9 +23,9 @@
 
 #include "keepkey/firmware/ripple_base58.h"
 
-#include "trezor/crypto/memzero.h"
-#include "trezor/crypto/ripemd160.h"
-#include "trezor/crypto/sha2.h"
+#include "hwcrypto/crypto/memzero.h"
+#include "hwcrypto/crypto/ripemd160.h"
+#include "hwcrypto/crypto/sha2.h"
 
 #include <stdbool.h>
 #include <string.h>

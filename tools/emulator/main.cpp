@@ -37,6 +37,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 #include <signal.h>
+#include <stdio.h>
 
 #define APP_VERSIONS                                    \
   "VERSION" VERSION_STR(MAJOR_VERSION) "." VERSION_STR( \

@@ -27,11 +27,11 @@
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
-#include "trezor/crypto/base58.h"
-#include "trezor/crypto/bip32.h"
-#include "trezor/crypto/hasher.h"
-#include "trezor/crypto/memzero.h"
-#include "trezor/crypto/secp256k1.h"
+#include "hwcrypto/crypto/base58.h"
+#include "hwcrypto/crypto/bip32.h"
+#include "hwcrypto/crypto/hasher.h"
+#include "hwcrypto/crypto/memzero.h"
+#include "hwcrypto/crypto/secp256k1.h"
 
 #include "messages-eos.pb.h"
 

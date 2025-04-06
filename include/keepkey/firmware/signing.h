@@ -20,7 +20,7 @@
 #ifndef SIGNING_H
 #define SIGNING_H
 
-#include "trezor/crypto/bip32.h"
+#include "hwcrypto/crypto/bip32.h"
 #include "keepkey/transport/interface.h"
 
 #include <stdint.h>

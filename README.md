@@ -1,60 +1,52 @@
-[![CircleCI](https://circleci.com/gh/keepkey/keepkey-firmware.svg?style=svg)](https://circleci.com/gh/keepkey/keepkey-firmware)
+
+## markrypt0-keepkey-firmware development repo
+
+This is a branch of the keepkey/keepkey-firmware repo that has been refactored to support a simplified crypto library, an ARM build environment, specifically raspberry pi, and also supports new hardware used for a debug environment since all original keepkeys are permanently jtag locked.
 
 ## KeepKey Build Procedure
-
-### Toolchain Installation
-
-Install Docker Community Edition from: `https://www.docker.com/get-docker`
-
-```
-$ docker pull kktech/firmware:v5-beta
-```
 
 ### Clone the Source
 
 The sources can be obtained from github:
 
 ```
-$ git clone git@github.com:keepkey/keepkey-firmware.git
+$ git clone git@github.com:markrypt0/markrypt0-keepkey-firmware.git
 $ git submodule update --init --recursive
+```
+
+### Toolchain Installation
+
+The build is done via a docker environment, thus Docker is a reqirement.
+
+You must build a local docker image since currently there is no keepkey build image in the docker repo.
+
+Build the image in your dev environment from a shell command line.
+
+For amd64 architecture build environment:
+
+```
+$ ./DockerStart.sh
+```
+
+For arm64v8 architecture build environment:
+
+```
+$ ./armDockerStart.sh
 ```
 
 ### Build
 
-To build the firmware using the docker container, use the provided script:
+To build the firmware using the docker container, use the provided script, for example, to build a debug version of the firmware:
 
 ```
-$ ./scripts/build/docker/device/release.sh
+$ ./scripts/build/docker/device/debug.sh
 ```
+
+See ./scripts/readme.txt for various build descriptions
 
 ## Verifying Published Binaries
 
-Compare the hash of a given tagged build:
-
-```
-$ git checkout v6.2.0
-$ git submodule update --init --recursive
-$ ./scripts/build/docker/device/release.sh
-$ tail -c +257 ./bin/firmware.keepkey.bin | shasum -a 256
-```
-
-With that of the [signed v6.2.0 binary on github](https://github.com/keepkey/keepkey-firmware/releases/download/v6.2.0/firmware.keepkey.bin), ignoring signatures and firmware metadata:
-
-```
-$ tail -c +257 firmware.keepkey.bin | shasum -a 256
-```
-
-Then inspect the metadata itself by comparing against the structure described [here](https://github.com/keepkey/keepkey-firmware/blob/f20484804285decfacceb71519ae83bc18f2266f/include/keepkey/board/memory.h#L55):
-
-```
-$ head -c +256 signed_firmware.bin | xxd -
-
-```
-
-Caveats:
-
-1. v6.2.2 and v6.3.0 had an issue with build reproducibility. See [#212](https://github.com/keepkey/keepkey-firmware/issues/212).
-1. As of v6.1.0 and later, we started prepending empty slots for signatures as part of the build, and prior firmwares were emitted without that metadata section. See [87b9ebb84](https://github.com/keepkey/keepkey-firmware/commit/87b9ebb846b241e6357f296e37fd29808ddfa51a)
+There are no official keepkey firmware releases build from this repo.
 
 ### Docs
 

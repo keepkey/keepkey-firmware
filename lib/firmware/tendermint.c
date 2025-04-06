@@ -1,8 +1,8 @@
 #include "keepkey/firmware/tendermint.h"
 
 #include "keepkey/firmware/fsm.h"
-#include "trezor/crypto/segwit_addr.h"
-#include "trezor/crypto/sha2.h"
+#include "hwcrypto/crypto/segwit_addr.h"
+#include "hwcrypto/crypto/sha2.h"
 
 #include <stdarg.h>
 #include <stdio.h>

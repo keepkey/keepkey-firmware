@@ -3,9 +3,9 @@
 KEEPKEY_FIRMWARE="$(dirname "$(dirname "$(dirname "$(dirname "$( cd "$(dirname "$0")" ; pwd -P )")")")")"
 cd $KEEPKEY_FIRMWARE
 
-IMAGETAG=kktech/firmware:v15
+IMAGETAG=kkfirmware:v16
 
-docker image inspect $IMAGETAG > /dev/null || docker pull $IMAGETAG
+# docker image inspect $IMAGETAG > /dev/null || docker pull $IMAGETAG
 
 docker run -t \
   -v $(pwd):/root/keepkey-firmware:z \
@@ -14,6 +14,7 @@ docker run -t \
       cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
         -DCMAKE_BUILD_TYPE=Debug \
         -DKK_DEBUG_LINK=ON \
+        -DVARIANTS=NoObsoleteVariants \
         -DCMAKE_COLOR_MAKEFILE=ON &&\
       make && \
       mkdir -p /root/keepkey-firmware/bin && \

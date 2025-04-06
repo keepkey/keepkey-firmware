@@ -33,9 +33,9 @@
 #include "keepkey/firmware/signing.h"
 #include "keepkey/firmware/txin_check.h"
 #include "keepkey/firmware/transaction.h"
-#include "trezor/crypto/ecdsa.h"
-#include "trezor/crypto/memzero.h"
-#include "trezor/crypto/secp256k1.h"
+#include "hwcrypto/crypto/ecdsa.h"
+#include "hwcrypto/crypto/memzero.h"
+#include "hwcrypto/crypto/secp256k1.h"
 
 #include "types.pb.h"
 

@@ -1,0 +1,1 @@
+docker build  --build-arg TARGETPLATFORM="arm64v8/alpine" --build-arg ARCH="arm64v8" -t kkfirmware:v16 .

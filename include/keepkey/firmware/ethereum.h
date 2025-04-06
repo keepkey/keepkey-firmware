@@ -22,7 +22,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "trezor/crypto/bip32.h"
+#include "hwcrypto/crypto/bip32.h"
 #include "messages-ethereum.pb.h"
 
 typedef struct _EthereumSignTx EthereumSignTx;

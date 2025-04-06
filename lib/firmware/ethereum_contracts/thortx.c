@@ -25,7 +25,7 @@
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/thorchain.h"
-#include "trezor/crypto/address.h"
+#include "hwcrypto/crypto/address.h"
 
 bool thor_isThorchainTx(const EthereumSignTx *msg) {
   if (msg->has_to && msg->to.size == 20 &&

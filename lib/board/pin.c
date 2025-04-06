@@ -64,7 +64,7 @@ void pin_init_output(const Pin *pin, OutputMode output_mode,
       break;
   }
 
-  /* Set up port A */
+  /* Set pin parameters */
   gpio_mode_setup(pin->port, GPIO_MODE_OUTPUT, pull_mode_setpoint, pin->pin);
   gpio_set_output_options(pin->port, output_mode_setpoint, GPIO_OSPEED_100MHZ,
                           pin->pin);

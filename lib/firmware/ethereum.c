@@ -38,11 +38,11 @@
 #include "keepkey/firmware/thorchain.h"
 #include "keepkey/firmware/tiny-json.h"
 #include "keepkey/firmware/transaction.h"
-#include "trezor/crypto/address.h"
-#include "trezor/crypto/ecdsa.h"
-#include "trezor/crypto/memzero.h"
-#include "trezor/crypto/secp256k1.h"
-#include "trezor/crypto/sha3.h"
+#include "hwcrypto/crypto/address.h"
+#include "hwcrypto/crypto/ecdsa.h"
+#include "hwcrypto/crypto/memzero.h"
+#include "hwcrypto/crypto/secp256k1.h"
+#include "hwcrypto/crypto/sha3.h"
 
 #include <stdio.h>
 

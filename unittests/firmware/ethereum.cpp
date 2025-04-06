@@ -1,5 +1,5 @@
 extern "C" {
-#include "trezor/crypto/address.h"
+#include "hwcrypto/crypto/address.h"
 }
 
 #include "gtest/gtest.h"

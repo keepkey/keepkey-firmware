@@ -2,22 +2,22 @@
 path = deps/device-protocol
 url = https://github.com/keepkey/device-protocol.git
 branch = master
-[submodule "deps/trezor-firmware"]
-path = deps/crypto/trezor-firmware
-url = https://github.com/keepkey/trezor-firmware.git
 [submodule "googletest"]
 path = deps/googletest
 url = https://github.com/google/googletest.git
 [submodule "code-signing-keys"]
 path = code-signing-keys
 url = https://github.com/keepkey/code-signing-keys.git
-[submodule "deps/python-keepkey"]
-path = deps/python-keepkey
-url = https://github.com/keepkey/python-keepkey.git
-branch = master
 [submodule "deps/qrenc/QR-Code-generator"]
 path = deps/qrenc/QR-Code-generator
 url = https://github.com/keepkey/QR-Code-generator.git
 [submodule "deps/sca-hardening/SecAESSTM32"]
 path = deps/sca-hardening/SecAESSTM32
-url = https://github.com/keepkey/SecAESSTM32.git
+url = https://github.com/markrypt0/SecAESSTM32.git
+branch = pi-dev
+[submodule "deps/crypto/hw-crypto"]
+	path = deps/crypto/hw-crypto
+	url = https://github.com/markrypt0/hw-crypto.git
+[submodule "deps/python-keepkey"]
+	path = deps/python-keepkey
+	url = https://github.com/keepkey/python-keepkey.git

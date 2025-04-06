@@ -29,8 +29,8 @@
 #include "keepkey/board/usb.h"
 #include "keepkey/board/signatures.h"
 #include "keepkey/bootloader/usb_flash.h"
-#include "trezor/crypto/sha2.h"
-#include "trezor/crypto/memzero.h"
+#include "hwcrypto/crypto/sha2.h"
+#include "hwcrypto/crypto/memzero.h"
 #include "keepkey/transport/interface.h"
 
 #include "keepkey/board/supervise.h"

@@ -1,9 +1,9 @@
 #include <cstddef>
 
 extern "C" {
-#include "trezor/crypto/segwit_addr.h"
-#include "trezor/crypto/ecdsa.h"
-#include "trezor/crypto/cash_addr.h"
+#include "hwcrypto/crypto/segwit_addr.h"
+#include "hwcrypto/crypto/ecdsa.h"
+#include "hwcrypto/crypto/cash_addr.h"
 }
 
 #include "gtest/gtest.h"

@@ -17,6 +17,9 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+
+#include <stdio.h>
+
 #include "scm_revision.h"
 #include "variant.h"
 #include "u2f_knownapps.h"
@@ -36,45 +39,48 @@
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/authenticator.h"
 #include "keepkey/firmware/coins.h"
-#include "keepkey/firmware/cosmos.h"
-#include "keepkey/firmware/binance.h"
 #include "keepkey/firmware/crypto.h"
-#include "keepkey/firmware/eos.h"
-#include "keepkey/firmware/eos-contracts.h"
-#include "keepkey/firmware/ethereum.h"
-#include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
-#include "keepkey/firmware/mayachain.h"
-#include "keepkey/firmware/osmosis.h"
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/pin_sm.h"
 #include "keepkey/firmware/policy.h"
 #include "keepkey/firmware/recovery_cipher.h"
 #include "keepkey/firmware/reset.h"
-#include "keepkey/firmware/ripple.h"
 #include "keepkey/firmware/signing.h"
-#include "keepkey/firmware/signtx_tendermint.h"
 #include "keepkey/firmware/storage.h"
-#include "keepkey/firmware/tendermint.h"
-#include "keepkey/firmware/thorchain.h"
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/txin_check.h"
 #include "keepkey/firmware/u2f.h"
 #include "keepkey/rand/rng.h"
-#include "trezor/crypto/address.h"
-#include "trezor/crypto/aes/aes.h"
-#include "trezor/crypto/base58.h"
-#include "trezor/crypto/bip39.h"
-#include "trezor/crypto/curves.h"
-#include "trezor/crypto/ecdsa.h"
-#include "trezor/crypto/hmac.h"
-#include "trezor/crypto/memzero.h"
-#include "trezor/crypto/rand.h"
-#include "trezor/crypto/ripemd160.h"
-#include "trezor/crypto/secp256k1.h"
+#include "hwcrypto/crypto/address.h"
+#include "hwcrypto/crypto/aes/aes.h"
+#include "hwcrypto/crypto/base58.h"
+#include "hwcrypto/crypto/bip39.h"
+#include "hwcrypto/crypto/curves.h"
+#include "hwcrypto/crypto/ecdsa.h"
+#include "hwcrypto/crypto/hmac.h"
+#include "hwcrypto/crypto/memzero.h"
+#include "hwcrypto/crypto/rand.h"
+#include "hwcrypto/crypto/ripemd160.h"
+#include "hwcrypto/crypto/secp256k1.h"
 
 #include "messages.pb.h"
+
+#ifndef BITCOIN_ONLY
+#include "keepkey/firmware/cosmos.h"
+#include "keepkey/firmware/binance.h"
+#include "keepkey/firmware/eos.h"
+#include "keepkey/firmware/eos-contracts.h"
+#include "keepkey/firmware/ethereum.h"
+#include "keepkey/firmware/ethereum_tokens.h"
+#include "keepkey/firmware/mayachain.h"
+#include "keepkey/firmware/osmosis.h"
+#include "keepkey/firmware/ripple.h"
+#include "keepkey/firmware/signtx_tendermint.h"
+#include "keepkey/firmware/tendermint.h"
+#include "keepkey/firmware/thorchain.h"
+
 #include "messages-ethereum.pb.h"
 #include "messages-binance.pb.h"
 #include "messages-cosmos.pb.h"
@@ -84,8 +90,7 @@
 #include "messages-ripple.pb.h"
 #include "messages-thorchain.pb.h"
 #include "messages-mayachain.pb.h"
-
-#include <stdio.h>
+#endif // BITCOIN_ONLY
 
 #define _(X) (X)
 
@@ -272,10 +277,11 @@ void fsm_msgClearSession(ClearSession *msg) {
 
 #include "fsm_msg_common.h"
 #include "fsm_msg_coin.h"
+#include "fsm_msg_debug.h"
+#include "fsm_msg_crypto.h"
+#ifndef BITCOIN_ONLY
 #include "fsm_msg_ethereum.h"
 #include "fsm_msg_nano.h"
-#include "fsm_msg_crypto.h"
-#include "fsm_msg_debug.h"
 #include "fsm_msg_eos.h"
 #include "fsm_msg_cosmos.h"
 #include "fsm_msg_osmosis.h"
@@ -284,3 +290,4 @@ void fsm_msgClearSession(ClearSession *msg) {
 #include "fsm_msg_tendermint.h"
 #include "fsm_msg_thorchain.h"
 #include "fsm_msg_mayachain.h"
+#endif // BITCOIN_ONLY

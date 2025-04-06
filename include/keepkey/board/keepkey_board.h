@@ -27,8 +27,8 @@
 #include "keepkey/board/timer.h"
 #include "keepkey/board/usb.h"
 #include "keepkey/crypto/curves.h"
-#include "trezor/crypto/bip32.h"
-#include "trezor/crypto/curves.h"
+#include "hwcrypto/crypto/bip32.h"
+#include "hwcrypto/crypto/curves.h"
 
 /*
  storage layout:

@@ -1,8 +1,8 @@
 #include "keepkey/board/memcmp_s.h"
 
 #include "keepkey/rand/rng.h"
-#include "trezor/crypto/rand.h"
-#include "trezor/crypto/memzero.h"
+#include "hwcrypto/crypto/rand.h"
+#include "hwcrypto/crypto/memzero.h"
 
 #include <assert.h>
 #include <inttypes.h>

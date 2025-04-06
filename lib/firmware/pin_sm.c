@@ -26,7 +26,7 @@
 #include "keepkey/firmware/pin_sm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
-#include "trezor/crypto/memzero.h"
+#include "hwcrypto/crypto/memzero.h"
 
 #include <stdbool.h>
 #include <inttypes.h>

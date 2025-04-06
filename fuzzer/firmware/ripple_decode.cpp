@@ -2,7 +2,7 @@ extern "C" {
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/ripple.h"
 #include "keepkey/firmware/ripple_base58.h"
-#include "trezor/crypto/hasher.h"
+#include "hwcrypto/crypto/hasher.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {

@@ -29,6 +29,7 @@
 #define MAX_ANIMATIONS 5
 #define ANIMATION_PERIOD 20
 
+
 /* Vertical Alignment */
 #define ONE_LINE 1
 #define TWO_LINES 2

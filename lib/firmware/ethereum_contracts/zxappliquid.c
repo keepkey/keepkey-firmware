@@ -28,11 +28,11 @@
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/storage.h"
-#include "trezor/crypto/address.h"
-#include "trezor/crypto/bip32.h"
-#include "trezor/crypto/curves.h"
-#include "trezor/crypto/memzero.h"
-#include "trezor/crypto/sha3.h"
+#include "hwcrypto/crypto/address.h"
+#include "hwcrypto/crypto/bip32.h"
+#include "hwcrypto/crypto/curves.h"
+#include "hwcrypto/crypto/memzero.h"
+#include "hwcrypto/crypto/sha3.h"
 
 bool zx_confirmApproveLiquidity(uint32_t data_total, const EthereumSignTx *msg) {
     (void)data_total;

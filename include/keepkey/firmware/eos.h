@@ -20,7 +20,7 @@
 #ifndef KEEPKEY_FIRMWARE_EOS_H
 #define KEEPKEY_FIRMWARE_EOS_H
 
-#include "trezor/crypto/bip32.h"
+#include "hwcrypto/crypto/bip32.h"
 
 #include "messages-eos.pb.h"
 

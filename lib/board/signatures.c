@@ -17,9 +17,9 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "trezor/crypto/sha2.h"
-#include "trezor/crypto/ecdsa.h"
-#include "trezor/crypto/secp256k1.h"
+#include "hwcrypto/crypto/sha2.h"
+#include "hwcrypto/crypto/ecdsa.h"
+#include "hwcrypto/crypto/secp256k1.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/board/signatures.h"
 #include "keepkey/board/pubkeys.h"

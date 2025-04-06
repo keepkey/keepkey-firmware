@@ -22,8 +22,14 @@
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/cm3/scb.h>
 #include <libopencm3/stm32/spi.h>
+
+#ifdef DEV_DEBUG
+#include <libopencm3/stm32/f4/nvic.h>
+#include <libopencm3/stm32/f4/crc.h>
+#else
 #include <libopencm3/stm32/f2/rng.h>
 #include <libopencm3/stm32/f2/crc.h>
+#endif
 #include <libopencm3/cm3/cortex.h>
 #include <libopencm3/stm32/desig.h>
 #endif
@@ -35,8 +41,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#ifndef EMULATOR
 /* Stack smashing protector (SSP) canary value storage */
 uintptr_t __stack_chk_guard;
+#endif
 
 #ifdef EMULATOR
 /**

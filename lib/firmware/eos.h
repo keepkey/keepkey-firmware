@@ -20,7 +20,7 @@
 #ifndef LIB_FIRMWARE_EOS_H
 #define LIB_FIRMWARE_EOS_H
 
-#include "trezor/crypto/hasher.h"
+#include "hwcrypto/crypto/hasher.h"
 
 #define CHECK_PARAM_RET(cond, errormsg, retval)             \
   if (!(cond)) {                                            \

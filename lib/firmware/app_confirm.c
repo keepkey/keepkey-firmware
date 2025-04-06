@@ -37,7 +37,7 @@
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/coins.h"
 
-#include "trezor/crypto/bignum.h"
+#include "hwcrypto/crypto/bignum.h"
 
 #include <assert.h>
 #include <stdarg.h>

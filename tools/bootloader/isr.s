@@ -110,7 +110,7 @@ b_continue:
  
 
 // disable request
-    mvns    r0, #128            // BUTTON_EXTI - 0X80 (button) 
+    mvns    r0, #button_mask
     ldr     r2, =exti_imr
     ldr     r3, [r2, #0]        // get what is in exti_imr
     ands    r3, r0              // clear the bit
@@ -123,7 +123,7 @@ b_continue:
     str     r0, [r3, #0]        // write back to IMR
 
 // reset button request, bit 7 in 0x40013c14
-    movs    r0, #128    // BUTTON_EXTI - 0X80
+    movs    r0, #button_mask
     ldr     r1, =exti_pr    
     str     r0, [r1, #0]    
 
@@ -143,7 +143,7 @@ b_continue:
 svhandler_button_usr_return:
 
 // re-enable button request
-    movs    r0, #128            // BUTTON_EXTI - 0X80
+    movs    r0, #button_mask           
     ldr     r2, =exti_imr 
     ldr     r3, [r2, #0]
     orrs    r3, r0              // set the bit
@@ -183,8 +183,12 @@ svhandler_button_usr_return:
     .set exti_emr, 0x40013c04
     .set exti_pr,  0x40013c14
 
-
-
+    .if DEV_DEBUG == 1
+    .set button_mask, 512      // BUTTON_EXTI - 0x200
+    .else
+    .set button_mask, 128      // BUTTON_EXTI - 0X80
+    .endif
+    
 
   .global tim4_isr
   .type tim4_isr STT_FUNC

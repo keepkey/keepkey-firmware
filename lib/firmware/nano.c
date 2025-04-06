@@ -5,8 +5,8 @@
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
-#include "trezor/crypto/blake2b.h"
-#include "trezor/crypto/memzero.h"
+#include "hwcrypto/crypto/blake2b.h"
+#include "hwcrypto/crypto/memzero.h"
 
 #include <string.h>
 #include <stdio.h>

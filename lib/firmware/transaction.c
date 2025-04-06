@@ -30,13 +30,13 @@
 #include "keepkey/firmware/thorchain.h"
 #include "keepkey/firmware/txin_check.h"
 #include "keepkey/transport/interface.h"
-#include "trezor/crypto/address.h"
-#include "trezor/crypto/base58.h"
-#include "trezor/crypto/cash_addr.h"
-#include "trezor/crypto/ecdsa.h"
-#include "trezor/crypto/memzero.h"
-#include "trezor/crypto/ripemd160.h"
-#include "trezor/crypto/segwit_addr.h"
+#include "hwcrypto/crypto/address.h"
+#include "hwcrypto/crypto/base58.h"
+#include "hwcrypto/crypto/cash_addr.h"
+#include "hwcrypto/crypto/ecdsa.h"
+#include "hwcrypto/crypto/memzero.h"
+#include "hwcrypto/crypto/ripemd160.h"
+#include "hwcrypto/crypto/segwit_addr.h"
 
 #include <string.h>
 
@@ -236,7 +236,9 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in,
                           in->op_return_data.size)) {
           return -1;  // user aborted
         }
-      } else {
+      } 
+#ifndef  BITCOIN_ONLY
+      else {
         // is this thorchain data?
         if (!thorchain_parseConfirmMemo((const char *)in->op_return_data.bytes, (size_t)in->op_return_data.size)) {
           if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmOutput,
@@ -246,6 +248,18 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in,
           }
         }
       }
+
+#else  // for btc-only, don't do a thorchain memo check
+      else {
+        if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                        _("Confirm OP_RETURN"), in->op_return_data.bytes,
+                        in->op_return_data.size)) {
+          return -1;  // user aborted
+        }
+      }
+
+#endif // BITCOIN_ONLY
+
     }
     uint32_t r = 0;
     out->script_pubkey.bytes[0] = 0x6A;

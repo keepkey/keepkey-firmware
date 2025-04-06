@@ -1,6 +1,6 @@
 extern "C" {
 #include "keepkey/firmware/recovery_cipher.h"
-#include "trezor/crypto/bip39_english.h"
+#include "hwcrypto/crypto/bip39_english.h"
 }
 
 #include "gtest/gtest.h"

@@ -24,7 +24,7 @@
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/fsm.h"
-#include "trezor/crypto/address.h"
+#include "hwcrypto/crypto/address.h"
 
 static bool getCupId(const uint8_t *param, uint32_t *val) {
   bignum256 value;

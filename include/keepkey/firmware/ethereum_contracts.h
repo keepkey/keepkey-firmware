@@ -21,7 +21,7 @@
 #ifndef KEEPKEY_FIRMWARE_ETHEREUMCONTRACTS_H
 #define KEEPKEY_FIRMWARE_ETHEREUMCONTRACTS_H
 
-#include "trezor/crypto/bip32.h"
+#include "hwcrypto/crypto/bip32.h"
 
 typedef struct _EthereumSignTx EthereumSignTx;
 

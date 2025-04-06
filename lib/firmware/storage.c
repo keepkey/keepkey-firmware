@@ -48,13 +48,13 @@
 #include "keepkey/firmware/u2f.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/transport/interface.h"
-#include "trezor/crypto/aes/aes.h"
-#include "trezor/crypto/bip32.h"
-#include "trezor/crypto/bip39.h"
-#include "trezor/crypto/curves.h"
-#include "trezor/crypto/memzero.h"
-#include "trezor/crypto/pbkdf2.h"
-#include "trezor/crypto/rand.h"
+#include "hwcrypto/crypto/aes/aes.h"
+#include "hwcrypto/crypto/bip32.h"
+#include "hwcrypto/crypto/bip39.h"
+#include "hwcrypto/crypto/curves.h"
+#include "hwcrypto/crypto/memzero.h"
+#include "hwcrypto/crypto/pbkdf2.h"
+#include "hwcrypto/crypto/rand.h"
 
 #include <string.h>
 #include <stdint.h>

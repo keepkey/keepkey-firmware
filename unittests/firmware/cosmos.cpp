@@ -3,7 +3,7 @@ extern "C" {
 #include "keepkey/firmware/cosmos.h"
 #include "keepkey/firmware/signtx_tendermint.h"
 #include "keepkey/firmware/tendermint.h"
-#include "trezor/crypto/secp256k1.h"
+#include "hwcrypto/crypto/secp256k1.h"
 }
 
 #include "gtest/gtest.h"

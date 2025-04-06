@@ -24,7 +24,7 @@
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/fsm.h"
-#include "trezor/crypto/address.h"
+#include "hwcrypto/crypto/address.h"
 
 static bool isSellToUniswapCall(const EthereumSignTx *msg) {
     if (memcmp(msg->data_initial_chunk.bytes, "\xd9\x62\x7a\xa4", 4) == 0)

@@ -28,10 +28,10 @@
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/transport/interface.h"
-#include "trezor/crypto/bip39.h"
-#include "trezor/crypto/memzero.h"
-#include "trezor/crypto/rand.h"
-#include "trezor/crypto/sha2.h"
+#include "hwcrypto/crypto/bip39.h"
+#include "hwcrypto/crypto/memzero.h"
+#include "hwcrypto/crypto/rand.h"
+#include "hwcrypto/crypto/sha2.h"
 
 #include <stdio.h>
 

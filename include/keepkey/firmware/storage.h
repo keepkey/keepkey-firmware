@@ -21,7 +21,7 @@
 #ifndef STORAGE_H
 #define STORAGE_H
 
-#include "trezor/crypto/bip32.h"
+#include "hwcrypto/crypto/bip32.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/firmware/authenticator.h"
 

@@ -8,7 +8,6 @@ set(sources
     font.c
     keepkey_board.c
     keepkey_button.c
-    keepkey_display.c
     keepkey_flash.c
     keepkey_leds.c
     keepkey_usart.c
@@ -25,6 +24,20 @@ set(sources
     usb.c
     util.c
     variant.c)
+
+if("${DEVDEBUG}" STREQUAL "true")
+  set(sources ${sources}
+    keepkey_spidisplay.c)
+    if("${TWODISP}" STREQUAL "true")
+      set(sources ${sources}
+      ssd1351/ssd1351.c
+      ssd1351/fonts.c)
+    endif()
+    
+else()
+  set(sources ${sources}
+    keepkey_display.c)
+endif()
 
 check_symbol_exists(strlcpy "string.h" KK_HAVE_STRLCPY)
 if(NOT KK_HAVE_STRLCPY)

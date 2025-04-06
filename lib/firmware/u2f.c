@@ -35,13 +35,13 @@
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/u2f/u2f.h"
 #include "keepkey/firmware/u2f/u2f_keys.h"
-#include "trezor/crypto/bip39.h"
-#include "trezor/crypto/bip39_english.h"
-#include "trezor/crypto/ecdsa.h"
-#include "trezor/crypto/hmac.h"
-#include "trezor/crypto/memzero.h"
-#include "trezor/crypto/nist256p1.h"
-#include "trezor/crypto/rand.h"
+#include "hwcrypto/crypto/bip39.h"
+#include "hwcrypto/crypto/bip39_english.h"
+#include "hwcrypto/crypto/ecdsa.h"
+#include "hwcrypto/crypto/hmac.h"
+#include "hwcrypto/crypto/memzero.h"
+#include "hwcrypto/crypto/nist256p1.h"
+#include "hwcrypto/crypto/rand.h"
 
 #include <stdio.h>
 #include <string.h>

@@ -24,7 +24,7 @@
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/fsm.h"
-#include "trezor/crypto/address.h"
+#include "hwcrypto/crypto/address.h"
 
 static bool isTransERC20Call(const EthereumSignTx *msg) {
     if (memcmp(msg->data_initial_chunk.bytes, "\x41\x55\x65\xb0", 4) == 0)

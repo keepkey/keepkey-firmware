@@ -23,7 +23,11 @@
 #include <libopencm3/stm32/desig.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/spi.h>
+#ifdef DEV_DEBUG
+#include <libopencm3/stm32/f4/rng.h>
+#else
 #include <libopencm3/stm32/f2/rng.h>
+#endif
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/cm3/cortex.h>
 #include <libopencm3/cm3/scb.h>
@@ -51,8 +55,16 @@
 #include "keepkey/rand/rng.h"
 #include "keepkey/variant/keepkey.h"
 #include "keepkey/variant/poweredBy.h"
-#include "trezor/crypto/memzero.h"
-#include "trezor/crypto/rand.h"
+#include "hwcrypto/crypto/memzero.h"
+#include "hwcrypto/crypto/rand.h"
+
+#ifdef DEV_DEBUG
+#include "keepkey/board/pin.h"
+#endif
+
+#ifdef TWO_DISP
+#include "keepkey/board/ssd1351/ssd1351.h"
+#endif
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -163,6 +175,8 @@ void capture_reset_param(void) {
   _param_3 = 0;
 }
 
+void display_configure_io(void);
+
 /// Bootloader Board Initialization
 static void bootloader_init(void) {
   cm_enable_interrupts();
@@ -174,6 +188,9 @@ static void bootloader_init(void) {
   usart_init();
   keepkey_leds_init();
   storage_sectorInit();
+#ifdef DEV_DEBUG
+  SSD1351_CSInit();
+#endif
   display_hw_init();
   layout_init(display_canvas_init());
   capture_reset_param();
@@ -181,8 +198,12 @@ static void bootloader_init(void) {
 
 /// Enable the timer interrupts
 static void clock_init(void) {
+#ifdef DEV_DEBUG
+  rcc_clock_setup_pll(&rcc_hse_12mhz_3v3[RCC_CLOCK_3V3_168MHZ]);
+#else
   struct rcc_clock_scale clock = rcc_hse_8mhz_3v3[RCC_CLOCK_3V3_120MHZ];
   rcc_clock_setup_hse_3v3(&clock);
+#endif
 
   rcc_periph_clock_enable(RCC_GPIOA);
   rcc_periph_clock_enable(RCC_GPIOB);
@@ -265,7 +286,7 @@ static void boot(void) {
     }
     memzero(flashed_firmware_hash, sizeof(flashed_firmware_hash));
     memory_firmware_hash(flashed_firmware_hash);
-    char hash_str[2 * 32 + 1];
+    static char hash_str[2 * 32 + 1];
     data2hex(flashed_firmware_hash, 32, hash_str);
     kk_strlwr(hash_str);
     if (!confirm_without_button_request(
@@ -314,6 +335,12 @@ int main(void) {
   bootloader_init();
 
   layout_simple_message("booting...");
+
+#ifdef TWO_DISP
+  SSD1351_Init();
+  SSD1351_FillScreen(SSD1351_BLACK);
+  SSD1351_WriteString(0, 0, "bootloader", Font_7x10, SSD1351_BLUE, SSD1351_BLACK);
+#endif
 
 #if !defined(DEBUG_ON) && (MEMORY_PROTECT == 0)
 #error "To compile release version, please set MEMORY_PROTECT flag"

@@ -76,7 +76,7 @@ static const MessagesMap_t *message_map_entry(MessageMapType type,
  * OUTPUT
  *      protocol buffer
  */
-const pb_field_t *message_fields(MessageMapType type, MessageType msg_id,
+const pb_msgdesc_t *message_fields(MessageMapType type, MessageType msg_id,
                                  MessageMapDirection dir) {
   assert(MessagesMap != NULL);
 
@@ -341,7 +341,7 @@ static void msg_read_tiny(const uint8_t *msg, size_t len) {
     return;
   }
 
-  const pb_field_t *fields = NULL;
+  const pb_msgdesc_t *fields = NULL;
   pb_istream_t stream = pb_istream_from_buffer(buf + 9, msgSize);
 
   switch (msgId) {
@@ -595,9 +595,9 @@ uint32_t parse_pb_varint(RawMessage *msg, uint8_t varint_count) {
  * OUTPUT
  *     bytes written to buffer
  */
-int encode_pb(const void *source_ptr, const pb_field_t *fields, uint8_t *buffer,
+int encode_pb(const void *source_ptr, const pb_msgdesc_t *fields, uint8_t *buffer,
               uint32_t len) {
-  pb_ostream_t os = pb_ostream_from_buffer(buffer, len);
+pb_ostream_t os = pb_ostream_from_buffer(buffer, len);
 
   if (!pb_encode(&os, fields, source_ptr)) return 0;
 

@@ -24,8 +24,8 @@
 #ifndef KEEPKEY_FIRMWARE_RIPPLE_BASE58_H
 #define KEEPKEY_FIRMWARE_RIPPLE_BASE58_H
 
-#include "trezor/crypto/hasher.h"
-#include "trezor/crypto/options.h"
+#include "hwcrypto/crypto/hasher.h"
+#include "hwcrypto/crypto/options.h"
 
 #include <stdbool.h>
 #include <stdint.h>

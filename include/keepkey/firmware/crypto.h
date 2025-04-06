@@ -20,9 +20,9 @@
 #ifndef CRYPTO_H
 #define CRYPTO_H
 
-#include "trezor/crypto/bip32.h"
-#include "trezor/crypto/secp256k1.h"
-#include "trezor/crypto/sha2.h"
+#include "hwcrypto/crypto/bip32.h"
+#include "hwcrypto/crypto/secp256k1.h"
+#include "hwcrypto/crypto/sha2.h"
 #include "pb.h"
 #include "keepkey/transport/interface.h"
 

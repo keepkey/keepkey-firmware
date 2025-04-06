@@ -16,10 +16,14 @@ set(CMAKE_CXX_COMPILER arm-none-eabi-g++ CACHE FILEPATH "")
 set(CMAKE_C_COMPILER_WORKS True CACHE BOOL "")
 set(CMAKE_CXX_COMPILER_WORKS True CACHE BOOL "")
 
+
+set(floatarch -msoft-float)
+set(cpu -mcpu=cortex-m3)
+
 set(ARCH_FLAGS
     "-mthumb \
-    -mcpu=cortex-m3 \
-    -msoft-float \
+    ${cpu} \
+    ${floatarch} \
     -ffunction-sections \
     -fdata-sections \
     -fno-common \
@@ -61,15 +65,16 @@ set(CMAKE_CXX_FLAGS_DEBUG "${KK_CXX_FLAGS} -Os -g" CACHE STRING "")
 set(CMAKE_CXX_FLAGS_MINSIZEREL "${KK_CXX_FLAGS} -Os" CACHE STRING "")
 set(CMAKE_CXX_FLAGS_RELEASE "${KK_CXX_FLAGS} -Os" CACHE STRING "")
 
-set(CMAKE_ASM_FLAGS "-mcpu=cortex-m3 \
+set(CMAKE_ASM_FLAGS "${cpu} \
     -mthumb \
     -x assembler-with-cpp \
     -gdwarf-2" CACHE STRING "")
 
 set(CMAKE_EXE_LINKER_FLAGS
     "-mthumb \
-    -mcpu=cortex-m3 \
+    ${cpu} \
+    ${fpu} \
     -nostartfiles \
-    -msoft-float \
+    ${floatarch} \
     -specs=nosys.specs \
     -Wl,--gc-sections" CACHE STRING "")

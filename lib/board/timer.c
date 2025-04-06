@@ -19,7 +19,11 @@
 
 #ifndef EMULATOR
 #include <libopencm3/stm32/timer.h>
+#ifdef DEV_DEBUG
+#include <libopencm3/stm32/f4/nvic.h>
+#else
 #include <libopencm3/stm32/f2/nvic.h>
+#endif
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/cm3/cortex.h>
 #else
@@ -31,7 +35,11 @@
 #include "keepkey/board/keepkey_leds.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/supervise.h"
-#include "trezor/crypto/rand.h"
+#include "hwcrypto/crypto/rand.h"
+
+#ifdef DEV_DEBUG
+#include "keepkey/board/pin.h"
+#endif
 
 #include <stddef.h>
 
@@ -217,23 +225,37 @@ void timer_init(void) {
 #ifndef EMULATOR
   // Set up the timer.
   rcc_periph_reset_pulse(RST_TIM4);
-  timer_enable_irq(TIM4, TIM_DIER_UIE);
   timer_set_mode(TIM4, TIM_CR1_CKD_CK_INT, TIM_CR1_CMS_EDGE, TIM_CR1_DIR_UP);
 
+#ifdef DEV_DEBUG
+  /* set prescaler 
+     2*rcc_apb1_frequency is the internal clock freq for this timer, set for 10khz
+  */
+  timer_set_prescaler(TIM4, 2*rcc_apb1_frequency/10000);
+  timer_set_period(TIM4, 10);  // set for a timer period of 5 khz (empirically determined)
+
+  // initialize scope trig here
+  pin_init_output(&SCOPE_PIN, PUSH_PULL_MODE, NO_PULL_MODE);
+
+#else
   /* 1000 * ( 120 / 12000000 ) = 1 ms intervals,
   where 1000 is the counter, 120 is the prescalar,
-  and 12000000 is the clks/second */
+  and 12000000 is the clks/second 
+  THIS IS INCORRECT, PRESCALER CAN ONLY BE A 16 BIT NUMBER*/
   timer_set_prescaler(TIM4, 120000);
   timer_set_period(TIM4, 1);
+#endif // DEV_DEBUG
 
   nvic_set_priority(NVIC_TIM4_IRQ, 16 * 2);
 
   timer_enable_counter(TIM4);
-#else
+  timer_enable_irq(TIM4, TIM_DIER_UIE);
+
+#else //EMULATOR
   void tim4_sighandler(int sig);
   signal(SIGALRM, tim4_sighandler);
   ualarm(1000, 1000);
-#endif
+#endif // EMULATOR
 }
 
 uint32_t fi_defense_delay(volatile uint32_t value) {
@@ -266,7 +288,11 @@ uint32_t fi_defense_delay(volatile uint32_t value) {
  */
 void delay_us(uint32_t us) {
 #ifndef EMULATOR
-  uint32_t cnt = us * 20;
+#ifdef DEV_DEBUG
+uint32_t cnt = us * 28;   // 168Mhz clock
+#else
+uint32_t cnt = us * 20;
+#endif
 
   while (cnt--) {
     __asm__("nop");
@@ -285,7 +311,11 @@ void delay_us(uint32_t us) {
  *     none
  */
 void delay_ms(uint32_t ms) {
-  remaining_delay = ms;
+#ifdef DEV_DEBUG
+remaining_delay = 2*ms;   // this is mult by 2 for 5Mhz clock
+#else
+remaining_delay = ms;   // this is mult by 2 for 5Mhz clock
+#endif
 
   while (remaining_delay > 0) {
   }
@@ -345,9 +375,10 @@ void timerisr_usr(void) {
   run_runnables();
 
 #ifndef EMULATOR
+
   svc_tusr_return();  // this MUST be called last to properly clean up and
                       // return
-#endif
+#endif  // EMULATOR
 }
 
 #ifdef EMULATOR

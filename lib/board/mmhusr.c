@@ -20,8 +20,12 @@
 #ifndef EMULATOR
 #include <libopencm3/stm32/flash.h>
 #include <libopencm3/stm32/timer.h>
-#include <libopencm3/stm32/f2/nvic.h>
+#ifdef DEV_DEBUG
+#include <libopencm3/stm32/f4/nvic.h>
 #else
+#include <libopencm3/stm32/f2/nvic.h>
+#endif
+#else // EMULATOR
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>

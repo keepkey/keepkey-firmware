@@ -23,10 +23,10 @@
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/tendermint.h"
-#include "trezor/crypto/secp256k1.h"
-#include "trezor/crypto/ecdsa.h"
-#include "trezor/crypto/memzero.h"
-#include "trezor/crypto/segwit_addr.h"
+#include "hwcrypto/crypto/secp256k1.h"
+#include "hwcrypto/crypto/ecdsa.h"
+#include "hwcrypto/crypto/memzero.h"
+#include "hwcrypto/crypto/segwit_addr.h"
 
 #include <stdbool.h>
 #include <time.h>

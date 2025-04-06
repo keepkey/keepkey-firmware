@@ -27,8 +27,8 @@
 #include <stdio.h>
 #endif
 
-#include "trezor/crypto/sha2.h"
-#include "trezor/crypto/sha3.h"
+#include "hwcrypto/crypto/sha2.h"
+#include "hwcrypto/crypto/sha3.h"
 
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/keepkey_board.h"
@@ -110,6 +110,15 @@ void mpu_config(int priv_level) {
   MPU_RBAR = 0x40004800 | MPU_RBAR_VALID | (5 << MPU_RBAR_REGION_LSB);
   MPU_RASR = MPU_RASR_ENABLE | MPU_RASR_ATTR_PERIPH | MPU_RASR_SIZE_1KB |
              MPU_RASR_ATTR_AP_PRW_URW | MPU_RASR_ATTR_XN;
+
+#elif defined DEV_DEBUG
+  // unpriv access to SPI1 for development debugging
+// USART3 is open to unprivileged access for usart debug versions only
+  // (0x40013000 - 0x400133ff)
+  MPU_RBAR = 0x40013000 | MPU_RBAR_VALID | (5 << MPU_RBAR_REGION_LSB);
+  MPU_RASR = MPU_RASR_ENABLE | MPU_RASR_ATTR_PERIPH | MPU_RASR_SIZE_1KB |
+             MPU_RASR_ATTR_AP_PRW_URW | MPU_RASR_ATTR_XN;
+
 #else
   // If using release firmware, use this region to protect the sysconfig
   // registers (0x40013800 - 0x40013BFF, read-only, execute never)

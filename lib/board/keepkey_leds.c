@@ -23,9 +23,14 @@
 #include "keepkey/board/pin.h"
 
 #ifndef EMULATOR
+#ifdef  DEV_DEBUG
+static const Pin GREEN_LED = {GPIOC, GPIO1};
+static const Pin RED_LED = {GPIOB, GPIO8};
+#else
 static const Pin GREEN_LED = {GPIOC, GPIO14};
-static const Pin RED_LED = {GPIOC, GPIO15};
-#endif
+static const Pin RED_LED = {GPIOB, GPIO8};
+#endif  // DEV_DEBUG
+#endif  // EMULATOR
 
 /*
  * keepkey_leds_init() - Initialize gpios for LEDs
@@ -38,7 +43,7 @@ static const Pin RED_LED = {GPIOC, GPIO15};
 void keepkey_leds_init(void) {
 #ifndef EMULATOR
   pin_init_output(&GREEN_LED, PUSH_PULL_MODE, NO_PULL_MODE);
-  pin_init_output(&RED_LED, PUSH_PULL_MODE, NO_PULL_MODE);
+  // pin_init_output(&RED_LED, PUSH_PULL_MODE, NO_PULL_MODE);
 
   led_func(CLR_GREEN_LED);
   led_func(CLR_RED_LED);

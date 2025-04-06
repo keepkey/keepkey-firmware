@@ -21,7 +21,11 @@
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/exti.h>
+#ifdef DEV_DEBUG
+#include <libopencm3/stm32/f4/nvic.h>
+#else
 #include <libopencm3/stm32/f2/nvic.h>
+#endif
 #include <libopencm3/stm32/syscfg.h>
 #endif
 
@@ -38,10 +42,15 @@ static void *on_release_handler_context = NULL;
 static void *on_press_handler_context = NULL;
 
 #ifndef EMULATOR
-static const uint16_t BUTTON_PIN = GPIO7;
 static const uint32_t BUTTON_PORT = GPIOB;
+#ifdef  DEV_DEBUG
+static const uint16_t BUTTON_PIN = GPIO9;
+static const uint32_t BUTTON_EXTI = EXTI9;
+#else
+static const uint16_t BUTTON_PIN = GPIO7;
 static const uint32_t BUTTON_EXTI = EXTI7;
-#endif
+#endif  // DEV_DEBUG
+#endif // EMULATOR
 
 void kk_keepkey_button_init(void) {
   on_press_handler = NULL;
@@ -69,6 +78,7 @@ void keepkey_button_init(void) {
 
 #ifndef EMULATOR
   gpio_mode_setup(BUTTON_PORT, GPIO_MODE_INPUT, GPIO_PUPD_NONE, BUTTON_PIN);
+  /* Set up port B */
 
   /* Configure the EXTI subsystem. */
   exti_select_source(BUTTON_EXTI, GPIOB);
@@ -141,7 +151,9 @@ bool keepkey_button_down(void) { return !keepkey_button_up(); }
 
 void buttonisr_usr(void) {
 #ifndef EMULATOR
-  if (gpio_get(BUTTON_PORT, BUTTON_PIN) & BUTTON_PIN) {
+  uint16_t gpState = gpio_get(BUTTON_PORT, BUTTON_PIN) & BUTTON_PIN;
+
+  if (gpState) {
     if (on_release_handler) {
       on_release_handler(on_release_handler_context);
     }

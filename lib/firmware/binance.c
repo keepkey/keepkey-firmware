@@ -1,9 +1,9 @@
 #include "keepkey/firmware/binance.h"
 
 #include "keepkey/firmware/tendermint.h"
-#include "trezor/crypto/memzero.h"
-#include "trezor/crypto/secp256k1.h"
-#include "trezor/crypto/segwit_addr.h"
+#include "hwcrypto/crypto/memzero.h"
+#include "hwcrypto/crypto/secp256k1.h"
+#include "hwcrypto/crypto/segwit_addr.h"
 
 #include "messages-binance.pb.h"
 

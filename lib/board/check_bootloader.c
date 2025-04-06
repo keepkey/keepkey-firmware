@@ -23,7 +23,7 @@
 #include <libopencm3/stm32/flash.h>
 #endif
 
-#include "trezor/crypto/sha2.h"
+#include "hwcrypto/crypto/sha2.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/memory.h"

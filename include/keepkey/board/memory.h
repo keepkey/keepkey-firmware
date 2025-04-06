@@ -21,7 +21,7 @@
 #define MEMORY_H
 
 //#include <libopencm3/cm3/mpu.h>
-#include "trezor/crypto/sha2.h"
+#include "hwcrypto/crypto/sha2.h"
 
 #include <stddef.h>
 #include <stdbool.h>

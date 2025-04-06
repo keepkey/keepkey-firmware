@@ -77,6 +77,7 @@ void fsm_msgWordAck(WordAck *msg);
 void fsm_msgCharacterAck(CharacterAck *msg);
 void fsm_msgApplyPolicies(ApplyPolicies *msg);
 
+#ifndef BITCOIN_ONLY
 // ethereum
 void fsm_msgEthereumGetAddress(EthereumGetAddress *msg);
 void fsm_msgEthereumSignTx(EthereumSignTx *msg);
@@ -117,6 +118,8 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck *msg);
 void fsm_msgMayachainGetAddress(const MayachainGetAddress *msg);
 void fsm_msgMayachainSignTx(const MayachainSignTx *msg);
 void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg);
+
+#endif  // BITCOIN_ONLY
 
 #if DEBUG_LINK
 // void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);

@@ -41,8 +41,8 @@
 #include "keepkey/firmware/eip712.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/tiny-json.h"
-#include "trezor/crypto/sha3.h"
-#include "trezor/crypto/memzero.h"
+#include "hwcrypto/crypto/sha3.h"
+#include "hwcrypto/crypto/memzero.h"
 
 static const char *udefList[MAX_USERDEF_TYPES] = {0};
 static dm confirmProp;

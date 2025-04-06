@@ -23,8 +23,8 @@
 #include "keepkey/board/layout.h"
 #include "keepkey/board/util.h"
 #include "keepkey/firmware/txin_check.h"
-#include "trezor/crypto/memzero.h"
-#include "trezor/crypto/sha2.h"
+#include "hwcrypto/crypto/memzero.h"
+#include "hwcrypto/crypto/sha2.h"
 
 static uint8_t
     txin_current_digest[SHA256_DIGEST_LENGTH]; /* current tx txins digest */

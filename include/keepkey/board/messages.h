@@ -77,7 +77,7 @@ typedef enum { IN_MSG, OUT_MSG } MessageMapDirection;
 typedef enum { PARSABLE, RAW } MessageMapDispatch;
 
 typedef struct {
-  const pb_field_t *fields;
+  const pb_msgdesc_t *fields;
   msg_handler_t process_func;
   MessageMapDispatch dispatch;
   MessageMapType type;
@@ -99,8 +99,8 @@ typedef enum {
 
 typedef void (*raw_msg_handler_t)(RawMessage *msg, uint32_t frame_length);
 
-const pb_field_t *message_fields(MessageMapType type, MessageType msg_id,
-                                 MessageMapDirection dir);
+const pb_msgdesc_t *message_fields(MessageMapType type, MessageType msg_id,
+  MessageMapDirection dir);
 
 bool msg_write(MessageType msg_id, const void *msg);
 
@@ -129,6 +129,7 @@ MessageType wait_for_tiny_msg(uint8_t *buf);
 MessageType check_for_tiny_msg(uint8_t *buf);
 
 uint32_t parse_pb_varint(RawMessage *msg, uint8_t varint_count);
-int encode_pb(const void *source_ptr, const pb_field_t *fields, uint8_t *buffer,
+
+int encode_pb(const void *source_ptr, const pb_msgdesc_t *fields, uint8_t *buffer,
               uint32_t len);
 #endif

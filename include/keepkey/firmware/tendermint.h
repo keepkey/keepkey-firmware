@@ -1,7 +1,7 @@
 #ifndef KEEPKEY_FIRMWARE_TENDERMINT_H
 #define KEEPKEY_FIRMWARE_TENDERMINT_H
 
-#include "trezor/crypto/bip32.h"
+#include "hwcrypto/crypto/bip32.h"
 
 #include <inttypes.h>
 #include <stdbool.h>

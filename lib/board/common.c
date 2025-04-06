@@ -21,8 +21,8 @@
 
 #include "keepkey/board/otp.h"
 #include "keepkey/rand/rng.h"
-#include "trezor/crypto/hmac_drbg.h"
-#include "trezor/crypto/rand.h"
+#include "hwcrypto/crypto/hmac_drbg.h"
+#include "hwcrypto/crypto/rand.h"
 
 #ifndef EMULATOR
 #include <libopencm3/stm32/desig.h>

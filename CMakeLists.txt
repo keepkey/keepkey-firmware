@@ -40,10 +40,10 @@ if(NOT EXISTS ${CMAKE_SOURCE_DIR}/deps/googletest/CMakeLists.txt)
       "googletest missing. Need to 'git submodule update --init --recursive")
 endif()
 
-if(NOT EXISTS ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-firmware/crypto/Makefile)
+if(NOT EXISTS ${CMAKE_SOURCE_DIR}/deps/crypto/hw-crypto/crypto/Makefile)
   message(
     FATAL_ERROR
-      " trezor-crypto missing. Need to 'git submodule update --init --recursive"
+      " hw-crypto missing. Need to 'git submodule update --init --recursive"
   )
 endif()
 
@@ -58,7 +58,7 @@ find_program(NANOPB_GENERATOR nanopb_generator.py)
 if(${KK_EMULATOR} AND NOT NANOPB_GENERATOR)
   message(
     FATAL_ERROR
-      "Must install nanopb 0.3.9.4, and put nanopb-nanopb-0.3.9.4/generator on your PATH"
+      "Must install nanopb v1.0.0, and put nanopb-nanopb-v1.0.0/generator on your PATH"
   )
 endif()
 
@@ -69,7 +69,15 @@ else()
   add_definitions(-DCONFIDENTIAL=__attribute__\(\(section\("confidential"\)\)\))
 endif()
 
-add_definitions(-DSTM32F2=1)
+if("${DEVDEBUG}" STREQUAL "true")
+  add_definitions(-DDEV_DEBUG)
+  add_definitions(-DSTM32F4=1)
+  if("${TWODISP}" STREQUAL "true")
+    add_definitions(-DTWO_DISP)
+  endif()
+else()
+  add_definitions(-DSTM32F2=1)
+endif()
 
 add_definitions(-DED25519_CUSTOMHASH=1)
 add_definitions(-DED25519_CUSTOMRANDOM=1)
@@ -108,6 +116,10 @@ if(${KK_DEBUG_LINK})
   add_definitions(-DDEBUG_LINK=1)
 else()
   add_definitions(-DDEBUG_LINK=0)
+endif()
+
+if("${COIN_SUPPORT}" STREQUAL "BTC")
+  add_definitions(-DBITCOIN_ONLY)
 endif()
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")

@@ -1,0 +1,40 @@
+version: '3'
+services:
+  kkemu:
+    image: kktech/kkemu:latest_arm
+    build:
+      context: '../../'
+      dockerfile: 'scripts/armEmulator/Dockerfile'
+    networks:
+      - local-net
+    ports:
+      - "127.0.0.1:11044:11044/udp"
+      - "127.0.0.1:11045:11045/udp"
+      - "127.0.0.1:5000:5000"
+  python-keepkey:
+    build:
+      context: '../../'
+      dockerfile: 'scripts/armEmulator/python-keepkey.Dockerfile'
+    volumes:
+      - test-reports:/kkemu/test-reports:rw
+    networks:
+      - local-net
+    depends_on:
+      - kkemu
+  firmware-unit:
+    build:
+      context: '../../'
+      dockerfile: 'scripts/armEmulator/Dockerfile'
+    volumes:
+      - test-reports:/kkemu/test-reports:rw
+    entrypoint: ['scripts/armEmulator/firmware-unit.sh']
+    networks:
+      - local-net
+    depends_on:
+      - kkemu
+networks:
+  local-net:
+    external: false
+volumes:
+  test-reports:
+    external: false

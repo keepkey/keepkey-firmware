@@ -20,8 +20,8 @@
 #ifndef TRANSACTION_H
 #define TRANSACTION_H
 
-#include "trezor/crypto/sha2.h"
-#include "trezor/crypto/bip32.h"
+#include "hwcrypto/crypto/sha2.h"
+#include "hwcrypto/crypto/bip32.h"
 #include "keepkey/transport/interface.h"
 
 #include <stdbool.h>

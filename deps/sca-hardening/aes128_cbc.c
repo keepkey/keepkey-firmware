@@ -1,6 +1,6 @@
 #include "aes_sca/aes.h"
-#include "trezor/crypto/aes/aes.h"
-#include "trezor/crypto/memzero.h"
+#include "hwcrypto/crypto/aes/aes.h"
+#include "hwcrypto/crypto/memzero.h"
 
 #include <string.h>
 

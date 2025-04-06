@@ -24,7 +24,7 @@
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/fsm.h"
-#include "trezor/crypto/address.h"
+#include "hwcrypto/crypto/address.h"
 
 static bool isWithFromSalary(const EthereumSignTx *msg) {
     if (memcmp(msg->data_initial_chunk.bytes, "\xfe\xa7\xc5\x3f", 4) == 0)

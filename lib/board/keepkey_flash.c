@@ -32,8 +32,8 @@
 #include "keepkey/board/supervise.h"
 #include "keepkey/board/util.h"
 #include "keepkey/rand/rng.h"
-#include "trezor/crypto/memzero.h"
-#include "trezor/crypto/rand.h"
+#include "hwcrypto/crypto/memzero.h"
+#include "hwcrypto/crypto/rand.h"
 
 #include <string.h>
 #include <stdint.h>

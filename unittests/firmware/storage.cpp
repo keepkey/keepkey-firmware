@@ -2,8 +2,8 @@ extern "C" {
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/policy.h"
 #include "keepkey/board/keepkey_board.h"
-#include "trezor/crypto/memzero.h"
-#include "trezor/crypto/aes/aes.h"
+#include "hwcrypto/crypto/memzero.h"
+#include "hwcrypto/crypto/aes/aes.h"
 #include "types.pb.h"
 #include "storage.h"
 }

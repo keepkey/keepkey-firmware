@@ -30,17 +30,6 @@
 #pragma GCC push_options
 #pragma GCC optimize("-O3")
 
-#ifndef EMULATOR
-static const Pin nOE_PIN = {GPIOA, GPIO8};
-static const Pin nWE_PIN = {GPIOA, GPIO9};
-static const Pin nDC_PIN = {GPIOB, GPIO1};
-
-static const Pin nSEL_PIN = {GPIOA, GPIO10};
-static const Pin nRESET_PIN = {GPIOB, GPIO5};
-
-static const Pin BACKLIGHT_PWR_PIN = {GPIOB, GPIO0};
-#endif
-
 static uint8_t canvas_buffer[KEEPKEY_DISPLAY_HEIGHT * KEEPKEY_DISPLAY_WIDTH];
 static Canvas canvas;
 bool constant_power = false;

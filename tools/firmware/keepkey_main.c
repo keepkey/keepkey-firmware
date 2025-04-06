@@ -43,7 +43,11 @@
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
-#include "trezor/crypto/rand.h"
+#include "hwcrypto/crypto/rand.h"
+
+#ifdef TWO_DISP
+#include "keepkey/board/ssd1351/ssd1351.h"
+#endif
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -183,6 +187,10 @@ int main(void) {
 
     /* Init board */
     kk_board_init();
+
+#ifdef TWO_DISP
+    SSD1351_WriteString(0, 12, "firmware", Font_7x10, SSD1351_GREEN, SSD1351_BLACK);
+#endif
 
     /* Program the model into OTP, if we're not in screen-test mode, and it's
      * not already there

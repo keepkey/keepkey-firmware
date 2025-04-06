@@ -1,4 +1,4 @@
-FROM kktech/firmware:v15
+FROM kktech/firmware:v16
 
 WORKDIR /kkemu
 COPY ./ /kkemu

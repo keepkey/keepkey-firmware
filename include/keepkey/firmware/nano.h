@@ -2,8 +2,8 @@
 #define KEEPKEY_FIRMWARE_NANO_H
 
 #include "keepkey/transport/interface.h"
-#include "trezor/crypto/bip32.h"
-#include "trezor/crypto/nano.h"
+#include "hwcrypto/crypto/bip32.h"
+#include "hwcrypto/crypto/nano.h"
 
 #include <stdint.h>
 #include <stdbool.h>

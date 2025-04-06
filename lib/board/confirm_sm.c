@@ -25,11 +25,16 @@
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/usb.h"
 #include "keepkey/board/supervise.h"
-#include "trezor/crypto/memzero.h"
+#include "hwcrypto/crypto/memzero.h"
 
 #ifndef EMULATOR
 #include <libopencm3/cm3/cortex.h>
+
+#ifdef DEV_DEBUG
+#include "keepkey/board/pin.h"
 #endif
+
+#endif // EMULATOR
 
 #include <assert.h>
 #include <stdarg.h>
@@ -49,6 +54,10 @@ static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
 /// Handler for push button being pressed.
 /// \param context current state context.
 static void handle_screen_press(void *context) {
+  #ifdef DEV_DEBUG
+  CLEAR_PIN(SCOPE_PIN);
+  #endif
+
   assert(context != NULL);
 
   StateInfo *si = (StateInfo *)context;
@@ -82,6 +91,10 @@ static void handle_screen_release(void *context) {
     case CONFIRMED:
       si->active_layout = LAYOUT_FINISHED;
       si->display_state = FINISHED;
+      #ifdef DEV_DEBUG
+      SET_PIN(SCOPE_PIN);
+      #endif
+    
       break;
 
     default:
