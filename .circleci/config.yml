@@ -15,12 +15,12 @@ jobs:
                   command: |
                       pushd ./scripts/emulator
                       set +e
-                      docker-compose -f docker-compose-btc.yml up --build firmware-unit
-                      docker-compose up --build python-keepkey
+                      docker compose -f docker compose-btc.yml up --build firmware-unit
+                      docker compose up --build python-keepkey
                       set -e
                       mkdir -p ../../test-reports
-                      docker cp "$(docker-compose ps -q firmware-unit)":/kkemu/test-reports/. ../../test-reports/
-                      docker cp "$(docker-compose ps -q python-keepkey)":/kkemu/test-reports/. ../../test-reports/
+                      docker cp "$(docker compose ps -q firmware-unit)":/kkemu/test-reports/. ../../test-reports/
+                      docker cp "$(docker compose ps -q python-keepkey)":/kkemu/test-reports/. ../../test-reports/
                       popd
                       [ "$(cat test-reports/python-keepkey/status)$(cat test-reports/firmware-unit/status)" == "00" ] || exit 1
             - store_test_results:
@@ -40,7 +40,7 @@ jobs:
                   name: Build Emulator
                   command: |
                       pushd ./scripts/emulator
-                      docker-compose -f docker-compose-btc.yml build kkemu
+                      docker compose -f docker compose-btc.yml build kkemu
                       popd
             - run:
                   name: Publish Emulator
