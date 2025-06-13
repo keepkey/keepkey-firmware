@@ -15,7 +15,7 @@ jobs:
                   command: |
                       pushd ./scripts/emulator
                       set +e
-                      docker-compose up -f docker-compose-btc.yml --build firmware-unit
+                      docker-compose -f docker-compose-btc.yml up --build firmware-unit
                       docker-compose up --build python-keepkey
                       set -e
                       mkdir -p ../../test-reports
