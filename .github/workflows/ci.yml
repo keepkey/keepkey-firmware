@@ -1,13 +1,23 @@
 # KeepKey Firmware CI Pipeline
 #
-# Dependency graph:
-#   build-emulator ──┬── unit-tests
-#                    ├── btc-signing-regression  ← REQUIRED STATUS CHECK
-#                    └── python-integration-tests
+# FAIL FAST — quick checks gate everything, no wasted compute.
 #
-#   build-arm-firmware  (independent, parallel)
+# Stage 1: GATE (seconds, no Docker)
+#   ├─ lint-format        clang-format diff check
+#   ├─ secret-scan        gitleaks credential detection
+#   └─ check-submodules   verify all deps present
 #
-#   publish-emulator  (master-only, after all tests pass)
+# Stage 2: BUILD (parallel, gated by Stage 1)
+#   ├─ build-emulator     Docker image → artifact
+#   └─ build-arm-firmware cross-compile → .bin/.elf
+#
+# Stage 3: TEST (parallel, gated by Stage 2)
+#   ├─ unit-tests              GoogleTest (make xunit)
+#   ├─ btc-signing-regression  P2PKH + SegWit + Taproot ★ REQUIRED
+#   └─ python-integration      full test suite
+#
+# Stage 4: PUBLISH (master only, gated by Stage 3)
+#   └─ publish-emulator   DockerHub push
 
 name: CI
 
@@ -22,17 +32,94 @@ env:
   EMU_IMAGE: kkemu-ci
 
 jobs:
-  # ─────────────────────────────────────────────────────────
-  # Job 1: Build emulator Docker image, save as artifact
-  # ─────────────────────────────────────────────────────────
-  build-emulator:
+  # ═══════════════════════════════════════════════════════════
+  # STAGE 1: GATE — kill bad PRs in seconds
+  # ═══════════════════════════════════════════════════════════
+
+  lint-format:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 3
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Init submodules (skip trezor-firmware nested subs)
+      - name: Install clang-format
+        run: sudo apt-get install -y clang-format-14
+
+      - name: Check code formatting
+        run: |
+          FAILED=0
+          for f in $(find include/keepkey lib/firmware lib/board lib/transport/src \
+                     -name '*.c' -o -name '*.h' 2>/dev/null | grep -v generated | grep -v '.pb.'); do
+            if ! clang-format-14 --style=file --dry-run --Werror "$f" 2>/dev/null; then
+              echo "::warning file=$f::Formatting differs from .clang-format"
+              FAILED=1
+            fi
+          done
+          if [ "$FAILED" = "1" ]; then
+            echo ""
+            echo "Run: clang-format -i <file> to fix formatting"
+            echo "Note: treating as warning until codebase is reformatted"
+          fi
+        # Warn-only until existing code is reformatted
+        continue-on-error: true
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  check-submodules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify submodules are declared
+        run: |
+          echo "Checking required submodule declarations..."
+          REQUIRED=(
+            "deps/crypto/trezor-firmware"
+            "deps/device-protocol"
+            "deps/python-keepkey"
+            "deps/googletest"
+            "deps/qrenc/QR-Code-generator"
+            "deps/sca-hardening/SecAESSTM32"
+          )
+          FAILED=0
+          for sub in "${REQUIRED[@]}"; do
+            if ! grep -q "$sub" .gitmodules; then
+              echo "::error::Missing required submodule: $sub"
+              FAILED=1
+            else
+              echo "  ✓ $sub"
+            fi
+          done
+          [ "$FAILED" = "0" ] || exit 1
+
+  # ═══════════════════════════════════════════════════════════
+  # STAGE 2: BUILD — compile only after gate passes
+  # ═══════════════════════════════════════════════════════════
+
+  build-emulator:
+    needs: [check-submodules, secret-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Init submodules
         run: |
           git submodule update --init deps/crypto/trezor-firmware
           git submodule update --init deps/device-protocol
@@ -78,187 +165,15 @@ jobs:
           path: /tmp/emu-image.tar
           retention-days: 1
 
-  # ─────────────────────────────────────────────────────────
-  # Job 2: C/C++ unit tests (GoogleTest)
-  # ─────────────────────────────────────────────────────────
-  unit-tests:
-    needs: build-emulator
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    # Known upstream failure: Coins.TableSanity (QTUM/BNB/ZIL/GTO removed
-    # from coin table but still referenced in test). Not a regression.
-    continue-on-error: true
-    steps:
-      - name: Download emulator image
-        uses: actions/download-artifact@v4
-        with:
-          name: emu-image
-          path: /tmp
-
-      - name: Load emulator image
-        run: docker load -i /tmp/emu-image.tar
-
-      - name: Run unit tests
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}/test-reports:/kkemu/test-reports \
-            --entrypoint /bin/sh \
-            ${{ env.EMU_IMAGE }} \
-            -c "mkdir -p /kkemu/test-reports/firmware-unit && \
-                make xunit && \
-                cp -r unittests/*.xml /kkemu/test-reports/firmware-unit/"
-
-      - name: Upload unit test results
-        uses: mikepenz/action-junit-report@v4
-        if: always()
-        with:
-          report_paths: test-reports/firmware-unit/*.xml
-          check_name: Unit Tests
-
-  # ─────────────────────────────────────────────────────────
-  # Job 3: BTC Signing Regression Gate  ★ REQUIRED CHECK ★
-  #
-  # Runs only BTC signing tests (P2PKH, SegWit, Taproot)
-  # to catch crypto-library regressions immediately.
-  # ─────────────────────────────────────────────────────────
-  btc-signing-regression:
-    needs: build-emulator
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Download emulator image
-        uses: actions/download-artifact@v4
-        with:
-          name: emu-image
-          path: /tmp
-
-      - name: Load emulator image
-        run: docker load -i /tmp/emu-image.tar
-
-      - name: Start emulator in background
-        run: |
-          docker run -d --name kkemu \
-            --network host \
-            ${{ env.EMU_IMAGE }}
-
-      - name: Wait for emulator readiness
-        run: |
-          echo "Waiting for emulator bridge on port 5000..."
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:5000/exchange/main > /dev/null 2>&1; then
-              echo "Emulator ready after ${i} attempts"
-              exit 0
-            fi
-            echo "  attempt ${i}/30 - not ready yet"
-            sleep 2
-          done
-          echo "ERROR: Emulator failed to start within 60 seconds"
-          docker logs kkemu 2>&1
-          exit 1
-
-      - name: Run BTC signing regression tests
-        run: |
-          docker exec kkemu /bin/sh -c "\
-            cd deps/python-keepkey/tests && \
-            KK_TRANSPORT_MAIN=localhost:11044 \
-            KK_TRANSPORT_DEBUG=localhost:11045 \
-            pytest -v \
-              --junitxml=/kkemu/test-reports/btc-signing/junit.xml \
-              test_msg_signtx.py \
-              test_msg_signtx_segwit.py \
-              test_msg_signtx_p2tr.py"
-
-      - name: Copy test results
-        if: always()
-        run: |
-          mkdir -p ${{ github.workspace }}/test-reports/btc-signing
-          docker cp kkemu:/kkemu/test-reports/btc-signing/junit.xml \
-            ${{ github.workspace }}/test-reports/btc-signing/junit.xml || true
-
-      - name: Upload BTC signing results
-        uses: mikepenz/action-junit-report@v4
-        if: always()
-        with:
-          report_paths: test-reports/btc-signing/junit.xml
-          check_name: BTC Signing Regression
-
-      - name: Stop emulator
-        if: always()
-        run: docker rm -f kkemu || true
-
-  # ─────────────────────────────────────────────────────────
-  # Job 4: Full Python integration test suite
-  # ─────────────────────────────────────────────────────────
-  python-integration-tests:
-    needs: build-emulator
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Init submodules (skip trezor-firmware nested subs)
-        run: |
-          git submodule update --init deps/crypto/trezor-firmware
-          git submodule update --init deps/device-protocol
-          git submodule update --init deps/python-keepkey
-          git submodule update --init deps/googletest
-          git submodule update --init deps/qrenc/QR-Code-generator
-          git submodule update --init deps/sca-hardening/SecAESSTM32
-
-      - name: Download emulator image
-        uses: actions/download-artifact@v4
-        with:
-          name: emu-image
-          path: /tmp
-
-      - name: Load emulator image
-        run: docker load -i /tmp/emu-image.tar
-
-      - name: Tag image for docker compose
-        run: docker tag ${{ env.EMU_IMAGE }} kktech/kkemu:latest
-
-      - name: Run full test suite via docker compose
-        working-directory: scripts/emulator
-        run: |
-          docker compose up --build --abort-on-container-exit python-keepkey
-          mkdir -p ${{ github.workspace }}/test-reports/python-keepkey
-          docker cp "$(docker compose ps -q python-keepkey)":/kkemu/test-reports/python-keepkey/junit.xml \
-            ${{ github.workspace }}/test-reports/python-keepkey/junit.xml || true
-
-      - name: Collect exit status
-        if: always()
-        working-directory: scripts/emulator
-        run: |
-          docker cp "$(docker compose ps -q python-keepkey)":/kkemu/test-reports/python-keepkey/status \
-            ${{ github.workspace }}/test-reports/python-keepkey/status || true
-          STATUS=$(cat ${{ github.workspace }}/test-reports/python-keepkey/status 2>/dev/null || echo "1")
-          echo "Python tests exit status: $STATUS"
-          [ "$STATUS" = "0" ] || exit 1
-
-      - name: Upload Python test results
-        uses: mikepenz/action-junit-report@v4
-        if: always()
-        with:
-          report_paths: test-reports/python-keepkey/junit.xml
-          check_name: Python Integration Tests
-
-      - name: Tear down containers
-        if: always()
-        working-directory: scripts/emulator
-        run: docker compose down -v || true
-
-  # ─────────────────────────────────────────────────────────
-  # Job 5: ARM cross-compile (device firmware)
-  # ─────────────────────────────────────────────────────────
   build-arm-firmware:
+    needs: [check-submodules, secret-scan]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Init submodules (skip trezor-firmware nested subs)
+      - name: Init submodules
         run: |
           git submodule update --init deps/crypto/trezor-firmware
           git submodule update --init deps/device-protocol
@@ -307,14 +222,175 @@ jobs:
             bin/*.elf
           retention-days: 30
 
-  # ─────────────────────────────────────────────────────────
-  # Job 6: Publish emulator image (master only)
-  # ─────────────────────────────────────────────────────────
+  # ═══════════════════════════════════════════════════════════
+  # STAGE 3: TEST — run only after builds succeed
+  # ═══════════════════════════════════════════════════════════
+
+  unit-tests:
+    needs: build-emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Known upstream failure: Coins.TableSanity (QTUM/BNB/ZIL/GTO removed
+    # from coin table but still referenced in test). Not a regression.
+    continue-on-error: true
+    steps:
+      - name: Download emulator image
+        uses: actions/download-artifact@v4
+        with:
+          name: emu-image
+          path: /tmp
+
+      - name: Load emulator image
+        run: docker load -i /tmp/emu-image.tar
+
+      - name: Run unit tests
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/test-reports:/kkemu/test-reports \
+            --entrypoint /bin/sh \
+            ${{ env.EMU_IMAGE }} \
+            -c "mkdir -p /kkemu/test-reports/firmware-unit && \
+                make xunit && \
+                cp -r unittests/*.xml /kkemu/test-reports/firmware-unit/"
+
+      - name: Upload unit test results
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: test-reports/firmware-unit/*.xml
+          check_name: Unit Tests
+
+  btc-signing-regression:
+    needs: build-emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download emulator image
+        uses: actions/download-artifact@v4
+        with:
+          name: emu-image
+          path: /tmp
+
+      - name: Load emulator image
+        run: docker load -i /tmp/emu-image.tar
+
+      - name: Start emulator
+        run: |
+          docker run -d --name kkemu \
+            --network host \
+            ${{ env.EMU_IMAGE }}
+
+      - name: Wait for emulator readiness
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf --max-time 3 http://localhost:5000/exchange/main > /dev/null 2>&1; then
+              echo "Emulator ready (attempt $i)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Emulator failed to start"
+          docker logs kkemu 2>&1 | tail -30
+          exit 1
+
+      - name: Run BTC signing regression tests
+        run: |
+          docker exec kkemu /bin/sh -c "\
+            cd deps/python-keepkey/tests && \
+            KK_TRANSPORT_MAIN=localhost:11044 \
+            KK_TRANSPORT_DEBUG=localhost:11045 \
+            pytest -v \
+              --junitxml=/kkemu/test-reports/btc-signing/junit.xml \
+              test_msg_signtx.py \
+              test_msg_signtx_segwit.py \
+              test_msg_signtx_p2tr.py"
+
+      - name: Copy test results
+        if: always()
+        run: |
+          mkdir -p ${{ github.workspace }}/test-reports/btc-signing
+          docker cp kkemu:/kkemu/test-reports/btc-signing/junit.xml \
+            ${{ github.workspace }}/test-reports/btc-signing/junit.xml || true
+
+      - name: Upload BTC signing results
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: test-reports/btc-signing/junit.xml
+          check_name: BTC Signing Regression
+
+      - name: Stop emulator
+        if: always()
+        run: docker rm -f kkemu || true
+
+  python-integration-tests:
+    needs: build-emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Init submodules
+        run: |
+          git submodule update --init deps/crypto/trezor-firmware
+          git submodule update --init deps/device-protocol
+          git submodule update --init deps/python-keepkey
+          git submodule update --init deps/googletest
+          git submodule update --init deps/qrenc/QR-Code-generator
+          git submodule update --init deps/sca-hardening/SecAESSTM32
+
+      - name: Download emulator image
+        uses: actions/download-artifact@v4
+        with:
+          name: emu-image
+          path: /tmp
+
+      - name: Load emulator image
+        run: docker load -i /tmp/emu-image.tar
+
+      - name: Tag image for docker compose
+        run: docker tag ${{ env.EMU_IMAGE }} kktech/kkemu:latest
+
+      - name: Run full test suite
+        working-directory: scripts/emulator
+        run: |
+          docker compose up --build --abort-on-container-exit python-keepkey
+          mkdir -p ${{ github.workspace }}/test-reports/python-keepkey
+          docker cp "$(docker compose ps -q python-keepkey)":/kkemu/test-reports/python-keepkey/junit.xml \
+            ${{ github.workspace }}/test-reports/python-keepkey/junit.xml || true
+
+      - name: Collect exit status
+        if: always()
+        working-directory: scripts/emulator
+        run: |
+          docker cp "$(docker compose ps -q python-keepkey)":/kkemu/test-reports/python-keepkey/status \
+            ${{ github.workspace }}/test-reports/python-keepkey/status || true
+          STATUS=$(cat ${{ github.workspace }}/test-reports/python-keepkey/status 2>/dev/null || echo "1")
+          echo "Python tests exit status: $STATUS"
+          [ "$STATUS" = "0" ] || exit 1
+
+      - name: Upload Python test results
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: test-reports/python-keepkey/junit.xml
+          check_name: Python Integration Tests
+
+      - name: Tear down
+        if: always()
+        working-directory: scripts/emulator
+        run: docker compose down -v || true
+
+  # ═══════════════════════════════════════════════════════════
+  # STAGE 4: PUBLISH — master only, all tests must pass
+  # ═══════════════════════════════════════════════════════════
+
   publish-emulator:
     needs: [unit-tests, btc-signing-regression, python-integration-tests, build-arm-firmware]
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
