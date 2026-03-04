@@ -573,17 +573,7 @@ jobs:
 
             # Itemize skipped tests with reasons from XML
             SKIP_ROWS=""
-            # pytest JUnit XML: <testcase><skipped message="reason"/></testcase>
-            python3 -c "
-import xml.etree.ElementTree as ET, sys
-tree = ET.parse('$XML')
-for tc in tree.iter('testcase'):
-    skip = tc.find('skipped')
-    if skip is not None:
-        name = tc.get('classname','') + '.' + tc.get('name','')
-        reason = skip.get('message', skip.text or 'No reason given')
-        print(f'| \`{name}\` | {reason} |')
-" >> /tmp/skip_rows.txt 2>/dev/null || true
+            python3 -c "import xml.etree.ElementTree as ET,sys;tree=ET.parse(sys.argv[1]);[print(f'| \`{tc.get(\"classname\",\"\")}.{tc.get(\"name\",\"\")}\` | {tc.find(\"skipped\").get(\"message\",tc.find(\"skipped\").text or \"No reason given\")} |') for tc in tree.iter('testcase') if tc.find('skipped') is not None]" "$XML" > /tmp/skip_rows.txt 2>/dev/null || true
 
             if [ -s /tmp/skip_rows.txt ]; then
               echo "" >> "$GITHUB_STEP_SUMMARY"
