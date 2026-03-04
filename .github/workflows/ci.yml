@@ -18,8 +18,7 @@
 #
 # Stage 3: TEST (parallel, gated by Stage 2)
 #   ├─ unit-tests              GoogleTest (make xunit)
-#   ├─ btc-signing-regression  P2PKH + SegWit + Taproot ★ REQUIRED
-#   └─ python-integration      full test suite
+#   └─ python-integration      full test suite (304 tests incl. BTC signing)
 #
 # Stage 4: PUBLISH (master only, gated by Stage 3)
 #   └─ publish-emulator   DockerHub push
@@ -377,74 +376,6 @@ jobs:
           report_paths: test-reports/firmware-unit/*.xml
           check_name: Unit Tests
 
-  btc-signing-regression:
-    needs: build-emulator
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Download emulator image
-        uses: actions/download-artifact@v4
-        with:
-          name: emu-image
-          path: /tmp
-
-      - name: Load emulator image
-        run: docker load -i /tmp/emu-image.tar
-
-      - name: Start emulator
-        run: |
-          docker run -d --name kkemu \
-            --network host \
-            ${{ env.EMU_IMAGE }}
-
-      - name: Wait for emulator readiness
-        run: |
-          # NOTE: GET /exchange/main does a blocking recv() — it will hang.
-          # Instead POST an empty message to confirm Flask is up and bridging.
-          for i in $(seq 1 30); do
-            if curl -sf --max-time 3 \
-                 -X POST -H 'Content-Type: application/json' \
-                 -d '{"data":""}' \
-                 http://localhost:5000/exchange/main > /dev/null 2>&1; then
-              echo "Emulator bridge ready (attempt $i)"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "::error::Emulator failed to start"
-          docker logs kkemu 2>&1 | tail -30
-          exit 1
-
-      - name: Run BTC signing regression tests
-        run: |
-          docker exec kkemu /bin/sh -c "\
-            cd deps/python-keepkey/tests && \
-            KK_TRANSPORT_MAIN=localhost:11044 \
-            KK_TRANSPORT_DEBUG=localhost:11045 \
-            pytest -v \
-              --junitxml=/kkemu/test-reports/btc-signing/junit.xml \
-              test_msg_signtx.py \
-              test_msg_signtx_segwit.py \
-              test_msg_signtx_p2tr.py"
-
-      - name: Copy test results
-        if: always()
-        run: |
-          mkdir -p ${{ github.workspace }}/test-reports/btc-signing
-          docker cp kkemu:/kkemu/test-reports/btc-signing/junit.xml \
-            ${{ github.workspace }}/test-reports/btc-signing/junit.xml || true
-
-      - name: Upload BTC signing results
-        uses: mikepenz/action-junit-report@v4
-        if: always()
-        with:
-          report_paths: test-reports/btc-signing/junit.xml
-          check_name: BTC Signing Regression
-
-      - name: Stop emulator
-        if: always()
-        run: docker rm -f kkemu || true
-
   python-integration-tests:
     needs: build-emulator
     runs-on: ubuntu-latest
@@ -514,7 +445,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════
 
   publish-emulator:
-    needs: [unit-tests, btc-signing-regression, python-integration-tests, build-arm-firmware, codeql]
+    needs: [unit-tests, python-integration-tests, build-arm-firmware, codeql]
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
