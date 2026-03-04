@@ -21,8 +21,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
+
+      - name: Init required submodules
+        run: |
+          git submodule update --init deps/crypto/trezor-firmware
+          git submodule update --init deps/device-protocol
 
       - name: Install cppcheck
         run: sudo apt-get install -y cppcheck
