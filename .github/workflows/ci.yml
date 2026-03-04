@@ -350,9 +350,6 @@ jobs:
     needs: build-emulator
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Known upstream failure: Coins.TableSanity (QTUM/BNB/ZIL/GTO removed
-    # from coin table but still referenced in test). Not a regression.
-    continue-on-error: true
     steps:
       - name: Download emulator image
         uses: actions/download-artifact@v4
