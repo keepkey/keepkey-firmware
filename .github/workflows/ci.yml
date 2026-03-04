@@ -115,8 +115,6 @@ jobs:
   cppcheck:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # Warn-only until existing findings are triaged
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -131,9 +129,12 @@ jobs:
 
       - name: Run static analysis
         run: |
-          cppcheck \
+          # Baseline tolerance: 9 known findings in existing code.
+          # Tighten to 0 once they are triaged/fixed.
+          BASELINE=9
+
+          FINDINGS=$(cppcheck \
             --enable=warning,performance,portability \
-            --error-exitcode=1 \
             --inline-suppr \
             --suppress=missingIncludeSystem \
             --suppress=unmatchedSuppression \
@@ -143,13 +144,22 @@ jobs:
             -DSTM32F2 \
             --std=c99 \
             --template='::warning file={file},line={line}::{severity} ({id}): {message}' \
-            lib/firmware/ lib/board/ lib/transport/src/ include/keepkey/
+            lib/firmware/ lib/board/ lib/transport/src/ include/keepkey/ 2>&1 \
+            | grep -cE '::warning' || true)
+
+          echo ""
+          echo "Findings: $FINDINGS (baseline: $BASELINE)"
+
+          if [ "$FINDINGS" -gt "$BASELINE" ]; then
+            echo "::error::New cppcheck findings detected ($FINDINGS > baseline $BASELINE)"
+            exit 1
+          else
+            echo "Within baseline tolerance — PASS"
+          fi
 
   complexity:
     runs-on: ubuntu-latest
     timeout-minutes: 2
-    # Warn-only until legacy high-CCN functions are refactored
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -159,29 +169,32 @@ jobs:
 
       - name: Check function complexity
         run: |
-          echo "── Complexity check (CCN > 20 = warning, CCN > 40 = fail) ──"
+          # Baseline tolerance: 7 functions with CCN > 40 in existing code.
+          # Tighten to 0 as legacy functions are refactored.
+          BASELINE_CCN40=7
 
-          # Warning-level report
-          WARN_COUNT=$(lizard lib/firmware/ lib/board/ lib/transport/src/ \
+          echo "── Complexity report ──"
+
+          # Report all functions CCN > 20 as warnings (informational)
+          lizard lib/firmware/ lib/board/ lib/transport/src/ \
             -C 20 -L 300 -w \
-            -x "*/generated/*" -x "*/.pb.*" 2>&1 | tee /dev/stderr | wc -l)
+            -x "*/generated/*" -x "*/.pb.*" 2>&1 | while read -r line; do
+              echo "::warning::$line"
+            done
 
-          # Fail-level check (CCN > 40 blocks merge)
-          FAIL_OUTPUT=$(lizard lib/firmware/ lib/board/ lib/transport/src/ \
-            -C 40 -L 500 -w \
-            -x "*/generated/*" -x "*/.pb.*" 2>&1)
-          FAIL_COUNT=$(echo "$FAIL_OUTPUT" | wc -l | tr -d ' ')
+          # Count functions exceeding CCN 40
+          CRIT_COUNT=$(lizard lib/firmware/ lib/board/ lib/transport/src/ \
+            -C 40 -w \
+            -x "*/generated/*" -x "*/.pb.*" 2>&1 | wc -l | tr -d ' ')
 
           echo ""
-          echo "Functions exceeding CCN 20: $WARN_COUNT (warning)"
-          echo "Functions exceeding CCN 40: $FAIL_COUNT (blocking)"
+          echo "Functions with CCN > 40: $CRIT_COUNT (baseline: $BASELINE_CCN40)"
 
-          # Only fail on extreme complexity (CCN > 40)
-          if [ "$FAIL_COUNT" -gt 0 ] && [ -n "$FAIL_OUTPUT" ]; then
-            echo ""
-            echo "::error::Functions with CCN > 40 must be refactored:"
-            echo "$FAIL_OUTPUT"
+          if [ "$CRIT_COUNT" -gt "$BASELINE_CCN40" ]; then
+            echo "::error::New high-complexity functions detected ($CRIT_COUNT > baseline $BASELINE_CCN40)"
             exit 1
+          else
+            echo "Within baseline tolerance — PASS"
           fi
 
   # ═══════════════════════════════════════════════════════════
@@ -189,7 +202,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════
 
   build-emulator:
-    needs: [check-submodules, secret-scan]
+    needs: [check-submodules, secret-scan, cppcheck, complexity]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -243,7 +256,7 @@ jobs:
           retention-days: 1
 
   build-arm-firmware:
-    needs: [check-submodules, secret-scan]
+    needs: [check-submodules, secret-scan, cppcheck, complexity]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -304,7 +317,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════
 
   codeql:
-    needs: [check-submodules, secret-scan]
+    needs: [check-submodules, secret-scan, cppcheck, complexity]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
