@@ -13,7 +13,7 @@ path = code-signing-keys
 url = https://github.com/keepkey/code-signing-keys.git
 [submodule "deps/python-keepkey"]
 path = deps/python-keepkey
-url = https://github.com/keepkey/python-keepkey.git
+url = https://github.com/BitHighlander/python-keepkey.git
 branch = master
 [submodule "deps/qrenc/QR-Code-generator"]
 path = deps/qrenc/QR-Code-generator
