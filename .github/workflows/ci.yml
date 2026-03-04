@@ -149,11 +149,20 @@ jobs:
           echo ""
           echo "Findings: $FINDINGS (baseline: $BASELINE)"
 
+          echo "## 🔑 KeepKey — Static Analysis" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Findings | $FINDINGS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Baseline | $BASELINE |" >> "$GITHUB_STEP_SUMMARY"
+
           if [ "$FINDINGS" -gt "$BASELINE" ]; then
+            echo "| Status | ❌ REGRESSION |" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "::error::New cppcheck findings detected ($FINDINGS > baseline $BASELINE)"
             exit 1
           else
-            echo "Within baseline tolerance — PASS"
+            echo "| Status | ✅ PASS |" >> "$GITHUB_STEP_SUMMARY"
           fi
 
   complexity:
@@ -189,11 +198,20 @@ jobs:
           echo ""
           echo "Functions with CCN > 40: $CRIT_COUNT (baseline: $BASELINE_CCN40)"
 
+          echo "## 🔑 KeepKey — Complexity Analysis" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Functions CCN > 40 | $CRIT_COUNT |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Baseline | $BASELINE_CCN40 |" >> "$GITHUB_STEP_SUMMARY"
+
           if [ "$CRIT_COUNT" -gt "$BASELINE_CCN40" ]; then
+            echo "| Status | ❌ REGRESSION |" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "::error::New high-complexity functions detected ($CRIT_COUNT > baseline $BASELINE_CCN40)"
             exit 1
           else
-            echo "Within baseline tolerance — PASS"
+            echo "| Status | ✅ PASS |" >> "$GITHUB_STEP_SUMMARY"
           fi
 
   # ═══════════════════════════════════════════════════════════
@@ -369,6 +387,81 @@ jobs:
                 make xunit || true && \
                 cp -r unittests/*.xml /kkemu/test-reports/firmware-unit/ 2>/dev/null || true"
 
+      - name: Unit test summary
+        if: always()
+        run: |
+          echo "## 🔑 KeepKey Firmware — Unit Tests" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          TOTAL=0; PASSED=0; FAILED=0; SKIPPED=0
+          FAILURES=""
+          SKIPS=""
+
+          for xml in test-reports/firmware-unit/*.xml; do
+            [ -f "$xml" ] || continue
+
+            # Extract counts from <testsuite> attributes
+            T=$(grep -oP 'tests="\K[0-9]+' "$xml" | head -1)
+            F=$(grep -oP 'failures="\K[0-9]+' "$xml" | head -1)
+            S=$(grep -oP 'skipped="\K[0-9]+' "$xml" 2>/dev/null | head -1)
+            SUITE=$(grep -oP 'name="\K[^"]+' "$xml" | head -1)
+
+            TOTAL=$((TOTAL + ${T:-0}))
+            FAILED=$((FAILED + ${F:-0}))
+            SKIPPED=$((SKIPPED + ${S:-0}))
+
+            # Collect individual failures
+            while IFS= read -r tc; do
+              NAME=$(echo "$tc" | grep -oP 'name="\K[^"]+')
+              CLASS=$(echo "$tc" | grep -oP 'classname="\K[^"]+')
+              FAILURES="$FAILURES\n| \`$CLASS.$NAME\` | ❌ FAILED |"
+            done < <(grep -B1 '<failure' "$xml" | grep '<testcase' || true)
+
+            # Collect skipped tests with reasons
+            while IFS= read -r tc; do
+              NAME=$(echo "$tc" | grep -oP 'name="\K[^"]+')
+              CLASS=$(echo "$tc" | grep -oP 'classname="\K[^"]+')
+              REASON=$(echo "$tc" | grep -oP 'message="\K[^"]*' || echo "No reason given")
+              SKIPS="$SKIPS\n| \`$CLASS.$NAME\` | ⏭️ $REASON |"
+            done < <(grep -A1 '<skipped' "$xml" | grep '<testcase\|message=' || true)
+          done
+
+          PASSED=$((TOTAL - FAILED - SKIPPED))
+
+          if [ "$FAILED" -eq 0 ]; then
+            echo "✅ **ALL $TOTAL TESTS PASSED**" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "❌ **$FAILED of $TOTAL TESTS FAILED**" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Metric | Count |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Total | $TOTAL |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ✅ Passed | $PASSED |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ⏭️ Skipped | $SKIPPED |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ❌ Failed | $FAILED |" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "$FAILURES" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "### Failures" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Test | Status |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|------|--------|" >> "$GITHUB_STEP_SUMMARY"
+            echo -e "$FAILURES" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -n "$SKIPS" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "### Skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Test | Reason |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|------|--------|" >> "$GITHUB_STEP_SUMMARY"
+            echo -e "$SKIPS" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "---" >> "$GITHUB_STEP_SUMMARY"
+          echo "*KeepKey Firmware CI — secure by default*" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload unit test results
         uses: mikepenz/action-junit-report@v4
         if: always()
@@ -428,6 +521,83 @@ jobs:
           echo "Python tests exit status: $STATUS"
           [ "$STATUS" = "0" ] || exit 1
 
+      - name: Python test summary
+        if: always()
+        run: |
+          XML="${{ github.workspace }}/test-reports/python-keepkey/junit.xml"
+          echo "## 🔑 KeepKey Firmware — Python Integration Tests" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ ! -f "$XML" ]; then
+            echo "❌ **No test results found** — suite may have crashed before completion." >> "$GITHUB_STEP_SUMMARY"
+          else
+            TOTAL=$(grep -oP 'tests="\K[0-9]+' "$XML" | head -1)
+            FAILED=$(grep -oP 'failures="\K[0-9]+' "$XML" | head -1)
+            ERRORS=$(grep -oP 'errors="\K[0-9]+' "$XML" | head -1)
+            SKIPPED=$(grep -oP 'skipped="\K[0-9]+' "$XML" | head -1)
+            TIME=$(grep -oP 'time="\K[0-9.]+' "$XML" | head -1)
+
+            TOTAL=${TOTAL:-0}; FAILED=${FAILED:-0}; ERRORS=${ERRORS:-0}; SKIPPED=${SKIPPED:-0}
+            PASSED=$((TOTAL - FAILED - ERRORS - SKIPPED))
+
+            if [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ]; then
+              echo "✅ **$PASSED of $TOTAL TESTS PASSED** in ${TIME}s" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "❌ **$((FAILED + ERRORS)) of $TOTAL TESTS FAILED**" >> "$GITHUB_STEP_SUMMARY"
+            fi
+
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Metric | Count |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Total | $TOTAL |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| ✅ Passed | $PASSED |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| ⏭️ Skipped | $SKIPPED |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| ❌ Failed | $FAILED |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| 💥 Errors | $ERRORS |" >> "$GITHUB_STEP_SUMMARY"
+
+            # Itemize failures
+            FAIL_ROWS=""
+            while IFS= read -r line; do
+              NAME=$(echo "$line" | grep -oP 'name="\K[^"]+')
+              CLASS=$(echo "$line" | grep -oP 'classname="\K[^"]+')
+              [ -n "$NAME" ] && FAIL_ROWS="$FAIL_ROWS\n| \`$CLASS.$NAME\` | ❌ FAILED |"
+            done < <(grep -B0 '<failure\|<error' "$XML" | grep '<testcase' || true)
+
+            if [ -n "$FAIL_ROWS" ]; then
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "### Failures" >> "$GITHUB_STEP_SUMMARY"
+              echo "| Test | Status |" >> "$GITHUB_STEP_SUMMARY"
+              echo "|------|--------|" >> "$GITHUB_STEP_SUMMARY"
+              echo -e "$FAIL_ROWS" >> "$GITHUB_STEP_SUMMARY"
+            fi
+
+            # Itemize skipped tests with reasons from XML
+            SKIP_ROWS=""
+            # pytest JUnit XML: <testcase><skipped message="reason"/></testcase>
+            python3 -c "
+import xml.etree.ElementTree as ET, sys
+tree = ET.parse('$XML')
+for tc in tree.iter('testcase'):
+    skip = tc.find('skipped')
+    if skip is not None:
+        name = tc.get('classname','') + '.' + tc.get('name','')
+        reason = skip.get('message', skip.text or 'No reason given')
+        print(f'| \`{name}\` | {reason} |')
+" >> /tmp/skip_rows.txt 2>/dev/null || true
+
+            if [ -s /tmp/skip_rows.txt ]; then
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "### Skipped Tests" >> "$GITHUB_STEP_SUMMARY"
+              echo "| Test | Reason |" >> "$GITHUB_STEP_SUMMARY"
+              echo "|------|--------|" >> "$GITHUB_STEP_SUMMARY"
+              cat /tmp/skip_rows.txt >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "---" >> "$GITHUB_STEP_SUMMARY"
+          echo "*KeepKey Firmware CI — secure by default*" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload Python test results
         uses: mikepenz/action-junit-report@v4
         if: always()
@@ -484,3 +654,15 @@ jobs:
         run: |
           docker push kktech/kkemu:latest
           docker push kktech/kkemu:v${{ steps.version.outputs.fw_version }}
+
+      - name: Publish summary
+        run: |
+          echo "## 🔑 KeepKey Firmware — Published" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Artifact | Tag |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|-----|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Docker | \`kktech/kkemu:latest\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Docker | \`kktech/kkemu:v${{ steps.version.outputs.fw_version }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "---" >> "$GITHUB_STEP_SUMMARY"
+          echo "*KeepKey Firmware CI — secure by default*" >> "$GITHUB_STEP_SUMMARY"
