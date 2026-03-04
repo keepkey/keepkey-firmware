@@ -140,22 +140,19 @@ jobs:
           docker run -d --name kkemu \
             --network host \
             ${{ env.EMU_IMAGE }}
-          sleep 2
-          echo "Emulator container started, initial logs:"
-          docker logs kkemu 2>&1 || true
 
       - name: Wait for emulator readiness
         run: |
           echo "Waiting for emulator bridge on port 5000..."
-          for i in $(seq 1 60); do
+          for i in $(seq 1 30); do
             if curl -sf http://localhost:5000/exchange/main > /dev/null 2>&1; then
               echo "Emulator ready after ${i} attempts"
               exit 0
             fi
-            echo "  attempt ${i}/60 - not ready yet"
+            echo "  attempt ${i}/30 - not ready yet"
             sleep 2
           done
-          echo "ERROR: Emulator failed to start within 120 seconds"
+          echo "ERROR: Emulator failed to start within 60 seconds"
           docker logs kkemu 2>&1
           exit 1
 
