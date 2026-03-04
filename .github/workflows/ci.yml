@@ -1,0 +1,330 @@
+# KeepKey Firmware CI Pipeline
+#
+# Dependency graph:
+#   build-emulator ──┬── unit-tests
+#                    ├── btc-signing-regression  ← REQUIRED STATUS CHECK
+#                    └── python-integration-tests
+#
+#   build-arm-firmware  (independent, parallel)
+#
+#   publish-emulator  (master-only, after all tests pass)
+
+name: CI
+
+on:
+  push:
+    branches: [master, 'feature/**', 'fix/**']
+  pull_request:
+    branches: [master]
+
+env:
+  BASE_IMAGE: kktech/firmware:v15
+  EMU_IMAGE: kkemu-ci
+
+jobs:
+  # ─────────────────────────────────────────────────────────
+  # Job 1: Build emulator Docker image, save as artifact
+  # ─────────────────────────────────────────────────────────
+  build-emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache base image
+        id: cache-base
+        uses: actions/cache@v4
+        with:
+          path: /tmp/base-image.tar
+          key: base-image-${{ env.BASE_IMAGE }}
+
+      - name: Pull and cache base image
+        if: steps.cache-base.outputs.cache-hit != 'true'
+        run: |
+          docker pull ${{ env.BASE_IMAGE }}
+          docker save ${{ env.BASE_IMAGE }} -o /tmp/base-image.tar
+
+      - name: Load base image from cache
+        if: steps.cache-base.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/base-image.tar
+
+      - name: Build emulator image
+        run: |
+          docker build \
+            -t ${{ env.EMU_IMAGE }} \
+            -f scripts/emulator/Dockerfile \
+            .
+
+      - name: Save emulator image
+        run: docker save ${{ env.EMU_IMAGE }} -o /tmp/emu-image.tar
+
+      - name: Upload emulator image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: emu-image
+          path: /tmp/emu-image.tar
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────
+  # Job 2: C/C++ unit tests (GoogleTest)
+  # ─────────────────────────────────────────────────────────
+  unit-tests:
+    needs: build-emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download emulator image
+        uses: actions/download-artifact@v4
+        with:
+          name: emu-image
+          path: /tmp
+
+      - name: Load emulator image
+        run: docker load -i /tmp/emu-image.tar
+
+      - name: Run unit tests
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/test-reports:/kkemu/test-reports \
+            --entrypoint /bin/sh \
+            ${{ env.EMU_IMAGE }} \
+            -c "mkdir -p /kkemu/test-reports/firmware-unit && \
+                make xunit && \
+                cp -r unittests/*.xml /kkemu/test-reports/firmware-unit/"
+
+      - name: Upload unit test results
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: test-reports/firmware-unit/*.xml
+          check_name: Unit Tests
+
+  # ─────────────────────────────────────────────────────────
+  # Job 3: BTC Signing Regression Gate  ★ REQUIRED CHECK ★
+  #
+  # Runs only BTC signing tests (P2PKH, SegWit, Taproot)
+  # to catch crypto-library regressions immediately.
+  # ─────────────────────────────────────────────────────────
+  btc-signing-regression:
+    needs: build-emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download emulator image
+        uses: actions/download-artifact@v4
+        with:
+          name: emu-image
+          path: /tmp
+
+      - name: Load emulator image
+        run: docker load -i /tmp/emu-image.tar
+
+      - name: Start emulator in background
+        run: |
+          docker run -d --name kkemu \
+            --network host \
+            ${{ env.EMU_IMAGE }}
+
+      - name: Wait for emulator readiness
+        run: |
+          echo "Waiting for emulator bridge on port 5000..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5000/exchange/main > /dev/null 2>&1; then
+              echo "Emulator ready after ${i} attempts"
+              exit 0
+            fi
+            echo "  attempt ${i}/30 - not ready yet"
+            sleep 2
+          done
+          echo "ERROR: Emulator failed to start within 60 seconds"
+          docker logs kkemu
+          exit 1
+
+      - name: Run BTC signing regression tests
+        run: |
+          docker exec kkemu /bin/sh -c "\
+            cd deps/python-keepkey/tests && \
+            KK_TRANSPORT_MAIN=localhost:11044 \
+            KK_TRANSPORT_DEBUG=localhost:11045 \
+            pytest -v \
+              --junitxml=/kkemu/test-reports/btc-signing/junit.xml \
+              test_msg_signtx.py \
+              test_msg_signtx_segwit.py \
+              test_msg_signtx_p2tr.py"
+
+      - name: Copy test results
+        if: always()
+        run: |
+          mkdir -p ${{ github.workspace }}/test-reports/btc-signing
+          docker cp kkemu:/kkemu/test-reports/btc-signing/junit.xml \
+            ${{ github.workspace }}/test-reports/btc-signing/junit.xml || true
+
+      - name: Upload BTC signing results
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: test-reports/btc-signing/junit.xml
+          check_name: BTC Signing Regression
+
+      - name: Stop emulator
+        if: always()
+        run: docker rm -f kkemu || true
+
+  # ─────────────────────────────────────────────────────────
+  # Job 4: Full Python integration test suite
+  # ─────────────────────────────────────────────────────────
+  python-integration-tests:
+    needs: build-emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Download emulator image
+        uses: actions/download-artifact@v4
+        with:
+          name: emu-image
+          path: /tmp
+
+      - name: Load emulator image
+        run: docker load -i /tmp/emu-image.tar
+
+      - name: Tag image for docker-compose
+        run: docker tag ${{ env.EMU_IMAGE }} kktech/kkemu:latest
+
+      - name: Run full test suite via docker-compose
+        working-directory: scripts/emulator
+        run: |
+          docker-compose up --build --abort-on-container-exit python-keepkey
+          mkdir -p ${{ github.workspace }}/test-reports/python-keepkey
+          docker cp "$(docker-compose ps -q python-keepkey)":/kkemu/test-reports/python-keepkey/junit.xml \
+            ${{ github.workspace }}/test-reports/python-keepkey/junit.xml || true
+
+      - name: Collect exit status
+        if: always()
+        working-directory: scripts/emulator
+        run: |
+          docker cp "$(docker-compose ps -q python-keepkey)":/kkemu/test-reports/python-keepkey/status \
+            ${{ github.workspace }}/test-reports/python-keepkey/status || true
+          STATUS=$(cat ${{ github.workspace }}/test-reports/python-keepkey/status 2>/dev/null || echo "1")
+          echo "Python tests exit status: $STATUS"
+          [ "$STATUS" = "0" ] || exit 1
+
+      - name: Upload Python test results
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: test-reports/python-keepkey/junit.xml
+          check_name: Python Integration Tests
+
+      - name: Tear down containers
+        if: always()
+        working-directory: scripts/emulator
+        run: docker-compose down -v || true
+
+  # ─────────────────────────────────────────────────────────
+  # Job 5: ARM cross-compile (device firmware)
+  # ─────────────────────────────────────────────────────────
+  build-arm-firmware:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache base image
+        id: cache-base
+        uses: actions/cache@v4
+        with:
+          path: /tmp/base-image.tar
+          key: base-image-${{ env.BASE_IMAGE }}
+
+      - name: Pull and cache base image
+        if: steps.cache-base.outputs.cache-hit != 'true'
+        run: |
+          docker pull ${{ env.BASE_IMAGE }}
+          docker save ${{ env.BASE_IMAGE }} -o /tmp/base-image.tar
+
+      - name: Load base image from cache
+        if: steps.cache-base.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/base-image.tar
+
+      - name: Cross-compile firmware for ARM
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/root/keepkey-firmware:z \
+            ${{ env.BASE_IMAGE }} /bin/sh -c "\
+              mkdir /root/build && cd /root/build && \
+              cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
+                -DCMAKE_BUILD_TYPE=MinSizeRel \
+                -DCMAKE_COLOR_MAKEFILE=ON && \
+              make && \
+              mkdir -p /root/keepkey-firmware/bin && \
+              cp bin/*.bin /root/keepkey-firmware/bin/ && \
+              cp bin/*.elf /root/keepkey-firmware/bin/"
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-arm
+          path: |
+            bin/*.bin
+            bin/*.elf
+          retention-days: 30
+
+  # ─────────────────────────────────────────────────────────
+  # Job 6: Publish emulator image (master only)
+  # ─────────────────────────────────────────────────────────
+  publish-emulator:
+    needs: [unit-tests, btc-signing-regression, python-integration-tests, build-arm-firmware]
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Download emulator image
+        uses: actions/download-artifact@v4
+        with:
+          name: emu-image
+          path: /tmp
+
+      - name: Load emulator image
+        run: docker load -i /tmp/emu-image.tar
+
+      - name: Extract firmware version
+        id: version
+        run: |
+          FW_VERSION=$(grep 'VERSION' CMakeLists.txt | head -1 | grep -oP '\d+\.\d+\.\d+')
+          echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Firmware version: ${FW_VERSION}"
+
+      - name: Tag images for publish
+        run: |
+          docker tag ${{ env.EMU_IMAGE }} kktech/kkemu:latest
+          docker tag ${{ env.EMU_IMAGE }} kktech/kkemu:v${{ steps.version.outputs.fw_version }}
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.KK_DOCKERHUB_USER }}
+          password: ${{ secrets.KK_DOCKERHUB_PASS }}
+
+      - name: Push emulator images
+        run: |
+          docker push kktech/kkemu:latest
+          docker push kktech/kkemu:v${{ steps.version.outputs.fw_version }}

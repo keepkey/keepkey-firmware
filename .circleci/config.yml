@@ -1,3 +1,11 @@
+# ──────────────────────────────────────────────────────────
+# DEPRECATED: This CircleCI config is superseded by
+# .github/workflows/ci.yml (GitHub Actions).
+#
+# Kept temporarily during migration. Remove after GitHub
+# Actions pipeline is verified on master.
+# ──────────────────────────────────────────────────────────
+
 version: 2.1
 jobs:
   emulator-build-test:
