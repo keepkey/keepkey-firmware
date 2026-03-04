@@ -3,3 +3,7 @@ build
 .DS_Store
 .vscode/
 
+# Quality tool outputs
+misra-report.txt
+complexity-report.csv
+

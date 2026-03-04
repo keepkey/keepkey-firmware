@@ -1,0 +1,105 @@
+# Weekly deep security and compliance scan
+#
+# Runs on schedule (Monday 6 AM UTC) and on-demand.
+# Advisory only — does not block merges.
+#
+# Jobs:
+#   ├─ misra          MISRA C:2012 compliance report
+#   └─ complexity     Full complexity report with CSV artifact
+
+name: Deep Scan
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Monday 6 AM UTC
+  workflow_dispatch:
+
+jobs:
+  misra:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install cppcheck
+        run: sudo apt-get install -y cppcheck
+
+      - name: Run MISRA C:2012 compliance check
+        run: |
+          echo "══════════════════════════════════════"
+          echo " MISRA C:2012 Compliance Report"
+          echo "══════════════════════════════════════"
+
+          cppcheck --addon=misra \
+            --suppress=missingIncludeSystem \
+            -I include/ \
+            -I deps/crypto/trezor-firmware/crypto \
+            -I deps/device-protocol \
+            -DSTM32F2 \
+            --std=c99 \
+            lib/firmware/ lib/board/ lib/transport/src/ include/keepkey/ \
+            2>&1 | tee misra-report.txt
+
+          VIOLATIONS=$(grep -c "misra" misra-report.txt 2>/dev/null || echo 0)
+          echo ""
+          echo "Total MISRA violations: $VIOLATIONS"
+
+      - name: Upload MISRA report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: misra-report
+          path: misra-report.txt
+          retention-days: 90
+
+  complexity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install lizard
+        run: pip install lizard
+
+      - name: Generate complexity report
+        run: |
+          echo "══════════════════════════════════════"
+          echo " Complexity Report"
+          echo "══════════════════════════════════════"
+
+          # CSV report for tracking over time
+          lizard lib/firmware/ lib/board/ lib/transport/src/ \
+            -x "*/generated/*" -x "*/.pb.*" \
+            --csv > complexity-report.csv
+
+          TOTAL=$(wc -l < complexity-report.csv | tr -d ' ')
+          WARN=$(lizard lib/firmware/ lib/board/ lib/transport/src/ \
+            -C 15 -w -x "*/generated/*" -x "*/.pb.*" 2>&1 | wc -l | tr -d ' ')
+          HIGH=$(lizard lib/firmware/ lib/board/ lib/transport/src/ \
+            -C 25 -w -x "*/generated/*" -x "*/.pb.*" 2>&1 | wc -l | tr -d ' ')
+          CRIT=$(lizard lib/firmware/ lib/board/ lib/transport/src/ \
+            -C 40 -w -x "*/generated/*" -x "*/.pb.*" 2>&1 | wc -l | tr -d ' ')
+
+          echo "Total functions analyzed: $TOTAL"
+          echo "CCN > 15 (elevated):      $WARN"
+          echo "CCN > 25 (high):          $HIGH"
+          echo "CCN > 40 (critical):      $CRIT"
+          echo ""
+
+          if [ "$CRIT" -gt 0 ]; then
+            echo "Critical complexity functions (CCN > 40):"
+            lizard lib/firmware/ lib/board/ lib/transport/src/ \
+              -C 40 -w -x "*/generated/*" -x "*/.pb.*"
+          fi
+
+      - name: Upload complexity report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: complexity-report
+          path: complexity-report.csv
+          retention-days: 90
