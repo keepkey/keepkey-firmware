@@ -1,7 +1,7 @@
 version: '3'
 services:
   kkemu:
-    image: kktech/kkemu:latest
+    image: bithighlander/kkemu:v7.10.0
     build:
       context: '../../'
       dockerfile: 'scripts/emulator/Dockerfile'
