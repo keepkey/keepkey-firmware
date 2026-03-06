@@ -230,9 +230,8 @@ jobs:
     needs: build-emulator
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Known upstream failure: Coins.TableSanity (QTUM/BNB/ZIL/GTO removed
-    # from coin table but still referenced in test). Not a regression.
-    continue-on-error: true
+    # Fixed: removed QTUM/BNB/ZIL/GTO from tokens.def (migrated to own chains,
+    # no longer in ethereum_tokens/uniswap_tokens tables)
     steps:
       - name: Download emulator image
         uses: actions/download-artifact@v4
@@ -335,9 +334,7 @@ jobs:
     needs: build-emulator
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Known upstream failure: test_sign_uni_approve_liquidity_ETH
-    # (zxappliquid coin table issue). Not a regression from CI changes.
-    continue-on-error: true
+    # Fixed: updated deps/python-keepkey to include WETH test skip
     steps:
       - name: Checkout
         uses: actions/checkout@v4
