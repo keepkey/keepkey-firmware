@@ -27,8 +27,8 @@ jobs:
                       docker compose -f docker-compose-btc.yml up --build python-keepkey
                       set -e
                       mkdir -p ../../test-reports
-                      docker cp "$(docker compose -f docker-compose-btc.yml ps -q firmware-unit)":/kkemu/test-reports/. ../../test-reports/
-                      docker cp "$(docker compose -f docker-compose-btc.yml ps -q python-keepkey)":/kkemu/test-reports/. ../../test-reports/
+                      docker cp "$(docker compose -f docker-compose-btc.yml ps -a -q firmware-unit)":/kkemu/test-reports/. ../../test-reports/
+                      docker cp "$(docker compose -f docker-compose-btc.yml ps -a -q python-keepkey)":/kkemu/test-reports/. ../../test-reports/
                       popd
                       [ "$(cat test-reports/python-keepkey/status)$(cat test-reports/firmware-unit/status)" == "00" ] || exit 1
             - store_test_results:
