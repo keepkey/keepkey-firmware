@@ -26,6 +26,8 @@ services:
   firmware-unit:
     build:
       context: '../../'
+      args:
+        coinsupport: "-DCOIN_SUPPORT=BTC"
       dockerfile: 'scripts/emulator/Dockerfile'
     volumes:
       - test-reports:/kkemu/test-reports:rw

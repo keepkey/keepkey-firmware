@@ -56,7 +56,7 @@ jobs:
                   name: Build Emulator
                   command: |
                       pushd ./scripts/emulator
-                      docker compose -f docker compose-btc.yml build kkemu
+                      docker compose -f docker-compose-btc.yml build kkemu
                       popd
             - run:
                   name: Publish Emulator
