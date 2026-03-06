@@ -286,15 +286,14 @@ jobs:
       - name: Wait for emulator readiness
         run: |
           # bridge.py's /exchange/<kind> endpoint blocks on UDP recv —
-          # cannot use it for readiness. Instead check that Flask is
-          # listening (returns 404 on /, but responds) and kkemu process
-          # is running.
+          # cannot use it for readiness. Instead check Flask root URL
+          # which returns 404 but responds immediately (non-blocking).
+          # If Flask is up, run.sh is alive, meaning kkemu is running
+          # (it's the foreground process in the entrypoint).
           for i in $(seq 1 30); do
             if curl -so /dev/null -w '%{http_code}' --max-time 2 http://localhost:5000/ 2>/dev/null | grep -qE '(200|404)'; then
-              if docker exec kkemu pgrep -x kkemu > /dev/null 2>&1; then
-                echo "Emulator ready (attempt $i)"
-                exit 0
-              fi
+              echo "Emulator ready (attempt $i)"
+              exit 0
             fi
             sleep 2
           done
