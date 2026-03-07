@@ -9,15 +9,14 @@
 #
 # Stage 2: BUILD (parallel, gated by Stage 1)
 #   ├─ build-emulator     Docker image → artifact
-#   └─ build-arm-firmware cross-compile → .bin/.elf
+#   └─ build-arm-firmware cross-compile → .bin/.elf (downloadable)
 #
 # Stage 3: TEST (parallel, gated by Stage 2)
 #   ├─ unit-tests              GoogleTest (make xunit)
-#   ├─ btc-signing-regression  P2PKH + SegWit + Taproot ★ REQUIRED
 #   └─ python-integration      full test suite
 #
-# Stage 4: PUBLISH (master only, gated by Stage 3)
-#   └─ publish-emulator   DockerHub push
+# Stage 4: PUBLISH (manual trigger, all tests must pass)
+#   └─ publish-emulator   DockerHub push (workflow_dispatch only)
 
 name: CI
 
@@ -26,6 +25,13 @@ on:
     branches: [master, develop, 'feature/**', 'fix/**']
   pull_request:
     branches: [master, develop]
+  workflow_dispatch:
+    inputs:
+      publish_emulator:
+        description: 'Publish emulator image to DockerHub'
+        required: false
+        type: boolean
+        default: false
 
 env:
   BASE_IMAGE: kktech/firmware:v15
@@ -199,6 +205,15 @@ jobs:
         if: steps.cache-base.outputs.cache-hit == 'true'
         run: docker load -i /tmp/base-image.tar
 
+      - name: Extract firmware version
+        id: version
+        run: |
+          FW_VERSION=$(grep 'VERSION' CMakeLists.txt | head -1 | grep -oP '\d+\.\d+\.\d+')
+          GIT_SHORT=$(git rev-parse --short HEAD)
+          echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "git_short=${GIT_SHORT}" >> "$GITHUB_OUTPUT"
+          echo "Firmware version: ${FW_VERSION} (${GIT_SHORT})"
+
       - name: Cross-compile firmware for ARM
         run: |
           docker run --rm \
@@ -213,14 +228,28 @@ jobs:
               cp bin/*.bin /root/keepkey-firmware/bin/ && \
               cp bin/*.elf /root/keepkey-firmware/bin/"
 
+      - name: Rename firmware artifacts
+        run: |
+          cd bin
+          for f in *.bin; do
+            [ -f "$f" ] || continue
+            mv "$f" "firmware.keepkey.v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${f}"
+          done
+          for f in *.elf; do
+            [ -f "$f" ] || continue
+            mv "$f" "firmware.keepkey.v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${f}"
+          done
+          ls -lh
+          echo "::notice::Firmware v${{ steps.version.outputs.fw_version }} built successfully"
+
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-arm
+          name: firmware-v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}
           path: |
             bin/*.bin
             bin/*.elf
-          retention-days: 30
+          retention-days: 90
 
   # ═══════════════════════════════════════════════════════════
   # STAGE 3: TEST — run only after builds succeed
@@ -230,8 +259,6 @@ jobs:
     needs: build-emulator
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Fixed: removed QTUM/BNB/ZIL/GTO from tokens.def (migrated to own chains,
-    # no longer in ethereum_tokens/uniswap_tokens tables)
     steps:
       - name: Download emulator image
         uses: actions/download-artifact@v4
@@ -262,79 +289,10 @@ jobs:
           report_paths: test-reports/firmware-unit/*.xml
           check_name: Unit Tests
 
-  btc-signing-regression:
-    needs: build-emulator
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Download emulator image
-        uses: actions/download-artifact@v4
-        with:
-          name: emu-image
-          path: /tmp
-
-      - name: Load emulator image
-        run: docker load -i /tmp/emu-image.tar
-
-      - name: Start emulator
-        run: |
-          docker run -d --name kkemu \
-            --network host \
-            ${{ env.EMU_IMAGE }}
-
-      - name: Wait for emulator readiness
-        run: |
-          # bridge.py's /exchange/<kind> endpoint blocks on UDP recv —
-          # cannot use it for readiness. Instead check Flask root URL
-          # which returns 404 but responds immediately (non-blocking).
-          # If Flask is up, run.sh is alive, meaning kkemu is running
-          # (it's the foreground process in the entrypoint).
-          for i in $(seq 1 30); do
-            if curl -so /dev/null -w '%{http_code}' --max-time 2 http://localhost:5000/ 2>/dev/null | grep -qE '(200|404)'; then
-              echo "Emulator ready (attempt $i)"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "::error::Emulator failed to start"
-          docker logs kkemu 2>&1 | tail -30
-          exit 1
-
-      - name: Run BTC signing regression tests
-        run: |
-          docker exec kkemu /bin/sh -c "\
-            cd deps/python-keepkey/tests && \
-            KK_TRANSPORT_MAIN=localhost:11044 \
-            KK_TRANSPORT_DEBUG=localhost:11045 \
-            pytest -v \
-              --junitxml=/kkemu/test-reports/btc-signing/junit.xml \
-              test_msg_signtx.py \
-              test_msg_signtx_segwit.py \
-              test_msg_signtx_p2tr.py"
-
-      - name: Copy test results
-        if: always()
-        run: |
-          mkdir -p ${{ github.workspace }}/test-reports/btc-signing
-          docker cp kkemu:/kkemu/test-reports/btc-signing/junit.xml \
-            ${{ github.workspace }}/test-reports/btc-signing/junit.xml || true
-
-      - name: Upload BTC signing results
-        uses: mikepenz/action-junit-report@v4
-        if: always()
-        with:
-          report_paths: test-reports/btc-signing/junit.xml
-          check_name: BTC Signing Regression
-
-      - name: Stop emulator
-        if: always()
-        run: docker rm -f kkemu || true
-
   python-integration-tests:
     needs: build-emulator
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Fixed: updated deps/python-keepkey to include WETH test skip
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -396,12 +354,14 @@ jobs:
         run: docker compose down -v || true
 
   # ═══════════════════════════════════════════════════════════
-  # STAGE 4: PUBLISH — master only, all tests must pass
+  # STAGE 4: PUBLISH — manual trigger only, all tests must pass
   # ═══════════════════════════════════════════════════════════
 
   publish-emulator:
-    needs: [unit-tests, btc-signing-regression, python-integration-tests, build-arm-firmware]
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    needs: [unit-tests, python-integration-tests, build-arm-firmware]
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.publish_emulator == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
