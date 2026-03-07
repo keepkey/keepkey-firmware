@@ -46,6 +46,9 @@ void solana_signMessage(const HDNode *node, const uint8_t *message,
   // Sign the raw message with Ed25519 (no prefix - this is Solana standard)
   ed25519_sign(message, message_len, node->private_key, public_key,
                signature_out);
+
+  // Clean up sensitive data
+  memzero(public_key, sizeof(public_key));
 }
 
 /*

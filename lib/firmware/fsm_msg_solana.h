@@ -80,7 +80,7 @@ void fsm_msgSolanaGetAddress(const SolanaGetAddress *msg) {
   layoutHome();
 }
 
-void fsm_msgSolanaSignTx(SolanaSignTx *msg) {
+void fsm_msgSolanaSignTx(const SolanaSignTx *msg) {
   RESP_INIT(SolanaSignedTx);
 
   CHECK_INITIALIZED
@@ -123,7 +123,13 @@ void fsm_msgSolanaSignTx(SolanaSignTx *msg) {
   }
 
   // Sign the transaction
-  solana_signTx(node, msg, resp);
+  if (!solana_signTx(node, msg, resp)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Failed to sign transaction"));
+    layoutHome();
+    return;
+  }
 
   // Clean up and send response
   memzero(node, sizeof(*node));
@@ -131,7 +137,7 @@ void fsm_msgSolanaSignTx(SolanaSignTx *msg) {
   layoutHome();
 }
 
-void fsm_msgSolanaSignMessage(SolanaSignMessage *msg) {
+void fsm_msgSolanaSignMessage(const SolanaSignMessage *msg) {
   RESP_INIT(SolanaMessageSignature);
 
   CHECK_INITIALIZED
@@ -156,7 +162,8 @@ void fsm_msgSolanaSignMessage(SolanaSignMessage *msg) {
   ed25519_publickey(node->private_key, public_key);
 
   // Confirm message signing with user (shows message preview)
-  if (msg->show_display) {
+  // Default to showing confirmation when client doesn't set the field
+  if (!msg->has_show_display || msg->show_display) {
     if (!solana_confirmMessage(msg->message.bytes, msg->message.size)) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled,

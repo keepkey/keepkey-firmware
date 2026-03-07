@@ -30,8 +30,8 @@
 bool solana_publicKeyToAddress(const uint8_t public_key[32], char *address,
                                 size_t address_size);
 
-// Sign Solana transaction
-void solana_signTx(const HDNode *node, const SolanaSignTx *msg,
+// Sign Solana transaction (returns false on failure)
+bool solana_signTx(const HDNode *node, const SolanaSignTx *msg,
                    SolanaSignedTx *resp);
 
 // Sign Solana message (off-chain signature)

@@ -57,11 +57,11 @@ typedef struct {
     uint8_t num_required_signatures;
     uint8_t num_readonly_signed;
     uint8_t num_readonly_unsigned;
-    uint16_t num_accounts;  // Changed to uint16_t for up to 256 accounts
-    uint8_t account_keys[64][32];  // Increased to 64 accounts (2KB)
+    uint16_t num_accounts;
+    uint8_t account_keys[16][32];  // 16 accounts (512 bytes)
     uint8_t recent_blockhash[32];
     uint8_t num_instructions;
-    SolanaInstruction instructions[32];  // Increased to 32 instructions
+    SolanaInstruction instructions[8];  // 8 instructions
 } SolanaParsedTransaction;
 
 // System Transfer instruction data
@@ -74,6 +74,9 @@ typedef struct {
     uint64_t amount;
     uint8_t decimals;  // For TransferChecked
 } SolanaTokenTransfer;
+
+// Read Solana compact-u16 varint
+bool read_compact_u16(const uint8_t **data, size_t *remaining, uint16_t *out);
 
 // Parse a raw Solana transaction
 bool solana_parseTransaction(const uint8_t *raw_tx, size_t tx_size,

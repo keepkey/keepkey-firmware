@@ -18,6 +18,7 @@
  */
 
 #include "keepkey/firmware/solana.h"
+#include "keepkey/firmware/solana_tx.h"
 #include "keepkey/firmware/fsm.h"
 #include "trezor/crypto/ed25519-donna/ed25519.h"
 #include "trezor/crypto/base58.h"
@@ -53,45 +54,28 @@ bool solana_publicKeyToAddress(const uint8_t public_key[32], char *address,
  * Solana transaction wire format: [sig_count (compact-u16)][sig_count × 64-byte signatures][message]
  * Only the message portion is signed — the signature envelope is NOT part of the signed data.
  */
-void solana_signTx(const HDNode *node, const SolanaSignTx *msg,
+bool solana_signTx(const HDNode *node, const SolanaSignTx *msg,
                    SolanaSignedTx *resp) {
   if (!node || !msg || !resp) {
-    return;
+    return false;
   }
 
   // Validate we have transaction data
   if (!msg->has_raw_tx || msg->raw_tx.size == 0) {
-    return;
+    return false;
   }
 
   // Extract message bytes by skipping the signature envelope.
-  // Format: [num_sigs (compact-u16)][num_sigs × 64 bytes of signatures][message...]
   const uint8_t *data = msg->raw_tx.bytes;
   size_t remaining = msg->raw_tx.size;
 
-  // Read num_signatures (compact-u16: 1 byte if <= 0x7f)
-  if (remaining < 1) return;
-  uint8_t first = data[0];
+  // Read num_signatures (compact-u16)
   uint16_t num_sigs;
-  if (first <= 0x7f) {
-    num_sigs = first;
-    data += 1;
-    remaining -= 1;
-  } else if (first <= 0xbf) {
-    if (remaining < 2) return;
-    num_sigs = ((first & 0x3f) << 8) | data[1];
-    data += 2;
-    remaining -= 2;
-  } else {
-    if (remaining < 3) return;
-    num_sigs = ((first & 0x1f) << 16) | (data[1] << 8) | data[2];
-    data += 3;
-    remaining -= 3;
-  }
+  if (!read_compact_u16(&data, &remaining, &num_sigs)) return false;
 
   // Skip past the dummy signatures (64 bytes each)
   size_t sigs_size = (size_t)num_sigs * 64;
-  if (remaining < sigs_size) return;
+  if (remaining < sigs_size) return false;
   data += sigs_size;
   remaining -= sigs_size;
 
@@ -113,5 +97,7 @@ void solana_signTx(const HDNode *node, const SolanaSignTx *msg,
   memcpy(resp->signature.bytes, signature, SOLANA_SIGNATURE_SIZE);
 
   // Clean up sensitive data
+  memzero(public_key, sizeof(public_key));
   memzero(signature, sizeof(signature));
+  return true;
 }

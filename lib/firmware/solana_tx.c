@@ -26,47 +26,24 @@
 #include <string.h>
 #include <stdio.h>
 
+#ifndef MIN
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
 
-// Compact-u16 encoding used by Solana
-static bool read_compact_u16(const uint8_t **data, size_t *remaining, uint16_t *out) {
+// Compact-u16 encoding used by Solana (little-endian varint, bit 7 = continuation)
+bool read_compact_u16(const uint8_t **data, size_t *remaining, uint16_t *out) {
     if (*remaining < 1) return false;
-
-    uint8_t first = (*data)[0];
-    (*data)++;
-    (*remaining)--;
-
-    if (first <= 0x7f) {
-        *out = first;
-        return true;
-    } else if (first <= 0xbf) {
+    uint16_t val = 0;
+    int shift = 0;
+    for (int i = 0; i < 3; i++) {
         if (*remaining < 1) return false;
-        *out = ((first & 0x3f) << 8) | (*data)[0];
-        (*data)++;
-        (*remaining)--;
-        return true;
-    } else {
-        if (*remaining < 2) return false;
-        *out = ((first & 0x1f) << 16) | ((*data)[0] << 8) | (*data)[1];
-        (*data) += 2;
-        (*remaining) -= 2;
-        return true;
+        uint8_t b = (*data)[0];
+        (*data)++; (*remaining)--;
+        val |= (uint16_t)(b & 0x7F) << shift;
+        if ((b & 0x80) == 0) { *out = val; return true; }
+        shift += 7;
     }
-}
-
-// Read 64-bit little-endian value (currently unused but kept for future use)
-__attribute__((unused))
-static bool read_u64_le(const uint8_t **data, size_t *remaining, uint64_t *out) {
-    if (*remaining < 8) return false;
-
-    *out = 0;
-    for (int i = 0; i < 8; i++) {
-        *out |= ((uint64_t)(*data)[i]) << (i * 8);
-    }
-
-    (*data) += 8;
-    (*remaining) -= 8;
-    return true;
+    return false; // too many continuation bytes
 }
 
 bool solana_parseTransaction(const uint8_t *raw_tx, size_t tx_size,
@@ -107,14 +84,14 @@ bool solana_parseTransaction(const uint8_t *raw_tx, size_t tx_size,
     data += 3;
     remaining -= 3;
 
-    // Read account keys (store up to 64, but advance past ALL of them)
+    // Read account keys (store up to 16, but advance past ALL of them)
     uint16_t num_accounts;
     if (!read_compact_u16(&data, &remaining, &num_accounts)) return false;
-    parsed->num_accounts = MIN(num_accounts, 64);
+    parsed->num_accounts = MIN(num_accounts, 16);
 
     for (int i = 0; i < num_accounts; i++) {
         if (remaining < 32) return false;
-        if (i < 64) {
+        if (i < 16) {
             memcpy(parsed->account_keys[i], data, 32);
         }
         data += 32;
@@ -127,15 +104,15 @@ bool solana_parseTransaction(const uint8_t *raw_tx, size_t tx_size,
     data += 32;
     remaining -= 32;
 
-    // Read instructions (store up to 32, but parse ALL to advance data pointer)
+    // Read instructions (store up to 8, but parse ALL to advance data pointer)
     uint16_t num_instructions;
     if (!read_compact_u16(&data, &remaining, &num_instructions)) return false;
-    parsed->num_instructions = MIN(num_instructions, 32);
+    parsed->num_instructions = MIN(num_instructions, 8);
 
     for (int i = 0; i < num_instructions; i++) {
         // Use a stack variable for instructions beyond our storage limit
         SolanaInstruction overflow_instr;
-        SolanaInstruction *instr = (i < 32) ? &parsed->instructions[i] : &overflow_instr;
+        SolanaInstruction *instr = (i < 8) ? &parsed->instructions[i] : &overflow_instr;
         memzero(instr, sizeof(SolanaInstruction));
 
         // Read program ID index
@@ -288,31 +265,27 @@ bool solana_parseSystemTransfer(const uint8_t *data, size_t len,
 
 bool solana_parseTokenTransfer(const uint8_t *data, size_t len,
                                 SolanaTokenTransfer *transfer) {
-    if (!data || !transfer) {
+    if (!data || !transfer || len < 9) {
         return false;
     }
 
-    // Transfer: instruction_type (1) + amount (8)
-    if (len >= 9) {
-        transfer->amount = 0;
-        for (int i = 0; i < 8; i++) {
-            transfer->amount |= ((uint64_t)data[1 + i]) << (i * 8);
-        }
-        transfer->decimals = 9;  // Default for SPL tokens
-        return true;
+    // Parse amount (bytes 1-8, little-endian) — common to both Transfer and TransferChecked
+    transfer->amount = 0;
+    for (int i = 0; i < 8; i++) {
+        transfer->amount |= ((uint64_t)data[1 + i]) << (i * 8);
     }
 
-    // TransferChecked: instruction_type (1) + amount (8) + decimals (1)
-    if (len >= 10) {
+    // TransferChecked (instruction_type 12): has extra decimals byte at offset 9
+    if (len >= 10 && data[0] == 12) {
         transfer->decimals = data[9];
-        return true;
+    } else {
+        transfer->decimals = 9;  // Default for SPL tokens
     }
-
-    return false;
+    return true;
 }
 
 void solana_formatLamports(uint64_t lamports, char *out, size_t out_len) {
-    if (!out || out_len < 20) return;
+    if (!out || out_len < 30) return;
 
     // Convert lamports to SOL (1 SOL = 1,000,000,000 lamports)
     uint64_t sol = lamports / 1000000000;

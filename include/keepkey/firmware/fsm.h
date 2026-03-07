@@ -119,8 +119,8 @@ void fsm_msgMayachainSignTx(const MayachainSignTx *msg);
 void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg);
 
 void fsm_msgSolanaGetAddress(const SolanaGetAddress *msg);
-void fsm_msgSolanaSignTx(SolanaSignTx *msg);
-void fsm_msgSolanaSignMessage(SolanaSignMessage *msg);
+void fsm_msgSolanaSignTx(const SolanaSignTx *msg);
+void fsm_msgSolanaSignMessage(const SolanaSignMessage *msg);
 
 #if DEBUG_LINK
 // void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
