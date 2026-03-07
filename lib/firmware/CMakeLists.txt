@@ -35,6 +35,9 @@ set(sources
     signtx_tendermint.c
     storage.c
     tendermint.c
+    solana.c
+    solana_msg.c
+    solana_tx.c
     thorchain.c
     tiny-json.c
     transaction.c
