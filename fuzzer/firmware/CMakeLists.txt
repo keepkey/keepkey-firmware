@@ -10,7 +10,6 @@ set(libraries
     kkboard
     kkboard.keepkey
     kkvariant.keepkey
-    kkvariant.salt
     kkboard
     kkemulator
     trezorcrypto

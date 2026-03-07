@@ -24,7 +24,6 @@ target_link_libraries(firmware-unit
     kkboard
     kkboard.keepkey
     kkvariant.keepkey
-    kkvariant.salt
     kkboard
     kkemulator
     trezorcrypto

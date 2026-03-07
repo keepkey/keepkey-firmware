@@ -15,7 +15,6 @@ target_link_libraries(board-unit
     kkboard
     kkboard.keepkey
     kkvariant.keepkey
-    kkvariant.salt
     kkboard
     trezorcrypto
     qrcodegenerator

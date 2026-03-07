@@ -33,45 +33,37 @@
     MSG_IN(MessageType_MessageType_RecoveryDevice,                  RecoveryDevice,              fsm_msgRecoveryDevice)
     MSG_IN(MessageType_MessageType_CharacterAck,                    CharacterAck,                fsm_msgCharacterAck)
     MSG_IN(MessageType_MessageType_ApplyPolicies,                   ApplyPolicies,               fsm_msgApplyPolicies)
+#if !BITCOIN_ONLY
     MSG_IN(MessageType_MessageType_EthereumGetAddress,              EthereumGetAddress,          fsm_msgEthereumGetAddress)
     MSG_IN(MessageType_MessageType_EthereumSignTx,                  EthereumSignTx,              fsm_msgEthereumSignTx)
     MSG_IN(MessageType_MessageType_EthereumTxAck,                   EthereumTxAck,               fsm_msgEthereumTxAck)
     MSG_IN(MessageType_MessageType_EthereumSignMessage,             EthereumSignMessage,         fsm_msgEthereumSignMessage)
     MSG_IN(MessageType_MessageType_EthereumVerifyMessage,           EthereumVerifyMessage,       fsm_msgEthereumVerifyMessage)
-
     MSG_IN(MessageType_MessageType_EthereumSignTypedHash,           EthereumSignTypedHash,       fsm_msgEthereumSignTypedHash)
-
     MSG_IN(MessageType_MessageType_Ethereum712TypesValues,          Ethereum712TypesValues,      fsm_msgEthereum712TypesValues)
-
     MSG_IN(MessageType_MessageType_NanoGetAddress,                  NanoGetAddress,              fsm_msgNanoGetAddress)
     MSG_IN(MessageType_MessageType_NanoSignTx,                      NanoSignTx,                  fsm_msgNanoSignTx)
-
     MSG_IN(MessageType_MessageType_CosmosGetAddress,                CosmosGetAddress,            fsm_msgCosmosGetAddress)
     MSG_IN(MessageType_MessageType_CosmosSignTx,                    CosmosSignTx,                fsm_msgCosmosSignTx)
     MSG_IN(MessageType_MessageType_CosmosMsgAck,                    CosmosMsgAck,                fsm_msgCosmosMsgAck)
-
     MSG_IN(MessageType_MessageType_OsmosisGetAddress,               OsmosisGetAddress,           fsm_msgOsmosisGetAddress)
     MSG_IN(MessageType_MessageType_OsmosisSignTx,                   OsmosisSignTx,               fsm_msgOsmosisSignTx)
     MSG_IN(MessageType_MessageType_OsmosisMsgAck,                   OsmosisMsgAck,               fsm_msgOsmosisMsgAck)
-
     MSG_IN(MessageType_MessageType_BinanceGetAddress,               BinanceGetAddress,           fsm_msgBinanceGetAddress)
     MSG_IN(MessageType_MessageType_BinanceSignTx,                   BinanceSignTx,               fsm_msgBinanceSignTx)
     MSG_IN(MessageType_MessageType_BinanceTransferMsg,              BinanceTransferMsg,          fsm_msgBinanceTransferMsg)
-
     MSG_IN(MessageType_MessageType_EosGetPublicKey,                 EosGetPublicKey,             fsm_msgEosGetPublicKey)
     MSG_IN(MessageType_MessageType_EosSignTx,                       EosSignTx,                   fsm_msgEosSignTx)
     MSG_IN(MessageType_MessageType_EosTxActionAck,                  EosTxActionAck,              fsm_msgEosTxActionAck)
-
     MSG_IN(MessageType_MessageType_RippleGetAddress,                RippleGetAddress,            fsm_msgRippleGetAddress)
     MSG_IN(MessageType_MessageType_RippleSignTx,                    RippleSignTx,                fsm_msgRippleSignTx)
-
     MSG_IN(MessageType_MessageType_ThorchainGetAddress,             ThorchainGetAddress,         fsm_msgThorchainGetAddress)
     MSG_IN(MessageType_MessageType_ThorchainSignTx,                 ThorchainSignTx,             fsm_msgThorchainSignTx)
     MSG_IN(MessageType_MessageType_ThorchainMsgAck,                 ThorchainMsgAck,             fsm_msgThorchainMsgAck)
-
     MSG_IN(MessageType_MessageType_MayachainGetAddress,             MayachainGetAddress,         fsm_msgMayachainGetAddress)
     MSG_IN(MessageType_MessageType_MayachainSignTx,                 MayachainSignTx,             fsm_msgMayachainSignTx)
     MSG_IN(MessageType_MessageType_MayachainMsgAck,                 MayachainMsgAck,             fsm_msgMayachainMsgAck)
+#endif
 
     /* Normal Out Messages */
     MSG_OUT(MessageType_MessageType_Success,                        Success,                     NO_PROCESS_FUNC)
@@ -95,42 +87,35 @@
     MSG_OUT(MessageType_MessageType_PassphraseRequest,              PassphraseRequest,           NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_WordRequest,                    WordRequest,                 NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_CharacterRequest,               CharacterRequest,            NO_PROCESS_FUNC)
+#if !BITCOIN_ONLY
     MSG_OUT(MessageType_MessageType_EthereumAddress,                EthereumAddress,             NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EthereumTxRequest,              EthereumTxRequest,           NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EthereumMessageSignature,       EthereumMessageSignature,    NO_PROCESS_FUNC)
-
     MSG_OUT(MessageType_MessageType_EthereumTypedDataSignature,     EthereumTypedDataSignature,  NO_PROCESS_FUNC)
-
     MSG_OUT(MessageType_MessageType_NanoAddress,                    NanoAddress,                 NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_NanoSignedTx,                   NanoSignedTx,                NO_PROCESS_FUNC)
-
     MSG_OUT(MessageType_MessageType_CosmosAddress,                  CosmosAddress,               NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_CosmosMsgRequest,               CosmosMsgRequest,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_CosmosSignedTx,                 CosmosSignedTx,              NO_PROCESS_FUNC)
-
     MSG_OUT(MessageType_MessageType_OsmosisAddress,                 OsmosisAddress,              NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_OsmosisMsgRequest,              OsmosisMsgRequest,           NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_OsmosisSignedTx,                OsmosisSignedTx,             NO_PROCESS_FUNC)
-
     MSG_OUT(MessageType_MessageType_BinanceAddress,                 BinanceAddress,              NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_BinancePublicKey,               BinancePublicKey,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_BinanceTxRequest,               BinanceTxRequest,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_BinanceSignedTx,                BinanceSignedTx,             NO_PROCESS_FUNC)
-
     MSG_OUT(MessageType_MessageType_EosPublicKey,                   EosPublicKey,                NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EosTxActionRequest,             EosTxActionRequest,          NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EosSignedTx,                    EosSignedTx,                 NO_PROCESS_FUNC)
-
     MSG_OUT(MessageType_MessageType_RippleAddress,                  RippleAddress,               NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_RippleSignedTx,                 RippleSignedTx,              NO_PROCESS_FUNC)
-
     MSG_OUT(MessageType_MessageType_ThorchainAddress,               ThorchainAddress,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_ThorchainMsgRequest,            ThorchainMsgRequest,         NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_ThorchainSignedTx,              ThorchainSignedTx,           NO_PROCESS_FUNC)
-
     MSG_OUT(MessageType_MessageType_MayachainAddress,               MayachainAddress,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_MayachainMsgRequest,            MayachainMsgRequest,         NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_MayachainSignedTx,              MayachainSignedTx,           NO_PROCESS_FUNC)
+#endif
 
 #if DEBUG_LINK
     /* Debug Messages */

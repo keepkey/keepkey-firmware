@@ -252,6 +252,71 @@ jobs:
             bin/*.elf
           retention-days: 90
 
+  build-arm-firmware-btconly:
+    needs: [check-submodules, secret-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Init submodules
+        run: |
+          git submodule update --init deps/crypto/trezor-firmware
+          git submodule update --init deps/device-protocol
+          git submodule update --init deps/python-keepkey
+          git submodule update --init deps/googletest
+          git submodule update --init deps/qrenc/QR-Code-generator
+          git submodule update --init deps/sca-hardening/SecAESSTM32
+
+      - name: Cache base image
+        id: cache-base
+        uses: actions/cache@v4
+        with:
+          path: /tmp/base-image.tar
+          key: base-image-${{ env.BASE_IMAGE }}
+
+      - name: Pull and cache base image
+        if: steps.cache-base.outputs.cache-hit != 'true'
+        run: |
+          docker pull ${{ env.BASE_IMAGE }}
+          docker save ${{ env.BASE_IMAGE }} -o /tmp/base-image.tar
+
+      - name: Load base image from cache
+        if: steps.cache-base.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/base-image.tar
+
+      - name: Extract firmware version
+        id: version
+        run: |
+          FW_VERSION=$(sed -n '/^project/,/)/p' CMakeLists.txt | grep -oP '\d+\.\d+\.\d+')
+          GIT_SHORT=$(git rev-parse --short HEAD)
+          echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "git_short=${GIT_SHORT}" >> "$GITHUB_OUTPUT"
+          echo "Firmware version: ${FW_VERSION}-btconly (${GIT_SHORT})"
+
+      - name: Cross-compile BTC-only firmware
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/root/keepkey-firmware:z \
+            ${{ env.BASE_IMAGE }} /bin/sh -c "\
+              mkdir /root/build && cd /root/build && \
+              cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
+                -DCMAKE_BUILD_TYPE=MinSizeRel \
+                -DKK_BITCOIN_ONLY=ON && \
+              make && \
+              mkdir -p /root/keepkey-firmware/bin-btconly && \
+              cp bin/firmware.keepkey.bin /root/keepkey-firmware/bin-btconly/ && \
+              cp bin/firmware.keepkey.elf /root/keepkey-firmware/bin-btconly/ && \
+              chmod -R a+rw /root/keepkey-firmware/bin-btconly"
+
+      - name: Upload BTC-only firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-btconly-v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}
+          path: bin-btconly/*
+          retention-days: 90
+
   # ═══════════════════════════════════════════════════════════
   # STAGE 3: TEST — run only after builds succeed
   # ═══════════════════════════════════════════════════════════
@@ -359,7 +424,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════
 
   publish-emulator:
-    needs: [unit-tests, python-integration-tests, build-arm-firmware]
+    needs: [unit-tests, python-integration-tests, build-arm-firmware, build-arm-firmware-btconly]
     if: >-
       github.event_name == 'workflow_dispatch' &&
       github.event.inputs.publish_emulator == 'true'

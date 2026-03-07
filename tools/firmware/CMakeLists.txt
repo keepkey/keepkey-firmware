@@ -32,7 +32,6 @@ if(NOT ${KK_EMULATOR})
       kkboard
       kkboard.keepkey
       kkvariant.keepkey
-      kkvariant.salt
       kktransport
       trezorcrypto
       qrcodegenerator

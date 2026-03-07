@@ -2,9 +2,11 @@ void fsm_msgInitialize(Initialize *msg) {
   (void)msg;
   recovery_cipher_abort();
   signing_abort();
+#if !BITCOIN_ONLY
   ethereum_signing_abort();
   tendermint_signAbort();
   eos_signingAbort();
+#endif
   session_clear(false);  // do not clear PIN
   layoutHome();
   fsm_msgGetFeatures(0);
@@ -130,8 +132,13 @@ void fsm_msgGetCoinTable(GetCoinTable *msg) {
   resp->chunk_size = sizeof(resp->table) / sizeof(resp->table[0]);
 
   if (msg->has_start && msg->has_end) {
-    if (COINS_COUNT + TOKENS_COUNT <= msg->start ||
-        COINS_COUNT + TOKENS_COUNT < msg->end || msg->end < msg->start ||
+#if BITCOIN_ONLY
+    uint32_t total_count = COINS_COUNT;
+#else
+    uint32_t total_count = COINS_COUNT + TOKENS_COUNT;
+#endif
+    if (total_count <= msg->start ||
+        total_count < msg->end || msg->end < msg->start ||
         resp->chunk_size < msg->end - msg->start) {
       fsm_sendFailure(FailureType_Failure_Other,
                       "Incorrect GetCoinTable parameters");
@@ -141,7 +148,11 @@ void fsm_msgGetCoinTable(GetCoinTable *msg) {
   }
 
   resp->has_num_coins = true;
+#if BITCOIN_ONLY
+  resp->num_coins = COINS_COUNT;
+#else
   resp->num_coins = COINS_COUNT + TOKENS_COUNT;
+#endif
 
   if (msg->has_start && msg->has_end) {
     resp->table_count = msg->end - msg->start;
@@ -149,9 +160,12 @@ void fsm_msgGetCoinTable(GetCoinTable *msg) {
     for (size_t i = 0; i < msg->end - msg->start; i++) {
       if (msg->start + i < COINS_COUNT) {
         resp->table[i] = coins[msg->start + i];
-      } else if (msg->start + i - COINS_COUNT < TOKENS_COUNT) {
+      }
+#if !BITCOIN_ONLY
+      else if (msg->start + i - COINS_COUNT < TOKENS_COUNT) {
         coinFromToken(&resp->table[i], &tokens[msg->start + i - COINS_COUNT]);
       }
+#endif
     }
   }
 
@@ -186,15 +200,16 @@ void fsm_msgPing(Ping *msg) {
     flash_setModel(&message);
   }
 
+#if !BITCOIN_ONLY
   const char *errMsgStr[NUM_AUTHERRS] = {
     "noerr",
-    "Authenticator secret storage full",                                
-    "Authenticator secret can't be decoded",                            
-    "Account name missing or too long, or seed/message string missing", 
-    "Account not found",                                                
+    "Authenticator secret storage full",
+    "Authenticator secret can't be decoded",
+    "Account name missing or too long, or seed/message string missing",
+    "Account not found",
     "Slot request out of range",
-    "Authenticator secret seed too large",                              
-    "passphrase incorrect for authdata",                                
+    "Authenticator secret seed too large",
+    "passphrase incorrect for authdata",
     "Auth secret unknown error",
 };
 
@@ -252,7 +267,7 @@ void fsm_msgPing(Ping *msg) {
         strcat(resp->message, authSlot);
       #else
         resp->has_message = false;
-      #endif        
+      #endif
         break;
 
       case GETACC:
@@ -284,7 +299,9 @@ void fsm_msgPing(Ping *msg) {
       return;
     }
 
-  } else {
+  } else
+#endif
+  {
 
     if (msg->has_button_protection && msg->button_protection)
       if (!confirm(ButtonRequestType_ButtonRequest_Ping, "Ping", "%s",
@@ -545,9 +562,11 @@ void fsm_msgCancel(Cancel *msg) {
   (void)msg;
   recovery_cipher_abort();
   signing_abort();
+#if !BITCOIN_ONLY
   ethereum_signing_abort();
   tendermint_signAbort();
   eos_signingAbort();
+#endif
   fsm_sendFailure(FailureType_Failure_ActionCancelled, "Aborted");
 }
 

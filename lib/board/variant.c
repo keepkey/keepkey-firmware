@@ -6,7 +6,6 @@
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/sha2.h"
 #include "keepkey/variant/keepkey.h"
-#include "keepkey/variant/salt.h"
 
 #include <string.h>
 
@@ -118,7 +117,7 @@ const VariantInfo *__attribute__((weak)) variant_getInfo(void) {
     case MODEL_KEEPKEY:
       return &variant_keepkey;
     case MODEL_SALT:
-      return &variant_salt;
+      return &variant_keepkey;
     case MODEL_FOX:
       return &variant_keepkey;
     case MODEL_KASPERSKY:

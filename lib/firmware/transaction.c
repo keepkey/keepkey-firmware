@@ -27,7 +27,9 @@
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/signing.h"
+#if !BITCOIN_ONLY
 #include "keepkey/firmware/thorchain.h"
+#endif
 #include "keepkey/firmware/txin_check.h"
 #include "keepkey/transport/interface.h"
 #include "trezor/crypto/address.h"
@@ -237,8 +239,11 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in,
           return -1;  // user aborted
         }
       } else {
+#if !BITCOIN_ONLY
         // is this thorchain data?
-        if (!thorchain_parseConfirmMemo((const char *)in->op_return_data.bytes, (size_t)in->op_return_data.size)) {
+        if (!thorchain_parseConfirmMemo((const char *)in->op_return_data.bytes, (size_t)in->op_return_data.size))
+#endif
+        {
           if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmOutput,
                           _("Confirm OP_RETURN"), in->op_return_data.bytes,
                           in->op_return_data.size)) {

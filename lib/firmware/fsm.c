@@ -34,30 +34,44 @@
 #include "keepkey/board/variant.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/app_layout.h"
+#if !BITCOIN_ONLY
 #include "keepkey/firmware/authenticator.h"
+#endif
 #include "keepkey/firmware/coins.h"
+#if !BITCOIN_ONLY
 #include "keepkey/firmware/cosmos.h"
 #include "keepkey/firmware/binance.h"
+#endif
 #include "keepkey/firmware/crypto.h"
+#if !BITCOIN_ONLY
 #include "keepkey/firmware/eos.h"
 #include "keepkey/firmware/eos-contracts.h"
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_tokens.h"
+#endif
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
+#if !BITCOIN_ONLY
 #include "keepkey/firmware/mayachain.h"
 #include "keepkey/firmware/osmosis.h"
+#endif
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/pin_sm.h"
 #include "keepkey/firmware/policy.h"
 #include "keepkey/firmware/recovery_cipher.h"
 #include "keepkey/firmware/reset.h"
+#if !BITCOIN_ONLY
 #include "keepkey/firmware/ripple.h"
+#endif
 #include "keepkey/firmware/signing.h"
+#if !BITCOIN_ONLY
 #include "keepkey/firmware/signtx_tendermint.h"
+#endif
 #include "keepkey/firmware/storage.h"
+#if !BITCOIN_ONLY
 #include "keepkey/firmware/tendermint.h"
 #include "keepkey/firmware/thorchain.h"
+#endif
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/txin_check.h"
 #include "keepkey/firmware/u2f.h"
@@ -75,6 +89,7 @@
 #include "trezor/crypto/secp256k1.h"
 
 #include "messages.pb.h"
+#if !BITCOIN_ONLY
 #include "messages-ethereum.pb.h"
 #include "messages-binance.pb.h"
 #include "messages-cosmos.pb.h"
@@ -84,6 +99,7 @@
 #include "messages-ripple.pb.h"
 #include "messages-thorchain.pb.h"
 #include "messages-mayachain.pb.h"
+#endif
 
 #include <stdio.h>
 
@@ -272,10 +288,13 @@ void fsm_msgClearSession(ClearSession *msg) {
 
 #include "fsm_msg_common.h"
 #include "fsm_msg_coin.h"
+#if !BITCOIN_ONLY
 #include "fsm_msg_ethereum.h"
 #include "fsm_msg_nano.h"
+#endif
 #include "fsm_msg_crypto.h"
 #include "fsm_msg_debug.h"
+#if !BITCOIN_ONLY
 #include "fsm_msg_eos.h"
 #include "fsm_msg_cosmos.h"
 #include "fsm_msg_osmosis.h"
@@ -284,3 +303,4 @@ void fsm_msgClearSession(ClearSession *msg) {
 #include "fsm_msg_tendermint.h"
 #include "fsm_msg_thorchain.h"
 #include "fsm_msg_mayachain.h"
+#endif
