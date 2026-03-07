@@ -1,0 +1,402 @@
+# KeepKey Firmware CI Pipeline
+#
+# FAIL FAST — quick checks gate everything, no wasted compute.
+#
+# Stage 1: GATE (seconds, no Docker)
+#   ├─ lint-format        clang-format diff check
+#   ├─ secret-scan        gitleaks credential detection
+#   └─ check-submodules   verify all deps present
+#
+# Stage 2: BUILD (parallel, gated by Stage 1)
+#   ├─ build-emulator     Docker image → artifact
+#   └─ build-arm-firmware cross-compile → .bin/.elf (downloadable)
+#
+# Stage 3: TEST (parallel, gated by Stage 2)
+#   ├─ unit-tests              GoogleTest (make xunit)
+#   └─ python-integration      full test suite
+#
+# Stage 4: PUBLISH (manual trigger, all tests must pass)
+#   └─ publish-emulator   DockerHub push (workflow_dispatch only)
+
+name: CI
+
+on:
+  push:
+    branches: [master, develop, 'feature/**', 'fix/**']
+  pull_request:
+    branches: [master, develop]
+  workflow_dispatch:
+    inputs:
+      publish_emulator:
+        description: 'Publish emulator image to DockerHub'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  BASE_IMAGE: kktech/firmware:v15
+  EMU_IMAGE: kkemu-ci
+
+jobs:
+  # ═══════════════════════════════════════════════════════════
+  # STAGE 1: GATE — kill bad PRs in seconds
+  # ═══════════════════════════════════════════════════════════
+
+  lint-format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: sudo apt-get install -y clang-format-14
+
+      - name: Check code formatting
+        run: |
+          FAILED=0
+          for f in $(find include/keepkey lib/firmware lib/board lib/transport/src \
+                     -name '*.c' -o -name '*.h' 2>/dev/null | grep -v generated | grep -v '.pb.'); do
+            if ! clang-format-14 --style=file --dry-run --Werror "$f" 2>/dev/null; then
+              echo "::warning file=$f::Formatting differs from .clang-format"
+              FAILED=1
+            fi
+          done
+          if [ "$FAILED" = "1" ]; then
+            echo ""
+            echo "Run: clang-format -i <file> to fix formatting"
+            echo "Note: treating as warning until codebase is reformatted"
+          fi
+        # Warn-only until existing code is reformatted
+        continue-on-error: true
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  check-submodules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify submodules are declared
+        run: |
+          echo "Checking required submodule declarations..."
+          REQUIRED=(
+            "deps/crypto/trezor-firmware"
+            "deps/device-protocol"
+            "deps/python-keepkey"
+            "deps/googletest"
+            "deps/qrenc/QR-Code-generator"
+            "deps/sca-hardening/SecAESSTM32"
+          )
+          FAILED=0
+          for sub in "${REQUIRED[@]}"; do
+            if ! grep -q "$sub" .gitmodules; then
+              echo "::error::Missing required submodule: $sub"
+              FAILED=1
+            else
+              echo "  ✓ $sub"
+            fi
+          done
+          [ "$FAILED" = "0" ] || exit 1
+
+  # ═══════════════════════════════════════════════════════════
+  # STAGE 2: BUILD — compile only after gate passes
+  # ═══════════════════════════════════════════════════════════
+
+  build-emulator:
+    needs: [check-submodules, secret-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Init submodules
+        run: |
+          git submodule update --init deps/crypto/trezor-firmware
+          git submodule update --init deps/device-protocol
+          git submodule update --init deps/python-keepkey
+          git submodule update --init deps/googletest
+          git submodule update --init deps/qrenc/QR-Code-generator
+          git submodule update --init deps/sca-hardening/SecAESSTM32
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache base image
+        id: cache-base
+        uses: actions/cache@v4
+        with:
+          path: /tmp/base-image.tar
+          key: base-image-${{ env.BASE_IMAGE }}
+
+      - name: Pull and cache base image
+        if: steps.cache-base.outputs.cache-hit != 'true'
+        run: |
+          docker pull ${{ env.BASE_IMAGE }}
+          docker save ${{ env.BASE_IMAGE }} -o /tmp/base-image.tar
+
+      - name: Load base image from cache
+        if: steps.cache-base.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/base-image.tar
+
+      - name: Build emulator image
+        run: |
+          docker build \
+            -t ${{ env.EMU_IMAGE }} \
+            -f scripts/emulator/Dockerfile \
+            .
+
+      - name: Save emulator image
+        run: docker save ${{ env.EMU_IMAGE }} -o /tmp/emu-image.tar
+
+      - name: Upload emulator image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: emu-image
+          path: /tmp/emu-image.tar
+          retention-days: 1
+
+  build-arm-firmware:
+    needs: [check-submodules, secret-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Init submodules
+        run: |
+          git submodule update --init deps/crypto/trezor-firmware
+          git submodule update --init deps/device-protocol
+          git submodule update --init deps/python-keepkey
+          git submodule update --init deps/googletest
+          git submodule update --init deps/qrenc/QR-Code-generator
+          git submodule update --init deps/sca-hardening/SecAESSTM32
+
+      - name: Cache base image
+        id: cache-base
+        uses: actions/cache@v4
+        with:
+          path: /tmp/base-image.tar
+          key: base-image-${{ env.BASE_IMAGE }}
+
+      - name: Pull and cache base image
+        if: steps.cache-base.outputs.cache-hit != 'true'
+        run: |
+          docker pull ${{ env.BASE_IMAGE }}
+          docker save ${{ env.BASE_IMAGE }} -o /tmp/base-image.tar
+
+      - name: Load base image from cache
+        if: steps.cache-base.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/base-image.tar
+
+      - name: Extract firmware version
+        id: version
+        run: |
+          FW_VERSION=$(sed -n '/^project/,/)/p' CMakeLists.txt | grep -oP '\d+\.\d+\.\d+')
+          GIT_SHORT=$(git rev-parse --short HEAD)
+          echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "git_short=${GIT_SHORT}" >> "$GITHUB_OUTPUT"
+          echo "Firmware version: ${FW_VERSION} (${GIT_SHORT})"
+
+      - name: Cross-compile firmware for ARM
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/root/keepkey-firmware:z \
+            ${{ env.BASE_IMAGE }} /bin/sh -c "\
+              mkdir /root/build && cd /root/build && \
+              cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
+                -DCMAKE_BUILD_TYPE=MinSizeRel \
+                -DCMAKE_COLOR_MAKEFILE=ON && \
+              make && \
+              mkdir -p /root/keepkey-firmware/bin && \
+              cp bin/*.bin /root/keepkey-firmware/bin/ && \
+              cp bin/*.elf /root/keepkey-firmware/bin/ && \
+              chmod -R a+rw /root/keepkey-firmware/bin"
+
+      - name: Rename firmware artifacts
+        run: |
+          cd bin
+          for f in *.bin; do
+            [ -f "$f" ] || continue
+            mv "$f" "firmware.keepkey.v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${f}"
+          done
+          for f in *.elf; do
+            [ -f "$f" ] || continue
+            mv "$f" "firmware.keepkey.v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${f}"
+          done
+          ls -lh
+          echo "::notice::Firmware v${{ steps.version.outputs.fw_version }} built successfully"
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}
+          path: |
+            bin/*.bin
+            bin/*.elf
+          retention-days: 90
+
+  # ═══════════════════════════════════════════════════════════
+  # STAGE 3: TEST — run only after builds succeed
+  # ═══════════════════════════════════════════════════════════
+
+  unit-tests:
+    needs: build-emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download emulator image
+        uses: actions/download-artifact@v4
+        with:
+          name: emu-image
+          path: /tmp
+
+      - name: Load emulator image
+        run: docker load -i /tmp/emu-image.tar
+
+      - name: Run unit tests
+        run: |
+          # make xunit returns non-zero if any test fails — capture
+          # exit code so JUnit XML still gets copied for reporting
+          docker run --rm \
+            -v ${{ github.workspace }}/test-reports:/kkemu/test-reports \
+            --entrypoint /bin/sh \
+            ${{ env.EMU_IMAGE }} \
+            -c "mkdir -p /kkemu/test-reports/firmware-unit && \
+                make xunit; RC=\$?; \
+                cp -r unittests/*.xml /kkemu/test-reports/firmware-unit/ 2>/dev/null; \
+                exit \$RC"
+
+      - name: Upload unit test results
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: test-reports/firmware-unit/*.xml
+          check_name: Unit Tests
+
+  python-integration-tests:
+    needs: build-emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Init submodules
+        run: |
+          git submodule update --init deps/crypto/trezor-firmware
+          git submodule update --init deps/device-protocol
+          git submodule update --init deps/python-keepkey
+          git submodule update --init deps/googletest
+          git submodule update --init deps/qrenc/QR-Code-generator
+          git submodule update --init deps/sca-hardening/SecAESSTM32
+
+      - name: Download emulator image
+        uses: actions/download-artifact@v4
+        with:
+          name: emu-image
+          path: /tmp
+
+      - name: Load emulator image
+        run: docker load -i /tmp/emu-image.tar
+
+      - name: Tag image for docker compose
+        run: docker tag ${{ env.EMU_IMAGE }} kktech/kkemu:latest
+
+      - name: Run full test suite
+        working-directory: scripts/emulator
+        run: |
+          docker compose up --build --abort-on-container-exit python-keepkey
+
+      - name: Collect test results
+        if: always()
+        working-directory: scripts/emulator
+        run: |
+          mkdir -p ${{ github.workspace }}/test-reports/python-keepkey
+          # docker compose v2 ps only shows running containers;
+          # use -a to include stopped/exited containers
+          CID=$(docker compose ps -a -q python-keepkey 2>/dev/null || true)
+          if [ -n "$CID" ]; then
+            docker cp "$CID":/kkemu/test-reports/python-keepkey/junit.xml \
+              ${{ github.workspace }}/test-reports/python-keepkey/junit.xml || true
+            docker cp "$CID":/kkemu/test-reports/python-keepkey/status \
+              ${{ github.workspace }}/test-reports/python-keepkey/status || true
+          fi
+          STATUS=$(cat ${{ github.workspace }}/test-reports/python-keepkey/status 2>/dev/null || echo "1")
+          echo "Python tests exit status: $STATUS"
+          [ "$STATUS" = "0" ] || exit 1
+
+      - name: Upload Python test results
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: test-reports/python-keepkey/junit.xml
+          check_name: Python Integration Tests
+
+      - name: Tear down
+        if: always()
+        working-directory: scripts/emulator
+        run: docker compose down -v || true
+
+  # ═══════════════════════════════════════════════════════════
+  # STAGE 4: PUBLISH — manual trigger only, all tests must pass
+  # ═══════════════════════════════════════════════════════════
+
+  publish-emulator:
+    needs: [unit-tests, python-integration-tests, build-arm-firmware]
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.publish_emulator == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download emulator image
+        uses: actions/download-artifact@v4
+        with:
+          name: emu-image
+          path: /tmp
+
+      - name: Load emulator image
+        run: docker load -i /tmp/emu-image.tar
+
+      - name: Extract firmware version
+        id: version
+        run: |
+          FW_VERSION=$(sed -n '/^project/,/)/p' CMakeLists.txt | grep -oP '\d+\.\d+\.\d+')
+          echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Firmware version: ${FW_VERSION}"
+
+      - name: Tag images for publish
+        run: |
+          docker tag ${{ env.EMU_IMAGE }} kktech/kkemu:latest
+          docker tag ${{ env.EMU_IMAGE }} kktech/kkemu:v${{ steps.version.outputs.fw_version }}
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.KK_DOCKERHUB_USER }}
+          password: ${{ secrets.KK_DOCKERHUB_PASS }}
+
+      - name: Push emulator images
+        run: |
+          docker push kktech/kkemu:latest
+          docker push kktech/kkemu:v${{ steps.version.outputs.fw_version }}
