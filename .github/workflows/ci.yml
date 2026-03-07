@@ -208,7 +208,7 @@ jobs:
       - name: Extract firmware version
         id: version
         run: |
-          FW_VERSION=$(grep 'VERSION' CMakeLists.txt | head -1 | grep -oP '\d+\.\d+\.\d+')
+          FW_VERSION=$(sed -n '/^project/,/)/p' CMakeLists.txt | grep -oP '\d+\.\d+\.\d+')
           GIT_SHORT=$(git rev-parse --short HEAD)
           echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
           echo "git_short=${GIT_SHORT}" >> "$GITHUB_OUTPUT"
@@ -226,7 +226,8 @@ jobs:
               make && \
               mkdir -p /root/keepkey-firmware/bin && \
               cp bin/*.bin /root/keepkey-firmware/bin/ && \
-              cp bin/*.elf /root/keepkey-firmware/bin/"
+              cp bin/*.elf /root/keepkey-firmware/bin/ && \
+              chmod -R a+rw /root/keepkey-firmware/bin"
 
       - name: Rename firmware artifacts
         run: |
@@ -380,7 +381,7 @@ jobs:
       - name: Extract firmware version
         id: version
         run: |
-          FW_VERSION=$(grep 'VERSION' CMakeLists.txt | head -1 | grep -oP '\d+\.\d+\.\d+')
+          FW_VERSION=$(sed -n '/^project/,/)/p' CMakeLists.txt | grep -oP '\d+\.\d+\.\d+')
           echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
           echo "Firmware version: ${FW_VERSION}"
 
