@@ -575,7 +575,7 @@ void recovery_cipher_finalize(void) {
   }
   memzero(temp_word, sizeof(temp_word));
 
-  if (!auto_completed && !enforce_wordlist) {
+  if (!auto_completed && enforce_wordlist) {
     if (!dry_run) {
       storage_reset();
     }
