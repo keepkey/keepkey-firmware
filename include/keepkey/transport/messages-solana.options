@@ -1,0 +1,17 @@
+SolanaGetAddress.address_n max_count:8
+SolanaGetAddress.coin_name max_size:21
+
+SolanaAddress.address max_size:64
+
+SolanaSignTx.address_n max_count:8
+SolanaSignTx.coin_name max_size:21
+SolanaSignTx.raw_tx max_size:2048
+
+SolanaSignedTx.signature max_size:64
+
+SolanaSignMessage.address_n max_count:8
+SolanaSignMessage.coin_name max_size:21
+SolanaSignMessage.message max_size:1024
+
+SolanaMessageSignature.public_key max_size:32
+SolanaMessageSignature.signature max_size:64
