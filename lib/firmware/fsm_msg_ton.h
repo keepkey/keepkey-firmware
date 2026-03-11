@@ -101,6 +101,7 @@ void fsm_msgTonSignTx(TonSignTx *msg) {
     return;
   }
 
+
   // Derive node using Ed25519 curve
   HDNode *node = fsm_getDerivedNode(ED25519_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
