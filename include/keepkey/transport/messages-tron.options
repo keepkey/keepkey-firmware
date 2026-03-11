@@ -1,0 +1,11 @@
+TronGetAddress.address_n max_count:8
+TronGetAddress.coin_name max_size:21
+TronSignTx.address_n max_count:8
+TronSignTx.coin_name max_size:21
+TronSignTx.raw_data max_size:1024
+TronSignTx.ref_block_bytes max_size:2
+TronSignTx.ref_block_hash max_size:8
+TronSignTx.contract_type max_size:50
+TronSignTx.to_address max_size:35
+TronAddress.address max_size:35
+TronSignedTx.signature max_size:65

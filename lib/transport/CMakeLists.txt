@@ -15,6 +15,8 @@ set(protoc_pb_sources
     ${DEVICE_PROTOCOL}/messages-tendermint.proto
     ${DEVICE_PROTOCOL}/messages-thorchain.proto
     ${DEVICE_PROTOCOL}/messages-mayachain.proto
+    ${DEVICE_PROTOCOL}/messages-tron.proto
+    ${DEVICE_PROTOCOL}/messages-ton.proto
     ${DEVICE_PROTOCOL}/messages.proto)
 
 set(protoc_pb_options
@@ -29,6 +31,8 @@ set(protoc_pb_options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-tendermint.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-thorchain.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-mayachain.options
+    ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-tron.options
+    ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-ton.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages.options)
 
 set(protoc_c_sources
@@ -43,6 +47,8 @@ set(protoc_c_sources
     ${CMAKE_BINARY_DIR}/lib/transport/messages-tendermint.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-thorchain.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-mayachain.pb.c
+    ${CMAKE_BINARY_DIR}/lib/transport/messages-tron.pb.c
+    ${CMAKE_BINARY_DIR}/lib/transport/messages-ton.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages.pb.c)
 
 set(protoc_c_headers
@@ -57,6 +63,8 @@ set(protoc_c_headers
     ${CMAKE_BINARY_DIR}/include/messages-tendermint.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-thorchain.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-mayachain.pb.h
+    ${CMAKE_BINARY_DIR}/include/messages-tron.pb.h
+    ${CMAKE_BINARY_DIR}/include/messages-ton.pb.h
     ${CMAKE_BINARY_DIR}/include/messages.pb.h)
 
 set(protoc_pb_sources_moved
@@ -71,6 +79,8 @@ set(protoc_pb_sources_moved
     ${CMAKE_BINARY_DIR}/lib/transport/messages-tendermint.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-thorchain.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-mayachain.proto
+    ${CMAKE_BINARY_DIR}/lib/transport/messages-tron.proto
+    ${CMAKE_BINARY_DIR}/lib/transport/messages-ton.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages.proto)
 
 add_custom_command(
@@ -136,6 +146,14 @@ add_custom_command(
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
       "--nanopb_out=-f messages-mayachain.options:." messages-mayachain.proto
+  COMMAND
+    ${PROTOC_BINARY} -I. -I/usr/include
+      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      "--nanopb_out=-f messages-tron.options:." messages-tron.proto
+  COMMAND
+    ${PROTOC_BINARY} -I. -I/usr/include
+      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      "--nanopb_out=-f messages-ton.options:." messages-ton.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
