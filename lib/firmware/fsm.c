@@ -58,6 +58,7 @@
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/tendermint.h"
 #include "keepkey/firmware/thorchain.h"
+#include "keepkey/firmware/bip85.h"
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/txin_check.h"
 #include "keepkey/firmware/u2f.h"
@@ -284,3 +285,4 @@ void fsm_msgClearSession(ClearSession *msg) {
 #include "fsm_msg_tendermint.h"
 #include "fsm_msg_thorchain.h"
 #include "fsm_msg_mayachain.h"
+#include "fsm_msg_bip85.h"

@@ -3,6 +3,7 @@ set(sources
     app_layout.c
     authenticator.c
     binance.c
+    bip85.c
     coins.c
     crypto.c
     eip712.c

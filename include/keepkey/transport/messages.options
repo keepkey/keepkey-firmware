@@ -131,3 +131,5 @@ FlashHash.challenge max_size:32
 FlashWrite.data max_size:1024
 
 FlashHashResponse.data max_size:32
+
+Bip85Mnemonic.mnemonic max_size:241
