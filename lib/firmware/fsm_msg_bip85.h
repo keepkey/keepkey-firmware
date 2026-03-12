@@ -1,15 +1,7 @@
 void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg) {
   CHECK_INITIALIZED
 
-  /* Validate required fields are present */
-  if (!msg->has_word_count || !msg->has_index) {
-    fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    "word_count and index are required");
-    layoutHome();
-    return;
-  }
-
-  /* Validate word count */
+  /* Validate word count (required field, always present in nanopb) */
   if (msg->word_count != 12 && msg->word_count != 18 && msg->word_count != 24) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     "word_count must be 12, 18, or 24");
