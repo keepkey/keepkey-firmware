@@ -371,11 +371,12 @@ jobs:
                 exit \$RC"
 
       - name: Upload unit test results
-        uses: mikepenz/action-junit-report@v4
+        uses: actions/upload-artifact@v4
         if: always()
         with:
-          report_paths: test-reports/firmware-unit/*.xml
-          check_name: Unit Tests
+          name: unit-test-results
+          path: test-reports/firmware-unit/
+          retention-days: 30
 
   python-integration-tests:
     needs: [check-submodules, secret-scan]
@@ -413,11 +414,12 @@ jobs:
           [ "${UNIT_STATUS}${PY_STATUS}" = "00" ] || exit 1
 
       - name: Upload Python test results
-        uses: mikepenz/action-junit-report@v4
+        uses: actions/upload-artifact@v4
         if: always()
         with:
-          report_paths: test-reports/python-keepkey/junit.xml
-          check_name: Python Integration Tests
+          name: python-test-results
+          path: test-reports/python-keepkey/
+          retention-days: 30
 
       - name: Tear down
         if: always()
