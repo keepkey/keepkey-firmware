@@ -23,9 +23,9 @@ name: CI
 
 on:
   push:
-    branches: [master, develop, 'feature/**', 'fix/**', 'release/**', 'hotfix/**']
+    branches: [master, develop, btc-only, 'feature/**', 'fix/**', 'release/**', 'hotfix/**']
   pull_request:
-    branches: [master, develop]
+    branches: [master, develop, btc-only]
   workflow_dispatch:
     inputs:
       publish_emulator:
@@ -49,8 +49,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install clang-format
         run: sudo apt-get install -y clang-format-14
@@ -80,7 +78,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Install gitleaks
@@ -101,7 +98,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: false
 
       - name: Install cppcheck
@@ -171,8 +167,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Verify submodules are declared
         run: |
@@ -207,8 +201,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Init submodules
         run: |
@@ -218,9 +210,6 @@ jobs:
           git submodule update --init deps/googletest
           git submodule update --init deps/qrenc/QR-Code-generator
           git submodule update --init deps/sca-hardening/SecAESSTM32
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
 
       - name: Cache base image
         id: cache-base
@@ -242,6 +231,7 @@ jobs:
       - name: Build emulator image
         run: |
           docker build \
+            --build-arg coinsupport="-DCOIN_SUPPORT=BTC" \
             -t ${{ env.EMU_IMAGE }} \
             -f scripts/emulator/Dockerfile \
             .
@@ -263,8 +253,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Init submodules
         run: |
@@ -301,13 +289,15 @@ jobs:
           echo "git_short=${GIT_SHORT}" >> "$GITHUB_OUTPUT"
           echo "Firmware version: ${FW_VERSION} (${GIT_SHORT})"
 
-      - name: Cross-compile firmware for ARM
+      - name: Cross-compile firmware for ARM (BTC-only)
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/root/keepkey-firmware:z \
             ${{ env.BASE_IMAGE }} /bin/sh -c "\
               mkdir /root/build && cd /root/build && \
               cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
+                -DCOIN_SUPPORT=BTC \
+                -DVARIANTS=NoObsoleteVariants \
                 -DCMAKE_BUILD_TYPE=MinSizeRel \
                 -DCMAKE_COLOR_MAKEFILE=ON && \
               make && \
@@ -385,8 +375,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Init submodules
         run: |
@@ -397,16 +385,16 @@ jobs:
           git submodule update --init deps/qrenc/QR-Code-generator
           git submodule update --init deps/sca-hardening/SecAESSTM32
 
-      - name: Build and run tests (docker compose)
+      - name: Build and run tests (docker compose, BTC-only)
         working-directory: scripts/emulator
         run: |
           set +e
-          docker compose up --build firmware-unit
-          docker compose up --build python-keepkey
+          docker compose -f docker-compose-btc.yml up --build firmware-unit
+          docker compose -f docker-compose-btc.yml up --build python-keepkey
           set -e
           mkdir -p ${{ github.workspace }}/test-reports
-          docker cp "$(docker compose ps -a -q firmware-unit)":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ 2>/dev/null || true
-          docker cp "$(docker compose ps -a -q python-keepkey)":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ 2>/dev/null || true
+          docker cp "$(docker compose -f docker-compose-btc.yml ps -a -q firmware-unit)":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ 2>/dev/null || true
+          docker cp "$(docker compose -f docker-compose-btc.yml ps -a -q python-keepkey)":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ 2>/dev/null || true
           UNIT_STATUS=$(cat ${{ github.workspace }}/test-reports/firmware-unit/status 2>/dev/null || echo "1")
           PY_STATUS=$(cat ${{ github.workspace }}/test-reports/python-keepkey/status 2>/dev/null || echo "1")
           echo "Unit tests exit status: $UNIT_STATUS"
@@ -424,7 +412,7 @@ jobs:
       - name: Tear down
         if: always()
         working-directory: scripts/emulator
-        run: docker compose down -v || true
+        run: docker compose -f docker-compose-btc.yml down -v || true
 
   # ═══════════════════════════════════════════════════════════
   # STAGE 4: PUBLISH — manual trigger only, all tests must pass
@@ -440,8 +428,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Download emulator image
         uses: actions/download-artifact@v4

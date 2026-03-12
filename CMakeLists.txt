@@ -110,6 +110,10 @@ else()
   add_definitions(-DDEBUG_LINK=0)
 endif()
 
+if("${COIN_SUPPORT}" STREQUAL "BTC")
+  add_definitions(-DBITCOIN_ONLY)
+endif()
+
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
   add_definitions(-DDEBUG_ON)
   add_definitions(-DMEMORY_PROTECT=0)

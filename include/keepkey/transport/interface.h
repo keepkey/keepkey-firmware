@@ -20,9 +20,15 @@
 #ifndef INTERFACE_H
 #define INTERFACE_H
 
+#include "types.pb.h"
 // Allow this file to be used from C++ by renaming an unfortunately named field:
 #define delete del
 #include "messages.pb.h"
+#undef delete
+
+#ifndef BITCOIN_ONLY
+// Allow this file to be used from C++ by renaming an unfortunately named field:
+#define delete del
 #include "messages-nano.pb.h"
 #undef delete
 
@@ -36,7 +42,8 @@
 #include "messages-thorchain.pb.h"
 #include "messages-mayachain.pb.h"
 
-#include "types.pb.h"
+#endif  // BITCOIN_ONLY
+
 #include "trezor_transport.h"
 
 #ifndef EMULATOR

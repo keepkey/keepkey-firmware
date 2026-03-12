@@ -1,3 +1,7 @@
+if("${VARIANTS}" STREQUAL "NoObsoleteVariants")
+  return()
+endif()
+
 if(NOT ${KK_EMULATOR})
   set(sources
       main.c

@@ -33,6 +33,7 @@
     MSG_IN(MessageType_MessageType_RecoveryDevice,                  RecoveryDevice,              fsm_msgRecoveryDevice)
     MSG_IN(MessageType_MessageType_CharacterAck,                    CharacterAck,                fsm_msgCharacterAck)
     MSG_IN(MessageType_MessageType_ApplyPolicies,                   ApplyPolicies,               fsm_msgApplyPolicies)
+#ifndef BITCOIN_ONLY
     MSG_IN(MessageType_MessageType_EthereumGetAddress,              EthereumGetAddress,          fsm_msgEthereumGetAddress)
     MSG_IN(MessageType_MessageType_EthereumSignTx,                  EthereumSignTx,              fsm_msgEthereumSignTx)
     MSG_IN(MessageType_MessageType_EthereumTxAck,                   EthereumTxAck,               fsm_msgEthereumTxAck)
@@ -72,7 +73,7 @@
     MSG_IN(MessageType_MessageType_MayachainGetAddress,             MayachainGetAddress,         fsm_msgMayachainGetAddress)
     MSG_IN(MessageType_MessageType_MayachainSignTx,                 MayachainSignTx,             fsm_msgMayachainSignTx)
     MSG_IN(MessageType_MessageType_MayachainMsgAck,                 MayachainMsgAck,             fsm_msgMayachainMsgAck)
-
+#endif // BITCOIN_ONLY
     /* Normal Out Messages */
     MSG_OUT(MessageType_MessageType_Success,                        Success,                     NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_Failure,                        Failure,                     NO_PROCESS_FUNC)
@@ -95,6 +96,7 @@
     MSG_OUT(MessageType_MessageType_PassphraseRequest,              PassphraseRequest,           NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_WordRequest,                    WordRequest,                 NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_CharacterRequest,               CharacterRequest,            NO_PROCESS_FUNC)
+#ifndef  BITCOIN_ONLY
     MSG_OUT(MessageType_MessageType_EthereumAddress,                EthereumAddress,             NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EthereumTxRequest,              EthereumTxRequest,           NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EthereumMessageSignature,       EthereumMessageSignature,    NO_PROCESS_FUNC)
@@ -131,7 +133,7 @@
     MSG_OUT(MessageType_MessageType_MayachainAddress,               MayachainAddress,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_MayachainMsgRequest,            MayachainMsgRequest,         NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_MayachainSignedTx,              MayachainSignedTx,           NO_PROCESS_FUNC)
-
+#endif  // BITCOIN_ONLY
 #if DEBUG_LINK
     /* Debug Messages */
     DEBUG_IN(MessageType_MessageType_DebugLinkDecision,             DebugLinkDecision,           NO_PROCESS_FUNC)

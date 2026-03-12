@@ -1,14 +1,18 @@
 set(sources
     coins.cpp
-    cosmos.cpp
-    eos.cpp
-    ethereum.cpp
-    nano.cpp
     recovery.cpp
-    ripple.cpp
     storage.cpp
     usb_rx.cpp
     u2f.cpp)
+
+if(NOT "${COIN_SUPPORT}" STREQUAL "BTC")
+  list(APPEND sources
+  cosmos.cpp
+  eos.cpp
+  ethereum.cpp
+  nano.cpp
+  ripple.cpp)
+endif()
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/include
@@ -17,14 +21,14 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto)
 
 add_executable(firmware-unit ${sources})
-target_link_libraries(firmware-unit
+
+set(libraries
     gmock_main
     kkfirmware
     kkfirmware.keepkey
     kkboard
     kkboard.keepkey
     kkvariant.keepkey
-    kkvariant.salt
     kkboard
     kkemulator
     trezorcrypto
@@ -32,3 +36,9 @@ target_link_libraries(firmware-unit
     SecAESSTM32
     kkrand
     kktransport)
+
+if(NOT "${COIN_SUPPORT}" STREQUAL "BTC")
+    list(APPEND libraries kkvariant.salt)
+endif()
+
+target_link_libraries(firmware-unit ${libraries})
