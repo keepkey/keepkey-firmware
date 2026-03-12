@@ -1,0 +1,21 @@
+# cppcheck suppressions for KeepKey firmware
+#
+# Format: [error-id]:[filename]:[line]
+# Or just: [error-id] to suppress globally
+#
+# Add specific suppressions here as false positives are identified.
+# Prefer inline suppression (// cppcheck-suppress id) for one-off cases.
+
+# Third-party / generated code (belt-and-suspenders — these dirs are
+# excluded on the command line, but suppress in case of include-chain hits)
+*:deps/*
+
+# Protobuf generated files
+*:*.pb.c
+*:*.pb.h
+
+# Missing system/platform headers that cppcheck can't find
+missingIncludeSystem
+
+# ARM-specific attributes cppcheck doesn't understand
+unknownMacro:*:CONFIDENTIAL
