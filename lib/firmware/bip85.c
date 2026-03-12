@@ -26,6 +26,11 @@ static const uint8_t BIP85_HMAC_KEY[] = "bip-entropy-from-k";
 
 bool bip85_derive_mnemonic(uint32_t word_count, uint32_t index,
                            char *mnemonic, size_t mnemonic_len) {
+  /* Reject index >= 0x80000000 to avoid hardened-bit collision */
+  if (index & 0x80000000) {
+    return false;
+  }
+
   /* Validate word count and compute entropy length */
   int entropy_bytes;
   switch (word_count) {
