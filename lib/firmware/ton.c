@@ -103,8 +103,7 @@ bool ton_get_address(const ed25519_public_key public_key, bool bounceable,
 
   // Construct address data: [tag][workchain][hash][crc16]
   uint8_t addr_data[36];
-  uint8_t tag = 0x11;  // Base tag
-  if (bounceable) tag |= 0x11;
+  uint8_t tag = bounceable ? 0x11 : 0x51;
   if (testnet) tag |= 0x80;
 
   addr_data[0] = tag;
@@ -150,14 +149,14 @@ void ton_formatAmount(char *buf, size_t len, uint64_t amount) {
 /**
  * Sign a TON transaction with Ed25519
  */
-void ton_signTx(const HDNode *node, const TonSignTx *msg, TonSignedTx *resp) {
+bool ton_signTx(const HDNode *node, const TonSignTx *msg, TonSignedTx *resp) {
   if (!node || !msg || !resp) {
-    return;
+    return false;
   }
 
   // Verify we have raw transaction data
   if (!msg->has_raw_tx || msg->raw_tx.size == 0) {
-    return;
+    return false;
   }
 
   // Ed25519 sign the transaction
@@ -172,4 +171,6 @@ void ton_signTx(const HDNode *node, const TonSignTx *msg, TonSignedTx *resp) {
 
   // Zero out the signature buffer for security
   memzero(signature, sizeof(signature));
+
+  return true;
 }
