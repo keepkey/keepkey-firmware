@@ -22,7 +22,7 @@ name: CI
 
 on:
   push:
-    branches: [master, develop, 'feature/**', 'fix/**']
+    branches: [master, develop, 'feature/**', 'fix/**', 'release/**', 'hotfix/**']
   pull_request:
     branches: [master, develop]
   workflow_dispatch:
@@ -79,10 +79,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install gitleaks
+        run: |
+          GITLEAKS_VERSION=$(curl -sSf https://api.github.com/repos/gitleaks/gitleaks/releases/latest \
+            | grep -oP '"tag_name":\s*"v\K[^"]+')
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
       - name: Run gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gitleaks detect --source . --verbose --redact
 
   check-submodules:
     runs-on: ubuntu-latest

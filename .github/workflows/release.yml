@@ -1,0 +1,204 @@
+# KeepKey Firmware Release Pipeline
+#
+# Triggered by version tags (v*) on master.
+# Builds firmware, computes reproducible hashes,
+# and creates a draft GitHub Release with all artifacts.
+#
+# Git-flow: tag master after merging a release/* or hotfix/* branch.
+#
+# Usage:
+#   git tag v7.11.0
+#   git push origin v7.11.0
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  BASE_IMAGE: kktech/firmware:v15
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      fw_version: ${{ steps.version.outputs.fw_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Extract and verify version
+        id: version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          FW_VERSION=$(sed -n '/^project/,/)/p' CMakeLists.txt | grep -oP '\d+\.\d+\.\d+')
+          echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
+          if [ "$TAG_VERSION" != "$FW_VERSION" ]; then
+            echo "::error::Tag (${TAG_VERSION}) != CMakeLists.txt (${FW_VERSION})"
+            exit 1
+          fi
+
+  build-firmware:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache base image
+        id: cache-base
+        uses: actions/cache@v4
+        with:
+          path: /tmp/base-image.tar
+          key: base-image-${{ env.BASE_IMAGE }}
+
+      - name: Pull and cache base image
+        if: steps.cache-base.outputs.cache-hit != 'true'
+        run: |
+          docker pull ${{ env.BASE_IMAGE }}
+          docker save ${{ env.BASE_IMAGE }} -o /tmp/base-image.tar
+
+      - name: Load base image from cache
+        if: steps.cache-base.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/base-image.tar
+
+      - name: Cross-compile firmware
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/root/keepkey-firmware:z \
+            ${{ env.BASE_IMAGE }} /bin/sh -c "\
+              mkdir /root/build && cd /root/build && \
+              cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
+                -DCMAKE_BUILD_TYPE=MinSizeRel \
+                -DCMAKE_COLOR_MAKEFILE=ON && \
+              make && \
+              mkdir -p /root/keepkey-firmware/release && \
+              cp bin/firmware.keepkey.bin /root/keepkey-firmware/release/ && \
+              cp bin/firmware.keepkey.elf /root/keepkey-firmware/release/ && \
+              cp bin/bootloader.bin /root/keepkey-firmware/release/ 2>/dev/null || true && \
+              chmod -R a+rw /root/keepkey-firmware/release"
+
+      - name: Compute hashes
+        working-directory: release
+        run: |
+          echo "# KeepKey Firmware v${{ needs.validate.outputs.fw_version }} — Hash Manifest" > HASHES.txt
+          echo "" >> HASHES.txt
+          for f in *.bin; do
+            [ -f "$f" ] || continue
+            FULL_HASH=$(sha256sum "$f" | awk '{print $1}')
+            echo "sha256 (full)    $f  $FULL_HASH" >> HASHES.txt
+            FILE_SIZE=$(stat -c%s "$f")
+            if [ "$FILE_SIZE" -gt 256 ]; then
+              PAYLOAD_HASH=$(tail -c +257 "$f" | sha256sum | awk '{print $1}')
+              echo "sha256 (payload) $f  $PAYLOAD_HASH" >> HASHES.txt
+            fi
+            echo "" >> HASHES.txt
+          done
+          cat HASHES.txt
+
+      - name: Rename artifacts
+        working-directory: release
+        run: |
+          VER="${{ needs.validate.outputs.fw_version }}"
+          [ -f firmware.keepkey.bin ] && mv firmware.keepkey.bin "firmware.keepkey.v${VER}.bin"
+          [ -f firmware.keepkey.elf ] && mv firmware.keepkey.elf "firmware.keepkey.v${VER}.elf"
+          [ -f bootloader.bin ] && mv bootloader.bin "bootloader.v${VER}.bin"
+          ls -lh
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-firmware
+          path: release/*
+          retention-days: 90
+
+  test:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache base image
+        id: cache-base
+        uses: actions/cache@v4
+        with:
+          path: /tmp/base-image.tar
+          key: base-image-${{ env.BASE_IMAGE }}
+
+      - name: Pull and cache base image
+        if: steps.cache-base.outputs.cache-hit != 'true'
+        run: |
+          docker pull ${{ env.BASE_IMAGE }}
+          docker save ${{ env.BASE_IMAGE }} -o /tmp/base-image.tar
+
+      - name: Load base image from cache
+        if: steps.cache-base.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/base-image.tar
+
+      - name: Build and test emulator
+        run: |
+          docker build -t kkemu-release -f scripts/emulator/Dockerfile .
+          docker run --rm --entrypoint /bin/sh kkemu-release \
+            -c "make xunit; RC=\$?; exit \$RC"
+
+  create-release:
+    needs: [validate, build-firmware, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download firmware artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-firmware
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          cp artifacts/*.bin artifacts/*.elf artifacts/HASHES.txt release-assets/
+          ls -lh release-assets/
+
+      - name: Generate release body
+        run: |
+          VER="${{ needs.validate.outputs.fw_version }}"
+          cat > release-body.md <<EOF
+          ## KeepKey Firmware v${VER}
+
+          ### Reproducible Build Verification
+          \`\`\`bash
+          ./scripts/build/docker/device/release.sh
+          tail -c +257 bin/firmware.keepkey.bin | shasum -a 256
+          \`\`\`
+
+          > **DRAFT** — firmware must be signed by 3/5 key holders before publishing.
+
+          ### Signing Checklist
+          - [ ] Built on multiple machines, hashes match
+          - [ ] Signed on air-gapped machine (3/5 signers)
+          - [ ] Storage upgrade tested on production device
+          - [ ] Signed .bin uploaded, replacing unsigned
+          - [ ] Release notes finalized
+          EOF
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          name: "Firmware v${{ needs.validate.outputs.fw_version }}"
+          body_path: release-body.md
+          files: release-assets/*
+          fail_on_unmatched_files: true
