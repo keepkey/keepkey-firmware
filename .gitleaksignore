@@ -1,0 +1,15 @@
+# Gitleaks false positives — reviewed 2026-03-11
+# All are crypto example code, public keys, or test fixtures
+
+# U2F Trezor development key (shared/public dev key for testing)
+fe3e5e001c8143cd2fe60c22c2cdbf983b4a460c:include/keepkey/firmware/u2f/trezordevkey.pem:private-key:1
+
+# curve25519-donna README — example code showing pk/shared variables
+8b9b1414da5c3617a767fba68e19bcd9e630497e:crypto/public/curve25519-donna/README.md:generic-api-key:82
+8b9b1414da5c3617a767fba68e19bcd9e630497e:crypto/public/curve25519-donna/README.md:generic-api-key:87
+
+# Bootloader public signing keys (intentionally in source)
+ae5c38605cc548dcce0c9d83e796eabe834956f4:bootloader/local/baremetal/bootloader_main.c:generic-api-key:64
+
+# Test wallet data from 2014
+e257a3ad1745bc2dffb38eae0f40dc52ba7de4a6:keepkey_app/test/keepkey_wallet.dat:generic-api-key:7
