@@ -4,6 +4,7 @@
 #
 # Stage 1: GATE (seconds, no Docker)
 #   ├─ lint-format        clang-format diff check
+#   ├─ static-analysis    cppcheck static analysis
 #   ├─ secret-scan        gitleaks credential detection
 #   └─ check-submodules   verify all deps present
 #
@@ -89,6 +90,76 @@ jobs:
 
       - name: Run gitleaks
         run: gitleaks detect --source . --verbose --redact
+
+  static-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Install cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
+
+      - name: Run cppcheck
+        run: |
+          cppcheck \
+            --enable=warning,style,performance,portability \
+            --std=c11 \
+            --platform=unspecified \
+            --inconclusive \
+            --force \
+            --inline-suppr \
+            --suppressions-list=.cppcheck-suppressions \
+            -I include \
+            -I deps/crypto/trezor-firmware/crypto \
+            -I deps/device-protocol \
+            -DSTM32F2=1 \
+            -DUSE_ETHEREUM=1 \
+            -DUSE_KECCAK=1 \
+            -DUSE_NANO=1 \
+            -DPB_FIELD_16BIT=1 \
+            -DEMULATOR=1 \
+            --template='::warning file={file},line={line},col={column}::{severity}: {message} [{id}]' \
+            --output-file=cppcheck_report.txt \
+            --error-exitcode=0 \
+            lib/ include/keepkey/ tools/ 2>&1 | tee cppcheck_annotations.txt
+
+          # Count issues by severity
+          ERRORS=$(grep -c '\[error\]' cppcheck_report.txt 2>/dev/null || echo "0")
+          WARNINGS=$(grep -c '\[warning\]' cppcheck_report.txt 2>/dev/null || echo "0")
+          STYLE=$(grep -c '\[style\]' cppcheck_report.txt 2>/dev/null || echo "0")
+          PERF=$(grep -c '\[performance\]' cppcheck_report.txt 2>/dev/null || echo "0")
+          TOTAL=$((ERRORS + WARNINGS + STYLE + PERF))
+
+          echo "## cppcheck summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Severity | Count |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| error | $ERRORS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| warning | $WARNINGS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| style | $STYLE |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| performance | $PERF |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **total** | **$TOTAL** |" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$TOTAL" -gt 0 ]; then
+            echo ""
+            echo "cppcheck found $TOTAL issue(s) — see annotations above"
+            echo "Note: treating as warning until codebase issues are triaged"
+          else
+            echo "cppcheck: clean"
+          fi
+        # Warn-only until existing issues are triaged
+        continue-on-error: true
+
+      - name: Upload cppcheck report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cppcheck-report
+          path: cppcheck_report.txt
+          retention-days: 30
 
   check-submodules:
     runs-on: ubuntu-latest
