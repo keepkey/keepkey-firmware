@@ -404,8 +404,8 @@ jobs:
           docker compose up --build python-keepkey
           set -e
           mkdir -p ${{ github.workspace }}/test-reports
-          docker cp "$(docker compose ps -q firmware-unit)":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ 2>/dev/null || true
-          docker cp "$(docker compose ps -q python-keepkey)":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ 2>/dev/null || true
+          docker cp "$(docker compose ps -a -q firmware-unit)":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ 2>/dev/null || true
+          docker cp "$(docker compose ps -a -q python-keepkey)":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ 2>/dev/null || true
           UNIT_STATUS=$(cat ${{ github.workspace }}/test-reports/firmware-unit/status 2>/dev/null || echo "1")
           PY_STATUS=$(cat ${{ github.workspace }}/test-reports/python-keepkey/status 2>/dev/null || echo "1")
           echo "Unit tests exit status: $UNIT_STATUS"
