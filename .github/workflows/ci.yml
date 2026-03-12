@@ -389,6 +389,7 @@ jobs:
         run: |
           set +e
           docker compose up --build firmware-unit
+          docker compose down
           docker compose up --build python-keepkey
           set -e
           mkdir -p ${{ github.workspace }}/test-reports
