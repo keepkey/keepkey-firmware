@@ -46,7 +46,9 @@ bool tron_getAddress(const uint8_t public_key[33], char *address,
   uint8_t addr_bytes[21];
 
   // Uncompress the public key
-  ecdsa_uncompress_pubkey(&secp256k1, public_key, uncompressed_pubkey);
+  if (!ecdsa_uncompress_pubkey(&secp256k1, public_key, uncompressed_pubkey)) {
+    return false;
+  }
 
   // Keccak256 hash of uncompressed public key (skip first 0x04 byte)
   keccak_256(uncompressed_pubkey + 1, 64, hash);
@@ -81,15 +83,15 @@ void tron_formatAmount(char *buf, size_t len, uint64_t amount) {
 /**
  * Sign a TRON transaction with secp256k1
  */
-void tron_signTx(const HDNode *node, const TronSignTx *msg,
+bool tron_signTx(const HDNode *node, const TronSignTx *msg,
                  TronSignedTx *resp) {
   if (!node || !msg || !resp) {
-    return;
+    return false;
   }
 
   // Verify we have raw transaction data
   if (!msg->has_raw_data || msg->raw_data.size == 0) {
-    return;
+    return false;
   }
 
   // Get the curve for secp256k1
@@ -110,7 +112,7 @@ void tron_signTx(const HDNode *node, const TronSignTx *msg,
   if (ecdsa_sign_digest(&secp256k1, node->private_key, hash, sig, &pby,
                         NULL) != 0) {
     memzero(hash, sizeof(hash));
-    return;
+    return false;
   }
 
   // Convert to recoverable signature format (r + s + recovery_id)
@@ -125,4 +127,6 @@ void tron_signTx(const HDNode *node, const TronSignTx *msg,
   // Clean up sensitive data
   memzero(hash, sizeof(hash));
   memzero(sig, sizeof(sig));
+
+  return true;
 }

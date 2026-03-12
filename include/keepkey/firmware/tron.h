@@ -54,7 +54,7 @@ void tron_formatAmount(char *buf, size_t len, uint64_t amount);
  * @param msg TronSignTx request message
  * @param resp TronSignedTx response message (will be filled with signature)
  */
-void tron_signTx(const HDNode *node, const TronSignTx *msg,
+bool tron_signTx(const HDNode *node, const TronSignTx *msg,
                  TronSignedTx *resp);
 
 #endif
