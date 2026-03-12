@@ -214,7 +214,7 @@ jobs:
         run: |
           git submodule update --init deps/crypto/trezor-firmware
           git submodule update --init deps/device-protocol
-          git submodule update --init deps/python-keepkey
+          git submodule update --init --recursive deps/python-keepkey
           git submodule update --init deps/googletest
           git submodule update --init deps/qrenc/QR-Code-generator
           git submodule update --init deps/sca-hardening/SecAESSTM32
@@ -270,7 +270,7 @@ jobs:
         run: |
           git submodule update --init deps/crypto/trezor-firmware
           git submodule update --init deps/device-protocol
-          git submodule update --init deps/python-keepkey
+          git submodule update --init --recursive deps/python-keepkey
           git submodule update --init deps/googletest
           git submodule update --init deps/qrenc/QR-Code-generator
           git submodule update --init deps/sca-hardening/SecAESSTM32
@@ -391,7 +391,7 @@ jobs:
         run: |
           git submodule update --init deps/crypto/trezor-firmware
           git submodule update --init deps/device-protocol
-          git submodule update --init deps/python-keepkey
+          git submodule update --init --recursive deps/python-keepkey
           git submodule update --init deps/googletest
           git submodule update --init deps/qrenc/QR-Code-generator
           git submodule update --init deps/sca-hardening/SecAESSTM32
