@@ -47,8 +47,7 @@ if(NOT ${KK_EMULATOR})
     SecAESSTM32
     kkrand)
 
-if("${COIN_SUPPORT}" STREQUAL "BTC")
-else()
+if(NOT "${COIN_SUPPORT}" STREQUAL "BTC")
   list(APPEND libraries
     kkvariant.salt
   )

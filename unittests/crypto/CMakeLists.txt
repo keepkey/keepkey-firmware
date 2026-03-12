@@ -23,8 +23,7 @@ set(libraries
   trezorcrypto
   kktransport)
 
-if("${COIN_SUPPORT}" STREQUAL "BTC")
-else()
+if(NOT "${COIN_SUPPORT}" STREQUAL "BTC")
   list(APPEND libraries
     kkvariant.salt
   )

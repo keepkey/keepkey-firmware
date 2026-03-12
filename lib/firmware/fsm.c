@@ -18,8 +18,6 @@
  */
 
 
-#include <stdio.h>
-
 #include "scm_revision.h"
 #include "variant.h"
 #include "u2f_knownapps.h"
@@ -66,6 +64,8 @@
 #include "trezor/crypto/secp256k1.h"
 
 #include "messages.pb.h"
+
+#include <stdio.h>
 
 #ifndef BITCOIN_ONLY
 #include "keepkey/firmware/cosmos.h"

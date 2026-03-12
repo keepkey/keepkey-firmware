@@ -5,8 +5,7 @@ set(sources
     usb_rx.cpp
     u2f.cpp)
 
-if("${COIN_SUPPORT}" STREQUAL "BTC")
-else()    
+if(NOT "${COIN_SUPPORT}" STREQUAL "BTC")
   list(APPEND sources
   cosmos.cpp
   eos.cpp
@@ -38,8 +37,7 @@ set(libraries
     kkrand
     kktransport)
 
-if("${COIN_SUPPORT}" STREQUAL "BTC")
-else()
+if(NOT "${COIN_SUPPORT}" STREQUAL "BTC")
     list(APPEND libraries kkvariant.salt)
 endif()
 

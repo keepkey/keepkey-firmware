@@ -236,29 +236,20 @@ int compile_output(const CoinType *coin, const HDNode *root, TxOutputType *in,
                           in->op_return_data.size)) {
           return -1;  // user aborted
         }
-      } 
-#ifndef  BITCOIN_ONLY
-      else {
+      } else {
+#ifndef BITCOIN_ONLY
         // is this thorchain data?
         if (!thorchain_parseConfirmMemo((const char *)in->op_return_data.bytes, (size_t)in->op_return_data.size)) {
+#endif
           if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmOutput,
                           _("Confirm OP_RETURN"), in->op_return_data.bytes,
                           in->op_return_data.size)) {
             return -1;  // user aborted
           }
+#ifndef BITCOIN_ONLY
         }
+#endif
       }
-
-#else  // for btc-only, don't do a thorchain memo check
-      else {
-        if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                        _("Confirm OP_RETURN"), in->op_return_data.bytes,
-                        in->op_return_data.size)) {
-          return -1;  // user aborted
-        }
-      }
-
-#endif // BITCOIN_ONLY
 
     }
     uint32_t r = 0;

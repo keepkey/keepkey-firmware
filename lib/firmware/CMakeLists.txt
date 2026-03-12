@@ -18,8 +18,7 @@ set(sources
     txin_check.c
     u2f.c)
 
-if("${COIN_SUPPORT}" STREQUAL "BTC")
-else()    
+if(NOT "${COIN_SUPPORT}" STREQUAL "BTC")
   list(APPEND sources
       binance.c
       eip712.c
@@ -57,12 +56,9 @@ include_directories(
 
 add_library(kkfirmware ${sources})
 
-if("${COIN_SUPPORT}" STREQUAL "BTC")
-  # for bitcoin-only, do not build eth token table or uniswap tokens
-  add_dependencies(kkfirmware kktransport.pb trezorcrypto qrcodegenerator)
+add_dependencies(kkfirmware kktransport.pb trezorcrypto qrcodegenerator)
 
-else()
-  add_dependencies(kkfirmware kktransport.pb trezorcrypto qrcodegenerator ethereum_tokens.def)
+if(NOT "${COIN_SUPPORT}" STREQUAL "BTC")
   set(ETHEREUM_TOKENS ${CMAKE_BINARY_DIR}/include/keepkey/firmware/ethereum_tokens)
   set(UNISWAP_TOKENS ${CMAKE_BINARY_DIR}/include/keepkey/firmware/uniswap_tokens)
 
@@ -70,6 +66,7 @@ else()
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/include/keepkey/firmware
     COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/ethereum_tokens.py ${ETHEREUM_TOKENS}.def
     COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/uniswap_tokens.py ${UNISWAP_TOKENS}.def)
+  add_dependencies(kkfirmware ethereum_tokens.def)
 endif()
 
 add_library(kkfirmware.keepkey variant/keepkey/resources.c)
