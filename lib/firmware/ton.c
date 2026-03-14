@@ -83,10 +83,88 @@ static uint16_t ton_crc16(const uint8_t *data, size_t len) {
   return crc;
 }
 
+// Well-known v4r2 wallet contract code cell hash (constant)
+// Source: https://github.com/ton-blockchain/wallet-contract (WalletV4R2)
+static const uint8_t V4R2_CODE_HASH[32] = {
+    0xfe, 0xb5, 0xff, 0x68, 0x20, 0xe2, 0xff, 0x0d,
+    0x94, 0x83, 0xe7, 0xe0, 0xd6, 0x2c, 0x81, 0x7d,
+    0x84, 0x67, 0x89, 0xfb, 0x4a, 0xe5, 0x80, 0xc8,
+    0x78, 0x86, 0x6d, 0x95, 0x9d, 0xab, 0xd5, 0xc0};
+// Code cell depth in the cell tree
+#define V4R2_CODE_DEPTH 7
+// Standard v4r2 wallet_id for mainnet workchain 0
+#define V4R2_WALLET_ID 698983191u  // 0x29A9A317
+
 /**
- * Generate TON address from Ed25519 public key
- * TON uses a specific format with workchain, bounceable/testnet flags, and
- * CRC16
+ * Compute the v4r2 data cell representation hash.
+ * Data cell layout: seqno(32b=0) + wallet_id(32b) + pubkey(256b) + plugins(1b=0)
+ * Total: 321 bits, d1=0x00 (no refs), d2=0x51 (floor(321/8)+ceil(321/8)=40+41=81)
+ * Augmented data: 40 full bytes + 0x40 (plugin=0, completion=1, pad=000000)
+ */
+static void ton_data_cell_hash(const uint8_t *public_key, uint8_t *out) {
+  // repr = d1(1) + d2(1) + augmented_data(41) = 43 bytes
+  uint8_t repr[43];
+  repr[0] = 0x00;  // d1: no refs
+  repr[1] = 0x51;  // d2: 81 decimal
+
+  // seqno = 0 (4 bytes)
+  memset(repr + 2, 0, 4);
+
+  // wallet_id = 698983191 = 0x29A9A317 (4 bytes big-endian)
+  repr[6]  = (V4R2_WALLET_ID >> 24) & 0xFF;
+  repr[7]  = (V4R2_WALLET_ID >> 16) & 0xFF;
+  repr[8]  = (V4R2_WALLET_ID >> 8)  & 0xFF;
+  repr[9]  = (V4R2_WALLET_ID)       & 0xFF;
+
+  // public key (32 bytes)
+  memcpy(repr + 10, public_key, 32);
+
+  // plugins = 0 (1 bit) + completion tag (1 bit) + padding (6 bits) = 0x40
+  repr[42] = 0x40;
+
+  sha256_Raw(repr, 43, out);
+}
+
+/**
+ * Compute the v4r2 StateInit representation hash.
+ * StateInit: split_depth(0) + special(0) + code(1,ref) + data(1,ref) + library(0)
+ * Total: 5 bits, d1=0x02 (2 refs), d2=0x01
+ * Augmented: 00110 + 100 = 0x34
+ * repr = d1 + d2 + data + depth(code) + depth(data) + hash(code) + hash(data)
+ */
+static void ton_stateinit_hash(const uint8_t *public_key, uint8_t *out) {
+  uint8_t data_hash[32];
+  ton_data_cell_hash(public_key, data_hash);
+
+  // repr = d1(1) + d2(1) + augmented(1) + code_depth(2) + data_depth(2) +
+  //        code_hash(32) + data_hash(32) = 71 bytes
+  uint8_t repr[71];
+  repr[0] = 0x02;  // d1: 2 refs
+  repr[1] = 0x01;  // d2: 1
+  repr[2] = 0x34;  // augmented: 00110100
+
+  // code cell depth = 7 (2 bytes big-endian)
+  repr[3] = 0x00;
+  repr[4] = V4R2_CODE_DEPTH;
+
+  // data cell depth = 0 (no refs)
+  repr[5] = 0x00;
+  repr[6] = 0x00;
+
+  // code cell hash (32 bytes)
+  memcpy(repr + 7, V4R2_CODE_HASH, 32);
+
+  // data cell hash (32 bytes)
+  memcpy(repr + 39, data_hash, 32);
+
+  sha256_Raw(repr, 71, out);
+  memzero(data_hash, sizeof(data_hash));
+}
+
+/**
+ * Generate TON v4r2 wallet address from Ed25519 public key.
+ * Address = base64url(tag || workchain || sha256(StateInit) || crc16)
+ * where StateInit = code_cell(v4r2) + data_cell(seqno=0, walletId, pubkey)
  */
 bool ton_get_address(const ed25519_public_key public_key, bool bounceable,
                      bool testnet, int32_t workchain, char *address,
@@ -97,9 +175,9 @@ bool ton_get_address(const ed25519_public_key public_key, bool bounceable,
     return false;
   }
 
-  // Hash the public key with SHA256
+  // Compute the v4r2 StateInit representation hash — this IS the address hash
   uint8_t hash[32];
-  sha256_Raw(public_key, 32, hash);
+  ton_stateinit_hash(public_key, hash);
 
   // Construct address data: [tag][workchain][hash][crc16]
   uint8_t addr_data[36];
