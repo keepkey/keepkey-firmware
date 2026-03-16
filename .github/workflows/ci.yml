@@ -1,6 +1,6 @@
 # KeepKey Firmware CI Pipeline
 #
-# FAIL FAST — quick checks gate everything, no wasted compute.
+# Builds BOTH firmware variants (keepkey + keepkey-btconly) in parallel.
 #
 # Stage 1: GATE (seconds, no Docker)
 #   ├─ lint-format        clang-format diff check
@@ -8,11 +8,11 @@
 #   ├─ secret-scan        gitleaks credential detection
 #   └─ check-submodules   verify all deps present
 #
-# Stage 2: BUILD (parallel, gated by Stage 1)
-#   ├─ build-emulator     Docker image → artifact
-#   └─ build-arm-firmware cross-compile → .bin/.elf (downloadable)
+# Stage 2: BUILD (matrix: keepkey + keepkey-btconly, gated by Stage 1)
+#   ├─ build-emulator     Docker image → artifact (per variant)
+#   └─ build-arm-firmware cross-compile → .bin/.elf (per variant)
 #
-# Stage 3: TEST (parallel, gated by Stage 2)
+# Stage 3: TEST (per variant, gated by Stage 2)
 #   ├─ unit-tests              GoogleTest (make xunit)
 #   └─ python-integration      full test suite
 #
@@ -23,9 +23,9 @@ name: CI
 
 on:
   push:
-    branches: [master, develop, btc-only, 'feature/**', 'fix/**', 'release/**', 'hotfix/**']
+    branches: [master, develop, 'feature/**', 'fix/**', 'release/**', 'hotfix/**']
   pull_request:
-    branches: [master, develop, btc-only]
+    branches: [master, develop]
   workflow_dispatch:
     inputs:
       publish_emulator:
@@ -191,13 +191,21 @@ jobs:
           [ "$FAILED" = "0" ] || exit 1
 
   # ═══════════════════════════════════════════════════════════
-  # STAGE 2: BUILD — compile only after gate passes
+  # STAGE 2: BUILD — compile both variants after gate passes
   # ═══════════════════════════════════════════════════════════
 
   build-emulator:
     needs: [check-submodules, secret-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: keepkey
+            coin_arg: ""
+          - variant: keepkey-btconly
+            coin_arg: "-DCOIN_SUPPORT=BTC"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -228,21 +236,21 @@ jobs:
         if: steps.cache-base.outputs.cache-hit == 'true'
         run: docker load -i /tmp/base-image.tar
 
-      - name: Build emulator image
+      - name: Build emulator image (${{ matrix.variant }})
         run: |
           docker build \
-            --build-arg coinsupport="-DCOIN_SUPPORT=BTC" \
-            -t ${{ env.EMU_IMAGE }} \
+            --build-arg coinsupport="${{ matrix.coin_arg }}" \
+            -t ${{ env.EMU_IMAGE }}-${{ matrix.variant }} \
             -f scripts/emulator/Dockerfile \
             .
 
       - name: Save emulator image
-        run: docker save ${{ env.EMU_IMAGE }} -o /tmp/emu-image.tar
+        run: docker save ${{ env.EMU_IMAGE }}-${{ matrix.variant }} -o /tmp/emu-image.tar
 
       - name: Upload emulator image artifact
         uses: actions/upload-artifact@v4
         with:
-          name: emu-image
+          name: emu-image-${{ matrix.variant }}
           path: /tmp/emu-image.tar
           retention-days: 1
 
@@ -250,6 +258,16 @@ jobs:
     needs: [check-submodules, secret-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: keepkey
+            coin_support: ""
+            label: "KeepKey"
+          - variant: keepkey-btconly
+            coin_support: "-DCOIN_SUPPORT=BTC"
+            label: "KeepKey Bitcoin"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -289,14 +307,15 @@ jobs:
           echo "git_short=${GIT_SHORT}" >> "$GITHUB_OUTPUT"
           echo "Firmware version: ${FW_VERSION} (${GIT_SHORT})"
 
-      - name: Cross-compile firmware for ARM (BTC-only)
+      - name: Cross-compile firmware for ARM (${{ matrix.label }})
         run: |
+          COIN_FLAG="${{ matrix.coin_support }}"
           docker run --rm \
             -v ${{ github.workspace }}:/root/keepkey-firmware:z \
             ${{ env.BASE_IMAGE }} /bin/sh -c "\
               mkdir /root/build && cd /root/build && \
               cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
-                -DCOIN_SUPPORT=BTC \
+                ${COIN_FLAG} \
                 -DVARIANTS=NoObsoleteVariants \
                 -DCMAKE_BUILD_TYPE=MinSizeRel \
                 -DCMAKE_COLOR_MAKEFILE=ON && \
@@ -306,55 +325,53 @@ jobs:
               cp bin/*.elf /root/keepkey-firmware/bin/ && \
               chmod -R a+rw /root/keepkey-firmware/bin"
 
-      - name: Rename firmware artifacts
+      - name: List firmware artifacts
         run: |
           cd bin
-          for f in *.bin; do
-            [ -f "$f" ] || continue
-            mv "$f" "firmware.keepkey.v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${f}"
-          done
-          for f in *.elf; do
-            [ -f "$f" ] || continue
-            mv "$f" "firmware.keepkey.v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${f}"
-          done
           ls -lh
-          echo "::notice::Firmware v${{ steps.version.outputs.fw_version }} built successfully"
+          echo "::notice::Firmware ${{ matrix.label }} v${{ steps.version.outputs.fw_version }} built successfully"
 
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}
+          name: firmware-${{ matrix.variant }}-v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}
           path: |
             bin/*.bin
             bin/*.elf
           retention-days: 90
 
   # ═══════════════════════════════════════════════════════════
-  # STAGE 3: TEST — run only after builds succeed
+  # STAGE 3: TEST — run per variant after builds succeed
   # ═══════════════════════════════════════════════════════════
 
   unit-tests:
     needs: build-emulator
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: keepkey
+          - variant: keepkey-btconly
     steps:
       - name: Download emulator image
         uses: actions/download-artifact@v4
         with:
-          name: emu-image
+          name: emu-image-${{ matrix.variant }}
           path: /tmp
 
       - name: Load emulator image
         run: docker load -i /tmp/emu-image.tar
 
-      - name: Run unit tests
+      - name: Run unit tests (${{ matrix.variant }})
         run: |
           # make xunit returns non-zero if any test fails — capture
           # exit code so JUnit XML still gets copied for reporting
           docker run --rm \
             -v ${{ github.workspace }}/test-reports:/kkemu/test-reports \
             --entrypoint /bin/sh \
-            ${{ env.EMU_IMAGE }} \
+            ${{ env.EMU_IMAGE }}-${{ matrix.variant }} \
             -c "mkdir -p /kkemu/test-reports/firmware-unit && \
                 make xunit; RC=\$?; \
                 cp -r unittests/*.xml /kkemu/test-reports/firmware-unit/ 2>/dev/null; \
@@ -364,7 +381,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: unit-test-results
+          name: unit-test-results-${{ matrix.variant }}
           path: test-reports/firmware-unit/
           retention-days: 30
 
@@ -372,6 +389,14 @@ jobs:
     needs: [check-submodules, secret-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: keepkey
+            compose_file: docker-compose.yml
+          - variant: keepkey-btconly
+            compose_file: docker-compose-btc.yml
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -385,16 +410,16 @@ jobs:
           git submodule update --init deps/qrenc/QR-Code-generator
           git submodule update --init deps/sca-hardening/SecAESSTM32
 
-      - name: Build and run tests (docker compose, BTC-only)
+      - name: Build and run tests (${{ matrix.variant }})
         working-directory: scripts/emulator
         run: |
           set +e
-          docker compose -f docker-compose-btc.yml up --build firmware-unit
-          docker compose -f docker-compose-btc.yml up --build python-keepkey
+          docker compose -f ${{ matrix.compose_file }} up --build firmware-unit
+          docker compose -f ${{ matrix.compose_file }} up --build python-keepkey
           set -e
           mkdir -p ${{ github.workspace }}/test-reports
-          docker cp "$(docker compose -f docker-compose-btc.yml ps -a -q firmware-unit)":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ 2>/dev/null || true
-          docker cp "$(docker compose -f docker-compose-btc.yml ps -a -q python-keepkey)":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ 2>/dev/null || true
+          docker cp "$(docker compose -f ${{ matrix.compose_file }} ps -a -q firmware-unit)":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ 2>/dev/null || true
+          docker cp "$(docker compose -f ${{ matrix.compose_file }} ps -a -q python-keepkey)":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ 2>/dev/null || true
           UNIT_STATUS=$(cat ${{ github.workspace }}/test-reports/firmware-unit/status 2>/dev/null || echo "1")
           PY_STATUS=$(cat ${{ github.workspace }}/test-reports/python-keepkey/status 2>/dev/null || echo "1")
           echo "Unit tests exit status: $UNIT_STATUS"
@@ -405,14 +430,14 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: python-test-results
+          name: python-test-results-${{ matrix.variant }}
           path: test-reports/python-keepkey/
           retention-days: 30
 
       - name: Tear down
         if: always()
         working-directory: scripts/emulator
-        run: docker compose -f docker-compose-btc.yml down -v || true
+        run: docker compose -f ${{ matrix.compose_file }} down -v || true
 
   # ═══════════════════════════════════════════════════════════
   # STAGE 4: PUBLISH — manual trigger only, all tests must pass
@@ -425,6 +450,13 @@ jobs:
       github.event.inputs.publish_emulator == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      matrix:
+        include:
+          - variant: keepkey
+            docker_suffix: ""
+          - variant: keepkey-btconly
+            docker_suffix: "-btconly"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -432,7 +464,7 @@ jobs:
       - name: Download emulator image
         uses: actions/download-artifact@v4
         with:
-          name: emu-image
+          name: emu-image-${{ matrix.variant }}
           path: /tmp
 
       - name: Load emulator image
@@ -447,8 +479,8 @@ jobs:
 
       - name: Tag images for publish
         run: |
-          docker tag ${{ env.EMU_IMAGE }} kktech/kkemu:latest
-          docker tag ${{ env.EMU_IMAGE }} kktech/kkemu:v${{ steps.version.outputs.fw_version }}
+          docker tag ${{ env.EMU_IMAGE }}-${{ matrix.variant }} kktech/kkemu${{ matrix.docker_suffix }}:latest
+          docker tag ${{ env.EMU_IMAGE }}-${{ matrix.variant }} kktech/kkemu${{ matrix.docker_suffix }}:v${{ steps.version.outputs.fw_version }}
 
       - name: Login to DockerHub
         uses: docker/login-action@v3
@@ -458,5 +490,5 @@ jobs:
 
       - name: Push emulator images
         run: |
-          docker push kktech/kkemu:latest
-          docker push kktech/kkemu:v${{ steps.version.outputs.fw_version }}
+          docker push kktech/kkemu${{ matrix.docker_suffix }}:latest
+          docker push kktech/kkemu${{ matrix.docker_suffix }}:v${{ steps.version.outputs.fw_version }}

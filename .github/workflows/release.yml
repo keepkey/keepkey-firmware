@@ -1,8 +1,8 @@
 # KeepKey Firmware Release Pipeline
 #
 # Triggered by version tags (v*) on master.
-# Builds firmware, computes reproducible hashes,
-# and creates a draft GitHub Release with all artifacts.
+# Builds BOTH firmware variants (keepkey + keepkey-btconly),
+# computes reproducible hashes, and creates a draft GitHub Release.
 #
 # Git-flow: tag master after merging a release/* or hotfix/* branch.
 #
@@ -49,6 +49,18 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: keepkey
+            coin_arg: ""
+            bin_name: firmware.keepkey
+            build_script: release.sh
+          - variant: keepkey-btconly
+            coin_arg: "-DCOIN_SUPPORT=BTC"
+            bin_name: firmware.keepkey-btconly
+            build_script: btcrelease.sh
     steps:
       - uses: actions/checkout@v4
         with:
@@ -71,28 +83,29 @@ jobs:
         if: steps.cache-base.outputs.cache-hit == 'true'
         run: docker load -i /tmp/base-image.tar
 
-      - name: Cross-compile firmware (BTC-only)
+      - name: Cross-compile firmware (${{ matrix.variant }})
         run: |
+          COIN_FLAG="${{ matrix.coin_arg }}"
           docker run --rm \
             -v ${{ github.workspace }}:/root/keepkey-firmware:z \
             ${{ env.BASE_IMAGE }} /bin/sh -c "\
               mkdir /root/build && cd /root/build && \
               cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
-                -DCOIN_SUPPORT=BTC \
+                ${COIN_FLAG} \
                 -DVARIANTS=NoObsoleteVariants \
                 -DCMAKE_BUILD_TYPE=MinSizeRel \
                 -DCMAKE_COLOR_MAKEFILE=ON && \
               make && \
               mkdir -p /root/keepkey-firmware/release && \
-              cp bin/firmware.keepkey.bin /root/keepkey-firmware/release/ && \
-              cp bin/firmware.keepkey.elf /root/keepkey-firmware/release/ && \
+              cp bin/${{ matrix.bin_name }}.bin /root/keepkey-firmware/release/ && \
+              cp bin/${{ matrix.bin_name }}.elf /root/keepkey-firmware/release/ && \
               cp bin/bootloader.bin /root/keepkey-firmware/release/ 2>/dev/null || true && \
               chmod -R a+rw /root/keepkey-firmware/release"
 
       - name: Compute hashes
         working-directory: release
         run: |
-          echo "# KeepKey Firmware v${{ needs.validate.outputs.fw_version }} — Hash Manifest" > HASHES.txt
+          echo "# KeepKey Firmware v${{ needs.validate.outputs.fw_version }} (${{ matrix.variant }}) — Hash Manifest" > HASHES.txt
           echo "" >> HASHES.txt
           for f in *.bin; do
             [ -f "$f" ] || continue
@@ -111,15 +124,15 @@ jobs:
         working-directory: release
         run: |
           VER="${{ needs.validate.outputs.fw_version }}"
-          [ -f firmware.keepkey.bin ] && mv firmware.keepkey.bin "firmware.keepkey.v${VER}.bin"
-          [ -f firmware.keepkey.elf ] && mv firmware.keepkey.elf "firmware.keepkey.v${VER}.elf"
+          [ -f ${{ matrix.bin_name }}.bin ] && mv ${{ matrix.bin_name }}.bin "${{ matrix.bin_name }}.v${VER}.bin"
+          [ -f ${{ matrix.bin_name }}.elf ] && mv ${{ matrix.bin_name }}.elf "${{ matrix.bin_name }}.v${VER}.elf"
           [ -f bootloader.bin ] && mv bootloader.bin "bootloader.v${VER}.bin"
           ls -lh
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-firmware
+          name: release-firmware-${{ matrix.variant }}
           path: release/*
           retention-days: 90
 
@@ -127,6 +140,14 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: keepkey
+            coin_arg: ""
+          - variant: keepkey-btconly
+            coin_arg: "-DCOIN_SUPPORT=BTC"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -149,12 +170,12 @@ jobs:
         if: steps.cache-base.outputs.cache-hit == 'true'
         run: docker load -i /tmp/base-image.tar
 
-      - name: Build and test emulator (BTC-only)
+      - name: Build and test emulator (${{ matrix.variant }})
         run: |
           docker build \
-            --build-arg coinsupport="-DCOIN_SUPPORT=BTC" \
-            -t kkemu-release -f scripts/emulator/Dockerfile .
-          docker run --rm --entrypoint /bin/sh kkemu-release \
+            --build-arg coinsupport="${{ matrix.coin_arg }}" \
+            -t kkemu-release-${{ matrix.variant }} -f scripts/emulator/Dockerfile .
+          docker run --rm --entrypoint /bin/sh kkemu-release-${{ matrix.variant }} \
             -c "make xunit; RC=\$?; exit \$RC"
 
   create-release:
@@ -164,39 +185,59 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download firmware artifacts
+      - name: Download keepkey firmware artifacts
         uses: actions/download-artifact@v4
         with:
-          name: release-firmware
-          path: artifacts
+          name: release-firmware-keepkey
+          path: artifacts/keepkey
+
+      - name: Download keepkey-btconly firmware artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-firmware-keepkey-btconly
+          path: artifacts/keepkey-btconly
 
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
-          cp artifacts/*.bin artifacts/*.elf artifacts/HASHES.txt release-assets/
+          cp artifacts/keepkey/*.bin artifacts/keepkey/*.elf artifacts/keepkey/HASHES.txt release-assets/
+          cp artifacts/keepkey-btconly/*.bin artifacts/keepkey-btconly/*.elf release-assets/
+          # Merge hash manifests
+          cat artifacts/keepkey-btconly/HASHES.txt >> release-assets/HASHES.txt
           ls -lh release-assets/
 
       - name: Generate release body
         run: |
           VER="${{ needs.validate.outputs.fw_version }}"
-          cat > release-body.md <<EOF
+          cat > release-body.md <<'EOF'
           ## KeepKey Firmware v${VER}
 
-          ### Reproducible Build Verification (BTC-only)
-          \`\`\`bash
-          ./scripts/build/docker/device/btcrelease.sh
+          This release includes two firmware variants:
+          - **firmware.keepkey** — Full multi-chain support
+          - **firmware.keepkey-btconly** — Bitcoin-only (reduced attack surface)
+
+          ### Reproducible Build Verification
+          ```bash
+          # Multi-chain
+          ./scripts/build/docker/device/release.sh
           tail -c +257 bin/firmware.keepkey.bin | shasum -a 256
-          \`\`\`
+
+          # Bitcoin-only
+          ./scripts/build/docker/device/btcrelease.sh
+          tail -c +257 bin/firmware.keepkey-btconly.bin | shasum -a 256
+          ```
 
           > **DRAFT** — firmware must be signed by 3/5 key holders before publishing.
 
           ### Signing Checklist
-          - [ ] Built on multiple machines, hashes match
+          - [ ] Built on multiple machines, hashes match (both variants)
           - [ ] Signed on air-gapped machine (3/5 signers)
           - [ ] Storage upgrade tested on production device
           - [ ] Signed .bin uploaded, replacing unsigned
           - [ ] Release notes finalized
           EOF
+          # Substitute version into the template
+          sed -i "s/\${VER}/${VER}/g" release-body.md
 
       - name: Create draft release
         uses: softprops/action-gh-release@v2

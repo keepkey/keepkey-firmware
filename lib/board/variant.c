@@ -157,7 +157,7 @@ const VariantAnimation *variant_getLogo(bool reversed) {
 const char *variant_getName(void) {
 #ifdef EMULATOR
   #ifdef BITCOIN_ONLY
-    return "EmulatorBTC";
+    return "Emulator Bitcoin";
   #else
     return "Emulator";
   #endif

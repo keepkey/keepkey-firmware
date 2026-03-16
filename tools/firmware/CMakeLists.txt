@@ -3,8 +3,8 @@ if(NOT ${KK_EMULATOR})
   set(TARGESTR "firmware.keepkey.elf")
   set(TARGBSTR "firmware.keepkey.bin")
   if("${COIN_SUPPORT}" STREQUAL "BTC")
-    set(TARGESTR "firmware.keepkeybtc.elf")
-    set(TARGBSTR "firmware.keepkeybtc.bin")
+    set(TARGESTR "firmware.keepkey-btconly.elf")
+    set(TARGBSTR "firmware.keepkey-btconly.bin")
   endif()
 
   set(sources

@@ -25,7 +25,7 @@
 #ifdef BITCOIN_ONLY
 // use the bitcoin-only logo
 #define VARIANTINFO_KEEPKEY                         \
-.version = 1, .name = "KeepKeyBTC", .logo = &kkbtc_logo, \
+.version = 1, .name = "KeepKey Bitcoin", .logo = &kkbtc_logo, \
 .logo_reversed = &kkbtc_logo_reversed,                \
 .screensaver_timeout = ONE_SEC * 60 * 10, .screensaver = &kkbtc_screensaver,
 
