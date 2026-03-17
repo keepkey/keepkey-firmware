@@ -129,8 +129,6 @@ void fsm_msgTonGetAddress(const TonGetAddress *msg);
 void fsm_msgTonSignTx(TonSignTx *msg);
 #endif // BITCOIN_ONLY
 
-#endif  // BITCOIN_ONLY
-
 #if DEBUG_LINK
 // void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
 void fsm_msgDebugLinkGetState(DebugLinkGetState *msg);
