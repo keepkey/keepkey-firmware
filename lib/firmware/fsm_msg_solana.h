@@ -26,6 +26,16 @@ void fsm_msgSolanaGetAddress(const SolanaGetAddress *msg) {
 
   CHECK_PIN
 
+  // Validate BIP44 path: m/44'/501'/...
+  if (msg->address_n_count < 2 ||
+      msg->address_n[0] != (0x80000000 | 44) ||
+      msg->address_n[1] != (0x80000000 | 501)) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Invalid Solana derivation path (expected m/44'/501'/...)"));
+    layoutHome();
+    return;
+  }
+
   // Derive Ed25519 key for Solana (uses Ed25519 curve, not secp256k1)
   HDNode *node = fsm_getDerivedNode("ed25519", msg->address_n,
                                     msg->address_n_count, NULL);
@@ -51,21 +61,17 @@ void fsm_msgSolanaGetAddress(const SolanaGetAddress *msg) {
 
   // Show address on display if requested
   if (msg->has_show_display && msg->show_display) {
-    const CoinType *coin = fsm_getCoin(true, "Solana");
     char node_str[NODE_STRING_LENGTH];
 
-    // Try to format the BIP32 path in a user-friendly way
-    if (!(bip32_node_to_string(node_str, sizeof(node_str), coin, msg->address_n,
-                               msg->address_n_count,
-                               /*whole_account=*/false,
-                               /*show_addridx=*/false)) &&
-        !bip32_path_to_string(node_str, sizeof(node_str), msg->address_n,
+    // Format BIP32 path as string (no coin table entry needed)
+    if (!bip32_path_to_string(node_str, sizeof(node_str), msg->address_n,
                               msg->address_n_count)) {
       memset(node_str, 0, sizeof(node_str));
     }
 
     // Confirm address display with user
     if (!confirm_ethereum_address(node_str, address)) {
+      memzero(public_key, sizeof(public_key));
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Show address cancelled"));
@@ -75,6 +81,7 @@ void fsm_msgSolanaGetAddress(const SolanaGetAddress *msg) {
   }
 
   // Clean up and send response
+  memzero(public_key, sizeof(public_key));
   memzero(node, sizeof(*node));
   msg_write(MessageType_MessageType_SolanaAddress, resp);
   layoutHome();
@@ -86,6 +93,16 @@ void fsm_msgSolanaSignTx(const SolanaSignTx *msg) {
   CHECK_INITIALIZED
 
   CHECK_PIN
+
+  // Validate BIP44 path: m/44'/501'/...
+  if (msg->address_n_count < 2 ||
+      msg->address_n[0] != (0x80000000 | 44) ||
+      msg->address_n[1] != (0x80000000 | 501)) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Invalid Solana derivation path (expected m/44'/501'/...)"));
+    layoutHome();
+    return;
+  }
 
   // Validate transaction data
   if (!msg->has_raw_tx || msg->raw_tx.size == 0) {
@@ -107,6 +124,7 @@ void fsm_msgSolanaSignTx(const SolanaSignTx *msg) {
   // Parse transaction to display details to user
   SolanaParsedTransaction parsed_tx;
   if (!solana_parseTransaction(msg->raw_tx.bytes, msg->raw_tx.size, &parsed_tx)) {
+    memzero(public_key, sizeof(public_key));
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Failed to parse transaction"));
@@ -116,6 +134,7 @@ void fsm_msgSolanaSignTx(const SolanaSignTx *msg) {
 
   // Confirm transaction with user (shows parsed details)
   if (!solana_confirmTransaction(&parsed_tx, public_key)) {
+    memzero(public_key, sizeof(public_key));
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
     layoutHome();
@@ -124,6 +143,7 @@ void fsm_msgSolanaSignTx(const SolanaSignTx *msg) {
 
   // Sign the transaction
   if (!solana_signTx(node, msg, resp)) {
+    memzero(public_key, sizeof(public_key));
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_Other,
                     _("Failed to sign transaction"));
@@ -132,6 +152,7 @@ void fsm_msgSolanaSignTx(const SolanaSignTx *msg) {
   }
 
   // Clean up and send response
+  memzero(public_key, sizeof(public_key));
   memzero(node, sizeof(*node));
   msg_write(MessageType_MessageType_SolanaSignedTx, resp);
   layoutHome();
@@ -143,6 +164,16 @@ void fsm_msgSolanaSignMessage(const SolanaSignMessage *msg) {
   CHECK_INITIALIZED
 
   CHECK_PIN
+
+  // Validate BIP44 path: m/44'/501'/...
+  if (msg->address_n_count < 2 ||
+      msg->address_n[0] != (0x80000000 | 44) ||
+      msg->address_n[1] != (0x80000000 | 501)) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Invalid Solana derivation path (expected m/44'/501'/...)"));
+    layoutHome();
+    return;
+  }
 
   // Validate message data
   if (!msg->has_message || msg->message.size == 0) {
@@ -188,6 +219,7 @@ void fsm_msgSolanaSignMessage(const SolanaSignMessage *msg) {
 
   // Clean up sensitive data
   memzero(signature, sizeof(signature));
+  memzero(public_key, sizeof(public_key));
   memzero(node, sizeof(*node));
 
   msg_write(MessageType_MessageType_SolanaMessageSignature, resp);
