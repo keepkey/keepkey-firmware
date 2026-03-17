@@ -67,6 +67,8 @@
 
 #include <stdio.h>
 
+#include "keepkey/firmware/bip85.h"
+
 #ifndef BITCOIN_ONLY
 #include "keepkey/firmware/cosmos.h"
 #include "keepkey/firmware/binance.h"
@@ -80,9 +82,7 @@
 #include "keepkey/firmware/signtx_tendermint.h"
 #include "keepkey/firmware/tendermint.h"
 #include "keepkey/firmware/thorchain.h"
-#include "keepkey/firmware/bip85.h"
 #include "keepkey/firmware/solana.h"
-#include "keepkey/firmware/solana_tx.h"
 #include "keepkey/firmware/tron.h"
 #include "keepkey/firmware/ton.h"
 
@@ -293,6 +293,7 @@ void fsm_msgClearSession(ClearSession *msg) {
 #include "fsm_msg_coin.h"
 #include "fsm_msg_debug.h"
 #include "fsm_msg_crypto.h"
+#include "fsm_msg_bip85.h"
 #ifndef BITCOIN_ONLY
 #include "fsm_msg_ethereum.h"
 #include "fsm_msg_nano.h"
@@ -304,7 +305,6 @@ void fsm_msgClearSession(ClearSession *msg) {
 #include "fsm_msg_tendermint.h"
 #include "fsm_msg_thorchain.h"
 #include "fsm_msg_mayachain.h"
-#include "fsm_msg_bip85.h"
 #include "fsm_msg_solana.h"
 #include "fsm_msg_tron.h"
 #include "fsm_msg_ton.h"
