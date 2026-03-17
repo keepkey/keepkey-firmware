@@ -77,6 +77,7 @@ void fsm_msgWordAck(WordAck *msg);
 void fsm_msgCharacterAck(CharacterAck *msg);
 void fsm_msgApplyPolicies(ApplyPolicies *msg);
 
+#ifndef BITCOIN_ONLY
 // ethereum
 void fsm_msgEthereumGetAddress(EthereumGetAddress *msg);
 void fsm_msgEthereumSignTx(EthereumSignTx *msg);
@@ -126,6 +127,7 @@ void fsm_msgTronGetAddress(const TronGetAddress *msg);
 void fsm_msgTronSignTx(TronSignTx *msg);
 void fsm_msgTonGetAddress(const TonGetAddress *msg);
 void fsm_msgTonSignTx(TonSignTx *msg);
+#endif // BITCOIN_ONLY
 
 #if DEBUG_LINK
 // void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
