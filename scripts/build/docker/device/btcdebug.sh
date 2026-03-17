@@ -12,6 +12,7 @@ docker run -t \
   $IMAGETAG /bin/sh -c "\
       mkdir /root/build && cd /root/build && \
       cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
+        -DCOIN_SUPPORT=BTC \
         -DCMAKE_BUILD_TYPE=Debug \
         -DKK_DEBUG_LINK=ON \
         -DVARIANTS=NoObsoleteVariants \

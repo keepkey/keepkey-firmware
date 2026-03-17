@@ -71,13 +71,15 @@ jobs:
         if: steps.cache-base.outputs.cache-hit == 'true'
         run: docker load -i /tmp/base-image.tar
 
-      - name: Cross-compile firmware
+      - name: Cross-compile firmware (BTC-only)
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/root/keepkey-firmware:z \
             ${{ env.BASE_IMAGE }} /bin/sh -c "\
               mkdir /root/build && cd /root/build && \
               cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
+                -DCOIN_SUPPORT=BTC \
+                -DVARIANTS=NoObsoleteVariants \
                 -DCMAKE_BUILD_TYPE=MinSizeRel \
                 -DCMAKE_COLOR_MAKEFILE=ON && \
               make && \
@@ -147,9 +149,11 @@ jobs:
         if: steps.cache-base.outputs.cache-hit == 'true'
         run: docker load -i /tmp/base-image.tar
 
-      - name: Build and test emulator
+      - name: Build and test emulator (BTC-only)
         run: |
-          docker build -t kkemu-release -f scripts/emulator/Dockerfile .
+          docker build \
+            --build-arg coinsupport="-DCOIN_SUPPORT=BTC" \
+            -t kkemu-release -f scripts/emulator/Dockerfile .
           docker run --rm --entrypoint /bin/sh kkemu-release \
             -c "make xunit; RC=\$?; exit \$RC"
 
@@ -178,9 +182,9 @@ jobs:
           cat > release-body.md <<EOF
           ## KeepKey Firmware v${VER}
 
-          ### Reproducible Build Verification
+          ### Reproducible Build Verification (BTC-only)
           \`\`\`bash
-          ./scripts/build/docker/device/release.sh
+          ./scripts/build/docker/device/btcrelease.sh
           tail -c +257 bin/firmware.keepkey.bin | shasum -a 256
           \`\`\`
 
