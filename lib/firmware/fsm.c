@@ -56,6 +56,8 @@
 #include "keepkey/firmware/signing.h"
 #include "keepkey/firmware/signtx_tendermint.h"
 #include "keepkey/firmware/storage.h"
+#include "keepkey/firmware/solana.h"
+#include "keepkey/firmware/solana_tx.h"
 #include "keepkey/firmware/tendermint.h"
 #include "keepkey/firmware/thorchain.h"
 #include "keepkey/firmware/bip85.h"
@@ -85,6 +87,7 @@
 #include "messages-ripple.pb.h"
 #include "messages-thorchain.pb.h"
 #include "messages-mayachain.pb.h"
+#include "messages-solana.pb.h"
 
 #include <stdio.h>
 
@@ -286,3 +289,4 @@ void fsm_msgClearSession(ClearSession *msg) {
 #include "fsm_msg_thorchain.h"
 #include "fsm_msg_mayachain.h"
 #include "fsm_msg_bip85.h"
+#include "fsm_msg_solana.h"
