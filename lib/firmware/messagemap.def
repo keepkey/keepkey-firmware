@@ -33,6 +33,9 @@
     MSG_IN(MessageType_MessageType_RecoveryDevice,                  RecoveryDevice,              fsm_msgRecoveryDevice)
     MSG_IN(MessageType_MessageType_CharacterAck,                    CharacterAck,                fsm_msgCharacterAck)
     MSG_IN(MessageType_MessageType_ApplyPolicies,                   ApplyPolicies,               fsm_msgApplyPolicies)
+
+    MSG_IN(MessageType_MessageType_GetBip85Mnemonic,               GetBip85Mnemonic,            fsm_msgGetBip85Mnemonic)
+
 #ifndef BITCOIN_ONLY
     MSG_IN(MessageType_MessageType_EthereumGetAddress,              EthereumGetAddress,          fsm_msgEthereumGetAddress)
     MSG_IN(MessageType_MessageType_EthereumSignTx,                  EthereumSignTx,              fsm_msgEthereumSignTx)
@@ -74,8 +77,6 @@
     MSG_IN(MessageType_MessageType_MayachainSignTx,                 MayachainSignTx,             fsm_msgMayachainSignTx)
     MSG_IN(MessageType_MessageType_MayachainMsgAck,                 MayachainMsgAck,             fsm_msgMayachainMsgAck)
 
-    MSG_IN(MessageType_MessageType_GetBip85Mnemonic,               GetBip85Mnemonic,            fsm_msgGetBip85Mnemonic)
-
     MSG_IN(MessageType_MessageType_SolanaGetAddress,               SolanaGetAddress,            fsm_msgSolanaGetAddress)
     MSG_IN(MessageType_MessageType_SolanaSignTx,                   SolanaSignTx,                fsm_msgSolanaSignTx)
     MSG_IN(MessageType_MessageType_SolanaSignMessage,              SolanaSignMessage,           fsm_msgSolanaSignMessage)
@@ -108,6 +109,9 @@
     MSG_OUT(MessageType_MessageType_PassphraseRequest,              PassphraseRequest,           NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_WordRequest,                    WordRequest,                 NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_CharacterRequest,               CharacterRequest,            NO_PROCESS_FUNC)
+
+    MSG_OUT(MessageType_MessageType_Bip85Mnemonic,                  Bip85Mnemonic,               NO_PROCESS_FUNC)
+
 #ifndef  BITCOIN_ONLY
     MSG_OUT(MessageType_MessageType_EthereumAddress,                EthereumAddress,             NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EthereumTxRequest,              EthereumTxRequest,           NO_PROCESS_FUNC)
@@ -145,8 +149,6 @@
     MSG_OUT(MessageType_MessageType_MayachainAddress,               MayachainAddress,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_MayachainMsgRequest,            MayachainMsgRequest,         NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_MayachainSignedTx,              MayachainSignedTx,           NO_PROCESS_FUNC)
-
-    MSG_OUT(MessageType_MessageType_Bip85Mnemonic,                  Bip85Mnemonic,               NO_PROCESS_FUNC)
 
     MSG_OUT(MessageType_MessageType_SolanaAddress,                  SolanaAddress,               NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_SolanaSignedTx,                 SolanaSignedTx,              NO_PROCESS_FUNC)
