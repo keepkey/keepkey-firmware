@@ -82,6 +82,7 @@
 #include "keepkey/firmware/thorchain.h"
 #include "keepkey/firmware/bip85.h"
 #include "keepkey/firmware/solana.h"
+#include "keepkey/firmware/solana_tx.h"
 #include "keepkey/firmware/tron.h"
 #include "keepkey/firmware/ton.h"
 

@@ -14,8 +14,6 @@ set(sources
     signing.c
     storage.c
     tiny-json.c
-    tron.c
-    ton.c
     transaction.c
     txin_check.c
     u2f.c)
@@ -48,6 +46,8 @@ if(NOT "${COIN_SUPPORT}" STREQUAL "BTC")
       thorchain.c
       bip85.c
       solana.c
+      solana_msg.c
+      solana_tx.c
       tron.c
       ton.c
       zcash.c)
