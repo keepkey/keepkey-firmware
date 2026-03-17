@@ -26,6 +26,7 @@
 #include "messages-nano.pb.h"
 #undef delete
 
+#ifndef BITCOIN_ONLY
 #include "messages-ethereum.pb.h"
 #include "messages-binance.pb.h"
 #include "messages-cosmos.pb.h"
@@ -35,6 +36,10 @@
 #include "messages-tendermint.pb.h"
 #include "messages-thorchain.pb.h"
 #include "messages-mayachain.pb.h"
+#include "messages-solana.pb.h"
+#include "messages-tron.pb.h"
+#include "messages-ton.pb.h"
+#endif // BITCOIN_ONLY
 
 #include "types.pb.h"
 #include "trezor_transport.h"
