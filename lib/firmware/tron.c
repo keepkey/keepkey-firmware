@@ -97,7 +97,7 @@ bool tron_signTx(const HDNode *node, const TronSignTx *msg,
   // Get the curve for secp256k1
   const curve_info *curve = get_curve_by_name(SECP256K1_NAME);
   if (!curve) {
-    return;
+    return false;
   }
 
   // Hash the transaction with SHA256
