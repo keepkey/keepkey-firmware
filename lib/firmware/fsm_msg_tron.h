@@ -24,10 +24,12 @@ void fsm_msgTronGetAddress(const TronGetAddress *msg) {
 
   CHECK_PIN
 
-  // Validate path: m/44'/195'/x'/0/0
-  if (msg->address_n_count < 3) {
+  // Validate path: m/44'/195'/...
+  if (msg->address_n_count < 3 ||
+      msg->address_n[0] != (0x80000000 | 44) ||
+      msg->address_n[1] != (0x80000000 | 195)) {
     fsm_sendFailure(FailureType_Failure_Other,
-                    _("Invalid path for TRON address"));
+                    _("Invalid TRON path (expected m/44'/195'/...)"));
     layoutHome();
     return;
   }
@@ -79,6 +81,16 @@ void fsm_msgTronSignTx(TronSignTx *msg) {
 
   CHECK_PIN
 
+  // Validate path: m/44'/195'/...
+  if (msg->address_n_count < 3 ||
+      msg->address_n[0] != (0x80000000 | 44) ||
+      msg->address_n[1] != (0x80000000 | 195)) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Invalid TRON path (expected m/44'/195'/...)"));
+    layoutHome();
+    return;
+  }
+
   // Derive node using secp256k1 curve
   HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
@@ -119,7 +131,12 @@ void fsm_msgTronSignTx(TronSignTx *msg) {
   }
 
   // Sign the transaction with secp256k1
-  tron_signTx(node, msg, resp);
+  if (!tron_signTx(node, msg, resp)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_Other, _("TRON signing failed"));
+    layoutHome();
+    return;
+  }
 
   memzero(node, sizeof(*node));
   msg_write(MessageType_MessageType_TronSignedTx, resp);

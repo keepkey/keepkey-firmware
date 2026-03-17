@@ -24,10 +24,12 @@ void fsm_msgTonGetAddress(const TonGetAddress *msg) {
 
   CHECK_PIN
 
-  // Validate path: m/44'/607'/x'/x'/x'/x' (all hardened for TON)
-  if (msg->address_n_count < 6) {
+  // Validate path: m/44'/607'/... (all hardened for TON)
+  if (msg->address_n_count < 2 ||
+      msg->address_n[0] != (0x80000000 | 44) ||
+      msg->address_n[1] != (0x80000000 | 607)) {
     fsm_sendFailure(FailureType_Failure_Other,
-                    _("Invalid path for TON address"));
+                    _("Invalid TON path (expected m/44'/607'/...)"));
     layoutHome();
     return;
   }
@@ -89,6 +91,16 @@ void fsm_msgTonSignTx(TonSignTx *msg) {
 
   CHECK_PIN
 
+  // Validate path: m/44'/607'/...
+  if (msg->address_n_count < 2 ||
+      msg->address_n[0] != (0x80000000 | 44) ||
+      msg->address_n[1] != (0x80000000 | 607)) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Invalid TON path (expected m/44'/607'/...)"));
+    layoutHome();
+    return;
+  }
+
   // Derive node using Ed25519 curve
   HDNode *node = fsm_getDerivedNode(ED25519_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
@@ -129,7 +141,12 @@ void fsm_msgTonSignTx(TonSignTx *msg) {
   }
 
   // Sign the transaction with Ed25519
-  ton_signTx(node, msg, resp);
+  if (!ton_signTx(node, msg, resp)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_Other, _("TON signing failed"));
+    layoutHome();
+    return;
+  }
 
   memzero(node, sizeof(*node));
   msg_write(MessageType_MessageType_TonSignedTx, resp);

@@ -63,6 +63,6 @@ void ton_formatAmount(char *buf, size_t len, uint64_t amount);
  * @param msg TonSignTx request message
  * @param resp TonSignedTx response message (will be filled with signature)
  */
-void ton_signTx(const HDNode *node, const TonSignTx *msg, TonSignedTx *resp);
+bool ton_signTx(const HDNode *node, const TonSignTx *msg, TonSignedTx *resp);
 
 #endif
