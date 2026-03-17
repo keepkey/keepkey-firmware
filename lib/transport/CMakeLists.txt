@@ -15,6 +15,9 @@ set(protoc_pb_sources
     ${DEVICE_PROTOCOL}/messages-tendermint.proto
     ${DEVICE_PROTOCOL}/messages-thorchain.proto
     ${DEVICE_PROTOCOL}/messages-mayachain.proto
+    ${DEVICE_PROTOCOL}/messages-solana.proto
+    ${DEVICE_PROTOCOL}/messages-tron.proto
+    ${DEVICE_PROTOCOL}/messages-ton.proto
     ${DEVICE_PROTOCOL}/messages.proto)
 
 set(protoc_pb_options
