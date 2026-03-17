@@ -73,6 +73,8 @@
     MSG_IN(MessageType_MessageType_MayachainSignTx,                 MayachainSignTx,             fsm_msgMayachainSignTx)
     MSG_IN(MessageType_MessageType_MayachainMsgAck,                 MayachainMsgAck,             fsm_msgMayachainMsgAck)
 
+    MSG_IN(MessageType_MessageType_GetBip85Mnemonic,               GetBip85Mnemonic,            fsm_msgGetBip85Mnemonic)
+
     /* Normal Out Messages */
     MSG_OUT(MessageType_MessageType_Success,                        Success,                     NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_Failure,                        Failure,                     NO_PROCESS_FUNC)
@@ -131,6 +133,8 @@
     MSG_OUT(MessageType_MessageType_MayachainAddress,               MayachainAddress,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_MayachainMsgRequest,            MayachainMsgRequest,         NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_MayachainSignedTx,              MayachainSignedTx,           NO_PROCESS_FUNC)
+
+    MSG_OUT(MessageType_MessageType_Bip85Mnemonic,                 Bip85Mnemonic,               NO_PROCESS_FUNC)
 
 #if DEBUG_LINK
     /* Debug Messages */
