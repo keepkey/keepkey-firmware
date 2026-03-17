@@ -1,3 +1,11 @@
+if("${COIN_SUPPORT}" STREQUAL "BTC")
+  return()
+endif()
+
+if("${VARIANTS}" STREQUAL "NoObsoleteVariants")
+  return()
+endif()
+
 if(NOT ${KK_EMULATOR})
   include_directories(
       ${CMAKE_SOURCE_DIR}/include
