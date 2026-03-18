@@ -29,6 +29,7 @@ if(NOT "${COIN_SUPPORT}" STREQUAL "BTC")
       eos-contracts/eosio.token.c
       ethereum.c
       ethereum_contracts.c
+      signed_metadata.c
       ethereum_contracts/makerdao.c
       ethereum_contracts/saproxy.c
       ethereum_contracts/zxappliquid.c
