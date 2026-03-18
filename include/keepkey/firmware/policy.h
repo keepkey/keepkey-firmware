@@ -33,6 +33,7 @@ static const PolicyType policies[] = {
     {true, "Experimental", true, false},
     {true, "AdvancedMode", true, false},
     {true, "SolBlindSign", true, false},
+    {true, "EthBlindSign", true, true},
 };
 
 int run_policy_compile_output(const CoinType *coin, const HDNode *root,
