@@ -343,6 +343,91 @@ jobs:
             bin/*.elf
           retention-days: 90
 
+  build-arm-firmware-btc-only:
+    needs: [check-submodules, secret-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Init submodules
+        run: |
+          git submodule update --init deps/crypto/trezor-firmware
+          git submodule update --init deps/device-protocol
+          git submodule update --init --recursive deps/python-keepkey
+          git submodule update --init deps/googletest
+          git submodule update --init deps/qrenc/QR-Code-generator
+          git submodule update --init deps/sca-hardening/SecAESSTM32
+
+      - name: Cache base image
+        id: cache-base
+        uses: actions/cache@v4
+        with:
+          path: /tmp/base-image.tar
+          key: base-image-${{ env.BASE_IMAGE }}
+
+      - name: Pull and cache base image
+        if: steps.cache-base.outputs.cache-hit != 'true'
+        run: |
+          docker pull ${{ env.BASE_IMAGE }}
+          docker save ${{ env.BASE_IMAGE }} -o /tmp/base-image.tar
+
+      - name: Load base image from cache
+        if: steps.cache-base.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/base-image.tar
+
+      - name: Extract firmware version
+        id: version
+        run: |
+          FW_VERSION=$(sed -n '/^project/,/)/p' CMakeLists.txt | grep -oP '\d+\.\d+\.\d+')
+          GIT_SHORT=$(git rev-parse --short HEAD)
+          echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "git_short=${GIT_SHORT}" >> "$GITHUB_OUTPUT"
+          echo "Firmware version: ${FW_VERSION} (${GIT_SHORT}) [BTC-only]"
+
+      - name: Cross-compile BTC-only firmware for ARM
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/root/keepkey-firmware:z \
+            ${{ env.BASE_IMAGE }} /bin/sh -c "\
+              mkdir /root/build && cd /root/build && \
+              cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
+                -DCOIN_SUPPORT=BTC \
+                -DVARIANTS=NoObsoleteVariants \
+                -DCMAKE_BUILD_TYPE=MinSizeRel \
+                -DCMAKE_COLOR_MAKEFILE=ON && \
+              make && \
+              mkdir -p /root/keepkey-firmware/bin-btc && \
+              cp bin/*.bin /root/keepkey-firmware/bin-btc/ && \
+              cp bin/*.elf /root/keepkey-firmware/bin-btc/ && \
+              chmod -R a+rw /root/keepkey-firmware/bin-btc"
+
+      - name: Rename firmware artifacts
+        run: |
+          cd bin-btc
+          for f in *.bin; do
+            [ -f "$f" ] || continue
+            mv "$f" "firmware.keepkey.btc-only.v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${f}"
+          done
+          for f in *.elf; do
+            [ -f "$f" ] || continue
+            mv "$f" "firmware.keepkey.btc-only.v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${f}"
+          done
+          ls -lh
+          echo "::notice::BTC-only firmware v${{ steps.version.outputs.fw_version }} built successfully"
+
+      - name: Upload BTC-only firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-btc-only-v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}
+          path: |
+            bin-btc/*.bin
+            bin-btc/*.elf
+          retention-days: 90
+
   # ═══════════════════════════════════════════════════════════
   # STAGE 3: TEST — run only after builds succeed
   # ═══════════════════════════════════════════════════════════
@@ -435,7 +520,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════
 
   publish-emulator:
-    needs: [unit-tests, python-integration-tests, build-arm-firmware]
+    needs: [unit-tests, python-integration-tests, build-arm-firmware, build-arm-firmware-btc-only]
     if: >-
       github.event_name == 'workflow_dispatch' &&
       github.event.inputs.publish_emulator == 'true'

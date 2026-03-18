@@ -77,6 +77,9 @@ void fsm_msgWordAck(WordAck *msg);
 void fsm_msgCharacterAck(CharacterAck *msg);
 void fsm_msgApplyPolicies(ApplyPolicies *msg);
 
+// BIP-85 (chain-agnostic, available in all builds)
+void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg);
+
 #ifndef BITCOIN_ONLY
 // ethereum
 void fsm_msgEthereumGetAddress(EthereumGetAddress *msg);
@@ -119,7 +122,6 @@ void fsm_msgMayachainGetAddress(const MayachainGetAddress *msg);
 void fsm_msgMayachainSignTx(const MayachainSignTx *msg);
 void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg);
 
-void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg);
 void fsm_msgSolanaGetAddress(const SolanaGetAddress *msg);
 void fsm_msgSolanaSignTx(const SolanaSignTx *msg);
 void fsm_msgSolanaSignMessage(const SolanaSignMessage *msg);

@@ -14,11 +14,10 @@ set(sources
     signing.c
     storage.c
     tiny-json.c
-    tron.c
-    ton.c
     transaction.c
     txin_check.c
-    u2f.c)
+    u2f.c
+    bip85.c)
 
 if(NOT "${COIN_SUPPORT}" STREQUAL "BTC")
   list(APPEND sources
@@ -46,7 +45,6 @@ if(NOT "${COIN_SUPPORT}" STREQUAL "BTC")
       signtx_tendermint.c
       tendermint.c
       thorchain.c
-      bip85.c
       solana.c
       tron.c
       ton.c
