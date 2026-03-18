@@ -2,6 +2,7 @@ set(sources
     coins.cpp
     recovery.cpp
     storage.cpp
+    solana.cpp
     ton.cpp
     tron.cpp
     usb_rx.cpp

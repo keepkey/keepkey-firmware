@@ -32,6 +32,7 @@ static const PolicyType policies[] = {
     {true, "Pin Caching", true, true},
     {true, "Experimental", true, false},
     {true, "AdvancedMode", true, false},
+    {true, "SolBlindSign", true, false},
 };
 
 int run_policy_compile_output(const CoinType *coin, const HDNode *root,
