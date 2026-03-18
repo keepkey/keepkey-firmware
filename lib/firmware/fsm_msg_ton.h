@@ -45,6 +45,15 @@ void fsm_msgTonGetAddress(const TonGetAddress *msg) {
   bool testnet = msg->has_testnet ? msg->testnet : false;
   int32_t workchain = msg->has_workchain ? msg->workchain : 0;
 
+  // Restrict workchain to valid values: 0 (basechain) or -1 (masterchain)
+  if (workchain != 0 && workchain != -1) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Workchain must be 0 or -1"));
+    layoutHome();
+    return;
+  }
+
   // Get TON address from public key (Base64 URL-safe encoding)
   char address[MAX_ADDR_SIZE];
   char raw_address[MAX_ADDR_SIZE];
@@ -101,6 +110,7 @@ void fsm_msgTonSignTx(TonSignTx *msg) {
     return;
   }
 
+
   // Derive node using Ed25519 curve
   HDNode *node = fsm_getDerivedNode(ED25519_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
@@ -115,27 +125,53 @@ void fsm_msgTonSignTx(TonSignTx *msg) {
     return;
   }
 
-  bool needs_confirm = true;
+  // Restrict workchain to valid values if provided
+  if (msg->has_workchain && msg->workchain != 0 && msg->workchain != -1) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Workchain must be 0 or -1"));
+    layoutHome();
+    return;
+  }
 
-  // Display transaction details if available
-  if (needs_confirm && msg->has_to_address && msg->has_amount) {
-    char amount_str[32];
-    ton_formatAmount(amount_str, sizeof(amount_str), msg->amount);
+  // TON uses Cell/BoC encoding which cannot be parsed on-device.
+  // Display host-supplied fields with explicit blind-sign warning.
 
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Send", "Send %s TON to %s?",
-                 amount_str, msg->to_address)) {
+  // Validate destination address if provided (independent of amount)
+  if (msg->has_to_address) {
+    if (!ton_validateAddress(msg->to_address)) {
       memzero(node, sizeof(*node));
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Invalid TON destination address"));
       layoutHome();
       return;
     }
   }
 
-  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Transaction",
-               "Really sign this TON transaction?")) {
+  // Show transfer details if both destination and amount are provided
+  if (msg->has_to_address && msg->has_amount) {
+    char amount_str[32];
+    ton_formatAmount(amount_str, sizeof(amount_str), msg->amount);
+
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                 "TON Transfer", "Send %s to\n%s?",
+                 amount_str, msg->to_address)) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Signing cancelled"));
+      layoutHome();
+      return;
+    }
+  }
+
+  // Always require explicit blind-sign acknowledgment — TON Cell/BoC
+  // encoding cannot be verified on-device
+  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Blind Signature",
+               "TON TX details cannot be\nverified on device.\n"
+               "Sign only if you trust\nthe sending app.")) {
     memzero(node, sizeof(*node));
-    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("Signing cancelled"));
     layoutHome();
     return;
   }

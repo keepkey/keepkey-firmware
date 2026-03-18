@@ -215,6 +215,64 @@ bool ton_get_address(const ed25519_public_key public_key, bool bounceable,
 }
 
 /**
+ * Decode Base64 URL-safe string to bytes.
+ * Returns decoded length, or -1 on error.
+ */
+static int base64_url_decode(const char *in, size_t in_len,
+                             uint8_t *out, size_t out_cap) {
+  /* Build reverse lookup table */
+  int8_t lut[128];
+  memset(lut, -1, sizeof(lut));
+  for (int i = 0; i < 64; i++) {
+    lut[(unsigned char)base64_url_alphabet[i]] = (int8_t)i;
+  }
+
+  size_t op = 0;
+  uint32_t accum = 0;
+  int bits = 0;
+  for (size_t i = 0; i < in_len; i++) {
+    unsigned char c = (unsigned char)in[i];
+    if (c >= 128 || lut[c] < 0) return -1;
+    accum = (accum << 6) | (uint32_t)lut[c];
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      if (op >= out_cap) return -1;
+      out[op++] = (uint8_t)((accum >> bits) & 0xFF);
+    }
+  }
+  return (int)op;
+}
+
+/**
+ * Validate a TON user-friendly address (Base64 URL-safe with CRC16-XMODEM).
+ * TON addresses are 48 chars Base64 → 36 bytes = [tag(1) + workchain(1) +
+ * hash(32) + crc16(2)].
+ */
+bool ton_validateAddress(const char *address) {
+  if (!address) return false;
+  size_t len = strlen(address);
+  if (len != 48) return false;
+
+  uint8_t decoded[36];
+  int dlen = base64_url_decode(address, len, decoded, sizeof(decoded));
+  if (dlen != 36) return false;
+
+  /* Validate tag byte: bounceable=0x11, non-bounceable=0x51,
+     testnet variants have 0x80 set */
+  uint8_t tag = decoded[0];
+  uint8_t base_tag = tag & 0x7F;
+  if (base_tag != 0x11 && base_tag != 0x51) return false;
+
+  /* Validate CRC16-XMODEM over first 34 bytes */
+  uint16_t expected_crc = ((uint16_t)decoded[34] << 8) | decoded[35];
+  uint16_t actual_crc = ton_crc16(decoded, 34);
+  if (expected_crc != actual_crc) return false;
+
+  return true;
+}
+
+/**
  * Format TON amount (nanoTON) for display
  * 1 TON = 1,000,000,000 nanoTON
  */

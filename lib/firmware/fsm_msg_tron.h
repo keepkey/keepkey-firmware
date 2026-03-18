@@ -91,6 +91,7 @@ void fsm_msgTronSignTx(TronSignTx *msg) {
     return;
   }
 
+
   // Derive node using secp256k1 curve
   HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
