@@ -47,8 +47,6 @@ if(NOT "${COIN_SUPPORT}" STREQUAL "BTC")
       thorchain.c
       bip85.c
       solana.c
-      solana_msg.c
-      solana_tx.c
       tron.c
       ton.c)
 endif()
