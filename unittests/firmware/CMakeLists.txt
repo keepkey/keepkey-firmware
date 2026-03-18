@@ -14,7 +14,8 @@ if(NOT "${COIN_SUPPORT}" STREQUAL "BTC")
   eos.cpp
   ethereum.cpp
   nano.cpp
-  ripple.cpp)
+  ripple.cpp
+  zcash.cpp)
 endif()
 
 include_directories(

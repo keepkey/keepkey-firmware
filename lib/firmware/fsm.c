@@ -97,6 +97,7 @@
 #include "messages-solana.pb.h"
 #include "messages-tron.pb.h"
 #include "messages-ton.pb.h"
+#include "messages-zcash.pb.h"
 #endif // BITCOIN_ONLY
 
 #define _(X) (X)
@@ -301,4 +302,5 @@ void fsm_msgClearSession(ClearSession *msg) {
 #include "fsm_msg_solana.h"
 #include "fsm_msg_tron.h"
 #include "fsm_msg_ton.h"
+#include "fsm_msg_zcash.h"
 #endif // BITCOIN_ONLY

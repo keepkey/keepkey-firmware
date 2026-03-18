@@ -127,6 +127,9 @@ void fsm_msgTronGetAddress(const TronGetAddress *msg);
 void fsm_msgTronSignTx(TronSignTx *msg);
 void fsm_msgTonGetAddress(const TonGetAddress *msg);
 void fsm_msgTonSignTx(TonSignTx *msg);
+void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg);
+void fsm_msgZcashPCZTAction(const ZcashPCZTAction *msg);
+void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK *msg);
 #endif // BITCOIN_ONLY
 
 #if DEBUG_LINK
