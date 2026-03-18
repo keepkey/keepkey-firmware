@@ -50,6 +50,14 @@ bool ton_get_address(const ed25519_public_key public_key, bool bounceable,
                      size_t raw_address_len);
 
 /**
+ * Validate a TON user-friendly address (Base64 URL-safe with CRC16).
+ * Decodes the address, checks CRC16-XMODEM checksum, verifies tag byte.
+ * @param address  Base64 URL-safe encoded TON address (48 chars)
+ * @return true if address is valid
+ */
+bool ton_validateAddress(const char *address);
+
+/**
  * Format TON amount (nanoTON) for display
  * @param buf Output buffer
  * @param len Length of output buffer

@@ -116,27 +116,42 @@ void fsm_msgTonSignTx(TonSignTx *msg) {
     return;
   }
 
-  bool needs_confirm = true;
+  // TON uses Cell/BoC encoding which cannot be parsed on-device.
+  // Display host-supplied fields with explicit blind-sign warning.
 
-  // Display transaction details if available
-  if (needs_confirm && msg->has_to_address && msg->has_amount) {
+  // If host provides destination and amount, validate and show them
+  if (msg->has_to_address && msg->has_amount) {
+    // Validate destination address CRC16 BEFORE display
+    if (!ton_validateAddress(msg->to_address)) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Invalid TON destination address"));
+      layoutHome();
+      return;
+    }
+
     char amount_str[32];
     ton_formatAmount(amount_str, sizeof(amount_str), msg->amount);
 
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Send", "Send %s TON to %s?",
+                 "TON Transfer", "Send %s to\n%s?",
                  amount_str, msg->to_address)) {
       memzero(node, sizeof(*node));
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Signing cancelled"));
       layoutHome();
       return;
     }
   }
 
-  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Transaction",
-               "Really sign this TON transaction?")) {
+  // Always require explicit blind-sign acknowledgment — TON Cell/BoC
+  // encoding cannot be verified on-device
+  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Blind Signature",
+               "TON TX details cannot be\nverified on device.\n"
+               "Sign only if you trust\nthe sending app.")) {
     memzero(node, sizeof(*node));
-    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("Signing cancelled"));
     layoutHome();
     return;
   }
