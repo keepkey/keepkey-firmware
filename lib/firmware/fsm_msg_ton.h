@@ -45,6 +45,15 @@ void fsm_msgTonGetAddress(const TonGetAddress *msg) {
   bool testnet = msg->has_testnet ? msg->testnet : false;
   int32_t workchain = msg->has_workchain ? msg->workchain : 0;
 
+  // Restrict workchain to valid values: 0 (basechain) or -1 (masterchain)
+  if (workchain != 0 && workchain != -1) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Workchain must be 0 or -1"));
+    layoutHome();
+    return;
+  }
+
   // Get TON address from public key (Base64 URL-safe encoding)
   char address[MAX_ADDR_SIZE];
   char raw_address[MAX_ADDR_SIZE];
@@ -116,12 +125,20 @@ void fsm_msgTonSignTx(TonSignTx *msg) {
     return;
   }
 
+  // Restrict workchain to valid values if provided
+  if (msg->has_workchain && msg->workchain != 0 && msg->workchain != -1) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Workchain must be 0 or -1"));
+    layoutHome();
+    return;
+  }
+
   // TON uses Cell/BoC encoding which cannot be parsed on-device.
   // Display host-supplied fields with explicit blind-sign warning.
 
-  // If host provides destination and amount, validate and show them
-  if (msg->has_to_address && msg->has_amount) {
-    // Validate destination address CRC16 BEFORE display
+  // Validate destination address if provided (independent of amount)
+  if (msg->has_to_address) {
     if (!ton_validateAddress(msg->to_address)) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -129,7 +146,10 @@ void fsm_msgTonSignTx(TonSignTx *msg) {
       layoutHome();
       return;
     }
+  }
 
+  // Show transfer details if both destination and amount are provided
+  if (msg->has_to_address && msg->has_amount) {
     char amount_str[32];
     ton_formatAmount(amount_str, sizeof(amount_str), msg->amount);
 
