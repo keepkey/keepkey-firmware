@@ -106,6 +106,15 @@ void fsm_msgTronSignTx(TronSignTx *msg) {
     return;
   }
 
+  /* Reject if both contract types are present — exactly one required */
+  if (msg->has_transfer && msg->has_trigger_smart) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Cannot set both transfer and trigger_smart"));
+    layoutHome();
+    return;
+  }
+
   /* ---- Structured reconstruct-then-sign path ---- */
   if (is_structured) {
     /* Validate required header fields */
