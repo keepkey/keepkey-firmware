@@ -3,6 +3,7 @@ set(sources
     recovery.cpp
     storage.cpp
     ton.cpp
+    tron.cpp
     usb_rx.cpp
     u2f.cpp)
 
