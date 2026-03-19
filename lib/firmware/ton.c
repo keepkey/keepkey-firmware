@@ -433,7 +433,7 @@ bool ton_verify_transfer_hash(
     /* Copy memo bytes starting at bit 32 */
     for (size_t i = 0; i < memo_len; i++) {
       for (int j = 0; j < 8; j++) {
-        int b = (memo[i] >> (7 - j)) & 1;
+        int b = ((uint8_t)memo[i] >> (7 - j)) & 1;
         write_bit(memo_data, 32 + (int)(i * 8) + j, b);
       }
     }
@@ -538,7 +538,9 @@ bool ton_verify_transfer_hash(
   write_bit(body_data, body_bits, 1); /* completion tag */
 
   uint8_t body_hash[32];
-  uint8_t body_depths[1][2] = {{0, (uint8_t)(int_msg_depth + 1)}};
+  /* Child depth = the depth OF the child cell (not parent-adjusted).
+   * TON cell repr includes the child's own depth value. */
+  uint8_t body_depths[1][2] = {{0, (uint8_t)int_msg_depth}};
   uint8_t body_hashes[1][32];
   memcpy(body_hashes[0], int_msg_hash, 32);
 
