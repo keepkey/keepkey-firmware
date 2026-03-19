@@ -423,7 +423,6 @@ bool ton_verify_transfer_hash(
   if (has_memo) {
     /* Memo cell: op(32 bits) = 0x00000000 + UTF-8 bytes */
     int memo_bits = 32 + (int)(memo_len * 8);
-    int memo_data_bytes = (memo_bits + 7) / 8;
     /* Add completion tag */
     int augmented_bytes = (memo_bits + 1 + 7) / 8;
     uint8_t memo_data[164]; /* 128 bytes memo + 4 bytes op + padding */
@@ -505,7 +504,6 @@ bool ton_verify_transfer_hash(
 
   /* Compute InternalMessage hash */
   uint8_t int_msg_hash[32];
-  int int_msg_num_refs = has_memo ? 1 : 0;
 
   if (has_memo) {
     uint8_t depths[1][2] = {{0, (uint8_t)memo_cell_depth}};
