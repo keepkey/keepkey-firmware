@@ -662,23 +662,23 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput *msg) {
     return;
   }
 
-  CONFIDENTIAL HDNode node;
-  if (!fsm_getDerivedNode(coin->curve_name, msg->address_n,
-                          msg->address_n_count, &node)) {
+  HDNode *node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
+                                    msg->address_n_count, NULL);
+  if (!node) {
     zcash_signing.active = false;
     memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
     layoutHome();
     return;
   }
 
-  hdnode_fill_public_key(&node);
+  hdnode_fill_public_key(node);
 
   /* ECDSA sign the per-input sighash */
   uint8_t sig[64];
-  if (hdnode_sign_digest(&node, msg->sighash.bytes, sig, NULL, NULL) != 0) {
+  if (hdnode_sign_digest(node, msg->sighash.bytes, sig, NULL, NULL) != 0) {
     fsm_sendFailure(FailureType_Failure_Other,
                     _("ECDSA signing failed"));
-    memzero(&node, sizeof(node));
+    memzero(node, sizeof(*node));
     zcash_signing.active = false;
     memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
     layoutHome();
@@ -698,15 +698,12 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput *msg) {
 
   if (zcash_signing.current_transparent_input >=
       zcash_signing.n_transparent_inputs) {
-    /* Done with transparent phase — signal transition to Orchard.
-     * 0xFF means "no more transparent inputs" */
     resp->next_index = 0xFF;
   } else {
     resp->next_index = zcash_signing.current_transparent_input;
   }
 
-  /* Clean up key material */
-  memzero(&node, sizeof(node));
+  memzero(node, sizeof(*node));
   memzero(sig, sizeof(sig));
 
   msg_write(MessageType_MessageType_ZcashTransparentSig, resp);
