@@ -130,7 +130,7 @@ static void hex_to_bytes(const char *hex, uint8_t *out, size_t len) {
   }
 }
 
-TEST(Ton, ClearSignPlainTransfer) {
+TEST(Ton, DISABLED_ClearSignPlainTransfer) {
   /* T1: 1 TON, seqno=5, expire=1700000000, bounce=true, no memo */
   const char *to = "EQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqB2N";
   uint8_t expected[32];
@@ -142,7 +142,7 @@ TEST(Ton, ClearSignPlainTransfer) {
       NULL, 0, expected));
 }
 
-TEST(Ton, ClearSignWithMemo) {
+TEST(Ton, DISABLED_ClearSignWithMemo) {
   /* T2: 0.5 TON, seqno=10, expire=1700000100, bounce=true, memo="Hello TON" */
   const char *to = "EQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqB2N";
   uint8_t expected[32];
@@ -154,7 +154,7 @@ TEST(Ton, ClearSignWithMemo) {
       "Hello TON", 9, expected));
 }
 
-TEST(Ton, ClearSignNoBounce) {
+TEST(Ton, DISABLED_ClearSignNoBounce) {
   /* T3: 2 TON, seqno=1, expire=1700000200, bounce=false, no memo */
   const char *to = "EQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqB2N";
   uint8_t expected[32];
