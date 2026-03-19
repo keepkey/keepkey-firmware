@@ -101,9 +101,10 @@
 #include "messages-zcash.pb.h"
 #endif // BITCOIN_ONLY
 
-// Forward declaration for handler defined in fsm_msg_ethereum.h
+// Forward declarations for handlers defined in included .h files
 #ifndef BITCOIN_ONLY
 void fsm_msgEthereumTxMetadata(const EthereumTxMetadata *);
+void fsm_msgZcashTransparentInput(const ZcashTransparentInput *);
 #endif
 
 #define _(X) (X)
