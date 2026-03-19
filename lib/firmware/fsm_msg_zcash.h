@@ -349,6 +349,20 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction *msg) {
     return;
   }
 
+  /* Enforce transparent phase completion: if the session declared
+   * transparent inputs, ALL must be signed before Orchard actions.
+   * This prevents a malicious host from skipping transparent-input
+   * confirmations and jumping straight to Orchard signing. */
+  if (zcash_signing.current_transparent_input <
+      zcash_signing.n_transparent_inputs) {
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                    _("Transparent inputs not yet complete"));
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
   /* Validate action index */
   if (!msg->has_index || msg->index != zcash_signing.current_action) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -551,36 +565,67 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput *msg) {
     return;
   }
 
-  /* PATH ENFORCEMENT: transparent inputs must use the Zcash BIP44 prefix
-   * m/44'/133'/account'/change/index where account matches the session.
+  /* PATH ENFORCEMENT: transparent inputs must use exactly
+   * m/44'/133'/account'/change/index where:
+   *   - account' is hardened and matches the session account
+   *   - change is 0 (external) or 1 (internal)
+   *   - index is unhardened
    *
    * This prevents a compromised host from pivoting a shielding approval
    * into signing with arbitrary secp256k1 keys on the device. */
-  if (msg->address_n_count < 3 || msg->address_n_count > 5) {
+  if (msg->address_n_count != 5) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("Invalid path depth for Zcash transparent"));
+                    _("Path must be m/44'/133'/account'/change/index"));
     zcash_signing.active = false;
     memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
     layoutHome();
     return;
   }
 
-  /* Must be m/44'/133'/... (Zcash BIP44) */
   if (msg->address_n[0] != (0x80000000 | 44) ||
       msg->address_n[1] != (0x80000000 | 133)) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("Path must be m/44'/133'/... for Zcash"));
+                    _("Path must start with m/44'/133'"));
     zcash_signing.active = false;
     memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
     layoutHome();
     return;
   }
 
-  /* Account index must match the approved session account */
+  /* Account must be hardened and match the approved session */
+  if (!(msg->address_n[2] & 0x80000000)) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Account must be hardened"));
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
   uint32_t path_account = msg->address_n[2] & 0x7FFFFFFF;
   if (path_account != zcash_signing.account) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("Transparent input account does not match session"));
+                    _("Account does not match approved session"));
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
+  /* Change must be 0 (external) or 1 (internal), unhardened */
+  if (msg->address_n[3] > 1) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Change must be 0 or 1"));
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
+  /* Index must be unhardened */
+  if (msg->address_n[4] & 0x80000000) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Index must not be hardened"));
     zcash_signing.active = false;
     memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
     layoutHome();
