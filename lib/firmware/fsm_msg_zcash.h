@@ -119,15 +119,30 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg) {
            (unsigned long long)(fee / 100000000ULL),
            (unsigned long long)(fee % 100000000ULL));
 
-  /* Display confirmation */
-  if (!confirm(ButtonRequestType_ButtonRequest_SignTx,
-               "Zcash Shielded", "Sign shielded transaction?\n"
-               "Amount: %s\nFee: %s\nActions: %lu",
-               amount_str, fee_str, (unsigned long)msg->n_actions)) {
-    fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                    _("Signing cancelled"));
-    layoutHome();
-    return;
+  /* Display confirmation — different text for shielded-only vs hybrid */
+  uint32_t n_tinputs = msg->has_n_transparent_inputs ? msg->n_transparent_inputs : 0;
+  if (n_tinputs > 0) {
+    if (!confirm(ButtonRequestType_ButtonRequest_SignTx,
+                 "Zcash Shield", "Shield transparent ZEC to Orchard?\n"
+                 "Amount: %s\nFee: %s\nInputs: %lu\nActions: %lu",
+                 amount_str, fee_str,
+                 (unsigned long)n_tinputs,
+                 (unsigned long)msg->n_actions)) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Signing cancelled"));
+      layoutHome();
+      return;
+    }
+  } else {
+    if (!confirm(ButtonRequestType_ButtonRequest_SignTx,
+                 "Zcash Shielded", "Sign shielded transaction?\n"
+                 "Amount: %s\nFee: %s\nActions: %lu",
+                 amount_str, fee_str, (unsigned long)msg->n_actions)) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Signing cancelled"));
+      layoutHome();
+      return;
+    }
   }
 
   /* Get the real BIP-39 seed for ZIP-32 Orchard derivation.
@@ -536,17 +551,63 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput *msg) {
     return;
   }
 
-  if (msg->address_n_count < 3 || msg->address_n_count > 10) {
+  /* PATH ENFORCEMENT: transparent inputs must use the Zcash BIP44 prefix
+   * m/44'/133'/account'/change/index where account matches the session.
+   *
+   * This prevents a compromised host from pivoting a shielding approval
+   * into signing with arbitrary secp256k1 keys on the device. */
+  if (msg->address_n_count < 3 || msg->address_n_count > 5) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("Invalid BIP44 path"));
+                    _("Invalid path depth for Zcash transparent"));
     zcash_signing.active = false;
     memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
     layoutHome();
     return;
   }
 
-  /* Derive the secp256k1 key at the BIP44 path for Zcash transparent.
-   * Typical path: m/44'/133'/0'/0/0 */
+  /* Must be m/44'/133'/... (Zcash BIP44) */
+  if (msg->address_n[0] != (0x80000000 | 44) ||
+      msg->address_n[1] != (0x80000000 | 133)) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Path must be m/44'/133'/... for Zcash"));
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
+  /* Account index must match the approved session account */
+  uint32_t path_account = msg->address_n[2] & 0x7FFFFFFF;
+  if (path_account != zcash_signing.account) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Transparent input account does not match session"));
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
+  /* Per-input confirmation: show the user what's being signed */
+  {
+    char input_str[64];
+    uint64_t amt = msg->has_amount ? msg->amount : 0;
+    snprintf(input_str, sizeof(input_str), "Input %lu: %llu.%08llu ZEC",
+             (unsigned long)(msg->index + 1),
+             (unsigned long long)(amt / 100000000ULL),
+             (unsigned long long)(amt % 100000000ULL));
+    if (!confirm(ButtonRequestType_ButtonRequest_SignTx,
+                 "Sign Input", "Sign transparent input?\n%s",
+                 input_str)) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Signing cancelled"));
+      zcash_signing.active = false;
+      memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+      layoutHome();
+      return;
+    }
+  }
+
+  /* Derive the secp256k1 key at the validated Zcash BIP44 path */
   const CoinType *coin = fsm_getCoin(true, "Zcash");
   if (!coin) {
     fsm_sendFailure(FailureType_Failure_Other, _("Unknown coin: Zcash"));
@@ -559,7 +620,6 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput *msg) {
   CONFIDENTIAL HDNode node;
   if (!fsm_getDerivedNode(coin->curve_name, msg->address_n,
                           msg->address_n_count, &node)) {
-    /* fsm_getDerivedNode already sent failure */
     zcash_signing.active = false;
     memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
     layoutHome();
