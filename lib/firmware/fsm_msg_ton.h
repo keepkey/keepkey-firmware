@@ -134,10 +134,7 @@ void fsm_msgTonSignTx(TonSignTx *msg) {
     return;
   }
 
-  // TON uses Cell/BoC encoding which cannot be parsed on-device.
-  // Display host-supplied fields with explicit blind-sign warning.
-
-  // Validate destination address if provided (independent of amount)
+  // Validate destination address if provided
   if (msg->has_to_address) {
     if (!ton_validateAddress(msg->to_address)) {
       memzero(node, sizeof(*node));
@@ -148,32 +145,78 @@ void fsm_msgTonSignTx(TonSignTx *msg) {
     }
   }
 
-  // Show transfer details if both destination and amount are provided
-  if (msg->has_to_address && msg->has_amount) {
-    char amount_str[32];
-    ton_formatAmount(amount_str, sizeof(amount_str), msg->amount);
+  // Clear-signing: if structured fields are provided, reconstruct the
+  // unsigned body cell hash and verify it matches raw_tx.
+  bool clear_signed = false;
+  if (msg->has_to_address && msg->has_amount &&
+      msg->has_seqno && msg->has_expire_at &&
+      msg->raw_tx.size == 32) {
 
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "TON Transfer", "Send %s to\n%s?",
-                 amount_str, msg->to_address)) {
+    bool bounce = msg->has_bounce ? msg->bounce : true;
+    const char *memo_str = (msg->has_memo && msg->memo[0] != '\0') ? msg->memo : NULL;
+    size_t memo_len = memo_str ? strlen(memo_str) : 0;
+
+    if (ton_verify_transfer_hash(
+            msg->to_address, msg->amount,
+            msg->seqno, msg->expire_at, bounce,
+            memo_str, memo_len,
+            msg->raw_tx.bytes)) {
+      /* Hash matches — this is a verified v4r2 transfer. Show clear-sign. */
+      char amount_str[32];
+      ton_formatAmount(amount_str, sizeof(amount_str), msg->amount);
+
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                   "TON Transfer", "Send %s to\n%.42s?",
+                   amount_str, msg->to_address)) {
+        memzero(node, sizeof(*node));
+        fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                        _("Signing cancelled"));
+        layoutHome();
+        return;
+      }
+
+      if (memo_str) {
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                     "Memo", "%.64s", memo_str)) {
+          memzero(node, sizeof(*node));
+          fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                          _("Signing cancelled"));
+          layoutHome();
+          return;
+        }
+      }
+
+      clear_signed = true;
+    }
+    /* If hash doesn't match, fall through to blind-sign path */
+  }
+
+  if (!clear_signed) {
+    /* Blind-sign path: show amount+recipient if available, then disclaimer */
+    if (msg->has_to_address && msg->has_amount) {
+      char amount_str[32];
+      ton_formatAmount(amount_str, sizeof(amount_str), msg->amount);
+
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                   "TON Transfer", "Send %s to\n%s?",
+                   amount_str, msg->to_address)) {
+        memzero(node, sizeof(*node));
+        fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                        _("Signing cancelled"));
+        layoutHome();
+        return;
+      }
+    }
+
+    if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Blind Signature",
+                 "TON TX details cannot be\nverified on device.\n"
+                 "Sign only if you trust\nthe sending app.")) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Signing cancelled"));
       layoutHome();
       return;
     }
-  }
-
-  // Always require explicit blind-sign acknowledgment — TON Cell/BoC
-  // encoding cannot be verified on-device
-  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Blind Signature",
-               "TON TX details cannot be\nverified on device.\n"
-               "Sign only if you trust\nthe sending app.")) {
-    memzero(node, sizeof(*node));
-    fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                    _("Signing cancelled"));
-    layoutHome();
-    return;
   }
 
   // Sign the transaction with Ed25519
