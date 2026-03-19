@@ -624,7 +624,7 @@ void signing_init(const SignTx *msg, const CoinType *_coin,
         branch_id = 0x5BA81B19;  // Overwinter
         break;
       case 4:
-        branch_id = 0x76B809BB;  // Sapling
+        branch_id = 0xC8E71055;  // NU6
         break;
     }
   }
