@@ -73,4 +73,27 @@ void ton_formatAmount(char *buf, size_t len, uint64_t amount);
  */
 bool ton_signTx(const HDNode *node, const TonSignTx *msg, TonSignedTx *resp);
 
+/**
+ * Verify a v4r2 transfer body hash by reconstructing it from structured fields.
+ * Returns true if the computed hash matches expected_hash (32 bytes).
+ *
+ * Reconstructs: UnsignedBody(wallet_id, expire_at, seqno, op=0, mode=3,
+ *               ref=InternalMessage(bounce, dest, amount, memo))
+ *
+ * @param to_address  User-friendly base64 TON address (48 chars)
+ * @param amount      Transfer amount in nanoTON
+ * @param seqno       Wallet sequence number
+ * @param expire_at   Expiration timestamp
+ * @param bounce      Message bounce flag
+ * @param memo        Optional text memo (NULL or "" for none)
+ * @param memo_len    Length of memo string
+ * @param expected_hash  32-byte hash to verify against
+ * @return true if computed hash matches expected_hash
+ */
+bool ton_verify_transfer_hash(
+    const char *to_address, uint64_t amount,
+    uint32_t seqno, uint32_t expire_at, bool bounce,
+    const char *memo, size_t memo_len,
+    const uint8_t *expected_hash);
+
 #endif

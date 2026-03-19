@@ -282,6 +282,273 @@ void ton_formatAmount(char *buf, size_t len, uint64_t amount) {
   bn_format(&val, NULL, " TON", TON_DECIMALS, 0, false, buf, len);
 }
 
+/* ── Cell representation hash helpers for clear-signing ──────────────── */
+
+/**
+ * Write a variable-length coins value (VarUInteger 16) into a bit buffer.
+ * TON coins encoding: 4-bit length prefix + value bytes (big-endian).
+ * Returns number of bits written.
+ */
+static int write_coins_bits(uint8_t *buf, int bit_offset, uint64_t amount) {
+  if (amount == 0) {
+    /* 0 coins = 4-bit length of 0 */
+    /* bits[offset..offset+3] = 0000 */
+    int byte_idx = bit_offset / 8;
+    int bit_idx = bit_offset % 8;
+    /* Clear 4 bits */
+    for (int i = 0; i < 4; i++) {
+      int bi = bit_idx + i;
+      buf[byte_idx + bi / 8] &= ~(0x80 >> (bi % 8));
+    }
+    return 4;
+  }
+
+  /* Count bytes needed for amount */
+  int nbytes = 0;
+  uint64_t tmp = amount;
+  while (tmp > 0) { nbytes++; tmp >>= 8; }
+
+  /* Write 4-bit length */
+  for (int i = 0; i < 4; i++) {
+    int b = (nbytes >> (3 - i)) & 1;
+    int bi = bit_offset + i;
+    if (b)
+      buf[bi / 8] |= (0x80 >> (bi % 8));
+    else
+      buf[bi / 8] &= ~(0x80 >> (bi % 8));
+  }
+
+  /* Write amount bytes big-endian */
+  int bit_pos = bit_offset + 4;
+  for (int i = nbytes - 1; i >= 0; i--) {
+    uint8_t byte = (amount >> (i * 8)) & 0xFF;
+    for (int j = 0; j < 8; j++) {
+      int b = (byte >> (7 - j)) & 1;
+      int bi = bit_pos;
+      if (b)
+        buf[bi / 8] |= (0x80 >> (bi % 8));
+      else
+        buf[bi / 8] &= ~(0x80 >> (bi % 8));
+      bit_pos++;
+    }
+  }
+
+  return 4 + nbytes * 8;
+}
+
+/**
+ * Write a single bit at a given offset in a byte buffer.
+ */
+static void write_bit(uint8_t *buf, int bit_offset, int value) {
+  if (value)
+    buf[bit_offset / 8] |= (0x80 >> (bit_offset % 8));
+  else
+    buf[bit_offset / 8] &= ~(0x80 >> (bit_offset % 8));
+}
+
+/**
+ * Write N bits of a uint32 value (big-endian) at a given offset.
+ */
+static void write_uint_bits(uint8_t *buf, int bit_offset, uint32_t value, int nbits) {
+  for (int i = 0; i < nbits; i++) {
+    int b = (value >> (nbits - 1 - i)) & 1;
+    write_bit(buf, bit_offset + i, b);
+  }
+}
+
+/**
+ * Write N bits of a uint64 value (big-endian) at a given offset.
+ */
+static void write_uint64_bits(uint8_t *buf, int bit_offset, uint64_t value, int nbits) {
+  for (int i = 0; i < nbits; i++) {
+    int b = (value >> (nbits - 1 - i)) & 1;
+    write_bit(buf, bit_offset + i, b);
+  }
+}
+
+/**
+ * Compute cell representation hash.
+ * repr = d1 || d2 || augmented_data || child_depths(2 bytes each) || child_hashes(32 bytes each)
+ * hash = SHA256(repr)
+ */
+static void cell_repr_hash(int num_refs, int num_bits,
+                           const uint8_t *data, int data_bytes,
+                           const uint8_t child_depths[][2],
+                           const uint8_t child_hashes[][32],
+                           uint8_t *out_hash) {
+  /* d1 = num_refs */
+  /* d2 = ceil(bits/8) + floor(bits/8) */
+  uint8_t d1 = (uint8_t)num_refs;
+  uint8_t d2 = (uint8_t)(((num_bits + 7) / 8) + (num_bits / 8));
+
+  SHA256_CTX ctx;
+  sha256_Init(&ctx);
+  sha256_Update(&ctx, &d1, 1);
+  sha256_Update(&ctx, &d2, 1);
+  sha256_Update(&ctx, data, data_bytes);
+
+  for (int i = 0; i < num_refs; i++) {
+    sha256_Update(&ctx, child_depths[i], 2);
+  }
+  for (int i = 0; i < num_refs; i++) {
+    sha256_Update(&ctx, child_hashes[i], 32);
+  }
+
+  sha256_Final(&ctx, out_hash);
+}
+
+/**
+ * Verify a v4r2 transfer body hash by reconstructing it from structured fields.
+ */
+bool ton_verify_transfer_hash(
+    const char *to_address, uint64_t amount,
+    uint32_t seqno, uint32_t expire_at, bool bounce,
+    const char *memo, size_t memo_len,
+    const uint8_t *expected_hash)
+{
+  /* Step 1: Parse destination address → workchain + hash */
+  uint8_t addr_decoded[36];
+  int dlen = base64_url_decode(to_address, strlen(to_address),
+                                addr_decoded, sizeof(addr_decoded));
+  if (dlen != 36) return false;
+
+  int8_t dest_workchain = (int8_t)addr_decoded[1];
+  const uint8_t *dest_hash = &addr_decoded[2]; /* 32 bytes */
+
+  /* Step 2: Build memo cell hash (if memo exists) */
+  uint8_t memo_cell_hash[32];
+  int memo_cell_depth = 0;
+  bool has_memo = (memo != NULL && memo_len > 0);
+
+  if (has_memo) {
+    /* Memo cell: op(32 bits) = 0x00000000 + UTF-8 bytes */
+    int memo_bits = 32 + (int)(memo_len * 8);
+    /* Add completion tag */
+    int augmented_bytes = (memo_bits + 1 + 7) / 8;
+    uint8_t memo_data[164]; /* 128 bytes memo + 4 bytes op + padding */
+    memset(memo_data, 0, sizeof(memo_data));
+
+    /* op = 0 (32 bits) — already zero */
+    /* Copy memo bytes starting at bit 32 */
+    for (size_t i = 0; i < memo_len; i++) {
+      for (int j = 0; j < 8; j++) {
+        int b = ((uint8_t)memo[i] >> (7 - j)) & 1;
+        write_bit(memo_data, 32 + (int)(i * 8) + j, b);
+      }
+    }
+    /* Add completion tag: 1-bit after data, rest zeros */
+    write_bit(memo_data, memo_bits, 1);
+
+    cell_repr_hash(0, memo_bits, memo_data, augmented_bytes,
+                   NULL, NULL, memo_cell_hash);
+    memo_cell_depth = 0;
+  }
+
+  /* Step 3: Build InternalMessage cell */
+  /* Layout: tag(1) + ihr_disabled(1) + bounce(1) + bounced(1) + src_none(2) +
+   *         dest_addr(3+8+256=267) + coins(4+N*8) + extra_curr(1) +
+   *         ihr_fee(4) + fwd_fee(4) + created_lt(64) + created_at(32) +
+   *         stateinit(1) + body(1) */
+  uint8_t int_msg_data[128];
+  memset(int_msg_data, 0, sizeof(int_msg_data));
+  int bp = 0;
+
+  write_bit(int_msg_data, bp++, 0);       /* int_msg_info tag = 0 */
+  write_bit(int_msg_data, bp++, 1);       /* ihr_disabled = true */
+  write_bit(int_msg_data, bp++, bounce ? 1 : 0);
+  write_bit(int_msg_data, bp++, 0);       /* bounced = false */
+
+  /* src = addr_none (00) */
+  write_bit(int_msg_data, bp++, 0);
+  write_bit(int_msg_data, bp++, 0);
+
+  /* dest = addr_std (10 + anycast=0 + workchain(8) + hash(256)) */
+  write_bit(int_msg_data, bp++, 1);
+  write_bit(int_msg_data, bp++, 0);
+  write_bit(int_msg_data, bp++, 0);       /* anycast = 0 */
+  write_uint_bits(int_msg_data, bp, (uint32_t)(uint8_t)dest_workchain, 8);
+  bp += 8;
+  for (int i = 0; i < 32; i++) {
+    for (int j = 0; j < 8; j++) {
+      write_bit(int_msg_data, bp++, (dest_hash[i] >> (7 - j)) & 1);
+    }
+  }
+
+  /* value (coins) */
+  bp += write_coins_bits(int_msg_data, bp, amount);
+  /* extra_currencies = 0 (1 bit) */
+  write_bit(int_msg_data, bp++, 0);
+  /* ihr_fee = 0 coins */
+  bp += write_coins_bits(int_msg_data, bp, 0);
+  /* fwd_fee = 0 coins */
+  bp += write_coins_bits(int_msg_data, bp, 0);
+  /* created_lt = 0 (64 bits) */
+  write_uint64_bits(int_msg_data, bp, 0, 64);
+  bp += 64;
+  /* created_at = 0 (32 bits) */
+  write_uint_bits(int_msg_data, bp, 0, 32);
+  bp += 32;
+  /* no StateInit */
+  write_bit(int_msg_data, bp++, 0);
+
+  if (has_memo) {
+    write_bit(int_msg_data, bp++, 1);  /* body is ref */
+  } else {
+    write_bit(int_msg_data, bp++, 0);  /* no body */
+  }
+
+  int int_msg_bits = bp;
+  int int_msg_augmented_bytes = (int_msg_bits + 1 + 7) / 8;
+  /* Add completion tag */
+  write_bit(int_msg_data, int_msg_bits, 1);
+
+  /* Compute InternalMessage hash */
+  uint8_t int_msg_hash[32];
+
+  if (has_memo) {
+    uint8_t depths[1][2] = {{0, (uint8_t)memo_cell_depth}};
+    uint8_t hashes[1][32];
+    memcpy(hashes[0], memo_cell_hash, 32);
+    cell_repr_hash(1, int_msg_bits, int_msg_data, int_msg_augmented_bytes,
+                   depths, hashes, int_msg_hash);
+  } else {
+    cell_repr_hash(0, int_msg_bits, int_msg_data, int_msg_augmented_bytes,
+                   NULL, NULL, int_msg_hash);
+  }
+
+  /* Compute InternalMessage depth */
+  int int_msg_depth = has_memo ? 1 : 0;
+
+  /* Step 4: Build UnsignedBody cell */
+  /* Layout: wallet_id(32) + expire_at(32) + seqno(32) + op(8) + send_mode(8) = 112 bits
+   * 1 ref (InternalMessage) */
+  uint8_t body_data[16]; /* 112 bits = 14 bytes + completion tag → 15 bytes max */
+  memset(body_data, 0, sizeof(body_data));
+  bp = 0;
+  write_uint_bits(body_data, bp, V4R2_WALLET_ID, 32); bp += 32;
+  write_uint_bits(body_data, bp, expire_at, 32); bp += 32;
+  write_uint_bits(body_data, bp, seqno, 32); bp += 32;
+  write_uint_bits(body_data, bp, 0, 8); bp += 8;  /* op = 0 (simple send) */
+  write_uint_bits(body_data, bp, 3, 8); bp += 8;  /* send_mode = 3 */
+
+  int body_bits = bp; /* 112 */
+  int body_augmented_bytes = (body_bits + 1 + 7) / 8; /* 15 */
+  write_bit(body_data, body_bits, 1); /* completion tag */
+
+  uint8_t body_hash[32];
+  /* Child depth = the depth OF the child cell (not parent-adjusted).
+   * TON cell repr includes the child's own depth value. */
+  uint8_t body_depths[1][2] = {{0, (uint8_t)int_msg_depth}};
+  uint8_t body_hashes[1][32];
+  memcpy(body_hashes[0], int_msg_hash, 32);
+
+  cell_repr_hash(1, body_bits, body_data, body_augmented_bytes,
+                 body_depths, body_hashes, body_hash);
+
+  /* Step 5: Compare */
+  return memcmp(body_hash, expected_hash, 32) == 0;
+}
+
 /**
  * Sign a TON transaction with Ed25519
  */
