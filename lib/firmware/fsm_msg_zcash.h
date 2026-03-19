@@ -66,9 +66,13 @@ static struct {
   uint8_t orchard_anchor[32];
   /* Signatures buffer: up to 16 actions (64 bytes each) */
   uint8_t signatures[16][64];
+  /* Phase 3: transparent shielding state */
+  uint32_t n_transparent_inputs;
+  uint32_t current_transparent_input;
 } zcash_signing;
 
 #define ZCASH_MAX_ACTIONS 16
+#define ZCASH_MAX_TRANSPARENT_INPUTS 8
 
 void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg) {
   RESP_INIT(ZcashPCZTActionAck);
@@ -115,15 +119,30 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg) {
            (unsigned long long)(fee / 100000000ULL),
            (unsigned long long)(fee % 100000000ULL));
 
-  /* Display confirmation */
-  if (!confirm(ButtonRequestType_ButtonRequest_SignTx,
-               "Zcash Shielded", "Sign shielded transaction?\n"
-               "Amount: %s\nFee: %s\nActions: %lu",
-               amount_str, fee_str, (unsigned long)msg->n_actions)) {
-    fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                    _("Signing cancelled"));
-    layoutHome();
-    return;
+  /* Display confirmation — different text for shielded-only vs hybrid */
+  uint32_t n_tinputs = msg->has_n_transparent_inputs ? msg->n_transparent_inputs : 0;
+  if (n_tinputs > 0) {
+    if (!confirm(ButtonRequestType_ButtonRequest_SignTx,
+                 "Zcash Shield", "Shield transparent ZEC to Orchard?\n"
+                 "Amount: %s\nFee: %s\nInputs: %lu\nActions: %lu",
+                 amount_str, fee_str,
+                 (unsigned long)n_tinputs,
+                 (unsigned long)msg->n_actions)) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Signing cancelled"));
+      layoutHome();
+      return;
+    }
+  } else {
+    if (!confirm(ButtonRequestType_ButtonRequest_SignTx,
+                 "Zcash Shielded", "Sign shielded transaction?\n"
+                 "Amount: %s\nFee: %s\nActions: %lu",
+                 amount_str, fee_str, (unsigned long)msg->n_actions)) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Signing cancelled"));
+      layoutHome();
+      return;
+    }
   }
 
   /* Get the real BIP-39 seed for ZIP-32 Orchard derivation.
@@ -157,6 +176,17 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg) {
   zcash_signing.branch_id = msg->has_branch_id ? msg->branch_id : 0x37519621;
   zcash_signing.has_device_sighash = false;
   zcash_signing.verify_orchard_digest = false;
+  zcash_signing.n_transparent_inputs =
+      msg->has_n_transparent_inputs ? msg->n_transparent_inputs : 0;
+  zcash_signing.current_transparent_input = 0;
+
+  if (zcash_signing.n_transparent_inputs > ZCASH_MAX_TRANSPARENT_INPUTS) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Too many transparent inputs"));
+    zcash_signing.active = false;
+    layoutHome();
+    return;
+  }
 
   /* Phase 2a: Compute sighash on-device if sub-digests are provided.
    *
@@ -319,6 +349,20 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction *msg) {
     return;
   }
 
+  /* Enforce transparent phase completion: if the session declared
+   * transparent inputs, ALL must be signed before Orchard actions.
+   * This prevents a malicious host from skipping transparent-input
+   * confirmations and jumping straight to Orchard signing. */
+  if (zcash_signing.current_transparent_input <
+      zcash_signing.n_transparent_inputs) {
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                    _("Transparent inputs not yet complete"));
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
   /* Validate action index */
   if (!msg->has_index || msg->index != zcash_signing.current_action) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -473,4 +517,199 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction *msg) {
     resp_ack->next_index = zcash_signing.current_action;
     msg_write(MessageType_MessageType_ZcashPCZTActionAck, resp_ack);
   }
+}
+
+/* Phase 3: Transparent input signing for hybrid shielding transactions.
+ *
+ * The host sends one ZcashTransparentInput per transparent input after
+ * the initial ZcashSignPCZT. The device derives the secp256k1 key at
+ * the provided BIP44 path, ECDSA-signs the per-input sighash, and
+ * returns a DER signature.
+ *
+ * After all transparent inputs, the device transitions to the Orchard
+ * action phase (ZcashPCZTAction streaming). */
+void fsm_msgZcashTransparentInput(const ZcashTransparentInput *msg) {
+  RESP_INIT(ZcashTransparentSig);
+
+  if (!zcash_signing.active) {
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                    _("Not in Zcash signing mode"));
+    layoutHome();
+    return;
+  }
+
+  if (zcash_signing.n_transparent_inputs == 0) {
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                    _("No transparent inputs expected"));
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
+  if (msg->index != zcash_signing.current_transparent_input) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Unexpected transparent input index"));
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
+  if (msg->sighash.size != 32) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid sighash size"));
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
+  /* PATH ENFORCEMENT: transparent inputs must use exactly
+   * m/44'/133'/account'/change/index where:
+   *   - account' is hardened and matches the session account
+   *   - change is 0 (external) or 1 (internal)
+   *   - index is unhardened
+   *
+   * This prevents a compromised host from pivoting a shielding approval
+   * into signing with arbitrary secp256k1 keys on the device. */
+  if (msg->address_n_count != 5) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Path must be m/44'/133'/account'/change/index"));
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
+  if (msg->address_n[0] != (0x80000000 | 44) ||
+      msg->address_n[1] != (0x80000000 | 133)) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Path must start with m/44'/133'"));
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
+  /* Account must be hardened and match the approved session */
+  if (!(msg->address_n[2] & 0x80000000)) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Account must be hardened"));
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
+  uint32_t path_account = msg->address_n[2] & 0x7FFFFFFF;
+  if (path_account != zcash_signing.account) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Account does not match approved session"));
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
+  /* Change must be 0 (external) or 1 (internal), unhardened */
+  if (msg->address_n[3] > 1) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Change must be 0 or 1"));
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
+  /* Index must be unhardened */
+  if (msg->address_n[4] & 0x80000000) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Index must not be hardened"));
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
+  /* Per-input confirmation: show the user what's being signed */
+  {
+    char input_str[64];
+    uint64_t amt = msg->has_amount ? msg->amount : 0;
+    snprintf(input_str, sizeof(input_str), "Input %lu: %llu.%08llu ZEC",
+             (unsigned long)(msg->index + 1),
+             (unsigned long long)(amt / 100000000ULL),
+             (unsigned long long)(amt % 100000000ULL));
+    if (!confirm(ButtonRequestType_ButtonRequest_SignTx,
+                 "Sign Input", "Sign transparent input?\n%s",
+                 input_str)) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Signing cancelled"));
+      zcash_signing.active = false;
+      memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+      layoutHome();
+      return;
+    }
+  }
+
+  /* Derive the secp256k1 key at the validated Zcash BIP44 path */
+  const CoinType *coin = fsm_getCoin(true, "Zcash");
+  if (!coin) {
+    fsm_sendFailure(FailureType_Failure_Other, _("Unknown coin: Zcash"));
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
+  CONFIDENTIAL HDNode node;
+  if (!fsm_getDerivedNode(coin->curve_name, msg->address_n,
+                          msg->address_n_count, &node)) {
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
+  hdnode_fill_public_key(&node);
+
+  /* ECDSA sign the per-input sighash */
+  uint8_t sig[64];
+  if (hdnode_sign_digest(&node, msg->sighash.bytes, sig, NULL, NULL) != 0) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("ECDSA signing failed"));
+    memzero(&node, sizeof(node));
+    zcash_signing.active = false;
+    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    layoutHome();
+    return;
+  }
+
+  /* DER encode the signature */
+  uint8_t der_sig[73];
+  int der_len = ecdsa_sig_to_der(sig, der_sig);
+
+  /* Build response */
+  resp->has_signature = true;
+  resp->signature.size = der_len;
+  memcpy(resp->signature.bytes, der_sig, der_len);
+
+  zcash_signing.current_transparent_input++;
+  resp->has_next_index = true;
+
+  if (zcash_signing.current_transparent_input >=
+      zcash_signing.n_transparent_inputs) {
+    /* Done with transparent phase — signal transition to Orchard.
+     * 0xFF means "no more transparent inputs" */
+    resp->next_index = 0xFF;
+  } else {
+    resp->next_index = zcash_signing.current_transparent_input;
+  }
+
+  /* Clean up key material */
+  memzero(&node, sizeof(node));
+  memzero(sig, sizeof(sig));
+
+  msg_write(MessageType_MessageType_ZcashTransparentSig, resp);
+  layoutProgress(_("Signing Zcash"), 0);
 }
