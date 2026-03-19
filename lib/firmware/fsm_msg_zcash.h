@@ -689,8 +689,7 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput *msg) {
   uint8_t der_sig[73];
   int der_len = ecdsa_sig_to_der(sig, der_sig);
 
-  /* Build response */
-  resp->has_signature = true;
+  /* Build response — signature is a required field (no has_ prefix in nanopb) */
   resp->signature.size = der_len;
   memcpy(resp->signature.bytes, der_sig, der_len);
 
