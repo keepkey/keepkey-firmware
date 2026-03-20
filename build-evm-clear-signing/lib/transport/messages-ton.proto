@@ -1,0 +1,62 @@
+/*
+ * Messages (TON specific) for KeepKey Communication
+ *
+ */
+
+syntax = "proto2";
+
+// Sugar for easier handling in Java
+option java_package = "com.keepkey.deviceprotocol";
+option java_outer_classname = "KeepKeyMessageTon";
+
+/**
+ * Request: Ask device for TON address corresponding to address_n path
+ * @next PassphraseRequest
+ * @next TonAddress
+ * @next Failure
+ */
+message TonGetAddress {
+    repeated uint32 address_n = 1;                // BIP-32 path to derive the key from master node
+    optional string coin_name = 2 [default='Ton'];
+    optional bool show_display = 3;               // optionally show on display before sending the result
+    optional bool bounceable = 4 [default=true];  // bounceable flag for address encoding
+    optional bool testnet = 5 [default=false];    // testnet flag for address encoding
+    optional sint32 workchain = 6 [default=0];    // workchain ID (-1 or 0)
+}
+
+/**
+ * Response: Contains a TON address derived from device private seed
+ * @prev TonGetAddress
+ */
+message TonAddress {
+    optional string address = 1;                  // TON address in user-friendly Base64 encoding
+    optional string raw_address = 2;              // TON address in raw format (workchain:hash)
+}
+
+/**
+ * Request: ask device to sign TON transaction
+ * @start
+ * @next TonSignedTx
+ */
+message TonSignTx {
+    repeated uint32 address_n = 1;                // BIP-32 path to derive the key from master node
+    optional string coin_name = 2 [default='Ton'];
+    optional bytes raw_tx = 3;                    // Raw transaction data (serialized by client)
+    optional uint32 expire_at = 4;                // Transaction expiration timestamp
+    optional uint32 seqno = 5;                    // Wallet sequence number
+    optional sint32 workchain = 6 [default=0];    // Workchain ID (-1 or 0)
+    optional string to_address = 7;               // Destination address (for display)
+    optional uint64 amount = 8;                   // Transfer amount in nanoTON (for display)
+    // Clear-signing fields
+    optional bool bounce = 9;                     // Message bounce flag
+    optional string memo = 10;                    // Optional text memo/comment
+    optional bool is_deploy = 11;                 // True if wallet needs StateInit (first tx)
+}
+
+/**
+ * Response: signature for transaction
+ * @end
+ */
+message TonSignedTx {
+    optional bytes signature = 1;                 // Ed25519 signature (64 bytes)
+}

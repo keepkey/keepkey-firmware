@@ -32,7 +32,7 @@ ZcashOrchardFVK.nk                                  max_size:32
 ZcashOrchardFVK.rivk                                max_size:32
 
 ZcashTransparentInput.sighash                       max_size:32
-ZcashTransparentInput.address_n                     max_count:10
+ZcashTransparentInput.address_n                     max_count:8
 ZcashTransparentInput.amount                        int_size:IS_64
 
 ZcashTransparentSig.signature                       max_size:73
