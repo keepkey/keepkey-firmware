@@ -734,10 +734,19 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
 
   memset(confirm_body_message, 0, sizeof(confirm_body_message));
   if (token == NULL && data_total > 0 && data_needs_confirm) {
+    // EthBlindSign policy: hard gate when disabled
+    if (!storage_isPolicyEnabled("EthBlindSign")) {
+      (void)review(ButtonRequestType_ButtonRequest_Other, "Blocked",
+                   "Blind signing is disabled. Enable "
+                   "'EthBlindSign' policy to allow.");
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      "Blind signing disabled by policy");
+      ethereum_signing_abort();
+      return;
+    }
+
     // KeepKey custom: warn the user that they're trying to do something
-    // that is potentially dangerous. People (generally) aren't great at
-    // parsing raw transaction data, and we can't effectively show them
-    // what they're about to do in the general case.
+    // that is potentially dangerous.
     if (!storage_isPolicyEnabled("AdvancedMode")) {
       (void)review(
           ButtonRequestType_ButtonRequest_Other, "Warning",
