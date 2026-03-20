@@ -412,10 +412,10 @@ void fsm_msgSolanaSignTx(const SolanaSignTx *msg) {
         }
     } else if (review == SOL_TX_REVIEW_OPAQUE) {
         /* Unsupported or opaque message: allow explicit blind-sign only. */
-        if (!storage_isPolicyEnabled("SolBlindSign")) {
+        if (!storage_isPolicyEnabled("AdvancedMode")) {
             memzero(node, sizeof(*node));
             fsm_sendFailure(FailureType_Failure_Other,
-                            _("Solana blind signing is disabled"));
+                            _("Enable AdvancedMode to blind-sign"));
             layoutHome();
             return;
         }
