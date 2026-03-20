@@ -80,6 +80,8 @@ void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg) {
       if (MAX_PAGES <= page_count) {
         memzero(tokened_mnemonic, sizeof(tokened_mnemonic));
         memzero(formatted_mnemonic, sizeof(formatted_mnemonic));
+        memzero(mnemonic_display, sizeof(mnemonic_display));
+        memzero(formatted_word, sizeof(formatted_word));
         fsm_sendFailure(FailureType_Failure_Other,
                         "Too many pages of mnemonic words");
         layoutHome();
@@ -118,6 +120,8 @@ void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg) {
             formatted_mnemonic[current_page])) {
       memzero(tokened_mnemonic, sizeof(tokened_mnemonic));
       memzero(formatted_mnemonic, sizeof(formatted_mnemonic));
+      memzero(mnemonic_display, sizeof(mnemonic_display));
+      memzero(formatted_word, sizeof(formatted_word));
       display_constant_power(false);
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       "BIP-85 display cancelled");
