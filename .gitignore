@@ -2,4 +2,7 @@ bin/
 build/
 .DS_Store
 .vscode/
+zoo-output/
+scripts/zoo/node_modules/
+scripts/zoo/bun.lock
 
