@@ -704,12 +704,13 @@ void layout_cipher(const char *current_word, const char *cipher,
   call_leaving_handler();
   layout_clear();
 
-  /* Draw previous word info (small, top-right corner) */
+  /* Draw previous word info (small, top-left — must be x < 76 to avoid
+   * being wiped by cipher animation which clears x >= CIPHER_START_X) */
   if (prev_word_info && prev_word_info[0]) {
     sp.y = 2;
-    sp.x = 200;
+    sp.x = 4;
     sp.color = CIPHER_FONT_COLOR;  /* gray — less prominent than current word */
-    draw_string(canvas, title_font, prev_word_info, &sp, 56,
+    draw_string(canvas, title_font, prev_word_info, &sp, 68,
                 font_height(title_font));
   }
 
