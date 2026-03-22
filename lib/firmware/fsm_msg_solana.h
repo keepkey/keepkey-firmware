@@ -25,26 +25,20 @@ static bool solana_base58_encode(const uint8_t *data, size_t data_len,
     return b58enc(out, out_len, data, data_len);
 }
 
-/* Helper: Base58-encode a 32-byte pubkey for display (truncated) */
-static void solana_pubkeyToShort(const uint8_t key[SOL_PUBKEY_SIZE],
-                                 char *out, size_t out_len) {
-    char full[45];
-    size_t full_len = sizeof(full);
-    if (solana_base58_encode(key, SOL_PUBKEY_SIZE, full, &full_len)) {
-        /* Truncate: first 4 chars ... last 4 chars */
-        size_t slen = strlen(full);
-        if (slen > 9 && out_len > 10) {
-            snprintf(out, out_len, "%.4s...%.4s", full, full + slen - 4);
-        } else {
-            strncpy(out, full, out_len - 1);
-            out[out_len - 1] = '\0';
-        }
-    } else {
-        /* Fallback to hex if base58 fails */
-        snprintf(out, out_len,
-                 "%02x%02x...%02x%02x",
-                 key[0], key[1], key[30], key[31]);
+/* Helper: Base58-encode a 32-byte pubkey for display (full address).
+ * Solana base58 addresses are 32-44 chars; out must be >= 45 bytes.
+ * Never truncate — truncation is a spoofing vector. */
+static void solana_pubkeyToStr(const uint8_t key[SOL_PUBKEY_SIZE],
+                                char *out, size_t out_len) {
+    size_t enc_len = out_len;
+    if (solana_base58_encode(key, SOL_PUBKEY_SIZE, out, &enc_len)) {
+        /* b58enc null-terminates and sets enc_len including the NUL */
+        return;
     }
+    /* Fallback to hex if base58 fails (middle-ellipsis OK for raw hex) */
+    snprintf(out, out_len,
+             "%02x%02x...%02x%02x",
+             key[0], key[1], key[30], key[31]);
 }
 
 /* Confirm a single parsed instruction */
@@ -58,8 +52,8 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction *pi,
         case SOL_INSTR_SYSTEM_TRANSFER: {
             char amount_str[32];
             solana_formatAmount(amount_str, sizeof(amount_str), pi->lamports);
-            char to_str[32];
-            solana_pubkeyToShort(pi->to, to_str, sizeof(to_str));
+            char to_str[45];
+            solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
             return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                           title, "Send %s to %s?", amount_str, to_str);
         }
@@ -78,8 +72,8 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction *pi,
         case SOL_INSTR_SYSTEM_WITHDRAW_NONCE: {
             char amount_str[32];
             solana_formatAmount(amount_str, sizeof(amount_str), pi->lamports);
-            char to_str[32];
-            solana_pubkeyToShort(pi->to, to_str, sizeof(to_str));
+            char to_str[45];
+            solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
             return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                           title, "Withdraw nonce %s to %s?", amount_str, to_str);
         }
@@ -89,15 +83,15 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction *pi,
                           title, "Initialize nonce account?");
 
         case SOL_INSTR_SYSTEM_AUTHORIZE_NONCE: {
-            char auth_str[32];
-            solana_pubkeyToShort(pi->extra, auth_str, sizeof(auth_str));
+            char auth_str[45];
+            solana_pubkeyToStr(pi->extra, auth_str, sizeof(auth_str));
             return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                           title, "Authorize nonce to %s?", auth_str);
         }
 
         case SOL_INSTR_SYSTEM_ASSIGN: {
-            char prog_str[32];
-            solana_pubkeyToShort(pi->extra, prog_str, sizeof(prog_str));
+            char prog_str[45];
+            solana_pubkeyToStr(pi->extra, prog_str, sizeof(prog_str));
             return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                           title, "Assign account to %s?", prog_str);
         }
@@ -109,8 +103,8 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction *pi,
 
         case SOL_INSTR_TOKEN_TRANSFER:
         case SOL_INSTR_TOKEN_TRANSFER_CHECKED: {
-            char to_str[32];
-            solana_pubkeyToShort(pi->to, to_str, sizeof(to_str));
+            char to_str[45];
+            solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
 
             /* Try to find token info from host-provided metadata */
             const SolanaTokenInfo *ti = NULL;
@@ -135,8 +129,8 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction *pi,
         }
 
         case SOL_INSTR_TOKEN_APPROVE: {
-            char to_str[32];
-            solana_pubkeyToShort(pi->to, to_str, sizeof(to_str));
+            char to_str[45];
+            solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
             return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                           title, "Approve %llu tokens to %s?",
                           (unsigned long long)pi->amount, to_str);
@@ -147,8 +141,8 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction *pi,
                           title, "Revoke token approval?");
 
         case SOL_INSTR_TOKEN_SET_AUTHORITY: {
-            char auth_str[32];
-            solana_pubkeyToShort(pi->extra, auth_str, sizeof(auth_str));
+            char auth_str[45];
+            solana_pubkeyToStr(pi->extra, auth_str, sizeof(auth_str));
             return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                           title, "Set token authority to %s?", auth_str);
         }
@@ -192,8 +186,8 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction *pi,
         }
 
         case SOL_INSTR_STAKE_AUTHORIZE: {
-            char auth_str[32];
-            solana_pubkeyToShort(pi->extra, auth_str, sizeof(auth_str));
+            char auth_str[45];
+            solana_pubkeyToStr(pi->extra, auth_str, sizeof(auth_str));
             return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                           title, "Authorize stake to %s?", auth_str);
         }
@@ -214,8 +208,8 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction *pi,
                           title, "Merge stake accounts?");
 
         case SOL_INSTR_VOTE_AUTHORIZE: {
-            char auth_str[32];
-            solana_pubkeyToShort(pi->extra, auth_str, sizeof(auth_str));
+            char auth_str[45];
+            solana_pubkeyToStr(pi->extra, auth_str, sizeof(auth_str));
             return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                           title, "Authorize vote to %s?", auth_str);
         }
@@ -228,8 +222,8 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction *pi,
         }
 
         case SOL_INSTR_VOTE_UPDATE_VALIDATOR: {
-            char validator_str[32];
-            solana_pubkeyToShort(pi->extra, validator_str, sizeof(validator_str));
+            char validator_str[45];
+            solana_pubkeyToStr(pi->extra, validator_str, sizeof(validator_str));
             return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                           title, "Update validator to %s?", validator_str);
         }
@@ -268,8 +262,8 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction *pi,
 
         case SOL_INSTR_UNKNOWN:
         default: {
-            char prog_str[32];
-            solana_pubkeyToShort(pi->program_id, prog_str, sizeof(prog_str));
+            char prog_str[45];
+            solana_pubkeyToStr(pi->program_id, prog_str, sizeof(prog_str));
             return confirm(ButtonRequestType_ButtonRequest_SignTx,
                           title,
                           "Unknown instruction to program %s. "
