@@ -376,8 +376,16 @@ void next_character(void) {
   format_current_word(word_pos, current_word, auto_completed, &formatted_word);
   memzero(current_word, sizeof(current_word));
 
+  /* Format previous word indicator (e.g. "prev:3" when entering word 4) */
+  static char prev_info[16];
+  if (word_pos > 0) {
+    snprintf(prev_info, sizeof(prev_info), "prev:%" PRIu32, word_pos);
+  } else {
+    prev_info[0] = '\0';
+  }
+
   /* Show cipher and partial word */
-  layout_cipher(formatted_word, cipher);
+  layout_cipher(formatted_word, cipher, prev_info);
   memzero(formatted_word, sizeof(formatted_word));
 }
 
