@@ -177,6 +177,12 @@ const char *storage_getPin(void);
 const char *storage_getMnemonic(void);
 HDNode *storage_getNode(void);
 void storage_dumpNode(HDNodeType *dst, const HDNode *src);
+
+/// Return the 64-byte BIP-39 seed (PBKDF2 output).
+/// Needed by ZIP-32 Orchard which derives keys from the raw seed,
+/// not from a BIP-32 root node.  The returned pointer is to a
+/// CONFIDENTIAL session buffer — it MUST NOT be serialized to USB.
+const uint8_t *storage_getRawSeed(bool usePassphrase);
 #endif
 
 #endif
