@@ -129,4 +129,9 @@ void fsm_msgFlashWrite(FlashWrite *msg);
 void fsm_msgFlashHash(FlashHash *msg);
 void fsm_msgSoftReset(SoftReset *msg);
 
+
+void fsm_msgSolanaGetAddress(const SolanaGetAddress *msg);
+void fsm_msgSolanaSignTx(const SolanaSignTx *msg);
+void fsm_msgSolanaSignMessage(const SolanaSignMessage *msg);
+
 #endif
