@@ -146,3 +146,8 @@
     DEBUG_OUT(MessageType_MessageType_DebugLinkLog,                 DebugLinkLog,                NO_PROCESS_FUNC)
     DEBUG_OUT(MessageType_MessageType_DebugLinkFlashDumpResponse,   DebugLinkFlashDumpResponse,  NO_PROCESS_FUNC)
 #endif
+
+    MSG_IN(MessageType_MessageType_TonGetAddress, TonGetAddress, fsm_msgTonGetAddress)
+    MSG_IN(MessageType_MessageType_TonSignTx, TonSignTx, fsm_msgTonSignTx)
+    MSG_OUT(MessageType_MessageType_TonAddress, TonAddress, NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_TonSignedTx, TonSignedTx, NO_PROCESS_FUNC)
