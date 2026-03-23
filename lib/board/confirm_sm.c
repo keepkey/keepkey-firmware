@@ -318,6 +318,28 @@ bool confirm(ButtonRequestType type, const char *request_title, const char *requ
     return ret;
 }
 
+bool confirm_with_icon(ButtonRequestType type, IconType iconNum,
+                       const char *request_title, const char *request_body,
+                       ...)
+{
+    button_request_acked = false;
+
+    va_list vl;
+    va_start(vl, request_body);
+    vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+    va_end(vl);
+
+    ButtonRequest resp;
+    memset(&resp, 0, sizeof(ButtonRequest));
+    resp.has_code = true;
+    resp.code = type;
+    msg_write(MessageType_MessageType_ButtonRequest, &resp);
+
+    bool ret = confirm_helper(request_title, strbuf, &layout_standard_notification, false, iconNum, false);
+    memzero(strbuf, sizeof(strbuf));
+    return ret;
+}
+
 bool confirm_constant_power(ButtonRequestType type, const char *request_title, const char *request_body,
              ...)
 {
