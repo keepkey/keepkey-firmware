@@ -388,6 +388,78 @@ def flow_recovery_cipher_24(client, out):
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# Flow: TRON
+# ═══════════════════════════════════════════════════════════════════════
+
+def flow_tron_send(client, out):
+    """TRON address display + sign transaction."""
+    reset_device(client)
+
+    print("  [tron] Get TRON address...")
+    try:
+        client.tron_get_address(
+            [44 | 0x80000000, 195 | 0x80000000, 0 | 0x80000000, 0, 0],
+            show_display=True)
+        capture(client, out, '01-tron-get-address.png')
+    except Exception as e:
+        print(f"    tron address not available: {e}")
+
+    print("  [tron] Sign TRX transfer...")
+    try:
+        client.tron_sign_tx(
+            address_n=[44 | 0x80000000, 195 | 0x80000000, 0 | 0x80000000, 0, 0],
+            raw_tx=b'\x00' * 64)
+        capture(client, out, '02-tron-sign.png')
+    except Exception as e:
+        print(f"    tron sign not available: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Flow: TON
+# ═══════════════════════════════════════════════════════════════════════
+
+def flow_ton_send(client, out):
+    """TON address display (bounceable + non-bounceable)."""
+    reset_device(client)
+
+    print("  [ton] Get TON address (bounceable)...")
+    try:
+        client.ton_get_address(
+            [44 | 0x80000000, 607 | 0x80000000, 0 | 0x80000000],
+            show_display=True)
+        capture(client, out, '01-ton-get-address-bounceable.png')
+    except Exception as e:
+        print(f"    ton address not available: {e}")
+
+    print("  [ton] Sign TON transaction...")
+    try:
+        client.ton_sign_tx(
+            address_n=[44 | 0x80000000, 607 | 0x80000000, 0 | 0x80000000],
+            raw_tx=b'\x00' * 64)
+        capture(client, out, '02-ton-sign.png')
+    except Exception as e:
+        print(f"    ton sign not available: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Flow: Zcash Orchard
+# ═══════════════════════════════════════════════════════════════════════
+
+def flow_zcash_fvk(client, out):
+    """Zcash Orchard Full Viewing Key derivation."""
+    reset_device(client)
+
+    print("  [zcash] Get Orchard FVK...")
+    try:
+        client.zcash_get_orchard_fvk(
+            address_n=[32 | 0x80000000, 133 | 0x80000000, 0 | 0x80000000],
+            account=0)
+        capture(client, out, '01-zcash-orchard-fvk.png')
+    except Exception as e:
+        print(f"    zcash fvk not available: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # Flow Registry
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -396,6 +468,9 @@ FLOWS = {
     'btc-sign': flow_btc_sign,
     'eth-send': flow_eth_send,
     'solana-address': flow_solana_address,
+    'tron-send': flow_tron_send,
+    'ton-send': flow_ton_send,
+    'zcash-fvk': flow_zcash_fvk,
     'recovery-cipher': flow_recovery_cipher,
     'recovery-cipher-pin': flow_recovery_cipher_with_pin,
     'recovery-cipher-24': flow_recovery_cipher_24,
