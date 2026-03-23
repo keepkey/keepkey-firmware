@@ -46,6 +46,7 @@
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/mayachain.h"
+#include "keepkey/firmware/zcash.h"
 #include "keepkey/firmware/osmosis.h"
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/pin_sm.h"
@@ -284,3 +285,4 @@ void fsm_msgClearSession(ClearSession *msg) {
 #include "fsm_msg_tendermint.h"
 #include "fsm_msg_thorchain.h"
 #include "fsm_msg_mayachain.h"
+#include "fsm_msg_zcash.h"

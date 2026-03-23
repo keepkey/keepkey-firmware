@@ -146,3 +146,12 @@
     DEBUG_OUT(MessageType_MessageType_DebugLinkLog,                 DebugLinkLog,                NO_PROCESS_FUNC)
     DEBUG_OUT(MessageType_MessageType_DebugLinkFlashDumpResponse,   DebugLinkFlashDumpResponse,  NO_PROCESS_FUNC)
 #endif
+
+    MSG_IN(MessageType_MessageType_ZcashSignPCZT, ZcashSignPCZT, fsm_msgZcashSignPczt)
+    MSG_IN(MessageType_MessageType_ZcashPCZTAction, ZcashPCZTAction, fsm_msgZcashPcztAction)
+    MSG_IN(MessageType_MessageType_ZcashGetOrchardFVK, ZcashGetOrchardFVK, fsm_msgZcashGetOrchardFvk)
+    MSG_IN(MessageType_MessageType_ZcashTransparentInput, ZcashTransparentInput, fsm_msgZcashTransparentInput)
+    MSG_OUT(MessageType_MessageType_ZcashPCZTActionAck, ZcashPCZTActionAck, NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_ZcashSignedPCZT, ZcashSignedPCZT, NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_ZcashOrchardFVK, ZcashOrchardFVK, NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_ZcashTransparentSig, ZcashTransparentSig, NO_PROCESS_FUNC)

@@ -129,4 +129,10 @@ void fsm_msgFlashWrite(FlashWrite *msg);
 void fsm_msgFlashHash(FlashHash *msg);
 void fsm_msgSoftReset(SoftReset *msg);
 
+
+void fsm_msgZcashSignPczt(const ZcashSignPCZT *msg);
+void fsm_msgZcashPcztAction(const ZcashPCZTAction *msg);
+void fsm_msgZcashGetOrchardFvk(const ZcashGetOrchardFVK *msg);
+void fsm_msgZcashTransparentInput(const ZcashTransparentInput *msg);
+
 #endif

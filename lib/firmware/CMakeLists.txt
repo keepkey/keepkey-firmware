@@ -2,6 +2,7 @@ set(sources
     app_confirm.c
     app_layout.c
     authenticator.c
+    zcash.c
     binance.c
     coins.c
     crypto.c
