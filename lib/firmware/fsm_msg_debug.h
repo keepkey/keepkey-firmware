@@ -46,6 +46,33 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg) {
   resp->storage_hash.size =
       memory_storage_hash(resp->storage_hash.bytes, storage_getLocation());
 
+  /* Force pending animations to render before reading the canvas.
+   * Without this, animated elements (cipher grid, PIN matrix) won't
+   * appear in DebugLink screenshots — only static text is captured.
+   * force_animation_start() sets animate_flag so animate() will run. */
+  force_animation_start();
+  animate();
+  display_refresh();
+
+  /* Pack 256x64 grayscale canvas into 1bpp layout for screenshot capture.
+   * Each byte in layout holds 8 vertical pixels (LSB = top).
+   * Total: 256 columns x (64/8) rows = 2048 bytes. */
+  {
+    Canvas *c = display_canvas();
+    if (c && c->buffer) {
+      resp->has_layout = true;
+      resp->layout.size = 2048;
+      memset(resp->layout.bytes, 0, 2048);
+      for (int x = 0; x < 256; x++) {
+        for (int y = 0; y < 64; y++) {
+          if (c->buffer[y * 256 + x] > 0) {
+            resp->layout.bytes[x + (y / 8) * 256] |= (1 << (y % 8));
+          }
+        }
+      }
+    }
+  }
+
   msg_debug_write(MessageType_MessageType_DebugLinkState, resp);
 }
 
