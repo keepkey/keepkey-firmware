@@ -129,4 +129,8 @@ void fsm_msgFlashWrite(FlashWrite *msg);
 void fsm_msgFlashHash(FlashHash *msg);
 void fsm_msgSoftReset(SoftReset *msg);
 
+
+void fsm_msgTronGetAddress(const TronGetAddress *msg);
+void fsm_msgTronSignTx(TronSignTx *msg);
+
 #endif

@@ -146,3 +146,8 @@
     DEBUG_OUT(MessageType_MessageType_DebugLinkLog,                 DebugLinkLog,                NO_PROCESS_FUNC)
     DEBUG_OUT(MessageType_MessageType_DebugLinkFlashDumpResponse,   DebugLinkFlashDumpResponse,  NO_PROCESS_FUNC)
 #endif
+
+    MSG_IN(MessageType_MessageType_TronGetAddress, TronGetAddress, fsm_msgTronGetAddress)
+    MSG_IN(MessageType_MessageType_TronSignTx, TronSignTx, fsm_msgTronSignTx)
+    MSG_OUT(MessageType_MessageType_TronAddress, TronAddress, NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_TronSignedTx, TronSignedTx, NO_PROCESS_FUNC)
