@@ -376,8 +376,16 @@ void next_character(void) {
   format_current_word(word_pos, current_word, auto_completed, &formatted_word);
   memzero(current_word, sizeof(current_word));
 
+  /* Format previous word indicator (e.g. "prev:3" when entering word 4) */
+  static char prev_info[16];
+  if (word_pos > 0) {
+    snprintf(prev_info, sizeof(prev_info), "prev:%" PRIu32, word_pos);
+  } else {
+    prev_info[0] = '\0';
+  }
+
   /* Show cipher and partial word */
-  layout_cipher(formatted_word, cipher);
+  layout_cipher(formatted_word, cipher, prev_info);
   memzero(formatted_word, sizeof(formatted_word));
 }
 
@@ -462,6 +470,24 @@ void recovery_character(const char *character) {
       }
     }
   } else {
+    /* Per-word BIP39 validation: reject immediately if the decoded word
+     * doesn't match any entry in the wordlist. */
+    if (enforce_wordlist && strlen(decoded_word) > 0) {
+      static CONFIDENTIAL char check_word[CURRENT_WORD_BUF];
+      strlcpy(check_word, decoded_word, sizeof(check_word));
+      bool valid = attempt_auto_complete(check_word);
+      memzero(check_word, sizeof(check_word));
+      if (!valid) {
+        memzero(coded_word, sizeof(coded_word));
+        memzero(decoded_word, sizeof(decoded_word));
+        recovery_cipher_abort();
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        "Word not found in BIP39 wordlist");
+        layoutHome();
+        return;
+      }
+    }
+
     memzero(coded_word, sizeof(coded_word));
     memzero(decoded_word, sizeof(decoded_word));
 
@@ -575,7 +601,7 @@ void recovery_cipher_finalize(void) {
   }
   memzero(temp_word, sizeof(temp_word));
 
-  if (!auto_completed && !enforce_wordlist) {
+  if (!auto_completed && enforce_wordlist) {
     if (!dry_run) {
       storage_reset();
     }

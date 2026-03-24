@@ -1,0 +1,9 @@
+{
+  "name": "keepkey-zoo-report-scripts",
+  "private": true,
+  "dependencies": {
+    "sharp": "^0.34.5",
+    "pdf-lib": "^1.17.1",
+    "qrcode": "^1.5.4"
+  }
+}

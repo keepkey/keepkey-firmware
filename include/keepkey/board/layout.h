@@ -79,6 +79,7 @@ typedef enum {
 typedef enum {
   NO_ICON=0,
   ETHEREUM_ICON,
+  VERIFIED_ICON,
 } IconType;
 
 typedef void (*AnimateCallback)(void *data, uint32_t duration,

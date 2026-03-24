@@ -695,13 +695,24 @@ void layout_pin(const char *str, char pin[]) {
  * OUTPUT
  *     none
  */
-void layout_cipher(const char *current_word, const char *cipher) {
+void layout_cipher(const char *current_word, const char *cipher,
+                    const char *prev_word_info) {
   DrawableParams sp;
   const Font *title_font = get_body_font();
   Canvas *canvas = layout_get_canvas();
 
   call_leaving_handler();
   layout_clear();
+
+  /* Draw previous word info (small, top-left — must be x < 76 to avoid
+   * being wiped by cipher animation which clears x >= CIPHER_START_X) */
+  if (prev_word_info && prev_word_info[0]) {
+    sp.y = 2;
+    sp.x = 4;
+    sp.color = CIPHER_FONT_COLOR;  /* gray — less prominent than current word */
+    draw_string(canvas, title_font, prev_word_info, &sp, 68,
+                font_height(title_font));
+  }
 
   /* Draw prompt */
   sp.y = 11;
