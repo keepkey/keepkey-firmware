@@ -24,6 +24,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'deps', '
 from keepkeylib.client import KeepKeyDebuglinkClient
 from keepkeylib.transport_udp import UDPTransport
 from keepkeylib import messages_pb2 as proto
+from keepkeylib import messages_ethereum_pb2 as eth_proto
+from keepkeylib import messages_solana_pb2 as sol_proto
+from keepkeylib import messages_tron_pb2 as tron_proto
+from keepkeylib import messages_ton_pb2 as ton_proto
+from keepkeylib import messages_zcash_pb2 as zec_proto
 from screenshot import capture_screenshot
 
 
@@ -36,12 +41,14 @@ def make_client():
     client = KeepKeyDebuglinkClient(transport)
     debug_transport = UDPTransport(debug_host)
     client.set_debuglink(debug_transport)
-
+    # Disable auto-confirm so we control capture timing
+    client.auto_button = False
     return client
 
 
 def reset_device(client, mnemonic='all ' * 11 + 'all'):
     """Wipe and load a known mnemonic for deterministic screenshots."""
+    client.auto_button = True  # auto-confirm for setup
     client.wipe_device()
     client.load_device_by_mnemonic(
         mnemonic=mnemonic.strip(),
@@ -50,14 +57,17 @@ def reset_device(client, mnemonic='all ' * 11 + 'all'):
         label='KeepKey Zoo',
         language='english',
     )
+    client.auto_button = False  # back to manual for captures
 
 
 def capture(client, output_dir, name):
     """Capture current OLED state to output_dir/name.png."""
     path = os.path.join(output_dir, name)
-    ok = capture_screenshot(client.debug, path)
+    ok = capture_screenshot(client.debug, path, scale=3)
     if ok:
-        print(f"    -> {name}")
+        fsize = os.path.getsize(path)
+        status = 'OK' if fsize > 400 else 'BLANK?'
+        print(f"    [{status}] {name} ({fsize}B)")
     return ok
 
 
@@ -71,20 +81,36 @@ def capture_with_meta(client, output_dir, name, meta):
     return ok
 
 
+def send_and_capture(client, msg, output_dir, screen_name):
+    """Send msg, wait for ButtonRequest, capture OLED, then confirm.
+
+    Core pattern: send -> ButtonRequest (screen displayed) -> capture -> press -> advance.
+    """
+    ret = client.call_raw(msg)
+    while isinstance(ret, proto.ButtonRequest):
+        time.sleep(0.15)  # animation flush
+        capture(client, output_dir, screen_name)
+        client.debug.press_yes()
+        ret = client.call_raw(proto.ButtonAck())
+    return ret
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # Flow: BTC Send
 # ═══════════════════════════════════════════════════════════════════════
 
 def flow_btc_send(client, out):
-    """Bitcoin send flow — address display + sign transaction."""
+    """Bitcoin send flow — address display."""
     from keepkeylib import tx_api
     client.set_tx_api(tx_api.TxApiBitcoin)
     reset_device(client)
 
     print("  [btc-send] Get address (show on device)...")
-    # Show a BTC address on device
-    client.get_address('Bitcoin', [44 | 0x80000000, 0 | 0x80000000, 0 | 0x80000000, 0, 0], show_display=True)
-    capture(client, out, '01-btc-get-address.png')
+    send_and_capture(client, proto.GetAddress(
+        address_n=[44 | 0x80000000, 0 | 0x80000000, 0 | 0x80000000, 0, 0],
+        coin_name='Bitcoin',
+        show_display=True,
+    ), out, '01-btc-get-address.png')
 
 
 def flow_btc_sign(client, out):
@@ -121,12 +147,14 @@ def flow_btc_sign(client, out):
 # ═══════════════════════════════════════════════════════════════════════
 
 def flow_eth_send(client, out):
-    """Ethereum send flow — address + sign transaction."""
+    """Ethereum send flow — address display."""
     reset_device(client)
 
     print("  [eth-send] Get ETH address...")
-    client.ethereum_get_address([44 | 0x80000000, 60 | 0x80000000, 0 | 0x80000000, 0, 0], show_display=True)
-    capture(client, out, '01-eth-get-address.png')
+    send_and_capture(client, eth_proto.EthereumGetAddress(
+        address_n=[44 | 0x80000000, 60 | 0x80000000, 0 | 0x80000000, 0, 0],
+        show_display=True,
+    ), out, '01-eth-get-address.png')
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -134,13 +162,15 @@ def flow_eth_send(client, out):
 # ═══════════════════════════════════════════════════════════════════════
 
 def flow_solana_address(client, out):
-    """Solana get address (if supported)."""
+    """Solana get address — full 44-char base58."""
     reset_device(client)
 
     print("  [solana] Get Solana address...")
     try:
-        client.solana_get_address([44 | 0x80000000, 501 | 0x80000000, 0 | 0x80000000], show_display=True)
-        capture(client, out, '01-sol-get-address.png')
+        send_and_capture(client, sol_proto.SolanaGetAddress(
+            address_n=[44 | 0x80000000, 501 | 0x80000000, 0 | 0x80000000],
+            show_display=True,
+        ), out, '01-sol-get-address.png')
     except Exception as e:
         print(f"    solana not available: {e}")
 
@@ -392,26 +422,17 @@ def flow_recovery_cipher_24(client, out):
 # ═══════════════════════════════════════════════════════════════════════
 
 def flow_tron_send(client, out):
-    """TRON address display + sign transaction."""
+    """TRON address display."""
     reset_device(client)
 
     print("  [tron] Get TRON address...")
     try:
-        client.tron_get_address(
-            [44 | 0x80000000, 195 | 0x80000000, 0 | 0x80000000, 0, 0],
-            show_display=True)
-        capture(client, out, '01-tron-get-address.png')
-    except Exception as e:
-        print(f"    tron address not available: {e}")
-
-    print("  [tron] Sign TRX transfer...")
-    try:
-        client.tron_sign_tx(
+        send_and_capture(client, tron_proto.TronGetAddress(
             address_n=[44 | 0x80000000, 195 | 0x80000000, 0 | 0x80000000, 0, 0],
-            raw_tx=b'\x00' * 64)
-        capture(client, out, '02-tron-sign.png')
+            show_display=True,
+        ), out, '01-tron-get-address.png')
     except Exception as e:
-        print(f"    tron sign not available: {e}")
+        print(f"    tron not available: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -419,24 +440,15 @@ def flow_tron_send(client, out):
 # ═══════════════════════════════════════════════════════════════════════
 
 def flow_ton_send(client, out):
-    """TON address display (bounceable + non-bounceable)."""
+    """TON address display."""
     reset_device(client)
 
-    print("  [ton] Get TON address (bounceable)...")
+    print("  [ton] Get TON address...")
     try:
-        client.ton_get_address(
-            [44 | 0x80000000, 607 | 0x80000000, 0 | 0x80000000],
-            show_display=True)
-        capture(client, out, '01-ton-get-address-bounceable.png')
-    except Exception as e:
-        print(f"    ton address not available: {e}")
-
-    print("  [ton] Sign TON transaction...")
-    try:
-        client.ton_sign_tx(
+        send_and_capture(client, ton_proto.TonGetAddress(
             address_n=[44 | 0x80000000, 607 | 0x80000000, 0 | 0x80000000],
-            raw_tx=b'\x00' * 64)
-        capture(client, out, '02-ton-sign.png')
+            show_display=True,
+        ), out, '01-ton-get-address.png')
     except Exception as e:
         print(f"    ton sign not available: {e}")
 
@@ -451,10 +463,9 @@ def flow_zcash_fvk(client, out):
 
     print("  [zcash] Get Orchard FVK...")
     try:
-        client.zcash_get_orchard_fvk(
+        send_and_capture(client, zec_proto.ZcashGetOrchardFVK(
             address_n=[32 | 0x80000000, 133 | 0x80000000, 0 | 0x80000000],
-            account=0)
-        capture(client, out, '01-zcash-orchard-fvk.png')
+        ), out, '01-zcash-orchard-fvk.png')
     except Exception as e:
         print(f"    zcash fvk not available: {e}")
 
