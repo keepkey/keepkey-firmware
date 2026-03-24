@@ -130,6 +130,8 @@ void fsm_msgFlashHash(FlashHash *msg);
 void fsm_msgSoftReset(SoftReset *msg);
 
 
+void fsm_msgTronGetAddress(const TronGetAddress *msg);
+void fsm_msgTronSignTx(TronSignTx *msg);
 void fsm_msgSolanaGetAddress(const SolanaGetAddress *msg);
 void fsm_msgSolanaSignTx(const SolanaSignTx *msg);
 void fsm_msgSolanaSignMessage(const SolanaSignMessage *msg);
