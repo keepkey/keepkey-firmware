@@ -2,6 +2,7 @@ set(sources
     app_confirm.c
     app_layout.c
     authenticator.c
+    ton.c
     tron.c
     solana.c
     signed_metadata.c
