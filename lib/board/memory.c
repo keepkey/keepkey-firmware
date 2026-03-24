@@ -44,8 +44,16 @@
 uint8_t *emulator_flash_base = NULL;
 #endif
 
+#ifndef EMULATOR
 extern unsigned end;    // This is at the end of the data + bss, used for recursion guard
+#endif
+
 int memcheck(unsigned stackGuardSize) {
+#ifdef EMULATOR
+    // In emulator, we have plenty of stack space, just return STACK_GOOD
+    (void)stackGuardSize;
+    return STACK_GOOD;
+#else
     void *stackBottom;    // this is the bottom of the stack, it is shrinking toward static mem at variable "end".
     //char buf[33] = {0};
     //snprintf(buf, 64, "RAM available %u", (unsigned)&stackBottom - (unsigned)&end);
@@ -56,6 +64,7 @@ int memcheck(unsigned stackGuardSize) {
     } else {
         return STACK_GOOD;
     }
+#endif
 }
 
 void mpu_config(int priv_level) {
