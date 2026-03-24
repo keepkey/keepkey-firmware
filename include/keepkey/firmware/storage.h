@@ -69,7 +69,10 @@ void storage_loadDevice(LoadDevice *msg);
 /// \return true iff the root node was found.
 bool storage_getRootNode(const char *curve, bool usePassphrase, HDNode *node);
 
-/// \brief Get the raw 64-byte BIP-39 seed, triggering passphrase if needed.
+/// \brief Get the raw 64-byte BIP-39 seed (PBKDF2 output).
+/// Used by ZIP-32 Orchard (derives keys from raw seed, not BIP-32 root).
+/// The returned pointer is to a CONFIDENTIAL session buffer —
+/// it MUST NOT be serialized to USB.
 /// \param usePassphrase[in]  Whether to use the passphrase.
 /// \returns pointer to 64-byte seed, or NULL on failure.
 const uint8_t *storage_getRawSeed(bool usePassphrase);
@@ -183,11 +186,6 @@ const char *storage_getMnemonic(void);
 HDNode *storage_getNode(void);
 void storage_dumpNode(HDNodeType *dst, const HDNode *src);
 
-/// Return the 64-byte BIP-39 seed (PBKDF2 output).
-/// Needed by ZIP-32 Orchard which derives keys from the raw seed,
-/// not from a BIP-32 root node.  The returned pointer is to a
-/// CONFIDENTIAL session buffer — it MUST NOT be serialized to USB.
-const uint8_t *storage_getRawSeed(bool usePassphrase);
 #endif
 
 #endif
