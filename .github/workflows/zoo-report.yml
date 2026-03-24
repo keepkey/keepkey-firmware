@@ -1,0 +1,105 @@
+name: Zoo Report
+
+on:
+  pull_request:
+    branches: [develop, master]
+    types: [opened, synchronize]
+  push:
+    branches: ['release/**']
+
+jobs:
+  zoo-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout firmware
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.5'
+
+      - name: Check zoo scripts exist
+        id: zoo-check
+        run: |
+          if [ -f scripts/zoo/package.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::scripts/zoo/ not on this branch — skipping report generation"
+          fi
+
+      - name: Install report dependencies
+        if: steps.zoo-check.outputs.exists == 'true'
+        working-directory: scripts/zoo
+        run: bun install
+
+      - name: Generate master zoo report
+        if: steps.zoo-check.outputs.exists == 'true'
+        run: |
+          bun scripts/zoo/generate-zoo-report.ts \
+            --firmware-dir=${{ github.workspace }} \
+            --pr-number=${{ github.event.pull_request.number || '0' }} \
+            --pr-title="${{ github.event.pull_request.title || github.ref_name }}" \
+            --output=${{ github.workspace }}/zoo-report.pdf
+
+      - name: Upload master zoo report PDF
+        if: steps.zoo-check.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: zoo-report-${{ github.event.pull_request.number || github.ref_name }}
+          path: zoo-report.pdf
+          retention-days: 90
+
+      - name: Upload zoo page PNGs
+        if: steps.zoo-check.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: zoo-pages-${{ github.event.pull_request.number || github.ref_name }}
+          path: zoo-output/pages/
+          retention-days: 90
+
+      - name: Upload per-feature reports
+        if: steps.zoo-check.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: zoo-feature-reports-${{ github.event.pull_request.number || github.ref_name }}
+          path: docs/zoo/reports/*.md
+          retention-days: 90
+
+      - name: Upload testing guides
+        if: steps.zoo-check.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: zoo-testing-guides-${{ github.event.pull_request.number || github.ref_name }}
+          path: docs/testing/*.md
+          retention-days: 90
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && steps.zoo-check.outputs.exists == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: [
+                '## Zoo Report',
+                '',
+                'Device screen mockup report generated.',
+                '',
+                `**[Download zoo-report.pdf](${runUrl}#artifacts)** — Master report (49 screens, 20 flows)`,
+                `**[Download zoo-pages PNGs](${runUrl}#artifacts)** — Individual screen mockups`,
+                `**[Download feature reports](${runUrl}#artifacts)** — Per-chain device screen reviews`,
+                `**[Download testing guides](${runUrl}#artifacts)** — Layer 2/3/4 test plans`,
+              ].join('\n'),
+            });
