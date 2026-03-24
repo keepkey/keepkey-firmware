@@ -214,6 +214,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      - name: Sync submodule URLs from .gitmodules
+        run: git submodule sync --recursive
+
       - name: Init submodules
         run: |
           git submodule update --init deps/crypto/trezor-firmware
@@ -222,6 +225,8 @@ jobs:
           git submodule update --init deps/googletest
           git submodule update --init deps/qrenc/QR-Code-generator
           git submodule update --init deps/sca-hardening/SecAESSTM32
+          echo "=== device-protocol contents ==="
+          ls deps/device-protocol/messages-zcash.proto 2>/dev/null && echo "zcash proto: FOUND" || echo "zcash proto: MISSING"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -270,6 +275,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      - name: Sync submodule URLs from .gitmodules
+        run: git submodule sync --recursive
+
       - name: Init submodules
         run: |
           git submodule update --init deps/crypto/trezor-firmware
@@ -278,6 +286,8 @@ jobs:
           git submodule update --init deps/googletest
           git submodule update --init deps/qrenc/QR-Code-generator
           git submodule update --init deps/sca-hardening/SecAESSTM32
+          echo "=== device-protocol contents ==="
+          ls deps/device-protocol/messages-zcash.proto 2>/dev/null && echo "zcash proto: FOUND" || echo "zcash proto: MISSING"
 
       - name: Cache base image
         id: cache-base
@@ -392,6 +402,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      - name: Sync submodule URLs from .gitmodules
+        run: git submodule sync --recursive
+
       - name: Init submodules
         run: |
           git submodule update --init deps/crypto/trezor-firmware
@@ -400,6 +413,8 @@ jobs:
           git submodule update --init deps/googletest
           git submodule update --init deps/qrenc/QR-Code-generator
           git submodule update --init deps/sca-hardening/SecAESSTM32
+          echo "=== device-protocol contents ==="
+          ls deps/device-protocol/messages-zcash.proto 2>/dev/null && echo "zcash proto: FOUND" || echo "zcash proto: MISSING"
 
       - name: Build and run tests (docker compose)
         working-directory: scripts/emulator
