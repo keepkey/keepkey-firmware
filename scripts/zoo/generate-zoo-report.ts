@@ -81,6 +81,8 @@ const ALL_FLOWS: FlowMeta[] = ([
     accent: '#EF4444',
     securityLevel: 'high',
     why: 'Verified: fsm_msg_ethereum.h:372,378. Firmware shows HASH DIGESTS of domain/message  -- NOT decoded permit fields. User sees hex, cannot verify token/amount/spender.',
+    securityLevel: 'critical',
+    why: 'CRITICAL: Firmware shows HASH DIGESTS only — NOT decoded permit fields. User sees hex, cannot verify token/amount/spender/deadline. Blind signing risk for EIP-712.',
   },
   {
     name: 'ERC-20 Tokens',
@@ -160,6 +162,44 @@ const ALL_FLOWS: FlowMeta[] = ([
     why: 'Verified: fsm_msg_bip85.h:28. Display-only child seed derivation.',
   },
   // TODO: Setup, PIN, Recovery, Passphrase, Wipe -- needs emulator
+    securityLevel: 'critical',
+    why: 'CRITICAL: Displays derived child mnemonic on OLED. Never sent over USB. Incorrect display = user backs up wrong seed = permanent fund loss.',
+  },
+  {
+    name: 'Device Setup',
+    pages: SETUP_FLOW,
+    accent: '#6366F1',
+    securityLevel: 'critical',
+    why: 'CRITICAL: Seed generation and display. Source: reset.c. Seed words shown on OLED — only opportunity to back up. Incorrect backup = permanent fund loss.',
+  },
+  {
+    name: 'PIN Entry',
+    pages: PIN_FLOW,
+    accent: '#6366F1',
+    securityLevel: 'critical',
+    why: 'CRITICAL: PIN protects all device operations. Randomized 3x3 grid — host never sees digit positions. Wrong PIN = exponential backoff. Remove PIN = device unprotected.',
+  },
+  {
+    name: 'Recovery Cipher',
+    pages: RECOVERY_FLOW,
+    accent: '#6366F1',
+    securityLevel: 'critical',
+    why: 'CRITICAL: Seed recovery entry. Cipher grid prevents host from learning seed words. Invalid word rejection (7.14.0). Incorrect recovery = wrong wallet or lost funds.',
+  },
+  {
+    name: 'Passphrase',
+    pages: PASSPHRASE_FLOW,
+    accent: '#6366F1',
+    securityLevel: 'critical',
+    why: 'CRITICAL: Passphrase extends seed derivation. Wrong passphrase = different wallet (funds inaccessible). Empty passphrase is valid. Confirmation shown on device.',
+  },
+  {
+    name: 'Device Management',
+    pages: MGMT_FLOW,
+    accent: '#EF4444',
+    securityLevel: 'critical',
+    why: 'CRITICAL: Wipe destroys all keys irreversibly. Policy toggles gate blind-signing. Label/autolock are cosmetic but included for completeness.',
+  },
   // TODO: Osmosis LP/swap ops (fsm_msg_osmosis.h)
   // TODO: EOS, Nano
 ] as FlowMeta[]).filter(f => f.pages.length > 0)
@@ -265,6 +305,16 @@ async function composePdf(
     `Total screen mockups: ${totalPages}`,
     `Critical security screens: ${ALL_FLOWS.filter(f => f.securityLevel === 'critical').length}`,
     `High priority screens: ${ALL_FLOWS.filter(f => f.securityLevel === 'high').length}`,
+  const criticalFlows = ALL_FLOWS.filter(f => f.securityLevel === 'critical')
+  const highFlows = ALL_FLOWS.filter(f => f.securityLevel === 'high')
+  const pdfPageCount = totalPages + 3 // +cover +coverage accounting +overflow
+  const stats = [
+    `Flows covered: ${ALL_FLOWS.length}`,
+    `Total screen mockups: ${totalPages}`,
+    `PDF pages: ${pdfPageCount} (${totalPages} screens + 3 report pages)`,
+    `Critical security flows: ${criticalFlows.length} (${criticalFlows.map(f => f.name).join(', ')})`,
+    `High priority flows: ${highFlows.length}`,
+    `Medium priority flows: ${ALL_FLOWS.filter(f => f.securityLevel === 'medium').length}`,
   ]
   for (const s of stats) {
     page.drawText(s, { x: ML + 10, y, font, size: 10, color: dark })
@@ -294,6 +344,83 @@ async function composePdf(
     y -= 14
   }
 
+<<<<<<< HEAD
+=======
+  // ── Coverage Accounting Page ─────────────────────────────────────
+
+  page = doc.addPage([W, H])
+  y = H - MT
+
+  page.drawText('Coverage Accounting', { x: ML, y, font: bold, size: 16, color: dark })
+  y -= 24
+
+  page.drawText('Claim: Comprehensive review of all user-visible device screens in normal firmware operation.', {
+    x: ML, y, font, size: 9, color: dark, maxWidth: W - ML - MR })
+  y -= 28
+
+  // Covered
+  page.drawRectangle({ x: ML, y: y + 2, width: W - ML - MR, height: 16, color: rgb(0.85, 0.95, 0.85) })
+  page.drawText('COVERED', { x: ML + 5, y: y + 4, font: bold, size: 9, color: rgb(0.1, 0.5, 0.1) })
+  y -= 16
+  const covered = [
+    'Transaction confirmations: BTC, ETH, ERC-20, EIP-712, Solana, TRON, TON, Zcash, XRP, Cosmos, THORChain, Maya, Binance',
+    'Address display: all chains with QR codes where applicable',
+    'PIN entry: create, verify, change, remove, wrong PIN backoff',
+    'Recovery cipher: character entry, auto-complete, invalid word rejection, prev-word display',
+    'Seed generation: word count selection, all display pages',
+    'Passphrase: waiting prompt, confirmation display, enable/disable',
+    'Device management: wipe, label change, auto-lock, policy toggles',
+    'Blind-sign warnings: all chains (Solana, TRON, TON, EVM)',
+    'BIP-85: child mnemonic derivation (display-only)',
+    'User rejection / action cancelled path',
+  ]
+  for (const item of covered) {
+    if (y < 60) { page = doc.addPage([W, H]); y = H - MT }
+    page.drawText(`  • ${item}`, { x: ML, y, font, size: 8, color: dark, maxWidth: W - ML - MR - 10 })
+    y -= 12
+  }
+
+  y -= 12
+  page.drawRectangle({ x: ML, y: y + 2, width: W - ML - MR, height: 16, color: rgb(0.95, 0.93, 0.85) })
+  page.drawText('NOT YET COVERED', { x: ML + 5, y: y + 4, font: bold, size: 9, color: rgb(0.7, 0.5, 0.1) })
+  y -= 16
+  const notCovered = [
+    'Bootloader / firmware update prompt screens',
+    'Firmware flash progress bars',
+    'Lock / unlock transition animations',
+    'Screensaver / idle state',
+    'Sign Identity (U2F/WebAuthn) confirmation',
+    'Encrypt/decrypt message screens',
+    'OMNI token confirmations',
+    'Osmosis LP/swap-specific screens',
+    'EOS action confirmations',
+    'Nano address confirmation',
+  ]
+  for (const item of notCovered) {
+    if (y < 60) { page = doc.addPage([W, H]); y = H - MT }
+    page.drawText(`  • ${item}`, { x: ML, y, font, size: 8, color: dark, maxWidth: W - ML - MR - 10 })
+    y -= 12
+  }
+
+  y -= 12
+  page.drawRectangle({ x: ML, y: y + 2, width: W - ML - MR, height: 16, color: rgb(0.9, 0.9, 0.92) })
+  page.drawText('OUT OF SCOPE', { x: ML + 5, y: y + 4, font: bold, size: 9, color: gray })
+  y -= 16
+  const outOfScope = [
+    'Cryptographic correctness (key derivation, signature math)',
+    'Transport internals (USB/HID/WebUSB protocol)',
+    'Host-side software behavior (wallet apps, SDKs)',
+    'Every possible coin/token variant (1000+ ERC-20 tokens)',
+    'Timing / side-channel analysis',
+    'Physical tamper resistance',
+  ]
+  for (const item of outOfScope) {
+    if (y < 60) { page = doc.addPage([W, H]); y = H - MT }
+    page.drawText(`  • ${item}`, { x: ML, y, font, size: 8, color: gray, maxWidth: W - ML - MR - 10 })
+    y -= 12
+  }
+
+>>>>>>> origin/develop
   // ── Per-Flow Pages ────────────────────────────────────────────────
 
   for (const flow of ALL_FLOWS) {
