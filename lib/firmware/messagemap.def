@@ -147,6 +147,10 @@
     DEBUG_OUT(MessageType_MessageType_DebugLinkFlashDumpResponse,   DebugLinkFlashDumpResponse,  NO_PROCESS_FUNC)
 #endif
 
+    MSG_IN(MessageType_MessageType_TonGetAddress, TonGetAddress, fsm_msgTonGetAddress)
+    MSG_IN(MessageType_MessageType_TonSignTx, TonSignTx, fsm_msgTonSignTx)
+    MSG_OUT(MessageType_MessageType_TonAddress, TonAddress, NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_TonSignedTx, TonSignedTx, NO_PROCESS_FUNC)
     MSG_IN(MessageType_MessageType_TronGetAddress, TronGetAddress, fsm_msgTronGetAddress)
     MSG_IN(MessageType_MessageType_TronSignTx, TronSignTx, fsm_msgTronSignTx)
     MSG_OUT(MessageType_MessageType_TronAddress, TronAddress, NO_PROCESS_FUNC)
