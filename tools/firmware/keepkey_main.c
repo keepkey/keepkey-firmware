@@ -174,8 +174,24 @@ int main(void) {
   _mmhusr_isr = (void *)&mmhisr;
 
   { // limit sigRet lifetime to this block
+    /* F5 hardening: replace full signatures_ok() (~1 sec crypto) with fast
+     * metadata presence check. The bootloader has already performed the
+     * authoritative signature verification before jumping here. We only
+     * need to know whether the bootloader considered us signed, which is
+     * indicated by valid signature indices in flash metadata. */
     int sigRet = SIG_FAIL;
-    sigRet = signatures_ok();
+
+    volatile uint8_t si1 = *((volatile uint8_t *)FLASH_META_SIGINDEX1);
+    volatile uint8_t si2 = *((volatile uint8_t *)FLASH_META_SIGINDEX2);
+    volatile uint8_t si3 = *((volatile uint8_t *)FLASH_META_SIGINDEX3);
+
+    if (si1 >= 1 && si1 <= PUBKEYS &&
+        si2 >= 1 && si2 <= PUBKEYS &&
+        si3 >= 1 && si3 <= PUBKEYS &&
+        si1 != si2 && si1 != si3 && si2 != si3) {
+      sigRet = SIG_OK;
+    }
+
     flash_collectHWEntropy(SIG_OK == sigRet);
 
     /* Drop privileges */

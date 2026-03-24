@@ -1,0 +1,39 @@
+version: '3'
+services:
+  kkemu:
+    image: kktech/kkemu:zoo
+    build:
+      context: '../../'
+      dockerfile: 'scripts/emulator/Dockerfile'
+    networks:
+      - zoo-net
+    ports:
+      - "127.0.0.1:11044:11044/udp"
+      - "127.0.0.1:11045:11045/udp"
+    restart: unless-stopped
+
+  zoo-runner:
+    build:
+      context: '../../'
+      dockerfile: 'scripts/emulator/python-keepkey.Dockerfile'
+    volumes:
+      # Mount test scripts + zoo capture scripts from host (editable without rebuild)
+      - ../../deps/python-keepkey:/kkemu/deps/python-keepkey:ro
+      - ../../scripts/zoo:/kkemu/scripts/zoo:ro
+      # Output dir for screenshots (writable)
+      - ../../zoo-output/screenshots:/output:rw
+    environment:
+      - KK_TRANSPORT_MAIN=kkemu:11044
+      - KK_TRANSPORT_DEBUG=kkemu:11045
+      # ZOO_FLOW: run a single flow (e.g. recovery-cipher, btc-send)
+      # ZOO_MNEMONIC: custom mnemonic for recovery flows
+      # ZOO_ARGS: raw CLI args (overrides ZOO_FLOW/ZOO_MNEMONIC)
+    networks:
+      - zoo-net
+    depends_on:
+      - kkemu
+    entrypoint: ["/bin/sh", "-c", "pip3 install Pillow >/dev/null 2>&1 && python3 /kkemu/scripts/zoo/capture_screenshots.py --output=/output ${ZOO_FLOW:+--flow=$ZOO_FLOW} ${ZOO_MNEMONIC:+--mnemonic=\"$ZOO_MNEMONIC\"} $ZOO_ARGS"]
+
+networks:
+  zoo-net:
+    external: false

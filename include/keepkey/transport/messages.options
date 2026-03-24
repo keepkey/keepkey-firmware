@@ -5,7 +5,7 @@ Features.label				max_size:33
 Features.coins				max_count:0
 Features.revision			max_size:41
 Features.bootloader_hash		max_size:32
-Features.policies			max_count:4
+Features.policies			max_count:6
 Features.model              max_size:32
 Features.firmware_variant    max_size:32
 Features.firmware_hash		max_size:32
@@ -103,7 +103,7 @@ SignedIdentity.address			max_size:130
 SignedIdentity.public_key		max_size:33
 SignedIdentity.signature		max_size:65
 
-ApplyPolicies.policy			max_count:16
+ApplyPolicies.policy			max_count:6
 
 # not used in firmware
 FirmwareUpload.payload_hash  max_size:32
