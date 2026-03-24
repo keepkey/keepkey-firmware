@@ -145,4 +145,19 @@ void fsm_msgFlashWrite(FlashWrite *msg);
 void fsm_msgFlashHash(FlashHash *msg);
 void fsm_msgSoftReset(SoftReset *msg);
 
+
+void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg);
+void fsm_msgZcashPCZTAction(const ZcashPCZTAction *msg);
+void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK *msg);
+void fsm_msgZcashTransparentInput(const ZcashTransparentInput *msg);
+void fsm_msgTonGetAddress(const TonGetAddress *msg);
+void fsm_msgTonSignTx(TonSignTx *msg);
+void fsm_msgTronGetAddress(const TronGetAddress *msg);
+void fsm_msgTronSignTx(TronSignTx *msg);
+void fsm_msgSolanaGetAddress(const SolanaGetAddress *msg);
+void fsm_msgSolanaSignTx(const SolanaSignTx *msg);
+void fsm_msgSolanaSignMessage(const SolanaSignMessage *msg);
+void fsm_msgEthereumTxMetadata(const EthereumTxMetadata *msg);
+void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg);
+
 #endif

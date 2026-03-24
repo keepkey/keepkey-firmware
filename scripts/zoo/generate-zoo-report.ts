@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * generate-zoo-report.ts — Generates a PDF zoo report for firmware PRs.
+ * generate-zoo-report.ts  -- Generates a PDF zoo report for firmware PRs.
  *
  * Renders all zoo OLED screen mockups into a polished PDF with:
  *   - Title page with PR metadata
@@ -21,6 +21,8 @@ import sharp from 'sharp'
 import {
   OLED, encodePNG, buildPage,
   SETUP_FLOW, PIN_FLOW, BTC_FLOW, ETH_FLOW, TOKEN_FLOW, EIP712_FLOW,
+  EVM_MULTICHAIN_FLOW, TRON_FLOW, TON_FLOW, ZCASH_FLOW,
+  RIPPLE_FLOW, COSMOS_FLOW, MAYACHAIN_FLOW, BINANCE_FLOW, BIP85_FLOW,
   SOLANA_FLOW, THORCHAIN_FLOW, RECOVERY_FLOW, PASSPHRASE_FLOW, MGMT_FLOW,
   type PageDef,
 } from './generate-zoo'
@@ -56,85 +58,151 @@ interface FlowMeta {
   why: string
 }
 
-const ALL_FLOWS: FlowMeta[] = [
-  {
-    name: 'First Launch Setup',
-    pages: SETUP_FLOW,
-    accent: '#48BB78',
-    securityLevel: 'critical',
-    why: 'Seed generation and backup is the foundation of wallet security. Any display error during seed word presentation could cause permanent fund loss.',
-  },
-  {
-    name: 'PIN Entry',
-    pages: PIN_FLOW,
-    accent: '#C0A860',
-    securityLevel: 'high',
-    why: 'PIN scrambling prevents screen-watching attacks. The randomized grid must render correctly every time.',
-  },
+// Only verified flows  -- text confirmed from firmware confirm() source code.
+// Font rendering + wrapping is approximate. Awaiting emulator for pixel-perfect.
+const ALL_FLOWS: FlowMeta[] = ([
   {
     name: 'Bitcoin Send',
     pages: BTC_FLOW,
     accent: '#F7931A',
-    securityLevel: 'critical',
-    why: 'Bitcoin address verification on device is the primary defense against clipboard hijacking. Full address display prevents address spoofing.',
+    securityLevel: 'high',
+    why: 'Text verified from app_confirm.c:152 (confirm_transaction_output) and app_confirm.c:206 (confirm_transaction). Font/wrapping approximate.',
   },
   {
-    name: 'Ethereum Send',
+    name: 'Ethereum',
     pages: ETH_FLOW,
     accent: '#627EEA',
-    securityLevel: 'critical',
-    why: 'ETH addresses lack built-in checksums. Device display is the only reliable verification point. Gas/chain-ID display prevents wrong-network sends.',
-  },
-  {
-    name: 'ERC-20 Token Transfer',
-    pages: TOKEN_FLOW,
-    accent: '#8B5CF6',
     securityLevel: 'high',
-    why: 'Token spoofing (fake USDC at a different contract) is a major attack vector. Contract address display lets users cross-reference with block explorers.',
+    why: 'Verified: confirm_transfer_output (app_confirm.c:134), layoutEthereumFee (ethereum.c:787), Sign Message (fsm_msg_ethereum.h:265), Confirm Data (ethereum.c:772), Blind block (ethereum.c:760).',
   },
   {
     name: 'EIP-712 Typed Data',
     pages: EIP712_FLOW,
     accent: '#EF4444',
+    securityLevel: 'high',
+    why: 'Verified: fsm_msg_ethereum.h:372,378. Firmware shows HASH DIGESTS of domain/message  -- NOT decoded permit fields. User sees hex, cannot verify token/amount/spender.',
     securityLevel: 'critical',
-    why: 'EIP-712 permits are the #1 phishing vector in DeFi. Unlimited approvals and far-future deadlines must be clearly flagged on the device screen.',
+    why: 'CRITICAL: Firmware shows HASH DIGESTS only — NOT decoded permit fields. User sees hex, cannot verify token/amount/spender/deadline. Blind signing risk for EIP-712.',
+  },
+  {
+    name: 'ERC-20 Tokens',
+    pages: TOKEN_FLOW,
+    accent: '#8B5CF6',
+    securityLevel: 'high',
+    why: 'Verified: ethereum.c:726-748 (layoutEthereumConfirmTx). Token transfer, approve, unlimited unlock, revoke. Token symbol from tokenByChainAddress().',
   },
   {
     name: 'Solana',
     pages: SOLANA_FLOW,
     accent: '#14F195',
-    securityLevel: 'critical',
-    why: 'Solana base58 addresses are 32-44 characters. Middle-truncation (XXXX...XXXX) is a spoofing vector — attackers can craft keys with matching prefix+suffix. Full address display is mandatory.',
+    securityLevel: 'high',
+    why: 'Text verified from fsm_msg_solana.h:57. Title "Instr N/M" from line 49. Before/after shows pubkeyToShort vs pubkeyToStr.',
   },
   {
     name: 'THORChain Swap',
     pages: THORCHAIN_FLOW,
     accent: '#23DCC8',
-    securityLevel: 'high',
-    why: 'THORChain swap memos control the entire swap operation. Memo manipulation can redirect funds to an attacker address.',
+    securityLevel: 'medium',
+    why: 'Text verified from fsm_msg_thorchain.h:189. confirm(ConfirmMemo, "Memo", "%s", memo). Font/wrapping approximate.',
   },
   {
-    name: 'Seed Recovery',
-    pages: RECOVERY_FLOW,
-    accent: '#23DCC8',
+    name: 'TRON',
+    pages: TRON_FLOW,
+    accent: '#EF0027',
+    securityLevel: 'high',
+    why: 'Verified: fsm_msg_tron.h. TRX transfer, 12 hardcoded TRC-20 tokens, unknown token, contract call, blind sign, fee limit. Full base58 addresses.',
+  },
+  {
+    name: 'TON',
+    pages: TON_FLOW,
+    accent: '#0098EA',
+    securityLevel: 'high',
+    why: 'Verified: fsm_msg_ton.h. Clear-sign with hash verification, memo display, blind sign for deploy and opaque TXs. Full 48-char TON addresses.',
+  },
+  {
+    name: 'Zcash Orchard',
+    pages: ZCASH_FLOW,
+    accent: '#F4B728',
+    securityLevel: 'high',
+    why: 'Verified: fsm_msg_zcash.h. Shielded-only, hybrid shield (transparent->Orchard), per-input signing. No recipient shown  -- Orchard hides by design.',
+  },
+  {
+    name: 'Ripple (XRP)',
+    pages: RIPPLE_FLOW,
+    accent: '#23292F',
+    securityLevel: 'medium',
+    why: 'Verified: fsm_msg_ripple.h:99,112. Send with destination tag, transaction confirmation with fee.',
+  },
+  {
+    name: 'Cosmos (ATOM)',
+    pages: COSMOS_FLOW,
+    accent: '#2E3148',
+    securityLevel: 'medium',
+    why: 'Verified: fsm_msg_cosmos.h. Send (confirm_transaction_output), redelegate, claim rewards.',
+  },
+  {
+    name: 'Maya Protocol',
+    pages: MAYACHAIN_FLOW,
+    accent: '#3B82F6',
+    securityLevel: 'medium',
+    why: 'Verified: fsm_msg_mayachain.h:245. Sign TX with denom + chain_id.',
+  },
+  {
+    name: 'Binance Chain',
+    pages: BINANCE_FLOW,
+    accent: '#F3BA2F',
+    securityLevel: 'medium',
+    why: 'Verified: fsm_msg_binance.h:176. Sign with chain_id confirmation.',
+  },
+  {
+    name: 'BIP-85',
+    pages: BIP85_FLOW,
+    accent: '#8B5CF6',
+    securityLevel: 'medium',
+    why: 'Verified: fsm_msg_bip85.h:28. Display-only child seed derivation.',
+  },
+  // TODO: Setup, PIN, Recovery, Passphrase, Wipe -- needs emulator
     securityLevel: 'critical',
-    why: 'Recovery cipher scrambling prevents keylogger attacks during seed entry. Grid must re-scramble for every character.',
+    why: 'CRITICAL: Displays derived child mnemonic on OLED. Never sent over USB. Incorrect display = user backs up wrong seed = permanent fund loss.',
+  },
+  {
+    name: 'Device Setup',
+    pages: SETUP_FLOW,
+    accent: '#6366F1',
+    securityLevel: 'critical',
+    why: 'CRITICAL: Seed generation and display. Source: reset.c. Seed words shown on OLED — only opportunity to back up. Incorrect backup = permanent fund loss.',
+  },
+  {
+    name: 'PIN Entry',
+    pages: PIN_FLOW,
+    accent: '#6366F1',
+    securityLevel: 'critical',
+    why: 'CRITICAL: PIN protects all device operations. Randomized 3x3 grid — host never sees digit positions. Wrong PIN = exponential backoff. Remove PIN = device unprotected.',
+  },
+  {
+    name: 'Recovery Cipher',
+    pages: RECOVERY_FLOW,
+    accent: '#6366F1',
+    securityLevel: 'critical',
+    why: 'CRITICAL: Seed recovery entry. Cipher grid prevents host from learning seed words. Invalid word rejection (7.14.0). Incorrect recovery = wrong wallet or lost funds.',
   },
   {
     name: 'Passphrase',
     pages: PASSPHRASE_FLOW,
-    accent: '#8B5CF6',
-    securityLevel: 'high',
-    why: 'Wrong passphrase silently opens a different empty wallet. Device confirmation prevents accidental fund isolation.',
+    accent: '#6366F1',
+    securityLevel: 'critical',
+    why: 'CRITICAL: Passphrase extends seed derivation. Wrong passphrase = different wallet (funds inaccessible). Empty passphrase is valid. Confirmation shown on device.',
   },
   {
     name: 'Device Management',
     pages: MGMT_FLOW,
     accent: '#EF4444',
     securityLevel: 'critical',
-    why: 'Device wipe is irreversible. Clear on-screen warnings prevent accidental key deletion.',
+    why: 'CRITICAL: Wipe destroys all keys irreversibly. Policy toggles gate blind-signing. Label/autolock are cosmetic but included for completeness.',
   },
-]
+  // TODO: Osmosis LP/swap ops (fsm_msg_osmosis.h)
+  // TODO: EOS, Nano
+] as FlowMeta[]).filter(f => f.pages.length > 0)
 
 // ═══════════════════════════════════════════════════════════════════════
 // Render zoo pages to PNG buffers
@@ -154,7 +222,7 @@ async function renderAllPages(): Promise<Map<string, Buffer>> {
 
     await buildPage(
       p.file, p.flow, p.step, stepIdx, flow.pages.length,
-      p.accent, p.device, p.appContext, p.insight,
+      p.accent, p.device, p.appContext, p.insight, p.qr,
     )
 
     // Read the generated PNG back
@@ -237,6 +305,16 @@ async function composePdf(
     `Total screen mockups: ${totalPages}`,
     `Critical security screens: ${ALL_FLOWS.filter(f => f.securityLevel === 'critical').length}`,
     `High priority screens: ${ALL_FLOWS.filter(f => f.securityLevel === 'high').length}`,
+  const criticalFlows = ALL_FLOWS.filter(f => f.securityLevel === 'critical')
+  const highFlows = ALL_FLOWS.filter(f => f.securityLevel === 'high')
+  const pdfPageCount = totalPages + 3 // +cover +coverage accounting +overflow
+  const stats = [
+    `Flows covered: ${ALL_FLOWS.length}`,
+    `Total screen mockups: ${totalPages}`,
+    `PDF pages: ${pdfPageCount} (${totalPages} screens + 3 report pages)`,
+    `Critical security flows: ${criticalFlows.length} (${criticalFlows.map(f => f.name).join(', ')})`,
+    `High priority flows: ${highFlows.length}`,
+    `Medium priority flows: ${ALL_FLOWS.filter(f => f.securityLevel === 'medium').length}`,
   ]
   for (const s of stats) {
     page.drawText(s, { x: ML + 10, y, font, size: 10, color: dark })
@@ -266,6 +344,83 @@ async function composePdf(
     y -= 14
   }
 
+<<<<<<< HEAD
+=======
+  // ── Coverage Accounting Page ─────────────────────────────────────
+
+  page = doc.addPage([W, H])
+  y = H - MT
+
+  page.drawText('Coverage Accounting', { x: ML, y, font: bold, size: 16, color: dark })
+  y -= 24
+
+  page.drawText('Claim: Comprehensive review of all user-visible device screens in normal firmware operation.', {
+    x: ML, y, font, size: 9, color: dark, maxWidth: W - ML - MR })
+  y -= 28
+
+  // Covered
+  page.drawRectangle({ x: ML, y: y + 2, width: W - ML - MR, height: 16, color: rgb(0.85, 0.95, 0.85) })
+  page.drawText('COVERED', { x: ML + 5, y: y + 4, font: bold, size: 9, color: rgb(0.1, 0.5, 0.1) })
+  y -= 16
+  const covered = [
+    'Transaction confirmations: BTC, ETH, ERC-20, EIP-712, Solana, TRON, TON, Zcash, XRP, Cosmos, THORChain, Maya, Binance',
+    'Address display: all chains with QR codes where applicable',
+    'PIN entry: create, verify, change, remove, wrong PIN backoff',
+    'Recovery cipher: character entry, auto-complete, invalid word rejection, prev-word display',
+    'Seed generation: word count selection, all display pages',
+    'Passphrase: waiting prompt, confirmation display, enable/disable',
+    'Device management: wipe, label change, auto-lock, policy toggles',
+    'Blind-sign warnings: all chains (Solana, TRON, TON, EVM)',
+    'BIP-85: child mnemonic derivation (display-only)',
+    'User rejection / action cancelled path',
+  ]
+  for (const item of covered) {
+    if (y < 60) { page = doc.addPage([W, H]); y = H - MT }
+    page.drawText(`  • ${item}`, { x: ML, y, font, size: 8, color: dark, maxWidth: W - ML - MR - 10 })
+    y -= 12
+  }
+
+  y -= 12
+  page.drawRectangle({ x: ML, y: y + 2, width: W - ML - MR, height: 16, color: rgb(0.95, 0.93, 0.85) })
+  page.drawText('NOT YET COVERED', { x: ML + 5, y: y + 4, font: bold, size: 9, color: rgb(0.7, 0.5, 0.1) })
+  y -= 16
+  const notCovered = [
+    'Bootloader / firmware update prompt screens',
+    'Firmware flash progress bars',
+    'Lock / unlock transition animations',
+    'Screensaver / idle state',
+    'Sign Identity (U2F/WebAuthn) confirmation',
+    'Encrypt/decrypt message screens',
+    'OMNI token confirmations',
+    'Osmosis LP/swap-specific screens',
+    'EOS action confirmations',
+    'Nano address confirmation',
+  ]
+  for (const item of notCovered) {
+    if (y < 60) { page = doc.addPage([W, H]); y = H - MT }
+    page.drawText(`  • ${item}`, { x: ML, y, font, size: 8, color: dark, maxWidth: W - ML - MR - 10 })
+    y -= 12
+  }
+
+  y -= 12
+  page.drawRectangle({ x: ML, y: y + 2, width: W - ML - MR, height: 16, color: rgb(0.9, 0.9, 0.92) })
+  page.drawText('OUT OF SCOPE', { x: ML + 5, y: y + 4, font: bold, size: 9, color: gray })
+  y -= 16
+  const outOfScope = [
+    'Cryptographic correctness (key derivation, signature math)',
+    'Transport internals (USB/HID/WebUSB protocol)',
+    'Host-side software behavior (wallet apps, SDKs)',
+    'Every possible coin/token variant (1000+ ERC-20 tokens)',
+    'Timing / side-channel analysis',
+    'Physical tamper resistance',
+  ]
+  for (const item of outOfScope) {
+    if (y < 60) { page = doc.addPage([W, H]); y = H - MT }
+    page.drawText(`  • ${item}`, { x: ML, y, font, size: 8, color: gray, maxWidth: W - ML - MR - 10 })
+    y -= 12
+  }
+
+>>>>>>> origin/develop
   // ── Per-Flow Pages ────────────────────────────────────────────────
 
   for (const flow of ALL_FLOWS) {
@@ -354,7 +509,7 @@ async function composePdf(
   const policies = [
     {
       title: 'Address Display Policy',
-      text: 'All cryptocurrency addresses MUST be displayed in full on the device screen. Middle-truncation (XXXX...XXXX) is a known spoofing vector — attackers can craft keys with matching prefix and suffix. This applies to: BTC (bech32), ETH (hex), Solana (base58), Cosmos (bech32), and all other chains.',
+      text: 'All cryptocurrency addresses MUST be displayed in full on the device screen. Middle-truncation (XXXX...XXXX) is a known spoofing vector  -- attackers can craft keys with matching prefix and suffix. This applies to: BTC (bech32), ETH (hex), Solana (base58), Cosmos (bech32), and all other chains.',
       level: 'critical' as const,
     },
     {
@@ -369,7 +524,7 @@ async function composePdf(
     },
     {
       title: 'Chain & Network Identification',
-      text: 'Chain ID must be prominently displayed to prevent wrong-network sends. EVM chains share the same address format — only the chain ID distinguishes Ethereum from Polygon/Arbitrum/etc.',
+      text: 'Chain ID must be prominently displayed to prevent wrong-network sends. EVM chains share the same address format  -- only the chain ID distinguishes Ethereum from Polygon/Arbitrum/etc.',
       level: 'high' as const,
     },
     {
@@ -435,7 +590,7 @@ function hexToRgb(hex: string) {
 async function main() {
   const opts = parseArgs()
 
-  console.log('\nKeepKey Zoo Report — Generating screen review PDF...\n')
+  console.log('\nKeepKey Zoo Report  -- Generating screen review PDF...\n')
 
   // Step 1: Render all zoo pages to PNG
   console.log('  Rendering OLED mockups...')

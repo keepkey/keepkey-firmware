@@ -332,8 +332,7 @@ void layout_add_icon(IconType type) {
       break;
 
     case VERIFIED_ICON:
-      /* TODO: replace with dedicated verified/shield bitmap.
-       * Using Ethereum icon as placeholder until bitmap is designed. */
+      /* TODO: replace with dedicated verified/shield bitmap */
       draw_bitmap_mono_rle(canvas, get_ethereum_icon_frame(), false);
       break;
 
