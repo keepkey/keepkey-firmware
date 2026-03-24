@@ -319,6 +319,10 @@ export interface PageDef {
 // BLIND SIGN POLICY: AdvancedMode blocked screen
 // ═══════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════
+// BOOT & LIFECYCLE
+// ═══════════════════════════════════════════════════════════════════════
+
 export const SETUP_FLOW: PageDef[] = [
   {
     file: '00a-setup-create.png', flow: 'Device Setup', step: 'Create/Recover Choice', accent: '#6366F1',
@@ -331,7 +335,17 @@ export const SETUP_FLOW: PageDef[] = [
     insight: ['First screen on uninitialized device', 'Requires physical button to proceed'],
   },
   {
-    file: '00b-setup-seed-display.png', flow: 'Device Setup', step: 'Seed Word Display', accent: '#6366F1',
+    file: '00a2-setup-word-count.png', flow: 'Device Setup', step: 'Word Count Selection', accent: '#6366F1',
+    device(o) {
+      o.text(4, 4, 'Recovery Seed Backup', 2)
+      o.text(4, 28, 'Generate 12/18/24 word', 1)
+      o.text(4, 42, 'recovery sentence?', 1)
+    },
+    appContext: 'Source: reset.c\nWord count confirmation before seed generation\nDetermines entropy size: 128/192/256 bits',
+    insight: ['Entropy: 12=128bit, 18=192bit, 24=256bit', 'User must confirm before generation begins'],
+  },
+  {
+    file: '00b-setup-seed-display.png', flow: 'Device Setup', step: 'Seed Word Display (page 1/3)', accent: '#6366F1',
     device(o) {
       o.text(4, 4, 'Recovery Sentence', 2)
       o.text(4, 28, '1. abandon  2. abandon', 1)
@@ -339,59 +353,187 @@ export const SETUP_FLOW: PageDef[] = [
       o.text(4, 52, '(page 1 of 3)', 1)
     },
     appContext: 'Source: reset.c:168-224\nSeed words shown in 2-column batched layout\n4 words per page, 3 pages for 12-word seed\n!Actual words depend on generated entropy',
-    insight: ['2-column layout, 4 words per page', '!Words are EXAMPLE — real seed varies', 'User must write down all words'],
+    insight: ['!!CRITICAL: seed words shown — write them down', '2-column layout, 4 words per page', '!Words are EXAMPLE — real seed varies'],
+  },
+  {
+    file: '00b2-setup-seed-page2.png', flow: 'Device Setup', step: 'Seed Word Display (page 2/3)', accent: '#6366F1',
+    device(o) {
+      o.text(4, 4, 'Recovery Sentence', 2)
+      o.text(4, 28, '5. abandon  6. abandon', 1)
+      o.text(4, 40, '7. abandon  8. abandon', 1)
+      o.text(4, 52, '(page 2 of 3)', 1)
+    },
+    appContext: 'Source: reset.c:168-224\nPage 2 of seed word display\nUser scrolls through all pages before confirmation',
+    insight: ['Page 2 of 3 for 12-word seed', '6 pages for 24-word seed'],
+  },
+  {
+    file: '00b3-setup-seed-page3.png', flow: 'Device Setup', step: 'Seed Word Display (page 3/3)', accent: '#6366F1',
+    device(o) {
+      o.text(4, 4, 'Recovery Sentence', 2)
+      o.text(4, 28, '9. abandon  10. abandon', 1)
+      o.text(4, 40, '11. abandon  12. all', 1)
+      o.text(4, 52, '(page 3 of 3)', 1)
+    },
+    appContext: 'Source: reset.c:168-224\nFinal page — user must have written all words\nButton press confirms backup complete',
+    insight: ['Final seed page', '!!User must write down ALL words before proceeding'],
+  },
+  {
+    file: '00b4-setup-import.png', flow: 'Device Setup', step: 'Import Recovery Sentence', accent: '#6366F1',
+    device(o) {
+      o.text(4, 4, 'Import Recovery', 2)
+      o.text(4, 28, 'Import recovery sentence?', 1)
+      o.text(4, 42, 'This will overwrite any', 1)
+      o.text(4, 54, 'existing seed on device.', 1)
+    },
+    appContext: 'Source: fsm_msg_common.h\nconfirm_load_device()\n"Import recovery sentence?"\nWARNING: overwrites existing seed',
+    insight: ['!!Overwrites existing seed if present', 'confirm_load_device() in fsm_msg_common.h'],
   },
 ]
+
+// ═══════════════════════════════════════════════════════════════════════
+// PIN ENTRY & MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════
 
 export const PIN_FLOW: PageDef[] = [
   {
-    file: '00c-pin-entry.png', flow: 'PIN Entry', step: 'PIN Matrix', accent: '#6366F1',
+    file: '00c-pin-entry.png', flow: 'PIN Entry', step: 'Enter PIN (unlock)', accent: '#6366F1',
     device(o) {
-      // app_layout.c:52-180 — layout_animate_pin()
-      o.text(4, 4, 'Enter PIN', 2)
-      // 3x3 grid with randomized digit positions
-      for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
-        const x = 160 + c * 28, y = 4 + r * 20
-        o.rect(x, y, 24, 16)
-      }
+      o.text(4, 24, 'Enter', 1)
+      o.text(4, 38, 'Your PIN', 1)
+      o.pinGrid([7, 8, 9, 4, 5, 6, 1, 2, 3])
     },
-    appContext: 'Source: app_layout.c:52-180\nlayout_animate_pin()\nAnimated 3x3 grid — digits randomized each time\nHost sees only grid position, not actual digit',
-    insight: ['3x3 grid with randomized positions', 'Host never sees the actual PIN', '!Grid positions change every prompt'],
+    appContext: 'Source: pin_sm.c:156-203, app_layout.c:667-686\nlayout_animate_pin("Enter\\nYour PIN")\nAnimated 3x3 grid — digits randomized each time\nHost sees only grid position (1-9), not actual digit',
+    insight: ['!!Host NEVER sees digit positions', '3x3 grid randomized each session', 'Animated slide-in per digit'],
+  },
+  {
+    file: '00c2-pin-new.png', flow: 'PIN Entry', step: 'Create New PIN', accent: '#6366F1',
+    device(o) {
+      o.text(4, 24, 'Enter New', 1)
+      o.text(4, 38, 'PIN', 1)
+      o.pinGrid([3, 6, 9, 2, 5, 8, 1, 4, 7])
+    },
+    appContext: 'Source: pin_sm.c\nlayout_pin("Enter New\\nPIN")\nFirst entry of new PIN during create/change',
+    insight: ['First entry — must re-enter to confirm', 'Grid re-randomized for confirmation entry'],
+  },
+  {
+    file: '00c3-pin-confirm.png', flow: 'PIN Entry', step: 'Re-Enter New PIN', accent: '#6366F1',
+    device(o) {
+      o.text(4, 24, 'Re-Enter', 1)
+      o.text(4, 38, 'New PIN', 1)
+      o.pinGrid([9, 2, 5, 8, 1, 4, 7, 3, 6])
+    },
+    appContext: 'Source: pin_sm.c\nlayout_pin("Re-Enter\\nNew PIN")\nConfirmation entry — must match first entry\nGrid is RE-RANDOMIZED (different positions)',
+    insight: ['!!Grid positions DIFFERENT from first entry', 'Must match first PIN to confirm', 'Prevents position-memorization attacks'],
+  },
+  {
+    file: '00c4-pin-wrong.png', flow: 'PIN Entry', step: 'Wrong PIN — Backoff', accent: '#EF4444',
+    device(o) {
+      o.text(4, 4, 'Wrong PIN', 2)
+      o.text(4, 28, 'Previous PIN failures.', 1)
+      o.text(4, 42, 'Please wait 30 seconds', 1)
+      o.text(4, 54, 'before trying again.', 1)
+    },
+    appContext: 'Source: layout.c:441\nlayout_warning() with exponential backoff\nWait time doubles after each failure\n3+ failures: 2^(failures-2) seconds wait',
+    insight: ['!!Exponential backoff: 2^(n-2) seconds', 'Prevents brute-force PIN attacks', 'Progress bar counts down wait time'],
+  },
+  {
+    file: '00c5-pin-remove.png', flow: 'PIN Entry', step: 'Remove PIN Confirmation', accent: '#EF4444',
+    device(o) {
+      o.text(4, 4, 'Remove PIN', 2)
+      o.text(4, 28, 'Disable PIN protection?', 1)
+      o.text(4, 42, 'Anyone with physical', 1)
+      o.text(4, 54, 'access can use device.', 1)
+    },
+    appContext: 'Source: fsm_msg_common.h\nconfirm(ButtonRequest_RemovePin, "Remove PIN")\nDisables PIN — device accessible without auth',
+    insight: ['!!Removes all PIN protection', 'Physical access = full access after this'],
   },
 ]
 
+// ═══════════════════════════════════════════════════════════════════════
+// RECOVERY CIPHER
+// ═══════════════════════════════════════════════════════════════════════
+
 export const RECOVERY_FLOW: PageDef[] = [
   {
-    file: '00d-recovery-cipher.png', flow: 'Recovery', step: 'Cipher Grid', accent: '#6366F1',
+    file: '00d-recovery-cipher.png', flow: 'Recovery', step: 'Cipher Grid (word entry)', accent: '#6366F1',
     device(o) {
-      // app_layout.c:192-301 — layout_cipher()
       o.text(4, 4, 'Recovery Cipher:', 1)
       o.text(4, 30, '1/12: a__', 1)
       o.text(4, 50, '1: zoo', 1)
-      // Cipher grid on right side
-      const chars = 'qwertyuiopasdfghjklzxcvbnm'
-      for (let i = 0; i < 26; i++) {
-        const col = i % 6, row = Math.floor(i / 6)
-        o.text(140 + col * 18, 4 + row * 12, chars[i], 1)
-      }
+      o.cipherGrid(
+        ['q','w','e','r','t','y','u','i','o','p','a','s','d'],
+        ['f','g','h','j','k','l','z','x','c','v','b','n','m']
+      )
     },
-    appContext: 'Source: app_layout.c:192-301\nlayout_cipher(current_word, cipher, prev_info)\nScrambled alphabet grid — user enters ciphered characters\nPrevious word shown at y=50 (7.14.0 addition)',
-    insight: ['Cipher grid: scrambled alphabet', 'Previous completed word shown below (new in 7.14.0)', 'Host sees only ciphered characters'],
+    appContext: 'Source: app_layout.c:698-724\nlayout_cipher(current_word, cipher, prev_info)\nScrambled alphabet — user enters ciphered characters\nPrev word shown at y=50 (7.14.0: PR #87)',
+    insight: ['!!Host sees ONLY ciphered characters', 'Prev word display: new in 7.14.0', 'Cipher re-scrambles after each word'],
+  },
+  {
+    file: '00d2-recovery-autocomplete.png', flow: 'Recovery', step: 'Auto-complete', accent: '#14F195',
+    device(o) {
+      o.text(4, 4, 'Recovery Cipher:', 1)
+      o.text(4, 30, '3/12: abandon~', 1)
+      o.text(4, 50, '2: ability', 1)
+      o.cipherGrid(
+        ['m','b','n','v','c','x','z','l','k','j','h','g','f'],
+        ['d','s','a','p','o','i','u','y','t','r','e','w','q']
+      )
+    },
+    appContext: 'Source: recovery_cipher.c:371-380\nWord auto-completed from BIP39 wordlist\n~ indicates auto-completion triggered\nPrev word shows last completed word',
+    insight: ['~ suffix = auto-completed from wordlist', 'Auto-complete reduces keystrokes needed', 'Invalid BIP39 words rejected immediately (7.14.0: PR #86)'],
+  },
+  {
+    file: '00d3-recovery-invalid.png', flow: 'Recovery', step: 'Invalid Word Rejected', accent: '#EF4444',
+    device(o) {
+      o.text(4, 4, 'ERROR', 2)
+      o.text(4, 28, 'Word not found in', 1)
+      o.text(4, 42, 'BIP39 wordlist.', 1)
+    },
+    appContext: 'Source: recovery_cipher.c:478-498\nfsm_sendFailure(Failure_SyntaxError,\n"Word not found in BIP39 wordlist")\n7.14.0: per-word validation (PR #86)',
+    insight: ['!!Invalid word rejected IMMEDIATELY', 'New in 7.14.0: per-word validation', 'Previously only caught at finalization'],
   },
 ]
+
+// ═══════════════════════════════════════════════════════════════════════
+// PASSPHRASE
+// ═══════════════════════════════════════════════════════════════════════
 
 export const PASSPHRASE_FLOW: PageDef[] = [
   {
     file: '00e-passphrase.png', flow: 'Passphrase', step: 'Enter on Computer', accent: '#6366F1',
     device(o) {
-      o.text(4, 4, 'Passphrase', 2)
-      o.text(4, 28, 'Enter passphrase on', 1)
-      o.text(4, 42, 'your computer.', 1)
+      o.text(4, 14, 'Waiting for', 1)
+      o.text(4, 30, 'Passphrase...', 1)
     },
-    appContext: 'Source: fsm_msg_common.h\nPassphrase entry happens on host\nDevice shows prompt, host sends passphrase over USB\nEmpty passphrase is valid (BIP-39 default)',
-    insight: ['Passphrase entered on host, not device', 'Empty passphrase is valid', 'Extends seed derivation (BIP-39)'],
+    appContext: 'Source: passphrase_sm.c\nlayout_simple_message("Waiting for Passphrase...")\nPassphrase entered on host, sent over USB\nDevice waits until host sends PassphraseAck',
+    insight: ['Passphrase entered on HOST, not device', 'Device only shows waiting message', 'Empty passphrase is valid (BIP-39 default)'],
+  },
+  {
+    file: '00e2-passphrase-confirm.png', flow: 'Passphrase', step: 'Confirm Passphrase', accent: '#6366F1',
+    device(o) {
+      o.text(4, 4, 'Confirm', 1)
+      o.text(4, 18, 'If wrong, unplug and', 1)
+      o.text(4, 30, 'replug your KeepKey:', 1)
+      o.text(4, 46, 'mySecretPass123', 1)
+    },
+    appContext: 'Source: passphrase_sm.c\nreview(ButtonRequest_Other, "passphrase confirmation",\n"If this is wrong, unplug/replug Keepkey:\\n%51s", passphrase)\nShows entered passphrase for verification',
+    insight: ['!!Shows passphrase on device screen for verification', 'review() auto-proceeds (no reject option)', '!Passphrase is EXAMPLE — actual varies'],
+  },
+  {
+    file: '00e3-passphrase-enable.png', flow: 'Passphrase', step: 'Enable Passphrase', accent: '#6366F1',
+    device(o) {
+      o.text(4, 4, 'Enable Passphrase', 2)
+      o.text(4, 28, 'Enable passphrase', 1)
+      o.text(4, 42, 'encryption?', 1)
+    },
+    appContext: 'Source: fsm_msg_common.h\nconfirm(ButtonRequest_EnablePassphrase)\napplySettings handler for usePassphrase=true',
+    insight: ['Adds passphrase layer to all key derivation', 'Different passphrase = different wallet'],
   },
 ]
+
+// ═══════════════════════════════════════════════════════════════════════
+// DEVICE MANAGEMENT & SETTINGS
+// ═══════════════════════════════════════════════════════════════════════
 
 export const MGMT_FLOW: PageDef[] = [
   {
@@ -403,7 +545,48 @@ export const MGMT_FLOW: PageDef[] = [
       o.text(4, 52, 'All data will be lost.', 1)
     },
     appContext: 'Source: fsm_msg_common.h\nWipeDevice handler\nRequires physical button confirmation\nIrreversible — all keys destroyed',
-    insight: ['!!Irreversible operation', 'All keys and settings destroyed', 'Requires physical button press'],
+    insight: ['!!CRITICAL: Irreversible operation', 'All keys, PIN, settings destroyed', 'Requires physical button press'],
+  },
+  {
+    file: '00f2-change-label.png', flow: 'Device Management', step: 'Change Label', accent: '#6366F1',
+    device(o) {
+      o.text(4, 4, 'Change Label', 2)
+      o.text(4, 28, 'New label:', 1)
+      o.text(4, 42, 'My KeepKey', 1)
+    },
+    appContext: 'Source: fsm_msg_common.h\nconfirm(ButtonRequest_ChangeLabel, "Change Label",\n"New label: %s")\napplySettings handler',
+    insight: ['Label shown on home screen', 'Cosmetic only — no security impact'],
+  },
+  {
+    file: '00f3-autolock.png', flow: 'Device Management', step: 'Auto-Lock Timer', accent: '#6366F1',
+    device(o) {
+      o.text(4, 4, 'Auto-Lock Timer', 2)
+      o.text(4, 28, 'Set auto-lock delay', 1)
+      o.text(4, 42, 'to 600 seconds?', 1)
+    },
+    appContext: 'Source: fsm_msg_common.h\nconfirm(ButtonRequest_AutoLockDelayMs)\napplySettings handler for autoLockDelayMs',
+    insight: ['Device locks after idle timeout', 'Requires PIN to unlock after lock'],
+  },
+  {
+    file: '00f4-policy-advanced.png', flow: 'Device Management', step: 'AdvancedMode Policy', accent: '#F59E0B',
+    device(o) {
+      o.text(4, 4, 'AdvancedMode', 2)
+      o.text(4, 28, 'Enable advanced mode?', 1)
+      o.text(4, 42, 'Required for blind-sign', 1)
+      o.text(4, 54, 'of unverified data.', 1)
+    },
+    appContext: 'Source: fsm_msg_common.h\napply_policy("AdvancedMode", enabled)\nGates all blind-signing operations\n7.14.0: gates EVM data signing (PR #91)',
+    insight: ['!!Gates ALL blind-sign operations', 'Without this: unverified data txs rejected', '7.14.0: required for EVM data signing'],
+  },
+  {
+    file: '00f5-user-reject.png', flow: 'Device Management', step: 'User Rejection', accent: '#EF4444',
+    device(o) {
+      o.text(4, 4, 'Action Cancelled', 2)
+      o.text(4, 28, 'User rejected the', 1)
+      o.text(4, 42, 'action on device.', 1)
+    },
+    appContext: 'Source: fsm.c\nfsm_sendFailure(Failure_ActionCancelled)\nShown on host — device returns to layoutHome()\nUser pressed reject button during any confirmation',
+    insight: ['User pressed reject/cancel button', 'Device returns to home screen', 'Host receives Failure_ActionCancelled'],
   },
 ]
 // EIP712_FLOW, TOKEN_FLOW, EVM_MULTICHAIN_FLOW defined below with verified content

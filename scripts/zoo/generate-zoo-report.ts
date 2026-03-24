@@ -328,6 +328,80 @@ async function composePdf(
     y -= 14
   }
 
+  // ── Coverage Accounting Page ─────────────────────────────────────
+
+  page = doc.addPage([W, H])
+  y = H - MT
+
+  page.drawText('Coverage Accounting', { x: ML, y, font: bold, size: 16, color: dark })
+  y -= 24
+
+  page.drawText('Claim: Comprehensive review of all user-visible device screens in normal firmware operation.', {
+    x: ML, y, font, size: 9, color: dark, maxWidth: W - ML - MR })
+  y -= 28
+
+  // Covered
+  page.drawRectangle({ x: ML, y: y + 2, width: W - ML - MR, height: 16, color: rgb(0.85, 0.95, 0.85) })
+  page.drawText('COVERED', { x: ML + 5, y: y + 4, font: bold, size: 9, color: rgb(0.1, 0.5, 0.1) })
+  y -= 16
+  const covered = [
+    'Transaction confirmations: BTC, ETH, ERC-20, EIP-712, Solana, TRON, TON, Zcash, XRP, Cosmos, THORChain, Maya, Binance',
+    'Address display: all chains with QR codes where applicable',
+    'PIN entry: create, verify, change, remove, wrong PIN backoff',
+    'Recovery cipher: character entry, auto-complete, invalid word rejection, prev-word display',
+    'Seed generation: word count selection, all display pages',
+    'Passphrase: waiting prompt, confirmation display, enable/disable',
+    'Device management: wipe, label change, auto-lock, policy toggles',
+    'Blind-sign warnings: all chains (Solana, TRON, TON, EVM)',
+    'BIP-85: child mnemonic derivation (display-only)',
+    'User rejection / action cancelled path',
+  ]
+  for (const item of covered) {
+    if (y < 60) { page = doc.addPage([W, H]); y = H - MT }
+    page.drawText(`  • ${item}`, { x: ML, y, font, size: 8, color: dark, maxWidth: W - ML - MR - 10 })
+    y -= 12
+  }
+
+  y -= 12
+  page.drawRectangle({ x: ML, y: y + 2, width: W - ML - MR, height: 16, color: rgb(0.95, 0.93, 0.85) })
+  page.drawText('NOT YET COVERED', { x: ML + 5, y: y + 4, font: bold, size: 9, color: rgb(0.7, 0.5, 0.1) })
+  y -= 16
+  const notCovered = [
+    'Bootloader / firmware update prompt screens',
+    'Firmware flash progress bars',
+    'Lock / unlock transition animations',
+    'Screensaver / idle state',
+    'Sign Identity (U2F/WebAuthn) confirmation',
+    'Encrypt/decrypt message screens',
+    'OMNI token confirmations',
+    'Osmosis LP/swap-specific screens',
+    'EOS action confirmations',
+    'Nano address confirmation',
+  ]
+  for (const item of notCovered) {
+    if (y < 60) { page = doc.addPage([W, H]); y = H - MT }
+    page.drawText(`  • ${item}`, { x: ML, y, font, size: 8, color: dark, maxWidth: W - ML - MR - 10 })
+    y -= 12
+  }
+
+  y -= 12
+  page.drawRectangle({ x: ML, y: y + 2, width: W - ML - MR, height: 16, color: rgb(0.9, 0.9, 0.92) })
+  page.drawText('OUT OF SCOPE', { x: ML + 5, y: y + 4, font: bold, size: 9, color: gray })
+  y -= 16
+  const outOfScope = [
+    'Cryptographic correctness (key derivation, signature math)',
+    'Transport internals (USB/HID/WebUSB protocol)',
+    'Host-side software behavior (wallet apps, SDKs)',
+    'Every possible coin/token variant (1000+ ERC-20 tokens)',
+    'Timing / side-channel analysis',
+    'Physical tamper resistance',
+  ]
+  for (const item of outOfScope) {
+    if (y < 60) { page = doc.addPage([W, H]); y = H - MT }
+    page.drawText(`  • ${item}`, { x: ML, y, font, size: 8, color: gray, maxWidth: W - ML - MR - 10 })
+    y -= 12
+  }
+
   // ── Per-Flow Pages ────────────────────────────────────────────────
 
   for (const flow of ALL_FLOWS) {
