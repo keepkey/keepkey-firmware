@@ -24,6 +24,7 @@ Lessons learned from the 7.14.0 release rehearsal. One-page checklist for every 
 - **No branch push** without submodule audit.
 - **No PR from branches** containing merge commits from other features.
 - **No upstream push/PR** without explicit approval.
+- **No direct pushes to develop** — all changes through PRs. Rehearsal means PRs.
 - **PRs >50 files** require explicit justification in the PR body.
 - **PRs >1000 LOC** must be either infra/release or an isolated chain feature.
 - **Master PRs with multiple feature areas**: reject unless intentional release PR.
@@ -56,16 +57,23 @@ Resolve all chain PRs against them in **one local pass**. Never push-wait-fail-r
 
 ---
 
+## Rehearsal Merge Order
+
+1. **Zoo infra PR first** — must merge before all other PRs so the zoo workflow and artifact pipeline exist on develop. Without this, all subsequent PRs fail the zoo-report check.
+2. **Feature PRs via PR, not git merge** — open PR → CI triggers → verify green + artifacts → merge → next PR. Never merge directly.
+3. **Pre-zoo branches** — feature branches created before zoo infra will not have `scripts/zoo/`. The zoo workflow gracefully skips (checks for `package.json`). Artifact verification starts after zoo infra merges.
+
 ## Per-Phase Validation
 
 After each merge to `develop`:
 
 | Phase | Scope | Validation |
 |-------|-------|------------|
-| 0 | Infra / fixes | CI green, existing tests pass |
-| 1-2 | Features | Feature-specific smoke test |
-| 3-6 | Chain additions | Per-chain address derivation + sign + zoo capture |
-| 7 | Release | Full emulator sweep + real device test + zoo report |
+| 0 | Zoo infra | Zoo workflow succeeds, 4 artifacts downloadable, PDF has 7 critical |
+| 0 | Fixes | CI green, existing tests pass, zoo skips gracefully |
+| 1-2 | Features | Feature-specific smoke test + zoo artifacts |
+| 3-6 | Chain additions | Per-chain address/sign + zoo artifacts with chain pages |
+| 7 | Release | Full emulator sweep + real device + final zoo report |
 
 ---
 
