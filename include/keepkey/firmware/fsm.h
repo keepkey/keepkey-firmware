@@ -132,5 +132,7 @@ void fsm_msgSoftReset(SoftReset *msg);
 
 void fsm_msgTronGetAddress(const TronGetAddress *msg);
 void fsm_msgTronSignTx(TronSignTx *msg);
+void fsm_msgEthereumTxMetadata(const EthereumTxMetadata *msg);
+void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg);
 
 #endif
