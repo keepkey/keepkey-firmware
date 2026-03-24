@@ -134,5 +134,7 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg);
 void fsm_msgZcashPCZTAction(const ZcashPCZTAction *msg);
 void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK *msg);
 void fsm_msgZcashTransparentInput(const ZcashTransparentInput *msg);
+void fsm_msgEthereumTxMetadata(const EthereumTxMetadata *msg);
+void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg);
 
 #endif
