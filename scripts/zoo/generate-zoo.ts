@@ -319,6 +319,11 @@ export interface PageDef {
 // BLIND SIGN POLICY: AdvancedMode blocked screen
 // ═══════════════════════════════════════════════════════════════════════
 
+export const SETUP_FLOW: PageDef[] = []   // TODO: emulator capture
+export const PIN_FLOW: PageDef[] = []     // TODO: emulator capture
+export const RECOVERY_FLOW: PageDef[] = [] // TODO: emulator capture
+export const PASSPHRASE_FLOW: PageDef[] = [] // TODO: emulator capture
+export const MGMT_FLOW: PageDef[] = []    // TODO: emulator capture
 // ═══════════════════════════════════════════════════════════════════════
 // BOOT & LIFECYCLE
 // ═══════════════════════════════════════════════════════════════════════
@@ -866,6 +871,8 @@ export const SOLANA_FLOW: PageDef[] = [
       '!Wrapping approximate — need emulator',
     ],
   },
+  // TODO: SOL SPL token transfer — confirm("Send %s to %s?") or confirm("Send %s %s to %s?")
+  // TODO: SOL stake/vote/nonce operations
   {
     file: '06b-sol-spl-token.png', flow: 'Solana SPL Token', step: 'Token Transfer', accent: '#14F195',
     device(o) {
@@ -1185,6 +1192,7 @@ export const ZCASH_FLOW: PageDef[] = [
       '!Multiple inputs = multiple confirmations',
     ],
   },
+=======
   {
     file: '23b-zcash-progress.png', flow: 'Zcash', step: 'Signing Progress', accent: '#F4B728',
     device(o) {
@@ -1216,6 +1224,7 @@ export const ZCASH_FLOW: PageDef[] = [
       'ZIP-32 derivation from raw BIP-39 seed',
     ],
   },
+>>>>>>> origin/develop
 ]
 
 // Ripple: fsm_msg_ripple.h
@@ -1380,6 +1389,7 @@ export const BIP85_FLOW: PageDef[] = [
       '!Derived seed shown on device only',
     ],
   },
+<<<<<<< HEAD
   {
     file: '31b-bip85-mnemonic.png', flow: 'BIP-85', step: 'Mnemonic Display', accent: '#8B5CF6',
     device(o) {
@@ -1421,6 +1431,7 @@ async function main() {
     { name: 'Maya', pages: MAYACHAIN_FLOW },
     { name: 'Binance', pages: BINANCE_FLOW },
     { name: 'BIP-85', pages: BIP85_FLOW },
+    // Awaiting emulator screenshots (custom layout functions):
     // Device management flows
     { name: 'Setup', pages: SETUP_FLOW },
     { name: 'PIN', pages: PIN_FLOW },

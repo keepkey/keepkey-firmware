@@ -2,6 +2,8 @@ name: Zoo Report
 
 on:
   pull_request:
+    branches: [develop]
+    types: [opened, synchronize]
     branches: [develop, master]
     types: [opened, synchronize]
   push:
@@ -16,6 +18,10 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Checkout firmware (PR head)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Checkout firmware
         uses: actions/checkout@v4
         with:
@@ -26,6 +32,22 @@ jobs:
         with:
           bun-version: '1.3.5'
 
+      - name: Install report dependencies
+        working-directory: scripts/zoo
+        run: bun install
+
+      - name: Generate zoo report PDF
+        run: |
+          bun scripts/zoo/generate-zoo-report.ts \
+            --firmware-dir=${{ github.workspace }} \
+            --pr-number=${{ github.event.pull_request.number }} \
+            --pr-title="${{ github.event.pull_request.title }}" \
+            --output=${{ github.workspace }}/zoo-report.pdf
+
+      - name: Upload zoo report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zoo-report-pr${{ github.event.pull_request.number }}
       - name: Check zoo scripts exist
         id: zoo-check
         run: |
@@ -59,6 +81,13 @@ jobs:
           retention-days: 90
 
       - name: Upload zoo page PNGs
+        uses: actions/upload-artifact@v4
+        with:
+          name: zoo-pages-pr${{ github.event.pull_request.number }}
+          path: zoo-output/pages/
+          retention-days: 90
+
+      - name: Comment on PR
         if: steps.zoo-check.outputs.exists == 'true'
         uses: actions/upload-artifact@v4
         with:
@@ -97,6 +126,10 @@ jobs:
                 '',
                 'Device screen mockup report generated.',
                 '',
+                `**[Download zoo-report.pdf](${runUrl}#artifacts)** — PDF with security analysis`,
+                `**[Download zoo-pages PNGs](${runUrl}#artifacts)** — Individual screen mockups`,
+                '',
+                '27 OLED confirmation screens across 11 flows.',
                 `**[Download zoo-report.pdf](${runUrl}#artifacts)** — Master report (49 screens, 20 flows)`,
                 `**[Download zoo-pages PNGs](${runUrl}#artifacts)** — Individual screen mockups`,
                 `**[Download feature reports](${runUrl}#artifacts)** — Per-chain device screen reviews`,

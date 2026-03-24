@@ -79,6 +79,8 @@ const ALL_FLOWS: FlowMeta[] = ([
     name: 'EIP-712 Typed Data',
     pages: EIP712_FLOW,
     accent: '#EF4444',
+    securityLevel: 'high',
+    why: 'Verified: fsm_msg_ethereum.h:372,378. Firmware shows HASH DIGESTS of domain/message  -- NOT decoded permit fields. User sees hex, cannot verify token/amount/spender.',
     securityLevel: 'critical',
     why: 'CRITICAL: Firmware shows HASH DIGESTS only — NOT decoded permit fields. User sees hex, cannot verify token/amount/spender/deadline. Blind signing risk for EIP-712.',
   },
@@ -156,6 +158,10 @@ const ALL_FLOWS: FlowMeta[] = ([
     name: 'BIP-85',
     pages: BIP85_FLOW,
     accent: '#8B5CF6',
+    securityLevel: 'medium',
+    why: 'Verified: fsm_msg_bip85.h:28. Display-only child seed derivation.',
+  },
+  // TODO: Setup, PIN, Recovery, Passphrase, Wipe -- needs emulator
     securityLevel: 'critical',
     why: 'CRITICAL: Displays derived child mnemonic on OLED. Never sent over USB. Incorrect display = user backs up wrong seed = permanent fund loss.',
   },
@@ -294,6 +300,11 @@ async function composePdf(
   y -= 20
 
   const totalPages = ALL_FLOWS.reduce((n, f) => n + f.pages.length, 0)
+  const stats = [
+    `Flows covered: ${ALL_FLOWS.length}`,
+    `Total screen mockups: ${totalPages}`,
+    `Critical security screens: ${ALL_FLOWS.filter(f => f.securityLevel === 'critical').length}`,
+    `High priority screens: ${ALL_FLOWS.filter(f => f.securityLevel === 'high').length}`,
   const criticalFlows = ALL_FLOWS.filter(f => f.securityLevel === 'critical')
   const highFlows = ALL_FLOWS.filter(f => f.securityLevel === 'high')
   const pdfPageCount = totalPages + 3 // +cover +coverage accounting +overflow
@@ -333,6 +344,8 @@ async function composePdf(
     y -= 14
   }
 
+<<<<<<< HEAD
+=======
   // ── Coverage Accounting Page ─────────────────────────────────────
 
   page = doc.addPage([W, H])
@@ -407,6 +420,7 @@ async function composePdf(
     y -= 12
   }
 
+>>>>>>> origin/develop
   // ── Per-Flow Pages ────────────────────────────────────────────────
 
   for (const flow of ALL_FLOWS) {

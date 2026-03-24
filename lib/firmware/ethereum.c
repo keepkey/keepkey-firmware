@@ -33,6 +33,7 @@
 #include "keepkey/firmware/eip712.h"
 #include "keepkey/firmware/ethereum_contracts.h"
 #include "keepkey/firmware/ethereum_contracts/makerdao.h"
+#include "keepkey/firmware/signed_metadata.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/thorchain.h"
@@ -689,6 +690,26 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
     data_needs_confirm = false;
   }
 
+  // Signed metadata clear signing (backwards compatible).
+  // Only fires if host sent EthereumTxMetadata before this EthereumSignTx.
+  if (data_needs_confirm && data_total > 0 && signed_metadata_available()) {
+    if (signed_metadata_matches_tx(msg, NULL)) {
+      if (signed_metadata_confirm()) {
+        needs_confirm = false;
+        data_needs_confirm = false;
+      } else {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                        "Signing cancelled by user");
+        ethereum_signing_abort();
+        signed_metadata_clear();
+        return;
+      }
+    }
+  }
+  // Always clear metadata after use — prevents stale data from persisting
+  // when contractHandled or ERC-20 paths bypass the metadata check above.
+  signed_metadata_clear();
+
   // detect ERC-20 token
   if (data_total == 68 && ethereum_isStandardERC20Transfer(msg)) {
     token = tokenByChainAddress(chain_id, msg->to.bytes);
@@ -734,15 +755,15 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
 
   memset(confirm_body_message, 0, sizeof(confirm_body_message));
   if (token == NULL && data_total > 0 && data_needs_confirm) {
-    // KeepKey custom: warn the user that they're trying to do something
-    // that is potentially dangerous. People (generally) aren't great at
-    // parsing raw transaction data, and we can't effectively show them
-    // what they're about to do in the general case.
+    // AdvancedMode policy: hard gate for blind-signing arbitrary contract data
     if (!storage_isPolicyEnabled("AdvancedMode")) {
-      (void)review(
-          ButtonRequestType_ButtonRequest_Other, "Warning",
-          "Signing of arbitrary ETH contract data is recommended only for "
-          "experienced users. Enable 'AdvancedMode' policy to dismiss.");
+      (void)review(ButtonRequestType_ButtonRequest_Other, "Blocked",
+                   "Blind signing requires AdvancedMode. "
+                   "Enable in device settings.");
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      "Blind signing disabled by policy");
+      ethereum_signing_abort();
+      return;
     }
 
     layoutEthereumData(msg->data_initial_chunk.bytes,
