@@ -3,6 +3,7 @@ set(sources
     app_layout.c
     authenticator.c
     signed_metadata.c
+    bip85.c
     binance.c
     coins.c
     crypto.c
