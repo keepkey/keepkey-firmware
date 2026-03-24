@@ -19,6 +19,42 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "keepkey/firmware/signed_metadata.h"
+
+void fsm_msgEthereumTxMetadata(const EthereumTxMetadata *msg) {
+    CHECK_INITIALIZED
+    CHECK_PIN
+
+    RESP_INIT(EthereumMetadataAck);
+
+    MetadataClassification result = signed_metadata_process(
+        msg->signed_payload.bytes,
+        msg->signed_payload.size,
+        msg->has_key_id ? msg->key_id : 0
+    );
+
+    resp->classification = (uint32_t)result;
+    resp->has_display_summary = true;
+
+    switch (result) {
+        case METADATA_VERIFIED:
+            strlcpy(resp->display_summary, "Verified",
+                    sizeof(resp->display_summary));
+            break;
+        case METADATA_OPAQUE:
+            strlcpy(resp->display_summary, "Unverified",
+                    sizeof(resp->display_summary));
+            break;
+        case METADATA_MALFORMED:
+        default:
+            strlcpy(resp->display_summary, "Invalid",
+                    sizeof(resp->display_summary));
+            break;
+    }
+
+    msg_write(MessageType_MessageType_EthereumMetadataAck, resp);
+}
+
 static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg) {
   if (!ethereum_isStandardERC20Transfer(msg) && msg->data_length != 0)
     return TXOUT_COMPILE_ERROR;
