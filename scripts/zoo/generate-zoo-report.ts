@@ -79,8 +79,8 @@ const ALL_FLOWS: FlowMeta[] = ([
     name: 'EIP-712 Typed Data',
     pages: EIP712_FLOW,
     accent: '#EF4444',
-    securityLevel: 'high',
-    why: 'Verified: fsm_msg_ethereum.h:372,378. Firmware shows HASH DIGESTS of domain/message  -- NOT decoded permit fields. User sees hex, cannot verify token/amount/spender.',
+    securityLevel: 'critical',
+    why: 'CRITICAL: Firmware shows HASH DIGESTS only — NOT decoded permit fields. User sees hex, cannot verify token/amount/spender/deadline. Blind signing risk for EIP-712.',
   },
   {
     name: 'ERC-20 Tokens',
@@ -156,43 +156,43 @@ const ALL_FLOWS: FlowMeta[] = ([
     name: 'BIP-85',
     pages: BIP85_FLOW,
     accent: '#8B5CF6',
-    securityLevel: 'medium',
-    why: 'Verified: fsm_msg_bip85.h:28. Display-only child seed derivation.',
+    securityLevel: 'critical',
+    why: 'CRITICAL: Displays derived child mnemonic on OLED. Never sent over USB. Incorrect display = user backs up wrong seed = permanent fund loss.',
   },
   {
     name: 'Device Setup',
     pages: SETUP_FLOW,
     accent: '#6366F1',
-    securityLevel: 'high',
-    why: 'Device initialization: create/recover wallet, seed word display. Source: reset.c. Seed words shown in 2-column batched layout.',
+    securityLevel: 'critical',
+    why: 'CRITICAL: Seed generation and display. Source: reset.c. Seed words shown on OLED — only opportunity to back up. Incorrect backup = permanent fund loss.',
   },
   {
     name: 'PIN Entry',
     pages: PIN_FLOW,
     accent: '#6366F1',
-    securityLevel: 'high',
-    why: 'Animated 3x3 grid via layout_animate_pin() (app_layout.c:52-180). Host never sees actual digit positions.',
+    securityLevel: 'critical',
+    why: 'CRITICAL: PIN protects all device operations. Randomized 3x3 grid — host never sees digit positions. Wrong PIN = exponential backoff. Remove PIN = device unprotected.',
   },
   {
     name: 'Recovery Cipher',
     pages: RECOVERY_FLOW,
     accent: '#6366F1',
-    securityLevel: 'high',
-    why: 'Cipher grid via layout_cipher() (app_layout.c:192-301). 7.14.0: prev completed word shown at y=50. Host sees only ciphered characters.',
+    securityLevel: 'critical',
+    why: 'CRITICAL: Seed recovery entry. Cipher grid prevents host from learning seed words. Invalid word rejection (7.14.0). Incorrect recovery = wrong wallet or lost funds.',
   },
   {
     name: 'Passphrase',
     pages: PASSPHRASE_FLOW,
     accent: '#6366F1',
-    securityLevel: 'medium',
-    why: 'Passphrase entered on host, not device. Device shows prompt only. Empty passphrase is valid (BIP-39 default).',
+    securityLevel: 'critical',
+    why: 'CRITICAL: Passphrase extends seed derivation. Wrong passphrase = different wallet (funds inaccessible). Empty passphrase is valid. Confirmation shown on device.',
   },
   {
     name: 'Device Management',
     pages: MGMT_FLOW,
     accent: '#EF4444',
-    securityLevel: 'high',
-    why: 'Wipe device: irreversible, all keys destroyed. Requires physical button confirmation.',
+    securityLevel: 'critical',
+    why: 'CRITICAL: Wipe destroys all keys irreversibly. Policy toggles gate blind-signing. Label/autolock are cosmetic but included for completeness.',
   },
   // TODO: Osmosis LP/swap ops (fsm_msg_osmosis.h)
   // TODO: EOS, Nano
@@ -294,11 +294,16 @@ async function composePdf(
   y -= 20
 
   const totalPages = ALL_FLOWS.reduce((n, f) => n + f.pages.length, 0)
+  const criticalFlows = ALL_FLOWS.filter(f => f.securityLevel === 'critical')
+  const highFlows = ALL_FLOWS.filter(f => f.securityLevel === 'high')
+  const pdfPageCount = totalPages + 3 // +cover +coverage accounting +overflow
   const stats = [
     `Flows covered: ${ALL_FLOWS.length}`,
     `Total screen mockups: ${totalPages}`,
-    `Critical security screens: ${ALL_FLOWS.filter(f => f.securityLevel === 'critical').length}`,
-    `High priority screens: ${ALL_FLOWS.filter(f => f.securityLevel === 'high').length}`,
+    `PDF pages: ${pdfPageCount} (${totalPages} screens + 3 report pages)`,
+    `Critical security flows: ${criticalFlows.length} (${criticalFlows.map(f => f.name).join(', ')})`,
+    `High priority flows: ${highFlows.length}`,
+    `Medium priority flows: ${ALL_FLOWS.filter(f => f.securityLevel === 'medium').length}`,
   ]
   for (const s of stats) {
     page.drawText(s, { x: ML + 10, y, font, size: 10, color: dark })
