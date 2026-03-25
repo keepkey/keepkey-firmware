@@ -704,8 +704,8 @@ void layout_cipher(const char *current_word, const char *cipher,
   call_leaving_handler();
   layout_clear();
 
-  /* Draw previous word info (small, top-left — must be x < 76 to avoid
-   * being wiped by cipher animation which clears x >= CIPHER_START_X) */
+  /* Draw previous word info at top-left — must be x < 76 to avoid
+   * being wiped by cipher animation which clears x >= CIPHER_START_X */
   if (prev_word_info && prev_word_info[0]) {
     sp.y = 2;
     sp.x = 4;
@@ -714,8 +714,8 @@ void layout_cipher(const char *current_word, const char *cipher,
                 font_height(title_font));
   }
 
-  /* Draw prompt */
-  sp.y = 11;
+  /* Draw prompt — push down when prev word is shown */
+  sp.y = (prev_word_info && prev_word_info[0]) ? 14 : 11;
   sp.x = 4;
   sp.color = BODY_COLOR;
   draw_string(canvas, title_font, "Recovery Cipher:", &sp, 58,
