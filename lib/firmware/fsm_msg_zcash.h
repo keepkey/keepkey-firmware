@@ -381,7 +381,7 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress *msg) {
   uint32_t account;
   if (msg->has_account) {
     account = msg->account;
-  } else if (msg->address_n_count >= 3 &&
+  } else if (msg->address_n_count == 3 &&
              msg->address_n[0] == (0x80000000 | 32) &&
              msg->address_n[1] == (0x80000000 | 133) &&
              (msg->address_n[2] & 0x80000000)) {
