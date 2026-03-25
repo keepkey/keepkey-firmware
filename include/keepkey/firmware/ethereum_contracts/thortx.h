@@ -26,12 +26,18 @@
 #define ETH_ADDRESS "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
 #define ETH_NATIVE  "\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee"
 
+/* THORChain ETH router (mainnet) */
 #define THOR_ROUTER "42a5ed456650a09dc10ebc6361a7480fdd61f27b"
+
+/* Maya Protocol ETH router (mainnet) */
+#define MAYA_ROUTER "d89dce570de35a6f42d3bca7dba50a6d89bfc2a2"
 
 typedef struct _EthereumSignTx EthereumSignTx;
 
 bool thor_isThorchainTx(const EthereumSignTx *msg);
+bool thor_isMayachainTx(const EthereumSignTx *msg);
 bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx *msg);
+bool thor_confirmMayaTx(uint32_t data_total, const EthereumSignTx *msg);
 
 
 #endif
