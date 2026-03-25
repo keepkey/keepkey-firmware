@@ -111,13 +111,30 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg) {
   uint64_t total = msg->has_total_amount ? msg->total_amount : 0;
   uint64_t fee = msg->has_fee ? msg->fee : 0;
 
-  /* Format amounts (1 ZEC = 100,000,000 zatoshis) */
-  snprintf(amount_str, sizeof(amount_str), "%llu.%08llu ZEC",
-           (unsigned long long)(total / 100000000ULL),
-           (unsigned long long)(total % 100000000ULL));
-  snprintf(fee_str, sizeof(fee_str), "%llu.%08llu ZEC",
-           (unsigned long long)(fee / 100000000ULL),
-           (unsigned long long)(fee % 100000000ULL));
+  /* Format amounts (1 ZEC = 100,000,000 zatoshis).
+   * Strip trailing zeros from the fractional part for readability:
+   * 10000 zatoshis → "0.0001 ZEC" not "0.00010000 ZEC" */
+  {
+    char frac_buf[16];
+    unsigned long long w = (unsigned long long)(total / 100000000ULL);
+    unsigned long long f = (unsigned long long)(total % 100000000ULL);
+    snprintf(frac_buf, sizeof(frac_buf), "%08llu", f);
+    /* strip trailing zeros, keep at least 1 digit */
+    int flen = 8;
+    while (flen > 1 && frac_buf[flen - 1] == '0') flen--;
+    frac_buf[flen] = '\0';
+    snprintf(amount_str, sizeof(amount_str), "%llu.%s ZEC", w, frac_buf);
+  }
+  {
+    char frac_buf[16];
+    unsigned long long w = (unsigned long long)(fee / 100000000ULL);
+    unsigned long long f = (unsigned long long)(fee % 100000000ULL);
+    snprintf(frac_buf, sizeof(frac_buf), "%08llu", f);
+    int flen = 8;
+    while (flen > 1 && frac_buf[flen - 1] == '0') flen--;
+    frac_buf[flen] = '\0';
+    snprintf(fee_str, sizeof(fee_str), "%llu.%s ZEC", w, frac_buf);
+  }
 
   /* Display confirmation — different text for shielded-only vs hybrid */
   uint32_t n_tinputs = msg->has_n_transparent_inputs ? msg->n_transparent_inputs : 0;
@@ -279,6 +296,15 @@ void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK *msg) {
   CHECK_INITIALIZED
 
   CHECK_PIN
+
+  /* Confirmation required: FVK reveals all transaction history */
+  if (!confirm(ButtonRequestType_ButtonRequest_Other,
+               "Zcash Orchard", "Export Full Viewing Key?\n"
+               "This reveals all\ntransaction history.")) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    layoutHome();
+    return;
+  }
 
   /* Determine account from path or explicit account field */
   uint32_t account = 0;
@@ -768,10 +794,17 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput *msg) {
   {
     char input_str[64];
     uint64_t amt = msg->has_amount ? msg->amount : 0;
-    snprintf(input_str, sizeof(input_str), "Input %lu: %llu.%08llu ZEC",
-             (unsigned long)(msg->index + 1),
-             (unsigned long long)(amt / 100000000ULL),
-             (unsigned long long)(amt % 100000000ULL));
+    {
+      char frac_buf[16];
+      unsigned long long w = (unsigned long long)(amt / 100000000ULL);
+      unsigned long long f = (unsigned long long)(amt % 100000000ULL);
+      snprintf(frac_buf, sizeof(frac_buf), "%08llu", f);
+      int flen = 8;
+      while (flen > 1 && frac_buf[flen - 1] == '0') flen--;
+      frac_buf[flen] = '\0';
+      snprintf(input_str, sizeof(input_str), "Input %lu: %llu.%s ZEC",
+               (unsigned long)(msg->index + 1), w, frac_buf);
+    }
     if (!confirm(ButtonRequestType_ButtonRequest_SignTx,
                  "Sign Input", "Sign transparent input?\n%s",
                  input_str)) {
