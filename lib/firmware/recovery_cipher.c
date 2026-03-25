@@ -491,7 +491,7 @@ void recovery_character(const char *character) {
         recovery_cipher_abort();
         fsm_sendFailure(FailureType_Failure_SyntaxError,
                         "Word not found in BIP39 wordlist");
-        layoutHome();
+        layout_warning_static("Word not in wordlist");
         return;
       }
     }
