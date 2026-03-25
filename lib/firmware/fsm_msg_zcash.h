@@ -372,12 +372,19 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress *msg) {
     return;
   }
 
-  /* Determine account from path or explicit account field */
-  uint32_t account = 0;
+  /* Determine account — require explicit account or valid path, never
+   * silently default to 0.  A missing account could cause the device to
+   * verify against the wrong key set and display a misleading result. */
+  uint32_t account;
   if (msg->has_account) {
     account = msg->account;
   } else if (msg->address_n_count >= 3) {
     account = msg->address_n[2] & 0x7FFFFFFF;
+  } else {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Account index or derivation path required"));
+    layoutHome();
+    return;
   }
 
   /* Get the real BIP-39 seed for ZIP-32 Orchard derivation */
@@ -431,8 +438,21 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress *msg) {
     return;
   }
 
-  /* Display the verified address on screen with QR code */
-  if (!confirm_zcash_address("Zcash Orchard", msg->address)) {
+  /* Display the address on screen with QR code.
+   *
+   * IMPORTANT LIMITATION: This verification only confirms that the
+   * Orchard FVK (ak/nk/rivk) in this UA was derived from this device's
+   * seed at the given account.  A Unified Address may bundle receivers
+   * from multiple pools (transparent, Sapling, Orchard).  The device
+   * cannot currently verify non-Orchard receivers — a compromised host
+   * could substitute attacker-controlled transparent or Sapling receivers
+   * while keeping the correct Orchard receiver.
+   *
+   * The display text explicitly scopes the claim to "Orchard key verified"
+   * so the user understands what was checked. */
+  char desc[48];
+  snprintf(desc, sizeof(desc), "Zcash #%lu Orchard", (unsigned long)account);
+  if (!confirm_zcash_address(desc, msg->address)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     _("Address display cancelled"));
     layoutHome();
