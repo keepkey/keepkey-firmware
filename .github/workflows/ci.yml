@@ -512,7 +512,7 @@ jobs:
 
       - name: Upload OLED screenshots
         uses: actions/upload-artifact@v4
-        if: always() && (steps.changes.outputs.firmware == 'true' || github.event_name == 'push')
+        if: always()
         with:
           name: oled-screenshots
           path: test-reports/screenshots/
