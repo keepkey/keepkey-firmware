@@ -372,17 +372,23 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress *msg) {
     return;
   }
 
-  /* Determine account — require explicit account or valid path, never
-   * silently default to 0.  A missing account could cause the device to
-   * verify against the wrong key set and display a misleading result. */
+  /* Determine account — require explicit account or valid ZIP-32 path.
+   * When using address_n, enforce the expected Orchard path shape:
+   *   m/32'/133'/account'  (all hardened)
+   * This matches the derivation used in ZcashGetOrchardFVK and
+   * ZcashSignPCZT, and prevents a malformed path from silently
+   * deriving against an unintended account. */
   uint32_t account;
   if (msg->has_account) {
     account = msg->account;
-  } else if (msg->address_n_count >= 3) {
+  } else if (msg->address_n_count >= 3 &&
+             msg->address_n[0] == (0x80000000 | 32) &&
+             msg->address_n[1] == (0x80000000 | 133) &&
+             (msg->address_n[2] & 0x80000000)) {
     account = msg->address_n[2] & 0x7FFFFFFF;
   } else {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("Account index or derivation path required"));
+                    _("Require account field or ZIP-32 path m/32'/133'/account'"));
     layoutHome();
     return;
   }
