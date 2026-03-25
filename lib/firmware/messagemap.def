@@ -92,6 +92,7 @@
     MSG_IN(MessageType_MessageType_ZcashPCZTAction,   ZcashPCZTAction,   fsm_msgZcashPCZTAction)
     MSG_IN(MessageType_MessageType_ZcashGetOrchardFVK, ZcashGetOrchardFVK, fsm_msgZcashGetOrchardFVK)
     MSG_IN(MessageType_MessageType_ZcashTransparentInput, ZcashTransparentInput, fsm_msgZcashTransparentInput)
+    MSG_IN(MessageType_MessageType_ZcashDisplayAddress, ZcashDisplayAddress, fsm_msgZcashDisplayAddress)
 #endif // BITCOIN_ONLY
     /* Normal Out Messages */
     MSG_OUT(MessageType_MessageType_Success,                        Success,                     NO_PROCESS_FUNC)
@@ -171,6 +172,7 @@
     MSG_OUT(MessageType_MessageType_ZcashSignedPCZT,    ZcashSignedPCZT,    NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_ZcashOrchardFVK,    ZcashOrchardFVK,    NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_ZcashTransparentSig, ZcashTransparentSig, NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_ZcashAddress, ZcashAddress, NO_PROCESS_FUNC)
 #endif  // BITCOIN_ONLY
 #if DEBUG_LINK
     /* Debug Messages */

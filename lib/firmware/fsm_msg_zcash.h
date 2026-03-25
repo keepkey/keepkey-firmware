@@ -341,6 +341,138 @@ void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK *msg) {
   layoutHome();
 }
 
+void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress *msg) {
+  RESP_INIT(ZcashAddress);
+
+  CHECK_INITIALIZED
+
+  CHECK_PIN
+
+  /* Validate required fields */
+  if (!msg->has_address || strlen(msg->address) < 10) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Missing or invalid address"));
+    layoutHome();
+    return;
+  }
+  if (!msg->has_ak || msg->ak.size != 32 ||
+      !msg->has_nk || msg->nk.size != 32 ||
+      !msg->has_rivk || msg->rivk.size != 32) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Missing FVK components (ak, nk, rivk)"));
+    layoutHome();
+    return;
+  }
+
+  /* Validate address format: must start with "u1" (mainnet UA) */
+  if (msg->address[0] != 'u' || msg->address[1] != '1') {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid unified address prefix"));
+    layoutHome();
+    return;
+  }
+
+  /* Determine account — require explicit account or valid ZIP-32 path.
+   * When using address_n, enforce the expected Orchard path shape:
+   *   m/32'/133'/account'  (all hardened)
+   * This matches the derivation used in ZcashGetOrchardFVK and
+   * ZcashSignPCZT, and prevents a malformed path from silently
+   * deriving against an unintended account. */
+  uint32_t account;
+  if (msg->has_account) {
+    account = msg->account;
+  } else if (msg->address_n_count == 3 &&
+             msg->address_n[0] == (0x80000000 | 32) &&
+             msg->address_n[1] == (0x80000000 | 133) &&
+             (msg->address_n[2] & 0x80000000)) {
+    account = msg->address_n[2] & 0x7FFFFFFF;
+  } else {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Require account field or ZIP-32 path m/32'/133'/account'"));
+    layoutHome();
+    return;
+  }
+
+  /* Get the real BIP-39 seed for ZIP-32 Orchard derivation */
+  const uint8_t *seed = storage_getRawSeed(true);
+  if (!seed) {
+    fsm_sendFailure(FailureType_Failure_NotInitialized,
+                    _("Device not initialized or seed unavailable"));
+    layoutHome();
+    return;
+  }
+
+  ZcashOrchardKeys keys;
+  if (!zcash_derive_orchard_keys(seed, 64, account, &keys)) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Orchard key derivation failed"));
+    layoutHome();
+    return;
+  }
+
+  /* Compute ak = [ask]G_spendauth on Pallas curve (SpendAuth basepoint) */
+  bignum256 ask_scalar;
+  bn_read_le(keys.ask, &ask_scalar);
+  curve_point ak_point;
+  redpallas_scalar_mult_spendauth_G(&ask_scalar, &ak_point);
+
+  /* Serialize ak as Pallas point (LE x-coord, sign bit in high byte) */
+  uint8_t ak_bytes[32];
+  bignum256 x_copy;
+  bn_copy(&ak_point.x, &x_copy);
+  bn_write_le(&x_copy, ak_bytes);
+  if (bn_is_odd(&ak_point.y)) {
+    ak_bytes[31] |= 0x80;
+  }
+
+  /* Verify FVK components match device-derived keys */
+  bool fvk_match = (memcmp(ak_bytes, msg->ak.bytes, 32) == 0) &&
+                   (memcmp(keys.nk, msg->nk.bytes, 32) == 0) &&
+                   (memcmp(keys.rivk, msg->rivk.bytes, 32) == 0);
+
+  /* Clean up sensitive key material BEFORE display prompt */
+  memzero(&ask_scalar, sizeof(ask_scalar));
+  memzero(&ak_point, sizeof(ak_point));
+  memzero(ak_bytes, sizeof(ak_bytes));
+  memzero(&x_copy, sizeof(x_copy));
+  memzero(&keys, sizeof(keys));
+
+  if (!fvk_match) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("FVK mismatch: address does not belong to this device"));
+    layoutHome();
+    return;
+  }
+
+  /* Display the address on screen with QR code.
+   *
+   * IMPORTANT LIMITATION: This verification only confirms that the
+   * Orchard FVK (ak/nk/rivk) in this UA was derived from this device's
+   * seed at the given account.  A Unified Address may bundle receivers
+   * from multiple pools (transparent, Sapling, Orchard).  The device
+   * cannot currently verify non-Orchard receivers — a compromised host
+   * could substitute attacker-controlled transparent or Sapling receivers
+   * while keeping the correct Orchard receiver.
+   *
+   * The display text explicitly scopes the claim to "Orchard key verified"
+   * so the user understands what was checked. */
+  char desc[48];
+  snprintf(desc, sizeof(desc), "Zcash #%lu Orchard", (unsigned long)account);
+  if (!confirm_zcash_address(desc, msg->address)) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("Address display cancelled"));
+    layoutHome();
+    return;
+  }
+
+  /* User confirmed — return the address */
+  resp->has_address = true;
+  strlcpy(resp->address, msg->address, sizeof(resp->address));
+
+  msg_write(MessageType_MessageType_ZcashAddress, resp);
+  layoutHome();
+}
+
 void fsm_msgZcashPCZTAction(const ZcashPCZTAction *msg) {
   if (!zcash_signing.active) {
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,

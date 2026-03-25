@@ -36,3 +36,11 @@ ZcashTransparentInput.address_n                     max_count:8
 ZcashTransparentInput.amount                        int_size:IS_64
 
 ZcashTransparentSig.signature                       max_size:73
+
+ZcashDisplayAddress.address_n                       max_count:8
+ZcashDisplayAddress.address                         max_size:128
+ZcashDisplayAddress.ak                              max_size:32
+ZcashDisplayAddress.nk                              max_size:32
+ZcashDisplayAddress.rivk                            max_size:32
+
+ZcashAddress.address                                max_size:128

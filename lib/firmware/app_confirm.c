@@ -290,6 +290,22 @@ bool confirm_osmosis_address(const char *desc, const char *address) {
 }
 
 /*
+ * confirm_zcash_address() - Show zcash address confirmation
+ *
+ * INPUT
+ *      - desc: description to show with address
+ *      - address: zcash unified address to display both as string and in QR
+ * OUTPUT
+ *     true/false of confirmation
+ *
+ */
+bool confirm_zcash_address(const char *desc, const char *address) {
+  return confirm_with_custom_layout(&layout_zcash_address_notification,
+                                    ButtonRequestType_ButtonRequest_Address,
+                                    desc, "%s", address);
+}
+
+/*
  * confirm_ethereum_address() - Show ethereum address confirmation
  *
  * INPUT

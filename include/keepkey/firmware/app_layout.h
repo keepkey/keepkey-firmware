@@ -118,6 +118,8 @@ void layout_ethereum_address_notification(const char *desc, const char *address,
                                           NotificationType type);
 void layout_nano_address_notification(const char *desc, const char *address,
                                       NotificationType type);
+void layout_zcash_address_notification(const char *desc, const char *address,
+                                       NotificationType type);
 void layout_pin(const char *prompt, char *pin);
 void layout_cipher(const char *current_word, const char *cipher,
                     const char *prev_word_info);

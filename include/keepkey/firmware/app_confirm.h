@@ -50,6 +50,7 @@ bool confirm_cosmos_address(const char *desc, const char *address);
 bool confirm_osmosis_address(const char *desc, const char *address);
 bool confirm_ethereum_address(const char *desc, const char *address);
 bool confirm_nano_address(const char *desc, const char *address);
+bool confirm_zcash_address(const char *desc, const char *address);
 bool confirm_omni(ButtonRequestType button_request, const char *title,
                   const uint8_t *data, uint32_t size);
 bool confirm_data(ButtonRequestType button_request, const char *title,
