@@ -371,13 +371,29 @@ void next_character(void) {
   }
 #endif
 
+  /* Save word so we can show it as "prev" on next word.
+   * When auto-complete fires, current_word holds the full expanded word
+   * (e.g. "alcohol" not "alc"). Otherwise save the typed prefix. */
+  static char CONFIDENTIAL last_completed_word[12];
+  if (strlen(current_word) > 0) {
+    strlcpy(last_completed_word, current_word, sizeof(last_completed_word));
+  }
+
   /* Format current word and display it along with cipher */
   static char CONFIDENTIAL formatted_word[CURRENT_WORD_BUF + 10];
   format_current_word(word_pos, current_word, auto_completed, &formatted_word);
   memzero(current_word, sizeof(current_word));
 
+  /* Format previous word indicator (e.g. "(1.alcohol)" when entering word 2) */
+  static char prev_info[16];
+  prev_info[0] = '\0';
+  if (word_pos > 0 && last_completed_word[0]) {
+    snprintf(prev_info, sizeof(prev_info), "(%" PRIu32 ".%s)",
+             word_pos, last_completed_word);
+  }
+
   /* Show cipher and partial word */
-  layout_cipher(formatted_word, cipher);
+  layout_cipher(formatted_word, cipher, prev_info);
   memzero(formatted_word, sizeof(formatted_word));
 }
 
@@ -462,6 +478,24 @@ void recovery_character(const char* character) {
       }
     }
   } else {
+    /* Per-word BIP39 validation: reject immediately if the decoded word
+     * doesn't match any entry in the wordlist. */
+    if (enforce_wordlist && strlen(decoded_word) > 0) {
+      static CONFIDENTIAL char check_word[CURRENT_WORD_BUF];
+      strlcpy(check_word, decoded_word, sizeof(check_word));
+      bool valid = attempt_auto_complete(check_word);
+      memzero(check_word, sizeof(check_word));
+      if (!valid) {
+        memzero(coded_word, sizeof(coded_word));
+        memzero(decoded_word, sizeof(decoded_word));
+        recovery_cipher_abort();
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        "Word not found in BIP39 wordlist");
+        layout_warning_static("Word not in wordlist");
+        return;
+      }
+    }
+
     memzero(coded_word, sizeof(coded_word));
     memzero(decoded_word, sizeof(decoded_word));
 
@@ -575,7 +609,7 @@ void recovery_cipher_finalize(void) {
   }
   memzero(temp_word, sizeof(temp_word));
 
-  if (!auto_completed && !enforce_wordlist) {
+  if (!auto_completed && enforce_wordlist) {
     if (!dry_run) {
       storage_reset();
     }
