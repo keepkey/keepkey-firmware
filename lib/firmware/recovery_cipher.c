@@ -385,7 +385,7 @@ void next_character(void) {
   memzero(current_word, sizeof(current_word));
 
   /* Format previous word indicator (e.g. "(1.alcohol)" when entering word 2) */
-  static char prev_info[16];
+  static char prev_info[32];
   prev_info[0] = '\0';
   if (word_pos > 0 && last_completed_word[0]) {
     snprintf(prev_info, sizeof(prev_info), "(%" PRIu32 ".%s)",
