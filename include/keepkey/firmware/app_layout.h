@@ -124,7 +124,8 @@ void layout_zcash_address_text_notification(const char* desc,
                                             const char* address,
                                             NotificationType type);
 void layout_pin(const char* str, char* pin);
-void layout_cipher(const char* current_word, const char* cipher);
+void layout_cipher(const char* current_word, const char* cipher,
+                   const char* prev_word_info);
 void layout_address(const char* address, QRSize qr_size);
 void set_leaving_handler(leaving_handler_t leaving_func);
 
