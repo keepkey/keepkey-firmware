@@ -387,8 +387,9 @@ jobs:
 
   python-integration-tests:
     needs: [check-submodules, secret-scan]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -412,8 +413,22 @@ jobs:
           docker compose up --build python-keepkey
           set -e
           mkdir -p ${{ github.workspace }}/test-reports
-          docker cp "$(docker compose ps -a -q firmware-unit)":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ 2>/dev/null || true
-          docker cp "$(docker compose ps -a -q python-keepkey)":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ 2>/dev/null || true
+
+          echo "=== Extracting test reports from Docker ==="
+          PY_CONTAINER=$(docker compose ps -a -q python-keepkey)
+          FW_CONTAINER=$(docker compose ps -a -q firmware-unit)
+          echo "python-keepkey container: $PY_CONTAINER"
+          echo "firmware-unit container: $FW_CONTAINER"
+
+          docker cp "$FW_CONTAINER":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ || echo "WARN: firmware-unit docker cp failed"
+          docker cp "$PY_CONTAINER":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ || echo "WARN: python-keepkey docker cp failed"
+
+          echo "=== Extracted files ==="
+          find ${{ github.workspace }}/test-reports -type f | head -30
+          echo "=== Screenshot PNGs ==="
+          find ${{ github.workspace }}/test-reports/screenshots -name '*.png' 2>/dev/null | wc -l
+          echo "PNGs on host"
+
           UNIT_STATUS=$(cat ${{ github.workspace }}/test-reports/firmware-unit/status 2>/dev/null || echo "1")
           PY_STATUS=$(cat ${{ github.workspace }}/test-reports/python-keepkey/status 2>/dev/null || echo "1")
           echo "Unit tests exit status: $UNIT_STATUS"
@@ -428,10 +443,77 @@ jobs:
           path: test-reports/python-keepkey/
           retention-days: 30
 
+      - name: Upload OLED screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: oled-screenshots
+          path: test-reports/screenshots/
+          retention-days: 90
+          if-no-files-found: warn
+
       - name: Tear down
         if: always()
         working-directory: scripts/emulator
         run: docker compose down -v || true
+
+  # ═══════════════════════════════════════════════════════════
+  # STAGE 3b: TEST REPORT — generate PDF from test artifacts
+  # ═══════════════════════════════════════════════════════════
+
+  generate-test-report:
+    needs: [unit-tests, python-integration-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Download unit test results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: unit-test-results
+          path: test-reports/firmware-unit/
+
+      - name: Download python test results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: python-test-results
+          path: test-reports/python-keepkey/
+
+      - name: Download OLED screenshots
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: oled-screenshots
+          path: test-reports/screenshots/
+
+      - name: Extract firmware version
+        id: version
+        run: |
+          FW_VERSION=$(sed -n '/^project/,/)/p' CMakeLists.txt | grep -oP '\d+\.\d+\.\d+' || echo "unknown")
+          echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Init python-keepkey submodule
+        run: git submodule update --init deps/python-keepkey
+
+      - name: Generate test report PDF
+        env:
+          FW_VERSION: ${{ steps.version.outputs.fw_version }}
+        run: python3 scripts/generate-test-report.py
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report
+          path: test-report.pdf
+          retention-days: 90
 
   # ═══════════════════════════════════════════════════════════
   # STAGE 4: PUBLISH — manual trigger only, all tests must pass

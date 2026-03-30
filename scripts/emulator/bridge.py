@@ -20,6 +20,10 @@ ds.connect(debug)
 
 app = Flask(__name__)
 
+@app.route('/health')
+def health():
+    return Response('ok', status=200)
+
 @app.route('/exchange/<string:kind>', methods=['GET', 'POST'])
 def exchange(kind):
 

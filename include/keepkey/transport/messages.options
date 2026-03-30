@@ -109,7 +109,7 @@ ApplyPolicies.policy			max_count:16
 FirmwareUpload.payload_hash  max_size:32
 FirmwareUpload.payload			max_size:0
 
-DebugLinkState.layout			max_size:1024
+DebugLinkState.layout			max_size:2048
 DebugLinkState.pin			max_size:10
 DebugLinkState.matrix			max_size:10
 DebugLinkState.mnemonic			max_size:241
