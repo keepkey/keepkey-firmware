@@ -8,9 +8,7 @@ if(${KK_EMULATOR})
       ${CMAKE_BINARY_DIR}/include
       ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto)
 
-  add_executable(kkemu ${sources})
-
-  target_link_libraries(kkemu
+  set(FIRMWARE_LIBS
       kkfirmware
       kkfirmware.keepkey
       kkboard
@@ -20,6 +18,14 @@ if(${KK_EMULATOR})
       kktransport
       trezorcrypto
       trezorqrenc
-      kkrand
-      kkemulator)
+      kkrand)
+
+  # Standalone emulator binary (uses UDP sockets)
+  add_executable(kkemu ${sources})
+  target_link_libraries(kkemu ${FIRMWARE_LIBS} kkemulator)
+
+  # Shared library (uses ring buffers, no sockets)
+  if(KK_BUILD_DYLIB)
+    target_link_libraries(kkemulator_dylib ${FIRMWARE_LIBS})
+  endif()
 endif()

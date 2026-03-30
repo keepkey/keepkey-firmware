@@ -11,6 +11,7 @@ set(BOOTLOADER_MINOR_VERSION 0)
 set(BOOTLOADER_PATCH_VERSION 0)
 
 option(KK_EMULATOR "Build the emulator" OFF)
+option(KK_BUILD_DYLIB "Build libkkemu shared library (.dylib/.so)" OFF)
 option(KK_DEBUG_LINK "Build with debug-link enabled" OFF)
 option(KK_HAVE_STRLCPY "Does the target platform have strlcpy?" ON)
 option(KK_HAVE_STRLCAT "Does the target platform have strlcat?" ON)
