@@ -1,8 +1,11 @@
 missingIncludeSystem
 unknownMacro
-syntaxError:include/keepkey/board/models.def
+syntaxError
+preprocessorErrorDirective:include/pb.h
+returnDanglingLifetime:lib/firmware/tiny-json.c
 memleakOnRealloc:lib/transport/pb_decode.c
 uninitvar:lib/board/messages.c
 bufferAccessOutOfBounds:lib/firmware/storage.c
 subtractPointers:tools/blupdater/main.c
+comparePointers:tools/blupdater/main.c
 ctunullpointer

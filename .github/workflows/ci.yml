@@ -150,6 +150,11 @@ jobs:
           echo "| performance | $PERF |" >> "$GITHUB_STEP_SUMMARY"
           echo "| **total** | **$TOTAL** |" >> "$GITHUB_STEP_SUMMARY"
 
+          echo ""
+          echo "=== cppcheck full report ==="
+          grep '::warning' cppcheck_report.txt || echo "(no findings)"
+          echo "=== end report ==="
+
           if [ "$ERRORS" -gt 0 ]; then
             echo "::error::cppcheck found $ERRORS error(s) — failing build"
             exit 1
