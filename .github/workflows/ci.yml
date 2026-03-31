@@ -130,15 +130,15 @@ jobs:
             -DPB_FIELD_16BIT=1 \
             -DEMULATOR=1 \
             --template='::warning file={file},line={line},col={column}::{severity}: {message} [{id}]' \
-            --output-file=cppcheck_report.txt \
             --error-exitcode=0 \
-            lib/ include/keepkey/ tools/ 2>&1 | tee cppcheck_annotations.txt
+            lib/ include/keepkey/ tools/ 2>&1 | tee cppcheck_report.txt
 
-          # Count issues by severity
-          ERRORS=$(grep -c '\[error\]' cppcheck_report.txt 2>/dev/null || echo "0")
-          WARNINGS=$(grep -c '\[warning\]' cppcheck_report.txt 2>/dev/null || echo "0")
-          STYLE=$(grep -c '\[style\]' cppcheck_report.txt 2>/dev/null || echo "0")
-          PERF=$(grep -c '\[performance\]' cppcheck_report.txt 2>/dev/null || echo "0")
+          # Count issues by severity (match only ::warning annotation lines)
+          ERRORS=$(grep -c '::warning.*\berror:' cppcheck_report.txt 2>/dev/null || true)
+          WARNINGS=$(grep -c '::warning.*\bwarning:' cppcheck_report.txt 2>/dev/null || true)
+          STYLE=$(grep -c '::warning.*\bstyle:' cppcheck_report.txt 2>/dev/null || true)
+          PERF=$(grep -c '::warning.*\bperformance:' cppcheck_report.txt 2>/dev/null || true)
+          : "${ERRORS:=0}" "${WARNINGS:=0}" "${STYLE:=0}" "${PERF:=0}"
           TOTAL=$((ERRORS + WARNINGS + STYLE + PERF))
 
           echo "## cppcheck summary" >> "$GITHUB_STEP_SUMMARY"
@@ -150,15 +150,19 @@ jobs:
           echo "| performance | $PERF |" >> "$GITHUB_STEP_SUMMARY"
           echo "| **total** | **$TOTAL** |" >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "$TOTAL" -gt 0 ]; then
-            echo ""
-            echo "cppcheck found $TOTAL issue(s) — see annotations above"
-            echo "Note: treating as warning until codebase issues are triaged"
+          echo ""
+          echo "=== cppcheck full report ==="
+          grep '::warning' cppcheck_report.txt || echo "(no findings)"
+          echo "=== end report ==="
+
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::cppcheck found $ERRORS error(s) — failing build"
+            exit 1
+          elif [ "$TOTAL" -gt 0 ]; then
+            echo "cppcheck found $TOTAL non-error issue(s) — warnings only, not blocking"
           else
             echo "cppcheck: clean"
           fi
-        # Warn-only until existing issues are triaged
-        continue-on-error: true
 
       - name: Upload cppcheck report
         uses: actions/upload-artifact@v7
