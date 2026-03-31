@@ -1,13 +1,2 @@
-# cppcheck suppressions for KeepKey firmware
-#
-# Format: [error-id]:[filename]:[line]
-# Or just: [error-id] to suppress globally
-#
-# Add specific suppressions here as false positives are identified.
-# Prefer inline suppression (// cppcheck-suppress id) for one-off cases.
-
-# Missing system/platform headers that cppcheck can't find
 missingIncludeSystem
-
-# ARM-specific attributes cppcheck doesn't understand
 unknownMacro
