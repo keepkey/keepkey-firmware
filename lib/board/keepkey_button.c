@@ -34,8 +34,8 @@
 static Handler on_press_handler = NULL;
 static Handler on_release_handler = NULL;
 
-static void *on_release_handler_context = NULL;
-static void *on_press_handler_context = NULL;
+static void* on_release_handler_context = NULL;
+static void* on_press_handler_context = NULL;
 
 #ifndef EMULATOR
 static const uint16_t BUTTON_PIN = GPIO7;
@@ -91,7 +91,7 @@ void keepkey_button_init(void) {
  *     none
  *
  */
-void keepkey_button_set_on_press_handler(Handler handler, void *context) {
+void keepkey_button_set_on_press_handler(Handler handler, void* context) {
   on_press_handler = handler;
   on_press_handler_context = context;
 }
@@ -107,7 +107,7 @@ void keepkey_button_set_on_press_handler(Handler handler, void *context) {
  *     none
  *
  */
-void keepkey_button_set_on_release_handler(Handler handler, void *context) {
+void keepkey_button_set_on_release_handler(Handler handler, void* context) {
   on_release_handler = handler;
   on_release_handler_context = context;
 }

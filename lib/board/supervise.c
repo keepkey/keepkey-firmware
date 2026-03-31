@@ -30,7 +30,8 @@
 
 #ifndef EMULATOR
 
-bool do_memory_ranges_overlap(size_t range1Start, size_t range1End, size_t range2Start, size_t range2End) {
+bool do_memory_ranges_overlap(size_t range1Start, size_t range1End,
+                              size_t range2Start, size_t range2End) {
   if (range1Start <= range2Start) {
     return range2Start < range1End;
   } else {
@@ -39,15 +40,13 @@ bool do_memory_ranges_overlap(size_t range1Start, size_t range1End, size_t range
 }
 
 bool allow_svhandler_flash_sector(const FlashSector* sector) {
-  return sector->use == FLASH_STORAGE1 ||
-         sector->use == FLASH_STORAGE2 ||
-         sector->use == FLASH_STORAGE3 ||
-         sector->use == FLASH_UNUSED0 ||
+  return sector->use == FLASH_STORAGE1 || sector->use == FLASH_STORAGE2 ||
+         sector->use == FLASH_STORAGE3 || sector->use == FLASH_UNUSED0 ||
          sector->use == FLASH_APP;
 }
 
 bool allow_svhandler_flash_sector_num(int sector) {
-  for (const FlashSector *s = flash_sector_map; s->use != FLASH_INVALID; s++) {
+  for (const FlashSector* s = flash_sector_map; s->use != FLASH_INVALID; s++) {
     if (s->sector == sector) return allow_svhandler_flash_sector(s);
   }
   return false;
@@ -65,23 +64,24 @@ bool allow_svhandler_flash_range(size_t start, size_t end) {
   bool endAllowed = false;
   for (const FlashSector* s = flash_sector_map; s->use != FLASH_INVALID; s++) {
     if (allow_svhandler_flash_sector(s)) {
-      if (!startAllowed &&
-          start + 1 > start &&
-          do_memory_ranges_overlap(start, start + 1, s->start, s->start + s->len)) {
+      if (!startAllowed && start + 1 > start &&
+          do_memory_ranges_overlap(start, start + 1, s->start,
+                                   s->start + s->len)) {
         startAllowed = true;
       }
-      if (!endAllowed &&
-          end - 1 < end &&
+      if (!endAllowed && end - 1 < end &&
           do_memory_ranges_overlap(end - 1, end, s->start, s->start + s->len)) {
         endAllowed = true;
       }
     } else {
-      if (do_memory_ranges_overlap(start, end, s->start, s->start + s->len)) return false;
+      if (do_memory_ranges_overlap(start, end, s->start, s->start + s->len))
+        return false;
     }
   }
 
-  // Ensure writes start and end in allowed sectors. As long as flash_sector_map consists of
-  // contiguous sectors, this will ensure no writes can target flash outside the map.
+  // Ensure writes start and end in allowed sectors. As long as flash_sector_map
+  // consists of contiguous sectors, this will ensure no writes can target flash
+  // outside the map.
   if (!startAllowed || !endAllowed) return false;
 
   return true;
@@ -173,7 +173,7 @@ void svhandler_flash_pgm_blk(void) {
   flash_unlock();
 
   // Flash write.
-  flash_program(beginAddr, (uint8_t *)data, length);
+  flash_program(beginAddr, (uint8_t*)data, length);
 
   // Return flash status.
   _param_1 = !!flash_chk_status();
@@ -217,8 +217,8 @@ void svhandler_flash_pgm_word(void) {
   FLASH_CR |= FLASH_CR_LOCK;
 }
 
-void svc_handler_main(uint32_t *stack) {
-  uint8_t svc_number = ((uint8_t *)stack[6])[-2];
+void svc_handler_main(uint32_t* stack) {
+  uint8_t svc_number = ((uint8_t*)stack[6])[-2];
   switch (svc_number) {
     case SVC_BUSR_RET:
       svhandler_button_usr_return();

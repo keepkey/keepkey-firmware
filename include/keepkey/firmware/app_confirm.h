@@ -28,30 +28,30 @@
 #define CONFIRM_SIGN_IDENTITY_TITLE 32
 #define CONFIRM_SIGN_IDENTITY_BODY 416
 
-bool confirm_cipher(bool encrypt, const char *key);
-bool confirm_encrypt_msg(const char *msg, bool signing);
-bool confirm_decrypt_msg(const char *msg, const char *address);
+bool confirm_cipher(bool encrypt, const char* key);
+bool confirm_encrypt_msg(const char* msg, bool signing);
+bool confirm_decrypt_msg(const char* msg, const char* address);
 bool confirm_transfer_output(ButtonRequestType button_request,
-                             const char *amount, const char *to);
+                             const char* amount, const char* to);
 bool confirm_transaction_output(ButtonRequestType button_request,
-                                const char *amount, const char *to);
+                                const char* amount, const char* to);
 bool confirm_transaction_output_no_bold(ButtonRequestType button_request,
-                                        const char *amount, const char *to);
+                                        const char* amount, const char* to);
 
 bool confirm_erc_token_transfer(ButtonRequestType button_request,
-                                const char *msg_body);
+                                const char* msg_body);
 
-bool confirm_transaction(const char *total_amount, const char *fee);
+bool confirm_transaction(const char* total_amount, const char* fee);
 bool confirm_load_device(bool is_node);
-bool confirm_address(const char *desc, const char *address);
-bool confirm_xpub(const char *node_str, const char *xpub);
-bool confirm_sign_identity(const IdentityType *identity, const char *challenge);
-bool confirm_cosmos_address(const char *desc, const char *address);
-bool confirm_osmosis_address(const char *desc, const char *address);
-bool confirm_ethereum_address(const char *desc, const char *address);
-bool confirm_nano_address(const char *desc, const char *address);
-bool confirm_omni(ButtonRequestType button_request, const char *title,
-                  const uint8_t *data, uint32_t size);
-bool confirm_data(ButtonRequestType button_request, const char *title,
-                  const uint8_t *data, uint32_t size);
+bool confirm_address(const char* desc, const char* address);
+bool confirm_xpub(const char* node_str, const char* xpub);
+bool confirm_sign_identity(const IdentityType* identity, const char* challenge);
+bool confirm_cosmos_address(const char* desc, const char* address);
+bool confirm_osmosis_address(const char* desc, const char* address);
+bool confirm_ethereum_address(const char* desc, const char* address);
+bool confirm_nano_address(const char* desc, const char* address);
+bool confirm_omni(ButtonRequestType button_request, const char* title,
+                  const uint8_t* data, uint32_t size);
+bool confirm_data(ButtonRequestType button_request, const char* title,
+                  const uint8_t* data, uint32_t size);
 #endif

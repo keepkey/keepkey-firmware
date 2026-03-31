@@ -18,31 +18,31 @@ static const TokenType Unknown = {
     "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
     "\x00\x00",
     " UNKN", 1, 0};
-const TokenType *UnknownToken = (const TokenType *)&Unknown;
+const TokenType* UnknownToken = (const TokenType*)&Unknown;
 
 static const TokenType Ethtest = {
     "\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee"
     "\xee\xee",
     "  ETH", 1, 18};
-const TokenType *EthTestToken = (const TokenType *)&Ethtest;
+const TokenType* EthTestToken = (const TokenType*)&Ethtest;
 
-const TokenType *tokenIter(int32_t *ctr) {
+const TokenType* tokenIter(int32_t* ctr) {
   // return the next tok in the list.
   // input: *ctr = position of desired token (0 to TOKENS_COUNT)
-  // output: returns token at list count *ctr at input for 0 <= *ctr < TOKEN_COUNT
+  // output: returns token at list count *ctr at input for 0 <= *ctr <
+  // TOKEN_COUNT
   //         *ctr = position of next token in list, OR -1 for end of list
 
   if (*ctr < 0 || *ctr >= TOKENS_COUNT) {
     *ctr = -1;
     return UnknownToken;
   }
-  
-  *ctr+=1;
-  return &(tokens[*ctr - 1]);
 
+  *ctr += 1;
+  return &(tokens[*ctr - 1]);
 }
 
-const TokenType *tokenByChainAddress(uint8_t chain_id, const uint8_t *address) {
+const TokenType* tokenByChainAddress(uint8_t chain_id, const uint8_t* address) {
   if (!address) return 0;
   for (int i = 0; i < TOKENS_COUNT; i++) {
     if (chain_id == tokens[i].chain_id &&
@@ -57,8 +57,8 @@ const TokenType *tokenByChainAddress(uint8_t chain_id, const uint8_t *address) {
   return UnknownToken;
 }
 
-bool tokenByTicker(uint8_t chain_id, const char *ticker,
-                   const TokenType **token) {
+bool tokenByTicker(uint8_t chain_id, const char* ticker,
+                   const TokenType** token) {
   *token = NULL;
 
   // First look in the legacy table, confirming that the entry also exists in
@@ -87,7 +87,7 @@ bool tokenByTicker(uint8_t chain_id, const char *ticker,
   return *token;
 }
 
-void coinFromToken(CoinType *coin, const TokenType *token) {
+void coinFromToken(CoinType* coin, const TokenType* token) {
   memset(coin, 0, sizeof(*coin));
 
   coin->has_coin_name = true;
@@ -111,7 +111,7 @@ void coinFromToken(CoinType *coin, const TokenType *token) {
 
   coin->has_contract_address = true;
   coin->contract_address.size = 20;
-  memcpy((char *)&coin->contract_address.bytes[0], token->address, 20);
+  memcpy((char*)&coin->contract_address.bytes[0], token->address, 20);
   _Static_assert(20 <= sizeof(coin->contract_address.bytes),
                  "contract_address is not large enough to hold an ETH address");
 

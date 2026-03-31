@@ -17,23 +17,23 @@
 ///
 /// Note: Don't mark lhs/rhs as const, even though they are, as this forces the
 /// compiler to assume the underlying fuction might have changed them.
-int memcmp_cst(void *lhs, void *rhs, size_t len);
+int memcmp_cst(void* lhs, void* rhs, size_t len);
 #else
 #warning "memcmp_s is not guaranteed to be constant-time on this architecture"
 #define memcmp_cst(lhs, rhs, len) memcmp((lhs), (rhs), (len))
 #endif
 
-void asc_fill(char *permute, size_t len);
+void asc_fill(char* permute, size_t len);
 
 #ifdef EMULATOR
-void asc_fill(char *permute, size_t len) {
+void asc_fill(char* permute, size_t len) {
   for (size_t i = 0; i != len; i++) {
     permute[i] = i;
   }
 }
 #endif
 
-int memcmp_s(const void *lhs, const void *rhs, size_t len) {
+int memcmp_s(const void* lhs, const void* rhs, size_t len) {
   if (len < 32 || len > 255) {
     // Setting the floor on length to 32 is a simple way to guarantee that
     // all the decoy buffers we end up will never compare equal with either
@@ -47,16 +47,16 @@ int memcmp_s(const void *lhs, const void *rhs, size_t len) {
   static uint8_t decoys[DECOY_COUNT][255];
   random_buffer(&decoys[0][0], sizeof(decoys));
 
-  static void *permuted[DECOY_COUNT + 2];
+  static void* permuted[DECOY_COUNT + 2];
   for (size_t i = 0; i != DECOY_COUNT; i++) {
     permuted[i] = &decoys[i];
   }
-  permuted[DECOY_COUNT] = (void *)lhs;
-  permuted[DECOY_COUNT + 1] = (void *)rhs;
+  permuted[DECOY_COUNT] = (void*)lhs;
+  permuted[DECOY_COUNT + 1] = (void*)rhs;
 
   static uint8_t permute[DECOY_COUNT + 2];
-  asc_fill((char *)permute, DECOY_COUNT + 2);
-  random_permute_char((char *)permute, DECOY_COUNT + 2);
+  asc_fill((char*)permute, DECOY_COUNT + 2);
+  random_permute_char((char*)permute, DECOY_COUNT + 2);
 
   // Compare every pair of buffers once, and count how many match. We should
   // get exactly one match from the comparison of lhs with rhs, assuming they

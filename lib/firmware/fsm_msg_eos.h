@@ -17,19 +17,19 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-void fsm_msgEosGetPublicKey(const EosGetPublicKey *msg) {
+void fsm_msgEosGetPublicKey(const EosGetPublicKey* msg) {
   CHECK_INITIALIZED
 
   CHECK_PIN
 
-  const CoinType *coin = fsm_getCoin(true, "EOS");
+  const CoinType* coin = fsm_getCoin(true, "EOS");
   if (!coin) return;
 
-  const curve_info *curve = get_curve_by_name(coin->curve_name);
+  const curve_info* curve = get_curve_by_name(coin->curve_name);
   if (!curve) return;
 
   uint32_t fingerprint;
-  HDNode *node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
                                     msg->address_n_count, &fingerprint);
   if (!node) return;
   hdnode_fill_public_key(node);
@@ -76,7 +76,7 @@ void fsm_msgEosGetPublicKey(const EosGetPublicKey *msg) {
   layoutHome();
 }
 
-void fsm_msgEosSignTx(const EosSignTx *msg) {
+void fsm_msgEosSignTx(const EosSignTx* msg) {
   CHECK_PARAM(msg->chain_id.size == 32, "Wrong chain_id size");
   CHECK_PARAM(msg->has_header, "Must have transaction header");
   CHECK_PARAM(msg->has_num_actions && 0 < msg->num_actions,
@@ -89,7 +89,7 @@ void fsm_msgEosSignTx(const EosSignTx *msg) {
 
   CHECK_PIN
 
-  HDNode *root = fsm_getDerivedNode(SECP256K1_NAME, 0, 0, NULL);
+  HDNode* root = fsm_getDerivedNode(SECP256K1_NAME, 0, 0, NULL);
   if (!root) return;
   hdnode_fill_public_key(root);
 
@@ -101,7 +101,7 @@ void fsm_msgEosSignTx(const EosSignTx *msg) {
   msg_write(MessageType_MessageType_EosTxActionRequest, resp);
 }
 
-void fsm_msgEosTxActionAck(const EosTxActionAck *msg) {
+void fsm_msgEosTxActionAck(const EosTxActionAck* msg) {
   CHECK_PARAM(eos_signingIsInited(), "Must call EosSignTx to initiate signing");
   CHECK_PARAM(msg->has_common, "Must have common");
 

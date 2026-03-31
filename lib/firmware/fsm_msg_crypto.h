@@ -1,4 +1,4 @@
-void fsm_msgCipherKeyValue(CipherKeyValue *msg) {
+void fsm_msgCipherKeyValue(CipherKeyValue* msg) {
   CHECK_INITIALIZED
 
   CHECK_PARAM(msg->has_key, "No key provided");
@@ -9,7 +9,7 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg) {
 
   CHECK_PIN
 
-  const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  const HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                           msg->address_n_count, NULL);
 
   if (!node) {
@@ -30,11 +30,11 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg) {
   }
 
   uint8_t data[256 + 4];
-  strlcpy((char *)data, msg->key, sizeof(data));
-  strlcat((char *)data, ask_on_encrypt ? "E1" : "E0", sizeof(data));
-  strlcat((char *)data, ask_on_decrypt ? "D1" : "D0", sizeof(data));
+  strlcpy((char*)data, msg->key, sizeof(data));
+  strlcat((char*)data, ask_on_encrypt ? "E1" : "E0", sizeof(data));
+  strlcat((char*)data, ask_on_decrypt ? "D1" : "D0", sizeof(data));
 
-  hmac_sha512(node->private_key, 32, data, strlen((char *)data), data);
+  hmac_sha512(node->private_key, 32, data, strlen((char*)data), data);
 
   RESP_INIT(CipheredKeyValue);
 
@@ -58,7 +58,7 @@ void fsm_msgCipherKeyValue(CipherKeyValue *msg) {
   layoutHome();
 }
 
-void fsm_msgSignIdentity(SignIdentity *msg) {
+void fsm_msgSignIdentity(SignIdentity* msg) {
   RESP_INIT(SignedIdentity);
 
   CHECK_INITIALIZED
@@ -93,11 +93,11 @@ void fsm_msgSignIdentity(SignIdentity *msg) {
   address_n[4] = 0x80000000 | hash[12] | (hash[13] << 8) | (hash[14] << 16) |
                  ((uint32_t)hash[15] << 24);
 
-  const char *curve = SECP256K1_NAME;
+  const char* curve = SECP256K1_NAME;
   if (msg->has_ecdsa_curve_name) {
     curve = msg->ecdsa_curve_name;
   }
-  HDNode *node = fsm_getDerivedNode(curve, address_n, 5, NULL);
+  HDNode* node = fsm_getDerivedNode(curve, address_n, 5, NULL);
   if (!node) {
     return;
   }
@@ -119,7 +119,7 @@ void fsm_msgSignIdentity(SignIdentity *msg) {
   } else {
     uint8_t digest[64];
     sha256_Raw(msg->challenge_hidden.bytes, msg->challenge_hidden.size, digest);
-    sha256_Raw((const uint8_t *)msg->challenge_visual,
+    sha256_Raw((const uint8_t*)msg->challenge_visual,
                strlen(msg->challenge_visual), digest + 32);
     result = cryptoMessageSign(coinByName("Bitcoin"), node,
                                InputScriptType_SPENDADDRESS, digest, 64,

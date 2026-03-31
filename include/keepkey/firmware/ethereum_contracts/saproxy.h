@@ -23,11 +23,14 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-#define SAPROXY_ADDRESS "\xbd\x6a\x40\xbb\x90\x4a\xea\x5a\x49\xc5\x90\x50\xb5\x39\x5f\x74\x84\xa4\x20\x3d"
-                        
+#define SAPROXY_ADDRESS                                                      \
+  "\xbd\x6a\x40\xbb\x90\x4a\xea\x5a\x49\xc5\x90\x50\xb5\x39\x5f\x74\x84\xa4" \
+  "\x20\x3d"
+
 typedef struct _EthereumSignTx EthereumSignTx;
 
-bool sa_isWithdrawFromSalary(const EthereumSignTx *msg);
-bool sa_confirmWithdrawFromSalary(uint32_t data_total, const EthereumSignTx *msg);
+bool sa_isWithdrawFromSalary(const EthereumSignTx* msg);
+bool sa_confirmWithdrawFromSalary(uint32_t data_total,
+                                  const EthereumSignTx* msg);
 
 #endif

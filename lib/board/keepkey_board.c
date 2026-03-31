@@ -130,19 +130,19 @@ static uint32_t reverse(unsigned x) {
  * OUTPUT
  *     crc32 of data
  */
-uint32_t calc_crc32(const void *data, int word_len) {
+uint32_t calc_crc32(const void* data, int word_len) {
   uint32_t crc32 = 0;
 
 #ifndef EMULATOR
   crc_reset();
-  crc32 = crc_calculate_block((uint32_t *)data, word_len);
+  crc32 = crc_calculate_block((uint32_t*)data, word_len);
 #else
   /// http://www.hackersdelight.org/hdcodetxt/crc.c.txt
   crc32 = 0xFFFFFFFF;
   for (int i = 0; i < word_len; i++) {
-    uint32_t byte = ((const char *)data)[i];  // Get next byte.
-    byte = reverse(byte);                     // 32-bit reversal.
-    for (int j = 0; j <= 7; j++) {            // Do eight times.
+    uint32_t byte = ((const char*)data)[i];  // Get next byte.
+    byte = reverse(byte);                    // 32-bit reversal.
+    for (int j = 0; j <= 7; j++) {           // Do eight times.
       if ((int)(crc32 ^ byte) < 0)
         crc32 = (crc32 << 1) ^ 0x04C11DB7;
       else

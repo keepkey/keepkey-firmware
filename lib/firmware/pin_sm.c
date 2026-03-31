@@ -47,7 +47,7 @@ static void send_pin_request(PinMatrixRequestType type) {
 }
 
 /// Capture PIN entry from user over USB port
-static void check_for_pin_ack(PINInfo *pin_info) {
+static void check_for_pin_ack(PINInfo* pin_info) {
   /* Listen for tiny messages */
   uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
   uint16_t tiny_msg;
@@ -57,7 +57,7 @@ static void check_for_pin_ack(PINInfo *pin_info) {
   switch (tiny_msg) {
     case MessageType_MessageType_PinMatrixAck:
       pin_info->pin_ack_msg = PIN_ACK_RECEIVED;
-      PinMatrixAck *pma = (PinMatrixAck *)msg_tiny_buf;
+      PinMatrixAck* pma = (PinMatrixAck*)msg_tiny_buf;
 
       strlcpy(pin_info->pin, pma->pin, PIN_BUF);
       break;
@@ -73,7 +73,7 @@ static void check_for_pin_ack(PINInfo *pin_info) {
 
 #if DEBUG_LINK
     case MessageType_MessageType_DebugLinkGetState:
-      call_msg_debug_link_get_state_handler((DebugLinkGetState *)msg_tiny_buf);
+      call_msg_debug_link_get_state_handler((DebugLinkGetState*)msg_tiny_buf);
       break;
 #endif
 
@@ -86,7 +86,7 @@ static void check_for_pin_ack(PINInfo *pin_info) {
 /// Request and receive PIN from user over USB port
 /// \param pin_state state of request
 /// \param pin_info buffer for user PIN
-static void run_pin_state(PINState *pin_state, PINInfo *pin_info) {
+static void run_pin_state(PINState* pin_state, PINInfo* pin_info) {
   switch (*pin_state) {
     /* Send PIN request */
     case PIN_REQUEST:
@@ -117,7 +117,7 @@ static void run_pin_state(PINState *pin_state, PINInfo *pin_info) {
 
 /// Make sure that PIN is at least one digit and a char from 1 to 9.
 /// \returns true iff the pin is in the correct format
-static bool check_pin_input(PINInfo *pin_info) {
+static bool check_pin_input(PINInfo* pin_info) {
   bool ret = true;
 
   /* Check that PIN is at least 1 digit and no more than 9 */
@@ -138,7 +138,7 @@ static bool check_pin_input(PINInfo *pin_info) {
 }
 
 /// Decode user PIN entry.
-static void decode_pin(PINInfo *pin_info) {
+static void decode_pin(PINInfo* pin_info) {
   for (uint32_t i = 0; i < strlen(pin_info->pin); i++) {
     int32_t j = pin_info->pin[i] - '1';
 
@@ -153,7 +153,7 @@ static void decode_pin(PINInfo *pin_info) {
 /// Request user for PIN entry.
 /// \param prompt Text to display for the user along with PIN matrix.
 /// \returns true iff the pin was received.
-static bool pin_request(const char *prompt, PINInfo *pin_info) {
+static bool pin_request(const char* prompt, PINInfo* pin_info) {
   bool ret = false;
   reset_msg_stack = false;
   PINState pin_state = PIN_REQUEST;
@@ -211,7 +211,7 @@ static void pin_fail_wait_handler(void) {
                  (total_wait - remaining_wait) * 1000 / total_wait);
 }
 
-bool pin_protect(const char *prompt) {
+bool pin_protect(const char* prompt) {
   if (!storage_hasPin()) {
     return true;
   }
@@ -268,16 +268,14 @@ bool pin_protect(const char *prompt) {
 }
 
 bool pin_protect_cached(void) {
-    if (session_isPinCached()) {
-        return true;
-    }
+  if (session_isPinCached()) {
+    return true;
+  }
 
-    return pin_protect("Enter\nYour PIN");
+  return pin_protect("Enter\nYour PIN");
 }
 
-bool pin_protect_uncached(void) {
-    return pin_protect("Enter\nYour PIN");
-}
+bool pin_protect_uncached(void) { return pin_protect("Enter\nYour PIN"); }
 
 bool change_pin(void) {
   PINInfo pin_info_first, pin_info_second;
@@ -329,5 +327,5 @@ bool change_wipe_code(void) {
 
 #if DEBUG_LINK
 /// Gets randomized PIN matrix
-const char *get_pin_matrix(void) { return pin_matrix; }
+const char* get_pin_matrix(void) { return pin_matrix; }
 #endif

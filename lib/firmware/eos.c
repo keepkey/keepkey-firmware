@@ -51,9 +51,9 @@ static uint32_t actions_remaining = 0;
 static uint32_t unknown_total = 0;
 static uint32_t unknown_remaining = 0;
 
-bool eos_formatAsset(const EosAsset *asset, char str[EOS_ASSET_STR_SIZE]) {
+bool eos_formatAsset(const EosAsset* asset, char str[EOS_ASSET_STR_SIZE]) {
   memset(str, 0, EOS_ASSET_STR_SIZE);
-  char *s = str;
+  char* s = str;
   uint64_t v = (uint64_t)asset->amount;
 
   // Sign
@@ -197,7 +197,7 @@ bool eos_formatAsset(const EosAsset *asset, char str[EOS_ASSET_STR_SIZE]) {
 /// Ported from EOSIO libraries/chain/name.cpp
 bool eos_formatName(uint64_t name, char str[EOS_NAME_STR_SIZE]) {
   memset(str, '.', EOS_NAME_STR_SIZE);
-  static const char *charmap = ".12345abcdefghijklmnopqrstuvwxyz";
+  static const char* charmap = ".12345abcdefghijklmnopqrstuvwxyz";
 
   uint64_t tmp = name;
   for (uint32_t i = 0; i <= 12; ++i) {
@@ -214,8 +214,8 @@ bool eos_formatName(uint64_t name, char str[EOS_NAME_STR_SIZE]) {
   return true;
 }
 
-bool eos_derivePublicKey(const uint32_t *addr_n, size_t addr_n_count,
-                         uint8_t *public_key, size_t len) {
+bool eos_derivePublicKey(const uint32_t* addr_n, size_t addr_n_count,
+                         uint8_t* public_key, size_t len) {
   if (len < sizeof(node.public_key)) return false;
 
   if (!eos_signingIsInited()) return false;
@@ -233,15 +233,15 @@ bool eos_derivePublicKey(const uint32_t *addr_n, size_t addr_n_count,
   return true;
 }
 
-bool eos_getPublicKey(const HDNode *n, const curve_info *curve,
-                      EosPublicKeyKind kind, char *pubkey, size_t len) {
+bool eos_getPublicKey(const HDNode* n, const curve_info* curve,
+                      EosPublicKeyKind kind, char* pubkey, size_t len) {
   (void)curve;
   return eos_publicKeyToWif(n->public_key, kind, pubkey, len);
 }
 
-bool eos_publicKeyToWif(const uint8_t *public_key, EosPublicKeyKind kind,
-                        char *pubkey, size_t len) {
-  const char *prefix = "";
+bool eos_publicKeyToWif(const uint8_t* public_key, EosPublicKeyKind kind,
+                        char* pubkey, size_t len) {
+  const char* prefix = "";
   switch (kind) {
     case EosPublicKeyKind_EOS:
       prefix = "EOS";
@@ -267,7 +267,7 @@ bool eos_publicKeyToWif(const uint8_t *public_key, EosPublicKeyKind kind,
 }
 
 // https://github.com/EOSIO/fc/blob/30eb81c1d995f9cd9834701e03b83ec7e6468a0f/include/fc/io/raw.hpp#L214
-size_t eos_hashUInt(Hasher *hasher, uint64_t val) {
+size_t eos_hashUInt(Hasher* hasher, uint64_t val) {
   size_t count = 0;
   do {
     uint8_t b = ((uint8_t)val) & 0x7f;
@@ -279,8 +279,8 @@ size_t eos_hashUInt(Hasher *hasher, uint64_t val) {
   return count;
 }
 
-void eos_signingInit(const uint8_t *chain_id, uint32_t num_actions,
-                     const EosTxHeader *_header, const HDNode *_root,
+void eos_signingInit(const uint8_t* chain_id, uint32_t num_actions,
+                     const EosTxHeader* _header, const HDNode* _root,
                      const uint32_t _address_n[8], size_t _address_n_count) {
   hasher_Init(&hasher_preimage, HASHER_SHA2);
 
@@ -291,11 +291,11 @@ void eos_signingInit(const uint8_t *chain_id, uint32_t num_actions,
   address_n_count = _address_n_count;
 
   hasher_Update(&hasher_preimage, chain_id, 32);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&header.expiration, 4);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&header.ref_block_num, 2);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&header.ref_block_prefix, 4);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&header.expiration, 4);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&header.ref_block_num, 2);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&header.ref_block_prefix, 4);
   eos_hashUInt(&hasher_preimage, header.max_net_usage_words);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&header.max_cpu_usage_ms, 1);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&header.max_cpu_usage_ms, 1);
   eos_hashUInt(&hasher_preimage, header.delay_sec);
 
   // context_free_actions. count, followed by each action
@@ -334,25 +334,25 @@ void eos_signingAbort(void) {
   unknown_total = 0;
 }
 
-bool eos_compileAsset(const EosAsset *asset) {
+bool eos_compileAsset(const EosAsset* asset) {
   if (!asset->has_amount) return false;
 
   if (!asset->has_symbol) return false;
 
-  hasher_Update(&hasher_preimage, (const uint8_t *)&asset->amount, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&asset->symbol, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&asset->amount, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&asset->symbol, 8);
   return true;
 }
 
-bool eos_compileString(const char *str) {
+bool eos_compileString(const char* str) {
   if (!str) return false;
   uint32_t len = strlen(str);
   eos_hashUInt(&hasher_preimage, len);
-  if (len) hasher_Update(&hasher_preimage, (const uint8_t *)str, len);
+  if (len) hasher_Update(&hasher_preimage, (const uint8_t*)str, len);
   return true;
 }
 
-bool eos_compileActionCommon(const EosActionCommon *common) {
+bool eos_compileActionCommon(const EosActionCommon* common) {
   if (!(actions_remaining--)) return false;
 
   if (!common->has_account) return false;
@@ -361,8 +361,8 @@ bool eos_compileActionCommon(const EosActionCommon *common) {
 
   if (!common->authorization_count) return false;
 
-  hasher_Update(&hasher_preimage, (const uint8_t *)&common->account, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&common->name, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&common->account, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&common->name, 8);
 
   eos_hashUInt(&hasher_preimage, common->authorization_count);
   for (size_t i = 0; i < common->authorization_count; i++) {
@@ -372,20 +372,20 @@ bool eos_compileActionCommon(const EosActionCommon *common) {
   return true;
 }
 
-bool eos_compilePermissionLevel(const EosPermissionLevel *auth) {
+bool eos_compilePermissionLevel(const EosPermissionLevel* auth) {
   if (!auth->has_actor) return false;
 
   if (!auth->has_permission) return false;
 
-  hasher_Update(&hasher_preimage, (const uint8_t *)&auth->actor, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&auth->permission, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&auth->actor, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&auth->permission, 8);
 
   return true;
 }
 
 bool eos_hasActionUnknownDataRemaining(void) { return 0 < unknown_remaining; }
 
-static bool isSupportedAction(const EosActionCommon *common) {
+static bool isSupportedAction(const EosActionCommon* common) {
   if (common->account == EOS_eosio || common->account == EOS_eosio_token) {
     switch (common->name) {
       case EOS_Transfer:
@@ -408,8 +408,8 @@ static bool isSupportedAction(const EosActionCommon *common) {
   return false;
 }
 
-bool eos_compileActionUnknown(const EosActionCommon *common,
-                              const EosActionUnknown *action) {
+bool eos_compileActionUnknown(const EosActionCommon* common,
+                              const EosActionUnknown* action) {
   if (isSupportedAction(common)) {
     fsm_sendFailure(
         FailureType_Failure_SyntaxError,
@@ -448,9 +448,9 @@ bool eos_compileActionUnknown(const EosActionCommon *common,
     return false;
   }
 
-  hasher_Update(&hasher_unknown, (const uint8_t *)action->data_chunk.bytes,
+  hasher_Update(&hasher_unknown, (const uint8_t*)action->data_chunk.bytes,
                 action->data_chunk.size);
-  hasher_Update(&hasher_preimage, (const uint8_t *)action->data_chunk.bytes,
+  hasher_Update(&hasher_preimage, (const uint8_t*)action->data_chunk.bytes,
                 action->data_chunk.size);
   unknown_remaining -= action->data_chunk.size;
 
@@ -493,7 +493,7 @@ static int eos_is_canonic(uint8_t v, uint8_t signature[64]) {
          !(signature[32] == 0 && !(signature[33] & 0x80));
 }
 
-bool eos_signTx(EosSignedTx *tx) {
+bool eos_signTx(EosSignedTx* tx) {
   memzero(tx, sizeof(*tx));
 
   if (!eos_signingIsInited()) {

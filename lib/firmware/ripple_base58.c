@@ -48,15 +48,15 @@ typedef uint32_t b58_almostmaxint_t;
 static const b58_almostmaxint_t b58_almostmaxint_mask =
     ((((b58_maxint_t)1) << b58_almostmaxint_bits) - 1);
 
-bool ripple_b58tobin(void *bin, size_t *binszp, const char *b58) {
+bool ripple_b58tobin(void* bin, size_t* binszp, const char* b58) {
   size_t binsz = *binszp;
 
   if (binsz == 0) {
     return false;
   }
 
-  const unsigned char *b58u = (const unsigned char *)b58;
-  unsigned char *binu = bin;
+  const unsigned char* b58u = (const unsigned char*)b58;
+  unsigned char* binu = bin;
   size_t outisz =
       (binsz + sizeof(b58_almostmaxint_t) - 1) / sizeof(b58_almostmaxint_t);
   b58_almostmaxint_t outi[outisz];
@@ -128,10 +128,10 @@ bool ripple_b58tobin(void *bin, size_t *binszp, const char *b58) {
   return true;
 }
 
-int ripple_b58check(const void *bin, size_t binsz, HasherType hasher_type,
-                    const char *base58str) {
+int ripple_b58check(const void* bin, size_t binsz, HasherType hasher_type,
+                    const char* base58str) {
   unsigned char buf[32] = {0};
-  const uint8_t *binc = bin;
+  const uint8_t* binc = bin;
   unsigned i = 0;
   if (binsz < 4) return -4;
   hasher_Raw(hasher_type, bin, binsz - 4, buf);
@@ -146,8 +146,8 @@ int ripple_b58check(const void *bin, size_t binsz, HasherType hasher_type,
   return binc[0];
 }
 
-bool ripple_b58enc(char *b58, size_t *b58sz, const void *data, size_t binsz) {
-  const uint8_t *bin = data;
+bool ripple_b58enc(char* b58, size_t* b58sz, const void* data, size_t binsz) {
+  const uint8_t* bin = data;
   int carry = 0;
   size_t i = 0, j = 0, high = 0, zcount = 0;
   size_t size = 0;
@@ -170,8 +170,7 @@ bool ripple_b58enc(char *b58, size_t *b58sz, const void *data, size_t binsz) {
     }
   }
 
-  for (j = 0; j < size && !buf[j]; ++j)
-    ;
+  for (j = 0; j < size && !buf[j]; ++j);
 
   if (*b58sz <= zcount + size - j) {
     *b58sz = zcount + size - j + 1;
@@ -187,14 +186,14 @@ bool ripple_b58enc(char *b58, size_t *b58sz, const void *data, size_t binsz) {
   return true;
 }
 
-int ripple_encode_check(const uint8_t *data, int datalen,
-                        HasherType hasher_type, char *str, int strsize) {
+int ripple_encode_check(const uint8_t* data, int datalen,
+                        HasherType hasher_type, char* str, int strsize) {
   if (datalen > 128) {
     return 0;
   }
   uint8_t buf[datalen + 32];
   memset(buf, 0, sizeof(buf));
-  uint8_t *hash = buf + datalen;
+  uint8_t* hash = buf + datalen;
   memcpy(buf, data, datalen);
   hasher_Raw(hasher_type, data, datalen, hash);
   size_t res = strsize;
@@ -203,7 +202,7 @@ int ripple_encode_check(const uint8_t *data, int datalen,
   return success ? res : 0;
 }
 
-int ripple_decode_check(const char *str, HasherType hasher_type, uint8_t *data,
+int ripple_decode_check(const char* str, HasherType hasher_type, uint8_t* data,
                         int datalen) {
   if (datalen > 128) {
     return 0;
@@ -214,7 +213,7 @@ int ripple_decode_check(const char *str, HasherType hasher_type, uint8_t *data,
   if (ripple_b58tobin(d, &res, str) != true) {
     return 0;
   }
-  uint8_t *nd = d + datalen + 4 - res;
+  uint8_t* nd = d + datalen + 4 - res;
   if (ripple_b58check(nd, res, hasher_type, str) < 0) {
     return 0;
   }

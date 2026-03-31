@@ -17,19 +17,19 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-void fsm_msgRippleGetAddress(const RippleGetAddress *msg) {
+void fsm_msgRippleGetAddress(const RippleGetAddress* msg) {
   RESP_INIT(RippleAddress);
 
   CHECK_INITIALIZED
 
   CHECK_PIN
 
-  HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) return;
   hdnode_fill_public_key(node);
 
-  const CoinType *coin = fsm_getCoin(true, "Ripple");
+  const CoinType* coin = fsm_getCoin(true, "Ripple");
 
   if (!ripple_getAddress(node->public_key, resp->address)) {
     memzero(node, sizeof(*node));
@@ -65,7 +65,7 @@ void fsm_msgRippleGetAddress(const RippleGetAddress *msg) {
   layoutHome();
 }
 
-void fsm_msgRippleSignTx(RippleSignTx *msg) {
+void fsm_msgRippleSignTx(RippleSignTx* msg) {
   RESP_INIT(RippleSignedTx);
 
   CHECK_INITIALIZED
@@ -76,7 +76,7 @@ void fsm_msgRippleSignTx(RippleSignTx *msg) {
 
   // TODO: handle trades and transfers
 
-  HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) return;
   hdnode_fill_public_key(node);

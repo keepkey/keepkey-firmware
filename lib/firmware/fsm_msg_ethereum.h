@@ -19,7 +19,7 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg) {
+static int process_ethereum_xfer(const CoinType* coin, EthereumSignTx* msg) {
   if (!ethereum_isStandardERC20Transfer(msg) && msg->data_length != 0)
     return TXOUT_COMPILE_ERROR;
 
@@ -33,9 +33,9 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg) {
 
   const uint32_t chain_id = coin->forkid;
 
-  const uint8_t *value_bytes;
+  const uint8_t* value_bytes;
   size_t value_size;
-  const TokenType *token;
+  const TokenType* token;
 
   if (ethereum_isStandardERC20Transfer(msg)) {
     value_bytes = msg->data_initial_chunk.bytes + 4 + 32;
@@ -58,7 +58,7 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg) {
           node_str))
     return TXOUT_CANCEL;
 
-  const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->to_address_n,
+  const HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->to_address_n,
                                           msg->to_address_n_count, NULL);
   if (!node) return TXOUT_COMPILE_ERROR;
 
@@ -76,12 +76,12 @@ static int process_ethereum_xfer(const CoinType *coin, EthereumSignTx *msg) {
     memcpy(msg->to.bytes, to_bytes, sizeof(to_bytes));
   }
 
-  memzero((void *)node, sizeof(HDNode));
+  memzero((void*)node, sizeof(HDNode));
   return TXOUT_OK;
 }
 
-static int process_ethereum_msg(EthereumSignTx *msg, bool *needs_confirm) {
-  const CoinType *coin = fsm_getCoin(true, ETHEREUM);
+static int process_ethereum_msg(EthereumSignTx* msg, bool* needs_confirm) {
+  const CoinType* coin = fsm_getCoin(true, ETHEREUM);
   if (!coin) return TXOUT_COMPILE_ERROR;
 
   switch (msg->address_type) {
@@ -95,7 +95,7 @@ static int process_ethereum_msg(EthereumSignTx *msg, bool *needs_confirm) {
   }
 }
 
-void fsm_msgEthereumSignTx(EthereumSignTx *msg) {
+void fsm_msgEthereumSignTx(EthereumSignTx* msg) {
   CHECK_INITIALIZED
 
   CHECK_PIN
@@ -110,7 +110,7 @@ void fsm_msgEthereumSignTx(EthereumSignTx *msg) {
     return;
   }
 
-  HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) return;
 
@@ -118,16 +118,16 @@ void fsm_msgEthereumSignTx(EthereumSignTx *msg) {
   memzero(node, sizeof(*node));
 }
 
-void fsm_msgEthereumTxAck(EthereumTxAck *msg) { ethereum_signing_txack(msg); }
+void fsm_msgEthereumTxAck(EthereumTxAck* msg) { ethereum_signing_txack(msg); }
 
-void fsm_msgEthereumGetAddress(EthereumGetAddress *msg) {
+void fsm_msgEthereumGetAddress(EthereumGetAddress* msg) {
   RESP_INIT(EthereumAddress);
 
   CHECK_INITIALIZED
 
   CHECK_PIN
 
-  HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) return;
 
@@ -138,7 +138,7 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg) {
     return;
   }
 
-  const CoinType *coin = NULL;
+  const CoinType* coin = NULL;
   bool rskip60 = false;
   uint32_t chain_id = 0;
 
@@ -191,10 +191,10 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress *msg) {
   layoutHome();
 }
 
-#define MSG_MAX (38*3)    // 38 chars per line, three lines max
-void fsm_msgEthereumSignMessage(EthereumSignMessage *msg) {
-  char msgBuf[MSG_MAX+1] = {0};
-  char *typeIndicator;
+#define MSG_MAX (38 * 3)  // 38 chars per line, three lines max
+void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
+  char msgBuf[MSG_MAX + 1] = {0};
+  char* typeIndicator;
   unsigned ctr;
   unsigned msgLen = 0;
   bool canPrint = true;
@@ -210,7 +210,7 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage *msg) {
   if (msgLen > MSG_MAX) {
     msgLen = MSG_MAX;
   }
-  for (ctr=0; ctr<msg->message.size; ctr++) {
+  for (ctr = 0; ctr < msg->message.size; ctr++) {
     if (isprint(msg->message.bytes[ctr]) == false) {
       canPrint = false;
       break;
@@ -218,14 +218,14 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage *msg) {
   }
   if (canPrint) {
     typeIndicator = "Sign Message";
-    strncpy(msgBuf, (char *)msg->message.bytes, MSG_MAX+1);
+    strncpy(msgBuf, (char*)msg->message.bytes, MSG_MAX + 1);
   } else {
     typeIndicator = "Sign Bytes";
-    for (ctr=0; ctr<msgLen/2; ctr++) {
-      snprintf(&msgBuf[2*ctr], 3, "%02x", msg->message.bytes[ctr]);
+    for (ctr = 0; ctr < msgLen / 2; ctr++) {
+      snprintf(&msgBuf[2 * ctr], 3, "%02x", msg->message.bytes[ctr]);
     }
   }
-  
+
   if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _(typeIndicator),
                "%s", msgBuf)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
@@ -233,7 +233,7 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage *msg) {
     return;
   }
 
-  HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) return;
 
@@ -242,9 +242,9 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage *msg) {
   layoutHome();
 }
 
-void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg) {
-  char msgBuf[MSG_MAX+1] = {0};
-  char *typeIndicator;
+void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage* msg) {
+  char msgBuf[MSG_MAX + 1] = {0};
+  char* typeIndicator;
   unsigned ctr;
   unsigned msgLen = 0;
   bool canPrint = true;
@@ -270,7 +270,7 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg) {
   if (msgLen > MSG_MAX) {
     msgLen = MSG_MAX;
   }
-  for (ctr=0; ctr<msgLen; ctr++) {
+  for (ctr = 0; ctr < msgLen; ctr++) {
     if (isprint(msg->message.bytes[ctr]) == false) {
       canPrint = false;
       break;
@@ -278,15 +278,15 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg) {
   }
   if (canPrint) {
     typeIndicator = "Message Verified";
-    strncpy(msgBuf, (char *)msg->message.bytes, MSG_MAX+1);
+    strncpy(msgBuf, (char*)msg->message.bytes, MSG_MAX + 1);
   } else {
     typeIndicator = "Bytes Verified";
-    for (ctr=0; ctr<msgLen/2; ctr++) {
-      snprintf(&msgBuf[2*ctr], 3, "%02x", msg->message.bytes[ctr]);
+    for (ctr = 0; ctr < msgLen / 2; ctr++) {
+      snprintf(&msgBuf[2 * ctr], 3, "%02x", msg->message.bytes[ctr]);
     }
   }
-  if (!confirm(ButtonRequestType_ButtonRequest_Other, _(typeIndicator),
-               "%s", msgBuf)) {
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, _(typeIndicator), "%s",
+               msgBuf)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
     return;
@@ -296,7 +296,7 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage *msg) {
   layoutHome();
 }
 
-void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash *msg) {
+void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash* msg) {
   RESP_INIT(EthereumTypedDataSignature);
 
   CHECK_INITIALIZED
@@ -305,11 +305,12 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash *msg) {
 
   if (msg->domain_separator_hash.size != 32 ||
       (msg->has_message_hash && msg->message_hash.size != 32)) {
-    fsm_sendFailure(FailureType_Failure_Other, _("Invalid EIP-712 hash length"));
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Invalid EIP-712 hash length"));
     return;
   }
 
-  const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  const HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                           msg->address_n_count, NULL);
   if (!node) return;
 
@@ -321,34 +322,38 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash *msg) {
 
   resp->address[0] = '0';
   resp->address[1] = 'x';
-  ethereum_address_checksum(pubkeyhash, resp->address+2, false, 0);
+  ethereum_address_checksum(pubkeyhash, resp->address + 2, false, 0);
 
   // No message hash when setting primaryType="EIP712Domain"
   // https://ethereum-magicians.org/t/eip-712-standards-clarification-primarytype-as-domaintype/3286
-  char str[64+1];
+  char str[64 + 1];
   int ctr;
 
-  confirm(ButtonRequestType_ButtonRequest_Other, "Verify Address", "Confirm address: %s", resp->address);
+  confirm(ButtonRequestType_ButtonRequest_Other, "Verify Address",
+          "Confirm address: %s", resp->address);
 
-  for (ctr=0; ctr<64/2; ctr++) {
-    snprintf(&str[2*ctr], 3, "%02x", msg->domain_separator_hash.bytes[ctr]);
+  for (ctr = 0; ctr < 64 / 2; ctr++) {
+    snprintf(&str[2 * ctr], 3, "%02x", msg->domain_separator_hash.bytes[ctr]);
   }
-  confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data domain", "Confirm hash digest: %s", str);
+  confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data domain",
+          "Confirm hash digest: %s", str);
 
   if (msg->has_message_hash) {
-    for (ctr=0; ctr<64/2; ctr++) {
-      snprintf(&str[2*ctr], 3, "%02x", msg->message_hash.bytes[ctr]);
+    for (ctr = 0; ctr < 64 / 2; ctr++) {
+      snprintf(&str[2 * ctr], 3, "%02x", msg->message_hash.bytes[ctr]);
     }
-    confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message", "Confirm hash digest: %s", str);
+    confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
+            "Confirm hash digest: %s", str);
   } else {
-    confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message", "Confirm: No message");
+    confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
+            "Confirm: No message");
   }
 
   ethereum_typed_hash_sign(msg, node, resp);
   layoutHome();
 }
 
-void fsm_msgEthereum712TypesValues(Ethereum712TypesValues *msg) {
+void fsm_msgEthereum712TypesValues(Ethereum712TypesValues* msg) {
   RESP_INIT(EthereumTypedDataSignature);
 
   CHECK_INITIALIZED
@@ -356,11 +361,12 @@ void fsm_msgEthereum712TypesValues(Ethereum712TypesValues *msg) {
   CHECK_PIN
 
   if (strlen(msg->eip712types) == 0) {
-    fsm_sendFailure(FailureType_Failure_Other, _("Invalid EIP-712 types property string"));
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Invalid EIP-712 types property string"));
     return;
   }
 
-  const HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  const HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                           msg->address_n_count, NULL);
   if (!node) return;
 
@@ -372,7 +378,7 @@ void fsm_msgEthereum712TypesValues(Ethereum712TypesValues *msg) {
 
   resp->address[0] = '0';
   resp->address[1] = 'x';
-  ethereum_address_checksum(pubkeyhash, resp->address+2, false, 0);
+  ethereum_address_checksum(pubkeyhash, resp->address + 2, false, 0);
 
   e712_types_values(msg, resp, node);
 

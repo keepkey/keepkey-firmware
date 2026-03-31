@@ -27,7 +27,7 @@ static uint8_t balance_be[16];
 static bool is_send = true;
 static char representative_address[MAX_NANO_ADDR_SIZE];
 static char recipient_address[MAX_NANO_ADDR_SIZE];
-static const CoinType *coin = NULL;
+static const CoinType* coin = NULL;
 
 static uint8_t const NANO_BLOCK_HASH_PREAMBLE[32] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -35,7 +35,7 @@ static uint8_t const NANO_BLOCK_HASH_PREAMBLE[32] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06,
 };
 
-bool nano_path_mismatched(const CoinType *_coin, const uint32_t *address_n,
+bool nano_path_mismatched(const CoinType* _coin, const uint32_t* address_n,
                           const uint32_t address_n_count) {
   // m/44' : BIP44-like path
   // m / purpose' / bip44_account_path' / account'
@@ -48,8 +48,8 @@ bool nano_path_mismatched(const CoinType *_coin, const uint32_t *address_n,
   return mismatch;
 }
 
-bool nano_bip32_to_string(char *node_str, size_t len, const CoinType *_coin,
-                          const uint32_t *address_n,
+bool nano_bip32_to_string(char* node_str, size_t len, const CoinType* _coin,
+                          const uint32_t* address_n,
                           const size_t address_n_count) {
   if (address_n_count != 3) return false;
 
@@ -79,10 +79,10 @@ void nano_hash_block_data(const uint8_t _account_pk[32],
   blake2b_Final(&ctx, _out_hash, 32);
 }
 
-const char *nano_getKnownRepName(const char *addr) {
+const char* nano_getKnownRepName(const char* addr) {
   static const struct {
-    const char *name;
-    const char *addr;
+    const char* name;
+    const char* addr;
   } reps[] = {
       {"@meltingice ",
        "xrb_1x7biz69cem95oo7gxkrw6kzhfywq4x5dupw4z1bdzkb74dk9kpxwzjbdhhs"},
@@ -129,7 +129,7 @@ const char *nano_getKnownRepName(const char *addr) {
   return NULL;
 }
 
-void nano_truncateAddress(const CoinType *_coin, char *str) {
+void nano_truncateAddress(const CoinType* _coin, char* str) {
   const size_t prefix_len = strlen(_coin->nanoaddr_prefix);
   const size_t str_len = strlen(str);
 
@@ -157,8 +157,8 @@ void nano_signingAbort(void) {
   is_send = true;
 }
 
-bool nano_signingInit(const NanoSignTx *msg, const HDNode *node,
-                      const CoinType *_coin) {
+bool nano_signingInit(const NanoSignTx* msg, const HDNode* node,
+                      const CoinType* _coin) {
   nano_signingAbort();
 
   memcpy(account_pk, &node->public_key[1], sizeof(account_pk));
@@ -187,7 +187,7 @@ bool nano_signingInit(const NanoSignTx *msg, const HDNode *node,
   return !invalid;
 }
 
-bool nano_parentHash(const NanoSignTx *msg) {
+bool nano_parentHash(const NanoSignTx* msg) {
   if (!msg->has_parent_block) return true;
 
   if (msg->parent_block.has_parent_hash) {
@@ -217,7 +217,7 @@ bool nano_parentHash(const NanoSignTx *msg) {
   return true;
 }
 
-bool nano_currentHash(const NanoSignTx *msg, const HDNode *recip) {
+bool nano_currentHash(const NanoSignTx* msg, const HDNode* recip) {
   if (msg->has_link_hash) {
     memcpy(link, msg->link_hash.bytes, sizeof(link));
   } else if (msg->link_recipient_n_count > 0) {
@@ -246,7 +246,7 @@ bool nano_currentHash(const NanoSignTx *msg, const HDNode *recip) {
 }
 
 /// Some additional sanity checks now that balance values are known
-bool nano_sanityCheck(const NanoSignTx *msg) {
+bool nano_sanityCheck(const NanoSignTx* msg) {
   memset(recipient_address, 0, sizeof(recipient_address));
 
   strlcpy(representative_address, msg->representative,
@@ -293,7 +293,7 @@ bool nano_sanityCheck(const NanoSignTx *msg) {
   return !invalid;
 }
 
-bool nano_signTx(const NanoSignTx *msg, HDNode *node, NanoSignedTx *resp) {
+bool nano_signTx(const NanoSignTx* msg, HDNode* node, NanoSignedTx* resp) {
   // Determine what type of prompt to display
   bool needs_confirm = true;
   bool is_transfer = false;
@@ -310,7 +310,7 @@ bool nano_signTx(const NanoSignTx *msg, HDNode *node, NanoSignedTx *resp) {
 
   if (needs_confirm) {
     if (strlen(representative_address) > 0) {
-      const char *rep_name = nano_getKnownRepName(representative_address);
+      const char* rep_name = nano_getKnownRepName(representative_address);
       if (rep_name) nano_truncateAddress(coin, representative_address);
       if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                    "Representative", "Set account representative to\n%s%s?",

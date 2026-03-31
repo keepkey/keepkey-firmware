@@ -34,8 +34,8 @@
  * OUTPUT
  *     integer determining whether operation was succesful
  */
-int run_policy_compile_output(const CoinType *coin, const HDNode *root,
-                              void *vin, void *vout, bool needs_confirm) {
+int run_policy_compile_output(const CoinType* coin, const HDNode* root,
+                              void* vin, void* vout, bool needs_confirm) {
   if (isAccountBased(coin->coin_name)) return TXOUT_OK;
 
   /* Bitcoin, Clones, Forks */
@@ -43,6 +43,6 @@ int run_policy_compile_output(const CoinType *coin, const HDNode *root,
     return TXOUT_COMPILE_ERROR;
   }
 
-  return compile_output(coin, root, (TxOutputType *)vin,
-                        (TxOutputBinType *)vout, needs_confirm);
+  return compile_output(coin, root, (TxOutputType*)vin, (TxOutputBinType*)vout,
+                        needs_confirm);
 }

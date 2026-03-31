@@ -1,16 +1,16 @@
 #include "keepkey/firmware/nano.h"
 
-void fsm_msgNanoGetAddress(NanoGetAddress *msg) {
+void fsm_msgNanoGetAddress(NanoGetAddress* msg) {
   RESP_INIT(NanoAddress);
 
   CHECK_INITIALIZED
 
   CHECK_PIN
 
-  const char *coin_name = msg->has_coin_name ? msg->coin_name : "Nano";
-  const CoinType *coin = fsm_getCoin(true, coin_name);
+  const char* coin_name = msg->has_coin_name ? msg->coin_name : "Nano";
+  const CoinType* coin = fsm_getCoin(true, coin_name);
   if (!coin) return;
-  HDNode *node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) return;
   hdnode_fill_public_key(node);
@@ -64,16 +64,16 @@ void fsm_msgNanoGetAddress(NanoGetAddress *msg) {
   layoutHome();
 }
 
-void fsm_msgNanoSignTx(NanoSignTx *msg) {
+void fsm_msgNanoSignTx(NanoSignTx* msg) {
   CHECK_INITIALIZED
 
   CHECK_PIN
 
-  const char *coin_name = msg->has_coin_name ? msg->coin_name : "Nano";
-  const CoinType *coin = fsm_getCoin(true, coin_name);
+  const char* coin_name = msg->has_coin_name ? msg->coin_name : "Nano";
+  const CoinType* coin = fsm_getCoin(true, coin_name);
   if (!coin) return;
 
-  HDNode *node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) return;
   hdnode_fill_public_key(node);
@@ -95,7 +95,7 @@ void fsm_msgNanoSignTx(NanoSignTx *msg) {
     return;
   }
 
-  HDNode *recip = NULL;
+  HDNode* recip = NULL;
   if (msg->link_recipient_n_count > 0) {
     recip = fsm_getDerivedNode(coin->curve_name, msg->link_recipient_n,
                                msg->link_recipient_n_count, NULL);

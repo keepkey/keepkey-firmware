@@ -59,7 +59,7 @@
  * OUTPUT
  *     true/false of confirmation
  */
-bool confirm_cipher(bool encrypt, const char *key) {
+bool confirm_cipher(bool encrypt, const char* key) {
   bool ret_stat;
 
   if (encrypt) {
@@ -82,7 +82,7 @@ bool confirm_cipher(bool encrypt, const char *key) {
  * OUTPUT
  *     true/false of confirmation
  */
-bool confirm_encrypt_msg(const char *msg, bool signing) {
+bool confirm_encrypt_msg(const char* msg, bool signing) {
   bool ret_stat;
 
   if (signing) {
@@ -106,7 +106,7 @@ bool confirm_encrypt_msg(const char *msg, bool signing) {
  *     true/false of confirmation
  *
  */
-bool confirm_decrypt_msg(const char *msg, const char *address) {
+bool confirm_decrypt_msg(const char* msg, const char* address) {
   bool ret_stat;
 
   if (address) {
@@ -132,7 +132,7 @@ bool confirm_decrypt_msg(const char *msg, const char *address) {
  *
  */
 bool confirm_transfer_output(ButtonRequestType button_request,
-                             const char *amount, const char *to) {
+                             const char* amount, const char* to) {
   return confirm_with_custom_layout(&layout_notification_no_title_bold,
                                     button_request, "", "Transfer %s\nto %s",
                                     amount, to);
@@ -150,7 +150,7 @@ bool confirm_transfer_output(ButtonRequestType button_request,
  *
  */
 bool confirm_transaction_output(ButtonRequestType button_request,
-                                const char *amount, const char *to) {
+                                const char* amount, const char* to) {
   return confirm_with_custom_layout(&layout_notification_no_title_bold,
                                     button_request, "", "Send %s to\n%s",
                                     amount, to);
@@ -169,7 +169,7 @@ bool confirm_transaction_output(ButtonRequestType button_request,
  *
  */
 bool confirm_erc_token_transfer(ButtonRequestType button_request,
-                                const char *msg_body) {
+                                const char* msg_body) {
   return confirm_with_custom_layout(&layout_notification_no_title_no_bold,
                                     button_request, "", "Send %s", msg_body);
 }
@@ -187,7 +187,7 @@ bool confirm_erc_token_transfer(ButtonRequestType button_request,
  *
  */
 bool confirm_transaction_output_no_bold(ButtonRequestType button_request,
-                                        const char *amount, const char *to) {
+                                        const char* amount, const char* to) {
   return confirm_with_custom_layout(&layout_notification_no_title_no_bold,
                                     button_request, "", "Send %s to\n%s",
                                     amount, to);
@@ -203,7 +203,7 @@ bool confirm_transaction_output_no_bold(ButtonRequestType button_request,
  *     true/false of confirmation
  *
  */
-bool confirm_transaction(const char *total_amount, const char *fee) {
+bool confirm_transaction(const char* total_amount, const char* fee) {
   if (!fee || strcmp(fee, "0.0 BTC") == 0) {
     return confirm(ButtonRequestType_ButtonRequest_SignTx, "Transaction",
                    "Do you want to send %s from your wallet?", total_amount);
@@ -251,7 +251,7 @@ bool confirm_load_device(bool is_node) {
  *     true/false of confirmation
  *
  */
-bool confirm_xpub(const char *node_str, const char *xpub) {
+bool confirm_xpub(const char* node_str, const char* xpub) {
   return confirm_with_custom_layout(&layout_xpub_notification,
                                     ButtonRequestType_ButtonRequest_Address,
                                     node_str, "%s", xpub);
@@ -267,7 +267,7 @@ bool confirm_xpub(const char *node_str, const char *xpub) {
  *     true/false of confirmation
  *
  */
-bool confirm_cosmos_address(const char *desc, const char *address) {
+bool confirm_cosmos_address(const char* desc, const char* address) {
   return confirm_with_custom_layout(&layout_cosmos_address_notification,
                                     ButtonRequestType_ButtonRequest_Address,
                                     desc, "%s", address);
@@ -283,7 +283,7 @@ bool confirm_cosmos_address(const char *desc, const char *address) {
  *     true/false of confirmation
  *
  */
-bool confirm_osmosis_address(const char *desc, const char *address) {
+bool confirm_osmosis_address(const char* desc, const char* address) {
   return confirm_with_custom_layout(&layout_osmosis_address_notification,
                                     ButtonRequestType_ButtonRequest_Address,
                                     desc, "%s", address);
@@ -299,7 +299,7 @@ bool confirm_osmosis_address(const char *desc, const char *address) {
  *     true/false of confirmation
  *
  */
-bool confirm_ethereum_address(const char *desc, const char *address) {
+bool confirm_ethereum_address(const char* desc, const char* address) {
   return confirm_with_custom_layout(&layout_ethereum_address_notification,
                                     ButtonRequestType_ButtonRequest_Address,
                                     desc, "%s", address);
@@ -315,7 +315,7 @@ bool confirm_ethereum_address(const char *desc, const char *address) {
  *     true/false of confirmation
  *
  */
-bool confirm_nano_address(const char *desc, const char *address) {
+bool confirm_nano_address(const char* desc, const char* address) {
   return confirm_with_custom_layout(&layout_nano_address_notification,
                                     ButtonRequestType_ButtonRequest_Address,
                                     desc, "%s", address);
@@ -331,7 +331,7 @@ bool confirm_nano_address(const char *desc, const char *address) {
  *     true/false of confirmation
  *
  */
-bool confirm_address(const char *desc, const char *address) {
+bool confirm_address(const char* desc, const char* address) {
   return confirm_with_custom_layout(&layout_address_notification,
                                     ButtonRequestType_ButtonRequest_Address,
                                     desc, "%s", address);
@@ -347,8 +347,8 @@ bool confirm_address(const char *desc, const char *address) {
  *     true/false of confirmation
  *
  */
-bool confirm_sign_identity(const IdentityType *identity,
-                           const char *challenge) {
+bool confirm_sign_identity(const IdentityType* identity,
+                           const char* challenge) {
   char title[CONFIRM_SIGN_IDENTITY_TITLE], body[CONFIRM_SIGN_IDENTITY_BODY];
 
   /* Format protocol */
@@ -391,14 +391,14 @@ bool confirm_sign_identity(const IdentityType *identity,
                  body);
 }
 
-bool confirm_omni(ButtonRequestType button_request, const char *title,
-                  const uint8_t *data, uint32_t size) {
+bool confirm_omni(ButtonRequestType button_request, const char* title,
+                  const uint8_t* data, uint32_t size) {
   uint32_t tx_type, currency;
-  REVERSE32(*(const uint32_t *)(data + 4), tx_type);
+  REVERSE32(*(const uint32_t*)(data + 4), tx_type);
   if (tx_type == 0x00000000 && size == 20) {  // OMNI simple send
     char str_out[32];
-    REVERSE32(*(const uint32_t *)(data + 8), currency);
-    const char *suffix = "UNKN";
+    REVERSE32(*(const uint32_t*)(data + 8), currency);
+    const char* suffix = "UNKN";
     switch (currency) {
       case 1:
         suffix = " OMNI";
@@ -425,9 +425,9 @@ bool confirm_omni(ButtonRequestType button_request, const char *title,
   }
 }
 
-bool confirm_data(ButtonRequestType button_request, const char *title,
-                  const uint8_t *data, uint32_t size) {
-  const char *str = (const char *)data;
+bool confirm_data(ButtonRequestType button_request, const char* title,
+                  const uint8_t* data, uint32_t size) {
+  const char* str = (const char*)data;
   char hex[50 * 2 + 1];
   if (!is_valid_ascii(data, size)) {
     if (size > 50) size = 50;

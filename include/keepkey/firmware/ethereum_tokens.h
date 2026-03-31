@@ -37,8 +37,8 @@ enum {
 #define TOKENS_COUNT ((int)TokenIndexLast - (int)TokenIndexFirst)
 
 typedef struct _TokenType {
-  const char *const address;
-  const char *const ticker;
+  const char* const address;
+  const char* const ticker;
   uint8_t chain_id;
   uint8_t decimals;
 } TokenType;
@@ -47,11 +47,11 @@ typedef struct _CoinType CoinType;
 
 extern const TokenType tokens[];
 
-extern const TokenType *UnknownToken;
+extern const TokenType* UnknownToken;
 
-const TokenType *tokenIter(int32_t *ctr);
+const TokenType* tokenIter(int32_t* ctr);
 
-const TokenType *tokenByChainAddress(uint8_t chain_id, const uint8_t *address);
+const TokenType* tokenByChainAddress(uint8_t chain_id, const uint8_t* address);
 
 /// Tokens don't have unique tickers, so this might not return the one you're
 /// looking for :/
@@ -64,8 +64,8 @@ const TokenType *tokenByChainAddress(uint8_t chain_id, const uint8_t *address);
 /// \param[out] token The found token, assuming it was uniquely determinable.
 /// \returns true iff the token can be uniquely found in the list of known
 /// tokens.
-bool tokenByTicker(uint8_t chain_id, const char *ticker,
-                   const TokenType **token);
+bool tokenByTicker(uint8_t chain_id, const char* ticker,
+                   const TokenType** token);
 
-void coinFromToken(CoinType *coin, const TokenType *token);
+void coinFromToken(CoinType* coin, const TokenType* token);
 #endif

@@ -51,7 +51,7 @@ typedef struct {
   uint16_t pin;
 } Pin;
 
-void pin_init_output(const Pin *pin, OutputMode output_mode,
+void pin_init_output(const Pin* pin, OutputMode output_mode,
                      PullMode pull_mode);
 
 #endif

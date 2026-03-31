@@ -1,17 +1,17 @@
 
-void fsm_msgBinanceGetAddress(const BinanceGetAddress *msg) {
+void fsm_msgBinanceGetAddress(const BinanceGetAddress* msg) {
   RESP_INIT(BinanceAddress);
 
   CHECK_INITIALIZED
 
   CHECK_PIN
 
-  const char *coin_name = "Binance";
-  const CoinType *coin = fsm_getCoin(true, coin_name);
+  const char* coin_name = "Binance";
+  const CoinType* coin = fsm_getCoin(true, coin_name);
   if (!coin) {
     return;
   }
-  HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) {
     return;
@@ -65,11 +65,11 @@ void fsm_msgBinanceGetAddress(const BinanceGetAddress *msg) {
   msg_write(MessageType_MessageType_BinanceAddress, resp);
 }
 
-void fsm_msgBinanceSignTx(const BinanceSignTx *msg) {
+void fsm_msgBinanceSignTx(const BinanceSignTx* msg) {
   CHECK_INITIALIZED
   CHECK_PIN
 
-  HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) {
     return;
@@ -93,7 +93,7 @@ void fsm_msgBinanceSignTx(const BinanceSignTx *msg) {
 
 static void binance_response(void);
 
-void fsm_msgBinanceTransferMsg(const BinanceTransferMsg *msg) {
+void fsm_msgBinanceTransferMsg(const BinanceTransferMsg* msg) {
   CHECK_PARAM(binance_signingIsInited(), "Signing not in progress?");
   CHECK_PARAM(msg->inputs_count == 1, "Malformed BinanceTransferMsg")
   CHECK_PARAM(msg->inputs[0].coins_count == 1, "Malformed BinanceTransferMsg")
@@ -105,7 +105,7 @@ void fsm_msgBinanceTransferMsg(const BinanceTransferMsg *msg) {
                      msg->outputs[0].coins[0].denom) == 0,
               "Malformed BinanceTransferMsg")
 
-  const CoinType *coin = fsm_getCoin(true, "Binance");
+  const CoinType* coin = fsm_getCoin(true, "Binance");
   if (!coin) {
     return;
   }
@@ -115,7 +115,8 @@ void fsm_msgBinanceTransferMsg(const BinanceTransferMsg *msg) {
     default: {
       char amount_str[42];
       char denom_str[14];
-      snprintf(denom_str, strlen(msg->outputs[0].coins[0].denom) + 2, " %s", msg->outputs[0].coins[0].denom);
+      snprintf(denom_str, strlen(msg->outputs[0].coins[0].denom) + 2, " %s",
+               msg->outputs[0].coins[0].denom);
       bn_format_uint64(msg->outputs[0].coins[0].amount, NULL, denom_str, 8, 0,
                        false, amount_str, sizeof(amount_str));
       if (!confirm_transaction_output(
@@ -148,12 +149,12 @@ static void binance_response(void) {
     return;
   }
 
-  const CoinType *coin = fsm_getCoin(true, "Binance");
+  const CoinType* coin = fsm_getCoin(true, "Binance");
   if (!coin) {
     return;
   }
 
-  const BinanceSignTx *sign_tx = binance_getBinanceSignTx();
+  const BinanceSignTx* sign_tx = binance_getBinanceSignTx();
 
   if (sign_tx->has_memo && !confirm(ButtonRequestType_ButtonRequest_ConfirmMemo,
                                     _("Memo"), "%s", sign_tx->memo)) {

@@ -60,10 +60,11 @@ static EthereumTxRequest msg_tx_request;
 static CONFIDENTIAL uint8_t privkey[32];
 static uint32_t chain_id;
 static uint32_t wanchain_tx_type;  // Wanchain only
-static uint32_t ethereum_tx_type;  // Ethereum tx type (0=Legacy, 1=EIP-2930, 2=EIP-1559)
+static uint32_t
+    ethereum_tx_type;  // Ethereum tx type (0=Legacy, 1=EIP-2930, 2=EIP-1559)
 struct SHA3_CTX keccak_ctx;
 
-bool ethereum_isStandardERC20Transfer(const EthereumSignTx *msg) {
+bool ethereum_isStandardERC20Transfer(const EthereumSignTx* msg) {
   if (msg->has_to && msg->to.size == 20 && msg->value.size == 0 &&
       msg->data_initial_chunk.size == 68 &&
       memcmp(msg->data_initial_chunk.bytes,
@@ -74,7 +75,7 @@ bool ethereum_isStandardERC20Transfer(const EthereumSignTx *msg) {
   return false;
 }
 
-bool ethereum_isStandardERC20Approve(const EthereumSignTx *msg) {
+bool ethereum_isStandardERC20Approve(const EthereumSignTx* msg) {
   if (msg->has_to && msg->to.size == 20 && msg->value.size == 0 &&
       msg->data_initial_chunk.size == 68 &&
       memcmp(msg->data_initial_chunk.bytes,
@@ -85,23 +86,23 @@ bool ethereum_isStandardERC20Approve(const EthereumSignTx *msg) {
   return false;
 }
 
-bool ethereum_getStandardERC20Recipient(const EthereumSignTx *msg,
-                                        char *address, size_t len) {
+bool ethereum_getStandardERC20Recipient(const EthereumSignTx* msg,
+                                        char* address, size_t len) {
   if (len < 2 * 20 + 1) return false;
 
   data2hex(msg->data_initial_chunk.bytes + 16, 20, address);
   return true;
 }
 
-bool ethereum_getStandardERC20Coin(const EthereumSignTx *msg, CoinType *coin) {
-  const CoinType *found =
+bool ethereum_getStandardERC20Coin(const EthereumSignTx* msg, CoinType* coin) {
+  const CoinType* found =
       coinByChainAddress(msg->has_chain_id ? msg->chain_id : 1, msg->to.bytes);
   if (found) {
     memcpy(coin, found, sizeof(*coin));
     return true;
   }
 
-  const TokenType *token =
+  const TokenType* token =
       tokenByChainAddress(msg->has_chain_id ? msg->chain_id : 1, msg->to.bytes);
   if (token == UnknownToken) return false;
 
@@ -109,7 +110,7 @@ bool ethereum_getStandardERC20Coin(const EthereumSignTx *msg, CoinType *coin) {
   return true;
 }
 
-void bn_from_bytes(const uint8_t *value, size_t value_len, bignum256 *val) {
+void bn_from_bytes(const uint8_t* value, size_t value_len, bignum256* val) {
   uint8_t pad_val[32];
   memset(pad_val, 0, sizeof(pad_val));
   memcpy(pad_val + (32 - value_len), value, value_len);
@@ -117,7 +118,7 @@ void bn_from_bytes(const uint8_t *value, size_t value_len, bignum256 *val) {
   memzero(pad_val, sizeof(pad_val));
 }
 
-static inline void hash_data(const uint8_t *buf, size_t size) {
+static inline void hash_data(const uint8_t* buf, size_t size) {
   sha3_Update(&keccak_ctx, buf, size);
 }
 
@@ -178,7 +179,7 @@ static void hash_rlp_list_length(uint32_t length) {
 /*
  * Push an RLP encoded length field and data to the hash buffer.
  */
-static void hash_rlp_field(const uint8_t *buf, size_t size) {
+static void hash_rlp_field(const uint8_t* buf, size_t size) {
   hash_rlp_length(size, buf[0]);
   hash_data(buf, size);
 }
@@ -195,7 +196,7 @@ static void hash_rlp_number(uint32_t number) {
   data[0] = (number >> 24) & 0xff;
   data[1] = (number >> 16) & 0xff;
   data[2] = (number >> 8) & 0xff;
-  data[3] = (number)&0xff;
+  data[3] = (number) & 0xff;
   int offset = 0;
   while (!data[offset]) {
     offset++;
@@ -310,11 +311,11 @@ static void send_signature(void) {
  * using standard ethereum units.
  * The buffer must be at least 25 bytes.
  */
-void ethereumFormatAmount(const bignum256 *amnt, const TokenType *token,
-                          uint32_t cid, char *buf, int buflen) {
+void ethereumFormatAmount(const bignum256* amnt, const TokenType* token,
+                          uint32_t cid, char* buf, int buflen) {
   bignum256 bn1e9;
   bn_read_uint32(1000000000, &bn1e9);
-  const char *suffix = NULL;
+  const char* suffix = NULL;
   int decimals = 18;
   if (token == UnknownToken) {
     strlcpy(buf, "Unknown token value", buflen);
@@ -355,7 +356,7 @@ void ethereumFormatAmount(const bignum256 *amnt, const TokenType *token,
         case 40:
           suffix = " TLOS";
           break;  // Telos
-        case 56: 
+        case 56:
           suffix = " BNB";
           break;  // BNB Chain
         case 61:
@@ -376,9 +377,9 @@ void ethereumFormatAmount(const bignum256 *amnt, const TokenType *token,
   bn_format(amnt, NULL, suffix, decimals, 0, false, buf, buflen);
 }
 
-static void layoutEthereumConfirmTx(const uint8_t *to, uint32_t to_len,
-                                    const uint8_t *value, uint32_t value_len,
-                                    const TokenType *token, char *out_str,
+static void layoutEthereumConfirmTx(const uint8_t* to, uint32_t to_len,
+                                    const uint8_t* value, uint32_t value_len,
+                                    const TokenType* token, char* out_str,
                                     size_t out_str_len, bool approve) {
   bignum256 val;
   uint8_t pad_val[32];
@@ -409,7 +410,7 @@ static void layoutEthereumConfirmTx(const uint8_t *to, uint32_t to_len,
       memcmp(value + 16, "\xff\xff\xff\xff\xff\xff\xff\xff", 8) == 0 &&
       memcmp(value + 24, "\xff\xff\xff\xff\xff\xff\xff\xff", 8) == 0;
 
-  const char *address = addr;
+  const char* address = addr;
   if (to_len && makerdao_isOasisDEXAddress(to, chain_id)) {
     address = "OasisDEX";
   }
@@ -436,8 +437,8 @@ static void layoutEthereumConfirmTx(const uint8_t *to, uint32_t to_len,
   }
 }
 
-static void layoutEthereumData(const uint8_t *data, uint32_t len,
-                               uint32_t total_len, char *out_str,
+static void layoutEthereumData(const uint8_t* data, uint32_t len,
+                               uint32_t total_len, char* out_str,
                                size_t out_str_len) {
   char hexdata[3][17];
   char summary[20];
@@ -453,13 +454,13 @@ static void layoutEthereumData(const uint8_t *data, uint32_t len,
   }
 
   strcpy(summary, "...          bytes");
-  char *p = summary + 11;
+  char* p = summary + 11;
   uint32_t number = total_len;
   while (number > 0) {
     *p-- = '0' + number % 10;
     number = number / 10;
   }
-  char *summarystart = summary;
+  char* summarystart = summary;
   if (total_len == printed) summarystart = summary + 4;
 
   if ((uint32_t)snprintf(out_str, out_str_len, "%s%s\n%s%s", hexdata[0],
@@ -469,7 +470,7 @@ static void layoutEthereumData(const uint8_t *data, uint32_t len,
   }
 }
 
-static void formatEthereumFee(bignum256 *fee, const uint8_t *gas_price,
+static void formatEthereumFee(bignum256* fee, const uint8_t* gas_price,
                               const uint8_t gas_price_len) {
   uint8_t pad_val[32];
 
@@ -480,8 +481,8 @@ static void formatEthereumFee(bignum256 *fee, const uint8_t *gas_price,
 }
 
 static void formatEthereumFeeEIP1559(
-    bignum256 *fee, const uint8_t *max_fee_per_gas,
-    const uint8_t max_fee_per_gas_len, const uint8_t *max_priority_fee_per_gas,
+    bignum256* fee, const uint8_t* max_fee_per_gas,
+    const uint8_t max_fee_per_gas_len, const uint8_t* max_priority_fee_per_gas,
     const uint8_t max_priority_fee_per_gas_len) {
   bignum256 max_fee, max_pfee;
   uint8_t pad_val[32];
@@ -504,8 +505,8 @@ static void formatEthereumFeeEIP1559(
   }
 }
 
-static void layoutEthereumFee(const EthereumSignTx *msg, bool is_token,
-                              char *out_str, size_t out_str_len) {
+static void layoutEthereumFee(const EthereumSignTx* msg, bool is_token,
+                              char* out_str, size_t out_str_len) {
   bignum256 val, gas;
   char gas_value[32];
   char tx_value[32];
@@ -559,7 +560,7 @@ static void layoutEthereumFee(const EthereumSignTx *msg, bool is_token,
  * - data (0 ..)
  */
 
-static bool ethereum_signing_check(EthereumSignTx *msg) {
+static bool ethereum_signing_check(EthereumSignTx* msg) {
   if (!msg->has_gas_limit) {
     return false;
   }
@@ -586,7 +587,7 @@ static bool ethereum_signing_check(EthereumSignTx *msg) {
   return true;
 }
 
-void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
+void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
                            bool needs_confirm) {
   char confirm_body_message[121] = {0};
 
@@ -668,7 +669,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
     return;
   }
 
-  const TokenType *token = NULL;
+  const TokenType* token = NULL;
 
   // safety checks
   if (!ethereum_signing_check(msg)) {
@@ -712,7 +713,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
                               sizeof(confirm_body_message), /*approve=*/false);
     }
     bool is_transfer = msg->address_type == OutputAddressType_TRANSFER;
-    const char *title;
+    const char* title;
     ButtonRequestType BRT;
     if (is_approve) {
       title = "Approve";
@@ -779,35 +780,40 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
     // This is the chain ID length for 1559 tx (only one byte for now)
     rlp_length += rlp_calculate_number_length(chain_id);
 
-    //rlp_length += 1;
+    // rlp_length += 1;
   }
 
   rlp_length += rlp_calculate_length(msg->nonce.size, msg->nonce.bytes[0]);
   if (msg->has_max_fee_per_gas) {
     if (msg->has_max_priority_fee_per_gas) {
-      rlp_length += rlp_calculate_length(msg->max_priority_fee_per_gas.size,
-                                         msg->max_priority_fee_per_gas.bytes[0]);
+      rlp_length +=
+          rlp_calculate_length(msg->max_priority_fee_per_gas.size,
+                               msg->max_priority_fee_per_gas.bytes[0]);
     }
     rlp_length += rlp_calculate_length(msg->max_fee_per_gas.size,
-                                       msg->max_fee_per_gas.bytes[0]);    
+                                       msg->max_fee_per_gas.bytes[0]);
   } else {
-    rlp_length += rlp_calculate_length(msg->gas_price.size, msg->gas_price.bytes[0]);
+    rlp_length +=
+        rlp_calculate_length(msg->gas_price.size, msg->gas_price.bytes[0]);
   }
 
-  rlp_length += rlp_calculate_length(msg->gas_limit.size, msg->gas_limit.bytes[0]);
+  rlp_length +=
+      rlp_calculate_length(msg->gas_limit.size, msg->gas_limit.bytes[0]);
   rlp_length += rlp_calculate_length(msg->to.size, msg->to.bytes[0]);
   rlp_length += rlp_calculate_length(msg->value.size, msg->value.bytes[0]);
-  rlp_length += rlp_calculate_length(data_total, msg->data_initial_chunk.bytes[0]);
-    
+  rlp_length +=
+      rlp_calculate_length(data_total, msg->data_initial_chunk.bytes[0]);
+
   if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
     // access list size
-    rlp_length += 1;  // c0, keepkey does not support >0 length access list at this time
+    rlp_length +=
+        1;  // c0, keepkey does not support >0 length access list at this time
   }
 
   if (wanchain_tx_type) {
     rlp_length += rlp_calculate_number_length(wanchain_tx_type);
   }
-      
+
   if (ethereum_tx_type == ETHEREUM_TX_TYPE_LEGACY) {
     // legacy EIP-155 replay protection
     if (chain_id) {
@@ -818,8 +824,9 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
   }
 
   // Start the hash:
-  // keccak256(0x02 || rlp([chain_id, nonce, max_priority_fee_per_gas, max_fee_per_gas, 
-  //           gas_limit, destination, amount, data, access_list]))  
+  // keccak256(0x02 || rlp([chain_id, nonce, max_priority_fee_per_gas,
+  // max_fee_per_gas,
+  //           gas_limit, destination, amount, data, access_list]))
 
   // tx type should never be greater than one byte in length
   // https://github.com/ethereum/EIPs/blob/master/EIPS/eip-2718.md#transactiontype-only-goes-up-to-0x7f
@@ -838,11 +845,11 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
 
   if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
     // chain id goes here for 1559 (only one byte for now)
-    hash_rlp_field((uint8_t *)(&chain_id), sizeof(uint8_t));
+    hash_rlp_field((uint8_t*)(&chain_id), sizeof(uint8_t));
   }
 
   hash_rlp_field(msg->nonce.bytes, msg->nonce.size);
-    
+
   if (msg->has_max_fee_per_gas) {
     if (msg->has_max_priority_fee_per_gas) {
       hash_rlp_field(msg->max_priority_fee_per_gas.bytes,
@@ -852,7 +859,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
   } else {
     hash_rlp_field(msg->gas_price.bytes, msg->gas_price.size);
   }
-    
+
   hash_rlp_field(msg->gas_limit.bytes, msg->gas_limit.size);
   hash_rlp_field(msg->to.bytes, msg->to.size);
   hash_rlp_field(msg->value.bytes, msg->value.size);
@@ -862,7 +869,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
 
   if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
     // Keepkey does not support an access list size >0 at this time
-    uint8_t datbuf[1] = {0xC0};   // size of empty access list
+    uint8_t datbuf[1] = {0xC0};  // size of empty access list
     hash_data(datbuf, sizeof(datbuf));
   }
 
@@ -875,7 +882,7 @@ void ethereum_signing_init(EthereumSignTx *msg, const HDNode *node,
   }
 }
 
-void ethereum_signing_txack(EthereumTxAck *tx) {
+void ethereum_signing_txack(EthereumTxAck* tx) {
   if (!ethereum_signing) {
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                     _("Not in Ethereum signing mode"));
@@ -914,7 +921,7 @@ void ethereum_signing_abort(void) {
   }
 }
 
-static void ethereum_message_hash(const uint8_t *message, size_t message_len,
+static void ethereum_message_hash(const uint8_t* message, size_t message_len,
                                   uint8_t hash[32]) {
   struct SHA3_CTX ctx;
   uint8_t c;
@@ -963,8 +970,8 @@ static void ethereum_message_hash(const uint8_t *message, size_t message_len,
   keccak_Final(&ctx, hash);
 }
 
-void ethereum_message_sign(const EthereumSignMessage *msg, const HDNode *node,
-                           EthereumMessageSignature *resp) {
+void ethereum_message_sign(const EthereumSignMessage* msg, const HDNode* node,
+                           EthereumMessageSignature* resp) {
   uint8_t hash[32];
 
   if (!hdnode_get_ethereum_pubkeyhash(node, resp->address.bytes)) {
@@ -972,7 +979,7 @@ void ethereum_message_sign(const EthereumSignMessage *msg, const HDNode *node,
   }
   resp->has_address = true;
   resp->address.size = 20;
-  
+
   ethereum_message_hash(msg->message.bytes, msg->message.size, hash);
 
   uint8_t v;
@@ -988,7 +995,7 @@ void ethereum_message_sign(const EthereumSignMessage *msg, const HDNode *node,
   msg_write(MessageType_MessageType_EthereumMessageSignature, resp);
 }
 
-int ethereum_message_verify(const EthereumVerifyMessage *msg) {
+int ethereum_message_verify(const EthereumVerifyMessage* msg) {
   if (msg->signature.size != 65 || msg->address.size != 20) {
     fsm_sendFailure(FailureType_Failure_SyntaxError, _("Malformed data"));
     return 1;
@@ -1023,7 +1030,6 @@ int ethereum_message_verify(const EthereumVerifyMessage *msg) {
   return 0;
 }
 
-
 //
 /*
  * EIP-712 hashes might have no message_hash if primaryType="EIP712Domain".
@@ -1034,7 +1040,7 @@ static void ethereum_typed_hash(const uint8_t domain_separator_hash[32],
                                 bool has_message_hash, uint8_t hash[32]) {
   struct SHA3_CTX ctx = {0};
   sha3_256_Init(&ctx);
-  sha3_Update(&ctx, (const uint8_t *)"\x19\x01", 2);
+  sha3_Update(&ctx, (const uint8_t*)"\x19\x01", 2);
   sha3_Update(&ctx, domain_separator_hash, 32);
   if (has_message_hash) {
     sha3_Update(&ctx, message_hash, 32);
@@ -1042,24 +1048,26 @@ static void ethereum_typed_hash(const uint8_t domain_separator_hash[32],
   keccak_Final(&ctx, hash);
 }
 
-static int eip712_sign(const uint8_t *ds_hash, const uint8_t *msg_hash, bool has_msg_hash, 
-                        const HDNode *node, uint8_t *v, uint8_t *sig) {
-
+static int eip712_sign(const uint8_t* ds_hash, const uint8_t* msg_hash,
+                       bool has_msg_hash, const HDNode* node, uint8_t* v,
+                       uint8_t* sig) {
   uint8_t hash[32] = {0};
 
   ethereum_typed_hash(ds_hash, msg_hash, has_msg_hash, hash);
 
-  return ecdsa_sign_digest(&secp256k1, node->private_key, hash, sig, v, ethereum_is_canonic);
+  return ecdsa_sign_digest(&secp256k1, node->private_key, hash, sig, v,
+                           ethereum_is_canonic);
 }
 
-void ethereum_typed_hash_sign(const EthereumSignTypedHash *msg,
-                              const HDNode *node,
-                              EthereumTypedDataSignature *resp) {
-
+void ethereum_typed_hash_sign(const EthereumSignTypedHash* msg,
+                              const HDNode* node,
+                              EthereumTypedDataSignature* resp) {
   uint8_t v = 0;
-  if (0 != eip712_sign(msg->domain_separator_hash.bytes, msg->message_hash.bytes, 
-              msg->has_message_hash, node, &v, resp->signature.bytes)) {
-    fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 hash signing failed"));
+  if (0 != eip712_sign(msg->domain_separator_hash.bytes,
+                       msg->message_hash.bytes, msg->has_message_hash, node, &v,
+                       resp->signature.bytes)) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("EIP-712 hash signing failed"));
     return;
   }
 
@@ -1070,52 +1078,52 @@ void ethereum_typed_hash_sign(const EthereumSignTypedHash *msg,
 
 void failMessage(int err);
 
-const char *failMsgReturn[LAST_ERROR - 2] = {
-                        "EIP-712 general error",                              //  3
-                        "EIP-712 user defined type name too long",
-                        "EIP-712 too many user defined types",
-                        "EIP-712 user defined type array name error",
-                        "EIP-712 address string overflow",
-                        "EIP-712 bytesN string overflow",
-                        "EIP-712 bytesN size error",
-                        "EIP-712 INT and UINT array parsing not implemented",
-                        "EIP-712 bytesN array parsing not implemented",
-                        "EIP-712 boolean array parsing not implemented",    
-                        "EIP-712 not enough memory to parse message",         // 13
-                        "EIP-712 primaryType name error",
-                        "EIP-712 primaryType value error",
-                        "EIP-712 types property error",
-                        "EIP-712 typeS (typestring) property error",
-                        "EIP-712 domain property name error",
-                        "EIP-712 domain seperator hash must be calculated first",
-                        "EIP-712 message property name error",
-                        "EIP-712 primary type object error",
-                        "EIP-712 typeS not found in eip712types",
-                        "EIP-712 typeS name missing",                         // 23
-                        "EIP-712 unused error 24",
-                        "EIP-712 pairs are NULL",
-                        "EIP-712 json pair type is not JSON_TEXT",
-                        "EIP-712 pair does not have a sibling",
-                        "EIP-712 typeType not encodable, possibly NULL",
-                        "EIP-712 pair value is NULL",
-                        "EIP-712 pair name is NULL",
-                        "EIP-712 typeType has no name in parseVals",
-                        "EIP-712 address string is NULL",
-                        "EIP-712 no value for type during walkVals",          // 33
-                        };
+const char* failMsgReturn[LAST_ERROR - 2] = {
+    "EIP-712 general error",  //  3
+    "EIP-712 user defined type name too long",
+    "EIP-712 too many user defined types",
+    "EIP-712 user defined type array name error",
+    "EIP-712 address string overflow",
+    "EIP-712 bytesN string overflow",
+    "EIP-712 bytesN size error",
+    "EIP-712 INT and UINT array parsing not implemented",
+    "EIP-712 bytesN array parsing not implemented",
+    "EIP-712 boolean array parsing not implemented",
+    "EIP-712 not enough memory to parse message",  // 13
+    "EIP-712 primaryType name error",
+    "EIP-712 primaryType value error",
+    "EIP-712 types property error",
+    "EIP-712 typeS (typestring) property error",
+    "EIP-712 domain property name error",
+    "EIP-712 domain seperator hash must be calculated first",
+    "EIP-712 message property name error",
+    "EIP-712 primary type object error",
+    "EIP-712 typeS not found in eip712types",
+    "EIP-712 typeS name missing",  // 23
+    "EIP-712 unused error 24",
+    "EIP-712 pairs are NULL",
+    "EIP-712 json pair type is not JSON_TEXT",
+    "EIP-712 pair does not have a sibling",
+    "EIP-712 typeType not encodable, possibly NULL",
+    "EIP-712 pair value is NULL",
+    "EIP-712 pair name is NULL",
+    "EIP-712 typeType has no name in parseVals",
+    "EIP-712 address string is NULL",
+    "EIP-712 no value for type during walkVals",  // 33
+};
 
 void failMessage(int err) {
   if (err < GENERAL_ERROR || err > LAST_ERROR) {
     // unknown error number
     fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 unknown failure"));
   } else {
-    fsm_sendFailure(FailureType_Failure_Other, _(failMsgReturn[err-3]));
+    fsm_sendFailure(FailureType_Failure_Other, _(failMsgReturn[err - 3]));
   }
   return;
 }
 
-
-void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *resp, const HDNode *node) {
+void e712_types_values(Ethereum712TypesValues* msg,
+                       EthereumTypedDataSignature* resp, const HDNode* node) {
   int errRet = SUCCESS;
   json_t memTypes[JSON_OBJ_POOL_SIZE] = {0};
   json_t memVals[JSON_OBJ_POOL_SIZE] = {0};
@@ -1123,29 +1131,33 @@ void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *
   json_t const* jsonT;
   json_t const* jsonV;
   json_t const* jsonPT;
-  char *typesJsonStr;
-  char *primaryTypeJsonStr;
-  char *valuesJsonStr;
-  const char *primeType;
+  char* typesJsonStr;
+  char* primaryTypeJsonStr;
+  char* valuesJsonStr;
+  const char* primeType;
   json_t const* obTest;
-  static uint8_t domainSeparatorHash[32]={0};
-  static uint8_t messageHash[32]={0};
-  static bool have_ds=false;
+  static uint8_t domainSeparatorHash[32] = {0};
+  static uint8_t messageHash[32] = {0};
+  static bool have_ds = false;
 
   typesJsonStr = msg->eip712types;
   primaryTypeJsonStr = msg->eip712primetype;
   valuesJsonStr = msg->eip712data;
 
-  jsonT = json_create(typesJsonStr, memTypes, sizeof memTypes / sizeof *memTypes );
-  jsonPT = json_create(primaryTypeJsonStr, memPType, sizeof memPType / sizeof *memPType );
-  jsonV = json_create(valuesJsonStr, memVals, sizeof memVals / sizeof *memVals );
+  jsonT =
+      json_create(typesJsonStr, memTypes, sizeof memTypes / sizeof *memTypes);
+  jsonPT = json_create(primaryTypeJsonStr, memPType,
+                       sizeof memPType / sizeof *memPType);
+  jsonV = json_create(valuesJsonStr, memVals, sizeof memVals / sizeof *memVals);
 
   if (!jsonT) {
-    fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 type property data error"));
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("EIP-712 type property data error"));
     return;
-  } 
+  }
   if (!jsonPT) {
-    fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 primaryType property data error"));
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("EIP-712 primaryType property data error"));
     return;
   }
   if (!jsonV) {
@@ -1157,9 +1169,8 @@ void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *
     // Compute domain seperator hash
     have_ds = false;
     memzero(domainSeparatorHash, 32);
-    if ((int)SUCCESS != (errRet = 
-      encode(jsonT, jsonV, "EIP712Domain", resp->domain_separator_hash.bytes)
-    )) {
+    if ((int)SUCCESS != (errRet = encode(jsonT, jsonV, "EIP712Domain",
+                                         resp->domain_separator_hash.bytes))) {
       failMessage(errRet);
       return;
     }
@@ -1182,7 +1193,9 @@ void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *
       failMessage(JSON_PTYPEVALERR);
       return;
     }
-    if (0 != strncmp(primeType, "EIP712Domain", strlen(primeType))) { // if primaryType is "EIP712Domain", message hash is NULL
+    if (0 != strncmp(primeType, "EIP712Domain",
+                     strlen(primeType))) {  // if primaryType is "EIP712Domain",
+                                            // message hash is NULL
       errRet = encode(jsonT, jsonV, primeType, resp->message_hash.bytes);
       if (!(SUCCESS == errRet || NULL_MSG_HASH == errRet)) {
         failMessage(errRet);
@@ -1191,7 +1204,7 @@ void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *
     } else {
       errRet = NULL_MSG_HASH;
     }
-    
+
     if (NULL_MSG_HASH == errRet) {
       resp->has_message_hash = false;
       resp->has_msg_hash = false;
@@ -1206,8 +1219,10 @@ void e712_types_values(Ethereum712TypesValues *msg, EthereumTypedDataSignature *
     resp->domain_separator_hash.size = 32;
 
     uint8_t v = 0;
-    if (0 != eip712_sign(domainSeparatorHash, messageHash, resp->has_msg_hash, node, &v, resp->signature.bytes)) {
-      fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 typed hash signing failed"));
+    if (0 != eip712_sign(domainSeparatorHash, messageHash, resp->has_msg_hash,
+                         node, &v, resp->signature.bytes)) {
+      fsm_sendFailure(FailureType_Failure_Other,
+                      _("EIP-712 typed hash signing failed"));
       return;
     }
 

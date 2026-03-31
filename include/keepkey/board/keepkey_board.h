@@ -62,7 +62,8 @@
 #define VERSION_STR(x) VERSION_NUM(x)
 
 #define RESET_PARAM_NONE 0
-// This is the ASCII string "UPDT" interpreted as an integer in little-endian form.
+// This is the ASCII string "UPDT" interpreted as an integer in little-endian
+// form.
 #define RESET_PARAM_REQUEST_UPDATE 0x54445055
 
 /* Flash metadata structure which will contains unique identifier
@@ -88,9 +89,9 @@ void board_init(void);
 void kk_board_init(void);
 
 void __stack_chk_fail(void) __attribute__((noreturn));
-uint32_t calc_crc32(const void *data, int word_len);
+uint32_t calc_crc32(const void* data, int word_len);
 
 void __attribute__((noreturn)) shutdown(void);
-void memset_reg(void *start, void *stop, uint32_t val);
+void memset_reg(void* start, void* stop, uint32_t val);
 
 #endif

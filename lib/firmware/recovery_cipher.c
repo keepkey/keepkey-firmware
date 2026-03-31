@@ -59,7 +59,7 @@ static char auto_completed_word[CURRENT_WORD_BUF];
 #endif
 
 static uint32_t get_current_word_pos(void);
-static void get_current_word(char *current_word);
+static void get_current_word(char* current_word);
 
 void recovery_cipher_abort(void) {
   if (!dry_run) {
@@ -81,7 +81,7 @@ void recovery_cipher_abort(void) {
 ///
 /// \param current_word[in]    The string to format.
 /// \param auto_completed[in]  Whether to format as an auto completed word.
-static void format_current_word(uint32_t word_pos, const char *current_word,
+static void format_current_word(uint32_t word_pos, const char* current_word,
                                 bool auto_completed,
                                 char (*formatted_word)[CURRENT_WORD_BUF + 10]) {
   uint32_t word_num = word_pos + 1;
@@ -113,7 +113,7 @@ static void format_current_word(uint32_t word_pos, const char *current_word,
  *     position in mnemonic
  */
 static uint32_t get_current_word_pos(void) {
-  char *pos_num = strchr(mnemonic, ' ');
+  char* pos_num = strchr(mnemonic, ' ');
   uint32_t word_pos = 0;
 
   while (pos_num != NULL) {
@@ -126,8 +126,8 @@ static uint32_t get_current_word_pos(void) {
 
 /// \returns the current word being entered by parsing the mnemonic thus far
 /// \param current_word[out]  Array to populate with current word.
-static void get_current_word(char *current_word) {
-  char *pos = strrchr(mnemonic, ' ');
+static void get_current_word(char* current_word) {
+  char* pos = strrchr(mnemonic, ' ');
 
   if (pos) {
     pos++;
@@ -140,13 +140,13 @@ static void get_current_word(char *current_word) {
 _Static_assert(BIP39_WORDLIST_PADDED,
                "bip39 wordlist must be padded to 9 characters");
 
-bool exact_str_match(const char *str1, const char *str2, uint32_t len) {
+bool exact_str_match(const char* str1, const char* str2, uint32_t len) {
   volatile uint32_t match = 0;
 
   // Access through volatile ptrs to prevent compiler optimizations that
   // might leak timing information.
-  const char volatile *volatile str1_v = str1;
-  const char volatile *volatile str2_v = str2;
+  const char volatile* volatile str1_v = str1;
+  const char volatile* volatile str2_v = str2;
 
   for (uint32_t i = 0;
        i < len && i < CURRENT_WORD_BUF && i <= BIP39_MAX_WORD_LEN; i++) {
@@ -162,11 +162,11 @@ bool exact_str_match(const char *str1, const char *str2, uint32_t len) {
 
 #define BIP39_MAX_WORD_LEN 8
 
-bool attempt_auto_complete(char *partial_word) {
+bool attempt_auto_complete(char* partial_word) {
   // Do lookup through volatile pointers to prevent the compiler from
   // optimizing this loop into something that can leak timing information.
-  const char *const volatile *volatile words =
-      (const char *const volatile *)wordlist;
+  const char* const volatile* volatile words =
+      (const char* const volatile*)wordlist;
 
   uint32_t partial_word_len = strlen(partial_word), match = 0, found = 0;
   bool precise_match = false;
@@ -244,8 +244,8 @@ bool attempt_auto_complete(char *partial_word) {
  *     none
  */
 void recovery_cipher_init(uint32_t _word_count, bool passphrase_protection,
-                          bool pin_protection, const char *language,
-                          const char *label, bool _enforce_wordlist,
+                          bool pin_protection, const char* language,
+                          const char* label, bool _enforce_wordlist,
                           uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter,
                           bool _dry_run) {
   // If word_count is known ahead of time, enforce that it's one of the standard
@@ -389,7 +389,7 @@ void next_character(void) {
  * OUTPUT
  *     none
  */
-void recovery_character(const char *character) {
+void recovery_character(const char* character) {
   if (!awaiting_character || !recovery_started) {
     recovery_cipher_abort();
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
@@ -406,7 +406,7 @@ void recovery_character(const char *character) {
     return;
   }
 
-  char *pos = strchr(cipher, character[0]);
+  char* pos = strchr(cipher, character[0]);
 
   // If not a space and not a legitmate cipher character, send failure.
   if (character[0] != ' ' && pos == NULL) {
@@ -561,7 +561,7 @@ void recovery_cipher_finalize(void) {
   memzero(temp_word, sizeof(temp_word));
 
   /* Attempt to autocomplete each word */
-  char *tok = strtok(mnemonic, " ");
+  char* tok = strtok(mnemonic, " ");
 
   while (tok) {
     strlcpy(temp_word, tok, CURRENT_WORD_BUF);
@@ -588,7 +588,8 @@ void recovery_cipher_finalize(void) {
   }
 
   /* Truncate additional space at the end */
-  new_mnemonic[MAX(1u, strnlen(new_mnemonic, sizeof(new_mnemonic))) - 1u] = '\0';
+  new_mnemonic[MAX(1u, strnlen(new_mnemonic, sizeof(new_mnemonic))) - 1u] =
+      '\0';
   if (!dry_run && (!enforce_wordlist || mnemonic_check(new_mnemonic))) {
     storage_setMnemonic(new_mnemonic);
     memzero(new_mnemonic, sizeof(new_mnemonic));
@@ -646,7 +647,7 @@ void recovery_cipher_finalize(void) {
  * OUTPUT
  *     current cipher
  */
-const char *recovery_get_cipher(void) { return cipher; }
+const char* recovery_get_cipher(void) { return cipher; }
 
 /*
  * recovery_get_auto_completed_word() - Gets last auto completed word
@@ -656,7 +657,7 @@ const char *recovery_get_cipher(void) { return cipher; }
  * OUTPUT
  *     last auto completed word
  */
-const char *recovery_get_auto_completed_word(void) {
+const char* recovery_get_auto_completed_word(void) {
   return auto_completed_word;
 }
 #endif

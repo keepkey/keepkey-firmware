@@ -41,8 +41,8 @@
     CHECK_PARAM_RET(common->name == (ACTION), "Incorrect action name", false); \
   } while (0)
 
-bool eos_compileActionTransfer(const EosActionCommon *common,
-                               const EosActionTransfer *action) {
+bool eos_compileActionTransfer(const EosActionCommon* common,
+                               const EosActionTransfer* action) {
   CHECK_COMMON(EOS_Transfer);
 
   CHECK_PARAM_RET(action->has_quantity, "Required field missing", false);
@@ -84,7 +84,7 @@ bool eos_compileActionTransfer(const EosActionCommon *common,
   snprintf(title, sizeof(title), "Confirm Memo (%" PRIu32 " bytes)",
            (uint32_t)memo_len);
   if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmMemo, title,
-                    (const uint8_t *)action->memo, memo_len)) {
+                    (const uint8_t*)action->memo, memo_len)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Action Cancelled");
     eos_signingAbort();
     layoutHome();
@@ -97,14 +97,14 @@ bool eos_compileActionTransfer(const EosActionCommon *common,
   uint32_t size = 8 + 8 + 16 + eos_hashUInt(NULL, memo_len) + memo_len;
   eos_hashUInt(&hasher_preimage, size);
 
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->sender, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->receiver, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->sender, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->receiver, 8);
 
   CHECK_PARAM_RET(eos_compileAsset(&action->quantity),
                   "Cannot compile asset: quantity", false);
 
   eos_hashUInt(&hasher_preimage, memo_len);
-  hasher_Update(&hasher_preimage, (const uint8_t *)action->memo, memo_len);
+  hasher_Update(&hasher_preimage, (const uint8_t*)action->memo, memo_len);
 
   return true;
 }
