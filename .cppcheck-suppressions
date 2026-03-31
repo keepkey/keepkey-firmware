@@ -1,2 +1,4 @@
 missingIncludeSystem
 unknownMacro
+syntaxError:include/keepkey/board/models.def
+memleakOnRealloc:lib/transport/pb_decode.c
