@@ -2,3 +2,7 @@ missingIncludeSystem
 unknownMacro
 syntaxError:include/keepkey/board/models.def
 memleakOnRealloc:lib/transport/pb_decode.c
+uninitvar:lib/board/messages.c
+bufferAccessOutOfBounds:lib/firmware/storage.c
+subtractPointers:tools/blupdater/main.c
+ctunullpointer

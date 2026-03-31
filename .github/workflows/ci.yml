@@ -150,15 +150,14 @@ jobs:
           echo "| performance | $PERF |" >> "$GITHUB_STEP_SUMMARY"
           echo "| **total** | **$TOTAL** |" >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "$TOTAL" -gt 0 ]; then
-            echo ""
-            echo "cppcheck found $TOTAL issue(s) — see annotations above"
-            echo "Note: treating as warning until codebase issues are triaged"
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::cppcheck found $ERRORS error(s) — failing build"
+            exit 1
+          elif [ "$TOTAL" -gt 0 ]; then
+            echo "cppcheck found $TOTAL non-error issue(s) — warnings only, not blocking"
           else
             echo "cppcheck: clean"
           fi
-        # Warn-only until existing issues are triaged
-        continue-on-error: true
 
       - name: Upload cppcheck report
         uses: actions/upload-artifact@v7
