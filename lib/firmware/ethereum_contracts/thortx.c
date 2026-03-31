@@ -27,93 +27,93 @@
 #include "keepkey/firmware/thorchain.h"
 #include "trezor/crypto/address.h"
 
-bool thor_isThorchainTx(const EthereumSignTx *msg) {
+bool thor_isThorchainTx(const EthereumSignTx* msg) {
   if (msg->has_to && msg->to.size == 20 &&
       memcmp(msg->data_initial_chunk.bytes,
-             "\x1f\xec\xe7\xb4\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 
+             "\x1f\xec\xe7\xb4\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
              16) == 0) {
     return true;
   }
   return false;
 }
 
-bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx *msg) {  
-    (void)data_total;
+bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
+  (void)data_total;
 
-    char confStr[41], *conf;
-    const TokenType *assetToken;
-    uint8_t *thorchainData, *vaultAddress, *assetAddress, *contractAssetAddress;
-    uint32_t ctr;
-    bignum256 Amount;
+  char confStr[41], *conf;
+  const TokenType* assetToken;
+  uint8_t *thorchainData, *vaultAddress, *assetAddress, *contractAssetAddress;
+  uint32_t ctr;
+  bignum256 Amount;
 
-    vaultAddress = (uint8_t *)(msg->data_initial_chunk.bytes + 4 + 12);
-    contractAssetAddress = (uint8_t *)(msg->data_initial_chunk.bytes + 4 + 32 + 12);
-    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 2*32, 32, &Amount);
-    thorchainData = (uint8_t *)(msg->data_initial_chunk.bytes + 4 + 5*32);
+  vaultAddress = (uint8_t*)(msg->data_initial_chunk.bytes + 4 + 12);
+  contractAssetAddress =
+      (uint8_t*)(msg->data_initial_chunk.bytes + 4 + 32 + 12);
+  bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 2 * 32, 32, &Amount);
+  thorchainData = (uint8_t*)(msg->data_initial_chunk.bytes + 4 + 5 * 32);
 
-    // Start confirmations    
-    for (ctr=0; ctr<20; ctr++) {
-        snprintf(&confStr[ctr*2], 3, "%02x", msg->to.bytes[ctr]);
-    }
-    if (strncmp(confStr, THOR_ROUTER, sizeof(THOR_ROUTER)) == 0) {
-        conf = "Thorchain router";
-    } else {
-        conf = confStr;
-    }
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-             "Thorchain data", "Routing through %s", conf)) {
-        return false;
-    }
+  // Start confirmations
+  for (ctr = 0; ctr < 20; ctr++) {
+    snprintf(&confStr[ctr * 2], 3, "%02x", msg->to.bytes[ctr]);
+  }
+  if (strncmp(confStr, THOR_ROUTER, sizeof(THOR_ROUTER)) == 0) {
+    conf = "Thorchain router";
+  } else {
+    conf = confStr;
+  }
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Thorchain data",
+               "Routing through %s", conf)) {
+    return false;
+  }
 
+  // just display token address and amount as string
+  for (ctr = 0; ctr < 20; ctr++) {
+    snprintf(&confStr[ctr * 2], 3, "%02x", vaultAddress[ctr]);
+  }
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Thorchain data",
+               "Using Asgard vault %s", confStr)) {
+    return false;
+  }
+
+  if (memcmp(contractAssetAddress, ETH_ADDRESS, sizeof(ETH_ADDRESS)) == 0) {
+    assetAddress = (uint8_t*)
+        ETH_NATIVE;  // get eth native parameters if asset is not a token
+  } else {
+    assetAddress = contractAssetAddress;
+  }
+
+  assetToken = tokenByChainAddress(msg->chain_id, assetAddress);
+
+  if (strncmp(assetToken->ticker, " UNKN", 5) == 0) {
     // just display token address and amount as string
-    for (ctr=0; ctr<20; ctr++) {
-        snprintf(&confStr[ctr*2], 3, "%02x", vaultAddress[ctr]);
+    for (ctr = 0; ctr < 20; ctr++) {
+      snprintf(&confStr[ctr * 2], 3, "%02x", assetAddress[ctr]);
     }
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-             "Thorchain data", "Using Asgard vault %s", confStr)) {
-        return false;
-    }
-
-    if (memcmp(contractAssetAddress, ETH_ADDRESS, sizeof(ETH_ADDRESS)) == 0) {
-        assetAddress = (uint8_t *)ETH_NATIVE;      // get eth native parameters if asset is not a token
-    } else {
-        assetAddress = contractAssetAddress;
-    }
-    
-    assetToken = tokenByChainAddress(msg->chain_id, assetAddress);
-
-    if (strncmp(assetToken->ticker, " UNKN", 5) == 0) {
- 
-        // just display token address and amount as string
-        for (ctr=0; ctr<20; ctr++) {
-            snprintf(&confStr[ctr*2], 3, "%02x", assetAddress[ctr]);
-        }
-        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                  "Thorchain data", "from asset %s", confStr)) {
-            return false;
-        }
-        // We don't know what the exponent should be so just confirm raw unformatted number
-        bn_format(&Amount, NULL, " unformatted", 0, 0, false, confStr, sizeof(confStr));
+      return false;
+    }
+    // We don't know what the exponent should be so just confirm raw unformatted
+    // number
+    bn_format(&Amount, NULL, " unformatted", 0, 0, false, confStr,
+              sizeof(confStr));
 
-        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                  "Thorchain data", "amount %s", confStr)) {
-            return false;
-        }
-
-    } else {
-        ethereumFormatAmount(&Amount, assetToken, msg->chain_id, confStr,
-                           sizeof(confStr));
-    
-        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                     "Thorchain data", "Confirm sending %s", confStr)) {
-            return false;
-        }
+      return false;
     }
 
-    if (!thorchain_parseConfirmMemo((const char *)thorchainData, 64))
-        return false;
+  } else {
+    ethereumFormatAmount(&Amount, assetToken, msg->chain_id, confStr,
+                         sizeof(confStr));
 
-    return true;
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                 "Thorchain data", "Confirm sending %s", confStr)) {
+      return false;
+    }
+  }
+
+  if (!thorchain_parseConfirmMemo((const char*)thorchainData, 64)) return false;
+
+  return true;
 }
-
-

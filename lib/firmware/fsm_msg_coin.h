@@ -1,4 +1,4 @@
-void fsm_msgGetPublicKey(GetPublicKey *msg) {
+void fsm_msgGetPublicKey(GetPublicKey* msg) {
   RESP_INIT(PublicKey);
 
   CHECK_INITIALIZED
@@ -8,15 +8,15 @@ void fsm_msgGetPublicKey(GetPublicKey *msg) {
   InputScriptType script_type =
       msg->has_script_type ? msg->script_type : InputScriptType_SPENDADDRESS;
 
-  const CoinType *coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
+  const CoinType* coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
   if (!coin) return;
 
-  const char *curve = coin->curve_name;
+  const char* curve = coin->curve_name;
   if (msg->has_ecdsa_curve_name) {
     curve = msg->ecdsa_curve_name;
   }
   uint32_t fingerprint;
-  HDNode *node = fsm_getDerivedNode(curve, msg->address_n, msg->address_n_count,
+  HDNode* node = fsm_getDerivedNode(curve, msg->address_n, msg->address_n_count,
                                     &fingerprint);
   if (!node) return;
   hdnode_fill_public_key(node);
@@ -80,7 +80,7 @@ void fsm_msgGetPublicKey(GetPublicKey *msg) {
   layoutHome();
 }
 
-void fsm_msgSignTx(SignTx *msg) {
+void fsm_msgSignTx(SignTx* msg) {
   CHECK_INITIALIZED
 
   CHECK_PARAM(msg->inputs_count > 0,
@@ -92,11 +92,11 @@ void fsm_msgSignTx(SignTx *msg) {
 
   CHECK_PIN
 
-  const CoinType *coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
+  const CoinType* coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
   if (!coin) {
     return;
   }
-  const HDNode *node = fsm_getDerivedNode(coin->curve_name, 0, 0, NULL);
+  const HDNode* node = fsm_getDerivedNode(coin->curve_name, 0, 0, NULL);
   if (!node) {
     return;
   }
@@ -106,7 +106,7 @@ void fsm_msgSignTx(SignTx *msg) {
   signing_init(msg, coin, node);
 }
 
-void fsm_msgTxAck(TxAck *msg) {
+void fsm_msgTxAck(TxAck* msg) {
   CHECK_PARAM(msg->has_tx, _("No transaction provided"));
 
   signing_txack(&(msg->tx));
@@ -114,7 +114,7 @@ void fsm_msgTxAck(TxAck *msg) {
 
 // NOTE: there is a very similar copy of this function in coins.c
 //       PLEASE keep both copies in sync.
-static bool path_mismatched(const CoinType *coin, const GetAddress *msg) {
+static bool path_mismatched(const CoinType* coin, const GetAddress* msg) {
   bool mismatch = false;
 
   // m : no path
@@ -191,16 +191,16 @@ static bool path_mismatched(const CoinType *coin, const GetAddress *msg) {
   return false;
 }
 
-void fsm_msgGetAddress(GetAddress *msg) {
+void fsm_msgGetAddress(GetAddress* msg) {
   RESP_INIT(Address);
 
   CHECK_INITIALIZED
 
   CHECK_PIN
 
-  const CoinType *coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
+  const CoinType* coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
   if (!coin) return;
-  HDNode *node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) return;
   hdnode_fill_public_key(node);
@@ -265,13 +265,13 @@ void fsm_msgGetAddress(GetAddress *msg) {
   layoutHome();
 }
 
-void fsm_msgSignMessage(SignMessage *msg) {
+void fsm_msgSignMessage(SignMessage* msg) {
   RESP_INIT(MessageSignature);
 
   CHECK_INITIALIZED
 
   if (!confirm(ButtonRequestType_ButtonRequest_SignMessage, "Sign Message",
-               "%s", (char *)msg->message.bytes)) {
+               "%s", (char*)msg->message.bytes)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     "Sign message cancelled");
     layoutHome();
@@ -280,9 +280,9 @@ void fsm_msgSignMessage(SignMessage *msg) {
 
   CHECK_PIN
 
-  const CoinType *coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
+  const CoinType* coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
   if (!coin) return;
-  HDNode *node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) return;
 
@@ -309,11 +309,11 @@ void fsm_msgSignMessage(SignMessage *msg) {
   layoutHome();
 }
 
-void fsm_msgVerifyMessage(VerifyMessage *msg) {
+void fsm_msgVerifyMessage(VerifyMessage* msg) {
   CHECK_PARAM(msg->has_address, _("No address provided"));
   CHECK_PARAM(msg->has_message, _("No message provided"));
 
-  const CoinType *coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
+  const CoinType* coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
   if (!coin) return;
   layout_simple_message("Verifying Message...");
 
@@ -326,7 +326,7 @@ void fsm_msgVerifyMessage(VerifyMessage *msg) {
       return;
     }
     if (!review(ButtonRequestType_ButtonRequest_Other, "Message Verified", "%s",
-                (char *)msg->message.bytes)) {
+                (char*)msg->message.bytes)) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Action cancelled by user"));
       layoutHome();

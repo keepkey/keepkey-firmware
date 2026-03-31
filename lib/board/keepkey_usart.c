@@ -68,7 +68,7 @@ static bool put_console_char(int8_t c) {
  * OUTPUT
  *     true/false update status
  */
-static bool get_console_input(char *read_char) {
+static bool get_console_input(char* read_char) {
 #ifndef EMULATOR
   int timeout_cnt = 100; /* allow 100msec for USART busy timeout*/
   bool ret_stat = false;
@@ -99,7 +99,7 @@ static bool get_console_input(char *read_char) {
  * OUTPUT
  *     none
  */
-static void display_debug_string(char *str) {
+static void display_debug_string(char* str) {
   do {
     put_console_char(*str);
   } while (*(str++));
@@ -164,7 +164,7 @@ void usart_init(void) {
  *     none
  */
 #ifndef EMULATOR
-void dbg_print(const char *out_str, ...) {
+void dbg_print(const char* out_str, ...) {
   char str[LARGE_DEBUG_BUF];
   va_list arg;
 
@@ -241,7 +241,7 @@ char read_console(void) {
 }
 #else  // USART_DEBUG_ON
 #ifndef EMULATOR
-void dbg_print(const char *pStr, ...) { (void)pStr; }
+void dbg_print(const char* pStr, ...) { (void)pStr; }
 #endif
 void usart_init(void) {}
 #endif

@@ -42,19 +42,19 @@
 #define CONCAT(A, B) CONCAT_IMPL(A, B)
 
 // converts uint32 to hexa (8 digits)
-void uint32hex(uint32_t num, char *str);
+void uint32hex(uint32_t num, char* str);
 
 // converts data to hexa
-void data2hex(const void *data, uint32_t len, char *str);
+void data2hex(const void* data, uint32_t len, char* str);
 
 // read protobuf integer and advance pointer
-uint32_t readprotobufint(uint8_t **ptr);
-void rev_byte_order(uint8_t *bfr, size_t len);
-void dec64_to_str(uint64_t dec64_val, char *str);
+uint32_t readprotobufint(uint8_t** ptr);
+void rev_byte_order(uint8_t* bfr, size_t len);
+void dec64_to_str(uint64_t dec64_val, char* str);
 
-bool is_valid_ascii(const uint8_t *data, uint32_t size);
+bool is_valid_ascii(const uint8_t* data, uint32_t size);
 
-int base_to_precision(uint8_t *dest, const uint8_t *value,
+int base_to_precision(uint8_t* dest, const uint8_t* value,
                       const uint8_t dest_len, const uint8_t value_len,
                       const uint8_t precision);
 

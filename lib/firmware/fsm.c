@@ -152,8 +152,8 @@ static const MessagesMap_t MessagesMap[] = {
 
 extern bool reset_msg_stack;
 
-static const CoinType *fsm_getCoin(bool has_name, const char *name) {
-  const CoinType *coin;
+static const CoinType* fsm_getCoin(bool has_name, const char* name) {
+  const CoinType* coin;
   if (has_name) {
     coin = coinByName(name);
   } else {
@@ -168,9 +168,9 @@ static const CoinType *fsm_getCoin(bool has_name, const char *name) {
   return coin;
 }
 
-static HDNode *fsm_getDerivedNode(const char *curve, const uint32_t *address_n,
+static HDNode* fsm_getDerivedNode(const char* curve, const uint32_t* address_n,
                                   size_t address_n_count,
-                                  uint32_t *fingerprint) {
+                                  uint32_t* fingerprint) {
   static HDNode CONFIDENTIAL node;
   if (fingerprint) {
     *fingerprint = 0;
@@ -204,7 +204,7 @@ static HDNode *fsm_getDerivedNode(const char *curve, const uint32_t *address_n,
 }
 
 #if DEBUG_LINK
-static void sendFailureWrapper(FailureType code, const char *text) {
+static void sendFailureWrapper(FailureType code, const char* text) {
   fsm_sendFailure(code, text);
 }
 #endif
@@ -229,9 +229,9 @@ void fsm_init(void) {
   txin_dgst_initialize();
 }
 
-void fsm_sendSuccess(const char *text) {
+void fsm_sendSuccess(const char* text) {
   if (reset_msg_stack) {
-    fsm_msgInitialize((Initialize *)0);
+    fsm_msgInitialize((Initialize*)0);
     reset_msg_stack = false;
     return;
   }
@@ -246,9 +246,9 @@ void fsm_sendSuccess(const char *text) {
   msg_write(MessageType_MessageType_Success, resp);
 }
 
-void fsm_sendFailure(FailureType code, const char *text) {
+void fsm_sendFailure(FailureType code, const char* text) {
   if (reset_msg_stack) {
-    fsm_msgInitialize((Initialize *)0);
+    fsm_msgInitialize((Initialize*)0);
     reset_msg_stack = false;
     return;
   }
@@ -264,7 +264,7 @@ void fsm_sendFailure(FailureType code, const char *text) {
   msg_write(MessageType_MessageType_Failure, resp);
 }
 
-void fsm_msgClearSession(ClearSession *msg) {
+void fsm_msgClearSession(ClearSession* msg) {
   (void)msg;
   session_clear(/*clear_pin=*/true);
   fsm_sendSuccess("Session cleared");

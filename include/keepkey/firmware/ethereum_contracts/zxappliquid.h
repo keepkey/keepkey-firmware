@@ -23,11 +23,13 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-#define MAX_ALLOWANCE "\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"
+#define MAX_ALLOWANCE                                                        \
+  "\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff" \
+  "\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"
 
 typedef struct _EthereumSignTx EthereumSignTx;
 
-bool zx_isZxApproveLiquid(const EthereumSignTx *msg);
-bool zx_confirmApproveLiquidity(uint32_t data_total, const EthereumSignTx *msg);
+bool zx_isZxApproveLiquid(const EthereumSignTx* msg);
+bool zx_confirmApproveLiquidity(uint32_t data_total, const EthereumSignTx* msg);
 
 #endif

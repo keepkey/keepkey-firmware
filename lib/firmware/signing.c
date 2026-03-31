@@ -43,21 +43,22 @@
 
 // Set DEBUG_UTXO to non-zero to display each stage of the utxo signing sequence
 #define D_DISPLAY_UTXO_STAGE(STAGE, IDX)
-#define DEBUG_UTXO  0
+#define DEBUG_UTXO 0
 #ifdef DEBUG_ON
-  #if DEBUG_UTXO
-    #undef D_DISPLAY_UTXO_STAGE
-    #define D_DISPLAY_UTXO_STAGE(STAGE, IDX) DEBUG_DISPLAY("%s, idx=%ld", STAGE, IDX)
-  // DEBUG_DISPLAY("%d %s", slot, account);
+#if DEBUG_UTXO
+#undef D_DISPLAY_UTXO_STAGE
+#define D_DISPLAY_UTXO_STAGE(STAGE, IDX) \
+  DEBUG_DISPLAY("%s, idx=%ld", STAGE, IDX)
+// DEBUG_DISPLAY("%d %s", slot, account);
 
-  #endif
+#endif
 #endif
 
 static uint32_t inputs_count;
 static uint32_t outputs_count;
-static const CoinType *coin;
-static const curve_info *curve;
-static const HDNode *root;
+static const CoinType* coin;
+static const curve_info* curve;
+static const HDNode* root;
 static CONFIDENTIAL HDNode node;
 static bool signing = false;
 enum {
@@ -146,7 +147,7 @@ enum {
 void send_fsm_co_error_message(int co_error) {
   struct {
     int code;
-    const char *msg;
+    const char* msg;
     FailureType type;
   } errorCodes[] = {
       {TXOUT_COMPILE_ERROR, "Failed to compile output",
@@ -427,8 +428,8 @@ void phase2_request_next_input(void) {
 /// Compares two BIP32 paths, returning true iff there is something mismatched
 /// about the mixed-mode change.
 static bool isCrossAccountSegwitChangeForbidden(
-    const uint32_t *lhs_address_n, size_t lhs_address_n_count,
-    const uint32_t *rhs_address_n, size_t rhs_address_n_count,
+    const uint32_t* lhs_address_n, size_t lhs_address_n_count,
+    const uint32_t* rhs_address_n, size_t rhs_address_n_count,
     OutputScriptType rhs_script_type) {
   (void)lhs_address_n;
 
@@ -460,9 +461,9 @@ static bool isCrossAccountSegwitChangeForbidden(
 
 /// Compares two BIP32 paths, returning true iff the paths match for mixed-mode
 /// p2pkh + ph2sh-p2wsh + p2wsh accounts.
-static bool isCrossAccountSegwitChangeAllowed(const uint32_t *lhs_address_n,
+static bool isCrossAccountSegwitChangeAllowed(const uint32_t* lhs_address_n,
                                               size_t lhs_address_n_count,
-                                              const uint32_t *rhs_address_n,
+                                              const uint32_t* rhs_address_n,
                                               size_t rhs_address_n_count) {
   size_t count = rhs_address_n_count;
   if (count < 5) return false;
@@ -502,7 +503,7 @@ static bool isCrossAccountSegwitChangeAllowed(const uint32_t *lhs_address_n,
   return true;
 }
 
-void extract_input_bip32_path(const TxInputType *tinput) {
+void extract_input_bip32_path(const TxInputType* tinput) {
   if (in_address_n_count == BIP32_NOCHANGEALLOWED) {
     return;
   }
@@ -538,7 +539,7 @@ void extract_input_bip32_path(const TxInputType *tinput) {
   }
 }
 
-bool check_change_bip32_path(const TxOutputType *toutput) {
+bool check_change_bip32_path(const TxOutputType* toutput) {
   if (isCrossAccountSegwitChangeForbidden(
           in_address_n, in_address_n_count, toutput->address_n,
           toutput->address_n_count, toutput->script_type))
@@ -563,7 +564,7 @@ bool check_change_bip32_path(const TxOutputType *toutput) {
           toutput->address_n[count - 1] <= BIP32_MAX_LAST_ELEMENT);
 }
 
-bool compile_input_script_sig(TxInputType *tinput) {
+bool compile_input_script_sig(TxInputType* tinput) {
   if (!multisig_fp_mismatch) {
     // check that this is still multisig
     uint8_t h[32];
@@ -605,8 +606,8 @@ bool compile_input_script_sig(TxInputType *tinput) {
   return tinput->script_sig.size > 0;
 }
 
-void signing_init(const SignTx *msg, const CoinType *_coin,
-                  const HDNode *_root) {
+void signing_init(const SignTx* msg, const CoinType* _coin,
+                  const HDNode* _root) {
   inputs_count = msg->inputs_count;
   outputs_count = msg->outputs_count;
   coin = _coin;
@@ -696,7 +697,7 @@ void signing_init(const SignTx *msg, const CoinType *_coin,
   send_req_1_input();
 }
 
-static bool is_multisig_input_script_type(const TxInputType *txinput) {
+static bool is_multisig_input_script_type(const TxInputType* txinput) {
   if (txinput->script_type == InputScriptType_SPENDMULTISIG ||
       txinput->script_type == InputScriptType_SPENDP2SHWITNESS ||
       txinput->script_type == InputScriptType_SPENDWITNESS) {
@@ -705,7 +706,7 @@ static bool is_multisig_input_script_type(const TxInputType *txinput) {
   return false;
 }
 
-static bool is_multisig_output_script_type(const TxOutputType *txoutput) {
+static bool is_multisig_output_script_type(const TxOutputType* txoutput) {
   if (txoutput->script_type == OutputScriptType_PAYTOMULTISIG ||
       txoutput->script_type == OutputScriptType_PAYTOP2SHWITNESS ||
       txoutput->script_type == OutputScriptType_PAYTOWITNESS) {
@@ -714,7 +715,7 @@ static bool is_multisig_output_script_type(const TxOutputType *txoutput) {
   return false;
 }
 
-static bool is_internal_input_script_type(const TxInputType *txinput) {
+static bool is_internal_input_script_type(const TxInputType* txinput) {
   if (txinput->script_type == InputScriptType_SPENDADDRESS ||
       txinput->script_type == InputScriptType_SPENDMULTISIG ||
       txinput->script_type == InputScriptType_SPENDP2SHWITNESS ||
@@ -724,7 +725,7 @@ static bool is_internal_input_script_type(const TxInputType *txinput) {
   return false;
 }
 
-static bool is_change_output_script_type(const TxOutputType *txoutput) {
+static bool is_change_output_script_type(const TxOutputType* txoutput) {
   if (txoutput->script_type == OutputScriptType_PAYTOADDRESS ||
       txoutput->script_type == OutputScriptType_PAYTOMULTISIG ||
       txoutput->script_type == OutputScriptType_PAYTOP2SHWITNESS ||
@@ -734,7 +735,7 @@ static bool is_change_output_script_type(const TxOutputType *txoutput) {
   return false;
 }
 
-static bool is_segwit_input_script_type(const TxInputType *txinput) {
+static bool is_segwit_input_script_type(const TxInputType* txinput) {
   if (txinput->script_type == InputScriptType_SPENDP2SHWITNESS ||
       txinput->script_type == InputScriptType_SPENDWITNESS) {
     return true;
@@ -742,7 +743,7 @@ static bool is_segwit_input_script_type(const TxInputType *txinput) {
   return false;
 }
 
-static bool signing_validate_input(const TxInputType *txinput) {
+static bool signing_validate_input(const TxInputType* txinput) {
   if (txinput->prev_hash.size != 32) {
     fsm_sendFailure(FailureType_Failure_Other,
                     _("Encountered invalid prevhash 1"));
@@ -796,7 +797,7 @@ static bool signing_validate_input(const TxInputType *txinput) {
   return true;
 }
 
-static bool signing_validate_output(TxOutputType *txoutput) {
+static bool signing_validate_output(TxOutputType* txoutput) {
   if (txoutput->has_multisig && !is_multisig_output_script_type(txoutput)) {
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                     _("Multisig field provided but not expected."));
@@ -857,7 +858,7 @@ static bool signing_validate_output(TxOutputType *txoutput) {
   return true;
 }
 
-static bool signing_validate_bin_output(TxOutputBinType *tx_bin_output) {
+static bool signing_validate_bin_output(TxOutputBinType* tx_bin_output) {
   if (!coin->decred && tx_bin_output->has_decred_script_version) {
     fsm_sendFailure(
         FailureType_Failure_UnexpectedMessage,
@@ -868,7 +869,7 @@ static bool signing_validate_bin_output(TxOutputBinType *tx_bin_output) {
   return true;
 }
 
-static bool signing_check_input(TxInputType *txinput) {
+static bool signing_check_input(TxInputType* txinput) {
   /* compute multisig fingerprint */
   /* (if all input share the same fingerprint, outputs having the same
    * fingerprint will be considered as change outputs) */
@@ -917,7 +918,7 @@ static bool signing_check_input(TxInputType *txinput) {
   // hash prevout and script type to check it later (relevant for fee
   // computation)
   tx_prevout_hash(&hasher_check, txinput);
-  hasher_Update(&hasher_check, (const uint8_t *)&txinput->script_type,
+  hasher_Update(&hasher_check, (const uint8_t*)&txinput->script_type,
                 sizeof(&txinput->script_type));
   return true;
 }
@@ -936,7 +937,7 @@ static bool signing_check_prevtx_hash(void) {
   return true;
 }
 
-static bool signing_check_output(TxOutputType *txoutput) {
+static bool signing_check_output(TxOutputType* txoutput) {
   // Phase1: Check outputs
   //   add it to hash_outputs
   //   ask user for permission
@@ -1076,26 +1077,26 @@ static void phase1_request_next_output(void) {
   }
 }
 
-static void signing_hash_bip143(const TxInputType *txinput, uint8_t *hash) {
+static void signing_hash_bip143(const TxInputType* txinput, uint8_t* hash) {
   uint32_t hash_type = signing_hash_type();
   Hasher hasher_preimage;
   hasher_Init(&hasher_preimage, curve->hasher_sign);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&version, 4);  // nVersion
-  hasher_Update(&hasher_preimage, hash_prevouts, 32);  // hashPrevouts
-  hasher_Update(&hasher_preimage, hash_sequence, 32);  // hashSequence
-  tx_prevout_hash(&hasher_preimage, txinput);          // outpoint
+  hasher_Update(&hasher_preimage, (const uint8_t*)&version, 4);  // nVersion
+  hasher_Update(&hasher_preimage, hash_prevouts, 32);            // hashPrevouts
+  hasher_Update(&hasher_preimage, hash_sequence, 32);            // hashSequence
+  tx_prevout_hash(&hasher_preimage, txinput);                    // outpoint
   tx_script_hash(&hasher_preimage, txinput->script_sig.size,
                  txinput->script_sig.bytes);  // scriptCode
-  hasher_Update(&hasher_preimage, (const uint8_t *)&txinput->amount,
+  hasher_Update(&hasher_preimage, (const uint8_t*)&txinput->amount,
                 8);                                   // amount
   tx_sequence_hash(&hasher_preimage, txinput);        // nSequence
   hasher_Update(&hasher_preimage, hash_outputs, 32);  // hashOutputs
-  hasher_Update(&hasher_preimage, (const uint8_t *)&lock_time, 4);  // nLockTime
-  hasher_Update(&hasher_preimage, (const uint8_t *)&hash_type, 4);  // nHashType
+  hasher_Update(&hasher_preimage, (const uint8_t*)&lock_time, 4);  // nLockTime
+  hasher_Update(&hasher_preimage, (const uint8_t*)&hash_type, 4);  // nHashType
   hasher_Final(&hasher_preimage, hash);
 }
 
-static void signing_hash_zip143(const TxInputType *txinput, uint8_t *hash) {
+static void signing_hash_zip143(const TxInputType* txinput, uint8_t* hash) {
   uint32_t hash_type = signing_hash_type();
   uint8_t personal[16];
   memcpy(personal, "ZcashSigHash", 12);
@@ -1104,32 +1105,32 @@ static void signing_hash_zip143(const TxInputType *txinput, uint8_t *hash) {
   hasher_InitParam(&hasher_preimage, HASHER_BLAKE2B_PERSONAL, personal,
                    sizeof(personal));
   uint32_t ver = version | TX_OVERWINTERED;  // 1. nVersion | fOverwintered
-  hasher_Update(&hasher_preimage, (const uint8_t *)&ver, 4);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&version_group_id,
+  hasher_Update(&hasher_preimage, (const uint8_t*)&ver, 4);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&version_group_id,
                 4);                                    // 2. nVersionGroupId
   hasher_Update(&hasher_preimage, hash_prevouts, 32);  // 3. hashPrevouts
   hasher_Update(&hasher_preimage, hash_sequence, 32);  // 4. hashSequence
   hasher_Update(&hasher_preimage, hash_outputs, 32);   // 5. hashOutputs
                                                        // 6. hashJoinSplits
   hasher_Update(&hasher_preimage, (const uint8_t *)"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&lock_time,
+  hasher_Update(&hasher_preimage, (const uint8_t*)&lock_time,
                 4);  // 7. nLockTime
-  hasher_Update(&hasher_preimage, (const uint8_t *)&expiry,
+  hasher_Update(&hasher_preimage, (const uint8_t*)&expiry,
                 4);  // 8. expiryHeight
-  hasher_Update(&hasher_preimage, (const uint8_t *)&hash_type,
+  hasher_Update(&hasher_preimage, (const uint8_t*)&hash_type,
                 4);  // 9. nHashType
 
   tx_prevout_hash(&hasher_preimage, txinput);  // 10a. outpoint
   tx_script_hash(&hasher_preimage, txinput->script_sig.size,
                  txinput->script_sig.bytes);  // 10b. scriptCode
-  hasher_Update(&hasher_preimage, (const uint8_t *)&txinput->amount,
+  hasher_Update(&hasher_preimage, (const uint8_t*)&txinput->amount,
                 8);                             // 10c. value
   tx_sequence_hash(&hasher_preimage, txinput);  // 10d. nSequence
 
   hasher_Final(&hasher_preimage, hash);
 }
 
-static void signing_hash_zip243(const TxInputType *txinput, uint8_t *hash) {
+static void signing_hash_zip243(const TxInputType* txinput, uint8_t* hash) {
   uint32_t hash_type = signing_hash_type();
   uint8_t personal[16];
   memcpy(personal, "ZcashSigHash", 12);
@@ -1138,8 +1139,8 @@ static void signing_hash_zip243(const TxInputType *txinput, uint8_t *hash) {
   hasher_InitParam(&hasher_preimage, HASHER_BLAKE2B_PERSONAL, personal,
                    sizeof(personal));
   uint32_t ver = version | TX_OVERWINTERED;  // 1. nVersion | fOverwintered
-  hasher_Update(&hasher_preimage, (const uint8_t *)&ver, 4);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&version_group_id,
+  hasher_Update(&hasher_preimage, (const uint8_t*)&ver, 4);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&version_group_id,
                 4);                                    // 2. nVersionGroupId
   hasher_Update(&hasher_preimage, hash_prevouts, 32);  // 3. hashPrevouts
   hasher_Update(&hasher_preimage, hash_sequence, 32);  // 4. hashSequence
@@ -1150,38 +1151,38 @@ static void signing_hash_zip243(const TxInputType *txinput, uint8_t *hash) {
   hasher_Update(&hasher_preimage, (const uint8_t *)"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32);
   // 8. hashShieldedOutputs
   hasher_Update(&hasher_preimage, (const uint8_t *)"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&lock_time,
+  hasher_Update(&hasher_preimage, (const uint8_t*)&lock_time,
                 4);  // 9. nLockTime
-  hasher_Update(&hasher_preimage, (const uint8_t *)&expiry,
+  hasher_Update(&hasher_preimage, (const uint8_t*)&expiry,
                 4);  // 10. expiryHeight
   hasher_Update(&hasher_preimage,
-                (const uint8_t *)"\x00\x00\x00\x00\x00\x00\x00\x00",
+                (const uint8_t*)"\x00\x00\x00\x00\x00\x00\x00\x00",
                 8);  // 11. valueBalance
-  hasher_Update(&hasher_preimage, (const uint8_t *)&hash_type,
+  hasher_Update(&hasher_preimage, (const uint8_t*)&hash_type,
                 4);  // 12. nHashType
 
   tx_prevout_hash(&hasher_preimage, txinput);  // 13a. outpoint
   tx_script_hash(&hasher_preimage, txinput->script_sig.size,
                  txinput->script_sig.bytes);  // 13b. scriptCode
-  hasher_Update(&hasher_preimage, (const uint8_t *)&txinput->amount,
+  hasher_Update(&hasher_preimage, (const uint8_t*)&txinput->amount,
                 8);                             // 13c. value
   tx_sequence_hash(&hasher_preimage, txinput);  // 13d. nSequence
 
   hasher_Final(&hasher_preimage, hash);
 }
 
-static void signing_hash_decred(const uint8_t *hash_witness, uint8_t *hash) {
+static void signing_hash_decred(const uint8_t* hash_witness, uint8_t* hash) {
   uint32_t hash_type = signing_hash_type();
   Hasher hasher_preimage;
   hasher_Init(&hasher_preimage, curve->hasher_sign);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&hash_type, 4);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&hash_type, 4);
   hasher_Update(&hasher_preimage, hash_prefix, 32);
   hasher_Update(&hasher_preimage, hash_witness, 32);
   hasher_Final(&hasher_preimage, hash);
 }
 
-static bool signing_sign_hash(TxInputType *txinput, const uint8_t *private_key,
-                              const uint8_t *public_key, const uint8_t *hash) {
+static bool signing_sign_hash(TxInputType* txinput, const uint8_t* private_key,
+                              const uint8_t* public_key, const uint8_t* hash) {
   resp.serialized.has_signature_index = true;
   resp.serialized.signature_index = idx1;
   resp.serialized.has_signature = true;
@@ -1237,7 +1238,7 @@ static bool signing_sign_input(void) {
   }
 
   uint32_t hash_type = signing_hash_type();
-  hasher_Update(&ti.hasher, (const uint8_t *)&hash_type, 4);
+  hasher_Update(&ti.hasher, (const uint8_t*)&hash_type, 4);
   tx_hash_final(&ti, hash, false);
   resp.has_serialized = true;
   if (!signing_sign_hash(&input, privkey, pubkey, hash)) return false;
@@ -1246,7 +1247,7 @@ static bool signing_sign_input(void) {
   return true;
 }
 
-static bool signing_sign_segwit_input(TxInputType *txinput) {
+static bool signing_sign_segwit_input(TxInputType* txinput) {
   // idx1: index to sign
   uint8_t hash[32];
 
@@ -1323,7 +1324,7 @@ static bool signing_sign_segwit_input(TxInputType *txinput) {
   return true;
 }
 
-static bool signing_sign_decred_input(TxInputType *txinput) {
+static bool signing_sign_decred_input(TxInputType* txinput) {
   uint8_t hash[32], hash_witness[32];
   tx_hash_final(&ti, hash_witness, false);
   signing_hash_decred(hash_witness, hash);
@@ -1337,7 +1338,7 @@ static bool signing_sign_decred_input(TxInputType *txinput) {
 
 #define ENABLE_SEGWIT_NONSEGWIT_MIXING 1
 
-void signing_txack(TransactionType *tx) {
+void signing_txack(TransactionType* tx) {
   if (!signing) {
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                     _("Not in Signing mode"));
@@ -1590,7 +1591,7 @@ void signing_txack(TransactionType *tx) {
       }
       // check prevouts and script type
       tx_prevout_hash(&hasher_check, tx->inputs);
-      hasher_Update(&hasher_check, (const uint8_t *)&tx->inputs[0].script_type,
+      hasher_Update(&hasher_check, (const uint8_t*)&tx->inputs[0].script_type,
                     sizeof(&tx->inputs[0].script_type));
       if (idx2 == idx1) {
         if (!compile_input_script_sig(&tx->inputs[0])) {

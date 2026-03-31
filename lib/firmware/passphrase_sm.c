@@ -53,7 +53,7 @@ static void send_passphrase_request(void) {
  * OUTPUT
  *     none
  */
-static void wait_for_passphrase_ack(PassphraseInfo *passphrase_info) {
+static void wait_for_passphrase_ack(PassphraseInfo* passphrase_info) {
   /* Listen for tiny messages */
   uint8_t msg_tiny_buf[MSG_TINY_BFR_SZ];
   uint16_t tiny_msg = wait_for_tiny_msg(msg_tiny_buf);
@@ -62,7 +62,7 @@ static void wait_for_passphrase_ack(PassphraseInfo *passphrase_info) {
     /* Check for standard passphrase ack */
     case MessageType_MessageType_PassphraseAck:
       passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_RECEIVED;
-      PassphraseAck *ppa = (PassphraseAck *)msg_tiny_buf;
+      PassphraseAck* ppa = (PassphraseAck*)msg_tiny_buf;
 
       strlcpy(passphrase_info->passphrase, ppa->passphrase, PASSPHRASE_BUF);
       break;
@@ -91,8 +91,8 @@ static void wait_for_passphrase_ack(PassphraseInfo *passphrase_info) {
  * OUTPUT
  *     none
  */
-static void run_passphrase_state(PassphraseState *passphrase_state,
-                                 PassphraseInfo *passphrase_info) {
+static void run_passphrase_state(PassphraseState* passphrase_state,
+                                 PassphraseInfo* passphrase_info) {
   switch (*passphrase_state) {
     /* Send passphrase request */
     case PASSPHRASE_REQUEST:
@@ -128,7 +128,7 @@ static void run_passphrase_state(PassphraseState *passphrase_state,
  * OUTPUT
  *      true/false whether passphrase was received
  */
-static bool passphrase_request(PassphraseInfo *passphrase_info) {
+static bool passphrase_request(PassphraseInfo* passphrase_info) {
   bool ret = false;
   reset_msg_stack = false;
   PassphraseState passphrase_state = PASSPHRASE_REQUEST;
@@ -144,12 +144,10 @@ static bool passphrase_request(PassphraseInfo *passphrase_info) {
 
   /* Check for passphrase cancel */
   if (passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_RECEIVED) {
-    review(ButtonRequestType_ButtonRequest_Other,
-          "passphrase confirmation",
-          "If this is wrong, unplug/replug Keepkey:"
-          "%51s",
-          passphrase_info->passphrase
-          );
+    review(ButtonRequestType_ButtonRequest_Other, "passphrase confirmation",
+           "If this is wrong, unplug/replug Keepkey:"
+           "%51s",
+           passphrase_info->passphrase);
     ret = true;
   } else {
     if (passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_CANCEL_BY_INIT) {

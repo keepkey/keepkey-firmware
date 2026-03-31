@@ -26,11 +26,11 @@
 typedef struct _EthereumSignTx EthereumSignTx;
 
 /// \returns true iff there is custom support for this ETH signing request
-bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx *msg,
-                              const HDNode *node);
+bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx* msg,
+                              const HDNode* node);
 
 /// \pre requires that `ethereum_contractHandled(msg)`
 /// \return true iff the user has confirmed the custom ETH signing request
-bool ethereum_contractConfirmed(uint32_t data_total, const EthereumSignTx *msg,
-                                const HDNode *node);
+bool ethereum_contractConfirmed(uint32_t data_total, const EthereumSignTx* msg,
+                                const HDNode* node);
 #endif

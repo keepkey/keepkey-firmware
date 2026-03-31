@@ -33,7 +33,7 @@
 #define LARGE_DEBUG_BUF 128
 
 #ifndef EMULATOR
-void dbg_print(const char *pStr, ...) __attribute__((format(printf, 1, 2)));
+void dbg_print(const char* pStr, ...) __attribute__((format(printf, 1, 2)));
 #else
 #define dbg_print(FMT, ...)     \
   do {                          \

@@ -99,31 +99,31 @@ typedef struct {
 
 void layout_screen_test(void);
 void layout_screensaver(void);
-void layout_tx_info(const char *address, uint64_t amount_in_satoshi);
-void layout_notification_no_title(const char *title, const char *body,
+void layout_tx_info(const char* address, uint64_t amount_in_satoshi);
+void layout_notification_no_title(const char* title, const char* body,
                                   NotificationType type, bool bold);
-void layout_notification_no_title_bold(const char *title, const char *body,
+void layout_notification_no_title_bold(const char* title, const char* body,
                                        NotificationType type);
-void layout_notification_no_title_no_bold(const char *title, const char *body,
+void layout_notification_no_title_no_bold(const char* title, const char* body,
                                           NotificationType type);
-void layout_xpub_notification(const char *desc, const char *xpub,
+void layout_xpub_notification(const char* desc, const char* xpub,
                               NotificationType type);
-void layout_address_notification(const char *desc, const char *address,
+void layout_address_notification(const char* desc, const char* address,
                                  NotificationType type);
-void layout_cosmos_address_notification(const char *desc, const char *address,
+void layout_cosmos_address_notification(const char* desc, const char* address,
                                         NotificationType type);
-void layout_osmosis_address_notification(const char *desc, const char *address,
+void layout_osmosis_address_notification(const char* desc, const char* address,
                                          NotificationType type);
-void layout_ethereum_address_notification(const char *desc, const char *address,
+void layout_ethereum_address_notification(const char* desc, const char* address,
                                           NotificationType type);
-void layout_nano_address_notification(const char *desc, const char *address,
+void layout_nano_address_notification(const char* desc, const char* address,
                                       NotificationType type);
-void layout_pin(const char *prompt, char *pin);
-void layout_cipher(const char *current_word, const char *cipher);
-void layout_address(const char *address, QRSize qr_size);
+void layout_pin(const char* prompt, char* pin);
+void layout_cipher(const char* current_word, const char* cipher);
+void layout_address(const char* address, QRSize qr_size);
 void set_leaving_handler(leaving_handler_t leaving_func);
 
-void layoutU2FDialog(bool request, const char *title, const char *body, ...)
+void layoutU2FDialog(bool request, const char* title, const char* body, ...)
     __attribute__((format(printf, 3, 4)));
 
 #endif

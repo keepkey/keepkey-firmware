@@ -40,54 +40,54 @@ typedef struct _EosActionVoteProducer EosActionVoteProducer;
 typedef struct _EosAuthorization EosAuthorization;
 
 /// \returns true iff successful.
-bool eos_compileActionDelegate(const EosActionCommon *common,
-                               const EosActionDelegate *action);
+bool eos_compileActionDelegate(const EosActionCommon* common,
+                               const EosActionDelegate* action);
 
 /// \returns true iff successful.
-bool eos_compileActionUndelegate(const EosActionCommon *common,
-                                 const EosActionUndelegate *action);
+bool eos_compileActionUndelegate(const EosActionCommon* common,
+                                 const EosActionUndelegate* action);
 
 /// \returns true iff successful.
-bool eos_compileActionRefund(const EosActionCommon *common,
-                             const EosActionRefund *action);
+bool eos_compileActionRefund(const EosActionCommon* common,
+                             const EosActionRefund* action);
 
 /// \returns true iff successful.
-bool eos_compileActionBuyRam(const EosActionCommon *common,
-                             const EosActionBuyRam *action);
+bool eos_compileActionBuyRam(const EosActionCommon* common,
+                             const EosActionBuyRam* action);
 
 /// \returns true iff successful.
-bool eos_compileActionBuyRamBytes(const EosActionCommon *common,
-                                  const EosActionBuyRamBytes *action);
+bool eos_compileActionBuyRamBytes(const EosActionCommon* common,
+                                  const EosActionBuyRamBytes* action);
 
 /// \returns true iff successful.
-bool eos_compileActionSellRam(const EosActionCommon *common,
-                              const EosActionSellRam *action);
+bool eos_compileActionSellRam(const EosActionCommon* common,
+                              const EosActionSellRam* action);
 
 /// \returns true iff successful.
-bool eos_compileActionVoteProducer(const EosActionCommon *common,
-                                   const EosActionVoteProducer *action);
+bool eos_compileActionVoteProducer(const EosActionCommon* common,
+                                   const EosActionVoteProducer* action);
 
 /// \returns true iff successful.
-bool eos_compileAuthorization(const char *title, const EosAuthorization *auth);
+bool eos_compileAuthorization(const char* title, const EosAuthorization* auth);
 
 /// \returns true iff successful.
-bool eos_compileActionUpdateAuth(const EosActionCommon *common,
-                                 const EosActionUpdateAuth *action);
+bool eos_compileActionUpdateAuth(const EosActionCommon* common,
+                                 const EosActionUpdateAuth* action);
 
 /// \returns true iff successful.
-bool eos_compileActionDeleteAuth(const EosActionCommon *common,
-                                 const EosActionDeleteAuth *action);
+bool eos_compileActionDeleteAuth(const EosActionCommon* common,
+                                 const EosActionDeleteAuth* action);
 
 /// \returns true iff successful.
-bool eos_compileActionLinkAuth(const EosActionCommon *common,
-                               const EosActionLinkAuth *action);
+bool eos_compileActionLinkAuth(const EosActionCommon* common,
+                               const EosActionLinkAuth* action);
 
 /// \returns true iff successful.
-bool eos_compileActionUnlinkAuth(const EosActionCommon *common,
-                                 const EosActionUnlinkAuth *action);
+bool eos_compileActionUnlinkAuth(const EosActionCommon* common,
+                                 const EosActionUnlinkAuth* action);
 
 /// \returns true iff successful.
-bool eos_compileActionNewAccount(const EosActionCommon *common,
-                                 const EosActionNewAccount *action);
+bool eos_compileActionNewAccount(const EosActionCommon* common,
+                                 const EosActionNewAccount* action);
 
 #endif

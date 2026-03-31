@@ -260,7 +260,7 @@ static void display_write_ram(uint8_t val) {
  * OUTPUT
  *     pointer to canvas
  */
-Canvas *display_canvas_init(void) {
+Canvas* display_canvas_init(void) {
   /* Prepare the canvas */
   canvas.buffer = canvas_buffer;
   canvas.width = KEEPKEY_DISPLAY_WIDTH;
@@ -278,9 +278,9 @@ Canvas *display_canvas_init(void) {
  * OUTPUT
  *     pointer to canvas
  */
-Canvas *display_canvas(void) { return &canvas; }
+Canvas* display_canvas(void) { return &canvas; }
 
-void (*DumpDisplay)(const uint8_t *buf) = 0;
+void (*DumpDisplay)(const uint8_t* buf) = 0;
 void display_set_dump_callback(DumpDisplayCallback d) { DumpDisplay = d; }
 
 /*
@@ -291,30 +291,28 @@ void display_set_dump_callback(DumpDisplayCallback d) { DumpDisplay = d; }
  * OUTPUT
  *     none
  */
-void display_refresh(void)
-{
-    if (DumpDisplay) {
-        DumpDisplay(canvas.buffer);
+void display_refresh(void) {
+  if (DumpDisplay) {
+    DumpDisplay(canvas.buffer);
+  }
+
+  if (!canvas.dirty) {
+    return;
+  }
+
+  if (constant_power) {
+    for (int y = 0; y < 64; y++) {
+      for (int x = 0; x < 128; x++) {
+        canvas.buffer[y * 256 + x] = 255 - canvas.buffer[y * 256 + x + 128];
+      }
     }
+  }
 
-    if(!canvas.dirty)
-    {
-        return;
-    }
+  display_prepare_gram_write();
 
-    if (constant_power) {
-        for (int y = 0; y < 64; y++) {
-            for (int x = 0; x < 128; x++) {
-                canvas.buffer[y * 256 + x] = 255 - canvas.buffer[y * 256 + x + 128];
-            }
-        }
-    }
+  int num_writes = canvas.width * canvas.height;
 
-    display_prepare_gram_write();
-
-    int num_writes = canvas.width * canvas.height;
-
-    int i;
+  int i;
 #ifdef INVERT_DISPLAY
 
   for (i = num_writes; i > 0; i -= 2) {
@@ -348,15 +346,9 @@ void display_turn_on(void) { display_write_reg((uint8_t)0xAF); }
  * OUTPUT
  *     none
  */
-void display_turn_off(void)
-{
-    display_write_reg((uint8_t)0xAE);
-}
+void display_turn_off(void) { display_write_reg((uint8_t)0xAE); }
 
-void display_constant_power(bool enabled)
-{
-    constant_power = enabled;
-}
+void display_constant_power(bool enabled) { constant_power = enabled; }
 
 /*
  * display_hw_init(void)  - Display hardware initialization

@@ -25,19 +25,19 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-const AnimationFrame *get_ethereum_icon_frame(void);
-const AnimationFrame *get_confirm_icon_frame(void);
-const AnimationFrame *get_confirmed_frame(void);
-const AnimationFrame *get_unplug_frame(void);
-const AnimationFrame *get_warning_frame(void);
-const AnimationFrame *get_logo_frame(void);
+const AnimationFrame* get_ethereum_icon_frame(void);
+const AnimationFrame* get_confirm_icon_frame(void);
+const AnimationFrame* get_confirmed_frame(void);
+const AnimationFrame* get_unplug_frame(void);
+const AnimationFrame* get_warning_frame(void);
+const AnimationFrame* get_logo_frame(void);
 
-const VariantAnimation *get_confirming_animation(void);
-const VariantAnimation *get_warning_animation(void);
-const VariantAnimation *get_logo_animation(void);
-const VariantAnimation *get_logo_reversed_animation(void);
+const VariantAnimation* get_confirming_animation(void);
+const VariantAnimation* get_warning_animation(void);
+const VariantAnimation* get_logo_animation(void);
+const VariantAnimation* get_logo_reversed_animation(void);
 
-uint32_t get_image_animation_duration(const VariantAnimation *animation);
-int get_image_animation_frame(const VariantAnimation *animation,
+uint32_t get_image_animation_duration(const VariantAnimation* animation);
+int get_image_animation_frame(const VariantAnimation* animation,
                               const uint32_t elapsed, bool loop);
 #endif

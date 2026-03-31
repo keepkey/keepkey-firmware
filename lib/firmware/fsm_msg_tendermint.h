@@ -1,16 +1,16 @@
 
-void fsm_msgTendermintGetAddress(const TendermintGetAddress *msg) {
+void fsm_msgTendermintGetAddress(const TendermintGetAddress* msg) {
   RESP_INIT(TendermintAddress);
 
   CHECK_INITIALIZED
 
   CHECK_PIN
 
-  const CoinType *coin = fsm_getCoin(true, msg->chain_name);
+  const CoinType* coin = fsm_getCoin(true, msg->chain_name);
   if (!coin) {
     return;
   }
-  HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) {
     return;
@@ -19,7 +19,7 @@ void fsm_msgTendermintGetAddress(const TendermintGetAddress *msg) {
   hdnode_fill_public_key(node);
 
   if (!tendermint_getAddress(node, msg->chain_name, resp->address)) {
-    memzero((void *)node, sizeof(*node));
+    memzero((void*)node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_FirmwareError,
                     _("Can't encode address"));
     layoutHome();
@@ -69,12 +69,12 @@ void fsm_msgTendermintGetAddress(const TendermintGetAddress *msg) {
   layoutHome();
 }
 
-void fsm_msgTendermintSignTx(const TendermintSignTx *msg) {
+void fsm_msgTendermintSignTx(const TendermintSignTx* msg) {
   CHECK_INITIALIZED
   CHECK_PIN
 
   if (!msg->has_account_number || !msg->has_chain_id || !msg->has_fee_amount ||
-      !msg->has_gas || !msg->has_sequence || !msg->has_chain_name || 
+      !msg->has_gas || !msg->has_sequence || !msg->has_chain_name ||
       !msg->has_denom || !msg->has_message_type_prefix) {
     tendermint_signAbort();
     fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -82,8 +82,8 @@ void fsm_msgTendermintSignTx(const TendermintSignTx *msg) {
     layoutHome();
     return;
   }
-  
-  HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) {
     return;
@@ -93,7 +93,8 @@ void fsm_msgTendermintSignTx(const TendermintSignTx *msg) {
 
   RESP_INIT(TendermintMsgRequest);
 
-  if (!tendermint_signTxInit(node, (void *)msg, sizeof(TendermintSignTx), msg->denom)) {
+  if (!tendermint_signTxInit(node, (void*)msg, sizeof(TendermintSignTx),
+                             msg->denom)) {
     tendermint_signAbort();
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_FirmwareError,
@@ -107,37 +108,39 @@ void fsm_msgTendermintSignTx(const TendermintSignTx *msg) {
   layoutHome();
 }
 
-void fsm_msgTendermintMsgAck(const TendermintMsgAck *msg) {
+void fsm_msgTendermintMsgAck(const TendermintMsgAck* msg) {
   // Confirm transaction basics
   CHECK_PARAM(tendermint_signingIsInited(), "Signing not in progress");
   if (!msg->has_send || !msg->send.has_to_address || !msg->send.has_amount) {
     tendermint_signAbort();
     // 8 + ^14 + 13 + 1 = 36
     char failmsg[40];
-    snprintf(failmsg, sizeof(failmsg), "Invalid %s Message Type", msg->chain_name);
+    snprintf(failmsg, sizeof(failmsg), "Invalid %s Message Type",
+             msg->chain_name);
 
-    fsm_sendFailure(FailureType_Failure_FirmwareError,
-                    _(failmsg));
+    fsm_sendFailure(FailureType_Failure_FirmwareError, _(failmsg));
     layoutHome();
     return;
   }
 
-  const CoinType *coin = fsm_getCoin(true, msg->chain_name);
-  if (!coin ||!coin->has_coin_shortcut || !coin->has_decimals) {
+  const CoinType* coin = fsm_getCoin(true, msg->chain_name);
+  if (!coin || !coin->has_coin_shortcut || !coin->has_decimals) {
     return;
   }
 
-  const TendermintSignTx *sign_tx = (TendermintSignTx *)tendermint_getSignTx();
+  const TendermintSignTx* sign_tx = (TendermintSignTx*)tendermint_getSignTx();
 
   switch (msg->send.address_type) {
     case OutputAddressType_TRANSFER:
     default: {
       char amount_str[32];
-      char suffix[sizeof(coin->coin_shortcut) + 1]; // sizeof(coin->coin_shortcut) includes space for the terminator
+      char suffix[sizeof(coin->coin_shortcut) +
+                  1];  // sizeof(coin->coin_shortcut) includes space for the
+                       // terminator
       strlcpy(suffix, " ", sizeof(suffix));
       strlcat(suffix, coin->coin_shortcut, sizeof(suffix));
-      bn_format_uint64(msg->send.amount, NULL, suffix, coin->decimals, 0, false, amount_str,
-                       sizeof(amount_str));
+      bn_format_uint64(msg->send.amount, NULL, suffix, coin->decimals, 0, false,
+                       amount_str, sizeof(amount_str));
       if (!confirm_transaction_output(
               ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
               msg->send.to_address)) {
@@ -151,8 +154,9 @@ void fsm_msgTendermintMsgAck(const TendermintMsgAck *msg) {
     }
   }
 
-  if (!tendermint_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address, msg->chain_name, 
-                                      msg->denom, msg->message_type_prefix)) {
+  if (!tendermint_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address,
+                                      msg->chain_name, msg->denom,
+                                      msg->message_type_prefix)) {
     tendermint_signAbort();
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     "Failed to include send message in transaction");
@@ -187,7 +191,8 @@ void fsm_msgTendermintMsgAck(const TendermintMsgAck *msg) {
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, node_str,
                "Sign %s transaction on %s? "
                "It includes a fee of %" PRIu32 " %s and %" PRIu32 " gas.",
-               msg->chain_name, sign_tx->chain_id, sign_tx->fee_amount, msg->denom, sign_tx->gas)) {
+               msg->chain_name, sign_tx->chain_id, sign_tx->fee_amount,
+               msg->denom, sign_tx->gas)) {
     tendermint_signAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
@@ -196,7 +201,8 @@ void fsm_msgTendermintMsgAck(const TendermintMsgAck *msg) {
 
   RESP_INIT(TendermintSignedTx);
 
-  if (!tendermint_signTxFinalize(resp->public_key.bytes, resp->signature.bytes)) {
+  if (!tendermint_signTxFinalize(resp->public_key.bytes,
+                                 resp->signature.bytes)) {
     tendermint_signAbort();
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     "Failed to finalize signature");

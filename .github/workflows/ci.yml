@@ -52,27 +52,26 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      - name: Install clang-format
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble main" | sudo tee /etc/apt/sources.list.d/llvm.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq clang-format
+
       - name: Check code formatting
         run: |
-          # Use pre-installed clang-format (ubuntu-latest ships with it)
-          CF=$(command -v clang-format-14 || command -v clang-format || true)
-          if [ -z "$CF" ]; then
-            echo "::warning::clang-format not found, skipping lint"
-            exit 0
-          fi
-          echo "Using: $CF ($($CF --version | head -1))"
+          echo "Using: $(clang-format --version)"
           FAILED=0
           for f in $(find include/keepkey lib/firmware lib/board lib/transport/src \
                      -name '*.c' -o -name '*.h' 2>/dev/null | grep -v generated | grep -v '.pb.'); do
-            if ! $CF --style=file --dry-run --Werror "$f" 2>/dev/null; then
+            if ! clang-format --style=file --dry-run --Werror "$f" 2>/dev/null; then
               echo "::warning file=$f::Formatting differs from .clang-format"
               FAILED=1
             fi
           done
           if [ "$FAILED" = "1" ]; then
             echo ""
-            echo "Run: $CF -i <file> to fix formatting"
-            echo "Note: treating as warning until codebase is reformatted"
+            echo "Run: clang-format -i <file> to fix formatting"
           fi
         # Warn-only until existing code is reformatted
         continue-on-error: true

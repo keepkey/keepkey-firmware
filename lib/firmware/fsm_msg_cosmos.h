@@ -1,16 +1,16 @@
 
-void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg) {
+void fsm_msgCosmosGetAddress(const CosmosGetAddress* msg) {
   RESP_INIT(CosmosAddress);
 
   CHECK_INITIALIZED
 
   CHECK_PIN
 
-  const CoinType *coin = fsm_getCoin(true, "Cosmos");
+  const CoinType* coin = fsm_getCoin(true, "Cosmos");
   if (!coin) {
     return;
   }
-  HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) {
     return;
@@ -69,7 +69,7 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress *msg) {
   layoutHome();
 }
 
-void fsm_msgCosmosSignTx(const CosmosSignTx *msg) {
+void fsm_msgCosmosSignTx(const CosmosSignTx* msg) {
   CHECK_INITIALIZED
   CHECK_PIN
 
@@ -82,7 +82,7 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg) {
     return;
   }
 
-  HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) {
     return;
@@ -92,8 +92,7 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg) {
 
   RESP_INIT(CosmosMsgRequest);
 
-  if (!tendermint_signTxInit(node, (void *)msg, sizeof(CosmosSignTx),
-                             "uatom")) {
+  if (!tendermint_signTxInit(node, (void*)msg, sizeof(CosmosSignTx), "uatom")) {
     tendermint_signAbort();
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_FirmwareError,
@@ -107,16 +106,16 @@ void fsm_msgCosmosSignTx(const CosmosSignTx *msg) {
   layoutHome();
 }
 
-void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
+void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
   // Confirm transaction basics
   CHECK_PARAM(tendermint_signingIsInited(), "Signing not in progress");
 
-  const CoinType *coin = fsm_getCoin(true, "Cosmos");
+  const CoinType* coin = fsm_getCoin(true, "Cosmos");
   if (!coin) {
     return;
   }
 
-  const CosmosSignTx *sign_tx = (CosmosSignTx *)tendermint_getSignTx();
+  const CosmosSignTx* sign_tx = (CosmosSignTx*)tendermint_getSignTx();
 
   if (msg->has_send) {
     if (!msg->send.has_to_address || !msg->send.has_amount) {
@@ -329,10 +328,10 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
       /** Confirm transaction parameters on-screen */
       char amount_str[32];
       bn_format_uint64(msg->rewards.amount, NULL, " ATOM", 6, 0, false,
-                      amount_str, sizeof(amount_str));
+                       amount_str, sizeof(amount_str));
 
       if (!confirm(ButtonRequestType_ButtonRequest_Other, "Claim Rewards",
-                  "Claim %s?", amount_str)) {
+                   "Claim %s?", amount_str)) {
         tendermint_signAbort();
         fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
         layoutHome();
@@ -340,7 +339,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck *msg) {
       }
     } else {
       if (!confirm(ButtonRequestType_ButtonRequest_Other, "Claim Rewards",
-                  "Claim all available rewards?")) {
+                   "Claim all available rewards?")) {
         tendermint_signAbort();
         fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
         layoutHome();

@@ -44,7 +44,7 @@
 /* Title */
 #define TITLE_COLOR 0xFF
 #define TITLE_WIDTH 206
-#define TITLE_WIDTH_WITH_ICON TITLE_WIDTH-LEFT_MARGIN_WITH_ICON
+#define TITLE_WIDTH_WITH_ICON TITLE_WIDTH - LEFT_MARGIN_WITH_ICON
 #define TITLE_ROWS 1
 #define TITLE_FONT_LINE_PADDING 0
 #define TITLE_CHAR_MAX 128
@@ -53,7 +53,7 @@
 #define BODY_TOP_MARGIN 7
 #define BODY_COLOR 0xFF
 #define BODY_WIDTH 225
-#define BODY_WIDTH_WITH_ICON  BODY_WIDTH-LEFT_MARGIN_WITH_ICON
+#define BODY_WIDTH_WITH_ICON BODY_WIDTH - LEFT_MARGIN_WITH_ICON
 #define BODY_ROWS 3
 #define BODY_FONT_LINE_PADDING 4
 #define BODY_CHAR_MAX 352
@@ -77,11 +77,11 @@ typedef enum {
 } NotificationType;
 
 typedef enum {
-  NO_ICON=0,
+  NO_ICON = 0,
   ETHEREUM_ICON,
 } IconType;
 
-typedef void (*AnimateCallback)(void *data, uint32_t duration,
+typedef void (*AnimateCallback)(void* data, uint32_t duration,
                                 uint32_t elapsed);
 typedef struct Animation Animation;
 typedef void (*leaving_handler_t)(void);
@@ -89,43 +89,44 @@ typedef void (*leaving_handler_t)(void);
 struct Animation {
   uint32_t duration;
   uint32_t elapsed;
-  void *data;
+  void* data;
   AnimateCallback animate_callback;
-  Animation *next;
+  Animation* next;
 };
 
 typedef struct {
-  Animation *head;
+  Animation* head;
   int size;
 
 } AnimationQueue;
 
 void layout_has_icon(bool tf);
-void layout_init(Canvas *canvas);
-Canvas *layout_get_canvas(void);
+void layout_init(Canvas* canvas);
+Canvas* layout_get_canvas(void);
 void call_leaving_handler(void);
 void layout_firmware_update_confirmation(void);
-void layout_standard_notification(const char *str1, const char *str2,
+void layout_standard_notification(const char* str1, const char* str2,
                                   NotificationType type);
-void layout_constant_power_notification(const char *str1, const char *str2, NotificationType type);
-void layout_notification_icon(NotificationType type, DrawableParams *sp);
+void layout_constant_power_notification(const char* str1, const char* str2,
+                                        NotificationType type);
+void layout_notification_icon(NotificationType type, DrawableParams* sp);
 void layout_add_icon(IconType type);
-void layout_warning(const char *prompt);
-void layout_warning_static(const char *str);
-void layout_simple_message(const char *str);
+void layout_warning(const char* prompt);
+void layout_warning_static(const char* str);
+void layout_simple_message(const char* str);
 void layout_version(int32_t major, int32_t minor, int32_t patch);
 void layout_home(void);
 void layout_home_reversed(void);
 void animate(void);
 bool is_animating(void);
 void force_animation_start(void);
-void animating_progress_handler(const char *desc, int permil);
-void layoutProgress(const char *desc, int permil);
-void layoutProgressForAuth(const char *otp, const char *desc, int permil);
-void layoutProgressSwipe(const char *desc, int permil);
-void layout_add_animation(AnimateCallback callback, void *data,
+void animating_progress_handler(const char* desc, int permil);
+void layoutProgress(const char* desc, int permil);
+void layoutProgressForAuth(const char* otp, const char* desc, int permil);
+void layoutProgressSwipe(const char* desc, int permil);
+void layout_add_animation(AnimateCallback callback, void* data,
                           uint32_t duration);
-void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed);
+void layout_animate_images(void* data, uint32_t duration, uint32_t elapsed);
 void layout_clear(void);
 #if DEBUG_LINK
 void layout_debuglink_watermark(void);
@@ -133,6 +134,6 @@ void layout_debuglink_watermark(void);
 void layout_clear_animations(void);
 void layout_clear_static(void);
 
-void kk_strupr(char *str);
-void kk_strlwr(char *str);
+void kk_strupr(char* str);
+void kk_strlwr(char* str);
 #endif
