@@ -71,12 +71,24 @@ if [ "$SCREENSHOT_COUNT" -eq 0 ]; then
     exit 1
 fi
 
-# Phase 2: Full suite (no screenshots) — non-blocking for JUnit collection.
-# Tests for features not yet merged will fail here; the generate-test-report
-# step uses JUnit XML to mark them FAILED/PENDING in the PDF.
-# Phase 1 (screenshot filter) is the hard gate; Phase 2 is informational.
+# Phase 2: Full test suite — SECTIONS is the source of truth.
+# pytest may exit non-zero (some tests fail before gating kicks in),
+# so we capture the JUnit XML regardless, then validate against SECTIONS.
+# Tests that skip via requires_message/requires_firmware are OK.
+# Tests that fail or are missing from JUnit = CI failure.
 echo "=== Phase 2: Full test suite ==="
 KK_TRANSPORT_MAIN=kkemu:11044 \
 KK_TRANSPORT_DEBUG=kkemu:11045 \
 pytest -v --junitxml=/kkemu/test-reports/python-keepkey/junit.xml || true
-echo "0" > /kkemu/test-reports/python-keepkey/status
+
+echo "=== Phase 2: Validate results against SECTIONS ==="
+python3 ../scripts/generate-test-report.py \
+  --validate-junit \
+  --junit=/kkemu/test-reports/python-keepkey/junit.xml \
+  ${FW_VERSION:+--fw-version=$FW_VERSION}
+VALIDATE_RC=$?
+echo "$VALIDATE_RC" > /kkemu/test-reports/python-keepkey/status
+if [ "$VALIDATE_RC" -ne 0 ]; then
+    echo "SECTIONS validation failed — see above for failing tests"
+    exit 1
+fi
