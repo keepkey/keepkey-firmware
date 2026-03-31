@@ -30,7 +30,7 @@ jobs:
     outputs:
       fw_version: ${{ steps.version.outputs.fw_version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -50,13 +50,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
 
       - name: Cache base image
         id: cache-base
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /tmp/base-image.tar
           key: base-image-${{ env.BASE_IMAGE }}
@@ -115,7 +115,7 @@ jobs:
           ls -lh
 
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-firmware
           path: release/*
@@ -126,13 +126,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
 
       - name: Cache base image
         id: cache-base
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /tmp/base-image.tar
           key: base-image-${{ env.BASE_IMAGE }}
@@ -158,10 +158,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download firmware artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: release-firmware
           path: artifacts
