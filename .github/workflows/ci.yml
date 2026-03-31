@@ -133,11 +133,12 @@ jobs:
             --error-exitcode=0 \
             lib/ include/keepkey/ tools/ 2>&1 | tee cppcheck_report.txt
 
-          # Count issues by severity
-          ERRORS=$(grep -c '\[error\]' cppcheck_report.txt 2>/dev/null || echo "0")
-          WARNINGS=$(grep -c '\[warning\]' cppcheck_report.txt 2>/dev/null || echo "0")
-          STYLE=$(grep -c '\[style\]' cppcheck_report.txt 2>/dev/null || echo "0")
-          PERF=$(grep -c '\[performance\]' cppcheck_report.txt 2>/dev/null || echo "0")
+          # Count issues by severity (match only ::warning annotation lines)
+          ERRORS=$(grep -c '::warning.*\berror:' cppcheck_report.txt 2>/dev/null || true)
+          WARNINGS=$(grep -c '::warning.*\bwarning:' cppcheck_report.txt 2>/dev/null || true)
+          STYLE=$(grep -c '::warning.*\bstyle:' cppcheck_report.txt 2>/dev/null || true)
+          PERF=$(grep -c '::warning.*\bperformance:' cppcheck_report.txt 2>/dev/null || true)
+          : "${ERRORS:=0}" "${WARNINGS:=0}" "${STYLE:=0}" "${PERF:=0}"
           TOTAL=$((ERRORS + WARNINGS + STYLE + PERF))
 
           echo "## cppcheck summary" >> "$GITHUB_STEP_SUMMARY"
