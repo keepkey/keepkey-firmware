@@ -130,9 +130,8 @@ jobs:
             -DPB_FIELD_16BIT=1 \
             -DEMULATOR=1 \
             --template='::warning file={file},line={line},col={column}::{severity}: {message} [{id}]' \
-            --output-file=cppcheck_report.txt \
             --error-exitcode=0 \
-            lib/ include/keepkey/ tools/ 2>&1 | tee cppcheck_annotations.txt
+            lib/ include/keepkey/ tools/ 2>&1 | tee cppcheck_report.txt
 
           # Count issues by severity
           ERRORS=$(grep -c '\[error\]' cppcheck_report.txt 2>/dev/null || echo "0")
