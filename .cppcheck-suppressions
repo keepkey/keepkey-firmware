@@ -9,12 +9,3 @@ bufferAccessOutOfBounds:lib/firmware/storage.c
 subtractPointers:tools/blupdater/main.c
 comparePointers:tools/blupdater/main.c
 ctunullpointer
-
-# Third-party / library code (not our code to fix)
-nullPointerRedundantCheck:include/keepkey/firmware/tiny-json.h
-unreadVariable:lib/firmware/tiny-json.c
-*:lib/transport/pb_decode.c
-*:lib/transport/pb_encode.c
-
-# Callback function signatures — changing const would break callback typedefs
-constParameterCallback

@@ -2605,7 +2605,7 @@ uint32_t calc_str_line(const Font* font, const char* str, uint16_t line_width) {
   while (*str) {
     uint8_t character_width = font_get_char(font, str[0])->width;
     uint16_t word_width = character_width;
-    const char* next_character = str + 1;
+    char* next_character = (char*)str + 1;
 
     /* Allow line breaks */
     if (*str == '\n') {

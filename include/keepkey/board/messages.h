@@ -120,9 +120,9 @@ void call_msg_debug_link_get_state_handler(DebugLinkGetState* msg);
 
 void msg_init(void);
 
-void handle_usb_rx(const void* msg, size_t len);
+void handle_usb_rx(const void* data, size_t len);
 #if DEBUG_LINK
-void handle_debug_usb_rx(const void* msg, size_t len);
+void handle_debug_usb_rx(const void* data, size_t len);
 #endif
 
 MessageType wait_for_tiny_msg(uint8_t* buf);

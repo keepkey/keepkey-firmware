@@ -53,7 +53,6 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
   resp->has_wipe_code_protection = storage_hasWipeCode();
 
 #ifdef SCM_REVISION
-  // cppcheck-suppress sizeofwithnumericparameter
   int len = sizeof(SCM_REVISION) - 1;
   resp->has_revision = true;
   memcpy(resp->revision.bytes, SCM_REVISION, len);

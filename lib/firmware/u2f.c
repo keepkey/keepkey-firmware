@@ -465,10 +465,10 @@ const char* words_from_data(const uint8_t* data, int len) {
   int mlen = len * 3 / 4;
   static char mnemo[24 * 10];
 
-  int i, j;
+  int i, j, idx;
   char* p = mnemo;
   for (i = 0; i < mlen; i++) {
-    int idx = 0;
+    idx = 0;
     for (j = 0; j < 11; j++) {
       idx <<= 1;
       idx += (data[(i * 11 + j) / 8] & (1 << (7 - ((i * 11 + j) % 8)))) > 0;
@@ -498,7 +498,7 @@ static bool getReadableAppId(const uint8_t appid[U2F_APPID_SIZE],
   return false;
 }
 
-static const HDNode* getDerivedNode(const uint32_t* address_n,
+static const HDNode* getDerivedNode(uint32_t* address_n,
                                     size_t address_n_count) {
   static CONFIDENTIAL HDNode node;
   if (!storage_getU2FRoot(&node)) {

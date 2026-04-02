@@ -65,8 +65,8 @@ bool eos_derivePublicKey(const uint32_t* addr_n, size_t addr_n_count,
                          uint8_t* public_key, size_t len);
 
 /// \returns true iff successful.
-bool eos_getPublicKey(const HDNode* n, const curve_info* curve,
-                      EosPublicKeyKind kind, char* pubkey, size_t len);
+bool eos_getPublicKey(const HDNode* node, const curve_info* curve,
+                      EosPublicKeyKind kind, char* str, size_t len);
 
 /// \returns true iff successful.
 bool eos_publicKeyToWif(const uint8_t* public_key, EosPublicKeyKind kind,
@@ -105,6 +105,6 @@ bool eos_compileActionCommon(const EosActionCommon* common);
 /// \returns true iff successful.
 bool eos_compilePermissionLevel(const EosPermissionLevel* auth);
 
-bool eos_signTx(EosSignedTx* tx);
+bool eos_signTx(EosSignedTx* sig);
 
 #endif
