@@ -46,10 +46,10 @@ bool zx_isZxSwap(const EthereumSignTx* msg) {
 bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx* msg) {
   (void)data_total;
   const TokenType *from, *to;
-  uint8_t *fromAddress, *toAddress;
+  const uint8_t *fromAddress, *toAddress;
   char constr1[40], constr2[40];
   uint32_t numOfTokens, adder, isSushi;
-  char* exchange;
+  const char* exchange;
 
   numOfTokens = read_be(msg->data_initial_chunk.bytes + 4 + 5 * 32 - 4);
   isSushi = read_be(msg->data_initial_chunk.bytes + 4 + 4 * 32 - 4);
@@ -71,9 +71,9 @@ bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx* msg) {
       break;
   }
 
-  fromAddress = (uint8_t*)(msg->data_initial_chunk.bytes + 4 + 5 * 32 + 12);
+  fromAddress = (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 5 * 32 + 12);
   toAddress =
-      (uint8_t*)(msg->data_initial_chunk.bytes + 4 + (6 + adder) * 32 + 12);
+      (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + (6 + adder) * 32 + 12);
 
   from = tokenByChainAddress(msg->chain_id, fromAddress);
   to = tokenByChainAddress(msg->chain_id, toAddress);
@@ -96,6 +96,4 @@ bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx* msg) {
 
   return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, exchange,
                  "Sell %s\nBuy at least %s", constr1, constr2);
-
-  return true;
 }

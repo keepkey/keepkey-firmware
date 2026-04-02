@@ -78,11 +78,11 @@ static bool isRemoveLiquidityEthCall(const EthereumSignTx* msg) {
 }
 
 static bool confirmFromAccountMatch(const EthereumSignTx* msg,
-                                    char* addremStr) {
+                                    const char* addremStr) {
   // Determine withdrawal address
   char addressStr[43] = {'0', 'x', '\0'};
-  char* fromSrc;
-  uint8_t* fromAddress;
+  const char* fromSrc;
+  const uint8_t* fromAddress;
   uint8_t addressBytes[20];
 
   HDNode* node = zx_getDerivedNode(SECP256K1_NAME, msg->address_n,
@@ -93,7 +93,7 @@ static bool confirmFromAccountMatch(const EthereumSignTx* msg,
     memzero(node, sizeof(*node));
   }
 
-  fromAddress = (uint8_t*)(msg->data_initial_chunk.bytes + 4 + 5 * 32 - 20);
+  fromAddress = (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 5 * 32 - 20);
 
   if (memcmp(fromAddress, addressBytes, 20) == 0) {
     fromSrc = "self";
@@ -126,8 +126,9 @@ bool zx_isZxLiquidTx(const EthereumSignTx* msg) {
 bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg) {
   (void)data_total;
   const TokenType* token;
-  char constr1[40], constr2[40], tokbuf[32], *arStr = "";
-  uint8_t *tokenAddress, *deadlineBytes;
+  char constr1[40], constr2[40], tokbuf[32];
+  const char* arStr = "";
+  const uint8_t *tokenAddress, *deadlineBytes;
   bignum256 Amount;
   uint64_t deadline;
 
@@ -139,9 +140,9 @@ bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg) {
     return false;
   }
 
-  tokenAddress = (uint8_t*)(msg->data_initial_chunk.bytes + 4 + 32 - 20);
+  tokenAddress = (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 32 - 20);
   token = tokenByChainAddress(msg->chain_id, tokenAddress);
-  deadlineBytes = (uint8_t*)(msg->data_initial_chunk.bytes + 4 + 6 * 32 - 8);
+  deadlineBytes = (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 6 * 32 - 8);
   deadline = ((uint64_t)deadlineBytes[0] << 8 * 7) |
              ((uint64_t)deadlineBytes[1] << 8 * 6) |
              ((uint64_t)deadlineBytes[2] << 8 * 5) |

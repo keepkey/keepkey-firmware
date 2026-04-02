@@ -562,8 +562,7 @@ static bool confirmArbitraryAuthorization(const char* title,
         return false;
       }
     } else {
-      const CoinType* coin;
-      if ((coin = coinByName("EOS")) &&
+      if (coinByName("EOS") &&
           !bip32_path_to_string(pubkey, sizeof(pubkey), auth_key->address_n,
                                 auth_key->address_n_count)) {
         memset(pubkey, 0, sizeof(pubkey));
