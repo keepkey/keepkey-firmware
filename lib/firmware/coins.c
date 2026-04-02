@@ -348,6 +348,7 @@ const CoinType* coinBySlip44(uint32_t bip44_account_path) {
  */
 void coin_amnt_to_str(const CoinType* coin, uint64_t amnt, char* buf, int len) {
   uint64_t coin_fraction_part, coin_whole_part;
+  int i;
   char buf_fract[10];
 
   memset(buf, 0, len);
@@ -367,7 +368,6 @@ void coin_amnt_to_str(const CoinType* coin, uint64_t amnt, char* buf, int len) {
 
   /* Convert Fraction value to string */
   if (coin_fraction_part > 0) {
-    int i;
     dec64_to_str(coin_fraction_part, buf_fract);
 
     /* Add zeros after decimal */

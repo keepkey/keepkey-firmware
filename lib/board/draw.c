@@ -52,7 +52,7 @@ bool draw_char_with_shift(Canvas* canvas, DrawableParams* p, uint16_t* x_shift,
     return false;
   }
   uint8_t* canvas_pixel = &canvas->buffer[start_index];
-  const uint8_t* canvas_end = &canvas->buffer[canvas->width * canvas->height];
+  uint8_t* canvas_end = &canvas->buffer[canvas->width * canvas->height];
 
   /* Check that this was a character that we have in the font */
   if (img != NULL) {
@@ -109,8 +109,7 @@ bool draw_char_with_shift(Canvas* canvas, DrawableParams* p, uint16_t* x_shift,
  *     none
  */
 void draw_string(Canvas* canvas, const Font* font, const char* str_write,
-                 const DrawableParams* p, uint16_t width,
-                 uint16_t line_height) {
+                 DrawableParams* p, uint16_t width, uint16_t line_height) {
   uint16_t sepPixels =
       0;  // font char separation pixels for large font (pin font)
 
@@ -129,7 +128,7 @@ void draw_string(Canvas* canvas, const Font* font, const char* str_write,
   while (*str_write && have_space) {
     const CharacterImage* img = font_get_char(font, *str_write);
     uint16_t word_width = img->width;
-    const char* next_c = str_write + 1;
+    char* next_c = (char*)str_write + 1;
 
     /* Allow line breaks */
     if (*str_write == '\n') {
@@ -239,7 +238,7 @@ void draw_box(Canvas* canvas, BoxDrawableParams* p) {
 
   uint16_t start_index = (start_row * canvas->width) + start_col;
   uint8_t* canvas_pixel = &canvas->buffer[start_index];
-  const uint8_t* canvas_end = &canvas->buffer[canvas->width * canvas->height];
+  uint8_t* canvas_end = &canvas->buffer[canvas->width * canvas->height];
 
   uint16_t height = end_row - start_row;
   uint16_t width = end_col - start_col;

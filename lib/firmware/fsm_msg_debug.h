@@ -60,7 +60,7 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState* msg) {
    * Each byte in layout holds 8 vertical pixels (LSB = top).
    * Total: 256 columns x (64/8) rows = 2048 bytes. */
   {
-    const Canvas* c = display_canvas();
+    Canvas *c = display_canvas();
     if (c && c->buffer) {
       resp->has_layout = true;
       resp->layout.size = 2048;

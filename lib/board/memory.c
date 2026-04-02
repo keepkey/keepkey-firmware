@@ -44,17 +44,9 @@
 uint8_t* emulator_flash_base = NULL;
 #endif
 
-#ifndef EMULATOR
 extern unsigned
     end;  // This is at the end of the data + bss, used for recursion guard
-#endif
-
 int memcheck(unsigned stackGuardSize) {
-#ifdef EMULATOR
-  // In emulator, we have plenty of stack space, just return STACK_GOOD
-  (void)stackGuardSize;
-  return STACK_GOOD;
-#else
   void* stackBottom;  // this is the bottom of the stack, it is shrinking toward
                       // static mem at variable "end".
   // char buf[33] = {0};
@@ -66,7 +58,6 @@ int memcheck(unsigned stackGuardSize) {
   } else {
     return STACK_GOOD;
   }
-#endif
 }
 
 void mpu_config(int priv_level) {
@@ -228,7 +219,6 @@ int memory_bootloader_hash(uint8_t* hash, bool cached) {
  * OUTPUT
  *     none
  */
-// cppcheck-suppress constParameterPointer
 int memory_firmware_hash(uint8_t* hash) {
 #ifndef EMULATOR
   SHA256_CTX ctx;
@@ -278,11 +268,12 @@ int memory_storage_hash(uint8_t* hash, Allocation storage_location) {
 bool find_active_storage(Allocation* storage_location) {
   bool ret_stat = false;
   Allocation storage_location_use;
+  size_t storage_location_start;
 
   /* Find 1st storage sector with valid data */
   for (storage_location_use = FLASH_STORAGE1;
        storage_location_use <= FLASH_STORAGE3; storage_location_use++) {
-    size_t storage_location_start = flash_write_helper(storage_location_use);
+    storage_location_start = flash_write_helper(storage_location_use);
 
     if (memcmp((void*)storage_location_start, STORAGE_MAGIC_STR,
                STORAGE_MAGIC_LEN) == 0) {

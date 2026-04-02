@@ -119,7 +119,7 @@ void storage_loadNode(HDNode* dst, const HDNodeType* src);
 /// Derive the wrapping key from the user's pin.
 void storage_deriveWrappingKey(const char* pin, uint8_t wrapping_key[64],
                                bool sca_hardened, bool v15_16_trans,
-                               const uint8_t random_salt[RANDOM_SALT_LEN],
+                               uint8_t random_salt[RANDOM_SALT_LEN],
                                const char* message);
 
 /// Wrap the storage key.
@@ -155,13 +155,14 @@ pintest_t storage_isWipeCodeCorrect_impl(const char* wipe_code,
                                          uint8_t random_salt[RANDOM_SALT_LEN]);
 
 /// Migrate data in Storage to/from sec/encrypted_sec.
-void storage_secMigrate(SessionState* ss, Storage* storage, bool encrypt);
+void storage_secMigrate(SessionState* state, Storage* storage, bool encrypt);
 
 void storage_resetUuid_impl(ConfigFlash* cfg);
 
-void storage_reset_impl(SessionState* ss, ConfigFlash* cfg);
+void storage_reset_impl(SessionState* session, ConfigFlash* cfg);
 
-void storage_setPin_impl(SessionState* ss, Storage* storage, const char* pin);
+void storage_setPin_impl(SessionState* session, Storage* storage,
+                         const char* pin);
 
 bool storage_hasPin_impl(const Storage* storage);
 
@@ -174,7 +175,7 @@ bool storage_hasWipeCode_impl(const Storage* storage);
 ///          PIN_GOOD        - PIN is correct
 ///          PIN_REWRAP -> PIN is correct, storage key was rewrapped, CALLING
 ///          FUNCTION SHOULD storage_commit()
-pintest_t session_clear_impl(SessionState* ss, Storage* storage,
+pintest_t session_clear_impl(SessionState* session, Storage* storage,
                              bool clear_pin);
 
 /// \brief Get user private seed.
@@ -197,20 +198,20 @@ void storage_upgradePolicies(Storage* storage);
 void storage_resetPolicies(Storage* storage);
 void storage_resetCache(Cache* cache);
 
-void storage_readV1(SessionState* ss, ConfigFlash* dst, const char* flash,
+void storage_readV1(SessionState* session, ConfigFlash* dst, const char* ptr,
                     size_t len);
-void storage_readV2(SessionState* ss, ConfigFlash* dst, const char* flash,
+void storage_readV2(SessionState* session, ConfigFlash* dst, const char* ptr,
                     size_t len);
-void storage_readV11(ConfigFlash* dst, const char* flash, size_t len);
-void storage_readV16(ConfigFlash* dst, const char* flash, size_t len);
-void storage_writeV11(char* flash, size_t len, const ConfigFlash* src);
-void storage_writeV16(char* flash, size_t len, const ConfigFlash* src);
+void storage_readV11(ConfigFlash* dst, const char* ptr, size_t len);
+void storage_readV16(ConfigFlash* dst, const char* ptr, size_t len);
+void storage_writeV11(char* ptr, size_t len, const ConfigFlash* src);
+void storage_writeV16(char* ptr, size_t len, const ConfigFlash* src);
 
 void storage_readMeta(Metadata* meta, const char* ptr, size_t len);
 void storage_readPolicyV1(PolicyType* policy, const char* ptr, size_t len);
 void storage_readHDNode(HDNodeType* node, const char* ptr, size_t len);
-void storage_readStorageV1(SessionState* ss, Storage* storage, const char* ptr,
-                           size_t len);
+void storage_readStorageV1(SessionState* session, Storage* storage,
+                           const char* ptr, size_t len);
 void storage_readStorageV11(Storage* storage, const char* ptr, size_t len);
 void storage_readCacheV1(Cache* cache, const char* ptr, size_t len);
 
@@ -220,9 +221,9 @@ void storage_writeHDNode(char* ptr, size_t len, const HDNodeType* node);
 void storage_writeStorageV11(char* ptr, size_t len, const Storage* storage);
 void storage_writeCacheV1(char* ptr, size_t len, const Cache* cache);
 
-bool storage_setPolicy_impl(PolicyType ps[POLICY_COUNT],
+bool storage_setPolicy_impl(PolicyType policies[POLICY_COUNT],
                             const char* policy_name, bool enabled);
-bool storage_isPolicyEnabled_impl(const PolicyType ps[POLICY_COUNT],
+bool storage_isPolicyEnabled_impl(const PolicyType policies[POLICY_COUNT],
                                   const char* policy_name);
 
 bool storageHasWipeCode(void);
