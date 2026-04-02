@@ -10,6 +10,11 @@ if(${KK_EMULATOR})
 
   add_executable(kkemu ${sources})
 
+  # Add linker flags for ARM64 Mac compatibility
+  if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
+    target_link_options(kkemu PRIVATE "-Wl,-no_fixup_chains")
+  endif()
+
   target_link_libraries(kkemu
       kkfirmware
       kkfirmware.keepkey

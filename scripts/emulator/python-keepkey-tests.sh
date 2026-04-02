@@ -79,16 +79,16 @@ fi
 echo "=== Phase 2: Full test suite ==="
 KK_TRANSPORT_MAIN=kkemu:11044 \
 KK_TRANSPORT_DEBUG=kkemu:11045 \
-pytest -v --junitxml=/kkemu/test-reports/python-keepkey/junit.xml || true
+pytest -v --junitxml=/kkemu/test-reports/python-keepkey/junit.xml
+PYTEST_RC=$?
 
-echo "=== Phase 2: Validate results against SECTIONS ==="
+echo "=== Phase 2: Generate test report ==="
 python3 ../scripts/generate-test-report.py \
-  --validate-junit \
   --junit=/kkemu/test-reports/python-keepkey/junit.xml \
-  ${FW_VERSION:+--fw-version=$FW_VERSION}
-VALIDATE_RC=$?
-echo "$VALIDATE_RC" > /kkemu/test-reports/python-keepkey/status
-if [ "$VALIDATE_RC" -ne 0 ]; then
-    echo "SECTIONS validation failed — see above for failing tests"
-    exit 1
+  ${FW_VERSION:+--fw-version=$FW_VERSION} || true
+
+echo "$PYTEST_RC" > /kkemu/test-reports/python-keepkey/status
+if [ "$PYTEST_RC" -ne 0 ]; then
+    echo "pytest failed with exit code $PYTEST_RC"
+    exit "$PYTEST_RC"
 fi

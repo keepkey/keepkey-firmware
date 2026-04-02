@@ -60,7 +60,7 @@ static void setAuthData(void) { storage_setAuthData(authData); }
 #if DEBUG_LINK
 static unsigned _otpSlot = 0;
 void getAuthSlot(char* authSlotData) {
-  snprintf(authSlotData, 30, ":slot=%2d:secsiz=%2d:", _otpSlot,
+  snprintf(authSlotData, 30, ":slot=%2u:secsiz=%2u:", _otpSlot,
            authData[_otpSlot].secretSize);
   strncat(authSlotData, authData[_otpSlot].domain, DOMAIN_SIZE);
   strncat(authSlotData, ":", 2);
@@ -159,8 +159,7 @@ unsigned addAuthAccount(char* accountWithSeed) {
 }
 
 unsigned generateOTP(char* accountWithMsg, char otpStr[]) {
-  char *domain, *account, *tIntervalStr, *tRemainStr;
-  size_t lenI = 0;
+  const char *domain, *account, *tIntervalStr, *tRemainStr;
   uint8_t hmac[SHA1_DIGEST_LENGTH];  // hmac-sha1 digest length is 160 bits
   unsigned slot;
   uint32_t t0;
@@ -184,7 +183,7 @@ unsigned generateOTP(char* accountWithMsg, char otpStr[]) {
   if (NULL == tIntervalStr) {
     return TOKERR;
   }
-  if (0 == (lenI = strlen(tIntervalStr))) {
+  if (0 == strlen(tIntervalStr)) {
     return TOKERR;
   }
   tRemainStr = strtok(NULL, "");  // get the message string string token
@@ -247,10 +246,10 @@ unsigned generateOTP(char* accountWithMsg, char otpStr[]) {
   }
   unsigned otp = bin_code % (unsigned long)modnum;
 
-  snprintf(otpStr, 9, "%06d", otp);
+  snprintf(otpStr, 9, "%06u", otp);
   char otpStrLarge[10] = {0};
-  // snprintf(otpStrLarge, 9, "\x19%06d", otp);
-  snprintf(otpStrLarge, 9, "%06d", otp);
+  // snprintf(otpStrLarge, 9, "\x19%06u", otp);
+  snprintf(otpStrLarge, 9, "%06u", otp);
   (void)review_immediate(ButtonRequestType_ButtonRequest_Other, "display OTP",
                          "Press button to display OTP");
 
@@ -275,7 +274,7 @@ unsigned generateOTP(char* accountWithMsg, char otpStr[]) {
   return NOERR;
 }
 
-unsigned getAuthAccount(char* slotStr, char acc[]) {
+unsigned getAuthAccount(const char* slotStr, char acc[]) {
   uint8_t val;
   val = (uint8_t)(strtol(slotStr, NULL, 10));
 

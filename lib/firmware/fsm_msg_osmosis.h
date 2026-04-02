@@ -15,9 +15,9 @@ void fsm_msgOsmosisGetAddress(const OsmosisGetAddress* msg) {
   }
   HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
-  char mainnet[] = "osmo";
-  char testnet[] = "tosmo";
-  char* pfix;
+  const char mainnet[] = "osmo";
+  const char testnet[] = "tosmo";
+  const char* pfix;
 
   if (!node) {
     return;
@@ -550,7 +550,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
   } else if (msg->has_swap) {
     /** Confirm required transaction parameters exist */
     if (!msg->swap.has_sender ||
-        !msg->swap.has_pool_id | !msg->swap.has_token_out_denom ||
+        !msg->swap.has_pool_id || !msg->swap.has_token_out_denom ||
         !msg->swap.has_token_in_denom || !msg->swap.has_token_in_amount ||
         !msg->swap.has_token_out_min_amount) {
       osmosis_signAbort();

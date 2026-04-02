@@ -44,20 +44,27 @@
 uint8_t* emulator_flash_base = NULL;
 #endif
 
-extern unsigned
-    end;  // This is at the end of the data + bss, used for recursion guard
+#ifndef EMULATOR
+extern unsigned end;    // This is at the end of the data + bss, used for recursion guard
+#endif
+
 int memcheck(unsigned stackGuardSize) {
-  void* stackBottom;  // this is the bottom of the stack, it is shrinking toward
-                      // static mem at variable "end".
-  // char buf[33] = {0};
-  // snprintf(buf, 64, "RAM available %u", (unsigned)&stackBottom -
-  // (unsigned)&end); snprintf(buf, 64, "stack bottom %x",
-  // (unsigned)&stackBottom); DEBUG_DISPLAY(buf);
-  if (stackGuardSize > ((unsigned)&stackBottom - (unsigned)&end)) {
-    return STACK_TOO_SMALL;
-  } else {
+#ifdef EMULATOR
+    // In emulator, we have plenty of stack space, just return STACK_GOOD
+    (void)stackGuardSize;
     return STACK_GOOD;
-  }
+#else
+    void *stackBottom;    // this is the bottom of the stack, it is shrinking toward static mem at variable "end".
+    //char buf[33] = {0};
+    //snprintf(buf, 64, "RAM available %u", (unsigned)&stackBottom - (unsigned)&end);
+    //snprintf(buf, 64, "stack bottom %x", (unsigned)&stackBottom);
+    //DEBUG_DISPLAY(buf);
+    if (stackGuardSize > ((unsigned)&stackBottom - (unsigned)&end)) {
+        return STACK_TOO_SMALL;
+    } else {
+        return STACK_GOOD;
+    }
+#endif
 }
 
 void mpu_config(int priv_level) {
@@ -219,6 +226,7 @@ int memory_bootloader_hash(uint8_t* hash, bool cached) {
  * OUTPUT
  *     none
  */
+// cppcheck-suppress constParameterPointer
 int memory_firmware_hash(uint8_t* hash) {
 #ifndef EMULATOR
   SHA256_CTX ctx;
@@ -268,12 +276,11 @@ int memory_storage_hash(uint8_t* hash, Allocation storage_location) {
 bool find_active_storage(Allocation* storage_location) {
   bool ret_stat = false;
   Allocation storage_location_use;
-  size_t storage_location_start;
 
   /* Find 1st storage sector with valid data */
   for (storage_location_use = FLASH_STORAGE1;
        storage_location_use <= FLASH_STORAGE3; storage_location_use++) {
-    storage_location_start = flash_write_helper(storage_location_use);
+    size_t storage_location_start = flash_write_helper(storage_location_use);
 
     if (memcmp((void*)storage_location_start, STORAGE_MAGIC_STR,
                STORAGE_MAGIC_LEN) == 0) {

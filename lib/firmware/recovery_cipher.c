@@ -113,7 +113,7 @@ static void format_current_word(uint32_t word_pos, const char* current_word,
  *     position in mnemonic
  */
 static uint32_t get_current_word_pos(void) {
-  char* pos_num = strchr(mnemonic, ' ');
+  const char* pos_num = strchr(mnemonic, ' ');
   uint32_t word_pos = 0;
 
   while (pos_num != NULL) {
@@ -406,7 +406,7 @@ void recovery_character(const char* character) {
     return;
   }
 
-  char* pos = strchr(cipher, character[0]);
+  const char* pos = strchr(cipher, character[0]);
 
   // If not a space and not a legitmate cipher character, send failure.
   if (character[0] != ' ' && pos == NULL) {

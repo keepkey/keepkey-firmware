@@ -122,21 +122,16 @@ int parseType(const json_t* eip712Types, const char* typeS, char* typeStr) {
   json_t const *tarray, *pairs;
   const json_t* jType;
   char append[STRBUFSIZE + 1] = {0};
-  int encTest;
   const char* typeType = NULL;
-  int errRet = SUCCESS;
   const json_t* obTest;
   const char* nameTest;
-  const char* pVal;
 
   if (NULL == (jType = json_getProperty(eip712Types, typeS))) {
-    errRet = JSON_TYPE_S_ERR;
-    return errRet;
+    return JSON_TYPE_S_ERR;
   }
 
   if (NULL == (nameTest = json_getName(jType))) {
-    errRet = JSON_TYPE_S_NAMEERR;
-    return errRet;
+    return JSON_TYPE_S_NAMEERR;
   }
 
   strncat(typeStr, nameTest, STRBUFSIZE - strlen((const char*)typeStr));
@@ -145,20 +140,17 @@ int parseType(const json_t* eip712Types, const char* typeS, char* typeStr) {
   tarray = json_getChild(jType);
   while (tarray != 0) {
     if (NULL == (pairs = json_getChild(tarray))) {
-      errRet = JSON_NO_PAIRS;
-      return errRet;
+      return JSON_NO_PAIRS;
     }
     // should be type JSON_TEXT
     if (pairs->type != JSON_TEXT) {
-      errRet = JSON_PAIRS_NOTEXT;
-      return errRet;
+      return JSON_PAIRS_NOTEXT;
     } else {
       if (NULL == (obTest = json_getSibling(pairs))) {
-        errRet = JSON_NO_PAIRS_SIB;
-        return errRet;
+        return JSON_NO_PAIRS_SIB;
       }
       typeType = json_getValue(obTest);
-      encTest = encodableType(typeType);
+      int encTest = encodableType(typeType);
       if (encTest == UDEF_TYPE) {
         // This is a user-defined type, parse it and append later
         if (']' == typeType[strlen(typeType) - 1]) {
@@ -170,6 +162,7 @@ int parseType(const json_t* eip712Types, const char* typeS, char* typeStr) {
           }
 
           strtok(typeNoArrTok, "[");
+          int errRet;
           if (STACK_GOOD != (errRet = memcheck(STACK_SIZE_GUARD))) {
             return errRet;
           }
@@ -178,6 +171,7 @@ int parseType(const json_t* eip712Types, const char* typeS, char* typeStr) {
             return errRet;
           }
         } else {
+          int errRet;
           if (STACK_GOOD != (errRet = memcheck(STACK_SIZE_GUARD))) {
             return errRet;
           }
@@ -191,9 +185,9 @@ int parseType(const json_t* eip712Types, const char* typeS, char* typeStr) {
         return TYPE_NOT_ENCODABLE;
       }
 
-      if (NULL == (pVal = json_getValue(pairs))) {
-        errRet = JSON_NOPAIRVAL;
-        return errRet;
+      const char* pVal = json_getValue(pairs);
+      if (NULL == pVal) {
+        return JSON_NOPAIRVAL;
       }
       strncat(typeStr, typeType, STRBUFSIZE - strlen((const char*)typeStr));
       strncat(typeStr, " ", STRBUFSIZE - strlen((const char*)typeStr));
@@ -361,7 +355,7 @@ void dsConfirm(void) {
   if (NULL != dschainId) {
     noChain = false;
 #ifdef EMULATOR
-    sscanf((char*)dschainId, "%d", &chainInt);
+    sscanf((char*)dschainId, "%u", &chainInt);
 #else
     sscanf((char*)dschainId, "%ld", &chainInt);
 #endif
@@ -373,13 +367,8 @@ void dsConfirm(void) {
   }
   if (noChain == false && dsverifyingContract != NULL) {
     assetToken = tokenByChainAddress(chainInt, (uint8_t*)addrHexStr);
-    if (strncmp(assetToken->ticker, " UNKN", 5) == 0) {
-      fillerStr = "";
-    } else {
-      // verifyingContract = assetToken->ticker;
-      // fillerStr = "\n\n";
-      fillerStr = "";
-    }
+    (void)assetToken;
+    fillerStr = "";
   }
 
   strncpy(title, name, 40);
@@ -414,13 +403,12 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
               const json_t* nextVal, struct SHA3_CTX* msgCtx) {
   json_t const *tarray, *pairs, *walkVals, *obTest;
   int ctr;
-  const char *typeName = NULL, *typeType = NULL;
+  const char *typeType = NULL;
   uint8_t encBytes[32] = {0};  // holds the encrypted bytes for the message
   const char* valStr = NULL;
   struct SHA3_CTX valCtx = {0};  // local hash context
-  bool hasValue = 0;
   bool ds_vals = 0;  // domain sep values are confirmed on a single screen
-  int errRet = SUCCESS;
+  int errRet;
 
   if (0 ==
       strncmp(json_getName(jType), "EIP712Domain", sizeof("EIP712Domain"))) {
@@ -431,25 +419,21 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
 
   while (tarray != 0) {
     if (NULL == (pairs = json_getChild(tarray))) {
-      errRet = JSON_NO_PAIRS;
-      return errRet;
+      return JSON_NO_PAIRS;
     }
     // should be type JSON_TEXT
     if (pairs->type != JSON_TEXT) {
-      errRet = JSON_PAIRS_NOTEXT;
-      return errRet;
+      return JSON_PAIRS_NOTEXT;
     } else {
-      if (NULL == (typeName = json_getValue(pairs))) {
-        errRet = JSON_NOPAIRNAME;
-        return errRet;
+      const char* typeName = json_getValue(pairs);
+      if (NULL == typeName) {
+        return JSON_NOPAIRNAME;
       }
       if (NULL == (obTest = json_getSibling(pairs))) {
-        errRet = JSON_NO_PAIRS_SIB;
-        return errRet;
+        return JSON_NO_PAIRS_SIB;
       }
       if (NULL == (typeType = json_getValue(obTest))) {
-        errRet = JSON_TYPE_T_NOVAL;
-        return errRet;
+        return JSON_TYPE_T_NOVAL;
       }
       walkVals = nextVal;
       while (0 != walkVals) {
@@ -462,17 +446,12 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
         }
       }
 
-      if (JSON_TEXT == json_getType(walkVals) ||
-          JSON_INTEGER == json_getType(walkVals)) {
-        hasValue = 1;
-      } else {
-        hasValue = 0;
-      }
+      bool hasValue = (JSON_TEXT == json_getType(walkVals) ||
+                       JSON_INTEGER == json_getType(walkVals));
       confirmName(typeName, hasValue);
 
       if (walkVals == 0) {
-        errRet = JSON_TYPE_WNOVAL;
-        return errRet;
+        return JSON_TYPE_WNOVAL;
       } else {
         if (0 == strncmp("address", typeType, strlen("address") - 1)) {
           if (']' == typeType[strlen(typeType) - 1]) {
@@ -737,7 +716,7 @@ int encode(const json_t* jsonTypes, const json_t* jsonVals, const char* typeS,
   json_t const* typeSprop;
   json_t const* domainOrMessageProp;
   json_t const* valsProp;
-  char* domOrMsgStr = NULL;
+  const char* domOrMsgStr = NULL;
 
   // clear out the user-defined types list
   for (ctr = 0; ctr < MAX_USERDEF_TYPES; ctr++) {

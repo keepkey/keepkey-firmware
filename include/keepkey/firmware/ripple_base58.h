@@ -33,7 +33,7 @@
 extern const char ripple_b58digits_ordered[];
 extern const int8_t ripple_b58digits_map[];
 
-int ripple_encode_check(const uint8_t* data, int len, HasherType hasher_type,
+int ripple_encode_check(const uint8_t* data, int datalen, HasherType hasher_type,
                         char* str, int strsize);
 int ripple_decode_check(const char* str, HasherType hasher_type, uint8_t* data,
                         int datalen);
