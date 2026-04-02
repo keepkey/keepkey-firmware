@@ -113,7 +113,7 @@ static void format_current_word(uint32_t word_pos, const char* current_word,
  *     position in mnemonic
  */
 static uint32_t get_current_word_pos(void) {
-  const char* pos_num = strchr(mnemonic, ' ');
+  char* pos_num = strchr(mnemonic, ' ');
   uint32_t word_pos = 0;
 
   while (pos_num != NULL) {
@@ -406,7 +406,7 @@ void recovery_character(const char* character) {
     return;
   }
 
-  const char* pos = strchr(cipher, character[0]);
+  char* pos = strchr(cipher, character[0]);
 
   // If not a space and not a legitmate cipher character, send failure.
   if (character[0] != ' ' && pos == NULL) {
@@ -462,6 +462,24 @@ void recovery_character(const char* character) {
       }
     }
   } else {
+    /* Per-word BIP39 validation: reject immediately if the decoded word
+     * doesn't match any entry in the wordlist. */
+    if (enforce_wordlist && strlen(decoded_word) > 0) {
+      static CONFIDENTIAL char check_word[CURRENT_WORD_BUF];
+      strlcpy(check_word, decoded_word, sizeof(check_word));
+      bool valid = attempt_auto_complete(check_word);
+      memzero(check_word, sizeof(check_word));
+      if (!valid) {
+        memzero(coded_word, sizeof(coded_word));
+        memzero(decoded_word, sizeof(decoded_word));
+        recovery_cipher_abort();
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        "Word not found in BIP39 wordlist");
+        layout_warning_static("Word not in wordlist");
+        return;
+      }
+    }
+
     memzero(coded_word, sizeof(coded_word));
     memzero(decoded_word, sizeof(decoded_word));
 
@@ -575,7 +593,7 @@ void recovery_cipher_finalize(void) {
   }
   memzero(temp_word, sizeof(temp_word));
 
-  if (!auto_completed && !enforce_wordlist) {
+  if (!auto_completed && enforce_wordlist) {
     if (!dry_run) {
       storage_reset();
     }

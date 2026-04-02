@@ -46,13 +46,13 @@ bool zx_isZxTransformERC20(const EthereumSignTx* msg) {
 bool zx_confirmZxTransERC20(uint32_t data_total, const EthereumSignTx* msg) {
   (void)data_total;
   const TokenType *in, *out;
-  const uint8_t *inAddress, *outAddress;
+  uint8_t *inAddress, *outAddress;
   char constr1[40], constr2[40];
   bignum256 inAmount, outAmount;
   char inToken[32], outToken[32];
 
-  inAddress = (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 12);
-  outAddress = (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 32 + 12);
+  inAddress = (uint8_t*)(msg->data_initial_chunk.bytes + 4 + 12);
+  outAddress = (uint8_t*)(msg->data_initial_chunk.bytes + 4 + 32 + 12);
   in = tokenByChainAddress(msg->chain_id, inAddress);
   out = tokenByChainAddress(msg->chain_id, outAddress);
 
@@ -68,4 +68,6 @@ bool zx_confirmZxTransERC20(uint32_t data_total, const EthereumSignTx* msg) {
 
   return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                  "Transform ERC20", "Input %s\nOutput %s", constr1, constr2);
+
+  return true;
 }

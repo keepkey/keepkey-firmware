@@ -66,8 +66,8 @@ void hmac_sha1(const uint8_t* key, const uint32_t keylen, const uint8_t* msg,
 
 unsigned generateOTP(char* accountWithMsg, char otpStr[]);
 unsigned addAuthAccount(char* accountWithSeed);
-unsigned getAuthAccount(const char* slotStr, char acc[]);
-unsigned removeAuthAccount(char* domAcc);
+unsigned getAuthAccount(char* slotStr, char acc[]);
+unsigned removeAuthAccount(char* account);
 void wipeAuthData(void);
 #if DEBUG_LINK
 void getAuthSlot(char* authSlotData);

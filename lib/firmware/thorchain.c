@@ -96,9 +96,9 @@ bool thorchain_signTxInit(const HDNode* _node, const ThorchainSignTx* _msg) {
 
 bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
                                    const char* to_address) {
-  const char mainnetp[] = "thor";
-  const char testnetp[] = "tthor";
-  const char* pfix;
+  char mainnetp[] = "thor";
+  char testnetp[] = "tthor";
+  char* pfix;
   char buffer[64 + 1];
 
   size_t decoded_len;

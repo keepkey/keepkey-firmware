@@ -49,7 +49,7 @@ static RunnableQueue active_queue = {NULL, 0};
  * OUTPUT
  *     head node in the queue
  */
-static RunnableNode* runnable_queue_peek(const RunnableQueue* queue) {
+static RunnableNode* runnable_queue_peek(RunnableQueue* queue) {
   return (queue->head);
 }
 

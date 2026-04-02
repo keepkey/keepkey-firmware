@@ -281,7 +281,7 @@ void storage_writeHDNode(char* ptr, size_t len, const HDNodeType* node) {
 
 void storage_deriveWrappingKey(const char* pin, uint8_t wrapping_key[64],
                                bool sca_hardened, bool v15_16_trans,
-                               const uint8_t random_salt[RANDOM_SALT_LEN],
+                               uint8_t random_salt[RANDOM_SALT_LEN],
                                const char* message) {
   size_t pin_len = strlen(pin);
   if (sca_hardened && pin_len > 0) {
@@ -396,7 +396,7 @@ pintest_t storage_isPinCorrect_impl(const char* pin, uint8_t wrapped_key[64],
   if (memcmp_s(fp, fingerprint, 32) == 0) ret = PIN_GOOD;
 
   if (ret == PIN_GOOD) {
-    if (!*sca_hardened || !*v15_16_trans) {
+    if (!*sca_hardened || (*sca_hardened && !*v15_16_trans)) {
       // PIN is correct but:
       //   1. wrapping key needs to be regenerated using stretched key
       //   2. storage key needs a rewrap with new wrapping key and algorithm
@@ -566,7 +566,7 @@ void storage_deriveAuthdataKey(const char* passphrase,
   return;
 }
 
-static void storage_cipherBlock(bool encrypt, const uint8_t* key,
+static void storage_cipherBlock(bool encrypt, uint8_t* key,
                                 uint8_t* plaintextBlock,
                                 uint8_t* ciphertextBlock, size_t blockSize) {
   uint8_t iv[64];
@@ -678,8 +678,9 @@ bool storage_getAuthData(authType* returnData) {
   return true;
 }
 
-void storage_setAuthData(const authType* setData) {
+void storage_setAuthData(authType* setData) {
   authBlockType plaintextAuthBlock = {0};
+  uint8_t authdataKey[64] = {0};
 
   memcpy((void*)&plaintextAuthBlock, (void*)setData,
          sizeof(plaintextAuthBlock.authData));
@@ -694,7 +695,6 @@ void storage_setAuthData(const authType* setData) {
   // encrypt if passphrase available
   if (shadow_config.storage.pub.passphrase_protection &&
       session.passphraseCached && 0 != strlen(session.passphrase)) {
-    uint8_t authdataKey[64] = {0};
     storage_deriveAuthdataKey(session.passphrase, authdataKey);
     storage_cipherBlock(true /*encrypt*/, authdataKey,
                         (uint8_t*)&plaintextAuthBlock,
@@ -802,7 +802,6 @@ void storage_writeStorageV11(char* ptr, size_t len, const Storage* storage) {
                    (storage_isPolicyEnabled("AdvancedMode") ? (1u << 12) : 0) |
                    (storage->pub.no_backup ? (1u << 13) : 0) |
                    (storage->has_sec_fingerprint ? (1u << 14) : 0) |
-                   // cppcheck-suppress badBitmaskCheck
                    (storage->pub.sca_hardened ? (1u << 15) : 0) |
                    /* reserved 31:16 */ 0;
   write_u32_le(ptr + 4, flags);
@@ -921,7 +920,6 @@ void storage_writeStorageV16Plaintext(char* ptr, size_t len,
                    (storage->has_sec_fingerprint ? (1u << 14) : 0) |
                    (storage->pub.sca_hardened ? (1u << 15) : 0) |
                    (storage->pub.has_wipe_code ? (1u << 16) : 0) |
-                   // cppcheck-suppress badBitmaskCheck
                    (storage->pub.v15_16_trans ? (1u << 17) : 0) |
                    /* reserved 31:18 */ 0;
   write_u32_le(ptr + 4, flags);
@@ -1275,9 +1273,9 @@ static void storage_setRootSeedCache(const SessionState* ss, ConfigFlash* cfg,
 /// \param curve[in] ECDSA curve name being used.
 /// \param seed[out] The root seed value.
 /// \returns true on success.
-static bool storage_getRootSeedCache(const SessionState* ss,
-                                     const ConfigFlash* cfg, const char* curve,
-                                     bool usePassphrase, uint8_t* seed) {
+static bool storage_getRootSeedCache(const SessionState* ss, ConfigFlash* cfg,
+                                     const char* curve, bool usePassphrase,
+                                     uint8_t* seed) {
   if (!cfg->storage.has_sec) return false;
 
   if (cfg->storage.sec.cache.root_seed_cache_status != CACHE_EXISTS)
@@ -1934,7 +1932,6 @@ bool storage_getRootNode(const char* curve, bool usePassphrase, HDNode* node) {
          * sessionSeed/sessionSeedCached variables */
         storage_getSeed(&shadow_config, usePassphrase);
 
-        // cppcheck-suppress identicalInnerCondition
         if (!session.seedCached) {
           return false;
         }

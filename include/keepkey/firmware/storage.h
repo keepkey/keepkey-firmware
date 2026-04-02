@@ -124,10 +124,10 @@ bool session_isPassphraseCached(void);
 
 /// \brief Set config mnemonic in shadow memory from words.
 void storage_setMnemonicFromWords(const char (*words)[12],
-                                  unsigned int word_count);
+                                  unsigned int num_words);
 
 /// \brief Set config mnemonic from a recovery sentence.
-void storage_setMnemonic(const char* m);
+void storage_setMnemonic(const char* mnemonic);
 
 /// \brief Get mnemonic from shadow memory
 const char* storage_getShadowMnemonic(void);
@@ -152,7 +152,7 @@ bool storage_setPolicy(const char* policy_name, bool enabled);
 
 /// \brief Copy out all the policies in storage
 /// \param policies[out]  Where to write the policies.
-void storage_getPolicies(PolicyType* policy_data);
+void storage_getPolicies(PolicyType* policies);
 
 /// \brief Status of policy in storage
 bool storage_isPolicyEnabled(const char* policy_name);
@@ -161,7 +161,7 @@ uint32_t storage_getAutoLockDelayMs(void);
 void storage_setAutoLockDelayMs(uint32_t auto_lock_delay_ms);
 
 bool storage_getAuthData(authType* returnData);
-void storage_setAuthData(const authType* setData);
+void storage_setAuthData(authType* setData);
 void storage_wipeAuthData(void);
 
 #ifdef DEBUG_LINK

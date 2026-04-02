@@ -101,7 +101,7 @@ const pb_field_t* message_fields(MessageMapType type, MessageType msg_id,
  * OUTPUT
  *     true/false whether protocol buffers were parsed successfully
  */
-static bool pb_parse(const MessagesMap_t* entry, const uint8_t* msg,
+static bool pb_parse(const MessagesMap_t* entry, uint8_t* msg,
                      uint32_t msg_size, uint8_t* buf) {
   pb_istream_t stream = pb_istream_from_buffer(msg, msg_size);
   return pb_decode(&stream, entry->fields, buf);
@@ -119,7 +119,7 @@ static bool pb_parse(const MessagesMap_t* entry, const uint8_t* msg,
  *     none
  *
  */
-static void dispatch(const MessagesMap_t* entry, const uint8_t* msg,
+static void dispatch(const MessagesMap_t* entry, uint8_t* msg,
                      uint32_t msg_size) {
   static uint8_t decode_buffer[MAX_DECODE_SIZE] __attribute__((aligned(4)));
   memset(decode_buffer, 0, sizeof(decode_buffer));

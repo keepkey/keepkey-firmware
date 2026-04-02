@@ -43,7 +43,7 @@ bool zx_confirmApproveLiquidity(uint32_t data_total,
   uint8_t tokdigest[SHA3_256_DIGEST_LENGTH] = {0};
   char digestStr[2 * SHA3_256_DIGEST_LENGTH + 1], amtStr[2 * 32 + 1] = {0};
   int32_t ctr, tokctr;
-  uint32_t wethord;
+  uint32_t wethord, ttokenord;
   const TokenType *WETH, *ttoken;
 
   if (!tokenByTicker(msg->chain_id, "WETH", &WETH)) return false;
@@ -54,7 +54,7 @@ bool zx_confirmApproveLiquidity(uint32_t data_total,
     ttoken = tokenIter(&tokctr);
 
     // https://uniswap.org/docs/v2/smart-contract-integration/getting-pair-addresses/
-    uint32_t ttokenord = read_be((const uint8_t*)ttoken->address);
+    ttokenord = read_be((const uint8_t*)ttoken->address);
     if (ttokenord < wethord) {
       memcpy(data, ttoken->address, 20);
       memcpy(&data[20], WETH->address, 20);
@@ -97,7 +97,7 @@ bool zx_confirmApproveLiquidity(uint32_t data_total,
     amt = amtStr;
   }
 
-  const char* appStr = "uniswap approve liquidity";
+  char* appStr = "uniswap approve liquidity";
   confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr, "Amount: %s",
           amt);
   confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr,
