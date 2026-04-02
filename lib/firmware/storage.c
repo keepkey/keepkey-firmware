@@ -1275,9 +1275,9 @@ static void storage_setRootSeedCache(const SessionState* ss, ConfigFlash* cfg,
 /// \param curve[in] ECDSA curve name being used.
 /// \param seed[out] The root seed value.
 /// \returns true on success.
-static bool storage_getRootSeedCache(const SessionState* ss, const ConfigFlash* cfg,
-                                     const char* curve, bool usePassphrase,
-                                     uint8_t* seed) {
+static bool storage_getRootSeedCache(const SessionState* ss,
+                                     const ConfigFlash* cfg, const char* curve,
+                                     bool usePassphrase, uint8_t* seed) {
   if (!cfg->storage.has_sec) return false;
 
   if (cfg->storage.sec.cache.root_seed_cache_status != CACHE_EXISTS)
