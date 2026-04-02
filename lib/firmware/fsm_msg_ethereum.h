@@ -194,7 +194,7 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress* msg) {
 #define MSG_MAX (38 * 3)  // 38 chars per line, three lines max
 void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
   char msgBuf[MSG_MAX + 1] = {0};
-  const char* typeIndicator;
+  char* typeIndicator;
   unsigned ctr;
   unsigned msgLen = 0;
   bool canPrint = true;
@@ -219,7 +219,6 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
   if (canPrint) {
     typeIndicator = "Sign Message";
     strncpy(msgBuf, (char*)msg->message.bytes, MSG_MAX + 1);
-    msgBuf[MSG_MAX] = '\0';
   } else {
     typeIndicator = "Sign Bytes";
     for (ctr = 0; ctr < msgLen / 2; ctr++) {
@@ -245,7 +244,7 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
 
 void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage* msg) {
   char msgBuf[MSG_MAX + 1] = {0};
-  const char* typeIndicator;
+  char* typeIndicator;
   unsigned ctr;
   unsigned msgLen = 0;
   bool canPrint = true;
@@ -280,7 +279,6 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage* msg) {
   if (canPrint) {
     typeIndicator = "Message Verified";
     strncpy(msgBuf, (char*)msg->message.bytes, MSG_MAX + 1);
-    msgBuf[MSG_MAX] = '\0';
   } else {
     typeIndicator = "Bytes Verified";
     for (ctr = 0; ctr < msgLen / 2; ctr++) {

@@ -143,7 +143,7 @@ void ripple_serializeVarint(bool* ok, uint8_t** buf, const uint8_t* end,
 
   if (val <= 12480) {
     val -= 193;
-    append_u8(ok, buf, end, 193 + ((unsigned)val >> 8));
+    append_u8(ok, buf, end, 193 + (val >> 8));
     append_u8(ok, buf, end, val & 0xff);
     return;
   }
@@ -151,8 +151,8 @@ void ripple_serializeVarint(bool* ok, uint8_t** buf, const uint8_t* end,
   if (val < 918744) {
     assert(*buf + 3 < end && "buffer not long enough");
     val -= 12481;
-    append_u8(ok, buf, end, 241 + ((unsigned)val >> 16));
-    append_u8(ok, buf, end, ((unsigned)val >> 8) & 0xff);
+    append_u8(ok, buf, end, 241 + (val >> 16));
+    append_u8(ok, buf, end, (val >> 8) & 0xff);
     append_u8(ok, buf, end, val & 0xff);
     return;
   }

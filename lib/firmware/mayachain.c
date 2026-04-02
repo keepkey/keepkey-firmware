@@ -96,9 +96,9 @@ bool mayachain_signTxInit(const HDNode* _node, const MayachainSignTx* _msg) {
 
 bool mayachain_signTxUpdateMsgSend(const uint64_t amount,
                                    const char* to_address, const char* denom) {
-  const char mainnetp[] = "maya";
-  const char testnetp[] = "smaya";
-  const char* pfix;
+  char mainnetp[] = "maya";
+  char testnetp[] = "smaya";
+  char* pfix;
   char buffer[64 + 1];
 
   size_t decoded_len;

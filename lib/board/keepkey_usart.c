@@ -68,7 +68,6 @@ static bool put_console_char(int8_t c) {
  * OUTPUT
  *     true/false update status
  */
-// cppcheck-suppress constParameterPointer
 static bool get_console_input(char* read_char) {
 #ifndef EMULATOR
   int timeout_cnt = 100; /* allow 100msec for USART busy timeout*/
@@ -100,7 +99,7 @@ static bool get_console_input(char* read_char) {
  * OUTPUT
  *     none
  */
-static void display_debug_string(const char* str) {
+static void display_debug_string(char* str) {
   do {
     put_console_char(*str);
   } while (*(str++));
