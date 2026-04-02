@@ -36,7 +36,7 @@ typedef struct _CoinType CoinType;
 void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
                            bool needs_confirm);
 void ethereum_signing_abort(void);
-void ethereum_signing_txack(EthereumTxAck* tx);
+void ethereum_signing_txack(EthereumTxAck* msg);
 void format_ethereum_address(const uint8_t* to, char* destination_str,
                              uint32_t destination_str_len);
 bool ethereum_isStandardERC20Transfer(const EthereumSignTx* msg);
@@ -63,7 +63,7 @@ void ethereum_message_sign(const EthereumSignMessage* msg, const HDNode* node,
 int ethereum_message_verify(const EthereumVerifyMessage* msg);
 
 void ethereumFormatAmount(const bignum256* amnt, const TokenType* token,
-                          uint32_t cid, char* buf, int buflen);
+                          uint32_t chain_id, char* buf, int buflen);
 
 void bn_from_bytes(const uint8_t* value, size_t value_len, bignum256* val);
 

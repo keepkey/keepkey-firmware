@@ -92,7 +92,7 @@ static inline void __attribute__((noreturn)) jump_to_firmware(int trust) {
   trust = SIG_OK;
 
 #ifdef TEST_UNSIGNED
-  trust = SIG_FAIL;  // cppcheck-suppress redundantAssignment
+  trust = SIG_FAIL;
 #endif
 
 #endif
@@ -103,7 +103,6 @@ static inline void __attribute__((noreturn)) jump_to_firmware(int trust) {
     const vector_table_t *new_vtable =
         (const vector_table_t *)(FLASH_APP_START);
 
-    // cppcheck-suppress duplicateBranch
     if (new_vtable->irq[NVIC_ETH_IRQ] != new_vtable->irq[NVIC_ETH_WKUP_IRQ]) {
       // If these vectors are not equal, the blupdater is in the firmware
       // space. Let it use its own vector table. msp will be used in
@@ -204,7 +203,6 @@ static bool isFirmwareUpdateMode(void) {
   if (keepkey_button_down()) return true;
 
   // Firmware isn't there?
-  // cppcheck-suppress knownConditionTrueFalse
   if (!magic_ok()) return true;
 
   // Check if the firmware wants us to boot into firmware update mode.
@@ -218,7 +216,7 @@ static bool isFirmwareUpdateMode(void) {
 
 bool magic_ok(void) {
 #ifndef DEBUG_ON
-  const app_meta_td *app_meta = (const app_meta_td *)FLASH_META_MAGIC;
+  app_meta_td *app_meta = (app_meta_td *)FLASH_META_MAGIC;
 
   return memcmp((void *)&app_meta->magic, META_MAGIC_STR, META_MAGIC_SIZE) == 0;
 #else
@@ -248,7 +246,6 @@ const VariantInfo *variant_getInfo(void) {
 
 /// Runs through application firmware checking, and then boots.
 static void boot(void) {
-  // cppcheck-suppress knownConditionTrueFalse
   if (!magic_ok()) {
     layout_simple_message("Please visit keepkey.com/get-started");
     return;

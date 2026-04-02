@@ -223,9 +223,9 @@ bool is_mfg_mode(void) {
  */
 bool set_mfg_mode_off(void) {
   bool ret_val = false;
+  uint32_t tvar;
 
 #ifndef EMULATOR
-  uint32_t tvar;
   /* check OTP lock state before updating */
   if (*(uint8_t*)OTP_BLK_LOCK(OTP_MFG_ADDR) == 0xFF) {
     tvar = OTP_MFG_SIG; /* set manufactur'ed signature */
@@ -298,7 +298,6 @@ const char* flash_programModel(void) {
 #define MODEL_ENTRY_KK(STRING, ENUM) \
   static const char model[MODEL_STR_SIZE] = (STRING);
 #include "keepkey/board/models.def"
-      // cppcheck-suppress knownConditionTrueFalse
       if (!is_mfg_mode()) (void)flash_setModel(&model);
       return model;
     }
@@ -306,7 +305,6 @@ const char* flash_programModel(void) {
 #define MODEL_ENTRY_SALT(STRING, ENUM) \
   static const char model[MODEL_STR_SIZE] = (STRING);
 #include "keepkey/board/models.def"
-      // cppcheck-suppress knownConditionTrueFalse
       if (!is_mfg_mode()) (void)flash_setModel(&model);
       return model;
     }

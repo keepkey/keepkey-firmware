@@ -60,6 +60,6 @@ const VariantInfo* variant_getInfo(void) __attribute__((weak));
 const VariantAnimation* variant_getScreensaver(void);
 
 /// Get the HomeScreen.
-const VariantAnimation* variant_getLogo(bool reversed);
+const VariantAnimation* variant_getLogo(bool reverse);
 
 #endif
