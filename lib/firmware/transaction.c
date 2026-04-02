@@ -119,12 +119,12 @@ bool compute_address(const CoinType* coin, InputScriptType script_type,
                      char address[MAX_ADDR_SIZE]) {
   uint8_t raw[MAX_ADDR_RAW_SIZE];
   uint8_t digest[32];
+  size_t prelen;
 
   const curve_info* curve = get_curve_by_name(coin->curve_name);
   if (!curve) return 0;
 
   if (has_multisig) {
-    size_t prelen;
     if (cryptoMultisigPubkeyIndex(coin, multisig, node->public_key) < 0) {
       return 0;
     }
@@ -630,7 +630,7 @@ uint32_t tx_serialize_script(uint32_t size, const uint8_t* data, uint8_t* out) {
   return r + size;
 }
 
-uint32_t tx_serialize_header(const TxStruct* tx, uint8_t* out) {
+uint32_t tx_serialize_header(TxStruct* tx, uint8_t* out) {
   int r = 4;
   if (tx->overwintered) {
     uint32_t ver = tx->version | TX_OVERWINTERED;
@@ -774,7 +774,7 @@ uint32_t tx_serialize_decred_witness_hash(TxStruct* tx,
   return r;
 }
 
-uint32_t tx_serialize_middle(const TxStruct* tx, uint8_t* out) {
+uint32_t tx_serialize_middle(TxStruct* tx, uint8_t* out) {
   return ser_length(tx->outputs_len, out);
 }
 
@@ -782,7 +782,7 @@ uint32_t tx_serialize_middle_hash(TxStruct* tx) {
   return ser_length_hash(&(tx->hasher), tx->outputs_len);
 }
 
-uint32_t tx_serialize_footer(const TxStruct* tx, uint8_t* out) {
+uint32_t tx_serialize_footer(TxStruct* tx, uint8_t* out) {
   memcpy(out, &(tx->lock_time), 4);
   if (tx->overwintered) {
     if (tx->version == 3) {

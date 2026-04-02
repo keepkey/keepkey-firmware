@@ -797,7 +797,7 @@ static bool signing_validate_input(const TxInputType* txinput) {
   return true;
 }
 
-static bool signing_validate_output(const TxOutputType* txoutput) {
+static bool signing_validate_output(TxOutputType* txoutput) {
   if (txoutput->has_multisig && !is_multisig_output_script_type(txoutput)) {
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                     _("Multisig field provided but not expected."));
@@ -858,7 +858,7 @@ static bool signing_validate_output(const TxOutputType* txoutput) {
   return true;
 }
 
-static bool signing_validate_bin_output(const TxOutputBinType* tx_bin_output) {
+static bool signing_validate_bin_output(TxOutputBinType* tx_bin_output) {
   if (!coin->decred && tx_bin_output->has_decred_script_version) {
     fsm_sendFailure(
         FailureType_Failure_UnexpectedMessage,
@@ -1249,6 +1249,7 @@ static bool signing_sign_input(void) {
 
 static bool signing_sign_segwit_input(TxInputType* txinput) {
   // idx1: index to sign
+  uint8_t hash[32];
 
   if (is_segwit_input_script_type(txinput)) {
     if (!compile_input_script_sig(txinput)) {
@@ -1264,7 +1265,6 @@ static bool signing_sign_segwit_input(TxInputType* txinput) {
     }
     authorized_bip143_in -= txinput->amount;
 
-    uint8_t hash[32];
     signing_hash_bip143(txinput, hash);
 
     resp.has_serialized = true;

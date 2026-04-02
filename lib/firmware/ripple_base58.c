@@ -60,6 +60,8 @@ bool ripple_b58tobin(void* bin, size_t* binszp, const char* b58) {
   size_t outisz =
       (binsz + sizeof(b58_almostmaxint_t) - 1) / sizeof(b58_almostmaxint_t);
   b58_almostmaxint_t outi[outisz];
+  b58_maxint_t t = 0;
+  b58_almostmaxint_t c = 0;
   size_t i = 0, j = 0;
   uint8_t bytesleft = binsz % sizeof(b58_almostmaxint_t);
   b58_almostmaxint_t zeromask =
@@ -80,9 +82,9 @@ bool ripple_b58tobin(void* bin, size_t* binszp, const char* b58) {
     if (ripple_b58digits_map[b58u[i]] == -1)
       // Invalid base58 digit
       return false;
-    b58_almostmaxint_t c = (unsigned)ripple_b58digits_map[b58u[i]];
+    c = (unsigned)ripple_b58digits_map[b58u[i]];
     for (j = outisz; j--;) {
-      b58_maxint_t t = ((b58_maxint_t)outi[j]) * 58 + c;
+      t = ((b58_maxint_t)outi[j]) * 58 + c;
       c = t >> b58_almostmaxint_bits;
       outi[j] = t & b58_almostmaxint_mask;
     }
@@ -146,6 +148,7 @@ int ripple_b58check(const void* bin, size_t binsz, HasherType hasher_type,
 
 bool ripple_b58enc(char* b58, size_t* b58sz, const void* data, size_t binsz) {
   const uint8_t* bin = data;
+  int carry = 0;
   size_t i = 0, j = 0, high = 0, zcount = 0;
   size_t size = 0;
 
@@ -156,7 +159,6 @@ bool ripple_b58enc(char* b58, size_t* b58sz, const void* data, size_t binsz) {
   memzero(buf, size);
 
   for (i = zcount, high = size - 1; i < binsz; ++i, high = j) {
-    int carry;
     for (carry = bin[i], j = size - 1; (j > high) || carry; --j) {
       carry += 256 * buf[j];
       buf[j] = carry % 58;
@@ -211,7 +213,7 @@ int ripple_decode_check(const char* str, HasherType hasher_type, uint8_t* data,
   if (ripple_b58tobin(d, &res, str) != true) {
     return 0;
   }
-  const uint8_t* nd = d + datalen + 4 - res;
+  uint8_t* nd = d + datalen + 4 - res;
   if (ripple_b58check(nd, res, hasher_type, str) < 0) {
     return 0;
   }

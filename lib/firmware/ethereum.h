@@ -27,7 +27,7 @@
 
 void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node);
 void ethereum_signing_abort(void);
-void ethereum_signing_txack(EthereumTxAck* tx);
+void ethereum_signing_txack(EthereumTxAck* msg);
 
 void ethereum_message_sign(EthereumSignMessage* msg, const HDNode* node,
                            EthereumMessageSignature* resp);

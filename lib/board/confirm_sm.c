@@ -171,7 +171,7 @@ static bool confirm_helper(const char* request_title_param,
   request_title = request_title_param;
 
 #if DEBUG_LINK
-  const DebugLinkDecision* dld;
+  DebugLinkDecision* dld;
   bool debug_decided = false;
 #endif
 
@@ -338,7 +338,7 @@ bool confirm_constant_power(ButtonRequestType type, const char* request_title,
   return ret;
 }
 
-bool confirm_with_custom_button_request(const ButtonRequest* button_request,
+bool confirm_with_custom_button_request(ButtonRequest* button_request,
                                         const char* request_title,
                                         const char* request_body, ...) {
   button_request_acked = false;

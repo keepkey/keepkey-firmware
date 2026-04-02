@@ -69,7 +69,7 @@ uint32_t fi_defense_delay(volatile uint32_t value);
 
 void delay_ms_with_callback(uint32_t ms, callback_func_t callback_func,
                             uint32_t frequency_ms);
-void post_delayed(Runnable runnable, void* context, uint32_t delay_ms);
+void post_delayed(Runnable runnable, void* context, uint32_t ms_delay);
 void post_periodic(Runnable runnable, void* context, uint32_t period_ms,
                    uint32_t delay_ms);
 void remove_runnable(Runnable runnable);
