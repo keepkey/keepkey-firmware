@@ -161,8 +161,7 @@ void storage_resetUuid_impl(ConfigFlash* cfg);
 
 void storage_reset_impl(SessionState* ss, ConfigFlash* cfg);
 
-void storage_setPin_impl(SessionState* ss, Storage* storage,
-                         const char* pin);
+void storage_setPin_impl(SessionState* ss, Storage* storage, const char* pin);
 
 bool storage_hasPin_impl(const Storage* storage);
 
@@ -210,8 +209,8 @@ void storage_writeV16(char* flash, size_t len, const ConfigFlash* src);
 void storage_readMeta(Metadata* meta, const char* ptr, size_t len);
 void storage_readPolicyV1(PolicyType* policy, const char* ptr, size_t len);
 void storage_readHDNode(HDNodeType* node, const char* ptr, size_t len);
-void storage_readStorageV1(SessionState* ss, Storage* storage,
-                           const char* ptr, size_t len);
+void storage_readStorageV1(SessionState* ss, Storage* storage, const char* ptr,
+                           size_t len);
 void storage_readStorageV11(Storage* storage, const char* ptr, size_t len);
 void storage_readCacheV1(Cache* cache, const char* ptr, size_t len);
 

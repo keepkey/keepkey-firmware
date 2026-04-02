@@ -42,8 +42,8 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
 
   char confStr[41], *conf;
   const TokenType* assetToken;
-  uint8_t *thorchainData;
-  const uint8_t *contractAssetAddress;
+  uint8_t* thorchainData;
+  const uint8_t* contractAssetAddress;
   const uint8_t *vaultAddress, *assetAddress;
   uint32_t ctr;
   bignum256 Amount;

@@ -549,10 +549,9 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
   } else if (msg->has_swap) {
     /** Confirm required transaction parameters exist */
-    if (!msg->swap.has_sender ||
-        !msg->swap.has_pool_id || !msg->swap.has_token_out_denom ||
-        !msg->swap.has_token_in_denom || !msg->swap.has_token_in_amount ||
-        !msg->swap.has_token_out_min_amount) {
+    if (!msg->swap.has_sender || !msg->swap.has_pool_id ||
+        !msg->swap.has_token_out_denom || !msg->swap.has_token_in_denom ||
+        !msg->swap.has_token_in_amount || !msg->swap.has_token_out_min_amount) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));

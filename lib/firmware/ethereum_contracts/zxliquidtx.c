@@ -93,7 +93,8 @@ static bool confirmFromAccountMatch(const EthereumSignTx* msg,
     memzero(node, sizeof(*node));
   }
 
-  fromAddress = (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 5 * 32 - 20);
+  fromAddress =
+      (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 5 * 32 - 20);
 
   if (memcmp(fromAddress, addressBytes, 20) == 0) {
     fromSrc = "self";
@@ -142,7 +143,8 @@ bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg) {
 
   tokenAddress = (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 32 - 20);
   token = tokenByChainAddress(msg->chain_id, tokenAddress);
-  deadlineBytes = (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 6 * 32 - 8);
+  deadlineBytes =
+      (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 6 * 32 - 8);
   deadline = ((uint64_t)deadlineBytes[0] << 8 * 7) |
              ((uint64_t)deadlineBytes[1] << 8 * 6) |
              ((uint64_t)deadlineBytes[2] << 8 * 5) |

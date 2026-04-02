@@ -403,7 +403,7 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
               const json_t* nextVal, struct SHA3_CTX* msgCtx) {
   json_t const *tarray, *pairs, *walkVals, *obTest;
   int ctr;
-  const char *typeType = NULL;
+  const char* typeType = NULL;
   uint8_t encBytes[32] = {0};  // holds the encrypted bytes for the message
   const char* valStr = NULL;
   struct SHA3_CTX valCtx = {0};  // local hash context

@@ -109,7 +109,8 @@ bool draw_char_with_shift(Canvas* canvas, DrawableParams* p, uint16_t* x_shift,
  *     none
  */
 void draw_string(Canvas* canvas, const Font* font, const char* str_write,
-                 const DrawableParams* p, uint16_t width, uint16_t line_height) {
+                 const DrawableParams* p, uint16_t width,
+                 uint16_t line_height) {
   uint16_t sepPixels =
       0;  // font char separation pixels for large font (pin font)
 
