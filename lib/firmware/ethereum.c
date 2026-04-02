@@ -460,7 +460,7 @@ static void layoutEthereumData(const uint8_t* data, uint32_t len,
     *p-- = '0' + number % 10;
     number = number / 10;
   }
-  const char* summarystart = summary;
+  char* summarystart = summary;
   if (total_len == printed) summarystart = summary + 4;
 
   if ((uint32_t)snprintf(out_str, out_str_len, "%s%s\n%s%s", hexdata[0],
@@ -560,7 +560,7 @@ static void layoutEthereumFee(const EthereumSignTx* msg, bool is_token,
  * - data (0 ..)
  */
 
-static bool ethereum_signing_check(const EthereumSignTx* msg) {
+static bool ethereum_signing_check(EthereumSignTx* msg) {
   if (!msg->has_gas_limit) {
     return false;
   }
@@ -1134,9 +1134,9 @@ void e712_types_values(Ethereum712TypesValues* msg,
   char* typesJsonStr;
   char* primaryTypeJsonStr;
   char* valuesJsonStr;
+  const char* primeType;
   json_t const* obTest;
   static uint8_t domainSeparatorHash[32] = {0};
-  // cppcheck-suppress variableScope
   static uint8_t messageHash[32] = {0};
   static bool have_ds = false;
 
@@ -1189,7 +1189,6 @@ void e712_types_values(Ethereum712TypesValues* msg,
       failMessage(JSON_PTYPENAMEERR);
       return;
     }
-    const char* primeType;
     if (0 == (primeType = json_getValue(obTest))) {
       failMessage(JSON_PTYPEVALERR);
       return;

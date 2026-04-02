@@ -97,9 +97,9 @@ bool osmosis_signTxInit(const HDNode* _node, const OsmosisSignTx* _msg) {
 }
 
 bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address) {
-  const char mainnetp[] = "osmo";
-  const char testnetp[] = "tosmo";
-  const char* pfix;
+  char mainnetp[] = "osmo";
+  char testnetp[] = "tosmo";
+  char* pfix;
   char buffer[64 + 1];
 
   size_t decoded_len;
@@ -146,9 +146,9 @@ bool osmosis_signTxUpdateMsgDelegate(const char* amount,
                                      const char* delegator_address,
                                      const char* validator_address,
                                      const char* denom) {
-  const char mainnetp[] = "osmo";
-  const char testnetp[] = "tosmo";
-  const char* pfix;
+  char mainnetp[] = "osmo";
+  char testnetp[] = "tosmo";
+  char* pfix;
 
   char buffer[128] = {0};
   size_t decoded_len;
@@ -207,9 +207,9 @@ bool osmosis_signTxUpdateMsgUndelegate(const char* amount,
                                        const char* delegator_address,
                                        const char* validator_address,
                                        const char* denom) {
-  const char mainnetp[] = "osmo";
-  const char testnetp[] = "tosmo";
-  const char* pfix;
+  char mainnetp[] = "osmo";
+  char testnetp[] = "tosmo";
+  char* pfix;
 
   char buffer[128] = {0};
   size_t decoded_len;
@@ -268,9 +268,9 @@ bool osmosis_signTxUpdateMsgRedelegate(const char* amount,
                                        const char* validator_src_address,
                                        const char* validator_dst_address,
                                        const char* denom) {
-  const char mainnetp[] = "osmo";
-  const char testnetp[] = "tosmo";
-  const char* pfix;
+  char mainnetp[] = "osmo";
+  char testnetp[] = "tosmo";
+  char* pfix;
 
   char buffer[128] = {0};
   size_t decoded_len;
@@ -427,9 +427,9 @@ bool osmosis_signTxUpdateMsgLPRemove(const uint64_t pool_id, const char* sender,
 
 bool osmosis_signTxUpdateMsgRewards(const char* delegator_address,
                                     const char* validator_address) {
-  const char mainnetp[] = "osmo";
-  const char testnetp[] = "tosmo";
-  const char* pfix;
+  char mainnetp[] = "osmo";
+  char testnetp[] = "tosmo";
+  char* pfix;
 
   char buffer[128] = {0};
   size_t decoded_len;
@@ -485,9 +485,9 @@ bool osmosis_signTxUpdateMsgIBCTransfer(const char* amount, const char* sender,
                                         const char* revision_number,
                                         const char* revision_height,
                                         const char* denom) {
-  const char mainnetp[] = "osmo";
-  const char testnetp[] = "tosmo";
-  const char* pfix;
+  char mainnetp[] = "osmo";
+  char testnetp[] = "tosmo";
+  char* pfix;
 
   char buffer[128] = {0};
   size_t decoded_len;

@@ -137,10 +137,7 @@ bool keepkey_button_up(void) {
  * OUTPUT
  *     true/false state of push button down
  */
-bool keepkey_button_down(void) {
-  // cppcheck-suppress knownConditionTrueFalse
-  return !keepkey_button_up();
-}
+bool keepkey_button_down(void) { return !keepkey_button_up(); }
 
 void buttonisr_usr(void) {
 #ifndef EMULATOR

@@ -393,11 +393,10 @@ bool confirm_sign_identity(const IdentityType* identity,
 
 bool confirm_omni(ButtonRequestType button_request, const char* title,
                   const uint8_t* data, uint32_t size) {
-  uint32_t tx_type;
+  uint32_t tx_type, currency;
   REVERSE32(*(const uint32_t*)(data + 4), tx_type);
   if (tx_type == 0x00000000 && size == 20) {  // OMNI simple send
     char str_out[32];
-    uint32_t currency;
     REVERSE32(*(const uint32_t*)(data + 8), currency);
     const char* suffix = "UNKN";
     switch (currency) {

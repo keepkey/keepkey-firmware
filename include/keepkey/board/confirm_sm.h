@@ -104,7 +104,7 @@ bool confirm_constant_power(ButtonRequestType type, const char* request_title,
 /// \param request_title   Title of confirm message.
 /// \param request_body    Body of confirm message.
 /// \returns true iff the device confirmed.
-bool confirm_with_custom_button_request(const ButtonRequest* button_request,
+bool confirm_with_custom_button_request(ButtonRequest* button_request,
                                         const char* request_title,
                                         const char* request_body, ...)
     __attribute__((format(printf, 3, 4)));
