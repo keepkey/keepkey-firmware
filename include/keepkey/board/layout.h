@@ -101,7 +101,7 @@ typedef struct {
 } AnimationQueue;
 
 void layout_has_icon(bool tf);
-void layout_init(Canvas* new_canvas);
+void layout_init(Canvas* canvas);
 Canvas* layout_get_canvas(void);
 void call_leaving_handler(void);
 void layout_firmware_update_confirmation(void);
@@ -111,7 +111,7 @@ void layout_constant_power_notification(const char* str1, const char* str2,
                                         NotificationType type);
 void layout_notification_icon(NotificationType type, DrawableParams* sp);
 void layout_add_icon(IconType type);
-void layout_warning(const char* str);
+void layout_warning(const char* prompt);
 void layout_warning_static(const char* str);
 void layout_simple_message(const char* str);
 void layout_version(int32_t major, int32_t minor, int32_t patch);

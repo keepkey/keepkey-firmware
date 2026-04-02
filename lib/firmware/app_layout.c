@@ -55,7 +55,7 @@ static void layout_animate_pin(void* data, uint32_t duration,
   BoxDrawableParams box_params = {{0x00, 0, 0}, 64, 256};
   DrawableParams sp;
   Canvas* canvas = layout_get_canvas();
-  const char* pin = (const char*)data;
+  char* pin = (char*)data;
   const uint8_t color_stepping[] = {PIN_MATRIX_STEP1, PIN_MATRIX_STEP2,
                                     PIN_MATRIX_STEP3, PIN_MATRIX_STEP4,
                                     PIN_MATRIX_FOREGROUND};
@@ -193,10 +193,10 @@ static void layout_animate_cipher(void* data, uint32_t duration,
                                   uint32_t elapsed) {
   (void)duration;
   Canvas* canvas = layout_get_canvas();
-  int row, letter;
-  const char* cipher = (const char*)data;
-  const char alphabet[] = "abcdefghijklmnopqrstuvwxyz";
-  const char* current_letter = alphabet;
+  int row, letter, x_padding, cur_pos_elapsed, adj_pos, adj_x, adj_y, cur_index;
+  char* cipher = (char*)data;
+  char alphabet[] = "abcdefghijklmnopqrstuvwxyz";
+  char* current_letter = alphabet;
 
   DrawableParams sp;
   const Font* title_font = get_title_font();
@@ -209,14 +209,15 @@ static void layout_animate_cipher(void* data, uint32_t duration,
 
   /* Draw grid */
   sp.y = CIPHER_START_Y;
+  sp.x = CIPHER_START_X;
 
   for (row = 0; row < CIPHER_ROWS; row++) {
     for (letter = 0; letter < CIPHER_LETTER_BY_ROW; letter++) {
-      int cur_index = (row * CIPHER_LETTER_BY_ROW) + letter;
-      int cur_pos_elapsed = elapsed - cur_index * CIPHER_ANIMATION_FREQUENCY_MS;
+      cur_index = (row * CIPHER_LETTER_BY_ROW) + letter;
+      cur_pos_elapsed = elapsed - cur_index * CIPHER_ANIMATION_FREQUENCY_MS;
       sp.x =
           CIPHER_START_X + (letter * (CIPHER_GRID_SIZE + CIPHER_GRID_SPACING));
-      int x_padding = 0;
+      x_padding = 0;
 
       /* Draw grid */
       draw_box_simple(canvas, CIPHER_STEP_1, sp.x - 4, sp.y + CIPHER_GRID_SIZE,
@@ -247,10 +248,10 @@ static void layout_animate_cipher(void* data, uint32_t duration,
 
       /* Draw cipher */
       if (cur_pos_elapsed > 0) {
-        int adj_pos = cur_pos_elapsed / CIPHER_ANIMATION_FREQUENCY_MS;
+        adj_pos = cur_pos_elapsed / CIPHER_ANIMATION_FREQUENCY_MS;
 
-        int adj_x = 0;
-        int adj_y = 0;
+        adj_x = 0;
+        adj_y = 0;
 
         if (adj_pos < 5) {
           if (cur_index % 4 == 0) {
@@ -277,6 +278,7 @@ static void layout_animate_cipher(void* data, uint32_t duration,
       cipher++;
     }
 
+    sp.x = CIPHER_START_X;
     sp.y += 31;
   }
 

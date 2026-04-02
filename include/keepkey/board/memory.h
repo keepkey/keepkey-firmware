@@ -290,7 +290,7 @@ bool storage_protect_off(void);
 bool storage_protect_on(void);
 
 /// Wipe if the status is not STORAGE_PROTECT_DISABLED
-void storage_protect_wipe(uint32_t storage_protect_status);
+void storage_protect_wipe(uint32_t status);
 
 /// \returns STORAGE_PROTECT_{ENABLED,DISABLED}
 uint32_t storage_protect_status(void);

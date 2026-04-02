@@ -64,12 +64,12 @@ void usbPoll(void) {
   }
 }
 
-bool usb_tx(const uint8_t* msg, uint32_t len) {
+bool usb_tx(uint8_t* msg, uint32_t len) {
   return emulatorSocketWrite(0, msg, len);
 }
 
 #if DEBUG_LINK
-bool usb_debug_tx(const uint8_t* msg, uint32_t len) {
+bool usb_debug_tx(uint8_t* msg, uint32_t len) {
   return emulatorSocketWrite(1, msg, len);
 }
 #endif

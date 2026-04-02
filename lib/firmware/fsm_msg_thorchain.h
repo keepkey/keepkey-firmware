@@ -12,9 +12,9 @@ void fsm_msgThorchainGetAddress(const ThorchainGetAddress* msg) {
   }
   HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
-  const char mainnet[] = "thor";
-  const char testnet[] = "tthor";
-  const char* pfix;
+  char mainnet[] = "thor";
+  char testnet[] = "tthor";
+  char* pfix;
 
   if (!node) {
     return;

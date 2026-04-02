@@ -85,7 +85,7 @@ uint32_t tx_output_hash(Hasher* hasher, const TxOutputBinType* output,
                         bool decred);
 uint32_t tx_serialize_script(uint32_t size, const uint8_t* data, uint8_t* out);
 
-uint32_t tx_serialize_footer(const TxStruct* tx, uint8_t* out);
+uint32_t tx_serialize_footer(TxStruct* tx, uint8_t* out);
 uint32_t tx_serialize_input(TxStruct* tx, const TxInputType* input,
                             uint8_t* out);
 uint32_t tx_serialize_output(TxStruct* tx, const TxOutputBinType* output,

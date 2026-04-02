@@ -42,15 +42,13 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
 
   char confStr[41], *conf;
   const TokenType* assetToken;
-  uint8_t* thorchainData;
-  const uint8_t* contractAssetAddress;
-  const uint8_t *vaultAddress, *assetAddress;
+  uint8_t *thorchainData, *vaultAddress, *assetAddress, *contractAssetAddress;
   uint32_t ctr;
   bignum256 Amount;
 
-  vaultAddress = (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 12);
+  vaultAddress = (uint8_t*)(msg->data_initial_chunk.bytes + 4 + 12);
   contractAssetAddress =
-      (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 32 + 12);
+      (uint8_t*)(msg->data_initial_chunk.bytes + 4 + 32 + 12);
   bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 2 * 32, 32, &Amount);
   thorchainData = (uint8_t*)(msg->data_initial_chunk.bytes + 4 + 5 * 32);
 
@@ -78,7 +76,7 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
   }
 
   if (memcmp(contractAssetAddress, ETH_ADDRESS, sizeof(ETH_ADDRESS)) == 0) {
-    assetAddress = (const uint8_t*)
+    assetAddress = (uint8_t*)
         ETH_NATIVE;  // get eth native parameters if asset is not a token
   } else {
     assetAddress = contractAssetAddress;

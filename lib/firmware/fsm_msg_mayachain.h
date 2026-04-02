@@ -12,9 +12,9 @@ void fsm_msgMayachainGetAddress(const MayachainGetAddress* msg) {
   }
   HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
-  const char mainnet[] = "maya";
-  const char testnet[] = "smaya";
-  const char* pfix;
+  char mainnet[] = "maya";
+  char testnet[] = "smaya";
+  char* pfix;
 
   if (!node) {
     return;

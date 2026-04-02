@@ -108,7 +108,7 @@ static void layout_remove_animation(AnimateCallback callback) {
  * OUTPUT
  *     node pointed to by head pointer
  */
-static Animation* animation_queue_peek(const AnimationQueue* queue) {
+static Animation* animation_queue_peek(AnimationQueue* queue) {
   return queue->head;
 }
 

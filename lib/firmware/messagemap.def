@@ -73,6 +73,10 @@
     MSG_IN(MessageType_MessageType_MayachainSignTx,                 MayachainSignTx,             fsm_msgMayachainSignTx)
     MSG_IN(MessageType_MessageType_MayachainMsgAck,                 MayachainMsgAck,             fsm_msgMayachainMsgAck)
 
+    MSG_IN(MessageType_MessageType_SolanaGetAddress,                SolanaGetAddress,            fsm_msgSolanaGetAddress)
+    MSG_IN(MessageType_MessageType_SolanaSignTx,                    SolanaSignTx,                fsm_msgSolanaSignTx)
+    MSG_IN(MessageType_MessageType_SolanaSignMessage,               SolanaSignMessage,           fsm_msgSolanaSignMessage)
+
     /* Normal Out Messages */
     MSG_OUT(MessageType_MessageType_Success,                        Success,                     NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_Failure,                        Failure,                     NO_PROCESS_FUNC)
@@ -131,6 +135,10 @@
     MSG_OUT(MessageType_MessageType_MayachainAddress,               MayachainAddress,            NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_MayachainMsgRequest,            MayachainMsgRequest,         NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_MayachainSignedTx,              MayachainSignedTx,           NO_PROCESS_FUNC)
+
+    MSG_OUT(MessageType_MessageType_SolanaAddress,                  SolanaAddress,               NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_SolanaSignedTx,                 SolanaSignedTx,              NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_SolanaMessageSignature,         SolanaMessageSignature,      NO_PROCESS_FUNC)
 
 #if DEBUG_LINK
     /* Debug Messages */

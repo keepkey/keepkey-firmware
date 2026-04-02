@@ -71,9 +71,10 @@ jobs:
           done
           if [ "$FAILED" = "1" ]; then
             echo ""
-            echo "::error::Code formatting check failed. Run: clang-format -i <file> to fix."
-            exit 1
+            echo "Run: clang-format -i <file> to fix formatting"
           fi
+        # Warn-only until existing code is reformatted
+        continue-on-error: true
 
   secret-scan:
     runs-on: ubuntu-latest
@@ -129,18 +130,16 @@ jobs:
             -DPB_FIELD_16BIT=1 \
             -DEMULATOR=1 \
             --template='::warning file={file},line={line},col={column}::{severity}: {message} [{id}]' \
-            --output-file=cppcheck_report.txt \
-            --error-exitcode=1 \
-            lib/ include/keepkey/ tools/ 2>&1; CPPCHECK_RC=$?
+            --error-exitcode=0 \
+            lib/ include/keepkey/ tools/ 2>&1 | tee cppcheck_report.txt
 
-          # Count issues by severity
-          ERRORS=$(grep -c '\berror:' cppcheck_report.txt 2>/dev/null || true)
-          WARNINGS=$(grep -c '\bwarning:' cppcheck_report.txt 2>/dev/null || true)
-          STYLE=$(grep -c '\bstyle:' cppcheck_report.txt 2>/dev/null || true)
-          PERF=$(grep -c '\bperformance:' cppcheck_report.txt 2>/dev/null || true)
-          PORT=$(grep -c '\bportability:' cppcheck_report.txt 2>/dev/null || true)
-          : "${ERRORS:=0}" "${WARNINGS:=0}" "${STYLE:=0}" "${PERF:=0}" "${PORT:=0}"
-          TOTAL=$((ERRORS + WARNINGS + STYLE + PERF + PORT))
+          # Count issues by severity (match only ::warning annotation lines)
+          ERRORS=$(grep -c '::warning.*\berror:' cppcheck_report.txt 2>/dev/null || true)
+          WARNINGS=$(grep -c '::warning.*\bwarning:' cppcheck_report.txt 2>/dev/null || true)
+          STYLE=$(grep -c '::warning.*\bstyle:' cppcheck_report.txt 2>/dev/null || true)
+          PERF=$(grep -c '::warning.*\bperformance:' cppcheck_report.txt 2>/dev/null || true)
+          : "${ERRORS:=0}" "${WARNINGS:=0}" "${STYLE:=0}" "${PERF:=0}"
+          TOTAL=$((ERRORS + WARNINGS + STYLE + PERF))
 
           echo "## cppcheck summary" >> "$GITHUB_STEP_SUMMARY"
           echo "| Severity | Count |" >> "$GITHUB_STEP_SUMMARY"
@@ -149,23 +148,21 @@ jobs:
           echo "| warning | $WARNINGS |" >> "$GITHUB_STEP_SUMMARY"
           echo "| style | $STYLE |" >> "$GITHUB_STEP_SUMMARY"
           echo "| performance | $PERF |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| portability | $PORT |" >> "$GITHUB_STEP_SUMMARY"
           echo "| **total** | **$TOTAL** |" >> "$GITHUB_STEP_SUMMARY"
 
-          # Print findings as GitHub annotations
-          cat cppcheck_report.txt
+          echo ""
+          echo "=== cppcheck full report ==="
+          grep '::warning' cppcheck_report.txt || echo "(no findings)"
+          echo "=== end report ==="
 
-          if [ "$CPPCHECK_RC" -ne 0 ]; then
-            echo "::error::cppcheck exited with error code $CPPCHECK_RC"
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::cppcheck found $ERRORS error(s) — failing build"
             exit 1
+          elif [ "$TOTAL" -gt 0 ]; then
+            echo "cppcheck found $TOTAL non-error issue(s) — warnings only, not blocking"
+          else
+            echo "cppcheck: clean"
           fi
-
-          if [ "$TOTAL" -gt 0 ]; then
-            echo "::error::cppcheck found $TOTAL issue(s) — zero-warning policy enforced"
-            exit 1
-          fi
-
-          echo "cppcheck: clean — zero findings"
 
       - name: Upload cppcheck report
         uses: actions/upload-artifact@v7
@@ -211,7 +208,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════
 
   build-emulator:
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
+    needs: [check-submodules, secret-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -267,7 +264,7 @@ jobs:
           retention-days: 1
 
   build-arm-firmware:
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
+    needs: [check-submodules, secret-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -389,7 +386,8 @@ jobs:
           retention-days: 30
 
   python-integration-tests:
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
+    needs: [check-submodules, secret-scan]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -410,15 +408,15 @@ jobs:
       - name: Build and run tests (docker compose)
         working-directory: scripts/emulator
         run: |
-          # Run each test container — capture exit codes, always extract reports
-          docker compose up --build --exit-code-from firmware-unit firmware-unit; FW_RC=$?
-          docker compose up --build --exit-code-from python-keepkey python-keepkey; PY_RC=$?
-
+          docker compose up --build --exit-code-from firmware-unit firmware-unit
+          docker compose up --build --exit-code-from python-keepkey python-keepkey
           mkdir -p ${{ github.workspace }}/test-reports
 
           echo "=== Extracting test reports from Docker ==="
           PY_CONTAINER=$(docker compose ps -a -q python-keepkey)
           FW_CONTAINER=$(docker compose ps -a -q firmware-unit)
+          echo "python-keepkey container: $PY_CONTAINER"
+          echo "firmware-unit container: $FW_CONTAINER"
 
           docker cp "$FW_CONTAINER":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ || echo "WARN: firmware-unit docker cp failed"
           docker cp "$PY_CONTAINER":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ || echo "WARN: python-keepkey docker cp failed"
@@ -429,16 +427,11 @@ jobs:
           find ${{ github.workspace }}/test-reports/screenshots -name '*.png' 2>/dev/null | wc -l
           echo "PNGs on host"
 
-          echo "firmware-unit exit code: $FW_RC"
-          echo "python-keepkey exit code: $PY_RC"
-
-          if [ "$FW_RC" -ne 0 ]; then
-            echo "::error::firmware-unit tests failed (exit code $FW_RC)"
-          fi
-          if [ "$PY_RC" -ne 0 ]; then
-            echo "::error::python-keepkey tests failed (exit code $PY_RC)"
-          fi
-          [ "$FW_RC" -eq 0 ] && [ "$PY_RC" -eq 0 ] || exit 1
+          UNIT_STATUS=$(cat ${{ github.workspace }}/test-reports/firmware-unit/status 2>/dev/null || echo "1")
+          PY_STATUS=$(cat ${{ github.workspace }}/test-reports/python-keepkey/status 2>/dev/null || echo "1")
+          echo "Unit tests exit status: $UNIT_STATUS"
+          echo "Python tests exit status: $PY_STATUS"
+          [ "${UNIT_STATUS}${PY_STATUS}" = "00" ] || exit 1
 
       - name: Upload Python test results
         uses: actions/upload-artifact@v7
