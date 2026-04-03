@@ -34,6 +34,8 @@ set(sources
     signing.c
     signtx_tendermint.c
     storage.c
+    tron.c
+    ton.c
     tendermint.c
     thorchain.c
     tiny-json.c
