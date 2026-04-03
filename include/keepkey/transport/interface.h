@@ -37,6 +37,7 @@
 #include "messages-mayachain.pb.h"
 #include "messages-tron.pb.h"
 #include "messages-ton.pb.h"
+#include "messages-solana.pb.h"
 
 #include "types.pb.h"
 #include "trezor_transport.h"
