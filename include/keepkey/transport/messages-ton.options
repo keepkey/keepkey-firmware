@@ -8,5 +8,6 @@ TonSignTx.address_n max_count:8
 TonSignTx.coin_name max_size:21
 TonSignTx.raw_tx max_size:1024
 TonSignTx.to_address max_size:50
+TonSignTx.memo max_size:121
 
 TonSignedTx.signature max_size:64
