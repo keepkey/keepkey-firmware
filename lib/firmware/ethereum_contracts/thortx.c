@@ -27,11 +27,22 @@
 #include "keepkey/firmware/thorchain.h"
 #include "trezor/crypto/address.h"
 
+bool thor_has_deposit_selector(const EthereumSignTx* msg) {
+  if (msg->data_initial_chunk.size < 4) return false;
+  return (memcmp(msg->data_initial_chunk.bytes, THOR_SELECTOR_DEPOSIT, 4) ==
+              0 ||
+          memcmp(msg->data_initial_chunk.bytes,
+                 THOR_SELECTOR_DEPOSIT_WITH_EXPIRY, 4) == 0);
+}
+
+bool thor_is_expiry_variant(const EthereumSignTx* msg) {
+  if (msg->data_initial_chunk.size < 4) return false;
+  return memcmp(msg->data_initial_chunk.bytes,
+                THOR_SELECTOR_DEPOSIT_WITH_EXPIRY, 4) == 0;
+}
+
 bool thor_isThorchainTx(const EthereumSignTx* msg) {
-  if (msg->has_to && msg->to.size == 20 &&
-      memcmp(msg->data_initial_chunk.bytes,
-             "\x1f\xec\xe7\xb4\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
-             16) == 0) {
+  if (msg->has_to && msg->to.size == 20 && thor_has_deposit_selector(msg)) {
     return true;
   }
   return false;
@@ -39,6 +50,13 @@ bool thor_isThorchainTx(const EthereumSignTx* msg) {
 
 bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
   (void)data_total;
+
+  /* Minimum calldata: selector(4) + vault(32) + asset(32) + amount(32) +
+   * memo_offset(32) + memo_length(32) = 164 bytes for deposit(),
+   * + expiry(32) = 196 bytes for depositWithExpiry(). */
+  const bool is_expiry = thor_is_expiry_variant(msg);
+  const size_t min_chunk = is_expiry ? 260 : 228;
+  if (msg->data_initial_chunk.size < min_chunk) return false;
 
   char confStr[41], *conf;
   const TokenType* assetToken;
@@ -52,7 +70,9 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
   contractAssetAddress =
       (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 32 + 12);
   bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 2 * 32, 32, &Amount);
-  thorchainData = (uint8_t*)(msg->data_initial_chunk.bytes + 4 + 5 * 32);
+  /* deposit(): memo at 4 + 5*32; depositWithExpiry(): memo at 4 + 6*32 */
+  thorchainData =
+      (uint8_t*)(msg->data_initial_chunk.bytes + 4 + (is_expiry ? 6 : 5) * 32);
 
   // Start confirmations
   for (ctr = 0; ctr < 20; ctr++) {
