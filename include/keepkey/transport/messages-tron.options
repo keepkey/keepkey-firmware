@@ -12,3 +12,8 @@ TronSignTx.contract_type max_size:64
 TronSignTx.to_address max_size:35
 
 TronSignedTx.signature max_size:65
+TronTransferContract.to_address max_size:35
+TronTriggerSmartContract.contract_address max_size:35
+TronTriggerSmartContract.data max_size:512
+TronSignTx.data max_size:256
+TronSignedTx.serialized_tx max_size:1024
