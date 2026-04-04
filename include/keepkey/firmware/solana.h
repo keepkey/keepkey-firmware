@@ -30,6 +30,65 @@
 #define SOL_DECIMALS 9
 #define SOL_PUBKEY_SIZE 32
 #define SOL_SIG_SIZE 64
+#define SOL_MAX_ACCOUNTS 32
+#define SOL_MAX_INSTRUCTIONS 8
+#define SOL_LAMPORTS_DIVISOR 1000000000ULL
+#define SOL_MAX_TOKEN_DECIMALS 18
+#define SOL_MAX_DISPLAY_DECIMALS 9
+
+/* Versioned transaction marker */
+#define SOL_VERSION_FLAG 0x80
+#define SOL_VERSION_MASK 0x7F
+
+/* Compact-u16 encoding constants */
+#define SOL_COMPACT_U16_CONTINUATION 0x80
+#define SOL_COMPACT_U16_DATA_MASK 0x7F
+#define SOL_COMPACT_U16_BYTE3_MAX 3
+
+/* System program instruction indices */
+#define SOL_SYS_CREATE_ACCOUNT 0
+#define SOL_SYS_ASSIGN 1
+#define SOL_SYS_TRANSFER 2
+#define SOL_SYS_ADVANCE_NONCE 4
+#define SOL_SYS_WITHDRAW_NONCE 5
+#define SOL_SYS_INITIALIZE_NONCE 6
+#define SOL_SYS_AUTHORIZE_NONCE 7
+#define SOL_SYS_ALLOCATE 8
+
+/* SPL Token program instruction indices */
+#define SOL_TOKEN_TRANSFER_IX 3
+#define SOL_TOKEN_APPROVE_IX 4
+#define SOL_TOKEN_REVOKE_IX 5
+#define SOL_TOKEN_SET_AUTHORITY_IX 6
+#define SOL_TOKEN_MINT_TO_IX 7
+#define SOL_TOKEN_BURN_IX 8
+#define SOL_TOKEN_CLOSE_ACCOUNT_IX 9
+#define SOL_TOKEN_FREEZE_ACCOUNT_IX 10
+#define SOL_TOKEN_THAW_ACCOUNT_IX 11
+#define SOL_TOKEN_TRANSFER_CHECKED_IX 12
+#define SOL_TOKEN_MINT_TO_CHECKED_IX 14
+#define SOL_TOKEN_BURN_CHECKED_IX 15
+#define SOL_TOKEN_SYNC_NATIVE_IX 17
+
+/* Stake program instruction indices */
+#define SOL_STAKE_AUTHORIZE_IX 1
+#define SOL_STAKE_DELEGATE_IX 2
+#define SOL_STAKE_SPLIT_IX 3
+#define SOL_STAKE_WITHDRAW_IX 4
+#define SOL_STAKE_DEACTIVATE_IX 5
+#define SOL_STAKE_MERGE_IX 7
+
+/* Vote program instruction indices */
+#define SOL_VOTE_AUTHORIZE_IX 1
+#define SOL_VOTE_WITHDRAW_IX 3
+#define SOL_VOTE_UPDATE_VALIDATOR_IX 4
+#define SOL_VOTE_UPDATE_COMMISSION_IX 5
+
+/* Compute Budget program instruction indices */
+#define SOL_CB_REQUEST_HEAP_FRAME 1
+#define SOL_CB_SET_COMPUTE_UNIT_LIMIT 2
+#define SOL_CB_SET_COMPUTE_UNIT_PRICE 3
+#define SOL_CB_SET_LOADED_ACCOUNTS_SIZE 4
 
 /* Well-known program IDs */
 extern const uint8_t SOL_SYSTEM_PROGRAM[SOL_PUBKEY_SIZE];
@@ -105,10 +164,10 @@ typedef struct {
   uint8_t num_readonly_signed;
   uint8_t num_readonly_unsigned;
   uint8_t num_accounts;
-  uint8_t accounts[32][SOL_PUBKEY_SIZE]; /* max 32 account keys */
+  uint8_t accounts[SOL_MAX_ACCOUNTS][SOL_PUBKEY_SIZE];
   uint8_t recent_blockhash[SOL_PUBKEY_SIZE];
   uint8_t num_instructions;
-  SolanaParsedInstruction instructions[8]; /* max 8 instructions */
+  SolanaParsedInstruction instructions[SOL_MAX_INSTRUCTIONS];
 } SolanaParsedTx;
 
 /* Firmware review result for a Solana message */
