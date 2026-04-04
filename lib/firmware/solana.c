@@ -87,7 +87,8 @@ static int read_compact_u16(const uint8_t* data, size_t len, uint16_t* out) {
 
   if (len < 2) return -1;
   if (data[1] < SOL_COMPACT_U16_CONTINUATION) {
-    *out = (uint16_t)((data[0] & SOL_COMPACT_U16_DATA_MASK) | ((uint16_t)data[1] << 7));
+    *out = (uint16_t)((data[0] & SOL_COMPACT_U16_DATA_MASK) |
+                      ((uint16_t)data[1] << 7));
     return 2;
   }
 
@@ -95,7 +96,8 @@ static int read_compact_u16(const uint8_t* data, size_t len, uint16_t* out) {
   /* Third byte uses bits 14-15, so only values 0-3 are valid
    * (max compact-u16 value is 0xFFFF = 65535). */
   if (data[2] > SOL_COMPACT_U16_BYTE3_MAX) return -1;
-  *out = (uint16_t)((data[0] & SOL_COMPACT_U16_DATA_MASK) | ((data[1] & SOL_COMPACT_U16_DATA_MASK) << 7) |
+  *out = (uint16_t)((data[0] & SOL_COMPACT_U16_DATA_MASK) |
+                    ((data[1] & SOL_COMPACT_U16_DATA_MASK) << 7) |
                     ((uint16_t)data[2] << 14));
   return 3;
 }
@@ -236,7 +238,8 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
           copy_account(pi->to, tx, acct_indices, num_acct_indices, 1);
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
-        } else if (token_instr == SOL_TOKEN_TRANSFER_CHECKED_IX && data_len >= 9) {
+        } else if (token_instr == SOL_TOKEN_TRANSFER_CHECKED_IX &&
+                   data_len >= 9) {
           pi->type = SOL_INSTR_TOKEN_TRANSFER_CHECKED;
           pi->amount = read_le64(instr_data + 1);
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
@@ -263,7 +266,9 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           if (data_len >= 35 && instr_data[2] == 1) {
             memcpy(pi->extra, instr_data + 3, SOL_PUBKEY_SIZE);
           }
-        } else if ((token_instr == SOL_TOKEN_MINT_TO_IX || token_instr == SOL_TOKEN_MINT_TO_CHECKED_IX) && data_len >= 9) {
+        } else if ((token_instr == SOL_TOKEN_MINT_TO_IX ||
+                    token_instr == SOL_TOKEN_MINT_TO_CHECKED_IX) &&
+                   data_len >= 9) {
           pi->type = SOL_INSTR_TOKEN_MINT_TO;
           pi->amount = read_le64(instr_data + 1);
           copy_account(pi->mint, tx, acct_indices, num_acct_indices, 0);
@@ -271,8 +276,12 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           copy_account(pi->to, tx, acct_indices, num_acct_indices, 1);
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
           pi->extra_u8 =
-              (token_instr == SOL_TOKEN_MINT_TO_CHECKED_IX && data_len >= 10) ? instr_data[9] : 0;
-        } else if ((token_instr == SOL_TOKEN_BURN_IX || token_instr == SOL_TOKEN_BURN_CHECKED_IX) && data_len >= 9) {
+              (token_instr == SOL_TOKEN_MINT_TO_CHECKED_IX && data_len >= 10)
+                  ? instr_data[9]
+                  : 0;
+        } else if ((token_instr == SOL_TOKEN_BURN_IX ||
+                    token_instr == SOL_TOKEN_BURN_CHECKED_IX) &&
+                   data_len >= 9) {
           pi->type = SOL_INSTR_TOKEN_BURN;
           pi->amount = read_le64(instr_data + 1);
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
@@ -280,7 +289,9 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           pi->has_mint = (num_acct_indices >= 2);
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
           pi->extra_u8 =
-              (token_instr == SOL_TOKEN_BURN_CHECKED_IX && data_len >= 10) ? instr_data[9] : 0;
+              (token_instr == SOL_TOKEN_BURN_CHECKED_IX && data_len >= 10)
+                  ? instr_data[9]
+                  : 0;
         } else if (token_instr == SOL_TOKEN_CLOSE_ACCOUNT_IX) {
           pi->type = SOL_INSTR_TOKEN_CLOSE_ACCOUNT;
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
@@ -368,12 +379,14 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
           copy_account(pi->to, tx, acct_indices, num_acct_indices, 1);
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
-        } else if (vote_instr == SOL_VOTE_UPDATE_VALIDATOR_IX && data_len >= 36) {
+        } else if (vote_instr == SOL_VOTE_UPDATE_VALIDATOR_IX &&
+                   data_len >= 36) {
           pi->type = SOL_INSTR_VOTE_UPDATE_VALIDATOR;
           memcpy(pi->extra, instr_data + 4, SOL_PUBKEY_SIZE);
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 1);
-        } else if (vote_instr == SOL_VOTE_UPDATE_COMMISSION_IX && data_len >= 5) {
+        } else if (vote_instr == SOL_VOTE_UPDATE_COMMISSION_IX &&
+                   data_len >= 5) {
           pi->type = SOL_INSTR_VOTE_UPDATE_COMMISSION;
           pi->extra_u8 = instr_data[4];
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
@@ -411,7 +424,8 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
         } else if (cb_instr == SOL_CB_SET_COMPUTE_UNIT_PRICE && data_len >= 9) {
           pi->type = SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE;
           pi->extra_value = read_le64(instr_data + 1);
-        } else if (cb_instr == SOL_CB_SET_LOADED_ACCOUNTS_SIZE && data_len >= 5) {
+        } else if (cb_instr == SOL_CB_SET_LOADED_ACCOUNTS_SIZE &&
+                   data_len >= 5) {
           pi->type = SOL_INSTR_COMPUTE_BUDGET_LOADED_ACCOUNTS_SIZE;
           pi->extra_value = read_le32(instr_data + 1);
         } else {
@@ -608,13 +622,15 @@ void solana_formatTokenAmount(char* buf, size_t len, uint64_t amount,
   uint64_t frac = amount % divisor;
 
   /* Format with appropriate decimal places (max 9 shown) */
-  uint8_t show_dec = decimals > SOL_MAX_DISPLAY_DECIMALS ? SOL_MAX_DISPLAY_DECIMALS : decimals;
+  uint8_t show_dec =
+      decimals > SOL_MAX_DISPLAY_DECIMALS ? SOL_MAX_DISPLAY_DECIMALS : decimals;
   uint64_t show_div = 1;
   for (uint8_t i = 0; i < show_dec; i++) show_div *= 10;
   (void)show_div;
   uint64_t show_frac = frac;
   if (decimals > SOL_MAX_DISPLAY_DECIMALS) {
-    for (uint8_t i = 0; i < decimals - SOL_MAX_DISPLAY_DECIMALS; i++) show_frac /= 10;
+    for (uint8_t i = 0; i < decimals - SOL_MAX_DISPLAY_DECIMALS; i++)
+      show_frac /= 10;
   }
 
   char frac_str[10];
