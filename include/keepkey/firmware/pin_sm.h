@@ -24,7 +24,7 @@
 
 #include <stdbool.h>
 
-#define PIN_BUF sizeof(((PinMatrixAck *)NULL)->pin)
+#define PIN_BUF sizeof(((PinMatrixAck*)NULL)->pin)
 
 #define PIN_FAIL_DELAY_START 2
 #define MAX_PIN_FAIL_ATTEMPTS 32
@@ -51,7 +51,7 @@ typedef struct {
 /// Authenticate user PIN for device access.
 /// \param prompt Text to show user along with PIN matrix.
 /// \returns true iff the PIN was correct.
-bool pin_protect(const char *prompt);
+bool pin_protect(const char* prompt);
 
 /// Prompt for PIN only if it is not already cached.
 /// \returns true iff the pin was correct (or already cached).
@@ -72,7 +72,7 @@ bool change_wipe_code(void);
 
 #if DEBUG_LINK
 /// Gets randomized PIN matrix.
-const char *get_pin_matrix(void);
+const char* get_pin_matrix(void);
 #endif
 
 #endif

@@ -42,8 +42,8 @@
  * OUTPUT
  *      true/false whether image was drawn
  */
-bool draw_char_with_shift(Canvas *canvas, DrawableParams *p, uint16_t *x_shift,
-                          uint16_t *y_shift, const CharacterImage *img) {
+bool draw_char_with_shift(Canvas* canvas, DrawableParams* p, uint16_t* x_shift,
+                          uint16_t* y_shift, const CharacterImage* img) {
   bool ret_stat = false;
 
   uint16_t start_index = (p->y * canvas->width) + p->x;
@@ -51,15 +51,15 @@ bool draw_char_with_shift(Canvas *canvas, DrawableParams *p, uint16_t *x_shift,
   if (start_index >= (KEEPKEY_DISPLAY_HEIGHT * KEEPKEY_DISPLAY_WIDTH)) {
     return false;
   }
-  uint8_t *canvas_pixel = &canvas->buffer[start_index];
-  uint8_t *canvas_end = &canvas->buffer[canvas->width * canvas->height];
+  uint8_t* canvas_pixel = &canvas->buffer[start_index];
+  const uint8_t* canvas_end = &canvas->buffer[canvas->width * canvas->height];
 
   /* Check that this was a character that we have in the font */
   if (img != NULL) {
     /* Check that it's within bounds. */
     if (((img->width + p->x) <= canvas->width) &&
         ((img->height + p->y) <= canvas->height)) {
-      const uint8_t *img_pixel = &img->data[0];
+      const uint8_t* img_pixel = &img->data[0];
 
       int y;
 
@@ -108,10 +108,11 @@ bool draw_char_with_shift(Canvas *canvas, DrawableParams *p, uint16_t *x_shift,
  * OUTPUT
  *     none
  */
-void draw_string(Canvas *canvas, const Font *font, const char *str_write,
-                 DrawableParams *p, uint16_t width, uint16_t line_height) {
-
-  uint16_t sepPixels = 0;   // font char separation pixels for large font (pin font)
+void draw_string(Canvas* canvas, const Font* font, const char* str_write,
+                 const DrawableParams* p, uint16_t width,
+                 uint16_t line_height) {
+  uint16_t sepPixels =
+      0;  // font char separation pixels for large font (pin font)
 
   if (!canvas) {
     return;
@@ -126,9 +127,9 @@ void draw_string(Canvas *canvas, const Font *font, const char *str_write,
   DrawableParams char_params = *p;
 
   while (*str_write && have_space) {
-    const CharacterImage *img = font_get_char(font, *str_write);
+    const CharacterImage* img = font_get_char(font, *str_write);
     uint16_t word_width = img->width;
-    char *next_c = (char *)str_write + 1;
+    const char* next_c = str_write + 1;
 
     /* Allow line breaks */
     if (*str_write == '\n') {
@@ -184,8 +185,8 @@ void draw_string(Canvas *canvas, const Font *font, const char *str_write,
  * OUTPUT
  *     none
  */
-void draw_char(Canvas *canvas, const Font *font, char c, DrawableParams *p) {
-  const CharacterImage *img = font_get_char(font, c);
+void draw_char(Canvas* canvas, const Font* font, char c, DrawableParams* p) {
+  const CharacterImage* img = font_get_char(font, c);
   uint16_t x_offset = 0;
 
   /* Draw Character */
@@ -208,7 +209,7 @@ void draw_char(Canvas *canvas, const Font *font, char c, DrawableParams *p) {
  * OUTPUT
  *     none
  */
-void draw_char_simple(Canvas *canvas, const Font *font, char c, uint8_t color,
+void draw_char_simple(Canvas* canvas, const Font* font, char c, uint8_t color,
                       uint16_t x, uint16_t y) {
   DrawableParams p;
   p.color = color;
@@ -227,7 +228,7 @@ void draw_char_simple(Canvas *canvas, const Font *font, char c, uint8_t color,
  * OUTPUT
  *     none
  */
-void draw_box(Canvas *canvas, BoxDrawableParams *p) {
+void draw_box(Canvas* canvas, BoxDrawableParams* p) {
   uint16_t start_row = p->base.y;
   uint16_t end_row = start_row + p->height;
   end_row = (end_row >= canvas->height) ? canvas->height - 1 : end_row;
@@ -237,8 +238,8 @@ void draw_box(Canvas *canvas, BoxDrawableParams *p) {
   end_col = (end_col >= canvas->width) ? canvas->width - 1 : end_col;
 
   uint16_t start_index = (start_row * canvas->width) + start_col;
-  uint8_t *canvas_pixel = &canvas->buffer[start_index];
-  uint8_t *canvas_end = &canvas->buffer[canvas->width * canvas->height];
+  uint8_t* canvas_pixel = &canvas->buffer[start_index];
+  const uint8_t* canvas_end = &canvas->buffer[canvas->width * canvas->height];
 
   uint16_t height = end_row - start_row;
   uint16_t width = end_col - start_col;
@@ -271,7 +272,7 @@ void draw_box(Canvas *canvas, BoxDrawableParams *p) {
  * OUTPUT
  *     none
  */
-void draw_box_simple(Canvas *canvas, uint8_t color, uint16_t x, uint16_t y,
+void draw_box_simple(Canvas* canvas, uint8_t color, uint16_t x, uint16_t y,
                      uint16_t width, uint16_t height) {
   BoxDrawableParams box_params = {{color, x, y}, height, width};
   draw_box(canvas, &box_params);
@@ -286,13 +287,13 @@ void draw_box_simple(Canvas *canvas, uint8_t color, uint16_t x, uint16_t y,
  * OUTPUT
  *     true/false whether image was drawn
  */
-bool draw_bitmap_mono_rle(Canvas *canvas, const AnimationFrame *frame,
+bool draw_bitmap_mono_rle(Canvas* canvas, const AnimationFrame* frame,
                           bool erase) {
   if (!frame || !canvas) {
     return false;
   }
 
-  const Image *img = frame->image;
+  const Image* img = frame->image;
   const uint8_t color = erase ? 0x0 : frame->color;
 
   /* Check that image will fit in bounds */

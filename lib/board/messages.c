@@ -29,7 +29,7 @@
 #include <assert.h>
 #include <string.h>
 
-static const MessagesMap_t *MessagesMap = NULL;
+static const MessagesMap_t* MessagesMap = NULL;
 static size_t map_size = 0;
 static msg_failure_t msg_failure;
 
@@ -53,10 +53,10 @@ bool reset_msg_stack = false;
  * OUTPUT
  *     entry if found
  */
-static const MessagesMap_t *message_map_entry(MessageMapType type,
+static const MessagesMap_t* message_map_entry(MessageMapType type,
                                               MessageType msg_id,
                                               MessageMapDirection dir) {
-  const MessagesMap_t *m = MessagesMap;
+  const MessagesMap_t* m = MessagesMap;
 
   if (map_size > msg_id && m[msg_id].msg_id == msg_id &&
       m[msg_id].type == type && m[msg_id].dir == dir) {
@@ -76,11 +76,11 @@ static const MessagesMap_t *message_map_entry(MessageMapType type,
  * OUTPUT
  *      protocol buffer
  */
-const pb_field_t *message_fields(MessageMapType type, MessageType msg_id,
+const pb_field_t* message_fields(MessageMapType type, MessageType msg_id,
                                  MessageMapDirection dir) {
   assert(MessagesMap != NULL);
 
-  const MessagesMap_t *m = MessagesMap;
+  const MessagesMap_t* m = MessagesMap;
 
   if (map_size > msg_id && m[msg_id].msg_id == msg_id &&
       m[msg_id].type == type && m[msg_id].dir == dir) {
@@ -101,8 +101,8 @@ const pb_field_t *message_fields(MessageMapType type, MessageType msg_id,
  * OUTPUT
  *     true/false whether protocol buffers were parsed successfully
  */
-static bool pb_parse(const MessagesMap_t *entry, uint8_t *msg,
-                     uint32_t msg_size, uint8_t *buf) {
+static bool pb_parse(const MessagesMap_t* entry, const uint8_t* msg,
+                     uint32_t msg_size, uint8_t* buf) {
   pb_istream_t stream = pb_istream_from_buffer(msg, msg_size);
   return pb_decode(&stream, entry->fields, buf);
 }
@@ -119,7 +119,7 @@ static bool pb_parse(const MessagesMap_t *entry, uint8_t *msg,
  *     none
  *
  */
-static void dispatch(const MessagesMap_t *entry, uint8_t *msg,
+static void dispatch(const MessagesMap_t* entry, const uint8_t* msg,
                      uint32_t msg_size) {
   static uint8_t decode_buffer[MAX_DECODE_SIZE] __attribute__((aligned(4)));
   memset(decode_buffer, 0, sizeof(decode_buffer));
@@ -150,14 +150,14 @@ static void dispatch(const MessagesMap_t *entry, uint8_t *msg,
  * OUTPUT
  *     none
  */
-static void raw_dispatch(const MessagesMap_t *entry, const uint8_t *msg,
+static void raw_dispatch(const MessagesMap_t* entry, const uint8_t* msg,
                          uint32_t msg_size, uint32_t frame_length) {
   static RawMessage raw_msg;
   raw_msg.buffer = msg;
   raw_msg.length = msg_size;
 
   if (entry->process_func) {
-    ((raw_msg_handler_t)(void *)entry->process_func)(&raw_msg, frame_length);
+    ((raw_msg_handler_t)(void*)entry->process_func)(&raw_msg, frame_length);
   }
 }
 
@@ -165,34 +165,34 @@ static void raw_dispatch(const MessagesMap_t *entry, const uint8_t *msg,
 #define __has_builtin(X) 0
 #endif
 #if __has_builtin(__builtin_add_overflow)
-#define check_uadd_overflow(A, B, R)                               \
-  ({                                                               \
-    typeof(A) __a = (A);                                           \
-    typeof(B) __b = (B);                                           \
-    typeof(R) __r = (R);                                           \
-    (void)(&__a == &__b && "types must match");                    \
-    (void)(&__a == __r && "types must match");                     \
-    _Static_assert(0 < (typeof(A)) - 1, "types must be unsigned"); \
-    __builtin_add_overflow((A), (B), (R));                         \
+#define check_uadd_overflow(A, B, R)                             \
+  ({                                                             \
+    typeof(A) __a = (A);                                         \
+    typeof(B) __b = (B);                                         \
+    typeof(R) __r = (R);                                         \
+    (void)(&__a == &__b && "types must match");                  \
+    (void)(&__a == __r && "types must match");                   \
+    _Static_assert(0 < (typeof(A))-1, "types must be unsigned"); \
+    __builtin_add_overflow((A), (B), (R));                       \
   })
 #else
-#define check_uadd_overflow(A, B, R)                               \
-  ({                                                               \
-    typeof(A) __a = (A);                                           \
-    typeof(B) __b = (B);                                           \
-    typeof(R) __r = (R);                                           \
-    (void)(&__a == &__b);                                          \
-    (void)(&__a == __r);                                           \
-    (void)(&__a == &__b && "types must match");                    \
-    (void)(&__a == __r && "types must match");                     \
-    _Static_assert(0 < (typeof(A)) - 1, "types must be unsigned"); \
-    *__r = __a + __b;                                              \
-    *__r < __a;                                                    \
+#define check_uadd_overflow(A, B, R)                             \
+  ({                                                             \
+    typeof(A) __a = (A);                                         \
+    typeof(B) __b = (B);                                         \
+    typeof(R) __r = (R);                                         \
+    (void)(&__a == &__b);                                        \
+    (void)(&__a == __r);                                         \
+    (void)(&__a == &__b && "types must match");                  \
+    (void)(&__a == __r && "types must match");                   \
+    _Static_assert(0 < (typeof(A))-1, "types must be unsigned"); \
+    *__r = __a + __b;                                            \
+    *__r < __a;                                                  \
   })
 #endif
 
 /// Common helper that handles USB messages from host
-void usb_rx_helper(const uint8_t *buf, size_t length, MessageMapType type) {
+void usb_rx_helper(const uint8_t* buf, size_t length, MessageMapType type) {
   static bool firstFrame = true;
 
   static uint16_t msgId;
@@ -200,7 +200,7 @@ void usb_rx_helper(const uint8_t *buf, size_t length, MessageMapType type) {
   static uint8_t msg[MAX_FRAME_SIZE];
   static size_t
       cursor;  //< Index into msg where the current frame is to be written.
-  static const MessagesMap_t *entry;
+  static const MessagesMap_t* entry;
 
   if (firstFrame) {
     msgId = 0xffff;
@@ -228,7 +228,7 @@ void usb_rx_helper(const uint8_t *buf, size_t length, MessageMapType type) {
   }
 
   // Details of the chunk being copied out of the current frame.
-  const uint8_t *frame;
+  const uint8_t* frame;
   size_t frameSize;
 
   if (firstFrame) {
@@ -319,7 +319,7 @@ _Static_assert(sizeof(msg_tiny) >= sizeof(DebugLinkGetState),
                "msg_tiny too tiny");
 #endif
 
-static void msg_read_tiny(const uint8_t *msg, size_t len) {
+static void msg_read_tiny(const uint8_t* msg, size_t len) {
   if (len != 64) return;
 
   uint8_t buf[64];
@@ -341,7 +341,7 @@ static void msg_read_tiny(const uint8_t *msg, size_t len) {
     return;
   }
 
-  const pb_field_t *fields = NULL;
+  const pb_field_t* fields = NULL;
   pb_istream_t stream = pb_istream_from_buffer(buf + 9, msgSize);
 
   switch (msgId) {
@@ -384,7 +384,7 @@ static void msg_read_tiny(const uint8_t *msg, size_t len) {
   }
 }
 
-void handle_usb_rx(const void *msg, size_t len) {
+void handle_usb_rx(const void* msg, size_t len) {
   if (msg_tiny_flag) {
     msg_read_tiny(msg, len);
   } else {
@@ -393,7 +393,7 @@ void handle_usb_rx(const void *msg, size_t len) {
 }
 
 #if DEBUG_LINK
-void handle_debug_usb_rx(const void *msg, size_t len) {
+void handle_debug_usb_rx(const void* msg, size_t len) {
   if (msg_tiny_flag) {
     msg_read_tiny(msg, len);
   } else {
@@ -413,7 +413,7 @@ void handle_debug_usb_rx(const void *msg, size_t len) {
  *     message type
  *
  */
-static MessageType tiny_msg_poll_and_buffer(bool block, uint8_t *buf) {
+static MessageType tiny_msg_poll_and_buffer(bool block, uint8_t* buf) {
   msg_tiny_id = MSG_TINY_TYPE_ERROR;
   msg_tiny_flag = true;
 
@@ -443,7 +443,7 @@ static MessageType tiny_msg_poll_and_buffer(bool block, uint8_t *buf) {
  * OUTPUT
  *
  */
-void msg_map_init(const void *map, const size_t size) {
+void msg_map_init(const void* map, const size_t size) {
   assert(map != NULL);
   MessagesMap = map;
   map_size = size;
@@ -486,7 +486,7 @@ void set_msg_debug_link_get_state_handler(
  * OUTPUT
  *     none
  */
-void call_msg_failure_handler(FailureType code, const char *text) {
+void call_msg_failure_handler(FailureType code, const char* text) {
   if (msg_failure) {
     (*msg_failure)(code, text);
   }
@@ -502,7 +502,7 @@ void call_msg_failure_handler(FailureType code, const char *text) {
  *     none
  */
 #if DEBUG_LINK
-void call_msg_debug_link_get_state_handler(DebugLinkGetState *msg) {
+void call_msg_debug_link_get_state_handler(DebugLinkGetState* msg) {
   if (msg_debug_link_get_state) {
     (*msg_debug_link_get_state)(msg);
   }
@@ -533,7 +533,7 @@ void msg_init(void) {
  *     message tiny type
  *
  */
-MessageType wait_for_tiny_msg(uint8_t *buf) {
+MessageType wait_for_tiny_msg(uint8_t* buf) {
   return tiny_msg_poll_and_buffer(true, buf);
 }
 
@@ -546,7 +546,7 @@ MessageType wait_for_tiny_msg(uint8_t *buf) {
  *     message tiny type
  *
  */
-MessageType check_for_tiny_msg(uint8_t *buf) {
+MessageType check_for_tiny_msg(uint8_t* buf) {
   return tiny_msg_poll_and_buffer(false, buf);
 }
 
@@ -559,7 +559,7 @@ MessageType check_for_tiny_msg(uint8_t *buf) {
  * OUTPUT
  *     bytes that were skipped
  */
-uint32_t parse_pb_varint(RawMessage *msg, uint8_t varint_count) {
+uint32_t parse_pb_varint(RawMessage* msg, uint8_t varint_count) {
   uint32_t skip;
   uint8_t i;
   uint64_t pb_varint;
@@ -568,7 +568,7 @@ uint32_t parse_pb_varint(RawMessage *msg, uint8_t varint_count) {
   /*
    * Parse varints
    */
-  stream = pb_istream_from_buffer((uint8_t *)msg->buffer, msg->length);
+  stream = pb_istream_from_buffer((uint8_t*)msg->buffer, msg->length);
   skip = stream.bytes_left;
   for (i = 0; i < varint_count; ++i) {
     pb_decode_varint(&stream, &pb_varint);
@@ -579,7 +579,7 @@ uint32_t parse_pb_varint(RawMessage *msg, uint8_t varint_count) {
    * Increment skip over message
    */
   msg->length -= skip;
-  msg->buffer = (uint8_t *)(msg->buffer + skip);
+  msg->buffer = (uint8_t*)(msg->buffer + skip);
 
   return skip;
 }
@@ -595,7 +595,7 @@ uint32_t parse_pb_varint(RawMessage *msg, uint8_t varint_count) {
  * OUTPUT
  *     bytes written to buffer
  */
-int encode_pb(const void *source_ptr, const pb_field_t *fields, uint8_t *buffer,
+int encode_pb(const void* source_ptr, const pb_field_t* fields, uint8_t* buffer,
               uint32_t len) {
   pb_ostream_t os = pb_ostream_from_buffer(buffer, len);
 

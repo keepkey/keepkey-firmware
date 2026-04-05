@@ -22,7 +22,8 @@
 
 #include <stddef.h>
 
-/* --- Image Font ------------------------------------------------------------ */
+/* --- Image Font ------------------------------------------------------------
+ */
 
 static const uint8_t image_font_sadface_9x10[9 * 10] = {
     0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x00, 0xff, 0xff,
@@ -2497,7 +2498,7 @@ static const Font body_font = {
  * OUTPUT
  *     PIN font
  */
-const Font *get_pin_font(void) { return &pin_font; }
+const Font* get_pin_font(void) { return &pin_font; }
 
 /*
  * get_title_font() - Get pointer to title font
@@ -2507,7 +2508,7 @@ const Font *get_pin_font(void) { return &pin_font; }
  * OUTPUT
  *     title font
  */
-const Font *get_title_font(void) { return &title_font; }
+const Font* get_title_font(void) { return &title_font; }
 
 /*
  * get_body_font() - Get pointer to body font
@@ -2518,7 +2519,7 @@ const Font *get_title_font(void) { return &title_font; }
  *     body font
  *
  */
-const Font *get_body_font(void) { return &body_font; }
+const Font* get_body_font(void) { return &body_font; }
 
 /*
  * font_get_char() - Get a character from the provided font
@@ -2533,7 +2534,7 @@ const Font *get_body_font(void) { return &body_font; }
  *     pointer to ascii charactor image
  *
  */
-const CharacterImage *font_get_char(const Font *font, char c) {
+const CharacterImage* font_get_char(const Font* font, char c) {
   for (int i = 0; i < font->length; i++) {
     if (font->characters[i].code == c) {
       return font->characters[i].image;
@@ -2551,7 +2552,7 @@ const CharacterImage *font_get_char(const Font *font, char c) {
  * OUTPUT
  *     font height
  */
-uint32_t font_height(const Font *font) { return font->size; }
+uint32_t font_height(const Font* font) { return font->size; }
 
 /*
  * font_width() - Get font width
@@ -2561,7 +2562,7 @@ uint32_t font_height(const Font *font) { return font->size; }
  * OUTPUT
  *     font width
  */
-uint32_t font_width(const Font *font) {
+uint32_t font_width(const Font* font) {
   /*Return worst case width using the | char as the reference.  */
   return font_get_char(font, '|')->width;
 }
@@ -2575,7 +2576,7 @@ uint32_t font_width(const Font *font) {
  * OUTPUT
  *     calculated string width
  */
-uint32_t calc_str_width(const Font *font, const char *str) {
+uint32_t calc_str_width(const Font* font, const char* str) {
   int width = 0;
 
   while (str[0] != '\0') {
@@ -2597,14 +2598,14 @@ uint32_t calc_str_width(const Font *font, const char *str) {
  * OUTPUT
  *     line count
  */
-uint32_t calc_str_line(const Font *font, const char *str, uint16_t line_width) {
+uint32_t calc_str_line(const Font* font, const char* str, uint16_t line_width) {
   uint8_t line_count = 1;
   uint16_t x_offset = 0;
 
   while (*str) {
     uint8_t character_width = font_get_char(font, str[0])->width;
     uint16_t word_width = character_width;
-    char *next_character = (char *)str + 1;
+    const char* next_character = str + 1;
 
     /* Allow line breaks */
     if (*str == '\n') {

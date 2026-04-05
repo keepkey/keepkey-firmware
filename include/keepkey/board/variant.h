@@ -13,7 +13,7 @@ typedef struct Image_ {
   uint16_t w;
   uint16_t h;
   uint32_t length;
-  const uint8_t *data;
+  const uint8_t* data;
 } Image;
 
 typedef struct AnimationFrame_ {
@@ -21,7 +21,7 @@ typedef struct AnimationFrame_ {
   uint16_t y;
   uint16_t duration;
   uint8_t color;
-  const Image *image;
+  const Image* image;
 } AnimationFrame;
 
 typedef struct VariantAnimation_ {
@@ -31,11 +31,11 @@ typedef struct VariantAnimation_ {
 
 typedef struct VariantInfo_ {
   uint16_t version;
-  const char *name;
-  const VariantAnimation *logo;
-  const VariantAnimation *logo_reversed;
+  const char* name;
+  const VariantAnimation* logo;
+  const VariantAnimation* logo_reversed;
   uint32_t screensaver_timeout;  // DEPRECATED
-  const VariantAnimation *screensaver;
+  const VariantAnimation* screensaver;
 } VariantInfo;
 
 typedef struct SignedVariantInfo_ {
@@ -54,12 +54,12 @@ Model getModel(void);
 
 /// Get the VariantInfo from sector 4 of flash (if it exists), otherwise
 /// fallback on keepkey imagery.
-const VariantInfo *variant_getInfo(void) __attribute__((weak));
+const VariantInfo* variant_getInfo(void) __attribute__((weak));
 
 /// Get the Screensaver.
-const VariantAnimation *variant_getScreensaver(void);
+const VariantAnimation* variant_getScreensaver(void);
 
 /// Get the HomeScreen.
-const VariantAnimation *variant_getLogo(bool reverse);
+const VariantAnimation* variant_getLogo(bool reversed);
 
 #endif

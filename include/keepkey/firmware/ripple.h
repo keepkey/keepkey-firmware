@@ -59,37 +59,37 @@ extern const RippleFieldMapping RFM_destinationTag;
 bool ripple_getAddress(const uint8_t public_key[33],
                        char address[MAX_ADDR_SIZE]);
 
-void ripple_formatAmount(char *buf, size_t len, uint64_t amount);
+void ripple_formatAmount(char* buf, size_t len, uint64_t amount);
 
-void ripple_serializeType(bool *ok, uint8_t **buf, const uint8_t *end,
-                          const RippleFieldMapping *m);
+void ripple_serializeType(bool* ok, uint8_t** buf, const uint8_t* end,
+                          const RippleFieldMapping* m);
 
-void ripple_serializeInt16(bool *ok, uint8_t **buf, const uint8_t *end,
-                           const RippleFieldMapping *m, int16_t val);
+void ripple_serializeInt16(bool* ok, uint8_t** buf, const uint8_t* end,
+                           const RippleFieldMapping* m, int16_t val);
 
-void ripple_serializeInt32(bool *ok, uint8_t **buf, const uint8_t *end,
-                           const RippleFieldMapping *m, int32_t val);
+void ripple_serializeInt32(bool* ok, uint8_t** buf, const uint8_t* end,
+                           const RippleFieldMapping* m, int32_t val);
 
-void ripple_serializeAmount(bool *ok, uint8_t **buf, const uint8_t *end,
-                            const RippleFieldMapping *m, int64_t amount);
+void ripple_serializeAmount(bool* ok, uint8_t** buf, const uint8_t* end,
+                            const RippleFieldMapping* m, int64_t amount);
 
-void ripple_serializeVarint(bool *ok, uint8_t **buf, const uint8_t *end,
+void ripple_serializeVarint(bool* ok, uint8_t** buf, const uint8_t* end,
                             int val);
 
-void ripple_serializeBytes(bool *ok, uint8_t **buf, const uint8_t *end,
-                           const uint8_t *bytes, size_t count);
+void ripple_serializeBytes(bool* ok, uint8_t** buf, const uint8_t* end,
+                           const uint8_t* bytes, size_t count);
 
-void ripple_serializeAddress(bool *ok, uint8_t **buf, const uint8_t *end,
-                             const RippleFieldMapping *m, const char *address);
+void ripple_serializeAddress(bool* ok, uint8_t** buf, const uint8_t* end,
+                             const RippleFieldMapping* m, const char* address);
 
-void ripple_serializeVL(bool *ok, uint8_t **buf, const uint8_t *end,
-                        const RippleFieldMapping *m, const uint8_t *bytes,
+void ripple_serializeVL(bool* ok, uint8_t** buf, const uint8_t* end,
+                        const RippleFieldMapping* m, const uint8_t* bytes,
                         size_t count);
 
-bool ripple_serialize(uint8_t **buf, const uint8_t *end, const RippleSignTx *tx,
-                      const char *source_address, const uint8_t *pubkey,
-                      const uint8_t *sig, size_t sig_len);
+bool ripple_serialize(uint8_t** buf, const uint8_t* end, const RippleSignTx* tx,
+                      const char* source_address, const uint8_t* pubkey,
+                      const uint8_t* sig, size_t sig_len);
 
-void ripple_signTx(const HDNode *node, RippleSignTx *tx, RippleSignedTx *resp);
+void ripple_signTx(const HDNode* node, RippleSignTx* tx, RippleSignedTx* resp);
 
 #endif

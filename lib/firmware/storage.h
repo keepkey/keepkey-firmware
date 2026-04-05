@@ -29,13 +29,13 @@
 // The length of the external salt in bytes.
 #define EXTERNAL_SALT_SIZE 32
 
-#define V16_ENCSEC_SIZE   512   // for reading old encrypted sec size
-#define V17_ENCSEC_SIZE   1024   
+#define V16_ENCSEC_SIZE 512  // for reading old encrypted sec size
+#define V17_ENCSEC_SIZE 1024
 
 typedef struct _authBlockType {
-  authType authData[AUTHDATA_SIZE];                        // 450
-  uint8_t reserved[512-sizeof(authType)*AUTHDATA_SIZE];    // 62
-} authBlockType;   
+  authType authData[AUTHDATA_SIZE];                          // 450
+  uint8_t reserved[512 - sizeof(authType) * AUTHDATA_SIZE];  // 62
+} authBlockType;
 
 typedef struct _Storage {
   uint32_t version;
@@ -79,7 +79,7 @@ typedef struct _Storage {
     char mnemonic[241];
     char pin[10];
     Cache cache;
-    uint8_t authBlock[sizeof(authBlockType)];   
+    uint8_t authBlock[sizeof(authBlockType)];
   } sec;
 
   bool has_sec_fingerprint;
@@ -112,16 +112,15 @@ typedef enum {
   PIN_REWRAP  // PIN correct but storage key rewrapped, requires storage update
 } pintest_t;
 
-#define MAX_MNEMONIC_LEN  240
+#define MAX_MNEMONIC_LEN 240
 
-void storage_loadNode(HDNode *dst, const HDNodeType *src);
+void storage_loadNode(HDNode* dst, const HDNodeType* src);
 
 /// Derive the wrapping key from the user's pin.
-void storage_deriveWrappingKey(const char *pin, uint8_t wrapping_key[64],
-                               bool sca_hardened,
-                               bool v15_16_trans,
-                               uint8_t random_salt[RANDOM_SALT_LEN],
-                               const char *message);
+void storage_deriveWrappingKey(const char* pin, uint8_t wrapping_key[64],
+                               bool sca_hardened, bool v15_16_trans,
+                               const uint8_t random_salt[RANDOM_SALT_LEN],
+                               const char* message);
 
 /// Wrap the storage key.
 void storage_wrapStorageKey(const uint8_t wrapping_key[64],
@@ -143,46 +142,44 @@ void storage_keyFingerprint(const uint8_t key[64], uint8_t fingerprint[32]);
 ///          PIN_GOOD      - PIN is correct
 ///          PIN_REWRAPPED -> PIN is correct, storage key was rewrapped, CALLING
 ///          FUNCTION SHOULD storage_commit()
-pintest_t storage_isPinCorrect_impl(const char *pin, uint8_t wrapped_key[64],
+pintest_t storage_isPinCorrect_impl(const char* pin, uint8_t wrapped_key[64],
                                     const uint8_t fingerprint[32],
-                                    bool *sca_hardened, 
-                                    bool *v15_16_trans, 
+                                    bool* sca_hardened, bool* v15_16_trans,
                                     uint8_t key[64],
                                     uint8_t random_salt[RANDOM_SALT_LEN]);
 
-pintest_t storage_isWipeCodeCorrect_impl(const char *wipe_code,
+pintest_t storage_isWipeCodeCorrect_impl(const char* wipe_code,
                                          uint8_t wrapped_key[64],
                                          const uint8_t fingerprint[32],
                                          uint8_t key[64],
                                          uint8_t random_salt[RANDOM_SALT_LEN]);
 
 /// Migrate data in Storage to/from sec/encrypted_sec.
-void storage_secMigrate(SessionState *state, Storage *storage, bool encrypt);
+void storage_secMigrate(SessionState* ss, Storage* storage, bool encrypt);
 
-void storage_resetUuid_impl(ConfigFlash *cfg);
+void storage_resetUuid_impl(ConfigFlash* cfg);
 
-void storage_reset_impl(SessionState *session, ConfigFlash *cfg);
+void storage_reset_impl(SessionState* ss, ConfigFlash* cfg);
 
-void storage_setPin_impl(SessionState *session, Storage *storage,
-                         const char *pin);
+void storage_setPin_impl(SessionState* ss, Storage* storage, const char* pin);
 
-bool storage_hasPin_impl(const Storage *storage);
+bool storage_hasPin_impl(const Storage* storage);
 
-void storage_setWipeCode_impl(SessionState *ss, Storage *storage,
-                              const char *wipe_code);
+void storage_setWipeCode_impl(SessionState* ss, Storage* storage,
+                              const char* wipe_code);
 
-bool storage_hasWipeCode_impl(const Storage *storage);
+bool storage_hasWipeCode_impl(const Storage* storage);
 
 /// \return: PIN_WRONG     - PIN is incorrect
 ///          PIN_GOOD        - PIN is correct
 ///          PIN_REWRAP -> PIN is correct, storage key was rewrapped, CALLING
 ///          FUNCTION SHOULD storage_commit()
-pintest_t session_clear_impl(SessionState *session, Storage *storage,
+pintest_t session_clear_impl(SessionState* ss, Storage* storage,
                              bool clear_pin);
 
 /// \brief Get user private seed.
 /// \returns NULL on error, otherwise \returns the private seed.
-const uint8_t *storage_getSeed(const ConfigFlash *cfg, bool usePassphrase);
+const uint8_t* storage_getSeed(const ConfigFlash* cfg, bool usePassphrase);
 
 typedef enum {
   SUS_Invalid,
@@ -193,43 +190,43 @@ typedef enum {
 /// \brief Copy configuration from storage partition in flash memory to shadow
 /// memory in RAM
 /// \returns true iff successful.
-StorageUpdateStatus storage_fromFlash(SessionState *ss, ConfigFlash *dst,
-                                      const char *flash);
+StorageUpdateStatus storage_fromFlash(SessionState* ss, ConfigFlash* dst,
+                                      const char* flash);
 
-void storage_upgradePolicies(Storage *storage);
-void storage_resetPolicies(Storage *storage);
-void storage_resetCache(Cache *cache);
+void storage_upgradePolicies(Storage* storage);
+void storage_resetPolicies(Storage* storage);
+void storage_resetCache(Cache* cache);
 
-void storage_readV1(SessionState *session, ConfigFlash *dst, const char *ptr,
+void storage_readV1(SessionState* ss, ConfigFlash* dst, const char* flash,
                     size_t len);
-void storage_readV2(SessionState *session, ConfigFlash *dst, const char *ptr,
+void storage_readV2(SessionState* ss, ConfigFlash* dst, const char* flash,
                     size_t len);
-void storage_readV11(ConfigFlash *dst, const char *ptr, size_t len);
-void storage_readV16(ConfigFlash *dst, const char *ptr, size_t len);
-void storage_writeV11(char *ptr, size_t len, const ConfigFlash *src);
-void storage_writeV16(char *ptr, size_t len, const ConfigFlash *src);
+void storage_readV11(ConfigFlash* dst, const char* flash, size_t len);
+void storage_readV16(ConfigFlash* dst, const char* flash, size_t len);
+void storage_writeV11(char* flash, size_t len, const ConfigFlash* src);
+void storage_writeV16(char* flash, size_t len, const ConfigFlash* src);
 
-void storage_readMeta(Metadata *meta, const char *ptr, size_t len);
-void storage_readPolicyV1(PolicyType *policy, const char *ptr, size_t len);
-void storage_readHDNode(HDNodeType *node, const char *ptr, size_t len);
-void storage_readStorageV1(SessionState *session, Storage *storage,
-                           const char *ptr, size_t len);
-void storage_readStorageV11(Storage *storage, const char *ptr, size_t len);
-void storage_readCacheV1(Cache *cache, const char *ptr, size_t len);
+void storage_readMeta(Metadata* meta, const char* ptr, size_t len);
+void storage_readPolicyV1(PolicyType* policy, const char* ptr, size_t len);
+void storage_readHDNode(HDNodeType* node, const char* ptr, size_t len);
+void storage_readStorageV1(SessionState* ss, Storage* storage, const char* ptr,
+                           size_t len);
+void storage_readStorageV11(Storage* storage, const char* ptr, size_t len);
+void storage_readCacheV1(Cache* cache, const char* ptr, size_t len);
 
-void storage_writeMeta(char *ptr, size_t len, const Metadata *meta);
-void storage_writePolicyV1(char *ptr, size_t len, const PolicyType *policy);
-void storage_writeHDNode(char *ptr, size_t len, const HDNodeType *node);
-void storage_writeStorageV11(char *ptr, size_t len, const Storage *storage);
-void storage_writeCacheV1(char *ptr, size_t len, const Cache *cache);
+void storage_writeMeta(char* ptr, size_t len, const Metadata* meta);
+void storage_writePolicyV1(char* ptr, size_t len, const PolicyType* policy);
+void storage_writeHDNode(char* ptr, size_t len, const HDNodeType* node);
+void storage_writeStorageV11(char* ptr, size_t len, const Storage* storage);
+void storage_writeCacheV1(char* ptr, size_t len, const Cache* cache);
 
-bool storage_setPolicy_impl(PolicyType policies[POLICY_COUNT],
-                            const char *policy_name, bool enabled);
-bool storage_isPolicyEnabled_impl(const PolicyType policies[POLICY_COUNT],
-                                  const char *policy_name);
+bool storage_setPolicy_impl(PolicyType ps[POLICY_COUNT],
+                            const char* policy_name, bool enabled);
+bool storage_isPolicyEnabled_impl(const PolicyType ps[POLICY_COUNT],
+                                  const char* policy_name);
 
 bool storageHasWipeCode(void);
-bool storageChangeWipeCode(uint32_t pin, const uint8_t *ext_salt,
+bool storageChangeWipeCode(uint32_t pin, const uint8_t* ext_salt,
                            uint32_t wipe_code);
 
 #endif

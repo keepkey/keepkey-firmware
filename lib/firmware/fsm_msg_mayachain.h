@@ -1,20 +1,20 @@
 
-void fsm_msgMayachainGetAddress(const MayachainGetAddress *msg) {
+void fsm_msgMayachainGetAddress(const MayachainGetAddress* msg) {
   RESP_INIT(MayachainAddress);
 
   CHECK_INITIALIZED
 
   CHECK_PIN
 
-  const CoinType *coin = fsm_getCoin(true, "MAYAChain");
+  const CoinType* coin = fsm_getCoin(true, "MAYAChain");
   if (!coin) {
     return;
   }
-  HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
-  char mainnet[] = "maya";
-  char testnet[] = "smaya";
-  char *pfix;
+  const char mainnet[] = "maya";
+  const char testnet[] = "smaya";
+  const char* pfix;
 
   if (!node) {
     return;
@@ -78,7 +78,7 @@ void fsm_msgMayachainGetAddress(const MayachainGetAddress *msg) {
   layoutHome();
 }
 
-void fsm_msgMayachainSignTx(const MayachainSignTx *msg) {
+void fsm_msgMayachainSignTx(const MayachainSignTx* msg) {
   CHECK_INITIALIZED
   CHECK_PIN
 
@@ -91,7 +91,7 @@ void fsm_msgMayachainSignTx(const MayachainSignTx *msg) {
     return;
   }
 
-  HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) {
     return;
@@ -115,11 +115,12 @@ void fsm_msgMayachainSignTx(const MayachainSignTx *msg) {
   layoutHome();
 }
 
-void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg) {
+void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
   // Confirm transaction basics
   // supports only 1 message ack
   CHECK_PARAM(mayachain_signingIsInited(), "Signing not in progress");
-  if (msg->has_send && msg->send.has_to_address && msg->send.has_amount && msg->send.has_denom) {
+  if (msg->has_send && msg->send.has_to_address && msg->send.has_amount &&
+      msg->send.has_denom) {
     // pass
   } else if (msg->has_deposit && msg->deposit.has_asset &&
              msg->deposit.has_amount && msg->deposit.has_memo &&
@@ -133,12 +134,12 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg) {
     return;
   }
 
-  const CoinType *coin = fsm_getCoin(true, "MAYAChain");
+  const CoinType* coin = fsm_getCoin(true, "MAYAChain");
   if (!coin) {
     return;
   }
 
-  const MayachainSignTx *sign_tx = mayachain_getMayachainSignTx();
+  const MayachainSignTx* sign_tx = mayachain_getMayachainSignTx();
 
   if (msg->has_send) {
     switch (msg->send.address_type) {
@@ -161,8 +162,7 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg) {
         break;
       }
     }
-    if (!mayachain_signTxUpdateMsgSend(msg->send.amount,
-                                       msg->send.to_address,
+    if (!mayachain_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address,
                                        msg->send.denom)) {
       mayachain_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -244,8 +244,8 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck *msg) {
 
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, node_str,
                "Sign this %s transaction on %s? "
-               "Additional network fees apply.", msg->has_send ? msg->send.denom : "CACAO",
-               sign_tx->chain_id)) {
+               "Additional network fees apply.",
+               msg->has_send ? msg->send.denom : "CACAO", sign_tx->chain_id)) {
     mayachain_signAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();

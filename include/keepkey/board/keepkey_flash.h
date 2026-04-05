@@ -41,16 +41,16 @@ intptr_t flash_write_helper(Allocation group);
 void flash_erase(Allocation group);
 void flash_erase_word(Allocation group);
 bool flash_write(Allocation group, uint32_t offset, uint32_t len,
-                 const uint8_t *data);
+                 const uint8_t* data);
 bool flash_write_word(Allocation group, uint32_t offset, uint32_t len,
-                      const uint8_t *data);
+                      const uint8_t* data);
 bool flash_chk_status(void);
 bool is_mfg_mode(void);
 bool set_mfg_mode_off(void);
-const char *flash_getModel(void);
+const char* flash_getModel(void);
 bool flash_setModel(const char (*model)[32]);
-const char *flash_programModel(void);
+const char* flash_programModel(void);
 
 void flash_collectHWEntropy(bool privileged);
-void flash_readHWEntropy(uint8_t *buff, size_t size);
+void flash_readHWEntropy(uint8_t* buff, size_t size);
 #endif

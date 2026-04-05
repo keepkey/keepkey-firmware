@@ -31,12 +31,12 @@ volatile const uint8_t valid_pubkey[PUBKEYS] = {
 };
 
 int signatures_ok(void) {
-  uint32_t codelen = *((uint32_t *)FLASH_META_CODELEN);
+  uint32_t codelen = *((uint32_t*)FLASH_META_CODELEN);
   uint8_t sigindex1, sigindex2, sigindex3, firmware_fingerprint[32];
 
-  sigindex1 = *((uint8_t *)FLASH_META_SIGINDEX1);
-  sigindex2 = *((uint8_t *)FLASH_META_SIGINDEX2);
-  sigindex3 = *((uint8_t *)FLASH_META_SIGINDEX3);
+  sigindex1 = *((uint8_t*)FLASH_META_SIGINDEX1);
+  sigindex2 = *((uint8_t*)FLASH_META_SIGINDEX2);
+  sigindex3 = *((uint8_t*)FLASH_META_SIGINDEX3);
 
   if (sigindex1 < 1 || sigindex1 > PUBKEYS) {
     return SIG_FAIL;
@@ -68,22 +68,22 @@ int signatures_ok(void) {
     return KEY_EXPIRED;
   } /* Expired signing key */
 
-  sha256_Raw((uint8_t *)FLASH_APP_START, codelen, firmware_fingerprint);
+  sha256_Raw((uint8_t*)FLASH_APP_START, codelen, firmware_fingerprint);
 
   if (ecdsa_verify_digest(&secp256k1, pubkey[sigindex1 - 1],
-                          (uint8_t *)FLASH_META_SIG1,
+                          (uint8_t*)FLASH_META_SIG1,
                           firmware_fingerprint) != 0) { /* Failure */
     return SIG_FAIL;
   }
 
   if (ecdsa_verify_digest(&secp256k1, pubkey[sigindex2 - 1],
-                          (uint8_t *)FLASH_META_SIG2,
+                          (uint8_t*)FLASH_META_SIG2,
                           firmware_fingerprint) != 0) { /* Failure */
     return SIG_FAIL;
   }
 
   if (ecdsa_verify_digest(&secp256k1, pubkey[sigindex3 - 1],
-                          (uint8_t *)FLASH_META_SIG3,
+                          (uint8_t*)FLASH_META_SIG3,
                           firmware_fingerprint) != 0) { /* Failure */
     return SIG_FAIL;
   }

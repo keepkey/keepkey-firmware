@@ -29,19 +29,19 @@
 #define BIP39_MAX_WORD_LEN 8
 
 void recovery_cipher_init(uint32_t _word_count, bool passphrase_protection,
-                          bool pin_protection, const char *language,
-                          const char *label, bool _enforce_wordlist,
+                          bool pin_protection, const char* language,
+                          const char* label, bool _enforce_wordlist,
                           uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter,
                           bool _dry_run);
 void next_character(void);
-void recovery_character(const char *character);
+void recovery_character(const char* character);
 void recovery_delete_character(void);
 void recovery_cipher_finalize(void);
 void recovery_cipher_abort(void);
 
 #if DEBUG_LINK
-const char *recovery_get_cipher(void);
-const char *recovery_get_auto_completed_word(void);
+const char* recovery_get_cipher(void);
+const char* recovery_get_auto_completed_word(void);
 #endif
 
 /// Determine if two strings are exact matches for length passed
@@ -50,12 +50,12 @@ const char *recovery_get_auto_completed_word(void);
 /// \param str1  The first string.
 /// \param str2  The second string.
 /// \return true iff the strings match
-bool exact_str_match(const char *str1, const char *str2, uint32_t len);
+bool exact_str_match(const char* str1, const char* str2, uint32_t len);
 
 /// \brief Attempts to auto complete a partial word
 ///
 /// \param partial_word[in/out]   word that will be attempted to be auto
 /// completed. \returns true iff partial_word was auto completed
-bool attempt_auto_complete(char *partial_word);
+bool attempt_auto_complete(char* partial_word);
 
 #endif

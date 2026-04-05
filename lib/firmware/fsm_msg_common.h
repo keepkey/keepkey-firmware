@@ -1,4 +1,4 @@
-void fsm_msgInitialize(Initialize *msg) {
+void fsm_msgInitialize(Initialize* msg) {
   (void)msg;
   recovery_cipher_abort();
   signing_abort();
@@ -10,13 +10,13 @@ void fsm_msgInitialize(Initialize *msg) {
   fsm_msgGetFeatures(0);
 }
 
-static const char *model(void) {
-  const char *ret = flash_getModel();
+static const char* model(void) {
+  const char* ret = flash_getModel();
   if (ret) return ret;
   return "Unknown";
 }
 
-void fsm_msgGetFeatures(GetFeatures *msg) {
+void fsm_msgGetFeatures(GetFeatures* msg) {
   (void)msg;
   RESP_INIT(Features);
 
@@ -53,6 +53,7 @@ void fsm_msgGetFeatures(GetFeatures *msg) {
   resp->has_wipe_code_protection = storage_hasWipeCode();
 
 #ifdef SCM_REVISION
+  // cppcheck-suppress sizeofwithnumericparameter
   int len = sizeof(SCM_REVISION) - 1;
   resp->has_revision = true;
   memcpy(resp->revision.bytes, SCM_REVISION, len);
@@ -120,7 +121,7 @@ void fsm_msgGetFeatures(GetFeatures *msg) {
   msg_write(MessageType_MessageType_Features, resp);
 }
 
-void fsm_msgGetCoinTable(GetCoinTable *msg) {
+void fsm_msgGetCoinTable(GetCoinTable* msg) {
   RESP_INIT(CoinTable);
 
   CHECK_PARAM(msg->has_start == msg->has_end,
@@ -158,7 +159,7 @@ void fsm_msgGetCoinTable(GetCoinTable *msg) {
   msg_write(MessageType_MessageType_CoinTable, resp);
 }
 
-static bool isValidModelNumber(const char *model) {
+static bool isValidModelNumber(const char* model) {
 #define MODEL_ENTRY(STRING, ENUM) \
   if (!strcmp(model, STRING)) return true;
 #include "keepkey/board/models.def"
@@ -167,13 +168,14 @@ static bool isValidModelNumber(const char *model) {
 
 void checkPassphrase(void) {
   if (!passphrase_protect()) {
-    fsm_sendFailure(FailureType_Failure_ActionCancelled, "authenticator needs passphrase");
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    "authenticator needs passphrase");
     layoutHome();
     return;
   }
 }
 
-void fsm_msgPing(Ping *msg) {
+void fsm_msgPing(Ping* msg) {
   RESP_INIT(Success);
 
   // If device is in manufacture mode, turn if off, lock it, and program the
@@ -186,17 +188,17 @@ void fsm_msgPing(Ping *msg) {
     flash_setModel(&message);
   }
 
-  const char *errMsgStr[NUM_AUTHERRS] = {
-    "noerr",
-    "Authenticator secret storage full",                                
-    "Authenticator secret can't be decoded",                            
-    "Account name missing or too long, or seed/message string missing", 
-    "Account not found",                                                
-    "Slot request out of range",
-    "Authenticator secret seed too large",                              
-    "passphrase incorrect for authdata",                                
-    "Auth secret unknown error",
-};
+  const char* errMsgStr[NUM_AUTHERRS] = {
+      "noerr",
+      "Authenticator secret storage full",
+      "Authenticator secret can't be decoded",
+      "Account name missing or too long, or seed/message string missing",
+      "Account not found",
+      "Slot request out of range",
+      "Authenticator secret seed too large",
+      "passphrase incorrect for authdata",
+      "Auth secret unknown error",
+  };
 
   typedef enum _AUTH_MSG_TYPE {
     INITAUTH = 0,
@@ -207,18 +209,23 @@ void fsm_msgPing(Ping *msg) {
     NUM_AUTHMESSAGES
   } AUTH_MSG_TYPE;
 
-
-  const char * const authMesStr[NUM_AUTHMESSAGES] = {
-    "\x15" "initializeAuth:",
-    "\x16" "generateOTPFrom:",
-    "\x17" "getAccount:",
-    "\x18" "removeAccount:",
-    "\x19" "wipeAuthdata:",
+  const char* const authMesStr[NUM_AUTHMESSAGES] = {
+      "\x15"
+      "initializeAuth:",
+      "\x16"
+      "generateOTPFrom:",
+      "\x17"
+      "getAccount:",
+      "\x18"
+      "removeAccount:",
+      "\x19"
+      "wipeAuthdata:",
   };
 
   AUTH_MSG_TYPE authMsg;
-  for (authMsg=INITAUTH; authMsg<NUM_AUTHMESSAGES; authMsg++) {
-    if (msg->has_message && 0 == strncmp(msg->message, authMesStr[authMsg], strlen(authMesStr[authMsg]))) {
+  for (authMsg = INITAUTH; authMsg < NUM_AUTHMESSAGES; authMsg++) {
+    if (msg->has_message && 0 == strncmp(msg->message, authMesStr[authMsg],
+                                         strlen(authMesStr[authMsg]))) {
       break;
     }
   }
@@ -226,39 +233,42 @@ void fsm_msgPing(Ping *msg) {
   if (authMsg < NUM_AUTHMESSAGES) {
     // this is an authenticator message
     unsigned errcode;
-    char otp[9] = {0};    // allow room for an 8 digit otp
-    char acc[DOMAIN_SIZE+ACCOUNT_SIZE+2] = {0};    // allow room for domain + ":" + account
+    char otp[9] = {0};  // allow room for an 8 digit otp
+    char acc[DOMAIN_SIZE + ACCOUNT_SIZE + 2] = {
+        0};  // allow room for domain + ":" + account
 
     CHECK_PIN
     checkPassphrase();
 
     switch (authMsg) {
-
       case INITAUTH:
-        //DEBUG_DISPLAY("secret %s", &msg->message[strlen(authMesStr[authMsg])])
+        // DEBUG_DISPLAY("secret %s",
+        // &msg->message[strlen(authMesStr[authMsg])])
         errcode = addAuthAccount(&msg->message[strlen(authMesStr[authMsg])]);
         resp->has_message = false;
         break;
 
       case GENOTP:
-        //DEBUG_DISPLAY("genotp %s", &msg->message[strlen(authMesStr[authMsg])])
+        // DEBUG_DISPLAY("genotp %s",
+        // &msg->message[strlen(authMesStr[authMsg])])
         errcode = generateOTP(&msg->message[strlen(authMesStr[authMsg])], otp);
-      #if DEBUG_LINK
+#if DEBUG_LINK
         char authSlot[128] = {0};  // debug link only
         getAuthSlot(authSlot);
         resp->has_message = true;
         strlcpy(resp->message, otp, 9);
         strcat(resp->message, ":");
         strcat(resp->message, authSlot);
-      #else
+#else
         resp->has_message = false;
-      #endif        
+#endif
         break;
 
       case GETACC:
-        errcode = getAuthAccount(&msg->message[strlen(authMesStr[authMsg])], acc);
+        errcode =
+            getAuthAccount(&msg->message[strlen(authMesStr[authMsg])], acc);
         resp->has_message = true;
-        strlcpy(resp->message, acc, DOMAIN_SIZE+ACCOUNT_SIZE+2);
+        strlcpy(resp->message, acc, DOMAIN_SIZE + ACCOUNT_SIZE + 2);
         break;
 
       case REMACC:
@@ -285,7 +295,6 @@ void fsm_msgPing(Ping *msg) {
     }
 
   } else {
-
     if (msg->has_button_protection && msg->button_protection)
       if (!confirm(ButtonRequestType_ButtonRequest_Ping, "Ping", "%s",
                    msg->message)) {
@@ -315,7 +324,7 @@ void fsm_msgPing(Ping *msg) {
   layoutHome();
 }
 
-void fsm_msgChangePin(ChangePin *msg) {
+void fsm_msgChangePin(ChangePin* msg) {
   bool removal = msg->has_remove && msg->remove;
   bool confirmed = false;
 
@@ -365,11 +374,12 @@ void fsm_msgChangePin(ChangePin *msg) {
   layoutHome();
 }
 
-void fsm_msgChangeWipeCode(ChangeWipeCode *msg) {
+void fsm_msgChangeWipeCode(ChangeWipeCode* msg) {
   bool removal = msg->has_remove && msg->remove;
   bool confirmed = false;
 
-#ifdef ENABLE_WIPECODE  // disable until oled-vuln and automated test is in place
+#ifdef ENABLE_WIPECODE  // disable until oled-vuln and automated test is in
+                        // place
   if (removal) {
     if (storage_hasWipeCode()) {
       confirmed = confirm(ButtonRequestType_ButtonRequest_RemoveWipeCode,
@@ -426,17 +436,16 @@ void fsm_msgChangeWipeCode(ChangeWipeCode *msg) {
   fsm_sendSuccess("Wipe code changed");
   layoutHome();
 
-#else   // ENABLE_WIPECODE
+#else  // ENABLE_WIPECODE
   (void)removal;
   (void)confirmed;
 
   fsm_sendSuccess("Wipe code function not available for this device");
   layoutHome();
 #endif
-
 }
 
-void fsm_msgWipeDevice(WipeDevice *msg) {
+void fsm_msgWipeDevice(WipeDevice* msg) {
   (void)msg;
 
   if (!confirm(ButtonRequestType_ButtonRequest_WipeDevice, "Wipe Device",
@@ -456,19 +465,19 @@ void fsm_msgWipeDevice(WipeDevice *msg) {
   layoutHome();
 }
 
-void fsm_msgFirmwareErase(FirmwareErase *msg) {
+void fsm_msgFirmwareErase(FirmwareErase* msg) {
   (void)msg;
   fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                   "Not in bootloader mode");
 }
 
-void fsm_msgFirmwareUpload(FirmwareUpload *msg) {
+void fsm_msgFirmwareUpload(FirmwareUpload* msg) {
   (void)msg;
   fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                   "Not in bootloader mode");
 }
 
-void fsm_msgGetEntropy(GetEntropy *msg) {
+void fsm_msgGetEntropy(GetEntropy* msg) {
   if (!confirm(ButtonRequestType_ButtonRequest_GetEntropy, "Generate Entropy",
                "Do you want to generate and return entropy using the hardware "
                "RNG?")) {
@@ -490,7 +499,7 @@ void fsm_msgGetEntropy(GetEntropy *msg) {
   layoutHome();
 }
 
-void fsm_msgLoadDevice(LoadDevice *msg) {
+void fsm_msgLoadDevice(LoadDevice* msg) {
   CHECK_NOT_INITIALIZED
 
   if (!confirm_load_device(msg->has_node)) {
@@ -518,7 +527,7 @@ void fsm_msgLoadDevice(LoadDevice *msg) {
   layoutHome();
 }
 
-void fsm_msgResetDevice(ResetDevice *msg) {
+void fsm_msgResetDevice(ResetDevice* msg) {
   CHECK_NOT_INITIALIZED
 
   reset_init(msg->has_display_random && msg->display_random,
@@ -533,7 +542,7 @@ void fsm_msgResetDevice(ResetDevice *msg) {
              msg->has_u2f_counter ? msg->u2f_counter : 0);
 }
 
-void fsm_msgEntropyAck(EntropyAck *msg) {
+void fsm_msgEntropyAck(EntropyAck* msg) {
   if (msg->has_entropy) {
     reset_entropy(msg->entropy.bytes, msg->entropy.size);
   } else {
@@ -541,7 +550,7 @@ void fsm_msgEntropyAck(EntropyAck *msg) {
   }
 }
 
-void fsm_msgCancel(Cancel *msg) {
+void fsm_msgCancel(Cancel* msg) {
   (void)msg;
   recovery_cipher_abort();
   signing_abort();
@@ -551,7 +560,7 @@ void fsm_msgCancel(Cancel *msg) {
   fsm_sendFailure(FailureType_Failure_ActionCancelled, "Aborted");
 }
 
-void fsm_msgApplySettings(ApplySettings *msg) {
+void fsm_msgApplySettings(ApplySettings* msg) {
   if (msg->has_label) {
     if (!confirm(ButtonRequestType_ButtonRequest_ChangeLabel, "Change Label",
                  "Do you want to change the label to \"%s\"?", msg->label)) {
@@ -641,7 +650,7 @@ apply_settings_cancelled:
   return;
 }
 
-void fsm_msgRecoveryDevice(RecoveryDevice *msg) {
+void fsm_msgRecoveryDevice(RecoveryDevice* msg) {
   if (msg->has_dry_run && msg->dry_run) {
     CHECK_INITIALIZED
   } else {
@@ -660,7 +669,7 @@ void fsm_msgRecoveryDevice(RecoveryDevice *msg) {
       msg->has_dry_run ? msg->dry_run : false);
 }
 
-void fsm_msgCharacterAck(CharacterAck *msg) {
+void fsm_msgCharacterAck(CharacterAck* msg) {
   if (msg->has_delete && msg->del) {
     recovery_delete_character();
   } else if (msg->has_done && msg->done) {
@@ -671,7 +680,7 @@ void fsm_msgCharacterAck(CharacterAck *msg) {
   }
 }
 
-void fsm_msgApplyPolicies(ApplyPolicies *msg) {
+void fsm_msgApplyPolicies(ApplyPolicies* msg) {
   CHECK_PARAM(msg->policy_count > 0, "No policies provided");
 
   for (size_t i = 0; i < msg->policy_count; ++i) {

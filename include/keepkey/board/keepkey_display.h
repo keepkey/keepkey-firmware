@@ -31,8 +31,8 @@
 #define DEFAULT_DISPLAY_BRIGHTNESS 100 /* Percent */
 
 void display_hw_init(void);
-Canvas *display_canvas_init(void);
-Canvas *display_canvas(void);
+Canvas* display_canvas_init(void);
+Canvas* display_canvas(void);
 void display_refresh(void);
 void display_set_brightness(int percentage);
 void display_turn_on(void);

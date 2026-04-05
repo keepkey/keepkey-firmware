@@ -11,6 +11,12 @@ services:
       - "127.0.0.1:11044:11044/udp"
       - "127.0.0.1:11045:11045/udp"
       - "127.0.0.1:5000:5000"
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/health')\" || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   python-keepkey:
     build:
       context: '../../'
@@ -20,7 +26,8 @@ services:
     networks:
       - local-net
     depends_on:
-      - kkemu
+      kkemu:
+        condition: service_healthy
   firmware-unit:
     build:
       context: '../../'
@@ -31,7 +38,8 @@ services:
     networks:
       - local-net
     depends_on:
-      - kkemu
+      kkemu:
+        condition: service_healthy
 networks:
   local-net:
     external: false

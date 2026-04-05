@@ -33,36 +33,36 @@
 #define MSG_IN(ID, STRUCT_NAME, PROCESS_FUNC)                        \
   [ID].msg_id = (ID), [ID].type = (NORMAL_MSG), [ID].dir = (IN_MSG), \
   [ID].fields = (STRUCT_NAME##_fields), [ID].dispatch = (PARSABLE),  \
-  [ID].process_func = (void (*)(void *))(PROCESS_FUNC),
+  [ID].process_func = (void (*)(void*))(PROCESS_FUNC),
 
 #define MSG_OUT(ID, STRUCT_NAME, PROCESS_FUNC)                        \
   [ID].msg_id = (ID), [ID].type = (NORMAL_MSG), [ID].dir = (OUT_MSG), \
   [ID].fields = (STRUCT_NAME##_fields), [ID].dispatch = (PARSABLE),   \
-  [ID].process_func = (void (*)(void *))(PROCESS_FUNC),
+  [ID].process_func = (void (*)(void*))(PROCESS_FUNC),
 
 #define RAW_IN(ID, STRUCT_NAME, PROCESS_FUNC)                        \
   [ID].msg_id = (ID), [ID].type = (NORMAL_MSG), [ID].dir = (IN_MSG), \
   [ID].fields = (STRUCT_NAME##_fields), [ID].dispatch = (RAW),       \
-  [ID].process_func = (void (*)(void *))(void *)(PROCESS_FUNC),
+  [ID].process_func = (void (*)(void*))(void*)(PROCESS_FUNC),
 
 #define DEBUG_IN(ID, STRUCT_NAME, PROCESS_FUNC)                     \
   [ID].msg_id = (ID), [ID].type = (DEBUG_MSG), [ID].dir = (IN_MSG), \
   [ID].fields = (STRUCT_NAME##_fields), [ID].dispatch = (PARSABLE), \
-  [ID].process_func = (void (*)(void *))(PROCESS_FUNC),
+  [ID].process_func = (void (*)(void*))(PROCESS_FUNC),
 
 #define DEBUG_OUT(ID, STRUCT_NAME, PROCESS_FUNC)                     \
   [ID].msg_id = (ID), [ID].type = (DEBUG_MSG), [ID].dir = (OUT_MSG), \
   [ID].fields = (STRUCT_NAME##_fields), [ID].dispatch = (PARSABLE),  \
-  [ID].process_func = (void (*)(void *))(PROCESS_FUNC),
+  [ID].process_func = (void (*)(void*))(PROCESS_FUNC),
 
 #define NO_PROCESS_FUNC 0
 
-typedef void (*msg_handler_t)(void *ptr);
-typedef void (*msg_failure_t)(FailureType, const char *);
-typedef bool (*usb_tx_handler_t)(uint8_t *, uint32_t);
+typedef void (*msg_handler_t)(void* ptr);
+typedef void (*msg_failure_t)(FailureType, const char*);
+typedef bool (*usb_tx_handler_t)(uint8_t*, uint32_t);
 
 #if DEBUG_LINK
-typedef void (*msg_debug_link_get_state_t)(DebugLinkGetState *);
+typedef void (*msg_debug_link_get_state_t)(DebugLinkGetState*);
 #endif
 
 typedef enum {
@@ -77,7 +77,7 @@ typedef enum { IN_MSG, OUT_MSG } MessageMapDirection;
 typedef enum { PARSABLE, RAW } MessageMapDispatch;
 
 typedef struct {
-  const pb_field_t *fields;
+  const pb_field_t* fields;
   msg_handler_t process_func;
   MessageMapDispatch dispatch;
   MessageMapType type;
@@ -86,7 +86,7 @@ typedef struct {
 } MessagesMap_t;
 
 typedef struct {
-  const uint8_t *buffer;
+  const uint8_t* buffer;
   uint32_t length;
 } RawMessage;
 
@@ -97,38 +97,38 @@ typedef enum {
   RAW_MESSAGE_ERROR
 } RawMessageState;
 
-typedef void (*raw_msg_handler_t)(RawMessage *msg, uint32_t frame_length);
+typedef void (*raw_msg_handler_t)(RawMessage* msg, uint32_t frame_length);
 
-const pb_field_t *message_fields(MessageMapType type, MessageType msg_id,
+const pb_field_t* message_fields(MessageMapType type, MessageType msg_id,
                                  MessageMapDirection dir);
 
-bool msg_write(MessageType msg_id, const void *msg);
+bool msg_write(MessageType msg_id, const void* msg);
 
 #if DEBUG_LINK
-bool msg_debug_write(MessageType msg_id, const void *msg);
+bool msg_debug_write(MessageType msg_id, const void* msg);
 #endif
 
-void msg_map_init(const void *map, const size_t size);
+void msg_map_init(const void* map, const size_t size);
 void set_msg_failure_handler(msg_failure_t failure_func);
-void call_msg_failure_handler(FailureType code, const char *text);
+void call_msg_failure_handler(FailureType code, const char* text);
 
 #if DEBUG_LINK
 void set_msg_debug_link_get_state_handler(
     msg_debug_link_get_state_t debug_link_get_state_func);
-void call_msg_debug_link_get_state_handler(DebugLinkGetState *msg);
+void call_msg_debug_link_get_state_handler(DebugLinkGetState* msg);
 #endif
 
 void msg_init(void);
 
-void handle_usb_rx(const void *data, size_t len);
+void handle_usb_rx(const void* msg, size_t len);
 #if DEBUG_LINK
-void handle_debug_usb_rx(const void *data, size_t len);
+void handle_debug_usb_rx(const void* msg, size_t len);
 #endif
 
-MessageType wait_for_tiny_msg(uint8_t *buf);
-MessageType check_for_tiny_msg(uint8_t *buf);
+MessageType wait_for_tiny_msg(uint8_t* buf);
+MessageType check_for_tiny_msg(uint8_t* buf);
 
-uint32_t parse_pb_varint(RawMessage *msg, uint8_t varint_count);
-int encode_pb(const void *source_ptr, const pb_field_t *fields, uint8_t *buffer,
+uint32_t parse_pb_varint(RawMessage* msg, uint8_t varint_count);
+int encode_pb(const void* source_ptr, const pb_field_t* fields, uint8_t* buffer,
               uint32_t len);
 #endif

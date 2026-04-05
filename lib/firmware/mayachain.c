@@ -1,8 +1,8 @@
 /*
  * This file is part of the Keepkey project.
  *
- * Copyright (C) 2021 Shapeshift 
- * 
+ * Copyright (C) 2021 Shapeshift
+ *
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -38,9 +38,9 @@ static uint32_t msgs_remaining;
 static MayachainSignTx msg;
 static bool testnet;
 
-const MayachainSignTx *mayachain_getMayachainSignTx(void) { return &msg; }
+const MayachainSignTx* mayachain_getMayachainSignTx(void) { return &msg; }
 
-bool mayachain_signTxInit(const HDNode *_node, const MayachainSignTx *_msg) {
+bool mayachain_signTxInit(const HDNode* _node, const MayachainSignTx* _msg) {
   initialized = true;
   msgs_remaining = _msg->msg_count;
   testnet = false;
@@ -61,13 +61,13 @@ bool mayachain_signTxInit(const HDNode *_node, const MayachainSignTx *_msg) {
   // Each segment guaranteed to be less than or equal to 64 bytes
   // 19 + ^20 + 1 = ^40
   if (!tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "{\"account_number\":\"%" PRIu64 "\"",
-                                 msg.account_number))
+                           "{\"account_number\":\"%" PRIu64 "\"",
+                           msg.account_number))
     return false;
 
   // <escape chain_id>
-  const char *const chainid_prefix = ",\"chain_id\":\"";
-  sha256_Update(&ctx, (uint8_t *)chainid_prefix, strlen(chainid_prefix));
+  const char* const chainid_prefix = ",\"chain_id\":\"";
+  sha256_Update(&ctx, (uint8_t*)chainid_prefix, strlen(chainid_prefix));
   tendermint_sha256UpdateEscaped(&ctx, msg.chain_id, strlen(msg.chain_id));
 
   // 30 + ^10 + 19 = ^59
@@ -82,24 +82,23 @@ bool mayachain_signTxInit(const HDNode *_node, const MayachainSignTx *_msg) {
                                  ",\"gas\":\"%" PRIu32 "\"}", msg.gas);
 
   // <escape memo>
-  const char *const memo_prefix = ",\"memo\":\"";
-  sha256_Update(&ctx, (uint8_t *)memo_prefix, strlen(memo_prefix));
+  const char* const memo_prefix = ",\"memo\":\"";
+  sha256_Update(&ctx, (uint8_t*)memo_prefix, strlen(memo_prefix));
   if (msg.has_memo) {
     tendermint_sha256UpdateEscaped(&ctx, msg.memo, strlen(msg.memo));
   }
 
   // 10
-  sha256_Update(&ctx, (uint8_t *)"\",\"msgs\":[", 10);
+  sha256_Update(&ctx, (uint8_t*)"\",\"msgs\":[", 10);
 
   return success;
 }
 
 bool mayachain_signTxUpdateMsgSend(const uint64_t amount,
-                                   const char *to_address,
-                                   const char *denom) {
-  char mainnetp[] = "maya";
-  char testnetp[] = "smaya";
-  char *pfix;
+                                   const char* to_address, const char* denom) {
+  const char mainnetp[] = "maya";
+  const char testnetp[] = "smaya";
+  const char* pfix;
   char buffer[64 + 1];
 
   size_t decoded_len;
@@ -122,13 +121,14 @@ bool mayachain_signTxUpdateMsgSend(const uint64_t amount,
 
   bool success = true;
 
-  const char *const prelude = "{\"type\":\"mayachain/MsgSend\",\"value\":{";
-  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+  const char* const prelude = "{\"type\":\"mayachain/MsgSend\",\"value\":{";
+  sha256_Update(&ctx, (uint8_t*)prelude, strlen(prelude));
 
   // 21 + ^20 + 11 + ^69 + 3 = ^124
-  success &= tendermint_snprintf(
-      &ctx, buffer, sizeof(buffer),
-      "\"amount\":[{\"amount\":\"%" PRIu64 "\",\"denom\":\"%s\"}]", amount, denom);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"amount\":[{\"amount\":\"%" PRIu64
+                                 "\",\"denom\":\"%s\"}]",
+                                 amount, denom);
 
   // 17 + 45 + 1 = 63
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
@@ -142,27 +142,26 @@ bool mayachain_signTxUpdateMsgSend(const uint64_t amount,
   return success;
 }
 
-bool mayachain_signTxUpdateMsgDeposit(const MayachainMsgDeposit *depmsg) {
+bool mayachain_signTxUpdateMsgDeposit(const MayachainMsgDeposit* depmsg) {
   char buffer[64 + 1];
 
   bool success = true;
 
-  const char *const prelude = "{\"type\":\"mayachain/MsgDeposit\",\"value\":{";
-  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+  const char* const prelude = "{\"type\":\"mayachain/MsgDeposit\",\"value\":{";
+  sha256_Update(&ctx, (uint8_t*)prelude, strlen(prelude));
 
   // 20 + ^20 + 1 = ^41
-  success &= tendermint_snprintf(
-      &ctx, buffer, sizeof(buffer),
-      "\"coins\":[{\"amount\":\"%" PRIu64 "\"", depmsg->amount);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"coins\":[{\"amount\":\"%" PRIu64 "\"",
+                                 depmsg->amount);
 
   // 10 + ^20 + 3 = ^33
-  success &= tendermint_snprintf(
-      &ctx, buffer, sizeof(buffer),
-      ",\"asset\":\"%s\"}]", depmsg->asset);
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 ",\"asset\":\"%s\"}]", depmsg->asset);
 
   // <escape memo>
-  const char *const memo_prefix = ",\"memo\":\"";
-  sha256_Update(&ctx, (uint8_t *)memo_prefix, strlen(memo_prefix));
+  const char* const memo_prefix = ",\"memo\":\"";
+  sha256_Update(&ctx, (uint8_t*)memo_prefix, strlen(memo_prefix));
   tendermint_sha256UpdateEscaped(&ctx, depmsg->memo, strlen(depmsg->memo));
 
   // 17 + 45 + 1 = 63
@@ -173,9 +172,9 @@ bool mayachain_signTxUpdateMsgDeposit(const MayachainMsgDeposit *depmsg) {
   return success;
 }
 
-bool mayachain_signTxFinalize(uint8_t *public_key, uint8_t *signature) {
+bool mayachain_signTxFinalize(uint8_t* public_key, uint8_t* signature) {
   char buffer[64 + 1];
-  
+
   // 16 + ^20 = ^36
   if (!tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                            "],\"sequence\":\"%" PRIu64 "\"}", msg.sequence))
@@ -201,7 +200,7 @@ void mayachain_signAbort(void) {
   memzero(&node, sizeof(node));
 }
 
-bool mayachain_parseConfirmMemo(const char *swapStr, size_t size) {
+bool mayachain_parseConfirmMemo(const char* swapStr, size_t size) {
   /*
     Input: swapStr is candidate mayachain data
            size is the size of swapStr (<= 256)
@@ -215,9 +214,9 @@ bool mayachain_parseConfirmMemo(const char *swapStr, size_t size) {
     Swap transactions can be indicated by "SWAP" or "s" or "="
   */
 
-  char *parseTokPtrs[7] = {NULL, NULL, NULL, NULL,
+  char* parseTokPtrs[7] = {NULL, NULL, NULL, NULL,
                            NULL, NULL, NULL};  // we can parse up to 7 tokens
-  char *tok;
+  char* tok;
   char memoBuf[256];
   uint16_t ctr;
 
@@ -265,7 +264,8 @@ bool mayachain_parseConfirmMemo(const char *swapStr, size_t size) {
     }
 
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Mayachain swap", "Confirm swap asset %s\n on chain %s", parseTokPtrs[2], parseTokPtrs[1])) {
+                 "Mayachain swap", "Confirm swap asset %s\n on chain %s",
+                 parseTokPtrs[2], parseTokPtrs[1])) {
       return false;
     }
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
@@ -285,16 +285,18 @@ bool mayachain_parseConfirmMemo(const char *swapStr, size_t size) {
     if (tok != NULL) {
       // add liquidity pool address
       parseTokPtrs[3] = tok;
-    } 
+    }
 
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Mayachain add liquidity", "Confirm add asset %s\n on chain %s pool",
-                 parseTokPtrs[2], parseTokPtrs[1])) {
+                 "Mayachain add liquidity",
+                 "Confirm add asset %s\n on chain %s pool", parseTokPtrs[2],
+                 parseTokPtrs[1])) {
       return false;
     }
     if (tok != NULL) {
       if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Mayachain add liquidity", "Confirm to %s", parseTokPtrs[3])) {
+                   "Mayachain add liquidity", "Confirm to %s",
+                   parseTokPtrs[3])) {
         return false;
       }
     }
@@ -302,19 +304,20 @@ bool mayachain_parseConfirmMemo(const char *swapStr, size_t size) {
   }
 
   // Check for withdraw liquidity
-  else if (strncmp(parseTokPtrs[0], "WITHDRAW", 8) == 0 || strncmp(parseTokPtrs[0], "wd", 2) == 0 ||
-           *parseTokPtrs[0] == '-') {
+  else if (strncmp(parseTokPtrs[0], "WITHDRAW", 8) == 0 ||
+           strncmp(parseTokPtrs[0], "wd", 2) == 0 || *parseTokPtrs[0] == '-') {
     if (tok != NULL) {
       // add liquidity pool address
       parseTokPtrs[3] = tok;
     } else {
-      return false;     // malformed memo
+      return false;  // malformed memo
     }
 
     float percent = (float)(atoi(parseTokPtrs[3])) / 100;
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Mayachain withdraw liquidity", "Confirm withdraw %3.2f%% of asset %s on chain %s",
-                 percent, parseTokPtrs[2], parseTokPtrs[1])) {
+                 "Mayachain withdraw liquidity",
+                 "Confirm withdraw %3.2f%% of asset %s on chain %s", percent,
+                 parseTokPtrs[2], parseTokPtrs[1])) {
       return false;
     }
     return true;

@@ -1,5 +1,5 @@
 #if DEBUG_LINK
-void fsm_msgDebugLinkGetState(DebugLinkGetState *msg) {
+void fsm_msgDebugLinkGetState(DebugLinkGetState* msg) {
   (void)msg;
   RESP_INIT(DebugLinkState);
 
@@ -46,15 +46,44 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState *msg) {
   resp->storage_hash.size =
       memory_storage_hash(resp->storage_hash.bytes, storage_getLocation());
 
+  /* Render pending animations ONLY if the animation queue is active.
+   * Static layouts (warning screens, address displays) write directly
+   * to the canvas — calling animate() unconditionally overwrites them
+   * with stale animation frames. Only run animations when queued. */
+  if (is_animating()) {
+    force_animation_start();
+    animate();
+  }
+  display_refresh();
+
+  /* Pack 256x64 grayscale canvas into 1bpp layout for screenshot capture.
+   * Each byte in layout holds 8 vertical pixels (LSB = top).
+   * Total: 256 columns x (64/8) rows = 2048 bytes. */
+  {
+    const Canvas* c = display_canvas();
+    if (c && c->buffer) {
+      resp->has_layout = true;
+      resp->layout.size = 2048;
+      memset(resp->layout.bytes, 0, 2048);
+      for (int x = 0; x < 256; x++) {
+        for (int y = 0; y < 64; y++) {
+          if (c->buffer[y * 256 + x] > 0) {
+            resp->layout.bytes[x + (y / 8) * 256] |= (1 << (y % 8));
+          }
+        }
+      }
+    }
+  }
+
   msg_debug_write(MessageType_MessageType_DebugLinkState, resp);
 }
 
-void fsm_msgDebugLinkStop(DebugLinkStop *msg) { (void)msg; }
+void fsm_msgDebugLinkStop(DebugLinkStop* msg) { (void)msg; }
 
-void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg) {
+void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump* msg) {
 #ifndef EMULATOR
   if (!msg->has_length ||
-      msg->length > sizeof(((DebugLinkFlashDumpResponse *)0)->data.bytes)) {
+      msg->length > sizeof(((DebugLinkFlashDumpResponse*)0)->data.bytes)) {
 #endif
     fsm_sendFailure(FailureType_Failure_Other, "Invalid FlashDump parameters");
     layoutHome();
@@ -64,7 +93,7 @@ void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump *msg) {
 
   RESP_INIT(DebugLinkFlashDumpResponse);
 
-  memcpy(resp->data.bytes, (void *)msg->address, msg->length);
+  memcpy(resp->data.bytes, (void*)msg->address, msg->length);
 
   resp->has_data = true;
   resp->data.size = msg->length;

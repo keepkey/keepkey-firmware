@@ -28,20 +28,20 @@
 #define MAX_RUNNABLES 3 /* Max number of queue for task manager */
 
 typedef void (*callback_func_t)(void);
-typedef void (*Runnable)(void *context);
+typedef void (*Runnable)(void* context);
 typedef struct RunnableNode RunnableNode;
 
 struct RunnableNode {
   uint32_t remaining;
   Runnable runnable;
-  void *context;
+  void* context;
   uint32_t period;
   bool repeating;
-  RunnableNode *next;
+  RunnableNode* next;
 };
 
 typedef struct {
-  RunnableNode *head;
+  RunnableNode* head;
   int size;
 } RunnableQueue;
 
@@ -69,8 +69,8 @@ uint32_t fi_defense_delay(volatile uint32_t value);
 
 void delay_ms_with_callback(uint32_t ms, callback_func_t callback_func,
                             uint32_t frequency_ms);
-void post_delayed(Runnable runnable, void *context, uint32_t ms_delay);
-void post_periodic(Runnable runnable, void *context, uint32_t period_ms,
+void post_delayed(Runnable runnable, void* context, uint32_t delay_ms);
+void post_periodic(Runnable runnable, void* context, uint32_t period_ms,
                    uint32_t delay_ms);
 void remove_runnable(Runnable runnable);
 void clear_runnables(void);

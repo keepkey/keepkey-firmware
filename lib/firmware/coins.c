@@ -127,7 +127,8 @@ const CoinType coins[COINS_COUNT] = {
       0, /* has_xpub_magic_segwit_native, xpub_magic_segwit_native*/          \
       false,                                                                  \
       "", /* has_nanoaddr_prefix, nanoaddr_prefix*/                           \
-      false, false, /* has_taproot, taproot*/                                 \
+      false,                                                                  \
+      false, /* has_taproot, taproot*/                                        \
   },
 #include "keepkey/firmware/tokens.def"
 };
@@ -137,7 +138,7 @@ _Static_assert(sizeof(coins) / sizeof(coins[0]) == COINS_COUNT,
 
 // Borrowed from fsm_msg_coin.h
 // PLEASE keep these in sync.
-static bool path_mismatched(const CoinType *coin, const uint32_t *address_n,
+static bool path_mismatched(const CoinType* coin, const uint32_t* address_n,
                             uint32_t address_n_count, bool whole_account) {
   bool mismatch = false;
 
@@ -228,7 +229,7 @@ static bool path_mismatched(const CoinType *coin, const uint32_t *address_n,
   return false;
 }
 
-bool bip32_path_to_string(char *str, size_t len, const uint32_t *address_n,
+bool bip32_path_to_string(char* str, size_t len, const uint32_t* address_n,
                           size_t address_n_count) {
   memset(str, 0, len);
 
@@ -254,7 +255,7 @@ bool bip32_path_to_string(char *str, size_t len, const uint32_t *address_n,
   return true;
 }
 
-const CoinType *coinByShortcut(const char *shortcut) {
+const CoinType* coinByShortcut(const char* shortcut) {
   if (!shortcut) {
     return 0;
   }
@@ -271,7 +272,7 @@ const CoinType *coinByShortcut(const char *shortcut) {
   return 0;
 }
 
-const CoinType *coinByName(const char *name) {
+const CoinType* coinByName(const char* name) {
   if (!name) {
     return 0;
   }
@@ -288,14 +289,14 @@ const CoinType *coinByName(const char *name) {
   return 0;
 }
 
-const CoinType *coinByNameOrTicker(const char *name) {
-  const CoinType *coin = coinByName(name);
+const CoinType* coinByNameOrTicker(const char* name) {
+  const CoinType* coin = coinByName(name);
   if (coin) return coin;
 
   return coinByShortcut(name);
 }
 
-const CoinType *coinByChainAddress(uint8_t chain_id, const uint8_t *address) {
+const CoinType* coinByChainAddress(uint8_t chain_id, const uint8_t* address) {
   if (chain_id != 1) return NULL;
 
   if (!address) return NULL;
@@ -312,7 +313,7 @@ const CoinType *coinByChainAddress(uint8_t chain_id, const uint8_t *address) {
   return NULL;
 }
 
-const CoinType *coinByAddressType(uint32_t address_type) {
+const CoinType* coinByAddressType(uint32_t address_type) {
   int i;
 
   for (i = 0; i < COINS_COUNT; i++) {
@@ -324,7 +325,7 @@ const CoinType *coinByAddressType(uint32_t address_type) {
   return 0;
 }
 
-const CoinType *coinBySlip44(uint32_t bip44_account_path) {
+const CoinType* coinBySlip44(uint32_t bip44_account_path) {
   for (int i = 0; i < COINS_COUNT; i++) {
     if (bip44_account_path == coins[i].bip44_account_path) {
       return &coins[i];
@@ -345,9 +346,8 @@ const CoinType *coinBySlip44(uint32_t bip44_account_path) {
  *     none
  *
  */
-void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len) {
+void coin_amnt_to_str(const CoinType* coin, uint64_t amnt, char* buf, int len) {
   uint64_t coin_fraction_part, coin_whole_part;
-  int i;
   char buf_fract[10];
 
   memset(buf, 0, len);
@@ -367,6 +367,7 @@ void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len) {
 
   /* Convert Fraction value to string */
   if (coin_fraction_part > 0) {
+    int i;
     dec64_to_str(coin_fraction_part, buf_fract);
 
     /* Add zeros after decimal */
@@ -390,8 +391,8 @@ void coin_amnt_to_str(const CoinType *coin, uint64_t amnt, char *buf, int len) {
   }
 }
 
-static const char *account_prefix(const CoinType *coin,
-                                  const uint32_t *address_n,
+static const char* account_prefix(const CoinType* coin,
+                                  const uint32_t* address_n,
                                   size_t address_n_count, bool whole_account) {
   if (!coin->has_segwit || !coin->segwit) return "";
 
@@ -408,7 +409,7 @@ static const char *account_prefix(const CoinType *coin,
   return NULL;
 }
 
-bool isTendermint(const char *coin_name) {
+bool isTendermint(const char* coin_name) {
   if (strcmp(coin_name, "Cosmos") == 0) return true;
 
   if (strcmp(coin_name, "Osmosis") == 0) return true;
@@ -428,7 +429,7 @@ bool isTendermint(const char *coin_name) {
   return false;
 }
 
-bool isEthereumLike(const char *coin_name) {
+bool isEthereumLike(const char* coin_name) {
   if (strcmp(coin_name, ETHEREUM) == 0) return true;
 
   if (strcmp(coin_name, ETHEREUM_CLS) == 0) return true;
@@ -438,19 +439,19 @@ bool isEthereumLike(const char *coin_name) {
   return false;
 }
 
-static bool isEOS(const char *coin_name) {
+static bool isEOS(const char* coin_name) {
   if (strcmp(coin_name, "EOS") == 0) return true;
 
   return false;
 }
 
-static bool isRipple(const char *coin_name) {
+static bool isRipple(const char* coin_name) {
   if (strcmp(coin_name, "Ripple") == 0) return true;
 
   return false;
 }
 
-bool isAccountBased(const char *coin_name) {
+bool isAccountBased(const char* coin_name) {
   if (isTendermint(coin_name)) {
     return true;
   }
@@ -466,14 +467,14 @@ bool isAccountBased(const char *coin_name) {
   return false;
 }
 
-bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
-                          const uint32_t *address_n, size_t address_n_count,
+bool bip32_node_to_string(char* node_str, size_t len, const CoinType* coin,
+                          const uint32_t* address_n, size_t address_n_count,
                           bool whole_account, bool show_addridx) {
   if (address_n_count != 3 && address_n_count != 5) return false;
 
   // If it is a token, we still refer to the destination as an Ethereum account.
   bool is_token = coin->has_contract_address;
-  const char *coin_name = is_token ? "Ethereum" : coin->coin_name;
+  const char* coin_name = is_token ? "Ethereum" : coin->coin_name;
 
   if (!whole_account) {
     if (address_n_count != 5) return false;
@@ -486,7 +487,7 @@ bool bip32_node_to_string(char *node_str, size_t len, const CoinType *coin,
   if (path_mismatched(coin, address_n, address_n_count, whole_account))
     return false;
 
-  const char *prefix =
+  const char* prefix =
       account_prefix(coin, address_n, address_n_count, whole_account);
   if (!prefix) return false;
 

@@ -34,7 +34,7 @@
  * OUTPUT
  *     none
  */
-void pin_init_output(const Pin *pin, OutputMode output_mode,
+void pin_init_output(const Pin* pin, OutputMode output_mode,
                      PullMode pull_mode) {
 #ifndef EMULATOR
   uint8_t output_mode_setpoint;

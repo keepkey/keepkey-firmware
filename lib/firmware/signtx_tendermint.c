@@ -39,12 +39,12 @@ static bool initialized;
 static uint32_t msgs_remaining;
 static TendermintSignTx tmsg;
 
-const void *tendermint_getSignTx(void) { return (void *)&tmsg; }
+const void* tendermint_getSignTx(void) { return (void*)&tmsg; }
 
-bool tendermint_signTxInit(const HDNode *_node, const void *_msg,
-                           const size_t msgsize, const char *denom) {
+bool tendermint_signTxInit(const HDNode* _node, const void* _msg,
+                           const size_t msgsize, const char* denom) {
   initialized = true;
-  msgs_remaining = ((TendermintSignTx *)_msg)->msg_count;
+  msgs_remaining = ((TendermintSignTx*)_msg)->msg_count;
   has_message = false;
 
   memzero(&node, sizeof(node));
@@ -65,7 +65,7 @@ bool tendermint_signTxInit(const HDNode *_node, const void *_msg,
     return false;
   }
 
-  memcpy((void *)&tmsg, _msg, msgsize);
+  memcpy((void*)&tmsg, _msg, msgsize);
 
   bool success = true;
   char buffer[128];
@@ -79,8 +79,8 @@ bool tendermint_signTxInit(const HDNode *_node, const void *_msg,
                                  tmsg.account_number);
 
   // <escape chain_id>
-  const char *const chainid_prefix = ",\"chain_id\":\"";
-  sha256_Update(&ctx, (uint8_t *)chainid_prefix, strlen(chainid_prefix));
+  const char* const chainid_prefix = ",\"chain_id\":\"";
+  sha256_Update(&ctx, (uint8_t*)chainid_prefix, strlen(chainid_prefix));
   tendermint_sha256UpdateEscaped(&ctx, tmsg.chain_id, strlen(tmsg.chain_id));
 
   // 30 + ^10 + 11 + ^9 + 3 = ^63
@@ -94,22 +94,22 @@ bool tendermint_signTxInit(const HDNode *_node, const void *_msg,
                                  ",\"gas\":\"%" PRIu32 "\"}", tmsg.gas);
 
   // <escape memo>
-  const char *const memo_prefix = ",\"memo\":\"";
-  sha256_Update(&ctx, (uint8_t *)memo_prefix, strlen(memo_prefix));
+  const char* const memo_prefix = ",\"memo\":\"";
+  sha256_Update(&ctx, (uint8_t*)memo_prefix, strlen(memo_prefix));
   if (tmsg.has_memo) {
     tendermint_sha256UpdateEscaped(&ctx, tmsg.memo, strlen(tmsg.memo));
   }
 
   // 10
-  sha256_Update(&ctx, (uint8_t *)"\",\"msgs\":[", 10);
+  sha256_Update(&ctx, (uint8_t*)"\",\"msgs\":[", 10);
 
   return success;
 }
 
 bool tendermint_signTxUpdateMsgSend(const uint64_t amount,
-                                    const char *to_address,
-                                    const char *chainstr, const char *denom,
-                                    const char *msgTypePrefix) {
+                                    const char* to_address,
+                                    const char* chainstr, const char* denom,
+                                    const char* msgTypePrefix) {
   char buffer[128];
   size_t decoded_len;
   char hrp[45];
@@ -131,7 +131,7 @@ bool tendermint_signTxUpdateMsgSend(const uint64_t amount,
   }
 
   if (has_message) {
-    sha256_Update(&ctx, (uint8_t *)",", 1);
+    sha256_Update(&ctx, (uint8_t*)",", 1);
   }
 
   bool success = true;
@@ -169,10 +169,10 @@ bool tendermint_signTxUpdateMsgSend(const uint64_t amount,
 }
 
 bool tendermint_signTxUpdateMsgDelegate(const uint64_t amount,
-                                        const char *delegator_address,
-                                        const char *validator_address,
-                                        const char *chainstr, const char *denom,
-                                        const char *msgTypePrefix) {
+                                        const char* delegator_address,
+                                        const char* validator_address,
+                                        const char* chainstr, const char* denom,
+                                        const char* msgTypePrefix) {
   char buffer[128];
   size_t decoded_len;
   char hrp[45];
@@ -194,7 +194,7 @@ bool tendermint_signTxUpdateMsgDelegate(const uint64_t amount,
   }
 
   if (has_message) {
-    sha256_Update(&ctx, (uint8_t *)",", 1);
+    sha256_Update(&ctx, (uint8_t*)",", 1);
   }
 
   bool success = true;
@@ -231,11 +231,11 @@ bool tendermint_signTxUpdateMsgDelegate(const uint64_t amount,
   return success;
 }
 bool tendermint_signTxUpdateMsgUndelegate(const uint64_t amount,
-                                          const char *delegator_address,
-                                          const char *validator_address,
-                                          const char *chainstr,
-                                          const char *denom,
-                                          const char *msgTypePrefix) {
+                                          const char* delegator_address,
+                                          const char* validator_address,
+                                          const char* chainstr,
+                                          const char* denom,
+                                          const char* msgTypePrefix) {
   char buffer[128];
   size_t decoded_len;
   char hrp[45];
@@ -257,7 +257,7 @@ bool tendermint_signTxUpdateMsgUndelegate(const uint64_t amount,
   }
 
   if (has_message) {
-    sha256_Update(&ctx, (uint8_t *)",", 1);
+    sha256_Update(&ctx, (uint8_t*)",", 1);
   }
 
   bool success = true;
@@ -295,9 +295,9 @@ bool tendermint_signTxUpdateMsgUndelegate(const uint64_t amount,
 }
 
 bool tendermint_signTxUpdateMsgRedelegate(
-    const uint64_t amount, const char *delegator_address,
-    const char *validator_src_address, const char *validator_dst_address,
-    const char *chainstr, const char *denom, const char *msgTypePrefix) {
+    const uint64_t amount, const char* delegator_address,
+    const char* validator_src_address, const char* validator_dst_address,
+    const char* chainstr, const char* denom, const char* msgTypePrefix) {
   char buffer[128];
   size_t decoded_len;
   char hrp[45];
@@ -319,7 +319,7 @@ bool tendermint_signTxUpdateMsgRedelegate(
   }
 
   if (has_message) {
-    sha256_Update(&ctx, (uint8_t *)",", 1);
+    sha256_Update(&ctx, (uint8_t*)",", 1);
   }
 
   bool success = true;
@@ -364,11 +364,11 @@ bool tendermint_signTxUpdateMsgRedelegate(
   return success;
 }
 
-bool tendermint_signTxUpdateMsgRewards(const uint64_t *amount,
-                                       const char *delegator_address,
-                                       const char *validator_address,
-                                       const char *chainstr, const char *denom,
-                                       const char *msgTypePrefix) {
+bool tendermint_signTxUpdateMsgRewards(const uint64_t* amount,
+                                       const char* delegator_address,
+                                       const char* validator_address,
+                                       const char* chainstr, const char* denom,
+                                       const char* msgTypePrefix) {
   char buffer[128];
   size_t decoded_len;
   char hrp[45];
@@ -390,7 +390,7 @@ bool tendermint_signTxUpdateMsgRewards(const uint64_t *amount,
   }
 
   if (has_message) {
-    sha256_Update(&ctx, (uint8_t *)",", 1);
+    sha256_Update(&ctx, (uint8_t*)",", 1);
   }
 
   bool success = true;
@@ -431,10 +431,10 @@ bool tendermint_signTxUpdateMsgRewards(const uint64_t *amount,
 }
 
 bool tendermint_signTxUpdateMsgIBCTransfer(
-    const uint64_t amount, const char *sender, const char *receiver,
-    const char *source_channel, const char *source_port,
-    const char *revision_number, const char *revision_height,
-    const char *chainstr, const char *denom, const char *msgTypePrefix) {
+    const uint64_t amount, const char* sender, const char* receiver,
+    const char* source_channel, const char* source_port,
+    const char* revision_number, const char* revision_height,
+    const char* chainstr, const char* denom, const char* msgTypePrefix) {
   char buffer[128];
   size_t decoded_len;
   char hrp[45];
@@ -456,7 +456,7 @@ bool tendermint_signTxUpdateMsgIBCTransfer(
   }
 
   if (has_message) {
-    sha256_Update(&ctx, (uint8_t *)",", 1);
+    sha256_Update(&ctx, (uint8_t*)",", 1);
   }
 
   bool success = true;
@@ -510,7 +510,7 @@ bool tendermint_signTxUpdateMsgIBCTransfer(
   return success;
 }
 
-bool tendermint_signTxFinalize(uint8_t *public_key, uint8_t *signature) {
+bool tendermint_signTxFinalize(uint8_t* public_key, uint8_t* signature) {
   char buffer[128];
 
   // 14 + ^20 + 2 = ^36

@@ -33,15 +33,15 @@
 extern const char ripple_b58digits_ordered[];
 extern const int8_t ripple_b58digits_map[];
 
-int ripple_encode_check(const uint8_t *data, int len, HasherType hasher_type,
-                        char *str, int strsize);
-int ripple_decode_check(const char *str, HasherType hasher_type, uint8_t *data,
+int ripple_encode_check(const uint8_t* data, int datalen,
+                        HasherType hasher_type, char* str, int strsize);
+int ripple_decode_check(const char* str, HasherType hasher_type, uint8_t* data,
                         int datalen);
 
 // Private
-bool ripple_b58tobin(void *bin, size_t *binszp, const char *b58);
-int ripple_b58check(const void *bin, size_t binsz, HasherType hasher_type,
-                    const char *base58str);
-bool ripple_b58enc(char *b58, size_t *b58sz, const void *data, size_t binsz);
+bool ripple_b58tobin(void* bin, size_t* binszp, const char* b58);
+int ripple_b58check(const void* bin, size_t binsz, HasherType hasher_type,
+                    const char* base58str);
+bool ripple_b58enc(char* b58, size_t* b58sz, const void* data, size_t binsz);
 
 #endif

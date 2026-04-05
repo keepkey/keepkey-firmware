@@ -20,7 +20,7 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
-//#include <libopencm3/cm3/mpu.h>
+// #include <libopencm3/cm3/mpu.h>
 #include "trezor/crypto/sha2.h"
 
 #include <stddef.h>
@@ -73,17 +73,19 @@
 // clang-format on
 
 #ifdef EMULATOR
-extern uint8_t *emulator_flash_base;
+extern uint8_t* emulator_flash_base;
 #define FLASH_PTR(x) (emulator_flash_base + (x - FLASH_ORIGIN))
 #else
-#define FLASH_PTR(x) (const uint8_t *)(x)
+#define FLASH_PTR(x) (const uint8_t*)(x)
 #endif
 
-#define STACK_GOOD          1         // do not change this value, must equal SUCCESS in eip712 error list
-#define STACK_TOO_SMALL     13        // do not change this value, used in eip712 error list
+#define STACK_GOOD \
+  1  // do not change this value, must equal SUCCESS in eip712 error list
+#define STACK_TOO_SMALL \
+  13  // do not change this value, used in eip712 error list
 
-#define OPTION_BYTES_1 ((uint64_t *)0x1FFFC000)
-#define OPTION_BYTES_2 ((uint64_t *)0x1FFFC008)
+#define OPTION_BYTES_1 ((uint64_t*)0x1FFFC000)
+#define OPTION_BYTES_2 ((uint64_t*)0x1FFFC008)
 #define OPTION_RDP 0xCCFF
 #define OPTION_WRP 0xFF9E
 
@@ -130,34 +132,32 @@ extern uint8_t *emulator_flash_base;
 
 #define FLASH_META_MAGIC (FLASH_META_START)
 #define FLASH_META_CODELEN \
-  (FLASH_META_MAGIC + sizeof(((app_meta_td *)NULL)->magic))
+  (FLASH_META_MAGIC + sizeof(((app_meta_td*)NULL)->magic))
 #define FLASH_META_SIGINDEX1 \
-  (FLASH_META_CODELEN + sizeof(((app_meta_td *)NULL)->code_len))
+  (FLASH_META_CODELEN + sizeof(((app_meta_td*)NULL)->code_len))
 #define FLASH_META_SIGINDEX2 \
-  (FLASH_META_SIGINDEX1 + sizeof(((app_meta_td *)NULL)->sig_index1))
+  (FLASH_META_SIGINDEX1 + sizeof(((app_meta_td*)NULL)->sig_index1))
 #define FLASH_META_SIGINDEX3 \
-  (FLASH_META_SIGINDEX2 + sizeof(((app_meta_td *)NULL)->sig_index2))
+  (FLASH_META_SIGINDEX2 + sizeof(((app_meta_td*)NULL)->sig_index2))
 #define FLASH_SIG_FLAG \
-  (FLASH_META_SIGINDEX3 + sizeof(((app_meta_td *)NULL)->sig_index3))
+  (FLASH_META_SIGINDEX3 + sizeof(((app_meta_td*)NULL)->sig_index3))
 #define FLASH_META_FLAGS \
-  (FLASH_SIG_FLAG + sizeof(((app_meta_td *)NULL)->sig_flag))
+  (FLASH_SIG_FLAG + sizeof(((app_meta_td*)NULL)->sig_flag))
 #define FLASH_META_RESERVE \
-  (FLASH_META_FLAGS + sizeof(((app_meta_td *)NULL)->meta_flags))
-#define FLASH_META_SIG1 \
-  (FLASH_META_RESERVE + sizeof(((app_meta_td *)NULL)->rsv))
-#define FLASH_META_SIG2 (FLASH_META_SIG1 + sizeof(((app_meta_td *)NULL)->sig1))
-#define FLASH_META_SIG3 (FLASH_META_SIG2 + sizeof(((app_meta_td *)NULL)->sig2))
+  (FLASH_META_FLAGS + sizeof(((app_meta_td*)NULL)->meta_flags))
+#define FLASH_META_SIG1 (FLASH_META_RESERVE + sizeof(((app_meta_td*)NULL)->rsv))
+#define FLASH_META_SIG2 (FLASH_META_SIG1 + sizeof(((app_meta_td*)NULL)->sig1))
+#define FLASH_META_SIG3 (FLASH_META_SIG2 + sizeof(((app_meta_td*)NULL)->sig2))
 
-#define META_MAGIC_SIZE (sizeof(((app_meta_td *)NULL)->magic))
+#define META_MAGIC_SIZE (sizeof(((app_meta_td*)NULL)->magic))
 
 #define FLASH_APP_START \
   (FLASH_META_START + FLASH_META_DESC_LEN)  // 0x0806_0200 - 0x080F_FFFF
 #define FLASH_APP_LEN (FLASH_END - FLASH_APP_START)
 
-#define SIG_FLAG (*(uint8_t const *)FLASH_SIG_FLAG)
+#define SIG_FLAG (*(uint8_t const*)FLASH_SIG_FLAG)
 
-#define META_FLAGS (*(uint32_t const *)FLASH_META_FLAGS)
-
+#define META_FLAGS (*(uint32_t const*)FLASH_META_FLAGS)
 
 /* Misc Info. */
 #define FLASH_BOOTSTRAP_SECTOR 0
@@ -252,9 +252,11 @@ static const FlashSector flash_sector_map[] = {
     {11, 0x080E0000, APP_FLASH_SECT_LEN, FLASH_APP},
     {-1, 0, 0, FLASH_INVALID}};
 
-
-#define STACK_REENTRANCY_REQ    1280    // calculate this from a re-entrant call (unsigned)&p - (unsigned)&end)
-#define STACK_SIZE_GUARD        (STACK_REENTRANCY_REQ + 64) // Can't recurse without this much stack available
+#define STACK_REENTRANCY_REQ \
+  1280  // calculate this from a re-entrant call (unsigned)&p - (unsigned)&end)
+#define STACK_SIZE_GUARD  \
+  (STACK_REENTRANCY_REQ + \
+   64)  // Can't recurse without this much stack available
 int memcheck(unsigned stackGuardSize);
 
 void mpu_config(int);
@@ -270,16 +272,16 @@ void memory_unlock(void);
 /// \param hash    Buffer to be filled with hash.
 ///                Must be at least SHA256_DIGEST_LENGTH bytes long.
 /// \param cached  Whether a cached value is acceptable.
-int memory_bootloader_hash(uint8_t *hash, bool cached);
+int memory_bootloader_hash(uint8_t* hash, bool cached);
 
-int memory_firmware_hash(uint8_t *hash);
-int memory_storage_hash(uint8_t *hash, Allocation storage_location);
-bool find_active_storage(Allocation *storage_location);
+int memory_firmware_hash(uint8_t* hash);
+int memory_storage_hash(uint8_t* hash, Allocation storage_location);
+bool find_active_storage(Allocation* storage_location);
 
 /// Find the storage location *after* the active one.
 Allocation next_storage(Allocation active);
 
-void memory_getDeviceLabel(char *str, size_t len);
+void memory_getDeviceLabel(char* str, size_t len);
 
 /// Write the marker that allows the firmware to boot with secrets preserved.
 bool storage_protect_off(void);
@@ -288,13 +290,13 @@ bool storage_protect_off(void);
 bool storage_protect_on(void);
 
 /// Wipe if the status is not STORAGE_PROTECT_DISABLED
-void storage_protect_wipe(uint32_t status);
+void storage_protect_wipe(uint32_t storage_protect_status);
 
 /// \returns STORAGE_PROTECT_{ENABLED,DISABLED}
 uint32_t storage_protect_status(void);
 
-extern void *_timerusr_isr;
-extern void *_buttonusr_isr;
-extern void *_mmhusr_isr;
+extern void* _timerusr_isr;
+extern void* _buttonusr_isr;
+extern void* _mmhusr_isr;
 
 #endif

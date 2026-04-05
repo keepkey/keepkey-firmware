@@ -47,7 +47,7 @@ void txin_dgst_initialize(void) {
 }
 
 // hash in a txin
-void txin_dgst_addto(const uint8_t *data, size_t len) {
+void txin_dgst_addto(const uint8_t* data, size_t len) {
   sha256_Update(&txin_hash_ctx, data, len);
   return;
 }
@@ -60,7 +60,7 @@ void txin_dgst_final(void) {
 
 // compare dgst, amt, addr
 // returns True if warning condition met
-bool txin_dgst_compare(const char *amt_str, const char *addr_str) {
+bool txin_dgst_compare(const char* amt_str, const char* addr_str) {
   // if amt and addr are same AND digest is different, then warn
   if ((strncmp(amt_str, last_amount_str, AMT_STR_LEN) == 0) &&
       (strncmp(addr_str, last_addr_str, ADDR_STR_LEN) == 0)) {
@@ -73,7 +73,7 @@ bool txin_dgst_compare(const char *amt_str, const char *addr_str) {
 }
 
 // return string pointers to digests
-void txin_dgst_getstrs(char *prev, char *cur, size_t len) {
+void txin_dgst_getstrs(char* prev, char* cur, size_t len) {
   if (len != DIGEST_STR_LEN) {
     return;
   }
@@ -85,7 +85,7 @@ void txin_dgst_getstrs(char *prev, char *cur, size_t len) {
 }
 
 // save last state and reset for next tx request
-void txin_dgst_save_and_reset(char *amt_str, char *addr_str) {
+void txin_dgst_save_and_reset(const char* amt_str, const char* addr_str) {
   memcpy(txin_last_digest, txin_current_digest, SHA256_DIGEST_LENGTH);
   memcpy(last_amount_str, amt_str, AMT_STR_LEN);
   memcpy(last_addr_str, addr_str, ADDR_STR_LEN);

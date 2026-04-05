@@ -41,21 +41,32 @@
 #include <stdio.h>
 
 #ifdef EMULATOR
-uint8_t *emulator_flash_base = NULL;
+uint8_t* emulator_flash_base = NULL;
 #endif
 
-extern unsigned end;    // This is at the end of the data + bss, used for recursion guard
+#ifndef EMULATOR
+extern unsigned
+    end;  // This is at the end of the data + bss, used for recursion guard
+#endif
+
 int memcheck(unsigned stackGuardSize) {
-    void *stackBottom;    // this is the bottom of the stack, it is shrinking toward static mem at variable "end".
-    //char buf[33] = {0};
-    //snprintf(buf, 64, "RAM available %u", (unsigned)&stackBottom - (unsigned)&end);
-    //snprintf(buf, 64, "stack bottom %x", (unsigned)&stackBottom);
-    //DEBUG_DISPLAY(buf);
-    if (stackGuardSize > ((unsigned)&stackBottom - (unsigned)&end)) {
-        return STACK_TOO_SMALL;
-    } else {
-        return STACK_GOOD;
-    }
+#ifdef EMULATOR
+  // In emulator, we have plenty of stack space, just return STACK_GOOD
+  (void)stackGuardSize;
+  return STACK_GOOD;
+#else
+  void* stackBottom;  // this is the bottom of the stack, it is shrinking toward
+                      // static mem at variable "end".
+  // char buf[33] = {0};
+  // snprintf(buf, 64, "RAM available %u", (unsigned)&stackBottom -
+  // (unsigned)&end); snprintf(buf, 64, "stack bottom %x",
+  // (unsigned)&stackBottom); DEBUG_DISPLAY(buf);
+  if (stackGuardSize > ((unsigned)&stackBottom - (unsigned)&end)) {
+    return STACK_TOO_SMALL;
+  } else {
+    return STACK_GOOD;
+  }
+#endif
 }
 
 void mpu_config(int priv_level) {
@@ -196,11 +207,11 @@ void memory_unlock(void) {
 #endif
 }
 
-int memory_bootloader_hash(uint8_t *hash, bool cached) {
+int memory_bootloader_hash(uint8_t* hash, bool cached) {
   static uint8_t cached_hash[SHA256_DIGEST_LENGTH];
 
   if (cached_hash[0] == '\0' || !cached) {
-    sha256_Raw((const uint8_t *)FLASH_BOOT_START, FLASH_BOOT_LEN, cached_hash);
+    sha256_Raw((const uint8_t*)FLASH_BOOT_START, FLASH_BOOT_LEN, cached_hash);
     sha256_Raw(cached_hash, SHA256_DIGEST_LENGTH, cached_hash);
   }
 
@@ -217,17 +228,18 @@ int memory_bootloader_hash(uint8_t *hash, bool cached) {
  * OUTPUT
  *     none
  */
-int memory_firmware_hash(uint8_t *hash) {
+// cppcheck-suppress constParameterPointer
+int memory_firmware_hash(uint8_t* hash) {
 #ifndef EMULATOR
   SHA256_CTX ctx;
-  uint32_t codelen = *((uint32_t *)FLASH_META_CODELEN);
+  uint32_t codelen = *((uint32_t*)FLASH_META_CODELEN);
 
   if (codelen <= FLASH_APP_LEN) {
     sha256_Init(&ctx);
-    sha256_Update(&ctx, (const uint8_t *)META_MAGIC_STR, META_MAGIC_SIZE);
-    sha256_Update(&ctx, (const uint8_t *)FLASH_META_CODELEN,
+    sha256_Update(&ctx, (const uint8_t*)META_MAGIC_STR, META_MAGIC_SIZE);
+    sha256_Update(&ctx, (const uint8_t*)FLASH_META_CODELEN,
                   FLASH_META_DESC_LEN - META_MAGIC_SIZE);
-    sha256_Update(&ctx, (const uint8_t *)FLASH_APP_START, codelen);
+    sha256_Update(&ctx, (const uint8_t*)FLASH_APP_START, codelen);
     sha256_Final(&ctx, hash);
     return SHA256_DIGEST_LENGTH;
   } else {
@@ -246,10 +258,9 @@ int memory_firmware_hash(uint8_t *hash) {
  *     - storage_location: current storage location (changes due to wear
  * leveling) OUTPUT none
  */
-int memory_storage_hash(uint8_t *hash, Allocation storage_location) {
-  const uint8_t *storage_location_start;
-  storage_location_start =
-      (const uint8_t *)flash_write_helper(storage_location);
+int memory_storage_hash(uint8_t* hash, Allocation storage_location) {
+  const uint8_t* storage_location_start;
+  storage_location_start = (const uint8_t*)flash_write_helper(storage_location);
 
   sha256_Raw(storage_location_start, STORAGE_SECTOR_LEN, hash);
   return SHA256_DIGEST_LENGTH;
@@ -264,17 +275,16 @@ int memory_storage_hash(uint8_t *hash, Allocation storage_location) {
  *      status
  *
  */
-bool find_active_storage(Allocation *storage_location) {
+bool find_active_storage(Allocation* storage_location) {
   bool ret_stat = false;
   Allocation storage_location_use;
-  size_t storage_location_start;
 
   /* Find 1st storage sector with valid data */
   for (storage_location_use = FLASH_STORAGE1;
        storage_location_use <= FLASH_STORAGE3; storage_location_use++) {
-    storage_location_start = flash_write_helper(storage_location_use);
+    size_t storage_location_start = flash_write_helper(storage_location_use);
 
-    if (memcmp((void *)storage_location_start, STORAGE_MAGIC_STR,
+    if (memcmp((void*)storage_location_start, STORAGE_MAGIC_STR,
                STORAGE_MAGIC_LEN) == 0) {
       /* Found valid data.  Load data and exit */
       *storage_location = storage_location_use;
@@ -309,7 +319,7 @@ bool storage_protect_off(void) {
   Allocation marker_sector = next_storage(active);
   flash_erase_word(marker_sector);
   bool ret = flash_write(marker_sector, 0, sizeof(STORAGE_PROTECT_OFF_MAGIC),
-                         (const uint8_t *)STORAGE_PROTECT_OFF_MAGIC);
+                         (const uint8_t*)STORAGE_PROTECT_OFF_MAGIC);
   return ret;
 }
 
@@ -326,15 +336,15 @@ bool storage_protect_on(void) {
   Allocation marker_sector = next_storage(active);
   flash_erase_word(marker_sector);
   bool ret = flash_write(marker_sector, 0, sizeof(STORAGE_PROTECT_ON_MAGIC),
-                         (const uint8_t *)STORAGE_PROTECT_ON_MAGIC);
+                         (const uint8_t*)STORAGE_PROTECT_ON_MAGIC);
   return ret;
 }
 
-static const char *sector_start(Allocation a) {
-  const FlashSector *sector = flash_sector_map;
+static const char* sector_start(Allocation a) {
+  const FlashSector* sector = flash_sector_map;
   while (sector->use != FLASH_INVALID) {
     if (sector->use == a) {
-      return (const char *)sector->start;
+      return (const char*)sector->start;
     }
     sector++;
   }
@@ -347,7 +357,7 @@ uint32_t storage_protect_status(void) {
 
   Allocation marker_sector = next_storage(active);
 
-  const char *start = sector_start(marker_sector);
+  const char* start = sector_start(marker_sector);
   if (!start) return STORAGE_PROTECT_ENABLED;
 
   return memcmp(STORAGE_PROTECT_OFF_MAGIC, start,

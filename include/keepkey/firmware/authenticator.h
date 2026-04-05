@@ -18,14 +18,18 @@
 #ifndef __AUTHENTICATOR_H__
 #define __AUTHENTICATOR_H__
 
-// WARNING: Changing these defines changes the size of authStruct, which in turn changes the secret storage size
-// in saved in flash. These value must be coordinated with the size of uint8_t encrypted_sec[] in 
-// in lib/firmware/storage.h and the storage version must be bumped.
-#define DOMAIN_SIZE         12  // allow 11 chars for domain
-#define ACCOUNT_SIZE        12  // allow 11 chars for account string
-#define AUTHSECRET_SIZE_MAX 20  // 128-bit key len is the recommended minimum, this is room for 160-bit
-#define AUTHDATA_SIZE       10  // WARNING: This value must be coordinated with the size of uint8_t encrypted_sec[] in
-                                // in lib/firmware/storage.h and the storage version must be bumped
+// WARNING: Changing these defines changes the size of authStruct, which in turn
+// changes the secret storage size in saved in flash. These value must be
+// coordinated with the size of uint8_t encrypted_sec[] in in
+// lib/firmware/storage.h and the storage version must be bumped.
+#define DOMAIN_SIZE 12   // allow 11 chars for domain
+#define ACCOUNT_SIZE 12  // allow 11 chars for account string
+#define AUTHSECRET_SIZE_MAX \
+  20  // 128-bit key len is the recommended minimum, this is room for 160-bit
+#define AUTHDATA_SIZE \
+  10  // WARNING: This value must be coordinated with the size of uint8_t
+      // encrypted_sec[] in in lib/firmware/storage.h and the storage version
+      // must be bumped
 
 enum AUTH_ERR_TYPE {
   NOERR = 0,
@@ -40,7 +44,6 @@ enum AUTH_ERR_TYPE {
   NUM_AUTHERRS
 };
 
-
 typedef struct _HMAC_SHA1_CTX {
   uint8_t o_key_pad[SHA1_BLOCK_LENGTH];
   SHA1_CTX ctx;
@@ -50,23 +53,23 @@ typedef struct _authStruct {
   char domain[DOMAIN_SIZE];
   char account[ACCOUNT_SIZE];
   char authSecret[AUTHSECRET_SIZE_MAX];
-  uint8_t secretSize;                   // this is zero if slot is not filled
+  uint8_t secretSize;  // this is zero if slot is not filled
 } authType;
 
-void hmac_sha1_Init(HMAC_SHA1_CTX *hctx, const uint8_t *key,
-                      const uint32_t keylen);
-void hmac_sha1_Update(HMAC_SHA1_CTX *hctx, const uint8_t *msg,
-                        const uint32_t msglen);
-void hmac_sha1_Final(HMAC_SHA1_CTX *hctx, uint8_t *hmac);
-void hmac_sha1(const uint8_t *key, const uint32_t keylen, const uint8_t *msg,
-                 const uint32_t msglen, uint8_t *hmac);
+void hmac_sha1_Init(HMAC_SHA1_CTX* hctx, const uint8_t* key,
+                    const uint32_t keylen);
+void hmac_sha1_Update(HMAC_SHA1_CTX* hctx, const uint8_t* msg,
+                      const uint32_t msglen);
+void hmac_sha1_Final(HMAC_SHA1_CTX* hctx, uint8_t* hmac);
+void hmac_sha1(const uint8_t* key, const uint32_t keylen, const uint8_t* msg,
+               const uint32_t msglen, uint8_t* hmac);
 
-unsigned generateOTP(char *accountWithMsg, char otpStr[]);
-unsigned addAuthAccount(char *accountWithSeed);
-unsigned getAuthAccount(char *slotStr, char acc[]);
-unsigned removeAuthAccount(char *account);
+unsigned generateOTP(char* accountWithMsg, char otpStr[]);
+unsigned addAuthAccount(char* accountWithSeed);
+unsigned getAuthAccount(const char* slotStr, char acc[]);
+unsigned removeAuthAccount(char* domAcc);
 void wipeAuthData(void);
 #if DEBUG_LINK
-void getAuthSlot(char *authSlotData);
+void getAuthSlot(char* authSlotData);
 #endif
 #endif

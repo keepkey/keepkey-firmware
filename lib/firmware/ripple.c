@@ -56,13 +56,13 @@ bool ripple_getAddress(const uint8_t public_key[33],
   return true;
 }
 
-void ripple_formatAmount(char *buf, size_t len, uint64_t amount) {
+void ripple_formatAmount(char* buf, size_t len, uint64_t amount) {
   bignum256 val;
   bn_read_uint64(amount, &val);
   bn_format(&val, NULL, " XRP", RIPPLE_DECIMALS, 0, false, buf, len);
 }
 
-static void append_u8(bool *ok, uint8_t **buf, const uint8_t *end,
+static void append_u8(bool* ok, uint8_t** buf, const uint8_t* end,
                       uint8_t val) {
   if (!*ok) {
     return;
@@ -77,8 +77,8 @@ static void append_u8(bool *ok, uint8_t **buf, const uint8_t *end,
   *buf += 1;
 }
 
-void ripple_serializeType(bool *ok, uint8_t **buf, const uint8_t *end,
-                          const RippleFieldMapping *m) {
+void ripple_serializeType(bool* ok, uint8_t** buf, const uint8_t* end,
+                          const RippleFieldMapping* m) {
   if (m->key <= 0xf) {
     append_u8(ok, buf, end, m->type << 4 | m->key);
     return;
@@ -88,8 +88,8 @@ void ripple_serializeType(bool *ok, uint8_t **buf, const uint8_t *end,
   append_u8(ok, buf, end, m->key);
 }
 
-void ripple_serializeInt16(bool *ok, uint8_t **buf, const uint8_t *end,
-                           const RippleFieldMapping *m, int16_t val) {
+void ripple_serializeInt16(bool* ok, uint8_t** buf, const uint8_t* end,
+                           const RippleFieldMapping* m, int16_t val) {
   assert(m->type == RFT_INT16 && "wrong type?");
 
   ripple_serializeType(ok, buf, end, m);
@@ -97,8 +97,8 @@ void ripple_serializeInt16(bool *ok, uint8_t **buf, const uint8_t *end,
   append_u8(ok, buf, end, val & 0xff);
 }
 
-void ripple_serializeInt32(bool *ok, uint8_t **buf, const uint8_t *end,
-                           const RippleFieldMapping *m, int32_t val) {
+void ripple_serializeInt32(bool* ok, uint8_t** buf, const uint8_t* end,
+                           const RippleFieldMapping* m, int32_t val) {
   assert(m->type == RFT_INT32 && "wrong type?");
 
   ripple_serializeType(ok, buf, end, m);
@@ -108,8 +108,8 @@ void ripple_serializeInt32(bool *ok, uint8_t **buf, const uint8_t *end,
   append_u8(ok, buf, end, val & 0xff);
 }
 
-void ripple_serializeAmount(bool *ok, uint8_t **buf, const uint8_t *end,
-                            const RippleFieldMapping *m, int64_t amount) {
+void ripple_serializeAmount(bool* ok, uint8_t** buf, const uint8_t* end,
+                            const RippleFieldMapping* m, int64_t amount) {
   ripple_serializeType(ok, buf, end, m);
 
   assert(amount >= 0 && "amounts cannot be negative");
@@ -128,7 +128,7 @@ void ripple_serializeAmount(bool *ok, uint8_t **buf, const uint8_t *end,
   append_u8(ok, buf, end, amount & 0xff);
 }
 
-void ripple_serializeVarint(bool *ok, uint8_t **buf, const uint8_t *end,
+void ripple_serializeVarint(bool* ok, uint8_t** buf, const uint8_t* end,
                             int val) {
   if (val < 0) {
     assert(false && "can't serialize 0-valued varint");
@@ -143,7 +143,7 @@ void ripple_serializeVarint(bool *ok, uint8_t **buf, const uint8_t *end,
 
   if (val <= 12480) {
     val -= 193;
-    append_u8(ok, buf, end, 193 + (val >> 8));
+    append_u8(ok, buf, end, 193 + ((unsigned)val >> 8));
     append_u8(ok, buf, end, val & 0xff);
     return;
   }
@@ -151,8 +151,8 @@ void ripple_serializeVarint(bool *ok, uint8_t **buf, const uint8_t *end,
   if (val < 918744) {
     assert(*buf + 3 < end && "buffer not long enough");
     val -= 12481;
-    append_u8(ok, buf, end, 241 + (val >> 16));
-    append_u8(ok, buf, end, (val >> 8) & 0xff);
+    append_u8(ok, buf, end, 241 + ((unsigned)val >> 16));
+    append_u8(ok, buf, end, ((unsigned)val >> 8) & 0xff);
     append_u8(ok, buf, end, val & 0xff);
     return;
   }
@@ -161,8 +161,8 @@ void ripple_serializeVarint(bool *ok, uint8_t **buf, const uint8_t *end,
   *ok = false;
 }
 
-void ripple_serializeBytes(bool *ok, uint8_t **buf, const uint8_t *end,
-                           const uint8_t *bytes, size_t count) {
+void ripple_serializeBytes(bool* ok, uint8_t** buf, const uint8_t* end,
+                           const uint8_t* bytes, size_t count) {
   ripple_serializeVarint(ok, buf, end, count);
 
   if (!*ok || *buf + count > end) {
@@ -175,8 +175,8 @@ void ripple_serializeBytes(bool *ok, uint8_t **buf, const uint8_t *end,
   *buf += count;
 }
 
-void ripple_serializeAddress(bool *ok, uint8_t **buf, const uint8_t *end,
-                             const RippleFieldMapping *m, const char *address) {
+void ripple_serializeAddress(bool* ok, uint8_t** buf, const uint8_t* end,
+                             const RippleFieldMapping* m, const char* address) {
   ripple_serializeType(ok, buf, end, m);
 
   uint8_t addr_raw[MAX_ADDR_RAW_SIZE];
@@ -191,16 +191,16 @@ void ripple_serializeAddress(bool *ok, uint8_t **buf, const uint8_t *end,
   ripple_serializeBytes(ok, buf, end, addr_raw + 1, addr_raw_len - 1);
 }
 
-void ripple_serializeVL(bool *ok, uint8_t **buf, const uint8_t *end,
-                        const RippleFieldMapping *m, const uint8_t *bytes,
+void ripple_serializeVL(bool* ok, uint8_t** buf, const uint8_t* end,
+                        const RippleFieldMapping* m, const uint8_t* bytes,
                         size_t count) {
   ripple_serializeType(ok, buf, end, m);
   ripple_serializeBytes(ok, buf, end, bytes, count);
 }
 
-bool ripple_serialize(uint8_t **buf, const uint8_t *end, const RippleSignTx *tx,
-                      const char *source_address, const uint8_t *pubkey,
-                      const uint8_t *sig, size_t sig_len) {
+bool ripple_serialize(uint8_t** buf, const uint8_t* end, const RippleSignTx* tx,
+                      const char* source_address, const uint8_t* pubkey,
+                      const uint8_t* sig, size_t sig_len) {
   bool ok = true;
   ripple_serializeInt16(&ok, buf, end, &RFM_type, /*Payment*/ 0);
   if (tx->has_flags)
@@ -226,8 +226,8 @@ bool ripple_serialize(uint8_t **buf, const uint8_t *end, const RippleSignTx *tx,
   return ok;
 }
 
-void ripple_signTx(const HDNode *node, RippleSignTx *tx, RippleSignedTx *resp) {
-  const curve_info *curve = get_curve_by_name("secp256k1");
+void ripple_signTx(const HDNode* node, RippleSignTx* tx, RippleSignedTx* resp) {
+  const curve_info* curve = get_curve_by_name("secp256k1");
   if (!curve) return;
 
   // Set canonical flag, since trezor-crypto ECDSA implementation returns
@@ -249,7 +249,7 @@ void ripple_signTx(const HDNode *node, RippleSignTx *tx, RippleSignedTx *resp) {
   char source_address[MAX_ADDR_SIZE];
   if (!ripple_getAddress(node->public_key, source_address)) return;
 
-  uint8_t *buf = resp->serialized_tx.bytes + 4;
+  uint8_t* buf = resp->serialized_tx.bytes + 4;
   size_t len = sizeof(resp->serialized_tx.bytes) - 4;
   if (!ripple_serialize(&buf, buf + len, tx, source_address, node->public_key,
                         NULL, 0))

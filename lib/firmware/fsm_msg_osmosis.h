@@ -2,22 +2,22 @@
 #define OSMOSIS_PRECISION 6
 #define OSMOSIS_LP_ASSET_PRECISION 18
 
-void fsm_msgOsmosisGetAddress(const OsmosisGetAddress *msg) {
+void fsm_msgOsmosisGetAddress(const OsmosisGetAddress* msg) {
   RESP_INIT(OsmosisAddress);
 
   CHECK_INITIALIZED
 
   CHECK_PIN
 
-  const CoinType *coin = fsm_getCoin(true, "Osmosis");
+  const CoinType* coin = fsm_getCoin(true, "Osmosis");
   if (!coin) {
     return;
   }
-  HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
-  char mainnet[] = "osmo";
-  char testnet[] = "tosmo";
-  char *pfix;
+  const char mainnet[] = "osmo";
+  const char testnet[] = "tosmo";
+  const char* pfix;
 
   if (!node) {
     return;
@@ -81,7 +81,7 @@ void fsm_msgOsmosisGetAddress(const OsmosisGetAddress *msg) {
   layoutHome();
 }
 
-void fsm_msgOsmosisSignTx(const OsmosisSignTx *msg) {
+void fsm_msgOsmosisSignTx(const OsmosisSignTx* msg) {
   CHECK_INITIALIZED
   CHECK_PIN
 
@@ -94,7 +94,7 @@ void fsm_msgOsmosisSignTx(const OsmosisSignTx *msg) {
     return;
   }
 
-  HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) {
     return;
@@ -119,16 +119,16 @@ void fsm_msgOsmosisSignTx(const OsmosisSignTx *msg) {
   layoutHome();
 }
 
-void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
+void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
   /** Confirm transaction basics */
   CHECK_PARAM(osmosis_signingIsInited(), "Signing not in progress");
 
-  const CoinType *coin = fsm_getCoin(true, "Osmosis");
+  const CoinType* coin = fsm_getCoin(true, "Osmosis");
   if (!coin) {
     return;
   }
 
-  const OsmosisSignTx *sign_tx = osmosis_getOsmosisSignTx();
+  const OsmosisSignTx* sign_tx = osmosis_getOsmosisSignTx();
 
   /** Confirm required transaction parameters exist */
   if (msg->has_send) {
@@ -141,7 +141,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     }
 
     float amount = atof(msg->send.amount);
-    const char *denom = msg->send.denom;
+    const char* denom = msg->send.denom;
     if (!strcmp(msg->send.denom, "uosmo")) {
       amount /= pow(10, OSMOSIS_PRECISION);
       denom = "OSMO";
@@ -180,7 +180,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     }
 
     float amount = atof(msg->delegate.amount);
-    const char *denom = msg->delegate.denom;
+    const char* denom = msg->delegate.denom;
     if (!strcmp(msg->delegate.denom, "uosmo")) {
       amount /= pow(10, OSMOSIS_PRECISION);
       denom = "OSMO";
@@ -232,7 +232,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     }
 
     float amount = atof(msg->undelegate.amount);
-    const char *denom = msg->undelegate.denom;
+    const char* denom = msg->undelegate.denom;
     if (!strcmp(msg->undelegate.denom, "uosmo")) {
       amount /= pow(10, OSMOSIS_PRECISION);
       denom = "OSMO";
@@ -290,7 +290,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     strlcpy(insoamt, msg->lp_add.share_out_amount,
             sizeof(msg->lp_add.share_out_amount));
 
-    if (base_to_precision(outsoamt, (uint8_t *)insoamt, sizeof(outsoamt),
+    if (base_to_precision(outsoamt, (uint8_t*)insoamt, sizeof(outsoamt),
                           strlen(insoamt), OSMOSIS_LP_ASSET_PRECISION) < 0) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_Other, NULL);
@@ -299,14 +299,14 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     }
 
     float amount_in_max_b = atof(msg->lp_add.amount_in_max_b);
-    const char *denom_in_max_b = msg->lp_add.denom_in_max_b;
+    const char* denom_in_max_b = msg->lp_add.denom_in_max_b;
     if (!strcmp(msg->lp_add.denom_in_max_b, "uosmo")) {
       amount_in_max_b /= pow(10, OSMOSIS_PRECISION);
       denom_in_max_b = "OSMO";
     }
 
     float amount_in_max_a = atof(msg->lp_add.amount_in_max_a);
-    const char *denom_in_max_a = msg->lp_add.denom_in_max_a;
+    const char* denom_in_max_a = msg->lp_add.denom_in_max_a;
     if (!strcmp(msg->lp_add.denom_in_max_a, "uosmo")) {
       amount_in_max_a /= pow(10, OSMOSIS_PRECISION);
       denom_in_max_a = "OSMO";
@@ -377,7 +377,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     strlcpy(insoamt, msg->lp_remove.share_in_amount,
             sizeof(msg->lp_remove.share_in_amount));
 
-    if (base_to_precision(outsoamt, (uint8_t *)insoamt, sizeof(outsoamt),
+    if (base_to_precision(outsoamt, (uint8_t*)insoamt, sizeof(outsoamt),
                           strlen(insoamt), OSMOSIS_LP_ASSET_PRECISION) < 0) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_Other, NULL);
@@ -386,14 +386,14 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     }
 
     float amount_out_min_b = atof(msg->lp_remove.amount_out_min_b);
-    const char *denom_out_min_b = msg->lp_remove.denom_out_min_b;
+    const char* denom_out_min_b = msg->lp_remove.denom_out_min_b;
     if (!strcmp(msg->lp_remove.denom_out_min_b, "uosmo")) {
       amount_out_min_b /= pow(10, OSMOSIS_PRECISION);
       denom_out_min_b = "OSMO";
     }
 
     float amount_out_min_a = atof(msg->lp_remove.amount_out_min_a);
-    const char *denom_out_min_a = msg->lp_remove.denom_out_min_a;
+    const char* denom_out_min_a = msg->lp_remove.denom_out_min_a;
     if (!strcmp(msg->lp_remove.denom_out_min_a, "uosmo")) {
       amount_out_min_a /= pow(10, OSMOSIS_PRECISION);
       denom_out_min_a = "OSMO";
@@ -549,10 +549,9 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     }
   } else if (msg->has_swap) {
     /** Confirm required transaction parameters exist */
-    if (!msg->swap.has_sender ||
-        !msg->swap.has_pool_id | !msg->swap.has_token_out_denom ||
-        !msg->swap.has_token_in_denom || !msg->swap.has_token_in_amount ||
-        !msg->swap.has_token_out_min_amount) {
+    if (!msg->swap.has_sender || !msg->swap.has_pool_id ||
+        !msg->swap.has_token_out_denom || !msg->swap.has_token_in_denom ||
+        !msg->swap.has_token_in_amount || !msg->swap.has_token_out_min_amount) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));
@@ -561,14 +560,14 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     }
 
     float token_in_amount = atof(msg->swap.token_in_amount);
-    const char *token_in_denom = msg->swap.token_in_denom;
+    const char* token_in_denom = msg->swap.token_in_denom;
     if (!strcmp(msg->swap.token_in_denom, "uosmo")) {
       token_in_amount /= pow(10, OSMOSIS_PRECISION);
       token_in_denom = "OSMO";
     }
 
     float token_out_min_amount = atof(msg->swap.token_out_min_amount);
-    const char *token_out_denom = msg->swap.token_out_denom;
+    const char* token_out_denom = msg->swap.token_out_denom;
     if (!strcmp(msg->swap.token_out_denom, "uosmo")) {
       token_out_min_amount /= pow(10, OSMOSIS_PRECISION);
       token_out_denom = "OSMO";
@@ -619,7 +618,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck *msg) {
     }
 
     float amount = atof(msg->ibc_transfer.amount);
-    const char *denom = msg->ibc_transfer.denom;
+    const char* denom = msg->ibc_transfer.denom;
     if (!strcmp(msg->ibc_transfer.denom, "uosmo")) {
       amount /= pow(10, OSMOSIS_PRECISION);
       denom = "OSMO";

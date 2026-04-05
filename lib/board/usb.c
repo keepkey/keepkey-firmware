@@ -106,7 +106,7 @@ static char device_label[33];
 static char serial_uuid_str[100];
 
 #define X(name, value) value,
-static const char *usb_strings[] = {USB_STRINGS};
+static const char* usb_strings[] = {USB_STRINGS};
 #undef X
 
 static const struct usb_device_descriptor dev_descr = {
@@ -151,19 +151,19 @@ static const struct {
     uint8_t bReportDescriptorType;
     uint16_t wDescriptorLength;
   } __attribute__((packed)) hid_report_u2f;
-} __attribute__((packed))
-hid_function_u2f = {.hid_descriptor_u2f =
-                        {
-                            .bLength = sizeof(hid_function_u2f),
-                            .bDescriptorType = USB_DT_HID,
-                            .bcdHID = 0x0111,
-                            .bCountryCode = 0,
-                            .bNumDescriptors = 1,
-                        },
-                    .hid_report_u2f = {
-                        .bReportDescriptorType = USB_DT_REPORT,
-                        .wDescriptorLength = sizeof(hid_report_descriptor_u2f),
-                    }};
+} __attribute__((packed)) hid_function_u2f = {
+    .hid_descriptor_u2f =
+        {
+            .bLength = sizeof(hid_function_u2f),
+            .bDescriptorType = USB_DT_HID,
+            .bcdHID = 0x0111,
+            .bCountryCode = 0,
+            .bNumDescriptors = 1,
+        },
+    .hid_report_u2f = {
+        .bReportDescriptorType = USB_DT_REPORT,
+        .wDescriptorLength = sizeof(hid_report_descriptor_u2f),
+    }};
 
 static const struct usb_endpoint_descriptor hid_endpoints_u2f[2] = {
     {
@@ -298,8 +298,8 @@ static const struct usb_config_descriptor config = {
 };
 
 static enum usbd_request_return_codes hid_control_request(
-    usbd_device *dev, struct usb_setup_data *req, uint8_t **buf, uint16_t *len,
-    void (**complete)(usbd_device *, struct usb_setup_data *)) {
+    usbd_device* dev, struct usb_setup_data* req, uint8_t** buf, uint16_t* len,
+    void (**complete)(usbd_device*, struct usb_setup_data*)) {
   (void)complete;
   (void)dev;
 
@@ -308,14 +308,14 @@ static enum usbd_request_return_codes hid_control_request(
     return 0;
 
   debugLog(0, "", "hid_control_request u2f");
-  *buf = (uint8_t *)hid_report_descriptor_u2f;
+  *buf = (uint8_t*)hid_report_descriptor_u2f;
   *len = MIN(*len, sizeof(hid_report_descriptor_u2f));
   return 1;
 }
 
 static volatile char tiny = 0;
 
-static void main_rx_callback(usbd_device *dev, uint8_t ep) {
+static void main_rx_callback(usbd_device* dev, uint8_t ep) {
   (void)ep;
   static CONFIDENTIAL uint8_t buf[64] __attribute__((aligned(4)));
   if (usbd_ep_read_packet(dev, ENDPOINT_ADDRESS_MAIN_OUT, buf, 64) != 64)
@@ -327,7 +327,7 @@ static void main_rx_callback(usbd_device *dev, uint8_t ep) {
   }
 }
 
-static void u2f_rx_callback(usbd_device *dev, uint8_t ep) {
+static void u2f_rx_callback(usbd_device* dev, uint8_t ep) {
   (void)ep;
   static CONFIDENTIAL uint8_t buf[64] __attribute__((aligned(4)));
 
@@ -335,12 +335,12 @@ static void u2f_rx_callback(usbd_device *dev, uint8_t ep) {
   if (usbd_ep_read_packet(dev, ENDPOINT_ADDRESS_U2F_OUT, buf, 64) != 64) return;
 
   if (user_u2f_rx_callback) {
-    user_u2f_rx_callback(tiny, (const U2FHID_FRAME *)(void *)buf);
+    user_u2f_rx_callback(tiny, (const U2FHID_FRAME*)(void*)buf);
   }
 }
 
 #if DEBUG_LINK
-static void debug_rx_callback(usbd_device *dev, uint8_t ep) {
+static void debug_rx_callback(usbd_device* dev, uint8_t ep) {
   (void)ep;
   static uint8_t buf[64] __attribute__((aligned(4)));
   if (usbd_ep_read_packet(dev, ENDPOINT_ADDRESS_DEBUG_OUT, buf, 64) != 64)
@@ -353,7 +353,7 @@ static void debug_rx_callback(usbd_device *dev, uint8_t ep) {
 }
 #endif
 
-static void set_config(usbd_device *dev, uint16_t wValue) {
+static void set_config(usbd_device* dev, uint16_t wValue) {
   (void)wValue;
 
   usbd_ep_setup(dev, ENDPOINT_ADDRESS_MAIN_IN, USB_ENDPOINT_ATTR_INTERRUPT, 64,
@@ -376,12 +376,12 @@ static void set_config(usbd_device *dev, uint16_t wValue) {
       USB_REQ_TYPE_TYPE | USB_REQ_TYPE_RECIPIENT, hid_control_request);
 }
 
-static usbd_device *usbd_dev;
+static usbd_device* usbd_dev;
 static uint8_t usbd_control_buffer[256] __attribute__((aligned(2)));
 
-static const struct usb_device_capability_descriptor *capabilities[] = {
-    (const struct usb_device_capability_descriptor
-         *)&webusb_platform_capability_descriptor,
+static const struct usb_device_capability_descriptor* capabilities[] = {
+    (const struct
+     usb_device_capability_descriptor*)&webusb_platform_capability_descriptor,
 };
 
 static const struct usb_bos_descriptor bos_descriptor = {
@@ -390,7 +390,7 @@ static const struct usb_bos_descriptor bos_descriptor = {
     .bNumDeviceCaps = sizeof(capabilities) / sizeof(capabilities[0]),
     .capabilities = capabilities};
 
-void usbInit(const char *origin_url) {
+void usbInit(const char* origin_url) {
   gpio_mode_setup(USB_GPIO_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE,
                   USB_GPIO_PORT_PINS);
   gpio_set_af(USB_GPIO_PORT, GPIO_AF10, USB_GPIO_PORT_PINS);
@@ -430,8 +430,8 @@ char usbTiny(char set) {
 
 #endif  // EMULATOR
 
-bool msg_write(MessageType msg_id, const void *msg) {
-  const pb_field_t *fields = message_fields(NORMAL_MSG, msg_id, OUT_MSG);
+bool msg_write(MessageType msg_id, const void* msg) {
+  const pb_field_t* fields = message_fields(NORMAL_MSG, msg_id, OUT_MSG);
 
   if (!fields) return false;
 
@@ -456,7 +456,7 @@ bool msg_write(MessageType msg_id, const void *msg) {
 
     tmp_buffer[0] = '?';
 
-    memcpy(tmp_buffer + 1, ((const uint8_t *)&framebuf) + pos, 64 - 1);
+    memcpy(tmp_buffer + 1, ((const uint8_t*)&framebuf) + pos, 64 - 1);
 
 #ifndef EMULATOR
     while (usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_IN, tmp_buffer,
@@ -471,8 +471,8 @@ bool msg_write(MessageType msg_id, const void *msg) {
 }
 
 #if DEBUG_LINK
-bool msg_debug_write(MessageType msg_id, const void *msg) {
-  const pb_field_t *fields = message_fields(DEBUG_MSG, msg_id, OUT_MSG);
+bool msg_debug_write(MessageType msg_id, const void* msg) {
+  const pb_field_t* fields = message_fields(DEBUG_MSG, msg_id, OUT_MSG);
 
   if (!fields) return false;
 
@@ -497,7 +497,7 @@ bool msg_debug_write(MessageType msg_id, const void *msg) {
 
     tmp_buffer[0] = '?';
 
-    memcpy(tmp_buffer + 1, ((const uint8_t *)&framebuf) + pos, 64 - 1);
+    memcpy(tmp_buffer + 1, ((const uint8_t*)&framebuf) + pos, 64 - 1);
 
 #ifndef EMULATOR
     while (usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_DEBUG_IN, tmp_buffer,
@@ -512,7 +512,7 @@ bool msg_debug_write(MessageType msg_id, const void *msg) {
 }
 #endif
 
-void queue_u2f_pkt(const U2FHID_FRAME *u2f_pkt) {
+void queue_u2f_pkt(const U2FHID_FRAME* u2f_pkt) {
 #ifndef EMULATOR
   while (usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_U2F_IN, u2f_pkt, 64) ==
          0) {

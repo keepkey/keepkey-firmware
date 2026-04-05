@@ -43,11 +43,11 @@ const struct webusb_platform_descriptor
         .bVendorCode = WEBUSB_VENDOR_CODE,
         .iLandingPage = 0};
 
-static const char *webusb_https_url;
+static const char* webusb_https_url;
 
 static enum usbd_request_return_codes webusb_control_vendor_request(
-    usbd_device *usbd_dev, struct usb_setup_data *req, uint8_t **buf,
-    uint16_t *len, void (**complete)(usbd_device *, struct usb_setup_data *)) {
+    usbd_device* usbd_dev, struct usb_setup_data* req, uint8_t** buf,
+    uint16_t* len, void (**complete)(usbd_device*, struct usb_setup_data*)) {
   (void)complete;
   (void)usbd_dev;
 
@@ -58,8 +58,7 @@ static enum usbd_request_return_codes webusb_control_vendor_request(
   int status = USBD_REQ_NOTSUPP;
   switch (req->wIndex) {
     case WEBUSB_REQ_GET_URL: {
-      struct webusb_url_descriptor *url =
-          (struct webusb_url_descriptor *)(*buf);
+      struct webusb_url_descriptor* url = (struct webusb_url_descriptor*)(*buf);
       uint16_t index = req->wValue;
       if (index == 0) {
         return USBD_REQ_NOTSUPP;
@@ -88,7 +87,7 @@ static enum usbd_request_return_codes webusb_control_vendor_request(
   return status;
 }
 
-static void webusb_set_config(usbd_device *usbd_dev, uint16_t wValue) {
+static void webusb_set_config(usbd_device* usbd_dev, uint16_t wValue) {
   (void)wValue;
   usbd_register_control_callback(usbd_dev,
                                  USB_REQ_TYPE_VENDOR | USB_REQ_TYPE_DEVICE,
@@ -96,7 +95,7 @@ static void webusb_set_config(usbd_device *usbd_dev, uint16_t wValue) {
                                  webusb_control_vendor_request);
 }
 
-void webusb_setup(usbd_device *usbd_dev, const char *https_url) {
+void webusb_setup(usbd_device* usbd_dev, const char* https_url) {
   webusb_https_url = https_url;
 
   usbd_register_set_config_callback(usbd_dev, webusb_set_config);

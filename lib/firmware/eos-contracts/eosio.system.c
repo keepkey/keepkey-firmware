@@ -43,8 +43,8 @@
     CHECK_PARAM_RET(common->name == (ACTION), "Incorrect action name", false); \
   } while (0)
 
-bool eos_compileActionDelegate(const EosActionCommon *common,
-                               const EosActionDelegate *action) {
+bool eos_compileActionDelegate(const EosActionCommon* common,
+                               const EosActionDelegate* action) {
   CHECK_COMMON(EOS_DelegateBW);
 
   CHECK_PARAM_RET(action->has_sender, "Required field missing", false);
@@ -84,8 +84,8 @@ bool eos_compileActionDelegate(const EosActionCommon *common,
   uint32_t size = 8 + 8 + 16 + 16 + 1;
   eos_hashUInt(&hasher_preimage, size);
 
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->sender, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->receiver, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->sender, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->receiver, 8);
 
   CHECK_PARAM_RET(eos_compileAsset(&action->net_quantity),
                   "Cannot compile asset: net_quantity", false);
@@ -99,8 +99,8 @@ bool eos_compileActionDelegate(const EosActionCommon *common,
   return true;
 }
 
-bool eos_compileActionUndelegate(const EosActionCommon *common,
-                                 const EosActionUndelegate *action) {
+bool eos_compileActionUndelegate(const EosActionCommon* common,
+                                 const EosActionUndelegate* action) {
   CHECK_COMMON(EOS_UndelegateBW);
 
   CHECK_PARAM_RET(action->has_sender, "Required field missing", false);
@@ -139,8 +139,8 @@ bool eos_compileActionUndelegate(const EosActionCommon *common,
   uint32_t size = 8 + 8 + 16 + 16;
   eos_hashUInt(&hasher_preimage, size);
 
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->sender, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->receiver, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->sender, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->receiver, 8);
 
   CHECK_PARAM_RET(eos_compileAsset(&action->net_quantity),
                   "Cannot compile asset: net_quantity", false);
@@ -151,8 +151,8 @@ bool eos_compileActionUndelegate(const EosActionCommon *common,
   return true;
 }
 
-bool eos_compileActionRefund(const EosActionCommon *common,
-                             const EosActionRefund *action) {
+bool eos_compileActionRefund(const EosActionCommon* common,
+                             const EosActionRefund* action) {
   CHECK_COMMON(EOS_Refund);
 
   CHECK_PARAM_RET(action->has_owner, "Required field missing", false);
@@ -176,13 +176,13 @@ bool eos_compileActionRefund(const EosActionCommon *common,
   uint32_t size = 8;
   eos_hashUInt(&hasher_preimage, size);
 
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->owner, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->owner, 8);
 
   return true;
 }
 
-bool eos_compileActionBuyRam(const EosActionCommon *common,
-                             const EosActionBuyRam *action) {
+bool eos_compileActionBuyRam(const EosActionCommon* common,
+                             const EosActionBuyRam* action) {
   CHECK_COMMON(EOS_BuyRam);
 
   CHECK_PARAM_RET(action->has_payer, "Required field missing", false);
@@ -216,8 +216,8 @@ bool eos_compileActionBuyRam(const EosActionCommon *common,
   uint32_t size = 8 + 8 + 16;
   eos_hashUInt(&hasher_preimage, size);
 
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->payer, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->receiver, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->payer, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->receiver, 8);
 
   CHECK_PARAM_RET(eos_compileAsset(&action->quantity),
                   "Cannot compile asset: quantity", false);
@@ -225,8 +225,8 @@ bool eos_compileActionBuyRam(const EosActionCommon *common,
   return true;
 }
 
-bool eos_compileActionBuyRamBytes(const EosActionCommon *common,
-                                  const EosActionBuyRamBytes *action) {
+bool eos_compileActionBuyRamBytes(const EosActionCommon* common,
+                                  const EosActionBuyRamBytes* action) {
   CHECK_COMMON(EOS_BuyRamBytes);
 
   CHECK_PARAM_RET(action->has_payer, "Required field missing", false);
@@ -256,15 +256,15 @@ bool eos_compileActionBuyRamBytes(const EosActionCommon *common,
   uint32_t size = 8 + 8 + 4;
   eos_hashUInt(&hasher_preimage, size);
 
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->payer, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->receiver, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->bytes, 4);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->payer, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->receiver, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->bytes, 4);
 
   return true;
 }
 
-bool eos_compileActionSellRam(const EosActionCommon *common,
-                              const EosActionSellRam *action) {
+bool eos_compileActionSellRam(const EosActionCommon* common,
+                              const EosActionSellRam* action) {
   CHECK_COMMON(EOS_SellRam);
 
   CHECK_PARAM_RET(action->has_account, "Required field missing", false);
@@ -290,14 +290,14 @@ bool eos_compileActionSellRam(const EosActionCommon *common,
   uint32_t size = 8 + 8;
   eos_hashUInt(&hasher_preimage, size);
 
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->account, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->bytes, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->account, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->bytes, 8);
 
   return true;
 }
 
-bool eos_compileActionVoteProducer(const EosActionCommon *common,
-                                   const EosActionVoteProducer *action) {
+bool eos_compileActionVoteProducer(const EosActionCommon* common,
+                                   const EosActionVoteProducer* action) {
   CHECK_COMMON(EOS_VoteProducer);
 
   CHECK_PARAM_RET(action->has_voter, "Required field missing", false);
@@ -327,8 +327,8 @@ bool eos_compileActionVoteProducer(const EosActionCommon *common,
     uint32_t size = 8 + 8 + eos_hashUInt(NULL, 0) + 0;
     eos_hashUInt(&hasher_preimage, size);
 
-    hasher_Update(&hasher_preimage, (const uint8_t *)&action->voter, 8);
-    hasher_Update(&hasher_preimage, (const uint8_t *)&action->proxy, 8);
+    hasher_Update(&hasher_preimage, (const uint8_t*)&action->voter, 8);
+    hasher_Update(&hasher_preimage, (const uint8_t*)&action->proxy, 8);
 
     eos_hashUInt(&hasher_preimage, /*producers_count=*/0);
 
@@ -392,14 +392,13 @@ bool eos_compileActionVoteProducer(const EosActionCommon *common,
                     8 * action->producers_count;
     eos_hashUInt(&hasher_preimage, size);
 
-    hasher_Update(&hasher_preimage, (const uint8_t *)&action->voter, 8);
+    hasher_Update(&hasher_preimage, (const uint8_t*)&action->voter, 8);
     hasher_Update(&hasher_preimage,
-                  (const uint8_t *)"\x00\x00\x00\x00\x00\x00\x00\x00", 8);
+                  (const uint8_t*)"\x00\x00\x00\x00\x00\x00\x00\x00", 8);
 
     eos_hashUInt(&hasher_preimage, action->producers_count);
     for (size_t p = 0; p < action->producers_count; p++) {
-      hasher_Update(&hasher_preimage, (const uint8_t *)&action->producers[p],
-                    8);
+      hasher_Update(&hasher_preimage, (const uint8_t*)&action->producers[p], 8);
     }
   } else {
     char voter[EOS_NAME_STR_SIZE];
@@ -418,24 +417,24 @@ bool eos_compileActionVoteProducer(const EosActionCommon *common,
     uint32_t size = 8 + 8 + eos_hashUInt(NULL, 0) + 0;
     eos_hashUInt(&hasher_preimage, size);
 
-    hasher_Update(&hasher_preimage, (const uint8_t *)&action->voter, 8);
+    hasher_Update(&hasher_preimage, (const uint8_t*)&action->voter, 8);
     hasher_Update(&hasher_preimage,
-                  (const uint8_t *)"\x00\x00\x00\x00\x00\x00\x00\x00", 8);
+                  (const uint8_t*)"\x00\x00\x00\x00\x00\x00\x00\x00", 8);
     eos_hashUInt(&hasher_preimage, /*producers_count=*/0);
   }
 
   return true;
 }
 
-static size_t eos_hashAuthorization(Hasher *h, const EosAuthorization *auth) {
+static size_t eos_hashAuthorization(Hasher* h, const EosAuthorization* auth) {
   size_t count = 0;
 
   count += 4;
-  if (h) hasher_Update(h, (const uint8_t *)&auth->threshold, 4);
+  if (h) hasher_Update(h, (const uint8_t*)&auth->threshold, 4);
 
   count += eos_hashUInt(h, auth->keys_count);
   for (size_t i = 0; i < auth->keys_count; i++) {
-    const EosAuthorizationKey *auth_key = &auth->keys[i];
+    const EosAuthorizationKey* auth_key = &auth->keys[i];
 
     count += eos_hashUInt(NULL, auth_key->type);
     if (h) eos_hashUInt(h, auth_key->type);
@@ -455,37 +454,37 @@ static size_t eos_hashAuthorization(Hasher *h, const EosAuthorization *auth) {
     }
 
     count += 2;
-    if (h) hasher_Update(h, (const uint8_t *)&auth_key->weight, 2);
+    if (h) hasher_Update(h, (const uint8_t*)&auth_key->weight, 2);
   }
 
   count += eos_hashUInt(h, auth->accounts_count);
   for (size_t i = 0; i < auth->accounts_count; i++) {
     count += 8;
     if (h)
-      hasher_Update(h, (const uint8_t *)&auth->accounts[i].account.actor, 8);
+      hasher_Update(h, (const uint8_t*)&auth->accounts[i].account.actor, 8);
 
     count += 8;
     if (h)
-      hasher_Update(h, (const uint8_t *)&auth->accounts[i].account.permission,
+      hasher_Update(h, (const uint8_t*)&auth->accounts[i].account.permission,
                     8);
 
     count += 2;
-    if (h) hasher_Update(h, (const uint8_t *)&auth->accounts[i].weight, 2);
+    if (h) hasher_Update(h, (const uint8_t*)&auth->accounts[i].weight, 2);
   }
 
   count += eos_hashUInt(h, auth->waits_count);
   for (size_t i = 0; i < auth->accounts_count; i++) {
     count += 4;
-    if (h) hasher_Update(h, (const uint8_t *)&auth->waits[i].wait_sec, 4);
+    if (h) hasher_Update(h, (const uint8_t*)&auth->waits[i].wait_sec, 4);
 
     count += 2;
-    if (h) hasher_Update(h, (const uint8_t *)&auth->waits[i].weight, 2);
+    if (h) hasher_Update(h, (const uint8_t*)&auth->waits[i].weight, 2);
   }
 
   return count;
 }
 
-static bool isStandardAuthorization(const EosAuthorization *auth) {
+static bool isStandardAuthorization(const EosAuthorization* auth) {
   if (!auth->has_threshold || auth->threshold != 1) return false;
 
   if (auth->keys_count != 1) return false;
@@ -501,11 +500,11 @@ static bool isStandardAuthorization(const EosAuthorization *auth) {
   return true;
 }
 
-static bool confirmStandardAuthorization(const char *title,
-                                         const EosAuthorization *auth) {
+static bool confirmStandardAuthorization(const char* title,
+                                         const EosAuthorization* auth) {
   char node_str[NODE_STRING_LENGTH];
-  const CoinType *coin;
-  const EosAuthorizationKey *auth_key = &auth->keys[0];
+  const CoinType* coin;
+  const EosAuthorizationKey* auth_key = &auth->keys[0];
   if ((coin = coinByName("EOS")) &&
       !bip32_node_to_string(node_str, sizeof(node_str), coin,
                             auth_key->address_n, auth_key->address_n_count,
@@ -533,8 +532,8 @@ static bool confirmStandardAuthorization(const char *title,
   return true;
 }
 
-static bool confirmArbitraryAuthorization(const char *title,
-                                          const EosAuthorization *auth) {
+static bool confirmArbitraryAuthorization(const char* title,
+                                          const EosAuthorization* auth) {
   if (!confirm(ButtonRequestType_ButtonRequest_ConfirmEosAction, title,
                "Require an authorization threshold of %" PRIu32 "?",
                auth->threshold)) {
@@ -545,7 +544,7 @@ static bool confirmArbitraryAuthorization(const char *title,
   }
 
   for (size_t i = 0; i < auth->keys_count; i++) {
-    const EosAuthorizationKey *auth_key = &auth->keys[i];
+    const EosAuthorizationKey* auth_key = &auth->keys[i];
 
     CHECK_PARAM_RET(auth_key->has_weight, "Required field missing", false);
     CHECK_PARAM_RET(
@@ -563,8 +562,7 @@ static bool confirmArbitraryAuthorization(const char *title,
         return false;
       }
     } else {
-      const CoinType *coin;
-      if ((coin = coinByName("EOS")) &&
+      if (coinByName("EOS") &&
           !bip32_path_to_string(pubkey, sizeof(pubkey), auth_key->address_n,
                                 auth_key->address_n_count)) {
         memset(pubkey, 0, sizeof(pubkey));
@@ -635,7 +633,7 @@ static bool confirmArbitraryAuthorization(const char *title,
   return true;
 }
 
-bool eos_compileAuthorization(const char *title, const EosAuthorization *auth) {
+bool eos_compileAuthorization(const char* title, const EosAuthorization* auth) {
   CHECK_PARAM_RET(auth->has_threshold, "Required field missing", false);
 
   if (isStandardAuthorization(auth)) {
@@ -649,8 +647,8 @@ bool eos_compileAuthorization(const char *title, const EosAuthorization *auth) {
   return true;
 }
 
-bool eos_compileActionUpdateAuth(const EosActionCommon *common,
-                                 const EosActionUpdateAuth *action) {
+bool eos_compileActionUpdateAuth(const EosActionCommon* common,
+                                 const EosActionUpdateAuth* action) {
   CHECK_COMMON(EOS_UpdateAuth);
 
   CHECK_PARAM_RET(action->has_account, "Required field missing", false);
@@ -690,9 +688,9 @@ bool eos_compileActionUpdateAuth(const EosActionCommon *common,
   size_t size = 8 + 8 + 8 + auth_size;
   eos_hashUInt(&hasher_preimage, size);
 
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->account, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->permission, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->parent, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->account, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->permission, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->parent, 8);
 
   snprintf(title, sizeof(title), "%s@%s", account, permission);
   if (!eos_compileAuthorization(title, &action->auth)) return false;
@@ -700,8 +698,8 @@ bool eos_compileActionUpdateAuth(const EosActionCommon *common,
   return true;
 }
 
-bool eos_compileActionDeleteAuth(const EosActionCommon *common,
-                                 const EosActionDeleteAuth *action) {
+bool eos_compileActionDeleteAuth(const EosActionCommon* common,
+                                 const EosActionDeleteAuth* action) {
   CHECK_COMMON(EOS_DeleteAuth);
 
   CHECK_PARAM_RET(action->has_account, "Required field missing", false);
@@ -729,14 +727,14 @@ bool eos_compileActionDeleteAuth(const EosActionCommon *common,
   size_t size = 8 + 8;
   eos_hashUInt(&hasher_preimage, size);
 
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->account, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->permission, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->account, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->permission, 8);
 
   return true;
 }
 
-bool eos_compileActionLinkAuth(const EosActionCommon *common,
-                               const EosActionLinkAuth *action) {
+bool eos_compileActionLinkAuth(const EosActionCommon* common,
+                               const EosActionLinkAuth* action) {
   CHECK_COMMON(EOS_LinkAuth);
 
   CHECK_PARAM_RET(action->has_account, "Required field missing", false);
@@ -773,16 +771,16 @@ bool eos_compileActionLinkAuth(const EosActionCommon *common,
   size_t size = 8 + 8 + 8 + 8;
   eos_hashUInt(&hasher_preimage, size);
 
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->account, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->code, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->type, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->requirement, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->account, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->code, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->type, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->requirement, 8);
 
   return true;
 }
 
-bool eos_compileActionUnlinkAuth(const EosActionCommon *common,
-                                 const EosActionUnlinkAuth *action) {
+bool eos_compileActionUnlinkAuth(const EosActionCommon* common,
+                                 const EosActionUnlinkAuth* action) {
   CHECK_COMMON(EOS_UnlinkAuth);
 
   CHECK_PARAM_RET(action->has_account, "Required field missing", false);
@@ -813,15 +811,15 @@ bool eos_compileActionUnlinkAuth(const EosActionCommon *common,
   size_t size = 8 + 8 + 8;
   eos_hashUInt(&hasher_preimage, size);
 
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->account, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->code, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->type, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->account, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->code, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->type, 8);
 
   return true;
 }
 
-bool eos_compileActionNewAccount(const EosActionCommon *common,
-                                 const EosActionNewAccount *action) {
+bool eos_compileActionNewAccount(const EosActionCommon* common,
+                                 const EosActionNewAccount* action) {
   CHECK_COMMON(EOS_NewAccount);
 
   CHECK_PARAM_RET(action->has_creator, "Required field missing", false);
@@ -857,8 +855,8 @@ bool eos_compileActionNewAccount(const EosActionCommon *common,
   size_t size = 8 + 8 + owner_size + active_size;
   eos_hashUInt(&hasher_preimage, size);
 
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->creator, 8);
-  hasher_Update(&hasher_preimage, (const uint8_t *)&action->name, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->creator, 8);
+  hasher_Update(&hasher_preimage, (const uint8_t*)&action->name, 8);
 
   char title[SMALL_STR_BUF];
   snprintf(title, sizeof(title), "%s@owner", name);

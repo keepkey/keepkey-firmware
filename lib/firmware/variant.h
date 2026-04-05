@@ -24,6 +24,6 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-const char *variant_getName(void);
+const char* variant_getName(void);
 
 #endif

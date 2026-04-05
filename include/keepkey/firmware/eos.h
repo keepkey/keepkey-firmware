@@ -55,25 +55,25 @@ typedef enum _EosContractName {
 } EosContractName;
 
 /// \returns true iff the asset can be correctly decoded.
-bool eos_formatAsset(const EosAsset *asset, char str[EOS_ASSET_STR_SIZE]);
+bool eos_formatAsset(const EosAsset* asset, char str[EOS_ASSET_STR_SIZE]);
 
 /// \returns true iff the name can be correctly decoded.
 bool eos_formatName(uint64_t name, char str[EOS_NAME_STR_SIZE]);
 
 /// \returns true iff successful.
-bool eos_derivePublicKey(const uint32_t *addr_n, size_t addr_n_count,
-                         uint8_t *public_key, size_t len);
+bool eos_derivePublicKey(const uint32_t* addr_n, size_t addr_n_count,
+                         uint8_t* public_key, size_t len);
 
 /// \returns true iff successful.
-bool eos_getPublicKey(const HDNode *node, const curve_info *curve,
-                      EosPublicKeyKind kind, char *str, size_t len);
+bool eos_getPublicKey(const HDNode* n, const curve_info* curve,
+                      EosPublicKeyKind kind, char* pubkey, size_t len);
 
 /// \returns true iff successful.
-bool eos_publicKeyToWif(const uint8_t *public_key, EosPublicKeyKind kind,
-                        char *pubkey, size_t len);
+bool eos_publicKeyToWif(const uint8_t* public_key, EosPublicKeyKind kind,
+                        char* pubkey, size_t len);
 
-void eos_signingInit(const uint8_t *chain_id, uint32_t num_actions,
-                     const EosTxHeader *_header, const HDNode *_root,
+void eos_signingInit(const uint8_t* chain_id, uint32_t num_actions,
+                     const EosTxHeader* _header, const HDNode* _root,
                      const uint32_t _address_n[8], size_t _address_n_count);
 
 bool eos_signingIsInited(void);
@@ -87,24 +87,24 @@ uint32_t eos_actionsRemaining(void);
 bool eos_hasActionUnknownDataRemaining(void);
 
 /// \returns true iff successful.
-bool eos_compileActionUnknown(const EosActionCommon *common,
-                              const EosActionUnknown *action);
+bool eos_compileActionUnknown(const EosActionCommon* common,
+                              const EosActionUnknown* action);
 
 /// \brief Append a u64 to the hash, with variable length encoding.
 /// \param hasher   If nonnull, the hasher to append to.
 /// \param val      The value to append.
 /// \returns the number of bytes hashed.
-size_t eos_hashUInt(Hasher *hasher, uint64_t val);
+size_t eos_hashUInt(Hasher* hasher, uint64_t val);
 
 /// \returns true iff successful.
-bool eos_compileAsset(const EosAsset *asset);
+bool eos_compileAsset(const EosAsset* asset);
 
 /// \returns true iff successful.
-bool eos_compileActionCommon(const EosActionCommon *common);
+bool eos_compileActionCommon(const EosActionCommon* common);
 
 /// \returns true iff successful.
-bool eos_compilePermissionLevel(const EosPermissionLevel *auth);
+bool eos_compilePermissionLevel(const EosPermissionLevel* auth);
 
-bool eos_signTx(EosSignedTx *sig);
+bool eos_signTx(EosSignedTx* tx);
 
 #endif

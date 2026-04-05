@@ -28,26 +28,25 @@
 
 /* implement a means to display debug information */
 #ifdef DEBUG_ON
-  // Examples
-  // DEBUG_DISPLAY("here");
-  // DEBUG_DISPLAY("%d %s", slot, account);
-  #define DEBUG_DISPLAY(...)\
-  {\
-    char _str[61]={0};\
-    snprintf(_str, 60, __VA_ARGS__);\
-    (void)review(ButtonRequestType_ButtonRequest_Other, _str, " ");\
+// Examples
+// DEBUG_DISPLAY("here");
+// DEBUG_DISPLAY("%d %s", slot, account);
+#define DEBUG_DISPLAY(...)                                          \
+  {                                                                 \
+    char _str[61] = {0};                                            \
+    snprintf(_str, 60, __VA_ARGS__);                                \
+    (void)review(ButtonRequestType_ButtonRequest_Other, _str, " "); \
   }
-  // Example
-  // DEBUG_DISPLAY_VAL("sig", "sig %s", 65, resp->signature.bytes[_ctr]);
-  #define DEBUG_DISPLAY_VAL(TITLE,VALNAME,SIZE,BYTES) \
-  {\
-    char _str[SIZE+1];\
-    int _ctr;\
-    for (_ctr=0; _ctr<SIZE/2; _ctr++) {\
-      snprintf(&_str[2*_ctr], 3, "%02x", BYTES);\
-    }\
-    (void)review(ButtonRequestType_ButtonRequest_Other, TITLE,\
-                 VALNAME, _str);\
+// Example
+// DEBUG_DISPLAY_VAL("sig", "sig %s", 65, resp->signature.bytes[_ctr]);
+#define DEBUG_DISPLAY_VAL(TITLE, VALNAME, SIZE, BYTES)                         \
+  {                                                                            \
+    char _str[SIZE + 1];                                                       \
+    int _ctr;                                                                  \
+    for (_ctr = 0; _ctr < SIZE / 2; _ctr++) {                                  \
+      snprintf(&_str[2 * _ctr], 3, "%02x", BYTES);                             \
+    }                                                                          \
+    (void)review(ButtonRequestType_ButtonRequest_Other, TITLE, VALNAME, _str); \
   }
 #endif
 
@@ -68,8 +67,8 @@ typedef enum {
 
 /* Define the given layout dialog texts for each screen */
 typedef struct {
-  const char *request_title;
-  const char *request_body;
+  const char* request_title;
+  const char* request_body;
 } ScreenLine;
 
 typedef ScreenLine ScreenLines;
@@ -82,9 +81,9 @@ typedef struct {
   bool immediate;
 } StateInfo;
 
-#define isprint(c)   ((c) >= 0x20 && (c) < 0x7f)
+#define isprint(c) ((c) >= 0x20 && (c) < 0x7f)
 
-typedef void (*layout_notification_t)(const char *str1, const char *str2,
+typedef void (*layout_notification_t)(const char* str1, const char* str2,
                                       NotificationType type);
 
 /// User confirmation.
@@ -92,21 +91,22 @@ typedef void (*layout_notification_t)(const char *str1, const char *str2,
 /// \param request_title   Title of confirm message.
 /// \param request_body    Body of confirm message.
 /// \returns true iff the device confirmed.
-bool confirm(ButtonRequestType type, const char *request_title,
-             const char *request_body, ...)
+bool confirm(ButtonRequestType type, const char* request_title,
+             const char* request_body, ...)
     __attribute__((format(printf, 3, 4)));
 
-bool confirm_constant_power(ButtonRequestType type, const char *request_title, const char *request_body,
-             ...) __attribute__((format(printf, 3, 4)));
+bool confirm_constant_power(ButtonRequestType type, const char* request_title,
+                            const char* request_body, ...)
+    __attribute__((format(printf, 3, 4)));
 
 /// User confirmation.
 /// \param type            The kind of button request to send to the host.
 /// \param request_title   Title of confirm message.
 /// \param request_body    Body of confirm message.
 /// \returns true iff the device confirmed.
-bool confirm_with_custom_button_request(ButtonRequest *button_request,
-                                        const char *request_title,
-                                        const char *request_body, ...)
+bool confirm_with_custom_button_request(const ButtonRequest* button_request,
+                                        const char* request_title,
+                                        const char* request_body, ...)
     __attribute__((format(printf, 3, 4)));
 
 /// User confirmation, custom layout.
@@ -117,8 +117,8 @@ bool confirm_with_custom_button_request(ButtonRequest *button_request,
 /// \returns true iff the device confirmed.
 bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
                                 ButtonRequestType type,
-                                const char *request_title,
-                                const char *request_body, ...)
+                                const char* request_title,
+                                const char* request_body, ...)
     __attribute__((format(printf, 4, 5)));
 
 /// User confirmation.
@@ -127,33 +127,33 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
 /// \param request_title   Title of confirm message.
 /// \param request_body    Body of confirm message.
 /// \returns true iff the device confirmed.
-bool confirm_without_button_request(const char *request_title,
-                                    const char *request_body, ...)
+bool confirm_without_button_request(const char* request_title,
+                                    const char* request_body, ...)
     __attribute__((format(printf, 2, 3)));
 
 /// Like confirm, but always \returns true.
 /// \param request_title   Title of confirm message.
 /// \param request_body    Body of confirm message.
-bool review(ButtonRequestType type, const char *request_title,
-            const char *request_body, ...)
+bool review(ButtonRequestType type, const char* request_title,
+            const char* request_body, ...)
     __attribute__((format(printf, 3, 4)));
 
 /// Like confirm, but always \returns true. Does not message the host for
 /// ButtonAcks. \param request_title   Title of confirm message. \param
 /// request_body    Body of confirm message.
-bool review_without_button_request(const char *request_title,
-                                   const char *request_body, ...)
+bool review_without_button_request(const char* request_title,
+                                   const char* request_body, ...)
     __attribute__((format(printf, 2, 3)));
 
-bool review_with_icon(ButtonRequestType type, IconType iconNum, const char *request_title,
-                      const char *request_body, ...)
-      __attribute__((format(printf, 4, 5)));
+bool review_with_icon(ButtonRequestType type, IconType iconNum,
+                      const char* request_title, const char* request_body, ...)
+    __attribute__((format(printf, 4, 5)));
 
 /// Like confirm, but always \returns true and immediately.
 /// \param request_title   Title of confirm message.
 /// \param request_body    Body of confirm message.
-bool review_immediate(ButtonRequestType type, const char *request_title,
-            const char *request_body, ...)
+bool review_immediate(ButtonRequestType type, const char* request_title,
+                      const char* request_body, ...)
     __attribute__((format(printf, 3, 4)));
 
 #endif

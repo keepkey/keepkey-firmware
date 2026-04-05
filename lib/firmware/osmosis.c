@@ -38,9 +38,9 @@ static uint32_t msgs_remaining;
 static OsmosisSignTx msg;
 static bool testnet;
 
-const OsmosisSignTx *osmosis_getOsmosisSignTx(void) { return &msg; }
+const OsmosisSignTx* osmosis_getOsmosisSignTx(void) { return &msg; }
 
-bool osmosis_signTxInit(const HDNode *_node, const OsmosisSignTx *_msg) {
+bool osmosis_signTxInit(const HDNode* _node, const OsmosisSignTx* _msg) {
   initialized = true;
   msgs_remaining = _msg->msg_count;
   testnet = false;
@@ -66,8 +66,8 @@ bool osmosis_signTxInit(const HDNode *_node, const OsmosisSignTx *_msg) {
     return false;
 
   // <escape chain_id>
-  const char *const chainid_prefix = ",\"chain_id\":\"";
-  sha256_Update(&ctx, (uint8_t *)chainid_prefix, strlen(chainid_prefix));
+  const char* const chainid_prefix = ",\"chain_id\":\"";
+  sha256_Update(&ctx, (uint8_t*)chainid_prefix, strlen(chainid_prefix));
 
   tendermint_sha256UpdateEscaped(&ctx, msg.chain_id, strlen(msg.chain_id));
 
@@ -83,23 +83,23 @@ bool osmosis_signTxInit(const HDNode *_node, const OsmosisSignTx *_msg) {
                                  ",\"gas\":\"%" PRIu32 "\"}", msg.gas);
 
   // <escape memo>
-  const char *const memo_prefix = ",\"memo\":\"";
-  sha256_Update(&ctx, (uint8_t *)memo_prefix, strlen(memo_prefix));
+  const char* const memo_prefix = ",\"memo\":\"";
+  sha256_Update(&ctx, (uint8_t*)memo_prefix, strlen(memo_prefix));
 
   if (msg.has_memo) {
     tendermint_sha256UpdateEscaped(&ctx, msg.memo, strlen(msg.memo));
   }
 
   // 10
-  sha256_Update(&ctx, (uint8_t *)"\",\"msgs\":[", 10);
+  sha256_Update(&ctx, (uint8_t*)"\",\"msgs\":[", 10);
 
   return success;
 }
 
-bool osmosis_signTxUpdateMsgSend(const char *amount, const char *to_address) {
-  char mainnetp[] = "osmo";
-  char testnetp[] = "tosmo";
-  char *pfix;
+bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address) {
+  const char mainnetp[] = "osmo";
+  const char testnetp[] = "tosmo";
+  const char* pfix;
   char buffer[64 + 1];
 
   size_t decoded_len;
@@ -122,8 +122,8 @@ bool osmosis_signTxUpdateMsgSend(const char *amount, const char *to_address) {
 
   bool success = true;
 
-  const char *const prelude = "{\"type\":\"cosmos-sdk/MsgSend\",\"value\":{";
-  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+  const char* const prelude = "{\"type\":\"cosmos-sdk/MsgSend\",\"value\":{";
+  sha256_Update(&ctx, (uint8_t*)prelude, strlen(prelude));
 
   // 21 + ^20 + 19 = ^60
   success &= tendermint_snprintf(
@@ -142,13 +142,13 @@ bool osmosis_signTxUpdateMsgSend(const char *amount, const char *to_address) {
   return success;
 }
 
-bool osmosis_signTxUpdateMsgDelegate(const char *amount,
-                                     const char *delegator_address,
-                                     const char *validator_address,
-                                     const char *denom) {
-  char mainnetp[] = "osmo";
-  char testnetp[] = "tosmo";
-  char *pfix;
+bool osmosis_signTxUpdateMsgDelegate(const char* amount,
+                                     const char* delegator_address,
+                                     const char* validator_address,
+                                     const char* denom) {
+  const char mainnetp[] = "osmo";
+  const char testnetp[] = "tosmo";
+  const char* pfix;
 
   char buffer[128] = {0};
   size_t decoded_len;
@@ -203,13 +203,13 @@ bool osmosis_signTxUpdateMsgDelegate(const char *amount,
   return success;
 }
 
-bool osmosis_signTxUpdateMsgUndelegate(const char *amount,
-                                       const char *delegator_address,
-                                       const char *validator_address,
-                                       const char *denom) {
-  char mainnetp[] = "osmo";
-  char testnetp[] = "tosmo";
-  char *pfix;
+bool osmosis_signTxUpdateMsgUndelegate(const char* amount,
+                                       const char* delegator_address,
+                                       const char* validator_address,
+                                       const char* denom) {
+  const char mainnetp[] = "osmo";
+  const char testnetp[] = "tosmo";
+  const char* pfix;
 
   char buffer[128] = {0};
   size_t decoded_len;
@@ -263,14 +263,14 @@ bool osmosis_signTxUpdateMsgUndelegate(const char *amount,
   return success;
 }
 
-bool osmosis_signTxUpdateMsgRedelegate(const char *amount,
-                                       const char *delegator_address,
-                                       const char *validator_src_address,
-                                       const char *validator_dst_address,
-                                       const char *denom) {
-  char mainnetp[] = "osmo";
-  char testnetp[] = "tosmo";
-  char *pfix;
+bool osmosis_signTxUpdateMsgRedelegate(const char* amount,
+                                       const char* delegator_address,
+                                       const char* validator_src_address,
+                                       const char* validator_dst_address,
+                                       const char* denom) {
+  const char mainnetp[] = "osmo";
+  const char testnetp[] = "tosmo";
+  const char* pfix;
 
   char buffer[128] = {0};
   size_t decoded_len;
@@ -331,19 +331,19 @@ bool osmosis_signTxUpdateMsgRedelegate(const char *amount,
   return success;
 }
 
-bool osmosis_signTxUpdateMsgLPAdd(const uint64_t pool_id, const char *sender,
-                                  const char *share_out_amount,
-                                  const char *amount_in_max_a,
-                                  const char *denom_in_max_a,
-                                  const char *amount_in_max_b,
-                                  const char *denom_in_max_b) {
+bool osmosis_signTxUpdateMsgLPAdd(const uint64_t pool_id, const char* sender,
+                                  const char* share_out_amount,
+                                  const char* amount_in_max_a,
+                                  const char* denom_in_max_a,
+                                  const char* amount_in_max_b,
+                                  const char* denom_in_max_b) {
   char buffer[96 + 1] = {0};
 
   bool success = true;
 
-  const char *const prelude =
+  const char* const prelude =
       "{\"type\":\"osmosis/gamm/join-pool\",\"value\":{";
-  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+  sha256_Update(&ctx, (uint8_t*)prelude, strlen(prelude));
 
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  "\"pool_id\":\"%" PRIu64 "\",", pool_id);
@@ -378,19 +378,19 @@ bool osmosis_signTxUpdateMsgLPAdd(const uint64_t pool_id, const char *sender,
   return success;
 }
 
-bool osmosis_signTxUpdateMsgLPRemove(const uint64_t pool_id, const char *sender,
-                                     const char *share_out_amount,
-                                     const char *amount_out_min_a,
-                                     const char *denom_out_min_a,
-                                     const char *amount_out_min_b,
-                                     const char *denom_out_min_b) {
+bool osmosis_signTxUpdateMsgLPRemove(const uint64_t pool_id, const char* sender,
+                                     const char* share_out_amount,
+                                     const char* amount_out_min_a,
+                                     const char* denom_out_min_a,
+                                     const char* amount_out_min_b,
+                                     const char* denom_out_min_b) {
   char buffer[96 + 1] = {0};
 
   bool success = true;
 
-  const char *const prelude =
+  const char* const prelude =
       "{\"type\":\"osmosis/gamm/exit-pool\",\"value\":{";
-  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+  sha256_Update(&ctx, (uint8_t*)prelude, strlen(prelude));
 
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  "\"pool_id\":\"%" PRIu64 "\",", pool_id);
@@ -425,11 +425,11 @@ bool osmosis_signTxUpdateMsgLPRemove(const uint64_t pool_id, const char *sender,
   return success;
 }
 
-bool osmosis_signTxUpdateMsgRewards(const char *delegator_address,
-                                    const char *validator_address) {
-  char mainnetp[] = "osmo";
-  char testnetp[] = "tosmo";
-  char *pfix;
+bool osmosis_signTxUpdateMsgRewards(const char* delegator_address,
+                                    const char* validator_address) {
+  const char mainnetp[] = "osmo";
+  const char testnetp[] = "tosmo";
+  const char* pfix;
 
   char buffer[128] = {0};
   size_t decoded_len;
@@ -478,16 +478,16 @@ bool osmosis_signTxUpdateMsgRewards(const char *delegator_address,
   return success;
 }
 
-bool osmosis_signTxUpdateMsgIBCTransfer(const char *amount, const char *sender,
-                                        const char *receiver,
-                                        const char *source_channel,
-                                        const char *source_port,
-                                        const char *revision_number,
-                                        const char *revision_height,
-                                        const char *denom) {
-  char mainnetp[] = "osmo";
-  char testnetp[] = "tosmo";
-  char *pfix;
+bool osmosis_signTxUpdateMsgIBCTransfer(const char* amount, const char* sender,
+                                        const char* receiver,
+                                        const char* source_channel,
+                                        const char* source_port,
+                                        const char* revision_number,
+                                        const char* revision_height,
+                                        const char* denom) {
+  const char mainnetp[] = "osmo";
+  const char testnetp[] = "tosmo";
+  const char* pfix;
 
   char buffer[128] = {0};
   size_t decoded_len;
@@ -559,20 +559,20 @@ bool osmosis_signTxUpdateMsgIBCTransfer(const char *amount, const char *sender,
 }
 
 bool osmosis_signTxUpdateMsgSwap(const uint64_t pool_id,
-                                 const char *token_out_denom,
-                                 const char *sender,
-                                 const char *token_in_amount,
-                                 const char *token_in_denom,
-                                 const char *token_out_min_amount) {
+                                 const char* token_out_denom,
+                                 const char* sender,
+                                 const char* token_in_amount,
+                                 const char* token_in_denom,
+                                 const char* token_out_min_amount) {
   char buffer[96 + 1] = {0};
 
   // TODO: add testnet support
 
   bool success = true;
 
-  const char *const prelude =
+  const char* const prelude =
       "{\"type\":\"osmosis/gamm/swap-exact-amount-in\",";
-  sha256_Update(&ctx, (uint8_t *)prelude, strlen(prelude));
+  sha256_Update(&ctx, (uint8_t*)prelude, strlen(prelude));
 
   success &= tendermint_snprintf(
       &ctx, buffer, sizeof(buffer),
@@ -600,7 +600,7 @@ bool osmosis_signTxUpdateMsgSwap(const uint64_t pool_id,
   return success;
 }
 
-bool osmosis_signTxFinalize(uint8_t *public_key, uint8_t *signature) {
+bool osmosis_signTxFinalize(uint8_t* public_key, uint8_t* signature) {
   char buffer[128] = {0};
 
   // 14 + ^20 + 2 = ^36

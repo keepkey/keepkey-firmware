@@ -49,7 +49,7 @@ static RunnableQueue active_queue = {NULL, 0};
  * OUTPUT
  *     head node in the queue
  */
-static RunnableNode *runnable_queue_peek(RunnableQueue *queue) {
+static RunnableNode* runnable_queue_peek(const RunnableQueue* queue) {
   return (queue->head);
 }
 
@@ -63,10 +63,10 @@ static RunnableNode *runnable_queue_peek(RunnableQueue *queue) {
  * OUTPUT
  *     pointer to a node containing the requested task function
  */
-static RunnableNode *runnable_queue_get(RunnableQueue *queue,
+static RunnableNode* runnable_queue_get(RunnableQueue* queue,
                                         Runnable callback) {
-  RunnableNode *current = queue->head;
-  RunnableNode *result = NULL;
+  RunnableNode* current = queue->head;
+  RunnableNode* result = NULL;
 
   /* check queue is empty */
   if (current != NULL) {
@@ -76,7 +76,7 @@ static RunnableNode *runnable_queue_get(RunnableQueue *queue,
     } else {
       /* search through the linklist for node that contains the runnable
          callback function */
-      RunnableNode *previous = current;
+      RunnableNode* previous = current;
       current = current->next;
 
       while ((current != NULL) && (result == NULL)) {
@@ -109,7 +109,7 @@ static RunnableNode *runnable_queue_get(RunnableQueue *queue,
  * OUTPUT
  *     none
  */
-static void runnable_queue_push(RunnableQueue *queue, RunnableNode *node) {
+static void runnable_queue_push(RunnableQueue* queue, RunnableNode* node) {
 #ifndef EMULATOR
   svc_disable_interrupts();
 #endif
@@ -136,12 +136,12 @@ static void runnable_queue_push(RunnableQueue *queue, RunnableNode *node) {
  * OUTPUT
  *     pointer to an available node retrieved from the queue
  */
-static RunnableNode *runnable_queue_pop(RunnableQueue *queue) {
+static RunnableNode* runnable_queue_pop(RunnableQueue* queue) {
 #ifndef EMULATOR
   svc_disable_interrupts();
 #endif
 
-  RunnableNode *runnable_node = queue->head;
+  RunnableNode* runnable_node = queue->head;
 
   if (runnable_node != NULL) {
     queue->head = runnable_node->next;
@@ -166,10 +166,10 @@ static RunnableNode *runnable_queue_pop(RunnableQueue *queue) {
  */
 static void run_runnables(void) {
   // Do timer function work.
-  RunnableNode *runnable_node = runnable_queue_peek(&active_queue);
+  RunnableNode* runnable_node = runnable_queue_peek(&active_queue);
 
   while (runnable_node != NULL) {
-    RunnableNode *next = runnable_node->next;
+    RunnableNode* next = runnable_node->next;
 
     if (runnable_node->remaining != 0) {
       runnable_node->remaining -= 1;
@@ -320,9 +320,7 @@ void delay_ms_with_callback(uint32_t ms, callback_func_t callback_func,
  * OUTPUT
  *     ms since wakeup
  */
-uint32_t getSysTime(void) {
-  return timeSinceWakeup;
-}
+uint32_t getSysTime(void) { return timeSinceWakeup; }
 
 /*
  * timerisr_usr() - Timer 4 user mode interrupt service routine
@@ -365,8 +363,8 @@ void tim4_sighandler(int sig) { timerisr_usr(); }
  * OUTPUT
  *     none
  */
-void post_delayed(Runnable callback, void *context, uint32_t delay_ms) {
-  RunnableNode *runnable_node = runnable_queue_get(&active_queue, callback);
+void post_delayed(Runnable callback, void* context, uint32_t delay_ms) {
+  RunnableNode* runnable_node = runnable_queue_get(&active_queue, callback);
 
   if (runnable_node == NULL) {
     runnable_node = runnable_queue_pop(&free_queue);
@@ -392,9 +390,9 @@ void post_delayed(Runnable callback, void *context, uint32_t delay_ms) {
  * OUTPUT
  *     none
  */
-void post_periodic(Runnable callback, void *context, uint32_t period_ms,
+void post_periodic(Runnable callback, void* context, uint32_t period_ms,
                    uint32_t delay_ms) {
-  RunnableNode *runnable_node = runnable_queue_get(&active_queue, callback);
+  RunnableNode* runnable_node = runnable_queue_get(&active_queue, callback);
 
   if (runnable_node == NULL) {
     runnable_node = runnable_queue_pop(&free_queue);
@@ -418,7 +416,7 @@ void post_periodic(Runnable callback, void *context, uint32_t period_ms,
  *     none
  */
 void remove_runnable(Runnable callback) {
-  RunnableNode *runnable_node = runnable_queue_get(&active_queue, callback);
+  RunnableNode* runnable_node = runnable_queue_get(&active_queue, callback);
 
   if (runnable_node != NULL) {
     runnable_queue_push(&free_queue, runnable_node);
@@ -434,7 +432,7 @@ void remove_runnable(Runnable callback) {
  *     none
  */
 void clear_runnables(void) {
-  RunnableNode *runnable_node = runnable_queue_pop(&active_queue);
+  RunnableNode* runnable_node = runnable_queue_pop(&active_queue);
 
   while (runnable_node != NULL) {
     runnable_queue_push(&free_queue, runnable_node);

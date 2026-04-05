@@ -31,8 +31,8 @@ static HomeState home_state = AT_HOME;
 static uint32_t idle_time = 0;
 
 static void layoutLockedState(void) {
-  const Font *font = get_body_font();
-  const char *state =
+  const Font* font = get_body_font();
+  const char* state =
       (!storage_hasPin() || session_isPinCached()) ? "\x02" : "\x03";
   DrawableParams sp;
   sp.x = 2;

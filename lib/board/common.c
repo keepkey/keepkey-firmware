@@ -40,16 +40,16 @@ void drbg_init() {
   hmac_drbg_init(&drbg_ctx, entropy, sizeof(entropy), NULL, 0);
 }
 
-void drbg_reseed(const uint8_t *entropy, size_t len) {
+void drbg_reseed(const uint8_t* entropy, size_t len) {
   hmac_drbg_reseed(&drbg_ctx, entropy, len, NULL, 0);
 }
 
-void drbg_generate(uint8_t *buf, size_t len) {
+void drbg_generate(uint8_t* buf, size_t len) {
   hmac_drbg_generate(&drbg_ctx, buf, len);
 }
 
 uint32_t drbg_random32(void) {
   uint32_t value = 0;
-  drbg_generate((uint8_t *)&value, sizeof(value));
+  drbg_generate((uint8_t*)&value, sizeof(value));
   return value;
 }

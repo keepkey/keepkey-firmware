@@ -3,6 +3,6 @@
 
 #include <inttypes.h>
 
-const char *words_from_data(const uint8_t *data, int len);
+const char* words_from_data(const uint8_t* data, int len);
 
 #endif

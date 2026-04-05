@@ -49,18 +49,18 @@
  * OUTPUT
  *     none
  */
-static void layout_animate_pin(void *data, uint32_t duration,
+static void layout_animate_pin(void* data, uint32_t duration,
                                uint32_t elapsed) {
   (void)duration;
   BoxDrawableParams box_params = {{0x00, 0, 0}, 64, 256};
   DrawableParams sp;
-  Canvas *canvas = layout_get_canvas();
-  char *pin = (char *)data;
+  Canvas* canvas = layout_get_canvas();
+  const char* pin = (const char*)data;
   const uint8_t color_stepping[] = {PIN_MATRIX_STEP1, PIN_MATRIX_STEP2,
                                     PIN_MATRIX_STEP3, PIN_MATRIX_STEP4,
                                     PIN_MATRIX_FOREGROUND};
 
-  const Font *pin_font = get_pin_font();
+  const Font* pin_font = get_pin_font();
 
   /* Draw matrix */
   box_params.base.color = PIN_MATRIX_BACKGROUND;
@@ -93,7 +93,7 @@ static void layout_animate_pin(void *data, uint32_t duration,
   for (uint8_t row = 0; row < 3; row++) {
     for (uint8_t col = 0; col < 3; col++) {
       uint8_t cur_pos = col + (2 - row) * 3;
-      const PINAnimationConfig *cur_pos_cfg = &pin_animation_cfg[cur_pos];
+      const PINAnimationConfig* cur_pos_cfg = &pin_animation_cfg[cur_pos];
       uint32_t cur_pos_elapsed = elapsed - cur_pos_cfg->elapsed_start_ms;
 
       /* Skip position is enough time has not passed */
@@ -189,18 +189,18 @@ static void layout_animate_pin(void *data, uint32_t duration,
  * OUTPUT
  *     none
  */
-static void layout_animate_cipher(void *data, uint32_t duration,
+static void layout_animate_cipher(void* data, uint32_t duration,
                                   uint32_t elapsed) {
   (void)duration;
-  Canvas *canvas = layout_get_canvas();
-  int row, letter, x_padding, cur_pos_elapsed, adj_pos, adj_x, adj_y, cur_index;
-  char *cipher = (char *)data;
-  char alphabet[] = "abcdefghijklmnopqrstuvwxyz";
-  char *current_letter = alphabet;
+  Canvas* canvas = layout_get_canvas();
+  int row, letter;
+  const char* cipher = (const char*)data;
+  const char alphabet[] = "abcdefghijklmnopqrstuvwxyz";
+  const char* current_letter = alphabet;
 
   DrawableParams sp;
-  const Font *title_font = get_title_font();
-  const Font *cipher_font = get_body_font();
+  const Font* title_font = get_title_font();
+  const Font* cipher_font = get_body_font();
 
   /* Clear area behind cipher */
   draw_box_simple(canvas, CIPHER_MASK_COLOR, CIPHER_START_X, 0,
@@ -209,15 +209,14 @@ static void layout_animate_cipher(void *data, uint32_t duration,
 
   /* Draw grid */
   sp.y = CIPHER_START_Y;
-  sp.x = CIPHER_START_X;
 
   for (row = 0; row < CIPHER_ROWS; row++) {
     for (letter = 0; letter < CIPHER_LETTER_BY_ROW; letter++) {
-      cur_index = (row * CIPHER_LETTER_BY_ROW) + letter;
-      cur_pos_elapsed = elapsed - cur_index * CIPHER_ANIMATION_FREQUENCY_MS;
+      int cur_index = (row * CIPHER_LETTER_BY_ROW) + letter;
+      int cur_pos_elapsed = elapsed - cur_index * CIPHER_ANIMATION_FREQUENCY_MS;
       sp.x =
           CIPHER_START_X + (letter * (CIPHER_GRID_SIZE + CIPHER_GRID_SPACING));
-      x_padding = 0;
+      int x_padding = 0;
 
       /* Draw grid */
       draw_box_simple(canvas, CIPHER_STEP_1, sp.x - 4, sp.y + CIPHER_GRID_SIZE,
@@ -248,10 +247,10 @@ static void layout_animate_cipher(void *data, uint32_t duration,
 
       /* Draw cipher */
       if (cur_pos_elapsed > 0) {
-        adj_pos = cur_pos_elapsed / CIPHER_ANIMATION_FREQUENCY_MS;
+        int adj_pos = cur_pos_elapsed / CIPHER_ANIMATION_FREQUENCY_MS;
 
-        adj_x = 0;
-        adj_y = 0;
+        int adj_x = 0;
+        int adj_y = 0;
 
         if (adj_pos < 5) {
           if (cur_index % 4 == 0) {
@@ -278,7 +277,6 @@ static void layout_animate_cipher(void *data, uint32_t duration,
       cipher++;
     }
 
-    sp.x = CIPHER_START_X;
     sp.y += 31;
   }
 
@@ -324,7 +322,7 @@ void layout_screen_test(void) {
 void layout_screensaver(void) {
   layout_clear();
 
-  layout_add_animation(&layout_animate_images, (void *)variant_getScreensaver(),
+  layout_add_animation(&layout_animate_images, (void*)variant_getScreensaver(),
                        0);
 }
 
@@ -337,15 +335,15 @@ void layout_screensaver(void) {
  * OUTPUT
  *     none
  */
-void layout_notification_no_title(const char *title, const char *body,
+void layout_notification_no_title(const char* title, const char* body,
                                   NotificationType type, bool bold) {
   (void)title;
   call_leaving_handler();
   layout_clear();
 
-  Canvas *canvas = layout_get_canvas();
+  Canvas* canvas = layout_get_canvas();
   DrawableParams sp;
-  const Font *font = get_title_font();
+  const Font* font = get_title_font();
 
   if (!bold) {
     font = get_body_font();
@@ -372,7 +370,7 @@ void layout_notification_no_title(const char *title, const char *body,
  * OUTPUT
  *     none
  */
-void layout_notification_no_title_bold(const char *title, const char *body,
+void layout_notification_no_title_bold(const char* title, const char* body,
                                        NotificationType type) {
   layout_notification_no_title(title, body, type, true);
 }
@@ -387,7 +385,7 @@ void layout_notification_no_title_bold(const char *title, const char *body,
  * OUTPUT
  *     none
  */
-void layout_notification_no_title_no_bold(const char *title, const char *body,
+void layout_notification_no_title_no_bold(const char* title, const char* body,
                                           NotificationType type) {
   layout_notification_no_title(title, body, type, false);
 }
@@ -402,18 +400,18 @@ void layout_notification_no_title_no_bold(const char *title, const char *body,
  * OUTPUT
  *      none
  */
-void layout_xpub_notification(const char *desc, const char *xpub,
+void layout_xpub_notification(const char* desc, const char* xpub,
                               NotificationType type) {
   (void)desc;
   call_leaving_handler();
   layout_clear();
 
-  Canvas *canvas = layout_get_canvas();
+  Canvas* canvas = layout_get_canvas();
   DrawableParams sp;
-  const Font *xpub_font = get_body_font();
+  const Font* xpub_font = get_body_font();
 
   if (strcmp(desc, "") != 0) {
-    const Font *title_font = get_title_font();
+    const Font* title_font = get_title_font();
     sp.y = TOP_MARGIN_FOR_THREE_LINES;
     sp.x = LEFT_MARGIN;
     sp.color = BODY_COLOR;
@@ -442,18 +440,18 @@ void layout_xpub_notification(const char *desc, const char *xpub,
  * OUTPUT
  *      none
  */
-void layout_cosmos_address_notification(const char *desc, const char *address,
+void layout_cosmos_address_notification(const char* desc, const char* address,
                                         NotificationType type) {
   DrawableParams sp;
-  const Font *address_font = get_body_font();
+  const Font* address_font = get_body_font();
   ;
-  Canvas *canvas = layout_get_canvas();
+  Canvas* canvas = layout_get_canvas();
 
   call_leaving_handler();
   layout_clear();
 
   if (strcmp(desc, "") != 0) {
-    const Font *title_font = get_title_font();
+    const Font* title_font = get_title_font();
     sp.y = TOP_MARGIN_FOR_TWO_LINES;
     sp.x = LEFT_MARGIN + 65;
     sp.color = BODY_COLOR;
@@ -484,18 +482,18 @@ void layout_cosmos_address_notification(const char *desc, const char *address,
  * OUTPUT
  *      none
  */
-void layout_osmosis_address_notification(const char *desc, const char *address,
+void layout_osmosis_address_notification(const char* desc, const char* address,
                                          NotificationType type) {
   DrawableParams sp;
-  const Font *address_font = get_body_font();
+  const Font* address_font = get_body_font();
   ;
-  Canvas *canvas = layout_get_canvas();
+  Canvas* canvas = layout_get_canvas();
 
   call_leaving_handler();
   layout_clear();
 
   if (strcmp(desc, "") != 0) {
-    const Font *title_font = get_title_font();
+    const Font* title_font = get_title_font();
     sp.y = TOP_MARGIN_FOR_TWO_LINES;
     sp.x = LEFT_MARGIN + 65;
     sp.color = BODY_COLOR;
@@ -526,18 +524,18 @@ void layout_osmosis_address_notification(const char *desc, const char *address,
  * OUTPUT
  *      none
  */
-void layout_ethereum_address_notification(const char *desc, const char *address,
+void layout_ethereum_address_notification(const char* desc, const char* address,
                                           NotificationType type) {
   DrawableParams sp;
-  const Font *address_font = get_body_font();
+  const Font* address_font = get_body_font();
   ;
-  Canvas *canvas = layout_get_canvas();
+  Canvas* canvas = layout_get_canvas();
 
   call_leaving_handler();
   layout_clear();
 
   if (strcmp(desc, "") != 0) {
-    const Font *title_font = get_title_font();
+    const Font* title_font = get_title_font();
     sp.y = TOP_MARGIN_FOR_TWO_LINES;
     sp.x = LEFT_MARGIN + 65;
     sp.color = BODY_COLOR;
@@ -567,14 +565,14 @@ void layout_ethereum_address_notification(const char *desc, const char *address,
  * OUTPUT
  *      none
  */
-void layout_nano_address_notification(const char *desc, const char *address,
+void layout_nano_address_notification(const char* desc, const char* address,
                                       NotificationType type) {
   call_leaving_handler();
   layout_clear();
 
-  Canvas *canvas = layout_get_canvas();
+  Canvas* canvas = layout_get_canvas();
   DrawableParams sp;
-  const Font *font = NULL;
+  const Font* font = NULL;
 
   /* Title */
   if (strcmp(desc, "") != 0) {
@@ -609,14 +607,14 @@ void layout_nano_address_notification(const char *desc, const char *address,
  * OUTPUT
  *      none
  */
-void layout_address_notification(const char *desc, const char *address,
+void layout_address_notification(const char* desc, const char* address,
                                  NotificationType type) {
   call_leaving_handler();
   layout_clear();
 
-  Canvas *canvas = layout_get_canvas();
+  Canvas* canvas = layout_get_canvas();
   DrawableParams sp;
-  const Font *address_font = get_title_font();
+  const Font* address_font = get_title_font();
 
   /* Unbold fonts if address becomes too long */
   if (calc_str_width(address_font, address) > TRANSACTION_WIDTH) {
@@ -664,9 +662,9 @@ void layout_address_notification(const char *desc, const char *address,
  * OUTPUT
  *     none
  */
-void layout_pin(const char *str, char pin[]) {
+void layout_pin(const char* str, char pin[]) {
   DrawableParams sp;
-  Canvas *canvas = layout_get_canvas();
+  Canvas* canvas = layout_get_canvas();
 
   call_leaving_handler();
   layout_clear();
@@ -674,7 +672,7 @@ void layout_pin(const char *str, char pin[]) {
   display_constant_power(true);
 
   /* Draw prompt */
-  const Font *font = get_body_font();
+  const Font* font = get_body_font();
   sp.y = 24;
   sp.x = 128 + 10;
   sp.color = BODY_COLOR;
@@ -682,7 +680,7 @@ void layout_pin(const char *str, char pin[]) {
   display_refresh();
 
   /* Animate pin scrambling */
-  layout_add_animation(&layout_animate_pin, (void *)pin, PIN_MAX_ANIMATION_MS);
+  layout_add_animation(&layout_animate_pin, (void*)pin, PIN_MAX_ANIMATION_MS);
 }
 
 /*
@@ -695,10 +693,10 @@ void layout_pin(const char *str, char pin[]) {
  * OUTPUT
  *     none
  */
-void layout_cipher(const char *current_word, const char *cipher) {
+void layout_cipher(const char* current_word, const char* cipher) {
   DrawableParams sp;
-  const Font *title_font = get_body_font();
-  Canvas *canvas = layout_get_canvas();
+  const Font* title_font = get_body_font();
+  Canvas* canvas = layout_get_canvas();
 
   call_leaving_handler();
   layout_clear();
@@ -719,7 +717,7 @@ void layout_cipher(const char *current_word, const char *cipher) {
   display_refresh();
 
   /* Animate cipher */
-  layout_add_animation(&layout_animate_cipher, (void *)cipher,
+  layout_add_animation(&layout_animate_cipher, (void*)cipher,
                        CIPHER_ANIMATION_FREQUENCY_MS * 30);
 }
 
@@ -731,8 +729,8 @@ void layout_cipher(const char *current_word, const char *cipher) {
  * OUTPUT
  *     none
  */
-void layout_address(const char *address, QRSize qr_size) {
-  Canvas *canvas = layout_get_canvas();
+void layout_address(const char* address, QRSize qr_size) {
+  Canvas* canvas = layout_get_canvas();
 
   uint8_t codedata[qrcodegen_BUFFER_LEN_FOR_VERSION(QR_MAX_VERSION)];
   uint8_t tempdata[qrcodegen_BUFFER_LEN_FOR_VERSION(QR_MAX_VERSION)];
@@ -768,7 +766,7 @@ void layout_address(const char *address, QRSize qr_size) {
   }
 }
 
-void layoutU2FDialog(bool request, const char *title, const char *body, ...) {
+void layoutU2FDialog(bool request, const char* title, const char* body, ...) {
   char strbuf[BODY_CHAR_MAX];
 
   va_list vl;

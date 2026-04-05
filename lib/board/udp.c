@@ -34,7 +34,7 @@ extern usb_rx_callback_t user_debug_rx_callback;
 
 static volatile char tiny = 0;
 
-void usbInit(const char *origin_url) {
+void usbInit(const char* origin_url) {
   (void)origin_url;
   emulatorSocketInit();
 }
@@ -64,12 +64,12 @@ void usbPoll(void) {
   }
 }
 
-bool usb_tx(uint8_t *msg, uint32_t len) {
+bool usb_tx(const uint8_t* msg, uint32_t len) {
   return emulatorSocketWrite(0, msg, len);
 }
 
 #if DEBUG_LINK
-bool usb_debug_tx(uint8_t *msg, uint32_t len) {
+bool usb_debug_tx(const uint8_t* msg, uint32_t len) {
   return emulatorSocketWrite(1, msg, len);
 }
 #endif

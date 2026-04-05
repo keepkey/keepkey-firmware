@@ -24,7 +24,7 @@
 
 #include <stdbool.h>
 
-#define PASSPHRASE_BUF sizeof(((PassphraseAck *)NULL)->passphrase)
+#define PASSPHRASE_BUF sizeof(((PassphraseAck*)NULL)->passphrase)
 
 /* State for Passphrase SM */
 typedef enum {

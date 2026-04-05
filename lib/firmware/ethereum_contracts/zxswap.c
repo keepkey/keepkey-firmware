@@ -26,75 +26,75 @@
 #include "keepkey/firmware/fsm.h"
 #include "trezor/crypto/address.h"
 
-static bool isSellToUniswapCall(const EthereumSignTx *msg) {
-    if (memcmp(msg->data_initial_chunk.bytes, "\xd9\x62\x7a\xa4", 4) == 0)
-        return true;
+static bool isSellToUniswapCall(const EthereumSignTx* msg) {
+  if (memcmp(msg->data_initial_chunk.bytes, "\xd9\x62\x7a\xa4", 4) == 0)
+    return true;
 
-    return false;
+  return false;
 }
 
-bool zx_isZxSwap(const EthereumSignTx *msg) {
-
-    if (memcmp(msg->to.bytes, ZXSWAP_ADDRESS, 20) == 0) {   // correct proxy address?
-        if (isSellToUniswapCall(msg)) {                     // does kk handle call?
-            return true;
-        }
+bool zx_isZxSwap(const EthereumSignTx* msg) {
+  if (memcmp(msg->to.bytes, ZXSWAP_ADDRESS, 20) ==
+      0) {                           // correct proxy address?
+    if (isSellToUniswapCall(msg)) {  // does kk handle call?
+      return true;
     }
-    return false;
+  }
+  return false;
 }
 
-bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx *msg) {
-    (void)data_total;
-    const TokenType *from, *to;
-    uint8_t *fromAddress, *toAddress;
-    char constr1[40], constr2[40];
-    uint32_t numOfTokens, adder, isSushi;
-    char *exchange;
+bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx* msg) {
+  (void)data_total;
+  const TokenType *from, *to;
+  const uint8_t *fromAddress, *toAddress;
+  char constr1[40], constr2[40];
+  uint32_t numOfTokens, adder, isSushi;
+  const char* exchange;
 
-    numOfTokens = read_be(msg->data_initial_chunk.bytes + 4 + 5*32 - 4);
-    isSushi = read_be(msg->data_initial_chunk.bytes + 4 + 4*32 - 4);
-    if (isSushi == 0) {
-        exchange = "Uniswap";
-    } else {
-        exchange = "Sushiswap";
-    }
+  numOfTokens = read_be(msg->data_initial_chunk.bytes + 4 + 5 * 32 - 4);
+  isSushi = read_be(msg->data_initial_chunk.bytes + 4 + 4 * 32 - 4);
+  if (isSushi == 0) {
+    exchange = "Uniswap";
+  } else {
+    exchange = "Sushiswap";
+  }
 
-    switch (numOfTokens) {
-        case 2:
-            adder = 0;  // only two tokens, swap to token second
-            break;
-        case 3:
-            adder = 1;  // swap to token last in the list of 3
-            break;
-        default:        // can't interpret 0, 1, or >3 tokens
-            return false;
-            break;
-    }
+  switch (numOfTokens) {
+    case 2:
+      adder = 0;  // only two tokens, swap to token second
+      break;
+    case 3:
+      adder = 1;  // swap to token last in the list of 3
+      break;
+    default:  // can't interpret 0, 1, or >3 tokens
+      return false;
+      break;
+  }
 
-    fromAddress = (uint8_t *)(msg->data_initial_chunk.bytes + 4 + 5*32 + 12);
-    toAddress = (uint8_t *)(msg->data_initial_chunk.bytes + 4 + (6+adder)*32 + 12);
+  fromAddress =
+      (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 5 * 32 + 12);
+  toAddress = (const uint8_t*)(msg->data_initial_chunk.bytes + 4 +
+                               (6 + adder) * 32 + 12);
 
+  from = tokenByChainAddress(msg->chain_id, fromAddress);
+  to = tokenByChainAddress(msg->chain_id, toAddress);
 
-    from = tokenByChainAddress(msg->chain_id, fromAddress);
-    to = tokenByChainAddress(msg->chain_id, toAddress);
-    
-    // Get token trade amount data
-    bignum256 sellTokenAmount, minBuyTokenAmount;
-    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 32, 32, &sellTokenAmount);
-    bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 2*32, 32, &minBuyTokenAmount);
+  // Get token trade amount data
+  bignum256 sellTokenAmount, minBuyTokenAmount;
+  bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 32, 32, &sellTokenAmount);
+  bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 2 * 32, 32,
+                &minBuyTokenAmount);
 
-    char sellToken[32];
-    char minBuyToken[32];
-    ethereumFormatAmount(&sellTokenAmount, from, msg->chain_id, sellToken,
+  char sellToken[32];
+  char minBuyToken[32];
+  ethereumFormatAmount(&sellTokenAmount, from, msg->chain_id, sellToken,
                        sizeof(sellToken));
-    ethereumFormatAmount(&minBuyTokenAmount, to, msg->chain_id, minBuyToken,
+  ethereumFormatAmount(&minBuyTokenAmount, to, msg->chain_id, minBuyToken,
                        sizeof(minBuyToken));
 
-    snprintf(constr1, 32, "%s", sellToken);
-    snprintf(constr2, 32, "%s", minBuyToken);
+  snprintf(constr1, 32, "%s", sellToken);
+  snprintf(constr2, 32, "%s", minBuyToken);
 
-    return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, exchange,
+  return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, exchange,
                  "Sell %s\nBuy at least %s", constr1, constr2);
-    
-    return true;
 }

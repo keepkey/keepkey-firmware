@@ -38,7 +38,7 @@
 static AnimationQueue active_queue = {NULL, 0};
 static AnimationQueue free_queue = {NULL, 0};
 static Animation animations[MAX_ANIMATIONS];
-static Canvas *canvas = NULL;
+static Canvas* canvas = NULL;
 static volatile bool animate_flag = false;
 static leaving_handler_t leaving_handler;
 static bool iconLayout = false;
@@ -56,10 +56,10 @@ extern bool constant_power;
 static void layout_home_helper(bool reversed) {
   layout_clear();
 
-  const VariantAnimation *logo;
+  const VariantAnimation* logo;
   logo = variant_getLogo(reversed);
 
-  layout_add_animation(&layout_animate_images, (void *)logo,
+  layout_add_animation(&layout_animate_images, (void*)logo,
                        get_image_animation_duration(logo));
 
   while (is_animating()) {
@@ -76,7 +76,7 @@ static void layout_home_helper(bool reversed) {
  * OUTPUT
  *     none
  */
-static void layout_animate_callback(void *context) {
+static void layout_animate_callback(void* context) {
   (void)context;
   animate_flag = true;
 }
@@ -92,7 +92,7 @@ static void layout_animate_callback(void *context) {
  */
 #if defined(AGGRO_UNDEFINED_FN)
 static void layout_remove_animation(AnimateCallback callback) {
-  Animation *animation = animation_queue_get(&active_queue, callback);
+  Animation* animation = animation_queue_get(&active_queue, callback);
 
   if (animation != NULL) {
     animation_queue_push(&free_queue, animation);
@@ -108,7 +108,7 @@ static void layout_remove_animation(AnimateCallback callback) {
  * OUTPUT
  *     node pointed to by head pointer
  */
-static Animation *animation_queue_peek(AnimationQueue *queue) {
+static Animation* animation_queue_peek(const AnimationQueue* queue) {
   return queue->head;
 }
 
@@ -120,7 +120,7 @@ static Animation *animation_queue_peek(AnimationQueue *queue) {
  * OUTPUT
  *     none
  */
-static void animation_queue_push(AnimationQueue *queue, Animation *node) {
+static void animation_queue_push(AnimationQueue* queue, Animation* node) {
   if (queue->head != NULL) {
     node->next = queue->head;
   } else {
@@ -139,8 +139,8 @@ static void animation_queue_push(AnimationQueue *queue, Animation *node) {
  * OUTPUT
  *     pointer to a node from the queue
  */
-static Animation *animation_queue_pop(AnimationQueue *queue) {
-  Animation *animation = queue->head;
+static Animation* animation_queue_pop(AnimationQueue* queue) {
+  Animation* animation = queue->head;
 
   if (animation != NULL) {
     queue->head = animation->next;
@@ -159,17 +159,17 @@ static Animation *animation_queue_pop(AnimationQueue *queue) {
  * OUTPUT
  *     pointer to Animation node
  */
-static Animation *animation_queue_get(AnimationQueue *queue,
+static Animation* animation_queue_get(AnimationQueue* queue,
                                       AnimateCallback callback) {
-  Animation *current = queue->head;
-  Animation *result = NULL;
+  Animation* current = queue->head;
+  Animation* result = NULL;
 
   if (current != NULL) {
     if (current->animate_callback == callback) {
       result = current;
       queue->head = current->next;
     } else {
-      Animation *previous = current;
+      Animation* previous = current;
       current = current->next;
 
       while ((current != NULL) && (result == NULL)) {
@@ -201,7 +201,7 @@ static Animation *animation_queue_get(AnimationQueue *queue,
  * OUTPUT
  *     none
  */
-void layout_init(Canvas *new_canvas) {
+void layout_init(Canvas* new_canvas) {
   canvas = new_canvas;
 
   int i;
@@ -223,7 +223,7 @@ void layout_init(Canvas *new_canvas) {
  * OUTPUT
  *     pointer to canvas
  */
-Canvas *layout_get_canvas(void) { return canvas; }
+Canvas* layout_get_canvas(void) { return canvas; }
 
 /*
  * call_leaving_handler() - Call leaving handler
@@ -239,11 +239,11 @@ void call_leaving_handler(void) {
   }
 }
 
-void kk_strupr(char *str) {
+void kk_strupr(char* str) {
   for (; *str; str++) *str = toupper(*str);
 }
 
-void kk_strlwr(char *str) {
+void kk_strlwr(char* str) {
   for (; *str; str++) *str = tolower(*str);
 }
 
@@ -262,15 +262,15 @@ void layout_has_icon(bool tf) {
  * OUTPUT
  *     none
  */
-void layout_standard_notification(const char *str1, const char *str2,
+void layout_standard_notification(const char* str1, const char* str2,
                                   NotificationType type) {
   call_leaving_handler();
   layout_clear();
 
   DrawableParams sp;
-  const Font *title_font = get_title_font();
+  const Font* title_font = get_title_font();
 
-  const Font *body_font = get_body_font();
+  const Font* body_font = get_body_font();
   uint32_t body_line_count;
   uint16_t left_margin, body_width, title_width;
 
@@ -316,7 +316,6 @@ void layout_standard_notification(const char *str1, const char *str2,
   layout_notification_icon(type, &sp);
 }
 
-
 /*
  * layout_add_icon() - Display standard notification
  *
@@ -335,50 +334,46 @@ void layout_add_icon(IconType type) {
       /* no action requires */
       break;
   }
-
 }
 
-void layout_constant_power_notification(const char *str1, const char *str2,
-                                        NotificationType type)
-{
-    call_leaving_handler();
-    layout_clear();
+void layout_constant_power_notification(const char* str1, const char* str2,
+                                        NotificationType type) {
+  call_leaving_handler();
+  layout_clear();
 
-    DrawableParams sp;
-    const Font *title_font = get_title_font();
-    const Font *body_font = get_body_font();
-    const uint32_t body_line_count = calc_str_line(body_font, str2, BODY_WIDTH);
+  DrawableParams sp;
+  const Font* title_font = get_title_font();
+  const Font* body_font = get_body_font();
+  const uint32_t body_line_count = calc_str_line(body_font, str2, BODY_WIDTH);
 
-    /* Determine vertical alignment and body width */
-    sp.y = TOP_MARGIN;
+  /* Determine vertical alignment and body width */
+  sp.y = TOP_MARGIN;
 
-    if(body_line_count == ONE_LINE)
-    {
-        sp.y = TOP_MARGIN_FOR_ONE_LINE;
-    }
-    else if(body_line_count == TWO_LINES)
-    {
-        sp.y = TOP_MARGIN_FOR_TWO_LINES;
-    }
+  if (body_line_count == ONE_LINE) {
+    sp.y = TOP_MARGIN_FOR_ONE_LINE;
+  } else if (body_line_count == TWO_LINES) {
+    sp.y = TOP_MARGIN_FOR_TWO_LINES;
+  }
 
-    /* Format Title */
-    char upper_str1[TITLE_CHAR_MAX];
-    strlcpy(upper_str1, str1, TITLE_CHAR_MAX);
-    kk_strupr(upper_str1);
+  /* Format Title */
+  char upper_str1[TITLE_CHAR_MAX];
+  strlcpy(upper_str1, str1, TITLE_CHAR_MAX);
+  kk_strupr(upper_str1);
 
-    /* Title */
-    sp.x = 128 + LEFT_MARGIN;
-    sp.color = TITLE_COLOR;
-    draw_string(canvas, title_font, upper_str1, &sp, TITLE_WIDTH, font_height(title_font));
+  /* Title */
+  sp.x = 128 + LEFT_MARGIN;
+  sp.color = TITLE_COLOR;
+  draw_string(canvas, title_font, upper_str1, &sp, TITLE_WIDTH,
+              font_height(title_font));
 
-    /* Body */
-    sp.y += font_height(body_font) + BODY_TOP_MARGIN;
-    sp.x = 128 + LEFT_MARGIN;
-    sp.color = BODY_COLOR;
-    draw_string(canvas, body_font, str2, &sp, BODY_WIDTH,
-                font_height(body_font) + BODY_FONT_LINE_PADDING);
+  /* Body */
+  sp.y += font_height(body_font) + BODY_TOP_MARGIN;
+  sp.x = 128 + LEFT_MARGIN;
+  sp.color = BODY_COLOR;
+  draw_string(canvas, body_font, str2, &sp, BODY_WIDTH,
+              font_height(body_font) + BODY_FONT_LINE_PADDING);
 
-    layout_notification_icon(type, &sp);
+  layout_notification_icon(type, &sp);
 }
 
 /*
@@ -390,7 +385,7 @@ void layout_constant_power_notification(const char *str1, const char *str2,
  * OUTPUT
  *     none
  */
-void layout_notification_icon(NotificationType type, DrawableParams *sp) {
+void layout_notification_icon(NotificationType type, DrawableParams* sp) {
   switch (type) {
     case NOTIFICATION_REQUEST:
     case NOTIFICATION_REQUEST_NO_ANIMATION:
@@ -398,9 +393,9 @@ void layout_notification_icon(NotificationType type, DrawableParams *sp) {
       break;
 
     case NOTIFICATION_CONFIRM_ANIMATION: {
-      const VariantAnimation *anim = get_confirming_animation();
+      const VariantAnimation* anim = get_confirming_animation();
 
-      layout_add_animation(&layout_animate_images, (void *)anim,
+      layout_add_animation(&layout_animate_images, (void*)anim,
                            get_image_animation_duration(anim));
       break;
     }
@@ -416,7 +411,7 @@ void layout_notification_icon(NotificationType type, DrawableParams *sp) {
       break;
 
     case NOTIFICATION_LOGO: {
-      const Image *image =
+      const Image* image =
           variant_keepkey.logo->frames[variant_keepkey.logo->count - 1].image;
       const AnimationFrame frame = {190, 9, 0, 100, image};
       draw_bitmap_mono_rle(canvas, &frame, false);
@@ -438,11 +433,11 @@ void layout_notification_icon(NotificationType type, DrawableParams *sp) {
  * OUTPUT
  *     none
  */
-void layout_warning(const char *str) {
+void layout_warning(const char* str) {
   call_leaving_handler();
   layout_clear();
 
-  const Font *font = get_body_font();
+  const Font* font = get_body_font();
 
   /* Title */
   DrawableParams sp;
@@ -451,8 +446,8 @@ void layout_warning(const char *str) {
   sp.color = TITLE_COLOR;
   draw_string(canvas, font, str, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(font));
 
-  const VariantAnimation *warning = get_warning_animation();
-  layout_add_animation(&layout_animate_images, (void *)warning, 0);
+  const VariantAnimation* warning = get_warning_animation();
+  layout_add_animation(&layout_animate_images, (void*)warning, 0);
 }
 
 /*
@@ -464,11 +459,11 @@ void layout_warning(const char *str) {
  * OUTPUT
  *     none
  */
-void layout_warning_static(const char *str) {
+void layout_warning_static(const char* str) {
   call_leaving_handler();
   layout_clear();
 
-  const Font *font = get_body_font();
+  const Font* font = get_body_font();
 
   /* Title */
   DrawableParams sp;
@@ -490,11 +485,11 @@ void layout_warning_static(const char *str) {
  * OUTPUT
  *     none
  */
-void layout_simple_message(const char *str) {
+void layout_simple_message(const char* str) {
   call_leaving_handler();
   layout_clear();
 
-  const Font *font = get_title_font();
+  const Font* font = get_title_font();
 
   /* Format Message */
   char upper_str[TITLE_CHAR_MAX];
@@ -527,7 +522,7 @@ void layout_version(int32_t major, int32_t minor, int32_t patch) {
 
   call_leaving_handler();
 
-  const Font *font = get_body_font();
+  const Font* font = get_body_font();
 
   snprintf(version_info, SMALL_STR_BUF, "v%lu.%lu.%lu", (unsigned long)major,
            (unsigned long)minor, (unsigned long)patch);
@@ -574,10 +569,10 @@ void layout_home_reversed(void) { layout_home_helper(true); }
  */
 void animate(void) {
   if (animate_flag) {
-    Animation *animation = animation_queue_peek(&active_queue);
+    Animation* animation = animation_queue_peek(&active_queue);
 
     while (animation != NULL) {
-      Animation *next = animation->next;
+      Animation* next = animation->next;
 
       animation->elapsed += ANIMATION_PERIOD;
 
@@ -625,8 +620,8 @@ bool is_animating(void) {
  * OUTPUT
  *     none
  */
-void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed) {
-  const VariantAnimation *animation = (const VariantAnimation *)data;
+void layout_animate_images(void* data, uint32_t duration, uint32_t elapsed) {
+  const VariantAnimation* animation = (const VariantAnimation*)data;
 
   bool looping = duration == 0;
   int frameNum = get_image_animation_frame(animation, elapsed, looping);
@@ -643,8 +638,8 @@ void layout_animate_images(void *data, uint32_t duration, uint32_t elapsed) {
 
 #if DEBUG_LINK
 void layout_debuglink_watermark(void) {
-  const Font *font = get_body_font();
-  const char *watermark = "DEBUG_LINK";
+  const Font* font = get_body_font();
+  const char* watermark = "DEBUG_LINK";
   DrawableParams sp;
   sp.x = KEEPKEY_DISPLAY_WIDTH - calc_str_width(font, watermark) -
          BODY_FONT_LINE_PADDING;
@@ -681,14 +676,12 @@ void layout_clear(void) {
  * OUTPUT
  *     none
  */
-void layout_clear_static(void)
-{
-    if (!canvas)
-        return;
+void layout_clear_static(void) {
+  if (!canvas) return;
 
-    display_constant_power(false);
+  display_constant_power(false);
 
-    memset(canvas->buffer, 0, canvas->width * canvas->height);
+  memset(canvas->buffer, 0, canvas->width * canvas->height);
 }
 
 /*
@@ -701,21 +694,19 @@ void layout_clear_static(void)
  */
 void force_animation_start(void) { animate_flag = true; }
 
-
-// point to otp string or null string for no otp display, set in layoutProgressForAuth()
-static const char *_otpStr = "";
+// point to otp string or null string for no otp display, set in
+// layoutProgressForAuth()
+static const char* _otpStr = "";
 
 /*
  * animating_progress_handler() - Animate storage update progress
  *
  * INPUT
- *     static global char *_otpStr -  if not null string, optional display an OTP in large font
- *     desc - text to display
- *     permil - progress in units of 1 to 1000
- * OUTPUT
- *     none
+ *     static global char *_otpStr -  if not null string, optional display an
+ * OTP in large font desc - text to display permil - progress in units of 1 to
+ * 1000 OUTPUT none
  */
-void animating_progress_handler(const char *desc, int permil) {
+void animating_progress_handler(const char* desc, int permil) {
   if (!canvas) return;
 
   call_leaving_handler();
@@ -724,8 +715,8 @@ void animating_progress_handler(const char *desc, int permil) {
   permil = permil >= 1000 ? 1000 : permil;
   permil = permil <= 0 ? 0 : permil;
 
-  const Font *font = get_body_font();
-  const Font *otpfont = get_pin_font();
+  const Font* font = get_body_font();
+  const Font* otpfont = get_pin_font();
 
   uint32_t body_line_count;
   DrawableParams sp;
@@ -735,7 +726,8 @@ void animating_progress_handler(const char *desc, int permil) {
     sp.x = LEFT_MARGIN;
     sp.y = 10;
     sp.color = TITLE_COLOR;
-    draw_string(canvas, otpfont, _otpStr, &sp, KEEPKEY_DISPLAY_WIDTH, font_height(otpfont));
+    draw_string(canvas, otpfont, _otpStr, &sp, KEEPKEY_DISPLAY_WIDTH,
+                font_height(otpfont));
   }
 
   /* Draw Message */
@@ -786,18 +778,18 @@ void animating_progress_handler(const char *desc, int permil) {
   display_refresh();
 }
 
-void layoutProgress(const char *desc, int permil) {
+void layoutProgress(const char* desc, int permil) {
   animating_progress_handler(desc, permil);
 }
 
-void layoutProgressForAuth(const char *otp, const char *desc, int permil) {
+void layoutProgressForAuth(const char* otp, const char* desc, int permil) {
   /* Use the static global otpStr to display otp in large font */
   _otpStr = otp;
   animating_progress_handler(desc, permil);
   _otpStr = "";
 }
 
-void layoutProgressSwipe(const char *desc, int permil) {
+void layoutProgressSwipe(const char* desc, int permil) {
   animating_progress_handler(desc, permil);
 }
 
@@ -811,9 +803,9 @@ void layoutProgressSwipe(const char *desc, int permil) {
  * OUTPUT
  *     none
  */
-void layout_add_animation(AnimateCallback callback, void *data,
+void layout_add_animation(AnimateCallback callback, void* data,
                           uint32_t duration) {
-  Animation *animation = animation_queue_get(&active_queue, callback);
+  Animation* animation = animation_queue_get(&active_queue, callback);
 
   if (animation == NULL) {
     animation = animation_queue_pop(&free_queue);
@@ -835,7 +827,7 @@ void layout_add_animation(AnimateCallback callback, void *data,
  *     none
  */
 void layout_clear_animations(void) {
-  Animation *animation = animation_queue_pop(&active_queue);
+  Animation* animation = animation_queue_pop(&active_queue);
 
   while (animation != NULL) {
     animation_queue_push(&free_queue, animation);

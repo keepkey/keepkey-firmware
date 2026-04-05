@@ -51,7 +51,7 @@ uint8_t HW_ENTROPY_DATA[HW_ENTROPY_LEN];
  */
 intptr_t flash_write_helper(Allocation group) {
   intptr_t start = 0;
-  const FlashSector *s = flash_sector_map;
+  const FlashSector* s = flash_sector_map;
   while (s->use != FLASH_INVALID) {
     if (s->use == group) {
       start = s->start;
@@ -97,7 +97,7 @@ bool flash_chk_status(void) {
  */
 void flash_erase_word(Allocation group) {
 #ifndef EMULATOR
-  const FlashSector *s = flash_sector_map;
+  const FlashSector* s = flash_sector_map;
   while (s->use != FLASH_INVALID) {
     if (s->use == group) {
       svc_flash_erase_sector((uint32_t)s->sector);
@@ -119,7 +119,7 @@ void flash_erase_word(Allocation group) {
  *     true/false status of write
  */
 bool flash_write_word(Allocation group, uint32_t offset, uint32_t len,
-                      const uint8_t *data) {
+                      const uint8_t* data) {
 #ifndef EMULATOR
   bool retval = true;
   uint32_t start = flash_write_helper(group);
@@ -162,7 +162,7 @@ bool flash_write_word(Allocation group, uint32_t offset, uint32_t len,
 fww_exit:
   return (retval);
 #else
-  memcpy((void *)(flash_write_helper(group) + offset), data, len);
+  memcpy((void*)(flash_write_helper(group) + offset), data, len);
   return true;
 #endif
 }
@@ -179,7 +179,7 @@ fww_exit:
  *     true/false status of write
  */
 bool flash_write(Allocation group, uint32_t offset, uint32_t len,
-                 const uint8_t *data) {
+                 const uint8_t* data) {
 #ifndef EMULATOR
   bool retval = true;
   uint32_t start = flash_write_helper(group);
@@ -188,7 +188,7 @@ bool flash_write(Allocation group, uint32_t offset, uint32_t len,
   }
   return (retval);
 #else
-  memcpy((void *)(flash_write_helper(group) + offset), data, len);
+  memcpy((void*)(flash_write_helper(group) + offset), data, len);
   return true;
 #endif
 }
@@ -205,7 +205,7 @@ bool is_mfg_mode(void) {
 #if defined(EMULATOR) || defined(DEBUG_ON)
   return false;
 #else
-  if (*(uint32_t *)OTP_MFG_ADDR == OTP_MFG_SIG) {
+  if (*(uint32_t*)OTP_MFG_ADDR == OTP_MFG_SIG) {
     return false;
   }
 
@@ -223,17 +223,17 @@ bool is_mfg_mode(void) {
  */
 bool set_mfg_mode_off(void) {
   bool ret_val = false;
-  uint32_t tvar;
 
 #ifndef EMULATOR
+  uint32_t tvar;
   /* check OTP lock state before updating */
-  if (*(uint8_t *)OTP_BLK_LOCK(OTP_MFG_ADDR) == 0xFF) {
+  if (*(uint8_t*)OTP_BLK_LOCK(OTP_MFG_ADDR) == 0xFF) {
     tvar = OTP_MFG_SIG; /* set manufactur'ed signature */
-    svc_flash_pgm_blk(OTP_MFG_ADDR, (uint32_t)((uint8_t *)&tvar),
+    svc_flash_pgm_blk(OTP_MFG_ADDR, (uint32_t)((uint8_t*)&tvar),
                       OTP_MFG_SIG_LEN);
     tvar = 0x00; /* set OTP lock */
     if (svc_flash_pgm_blk(OTP_BLK_LOCK(OTP_MFG_ADDR),
-                          (uint32_t)((uint8_t *)&tvar), 1)) {
+                          (uint32_t)((uint8_t*)&tvar), 1)) {
       ret_val = true;
     }
   }
@@ -242,16 +242,16 @@ bool set_mfg_mode_off(void) {
   return (ret_val);
 }
 
-const char *flash_getModel(void) {
+const char* flash_getModel(void) {
 #ifndef EMULATOR
 
 #ifdef DEBUG_ON
   return "K1-14AM";  // return a model number for debugger builds
 #endif
 
-  if (*((uint8_t *)OTP_MODEL_ADDR) == 0xFF) return NULL;
+  if (*((uint8_t*)OTP_MODEL_ADDR) == 0xFF) return NULL;
 
-  return (char *)OTP_MODEL_ADDR;
+  return (char*)OTP_MODEL_ADDR;
 #else
   // TODO: actually make this settable in the emulator
   return "K1-14AM";
@@ -261,9 +261,9 @@ const char *flash_getModel(void) {
 bool flash_setModel(const char (*model)[MODEL_STR_SIZE]) {
 #ifndef EMULATOR
   // Check OTP lock state before updating
-  if (*(uint8_t *)OTP_BLK_LOCK(OTP_MODEL_ADDR) != 0xFF) return false;
+  if (*(uint8_t*)OTP_BLK_LOCK(OTP_MODEL_ADDR) != 0xFF) return false;
 
-  svc_flash_pgm_blk(OTP_MODEL_ADDR, (uint32_t)((uint8_t *)model),
+  svc_flash_pgm_blk(OTP_MODEL_ADDR, (uint32_t)((uint8_t*)model),
                     sizeof(*model));
   uint8_t lock = 0x00;
   bool ret = svc_flash_pgm_blk(OTP_BLK_LOCK(OTP_MODEL_ADDR), (uint32_t)&lock,
@@ -274,8 +274,8 @@ bool flash_setModel(const char (*model)[MODEL_STR_SIZE]) {
 #endif
 }
 
-const char *flash_programModel(void) {
-  const char *ret = flash_getModel();
+const char* flash_programModel(void) {
+  const char* ret = flash_getModel();
   if (ret) return ret;
 
   switch (get_bootloaderKind()) {
@@ -298,6 +298,7 @@ const char *flash_programModel(void) {
 #define MODEL_ENTRY_KK(STRING, ENUM) \
   static const char model[MODEL_STR_SIZE] = (STRING);
 #include "keepkey/board/models.def"
+      // cppcheck-suppress knownConditionTrueFalse
       if (!is_mfg_mode()) (void)flash_setModel(&model);
       return model;
     }
@@ -305,6 +306,7 @@ const char *flash_programModel(void) {
 #define MODEL_ENTRY_SALT(STRING, ENUM) \
   static const char model[MODEL_STR_SIZE] = (STRING);
 #include "keepkey/board/models.def"
+      // cppcheck-suppress knownConditionTrueFalse
       if (!is_mfg_mode()) (void)flash_setModel(&model);
       return model;
     }
@@ -323,7 +325,7 @@ void flash_collectHWEntropy(bool privileged) {
   memzero(HW_ENTROPY_DATA, HW_ENTROPY_LEN);
 #else
   if (privileged) {
-    desig_get_unique_id((uint32_t *)HW_ENTROPY_DATA);
+    desig_get_unique_id((uint32_t*)HW_ENTROPY_DATA);
     // set entropy in the OTP randomness block
     if (!flash_otp_is_locked(FLASH_OTP_BLOCK_RANDOMNESS)) {
       uint8_t entropy[FLASH_OTP_BLOCK_SIZE] = {0};
@@ -342,6 +344,6 @@ void flash_collectHWEntropy(bool privileged) {
 #endif
 }
 
-void flash_readHWEntropy(uint8_t *buff, size_t size) {
+void flash_readHWEntropy(uint8_t* buff, size_t size) {
   memcpy(buff, HW_ENTROPY_DATA, MIN(sizeof(HW_ENTROPY_DATA), size));
 }
