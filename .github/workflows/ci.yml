@@ -519,9 +519,15 @@ jobs:
         run: |
           # Ubuntu's apt protobuf-compiler is too old/new depending on
           # release; pull the release zip directly to lock the version.
-          PROTOC_VERSION=3.21.12
-          curl -sSL -o /tmp/protoc.zip \
+          # Protobuf renamed releases from v3.21.x → v21.x at this point
+          # (the protoc "version reset"), so the tag and the file name
+          # both drop the leading 3.
+          PROTOC_VERSION=21.12
+          curl -sSL -fL -o /tmp/protoc.zip \
             "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          # `-f` makes curl fail-fast on HTTP errors so we don't unzip a
+          # 404 HTML page like the previous run did.
+          file /tmp/protoc.zip
           sudo unzip -o /tmp/protoc.zip -d /usr/local
           sudo chmod +x /usr/local/bin/protoc
           protoc --version
