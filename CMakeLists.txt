@@ -20,6 +20,17 @@ option(KK_EMULATOR "Build the emulator" OFF)
 option(KK_BUILD_DYLIB "Build libkkemu shared library (.dylib/.so)" OFF)
 option(KK_DEBUG_LINK "Build with debug-link enabled" OFF)
 option(KK_BUILD_FUZZERS "Build the fuzzers?" OFF)
+
+# When building the dylib, every static lib it links (kkfirmware, kkboard,
+# trezorcrypto, kkrand, kktransport, qrcodegenerator, SecAESSTM32, ...) must
+# itself be compiled with -fPIC. macOS happens to be lenient and will produce
+# a working .dylib without it; Linux's link step against a non-PIC archive
+# fails with "recompile with -fPIC". Set this BEFORE add_subdirectory(lib)
+# below so all targets pick it up at definition time. CMP0079 (already set
+# above) lets us reach across directories to link them.
+if(KK_BUILD_DYLIB)
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif()
 set(LIBOPENCM3_PATH
     /root/libopencm3
     CACHE PATH "Path to an already-built libopencm3")
