@@ -503,6 +503,10 @@ jobs:
           git submodule update --init --recursive deps/python-keepkey
           git submodule update --init deps/qrenc/QR-Code-generator
           git submodule update --init deps/sca-hardening/SecAESSTM32
+          # CMakeLists.txt requires googletest unconditionally even when
+          # we only build the dylib target — the project's add_subdirectory
+          # for it runs at configure time, before any target selection.
+          git submodule update --init deps/googletest
 
       - name: Setup Python 3.10
         uses: actions/setup-python@v5
