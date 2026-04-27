@@ -464,6 +464,126 @@ jobs:
         run: docker compose down -v || true
 
   # ═══════════════════════════════════════════════════════════
+  # STAGE 3a-bis: DYLIB TESTS — libkkemu shared lib via python-keepkey
+  # ═══════════════════════════════════════════════════════════
+  # Builds the firmware emulator as a shared library (libkkemu.so) and
+  # runs the dylib-specific screenshot regression tests in python-keepkey.
+  #
+  # Why a separate job from python-integration-tests:
+  #   - Different artifact: .so / .dylib (in-process FFI), not the kkemu
+  #     UDP binary the existing job builds.
+  #   - Different transport in tests: KK_TRANSPORT=dylib instead of UDP.
+  #   - Catches a class of bugs the UDP path hides — the standalone
+  #     kkemu binary has its own poll thread; the dylib does not, so
+  #     caller-driven polling correctness only surfaces here.
+  #
+  # Toolchain pinning rationale:
+  #   - protoc 3.21.x (matches protobuf 3.20 wire format the firmware
+  #     pb2 files expect; newer protoc generates Python that requires
+  #     newer protobuf runtime, which breaks the python-keepkey suite).
+  #   - protobuf 3.20.3 (Python runtime — strict pin).
+  #   - nanopb 0.3.9.4.post3 (the proto generator the firmware build uses).
+  #   - KK_DEBUG_LINK=ON (default OFF; without it,
+  #     fsm_msgDebugLinkGetState is excluded from the build and any
+  #     read_layout() call hangs the test).
+  python-dylib-tests:
+    needs: [lint-format, static-analysis, check-submodules, secret-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Init submodules
+        run: |
+          git submodule update --init deps/crypto/trezor-firmware
+          git submodule update --init deps/device-protocol
+          git submodule update --init --recursive deps/python-keepkey
+          git submodule update --init deps/qrenc/QR-Code-generator
+          git submodule update --init deps/sca-hardening/SecAESSTM32
+
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install pinned Python deps
+        run: |
+          python -m pip install --upgrade pip
+          # Strict version pins — see job-level comment above.
+          pip install "protobuf==3.20.3" "nanopb==0.3.9.4.post3"
+
+      - name: Install pinned protoc 3.21
+        run: |
+          # Ubuntu's apt protobuf-compiler is too old/new depending on
+          # release; pull the release zip directly to lock the version.
+          PROTOC_VERSION=3.21.12
+          curl -sSL -o /tmp/protoc.zip \
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          sudo unzip -o /tmp/protoc.zip -d /usr/local
+          sudo chmod +x /usr/local/bin/protoc
+          protoc --version
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cmake build-essential
+
+      - name: Configure cmake (KK_EMULATOR + KK_BUILD_DYLIB + KK_DEBUG_LINK)
+        run: |
+          # nanopb_generator and protoc-gen-nanopb live under the pip
+          # site-packages; expose them via PATH so cmake's nanopb glue
+          # finds them.
+          export PATH="$(python -c 'import os, nanopb; print(os.path.dirname(nanopb.__file__))')/generator:$(python -m site --user-base)/bin:$PATH"
+          # KK_DEBUG_LINK=ON is REQUIRED for screenshot tests — without
+          # it fsm_msgDebugLinkGetState is excluded from the build.
+          # CMAKE_POLICY_VERSION_MINIMUM works around vendored
+          # googletest's pre-3.5 policy declaration.
+          cmake \
+            -DKK_EMULATOR=1 \
+            -DKK_BUILD_DYLIB=1 \
+            -DKK_DEBUG_LINK=ON \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+            -B build-emu .
+
+      - name: Build kkemulator_dylib
+        run: |
+          export PATH="$(python -c 'import os, nanopb; print(os.path.dirname(nanopb.__file__))')/generator:$(python -m site --user-base)/bin:$PATH"
+          cmake --build build-emu --target kkemulator_dylib -j$(nproc)
+          ls -la build-emu/lib/libkkemu* || ls -la build-emu/lib/emulator/libkkemu* || true
+          # Surface the resolved binary path for the run step.
+          DYLIB=$(find build-emu -name 'libkkemu.so' -o -name 'libkkemu.dylib' | head -1)
+          test -f "$DYLIB" || (echo "::error::libkkemu artifact not found" && exit 1)
+          echo "DYLIB_PATH=$(pwd)/$DYLIB" >> $GITHUB_ENV
+
+      - name: Install python-keepkey
+        working-directory: deps/python-keepkey
+        run: pip install -e .
+
+      - name: Run dylib screenshot tests
+        working-directory: deps/python-keepkey/tests
+        env:
+          KK_TRANSPORT: dylib
+          KK_DYLIB: ${{ env.DYLIB_PATH }}
+        run: |
+          # `keepkeylib/` on PYTHONPATH so the package's relative-style
+          # imports inside generated *_pb2.py files resolve.
+          PYTHONPATH=../keepkeylib:.. python -m pytest \
+            test_dylib_screenshot.py \
+            -v --tb=short --junit-xml=../../../test-reports/dylib-junit.xml
+
+      - name: Upload dylib test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: python-dylib-test-results
+          path: test-reports/dylib-junit.xml
+          retention-days: 30
+          if-no-files-found: warn
+
+  # ═══════════════════════════════════════════════════════════
   # STAGE 3b: TEST REPORT — generate PDF from test artifacts
   # ═══════════════════════════════════════════════════════════
 
@@ -526,7 +646,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════
 
   publish-emulator:
-    needs: [unit-tests, python-integration-tests, build-arm-firmware]
+    needs: [unit-tests, python-integration-tests, python-dylib-tests, build-arm-firmware]
     if: >-
       github.event_name == 'workflow_dispatch' &&
       github.event.inputs.publish_emulator == 'true'
