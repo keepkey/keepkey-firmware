@@ -466,11 +466,19 @@ jobs:
   # ═══════════════════════════════════════════════════════════
   # STAGE 3a-bis: DYLIB TESTS — libkkemu shared lib via python-keepkey
   # ═══════════════════════════════════════════════════════════
-  # Builds the firmware emulator as a shared library (libkkemu.so) and
-  # runs the dylib-specific screenshot regression tests in python-keepkey.
+  # Builds the firmware emulator as a shared library (libkkemu.dylib on
+  # macOS / .so on Linux when supported) and runs the dylib-specific
+  # screenshot regression tests in python-keepkey.
+  #
+  # macOS-only for now. The Linux build hits a duplicate-symbol link
+  # error: __stack_chk_guard is defined by both lib/board/keepkey_board.c
+  # and lib/emulator/setup.c. The Apple linker silently picks one
+  # (matching local macos arm64 builds); GNU ld is strict and fails.
+  # Fixing requires deduping the symbol — out of scope for this PR.
+  # TODO: enable ubuntu-latest in a follow-up after the symbol cleanup.
   #
   # Why a separate job from python-integration-tests:
-  #   - Different artifact: .so / .dylib (in-process FFI), not the kkemu
+  #   - Different artifact: .dylib (in-process FFI), not the kkemu
   #     UDP binary the existing job builds.
   #   - Different transport in tests: KK_TRANSPORT=dylib instead of UDP.
   #   - Catches a class of bugs the UDP path hides — the standalone
@@ -488,8 +496,8 @@ jobs:
   #     read_layout() call hangs the test).
   python-dylib-tests:
     needs: [lint-format, static-analysis, check-submodules, secret-scan]
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    runs-on: macos-latest
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -523,16 +531,18 @@ jobs:
 
       - name: Install pinned protoc 3.21
         run: |
-          # Ubuntu's apt protobuf-compiler is too old/new depending on
-          # release; pull the release zip directly to lock the version.
+          # macos-latest is currently arm64. Pin to that explicitly so a
+          # future runner image swap doesn't silently switch to x86 and
+          # break the wire-format expectation downstream.
           # Protobuf renamed releases from v3.21.x → v21.x at this point
           # (the protoc "version reset"), so the tag and the file name
           # both drop the leading 3.
           PROTOC_VERSION=21.12
+          PROTOC_ASSET="protoc-${PROTOC_VERSION}-osx-aarch_64.zip"
           curl -sSL -fL -o /tmp/protoc.zip \
-            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
-          # `-f` makes curl fail-fast on HTTP errors so we don't unzip a
-          # 404 HTML page like the previous run did.
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ASSET}"
+          # `-f` makes curl fail-fast on HTTP errors so we don't unzip
+          # a 404 HTML page.
           file /tmp/protoc.zip
           sudo unzip -o /tmp/protoc.zip -d /usr/local
           sudo chmod +x /usr/local/bin/protoc
@@ -558,10 +568,12 @@ jobs:
           /usr/local/bin/protoc --python_out=. plugin.proto
           ls -la nanopb_pb2.py plugin_pb2.py
 
-      - name: Install build deps
+      - name: Verify build tools
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq cmake build-essential
+          # macos runners pre-install cmake + Xcode CLI tools (clang,
+          # ld, etc). Just sanity-check the versions; no install needed.
+          cmake --version
+          clang --version
 
       - name: Configure cmake (KK_EMULATOR + KK_BUILD_DYLIB + KK_DEBUG_LINK)
         run: |
@@ -597,10 +609,12 @@ jobs:
       - name: Build kkemulator_dylib
         run: |
           export PATH="$PATH:$(python -c 'import os, nanopb; print(os.path.dirname(nanopb.__file__))')/generator"
-          cmake --build build-emu --target kkemulator_dylib -j$(nproc)
+          cmake --build build-emu --target kkemulator_dylib -j$(sysctl -n hw.ncpu)
           ls -la build-emu/lib/libkkemu* || ls -la build-emu/lib/emulator/libkkemu* || true
-          # Surface the resolved binary path for the run step.
-          DYLIB=$(find build-emu -name 'libkkemu.so' -o -name 'libkkemu.dylib' | head -1)
+          # Surface the resolved binary path for the run step. macOS
+          # produces .dylib; .so is preserved as a fallback for when this
+          # job goes cross-platform.
+          DYLIB=$(find build-emu -name 'libkkemu.dylib' -o -name 'libkkemu.so' | head -1)
           test -f "$DYLIB" || (echo "::error::libkkemu artifact not found" && exit 1)
           echo "DYLIB_PATH=$(pwd)/$DYLIB" >> $GITHUB_ENV
 
