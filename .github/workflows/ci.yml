@@ -565,21 +565,28 @@ jobs:
 
       - name: Configure cmake (KK_EMULATOR + KK_BUILD_DYLIB + KK_DEBUG_LINK)
         run: |
-          # protoc-gen-nanopb is the protoc plugin protoc invokes via PATH.
-          # The pip install creates a proper console-script wrapper at
-          # `<pyenv>/bin/protoc-gen-nanopb` that loads nanopb_generator
-          # AS A MODULE — relative imports inside it resolve. The COPY
-          # of the same script under `<site-packages>/nanopb/generator/`
-          # is a raw .py file: when invoked as a top-level script via
-          # PATH it fails with `ImportError: attempted relative import
-          # with no known parent package`.
-          # setup-python already puts the bin dir on PATH; we
-          # explicitly do NOT add the generator dir.
+          # Two PATH entries are at play, and order matters:
+          #
+          #  1. The pip install puts a proper console-script wrapper at
+          #     `<pyenv>/bin/protoc-gen-nanopb` that loads nanopb_generator
+          #     AS A MODULE so relative imports resolve. setup-python
+          #     already adds this bin dir to PATH.
+          #
+          #  2. cmake's `find_program(NANOPB_GENERATOR nanopb_generator.py)`
+          #     wants the .py extension, which only exists in
+          #     `<site-packages>/nanopb/generator/`. We APPEND that dir
+          #     to PATH (NOT prepend) so the bin/ wrapper still wins for
+          #     the `protoc-gen-nanopb` name resolution. The generator/
+          #     dir contains its own `protoc-gen-nanopb` raw script that
+          #     fails with a relative-import error if it wins.
+          #
           # KK_DEBUG_LINK=ON is REQUIRED for screenshot tests — without
           # it fsm_msgDebugLinkGetState is excluded from the build.
           # CMAKE_POLICY_VERSION_MINIMUM works around vendored
           # googletest's pre-3.5 policy declaration.
+          export PATH="$PATH:$(python -c 'import os, nanopb; print(os.path.dirname(nanopb.__file__))')/generator"
           which protoc-gen-nanopb
+          which nanopb_generator.py
           cmake \
             -DKK_EMULATOR=1 \
             -DKK_BUILD_DYLIB=1 \
@@ -589,6 +596,7 @@ jobs:
 
       - name: Build kkemulator_dylib
         run: |
+          export PATH="$PATH:$(python -c 'import os, nanopb; print(os.path.dirname(nanopb.__file__))')/generator"
           cmake --build build-emu --target kkemulator_dylib -j$(nproc)
           ls -la build-emu/lib/libkkemu* || ls -la build-emu/lib/emulator/libkkemu* || true
           # Surface the resolved binary path for the run step.
