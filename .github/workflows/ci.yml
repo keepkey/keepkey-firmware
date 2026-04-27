@@ -618,6 +618,19 @@ jobs:
           test -f "$DYLIB" || (echo "::error::libkkemu artifact not found" && exit 1)
           echo "DYLIB_PATH=$(pwd)/$DYLIB" >> $GITHUB_ENV
 
+      - name: Upload libkkemu.dylib
+        # Always upload, even on later test failure — the binary is
+        # what vault and external auditors actually consume from this
+        # PR. Tagged with the short commit SHA so multiple PR pushes
+        # don't overwrite each other when a reviewer downloads them.
+        if: always() && env.DYLIB_PATH != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: libkkemu-${{ github.sha }}
+          path: ${{ env.DYLIB_PATH }}
+          retention-days: 30
+          if-no-files-found: error
+
       - name: Install python-keepkey + pytest
         working-directory: deps/python-keepkey
         run: |
