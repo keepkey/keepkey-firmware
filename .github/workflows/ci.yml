@@ -536,6 +536,26 @@ jobs:
           sudo chmod +x /usr/local/bin/protoc
           protoc --version
 
+      - name: Build nanopb generator's own .pb2 files
+        run: |
+          # The pip-installed nanopb 0.3.9.4.post3 ships nanopb.proto +
+          # plugin.proto but NOT the generated *_pb2.py files. Without
+          # them, `nanopb_generator.py` blows up at import time with
+          # "ImportError: attempted relative import with no known parent
+          # package" the first time the firmware build invokes it.
+          #
+          # We MUST regenerate with the pinned protoc 3.21 — the system
+          # protoc on github-runners is too new and produces .pb2 files
+          # that require a newer protobuf runtime than the 3.20.3 we
+          # pinned (which would fail with "Descriptors cannot be created
+          # directly. ... please regenerate with protoc >= 3.19.0 ...
+          # OR downgrade protobuf to 3.20.x").
+          NANOPB_PROTO_DIR="$(python -c 'import os, nanopb; print(os.path.dirname(nanopb.__file__))')/generator/proto"
+          cd "$NANOPB_PROTO_DIR"
+          /usr/local/bin/protoc --python_out=. nanopb.proto
+          /usr/local/bin/protoc --python_out=. plugin.proto
+          ls -la nanopb_pb2.py plugin_pb2.py
+
       - name: Install build deps
         run: |
           sudo apt-get update -qq
