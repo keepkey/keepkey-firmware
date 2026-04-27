@@ -19,8 +19,11 @@
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
 #include "ringbuf.h"
+#include "trezor/crypto/memzero.h"
 
+#include <stdio.h>
 #include <string.h>
+#include <errno.h>
 #include <sys/mman.h>
 
 /* Defined in firmware — we just need the declaration */
@@ -53,6 +56,12 @@ static uint8_t last_packed[FRAME_PACKED_SIZE];
 static int last_packed_valid = 0;
 static uint32_t frame_write_idx = 0; /* monotonic, mod FRAME_RING_SIZE for slot */
 static uint32_t frame_read_idx = 0;  /* monotonic */
+
+/*
+ * Scratch returned by kkemu_get_display(). File-scope (not function-static)
+ * so kkemu_shutdown() can zero it alongside the other display buffers.
+ */
+static uint8_t display_packed_scratch[FRAME_PACKED_SIZE];
 
 /* ── Replacement I/O functions ──────────────────────────────────────── */
 
@@ -132,8 +141,22 @@ int kkemu_init(uint8_t *flash_buf, size_t flash_len) {
     /* Point firmware's flash pointer at the host-provided buffer */
     emulator_flash_base = flash_buf;
 
-    /* Lock memory to prevent swapping secrets to disk */
-    mlock(flash_buf, flash_len);
+    /*
+     * Lock memory to prevent secrets in the flash buffer (seed, FVK, PIN
+     * derivation state) from being swapped out. Failure is non-fatal — many
+     * platforms cap unprivileged mlock at a few MB (RLIMIT_MEMLOCK), and a
+     * dev/CI environment that hits the cap shouldn't break emulator usage.
+     * We DO log to stderr so the host can decide to escalate (raise the
+     * rlimit, run with CAP_IPC_LOCK, etc.) before signing real material.
+     * Production hosts of libkkemu should treat a logged failure as a
+     * security warning and refuse to load secrets.
+     */
+    if (mlock(flash_buf, flash_len) != 0) {
+        fprintf(stderr,
+            "[libkkemu] mlock(%zu bytes) failed: %s — flash buffer may be "
+            "swapped to disk; do not load production secrets\n",
+            flash_len, strerror(errno));
+    }
 
     /* Initialize ring buffers (replaces UDP socket init) */
     libkkemu_socketInit();
@@ -173,7 +196,40 @@ void kkemu_shutdown(void) {
     /* Flush any pending storage to the flash buffer */
     storage_commit();
 
-    /* Unlock memory (host should zero + free after this) */
+    /*
+     * Zero every static buffer that could hold sensitive material before
+     * we tear down. In dylib mode this library lives inside a long-running
+     * host process — the static rings, frame ring, and packed-display
+     * scratch can outlive the emulator session and be visible to the rest
+     * of the host's memory image (core dumps, ptrace, GC roots in a Bun
+     * runtime, etc.). Specifically:
+     *
+     *   - rb_main_in / rb_main_out:  PIN, passphrase, signing inputs/outputs
+     *   - rb_debug_in / rb_debug_out: mnemonic + recovery state when
+     *                                 KK_DEBUG_LINK builds are loaded
+     *   - frame_ring / last_packed:  rendered OLED bytes for every screen,
+     *                                including PIN matrix, recovery words,
+     *                                address confirms, signing summaries
+     *
+     * memzero() is the trezor-crypto helper that the compiler can't optimize
+     * out. Same primitive used throughout the firmware to clear key material.
+     */
+    memzero(&rb_main_in,  sizeof(rb_main_in));
+    memzero(&rb_main_out, sizeof(rb_main_out));
+    memzero(&rb_debug_in,  sizeof(rb_debug_in));
+    memzero(&rb_debug_out, sizeof(rb_debug_out));
+    memzero(frame_ring,  sizeof(frame_ring));
+    memzero(last_packed, sizeof(last_packed));
+    memzero(display_packed_scratch, sizeof(display_packed_scratch));
+    last_packed_valid = 0;
+    frame_write_idx = 0;
+    frame_read_idx  = 0;
+
+    /*
+     * Unlock + caller is responsible for zeroing the host-owned flash buffer
+     * after this returns. We explicitly DO NOT zero it here — the host may
+     * want to inspect / persist post-mortem state. Documented contract.
+     */
     if (emulator_flash_base) {
         munlock(emulator_flash_base, KKEMU_FLASH_SIZE);
         emulator_flash_base = NULL;
@@ -223,26 +279,27 @@ const uint8_t *kkemu_get_display(int *width, int *height) {
      * the 1-bit packed layout vault expects (2048 bytes). Same format
      * DebugLinkGetState.layout uses: byte index = x + (y/8)*256,
      * bit within byte = y%8 (LSB = top row of the 8-pixel column).
+     *
+     * Output goes into the file-scope `display_packed_scratch` so
+     * kkemu_shutdown() can zero it on teardown alongside the frame ring.
      */
-    static uint8_t packed[2048];
-
     if (!libkkemu_initialized) { if (width) *width = 0; if (height) *height = 0; return NULL; }
 
     const Canvas *c = display_canvas();
     if (!c || !c->buffer) { if (width) *width = 0; if (height) *height = 0; return NULL; }
 
-    memset(packed, 0, sizeof(packed));
+    memset(display_packed_scratch, 0, sizeof(display_packed_scratch));
     for (int x = 0; x < 256; x++) {
         for (int y = 0; y < 64; y++) {
             if (c->buffer[y * 256 + x] > 0) {
-                packed[x + (y / 8) * 256] |= (uint8_t)(1u << (y % 8));
+                display_packed_scratch[x + (y / 8) * 256] |= (uint8_t)(1u << (y % 8));
             }
         }
     }
 
     if (width)  *width = 256;
     if (height) *height = 64;
-    return packed;
+    return display_packed_scratch;
 }
 
 int kkemu_pop_frame(uint8_t *out_packed) {
