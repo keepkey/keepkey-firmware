@@ -516,8 +516,10 @@ jobs:
       - name: Install pinned Python deps
         run: |
           python -m pip install --upgrade pip
-          # Strict version pins — see job-level comment above.
-          pip install "protobuf==3.20.3" "nanopb==0.3.9.4.post3"
+          # Strict version pins — see job-level comment above. `requests`
+          # is needed by lib/firmware's ethereum_tokens.def build step
+          # (it fetches token-list JSON at compile time).
+          pip install "protobuf==3.20.3" "nanopb==0.3.9.4.post3" requests
 
       - name: Install pinned protoc 3.21
         run: |
@@ -563,14 +565,21 @@ jobs:
 
       - name: Configure cmake (KK_EMULATOR + KK_BUILD_DYLIB + KK_DEBUG_LINK)
         run: |
-          # nanopb_generator and protoc-gen-nanopb live under the pip
-          # site-packages; expose them via PATH so cmake's nanopb glue
-          # finds them.
-          export PATH="$(python -c 'import os, nanopb; print(os.path.dirname(nanopb.__file__))')/generator:$(python -m site --user-base)/bin:$PATH"
+          # protoc-gen-nanopb is the protoc plugin protoc invokes via PATH.
+          # The pip install creates a proper console-script wrapper at
+          # `<pyenv>/bin/protoc-gen-nanopb` that loads nanopb_generator
+          # AS A MODULE — relative imports inside it resolve. The COPY
+          # of the same script under `<site-packages>/nanopb/generator/`
+          # is a raw .py file: when invoked as a top-level script via
+          # PATH it fails with `ImportError: attempted relative import
+          # with no known parent package`.
+          # setup-python already puts the bin dir on PATH; we
+          # explicitly do NOT add the generator dir.
           # KK_DEBUG_LINK=ON is REQUIRED for screenshot tests — without
           # it fsm_msgDebugLinkGetState is excluded from the build.
           # CMAKE_POLICY_VERSION_MINIMUM works around vendored
           # googletest's pre-3.5 policy declaration.
+          which protoc-gen-nanopb
           cmake \
             -DKK_EMULATOR=1 \
             -DKK_BUILD_DYLIB=1 \
@@ -580,7 +589,6 @@ jobs:
 
       - name: Build kkemulator_dylib
         run: |
-          export PATH="$(python -c 'import os, nanopb; print(os.path.dirname(nanopb.__file__))')/generator:$(python -m site --user-base)/bin:$PATH"
           cmake --build build-emu --target kkemulator_dylib -j$(nproc)
           ls -la build-emu/lib/libkkemu* || ls -la build-emu/lib/emulator/libkkemu* || true
           # Surface the resolved binary path for the run step.
