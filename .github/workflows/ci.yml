@@ -618,9 +618,18 @@ jobs:
           test -f "$DYLIB" || (echo "::error::libkkemu artifact not found" && exit 1)
           echo "DYLIB_PATH=$(pwd)/$DYLIB" >> $GITHUB_ENV
 
-      - name: Install python-keepkey
+      - name: Install python-keepkey + pytest
         working-directory: deps/python-keepkey
-        run: pip install -e .
+        run: |
+          pip install -e .
+          # python-keepkey's setup.py doesn't list pytest as a dep;
+          # the existing python-integration-tests job runs inside a
+          # Docker image that has it baked. We're running on a vanilla
+          # macos runner so we install it explicitly. Pin pytest-timeout
+          # too — even though pytest-timeout can't break the dylib's C
+          # busy-loop (documented at length in the test_dylib_confirm_flow
+          # skip rationale), it's a transitive dep some tests use.
+          pip install pytest pytest-timeout
 
       - name: Run dylib screenshot tests
         working-directory: deps/python-keepkey/tests
