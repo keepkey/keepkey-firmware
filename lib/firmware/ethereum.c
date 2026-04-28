@@ -307,6 +307,23 @@ static void send_signature(void) {
 
   ethereum_signing_abort();
 }
+
+/* For EIP-1559 the empty access list (`0xC0`) closes the RLP body and MUST
+ * be the last byte fed to keccak before signing. Hashing it earlier — e.g.
+ * right after `data_initial_chunk` in `ethereum_signing_init` — would
+ * sandwich it between data chunks whenever `data_total > 1024`, producing a
+ * non-canonical pre-image whose signature recovers to a wrong-but-
+ * deterministic address (looks like a "malformed sig" / dropped tx).
+ * Call this helper from every `send_signature()` call site instead.
+ */
+static void finalize_eip1559_and_send_signature(void) {
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
+    uint8_t datbuf[1] = {0xC0};  /* empty access list (0-length list) */
+    hash_data(datbuf, sizeof(datbuf));
+  }
+  send_signature();
+}
+
 /* Format a 256 bit number (amount in wei) into a human readable format
  * using standard ethereum units.
  * The buffer must be at least 25 bytes.
@@ -867,18 +884,12 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   hash_data(msg->data_initial_chunk.bytes, msg->data_initial_chunk.size);
   data_left = data_total - msg->data_initial_chunk.size;
 
-  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
-    // Keepkey does not support an access list size >0 at this time
-    uint8_t datbuf[1] = {0xC0};  // size of empty access list
-    hash_data(datbuf, sizeof(datbuf));
-  }
-
   memcpy(privkey, node->private_key, 32);
 
   if (data_left > 0) {
     send_request_chunk();
   } else {
-    send_signature();
+    finalize_eip1559_and_send_signature();
   }
 }
 
@@ -909,7 +920,7 @@ void ethereum_signing_txack(EthereumTxAck* tx) {
   if (data_left > 0) {
     send_request_chunk();
   } else {
-    send_signature();
+    finalize_eip1559_and_send_signature();
   }
 }
 
