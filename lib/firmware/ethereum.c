@@ -318,7 +318,7 @@ static void send_signature(void) {
  */
 static void finalize_eip1559_and_send_signature(void) {
   if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
-    uint8_t datbuf[1] = {0xC0};  /* empty access list (0-length list) */
+    uint8_t datbuf[1] = {0xC0}; /* empty access list (0-length list) */
     hash_data(datbuf, sizeof(datbuf));
   }
   send_signature();
