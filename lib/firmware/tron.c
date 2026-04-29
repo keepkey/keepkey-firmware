@@ -132,9 +132,12 @@ bool tron_signTx(const HDNode* node, const TronSignTx* msg,
 }
 
 static int tron_is_canonic(uint8_t v, uint8_t signature[64]) {
-  (void)v;
+  // Match ethereum_is_canonic: accept only recovery IDs 0 and 1 (reject
+  // 2 and 3). Mirrors verifier expectations across the TRON/EVM ecosystem.
+  // Returning non-zero means "canonical, accept"; ecdsa_sign_digest retries
+  // when this returns 0, so a permanent 0 here causes signing to fail.
   (void)signature;
-  return 0;
+  return (v & 2) == 0;
 }
 
 /**
