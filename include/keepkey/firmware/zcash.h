@@ -67,4 +67,22 @@ bool zcash_compute_shielded_sighash(const uint8_t header_digest[32],
                                     uint32_t branch_id,
                                     uint8_t sighash_out[32]);
 
+/**
+ * Compute the ZIP-32 seed fingerprint.
+ *
+ *   SeedFingerprint := BLAKE2b-256("Zcash_HD_Seed_FP", seed)
+ *
+ * 32-byte stable identifier of a seed. Used by host wallets and PCZTs
+ * (zip32_derivation.seed_fingerprint) to confirm which device seed produced
+ * a given key, address, or signature. Trivial seeds (all-zero, all-0xFF)
+ * and seeds outside [32, 252] bytes are rejected per ZIP-32 §6.1.
+ *
+ * @param seed              Seed bytes (BIP-39 seed or BIP-32 master seed)
+ * @param seed_len          Seed length, must be in [32, 252]
+ * @param fingerprint_out   32-byte output fingerprint
+ * @return true on success, false if seed is invalid
+ */
+bool zcash_calculate_seed_fingerprint(const uint8_t *seed, uint32_t seed_len,
+                                      uint8_t fingerprint_out[32]);
+
 #endif

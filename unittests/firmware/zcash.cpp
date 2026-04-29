@@ -449,3 +449,77 @@ TEST(Zcash, RedPallasSign_DifferentSighash) {
 
   memzero(&keys, sizeof(keys));
 }
+
+/* ─── Seed Fingerprint (ZIP-32 §6.1) ─────────────────────────────── */
+
+/* Reference vector: matches keystone3-firmware
+ *   rust/keystore/src/algorithms/zcash/mod.rs test_keystore_derive_zcash_ufvk
+ * Seed:        000102...1f (32 bytes)
+ * Fingerprint: deff604c246710f7176dead02aa746f2fd8d5389f7072556dcb555fdbe5e3ae3
+ */
+TEST(Zcash, SeedFingerprint_ReferenceVector) {
+  uint8_t seed[32];
+  for (int i = 0; i < 32; i++) seed[i] = (uint8_t)i;
+
+  uint8_t expected[32] = {
+      0xde, 0xff, 0x60, 0x4c, 0x24, 0x67, 0x10, 0xf7,
+      0x17, 0x6d, 0xea, 0xd0, 0x2a, 0xa7, 0x46, 0xf2,
+      0xfd, 0x8d, 0x53, 0x89, 0xf7, 0x07, 0x25, 0x56,
+      0xdc, 0xb5, 0x55, 0xfd, 0xbe, 0x5e, 0x3a, 0xe3,
+  };
+
+  uint8_t fp[32];
+  ASSERT_TRUE(zcash_calculate_seed_fingerprint(seed, 32, fp));
+  EXPECT_EQ(memcmp(fp, expected, 32), 0);
+}
+
+TEST(Zcash, SeedFingerprint_RejectAllZero) {
+  uint8_t seed[32] = {0};
+  uint8_t fp[32];
+  EXPECT_FALSE(zcash_calculate_seed_fingerprint(seed, 32, fp));
+}
+
+TEST(Zcash, SeedFingerprint_RejectAllFF) {
+  uint8_t seed[32];
+  memset(seed, 0xFF, 32);
+  uint8_t fp[32];
+  EXPECT_FALSE(zcash_calculate_seed_fingerprint(seed, 32, fp));
+}
+
+TEST(Zcash, SeedFingerprint_RejectShortSeed) {
+  uint8_t seed[31];
+  for (int i = 0; i < 31; i++) seed[i] = (uint8_t)(i + 1);
+  uint8_t fp[32];
+  EXPECT_FALSE(zcash_calculate_seed_fingerprint(seed, 31, fp));
+}
+
+TEST(Zcash, SeedFingerprint_RejectLongSeed) {
+  uint8_t seed[253];
+  for (int i = 0; i < 253; i++) seed[i] = (uint8_t)(i & 0xFF);
+  uint8_t fp[32];
+  EXPECT_FALSE(zcash_calculate_seed_fingerprint(seed, 253, fp));
+}
+
+TEST(Zcash, SeedFingerprint_DeterministicAcrossCalls) {
+  uint8_t seed[64];
+  for (int i = 0; i < 64; i++) seed[i] = (uint8_t)(0xAA ^ i);
+
+  uint8_t fp_a[32], fp_b[32];
+  ASSERT_TRUE(zcash_calculate_seed_fingerprint(seed, 64, fp_a));
+  ASSERT_TRUE(zcash_calculate_seed_fingerprint(seed, 64, fp_b));
+  EXPECT_EQ(memcmp(fp_a, fp_b, 32), 0);
+}
+
+TEST(Zcash, SeedFingerprint_DiffersForDifferentSeeds) {
+  uint8_t seed_a[64];
+  uint8_t seed_b[64];
+  for (int i = 0; i < 64; i++) {
+    seed_a[i] = (uint8_t)i;
+    seed_b[i] = (uint8_t)(i + 1);
+  }
+
+  uint8_t fp_a[32], fp_b[32];
+  ASSERT_TRUE(zcash_calculate_seed_fingerprint(seed_a, 64, fp_a));
+  ASSERT_TRUE(zcash_calculate_seed_fingerprint(seed_b, 64, fp_b));
+  EXPECT_NE(memcmp(fp_a, fp_b, 32), 0);
+}

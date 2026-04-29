@@ -306,3 +306,40 @@ bool zcash_compute_shielded_sighash(const uint8_t header_digest[32],
 
   return true;
 }
+
+/*
+ * ZIP-32 §6.1 seed fingerprint:
+ *
+ *   SeedFingerprint := BLAKE2b-256("Zcash_HD_Seed_FP", seed)
+ *
+ * Trivial seeds (all-zero, all-0xFF) and seeds outside [32, 252] bytes are
+ * rejected — these are nominally seeds but provide no security and are
+ * almost certainly bugs in the caller.
+ */
+bool zcash_calculate_seed_fingerprint(const uint8_t *seed, uint32_t seed_len,
+                                      uint8_t fingerprint_out[32]) {
+  if (!seed || !fingerprint_out) return false;
+  if (seed_len < 32 || seed_len > 252) return false;
+
+  bool all_zero = true;
+  bool all_ff = true;
+  for (uint32_t i = 0; i < seed_len; i++) {
+    if (seed[i] != 0x00) all_zero = false;
+    if (seed[i] != 0xFF) all_ff = false;
+    if (!all_zero && !all_ff) break;
+  }
+  if (all_zero || all_ff) return false;
+
+  BLAKE2B_CTX ctx;
+  if (blake2b_InitPersonal(&ctx, 32, "Zcash_HD_Seed_FP", 16) != 0) {
+    return false;
+  }
+  blake2b_Update(&ctx, seed, seed_len);
+  if (blake2b_Final(&ctx, fingerprint_out, 32) != 0) {
+    memzero(&ctx, sizeof(ctx));
+    return false;
+  }
+
+  memzero(&ctx, sizeof(ctx));
+  return true;
+}
