@@ -511,6 +511,7 @@ jobs:
       - name: Generate test report PDF
         env:
           FW_VERSION: ${{ steps.version.outputs.fw_version }}
+          KK_BUILD_LABEL: ${{ github.head_ref || github.ref_name }}@${{ github.event.pull_request.head.sha || github.sha }}
         run: python3 scripts/generate-test-report.py
 
       - name: Upload test report
