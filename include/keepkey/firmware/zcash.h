@@ -96,4 +96,39 @@ bool zcash_compute_shielded_sighash(const uint8_t header_digest[32],
 bool zcash_calculate_seed_fingerprint(const uint8_t* seed, uint32_t seed_len,
                                       uint8_t fingerprint_out[32]);
 
+/* ── Storage-scoped wrappers ───────────────────────────────────────────
+ *
+ * The two functions below own the seed access. Implementations live in
+ * lib/firmware/storage.c so the raw 64-byte BIP-39 seed never escapes
+ * that translation unit. Callers (FSM handlers) get only the derived
+ * material — Orchard keys or the 32-byte fingerprint — never a pointer
+ * to the seed itself. This is the only sanctioned way for production
+ * firmware code to consume seed-derived Zcash material.
+ *
+ * The bare zcash_derive_orchard_keys() / zcash_calculate_seed_fingerprint()
+ * functions above remain in the header for unit tests, which feed them
+ * known test vectors directly.
+ */
+
+/**
+ * Derive Orchard keys for an account using the device's session seed.
+ *
+ * @param account       Account index (0-based, will be hardened)
+ * @param usePassphrase Whether to apply the passphrase (prompts if needed)
+ * @param keys_out      Output: derived Orchard keys
+ * @return true on success, false if seed unavailable or derivation fails
+ */
+bool storage_zcashOrchardKeys(uint32_t account, bool usePassphrase,
+                              ZcashOrchardKeys* keys_out);
+
+/**
+ * Compute the ZIP-32 §6.1 seed fingerprint for the device's session seed.
+ *
+ * @param usePassphrase    Whether to apply the passphrase (prompts if needed)
+ * @param fingerprint_out  32-byte output fingerprint
+ * @return true on success, false if seed unavailable
+ */
+bool storage_zcashSeedFingerprint(bool usePassphrase,
+                                  uint8_t fingerprint_out[32]);
+
 #endif

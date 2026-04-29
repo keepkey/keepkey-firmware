@@ -140,19 +140,6 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
     }
   }
 
-  /* Get the real BIP-39 seed for ZIP-32 Orchard derivation.
-   * storage_getSeed() returns the 64-byte mnemonic-derived seed,
-   * handling passphrase entry if needed. This is NOT the BIP-32
-   * root key — ZIP-32 Orchard uses a completely separate derivation
-   * tree rooted at the raw seed. */
-  const uint8_t* seed = storage_getRawSeed(true);
-  if (!seed) {
-    fsm_sendFailure(FailureType_Failure_NotInitialized,
-                    _("Device not initialized or seed unavailable"));
-    layoutHome();
-    return;
-  }
-
   /* Optional seed_fingerprint binding (ZIP-32 §6.1).
    * If host asserts a seed identity, verify it matches before signing.
    * Catches "wrong device" attacks where the host accidentally targets
@@ -160,9 +147,9 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
   if (msg->has_expected_seed_fingerprint &&
       msg->expected_seed_fingerprint.size == 32) {
     uint8_t actual_fp[32];
-    if (!zcash_calculate_seed_fingerprint(seed, 64, actual_fp)) {
-      fsm_sendFailure(FailureType_Failure_Other,
-                      _("Cannot compute seed fingerprint"));
+    if (!storage_zcashSeedFingerprint(true, actual_fp)) {
+      fsm_sendFailure(FailureType_Failure_NotInitialized,
+                      _("Device not initialized or seed unavailable"));
       layoutHome();
       return;
     }
@@ -177,7 +164,8 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
     }
   }
 
-  if (!zcash_derive_orchard_keys(seed, 64, account, &zcash_signing.keys)) {
+  /* Derive Orchard keys via storage; the seed never leaves storage.c. */
+  if (!storage_zcashOrchardKeys(account, true, &zcash_signing.keys)) {
     fsm_sendFailure(FailureType_Failure_Other,
                     _("Orchard key derivation failed"));
     layoutHome();
@@ -302,19 +290,11 @@ void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK* msg) {
     account = msg->address_n[2] & 0x7FFFFFFF;
   }
 
-  /* Get the real BIP-39 seed for ZIP-32 Orchard derivation */
-  const uint8_t* seed = storage_getRawSeed(true);
-  if (!seed) {
-    fsm_sendFailure(FailureType_Failure_NotInitialized,
-                    _("Device not initialized or seed unavailable"));
-    layoutHome();
-    return;
-  }
-
+  /* Derive Orchard keys via storage; the seed never leaves storage.c. */
   ZcashOrchardKeys keys;
-  if (!zcash_derive_orchard_keys(seed, 64, account, &keys)) {
-    fsm_sendFailure(FailureType_Failure_Other,
-                    _("Orchard key derivation failed"));
+  if (!storage_zcashOrchardKeys(account, true, &keys)) {
+    fsm_sendFailure(FailureType_Failure_NotInitialized,
+                    _("Orchard key derivation failed (seed unavailable?)"));
     layoutHome();
     return;
   }
@@ -350,7 +330,7 @@ void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK* msg) {
   /* Seed identity (ZIP-32 §6.1). Lets the host pin this FVK to a
    * specific device-seed identity for later signing/display flows. */
   uint8_t fp[32];
-  if (zcash_calculate_seed_fingerprint(seed, 64, fp)) {
+  if (storage_zcashSeedFingerprint(true, fp)) {
     resp->has_seed_fingerprint = true;
     resp->seed_fingerprint.size = 32;
     memcpy(resp->seed_fingerprint.bytes, fp, 32);
@@ -417,23 +397,14 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress* msg) {
     return;
   }
 
-  /* Get the real BIP-39 seed for ZIP-32 Orchard derivation */
-  const uint8_t* seed = storage_getRawSeed(true);
-  if (!seed) {
-    fsm_sendFailure(FailureType_Failure_NotInitialized,
-                    _("Device not initialized or seed unavailable"));
-    layoutHome();
-    return;
-  }
-
   /* Optional seed_fingerprint binding (ZIP-32 §6.1).
    * Reject before any FVK derivation if the host targets the wrong seed. */
   if (msg->has_expected_seed_fingerprint &&
       msg->expected_seed_fingerprint.size == 32) {
     uint8_t actual_fp[32];
-    if (!zcash_calculate_seed_fingerprint(seed, 64, actual_fp)) {
-      fsm_sendFailure(FailureType_Failure_Other,
-                      _("Cannot compute seed fingerprint"));
+    if (!storage_zcashSeedFingerprint(true, actual_fp)) {
+      fsm_sendFailure(FailureType_Failure_NotInitialized,
+                      _("Device not initialized or seed unavailable"));
       layoutHome();
       return;
     }
@@ -448,10 +419,11 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress* msg) {
     }
   }
 
+  /* Derive Orchard keys via storage; the seed never leaves storage.c. */
   ZcashOrchardKeys keys;
-  if (!zcash_derive_orchard_keys(seed, 64, account, &keys)) {
-    fsm_sendFailure(FailureType_Failure_Other,
-                    _("Orchard key derivation failed"));
+  if (!storage_zcashOrchardKeys(account, true, &keys)) {
+    fsm_sendFailure(FailureType_Failure_NotInitialized,
+                    _("Orchard key derivation failed (seed unavailable?)"));
     layoutHome();
     return;
   }
@@ -517,7 +489,7 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress* msg) {
 
   /* Seed identity (ZIP-32 §6.1) — pin the attestation to this device. */
   uint8_t fp[32];
-  if (zcash_calculate_seed_fingerprint(seed, 64, fp)) {
+  if (storage_zcashSeedFingerprint(true, fp)) {
     resp->has_seed_fingerprint = true;
     resp->seed_fingerprint.size = 32;
     memcpy(resp->seed_fingerprint.bytes, fp, 32);
