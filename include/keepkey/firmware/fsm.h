@@ -120,6 +120,7 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg);
 
 void fsm_msgTronGetAddress(const TronGetAddress* msg);
 void fsm_msgTronSignTx(TronSignTx* msg);
+void fsm_msgTronSignTypedHash(const TronSignTypedHash* msg);
 void fsm_msgTonGetAddress(const TonGetAddress* msg);
 void fsm_msgTonSignTx(TonSignTx* msg);
 void fsm_msgSolanaGetAddress(const SolanaGetAddress* msg);
