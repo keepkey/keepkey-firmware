@@ -46,14 +46,12 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState* msg) {
   resp->storage_hash.size =
       memory_storage_hash(resp->storage_hash.bytes, storage_getLocation());
 
-  /* Render pending animations ONLY if the animation queue is active.
-   * Static layouts (warning screens, address displays) write directly
-   * to the canvas — calling animate() unconditionally overwrites them
-   * with stale animation frames. Only run animations when queued. */
-  if (is_animating()) {
-    force_animation_start();
-    animate();
-  }
+  /* Just refresh the display — don't force animations.
+   * The confirm() loop already ran animate() before sending ButtonRequest,
+   * so the canvas has the correct content. Calling force_animation_start()
+   * + animate() here would either: (a) do nothing if the queue is empty,
+   * or (b) re-run an animation that overwrites static content.
+   * display_refresh() ensures the framebuffer is synced for reading. */
   display_refresh();
 
   /* Pack 256x64 grayscale canvas into 1bpp layout for screenshot capture.
