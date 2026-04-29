@@ -130,3 +130,75 @@ bool tron_signTx(const HDNode* node, const TronSignTx* msg,
 
   return true;
 }
+
+static int tron_is_canonic_typed(uint8_t v, uint8_t signature[64]) {
+  // Mirror ethereum_is_canonic: accept recovery IDs 0/1, reject 2/3.
+  // Returning non-zero = "canonical, accept"; zero = "retry".
+  (void)signature;
+  return (v & 2) == 0;
+}
+
+/**
+ * Compute the TIP-712 typed-data digest:
+ *   keccak256("\x19\x01" || domain_separator_hash || message_hash)
+ *
+ * If the typed-data primaryType is the EIP712Domain itself, message_hash
+ * is empty/absent and the digest folds in only the domain separator.
+ *
+ * Mirrors ethereum_typed_hash() — TIP-712 uses the same '\x19\x01' prefix
+ * as EIP-712.
+ */
+static void tron_typed_hash(const uint8_t domain_separator_hash[32],
+                            const uint8_t message_hash[32],
+                            bool has_message_hash, uint8_t hash[32]) {
+  struct SHA3_CTX ctx = {0};
+  sha3_256_Init(&ctx);
+  sha3_Update(&ctx, (const uint8_t*)"\x19\x01", 2);
+  sha3_Update(&ctx, domain_separator_hash, 32);
+  if (has_message_hash) {
+    sha3_Update(&ctx, message_hash, 32);
+  }
+  keccak_Final(&ctx, hash);
+}
+
+/**
+ * Sign a TIP-712 typed-data digest. Host pre-computes the domain
+ * separator hash and message hash per the TIP-712 spec; the device just
+ * signs the assembled digest with secp256k1 + recovery id.
+ *
+ * Caller must have populated node->public_key (hdnode_fill_public_key).
+ */
+bool tron_typed_hash_sign(const HDNode* node, const TronSignTypedHash* msg,
+                          TronTypedDataSignature* resp) {
+  if (!node || !msg || !resp) {
+    return false;
+  }
+  if (msg->domain_separator_hash.size != 32 ||
+      (msg->has_message_hash && msg->message_hash.size != 32)) {
+    return false;
+  }
+
+  char address[TRON_ADDRESS_MAX_LEN];
+  if (!tron_getAddress(node->public_key, address, sizeof(address))) {
+    return false;
+  }
+
+  uint8_t hash[32] = {0};
+  tron_typed_hash(msg->domain_separator_hash.bytes, msg->message_hash.bytes,
+                  msg->has_message_hash, hash);
+
+  uint8_t v = 0;
+  if (ecdsa_sign_digest(&secp256k1, node->private_key, hash,
+                        resp->signature.bytes, &v,
+                        tron_is_canonic_typed) != 0) {
+    memzero(hash, sizeof(hash));
+    return false;
+  }
+
+  resp->signature.bytes[64] = 27 + v;
+  resp->signature.size = 65;
+  strlcpy(resp->address, address, sizeof(resp->address));
+
+  memzero(hash, sizeof(hash));
+  return true;
+}

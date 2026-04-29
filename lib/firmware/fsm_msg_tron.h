@@ -138,3 +138,96 @@ void fsm_msgTronSignTx(TronSignTx* msg) {
   msg_write(MessageType_MessageType_TronSignedTx, resp);
   layoutHome();
 }
+
+void fsm_msgTronSignTypedHash(const TronSignTypedHash* msg) {
+  RESP_INIT(TronTypedDataSignature);
+
+  CHECK_INITIALIZED
+
+  CHECK_PIN
+
+  // Validate path: m/44'/195'/...
+  if (msg->address_n_count < 3 || msg->address_n[0] != (0x80000000 | 44) ||
+      msg->address_n[1] != (0x80000000 | 195)) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Invalid TRON path (expected m/44'/195'/...)"));
+    layoutHome();
+    return;
+  }
+
+  if (msg->domain_separator_hash.size != 32 ||
+      (msg->has_message_hash && msg->message_hash.size != 32)) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Invalid TIP-712 hash length"));
+    layoutHome();
+    return;
+  }
+
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+                                    msg->address_n_count, NULL);
+  if (!node) return;
+  hdnode_fill_public_key(node);
+
+  // Derive Base58Check address for confirm dialog + response.
+  char address[TRON_ADDRESS_MAX_LEN];
+  if (!tron_getAddress(node->public_key, address, sizeof(address))) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_Other, _("Address derivation failed"));
+    layoutHome();
+    return;
+  }
+
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Verify Address",
+               "Confirm address: %s", address)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    layoutHome();
+    return;
+  }
+
+  // Show domain separator hash as 64-char hex.
+  char str[64 + 1];
+  for (int ctr = 0; ctr < 64 / 2; ctr++) {
+    snprintf(&str[2 * ctr], 3, "%02x", msg->domain_separator_hash.bytes[ctr]);
+  }
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "TIP-712 domain",
+               "Confirm hash digest: %s", str)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    layoutHome();
+    return;
+  }
+
+  if (msg->has_message_hash) {
+    for (int ctr = 0; ctr < 64 / 2; ctr++) {
+      snprintf(&str[2 * ctr], 3, "%02x", msg->message_hash.bytes[ctr]);
+    }
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "TIP-712 message",
+                 "Confirm hash digest: %s", str)) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+  } else {
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "TIP-712 message",
+                 "Confirm: No message")) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+  }
+
+  if (!tron_typed_hash_sign(node, msg, resp)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("TIP-712 hash signing failed"));
+    layoutHome();
+    return;
+  }
+
+  memzero(node, sizeof(*node));
+  msg_write(MessageType_MessageType_TronTypedDataSignature, resp);
+  layoutHome();
+}
