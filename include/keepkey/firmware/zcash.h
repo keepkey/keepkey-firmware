@@ -68,9 +68,13 @@ bool zcash_compute_shielded_sighash(const uint8_t header_digest[32],
                                     uint8_t sighash_out[32]);
 
 /**
- * Compute the ZIP-32 seed fingerprint.
+ * Compute the ZIP-32 §6.1 seed fingerprint.
  *
- *   SeedFingerprint := BLAKE2b-256("Zcash_HD_Seed_FP", seed)
+ *   SeedFingerprint := BLAKE2b-256(
+ *     "Zcash_HD_Seed_FP", I2LEBSP_8(len(seed)) || seed)
+ *
+ * The 1-byte length prefix domain-separates seeds of different lengths that
+ * happen to share a prefix.
  *
  * 32-byte stable identifier of a seed. Used by host wallets and PCZTs
  * (zip32_derivation.seed_fingerprint) to confirm which device seed produced
