@@ -19,3 +19,22 @@ TronSignTx.data max_size:256
 
 TronSignedTx.signature max_size:65
 TronSignedTx.serialized_tx max_size:1024
+
+TronSignMessage.address_n max_count:8
+TronSignMessage.coin_name max_size:21
+TronSignMessage.message max_size:1024
+
+TronMessageSignature.address max_size:35
+TronMessageSignature.signature max_size:65
+
+TronVerifyMessage.address max_size:35
+TronVerifyMessage.signature max_size:65
+TronVerifyMessage.message max_size:1024
+
+TronSignTypedHash.address_n max_count:8
+TronSignTypedHash.coin_name max_size:21
+TronSignTypedHash.domain_separator_hash max_size:32
+TronSignTypedHash.message_hash max_size:32
+
+TronTypedDataSignature.address max_size:35
+TronTypedDataSignature.signature max_size:65
