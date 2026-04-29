@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#define RINGBUF_SLOT_SIZE 64   /* HID report size */
+#define RINGBUF_SLOT_SIZE 64 /* HID report size */
 
 /*
  * Capacity must hold the largest synchronous response the firmware emits in
@@ -27,17 +27,17 @@
  * 32 KB of RAM across the four rings, and keeps the slot index a power of
  * two so the modulo in ringbuf_push/pop remains a cheap mask.
  */
-#define RINGBUF_CAPACITY  128  /* max queued messages */
+#define RINGBUF_CAPACITY 128 /* max queued messages */
 
 typedef struct {
-    uint8_t data[RINGBUF_CAPACITY][RINGBUF_SLOT_SIZE];
-    volatile uint32_t head;  /* written by producer */
-    volatile uint32_t tail;  /* written by consumer */
+  uint8_t data[RINGBUF_CAPACITY][RINGBUF_SLOT_SIZE];
+  volatile uint32_t head; /* written by producer */
+  volatile uint32_t tail; /* written by consumer */
 } RingBuf;
 
-void ringbuf_init(RingBuf *rb);
-bool ringbuf_push(RingBuf *rb, const uint8_t *msg, size_t len);
-bool ringbuf_pop(RingBuf *rb, uint8_t *msg, size_t len);
-bool ringbuf_empty(const RingBuf *rb);
+void ringbuf_init(RingBuf* rb);
+bool ringbuf_push(RingBuf* rb, const uint8_t* msg, size_t len);
+bool ringbuf_pop(RingBuf* rb, uint8_t* msg, size_t len);
+bool ringbuf_empty(const RingBuf* rb);
 
 #endif

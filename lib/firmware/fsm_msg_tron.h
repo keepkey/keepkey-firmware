@@ -360,4 +360,3 @@ void fsm_msgTronSignTypedHash(const TronSignTypedHash* msg) {
   msg_write(MessageType_MessageType_TronTypedDataSignature, resp);
   layoutHome();
 }
-

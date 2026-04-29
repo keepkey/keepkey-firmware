@@ -44,11 +44,9 @@ void setup(void) {
 }
 
 /* For libkkemu: init RNG only (flash buffer provided by host) */
-void setup_urandom_only(void) {
-	setup_urandom();
-}
+void setup_urandom_only(void) { setup_urandom(); }
 
-void emulatorRandom(void *buffer, size_t size) {
+void emulatorRandom(void* buffer, size_t size) {
   ssize_t n = read(urandom, buffer, size);
   if (n < 0 || ((size_t)n) != size) {
     perror("Failed to read /dev/urandom");
