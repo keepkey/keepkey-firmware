@@ -4,7 +4,7 @@ FROM kktech/firmware:v15
 # - rlp + eth-keys + eth-utils: build the canonical EIP-1559 type-2 pre-image
 #   and ECDSA-recover the signer in test_msg_ethereum_signtx_chunked_data_eip1559.
 # - pycryptodome: backend for eth-utils.keccak (else import-time ImportError).
-RUN pip install --no-cache-dir rlp eth-keys eth-utils pycryptodome
+RUN python3 -m pip install --no-cache-dir rlp eth-keys eth-utils pycryptodome
 
 WORKDIR /kkemu
 COPY ./ /kkemu
