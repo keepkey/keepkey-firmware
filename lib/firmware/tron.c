@@ -130,3 +130,150 @@ bool tron_signTx(const HDNode* node, const TronSignTx* msg,
 
   return true;
 }
+
+static int tron_is_canonic(uint8_t v, uint8_t signature[64]) {
+  // Match ethereum_is_canonic: accept only recovery IDs 0 and 1 (reject
+  // 2 and 3). Mirrors verifier expectations across the TRON/EVM ecosystem.
+  // Returning non-zero means "canonical, accept"; ecdsa_sign_digest retries
+  // when this returns 0, so a permanent 0 here causes signing to fail.
+  (void)signature;
+  return (v & 2) == 0;
+}
+
+/**
+ * Compute the TIP-191 personal_sign hash:
+ *   keccak256("\x19TRON Signed Message:\n" || ASCII(len) || message)
+ *
+ * Mirrors ethereum_message_hash() — only the prefix differs.
+ */
+static void tron_message_hash(const uint8_t* message, size_t message_len,
+                              uint8_t hash[32]) {
+  struct SHA3_CTX ctx;
+  uint8_t c;
+
+  sha3_256_Init(&ctx);
+  sha3_Update(&ctx, (const uint8_t*)"\x19" "TRON Signed Message:\n", 22);
+  if (message_len >= 1000000000) {
+    c = '0' + message_len / 1000000000 % 10;
+    sha3_Update(&ctx, &c, 1);
+  }
+  if (message_len >= 100000000) {
+    c = '0' + message_len / 100000000 % 10;
+    sha3_Update(&ctx, &c, 1);
+  }
+  if (message_len >= 10000000) {
+    c = '0' + message_len / 10000000 % 10;
+    sha3_Update(&ctx, &c, 1);
+  }
+  if (message_len >= 1000000) {
+    c = '0' + message_len / 1000000 % 10;
+    sha3_Update(&ctx, &c, 1);
+  }
+  if (message_len >= 100000) {
+    c = '0' + message_len / 100000 % 10;
+    sha3_Update(&ctx, &c, 1);
+  }
+  if (message_len >= 10000) {
+    c = '0' + message_len / 10000 % 10;
+    sha3_Update(&ctx, &c, 1);
+  }
+  if (message_len >= 1000) {
+    c = '0' + message_len / 1000 % 10;
+    sha3_Update(&ctx, &c, 1);
+  }
+  if (message_len >= 100) {
+    c = '0' + message_len / 100 % 10;
+    sha3_Update(&ctx, &c, 1);
+  }
+  if (message_len >= 10) {
+    c = '0' + message_len / 10 % 10;
+    sha3_Update(&ctx, &c, 1);
+  }
+  c = '0' + message_len % 10;
+  sha3_Update(&ctx, &c, 1);
+  sha3_Update(&ctx, message, message_len);
+  keccak_Final(&ctx, hash);
+}
+
+/**
+ * Sign an arbitrary message under TIP-191 personal_sign.
+ * Output signature is 65 bytes (r || s || v) where v = 27 + recovery_id.
+ */
+bool tron_message_sign(const HDNode* node, const TronSignMessage* msg,
+                       TronMessageSignature* resp) {
+  if (!node || !msg || !resp) {
+    return false;
+  }
+
+  // Caller must have populated node->public_key (hdnode_fill_public_key).
+  char address[TRON_ADDRESS_MAX_LEN];
+  if (!tron_getAddress(node->public_key, address, sizeof(address))) {
+    return false;
+  }
+
+  uint8_t hash[32];
+  tron_message_hash(msg->message.bytes, msg->message.size, hash);
+
+  uint8_t v;
+  if (ecdsa_sign_digest(&secp256k1, node->private_key, hash,
+                        resp->signature.bytes, &v, tron_is_canonic) != 0) {
+    memzero(hash, sizeof(hash));
+    return false;
+  }
+
+  resp->signature.bytes[64] = 27 + v;
+  resp->signature.size = 65;
+  resp->has_signature = true;
+
+  strlcpy(resp->address, address, sizeof(resp->address));
+  resp->has_address = true;
+
+  memzero(hash, sizeof(hash));
+  return true;
+}
+
+/**
+ * Verify a TIP-191 signature against the claimed Base58Check TRON address.
+ * Returns 0 on success, non-zero on malformed input or signature mismatch.
+ */
+int tron_message_verify(const TronVerifyMessage* msg) {
+  if (!msg || msg->signature.size != 65) {
+    return 1;
+  }
+
+  uint8_t pubkey[65];
+  uint8_t hash[32];
+
+  tron_message_hash(msg->message.bytes, msg->message.size, hash);
+
+  uint8_t v = msg->signature.bytes[64];
+  if (v >= 27) {
+    v -= 27;
+  }
+  if (v >= 2 || ecdsa_recover_pub_from_sig(
+                    &secp256k1, pubkey, msg->signature.bytes, hash, v) != 0) {
+    memzero(hash, sizeof(hash));
+    return 2;
+  }
+
+  uint8_t addr_hash[32];
+  keccak_256(pubkey + 1, 64, addr_hash);
+
+  uint8_t addr_bytes[21];
+  addr_bytes[0] = TRON_ADDRESS_PREFIX;
+  memcpy(addr_bytes + 1, addr_hash + 12, 20);
+
+  char recovered_addr[TRON_ADDRESS_MAX_LEN];
+  if (!base58_encode_check(addr_bytes, 21, HASHER_SHA2D, recovered_addr,
+                           sizeof(recovered_addr))) {
+    memzero(hash, sizeof(hash));
+    memzero(addr_hash, sizeof(addr_hash));
+    return 2;
+  }
+
+  int rv = (strcmp(recovered_addr, msg->address) != 0) ? 2 : 0;
+
+  memzero(hash, sizeof(hash));
+  memzero(addr_hash, sizeof(addr_hash));
+  return rv;
+}
