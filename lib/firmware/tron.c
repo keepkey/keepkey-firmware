@@ -250,8 +250,8 @@ int tron_message_verify(const TronVerifyMessage* msg) {
   if (v >= 27) {
     v -= 27;
   }
-  if (v >= 2 || ecdsa_recover_pub_from_sig(&secp256k1, pubkey,
-                                           msg->signature.bytes, hash, v) != 0) {
+  if (v >= 2 || ecdsa_recover_pub_from_sig(
+                    &secp256k1, pubkey, msg->signature.bytes, hash, v) != 0) {
     memzero(hash, sizeof(hash));
     return 2;
   }

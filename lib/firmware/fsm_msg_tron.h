@@ -140,7 +140,8 @@ void fsm_msgTronSignTx(TronSignTx* msg) {
 }
 
 #ifndef TRON_MSG_DISPLAY_MAX
-#define TRON_MSG_DISPLAY_MAX (38 * 3)  // mirrors ETH MSG_MAX (3 lines × 38 chars)
+#define TRON_MSG_DISPLAY_MAX \
+  (38 * 3)  // mirrors ETH MSG_MAX (3 lines × 38 chars)
 #endif
 
 void fsm_msgTronSignMessage(TronSignMessage* msg) {
@@ -202,7 +203,8 @@ void fsm_msgTronSignMessage(TronSignMessage* msg) {
 
   if (!tron_message_sign(node, msg, resp)) {
     memzero(node, sizeof(*node));
-    fsm_sendFailure(FailureType_Failure_Other, _("TRON message signing failed"));
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("TRON message signing failed"));
     layoutHome();
     return;
   }
