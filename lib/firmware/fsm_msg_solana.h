@@ -546,3 +546,114 @@ void fsm_msgSolanaSignMessage(const SolanaSignMessage* msg) {
   msg_write(MessageType_MessageType_SolanaMessageSignature, resp);
   layoutHome();
 }
+
+void fsm_msgSolanaSignOffchainMessage(const SolanaSignOffchainMessage* msg) {
+  RESP_INIT(SolanaOffchainMessageSignature);
+
+  CHECK_INITIALIZED
+  CHECK_PIN
+
+  if (!msg->has_message || msg->message.size == 0) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError, _("Missing message"));
+    layoutHome();
+    return;
+  }
+
+  /* Validate format upfront so the user sees a meaningful error rather
+   * than a generic signing failure. The envelope's 0xFF prefix provides
+   * the domain separation that bare SolanaSignMessage lacks, so NO
+   * AdvancedMode gate is required here — that fence was a band-aid for
+   * the missing envelope. */
+  uint32_t format = msg->has_message_format ? msg->message_format : 0;
+  if (format != 0 && format != 1) {
+    fsm_sendFailure(
+        FailureType_Failure_Other,
+        _("Off-chain format 2 (extended UTF-8) not supported on device"));
+    layoutHome();
+    return;
+  }
+
+  uint32_t version = msg->has_version ? msg->version : 0;
+  if (version != 0) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Unsupported off-chain message version"));
+    layoutHome();
+    return;
+  }
+
+  if (msg->message.size > 1212) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Off-chain message exceeds 1212-byte limit"));
+    layoutHome();
+    return;
+  }
+
+  /* Path validation: warn on non-standard derivation, mirroring the
+   * existing SolanaSignMessage handler. */
+  if (!solana_pathIsStandard(msg->address_n, msg->address_n_count)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "WARNING",
+                 "Non-standard Solana derivation path. Continue?")) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+  }
+
+  HDNode* node = fsm_getDerivedNode(ED25519_NAME, msg->address_n,
+                                    msg->address_n_count, NULL);
+  if (!node) return;
+  hdnode_fill_public_key(node);
+
+  /* Confirm dialog. Format 0 (ASCII) is always renderable; format 1
+   * (UTF-8 limited) we render as printable bytes only — non-printable
+   * sequences fall through to a hex preview to avoid encoding
+   * surprises on the OLED. */
+  {
+    char msgBuf[129] = {0};
+    const char* typeLabel;
+    bool printable = true;
+    for (unsigned i = 0; i < msg->message.size; i++) {
+      if (msg->message.bytes[i] < 0x20 || msg->message.bytes[i] > 0x7e) {
+        printable = false;
+        break;
+      }
+    }
+    if (printable && msg->message.size <= sizeof(msgBuf) - 1) {
+      typeLabel = "Off-chain Message";
+      memcpy(msgBuf, msg->message.bytes, msg->message.size);
+      msgBuf[msg->message.size] = '\0';
+    } else {
+      typeLabel = "Off-chain Bytes";
+      unsigned show = msg->message.size;
+      if (show > 32) show = 32;
+      for (unsigned i = 0; i < show; i++) {
+        snprintf(&msgBuf[2 * i], 3, "%02x", msg->message.bytes[i]);
+      }
+      msgBuf[2 * show] = '\0';
+      if (msg->message.size > 32) {
+        snprintf(&msgBuf[64], sizeof(msgBuf) - 64, "... (%u bytes)",
+                 (unsigned)msg->message.size);
+      }
+    }
+    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _(typeLabel),
+                 "%s", msgBuf)) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Signing cancelled"));
+      layoutHome();
+      return;
+    }
+  }
+
+  if (!solana_offchain_message_sign(node, msg, resp)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Off-chain message signing failed"));
+    layoutHome();
+    return;
+  }
+
+  memzero(node, sizeof(*node));
+  msg_write(MessageType_MessageType_SolanaOffchainMessageSignature, resp);
+  layoutHome();
+}

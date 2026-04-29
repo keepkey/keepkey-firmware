@@ -129,6 +129,7 @@ void fsm_msgTonSignMessage(const TonSignMessage* msg);
 void fsm_msgSolanaGetAddress(const SolanaGetAddress* msg);
 void fsm_msgSolanaSignTx(const SolanaSignTx* msg);
 void fsm_msgSolanaSignMessage(const SolanaSignMessage* msg);
+void fsm_msgSolanaSignOffchainMessage(const SolanaSignOffchainMessage* msg);
 
 #if DEBUG_LINK
 // void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
