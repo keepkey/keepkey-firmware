@@ -8,6 +8,7 @@ ZcashSignPCZT.sapling_digest                        max_size:32
 ZcashSignPCZT.orchard_digest                        max_size:32
 ZcashSignPCZT.orchard_value_balance                 int_size:IS_64
 ZcashSignPCZT.orchard_anchor                        max_size:32
+ZcashSignPCZT.expected_seed_fingerprint             max_size:32
 
 ZcashPCZTAction.alpha                               max_size:32
 ZcashPCZTAction.sighash                             max_size:32
@@ -30,6 +31,7 @@ ZcashGetOrchardFVK.address_n                        max_count:10
 ZcashOrchardFVK.ak                                  max_size:32
 ZcashOrchardFVK.nk                                  max_size:32
 ZcashOrchardFVK.rivk                                max_size:32
+ZcashOrchardFVK.seed_fingerprint                    max_size:32
 
 ZcashTransparentInput.sighash                       max_size:32
 ZcashTransparentInput.address_n                     max_count:8
@@ -42,5 +44,7 @@ ZcashDisplayAddress.address                         max_size:128
 ZcashDisplayAddress.ak                              max_size:32
 ZcashDisplayAddress.nk                              max_size:32
 ZcashDisplayAddress.rivk                            max_size:32
+ZcashDisplayAddress.expected_seed_fingerprint       max_size:32
 
 ZcashAddress.address                                max_size:128
+ZcashAddress.seed_fingerprint                       max_size:32

@@ -158,6 +158,30 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg) {
     return;
   }
 
+  /* Optional seed_fingerprint binding (ZIP-32 §6.1).
+   * If host asserts a seed identity, verify it matches before signing.
+   * Catches "wrong device" attacks where the host accidentally targets
+   * a different seed than the one it built the PCZT against. */
+  if (msg->has_expected_seed_fingerprint &&
+      msg->expected_seed_fingerprint.size == 32) {
+    uint8_t actual_fp[32];
+    if (!zcash_calculate_seed_fingerprint(seed, 64, actual_fp)) {
+      fsm_sendFailure(FailureType_Failure_Other,
+                      _("Cannot compute seed fingerprint"));
+      layoutHome();
+      return;
+    }
+    bool match =
+        memcmp(actual_fp, msg->expected_seed_fingerprint.bytes, 32) == 0;
+    memzero(actual_fp, sizeof(actual_fp));
+    if (!match) {
+      fsm_sendFailure(FailureType_Failure_Other,
+                      _("Seed fingerprint mismatch — wrong device"));
+      layoutHome();
+      return;
+    }
+  }
+
   if (!zcash_derive_orchard_keys(seed, 64, account,
                                  &zcash_signing.keys)) {
     fsm_sendFailure(FailureType_Failure_Other,
@@ -333,6 +357,16 @@ void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK *msg) {
   resp->rivk.size = 32;
   memcpy(resp->rivk.bytes, keys.rivk, 32);
 
+  /* Seed identity (ZIP-32 §6.1). Lets the host pin this FVK to a
+   * specific device-seed identity for later signing/display flows. */
+  uint8_t fp[32];
+  if (zcash_calculate_seed_fingerprint(seed, 64, fp)) {
+    resp->has_seed_fingerprint = true;
+    resp->seed_fingerprint.size = 32;
+    memcpy(resp->seed_fingerprint.bytes, fp, 32);
+    memzero(fp, sizeof(fp));
+  }
+
   /* Clean up sensitive data */
   memzero(&ask_scalar, sizeof(ask_scalar));
   memzero(&keys, sizeof(keys));
@@ -402,6 +436,28 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress *msg) {
     return;
   }
 
+  /* Optional seed_fingerprint binding (ZIP-32 §6.1).
+   * Reject before any FVK derivation if the host targets the wrong seed. */
+  if (msg->has_expected_seed_fingerprint &&
+      msg->expected_seed_fingerprint.size == 32) {
+    uint8_t actual_fp[32];
+    if (!zcash_calculate_seed_fingerprint(seed, 64, actual_fp)) {
+      fsm_sendFailure(FailureType_Failure_Other,
+                      _("Cannot compute seed fingerprint"));
+      layoutHome();
+      return;
+    }
+    bool match =
+        memcmp(actual_fp, msg->expected_seed_fingerprint.bytes, 32) == 0;
+    memzero(actual_fp, sizeof(actual_fp));
+    if (!match) {
+      fsm_sendFailure(FailureType_Failure_Other,
+                      _("Seed fingerprint mismatch — wrong device"));
+      layoutHome();
+      return;
+    }
+  }
+
   ZcashOrchardKeys keys;
   if (!zcash_derive_orchard_keys(seed, 64, account, &keys)) {
     fsm_sendFailure(FailureType_Failure_Other,
@@ -465,9 +521,18 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress *msg) {
     return;
   }
 
-  /* User confirmed — return the address */
+  /* User confirmed — return the address bound to this device's seed. */
   resp->has_address = true;
   strlcpy(resp->address, msg->address, sizeof(resp->address));
+
+  /* Seed identity (ZIP-32 §6.1) — pin the attestation to this device. */
+  uint8_t fp[32];
+  if (zcash_calculate_seed_fingerprint(seed, 64, fp)) {
+    resp->has_seed_fingerprint = true;
+    resp->seed_fingerprint.size = 32;
+    memcpy(resp->seed_fingerprint.bytes, fp, 32);
+    memzero(fp, sizeof(fp));
+  }
 
   msg_write(MessageType_MessageType_ZcashAddress, resp);
   layoutHome();
