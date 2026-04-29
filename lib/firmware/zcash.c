@@ -310,7 +310,11 @@ bool zcash_compute_shielded_sighash(const uint8_t header_digest[32],
 /*
  * ZIP-32 §6.1 seed fingerprint:
  *
- *   SeedFingerprint := BLAKE2b-256("Zcash_HD_Seed_FP", seed)
+ *   SeedFingerprint := BLAKE2b-256(
+ *     "Zcash_HD_Seed_FP", I2LEBSP_8(len(seed)) || seed)
+ *
+ * The 1-byte length prefix domain-separates seeds of different lengths that
+ * happen to share a prefix.
  *
  * Trivial seeds (all-zero, all-0xFF) and seeds outside [32, 252] bytes are
  * rejected — these are nominally seeds but provide no security and are
@@ -334,6 +338,8 @@ bool zcash_calculate_seed_fingerprint(const uint8_t *seed, uint32_t seed_len,
   if (blake2b_InitPersonal(&ctx, 32, "Zcash_HD_Seed_FP", 16) != 0) {
     return false;
   }
+  uint8_t len_byte = (uint8_t)seed_len;
+  blake2b_Update(&ctx, &len_byte, 1);
   blake2b_Update(&ctx, seed, seed_len);
   if (blake2b_Final(&ctx, fingerprint_out, 32) != 0) {
     memzero(&ctx, sizeof(ctx));
