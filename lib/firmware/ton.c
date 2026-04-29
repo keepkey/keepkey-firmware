@@ -252,3 +252,37 @@ bool ton_signTx(const HDNode* node, const TonSignTx* msg, TonSignedTx* resp) {
 
   return true;
 }
+
+/**
+ * Sign an arbitrary message with raw Ed25519.
+ *
+ * NOTE: this is a bare Ed25519 signature over message bytes, with NO
+ * domain separation. A signed "message" is indistinguishable from a
+ * signed transaction over the wire — TON Connect's `ton_proof` envelope
+ * (with its own prefix + workchain + address binding) is the proper
+ * domain-separated path and should be added as a separate proto+handler
+ * before this primitive is exposed without an AdvancedMode gate.
+ *
+ * Caller must have populated node->public_key via hdnode_fill_public_key.
+ */
+bool ton_message_sign(const HDNode* node, const TonSignMessage* msg,
+                      TonMessageSignature* resp) {
+  if (!node || !msg || !resp) {
+    return false;
+  }
+
+  ed25519_signature signature;
+  ed25519_sign(msg->message.bytes, msg->message.size, node->private_key,
+               &node->public_key[1], signature);
+
+  resp->has_public_key = true;
+  resp->public_key.size = 32;
+  memcpy(resp->public_key.bytes, &node->public_key[1], 32);
+
+  resp->has_signature = true;
+  resp->signature.size = 64;
+  memcpy(resp->signature.bytes, signature, 64);
+
+  memzero(signature, sizeof(signature));
+  return true;
+}

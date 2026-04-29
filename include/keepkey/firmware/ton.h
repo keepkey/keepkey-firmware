@@ -65,4 +65,20 @@ void ton_formatAmount(char* buf, size_t len, uint64_t amount);
  */
 bool ton_signTx(const HDNode* node, const TonSignTx* msg, TonSignedTx* resp);
 
+/**
+ * Sign an arbitrary message with raw Ed25519 (no domain separation).
+ *
+ * Caller MUST gate this behind the AdvancedMode policy — bare Ed25519
+ * over message bytes is indistinguishable from signing a transaction.
+ * The proper domain-separated path is TON Connect's ton_proof envelope,
+ * which is not yet implemented.
+ *
+ * @param node HD node with public_key filled
+ * @param msg  TonSignMessage request
+ * @param resp TonMessageSignature response (signature + Ed25519 public key)
+ * @return true on success
+ */
+bool ton_message_sign(const HDNode* node, const TonSignMessage* msg,
+                      TonMessageSignature* resp);
+
 #endif

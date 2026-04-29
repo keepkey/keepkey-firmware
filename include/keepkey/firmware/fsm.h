@@ -125,6 +125,7 @@ void fsm_msgTronVerifyMessage(const TronVerifyMessage* msg);
 void fsm_msgTronSignTypedHash(const TronSignTypedHash* msg);
 void fsm_msgTonGetAddress(const TonGetAddress* msg);
 void fsm_msgTonSignTx(TonSignTx* msg);
+void fsm_msgTonSignMessage(const TonSignMessage* msg);
 void fsm_msgSolanaGetAddress(const SolanaGetAddress* msg);
 void fsm_msgSolanaSignTx(const SolanaSignTx* msg);
 void fsm_msgSolanaSignMessage(const SolanaSignMessage* msg);

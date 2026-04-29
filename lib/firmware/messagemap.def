@@ -147,9 +147,11 @@
     /* TON */
     MSG_IN(MessageType_MessageType_TonGetAddress,                  TonGetAddress,               fsm_msgTonGetAddress)
     MSG_IN(MessageType_MessageType_TonSignTx,                      TonSignTx,                   fsm_msgTonSignTx)
+    MSG_IN(MessageType_MessageType_TonSignMessage,                 TonSignMessage,              fsm_msgTonSignMessage)
 
     MSG_OUT(MessageType_MessageType_TonAddress,                    TonAddress,                  NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_TonSignedTx,                   TonSignedTx,                 NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_TonMessageSignature,           TonMessageSignature,         NO_PROCESS_FUNC)
 
     /* Solana */
     MSG_IN(MessageType_MessageType_SolanaGetAddress,               SolanaGetAddress,            fsm_msgSolanaGetAddress)
