@@ -148,3 +148,95 @@ void fsm_msgTonSignTx(TonSignTx* msg) {
   msg_write(MessageType_MessageType_TonSignedTx, resp);
   layoutHome();
 }
+
+void fsm_msgTonSignMessage(const TonSignMessage* msg) {
+  RESP_INIT(TonMessageSignature);
+
+  CHECK_INITIALIZED
+  CHECK_PIN
+
+  if (!msg->has_message || msg->message.size == 0) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError, _("Missing message"));
+    layoutHome();
+    return;
+  }
+
+  // Validate path: m/44'/607'/...
+  if (msg->address_n_count < 2 || msg->address_n[0] != (0x80000000 | 44) ||
+      msg->address_n[1] != (0x80000000 | 607)) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Invalid TON path (expected m/44'/607'/...)"));
+    layoutHome();
+    return;
+  }
+
+  /* AdvancedMode gate: TON message signing is bare Ed25519 over arbitrary
+   * bytes — no domain separation. A signed message is indistinguishable
+   * over the wire from a signed transaction. Same fence as SolanaSignMessage
+   * (see fsm_msg_solana.h:461) until TON Connect's ton_proof envelope is
+   * added as a separate handler. */
+  if (!storage_isPolicyEnabled("AdvancedMode")) {
+    (void)review(ButtonRequestType_ButtonRequest_Other, "Blocked",
+                 "TON message signing is experimental. "
+                 "Enable AdvancedMode in device settings.");
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("Message signing disabled by policy"));
+    layoutHome();
+    return;
+  }
+
+  HDNode* node = fsm_getDerivedNode(ED25519_NAME, msg->address_n,
+                                    msg->address_n_count, NULL);
+  if (!node) return;
+  hdnode_fill_public_key(node);
+
+  /* Always require on-device confirmation. Display message content if
+   * printable, hex preview otherwise. */
+  {
+    char msgBuf[129] = {0};
+    const char* typeLabel;
+    bool printable = true;
+    for (unsigned i = 0; i < msg->message.size; i++) {
+      if (msg->message.bytes[i] < 0x20 || msg->message.bytes[i] > 0x7e) {
+        printable = false;
+        break;
+      }
+    }
+    if (printable && msg->message.size <= sizeof(msgBuf) - 1) {
+      typeLabel = "Sign TON Message";
+      memcpy(msgBuf, msg->message.bytes, msg->message.size);
+      msgBuf[msg->message.size] = '\0';
+    } else {
+      typeLabel = "Sign TON Bytes";
+      unsigned show = msg->message.size;
+      if (show > 32) show = 32;
+      for (unsigned i = 0; i < show; i++) {
+        snprintf(&msgBuf[2 * i], 3, "%02x", msg->message.bytes[i]);
+      }
+      msgBuf[2 * show] = '\0';
+      if (msg->message.size > 32) {
+        snprintf(&msgBuf[64], sizeof(msgBuf) - 64, "... (%u bytes)",
+                 (unsigned)msg->message.size);
+      }
+    }
+    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _(typeLabel),
+                 "%s", msgBuf)) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Signing cancelled"));
+      layoutHome();
+      return;
+    }
+  }
+
+  if (!ton_message_sign(node, msg, resp)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_Other, _("TON message signing failed"));
+    layoutHome();
+    return;
+  }
+
+  memzero(node, sizeof(*node));
+  msg_write(MessageType_MessageType_TonMessageSignature, resp);
+  layoutHome();
+}
