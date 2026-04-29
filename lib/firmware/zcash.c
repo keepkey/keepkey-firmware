@@ -57,7 +57,7 @@
  * Used for: I = BLAKE2b-512("ZcashIP32Orchard", seed)
  * NOT used for child derivation (which uses PRF^expand).
  */
-static void zip32_orchard_master(const uint8_t *seed, size_t seed_len,
+static void zip32_orchard_master(const uint8_t* seed, size_t seed_len,
                                  uint8_t out[64]) {
   BLAKE2B_CTX ctx;
   blake2b_InitPersonal(&ctx, 64, "ZcashIP32Orchard", 16);
@@ -66,7 +66,7 @@ static void zip32_orchard_master(const uint8_t *seed, size_t seed_len,
 }
 
 /* PRF^expand(sk, t) = BLAKE2b-512("Zcash_ExpandSeed", sk || t) */
-static void prf_expand(const uint8_t sk[32], const uint8_t *t, size_t t_len,
+static void prf_expand(const uint8_t sk[32], const uint8_t* t, size_t t_len,
                        uint8_t out[64]) {
   BLAKE2B_CTX ctx;
   blake2b_InitPersonal(&ctx, 64, "Zcash_ExpandSeed", 16);
@@ -82,10 +82,9 @@ static void prf_expand(const uint8_t sk[32], const uint8_t *t, size_t t_len,
  * Verified: R + 3*q == 2^256.
  */
 static const uint8_t two_256_mod_q[32] = {
-    0xfd, 0xff, 0xff, 0xff, 0x9c, 0x3e, 0x2b, 0x5b,
-    0x67, 0x05, 0x42, 0xe3, 0x0b, 0x35, 0x2c, 0x99,
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x3f,
+    0xfd, 0xff, 0xff, 0xff, 0x9c, 0x3e, 0x2b, 0x5b, 0x67, 0x05, 0x42,
+    0xe3, 0x0b, 0x35, 0x2c, 0x99, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x3f,
 };
 
 /*
@@ -95,10 +94,9 @@ static const uint8_t two_256_mod_q[32] = {
  * Verified: R + 3*p == 2^256.
  */
 static const uint8_t two_256_mod_p[32] = {
-    0xfd, 0xff, 0xff, 0xff, 0x38, 0x6d, 0x78, 0x34,
-    0xad, 0x14, 0x19, 0xe4, 0x0b, 0x35, 0x2c, 0x99,
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x3f,
+    0xfd, 0xff, 0xff, 0xff, 0x38, 0x6d, 0x78, 0x34, 0xad, 0x14, 0x19,
+    0xe4, 0x0b, 0x35, 0x2c, 0x99, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x3f,
 };
 
 /*
@@ -171,8 +169,8 @@ static void to_base(const uint8_t input[64], uint8_t output[32]) {
 /* Hardened child index */
 #define ZIP32_HARDENED 0x80000000
 
-bool zcash_derive_orchard_keys(const uint8_t *seed, uint32_t seed_len,
-                               uint32_t account, ZcashOrchardKeys *keys) {
+bool zcash_derive_orchard_keys(const uint8_t* seed, uint32_t seed_len,
+                               uint32_t account, ZcashOrchardKeys* keys) {
   uint8_t I[64];
   uint8_t sk[32], chain_code[32];
 
@@ -192,16 +190,16 @@ bool zcash_derive_orchard_keys(const uint8_t *seed, uint32_t seed_len,
    * So: I = BLAKE2b-512("Zcash_ExpandSeed",
    *           chain_code || 0x81 || sk || index_le)
    */
-  uint32_t path[3] = {
-      32 | ZIP32_HARDENED,       /* Purpose (Orchard) */
-      133 | ZIP32_HARDENED,      /* Coin type (Zcash) */
-      account | ZIP32_HARDENED   /* Account */
+  const uint32_t path[3] = {
+      32 | ZIP32_HARDENED,     /* Purpose (Orchard) */
+      133 | ZIP32_HARDENED,    /* Coin type (Zcash) */
+      account | ZIP32_HARDENED /* Account */
   };
 
   for (int i = 0; i < 3; i++) {
     /* Build PRF^expand input: [0x81] || sk || I2LEOSP32(index) */
     uint8_t child_input[1 + 32 + 4];
-    child_input[0] = 0x81;  /* ORCHARD_ZIP32_CHILD domain separator */
+    child_input[0] = 0x81; /* ORCHARD_ZIP32_CHILD domain separator */
     memcpy(child_input + 1, sk, 32);
     /* Little-endian index (I2LEOSP32) */
     uint32_t idx = path[i];
@@ -249,7 +247,8 @@ bool zcash_derive_orchard_keys(const uint8_t *seed, uint32_t seed_len,
       /* neg_ask = order - ask */
       int32_t borrow = 0;
       for (int i = 0; i < 9; i++) {
-        int32_t diff = (int32_t)neg_ask.val[i] - (int32_t)ask_val.val[i] + borrow;
+        int32_t diff =
+            (int32_t)neg_ask.val[i] - (int32_t)ask_val.val[i] + borrow;
         if (diff < 0) {
           diff += (1 << 29);
           borrow = -1;
@@ -320,7 +319,7 @@ bool zcash_compute_shielded_sighash(const uint8_t header_digest[32],
  * rejected — these are nominally seeds but provide no security and are
  * almost certainly bugs in the caller.
  */
-bool zcash_calculate_seed_fingerprint(const uint8_t *seed, uint32_t seed_len,
+bool zcash_calculate_seed_fingerprint(const uint8_t* seed, uint32_t seed_len,
                                       uint8_t fingerprint_out[32]) {
   if (!seed || !fingerprint_out) return false;
   if (seed_len < 32 || seed_len > 252) return false;

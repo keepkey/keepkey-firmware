@@ -29,18 +29,14 @@
  * These are BLAKE2b-256 with the respective personalizations over empty input.
  * Verified against Keystone3 test vectors. */
 static const uint8_t EMPTY_TRANSPARENT_DIGEST[32] = {
-  0xc3, 0x3f, 0x2e, 0x95, 0x70, 0x5f, 0xaa, 0xb3,
-  0x5f, 0x8d, 0x53, 0x3f, 0xa6, 0x1e, 0x95, 0xc3,
-  0xb7, 0xaa, 0xba, 0x07, 0x76, 0xb8, 0x74, 0xa9,
-  0xf7, 0x4f, 0xc1, 0x27, 0x84, 0x37, 0x6a, 0x59
-};
+    0xc3, 0x3f, 0x2e, 0x95, 0x70, 0x5f, 0xaa, 0xb3, 0x5f, 0x8d, 0x53,
+    0x3f, 0xa6, 0x1e, 0x95, 0xc3, 0xb7, 0xaa, 0xba, 0x07, 0x76, 0xb8,
+    0x74, 0xa9, 0xf7, 0x4f, 0xc1, 0x27, 0x84, 0x37, 0x6a, 0x59};
 
 static const uint8_t EMPTY_SAPLING_DIGEST[32] = {
-  0x6f, 0x2f, 0xc8, 0xf9, 0x8f, 0xea, 0xfd, 0x94,
-  0xe7, 0x4a, 0x0d, 0xf4, 0xbe, 0xd7, 0x43, 0x91,
-  0xee, 0x0b, 0x5a, 0x69, 0x94, 0x5e, 0x4c, 0xed,
-  0x8c, 0xa8, 0xa0, 0x95, 0x20, 0x6f, 0x00, 0xae
-};
+    0x6f, 0x2f, 0xc8, 0xf9, 0x8f, 0xea, 0xfd, 0x94, 0xe7, 0x4a, 0x0d,
+    0xf4, 0xbe, 0xd7, 0x43, 0x91, 0xee, 0x0b, 0x5a, 0x69, 0x94, 0x5e,
+    0x4c, 0xed, 0x8c, 0xa8, 0xa0, 0x95, 0x20, 0x6f, 0x00, 0xae};
 
 /* Zcash shielded signing state */
 static struct {
@@ -74,7 +70,7 @@ static struct {
 #define ZCASH_MAX_ACTIONS 16
 #define ZCASH_MAX_TRANSPARENT_INPUTS 8
 
-void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg) {
+void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
   RESP_INIT(ZcashPCZTActionAck);
 
   CHECK_INITIALIZED
@@ -83,8 +79,7 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg) {
 
   /* Validate parameters */
   if (!msg->has_n_actions || msg->n_actions == 0) {
-    fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("No actions specified"));
+    fsm_sendFailure(FailureType_Failure_SyntaxError, _("No actions specified"));
     layoutHome();
     return;
   }
@@ -102,7 +97,7 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg) {
     account = msg->account;
   } else if (msg->address_n_count >= 3) {
     /* Extract account from path: m/32'/133'/account' */
-    account = msg->address_n[2] & 0x7FFFFFFF;  /* Strip hardened bit */
+    account = msg->address_n[2] & 0x7FFFFFFF; /* Strip hardened bit */
   }
 
   /* Confirm with user */
@@ -120,13 +115,13 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg) {
            (unsigned long long)(fee % 100000000ULL));
 
   /* Display confirmation — different text for shielded-only vs hybrid */
-  uint32_t n_tinputs = msg->has_n_transparent_inputs ? msg->n_transparent_inputs : 0;
+  uint32_t n_tinputs =
+      msg->has_n_transparent_inputs ? msg->n_transparent_inputs : 0;
   if (n_tinputs > 0) {
-    if (!confirm(ButtonRequestType_ButtonRequest_SignTx,
-                 "Zcash Shield", "Shield transparent ZEC to Orchard?\n"
+    if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Zcash Shield",
+                 "Shield transparent ZEC to Orchard?\n"
                  "Amount: %s\nFee: %s\nInputs: %lu\nActions: %lu",
-                 amount_str, fee_str,
-                 (unsigned long)n_tinputs,
+                 amount_str, fee_str, (unsigned long)n_tinputs,
                  (unsigned long)msg->n_actions)) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Signing cancelled"));
@@ -134,8 +129,8 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg) {
       return;
     }
   } else {
-    if (!confirm(ButtonRequestType_ButtonRequest_SignTx,
-                 "Zcash Shielded", "Sign shielded transaction?\n"
+    if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Zcash Shielded",
+                 "Sign shielded transaction?\n"
                  "Amount: %s\nFee: %s\nActions: %lu",
                  amount_str, fee_str, (unsigned long)msg->n_actions)) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
@@ -150,7 +145,7 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg) {
    * handling passphrase entry if needed. This is NOT the BIP-32
    * root key — ZIP-32 Orchard uses a completely separate derivation
    * tree rooted at the raw seed. */
-  const uint8_t *seed = storage_getRawSeed(true);
+  const uint8_t* seed = storage_getRawSeed(true);
   if (!seed) {
     fsm_sendFailure(FailureType_Failure_NotInitialized,
                     _("Device not initialized or seed unavailable"));
@@ -182,8 +177,7 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg) {
     }
   }
 
-  if (!zcash_derive_orchard_keys(seed, 64, account,
-                                 &zcash_signing.keys)) {
+  if (!zcash_derive_orchard_keys(seed, 64, account, &zcash_signing.keys)) {
     fsm_sendFailure(FailureType_Failure_Other,
                     _("Orchard key derivation failed"));
     layoutHome();
@@ -242,7 +236,6 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg) {
    *   (Keystone, Trezor) for the streaming PCZT protocol. */
   if (msg->has_header_digest && msg->header_digest.size == 32 &&
       msg->has_orchard_digest && msg->orchard_digest.size == 32) {
-
     uint8_t t_digest[32], s_digest[32];
 
     /* Use provided transparent digest, or default to empty */
@@ -260,10 +253,8 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg) {
     }
 
     zcash_compute_shielded_sighash(
-        msg->header_digest.bytes, t_digest, s_digest,
-        msg->orchard_digest.bytes,
-        zcash_signing.branch_id,
-        zcash_signing.sighash);
+        msg->header_digest.bytes, t_digest, s_digest, msg->orchard_digest.bytes,
+        zcash_signing.branch_id, zcash_signing.sighash);
     zcash_signing.has_device_sighash = true;
 
     /* Phase 2b: Initialize orchard digest verification if bundle metadata
@@ -272,18 +263,17 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg) {
      * the computed orchard_digest matches the one used for sighash. */
     if (msg->has_orchard_flags && msg->has_orchard_value_balance &&
         msg->has_orchard_anchor && msg->orchard_anchor.size == 32) {
-
-      memcpy(zcash_signing.expected_orchard_digest,
-             msg->orchard_digest.bytes, 32);
+      memcpy(zcash_signing.expected_orchard_digest, msg->orchard_digest.bytes,
+             32);
       zcash_signing.orchard_flags = (uint8_t)msg->orchard_flags;
       zcash_signing.orchard_value_balance = msg->orchard_value_balance;
       memcpy(zcash_signing.orchard_anchor, msg->orchard_anchor.bytes, 32);
 
       /* Initialize BLAKE2b streaming contexts for the 3 sub-hashes */
-      blake2b_InitPersonal(&zcash_signing.compact_ctx, 32,
-                           "ZTxIdOrcActCHash", 16);
-      blake2b_InitPersonal(&zcash_signing.memos_ctx, 32,
-                           "ZTxIdOrcActMHash", 16);
+      blake2b_InitPersonal(&zcash_signing.compact_ctx, 32, "ZTxIdOrcActCHash",
+                           16);
+      blake2b_InitPersonal(&zcash_signing.memos_ctx, 32, "ZTxIdOrcActMHash",
+                           16);
       blake2b_InitPersonal(&zcash_signing.noncompact_ctx, 32,
                            "ZTxIdOrcActNHash", 16);
       zcash_signing.verify_orchard_digest = true;
@@ -297,7 +287,7 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT *msg) {
   layoutProgress(_("Signing Zcash"), 0);
 }
 
-void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK *msg) {
+void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK* msg) {
   RESP_INIT(ZcashOrchardFVK);
 
   CHECK_INITIALIZED
@@ -313,7 +303,7 @@ void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK *msg) {
   }
 
   /* Get the real BIP-39 seed for ZIP-32 Orchard derivation */
-  const uint8_t *seed = storage_getRawSeed(true);
+  const uint8_t* seed = storage_getRawSeed(true);
   if (!seed) {
     fsm_sendFailure(FailureType_Failure_NotInitialized,
                     _("Device not initialized or seed unavailable"));
@@ -375,7 +365,7 @@ void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK *msg) {
   layoutHome();
 }
 
-void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress *msg) {
+void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress* msg) {
   RESP_INIT(ZcashAddress);
 
   CHECK_INITIALIZED
@@ -389,9 +379,8 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress *msg) {
     layoutHome();
     return;
   }
-  if (!msg->has_ak || msg->ak.size != 32 ||
-      !msg->has_nk || msg->nk.size != 32 ||
-      !msg->has_rivk || msg->rivk.size != 32) {
+  if (!msg->has_ak || msg->ak.size != 32 || !msg->has_nk ||
+      msg->nk.size != 32 || !msg->has_rivk || msg->rivk.size != 32) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Missing FVK components (ak, nk, rivk)"));
     layoutHome();
@@ -421,14 +410,15 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress *msg) {
              (msg->address_n[2] & 0x80000000)) {
     account = msg->address_n[2] & 0x7FFFFFFF;
   } else {
-    fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("Require account field or ZIP-32 path m/32'/133'/account'"));
+    fsm_sendFailure(
+        FailureType_Failure_SyntaxError,
+        _("Require account field or ZIP-32 path m/32'/133'/account'"));
     layoutHome();
     return;
   }
 
   /* Get the real BIP-39 seed for ZIP-32 Orchard derivation */
-  const uint8_t *seed = storage_getRawSeed(true);
+  const uint8_t* seed = storage_getRawSeed(true);
   if (!seed) {
     fsm_sendFailure(FailureType_Failure_NotInitialized,
                     _("Device not initialized or seed unavailable"));
@@ -538,7 +528,7 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress *msg) {
   layoutHome();
 }
 
-void fsm_msgZcashPCZTAction(const ZcashPCZTAction *msg) {
+void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
   if (!zcash_signing.active) {
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                     _("Not in Zcash signing mode"));
@@ -593,17 +583,14 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction *msg) {
   }
 
   /* Phase 2b: feed action data into incremental BLAKE2b contexts */
-  if (zcash_signing.verify_orchard_digest &&
-      msg->has_nullifier && msg->nullifier.size == 32 &&
-      msg->has_cmx && msg->cmx.size == 32 &&
-      msg->has_epk && msg->epk.size == 32 &&
-      msg->has_enc_compact && msg->enc_compact.size == 52 &&
-      msg->has_enc_memo && msg->enc_memo.size == 512 &&
-      msg->has_enc_noncompact && msg->enc_noncompact.size > 0 &&
-      msg->has_cv_net && msg->cv_net.size == 32 &&
-      msg->has_rk && msg->rk.size == 32 &&
+  if (zcash_signing.verify_orchard_digest && msg->has_nullifier &&
+      msg->nullifier.size == 32 && msg->has_cmx && msg->cmx.size == 32 &&
+      msg->has_epk && msg->epk.size == 32 && msg->has_enc_compact &&
+      msg->enc_compact.size == 52 && msg->has_enc_memo &&
+      msg->enc_memo.size == 512 && msg->has_enc_noncompact &&
+      msg->enc_noncompact.size > 0 && msg->has_cv_net &&
+      msg->cv_net.size == 32 && msg->has_rk && msg->rk.size == 32 &&
       msg->has_out_ciphertext && msg->out_ciphertext.size == 80) {
-
     /* Compact: nf || cmx || epk || enc[0..52] */
     blake2b_Update(&zcash_signing.compact_ctx, msg->nullifier.bytes, 32);
     blake2b_Update(&zcash_signing.compact_ctx, msg->cmx.bytes, 32);
@@ -616,25 +603,22 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction *msg) {
     /* Noncompact: cv_net || rk || enc[564..] || out_ciphertext */
     blake2b_Update(&zcash_signing.noncompact_ctx, msg->cv_net.bytes, 32);
     blake2b_Update(&zcash_signing.noncompact_ctx, msg->rk.bytes, 32);
-    blake2b_Update(&zcash_signing.noncompact_ctx,
-                   msg->enc_noncompact.bytes, msg->enc_noncompact.size);
-    blake2b_Update(&zcash_signing.noncompact_ctx,
-                   msg->out_ciphertext.bytes, 80);
+    blake2b_Update(&zcash_signing.noncompact_ctx, msg->enc_noncompact.bytes,
+                   msg->enc_noncompact.size);
+    blake2b_Update(&zcash_signing.noncompact_ctx, msg->out_ciphertext.bytes,
+                   80);
   }
 
   /* Use device-computed sighash if available, otherwise legacy host sighash */
-  const uint8_t *sighash = zcash_signing.has_device_sighash
-      ? zcash_signing.sighash
-      : msg->sighash.bytes;
+  const uint8_t* sighash = zcash_signing.has_device_sighash
+                               ? zcash_signing.sighash
+                               : msg->sighash.bytes;
 
   /* Sign this action with RedPallas:
    * sig = RedPallas.sign(ask, alpha, sighash) */
-  if (redpallas_sign_digest(zcash_signing.keys.ask,
-                            msg->alpha.bytes,
-                            sighash,
+  if (redpallas_sign_digest(zcash_signing.keys.ask, msg->alpha.bytes, sighash,
                             zcash_signing.signatures[msg->index]) != 0) {
-    fsm_sendFailure(FailureType_Failure_Other,
-                    _("RedPallas signing failed"));
+    fsm_sendFailure(FailureType_Failure_Other, _("RedPallas signing failed"));
     zcash_signing.active = false;
     memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
     layoutHome();
@@ -644,13 +628,12 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction *msg) {
   zcash_signing.current_action++;
 
   /* Update progress */
-  uint32_t progress = (zcash_signing.current_action * 1000) /
-                      zcash_signing.n_actions;
+  uint32_t progress =
+      (zcash_signing.current_action * 1000) / zcash_signing.n_actions;
   layoutProgress(_("Signing Zcash"), progress);
 
   /* Check if all actions are signed */
   if (zcash_signing.current_action >= zcash_signing.n_actions) {
-
     /* Phase 2b: verify orchard digest before returning signatures */
     if (zcash_signing.verify_orchard_digest) {
       uint8_t compact_hash[32], memos_hash[32], noncompact_hash[32];
@@ -669,15 +652,15 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction *msg) {
       blake2b_Update(&orchard_ctx, noncompact_hash, 32);
       blake2b_Update(&orchard_ctx, &zcash_signing.orchard_flags, 1);
       blake2b_Update(&orchard_ctx,
-                     (const uint8_t *)&zcash_signing.orchard_value_balance, 8);
+                     (const uint8_t*)&zcash_signing.orchard_value_balance, 8);
       blake2b_Update(&orchard_ctx, zcash_signing.orchard_anchor, 32);
 
       uint8_t computed_orchard_digest[32];
       blake2b_Final(&orchard_ctx, computed_orchard_digest, 32);
 
       /* Verify computed matches expected */
-      if (memcmp(computed_orchard_digest,
-                 zcash_signing.expected_orchard_digest, 32) != 0) {
+      if (memcmp(computed_orchard_digest, zcash_signing.expected_orchard_digest,
+                 32) != 0) {
         fsm_sendFailure(FailureType_Failure_Other,
                         _("Orchard digest mismatch: transaction data "
                           "does not match sighash"));
@@ -690,7 +673,7 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction *msg) {
     }
 
     /* All done - send the collected signatures */
-    ZcashSignedPCZT *resp_signed = (ZcashSignedPCZT *)msg_resp;
+    ZcashSignedPCZT* resp_signed = (ZcashSignedPCZT*)msg_resp;
     memset(resp_signed, 0, sizeof(ZcashSignedPCZT));
 
     resp_signed->signatures_count = zcash_signing.n_actions;
@@ -708,7 +691,7 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction *msg) {
     layoutHome();
   } else {
     /* Request next action */
-    ZcashPCZTActionAck *resp_ack = (ZcashPCZTActionAck *)msg_resp;
+    ZcashPCZTActionAck* resp_ack = (ZcashPCZTActionAck*)msg_resp;
     memset(resp_ack, 0, sizeof(ZcashPCZTActionAck));
     resp_ack->has_next_index = true;
     resp_ack->next_index = zcash_signing.current_action;
@@ -725,7 +708,7 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction *msg) {
  *
  * After all transparent inputs, the device transitions to the Orchard
  * action phase (ZcashPCZTAction streaming). */
-void fsm_msgZcashTransparentInput(const ZcashTransparentInput *msg) {
+void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
   RESP_INIT(ZcashTransparentSig);
 
   if (!zcash_signing.active) {
@@ -754,8 +737,7 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput *msg) {
   }
 
   if (msg->sighash.size != 32) {
-    fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("Invalid sighash size"));
+    fsm_sendFailure(FailureType_Failure_SyntaxError, _("Invalid sighash size"));
     zcash_signing.active = false;
     memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
     layoutHome();
@@ -837,9 +819,8 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput *msg) {
              (unsigned long)(msg->index + 1),
              (unsigned long long)(amt / 100000000ULL),
              (unsigned long long)(amt % 100000000ULL));
-    if (!confirm(ButtonRequestType_ButtonRequest_SignTx,
-                 "Sign Input", "Sign transparent input?\n%s",
-                 input_str)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Sign Input",
+                 "Sign transparent input?\n%s", input_str)) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Signing cancelled"));
       zcash_signing.active = false;
@@ -850,7 +831,7 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput *msg) {
   }
 
   /* Derive the secp256k1 key at the validated Zcash BIP44 path */
-  const CoinType *coin = fsm_getCoin(true, "Zcash");
+  const CoinType* coin = fsm_getCoin(true, "Zcash");
   if (!coin) {
     fsm_sendFailure(FailureType_Failure_Other, _("Unknown coin: Zcash"));
     zcash_signing.active = false;
@@ -859,7 +840,7 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput *msg) {
     return;
   }
 
-  HDNode *node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) {
     zcash_signing.active = false;
@@ -873,8 +854,7 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput *msg) {
   /* ECDSA sign the per-input sighash */
   uint8_t sig[64];
   if (hdnode_sign_digest(node, msg->sighash.bytes, sig, NULL, NULL) != 0) {
-    fsm_sendFailure(FailureType_Failure_Other,
-                    _("ECDSA signing failed"));
+    fsm_sendFailure(FailureType_Failure_Other, _("ECDSA signing failed"));
     memzero(node, sizeof(*node));
     zcash_signing.active = false;
     memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
@@ -886,7 +866,8 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput *msg) {
   uint8_t der_sig[73];
   int der_len = ecdsa_sig_to_der(sig, der_sig);
 
-  /* Build response — signature is a required field (no has_ prefix in nanopb) */
+  /* Build response — signature is a required field (no has_ prefix in nanopb)
+   */
   resp->signature.size = der_len;
   memcpy(resp->signature.bytes, der_sig, der_len);
 

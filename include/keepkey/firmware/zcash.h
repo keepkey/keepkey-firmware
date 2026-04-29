@@ -23,12 +23,19 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* Orchard spending keys derived via ZIP-32 */
+/* Orchard spending keys derived via ZIP-32.
+ * cppcheck doesn't see these used because the consumers live in
+ * fsm_msg_zcash.h which is #include'd into fsm.c rather than compiled
+ * separately, so the struct members appear "unused" in this TU. */
 typedef struct {
-  uint8_t sk[32];    /* Spending key (master secret at this level) */
-  uint8_t ask[32];   /* Spend authorizing key (scalar) */
-  uint8_t nk[32];    /* Nullifier deriving key */
-  uint8_t rivk[32];  /* Commitment randomness key */
+  // cppcheck-suppress unusedStructMember
+  uint8_t sk[32]; /* Spending key (master secret at this level) */
+  // cppcheck-suppress unusedStructMember
+  uint8_t ask[32]; /* Spend authorizing key (scalar) */
+  // cppcheck-suppress unusedStructMember
+  uint8_t nk[32]; /* Nullifier deriving key */
+  // cppcheck-suppress unusedStructMember
+  uint8_t rivk[32]; /* Commitment randomness key */
 } ZcashOrchardKeys;
 
 /**
@@ -43,8 +50,8 @@ typedef struct {
  * @param keys       Output: derived Orchard keys
  * @return true on success
  */
-bool zcash_derive_orchard_keys(const uint8_t *seed, uint32_t seed_len,
-                               uint32_t account, ZcashOrchardKeys *keys);
+bool zcash_derive_orchard_keys(const uint8_t* seed, uint32_t seed_len,
+                               uint32_t account, ZcashOrchardKeys* keys);
 
 /**
  * Compute the ZIP 244 shielded sighash for Orchard spend authorization.
@@ -86,7 +93,7 @@ bool zcash_compute_shielded_sighash(const uint8_t header_digest[32],
  * @param fingerprint_out   32-byte output fingerprint
  * @return true on success, false if seed is invalid
  */
-bool zcash_calculate_seed_fingerprint(const uint8_t *seed, uint32_t seed_len,
+bool zcash_calculate_seed_fingerprint(const uint8_t* seed, uint32_t seed_len,
                                       uint8_t fingerprint_out[32]);
 
 #endif
