@@ -73,4 +73,19 @@ bool tron_message_sign(const HDNode* node, const TronSignMessage* msg,
  */
 int tron_message_verify(const TronVerifyMessage* msg);
 
+/**
+ * Sign a TIP-712 typed-data digest in hash mode.
+ * Host pre-computes the domain separator hash + message hash per the
+ * TIP-712 spec; the device assembles
+ *   keccak256("\x19\x01" || domain_separator_hash || message_hash)
+ * and signs with secp256k1.
+ *
+ * @param node HD node with public_key filled
+ * @param msg  TronSignTypedHash request
+ * @param resp TronTypedDataSignature response (signature + Base58Check address)
+ * @return true on success
+ */
+bool tron_typed_hash_sign(const HDNode* node, const TronSignTypedHash* msg,
+                          TronTypedDataSignature* resp);
+
 #endif

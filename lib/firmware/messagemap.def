@@ -137,10 +137,12 @@
     MSG_IN(MessageType_MessageType_TronSignTx,                     TronSignTx,                  fsm_msgTronSignTx)
     MSG_IN(MessageType_MessageType_TronSignMessage,                TronSignMessage,             fsm_msgTronSignMessage)
     MSG_IN(MessageType_MessageType_TronVerifyMessage,              TronVerifyMessage,           fsm_msgTronVerifyMessage)
+    MSG_IN(MessageType_MessageType_TronSignTypedHash,              TronSignTypedHash,           fsm_msgTronSignTypedHash)
 
     MSG_OUT(MessageType_MessageType_TronAddress,                   TronAddress,                 NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_TronSignedTx,                  TronSignedTx,                NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_TronMessageSignature,          TronMessageSignature,        NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_TronTypedDataSignature,        TronTypedDataSignature,      NO_PROCESS_FUNC)
 
     /* TON */
     MSG_IN(MessageType_MessageType_TonGetAddress,                  TonGetAddress,               fsm_msgTonGetAddress)
