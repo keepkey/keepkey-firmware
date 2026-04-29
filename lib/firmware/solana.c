@@ -674,3 +674,82 @@ bool solana_signTx(const HDNode* node, const SolanaSignTx* msg,
 
   return true;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Off-chain message signing (domain-separated)                       */
+/* ------------------------------------------------------------------ */
+
+/* Per the Solana off-chain message spec, the device signs over the
+ * envelope:
+ *
+ *   "\xff" || "solana offchain" || version:u8 || format:u8
+ *           || length:u16 LE || message bytes
+ *
+ * The 0xff lead byte is invalid as a Solana transaction prefix, so a
+ * signed off-chain message can NEVER be replayed as a transaction —
+ * this is the domain separation that bare SolanaSignMessage lacks. */
+
+#define SOL_OFFCHAIN_PREFIX_LEN 1
+#define SOL_OFFCHAIN_TAG "solana offchain"
+#define SOL_OFFCHAIN_TAG_LEN 15
+#define SOL_OFFCHAIN_HEADER_LEN                                   \
+  (SOL_OFFCHAIN_PREFIX_LEN + SOL_OFFCHAIN_TAG_LEN + 1 /*version*/ \
+   + 1 /*format*/ + 2 /*length*/)
+
+#define SOL_OFFCHAIN_FORMAT_ASCII 0
+#define SOL_OFFCHAIN_FORMAT_UTF8_LIMITED 1
+#define SOL_OFFCHAIN_FORMAT_UTF8_EXTENDED 2 /* not supported on this device */
+#define SOL_OFFCHAIN_MAX_MSG_LEN 1212       /* spec ceiling for fmt 0 / 1 */
+
+#define SOL_OFFCHAIN_ENVELOPE_MAX \
+  (SOL_OFFCHAIN_HEADER_LEN + SOL_OFFCHAIN_MAX_MSG_LEN)
+
+bool solana_offchain_message_sign(const HDNode* node,
+                                  const SolanaSignOffchainMessage* msg,
+                                  SolanaOffchainMessageSignature* resp) {
+  if (!node || !msg || !resp) return false;
+  if (!msg->has_message || msg->message.size == 0) return false;
+  if (msg->message.size > SOL_OFFCHAIN_MAX_MSG_LEN) return false;
+
+  /* Reject format 2 — extended UTF-8 mode is Ledger-only blind-sign and
+   * the proto's max_size cap (1212) wouldn't permit its real ceiling
+   * anyway. Force callers onto format 0 or 1. */
+  uint8_t format = msg->has_message_format
+                       ? (uint8_t)(msg->message_format & 0xFF)
+                       : SOL_OFFCHAIN_FORMAT_ASCII;
+  if (format != SOL_OFFCHAIN_FORMAT_ASCII &&
+      format != SOL_OFFCHAIN_FORMAT_UTF8_LIMITED) {
+    return false;
+  }
+
+  uint8_t version = msg->has_version ? (uint8_t)(msg->version & 0xFF) : 0;
+  if (version != 0) return false; /* spec: only version 0 defined */
+
+  uint8_t envelope[SOL_OFFCHAIN_ENVELOPE_MAX];
+  size_t off = 0;
+  envelope[off++] = 0xFF;
+  memcpy(&envelope[off], SOL_OFFCHAIN_TAG, SOL_OFFCHAIN_TAG_LEN);
+  off += SOL_OFFCHAIN_TAG_LEN;
+  envelope[off++] = version;
+  envelope[off++] = format;
+  /* length is u16 little-endian */
+  envelope[off++] = (uint8_t)(msg->message.size & 0xFF);
+  envelope[off++] = (uint8_t)((msg->message.size >> 8) & 0xFF);
+  memcpy(&envelope[off], msg->message.bytes, msg->message.size);
+  off += msg->message.size;
+
+  uint8_t sig[SOL_SIG_SIZE];
+  ed25519_sign(envelope, off, node->private_key, node->public_key + 1, sig);
+
+  resp->has_public_key = true;
+  resp->public_key.size = SOL_PUBKEY_SIZE;
+  memcpy(resp->public_key.bytes, node->public_key + 1, SOL_PUBKEY_SIZE);
+
+  resp->has_signature = true;
+  resp->signature.size = SOL_SIG_SIZE;
+  memcpy(resp->signature.bytes, sig, SOL_SIG_SIZE);
+
+  memzero(envelope, sizeof(envelope));
+  memzero(sig, sizeof(sig));
+  return true;
+}
