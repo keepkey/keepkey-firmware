@@ -157,8 +157,7 @@ bool zcash_orchard_derive_ivk(const uint8_t ak[32], const uint8_t nk[32],
  * @return true on success
  */
 bool zcash_orchard_derive_receiver(const uint8_t ak[32], const uint8_t nk[32],
-                                   const uint8_t rivk[32],
-                                   const uint8_t dk[32],
+                                   const uint8_t rivk[32], const uint8_t dk[32],
                                    const uint8_t index_le[11],
                                    uint8_t receiver_out[43]);
 
@@ -178,8 +177,7 @@ bool zcash_orchard_derive_receiver(const uint8_t ak[32], const uint8_t nk[32],
  */
 bool zcash_orchard_derive_unified_address(const ZcashOrchardKeys* keys,
                                           const uint8_t index_le[11],
-                                          const char* hrp,
-                                          char* address_out,
+                                          const char* hrp, char* address_out,
                                           size_t address_out_len);
 
 /**
@@ -198,10 +196,11 @@ bool zcash_orchard_derive_unified_address(const ZcashOrchardKeys* keys,
  * @param address_out_len Size of address_out
  * @return true on success
  */
-bool zcash_derive_orchard_unified_address(
-    const uint8_t* seed, uint32_t seed_len, uint32_t account,
-    const uint8_t index_le[11], const char* hrp, char* address_out,
-    size_t address_out_len);
+bool zcash_derive_orchard_unified_address(const uint8_t* seed,
+                                          uint32_t seed_len, uint32_t account,
+                                          const uint8_t index_le[11],
+                                          const char* hrp, char* address_out,
+                                          size_t address_out_len);
 
 /**
  * Compute the ZIP-32 §6.1 seed fingerprint.

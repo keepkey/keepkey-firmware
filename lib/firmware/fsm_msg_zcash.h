@@ -375,8 +375,8 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress* msg) {
   }
 
   const bool host_supplied_address = msg->has_address;
-  const bool host_supplied_any_fvk = msg->has_ak || msg->has_nk ||
-                                     msg->has_rivk;
+  const bool host_supplied_any_fvk =
+      msg->has_ak || msg->has_nk || msg->has_rivk;
 
   if (host_supplied_address) {
     if (strlen(msg->address) < 10) {
@@ -476,9 +476,9 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress* msg) {
     }
   } else {
     const uint8_t default_receiver_index[11] = {0};
-    if (!zcash_orchard_derive_unified_address(
-            &keys, default_receiver_index, "u", derived_address,
-            sizeof(derived_address))) {
+    if (!zcash_orchard_derive_unified_address(&keys, default_receiver_index,
+                                              "u", derived_address,
+                                              sizeof(derived_address))) {
       memzero(&keys, sizeof(keys));
       fsm_sendFailure(FailureType_Failure_Other,
                       _("Orchard address derivation failed"));

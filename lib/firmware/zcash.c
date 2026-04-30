@@ -284,9 +284,9 @@ bool zcash_orchard_derive_diversifier(const uint8_t dk[32],
 
   uint64_t A =
       ff1_bits_to_num(index_le, 0, ZCASH_FF1_HALF_BITS) & ZCASH_FF1_MASK44;
-  uint64_t B = ff1_bits_to_num(index_le, ZCASH_FF1_HALF_BITS,
-                               ZCASH_FF1_HALF_BITS) &
-               ZCASH_FF1_MASK44;
+  uint64_t B =
+      ff1_bits_to_num(index_le, ZCASH_FF1_HALF_BITS, ZCASH_FF1_HALF_BITS) &
+      ZCASH_FF1_MASK44;
 
   for (uint8_t round = 0; round < 10; round++) {
     uint64_t y;
@@ -301,8 +301,7 @@ bool zcash_orchard_derive_diversifier(const uint8_t dk[32],
 
   memset(diversifier_out, 0, 11);
   ff1_num_to_bits(A, diversifier_out, 0, ZCASH_FF1_HALF_BITS);
-  ff1_num_to_bits(B, diversifier_out, ZCASH_FF1_HALF_BITS,
-                  ZCASH_FF1_HALF_BITS);
+  ff1_num_to_bits(B, diversifier_out, ZCASH_FF1_HALF_BITS, ZCASH_FF1_HALF_BITS);
 
   memzero(&ctx, sizeof(ctx));
   return true;
@@ -403,8 +402,7 @@ bool zcash_orchard_derive_ivk(const uint8_t ak[32], const uint8_t nk[32],
 }
 
 bool zcash_orchard_derive_receiver(const uint8_t ak[32], const uint8_t nk[32],
-                                   const uint8_t rivk[32],
-                                   const uint8_t dk[32],
+                                   const uint8_t rivk[32], const uint8_t dk[32],
                                    const uint8_t index_le[11],
                                    uint8_t receiver_out[43]) {
   if (!receiver_out) return false;
@@ -431,8 +429,7 @@ bool zcash_orchard_derive_receiver(const uint8_t ak[32], const uint8_t nk[32],
 
 bool zcash_orchard_derive_unified_address(const ZcashOrchardKeys* keys,
                                           const uint8_t index_le[11],
-                                          const char* hrp,
-                                          char* address_out,
+                                          const char* hrp, char* address_out,
                                           size_t address_out_len) {
   if (!keys || !index_le || !hrp || !address_out) return false;
 
@@ -450,8 +447,8 @@ bool zcash_orchard_derive_unified_address(const ZcashOrchardKeys* keys,
   bool ok = zcash_orchard_derive_receiver(ak, keys->nk, keys->rivk, keys->dk,
                                           index_le, receiver);
   if (ok) {
-    ok = zcash_zip316_encode_orchard_unified_address(
-             hrp, receiver, address_out, address_out_len) == 0;
+    ok = zcash_zip316_encode_orchard_unified_address(hrp, receiver, address_out,
+                                                     address_out_len) == 0;
   }
   if (!ok && address_out_len > 0) {
     address_out[0] = '\0';
@@ -465,16 +462,17 @@ bool zcash_orchard_derive_unified_address(const ZcashOrchardKeys* keys,
   return ok;
 }
 
-bool zcash_derive_orchard_unified_address(
-    const uint8_t* seed, uint32_t seed_len, uint32_t account,
-    const uint8_t index_le[11], const char* hrp, char* address_out,
-    size_t address_out_len) {
+bool zcash_derive_orchard_unified_address(const uint8_t* seed,
+                                          uint32_t seed_len, uint32_t account,
+                                          const uint8_t index_le[11],
+                                          const char* hrp, char* address_out,
+                                          size_t address_out_len) {
   if (!seed || !index_le || !hrp || !address_out) return false;
 
   ZcashOrchardKeys keys;
   bool ok = zcash_derive_orchard_keys(seed, seed_len, account, &keys) &&
-            zcash_orchard_derive_unified_address(
-                &keys, index_le, hrp, address_out, address_out_len);
+            zcash_orchard_derive_unified_address(&keys, index_le, hrp,
+                                                 address_out, address_out_len);
   memzero(&keys, sizeof(keys));
   return ok;
 }
