@@ -306,26 +306,77 @@ bool zcash_orchard_derive_diversifier(const uint8_t dk[32],
   return true;
 }
 
-bool zcash_orchard_diversify_hash(const uint8_t diversifier[11],
-                                  uint8_t gd_out[32]) {
-  if (!diversifier || !gd_out) return false;
-
+static bool orchard_diversify_point(const uint8_t diversifier[11],
+                                    curve_point* gd) {
+  if (!diversifier || !gd) return false;
   static const char domain[] = "z.cash:Orchard-gd";
-  curve_point gd;
-  if (pallas_group_hash(domain, diversifier, 11, &gd) != 0) {
+
+  if (pallas_group_hash(domain, diversifier, 11, gd) != 0) {
     return false;
   }
 
-  if (pallas_point_is_identity(&gd)) {
-    if (pallas_group_hash(domain, NULL, 0, &gd) != 0 ||
-        pallas_point_is_identity(&gd)) {
-      memzero(&gd, sizeof(gd));
+  if (pallas_point_is_identity(gd)) {
+    if (pallas_group_hash(domain, NULL, 0, gd) != 0 ||
+        pallas_point_is_identity(gd)) {
+      memzero(gd, sizeof(*gd));
       return false;
     }
   }
 
+  return true;
+}
+
+bool zcash_orchard_diversify_hash(const uint8_t diversifier[11],
+                                  uint8_t gd_out[32]) {
+  if (!gd_out) return false;
+
+  curve_point gd;
+  if (!orchard_diversify_point(diversifier, &gd)) {
+    return false;
+  }
+
   pallas_point_encode(&gd, gd_out);
   memzero(&gd, sizeof(gd));
+  return true;
+}
+
+bool zcash_orchard_derive_transmission_key(const uint8_t ivk[32],
+                                           const uint8_t diversifier[11],
+                                           uint8_t gd_out[32],
+                                           uint8_t pkd_out[32]) {
+  if (!ivk || !pkd_out) return false;
+
+  bignum256 ivk_scalar;
+  bn_read_le(ivk, &ivk_scalar);
+  bn_normalize(&ivk_scalar);
+  if (bn_is_zero(&ivk_scalar) || !bn_is_less(&ivk_scalar, &pallas_prime)) {
+    memzero(&ivk_scalar, sizeof(ivk_scalar));
+    return false;
+  }
+
+  curve_point gd;
+  if (!orchard_diversify_point(diversifier, &gd)) {
+    memzero(&ivk_scalar, sizeof(ivk_scalar));
+    return false;
+  }
+
+  curve_point pkd;
+  pallas_point_mult(&ivk_scalar, &gd, &pkd);
+  if (pallas_point_is_identity(&pkd)) {
+    memzero(&ivk_scalar, sizeof(ivk_scalar));
+    memzero(&gd, sizeof(gd));
+    memzero(&pkd, sizeof(pkd));
+    return false;
+  }
+
+  if (gd_out) {
+    pallas_point_encode(&gd, gd_out);
+  }
+  pallas_point_encode(&pkd, pkd_out);
+
+  memzero(&ivk_scalar, sizeof(ivk_scalar));
+  memzero(&gd, sizeof(gd));
+  memzero(&pkd, sizeof(pkd));
   return true;
 }
 

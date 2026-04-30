@@ -110,6 +110,23 @@ bool zcash_orchard_diversify_hash(const uint8_t diversifier[11],
                                   uint8_t gd_out[32]);
 
 /**
+ * Derive an Orchard diversified transmission key.
+ *
+ *   g_d  = DiversifyHash^Orchard(d)
+ *   pk_d = KA^Orchard.DerivePublic(ivk, g_d) = [ivk] g_d
+ *
+ * @param ivk         32-byte nonzero Orchard incoming viewing key encoding
+ * @param diversifier 11-byte Orchard diversifier
+ * @param gd_out      optional 32-byte compressed g_d output, may be NULL
+ * @param pkd_out     32-byte compressed diversified transmission key
+ * @return true on success
+ */
+bool zcash_orchard_derive_transmission_key(const uint8_t ivk[32],
+                                           const uint8_t diversifier[11],
+                                           uint8_t gd_out[32],
+                                           uint8_t pkd_out[32]);
+
+/**
  * Compute the ZIP-32 §6.1 seed fingerprint.
  *
  *   SeedFingerprint := BLAKE2b-256(
