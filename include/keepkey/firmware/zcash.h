@@ -36,6 +36,8 @@ typedef struct {
   uint8_t nk[32]; /* Nullifier deriving key */
   // cppcheck-suppress unusedStructMember
   uint8_t rivk[32]; /* Commitment randomness key */
+  // cppcheck-suppress unusedStructMember
+  uint8_t dk[32]; /* Diversifier key */
 } ZcashOrchardKeys;
 
 /**
@@ -73,6 +75,24 @@ bool zcash_compute_shielded_sighash(const uint8_t header_digest[32],
                                     const uint8_t orchard_digest[32],
                                     uint32_t branch_id,
                                     uint8_t sighash_out[32]);
+
+/**
+ * Derive an Orchard diversifier from a diversifier key and 88-bit index.
+ *
+ * ZIP-32 defines Orchard diversifiers as:
+ *   d_j = FF1-AES256.Encrypt(dk, "", I2LEBSP_88(j))
+ *
+ * Both index_le and diversifier_out are 11-byte LEBS2OSP encodings of the
+ * 88-bit bitstrings.
+ *
+ * @param dk              32-byte Orchard diversifier key
+ * @param index_le        11-byte little-endian diversifier index bitstring
+ * @param diversifier_out 11-byte output diversifier
+ * @return true on success
+ */
+bool zcash_orchard_derive_diversifier(const uint8_t dk[32],
+                                      const uint8_t index_le[11],
+                                      uint8_t diversifier_out[11]);
 
 /**
  * Compute the ZIP-32 §6.1 seed fingerprint.

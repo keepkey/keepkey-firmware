@@ -83,6 +83,62 @@ static const uint8_t EXPECTED_RIVK_ALL_0[32] = {
     0x4d, 0xca, 0x94, 0x7d, 0x71, 0x1a, 0x7c, 0x0a,
 };
 
+static const uint8_t EXPECTED_DK_ALL_0[32] = {
+    0xe8, 0x52, 0xed, 0xd7, 0x82, 0xd6, 0xeb, 0x92,
+    0x12, 0x82, 0x21, 0x9b, 0x8a, 0x9c, 0x38, 0x0e,
+    0x03, 0xfc, 0xc4, 0x76, 0x60, 0xfe, 0x67, 0xaf,
+    0x1b, 0xa4, 0x77, 0x80, 0x2b, 0xb0, 0x6c, 0xe7,
+};
+
+static const uint8_t EXPECTED_DIVERSIFIER_ALL_0[11] = {
+    0xda, 0x97, 0x30, 0x31, 0x63, 0x4a, 0x89, 0x38, 0xad, 0x1c, 0x48,
+};
+
+/* FF1-AES256 Orchard diversifier vectors generated with zcash-test-vectors.
+ * Parameters: radix = 2, n = 88, tweak = "", rounds = 10.
+ * Inputs and outputs are LEBS2OSP_88 byte encodings.
+ */
+struct OrchardFf1Vector {
+  uint8_t dk[32];
+  uint8_t index[11];
+  uint8_t diversifier[11];
+};
+
+static const OrchardFf1Vector ORCHARD_FF1_VECTORS[] = {
+    {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+     {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00},
+     {0xdc, 0xe7, 0x7e, 0xbc, 0xec, 0x0a, 0x26, 0xaf, 0xd6,
+      0x99, 0x8c}},
+    {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+     {0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00},
+     {0x63, 0x73, 0x8a, 0xa5, 0xf7, 0xbe, 0x22, 0xe1, 0xac,
+      0xdc, 0x0b}},
+    {{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+      0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+      0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+      0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f},
+     {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00},
+     {0xd7, 0x39, 0xcc, 0xc2, 0xb8, 0x4d, 0x5d, 0x1a, 0xe5,
+      0x4a, 0x95}},
+    {{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+      0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+      0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+      0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f},
+     {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+      0x09, 0x0a},
+     {0xc8, 0xff, 0x0b, 0x01, 0x96, 0x01, 0x30, 0x12, 0x76,
+      0x38, 0xc7}},
+};
+
 /* ── ZIP-32 Derivation Tests ─────────────────────────────────────── */
 
 TEST(Zcash, DeriveOrchardKeys_ReferenceVector_Account0) {
@@ -107,6 +163,15 @@ TEST(Zcash, DeriveOrchardKeys_ReferenceVector_Account0) {
   EXPECT_TRUE(memcmp(keys.rivk, EXPECTED_RIVK_ALL_0, 32) == 0)
       << "rivk mismatch for all-mnemonic account 0";
 
+  EXPECT_TRUE(memcmp(keys.dk, EXPECTED_DK_ALL_0, 32) == 0)
+      << "dk mismatch for all-mnemonic account 0";
+
+  uint8_t diversifier[11];
+  uint8_t index0[11] = {0};
+  ASSERT_TRUE(zcash_orchard_derive_diversifier(keys.dk, index0, diversifier));
+  EXPECT_TRUE(memcmp(diversifier, EXPECTED_DIVERSIFIER_ALL_0, 11) == 0)
+      << "default diversifier mismatch for all-mnemonic account 0";
+
   /* Compute ak = [ask]*G and verify against reference */
   bignum256 ask_scalar;
   bn_read_le(keys.ask, &ask_scalar);
@@ -123,6 +188,7 @@ TEST(Zcash, DeriveOrchardKeys_ReferenceVector_Account0) {
   EXPECT_TRUE(memcmp(ak_bytes, EXPECTED_AK_ALL_0, 32) == 0)
       << "ak mismatch for all-mnemonic account 0";
 
+  memzero(diversifier, sizeof(diversifier));
   memzero(&keys, sizeof(keys));
 }
 
@@ -168,9 +234,54 @@ TEST(Zcash, DeriveOrchardKeys_Deterministic) {
   EXPECT_TRUE(memcmp(keys1.ask, keys2.ask, 32) == 0);
   EXPECT_TRUE(memcmp(keys1.nk, keys2.nk, 32) == 0);
   EXPECT_TRUE(memcmp(keys1.rivk, keys2.rivk, 32) == 0);
+  EXPECT_TRUE(memcmp(keys1.dk, keys2.dk, 32) == 0);
 
   memzero(&keys1, sizeof(keys1));
   memzero(&keys2, sizeof(keys2));
+}
+
+TEST(Zcash, DeriveOrchardKeys_DerivesDiversifierKey) {
+  ZcashOrchardKeys keys0, keys1;
+  ASSERT_TRUE(zcash_derive_orchard_keys(SEED_ALL, 64, 0, &keys0));
+  ASSERT_TRUE(zcash_derive_orchard_keys(SEED_ALL, 64, 1, &keys1));
+
+  uint8_t zero[32] = {0};
+  EXPECT_TRUE(memcmp(keys0.dk, zero, 32) != 0)
+      << "Diversifier key must be populated";
+  EXPECT_TRUE(memcmp(keys0.dk, keys1.dk, 32) != 0)
+      << "Different accounts must produce different diversifier keys";
+
+  memzero(&keys0, sizeof(keys0));
+  memzero(&keys1, sizeof(keys1));
+}
+
+TEST(Zcash, OrchardDiversifier_FF1ReferenceVectors) {
+  for (const auto& tv : ORCHARD_FF1_VECTORS) {
+    uint8_t actual[11];
+    ASSERT_TRUE(zcash_orchard_derive_diversifier(tv.dk, tv.index, actual));
+    EXPECT_TRUE(memcmp(actual, tv.diversifier, sizeof(actual)) == 0);
+    memzero(actual, sizeof(actual));
+  }
+}
+
+TEST(Zcash, OrchardDiversifier_DeterministicAndDistinct) {
+  const uint8_t index0[11] = {0};
+  const uint8_t index1[11] = {1};
+  uint8_t d0[11], d0_again[11], d1[11];
+
+  ASSERT_TRUE(zcash_orchard_derive_diversifier(ORCHARD_FF1_VECTORS[2].dk,
+                                               index0, d0));
+  ASSERT_TRUE(zcash_orchard_derive_diversifier(ORCHARD_FF1_VECTORS[2].dk,
+                                               index0, d0_again));
+  ASSERT_TRUE(zcash_orchard_derive_diversifier(ORCHARD_FF1_VECTORS[2].dk,
+                                               index1, d1));
+
+  EXPECT_TRUE(memcmp(d0, d0_again, sizeof(d0)) == 0);
+  EXPECT_TRUE(memcmp(d0, d1, sizeof(d0)) != 0);
+
+  memzero(d0, sizeof(d0));
+  memzero(d0_again, sizeof(d0_again));
+  memzero(d1, sizeof(d1));
 }
 
 /* ── Field Range Tests ───────────────────────────────────────────── */
