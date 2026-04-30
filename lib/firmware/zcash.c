@@ -19,14 +19,19 @@
 
 #include "keepkey/firmware/zcash.h"
 
+#include <stdlib.h>
 #include <string.h>
 
+#include "trezor/crypto/aes/aes.h"
 #include "trezor/crypto/bignum.h"
 #include "trezor/crypto/blake2b.h"
 #include "trezor/crypto/hasher.h"
 #include "trezor/crypto/memzero.h"
 #include "trezor/crypto/pallas.h"
+#include "trezor/crypto/pallas_sinsemilla.h"
+#include "trezor/crypto/pallas_swu.h"
 #include "trezor/crypto/redpallas.h"
+#include "trezor/crypto/zcash_zip316.h"
 
 /*
  * ZIP-32 Orchard key derivation.
@@ -169,6 +174,311 @@ static void to_base(const uint8_t input[64], uint8_t output[32]) {
 /* Hardened child index */
 #define ZIP32_HARDENED 0x80000000
 
+/*
+ * ZIP-32 Orchard diversifiers use FF1-AES256 over an 88-bit binary numeral
+ * string. Parameters are fixed by the Zcash protocol:
+ *
+ *   radix = 2, minlen = maxlen = n = 88, tweak = "", rounds = 10
+ *
+ * The input and output byte arrays are LEBS2OSP encodings of the 88-bit
+ * strings, but FF1's NUM/STR operations interpret each half in numeral-string
+ * order. Keep the bit-order conversion explicit to avoid silently turning this
+ * into a radix-256 construction, which would be a different permutation.
+ */
+#define ZCASH_FF1_BITS 88
+#define ZCASH_FF1_HALF_BITS 44
+#define ZCASH_FF1_MASK44 ((UINT64_C(1) << ZCASH_FF1_HALF_BITS) - 1)
+
+static uint8_t bit_get_le(const uint8_t* bytes, uint32_t bit) {
+  return (bytes[bit >> 3] >> (bit & 7)) & 1;
+}
+
+static void bit_set_le(uint8_t* bytes, uint32_t bit, uint8_t value) {
+  if (value) {
+    bytes[bit >> 3] |= (uint8_t)(1u << (bit & 7));
+  }
+}
+
+static uint64_t ff1_bits_to_num(const uint8_t bits[11], uint32_t offset,
+                                uint32_t len) {
+  uint64_t n = 0;
+  for (uint32_t i = 0; i < len; i++) {
+    n = (n << 1) | bit_get_le(bits, offset + i);
+  }
+  return n;
+}
+
+static void ff1_num_to_bits(uint64_t n, uint8_t bits[11], uint32_t offset,
+                            uint32_t len) {
+  for (uint32_t i = 0; i < len; i++) {
+    uint32_t shift = len - 1 - i;
+    bit_set_le(bits, offset + i, (uint8_t)((n >> shift) & 1));
+  }
+}
+
+static void ff1_store_be48(uint64_t n, uint8_t out[6]) {
+  for (int i = 5; i >= 0; i--) {
+    out[i] = (uint8_t)(n & 0xff);
+    n >>= 8;
+  }
+}
+
+static bool aes256_encrypt_block(const aes_encrypt_ctx* ctx,
+                                 const uint8_t in[16], uint8_t out[16]) {
+  return aes_encrypt(in, out, ctx) == EXIT_SUCCESS;
+}
+
+static bool ff1_round_y_mod_2_44(const aes_encrypt_ctx* ctx, uint8_t round,
+                                 uint64_t b, uint64_t* y_mod) {
+  static const uint8_t P[16] = {
+      0x01, 0x02, 0x01, 0x00, 0x00, 0x02, 0x0a, 0x2c,
+      0x00, 0x00, 0x00, 0x58, 0x00, 0x00, 0x00, 0x00,
+  };
+
+  uint8_t q[16] = {0};
+  uint8_t y[16];
+  uint8_t block[16];
+  uint8_t r[16];
+
+  /*
+   * Q = T || [0]^{(-t-b-1) mod 16} || [i]_1 || [NUM(B)]_b
+   * Here t = 0 and b = ceil(44 / 8) = 6, so padding is 9 bytes.
+   */
+  q[9] = round;
+  ff1_store_be48(b, q + 10);
+
+  /* PRF(P || Q) = CBC-MAC_AES(P || Q), IV = 0. */
+  if (!aes256_encrypt_block(ctx, P, y)) return false;
+  for (int i = 0; i < 16; i++) {
+    block[i] = y[i] ^ q[i];
+  }
+  if (!aes256_encrypt_block(ctx, block, r)) return false;
+
+  /*
+   * d = 4 * ceil(6 / 4) + 4 = 12, so S is the first 12 bytes of R.
+   * We only need NUM(S) modulo 2^44, i.e. the low 44 bits of R[0..11].
+   */
+  uint64_t low48 = 0;
+  for (int i = 6; i < 12; i++) {
+    low48 = (low48 << 8) | r[i];
+  }
+  *y_mod = low48 & ZCASH_FF1_MASK44;
+
+  memzero(q, sizeof(q));
+  memzero(y, sizeof(y));
+  memzero(block, sizeof(block));
+  memzero(r, sizeof(r));
+  return true;
+}
+
+bool zcash_orchard_derive_diversifier(const uint8_t dk[32],
+                                      const uint8_t index_le[11],
+                                      uint8_t diversifier_out[11]) {
+  if (!dk || !index_le || !diversifier_out) return false;
+
+  aes_encrypt_ctx ctx;
+  if (aes_encrypt_key256(dk, &ctx) != EXIT_SUCCESS) {
+    memzero(&ctx, sizeof(ctx));
+    return false;
+  }
+
+  uint64_t A =
+      ff1_bits_to_num(index_le, 0, ZCASH_FF1_HALF_BITS) & ZCASH_FF1_MASK44;
+  uint64_t B = ff1_bits_to_num(index_le, ZCASH_FF1_HALF_BITS,
+                               ZCASH_FF1_HALF_BITS) &
+               ZCASH_FF1_MASK44;
+
+  for (uint8_t round = 0; round < 10; round++) {
+    uint64_t y;
+    if (!ff1_round_y_mod_2_44(&ctx, round, B, &y)) {
+      memzero(&ctx, sizeof(ctx));
+      return false;
+    }
+    uint64_t C = (A + y) & ZCASH_FF1_MASK44;
+    A = B;
+    B = C;
+  }
+
+  memset(diversifier_out, 0, 11);
+  ff1_num_to_bits(A, diversifier_out, 0, ZCASH_FF1_HALF_BITS);
+  ff1_num_to_bits(B, diversifier_out, ZCASH_FF1_HALF_BITS,
+                  ZCASH_FF1_HALF_BITS);
+
+  memzero(&ctx, sizeof(ctx));
+  return true;
+}
+
+static bool orchard_diversify_point(const uint8_t diversifier[11],
+                                    curve_point* gd) {
+  if (!diversifier || !gd) return false;
+  static const char domain[] = "z.cash:Orchard-gd";
+
+  if (pallas_group_hash(domain, diversifier, 11, gd) != 0) {
+    return false;
+  }
+
+  if (pallas_point_is_identity(gd)) {
+    if (pallas_group_hash(domain, NULL, 0, gd) != 0 ||
+        pallas_point_is_identity(gd)) {
+      memzero(gd, sizeof(*gd));
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool zcash_orchard_diversify_hash(const uint8_t diversifier[11],
+                                  uint8_t gd_out[32]) {
+  if (!gd_out) return false;
+
+  curve_point gd;
+  if (!orchard_diversify_point(diversifier, &gd)) {
+    return false;
+  }
+
+  pallas_point_encode(&gd, gd_out);
+  memzero(&gd, sizeof(gd));
+  return true;
+}
+
+bool zcash_orchard_derive_transmission_key(const uint8_t ivk[32],
+                                           const uint8_t diversifier[11],
+                                           uint8_t gd_out[32],
+                                           uint8_t pkd_out[32]) {
+  if (!ivk || !pkd_out) return false;
+
+  bignum256 ivk_scalar;
+  bn_read_le(ivk, &ivk_scalar);
+  bn_normalize(&ivk_scalar);
+  if (bn_is_zero(&ivk_scalar) || !bn_is_less(&ivk_scalar, &pallas_prime)) {
+    memzero(&ivk_scalar, sizeof(ivk_scalar));
+    return false;
+  }
+
+  curve_point gd;
+  if (!orchard_diversify_point(diversifier, &gd)) {
+    memzero(&ivk_scalar, sizeof(ivk_scalar));
+    return false;
+  }
+
+  curve_point pkd;
+  pallas_point_mult(&ivk_scalar, &gd, &pkd);
+  if (pallas_point_is_identity(&pkd)) {
+    memzero(&ivk_scalar, sizeof(ivk_scalar));
+    memzero(&gd, sizeof(gd));
+    memzero(&pkd, sizeof(pkd));
+    return false;
+  }
+
+  if (gd_out) {
+    pallas_point_encode(&gd, gd_out);
+  }
+  pallas_point_encode(&pkd, pkd_out);
+
+  memzero(&ivk_scalar, sizeof(ivk_scalar));
+  memzero(&gd, sizeof(gd));
+  memzero(&pkd, sizeof(pkd));
+  return true;
+}
+
+bool zcash_orchard_derive_ivk(const uint8_t ak[32], const uint8_t nk[32],
+                              const uint8_t rivk[32], uint8_t ivk_out[32]) {
+  if (!ak || !nk || !rivk || !ivk_out) return false;
+  if ((ak[31] & 0x80) != 0) return false;
+
+  if (pallas_sinsemilla_commit_ivk(ak, nk, rivk, ivk_out) != 0) {
+    return false;
+  }
+
+  bignum256 ivk;
+  bn_read_le(ivk_out, &ivk);
+  bn_normalize(&ivk);
+  bool ok = !bn_is_zero(&ivk) && bn_is_less(&ivk, &pallas_prime);
+  memzero(&ivk, sizeof(ivk));
+  if (!ok) {
+    memzero(ivk_out, 32);
+  }
+  return ok;
+}
+
+bool zcash_orchard_derive_receiver(const uint8_t ak[32], const uint8_t nk[32],
+                                   const uint8_t rivk[32],
+                                   const uint8_t dk[32],
+                                   const uint8_t index_le[11],
+                                   uint8_t receiver_out[43]) {
+  if (!receiver_out) return false;
+
+  uint8_t diversifier[11];
+  uint8_t ivk[32];
+  uint8_t pkd[32];
+  bool ok = zcash_orchard_derive_diversifier(dk, index_le, diversifier) &&
+            zcash_orchard_derive_ivk(ak, nk, rivk, ivk) &&
+            zcash_orchard_derive_transmission_key(ivk, diversifier, NULL, pkd);
+
+  if (ok) {
+    memcpy(receiver_out, diversifier, sizeof(diversifier));
+    memcpy(receiver_out + sizeof(diversifier), pkd, sizeof(pkd));
+  } else {
+    memzero(receiver_out, 43);
+  }
+
+  memzero(diversifier, sizeof(diversifier));
+  memzero(ivk, sizeof(ivk));
+  memzero(pkd, sizeof(pkd));
+  return ok;
+}
+
+bool zcash_orchard_derive_unified_address(const ZcashOrchardKeys* keys,
+                                          const uint8_t index_le[11],
+                                          const char* hrp,
+                                          char* address_out,
+                                          size_t address_out_len) {
+  if (!keys || !index_le || !hrp || !address_out) return false;
+
+  bignum256 ask_scalar;
+  curve_point ak_point;
+  bignum256 ak_x;
+  uint8_t ak[32];
+  uint8_t receiver[43];
+
+  bn_read_le(keys->ask, &ask_scalar);
+  redpallas_scalar_mult_spendauth_G(&ask_scalar, &ak_point);
+  bn_copy(&ak_point.x, &ak_x);
+  bn_write_le(&ak_x, ak);
+
+  bool ok = zcash_orchard_derive_receiver(ak, keys->nk, keys->rivk, keys->dk,
+                                          index_le, receiver);
+  if (ok) {
+    ok = zcash_zip316_encode_orchard_unified_address(
+             hrp, receiver, address_out, address_out_len) == 0;
+  }
+  if (!ok && address_out_len > 0) {
+    address_out[0] = '\0';
+  }
+
+  memzero(&ask_scalar, sizeof(ask_scalar));
+  memzero(&ak_point, sizeof(ak_point));
+  memzero(&ak_x, sizeof(ak_x));
+  memzero(ak, sizeof(ak));
+  memzero(receiver, sizeof(receiver));
+  return ok;
+}
+
+bool zcash_derive_orchard_unified_address(
+    const uint8_t* seed, uint32_t seed_len, uint32_t account,
+    const uint8_t index_le[11], const char* hrp, char* address_out,
+    size_t address_out_len) {
+  if (!seed || !index_le || !hrp || !address_out) return false;
+
+  ZcashOrchardKeys keys;
+  bool ok = zcash_derive_orchard_keys(seed, seed_len, account, &keys) &&
+            zcash_orchard_derive_unified_address(
+                &keys, index_le, hrp, address_out, address_out_len);
+  memzero(&keys, sizeof(keys));
+  return ok;
+}
+
 bool zcash_derive_orchard_keys(const uint8_t* seed, uint32_t seed_len,
                                uint32_t account, ZcashOrchardKeys* keys) {
   uint8_t I[64];
@@ -225,6 +535,7 @@ bool zcash_derive_orchard_keys(const uint8_t* seed, uint32_t seed_len,
   uint8_t t_ask = 0x06;
   prf_expand(sk, &t_ask, 1, expanded);
   to_scalar(expanded, keys->ask);
+  uint8_t ak_bytes[32];
 
   /*
    * Zcash spec (§ 4.2.3): If [ask]*G_spendauth has odd y (ỹ = 1),
@@ -236,6 +547,9 @@ bool zcash_derive_orchard_keys(const uint8_t* seed, uint32_t seed_len,
     bn_read_le(keys->ask, &ask_test);
     curve_point ak_test;
     redpallas_scalar_mult_spendauth_G(&ask_test, &ak_test);
+    bignum256 ak_x;
+    bn_copy(&ak_test.x, &ak_x);
+    bn_write_le(&ak_x, ak_bytes);
     if (bn_is_odd(&ak_test.y)) {
       /* ask = order - ask (negate mod q) */
       bignum256 neg_ask;
@@ -263,6 +577,7 @@ bool zcash_derive_orchard_keys(const uint8_t* seed, uint32_t seed_len,
     }
     memzero(&ask_test, sizeof(ask_test));
     memzero(&ak_test, sizeof(ak_test));
+    memzero(&ak_x, sizeof(ak_x));
   }
 
   /* nk = ToBase(PRF^expand(sk, [0x07])) */
@@ -275,11 +590,24 @@ bool zcash_derive_orchard_keys(const uint8_t* seed, uint32_t seed_len,
   prf_expand(sk, &t_rivk, 1, expanded);
   to_scalar(expanded, keys->rivk);
 
+  /*
+   * dk = truncate_32(PRF^expand(rivk, [0x82] || I2LEOSP_256(ak)
+   *                                     || I2LEOSP_256(nk)))
+   */
+  uint8_t dk_input[1 + 32 + 32];
+  dk_input[0] = 0x82;
+  memcpy(dk_input + 1, ak_bytes, 32);
+  memcpy(dk_input + 33, keys->nk, 32);
+  prf_expand(keys->rivk, dk_input, sizeof(dk_input), expanded);
+  memcpy(keys->dk, expanded, 32);
+
   /* Clean up */
   memzero(I, sizeof(I));
   memzero(sk, sizeof(sk));
   memzero(chain_code, sizeof(chain_code));
   memzero(expanded, sizeof(expanded));
+  memzero(ak_bytes, sizeof(ak_bytes));
+  memzero(dk_input, sizeof(dk_input));
 
   return true;
 }

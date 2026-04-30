@@ -59,32 +59,71 @@ ported in C. The crates `orchard`, `pasta_curves`, `sinsemilla`, `f4jumble`,
 `fpe`, and `zcash_keys` are the reference implementations; they don't run
 here.
 
-What we already have:
+What we already have, verified against the active Trezor firmware crypto
+submodule at `deps/crypto/trezor-firmware` commit `376c64bcf`:
 
 - BLAKE2b (`deps/crypto/trezor-firmware/crypto/blake2b.{c,h}`)
-- AES (`deps/crypto/trezor-firmware/crypto/aes/`)
+- AES block cipher (`deps/crypto/trezor-firmware/crypto/aes/`)
 - Pallas curve arithmetic (`pallas.{c,h}`) — point ops, scalar mult, modular ops
 - RedPallas signatures (`redpallas.{c,h}`)
-- bech32 (used by Bitcoin / Cosmos paths) — but not bech32m yet
+- A hard-coded RedPallas SpendAuth basepoint, useful for `ak = [ask]G_spendauth`
+  but not a general `GroupHash^Pallas` implementation
+- Generic Bech32/Bech32m checksum support in
+  `deps/crypto/trezor-firmware/crypto/segwit_addr.{c,h}`. This still needs a
+  ZIP-316-specific wrapper and may need its BIP-173 90-character output guard
+  relaxed for UA strings.
 
-What we **don't** have and must build:
+What we **don't** have and must build or adapt:
 
 | Primitive | Source / spec | Approx C LOC | Risk |
 |---|---|---|---|
-| FF1-AES256 (NIST SP 800-38G) for diversifier derivation | NIST SP 800-38G; `fpe` Rust crate | ~300 | Medium — well-specified, but format-preserving encryption is fiddly |
+| FF1-AES256 (NIST SP 800-38G) for diversifier derivation | NIST SP 800-38G; `fpe` Rust crate | ~300 | Medium — AES exists, but FF1/FPE does not |
 | `expand_message_xmd_blake2b` | RFC 9380 §5.3.1 | ~80 | Low |
 | Pallas Simplified SWU map (`map_to_curve_simple_swu`) + isogeny | Pasta paper / Halo 2 reference | ~500 | High — algebraic, easy to get wrong, needs cross-vectors |
 | `GroupHash^Pallas` + `DiversifyHash^Orchard` | ZIP-32 §5.4.2.1 / Orchard book §5.4 | ~80 | Low (composition of above) |
 | Sinsemilla hash + commitment | Halo 2 spec §5.4.1.9; Orchard book §5.4 | ~500 | High — chunked commitment, easy off-by-one |
 | `Commit^ivk` (specifically `ivk = SinsemillaShortCommit("z.cash:Orchard-CommitIvk", ak ‖ nk; rivk)`) | Orchard book §5.4 | ~100 | Med |
 | F4Jumble (4-round Feistel-like permutation) | ZIP-316 §4.2 | ~150 | Low — well-specified |
-| Bech32m | BIP-350 | ~150 | Low |
+| ZIP-316 Bech32m adapter | BIP-350 / ZIP-316 | ~50 | Low — checksum exists, but UA sizing/padding glue does not |
 | ZIP-316 UA encoding (single-receiver, Orchard) | ZIP-316 §4 | ~150 | Low |
 | Cross-language test harness | — | ~500 | — |
 | **Subtotal — production primitives** | | **~2,500 LOC** | |
 
 This is conservative and excludes the FSM handler, layout code, proto changes,
 and unit tests for everything (probably another 1,500 LOC).
+
+First-pass feasibility conclusion: the Trezor firmware dependency gives us the
+generic base layer (BLAKE2b, AES, Pallas point/scalar arithmetic, RedPallas, and
+Bech32m), but it does not give us the Orchard unified-address derivation stack.
+There is no checked-in Trezor C implementation of FF1, Sinsemilla,
+`expand_message_xmd_blake2b`, Pallas SWU/isogeny, Orchard `GroupHash`, F4Jumble,
+or ZIP-316 UA assembly. Phase 2 therefore remains a real crypto port, not just
+wiring existing Trezor libraries together.
+
+### 3.1. Online library survey
+
+Surveyed 2026-04-30. The pattern is clear: only FF1 has a plausible C source
+to adapt. The rest should be treated as spec-driven C implementations with
+Rust upstreams used for goldens.
+
+| Needed primitive | Best upstream candidate | Language / license | Fit for KeepKey firmware | Estimated firmware LOC | Effect on plan |
+|---|---|---|---|---:|---|
+| FF1-AES256 for `d_j = FF1.Decrypt(dk, j)` | [`0NG/Format-Preserving-Encryption`](https://github.com/0NG/Format-Preserving-Encryption) | C / MIT | Useful algorithm reference, not drop-in. It depends on OpenSSL BIGNUM/AES; firmware should replace this with existing Trezor AES and a fixed-size radix-256 path for the 11-byte diversifier. | 300-500 | Reduces spec ambiguity, but does not avoid a port. Still needs NIST vectors and Orchard vectors. |
+| FF1 specification and test source | [NIST SP 800-38G Rev. 1 draft](https://csrc.nist.gov/pubs/sp/800/38/g/r1/2pd) | Spec | Normative source. NIST's 2025 draft keeps FF1, removes FF3, and disallows floating point. | 0 production / 50-100 tests | Hard requirement for validation. Also tells us not to port code that uses floating-point `log2` or general decimal FPE assumptions blindly. |
+| `expand_message_xmd_blake2b` | [RFC 9380](https://www.rfc-editor.org/rfc/rfc9380.html) | Spec | Directly implement against existing BLAKE2b. No C library needed. | 80-120 | Low-risk self-contained helper. |
+| Pallas Simplified SWU + isogeny | [`zcash/pasta_curves`](https://github.com/zcash/pasta_curves) / [docs.rs source](https://docs.rs/pasta_curves/latest/src/pasta_curves/pallas.rs.html) | Rust / MIT or Apache-2.0 | Authoritative reference and test-vector source only. No usable C port found. Existing KeepKey `pallas.{c,h}` gives field and point ops, but not SWU/isogeny. | 500-800 | Highest algebraic risk. Rust vectors are mandatory before using in address derivation. |
+| Orchard `GroupHash^Pallas` / `DiversifyHash` | [`zcash/orchard`](https://github.com/zcash/orchard) plus `pasta_curves` | Rust / MIT or Apache-2.0 | Composition layer over `expand_message_xmd_blake2b` and SWU/isogeny. No standalone C implementation found. | 80-150 | Small LOC, but correctness depends entirely on SWU/isogeny. |
+| Sinsemilla hash and commitment | [`zcash/sinsemilla`](https://github.com/zcash/sinsemilla) and Halo 2 Sinsemilla docs | Rust / MIT or Apache-2.0 | Reference only. No C implementation found. Needs fixed generators/constants and chunking rules ported carefully. | 700-1,200 | Main risk after SWU. Larger than the first estimate if constants/tables are checked in rather than generated. |
+| `Commit^ivk` / Orchard IVK | [`zcash/orchard`](https://github.com/zcash/orchard) | Rust / MIT or Apache-2.0 | Thin wrapper over Sinsemilla plus scalar handling. Not useful until Sinsemilla exists. | 100-180 | Medium risk; mostly test-vector coverage. |
+| F4Jumble | [`f4jumble` crate](https://docs.rs/f4jumble) / [ZIP-316](https://zips.z.cash/zip-0316) | Rust / MIT or Apache-2.0, spec MIT | Implement directly from ZIP-316 using existing BLAKE2b. No C library found; Rust crate is good for goldens. | 150-250 | Low-risk. Does not block crypto receiver derivation; needed for final `u1...` string. |
+| Bech32m for ZIP-316 strings | Existing Trezor `segwit_addr.{c,h}`; optional reference [`whitslack/libbech32`](https://github.com/whitslack/libbech32) | C / existing vendored license; libbech32 MIT-style | We already have Bech32m checksum support. Need ZIP-316 use that ignores BIP-173's 90-character cap, per ZIP-316. `libbech32` is useful only if we want a comparison implementation. | 50-120 | Reduces previous estimate: no new checksum implementation, only wrapper/length-policy work. |
+| ZIP-316 UA item assembly | [`zcash_address::unified`](https://docs.rs/zcash_address/latest/zcash_address/unified/index.html) / [ZIP-316](https://zips.z.cash/zip-0316) | Rust / MIT or Apache-2.0, spec MIT | Reference only. Implement compactSize item encoding for a single Orchard receiver, padding, F4Jumble, Bech32m. | 150-250 | Low-to-medium risk; mostly parser/encoding edge cases and exact HRP behavior. |
+
+Net effect: expected new production C stays roughly **2,100-3,500 LOC** before
+FSM/UI/proto/test glue. The best-case reduction from online libraries is mostly
+around Bech32m and FF1; there is no library discovery that changes the hard
+parts: SWU/isogeny and Sinsemilla still need first-party C ports verified
+byte-for-byte against upstream Rust.
 
 ## 4. Cryptographic recipe (the actual algorithm)
 
