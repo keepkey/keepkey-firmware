@@ -7,6 +7,7 @@ extern "C" {
 #include "trezor/crypto/pallas_sinsemilla.h"
 #include "trezor/crypto/pallas_swu.h"
 #include "trezor/crypto/redpallas.h"
+#include "trezor/crypto/zcash_zip316.h"
 }
 
 #include "gtest/gtest.h"
@@ -139,6 +140,47 @@ static const uint8_t SINSEMILLA_TWENTY_THREE_BITS_SHORT_COMMIT[32] = {
     0x21, 0x6f, 0x86, 0xb5, 0xba, 0xd0, 0xa4, 0xce,
     0x14, 0x8a, 0x5f, 0x1a, 0x8e, 0xae, 0xc0, 0x30,
     0x67, 0xae, 0xaa, 0x2c, 0x67, 0xdd, 0xc1, 0x0a,
+};
+
+/* F4Jumble vectors from f4jumble 0.1.1 / zcash-test-vectors. */
+static const uint8_t F4JUMBLE_48_NORMAL[48] = {
+    0x5d, 0x7a, 0x8f, 0x73, 0x9a, 0x2d, 0x9e, 0x94,
+    0x5b, 0x0c, 0xe1, 0x52, 0xa8, 0x04, 0x9e, 0x29,
+    0x4c, 0x4d, 0x6e, 0x66, 0xb1, 0x64, 0x93, 0x9d,
+    0xaf, 0xfa, 0x2e, 0xf6, 0xee, 0x69, 0x21, 0x48,
+    0x1c, 0xdd, 0x86, 0xb3, 0xcc, 0x43, 0x18, 0xd9,
+    0x61, 0x4f, 0xc8, 0x20, 0x90, 0x5d, 0x04, 0x2b,
+};
+
+static const uint8_t F4JUMBLE_48_JUMBLED[48] = {
+    0x03, 0x04, 0xd0, 0x29, 0x14, 0x1b, 0x99, 0x5d,
+    0xa5, 0x38, 0x7c, 0x12, 0x59, 0x70, 0x67, 0x35,
+    0x04, 0xd6, 0xc7, 0x64, 0xd9, 0x1e, 0xa6, 0xc0,
+    0x82, 0x12, 0x37, 0x70, 0xc7, 0x13, 0x9c, 0xcd,
+    0x88, 0xee, 0x27, 0x36, 0x8c, 0xd0, 0xc0, 0x92,
+    0x1a, 0x04, 0x44, 0xc8, 0xe5, 0x85, 0x8d, 0x22,
+};
+
+static const uint8_t F4JUMBLE_64_NORMAL[64] = {
+    0xb1, 0xef, 0x9c, 0xa3, 0xf2, 0x49, 0x88, 0xc7,
+    0xb3, 0x53, 0x42, 0x01, 0xcf, 0xb1, 0xcd, 0x8d,
+    0xbf, 0x69, 0xb8, 0x25, 0x0c, 0x18, 0xef, 0x41,
+    0x29, 0x4c, 0xa9, 0x79, 0x93, 0xdb, 0x54, 0x6c,
+    0x1f, 0xe0, 0x1f, 0x7e, 0x9c, 0x8e, 0x36, 0xd6,
+    0xa5, 0xe2, 0x9d, 0x4e, 0x30, 0xa7, 0x35, 0x94,
+    0xbf, 0x50, 0x98, 0x42, 0x1c, 0x69, 0x37, 0x8a,
+    0xf1, 0xe4, 0x0f, 0x64, 0xe1, 0x25, 0x94, 0x6f,
+};
+
+static const uint8_t F4JUMBLE_64_JUMBLED[64] = {
+    0x52, 0x71, 0xfa, 0x33, 0x21, 0xf3, 0xad, 0xbc,
+    0xfb, 0x07, 0x51, 0x96, 0x88, 0x3d, 0x54, 0x2b,
+    0x43, 0x8e, 0xc6, 0x33, 0x91, 0x76, 0x53, 0x7d,
+    0xaf, 0x85, 0x98, 0x41, 0xfe, 0x6a, 0x56, 0x22,
+    0x2b, 0xff, 0x76, 0xd1, 0x66, 0x2b, 0x55, 0x09,
+    0xa9, 0xe1, 0x07, 0x9e, 0x44, 0x6e, 0xee, 0xdd,
+    0x2e, 0x68, 0x3c, 0x31, 0xaa, 0xe3, 0xee, 0x18,
+    0x51, 0xd7, 0x95, 0x43, 0x28, 0x52, 0x6b, 0xe1,
 };
 
 /* Compare two 32-byte LE values: return -1 if a < b, 0 if equal, 1 if a > b */
@@ -565,6 +607,20 @@ static const OrchardReceiverAssemblyVector ORCHARD_RECEIVER_ASSEMBLY_VECTORS[] =
       0x62, 0x4f, 0x35}},
 };
 
+/* Orchard-only unified address vectors generated with zcash_address 0.10.1. */
+static const char ORCHARD_ONLY_UA_MAINNET_0[] =
+    "u1uzslnccvrw4r2y2kgjz7fm477xcnzge9z45scm4e6l6c63ren0ru29teedxw5vxu7c8xch"
+    "p3ec2pu3wkgldc5zphwtm4w3fchcwrl26c";
+static const char ORCHARD_ONLY_UA_TESTNET_0[] =
+    "utest1deyej6qvxfnewfhgdc987fgpq407u374vzvtvgjuv86vj0gs9tcej04hk7nr5msm5fzg"
+    "335j70mddjnqj48zjsj5zl2362w4zcd2ks8c";
+static const char ORCHARD_ONLY_UA_MAINNET_1[] =
+    "u19whtuck5ry2d53xa348ecvfgsudtk8vt2qexe9w50lzwkzxx3lxcn60ztjfe2m33e0jz4xd"
+    "4kxe3yhz65xq9jzvjcrtjrhvrf5mzat26";
+static const char ORCHARD_ONLY_UA_TESTNET_1[] =
+    "utest1ff5jzt4pr5hzgz8688052pjtq0plzk3va9hgssprp3ps2lluhy3u6ej7eh3njfgqp3"
+    "ar4lm8muxu352nmuqt2c5n92w4ngf44qwtjl0p";
+
 /* ── ZIP-32 Derivation Tests ─────────────────────────────────────── */
 
 TEST(Zcash, DeriveOrchardKeys_ReferenceVector_Account0) {
@@ -882,6 +938,88 @@ TEST(Zcash, SinsemillaPrimitives_RejectInvalidInputs) {
   memzero(&r, sizeof(r));
   memzero(&out, sizeof(out));
   memzero(&identity, sizeof(identity));
+}
+
+TEST(Zcash, Zip316F4Jumble_ReferenceVectors) {
+  uint8_t buf48[sizeof(F4JUMBLE_48_NORMAL)];
+  memcpy(buf48, F4JUMBLE_48_NORMAL, sizeof(buf48));
+  ASSERT_EQ(zcash_zip316_f4jumble(buf48, sizeof(buf48)), 0);
+  EXPECT_TRUE(memcmp(buf48, F4JUMBLE_48_JUMBLED, sizeof(buf48)) == 0);
+  ASSERT_EQ(zcash_zip316_f4jumble_inv(buf48, sizeof(buf48)), 0);
+  EXPECT_TRUE(memcmp(buf48, F4JUMBLE_48_NORMAL, sizeof(buf48)) == 0);
+
+  uint8_t buf64[sizeof(F4JUMBLE_64_NORMAL)];
+  memcpy(buf64, F4JUMBLE_64_NORMAL, sizeof(buf64));
+  ASSERT_EQ(zcash_zip316_f4jumble(buf64, sizeof(buf64)), 0);
+  EXPECT_TRUE(memcmp(buf64, F4JUMBLE_64_JUMBLED, sizeof(buf64)) == 0);
+  ASSERT_EQ(zcash_zip316_f4jumble_inv(buf64, sizeof(buf64)), 0);
+  EXPECT_TRUE(memcmp(buf64, F4JUMBLE_64_NORMAL, sizeof(buf64)) == 0);
+
+  memzero(buf48, sizeof(buf48));
+  memzero(buf64, sizeof(buf64));
+}
+
+TEST(Zcash, Zip316F4Jumble_RejectsInvalidLengths) {
+  uint8_t too_short[ZCASH_ZIP316_F4JUMBLE_MIN_LEN - 1] = {0};
+  EXPECT_EQ(zcash_zip316_f4jumble(too_short, sizeof(too_short)), -1);
+  EXPECT_EQ(zcash_zip316_f4jumble_inv(too_short, sizeof(too_short)), -1);
+  EXPECT_EQ(zcash_zip316_f4jumble(nullptr, ZCASH_ZIP316_F4JUMBLE_MIN_LEN),
+            -1);
+}
+
+TEST(Zcash, Zip316OrchardOnlyUnifiedAddress_ReferenceVectors) {
+  char address[ZCASH_ZIP316_ORCHARD_ONLY_MAX_ADDRESS_SIZE];
+
+  ASSERT_EQ(zcash_zip316_encode_orchard_unified_address(
+                "u", ORCHARD_RECEIVER_ASSEMBLY_VECTORS[0].receiver, address,
+                sizeof(address)),
+            0);
+  EXPECT_STREQ(address, ORCHARD_ONLY_UA_MAINNET_0);
+
+  ASSERT_EQ(zcash_zip316_encode_orchard_unified_address(
+                "utest", ORCHARD_RECEIVER_ASSEMBLY_VECTORS[0].receiver,
+                address, sizeof(address)),
+            0);
+  EXPECT_STREQ(address, ORCHARD_ONLY_UA_TESTNET_0);
+
+  ASSERT_EQ(zcash_zip316_encode_orchard_unified_address(
+                "u", ORCHARD_RECEIVER_ASSEMBLY_VECTORS[1].receiver, address,
+                sizeof(address)),
+            0);
+  EXPECT_STREQ(address, ORCHARD_ONLY_UA_MAINNET_1);
+
+  ASSERT_EQ(zcash_zip316_encode_orchard_unified_address(
+                "utest", ORCHARD_RECEIVER_ASSEMBLY_VECTORS[1].receiver,
+                address, sizeof(address)),
+            0);
+  EXPECT_STREQ(address, ORCHARD_ONLY_UA_TESTNET_1);
+
+  memzero(address, sizeof(address));
+}
+
+TEST(Zcash, Zip316OrchardOnlyUnifiedAddress_RejectsInvalidInputs) {
+  char address[ZCASH_ZIP316_ORCHARD_ONLY_MAX_ADDRESS_SIZE];
+  char too_small[16];
+  char long_hrp[ZCASH_ZIP316_PADDING_LEN + 2];
+  memset(long_hrp, 'a', sizeof(long_hrp) - 1);
+  long_hrp[sizeof(long_hrp) - 1] = 0;
+
+  EXPECT_EQ(zcash_zip316_encode_orchard_unified_address(
+                "u", ORCHARD_RECEIVER_ASSEMBLY_VECTORS[0].receiver,
+                too_small, sizeof(too_small)),
+            -1);
+  EXPECT_EQ(zcash_zip316_encode_orchard_unified_address(
+                long_hrp, ORCHARD_RECEIVER_ASSEMBLY_VECTORS[0].receiver,
+                address, sizeof(address)),
+            -1);
+  EXPECT_EQ(zcash_zip316_encode_orchard_unified_address(
+                "U", ORCHARD_RECEIVER_ASSEMBLY_VECTORS[0].receiver, address,
+                sizeof(address)),
+            -1);
+
+  memzero(address, sizeof(address));
+  memzero(too_small, sizeof(too_small));
+  memzero(long_hrp, sizeof(long_hrp));
 }
 
 TEST(Zcash, OrchardDiversifyHash_ReferenceVectors) {
