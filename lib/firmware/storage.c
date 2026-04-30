@@ -45,6 +45,7 @@
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/policy.h"
 #include "keepkey/firmware/u2f.h"
+#include "keepkey/firmware/zcash.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/transport/interface.h"
 #include "trezor/crypto/aes/aes.h"
@@ -1864,6 +1865,32 @@ const uint8_t* storage_getSeed(const ConfigFlash* cfg, bool usePassphrase) {
   }
 
   return NULL;
+}
+
+/* ── Zcash storage-scoped wrappers ───────────────────────────────────
+ *
+ * ZIP-32 Orchard derives keys directly from the raw 64-byte BIP-39 seed
+ * (not the BIP-32 master node). Rather than expose a generic
+ * "give me the seed" function, storage owns the seed access and only
+ * returns derived material — Orchard keys or the 32-byte fingerprint.
+ * The seed pointer never leaves this translation unit.
+ */
+
+bool storage_zcashOrchardKeys(uint32_t account, bool usePassphrase,
+                              ZcashOrchardKeys* keys_out) {
+  if (!keys_out) return false;
+  const uint8_t* seed = storage_getSeed(&shadow_config, usePassphrase);
+  if (!seed) return false;
+  animating_progress_handler(_("Deriving Zcash"), 250);
+  return zcash_derive_orchard_keys(seed, 64, account, keys_out);
+}
+
+bool storage_zcashSeedFingerprint(bool usePassphrase,
+                                  uint8_t fingerprint_out[32]) {
+  if (!fingerprint_out) return false;
+  const uint8_t* seed = storage_getSeed(&shadow_config, usePassphrase);
+  if (!seed) return false;
+  return zcash_calculate_seed_fingerprint(seed, 64, fingerprint_out);
 }
 
 bool storage_getRootNode(const char* curve, bool usePassphrase, HDNode* node) {

@@ -1,0 +1,676 @@
+/*
+ * This file is part of the KeepKey project.
+ *
+ * Copyright (C) 2025 KeepKey
+ *
+ * This library is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include "keepkey/firmware/zcash.h"
+
+#include <stdlib.h>
+#include <string.h>
+
+#include "trezor/crypto/aes/aes.h"
+#include "trezor/crypto/bignum.h"
+#include "trezor/crypto/blake2b.h"
+#include "trezor/crypto/hasher.h"
+#include "trezor/crypto/memzero.h"
+#include "trezor/crypto/pallas.h"
+#include "trezor/crypto/pallas_sinsemilla.h"
+#include "trezor/crypto/pallas_swu.h"
+#include "trezor/crypto/redpallas.h"
+#include "trezor/crypto/zcash_zip316.h"
+
+/*
+ * ZIP-32 Orchard key derivation.
+ *
+ * Master key:
+ *   I = BLAKE2b-512("ZcashIP32Orchard", seed)
+ *   sk = I[0..32], chain_code = I[32..64]
+ *
+ * Child derivation (hardened only):
+ *   I = BLAKE2b-512("ZcashIP32Orchard", chain_code,
+ *                    0x11 || sk || i_be)
+ *   where 0x11 indicates hardened derivation with Orchard,
+ *   and i_be is the 4-byte big-endian child index with the hardened bit set.
+ *
+ * From the spending key sk, subkeys are derived using PRF^expand:
+ *   PRF^expand(sk, t) = BLAKE2b-512("Zcash_ExpandSeed", sk || t)
+ *
+ *   ask  = ToScalar(PRF^expand(sk, [0x06]))
+ *   nk   = ToBase(PRF^expand(sk, [0x07]))
+ *   rivk = ToScalar(PRF^expand(sk, [0x08]))
+ *
+ * ToScalar: interpret 64 bytes as LE integer, reduce mod order
+ * ToBase: interpret 64 bytes as LE integer, reduce mod prime
+ */
+
+/*
+ * BLAKE2b-512 with personalization "ZcashIP32Orchard" — master key only.
+ * Used for: I = BLAKE2b-512("ZcashIP32Orchard", seed)
+ * NOT used for child derivation (which uses PRF^expand).
+ */
+static void zip32_orchard_master(const uint8_t* seed, size_t seed_len,
+                                 uint8_t out[64]) {
+  BLAKE2B_CTX ctx;
+  blake2b_InitPersonal(&ctx, 64, "ZcashIP32Orchard", 16);
+  blake2b_Update(&ctx, seed, seed_len);
+  blake2b_Final(&ctx, out, 64);
+}
+
+/* PRF^expand(sk, t) = BLAKE2b-512("Zcash_ExpandSeed", sk || t) */
+static void prf_expand(const uint8_t sk[32], const uint8_t* t, size_t t_len,
+                       uint8_t out[64]) {
+  BLAKE2B_CTX ctx;
+  blake2b_InitPersonal(&ctx, 64, "Zcash_ExpandSeed", 16);
+  blake2b_Update(&ctx, sk, 32);
+  blake2b_Update(&ctx, t, t_len);
+  blake2b_Final(&ctx, out, 64);
+}
+
+/*
+ * 2^256 mod q (Pallas scalar field order), little-endian.
+ * q = 0x40000000000000000000000000000000224698fc0994a8dd8c46eb2100000001
+ * R = 0x3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF992C350BE34205675B2B3E9CFFFFFFFD
+ * Verified: R + 3*q == 2^256.
+ */
+static const uint8_t two_256_mod_q[32] = {
+    0xfd, 0xff, 0xff, 0xff, 0x9c, 0x3e, 0x2b, 0x5b, 0x67, 0x05, 0x42,
+    0xe3, 0x0b, 0x35, 0x2c, 0x99, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x3f,
+};
+
+/*
+ * 2^256 mod p (Pallas base field prime), little-endian.
+ * p = 0x40000000000000000000000000000000224698fc094cf91b992d30ed00000001
+ * R = 0x3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF992C350BE41914AD34786D38FFFFFFFD
+ * Verified: R + 3*p == 2^256.
+ */
+static const uint8_t two_256_mod_p[32] = {
+    0xfd, 0xff, 0xff, 0xff, 0x38, 0x6d, 0x78, 0x34, 0xad, 0x14, 0x19,
+    0xe4, 0x0b, 0x35, 0x2c, 0x99, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x3f,
+};
+
+/*
+ * ToScalar: reduce a 512-bit LE integer mod Pallas scalar order.
+ *
+ * Uses wide reduction matching the orchard crate's from_uniform_bytes:
+ *   result = (lo + hi * 2^256) mod q
+ * where lo = input[0..31], hi = input[32..63] (little-endian).
+ */
+static void to_scalar(const uint8_t input[64], uint8_t output[32]) {
+  bignum256 lo, hi, t256, result;
+
+  bn_read_le(input, &lo);
+  pallas_mod_q(&lo);
+
+  bn_read_le(input + 32, &hi);
+  pallas_mod_q(&hi);
+
+  bn_read_le(two_256_mod_q, &t256);
+
+  /* result = hi * (2^256 mod q) mod q */
+  bn_copy(&hi, &result);
+  pallas_mul_mod_q(&result, &t256);
+
+  /* result = result + lo mod q */
+  pallas_add_mod_q(&result, &lo);
+
+  bn_write_le(&result, output);
+
+  memzero(&lo, sizeof(lo));
+  memzero(&hi, sizeof(hi));
+  memzero(&result, sizeof(result));
+}
+
+/*
+ * ToBase: reduce a 512-bit LE integer mod Pallas base field prime.
+ *
+ * Uses wide reduction:
+ *   result = (lo + hi * 2^256) mod p
+ * where lo = input[0..31], hi = input[32..63] (little-endian).
+ */
+static void to_base(const uint8_t input[64], uint8_t output[32]) {
+  bignum256 lo, hi, t256, result;
+
+  bn_read_le(input, &lo);
+  pallas_mod_p(&lo);
+
+  bn_read_le(input + 32, &hi);
+  pallas_mod_p(&hi);
+
+  bn_read_le(two_256_mod_p, &t256);
+
+  /* result = hi * (2^256 mod p) mod p */
+  bn_copy(&hi, &result);
+  pallas_mul_mod_p(&result, &t256);
+
+  /* result = result + lo mod p */
+  bignum256 sum;
+  pallas_add_mod_p(&result, &lo, &sum);
+  bn_copy(&sum, &result);
+  memzero(&sum, sizeof(sum));
+
+  bn_write_le(&result, output);
+
+  memzero(&lo, sizeof(lo));
+  memzero(&hi, sizeof(hi));
+  memzero(&result, sizeof(result));
+}
+
+/* Hardened child index */
+#define ZIP32_HARDENED 0x80000000
+
+/*
+ * ZIP-32 Orchard diversifiers use FF1-AES256 over an 88-bit binary numeral
+ * string. Parameters are fixed by the Zcash protocol:
+ *
+ *   radix = 2, minlen = maxlen = n = 88, tweak = "", rounds = 10
+ *
+ * The input and output byte arrays are LEBS2OSP encodings of the 88-bit
+ * strings, but FF1's NUM/STR operations interpret each half in numeral-string
+ * order. Keep the bit-order conversion explicit to avoid silently turning this
+ * into a radix-256 construction, which would be a different permutation.
+ */
+#define ZCASH_FF1_BITS 88
+#define ZCASH_FF1_HALF_BITS 44
+#define ZCASH_FF1_MASK44 ((UINT64_C(1) << ZCASH_FF1_HALF_BITS) - 1)
+
+static uint8_t bit_get_le(const uint8_t* bytes, uint32_t bit) {
+  return (bytes[bit >> 3] >> (bit & 7)) & 1;
+}
+
+static void bit_set_le(uint8_t* bytes, uint32_t bit, uint8_t value) {
+  if (value) {
+    bytes[bit >> 3] |= (uint8_t)(1u << (bit & 7));
+  }
+}
+
+static uint64_t ff1_bits_to_num(const uint8_t bits[11], uint32_t offset,
+                                uint32_t len) {
+  uint64_t n = 0;
+  for (uint32_t i = 0; i < len; i++) {
+    n = (n << 1) | bit_get_le(bits, offset + i);
+  }
+  return n;
+}
+
+static void ff1_num_to_bits(uint64_t n, uint8_t bits[11], uint32_t offset,
+                            uint32_t len) {
+  for (uint32_t i = 0; i < len; i++) {
+    uint32_t shift = len - 1 - i;
+    bit_set_le(bits, offset + i, (uint8_t)((n >> shift) & 1));
+  }
+}
+
+static void ff1_store_be48(uint64_t n, uint8_t out[6]) {
+  for (int i = 5; i >= 0; i--) {
+    out[i] = (uint8_t)(n & 0xff);
+    n >>= 8;
+  }
+}
+
+static bool aes256_encrypt_block(const aes_encrypt_ctx* ctx,
+                                 const uint8_t in[16], uint8_t out[16]) {
+  return aes_encrypt(in, out, ctx) == EXIT_SUCCESS;
+}
+
+static bool ff1_round_y_mod_2_44(const aes_encrypt_ctx* ctx, uint8_t round,
+                                 uint64_t b, uint64_t* y_mod) {
+  static const uint8_t P[16] = {
+      0x01, 0x02, 0x01, 0x00, 0x00, 0x02, 0x0a, 0x2c,
+      0x00, 0x00, 0x00, 0x58, 0x00, 0x00, 0x00, 0x00,
+  };
+
+  uint8_t q[16] = {0};
+  uint8_t y[16];
+  uint8_t block[16];
+  uint8_t r[16];
+
+  /*
+   * Q = T || [0]^{(-t-b-1) mod 16} || [i]_1 || [NUM(B)]_b
+   * Here t = 0 and b = ceil(44 / 8) = 6, so padding is 9 bytes.
+   */
+  q[9] = round;
+  ff1_store_be48(b, q + 10);
+
+  /* PRF(P || Q) = CBC-MAC_AES(P || Q), IV = 0. */
+  if (!aes256_encrypt_block(ctx, P, y)) return false;
+  for (int i = 0; i < 16; i++) {
+    block[i] = y[i] ^ q[i];
+  }
+  if (!aes256_encrypt_block(ctx, block, r)) return false;
+
+  /*
+   * d = 4 * ceil(6 / 4) + 4 = 12, so S is the first 12 bytes of R.
+   * We only need NUM(S) modulo 2^44, i.e. the low 44 bits of R[0..11].
+   */
+  uint64_t low48 = 0;
+  for (int i = 6; i < 12; i++) {
+    low48 = (low48 << 8) | r[i];
+  }
+  *y_mod = low48 & ZCASH_FF1_MASK44;
+
+  memzero(q, sizeof(q));
+  memzero(y, sizeof(y));
+  memzero(block, sizeof(block));
+  memzero(r, sizeof(r));
+  return true;
+}
+
+bool zcash_orchard_derive_diversifier(const uint8_t dk[32],
+                                      const uint8_t index_le[11],
+                                      uint8_t diversifier_out[11]) {
+  if (!dk || !index_le || !diversifier_out) return false;
+
+  aes_encrypt_ctx ctx;
+  if (aes_encrypt_key256(dk, &ctx) != EXIT_SUCCESS) {
+    memzero(&ctx, sizeof(ctx));
+    return false;
+  }
+
+  uint64_t A =
+      ff1_bits_to_num(index_le, 0, ZCASH_FF1_HALF_BITS) & ZCASH_FF1_MASK44;
+  uint64_t B =
+      ff1_bits_to_num(index_le, ZCASH_FF1_HALF_BITS, ZCASH_FF1_HALF_BITS) &
+      ZCASH_FF1_MASK44;
+
+  for (uint8_t round = 0; round < 10; round++) {
+    uint64_t y;
+    if (!ff1_round_y_mod_2_44(&ctx, round, B, &y)) {
+      memzero(&ctx, sizeof(ctx));
+      return false;
+    }
+    uint64_t C = (A + y) & ZCASH_FF1_MASK44;
+    A = B;
+    B = C;
+  }
+
+  memset(diversifier_out, 0, 11);
+  ff1_num_to_bits(A, diversifier_out, 0, ZCASH_FF1_HALF_BITS);
+  ff1_num_to_bits(B, diversifier_out, ZCASH_FF1_HALF_BITS, ZCASH_FF1_HALF_BITS);
+
+  memzero(&ctx, sizeof(ctx));
+  return true;
+}
+
+static bool orchard_diversify_point(const uint8_t diversifier[11],
+                                    curve_point* gd) {
+  if (!diversifier || !gd) return false;
+  static const char domain[] = "z.cash:Orchard-gd";
+
+  if (pallas_group_hash(domain, diversifier, 11, gd) != 0) {
+    return false;
+  }
+
+  if (pallas_point_is_identity(gd)) {
+    if (pallas_group_hash(domain, NULL, 0, gd) != 0 ||
+        pallas_point_is_identity(gd)) {
+      memzero(gd, sizeof(*gd));
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool zcash_orchard_diversify_hash(const uint8_t diversifier[11],
+                                  uint8_t gd_out[32]) {
+  if (!gd_out) return false;
+
+  curve_point gd;
+  if (!orchard_diversify_point(diversifier, &gd)) {
+    return false;
+  }
+
+  pallas_point_encode(&gd, gd_out);
+  memzero(&gd, sizeof(gd));
+  return true;
+}
+
+bool zcash_orchard_derive_transmission_key(const uint8_t ivk[32],
+                                           const uint8_t diversifier[11],
+                                           uint8_t gd_out[32],
+                                           uint8_t pkd_out[32]) {
+  if (!ivk || !pkd_out) return false;
+
+  bignum256 ivk_scalar;
+  bn_read_le(ivk, &ivk_scalar);
+  bn_normalize(&ivk_scalar);
+  if (bn_is_zero(&ivk_scalar) || !bn_is_less(&ivk_scalar, &pallas_prime)) {
+    memzero(&ivk_scalar, sizeof(ivk_scalar));
+    return false;
+  }
+
+  curve_point gd;
+  if (!orchard_diversify_point(diversifier, &gd)) {
+    memzero(&ivk_scalar, sizeof(ivk_scalar));
+    return false;
+  }
+
+  curve_point pkd;
+  pallas_point_mult(&ivk_scalar, &gd, &pkd);
+  if (pallas_point_is_identity(&pkd)) {
+    memzero(&ivk_scalar, sizeof(ivk_scalar));
+    memzero(&gd, sizeof(gd));
+    memzero(&pkd, sizeof(pkd));
+    return false;
+  }
+
+  if (gd_out) {
+    pallas_point_encode(&gd, gd_out);
+  }
+  pallas_point_encode(&pkd, pkd_out);
+
+  memzero(&ivk_scalar, sizeof(ivk_scalar));
+  memzero(&gd, sizeof(gd));
+  memzero(&pkd, sizeof(pkd));
+  return true;
+}
+
+bool zcash_orchard_derive_ivk(const uint8_t ak[32], const uint8_t nk[32],
+                              const uint8_t rivk[32], uint8_t ivk_out[32]) {
+  if (!ak || !nk || !rivk || !ivk_out) return false;
+  if ((ak[31] & 0x80) != 0) return false;
+
+  if (pallas_sinsemilla_commit_ivk(ak, nk, rivk, ivk_out) != 0) {
+    return false;
+  }
+
+  bignum256 ivk;
+  bn_read_le(ivk_out, &ivk);
+  bn_normalize(&ivk);
+  bool ok = !bn_is_zero(&ivk) && bn_is_less(&ivk, &pallas_prime);
+  memzero(&ivk, sizeof(ivk));
+  if (!ok) {
+    memzero(ivk_out, 32);
+  }
+  return ok;
+}
+
+bool zcash_orchard_derive_receiver(const uint8_t ak[32], const uint8_t nk[32],
+                                   const uint8_t rivk[32], const uint8_t dk[32],
+                                   const uint8_t index_le[11],
+                                   uint8_t receiver_out[43]) {
+  if (!receiver_out) return false;
+
+  uint8_t diversifier[11];
+  uint8_t ivk[32];
+  uint8_t pkd[32];
+  bool ok = zcash_orchard_derive_diversifier(dk, index_le, diversifier) &&
+            zcash_orchard_derive_ivk(ak, nk, rivk, ivk) &&
+            zcash_orchard_derive_transmission_key(ivk, diversifier, NULL, pkd);
+
+  if (ok) {
+    memcpy(receiver_out, diversifier, sizeof(diversifier));
+    memcpy(receiver_out + sizeof(diversifier), pkd, sizeof(pkd));
+  } else {
+    memzero(receiver_out, 43);
+  }
+
+  memzero(diversifier, sizeof(diversifier));
+  memzero(ivk, sizeof(ivk));
+  memzero(pkd, sizeof(pkd));
+  return ok;
+}
+
+bool zcash_orchard_derive_unified_address(const ZcashOrchardKeys* keys,
+                                          const uint8_t index_le[11],
+                                          const char* hrp, char* address_out,
+                                          size_t address_out_len) {
+  if (!keys || !index_le || !hrp || !address_out) return false;
+
+  bignum256 ask_scalar;
+  curve_point ak_point;
+  bignum256 ak_x;
+  uint8_t ak[32];
+  uint8_t receiver[43];
+
+  bn_read_le(keys->ask, &ask_scalar);
+  redpallas_scalar_mult_spendauth_G(&ask_scalar, &ak_point);
+  bn_copy(&ak_point.x, &ak_x);
+  bn_write_le(&ak_x, ak);
+
+  bool ok = zcash_orchard_derive_receiver(ak, keys->nk, keys->rivk, keys->dk,
+                                          index_le, receiver);
+  if (ok) {
+    ok = zcash_zip316_encode_orchard_unified_address(hrp, receiver, address_out,
+                                                     address_out_len) == 0;
+  }
+  if (!ok && address_out_len > 0) {
+    address_out[0] = '\0';
+  }
+
+  memzero(&ask_scalar, sizeof(ask_scalar));
+  memzero(&ak_point, sizeof(ak_point));
+  memzero(&ak_x, sizeof(ak_x));
+  memzero(ak, sizeof(ak));
+  memzero(receiver, sizeof(receiver));
+  return ok;
+}
+
+bool zcash_derive_orchard_unified_address(const uint8_t* seed,
+                                          uint32_t seed_len, uint32_t account,
+                                          const uint8_t index_le[11],
+                                          const char* hrp, char* address_out,
+                                          size_t address_out_len) {
+  if (!seed || !index_le || !hrp || !address_out) return false;
+
+  ZcashOrchardKeys keys;
+  bool ok = zcash_derive_orchard_keys(seed, seed_len, account, &keys) &&
+            zcash_orchard_derive_unified_address(&keys, index_le, hrp,
+                                                 address_out, address_out_len);
+  memzero(&keys, sizeof(keys));
+  return ok;
+}
+
+bool zcash_derive_orchard_keys(const uint8_t* seed, uint32_t seed_len,
+                               uint32_t account, ZcashOrchardKeys* keys) {
+  uint8_t I[64];
+  uint8_t sk[32], chain_code[32];
+
+  /* Step 1: Master key from seed
+   * I = BLAKE2b-512("ZcashIP32Orchard", seed) */
+  zip32_orchard_master(seed, seed_len, I);
+  memcpy(sk, I, 32);
+  memcpy(chain_code, I + 32, 32);
+
+  /* Step 2: Derive path m_orchard / 32' / 133' / account'
+   *
+   * CKDOrchard child derivation (ZIP-32 hardened-only):
+   *   I = PRF^expand(chain_code, [0x81] || sk || I2LEOSP32(index))
+   *
+   * PRF^expand(sk, t) = BLAKE2b-512("Zcash_ExpandSeed", sk || t)
+   *
+   * So: I = BLAKE2b-512("Zcash_ExpandSeed",
+   *           chain_code || 0x81 || sk || index_le)
+   */
+  const uint32_t path[3] = {
+      32 | ZIP32_HARDENED,     /* Purpose (Orchard) */
+      133 | ZIP32_HARDENED,    /* Coin type (Zcash) */
+      account | ZIP32_HARDENED /* Account */
+  };
+
+  for (int i = 0; i < 3; i++) {
+    /* Build PRF^expand input: [0x81] || sk || I2LEOSP32(index) */
+    uint8_t child_input[1 + 32 + 4];
+    child_input[0] = 0x81; /* ORCHARD_ZIP32_CHILD domain separator */
+    memcpy(child_input + 1, sk, 32);
+    /* Little-endian index (I2LEOSP32) */
+    uint32_t idx = path[i];
+    child_input[33] = idx & 0xff;
+    child_input[34] = (idx >> 8) & 0xff;
+    child_input[35] = (idx >> 16) & 0xff;
+    child_input[36] = (idx >> 24) & 0xff;
+
+    /* PRF^expand(chain_code, child_input) */
+    prf_expand(chain_code, child_input, sizeof(child_input), I);
+    memcpy(sk, I, 32);
+    memcpy(chain_code, I + 32, 32);
+
+    memzero(child_input, sizeof(child_input));
+  }
+
+  /* Step 3: Derive subkeys from final spending key */
+  memcpy(keys->sk, sk, 32);
+
+  uint8_t expanded[64];
+
+  /* ask = ToScalar(PRF^expand(sk, [0x06])) */
+  uint8_t t_ask = 0x06;
+  prf_expand(sk, &t_ask, 1, expanded);
+  to_scalar(expanded, keys->ask);
+  uint8_t ak_bytes[32];
+
+  /*
+   * Zcash spec (§ 4.2.3): If [ask]*G_spendauth has odd y (ỹ = 1),
+   * negate ask so that the resulting ak always has ỹ = 0.
+   * This matches the orchard crate's SpendAuthorizingKey::from() behavior.
+   */
+  {
+    bignum256 ask_test;
+    bn_read_le(keys->ask, &ask_test);
+    curve_point ak_test;
+    redpallas_scalar_mult_spendauth_G(&ask_test, &ak_test);
+    bignum256 ak_x;
+    bn_copy(&ak_test.x, &ak_x);
+    bn_write_le(&ak_x, ak_bytes);
+    if (bn_is_odd(&ak_test.y)) {
+      /* ask = order - ask (negate mod q) */
+      bignum256 neg_ask;
+      bn_copy(&pallas_order, &neg_ask);
+      bignum256 ask_val;
+      bn_read_le(keys->ask, &ask_val);
+      bn_normalize(&ask_val);
+      bn_normalize(&neg_ask);
+      /* neg_ask = order - ask */
+      int32_t borrow = 0;
+      for (int i = 0; i < 9; i++) {
+        int32_t diff =
+            (int32_t)neg_ask.val[i] - (int32_t)ask_val.val[i] + borrow;
+        if (diff < 0) {
+          diff += (1 << 29);
+          borrow = -1;
+        } else {
+          borrow = 0;
+        }
+        neg_ask.val[i] = (uint32_t)diff;
+      }
+      bn_write_le(&neg_ask, keys->ask);
+      memzero(&neg_ask, sizeof(neg_ask));
+      memzero(&ask_val, sizeof(ask_val));
+    }
+    memzero(&ask_test, sizeof(ask_test));
+    memzero(&ak_test, sizeof(ak_test));
+    memzero(&ak_x, sizeof(ak_x));
+  }
+
+  /* nk = ToBase(PRF^expand(sk, [0x07])) */
+  uint8_t t_nk = 0x07;
+  prf_expand(sk, &t_nk, 1, expanded);
+  to_base(expanded, keys->nk);
+
+  /* rivk = ToScalar(PRF^expand(sk, [0x08])) */
+  uint8_t t_rivk = 0x08;
+  prf_expand(sk, &t_rivk, 1, expanded);
+  to_scalar(expanded, keys->rivk);
+
+  /*
+   * dk = truncate_32(PRF^expand(rivk, [0x82] || I2LEOSP_256(ak)
+   *                                     || I2LEOSP_256(nk)))
+   */
+  uint8_t dk_input[1 + 32 + 32];
+  dk_input[0] = 0x82;
+  memcpy(dk_input + 1, ak_bytes, 32);
+  memcpy(dk_input + 33, keys->nk, 32);
+  prf_expand(keys->rivk, dk_input, sizeof(dk_input), expanded);
+  memcpy(keys->dk, expanded, 32);
+
+  /* Clean up */
+  memzero(I, sizeof(I));
+  memzero(sk, sizeof(sk));
+  memzero(chain_code, sizeof(chain_code));
+  memzero(expanded, sizeof(expanded));
+  memzero(ak_bytes, sizeof(ak_bytes));
+  memzero(dk_input, sizeof(dk_input));
+
+  return true;
+}
+
+bool zcash_compute_shielded_sighash(const uint8_t header_digest[32],
+                                    const uint8_t transparent_digest[32],
+                                    const uint8_t sapling_digest[32],
+                                    const uint8_t orchard_digest[32],
+                                    uint32_t branch_id,
+                                    uint8_t sighash_out[32]) {
+  Hasher h;
+  uint8_t personal[16];
+
+  memcpy(personal, "ZcashTxHash_", 12);
+  memcpy(personal + 12, &branch_id, 4);
+
+  hasher_InitParam(&h, HASHER_BLAKE2B_PERSONAL, personal, 16);
+  hasher_Update(&h, header_digest, 32);
+  hasher_Update(&h, transparent_digest, 32);
+  hasher_Update(&h, sapling_digest, 32);
+  hasher_Update(&h, orchard_digest, 32);
+  hasher_Final(&h, sighash_out);
+
+  return true;
+}
+
+/*
+ * ZIP-32 §6.1 seed fingerprint:
+ *
+ *   SeedFingerprint := BLAKE2b-256(
+ *     "Zcash_HD_Seed_FP", I2LEBSP_8(len(seed)) || seed)
+ *
+ * The 1-byte length prefix domain-separates seeds of different lengths that
+ * happen to share a prefix.
+ *
+ * Trivial seeds (all-zero, all-0xFF) and seeds outside [32, 252] bytes are
+ * rejected — these are nominally seeds but provide no security and are
+ * almost certainly bugs in the caller.
+ */
+bool zcash_calculate_seed_fingerprint(const uint8_t* seed, uint32_t seed_len,
+                                      uint8_t fingerprint_out[32]) {
+  if (!seed || !fingerprint_out) return false;
+  if (seed_len < 32 || seed_len > 252) return false;
+
+  bool all_zero = true;
+  bool all_ff = true;
+  for (uint32_t i = 0; i < seed_len; i++) {
+    if (seed[i] != 0x00) all_zero = false;
+    if (seed[i] != 0xFF) all_ff = false;
+    if (!all_zero && !all_ff) break;
+  }
+  if (all_zero || all_ff) return false;
+
+  BLAKE2B_CTX ctx;
+  if (blake2b_InitPersonal(&ctx, 32, "Zcash_HD_Seed_FP", 16) != 0) {
+    return false;
+  }
+  uint8_t len_byte = (uint8_t)seed_len;
+  blake2b_Update(&ctx, &len_byte, 1);
+  blake2b_Update(&ctx, seed, seed_len);
+  if (blake2b_Final(&ctx, fingerprint_out, 32) != 0) {
+    memzero(&ctx, sizeof(ctx));
+    return false;
+  }
+
+  memzero(&ctx, sizeof(ctx));
+  return true;
+}

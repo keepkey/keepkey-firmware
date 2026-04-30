@@ -37,6 +37,7 @@ set(sources
     storage.c
     tron.c
     ton.c
+    zcash.c
     tendermint.c
     thorchain.c
     tiny-json.c
