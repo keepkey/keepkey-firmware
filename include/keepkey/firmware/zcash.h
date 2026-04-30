@@ -95,6 +95,21 @@ bool zcash_orchard_derive_diversifier(const uint8_t dk[32],
                                       uint8_t diversifier_out[11]);
 
 /**
+ * Compute DiversifyHash^Orchard(d) as a serialized Pallas point.
+ *
+ *   g_d = GroupHash^Pallas("z.cash:Orchard-gd", d)
+ *
+ * If the group hash ever returns the identity, Orchard falls back to hashing
+ * the empty message under the same domain.
+ *
+ * @param diversifier 11-byte Orchard diversifier
+ * @param gd_out      32-byte compressed Pallas point
+ * @return true on success
+ */
+bool zcash_orchard_diversify_hash(const uint8_t diversifier[11],
+                                  uint8_t gd_out[32]);
+
+/**
  * Compute the ZIP-32 §6.1 seed fingerprint.
  *
  *   SeedFingerprint := BLAKE2b-256(

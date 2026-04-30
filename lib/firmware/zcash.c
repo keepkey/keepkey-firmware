@@ -28,6 +28,7 @@
 #include "trezor/crypto/hasher.h"
 #include "trezor/crypto/memzero.h"
 #include "trezor/crypto/pallas.h"
+#include "trezor/crypto/pallas_swu.h"
 #include "trezor/crypto/redpallas.h"
 
 /*
@@ -302,6 +303,29 @@ bool zcash_orchard_derive_diversifier(const uint8_t dk[32],
                   ZCASH_FF1_HALF_BITS);
 
   memzero(&ctx, sizeof(ctx));
+  return true;
+}
+
+bool zcash_orchard_diversify_hash(const uint8_t diversifier[11],
+                                  uint8_t gd_out[32]) {
+  if (!diversifier || !gd_out) return false;
+
+  static const char domain[] = "z.cash:Orchard-gd";
+  curve_point gd;
+  if (pallas_group_hash(domain, diversifier, 11, &gd) != 0) {
+    return false;
+  }
+
+  if (pallas_point_is_identity(&gd)) {
+    if (pallas_group_hash(domain, NULL, 0, &gd) != 0 ||
+        pallas_point_is_identity(&gd)) {
+      memzero(&gd, sizeof(gd));
+      return false;
+    }
+  }
+
+  pallas_point_encode(&gd, gd_out);
+  memzero(&gd, sizeof(gd));
   return true;
 }
 
