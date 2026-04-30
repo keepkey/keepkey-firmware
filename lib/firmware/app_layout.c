@@ -639,6 +639,42 @@ void layout_zcash_address_notification(const char* desc, const char* address,
 }
 
 /*
+ * layout_zcash_address_text_notification() - Display full zcash unified address
+ * text
+ *
+ * INPUT
+ *     - desc: unused description of address being shown
+ *     - address: zcash unified address to display as text
+ *     - type: notification type
+ * OUTPUT
+ *      none
+ */
+void layout_zcash_address_text_notification(const char* desc,
+                                            const char* address,
+                                            NotificationType type) {
+  (void)desc;
+  (void)type;
+
+  Canvas* canvas = layout_get_canvas();
+  DrawableParams sp;
+  const Font* address_font = get_body_font();
+
+  call_leaving_handler();
+  layout_clear();
+
+  /*
+   * Orchard unified addresses are too long to verify beside the QR on a
+   * 256x64 screen. Use the full screen and the tightest non-overlapping line
+   * height for the second review step.
+   */
+  sp.y = 2;
+  sp.x = LEFT_MARGIN;
+  sp.color = BODY_COLOR;
+  draw_string(canvas, address_font, address, &sp, TRANSACTION_WIDTH,
+              font_height(address_font));
+}
+
+/*
  * layout_address_notification() - Display address notification
  *
  * INPUT

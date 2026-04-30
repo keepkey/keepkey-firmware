@@ -291,6 +291,7 @@ void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK* msg) {
   }
 
   /* Derive Orchard keys via storage; the seed never leaves storage.c. */
+  layoutProgress(_("Deriving Zcash"), 0);
   ZcashOrchardKeys keys;
   if (!storage_zcashOrchardKeys(account, true, &keys)) {
     fsm_sendFailure(FailureType_Failure_NotInitialized,
@@ -431,6 +432,7 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress* msg) {
   }
 
   /* Derive Orchard keys via storage; the seed never leaves storage.c. */
+  layoutProgress(_("Deriving Zcash"), 0);
   ZcashOrchardKeys keys;
   if (!storage_zcashOrchardKeys(account, true, &keys)) {
     fsm_sendFailure(FailureType_Failure_NotInitialized,
@@ -442,6 +444,8 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress* msg) {
   char derived_address[sizeof(resp->address)];
   const char* address = msg->address;
   if (host_supplied_address) {
+    layoutProgress(_("Checking address"), 650);
+
     /* Compute ak = [ask]G_spendauth on Pallas curve (SpendAuth basepoint) */
     bignum256 ask_scalar;
     bn_read_le(keys.ask, &ask_scalar);
@@ -475,6 +479,8 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress* msg) {
       return;
     }
   } else {
+    layoutProgress(_("Deriving address"), 650);
+
     const uint8_t default_receiver_index[11] = {0};
     if (!zcash_orchard_derive_unified_address(&keys, default_receiver_index,
                                               "u", derived_address,
@@ -490,6 +496,8 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress* msg) {
 
   /* Clean up sensitive key material BEFORE display prompt. */
   memzero(&keys, sizeof(keys));
+
+  layoutProgress(_("Loading address"), 1000);
 
   /* Display the address on screen with QR code.
    *
