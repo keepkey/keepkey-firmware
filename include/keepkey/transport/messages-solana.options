@@ -19,3 +19,10 @@ SolanaSignMessage.message max_size:1024
 
 SolanaMessageSignature.public_key max_size:32
 SolanaMessageSignature.signature max_size:64
+
+SolanaSignOffchainMessage.address_n max_count:8
+SolanaSignOffchainMessage.coin_name max_size:21
+SolanaSignOffchainMessage.message max_size:1212
+
+SolanaOffchainMessageSignature.public_key max_size:32
+SolanaOffchainMessageSignature.signature max_size:64
