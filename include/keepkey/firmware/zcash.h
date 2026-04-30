@@ -141,6 +141,27 @@ bool zcash_orchard_derive_ivk(const uint8_t ak[32], const uint8_t nk[32],
                               const uint8_t rivk[32], uint8_t ivk_out[32]);
 
 /**
+ * Derive a raw Orchard receiver from external FVK components and index.
+ *
+ *   d_j   = DiversifierKey(dk).get(j)
+ *   ivk   = Commit^ivk.Output(ExtractP(ak), nk, rivk)
+ *   pk_dj = KA^Orchard.DerivePublic(ivk, DiversifyHash(d_j))
+ *
+ * @param ak           32-byte Orchard spend validating key encoding
+ * @param nk           32-byte Orchard nullifier deriving key
+ * @param rivk         32-byte Orchard IVK commitment randomness
+ * @param dk           32-byte Orchard diversifier key
+ * @param index_le     11-byte little-endian diversifier index bitstring
+ * @param receiver_out 43-byte raw receiver: d_j || pk_dj
+ * @return true on success
+ */
+bool zcash_orchard_derive_receiver(const uint8_t ak[32], const uint8_t nk[32],
+                                   const uint8_t rivk[32],
+                                   const uint8_t dk[32],
+                                   const uint8_t index_le[11],
+                                   uint8_t receiver_out[43]);
+
+/**
  * Compute the ZIP-32 §6.1 seed fingerprint.
  *
  *   SeedFingerprint := BLAKE2b-256(

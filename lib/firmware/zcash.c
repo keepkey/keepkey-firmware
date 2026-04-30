@@ -401,6 +401,33 @@ bool zcash_orchard_derive_ivk(const uint8_t ak[32], const uint8_t nk[32],
   return ok;
 }
 
+bool zcash_orchard_derive_receiver(const uint8_t ak[32], const uint8_t nk[32],
+                                   const uint8_t rivk[32],
+                                   const uint8_t dk[32],
+                                   const uint8_t index_le[11],
+                                   uint8_t receiver_out[43]) {
+  if (!receiver_out) return false;
+
+  uint8_t diversifier[11];
+  uint8_t ivk[32];
+  uint8_t pkd[32];
+  bool ok = zcash_orchard_derive_diversifier(dk, index_le, diversifier) &&
+            zcash_orchard_derive_ivk(ak, nk, rivk, ivk) &&
+            zcash_orchard_derive_transmission_key(ivk, diversifier, NULL, pkd);
+
+  if (ok) {
+    memcpy(receiver_out, diversifier, sizeof(diversifier));
+    memcpy(receiver_out + sizeof(diversifier), pkd, sizeof(pkd));
+  } else {
+    memzero(receiver_out, 43);
+  }
+
+  memzero(diversifier, sizeof(diversifier));
+  memzero(ivk, sizeof(ivk));
+  memzero(pkd, sizeof(pkd));
+  return ok;
+}
+
 bool zcash_derive_orchard_keys(const uint8_t* seed, uint32_t seed_len,
                                uint32_t account, ZcashOrchardKeys* keys) {
   uint8_t I[64];
