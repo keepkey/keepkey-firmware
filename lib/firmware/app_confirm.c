@@ -333,8 +333,8 @@ bool confirm_nano_address(const char* desc, const char* address) {
  */
 bool confirm_zcash_address(const char* desc, const char* address) {
   if (!confirm_with_custom_layout(&layout_zcash_address_notification,
-                                  ButtonRequestType_ButtonRequest_Address,
-                                  desc, "%s", address)) {
+                                  ButtonRequestType_ButtonRequest_Address, desc,
+                                  "%s", address)) {
     return false;
   }
 
