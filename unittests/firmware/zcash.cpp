@@ -1022,6 +1022,76 @@ TEST(Zcash, Zip316OrchardOnlyUnifiedAddress_RejectsInvalidInputs) {
   memzero(long_hrp, sizeof(long_hrp));
 }
 
+TEST(Zcash, OrchardUnifiedAddress_FromDerivedKeys) {
+  ZcashOrchardKeys keys;
+  ASSERT_TRUE(zcash_derive_orchard_keys(SEED_ALL, 64, 0, &keys));
+
+  char address[ZCASH_ZIP316_ORCHARD_ONLY_MAX_ADDRESS_SIZE];
+  const uint8_t index0[11] = {0};
+  const uint8_t index1[11] = {1};
+
+  ASSERT_TRUE(zcash_orchard_derive_unified_address(
+      &keys, index0, "u", address, sizeof(address)));
+  EXPECT_STREQ(address, ORCHARD_ONLY_UA_MAINNET_0);
+
+  ASSERT_TRUE(zcash_orchard_derive_unified_address(
+      &keys, index0, "utest", address, sizeof(address)));
+  EXPECT_STREQ(address, ORCHARD_ONLY_UA_TESTNET_0);
+
+  ASSERT_TRUE(zcash_orchard_derive_unified_address(
+      &keys, index1, "u", address, sizeof(address)));
+  EXPECT_STREQ(address, ORCHARD_ONLY_UA_MAINNET_1);
+
+  ASSERT_TRUE(zcash_orchard_derive_unified_address(
+      &keys, index1, "utest", address, sizeof(address)));
+  EXPECT_STREQ(address, ORCHARD_ONLY_UA_TESTNET_1);
+
+  memzero(address, sizeof(address));
+  memzero(&keys, sizeof(keys));
+}
+
+TEST(Zcash, OrchardUnifiedAddress_FromSeedAccountAndIndex) {
+  char address[ZCASH_ZIP316_ORCHARD_ONLY_MAX_ADDRESS_SIZE];
+  const uint8_t index0[11] = {0};
+
+  ASSERT_TRUE(zcash_derive_orchard_unified_address(
+      SEED_ALL, 64, 0, index0, "u", address, sizeof(address)));
+  EXPECT_STREQ(address, ORCHARD_ONLY_UA_MAINNET_0);
+
+  ASSERT_TRUE(zcash_derive_orchard_unified_address(
+      SEED_ALL, 64, 0, index0, "utest", address, sizeof(address)));
+  EXPECT_STREQ(address, ORCHARD_ONLY_UA_TESTNET_0);
+
+  memzero(address, sizeof(address));
+}
+
+TEST(Zcash, OrchardUnifiedAddress_RejectsInvalidInputs) {
+  ZcashOrchardKeys keys;
+  ASSERT_TRUE(zcash_derive_orchard_keys(SEED_ALL, 64, 0, &keys));
+
+  char address[ZCASH_ZIP316_ORCHARD_ONLY_MAX_ADDRESS_SIZE];
+  char too_small[16];
+  const uint8_t index0[11] = {0};
+
+  EXPECT_FALSE(zcash_orchard_derive_unified_address(
+      nullptr, index0, "u", address, sizeof(address)));
+  EXPECT_FALSE(zcash_orchard_derive_unified_address(
+      &keys, nullptr, "u", address, sizeof(address)));
+  EXPECT_FALSE(zcash_orchard_derive_unified_address(
+      &keys, index0, nullptr, address, sizeof(address)));
+  EXPECT_FALSE(zcash_orchard_derive_unified_address(
+      &keys, index0, "u", nullptr, sizeof(address)));
+  EXPECT_FALSE(zcash_orchard_derive_unified_address(
+      &keys, index0, "u", too_small, sizeof(too_small)));
+
+  EXPECT_FALSE(zcash_derive_orchard_unified_address(
+      nullptr, 64, 0, index0, "u", address, sizeof(address)));
+
+  memzero(address, sizeof(address));
+  memzero(too_small, sizeof(too_small));
+  memzero(&keys, sizeof(keys));
+}
+
 TEST(Zcash, OrchardDiversifyHash_ReferenceVectors) {
   uint8_t gd[32];
   ASSERT_TRUE(zcash_orchard_diversify_hash(EXPECTED_DIVERSIFIER_ALL_0, gd));

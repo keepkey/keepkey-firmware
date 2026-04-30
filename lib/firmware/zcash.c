@@ -31,6 +31,7 @@
 #include "trezor/crypto/pallas_sinsemilla.h"
 #include "trezor/crypto/pallas_swu.h"
 #include "trezor/crypto/redpallas.h"
+#include "trezor/crypto/zcash_zip316.h"
 
 /*
  * ZIP-32 Orchard key derivation.
@@ -425,6 +426,56 @@ bool zcash_orchard_derive_receiver(const uint8_t ak[32], const uint8_t nk[32],
   memzero(diversifier, sizeof(diversifier));
   memzero(ivk, sizeof(ivk));
   memzero(pkd, sizeof(pkd));
+  return ok;
+}
+
+bool zcash_orchard_derive_unified_address(const ZcashOrchardKeys* keys,
+                                          const uint8_t index_le[11],
+                                          const char* hrp,
+                                          char* address_out,
+                                          size_t address_out_len) {
+  if (!keys || !index_le || !hrp || !address_out) return false;
+
+  bignum256 ask_scalar;
+  curve_point ak_point;
+  bignum256 ak_x;
+  uint8_t ak[32];
+  uint8_t receiver[43];
+
+  bn_read_le(keys->ask, &ask_scalar);
+  redpallas_scalar_mult_spendauth_G(&ask_scalar, &ak_point);
+  bn_copy(&ak_point.x, &ak_x);
+  bn_write_le(&ak_x, ak);
+
+  bool ok = zcash_orchard_derive_receiver(ak, keys->nk, keys->rivk, keys->dk,
+                                          index_le, receiver);
+  if (ok) {
+    ok = zcash_zip316_encode_orchard_unified_address(
+             hrp, receiver, address_out, address_out_len) == 0;
+  }
+  if (!ok && address_out_len > 0) {
+    address_out[0] = '\0';
+  }
+
+  memzero(&ask_scalar, sizeof(ask_scalar));
+  memzero(&ak_point, sizeof(ak_point));
+  memzero(&ak_x, sizeof(ak_x));
+  memzero(ak, sizeof(ak));
+  memzero(receiver, sizeof(receiver));
+  return ok;
+}
+
+bool zcash_derive_orchard_unified_address(
+    const uint8_t* seed, uint32_t seed_len, uint32_t account,
+    const uint8_t index_le[11], const char* hrp, char* address_out,
+    size_t address_out_len) {
+  if (!seed || !index_le || !hrp || !address_out) return false;
+
+  ZcashOrchardKeys keys;
+  bool ok = zcash_derive_orchard_keys(seed, seed_len, account, &keys) &&
+            zcash_orchard_derive_unified_address(
+                &keys, index_le, hrp, address_out, address_out_len);
+  memzero(&keys, sizeof(keys));
   return ok;
 }
 

@@ -21,6 +21,7 @@
 #define KEEPKEY_FIRMWARE_ZCASH_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 /* Orchard spending keys derived via ZIP-32.
@@ -160,6 +161,47 @@ bool zcash_orchard_derive_receiver(const uint8_t ak[32], const uint8_t nk[32],
                                    const uint8_t dk[32],
                                    const uint8_t index_le[11],
                                    uint8_t receiver_out[43]);
+
+/**
+ * Derive an Orchard-only ZIP-316 Unified Address from derived Orchard keys.
+ *
+ *   ak       = [ask] G_spendauth
+ *   receiver = d_j || pk_dj
+ *   address  = Bech32m(HRP, F4Jumble(Orchard receiver payload))
+ *
+ * @param keys            ZIP-32-derived Orchard key material
+ * @param index_le        11-byte little-endian diversifier index bitstring
+ * @param hrp             ZIP-316 HRP ("u" for mainnet, "utest" for testnet)
+ * @param address_out     NUL-terminated output address
+ * @param address_out_len Size of address_out
+ * @return true on success
+ */
+bool zcash_orchard_derive_unified_address(const ZcashOrchardKeys* keys,
+                                          const uint8_t index_le[11],
+                                          const char* hrp,
+                                          char* address_out,
+                                          size_t address_out_len);
+
+/**
+ * Derive an Orchard-only ZIP-316 Unified Address directly from seed material.
+ *
+ * Production firmware should continue to access the seed only through the
+ * storage-scoped wrappers below; this composition helper is exposed for
+ * isolated unit tests and storage-owned call sites.
+ *
+ * @param seed            BIP-39 master seed
+ * @param seed_len        Seed length (typically 64 bytes)
+ * @param account         Account index (0-based, will be hardened)
+ * @param index_le        11-byte little-endian diversifier index bitstring
+ * @param hrp             ZIP-316 HRP ("u" for mainnet, "utest" for testnet)
+ * @param address_out     NUL-terminated output address
+ * @param address_out_len Size of address_out
+ * @return true on success
+ */
+bool zcash_derive_orchard_unified_address(
+    const uint8_t* seed, uint32_t seed_len, uint32_t account,
+    const uint8_t index_le[11], const char* hrp, char* address_out,
+    size_t address_out_len);
 
 /**
  * Compute the ZIP-32 §6.1 seed fingerprint.
