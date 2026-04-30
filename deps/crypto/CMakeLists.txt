@@ -57,6 +57,7 @@ set(sources
     #trezor-firmware/crypto/aes/aestst.c
     trezor-firmware/crypto/aes/aestab.c
     trezor-firmware/crypto/pallas.c
+    trezor-firmware/crypto/pallas_sinsemilla.c
     trezor-firmware/crypto/pallas_swu.c
     trezor-firmware/crypto/redpallas.c)
 

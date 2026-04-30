@@ -28,6 +28,7 @@
 #include "trezor/crypto/hasher.h"
 #include "trezor/crypto/memzero.h"
 #include "trezor/crypto/pallas.h"
+#include "trezor/crypto/pallas_sinsemilla.h"
 #include "trezor/crypto/pallas_swu.h"
 #include "trezor/crypto/redpallas.h"
 
@@ -378,6 +379,26 @@ bool zcash_orchard_derive_transmission_key(const uint8_t ivk[32],
   memzero(&gd, sizeof(gd));
   memzero(&pkd, sizeof(pkd));
   return true;
+}
+
+bool zcash_orchard_derive_ivk(const uint8_t ak[32], const uint8_t nk[32],
+                              const uint8_t rivk[32], uint8_t ivk_out[32]) {
+  if (!ak || !nk || !rivk || !ivk_out) return false;
+  if ((ak[31] & 0x80) != 0) return false;
+
+  if (pallas_sinsemilla_commit_ivk(ak, nk, rivk, ivk_out) != 0) {
+    return false;
+  }
+
+  bignum256 ivk;
+  bn_read_le(ivk_out, &ivk);
+  bn_normalize(&ivk);
+  bool ok = !bn_is_zero(&ivk) && bn_is_less(&ivk, &pallas_prime);
+  memzero(&ivk, sizeof(ivk));
+  if (!ok) {
+    memzero(ivk_out, 32);
+  }
+  return ok;
 }
 
 bool zcash_derive_orchard_keys(const uint8_t* seed, uint32_t seed_len,

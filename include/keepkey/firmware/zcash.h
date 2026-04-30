@@ -127,6 +127,20 @@ bool zcash_orchard_derive_transmission_key(const uint8_t ivk[32],
                                            uint8_t pkd_out[32]);
 
 /**
+ * Derive the external Orchard incoming viewing key from FVK components.
+ *
+ *   ivk = Commit^ivk.Output(ExtractP(ak), nk, rivk)
+ *
+ * @param ak      32-byte Orchard spend validating key encoding, sign bit clear
+ * @param nk      32-byte Orchard nullifier deriving key
+ * @param rivk    32-byte Orchard IVK commitment randomness
+ * @param ivk_out 32-byte nonzero Orchard incoming viewing key
+ * @return true on success
+ */
+bool zcash_orchard_derive_ivk(const uint8_t ak[32], const uint8_t nk[32],
+                              const uint8_t rivk[32], uint8_t ivk_out[32]);
+
+/**
  * Compute the ZIP-32 §6.1 seed fingerprint.
  *
  *   SeedFingerprint := BLAKE2b-256(
