@@ -70,6 +70,11 @@ static struct {
 #define ZCASH_MAX_ACTIONS 16
 #define ZCASH_MAX_TRANSPARENT_INPUTS 8
 
+/* Public API; declared in keepkey/firmware/zcash.h. */
+void zcash_signing_abort(void) {
+  memzero(&zcash_signing, sizeof(zcash_signing));
+}
+
 void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
   RESP_INIT(ZcashPCZTActionAck);
 
@@ -91,13 +96,24 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
     return;
   }
 
-  /* Determine account from path or explicit account field */
-  uint32_t account = 0;
+  /* Determine account — require explicit account or strict ZIP-32 path
+   * m/32'/133'/account' (all hardened, exactly 3 elements). Matches
+   * ZcashDisplayAddress / ZcashGetOrchardFVK and prevents a malformed
+   * host path from silently signing against an unintended account. */
+  uint32_t account;
   if (msg->has_account) {
     account = msg->account;
-  } else if (msg->address_n_count >= 3) {
-    /* Extract account from path: m/32'/133'/account' */
-    account = msg->address_n[2] & 0x7FFFFFFF; /* Strip hardened bit */
+  } else if (msg->address_n_count == 3 &&
+             msg->address_n[0] == (0x80000000 | 32) &&
+             msg->address_n[1] == (0x80000000 | 133) &&
+             (msg->address_n[2] & 0x80000000)) {
+    account = msg->address_n[2] & 0x7FFFFFFF;
+  } else {
+    fsm_sendFailure(
+        FailureType_Failure_SyntaxError,
+        _("Require account field or ZIP-32 path m/32'/133'/account'"));
+    layoutHome();
+    return;
   }
 
   /* Confirm with user */
@@ -189,7 +205,7 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
   if (zcash_signing.n_transparent_inputs > ZCASH_MAX_TRANSPARENT_INPUTS) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Too many transparent inputs"));
-    zcash_signing.active = false;
+    zcash_signing_abort();
     layoutHome();
     return;
   }
@@ -282,12 +298,24 @@ void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK* msg) {
 
   CHECK_PIN
 
-  /* Determine account from path or explicit account field */
-  uint32_t account = 0;
+  /* Determine account — require explicit account or strict ZIP-32 path
+   * m/32'/133'/account' (all hardened, exactly 3 elements). Matches
+   * ZcashDisplayAddress / ZcashSignPCZT and prevents a malformed host
+   * path from silently exporting an FVK for an unintended account. */
+  uint32_t account;
   if (msg->has_account) {
     account = msg->account;
-  } else if (msg->address_n_count >= 3) {
+  } else if (msg->address_n_count == 3 &&
+             msg->address_n[0] == (0x80000000 | 32) &&
+             msg->address_n[1] == (0x80000000 | 133) &&
+             (msg->address_n[2] & 0x80000000)) {
     account = msg->address_n[2] & 0x7FFFFFFF;
+  } else {
+    fsm_sendFailure(
+        FailureType_Failure_SyntaxError,
+        _("Require account field or ZIP-32 path m/32'/133'/account'"));
+    layoutHome();
+    return;
   }
 
   /* Derive Orchard keys via storage; the seed never leaves storage.c. */
@@ -467,8 +495,7 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
       zcash_signing.n_transparent_inputs) {
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                     _("Transparent inputs not yet complete"));
-    zcash_signing.active = false;
-    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    zcash_signing_abort();
     layoutHome();
     return;
   }
@@ -477,8 +504,7 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
   if (!msg->has_index || msg->index != zcash_signing.current_action) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Unexpected action index"));
-    zcash_signing.active = false;
-    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    zcash_signing_abort();
     layoutHome();
     return;
   }
@@ -487,8 +513,7 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
   if (!msg->has_alpha || msg->alpha.size != 32) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Missing or invalid alpha randomizer"));
-    zcash_signing.active = false;
-    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    zcash_signing_abort();
     layoutHome();
     return;
   }
@@ -498,8 +523,7 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
     if (!msg->has_sighash || msg->sighash.size != 32) {
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       _("Missing or invalid sighash"));
-      zcash_signing.active = false;
-      memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+      zcash_signing_abort();
       layoutHome();
       return;
     }
@@ -542,8 +566,7 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
   if (redpallas_sign_digest(zcash_signing.keys.ask, msg->alpha.bytes, sighash,
                             zcash_signing.signatures[msg->index]) != 0) {
     fsm_sendFailure(FailureType_Failure_Other, _("RedPallas signing failed"));
-    zcash_signing.active = false;
-    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    zcash_signing_abort();
     layoutHome();
     return;
   }
@@ -587,8 +610,7 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
         fsm_sendFailure(FailureType_Failure_Other,
                         _("Orchard digest mismatch: transaction data "
                           "does not match sighash"));
-        zcash_signing.active = false;
-        memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+        zcash_signing_abort();
         memzero(zcash_signing.signatures, sizeof(zcash_signing.signatures));
         layoutHome();
         return;
@@ -606,8 +628,7 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
     }
 
     /* Clean up */
-    zcash_signing.active = false;
-    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    zcash_signing_abort();
     memzero(zcash_signing.signatures, sizeof(zcash_signing.signatures));
 
     msg_write(MessageType_MessageType_ZcashSignedPCZT, resp_signed);
@@ -644,8 +665,7 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
   if (zcash_signing.n_transparent_inputs == 0) {
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                     _("No transparent inputs expected"));
-    zcash_signing.active = false;
-    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    zcash_signing_abort();
     layoutHome();
     return;
   }
@@ -653,16 +673,14 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
   if (msg->index != zcash_signing.current_transparent_input) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Unexpected transparent input index"));
-    zcash_signing.active = false;
-    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    zcash_signing_abort();
     layoutHome();
     return;
   }
 
   if (msg->sighash.size != 32) {
     fsm_sendFailure(FailureType_Failure_SyntaxError, _("Invalid sighash size"));
-    zcash_signing.active = false;
-    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    zcash_signing_abort();
     layoutHome();
     return;
   }
@@ -678,8 +696,7 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
   if (msg->address_n_count != 5) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Path must be m/44'/133'/account'/change/index"));
-    zcash_signing.active = false;
-    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    zcash_signing_abort();
     layoutHome();
     return;
   }
@@ -688,8 +705,7 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
       msg->address_n[1] != (0x80000000 | 133)) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Path must start with m/44'/133'"));
-    zcash_signing.active = false;
-    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    zcash_signing_abort();
     layoutHome();
     return;
   }
@@ -698,8 +714,7 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
   if (!(msg->address_n[2] & 0x80000000)) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Account must be hardened"));
-    zcash_signing.active = false;
-    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    zcash_signing_abort();
     layoutHome();
     return;
   }
@@ -708,8 +723,7 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
   if (path_account != zcash_signing.account) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Account does not match approved session"));
-    zcash_signing.active = false;
-    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    zcash_signing_abort();
     layoutHome();
     return;
   }
@@ -718,8 +732,7 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
   if (msg->address_n[3] > 1) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Change must be 0 or 1"));
-    zcash_signing.active = false;
-    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    zcash_signing_abort();
     layoutHome();
     return;
   }
@@ -728,8 +741,7 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
   if (msg->address_n[4] & 0x80000000) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Index must not be hardened"));
-    zcash_signing.active = false;
-    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    zcash_signing_abort();
     layoutHome();
     return;
   }
@@ -746,8 +758,7 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
                  "Sign transparent input?\n%s", input_str)) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Signing cancelled"));
-      zcash_signing.active = false;
-      memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+      zcash_signing_abort();
       layoutHome();
       return;
     }
@@ -757,8 +768,7 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
   const CoinType* coin = fsm_getCoin(true, "Zcash");
   if (!coin) {
     fsm_sendFailure(FailureType_Failure_Other, _("Unknown coin: Zcash"));
-    zcash_signing.active = false;
-    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    zcash_signing_abort();
     layoutHome();
     return;
   }
@@ -766,8 +776,7 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
   HDNode* node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) {
-    zcash_signing.active = false;
-    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    zcash_signing_abort();
     layoutHome();
     return;
   }
@@ -779,8 +788,7 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
   if (hdnode_sign_digest(node, msg->sighash.bytes, sig, NULL, NULL) != 0) {
     fsm_sendFailure(FailureType_Failure_Other, _("ECDSA signing failed"));
     memzero(node, sizeof(*node));
-    zcash_signing.active = false;
-    memzero(&zcash_signing.keys, sizeof(zcash_signing.keys));
+    zcash_signing_abort();
     layoutHome();
     return;
   }

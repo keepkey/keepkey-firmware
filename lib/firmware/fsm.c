@@ -273,6 +273,7 @@ void fsm_sendFailure(FailureType code, const char* text) {
 
 void fsm_msgClearSession(ClearSession* msg) {
   (void)msg;
+  zcash_signing_abort();
   session_clear(/*clear_pin=*/true);
   fsm_sendSuccess("Session cleared");
 }

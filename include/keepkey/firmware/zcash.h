@@ -259,4 +259,16 @@ bool storage_zcashOrchardKeys(uint32_t account, bool usePassphrase,
 bool storage_zcashSeedFingerprint(bool usePassphrase,
                                   uint8_t fingerprint_out[32]);
 
+/**
+ * Tear down any in-progress Zcash signing session.
+ *
+ * Wipes the static signing state (active flag, derived Orchard keys,
+ * accumulated signatures, sub-digest contexts, transparent-input
+ * counters) so a host cannot resume streaming PCZTAction or
+ * TransparentInput messages against a previously-approved session
+ * after Initialize, Cancel, or ClearSession. Safe to call when no
+ * session is active.
+ */
+void zcash_signing_abort(void);
+
 #endif
