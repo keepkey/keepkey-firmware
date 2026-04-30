@@ -375,42 +375,8 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress* msg) {
     return;
   }
 
-  const bool host_supplied_address = msg->has_address;
-  const bool host_supplied_any_fvk =
-      msg->has_ak || msg->has_nk || msg->has_rivk;
-
-  if (host_supplied_address) {
-    if (strlen(msg->address) < 10) {
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      _("Missing or invalid address"));
-      layoutHome();
-      return;
-    }
-
-    if (!msg->has_ak || msg->ak.size != 32 || !msg->has_nk ||
-        msg->nk.size != 32 || !msg->has_rivk || msg->rivk.size != 32) {
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      _("Missing FVK components (ak, nk, rivk)"));
-      layoutHome();
-      return;
-    }
-
-    /* Legacy host-supplied address mode supports mainnet UAs only. */
-    if (msg->address[0] != 'u' || msg->address[1] != '1') {
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      _("Invalid unified address prefix"));
-      layoutHome();
-      return;
-    }
-  } else if (host_supplied_any_fvk) {
-    fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("FVK components require address"));
-    layoutHome();
-    return;
-  }
-
   /* Optional seed_fingerprint binding (ZIP-32 §6.1).
-   * Reject before any FVK derivation if the host targets the wrong seed. */
+   * Reject before any derivation if the host targets the wrong seed. */
   if (msg->has_expected_seed_fingerprint &&
       msg->expected_seed_fingerprint.size == 32) {
     uint8_t actual_fp[32];
@@ -441,57 +407,17 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress* msg) {
     return;
   }
 
+  layoutProgress(_("Deriving address"), 650);
   char derived_address[sizeof(resp->address)];
-  const char* address = msg->address;
-  if (host_supplied_address) {
-    layoutProgress(_("Checking address"), 650);
-
-    /* Compute ak = [ask]G_spendauth on Pallas curve (SpendAuth basepoint) */
-    bignum256 ask_scalar;
-    bn_read_le(keys.ask, &ask_scalar);
-    curve_point ak_point;
-    redpallas_scalar_mult_spendauth_G(&ask_scalar, &ak_point);
-
-    /* Serialize ak as Pallas point (LE x-coord, sign bit in high byte) */
-    uint8_t ak_bytes[32];
-    bignum256 x_copy;
-    bn_copy(&ak_point.x, &x_copy);
-    bn_write_le(&x_copy, ak_bytes);
-    if (bn_is_odd(&ak_point.y)) {
-      ak_bytes[31] |= 0x80;
-    }
-
-    bool fvk_match = (memcmp(ak_bytes, msg->ak.bytes, 32) == 0) &&
-                     (memcmp(keys.nk, msg->nk.bytes, 32) == 0) &&
-                     (memcmp(keys.rivk, msg->rivk.bytes, 32) == 0);
-
-    memzero(&ask_scalar, sizeof(ask_scalar));
-    memzero(&ak_point, sizeof(ak_point));
-    memzero(ak_bytes, sizeof(ak_bytes));
-    memzero(&x_copy, sizeof(x_copy));
-
-    if (!fvk_match) {
-      memzero(&keys, sizeof(keys));
-      fsm_sendFailure(
-          FailureType_Failure_Other,
-          _("FVK mismatch: address does not belong to this device"));
-      layoutHome();
-      return;
-    }
-  } else {
-    layoutProgress(_("Deriving address"), 650);
-
-    const uint8_t default_receiver_index[11] = {0};
-    if (!zcash_orchard_derive_unified_address(&keys, default_receiver_index,
-                                              "u", derived_address,
-                                              sizeof(derived_address))) {
-      memzero(&keys, sizeof(keys));
-      fsm_sendFailure(FailureType_Failure_Other,
-                      _("Orchard address derivation failed"));
-      layoutHome();
-      return;
-    }
-    address = derived_address;
+  const uint8_t default_receiver_index[11] = {0};
+  if (!zcash_orchard_derive_unified_address(&keys, default_receiver_index, "u",
+                                            derived_address,
+                                            sizeof(derived_address))) {
+    memzero(&keys, sizeof(keys));
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Orchard address derivation failed"));
+    layoutHome();
+    return;
   }
 
   /* Clean up sensitive key material BEFORE display prompt. */
@@ -499,23 +425,9 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress* msg) {
 
   layoutProgress(_("Loading address"), 1000);
 
-  /* Display the address on screen with QR code.
-   *
-   * Preferred mode derives an Orchard-only Unified Address on-device from
-   * the seed and account. In legacy host-supplied mode, this verification
-   * only confirms that the
-   * Orchard FVK (ak/nk/rivk) in this UA was derived from this device's
-   * seed at the given account.  A Unified Address may bundle receivers
-   * from multiple pools (transparent, Sapling, Orchard).  The device
-   * cannot currently verify non-Orchard receivers — a compromised host
-   * could substitute attacker-controlled transparent or Sapling receivers
-   * while keeping the correct Orchard receiver.
-   *
-   * The display text explicitly scopes the claim to "Orchard key verified"
-   * so the user understands what was checked. */
   char desc[48];
   snprintf(desc, sizeof(desc), "Zcash #%lu Orchard", (unsigned long)account);
-  if (!confirm_zcash_address(desc, address)) {
+  if (!confirm_zcash_address(desc, derived_address)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     _("Address display cancelled"));
     layoutHome();
@@ -524,7 +436,7 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress* msg) {
 
   /* User confirmed — return the address bound to this device's seed. */
   resp->has_address = true;
-  strlcpy(resp->address, address, sizeof(resp->address));
+  strlcpy(resp->address, derived_address, sizeof(resp->address));
 
   /* Seed identity (ZIP-32 §6.1) — pin the attestation to this device. */
   uint8_t fp[32];
