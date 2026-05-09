@@ -339,9 +339,7 @@ bool tron_typed_hash_sign(const HDNode* node, const TronSignTypedHash* msg,
 
   resp->signature.bytes[64] = 27 + v;
   resp->signature.size = 65;
-  resp->has_signature = true;
   strlcpy(resp->address, address, sizeof(resp->address));
-  resp->has_address = true;
 
   memzero(hash, sizeof(hash));
   return true;
