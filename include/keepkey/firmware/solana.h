@@ -199,4 +199,17 @@ const SolanaTokenInfo* solana_findTokenInfo(
 bool solana_signTx(const HDNode* node, const SolanaSignTx* msg,
                    SolanaSignedTx* resp);
 
+/* Sign a Solana off-chain message with domain separation.
+ *
+ * Builds the spec envelope (0xFF || "solana offchain" || version || format
+ * || length:u16 || message) and Ed25519-signs it. Format 2 (extended
+ * UTF-8) is rejected — only formats 0 (ASCII) and 1 (UTF-8 limited) are
+ * supported on this device.
+ *
+ * Caller must have populated node->public_key (hdnode_fill_public_key).
+ */
+bool solana_offchain_message_sign(const HDNode* node,
+                                  const SolanaSignOffchainMessage* msg,
+                                  SolanaOffchainMessageSignature* resp);
+
 #endif /* KEEPKEY_FIRMWARE_SOLANA_H */

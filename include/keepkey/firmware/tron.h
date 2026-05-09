@@ -56,4 +56,36 @@ void tron_formatAmount(char* buf, size_t len, uint64_t amount);
  */
 bool tron_signTx(const HDNode* node, const TronSignTx* msg, TronSignedTx* resp);
 
+/**
+ * Sign an arbitrary message using TIP-191 personal_sign.
+ * Hash = keccak256("\x19TRON Signed Message:\n" + ASCII(len) + message)
+ * @param node HD node containing private key
+ * @param msg TronSignMessage request
+ * @param resp TronMessageSignature response (signature + Base58Check address)
+ * @return true on success
+ */
+bool tron_message_sign(const HDNode* node, const TronSignMessage* msg,
+                       TronMessageSignature* resp);
+
+/**
+ * Verify a TIP-191 signature against the claimed Base58Check TRON address.
+ * @return 0 on success, 1 on malformed input, 2 on signature/address mismatch
+ */
+int tron_message_verify(const TronVerifyMessage* msg);
+
+/**
+ * Sign a TIP-712 typed-data digest in hash mode.
+ * Host pre-computes the domain separator hash + message hash per the
+ * TIP-712 spec; the device assembles
+ *   keccak256("\x19\x01" || domain_separator_hash || message_hash)
+ * and signs with secp256k1.
+ *
+ * @param node HD node with public_key filled
+ * @param msg  TronSignTypedHash request
+ * @param resp TronTypedDataSignature response (signature + Base58Check address)
+ * @return true on success
+ */
+bool tron_typed_hash_sign(const HDNode* node, const TronSignTypedHash* msg,
+                          TronTypedDataSignature* resp);
+
 #endif
