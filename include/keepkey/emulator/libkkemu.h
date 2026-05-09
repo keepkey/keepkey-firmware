@@ -72,7 +72,7 @@ int kkemu_read(uint8_t* buf, size_t len, int iface);
  *
  * Call this at 10-60 Hz from your event loop.
  *
- * @return Number of messages processed, or -1 on error.
+ * @return 0 on success, or -1 if the emulator is not initialized.
  */
 int kkemu_poll(void);
 
