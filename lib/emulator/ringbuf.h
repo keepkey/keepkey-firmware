@@ -1,13 +1,17 @@
 /*
  * Lock-free single-producer single-consumer ring buffer for HID reports.
+ * head/tail use C11 _Atomic with explicit acquire/release memory orders so
+ * that concurrent access from separate producer and consumer threads is
+ * well-defined (no data race, no UB).
  * Used by libkkemu to pass 64-byte messages between host and firmware.
  */
 #ifndef RINGBUF_H
 #define RINGBUF_H
 
-#include <stdint.h>
-#include <stddef.h>
+#include <stdatomic.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #define RINGBUF_SLOT_SIZE 64 /* HID report size */
 
@@ -31,13 +35,13 @@
 
 typedef struct {
   uint8_t data[RINGBUF_CAPACITY][RINGBUF_SLOT_SIZE];
-  volatile uint32_t head; /* written by producer */
-  volatile uint32_t tail; /* written by consumer */
+  _Atomic uint32_t head; /* written by producer */
+  _Atomic uint32_t tail; /* written by consumer */
 } RingBuf;
 
 void ringbuf_init(RingBuf* rb);
 bool ringbuf_push(RingBuf* rb, const uint8_t* msg, size_t len);
 bool ringbuf_pop(RingBuf* rb, uint8_t* msg, size_t len);
-bool ringbuf_empty(const RingBuf* rb);
+bool ringbuf_empty(RingBuf* rb);
 
 #endif
