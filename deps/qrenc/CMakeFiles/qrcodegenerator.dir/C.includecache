@@ -1,0 +1,28 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/kkemu/deps/qrenc/QR-Code-generator/c/qrcodegen.c
+assert.h
+-
+limits.h
+-
+stdlib.h
+-
+string.h
+-
+qrcodegen.h
+/kkemu/deps/qrenc/QR-Code-generator/c/qrcodegen.h
+
+/kkemu/deps/qrenc/QR-Code-generator/c/qrcodegen.h
+stdbool.h
+-
+stddef.h
+-
+stdint.h
+-
+

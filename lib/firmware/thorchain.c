@@ -95,7 +95,8 @@ bool thorchain_signTxInit(const HDNode* _node, const ThorchainSignTx* _msg) {
 }
 
 bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
-                                   const char* to_address) {
+                                   const char* to_address,
+                                   const char* denom) {
   const char mainnetp[] = "thor";
   const char testnetp[] = "tthor";
   const char* pfix;
@@ -119,15 +120,23 @@ bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
     return false;
   }
 
+  // Default to "rune" for backward compatibility
+  const char* coin_denom = (denom && denom[0]) ? denom : "rune";
+
   bool success = true;
 
   const char* const prelude = "{\"type\":\"thorchain/MsgSend\",\"value\":{";
   sha256_Update(&ctx, (uint8_t*)prelude, strlen(prelude));
 
-  // 21 + ^20 + 19 = ^60
-  success &= tendermint_snprintf(
-      &ctx, buffer, sizeof(buffer),
-      "\"amount\":[{\"amount\":\"%" PRIu64 "\",\"denom\":\"rune\"}]", amount);
+  // Write amount prefix: 21 + ^20 = ^41
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
+                                 "\"amount\":[{\"amount\":\"%" PRIu64
+                                 "\",\"denom\":\"",
+                                 amount);
+  // Write denom directly (arbitrary length, no special chars expected)
+  sha256_Update(&ctx, (uint8_t*)coin_denom, strlen(coin_denom));
+  // Close coins array: 3 bytes
+  sha256_Update(&ctx, (uint8_t*)"\"}]", 3);
 
   // 17 + 45 + 1 = 63
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),

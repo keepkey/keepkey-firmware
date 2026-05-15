@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../../lib/libSecAESSTM32.a  CMakeFiles/SecAESSTM32.dir/aes128_cbc.c.o
+/usr/bin/ranlib ../../lib/libSecAESSTM32.a

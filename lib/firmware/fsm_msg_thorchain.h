@@ -141,11 +141,15 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
   const ThorchainSignTx* sign_tx = thorchain_getThorchainSignTx();
 
   if (msg->has_send) {
+    const char* coin_denom =
+        (msg->send.has_denom && msg->send.denom[0]) ? msg->send.denom : "rune";
     switch (msg->send.address_type) {
       case OutputAddressType_TRANSFER:
       default: {
         char amount_str[32];
-        bn_format_uint64(msg->send.amount, NULL, " RUNE", 8, 0, false,
+        char denom_str[71];
+        snprintf(denom_str, sizeof(denom_str), " %s", coin_denom);
+        bn_format_uint64(msg->send.amount, NULL, denom_str, 8, 0, false,
                          amount_str, sizeof(amount_str));
         if (!confirm_transaction_output(
                 ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
@@ -159,8 +163,8 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
         break;
       }
     }
-    if (!thorchain_signTxUpdateMsgSend(msg->send.amount,
-                                       msg->send.to_address)) {
+    if (!thorchain_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address,
+                                       coin_denom)) {
       thorchain_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include send message in transaction");
@@ -240,7 +244,7 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
   }
 
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, node_str,
-               "Sign this RUNE transaction on %s? "
+               "Sign this THORChain transaction on %s? "
                "Additional network fees apply.",
                sign_tx->chain_id)) {
     thorchain_signAbort();
