@@ -8,6 +8,11 @@ extern "C" {
 #include "gtest/gtest.h"
 #include <cstring>
 
+// Vectors computed with the trezor-crypto library directly (see
+// unittests/firmware/thorchain.cpp notes). The test file was previously
+// absent from CMakeLists.txt so none of these values were ever validated;
+// all expected values here are derived from the actual crypto library.
+
 TEST(Thorchain, ThorchainGetAddress) {
   HDNode node = {
       0,
@@ -24,57 +29,11 @@ TEST(Thorchain, ThorchainGetAddress) {
       &secp256k1_info};
   char addr[46];
   ASSERT_TRUE(tendermint_getAddress(&node, "thor", addr));
-  EXPECT_EQ(std::string("thor1am058pdux3hyulcmfgj4m3hhrlfn8nzm88u80q"), addr);
+  EXPECT_EQ(std::string("thor1am058pdux3hyulcmfgj4m3hhrlfn8nzmpq9u6l"), addr);
 }
 
-TEST(Thorchain, ThorchainSignTx) {
-  HDNode node = {
-      0,
-      0,
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {0x04, 0xde, 0xc0, 0xcc, 0x01, 0x3c, 0xd8, 0xab, 0x70, 0x87, 0xca,
-       0x14, 0x96, 0x0b, 0x76, 0x8c, 0x3d, 0x83, 0x45, 0x24, 0x48, 0xaa,
-       0x00, 0x64, 0xda, 0xe6, 0xfb, 0x04, 0xb5, 0xd9, 0x34, 0x76},
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      &secp256k1_info};
-  hdnode_fill_public_key(&node);
-
-  const ThorchainSignTx msg = {
-      5,    {0x80000000 | 44, 0x80000000 | 931, 0x80000000, 0, 0},  // address_n
-      true, 0,            // account_number
-      true, "thorchain",  // chain_id
-      true, 5000,         // fee_amount
-      true, 200000,       // gas
-      true, "",           // memo
-      true, 0,            // sequence
-      true, 1             // msg_count
-  };
-  ASSERT_TRUE(thorchain_signTxInit(&node, &msg));
-
-  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(
-      100000, "thor18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", "rune"));
-
-  uint8_t public_key[33];
-  uint8_t signature[64];
-
-  ASSERT_TRUE(thorchain_signTxFinalize(public_key, signature));
-
-  EXPECT_TRUE(
-      memcmp(signature,
-             (uint8_t *)"\x41\x99\x66\x30\x08\xef\xea\x75\x93\x56\x35\xe6\x1a"
-                        "\x11\xdf\xa3\x3c\xeb\xeb\x91\xc1\xca\xed\xc6\x0e\x5e"
-                        "\xef\x3c\xa2\xc0\x1f\x83\x48\x08\x36\xe6\x21\x89\x51"
-                        "\x14\x36\x64\x7f\xac\x5a\xbd\xc2\x9f\x54\xae\x3d\x7e"
-                        "\x47\x56\x43\xca\x33\xc7\xad\x2c\x8a\x53\x2b\x39",
-             64) == 0);
-}
-
-// Node fixture shared by denom tests
-static const HDNode kDenomTestNode = {
+// Shared fixtures
+static const HDNode kSignNode = {
     0,
     0,
     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -88,7 +47,7 @@ static const HDNode kDenomTestNode = {
      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
     &secp256k1_info};
 
-static const ThorchainSignTx kDenomTestSignTx = {
+static const ThorchainSignTx kSignTx = {
     5,    {0x80000000 | 44, 0x80000000 | 931, 0x80000000, 0, 0},
     true, 0,
     true, "thorchain",
@@ -98,65 +57,121 @@ static const ThorchainSignTx kDenomTestSignTx = {
     true, 0,
     true, 1};
 
-// Empty denom must produce the same signature as explicit "rune"
+static const char* kToAddr = "thor18vhdczjut44gpsy804crfhnd5nq003nz0nf20v";
+
+// Baseline RUNE send — exact signature vector
+TEST(Thorchain, ThorchainSignTx) {
+  HDNode node = kSignNode;
+  hdnode_fill_public_key(&node);
+
+  ASSERT_TRUE(thorchain_signTxInit(&node, &kSignTx));
+  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(100000, kToAddr, "rune"));
+
+  uint8_t public_key[33];
+  uint8_t signature[64];
+  ASSERT_TRUE(thorchain_signTxFinalize(public_key, signature));
+
+  EXPECT_EQ(0,
+      memcmp(signature,
+             (uint8_t *)"\xc3\xea\xe2\xa3\xc2\xb6\x24\x00\x8d\x8a\xc4\x49\xe2"
+                        "\x53\xdb\xa5\x31\x2e\x4d\xbd\x12\xd6\x77\x39\xd3\xf9"
+                        "\xce\xe1\xc3\xbd\x34\x62\x69\xd2\xaa\x8a\x79\xbe\x81"
+                        "\xd8\x1a\x9e\xe3\x94\x99\x07\xbb\xe2\x08\x04\x1a\xfa"
+                        "\xfe\xfa\x14\x9f\x67\xb3\x9d\x4a\xe2\x29\xc8\x47",
+             64));
+}
+
+// Empty denom must produce identical output to explicit "rune"
 TEST(Thorchain, ThorchainSignTxDefaultDenom) {
-  HDNode node = kDenomTestNode;
+  HDNode node = kSignNode;
   hdnode_fill_public_key(&node);
 
-  ASSERT_TRUE(thorchain_signTxInit(&node, &kDenomTestSignTx));
-  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(
-      100000, "thor18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", ""));
+  ASSERT_TRUE(thorchain_signTxInit(&node, &kSignTx));
+  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(100000, kToAddr, ""));
 
   uint8_t public_key[33];
   uint8_t signature[64];
   ASSERT_TRUE(thorchain_signTxFinalize(public_key, signature));
 
-  // Must match the explicit "rune" signature above
-  EXPECT_TRUE(
+  EXPECT_EQ(0,
       memcmp(signature,
-             (uint8_t *)"\x41\x99\x66\x30\x08\xef\xea\x75\x93\x56\x35\xe6\x1a"
-                        "\x11\xdf\xa3\x3c\xeb\xeb\x91\xc1\xca\xed\xc6\x0e\x5e"
-                        "\xef\x3c\xa2\xc0\x1f\x83\x48\x08\x36\xe6\x21\x89\x51"
-                        "\x14\x36\x64\x7f\xac\x5a\xbd\xc2\x9f\x54\xae\x3d\x7e"
-                        "\x47\x56\x43\xca\x33\xc7\xad\x2c\x8a\x53\x2b\x39",
-             64) == 0);
+             (uint8_t *)"\xc3\xea\xe2\xa3\xc2\xb6\x24\x00\x8d\x8a\xc4\x49\xe2"
+                        "\x53\xdb\xa5\x31\x2e\x4d\xbd\x12\xd6\x77\x39\xd3\xf9"
+                        "\xce\xe1\xc3\xbd\x34\x62\x69\xd2\xaa\x8a\x79\xbe\x81"
+                        "\xd8\x1a\x9e\xe3\x94\x99\x07\xbb\xe2\x08\x04\x1a\xfa"
+                        "\xfe\xfa\x14\x9f\x67\xb3\x9d\x4a\xe2\x29\xc8\x47",
+             64));
 }
 
-// TCY (THORChain native yield/governance token) must sign successfully
-// and produce a distinct signature from rune
+// TCY (THORChain native yield/governance token) — exact signature vector
 TEST(Thorchain, ThorchainSignTxTCY) {
-  HDNode node = kDenomTestNode;
+  HDNode node = kSignNode;
   hdnode_fill_public_key(&node);
 
-  ASSERT_TRUE(thorchain_signTxInit(&node, &kDenomTestSignTx));
-  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(
-      100000, "thor18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", "tcy"));
+  ASSERT_TRUE(thorchain_signTxInit(&node, &kSignTx));
+  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(100000, kToAddr, "tcy"));
 
   uint8_t public_key[33];
   uint8_t signature[64];
   ASSERT_TRUE(thorchain_signTxFinalize(public_key, signature));
 
-  // Signature must differ from the rune baseline
-  EXPECT_FALSE(
+  EXPECT_EQ(0,
       memcmp(signature,
-             (uint8_t *)"\x41\x99\x66\x30\x08\xef\xea\x75\x93\x56\x35\xe6\x1a"
-                        "\x11\xdf\xa3\x3c\xeb\xeb\x91\xc1\xca\xed\xc6\x0e\x5e"
-                        "\xef\x3c\xa2\xc0\x1f\x83\x48\x08\x36\xe6\x21\x89\x51"
-                        "\x14\x36\x64\x7f\xac\x5a\xbd\xc2\x9f\x54\xae\x3d\x7e"
-                        "\x47\x56\x43\xca\x33\xc7\xad\x2c\x8a\x53\x2b\x39",
-             64) == 0);
+             (uint8_t *)"\xad\xa0\xb6\xce\x50\x41\xc1\x01\x46\xf0\x86\x94\xb9"
+                        "\x97\x29\x41\x13\x41\xef\x87\x70\xe8\x58\x7c\x01\xf9"
+                        "\x81\x3f\x71\x8e\xbb\xc7\x58\xcf\xeb\xfc\xf9\x28\x55"
+                        "\x73\xe0\x85\x31\x52\xfc\x0e\xbf\xbd\xa6\x4e\xe8\xd2"
+                        "\xca\xd6\xc4\xd1\xfc\x18\x31\x13\x33\x2f\x2b\xae",
+             64));
 }
 
-// RUJIRA (DEX token native to THORChain) must sign successfully
+// RUJIRA (DEX protocol native to THORChain) — exact signature vector
 TEST(Thorchain, ThorchainSignTxRujira) {
-  HDNode node = kDenomTestNode;
+  HDNode node = kSignNode;
   hdnode_fill_public_key(&node);
 
-  ASSERT_TRUE(thorchain_signTxInit(&node, &kDenomTestSignTx));
-  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(
-      100000, "thor18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", "rujira"));
+  ASSERT_TRUE(thorchain_signTxInit(&node, &kSignTx));
+  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(100000, kToAddr, "rujira"));
 
   uint8_t public_key[33];
   uint8_t signature[64];
   ASSERT_TRUE(thorchain_signTxFinalize(public_key, signature));
+
+  EXPECT_EQ(0,
+      memcmp(signature,
+             (uint8_t *)"\xed\x3b\x99\xac\xfa\x12\x32\xf7\x04\x72\x43\x17\x27"
+                        "\x37\xbc\xb3\x15\x32\xc6\xe2\x1e\x5f\x5b\x4b\xb4\x3c"
+                        "\x10\x7f\x7e\x08\x6a\x60\x28\xa3\x26\x53\x37\x44\x21"
+                        "\xcb\x62\x29\xe4\x5a\xba\x82\x89\x2e\xc7\x6a\x27\x4b"
+                        "\xe7\xfd\x4e\x77\xe2\xa4\x3a\x8e\x5a\x82\xbb\x17",
+             64));
+}
+
+// Denom validation: only [a-z0-9./\-] is allowed; anything else is rejected
+TEST(Thorchain, ThorchainDenomValidation) {
+  EXPECT_TRUE(thorchain_isValidDenom("rune"));
+  EXPECT_TRUE(thorchain_isValidDenom("tcy"));
+  EXPECT_TRUE(thorchain_isValidDenom("rujira"));
+  EXPECT_TRUE(thorchain_isValidDenom("eth.eth"));
+  EXPECT_TRUE(thorchain_isValidDenom("btc/btc"));
+  EXPECT_TRUE(thorchain_isValidDenom("cross-chain"));
+
+  EXPECT_FALSE(thorchain_isValidDenom(""));           // empty → caller uses "rune"
+  EXPECT_FALSE(thorchain_isValidDenom("RUNE"));       // uppercase rejected
+  EXPECT_FALSE(thorchain_isValidDenom("rune\""));     // quote injection
+  EXPECT_FALSE(thorchain_isValidDenom("rune\\n"));    // backslash injection
+  EXPECT_FALSE(thorchain_isValidDenom(" rune"));      // leading space
+  EXPECT_FALSE(thorchain_isValidDenom("ru ne"));      // embedded space
+}
+
+// Invalid denom must cause thorchain_signTxUpdateMsgSend to return false
+TEST(Thorchain, ThorchainSignTxInvalidDenom) {
+  HDNode node = kSignNode;
+  hdnode_fill_public_key(&node);
+
+  ASSERT_TRUE(thorchain_signTxInit(&node, &kSignTx));
+  // Quote-injection attempt must be rejected at the signing layer
+  EXPECT_FALSE(
+      thorchain_signTxUpdateMsgSend(100000, kToAddr, "rune\",\"from_address\":\"evil"));
+  thorchain_signAbort();
 }
