@@ -29,7 +29,23 @@
 #include "trezor/crypto/segwit_addr.h"
 
 #include <stdbool.h>
+#include <string.h>
 #include <time.h>
+
+// Allow lowercase alpha, digits, and the punctuation used in THORChain asset
+// identifiers (e.g. "eth.eth", "btc/btc", cross-chain synthetic prefixes).
+// Rejects anything that needs JSON escaping (backslash, quote).
+bool thorchain_isValidDenom(const char* denom) {
+  if (!denom || !denom[0]) return false;
+  for (size_t i = 0; denom[i]; i++) {
+    char c = denom[i];
+    if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+          c == '.' || c == '/' || c == '-')) {
+      return false;
+    }
+  }
+  return true;
+}
 
 static CONFIDENTIAL HDNode node;
 static SHA256_CTX ctx;
@@ -120,8 +136,11 @@ bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
     return false;
   }
 
-  // Default to "rune" for backward compatibility
+  // Default to "rune" for backward compatibility; validate all non-default denoms
   const char* coin_denom = (denom && denom[0]) ? denom : "rune";
+  if (!thorchain_isValidDenom(coin_denom)) {
+    return false;
+  }
 
   bool success = true;
 
@@ -133,8 +152,8 @@ bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
                                  "\"amount\":[{\"amount\":\"%" PRIu64
                                  "\",\"denom\":\"",
                                  amount);
-  // Write denom directly (arbitrary length, no special chars expected)
-  sha256_Update(&ctx, (uint8_t*)coin_denom, strlen(coin_denom));
+  // Use escaping as defense-in-depth; valid denoms have no escapable chars
+  tendermint_sha256UpdateEscaped(&ctx, coin_denom, strlen(coin_denom));
   // Close coins array: 3 bytes
   sha256_Update(&ctx, (uint8_t*)"\"}]", 3);
 
