@@ -12,7 +12,8 @@ typedef struct _ThorchainMsgDeposit ThorchainMsgDeposit;
 
 bool thorchain_signTxInit(const HDNode* _node, const ThorchainSignTx* _msg);
 bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
-                                   const char* to_address);
+                                   const char* to_address,
+                                   const char* denom);
 bool thorchain_signTxUpdateMsgDeposit(const ThorchainMsgDeposit* depmsg);
 bool thorchain_signTxFinalize(uint8_t* public_key, uint8_t* signature);
 bool thorchain_signingIsInited(void);

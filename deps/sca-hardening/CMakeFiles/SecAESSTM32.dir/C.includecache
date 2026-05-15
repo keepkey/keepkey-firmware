@@ -1,0 +1,38 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/kkemu/deps/sca-hardening/aes128_cbc.c
+aes_sca/aes.h
+/kkemu/deps/sca-hardening/aes_sca/aes.h
+trezor/crypto/aes/aes.h
+/kkemu/deps/sca-hardening/trezor/crypto/aes/aes.h
+trezor/crypto/memzero.h
+/kkemu/deps/sca-hardening/trezor/crypto/memzero.h
+string.h
+-
+
+include/aes_sca/aes.h
+affine_aes.h
+include/aes_sca/affine_aes.h
+
+include/aes_sca/affine_aes.h
+compiler_abstraction.h
+include/aes_sca/compiler_abstraction.h
+
+include/aes_sca/compiler_abstraction.h
+
+include/trezor/crypto/aes/aes.h
+stdlib.h
+-
+stdint.h
+-
+
+include/trezor/crypto/memzero.h
+stddef.h
+-
+
