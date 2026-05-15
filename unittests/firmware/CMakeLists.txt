@@ -8,6 +8,7 @@ set(sources
     ripple.cpp
     signed_metadata.cpp
     storage.cpp
+    thorchain.cpp
     usb_rx.cpp
     u2f.cpp)
 
