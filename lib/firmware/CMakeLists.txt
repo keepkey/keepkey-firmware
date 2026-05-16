@@ -29,6 +29,7 @@ set(sources
     policy.c
     recovery_cipher.c
     reset.c
+    hive.c
     ripple.c
     ripple_base58.c
     signing.c

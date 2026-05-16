@@ -177,6 +177,13 @@
     MSG_OUT(MessageType_MessageType_ZcashTransparentSig,           ZcashTransparentSig,         NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_ZcashAddress,                  ZcashAddress,                NO_PROCESS_FUNC)
 
+    /* Hive */
+    MSG_IN(MessageType_MessageType_HiveGetPublicKey,               HiveGetPublicKey,            fsm_msgHiveGetPublicKey)
+    MSG_IN(MessageType_MessageType_HiveSignTx,                     HiveSignTx,                  fsm_msgHiveSignTx)
+
+    MSG_OUT(MessageType_MessageType_HivePublicKey,                 HivePublicKey,               NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_HiveSignedTx,                  HiveSignedTx,                NO_PROCESS_FUNC)
+
 #if DEBUG_LINK
     /* Debug Messages */
     DEBUG_IN(MessageType_MessageType_DebugLinkDecision,             DebugLinkDecision,           NO_PROCESS_FUNC)
