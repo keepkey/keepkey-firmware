@@ -72,17 +72,25 @@ int kkemu_read(uint8_t* buf, size_t len, int iface);
  *
  * Call this at 10-60 Hz from your event loop.
  *
- * @return Number of messages processed, or -1 on error.
+ * @return 0 on success, or -1 if the emulator is not initialized.
  */
 int kkemu_poll(void);
 
 /**
  * Get the OLED framebuffer (256x64, 1-bit per pixel = 2048 bytes).
  *
+ * This returns a pointer to internal scratch storage containing a snapshot
+ * of the current display in packed SSD1306 page format.
+ *
  * @param width   Receives 256.
  * @param height  Receives 64.
- * @return Pointer to framebuffer (valid until next kkemu_poll).
- *         Returns NULL if emulator is not initialized.
+ * @return Pointer to framebuffer data. The pointer remains valid only until
+ *         the next call to kkemu_get_display(), which overwrites the same
+ *         scratch buffer. Calling kkemu_poll() may update the emulator's
+ *         display state, but it does not refresh previously returned data
+ *         in place; call kkemu_get_display() again after kkemu_poll() to
+ *         obtain an updated framebuffer snapshot. Returns NULL if emulator
+ *         is not initialized.
  */
 const uint8_t* kkemu_get_display(int* width, int* height);
 

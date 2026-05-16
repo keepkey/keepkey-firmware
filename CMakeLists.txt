@@ -9,6 +9,7 @@ endif()
 
 project(
   KeepKeyFirmware
+
   VERSION 7.15.0
   LANGUAGES C CXX ASM)
 
