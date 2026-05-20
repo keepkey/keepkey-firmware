@@ -937,9 +937,8 @@ bool zcash_compute_transparent_digest(
     const ZcashTransparentInputDigestInfo* inputs, size_t n_inputs,
     const ZcashTransparentOutputDigestInfo* outputs, size_t n_outputs,
     uint8_t digest_out[32]) {
-  if (!digest_out ||
-      !zcash_validate_transparent_digest_info(inputs, n_inputs, outputs,
-                                              n_outputs)) {
+  if (!digest_out || !zcash_validate_transparent_digest_info(
+                         inputs, n_inputs, outputs, n_outputs)) {
     return false;
   }
 
@@ -971,9 +970,8 @@ bool zcash_compute_transparent_sighash_digest(
     const ZcashTransparentOutputDigestInfo* outputs, size_t n_outputs,
     uint32_t signable_input_index, uint8_t sighash_type,
     uint8_t digest_out[32]) {
-  if (!digest_out ||
-      !zcash_validate_transparent_digest_info(inputs, n_inputs, outputs,
-                                              n_outputs)) {
+  if (!digest_out || !zcash_validate_transparent_digest_info(
+                         inputs, n_inputs, outputs, n_outputs)) {
     return false;
   }
 
@@ -989,8 +987,7 @@ bool zcash_compute_transparent_sighash_digest(
   zcash_hash_transparent_sequences(inputs, n_inputs, sequence_digest);
   zcash_hash_transparent_outputs(outputs, n_outputs, outputs_digest);
 
-  zcash_hash_transparent_input(&inputs[signable_input_index],
-                               txin_sig_digest);
+  zcash_hash_transparent_input(&inputs[signable_input_index], txin_sig_digest);
 
   BLAKE2B_CTX ctx;
   blake2b_InitPersonal(&ctx, 32, "ZTxIdTranspaHash", 16);

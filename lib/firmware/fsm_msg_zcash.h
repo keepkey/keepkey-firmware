@@ -97,7 +97,8 @@ static struct {
   uint32_t current_transparent_output;
   uint32_t n_transparent_inputs;
   uint32_t current_transparent_input;
-  ZcashTransparentOutputState transparent_outputs[ZCASH_MAX_TRANSPARENT_OUTPUTS];
+  ZcashTransparentOutputState
+      transparent_outputs[ZCASH_MAX_TRANSPARENT_OUTPUTS];
   ZcashTransparentInputState transparent_inputs[ZCASH_MAX_TRANSPARENT_INPUTS];
 } zcash_signing;
 
@@ -183,8 +184,8 @@ static bool zcash_verify_and_confirm_orchard_output(
   memzero(computed_cmx, sizeof(computed_cmx));
 
   char address[ZCASH_ORCHARD_UNIFIED_ADDRESS_SIZE];
-  if (!zcash_orchard_receiver_to_unified_address(
-          msg->recipient.bytes, "u", address, sizeof(address))) {
+  if (!zcash_orchard_receiver_to_unified_address(msg->recipient.bytes, "u",
+                                                 address, sizeof(address))) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Invalid Orchard recipient"));
     return false;
@@ -227,10 +228,8 @@ static bool zcash_compute_verified_fee(uint64_t* fee_out) {
   }
 
   const int64_t value_balance = zcash_signing.orchard_value_balance;
-  if ((value_balance > 0 &&
-       net_transparent > INT64_MAX - value_balance) ||
-      (value_balance < 0 &&
-       net_transparent < INT64_MIN - value_balance)) {
+  if ((value_balance > 0 && net_transparent > INT64_MAX - value_balance) ||
+      (value_balance < 0 && net_transparent < INT64_MIN - value_balance)) {
     return false;
   }
 
@@ -542,8 +541,7 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
                                    branch_id, msg->lock_time,
                                    msg->expiry_height, header_digest) ||
       memcmp(header_digest, msg->header_digest.bytes, 32) != 0) {
-    fsm_sendFailure(FailureType_Failure_Other,
-                    _("Header digest mismatch"));
+    fsm_sendFailure(FailureType_Failure_Other, _("Header digest mismatch"));
     layoutHome();
     return;
   }
@@ -685,10 +683,9 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
     memcpy(t_digest, EMPTY_TRANSPARENT_DIGEST, 32);
     memcpy(s_digest, EMPTY_SAPLING_DIGEST, 32);
 
-    zcash_compute_shielded_sighash(header_digest, t_digest, s_digest,
-                                   msg->orchard_digest.bytes,
-                                   zcash_signing.branch_id,
-                                   zcash_signing.sighash);
+    zcash_compute_shielded_sighash(
+        header_digest, t_digest, s_digest, msg->orchard_digest.bytes,
+        zcash_signing.branch_id, zcash_signing.sighash);
     zcash_signing.has_device_sighash = true;
     zcash_signing.transparent_digest_verified = true;
   } else {
@@ -707,11 +704,10 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
   zcash_signing.orchard_value_balance = msg->orchard_value_balance;
   memcpy(zcash_signing.orchard_anchor, msg->orchard_anchor.bytes, 32);
 
-  blake2b_InitPersonal(&zcash_signing.compact_ctx, 32, "ZTxIdOrcActCHash",
-                       16);
+  blake2b_InitPersonal(&zcash_signing.compact_ctx, 32, "ZTxIdOrcActCHash", 16);
   blake2b_InitPersonal(&zcash_signing.memos_ctx, 32, "ZTxIdOrcActMHash", 16);
-  blake2b_InitPersonal(&zcash_signing.noncompact_ctx, 32,
-                       "ZTxIdOrcActNHash", 16);
+  blake2b_InitPersonal(&zcash_signing.noncompact_ctx, 32, "ZTxIdOrcActNHash",
+                       16);
   zcash_signing.verify_orchard_digest = true;
 
   /* Request the first plaintext component. Transparent outputs are reviewed
@@ -1136,9 +1132,9 @@ void fsm_msgZcashTransparentOutput(const ZcashTransparentOutput* msg) {
   }
 
   char address[64];
-  if (!zcash_transparent_script_to_address(
-          msg->script_pubkey.bytes, msg->script_pubkey.size, address,
-          sizeof(address))) {
+  if (!zcash_transparent_script_to_address(msg->script_pubkey.bytes,
+                                           msg->script_pubkey.size, address,
+                                           sizeof(address))) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Unsupported transparent output script"));
     zcash_signing_abort();
@@ -1149,8 +1145,7 @@ void fsm_msgZcashTransparentOutput(const ZcashTransparentOutput* msg) {
   char amount_str[32];
   zcash_format_amount(msg->amount, amount_str, sizeof(amount_str));
   if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Zcash Output",
-               "Send transparent ZEC?\n%s\nAmount: %s", address,
-               amount_str)) {
+               "Send transparent ZEC?\n%s\nAmount: %s", address, amount_str)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     _("Signing cancelled"));
     zcash_signing_abort();
@@ -1338,7 +1333,8 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
   }
 
   if (!zcash_finalize_transparent_digest()) {
-    fsm_sendFailure(FailureType_Failure_Other, _("Transparent digest mismatch"));
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Transparent digest mismatch"));
     zcash_signing_abort();
     layoutHome();
     return;
