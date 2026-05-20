@@ -116,10 +116,10 @@ Results:
 - `BitHighlander/device-protocol`
   `feat/zcash-clearsign-protocol` -> `6ec974e`
 - `BitHighlander/python-keepkey`
-  `feat/zcash-clearsign-tests` -> `2b34e67`
+  `feature/zcash-clearsign-tests` -> `b9a3f00`
 - Firmware submodules now point at those commits:
   - `deps/device-protocol` -> `6ec974e`
-  - `deps/python-keepkey` -> `2b34e67`
+  - `deps/python-keepkey` -> `b9a3f00`
 
 The python-keepkey PDF report now includes the 7.15 Zcash clear-signing section
 with the new digest rejection, transparent streaming, cmx binding, and
