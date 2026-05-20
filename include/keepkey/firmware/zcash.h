@@ -41,6 +41,67 @@ typedef struct {
   uint8_t dk[32]; /* Diversifier key */
 } ZcashOrchardKeys;
 
+typedef struct {
+  bool has_header_digest;
+  size_t header_digest_size;
+  bool has_transparent_digest;
+  size_t transparent_digest_size;
+  bool has_sapling_digest;
+  size_t sapling_digest_size;
+  bool has_orchard_digest;
+  size_t orchard_digest_size;
+  bool has_orchard_flags;
+  uint32_t orchard_flags;
+  bool has_orchard_value_balance;
+  bool has_orchard_anchor;
+  size_t orchard_anchor_size;
+  bool has_header_fields;
+  uint32_t n_transparent_inputs;
+  uint32_t n_transparent_outputs;
+} ZcashPCZTSigningRequestMeta;
+
+typedef enum {
+  ZCASH_PCZT_SIGNING_REQUEST_OK = 0,
+  ZCASH_PCZT_SIGNING_REQUEST_MISSING_TX_DIGESTS,
+  ZCASH_PCZT_SIGNING_REQUEST_INVALID_DIGEST_SIZE,
+  ZCASH_PCZT_SIGNING_REQUEST_MISSING_HEADER_FIELDS,
+  ZCASH_PCZT_SIGNING_REQUEST_UNSUPPORTED_SAPLING_COMPONENT,
+  ZCASH_PCZT_SIGNING_REQUEST_MISSING_ORCHARD_METADATA,
+  ZCASH_PCZT_SIGNING_REQUEST_MISSING_TRANSPARENT_DIGEST,
+} ZcashPCZTSigningRequestStatus;
+
+typedef struct {
+  const uint8_t* prevout_txid;
+  uint32_t prevout_index;
+  uint32_t sequence;
+  uint64_t value;
+  const uint8_t* script_pubkey;
+  size_t script_pubkey_size;
+} ZcashTransparentInputDigestInfo;
+
+typedef struct {
+  uint64_t value;
+  const uint8_t* script_pubkey;
+  size_t script_pubkey_size;
+} ZcashTransparentOutputDigestInfo;
+
+#define ZCASH_ORCHARD_RAW_RECEIVER_SIZE 43
+#define ZCASH_ORCHARD_UNIFIED_ADDRESS_SIZE 128
+
+/**
+ * Validate the clear-signing metadata required before Orchard signatures.
+ *
+ * This rejects the legacy flow where the host supplied only a per-action
+ * sighash. The firmware must assemble the ZIP-244 sighash from transaction
+ * component digests and verify the Orchard digest against streamed action data
+ * before returning signatures.
+ */
+ZcashPCZTSigningRequestStatus zcash_pczt_signing_request_status(
+    const ZcashPCZTSigningRequestMeta* meta);
+
+bool zcash_pczt_signing_request_is_clear(
+    const ZcashPCZTSigningRequestMeta* meta);
+
 /**
  * Derive Orchard spending keys from the device seed via ZIP-32.
  * Path: m_orchard / 32' / 133' / account'
@@ -76,6 +137,58 @@ bool zcash_compute_shielded_sighash(const uint8_t header_digest[32],
                                     const uint8_t orchard_digest[32],
                                     uint32_t branch_id,
                                     uint8_t sighash_out[32]);
+
+/**
+ * Compute ZIP-244 T.1 header_digest from plaintext transaction header fields.
+ */
+bool zcash_compute_header_digest(uint32_t version, uint32_t version_group_id,
+                                 uint32_t branch_id, uint32_t lock_time,
+                                 uint32_t expiry_height,
+                                 uint8_t digest_out[32]);
+
+/**
+ * Compute ZIP-244 T.2 transparent_digest from plaintext transparent data.
+ *
+ * This is the digest mixed into the Orchard/Sapling signing commitment. It is
+ * not the same as the per-input transparent signature digest.
+ */
+bool zcash_compute_transparent_digest(
+    const ZcashTransparentInputDigestInfo* inputs, size_t n_inputs,
+    const ZcashTransparentOutputDigestInfo* outputs, size_t n_outputs,
+    uint8_t digest_out[32]);
+
+/**
+ * Compute ZIP-244 S.2 per-input transparent signature digest.
+ *
+ * This currently accepts SIGHASH_ALL only, matching the existing transparent
+ * signing flow.
+ */
+bool zcash_compute_transparent_sighash_digest(
+    const ZcashTransparentInputDigestInfo* inputs, size_t n_inputs,
+    const ZcashTransparentOutputDigestInfo* outputs, size_t n_outputs,
+    uint32_t signable_input_index, uint8_t sighash_type,
+    uint8_t digest_out[32]);
+
+/**
+ * Encode a raw Orchard receiver (d || pk_d) as an Orchard-only ZIP-316 Unified
+ * Address for display. This is for recipient review; it does not derive or
+ * prove ownership of the receiver.
+ */
+bool zcash_orchard_receiver_to_unified_address(
+    const uint8_t receiver[ZCASH_ORCHARD_RAW_RECEIVER_SIZE], const char* hrp,
+    char* address_out, size_t address_out_len);
+
+/**
+ * Recompute an Orchard output note commitment x-coordinate (cmx).
+ *
+ * cmx = Extract_P(NoteCommit_rcm^Orchard(g_d, pk_d, v, rho, psi))
+ * where receiver = d || pk_d, rho is the action nullifier, and rseed is the
+ * output note seed. This binds the user-displayed receiver/value to the action
+ * commitment before any authorization signature is emitted.
+ */
+bool zcash_orchard_compute_cmx(
+    const uint8_t receiver[ZCASH_ORCHARD_RAW_RECEIVER_SIZE], uint64_t value,
+    const uint8_t rho[32], const uint8_t rseed[32], uint8_t cmx_out[32]);
 
 /**
  * Derive an Orchard diversifier from a diversifier key and 88-bit index.

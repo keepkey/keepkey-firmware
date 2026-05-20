@@ -114,68 +114,84 @@ add_custom_command(
       ${CMAKE_BINARY_DIR}/lib/transport/google/protobuf/descriptor.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f types.options:." types.proto
+      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --nanopb_out=.
+      --nanopb_opt=-f,types.options types.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f messages-ethereum.options:." messages-ethereum.proto
+      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --nanopb_out=.
+      --nanopb_opt=-f,messages-ethereum.options messages-ethereum.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f messages-eos.options:." messages-eos.proto
+      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --nanopb_out=.
+      --nanopb_opt=-f,messages-eos.options messages-eos.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f messages-nano.options:." messages-nano.proto
+      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --nanopb_out=.
+      --nanopb_opt=-f,messages-nano.options messages-nano.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f messages-binance.options:." messages-binance.proto
+      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --nanopb_out=.
+      --nanopb_opt=-f,messages-binance.options messages-binance.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f messages-cosmos.options:." messages-cosmos.proto
+      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --nanopb_out=.
+      --nanopb_opt=-f,messages-cosmos.options messages-cosmos.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f messages-osmosis.options:." messages-osmosis.proto    
+      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --nanopb_out=.
+      --nanopb_opt=-f,messages-osmosis.options messages-osmosis.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f messages-ripple.options:." messages-ripple.proto
+      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --nanopb_out=.
+      --nanopb_opt=-f,messages-ripple.options messages-ripple.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f messages-tendermint.options:." messages-tendermint.proto
+      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --nanopb_out=.
+      --nanopb_opt=-f,messages-tendermint.options messages-tendermint.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f messages-thorchain.options:." messages-thorchain.proto
+      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --nanopb_out=.
+      --nanopb_opt=-f,messages-thorchain.options messages-thorchain.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f messages-mayachain.options:." messages-mayachain.proto
+      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --nanopb_out=.
+      --nanopb_opt=-f,messages-mayachain.options messages-mayachain.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f messages-solana.options:." messages-solana.proto
+      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --nanopb_out=.
+      --nanopb_opt=-f,messages-solana.options messages-solana.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f messages-tron.options:." messages-tron.proto
+      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --nanopb_out=.
+      --nanopb_opt=-f,messages-tron.options messages-tron.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f messages-ton.options:." messages-ton.proto
+      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --nanopb_out=.
+      --nanopb_opt=-f,messages-ton.options messages-ton.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f messages-zcash.options:." messages-zcash.proto
+      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --nanopb_out=.
+      --nanopb_opt=-f,messages-zcash.options messages-zcash.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f messages.options:." messages.proto
+      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --nanopb_out=.
+      --nanopb_opt=-f,messages.options messages.proto
   COMMAND
     ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/lib/transport/*.pb.h
        ${CMAKE_BINARY_DIR}/include
