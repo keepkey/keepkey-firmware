@@ -185,6 +185,26 @@ CI fixes already applied in this branch:
   `_descriptor.Descriptor` / `_descriptor.FieldDescriptor` blocks, and
   `_sym_db.RegisterFileDescriptor(DESCRIPTOR)`. No protoc/runtime version
   change is part of the fix.
+- `oled-screenshots`: the Docker-side screenshot phase now extracts
+  `FW_VERSION` with BusyBox-compatible `grep -Eo '[0-9]+\.[0-9]+\.[0-9]+'`.
+  The previous `grep -oP` form failed inside the base image, fell back to
+  `7.14.0`, and filtered out the 7.15.0 Zcash PCZT screenshot tests even
+  though the final Ubuntu `generate-test-report` job produced the 7.15.0 PDF
+  rows.
+
+Last inspected successful run before the screenshot-filter fix:
+
+- `https://github.com/BitHighlander/keepkey-firmware/actions/runs/26194803188`
+- Head SHA: `1cb48d64687cc98a25f3da806782ced9d855ac93`
+- Result: all required jobs passed; `python-integration-tests` reported
+  `405 passed, 34 skipped`.
+- PDF artifact: `test-report.pdf` contained
+  `Zcash Orchard Clear-Signing [NEW] -- 17/17 passed`.
+- Gap found during artifact audit: `oled-screenshots` uploaded 301 PNGs, but
+  only legacy `msg_signtx_zcash` screenshots appeared for Zcash because the
+  Docker screenshot phase detected `FW_VERSION=7.14.0`. The current branch
+  fixes that detection and needs one more CI run to confirm PCZT screenshots
+  appear in the image artifact and embedded PDF.
 
 Artifact validation checklist:
 

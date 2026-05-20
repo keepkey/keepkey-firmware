@@ -43,7 +43,7 @@ echo "=== End diagnostic ==="
 echo "=== Phase 1: Report-driven screenshot capture ==="
 # Detect firmware version from CMakeLists if not set in env
 if [ -z "$FW_VERSION" ]; then
-    FW_VERSION=$(sed -n '/^project/,/)/p' /kkemu/CMakeLists.txt | grep -oP '\d+\.\d+\.\d+' || echo "7.14.0")
+    FW_VERSION=$(sed -n '/^project/,/)/p' /kkemu/CMakeLists.txt | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' || echo "7.14.0")
     echo "Detected FW_VERSION=$FW_VERSION from CMakeLists.txt"
 fi
 export FW_VERSION
