@@ -116,10 +116,10 @@ Results:
 - `BitHighlander/device-protocol`
   `feat/zcash-clearsign-protocol` -> `6ec974e`
 - `BitHighlander/python-keepkey`
-  `feature/zcash-clearsign-tests` -> `045f8fa`
+  `feature/zcash-clearsign-tests` -> `c7e9ade`
 - Firmware submodules now point at those commits:
   - `deps/device-protocol` -> `6ec974e`
-  - `deps/python-keepkey` -> `045f8fa`
+  - `deps/python-keepkey` -> `c7e9ade`
 
 The firmware GitHub Actions PDF report is generated through the checked-out
 `deps/python-keepkey` submodule. The submodule report script now includes the
@@ -152,9 +152,9 @@ Current pushed state:
   `6ec974eef1fecb713be0916436ec31fefe4f094e`
 - Python test/report submodule: `BitHighlander/python-keepkey`
   `feature/zcash-clearsign-tests` ->
-  `045f8fafa415316b25b5d182dce5c6a2843356e2`
+  `c7e9ade93df939b1e65787d677fa60d044d9cefc`
 
-Failed run that diagnosed the protobuf break:
+Failed runs that diagnosed the protobuf break:
 
 - `https://github.com/BitHighlander/keepkey-firmware/actions/runs/26192217728`
 - Event: push
@@ -164,16 +164,27 @@ Failed run that diagnosed the protobuf break:
   `keepkeylib/messages_zcash_pb2.py` imported
   `google.protobuf.internal.builder`, which is not available in the firmware CI
   Python/protobuf runtime.
+- `https://github.com/BitHighlander/keepkey-firmware/actions/runs/26193294071`
+- Event: push
+- Branch: `feature/clearsign-txs`
+- Head SHA: `98b4fd9e7570ef9010993ccb600c5cbca9670e35`
+- Failure: `python-integration-tests` still failed before test execution because
+  descriptor-pool style output assigned `DESCRIPTOR` from
+  `AddSerializedFile(...)`, which returns `None` under the firmware CI runtime.
+  That confirmed the fix must preserve python-keepkey's legacy
+  `_descriptor.FileDescriptor` plus explicit descriptor/reflection layout.
 
 CI fixes already applied in this branch:
 
 - `lint-format`: clang-format fixes for generated clear-signing C changes.
 - `python-dylib-tests`: CMake now uses the nanopb plugin wrapper so macOS can
   find the protobuf dylib while generating nanopb sources.
-- `python-integration-tests`: the Zcash Python protobuf was regenerated with
-  the stack's compatible `grpc-tools` `protoc 3.19.1` output style so it does
-  not require `google.protobuf.internal.builder`. The temporary Docker protobuf
-  pin was removed.
+- `python-integration-tests`: the temporary Docker protobuf pin was removed,
+  and the Zcash Python protobuf was restored to python-keepkey's legacy
+  checked-in style: `_descriptor.FileDescriptor`, explicit
+  `_descriptor.Descriptor` / `_descriptor.FieldDescriptor` blocks, and
+  `_sym_db.RegisterFileDescriptor(DESCRIPTOR)`. No protoc/runtime version
+  change is part of the fix.
 
 Artifact validation checklist:
 
@@ -204,12 +215,13 @@ Artifact validation checklist:
   `/private/tmp/kk-python-shim/python -> /opt/homebrew/bin/python3`.
 - `PATH=/private/tmp/kk-python-shim:$PATH` is needed for local firmware rebuilds
   unless a real `python` executable is installed.
-- Local `protoc` is `libprotoc 34.1`; do not use it for checked-in
-  python-keepkey protobuf output on this branch. It emits modern
-  `google.protobuf.internal.builder` code that fails in firmware CI. Regenerate
-  `keepkeylib/messages_zcash_pb2.py` with the stack's
-  `modules/device-protocol/node_modules/grpc-tools/bin/protoc` 3.19.1 binary or
-  an equivalent no-builder generator.
+- Do not use local `protoc`, `grpc-tools`, or CI dependency pins to update
+  checked-in python-keepkey protobuf files for this branch. python-keepkey keeps
+  `_pb2.py` files in a legacy hand-maintained protobuf 3.x-compatible layout.
+  Preserve the existing release/develop style and add only the new fields or
+  messages needed for the protocol surface. Modern `builder` output and
+  descriptor-pool `AddSerializedFile(...)` output both fail in the firmware
+  integration runtime.
 - `PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python` is useful for local imports
   with the older checked-in protobuf files.
 
