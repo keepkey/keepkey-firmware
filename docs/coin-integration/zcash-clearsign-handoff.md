@@ -116,14 +116,16 @@ Results:
 - `BitHighlander/device-protocol`
   `feat/zcash-clearsign-protocol` -> `6ec974e`
 - `BitHighlander/python-keepkey`
-  `feature/zcash-clearsign-tests` -> `b9a3f00`
+  `feature/zcash-clearsign-tests` -> `045f8fa`
 - Firmware submodules now point at those commits:
   - `deps/device-protocol` -> `6ec974e`
-  - `deps/python-keepkey` -> `b9a3f00`
+  - `deps/python-keepkey` -> `045f8fa`
 
-The python-keepkey PDF report now includes the 7.15 Zcash clear-signing section
-with the new digest rejection, transparent streaming, cmx binding, and
-privacy-output tests. Its screenshot filter selects the positive display flows:
+The firmware GitHub Actions PDF report is generated through the checked-out
+`deps/python-keepkey` submodule. The submodule report script now includes the
+7.15 Zcash clear-signing section with the new digest rejection, transparent
+streaming, cmx binding, and privacy-output tests. Its screenshot filter selects
+the positive display flows:
 
 - `test_multi_action_device_sighash`
 - `test_signatures_are_64_bytes`
@@ -134,6 +136,67 @@ Screenshot capture is still driven by `KEEPKEY_SCREENSHOT=1` and ButtonRequest
 callbacks; `scripts/generate-test-report.py --screenshots <dir>` embeds the
 captured `btn*.png` frames for tests with screenshot labels.
 
+## Firmware CI Handoff
+
+Firmware GitHub Actions on `BitHighlander/keepkey-firmware` are authoritative
+for this branch. Do not treat standalone python-keepkey CI as the target; the
+firmware workflow checks out `deps/python-keepkey` at the submodule SHA and uses
+that test/report tooling inside the firmware run.
+
+Current pushed state:
+
+- Firmware: `BitHighlander/keepkey-firmware`
+  `feature/clearsign-txs`
+- Device protocol submodule: `BitHighlander/device-protocol`
+  `feat/zcash-clearsign-protocol` ->
+  `6ec974eef1fecb713be0916436ec31fefe4f094e`
+- Python test/report submodule: `BitHighlander/python-keepkey`
+  `feature/zcash-clearsign-tests` ->
+  `045f8fafa415316b25b5d182dce5c6a2843356e2`
+
+Failed run that diagnosed the protobuf break:
+
+- `https://github.com/BitHighlander/keepkey-firmware/actions/runs/26192217728`
+- Event: push
+- Branch: `feature/clearsign-txs`
+- Head SHA: `4531d4b984f4c5c44d271f6d215061ef98450a36`
+- Failure: `python-integration-tests` failed before test execution because
+  `keepkeylib/messages_zcash_pb2.py` imported
+  `google.protobuf.internal.builder`, which is not available in the firmware CI
+  Python/protobuf runtime.
+
+CI fixes already applied in this branch:
+
+- `lint-format`: clang-format fixes for generated clear-signing C changes.
+- `python-dylib-tests`: CMake now uses the nanopb plugin wrapper so macOS can
+  find the protobuf dylib while generating nanopb sources.
+- `python-integration-tests`: the Zcash Python protobuf was regenerated with
+  the stack's compatible `grpc-tools` `protoc 3.19.1` output style so it does
+  not require `google.protobuf.internal.builder`. The temporary Docker protobuf
+  pin was removed.
+
+Artifact validation checklist:
+
+- `python-integration-tests` must pass in firmware CI, because this is where
+  the emulator-backed Python clear-signing tests run.
+- The run must upload `python-test-results` and `oled-screenshots`.
+- The run must then execute `generate-test-report` and upload `test-report`
+  containing `test-report.pdf`.
+- The PDF should contain Zcash 7.15.0 rows `Z5` through `Z17`.
+- The PDF should embed screenshots for:
+  - `test_multi_action_device_sighash`
+  - `test_signatures_are_64_bytes`
+  - `test_transparent_shielding_single_input`
+  - `test_transparent_shielding_multiple_inputs`
+- The screenshot/PDF values must match the firmware-computed displays:
+  - Orchard privacy outputs show a ZIP-316 Orchard-only Unified Address and
+    amount derived only after firmware verifies `recipient = d || pk_d`,
+    `value`, `rseed`, action nullifier, and `cmx`.
+  - Transparent outputs show the derived transparent address/script target and
+    amount from streamed plaintext.
+  - Shielding flows show the expected transparent input/output totals and the
+    final computed fee confirmation before signatures are released.
+
 ## Local Tooling Notes
 
 - Nanopb generation invokes `env python`. This machine only had `python3`, so a
@@ -141,10 +204,12 @@ captured `btn*.png` frames for tests with screenshot labels.
   `/private/tmp/kk-python-shim/python -> /opt/homebrew/bin/python3`.
 - `PATH=/private/tmp/kk-python-shim:$PATH` is needed for local firmware rebuilds
   unless a real `python` executable is installed.
-- Local `protoc` is `libprotoc 34.1`; regenerating
-  `keepkeylib/messages_zcash_pb2.py` produced a noisy modern-style diff. The
-  checked-in python-keepkey branch removes the generated runtime-version guard
-  so it imports with the local protobuf runtimes used during verification.
+- Local `protoc` is `libprotoc 34.1`; do not use it for checked-in
+  python-keepkey protobuf output on this branch. It emits modern
+  `google.protobuf.internal.builder` code that fails in firmware CI. Regenerate
+  `keepkeylib/messages_zcash_pb2.py` with the stack's
+  `modules/device-protocol/node_modules/grpc-tools/bin/protoc` 3.19.1 binary or
+  an equivalent no-builder generator.
 - `PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python` is useful for local imports
   with the older checked-in protobuf files.
 
