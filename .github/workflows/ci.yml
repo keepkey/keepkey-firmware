@@ -597,12 +597,16 @@ jobs:
           # CMAKE_POLICY_VERSION_MINIMUM works around vendored
           # googletest's pre-3.5 policy declaration.
           export PATH="$PATH:$(python -c 'import os, nanopb; print(os.path.dirname(nanopb.__file__))')/generator"
+          NANOPB_DIR="$(python -c 'import os, nanopb; print(os.path.dirname(nanopb.__file__))')"
+          NANOPB_PLUGIN="$(command -v protoc-gen-nanopb)"
           which protoc-gen-nanopb
           which nanopb_generator.py
           cmake \
             -DKK_EMULATOR=1 \
             -DKK_BUILD_DYLIB=1 \
             -DKK_DEBUG_LINK=ON \
+            -DNANOPB_DIR="$NANOPB_DIR" \
+            -DNANOPB_PLUGIN="$NANOPB_PLUGIN" \
             -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
             -B build-emu .
 

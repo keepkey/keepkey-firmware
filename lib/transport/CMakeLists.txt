@@ -114,82 +114,82 @@ add_custom_command(
       ${CMAKE_BINARY_DIR}/lib/transport/google/protobuf/descriptor.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}
       --nanopb_out=.
       --nanopb_opt=-f,types.options types.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}
       --nanopb_out=.
       --nanopb_opt=-f,messages-ethereum.options messages-ethereum.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}
       --nanopb_out=.
       --nanopb_opt=-f,messages-eos.options messages-eos.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}
       --nanopb_out=.
       --nanopb_opt=-f,messages-nano.options messages-nano.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}
       --nanopb_out=.
       --nanopb_opt=-f,messages-binance.options messages-binance.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}
       --nanopb_out=.
       --nanopb_opt=-f,messages-cosmos.options messages-cosmos.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}
       --nanopb_out=.
       --nanopb_opt=-f,messages-osmosis.options messages-osmosis.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}
       --nanopb_out=.
       --nanopb_opt=-f,messages-ripple.options messages-ripple.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}
       --nanopb_out=.
       --nanopb_opt=-f,messages-tendermint.options messages-tendermint.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}
       --nanopb_out=.
       --nanopb_opt=-f,messages-thorchain.options messages-thorchain.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}
       --nanopb_out=.
       --nanopb_opt=-f,messages-mayachain.options messages-mayachain.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}
       --nanopb_out=.
       --nanopb_opt=-f,messages-solana.options messages-solana.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}
       --nanopb_out=.
       --nanopb_opt=-f,messages-tron.options messages-tron.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}
       --nanopb_out=.
       --nanopb_opt=-f,messages-ton.options messages-ton.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}
       --nanopb_out=.
       --nanopb_opt=-f,messages-zcash.options messages-zcash.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}
       --nanopb_out=.
       --nanopb_opt=-f,messages.options messages.proto
   COMMAND
