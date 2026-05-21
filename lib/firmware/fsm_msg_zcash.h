@@ -100,6 +100,9 @@ static struct {
   ZcashTransparentOutputState
       transparent_outputs[ZCASH_MAX_TRANSPARENT_OUTPUTS];
   ZcashTransparentInputState transparent_inputs[ZCASH_MAX_TRANSPARENT_INPUTS];
+  /* Deferred transparent ECDSA sigs — buffered until Orchard/fee final gate */
+  bool has_pending_transparent;
+  ZcashTransparentSigned pending_transparent;
 } zcash_signing;
 
 /* Public API; declared in keepkey/firmware/zcash.h. */
@@ -353,9 +356,8 @@ static bool zcash_finalize_transparent_digest(void) {
   return true;
 }
 
-static bool zcash_sign_transparent_inputs(ZcashTransparentSigned* resp,
-                                          bool* cancelled) {
-  if (!resp || !zcash_signing.transparent_digest_verified) return false;
+static bool zcash_sign_transparent_inputs(bool* cancelled) {
+  if (!zcash_signing.transparent_digest_verified) return false;
   if (cancelled) *cancelled = false;
 
   bool ok = false;
@@ -366,8 +368,9 @@ static bool zcash_sign_transparent_inputs(ZcashTransparentSigned* resp,
   const CoinType* coin = fsm_getCoin(true, "Zcash");
   if (!coin) goto cleanup;
 
-  memset(resp, 0, sizeof(ZcashTransparentSigned));
-  resp->signatures_count = zcash_signing.n_transparent_inputs;
+  memset(&zcash_signing.pending_transparent, 0, sizeof(ZcashTransparentSigned));
+  zcash_signing.pending_transparent.signatures_count =
+      zcash_signing.n_transparent_inputs;
 
   for (uint32_t i = 0; i < zcash_signing.n_transparent_inputs; i++) {
     const ZcashTransparentInputState* stored =
@@ -388,29 +391,44 @@ static bool zcash_sign_transparent_inputs(ZcashTransparentSigned* resp,
                                       stored->address_n_count, NULL);
     if (!node) goto cleanup;
 
-    uint8_t sighash[32] = {0};
+    /* ZIP-244 §4.4: signature_digest = ZcashTxHash_(
+     *   header_digest || transparent_sig_digest || sapling_digest || orchard_digest)
+     * Binding the transparent ECDSA sig to all four components ensures it
+     * cannot be replayed in a transaction with different Orchard/header data. */
+    uint8_t t_sig_digest[32] = {0};
+    uint8_t full_sighash[32] = {0};
     uint8_t sig[64] = {0};
     uint8_t der_sig[73] = {0};
-    if (!zcash_compute_transparent_sighash_digest(
+
+    bool sign_ok =
+        zcash_compute_transparent_sighash_digest(
             inputs, zcash_signing.n_transparent_inputs, outputs,
-            zcash_signing.n_transparent_outputs, i, 0x01, sighash) ||
-        hdnode_sign_digest(node, sighash, sig, NULL, NULL) != 0) {
-      memzero(node, sizeof(*node));
-      memzero(sighash, sizeof(sighash));
+            zcash_signing.n_transparent_outputs, i, 0x01, t_sig_digest) &&
+        zcash_compute_shielded_sighash(
+            zcash_signing.header_digest, t_sig_digest, EMPTY_SAPLING_DIGEST,
+            zcash_signing.expected_orchard_digest, zcash_signing.branch_id,
+            full_sighash) &&
+        hdnode_sign_digest(node, full_sighash, sig, NULL, NULL) == 0;
+
+    memzero(node, sizeof(*node));
+    memzero(t_sig_digest, sizeof(t_sig_digest));
+    memzero(full_sighash, sizeof(full_sighash));
+
+    if (!sign_ok) {
       memzero(sig, sizeof(sig));
-      return false;
+      goto cleanup;
     }
 
     int der_len = ecdsa_sig_to_der(sig, der_sig);
-    resp->signatures[i].size = der_len;
-    memcpy(resp->signatures[i].bytes, der_sig, der_len);
+    zcash_signing.pending_transparent.signatures[i].size = der_len;
+    memcpy(zcash_signing.pending_transparent.signatures[i].bytes, der_sig,
+           der_len);
 
-    memzero(node, sizeof(*node));
-    memzero(sighash, sizeof(sighash));
     memzero(sig, sizeof(sig));
     memzero(der_sig, sizeof(der_sig));
   }
 
+  zcash_signing.has_pending_transparent = true;
   ok = true;
 
 cleanup:
@@ -1067,7 +1085,16 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
       return;
     }
 
-    /* All done - send the collected signatures */
+    /* Release deferred transparent ECDSA sigs at the same gate as Orchard sigs —
+     * both are sent only after Orchard digest verification and fee confirmation. */
+    if (zcash_signing.has_pending_transparent) {
+      ZcashTransparentSigned* t_resp = (ZcashTransparentSigned*)msg_resp;
+      memcpy(t_resp, &zcash_signing.pending_transparent,
+             sizeof(ZcashTransparentSigned));
+      msg_write(MessageType_MessageType_ZcashTransparentSigned, t_resp);
+    }
+
+    /* All done - send the collected Orchard signatures */
     ZcashSignedPCZT* resp_signed = (ZcashSignedPCZT*)msg_resp;
     memset(resp_signed, 0, sizeof(ZcashSignedPCZT));
 
@@ -1340,9 +1367,8 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
     return;
   }
 
-  ZcashTransparentSigned* resp = (ZcashTransparentSigned*)msg_resp;
   bool cancelled = false;
-  if (!zcash_sign_transparent_inputs(resp, &cancelled)) {
+  if (!zcash_sign_transparent_inputs(&cancelled)) {
     fsm_sendFailure(cancelled ? FailureType_Failure_ActionCancelled
                               : FailureType_Failure_Other,
                     cancelled ? _("Signing cancelled")
@@ -1352,6 +1378,9 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
     return;
   }
 
-  msg_write(MessageType_MessageType_ZcashTransparentSigned, resp);
+  /* Transparent ECDSA sigs are buffered in zcash_signing.pending_transparent.
+   * They are released at the same final gate as Orchard sigs, after Orchard
+   * digest verification and fee confirmation. */
+  zcash_send_action_ack(0);
   layoutProgress(_("Signing Zcash"), 0);
 }
