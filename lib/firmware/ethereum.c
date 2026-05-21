@@ -517,9 +517,6 @@ static void formatEthereumFeeEIP1559(
   bn_read_be(pad_val, &max_pfee);
 
   bn_add(fee, &max_fee);
-  if (max_priority_fee_per_gas_len) {
-    bn_add(fee, &max_pfee);
-  }
 }
 
 static void layoutEthereumFee(const EthereumSignTx* msg, bool is_token,
@@ -802,11 +799,9 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
 
   rlp_length += rlp_calculate_length(msg->nonce.size, msg->nonce.bytes[0]);
   if (msg->has_max_fee_per_gas) {
-    if (msg->has_max_priority_fee_per_gas) {
-      rlp_length +=
-          rlp_calculate_length(msg->max_priority_fee_per_gas.size,
-                               msg->max_priority_fee_per_gas.bytes[0]);
-    }
+    rlp_length +=
+        rlp_calculate_length(msg->max_priority_fee_per_gas.size,
+                             msg->max_priority_fee_per_gas.bytes[0]);
     rlp_length += rlp_calculate_length(msg->max_fee_per_gas.size,
                                        msg->max_fee_per_gas.bytes[0]);
   } else {
@@ -868,10 +863,8 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   hash_rlp_field(msg->nonce.bytes, msg->nonce.size);
 
   if (msg->has_max_fee_per_gas) {
-    if (msg->has_max_priority_fee_per_gas) {
-      hash_rlp_field(msg->max_priority_fee_per_gas.bytes,
-                     msg->max_priority_fee_per_gas.size);
-    }
+    hash_rlp_field(msg->max_priority_fee_per_gas.bytes,
+                   msg->max_priority_fee_per_gas.size);
     hash_rlp_field(msg->max_fee_per_gas.bytes, msg->max_fee_per_gas.size);
   } else {
     hash_rlp_field(msg->gas_price.bytes, msg->gas_price.size);
