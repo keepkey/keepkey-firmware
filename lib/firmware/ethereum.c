@@ -865,21 +865,22 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
     hash_rlp_field((uint8_t*)(&chain_id), sizeof(uint8_t));
   }
 
-  hash_rlp_field(msg->nonce.bytes, msg->nonce.size);
+  hash_rlp_bytes_stripped(msg->nonce.bytes, msg->nonce.size);
 
   if (msg->has_max_fee_per_gas) {
     if (msg->has_max_priority_fee_per_gas) {
-      hash_rlp_field(msg->max_priority_fee_per_gas.bytes,
-                     msg->max_priority_fee_per_gas.size);
+      hash_rlp_bytes_stripped(msg->max_priority_fee_per_gas.bytes,
+                              msg->max_priority_fee_per_gas.size);
     }
-    hash_rlp_field(msg->max_fee_per_gas.bytes, msg->max_fee_per_gas.size);
+    hash_rlp_bytes_stripped(msg->max_fee_per_gas.bytes,
+                            msg->max_fee_per_gas.size);
   } else {
-    hash_rlp_field(msg->gas_price.bytes, msg->gas_price.size);
+    hash_rlp_bytes_stripped(msg->gas_price.bytes, msg->gas_price.size);
   }
 
-  hash_rlp_field(msg->gas_limit.bytes, msg->gas_limit.size);
-  hash_rlp_field(msg->to.bytes, msg->to.size);
-  hash_rlp_field(msg->value.bytes, msg->value.size);
+  hash_rlp_bytes_stripped(msg->gas_limit.bytes, msg->gas_limit.size);
+  hash_rlp_field(msg->to.bytes, msg->to.size);  /* address: no strip */
+  hash_rlp_bytes_stripped(msg->value.bytes, msg->value.size);
   hash_rlp_length(data_total, msg->data_initial_chunk.bytes[0]);
   hash_data(msg->data_initial_chunk.bytes, msg->data_initial_chunk.size);
   data_left = data_total - msg->data_initial_chunk.size;

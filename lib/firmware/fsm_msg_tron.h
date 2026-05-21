@@ -102,24 +102,14 @@ void fsm_msgTronSignTx(TronSignTx* msg) {
     return;
   }
 
-  bool needs_confirm = true;
-
-  // Display transaction details if available
-  if (needs_confirm && msg->has_to_address && msg->has_amount) {
-    char amount_str[32];
-    tron_formatAmount(amount_str, sizeof(amount_str), msg->amount);
-
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Send",
-                 "Send %s TRX to %s?", amount_str, msg->to_address)) {
-      memzero(node, sizeof(*node));
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
-      layoutHome();
-      return;
-    }
-  }
-
-  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Transaction",
-               "Really sign this TRON transaction?")) {
+  /* to_address and amount are deprecated fields not included in raw_data.
+   * Displaying them would show data that is not part of what is being signed.
+   * Show only the raw_data size so the user knows what they are authorising. */
+  char blind_msg[48];
+  snprintf(blind_msg, sizeof(blind_msg), "Sign %u-byte TRON transaction?",
+           (unsigned)msg->raw_data.size);
+  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "TRON Blind Sign",
+               "%s", blind_msg)) {
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
     layoutHome();

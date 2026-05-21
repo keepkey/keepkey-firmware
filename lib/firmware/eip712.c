@@ -31,6 +31,7 @@
    strings and address should be prefixed by 0x
 */
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -288,16 +289,20 @@ int encodeBytesN(const char* typeT, const char* string, uint8_t* encoded) {
 int confirmName(const char* name, bool valAvailable) {
   if (valAvailable) {
     nameForValue = name;
-  } else {
-    (void)review(ButtonRequestType_ButtonRequest_Other, "MESSAGE DATA",
-                 "Press button to continue for\n\"%s\" values", name);
+    return SUCCESS;
+  }
+  if (!review(ButtonRequestType_ButtonRequest_Other, "MESSAGE DATA",
+              "Press button to continue for\n\"%s\" values", name)) {
+    return USER_CANCELLED;
   }
   return SUCCESS;
 }
 
 int confirmValue(const char* value) {
-  (void)review(ButtonRequestType_ButtonRequest_Other, "MESSAGE DATA", "%s %s",
-               nameForValue, value);
+  if (!review(ButtonRequestType_ButtonRequest_Other, "MESSAGE DATA", "%s %s",
+              nameForValue, value)) {
+    return USER_CANCELLED;
+  }
   return SUCCESS;
 }
 
@@ -547,8 +552,18 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
                 encBytes[ctr] = 0;
               }
             }
-            // all int strings are assumed to be base 10 and fit into 64 bits
-            long long intVal = strtoll(valStr, NULL, 10);
+            /* EIP-712 int/uint values must fit in 64 bits (firmware limit).
+             * Reject values that overflow strtoll to avoid silent misencoding. */
+            char* endptr = NULL;
+            errno = 0;
+            long long intVal = strtoll(valStr, &endptr, 10);
+            if (errno == ERANGE || endptr == valStr || *endptr != '\0') {
+              return GENERAL_ERROR;
+            }
+            /* uint types must not be negative */
+            if (0 == strncmp("uint", typeType, 4) && intVal < 0) {
+              return GENERAL_ERROR;
+            }
             // Needs to be big endian, so add to encBytes appropriately
             encBytes[24] = (intVal >> 56) & 0xff;
             encBytes[25] = (intVal >> 48) & 0xff;
