@@ -22,6 +22,8 @@ ZcashPCZTAction.enc_memo                            max_size:512
 ZcashPCZTAction.enc_noncompact                      max_size:564
 ZcashPCZTAction.rk                                  max_size:32
 ZcashPCZTAction.out_ciphertext                      max_size:80
+ZcashPCZTAction.recipient                           max_size:43
+ZcashPCZTAction.rseed                               max_size:32
 
 ZcashSignedPCZT.signatures                          max_count:16, max_size:64
 ZcashSignedPCZT.txid                                max_size:32
@@ -33,11 +35,16 @@ ZcashOrchardFVK.nk                                  max_size:32
 ZcashOrchardFVK.rivk                                max_size:32
 ZcashOrchardFVK.seed_fingerprint                    max_size:32
 
+ZcashTransparentOutput.amount                       int_size:IS_64
+ZcashTransparentOutput.script_pubkey                max_size:128
+
 ZcashTransparentInput.sighash                       max_size:32
 ZcashTransparentInput.address_n                     max_count:8
 ZcashTransparentInput.amount                        int_size:IS_64
+ZcashTransparentInput.prevout_txid                  max_size:32
+ZcashTransparentInput.script_pubkey                 max_size:128
 
-ZcashTransparentSig.signature                       max_size:73
+ZcashTransparentSigned.signatures                   max_count:8, max_size:73
 
 ZcashDisplayAddress.address_n                       max_count:8
 ZcashDisplayAddress.expected_seed_fingerprint       max_size:32

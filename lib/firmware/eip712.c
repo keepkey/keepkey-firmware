@@ -31,6 +31,7 @@
    strings and address should be prefixed by 0x
 */
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -551,12 +552,16 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
                 encBytes[ctr] = 0;
               }
             }
-            // all int strings are assumed to be base 10 and fit into 64 bits
+            /* EIP-712 int/uint values must fit in 64 bits (firmware limit).
+             * Reject values that overflow strtoll to avoid silent misencoding.
+             */
             char* endptr = NULL;
+            errno = 0;
             long long intVal = strtoll(valStr, &endptr, 10);
-            if (endptr == valStr || *endptr != '\0') {
+            if (errno == ERANGE || endptr == valStr || *endptr != '\0') {
               return GENERAL_ERROR;
             }
+            /* uint types must not be negative */
             if (0 == strncmp("uint", typeType, 4) && intVal < 0) {
               return GENERAL_ERROR;
             }

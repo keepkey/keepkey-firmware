@@ -1092,6 +1092,62 @@ TEST(Zcash, OrchardUnifiedAddress_RejectsInvalidInputs) {
   memzero(&keys, sizeof(keys));
 }
 
+TEST(Zcash, OrchardNoteCommitment_KnownVector) {
+  const uint8_t recipient[ZCASH_ORCHARD_RAW_RECEIVER_SIZE] = {
+      0x3c, 0x15, 0x0e, 0x60, 0x98, 0xb8, 0x61, 0x71, 0x6c, 0xc7, 0xf6,
+      0x28, 0x35, 0xf6, 0x9f, 0xeb, 0x30, 0x21, 0x93, 0xc9, 0x26, 0x60,
+      0x44, 0x4f, 0x26, 0x62, 0x4f, 0xd1, 0x3e, 0x00, 0xea, 0x7a, 0xc7,
+      0x74, 0xcd, 0x55, 0x07, 0x4d, 0x63, 0x67, 0xef, 0xef, 0x37};
+  const uint64_t value = 12345678;
+  const uint8_t rho[32] = {
+      0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
+      0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00,
+      0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
+      0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00};
+  const uint8_t rseed[32] = {
+      0xca, 0xfe, 0xba, 0xbe, 0xde, 0xad, 0xbe, 0xef,
+      0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+      0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+      0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18};
+  const uint8_t expected_cmx[32] = {
+      0x02, 0xde, 0xfb, 0x39, 0xc8, 0xf2, 0xe1, 0xec,
+      0xc9, 0x45, 0x18, 0x93, 0x73, 0xcf, 0x2a, 0x8e,
+      0x21, 0xd4, 0xe1, 0x54, 0x39, 0x8e, 0xfa, 0x16,
+      0x21, 0xd5, 0xfb, 0x98, 0x9e, 0x1d, 0xeb, 0x36};
+
+  uint8_t cmx[32];
+  ASSERT_TRUE(zcash_orchard_compute_cmx(recipient, value, rho, rseed, cmx));
+  EXPECT_TRUE(memcmp(cmx, expected_cmx, sizeof(cmx)) == 0);
+
+  uint8_t tampered[ZCASH_ORCHARD_RAW_RECEIVER_SIZE];
+  memcpy(tampered, recipient, sizeof(tampered));
+  tampered[0] ^= 0x01;
+  ASSERT_TRUE(zcash_orchard_compute_cmx(tampered, value, rho, rseed, cmx));
+  EXPECT_TRUE(memcmp(cmx, expected_cmx, sizeof(cmx)) != 0);
+
+  memzero(cmx, sizeof(cmx));
+  memzero(tampered, sizeof(tampered));
+}
+
+TEST(Zcash, OrchardReceiverToUnifiedAddress_KnownVector) {
+  const uint8_t recipient[ZCASH_ORCHARD_RAW_RECEIVER_SIZE] = {
+      0x3c, 0x15, 0x0e, 0x60, 0x98, 0xb8, 0x61, 0x71, 0x6c, 0xc7, 0xf6,
+      0x28, 0x35, 0xf6, 0x9f, 0xeb, 0x30, 0x21, 0x93, 0xc9, 0x26, 0x60,
+      0x44, 0x4f, 0x26, 0x62, 0x4f, 0xd1, 0x3e, 0x00, 0xea, 0x7a, 0xc7,
+      0x74, 0xcd, 0x55, 0x07, 0x4d, 0x63, 0x67, 0xef, 0xef, 0x37};
+  char address[ZCASH_ORCHARD_UNIFIED_ADDRESS_SIZE];
+
+  ASSERT_TRUE(zcash_orchard_receiver_to_unified_address(
+      recipient, "u", address, sizeof(address)));
+  EXPECT_STREQ(
+      address,
+      "u1ut4h93zg5670tyqss7tneru3t7h6dk62r9hhyxyrpv3nwwe9dnyj5l0ruwygf74gp5f3zklj5xly4h8h54un3asugt9mn6gwfqsq3wq7");
+
+  EXPECT_FALSE(zcash_orchard_receiver_to_unified_address(
+      recipient, "u", address, 16));
+  memzero(address, sizeof(address));
+}
+
 TEST(Zcash, OrchardDiversifyHash_ReferenceVectors) {
   uint8_t gd[32];
   ASSERT_TRUE(zcash_orchard_diversify_hash(EXPECTED_DIVERSIFIER_ALL_0, gd));
@@ -1245,6 +1301,284 @@ TEST(Zcash, AkSignBit_AlwaysClear) {
 
     memzero(&keys, sizeof(keys));
   }
+}
+
+/* ── PCZT Signing Policy Tests ───────────────────────────────────── */
+
+static ZcashPCZTSigningRequestMeta clear_pczt_meta(void) {
+  ZcashPCZTSigningRequestMeta meta = {};
+  meta.has_header_digest = true;
+  meta.header_digest_size = 32;
+  meta.has_orchard_digest = true;
+  meta.orchard_digest_size = 32;
+  meta.has_orchard_flags = true;
+  meta.has_orchard_value_balance = true;
+  meta.has_orchard_anchor = true;
+  meta.orchard_anchor_size = 32;
+  meta.has_header_fields = true;
+  meta.n_transparent_inputs = 0;
+  meta.n_transparent_outputs = 0;
+  return meta;
+}
+
+TEST(Zcash, PCZTSigningPolicy_AcceptsVerifiedShieldedOnlyRequest) {
+  ZcashPCZTSigningRequestMeta meta = clear_pczt_meta();
+
+  EXPECT_EQ(zcash_pczt_signing_request_status(&meta),
+            ZCASH_PCZT_SIGNING_REQUEST_OK);
+  EXPECT_TRUE(zcash_pczt_signing_request_is_clear(&meta));
+}
+
+TEST(Zcash, PCZTSigningPolicy_RejectsMissingTransactionDigests) {
+  ZcashPCZTSigningRequestMeta meta = clear_pczt_meta();
+
+  meta.has_header_digest = false;
+  EXPECT_EQ(zcash_pczt_signing_request_status(&meta),
+            ZCASH_PCZT_SIGNING_REQUEST_MISSING_TX_DIGESTS);
+  EXPECT_FALSE(zcash_pczt_signing_request_is_clear(&meta));
+
+  meta = clear_pczt_meta();
+  meta.orchard_digest_size = 31;
+  EXPECT_EQ(zcash_pczt_signing_request_status(&meta),
+            ZCASH_PCZT_SIGNING_REQUEST_INVALID_DIGEST_SIZE);
+  EXPECT_FALSE(zcash_pczt_signing_request_is_clear(&meta));
+}
+
+TEST(Zcash, PCZTSigningPolicy_RejectsMissingPlaintextHeaderFields) {
+  ZcashPCZTSigningRequestMeta meta = clear_pczt_meta();
+
+  meta.has_header_fields = false;
+  EXPECT_EQ(zcash_pczt_signing_request_status(&meta),
+            ZCASH_PCZT_SIGNING_REQUEST_MISSING_HEADER_FIELDS);
+  EXPECT_FALSE(zcash_pczt_signing_request_is_clear(&meta));
+}
+
+TEST(Zcash, PCZTSigningPolicy_RejectsMissingOrchardMetadata) {
+  ZcashPCZTSigningRequestMeta meta = clear_pczt_meta();
+
+  meta.has_orchard_anchor = false;
+  EXPECT_EQ(zcash_pczt_signing_request_status(&meta),
+            ZCASH_PCZT_SIGNING_REQUEST_MISSING_ORCHARD_METADATA);
+  EXPECT_FALSE(zcash_pczt_signing_request_is_clear(&meta));
+
+  meta = clear_pczt_meta();
+  meta.has_orchard_flags = false;
+  EXPECT_EQ(zcash_pczt_signing_request_status(&meta),
+            ZCASH_PCZT_SIGNING_REQUEST_MISSING_ORCHARD_METADATA);
+  EXPECT_FALSE(zcash_pczt_signing_request_is_clear(&meta));
+}
+
+TEST(Zcash, PCZTSigningPolicy_RejectsInvalidOptionalDigests) {
+  ZcashPCZTSigningRequestMeta meta = clear_pczt_meta();
+
+  meta.has_transparent_digest = true;
+  meta.transparent_digest_size = 31;
+  EXPECT_EQ(zcash_pczt_signing_request_status(&meta),
+            ZCASH_PCZT_SIGNING_REQUEST_INVALID_DIGEST_SIZE);
+  EXPECT_FALSE(zcash_pczt_signing_request_is_clear(&meta));
+}
+
+TEST(Zcash, PCZTSigningPolicy_RejectsSaplingComponent) {
+  ZcashPCZTSigningRequestMeta meta = clear_pczt_meta();
+
+  meta.has_sapling_digest = true;
+  meta.sapling_digest_size = 32;
+  EXPECT_EQ(zcash_pczt_signing_request_status(&meta),
+            ZCASH_PCZT_SIGNING_REQUEST_UNSUPPORTED_SAPLING_COMPONENT);
+  EXPECT_FALSE(zcash_pczt_signing_request_is_clear(&meta));
+}
+
+TEST(Zcash, PCZTSigningPolicy_RejectsTransparentComponentsWithoutDigest) {
+  ZcashPCZTSigningRequestMeta meta = clear_pczt_meta();
+  meta.n_transparent_inputs = 1;
+
+  EXPECT_EQ(zcash_pczt_signing_request_status(&meta),
+            ZCASH_PCZT_SIGNING_REQUEST_MISSING_TRANSPARENT_DIGEST);
+  EXPECT_FALSE(zcash_pczt_signing_request_is_clear(&meta));
+
+  meta.has_transparent_digest = true;
+  meta.transparent_digest_size = 32;
+  EXPECT_EQ(zcash_pczt_signing_request_status(&meta),
+            ZCASH_PCZT_SIGNING_REQUEST_OK);
+  EXPECT_TRUE(zcash_pczt_signing_request_is_clear(&meta));
+
+  meta = clear_pczt_meta();
+  meta.n_transparent_outputs = 1;
+  EXPECT_EQ(zcash_pczt_signing_request_status(&meta),
+            ZCASH_PCZT_SIGNING_REQUEST_MISSING_TRANSPARENT_DIGEST);
+  EXPECT_FALSE(zcash_pczt_signing_request_is_clear(&meta));
+
+  meta.has_transparent_digest = true;
+  meta.transparent_digest_size = 32;
+  EXPECT_EQ(zcash_pczt_signing_request_status(&meta),
+            ZCASH_PCZT_SIGNING_REQUEST_OK);
+  EXPECT_TRUE(zcash_pczt_signing_request_is_clear(&meta));
+}
+
+static const uint8_t ZIP244_EXPECTED_HEADER_DIGEST[32] = {
+    0x44, 0x4b, 0xe9, 0x38, 0x88, 0x1d, 0xc9, 0xf2,
+    0x0a, 0xed, 0x88, 0x0c, 0x3a, 0x05, 0x94, 0xe5,
+    0xc1, 0x22, 0x3e, 0xff, 0xc5, 0x75, 0xef, 0x05,
+    0xda, 0xae, 0xe3, 0x45, 0x1b, 0xa2, 0xf4, 0x93};
+
+static const uint8_t ZIP244_EXPECTED_EMPTY_TRANSPARENT_DIGEST[32] = {
+    0xc3, 0x3f, 0x2e, 0x95, 0x70, 0x5f, 0xaa, 0xb3,
+    0x5f, 0x8d, 0x53, 0x3f, 0xa6, 0x1e, 0x95, 0xc3,
+    0xb7, 0xaa, 0xba, 0x07, 0x76, 0xb8, 0x74, 0xa9,
+    0xf7, 0x4f, 0xc1, 0x27, 0x84, 0x37, 0x6a, 0x59};
+
+static const uint8_t ZIP244_EXPECTED_TRANSPARENT_DIGEST[32] = {
+    0xfa, 0xe5, 0x37, 0x7f, 0xa9, 0x3c, 0xc0, 0xc3,
+    0x1d, 0x30, 0x39, 0x42, 0x21, 0x57, 0xce, 0x4b,
+    0x9e, 0x7b, 0x12, 0x57, 0x00, 0x9f, 0x15, 0x90,
+    0xe1, 0x62, 0x95, 0x62, 0x55, 0xbb, 0x2e, 0x84};
+
+static const uint8_t ZIP244_EXPECTED_TRANSPARENT_SIGHASH_0[32] = {
+    0x37, 0xa9, 0xc4, 0xec, 0x61, 0x87, 0x07, 0x20,
+    0x5b, 0xcb, 0x47, 0x7b, 0xea, 0x4f, 0xda, 0x6d,
+    0x61, 0x01, 0x62, 0xea, 0xaa, 0x5c, 0x9f, 0x33,
+    0xe5, 0x59, 0x69, 0x02, 0x6e, 0x47, 0x6f, 0x23};
+
+static const uint8_t ZIP244_EXPECTED_TRANSPARENT_SIGHASH_1[32] = {
+    0x29, 0x4d, 0xb7, 0xaa, 0xf1, 0x65, 0x37, 0x4e,
+    0x02, 0xda, 0xe1, 0x6f, 0xf3, 0xdd, 0x97, 0x78,
+    0x8f, 0x4f, 0x5e, 0x2d, 0xc4, 0xe1, 0xb3, 0xf6,
+    0x62, 0x73, 0x9e, 0xd3, 0x5b, 0x82, 0x08, 0x2f};
+
+static const uint8_t ZIP244_P2PKH_SCRIPT_11[25] = {
+    0x76, 0xa9, 0x14, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+    0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+    0x11, 0x11, 0x11, 0x11, 0x11, 0x88, 0xac};
+
+static const uint8_t ZIP244_P2SH_SCRIPT_22[23] = {
+    0xa9, 0x14, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22,
+    0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22,
+    0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x87};
+
+static const uint8_t ZIP244_P2PKH_SCRIPT_33[25] = {
+    0x76, 0xa9, 0x14, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33,
+    0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33,
+    0x33, 0x33, 0x33, 0x33, 0x33, 0x88, 0xac};
+
+static const uint8_t ZIP244_P2SH_SCRIPT_44[23] = {
+    0xa9, 0x14, 0x44, 0x44, 0x44, 0x44, 0x44, 0x44,
+    0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 0x44,
+    0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 0x87};
+
+static void fill_zip244_txids(uint8_t txid0[32], uint8_t txid1[32]) {
+  for (size_t i = 0; i < 32; i++) {
+    txid0[i] = (uint8_t)i;
+    txid1[i] = (uint8_t)(i + 32);
+  }
+}
+
+static void make_zip244_transparent_fixture(
+    ZcashTransparentInputDigestInfo inputs[2],
+    ZcashTransparentOutputDigestInfo outputs[2], uint8_t txid0[32],
+    uint8_t txid1[32]) {
+  fill_zip244_txids(txid0, txid1);
+
+  inputs[0].prevout_txid = txid0;
+  inputs[0].prevout_index = 2;
+  inputs[0].sequence = 0xfffffffe;
+  inputs[0].value = 1234567890ULL;
+  inputs[0].script_pubkey = ZIP244_P2PKH_SCRIPT_11;
+  inputs[0].script_pubkey_size = sizeof(ZIP244_P2PKH_SCRIPT_11);
+
+  inputs[1].prevout_txid = txid1;
+  inputs[1].prevout_index = 7;
+  inputs[1].sequence = 0xfffffffd;
+  inputs[1].value = 987654321ULL;
+  inputs[1].script_pubkey = ZIP244_P2SH_SCRIPT_22;
+  inputs[1].script_pubkey_size = sizeof(ZIP244_P2SH_SCRIPT_22);
+
+  outputs[0].value = 2000000000ULL;
+  outputs[0].script_pubkey = ZIP244_P2PKH_SCRIPT_33;
+  outputs[0].script_pubkey_size = sizeof(ZIP244_P2PKH_SCRIPT_33);
+
+  outputs[1].value = 1111111ULL;
+  outputs[1].script_pubkey = ZIP244_P2SH_SCRIPT_44;
+  outputs[1].script_pubkey_size = sizeof(ZIP244_P2SH_SCRIPT_44);
+}
+
+TEST(Zcash, ComputeHeaderDigest_FromPlaintextFields) {
+  uint8_t digest[32] = {0};
+
+  ASSERT_TRUE(zcash_compute_header_digest(
+      5, 0x26a7270a, 0xc2d6d0b4, 123456, 987654, digest));
+  EXPECT_TRUE(memcmp(digest, ZIP244_EXPECTED_HEADER_DIGEST, 32) == 0);
+}
+
+TEST(Zcash, ComputeTransparentDigest_DistinctFromPerInputSighash) {
+  ZcashTransparentInputDigestInfo inputs[2] = {};
+  ZcashTransparentOutputDigestInfo outputs[2] = {};
+  uint8_t txid0[32], txid1[32];
+  make_zip244_transparent_fixture(inputs, outputs, txid0, txid1);
+
+  uint8_t digest[32] = {0};
+  uint8_t sighash0[32] = {0};
+  uint8_t sighash1[32] = {0};
+
+  ASSERT_TRUE(zcash_compute_transparent_digest(inputs, 2, outputs, 2, digest));
+  ASSERT_TRUE(zcash_compute_transparent_sighash_digest(
+      inputs, 2, outputs, 2, 0, 0x01, sighash0));
+  ASSERT_TRUE(zcash_compute_transparent_sighash_digest(
+      inputs, 2, outputs, 2, 1, 0x01, sighash1));
+
+  EXPECT_TRUE(memcmp(digest, ZIP244_EXPECTED_TRANSPARENT_DIGEST, 32) == 0);
+  EXPECT_TRUE(memcmp(sighash0, ZIP244_EXPECTED_TRANSPARENT_SIGHASH_0, 32) ==
+              0);
+  EXPECT_TRUE(memcmp(sighash1, ZIP244_EXPECTED_TRANSPARENT_SIGHASH_1, 32) ==
+              0);
+  EXPECT_TRUE(memcmp(digest, sighash0, 32) != 0);
+  EXPECT_TRUE(memcmp(sighash0, sighash1, 32) != 0);
+}
+
+TEST(Zcash, ComputeTransparentDigest_EmptyBundle) {
+  uint8_t digest[32] = {0};
+
+  ASSERT_TRUE(zcash_compute_transparent_digest(NULL, 0, NULL, 0, digest));
+  EXPECT_TRUE(memcmp(digest, ZIP244_EXPECTED_EMPTY_TRANSPARENT_DIGEST, 32) ==
+              0);
+}
+
+TEST(Zcash, ComputeTransparentSighash_RejectsUnsupportedRequest) {
+  ZcashTransparentInputDigestInfo inputs[2] = {};
+  ZcashTransparentOutputDigestInfo outputs[2] = {};
+  uint8_t txid0[32], txid1[32], digest[32];
+  make_zip244_transparent_fixture(inputs, outputs, txid0, txid1);
+
+  EXPECT_FALSE(zcash_compute_transparent_sighash_digest(
+      inputs, 2, outputs, 2, 2, 0x01, digest));
+  EXPECT_FALSE(zcash_compute_transparent_sighash_digest(
+      inputs, 2, outputs, 2, 0, 0x02, digest));
+}
+
+TEST(Zcash, ComputeTransparentSighash_CommitsToOutputScriptAndValue) {
+  ZcashTransparentInputDigestInfo inputs[2] = {};
+  ZcashTransparentOutputDigestInfo outputs[2] = {};
+  uint8_t txid0[32], txid1[32];
+  make_zip244_transparent_fixture(inputs, outputs, txid0, txid1);
+
+  uint8_t original[32] = {0};
+  uint8_t changed_script[32] = {0};
+  uint8_t changed_value[32] = {0};
+
+  ASSERT_TRUE(zcash_compute_transparent_sighash_digest(
+      inputs, 2, outputs, 2, 0, 0x01, original));
+
+  outputs[0].script_pubkey = ZIP244_P2SH_SCRIPT_44;
+  outputs[0].script_pubkey_size = sizeof(ZIP244_P2SH_SCRIPT_44);
+  ASSERT_TRUE(zcash_compute_transparent_sighash_digest(
+      inputs, 2, outputs, 2, 0, 0x01, changed_script));
+  EXPECT_TRUE(memcmp(original, changed_script, 32) != 0);
+
+  outputs[0].script_pubkey = ZIP244_P2PKH_SCRIPT_33;
+  outputs[0].script_pubkey_size = sizeof(ZIP244_P2PKH_SCRIPT_33);
+  outputs[0].value++;
+  ASSERT_TRUE(zcash_compute_transparent_sighash_digest(
+      inputs, 2, outputs, 2, 0, 0x01, changed_value));
+  EXPECT_TRUE(memcmp(original, changed_value, 32) != 0);
 }
 
 /* ── Sighash Computation Tests ───────────────────────────────────── */

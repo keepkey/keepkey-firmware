@@ -41,6 +41,9 @@ set(PROTOC_BINARY
 set(NANOPB_DIR
     /root/nanopb
     CACHE PATH "Path to the nanopb build")
+set(NANOPB_PLUGIN
+    ${NANOPB_DIR}/generator/protoc-gen-nanopb
+    CACHE FILEPATH "Path to the nanopb protoc plugin")
 set(DEVICE_PROTOCOL
     ${CMAKE_SOURCE_DIR}/deps/device-protocol
     CACHE PATH "Path to device-protocol")

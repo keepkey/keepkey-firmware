@@ -462,6 +462,98 @@ bool zcash_orchard_derive_unified_address(const ZcashOrchardKeys* keys,
   return ok;
 }
 
+bool zcash_orchard_receiver_to_unified_address(
+    const uint8_t receiver[ZCASH_ORCHARD_RAW_RECEIVER_SIZE], const char* hrp,
+    char* address_out, size_t address_out_len) {
+  if (!receiver || !hrp || !address_out) return false;
+  return zcash_zip316_encode_orchard_unified_address(hrp, receiver, address_out,
+                                                     address_out_len) == 0;
+}
+
+static bool zcash_pack_orchard_note_commit_msg(const uint8_t receiver[43],
+                                               uint64_t value,
+                                               const uint8_t rho[32],
+                                               const uint8_t psi[32],
+                                               uint8_t msg[136]) {
+  memset(msg, 0, 136);
+
+  /* bits 0..255: repr_P(g_d) */
+  curve_point gd;
+  if (!orchard_diversify_point(receiver, &gd)) {
+    memzero(&gd, sizeof(gd));
+    return false;
+  }
+  pallas_point_encode(&gd, msg);
+  memzero(&gd, sizeof(gd));
+
+  /* bits 256..511: repr_P(pk_d) */
+  memcpy(msg + 32, receiver + 11, 32);
+
+  /* bits 512..575: I2LEBSP_64(value) */
+  for (int i = 0; i < 8; i++) {
+    msg[64 + i] = (uint8_t)((value >> (8 * i)) & 0xff);
+  }
+
+  /* bits 576..830: I2LEBSP_255(rho) */
+  memcpy(msg + 72, rho, 31);
+  msg[103] = rho[31] & 0x7f;
+
+  /* bits 831..1085: I2LEBSP_255(psi), packed at bit offset 831. */
+  uint8_t psi255[32];
+  memcpy(psi255, psi, 32);
+  psi255[31] &= 0x7f;
+  for (int i = 0; i < 32; i++) {
+    msg[103 + i] |= (uint8_t)(psi255[i] << 7);
+    msg[104 + i] |= (uint8_t)(psi255[i] >> 1);
+  }
+  memzero(psi255, sizeof(psi255));
+  return true;
+}
+
+bool zcash_orchard_compute_cmx(
+    const uint8_t receiver[ZCASH_ORCHARD_RAW_RECEIVER_SIZE], uint64_t value,
+    const uint8_t rho[32], const uint8_t rseed[32], uint8_t cmx_out[32]) {
+  if (!receiver || !rho || !rseed || !cmx_out) return false;
+
+  uint8_t msg[136];
+  uint8_t prf_in[33];
+  uint8_t prf_out[64];
+  uint8_t rcm[32];
+  uint8_t psi[32];
+  curve_point q, r;
+  bool ok = false;
+
+  memcpy(prf_in + 1, rho, 32);
+
+  prf_in[0] = 0x05;
+  prf_expand(rseed, prf_in, sizeof(prf_in), prf_out);
+  to_scalar(prf_out, rcm);
+
+  prf_in[0] = 0x09;
+  prf_expand(rseed, prf_in, sizeof(prf_in), prf_out);
+  to_base(prf_out, psi);
+
+  ok = zcash_pack_orchard_note_commit_msg(receiver, value, rho, psi, msg) &&
+       pallas_group_hash("z.cash:SinsemillaQ",
+                         (const uint8_t*)"z.cash:Orchard-NoteCommit-M",
+                         strlen("z.cash:Orchard-NoteCommit-M"), &q) == 0 &&
+       pallas_group_hash("z.cash:Orchard-NoteCommit-r", NULL, 0, &r) == 0 &&
+       pallas_sinsemilla_short_commit(&q, &r, msg, 1086, rcm, cmx_out) == 0;
+
+  if (!ok) {
+    memzero(cmx_out, 32);
+  }
+
+  memzero(msg, sizeof(msg));
+  memzero(prf_in, sizeof(prf_in));
+  memzero(prf_out, sizeof(prf_out));
+  memzero(rcm, sizeof(rcm));
+  memzero(psi, sizeof(psi));
+  memzero(&q, sizeof(q));
+  memzero(&r, sizeof(r));
+  return ok;
+}
+
 bool zcash_derive_orchard_unified_address(const uint8_t* seed,
                                           uint32_t seed_len, uint32_t account,
                                           const uint8_t index_le[11],
@@ -630,6 +722,334 @@ bool zcash_compute_shielded_sighash(const uint8_t header_digest[32],
   hasher_Final(&h, sighash_out);
 
   return true;
+}
+
+static void zcash_write_u32_le(uint32_t value, uint8_t out[4]) {
+  out[0] = (uint8_t)(value & 0xff);
+  out[1] = (uint8_t)((value >> 8) & 0xff);
+  out[2] = (uint8_t)((value >> 16) & 0xff);
+  out[3] = (uint8_t)((value >> 24) & 0xff);
+}
+
+static void zcash_write_u64_le(uint64_t value, uint8_t out[8]) {
+  for (size_t i = 0; i < 8; i++) {
+    out[i] = (uint8_t)((value >> (8 * i)) & 0xff);
+  }
+}
+
+static size_t zcash_write_compact_size(size_t value, uint8_t out[9]) {
+  if (value < 253) {
+    out[0] = (uint8_t)value;
+    return 1;
+  }
+
+  if (value <= 0xffff) {
+    out[0] = 0xfd;
+    out[1] = (uint8_t)(value & 0xff);
+    out[2] = (uint8_t)((value >> 8) & 0xff);
+    return 3;
+  }
+
+  if (value <= 0xffffffff) {
+    out[0] = 0xfe;
+    out[1] = (uint8_t)(value & 0xff);
+    out[2] = (uint8_t)((value >> 8) & 0xff);
+    out[3] = (uint8_t)((value >> 16) & 0xff);
+    out[4] = (uint8_t)((value >> 24) & 0xff);
+    return 5;
+  }
+
+  out[0] = 0xff;
+  uint64_t v = (uint64_t)value;
+  for (size_t i = 0; i < 8; i++) {
+    out[i + 1] = (uint8_t)((v >> (8 * i)) & 0xff);
+  }
+  return 9;
+}
+
+static void zcash_blake2b_personal_256(const char personal[16],
+                                       const uint8_t* data, size_t data_len,
+                                       uint8_t digest_out[32]) {
+  BLAKE2B_CTX ctx;
+  blake2b_InitPersonal(&ctx, 32, personal, 16);
+  if (data_len > 0) {
+    blake2b_Update(&ctx, data, data_len);
+  }
+  blake2b_Final(&ctx, digest_out, 32);
+}
+
+bool zcash_compute_header_digest(uint32_t version, uint32_t version_group_id,
+                                 uint32_t branch_id, uint32_t lock_time,
+                                 uint32_t expiry_height,
+                                 uint8_t digest_out[32]) {
+  if (!digest_out) return false;
+
+  uint8_t header[20];
+  zcash_write_u32_le(version | 0x80000000u, header);
+  zcash_write_u32_le(version_group_id, header + 4);
+  zcash_write_u32_le(branch_id, header + 8);
+  zcash_write_u32_le(lock_time, header + 12);
+  zcash_write_u32_le(expiry_height, header + 16);
+
+  zcash_blake2b_personal_256("ZTxIdHeadersHash", header, sizeof(header),
+                             digest_out);
+  memzero(header, sizeof(header));
+  return true;
+}
+
+static bool zcash_validate_transparent_digest_info(
+    const ZcashTransparentInputDigestInfo* inputs, size_t n_inputs,
+    const ZcashTransparentOutputDigestInfo* outputs, size_t n_outputs) {
+  if (n_inputs > 0 && !inputs) return false;
+  if (n_outputs > 0 && !outputs) return false;
+
+  for (size_t i = 0; i < n_inputs; i++) {
+    if (!inputs[i].prevout_txid ||
+        (inputs[i].script_pubkey_size > 0 && !inputs[i].script_pubkey)) {
+      return false;
+    }
+  }
+
+  for (size_t i = 0; i < n_outputs; i++) {
+    if (outputs[i].script_pubkey_size > 0 && !outputs[i].script_pubkey) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static void zcash_hash_transparent_prevouts(
+    const ZcashTransparentInputDigestInfo* inputs, size_t n_inputs,
+    uint8_t digest_out[32]) {
+  BLAKE2B_CTX ctx;
+  uint8_t le[4];
+  blake2b_InitPersonal(&ctx, 32, "ZTxIdPrevoutHash", 16);
+  for (size_t i = 0; i < n_inputs; i++) {
+    blake2b_Update(&ctx, inputs[i].prevout_txid, 32);
+    zcash_write_u32_le(inputs[i].prevout_index, le);
+    blake2b_Update(&ctx, le, sizeof(le));
+  }
+  blake2b_Final(&ctx, digest_out, 32);
+  memzero(le, sizeof(le));
+}
+
+static void zcash_hash_transparent_sequences(
+    const ZcashTransparentInputDigestInfo* inputs, size_t n_inputs,
+    uint8_t digest_out[32]) {
+  BLAKE2B_CTX ctx;
+  uint8_t le[4];
+  blake2b_InitPersonal(&ctx, 32, "ZTxIdSequencHash", 16);
+  for (size_t i = 0; i < n_inputs; i++) {
+    zcash_write_u32_le(inputs[i].sequence, le);
+    blake2b_Update(&ctx, le, sizeof(le));
+  }
+  blake2b_Final(&ctx, digest_out, 32);
+  memzero(le, sizeof(le));
+}
+
+static void zcash_hash_transparent_amounts(
+    const ZcashTransparentInputDigestInfo* inputs, size_t n_inputs,
+    uint8_t digest_out[32]) {
+  BLAKE2B_CTX ctx;
+  uint8_t le[8];
+  blake2b_InitPersonal(&ctx, 32, "ZTxTrAmountsHash", 16);
+  for (size_t i = 0; i < n_inputs; i++) {
+    zcash_write_u64_le(inputs[i].value, le);
+    blake2b_Update(&ctx, le, sizeof(le));
+  }
+  blake2b_Final(&ctx, digest_out, 32);
+  memzero(le, sizeof(le));
+}
+
+static void zcash_hash_transparent_scripts(
+    const ZcashTransparentInputDigestInfo* inputs, size_t n_inputs,
+    uint8_t digest_out[32]) {
+  BLAKE2B_CTX ctx;
+  uint8_t compact_size[9];
+  blake2b_InitPersonal(&ctx, 32, "ZTxTrScriptsHash", 16);
+  for (size_t i = 0; i < n_inputs; i++) {
+    size_t compact_size_len =
+        zcash_write_compact_size(inputs[i].script_pubkey_size, compact_size);
+    blake2b_Update(&ctx, compact_size, compact_size_len);
+    if (inputs[i].script_pubkey_size > 0) {
+      blake2b_Update(&ctx, inputs[i].script_pubkey,
+                     inputs[i].script_pubkey_size);
+    }
+  }
+  blake2b_Final(&ctx, digest_out, 32);
+  memzero(compact_size, sizeof(compact_size));
+}
+
+static void zcash_hash_transparent_outputs(
+    const ZcashTransparentOutputDigestInfo* outputs, size_t n_outputs,
+    uint8_t digest_out[32]) {
+  BLAKE2B_CTX ctx;
+  uint8_t le[8];
+  uint8_t compact_size[9];
+  blake2b_InitPersonal(&ctx, 32, "ZTxIdOutputsHash", 16);
+  for (size_t i = 0; i < n_outputs; i++) {
+    zcash_write_u64_le(outputs[i].value, le);
+    blake2b_Update(&ctx, le, sizeof(le));
+    size_t compact_size_len =
+        zcash_write_compact_size(outputs[i].script_pubkey_size, compact_size);
+    blake2b_Update(&ctx, compact_size, compact_size_len);
+    if (outputs[i].script_pubkey_size > 0) {
+      blake2b_Update(&ctx, outputs[i].script_pubkey,
+                     outputs[i].script_pubkey_size);
+    }
+  }
+  blake2b_Final(&ctx, digest_out, 32);
+  memzero(le, sizeof(le));
+  memzero(compact_size, sizeof(compact_size));
+}
+
+static bool zcash_hash_transparent_input(
+    const ZcashTransparentInputDigestInfo* input, uint8_t digest_out[32]) {
+  if (!input) return false;
+
+  BLAKE2B_CTX ctx;
+  uint8_t le4[4];
+  uint8_t le8[8];
+  uint8_t compact_size[9];
+  blake2b_InitPersonal(&ctx, 32, "Zcash___TxInHash", 16);
+  blake2b_Update(&ctx, input->prevout_txid, 32);
+  zcash_write_u32_le(input->prevout_index, le4);
+  blake2b_Update(&ctx, le4, sizeof(le4));
+  zcash_write_u64_le(input->value, le8);
+  blake2b_Update(&ctx, le8, sizeof(le8));
+  size_t compact_size_len =
+      zcash_write_compact_size(input->script_pubkey_size, compact_size);
+  blake2b_Update(&ctx, compact_size, compact_size_len);
+  if (input->script_pubkey_size > 0) {
+    blake2b_Update(&ctx, input->script_pubkey, input->script_pubkey_size);
+  }
+  zcash_write_u32_le(input->sequence, le4);
+  blake2b_Update(&ctx, le4, sizeof(le4));
+  blake2b_Final(&ctx, digest_out, 32);
+  memzero(le4, sizeof(le4));
+  memzero(le8, sizeof(le8));
+  memzero(compact_size, sizeof(compact_size));
+  return true;
+}
+
+bool zcash_compute_transparent_digest(
+    const ZcashTransparentInputDigestInfo* inputs, size_t n_inputs,
+    const ZcashTransparentOutputDigestInfo* outputs, size_t n_outputs,
+    uint8_t digest_out[32]) {
+  if (!digest_out || !zcash_validate_transparent_digest_info(
+                         inputs, n_inputs, outputs, n_outputs)) {
+    return false;
+  }
+
+  if (n_inputs == 0 && n_outputs == 0) {
+    zcash_blake2b_personal_256("ZTxIdTranspaHash", NULL, 0, digest_out);
+    return true;
+  }
+
+  uint8_t prevouts_digest[32], sequence_digest[32], outputs_digest[32];
+  zcash_hash_transparent_prevouts(inputs, n_inputs, prevouts_digest);
+  zcash_hash_transparent_sequences(inputs, n_inputs, sequence_digest);
+  zcash_hash_transparent_outputs(outputs, n_outputs, outputs_digest);
+
+  BLAKE2B_CTX ctx;
+  blake2b_InitPersonal(&ctx, 32, "ZTxIdTranspaHash", 16);
+  blake2b_Update(&ctx, prevouts_digest, 32);
+  blake2b_Update(&ctx, sequence_digest, 32);
+  blake2b_Update(&ctx, outputs_digest, 32);
+  blake2b_Final(&ctx, digest_out, 32);
+
+  memzero(prevouts_digest, sizeof(prevouts_digest));
+  memzero(sequence_digest, sizeof(sequence_digest));
+  memzero(outputs_digest, sizeof(outputs_digest));
+  return true;
+}
+
+bool zcash_compute_transparent_sighash_digest(
+    const ZcashTransparentInputDigestInfo* inputs, size_t n_inputs,
+    const ZcashTransparentOutputDigestInfo* outputs, size_t n_outputs,
+    uint32_t signable_input_index, uint8_t sighash_type,
+    uint8_t digest_out[32]) {
+  if (!digest_out || !zcash_validate_transparent_digest_info(
+                         inputs, n_inputs, outputs, n_outputs)) {
+    return false;
+  }
+
+  if (sighash_type != 0x01 || signable_input_index >= n_inputs) {
+    return false;
+  }
+
+  uint8_t prevouts_digest[32], amounts_digest[32], scripts_digest[32];
+  uint8_t sequence_digest[32], outputs_digest[32], txin_sig_digest[32];
+  zcash_hash_transparent_prevouts(inputs, n_inputs, prevouts_digest);
+  zcash_hash_transparent_amounts(inputs, n_inputs, amounts_digest);
+  zcash_hash_transparent_scripts(inputs, n_inputs, scripts_digest);
+  zcash_hash_transparent_sequences(inputs, n_inputs, sequence_digest);
+  zcash_hash_transparent_outputs(outputs, n_outputs, outputs_digest);
+
+  zcash_hash_transparent_input(&inputs[signable_input_index], txin_sig_digest);
+
+  BLAKE2B_CTX ctx;
+  blake2b_InitPersonal(&ctx, 32, "ZTxIdTranspaHash", 16);
+  blake2b_Update(&ctx, &sighash_type, 1);
+  blake2b_Update(&ctx, prevouts_digest, 32);
+  blake2b_Update(&ctx, amounts_digest, 32);
+  blake2b_Update(&ctx, scripts_digest, 32);
+  blake2b_Update(&ctx, sequence_digest, 32);
+  blake2b_Update(&ctx, outputs_digest, 32);
+  blake2b_Update(&ctx, txin_sig_digest, 32);
+  blake2b_Final(&ctx, digest_out, 32);
+
+  memzero(prevouts_digest, sizeof(prevouts_digest));
+  memzero(amounts_digest, sizeof(amounts_digest));
+  memzero(scripts_digest, sizeof(scripts_digest));
+  memzero(sequence_digest, sizeof(sequence_digest));
+  memzero(outputs_digest, sizeof(outputs_digest));
+  memzero(txin_sig_digest, sizeof(txin_sig_digest));
+  return true;
+}
+
+ZcashPCZTSigningRequestStatus zcash_pczt_signing_request_status(
+    const ZcashPCZTSigningRequestMeta* meta) {
+  if (!meta || !meta->has_header_digest || !meta->has_orchard_digest) {
+    return ZCASH_PCZT_SIGNING_REQUEST_MISSING_TX_DIGESTS;
+  }
+
+  if (meta->header_digest_size != 32 || meta->orchard_digest_size != 32) {
+    return ZCASH_PCZT_SIGNING_REQUEST_INVALID_DIGEST_SIZE;
+  }
+
+  if (meta->has_transparent_digest && meta->transparent_digest_size != 32) {
+    return ZCASH_PCZT_SIGNING_REQUEST_INVALID_DIGEST_SIZE;
+  }
+
+  (void)meta->sapling_digest_size;
+  if (meta->has_sapling_digest) {
+    return ZCASH_PCZT_SIGNING_REQUEST_UNSUPPORTED_SAPLING_COMPONENT;
+  }
+
+  if (!meta->has_header_fields) {
+    return ZCASH_PCZT_SIGNING_REQUEST_MISSING_HEADER_FIELDS;
+  }
+
+  if ((meta->n_transparent_inputs > 0 || meta->n_transparent_outputs > 0) &&
+      (!meta->has_transparent_digest || meta->transparent_digest_size != 32)) {
+    return ZCASH_PCZT_SIGNING_REQUEST_MISSING_TRANSPARENT_DIGEST;
+  }
+
+  if (!meta->has_orchard_flags || meta->orchard_flags > 0xff ||
+      !meta->has_orchard_value_balance || !meta->has_orchard_anchor ||
+      meta->orchard_anchor_size != 32) {
+    return ZCASH_PCZT_SIGNING_REQUEST_MISSING_ORCHARD_METADATA;
+  }
+
+  return ZCASH_PCZT_SIGNING_REQUEST_OK;
+}
+
+bool zcash_pczt_signing_request_is_clear(
+    const ZcashPCZTSigningRequestMeta* meta) {
+  return zcash_pczt_signing_request_status(meta) ==
+         ZCASH_PCZT_SIGNING_REQUEST_OK;
 }
 
 /*

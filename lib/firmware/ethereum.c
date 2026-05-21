@@ -185,6 +185,22 @@ static void hash_rlp_field(const uint8_t* buf, size_t size) {
 }
 
 /*
+ * Push an RLP encoded integer field stripping leading zero bytes.
+ * Per Ethereum yellow paper §B, integer fields have minimal encoding.
+ */
+static void hash_rlp_bytes_stripped(const uint8_t* buf, size_t size) {
+  if (size == 0) {
+    hash_rlp_length(0, 0);
+    return;
+  }
+  size_t offset = 0;
+  while (offset < size - 1 && buf[offset] == 0) {
+    offset++;
+  }
+  hash_rlp_field(buf + offset, size - offset);
+}
+
+/*
  * Push an RLP encoded number to the hash buffer.
  * Ethereum yellow paper says to convert to big endian and strip leading zeros.
  */
@@ -875,8 +891,10 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   hash_rlp_bytes_stripped(msg->nonce.bytes, msg->nonce.size);
 
   if (msg->has_max_fee_per_gas) {
-    hash_rlp_bytes_stripped(msg->max_priority_fee_per_gas.bytes,
-                            msg->max_priority_fee_per_gas.size);
+    if (msg->has_max_priority_fee_per_gas) {
+      hash_rlp_bytes_stripped(msg->max_priority_fee_per_gas.bytes,
+                              msg->max_priority_fee_per_gas.size);
+    }
     hash_rlp_bytes_stripped(msg->max_fee_per_gas.bytes,
                             msg->max_fee_per_gas.size);
   } else {
