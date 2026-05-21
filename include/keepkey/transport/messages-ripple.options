@@ -13,5 +13,6 @@ RippleGetAddress
     RippleSignTx
     .memo max_size : 200
 
-    RippleSignedTx.signature max_size : 75 RippleSignedTx
+    RippleSignedTx
+    .signature max_size : 75
     .serialized_tx max_size : 1024
