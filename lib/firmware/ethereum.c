@@ -869,8 +869,7 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   }
 
   if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
-    // chain id goes here for 1559 (only one byte for now)
-    hash_rlp_field((uint8_t*)(&chain_id), sizeof(uint8_t));
+    hash_rlp_number(chain_id);
   }
 
   hash_rlp_bytes_stripped(msg->nonce.bytes, msg->nonce.size);
