@@ -38,7 +38,8 @@
 
 /* deposit(address,address,uint256,string) — legacy selector */
 #define THOR_SELECTOR_DEPOSIT "\x1f\xec\xe7\xb4"
-/* depositWithExpiry(address,address,uint256,string,uint256) — current selector */
+/* depositWithExpiry(address,address,uint256,string,uint256) — current selector
+ */
 #define THOR_SELECTOR_DEPOSIT_WITH_EXPIRY "\x44\xbc\x93\x7b"
 
 typedef struct _EthereumSignTx EthereumSignTx;

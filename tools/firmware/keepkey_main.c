@@ -57,13 +57,13 @@ void u2fInit(void);
       MINOR_VERSION) "." VERSION_STR(PATCH_VERSION)
 
 /* These variables will be used by host application to read the version info */
-static const char *const application_version
+static const char* const application_version
     __attribute__((used, section("version"))) = APP_VERSIONS;
 
-void memory_getDeviceLabel(char *str, size_t len) {
-  const char *label = storage_getLabel();
+void memory_getDeviceLabel(char* str, size_t len) {
+  const char* label = storage_getLabel();
 
-  if (label && is_valid_ascii((const uint8_t *)label, strlen(label))) {
+  if (label && is_valid_ascii((const uint8_t*)label, strlen(label))) {
     snprintf(str, len, "KeepKey - %s", label);
   } else {
     strlcpy(str, "KeepKey", len);
@@ -168,9 +168,9 @@ static void exec(void) {
 }
 
 int main(void) {
-  _buttonusr_isr = (void *)&buttonisr_usr;
-  _timerusr_isr = (void *)&timerisr_usr;
-  _mmhusr_isr = (void *)&mmhisr;
+  _buttonusr_isr = (void*)&buttonisr_usr;
+  _timerusr_isr = (void*)&timerisr_usr;
+  _mmhusr_isr = (void*)&mmhisr;
 
   {  // limit sigRet lifetime to this block
     /* F5 hardening: replace full signatures_ok() (~1 sec crypto) with fast
@@ -180,9 +180,9 @@ int main(void) {
      * indicated by valid signature indices in flash metadata. */
     int sigRet = SIG_FAIL;
 
-    volatile uint8_t si1 = *((volatile uint8_t *)FLASH_META_SIGINDEX1);
-    volatile uint8_t si2 = *((volatile uint8_t *)FLASH_META_SIGINDEX2);
-    volatile uint8_t si3 = *((volatile uint8_t *)FLASH_META_SIGINDEX3);
+    volatile uint8_t si1 = *((volatile uint8_t*)FLASH_META_SIGINDEX1);
+    volatile uint8_t si2 = *((volatile uint8_t*)FLASH_META_SIGINDEX2);
+    volatile uint8_t si3 = *((volatile uint8_t*)FLASH_META_SIGINDEX3);
 
     if (si1 >= 1 && si1 <= PUBKEYS && si2 >= 1 && si2 <= PUBKEYS && si3 >= 1 &&
         si3 <= PUBKEYS && si1 != si2 && si1 != si3 && si2 != si3) {

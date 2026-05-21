@@ -388,8 +388,8 @@ void next_character(void) {
   static char prev_info[32];
   prev_info[0] = '\0';
   if (word_pos > 0 && last_completed_word[0]) {
-    snprintf(prev_info, sizeof(prev_info), "(%" PRIu32 ".%s)",
-             word_pos, last_completed_word);
+    snprintf(prev_info, sizeof(prev_info), "(%" PRIu32 ".%s)", word_pos,
+             last_completed_word);
   }
 
   /* Show cipher and partial word */

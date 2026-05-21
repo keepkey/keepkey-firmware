@@ -175,8 +175,8 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
           return;
         }
         // Confirm the asset denom on its own screen.
-        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                     "Asset", "%s", coin_denom)) {
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Asset",
+                     "%s", coin_denom)) {
           thorchain_signAbort();
           fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
           layoutHome();

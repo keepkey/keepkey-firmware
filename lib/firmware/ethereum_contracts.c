@@ -66,7 +66,6 @@ bool ethereum_contractConfirmed(uint32_t data_total, const EthereumSignTx* msg,
   if (thor_isMayachainTx(msg)) return thor_confirmMayaTx(data_total, msg);
   if (thor_isThorchainTx(msg)) return thor_confirmThorTx(data_total, msg);
 
-
   if (makerdao_isMakerDAO(data_total, msg))
     return makerdao_confirmMakerDAO(data_total, msg);
 

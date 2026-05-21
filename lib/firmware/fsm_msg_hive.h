@@ -17,13 +17,13 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-void fsm_msgHiveGetPublicKey(const HiveGetPublicKey *msg) {
+void fsm_msgHiveGetPublicKey(const HiveGetPublicKey* msg) {
   RESP_INIT(HivePublicKey);
 
   CHECK_INITIALIZED
   CHECK_PIN
 
-  HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) return;
   hdnode_fill_public_key(node);
@@ -36,7 +36,7 @@ void fsm_msgHiveGetPublicKey(const HiveGetPublicKey *msg) {
   // Return STM-encoded public key
   resp->has_public_key = true;
   if (!hive_getPublicKey(node->public_key, resp->public_key,
-                          sizeof(resp->public_key))) {
+                         sizeof(resp->public_key))) {
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_FirmwareError,
                     _("Failed to encode Hive public key"));
@@ -59,7 +59,7 @@ void fsm_msgHiveGetPublicKey(const HiveGetPublicKey *msg) {
   layoutHome();
 }
 
-void fsm_msgHiveSignTx(const HiveSignTx *msg) {
+void fsm_msgHiveSignTx(const HiveSignTx* msg) {
   RESP_INIT(HiveSignedTx);
 
   CHECK_INITIALIZED
@@ -74,13 +74,13 @@ void fsm_msgHiveSignTx(const HiveSignTx *msg) {
     return;
   }
 
-  HDNode *node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) return;
   hdnode_fill_public_key(node);
 
   // Format amount string for confirmation
-  const char *symbol = msg->has_asset_symbol ? msg->asset_symbol : "HIVE";
+  const char* symbol = msg->has_asset_symbol ? msg->asset_symbol : "HIVE";
   uint32_t decimals = msg->has_decimals ? msg->decimals : HIVE_DECIMALS;
 
   char amount_str[32];
@@ -100,8 +100,8 @@ void fsm_msgHiveSignTx(const HiveSignTx *msg) {
   }
 
   if (msg->has_memo && strlen(msg->memo) > 0) {
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, "Memo",
-                 "%s", msg->memo)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, "Memo", "%s",
+                 msg->memo)) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
