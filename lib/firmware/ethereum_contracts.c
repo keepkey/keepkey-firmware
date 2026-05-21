@@ -38,6 +38,7 @@ bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx* msg,
   if (zx_isZxLiquidTx(msg)) return true;
   if (zx_isZxApproveLiquid(msg)) return true;
 
+  if (thor_isMayachainTx(msg)) return true;
   if (thor_isThorchainTx(msg)) return true;
 
   if (makerdao_isMakerDAO(data_total, msg)) return true;
@@ -62,7 +63,9 @@ bool ethereum_contractConfirmed(uint32_t data_total, const EthereumSignTx* msg,
   if (zx_isZxApproveLiquid(msg))
     return zx_confirmApproveLiquidity(data_total, msg);
 
+  if (thor_isMayachainTx(msg)) return thor_confirmMayaTx(data_total, msg);
   if (thor_isThorchainTx(msg)) return thor_confirmThorTx(data_total, msg);
+
 
   if (makerdao_isMakerDAO(data_total, msg))
     return makerdao_confirmMakerDAO(data_total, msg);
