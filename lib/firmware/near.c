@@ -2,27 +2,36 @@
  * NEAR Protocol support for KeepKey firmware.
  *
  * Crypto: Ed25519 (SLIP-0010 hardened derivation, coin type 397)
- * Address: Base58-encoded 32-byte Ed25519 public key (implicit account)
+ * Address: lowercase hex of 32-byte Ed25519 public key (implicit account)
  * Signing: Ed25519(SHA256(borsh_serialized_transaction))
  */
 
 #include "keepkey/firmware/near.h"
+#include "keepkey/board/confirm_sm.h"
+#include "keepkey/board/util.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/fsm.h"
 
-#include "trezor/crypto/base58.h"
+#include "trezor/crypto/bip32.h"
 #include "trezor/crypto/sha2.h"
-#include "trezor/crypto/ed25519.h"
+#include "messages-near.pb.h"
 
 #include <string.h>
 #include <stdbool.h>
 #include <stdint.h>
 
+static const char HEX_CHARS[] = "0123456789abcdef";
+
 bool near_encode_address(const uint8_t pubkey[32], char *addr, size_t addr_len)
 {
-    int len = base58_encode_check(pubkey, 32, HASHER_SHA2D, addr, addr_len);
-    return len > 0;
+    if (addr_len < NEAR_ADDRESS_SIZE) return false;
+    for (int i = 0; i < 32; i++) {
+        addr[2 * i]     = HEX_CHARS[pubkey[i] >> 4];
+        addr[2 * i + 1] = HEX_CHARS[pubkey[i] & 0xf];
+    }
+    addr[64] = '\0';
+    return true;
 }
 
 bool near_getAddress(const HDNode *node,

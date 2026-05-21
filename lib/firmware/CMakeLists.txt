@@ -7,6 +7,7 @@ set(sources
     eos-contracts/eosio.system.c
     eos-contracts/eosio.token.c
     ethereum.c
+    near.c
     ethereum_tokens.c
     exchange.c
     fsm.c

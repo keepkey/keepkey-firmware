@@ -1,15 +1,14 @@
 #ifndef LIB_FIRMWARE_NEAR_H
 #define LIB_FIRMWARE_NEAR_H
 
-#include "keepkey/firmware/near.pb.h"
-#include "trezor/crypto/ecdsa.h"
+#include "messages-near.pb.h"
 #include "trezor/crypto/bip32.h"
 
-/* Max size of a NEAR implicit account address (Base58 of 32-byte pubkey) */
-#define NEAR_ADDRESS_SIZE 45
+/* NEAR implicit account address: lowercase hex of 32-byte Ed25519 pubkey (64 chars + NUL) */
+#define NEAR_ADDRESS_SIZE 65
 
 /*
- * Encode a 32-byte Ed25519 public key as a Base58 NEAR address.
+ * Encode a 32-byte Ed25519 public key as a lowercase hex NEAR implicit address.
  * Returns true on success; addr must be at least NEAR_ADDRESS_SIZE bytes.
  */
 bool near_encode_address(const uint8_t pubkey[32], char *addr, size_t addr_len);

@@ -39,6 +39,7 @@
 #include "keepkey/firmware/eos.h"
 #include "keepkey/firmware/eos-contracts.h"
 #include "keepkey/firmware/ethereum.h"
+#include "keepkey/firmware/near.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/exchange.h"
 #include "keepkey/firmware/fsm.h"
@@ -281,3 +282,4 @@ void fsm_msgClearSession(ClearSession *msg)
 #include "fsm_msg_crypto.h"
 #include "fsm_msg_debug.h"
 #include "fsm_msg_eos.h"
+#include "fsm_msg_near.h"

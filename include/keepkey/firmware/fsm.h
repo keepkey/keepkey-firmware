@@ -90,6 +90,9 @@ void fsm_msgEosGetPublicKey(const EosGetPublicKey *msg);
 void fsm_msgEosSignTx(const EosSignTx *msg);
 void fsm_msgEosTxActionAck(const EosTxActionAck *msg);
 
+void fsm_msgNearGetAddress(const NearGetAddress *msg);
+void fsm_msgNearSignTx(const NearSignTx *msg);
+
 #if DEBUG_LINK
 //void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
 void fsm_msgDebugLinkGetState(DebugLinkGetState *msg);
