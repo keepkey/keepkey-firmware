@@ -794,10 +794,7 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   layoutProgress(_("Signing"), 0);
 
   if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
-    // This is the chain ID length for 1559 tx (only one byte for now)
     rlp_length += rlp_calculate_number_length(chain_id);
-
-    // rlp_length += 1;
   }
 
   rlp_length += rlp_calculate_length(msg->nonce.size, msg->nonce.bytes[0]);
@@ -861,8 +858,11 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   }
 
   if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
-    // chain id goes here for 1559 (only one byte for now)
-    hash_rlp_field((uint8_t*)(&chain_id), sizeof(uint8_t));
+    // chain_id is a uint32; hash_rlp_number strips leading zeros and encodes
+    // correctly for all chain IDs including multi-byte ones (Base=8453, Arbitrum=42161).
+    // Bug: hash_rlp_field((uint8_t*)&chain_id, 1) only hashed the LSB on little-endian,
+    // producing wrong signatures on chains with chainId > 255.
+    hash_rlp_number(chain_id);
   }
 
   hash_rlp_field(msg->nonce.bytes, msg->nonce.size);
