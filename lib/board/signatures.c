@@ -89,21 +89,21 @@ int signatures_ok(void) {
   volatile int verify_acc = 0;
   volatile int verify_sentinel = 0;
 
-  verify_acc |= ecdsa_verify_digest(&secp256k1, pubkey[sigindex1 - 1],
-                                    (uint8_t*)FLASH_META_SIG1,
-                                    firmware_fingerprint);
+  verify_acc |=
+      ecdsa_verify_digest(&secp256k1, pubkey[sigindex1 - 1],
+                          (uint8_t*)FLASH_META_SIG1, firmware_fingerprint);
   verify_sentinel++;
   asm volatile("" ::: "memory");
 
-  verify_acc |= ecdsa_verify_digest(&secp256k1, pubkey[sigindex2 - 1],
-                                    (uint8_t*)FLASH_META_SIG2,
-                                    firmware_fingerprint);
+  verify_acc |=
+      ecdsa_verify_digest(&secp256k1, pubkey[sigindex2 - 1],
+                          (uint8_t*)FLASH_META_SIG2, firmware_fingerprint);
   verify_sentinel++;
   asm volatile("" ::: "memory");
 
-  verify_acc |= ecdsa_verify_digest(&secp256k1, pubkey[sigindex3 - 1],
-                                    (uint8_t*)FLASH_META_SIG3,
-                                    firmware_fingerprint);
+  verify_acc |=
+      ecdsa_verify_digest(&secp256k1, pubkey[sigindex3 - 1],
+                          (uint8_t*)FLASH_META_SIG3, firmware_fingerprint);
   verify_sentinel++;
   asm volatile("" ::: "memory");
 
