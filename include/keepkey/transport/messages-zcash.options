@@ -44,6 +44,7 @@ ZcashTransparentInput.amount                        int_size:IS_64
 ZcashTransparentInput.prevout_txid                  max_size:32
 ZcashTransparentInput.script_pubkey                 max_size:128
 
+ZcashTransparentSig.signature                        max_size:73
 ZcashTransparentSigned.signatures                   max_count:8, max_size:73
 
 ZcashDisplayAddress.address_n                       max_count:8
