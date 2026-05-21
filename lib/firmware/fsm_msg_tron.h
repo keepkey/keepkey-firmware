@@ -296,6 +296,18 @@ void fsm_msgTronSignTypedHash(const TronSignTypedHash* msg) {
     return;
   }
 
+  /* Blind-sign gate: device only receives pre-computed hashes — it cannot
+   * reconstruct or verify the original typed-data struct. The user must
+   * explicitly acknowledge this before seeing the raw hashes. */
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "TIP-712 Blind Sign",
+               "Device cannot verify typed-data contents. "
+               "Only proceed if you trust the host application.")) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    layoutHome();
+    return;
+  }
+
   if (!confirm(ButtonRequestType_ButtonRequest_Other, "Verify Address",
                "Confirm address: %s", address)) {
     memzero(node, sizeof(*node));
