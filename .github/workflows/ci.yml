@@ -23,7 +23,7 @@ name: CI
 
 on:
   push:
-    branches: [master, develop, 'feature/**', 'fix/**', 'release/**', 'hotfix/**']
+    branches: [master, develop, alpha, 'feature/**', 'fix/**', 'release/**', 'hotfix/**']
   pull_request:
     branches: [master, develop]
   workflow_dispatch:
