@@ -1,6 +1,8 @@
 # Convenience targets — mirrors CI jobs so failures are caught locally.
-
-CLANG_FORMAT ?= clang-format
+#
+# CI pins clang-format-20. Use that version if available, otherwise fall back.
+# To install: brew install llvm@20  or  apt-get install clang-format-20
+CLANG_FORMAT ?= $(shell command -v clang-format-20 2>/dev/null || echo clang-format)
 
 # Directories and exclusions must match .github/workflows/ci.yml lint-format job.
 LINT_DIRS := include/keepkey lib/firmware lib/board lib/transport/src
