@@ -1,0 +1,63 @@
+/*
+ * Messages (NEAR Protocol) for KeepKey Communication
+ *
+ * NEAR native account support via Ed25519 on the device.
+ * Derivation path: m/44'/397'/0' (SLIP-0010 hardened)
+ *
+ * Address format: Base58-encoded 32-byte Ed25519 public key
+ * Signing: Ed25519(SHA256(borsh_serialized_tx))
+ */
+
+syntax = "proto2";
+
+option java_package = "com.keepkey.deviceprotocol";
+option java_outer_classname = "KeepKeyMessageNear";
+
+/**
+ * Request: Derive NEAR address (Ed25519 pubkey) at the given path
+ * @next NearAddress
+ * @next Failure
+ */
+message NearGetAddress {
+    repeated uint32 address_n = 1;          // BIP-44 path (e.g. m/44'/397'/0')
+    optional string coin_name = 2 [default = "NEAR"];
+    optional bool show_display = 3;
+}
+
+/**
+ * Response: NEAR implicit account address (Base58-encoded Ed25519 pubkey)
+ * @prev NearGetAddress
+ */
+message NearAddress {
+    optional string address = 1;            // Base58-encoded 32-byte Ed25519 pubkey
+    optional bytes public_key = 2;          // Raw 32-byte Ed25519 pubkey
+}
+
+/**
+ * Request: Sign a NEAR transaction
+ *
+ * The host Borsh-serializes the full NearTransaction struct and sends raw bytes.
+ * Firmware SHA256-hashes the bytes, signs with Ed25519, returns 64-byte signature.
+ *
+ * For display, the host also supplies receiver_id so firmware can show
+ * a human-readable confirmation screen without a full Borsh parser.
+ *
+ * @next NearSignedTx
+ * @next Failure
+ */
+message NearSignTx {
+    repeated uint32 address_n = 1;          // BIP-44 path to signing key
+    optional string coin_name = 2 [default = "NEAR"];
+    optional bytes raw_tx = 3;              // Borsh-serialized NearTransaction (max 1024 bytes)
+    optional string receiver_id = 4;        // Destination account for display (max 64 chars)
+    optional string action_display = 5;     // Human-readable action summary (max 64 chars)
+}
+
+/**
+ * Response: Ed25519 signature over SHA256(raw_tx)
+ * @prev NearSignTx
+ */
+message NearSignedTx {
+    optional bytes signature = 1;           // 64-byte Ed25519 signature
+    optional bytes public_key = 2;          // 32-byte Ed25519 pubkey (for verification)
+}
