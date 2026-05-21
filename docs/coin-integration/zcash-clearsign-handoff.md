@@ -98,6 +98,11 @@ git diff --check
 PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python python3 -c "import sys; sys.path.insert(0, 'deps/python-keepkey'); from keepkeylib import messages_zcash_pb2 as z; a=z.ZcashPCZTAction(index=0, recipient=b'1'*43, rseed=b'2'*32, value=1); assert a.HasField('recipient') and a.HasField('rseed'); print('zcash orchard metadata protobuf smoke ok')"
 PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python python3 -c "import sys; sys.path.insert(0, 'deps/python-keepkey'); from keepkeylib import mapping; from keepkeylib import messages_zcash_pb2 as z; assert mapping.get_type(z.ZcashTransparentOutput(index=0)) == 1310; assert mapping.get_type(z.ZcashTransparentAck(next_input_index=0)) == 1311; assert mapping.get_type(z.ZcashTransparentSigned(signatures=[b'0'])) == 1307; msg=z.ZcashSignPCZT(n_transparent_outputs=1,n_transparent_inputs=1); assert msg.HasField('n_transparent_outputs'); print('zcash transparent protobuf smoke ok')"
 PYTHONPYCACHEPREFIX=/private/tmp/kk-pycache python3 -m py_compile deps/python-keepkey/tests/test_msg_zcash_sign_pczt.py
+PYTHONPYCACHEPREFIX=/private/tmp/kk-pycache python3 -m py_compile ../python-keepkey/keepkeylib/client.py
+cd scripts/emulator
+docker compose build python-keepkey
+docker compose up -d kkemu
+docker compose run --rm --no-deps --entrypoint pytest -e FW_VERSION=7.15.0 -e KEEPKEY_SCREENSHOT=1 -e SCREENSHOT_DIR=/kkemu/test-reports/screenshots -e KK_TRANSPORT_MAIN=kkemu:11044 -e KK_TRANSPORT_DEBUG=kkemu:11045 --workdir /kkemu/deps/python-keepkey/tests python-keepkey -v --tb=short -s test_msg_zcash_sign_pczt.py::TestZcashSignPCZT::test_multi_action_device_sighash test_msg_zcash_sign_pczt.py::TestZcashSignPCZT::test_signatures_are_64_bytes test_msg_zcash_sign_pczt.py::TestZcashSignPCZT::test_transparent_shielding_single_input test_msg_zcash_sign_pczt.py::TestZcashSignPCZT::test_transparent_shielding_multiple_inputs
 ```
 
 Results:
@@ -110,16 +115,20 @@ Results:
 - Python Zcash transparent protobuf smoke test passes.
 - Python test file syntax check passes with bytecode cache redirected to
   `/private/tmp/kk-pycache`.
+- python-keepkey client syntax check passes with bytecode cache redirected to
+  `/private/tmp/kk-pycache`.
+- Focused Docker PCZT screenshot run passes: 4 tests passed and 24 PNGs were
+  captured.
 
 ## Published Dependencies
 
 - `BitHighlander/device-protocol`
   `feat/zcash-clearsign-protocol` -> `6ec974e`
 - `BitHighlander/python-keepkey`
-  `feature/zcash-clearsign-tests` -> `c7e9ade`
+  `feature/zcash-clearsign-tests` -> `41bf86a`
 - Firmware submodules now point at those commits:
   - `deps/device-protocol` -> `6ec974e`
-  - `deps/python-keepkey` -> `c7e9ade`
+  - `deps/python-keepkey` -> `41bf86a`
 
 The firmware GitHub Actions PDF report is generated through the checked-out
 `deps/python-keepkey` submodule. The submodule report script now includes the
@@ -152,7 +161,7 @@ Current pushed state:
   `6ec974eef1fecb713be0916436ec31fefe4f094e`
 - Python test/report submodule: `BitHighlander/python-keepkey`
   `feature/zcash-clearsign-tests` ->
-  `c7e9ade93df939b1e65787d677fa60d044d9cefc`
+  `41bf86a534e6cdd0ba0532cbf6bc23f84d2e03e7`
 
 Failed runs that diagnosed the protobuf break:
 
@@ -203,8 +212,25 @@ Last inspected successful run before the screenshot-filter fix:
 - Gap found during artifact audit: `oled-screenshots` uploaded 301 PNGs, but
   only legacy `msg_signtx_zcash` screenshots appeared for Zcash because the
   Docker screenshot phase detected `FW_VERSION=7.14.0`. The current branch
-  fixes that detection and needs one more CI run to confirm PCZT screenshots
-  appear in the image artifact and embedded PDF.
+  fixes that detection.
+
+Last inspected run after the screenshot-filter fix:
+
+- `https://github.com/BitHighlander/keepkey-firmware/actions/runs/26195503040`
+- Head SHA: `c5ee9453618ef6a65b57d3bfe4d574c17ac4bcae`
+- Result: cancelled before artifacts were copied out of the Docker test
+  container, so the generated PDF was not useful.
+- Useful signal: the Docker screenshot phase detected `FW_VERSION=7.15.0` and
+  selected all four PCZT screenshot tests.
+- Failure mode reproduced locally: with `KEEPKEY_SCREENSHOT=1`,
+  `test_transparent_shielding_multiple_inputs` stalled after the internal
+  transparent-input `ButtonRequest_SignTx` prompts and before
+  `ZcashTransparentSigned`. Without screenshot capture the same test passed.
+- Fix applied in python-keepkey `41bf86a`: suppress OLED capture only while the
+  host streams transparent inputs. The output and fee confirmation
+  `ButtonRequest` screens still capture screenshots for the report.
+- Local verification after the fix: the four focused PCZT screenshot tests pass
+  in Docker and capture 24 PNGs across the expected screenshot directories.
 
 Artifact validation checklist:
 
