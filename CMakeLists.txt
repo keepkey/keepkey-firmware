@@ -9,7 +9,8 @@ endif()
 
 project(
   KeepKeyFirmware
-  VERSION 7.14.1
+
+  VERSION 7.15.0
   LANGUAGES C CXX ASM)
 
 set(BOOTLOADER_MAJOR_VERSION 2)
@@ -189,6 +190,7 @@ if(${KK_EMULATOR})
   add_test(test-firmware ${CMAKE_BINARY_DIR}/bin/firmware-unit)
   add_test(test-board ${CMAKE_BINARY_DIR}/bin/board-unit)
   add_test(test-crypto ${CMAKE_BINARY_DIR}/bin/crypto-unit)
+  add_test(test-zcash-crypto ${CMAKE_BINARY_DIR}/bin/zcash-crypto-unit)
 
   add_custom_target(
     xunit
