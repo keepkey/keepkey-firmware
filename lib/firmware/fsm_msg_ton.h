@@ -112,24 +112,14 @@ void fsm_msgTonSignTx(TonSignTx* msg) {
     return;
   }
 
-  bool needs_confirm = true;
-
-  // Display transaction details if available
-  if (needs_confirm && msg->has_to_address && msg->has_amount) {
-    char amount_str[32];
-    ton_formatAmount(amount_str, sizeof(amount_str), msg->amount);
-
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Send",
-                 "Send %s TON to %s?", amount_str, msg->to_address)) {
-      memzero(node, sizeof(*node));
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
-      layoutHome();
-      return;
-    }
-  }
-
-  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Transaction",
-               "Really sign this TON transaction?")) {
+  /* to_address and amount are display-only fields not bound to raw_tx bytes.
+   * A malicious host could show one recipient while getting a different
+   * transaction signed. Show only the raw_tx size. */
+  char blind_msg[48];
+  snprintf(blind_msg, sizeof(blind_msg), "Sign %u-byte TON transaction?",
+           (unsigned)msg->raw_tx.size);
+  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "TON Blind Sign", "%s",
+               blind_msg)) {
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
     layoutHome();
