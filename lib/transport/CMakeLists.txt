@@ -19,6 +19,7 @@ set(protoc_pb_sources
     ${DEVICE_PROTOCOL}/messages-tron.proto
     ${DEVICE_PROTOCOL}/messages-ton.proto
     ${DEVICE_PROTOCOL}/messages-zcash.proto
+    ${DEVICE_PROTOCOL}/messages-near.proto
     ${DEVICE_PROTOCOL}/messages.proto)
 
 set(protoc_pb_options
@@ -37,6 +38,7 @@ set(protoc_pb_options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-tron.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-ton.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-zcash.options
+    ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-near.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages.options)
 
 set(protoc_c_sources
@@ -55,6 +57,7 @@ set(protoc_c_sources
     ${CMAKE_BINARY_DIR}/lib/transport/messages-tron.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-ton.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-zcash.pb.c
+    ${CMAKE_BINARY_DIR}/lib/transport/messages-near.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages.pb.c)
 
 set(protoc_c_headers
@@ -73,6 +76,7 @@ set(protoc_c_headers
     ${CMAKE_BINARY_DIR}/include/messages-tron.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-ton.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-zcash.pb.h
+    ${CMAKE_BINARY_DIR}/include/messages-near.pb.h
     ${CMAKE_BINARY_DIR}/include/messages.pb.h)
 
 set(protoc_pb_sources_moved
@@ -91,6 +95,7 @@ set(protoc_pb_sources_moved
     ${CMAKE_BINARY_DIR}/lib/transport/messages-tron.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-ton.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-zcash.proto
+    ${CMAKE_BINARY_DIR}/lib/transport/messages-near.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages.proto)
 
 add_custom_command(
@@ -187,6 +192,11 @@ add_custom_command(
       --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}
       --nanopb_out=.
       --nanopb_opt=-f,messages-zcash.options messages-zcash.proto
+  COMMAND
+    ${PROTOC_BINARY} -I. -I/usr/include
+      --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}
+      --nanopb_out=.
+      --nanopb_opt=-f,messages-near.options messages-near.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=protoc-gen-nanopb=${NANOPB_PLUGIN}

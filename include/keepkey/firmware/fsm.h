@@ -138,6 +138,9 @@ void fsm_msgZcashTransparentOutput(const ZcashTransparentOutput* msg);
 void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg);
 void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress* msg);
 
+void fsm_msgNearGetAddress(const NearGetAddress* msg);
+void fsm_msgNearSignTx(const NearSignTx* msg);
+
 #if DEBUG_LINK
 // void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
 void fsm_msgDebugLinkGetState(DebugLinkGetState* msg);

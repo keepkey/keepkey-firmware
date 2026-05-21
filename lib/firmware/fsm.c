@@ -62,6 +62,7 @@
 #include "keepkey/firmware/tron.h"
 #include "keepkey/firmware/ton.h"
 #include "keepkey/firmware/hive.h"
+#include "keepkey/firmware/near.h"
 #include "keepkey/firmware/zcash.h"
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/txin_check.h"
@@ -299,3 +300,4 @@ void fsm_msgClearSession(ClearSession* msg) {
 #include "fsm_msg_solana.h"
 #include "fsm_msg_zcash.h"
 #include "fsm_msg_hive.h"
+#include "fsm_msg_near.h"

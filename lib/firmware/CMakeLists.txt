@@ -34,6 +34,7 @@ set(sources
     ripple_base58.c
     signing.c
     signtx_tendermint.c
+    near.c
     solana.c
     storage.c
     tron.c

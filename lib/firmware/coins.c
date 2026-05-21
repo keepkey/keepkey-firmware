@@ -451,6 +451,12 @@ static bool isRipple(const char* coin_name) {
   return false;
 }
 
+static bool isNear(const char* coin_name) {
+  if (strcmp(coin_name, "NEAR") == 0) return true;
+
+  return false;
+}
+
 bool isAccountBased(const char* coin_name) {
   if (isTendermint(coin_name)) {
     return true;
@@ -462,6 +468,9 @@ bool isAccountBased(const char* coin_name) {
     return true;
   }
   if (isRipple(coin_name)) {
+    return true;
+  }
+  if (isNear(coin_name)) {
     return true;
   }
   return false;
