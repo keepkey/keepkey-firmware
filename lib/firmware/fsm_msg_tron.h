@@ -108,8 +108,8 @@ void fsm_msgTronSignTx(TronSignTx* msg) {
   char blind_msg[48];
   snprintf(blind_msg, sizeof(blind_msg), "Sign %u-byte TRON transaction?",
            (unsigned)msg->raw_data.size);
-  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "TRON Blind Sign",
-               "%s", blind_msg)) {
+  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "TRON Blind Sign", "%s",
+               blind_msg)) {
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
     layoutHome();

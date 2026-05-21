@@ -392,9 +392,10 @@ static bool zcash_sign_transparent_inputs(bool* cancelled) {
     if (!node) goto cleanup;
 
     /* ZIP-244 §4.4: signature_digest = ZcashTxHash_(
-     *   header_digest || transparent_sig_digest || sapling_digest || orchard_digest)
-     * Binding the transparent ECDSA sig to all four components ensures it
-     * cannot be replayed in a transaction with different Orchard/header data. */
+     *   header_digest || transparent_sig_digest || sapling_digest ||
+     * orchard_digest) Binding the transparent ECDSA sig to all four components
+     * ensures it cannot be replayed in a transaction with different
+     * Orchard/header data. */
     uint8_t t_sig_digest[32] = {0};
     uint8_t full_sighash[32] = {0};
     uint8_t sig[64] = {0};
@@ -404,10 +405,10 @@ static bool zcash_sign_transparent_inputs(bool* cancelled) {
         zcash_compute_transparent_sighash_digest(
             inputs, zcash_signing.n_transparent_inputs, outputs,
             zcash_signing.n_transparent_outputs, i, 0x01, t_sig_digest) &&
-        zcash_compute_shielded_sighash(
-            zcash_signing.header_digest, t_sig_digest, EMPTY_SAPLING_DIGEST,
-            zcash_signing.expected_orchard_digest, zcash_signing.branch_id,
-            full_sighash) &&
+        zcash_compute_shielded_sighash(zcash_signing.header_digest,
+                                       t_sig_digest, EMPTY_SAPLING_DIGEST,
+                                       zcash_signing.expected_orchard_digest,
+                                       zcash_signing.branch_id, full_sighash) &&
         hdnode_sign_digest(node, full_sighash, sig, NULL, NULL) == 0;
 
     memzero(node, sizeof(*node));
@@ -1085,8 +1086,9 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
       return;
     }
 
-    /* Release deferred transparent ECDSA sigs at the same gate as Orchard sigs —
-     * both are sent only after Orchard digest verification and fee confirmation. */
+    /* Release deferred transparent ECDSA sigs at the same gate as Orchard sigs
+     * — both are sent only after Orchard digest verification and fee
+     * confirmation. */
     if (zcash_signing.has_pending_transparent) {
       ZcashTransparentSigned* t_resp = (ZcashTransparentSigned*)msg_resp;
       memcpy(t_resp, &zcash_signing.pending_transparent,

@@ -42,7 +42,8 @@ const TokenType* tokenIter(int32_t* ctr) {
   return &(tokens[*ctr - 1]);
 }
 
-const TokenType* tokenByChainAddress(uint32_t chain_id, const uint8_t* address) {
+const TokenType* tokenByChainAddress(uint32_t chain_id,
+                                     const uint8_t* address) {
   if (!address) return 0;
   for (int i = 0; i < TOKENS_COUNT; i++) {
     if (chain_id == tokens[i].chain_id &&

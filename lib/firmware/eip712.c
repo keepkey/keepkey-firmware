@@ -553,7 +553,8 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
               }
             }
             /* EIP-712 int/uint values must fit in 64 bits (firmware limit).
-             * Reject values that overflow strtoll to avoid silent misencoding. */
+             * Reject values that overflow strtoll to avoid silent misencoding.
+             */
             char* endptr = NULL;
             errno = 0;
             long long intVal = strtoll(valStr, &endptr, 10);
