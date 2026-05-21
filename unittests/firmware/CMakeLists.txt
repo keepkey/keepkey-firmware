@@ -3,10 +3,13 @@ set(sources
     cosmos.cpp
     eos.cpp
     ethereum.cpp
+    mayachain.cpp
     nano.cpp
     recovery.cpp
     ripple.cpp
+    solana.cpp
     storage.cpp
+    thorchain.cpp
     usb_rx.cpp
     u2f.cpp
     zcash.cpp)
