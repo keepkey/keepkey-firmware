@@ -100,12 +100,10 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
                      "Allocate %llu bytes?",
                      (unsigned long long)pi->extra_value);
 
-    case SOL_INSTR_TOKEN_TRANSFER:
-    case SOL_INSTR_TOKEN_TRANSFER_CHECKED: {
+    case SOL_INSTR_TOKEN_TRANSFER: {
       char to_str[45];
       solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
 
-      /* Try to find token info from host-provided metadata */
       const SolanaTokenInfo* ti = NULL;
       if (pi->has_mint) {
         ti = solana_findTokenInfo(msg, pi->mint);
@@ -115,6 +113,33 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
         char amount_str[48];
         solana_formatTokenAmount(amount_str, sizeof(amount_str), pi->amount,
                                  ti->symbol, (uint8_t)ti->decimals);
+        return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                       "Send %s to %s?", amount_str, to_str);
+      } else {
+        char amount_str[32];
+        snprintf(amount_str, sizeof(amount_str), "%llu tokens",
+                 (unsigned long long)pi->amount);
+        return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                       "Send %s to %s?", amount_str, to_str);
+      }
+    }
+
+    case SOL_INSTR_TOKEN_TRANSFER_CHECKED: {
+      char to_str[45];
+      solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
+
+      /* For TransferChecked, decimals come from the signed instruction
+       * bytes (pi->extra_u8) — host-supplied ti->decimals is untrusted. */
+      const SolanaTokenInfo* ti = NULL;
+      if (pi->has_mint) {
+        ti = solana_findTokenInfo(msg, pi->mint);
+      }
+
+      const char* symbol = (ti && ti->has_symbol) ? ti->symbol : NULL;
+      if (symbol) {
+        char amount_str[48];
+        solana_formatTokenAmount(amount_str, sizeof(amount_str), pi->amount,
+                                 symbol, pi->extra_u8);
         return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
                        "Send %s to %s?", amount_str, to_str);
       } else {
