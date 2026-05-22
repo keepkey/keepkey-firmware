@@ -803,9 +803,8 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
 
   rlp_length += rlp_calculate_length(msg->nonce.size, msg->nonce.bytes[0]);
   if (msg->has_max_fee_per_gas) {
-    rlp_length +=
-        rlp_calculate_length(msg->max_priority_fee_per_gas.size,
-                             msg->max_priority_fee_per_gas.bytes[0]);
+    rlp_length += rlp_calculate_length(msg->max_priority_fee_per_gas.size,
+                                       msg->max_priority_fee_per_gas.bytes[0]);
     rlp_length += rlp_calculate_length(msg->max_fee_per_gas.size,
                                        msg->max_fee_per_gas.bytes[0]);
   } else {
