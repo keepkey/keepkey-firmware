@@ -860,10 +860,15 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
     // chain_id is a uint32; hash_rlp_number strips leading zeros and encodes
     // correctly for all chain IDs including multi-byte ones (Base=8453,
-    // Arbitrum=42161). Bug: hash_rlp_field((uint8_t*)&chain_id, 1) only hashed
-    // the LSB on little-endian, producing wrong signatures on chains with
-    // chainId > 255.
-    hash_rlp_number(chain_id);
+    // Arbitrum=42161). For chain_id == 0, hash_rlp_number is a no-op, so
+    // explicitly hash the single-byte RLP encoding for zero to keep the
+    // preimage consistent with rlp_calculate_number_length(chain_id).
+    if (chain_id == 0) {
+      uint8_t zero_rlp[1] = {0x80};
+      hash_data(zero_rlp, sizeof(zero_rlp));
+    } else {
+      hash_rlp_number(chain_id);
+    }
   }
 
   hash_rlp_field(msg->nonce.bytes, msg->nonce.size);
