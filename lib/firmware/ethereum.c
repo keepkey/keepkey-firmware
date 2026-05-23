@@ -523,7 +523,7 @@ static void layoutEthereumFee(const EthereumSignTx* msg, bool is_token,
   memzero(gas_value, sizeof(gas_value));
   memzero(tx_value, sizeof(tx_value));
 
-  if (msg->has_max_fee_per_gas) {
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
     formatEthereumFeeEIP1559(&val, msg->max_fee_per_gas.bytes,
                              msg->max_fee_per_gas.size);
   } else {
@@ -659,6 +659,13 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
       !msg->has_max_fee_per_gas) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("EIP-1559 transactions require max_fee_per_gas"));
+    ethereum_signing_abort();
+    return;
+  }
+
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_LEGACY && !msg->has_gas_price) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Legacy transactions require gas_price"));
     ethereum_signing_abort();
     return;
   }
