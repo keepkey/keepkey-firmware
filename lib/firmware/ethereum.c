@@ -497,11 +497,10 @@ static void formatEthereumFee(bignum256* fee, const uint8_t* gas_price,
   bn_read_be(pad_val, fee);
 }
 
-static void formatEthereumFeeEIP1559(
-    bignum256* fee, const uint8_t* max_fee_per_gas,
-    const uint8_t max_fee_per_gas_len, const uint8_t* max_priority_fee_per_gas,
-    const uint8_t max_priority_fee_per_gas_len) {
-  bignum256 max_fee, max_pfee;
+static void formatEthereumFeeEIP1559(bignum256* fee,
+                                     const uint8_t* max_fee_per_gas,
+                                     const uint8_t max_fee_per_gas_len) {
+  bignum256 max_fee;
   uint8_t pad_val[32];
 
   bn_zero(fee);
@@ -510,11 +509,6 @@ static void formatEthereumFeeEIP1559(
   memcpy(pad_val + (32 - max_fee_per_gas_len), max_fee_per_gas,
          max_fee_per_gas_len);
   bn_read_be(pad_val, &max_fee);
-
-  memset(pad_val, 0, sizeof(pad_val));
-  memcpy(pad_val + (32 - max_priority_fee_per_gas_len),
-         max_priority_fee_per_gas, max_priority_fee_per_gas_len);
-  bn_read_be(pad_val, &max_pfee);
 
   bn_add(fee, &max_fee);
 }
@@ -531,9 +525,7 @@ static void layoutEthereumFee(const EthereumSignTx* msg, bool is_token,
 
   if (msg->has_max_fee_per_gas) {
     formatEthereumFeeEIP1559(&val, msg->max_fee_per_gas.bytes,
-                             msg->max_fee_per_gas.size,
-                             msg->max_priority_fee_per_gas.bytes,
-                             msg->max_priority_fee_per_gas.size);
+                             msg->max_fee_per_gas.size);
   } else {
     formatEthereumFee(&val, msg->gas_price.bytes, msg->gas_price.size);
   }
@@ -659,6 +651,13 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559 && chain_id == 0) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("EIP-1559 transactions require chain_id"));
+    ethereum_signing_abort();
+    return;
+  }
+
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559 && !msg->has_max_fee_per_gas) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("EIP-1559 transactions require max_fee_per_gas"));
     ethereum_signing_abort();
     return;
   }
@@ -802,7 +801,7 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   }
 
   rlp_length += rlp_calculate_length(msg->nonce.size, msg->nonce.bytes[0]);
-  if (msg->has_max_fee_per_gas) {
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
     rlp_length += rlp_calculate_length(msg->max_priority_fee_per_gas.size,
                                        msg->max_priority_fee_per_gas.bytes[0]);
     rlp_length += rlp_calculate_length(msg->max_fee_per_gas.size,
@@ -864,7 +863,7 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
 
   hash_rlp_field(msg->nonce.bytes, msg->nonce.size);
 
-  if (msg->has_max_fee_per_gas) {
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
     hash_rlp_field(msg->max_priority_fee_per_gas.bytes,
                    msg->max_priority_fee_per_gas.size);
     hash_rlp_field(msg->max_fee_per_gas.bytes, msg->max_fee_per_gas.size);
