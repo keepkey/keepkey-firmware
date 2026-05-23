@@ -180,7 +180,7 @@ static void hash_rlp_list_length(uint32_t length) {
  * Push an RLP encoded length field and data to the hash buffer.
  */
 static void hash_rlp_field(const uint8_t* buf, size_t size) {
-  hash_rlp_length(size, buf[0]);
+  hash_rlp_length(size, size ? buf[0] : 0);
   hash_data(buf, size);
 }
 
@@ -810,8 +810,11 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
 
   rlp_length += rlp_calculate_length(msg->nonce.size, msg->nonce.bytes[0]);
   if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
-    rlp_length += rlp_calculate_length(msg->max_priority_fee_per_gas.size,
-                                       msg->max_priority_fee_per_gas.bytes[0]);
+    rlp_length +=
+        rlp_calculate_length(msg->max_priority_fee_per_gas.size,
+                             msg->max_priority_fee_per_gas.size
+                                 ? msg->max_priority_fee_per_gas.bytes[0]
+                                 : 0);
     rlp_length += rlp_calculate_length(msg->max_fee_per_gas.size,
                                        msg->max_fee_per_gas.bytes[0]);
   } else {
