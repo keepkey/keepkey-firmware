@@ -659,6 +659,13 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
     ethereum_tx_type = ETHEREUM_TX_TYPE_LEGACY;
   }
 
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559 && chain_id == 0) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("EIP-1559 transactions require chain_id"));
+    ethereum_signing_abort();
+    return;
+  }
+
   if (msg->has_data_length && msg->data_length > 0) {
     if (!msg->has_data_initial_chunk || msg->data_initial_chunk.size == 0) {
       fsm_sendFailure(FailureType_Failure_Other,
@@ -794,10 +801,7 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   layoutProgress(_("Signing"), 0);
 
   if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
-    // This is the chain ID length for 1559 tx (only one byte for now)
     rlp_length += rlp_calculate_number_length(chain_id);
-
-    // rlp_length += 1;
   }
 
   rlp_length += rlp_calculate_length(msg->nonce.size, msg->nonce.bytes[0]);
@@ -861,8 +865,7 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   }
 
   if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
-    // chain id goes here for 1559 (only one byte for now)
-    hash_rlp_field((uint8_t*)(&chain_id), sizeof(uint8_t));
+    hash_rlp_number(chain_id);
   }
 
   hash_rlp_field(msg->nonce.bytes, msg->nonce.size);
