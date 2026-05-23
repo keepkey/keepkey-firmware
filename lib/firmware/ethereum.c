@@ -655,7 +655,8 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
     return;
   }
 
-  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559 && !msg->has_max_fee_per_gas) {
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559 &&
+      !msg->has_max_fee_per_gas) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("EIP-1559 transactions require max_fee_per_gas"));
     ethereum_signing_abort();
