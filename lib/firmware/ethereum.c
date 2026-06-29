@@ -240,6 +240,21 @@ static int rlp_calculate_length(int length, uint8_t firstbyte) {
   }
 }
 
+/* Length of an RLP-encoded integer field AFTER stripping leading zero bytes.
+ * MUST mirror hash_rlp_bytes_stripped(): the Stage-1 list-length header
+ * (hash_rlp_list_length) and the Stage-2 bytes actually hashed have to agree,
+ * or the keccak pre-image is malformed and the signature recovers to a garbage
+ * address (looks like a "random signer" / dropped tx). Any integer field whose
+ * big-endian form has a leading zero byte hits this. */
+static int rlp_calculate_length_stripped(const uint8_t* buf, size_t size) {
+  size_t offset = 0;
+  while (offset < size && buf[offset] == 0) offset++;
+  if (offset == size) {
+    return rlp_calculate_length(0, 0);
+  }
+  return rlp_calculate_length(size - offset, buf[offset]);
+}
+
 static int rlp_calculate_number_length(uint32_t number) {
   if (number <= 0x7f) {
     return 1;
@@ -825,24 +840,23 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
     rlp_length += rlp_calculate_number_length(chain_id);
   }
 
-  rlp_length += rlp_calculate_length(msg->nonce.size, msg->nonce.bytes[0]);
-  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
-    rlp_length +=
-        rlp_calculate_length(msg->max_priority_fee_per_gas.size,
-                             msg->max_priority_fee_per_gas.size
-                                 ? msg->max_priority_fee_per_gas.bytes[0]
-                                 : 0);
-    rlp_length += rlp_calculate_length(msg->max_fee_per_gas.size,
-                                       msg->max_fee_per_gas.bytes[0]);
+  rlp_length += rlp_calculate_length_stripped(msg->nonce.bytes, msg->nonce.size);
+  if (msg->has_max_fee_per_gas) {
+    rlp_length += rlp_calculate_length_stripped(
+        msg->max_priority_fee_per_gas.bytes,
+        msg->max_priority_fee_per_gas.size);
+    rlp_length += rlp_calculate_length_stripped(msg->max_fee_per_gas.bytes,
+                                                msg->max_fee_per_gas.size);
   } else {
-    rlp_length +=
-        rlp_calculate_length(msg->gas_price.size, msg->gas_price.bytes[0]);
+    rlp_length += rlp_calculate_length_stripped(msg->gas_price.bytes,
+                                                msg->gas_price.size);
   }
 
-  rlp_length +=
-      rlp_calculate_length(msg->gas_limit.size, msg->gas_limit.bytes[0]);
+  rlp_length += rlp_calculate_length_stripped(msg->gas_limit.bytes,
+                                              msg->gas_limit.size);
   rlp_length += rlp_calculate_length(msg->to.size, msg->to.bytes[0]);
-  rlp_length += rlp_calculate_length(msg->value.size, msg->value.bytes[0]);
+  rlp_length +=
+      rlp_calculate_length_stripped(msg->value.bytes, msg->value.size);
   rlp_length +=
       rlp_calculate_length(data_total, msg->data_initial_chunk.bytes[0]);
 
