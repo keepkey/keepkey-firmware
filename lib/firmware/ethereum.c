@@ -840,11 +840,12 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
     rlp_length += rlp_calculate_number_length(chain_id);
   }
 
-  rlp_length += rlp_calculate_length_stripped(msg->nonce.bytes, msg->nonce.size);
+  rlp_length +=
+      rlp_calculate_length_stripped(msg->nonce.bytes, msg->nonce.size);
   if (msg->has_max_fee_per_gas) {
-    rlp_length += rlp_calculate_length_stripped(
-        msg->max_priority_fee_per_gas.bytes,
-        msg->max_priority_fee_per_gas.size);
+    rlp_length +=
+        rlp_calculate_length_stripped(msg->max_priority_fee_per_gas.bytes,
+                                      msg->max_priority_fee_per_gas.size);
     rlp_length += rlp_calculate_length_stripped(msg->max_fee_per_gas.bytes,
                                                 msg->max_fee_per_gas.size);
   } else {
@@ -852,8 +853,8 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
                                                 msg->gas_price.size);
   }
 
-  rlp_length += rlp_calculate_length_stripped(msg->gas_limit.bytes,
-                                              msg->gas_limit.size);
+  rlp_length +=
+      rlp_calculate_length_stripped(msg->gas_limit.bytes, msg->gas_limit.size);
   rlp_length += rlp_calculate_length(msg->to.size, msg->to.bytes[0]);
   rlp_length +=
       rlp_calculate_length_stripped(msg->value.bytes, msg->value.size);
