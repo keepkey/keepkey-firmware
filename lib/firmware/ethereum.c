@@ -905,7 +905,13 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
 
   hash_rlp_bytes_stripped(msg->nonce.bytes, msg->nonce.size);
 
-  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
+  if (msg->has_max_fee_per_gas) {
+    /* max_priority_fee_per_gas is a mandatory EIP-1559 field; when absent it
+     * encodes as the empty integer (0x80). Stage 1 always counts it
+     * (unconditionally, above), so Stage 2 must always hash it too -- guarding
+     * on has_max_priority_fee_per_gas here would under-hash and leave the list
+     * header over-declared (the same wrong-signer class this commit fixes).
+     * .size is 0 when unset, which hash_rlp_bytes_stripped emits as 0x80. */
     hash_rlp_bytes_stripped(msg->max_priority_fee_per_gas.bytes,
                             msg->max_priority_fee_per_gas.size);
     hash_rlp_bytes_stripped(msg->max_fee_per_gas.bytes,
