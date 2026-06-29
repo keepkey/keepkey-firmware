@@ -617,8 +617,13 @@ static bool ethereum_signing_check(const EthereumSignTx* msg) {
     return false;
   }
 
-  if (msg->gas_price.size + msg->gas_limit.size > 30) {
-    // sanity check that fee doesn't overflow
+  // Sanity-bound the fee field that this tx type actually uses, so the
+  // on-screen fee (fee_per_gas * gas_limit) cannot overflow into the modular
+  // bn_multiply and display a wrong value. EIP-1559 uses max_fee_per_gas;
+  // legacy uses gas_price (which is 0 for EIP-1559 and vice versa).
+  size_t fee_per_gas_size = msg->has_max_fee_per_gas ? msg->max_fee_per_gas.size
+                                                     : msg->gas_price.size;
+  if (fee_per_gas_size + msg->gas_limit.size > 30) {
     return false;
   }
 
@@ -680,17 +685,30 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
     ethereum_tx_type = ETHEREUM_TX_TYPE_LEGACY;
   }
 
-  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559 && chain_id == 0) {
+  /* The typed prefix (0x02) and access list are emitted based on
+   * ethereum_tx_type, while the fee fields are selected by has_max_fee_per_gas.
+   * If those two disagree, Stage 1 (rlp_length) and Stage 2 (hashed bytes)
+   * describe different field lists and the signature recovers to a wrong
+   * address. Enforce a consistent shape up front. */
+  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
+    if (chain_id == 0) {
+      /* chain_id is the mandatory first RLP field of an EIP-1559 tx; absent
+       * chain_id is counted (1 byte) in Stage 1 but hash_rlp_number(0) hashes
+       * nothing in Stage 2. */
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("EIP-1559 transactions require chain_id"));
+      ethereum_signing_abort();
+      return;
+    }
+    if (!msg->has_max_fee_per_gas) {
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("EIP-1559 transactions require max_fee_per_gas"));
+      ethereum_signing_abort();
+      return;
+    }
+  } else if (msg->has_max_fee_per_gas) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("EIP-1559 transactions require chain_id"));
-    ethereum_signing_abort();
-    return;
-  }
-
-  if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559 &&
-      !msg->has_max_fee_per_gas) {
-    fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("EIP-1559 transactions require max_fee_per_gas"));
+                    _("max_fee_per_gas requires an EIP-1559 (type 2) tx"));
     ethereum_signing_abort();
     return;
   }
