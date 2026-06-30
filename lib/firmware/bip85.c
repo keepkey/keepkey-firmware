@@ -51,7 +51,7 @@ bool bip85_derive_mnemonic(uint32_t word_count, uint32_t index, char *mnemonic,
   uint32_t address_n[5];
   address_n[0] = 0x80000000 | 83696968;   /* purpose (hardened) */
   address_n[1] = 0x80000000 | 39;         /* BIP-39 app (hardened) */
-  address_n[2] = 0x80000000 | 0;          /* English language (hardened) */
+  address_n[2] = 0x80000000;              /* English language 0 (hardened) */
   address_n[3] = 0x80000000 | word_count; /* word count (hardened) */
   address_n[4] = 0x80000000 | index;      /* child index (hardened) */
 
