@@ -62,7 +62,7 @@ void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg) {
   memzero(formatted_mnemonic, sizeof(formatted_mnemonic));
   memzero(mnemonic_display, sizeof(mnemonic_display));
 
-  char *tok = strtok(tokened_mnemonic, " ");
+  const char *tok = strtok(tokened_mnemonic, " ");
 
   while (tok) {
     snprintf(formatted_word, MAX_WORD_LEN + ADDITIONAL_WORD_PAD,
