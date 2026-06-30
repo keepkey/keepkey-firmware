@@ -57,7 +57,7 @@ static const ThorchainSignTx kSignTx = {
     true, 0,
     true, 1};
 
-static const char* kToAddr = "thor18vhdczjut44gpsy804crfhnd5nq003nz0nf20v";
+static const char *kToAddr = "thor18vhdczjut44gpsy804crfhnd5nq003nz0nf20v";
 
 // Baseline RUNE send — exact signature vector
 TEST(Thorchain, ThorchainSignTx) {
@@ -71,7 +71,8 @@ TEST(Thorchain, ThorchainSignTx) {
   uint8_t signature[64];
   ASSERT_TRUE(thorchain_signTxFinalize(public_key, signature));
 
-  EXPECT_EQ(0,
+  EXPECT_EQ(
+      0,
       memcmp(signature,
              (uint8_t *)"\xc3\xea\xe2\xa3\xc2\xb6\x24\x00\x8d\x8a\xc4\x49\xe2"
                         "\x53\xdb\xa5\x31\x2e\x4d\xbd\x12\xd6\x77\x39\xd3\xf9"
@@ -93,7 +94,8 @@ TEST(Thorchain, ThorchainSignTxDefaultDenom) {
   uint8_t signature[64];
   ASSERT_TRUE(thorchain_signTxFinalize(public_key, signature));
 
-  EXPECT_EQ(0,
+  EXPECT_EQ(
+      0,
       memcmp(signature,
              (uint8_t *)"\xc3\xea\xe2\xa3\xc2\xb6\x24\x00\x8d\x8a\xc4\x49\xe2"
                         "\x53\xdb\xa5\x31\x2e\x4d\xbd\x12\xd6\x77\x39\xd3\xf9"
@@ -115,7 +117,8 @@ TEST(Thorchain, ThorchainSignTxTCY) {
   uint8_t signature[64];
   ASSERT_TRUE(thorchain_signTxFinalize(public_key, signature));
 
-  EXPECT_EQ(0,
+  EXPECT_EQ(
+      0,
       memcmp(signature,
              (uint8_t *)"\xad\xa0\xb6\xce\x50\x41\xc1\x01\x46\xf0\x86\x94\xb9"
                         "\x97\x29\x41\x13\x41\xef\x87\x70\xe8\x58\x7c\x01\xf9"
@@ -137,7 +140,8 @@ TEST(Thorchain, ThorchainSignTxRujira) {
   uint8_t signature[64];
   ASSERT_TRUE(thorchain_signTxFinalize(public_key, signature));
 
-  EXPECT_EQ(0,
+  EXPECT_EQ(
+      0,
       memcmp(signature,
              (uint8_t *)"\xed\x3b\x99\xac\xfa\x12\x32\xf7\x04\x72\x43\x17\x27"
                         "\x37\xbc\xb3\x15\x32\xc6\xe2\x1e\x5f\x5b\x4b\xb4\x3c"
@@ -156,12 +160,12 @@ TEST(Thorchain, ThorchainDenomValidation) {
   EXPECT_TRUE(thorchain_isValidDenom("btc/btc"));
   EXPECT_TRUE(thorchain_isValidDenom("cross-chain"));
 
-  EXPECT_FALSE(thorchain_isValidDenom(""));           // empty → caller uses "rune"
-  EXPECT_FALSE(thorchain_isValidDenom("RUNE"));       // uppercase rejected
-  EXPECT_FALSE(thorchain_isValidDenom("rune\""));     // quote injection
-  EXPECT_FALSE(thorchain_isValidDenom("rune\\n"));    // backslash injection
-  EXPECT_FALSE(thorchain_isValidDenom(" rune"));      // leading space
-  EXPECT_FALSE(thorchain_isValidDenom("ru ne"));      // embedded space
+  EXPECT_FALSE(thorchain_isValidDenom(""));        // empty → caller uses "rune"
+  EXPECT_FALSE(thorchain_isValidDenom("RUNE"));    // uppercase rejected
+  EXPECT_FALSE(thorchain_isValidDenom("rune\""));  // quote injection
+  EXPECT_FALSE(thorchain_isValidDenom("rune\\n"));  // backslash injection
+  EXPECT_FALSE(thorchain_isValidDenom(" rune"));    // leading space
+  EXPECT_FALSE(thorchain_isValidDenom("ru ne"));    // embedded space
 }
 
 // Invalid denom must cause thorchain_signTxUpdateMsgSend to return false
@@ -171,7 +175,7 @@ TEST(Thorchain, ThorchainSignTxInvalidDenom) {
 
   ASSERT_TRUE(thorchain_signTxInit(&node, &kSignTx));
   // Quote-injection attempt must be rejected at the signing layer
-  EXPECT_FALSE(
-      thorchain_signTxUpdateMsgSend(100000, kToAddr, "rune\",\"from_address\":\"evil"));
+  EXPECT_FALSE(thorchain_signTxUpdateMsgSend(100000, kToAddr,
+                                             "rune\",\"from_address\":\"evil"));
   thorchain_signAbort();
 }
