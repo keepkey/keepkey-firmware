@@ -29,7 +29,8 @@
 
 bool thor_has_deposit_selector(const EthereumSignTx* msg) {
   if (msg->data_initial_chunk.size < 4) return false;
-  return (memcmp(msg->data_initial_chunk.bytes, THOR_SELECTOR_DEPOSIT, 4) == 0 ||
+  return (memcmp(msg->data_initial_chunk.bytes, THOR_SELECTOR_DEPOSIT, 4) ==
+              0 ||
           memcmp(msg->data_initial_chunk.bytes,
                  THOR_SELECTOR_DEPOSIT_WITH_EXPIRY, 4) == 0);
 }
