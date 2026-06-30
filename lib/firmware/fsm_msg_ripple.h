@@ -110,8 +110,8 @@ void fsm_msgRippleSignTx(RippleSignTx* msg) {
   }
 
   if (msg->has_memo && msg->memo[0] != '\0') {
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Memo",
-                 "%s", msg->memo)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Memo", "%s",
+                 msg->memo)) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
       layoutHome();
