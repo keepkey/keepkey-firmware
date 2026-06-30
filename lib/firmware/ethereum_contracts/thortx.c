@@ -77,7 +77,8 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
   const size_t min_chunk = is_expiry ? 260 : 228;
   if (msg->data_initial_chunk.size < min_chunk) return false;
 
-  char confStr[41], *conf;
+  char confStr[41];
+  const char* conf;
   const TokenType* assetToken;
   uint8_t* thorchainData;
   const uint8_t* contractAssetAddress;
