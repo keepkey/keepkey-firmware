@@ -780,7 +780,7 @@ void layout_cipher(const char* current_word, const char* cipher,
   if (prev_word_info && prev_word_info[0]) {
     sp.y = 2;
     sp.x = 4;
-    sp.color = CIPHER_FONT_COLOR;  /* gray -- less prominent than current word */
+    sp.color = CIPHER_FONT_COLOR; /* gray -- less prominent than current word */
     draw_string(canvas, title_font, prev_word_info, &sp, 68,
                 font_height(title_font));
   }
