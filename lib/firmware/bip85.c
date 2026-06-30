@@ -24,8 +24,8 @@
 static const uint8_t BIP85_HMAC_KEY[] = "bip-entropy-from-k";
 #define BIP85_HMAC_KEY_LEN 18
 
-bool bip85_derive_mnemonic(uint32_t word_count, uint32_t index,
-                           char *mnemonic, size_t mnemonic_len) {
+bool bip85_derive_mnemonic(uint32_t word_count, uint32_t index, char *mnemonic,
+                           size_t mnemonic_len) {
   /* Reject index >= 0x80000000 to avoid hardened-bit collision */
   if (index & 0x80000000) {
     return false;
@@ -34,19 +34,26 @@ bool bip85_derive_mnemonic(uint32_t word_count, uint32_t index,
   /* Validate word count and compute entropy length */
   int entropy_bytes;
   switch (word_count) {
-    case 12: entropy_bytes = 16; break;
-    case 18: entropy_bytes = 24; break;
-    case 24: entropy_bytes = 32; break;
-    default: return false;
+    case 12:
+      entropy_bytes = 16;
+      break;
+    case 18:
+      entropy_bytes = 24;
+      break;
+    case 24:
+      entropy_bytes = 32;
+      break;
+    default:
+      return false;
   }
 
   /* BIP-85 derivation path: m/83696968'/39'/0'/<word_count>'/<index>' */
   uint32_t address_n[5];
-  address_n[0] = 0x80000000 | 83696968;  /* purpose (hardened) */
-  address_n[1] = 0x80000000 | 39;        /* BIP-39 app (hardened) */
-  address_n[2] = 0x80000000 | 0;         /* English language (hardened) */
+  address_n[0] = 0x80000000 | 83696968;   /* purpose (hardened) */
+  address_n[1] = 0x80000000 | 39;         /* BIP-39 app (hardened) */
+  address_n[2] = 0x80000000 | 0;          /* English language (hardened) */
   address_n[3] = 0x80000000 | word_count; /* word count (hardened) */
-  address_n[4] = 0x80000000 | index;     /* child index (hardened) */
+  address_n[4] = 0x80000000 | index;      /* child index (hardened) */
 
   /* Get the master node from storage (respects passphrase) */
   static CONFIDENTIAL HDNode node;
@@ -65,8 +72,8 @@ bool bip85_derive_mnemonic(uint32_t word_count, uint32_t index,
 
   /* HMAC-SHA512(key="bip-entropy-from-k", msg=private_key) */
   static CONFIDENTIAL uint8_t hmac_out[64];
-  hmac_sha512(BIP85_HMAC_KEY, BIP85_HMAC_KEY_LEN,
-              node.private_key, 32, hmac_out);
+  hmac_sha512(BIP85_HMAC_KEY, BIP85_HMAC_KEY_LEN, node.private_key, 32,
+              hmac_out);
 
   /* We no longer need the derived node */
   memzero(&node, sizeof(node));

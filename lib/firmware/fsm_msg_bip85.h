@@ -21,12 +21,11 @@ void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg) {
 
   /* User confirmation */
   char desc[80];
-  snprintf(desc, sizeof(desc),
-           "Derive %lu-word child seed at index %lu?",
+  snprintf(desc, sizeof(desc), "Derive %lu-word child seed at index %lu?",
            (unsigned long)msg->word_count, (unsigned long)msg->index);
 
-  if (!confirm(ButtonRequestType_ButtonRequest_Other,
-               "BIP-85 Derive Seed", "%s", desc)) {
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "BIP-85 Derive Seed",
+               "%s", desc)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     "BIP-85 derivation cancelled");
     layoutHome();
@@ -37,11 +36,10 @@ void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg) {
 
   /* Derive the mnemonic */
   static CONFIDENTIAL char mnemonic_buf[241];
-  if (!bip85_derive_mnemonic(msg->word_count, msg->index,
-                             mnemonic_buf, sizeof(mnemonic_buf))) {
+  if (!bip85_derive_mnemonic(msg->word_count, msg->index, mnemonic_buf,
+                             sizeof(mnemonic_buf))) {
     memzero(mnemonic_buf, sizeof(mnemonic_buf));
-    fsm_sendFailure(FailureType_Failure_Other,
-                    "BIP-85 derivation failed");
+    fsm_sendFailure(FailureType_Failure_Other, "BIP-85 derivation failed");
     layoutHome();
     return;
   }
@@ -52,7 +50,8 @@ void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg) {
    */
   uint32_t word_count = 0, page_count = 0;
   static char CONFIDENTIAL tokened_mnemonic[TOKENED_MNEMONIC_BUF];
-  static char CONFIDENTIAL formatted_mnemonic[MAX_PAGES][FORMATTED_MNEMONIC_BUF];
+  static char CONFIDENTIAL
+      formatted_mnemonic[MAX_PAGES][FORMATTED_MNEMONIC_BUF];
   static char CONFIDENTIAL mnemonic_display[FORMATTED_MNEMONIC_BUF];
   static char CONFIDENTIAL formatted_word[MAX_WORD_LEN + ADDITIONAL_WORD_PAD];
 
@@ -115,9 +114,9 @@ void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg) {
       snprintf(title, MEDIUM_STR_BUF, "BIP-85 Seed");
     }
 
-    if (!confirm_constant_power(
-            ButtonRequestType_ButtonRequest_ConfirmWord, title, "%s",
-            formatted_mnemonic[current_page])) {
+    if (!confirm_constant_power(ButtonRequestType_ButtonRequest_ConfirmWord,
+                                title, "%s",
+                                formatted_mnemonic[current_page])) {
       memzero(tokened_mnemonic, sizeof(tokened_mnemonic));
       memzero(formatted_mnemonic, sizeof(formatted_mnemonic));
       memzero(mnemonic_display, sizeof(mnemonic_display));
