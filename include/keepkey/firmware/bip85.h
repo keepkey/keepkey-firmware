@@ -16,7 +16,7 @@
  * @param mnemonic_len Size of the output buffer.
  * @return true on success, false on error.
  */
-bool bip85_derive_mnemonic(uint32_t word_count, uint32_t index,
-                           char *mnemonic, size_t mnemonic_len);
+bool bip85_derive_mnemonic(uint32_t word_count, uint32_t index, char *mnemonic,
+                           size_t mnemonic_len);
 
 #endif
