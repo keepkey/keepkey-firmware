@@ -133,6 +133,12 @@ void fsm_msgSolanaSignTx(const SolanaSignTx* msg);
 void fsm_msgSolanaSignMessage(const SolanaSignMessage* msg);
 void fsm_msgSolanaSignOffchainMessage(const SolanaSignOffchainMessage* msg);
 
+void fsm_msgHiveGetPublicKey(const HiveGetPublicKey* msg);
+void fsm_msgHiveGetPublicKeys(const HiveGetPublicKeys* msg);
+void fsm_msgHiveSignTx(const HiveSignTx* msg);
+void fsm_msgHiveSignAccountCreate(const HiveSignAccountCreate* msg);
+void fsm_msgHiveSignAccountUpdate(const HiveSignAccountUpdate* msg);
+
 #if DEBUG_LINK
 // void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
 void fsm_msgDebugLinkGetState(DebugLinkGetState* msg);
