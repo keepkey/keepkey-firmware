@@ -30,8 +30,12 @@
   "\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee" \
   "\xee\xee"
 
-/* THORChain ETH router (mainnet) */
-#define THOR_ROUTER "42a5ed456650a09dc10ebc6361a7480fdd61f27b"
+/* THORChain ETH router (mainnet), current v4.1.1.
+ * NOTE: THORChain migrates this router periodically (v1 42a5ed.. -> v3
+ * 3624525.. -> v4 d37bbe..). A hardcoded pin must be updated on each migration;
+ * the durable path is the signed-metadata clear-sign protocol (host-signed,
+ * key-pinned) which needs no firmware update per router change. */
+#define THOR_ROUTER "d37bbe5744d730a1d98d8dc97c42f0ca46ad7146"
 
 /* Maya Protocol ETH router (mainnet) */
 #define MAYA_ROUTER "d89dce570de35a6f42d3bca7dba50a6d89bfc2a2"

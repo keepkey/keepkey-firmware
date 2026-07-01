@@ -58,10 +58,15 @@ bool thor_isMayachainTx(const EthereumSignTx* msg) {
 }
 
 bool thor_isThorchainTx(const EthereumSignTx* msg) {
-  if (msg->has_to && msg->to.size == 20 && thor_has_deposit_selector(msg)) {
-    return true;
-  }
-  return false;
+  if (!msg->has_to || msg->to.size != 20) return false;
+  if (!thor_has_deposit_selector(msg)) return false;
+  /* Pin to the THORChain router. Without this, ANY contract carrying the
+   * deposit selector would get the THORChain clear-sign UX and bypass the
+   * AdvancedMode blind-sign gate, letting an attacker contract drain while the
+   * device shows a benign deposit. Mirrors thor_isMayachainTx. */
+  char toStr[41];
+  thor_format_to_addr(msg, toStr);
+  return strncmp(toStr, THOR_ROUTER, 40) == 0;
 }
 
 static bool thor_confirm_deposit_tx(uint32_t data_total,
@@ -77,10 +82,24 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
   const size_t min_chunk = is_expiry ? 260 : 228;
   if (msg->data_initial_chunk.size < min_chunk) return false;
 
+  /* The memo is a dynamic `string`; its ABI head pointer (word 3, offset
+   * 4+3*32) must be canonical (0x80 for deposit's 4 head words, 0xa0 for
+   * depositWithExpiry's 5), else abi.decode on the router reads the memo from a
+   * different location than we display from the fixed offset below -> the
+   * executed swap destination can differ from what the user approved. */
+  {
+    static const uint8_t MEMO_OFF_DEPOSIT[32] = {[31] = 0x80};
+    static const uint8_t MEMO_OFF_EXPIRY[32] = {[31] = 0xa0};
+    const uint8_t* expected = is_expiry ? MEMO_OFF_EXPIRY : MEMO_OFF_DEPOSIT;
+    if (memcmp(msg->data_initial_chunk.bytes + 4 + 3 * 32, expected, 32) != 0) {
+      return false;
+    }
+  }
+
   char confStr[41];
   const char* conf;
   const TokenType* assetToken;
-  uint8_t* thorchainData;
+  const uint8_t* thorchainData;
   const uint8_t* contractAssetAddress;
   const uint8_t *vaultAddress, *assetAddress;
   uint32_t ctr;
@@ -91,8 +110,8 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
       (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 32 + 12);
   bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 2 * 32, 32, &Amount);
   /* deposit(): memo at 4 + 5*32; depositWithExpiry(): memo at 4 + 6*32 */
-  thorchainData =
-      (uint8_t*)(msg->data_initial_chunk.bytes + 4 + (is_expiry ? 6 : 5) * 32);
+  thorchainData = (const uint8_t*)(msg->data_initial_chunk.bytes + 4 +
+                                   (is_expiry ? 6 : 5) * 32);
 
   thor_format_to_addr(msg, confStr);
   if (strncmp(confStr, THOR_ROUTER, 40) == 0) {
