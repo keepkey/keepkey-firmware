@@ -20,6 +20,7 @@
 
 #include "keepkey/firmware/ethereum_contracts.h"
 
+#include "keepkey/firmware/ethereum.h"  // completes EthereumSignTx (msg fields)
 #include "keepkey/firmware/ethereum_contracts/saproxy.h"
 #include "keepkey/firmware/ethereum_contracts/thortx.h"
 #include "keepkey/firmware/ethereum_contracts/zxappliquid.h"
@@ -32,8 +33,27 @@ bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx* msg,
                               const HDNode* node) {
   (void)node;
 
-  if (sa_isWithdrawFromSalary(msg)) return true;
+  /* Only a CALL to a contract may be clear-signed, never a CREATE
+   * (to.size == 0 must reach the deploy screen). */
+  if (msg->to.size != 20) {
+    return false;
+  }
+
+  /* 0x transformERC20 is pinned to the ExchangeProxy and bounded by its
+   * displayed input/min-output amounts, so it is safe to clear-sign at ANY
+   * calldata size; its transformations[] tail legitimately exceeds one 1024-
+   * byte chunk. (It guards its own fixed-offset reads against
+   * data_initial_chunk.size.) */
   if (zx_isZxTransformERC20(msg)) return true;
+
+  /* Every other handler must have the ENTIRE calldata in the first chunk, so
+   * the fields it parses and displays are the whole transaction and nothing
+   * unshown streams in afterwards. */
+  if (data_total != msg->data_initial_chunk.size) {
+    return false;
+  }
+
+  if (sa_isWithdrawFromSalary(msg)) return true;
   if (zx_isZxSwap(msg)) return true;
   if (zx_isZxLiquidTx(msg)) return true;
   if (zx_isZxApproveLiquid(msg)) return true;

@@ -36,7 +36,8 @@
 
 bool zx_confirmApproveLiquidity(uint32_t data_total,
                                 const EthereumSignTx *msg) {
-  (void)data_total;
+  /* reads selector + 2 32-byte words (spender, allowance) */
+  if (data_total < 4 + 2 * 32) return false;
   const char *to, *tikstr, *poolstr, *allowance, *amt;
   unsigned char data[40];
   uint8_t digest[SHA3_256_DIGEST_LENGTH] = {0};
