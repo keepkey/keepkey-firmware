@@ -164,6 +164,19 @@
     MSG_OUT(MessageType_MessageType_SolanaMessageSignature,        SolanaMessageSignature,      NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_SolanaOffchainMessageSignature, SolanaOffchainMessageSignature, NO_PROCESS_FUNC)
 
+    /* Hive */
+    MSG_IN(MessageType_MessageType_HiveGetPublicKey,               HiveGetPublicKey,            fsm_msgHiveGetPublicKey)
+    MSG_IN(MessageType_MessageType_HiveGetPublicKeys,              HiveGetPublicKeys,           fsm_msgHiveGetPublicKeys)
+    MSG_IN(MessageType_MessageType_HiveSignTx,                     HiveSignTx,                  fsm_msgHiveSignTx)
+    MSG_IN(MessageType_MessageType_HiveSignAccountCreate,          HiveSignAccountCreate,       fsm_msgHiveSignAccountCreate)
+    MSG_IN(MessageType_MessageType_HiveSignAccountUpdate,          HiveSignAccountUpdate,       fsm_msgHiveSignAccountUpdate)
+
+    MSG_OUT(MessageType_MessageType_HivePublicKey,                 HivePublicKey,               NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_HivePublicKeys,                HivePublicKeys,              NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_HiveSignedTx,                  HiveSignedTx,                NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_HiveSignedAccountCreate,       HiveSignedAccountCreate,     NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_HiveSignedAccountUpdate,       HiveSignedAccountUpdate,     NO_PROCESS_FUNC)
+
 #if DEBUG_LINK
     /* Debug Messages */
     DEBUG_IN(MessageType_MessageType_DebugLinkDecision,             DebugLinkDecision,           NO_PROCESS_FUNC)
