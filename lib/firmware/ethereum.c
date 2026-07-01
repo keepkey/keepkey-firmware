@@ -204,6 +204,23 @@ static void hash_rlp_number(uint32_t number) {
   hash_rlp_field(data + offset, 4 - offset);
 }
 
+/* Strip leading zero bytes before RLP-encoding an integer field. Per the
+ * Ethereum yellow paper, integer fields (nonce, gas, value, fees) must have no
+ * leading zeros, and an all-zero value is the canonical empty string (0x80).
+ * Without this, a zero-valued field (e.g. a zero/absent EIP-1559 priority fee
+ * arriving as a single 0x00 byte) hashes as a literal 0x00, producing a
+ * non-canonical pre-image that recovers to the wrong signer. Addresses are NOT
+ * integers and must not use this. */
+static void hash_rlp_bytes_stripped(const uint8_t* buf, size_t size) {
+  size_t offset = 0;
+  while (offset < size && buf[offset] == 0) offset++;
+  if (offset == size) {
+    hash_rlp_field(buf, 0);
+  } else {
+    hash_rlp_field(buf + offset, size - offset);
+  }
+}
+
 /*
  * Calculate the number of bytes needed for an RLP length header.
  * NOTE: supports up to 16MB of data (how unlikely...)
@@ -872,19 +889,20 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
     hash_rlp_number(chain_id);
   }
 
-  hash_rlp_field(msg->nonce.bytes, msg->nonce.size);
+  hash_rlp_bytes_stripped(msg->nonce.bytes, msg->nonce.size);
 
   if (ethereum_tx_type == ETHEREUM_TX_TYPE_EIP_1559) {
-    hash_rlp_field(msg->max_priority_fee_per_gas.bytes,
-                   msg->max_priority_fee_per_gas.size);
-    hash_rlp_field(msg->max_fee_per_gas.bytes, msg->max_fee_per_gas.size);
+    hash_rlp_bytes_stripped(msg->max_priority_fee_per_gas.bytes,
+                            msg->max_priority_fee_per_gas.size);
+    hash_rlp_bytes_stripped(msg->max_fee_per_gas.bytes,
+                            msg->max_fee_per_gas.size);
   } else {
-    hash_rlp_field(msg->gas_price.bytes, msg->gas_price.size);
+    hash_rlp_bytes_stripped(msg->gas_price.bytes, msg->gas_price.size);
   }
 
-  hash_rlp_field(msg->gas_limit.bytes, msg->gas_limit.size);
-  hash_rlp_field(msg->to.bytes, msg->to.size);
-  hash_rlp_field(msg->value.bytes, msg->value.size);
+  hash_rlp_bytes_stripped(msg->gas_limit.bytes, msg->gas_limit.size);
+  hash_rlp_field(msg->to.bytes, msg->to.size); /* address: no strip */
+  hash_rlp_bytes_stripped(msg->value.bytes, msg->value.size);
   hash_rlp_length(data_total, msg->data_initial_chunk.bytes[0]);
   hash_data(msg->data_initial_chunk.bytes, msg->data_initial_chunk.size);
   data_left = data_total - msg->data_initial_chunk.size;
