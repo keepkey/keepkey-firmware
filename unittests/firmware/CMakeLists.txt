@@ -10,7 +10,8 @@ set(sources
     storage.cpp
     thorchain.cpp
     usb_rx.cpp
-    u2f.cpp)
+    u2f.cpp
+    zcash.cpp)
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/include
