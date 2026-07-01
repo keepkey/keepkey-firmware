@@ -42,6 +42,7 @@ set(sources
     tendermint.c
     thorchain.c
     tiny-json.c
+    zcash.c
     transaction.c
     txin_check.c
     u2f.c)

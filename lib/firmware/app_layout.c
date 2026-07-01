@@ -598,6 +598,79 @@ void layout_nano_address_notification(const char* desc, const char* address,
 }
 
 /*
+ * layout_zcash_address_notification() - Display zcash unified address QR
+ * with title; the second confirm step in the view-on-device flow.
+ *
+ * INPUT
+ *     - desc: title text (e.g. "Zcash #0 Orchard")
+ *     - address: zcash unified address (rendered as QR only — full text is
+ *       shown on the preceding confirm step)
+ *     - type: notification type
+ * OUTPUT
+ *      none
+ */
+void layout_zcash_address_notification(const char* desc, const char* address,
+                                       NotificationType type) {
+  DrawableParams sp;
+  Canvas* canvas = layout_get_canvas();
+
+  call_leaving_handler();
+  layout_clear();
+
+  if (strcmp(desc, "") != 0) {
+    const Font* title_font = get_title_font();
+    sp.y = TOP_MARGIN_FOR_TWO_LINES;
+    sp.x = LEFT_MARGIN + 65;
+    sp.color = BODY_COLOR;
+    draw_string(canvas, title_font, desc, &sp, TRANSACTION_WIDTH - 2,
+                font_height(title_font) + BODY_FONT_LINE_PADDING);
+  }
+
+  layout_address(address, QR_LARGE);
+  layout_notification_icon(type, &sp);
+}
+
+/*
+ * layout_zcash_address_text_notification() - Display full zcash unified
+ * address text with title; the first confirm step in the view-on-device flow.
+ *
+ * INPUT
+ *     - desc: title text (e.g. "Zcash #0 Orchard")
+ *     - address: zcash unified address to display as text (3 lines)
+ *     - type: notification type
+ * OUTPUT
+ *      none
+ */
+void layout_zcash_address_text_notification(const char* desc,
+                                            const char* address,
+                                            NotificationType type) {
+  DrawableParams sp;
+  Canvas* canvas = layout_get_canvas();
+  const Font* address_font = get_body_font();
+
+  call_leaving_handler();
+  layout_clear();
+
+  if (strcmp(desc, "") != 0) {
+    const Font* title_font = get_title_font();
+    sp.y = TOP_MARGIN_FOR_THREE_LINES;
+    sp.x = LEFT_MARGIN;
+    sp.color = BODY_COLOR;
+    draw_string(canvas, title_font, desc, &sp, TRANSACTION_WIDTH - 2,
+                font_height(title_font) + BODY_FONT_LINE_PADDING);
+  }
+
+  /* Full UA below the title; -25 leaves the right column for confirm icons. */
+  sp.y = TOP_MARGIN_FOR_THREE_LINES + ADDRESS_XPUB_TOP_MARGIN;
+  sp.x = LEFT_MARGIN;
+  sp.color = BODY_COLOR;
+  draw_string(canvas, address_font, address, &sp, TRANSACTION_WIDTH - 25,
+              font_height(address_font) + BODY_FONT_LINE_PADDING);
+
+  layout_notification_icon(type, &sp);
+}
+
+/*
  * layout_address_notification() - Display address notification
  *
  * INPUT

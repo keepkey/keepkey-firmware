@@ -5,6 +5,7 @@ void fsm_msgInitialize(Initialize* msg) {
   ethereum_signing_abort();
   tendermint_signAbort();
   eos_signingAbort();
+  zcash_signing_abort();
   session_clear(false);  // do not clear PIN
   layoutHome();
   fsm_msgGetFeatures(0);
@@ -560,6 +561,7 @@ void fsm_msgCancel(Cancel* msg) {
   ethereum_signing_abort();
   tendermint_signAbort();
   eos_signingAbort();
+  zcash_signing_abort();
   fsm_sendFailure(FailureType_Failure_ActionCancelled, "Aborted");
 }
 
