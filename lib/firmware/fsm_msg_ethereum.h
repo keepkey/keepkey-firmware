@@ -51,6 +51,39 @@ void fsm_msgEthereumTxMetadata(const EthereumTxMetadata* msg) {
   msg_write(MessageType_MessageType_EthereumMetadataAck, resp);
 }
 
+void fsm_msgLoadClearsignSigner(const LoadClearsignSigner* msg) {
+  CHECK_INITIALIZED
+  CHECK_PIN
+
+  CHECK_PARAM(msg->has_key_id && msg->has_pubkey && msg->has_alias,
+              _("key_id, pubkey and alias required"));
+  /* Range-check as uint32 BEFORE narrowing: (uint8_t)256 would alias slot 0 */
+  CHECK_PARAM(msg->key_id < METADATA_MAX_KEYS, _("key_id out of range"));
+  CHECK_PARAM(signed_metadata_signer_valid((uint8_t)msg->key_id,
+                                           msg->pubkey.bytes, msg->pubkey.size,
+                                           msg->alias),
+              _("Invalid clearsign signer"));
+
+  /* Mandatory on-device consent — the whole trust model hangs on this
+   * confirm. The same fingerprint reappears on every per-tx warning. */
+  char fingerprint[METADATA_FINGERPRINT_LEN];
+  signed_metadata_pubkey_fingerprint(msg->pubkey.bytes, fingerprint);
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, _("Load Clearsigner"),
+               "Trust signer '%s' (%s) to describe transactions? NOT verified "
+               "by KeepKey.",
+               msg->alias, fingerprint)) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("Load clearsign signer cancelled"));
+    layoutHome();
+    return;
+  }
+
+  signed_metadata_store_signer((uint8_t)msg->key_id, msg->pubkey.bytes,
+                               msg->alias);
+  fsm_sendSuccess(_("Clearsign signer loaded"));
+  layoutHome();
+}
+
 static int process_ethereum_xfer(const CoinType* coin, EthereumSignTx* msg) {
   if (!ethereum_isStandardERC20Transfer(msg) && msg->data_length != 0)
     return TXOUT_COMPILE_ERROR;

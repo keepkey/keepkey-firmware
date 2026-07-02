@@ -17,38 +17,37 @@
 
 static bool metadata_available = false;
 static bool relied_on_metadata = false;
+static bool metadata_signer_loaded = false;
 static SignedMetadata stored_metadata;
 
 /*
- * Metadata verification public keys.
- * Slot 0: active production key
- * Slot 1: rotation target
- * Slots 2-3: reserved
+ * Built-in metadata verification public keys.
  *
- * Keys are derived via KeepKey SignIdentity at keepkey.com/insight.
- * Only the public key is stored here — the signing mnemonic is held
- * offline and never appears in source code.
+ * Phase 1 ships with NO built-in keys: every clearsign signer must be
+ * loaded at runtime via LoadClearsignSigner (user-confirmed on device,
+ * RAM-only, gone on reboot), and every transaction it vouches for is
+ * preceded by a warning screen naming the signer's alias. There is no
+ * hardcoded "KeepKey says this is safe" path in this phase.
  *
- * To rotate: generate new key with pioneer-insight keygen,
- * replace the slot below, ship firmware update.
+ * Phase 2 (once the offline signing infrastructure is hardened) puts the
+ * KeepKey production key back in slot 0. A slot holding a built-in key can
+ * never be shadowed by a loaded signer (see signed_metadata_signer_valid)
+ * and is the only path that clearsigns without the warning screen.
  */
 static const uint8_t METADATA_PUBKEYS[METADATA_MAX_KEYS][33] = {
-    /* Key 0: production */
-    {0x02, 0x18, 0x62, 0x1d, 0x9c, 0x14, 0x47, 0x34, 0x58, 0x71, 0x3b,
-     0xd3, 0xe6, 0x72, 0xe5, 0x34, 0x80, 0xaa, 0x70, 0x32, 0xca, 0x9b,
-     0x67, 0x35, 0x63, 0x95, 0xe8, 0x87, 0x09, 0xbb, 0x45, 0x22, 0x6a},
+    /* Key 0: production (returns in phase 2) */
+    {0x00},
     /* Key 1: rotation slot */
     {0x00},
     {0x00},
-#if DEBUG_LINK
-    /* Key 3: CI test key — only available in emulator/debug builds */
-    {0x02, 0xe3, 0xb3, 0x01, 0x5c, 0x47, 0xdd, 0xca, 0xab, 0xe4, 0xf8,
-     0xe8, 0x72, 0xf1, 0xed, 0x8f, 0x09, 0xca, 0x14, 0x5a, 0x8d, 0x81,
-     0x77, 0x0d, 0x92, 0x21, 0x3d, 0x56, 0xda, 0x31, 0xab, 0x51, 0x07},
-#else
+    /* Key 3: was the DEBUG_LINK-only CI test key; CI now loads it through
+     * LoadClearsignSigner so tests exercise the same warning flow users see. */
     {0x00},
-#endif
 };
+
+/* Runtime-loaded signers. RAM only — cleared on reboot by construction. */
+static uint8_t loaded_pubkeys[METADATA_MAX_KEYS][33];
+static char loaded_aliases[METADATA_MAX_KEYS][METADATA_ALIAS_MAX_LEN + 1];
 
 static bool read_u8(const uint8_t **cursor, const uint8_t *end, uint8_t *out) {
   if ((size_t)(end - *cursor) < 1) {
@@ -195,6 +194,85 @@ void signed_metadata_clear(void) {
   memzero(&stored_metadata, sizeof(stored_metadata));
   metadata_available = false;
   relied_on_metadata = false;
+  metadata_signer_loaded = false;
+}
+
+void signed_metadata_clear_signers(void) {
+  memzero(loaded_pubkeys, sizeof(loaded_pubkeys));
+  memzero(loaded_aliases, sizeof(loaded_aliases));
+  /* Metadata verified by a now-dropped signer must not outlive it. */
+  signed_metadata_clear();
+}
+
+bool signed_metadata_signer_valid(uint8_t key_id, const uint8_t *pubkey,
+                                  size_t pubkey_len, const char *alias) {
+  curve_point point;
+  size_t alias_len;
+
+  if (key_id >= METADATA_MAX_KEYS || METADATA_PUBKEYS[key_id][0] != 0x00 ||
+      !pubkey || pubkey_len != 33 || !alias) {
+    return false;
+  }
+
+  /* Alias is rendered through confirm() format strings on the load screen and
+   * the per-tx warning — printable ASCII only, no control/spoofing chars. */
+  alias_len = strlen(alias);
+  if (alias_len == 0 || alias_len > METADATA_ALIAS_MAX_LEN) {
+    return false;
+  }
+  for (size_t i = 0; i < alias_len; i++) {
+    if (alias[i] < 0x20 || alias[i] > 0x7e || alias[i] == '%') {
+      return false;
+    }
+  }
+
+  /* Compressed form only — ecdsa_read_pubkey would read 65 bytes for an
+   * uncompressed 0x04 prefix, past our 33-byte buffer. Requiring 0x02/0x03
+   * also excludes the all-zero "empty slot" sentinel. */
+  if (pubkey[0] != 0x02 && pubkey[0] != 0x03) {
+    return false;
+  }
+  return ecdsa_read_pubkey(&secp256k1, pubkey, &point) == 1;
+}
+
+void signed_metadata_store_signer(uint8_t key_id, const uint8_t *pubkey,
+                                  const char *alias) {
+  if (key_id >= METADATA_MAX_KEYS) {
+    return;
+  }
+  memcpy(loaded_pubkeys[key_id], pubkey, sizeof(loaded_pubkeys[key_id]));
+  strlcpy(loaded_aliases[key_id], alias, sizeof(loaded_aliases[key_id]));
+  /* Replacing a signer invalidates anything the old one verified. */
+  signed_metadata_clear();
+}
+
+void signed_metadata_pubkey_fingerprint(
+    const uint8_t pubkey[33], char out[METADATA_FINGERPRINT_LEN]) {
+  uint8_t digest[32];
+  sha256_Raw(pubkey, 33, digest);
+  data2hex(digest, 4, out);
+  memzero(digest, sizeof(digest));
+}
+
+bool signed_metadata_from_loaded_signer(void) {
+  return metadata_available && metadata_signer_loaded;
+}
+
+/* Resolve the verification key for a slot. Built-in keys win; a runtime-
+ * loaded signer can only occupy an empty built-in slot. */
+static const uint8_t *metadata_pubkey_for(uint8_t key_id, bool *is_loaded) {
+  *is_loaded = false;
+  if (key_id >= METADATA_MAX_KEYS) {
+    return NULL;
+  }
+  if (METADATA_PUBKEYS[key_id][0] != 0x00) {
+    return METADATA_PUBKEYS[key_id];
+  }
+  if (loaded_pubkeys[key_id][0] != 0x00) {
+    *is_loaded = true;
+    return loaded_pubkeys[key_id];
+  }
+  return NULL;
 }
 
 MetadataClassification signed_metadata_process(const uint8_t *payload,
@@ -202,11 +280,13 @@ MetadataClassification signed_metadata_process(const uint8_t *payload,
                                                uint8_t key_id) {
   uint8_t digest[32];
   size_t signed_len;
+  bool is_loaded = false;
+  const uint8_t *pubkey;
 
   signed_metadata_clear();
 
-  if (key_id >= METADATA_MAX_KEYS || METADATA_PUBKEYS[key_id][0] == 0x00 ||
-      !payload || payload_len < 65) {
+  pubkey = metadata_pubkey_for(key_id, &is_loaded);
+  if (!pubkey || !payload || payload_len < 65) {
     return METADATA_MALFORMED;
   }
 
@@ -219,13 +299,14 @@ MetadataClassification signed_metadata_process(const uint8_t *payload,
   signed_len = payload_len - sizeof(stored_metadata.signature) - 1;
   sha256_Raw(payload, signed_len, digest);
 
-  if (ecdsa_verify_digest(&secp256k1, METADATA_PUBKEYS[key_id],
-                          stored_metadata.signature, digest) != 0) {
+  if (ecdsa_verify_digest(&secp256k1, pubkey, stored_metadata.signature,
+                          digest) != 0) {
     signed_metadata_clear();
     return METADATA_MALFORMED;
   }
 
   metadata_available = true;
+  metadata_signer_loaded = is_loaded;
   return stored_metadata.classification;
 }
 
@@ -270,13 +351,39 @@ bool signed_metadata_confirm(void) {
     return false;
   }
 
-  /* Screen 1: Verified method — use review_with_icon for trust indicator */
-  memset(body, 0, sizeof(body));
-  snprintf(body, sizeof(body), "Verified call:\n%s",
-           stored_metadata.method_name);
-  if (!confirm_with_icon(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                         VERIFIED_ICON, "Insight Verified", "%s", body)) {
-    return false;
+  if (metadata_signer_loaded) {
+    /* Warning screen FIRST, before any clearsign page: the decode below is
+     * vouched for by a signer the user loaded, not by KeepKey. */
+    char fingerprint[METADATA_FINGERPRINT_LEN];
+    signed_metadata_pubkey_fingerprint(loaded_pubkeys[stored_metadata.key_id],
+                                       fingerprint);
+    memset(body, 0, sizeof(body));
+    snprintf(body, sizeof(body),
+             "Signer '%s' (%s) you loaded describes this tx. NOT verified by "
+             "KeepKey.",
+             loaded_aliases[stored_metadata.key_id], fingerprint);
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                 "Clearsign Warning", "%s", body)) {
+      return false;
+    }
+
+    /* Method screen without the "Insight Verified" branding/icon — that
+     * presentation is reserved for the built-in (phase 2) keys. */
+    memset(body, 0, sizeof(body));
+    snprintf(body, sizeof(body), "Call:\n%s", stored_metadata.method_name);
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Clearsign",
+                 "%s", body)) {
+      return false;
+    }
+  } else {
+    /* Screen 1: Verified method — use review_with_icon for trust indicator */
+    memset(body, 0, sizeof(body));
+    snprintf(body, sizeof(body), "Verified call:\n%s",
+             stored_metadata.method_name);
+    if (!confirm_with_icon(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                           VERIFIED_ICON, "Insight Verified", "%s", body)) {
+      return false;
+    }
   }
 
   /* Screen 2: Contract address — ALWAYS show full address, never truncate.
