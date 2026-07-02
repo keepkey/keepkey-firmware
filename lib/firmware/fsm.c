@@ -55,6 +55,7 @@
 #include "keepkey/firmware/ripple.h"
 #include "keepkey/firmware/signing.h"
 #include "keepkey/firmware/signtx_tendermint.h"
+#include "keepkey/firmware/signed_metadata.h"
 #include "keepkey/firmware/solana.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/tendermint.h"
