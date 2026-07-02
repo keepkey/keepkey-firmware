@@ -253,8 +253,8 @@ void signed_metadata_store_signer(uint8_t key_id, const uint8_t *pubkey,
   signed_metadata_clear();
 }
 
-void signed_metadata_pubkey_fingerprint(
-    const uint8_t pubkey[33], char out[METADATA_FINGERPRINT_LEN]) {
+void signed_metadata_pubkey_fingerprint(const uint8_t pubkey[33],
+                                        char out[METADATA_FINGERPRINT_LEN]) {
   uint8_t digest[32];
   sha256_Raw(pubkey, 33, digest);
   data2hex(digest, 4, out);

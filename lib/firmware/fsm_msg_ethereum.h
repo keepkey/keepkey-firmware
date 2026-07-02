@@ -59,10 +59,10 @@ void fsm_msgLoadClearsignSigner(const LoadClearsignSigner* msg) {
               _("key_id, pubkey and alias required"));
   /* Range-check as uint32 BEFORE narrowing: (uint8_t)256 would alias slot 0 */
   CHECK_PARAM(msg->key_id < METADATA_MAX_KEYS, _("key_id out of range"));
-  CHECK_PARAM(signed_metadata_signer_valid((uint8_t)msg->key_id,
-                                           msg->pubkey.bytes, msg->pubkey.size,
-                                           msg->alias),
-              _("Invalid clearsign signer"));
+  CHECK_PARAM(
+      signed_metadata_signer_valid((uint8_t)msg->key_id, msg->pubkey.bytes,
+                                   msg->pubkey.size, msg->alias),
+      _("Invalid clearsign signer"));
 
   /* Mandatory on-device consent — the whole trust model hangs on this
    * confirm. The same fingerprint reappears on every per-tx warning. */
