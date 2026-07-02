@@ -10,7 +10,10 @@ typedef struct _EthereumSignTx EthereumSignTx;
 #define METADATA_MAX_ARGS 8
 #define METADATA_MAX_METHOD_LEN 64
 #define METADATA_MAX_ARG_NAME_LEN 32
-#define METADATA_MAX_ARG_VALUE_LEN 32
+/* Sized for TOKEN_AMOUNT: decimals(1) + symbol_len(1) + symbol(<=10) +
+ * amount(<=32). Other formats remain capped at 32 by their own guards. */
+#define METADATA_MAX_ARG_VALUE_LEN 44
+#define METADATA_MAX_TOKEN_SYMBOL_LEN 10
 #define METADATA_MAX_KEYS 4
 #define METADATA_ALIAS_MAX_LEN 31
 /* hex(first 4 bytes of sha256(pubkey)) + NUL */
@@ -22,11 +25,26 @@ typedef enum {
   METADATA_MALFORMED = 2,
 } MetadataClassification;
 
+/*
+ * Argument display formats. The goal of clear-signing is that the device
+ * answers WHO the user is dealing with (validated contract address, protocol
+ * name), WHAT the transaction does (method + human-readable typed args:
+ * recipient, "Amount: 1,000 USDC"), and WHY the decode can be trusted
+ * (signer attestation bound to the exact tx hash). RAW/BYTES hex dumps are
+ * the fallback, not the product.
+ */
 typedef enum {
-  ARG_FORMAT_RAW = 0,
-  ARG_FORMAT_ADDRESS = 1,
-  ARG_FORMAT_AMOUNT = 2,
-  ARG_FORMAT_BYTES = 3,
+  ARG_FORMAT_RAW = 0,     /* hex dump (first 16 bytes) */
+  ARG_FORMAT_ADDRESS = 1, /* 20 bytes -> full EIP-55 address, never truncated */
+  ARG_FORMAT_AMOUNT = 2,  /* big-endian uint256 -> raw integer, "wei" */
+  ARG_FORMAT_BYTES = 3,   /* hex dump (first 16 bytes) */
+  /* Attested printable label, e.g. protocol: "Uniswap V2". Same character
+   * rules as the signer alias minus length (printable subset, no '%'). */
+  ARG_FORMAT_STRING = 4,
+  /* decimals(1) + symbol_len(1) + symbol(<=10, [A-Za-z0-9]) + amount(1..32
+   * big-endian). Rendered as a decimal-scaled amount with the symbol, e.g.
+   * "1000 USDC"; all-0xFF 32-byte amounts render "UNLIMITED <symbol>". */
+  ARG_FORMAT_TOKEN_AMOUNT = 5,
 } ArgFormat;
 
 typedef struct {

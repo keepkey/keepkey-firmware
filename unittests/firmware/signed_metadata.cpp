@@ -404,8 +404,109 @@ TEST_F(SignedMetadataTest, ArgNameTooLong) {
 
 TEST_F(SignedMetadataTest, ArgFormatOutOfRange) {
   Spec s = base_spec();
-  s.args[0].format = 4;  // > ARG_FORMAT_BYTES (3)
+  s.args[0].format = 6;  // > ARG_FORMAT_TOKEN_AMOUNT (5)
   ExpectMalformed(sign_body(build_body(s)), TEST_KEY_ID);
+}
+
+/* ---- ARG_FORMAT_STRING (attested printable label) ----------------------- */
+
+TEST_F(SignedMetadataTest, StringArgAccepted) {
+  Spec s = base_spec();
+  const char *label = "Uniswap V2";
+  s.args[0] = mk_arg("protocol", ARG_FORMAT_STRING, (const uint8_t *)label,
+                     strlen(label));
+  std::vector<uint8_t> blob = sign_body(build_body(s));
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  const SignedMetadata *m = signed_metadata_get();
+  ASSERT_NE(m, nullptr);
+  EXPECT_EQ(m->args[0].format, ARG_FORMAT_STRING);
+  EXPECT_EQ(memcmp(m->args[0].value, label, strlen(label)), 0);
+}
+
+TEST_F(SignedMetadataTest, StringArgRejectsUnprintableAndPercent) {
+  const uint8_t nl[] = {'a', '\n', 'b'};
+  Spec s = base_spec();
+  s.args[0] = mk_arg("protocol", ARG_FORMAT_STRING, nl, sizeof(nl));
+  ExpectMalformed(sign_body(build_body(s)), TEST_KEY_ID);
+
+  const uint8_t pct[] = {'a', '%', 's'};
+  Spec s2 = base_spec();
+  s2.args[0] = mk_arg("protocol", ARG_FORMAT_STRING, pct, sizeof(pct));
+  ExpectMalformed(sign_body(build_body(s2)), TEST_KEY_ID);
+
+  Spec s3 = base_spec();
+  s3.args[0] = mk_arg("protocol", ARG_FORMAT_STRING, pct, 0);  // empty string
+  ExpectMalformed(sign_body(build_body(s3)), TEST_KEY_ID);
+}
+
+/* ---- ARG_FORMAT_TOKEN_AMOUNT (decimals + symbol + amount) --------------- */
+
+std::vector<uint8_t> token_amount_value(uint8_t decimals,
+                                        const std::string &symbol,
+                                        const std::vector<uint8_t> &amount) {
+  std::vector<uint8_t> v;
+  v.push_back(decimals);
+  v.push_back((uint8_t)symbol.size());
+  v.insert(v.end(), symbol.begin(), symbol.end());
+  v.insert(v.end(), amount.begin(), amount.end());
+  return v;
+}
+
+TEST_F(SignedMetadataTest, TokenAmountAccepted) {
+  /* 1.00 USDC: 1000000 raw, 6 decimals */
+  std::vector<uint8_t> amt = {0x0F, 0x42, 0x40};
+  std::vector<uint8_t> val = token_amount_value(6, "USDC", amt);
+  Spec s = base_spec();
+  s.args[1] = mk_arg("amount", ARG_FORMAT_TOKEN_AMOUNT, val.data(), val.size());
+  std::vector<uint8_t> blob = sign_body(build_body(s));
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  const SignedMetadata *m = signed_metadata_get();
+  ASSERT_NE(m, nullptr);
+  EXPECT_EQ(m->args[1].format, ARG_FORMAT_TOKEN_AMOUNT);
+  EXPECT_EQ(m->args[1].value_len, val.size());
+}
+
+TEST_F(SignedMetadataTest, TokenAmountUnlimited32BytesAccepted) {
+  /* UNLIMITED approve: 32 x 0xFF + symbol -> value_len 38 (> old 32 cap) */
+  std::vector<uint8_t> amt(32, 0xFF);
+  std::vector<uint8_t> val = token_amount_value(6, "USDC", amt);
+  EXPECT_EQ(val.size(), 38u);  // 1+1+4+32
+  Spec s = base_spec();
+  s.args[1] = mk_arg("amount", ARG_FORMAT_TOKEN_AMOUNT, val.data(), val.size());
+  std::vector<uint8_t> blob = sign_body(build_body(s));
+  EXPECT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+}
+
+TEST_F(SignedMetadataTest, TokenAmountRejectsBadLayout) {
+  Spec s = base_spec();
+  /* symbol chars outside [A-Za-z0-9] */
+  std::vector<uint8_t> bad_sym = token_amount_value(6, "US-C", {0x01});
+  s.args[1] = mk_arg("amount", ARG_FORMAT_TOKEN_AMOUNT, bad_sym.data(),
+                     bad_sym.size());
+  ExpectMalformed(sign_body(build_body(s)), TEST_KEY_ID);
+
+  /* decimals > 36 */
+  Spec s2 = base_spec();
+  std::vector<uint8_t> bad_dec = token_amount_value(37, "USDC", {0x01});
+  s2.args[1] = mk_arg("amount", ARG_FORMAT_TOKEN_AMOUNT, bad_dec.data(),
+                      bad_dec.size());
+  ExpectMalformed(sign_body(build_body(s2)), TEST_KEY_ID);
+
+  /* symbol_len runs past the value (no amount bytes left) */
+  Spec s3 = base_spec();
+  std::vector<uint8_t> no_amt = {6, 4, 'U', 'S', 'D', 'C'};
+  s3.args[1] = mk_arg("amount", ARG_FORMAT_TOKEN_AMOUNT, no_amt.data(),
+                      no_amt.size());
+  ExpectMalformed(sign_body(build_body(s3)), TEST_KEY_ID);
+
+  /* legacy formats must NOT accept the larger 44-byte cap */
+  Spec s4 = base_spec();
+  std::vector<uint8_t> big(40, 0xAB);
+  s4.args[1] = mk_arg("amount", ARG_FORMAT_AMOUNT, big.data(), big.size());
+  ExpectMalformed(sign_body(build_body(s4)), TEST_KEY_ID);
 }
 
 TEST_F(SignedMetadataTest, ArgValueTooLong) {

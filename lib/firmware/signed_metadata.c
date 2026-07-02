@@ -121,6 +121,52 @@ static bool read_arg_name(const uint8_t **cursor, const uint8_t *end, char *out,
   return true;
 }
 
+/* Per-format value validation, fail-closed at parse time. STRING and
+ * TOKEN_AMOUNT carry display semantics, so their byte layout is enforced
+ * before anything is stored; legacy formats keep their original 32-byte cap
+ * (METADATA_MAX_ARG_VALUE_LEN grew only to fit TOKEN_AMOUNT). */
+static bool arg_value_ok(uint8_t format, const uint8_t *value, uint16_t len) {
+  switch (format) {
+    case ARG_FORMAT_STRING: {
+      /* Attested printable label ("protocol: Uniswap V2"). Rendered through
+       * confirm() bodies: printable ASCII only, '%' excluded. */
+      if (len == 0 || len > 32) {
+        return false;
+      }
+      for (uint16_t i = 0; i < len; i++) {
+        if (value[i] < 0x20 || value[i] > 0x7e || value[i] == '%') {
+          return false;
+        }
+      }
+      return true;
+    }
+    case ARG_FORMAT_TOKEN_AMOUNT: {
+      /* decimals(1) + symbol_len(1) + symbol + amount(1..32 BE) */
+      if (len < 4) {
+        return false;
+      }
+      uint8_t decimals = value[0];
+      uint8_t symlen = value[1];
+      if (decimals > 36 || symlen == 0 ||
+          symlen > METADATA_MAX_TOKEN_SYMBOL_LEN ||
+          (uint16_t)(2 + symlen) >= len || len - 2 - symlen > 32) {
+        return false;
+      }
+      for (uint8_t i = 0; i < symlen; i++) {
+        char c = (char)value[2 + i];
+        bool ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                  (c >= '0' && c <= '9');
+        if (!ok) {
+          return false;
+        }
+      }
+      return true;
+    }
+    default:
+      return len <= 32;
+  }
+}
+
 static bool parse_metadata_binary(const uint8_t *payload, size_t payload_len,
                                   SignedMetadata *out) {
   /* Minimum: version(1) + chain_id(4) + contract(20) + selector(4) +
@@ -153,10 +199,11 @@ static bool parse_metadata_binary(const uint8_t *payload, size_t payload_len,
     MetadataArg *arg = &out->args[i];
 
     if (!read_arg_name(&cursor, end, arg->name, METADATA_MAX_ARG_NAME_LEN) ||
-        !read_u8(&cursor, end, &format) || format > ARG_FORMAT_BYTES ||
+        !read_u8(&cursor, end, &format) || format > ARG_FORMAT_TOKEN_AMOUNT ||
         !read_be_u16(&cursor, end, &value_len) ||
         value_len > METADATA_MAX_ARG_VALUE_LEN ||
-        !read_bytes(&cursor, end, arg->value, value_len)) {
+        !read_bytes(&cursor, end, arg->value, value_len) ||
+        !arg_value_ok(format, arg->value, value_len)) {
       return false;
     }
 
@@ -438,6 +485,45 @@ bool signed_metadata_confirm(void) {
         } else {
           char formatted[48];
           bn_format(&amount, NULL, " wei", 0, 0, false, formatted,
+                    sizeof(formatted));
+          snprintf(body, sizeof(body), "%s:\n%s", arg->name, formatted);
+        }
+        break;
+      }
+      case ARG_FORMAT_STRING: {
+        /* Attested printable label, validated at parse (arg_value_ok). */
+        char text[33];
+        memcpy(text, arg->value, arg->value_len);
+        text[arg->value_len] = '\0';
+        snprintf(body, sizeof(body), "%s:\n%s", arg->name, text);
+        break;
+      }
+      case ARG_FORMAT_TOKEN_AMOUNT: {
+        /* decimals + symbol + big-endian amount, validated at parse.
+         * This is the "Amount: 1,000 USDC" the clear-signing plan calls for
+         * instead of a raw wei integer. */
+        uint8_t decimals = arg->value[0];
+        uint8_t symlen = arg->value[1];
+        char suffix[METADATA_MAX_TOKEN_SYMBOL_LEN + 2];
+        suffix[0] = ' ';
+        memcpy(suffix + 1, arg->value + 2, symlen);
+        suffix[1 + symlen] = '\0';
+
+        const uint8_t *amt = arg->value + 2 + symlen;
+        uint16_t amt_len = arg->value_len - 2 - symlen;
+        bool is_max = amt_len == 32;
+        for (uint16_t j = 0; j < amt_len && is_max; j++) {
+          if (amt[j] != 0xFF) {
+            is_max = false;
+          }
+        }
+        if (is_max) {
+          snprintf(body, sizeof(body), "%s:\nUNLIMITED%s", arg->name, suffix);
+        } else {
+          bignum256 amount;
+          bn_from_metadata_bytes(amt, amt_len, &amount);
+          char formatted[48];
+          bn_format(&amount, NULL, suffix, decimals, 0, false, formatted,
                     sizeof(formatted));
           snprintf(body, sizeof(body), "%s:\n%s", arg->name, formatted);
         }
