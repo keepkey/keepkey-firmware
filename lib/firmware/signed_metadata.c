@@ -214,14 +214,21 @@ bool signed_metadata_signer_valid(uint8_t key_id, const uint8_t *pubkey,
     return false;
   }
 
-  /* Alias is rendered through confirm() format strings on the load screen and
-   * the per-tx warning — printable ASCII only, no control/spoofing chars. */
+  /* Alias is rendered INSIDE quotes on the load screen and the per-tx warning
+   * ("Trust signer '%s' ..."). Restrict to a strict allowlist — letters,
+   * digits, space, '-' and '_' — so a host-chosen alias cannot break out of
+   * its quoted region or inject a semantic trust claim (e.g. a quote to close
+   * the quotes, or "." / "(" to append "verified by KeepKey."). '%' is also
+   * excluded so it can never reach the format string as a specifier. */
   alias_len = strlen(alias);
   if (alias_len == 0 || alias_len > METADATA_ALIAS_MAX_LEN) {
     return false;
   }
   for (size_t i = 0; i < alias_len; i++) {
-    if (alias[i] < 0x20 || alias[i] > 0x7e || alias[i] == '%') {
+    char c = alias[i];
+    bool ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+              (c >= '0' && c <= '9') || c == ' ' || c == '-' || c == '_';
+    if (!ok) {
       return false;
     }
   }

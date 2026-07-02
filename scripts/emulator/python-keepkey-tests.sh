@@ -41,9 +41,14 @@ echo "=== End diagnostic ==="
 # expression for every test with non-empty screenshot expectations. Adding screenshots
 # to a test in SECTIONS automatically includes it here — no manual filter maintenance.
 echo "=== Phase 1: Report-driven screenshot capture ==="
-# Detect firmware version from CMakeLists if not set in env
+# Detect firmware version from CMakeLists if not set in env.
+# NOTE: grep -oE (POSIX ERE), NOT -oP — this runs in the Alpine/busybox
+# python-keepkey container where grep has no -P (PCRE). With -P grep errored
+# and the version silently fell back to 7.14.0, so every 7.15.0 section
+# (Hive, EVM clear-signing) was excluded from screenshot capture.
 if [ -z "$FW_VERSION" ]; then
-    FW_VERSION=$(sed -n '/^project/,/)/p' /kkemu/CMakeLists.txt | grep -oP '\d+\.\d+\.\d+' || echo "7.14.0")
+    FW_VERSION=$(sed -n '/^project/,/)/p' /kkemu/CMakeLists.txt | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    [ -z "$FW_VERSION" ] && FW_VERSION="7.14.0"
     echo "Detected FW_VERSION=$FW_VERSION from CMakeLists.txt"
 fi
 export FW_VERSION

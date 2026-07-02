@@ -675,11 +675,25 @@ TEST(SignedMetadataSignerValid, RejectsBadAlias) {
   std::string max_len(METADATA_ALIAS_MAX_LEN, 'a');
   EXPECT_TRUE(
       signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, max_len.c_str()));
-  /* Rendered through confirm() — control chars and '%' are spoofing vectors */
+  /* Realistic aliases (letters/digits/space/-/_) are accepted. */
+  EXPECT_TRUE(signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, "Pioneer"));
+  EXPECT_TRUE(
+      signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, "KeepKey Swap"));
+  EXPECT_TRUE(
+      signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, "my-signer_1"));
+  /* Rendered inside quotes on the trust screen — control chars, '%', and
+   * semantic-injection punctuation (quote breakout, "." / "(" appending a
+   * false "verified by KeepKey." claim) are all rejected. */
   EXPECT_FALSE(signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, "a\nb"));
   EXPECT_FALSE(signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, "a%sb"));
   EXPECT_FALSE(
       signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, "a\x7f" "b"));
+  EXPECT_FALSE(signed_metadata_signer_valid(
+      0, EXPECTED_SLOT3_PUB, 33, "x' verified by KeepKey. Safe ("));
+  EXPECT_FALSE(
+      signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, "safe.KeepKey"));
+  EXPECT_FALSE(
+      signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, "trust(me)"));
 }
 
 /* ---- signed_metadata_pubkey_fingerprint -------------------------------- */
