@@ -513,10 +513,9 @@ void fsm_msgSolanaSignMessage(const SolanaSignMessage* msg) {
    * here the signature covers the exact message bytes — only a payload
    * that IS a tx message from byte 0 may be displayed as one. */
   SolanaParsedTx parsed;
-  bool is_verified_tx =
-      msg->message.bytes[0] != 0 &&
-      solana_inspectTx(msg->message.bytes, msg->message.size, &parsed) ==
-          SOL_TX_REVIEW_VERIFIED;
+  bool is_verified_tx = msg->message.bytes[0] != 0 &&
+                        solana_inspectTx(msg->message.bytes, msg->message.size,
+                                         &parsed) == SOL_TX_REVIEW_VERIFIED;
 
   /* AdvancedMode gate for anything we cannot verify: a malicious dApp
    * could craft a "message" that is also a valid tx.
