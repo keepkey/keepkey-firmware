@@ -102,18 +102,109 @@ void fsm_msgTronSignTx(TronSignTx* msg) {
     return;
   }
 
-  /* to_address and amount are deprecated fields not included in raw_data.
-   * Displaying them would show data that is not part of what is being signed.
-   * Show only the raw_data size so the user knows what they are authorising. */
-  char blind_msg[48];
-  snprintf(blind_msg, sizeof(blind_msg), "Sign %u-byte TRON transaction?",
-           (unsigned)msg->raw_data.size);
-  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "TRON Blind Sign", "%s",
-               blind_msg)) {
-    memzero(node, sizeof(*node));
-    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
-    layoutHome();
-    return;
+  /* Clear-sign from raw_data itself — the exact bytes being signed.
+   * (The proto's side-channel to_address/amount fields are never trusted:
+   * they are not part of what is signed.) */
+  TronParsedTx parsed;
+  TronTxType tx_type =
+      tron_parseRawTx(msg->raw_data.bytes, msg->raw_data.size, &parsed);
+
+  if (tx_type == TRON_TX_UNVERIFIED) {
+    /* Unrecognized contract or payload: explicit blind-sign only,
+     * same policy gate as Solana opaque transactions. */
+    if (!storage_isPolicyEnabled("AdvancedMode")) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_Other,
+                      _("Enable AdvancedMode to blind-sign"));
+      layoutHome();
+      return;
+    }
+    char blind_msg[48];
+    snprintf(blind_msg, sizeof(blind_msg), "Sign %u-byte TRON transaction?",
+             (unsigned)msg->raw_data.size);
+    if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "TRON Blind Sign",
+                 "%s", blind_msg)) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
+      layoutHome();
+      return;
+    }
+  } else {
+    /* The parsed owner account is the one spending — it must be ours. */
+    char derived_addr[TRON_ADDRESS_MAX_LEN];
+    char owner_addr[TRON_ADDRESS_MAX_LEN];
+    if (!tron_getAddress(node->public_key, derived_addr,
+                         sizeof(derived_addr)) ||
+        !tron_addressFromBytes(parsed.owner, owner_addr,
+                               sizeof(owner_addr)) ||
+        strcmp(derived_addr, owner_addr) != 0) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_Other,
+                      _("TX owner does not match derived key"));
+      layoutHome();
+      return;
+    }
+
+    char to_str[TRON_ADDRESS_MAX_LEN];
+    if (!tron_addressFromBytes(parsed.to, to_str, sizeof(to_str))) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_Other, _("Address encoding failed"));
+      layoutHome();
+      return;
+    }
+
+    bool confirmed = false;
+    if (tx_type == TRON_TX_TRANSFER) {
+      char amount_str[32];
+      tron_formatAmount(amount_str, sizeof(amount_str), parsed.amount);
+      confirmed = confirm(ButtonRequestType_ButtonRequest_SignTx, "TRON",
+                          "Send %s to %s?", amount_str, to_str);
+    } else { /* TRON_TX_TRC20_TRANSFER */
+      char contract_str[TRON_ADDRESS_MAX_LEN];
+      char amount_str[90];
+      confirmed =
+          tron_addressFromBytes(parsed.contract, contract_str,
+                                sizeof(contract_str)) &&
+          tron_formatTrc20Amount(parsed.trc20_amount, amount_str,
+                                 sizeof(amount_str)) &&
+          confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                  "TRC-20 Transfer", "Token contract %s", contract_str) &&
+          /* Token decimals are not known on-device; show base units. */
+          confirm(ButtonRequestType_ButtonRequest_SignTx, "TRC-20 Transfer",
+                  "Send %s base units to %s?", amount_str, to_str);
+    }
+
+    if (confirmed && parsed.has_fee_limit) {
+      char fee_str[32];
+      tron_formatAmount(fee_str, sizeof(fee_str), parsed.fee_limit);
+      confirmed = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                          "TRON", "Max network fee %s", fee_str);
+    }
+
+    if (confirmed && parsed.memo_len > 0) {
+      bool printable = true;
+      for (uint16_t i = 0; i < parsed.memo_len; i++) {
+        if (parsed.memo[i] < 0x20 || parsed.memo[i] > 0x7e) {
+          printable = false;
+          break;
+        }
+      }
+      if (printable && parsed.memo_len <= 114) {
+        confirmed = confirm(ButtonRequestType_ButtonRequest_ConfirmMemo,
+                            "Memo", "%.*s", (int)parsed.memo_len, parsed.memo);
+      } else {
+        confirmed =
+            confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, "Memo",
+                    "Data attached (%u bytes)", (unsigned)parsed.memo_len);
+      }
+    }
+
+    if (!confirmed) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
+      layoutHome();
+      return;
+    }
   }
 
   // Sign the transaction with secp256k1
