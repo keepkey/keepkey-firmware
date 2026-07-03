@@ -135,16 +135,27 @@ bool mayachain_signTxUpdateMsgSend(const uint64_t amount,
     return false;
   }
 
+  // Default to "cacao" for backward compatibility; validate all non-default
+  // denoms. Defended here too (not just by the FSM caller) so this signing
+  // path is safe even if called directly or reused elsewhere later.
+  const char* coin_denom = (denom && denom[0]) ? denom : "cacao";
+  if (!mayachain_isValidDenom(coin_denom)) {
+    return false;
+  }
+
   bool success = true;
 
   const char* const prelude = "{\"type\":\"mayachain/MsgSend\",\"value\":{";
   sha256_Update(&ctx, (uint8_t*)prelude, strlen(prelude));
 
-  // 21 + ^20 + 11 + ^69 + 3 = ^124
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"amount\":[{\"amount\":\"%" PRIu64
-                                 "\",\"denom\":\"%s\"}]",
-                                 amount, denom);
+  // Write amount prefix: 21 + ^20 = ^41
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      "\"amount\":[{\"amount\":\"%" PRIu64 "\",\"denom\":\"", amount);
+  // Use escaping as defense-in-depth; valid denoms have no escapable chars
+  tendermint_sha256UpdateEscaped(&ctx, coin_denom, strlen(coin_denom));
+  // Close coins array: 3 bytes
+  sha256_Update(&ctx, (uint8_t*)"\"}]", 3);
 
   // 17 + 45 + 1 = 63
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
@@ -236,23 +247,26 @@ bool mayachain_parseConfirmMemo(const char* swapStr, size_t size) {
   */
 
   char* fields[8] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
-  char memoBuf[256];
+  /* Memos are documented/accepted up to 256 bytes; memoBuf reserves one
+   * extra byte so a full 256-byte memo still leaves a guaranteed NUL
+   * terminator, instead of the copy silently dropping its last byte. */
+  enum { MEMO_MAX = 256 };
+  char memoBuf[MEMO_MAX + 1];
   size_t nfields, i;
   char *chain, *asset;
 
   // check if memo data is recognized
 
-  if (size > sizeof(memoBuf)) return false;
+  if (size > MEMO_MAX) return false;
   memzero(memoBuf, sizeof(memoBuf));
   /* size is a byte count, not necessarily including a NUL: the BTC
    * OP_RETURN caller passes raw memo bytes with no terminator. strlcpy
    * would copy only size-1 bytes and silently drop the memo's last
    * character (turning an affiliate fee of "75" bps into "7"). Copy the
-   * bytes exactly; the zeroed buffer provides termination. */
-  {
-    size_t copyLen = size < sizeof(memoBuf) ? size : sizeof(memoBuf) - 1;
-    memcpy(memoBuf, swapStr, copyLen);
-  }
+   * bytes exactly (size <= MEMO_MAX < sizeof(memoBuf), so this never
+   * overflows and always leaves at least one zeroed terminator byte);
+   * the zeroed buffer provides termination. */
+  memcpy(memoBuf, swapStr, size);
 
   // Split on ':', keeping empty fields
   nfields = 0;

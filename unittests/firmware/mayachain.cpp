@@ -7,6 +7,7 @@ extern "C" {
 
 #include "gtest/gtest.h"
 #include <cstring>
+#include <string>
 
 // confirm() auto-accept driver, defined in thorchain.cpp (same binary).
 // kkconfirm_preload(nYes, nNo) queues nYes accepted confirm screens then
@@ -106,6 +107,44 @@ TEST(Mayachain, MayachainDenomValidation) {
   EXPECT_FALSE(mayachain_isValidDenom("ca cao"));    // embedded space
 }
 
+// The signer function itself must reject an invalid denom — not merely
+// rely on the FSM caller to pre-validate — so it stays safe if reused or
+// called directly. Empty denom must still default to "cacao" and succeed.
+TEST(Mayachain, MayachainSignTxUpdateMsgSendRejectsInvalidDenom) {
+  HDNode node = {
+      0,
+      0,
+      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      {0xb9, 0x9a, 0x39, 0x3a, 0x5a, 0x53, 0x0d, 0x90, 0xef, 0x6e, 0x46,
+       0x4e, 0x8e, 0x2f, 0x2b, 0x8b, 0x5c, 0x64, 0xa7, 0x97, 0x29, 0xcd,
+       0x60, 0x3b, 0x1f, 0xba, 0x33, 0x81, 0x7d, 0x1a, 0x75, 0xa1},
+      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      &secp256k1_info};
+  hdnode_fill_public_key(&node);
+
+  const MayachainSignTx msg = {
+      5,    {0x80000000 | 44, 0x80000000 | 931, 0x80000000, 0, 0},
+      true, 6359,
+      true, "mayachain-mainnet-v1",
+      true, 3000,
+      true, 200000,
+      true, "",
+      true, 19,
+      true, 1};
+
+  ASSERT_TRUE(mayachain_signTxInit(&node, &msg));
+  EXPECT_FALSE(mayachain_signTxUpdateMsgSend(
+      100, "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k", "cacao\""));
+
+  ASSERT_TRUE(mayachain_signTxInit(&node, &msg));
+  EXPECT_TRUE(mayachain_signTxUpdateMsgSend(
+      100, "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k", ""));
+}
+
 /* ===================================================================== *
  *  mayachain_parseConfirmMemo — swap-memo clear-signing.
  *  Mirrors the thorchain.cpp memo tests; see kkconfirm_preload docs there.
@@ -172,6 +211,22 @@ TEST(Mayachain, MemoRawBytesNoNulKeepsLastChar) {
   ASSERT_TRUE(kkconfirm_preload(4, 0));
   const char raw[] = "=:ETH.ETH:0xdest:420:k";
   EXPECT_TRUE(parseMayaMemo(raw, sizeof(raw) - 1)); /* no NUL counted */
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// A raw memo that fills the internal buffer's entire documented capacity
+// (size == 256, the parser's own <=256 contract) must ALSO keep its last
+// byte — this is the boundary the copy-length clamp missed.
+TEST(Mayachain, MemoExactBufferCapacityKeepsLastChar) {
+  const std::string prefix = "=:ETH.ETH:0x";
+  const std::string suffix = ":420:k"; // 1-char affiliate as the last byte
+  std::string memo = prefix + std::string(256 - prefix.size() - suffix.size(),
+                                          'd') +
+                     suffix;
+  ASSERT_EQ(memo.size(), 256u);
+
+  ASSERT_TRUE(kkconfirm_preload(4, 0));
+  EXPECT_TRUE(parseMayaMemo(memo.c_str(), memo.size())); /* no NUL counted */
   EXPECT_EQ(0, kkconfirm_drain());
 }
 
