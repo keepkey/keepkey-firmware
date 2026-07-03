@@ -26,6 +26,25 @@ typedef enum {
 } MetadataClassification;
 
 /*
+ * Blob format versions (the first payload byte).
+ *
+ * LEGACY (v1): per-transaction. The blob carries a committed tx_hash and the
+ * pre-decoded argument VALUES; the host is trusted for the decode and the
+ * device only binds it to the signed digest (signed_metadata_enforce). This is
+ * the format that requires an online, per-tx signer holding the attestation
+ * key.
+ *
+ * SCHEMA (v2): static. The blob carries NO tx_hash and NO values — only how to
+ * decode the call: (chainId, contract, selector, method, per-arg name + display
+ * format [+ static decimals/symbol]). The DEVICE decodes the argument values
+ * from the exact calldata it is about to sign, so the display is bound to the
+ * signature by construction. No tx_hash, no per-tx signing: the catalog is
+ * signed ONCE, offline, and can be served from a host CDN (no hot key).
+ */
+#define METADATA_VERSION_LEGACY 0x01
+#define METADATA_VERSION_SCHEMA 0x02
+
+/*
  * Argument display formats. The goal of clear-signing is that the device
  * answers WHO the user is dealing with (validated contract address, protocol
  * name), WHAT the transaction does (method + human-readable typed args:
@@ -136,6 +155,14 @@ bool signed_metadata_enforce_decision(bool relied, bool available,
                                       int classification,
                                       const uint8_t *stored_hash,
                                       const uint8_t *hash);
+
+/* Pure enforcement decision for v2 (static schema) blobs, exported for unit
+ * testing. v2 has no committed tx_hash; the binding is structural (args decoded
+ * from the signed calldata), so signing proceeds when the relied-upon metadata
+ * is available and VERIFIED — no digest comparison. signed_metadata_enforce()
+ * dispatches here when the stored blob's version is METADATA_VERSION_SCHEMA. */
+bool signed_metadata_enforce_schema_decision(bool relied, bool available,
+                                             int classification);
 
 const SignedMetadata *signed_metadata_get(void);
 

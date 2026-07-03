@@ -875,4 +875,257 @@ TEST(SignedMetadataEnforce, ReliedStoredHashNull) {
                                                 nullptr, h));
 }
 
+/* ===================================================================== *
+ *  SECTION 3 — v2 static-schema blobs + on-device calldata decode
+ *
+ *  v2 carries NO tx_hash and NO argument values. The blob attests only the
+ *  static schema (chainId, contract, selector, method, per-arg name + display
+ *  format [+ static decimals/symbol]); the device decodes the actual argument
+ *  values from the calldata it is about to sign. These tests drive the full
+ *  parse -> verify -> signed_metadata_matches_tx (which decodes) path and check
+ *  the decoded MetadataArg values, plus the malformed/rejection cases.
+ * ===================================================================== */
+
+struct V2Arg {
+  std::string name;
+  uint8_t format;
+  uint8_t decimals;   /* TOKEN_AMOUNT only */
+  std::string symbol; /* TOKEN_AMOUNT only */
+};
+
+V2Arg v2_addr(const std::string &name) {
+  return V2Arg{name, ARG_FORMAT_ADDRESS, 0, ""};
+}
+V2Arg v2_token(const std::string &name, uint8_t decimals,
+               const std::string &symbol) {
+  return V2Arg{name, ARG_FORMAT_TOKEN_AMOUNT, decimals, symbol};
+}
+
+struct V2Spec {
+  uint32_t chain_id;
+  std::vector<uint8_t> contract;
+  std::vector<uint8_t> selector;
+  std::string method;
+  std::vector<V2Arg> args;
+  uint8_t classification;
+  uint8_t key_id;
+  int num_args_override;  // -1 => use args.size()
+};
+
+V2Spec v2_base_spec() {
+  V2Spec s;
+  s.chain_id = 1;
+  s.contract.assign(CONTRACT_A, CONTRACT_A + 20);
+  s.selector.assign(SEL_TRANSFER, SEL_TRANSFER + 4);
+  s.method = "transfer";
+  s.args.push_back(v2_addr("to"));
+  s.args.push_back(v2_token("amount", 6, "USDC"));
+  s.classification = METADATA_VERIFIED;
+  s.key_id = TEST_KEY_ID;
+  s.num_args_override = -1;
+  return s;
+}
+
+std::vector<uint8_t> build_v2_body(const V2Spec &s) {
+  std::vector<uint8_t> b;
+  put_u8(b, METADATA_VERSION_SCHEMA);
+  put_be32(b, s.chain_id);
+  put_bytes(b, s.contract.data(), s.contract.size());
+  put_bytes(b, s.selector.data(), s.selector.size());
+  put_be16(b, (uint16_t)s.method.size());
+  put_bytes(b, (const uint8_t *)s.method.data(), s.method.size());
+  put_u8(b, s.num_args_override >= 0 ? (uint8_t)s.num_args_override
+                                     : (uint8_t)s.args.size());
+  for (const V2Arg &a : s.args) {
+    put_u8(b, (uint8_t)a.name.size());
+    put_bytes(b, (const uint8_t *)a.name.data(), a.name.size());
+    put_u8(b, a.format);
+    if (a.format == ARG_FORMAT_TOKEN_AMOUNT) {
+      put_u8(b, a.decimals);
+      put_u8(b, (uint8_t)a.symbol.size());
+      put_bytes(b, (const uint8_t *)a.symbol.data(), a.symbol.size());
+    }
+  }
+  put_u8(b, s.classification);
+  put_be32(b, 0);  // timestamp
+  put_u8(b, s.key_id);
+  return b;
+}
+
+std::vector<uint8_t> v2_base_blob() {
+  return sign_body(build_v2_body(v2_base_spec()));
+}
+
+/* ABI calldata: selector + one 32-byte head word per arg. */
+void put_addr_word(std::vector<uint8_t> &d, const uint8_t addr[20]) {
+  for (int i = 0; i < 12; i++) d.push_back(0);
+  d.insert(d.end(), addr, addr + 20);
+}
+
+/* Canonical transfer(to=RECIPIENT, amount=AMOUNT32) calldata (4 + 64 = 68). */
+std::vector<uint8_t> v2_transfer_calldata() {
+  std::vector<uint8_t> d(SEL_TRANSFER, SEL_TRANSFER + 4);
+  put_addr_word(d, RECIPIENT);
+  d.insert(d.end(), AMOUNT32, AMOUNT32 + 32);
+  return d;
+}
+
+void make_v2_msg(EthereumSignTx *msg, const uint8_t contract[20],
+                 const std::vector<uint8_t> &data, bool has_len,
+                 uint32_t data_length) {
+  memset(msg, 0, sizeof(*msg));
+  msg->has_to = true;
+  msg->to.size = 20;
+  memcpy(msg->to.bytes, contract, 20);
+  msg->has_data_initial_chunk = true;
+  msg->data_initial_chunk.size = (pb_size_t)data.size();
+  memcpy(msg->data_initial_chunk.bytes, data.data(), data.size());
+  msg->has_chain_id = true;
+  msg->chain_id = 1;
+  msg->has_data_length = has_len;
+  msg->data_length = has_len ? data_length : 0;
+}
+
+/* Happy path: parse+verify a v2 blob, then matches_tx decodes the args from the
+ * transfer calldata and populates stored_metadata. */
+TEST_F(SignedMetadataTest, V2SchemaDecodesTransferArgs) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  EXPECT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  EXPECT_TRUE(signed_metadata_available());
+
+  const SignedMetadata *md = signed_metadata_get();
+  ASSERT_NE(md, nullptr);
+  EXPECT_EQ(md->version, METADATA_VERSION_SCHEMA);
+  EXPECT_EQ(md->num_args, 2);
+  EXPECT_EQ(md->args[0].value_len, 0);  // undecoded before matches_tx
+
+  EthereumSignTx msg;
+  std::vector<uint8_t> data = v2_transfer_calldata();
+  make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/true, (uint32_t)data.size());
+  EXPECT_TRUE(signed_metadata_matches_tx(&msg));
+
+  EXPECT_EQ(md->args[0].format, ARG_FORMAT_ADDRESS);
+  EXPECT_EQ(md->args[0].value_len, 20);
+  EXPECT_EQ(memcmp(md->args[0].value, RECIPIENT, 20), 0);
+
+  EXPECT_EQ(md->args[1].format, ARG_FORMAT_TOKEN_AMOUNT);
+  EXPECT_EQ(md->args[1].value_len, 2 + 4 + 32);
+  EXPECT_EQ(md->args[1].value[0], 6);  // decimals
+  EXPECT_EQ(md->args[1].value[1], 4);  // symlen
+  EXPECT_EQ(memcmp(md->args[1].value + 2, "USDC", 4), 0);
+  EXPECT_EQ(memcmp(md->args[1].value + 6, AMOUNT32, 32), 0);
+}
+
+/* has_data_length omitted but the initial chunk IS the whole calldata: allowed. */
+TEST_F(SignedMetadataTest, V2AcceptsNoDataLengthWhenChunkComplete) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  EthereumSignTx msg;
+  std::vector<uint8_t> data = v2_transfer_calldata();
+  make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/false, 0);
+  EXPECT_TRUE(signed_metadata_matches_tx(&msg));
+}
+
+/* Reject when the tx claims MORE calldata than the schema accounts for. */
+TEST_F(SignedMetadataTest, V2RejectsExtraCalldataLength) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  EthereumSignTx msg;
+  std::vector<uint8_t> data = v2_transfer_calldata();  // 68 bytes
+  make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/true, 100);
+  EXPECT_FALSE(signed_metadata_matches_tx(&msg));
+}
+
+/* Reject a partial initial chunk (rest would stream later). */
+TEST_F(SignedMetadataTest, V2RejectsPartialInitialChunk) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  EthereumSignTx msg;
+  std::vector<uint8_t> data = v2_transfer_calldata();
+  data.resize(40);  // selector + partial first word
+  make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/true, 68);
+  EXPECT_FALSE(signed_metadata_matches_tx(&msg));
+}
+
+/* Reject an ABI address word with non-zero high bytes. */
+TEST_F(SignedMetadataTest, V2RejectsDirtyAddressWord) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  EthereumSignTx msg;
+  std::vector<uint8_t> data = v2_transfer_calldata();
+  data[4] = 0x01;  // first (should-be-zero) byte of the address word
+  make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/true, (uint32_t)data.size());
+  EXPECT_FALSE(signed_metadata_matches_tx(&msg));
+}
+
+/* Wrong selector in calldata -> matches_tx fails before decode. */
+TEST_F(SignedMetadataTest, V2RejectsSelectorMismatch) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  EthereumSignTx msg;
+  std::vector<uint8_t> data = v2_transfer_calldata();
+  memcpy(data.data(), SEL_APPROVE, 4);
+  make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/true, (uint32_t)data.size());
+  EXPECT_FALSE(signed_metadata_matches_tx(&msg));
+}
+
+/* An unsupported display format (dynamic types out of scope) -> MALFORMED. */
+TEST_F(SignedMetadataTest, V2RejectsUnsupportedFormat) {
+  V2Spec s = v2_base_spec();
+  s.args[1] = V2Arg{"data", ARG_FORMAT_BYTES, 0, ""};
+  std::vector<uint8_t> blob = sign_body(build_v2_body(s));
+  ExpectMalformed(blob, TEST_KEY_ID);
+}
+
+/* Tampered v2 body must fail the signature check. */
+TEST_F(SignedMetadataTest, V2RejectsTamperedBody) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  blob[5] ^= 0xFF;  // flip a contract-address byte in the signed region
+  ExpectMalformed(blob, TEST_KEY_ID);
+}
+
+/* Zero-arg v2 schema (selector-only call): valid, decodes nothing. */
+TEST_F(SignedMetadataTest, V2ZeroArgsSelectorOnly) {
+  V2Spec s = v2_base_spec();
+  s.args.clear();
+  s.method = "poke";
+  std::vector<uint8_t> blob = sign_body(build_v2_body(s));
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  EthereumSignTx msg;
+  std::vector<uint8_t> data(SEL_TRANSFER, SEL_TRANSFER + 4);
+  make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/true, 4);
+  EXPECT_TRUE(signed_metadata_matches_tx(&msg));
+  EXPECT_EQ(signed_metadata_get()->num_args, 0);
+}
+
+/* ---- v2 enforce truth table (pure, no I/O) ------------------------------ */
+
+TEST(SignedMetadataEnforceSchema, NotReliedAlwaysAllow) {
+  EXPECT_TRUE(signed_metadata_enforce_schema_decision(false, true,
+                                                      METADATA_VERIFIED));
+  EXPECT_TRUE(signed_metadata_enforce_schema_decision(false, false,
+                                                      METADATA_OPAQUE));
+}
+
+TEST(SignedMetadataEnforceSchema, ReliedVerifiedAllow) {
+  EXPECT_TRUE(signed_metadata_enforce_schema_decision(true, true,
+                                                      METADATA_VERIFIED));
+}
+
+TEST(SignedMetadataEnforceSchema, ReliedButUnavailableOrUnverifiedFails) {
+  EXPECT_FALSE(signed_metadata_enforce_schema_decision(true, false,
+                                                       METADATA_VERIFIED));
+  EXPECT_FALSE(signed_metadata_enforce_schema_decision(true, true,
+                                                       METADATA_OPAQUE));
+  EXPECT_FALSE(signed_metadata_enforce_schema_decision(true, true,
+                                                       METADATA_MALFORMED));
+}
+
 }  // namespace

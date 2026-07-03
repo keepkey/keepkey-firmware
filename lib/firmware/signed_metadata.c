@@ -167,60 +167,195 @@ static bool arg_value_ok(uint8_t format, const uint8_t *value, uint16_t len) {
   }
 }
 
-static bool parse_metadata_binary(const uint8_t *payload, size_t payload_len,
-                                  SignedMetadata *out) {
-  /* Minimum: version(1) + chain_id(4) + contract(20) + selector(4) +
-   * tx_hash(32) + method_len(2) + method(1) + num_args(1) +
-   * classification(1) + timestamp(4) + key_id(1) + sig(64) + recovery(1)
-   * = 136 bytes */
-  if (payload_len < 136) {
+/* chain_id(4) + contract(20) + selector(4) — shared by both blob versions. */
+static bool parse_common_head(const uint8_t **cursor, const uint8_t *end,
+                              SignedMetadata *out) {
+  return read_be_u32(cursor, end, &out->chain_id) &&
+         read_bytes(cursor, end, out->contract_address,
+                    sizeof(out->contract_address)) &&
+         read_bytes(cursor, end, out->selector, sizeof(out->selector));
+}
+
+/* classification(1) + timestamp(4) + key_id(1) + sig(64) + recovery(1), then
+ * the cursor must land exactly on `end` — identical for v1 and v2. */
+static bool parse_trailer(const uint8_t **cursor, const uint8_t *end,
+                          SignedMetadata *out) {
+  uint8_t classification = 0;
+  if (!read_u8(cursor, end, &classification) || classification > 2 ||
+      !read_be_u32(cursor, end, &out->timestamp) ||
+      !read_u8(cursor, end, &out->key_id) ||
+      !read_bytes(cursor, end, out->signature, sizeof(out->signature)) ||
+      !read_u8(cursor, end, &out->recovery) || *cursor != end) {
     return false;
   }
+  out->classification = (MetadataClassification)classification;
+  return true;
+}
 
-  const uint8_t *cursor = payload;
-  const uint8_t *end = payload + payload_len;
-  memset(out, 0, sizeof(*out));
-
-  if (!read_u8(&cursor, end, &out->version) || out->version != 0x01 ||
-      !read_be_u32(&cursor, end, &out->chain_id) ||
-      !read_bytes(&cursor, end, out->contract_address,
-                  sizeof(out->contract_address)) ||
-      !read_bytes(&cursor, end, out->selector, sizeof(out->selector)) ||
-      !read_bytes(&cursor, end, out->tx_hash, sizeof(out->tx_hash)) ||
-      !read_string(&cursor, end, out->method_name, METADATA_MAX_METHOD_LEN) ||
-      !read_u8(&cursor, end, &out->num_args) ||
-      out->num_args > METADATA_MAX_ARGS) {
-    return false;
-  }
-
+/* v1 args: name + format + explicit (host-decoded) value. */
+static bool parse_v1_args(const uint8_t **cursor, const uint8_t *end,
+                          SignedMetadata *out) {
   for (uint8_t i = 0; i < out->num_args; i++) {
     uint8_t format = 0;
     uint16_t value_len = 0;
     MetadataArg *arg = &out->args[i];
 
-    if (!read_arg_name(&cursor, end, arg->name, METADATA_MAX_ARG_NAME_LEN) ||
-        !read_u8(&cursor, end, &format) || format > ARG_FORMAT_TOKEN_AMOUNT ||
-        !read_be_u16(&cursor, end, &value_len) ||
+    if (!read_arg_name(cursor, end, arg->name, METADATA_MAX_ARG_NAME_LEN) ||
+        !read_u8(cursor, end, &format) || format > ARG_FORMAT_TOKEN_AMOUNT ||
+        !read_be_u16(cursor, end, &value_len) ||
         value_len > METADATA_MAX_ARG_VALUE_LEN ||
-        !read_bytes(&cursor, end, arg->value, value_len) ||
+        !read_bytes(cursor, end, arg->value, value_len) ||
         !arg_value_ok(format, arg->value, value_len)) {
       return false;
     }
-
     arg->format = (ArgFormat)format;
     arg->value_len = value_len;
   }
+  return true;
+}
 
-  uint8_t classification = 0;
-  if (!read_u8(&cursor, end, &classification) || classification > 2 ||
-      !read_be_u32(&cursor, end, &out->timestamp) ||
-      !read_u8(&cursor, end, &out->key_id) ||
-      !read_bytes(&cursor, end, out->signature, sizeof(out->signature)) ||
-      !read_u8(&cursor, end, &out->recovery) || cursor != end) {
+/* v2 args: name + display format only (NO value — decoded from calldata later).
+ * TOKEN_AMOUNT additionally carries its static decimals + symbol, pre-stored as
+ * the value prefix [decimals, symlen, symbol...] so decode_v2_args() only has
+ * to append the 32-byte amount word. v2 supports the fixed single-word ABI
+ * types ADDRESS / AMOUNT / TOKEN_AMOUNT; anything else is out of scope -> blind
+ * sign. */
+static bool parse_v2_args(const uint8_t **cursor, const uint8_t *end,
+                          SignedMetadata *out) {
+  for (uint8_t i = 0; i < out->num_args; i++) {
+    uint8_t format = 0;
+    MetadataArg *arg = &out->args[i];
+
+    if (!read_arg_name(cursor, end, arg->name, METADATA_MAX_ARG_NAME_LEN) ||
+        !read_u8(cursor, end, &format)) {
+      return false;
+    }
+    switch (format) {
+      case ARG_FORMAT_ADDRESS:
+      case ARG_FORMAT_AMOUNT:
+        arg->value_len = 0; /* filled from the tx calldata at decode time */
+        break;
+      case ARG_FORMAT_TOKEN_AMOUNT: {
+        uint8_t decimals = 0, symlen = 0;
+        if (!read_u8(cursor, end, &decimals) ||
+            !read_u8(cursor, end, &symlen) || decimals > 36 || symlen == 0 ||
+            symlen > METADATA_MAX_TOKEN_SYMBOL_LEN ||
+            (size_t)(end - *cursor) < symlen) {
+          return false;
+        }
+        arg->value[0] = decimals;
+        arg->value[1] = symlen;
+        for (uint8_t j = 0; j < symlen; j++) {
+          char c = (char)(*cursor)[j];
+          bool ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                    (c >= '0' && c <= '9');
+          if (!ok) {
+            return false;
+          }
+          arg->value[2 + j] = (uint8_t)c;
+        }
+        *cursor += symlen;
+        arg->value_len = (uint16_t)(2 + symlen);
+        break;
+      }
+      default:
+        return false;
+    }
+    arg->format = (ArgFormat)format;
+  }
+  return true;
+}
+
+static bool parse_metadata_binary(const uint8_t *payload, size_t payload_len,
+                                  SignedMetadata *out) {
+  const uint8_t *cursor = payload;
+  const uint8_t *end = payload + payload_len;
+  memset(out, 0, sizeof(*out));
+
+  if (!read_u8(&cursor, end, &out->version)) {
     return false;
   }
 
-  out->classification = (MetadataClassification)classification;
+  if (out->version == METADATA_VERSION_LEGACY) {
+    /* Min: version(1)+chain_id(4)+contract(20)+selector(4)+tx_hash(32)+
+     * method_len(2)+method(1)+num_args(1)+trailer(71) = 136 */
+    if (payload_len < 136 || !parse_common_head(&cursor, end, out) ||
+        !read_bytes(&cursor, end, out->tx_hash, sizeof(out->tx_hash)) ||
+        !read_string(&cursor, end, out->method_name, METADATA_MAX_METHOD_LEN) ||
+        !read_u8(&cursor, end, &out->num_args) ||
+        out->num_args > METADATA_MAX_ARGS ||
+        !parse_v1_args(&cursor, end, out)) {
+      return false;
+    }
+  } else if (out->version == METADATA_VERSION_SCHEMA) {
+    /* Min (0 args): version(1)+chain_id(4)+contract(20)+selector(4)+
+     * method_len(2)+method(1)+num_args(1)+trailer(71) = 104 (no tx_hash) */
+    if (payload_len < 104 || !parse_common_head(&cursor, end, out) ||
+        !read_string(&cursor, end, out->method_name, METADATA_MAX_METHOD_LEN) ||
+        !read_u8(&cursor, end, &out->num_args) ||
+        out->num_args > METADATA_MAX_ARGS ||
+        !parse_v2_args(&cursor, end, out)) {
+      return false;
+    }
+  } else {
+    return false;
+  }
+
+  return parse_trailer(&cursor, end, out);
+}
+
+/*
+ * v2 decode: fill each schema arg's value from the transaction calldata.
+ *
+ * All v2 args are fixed single 32-byte ABI head words, laid out sequentially
+ * from offset 4 (right after the selector). We require the ENTIRE calldata to
+ * be exactly selector + num_args words, wholly present in the initial chunk —
+ * so the device decodes, displays, AND signs the same bytes with nothing hidden
+ * in a later chunk or trailing the words. That structural completeness is what
+ * binds the displayed decode to the signature; v2 has no tx_hash.
+ */
+static bool decode_v2_args(SignedMetadata *md, const EthereumSignTx *msg) {
+  uint32_t expected = 4u + 32u * (uint32_t)md->num_args;
+  uint32_t initsz = msg->data_initial_chunk.size;
+  uint32_t total = msg->has_data_length ? msg->data_length : initsz;
+  if (total != expected || initsz != expected) {
+    return false;
+  }
+
+  for (uint8_t i = 0; i < md->num_args; i++) {
+    const uint8_t *word = msg->data_initial_chunk.bytes + 4 + 32u * i;
+    MetadataArg *arg = &md->args[i];
+
+    switch (arg->format) {
+      case ARG_FORMAT_ADDRESS:
+        /* ABI address is a left-zero-padded 20-byte value; reject dirty high
+         * bytes rather than silently truncate (they could hide meaning). */
+        for (int j = 0; j < 12; j++) {
+          if (word[j] != 0) {
+            return false;
+          }
+        }
+        memcpy(arg->value, word + 12, 20);
+        arg->value_len = 20;
+        break;
+      case ARG_FORMAT_AMOUNT:
+        memcpy(arg->value, word, 32);
+        arg->value_len = 32;
+        break;
+      case ARG_FORMAT_TOKEN_AMOUNT: {
+        /* value already holds [decimals, symlen, symbol]; append the amount. */
+        uint16_t prefix = arg->value_len;
+        if ((size_t)prefix + 32 > METADATA_MAX_ARG_VALUE_LEN) {
+          return false;
+        }
+        memcpy(arg->value + prefix, word, 32);
+        arg->value_len = (uint16_t)(prefix + 32);
+        break;
+      }
+      default:
+        return false;
+    }
+  }
   return true;
 }
 
@@ -389,11 +524,20 @@ bool signed_metadata_matches_tx(const EthereumSignTx *msg) {
     return false;
   }
 
-  /* This only gates what we DISPLAY (so a benign-looking method screen can't
-   * be shown for the wrong call). The metadata commits to the full tx hash;
-   * that is enforced against the real signed digest in
-   * signed_metadata_enforce() because the digest does not exist until
-   * send_signature() finalizes it. */
+  if (stored_metadata.version == METADATA_VERSION_SCHEMA) {
+    /* v2 has no committed values or tx_hash: decode the args straight from the
+     * calldata this tx will sign. Success here means the schema fully accounts
+     * for the calldata (decode_v2_args enforces exact length + presence), so
+     * the display is bound to the signature structurally — nothing is enforced
+     * later against a digest (there is no tx_hash). A decode failure falls
+     * through to the normal blind-sign path. */
+    return decode_v2_args(&stored_metadata, msg);
+  }
+
+  /* v1 only gates what we DISPLAY (so a benign-looking method screen can't be
+   * shown for the wrong call). The metadata commits to the full tx hash; that
+   * is enforced against the real signed digest in signed_metadata_enforce()
+   * because the digest does not exist until send_signature() finalizes it. */
   return true;
 }
 
@@ -570,7 +714,23 @@ bool signed_metadata_enforce_decision(bool relied, bool available,
          memcmp(stored_hash, hash, 32) == 0;
 }
 
+bool signed_metadata_enforce_schema_decision(bool relied, bool available,
+                                             int classification) {
+  /* v2 (static schema) has no committed tx_hash. Its binding is structural: the
+   * args were decoded from the exact calldata being signed, and that calldata
+   * cannot change between decode and sign within one signing operation. So if
+   * we relied on a verified v2 decode, signing may proceed; there is no digest
+   * to compare. If we did not rely on it, signing was never gated by metadata.
+   */
+  return !relied || (available && classification == METADATA_VERIFIED);
+}
+
 bool signed_metadata_enforce(const uint8_t hash[32]) {
+  if (metadata_available &&
+      stored_metadata.version == METADATA_VERSION_SCHEMA) {
+    return signed_metadata_enforce_schema_decision(
+        relied_on_metadata, metadata_available, stored_metadata.classification);
+  }
   return signed_metadata_enforce_decision(
       relied_on_metadata, metadata_available, stored_metadata.classification,
       stored_metadata.tx_hash, hash);
