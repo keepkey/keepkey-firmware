@@ -165,6 +165,16 @@ TEST(Mayachain, MemoWithdraw) {
 }
 
 // Garbage / oversized memos fall back to raw-memo confirmation
+// BTC OP_RETURN passes RAW memo bytes with no NUL and size = byte count.
+// Every byte must survive the copy — the historical off-by-one dropped
+// the last char (1-char affiliate vanished: 3 screens instead of 4).
+TEST(Mayachain, MemoRawBytesNoNulKeepsLastChar) {
+  ASSERT_TRUE(kkconfirm_preload(4, 0));
+  const char raw[] = "=:ETH.ETH:0xdest:420:k";
+  EXPECT_TRUE(parseMayaMemo(raw, sizeof(raw) - 1)); /* no NUL counted */
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
 TEST(Mayachain, MemoGarbageAndOversized) {
   ASSERT_TRUE(kkconfirm_preload(0, 0));
   EXPECT_FALSE(parseMayaMemo("hello world"));
