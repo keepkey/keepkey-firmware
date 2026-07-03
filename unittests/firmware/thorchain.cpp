@@ -1,12 +1,101 @@
 extern "C" {
+#include "keepkey/board/messages.h"
+#include "keepkey/board/usb.h"
 #include "keepkey/firmware/coins.h"
+#include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/thorchain.h"
 #include "keepkey/firmware/tendermint.h"
 #include "trezor/crypto/secp256k1.h"
+
+// From keepkey_board.h, which we can't include here: its shutdown(void)
+// declaration clashes with sys/socket.h's shutdown(int, int).
+void kk_board_init(void);
 }
 
 #include "gtest/gtest.h"
 #include <cstring>
+
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+
+/*
+ * confirm() auto-accept driver for unit tests.
+ *
+ * In the emulator/unittest build (always DEBUG_LINK), confirm_helper()
+ * busy-polls the emulator's UDP "usb" port for tiny messages and returns
+ * once it has seen a ButtonAck plus a DebugLinkDecision. Each confirm
+ * screen therefore consumes exactly one ButtonAck + one DebugLinkDecision
+ * from the socket queue. Preloading exactly N accept pairs before invoking
+ * the code under test auto-accepts exactly N screens, and
+ * kkconfirm_drain() == 0 afterwards proves exactly N screens were shown
+ * (fewer screens leave packets queued; more screens would hang the test).
+ *
+ * These helpers have external linkage so mayachain.cpp can share the
+ * one-time board/usb initialization.
+ */
+
+static bool kkconfirm_sendTiny(uint16_t msgId, const uint8_t *payload,
+                               uint8_t len) {
+  static int fd = -1;
+  if (fd < 0) fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  if (fd < 0) return false;
+
+  uint8_t frame[64] = {0};
+  frame[0] = '?';
+  frame[1] = '#';
+  frame[2] = '#';
+  frame[3] = msgId >> 8;
+  frame[4] = msgId & 0xff;
+  frame[8] = len;  // bytes 5..7 are the high bits of the big-endian size
+  if (len) memcpy(&frame[9], payload, len);
+
+  struct sockaddr_in addr;
+  memset(&addr, 0, sizeof(addr));
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(11044);  // emulator main "usb" port
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  return sendto(fd, frame, sizeof(frame), 0, (struct sockaddr *)&addr,
+                sizeof(addr)) == (ssize_t)sizeof(frame);
+}
+
+// Queue nYes accepted screens followed by nNo rejected screens.
+bool kkconfirm_preload(int nYes, int nNo) {
+  static bool initialized = false;
+  if (!initialized) {
+    kk_board_init();  // canvas + runnable queues for confirm's draw path
+    fsm_init();       // registers the usb rx callback + message maps
+    usbInit("");      // binds the emulator UDP ports
+    initialized = true;
+  }
+
+  static const uint8_t yes[] = {0x08, 0x01};  // DebugLinkDecision.yes_no
+  static const uint8_t no[] = {0x08, 0x00};
+  for (int i = 0; i < nYes + nNo; i++) {
+    if (!kkconfirm_sendTiny(MessageType_MessageType_ButtonAck, NULL, 0))
+      return false;
+    const uint8_t *decision = (i < nYes) ? yes : no;
+    if (!kkconfirm_sendTiny(MessageType_MessageType_DebugLinkDecision,
+                            decision, 2))
+      return false;
+  }
+  return true;
+}
+
+// Consume and count any tiny messages left in the queue.
+int kkconfirm_drain(void) {
+  uint8_t buf[MSG_TINY_BFR_SZ];
+  int n = 0;
+  for (;;) {
+    // volatile: 0xFFFF (MSG_TINY_TYPE_ERROR) is outside the MessageType
+    // enum range, so an unguarded comparison is a tautology the compiler
+    // may fold away.
+    volatile uint16_t id = (uint16_t)check_for_tiny_msg(buf);
+    if (id == MSG_TINY_TYPE_ERROR) break;
+    n++;
+  }
+  return n;
+}
 
 // Vectors computed with the trezor-crypto library directly (see
 // unittests/firmware/thorchain.cpp notes). The test file was previously
@@ -185,4 +274,118 @@ TEST(Thorchain, ThorchainSignTxInvalidDenom) {
   EXPECT_FALSE(thorchain_signTxUpdateMsgSend(100000, kToAddr,
                                              "rune\",\"from_address\":\"evil"));
   thorchain_signAbort();
+}
+
+/* ===================================================================== *
+ *  thorchain_parseConfirmMemo — swap-memo clear-signing.
+ *  Screen counts are asserted exactly: kkconfirm_preload(N, 0) accepts N
+ *  screens and kkconfirm_drain() == 0 proves N screens were shown.
+ * ===================================================================== */
+
+static bool parseMemo(const char *memo, size_t size) {
+  return thorchain_parseConfirmMemo(memo, size);
+}
+static bool parseMemo(const char *memo) {
+  return parseMemo(memo, strlen(memo) + 1);
+}
+
+// Classic full-form swap memo: asset + dest + limit + affiliate + fee bps
+// = 4 screens (the 4th is the new affiliate fee screen)
+TEST(Thorchain, MemoSwapFullFormShowsAffiliate) {
+  ASSERT_TRUE(kkconfirm_preload(4, 0));
+  EXPECT_TRUE(
+      parseMemo("SWAP:ETH.USDT-0xdac17f958d2ee523a2206206994597c13d831ec7:"
+                "0x41e5560054824ea6b0732e656e3ad64e20e94e45:420:kk:75"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// Abbreviated asset with no '.' (no chain.asset pair) is not parseable
+// thorchain data: raw-memo fallback
+TEST(Thorchain, MemoSwapNoChainAssetPair) {
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  EXPECT_FALSE(parseMemo("=:e:0xdest:0/1/0:kk:75"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// Empty limit field must NOT shift the affiliate into the limit slot: it
+// must still take 4 screens (limit "none" + separate affiliate screen).
+// The old strtok tokenizer collapsed the empty field and displayed the
+// affiliate ("kk") as the limit in 3 screens.
+TEST(Thorchain, MemoSwapEmptyLimitDoesNotShift) {
+  ASSERT_TRUE(kkconfirm_preload(4, 0));
+  EXPECT_TRUE(parseMemo("=:ETH.ETH:0xdest::kk:75"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// No affiliate: exactly the 3 historical screens, no affiliate screen
+TEST(Thorchain, MemoSwapNoAffiliate) {
+  ASSERT_TRUE(kkconfirm_preload(3, 0));
+  EXPECT_TRUE(parseMemo("SWAP:ETH.ETH:0xdest:420"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// Affiliate present but fee absent: affiliate screen still shows (fee "0")
+TEST(Thorchain, MemoSwapAffiliateNoFee) {
+  ASSERT_TRUE(kkconfirm_preload(4, 0));
+  EXPECT_TRUE(parseMemo("SWAP:ETH.ETH:0xdest:420:kk"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// Missing dest and limit: still 3 screens ("self" / "none")
+TEST(Thorchain, MemoSwapMinimal) {
+  ASSERT_TRUE(kkconfirm_preload(3, 0));
+  EXPECT_TRUE(parseMemo("SWAP:ETH.ETH"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// Rejecting a screen aborts the whole confirmation
+TEST(Thorchain, MemoSwapRejectPropagates) {
+  ASSERT_TRUE(kkconfirm_preload(2, 1));
+  EXPECT_FALSE(parseMemo("SWAP:ETH.ETH:0xdest:420"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// ADD with a pool address: 2 screens (unchanged behavior)
+TEST(Thorchain, MemoAddWithPool) {
+  ASSERT_TRUE(kkconfirm_preload(2, 0));
+  EXPECT_TRUE(
+      parseMemo("ADD:BTC.BTC:thor18vhdczjut44gpsy804crfhnd5nq003nz0nf20v"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// ADD without a pool address: 1 screen (unchanged behavior)
+TEST(Thorchain, MemoAddWithoutPool) {
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  EXPECT_TRUE(parseMemo("+:BTC.BTC"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// WITHDRAW with basis points: 1 screen (unchanged behavior)
+TEST(Thorchain, MemoWithdraw) {
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  EXPECT_TRUE(parseMemo("WITHDRAW:BTC.BTC:5000"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// WITHDRAW without basis points is malformed (unchanged behavior)
+TEST(Thorchain, MemoWithdrawMissingBps) {
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  EXPECT_FALSE(parseMemo("wd:BTC.BTC"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// Garbage memos fall back to raw-memo confirmation
+TEST(Thorchain, MemoGarbage) {
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  EXPECT_FALSE(parseMemo("hello world"));
+  EXPECT_FALSE(parseMemo("NOTATHING:ETH.ETH:0xdest"));
+  EXPECT_FALSE(parseMemo(""));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// Oversized input (> 256) is rejected outright
+TEST(Thorchain, MemoOversized) {
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  EXPECT_FALSE(parseMemo("SWAP:ETH.ETH:0xdest:420", 257));
+  EXPECT_EQ(0, kkconfirm_drain());
 }
