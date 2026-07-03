@@ -46,9 +46,10 @@
  * TRON_TX_UNVERIFIED and only the blind-sign path may be offered.
  */
 typedef enum {
-  TRON_TX_UNVERIFIED = 0,   // not fully understood — blind-sign only
-  TRON_TX_TRANSFER,         // single TransferContract (native TRX send)
-  TRON_TX_TRC20_TRANSFER,   // single TriggerSmartContract: transfer(address,uint256)
+  TRON_TX_UNVERIFIED = 0,  // not fully understood — blind-sign only
+  TRON_TX_TRANSFER,        // single TransferContract (native TRX send)
+  TRON_TX_TRC20_TRANSFER,  // single TriggerSmartContract:
+                           // transfer(address,uint256)
 } TronTxType;
 
 typedef struct {
@@ -57,10 +58,10 @@ typedef struct {
   uint8_t to[TRON_RAW_ADDRESS_SIZE];        // TRX or token recipient
   uint8_t contract[TRON_RAW_ADDRESS_SIZE];  // TRC-20 token contract
   uint64_t amount;                          // SUN, TransferContract only
-  uint8_t trc20_amount[32];                 // big-endian uint256 token base units
+  uint8_t trc20_amount[32];  // big-endian uint256 token base units
   bool has_fee_limit;
-  uint64_t fee_limit;                       // SUN
-  const uint8_t* memo;                      // points into caller's raw_data
+  uint64_t fee_limit;   // SUN
+  const uint8_t* memo;  // points into caller's raw_data
   uint16_t memo_len;
 } TronParsedTx;
 
@@ -75,8 +76,8 @@ TronTxType tron_parseRawTx(const uint8_t* raw, size_t len, TronParsedTx* out);
 /**
  * Base58Check-encode a raw 21-byte TRON address for display.
  */
-bool tron_addressFromBytes(const uint8_t addr[TRON_RAW_ADDRESS_SIZE],
-                           char* out, size_t out_len);
+bool tron_addressFromBytes(const uint8_t addr[TRON_RAW_ADDRESS_SIZE], char* out,
+                           size_t out_len);
 
 /**
  * Format a TRC-20 uint256 amount (big-endian) as a decimal string of token

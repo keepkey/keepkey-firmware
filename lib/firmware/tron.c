@@ -82,8 +82,8 @@ void tron_formatAmount(char* buf, size_t len, uint64_t amount) {
   bn_format(&val, NULL, " TRX", TRON_DECIMALS, 0, false, buf, len);
 }
 
-bool tron_addressFromBytes(const uint8_t addr[TRON_RAW_ADDRESS_SIZE],
-                           char* out, size_t out_len) {
+bool tron_addressFromBytes(const uint8_t addr[TRON_RAW_ADDRESS_SIZE], char* out,
+                           size_t out_len) {
   return base58_encode_check(addr, TRON_RAW_ADDRESS_SIZE, HASHER_SHA2D, out,
                              out_len);
 }
@@ -174,8 +174,7 @@ static bool pb_read_bytes(const uint8_t* buf, size_t len, size_t* pos,
   return true;
 }
 
-static bool pb_skip(const uint8_t* buf, size_t len, size_t* pos,
-                    uint8_t wire) {
+static bool pb_skip(const uint8_t* buf, size_t len, size_t* pos, uint8_t wire) {
   uint64_t dummy;
   const uint8_t* bp;
   size_t bl;
@@ -201,7 +200,8 @@ static bool tron_isRawAddress(const uint8_t* p, size_t len) {
   return len == TRON_RAW_ADDRESS_SIZE && p[0] == TRON_ADDRESS_PREFIX;
 }
 
-/* Parse protocol.TransferContract { owner_address=1, to_address=2, amount=3 } */
+/* Parse protocol.TransferContract { owner_address=1, to_address=2, amount=3 }
+ */
 static bool tron_parseTransferContract(const uint8_t* buf, size_t len,
                                        TronParsedTx* out) {
   size_t pos = 0;
@@ -314,8 +314,7 @@ static TronTxType tron_parseContract(const uint8_t* buf, size_t len,
   while (pos < len) {
     uint32_t field;
     uint8_t wire;
-    if (!pb_read_key(buf, len, &pos, &field, &wire))
-      return TRON_TX_UNVERIFIED;
+    if (!pb_read_key(buf, len, &pos, &field, &wire)) return TRON_TX_UNVERIFIED;
     if (field == TRON_CONTRACT_TYPE && wire == 0) {
       if (!pb_read_varint(buf, len, &pos, &ctype) || has_type)
         return TRON_TX_UNVERIFIED;
@@ -336,8 +335,7 @@ static TronTxType tron_parseContract(const uint8_t* buf, size_t len,
               !pb_read_bytes(any, any_len, &apos, &type_url, &type_url_len))
             return TRON_TX_UNVERIFIED;
         } else if (afield == TRON_ANY_VALUE && awire == 2) {
-          if (value ||
-              !pb_read_bytes(any, any_len, &apos, &value, &value_len))
+          if (value || !pb_read_bytes(any, any_len, &apos, &value, &value_len))
             return TRON_TX_UNVERIFIED;
         } else {
           return TRON_TX_UNVERIFIED;
@@ -361,9 +359,8 @@ static TronTxType tron_parseContract(const uint8_t* buf, size_t len,
     return TRON_TX_UNVERIFIED;
   }
   size_t suffix_len = strlen(expect_suffix);
-  if (type_url_len < suffix_len ||
-      memcmp(type_url + type_url_len - suffix_len, expect_suffix,
-             suffix_len) != 0) {
+  if (type_url_len < suffix_len || memcmp(type_url + type_url_len - suffix_len,
+                                          expect_suffix, suffix_len) != 0) {
     return TRON_TX_UNVERIFIED;
   }
 
