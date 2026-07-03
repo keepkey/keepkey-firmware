@@ -135,8 +135,7 @@ void fsm_msgTronSignTx(TronSignTx* msg) {
     char owner_addr[TRON_ADDRESS_MAX_LEN];
     if (!tron_getAddress(node->public_key, derived_addr,
                          sizeof(derived_addr)) ||
-        !tron_addressFromBytes(parsed.owner, owner_addr,
-                               sizeof(owner_addr)) ||
+        !tron_addressFromBytes(parsed.owner, owner_addr, sizeof(owner_addr)) ||
         strcmp(derived_addr, owner_addr) != 0) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_Other,
@@ -177,8 +176,8 @@ void fsm_msgTronSignTx(TronSignTx* msg) {
     if (confirmed && parsed.has_fee_limit) {
       char fee_str[32];
       tron_formatAmount(fee_str, sizeof(fee_str), parsed.fee_limit);
-      confirmed = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                          "TRON", "Max network fee %s", fee_str);
+      confirmed = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "TRON",
+                          "Max network fee %s", fee_str);
     }
 
     if (confirmed && parsed.memo_len > 0) {
@@ -190,8 +189,8 @@ void fsm_msgTronSignTx(TronSignTx* msg) {
         }
       }
       if (printable && parsed.memo_len <= 114) {
-        confirmed = confirm(ButtonRequestType_ButtonRequest_ConfirmMemo,
-                            "Memo", "%.*s", (int)parsed.memo_len, parsed.memo);
+        confirmed = confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, "Memo",
+                            "%.*s", (int)parsed.memo_len, parsed.memo);
       } else {
         confirmed =
             confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, "Memo",
