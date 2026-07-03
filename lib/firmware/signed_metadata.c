@@ -380,6 +380,8 @@ static void bn_from_metadata_bytes(const uint8_t *value, size_t value_len,
 
 bool signed_metadata_available(void) { return metadata_available; }
 
+bool signed_metadata_schema_decoded(void) { return metadata_schema_decoded; }
+
 void signed_metadata_clear(void) {
   memzero(&stored_metadata, sizeof(stored_metadata));
   metadata_available = false;
@@ -509,6 +511,13 @@ MetadataClassification signed_metadata_process(const uint8_t *payload,
 }
 
 bool signed_metadata_matches_tx(const EthereumSignTx *msg) {
+  /* Reset the v2 decode proof up front: it must reflect ONLY the current call.
+   * Any early return below (unavailable, wrong contract/selector/chain) leaves
+   * it false, so a stale `true` from a prior successful match can never let
+   * signed_metadata_enforce() pass for a v2 blob that did not decode this tx.
+   */
+  metadata_schema_decoded = false;
+
   if (!metadata_available || !msg ||
       stored_metadata.classification != METADATA_VERIFIED ||
       msg->to.size != sizeof(stored_metadata.contract_address) ||

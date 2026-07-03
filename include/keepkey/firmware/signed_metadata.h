@@ -90,6 +90,13 @@ typedef struct {
 } SignedMetadata;
 
 bool signed_metadata_available(void);
+
+/* True when the stored v2 (schema) metadata was decoded from the current tx's
+ * calldata by the most recent signed_metadata_matches_tx() call. Reset at the
+ * top of every matches_tx() so it reflects only that call (never a stale prior
+ * match). The v2 enforce path requires it; exported for unit testing. */
+bool signed_metadata_schema_decoded(void);
+
 void signed_metadata_clear(void);
 
 /*

@@ -1127,6 +1127,29 @@ TEST_F(SignedMetadataTest, V2MatchesTxIsIdempotent) {
   EXPECT_EQ(memcmp(md->args[1].value + 6, AMOUNT32, 32), 0);
 }
 
+/* The v2 decode flag must reflect ONLY the latest matches_tx() call: a
+ * successful decode followed by a mismatching tx must leave it false, so a
+ * stale "decoded" proof can never survive into enforce. */
+TEST_F(SignedMetadataTest, V2SchemaDecodedFlagNotStaleAfterMismatch) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  EXPECT_FALSE(signed_metadata_schema_decoded());  // not decoded yet
+
+  EthereumSignTx ok;
+  std::vector<uint8_t> data = v2_transfer_calldata();
+  make_v2_msg(&ok, CONTRACT_A, data, /*has_len=*/true, (uint32_t)data.size());
+  ASSERT_TRUE(signed_metadata_matches_tx(&ok));
+  EXPECT_TRUE(signed_metadata_schema_decoded());  // decoded this tx
+
+  /* Now a tx that fails an EARLY binding (wrong contract) — before the decode
+   * branch. The flag must be cleared, not left over from the match above. */
+  EthereumSignTx bad;
+  make_v2_msg(&bad, CONTRACT_B, data, /*has_len=*/true, (uint32_t)data.size());
+  EXPECT_FALSE(signed_metadata_matches_tx(&bad));
+  EXPECT_FALSE(signed_metadata_schema_decoded());
+}
+
 /* ---- v2 enforce truth table (pure, no I/O) ------------------------------ */
 /* Signature: (relied, available, decoded, classification). */
 
