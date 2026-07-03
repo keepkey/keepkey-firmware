@@ -18,6 +18,11 @@
 static bool metadata_available = false;
 static bool relied_on_metadata = false;
 static bool metadata_signer_loaded = false;
+/* v2 only: set true once decode_v2_args() has decoded this metadata's args from
+ * the tx calldata. The v2 enforce path REQUIRES it — v2 has no committed
+ * tx_hash, so this is the explicit proof (not an implicit call-order
+ * assumption) that the displayed values came from the calldata being signed. */
+static bool metadata_schema_decoded = false;
 static SignedMetadata stored_metadata;
 
 /*
@@ -343,8 +348,11 @@ static bool decode_v2_args(SignedMetadata *md, const EthereumSignTx *msg) {
         arg->value_len = 32;
         break;
       case ARG_FORMAT_TOKEN_AMOUNT: {
-        /* value already holds [decimals, symlen, symbol]; append the amount. */
-        uint16_t prefix = arg->value_len;
+        /* value holds [decimals, symlen, symbol] from parse; append the amount.
+         * Derive the prefix from symlen (value[1]), NOT the current value_len,
+         * so a repeated decode of the same arg is idempotent (value_len already
+         * includes a previously-appended amount; value[1] does not change). */
+        uint16_t prefix = (uint16_t)(2 + arg->value[1]);
         if ((size_t)prefix + 32 > METADATA_MAX_ARG_VALUE_LEN) {
           return false;
         }
@@ -377,6 +385,7 @@ void signed_metadata_clear(void) {
   metadata_available = false;
   relied_on_metadata = false;
   metadata_signer_loaded = false;
+  metadata_schema_decoded = false;
 }
 
 void signed_metadata_clear_signers(void) {
@@ -530,8 +539,11 @@ bool signed_metadata_matches_tx(const EthereumSignTx *msg) {
      * for the calldata (decode_v2_args enforces exact length + presence), so
      * the display is bound to the signature structurally — nothing is enforced
      * later against a digest (there is no tx_hash). A decode failure falls
-     * through to the normal blind-sign path. */
-    return decode_v2_args(&stored_metadata, msg);
+     * through to the normal blind-sign path. Record the decode explicitly:
+     * signed_metadata_enforce() requires it for v2, so a signature can never be
+     * emitted for a v2 blob whose args were not decoded from this tx. */
+    metadata_schema_decoded = decode_v2_args(&stored_metadata, msg);
+    return metadata_schema_decoded;
   }
 
   /* v1 only gates what we DISPLAY (so a benign-looking method screen can't be
@@ -715,21 +727,25 @@ bool signed_metadata_enforce_decision(bool relied, bool available,
 }
 
 bool signed_metadata_enforce_schema_decision(bool relied, bool available,
-                                             int classification) {
+                                             bool decoded, int classification) {
   /* v2 (static schema) has no committed tx_hash. Its binding is structural: the
    * args were decoded from the exact calldata being signed, and that calldata
    * cannot change between decode and sign within one signing operation. So if
    * we relied on a verified v2 decode, signing may proceed; there is no digest
-   * to compare. If we did not rely on it, signing was never gated by metadata.
-   */
-  return !relied || (available && classification == METADATA_VERIFIED);
+   * to compare. `decoded` is the explicit proof that decode_v2_args() ran and
+   * succeeded for this signing operation — required rather than inferred from
+   * call order, since v2 has no digest fallback. If we did not rely on the
+   * metadata, signing was never gated by it. */
+  return !relied ||
+         (available && decoded && classification == METADATA_VERIFIED);
 }
 
 bool signed_metadata_enforce(const uint8_t hash[32]) {
   if (metadata_available &&
       stored_metadata.version == METADATA_VERSION_SCHEMA) {
     return signed_metadata_enforce_schema_decision(
-        relied_on_metadata, metadata_available, stored_metadata.classification);
+        relied_on_metadata, metadata_available, metadata_schema_decoded,
+        stored_metadata.classification);
   }
   return signed_metadata_enforce_decision(
       relied_on_metadata, metadata_available, stored_metadata.classification,

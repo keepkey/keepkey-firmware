@@ -1105,26 +1105,55 @@ TEST_F(SignedMetadataTest, V2ZeroArgsSelectorOnly) {
   EXPECT_EQ(signed_metadata_get()->num_args, 0);
 }
 
+/* matches_tx() must be idempotent: a second call decodes to the same values
+ * (regression for the TOKEN_AMOUNT prefix that used to grow on each call). */
+TEST_F(SignedMetadataTest, V2MatchesTxIsIdempotent) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  EthereumSignTx msg;
+  std::vector<uint8_t> data = v2_transfer_calldata();
+  make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/true, (uint32_t)data.size());
+
+  EXPECT_TRUE(signed_metadata_matches_tx(&msg));
+  const SignedMetadata *md = signed_metadata_get();
+  uint16_t len_addr = md->args[0].value_len, len_tok = md->args[1].value_len;
+
+  EXPECT_TRUE(signed_metadata_matches_tx(&msg));  // second call
+  EXPECT_EQ(md->args[0].value_len, len_addr);
+  EXPECT_EQ(md->args[1].value_len, len_tok);
+  EXPECT_EQ(md->args[1].value_len, 2 + 4 + 32);
+  EXPECT_EQ(memcmp(md->args[0].value, RECIPIENT, 20), 0);
+  EXPECT_EQ(memcmp(md->args[1].value + 6, AMOUNT32, 32), 0);
+}
+
 /* ---- v2 enforce truth table (pure, no I/O) ------------------------------ */
+/* Signature: (relied, available, decoded, classification). */
 
 TEST(SignedMetadataEnforceSchema, NotReliedAlwaysAllow) {
-  EXPECT_TRUE(signed_metadata_enforce_schema_decision(false, true,
+  EXPECT_TRUE(signed_metadata_enforce_schema_decision(false, true, true,
                                                       METADATA_VERIFIED));
-  EXPECT_TRUE(signed_metadata_enforce_schema_decision(false, false,
+  EXPECT_TRUE(signed_metadata_enforce_schema_decision(false, false, false,
                                                       METADATA_OPAQUE));
 }
 
-TEST(SignedMetadataEnforceSchema, ReliedVerifiedAllow) {
-  EXPECT_TRUE(signed_metadata_enforce_schema_decision(true, true,
+TEST(SignedMetadataEnforceSchema, ReliedVerifiedDecodedAllow) {
+  EXPECT_TRUE(signed_metadata_enforce_schema_decision(true, true, true,
                                                       METADATA_VERIFIED));
 }
 
-TEST(SignedMetadataEnforceSchema, ReliedButUnavailableOrUnverifiedFails) {
-  EXPECT_FALSE(signed_metadata_enforce_schema_decision(true, false,
+TEST(SignedMetadataEnforceSchema, ReliedButNotDecodedFails) {
+  /* The core hardening: relied + available + VERIFIED but decode never ran. */
+  EXPECT_FALSE(signed_metadata_enforce_schema_decision(true, true, false,
                                                        METADATA_VERIFIED));
-  EXPECT_FALSE(signed_metadata_enforce_schema_decision(true, true,
+}
+
+TEST(SignedMetadataEnforceSchema, ReliedButUnavailableOrUnverifiedFails) {
+  EXPECT_FALSE(signed_metadata_enforce_schema_decision(true, false, true,
+                                                       METADATA_VERIFIED));
+  EXPECT_FALSE(signed_metadata_enforce_schema_decision(true, true, true,
                                                        METADATA_OPAQUE));
-  EXPECT_FALSE(signed_metadata_enforce_schema_decision(true, true,
+  EXPECT_FALSE(signed_metadata_enforce_schema_decision(true, true, true,
                                                        METADATA_MALFORMED));
 }
 

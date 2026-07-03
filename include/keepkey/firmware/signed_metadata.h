@@ -159,10 +159,13 @@ bool signed_metadata_enforce_decision(bool relied, bool available,
 /* Pure enforcement decision for v2 (static schema) blobs, exported for unit
  * testing. v2 has no committed tx_hash; the binding is structural (args decoded
  * from the signed calldata), so signing proceeds when the relied-upon metadata
- * is available and VERIFIED — no digest comparison. signed_metadata_enforce()
- * dispatches here when the stored blob's version is METADATA_VERSION_SCHEMA. */
+ * is available, VERIFIED, and was actually decoded (`decoded`) — no digest
+ * comparison. `decoded` must be the recorded result of decode_v2_args() for
+ * this signing operation, not inferred from call order.
+ * signed_metadata_enforce() dispatches here when the stored blob's version is
+ * METADATA_VERSION_SCHEMA. */
 bool signed_metadata_enforce_schema_decision(bool relied, bool available,
-                                             int classification);
+                                             bool decoded, int classification);
 
 const SignedMetadata *signed_metadata_get(void);
 
