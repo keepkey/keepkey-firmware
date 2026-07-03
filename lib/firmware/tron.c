@@ -134,7 +134,17 @@ static bool pb_read_varint(const uint8_t* buf, size_t len, size_t* pos,
   for (unsigned shift = 0; shift < 64; shift += 7) {
     if (*pos >= len) return false;
     uint8_t b = buf[(*pos)++];
-    val |= (uint64_t)(b & 0x7f) << shift;
+    uint8_t payload = b & 0x7f;
+    if (shift == 63 && payload > 1) {
+      /* The 10th byte can only contribute bit 63 to a 64-bit value
+       * (63 + 7 > 64); any payload bit above bit 0 here claims more
+       * precision than 64 bits hold. The shift below would silently
+       * drop those bits rather than reject them, letting a malformed
+       * key/length/amount/fee varint parse as if it were well-formed
+       * — reject instead of truncating. */
+      return false;
+    }
+    val |= (uint64_t)payload << shift;
     if (!(b & 0x80)) {
       *out = val;
       return true;
