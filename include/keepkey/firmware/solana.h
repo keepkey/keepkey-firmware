@@ -156,6 +156,10 @@ typedef struct {
   uint8_t mint[SOL_PUBKEY_SIZE];
   bool has_mint;
   uint8_t extra_u8;
+  /* Instruction payload (memo body display). Points into the raw message
+   * buffer passed to solana_inspectTx — valid only while that buffer is. */
+  const uint8_t* data;
+  uint16_t data_len;
 } SolanaParsedInstruction;
 
 /* Parsed transaction header */
