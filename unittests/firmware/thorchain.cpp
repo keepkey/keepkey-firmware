@@ -14,6 +14,7 @@ void kk_board_init(void);
 
 #include "gtest/gtest.h"
 #include <cstring>
+#include <string>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -392,6 +393,22 @@ TEST(Thorchain, MemoRawBytesNoNulKeepsLastChar) {
   ASSERT_TRUE(kkconfirm_preload(4, 0));
   const char raw[] = "=:ETH.ETH:0xdest:420:k";
   EXPECT_TRUE(parseMemo(raw, sizeof(raw) - 1)); /* no NUL counted */
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// A raw memo that fills the internal buffer's entire documented capacity
+// (size == 256, the parser's own <=256 contract) must ALSO keep its last
+// byte — this is the boundary the copy-length clamp missed.
+TEST(Thorchain, MemoExactBufferCapacityKeepsLastChar) {
+  const std::string prefix = "=:ETH.ETH:0x";
+  const std::string suffix = ":420:k"; // 1-char affiliate as the last byte
+  std::string memo = prefix + std::string(256 - prefix.size() - suffix.size(),
+                                          'd') +
+                     suffix;
+  ASSERT_EQ(memo.size(), 256u);
+
+  ASSERT_TRUE(kkconfirm_preload(4, 0));
+  EXPECT_TRUE(parseMemo(memo.c_str(), memo.size())); /* no NUL counted */
   EXPECT_EQ(0, kkconfirm_drain());
 }
 

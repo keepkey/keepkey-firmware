@@ -246,23 +246,26 @@ bool thorchain_parseConfirmMemo(const char* swapStr, size_t size) {
   */
 
   char* fields[8] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
-  char memoBuf[256];
+  /* Memos are documented/accepted up to 256 bytes; memoBuf reserves one
+   * extra byte so a full 256-byte memo still leaves a guaranteed NUL
+   * terminator, instead of the copy silently dropping its last byte. */
+  enum { MEMO_MAX = 256 };
+  char memoBuf[MEMO_MAX + 1];
   size_t nfields, i;
   char *chain, *asset;
 
   // check if memo data is recognized
 
-  if (size > sizeof(memoBuf)) return false;
+  if (size > MEMO_MAX) return false;
   memzero(memoBuf, sizeof(memoBuf));
   /* size is a byte count, not necessarily including a NUL: the BTC
    * OP_RETURN caller passes raw memo bytes with no terminator. strlcpy
    * would copy only size-1 bytes and silently drop the memo's last
    * character (turning an affiliate fee of "75" bps into "7"). Copy the
-   * bytes exactly; the zeroed buffer provides termination. */
-  {
-    size_t copyLen = size < sizeof(memoBuf) ? size : sizeof(memoBuf) - 1;
-    memcpy(memoBuf, swapStr, copyLen);
-  }
+   * bytes exactly (size <= MEMO_MAX < sizeof(memoBuf), so this never
+   * overflows and always leaves at least one zeroed terminator byte);
+   * the zeroed buffer provides termination. */
+  memcpy(memoBuf, swapStr, size);
 
   // Split on ':', keeping empty fields
   nfields = 0;
