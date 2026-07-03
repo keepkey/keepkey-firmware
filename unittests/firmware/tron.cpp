@@ -42,6 +42,21 @@ void putStringField(std::vector<uint8_t>& out, uint32_t field,
                 std::vector<uint8_t>(str, str + strlen(str)));
 }
 
+/* A 10-byte varint whose final byte's payload has bits above bit 0 set.
+ * Bytes 1-9 are all-zero-payload continuations, so the "value" this would
+ * decode to (if truncation were allowed) is 2 << 63, silently dropped by
+ * a naive shift. A correct reader must reject this outright rather than
+ * accept some truncated value. */
+void putOverlongVarintValue(std::vector<uint8_t>& out) {
+  for (int i = 0; i < 9; i++) out.push_back(0x80);
+  out.push_back(0x02);
+}
+
+void putOverlongVarintField(std::vector<uint8_t>& out, uint32_t field) {
+  putKey(out, field, 0);
+  putOverlongVarintValue(out);
+}
+
 std::vector<uint8_t> tronAddr(uint8_t fill) {
   std::vector<uint8_t> a(21, fill);
   a[0] = 0x41;
@@ -368,6 +383,56 @@ TEST(Tron, RejectBadOwnerAddress) {
   auto raw = rawTx(contractMsg(1, TRANSFER_URL,
                                transferContractValue(owner, tronAddr(0x22), 1)),
                    nullptr, 0);
+
+  TronParsedTx parsed;
+  EXPECT_EQ(tron_parseRawTx(raw.data(), raw.size(), &parsed),
+            TRON_TX_UNVERIFIED);
+}
+
+TEST(Tron, RejectOverlongKeyVarint) {
+  /* The very first varint of raw_data is a field key. An overlong
+   * (overflowing) key varint must not be silently truncated into some
+   * other field number. */
+  std::vector<uint8_t> raw;
+  putOverlongVarintValue(raw);
+
+  TronParsedTx parsed;
+  EXPECT_EQ(tron_parseRawTx(raw.data(), raw.size(), &parsed),
+            TRON_TX_UNVERIFIED);
+}
+
+TEST(Tron, RejectOverlongLengthVarint) {
+  /* A valid key (field 11, length-delimited) followed by an overlong
+   * length varint — must not be truncated into some in-bounds length. */
+  std::vector<uint8_t> raw;
+  putKey(raw, 11, 2);
+  putOverlongVarintValue(raw);
+
+  TronParsedTx parsed;
+  EXPECT_EQ(tron_parseRawTx(raw.data(), raw.size(), &parsed),
+            TRON_TX_UNVERIFIED);
+}
+
+TEST(Tron, RejectOverlongAmountVarint) {
+  /* TransferContract.amount (field 3) encoded as an overlong varint. */
+  std::vector<uint8_t> value;
+  putBytesField(value, 1, tronAddr(0x11));
+  putBytesField(value, 2, tronAddr(0x22));
+  putOverlongVarintField(value, 3);
+  auto raw = rawTx(contractMsg(1, TRANSFER_URL, value), nullptr, 0);
+
+  TronParsedTx parsed;
+  EXPECT_EQ(tron_parseRawTx(raw.data(), raw.size(), &parsed),
+            TRON_TX_UNVERIFIED);
+}
+
+TEST(Tron, RejectOverlongFeeLimitVarint) {
+  /* Top-level fee_limit (field 18) encoded as an overlong varint. */
+  auto raw = rawTx(contractMsg(1, TRANSFER_URL,
+                               transferContractValue(tronAddr(0x11),
+                                                     tronAddr(0x22), 1)),
+                   nullptr, 0);
+  putOverlongVarintField(raw, 18);
 
   TronParsedTx parsed;
   EXPECT_EQ(tron_parseRawTx(raw.data(), raw.size(), &parsed),
