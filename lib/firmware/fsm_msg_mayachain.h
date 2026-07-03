@@ -144,10 +144,10 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
   // Default to "cacao" for backward compatibility; validate all non-default
   // denoms before any display so untrusted strings never reach the UI or
   // the signing JSON.
-  const char* coin_denom = (msg->has_send && msg->send.has_denom &&
-                            msg->send.denom[0])
-                               ? msg->send.denom
-                               : "cacao";
+  const char* coin_denom =
+      (msg->has_send && msg->send.has_denom && msg->send.denom[0])
+          ? msg->send.denom
+          : "cacao";
 
   if (msg->has_send) {
     if (!mayachain_isValidDenom(coin_denom)) {
@@ -187,9 +187,9 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
     }
 
   } else if (msg->has_deposit) {
-    // Long-form assets (e.g. ETH.USDT-0XDAC17F958D2EE523A2206206994597C13D831EC7)
-    // are ~50 chars; amount_str must fit amount + asset suffix or bn_format
-    // zeroes it out.
+    // Long-form assets (e.g.
+    // ETH.USDT-0XDAC17F958D2EE523A2206206994597C13D831EC7) are ~50 chars;
+    // amount_str must fit amount + asset suffix or bn_format zeroes it out.
     char amount_str[96];
     char asset_str[64];
     asset_str[0] = ' ';

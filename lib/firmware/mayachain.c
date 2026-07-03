@@ -309,8 +309,8 @@ bool mayachain_parseConfirmMemo(const char* swapStr, size_t size) {
         (nfields > 5 && fields[5][0] != '\0') ? fields[5] : "unspecified";
 
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Mayachain swap", "Confirm swap asset %s\n on chain %s",
-                 asset, chain)) {
+                 "Mayachain swap", "Confirm swap asset %s\n on chain %s", asset,
+                 chain)) {
       return false;
     }
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
@@ -336,8 +336,7 @@ bool mayachain_parseConfirmMemo(const char* swapStr, size_t size) {
   else if (strncmp(fields[0], "ADD", 3) == 0 || *fields[0] == 'a' ||
            *fields[0] == '+') {
     // add liquidity pool address (optional)
-    const char* pool =
-        (nfields > 2 && fields[2][0] != '\0') ? fields[2] : NULL;
+    const char* pool = (nfields > 2 && fields[2][0] != '\0') ? fields[2] : NULL;
 
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                  "Mayachain add liquidity",
