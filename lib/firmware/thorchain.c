@@ -254,8 +254,15 @@ bool thorchain_parseConfirmMemo(const char* swapStr, size_t size) {
 
   if (size > sizeof(memoBuf)) return false;
   memzero(memoBuf, sizeof(memoBuf));
-  strlcpy(memoBuf, swapStr, size);
-  memoBuf[255] = '\0';  // ensure null termination
+  /* size is a byte count, not necessarily including a NUL: the BTC
+   * OP_RETURN caller passes raw memo bytes with no terminator. strlcpy
+   * would copy only size-1 bytes and silently drop the memo's last
+   * character (turning an affiliate fee of "75" bps into "7"). Copy the
+   * bytes exactly; the zeroed buffer provides termination. */
+  {
+    size_t copyLen = size < sizeof(memoBuf) ? size : sizeof(memoBuf) - 1;
+    memcpy(memoBuf, swapStr, copyLen);
+  }
 
   // Split on ':', keeping empty fields
   nfields = 0;
@@ -295,7 +302,7 @@ bool thorchain_parseConfirmMemo(const char* swapStr, size_t size) {
     const char* affiliate =
         (nfields > 4 && fields[4][0] != '\0') ? fields[4] : NULL;
     const char* fee_bps =
-        (nfields > 5 && fields[5][0] != '\0') ? fields[5] : "0";
+        (nfields > 5 && fields[5][0] != '\0') ? fields[5] : "unspecified";
 
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                  "Thorchain swap", "Confirm swap asset %s\n on chain %s",

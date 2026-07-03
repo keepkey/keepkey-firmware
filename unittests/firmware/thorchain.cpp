@@ -383,6 +383,18 @@ TEST(Thorchain, MemoGarbage) {
   EXPECT_EQ(0, kkconfirm_drain());
 }
 
+// BTC OP_RETURN passes RAW memo bytes with no NUL and size = byte count
+// (transaction.c). Every byte must survive the copy: dropping the last
+// character turns affiliate "kk" into "k" — or a fee of 75 bps into 7.
+// This memo's affiliate is 1 char, so the historical off-by-one would
+// lose it entirely and show only 3 screens instead of 4.
+TEST(Thorchain, MemoRawBytesNoNulKeepsLastChar) {
+  ASSERT_TRUE(kkconfirm_preload(4, 0));
+  const char raw[] = "=:ETH.ETH:0xdest:420:k";
+  EXPECT_TRUE(parseMemo(raw, sizeof(raw) - 1)); /* no NUL counted */
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
 // Oversized input (> 256) is rejected outright
 TEST(Thorchain, MemoOversized) {
   ASSERT_TRUE(kkconfirm_preload(0, 0));
