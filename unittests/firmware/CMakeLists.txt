@@ -10,6 +10,7 @@ set(sources
     storage.cpp
     thorchain.cpp
     usb_rx.cpp
+    mayachain.cpp
     tron.cpp
     u2f.cpp
     zcash.cpp)

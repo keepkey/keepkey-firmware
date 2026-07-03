@@ -196,8 +196,11 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
     }
 
   } else if (msg->has_deposit) {
-    char amount_str[32];
-    char asset_str[21];
+    // Long-form assets (e.g. ETH.USDT-0XDAC17F958D2EE523A2206206994597C13D831EC7)
+    // are ~50 chars; amount_str must fit amount + asset suffix or bn_format
+    // zeroes it out.
+    char amount_str[96];
+    char asset_str[64];
     asset_str[0] = ' ';
     strlcpy(&(asset_str[1]), msg->deposit.asset, sizeof(asset_str) - 1);
     bn_format_uint64(msg->deposit.amount, NULL, asset_str, 8, 0, false,
