@@ -122,10 +122,17 @@ static void copy_account(uint8_t out[SOL_PUBKEY_SIZE], const SolanaParsedTx* tx,
   }
 }
 
+/* allow_external_indices: versioned (v0) messages may reference accounts
+ * loaded from address lookup tables — indices at or beyond the static
+ * account list. Those accounts are not present in the message, so an
+ * instruction touching them cannot be verified on-device: it is left
+ * SOL_INSTR_UNKNOWN and the whole tx is forced opaque instead of being
+ * rejected as malformed. Legacy messages must never contain such indices. */
 static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
                                      size_t* pos_io, SolanaParsedTx* tx,
                                      uint16_t num_accounts, bool* has_unknown,
-                                     bool* force_opaque) {
+                                     bool* force_opaque,
+                                     bool allow_external_indices) {
   size_t pos = *pos_io;
   uint16_t num_instructions;
   int n = read_compact_u16(raw + pos, raw_len - pos, &num_instructions);
@@ -133,11 +140,10 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
   pos += n;
 
   if (num_instructions > SOL_MAX_INSTRUCTIONS) {
+    /* Too many to display — opaque. Keep walking the section so the
+     * structural checks (and any trailing sections) stay meaningful. */
     *force_opaque = true;
     tx->num_instructions = 0;
-    /* Don't attempt to parse instruction data — treat as opaque. */
-    *pos_io = raw_len;
-    return 0;
   } else {
     tx->num_instructions = (uint8_t)num_instructions;
   }
@@ -145,7 +151,11 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
   for (uint16_t i = 0; i < num_instructions; i++) {
     if (pos >= raw_len) return -1;
     uint8_t program_idx = raw[pos++];
-    if (program_idx >= num_accounts) return -1;
+    bool external = false;
+    if (program_idx >= num_accounts) {
+      if (!allow_external_indices) return -1;
+      external = true;
+    }
 
     uint16_t num_acct_indices;
     n = read_compact_u16(raw + pos, raw_len - pos, &num_acct_indices);
@@ -157,7 +167,10 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
     pos += num_acct_indices;
 
     for (uint16_t j = 0; j < num_acct_indices; j++) {
-      if (acct_indices[j] >= num_accounts) return -1;
+      if (acct_indices[j] >= num_accounts) {
+        if (!allow_external_indices) return -1;
+        external = true;
+      }
     }
 
     uint16_t data_len;
@@ -169,11 +182,19 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
     const uint8_t* instr_data = raw + pos;
     pos += data_len;
 
-    if (i >= SOL_MAX_INSTRUCTIONS) {
+    if (i >= SOL_MAX_INSTRUCTIONS || tx->num_instructions == 0) {
       continue;
     }
 
     SolanaParsedInstruction* pi = &tx->instructions[i];
+
+    if (external) {
+      /* Accounts resolved via lookup tables: unverifiable on-device. */
+      pi->type = SOL_INSTR_UNKNOWN;
+      *force_opaque = true;
+      continue;
+    }
+
     memcpy(pi->program_id, tx->accounts[program_idx], SOL_PUBKEY_SIZE);
 
     /* Classify and decode */
@@ -438,6 +459,8 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
       }
     } else if (memcmp(pi->program_id, SOL_MEMO_PROGRAM, SOL_PUBKEY_SIZE) == 0) {
       pi->type = SOL_INSTR_MEMO;
+      pi->data = instr_data;
+      pi->data_len = data_len;
     } else {
       pi->type = SOL_INSTR_UNKNOWN;
       *has_unknown = true;
@@ -487,7 +510,8 @@ static SolanaTxReview solana_parseLegacyTx(const uint8_t* raw, size_t raw_len,
   pos += SOL_PUBKEY_SIZE;
 
   n = parse_instruction_section(raw, raw_len, &pos, tx, num_accounts,
-                                &has_unknown, &force_opaque);
+                                &has_unknown, &force_opaque,
+                                /*allow_external_indices=*/false);
   if (n < 0) return SOL_TX_REVIEW_MALFORMED;
 
   /* Reject if there are unconsumed bytes — prevents hidden trailing data */
@@ -505,7 +529,7 @@ static SolanaTxReview solana_parseVersionedTx(const uint8_t* raw,
   memset(tx, 0, sizeof(*tx));
   size_t pos = 0;
   bool has_unknown = false;
-  bool force_opaque = true;
+  bool force_opaque = false;
 
   if (raw_len < 1) return SOL_TX_REVIEW_MALFORMED;
   uint8_t version_prefix = raw[pos++];
@@ -536,7 +560,8 @@ static SolanaTxReview solana_parseVersionedTx(const uint8_t* raw,
   pos += SOL_PUBKEY_SIZE;
 
   n = parse_instruction_section(raw, raw_len, &pos, tx, num_accounts,
-                                &has_unknown, &force_opaque);
+                                &has_unknown, &force_opaque,
+                                /*allow_external_indices=*/true);
   if (n < 0) return SOL_TX_REVIEW_MALFORMED;
 
   uint16_t lookup_table_count;
@@ -563,7 +588,15 @@ static SolanaTxReview solana_parseVersionedTx(const uint8_t* raw,
   }
 
   if (pos != raw_len) return SOL_TX_REVIEW_MALFORMED;
-  return SOL_TX_REVIEW_OPAQUE;
+
+  /* A v0 message whose instructions only touch static accounts is exactly
+   * as verifiable as a legacy message. Lookup-table sections are allowed
+   * to exist; any instruction actually reaching into them forced opaque
+   * above (external indices). */
+  if (tx->num_instructions == 0 || has_unknown || force_opaque) {
+    return SOL_TX_REVIEW_OPAQUE;
+  }
+  return SOL_TX_REVIEW_VERIFIED;
 }
 
 SolanaTxReview solana_inspectTx(const uint8_t* raw, size_t raw_len,

@@ -105,7 +105,7 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
       solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
 
       const SolanaTokenInfo* ti = NULL;
-      if (pi->has_mint) {
+      if (pi->has_mint && msg) {
         ti = solana_findTokenInfo(msg, pi->mint);
       }
 
@@ -131,7 +131,7 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
       /* For TransferChecked, decimals come from the signed instruction
        * bytes (pi->extra_u8) — host-supplied ti->decimals is untrusted. */
       const SolanaTokenInfo* ti = NULL;
-      if (pi->has_mint) {
+      if (pi->has_mint && msg) {
         ti = solana_findTokenInfo(msg, pi->mint);
       }
 
@@ -178,9 +178,14 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
                      "Burn %llu tokens?", (unsigned long long)pi->amount);
 
-    case SOL_INSTR_TOKEN_CLOSE_ACCOUNT:
+    case SOL_INSTR_TOKEN_CLOSE_ACCOUNT: {
+      /* Closing a (wrapped-SOL) token account sweeps its lamports to the
+       * destination — show it, or an attacker routes the rent elsewhere. */
+      char to_str[45];
+      solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Close token account?");
+                     "Close token account, send balance to %s?", to_str);
+    }
 
     case SOL_INSTR_TOKEN_FREEZE_ACCOUNT:
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
@@ -277,9 +282,23 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
                      "Set loaded account data to %llu bytes?",
                      (unsigned long long)pi->extra_value);
 
-    case SOL_INSTR_MEMO:
-      return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Memo attached");
+    case SOL_INSTR_MEMO: {
+      /* Show the memo body — swap intents (e.g. THORChain '=:ETH.ETH:...')
+       * ride in the memo, so hiding it hides where the funds go next. */
+      bool printable = pi->data_len > 0;
+      for (uint16_t i = 0; i < pi->data_len; i++) {
+        if (pi->data[i] < 0x20 || pi->data[i] > 0x7e) {
+          printable = false;
+          break;
+        }
+      }
+      if (printable && pi->data_len <= 114) {
+        return confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, title,
+                       "Memo: %.*s", (int)pi->data_len, pi->data);
+      }
+      return confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, title,
+                     "Memo attached (%u bytes)", (unsigned)pi->data_len);
+    }
 
     case SOL_INSTR_UNKNOWN:
     default: {
@@ -483,13 +502,28 @@ void fsm_msgSolanaSignMessage(const SolanaSignMessage* msg) {
     return;
   }
 
-  /* AdvancedMode gate: Solana message signing has no domain separation.
-   * A signed message is indistinguishable from a signed transaction on
-   * the Solana network (both are raw Ed25519 over arbitrary bytes).
-   * A malicious dApp could craft a message that is also a valid tx.
+  /* Solana "message" signing has no domain separation: the signed bytes
+   * are indistinguishable from a transaction message on the network.
+   * If the payload actually parses as a fully-verifiable Solana
+   * transaction, treat it as one — clear-sign it per instruction instead
+   * of blind-signing a hex blob. Wallet integrations sign versioned (v0)
+   * swap transactions through this message, so this is the path that
+   * turns swap blind-signing into clear-signing. */
+  /* Note: solana_inspectTx tolerates a 0x00 signature-count prefix, but
+   * here the signature covers the exact message bytes — only a payload
+   * that IS a tx message from byte 0 may be displayed as one. */
+  SolanaParsedTx parsed;
+  bool is_verified_tx =
+      msg->message.bytes[0] != 0 &&
+      solana_inspectTx(msg->message.bytes, msg->message.size, &parsed) ==
+          SOL_TX_REVIEW_VERIFIED;
+
+  /* AdvancedMode gate for anything we cannot verify: a malicious dApp
+   * could craft a "message" that is also a valid tx.
    * See: https://github.com/trezor/trezor-firmware/issues/4371
-   * Require AdvancedMode to proceed — same gate as ETH blind-signing. */
-  if (!storage_isPolicyEnabled("AdvancedMode")) {
+   * Same gate as ETH blind-signing. Fully verified transactions are
+   * clear-signed below and need no gate — the user sees the contents. */
+  if (!is_verified_tx && !storage_isPolicyEnabled("AdvancedMode")) {
     (void)review(ButtonRequestType_ButtonRequest_Other, "Blocked",
                  "Solana message signing is experimental. "
                  "Enable AdvancedMode in device settings.");
@@ -514,6 +548,34 @@ void fsm_msgSolanaSignMessage(const SolanaSignMessage* msg) {
   if (!node) return;
   hdnode_fill_public_key(node);
 
+  if (is_verified_tx) {
+    /* Clear-sign path: same rules as SolanaSignTx. */
+    if (!solana_signerInTx(node->public_key + 1, &parsed)) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_Other,
+                      _("Derived key is not a signer for this tx"));
+      layoutHome();
+      return;
+    }
+    for (uint8_t i = 0; i < parsed.num_instructions; i++) {
+      if (!solana_confirmInstruction(&parsed.instructions[i], NULL, i,
+                                     parsed.num_instructions)) {
+        memzero(node, sizeof(*node));
+        fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                        _("Signing cancelled"));
+        layoutHome();
+        return;
+      }
+    }
+    if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Solana",
+                 "Sign this Solana transaction?")) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Signing cancelled"));
+      layoutHome();
+      return;
+    }
+  } else /* blind message path */
   /* Always require on-device confirmation (matches Ethereum behavior).
    * Display message content if printable, hex preview otherwise. */
   {
