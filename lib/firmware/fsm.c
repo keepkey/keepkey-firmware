@@ -299,9 +299,5 @@ void fsm_msgClearSession(ClearSession* msg) {
 #include "fsm_msg_tron.h"
 #include "fsm_msg_ton.h"
 #include "fsm_msg_solana.h"
-<<<<<<< HEAD
 #include "fsm_msg_hive.h"
-=======
-#include "fsm_msg_bip85.h"
 #include "fsm_msg_zcash.h"
->>>>>>> 441d1216 (feat(zcash): Orchard shielded support — PCZT signing, FVK export, unified addresses (stage → develop))
