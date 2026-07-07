@@ -1,20 +1,33 @@
 set(sources
-    coins.cpp
-    cosmos.cpp
-    eos.cpp
-    ethereum.cpp
-    nano.cpp
     recovery.cpp
-    ripple.cpp
-    signed_metadata.cpp
     storage.cpp
-    thorchain.cpp
     usb_rx.cpp
-    mayachain.cpp
-    solana.cpp
-    tron.cpp
-    u2f.cpp
-    zcash.cpp)
+    u2f.cpp)
+
+# Coin/token unit tests exercise handlers/helpers that are compiled out of the
+# bitcoin-only firmware (ethereum_address_checksum, tokenByTicker, ...), so they
+# only build against a full-feature firmware. coins.cpp asserts the multi-chain
+# coin+token table.
+if(NOT ${KK_BITCOIN_ONLY})
+  list(APPEND sources
+      coins.cpp
+      cosmos.cpp
+      eos.cpp
+      ethereum.cpp
+      mayachain.cpp
+      nano.cpp
+      ripple.cpp
+      signed_metadata.cpp
+      solana.cpp
+      thorchain.cpp
+      tron.cpp)
+endif()
+
+# zcash.cpp exercises the Orchard engine (lib/firmware/zcash.c), which is only
+# compiled into kkfirmware when the privacy flag is on.
+if(${KK_ZCASH_PRIVACY})
+  list(APPEND sources zcash.cpp)
+endif()
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/include

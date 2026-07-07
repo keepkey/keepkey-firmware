@@ -9,15 +9,16 @@
 #   └─ check-submodules   verify all deps present
 #
 # Stage 2: BUILD (parallel, gated by Stage 1)
-#   ├─ build-emulator     Docker image → artifact
-#   └─ build-arm-firmware cross-compile → .bin/.elf (downloadable)
+#   ├─ build-emulator     Docker image → artifact  [matrix: full / bitcoin-only / zcash-privacy]
+#   └─ build-arm-firmware cross-compile → .bin/.elf (downloadable)  [same matrix]
 #
 # Stage 3: TEST (parallel, gated by Stage 2)
-#   ├─ unit-tests              GoogleTest (make xunit)
-#   └─ python-integration      full test suite
+#   ├─ unit-tests              GoogleTest (make xunit)  [same matrix — proves each
+#   │                          variant's coin/token gating actually compiles+passes]
+#   └─ python-integration      full test suite (full/default variant only)
 #
 # Stage 4: PUBLISH (manual trigger, all tests must pass)
-#   └─ publish-emulator   DockerHub push (workflow_dispatch only)
+#   └─ publish-emulator   DockerHub push, full/default variant only (workflow_dispatch only)
 
 name: CI
 
@@ -212,9 +213,23 @@ jobs:
   # ═══════════════════════════════════════════════════════════
 
   build-emulator:
+    name: build-emulator${{ matrix.label }}
     needs: [lint-format, static-analysis, check-submodules, secret-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: full
+            label: ""
+            cmake_flags: ""
+          - variant: bitcoin-only
+            label: " (bitcoin-only)"
+            cmake_flags: "-DKK_BITCOIN_ONLY=ON"
+          - variant: zcash-privacy
+            label: " (zcash-privacy)"
+            cmake_flags: "-DKK_ZCASH_PRIVACY=ON"
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -250,27 +265,42 @@ jobs:
         if: steps.cache-base.outputs.cache-hit == 'true'
         run: docker load -i /tmp/base-image.tar
 
-      - name: Build emulator image
+      - name: Build emulator image (${{ matrix.variant }})
         run: |
           docker build \
-            -t ${{ env.EMU_IMAGE }} \
+            -t ${{ env.EMU_IMAGE }}-${{ matrix.variant }} \
+            --build-arg coinsupport="${{ matrix.cmake_flags }}" \
             -f scripts/emulator/Dockerfile \
             .
 
       - name: Save emulator image
-        run: docker save ${{ env.EMU_IMAGE }} -o /tmp/emu-image.tar
+        run: docker save ${{ env.EMU_IMAGE }}-${{ matrix.variant }} -o /tmp/emu-image.tar
 
       - name: Upload emulator image artifact
         uses: actions/upload-artifact@v7
         with:
-          name: emu-image
+          name: emu-image-${{ matrix.variant }}
           path: /tmp/emu-image.tar
           retention-days: 1
 
   build-arm-firmware:
+    name: build-arm-firmware${{ matrix.label }}
     needs: [lint-format, static-analysis, check-submodules, secret-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: full
+            label: ""
+            cmake_flags: ""
+          - variant: bitcoin-only
+            label: " (bitcoin-only)"
+            cmake_flags: "-DKK_BITCOIN_ONLY=ON"
+          - variant: zcash-privacy
+            label: " (zcash-privacy)"
+            cmake_flags: "-DKK_ZCASH_PRIVACY=ON"
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -312,7 +342,7 @@ jobs:
           echo "git_short=${GIT_SHORT}" >> "$GITHUB_OUTPUT"
           echo "Firmware version: ${FW_VERSION} (${GIT_SHORT})"
 
-      - name: Cross-compile firmware for ARM
+      - name: Cross-compile firmware for ARM (${{ matrix.variant }})
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/root/keepkey-firmware:z \
@@ -320,7 +350,8 @@ jobs:
               mkdir /root/build && cd /root/build && \
               cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
                 -DCMAKE_BUILD_TYPE=MinSizeRel \
-                -DCMAKE_COLOR_MAKEFILE=ON && \
+                -DCMAKE_COLOR_MAKEFILE=ON \
+                ${{ matrix.cmake_flags }} && \
               make && \
               mkdir -p /root/keepkey-firmware/bin && \
               cp bin/*.bin /root/keepkey-firmware/bin/ && \
@@ -332,19 +363,19 @@ jobs:
           cd bin
           for f in *.bin; do
             [ -f "$f" ] || continue
-            mv "$f" "firmware.keepkey.v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${f}"
+            mv "$f" "firmware.keepkey.v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${{ matrix.variant }}-${f}"
           done
           for f in *.elf; do
             [ -f "$f" ] || continue
-            mv "$f" "firmware.keepkey.v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${f}"
+            mv "$f" "firmware.keepkey.v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${{ matrix.variant }}-${f}"
           done
           ls -lh
-          echo "::notice::Firmware v${{ steps.version.outputs.fw_version }} built successfully"
+          echo "::notice::Firmware v${{ steps.version.outputs.fw_version }} (${{ matrix.variant }}) built successfully"
 
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: firmware-v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}
+          name: firmware-v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${{ matrix.variant }}
           path: |
             bin/*.bin
             bin/*.elf
@@ -355,27 +386,41 @@ jobs:
   # ═══════════════════════════════════════════════════════════
 
   unit-tests:
+    name: unit-tests${{ matrix.label }}
     needs: build-emulator
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: full
+            label: ""
+            cmake_flags: ""
+          - variant: bitcoin-only
+            label: " (bitcoin-only)"
+            cmake_flags: "-DKK_BITCOIN_ONLY=ON"
+          - variant: zcash-privacy
+            label: " (zcash-privacy)"
+            cmake_flags: "-DKK_ZCASH_PRIVACY=ON"
     steps:
       - name: Download emulator image
         uses: actions/download-artifact@v8
         with:
-          name: emu-image
+          name: emu-image-${{ matrix.variant }}
           path: /tmp
 
       - name: Load emulator image
         run: docker load -i /tmp/emu-image.tar
 
-      - name: Run unit tests
+      - name: Run unit tests (${{ matrix.variant }})
         run: |
           # make xunit returns non-zero if any test fails — capture
           # exit code so JUnit XML still gets copied for reporting
           docker run --rm \
             -v ${{ github.workspace }}/test-reports:/kkemu/test-reports \
             --entrypoint /bin/sh \
-            ${{ env.EMU_IMAGE }} \
+            ${{ env.EMU_IMAGE }}-${{ matrix.variant }} \
             -c "mkdir -p /kkemu/test-reports/firmware-unit && \
                 make xunit; RC=\$?; \
                 cp -r unittests/*.xml /kkemu/test-reports/firmware-unit/ 2>/dev/null; \
@@ -385,7 +430,7 @@ jobs:
         uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: unit-test-results
+          name: unit-test-results-${{ matrix.variant }}
           path: test-reports/firmware-unit/
           retention-days: 30
 
@@ -684,7 +729,10 @@ jobs:
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
-          name: unit-test-results
+          # Report covers the full/default variant only — bitcoin-only and
+          # zcash-privacy are built and unit-tested in their own matrix legs
+          # but don't get a PDF (see unit-tests / build-arm-firmware).
+          name: unit-test-results-full
           path: test-reports/firmware-unit/
 
       - name: Download python test results
@@ -744,7 +792,8 @@ jobs:
       - name: Download emulator image
         uses: actions/download-artifact@v8
         with:
-          name: emu-image
+          # Only the full/default variant is published to DockerHub.
+          name: emu-image-full
           path: /tmp
 
       - name: Load emulator image
@@ -759,8 +808,8 @@ jobs:
 
       - name: Tag images for publish
         run: |
-          docker tag ${{ env.EMU_IMAGE }} kktech/kkemu:latest
-          docker tag ${{ env.EMU_IMAGE }} kktech/kkemu:v${{ steps.version.outputs.fw_version }}
+          docker tag ${{ env.EMU_IMAGE }}-full kktech/kkemu:latest
+          docker tag ${{ env.EMU_IMAGE }}-full kktech/kkemu:v${{ steps.version.outputs.fw_version }}
 
       - name: Login to DockerHub
         uses: docker/login-action@v4

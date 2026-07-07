@@ -23,15 +23,18 @@ target_link_libraries(crypto-unit
     trezorcrypto
     kktransport)
 
-add_executable(zcash-crypto-unit
-    ../firmware/zcash.cpp
-    ${CMAKE_SOURCE_DIR}/lib/firmware/zcash.c)
-target_include_directories(zcash-crypto-unit PRIVATE
-    ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/lib/firmware
-    ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-firmware/crypto
-    ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-firmware/crypto/ed25519-donna)
-target_link_libraries(zcash-crypto-unit
-    gtest_main
-    trezorcrypto
-    kkrand)
+# Orchard/Pallas engine + its unit test only exist when privacy is built in.
+if(${KK_ZCASH_PRIVACY})
+  add_executable(zcash-crypto-unit
+      ../firmware/zcash.cpp
+      ${CMAKE_SOURCE_DIR}/lib/firmware/zcash.c)
+  target_include_directories(zcash-crypto-unit PRIVATE
+      ${CMAKE_SOURCE_DIR}/include
+      ${CMAKE_SOURCE_DIR}/lib/firmware
+      ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-firmware/crypto
+      ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-firmware/crypto/ed25519-donna)
+  target_link_libraries(zcash-crypto-unit
+      gtest_main
+      trezorcrypto
+      kkrand)
+endif()
