@@ -597,6 +597,7 @@ void layout_nano_address_notification(const char* desc, const char* address,
   layout_notification_icon(type, &sp);
 }
 
+#if ZCASH_PRIVACY
 /*
  * layout_zcash_address_notification() - Display zcash unified address QR
  * with title; the second confirm step in the view-on-device flow.
@@ -669,6 +670,7 @@ void layout_zcash_address_text_notification(const char* desc,
 
   layout_notification_icon(type, &sp);
 }
+#endif  // ZCASH_PRIVACY
 
 /*
  * layout_address_notification() - Display address notification

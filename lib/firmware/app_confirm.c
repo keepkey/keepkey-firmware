@@ -332,6 +332,7 @@ bool confirm_nano_address(const char* desc, const char* address) {
  *     true/false of confirmation
  *
  */
+#if ZCASH_PRIVACY
 bool confirm_zcash_address(const char* desc, const char* address) {
   if (!confirm_with_custom_layout(&layout_zcash_address_text_notification,
                                   ButtonRequestType_ButtonRequest_Address, desc,
@@ -343,6 +344,7 @@ bool confirm_zcash_address(const char* desc, const char* address) {
                                     ButtonRequestType_ButtonRequest_Address,
                                     desc, "%s", address);
 }
+#endif
 
 /*
  * confirm_address() - Show address confirmation
