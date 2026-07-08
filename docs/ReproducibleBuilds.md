@@ -45,8 +45,7 @@ Consequently, for any correctly reproduced build:
 - `sha256(built file)` **never** equals `sha256(signed release file)` — the
   header bytes differ by construction;
 - `sha256` of everything **after** byte 256 is identical on both sides — this
-  payload hash is the reproducibility check, and it is also what the device
-  itself can attest to.
+  payload hash is the reproducibility check.
 
 ## Manual verification
 
@@ -75,6 +74,10 @@ the expected values.
   (`lib/firmware/scm_revision.h.in`); a device reports it in
   `Features.revision`, so you can confirm which commit produced the binary a
   device is actually running.
-- The device also reports `Features.firmware_hash`, computed on-device over
-  the installed image, which host software can compare against published
-  release hashes.
+- The device also reports `Features.firmware_hash`
+  (`memory_firmware_hash()` in `lib/board/memory.c`), a sha256 over the
+  **installed header (including the filled-in signatures) plus payload** —
+  i.e. the full signed file, not the payload alone. It matches the
+  "full signed file" line in `HASHES.txt`, **not** the payload line above.
+  Host software comparing `Features.firmware_hash` against a release must use
+  that full-file hash.

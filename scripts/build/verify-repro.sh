@@ -31,12 +31,22 @@ fi
 shift
 
 LOCAL_BIN=""
-if [ "${1:-}" = "--local" ]; then
+if [ $# -gt 0 ]; then
+  if [ "$1" != "--local" ]; then
+    echo "error: unrecognized argument '$1'" >&2
+    echo "usage: $0 <tag> [--local <signed firmware.keepkey.bin>]" >&2
+    exit 2
+  fi
   if [ -z "${2:-}" ] || [ ! -f "$2" ]; then
     echo "error: --local requires a path to an existing signed binary" >&2
     exit 2
   fi
   LOCAL_BIN="$(cd "$(dirname "$2")" && pwd)/$(basename "$2")"
+  shift 2
+  if [ $# -gt 0 ]; then
+    echo "error: unrecognized trailing argument '$1'" >&2
+    exit 2
+  fi
 fi
 
 REPO_URL="${KEEPKEY_REPO:-https://github.com/keepkey/keepkey-firmware}"
