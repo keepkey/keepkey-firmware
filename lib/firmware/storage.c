@@ -91,9 +91,10 @@ _Static_assert(sizeof(ConfigFlash) <= FLASH_STORAGE_LEN,
                "ConfigFlash struct is too large for storage partition");
 static ConfigFlash CONFIDENTIAL shadow_config;
 
-/* Multi-chain firmware found bitcoin-only storage in flash: refuse to load
- * or overwrite it until the user explicitly wipes. Never set in bitcoin-only
- * builds. */
+/* This firmware found storage in flash it must refuse to load or overwrite
+ * until the user explicitly wipes: a bitcoin-only wallet seen by multi-chain
+ * firmware, or (on bitcoin-only firmware) a newer in-band wallet than this
+ * build understands. Set from the SUS_BitcoinOnlyLocked path in either build. */
 static bool btc_only_locked = false;
 
 bool storage_isBitcoinOnlyLocked(void) { return btc_only_locked; }
@@ -1239,17 +1240,31 @@ StorageUpdateStatus storage_fromFlash(SessionState* ss, ConfigFlash* dst,
 
     case StorageVersion_BTC_ONLY:
 #if BITCOIN_ONLY
-      if (raw_version == (uint32_t)STORAGE_VERSION_BTC_ONLY) {
-        // Our own bitcoin-only wallet: same layout as the latest multi-chain
-        // version, only the wire version differs. Keep it stamped in the band
-        // so it stays refused by multi-chain firmware.
-        storage_readV17(dst, flash, STORAGE_SECTOR_LEN);
-        dst->storage.version = STORAGE_VERSION_BTC_ONLY;
-        return SUS_Valid;
+    {
+      // Our own bitcoin-only wallet. The stored wire version is the multi-chain
+      // storage version plus the band base, so recover the underlying layout
+      // version and load it through the normal migration chain. Exact-matching
+      // STORAGE_VERSION_BTC_ONLY here would lock every existing bitcoin-only
+      // wallet out of its own firmware on the next STORAGE_VERSION bump.
+      uint32_t underlying = raw_version - STORAGE_VERSION_BTC_ONLY_BASE;
+      if (underlying > (uint32_t)STORAGE_VERSION) {
+        // A newer bitcoin-only wallet than this firmware understands: refuse
+        // rather than wipe, so a firmware downgrade never destroys it.
+        return SUS_BitcoinOnlyLocked;
       }
-      // A different (e.g. newer) bitcoin-only wallet: refuse rather than wipe,
-      // so a firmware downgrade never destroys a newer wallet.
-      return SUS_BitcoinOnlyLocked;
+      // Read via the reader matching the underlying version (same mapping as
+      // the multi-chain path above), then keep the band stamp so multi-chain
+      // firmware still refuses it.
+      if (underlying <= 15) {
+        storage_readV11(dst, flash, STORAGE_SECTOR_LEN);
+      } else if (underlying == 16) {
+        storage_readV16(dst, flash, STORAGE_SECTOR_LEN);
+      } else {
+        storage_readV17(dst, flash, STORAGE_SECTOR_LEN);
+      }
+      dst->storage.version = STORAGE_VERSION_BTC_ONLY;
+      return (underlying == (uint32_t)STORAGE_VERSION) ? SUS_Valid : SUS_Updated;
+    }
 #else
       // Written by bitcoin-only firmware: refuse to load. The wallet stays
       // intact in flash (reflash bitcoin-only firmware to recover it); using

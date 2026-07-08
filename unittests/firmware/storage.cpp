@@ -503,7 +503,10 @@ TEST(Storage, StorageUpgrade_Normal) {
 // it and not silently reset it here -- the seed stays intact in flash until an
 // explicit wipe. This is the core anti-downgrade guarantee.
 TEST(Storage, BitcoinOnlyBandRefused) {
-  char flash[64];
+  // storage_fromFlash always reads STORAGE_SECTOR_LEN from `flash` (in the
+  // firmware it points to a full flash sector), so the buffer must be a full
+  // sector or the version-17 read below runs off the end.
+  static char flash[STORAGE_SECTOR_LEN];
   memset(flash, 0, sizeof(flash));
   memcpy(flash, "stor", 4);  // STORAGE_MAGIC_STR
   uint32_t v = STORAGE_VERSION_BTC_ONLY;
@@ -521,6 +524,39 @@ TEST(Storage, BitcoinOnlyBandRefused) {
   flash[44] = 17;
   flash[45] = flash[46] = flash[47] = 0;
   EXPECT_NE(storage_fromFlash(&session, &shadow, flash), SUS_BitcoinOnlyLocked);
+}
+#endif
+
+#if BITCOIN_ONLY
+// On bitcoin-only firmware, an in-band wallet stamped at an OLDER underlying
+// version (which is exactly what an existing wallet looks like after a
+// STORAGE_VERSION bump) must still load and migrate — never be refused, which
+// would lock the user out of their own wallet. A NEWER in-band version is
+// refused (downgrade guard), never wiped.
+TEST(Storage, BitcoinOnlyBandMigrates) {
+  static char flash[STORAGE_SECTOR_LEN];
+  SessionState session;
+  ConfigFlash shadow;
+
+  // Older in-band version (underlying < STORAGE_VERSION): migrate, not refuse.
+  memset(flash, 0, sizeof(flash));
+  memcpy(flash, "stor", 4);
+  uint32_t older = STORAGE_VERSION_BTC_ONLY_BASE + (STORAGE_VERSION - 1);
+  memcpy(flash + 44, &older, 4);  // test host is little-endian, matches read_u32_le
+  memset(&session, 0, sizeof(session));
+  EXPECT_NE(storage_fromFlash(&session, &shadow, flash), SUS_BitcoinOnlyLocked);
+
+  // Our own current in-band version: loads (not refused).
+  uint32_t current = STORAGE_VERSION_BTC_ONLY;
+  memcpy(flash + 44, &current, 4);
+  memset(&session, 0, sizeof(session));
+  EXPECT_NE(storage_fromFlash(&session, &shadow, flash), SUS_BitcoinOnlyLocked);
+
+  // A newer in-band version than this firmware understands: refuse.
+  uint32_t newer = STORAGE_VERSION_BTC_ONLY_BASE + (STORAGE_VERSION + 1);
+  memcpy(flash + 44, &newer, 4);
+  memset(&session, 0, sizeof(session));
+  EXPECT_EQ(storage_fromFlash(&session, &shadow, flash), SUS_BitcoinOnlyLocked);
 }
 #endif
 
