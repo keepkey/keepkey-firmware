@@ -9,7 +9,7 @@ endif()
 
 project(
   KeepKeyFirmware
-  VERSION 7.14.1
+  VERSION 7.15.0
   LANGUAGES C CXX ASM)
 
 set(BOOTLOADER_MAJOR_VERSION 2)
@@ -20,6 +20,8 @@ option(KK_EMULATOR "Build the emulator" OFF)
 option(KK_BUILD_DYLIB "Build libkkemu shared library (.dylib/.so)" OFF)
 option(KK_DEBUG_LINK "Build with debug-link enabled" OFF)
 option(KK_BUILD_FUZZERS "Build the fuzzers?" OFF)
+option(KK_BITCOIN_ONLY "Build Bitcoin-only firmware (strip all non-BTC coins)" OFF)
+option(KK_ZCASH_PRIVACY "Build the Zcash shielded/Orchard privacy engine" OFF)
 
 # When building the dylib, every static lib it links (kkfirmware, kkboard,
 # trezorcrypto, kkrand, kktransport, qrcodegenerator, SecAESSTM32, ...) must
@@ -97,13 +99,21 @@ add_definitions(-DED25519_FORCE_32BIT=1)
 
 add_definitions(-DUSE_PRECOMPUTED_CP=0)
 
-add_definitions(-DUSE_ETHEREUM=1)
+if(${KK_BITCOIN_ONLY})
+  # Bitcoin-only: strip the coin-specific trezor-crypto primitives whose only
+  # callers (ethereum.c / nano.c) are compiled out below. KECCAK stays on --
+  # marginal size win, and it is a generic hash we don't want to risk.
+  add_definitions(-DUSE_ETHEREUM=0)
+  add_definitions(-DUSE_NANO=0)
+else()
+  add_definitions(-DUSE_ETHEREUM=1)
+  add_definitions(-DUSE_NANO=1)
+endif()
 add_definitions(-DUSE_KECCAK=1)
 add_definitions(-DUSE_GRAPHENE=0)
 add_definitions(-DUSE_CARDANO=0)
 add_definitions(-DUSE_MONERO=0)
 add_definitions(-DUSE_NEM=0)
-add_definitions(-DUSE_NANO=1)
 
 add_definitions(-DRAND_PLATFORM_INDEPENDENT=0)
 
@@ -127,6 +137,33 @@ if(${KK_DEBUG_LINK})
   add_definitions(-DDEBUG_LINK=1)
 else()
   add_definitions(-DDEBUG_LINK=0)
+endif()
+
+# Bitcoin-only removes the Zcash coin entirely, which the shielded/Orchard
+# privacy engine depends on -- the two flags cannot coexist.
+if(${KK_BITCOIN_ONLY} AND ${KK_ZCASH_PRIVACY})
+  message(
+    FATAL_ERROR
+      "KK_BITCOIN_ONLY and KK_ZCASH_PRIVACY are mutually exclusive: bitcoin-only strips the Zcash coin that the privacy engine requires."
+  )
+endif()
+
+# Value macros (always defined 0/1) -- device builds use -Wundef -Werror, so an
+# undefined identifier in `#if` is a hard error. Guard code with `#if FLAG`.
+if(${KK_BITCOIN_ONLY})
+  add_definitions(-DBITCOIN_ONLY=1)
+else()
+  add_definitions(-DBITCOIN_ONLY=0)
+endif()
+
+if(${KK_ZCASH_PRIVACY})
+  add_definitions(-DZCASH_PRIVACY=1)
+  # The Orchard engine leaves this variant tightest on flash; shrink the
+  # Gladman AES lookup tables from 4KB to 1KB each (-15,360 bytes ROM,
+  # slightly slower AES). full/bitcoin-only keep the fast FOUR_TABLES.
+  add_definitions(-DAES_SMALL_TABLES)
+else()
+  add_definitions(-DZCASH_PRIVACY=0)
 endif()
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")

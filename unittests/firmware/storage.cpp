@@ -497,6 +497,33 @@ TEST(Storage, StorageUpgrade_Normal) {
   EXPECT_EQ(shadow.storage.pub.policies[1].enabled, true);
 }
 
+#if !BITCOIN_ONLY
+// A seed created under bitcoin-only firmware is stamped in a reserved version
+// band. Multi-chain firmware must REFUSE it (SUS_BitcoinOnlyLocked), not load
+// it and not silently reset it here -- the seed stays intact in flash until an
+// explicit wipe. This is the core anti-downgrade guarantee.
+TEST(Storage, BitcoinOnlyBandRefused) {
+  char flash[64];
+  memset(flash, 0, sizeof(flash));
+  memcpy(flash, "stor", 4);  // STORAGE_MAGIC_STR
+  uint32_t v = STORAGE_VERSION_BTC_ONLY;
+  flash[44] = (char)(v & 0xff);
+  flash[45] = (char)((v >> 8) & 0xff);
+  flash[46] = (char)((v >> 16) & 0xff);
+  flash[47] = (char)((v >> 24) & 0xff);
+
+  SessionState session;
+  memset(&session, 0, sizeof(session));
+  ConfigFlash shadow;
+  EXPECT_EQ(storage_fromFlash(&session, &shadow, flash), SUS_BitcoinOnlyLocked);
+
+  // A normal (below-band) version is still handled as before.
+  flash[44] = 17;
+  flash[45] = flash[46] = flash[47] = 0;
+  EXPECT_NE(storage_fromFlash(&session, &shadow, flash), SUS_BitcoinOnlyLocked);
+}
+#endif
+
 TEST(Storage, StorageRoundTrip) {
   ConfigFlash start;
   memset(&start, 0xAB, sizeof(start));
