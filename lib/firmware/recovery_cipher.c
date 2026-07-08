@@ -53,6 +53,13 @@ static CONFIDENTIAL char mnemonic[MNEMONIC_BUF];
 static char english_alphabet[ENGLISH_ALPHABET_BUF] =
     "abcdefghijklmnopqrstuvwxyz";
 static CONFIDENTIAL char cipher[ENGLISH_ALPHABET_BUF];
+/* Accumulators for the word currently being entered. File-scope so
+ * recovery_delete_character() can keep them in sync with backspaces —
+ * otherwise stale bytes make a re-entered word fail validation and wipe a
+ * real recovery. last_completed_word backs the "previous word" indicator. */
+static CONFIDENTIAL char coded_word[12];
+static CONFIDENTIAL char decoded_word[12];
+static CONFIDENTIAL char last_completed_word[12];
 
 #if DEBUG_LINK
 static char auto_completed_word[CURRENT_WORD_BUF];
@@ -74,6 +81,9 @@ void recovery_cipher_abort(void) {
   word_count = 0;
   memzero(mnemonic, sizeof(mnemonic));
   memzero(cipher, sizeof(cipher));
+  memzero(coded_word, sizeof(coded_word));
+  memzero(decoded_word, sizeof(decoded_word));
+  memzero(last_completed_word, sizeof(last_completed_word));
 }
 
 /// Formats the passed word to show position in mnemonic as well as characters
@@ -371,14 +381,6 @@ void next_character(void) {
   }
 #endif
 
-  /* Save word so we can show it as "prev" on next word.
-   * When auto-complete fires, current_word holds the full expanded word
-   * (e.g. "alcohol" not "alc"). Otherwise save the typed prefix. */
-  static char CONFIDENTIAL last_completed_word[12];
-  if (strlen(current_word) > 0) {
-    strlcpy(last_completed_word, current_word, sizeof(last_completed_word));
-  }
-
   /* Format current word and display it along with cipher */
   static char CONFIDENTIAL formatted_word[CURRENT_WORD_BUF + 10];
   format_current_word(word_pos, current_word, auto_completed, &formatted_word);
@@ -436,14 +438,13 @@ void recovery_character(const char* character) {
   // Count of words we think the user has entered without using the cipher:
   static int uncyphered_word_count = 0;
   static bool definitely_using_cipher = false;
-  static CONFIDENTIAL char coded_word[12];
-  static CONFIDENTIAL char decoded_word[12];
 
   if (!mnemonic[0]) {
     uncyphered_word_count = 0;
     definitely_using_cipher = false;
     memzero(coded_word, sizeof(coded_word));
     memzero(decoded_word, sizeof(decoded_word));
+    memzero(last_completed_word, sizeof(last_completed_word));
   }
 
   char decoded_character[2] = " ";
@@ -479,13 +480,15 @@ void recovery_character(const char* character) {
     }
   } else {
     /* Per-word BIP39 validation: reject immediately if the decoded word
-     * doesn't match any entry in the wordlist. */
-    if (enforce_wordlist && strlen(decoded_word) > 0) {
+     * doesn't match any entry in the wordlist. decoded_word is kept in sync
+     * with backspaces by recovery_delete_character(), so a corrected word is
+     * validated on its real (post-edit) value. */
+    if (strlen(decoded_word) > 0) {
       static CONFIDENTIAL char check_word[CURRENT_WORD_BUF];
       strlcpy(check_word, decoded_word, sizeof(check_word));
       bool valid = attempt_auto_complete(check_word);
-      memzero(check_word, sizeof(check_word));
-      if (!valid) {
+      if (enforce_wordlist && !valid) {
+        memzero(check_word, sizeof(check_word));
         memzero(coded_word, sizeof(coded_word));
         memzero(decoded_word, sizeof(decoded_word));
         recovery_cipher_abort();
@@ -494,6 +497,10 @@ void recovery_character(const char* character) {
         layout_warning_static("Word not in wordlist");
         return;
       }
+      /* Record the just-completed (auto-expanded) word for the "previous
+       * word" indicator — only at a real word boundary, never mid-word. */
+      strlcpy(last_completed_word, check_word, sizeof(last_completed_word));
+      memzero(check_word, sizeof(check_word));
     }
 
     memzero(coded_word, sizeof(coded_word));
@@ -545,6 +552,22 @@ void recovery_delete_character(void) {
 
     mnemonic[len - 1] = '\0';
   }
+
+  /* Resync the current-word accumulators with the edited mnemonic so a
+   * corrected word is validated on its real value (stale bytes here would
+   * fail validation and trigger a storage_reset on a real recovery).
+   * decoded_word is the typed prefix of the current word; coded_word is its
+   * reverse-cipher form (session cipher is fixed, so it is reconstructable). */
+  char cur[CURRENT_WORD_BUF];
+  get_current_word(cur);
+  strlcpy(decoded_word, cur, sizeof(decoded_word));
+  memzero(cur, sizeof(cur));
+  size_t wlen = strlen(decoded_word);
+  for (size_t i = 0; i < wlen && i + 1 < sizeof(coded_word); i++) {
+    char d = decoded_word[i];
+    coded_word[i] = (d >= 'a' && d <= 'z') ? cipher[d - 'a'] : d;
+  }
+  coded_word[wlen < sizeof(coded_word) ? wlen : sizeof(coded_word) - 1] = '\0';
 
   next_character();
 }
@@ -609,7 +632,11 @@ void recovery_cipher_finalize(void) {
   }
   memzero(temp_word, sizeof(temp_word));
 
-  if (!auto_completed && enforce_wordlist) {
+  /* Cipher recovery decodes to BIP-39 words, so every word must
+   * auto-complete regardless of enforce_wordlist. Failing only when
+   * enforce_wordlist was set left the default (host-omitted) path storing a
+   * mistyped/garbage phrase as the seed and reporting success. */
+  if (!auto_completed) {
     if (!dry_run) {
       storage_reset();
     }
