@@ -324,7 +324,7 @@ void marshallDsVals(const char* value) {
   return;
 }
 
-void dsConfirm(void) {
+int dsConfirm(void) {
   // First check if we recognize the contract
   const TokenType* assetToken;
   uint8_t addrHexStr[20] = {0};
@@ -384,12 +384,17 @@ void dsConfirm(void) {
     snprintf(chainStr, 32, "chain %s,  ", dschainId);
   }
   // snprintf(contractStr, 64, "verifyingContract: %s", verifyingContract);
-  (void)review_with_icon(ButtonRequestType_ButtonRequest_Other, iconNum, title,
-                         "%s %s%s", chainStr, verifyingContract, fillerStr);
+  bool approved =
+      review_with_icon(ButtonRequestType_ButtonRequest_Other, iconNum, title,
+                       "%s %s%s", chainStr, verifyingContract, fillerStr);
   dsname = NULL;
   dsversion = NULL;
   dschainId = NULL;
   dsverifyingContract = NULL;
+  if (!approved) {
+    return USER_CANCELLED;
+  }
+  return SUCCESS;
 }
 
 /*
@@ -452,7 +457,9 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
 
       bool hasValue = (JSON_TEXT == json_getType(walkVals) ||
                        JSON_INTEGER == json_getType(walkVals));
-      confirmName(typeName, hasValue);
+      if (SUCCESS != (errRet = confirmName(typeName, hasValue))) {
+        return errRet;
+      }
 
       if (walkVals == 0) {
         return JSON_TYPE_WNOVAL;
@@ -467,8 +474,9 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
               // values are there.
               if (ds_vals) {
                 marshallDsVals(json_getValue(addrVals));
-              } else {
-                confirmValue(json_getValue(addrVals));
+              } else if (SUCCESS !=
+                         (errRet = confirmValue(json_getValue(addrVals)))) {
+                return errRet;
               }
 
               errRet = encAddress(json_getValue(addrVals), encBytes);
@@ -482,8 +490,8 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
           } else {
             if (ds_vals) {
               marshallDsVals(valStr);
-            } else {
-              confirmValue(valStr);
+            } else if (SUCCESS != (errRet = confirmValue(valStr))) {
+              return errRet;
             }
             errRet = encAddress(valStr, encBytes);
             if (SUCCESS != errRet) {
@@ -502,8 +510,9 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
               // values are there.
               if (ds_vals) {
                 marshallDsVals(json_getValue(stringVals));
-              } else {
-                confirmValue(json_getValue(stringVals));
+              } else if (SUCCESS !=
+                         (errRet = confirmValue(json_getValue(stringVals)))) {
+                return errRet;
               }
               errRet = encString(json_getValue(stringVals), strEncBytes);
               if (SUCCESS != errRet) {
@@ -516,8 +525,8 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
           } else {
             if (ds_vals) {
               marshallDsVals(valStr);
-            } else {
-              confirmValue(valStr);
+            } else if (SUCCESS != (errRet = confirmValue(valStr))) {
+              return errRet;
             }
             errRet = encString(valStr, encBytes);
             if (SUCCESS != errRet) {
@@ -532,8 +541,8 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
           } else {
             if (ds_vals) {
               marshallDsVals(valStr);
-            } else {
-              confirmValue(valStr);
+            } else if (SUCCESS != (errRet = confirmValue(valStr))) {
+              return errRet;
             }
             uint8_t negInt = 0;  // 0 is positive, 1 is negative
             if (0 == strncmp("int", typeType, strlen("int") - 1)) {
@@ -578,8 +587,8 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
             // This could be 'bytes', 'bytes1', ..., 'bytes32'
             if (ds_vals) {
               marshallDsVals(valStr);
-            } else {
-              confirmValue(valStr);
+            } else if (SUCCESS != (errRet = confirmValue(valStr))) {
+              return errRet;
             }
             if (0 == strcmp(typeType, "bytes")) {
               errRet = encodeBytes(valStr, encBytes);
@@ -601,8 +610,8 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
           } else {
             if (ds_vals) {
               marshallDsVals(valStr);
-            } else {
-              confirmValue(valStr);
+            } else if (SUCCESS != (errRet = confirmValue(valStr))) {
+              return errRet;
             }
             for (ctr = 0; ctr < 32; ctr++) {
               // leading zeros in bool
@@ -710,7 +719,9 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
     tarray = json_getSibling(tarray);
   }
   if (ds_vals) {
-    dsConfirm();
+    if (SUCCESS != (errRet = dsConfirm())) {
+      return errRet;
+    }
   }
 
   return SUCCESS;
