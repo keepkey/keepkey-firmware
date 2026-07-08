@@ -31,6 +31,7 @@ set(sources
     reset.c
     ripple.c
     ripple_base58.c
+    signed_metadata.c
     signing.c
     signtx_tendermint.c
     solana.c

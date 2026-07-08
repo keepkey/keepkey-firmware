@@ -6,6 +6,7 @@ set(sources
     nano.cpp
     recovery.cpp
     ripple.cpp
+    signed_metadata.cpp
     storage.cpp
     usb_rx.cpp
     u2f.cpp)
