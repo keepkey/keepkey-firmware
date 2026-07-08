@@ -160,14 +160,29 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
     switch (msg->send.address_type) {
       case OutputAddressType_TRANSFER:
       default: {
+        // Amount (no denom suffix) must fit amount_str[32]; a long denom
+        // appended here would overflow bn_format and blank the amount while
+        // the real value is still signed. Confirm the denom on its own
+        // screen instead (matches the THORChain send path).
         char amount_str[32];
-        char denom_str[71];
-        snprintf(denom_str, sizeof(denom_str), " %s", coin_denom);
-        bn_format_uint64(msg->send.amount, NULL, denom_str, 10, 0, false,
-                         amount_str, sizeof(amount_str));
+        if (!bn_format_uint64(msg->send.amount, NULL, NULL, 10, 0, false,
+                              amount_str, sizeof(amount_str))) {
+          mayachain_signAbort();
+          fsm_sendFailure(FailureType_Failure_FirmwareError,
+                          _("Failed to format amount"));
+          layoutHome();
+          return;
+        }
         if (!confirm_transaction_output(
                 ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
                 msg->send.to_address)) {
+          mayachain_signAbort();
+          fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+          layoutHome();
+          return;
+        }
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Asset",
+                     "%s", coin_denom)) {
           mayachain_signAbort();
           fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
           layoutHome();
