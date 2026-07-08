@@ -1,0 +1,46 @@
+HiveGetPublicKey.address_n              max_count:8
+
+HivePublicKey.public_key                max_size:64
+HivePublicKey.raw_public_key            max_size:33
+
+HiveGetPublicKeys.account_index         int_size:IS_32
+
+HivePublicKeys.owner_key                max_size:64
+HivePublicKeys.active_key               max_size:64
+HivePublicKeys.memo_key                 max_size:64
+HivePublicKeys.posting_key              max_size:64
+
+HiveSignTx.address_n                    max_count:8
+HiveSignTx.chain_id                     max_size:32
+HiveSignTx.from                         max_size:16
+HiveSignTx.to                           max_size:16
+HiveSignTx.amount                       int_size:IS_64
+HiveSignTx.asset_symbol                 max_size:10
+HiveSignTx.memo                         max_size:2048
+
+HiveSignedTx.signature                  max_size:65
+HiveSignedTx.serialized_tx              max_size:512
+
+HiveSignAccountCreate.address_n         max_count:8
+HiveSignAccountCreate.chain_id          max_size:32
+HiveSignAccountCreate.creator           max_size:16
+HiveSignAccountCreate.new_account_name  max_size:16
+HiveSignAccountCreate.owner_key         max_size:64
+HiveSignAccountCreate.active_key        max_size:64
+HiveSignAccountCreate.posting_key       max_size:64
+HiveSignAccountCreate.memo_key          max_size:64
+HiveSignAccountCreate.fee_amount        int_size:IS_64
+
+HiveSignedAccountCreate.signature       max_size:65
+HiveSignedAccountCreate.serialized_tx   max_size:512
+
+HiveSignAccountUpdate.address_n         max_count:8
+HiveSignAccountUpdate.chain_id          max_size:32
+HiveSignAccountUpdate.account           max_size:16
+HiveSignAccountUpdate.new_owner_key     max_size:64
+HiveSignAccountUpdate.new_active_key    max_size:64
+HiveSignAccountUpdate.new_posting_key   max_size:64
+HiveSignAccountUpdate.new_memo_key      max_size:64
+
+HiveSignedAccountUpdate.signature       max_size:65
+HiveSignedAccountUpdate.serialized_tx   max_size:512
