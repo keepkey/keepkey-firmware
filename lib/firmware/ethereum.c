@@ -1030,6 +1030,8 @@ void ethereum_signing_abort(void) {
   }
 }
 
+bool ethereum_signing_isInProgress(void) { return ethereum_signing; }
+
 static void ethereum_message_hash(const uint8_t* message, size_t message_len,
                                   uint8_t hash[32]) {
   struct SHA3_CTX ctx;
@@ -1219,6 +1221,7 @@ const char* failMsgReturn[LAST_ERROR - 2] = {
     "EIP-712 typeType has no name in parseVals",
     "EIP-712 address string is NULL",
     "EIP-712 no value for type during walkVals",  // 33
+    "EIP-712 cancelled",                          // 34 (USER_CANCELLED)
 };
 
 void failMessage(int err) {

@@ -37,8 +37,10 @@
  * key-pinned) which needs no firmware update per router change. */
 #define THOR_ROUTER "d37bbe5744d730a1d98d8dc97c42f0ca46ad7146"
 
-/* Maya Protocol ETH router (mainnet) */
-#define MAYA_ROUTER "d89dce570de35a6f42d3bca7dba50a6d89bfc2a2"
+/* Maya Protocol ETH router v4 (mainnet), verified on Etherscan
+ * (0xe3985e6b61b814f7cdb188766562ba71b446b46d). The prior pin
+ * d89dce57.. has never held contract code on mainnet. */
+#define MAYA_ROUTER "e3985e6b61b814f7cdb188766562ba71b446b46d"
 
 /* deposit(address,address,uint256,string) — legacy selector */
 #define THOR_SELECTOR_DEPOSIT "\x1f\xec\xe7\xb4"
