@@ -10,7 +10,10 @@ typedef struct _EthereumSignTx EthereumSignTx;
 #define METADATA_MAX_ARGS 8
 #define METADATA_MAX_METHOD_LEN 64
 #define METADATA_MAX_ARG_NAME_LEN 32
-#define METADATA_MAX_ARG_VALUE_LEN 32
+/* Sized for TOKEN_AMOUNT: decimals(1) + symbol_len(1) + symbol(<=10) +
+ * amount(<=32). Other formats remain capped at 32 by their own guards. */
+#define METADATA_MAX_ARG_VALUE_LEN 44
+#define METADATA_MAX_TOKEN_SYMBOL_LEN 10
 #define METADATA_MAX_KEYS 4
 #define METADATA_ALIAS_MAX_LEN 31
 /* hex(first 4 bytes of sha256(pubkey)) + NUL */
@@ -22,11 +25,45 @@ typedef enum {
   METADATA_MALFORMED = 2,
 } MetadataClassification;
 
+/*
+ * Blob format versions (the first payload byte).
+ *
+ * LEGACY (v1): per-transaction. The blob carries a committed tx_hash and the
+ * pre-decoded argument VALUES; the host is trusted for the decode and the
+ * device only binds it to the signed digest (signed_metadata_enforce). This is
+ * the format that requires an online, per-tx signer holding the attestation
+ * key.
+ *
+ * SCHEMA (v2): static. The blob carries NO tx_hash and NO values — only how to
+ * decode the call: (chainId, contract, selector, method, per-arg name + display
+ * format [+ static decimals/symbol]). The DEVICE decodes the argument values
+ * from the exact calldata it is about to sign, so the display is bound to the
+ * signature by construction. No tx_hash, no per-tx signing: the catalog is
+ * signed ONCE, offline, and can be served from a host CDN (no hot key).
+ */
+#define METADATA_VERSION_LEGACY 0x01
+#define METADATA_VERSION_SCHEMA 0x02
+
+/*
+ * Argument display formats. The goal of clear-signing is that the device
+ * answers WHO the user is dealing with (validated contract address, protocol
+ * name), WHAT the transaction does (method + human-readable typed args:
+ * recipient, "Amount: 1,000 USDC"), and WHY the decode can be trusted
+ * (signer attestation bound to the exact tx hash). RAW/BYTES hex dumps are
+ * the fallback, not the product.
+ */
 typedef enum {
-  ARG_FORMAT_RAW = 0,
-  ARG_FORMAT_ADDRESS = 1,
-  ARG_FORMAT_AMOUNT = 2,
-  ARG_FORMAT_BYTES = 3,
+  ARG_FORMAT_RAW = 0,     /* hex dump (first 16 bytes) */
+  ARG_FORMAT_ADDRESS = 1, /* 20 bytes -> full EIP-55 address, never truncated */
+  ARG_FORMAT_AMOUNT = 2,  /* big-endian uint256 -> raw integer, "wei" */
+  ARG_FORMAT_BYTES = 3,   /* hex dump (first 16 bytes) */
+  /* Attested printable label, e.g. protocol: "Uniswap V2". Same character
+   * rules as the signer alias minus length (printable subset, no '%'). */
+  ARG_FORMAT_STRING = 4,
+  /* decimals(1) + symbol_len(1) + symbol(<=10, [A-Za-z0-9]) + amount(1..32
+   * big-endian). Rendered as a decimal-scaled amount with the symbol, e.g.
+   * "1000 USDC"; all-0xFF 32-byte amounts render "UNLIMITED <symbol>". */
+  ARG_FORMAT_TOKEN_AMOUNT = 5,
 } ArgFormat;
 
 typedef struct {
@@ -53,6 +90,13 @@ typedef struct {
 } SignedMetadata;
 
 bool signed_metadata_available(void);
+
+/* True when the stored v2 (schema) metadata was decoded from the current tx's
+ * calldata by the most recent signed_metadata_matches_tx() call. Reset at the
+ * top of every matches_tx() so it reflects only that call (never a stale prior
+ * match). The v2 enforce path requires it; exported for unit testing. */
+bool signed_metadata_schema_decoded(void);
+
 void signed_metadata_clear(void);
 
 /*
@@ -118,6 +162,17 @@ bool signed_metadata_enforce_decision(bool relied, bool available,
                                       int classification,
                                       const uint8_t *stored_hash,
                                       const uint8_t *hash);
+
+/* Pure enforcement decision for v2 (static schema) blobs, exported for unit
+ * testing. v2 has no committed tx_hash; the binding is structural (args decoded
+ * from the signed calldata), so signing proceeds when the relied-upon metadata
+ * is available, VERIFIED, and was actually decoded (`decoded`) — no digest
+ * comparison. `decoded` must be the recorded result of decode_v2_args() for
+ * this signing operation, not inferred from call order.
+ * signed_metadata_enforce() dispatches here when the stored blob's version is
+ * METADATA_VERSION_SCHEMA. */
+bool signed_metadata_enforce_schema_decision(bool relied, bool available,
+                                             bool decoded, int classification);
 
 const SignedMetadata *signed_metadata_get(void);
 

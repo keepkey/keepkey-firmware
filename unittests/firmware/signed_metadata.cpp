@@ -404,8 +404,109 @@ TEST_F(SignedMetadataTest, ArgNameTooLong) {
 
 TEST_F(SignedMetadataTest, ArgFormatOutOfRange) {
   Spec s = base_spec();
-  s.args[0].format = 4;  // > ARG_FORMAT_BYTES (3)
+  s.args[0].format = 6;  // > ARG_FORMAT_TOKEN_AMOUNT (5)
   ExpectMalformed(sign_body(build_body(s)), TEST_KEY_ID);
+}
+
+/* ---- ARG_FORMAT_STRING (attested printable label) ----------------------- */
+
+TEST_F(SignedMetadataTest, StringArgAccepted) {
+  Spec s = base_spec();
+  const char *label = "Uniswap V2";
+  s.args[0] = mk_arg("protocol", ARG_FORMAT_STRING, (const uint8_t *)label,
+                     strlen(label));
+  std::vector<uint8_t> blob = sign_body(build_body(s));
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  const SignedMetadata *m = signed_metadata_get();
+  ASSERT_NE(m, nullptr);
+  EXPECT_EQ(m->args[0].format, ARG_FORMAT_STRING);
+  EXPECT_EQ(memcmp(m->args[0].value, label, strlen(label)), 0);
+}
+
+TEST_F(SignedMetadataTest, StringArgRejectsUnprintableAndPercent) {
+  const uint8_t nl[] = {'a', '\n', 'b'};
+  Spec s = base_spec();
+  s.args[0] = mk_arg("protocol", ARG_FORMAT_STRING, nl, sizeof(nl));
+  ExpectMalformed(sign_body(build_body(s)), TEST_KEY_ID);
+
+  const uint8_t pct[] = {'a', '%', 's'};
+  Spec s2 = base_spec();
+  s2.args[0] = mk_arg("protocol", ARG_FORMAT_STRING, pct, sizeof(pct));
+  ExpectMalformed(sign_body(build_body(s2)), TEST_KEY_ID);
+
+  Spec s3 = base_spec();
+  s3.args[0] = mk_arg("protocol", ARG_FORMAT_STRING, pct, 0);  // empty string
+  ExpectMalformed(sign_body(build_body(s3)), TEST_KEY_ID);
+}
+
+/* ---- ARG_FORMAT_TOKEN_AMOUNT (decimals + symbol + amount) --------------- */
+
+std::vector<uint8_t> token_amount_value(uint8_t decimals,
+                                        const std::string &symbol,
+                                        const std::vector<uint8_t> &amount) {
+  std::vector<uint8_t> v;
+  v.push_back(decimals);
+  v.push_back((uint8_t)symbol.size());
+  v.insert(v.end(), symbol.begin(), symbol.end());
+  v.insert(v.end(), amount.begin(), amount.end());
+  return v;
+}
+
+TEST_F(SignedMetadataTest, TokenAmountAccepted) {
+  /* 1.00 USDC: 1000000 raw, 6 decimals */
+  std::vector<uint8_t> amt = {0x0F, 0x42, 0x40};
+  std::vector<uint8_t> val = token_amount_value(6, "USDC", amt);
+  Spec s = base_spec();
+  s.args[1] = mk_arg("amount", ARG_FORMAT_TOKEN_AMOUNT, val.data(), val.size());
+  std::vector<uint8_t> blob = sign_body(build_body(s));
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  const SignedMetadata *m = signed_metadata_get();
+  ASSERT_NE(m, nullptr);
+  EXPECT_EQ(m->args[1].format, ARG_FORMAT_TOKEN_AMOUNT);
+  EXPECT_EQ(m->args[1].value_len, val.size());
+}
+
+TEST_F(SignedMetadataTest, TokenAmountUnlimited32BytesAccepted) {
+  /* UNLIMITED approve: 32 x 0xFF + symbol -> value_len 38 (> old 32 cap) */
+  std::vector<uint8_t> amt(32, 0xFF);
+  std::vector<uint8_t> val = token_amount_value(6, "USDC", amt);
+  EXPECT_EQ(val.size(), 38u);  // 1+1+4+32
+  Spec s = base_spec();
+  s.args[1] = mk_arg("amount", ARG_FORMAT_TOKEN_AMOUNT, val.data(), val.size());
+  std::vector<uint8_t> blob = sign_body(build_body(s));
+  EXPECT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+}
+
+TEST_F(SignedMetadataTest, TokenAmountRejectsBadLayout) {
+  Spec s = base_spec();
+  /* symbol chars outside [A-Za-z0-9] */
+  std::vector<uint8_t> bad_sym = token_amount_value(6, "US-C", {0x01});
+  s.args[1] = mk_arg("amount", ARG_FORMAT_TOKEN_AMOUNT, bad_sym.data(),
+                     bad_sym.size());
+  ExpectMalformed(sign_body(build_body(s)), TEST_KEY_ID);
+
+  /* decimals > 36 */
+  Spec s2 = base_spec();
+  std::vector<uint8_t> bad_dec = token_amount_value(37, "USDC", {0x01});
+  s2.args[1] = mk_arg("amount", ARG_FORMAT_TOKEN_AMOUNT, bad_dec.data(),
+                      bad_dec.size());
+  ExpectMalformed(sign_body(build_body(s2)), TEST_KEY_ID);
+
+  /* symbol_len runs past the value (no amount bytes left) */
+  Spec s3 = base_spec();
+  std::vector<uint8_t> no_amt = {6, 4, 'U', 'S', 'D', 'C'};
+  s3.args[1] = mk_arg("amount", ARG_FORMAT_TOKEN_AMOUNT, no_amt.data(),
+                      no_amt.size());
+  ExpectMalformed(sign_body(build_body(s3)), TEST_KEY_ID);
+
+  /* legacy formats must NOT accept the larger 44-byte cap */
+  Spec s4 = base_spec();
+  std::vector<uint8_t> big(40, 0xAB);
+  s4.args[1] = mk_arg("amount", ARG_FORMAT_AMOUNT, big.data(), big.size());
+  ExpectMalformed(sign_body(build_body(s4)), TEST_KEY_ID);
 }
 
 TEST_F(SignedMetadataTest, ArgValueTooLong) {
@@ -772,6 +873,311 @@ TEST(SignedMetadataEnforce, ReliedStoredHashNull) {
   memcpy(h, TX_HASH, 32);
   EXPECT_FALSE(signed_metadata_enforce_decision(true, true, METADATA_VERIFIED,
                                                 nullptr, h));
+}
+
+/* ===================================================================== *
+ *  SECTION 3 — v2 static-schema blobs + on-device calldata decode
+ *
+ *  v2 carries NO tx_hash and NO argument values. The blob attests only the
+ *  static schema (chainId, contract, selector, method, per-arg name + display
+ *  format [+ static decimals/symbol]); the device decodes the actual argument
+ *  values from the calldata it is about to sign. These tests drive the full
+ *  parse -> verify -> signed_metadata_matches_tx (which decodes) path and check
+ *  the decoded MetadataArg values, plus the malformed/rejection cases.
+ * ===================================================================== */
+
+struct V2Arg {
+  std::string name;
+  uint8_t format;
+  uint8_t decimals;   /* TOKEN_AMOUNT only */
+  std::string symbol; /* TOKEN_AMOUNT only */
+};
+
+V2Arg v2_addr(const std::string &name) {
+  return V2Arg{name, ARG_FORMAT_ADDRESS, 0, ""};
+}
+V2Arg v2_token(const std::string &name, uint8_t decimals,
+               const std::string &symbol) {
+  return V2Arg{name, ARG_FORMAT_TOKEN_AMOUNT, decimals, symbol};
+}
+
+struct V2Spec {
+  uint32_t chain_id;
+  std::vector<uint8_t> contract;
+  std::vector<uint8_t> selector;
+  std::string method;
+  std::vector<V2Arg> args;
+  uint8_t classification;
+  uint8_t key_id;
+  int num_args_override;  // -1 => use args.size()
+};
+
+V2Spec v2_base_spec() {
+  V2Spec s;
+  s.chain_id = 1;
+  s.contract.assign(CONTRACT_A, CONTRACT_A + 20);
+  s.selector.assign(SEL_TRANSFER, SEL_TRANSFER + 4);
+  s.method = "transfer";
+  s.args.push_back(v2_addr("to"));
+  s.args.push_back(v2_token("amount", 6, "USDC"));
+  s.classification = METADATA_VERIFIED;
+  s.key_id = TEST_KEY_ID;
+  s.num_args_override = -1;
+  return s;
+}
+
+std::vector<uint8_t> build_v2_body(const V2Spec &s) {
+  std::vector<uint8_t> b;
+  put_u8(b, METADATA_VERSION_SCHEMA);
+  put_be32(b, s.chain_id);
+  put_bytes(b, s.contract.data(), s.contract.size());
+  put_bytes(b, s.selector.data(), s.selector.size());
+  put_be16(b, (uint16_t)s.method.size());
+  put_bytes(b, (const uint8_t *)s.method.data(), s.method.size());
+  put_u8(b, s.num_args_override >= 0 ? (uint8_t)s.num_args_override
+                                     : (uint8_t)s.args.size());
+  for (const V2Arg &a : s.args) {
+    put_u8(b, (uint8_t)a.name.size());
+    put_bytes(b, (const uint8_t *)a.name.data(), a.name.size());
+    put_u8(b, a.format);
+    if (a.format == ARG_FORMAT_TOKEN_AMOUNT) {
+      put_u8(b, a.decimals);
+      put_u8(b, (uint8_t)a.symbol.size());
+      put_bytes(b, (const uint8_t *)a.symbol.data(), a.symbol.size());
+    }
+  }
+  put_u8(b, s.classification);
+  put_be32(b, 0);  // timestamp
+  put_u8(b, s.key_id);
+  return b;
+}
+
+std::vector<uint8_t> v2_base_blob() {
+  return sign_body(build_v2_body(v2_base_spec()));
+}
+
+/* ABI calldata: selector + one 32-byte head word per arg. */
+void put_addr_word(std::vector<uint8_t> &d, const uint8_t addr[20]) {
+  for (int i = 0; i < 12; i++) d.push_back(0);
+  d.insert(d.end(), addr, addr + 20);
+}
+
+/* Canonical transfer(to=RECIPIENT, amount=AMOUNT32) calldata (4 + 64 = 68). */
+std::vector<uint8_t> v2_transfer_calldata() {
+  std::vector<uint8_t> d(SEL_TRANSFER, SEL_TRANSFER + 4);
+  put_addr_word(d, RECIPIENT);
+  d.insert(d.end(), AMOUNT32, AMOUNT32 + 32);
+  return d;
+}
+
+void make_v2_msg(EthereumSignTx *msg, const uint8_t contract[20],
+                 const std::vector<uint8_t> &data, bool has_len,
+                 uint32_t data_length) {
+  memset(msg, 0, sizeof(*msg));
+  msg->has_to = true;
+  msg->to.size = 20;
+  memcpy(msg->to.bytes, contract, 20);
+  msg->has_data_initial_chunk = true;
+  msg->data_initial_chunk.size = (pb_size_t)data.size();
+  memcpy(msg->data_initial_chunk.bytes, data.data(), data.size());
+  msg->has_chain_id = true;
+  msg->chain_id = 1;
+  msg->has_data_length = has_len;
+  msg->data_length = has_len ? data_length : 0;
+}
+
+/* Happy path: parse+verify a v2 blob, then matches_tx decodes the args from the
+ * transfer calldata and populates stored_metadata. */
+TEST_F(SignedMetadataTest, V2SchemaDecodesTransferArgs) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  EXPECT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  EXPECT_TRUE(signed_metadata_available());
+
+  const SignedMetadata *md = signed_metadata_get();
+  ASSERT_NE(md, nullptr);
+  EXPECT_EQ(md->version, METADATA_VERSION_SCHEMA);
+  EXPECT_EQ(md->num_args, 2);
+  EXPECT_EQ(md->args[0].value_len, 0);  // undecoded before matches_tx
+
+  EthereumSignTx msg;
+  std::vector<uint8_t> data = v2_transfer_calldata();
+  make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/true, (uint32_t)data.size());
+  EXPECT_TRUE(signed_metadata_matches_tx(&msg));
+
+  EXPECT_EQ(md->args[0].format, ARG_FORMAT_ADDRESS);
+  EXPECT_EQ(md->args[0].value_len, 20);
+  EXPECT_EQ(memcmp(md->args[0].value, RECIPIENT, 20), 0);
+
+  EXPECT_EQ(md->args[1].format, ARG_FORMAT_TOKEN_AMOUNT);
+  EXPECT_EQ(md->args[1].value_len, 2 + 4 + 32);
+  EXPECT_EQ(md->args[1].value[0], 6);  // decimals
+  EXPECT_EQ(md->args[1].value[1], 4);  // symlen
+  EXPECT_EQ(memcmp(md->args[1].value + 2, "USDC", 4), 0);
+  EXPECT_EQ(memcmp(md->args[1].value + 6, AMOUNT32, 32), 0);
+}
+
+/* has_data_length omitted but the initial chunk IS the whole calldata: allowed. */
+TEST_F(SignedMetadataTest, V2AcceptsNoDataLengthWhenChunkComplete) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  EthereumSignTx msg;
+  std::vector<uint8_t> data = v2_transfer_calldata();
+  make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/false, 0);
+  EXPECT_TRUE(signed_metadata_matches_tx(&msg));
+}
+
+/* Reject when the tx claims MORE calldata than the schema accounts for. */
+TEST_F(SignedMetadataTest, V2RejectsExtraCalldataLength) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  EthereumSignTx msg;
+  std::vector<uint8_t> data = v2_transfer_calldata();  // 68 bytes
+  make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/true, 100);
+  EXPECT_FALSE(signed_metadata_matches_tx(&msg));
+}
+
+/* Reject a partial initial chunk (rest would stream later). */
+TEST_F(SignedMetadataTest, V2RejectsPartialInitialChunk) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  EthereumSignTx msg;
+  std::vector<uint8_t> data = v2_transfer_calldata();
+  data.resize(40);  // selector + partial first word
+  make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/true, 68);
+  EXPECT_FALSE(signed_metadata_matches_tx(&msg));
+}
+
+/* Reject an ABI address word with non-zero high bytes. */
+TEST_F(SignedMetadataTest, V2RejectsDirtyAddressWord) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  EthereumSignTx msg;
+  std::vector<uint8_t> data = v2_transfer_calldata();
+  data[4] = 0x01;  // first (should-be-zero) byte of the address word
+  make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/true, (uint32_t)data.size());
+  EXPECT_FALSE(signed_metadata_matches_tx(&msg));
+}
+
+/* Wrong selector in calldata -> matches_tx fails before decode. */
+TEST_F(SignedMetadataTest, V2RejectsSelectorMismatch) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  EthereumSignTx msg;
+  std::vector<uint8_t> data = v2_transfer_calldata();
+  memcpy(data.data(), SEL_APPROVE, 4);
+  make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/true, (uint32_t)data.size());
+  EXPECT_FALSE(signed_metadata_matches_tx(&msg));
+}
+
+/* An unsupported display format (dynamic types out of scope) -> MALFORMED. */
+TEST_F(SignedMetadataTest, V2RejectsUnsupportedFormat) {
+  V2Spec s = v2_base_spec();
+  s.args[1] = V2Arg{"data", ARG_FORMAT_BYTES, 0, ""};
+  std::vector<uint8_t> blob = sign_body(build_v2_body(s));
+  ExpectMalformed(blob, TEST_KEY_ID);
+}
+
+/* Tampered v2 body must fail the signature check. */
+TEST_F(SignedMetadataTest, V2RejectsTamperedBody) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  blob[5] ^= 0xFF;  // flip a contract-address byte in the signed region
+  ExpectMalformed(blob, TEST_KEY_ID);
+}
+
+/* Zero-arg v2 schema (selector-only call): valid, decodes nothing. */
+TEST_F(SignedMetadataTest, V2ZeroArgsSelectorOnly) {
+  V2Spec s = v2_base_spec();
+  s.args.clear();
+  s.method = "poke";
+  std::vector<uint8_t> blob = sign_body(build_v2_body(s));
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  EthereumSignTx msg;
+  std::vector<uint8_t> data(SEL_TRANSFER, SEL_TRANSFER + 4);
+  make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/true, 4);
+  EXPECT_TRUE(signed_metadata_matches_tx(&msg));
+  EXPECT_EQ(signed_metadata_get()->num_args, 0);
+}
+
+/* matches_tx() must be idempotent: a second call decodes to the same values
+ * (regression for the TOKEN_AMOUNT prefix that used to grow on each call). */
+TEST_F(SignedMetadataTest, V2MatchesTxIsIdempotent) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  EthereumSignTx msg;
+  std::vector<uint8_t> data = v2_transfer_calldata();
+  make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/true, (uint32_t)data.size());
+
+  EXPECT_TRUE(signed_metadata_matches_tx(&msg));
+  const SignedMetadata *md = signed_metadata_get();
+  uint16_t len_addr = md->args[0].value_len, len_tok = md->args[1].value_len;
+
+  EXPECT_TRUE(signed_metadata_matches_tx(&msg));  // second call
+  EXPECT_EQ(md->args[0].value_len, len_addr);
+  EXPECT_EQ(md->args[1].value_len, len_tok);
+  EXPECT_EQ(md->args[1].value_len, 2 + 4 + 32);
+  EXPECT_EQ(memcmp(md->args[0].value, RECIPIENT, 20), 0);
+  EXPECT_EQ(memcmp(md->args[1].value + 6, AMOUNT32, 32), 0);
+}
+
+/* The v2 decode flag must reflect ONLY the latest matches_tx() call: a
+ * successful decode followed by a mismatching tx must leave it false, so a
+ * stale "decoded" proof can never survive into enforce. */
+TEST_F(SignedMetadataTest, V2SchemaDecodedFlagNotStaleAfterMismatch) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+  EXPECT_FALSE(signed_metadata_schema_decoded());  // not decoded yet
+
+  EthereumSignTx ok;
+  std::vector<uint8_t> data = v2_transfer_calldata();
+  make_v2_msg(&ok, CONTRACT_A, data, /*has_len=*/true, (uint32_t)data.size());
+  ASSERT_TRUE(signed_metadata_matches_tx(&ok));
+  EXPECT_TRUE(signed_metadata_schema_decoded());  // decoded this tx
+
+  /* Now a tx that fails an EARLY binding (wrong contract) — before the decode
+   * branch. The flag must be cleared, not left over from the match above. */
+  EthereumSignTx bad;
+  make_v2_msg(&bad, CONTRACT_B, data, /*has_len=*/true, (uint32_t)data.size());
+  EXPECT_FALSE(signed_metadata_matches_tx(&bad));
+  EXPECT_FALSE(signed_metadata_schema_decoded());
+}
+
+/* ---- v2 enforce truth table (pure, no I/O) ------------------------------ */
+/* Signature: (relied, available, decoded, classification). */
+
+TEST(SignedMetadataEnforceSchema, NotReliedAlwaysAllow) {
+  EXPECT_TRUE(signed_metadata_enforce_schema_decision(false, true, true,
+                                                      METADATA_VERIFIED));
+  EXPECT_TRUE(signed_metadata_enforce_schema_decision(false, false, false,
+                                                      METADATA_OPAQUE));
+}
+
+TEST(SignedMetadataEnforceSchema, ReliedVerifiedDecodedAllow) {
+  EXPECT_TRUE(signed_metadata_enforce_schema_decision(true, true, true,
+                                                      METADATA_VERIFIED));
+}
+
+TEST(SignedMetadataEnforceSchema, ReliedButNotDecodedFails) {
+  /* The core hardening: relied + available + VERIFIED but decode never ran. */
+  EXPECT_FALSE(signed_metadata_enforce_schema_decision(true, true, false,
+                                                       METADATA_VERIFIED));
+}
+
+TEST(SignedMetadataEnforceSchema, ReliedButUnavailableOrUnverifiedFails) {
+  EXPECT_FALSE(signed_metadata_enforce_schema_decision(true, false, true,
+                                                       METADATA_VERIFIED));
+  EXPECT_FALSE(signed_metadata_enforce_schema_decision(true, true, true,
+                                                       METADATA_OPAQUE));
+  EXPECT_FALSE(signed_metadata_enforce_schema_decision(true, true, true,
+                                                       METADATA_MALFORMED));
 }
 
 }  // namespace
