@@ -133,6 +133,13 @@ add_definitions(-DBIP39_WORDLIST_PADDED=1)
 
 add_definitions(-DAES_128=1)
 
+# The Zcash Orchard engine pulls the Pallas curve arithmetic into this image,
+# leaving it over the STM32 flash budget with the fast FOUR_TABLES AES. Shrink
+# the Gladman AES lookup tables from 4 KB to 1 KB each (-15,360 bytes ROM, a
+# modest AES cycle cost) so the 7.15 feature set fits. The variant split in a
+# later PR removes Zcash (and this constraint) from the default image.
+add_definitions(-DAES_SMALL_TABLES)
+
 if(${KK_DEBUG_LINK})
   add_definitions(-DDEBUG_LINK=1)
 else()

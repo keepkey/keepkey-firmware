@@ -47,12 +47,38 @@ bool thorchain_isValidDenom(const char* denom) {
   return true;
 }
 
+// Deposit assets share the denom grammar but are conventionally uppercase
+// (e.g. ETH.USDT-0XDAC1...); allow both cases, digits, and . / - only.
+bool thorchain_isValidAsset(const char* asset) {
+  if (!asset || !asset[0]) return false;
+  for (size_t i = 0; asset[i]; i++) {
+    char c = asset[i];
+    if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+          (c >= '0' && c <= '9') || c == '.' || c == '/' || c == '-')) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static CONFIDENTIAL HDNode node;
 static SHA256_CTX ctx;
 static bool initialized;
 static uint32_t msgs_remaining;
 static ThorchainSignTx msg;
 static bool testnet;
+
+// Deposit signer is host-supplied; require a valid bech32 address with the
+// HRP of the active network before it is displayed or signed.
+bool thorchain_isValidSigner(const char* signer) {
+  size_t decoded_len;
+  char hrp[45];
+  uint8_t decoded[38];
+  if (!signer || !bech32_decode(hrp, decoded, &decoded_len, signer)) {
+    return false;
+  }
+  return 0 == strcmp(hrp, testnet ? "tthor" : "thor");
+}
 
 const ThorchainSignTx* thorchain_getThorchainSignTx(void) { return &msg; }
 
@@ -171,6 +197,13 @@ bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
 bool thorchain_signTxUpdateMsgDeposit(const ThorchainMsgDeposit* depmsg) {
   char buffer[64 + 1];
 
+  // Defended here too (not just by the FSM caller) so this signing path is
+  // safe even if called directly or reused elsewhere later.
+  if (!thorchain_isValidAsset(depmsg->asset) ||
+      !thorchain_isValidSigner(depmsg->signer)) {
+    return false;
+  }
+
   bool success = true;
 
   const char* const prelude = "{\"type\":\"thorchain/MsgDeposit\",\"value\":{";
@@ -181,9 +214,11 @@ bool thorchain_signTxUpdateMsgDeposit(const ThorchainMsgDeposit* depmsg) {
                                  "\"coins\":[{\"amount\":\"%" PRIu64 "\"",
                                  depmsg->amount);
 
-  // 10 + ^20 + 3 = ^33
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 ",\"asset\":\"%s\"}]", depmsg->asset);
+  // Use escaping as defense-in-depth; valid assets have no escapable chars
+  const char* const asset_prefix = ",\"asset\":\"";
+  sha256_Update(&ctx, (uint8_t*)asset_prefix, strlen(asset_prefix));
+  tendermint_sha256UpdateEscaped(&ctx, depmsg->asset, strlen(depmsg->asset));
+  sha256_Update(&ctx, (uint8_t*)"\"}]", 3);
 
   // <escape memo>
   const char* const memo_prefix = ",\"memo\":\"";

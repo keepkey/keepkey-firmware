@@ -1967,10 +1967,6 @@ bool storage_zcashSeedFingerprint(bool usePassphrase,
 }
 #endif
 
-const uint8_t* storage_getRawSeed(bool usePassphrase) {
-  return storage_getSeed(&shadow_config, usePassphrase);
-}
-
 bool storage_getRootNode(const char* curve, bool usePassphrase, HDNode* node) {
   // if storage has node, decrypt and use it
   if (shadow_config.storage.pub.has_node &&

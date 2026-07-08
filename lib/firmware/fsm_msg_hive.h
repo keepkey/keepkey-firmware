@@ -39,10 +39,12 @@ void fsm_msgHiveGetPublicKey(const HiveGetPublicKey* msg) {
   }
 
   if (msg->has_show_display && msg->show_display) {
-    // Determine role label for display
+    // Label the key by the role in the ACTUAL derivation path
+    // (m/48'/13'/role'/account'/0'), never the host-supplied msg->role,
+    // which could mislabel the exported key.
     const char* role_label = "Hive Public Key";
-    if (msg->has_role) {
-      switch (msg->role) {
+    if (msg->address_n_count >= 3) {
+      switch (msg->address_n[2] & 0x7FFFFFFFu) {
         case 0:
           role_label = "Hive Owner Key";
           break;
@@ -142,10 +144,23 @@ void fsm_msgHiveSignTx(const HiveSignTx* msg) {
   if (!node) return;
   hdnode_fill_public_key(node);
 
+  // Display precision MUST match the precision the serializer signs
+  // (append_asset uses msg->decimals), otherwise the user approves an
+  // amount that differs from what is signed. Reject implausible precision.
+  uint8_t prec = msg->has_decimals ? (uint8_t)msg->decimals : HIVE_DECIMALS;
+  if (prec > 18) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid Hive asset precision"));
+    layoutHome();
+    return;
+  }
   const char* symbol = msg->has_asset_symbol ? msg->asset_symbol : "HIVE";
+  char suffix[sizeof(msg->asset_symbol) + 2];  // leading space + symbol + NUL
+  snprintf(suffix, sizeof(suffix), " %s", symbol);
   char amount_str[32];
-  snprintf(amount_str, sizeof(amount_str), "%" PRIu64 ".%03" PRIu64 " %s",
-           msg->amount / 1000, msg->amount % 1000, symbol);
+  bn_format_uint64(msg->amount, NULL, suffix, prec, 0, false, amount_str,
+                   sizeof(amount_str));
 
   if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Send Hive",
                "Send %s to @%s?", amount_str, msg->to)) {
@@ -187,6 +202,24 @@ void fsm_msgHiveSignTx(const HiveSignTx* msg) {
   layoutHome();
 }
 
+// ── SLIP-0048 path validation ─────────────────────────────────────────────
+// Account create/update derive replacement role keys from address_n[3], so
+// the full path shape must be enforced before anything is derived or signed:
+// m/48'/13'/role'/account'/0' (all 5 components hardened).
+
+static bool hive_slip48_path_ok(const uint32_t* address_n, uint32_t count) {
+  if (count != 5) return false;
+  if (address_n[0] != HIVE_SLIP48_PURPOSE) return false;
+  if (address_n[1] != HIVE_SLIP48_NETWORK) return false;
+  if (address_n[2] != HIVE_ROLE_OWNER && address_n[2] != HIVE_ROLE_ACTIVE &&
+      address_n[2] != HIVE_ROLE_MEMO && address_n[2] != HIVE_ROLE_POSTING) {
+    return false;
+  }
+  if ((address_n[3] & 0x80000000u) == 0) return false;
+  if (address_n[4] != 0x80000000u) return false;  // key index 0'
+  return true;
+}
+
 // ── HiveSignAccountCreate ─────────────────────────────────────────────────
 // Signs a Graphene account_create operation.
 // Device derives all four role keys internally; host-supplied key strings
@@ -208,10 +241,9 @@ void fsm_msgHiveSignAccountCreate(const HiveSignAccountCreate* msg) {
     return;
   }
 
-  // Path must have at least 4 components so we can extract account_index.
-  // Expected: m/48'/13'/0'/account_index'/0' (count = 5)
-  if (msg->address_n_count < 4) {
-    fsm_sendFailure(FailureType_Failure_SyntaxError, _("Hive path too short"));
+  if (!hive_slip48_path_ok(msg->address_n, msg->address_n_count)) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid Hive SLIP-0048 path"));
     layoutHome();
     return;
   }
@@ -353,8 +385,9 @@ void fsm_msgHiveSignAccountUpdate(const HiveSignAccountUpdate* msg) {
     return;
   }
 
-  if (msg->address_n_count < 4) {
-    fsm_sendFailure(FailureType_Failure_SyntaxError, _("Hive path too short"));
+  if (!hive_slip48_path_ok(msg->address_n, msg->address_n_count)) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid Hive SLIP-0048 path"));
     layoutHome();
     return;
   }

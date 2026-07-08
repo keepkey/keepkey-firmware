@@ -87,8 +87,8 @@ static struct {
   uint8_t orchard_flags;
   int64_t orchard_value_balance;
   uint8_t orchard_anchor[32];
-  /* Signatures buffer: up to 16 actions (64 bytes each) */
-  uint8_t signatures[16][64];
+  /* Signatures buffer: one 64-byte sig per action */
+  uint8_t signatures[ZCASH_MAX_ACTIONS][64];
   /* Phase 3: transparent shielding state */
   bool has_expected_transparent_digest;
   uint8_t expected_transparent_digest[32];
@@ -633,6 +633,11 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
       return;
     }
   }
+
+  /* Clear any stale state from a prior (possibly abandoned) session before
+   * starting a new one, so buffered transparent signatures or Orchard state
+   * from an earlier PCZT can never leak into this transaction. */
+  zcash_signing_abort();
 
   /* Derive Orchard keys via storage; the seed never leaves storage.c. */
   if (!storage_zcashOrchardKeys(account, true, &zcash_signing.keys)) {

@@ -387,8 +387,21 @@ void fsm_msgTronSignTypedHash(const TronSignTypedHash* msg) {
   }
 
   /* Blind-sign gate: device only receives pre-computed hashes — it cannot
-   * reconstruct or verify the original typed-data struct. The user must
-   * explicitly acknowledge this before seeing the raw hashes. */
+   * reconstruct or verify the original typed-data struct. Require the same
+   * AdvancedMode policy as TronSignTx blind-signing so this message type
+   * can't be used to route around the kill-switch. */
+  if (!storage_isPolicyEnabled("AdvancedMode")) {
+    memzero(node, sizeof(*node));
+    (void)review(ButtonRequestType_ButtonRequest_Other, "Blocked",
+                 "TIP-712 blind signing is disabled. "
+                 "Enable AdvancedMode in device settings.");
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("Blind signing disabled by policy"));
+    layoutHome();
+    return;
+  }
+
+  /* The user must explicitly acknowledge blind signing before the hashes. */
   if (!confirm(ButtonRequestType_ButtonRequest_Other, "TIP-712 Blind Sign",
                "Device cannot verify typed-data contents. "
                "Only proceed if you trust the host application.")) {

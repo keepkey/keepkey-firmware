@@ -88,11 +88,6 @@ void storage_loadDevice(LoadDevice* msg);
 /// \return true iff the root node was found.
 bool storage_getRootNode(const char* curve, bool usePassphrase, HDNode* node);
 
-/// \brief Get the raw 64-byte BIP-39 seed, triggering passphrase if needed.
-/// \param usePassphrase[in]  Whether to use the passphrase.
-/// \returns pointer to 64-byte seed, or NULL on failure.
-const uint8_t* storage_getRawSeed(bool usePassphrase);
-
 /// \brief Fetch the node used for U2F signing.
 /// \returns true iff retrieval was successful.
 bool storage_getU2FRoot(HDNode* node);
