@@ -156,7 +156,7 @@ void fsm_msgHiveSignTx(const HiveSignTx* msg) {
     return;
   }
   const char* symbol = msg->has_asset_symbol ? msg->asset_symbol : "HIVE";
-  char suffix[10];
+  char suffix[sizeof(msg->asset_symbol) + 2];  // leading space + symbol + NUL
   snprintf(suffix, sizeof(suffix), " %s", symbol);
   char amount_str[32];
   bn_format_uint64(msg->amount, NULL, suffix, prec, 0, false, amount_str,
