@@ -99,6 +99,20 @@ void fsm_msgTonSignTx(TonSignTx* msg) {
     return;
   }
 
+  /* AdvancedMode gate: to_address/amount are display-only, so this is
+   * length-only blind signing of raw bytes. Same fence as TonSignMessage
+   * and Solana/TRON opaque signing until the displayed fields are parsed
+   * from and bound to raw_tx. */
+  if (!storage_isPolicyEnabled("AdvancedMode")) {
+    (void)review(ButtonRequestType_ButtonRequest_Other, "Blocked",
+                 "TON transaction signing is blind-only. "
+                 "Enable AdvancedMode in device settings.");
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("Transaction signing disabled by policy"));
+    layoutHome();
+    return;
+  }
+
   // Derive node using Ed25519 curve
   HDNode* node = fsm_getDerivedNode(ED25519_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
