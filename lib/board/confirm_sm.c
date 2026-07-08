@@ -437,10 +437,11 @@ bool review(ButtonRequestType type, const char* request_title,
   resp.code = type;
   msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-  (void)confirm_helper(request_title, strbuf, &layout_standard_notification,
-                       false, NO_ICON, false);
+  bool ret =
+      confirm_helper(request_title, strbuf, &layout_standard_notification,
+                     false, NO_ICON, false);
   memzero(strbuf, sizeof(strbuf));
-  return true;
+  return ret;
 }
 
 bool review_without_button_request(const char* request_title,
