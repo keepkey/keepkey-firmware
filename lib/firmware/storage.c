@@ -94,7 +94,8 @@ static ConfigFlash CONFIDENTIAL shadow_config;
 /* This firmware found storage in flash it must refuse to load or overwrite
  * until the user explicitly wipes: a bitcoin-only wallet seen by multi-chain
  * firmware, or (on bitcoin-only firmware) a newer in-band wallet than this
- * build understands. Set from the SUS_BitcoinOnlyLocked path in either build. */
+ * build understands. Set from the SUS_BitcoinOnlyLocked path in either build.
+ */
 static bool btc_only_locked = false;
 
 bool storage_isBitcoinOnlyLocked(void) { return btc_only_locked; }
@@ -1263,7 +1264,8 @@ StorageUpdateStatus storage_fromFlash(SessionState* ss, ConfigFlash* dst,
         storage_readV17(dst, flash, STORAGE_SECTOR_LEN);
       }
       dst->storage.version = STORAGE_VERSION_BTC_ONLY;
-      return (underlying == (uint32_t)STORAGE_VERSION) ? SUS_Valid : SUS_Updated;
+      return (underlying == (uint32_t)STORAGE_VERSION) ? SUS_Valid
+                                                       : SUS_Updated;
     }
 #else
       // Written by bitcoin-only firmware: refuse to load. The wallet stays
