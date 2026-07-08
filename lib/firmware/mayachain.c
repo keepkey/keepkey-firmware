@@ -47,12 +47,38 @@ bool mayachain_isValidDenom(const char* denom) {
   return true;
 }
 
+// Deposit assets share the denom grammar but are conventionally uppercase
+// (e.g. MAYA.CACAO, ETH.USDT-0XDAC1...); allow both cases, digits, . / -.
+bool mayachain_isValidAsset(const char* asset) {
+  if (!asset || !asset[0]) return false;
+  for (size_t i = 0; asset[i]; i++) {
+    char c = asset[i];
+    if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+          (c >= '0' && c <= '9') || c == '.' || c == '/' || c == '-')) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static CONFIDENTIAL HDNode node;
 static SHA256_CTX ctx;
 static bool initialized;
 static uint32_t msgs_remaining;
 static MayachainSignTx msg;
 static bool testnet;
+
+// Deposit signer is host-supplied; require a valid bech32 address with the
+// HRP of the active network before it is displayed or signed.
+bool mayachain_isValidSigner(const char* signer) {
+  size_t decoded_len;
+  char hrp[45];
+  uint8_t decoded[38];
+  if (!signer || !bech32_decode(hrp, decoded, &decoded_len, signer)) {
+    return false;
+  }
+  return 0 == strcmp(hrp, testnet ? "smaya" : "maya");
+}
 
 const MayachainSignTx* mayachain_getMayachainSignTx(void) { return &msg; }
 
@@ -172,6 +198,13 @@ bool mayachain_signTxUpdateMsgSend(const uint64_t amount,
 bool mayachain_signTxUpdateMsgDeposit(const MayachainMsgDeposit* depmsg) {
   char buffer[64 + 1];
 
+  // Defended here too (not just by the FSM caller) so this signing path is
+  // safe even if called directly or reused elsewhere later.
+  if (!mayachain_isValidAsset(depmsg->asset) ||
+      !mayachain_isValidSigner(depmsg->signer)) {
+    return false;
+  }
+
   bool success = true;
 
   const char* const prelude = "{\"type\":\"mayachain/MsgDeposit\",\"value\":{";
@@ -182,9 +215,11 @@ bool mayachain_signTxUpdateMsgDeposit(const MayachainMsgDeposit* depmsg) {
                                  "\"coins\":[{\"amount\":\"%" PRIu64 "\"",
                                  depmsg->amount);
 
-  // 10 + ^20 + 3 = ^33
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 ",\"asset\":\"%s\"}]", depmsg->asset);
+  // Use escaping as defense-in-depth; valid assets have no escapable chars
+  const char* const asset_prefix = ",\"asset\":\"";
+  sha256_Update(&ctx, (uint8_t*)asset_prefix, strlen(asset_prefix));
+  tendermint_sha256UpdateEscaped(&ctx, depmsg->asset, strlen(depmsg->asset));
+  sha256_Update(&ctx, (uint8_t*)"\"}]", 3);
 
   // <escape memo>
   const char* const memo_prefix = ",\"memo\":\"";

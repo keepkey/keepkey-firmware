@@ -187,6 +187,16 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
     }
 
   } else if (msg->has_deposit) {
+    // Validate before any display so untrusted strings never reach the UI
+    // or the sign bytes.
+    if (!mayachain_isValidAsset(msg->deposit.asset) ||
+        !mayachain_isValidSigner(msg->deposit.signer)) {
+      mayachain_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Invalid deposit asset or signer");
+      layoutHome();
+      return;
+    }
     // Long-form assets (e.g.
     // ETH.USDT-0XDAC17F958D2EE523A2206206994597C13D831EC7) are ~50 chars;
     // amount_str must fit amount + asset suffix or bn_format zeroes it out.
