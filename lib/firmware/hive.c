@@ -177,6 +177,19 @@ static void append_tx_footer(uint8_t** buf, const uint8_t* end) {
 }
 
 /*
+ * Graphene canonical-signature rule (identical to EOS/Steem): high bit of
+ * both r and s must be clear. hived rejects non-canonical compact sigs, so
+ * signing must retry until canonical — same predicate as eos_is_canonic.
+ */
+static int hive_is_canonic(uint8_t v, uint8_t signature[64]) {
+  (void)v;
+  return !(signature[0] & 0x80) &&
+         !(signature[0] == 0 && !(signature[1] & 0x80)) &&
+         !(signature[32] & 0x80) &&
+         !(signature[32] == 0 && !(signature[33] & 0x80));
+}
+
+/*
  * Sign helper: SHA256(chain_id || serialized_tx) → secp256k1 recoverable sig.
  * Writes 65 bytes into sig[]. Returns true on success.
  */
@@ -192,7 +205,7 @@ static bool hive_sign_digest(const HDNode* node, const uint8_t* chain_id,
 
   uint8_t pby;
   if (ecdsa_sign_digest(&secp256k1, node->private_key, digest, sig + 1, &pby,
-                        NULL) != 0) {
+                        hive_is_canonic) != 0) {
     memzero(digest, sizeof(digest));
     return false;
   }
