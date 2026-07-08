@@ -187,6 +187,24 @@ void fsm_msgHiveSignTx(const HiveSignTx* msg) {
   layoutHome();
 }
 
+// ── SLIP-0048 path validation ─────────────────────────────────────────────
+// Account create/update derive replacement role keys from address_n[3], so
+// the full path shape must be enforced before anything is derived or signed:
+// m/48'/13'/role'/account'/0' (all 5 components hardened).
+
+static bool hive_slip48_path_ok(const uint32_t* address_n, uint32_t count) {
+  if (count != 5) return false;
+  if (address_n[0] != HIVE_SLIP48_PURPOSE) return false;
+  if (address_n[1] != HIVE_SLIP48_NETWORK) return false;
+  if (address_n[2] != HIVE_ROLE_OWNER && address_n[2] != HIVE_ROLE_ACTIVE &&
+      address_n[2] != HIVE_ROLE_MEMO && address_n[2] != HIVE_ROLE_POSTING) {
+    return false;
+  }
+  if ((address_n[3] & 0x80000000u) == 0) return false;
+  if (address_n[4] != 0x80000000u) return false;  // key index 0'
+  return true;
+}
+
 // ── HiveSignAccountCreate ─────────────────────────────────────────────────
 // Signs a Graphene account_create operation.
 // Device derives all four role keys internally; host-supplied key strings
@@ -208,10 +226,9 @@ void fsm_msgHiveSignAccountCreate(const HiveSignAccountCreate* msg) {
     return;
   }
 
-  // Path must have at least 4 components so we can extract account_index.
-  // Expected: m/48'/13'/0'/account_index'/0' (count = 5)
-  if (msg->address_n_count < 4) {
-    fsm_sendFailure(FailureType_Failure_SyntaxError, _("Hive path too short"));
+  if (!hive_slip48_path_ok(msg->address_n, msg->address_n_count)) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid Hive SLIP-0048 path"));
     layoutHome();
     return;
   }
@@ -353,8 +370,9 @@ void fsm_msgHiveSignAccountUpdate(const HiveSignAccountUpdate* msg) {
     return;
   }
 
-  if (msg->address_n_count < 4) {
-    fsm_sendFailure(FailureType_Failure_SyntaxError, _("Hive path too short"));
+  if (!hive_slip48_path_ok(msg->address_n, msg->address_n_count)) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid Hive SLIP-0048 path"));
     layoutHome();
     return;
   }

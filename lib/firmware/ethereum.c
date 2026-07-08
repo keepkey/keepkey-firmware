@@ -1222,6 +1222,10 @@ const char* failMsgReturn[LAST_ERROR - 2] = {
 };
 
 void failMessage(int err) {
+  if (err == USER_CANCELLED) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    return;
+  }
   if (err < GENERAL_ERROR || err > LAST_ERROR) {
     // unknown error number
     fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 unknown failure"));
