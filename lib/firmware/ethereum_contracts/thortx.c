@@ -174,19 +174,12 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
     return false;
   }
 
-  /* For native ETH the router forwards msg.value and ignores the ABI amount
-   * word, so the ABI amount can read 0.01 while the tx sends 100 ETH. Display
-   * the value actually sent, and refuse if the ABI amount disagrees (0 is the
-   * canonical "unset" and is allowed). For token deposits the router pulls via
-   * transferFrom; native value must not ride along or it is swept unshown. */
-  /* Native ETH is expressed either as address(0) (the on-chain router
-   * convention) or as the 0xEeee..Ee sentinel; recognize both, or a native
-   * deposit whose asset uses the sentinel would be mis-classified as a token
-   * and rejected for carrying value. Compare exactly 20 bytes (not
-   * sizeof, which includes the literal's NUL and would over-read into amount).
-   */
-  const bool is_native = memcmp(contractAssetAddress, ETH_ADDRESS, 20) == 0 ||
-                         memcmp(contractAssetAddress, ETH_NATIVE, 20) == 0;
+  /* Both pinned routers treat ONLY address(0) as native ETH (and require
+   * msg.value == 0 for any other asset), so the 0xEeee..Ee sentinel is NOT
+   * native here — accepting it would clear-sign a tx that reverts on-chain and
+   * burns gas. Match address(0) exactly (20 bytes, not sizeof, whose literal
+   * NUL would over-read into the amount word). */
+  const bool is_native = memcmp(contractAssetAddress, ETH_ADDRESS, 20) == 0;
   bignum256 Value;
   bn_from_bytes(msg->value.bytes, msg->value.size, &Value);
   if (is_native) {

@@ -232,10 +232,9 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
 
     if (msg->deposit.has_memo) {
       size_t memo_len = strnlen(msg->deposit.memo, sizeof(msg->deposit.memo));
-      // Best-effort structured summary, then ALWAYS page the complete raw memo
-      // (shared THOR/MAYA pager) — that paged disclosure is the guarantee that
-      // no field the structured view omits or truncates is signed unseen.
-      mayachain_parseConfirmMemo(msg->deposit.memo, memo_len);
+      // Page the complete raw memo as the sole, authoritative disclosure (no
+      // structured pre-parse: its bool return conflates unrecognized with user
+      // reject, so a reject must not be followed by these pages then signing).
       if (!thorchain_confirm_full_memo(_("Memo"), msg->deposit.memo,
                                        memo_len)) {
         mayachain_signAbort();
@@ -261,10 +260,9 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
   }
 
   if (sign_tx->has_memo && !msg->deposit.has_memo) {
-    // This memo is ignored if the deposit msg has a memo. Structured summary
-    // then ALWAYS page the full raw memo (see the deposit path above).
+    // Ignored if the deposit msg has a memo. Page the full raw memo as the sole
+    // gate (see the deposit path above for why there is no structured pass).
     size_t memo_len = strnlen(sign_tx->memo, sizeof(sign_tx->memo));
-    mayachain_parseConfirmMemo(sign_tx->memo, memo_len);
     if (!thorchain_confirm_full_memo(_("Memo"), sign_tx->memo, memo_len)) {
       mayachain_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);

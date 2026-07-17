@@ -259,6 +259,11 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
           copy_account(pi->to, tx, acct_indices, num_acct_indices, 1);
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
+          /* Unchecked Transfer carries no signed mint, so the device cannot
+           * prove which token is moving — a host can pick any signer-controlled
+           * account. Force the AdvancedMode blind-sign gate; only the *Checked
+           * variant (mint signed + displayed) clear-signs. */
+          *force_opaque = true;
         } else if (token_instr == SOL_TOKEN_TRANSFER_CHECKED_IX &&
                    data_len >= 9) {
           pi->type = SOL_INSTR_TOKEN_TRANSFER_CHECKED;
@@ -275,6 +280,9 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
           copy_account(pi->to, tx, acct_indices, num_acct_indices, 1);
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
+          /* Unchecked Approve hides the mint (which token is being delegated),
+           * same as unchecked Transfer — require AdvancedMode. */
+          *force_opaque = true;
         } else if (token_instr == SOL_TOKEN_REVOKE_IX) {
           pi->type = SOL_INSTR_TOKEN_REVOKE;
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);

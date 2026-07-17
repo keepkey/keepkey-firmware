@@ -296,15 +296,21 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
                      "Sync wrapped SOL?");
 
     case SOL_INSTR_STAKE_DELEGATE: {
+      char vote_str[45];
+      solana_pubkeyToStr(pi->to, vote_str, sizeof(vote_str));
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Delegate stake?");
+                     "Delegate stake\nto %s?", vote_str);
     }
 
     case SOL_INSTR_STAKE_WITHDRAW: {
       char amount_str[32];
       solana_formatAmount(amount_str, sizeof(amount_str), pi->lamports);
+      /* Show the recipient — a withdrawal that hides it lets a host redirect
+       * the withdrawn SOL while the device shows only the amount. */
+      char to_str[45];
+      solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Withdraw %s from stake?", amount_str);
+                     "Withdraw %s from stake\nto %s?", amount_str, to_str);
     }
 
     case SOL_INSTR_STAKE_AUTHORIZE: {
@@ -317,8 +323,11 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     case SOL_INSTR_STAKE_SPLIT: {
       char amount_str[32];
       solana_formatAmount(amount_str, sizeof(amount_str), pi->lamports);
+      /* Show the destination stake account the split lamports land in. */
+      char to_str[45];
+      solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Split stake by %s?", amount_str);
+                     "Split stake by %s\nto %s?", amount_str, to_str);
     }
 
     case SOL_INSTR_STAKE_DEACTIVATE:
@@ -339,8 +348,11 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     case SOL_INSTR_VOTE_WITHDRAW: {
       char amount_str[32];
       solana_formatAmount(amount_str, sizeof(amount_str), pi->lamports);
+      /* Show the recipient — same redirect risk as stake withdrawal. */
+      char to_str[45];
+      solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Withdraw vote %s?", amount_str);
+                     "Withdraw vote %s\nto %s?", amount_str, to_str);
     }
 
     case SOL_INSTR_VOTE_UPDATE_VALIDATOR: {

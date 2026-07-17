@@ -226,12 +226,10 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
 
     if (msg->deposit.has_memo) {
       size_t memo_len = strnlen(msg->deposit.memo, sizeof(msg->deposit.memo));
-      // Best-effort structured summary for readability, then ALWAYS page the
-      // complete raw memo — that paged disclosure is the security guarantee, so
-      // a field the structured view omits (aggregator/affiliate) or a long
-      // field that would truncate can never be signed unseen. A reject on the
-      // raw memo aborts.
-      thorchain_parseConfirmMemo(msg->deposit.memo, memo_len);
+      // Page the complete raw memo as the sole, authoritative disclosure. No
+      // structured pre-parse here: its bool return conflates "unrecognized"
+      // with "user rejected a screen", so a reject could be followed by these
+      // pages and then signing. The raw pager's own reject aborts.
       if (!thorchain_confirm_full_memo(_("Memo"), msg->deposit.memo,
                                        memo_len)) {
         thorchain_signAbort();
@@ -257,10 +255,9 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
   }
 
   if (sign_tx->has_memo && !msg->deposit.has_memo) {
-    // This memo is ignored if the deposit msg has a memo. Structured summary
-    // then ALWAYS page the full raw memo (see the deposit path above).
+    // Ignored if the deposit msg has a memo. Page the full raw memo as the sole
+    // gate (see the deposit path above for why there is no structured pass).
     size_t memo_len = strnlen(sign_tx->memo, sizeof(sign_tx->memo));
-    thorchain_parseConfirmMemo(sign_tx->memo, memo_len);
     if (!thorchain_confirm_full_memo(_("Memo"), sign_tx->memo, memo_len)) {
       thorchain_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);

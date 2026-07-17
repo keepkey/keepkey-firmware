@@ -400,3 +400,11 @@ TEST(Thorchain, FullMemoBinaryPagesAsHex) {
   EXPECT_TRUE(thorchain_confirm_full_memo("Memo", memo, sizeof(memo)));
   EXPECT_EQ(0, kkconfirm_drain());
 }
+
+// An empty memo must show a single "(empty)" screen — not fall through to the
+// hex branch, which would pass an uninitialized buffer to %s.
+TEST(Thorchain, FullMemoEmptyShowsEmpty) {
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  EXPECT_TRUE(thorchain_confirm_full_memo("Memo", "", 0));
+  EXPECT_EQ(0, kkconfirm_drain());
+}

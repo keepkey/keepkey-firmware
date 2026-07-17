@@ -241,6 +241,12 @@ void thorchain_signAbort(void) {
 bool thorchain_confirm_full_memo(const char* title, const char* memo,
                                  size_t len) {
   enum { ASCII_CHUNK = 72, HEX_CHUNK = 40 };
+  if (len == 0) {
+    /* An empty memo would otherwise fall through to the hex branch below with
+     * take == 0, leaving `rendered` uninitialized when passed to %s. */
+    return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                   "(empty)");
+  }
   bool ascii = len > 0;
   for (size_t i = 0; i < len; i++) {
     if ((uint8_t)memo[i] < 0x20 || (uint8_t)memo[i] > 0x7e) {
