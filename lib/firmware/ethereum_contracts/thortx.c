@@ -111,7 +111,8 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
    * (destination, affiliate, aggregator, min-out) past byte 64 that a fixed
    * parse never displays. Reject dirty high bytes, cap at THORChain's 256-byte
    * memo max, require the whole calldata to be in this chunk, and require the
-   * padded memo to end exactly at the calldata end so no trailing bytes hide. */
+   * padded memo to end exactly at the calldata end so no trailing bytes hide.
+   */
   const uint8_t* memo_len_word =
       msg->data_initial_chunk.bytes + 4 + (is_expiry ? 5 : 4) * 32;
   for (int i = 0; i < 28; i++) {
@@ -126,10 +127,11 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
   const size_t memo_padded = ((memo_len + 31u) / 32u) * 32u;
   if (msg->has_data_length &&
       msg->data_length != msg->data_initial_chunk.size) {
-    return false;  /* whole calldata must be in the initial chunk to bound it */
+    return false; /* whole calldata must be in the initial chunk to bound it */
   }
   if (memo_off + memo_padded != msg->data_initial_chunk.size) {
-    return false;  /* trailing bytes after the memo would be executed but hidden */
+    return false; /* trailing bytes after the memo would be executed but hidden
+                   */
   }
 
   char confStr[41];

@@ -70,8 +70,9 @@ static bool solana_confirm_memo(const char* title, const uint8_t* s,
 
     char page_title[32];
     if (pages > 1 || !ascii) {
-      snprintf(page_title, sizeof(page_title), ascii ? "%s %u/%u" : "%s Hex %u/%u",
-               title, (unsigned)(page + 1), (unsigned)pages);
+      snprintf(page_title, sizeof(page_title),
+               ascii ? "%s %u/%u" : "%s Hex %u/%u", title, (unsigned)(page + 1),
+               (unsigned)pages);
     } else {
       strlcpy(page_title, title, sizeof(page_title));
     }
@@ -80,16 +81,16 @@ static bool solana_confirm_memo(const char* title, const uint8_t* s,
       char rendered[SOL_MEMO_ASCII_CHUNK + 1];
       memcpy(rendered, s + offset, take);
       rendered[take] = '\0';
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, page_title, "%s",
-                   rendered))
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, page_title,
+                   "%s", rendered))
         return false;
     } else {
       char rendered[SOL_MEMO_HEX_CHUNK * 2 + 1];
       for (uint16_t i = 0; i < take; i++) {
         snprintf(rendered + 2 * i, 3, "%02x", s[offset + i]);
       }
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, page_title, "%s",
-                   rendered))
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, page_title,
+                   "%s", rendered))
         return false;
     }
   }

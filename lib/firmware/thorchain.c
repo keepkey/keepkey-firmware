@@ -255,8 +255,9 @@ static bool thorchain_confirm_full_memo(const char* title, const char* memo,
     if (take > chunk) take = chunk;
 
     char page_title[24];
-    snprintf(page_title, sizeof(page_title), ascii ? "%s %u/%u" : "%s Hex %u/%u",
-             title, (unsigned)(page + 1), (unsigned)pages);
+    snprintf(page_title, sizeof(page_title),
+             ascii ? "%s %u/%u" : "%s Hex %u/%u", title, (unsigned)(page + 1),
+             (unsigned)pages);
 
     if (ascii) {
       char rendered[ASCII_CHUNK + 1];
@@ -361,8 +362,8 @@ bool thorchain_parseConfirmMemo(const char* swapStr, size_t size) {
      * every signed byte is shown. */
     if (memchr(swapStr, '|', size) != NULL) {
       if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                   "Thorchain swap", "Confirm swap asset %s\n on chain %s", asset,
-                   chain)) {
+                   "Thorchain swap", "Confirm swap asset %s\n on chain %s",
+                   asset, chain)) {
         return false;
       }
       return thorchain_confirm_full_memo("Swap memo", swapStr, size);
@@ -377,7 +378,8 @@ bool thorchain_parseConfirmMemo(const char* swapStr, size_t size) {
         (nfields > 4 && fields[4][0] != '\0') ? fields[4] : NULL;
     const char* fee_bps =
         (nfields > 5 && fields[5][0] != '\0') ? fields[5] : "unspecified";
-    /* DEX-aggregator swap-out fields — all router-executed, so all displayed. */
+    /* DEX-aggregator swap-out fields — all router-executed, so all displayed.
+     */
     const char* agg_addr =
         (nfields > 6 && fields[6][0] != '\0') ? fields[6] : NULL;
     const char* final_token =
@@ -415,18 +417,18 @@ bool thorchain_parseConfirmMemo(const char* swapStr, size_t size) {
     // DEX-aggregator routing: the router forwards the output through this
     // aggregator to a final token, so both must be visible.
     if (agg_addr != NULL &&
-        !confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Thorchain swap",
-                 "DEX aggregator %s", agg_addr)) {
+        !confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                 "Thorchain swap", "DEX aggregator %s", agg_addr)) {
       return false;
     }
     if (final_token != NULL &&
-        !confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Thorchain swap",
-                 "Final token %s", final_token)) {
+        !confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                 "Thorchain swap", "Final token %s", final_token)) {
       return false;
     }
     if (min_out != NULL &&
-        !confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Thorchain swap",
-                 "Min output %s", min_out)) {
+        !confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                 "Thorchain swap", "Min output %s", min_out)) {
       return false;
     }
     return true;
