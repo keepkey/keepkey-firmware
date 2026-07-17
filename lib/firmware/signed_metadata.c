@@ -55,16 +55,16 @@ static uint16_t loaded_icon_len[METADATA_MAX_KEYS];
 #endif
 
 /* Find the persistent identity that reloads into `key_id`, or NULL. */
-static const ClearsignIdentity *persistent_identity_for(uint8_t key_id) {
+static const ClearsignIdentity* persistent_identity_for(uint8_t key_id) {
   int n = storage_clearsignIdentityCount();
   for (int i = 0; i < n; i++) {
-    const ClearsignIdentity *id = storage_getClearsignIdentity(i);
+    const ClearsignIdentity* id = storage_getClearsignIdentity(i);
     if (id && id->key_id == key_id) return id;
   }
   return NULL;
 }
 
-static bool read_u8(const uint8_t **cursor, const uint8_t *end, uint8_t *out) {
+static bool read_u8(const uint8_t** cursor, const uint8_t* end, uint8_t* out) {
   if ((size_t)(end - *cursor) < 1) {
     return false;
   }
@@ -74,8 +74,8 @@ static bool read_u8(const uint8_t **cursor, const uint8_t *end, uint8_t *out) {
   return true;
 }
 
-static bool read_be_u16(const uint8_t **cursor, const uint8_t *end,
-                        uint16_t *out) {
+static bool read_be_u16(const uint8_t** cursor, const uint8_t* end,
+                        uint16_t* out) {
   if ((size_t)(end - *cursor) < 2) {
     return false;
   }
@@ -85,8 +85,8 @@ static bool read_be_u16(const uint8_t **cursor, const uint8_t *end,
   return true;
 }
 
-static bool read_be_u32(const uint8_t **cursor, const uint8_t *end,
-                        uint32_t *out) {
+static bool read_be_u32(const uint8_t** cursor, const uint8_t* end,
+                        uint32_t* out) {
   if ((size_t)(end - *cursor) < 4) {
     return false;
   }
@@ -97,7 +97,7 @@ static bool read_be_u32(const uint8_t **cursor, const uint8_t *end,
   return true;
 }
 
-static bool read_bytes(const uint8_t **cursor, const uint8_t *end, uint8_t *out,
+static bool read_bytes(const uint8_t** cursor, const uint8_t* end, uint8_t* out,
                        size_t size) {
   if ((size_t)(end - *cursor) < size) {
     return false;
@@ -108,7 +108,7 @@ static bool read_bytes(const uint8_t **cursor, const uint8_t *end, uint8_t *out,
   return true;
 }
 
-static bool read_string(const uint8_t **cursor, const uint8_t *end, char *out,
+static bool read_string(const uint8_t** cursor, const uint8_t* end, char* out,
                         size_t max_len) {
   uint16_t value_len = 0;
   if (!read_be_u16(cursor, end, &value_len) || value_len == 0 ||
@@ -122,7 +122,7 @@ static bool read_string(const uint8_t **cursor, const uint8_t *end, char *out,
   return true;
 }
 
-static bool read_arg_name(const uint8_t **cursor, const uint8_t *end, char *out,
+static bool read_arg_name(const uint8_t** cursor, const uint8_t* end, char* out,
                           size_t max_len) {
   uint8_t value_len = 0;
   if (!read_u8(cursor, end, &value_len) || value_len == 0 ||
@@ -140,7 +140,7 @@ static bool read_arg_name(const uint8_t **cursor, const uint8_t *end, char *out,
  * TOKEN_AMOUNT carry display semantics, so their byte layout is enforced
  * before anything is stored; legacy formats keep their original 32-byte cap
  * (METADATA_MAX_ARG_VALUE_LEN grew only to fit TOKEN_AMOUNT). */
-static bool arg_value_ok(uint8_t format, const uint8_t *value, uint16_t len) {
+static bool arg_value_ok(uint8_t format, const uint8_t* value, uint16_t len) {
   switch (format) {
     case ARG_FORMAT_STRING: {
       /* Attested printable label ("protocol: Uniswap V2"). Rendered through
@@ -183,8 +183,8 @@ static bool arg_value_ok(uint8_t format, const uint8_t *value, uint16_t len) {
 }
 
 /* chain_id(4) + contract(20) + selector(4) — shared by both blob versions. */
-static bool parse_common_head(const uint8_t **cursor, const uint8_t *end,
-                              SignedMetadata *out) {
+static bool parse_common_head(const uint8_t** cursor, const uint8_t* end,
+                              SignedMetadata* out) {
   return read_be_u32(cursor, end, &out->chain_id) &&
          read_bytes(cursor, end, out->contract_address,
                     sizeof(out->contract_address)) &&
@@ -193,8 +193,8 @@ static bool parse_common_head(const uint8_t **cursor, const uint8_t *end,
 
 /* classification(1) + timestamp(4) + key_id(1) + sig(64) + recovery(1), then
  * the cursor must land exactly on `end` — identical for v1 and v2. */
-static bool parse_trailer(const uint8_t **cursor, const uint8_t *end,
-                          SignedMetadata *out) {
+static bool parse_trailer(const uint8_t** cursor, const uint8_t* end,
+                          SignedMetadata* out) {
   uint8_t classification = 0;
   if (!read_u8(cursor, end, &classification) || classification > 2 ||
       !read_be_u32(cursor, end, &out->timestamp) ||
@@ -208,12 +208,12 @@ static bool parse_trailer(const uint8_t **cursor, const uint8_t *end,
 }
 
 /* v1 args: name + format + explicit (host-decoded) value. */
-static bool parse_v1_args(const uint8_t **cursor, const uint8_t *end,
-                          SignedMetadata *out) {
+static bool parse_v1_args(const uint8_t** cursor, const uint8_t* end,
+                          SignedMetadata* out) {
   for (uint8_t i = 0; i < out->num_args; i++) {
     uint8_t format = 0;
     uint16_t value_len = 0;
-    MetadataArg *arg = &out->args[i];
+    MetadataArg* arg = &out->args[i];
 
     if (!read_arg_name(cursor, end, arg->name, METADATA_MAX_ARG_NAME_LEN) ||
         !read_u8(cursor, end, &format) || format > ARG_FORMAT_TOKEN_AMOUNT ||
@@ -235,11 +235,11 @@ static bool parse_v1_args(const uint8_t **cursor, const uint8_t *end,
  * to append the 32-byte amount word. v2 supports the fixed single-word ABI
  * types ADDRESS / AMOUNT / TOKEN_AMOUNT; anything else is out of scope -> blind
  * sign. */
-static bool parse_v2_args(const uint8_t **cursor, const uint8_t *end,
-                          SignedMetadata *out) {
+static bool parse_v2_args(const uint8_t** cursor, const uint8_t* end,
+                          SignedMetadata* out) {
   for (uint8_t i = 0; i < out->num_args; i++) {
     uint8_t format = 0;
-    MetadataArg *arg = &out->args[i];
+    MetadataArg* arg = &out->args[i];
 
     if (!read_arg_name(cursor, end, arg->name, METADATA_MAX_ARG_NAME_LEN) ||
         !read_u8(cursor, end, &format)) {
@@ -281,10 +281,10 @@ static bool parse_v2_args(const uint8_t **cursor, const uint8_t *end,
   return true;
 }
 
-static bool parse_metadata_binary(const uint8_t *payload, size_t payload_len,
-                                  SignedMetadata *out) {
-  const uint8_t *cursor = payload;
-  const uint8_t *end = payload + payload_len;
+static bool parse_metadata_binary(const uint8_t* payload, size_t payload_len,
+                                  SignedMetadata* out) {
+  const uint8_t* cursor = payload;
+  const uint8_t* end = payload + payload_len;
   memset(out, 0, sizeof(*out));
 
   if (!read_u8(&cursor, end, &out->version)) {
@@ -329,7 +329,7 @@ static bool parse_metadata_binary(const uint8_t *payload, size_t payload_len,
  * in a later chunk or trailing the words. That structural completeness is what
  * binds the displayed decode to the signature; v2 has no tx_hash.
  */
-static bool decode_v2_args(SignedMetadata *md, const EthereumSignTx *msg) {
+static bool decode_v2_args(SignedMetadata* md, const EthereumSignTx* msg) {
   uint32_t expected = 4u + 32u * (uint32_t)md->num_args;
   uint32_t initsz = msg->data_initial_chunk.size;
   uint32_t total = msg->has_data_length ? msg->data_length : initsz;
@@ -338,8 +338,8 @@ static bool decode_v2_args(SignedMetadata *md, const EthereumSignTx *msg) {
   }
 
   for (uint8_t i = 0; i < md->num_args; i++) {
-    const uint8_t *word = msg->data_initial_chunk.bytes + 4 + 32u * i;
-    MetadataArg *arg = &md->args[i];
+    const uint8_t* word = msg->data_initial_chunk.bytes + 4 + 32u * i;
+    MetadataArg* arg = &md->args[i];
 
     switch (arg->format) {
       case ARG_FORMAT_ADDRESS:
@@ -377,8 +377,8 @@ static bool decode_v2_args(SignedMetadata *md, const EthereumSignTx *msg) {
   return true;
 }
 
-static void bn_from_metadata_bytes(const uint8_t *value, size_t value_len,
-                                   bignum256 *out) {
+static void bn_from_metadata_bytes(const uint8_t* value, size_t value_len,
+                                   bignum256* out) {
   uint8_t padded[32] = {0};
   if (value_len > sizeof(padded)) {
     value_len = sizeof(padded);
@@ -415,8 +415,8 @@ void signed_metadata_clear_signers(void) {
   signed_metadata_clear();
 }
 
-bool signed_metadata_signer_valid(uint8_t key_id, const uint8_t *pubkey,
-                                  size_t pubkey_len, const char *alias) {
+bool signed_metadata_signer_valid(uint8_t key_id, const uint8_t* pubkey,
+                                  size_t pubkey_len, const char* alias) {
   curve_point point;
   size_t alias_len;
 
@@ -452,8 +452,8 @@ bool signed_metadata_signer_valid(uint8_t key_id, const uint8_t *pubkey,
   return ecdsa_read_pubkey(&secp256k1, pubkey, &point) == 1;
 }
 
-bool signed_metadata_store_signer(uint8_t key_id, const uint8_t *pubkey,
-                                  const char *alias, const uint8_t *icon,
+bool signed_metadata_store_signer(uint8_t key_id, const uint8_t* pubkey,
+                                  const char* alias, const uint8_t* icon,
                                   uint8_t icon_w, uint8_t icon_h,
                                   uint16_t icon_len, bool persist) {
   if (key_id >= METADATA_MAX_KEYS) {
@@ -508,10 +508,10 @@ bool signed_metadata_store_signer(uint8_t key_id, const uint8_t *pubkey,
 
 /* Resolve the alias for a slot (RAM working copy, else a persisted identity).
  * Returns NULL if the slot has no loaded/persisted signer. */
-const char *signed_metadata_signer_alias(uint8_t key_id) {
+const char* signed_metadata_signer_alias(uint8_t key_id) {
   if (key_id >= METADATA_MAX_KEYS) return NULL;
   if (loaded_pubkeys[key_id][0] != 0x00) return loaded_aliases[key_id];
-  const ClearsignIdentity *pid = persistent_identity_for(key_id);
+  const ClearsignIdentity* pid = persistent_identity_for(key_id);
   return pid ? pid->alias : NULL;
 }
 
@@ -526,7 +526,7 @@ const char *signed_metadata_signer_alias(uint8_t key_id) {
  * legacy flash record — unchecked. Fail closed to a text-only identity: a
  * missing logo is cosmetic, an over-wide one erases the alias, fingerprint and
  * the "NOT verified by KeepKey" warning. */
-static bool icon_renderable(const uint8_t *icon, uint16_t icon_len,
+static bool icon_renderable(const uint8_t* icon, uint16_t icon_len,
                             uint8_t icon_w, uint8_t icon_h) {
   if (!icon || icon_len == 0) return false;
   if (icon_w == 0 || icon_w > LEFT_MARGIN_WITH_ICON) return false;
@@ -534,9 +534,9 @@ static bool icon_renderable(const uint8_t *icon, uint16_t icon_len,
   return draw_bitmap_mono_rle_valid(icon, (uint32_t)icon_len, icon_w, icon_h);
 }
 
-bool signed_metadata_signer_icon(uint8_t key_id, const uint8_t **icon_out,
-                                 uint8_t *w_out, uint8_t *h_out,
-                                 uint16_t *len_out) {
+bool signed_metadata_signer_icon(uint8_t key_id, const uint8_t** icon_out,
+                                 uint8_t* w_out, uint8_t* h_out,
+                                 uint16_t* len_out) {
   if (key_id >= METADATA_MAX_KEYS) return false;
   if (loaded_pubkeys[key_id][0] != 0x00) {
 #if ZCASH_PRIVACY
@@ -557,7 +557,7 @@ bool signed_metadata_signer_icon(uint8_t key_id, const uint8_t **icon_out,
     return true;
 #endif
   }
-  const ClearsignIdentity *pid = persistent_identity_for(key_id);
+  const ClearsignIdentity* pid = persistent_identity_for(key_id);
   if (!pid || pid->icon_len == 0) return false;
   /* Flash records predate the geometry/encoding rules and are NOT re-validated
    * by the load handler after a reboot, so an identity persisted by older
@@ -576,8 +576,8 @@ bool signed_metadata_signer_icon(uint8_t key_id, const uint8_t **icon_out,
  * Image + frame are the CALLER's (must outlive the synchronous confirm); this
  * only wires them up. Returns RUNTIME_ICON when an icon was set, else NO_ICON.
  * Positioning tuned on device — icon column is ~40px, height 64px. */
-static IconType stage_runtime_icon(Image *img, AnimationFrame *frame,
-                                   const uint8_t *icon, uint8_t icon_w,
+static IconType stage_runtime_icon(Image* img, AnimationFrame* frame,
+                                   const uint8_t* icon, uint8_t icon_w,
                                    uint8_t icon_h, uint16_t icon_len) {
   if (!icon || icon_len == 0) return NO_ICON;
   /* Fail closed on an over-wide icon rather than drawing it at x=0: text begins
@@ -608,8 +608,8 @@ static IconType stage_runtime_icon(Image *img, AnimationFrame *frame,
   return RUNTIME_ICON;
 }
 
-bool signed_metadata_confirm_load(const char *alias, const char *fingerprint,
-                                  const uint8_t *icon, uint8_t icon_w,
+bool signed_metadata_confirm_load(const char* alias, const char* fingerprint,
+                                  const uint8_t* icon, uint8_t icon_w,
                                   uint8_t icon_h, uint16_t icon_len,
                                   bool persist) {
   Image icon_img;
@@ -644,7 +644,7 @@ bool signed_metadata_from_loaded_signer(void) {
 }
 
 /* Resolve the verification key for a slot. */
-static const uint8_t *metadata_pubkey_for(uint8_t key_id, bool *is_loaded) {
+static const uint8_t* metadata_pubkey_for(uint8_t key_id, bool* is_loaded) {
   *is_loaded = false;
   if (key_id >= METADATA_MAX_KEYS) {
     return NULL;
@@ -655,7 +655,7 @@ static const uint8_t *metadata_pubkey_for(uint8_t key_id, bool *is_loaded) {
   }
   /* Not in a RAM slot this session — fall back to a persisted identity that
    * survived reboot. (A fresh load into the same slot supersedes it above.) */
-  const ClearsignIdentity *pid = persistent_identity_for(key_id);
+  const ClearsignIdentity* pid = persistent_identity_for(key_id);
   if (pid) {
     *is_loaded = true;
     return pid->pubkey;
@@ -663,13 +663,31 @@ static const uint8_t *metadata_pubkey_for(uint8_t key_id, bool *is_loaded) {
   return NULL;
 }
 
-MetadataClassification signed_metadata_process(const uint8_t *payload,
+bool signed_metadata_verify_attestation(uint8_t key_id, const uint8_t* data,
+                                        size_t data_len, const uint8_t* sig,
+                                        size_t sig_len) {
+  if (!data || data_len == 0 || !sig || sig_len != 64) {
+    return false;
+  }
+  bool is_loaded = false;
+  const uint8_t* pubkey = metadata_pubkey_for(key_id, &is_loaded);
+  if (!pubkey) {
+    return false;
+  }
+  uint8_t digest[32];
+  sha256_Raw(data, data_len, digest);
+  bool ok = ecdsa_verify_digest(&secp256k1, pubkey, sig, digest) == 0;
+  memzero(digest, sizeof(digest));
+  return ok;
+}
+
+MetadataClassification signed_metadata_process(const uint8_t* payload,
                                                size_t payload_len,
                                                uint8_t key_id) {
   uint8_t digest[32];
   size_t signed_len;
   bool is_loaded = false;
-  const uint8_t *pubkey;
+  const uint8_t* pubkey;
 
   signed_metadata_clear();
 
@@ -698,7 +716,7 @@ MetadataClassification signed_metadata_process(const uint8_t *payload,
   return stored_metadata.classification;
 }
 
-bool signed_metadata_matches_tx(const EthereumSignTx *msg) {
+bool signed_metadata_matches_tx(const EthereumSignTx* msg) {
   /* Reset the v2 decode proof up front: it must reflect ONLY the current call.
    * Any early return below (unavailable, wrong contract/selector/chain) leaves
    * it false, so a stale `true` from a prior successful match can never let
@@ -781,8 +799,8 @@ static bool signed_metadata_confirm_screens(void) {
      * swapped provider is still detectable. */
     uint8_t key_id = stored_metadata.key_id;
     bool is_loaded = false;
-    const uint8_t *pk = metadata_pubkey_for(key_id, &is_loaded);
-    const char *alias = signed_metadata_signer_alias(key_id);
+    const uint8_t* pk = metadata_pubkey_for(key_id, &is_loaded);
+    const char* alias = signed_metadata_signer_alias(key_id);
     char fingerprint[METADATA_FINGERPRINT_LEN];
     if (pk) {
       signed_metadata_pubkey_fingerprint(pk, fingerprint);
@@ -794,7 +812,7 @@ static bool signed_metadata_confirm_screens(void) {
     /* Draw the identity logo in the confirm's left icon column if one was
      * loaded. Image + frame are local — valid for the synchronous confirm
      * call, then the runtime icon is cleared. (Positioning tuned on device.) */
-    const uint8_t *icon_data;
+    const uint8_t* icon_data;
     uint8_t icon_w, icon_h;
     uint16_t icon_len;
     if (signed_metadata_signer_icon(key_id, &icon_data, &icon_w, &icon_h,
@@ -860,7 +878,7 @@ static bool signed_metadata_confirm_screens(void) {
 
   /* Screen 3..N: Each decoded argument */
   for (uint8_t i = 0; i < stored_metadata.num_args; i++) {
-    MetadataArg *arg = &stored_metadata.args[i];
+    MetadataArg* arg = &stored_metadata.args[i];
     memset(body, 0, sizeof(body));
 
     switch (arg->format) {
@@ -914,7 +932,7 @@ static bool signed_metadata_confirm_screens(void) {
         memcpy(suffix + 1, arg->value + 2, symlen);
         suffix[1 + symlen] = '\0';
 
-        const uint8_t *amt = arg->value + 2 + symlen;
+        const uint8_t* amt = arg->value + 2 + symlen;
         uint16_t amt_len = arg->value_len - 2 - symlen;
         bool is_max = amt_len == 32;
         for (uint16_t j = 0; j < amt_len && is_max; j++) {
@@ -975,8 +993,8 @@ bool signed_metadata_relied(void) { return relied_on_metadata; }
 
 bool signed_metadata_enforce_decision(bool relied, bool available,
                                       int classification,
-                                      const uint8_t *stored_hash,
-                                      const uint8_t *hash) {
+                                      const uint8_t* stored_hash,
+                                      const uint8_t* hash) {
   if (!relied) {
     return true; /* signature was not gated by metadata */
   }
@@ -1014,6 +1032,6 @@ bool signed_metadata_enforce(const uint8_t hash[32]) {
       stored_metadata.tx_hash, hash);
 }
 
-const SignedMetadata *signed_metadata_get(void) {
+const SignedMetadata* signed_metadata_get(void) {
   return metadata_available ? &stored_metadata : NULL;
 }

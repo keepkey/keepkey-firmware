@@ -225,8 +225,10 @@ TEST(Solana, ParseSPLTokenTransfer) {
   raw[pos++] = 0x00;
 
   SolanaParsedTx tx;
-  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_VERIFIED);
-  ASSERT_TRUE(solana_parseTx(raw, pos, &tx));
+  /* Unchecked SPL Transfer carries no signed mint (the token being moved is not
+   * provable), so the transaction is now OPAQUE — it requires AdvancedMode
+   * blind-signing rather than clear-signing. The instruction is still parsed. */
+  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
 
   EXPECT_EQ(tx.num_instructions, 1);
   EXPECT_EQ(tx.instructions[0].type, SOL_INSTR_TOKEN_TRANSFER);

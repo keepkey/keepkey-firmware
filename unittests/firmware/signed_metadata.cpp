@@ -1412,4 +1412,36 @@ TEST(SignedMetadataEnforceSchema, ReliedButUnavailableOrUnverifiedFails) {
                                                        METADATA_MALFORMED));
 }
 
+// Generic attestation primitive (used by the Solana signed-token-definition
+// path): a valid signature from a loaded signer verifies; tampering, an
+// unloaded key_id, or a wrong signature length are all rejected.
+TEST(SignedMetadataAttestation, VerifiesValidRejectsTampered) {
+  signed_metadata_clear_signers();
+  signed_metadata_store_signer(TEST_KEY_ID, EXPECTED_SLOT3_PUB, TEST_ALIAS,
+                               nullptr, 0, 0, 0, false);
+
+  const uint8_t data[] = "KeepKeySolanaTokenDef/1|mint|decimals|USDC";
+  const size_t len = sizeof(data) - 1;
+  uint8_t digest[32];
+  sha256_Raw(data, len, digest);
+  uint8_t sig[64];
+  uint8_t pby;
+  ASSERT_EQ(0, ecdsa_sign_digest(&secp256k1, TEST_PRIV, digest, sig, &pby,
+                                 nullptr));
+
+  EXPECT_TRUE(signed_metadata_verify_attestation(TEST_KEY_ID, data, len, sig,
+                                                 sizeof(sig)));
+
+  std::vector<uint8_t> bad(data, data + len);
+  bad[0] ^= 0x01;
+  EXPECT_FALSE(signed_metadata_verify_attestation(TEST_KEY_ID, bad.data(), len,
+                                                  sig, sizeof(sig)));
+  EXPECT_FALSE(signed_metadata_verify_attestation((uint8_t)(TEST_KEY_ID + 1),
+                                                  data, len, sig, sizeof(sig)));
+  EXPECT_FALSE(
+      signed_metadata_verify_attestation(TEST_KEY_ID, data, len, sig, 63));
+
+  signed_metadata_clear_signers();
+}
+
 }  // namespace

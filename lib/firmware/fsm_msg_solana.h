@@ -51,6 +51,41 @@ static bool solana_symbol_is_safe(const char* sym) {
   return true;
 }
 
+/* True iff the token info carries a valid attestation: an ECDSA signature over
+ * a domain-separated (mint, decimals, symbol) digest by a clear-sign signer the
+ * user loaded (LoadClearsignSigner). Reuses the EVM clear-sign trust anchor.
+ * The firmware only VERIFIES here — producing these signatures (host/SDK + a
+ * signing authority) is a follow-up; until then no host sets .signature and
+ * this always returns false, leaving behavior unchanged. */
+static bool solana_token_info_trusted(const SolanaTokenInfo* ti) {
+  if (!ti || !ti->has_signature || !ti->has_signer_key_id || !ti->has_mint ||
+      ti->mint.size != SOL_PUBKEY_SIZE || !ti->has_symbol ||
+      !ti->has_decimals || !solana_symbol_is_safe(ti->symbol)) {
+    return false;
+  }
+  /* Domain tag prevents a signature made for any other purpose (e.g. an EVM
+   * metadata blob signed by the same key) from being replayed as a token def.
+   * Preimage: tag || mint(32) || decimals(le32) || symbol. */
+  static const char kTag[] = "KeepKeySolanaTokenDef/1";
+  uint8_t blob[sizeof(kTag) - 1 + SOL_PUBKEY_SIZE + 4 + 13];
+  size_t n = 0;
+  memcpy(blob + n, kTag, sizeof(kTag) - 1);
+  n += sizeof(kTag) - 1;
+  memcpy(blob + n, ti->mint.bytes, SOL_PUBKEY_SIZE);
+  n += SOL_PUBKEY_SIZE;
+  uint32_t dec = ti->decimals;
+  blob[n++] = (uint8_t)dec;
+  blob[n++] = (uint8_t)(dec >> 8);
+  blob[n++] = (uint8_t)(dec >> 16);
+  blob[n++] = (uint8_t)(dec >> 24);
+  size_t sym_len = strlen(ti->symbol);
+  memcpy(blob + n, ti->symbol, sym_len);
+  n += sym_len;
+  return signed_metadata_verify_attestation((uint8_t)ti->signer_key_id, blob, n,
+                                            ti->signature.bytes,
+                                            ti->signature.size);
+}
+
 /* Display budget per confirm body: printable memos page as text, binary memos
  * page as hex so the FULL content is always shown — a memo can carry swap
  * intent (THORChain '=:ETH.ETH:...'), so nothing may be hidden behind a byte
@@ -222,21 +257,39 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
         ti = solana_findTokenInfo(msg, pi->mint);
       }
 
+      /* Decide symbol trust before drawing the mint screen so its label can say
+       * whether the symbol is attested. Trust rules:
+       *  - attestation present + verifies against a loaded signer -> trusted;
+       *  - attestation present + INVALID -> reject the symbol entirely (an
+       *    attacker offered a bad signature; never fall back to the claim);
+       *  - no attestation (today's hosts) -> show the symbol next to the
+       *    always-authenticated mint (unchanged behavior). */
+      const char* symbol = NULL;
+      bool symbol_verified = false;
+      if (ti && ti->has_symbol && solana_symbol_is_safe(ti->symbol)) {
+        if (ti->has_signature) {
+          if (solana_token_info_trusted(ti)) {
+            symbol = ti->symbol;
+            symbol_verified = true;
+          }
+        } else {
+          symbol = ti->symbol;
+        }
+      }
+
       /* Mint on its own screen (see TOKEN_TRANSFER): the authenticated identity
        * cannot be pushed off-view by a host-controlled symbol. */
       if (pi->has_mint) {
         char mint_str[45];
         solana_pubkeyToStr(pi->mint, mint_str, sizeof(mint_str));
-        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Token mint\n%s", mint_str)) {
+        if (!confirm(
+                ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                symbol_verified ? "Verified token mint\n%s" : "Token mint\n%s",
+                mint_str)) {
           return false;
         }
       }
 
-      const char* symbol =
-          (ti && ti->has_symbol && solana_symbol_is_safe(ti->symbol))
-              ? ti->symbol
-              : NULL;
       if (symbol) {
         char amount_str[48];
         solana_formatTokenAmount(amount_str, sizeof(amount_str), pi->amount,
