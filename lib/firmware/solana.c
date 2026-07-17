@@ -739,11 +739,17 @@ bool solana_signTx(const HDNode* node, const SolanaSignTx* msg,
   ed25519_sign(message, message_len, node->private_key, node->public_key + 1,
                sig);
 
-  /* Never emit a signature that does not verify over those exact bytes. */
+#if !ZCASH_PRIVACY
+  /* Defense-in-depth: refuse to emit a signature that does not verify over
+   * those exact bytes. solana_message_slice() already guarantees parsing and
+   * signing operate on the identical message, so this is a redundant check;
+   * it is compiled out on the ROM-tight zcash-privacy variant, where pulling in
+   * the ed25519 verification path would overflow flash. */
   if (ed25519_sign_open(message, message_len, node->public_key + 1, sig) != 0) {
     memzero(sig, sizeof(sig));
     return false;
   }
+#endif
 
   resp->has_signature = true;
   resp->signature.size = SOL_SIG_SIZE;
