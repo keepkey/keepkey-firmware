@@ -119,6 +119,56 @@ static bool solana_confirm_memo(const char* title, const uint8_t* s,
   return true;
 }
 
+/* Priority fee = ceil(cu_price_micro_lamports * cu_limit / 1e6) lamports, and
+ * it is charged even if the transaction fails. Compute-budget instructions show
+ * only raw CU price/limit with no units, so a malicious host could bury a large
+ * SOL loss there. When the tx sets a CU price, show the fee payer and the
+ * MAXIMUM priority fee in SOL (using the 1.4M-CU protocol cap when no explicit
+ * limit is set, so the figure is never an understatement). Returns false on
+ * user reject. */
+static bool solana_confirm_priority_fee(const SolanaParsedTx* tx,
+                                        const uint8_t* fee_payer) {
+  uint64_t price = 0;
+  bool have_price = false;
+  uint64_t cu_limit = 0;
+  bool have_limit = false;
+  for (uint8_t i = 0; i < tx->num_instructions; i++) {
+    const SolanaParsedInstruction* pi = &tx->instructions[i];
+    if (pi->type == SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE) {
+      price = pi->extra_value;
+      have_price = true;
+    } else if (pi->type == SOL_INSTR_COMPUTE_BUDGET_UNIT_LIMIT) {
+      cu_limit = pi->extra_value;
+      have_limit = true;
+    }
+  }
+  if (!have_price || price == 0) {
+    return true; /* no priority fee to disclose */
+  }
+  const uint64_t kMaxCuLimit = 1400000u; /* Solana per-tx CU cap */
+  uint64_t limit = have_limit ? cu_limit : kMaxCuLimit;
+  uint64_t lamports;
+  if (limit != 0 && price > UINT64_MAX / limit) {
+    /* Overflow: the requested fee is absurd — saturate so the SOL figure is
+     * obviously enormous rather than wrapping to a small number. */
+    lamports = UINT64_MAX / 1000000u;
+  } else {
+    lamports = (price * limit + 999999u) / 1000000u; /* ceil to lamports */
+  }
+  char fee_str[40];
+  solana_formatAmount(fee_str, sizeof(fee_str), lamports);
+  if (fee_payer) {
+    char payer_str[45];
+    solana_pubkeyToStr(fee_payer, payer_str, sizeof(payer_str));
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Fee",
+                 "Fee payer\n%s", payer_str)) {
+      return false;
+    }
+  }
+  return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Fee",
+                 "Max priority fee\n%s", fee_str);
+}
+
 /* Confirm a single parsed instruction */
 static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
                                       const SolanaSignTx* msg, uint8_t idx,
@@ -144,10 +194,14 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     }
 
     case SOL_INSTR_SYSTEM_ADVANCE_NONCE:
-      return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Advance nonce account?");
+      return solana_confirm_account(title, "Advance nonce account", pi->from);
 
     case SOL_INSTR_SYSTEM_WITHDRAW_NONCE: {
+      /* Withdrawing the full balance can destroy the nonce account — show it.
+       */
+      if (!solana_confirm_account(title, "Nonce account", pi->from)) {
+        return false;
+      }
       char amount_str[32];
       solana_formatAmount(amount_str, sizeof(amount_str), pi->lamports);
       char to_str[45];
@@ -157,14 +211,22 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     }
 
     case SOL_INSTR_SYSTEM_INITIALIZE_NONCE: {
+      if (!solana_confirm_account(title, "Initialize nonce account",
+                                  pi->from)) {
+        return false;
+      }
       /* Show the nonce authority being set — it can later advance/withdraw. */
       char auth_str[45];
       solana_pubkeyToStr(pi->authority, auth_str, sizeof(auth_str));
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Initialize nonce\nauthority %s?", auth_str);
+                     "Nonce authority %s?", auth_str);
     }
 
     case SOL_INSTR_SYSTEM_AUTHORIZE_NONCE: {
+      /* Show WHICH nonce account is rekeyed, not just the new authority. */
+      if (!solana_confirm_account(title, "Nonce account", pi->from)) {
+        return false;
+      }
       char auth_str[45];
       solana_pubkeyToStr(pi->extra, auth_str, sizeof(auth_str));
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
@@ -180,10 +242,14 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
       return solana_confirm_account(title, "to owner program", pi->extra);
     }
 
-    case SOL_INSTR_SYSTEM_ALLOCATE:
+    case SOL_INSTR_SYSTEM_ALLOCATE: {
+      if (!solana_confirm_account(title, "Allocate for account", pi->from)) {
+        return false;
+      }
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
                      "Allocate %llu bytes?",
                      (unsigned long long)pi->extra_value);
+    }
 
     case SOL_INSTR_TOKEN_TRANSFER: {
       char to_str[45];
@@ -309,8 +375,8 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     }
 
     case SOL_INSTR_TOKEN_REVOKE:
-      return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Revoke token approval?");
+      return solana_confirm_account(title, "Revoke approval on account",
+                                    pi->from);
 
     case SOL_INSTR_TOKEN_SET_AUTHORITY: {
       char auth_str[45];
@@ -360,22 +426,23 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     }
 
     case SOL_INSTR_TOKEN_FREEZE_ACCOUNT: {
-      char acct_str[45];
-      solana_pubkeyToStr(pi->from, acct_str, sizeof(acct_str));
-      return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Freeze token account\n%s?", acct_str);
+      /* Show the account frozen AND its mint (freeze authority is per-mint). */
+      if (!solana_confirm_account(title, "Freeze token account", pi->from)) {
+        return false;
+      }
+      return solana_confirm_account(title, "of mint", pi->mint);
     }
 
     case SOL_INSTR_TOKEN_THAW_ACCOUNT: {
-      char acct_str[45];
-      solana_pubkeyToStr(pi->from, acct_str, sizeof(acct_str));
-      return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Thaw token account\n%s?", acct_str);
+      if (!solana_confirm_account(title, "Thaw token account", pi->from)) {
+        return false;
+      }
+      return solana_confirm_account(title, "of mint", pi->mint);
     }
 
     case SOL_INSTR_TOKEN_SYNC_NATIVE:
-      return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Sync wrapped SOL?");
+      return solana_confirm_account(title, "Sync wrapped SOL account",
+                                    pi->from);
 
     case SOL_INSTR_STAKE_DELEGATE: {
       /* Show which stake account is delegated, not just the vote account — a
@@ -387,14 +454,17 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     }
 
     case SOL_INSTR_STAKE_WITHDRAW: {
+      /* Show WHICH stake account is drained (a host could substitute another of
+       * the same authority) and the recipient. */
+      if (!solana_confirm_account(title, "Withdraw from stake", pi->from)) {
+        return false;
+      }
       char amount_str[32];
       solana_formatAmount(amount_str, sizeof(amount_str), pi->lamports);
-      /* Show the recipient — a withdrawal that hides it lets a host redirect
-       * the withdrawn SOL while the device shows only the amount. */
       char to_str[45];
       solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Withdraw %s from stake\nto %s?", amount_str, to_str);
+                     "Withdraw %s\nto %s?", amount_str, to_str);
     }
 
     case SOL_INSTR_STAKE_AUTHORIZE: {
@@ -412,13 +482,16 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     }
 
     case SOL_INSTR_STAKE_SPLIT: {
+      /* Show the source stake account being split, and the destination. */
+      if (!solana_confirm_account(title, "Split from stake", pi->from)) {
+        return false;
+      }
       char amount_str[32];
       solana_formatAmount(amount_str, sizeof(amount_str), pi->lamports);
-      /* Show the destination stake account the split lamports land in. */
       char to_str[45];
       solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Split stake by %s\nto %s?", amount_str, to_str);
+                     "Split %s\nto %s?", amount_str, to_str);
     }
 
     case SOL_INSTR_STAKE_DEACTIVATE:
@@ -454,9 +527,12 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     }
 
     case SOL_INSTR_VOTE_WITHDRAW: {
+      /* Show the source vote account and the recipient. */
+      if (!solana_confirm_account(title, "Withdraw from vote", pi->from)) {
+        return false;
+      }
       char amount_str[32];
       solana_formatAmount(amount_str, sizeof(amount_str), pi->lamports);
-      /* Show the recipient — same redirect risk as stake withdrawal. */
       char to_str[45];
       solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
@@ -661,6 +737,15 @@ void fsm_msgSolanaSignTx(const SolanaSignTx* msg) {
         layoutHome();
         return;
       }
+    }
+    /* Disclose the priority fee (SOL) if the tx sets a compute-unit price. */
+    if (!solana_confirm_priority_fee(
+            &parsed, parsed.num_accounts > 0 ? parsed.accounts[0] : NULL)) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Signing cancelled"));
+      layoutHome();
+      return;
     }
   } else if (tx_review == SOL_TX_REVIEW_OPAQUE) {
     /* Unsupported or opaque message: allow explicit blind-sign only. */

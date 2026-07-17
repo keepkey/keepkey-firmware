@@ -279,6 +279,61 @@ TEST(Solana, Token2022TransferCheckedIsOpaque) {
   EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
 }
 
+/* Helper: build a Vote UpdateValidatorIdentity tx with the given instruction
+ * data length (4 = canonical; >4 = trailing bytes). Accounts: vote(0),
+ * new-validator(1), authority(2), vote-program. */
+static size_t build_vote_update_validator(uint8_t* raw, uint16_t data_len) {
+  size_t pos = 0;
+  raw[pos++] = 1;
+  raw[pos++] = 0;
+  raw[pos++] = 1;
+  raw[pos++] = 4;
+  memset(raw + pos, 0x11, 32);
+  pos += 32; /* vote account (idx 0) */
+  memset(raw + pos, 0x22, 32);
+  pos += 32; /* new validator (idx 1) */
+  memset(raw + pos, 0x33, 32);
+  pos += 32; /* authority (idx 2) */
+  memcpy(raw + pos, SOL_VOTE_PROGRAM, 32);
+  pos += 32;
+  memset(raw + pos, 0xBB, 32);
+  pos += 32; /* blockhash */
+  raw[pos++] = 1;
+  raw[pos++] = 3; /* program index = vote */
+  raw[pos++] = 3; /* 3 accounts */
+  raw[pos++] = 0;
+  raw[pos++] = 1;
+  raw[pos++] = 2;
+  raw[pos++] = (uint8_t)data_len;
+  raw[pos++] = 4; /* UpdateValidatorIdentity discriminator (le32) */
+  raw[pos++] = 0;
+  raw[pos++] = 0;
+  raw[pos++] = 0;
+  for (uint16_t i = 4; i < data_len; i++) raw[pos++] = 0x77; /* trailing */
+  return pos;
+}
+
+TEST(Solana, VoteUpdateValidatorReadsAccountNotData) {
+  uint8_t raw[512];
+  size_t pos = build_vote_update_validator(raw, 4); /* canonical */
+  SolanaParsedTx tx;
+  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_VERIFIED);
+  EXPECT_EQ(tx.instructions[0].type, SOL_INSTR_VOTE_UPDATE_VALIDATOR);
+  /* The new validator must be account index 1 (0x22..), never fabricated data. */
+  uint8_t expected[32];
+  memset(expected, 0x22, 32);
+  EXPECT_EQ(0, memcmp(tx.instructions[0].extra, expected, 32));
+}
+
+TEST(Solana, VoteUpdateValidatorRejectsTrailingBytes) {
+  uint8_t raw[512];
+  /* 4-byte discriminator + 32 fabricated bytes — used to be displayed as a
+   * fake validator; now non-canonical, so the tx is opaque (blind-sign only). */
+  size_t pos = build_vote_update_validator(raw, 36);
+  SolanaParsedTx tx;
+  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
+}
+
 TEST(Solana, ParseAssociatedTokenAccountCreate) {
   uint8_t raw[512];
   size_t pos = 0;
