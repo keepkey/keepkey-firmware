@@ -174,6 +174,13 @@ MetadataClassification signed_metadata_process(const uint8_t* payload,
 bool signed_metadata_verify_attestation(uint8_t key_id, const uint8_t* data,
                                         size_t data_len, const uint8_t* sig,
                                         size_t sig_len);
+
+/* Fingerprint (hex of sha256(pubkey)[0:4]) of the signer loaded/pinned in
+ * `key_id`, written NUL-terminated to `out`. Returns false if no signer is
+ * present. Lets non-EVM callers disambiguate signers (aliases are not unique)
+ * the same way the EVM per-tx warning does. */
+bool signed_metadata_signer_fingerprint(uint8_t key_id,
+                                        char out[METADATA_FINGERPRINT_LEN]);
 /* Display gate: does this metadata plausibly describe `msg`? Binds contract
  * address, selector and chain id so the wrong method is never shown. The
  * authoritative full-tx binding is enforced later by signed_metadata_enforce().

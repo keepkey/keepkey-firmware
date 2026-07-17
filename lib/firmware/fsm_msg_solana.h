@@ -40,6 +40,17 @@ static void solana_pubkeyToStr(const uint8_t key[SOL_PUBKEY_SIZE], char* out,
            key[31]);
 }
 
+/* Confirm one labelled account address on its own screen. Factoring this keeps
+ * the many "which account is being acted on" disclosures small (ROM matters on
+ * the zcash-privacy variant). Returns false if the user rejects. */
+static bool solana_confirm_account(const char* title, const char* label,
+                                   const uint8_t key[SOL_PUBKEY_SIZE]) {
+  char s[45];
+  solana_pubkeyToStr(key, s, sizeof(s));
+  return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title, "%s\n%s",
+                 label, s);
+}
+
 /* A host-supplied token symbol is untrusted and only length-capped by the
  * proto. Reject anything but printable ASCII so it cannot inject newlines or
  * control bytes that push the mint or recipient off the confirm screen. */
@@ -161,10 +172,12 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     }
 
     case SOL_INSTR_SYSTEM_ASSIGN: {
-      char prog_str[45];
-      solana_pubkeyToStr(pi->extra, prog_str, sizeof(prog_str));
-      return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Assign account to %s?", prog_str);
+      /* Assign hands control of an account to a program — show WHICH account,
+       * not just the new owner. */
+      if (!solana_confirm_account(title, "Assign account", pi->from)) {
+        return false;
+      }
+      return solana_confirm_account(title, "to owner program", pi->extra);
     }
 
     case SOL_INSTR_SYSTEM_ALLOCATE:
@@ -257,14 +270,18 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
         }
       }
 
-      /* Name WHO attested the symbol — a generic "Verified" would hide which
-       * loaded signer vouched for it (they are all user-loaded, not built-in
-       * KeepKey keys). */
+      /* Name WHO attested the symbol, with the signer's fingerprint — aliases
+       * are host-chosen and not unique, so the fingerprint is what actually
+       * identifies the key. symbol_verified implies a signer is loaded for this
+       * key_id (solana_token_info_trusted verified against it), so both
+       * resolve; there is no "unknown" verified case. */
       if (symbol_verified) {
         const char* alias = signed_metadata_signer_alias(ti->signer_key_id);
-        if (!alias) alias = "unknown";
+        char fp[METADATA_FINGERPRINT_LEN] = {0};
+        signed_metadata_signer_fingerprint((uint8_t)ti->signer_key_id, fp);
         if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Token \"%s\"\nsigned by %s", symbol, alias)) {
+                     "Token \"%s\"\nby %s %s", symbol, alias ? alias : "",
+                     fp)) {
           return false;
         }
       }
@@ -333,12 +350,13 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     }
 
     case SOL_INSTR_TOKEN_CLOSE_ACCOUNT: {
-      /* Closing a (wrapped-SOL) token account sweeps its lamports to the
-       * destination — show it, or an attacker routes the rent elsewhere. */
-      char to_str[45];
-      solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
-      return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Close token account, send balance to %s?", to_str);
+      /* Closing sweeps the account's ENTIRE lamport balance (which the device
+       * cannot see, e.g. wrapped SOL) to the destination — show both the
+       * account being closed and where its balance goes. */
+      if (!solana_confirm_account(title, "Close token account", pi->from)) {
+        return false;
+      }
+      return solana_confirm_account(title, "send balance to", pi->to);
     }
 
     case SOL_INSTR_TOKEN_FREEZE_ACCOUNT: {
@@ -360,10 +378,12 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
                      "Sync wrapped SOL?");
 
     case SOL_INSTR_STAKE_DELEGATE: {
-      char vote_str[45];
-      solana_pubkeyToStr(pi->to, vote_str, sizeof(vote_str));
-      return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Delegate stake\nto %s?", vote_str);
+      /* Show which stake account is delegated, not just the vote account — a
+       * host could delegate a different stake account of the same authority. */
+      if (!solana_confirm_account(title, "Delegate stake account", pi->from)) {
+        return false;
+      }
+      return solana_confirm_account(title, "to vote account", pi->to);
     }
 
     case SOL_INSTR_STAKE_WITHDRAW: {
@@ -378,8 +398,12 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     }
 
     case SOL_INSTR_STAKE_AUTHORIZE: {
-      /* Which power is handed over matters: Staker (delegate) vs Withdrawer
-       * (move the funds). extra_u8 is the StakeAuthorize enum. */
+      /* Show WHICH stake account is rekeyed (a host could substitute another of
+       * the same signer) and which power is handed over (staker vs withdrawer).
+       */
+      if (!solana_confirm_account(title, "Stake account", pi->from)) {
+        return false;
+      }
       char auth_str[45];
       solana_pubkeyToStr(pi->extra, auth_str, sizeof(auth_str));
       const char* role = pi->extra_u8 == 0 ? "staker" : "withdrawer";
@@ -398,8 +422,8 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     }
 
     case SOL_INSTR_STAKE_DEACTIVATE:
-      return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Deactivate stake?");
+      return solana_confirm_account(title, "Deactivate stake account",
+                                    pi->from);
 
     case SOL_INSTR_STAKE_MERGE: {
       /* Show source and destination — merge moves the source's stake into the
@@ -417,8 +441,11 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     }
 
     case SOL_INSTR_VOTE_AUTHORIZE: {
-      /* Voter vs Withdrawer — the withdrawer can move the vote account's SOL.
-       */
+      /* Show WHICH vote account is rekeyed; Voter vs Withdrawer both matter
+       * (the withdrawer can move the vote account's SOL). */
+      if (!solana_confirm_account(title, "Vote account", pi->from)) {
+        return false;
+      }
       char auth_str[45];
       solana_pubkeyToStr(pi->extra, auth_str, sizeof(auth_str));
       const char* role = pi->extra_u8 == 0 ? "voter" : "withdrawer";
@@ -437,15 +464,21 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     }
 
     case SOL_INSTR_VOTE_UPDATE_VALIDATOR: {
-      char validator_str[45];
-      solana_pubkeyToStr(pi->extra, validator_str, sizeof(validator_str));
-      return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Update validator to %s?", validator_str);
+      /* The new validator is the account (pi->extra now holds account index 1,
+       * not fabricated instruction bytes); show the vote account too. */
+      if (!solana_confirm_account(title, "Vote account", pi->from)) {
+        return false;
+      }
+      return solana_confirm_account(title, "New validator identity", pi->extra);
     }
 
-    case SOL_INSTR_VOTE_UPDATE_COMMISSION:
+    case SOL_INSTR_VOTE_UPDATE_COMMISSION: {
+      if (!solana_confirm_account(title, "Vote account", pi->from)) {
+        return false;
+      }
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
                      "Set vote commission to %u%%?", pi->extra_u8);
+    }
 
     case SOL_INSTR_ATA_CREATE: {
       /* Show the wallet owner and the token mint the new account is for. */

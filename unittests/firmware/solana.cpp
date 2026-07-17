@@ -235,6 +235,50 @@ TEST(Solana, ParseSPLTokenTransfer) {
   EXPECT_EQ(tx.instructions[0].amount, 1000000ULL);
 }
 
+TEST(Solana, Token2022TransferCheckedIsOpaque) {
+  /* A Token-2022 TransferChecked can invoke an undisclosed transfer hook / fee,
+   * so it must NOT clear-sign (only legacy SPL Token TransferChecked does). */
+  uint8_t raw[512];
+  size_t pos = 0;
+  raw[pos++] = 1;
+  raw[pos++] = 0;
+  raw[pos++] = 1;
+  raw[pos++] = 5; /* source, mint, dest, authority, token-2022 program */
+  memset(raw + pos, 0x11, 32);
+  pos += 32;
+  memset(raw + pos, 0x22, 32);
+  pos += 32;
+  memset(raw + pos, 0x33, 32);
+  pos += 32;
+  memset(raw + pos, 0x44, 32);
+  pos += 32;
+  memcpy(raw + pos, SOL_TOKEN_2022_PROGRAM, 32);
+  pos += 32;
+  memset(raw + pos, 0xBB, 32);
+  pos += 32;
+  raw[pos++] = 1;  /* 1 instruction */
+  raw[pos++] = 4;  /* program index = token-2022 */
+  raw[pos++] = 4;  /* 4 accounts */
+  raw[pos++] = 0;
+  raw[pos++] = 1;
+  raw[pos++] = 2;
+  raw[pos++] = 3;
+  raw[pos++] = 10; /* data length */
+  raw[pos++] = 12; /* TransferChecked */
+  raw[pos++] = 0x40;
+  raw[pos++] = 0x42;
+  raw[pos++] = 0x0F;
+  raw[pos++] = 0x00;
+  raw[pos++] = 0x00;
+  raw[pos++] = 0x00;
+  raw[pos++] = 0x00;
+  raw[pos++] = 0x00;
+  raw[pos++] = 6; /* decimals */
+
+  SolanaParsedTx tx;
+  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
+}
+
 TEST(Solana, ParseAssociatedTokenAccountCreate) {
   uint8_t raw[512];
   size_t pos = 0;

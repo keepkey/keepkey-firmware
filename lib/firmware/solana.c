@@ -258,6 +258,12 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
                    0 ||
                memcmp(pi->program_id, SOL_TOKEN_2022_PROGRAM,
                       SOL_PUBKEY_SIZE) == 0) {
+      /* Token-2022 transfers can invoke a configured transfer-hook program with
+       * extra accounts and arbitrary logic (and levy transfer fees) that we can
+       * neither authenticate nor display. Treat them as opaque (AdvancedMode)
+       * rather than clear-sign only source/mint/dest/amount. */
+      const bool is_token2022 =
+          memcmp(pi->program_id, SOL_TOKEN_2022_PROGRAM, SOL_PUBKEY_SIZE) == 0;
       if (data_len >= 1) {
         uint8_t token_instr = instr_data[0];
         if (token_instr == SOL_TOKEN_TRANSFER_IX && data_len >= 9) {
@@ -281,6 +287,11 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           copy_account(pi->to, tx, acct_indices, num_acct_indices, 2);
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 3);
           pi->extra_u8 = data_len >= 10 ? instr_data[9] : 0;
+          /* Token-2022 checked transfers may carry an undisclosed transfer hook
+           * / fee — do not clear-sign them. */
+          if (is_token2022) {
+            *force_opaque = true;
+          }
         } else if (token_instr == SOL_TOKEN_APPROVE_IX && data_len >= 9) {
           pi->type = SOL_INSTR_TOKEN_APPROVE;
           pi->amount = read_le64(instr_data + 1);
@@ -425,11 +436,16 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           copy_account(pi->to, tx, acct_indices, num_acct_indices, 1);
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
         } else if (vote_instr == SOL_VOTE_UPDATE_VALIDATOR_IX &&
-                   data_len >= 36) {
+                   data_len == 4) {
+          /* UpdateValidatorIdentity has NO data payload: the new validator is
+           * account index 1. Reading 32 bytes from the data would display
+           * attacker-supplied trailing bytes instead of the account actually
+           * used, so require the canonical 4-byte encoding and read account 1.
+           */
           pi->type = SOL_INSTR_VOTE_UPDATE_VALIDATOR;
-          memcpy(pi->extra, instr_data + 4, SOL_PUBKEY_SIZE);
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
-          copy_account(pi->authority, tx, acct_indices, num_acct_indices, 1);
+          copy_account(pi->extra, tx, acct_indices, num_acct_indices, 1);
+          copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
         } else if (vote_instr == SOL_VOTE_UPDATE_COMMISSION_IX &&
                    data_len >= 5) {
           pi->type = SOL_INSTR_VOTE_UPDATE_COMMISSION;

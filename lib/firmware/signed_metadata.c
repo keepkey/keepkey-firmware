@@ -663,6 +663,17 @@ static const uint8_t* metadata_pubkey_for(uint8_t key_id, bool* is_loaded) {
   return NULL;
 }
 
+bool signed_metadata_signer_fingerprint(uint8_t key_id,
+                                        char out[METADATA_FINGERPRINT_LEN]) {
+  bool is_loaded = false;
+  const uint8_t* pubkey = metadata_pubkey_for(key_id, &is_loaded);
+  if (!pubkey) {
+    return false;
+  }
+  signed_metadata_pubkey_fingerprint(pubkey, out);
+  return true;
+}
+
 bool signed_metadata_verify_attestation(uint8_t key_id, const uint8_t* data,
                                         size_t data_len, const uint8_t* sig,
                                         size_t sig_len) {
