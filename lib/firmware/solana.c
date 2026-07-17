@@ -19,6 +19,7 @@
 
 #include "keepkey/firmware/solana.h"
 
+#include "keepkey/firmware/signed_metadata.h"
 #include "trezor/crypto/memzero.h"
 
 #include <stdio.h>
@@ -718,6 +719,43 @@ const SolanaTokenInfo* solana_findTokenInfo(
     }
   }
   return NULL;
+}
+
+bool solana_token_info_trusted(const SolanaTokenInfo* ti) {
+  if (!ti || !ti->has_signature || !ti->has_signer_key_id || !ti->has_mint ||
+      ti->mint.size != SOL_PUBKEY_SIZE || !ti->has_symbol ||
+      !ti->has_decimals) {
+    return false;
+  }
+  /* uint32 field: reject out-of-range slots BEFORE narrowing to the uint8 the
+   * keyring uses, so key_id 256 can't alias slot 0. */
+  if (ti->signer_key_id >= METADATA_MAX_KEYS) {
+    return false;
+  }
+  size_t sym_len = strnlen(ti->symbol, sizeof(ti->symbol));
+  if (sym_len == 0) {
+    return false;
+  }
+  /* Domain tag prevents a signature made for any other purpose (e.g. an EVM
+   * metadata blob signed by the same key) from being replayed as a token def.
+   * Preimage: tag || mint(32) || decimals(le32) || symbol. */
+  static const char kTag[] = "KeepKeySolanaTokenDef/1";
+  uint8_t blob[sizeof(kTag) - 1 + SOL_PUBKEY_SIZE + 4 + sizeof(ti->symbol)];
+  size_t n = 0;
+  memcpy(blob + n, kTag, sizeof(kTag) - 1);
+  n += sizeof(kTag) - 1;
+  memcpy(blob + n, ti->mint.bytes, SOL_PUBKEY_SIZE);
+  n += SOL_PUBKEY_SIZE;
+  uint32_t dec = ti->decimals;
+  blob[n++] = (uint8_t)dec;
+  blob[n++] = (uint8_t)(dec >> 8);
+  blob[n++] = (uint8_t)(dec >> 16);
+  blob[n++] = (uint8_t)(dec >> 24);
+  memcpy(blob + n, ti->symbol, sym_len);
+  n += sym_len;
+  return signed_metadata_verify_attestation((uint8_t)ti->signer_key_id, blob, n,
+                                            ti->signature.bytes,
+                                            ti->signature.size);
 }
 
 /* ------------------------------------------------------------------ */

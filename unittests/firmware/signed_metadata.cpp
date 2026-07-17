@@ -21,6 +21,7 @@ extern "C" {
 #include "keepkey/board/draw.h"    /* draw_bitmap_mono_rle (icon decoder) */
 #include "keepkey/board/layout.h"  /* LEFT_MARGIN_WITH_ICON */
 #include "keepkey/firmware/signed_metadata.h"
+#include "keepkey/firmware/solana.h" /* SolanaTokenInfo, solana_token_info_trusted */
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/secp256k1.h"
 #include "trezor/crypto/sha2.h"
@@ -1440,6 +1441,72 @@ TEST(SignedMetadataAttestation, VerifiesValidRejectsTampered) {
                                                   data, len, sig, sizeof(sig)));
   EXPECT_FALSE(
       signed_metadata_verify_attestation(TEST_KEY_ID, data, len, sig, 63));
+
+  signed_metadata_clear_signers();
+}
+
+// End-to-end test of the production Solana token-definition path: builds the
+// exact domain-separated preimage solana_token_info_trusted() reconstructs,
+// signs it, and checks acceptance + every rejection branch.
+TEST(SolanaTokenDef, TrustedOnlyWithValidAttestation) {
+  signed_metadata_clear_signers();
+  signed_metadata_store_signer(TEST_KEY_ID, EXPECTED_SLOT3_PUB, TEST_ALIAS,
+                               nullptr, 0, 0, 0, false);
+
+  SolanaTokenInfo ti;
+  memset(&ti, 0, sizeof(ti));
+  ti.has_mint = true;
+  ti.mint.size = 32;
+  memset(ti.mint.bytes, 0xAB, 32);
+  ti.has_symbol = true;
+  strcpy(ti.symbol, "USDC");
+  ti.has_decimals = true;
+  ti.decimals = 6;
+  ti.has_signer_key_id = true;
+  ti.signer_key_id = TEST_KEY_ID;
+
+  // Canonical preimage: tag || mint(32) || decimals(le32) || symbol.
+  std::vector<uint8_t> pre;
+  const char *tag = "KeepKeySolanaTokenDef/1";
+  pre.insert(pre.end(), tag, tag + strlen(tag));
+  pre.insert(pre.end(), ti.mint.bytes, ti.mint.bytes + 32);
+  pre.push_back(6);
+  pre.push_back(0);
+  pre.push_back(0);
+  pre.push_back(0);
+  pre.insert(pre.end(), ti.symbol, ti.symbol + strlen(ti.symbol));
+
+  uint8_t digest[32];
+  sha256_Raw(pre.data(), pre.size(), digest);
+  uint8_t sig[64];
+  uint8_t pby;
+  ASSERT_EQ(0,
+            ecdsa_sign_digest(&secp256k1, TEST_PRIV, digest, sig, &pby, nullptr));
+  ti.has_signature = true;
+  ti.signature.size = 64;
+  memcpy(ti.signature.bytes, sig, 64);
+
+  EXPECT_TRUE(solana_token_info_trusted(&ti));
+
+  // Attested-tuple disagreement: a different decimals no longer matches the sig.
+  ti.decimals = 9;
+  EXPECT_FALSE(solana_token_info_trusted(&ti));
+  ti.decimals = 6;
+  EXPECT_TRUE(solana_token_info_trusted(&ti));
+
+  // Corrupted signature.
+  ti.signature.bytes[10] ^= 0x40;
+  EXPECT_FALSE(solana_token_info_trusted(&ti));
+  ti.signature.bytes[10] ^= 0x40;
+
+  // Out-of-range signer slot (256 would narrow to slot 0 without the guard).
+  ti.signer_key_id = 256;
+  EXPECT_FALSE(solana_token_info_trusted(&ti));
+  ti.signer_key_id = TEST_KEY_ID;
+
+  // No attestation -> not trusted (the caller falls back to unsigned display).
+  ti.has_signature = false;
+  EXPECT_FALSE(solana_token_info_trusted(&ti));
 
   signed_metadata_clear_signers();
 }

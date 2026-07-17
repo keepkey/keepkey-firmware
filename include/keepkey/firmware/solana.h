@@ -199,6 +199,13 @@ void solana_formatTokenAmount(char* buf, size_t len, uint64_t amount,
 const SolanaTokenInfo* solana_findTokenInfo(
     const SolanaSignTx* msg, const uint8_t mint[SOL_PUBKEY_SIZE]);
 
+/* True iff `ti` carries a valid attestation: an ECDSA signature (by a clearsign
+ * signer the user loaded) over a domain-separated (mint, decimals, symbol)
+ * digest. Range-checks signer_key_id before narrowing it. Verifies only the
+ * attested tuple — the caller must additionally confirm the attested decimals
+ * match the signed instruction before trusting the amount. */
+bool solana_token_info_trusted(const SolanaTokenInfo* ti);
+
 /* Sign transaction */
 bool solana_signTx(const HDNode* node, const SolanaSignTx* msg,
                    SolanaSignedTx* resp);
