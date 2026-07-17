@@ -1098,6 +1098,10 @@ bool zcash_pczt_signing_request_is_clear(
  * rejected — these are nominally seeds but provide no security and are
  * almost certainly bugs in the caller.
  */
+bool zcash_seed_fingerprint_request_valid(bool present, size_t size) {
+  return !present || size == 32;
+}
+
 bool zcash_calculate_seed_fingerprint(const uint8_t* seed, uint32_t seed_len,
                                       uint8_t fingerprint_out[32]) {
   if (!seed || !fingerprint_out) return false;

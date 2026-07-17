@@ -1735,6 +1735,14 @@ TEST(Zcash, SeedFingerprint_ReferenceVector) {
   EXPECT_EQ(memcmp(fp, expected, 32), 0);
 }
 
+TEST(Zcash, SeedFingerprintRequestRequiresExactSizeWhenPresent) {
+  EXPECT_TRUE(zcash_seed_fingerprint_request_valid(false, 0));
+  EXPECT_TRUE(zcash_seed_fingerprint_request_valid(true, 32));
+  EXPECT_FALSE(zcash_seed_fingerprint_request_valid(true, 0));
+  EXPECT_FALSE(zcash_seed_fingerprint_request_valid(true, 31));
+  EXPECT_FALSE(zcash_seed_fingerprint_request_valid(true, 33));
+}
+
 TEST(Zcash, SeedFingerprint_RejectAllZero) {
   uint8_t seed[32] = {0};
   uint8_t fp[32];

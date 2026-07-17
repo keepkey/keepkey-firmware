@@ -198,7 +198,12 @@ static bool zcash_resolve_account(bool has_account, uint32_t account_field,
 static bool zcash_check_seed_fingerprint(bool has_expected,
                                          const uint8_t* expected,
                                          size_t expected_size) {
-  if (!has_expected || expected_size != 32) return true;
+  if (!zcash_seed_fingerprint_request_valid(has_expected, expected_size)) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Seed fingerprint must be 32 bytes"));
+    return false;
+  }
+  if (!has_expected) return true;
 
   uint8_t actual_fp[32];
   if (!storage_zcashSeedFingerprint(true, actual_fp)) {
@@ -785,6 +790,17 @@ void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK* msg) {
   uint32_t account;
   if (!zcash_resolve_account(msg->has_account, msg->account, msg->address_n,
                              msg->address_n_count, &account)) {
+    layoutHome();
+    return;
+  }
+
+  if (msg->has_show_display && msg->show_display &&
+      !confirm(ButtonRequestType_ButtonRequest_ProtectCall,
+               "Export Zcash View Key",
+               "Export Orchard viewing key for account %u?\nReveals Zcash "
+               "activity.",
+               (unsigned)account)) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, _("Cancelled"));
     layoutHome();
     return;
   }

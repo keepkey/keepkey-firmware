@@ -35,6 +35,28 @@ bool hive_getPublicKey(const uint8_t public_key[33], char* out,
 // Path: m/48'/13'/role_hardened/account_index_hardened/0'
 // hdnode_private_ckd() returns 1 on success, 0 on failure.
 
+static bool hive_role_valid(uint32_t role) {
+  return role == HIVE_ROLE_OWNER || role == HIVE_ROLE_ACTIVE ||
+         role == HIVE_ROLE_MEMO || role == HIVE_ROLE_POSTING;
+}
+
+bool hive_slip48_path_valid(const uint32_t* address_n, size_t count) {
+  if (!address_n || count != 5) return false;
+  if (address_n[0] != HIVE_SLIP48_PURPOSE) return false;
+  if (address_n[1] != HIVE_SLIP48_NETWORK) return false;
+  if (!hive_role_valid(address_n[2])) return false;
+  if ((address_n[3] & 0x80000000u) == 0) return false;
+  if (address_n[4] != 0x80000000u) return false;
+  return true;
+}
+
+bool hive_slip48_path_valid_for_role(const uint32_t* address_n, size_t count,
+                                     uint32_t required_role) {
+  return hive_role_valid(required_role) &&
+         hive_slip48_path_valid(address_n, count) &&
+         address_n[2] == required_role;
+}
+
 bool hive_deriveRawKey(const HDNode* root, uint32_t role_hardened,
                        uint32_t account_index_hardened, uint8_t out[33]) {
   HDNode node;
@@ -338,10 +360,14 @@ const char* hive_parseOperations(const uint8_t* tx, size_t len,
                         HIVE_MAX_OPS_TX_LEN) ||
             !cur_string(&c, &jm, &jm_len, 0, HIVE_MAX_OPS_TX_LEN))
           return "Hive comment: malformed fields";
-        if (op->target_len == 0) {  // no title — show the permlink instead
-          op->target = permlink;
-          op->target_len = permlink_len;
-        }
+        op->parent_author = pa;
+        op->parent_author_len = pa_len;
+        op->parent_permlink = ppl;
+        op->parent_permlink_len = ppl_len;
+        op->permlink = permlink;
+        op->permlink_len = permlink_len;
+        op->json_metadata = jm;
+        op->json_metadata_len = jm_len;
         op->is_top_level = (pa_len == 0);
         any_posting = true;
         break;

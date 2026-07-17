@@ -29,6 +29,17 @@
 #define HIVE_ROLE_MEMO (0x80000003u)     // 3'  — memo field encryption
 #define HIVE_ROLE_POSTING (0x80000004u)  // 4'  — votes, posts, follows
 
+/**
+ * Validate a complete Hive SLIP-0048 path:
+ * m/48'/13'/role'/account'/0'. The role must be one of owner, active, memo,
+ * or posting; every component is hardened.
+ */
+bool hive_slip48_path_valid(const uint32_t* address_n, size_t count);
+
+/** Validate a complete Hive SLIP-0048 path for one required role. */
+bool hive_slip48_path_valid_for_role(const uint32_t* address_n, size_t count,
+                                     uint32_t required_role);
+
 // ── Graphene operation type IDs ───────────────────────────────────────────
 #define HIVE_OP_VOTE 0
 #define HIVE_OP_COMMENT 1
@@ -92,10 +103,19 @@ typedef struct {
   // Borrowed slices into the request's serialized_tx (NOT NUL-terminated):
   const uint8_t* acct;  // vote: voter / comment: author / cj: first auth name
   uint16_t acct_len;
-  const uint8_t* target;  // vote: author / comment: title-or-permlink / cj: id
+  const uint8_t* target;  // vote: author / comment: title / cj: id
   uint16_t target_len;
   const uint8_t* detail;  // vote: permlink / comment: body / cj: json
   uint16_t detail_len;
+  const uint8_t* parent_author;  // comment only
+  uint16_t parent_author_len;
+  const uint8_t*
+      parent_permlink;  // comment only (category for a top-level post)
+  uint16_t parent_permlink_len;
+  const uint8_t* permlink;  // comment only: this post/reply's permlink
+  uint16_t permlink_len;
+  const uint8_t* json_metadata;  // comment only
+  uint16_t json_metadata_len;
   int16_t weight;     // vote only (-10000..10000)
   bool is_top_level;  // comment only: parent_author empty
   uint8_t n_auths;    // custom_json only: total auth account names

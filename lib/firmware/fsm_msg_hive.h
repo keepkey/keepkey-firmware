@@ -19,6 +19,13 @@ void fsm_msgHiveGetPublicKey(const HiveGetPublicKey* msg) {
   CHECK_INITIALIZED
   CHECK_PIN
 
+  if (!hive_slip48_path_valid(msg->address_n, msg->address_n_count)) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid Hive SLIP-0048 path"));
+    layoutHome();
+    return;
+  }
+
   HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) return;
@@ -137,14 +144,11 @@ void fsm_msgHiveGetPublicKeys(const HiveGetPublicKeys* msg) {
 
 static bool hive_slip48_path_ok(const uint32_t* address_n, uint32_t count,
                                 uint32_t required_role) {
-  if (count != 5) return false;
-  if (address_n[0] != HIVE_SLIP48_PURPOSE) return false;
-  if (address_n[1] != HIVE_SLIP48_NETWORK) return false;
-  if (address_n[2] != required_role) return false;
-  if ((address_n[3] & 0x80000000u) == 0) return false;
-  if (address_n[4] != 0x80000000u) return false;  // key index 0'
-  return true;
+  return hive_slip48_path_valid_for_role(address_n, count, required_role);
 }
+
+static bool hive_confirm_slice(ButtonRequestType type, const char* title,
+                               const uint8_t* s, uint16_t len);
 
 // ── HiveSignTx (transfer) ─────────────────────────────────────────────────
 
@@ -212,8 +216,9 @@ void fsm_msgHiveSignTx(const HiveSignTx* msg) {
   }
 
   if (msg->has_memo && strlen(msg->memo) > 0) {
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, "Memo", "%s",
-                 msg->memo)) {
+    if (!hive_confirm_slice(ButtonRequestType_ButtonRequest_ConfirmMemo, "Memo",
+                            (const uint8_t*)msg->memo,
+                            (uint16_t)strlen(msg->memo))) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -468,11 +473,7 @@ void fsm_msgHiveSignAccountUpdate(const HiveSignAccountUpdate* msg) {
 static bool hive_slip48_message_path_ok(const uint32_t* address_n,
                                         uint32_t count,
                                         const char** role_label) {
-  if (count != 5) return false;
-  if (address_n[0] != HIVE_SLIP48_PURPOSE) return false;
-  if (address_n[1] != HIVE_SLIP48_NETWORK) return false;
-  if ((address_n[3] & 0x80000000u) == 0) return false;
-  if (address_n[4] != 0x80000000u) return false;  // key index 0'
+  if (!hive_slip48_path_valid(address_n, count)) return false;
   switch (address_n[2]) {
     case HIVE_ROLE_ACTIVE:
       *role_label = "active";
@@ -602,20 +603,18 @@ void fsm_msgHiveSignMessage(const HiveSignMessage* msg) {
 // discovered at the chain. owner' is likewise excluded.
 static bool hive_slip48_ops_path_ok(const uint32_t* address_n, uint32_t count,
                                     bool needs_active) {
-  if (count != 5) return false;
-  if (address_n[0] != HIVE_SLIP48_PURPOSE) return false;
-  if (address_n[1] != HIVE_SLIP48_NETWORK) return false;
-  if ((address_n[3] & 0x80000000u) == 0) return false;
-  if (address_n[4] != 0x80000000u) return false;  // key index 0'
-  return address_n[2] == (needs_active ? HIVE_ROLE_ACTIVE : HIVE_ROLE_POSTING);
+  return hive_slip48_path_valid_for_role(
+      address_n, count, needs_active ? HIVE_ROLE_ACTIVE : HIVE_ROLE_POSTING);
 }
 
-// Uniform display rules (PR #306 finding-1): printable-ASCII within the
-// budget is copied verbatim; a truncated slice carries an explicit
-// "(+N more)" marker; any non-ASCII byte switches the whole slice to a
-// byte-count + short hex preview (partial UTF-8 sequences garble the OLED).
-static void hive_format_slice(const uint8_t* s, uint16_t len, char* out,
-                              size_t out_len) {
+// User-controlled string fields are paged in full. Printable fields are shown
+// as text; fields containing non-ASCII bytes are shown as complete hex rather
+// than a short preview. At the body font's maximum 8-pixel glyph width, each
+// page fits within the three 225-pixel OLED body rows.
+#define HIVE_DISPLAY_ASCII_CHUNK 72
+#define HIVE_DISPLAY_HEX_CHUNK 40
+
+static bool hive_slice_is_ascii(const uint8_t* s, uint16_t len) {
   bool ascii = true;
   for (uint16_t i = 0; i < len; i++) {
     if (s[i] < 0x20 || s[i] > 0x7e) {
@@ -623,23 +622,55 @@ static void hive_format_slice(const uint8_t* s, uint16_t len, char* out,
       break;
     }
   }
-  if (ascii) {
-    uint16_t show = len > 120 ? 120 : len;
-    if ((size_t)show + 16 > out_len) show = (uint16_t)(out_len - 16);
-    memcpy(out, s, show);
-    if (show < len) {
-      snprintf(out + show, out_len - show, "(+%u more)",
-               (unsigned)(len - show));
+  return ascii;
+}
+
+static bool hive_confirm_slice(ButtonRequestType type, const char* title,
+                               const uint8_t* s, uint16_t len) {
+  if (len == 0) return confirm(type, title, "(empty)");
+
+  bool ascii = hive_slice_is_ascii(s, len);
+  uint16_t chunk_size =
+      ascii ? HIVE_DISPLAY_ASCII_CHUNK : HIVE_DISPLAY_HEX_CHUNK;
+  uint16_t pages = (uint16_t)((len + chunk_size - 1) / chunk_size);
+
+  for (uint16_t page = 0; page < pages; page++) {
+    uint16_t offset = (uint16_t)(page * chunk_size);
+    uint16_t take = (uint16_t)(len - offset);
+    if (take > chunk_size) take = chunk_size;
+
+    char page_title[TITLE_CHAR_MAX];
+    if (pages > 1 || !ascii) {
+      snprintf(page_title, sizeof(page_title),
+               ascii ? "%s %u/%u" : "%s Hex %u/%u", title, (unsigned)(page + 1),
+               (unsigned)pages);
     } else {
-      out[show] = '\0';
+      strlcpy(page_title, title, sizeof(page_title));
     }
-  } else {
-    unsigned show = len > 8 ? 8 : len;
-    int off = snprintf(out, out_len, "<%u bytes> ", (unsigned)len);
-    for (unsigned i = 0; i < show && off + 2 < (int)out_len; i++, off += 2) {
-      snprintf(out + off, out_len - off, "%02x", s[i]);
+
+    if (ascii) {
+      char rendered[HIVE_DISPLAY_ASCII_CHUNK + 1];
+      memcpy(rendered, s + offset, take);
+      rendered[take] = '\0';
+      if (!confirm(type, page_title, "%s", rendered)) return false;
+    } else {
+      char rendered[HIVE_DISPLAY_HEX_CHUNK * 2 + 1];
+      for (uint16_t i = 0; i < take; i++) {
+        snprintf(rendered + 2 * i, 3, "%02x", s[offset + i]);
+      }
+      if (!confirm(type, page_title, "%s", rendered)) return false;
     }
   }
+  return true;
+}
+
+static void hive_copy_slice(char* out, size_t out_len, const uint8_t* s,
+                            uint16_t len) {
+  if (out_len == 0) return;
+  size_t take = len;
+  if (take >= out_len) take = out_len - 1;
+  memcpy(out, s, take);
+  out[take] = '\0';
 }
 
 void fsm_msgHiveSignOperations(const HiveSignOperations* msg) {
@@ -679,39 +710,82 @@ void fsm_msgHiveSignOperations(const HiveSignOperations* msg) {
   if (!node) return;
   hdnode_fill_public_key(node);
 
-  // One confirm per operation, then a final sign confirm (transfer pattern).
+  // Confirm operation summaries and payloads, then show a final sign prompt.
   for (uint8_t i = 0; i < parsed.num_ops; i++) {
     const HiveTxOp* op = &parsed.ops[i];
     char name[17];  // hive account names are <= 16 chars, length-validated
-    memcpy(name, op->acct, op->acct_len);
-    name[op->acct_len] = '\0';
-    char target[140], detail[140];
-    hive_format_slice(op->target, op->target_len, target, sizeof(target));
-    hive_format_slice(op->detail, op->detail_len, detail, sizeof(detail));
+    hive_copy_slice(name, sizeof(name), op->acct, op->acct_len);
 
     bool approved = false;
     switch (op->op_type) {
       case HIVE_OP_VOTE: {
+        char target[17];
+        hive_copy_slice(target, sizeof(target), op->target, op->target_len);
         int w = op->weight < 0 ? -op->weight : op->weight;
-        approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                           op->weight < 0 ? "Downvote" : "Vote",
-                           "@%s -> @%s/%s at %d.%02d%%", name, target, detail,
-                           w / 100, w % 100);
+        approved =
+            confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                    op->weight < 0 ? "Downvote" : "Vote",
+                    "@%s -> @%s at %d.%02d%%", name, target, w / 100, w % 100);
+        if (approved) {
+          approved =
+              hive_confirm_slice(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                                 "Vote Target", op->detail, op->detail_len);
+        }
         break;
       }
-      case HIVE_OP_COMMENT:
-        approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                           op->is_top_level ? "Post" : "Comment", "@%s: %s\n%s",
-                           name, target, detail);
+      case HIVE_OP_COMMENT: {
+        char parent[17];
+        hive_copy_slice(parent, sizeof(parent), op->parent_author,
+                        op->parent_author_len);
+        approved =
+            op->is_top_level
+                ? confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Post",
+                          "Create post by @%s?", name)
+                : confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                          "Comment", "Reply by @%s to @%s?", name, parent);
+        if (approved) {
+          approved = hive_confirm_slice(
+              ButtonRequestType_ButtonRequest_ConfirmOutput,
+              op->is_top_level ? "Post Category" : "Reply Target",
+              op->parent_permlink, op->parent_permlink_len);
+        }
+        if (approved) {
+          approved = hive_confirm_slice(
+              ButtonRequestType_ButtonRequest_ConfirmOutput, "Post Permlink",
+              op->permlink, op->permlink_len);
+        }
+        if (approved && op->target_len > 0) {
+          approved =
+              hive_confirm_slice(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                                 "Post Title", op->target, op->target_len);
+        }
+        if (approved) {
+          approved =
+              hive_confirm_slice(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                                 "Post Body", op->detail, op->detail_len);
+        }
+        if (approved && op->json_metadata_len > 0) {
+          approved = hive_confirm_slice(
+              ButtonRequestType_ButtonRequest_ConfirmOutput, "Post Metadata",
+              op->json_metadata, op->json_metadata_len);
+        }
         break;
+      }
       case HIVE_OP_CUSTOM_JSON: {
+        char target[33];
+        hive_copy_slice(target, sizeof(target), op->target, op->target_len);
         char extra[12] = "";
         if (op->n_auths > 1) {
           snprintf(extra, sizeof(extra), " +%u", (unsigned)(op->n_auths - 1));
         }
-        approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                           "Custom JSON", "id: %s\nby @%s%s\n%s", target, name,
-                           extra, detail);
+        approved =
+            confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                    "Custom JSON", "id: %s\nby @%s%s", target, name, extra);
+        if (approved) {
+          approved =
+              hive_confirm_slice(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                                 "Custom JSON", op->detail, op->detail_len);
+        }
         break;
       }
       default:

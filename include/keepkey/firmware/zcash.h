@@ -328,6 +328,12 @@ bool zcash_orchard_derive_unified_address(const ZcashOrchardKeys* keys,
 bool zcash_calculate_seed_fingerprint(const uint8_t* seed, uint32_t seed_len,
                                       uint8_t fingerprint_out[32]);
 
+/**
+ * Validate the wire shape of an optional asserted seed fingerprint. Omission is
+ * valid; a present assertion must be exactly 32 bytes.
+ */
+bool zcash_seed_fingerprint_request_valid(bool present, size_t size);
+
 /* ── Storage-scoped wrappers ───────────────────────────────────────────
  *
  * The two functions below own the seed access. Implementations live in
