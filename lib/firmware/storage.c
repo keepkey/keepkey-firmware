@@ -45,6 +45,7 @@
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/policy.h"
 #include "keepkey/firmware/u2f.h"
+#include "keepkey/firmware/zcash.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/transport/interface.h"
 #include "trezor/crypto/aes/aes.h"
@@ -89,6 +90,28 @@ static Allocation storage_location = FLASH_INVALID;
 _Static_assert(sizeof(ConfigFlash) <= FLASH_STORAGE_LEN,
                "ConfigFlash struct is too large for storage partition");
 static ConfigFlash CONFIDENTIAL shadow_config;
+
+/* This firmware found storage in flash it must refuse to load or overwrite
+ * until the user explicitly wipes: a bitcoin-only wallet seen by multi-chain
+ * firmware, or (on bitcoin-only firmware) a newer in-band wallet than this
+ * build understands. Set from the SUS_BitcoinOnlyLocked path in either build.
+ */
+static bool btc_only_locked = false;
+
+bool storage_isBitcoinOnlyLocked(void) { return btc_only_locked; }
+
+// Stamp a newly-created seed into the reserved bitcoin-only version band so
+// multi-chain firmware refuses it (see storage_fromFlash). Called only from
+// seed-creation paths, so a pre-existing multi-chain wallet migrated under
+// bitcoin-only firmware keeps its normal, portable version. No-op (but still
+// referenced, so no -Wunused) in multi-chain builds.
+#if BITCOIN_ONLY
+static void storage_stampBitcoinOnlySeed(void) {
+  shadow_config.storage.version = STORAGE_VERSION_BTC_ONLY;
+}
+#else
+static void storage_stampBitcoinOnlySeed(void) {}
+#endif
 
 #if DEBUG_LINK
 // These won't survive resets like the stuff in flash would, but thats a
@@ -176,6 +199,18 @@ static void write_u32_le(char* ptr, uint32_t val) {
   ptr[3] = (val >> 24) & 0xff;
 }
 
+/* Cast each byte through uint8_t first: on the emulator (signed char) a raw
+ * (uint16_t)ptr[i] would sign-extend a 0x80+ low byte (icon_len reaches 384).
+ */
+static uint16_t read_u16_le(const char* ptr) {
+  return (uint16_t)((uint8_t)ptr[0]) | ((uint16_t)((uint8_t)ptr[1]) << 8);
+}
+
+static void write_u16_le(char* ptr, uint16_t val) {
+  ptr[0] = val & 0xff;
+  ptr[1] = (val >> 8) & 0xff;
+}
+
 static bool read_bool(const char* ptr) { return *ptr; }
 
 static void write_bool(char* ptr, bool val) { *ptr = val ? 1 : 0; }
@@ -184,7 +219,13 @@ enum StorageVersion {
   StorageVersion_NONE,
 #define STORAGE_VERSION_ENTRY(VAL) StorageVersion_##VAL,
 #include "storage_versions.inc"
+  StorageVersion_BTC_ONLY,  // reserved band, never in storage_versions.inc
 };
+
+// The normal storage version must stay below the bitcoin-only band, or a
+// bitcoin-only wallet would become loadable by multi-chain firmware.
+_Static_assert(STORAGE_VERSION < STORAGE_VERSION_BTC_ONLY_BASE,
+               "storage version must stay below the bitcoin-only band");
 
 static enum StorageVersion version_from_int(int version) {
 #define STORAGE_VERSION_LAST(VAL)        \
@@ -192,6 +233,12 @@ static enum StorageVersion version_from_int(int version) {
                  "need to update "       \
                  "storage_versions.inc");
 #include "storage_versions.inc"
+
+  // Any version in the reserved bitcoin-only band maps here regardless of
+  // build; storage_fromFlash decides load-vs-refuse from the exact value, so
+  // an in-band firmware downgrade refuses rather than silently wiping a newer
+  // bitcoin-only wallet.
+  if (version >= STORAGE_VERSION_BTC_ONLY_BASE) return StorageVersion_BTC_ONLY;
 
   switch (version) {
 #define STORAGE_VERSION_ENTRY(VAL) \
@@ -1080,6 +1127,55 @@ void storage_readStorageV17(Storage* storage, const char* ptr, size_t len) {
   memcpy(storage->encrypted_sec, ptr + 1501, sizeof(storage->encrypted_sec));
 }
 
+// V18 appends the persistent clear-sign identities block immediately after the
+// V17 encrypted_sec (which ends at ptr + 1501 + V17_ENCSEC_SIZE = ptr + 2525).
+// Everything before it is the byte-identical V17 layout — never reorder it.
+// One identity serializes to CLEARSIGN_IDENTITY_SERIALIZED_LEN bytes:
+//   +0 present(u8) +1 key_id(u8) +2 pubkey[33] +35 alias[32] +67 icon_w(u8)
+//   +68 icon_h(u8) +69 icon_len(u16 le) +71 icon[CLEARSIGN_ICON_MAX] = 71+384
+#define CLEARSIGN_IDENTITY_BLOCK_OFF (1501 + V17_ENCSEC_SIZE)        // 2525
+#define CLEARSIGN_IDENTITY_SERIALIZED_LEN (71 + CLEARSIGN_ICON_MAX)  // 455
+
+void storage_writeStorageV18(char* ptr, size_t len, const Storage* storage) {
+  storage_writeStorageV17(ptr, len, storage);
+
+  for (int i = 0; i < PERSISTENT_IDENTITY_COUNT; i++) {
+    const ClearsignIdentity* id = &storage->pub.clearsign_identities[i];
+    char* p = ptr + CLEARSIGN_IDENTITY_BLOCK_OFF +
+              (size_t)i * CLEARSIGN_IDENTITY_SERIALIZED_LEN;
+    write_u8(p + 0, id->present ? 1 : 0);
+    write_u8(p + 1, id->key_id);
+    memcpy(p + 2, id->pubkey, sizeof(id->pubkey));  // 33
+    memcpy(p + 35, id->alias, sizeof(id->alias));   // 32
+    write_u8(p + 67, id->icon_w);
+    write_u8(p + 68, id->icon_h);
+    write_u16_le(p + 69, id->icon_len);
+    memcpy(p + 71, id->icon, sizeof(id->icon));  // CLEARSIGN_ICON_MAX
+  }
+}
+
+void storage_readStorageV18(Storage* storage, const char* ptr, size_t len) {
+  storage_readStorageV17(storage, ptr, len);
+
+  for (int i = 0; i < PERSISTENT_IDENTITY_COUNT; i++) {
+    ClearsignIdentity* id = &storage->pub.clearsign_identities[i];
+    const char* p = ptr + CLEARSIGN_IDENTITY_BLOCK_OFF +
+                    (size_t)i * CLEARSIGN_IDENTITY_SERIALIZED_LEN;
+    id->present = read_u8(p + 0) != 0;
+    id->key_id = read_u8(p + 1);
+    memcpy(id->pubkey, p + 2, sizeof(id->pubkey));
+    memcpy(id->alias, p + 35, sizeof(id->alias));
+    id->alias[sizeof(id->alias) - 1] =
+        '\0';  // never trust flash to be NUL-term
+    id->icon_w = read_u8(p + 67);
+    id->icon_h = read_u8(p + 68);
+    id->icon_len = read_u16_le(p + 69);
+    if (id->icon_len > CLEARSIGN_ICON_MAX)
+      id->icon_len = 0;  // corrupt => no icon
+    memcpy(id->icon, p + 71, sizeof(id->icon));
+  }
+}
+
 void storage_readCacheV1(Cache* cache, const char* ptr, size_t len) {
   if (len < 65 + 10) return;
   cache->root_seed_cache_status = read_u8(ptr);
@@ -1148,12 +1244,25 @@ void storage_writeV17(char* flash, size_t len, const ConfigFlash* src) {
   storage_writeStorageV17(flash + 44, 852, &src->storage);
 }
 
+void storage_readV18(ConfigFlash* dst, const char* flash, size_t len) {
+  if (len < 1024) return;
+  storage_readMeta(&dst->meta, flash, 44);
+  storage_readStorageV18(&dst->storage, flash + 44, 852);
+}
+
+void storage_writeV18(char* flash, size_t len, const ConfigFlash* src) {
+  if (len < 1024) return;
+  storage_writeMeta(flash, 44, &src->meta);
+  storage_writeStorageV18(flash + 44, 852, &src->storage);
+}
+
 StorageUpdateStatus storage_fromFlash(SessionState* ss, ConfigFlash* dst,
                                       const char* flash) {
   memzero(dst, sizeof(*dst));
 
   // Load config values from active config node.
-  enum StorageVersion version = version_from_int(read_u32_le(flash + 44));
+  uint32_t raw_version = read_u32_le(flash + 44);
+  enum StorageVersion version = version_from_int(raw_version);
 
   switch (version) {
     case StorageVersion_1:
@@ -1199,9 +1308,54 @@ StorageUpdateStatus storage_fromFlash(SessionState* ss, ConfigFlash* dst,
       dst->storage.version = STORAGE_VERSION;
       return dst->storage.version == version ? SUS_Valid : SUS_Updated;
     case StorageVersion_17:
+      // Migrate up: the V17 reader leaves clearsign_identities zeroed (the
+      // memzero(dst) at the top => present=false), so no data loss. Stamping
+      // STORAGE_VERSION (18) makes this SUS_Updated, and the re-commit writes
+      // the V18 layout (empty identities block).
       storage_readV17(dst, flash, STORAGE_SECTOR_LEN);
       dst->storage.version = STORAGE_VERSION;
       return dst->storage.version == version ? SUS_Valid : SUS_Updated;
+    case StorageVersion_18:
+      storage_readV18(dst, flash, STORAGE_SECTOR_LEN);
+      dst->storage.version = STORAGE_VERSION;
+      return dst->storage.version == version ? SUS_Valid : SUS_Updated;
+
+    case StorageVersion_BTC_ONLY:
+#if BITCOIN_ONLY
+    {
+      // Our own bitcoin-only wallet. The stored wire version is the multi-chain
+      // storage version plus the band base, so recover the underlying layout
+      // version and load it through the normal migration chain. Exact-matching
+      // STORAGE_VERSION_BTC_ONLY here would lock every existing bitcoin-only
+      // wallet out of its own firmware on the next STORAGE_VERSION bump.
+      uint32_t underlying = raw_version - STORAGE_VERSION_BTC_ONLY_BASE;
+      if (underlying > (uint32_t)STORAGE_VERSION) {
+        // A newer bitcoin-only wallet than this firmware understands: refuse
+        // rather than wipe, so a firmware downgrade never destroys it.
+        return SUS_BitcoinOnlyLocked;
+      }
+      // Read via the reader matching the underlying version (same mapping as
+      // the multi-chain path above), then keep the band stamp so multi-chain
+      // firmware still refuses it.
+      if (underlying <= 15) {
+        storage_readV11(dst, flash, STORAGE_SECTOR_LEN);
+      } else if (underlying == 16) {
+        storage_readV16(dst, flash, STORAGE_SECTOR_LEN);
+      } else if (underlying == 17) {
+        storage_readV17(dst, flash, STORAGE_SECTOR_LEN);
+      } else {
+        storage_readV18(dst, flash, STORAGE_SECTOR_LEN);
+      }
+      dst->storage.version = STORAGE_VERSION_BTC_ONLY;
+      return (underlying == (uint32_t)STORAGE_VERSION) ? SUS_Valid
+                                                       : SUS_Updated;
+    }
+#else
+      // Written by bitcoin-only firmware: refuse to load. The wallet stays
+      // intact in flash (reflash bitcoin-only firmware to recover it); using
+      // multi-chain firmware requires an explicit wipe.
+      return SUS_BitcoinOnlyLocked;
+#endif
 
     case StorageVersion_NONE:
       return SUS_Invalid;
@@ -1340,6 +1494,13 @@ void storage_init(void) {
       // that it's available on next boot without conversion.
       storage_commit();
       break;
+    case SUS_BitcoinOnlyLocked:
+      // Bitcoin-only wallet in flash: act as an uninitialized, locked device.
+      // Do NOT commit -- flash stays untouched so reflashing bitcoin-only
+      // firmware recovers the wallet; leaving requires an explicit wipe.
+      btc_only_locked = true;
+      storage_reset();
+      break;
   }
 
   if (!storage_hasPin()) {
@@ -1386,6 +1547,9 @@ void storage_wipe(void) {
   flash_erase_word(FLASH_STORAGE1);
   flash_erase_word(FLASH_STORAGE2);
   flash_erase_word(FLASH_STORAGE3);
+
+  // The bitcoin-only wallet (if any) is gone; the device may be used freely.
+  btc_only_locked = false;
 }
 
 void storage_clearKeys(void) {
@@ -1460,9 +1624,17 @@ clear:
 }
 
 void storage_commit(void) {
+  // Never overwrite a bitcoin-only wallet from multi-chain firmware; the
+  // only way out is storage_wipe() (which clears the lock). This is the
+  // backstop behind the per-handler checks.
+  if (btc_only_locked) return;
+
   // Temporary storage for marshalling secrets in & out of flash.
-  // Size of v17 storage layout (2525 bytes) + size of meta (44 bytes) + 1
-  static char flash_temp[2570];
+  // V18 storage layout = V17 (2525 bytes) + persistent identities block
+  // (PERSISTENT_IDENTITY_COUNT * CLEARSIGN_IDENTITY_SERIALIZED_LEN = 2*454 =
+  // 908) = 3433; + meta (44) = 3477. Rounded up to a multiple of 4 (the CRC
+  // below iterates uint32_t words) => 3480.
+  static char flash_temp[3480];
 
   memzero(flash_temp, sizeof(flash_temp));
 
@@ -1472,7 +1644,7 @@ void storage_commit(void) {
     // commit what was in storage->encrypted_sec
   }
 
-  storage_writeV17(flash_temp, sizeof(flash_temp), &shadow_config);
+  storage_writeV18(flash_temp, sizeof(flash_temp), &shadow_config);
 
   memcpy(&shadow_config, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
 
@@ -1624,6 +1796,10 @@ void storage_loadDevice(LoadDevice* msg) {
     memset(&session.seed, 0, sizeof(session.seed));
   }
 
+  if (msg->has_node || msg->has_mnemonic) {
+    storage_stampBitcoinOnlySeed();
+  }
+
   if (msg->has_language) {
     storage_setLanguage(msg->language);
   }
@@ -1655,6 +1831,45 @@ const char* storage_getLabel(void) {
   }
 
   return shadow_config.storage.pub.label;
+}
+
+// ── Persistent clear-sign identities (V18) ───────────────────────────────
+
+int storage_clearsignIdentityCount(void) { return PERSISTENT_IDENTITY_COUNT; }
+
+const ClearsignIdentity* storage_getClearsignIdentity(int slot) {
+  if (slot < 0 || slot >= PERSISTENT_IDENTITY_COUNT) return NULL;
+  const ClearsignIdentity* id =
+      &shadow_config.storage.pub.clearsign_identities[slot];
+  return id->present ? id : NULL;
+}
+
+// Write an identity to a persistent slot and commit. Reuses the slot already
+// holding this pubkey (re-load with a new icon/alias), else the first free
+// slot. Returns false if all slots are taken by other identities (caller keeps
+// the RAM-only signer working — persistence just didn't happen).
+bool storage_upsertClearsignIdentity(const ClearsignIdentity* id) {
+  if (!id) return false;
+  int free_slot = -1;
+  int target = -1;
+  for (int i = 0; i < PERSISTENT_IDENTITY_COUNT; i++) {
+    const ClearsignIdentity* cur =
+        &shadow_config.storage.pub.clearsign_identities[i];
+    if (cur->present && memcmp(cur->pubkey, id->pubkey, 33) == 0) {
+      target = i;
+      break;
+    }
+    if (!cur->present && free_slot < 0) free_slot = i;
+  }
+  if (target < 0) target = free_slot;
+  if (target < 0) return false;  // no room
+
+  ClearsignIdentity* dst =
+      &shadow_config.storage.pub.clearsign_identities[target];
+  memcpy(dst, id, sizeof(*dst));
+  dst->present = true;
+  storage_commit();
+  return true;
 }
 
 void storage_setLanguage(const char* lang) {
@@ -1866,6 +2081,34 @@ const uint8_t* storage_getSeed(const ConfigFlash* cfg, bool usePassphrase) {
   return NULL;
 }
 
+/* ── Zcash storage-scoped wrappers ───────────────────────────────────
+ *
+ * ZIP-32 Orchard derives keys directly from the raw 64-byte BIP-39 seed
+ * (not the BIP-32 master node). Rather than expose a generic
+ * "give me the seed" function, storage owns the seed access and only
+ * returns derived material — Orchard keys or the 32-byte fingerprint.
+ * The seed pointer never leaves this translation unit.
+ */
+
+#if ZCASH_PRIVACY
+bool storage_zcashOrchardKeys(uint32_t account, bool usePassphrase,
+                              ZcashOrchardKeys* keys_out) {
+  if (!keys_out) return false;
+  const uint8_t* seed = storage_getSeed(&shadow_config, usePassphrase);
+  if (!seed) return false;
+  animating_progress_handler(_("Deriving Zcash"), 250);
+  return zcash_derive_orchard_keys(seed, 64, account, keys_out);
+}
+
+bool storage_zcashSeedFingerprint(bool usePassphrase,
+                                  uint8_t fingerprint_out[32]) {
+  if (!fingerprint_out) return false;
+  const uint8_t* seed = storage_getSeed(&shadow_config, usePassphrase);
+  if (!seed) return false;
+  return zcash_calculate_seed_fingerprint(seed, 64, fingerprint_out);
+}
+#endif
+
 bool storage_getRootNode(const char* curve, bool usePassphrase, HDNode* node) {
   // if storage has node, decrypt and use it
   if (shadow_config.storage.pub.has_node &&
@@ -1994,6 +2237,7 @@ void storage_setMnemonicFromWords(const char (*words)[12],
 
   shadow_config.storage.pub.has_mnemonic = true;
   shadow_config.storage.has_sec = true;
+  storage_stampBitcoinOnlySeed();
 
   storage_compute_u2froot(&session, shadow_config.storage.sec.mnemonic,
                           &shadow_config.storage.pub.u2froot);
@@ -2011,6 +2255,7 @@ void storage_setMnemonic(const char* m) {
 #endif
   shadow_config.storage.pub.has_mnemonic = true;
   shadow_config.storage.has_sec = true;
+  storage_stampBitcoinOnlySeed();
 
   storage_compute_u2froot(&session, shadow_config.storage.sec.mnemonic,
                           &shadow_config.storage.pub.u2froot);

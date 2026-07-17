@@ -5,6 +5,7 @@ void fsm_msgInitialize(Initialize* msg) {
   ethereum_signing_abort();
   tendermint_signAbort();
   eos_signingAbort();
+  zcash_signing_abort();
   session_clear(false);  // do not clear PIN
   layoutHome();
   fsm_msgGetFeatures(0);
@@ -42,8 +43,44 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
 
   /* Variant Name */
   resp->has_firmware_variant = true;
-  strlcpy(resp->firmware_variant, variant_getName(),
+#if BITCOIN_ONLY
+  /* Bitcoin-only build. Uses the established KeepKeyBTC / EmulatorBTC names so
+     existing clients (python-keepkey requires_fullFeature, etc.) skip
+     multi-chain-only behaviour and never offer multi-chain firmware. */
+#ifdef EMULATOR
+  strlcpy(resp->firmware_variant, "EmulatorBTC",
           sizeof(resp->firmware_variant));
+#else
+  strlcpy(resp->firmware_variant, "KeepKeyBTC", sizeof(resp->firmware_variant));
+#endif
+#elif ZCASH_PRIVACY
+  /* Zcash/Orchard privacy build. Distinct variant name so hosts can gate
+     variant-partitioned features — the clearsign session icon cache is
+     compiled out of this build to fit SRAM (identities still work; persistent
+     identity icons still render from storage). */
+  if (storage_isBitcoinOnlyLocked()) {
+    strlcpy(resp->firmware_variant, "bitcoin-only-locked",
+            sizeof(resp->firmware_variant));
+  } else {
+#ifdef EMULATOR
+    strlcpy(resp->firmware_variant, "EmulatorZcash",
+            sizeof(resp->firmware_variant));
+#else
+    strlcpy(resp->firmware_variant, "KeepKeyZcash",
+            sizeof(resp->firmware_variant));
+#endif
+  }
+#else
+  if (storage_isBitcoinOnlyLocked()) {
+    /* Multi-chain firmware refusing to touch a bitcoin-only wallet; a wipe
+       is required before this device can be used. */
+    strlcpy(resp->firmware_variant, "bitcoin-only-locked",
+            sizeof(resp->firmware_variant));
+  } else {
+    strlcpy(resp->firmware_variant, variant_getName(),
+            sizeof(resp->firmware_variant));
+  }
+#endif
 
   /* Security settings */
   resp->has_pin_protection = true;
@@ -150,8 +187,10 @@ void fsm_msgGetCoinTable(GetCoinTable* msg) {
     for (size_t i = 0; i < msg->end - msg->start; i++) {
       if (msg->start + i < COINS_COUNT) {
         resp->table[i] = coins[msg->start + i];
+#if !BITCOIN_ONLY
       } else if (msg->start + i - COINS_COUNT < TOKENS_COUNT) {
         coinFromToken(&resp->table[i], &tokens[msg->start + i - COINS_COUNT]);
+#endif
       }
     }
   }
@@ -325,6 +364,7 @@ void fsm_msgPing(Ping* msg) {
 }
 
 void fsm_msgChangePin(ChangePin* msg) {
+  CHECK_NOT_BTC_ONLY_LOCKED
   bool removal = msg->has_remove && msg->remove;
   bool confirmed = false;
 
@@ -375,6 +415,7 @@ void fsm_msgChangePin(ChangePin* msg) {
 }
 
 void fsm_msgChangeWipeCode(ChangeWipeCode* msg) {
+  CHECK_NOT_BTC_ONLY_LOCKED
   bool removal = msg->has_remove && msg->remove;
   bool confirmed = false;
 
@@ -460,6 +501,9 @@ void fsm_msgWipeDevice(WipeDevice* msg) {
   storage_reset();
   storage_resetUuid();
   storage_commit();
+  /* Factory reset drops runtime trust anchors too: loaded clearsign
+   * signers (and any metadata they verified) must not survive a wipe. */
+  signed_metadata_clear_signers();
 
   fsm_sendSuccess("Device wiped");
   layoutHome();
@@ -500,6 +544,7 @@ void fsm_msgGetEntropy(GetEntropy* msg) {
 }
 
 void fsm_msgLoadDevice(LoadDevice* msg) {
+  CHECK_NOT_BTC_ONLY_LOCKED
   CHECK_NOT_INITIALIZED
 
   if (!confirm_load_device(msg->has_node)) {
@@ -528,6 +573,7 @@ void fsm_msgLoadDevice(LoadDevice* msg) {
 }
 
 void fsm_msgResetDevice(ResetDevice* msg) {
+  CHECK_NOT_BTC_ONLY_LOCKED
   CHECK_NOT_INITIALIZED
 
   reset_init(msg->has_display_random && msg->display_random,
@@ -557,10 +603,12 @@ void fsm_msgCancel(Cancel* msg) {
   ethereum_signing_abort();
   tendermint_signAbort();
   eos_signingAbort();
+  zcash_signing_abort();
   fsm_sendFailure(FailureType_Failure_ActionCancelled, "Aborted");
 }
 
 void fsm_msgApplySettings(ApplySettings* msg) {
+  CHECK_NOT_BTC_ONLY_LOCKED
   if (msg->has_label) {
     if (!confirm(ButtonRequestType_ButtonRequest_ChangeLabel, "Change Label",
                  "Do you want to change the label to \"%s\"?", msg->label)) {
@@ -651,6 +699,7 @@ apply_settings_cancelled:
 }
 
 void fsm_msgRecoveryDevice(RecoveryDevice* msg) {
+  CHECK_NOT_BTC_ONLY_LOCKED
   if (msg->has_dry_run && msg->dry_run) {
     CHECK_INITIALIZED
   } else {
@@ -681,6 +730,7 @@ void fsm_msgCharacterAck(CharacterAck* msg) {
 }
 
 void fsm_msgApplyPolicies(ApplyPolicies* msg) {
+  CHECK_NOT_BTC_ONLY_LOCKED
   CHECK_PARAM(msg->policy_count > 0, "No policies provided");
 
   for (size_t i = 0; i < msg->policy_count; ++i) {

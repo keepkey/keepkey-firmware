@@ -26,7 +26,19 @@
 #include "keepkey/firmware/authenticator.h"
 
 #define STORAGE_VERSION \
-  17 /* Must add case fallthrough in storage_fromFlash after increment*/
+  18 /* Must add case fallthrough in storage_fromFlash after increment*/
+
+/* A seed CREATED under bitcoin-only firmware is stamped with a version in a
+ * reserved band (base + the normal version). Multi-chain firmware that knows
+ * the band refuses to load it and requires an explicit wipe; older multi-chain
+ * firmware treats it as an unknown version and resets. Either way a seed born
+ * on bitcoin-only firmware is never usable by multi-chain code. A pre-existing
+ * multi-chain wallet keeps its normal version and stays portable (it was
+ * already multi-chain-exposed). Multi-chain versions MUST stay below the band
+ * forever (static-asserted in storage.c). */
+#define STORAGE_VERSION_BTC_ONLY_BASE 10000
+#define STORAGE_VERSION_BTC_ONLY \
+  (STORAGE_VERSION_BTC_ONLY_BASE + STORAGE_VERSION)
 #define STORAGE_RETRIES 3
 
 #define RANDOM_SALT_LEN 32
@@ -38,6 +50,12 @@
 
 /// \brief Validate storage content and copy data to shadow memory.
 void storage_init(void);
+
+/// \brief True iff flash holds storage written by bitcoin-only firmware that
+///        this (multi-chain) firmware refuses to load. The device must be
+///        wiped before it can be used; the seed stays intact in flash so
+///        reflashing bitcoin-only firmware recovers the wallet.
+bool storage_isBitcoinOnlyLocked(void);
 
 /// \brief Reset configuration UUID with random numbers.
 void storage_resetUuid(void);

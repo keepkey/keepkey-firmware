@@ -85,6 +85,8 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage* msg);
 void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage* msg);
 void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash* msg);
 void fsm_msgEthereum712TypesValues(Ethereum712TypesValues* msg);
+void fsm_msgEthereumTxMetadata(const EthereumTxMetadata* msg);
+void fsm_msgLoadClearsignSigner(const LoadClearsignSigner* msg);
 
 void fsm_msgNanoGetAddress(NanoGetAddress* msg);
 void fsm_msgNanoSignTx(NanoSignTx* msg);
@@ -131,6 +133,22 @@ void fsm_msgSolanaSignTx(const SolanaSignTx* msg);
 void fsm_msgSolanaSignMessage(const SolanaSignMessage* msg);
 void fsm_msgSolanaSignOffchainMessage(const SolanaSignOffchainMessage* msg);
 
+#if ZCASH_PRIVACY
+void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg);
+void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg);
+void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK* msg);
+void fsm_msgZcashTransparentOutput(const ZcashTransparentOutput* msg);
+void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg);
+void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress* msg);
+#endif
+void fsm_msgHiveGetPublicKey(const HiveGetPublicKey* msg);
+void fsm_msgHiveGetPublicKeys(const HiveGetPublicKeys* msg);
+void fsm_msgHiveSignTx(const HiveSignTx* msg);
+void fsm_msgHiveSignAccountCreate(const HiveSignAccountCreate* msg);
+void fsm_msgHiveSignAccountUpdate(const HiveSignAccountUpdate* msg);
+void fsm_msgHiveSignMessage(const HiveSignMessage* msg);
+void fsm_msgHiveSignOperations(const HiveSignOperations* msg);
+
 #if DEBUG_LINK
 // void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
 void fsm_msgDebugLinkGetState(DebugLinkGetState* msg);
@@ -141,5 +159,7 @@ void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump* msg);
 void fsm_msgFlashWrite(FlashWrite* msg);
 void fsm_msgFlashHash(FlashHash* msg);
 void fsm_msgSoftReset(SoftReset* msg);
+
+void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic* msg);
 
 #endif

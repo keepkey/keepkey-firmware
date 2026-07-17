@@ -45,7 +45,8 @@ bool sa_isWithdrawFromSalary(const EthereumSignTx* msg) {
 
 bool sa_confirmWithdrawFromSalary(uint32_t data_total,
                                   const EthereumSignTx* msg) {
-  (void)data_total;
+  /* reads selector + 2 32-byte words (salaryId, withdrawAmount) */
+  if (data_total < 4 + 2 * 32) return false;
   char confStr[41];
   bignum256 salaryId, withdrawAmount;
 
