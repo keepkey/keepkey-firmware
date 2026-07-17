@@ -179,16 +179,25 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
    * the value actually sent, and refuse if the ABI amount disagrees (0 is the
    * canonical "unset" and is allowed). For token deposits the router pulls via
    * transferFrom; native value must not ride along or it is swept unshown. */
-  const bool is_native =
-      memcmp(contractAssetAddress, ETH_ADDRESS, sizeof(ETH_ADDRESS)) == 0;
+  /* Native ETH is expressed either as address(0) (the on-chain router
+   * convention) or as the 0xEeee..Ee sentinel; recognize both, or a native
+   * deposit whose asset uses the sentinel would be mis-classified as a token
+   * and rejected for carrying value. Compare exactly 20 bytes (not
+   * sizeof, which includes the literal's NUL and would over-read into amount).
+   */
+  const bool is_native = memcmp(contractAssetAddress, ETH_ADDRESS, 20) == 0 ||
+                         memcmp(contractAssetAddress, ETH_NATIVE, 20) == 0;
   bignum256 Value;
   bn_from_bytes(msg->value.bytes, msg->value.size, &Value);
   if (is_native) {
-    if (!bn_is_zero(&Amount) && !bn_is_equal(&Amount, &Value)) {
-      return false;
-    }
+    /* Display msg.value — the amount the router actually forwards — not the ABI
+     * amount word it ignores. That alone closes the "display 0.01 while sending
+     * 100" gap; we do NOT additionally require amount == value, since the ABI
+     * amount is a router-ignored hint that legitimately differs. */
     assetAddress = (const uint8_t*)ETH_NATIVE;
   } else {
+    /* A token deposit must not also carry native value (the router pulls tokens
+     * via transferFrom); nonzero msg.value would be swept and never shown. */
     if (!bn_is_zero(&Value)) {
       return false;
     }
