@@ -234,9 +234,12 @@ void thorchain_signAbort(void) {
 
 /* Page the COMPLETE raw memo so nothing is truncated behind confirm()'s body
  * budget. THORChain memos are ASCII; a non-printable byte gets a hex page so
- * even a malformed memo is fully disclosed rather than hidden. */
-static bool thorchain_confirm_full_memo(const char* title, const char* memo,
-                                        size_t len) {
+ * even a malformed memo is fully disclosed rather than hidden. Shared with the
+ * MAYA path (mayachain memos use the same grammar) and the native signing
+ * handlers, which page this as the authoritative disclosure after any
+ * best-effort structured summary. */
+bool thorchain_confirm_full_memo(const char* title, const char* memo,
+                                 size_t len) {
   enum { ASCII_CHUNK = 72, HEX_CHUNK = 40 };
   bool ascii = len > 0;
   for (size_t i = 0; i < len; i++) {

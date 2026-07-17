@@ -364,3 +364,39 @@ TEST(Thorchain, MemoAddTooManyFieldsRejected) {
   EXPECT_FALSE(parseMemo("ADD:BTC.BTC:pool:affil:50:extra"));
   EXPECT_EQ(0, kkconfirm_drain());
 }
+
+// The full-memo pager is the authoritative disclosure the native THOR/MAYA
+// handlers page after their structured summary. A short ASCII memo is one page.
+TEST(Thorchain, FullMemoShortAsciiIsOnePage) {
+  const char memo[] = "=:ETH.ETH:0xdest:420:kk:75";
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  EXPECT_TRUE(thorchain_confirm_full_memo("Memo", memo, strlen(memo)));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// A long memo (up to THORChain's 250-byte limit) pages in full instead of
+// truncating in one confirm: 150 ASCII bytes / 72 per page = 3 pages.
+TEST(Thorchain, FullMemoLongAsciiPagesAll) {
+  std::string memo(150, 'a');
+  ASSERT_TRUE(kkconfirm_preload(3, 0));
+  EXPECT_TRUE(thorchain_confirm_full_memo("Memo", memo.c_str(), memo.size()));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// Rejecting any page aborts the whole disclosure (so the handler aborts signing).
+TEST(Thorchain, FullMemoRejectPropagates) {
+  std::string memo(150, 'a');
+  ASSERT_TRUE(kkconfirm_preload(1, 1));  // approve page 1, reject page 2
+  EXPECT_FALSE(thorchain_confirm_full_memo("Memo", memo.c_str(), memo.size()));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// Non-printable memo bytes are disclosed as hex pages (40 bytes/page), never
+// hidden behind a byte-count summary.
+TEST(Thorchain, FullMemoBinaryPagesAsHex) {
+  char memo[50];
+  memset(memo, 0x01, sizeof(memo));  // 50 non-printable bytes -> 2 hex pages
+  ASSERT_TRUE(kkconfirm_preload(2, 0));
+  EXPECT_TRUE(thorchain_confirm_full_memo("Memo", memo, sizeof(memo)));
+  EXPECT_EQ(0, kkconfirm_drain());
+}

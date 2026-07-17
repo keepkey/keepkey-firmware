@@ -230,6 +230,13 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
   if (!thorchain_parseConfirmMemo((const char*)thorchainData, memo_len))
     return false;
 
+  /* Page the complete raw memo as the authoritative disclosure: a long
+   * structured field (dest/affiliate/aggregator) would otherwise truncate in
+   * its single confirm and hide the tail that the router still executes. */
+  if (!thorchain_confirm_full_memo("Memo", (const char*)thorchainData,
+                                   memo_len))
+    return false;
+
   return true;
 }
 

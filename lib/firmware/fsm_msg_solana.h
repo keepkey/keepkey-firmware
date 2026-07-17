@@ -40,6 +40,17 @@ static void solana_pubkeyToStr(const uint8_t key[SOL_PUBKEY_SIZE], char* out,
            key[31]);
 }
 
+/* A host-supplied token symbol is untrusted and only length-capped by the
+ * proto. Reject anything but printable ASCII so it cannot inject newlines or
+ * control bytes that push the mint or recipient off the confirm screen. */
+static bool solana_symbol_is_safe(const char* sym) {
+  if (!sym || sym[0] == '\0') return false;
+  for (const char* p = sym; *p; p++) {
+    if ((uint8_t)*p < 0x20 || (uint8_t)*p > 0x7e) return false;
+  }
+  return true;
+}
+
 /* Display budget per confirm body: printable memos page as text, binary memos
  * page as hex so the FULL content is always shown — a memo can carry swap
  * intent (THORChain '=:ETH.ETH:...'), so nothing may be hidden behind a byte
@@ -166,28 +177,34 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
         ti = solana_findTokenInfo(msg, pi->mint);
       }
 
-      if (ti && ti->has_symbol && ti->has_decimals) {
-        /* The symbol is host-supplied and unauthenticated: a malicious host can
-         * label any mint "USDC". Show the real mint next to the claimed symbol
-         * so a spoof is visible before the amount screen. */
+      /* The mint is the only authenticated token identity. Show it on its own
+       * screen — a host-controlled symbol shares no line with it, so it cannot
+       * push the mint off-view. */
+      if (pi->has_mint) {
         char mint_str[45];
         solana_pubkeyToStr(pi->mint, mint_str, sizeof(mint_str));
         if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Token \"%s\"\nmint %s", ti->symbol, mint_str)) {
+                     "Token mint\n%s", mint_str)) {
           return false;
         }
+      }
+
+      /* Use the claimed symbol only when it is safe printable text; otherwise a
+       * raw token count, so an unvalidated symbol cannot manipulate the amount
+       * screen (the mint above still identifies the token). */
+      if (ti && ti->has_symbol && ti->has_decimals &&
+          solana_symbol_is_safe(ti->symbol)) {
         char amount_str[48];
         solana_formatTokenAmount(amount_str, sizeof(amount_str), pi->amount,
                                  ti->symbol, (uint8_t)ti->decimals);
         return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
                        "Send %s to %s?", amount_str, to_str);
-      } else {
-        char amount_str[32];
-        snprintf(amount_str, sizeof(amount_str), "%llu tokens",
-                 (unsigned long long)pi->amount);
-        return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                       "Send %s to %s?", amount_str, to_str);
       }
+      char amount_str[32];
+      snprintf(amount_str, sizeof(amount_str), "%llu tokens",
+               (unsigned long long)pi->amount);
+      return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                     "Send %s to %s?", amount_str, to_str);
     }
 
     case SOL_INSTR_TOKEN_TRANSFER_CHECKED: {
@@ -201,28 +218,33 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
         ti = solana_findTokenInfo(msg, pi->mint);
       }
 
-      const char* symbol = (ti && ti->has_symbol) ? ti->symbol : NULL;
-      if (symbol) {
-        /* Host-supplied symbol is unauthenticated; show the real mint too so a
-         * spoofed label ("USDC" on an arbitrary mint) is visible. */
+      /* Mint on its own screen (see TOKEN_TRANSFER): the authenticated identity
+       * cannot be pushed off-view by a host-controlled symbol. */
+      if (pi->has_mint) {
         char mint_str[45];
         solana_pubkeyToStr(pi->mint, mint_str, sizeof(mint_str));
         if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Token \"%s\"\nmint %s", symbol, mint_str)) {
+                     "Token mint\n%s", mint_str)) {
           return false;
         }
+      }
+
+      const char* symbol =
+          (ti && ti->has_symbol && solana_symbol_is_safe(ti->symbol))
+              ? ti->symbol
+              : NULL;
+      if (symbol) {
         char amount_str[48];
         solana_formatTokenAmount(amount_str, sizeof(amount_str), pi->amount,
                                  symbol, pi->extra_u8);
         return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
                        "Send %s to %s?", amount_str, to_str);
-      } else {
-        char amount_str[32];
-        snprintf(amount_str, sizeof(amount_str), "%llu tokens",
-                 (unsigned long long)pi->amount);
-        return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                       "Send %s to %s?", amount_str, to_str);
       }
+      char amount_str[32];
+      snprintf(amount_str, sizeof(amount_str), "%llu tokens",
+               (unsigned long long)pi->amount);
+      return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                     "Send %s to %s?", amount_str, to_str);
     }
 
     case SOL_INSTR_TOKEN_APPROVE: {

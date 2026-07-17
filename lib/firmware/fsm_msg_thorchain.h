@@ -225,17 +225,19 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
     }
 
     if (msg->deposit.has_memo) {
-      // See if we can parse the memo
-      if (!thorchain_parseConfirmMemo(msg->deposit.memo,
-                                      sizeof(msg->deposit.memo))) {
-        // Memo not recognizable, ask to confirm it
-        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
-                     "%s", msg->deposit.memo)) {
-          thorchain_signAbort();
-          fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-          layoutHome();
-          return;
-        }
+      size_t memo_len = strnlen(msg->deposit.memo, sizeof(msg->deposit.memo));
+      // Best-effort structured summary for readability, then ALWAYS page the
+      // complete raw memo — that paged disclosure is the security guarantee, so
+      // a field the structured view omits (aggregator/affiliate) or a long
+      // field that would truncate can never be signed unseen. A reject on the
+      // raw memo aborts.
+      thorchain_parseConfirmMemo(msg->deposit.memo, memo_len);
+      if (!thorchain_confirm_full_memo(_("Memo"), msg->deposit.memo,
+                                       memo_len)) {
+        thorchain_signAbort();
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        layoutHome();
+        return;
       }
     }
 
@@ -255,17 +257,15 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
   }
 
   if (sign_tx->has_memo && !msg->deposit.has_memo) {
-    // See if we can parse the tx memo. This memo ignored if deposit msg has
-    // memo
-    if (!thorchain_parseConfirmMemo(sign_tx->memo, sizeof(sign_tx->memo))) {
-      // Memo not recognizable, ask to confirm it
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",
-                   sign_tx->memo)) {
-        thorchain_signAbort();
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-        layoutHome();
-        return;
-      }
+    // This memo is ignored if the deposit msg has a memo. Structured summary
+    // then ALWAYS page the full raw memo (see the deposit path above).
+    size_t memo_len = strnlen(sign_tx->memo, sizeof(sign_tx->memo));
+    thorchain_parseConfirmMemo(sign_tx->memo, memo_len);
+    if (!thorchain_confirm_full_memo(_("Memo"), sign_tx->memo, memo_len)) {
+      thorchain_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
     }
   }
 
