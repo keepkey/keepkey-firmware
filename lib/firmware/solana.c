@@ -212,6 +212,12 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           pi->lamports = read_le64(instr_data + 4);
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
           copy_account(pi->to, tx, acct_indices, num_acct_indices, 1);
+          /* CreateAccount also assigns the new account's space and OWNER
+           * program (bytes not parsed here); the owner controls the account, so
+           * a partial "amount only" screen is unsafe. Require AdvancedMode
+           * until a full screen (destination + amount + owner + space) exists.
+           */
+          *force_opaque = true;
         } else if (instr_type == SOL_SYS_ADVANCE_NONCE) {
           pi->type = SOL_INSTR_SYSTEM_ADVANCE_NONCE;
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
@@ -295,6 +301,12 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           if (data_len >= 35 && instr_data[2] == 1) {
             memcpy(pi->extra, instr_data + 3, SOL_PUBKEY_SIZE);
           }
+          /* Authority handover (owner/close/mint/freeze) is an account-takeover
+           * vector, and the "set to None" (clear) case is not distinguished
+           * from an all-zero authority in the parsed struct. Require
+           * AdvancedMode until a full screen (authority type + target +
+           * new/None) exists. */
+          *force_opaque = true;
         } else if ((token_instr == SOL_TOKEN_MINT_TO_IX ||
                     token_instr == SOL_TOKEN_MINT_TO_CHECKED_IX) &&
                    data_len >= 9) {
@@ -364,7 +376,10 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
           copy_account(pi->to, tx, acct_indices, num_acct_indices, 1);
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 4);
-        } else if (stake_instr == SOL_STAKE_AUTHORIZE_IX && data_len >= 36) {
+        } else if (stake_instr == SOL_STAKE_AUTHORIZE_IX && data_len >= 40) {
+          /* new_authority(32) at +4 then authorize_type(le32) at +36, so the
+           * instruction needs >= 40 bytes — reading extra_u8 at +36 with only
+           * 36 bytes was a 4-byte over-read. */
           pi->type = SOL_INSTR_STAKE_AUTHORIZE;
           memcpy(pi->extra, instr_data + 4, SOL_PUBKEY_SIZE);
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
@@ -607,6 +622,22 @@ static SolanaTxReview solana_parseVersionedTx(const uint8_t* raw,
   return SOL_TX_REVIEW_VERIFIED;
 }
 
+/* Normalize the bytes that are actually signed. Solana signs the serialized
+ * MESSAGE. Clients may send either the bare message (byte 0 = num_required_sigs
+ * >= 1) or a full unsigned transaction whose byte 0 is a compact-u16 signature
+ * count of 0. Strip that single prefix byte so parsing (solana_inspectTx) and
+ * signing (solana_signTx) operate on the IDENTICAL slice — otherwise the device
+ * would display one message but sign 0x00||message, which never verifies. */
+static void solana_message_slice(const uint8_t* raw, size_t raw_len,
+                                 const uint8_t** msg_out, size_t* len_out) {
+  if (raw_len > 1 && raw[0] == 0) {
+    raw++;
+    raw_len--;
+  }
+  *msg_out = raw;
+  *len_out = raw_len;
+}
+
 SolanaTxReview solana_inspectTx(const uint8_t* raw, size_t raw_len,
                                 SolanaParsedTx* tx) {
   if (raw_len == 0) {
@@ -614,24 +645,18 @@ SolanaTxReview solana_inspectTx(const uint8_t* raw, size_t raw_len,
     return SOL_TX_REVIEW_MALFORMED;
   }
 
-  /* Skip signature count prefix if present.
-   * Clients may send either the raw message (header starts at byte 0)
-   * or a full unsigned transaction (compact-u16 sig count = 0 at byte 0).
-   * A valid legacy message header has num_required_sigs >= 1 at byte 0.
-   * If byte 0 is 0, it's a signature count prefix — skip it. */
-  if (raw[0] == 0 && raw_len > 1) {
-    raw++;
-    raw_len--;
-  }
+  const uint8_t* msg;
+  size_t msg_len;
+  solana_message_slice(raw, raw_len, &msg, &msg_len);
 
   /* Versioned Solana messages set the top bit in byte 0.
    * Parse them structurally so malformed v0/ALT payloads fail closed,
    * but keep the result opaque until the firmware can verify semantics. */
-  if (raw[0] & SOL_VERSION_FLAG) {
-    return solana_parseVersionedTx(raw, raw_len, tx);
+  if (msg[0] & SOL_VERSION_FLAG) {
+    return solana_parseVersionedTx(msg, msg_len, tx);
   }
 
-  return solana_parseLegacyTx(raw, raw_len, tx);
+  return solana_parseLegacyTx(msg, msg_len, tx);
 }
 
 bool solana_parseTx(const uint8_t* raw, size_t raw_len, SolanaParsedTx* tx) {
@@ -703,11 +728,22 @@ bool solana_signTx(const HDNode* node, const SolanaSignTx* msg,
                    SolanaSignedTx* resp) {
   if (!msg->has_raw_tx || msg->raw_tx.size == 0) return false;
 
-  /* Ed25519 sign the raw transaction message directly
-   * (Solana signs the serialized message, not a hash of it) */
+  /* Sign the exact same message slice that solana_inspectTx parsed and the user
+   * approved (Solana signs the serialized message, not a hash of it). */
+  const uint8_t* message;
+  size_t message_len;
+  solana_message_slice(msg->raw_tx.bytes, msg->raw_tx.size, &message,
+                       &message_len);
+
   uint8_t sig[SOL_SIG_SIZE];
-  ed25519_sign(msg->raw_tx.bytes, msg->raw_tx.size, node->private_key,
-               node->public_key + 1, sig);
+  ed25519_sign(message, message_len, node->private_key, node->public_key + 1,
+               sig);
+
+  /* Never emit a signature that does not verify over those exact bytes. */
+  if (ed25519_sign_open(message, message_len, node->public_key + 1, sig) != 0) {
+    memzero(sig, sizeof(sig));
+    return false;
+  }
 
   resp->has_signature = true;
   resp->signature.size = SOL_SIG_SIZE;

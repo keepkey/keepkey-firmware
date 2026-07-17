@@ -247,7 +247,7 @@ bool thorchain_confirm_full_memo(const char* title, const char* memo,
     return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
                    "(empty)");
   }
-  bool ascii = len > 0;
+  bool ascii = true;
   for (size_t i = 0; i < len; i++) {
     if ((uint8_t)memo[i] < 0x20 || (uint8_t)memo[i] > 0x7e) {
       ascii = false;

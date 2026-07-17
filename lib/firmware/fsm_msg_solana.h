@@ -145,9 +145,13 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
                      "Withdraw nonce %s to %s?", amount_str, to_str);
     }
 
-    case SOL_INSTR_SYSTEM_INITIALIZE_NONCE:
+    case SOL_INSTR_SYSTEM_INITIALIZE_NONCE: {
+      /* Show the nonce authority being set — it can later advance/withdraw. */
+      char auth_str[45];
+      solana_pubkeyToStr(pi->authority, auth_str, sizeof(auth_str));
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Initialize nonce account?");
+                     "Initialize nonce\nauthority %s?", auth_str);
+    }
 
     case SOL_INSTR_SYSTEM_AUTHORIZE_NONCE: {
       char auth_str[45];
@@ -266,13 +270,35 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
                      "Set token authority to %s?", auth_str);
     }
 
-    case SOL_INSTR_TOKEN_MINT_TO:
+    case SOL_INSTR_TOKEN_MINT_TO: {
+      /* Show the mint (which token) and the recipient, not just the amount. */
+      char mint_str[45];
+      char to_str[45];
+      solana_pubkeyToStr(pi->mint, mint_str, sizeof(mint_str));
+      solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                   "Mint token\n%s", mint_str)) {
+        return false;
+      }
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Mint %llu tokens?", (unsigned long long)pi->amount);
+                     "Mint %llu\nto %s?", (unsigned long long)pi->amount,
+                     to_str);
+    }
 
-    case SOL_INSTR_TOKEN_BURN:
+    case SOL_INSTR_TOKEN_BURN: {
+      /* Show the mint (which token) and the source account burned from. */
+      char mint_str[45];
+      char from_str[45];
+      solana_pubkeyToStr(pi->mint, mint_str, sizeof(mint_str));
+      solana_pubkeyToStr(pi->from, from_str, sizeof(from_str));
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                   "Burn token\n%s", mint_str)) {
+        return false;
+      }
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Burn %llu tokens?", (unsigned long long)pi->amount);
+                     "Burn %llu\nfrom %s?", (unsigned long long)pi->amount,
+                     from_str);
+    }
 
     case SOL_INSTR_TOKEN_CLOSE_ACCOUNT: {
       /* Closing a (wrapped-SOL) token account sweeps its lamports to the
@@ -283,13 +309,19 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
                      "Close token account, send balance to %s?", to_str);
     }
 
-    case SOL_INSTR_TOKEN_FREEZE_ACCOUNT:
+    case SOL_INSTR_TOKEN_FREEZE_ACCOUNT: {
+      char acct_str[45];
+      solana_pubkeyToStr(pi->from, acct_str, sizeof(acct_str));
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Freeze token account?");
+                     "Freeze token account\n%s?", acct_str);
+    }
 
-    case SOL_INSTR_TOKEN_THAW_ACCOUNT:
+    case SOL_INSTR_TOKEN_THAW_ACCOUNT: {
+      char acct_str[45];
+      solana_pubkeyToStr(pi->from, acct_str, sizeof(acct_str));
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Thaw token account?");
+                     "Thaw token account\n%s?", acct_str);
+    }
 
     case SOL_INSTR_TOKEN_SYNC_NATIVE:
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
@@ -314,10 +346,13 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     }
 
     case SOL_INSTR_STAKE_AUTHORIZE: {
+      /* Which power is handed over matters: Staker (delegate) vs Withdrawer
+       * (move the funds). extra_u8 is the StakeAuthorize enum. */
       char auth_str[45];
       solana_pubkeyToStr(pi->extra, auth_str, sizeof(auth_str));
+      const char* role = pi->extra_u8 == 0 ? "staker" : "withdrawer";
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Authorize stake to %s?", auth_str);
+                     "Authorize %s\nto %s?", role, auth_str);
     }
 
     case SOL_INSTR_STAKE_SPLIT: {
@@ -334,15 +369,29 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
                      "Deactivate stake?");
 
-    case SOL_INSTR_STAKE_MERGE:
+    case SOL_INSTR_STAKE_MERGE: {
+      /* Show source and destination — merge moves the source's stake into the
+       * destination account. */
+      char from_str[45];
+      char to_str[45];
+      solana_pubkeyToStr(pi->from, from_str, sizeof(from_str));
+      solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                   "Merge stake from\n%s", from_str)) {
+        return false;
+      }
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Merge stake accounts?");
+                     "Merge stake into\n%s?", to_str);
+    }
 
     case SOL_INSTR_VOTE_AUTHORIZE: {
+      /* Voter vs Withdrawer — the withdrawer can move the vote account's SOL.
+       */
       char auth_str[45];
       solana_pubkeyToStr(pi->extra, auth_str, sizeof(auth_str));
+      const char* role = pi->extra_u8 == 0 ? "voter" : "withdrawer";
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Authorize vote to %s?", auth_str);
+                     "Authorize vote %s\nto %s?", role, auth_str);
     }
 
     case SOL_INSTR_VOTE_WITHDRAW: {
@@ -366,9 +415,19 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
                      "Set vote commission to %u%%?", pi->extra_u8);
 
-    case SOL_INSTR_ATA_CREATE:
+    case SOL_INSTR_ATA_CREATE: {
+      /* Show the wallet owner and the token mint the new account is for. */
+      char owner_str[45];
+      char mint_str[45];
+      solana_pubkeyToStr(pi->authority, owner_str, sizeof(owner_str));
+      solana_pubkeyToStr(pi->mint, mint_str, sizeof(mint_str));
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                   "Create token account\nfor %s", owner_str)) {
+        return false;
+      }
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Create associated token account?");
+                     "Token account mint\n%s?", mint_str);
+    }
 
     case SOL_INSTR_COMPUTE_BUDGET_HEAP_FRAME:
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
