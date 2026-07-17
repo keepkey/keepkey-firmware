@@ -334,6 +334,26 @@ TEST(Solana, VoteUpdateValidatorRejectsTrailingBytes) {
   EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
 }
 
+TEST(Solana, PriorityFeeOverflowSafe) {
+  uint64_t fee = 0;
+  /* The wrap-to-zero case: price=UINT64_MAX, limit=1. A naive
+   * (price*limit + 999999)/1e6 wraps to 0; the real fee is 18446.744073710 SOL
+   * (= 18446744073710 lamports) and must be shown, not hidden. */
+  EXPECT_TRUE(solana_priority_fee_lamports(UINT64_MAX, 1, &fee));
+  EXPECT_EQ(fee, 18446744073710ULL);
+
+  /* Typical fee: 1000 micro-lamports/CU * 200000 CU / 1e6 = 200 lamports. */
+  EXPECT_TRUE(solana_priority_fee_lamports(1000, 200000, &fee));
+  EXPECT_EQ(fee, 200ULL);
+
+  /* Sub-lamport fee rounds UP (fees are charged even for one CU). */
+  EXPECT_TRUE(solana_priority_fee_lamports(1, 1, &fee));
+  EXPECT_EQ(fee, 1ULL);
+
+  /* A fee that truly exceeds u64 lamports is rejected, never saturated. */
+  EXPECT_FALSE(solana_priority_fee_lamports(UINT64_MAX, UINT64_MAX, &fee));
+}
+
 TEST(Solana, ParseAssociatedTokenAccountCreate) {
   uint8_t raw[512];
   size_t pos = 0;

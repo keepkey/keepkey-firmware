@@ -147,13 +147,15 @@ static bool solana_confirm_priority_fee(const SolanaParsedTx* tx,
   }
   const uint64_t kMaxCuLimit = 1400000u; /* Solana per-tx CU cap */
   uint64_t limit = have_limit ? cu_limit : kMaxCuLimit;
-  uint64_t lamports;
-  if (limit != 0 && price > UINT64_MAX / limit) {
-    /* Overflow: the requested fee is absurd — saturate so the SOL figure is
-     * obviously enormous rather than wrapping to a small number. */
-    lamports = UINT64_MAX / 1000000u;
-  } else {
-    lamports = (price * limit + 999999u) / 1000000u; /* ceil to lamports */
+
+  /* Overflow-safe ceil(price*limit/1e6); false => the fee exceeds u64 lamports
+   * (>1.8e10 SOL) — refuse to sign rather than display a wrapped/zero figure.
+   */
+  uint64_t lamports = 0;
+  if (!solana_priority_fee_lamports(price, limit, &lamports)) {
+    (void)confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Fee",
+                  "Priority fee too large to display. Refusing to sign.");
+    return false;
   }
   char fee_str[40];
   solana_formatAmount(fee_str, sizeof(fee_str), lamports);
@@ -628,6 +630,24 @@ static bool solana_signerInTx(const uint8_t* pubkey, const SolanaParsedTx* tx) {
   return false;
 }
 
+/* The single verified-transaction confirmation flow shared by BOTH
+ * SolanaSignTx and SolanaSignMessage (transaction-shaped messages are equally
+ * broadcastable), so their security screens — per-instruction disclosure AND
+ * the priority-fee screen — cannot drift apart. `msg` is NULL on the
+ * SignMessage path (host token symbols are unavailable there). Returns false if
+ * the user rejects any screen. */
+static bool solana_confirm_verified_tx(const SolanaParsedTx* parsed,
+                                       const SolanaSignTx* msg) {
+  for (uint8_t i = 0; i < parsed->num_instructions; i++) {
+    if (!solana_confirmInstruction(&parsed->instructions[i], msg, i,
+                                   parsed->num_instructions)) {
+      return false;
+    }
+  }
+  return solana_confirm_priority_fee(
+      parsed, parsed->num_accounts > 0 ? parsed->accounts[0] : NULL);
+}
+
 void fsm_msgSolanaGetAddress(const SolanaGetAddress* msg) {
   RESP_INIT(SolanaAddress);
 
@@ -727,20 +747,8 @@ void fsm_msgSolanaSignTx(const SolanaSignTx* msg) {
   }
 
   if (tx_review == SOL_TX_REVIEW_VERIFIED) {
-    /* Per-instruction confirmation for fully verified messages */
-    for (uint8_t i = 0; i < parsed.num_instructions; i++) {
-      if (!solana_confirmInstruction(&parsed.instructions[i], msg, i,
-                                     parsed.num_instructions)) {
-        memzero(node, sizeof(*node));
-        fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                        _("Signing cancelled"));
-        layoutHome();
-        return;
-      }
-    }
-    /* Disclose the priority fee (SOL) if the tx sets a compute-unit price. */
-    if (!solana_confirm_priority_fee(
-            &parsed, parsed.num_accounts > 0 ? parsed.accounts[0] : NULL)) {
+    /* Per-instruction disclosure + priority fee, shared with SignMessage. */
+    if (!solana_confirm_verified_tx(&parsed, msg)) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Signing cancelled"));
@@ -862,15 +870,15 @@ void fsm_msgSolanaSignMessage(const SolanaSignMessage* msg) {
       layoutHome();
       return;
     }
-    for (uint8_t i = 0; i < parsed.num_instructions; i++) {
-      if (!solana_confirmInstruction(&parsed.instructions[i], NULL, i,
-                                     parsed.num_instructions)) {
-        memzero(node, sizeof(*node));
-        fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                        _("Signing cancelled"));
-        layoutHome();
-        return;
-      }
+    /* Same verified-tx flow as SolanaSignTx (incl. the priority-fee screen), so
+     * a broadcastable transaction-shaped message can't dodge a security screen.
+     * msg=NULL: host token symbols aren't provided on the message path. */
+    if (!solana_confirm_verified_tx(&parsed, NULL)) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Signing cancelled"));
+      layoutHome();
+      return;
     }
     if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Solana",
                  "Sign this Solana transaction?")) {

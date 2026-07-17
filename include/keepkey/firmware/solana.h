@@ -206,6 +206,12 @@ const SolanaTokenInfo* solana_findTokenInfo(
  * match the signed instruction before trusting the amount. */
 bool solana_token_info_trusted(const SolanaTokenInfo* ti);
 
+/* ceil(price * limit / 1,000,000) priority-fee lamports, overflow-safe. Returns
+ * false (and leaves *out untouched) if the true value exceeds UINT64_MAX — the
+ * caller must then refuse to sign rather than display a wrapped figure. */
+bool solana_priority_fee_lamports(uint64_t price, uint64_t limit,
+                                  uint64_t* out);
+
 /* Sign transaction */
 bool solana_signTx(const HDNode* node, const SolanaSignTx* msg,
                    SolanaSignedTx* resp);

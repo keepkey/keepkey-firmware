@@ -684,6 +684,41 @@ bool solana_parseTx(const uint8_t* raw, size_t raw_len, SolanaParsedTx* tx) {
 /*  Formatting                                                         */
 /* ------------------------------------------------------------------ */
 
+bool solana_priority_fee_lamports(uint64_t price, uint64_t limit,
+                                  uint64_t* out) {
+  /* ceil(price * limit / 1e6) with no overflow and no silent wrap. price/limit
+   * are u64; the product can exceed u64, and even ceil(product/1e6) can exceed
+   * u64. Split price = q*D + r and accumulate so every step is checked; return
+   * false (do NOT saturate) if the true lamport value exceeds UINT64_MAX. */
+  const uint64_t D = 1000000u;
+  uint64_t q = price / D;
+  uint64_t r = price % D;
+  if (limit != 0 && r > UINT64_MAX / limit) {
+    return false; /* r*limit overflows (only for absurd limits) */
+  }
+  uint64_t rl = r * limit;
+  uint64_t lamports = rl / D;
+  bool ceil_up = (rl % D) != 0;
+  if (q != 0 && limit != 0) {
+    if (q > UINT64_MAX / limit) {
+      return false;
+    }
+    uint64_t ql = q * limit;
+    if (ql > UINT64_MAX - lamports) {
+      return false;
+    }
+    lamports += ql;
+  }
+  if (ceil_up) {
+    if (lamports == UINT64_MAX) {
+      return false;
+    }
+    lamports++;
+  }
+  *out = lamports;
+  return true;
+}
+
 void solana_formatAmount(char* buf, size_t len, uint64_t lamports) {
   uint64_t whole = lamports / SOL_LAMPORTS_DIVISOR;
   uint64_t frac = lamports % SOL_LAMPORTS_DIVISOR;
