@@ -731,6 +731,17 @@ bool signed_metadata_matches_tx(const EthereumSignTx *msg) {
   }
 
   if (stored_metadata.version == METADATA_VERSION_SCHEMA) {
+    /* v2 commits to calldata only — never to msg->value — and a v2 match
+     * suppresses the native-value confirm screen in ethereum.c. A payable
+     * method could then clear-sign an arbitrary ETH transfer whose value is
+     * never shown. The schema cannot express a value binding, so refuse to
+     * clear-sign any tx that moves native value; fall through to the blind-sign
+     * path (AdvancedMode) instead. (v1 is safe: its tx_hash covers value.) */
+    for (uint32_t i = 0; i < msg->value.size; i++) {
+      if (msg->value.bytes[i] != 0) {
+        return false;
+      }
+    }
     /* v2 has no committed values or tx_hash: decode the args straight from the
      * calldata this tx will sign. Success here means the schema fully accounts
      * for the calldata (decode_v2_args enforces exact length + presence), so

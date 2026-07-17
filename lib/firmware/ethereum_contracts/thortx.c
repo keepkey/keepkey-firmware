@@ -51,6 +51,10 @@ static void thor_format_to_addr(const EthereumSignTx* msg, char out[41]) {
 
 bool thor_isMayachainTx(const EthereumSignTx* msg) {
   if (!msg->has_to || msg->to.size != 20) return false;
+  /* MAYA_ROUTER is an Ethereum-mainnet identity; the same address on another
+   * EVM chain may hold unrelated attacker code. Bind to mainnet so a
+   * host-selected chain_id cannot borrow the trusted router UX. */
+  if (!msg->has_chain_id || msg->chain_id != 1) return false;
   if (!thor_has_deposit_selector(msg)) return false;
   char toStr[41];
   thor_format_to_addr(msg, toStr);
@@ -59,6 +63,9 @@ bool thor_isMayachainTx(const EthereumSignTx* msg) {
 
 bool thor_isThorchainTx(const EthereumSignTx* msg) {
   if (!msg->has_to || msg->to.size != 20) return false;
+  /* THOR_ROUTER is an Ethereum-mainnet identity; bind to mainnet for the same
+   * reason as thor_isMayachainTx above. */
+  if (!msg->has_chain_id || msg->chain_id != 1) return false;
   if (!thor_has_deposit_selector(msg)) return false;
   /* Pin to the THORChain router. Without this, ANY contract carrying the
    * deposit selector would get the THORChain clear-sign UX and bypass the
@@ -75,11 +82,14 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
                                     const char* router_label) {
   (void)data_total;
 
-  /* Minimum calldata: selector(4) + vault(32) + asset(32) + amount(32) +
-   * memo_offset(32) + memo_length(32) = 164 bytes for deposit(),
-   * + expiry(32) = 196 bytes for depositWithExpiry(). */
+  /* Minimum calldata to read the fixed head through the memo_length word:
+   * selector(4) + vault(32) + asset(32) + amount(32) + memo_offset(32) +
+   * memo_length(32) = 164 bytes for deposit(), + expiry(32) = 196 for
+   * depositWithExpiry(). The exact memo bounds are enforced below from the ABI
+   * memo length, so a short memo (e.g. "ADD:ETH.ETH") still clear-signs rather
+   * than being rejected by an over-tight fixed floor. */
   const bool is_expiry = thor_is_expiry_variant(msg);
-  const size_t min_chunk = is_expiry ? 260 : 228;
+  const size_t min_chunk = is_expiry ? 196 : 164;
   if (msg->data_initial_chunk.size < min_chunk) return false;
 
   /* The memo is a dynamic `string`; its ABI head pointer (word 3, offset
@@ -94,6 +104,32 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
     if (memcmp(msg->data_initial_chunk.bytes + 4 + 3 * 32, expected, 32) != 0) {
       return false;
     }
+  }
+
+  /* The memo is a dynamic `string`: read its ABI length word instead of
+   * assuming a fixed 64 bytes. A longer memo places router-executed fields
+   * (destination, affiliate, aggregator, min-out) past byte 64 that a fixed
+   * parse never displays. Reject dirty high bytes, cap at THORChain's 256-byte
+   * memo max, require the whole calldata to be in this chunk, and require the
+   * padded memo to end exactly at the calldata end so no trailing bytes hide. */
+  const uint8_t* memo_len_word =
+      msg->data_initial_chunk.bytes + 4 + (is_expiry ? 5 : 4) * 32;
+  for (int i = 0; i < 28; i++) {
+    if (memo_len_word[i] != 0) return false;
+  }
+  const uint32_t memo_len = ((uint32_t)memo_len_word[28] << 24) |
+                            ((uint32_t)memo_len_word[29] << 16) |
+                            ((uint32_t)memo_len_word[30] << 8) |
+                            (uint32_t)memo_len_word[31];
+  if (memo_len > 256) return false;
+  const size_t memo_off = (size_t)(4 + (is_expiry ? 6 : 5) * 32);
+  const size_t memo_padded = ((memo_len + 31u) / 32u) * 32u;
+  if (msg->has_data_length &&
+      msg->data_length != msg->data_initial_chunk.size) {
+    return false;  /* whole calldata must be in the initial chunk to bound it */
+  }
+  if (memo_off + memo_padded != msg->data_initial_chunk.size) {
+    return false;  /* trailing bytes after the memo would be executed but hidden */
   }
 
   char confStr[41];
@@ -136,12 +172,27 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
     return false;
   }
 
-  if (memcmp(contractAssetAddress, ETH_ADDRESS, sizeof(ETH_ADDRESS)) == 0) {
-    assetAddress = (const uint8_t*)
-        ETH_NATIVE;  // get eth native parameters if asset is not a token
+  /* For native ETH the router forwards msg.value and ignores the ABI amount
+   * word, so the ABI amount can read 0.01 while the tx sends 100 ETH. Display
+   * the value actually sent, and refuse if the ABI amount disagrees (0 is the
+   * canonical "unset" and is allowed). For token deposits the router pulls via
+   * transferFrom; native value must not ride along or it is swept unshown. */
+  const bool is_native =
+      memcmp(contractAssetAddress, ETH_ADDRESS, sizeof(ETH_ADDRESS)) == 0;
+  bignum256 Value;
+  bn_from_bytes(msg->value.bytes, msg->value.size, &Value);
+  if (is_native) {
+    if (!bn_is_zero(&Amount) && !bn_is_equal(&Amount, &Value)) {
+      return false;
+    }
+    assetAddress = (const uint8_t*)ETH_NATIVE;
   } else {
+    if (!bn_is_zero(&Value)) {
+      return false;
+    }
     assetAddress = contractAssetAddress;
   }
+  const bignum256* displayAmount = is_native ? &Value : &Amount;
 
   assetToken = tokenByChainAddress(msg->chain_id, assetAddress);
 
@@ -156,7 +207,7 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
     }
     // We don't know what the exponent should be so just confirm raw unformatted
     // number
-    bn_format(&Amount, NULL, " unformatted", 0, 0, false, confStr,
+    bn_format(displayAmount, NULL, " unformatted", 0, 0, false, confStr,
               sizeof(confStr));
 
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, protocol_label,
@@ -165,7 +216,7 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
     }
 
   } else {
-    ethereumFormatAmount(&Amount, assetToken, msg->chain_id, confStr,
+    ethereumFormatAmount(displayAmount, assetToken, msg->chain_id, confStr,
                          sizeof(confStr));
 
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, protocol_label,
@@ -174,7 +225,8 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
     }
   }
 
-  if (!thorchain_parseConfirmMemo((const char*)thorchainData, 64)) return false;
+  if (!thorchain_parseConfirmMemo((const char*)thorchainData, memo_len))
+    return false;
 
   return true;
 }

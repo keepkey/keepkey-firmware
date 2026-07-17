@@ -112,6 +112,31 @@ TEST(Hive, CommentParserRetainsEveryDisplayedField) {
             slice(op.json_metadata, op.json_metadata_len));
 }
 
+// Message signing is restricted to printable ASCII so a message can never be a
+// binary transaction preimage (chain_id || serialized_tx) on any chain id.
+TEST(Hive, MessagePrintableAcceptsAsciiRejectsBinary) {
+  const char* login = "keepkey-login-challenge:1700000000";
+  EXPECT_TRUE(hive_message_is_printable(
+      reinterpret_cast<const uint8_t*>(login), strlen(login)));
+
+  // Empty message is trivially printable.
+  EXPECT_TRUE(hive_message_is_printable(reinterpret_cast<const uint8_t*>(""), 0));
+
+  // Any non-printable byte (control char / high bit) is refused.
+  const uint8_t withNul[] = {'h', 'i', 0x00, 'x'};
+  EXPECT_FALSE(hive_message_is_printable(withNul, sizeof(withNul)));
+  const uint8_t highBit[] = {'o', 'k', 0x80};
+  EXPECT_FALSE(hive_message_is_printable(highBit, sizeof(highBit)));
+
+  // The oracle vector: a "message" that begins with the binary mainnet chain id
+  // (beeab0de00...) followed by a serialized tx. The leading 0xbe/0xea/0x00
+  // bytes are non-printable, so this can never be signed as a message.
+  const uint8_t chainIdPrefixed[] = {0xbe, 0xea, 0xb0, 0xde, 0x00,
+                                     0x00, 0x00, 't',  'x'};
+  EXPECT_FALSE(
+      hive_message_is_printable(chainIdPrefixed, sizeof(chainIdPrefixed)));
+}
+
 TEST(Hive, TopLevelCommentRetainsCategoryAndEmptyTitle) {
   std::vector<uint8_t> tx = comment_tx("", "hive-123456", "post-author",
                                        "post-permlink", "", "Post body", "{}");

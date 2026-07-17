@@ -319,3 +319,48 @@ TEST(Thorchain, MemoOversized) {
   EXPECT_FALSE(parseMemo("SWAP:ETH.ETH:0xdest:420", 257));
   EXPECT_EQ(0, kkconfirm_drain());
 }
+
+// DEX-aggregator swap: aggregator addr, final token and min-out are all
+// router-executed and must be shown — asset/chain + dest + limit + affiliate +
+// aggregator + final + min = 7 screens (none hidden).
+TEST(Thorchain, MemoSwapAggregatorShowsAllFields) {
+  ASSERT_TRUE(kkconfirm_preload(7, 0));
+  EXPECT_TRUE(parseMemo(
+      "SWAP:ETH.ETH:0xdest:420:kk:75:0xaggregator:0xfinaltoken:1000"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// A '|' outbound-memo suffix (MinAmountOut|OUTBOUND_MEMO) is forwarded to the
+// outbound contract and can contain ':' our split would scatter. It must be
+// disclosed in full: swap header + the fully-paged raw memo = 2 screens here
+// (memo < one page). Nothing falls back to blind-signing.
+TEST(Thorchain, MemoSwapPipeOutboundIsFullyPaged) {
+  ASSERT_TRUE(kkconfirm_preload(2, 0));
+  const char memo[] = "=:ETH.ETH:0xdest|OUT:0xfinal:1";  // ':' after the pipe
+  EXPECT_TRUE(parseMemo(memo, strlen(memo)));  // no NUL in the paged bytes
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// More fields than any swap grammar defines (>9) is structure we cannot label;
+// refuse it rather than sign an undisplayed tail. Rejected before any screen.
+TEST(Thorchain, MemoSwapTooManyFieldsRejected) {
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  EXPECT_FALSE(parseMemo("SWAP:ETH.ETH:a:b:c:d:e:f:g:h"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// ADD:POOL:PAIREDADDR:AFFILIATE:FEE — affiliate + fee must not be hidden:
+// add asset + pool + affiliate-fee = 3 screens.
+TEST(Thorchain, MemoAddShowsAffiliateAndFee) {
+  ASSERT_TRUE(kkconfirm_preload(3, 0));
+  EXPECT_TRUE(parseMemo("ADD:BTC.BTC:thor18vhdczjut44gpsy804crfhnd5nq003nz0nf20v"
+                        ":affil:50"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// ADD with more than its 5 defined fields is refused (no hidden tail).
+TEST(Thorchain, MemoAddTooManyFieldsRejected) {
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  EXPECT_FALSE(parseMemo("ADD:BTC.BTC:pool:affil:50:extra"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}

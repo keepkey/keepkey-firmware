@@ -259,10 +259,19 @@ static bool hive_sign_tx_sig(const HDNode* node, bool has_chain_id,
                              size_t chain_id_size, const uint8_t* tx_buf,
                              size_t tx_len, uint8_t sig[65]) {
   const uint8_t default_chain_id[32] = HIVE_CHAIN_ID;
-  const uint8_t* chain_id = (has_chain_id && chain_id_size == HIVE_CHAIN_ID_LEN)
-                                ? chain_id_bytes
-                                : default_chain_id;
-  return hive_sign_digest(node, chain_id, tx_buf, tx_len, sig);
+  /* Pin to Hive mainnet. A host-supplied chain_id is accepted only if it equals
+   * mainnet; any other value is refused rather than signed under an undisclosed
+   * network domain (the confirmations just say "Hive"). This also keeps the tx
+   * digest domain singular — SHA256(mainnet_chain_id || tx) — so the
+   * message-signing guard that rejects messages beginning with the mainnet
+   * chain id fully closes the tx/message signature collision. */
+  if (has_chain_id) {
+    if (chain_id_size != HIVE_CHAIN_ID_LEN ||
+        memcmp(chain_id_bytes, default_chain_id, HIVE_CHAIN_ID_LEN) != 0) {
+      return false;
+    }
+  }
+  return hive_sign_digest(node, default_chain_id, tx_buf, tx_len, sig);
 }
 
 // ── Parsed operation signing (HiveSignOperations) ─────────────────────────
@@ -464,6 +473,13 @@ void hive_signOperations(const HDNode* node, const HiveSignOperations* msg,
 // Signature.signBuffer — which every Hive dApp verifies against — hashes
 // the raw bytes exactly once; any added prefix silently breaks all dApp
 // verification.
+
+bool hive_message_is_printable(const uint8_t* message, size_t len) {
+  for (size_t i = 0; i < len; i++) {
+    if (message[i] < 0x20 || message[i] > 0x7e) return false;
+  }
+  return true;
+}
 
 void hive_signMessage(const HDNode* node, const HiveSignMessage* msg,
                       HiveSignedMessage* resp) {

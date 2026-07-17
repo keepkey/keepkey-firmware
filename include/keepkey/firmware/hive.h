@@ -153,6 +153,16 @@ void hive_signMessage(const HDNode* node, const HiveSignMessage* msg,
                       HiveSignedMessage* resp);
 
 /**
+ * True iff every byte is printable ASCII (0x20-0x7e). Hive message signing
+ * requires this: a transaction digest is SHA256(chain_id || serialized_tx)
+ * whose chain_id and serialized fields are binary, so a printable-only message
+ * domain can never collide with a transaction preimage on ANY chain id. This
+ * closes the cross-chain message→transaction signature oracle that a
+ * mainnet-only prefix reject cannot. Empty (len == 0) returns true.
+ */
+bool hive_message_is_printable(const uint8_t* message, size_t len);
+
+/**
  * Sign a Hive account_create transaction (op type 9).
  * owner/active/posting/memo_raw must be device-derived 33-byte compressed keys.
  * The firmware uses these directly; host-supplied key strings in msg are

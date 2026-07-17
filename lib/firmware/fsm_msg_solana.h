@@ -40,6 +40,62 @@ static void solana_pubkeyToStr(const uint8_t key[SOL_PUBKEY_SIZE], char* out,
            key[31]);
 }
 
+/* Display budget per confirm body: printable memos page as text, binary memos
+ * page as hex so the FULL content is always shown — a memo can carry swap
+ * intent (THORChain '=:ETH.ETH:...'), so nothing may be hidden behind a byte
+ * count. Mirrors hive_confirm_slice. */
+#define SOL_MEMO_ASCII_CHUNK 72
+#define SOL_MEMO_HEX_CHUNK 40
+
+static bool solana_confirm_memo(const char* title, const uint8_t* s,
+                                uint16_t len) {
+  if (len == 0) {
+    return confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, title,
+                   "Memo (empty)");
+  }
+  bool ascii = true;
+  for (uint16_t i = 0; i < len; i++) {
+    if (s[i] < 0x20 || s[i] > 0x7e) {
+      ascii = false;
+      break;
+    }
+  }
+  uint16_t chunk = ascii ? SOL_MEMO_ASCII_CHUNK : SOL_MEMO_HEX_CHUNK;
+  uint16_t pages = (uint16_t)((len + chunk - 1) / chunk);
+
+  for (uint16_t page = 0; page < pages; page++) {
+    uint16_t offset = (uint16_t)(page * chunk);
+    uint16_t take = (uint16_t)(len - offset);
+    if (take > chunk) take = chunk;
+
+    char page_title[32];
+    if (pages > 1 || !ascii) {
+      snprintf(page_title, sizeof(page_title), ascii ? "%s %u/%u" : "%s Hex %u/%u",
+               title, (unsigned)(page + 1), (unsigned)pages);
+    } else {
+      strlcpy(page_title, title, sizeof(page_title));
+    }
+
+    if (ascii) {
+      char rendered[SOL_MEMO_ASCII_CHUNK + 1];
+      memcpy(rendered, s + offset, take);
+      rendered[take] = '\0';
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, page_title, "%s",
+                   rendered))
+        return false;
+    } else {
+      char rendered[SOL_MEMO_HEX_CHUNK * 2 + 1];
+      for (uint16_t i = 0; i < take; i++) {
+        snprintf(rendered + 2 * i, 3, "%02x", s[offset + i]);
+      }
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, page_title, "%s",
+                   rendered))
+        return false;
+    }
+  }
+  return true;
+}
+
 /* Confirm a single parsed instruction */
 static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
                                       const SolanaSignTx* msg, uint8_t idx,
@@ -110,6 +166,15 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
       }
 
       if (ti && ti->has_symbol && ti->has_decimals) {
+        /* The symbol is host-supplied and unauthenticated: a malicious host can
+         * label any mint "USDC". Show the real mint next to the claimed symbol
+         * so a spoof is visible before the amount screen. */
+        char mint_str[45];
+        solana_pubkeyToStr(pi->mint, mint_str, sizeof(mint_str));
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                     "Token \"%s\"\nmint %s", ti->symbol, mint_str)) {
+          return false;
+        }
         char amount_str[48];
         solana_formatTokenAmount(amount_str, sizeof(amount_str), pi->amount,
                                  ti->symbol, (uint8_t)ti->decimals);
@@ -137,6 +202,14 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
 
       const char* symbol = (ti && ti->has_symbol) ? ti->symbol : NULL;
       if (symbol) {
+        /* Host-supplied symbol is unauthenticated; show the real mint too so a
+         * spoofed label ("USDC" on an arbitrary mint) is visible. */
+        char mint_str[45];
+        solana_pubkeyToStr(pi->mint, mint_str, sizeof(mint_str));
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                     "Token \"%s\"\nmint %s", symbol, mint_str)) {
+          return false;
+        }
         char amount_str[48];
         solana_formatTokenAmount(amount_str, sizeof(amount_str), pi->amount,
                                  symbol, pi->extra_u8);
@@ -282,23 +355,12 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
                      "Set loaded account data to %llu bytes?",
                      (unsigned long long)pi->extra_value);
 
-    case SOL_INSTR_MEMO: {
-      /* Show the memo body — swap intents (e.g. THORChain '=:ETH.ETH:...')
-       * ride in the memo, so hiding it hides where the funds go next. */
-      bool printable = pi->data_len > 0;
-      for (uint16_t i = 0; i < pi->data_len; i++) {
-        if (pi->data[i] < 0x20 || pi->data[i] > 0x7e) {
-          printable = false;
-          break;
-        }
-      }
-      if (printable && pi->data_len <= 114) {
-        return confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, title,
-                       "Memo: %.*s", (int)pi->data_len, pi->data);
-      }
-      return confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, title,
-                     "Memo attached (%u bytes)", (unsigned)pi->data_len);
-    }
+    case SOL_INSTR_MEMO:
+      /* Page the FULL memo — swap intents (e.g. THORChain '=:ETH.ETH:...') ride
+       * in the memo, so a byte-count summary would hide where the funds go.
+       * Printable memos page as text, binary memos page as hex; nothing is
+       * hidden and the tx stays clear-signable regardless of length. */
+      return solana_confirm_memo(title, pi->data, pi->data_len);
 
     case SOL_INSTR_UNKNOWN:
     default: {

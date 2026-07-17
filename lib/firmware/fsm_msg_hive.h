@@ -537,38 +537,33 @@ void fsm_msgHiveSignMessage(const HiveSignMessage* msg) {
   if (!node) return;
   hdnode_fill_public_key(node);
 
-  // Printable ASCII within the display budget is shown verbatim; anything
-  // longer — or with non-ASCII bytes — gets the hex preview + byte count.
-  // The budget matters: confirm()'s body buffer silently truncates at
-  // BODY_CHAR_MAX, so a long "printable" message could show a benign prefix
-  // while the device signs hidden trailing content. Same 128-byte budget as
-  // SolanaSignMessage.
-  bool printable = msg->message.size <= 128;
-  for (uint32_t i = 0; printable && i < msg->message.size; i++) {
-    if (msg->message.bytes[i] < 0x20 || msg->message.bytes[i] > 0x7e) {
-      printable = false;
-    }
+  // Domain-separate messages from transactions. A Hive TRANSACTION digest is
+  // SHA256(chain_id || serialized_tx), where the 32-byte chain_id and the
+  // serialized Graphene fields (ref_block_prefix, expiration, ...) are BINARY.
+  // Constraining signable messages to printable ASCII puts them in a domain
+  // disjoint from every transaction preimage — for ANY chain id, not just
+  // mainnet — so a binary "message" equal to C || serialized_tx can no longer
+  // be signed into a valid transaction signature on a fork chain C. This is the
+  // real fix; the mainnet-only prefix reject above is a belt-and-suspenders
+  // subset of it. hive-js signBuffer signs printable challenges, so nothing
+  // legitimate is lost. (A prefix blacklist could never be complete because the
+  // host chooses the chain id; a printable-only whitelist is complete by
+  // construction against binary preimages.)
+  if (!hive_message_is_printable(msg->message.bytes, msg->message.size)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Hive messages must be printable text"));
+    layoutHome();
+    return;
   }
 
-  bool approved;
-  if (printable) {
-    approved = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-                       "Sign Hive Message", "(%s key) %.*s", role_label,
-                       (int)msg->message.size, msg->message.bytes);
-  } else {
-    char preview[96];  // 64 hex chars + "... (1024 bytes)" + NUL
-    unsigned show = msg->message.size > 32 ? 32 : msg->message.size;
-    for (unsigned i = 0; i < show; i++) {
-      snprintf(&preview[2 * i], 3, "%02x", msg->message.bytes[i]);
-    }
-    if (msg->message.size > 32) {
-      snprintf(&preview[2 * show], sizeof(preview) - 2 * show, "... (%u bytes)",
-               (unsigned)msg->message.size);
-    }
-    approved = confirm(ButtonRequestType_ButtonRequest_ProtectCall,
-                       "Sign Hive Bytes", "(%s key) %s", role_label, preview);
-  }
-  if (!approved) {
+  // Page the FULL message (72-char ASCII pages) so no trailing content is ever
+  // truncated behind a benign-looking prefix, and name the signing key.
+  if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, "Sign Hive Message",
+               "Signing with %s key", role_label) ||
+      !hive_confirm_slice(ButtonRequestType_ButtonRequest_ProtectCall,
+                          "Hive Message", msg->message.bytes,
+                          (uint16_t)msg->message.size)) {
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
