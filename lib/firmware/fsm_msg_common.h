@@ -46,13 +46,22 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
 #if BITCOIN_ONLY
   /* Bitcoin-only build. Uses the established KeepKeyBTC / EmulatorBTC names so
      existing clients (python-keepkey requires_fullFeature, etc.) skip
-     multi-chain-only behaviour and never offer multi-chain firmware. */
+     multi-chain-only behaviour and never offer multi-chain firmware. The lock
+     sentinel is reachable here too: a NEWER bitcoin-only wallet than this
+     firmware understands refuses to load (storage_isBitcoinOnlyLocked), and
+     hosts need the same signal the other builds emit. */
+  if (storage_isBitcoinOnlyLocked()) {
+    strlcpy(resp->firmware_variant, "bitcoin-only-locked",
+            sizeof(resp->firmware_variant));
+  } else {
 #ifdef EMULATOR
-  strlcpy(resp->firmware_variant, "EmulatorBTC",
-          sizeof(resp->firmware_variant));
+    strlcpy(resp->firmware_variant, "EmulatorBTC",
+            sizeof(resp->firmware_variant));
 #else
-  strlcpy(resp->firmware_variant, "KeepKeyBTC", sizeof(resp->firmware_variant));
+    strlcpy(resp->firmware_variant, "KeepKeyBTC",
+            sizeof(resp->firmware_variant));
 #endif
+  }
 #elif ZCASH_PRIVACY
   /* Zcash/Orchard privacy build. Distinct variant name so hosts can gate
      variant-partitioned features — the clearsign session icon cache is

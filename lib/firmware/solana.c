@@ -278,15 +278,21 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
            * variant (mint signed + displayed) clear-signs. */
           *force_opaque = true;
         } else if (token_instr == SOL_TOKEN_TRANSFER_CHECKED_IX &&
-                   data_len >= 9) {
+                   data_len >= 10 && num_acct_indices >= 4) {
+          /* Canonical TransferChecked ONLY: opcode + amount(8) + decimals(1)
+           * and all four accounts [source, mint, dest, authority]. A 9-byte
+           * encoding (no decimals) or a short account list would otherwise
+           * classify VERIFIED while skipping the mint screen and showing a
+           * zeroed destination — such non-canonical shapes fall through to
+           * UNKNOWN and force the whole tx opaque. */
           pi->type = SOL_INSTR_TOKEN_TRANSFER_CHECKED;
           pi->amount = read_le64(instr_data + 1);
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
           copy_account(pi->mint, tx, acct_indices, num_acct_indices, 1);
-          pi->has_mint = (num_acct_indices >= 2);
+          pi->has_mint = true;
           copy_account(pi->to, tx, acct_indices, num_acct_indices, 2);
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 3);
-          pi->extra_u8 = data_len >= 10 ? instr_data[9] : 0;
+          pi->extra_u8 = instr_data[9];
           /* Token-2022 checked transfers may carry an undisclosed transfer hook
            * / fee — do not clear-sign them. */
           if (is_token2022) {

@@ -488,6 +488,11 @@ bool thorchain_parseConfirmMemo(const char* swapStr, size_t size) {
     if (nfields < 3 || fields[2][0] == '\0') {
       return false;  // malformed memo
     }
+    /* WD:POOL:BPS[:ASSET] — refuse only genuinely-unknown structure (>4
+     * fields), mirroring the SWAP (>9) and ADD (>5) caps. */
+    if (nfields > 4) {
+      return false;
+    }
 
     float percent = (float)(atoi(fields[2])) / 100;
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
@@ -495,6 +500,18 @@ bool thorchain_parseConfirmMemo(const char* swapStr, size_t size) {
                  "Confirm withdraw %3.2f%% of asset %s on chain %s", percent,
                  asset, chain)) {
       return false;
+    }
+    /* Field 4 is the ASYMMETRIC-withdrawal asset selector: WD:POOL:BPS:ASSET
+     * pays the whole withdrawal out single-sided in ASSET instead of the
+     * symmetric split. It directs money, so it must never sign unseen —
+     * otherwise the screens for the asymmetric form are identical to the
+     * symmetric one. */
+    if (nfields > 3 && fields[3][0] != '\0') {
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                   "Thorchain withdraw liquidity",
+                   "Withdraw single-sided as %s", fields[3])) {
+        return false;
+      }
     }
     return true;
 

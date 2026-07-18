@@ -155,10 +155,9 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
 
   char confStr[41];
   const char* conf;
-  const TokenType* assetToken;
   uint8_t* thorchainData;
   const uint8_t* contractAssetAddress;
-  const uint8_t *vaultAddress, *assetAddress;
+  const uint8_t* vaultAddress;
   uint32_t ctr;
   bignum256 Amount;
 
@@ -222,9 +221,10 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
     if (!bn_is_zero(&Value)) {
       return false;
     }
-    assetAddress = contractAssetAddress;
+    const uint8_t* assetAddress = contractAssetAddress;
 
-    assetToken = tokenByChainAddress(msg->chain_id, assetAddress);
+    const TokenType* assetToken =
+        tokenByChainAddress(msg->chain_id, assetAddress);
 
     if (strncmp(assetToken->ticker, " UNKN", 5) == 0) {
       // just display token address and amount as string

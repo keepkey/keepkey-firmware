@@ -39,7 +39,7 @@ void kk_board_init(void);
  * one-time board/usb initialization.
  */
 
-static bool kkconfirm_sendTiny(uint16_t msgId, const uint8_t *payload,
+static bool kkconfirm_sendTiny(uint16_t msgId, const uint8_t* payload,
                                uint8_t len) {
   static int fd = -1;
   if (fd < 0) fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -59,7 +59,7 @@ static bool kkconfirm_sendTiny(uint16_t msgId, const uint8_t *payload,
   addr.sin_family = AF_INET;
   addr.sin_port = htons(11044);  // emulator main "usb" port
   addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-  return sendto(fd, frame, sizeof(frame), 0, (struct sockaddr *)&addr,
+  return sendto(fd, frame, sizeof(frame), 0, (struct sockaddr*)&addr,
                 sizeof(addr)) == (ssize_t)sizeof(frame);
 }
 
@@ -78,9 +78,9 @@ bool kkconfirm_preload(int nYes, int nNo) {
   for (int i = 0; i < nYes + nNo; i++) {
     if (!kkconfirm_sendTiny(MessageType_MessageType_ButtonAck, NULL, 0))
       return false;
-    const uint8_t *decision = (i < nYes) ? yes : no;
-    if (!kkconfirm_sendTiny(MessageType_MessageType_DebugLinkDecision,
-                            decision, 2))
+    const uint8_t* decision = (i < nYes) ? yes : no;
+    if (!kkconfirm_sendTiny(MessageType_MessageType_DebugLinkDecision, decision,
+                            2))
       return false;
   }
   return true;
@@ -150,7 +150,7 @@ static const ThorchainSignTx kSignTx = {
     true, 0,
     true, 1};
 
-static const char *kToAddr = "thor18vhdczjut44gpsy804crfhnd5nq003nz0nf20v";
+static const char* kToAddr = "thor18vhdczjut44gpsy804crfhnd5nq003nz0nf20v";
 
 // Denom validation: only [a-z0-9./\-] is allowed; anything else is rejected
 TEST(Thorchain, ThorchainDenomValidation) {
@@ -187,10 +187,10 @@ TEST(Thorchain, ThorchainSignTxInvalidDenom) {
  *  screens and kkconfirm_drain() == 0 proves N screens were shown.
  * ===================================================================== */
 
-static bool parseMemo(const char *memo, size_t size) {
+static bool parseMemo(const char* memo, size_t size) {
   return thorchain_parseConfirmMemo(memo, size);
 }
-static bool parseMemo(const char *memo) {
+static bool parseMemo(const char* memo) {
   return parseMemo(memo, strlen(memo) + 1);
 }
 
@@ -305,10 +305,9 @@ TEST(Thorchain, MemoRawBytesNoNulKeepsLastChar) {
 // byte — this is the boundary the copy-length clamp missed.
 TEST(Thorchain, MemoExactBufferCapacityKeepsLastChar) {
   const std::string prefix = "=:ETH.ETH:0x";
-  const std::string suffix = ":420:k"; // 1-char affiliate as the last byte
-  std::string memo = prefix + std::string(256 - prefix.size() - suffix.size(),
-                                          'd') +
-                     suffix;
+  const std::string suffix = ":420:k";  // 1-char affiliate as the last byte
+  std::string memo =
+      prefix + std::string(256 - prefix.size() - suffix.size(), 'd') + suffix;
   ASSERT_EQ(memo.size(), 256u);
 
   ASSERT_TRUE(kkconfirm_preload(4, 0));
@@ -320,6 +319,37 @@ TEST(Thorchain, MemoExactBufferCapacityKeepsLastChar) {
 TEST(Thorchain, MemoOversized) {
   ASSERT_TRUE(kkconfirm_preload(0, 0));
   EXPECT_FALSE(parseMemo("SWAP:ETH.ETH:0xdest:420", 257));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// Symmetric withdraw: pool + basis points on a single screen.
+TEST(Thorchain, MemoWithdrawSymmetric) {
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  EXPECT_TRUE(parseMemo("WITHDRAW:BTC.BTC:10000"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// Asymmetric withdraw: the 4th field selects a SINGLE-SIDED payout asset —
+// it directs money, so it gets its own screen instead of signing unseen with
+// screens identical to the symmetric form.
+TEST(Thorchain, MemoWithdrawAsymmetricShowsPayoutAsset) {
+  ASSERT_TRUE(kkconfirm_preload(2, 0));
+  EXPECT_TRUE(parseMemo("-:BTC.BTC:10000:THOR.RUNE"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// Rejecting the payout-asset screen aborts the withdrawal.
+TEST(Thorchain, MemoWithdrawAsymmetricRejectPropagates) {
+  ASSERT_TRUE(kkconfirm_preload(1, 1));  // approve summary, reject asset
+  EXPECT_FALSE(parseMemo("wd:BTC.BTC:5000:BTC.BTC"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// More fields than any withdraw grammar defines cannot be labeled and must
+// not be hidden — mirrors the SWAP (>9) and ADD (>5) caps.
+TEST(Thorchain, MemoWithdrawTooManyFieldsRejected) {
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  EXPECT_FALSE(parseMemo("WITHDRAW:BTC.BTC:10000:THOR.RUNE:extra"));
   EXPECT_EQ(0, kkconfirm_drain());
 }
 
@@ -356,8 +386,9 @@ TEST(Thorchain, MemoSwapTooManyFieldsRejected) {
 // add asset + pool + affiliate-fee = 3 screens.
 TEST(Thorchain, MemoAddShowsAffiliateAndFee) {
   ASSERT_TRUE(kkconfirm_preload(3, 0));
-  EXPECT_TRUE(parseMemo("ADD:BTC.BTC:thor18vhdczjut44gpsy804crfhnd5nq003nz0nf20v"
-                        ":affil:50"));
+  EXPECT_TRUE(
+      parseMemo("ADD:BTC.BTC:thor18vhdczjut44gpsy804crfhnd5nq003nz0nf20v"
+                ":affil:50"));
   EXPECT_EQ(0, kkconfirm_drain());
 }
 
@@ -386,7 +417,8 @@ TEST(Thorchain, FullMemoLongAsciiPagesAll) {
   EXPECT_EQ(0, kkconfirm_drain());
 }
 
-// Rejecting any page aborts the whole disclosure (so the handler aborts signing).
+// Rejecting any page aborts the whole disclosure (so the handler aborts
+// signing).
 TEST(Thorchain, FullMemoRejectPropagates) {
   std::string memo(150, 'a');
   ASSERT_TRUE(kkconfirm_preload(1, 1));  // approve page 1, reject page 2

@@ -1631,9 +1631,9 @@ void storage_commit(void) {
 
   // Temporary storage for marshalling secrets in & out of flash.
   // V18 storage layout = V17 (2525 bytes) + persistent identities block
-  // (PERSISTENT_IDENTITY_COUNT * CLEARSIGN_IDENTITY_SERIALIZED_LEN = 2*454 =
-  // 908) = 3433; + meta (44) = 3477. Rounded up to a multiple of 4 (the CRC
-  // below iterates uint32_t words) => 3480.
+  // (PERSISTENT_IDENTITY_COUNT * CLEARSIGN_IDENTITY_SERIALIZED_LEN = 2*455 =
+  // 910) = 3435; + meta (44) = 3479. Rounded up to a multiple of 4 (the CRC
+  // below iterates uint32_t words) => 3480 (1 byte of slack).
   static char flash_temp[3480];
 
   memzero(flash_temp, sizeof(flash_temp));

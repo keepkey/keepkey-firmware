@@ -108,11 +108,28 @@ static bool read_bytes(const uint8_t** cursor, const uint8_t* end, uint8_t* out,
   return true;
 }
 
+/* method_name and arg names render through confirm() bodies exactly like
+ * STRING values and signer aliases do — hold them to the same allowlist
+ * (printable ASCII, '%' excluded) so no metadata-carried text can embed
+ * control bytes or format specifiers. Only a trusted signer could author
+ * such a blob, but the charset rule should not depend on who signs. */
+static bool display_text_ok(const uint8_t* text, size_t len) {
+  for (size_t i = 0; i < len; i++) {
+    if (text[i] < 0x20 || text[i] > 0x7e || text[i] == '%') {
+      return false;
+    }
+  }
+  return true;
+}
+
 static bool read_string(const uint8_t** cursor, const uint8_t* end, char* out,
                         size_t max_len) {
   uint16_t value_len = 0;
   if (!read_be_u16(cursor, end, &value_len) || value_len == 0 ||
       value_len > max_len || (size_t)(end - *cursor) < value_len) {
+    return false;
+  }
+  if (!display_text_ok(*cursor, value_len)) {
     return false;
   }
 
@@ -127,6 +144,9 @@ static bool read_arg_name(const uint8_t** cursor, const uint8_t* end, char* out,
   uint8_t value_len = 0;
   if (!read_u8(cursor, end, &value_len) || value_len == 0 ||
       value_len > max_len || (size_t)(end - *cursor) < value_len) {
+    return false;
+  }
+  if (!display_text_ok(*cursor, value_len)) {
     return false;
   }
 
