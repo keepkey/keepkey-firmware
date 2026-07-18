@@ -181,21 +181,14 @@ void fsm_msgTronSignTx(TronSignTx* msg) {
     }
 
     if (confirmed && parsed.memo_len > 0) {
-      bool printable = true;
-      for (uint16_t i = 0; i < parsed.memo_len; i++) {
-        if (parsed.memo[i] < 0x20 || parsed.memo[i] > 0x7e) {
-          printable = false;
-          break;
-        }
-      }
-      if (printable && parsed.memo_len <= 114) {
-        confirmed = confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, "Memo",
-                            "%.*s", (int)parsed.memo_len, parsed.memo);
-      } else {
-        confirmed =
-            confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, "Memo",
-                    "Data attached (%u bytes)", (unsigned)parsed.memo_len);
-      }
+      /* Page the COMPLETE memo (72-char ASCII / 40-byte hex pages) like every
+       * other memo surface. The old single-screen path showed up to 114 chars
+       * unpaged, but 3 OLED lines only guarantee ~84 chars with wide glyphs —
+       * an 85..114-char memo could have its signed tail (affiliate bps,
+       * destination tail) silently clipped. The pager also discloses
+       * non-printable memos as complete hex instead of a byte-count summary. */
+      confirmed = thorchain_confirm_full_memo("Memo", (const char*)parsed.memo,
+                                              parsed.memo_len);
     }
 
     if (!confirmed) {

@@ -110,8 +110,13 @@ void fsm_msgRippleSignTx(RippleSignTx* msg) {
   }
 
   if (msg->has_memo && msg->memo[0] != '\0') {
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Memo", "%s",
-                 msg->memo)) {
+    /* Page the COMPLETE memo (72-char ASCII / 40-byte hex pages) like every
+     * other memo surface. A single unpaged confirm renders only 3 OLED lines,
+     * silently drops the overflow, and honors embedded newlines — so a memo
+     * whose visible first line looks benign could carry ~180 signed-but-unseen
+     * bytes into the Memos field that exchanges and bridges use for deposit
+     * routing. */
+    if (!thorchain_confirm_full_memo("Memo", msg->memo, strlen(msg->memo))) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
       layoutHome();

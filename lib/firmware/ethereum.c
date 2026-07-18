@@ -431,6 +431,9 @@ void ethereumFormatAmount(const bignum256* amnt, const TokenType* token,
         case 137:
           suffix = " MATIC";
           break;  //  Polygon Mainnet
+        case 43114:
+          suffix = " AVAX";
+          break;  //  Avalanche C-Chain
       }
     }
   }
