@@ -728,9 +728,9 @@ static const char* _otpStr = "";
  * queue, so an animation callback (trickle_progress_callback) can redraw itself
  * every frame without removing itself from the queue.
  *
- * marker_phase: 0..999 sweeps a small dim block across the unfilled portion of
- * the bar (a perpetual "working" cue that keeps the display visibly moving even
- * after the eased fill has pixel-saturated); pass -1 for no marker. */
+ * marker_phase: 0..999 breathes a glint on the fill's leading segment (a
+ * perpetual "working" cue that keeps the display visibly moving even after
+ * the eased fill has pixel-saturated); pass -1 for no glint. */
 static void progress_render_ex(const char* desc, int permil, int marker_phase) {
   if (!canvas) return;
 
@@ -802,21 +802,23 @@ static void progress_render_ex(const char* desc, int permil, int marker_phase) {
     draw_box(canvas, &bp);
   }
 
-  // Sweep marker: a small mid-gray glint cycling across the FULL inner track,
-  // independent of the fill level, so its travel never shrinks and the bar
-  // keeps visibly moving for arbitrarily slow host proofs. Mid-gray (0x99)
-  // reads as a darker notch over the 0xff fill and a brighter block over the
-  // 0x00 remainder, so it stays visible at any progress value.
-  if (marker_phase >= 0 && width > 2) {
-    const uint32_t marker_w = 8;
-    uint32_t span_w = width - 2;
-    uint32_t w = marker_w < span_w ? marker_w : span_w;
-    uint32_t travel = span_w - w;
-    bp.width = w;
+  // Front glint: the fill's leading segment breathes (dim <-> bright) while
+  // the trickle is active. Activity always shows exactly at the progress
+  // front — unlike a marker sweeping the track, it cannot detach from the
+  // fill and open a gap, and it cannot run out of travel as the unfilled
+  // span shrinks near 100% (long final-action proofs).
+  if (marker_phase >= 0 && finished_width > 4) {
+    const uint32_t glint_max = 10;
+    uint32_t glint_w =
+        finished_width - 2 < glint_max ? finished_width - 2 : glint_max;
+    /* Triangle wave 0..500..0 over one breath period. */
+    uint32_t tri = (uint32_t)marker_phase < 500 ? (uint32_t)marker_phase
+                                                : 1000 - (uint32_t)marker_phase;
+    bp.width = glint_w;
     bp.height = height - 2;
-    bp.base.x = x + 1 + (travel * (uint32_t)marker_phase) / 1000;
+    bp.base.x = x + finished_width - glint_w;
     bp.base.y = y + 1;
-    bp.base.color = 0x99;
+    bp.base.color = (uint8_t)(0x44 + (tri * 0x66) / 500);
     draw_box(canvas, &bp);
   }
 
@@ -880,9 +882,9 @@ void layout_add_animation(AnimateCallback callback, void* data,
 /* --- Trickle progress for long host-driven operations -----------------------
  * Shielded Zcash signing blocks on the host generating zk-proofs, so the device
  * would otherwise sit on a frozen progress bar and look like it has failed.
- * This eases a "trickle" that advances quickly at first then slows,
- * asymptotically approaching the next real milestone without ever reaching it
- * (so it never falsely shows 100%). It is driven off the animation timer, which
+ * This ramps a "trickle" smoothly through most of the gap to the next real
+ * milestone over the expected host-proof duration, holding short of it (so it
+ * never falsely shows work done). It is driven off the animation timer, which
  * layout_animate_poll() pumps from usbPoll() while the device blocks on host
  * I/O. A dedicated flag gates that pump so no other flow is affected. */
 static volatile bool trickle_active = false;
@@ -896,15 +898,26 @@ static void trickle_progress_callback(void* data, uint32_t duration,
                                       uint32_t elapsed) {
   (void)data;
   (void)duration;
-  /* add = span * elapsed / (elapsed + TAU): fast early, slowing as it nears the
-   * target, never actually reaching it. */
-  const uint32_t TAU = 1200; /* ms; ~half the remaining gap closed by 1.2s */
+  /* Host proof windows between milestones run ~40-50s. Ramp linearly through
+   * 90% of the milestone span over that guessed duration, then hold — the
+   * last 10% is only crossed by the next REAL milestone, so the bar never
+   * claims work that hasn't happened. The breathing glint keeps signalling
+   * activity while the ramp holds.
+   * ponytail: EXPECTED_MS is a guess, not a measurement — retune if host
+   * proof times change materially. */
+  const uint32_t EXPECTED_MS = 45000;
   int span = trickle.target - trickle.base;
-  int add = span > 0 ? (int)(((uint64_t)span * elapsed) / (elapsed + TAU)) : 0;
-  /* Sweep marker phase loops forever, so the display keeps changing even after
-   * the eased fill has stopped producing new pixels (long zk-proof waits). */
-  const uint32_t SWEEP_PERIOD = 1600; /* ms per sweep across the unfilled bar */
-  int phase = (int)(((elapsed % SWEEP_PERIOD) * 1000) / SWEEP_PERIOD);
+  int cap = (span * 9) / 10;
+  int add = 0;
+  if (cap > 0) {
+    add = elapsed >= EXPECTED_MS
+              ? cap
+              : (int)(((uint64_t)cap * elapsed) / EXPECTED_MS);
+  }
+  /* Glint phase loops forever, so the display keeps changing even after the
+   * eased fill has stopped producing new pixels (long zk-proof waits). */
+  const uint32_t BREATH_PERIOD = 1600; /* ms per dim<->bright breath cycle */
+  int phase = (int)(((elapsed % BREATH_PERIOD) * 1000) / BREATH_PERIOD);
   /* Draw via progress_render_ex (not animating_progress_handler) so redrawing
    * the frame does not clear the animation queue and remove this callback. */
   progress_render_ex(trickle.desc, trickle.base + add, phase);
@@ -921,9 +934,9 @@ void layoutProgressTrickle(const char* desc, int base_permil,
   trickle_active = true;
   layout_add_animation(&trickle_progress_callback, NULL, 0 /* loop forever */);
   force_animation_start();
-  /* Draw the first frame now (at base, marker at phase 0) so the bar appears
-   * immediately, before the animation timer next fires. progress_render_ex
-   * keeps the animation queue intact. */
+  /* Draw the first frame now (at base, glint at its dimmest) so the bar
+   * appears immediately, before the animation timer next fires.
+   * progress_render_ex keeps the animation queue intact. */
   progress_render_ex(desc, base_permil, 0);
 }
 

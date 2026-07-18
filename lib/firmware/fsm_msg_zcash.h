@@ -657,6 +657,10 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
     }
   }
 
+  /* Approved — show the signing screen before Orchard key derivation, which
+   * is seconds of Pallas math with nothing else drawing. */
+  layoutProgress(_("Signing Zcash"), 0);
+
   if (!zcash_check_seed_fingerprint(msg->has_expected_seed_fingerprint,
                                     msg->expected_seed_fingerprint.bytes,
                                     msg->expected_seed_fingerprint.size)) {
@@ -1021,6 +1025,12 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
     layoutHome();
     return;
   }
+
+  /* The user just approved — switch to the signing screen NOW. RedPallas
+   * signing below is many seconds of pure device-side math, and without
+   * this draw the dismissed dialog would sit on screen the whole time. */
+  layoutProgress(_("Signing Zcash"), (zcash_signing.current_action * 1000) /
+                                         zcash_signing.n_actions);
 
   /* Phase 2b: feed action data into incremental BLAKE2b contexts */
   blake2b_Update(&zcash_signing.compact_ctx, msg->nullifier.bytes, 32);
