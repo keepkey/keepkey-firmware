@@ -141,15 +141,42 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
   const ThorchainSignTx* sign_tx = thorchain_getThorchainSignTx();
 
   if (msg->has_send) {
+    const char* coin_denom =
+        (msg->send.has_denom && msg->send.denom[0]) ? msg->send.denom : "rune";
+
+    // Validate before any display so untrusted strings never reach the UI.
+    if (!thorchain_isValidDenom(coin_denom)) {
+      thorchain_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid denom");
+      layoutHome();
+      return;
+    }
+
     switch (msg->send.address_type) {
       case OutputAddressType_TRANSFER:
       default: {
+        // amount_str only needs to hold the numeric part (no denom suffix).
+        // Denom is confirmed on a separate screen so no truncation is possible.
         char amount_str[32];
-        bn_format_uint64(msg->send.amount, NULL, " RUNE", 8, 0, false,
-                         amount_str, sizeof(amount_str));
+        if (!bn_format_uint64(msg->send.amount, NULL, NULL, 8, 0, false,
+                              amount_str, sizeof(amount_str))) {
+          thorchain_signAbort();
+          fsm_sendFailure(FailureType_Failure_FirmwareError,
+                          _("Failed to format amount"));
+          layoutHome();
+          return;
+        }
         if (!confirm_transaction_output(
                 ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
                 msg->send.to_address)) {
+          thorchain_signAbort();
+          fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+          layoutHome();
+          return;
+        }
+        // Confirm the asset denom on its own screen.
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Asset",
+                     "%s", coin_denom)) {
           thorchain_signAbort();
           fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
           layoutHome();
@@ -159,8 +186,8 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
         break;
       }
     }
-    if (!thorchain_signTxUpdateMsgSend(msg->send.amount,
-                                       msg->send.to_address)) {
+    if (!thorchain_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address,
+                                       coin_denom)) {
       thorchain_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include send message in transaction");
@@ -169,8 +196,21 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
     }
 
   } else if (msg->has_deposit) {
-    char amount_str[32];
-    char asset_str[21];
+    // Validate before any display so untrusted strings never reach the UI
+    // or the sign bytes.
+    if (!thorchain_isValidAsset(msg->deposit.asset) ||
+        !thorchain_isValidSigner(msg->deposit.signer)) {
+      thorchain_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Invalid deposit asset or signer");
+      layoutHome();
+      return;
+    }
+    // Long-form assets (e.g.
+    // ETH.USDT-0XDAC17F958D2EE523A2206206994597C13D831EC7) are ~50 chars;
+    // amount_str must fit amount + asset suffix or bn_format zeroes it out.
+    char amount_str[96];
+    char asset_str[64];
     asset_str[0] = ' ';
     strlcpy(&(asset_str[1]), msg->deposit.asset, sizeof(asset_str) - 1);
     bn_format_uint64(msg->deposit.amount, NULL, asset_str, 8, 0, false,
@@ -185,17 +225,17 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
     }
 
     if (msg->deposit.has_memo) {
-      // See if we can parse the memo
-      if (!thorchain_parseConfirmMemo(msg->deposit.memo,
-                                      sizeof(msg->deposit.memo))) {
-        // Memo not recognizable, ask to confirm it
-        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
-                     "%s", msg->deposit.memo)) {
-          thorchain_signAbort();
-          fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-          layoutHome();
-          return;
-        }
+      size_t memo_len = strnlen(msg->deposit.memo, sizeof(msg->deposit.memo));
+      // Page the complete raw memo as the sole, authoritative disclosure. No
+      // structured pre-parse here: its bool return conflates "unrecognized"
+      // with "user rejected a screen", so a reject could be followed by these
+      // pages and then signing. The raw pager's own reject aborts.
+      if (!thorchain_confirm_full_memo(_("Memo"), msg->deposit.memo,
+                                       memo_len)) {
+        thorchain_signAbort();
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        layoutHome();
+        return;
       }
     }
 
@@ -215,17 +255,14 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
   }
 
   if (sign_tx->has_memo && !msg->deposit.has_memo) {
-    // See if we can parse the tx memo. This memo ignored if deposit msg has
-    // memo
-    if (!thorchain_parseConfirmMemo(sign_tx->memo, sizeof(sign_tx->memo))) {
-      // Memo not recognizable, ask to confirm it
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",
-                   sign_tx->memo)) {
-        thorchain_signAbort();
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-        layoutHome();
-        return;
-      }
+    // Ignored if the deposit msg has a memo. Page the full raw memo as the sole
+    // gate (see the deposit path above for why there is no structured pass).
+    size_t memo_len = strnlen(sign_tx->memo, sizeof(sign_tx->memo));
+    if (!thorchain_confirm_full_memo(_("Memo"), sign_tx->memo, memo_len)) {
+      thorchain_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
     }
   }
 
@@ -240,7 +277,7 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
   }
 
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, node_str,
-               "Sign this RUNE transaction on %s? "
+               "Sign this THORChain transaction on %s? "
                "Additional network fees apply.",
                sign_tx->chain_id)) {
     thorchain_signAbort();

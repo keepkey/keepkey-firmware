@@ -99,6 +99,20 @@ void fsm_msgTonSignTx(TonSignTx* msg) {
     return;
   }
 
+  /* AdvancedMode gate: to_address/amount are display-only, so this is
+   * length-only blind signing of raw bytes. Same fence as TonSignMessage
+   * and Solana/TRON opaque signing until the displayed fields are parsed
+   * from and bound to raw_tx. */
+  if (!storage_isPolicyEnabled("AdvancedMode")) {
+    (void)review(ButtonRequestType_ButtonRequest_Other, "Blocked",
+                 "TON transaction signing is blind-only. "
+                 "Enable AdvancedMode in device settings.");
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("Transaction signing disabled by policy"));
+    layoutHome();
+    return;
+  }
+
   // Derive node using Ed25519 curve
   HDNode* node = fsm_getDerivedNode(ED25519_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
@@ -112,24 +126,14 @@ void fsm_msgTonSignTx(TonSignTx* msg) {
     return;
   }
 
-  bool needs_confirm = true;
-
-  // Display transaction details if available
-  if (needs_confirm && msg->has_to_address && msg->has_amount) {
-    char amount_str[32];
-    ton_formatAmount(amount_str, sizeof(amount_str), msg->amount);
-
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Send",
-                 "Send %s TON to %s?", amount_str, msg->to_address)) {
-      memzero(node, sizeof(*node));
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
-      layoutHome();
-      return;
-    }
-  }
-
-  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Transaction",
-               "Really sign this TON transaction?")) {
+  /* to_address and amount are display-only fields not bound to raw_tx bytes.
+   * A malicious host could show one recipient while getting a different
+   * transaction signed. Show only the raw_tx size. */
+  char blind_msg[48];
+  snprintf(blind_msg, sizeof(blind_msg), "Sign %u-byte TON transaction?",
+           (unsigned)msg->raw_tx.size);
+  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "TON Blind Sign", "%s",
+               blind_msg)) {
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
     layoutHome();

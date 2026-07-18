@@ -28,6 +28,12 @@ bool tendermint_pathMismatched(const CoinType* coin, const uint32_t* address_n,
 bool tendermint_getAddress(const HDNode* node, const char* prefix,
                            char* address);
 
+bool tendermint_isValidDenom(const char* denom);
+
+bool tendermint_isValidAsset(const char* asset);
+
+bool tendermint_isValidSigner(const char* signer, const char* hrp);
+
 void tendermint_sha256UpdateEscaped(SHA256_CTX* ctx, const char* s, size_t len);
 
 bool tendermint_snprintf(SHA256_CTX* ctx, char* temp, size_t len,

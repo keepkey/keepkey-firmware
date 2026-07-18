@@ -414,6 +414,11 @@ void usbInit(const char* origin_url) {
 void usbPoll(void) {
   // poll read buffer
   usbd_poll(usbd_dev);
+  // Keep a queued progress animation moving while we block on host I/O (e.g.
+  // Zcash proof generation on the host), so the screen never looks frozen.
+  // No-op unless a trickle animation is active, so all other flows are
+  // unaffected.
+  layout_animate_poll();
 }
 
 void usbReconnect(void) {
@@ -435,28 +440,31 @@ bool msg_write(MessageType msg_id, const void* msg) {
 
   if (!fields) return false;
 
-  TrezorFrameBuffer framebuf;
-  memset(&framebuf, 0, sizeof(framebuf));
-  framebuf.frame.usb_header.hid_type = '?';
-  framebuf.frame.header.pre1 = '#';
-  framebuf.frame.header.pre2 = '#';
-  framebuf.frame.header.id = __builtin_bswap16(msg_id);
+  /* Encode into the shared frame arena instead of a 12 KB automatic — that
+   * stack frame overflowed the zcash-privacy variant's SRAM gap. Safe on the
+   * single-threaded transport; see the FrameArena contract in messages.c. */
+  TrezorFrameBuffer* framebuf = frame_arena_tx();
+  memset(framebuf, 0, sizeof(*framebuf));
+  framebuf->frame.usb_header.hid_type = '?';
+  framebuf->frame.header.pre1 = '#';
+  framebuf->frame.header.pre2 = '#';
+  framebuf->frame.header.id = __builtin_bswap16(msg_id);
 
   pb_ostream_t os =
-      pb_ostream_from_buffer(framebuf.buffer, sizeof(framebuf.buffer));
+      pb_ostream_from_buffer(framebuf->buffer, sizeof(framebuf->buffer));
 
   if (!pb_encode(&os, fields, msg)) return false;
 
-  framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
+  framebuf->frame.header.len = __builtin_bswap32(os.bytes_written);
 
   // Chunk out data
-  for (uint32_t pos = 1; pos < sizeof(framebuf.frame) + os.bytes_written;
+  for (uint32_t pos = 1; pos < sizeof(framebuf->frame) + os.bytes_written;
        pos += 64 - 1) {
     uint8_t tmp_buffer[64] = {0};
 
     tmp_buffer[0] = '?';
 
-    memcpy(tmp_buffer + 1, ((const uint8_t*)&framebuf) + pos, 64 - 1);
+    memcpy(tmp_buffer + 1, ((const uint8_t*)framebuf) + pos, 64 - 1);
 
 #ifndef EMULATOR
     while (usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_IN, tmp_buffer,
@@ -476,28 +484,29 @@ bool msg_debug_write(MessageType msg_id, const void* msg) {
 
   if (!fields) return false;
 
-  TrezorFrameBuffer framebuf;
-  memset(&framebuf, 0, sizeof(framebuf));
-  framebuf.frame.usb_header.hid_type = '?';
-  framebuf.frame.header.pre1 = '#';
-  framebuf.frame.header.pre2 = '#';
-  framebuf.frame.header.id = __builtin_bswap16(msg_id);
+  /* Same shared-arena encode as msg_write — see the FrameArena contract. */
+  TrezorFrameBuffer* framebuf = frame_arena_tx();
+  memset(framebuf, 0, sizeof(*framebuf));
+  framebuf->frame.usb_header.hid_type = '?';
+  framebuf->frame.header.pre1 = '#';
+  framebuf->frame.header.pre2 = '#';
+  framebuf->frame.header.id = __builtin_bswap16(msg_id);
 
   pb_ostream_t os =
-      pb_ostream_from_buffer(framebuf.buffer, sizeof(framebuf.buffer));
+      pb_ostream_from_buffer(framebuf->buffer, sizeof(framebuf->buffer));
 
   if (!pb_encode(&os, fields, msg)) return false;
 
-  framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
+  framebuf->frame.header.len = __builtin_bswap32(os.bytes_written);
 
   // Chunk out data
-  for (uint32_t pos = 1; pos < sizeof(framebuf.frame) + os.bytes_written;
+  for (uint32_t pos = 1; pos < sizeof(framebuf->frame) + os.bytes_written;
        pos += 64 - 1) {
     uint8_t tmp_buffer[64] = {0};
 
     tmp_buffer[0] = '?';
 
-    memcpy(tmp_buffer + 1, ((const uint8_t*)&framebuf) + pos, 64 - 1);
+    memcpy(tmp_buffer + 1, ((const uint8_t*)framebuf) + pos, 64 - 1);
 
 #ifndef EMULATOR
     while (usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_DEBUG_IN, tmp_buffer,

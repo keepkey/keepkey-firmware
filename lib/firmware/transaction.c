@@ -238,6 +238,7 @@ int compile_output(const CoinType* coin, const HDNode* root, TxOutputType* in,
         }
       } else {
         // is this thorchain data?
+#if !BITCOIN_ONLY
         if (!thorchain_parseConfirmMemo((const char*)in->op_return_data.bytes,
                                         (size_t)in->op_return_data.size)) {
           if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmOutput,
@@ -246,6 +247,14 @@ int compile_output(const CoinType* coin, const HDNode* root, TxOutputType* in,
             return -1;  // user aborted
           }
         }
+#else
+        // bitcoin-only: no THORChain memo decoding, confirm raw OP_RETURN
+        if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                          _("Confirm OP_RETURN"), in->op_return_data.bytes,
+                          in->op_return_data.size)) {
+          return -1;  // user aborted
+        }
+#endif
       }
     }
     uint32_t r = 0;

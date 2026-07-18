@@ -27,6 +27,14 @@
 #include <libopencm3/stm32/f2/rng.h>
 #endif
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN /* exclude winsock.h — it declares \
+                               shutdown(SOCKET,int) */
+#include <stdlib.h>
+#include <windows.h>
+#include <bcrypt.h>
+#endif
+
 void reset_rng(void) {
 #ifndef EMULATOR
   /* disable RNG */
@@ -77,20 +85,46 @@ uint32_t random32(void) {
   }
   last = new;
   return new;
+#elif defined(_WIN32)
+  /* Windows has no POSIX random(); use the system CSPRNG (stronger than the
+   * macOS/Linux emulator's random() PRNG anyway). Resolves via the bcrypt link
+   * on kkemulator_dylib (tools/emulator/CMakeLists.txt). */
+  uint32_t v = 0;
+  if (BCryptGenRandom(NULL, (PUCHAR)&v, (ULONG)sizeof(v),
+                      BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0) {
+    abort();
+  }
+  return v;
 #else
   return random();
 #endif
 }
 
+#if defined(EMULATOR) && !defined(__APPLE__)
+/* trezor-crypto declares random_buffer() as a weak symbol so platforms can
+ * supply their own. GNU/MinGW ld will NOT extract a weak definition from a
+ * static archive to satisfy a strong reference (fsm.c/reset.c/storage.c),
+ * which breaks the Linux .so and Windows .dll links. Provide a strong
+ * definition here — identical to trezor-crypto's, built on our random32().
+ * macOS ld64 resolves the weak one fine, so it's left untouched there. */
+void random_buffer(uint8_t *buf, size_t len) {
+  uint32_t r = 0;
+  for (size_t i = 0; i < len; i++) {
+    if (i % 4 == 0) r = random32();
+    buf[i] = (r >> ((i % 4) * 8)) & 0xff;
+  }
+}
+#endif
+
 // I miss C++ templates sooo bad.
-#define RANDOM_PERMUTE(BUFF, COUNT)           \
-  do {                                        \
-    for (size_t i = (COUNT)-1; i >= 1; i--) { \
-      size_t j = random_uniform(i + 1);       \
-      typeof(*(BUFF)) t = (BUFF)[j];          \
-      (BUFF)[j] = (BUFF)[i];                  \
-      (BUFF)[i] = t;                          \
-    }                                         \
+#define RANDOM_PERMUTE(BUFF, COUNT)             \
+  do {                                          \
+    for (size_t i = (COUNT) - 1; i >= 1; i--) { \
+      size_t j = random_uniform(i + 1);         \
+      typeof(*(BUFF)) t = (BUFF)[j];            \
+      (BUFF)[j] = (BUFF)[i];                    \
+      (BUFF)[i] = t;                            \
+    }                                           \
   } while (0)
 
 void random_permute_char(char *str, size_t len) { RANDOM_PERMUTE(str, len); }

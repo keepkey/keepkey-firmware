@@ -225,12 +225,133 @@ TEST(Solana, ParseSPLTokenTransfer) {
   raw[pos++] = 0x00;
 
   SolanaParsedTx tx;
-  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_VERIFIED);
-  ASSERT_TRUE(solana_parseTx(raw, pos, &tx));
+  /* Unchecked SPL Transfer carries no signed mint (the token being moved is not
+   * provable), so the transaction is now OPAQUE — it requires AdvancedMode
+   * blind-signing rather than clear-signing. The instruction is still parsed. */
+  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
 
   EXPECT_EQ(tx.num_instructions, 1);
   EXPECT_EQ(tx.instructions[0].type, SOL_INSTR_TOKEN_TRANSFER);
   EXPECT_EQ(tx.instructions[0].amount, 1000000ULL);
+}
+
+TEST(Solana, Token2022TransferCheckedIsOpaque) {
+  /* A Token-2022 TransferChecked can invoke an undisclosed transfer hook / fee,
+   * so it must NOT clear-sign (only legacy SPL Token TransferChecked does). */
+  uint8_t raw[512];
+  size_t pos = 0;
+  raw[pos++] = 1;
+  raw[pos++] = 0;
+  raw[pos++] = 1;
+  raw[pos++] = 5; /* source, mint, dest, authority, token-2022 program */
+  memset(raw + pos, 0x11, 32);
+  pos += 32;
+  memset(raw + pos, 0x22, 32);
+  pos += 32;
+  memset(raw + pos, 0x33, 32);
+  pos += 32;
+  memset(raw + pos, 0x44, 32);
+  pos += 32;
+  memcpy(raw + pos, SOL_TOKEN_2022_PROGRAM, 32);
+  pos += 32;
+  memset(raw + pos, 0xBB, 32);
+  pos += 32;
+  raw[pos++] = 1;  /* 1 instruction */
+  raw[pos++] = 4;  /* program index = token-2022 */
+  raw[pos++] = 4;  /* 4 accounts */
+  raw[pos++] = 0;
+  raw[pos++] = 1;
+  raw[pos++] = 2;
+  raw[pos++] = 3;
+  raw[pos++] = 10; /* data length */
+  raw[pos++] = 12; /* TransferChecked */
+  raw[pos++] = 0x40;
+  raw[pos++] = 0x42;
+  raw[pos++] = 0x0F;
+  raw[pos++] = 0x00;
+  raw[pos++] = 0x00;
+  raw[pos++] = 0x00;
+  raw[pos++] = 0x00;
+  raw[pos++] = 0x00;
+  raw[pos++] = 6; /* decimals */
+
+  SolanaParsedTx tx;
+  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
+}
+
+/* Helper: build a Vote UpdateValidatorIdentity tx with the given instruction
+ * data length (4 = canonical; >4 = trailing bytes). Accounts: vote(0),
+ * new-validator(1), authority(2), vote-program. */
+static size_t build_vote_update_validator(uint8_t* raw, uint16_t data_len) {
+  size_t pos = 0;
+  raw[pos++] = 1;
+  raw[pos++] = 0;
+  raw[pos++] = 1;
+  raw[pos++] = 4;
+  memset(raw + pos, 0x11, 32);
+  pos += 32; /* vote account (idx 0) */
+  memset(raw + pos, 0x22, 32);
+  pos += 32; /* new validator (idx 1) */
+  memset(raw + pos, 0x33, 32);
+  pos += 32; /* authority (idx 2) */
+  memcpy(raw + pos, SOL_VOTE_PROGRAM, 32);
+  pos += 32;
+  memset(raw + pos, 0xBB, 32);
+  pos += 32; /* blockhash */
+  raw[pos++] = 1;
+  raw[pos++] = 3; /* program index = vote */
+  raw[pos++] = 3; /* 3 accounts */
+  raw[pos++] = 0;
+  raw[pos++] = 1;
+  raw[pos++] = 2;
+  raw[pos++] = (uint8_t)data_len;
+  raw[pos++] = 4; /* UpdateValidatorIdentity discriminator (le32) */
+  raw[pos++] = 0;
+  raw[pos++] = 0;
+  raw[pos++] = 0;
+  for (uint16_t i = 4; i < data_len; i++) raw[pos++] = 0x77; /* trailing */
+  return pos;
+}
+
+TEST(Solana, VoteUpdateValidatorReadsAccountNotData) {
+  uint8_t raw[512];
+  size_t pos = build_vote_update_validator(raw, 4); /* canonical */
+  SolanaParsedTx tx;
+  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_VERIFIED);
+  EXPECT_EQ(tx.instructions[0].type, SOL_INSTR_VOTE_UPDATE_VALIDATOR);
+  /* The new validator must be account index 1 (0x22..), never fabricated data. */
+  uint8_t expected[32];
+  memset(expected, 0x22, 32);
+  EXPECT_EQ(0, memcmp(tx.instructions[0].extra, expected, 32));
+}
+
+TEST(Solana, VoteUpdateValidatorRejectsTrailingBytes) {
+  uint8_t raw[512];
+  /* 4-byte discriminator + 32 fabricated bytes — used to be displayed as a
+   * fake validator; now non-canonical, so the tx is opaque (blind-sign only). */
+  size_t pos = build_vote_update_validator(raw, 36);
+  SolanaParsedTx tx;
+  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
+}
+
+TEST(Solana, PriorityFeeOverflowSafe) {
+  uint64_t fee = 0;
+  /* The wrap-to-zero case: price=UINT64_MAX, limit=1. A naive
+   * (price*limit + 999999)/1e6 wraps to 0; the real fee is 18446.744073710 SOL
+   * (= 18446744073710 lamports) and must be shown, not hidden. */
+  EXPECT_TRUE(solana_priority_fee_lamports(UINT64_MAX, 1, &fee));
+  EXPECT_EQ(fee, 18446744073710ULL);
+
+  /* Typical fee: 1000 micro-lamports/CU * 200000 CU / 1e6 = 200 lamports. */
+  EXPECT_TRUE(solana_priority_fee_lamports(1000, 200000, &fee));
+  EXPECT_EQ(fee, 200ULL);
+
+  /* Sub-lamport fee rounds UP (fees are charged even for one CU). */
+  EXPECT_TRUE(solana_priority_fee_lamports(1, 1, &fee));
+  EXPECT_EQ(fee, 1ULL);
+
+  /* A fee that truly exceeds u64 lamports is rejected, never saturated. */
+  EXPECT_FALSE(solana_priority_fee_lamports(UINT64_MAX, UINT64_MAX, &fee));
 }
 
 TEST(Solana, ParseAssociatedTokenAccountCreate) {
@@ -480,15 +601,27 @@ TEST(Solana, RejectsExcessInstructions) {
   memset(raw + pos, 0xBB, 32);
   pos += 32;
 
-  /* 9 instructions (exceeds limit of 8) */
+  /* 9 instructions (exceeds limit of 8), each minimal but well-formed:
+   * program_idx + zero account indices + zero data bytes */
   raw[pos++] = 9;
+  for (int i = 0; i < 9; i++) {
+    raw[pos++] = 1; /* program = account 1 */
+    raw[pos++] = 0; /* no account indices */
+    raw[pos++] = 0; /* no data */
+  }
 
   SolanaParsedTx tx;
   EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
   EXPECT_FALSE(solana_parseTx(raw, pos, &tx));
+
+  /* A claimed instruction count with truncated bodies is malformed */
+  uint8_t truncated[256];
+  memcpy(truncated, raw, pos - 27);
+  EXPECT_EQ(solana_inspectTx(truncated, pos - 27, &tx),
+            SOL_TX_REVIEW_MALFORMED);
 }
 
-TEST(Solana, VersionedMessageIsOpaque) {
+TEST(Solana, VersionedMessageNoLookupTablesIsVerified) {
   uint8_t raw[256];
   size_t pos = 0;
 
@@ -529,12 +662,20 @@ TEST(Solana, VersionedMessageIsOpaque) {
 
   raw[pos++] = 0; /* zero lookup tables */
 
+  /* A v0 message whose instructions touch only static accounts is as
+   * verifiable as a legacy message — swap providers build these. */
   SolanaParsedTx tx;
-  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
-  EXPECT_FALSE(solana_parseTx(raw, pos, &tx));
+  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_VERIFIED);
+  EXPECT_TRUE(solana_parseTx(raw, pos, &tx));
+  ASSERT_EQ(tx.num_instructions, 1);
+  EXPECT_EQ(tx.instructions[0].type, SOL_INSTR_SYSTEM_TRANSFER);
+  EXPECT_EQ(tx.instructions[0].lamports, 1000000000ULL);
+  uint8_t expected_to[32];
+  memset(expected_to, 0x22, 32);
+  EXPECT_EQ(memcmp(tx.instructions[0].to, expected_to, 32), 0);
 }
 
-TEST(Solana, VersionedMessageWithLookupTableIsOpaque) {
+TEST(Solana, VersionedMessageWithUnreferencedLookupTableIsVerified) {
   uint8_t raw[256];
   size_t pos = 0;
 
@@ -582,9 +723,125 @@ TEST(Solana, VersionedMessageWithLookupTableIsOpaque) {
   raw[pos++] = 1;
   raw[pos++] = 2;
 
+  /* Table attached but no instruction reaches into it: every displayed
+   * field is decoded from static accounts, so it stays verifiable. */
+  SolanaParsedTx tx;
+  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_VERIFIED);
+  EXPECT_TRUE(solana_parseTx(raw, pos, &tx));
+}
+
+TEST(Solana, VersionedInstructionUsingLookupAccountIsOpaque) {
+  uint8_t raw[256];
+  size_t pos = 0;
+
+  raw[pos++] = 0x80; /* v0 prefix */
+  raw[pos++] = 1;
+  raw[pos++] = 0;
+  raw[pos++] = 1;
+
+  raw[pos++] = 3; /* static accounts */
+  memset(raw + pos, 0x11, 32);
+  pos += 32;
+  memset(raw + pos, 0x22, 32);
+  pos += 32;
+  memset(raw + pos, 0x00, 32);
+  pos += 32;
+
+  memset(raw + pos, 0xBB, 32);
+  pos += 32;
+
+  raw[pos++] = 1; /* instructions */
+  raw[pos++] = 2; /* program = system (static) */
+  raw[pos++] = 2;
+  raw[pos++] = 0;
+  raw[pos++] = 3; /* index 3 = first lookup-table account */
+  raw[pos++] = 12;
+  raw[pos++] = 2;
+  raw[pos++] = 0;
+  raw[pos++] = 0;
+  raw[pos++] = 0;
+  raw[pos++] = 0x00;
+  raw[pos++] = 0xCA;
+  raw[pos++] = 0x9A;
+  raw[pos++] = 0x3B;
+  raw[pos++] = 0x00;
+  raw[pos++] = 0x00;
+  raw[pos++] = 0x00;
+  raw[pos++] = 0x00;
+
+  raw[pos++] = 1; /* one lookup table */
+  memset(raw + pos, 0x55, 32);
+  pos += 32;
+  raw[pos++] = 1;
+  raw[pos++] = 0;
+  raw[pos++] = 0;
+
+  /* The recipient lives in a lookup table the device cannot resolve —
+   * must be opaque (blind-signable under AdvancedMode), NOT malformed,
+   * and NEVER verified. */
   SolanaParsedTx tx;
   EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
   EXPECT_FALSE(solana_parseTx(raw, pos, &tx));
+}
+
+TEST(Solana, MemoBodyCaptured) {
+  /* Legacy tx: system transfer + memo instruction (THORChain-style swap
+   * memo). The parser must expose the memo bytes for display. */
+  const char* memo = "=:ETH.ETH:0x1234:0/1/0:kk:75";
+  uint8_t raw[512];
+  size_t pos = 0;
+
+  raw[pos++] = 1;
+  raw[pos++] = 0;
+  raw[pos++] = 2; /* system + memo programs readonly */
+
+  raw[pos++] = 4; /* accounts: sender, recipient, system, memo */
+  memset(raw + pos, 0x11, 32);
+  pos += 32;
+  memset(raw + pos, 0x22, 32);
+  pos += 32;
+  memset(raw + pos, 0x00, 32); /* system program */
+  pos += 32;
+  memcpy(raw + pos, SOL_MEMO_PROGRAM, 32);
+  pos += 32;
+
+  memset(raw + pos, 0xBB, 32); /* blockhash */
+  pos += 32;
+
+  raw[pos++] = 2; /* two instructions */
+
+  /* transfer */
+  raw[pos++] = 2;
+  raw[pos++] = 2;
+  raw[pos++] = 0;
+  raw[pos++] = 1;
+  raw[pos++] = 12;
+  raw[pos++] = 2;
+  raw[pos++] = 0;
+  raw[pos++] = 0;
+  raw[pos++] = 0;
+  raw[pos++] = 0x00;
+  raw[pos++] = 0xCA;
+  raw[pos++] = 0x9A;
+  raw[pos++] = 0x3B;
+  raw[pos++] = 0x00;
+  raw[pos++] = 0x00;
+  raw[pos++] = 0x00;
+  raw[pos++] = 0x00;
+
+  /* memo */
+  raw[pos++] = 3; /* program = memo */
+  raw[pos++] = 0; /* no accounts */
+  raw[pos++] = (uint8_t)strlen(memo);
+  memcpy(raw + pos, memo, strlen(memo));
+  pos += strlen(memo);
+
+  SolanaParsedTx tx;
+  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_VERIFIED);
+  ASSERT_EQ(tx.num_instructions, 2);
+  EXPECT_EQ(tx.instructions[1].type, SOL_INSTR_MEMO);
+  ASSERT_EQ(tx.instructions[1].data_len, strlen(memo));
+  EXPECT_EQ(memcmp(tx.instructions[1].data, memo, strlen(memo)), 0);
 }
 
 TEST(Solana, MalformedVersionedLookupTableRejects) {
