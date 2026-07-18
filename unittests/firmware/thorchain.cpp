@@ -2,9 +2,11 @@ extern "C" {
 #include "keepkey/board/messages.h"
 #include "keepkey/board/usb.h"
 #include "keepkey/firmware/coins.h"
+#include "keepkey/firmware/ethereum_contracts/thortx.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/thorchain.h"
 #include "keepkey/firmware/tendermint.h"
+#include "messages-ethereum.pb.h"
 #include "trezor/crypto/secp256k1.h"
 
 // From keepkey_board.h, which we can't include here: its shutdown(void)
@@ -15,6 +17,7 @@ void kk_board_init(void);
 #include "gtest/gtest.h"
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -407,4 +410,176 @@ TEST(Thorchain, FullMemoEmptyShowsEmpty) {
   ASSERT_TRUE(kkconfirm_preload(1, 0));
   EXPECT_TRUE(thorchain_confirm_full_memo("Memo", "", 0));
   EXPECT_EQ(0, kkconfirm_drain());
+}
+
+/* =====================================================================
+ *  thor_isThorchainTx — chain-scoped router pin.
+ *
+ *  A THORChain deposit uses a DIFFERENT router address on every EVM chain,
+ *  so the pin must match on (chain_id, address) together. Before this was
+ *  chain-scoped, only Ethereum-mainnet deposits ever matched and an
+ *  Avalanche deposit fell into the blind-sign gate (the AVAX->ETH bug).
+ * ===================================================================== */
+
+// Lowercase-hex 40-char router -> 20 raw bytes.
+static void hex20(const char* hex, uint8_t out[20]) {
+  for (int i = 0; i < 20; i++) {
+    auto nib = [](char c) -> int {
+      return c <= '9' ? c - '0' : (c | 0x20) - 'a' + 10;
+    };
+    out[i] = (uint8_t)((nib(hex[i * 2]) << 4) | nib(hex[i * 2 + 1]));
+  }
+}
+
+static void make_deposit_msg(EthereumSignTx* msg, const uint8_t to[20],
+                             const uint8_t* data, size_t data_len,
+                             uint32_t chain_id, bool has_chain) {
+  memset(msg, 0, sizeof(*msg));
+  msg->has_to = true;
+  msg->to.size = 20;
+  memcpy(msg->to.bytes, to, 20);
+  msg->has_data_initial_chunk = true;
+  msg->data_initial_chunk.size = (pb_size_t)data_len;
+  memcpy(msg->data_initial_chunk.bytes, data, data_len);
+  msg->has_chain_id = has_chain;
+  msg->chain_id = chain_id;
+}
+
+static const char* THOR_ETH_ROUTER = "d37bbe5744d730a1d98d8dc97c42f0ca46ad7146";
+static const char* THOR_AVAX_ROUTER =
+    "00dc6100103bc402d490aee3f9a5560cbd91f1d4";
+static const uint8_t DEPOSIT_WITH_EXPIRY[4] = {0x44, 0xbc, 0x93, 0x7b};
+
+TEST(Thorchain, IsThorchainTxEthRouterOnEthereum) {
+  uint8_t to[20];
+  hex20(THOR_ETH_ROUTER, to);
+  EthereumSignTx msg;
+  make_deposit_msg(&msg, to, DEPOSIT_WITH_EXPIRY, 4, 1, true);
+  EXPECT_TRUE(thor_isThorchainTx(&msg));
+}
+
+TEST(Thorchain, IsThorchainTxAvaxRouterOnAvalanche) {
+  uint8_t to[20];
+  hex20(THOR_AVAX_ROUTER, to);
+  EthereumSignTx msg;
+  make_deposit_msg(&msg, to, DEPOSIT_WITH_EXPIRY, 4, 43114, true);
+  EXPECT_TRUE(thor_isThorchainTx(&msg));  // the AVAX->ETH bug fix
+}
+
+// The AVAX router on the Ethereum chain (or vice versa) must NOT match — the
+// pin is (chain, address) together, so a router borrowed onto the wrong chain
+// can't inherit the trusted deposit UX.
+TEST(Thorchain, IsThorchainTxRejectsRouterOnWrongChain) {
+  uint8_t avax[20], eth[20];
+  hex20(THOR_AVAX_ROUTER, avax);
+  hex20(THOR_ETH_ROUTER, eth);
+  EthereumSignTx msg;
+  make_deposit_msg(&msg, avax, DEPOSIT_WITH_EXPIRY, 4, 1, true);
+  EXPECT_FALSE(thor_isThorchainTx(&msg));  // AVAX router, ETH chain
+  make_deposit_msg(&msg, eth, DEPOSIT_WITH_EXPIRY, 4, 43114, true);
+  EXPECT_FALSE(thor_isThorchainTx(&msg));  // ETH router, AVAX chain
+}
+
+// A chain with no pinned THORChain router never clear-signs (falls to blind
+// sign), even with a real deposit selector to some address.
+TEST(Thorchain, IsThorchainTxRejectsUnpinnedChain) {
+  uint8_t to[20];
+  hex20(THOR_ETH_ROUTER, to);
+  EthereumSignTx msg;
+  make_deposit_msg(&msg, to, DEPOSIT_WITH_EXPIRY, 4, 137 /*polygon*/, true);
+  EXPECT_FALSE(thor_isThorchainTx(&msg));
+}
+
+// A tx with NO chain_id at all gets no router: ethereum.c defaults an absent
+// chain_id to mainnet for hashing, but an identity pin must never be
+// inherited from a default the host merely omitted.
+TEST(Thorchain, IsThorchainTxRejectsMissingChainId) {
+  uint8_t to[20];
+  hex20(THOR_ETH_ROUTER, to);
+  EthereumSignTx msg;
+  make_deposit_msg(&msg, to, DEPOSIT_WITH_EXPIRY, 4, 0, false);
+  EXPECT_FALSE(thor_isThorchainTx(&msg));
+}
+
+// A random contract carrying the deposit selector must not match — this is the
+// drain-vector guard the pin exists for.
+TEST(Thorchain, IsThorchainTxRejectsUnpinnedAddress) {
+  uint8_t to[20];
+  hex20("00000000000000000000000000000000deadbeef", to);
+  EthereumSignTx msg;
+  make_deposit_msg(&msg, to, DEPOSIT_WITH_EXPIRY, 4, 43114, true);
+  EXPECT_FALSE(thor_isThorchainTx(&msg));
+}
+
+/* =====================================================================
+ *  thor_confirmThorTx on the Avalanche router — the full confirm path
+ *  (router label, vault, native amount, structured memo, raw memo pages)
+ *  runs for a non-mainnet deposit, and the exact-end memo bounds hold.
+ * ===================================================================== */
+
+// Assemble a canonical depositWithExpiry(address,address,uint256,string,
+// uint256) calldata. declared_len overrides the ABI memo-length word so the
+// adversarial case (length says more than is present) can be exercised.
+static std::vector<uint8_t> build_thor_deposit(const uint8_t vault[20],
+                                               const std::string& memo,
+                                               uint32_t declared_len) {
+  std::vector<uint8_t> d(DEPOSIT_WITH_EXPIRY, DEPOSIT_WITH_EXPIRY + 4);
+  auto push_word = [&](const uint8_t* w) { d.insert(d.end(), w, w + 32); };
+  auto push_u = [&](uint64_t v) {
+    uint8_t w[32] = {0};
+    for (int i = 0; i < 8; i++) w[31 - i] = (uint8_t)((v >> (8 * i)) & 0xff);
+    push_word(w);
+  };
+  uint8_t vw[32] = {0};
+  memcpy(vw + 12, vault, 20);
+  push_word(vw);          // word0: vault
+  push_u(0);              // word1: asset = native (address zero)
+  push_u(1000000000ULL);  // word2: amount (router-ignored hint for native)
+  push_u(0xa0);           // word3: memo offset (canonical for expiry variant)
+  push_u(1893456000ULL);  // word4: expiry
+  push_u(declared_len);   // word5: memo length
+  d.insert(d.end(), memo.begin(), memo.end());
+  while (d.size() % 32 != 4) d.push_back(0);  // pad memo to a 32-byte boundary
+  return d;
+}
+
+// A 67-byte memo (longer than the once-hardcoded 64) must display in full
+// through the memo screens, not silently truncate its trailing fields — on the
+// AVALANCHE router, proving the whole confirm path is chain-scoped.
+TEST(Thorchain, ConfirmThorTxAvaxLongMemoDecodesFully) {
+  uint8_t vault[20];
+  hex20("15a18266c5331ac3a7f6bc5cdf25bcc55561b4fa", vault);
+  const std::string memo =
+      "=:ETH.ETH:0x141D9959cAe3853b035000490C03991eB70Fc4aC:323935:keep:30";
+  ASSERT_EQ(memo.size(), 67u);
+  auto data = build_thor_deposit(vault, memo, (uint32_t)memo.size());
+
+  uint8_t avax[20];
+  hex20(THOR_AVAX_ROUTER, avax);
+  EthereumSignTx msg;
+  make_deposit_msg(&msg, avax, data.data(), data.size(), 43114, true);
+
+  ASSERT_TRUE(kkconfirm_preload(12, 0));  // generous; extras drain below
+  EXPECT_TRUE(thor_confirmThorTx((uint32_t)data.size(), &msg));
+  kkconfirm_drain();
+}
+
+// A memo-length word claiming more bytes than are present must be REJECTED —
+// otherwise the router would execute a longer memo than the device displayed
+// (display-vs-execute divergence). Fail closed -> blind-sign path.
+TEST(Thorchain, ConfirmThorTxRejectsOverlongDeclaredMemo) {
+  uint8_t vault[20];
+  hex20("15a18266c5331ac3a7f6bc5cdf25bcc55561b4fa", vault);
+  const std::string memo = "=:ETH.ETH:0xdest:0:keep:30";
+  // Declare 200 bytes while only ~26 (padded to 32) are present.
+  auto data = build_thor_deposit(vault, memo, 200);
+
+  uint8_t avax[20];
+  hex20(THOR_AVAX_ROUTER, avax);
+  EthereumSignTx msg;
+  make_deposit_msg(&msg, avax, data.data(), data.size(), 43114, true);
+
+  ASSERT_TRUE(kkconfirm_preload(12, 0));
+  EXPECT_FALSE(thor_confirmThorTx((uint32_t)data.size(), &msg));
+  kkconfirm_drain();
 }
