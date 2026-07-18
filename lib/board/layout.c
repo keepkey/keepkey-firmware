@@ -910,8 +910,9 @@ static void trickle_progress_callback(void* data, uint32_t duration,
   int cap = (span * 9) / 10;
   int add = 0;
   if (cap > 0) {
-    add = elapsed >= EXPECTED_MS ? cap
-                                 : (int)(((uint64_t)cap * elapsed) / EXPECTED_MS);
+    add = elapsed >= EXPECTED_MS
+              ? cap
+              : (int)(((uint64_t)cap * elapsed) / EXPECTED_MS);
   }
   /* Glint phase loops forever, so the display keeps changing even after the
    * eased fill has stopped producing new pixels (long zk-proof waits). */
