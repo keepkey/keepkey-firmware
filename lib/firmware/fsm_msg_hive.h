@@ -659,6 +659,20 @@ static bool hive_confirm_slice(ButtonRequestType type, const char* title,
   return true;
 }
 
+// "1.234 HIVE" — precision comes from the asset bytes being signed, which
+// the parser has already pinned to the symbol's protocol-fixed value.
+static void hive_format_asset(const uint8_t* a, char* out, size_t out_len) {
+  char suffix[9];  // space + longest symbol ("VESTS") + NUL
+  snprintf(suffix, sizeof(suffix), " %s", hive_assetSymbol(a));
+  bn_format_uint64(hive_assetAmount(a), NULL, suffix, hive_assetPrecision(a), 0,
+                   false, out, out_len);
+}
+
+// Basis points (0..10000) as "12.34%".
+static void hive_format_percent(int16_t bp, char* out, size_t out_len) {
+  snprintf(out, out_len, "%d.%02d%%", bp / 100, bp % 100);
+}
+
 static void hive_copy_slice(char* out, size_t out_len, const uint8_t* s,
                             uint16_t len) {
   if (out_len == 0) return;
@@ -783,6 +797,164 @@ void fsm_msgHiveSignOperations(const HiveSignOperations* msg) {
         }
         break;
       }
+      case HIVE_OP_TRANSFER_TO_VESTING: {
+        char amount[40], target[17];
+        hive_format_asset(op->assets[0], amount, sizeof(amount));
+        hive_copy_slice(target, sizeof(target), op->target, op->target_len);
+        approved =
+            op->target_len == 0
+                ? confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                          "Power Up", "Power up\n%s\nto @%s", amount, name)
+                : confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                          "Power Up", "%s\nfrom @%s\nto @%s", amount, name,
+                          target);
+        break;
+      }
+      case HIVE_OP_WITHDRAW_VESTING: {
+        char amount[40];
+        hive_format_asset(op->assets[0], amount, sizeof(amount));
+        approved =
+            hive_assetAmount(op->assets[0]) == 0
+                ? confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                          "Stop Power Down", "Cancel power down\nfor @%s", name)
+                : confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                          "Power Down", "Power down\n%s\nfrom @%s", amount,
+                          name);
+        break;
+      }
+      case HIVE_OP_LIMIT_ORDER_CREATE: {
+        char sell[40], receive[40];
+        hive_format_asset(op->assets[0], sell, sizeof(sell));
+        hive_format_asset(op->assets[1], receive, sizeof(receive));
+        approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                           "Market Order", "@%s sells\n%s\nfor >= %s", name,
+                           sell, receive);
+        if (approved) {
+          // Order id and fill_or_kill decide whether an unfilled order rests
+          // on the book or is discarded, so they get their own screen rather
+          // than being crowded off the first one.
+          approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                             "Order Terms", "Order #%u\n%s\nExpires %u",
+                             (unsigned)op->req_id,
+                             op->flag ? "Fill or kill" : "Rests on book",
+                             (unsigned)op->expiration);
+        }
+        break;
+      }
+      case HIVE_OP_LIMIT_ORDER_CANCEL:
+        approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                           "Cancel Order", "Cancel order #%u\nfor @%s?",
+                           (unsigned)op->req_id, name);
+        break;
+      case HIVE_OP_CONVERT: {
+        char amount[40];
+        hive_format_asset(op->assets[0], amount, sizeof(amount));
+        approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                           "Convert", "Convert %s\nto HIVE for @%s\n(#%u)",
+                           amount, name, (unsigned)op->req_id);
+        break;
+      } break;
+      case HIVE_OP_COMMENT_OPTIONS: {
+        char max_payout[40], percent[16];
+        hive_format_asset(op->assets[0], max_payout, sizeof(max_payout));
+        hive_format_percent(op->weight, percent, sizeof(percent));
+        approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                           "Payout Options", "@%s\nMax %s\nHBD split %s", name,
+                           max_payout, percent);
+        if (approved) {
+          approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                             "Payout Options", "Votes: %s\nCuration: %s",
+                             op->flag ? "allowed" : "disabled",
+                             op->flag2 ? "allowed" : "disabled");
+        }
+        // Beneficiaries divert payout to other accounts — each one is
+        // confirmed individually rather than summarized as a count.
+        for (uint8_t b = 0; approved && b < op->n_benef; b++) {
+          char benef[17], benef_pct[16];
+          hive_copy_slice(benef, sizeof(benef), op->benef_acct[b],
+                          op->benef_acct_len[b]);
+          hive_format_percent((int16_t)op->benef_weight[b], benef_pct,
+                              sizeof(benef_pct));
+          approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                             "Payout Beneficiary", "%u/%u: @%s\ngets %s",
+                             (unsigned)(b + 1), (unsigned)op->n_benef, benef,
+                             benef_pct);
+        }
+        if (approved) {
+          approved = hive_confirm_slice(
+              ButtonRequestType_ButtonRequest_ConfirmOutput, "Payout Permlink",
+              op->permlink, op->permlink_len);
+        }
+        break;
+      }
+      case HIVE_OP_TRANSFER_TO_SAVINGS:
+      case HIVE_OP_TRANSFER_FROM_SAVINGS: {
+        char amount[40], target[17];
+        bool deposit = (op->op_type == HIVE_OP_TRANSFER_TO_SAVINGS);
+        hive_format_asset(op->assets[0], amount, sizeof(amount));
+        hive_copy_slice(target, sizeof(target), op->target, op->target_len);
+        // One variable per row. A 16-character account name sharing a row
+        // with a label can wrap into a fourth row, which the display drops
+        // silently — and here that row carries the destination account.
+        // req_id is deliberately not shown: it is a cancellation handle, not
+        // a fund-routing field, and crowding it in costs the destination row.
+        approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                           deposit ? "Savings Deposit" : "Savings Withdraw",
+                           "%s\nfrom @%s\nto @%s", amount, name, target);
+        if (approved && op->detail_len > 0) {
+          approved =
+              hive_confirm_slice(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                                 "Savings Memo", op->detail, op->detail_len);
+        }
+        break;
+      }
+      case HIVE_OP_CLAIM_REWARD_BALANCE: {
+        char hive_amt[40], hbd_amt[40], vests_amt[40];
+        hive_format_asset(op->assets[0], hive_amt, sizeof(hive_amt));
+        hive_format_asset(op->assets[1], hbd_amt, sizeof(hbd_amt));
+        hive_format_asset(op->assets[2], vests_amt, sizeof(vests_amt));
+        // Three assets plus the account name cannot share one screen: the
+        // OLED body fits exactly three rows (layout.c places rows at y =
+        // 24/38/52 and draw_char_with_shift silently drops any glyph past
+        // y+height > 64), so a fourth row would be signed but never shown.
+        approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                           "Claim Rewards", "@%s claims\n%s\n%s", name,
+                           hive_amt, hbd_amt);
+        if (approved) {
+          approved =
+              confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                      "Claim Rewards", "@%s claims\n%s", name, vests_amt);
+        }
+        break;
+      }
+      case HIVE_OP_DELEGATE_VESTING_SHARES: {
+        char amount[40], target[17];
+        hive_format_asset(op->assets[0], amount, sizeof(amount));
+        hive_copy_slice(target, sizeof(target), op->target, op->target_len);
+        approved =
+            hive_assetAmount(op->assets[0]) == 0
+                ? confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                          "Remove Delegation",
+                          "@%s removes its\ndelegation to @%s?", name, target)
+                : confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                          "Delegate", "@%s delegates\n%s\nto @%s", name, amount,
+                          target);
+        break;
+      }
+      case HIVE_OP_ACCOUNT_UPDATE2:
+        approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                           "Profile Update", "Update profile\nof @%s?", name);
+        if (approved && op->detail_len > 0) {
+          approved = hive_confirm_slice(
+              ButtonRequestType_ButtonRequest_ConfirmOutput, "Account Metadata",
+              op->detail, op->detail_len);
+        }
+        if (approved && op->json_metadata_len > 0) {
+          approved = hive_confirm_slice(
+              ButtonRequestType_ButtonRequest_ConfirmOutput, "Profile Metadata",
+              op->json_metadata, op->json_metadata_len);
+        }
+        break;
       default:
         break;  // unreachable — parser rejected unknown ops
     }
