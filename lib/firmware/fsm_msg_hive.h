@@ -853,7 +853,7 @@ void fsm_msgHiveSignOperations(const HiveSignOperations* msg) {
                            "Convert", "Convert %s\nto HIVE for @%s\n(#%u)",
                            amount, name, (unsigned)op->req_id);
         break;
-      } break;
+      }
       case HIVE_OP_COMMENT_OPTIONS: {
         char max_payout[40], percent[16];
         hive_format_asset(op->assets[0], max_payout, sizeof(max_payout));
