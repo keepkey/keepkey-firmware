@@ -326,13 +326,11 @@ void marshallDsVals(const char* value) {
 
 int dsConfirm(void) {
   // First check if we recognize the contract
-  const TokenType* assetToken;
   uint8_t addrHexStr[20] = {0};
   char name[41] = {0};
   char version[11] = {0};
   uint32_t chainInt;
   bool noChain = true;
-  int ctr;
   IconType iconNum = NO_ICON;
   char title[64] = {0};
   char* fillerStr = "";
@@ -351,7 +349,7 @@ int dsConfirm(void) {
     // this before, and it was the firmware's only caller of newlib's scanf
     // engine — ~6KB of ROM on a part with none to spare.
     char byteStrBuf[3] = {0};
-    for (ctr = 2; ctr < 42; ctr += 2) {
+    for (int ctr = 2; ctr < 42; ctr += 2) {
       strncpy(byteStrBuf, (char*)&dsverifyingContract[ctr], 2);
       addrHexStr[(ctr - 2) / 2] = (uint8_t)strtol(byteStrBuf, NULL, 16);
     }
@@ -370,7 +368,8 @@ int dsConfirm(void) {
     // }
   }
   if (noChain == false && dsverifyingContract != NULL) {
-    assetToken = tokenByChainAddress(chainInt, (uint8_t*)addrHexStr);
+    const TokenType* assetToken =
+        tokenByChainAddress(chainInt, (uint8_t*)addrHexStr);
     (void)assetToken;
     fillerStr = "";
   }
