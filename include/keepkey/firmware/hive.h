@@ -44,9 +44,20 @@ bool hive_slip48_path_valid_for_role(const uint32_t* address_n, size_t count,
 #define HIVE_OP_VOTE 0
 #define HIVE_OP_COMMENT 1
 #define HIVE_OP_TRANSFER 2
+#define HIVE_OP_TRANSFER_TO_VESTING 3
+#define HIVE_OP_WITHDRAW_VESTING 4
+#define HIVE_OP_LIMIT_ORDER_CREATE 5
+#define HIVE_OP_LIMIT_ORDER_CANCEL 6
+#define HIVE_OP_CONVERT 8
 #define HIVE_OP_ACCOUNT_CREATE 9
 #define HIVE_OP_ACCOUNT_UPDATE 10
 #define HIVE_OP_CUSTOM_JSON 18
+#define HIVE_OP_COMMENT_OPTIONS 19
+#define HIVE_OP_TRANSFER_TO_SAVINGS 32
+#define HIVE_OP_TRANSFER_FROM_SAVINGS 33
+#define HIVE_OP_CLAIM_REWARD_BALANCE 39
+#define HIVE_OP_DELEGATE_VESTING_SHARES 40
+#define HIVE_OP_ACCOUNT_UPDATE2 43
 
 // ── Protocol limits ───────────────────────────────────────────────────────
 #define HIVE_DECIMALS 3  // HIVE and HBD both use 3 decimal places
@@ -62,6 +73,23 @@ bool hive_slip48_path_valid_for_role(const uint32_t* address_n, size_t count,
 #define HIVE_MAX_OPS_TX_LEN 2048
 // Maximum operations per HiveSignOperations transaction.
 #define HIVE_MAX_TX_OPS 4
+// Graphene asset: int64 LE amount + uint8 precision + 7-byte NUL-padded
+// symbol (append_asset layout).
+#define HIVE_ASSET_LEN 16
+// Most assets carried by a single op in the table (claim_reward_balance
+// carries three: HIVE, HBD, VESTS).
+#define HIVE_MAX_OP_ASSETS 3
+// Most comment_payout_beneficiaries entries accepted on a comment_options op.
+// Matches the host serializer's cap; hived itself allows more, but eight is
+// all that can be reviewed on the OLED before approval fatigue sets in.
+#define HIVE_MAX_BENEFICIARIES 8
+
+// Symbol whitelist bits for the asset parser. Every asset field in the op
+// table pins an explicit set — an op that accepts HIVE must never silently
+// accept VESTS, since the two differ by 1000x in displayed magnitude.
+#define HIVE_SYM_HIVE (1u << 0)
+#define HIVE_SYM_HBD (1u << 1)
+#define HIVE_SYM_VESTS (1u << 2)
 
 // ── Public API ────────────────────────────────────────────────────────────
 /**
@@ -116,9 +144,29 @@ typedef struct {
   uint16_t permlink_len;
   const uint8_t* json_metadata;  // comment only
   uint16_t json_metadata_len;
-  int16_t weight;     // vote only (-10000..10000)
+  int16_t weight;     // vote (-10000..10000), or a 0..10000 basis-point
+                      // percent (comment_options percent_hbd,
+                      // set_withdraw_vesting_route percent)
   bool is_top_level;  // comment only: parent_author empty
   uint8_t n_auths;    // custom_json only: total auth account names
+
+  // ── Phase-3 op fields ───────────────────────────────────────────────────
+  // Borrowed HIVE_ASSET_LEN-byte asset slices in the op's own field order:
+  //   transfer_to_vesting/convert/claim_account/savings: [0] = amount
+  //   withdraw_vesting/delegate_vesting_shares:          [0] = vesting_shares
+  //   limit_order_create:      [0] = amount_to_sell, [1] = min_to_receive
+  //   claim_reward_balance:    [0] = HIVE, [1] = HBD, [2] = VESTS
+  //   comment_options:         [0] = max_accepted_payout
+  const uint8_t* assets[HIVE_MAX_OP_ASSETS];
+  uint8_t n_assets;
+  uint32_t req_id;      // convert requestid / savings request_id / order id
+  uint32_t expiration;  // limit_order_create only
+  bool flag;            // fill_or_kill / approve / auto_vest / allow_votes
+  bool flag2;           // comment_options: allow_curation_rewards
+  uint8_t n_benef;      // comment_options: beneficiary count (0 = none)
+  const uint8_t* benef_acct[HIVE_MAX_BENEFICIARIES];
+  uint16_t benef_acct_len[HIVE_MAX_BENEFICIARIES];
+  uint16_t benef_weight[HIVE_MAX_BENEFICIARIES];  // basis points
 } HiveTxOp;
 
 typedef struct {
@@ -129,11 +177,25 @@ typedef struct {
 
 /**
  * Parse and validate a host-serialized Graphene transaction against the
- * phase-1 op table (vote, comment, custom_json). Returns NULL on success or
- * a static error message. Slices in `out` borrow from `tx` — keep it alive.
+ * device clear-sign op table. Returns NULL on success or a static error
+ * message. Slices in `out` borrow from `tx` — keep it alive.
+ *
+ * Ops 2 (transfer), 9 (account_create) and 10 (account_update) are
+ * permanently excluded; everything not in the table is refused outright —
+ * there is no blind-sign fallback.
  */
 const char* hive_parseOperations(const uint8_t* tx, size_t len,
                                  HiveParsedTx* out);
+
+/**
+ * Accessors for a HIVE_ASSET_LEN-byte asset slice stored in HiveTxOp.assets.
+ * The parser has already validated the symbol/precision pair, so the symbol
+ * is always a NUL-terminated "HIVE" / "HBD" / "VESTS" and the amount is
+ * non-negative.
+ */
+uint64_t hive_assetAmount(const uint8_t* asset);
+uint8_t hive_assetPrecision(const uint8_t* asset);
+const char* hive_assetSymbol(const uint8_t* asset);
 
 /**
  * Sign a parsed HiveSignOperations transaction: digest is
