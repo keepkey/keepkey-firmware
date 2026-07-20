@@ -346,15 +346,17 @@ static bool cur_bool(HiveCur* c, bool* out) {
   return true;
 }
 
-uint64_t hive_assetAmount(const uint8_t* a) {
+uint64_t hive_assetAmount(const uint8_t* asset) {
   uint64_t v = 0;
-  for (int i = 7; i >= 0; i--) v = (v << 8) | a[i];
+  for (int i = 7; i >= 0; i--) v = (v << 8) | asset[i];
   return v;
 }
 
-uint8_t hive_assetPrecision(const uint8_t* a) { return a[8]; }
+uint8_t hive_assetPrecision(const uint8_t* asset) { return asset[8]; }
 
-const char* hive_assetSymbol(const uint8_t* a) { return (const char*)(a + 9); }
+const char* hive_assetSymbol(const uint8_t* asset) {
+  return (const char*)(asset + 9);
+}
 
 /*
  * One 16-byte Graphene asset: int64 LE amount, uint8 precision, 7-byte
