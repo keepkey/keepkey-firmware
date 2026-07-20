@@ -347,9 +347,13 @@ int dsConfirm(void) {
   }
 
   if (dsverifyingContract != NULL) {
+    // Same two-chars-then-strtol idiom as encAddress(). sscanf("%2hhx") did
+    // this before, and it was the firmware's only caller of newlib's scanf
+    // engine — ~6KB of ROM on a part with none to spare.
+    char byteStrBuf[3] = {0};
     for (ctr = 2; ctr < 42; ctr += 2) {
-      sscanf((char*)&dsverifyingContract[ctr], "%2hhx",
-             &addrHexStr[(ctr - 2) / 2]);
+      strncpy(byteStrBuf, (char*)&dsverifyingContract[ctr], 2);
+      addrHexStr[(ctr - 2) / 2] = (uint8_t)strtol(byteStrBuf, NULL, 16);
     }
     strcat(verifyingContract, "Verifying Contract: ");
     strncat(verifyingContract, dsverifyingContract,
@@ -358,11 +362,7 @@ int dsConfirm(void) {
 
   if (NULL != dschainId) {
     noChain = false;
-#ifdef EMULATOR
-    sscanf((char*)dschainId, "%u", &chainInt);
-#else
-    sscanf((char*)dschainId, "%ld", &chainInt);
-#endif
+    chainInt = (uint32_t)strtoul((const char*)dschainId, NULL, 10);
     // As more chains are supported, add icon choice below
     // TBD: not implemented for first release
     // if (chainInt == 1) {
