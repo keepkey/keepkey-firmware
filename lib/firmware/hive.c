@@ -297,6 +297,11 @@ static bool cur_varint(HiveCur* c, uint32_t* out) {
     if (shift == 28 && (b & 0xF0)) return false;  // overflow or 6th byte
     v |= (uint32_t)(b & 0x7F) << shift;
     if (!(b & 0x80)) {
+      // A multi-byte LEB128 whose final group is zero has a shorter encoding.
+      // hived re-serializes values canonically when checking a signature, so
+      // accepting an overlong form would make the device sign bytes the chain
+      // interprets and hashes differently.
+      if (shift > 0 && (b & 0x7F) == 0) return false;
       *out = v;
       return true;
     }
@@ -315,6 +320,53 @@ static bool cur_string(HiveCur* c, const uint8_t** s, uint16_t* slen,
   *slen = (uint16_t)n;
   c->p += n;
   return true;
+}
+
+/*
+ * Hive account names are rendered in compact multi-field confirmation screens,
+ * so they must be valid protocol names rather than arbitrary byte strings.
+ * This rejects embedded NUL/newline/control bytes that would truncate or
+ * reshape the OLED while later bytes remained covered by the signature.
+ */
+static bool hive_account_name_valid(const uint8_t* s, uint16_t len,
+                                    bool allow_empty) {
+  if (len == 0) return allow_empty;
+  if (len < 3 || len > 16) return false;
+
+  bool at_segment_start = true;
+  bool previous_hyphen = false;
+  for (uint16_t i = 0; i < len; i++) {
+    uint8_t ch = s[i];
+    if (at_segment_start) {
+      if (ch < 'a' || ch > 'z') return false;
+      at_segment_start = false;
+      previous_hyphen = false;
+    } else if (ch == '.') {
+      if (previous_hyphen || i + 1 == len) return false;
+      at_segment_start = true;
+    } else if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+      previous_hyphen = false;
+    } else if (ch == '-') {
+      previous_hyphen = true;
+    } else {
+      return false;
+    }
+  }
+  return !at_segment_start && !previous_hyphen;
+}
+
+static bool cur_account(HiveCur* c, const uint8_t** s, uint16_t* slen,
+                        bool allow_empty) {
+  if (!cur_string(c, s, slen, allow_empty ? 0 : 1, 16)) return false;
+  return hive_account_name_valid(*s, *slen, allow_empty);
+}
+
+static int hive_slice_cmp(const uint8_t* a, uint16_t a_len, const uint8_t* b,
+                          uint16_t b_len) {
+  uint16_t min_len = a_len < b_len ? a_len : b_len;
+  int cmp = memcmp(a, b, min_len);
+  if (cmp != 0) return cmp;
+  return (a_len > b_len) - (a_len < b_len);
 }
 
 /* Fixed-width little-endian readers, bounds-checked against the buffer. */
@@ -472,8 +524,8 @@ const char* hive_parseOperations(const uint8_t* tx, size_t len,
 
     switch (op_type) {
       case HIVE_OP_VOTE: {  // posting authority
-        if (!cur_string(&c, &op->acct, &op->acct_len, 1, 16) ||
-            !cur_string(&c, &op->target, &op->target_len, 1, 16) ||
+        if (!cur_account(&c, &op->acct, &op->acct_len, false) ||
+            !cur_account(&c, &op->target, &op->target_len, false) ||
             !cur_string(&c, &op->detail, &op->detail_len, 1, 256))
           return E_MALFORMED;
         if ((size_t)(c.end - c.p) < 2) return E_MALFORMED;
@@ -487,9 +539,9 @@ const char* hive_parseOperations(const uint8_t* tx, size_t len,
       case HIVE_OP_COMMENT: {  // posting authority
         const uint8_t *pa, *ppl, *permlink, *jm;
         uint16_t pa_len, ppl_len, permlink_len, jm_len;
-        if (!cur_string(&c, &pa, &pa_len, 0, 16) ||
+        if (!cur_account(&c, &pa, &pa_len, true) ||
             !cur_string(&c, &ppl, &ppl_len, 1, 256) ||
-            !cur_string(&c, &op->acct, &op->acct_len, 1, 16) ||
+            !cur_account(&c, &op->acct, &op->acct_len, false) ||
             !cur_string(&c, &permlink, &permlink_len, 1, 256) ||
             !cur_string(&c, &op->target, &op->target_len, 0, 256) ||
             !cur_string(&c, &op->detail, &op->detail_len, 1,
@@ -511,20 +563,40 @@ const char* hive_parseOperations(const uint8_t* tx, size_t len,
       case HIVE_OP_CUSTOM_JSON: {  // posting OR active authority
         uint32_t n_active, n_posting;
         if (!cur_varint(&c, &n_active)) return E_MALFORMED;
+        if (n_active > HIVE_MAX_CUSTOM_JSON_AUTHS) return E_RANGE;
+        const uint8_t* previous_auth = NULL;
+        uint16_t previous_auth_len = 0;
         for (uint32_t k = 0; k < n_active; k++) {
           const uint8_t* s;
           uint16_t sl;
-          if (!cur_string(&c, &s, &sl, 1, 16)) return E_MALFORMED;
+          if (!cur_account(&c, &s, &sl, false)) return E_MALFORMED;
+          if (previous_auth &&
+              hive_slice_cmp(previous_auth, previous_auth_len, s, sl) >= 0)
+            return E_MALFORMED;
+          op->auth_acct[op->n_auths] = s;
+          op->auth_acct_len[op->n_auths++] = sl;
+          previous_auth = s;
+          previous_auth_len = sl;
           if (!op->acct) {
             op->acct = s;
             op->acct_len = sl;
           }
         }
         if (!cur_varint(&c, &n_posting)) return E_MALFORMED;
+        if (n_posting > HIVE_MAX_CUSTOM_JSON_AUTHS - n_active) return E_RANGE;
+        previous_auth = NULL;
+        previous_auth_len = 0;
         for (uint32_t k = 0; k < n_posting; k++) {
           const uint8_t* s;
           uint16_t sl;
-          if (!cur_string(&c, &s, &sl, 1, 16)) return E_MALFORMED;
+          if (!cur_account(&c, &s, &sl, false)) return E_MALFORMED;
+          if (previous_auth &&
+              hive_slice_cmp(previous_auth, previous_auth_len, s, sl) >= 0)
+            return E_MALFORMED;
+          op->auth_acct[op->n_auths] = s;
+          op->auth_acct_len[op->n_auths++] = sl;
+          previous_auth = s;
+          previous_auth_len = sl;
           if (!op->acct) {
             op->acct = s;
             op->acct_len = sl;
@@ -538,7 +610,6 @@ const char* hive_parseOperations(const uint8_t* tx, size_t len,
             !cur_string(&c, &op->detail, &op->detail_len, 1,
                         HIVE_MAX_OPS_TX_LEN))
           return E_MALFORMED;
-        op->n_auths = (uint8_t)(n_active + n_posting);
         op->needs_active = (n_active > 0);
         if (op->needs_active)
           any_active = true;
@@ -548,8 +619,8 @@ const char* hive_parseOperations(const uint8_t* tx, size_t len,
       }
       case HIVE_OP_TRANSFER_TO_VESTING: {  // active authority
         // `to` may be empty — hived reads that as "power up to self".
-        if (!cur_string(&c, &op->acct, &op->acct_len, 1, 16) ||
-            !cur_string(&c, &op->target, &op->target_len, 0, 16) ||
+        if (!cur_account(&c, &op->acct, &op->acct_len, false) ||
+            !cur_account(&c, &op->target, &op->target_len, true) ||
             !cur_asset(&c, &op->assets[0], HIVE_SYM_HIVE))
           return E_MALFORMED;
         if (hive_assetAmount(op->assets[0]) == 0) return E_AMOUNT;
@@ -560,7 +631,7 @@ const char* hive_parseOperations(const uint8_t* tx, size_t len,
       case HIVE_OP_WITHDRAW_VESTING: {  // active authority
         // 0.000000 VESTS is meaningful here: it cancels an in-progress
         // power-down, so zero must NOT be rejected.
-        if (!cur_string(&c, &op->acct, &op->acct_len, 1, 16) ||
+        if (!cur_account(&c, &op->acct, &op->acct_len, false) ||
             !cur_asset(&c, &op->assets[0], HIVE_SYM_VESTS))
           return E_MALFORMED;
         op->n_assets = 1;
@@ -568,7 +639,7 @@ const char* hive_parseOperations(const uint8_t* tx, size_t len,
         break;
       }
       case HIVE_OP_LIMIT_ORDER_CREATE: {  // active authority
-        if (!cur_string(&c, &op->acct, &op->acct_len, 1, 16) ||
+        if (!cur_account(&c, &op->acct, &op->acct_len, false) ||
             !cur_u32(&c, &op->req_id) ||
             !cur_asset(&c, &op->assets[0], HIVE_SYM_HIVE | HIVE_SYM_HBD) ||
             !cur_asset(&c, &op->assets[1], HIVE_SYM_HIVE | HIVE_SYM_HBD) ||
@@ -587,14 +658,14 @@ const char* hive_parseOperations(const uint8_t* tx, size_t len,
         break;
       }
       case HIVE_OP_LIMIT_ORDER_CANCEL: {  // active authority
-        if (!cur_string(&c, &op->acct, &op->acct_len, 1, 16) ||
+        if (!cur_account(&c, &op->acct, &op->acct_len, false) ||
             !cur_u32(&c, &op->req_id))
           return E_MALFORMED;
         any_active = true;
         break;
       }
       case HIVE_OP_CONVERT: {  // active authority
-        if (!cur_string(&c, &op->acct, &op->acct_len, 1, 16) ||
+        if (!cur_account(&c, &op->acct, &op->acct_len, false) ||
             !cur_u32(&c, &op->req_id) ||
             !cur_asset(&c, &op->assets[0], HIVE_SYM_HBD))
           return E_MALFORMED;
@@ -605,7 +676,7 @@ const char* hive_parseOperations(const uint8_t* tx, size_t len,
       }
       case HIVE_OP_COMMENT_OPTIONS: {  // posting authority
         uint16_t percent_hbd;
-        if (!cur_string(&c, &op->acct, &op->acct_len, 1, 16) ||
+        if (!cur_account(&c, &op->acct, &op->acct_len, false) ||
             !cur_string(&c, &op->permlink, &op->permlink_len, 1, 256) ||
             !cur_asset(&c, &op->assets[0], HIVE_SYM_HBD) ||
             !cur_u16(&c, &percent_hbd) || !cur_bool(&c, &op->flag) ||
@@ -645,8 +716,8 @@ const char* hive_parseOperations(const uint8_t* tx, size_t len,
           const uint8_t* prev_acct = NULL;
           uint16_t prev_acct_len = 0;
           for (uint32_t k = 0; k < n_benef; k++) {
-            if (!cur_string(&c, &op->benef_acct[k], &op->benef_acct_len[k], 1,
-                            16) ||
+            if (!cur_account(&c, &op->benef_acct[k], &op->benef_acct_len[k],
+                             false) ||
                 !cur_u16(&c, &op->benef_weight[k]))
               return E_MALFORMED;
             if (op->benef_weight[k] > 10000) return E_RANGE;
@@ -654,12 +725,8 @@ const char* hive_parseOperations(const uint8_t* tx, size_t len,
             // enforces uniqueness. An unsorted list is rejected on-chain, so
             // signing it would only waste a device confirmation.
             if (prev_acct) {
-              uint16_t min_len = prev_acct_len < op->benef_acct_len[k]
-                                     ? prev_acct_len
-                                     : op->benef_acct_len[k];
-              int cmp = memcmp(prev_acct, op->benef_acct[k], min_len);
-              if (cmp > 0 ||
-                  (cmp == 0 && prev_acct_len >= op->benef_acct_len[k]))
+              if (hive_slice_cmp(prev_acct, prev_acct_len, op->benef_acct[k],
+                                 op->benef_acct_len[k]) >= 0)
                 return E_BENEFICIARIES;
             }
             prev_acct = op->benef_acct[k];
@@ -673,8 +740,8 @@ const char* hive_parseOperations(const uint8_t* tx, size_t len,
         break;
       }
       case HIVE_OP_TRANSFER_TO_SAVINGS: {  // active authority
-        if (!cur_string(&c, &op->acct, &op->acct_len, 1, 16) ||
-            !cur_string(&c, &op->target, &op->target_len, 1, 16) ||
+        if (!cur_account(&c, &op->acct, &op->acct_len, false) ||
+            !cur_account(&c, &op->target, &op->target_len, false) ||
             !cur_asset(&c, &op->assets[0], HIVE_SYM_HIVE | HIVE_SYM_HBD) ||
             !cur_string(&c, &op->detail, &op->detail_len, 0, HIVE_MAX_MEMO_LEN))
           return E_MALFORMED;
@@ -684,9 +751,9 @@ const char* hive_parseOperations(const uint8_t* tx, size_t len,
         break;
       }
       case HIVE_OP_TRANSFER_FROM_SAVINGS: {  // active authority
-        if (!cur_string(&c, &op->acct, &op->acct_len, 1, 16) ||
+        if (!cur_account(&c, &op->acct, &op->acct_len, false) ||
             !cur_u32(&c, &op->req_id) ||
-            !cur_string(&c, &op->target, &op->target_len, 1, 16) ||
+            !cur_account(&c, &op->target, &op->target_len, false) ||
             !cur_asset(&c, &op->assets[0], HIVE_SYM_HIVE | HIVE_SYM_HBD) ||
             !cur_string(&c, &op->detail, &op->detail_len, 0, HIVE_MAX_MEMO_LEN))
           return E_MALFORMED;
@@ -696,7 +763,7 @@ const char* hive_parseOperations(const uint8_t* tx, size_t len,
         break;
       }
       case HIVE_OP_CLAIM_REWARD_BALANCE: {  // posting authority
-        if (!cur_string(&c, &op->acct, &op->acct_len, 1, 16) ||
+        if (!cur_account(&c, &op->acct, &op->acct_len, false) ||
             !cur_asset(&c, &op->assets[0], HIVE_SYM_HIVE) ||
             !cur_asset(&c, &op->assets[1], HIVE_SYM_HBD) ||
             !cur_asset(&c, &op->assets[2], HIVE_SYM_VESTS))
@@ -711,8 +778,8 @@ const char* hive_parseOperations(const uint8_t* tx, size_t len,
       }
       case HIVE_OP_DELEGATE_VESTING_SHARES: {  // active authority
         // 0.000000 VESTS is meaningful: it removes an existing delegation.
-        if (!cur_string(&c, &op->acct, &op->acct_len, 1, 16) ||
-            !cur_string(&c, &op->target, &op->target_len, 1, 16) ||
+        if (!cur_account(&c, &op->acct, &op->acct_len, false) ||
+            !cur_account(&c, &op->target, &op->target_len, false) ||
             !cur_asset(&c, &op->assets[0], HIVE_SYM_VESTS))
           return E_MALFORMED;
         op->n_assets = 1;
@@ -721,7 +788,7 @@ const char* hive_parseOperations(const uint8_t* tx, size_t len,
       }
       case HIVE_OP_ACCOUNT_UPDATE2: {  // active or posting authority
         uint32_t ext_n;
-        if (!cur_string(&c, &op->acct, &op->acct_len, 1, 16))
+        if (!cur_account(&c, &op->acct, &op->acct_len, false))
           return E_MALFORMED;
         // SECURITY: account_update2 can rotate owner/active/posting/memo
         // keys. Only the profile-metadata form is in the table — this is the

@@ -781,15 +781,21 @@ void fsm_msgHiveSignOperations(const HiveSignOperations* msg) {
         break;
       }
       case HIVE_OP_CUSTOM_JSON: {
-        char target[33];
-        hive_copy_slice(target, sizeof(target), op->target, op->target_len);
-        char extra[12] = "";
-        if (op->n_auths > 1) {
-          snprintf(extra, sizeof(extra), " +%u", (unsigned)(op->n_auths - 1));
+        approved = true;
+        for (uint8_t a = 0; approved && a < op->n_auths; a++) {
+          char auth_name[17];
+          hive_copy_slice(auth_name, sizeof(auth_name), op->auth_acct[a],
+                          op->auth_acct_len[a]);
+          approved = confirm(
+              ButtonRequestType_ButtonRequest_ConfirmOutput, "Custom JSON Auth",
+              "%u/%u: @%s\n%s key", (unsigned)(a + 1), (unsigned)op->n_auths,
+              auth_name, op->needs_active ? "Active" : "Posting");
         }
-        approved =
-            confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                    "Custom JSON", "id: %s\nby @%s%s", target, name, extra);
+        if (approved) {
+          approved =
+              hive_confirm_slice(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                                 "Custom JSON ID", op->target, op->target_len);
+        }
         if (approved) {
           approved =
               hive_confirm_slice(ButtonRequestType_ButtonRequest_ConfirmOutput,

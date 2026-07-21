@@ -10,6 +10,7 @@ set(sources
 # coin+token table.
 if(NOT ${KK_BITCOIN_ONLY})
   list(APPEND sources
+      authenticator.cpp
       coins.cpp
       cosmos.cpp
       eos.cpp

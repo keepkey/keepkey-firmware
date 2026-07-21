@@ -64,6 +64,7 @@ static HDNode* zx_getDerivedNode(const char* curve, const uint32_t* address_n,
 }
 
 static bool isAddLiquidityEthCall(const EthereumSignTx* msg) {
+  if (msg->data_initial_chunk.size < 4) return false;
   if (memcmp(msg->data_initial_chunk.bytes, "\xf3\x05\xd7\x19", 4) == 0)
     return true;
 
@@ -71,6 +72,7 @@ static bool isAddLiquidityEthCall(const EthereumSignTx* msg) {
 }
 
 static bool isRemoveLiquidityEthCall(const EthereumSignTx* msg) {
+  if (msg->data_initial_chunk.size < 4) return false;
   if (memcmp(msg->data_initial_chunk.bytes, "\x02\x75\x1c\xec", 4) == 0)
     return true;
 
@@ -93,6 +95,7 @@ static bool confirmFromAccountMatch(const EthereumSignTx* msg,
     memzero(node, sizeof(*node));
     return false;
   }
+  memzero(node, sizeof(*node));
 
   fromAddress =
       (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 5 * 32 - 20);
@@ -120,6 +123,9 @@ static bool confirmFromAccountMatch(const EthereumSignTx* msg,
 }
 
 bool zx_isZxLiquidTx(const EthereumSignTx* msg) {
+  if (!msg->has_to || msg->to.size != 20 || !msg->has_data_initial_chunk ||
+      msg->data_initial_chunk.size != 4 + 6 * 32)
+    return false;
   if (memcmp(msg->to.bytes, UNISWAP_ROUTER_ADDRESS, 20) ==
       0) {  // correct contract address?
 
@@ -132,7 +138,10 @@ bool zx_isZxLiquidTx(const EthereumSignTx* msg) {
 
 bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg) {
   /* reads through the deadline word at offset 4 + 6*32 - 8 .. 4 + 6*32 */
-  if (data_total < 4 + 6 * 32) return false;
+  if (data_total != 4 + 6 * 32 || !msg->has_data_initial_chunk ||
+      msg->data_initial_chunk.size != 4 + 6 * 32 || !msg->has_to ||
+      msg->to.size != 20 || msg->value.size > 32)
+    return false;
   const TokenType* token;
   char constr1[40], constr2[40], tokbuf[32];
   const char* arStr = "";
@@ -150,6 +159,7 @@ bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg) {
 
   tokenAddress = (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 32 - 20);
   token = tokenByChainAddress(msg->chain_id, tokenAddress);
+  if (token == UnknownToken) return false;
   deadlineBytes =
       (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 6 * 32 - 8);
   deadline = ((uint64_t)deadlineBytes[0] << 8 * 7) |
@@ -169,10 +179,23 @@ bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg) {
                 &Amount);  // token min amount
   ethereumFormatAmount(&Amount, token, msg->chain_id, tokbuf, sizeof(tokbuf));
   snprintf(constr2, 32, "%s", tokbuf);
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
-          "%s\nMinimum %s", constr1, constr2);
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
+               "%s\nMinimum %s", constr1, constr2))
+    return false;
   if (!confirmFromAccountMatch(msg, arStr)) {
     return false;
+  }
+
+  if (isAddLiquidityEthCall(msg)) {
+    bn_from_bytes(msg->value.bytes, msg->value.size, &Amount);
+    ethereumFormatAmount(&Amount, NULL, msg->chain_id, tokbuf, sizeof(tokbuf));
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
+                 "Native amount\n%s", tokbuf))
+      return false;
+  } else {
+    for (size_t i = 0; i < msg->value.size; i++) {
+      if (msg->value.bytes[i] != 0) return false;
+    }
   }
 
   bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 3 * 32, 32,
@@ -180,11 +203,15 @@ bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg) {
   ethereumFormatAmount(&Amount, NULL, msg->chain_id, tokbuf, sizeof(tokbuf));
 
   snprintf(constr1, 32, "%s", tokbuf);
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr, "Minimum %s",
-          constr1);
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
+               "Minimum %s", constr1))
+    return false;
 
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr, "Deadline %s",
-          ctime((const time_t*)&deadline));
+  char deadline_str[24];
+  snprintf(deadline_str, sizeof(deadline_str), "%" PRIu64, deadline);
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
+               "Deadline (Unix)\n%s", deadline_str))
+    return false;
 
   return true;
 }

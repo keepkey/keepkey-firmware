@@ -37,7 +37,10 @@
 bool zx_confirmApproveLiquidity(uint32_t data_total,
                                 const EthereumSignTx *msg) {
   /* reads selector + 2 32-byte words (spender, allowance) */
-  if (data_total < 4 + 2 * 32) return false;
+  if (data_total != 4 + 2 * 32 || !msg->has_data_initial_chunk ||
+      msg->data_initial_chunk.size != 4 + 2 * 32 || !msg->has_to ||
+      msg->to.size != 20)
+    return false;
   const char *to, *tikstr, *poolstr, *allowance, *amt;
   unsigned char data[40];
   uint8_t digest[SHA3_256_DIGEST_LENGTH] = {0};
@@ -99,14 +102,16 @@ bool zx_confirmApproveLiquidity(uint32_t data_total,
   }
 
   const char *appStr = "uniswap approve liquidity";
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr, "Amount: %s",
-          amt);
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr,
-          "approve for pool %s %s", tikstr, poolstr);
-  return true;
+  return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr,
+                 "Amount: %s", amt) &&
+         confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr,
+                 "approve for pool %s %s", tikstr, poolstr);
 }
 
 bool zx_isZxApproveLiquid(const EthereumSignTx *msg) {
+  if (!msg->has_to || msg->to.size != 20 || !msg->has_data_initial_chunk ||
+      msg->data_initial_chunk.size != 4 + 2 * 32)
+    return false;
   if (memcmp(msg->data_initial_chunk.bytes, "\x09\x5e\xa7\xb3", 4) == 0)
     if (memcmp((uint8_t *)(msg->data_initial_chunk.bytes + 4 + 32 - 20),
                UNISWAP_ROUTER_ADDRESS, 20) == 0)
