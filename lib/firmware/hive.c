@@ -354,8 +354,14 @@ uint64_t hive_assetAmount(const uint8_t* asset) {
 
 uint8_t hive_assetPrecision(const uint8_t* asset) { return asset[8]; }
 
+// Wire symbol → display symbol. The chain serializes the pre-rebrand names;
+// the user knows the post-rebrand ones. cur_asset() has already validated the
+// symbol and its NUL padding, so the compares below are exact.
 const char* hive_assetSymbol(const uint8_t* asset) {
-  return (const char*)(asset + 9);
+  const char* sym = (const char*)(asset + 9);
+  if (memcmp(sym, "STEEM", 6) == 0) return "HIVE";
+  if (memcmp(sym, "SBD", 4) == 0) return "HBD";
+  return sym;
 }
 
 /*
@@ -376,11 +382,18 @@ static bool cur_asset(HiveCur* c, const uint8_t** out, uint32_t allowed) {
   uint32_t bit;
   uint8_t want_precision;
   size_t sym_len;
-  if (memcmp(sym, "HIVE", 4) == 0) {
+  // WIRE symbols, not display symbols: the 2020 rebrand renamed the tokens but
+  // NOT their on-chain serialization, so hived still encodes HIVE as "STEEM"
+  // and HBD as "SBD". Accepting the display spellings would let us sign bytes
+  // hived can never validate — its signature check re-serializes the operation
+  // and recovers a key from different bytes, surfacing as the misleading
+  // "missing required active authority". hive_assetSymbol() maps back for the
+  // OLED so the user still reads HIVE/HBD.
+  if (memcmp(sym, "STEEM", 5) == 0) {
     bit = HIVE_SYM_HIVE;
     want_precision = 3;
-    sym_len = 4;
-  } else if (memcmp(sym, "HBD", 3) == 0) {
+    sym_len = 5;
+  } else if (memcmp(sym, "SBD", 3) == 0) {
     bit = HIVE_SYM_HBD;
     want_precision = 3;
     sym_len = 3;

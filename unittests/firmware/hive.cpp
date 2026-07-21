@@ -64,15 +64,26 @@ std::vector<uint8_t> comment_tx(const std::string& parent_author,
   return tx;
 }
 
+// Call sites pass DISPLAY symbols ("HIVE"/"HBD") because that is what the test
+// is about; this helper writes what the chain actually serializes. Verified
+// against hived itself via condenser_api.get_transaction_hex — see
+// Hive.SerializationMatchesHived.
+std::string wire_symbol(const std::string& display) {
+  if (display == "HIVE") return "STEEM";
+  if (display == "HBD") return "SBD";
+  return display;
+}
+
 void append_asset(std::vector<uint8_t>& out, int64_t amount, uint8_t precision,
                   const std::string& symbol) {
+  const std::string wire = wire_symbol(symbol);
   uint64_t raw = static_cast<uint64_t>(amount);
   for (int i = 0; i < 8; i++) {
     out.push_back(static_cast<uint8_t>(raw >> (8 * i)));
   }
   out.push_back(precision);
   for (size_t i = 0; i < 7; i++) {
-    out.push_back(i < symbol.size() ? static_cast<uint8_t>(symbol[i]) : 0);
+    out.push_back(i < wire.size() ? static_cast<uint8_t>(wire[i]) : 0);
   }
 }
 
@@ -780,4 +791,85 @@ TEST(Hive, TrailingBytesRejected) {
 
   HiveParsedTx parsed;
   EXPECT_NE(nullptr, hive_parseOperations(tx.data(), tx.size(), &parsed));
+}
+
+// ---------------------------------------------------------------------------
+// Golden vectors produced by hived itself:
+//
+//   curl -X POST https://api.hive.blog -H 'Content-Type: application/json' \
+//     -d '{"jsonrpc":"2.0","method":"condenser_api.get_transaction_hex",
+//          "params":[<tx>],"id":1}'
+//
+// These exist because our serializer and this parser were byte-exact mirrors
+// of EACH OTHER while both disagreed with the chain: we wrote "HIVE"/"HBD"
+// where hived writes "STEEM"/"SBD". Two wrongs cancelled and every test
+// passed, but the device signed bytes hived could not validate — it reported
+// "missing required active authority", because signature recovery over
+// different bytes yields a key in no authority. A vector the chain generated
+// is the only kind that can catch that class of bug.
+// ---------------------------------------------------------------------------
+
+std::vector<uint8_t> from_hex(const std::string& hex) {
+  std::vector<uint8_t> out;
+  for (size_t i = 0; i + 1 < hex.size(); i += 2) {
+    out.push_back(static_cast<uint8_t>(std::stoul(hex.substr(i, 2), nullptr, 16)));
+  }
+  return out;
+}
+
+// Header shared by both vectors below: ref_block_num 4660 / prefix 0xdeadbeef
+// (0/0 for the second) and expiration 2021-01-14T02:19:44.
+//
+// get_transaction_hex serializes a full transaction, so its output ends with a
+// varint count of the `signatures` array. The device is handed the digest
+// preimage, which stops after the extensions varint — so the trailing "00"
+// from hived's hex is dropped in the goldens below. Everything before it must
+// match byte for byte.
+TEST(Hive, SerializationMatchesHivedLimitOrderCreate) {
+  const std::string golden =
+      "3412efbeadde40aaff5f010505616c6963652a000000dc05000000000000035354"
+      "45454d00009001000000000000035342440000000001b0f5536500";
+
+  std::vector<uint8_t> tx;
+  append_u16_le(tx, 4660);
+  append_u32_le(tx, 0xdeadbeef);
+  append_u32_le(tx, 0x5fffaa40);
+  append_varint(tx, 1);
+  std::vector<uint8_t> op = limit_order_create_op("alice", 42, 1500, "HIVE", 400,
+                                                  "HBD", true, 0x6553f5b0);
+  tx.insert(tx.end(), op.begin(), op.end());
+  append_varint(tx, 0);  // extensions
+
+  EXPECT_EQ(from_hex(golden), tx);
+
+  // and the parser accepts what the chain produces
+  HiveParsedTx parsed;
+  ASSERT_EQ(nullptr, hive_parseOperations(tx.data(), tx.size(), &parsed));
+  EXPECT_STREQ("HIVE", hive_assetSymbol(parsed.ops[0].assets[0]));
+  EXPECT_STREQ("HBD", hive_assetSymbol(parsed.ops[0].assets[1]));
+}
+
+TEST(Hive, SerializationMatchesHivedClaimRewardBalance) {
+  const std::string golden =
+      "00000000000040aaff5f012705616c696365e8030000000000000353544545"
+      "4d0000d0070000000000000353424400000000c0c62d0000000000065645535453"
+      "000000";
+
+  std::vector<uint8_t> tx;
+  append_u16_le(tx, 0);
+  append_u32_le(tx, 0);
+  append_u32_le(tx, 0x5fffaa40);
+  append_varint(tx, 1);
+  append_varint(tx, HIVE_OP_CLAIM_REWARD_BALANCE);
+  append_string(tx, "alice");
+  append_asset(tx, 1000, 3, "HIVE");
+  append_asset(tx, 2000, 3, "HBD");
+  append_asset(tx, 3000000, 6, "VESTS");
+  append_varint(tx, 0);  // extensions
+
+  EXPECT_EQ(from_hex(golden), tx);
+
+  HiveParsedTx parsed;
+  ASSERT_EQ(nullptr, hive_parseOperations(tx.data(), tx.size(), &parsed));
+  EXPECT_STREQ("VESTS", hive_assetSymbol(parsed.ops[0].assets[2]));
 }
