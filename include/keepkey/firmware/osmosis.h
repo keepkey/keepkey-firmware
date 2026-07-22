@@ -5,6 +5,7 @@
 #include "trezor/crypto/bip32.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 typedef struct _OsmosisSignTx OsmosisSignTx;
@@ -16,7 +17,8 @@ void debug_intermediate_hash(void);
 
 bool osmosis_signTxInit(const HDNode* _node, const OsmosisSignTx* _msg);
 
-bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address);
+bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address,
+                                 const char* denom);
 
 bool osmosis_signTxUpdateMsgDelegate(const char* amount,
                                      const char* delegator_address,
@@ -67,6 +69,8 @@ bool osmosis_signTxUpdateMsgSwap(const uint64_t pool_id,
                                  const char* token_out_min_amount);
 
 #define OSMOSIS_PRECISION 6
+#define OSMOSIS_MAX_AMOUNT_DIGITS 32
+#define OSMOSIS_MAX_DENOM_LEN 68
 
 // Longest amount a confirm screen renders: the digits, a point, a space and
 // the longest denom a message can carry.
@@ -77,9 +81,12 @@ bool osmosis_signTxUpdateMsgSwap(const uint64_t pool_id,
  * ("1500000", "uosmo") -> "1.500000 OSMO".
  *
  * Only uosmo is scaled — any other denom is shown exactly as the chain states
- * it, because the device does not know its precision.
+ * it, because the device does not know its precision. Returns false unless the
+ * amount is a canonical, schema-bounded unsigned decimal and the denomination
+ * is a schema-bounded Cosmos asset identifier. Native uosmo additionally must
+ * fit uint64, which is the range accepted by the native-asset display policy.
  */
-void osmosis_formatAmount(char* out, size_t out_len, const char* value,
+bool osmosis_formatAmount(char* out, size_t out_len, const char* value,
                           const char* denom);
 
 bool osmosis_signTxFinalize(uint8_t* public_key, uint8_t* signature);

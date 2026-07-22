@@ -424,26 +424,78 @@ static bool confirm_bytes_is_ascii(const uint8_t* data, size_t size) {
   return true;
 }
 
-static size_t confirm_bytes_page_len(const uint8_t* data, size_t size,
-                                     bool ascii) {
+static size_t confirm_bytes_render_page(const uint8_t* data, size_t size,
+                                        bool ascii,
+                                        char rendered[BODY_CHAR_MAX]) {
   if (size == 0) return 0;
 
-  if (ascii) {
-    size_t candidate = size;
-    if (candidate >= BODY_CHAR_MAX) candidate = BODY_CHAR_MAX - 1;
-    return calc_str_page(get_body_font(), (const char*)data, candidate,
-                         BODY_WIDTH, BODY_ROWS);
+  const Font* font = get_body_font();
+  size_t consumed = 0;
+  size_t written = 0;
+  uint32_t row = 1;
+  uint16_t x = 0;
+
+  while (consumed < size) {
+    char chars[2];
+    size_t char_count;
+    if (ascii) {
+      chars[0] = (char)data[consumed];
+      char_count = 1;
+    } else {
+      static const char hex[] = "0123456789abcdef";
+      chars[0] = hex[data[consumed] >> 4];
+      chars[1] = hex[data[consumed] & 0x0f];
+      char_count = 2;
+    }
+
+    uint16_t width = 0;
+    for (size_t i = 0; i < char_count; i++) {
+      width += font_get_char(font, chars[i])->width;
+    }
+
+    // draw_string() wraps only at spaces and otherwise clips overlong words.
+    // Pre-insert hard line breaks so long addresses, hashes and IBC denoms are
+    // actually visible rather than merely counted as one renderer line.
+    if (ascii && chars[0] == ' ') {
+      uint32_t word_width = width;
+      for (size_t i = consumed + 1;
+           i < size && data[i] != ' ' && data[i] != '\n'; i++) {
+        word_width += font_get_char(font, (char)data[i])->width;
+      }
+      if (x == 0) {
+        // The renderer discards a leading separator. Consume it here only
+        // after the preceding word has been disclosed on this or the prior
+        // page; the visual line/page boundary remains the separator.
+        consumed++;
+        continue;
+      }
+      if ((uint32_t)x + word_width > BODY_WIDTH) {
+        if (row == BODY_ROWS) break;
+        if (written + 1 >= BODY_CHAR_MAX) break;
+        rendered[written++] = '\n';
+        row++;
+        x = 0;
+        consumed++;
+        continue;
+      }
+    }
+
+    if ((uint32_t)x + width > BODY_WIDTH) {
+      if (row == BODY_ROWS) break;
+      if (written + 1 >= BODY_CHAR_MAX) break;
+      rendered[written++] = '\n';
+      row++;
+      x = 0;
+    }
+    if (written + char_count >= BODY_CHAR_MAX) break;
+    memcpy(rendered + written, chars, char_count);
+    written += char_count;
+    x += width;
+    consumed++;
   }
 
-  size_t candidate = size;
-  if (candidate > (BODY_CHAR_MAX - 1) / 2) candidate = (BODY_CHAR_MAX - 1) / 2;
-  char rendered[BODY_CHAR_MAX];
-  for (size_t i = 0; i < candidate; i++) {
-    snprintf(rendered + 2 * i, 3, "%02x", data[i]);
-  }
-  size_t chars = calc_str_page(get_body_font(), rendered, 2 * candidate,
-                               BODY_WIDTH, BODY_ROWS);
-  return (chars & ~(size_t)1) / 2;
+  rendered[written] = '\0';
+  return consumed;
 }
 
 bool confirm_bytes(ButtonRequestType button_request, const char* title,
@@ -455,8 +507,9 @@ bool confirm_bytes(ButtonRequestType button_request, const char* title,
   size_t pages = 0;
   size_t offset = 0;
   while (offset < size) {
-    const size_t take =
-        confirm_bytes_page_len(data + offset, size - offset, ascii);
+    char rendered[BODY_CHAR_MAX];
+    const size_t take = confirm_bytes_render_page(data + offset, size - offset,
+                                                  ascii, rendered);
     if (take == 0) return false;
     offset += take;
     pages++;
@@ -464,8 +517,9 @@ bool confirm_bytes(ButtonRequestType button_request, const char* title,
 
   offset = 0;
   for (size_t page = 0; page < pages; page++) {
-    const size_t take =
-        confirm_bytes_page_len(data + offset, size - offset, ascii);
+    char rendered[BODY_CHAR_MAX];
+    const size_t take = confirm_bytes_render_page(data + offset, size - offset,
+                                                  ascii, rendered);
     if (take == 0) return false;
 
     char page_title[TITLE_CHAR_MAX];
@@ -477,15 +531,6 @@ bool confirm_bytes(ButtonRequestType button_request, const char* title,
       strlcpy(page_title, title, sizeof(page_title));
     }
 
-    char rendered[BODY_CHAR_MAX];
-    if (ascii) {
-      memcpy(rendered, data + offset, take);
-      rendered[take] = '\0';
-    } else {
-      for (size_t i = 0; i < take; i++) {
-        snprintf(rendered + 2 * i, 3, "%02x", data[offset + i]);
-      }
-    }
     if (!confirm(button_request, page_title, "%s", rendered)) return false;
     offset += take;
   }

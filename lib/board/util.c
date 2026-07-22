@@ -103,33 +103,48 @@ bool is_valid_ascii(const uint8_t* data, uint32_t size) {
 }
 
 /* convert number in base units to specified decimal precision */
-int base_to_precision(uint8_t* dest, const uint8_t* value,
-                      const uint8_t dest_len, const uint8_t value_len,
-                      const uint8_t precision) {
-  if (!(dest && value)) {
-    // invalid pointer
-    return -1;
-  }
-  if (value_len + 1 > dest_len) {
-    // value too large for output buffer
-    return -1;
-  }
-  memset(dest, '0', dest_len);
-  uint8_t leading_digits =
-      ((value_len - precision) > 0) ? (value_len - precision) : 0;
+int base_to_precision(uint8_t* dest, const uint8_t* value, size_t dest_len,
+                      size_t value_len, uint8_t precision) {
+  if (!dest || !value || dest_len == 0 || value_len == 0) return -1;
 
-  if (!leading_digits) {
-    memcpy(dest, "0.", 2);
-    uint8_t offset =
-        2 + (((precision - value_len) > 0) ? (precision - value_len) : 0);
-    strlcpy((char*)&dest[offset], (char*)value, value_len);
-  } else {
-    uint8_t copy_len = MIN((value_len - leading_digits), precision);
-    memcpy(dest, value, leading_digits);
-    dest[leading_digits] = '.';
-    strlcpy((char*)&dest[leading_digits + 1], (char*)&value[leading_digits],
-            copy_len);
+  // Decimal inputs are signed as strings. Accept only their unique canonical
+  // representation so the value shown on the OLED is byte-for-byte bound to
+  // the value placed in the transaction.
+  if ((value_len > 1 && value[0] == '0')) return -1;
+  for (size_t i = 0; i < value_len; i++) {
+    if (value[i] < '0' || value[i] > '9') return -1;
   }
-  dest[dest_len] = '\0';
+
+  size_t rendered_len;
+  if (precision == 0) {
+    rendered_len = value_len;
+  } else if (value_len <= precision) {
+    rendered_len = (size_t)precision + 2;  // "0." + precision digits
+  } else {
+    rendered_len = value_len + 1;  // digits plus decimal point
+  }
+  if (rendered_len + 1 > dest_len) return -1;
+
+  size_t offset = 0;
+  if (precision == 0) {
+    memcpy(dest, value, value_len);
+    offset = value_len;
+  } else if (value_len <= precision) {
+    dest[offset++] = '0';
+    dest[offset++] = '.';
+    const size_t zeroes = (size_t)precision - value_len;
+    memset(dest + offset, '0', zeroes);
+    offset += zeroes;
+    memcpy(dest + offset, value, value_len);
+    offset += value_len;
+  } else {
+    const size_t leading_digits = value_len - precision;
+    memcpy(dest, value, leading_digits);
+    offset = leading_digits;
+    dest[offset++] = '.';
+    memcpy(dest + offset, value + leading_digits, precision);
+    offset += precision;
+  }
+  dest[offset] = '\0';
   return 0;
 }
