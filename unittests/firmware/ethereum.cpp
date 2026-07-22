@@ -47,8 +47,16 @@ TEST(Ethereum, AddressChecksum) {
   test_checksum("D1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb");
 }
 
-static EthereumSignTx liquidity_tx(bool known_token, bool add = true,
-                                   const char* ticker = "DAI") {
+static const uint8_t DAI_MAINNET_ADDRESS[20] = {
+    0x6b, 0x17, 0x54, 0x74, 0xe8, 0x90, 0x94, 0xc4, 0x4d, 0xa9,
+    0x8b, 0x95, 0x4e, 0xed, 0xea, 0xc4, 0x95, 0x27, 0x1d, 0x0f};
+static const uint8_t USDC_MAINNET_ADDRESS[20] = {
+    0xa0, 0xb8, 0x69, 0x91, 0xc6, 0x21, 0x8b, 0x36, 0xc1, 0xd1,
+    0x9d, 0x4a, 0x2e, 0x9e, 0xb0, 0xce, 0x36, 0x06, 0xeb, 0x48};
+
+static EthereumSignTx liquidity_tx(
+    bool known_token, bool add = true,
+    const uint8_t* token_address = DAI_MAINNET_ADDRESS) {
   EthereumSignTx msg;
   memset(&msg, 0, sizeof(msg));
   msg.has_chain_id = true;
@@ -61,9 +69,9 @@ static EthereumSignTx liquidity_tx(bool known_token, bool add = true,
   memcpy(msg.data_initial_chunk.bytes,
          add ? "\xf3\x05\xd7\x19" : "\x02\x75\x1c\xec", 4);
 
-  const TokenType* token = nullptr;
-  EXPECT_TRUE(tokenByTicker(1, ticker, &token));
-  if (token == nullptr) return msg;
+  const TokenType* token = tokenByChainAddress(1, token_address);
+  EXPECT_NE(UnknownToken, token);
+  if (token == UnknownToken) return msg;
   uint8_t unknown[20];
   memset(unknown, 0xa5, sizeof(unknown));
   memcpy(
@@ -189,14 +197,14 @@ TEST(Ethereum, RemoveLiquidityRejectsNativeValue) {
 }
 
 TEST(Ethereum, RemoveLiquidityFormatsPrimaryAmountAsLpTokens) {
-  EthereumSignTx add = liquidity_tx(true, true, "USDC");
+  EthereumSignTx add = liquidity_tx(true, true, USDC_MAINNET_ADDRESS);
   set_word_u64(add, 1, UINT64_C(1000000000000000000));
   char formatted[96];
   ASSERT_TRUE(
       zx_formatZxLiquidityPrimaryAmount(&add, formatted, sizeof(formatted)));
   EXPECT_STREQ("1000000000000 USDC", formatted);
 
-  EthereumSignTx remove = liquidity_tx(true, false, "USDC");
+  EthereumSignTx remove = liquidity_tx(true, false, USDC_MAINNET_ADDRESS);
   set_word_u64(remove, 1, UINT64_C(1000000000000000000));
   ASSERT_TRUE(
       zx_formatZxLiquidityPrimaryAmount(&remove, formatted, sizeof(formatted)));
