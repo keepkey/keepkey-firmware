@@ -21,6 +21,7 @@
 #include "keepkey/board/font.h"
 
 #include <stddef.h>
+#include <string.h>
 
 /* --- Image Font ------------------------------------------------------------
  */
@@ -2598,29 +2599,31 @@ uint32_t calc_str_width(const Font* font, const char* str) {
  * OUTPUT
  *     line count
  */
-uint32_t calc_str_line(const Font* font, const char* str, uint16_t line_width) {
+uint32_t calc_str_line_n(const Font* font, const char* str, size_t str_len,
+                         uint16_t line_width) {
   uint8_t line_count = 1;
   uint16_t x_offset = 0;
+  size_t offset = 0;
 
-  while (*str) {
-    uint8_t character_width = font_get_char(font, str[0])->width;
+  while (offset < str_len && str[offset]) {
+    uint8_t character_width = font_get_char(font, str[offset])->width;
     uint16_t word_width = character_width;
-    const char* next_character = str + 1;
+    size_t next_offset = offset + 1;
 
     /* Allow line breaks */
-    if (*str == '\n') {
+    if (str[offset] == '\n') {
       line_count++;
       x_offset = 0;
-      str++;
+      offset++;
       continue;
     }
 
     /* Calculate next work width */
-    if (*str == ' ') {
-      while (*next_character && *next_character != ' ' &&
-             *next_character != '\n') {
-        word_width += font_get_char(font, *next_character)->width;
-        next_character++;
+    if (str[offset] == ' ') {
+      while (next_offset < str_len && str[next_offset] &&
+             str[next_offset] != ' ' && str[next_offset] != '\n') {
+        word_width += font_get_char(font, str[next_offset])->width;
+        next_offset++;
       }
     }
 
@@ -2631,14 +2634,27 @@ uint32_t calc_str_line(const Font* font, const char* str, uint16_t line_width) {
     }
 
     /* Remove leading spaces */
-    if (x_offset == 0 && *str == ' ') {
-      str++;
+    if (x_offset == 0 && str[offset] == ' ') {
+      offset++;
       continue;
     }
 
     x_offset += character_width;
-    str++;
+    offset++;
   }
 
   return line_count;
+}
+
+uint32_t calc_str_line(const Font* font, const char* str, uint16_t line_width) {
+  return calc_str_line_n(font, str, strlen(str), line_width);
+}
+
+size_t calc_str_page(const Font* font, const char* str, size_t str_len,
+                     uint16_t line_width, uint32_t max_lines) {
+  size_t best = 0;
+  for (size_t take = 1; take <= str_len; take++) {
+    if (calc_str_line_n(font, str, take, line_width) <= max_lines) best = take;
+  }
+  return best;
 }

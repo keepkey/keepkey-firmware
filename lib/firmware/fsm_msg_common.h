@@ -247,6 +247,7 @@ void fsm_msgPing(Ping* msg) {
       "Authenticator secret seed too large",
       "passphrase incorrect for authdata",
       "Auth secret unknown error",
+      "Authenticator account already exists",
       "Authenticator action cancelled",
   };
 

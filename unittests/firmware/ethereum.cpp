@@ -47,7 +47,8 @@ TEST(Ethereum, AddressChecksum) {
   test_checksum("D1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb");
 }
 
-static EthereumSignTx liquidity_tx(bool known_token) {
+static EthereumSignTx liquidity_tx(bool known_token, bool add = true,
+                                   const char* ticker = "DAI") {
   EthereumSignTx msg;
   memset(&msg, 0, sizeof(msg));
   msg.has_chain_id = true;
@@ -57,10 +58,11 @@ static EthereumSignTx liquidity_tx(bool known_token) {
   memcpy(msg.to.bytes, UNISWAP_ROUTER_ADDRESS, 20);
   msg.has_data_initial_chunk = true;
   msg.data_initial_chunk.size = 4 + 6 * 32;
-  memcpy(msg.data_initial_chunk.bytes, "\xf3\x05\xd7\x19", 4);
+  memcpy(msg.data_initial_chunk.bytes,
+         add ? "\xf3\x05\xd7\x19" : "\x02\x75\x1c\xec", 4);
 
   const TokenType* token = nullptr;
-  EXPECT_TRUE(tokenByTicker(1, "DAI", &token));
+  EXPECT_TRUE(tokenByTicker(1, ticker, &token));
   if (token == nullptr) return msg;
   uint8_t unknown[20];
   memset(unknown, 0xa5, sizeof(unknown));
@@ -77,8 +79,40 @@ static EthereumSignTx liquidity_tx(bool known_token) {
   memset(msg.data_initial_chunk.bytes + 4 + 5 * 32 - 20, 0x11, 20);
   msg.data_initial_chunk.bytes[4 + 6 * 32 - 1] = 1;
   msg.has_value = true;
-  msg.value.size = 1;
-  msg.value.bytes[0] = 1;
+  if (add) {
+    msg.value.size = 1;
+    msg.value.bytes[0] = 1;
+  }
+  return msg;
+}
+
+static void set_word_u64(EthereumSignTx& msg, size_t word, uint64_t value) {
+  uint8_t* out = msg.data_initial_chunk.bytes + 4 + word * 32;
+  memset(out, 0, 32);
+  for (size_t i = 0; i < 8; i++) {
+    out[31 - i] = static_cast<uint8_t>(value);
+    value >>= 8;
+  }
+}
+
+static EthereumSignTx approve_liquidity_tx() {
+  EthereumSignTx msg;
+  memset(&msg, 0, sizeof(msg));
+  msg.has_chain_id = true;
+  msg.chain_id = 1;
+  msg.has_to = true;
+  msg.to.size = 20;
+  // Canonical mainnet DAI/WETH Uniswap V2 pair.
+  const uint8_t pair[20] = {0xa4, 0x78, 0xc2, 0x97, 0x5a, 0xb1, 0xea,
+                            0x89, 0xe8, 0x19, 0x68, 0x11, 0xf5, 0x1a,
+                            0x7b, 0x7a, 0xde, 0x33, 0xeb, 0x11};
+  memcpy(msg.to.bytes, pair, sizeof(pair));
+  msg.has_data_initial_chunk = true;
+  msg.data_initial_chunk.size = 4 + 2 * 32;
+  memcpy(msg.data_initial_chunk.bytes, "\x09\x5e\xa7\xb3", 4);
+  memcpy(msg.data_initial_chunk.bytes + 4 + 12, UNISWAP_ROUTER_ADDRESS, 20);
+  msg.data_initial_chunk.bytes[4 + 2 * 32 - 1] = 1;
+  msg.has_value = true;
   return msg;
 }
 
@@ -118,4 +152,82 @@ TEST(Ethereum, LiquidityCancellationFailsClosed) {
 TEST(Ethereum, LiquidityRejectsUnknownTokenBeforeConfirmation) {
   EthereumSignTx msg = liquidity_tx(false);
   EXPECT_FALSE(zx_confirmZxLiquidTx(msg.data_initial_chunk.size, &msg));
+}
+
+TEST(Ethereum, LiquidityClearSigningIsMainnetOnly) {
+  EthereumSignTx msg = liquidity_tx(true);
+  EXPECT_TRUE(zx_isZxLiquidTx(&msg));
+
+  msg.chain_id = 137;
+  EXPECT_FALSE(zx_isZxLiquidTx(&msg));
+  msg.chain_id = 1;
+  msg.has_chain_id = false;
+  EXPECT_FALSE(zx_isZxLiquidTx(&msg));
+}
+
+TEST(Ethereum, LiquidityRejectsTruncatedDeadlineAndNoncanonicalAddresses) {
+  EthereumSignTx msg = liquidity_tx(true);
+  msg.data_initial_chunk.bytes[4 + 5 * 32] = 1;
+  EXPECT_FALSE(zx_isZxLiquidTx(&msg));
+  EXPECT_FALSE(zx_confirmZxLiquidTx(msg.data_initial_chunk.size, &msg));
+
+  msg = liquidity_tx(true);
+  msg.data_initial_chunk.bytes[4] = 1;
+  EXPECT_FALSE(zx_isZxLiquidTx(&msg));
+
+  msg = liquidity_tx(true);
+  msg.data_initial_chunk.bytes[4 + 4 * 32] = 1;
+  EXPECT_FALSE(zx_isZxLiquidTx(&msg));
+}
+
+TEST(Ethereum, RemoveLiquidityRejectsNativeValue) {
+  EthereumSignTx msg = liquidity_tx(true, false);
+  EXPECT_TRUE(zx_isZxLiquidTx(&msg));
+  msg.value.size = 1;
+  msg.value.bytes[0] = 1;
+  EXPECT_FALSE(zx_isZxLiquidTx(&msg));
+}
+
+TEST(Ethereum, RemoveLiquidityFormatsPrimaryAmountAsLpTokens) {
+  EthereumSignTx add = liquidity_tx(true, true, "USDC");
+  set_word_u64(add, 1, UINT64_C(1000000000000000000));
+  char formatted[96];
+  ASSERT_TRUE(
+      zx_formatZxLiquidityPrimaryAmount(&add, formatted, sizeof(formatted)));
+  EXPECT_STREQ("1000000000000 USDC", formatted);
+
+  EthereumSignTx remove = liquidity_tx(true, false, "USDC");
+  set_word_u64(remove, 1, UINT64_C(1000000000000000000));
+  ASSERT_TRUE(
+      zx_formatZxLiquidityPrimaryAmount(&remove, formatted, sizeof(formatted)));
+  EXPECT_STREQ("1 LP", formatted);
+}
+
+TEST(Ethereum, LiquidityFormatsFullUint256WithoutBlankConfirmation) {
+  EthereumSignTx msg = liquidity_tx(true);
+  memset(msg.data_initial_chunk.bytes + 4 + 32, 0xff, 32);
+  char formatted[96];
+  ASSERT_TRUE(
+      zx_formatZxLiquidityPrimaryAmount(&msg, formatted, sizeof(formatted)));
+  EXPECT_GT(strlen(formatted), 32u);
+
+  ASSERT_TRUE(kkconfirm_preload(0, 1));
+  EXPECT_FALSE(zx_confirmZxLiquidTx(msg.data_initial_chunk.size, &msg));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+TEST(Ethereum, LpApprovalRequiresMainnetDerivedPairAndCanonicalSpender) {
+  EthereumSignTx msg = approve_liquidity_tx();
+  EXPECT_TRUE(zx_isZxApproveLiquid(&msg));
+
+  msg.to.bytes[0] ^= 1;
+  EXPECT_FALSE(zx_isZxApproveLiquid(&msg));
+
+  msg = approve_liquidity_tx();
+  msg.chain_id = 137;
+  EXPECT_FALSE(zx_isZxApproveLiquid(&msg));
+
+  msg = approve_liquidity_tx();
+  msg.data_initial_chunk.bytes[4] = 1;
+  EXPECT_FALSE(zx_isZxApproveLiquid(&msg));
 }

@@ -1,4 +1,6 @@
 extern "C" {
+#include "keepkey/board/font.h"
+#include "keepkey/board/layout.h"
 #include "keepkey/firmware/hive.h"
 }
 
@@ -370,6 +372,31 @@ TEST(Hive, CustomJsonRetainsAndBoundsEveryAuthorization) {
       wrap_ops({custom_json_op({}, {"alice", "alice"}, "follow", "[]")});
   EXPECT_NE(nullptr,
             hive_parseOperations(duplicate.data(), duplicate.size(), &parsed));
+}
+
+TEST(Hive, DisplayPaginationUsesRenderedBodyRows) {
+  const std::string payload =
+      "%%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%%";
+  ASSERT_GT(calc_str_line(get_body_font(), payload.c_str(), BODY_WIDTH),
+            BODY_ROWS);
+
+  std::string reconstructed;
+  size_t offset = 0;
+  unsigned pages = 0;
+  while (offset < payload.size()) {
+    size_t take = calc_str_page(get_body_font(), payload.data() + offset,
+                                payload.size() - offset, BODY_WIDTH, BODY_ROWS);
+    ASSERT_GT(take, 0u);
+    const std::string page = payload.substr(offset, take);
+    EXPECT_LE(calc_str_line(get_body_font(), page.c_str(), BODY_WIDTH),
+              BODY_ROWS);
+    reconstructed += page;
+    offset += take;
+    pages++;
+  }
+
+  EXPECT_GT(pages, 1u);
+  EXPECT_EQ(payload, reconstructed);
 }
 
 // ── Phase-3 op table ────────────────────────────────────────────────────────

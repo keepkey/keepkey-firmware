@@ -14,20 +14,29 @@ void setup(void);
 bool kkconfirm_preload(int nYes, int nNo);
 int kkconfirm_drain(void);
 
+static void ensure_auth_storage_initialized(void) {
+  static bool initialized = false;
+  if (!initialized) {
+    setup();
+    storage_init();
+    initialized = true;
+  }
+}
+
 TEST(Authenticator, WipeCancellationFailsClosed) {
+  ensure_auth_storage_initialized();
   ASSERT_TRUE(kkconfirm_preload(0, 1));
   EXPECT_EQ(AUTH_CANCELLED, wipeAuthData());
   EXPECT_EQ(0, kkconfirm_drain());
 }
 
 TEST(Authenticator, AddAndRemoveCancellationFailsClosed) {
+  ensure_auth_storage_initialized();
   ASSERT_TRUE(kkconfirm_preload(1, 0));
-  setup();
-  storage_init();
   EXPECT_EQ(NOERR, wipeAuthData());
   EXPECT_EQ(0, kkconfirm_drain());
 
-  char cancelled_add[] = "example:alice:JBSWY3DPEHPK3PXP";
+  char cancelled_add[] = "example:alice:JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
   ASSERT_TRUE(kkconfirm_preload(0, 1));
   EXPECT_EQ(AUTH_CANCELLED, addAuthAccount(cancelled_add));
   EXPECT_EQ(0, kkconfirm_drain());
@@ -35,7 +44,7 @@ TEST(Authenticator, AddAndRemoveCancellationFailsClosed) {
   char account[DOMAIN_SIZE + ACCOUNT_SIZE + 2] = {0};
   EXPECT_EQ(NOACC, getAuthAccount("0", account));
 
-  char accepted_add[] = "example:alice:JBSWY3DPEHPK3PXP";
+  char accepted_add[] = "example:alice:JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
   ASSERT_TRUE(kkconfirm_preload(2, 0));
   EXPECT_EQ(NOERR, addAuthAccount(accepted_add));
   EXPECT_EQ(0, kkconfirm_drain());
@@ -67,4 +76,36 @@ TEST(Authenticator, RejectsAmbiguousDisplayFieldsBeforeMutation) {
 
   char remove_control[] = "example:bad\naccount";
   EXPECT_EQ(TOKERR, removeAuthAccount(remove_control));
+}
+
+TEST(Authenticator, RejectsWeakAndDuplicateSecrets) {
+  ensure_auth_storage_initialized();
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  EXPECT_EQ(NOERR, wipeAuthData());
+  EXPECT_EQ(0, kkconfirm_drain());
+
+  char weak[] = "example:weak:MY";
+  EXPECT_EQ(BADSECRET, addAuthAccount(weak));
+
+  // The final invalid block fails after earlier blocks have decoded; the
+  // implementation must still take its cleanup path.
+  char partially_decoded[] = "example:invalid:JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PX!";
+  EXPECT_EQ(BADSECRET, addAuthAccount(partially_decoded));
+
+  char first[] = "example:alice:JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
+  ASSERT_TRUE(kkconfirm_preload(2, 0));
+  EXPECT_EQ(NOERR, addAuthAccount(first));
+  EXPECT_EQ(0, kkconfirm_drain());
+
+  char duplicate[] = "example:alice:KRSXG5DSNFXGOIDBKRSXG5DSNFXGOIDB";
+  EXPECT_EQ(DUPLICATE, addAuthAccount(duplicate));
+
+  char account[DOMAIN_SIZE + ACCOUNT_SIZE + 2] = {0};
+  EXPECT_EQ(NOACC, getAuthAccount("1", account));
+
+  char remove[] = "example:alice";
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  EXPECT_EQ(NOERR, removeAuthAccount(remove));
+  EXPECT_EQ(0, kkconfirm_drain());
+  EXPECT_EQ(NOACC, getAuthAccount("0", account));
 }
