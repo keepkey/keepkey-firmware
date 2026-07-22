@@ -674,8 +674,8 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
   }
 
   if (sign_tx->has_memo && (strlen(sign_tx->memo) > 0)) {
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",
-                 sign_tx->memo)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
+                       (const uint8_t*)sign_tx->memo, strlen(sign_tx->memo))) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();

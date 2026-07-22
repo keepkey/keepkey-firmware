@@ -63,9 +63,31 @@ void fsm_msgSignIdentity(SignIdentity* msg) {
 
   CHECK_INITIALIZED
 
-  if (!confirm_sign_identity(&(msg->identity), msg->has_challenge_visual
-                                                   ? msg->challenge_visual
-                                                   : 0)) {
+  CHECK_PARAM(msg->has_identity, "Invalid identity");
+
+  const bool sign_ssh =
+      msg->identity.has_proto && strcmp(msg->identity.proto, "ssh") == 0;
+  const bool sign_gpg =
+      msg->identity.has_proto && strcmp(msg->identity.proto, "gpg") == 0;
+
+  /* SSH/GPG sign only challenge_hidden. The legacy confirmation displayed
+   * challenge_visual instead, allowing a host to show benign text while the
+   * device signed unrelated bytes. Generic identity signatures bind both
+   * challenges, so review both there; SSH/GPG review only the actual signed
+   * payload and never present the unsigned visual field as authoritative. */
+  if (!confirm_sign_identity(&msg->identity, NULL) ||
+      ((!sign_ssh && !sign_gpg) &&
+       !confirm_bytes(
+           ButtonRequestType_ButtonRequest_SignIdentity, "Visual Challenge",
+           (const uint8_t*)msg->challenge_visual,
+           msg->has_challenge_visual ? strlen(msg->challenge_visual) : 0)) ||
+      !confirm_bytes(
+          ButtonRequestType_ButtonRequest_SignIdentity,
+          sign_ssh   ? "Signed SSH Challenge"
+          : sign_gpg ? "Signed GPG Digest"
+                     : "Hidden Challenge",
+          msg->challenge_hidden.bytes,
+          msg->has_challenge_hidden ? msg->challenge_hidden.size : 0)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     "Sign identity cancelled");
     layoutHome();
@@ -75,8 +97,7 @@ void fsm_msgSignIdentity(SignIdentity* msg) {
   CHECK_PIN
 
   uint8_t hash[32];
-  if (!msg->has_identity ||
-      cryptoIdentityFingerprint(&(msg->identity), hash) == 0) {
+  if (cryptoIdentityFingerprint(&(msg->identity), hash) == 0) {
     fsm_sendFailure(FailureType_Failure_Other, "Invalid identity");
     layoutHome();
     return;
@@ -101,11 +122,6 @@ void fsm_msgSignIdentity(SignIdentity* msg) {
   if (!node) {
     return;
   }
-
-  bool sign_ssh =
-      msg->identity.has_proto && (strcmp(msg->identity.proto, "ssh") == 0);
-  bool sign_gpg =
-      msg->identity.has_proto && (strcmp(msg->identity.proto, "gpg") == 0);
 
   int result = 0;
   layout_simple_message("Signing Identity...");

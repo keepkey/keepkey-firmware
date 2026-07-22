@@ -30,6 +30,7 @@
 #include "keepkey/board/layout.h"
 #include "keepkey/board/messages.h"
 #include "keepkey/board/confirm_sm.h"
+#include "keepkey/board/font.h"
 #include "keepkey/board/usb.h"
 #include "keepkey/board/util.h"
 
@@ -416,6 +417,81 @@ bool confirm_sign_identity(const IdentityType* identity,
                  body);
 }
 
+static bool confirm_bytes_is_ascii(const uint8_t* data, size_t size) {
+  for (size_t i = 0; i < size; i++) {
+    if (data[i] < 0x20 || data[i] > 0x7e) return false;
+  }
+  return true;
+}
+
+static size_t confirm_bytes_page_len(const uint8_t* data, size_t size,
+                                     bool ascii) {
+  if (size == 0) return 0;
+
+  if (ascii) {
+    size_t candidate = size;
+    if (candidate >= BODY_CHAR_MAX) candidate = BODY_CHAR_MAX - 1;
+    return calc_str_page(get_body_font(), (const char*)data, candidate,
+                         BODY_WIDTH, BODY_ROWS);
+  }
+
+  size_t candidate = size;
+  if (candidate > (BODY_CHAR_MAX - 1) / 2) candidate = (BODY_CHAR_MAX - 1) / 2;
+  char rendered[BODY_CHAR_MAX];
+  for (size_t i = 0; i < candidate; i++) {
+    snprintf(rendered + 2 * i, 3, "%02x", data[i]);
+  }
+  size_t chars = calc_str_page(get_body_font(), rendered, 2 * candidate,
+                               BODY_WIDTH, BODY_ROWS);
+  return (chars & ~(size_t)1) / 2;
+}
+
+bool confirm_bytes(ButtonRequestType button_request, const char* title,
+                   const uint8_t* data, size_t size) {
+  if (!title || (!data && size != 0)) return false;
+  if (size == 0) return confirm(button_request, title, "(empty)");
+
+  const bool ascii = confirm_bytes_is_ascii(data, size);
+  size_t pages = 0;
+  size_t offset = 0;
+  while (offset < size) {
+    const size_t take =
+        confirm_bytes_page_len(data + offset, size - offset, ascii);
+    if (take == 0) return false;
+    offset += take;
+    pages++;
+  }
+
+  offset = 0;
+  for (size_t page = 0; page < pages; page++) {
+    const size_t take =
+        confirm_bytes_page_len(data + offset, size - offset, ascii);
+    if (take == 0) return false;
+
+    char page_title[TITLE_CHAR_MAX];
+    if (pages > 1 || !ascii) {
+      snprintf(page_title, sizeof(page_title),
+               ascii ? "%s %u/%u" : "%s Hex %u/%u", title, (unsigned)(page + 1),
+               (unsigned)pages);
+    } else {
+      strlcpy(page_title, title, sizeof(page_title));
+    }
+
+    char rendered[BODY_CHAR_MAX];
+    if (ascii) {
+      memcpy(rendered, data + offset, take);
+      rendered[take] = '\0';
+    } else {
+      for (size_t i = 0; i < take; i++) {
+        snprintf(rendered + 2 * i, 3, "%02x", data[offset + i]);
+      }
+    }
+    if (!confirm(button_request, page_title, "%s", rendered)) return false;
+    offset += take;
+  }
+  return true;
+}
+
 bool confirm_omni(ButtonRequestType button_request, const char* title,
                   const uint8_t* data, uint32_t size) {
   uint32_t tx_type;
@@ -453,17 +529,5 @@ bool confirm_omni(ButtonRequestType button_request, const char* title,
 
 bool confirm_data(ButtonRequestType button_request, const char* title,
                   const uint8_t* data, uint32_t size) {
-  const char* str = (const char*)data;
-  char hex[50 * 2 + 1];
-  if (!is_valid_ascii(data, size)) {
-    if (size > 50) size = 50;
-    memset(hex, 0, sizeof(hex));
-    data2hex(data, size, hex);
-    if (size > 50) {
-      hex[50 * 2 - 1] = '.';
-      hex[50 * 2 - 2] = '.';
-    }
-    str = hex;
-  }
-  return confirm(button_request, title, "%s", str);
+  return confirm_bytes(button_request, title, data, size);
 }

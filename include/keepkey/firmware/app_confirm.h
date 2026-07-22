@@ -24,6 +24,7 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #define CONFIRM_SIGN_IDENTITY_TITLE 32
 #define CONFIRM_SIGN_IDENTITY_BODY 416
@@ -46,6 +47,14 @@ bool confirm_load_device(bool is_node);
 bool confirm_address(const char* desc, const char* address);
 bool confirm_xpub(const char* node_str, const char* xpub);
 bool confirm_sign_identity(const IdentityType* identity, const char* challenge);
+/**
+ * Review every byte of a length-delimited payload. Printable ASCII is paged as
+ * text; any payload containing a control/non-ASCII byte is paged as complete
+ * hexadecimal. Page boundaries use the OLED renderer's actual font and
+ * word-wrap budget, so no accepted byte can be clipped below the third row.
+ */
+bool confirm_bytes(ButtonRequestType button_request, const char* title,
+                   const uint8_t* data, size_t size);
 bool confirm_cosmos_address(const char* desc, const char* address);
 bool confirm_osmosis_address(const char* desc, const char* address);
 bool confirm_ethereum_address(const char* desc, const char* address);

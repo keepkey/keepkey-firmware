@@ -319,44 +319,16 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress* msg) {
   layoutHome();
 }
 
-#define MSG_MAX (38 * 3)  // 38 chars per line, three lines max
 void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
-  char msgBuf[MSG_MAX + 1] = {0};
-  const char* typeIndicator;
-  unsigned ctr;
-  unsigned msgLen = 0;
-  bool canPrint = true;
-
   RESP_INIT(EthereumMessageSignature);
 
   CHECK_INITIALIZED
 
   CHECK_PIN
 
-  // truncate to display size if too long
-  msgLen = msg->message.size * 2;
-  if (msgLen > MSG_MAX) {
-    msgLen = MSG_MAX;
-  }
-  for (ctr = 0; ctr < msg->message.size; ctr++) {
-    if (isprint(msg->message.bytes[ctr]) == false) {
-      canPrint = false;
-      break;
-    }
-  }
-  if (canPrint) {
-    typeIndicator = "Sign Message";
-    strncpy(msgBuf, (char*)msg->message.bytes, MSG_MAX + 1);
-    msgBuf[MSG_MAX] = '\0';
-  } else {
-    typeIndicator = "Sign Bytes";
-    for (ctr = 0; ctr < msgLen / 2; ctr++) {
-      snprintf(&msgBuf[2 * ctr], 3, "%02x", msg->message.bytes[ctr]);
-    }
-  }
-
-  if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _(typeIndicator),
-               "%s", msgBuf)) {
+  if (!confirm_bytes(ButtonRequestType_ButtonRequest_ProtectCall,
+                     "Sign Ethereum Message", msg->message.bytes,
+                     msg->message.size)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
     return;
@@ -372,12 +344,6 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
 }
 
 void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage* msg) {
-  char msgBuf[MSG_MAX + 1] = {0};
-  const char* typeIndicator;
-  unsigned ctr;
-  unsigned msgLen = 0;
-  bool canPrint = true;
-
   CHECK_PARAM(msg->has_address, _("No address provided"));
   CHECK_PARAM(msg->has_message, _("No message provided"));
 
@@ -394,29 +360,9 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage* msg) {
     return;
   }
 
-  // truncate to display size if too long
-  msgLen = msg->message.size;
-  if (msgLen > MSG_MAX) {
-    msgLen = MSG_MAX;
-  }
-  for (ctr = 0; ctr < msgLen; ctr++) {
-    if (isprint(msg->message.bytes[ctr]) == false) {
-      canPrint = false;
-      break;
-    }
-  }
-  if (canPrint) {
-    typeIndicator = "Message Verified";
-    strncpy(msgBuf, (char*)msg->message.bytes, MSG_MAX + 1);
-    msgBuf[MSG_MAX] = '\0';
-  } else {
-    typeIndicator = "Bytes Verified";
-    for (ctr = 0; ctr < msgLen / 2; ctr++) {
-      snprintf(&msgBuf[2 * ctr], 3, "%02x", msg->message.bytes[ctr]);
-    }
-  }
-  if (!confirm(ButtonRequestType_ButtonRequest_Other, _(typeIndicator), "%s",
-               msgBuf)) {
+  if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                     "Ethereum Message Verified", msg->message.bytes,
+                     msg->message.size)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
     return;
@@ -432,6 +378,20 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash* msg) {
   CHECK_INITIALIZED
 
   CHECK_PIN
+
+  /* This endpoint receives only precomputed hashes, so the device cannot bind
+   * them to the typed data the host claims they represent. Treat it exactly
+   * like every other blind-signing path. */
+  if (!ethereum_typed_hash_policy_allows(
+          storage_isPolicyEnabled("AdvancedMode"))) {
+    (void)review(ButtonRequestType_ButtonRequest_Other, "Blocked",
+                 "Typed-hash signing requires AdvancedMode. "
+                 "Enable in device settings.");
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("Typed-hash signing disabled by policy"));
+    layoutHome();
+    return;
+  }
 
   if (msg->domain_separator_hash.size != 32 ||
       (msg->has_message_hash && msg->message_hash.size != 32)) {

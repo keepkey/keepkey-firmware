@@ -47,6 +47,19 @@ TEST(Ethereum, AddressChecksum) {
   test_checksum("D1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb");
 }
 
+TEST(Ethereum, TypedHashSigningRequiresAdvancedMode) {
+  EXPECT_FALSE(ethereum_typed_hash_policy_allows(false));
+  EXPECT_TRUE(ethereum_typed_hash_policy_allows(true));
+}
+
+TEST(Ethereum, DomainOnlyPrimaryTypeRequiresExactMatch) {
+  EXPECT_TRUE(ethereum_eip712_is_domain_primary_type("EIP712Domain"));
+  EXPECT_FALSE(ethereum_eip712_is_domain_primary_type("EIP"));
+  EXPECT_FALSE(ethereum_eip712_is_domain_primary_type("EIP712Domain[]"));
+  EXPECT_FALSE(ethereum_eip712_is_domain_primary_type(""));
+  EXPECT_FALSE(ethereum_eip712_is_domain_primary_type(nullptr));
+}
+
 static const uint8_t DAI_MAINNET_ADDRESS[20] = {
     0x6b, 0x17, 0x54, 0x74, 0xe8, 0x90, 0x94, 0xc4, 0x4d, 0xa9,
     0x8b, 0x95, 0x4e, 0xed, 0xea, 0xc4, 0x95, 0x27, 0x1d, 0x0f};

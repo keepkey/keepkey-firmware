@@ -20,6 +20,7 @@
 #include "keepkey/firmware/thorchain.h"
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/util.h"
+#include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/tendermint.h"
@@ -240,52 +241,8 @@ void thorchain_signAbort(void) {
  * best-effort structured summary. */
 bool thorchain_confirm_full_memo(const char* title, const char* memo,
                                  size_t len) {
-  enum { ASCII_CHUNK = 72, HEX_CHUNK = 40 };
-  if (len == 0) {
-    /* An empty memo would otherwise fall through to the hex branch below with
-     * take == 0, leaving `rendered` uninitialized when passed to %s. */
-    return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                   "(empty)");
-  }
-  bool ascii = true;
-  for (size_t i = 0; i < len; i++) {
-    if ((uint8_t)memo[i] < 0x20 || (uint8_t)memo[i] > 0x7e) {
-      ascii = false;
-      break;
-    }
-  }
-  size_t chunk = ascii ? ASCII_CHUNK : HEX_CHUNK;
-  size_t pages = (len + chunk - 1) / chunk;
-  if (pages == 0) pages = 1;
-
-  for (size_t page = 0; page < pages; page++) {
-    size_t offset = page * chunk;
-    size_t take = len - offset;
-    if (take > chunk) take = chunk;
-
-    char page_title[24];
-    snprintf(page_title, sizeof(page_title),
-             ascii ? "%s %u/%u" : "%s Hex %u/%u", title, (unsigned)(page + 1),
-             (unsigned)pages);
-
-    if (ascii) {
-      char rendered[ASCII_CHUNK + 1];
-      memcpy(rendered, memo + offset, take);
-      rendered[take] = '\0';
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, page_title,
-                   "%s", rendered))
-        return false;
-    } else {
-      char rendered[HEX_CHUNK * 2 + 1];
-      for (size_t i = 0; i < take; i++) {
-        snprintf(rendered + 2 * i, 3, "%02x", (uint8_t)memo[offset + i]);
-      }
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, page_title,
-                   "%s", rendered))
-        return false;
-    }
-  }
-  return true;
+  return confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                       (const uint8_t*)memo, len);
 }
 
 bool thorchain_parseConfirmMemo(const char* swapStr, size_t size) {

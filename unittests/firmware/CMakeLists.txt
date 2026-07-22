@@ -11,8 +11,10 @@ set(sources
 if(NOT ${KK_BITCOIN_ONLY})
   list(APPEND sources
       authenticator.cpp
+      binance.cpp
       coins.cpp
       cosmos.cpp
+      eip712.cpp
       eos.cpp
       ethereum.cpp
       hive.cpp

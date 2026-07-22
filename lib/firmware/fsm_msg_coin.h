@@ -270,8 +270,8 @@ void fsm_msgSignMessage(SignMessage* msg) {
 
   CHECK_INITIALIZED
 
-  if (!confirm(ButtonRequestType_ButtonRequest_SignMessage, "Sign Message",
-               "%s", (char*)msg->message.bytes)) {
+  if (!confirm_bytes(ButtonRequestType_ButtonRequest_SignMessage,
+                     "Sign Message", msg->message.bytes, msg->message.size)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     "Sign message cancelled");
     layoutHome();
@@ -325,8 +325,9 @@ void fsm_msgVerifyMessage(VerifyMessage* msg) {
       layoutHome();
       return;
     }
-    if (!review(ButtonRequestType_ButtonRequest_Other, "Message Verified", "%s",
-                (char*)msg->message.bytes)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                       "Message Verified", msg->message.bytes,
+                       msg->message.size)) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Action cancelled by user"));
       layoutHome();

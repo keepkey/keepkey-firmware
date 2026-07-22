@@ -95,30 +95,38 @@ static void binance_response(void);
 
 void fsm_msgBinanceTransferMsg(const BinanceTransferMsg* msg) {
   CHECK_PARAM(binance_signingIsInited(), "Signing not in progress?");
-  CHECK_PARAM(msg->inputs_count == 1, "Malformed BinanceTransferMsg")
-  CHECK_PARAM(msg->inputs[0].coins_count == 1, "Malformed BinanceTransferMsg")
-  CHECK_PARAM(msg->outputs_count == 1, "Malformed BinanceTransferMsg")
-  CHECK_PARAM(msg->outputs[0].coins_count == 1, "Malformed BinanceTransferMsg")
-  CHECK_PARAM(msg->inputs[0].coins[0].amount == msg->outputs[0].coins[0].amount,
-              "Malformed BinanceTransferMsg")
-  CHECK_PARAM(strcmp(msg->inputs[0].coins[0].denom,
-                     msg->outputs[0].coins[0].denom) == 0,
-              "Malformed BinanceTransferMsg")
+  if (!binance_validateTransfer(msg)) {
+    binance_signAbort();
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    "Malformed BinanceTransferMsg");
+    layoutHome();
+    return;
+  }
 
   const CoinType* coin = fsm_getCoin(true, "Binance");
   if (!coin) {
+    binance_signAbort();
+    layoutHome();
     return;
   }
 
   switch (msg->outputs[0].address_type) {
     case OutputAddressType_TRANSFER:
     default: {
-      char amount_str[42];
-      char denom_str[14];
-      snprintf(denom_str, strlen(msg->outputs[0].coins[0].denom) + 2, " %s",
-               msg->outputs[0].coins[0].denom);
-      bn_format_uint64(msg->outputs[0].coins[0].amount, NULL, denom_str, 8, 0,
-                       false, amount_str, sizeof(amount_str));
+      char amount_str[64];
+      char denom_str[BINANCE_MAX_DENOM_LEN + 2];
+      const int denom_len = snprintf(denom_str, sizeof(denom_str), " %s",
+                                     msg->outputs[0].coins[0].denom);
+      if (denom_len <= 0 || (size_t)denom_len >= sizeof(denom_str) ||
+          !bn_format_uint64((uint64_t)msg->outputs[0].coins[0].amount, NULL,
+                            denom_str, 8, 0, false, amount_str,
+                            sizeof(amount_str))) {
+        binance_signAbort();
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        "Invalid Binance transfer amount");
+        layoutHome();
+        return;
+      }
       if (!confirm_transaction_output(
               ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
               msg->outputs[0].address)) {
@@ -151,13 +159,16 @@ static void binance_response(void) {
 
   const CoinType* coin = fsm_getCoin(true, "Binance");
   if (!coin) {
+    binance_signAbort();
+    layoutHome();
     return;
   }
 
   const BinanceSignTx* sign_tx = binance_getBinanceSignTx();
 
-  if (sign_tx->has_memo && !confirm(ButtonRequestType_ButtonRequest_ConfirmMemo,
-                                    _("Memo"), "%s", sign_tx->memo)) {
+  if (sign_tx->has_memo &&
+      !confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
+                     (const uint8_t*)sign_tx->memo, strlen(sign_tx->memo))) {
     binance_signAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();

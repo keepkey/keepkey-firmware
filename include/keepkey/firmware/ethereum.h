@@ -71,6 +71,8 @@ void bn_from_bytes(const uint8_t* value, size_t value_len, bignum256* val);
 void ethereum_typed_hash_sign(const EthereumSignTypedHash* msg,
                               const HDNode* node,
                               EthereumTypedDataSignature* resp);
+bool ethereum_typed_hash_policy_allows(bool advanced_mode);
+bool ethereum_eip712_is_domain_primary_type(const char* primary_type);
 bool ethereum_path_check(uint32_t address_n_count, const uint32_t* address_n,
                          bool pubkey_export, uint64_t chain);
 void e712_types_values(Ethereum712TypesValues* msg,

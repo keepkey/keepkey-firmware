@@ -2,6 +2,7 @@ extern "C" {
 #include "keepkey/board/messages.h"
 #include "keepkey/board/usb.h"
 #include "keepkey/firmware/coins.h"
+#include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/ethereum_contracts/thortx.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/thorchain.h"
@@ -408,29 +409,30 @@ TEST(Thorchain, FullMemoShortAsciiIsOnePage) {
   EXPECT_EQ(0, kkconfirm_drain());
 }
 
-// A long memo (up to THORChain's 250-byte limit) pages in full instead of
-// truncating in one confirm: 150 ASCII bytes / 72 per page = 3 pages.
+// Page breaks use measured rendered rows, including word-wrap behavior.
 TEST(Thorchain, FullMemoLongAsciiPagesAll) {
-  std::string memo(150, 'a');
-  ASSERT_TRUE(kkconfirm_preload(3, 0));
-  EXPECT_TRUE(thorchain_confirm_full_memo("Memo", memo.c_str(), memo.size()));
+  const char memo[] =
+      "%%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%%";
+  ASSERT_TRUE(kkconfirm_preload(2, 0));
+  EXPECT_TRUE(thorchain_confirm_full_memo("Memo", memo, strlen(memo)));
   EXPECT_EQ(0, kkconfirm_drain());
 }
 
 // Rejecting any page aborts the whole disclosure (so the handler aborts
 // signing).
 TEST(Thorchain, FullMemoRejectPropagates) {
-  std::string memo(150, 'a');
+  const char memo[] =
+      "%%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%%";
   ASSERT_TRUE(kkconfirm_preload(1, 1));  // approve page 1, reject page 2
-  EXPECT_FALSE(thorchain_confirm_full_memo("Memo", memo.c_str(), memo.size()));
+  EXPECT_FALSE(thorchain_confirm_full_memo("Memo", memo, strlen(memo)));
   EXPECT_EQ(0, kkconfirm_drain());
 }
 
-// Non-printable memo bytes are disclosed as hex pages (40 bytes/page), never
-// hidden behind a byte-count summary.
+// Non-printable memo bytes are disclosed in complete renderer-measured hex
+// pages, never hidden behind a byte-count summary.
 TEST(Thorchain, FullMemoBinaryPagesAsHex) {
-  char memo[50];
-  memset(memo, 0x01, sizeof(memo));  // 50 non-printable bytes -> 2 hex pages
+  char memo[100];
+  memset(memo, 0x01, sizeof(memo));
   ASSERT_TRUE(kkconfirm_preload(2, 0));
   EXPECT_TRUE(thorchain_confirm_full_memo("Memo", memo, sizeof(memo)));
   EXPECT_EQ(0, kkconfirm_drain());
@@ -441,6 +443,29 @@ TEST(Thorchain, FullMemoBinaryPagesAsHex) {
 TEST(Thorchain, FullMemoEmptyShowsEmpty) {
   ASSERT_TRUE(kkconfirm_preload(1, 0));
   EXPECT_TRUE(thorchain_confirm_full_memo("Memo", "", 0));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// Renderer-aware paging must split the exact 69-byte word-wrap exploit from
+// the second-pass audit. A byte-count pager treated this as one screen even
+// though the OLED renderer placed the final signed word on a fourth row.
+TEST(Confirmation, ExactLengthPagerMeasuresRenderedRows) {
+  const char payload[] =
+      "%%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%%";
+  ASSERT_TRUE(kkconfirm_preload(2, 0));
+  EXPECT_TRUE(confirm_bytes(ButtonRequestType_ButtonRequest_SignMessage,
+                            "Signed Message", (const uint8_t*)payload,
+                            strlen(payload)));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+TEST(Confirmation, ExactLengthPagerRejectPropagates) {
+  const char payload[] =
+      "%%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%%";
+  ASSERT_TRUE(kkconfirm_preload(1, 1));
+  EXPECT_FALSE(confirm_bytes(ButtonRequestType_ButtonRequest_SignMessage,
+                             "Signed Message", (const uint8_t*)payload,
+                             strlen(payload)));
   EXPECT_EQ(0, kkconfirm_drain());
 }
 

@@ -49,6 +49,14 @@
 
 #define _(X) (X)
 
+bool ethereum_typed_hash_policy_allows(bool advanced_mode) {
+  return advanced_mode;
+}
+
+bool ethereum_eip712_is_domain_primary_type(const char* primary_type) {
+  return primary_type && strcmp(primary_type, "EIP712Domain") == 0;
+}
+
 #define MAX_CHAIN_ID 2147483630
 
 #define ETHEREUM_TX_TYPE_LEGACY 0UL
@@ -1308,14 +1316,23 @@ void e712_types_values(Ethereum712TypesValues* msg,
       failMessage(JSON_PTYPENAMEERR);
       return;
     }
-    const char* primeType;
-    if (0 == (primeType = json_getValue(obTest))) {
+    if (json_getType(obTest) != JSON_TEXT) {
       failMessage(JSON_PTYPEVALERR);
       return;
     }
-    if (0 != strncmp(primeType, "EIP712Domain",
-                     strlen(primeType))) {  // if primaryType is "EIP712Domain",
-                                            // message hash is NULL
+    const char* primeType;
+    if (0 == (primeType = json_getValue(obTest)) || primeType[0] == '\0') {
+      failMessage(JSON_PTYPEVALERR);
+      return;
+    }
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                       "EIP-712 Primary Type", (const uint8_t*)primeType,
+                       strlen(primeType))) {
+      failMessage(USER_CANCELLED);
+      return;
+    }
+    if (!ethereum_eip712_is_domain_primary_type(
+            primeType)) {  // domain-only signatures have no message hash
       errRet = encode(jsonT, jsonV, primeType, resp->message_hash.bytes);
       if (!(SUCCESS == errRet || NULL_MSG_HASH == errRet)) {
         failMessage(errRet);

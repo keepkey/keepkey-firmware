@@ -94,7 +94,7 @@ void fsm_msgTendermintSignTx(const TendermintSignTx* msg) {
   RESP_INIT(TendermintMsgRequest);
 
   if (!tendermint_signTxInit(node, (void*)msg, sizeof(TendermintSignTx),
-                             msg->denom)) {
+                             msg->denom, TENDERMINT_SIGNING_GENERIC)) {
     tendermint_signAbort();
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_FirmwareError,
@@ -110,7 +110,20 @@ void fsm_msgTendermintSignTx(const TendermintSignTx* msg) {
 
 void fsm_msgTendermintMsgAck(const TendermintMsgAck* msg) {
   // Confirm transaction basics
-  CHECK_PARAM(tendermint_signingIsInited(), "Signing not in progress");
+  CHECK_PARAM(tendermint_signingIsInited(TENDERMINT_SIGNING_GENERIC),
+              "Tendermint signing not in progress");
+  const TendermintSignTx* sign_tx =
+      (const TendermintSignTx*)tendermint_getSignTx();
+  if (!msg->has_chain_name || !msg->has_denom ||
+      !msg->has_message_type_prefix ||
+      !tendermint_signingConfigMatches(msg->chain_name, msg->denom,
+                                       msg->message_type_prefix)) {
+    tendermint_signAbort();
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    "Tendermint ACK does not match signing session");
+    layoutHome();
+    return;
+  }
   if (!msg->has_send || !msg->send.has_to_address || !msg->send.has_amount) {
     tendermint_signAbort();
     // 8 + ^14 + 13 + 1 = 36
@@ -124,23 +137,28 @@ void fsm_msgTendermintMsgAck(const TendermintMsgAck* msg) {
   }
 
   const CoinType* coin = fsm_getCoin(true, msg->chain_name);
-  if (!coin || !coin->has_coin_shortcut || !coin->has_decimals) {
+  if (!coin) {
+    tendermint_signAbort();
+    layoutHome();
     return;
   }
-
-  const TendermintSignTx* sign_tx = (TendermintSignTx*)tendermint_getSignTx();
 
   switch (msg->send.address_type) {
     case OutputAddressType_TRANSFER:
     default: {
-      char amount_str[32];
-      char suffix[sizeof(coin->coin_shortcut) +
-                  1];  // sizeof(coin->coin_shortcut) includes space for the
-                       // terminator
-      strlcpy(suffix, " ", sizeof(suffix));
-      strlcat(suffix, coin->coin_shortcut, sizeof(suffix));
-      bn_format_uint64(msg->send.amount, NULL, suffix, coin->decimals, 0, false,
-                       amount_str, sizeof(amount_str));
+      /* The host-supplied denomination is part of the signed Amino JSON. Do
+       * not relabel or rescale it using unrelated coin metadata. */
+      char amount_str[48];
+      const int amount_len =
+          snprintf(amount_str, sizeof(amount_str), "%" PRIu64 " %s",
+                   msg->send.amount, msg->denom);
+      if (amount_len <= 0 || (size_t)amount_len >= sizeof(amount_str)) {
+        tendermint_signAbort();
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        "Invalid Tendermint amount display");
+        layoutHome();
+        return;
+      }
       if (!confirm_transaction_output(
               ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
               msg->send.to_address)) {
@@ -170,8 +188,29 @@ void fsm_msgTendermintMsgAck(const TendermintMsgAck* msg) {
     return;
   }
 
-  if (sign_tx->has_memo && !confirm(ButtonRequestType_ButtonRequest_ConfirmMemo,
-                                    _("Memo"), "%s", sign_tx->memo)) {
+  if (sign_tx->has_memo &&
+      !confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
+                     (const uint8_t*)sign_tx->memo, strlen(sign_tx->memo))) {
+    tendermint_signAbort();
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    layoutHome();
+    return;
+  }
+
+  /* Review the exact session values that bind the signed JSON. These fields
+   * are host supplied, so a friendly chain label must never substitute for
+   * the denomination or message-type prefix actually hashed. */
+  if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other, "Chain ID",
+                     (const uint8_t*)sign_tx->chain_id,
+                     strlen(sign_tx->chain_id)) ||
+      !confirm_bytes(ButtonRequestType_ButtonRequest_Other, "Chain Name",
+                     (const uint8_t*)sign_tx->chain_name,
+                     strlen(sign_tx->chain_name)) ||
+      !confirm_bytes(ButtonRequestType_ButtonRequest_Other, "Denomination",
+                     (const uint8_t*)sign_tx->denom, strlen(sign_tx->denom)) ||
+      !confirm_bytes(ButtonRequestType_ButtonRequest_Other, "Message Type",
+                     (const uint8_t*)sign_tx->message_type_prefix,
+                     strlen(sign_tx->message_type_prefix))) {
     tendermint_signAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
@@ -189,10 +228,8 @@ void fsm_msgTendermintMsgAck(const TendermintMsgAck* msg) {
   }
 
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, node_str,
-               "Sign %s transaction on %s? "
-               "It includes a fee of %" PRIu32 " %s and %" PRIu32 " gas.",
-               msg->chain_name, sign_tx->chain_id, sign_tx->fee_amount,
-               msg->denom, sign_tx->gas)) {
+               "Sign transaction? Fee: %" PRIu32 " %s. Gas: %" PRIu32 ".",
+               sign_tx->fee_amount, sign_tx->denom, sign_tx->gas)) {
     tendermint_signAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
