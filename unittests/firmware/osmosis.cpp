@@ -5,6 +5,7 @@ extern "C" {
 #include "keepkey/board/util.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/osmosis.h"
+#include "trezor/crypto/curves.h"
 }
 
 #include "gtest/gtest.h"
