@@ -176,8 +176,7 @@ bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address,
   static const char amount_prefix[] = "\"amount\":[{\"amount\":\"";
   static const char denom_prefix[] = "\",\"denom\":\"";
   static const char coin_suffix[] = "\"}]";
-  sha256_Update(&ctx, (const uint8_t*)amount_prefix,
-                sizeof(amount_prefix) - 1);
+  sha256_Update(&ctx, (const uint8_t*)amount_prefix, sizeof(amount_prefix) - 1);
   sha256_Update(&ctx, (const uint8_t*)amount, strlen(amount));
   sha256_Update(&ctx, (const uint8_t*)denom_prefix, sizeof(denom_prefix) - 1);
   sha256_Update(&ctx, (const uint8_t*)denom, strlen(denom));
