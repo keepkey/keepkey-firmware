@@ -150,17 +150,6 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       return;
     }
 
-    // MsgSend's legacy Amino serializer is intentionally uosmo-only. Enforce
-    // that invariant in firmware because callers can bypass host libraries and
-    // send OsmosisMsgAck directly over the wire.
-    if (strcmp(msg->send.denom, "uosmo") != 0) {
-      osmosis_signAbort();
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      "Only uosmo is supported for Osmosis MsgSend");
-      layoutHome();
-      return;
-    }
-
     char amount_str[OSMOSIS_AMOUNT_STR_LEN];
     if (!osmosis_formatAmountOrFail(amount_str, sizeof(amount_str),
                                     msg->send.amount, msg->send.denom)) {

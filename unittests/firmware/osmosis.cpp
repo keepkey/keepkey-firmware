@@ -123,3 +123,35 @@ TEST(Osmosis, MaxSwapAssetsAreRendererPagedCompletely) {
                             strlen(token)));
   EXPECT_EQ(0, kkconfirm_drain());
 }
+
+TEST(Osmosis, MsgSendSignsCanonicalNonNativeDenomination) {
+  HDNode node = {
+      0,
+      0,
+      {0},
+      {0xb9, 0x9a, 0x39, 0x3a, 0x5a, 0x53, 0x0d, 0x90, 0xef, 0x6e, 0x46,
+       0x4e, 0x8e, 0x2f, 0x2b, 0x8b, 0x5c, 0x64, 0xa7, 0x97, 0x29, 0xcd,
+       0x8b, 0x6c, 0x69, 0x5c, 0x71, 0x72, 0x03, 0x02, 0xf1, 0x76},
+      {0},
+      {0},
+      &secp256k1_info};
+  hdnode_fill_public_key(&node);
+
+  OsmosisSignTx msg = {};
+  msg.account_number = 0;
+  msg.has_chain_id = true;
+  strlcpy(msg.chain_id, "osmosis-1", sizeof(msg.chain_id));
+  msg.fee_amount = 800;
+  msg.gas = 290000;
+  msg.has_memo = true;
+  msg.sequence = 0;
+  msg.msg_count = 1;
+  ASSERT_TRUE(osmosis_signTxInit(&node, &msg));
+
+  const char denom[] =
+      "ibc/1234567890123456789012345678901234567890123456789012345678901234";
+  static_assert(sizeof(denom) - 1 == OSMOSIS_MAX_DENOM_LEN,
+                "fixture must exercise the schema maximum");
+  EXPECT_TRUE(osmosis_signTxUpdateMsgSend(
+      "7", "osmo1rs7fckgznkaxs4sq02pexwjgar43p5wnkx9s92", denom));
+}

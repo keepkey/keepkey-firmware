@@ -150,8 +150,7 @@ bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address,
   size_t decoded_len;
   char hrp[45] = {0};
   uint8_t decoded[38] = {0};
-  if (!osmosis_isCanonicalUint64(amount) || !denom ||
-      strcmp(denom, "uosmo") != 0 ||
+  if (!osmosis_isCanonicalUint64(amount) || !osmosis_isValidDenom(denom) ||
       !bech32_decode(hrp, decoded, &decoded_len, to_address)) {
     return false;
   }
@@ -172,10 +171,17 @@ bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address,
   const char* const prelude = "{\"type\":\"cosmos-sdk/MsgSend\",\"value\":{";
   sha256_Update(&ctx, (uint8_t*)prelude, strlen(prelude));
 
-  // 21 + ^20 + 19 = ^60
-  success &= tendermint_snprintf(
-      &ctx, buffer, sizeof(buffer),
-      "\"amount\":[{\"amount\":\"%s\",\"denom\":\"uosmo\"}]", amount);
+  // IBC and factory denoms may exceed the fixed 64-byte scratch buffer.
+  // These values are canonical and JSON-safe, so hash the field in segments.
+  static const char amount_prefix[] = "\"amount\":[{\"amount\":\"";
+  static const char denom_prefix[] = "\",\"denom\":\"";
+  static const char coin_suffix[] = "\"}]";
+  sha256_Update(&ctx, (const uint8_t*)amount_prefix,
+                sizeof(amount_prefix) - 1);
+  sha256_Update(&ctx, (const uint8_t*)amount, strlen(amount));
+  sha256_Update(&ctx, (const uint8_t*)denom_prefix, sizeof(denom_prefix) - 1);
+  sha256_Update(&ctx, (const uint8_t*)denom, strlen(denom));
+  sha256_Update(&ctx, (const uint8_t*)coin_suffix, sizeof(coin_suffix) - 1);
 
   // 17 + 45 + 1 = 63
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
