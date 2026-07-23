@@ -5,3 +5,4 @@
 * [Supported Coins](Coins.md)
 * [Host Communications](Host.md)
 * [Release Process](Release.md)
+* [Generalized Cosmos and Tendermint Signing](Generalized-Tendermint-Signing.md)
