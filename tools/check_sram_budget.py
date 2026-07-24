@@ -6,7 +6,7 @@ static allocation (_ebss) and the top-of-RAM stack (_stack) — drops below the
 per-variant budget, or when the largest single stack frame (-fstack-usage)
 leaves less than the configured margin inside that reserve.
 
-Why this exists: RC7's zcash-privacy build shipped with an 11,232-byte gap
+Why this exists: RC7's privacy-enabled build shipped with an 11,232-byte gap
 while msg_write() carried a 12,416-byte automatic TrezorFrameBuffer — every
 USB response overwrote static memory, hard-faulting on boot. The linker also
 ASSERTs a 16 KiB floor (tools/firmware/keepkey.ld); this script is the
@@ -15,7 +15,7 @@ observability + frame-margin half of that gate.
 Usage:
   check_sram_budget.py --elf bin/...firmware.keepkey.elf \
       --su-tar bin/stack-usage.tgz --budgets tools/sram-budgets.json \
-      --variant zcash-privacy
+      --variant full
 """
 
 import argparse

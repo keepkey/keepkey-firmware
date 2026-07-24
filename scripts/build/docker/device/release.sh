@@ -7,8 +7,8 @@ IMAGETAG=kktech/firmware:v15
 
 docker image inspect $IMAGETAG > /dev/null || docker pull $IMAGETAG
 
-# Extra cmake flags pass straight through (reproducible-build verification of
-# the other variants): ./release.sh -DKK_BITCOIN_ONLY=ON  /  -DKK_ZCASH_PRIVACY=ON
+# Extra cmake flags pass straight through. The only alternate release product
+# is bitcoin-only: ./release.sh -DKK_BITCOIN_ONLY=ON
 EXTRA_CMAKE_FLAGS="$*"
 
 docker run -t \

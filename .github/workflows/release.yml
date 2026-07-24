@@ -74,8 +74,6 @@ jobs:
             cmake_flags: ""
           - variant: bitcoin-only
             cmake_flags: "-DKK_BITCOIN_ONLY=ON"
-          - variant: zcash-privacy
-            cmake_flags: "-DKK_ZCASH_PRIVACY=ON"
     steps:
       - uses: actions/checkout@v6
         with:
@@ -175,8 +173,6 @@ jobs:
             cmake_flags: ""
           - variant: bitcoin-only
             cmake_flags: "-DKK_BITCOIN_ONLY=ON"
-          - variant: zcash-privacy
-            cmake_flags: "-DKK_ZCASH_PRIVACY=ON"
     steps:
       - uses: actions/checkout@v6
         with:
@@ -234,17 +230,15 @@ jobs:
           ## KeepKey Firmware v${VER}
 
           ### Variants
-          - **full** — \`firmware.keepkey.v${VER}-full.bin\` — all supported chains
+          - **full (regular)** — \`firmware.keepkey.v${VER}-full.bin\` — all supported chains, including Zcash shielded/Orchard
           - **bitcoin-only** — \`firmware.keepkey.v${VER}-bitcoin-only.bin\` — BTC-only, non-BTC coins stripped
-          - **zcash-privacy** — \`firmware.keepkey.v${VER}-zcash-privacy.bin\` — adds the Zcash shielded/Orchard engine
 
           ### Reproducible Build Verification
           \`\`\`bash
           ./scripts/build/docker/device/release.sh
           tail -c +257 bin/firmware.keepkey.bin | shasum -a 256
-          # bitcoin-only / zcash-privacy variants:
+          # bitcoin-only:
           #   ./scripts/build/docker/device/release.sh -DKK_BITCOIN_ONLY=ON
-          #   ./scripts/build/docker/device/release.sh -DKK_ZCASH_PRIVACY=ON
           # (extra args pass through to cmake) and compare against the
           # matching HASHES-<variant>.txt
           \`\`\`

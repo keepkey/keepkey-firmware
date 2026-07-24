@@ -9,7 +9,7 @@
 #   └─ check-submodules   verify all deps present
 #
 # Stage 2: BUILD (parallel, gated by Stage 1)
-#   ├─ build-emulator     Docker image → artifact  [matrix: full / bitcoin-only / zcash-privacy]
+#   ├─ build-emulator     Docker image → artifact  [matrix: full / bitcoin-only]
 #   └─ build-arm-firmware cross-compile → .bin/.elf (downloadable)  [same matrix]
 #
 # Stage 3: TEST (parallel, gated by Stage 2)
@@ -221,21 +221,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # The emulator CMake default is KK_ZCASH_PRIVACY=ON (what the published
-          # dylib/Docker image include), so an empty-flag full leg builds
-          # byte-identical to the zcash-privacy leg and the SHIPPED device
-          # configuration (multi-coin, privacy OFF) is never unit-tested. Pin the
-          # full leg to the shipped config; publish-emulator ships the
-          # zcash-privacy image (the same bytes the old full leg produced).
+          # Regular/full includes every supported chain, including Zcash
+          # shielded/Orchard. Bitcoin-only is the sole reduced build.
           - variant: full
             label: ""
-            cmake_flags: "-DKK_ZCASH_PRIVACY=OFF"
+            cmake_flags: ""
           - variant: bitcoin-only
             label: " (bitcoin-only)"
             cmake_flags: "-DKK_BITCOIN_ONLY=ON"
-          - variant: zcash-privacy
-            label: " (zcash-privacy)"
-            cmake_flags: "-DKK_ZCASH_PRIVACY=ON"
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -304,9 +297,6 @@ jobs:
           - variant: bitcoin-only
             label: " (bitcoin-only)"
             cmake_flags: "-DKK_BITCOIN_ONLY=ON"
-          - variant: zcash-privacy
-            label: " (zcash-privacy)"
-            cmake_flags: "-DKK_ZCASH_PRIVACY=ON"
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -367,7 +357,7 @@ jobs:
               find . -name '*.su' -print0 | tar czf /root/keepkey-firmware/bin/stack-usage.tgz --null -T - && \
               chmod -R a+rw /root/keepkey-firmware/bin"
 
-      # SRAM budget gate — RC7's zcash-privacy variant hard-faulted on boot
+      # SRAM budget gate — RC7's privacy-enabled build hard-faulted on boot
       # because static SRAM left an 11.2 KB gap while msg_write() carried a
       # 12.4 KB stack frame. keepkey.ld now ASSERTs a 16 KiB reserve at link
       # time; this step reports the numbers and enforces the frame margin
@@ -426,9 +416,6 @@ jobs:
           - variant: bitcoin-only
             label: " (bitcoin-only)"
             cmake_flags: "-DKK_BITCOIN_ONLY=ON"
-          - variant: zcash-privacy
-            label: " (zcash-privacy)"
-            cmake_flags: "-DKK_ZCASH_PRIVACY=ON"
     steps:
       - name: Download emulator image
         uses: actions/download-artifact@v8
@@ -755,9 +742,8 @@ jobs:
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
-          # Report covers the full/default variant only — bitcoin-only and
-          # zcash-privacy are built and unit-tested in their own matrix legs
-          # but don't get a PDF (see unit-tests / build-arm-firmware).
+          # Report covers the regular/full build. Bitcoin-only is built and
+          # unit-tested in its own matrix leg but does not get a PDF.
           name: unit-test-results-full
           path: test-reports/firmware-unit/
 
@@ -818,11 +804,8 @@ jobs:
       - name: Download emulator image
         uses: actions/download-artifact@v8
         with:
-          # Publish the zcash-privacy variant: it matches the emulator's CMake
-          # default (privacy engine ON — what vault and auditors run), which
-          # the "full" leg no longer builds now that it pins the shipped
-          # device configuration (privacy OFF).
-          name: emu-image-zcash-privacy
+          # Publish the regular/full image, including Zcash privacy support.
+          name: emu-image-full
           path: /tmp
 
       - name: Load emulator image
