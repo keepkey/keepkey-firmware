@@ -17,9 +17,9 @@
  */
 
 extern "C" {
-#include "messages-ethereum.pb.h"  /* full EthereumSignTx definition */
-#include "keepkey/board/draw.h"    /* draw_bitmap_mono_rle (icon decoder) */
-#include "keepkey/board/layout.h"  /* LEFT_MARGIN_WITH_ICON */
+#include "messages-ethereum.pb.h" /* full EthereumSignTx definition */
+#include "keepkey/board/draw.h"   /* draw_bitmap_mono_rle (icon decoder) */
+#include "keepkey/board/layout.h" /* LEFT_MARGIN_WITH_ICON */
 #include "keepkey/firmware/signed_metadata.h"
 #include "keepkey/firmware/solana.h" /* SolanaTokenInfo, solana_token_info_trusted */
 #include "trezor/crypto/ecdsa.h"
@@ -37,11 +37,12 @@ extern "C" {
 
 namespace {
 
-/* Test signing key. Its compressed pubkey is loaded into slot 3 by the fixture. */
-const uint8_t TEST_PRIV[32] = {
-    0xf6, 0xd1, 0x9e, 0x15, 0xa4, 0x38, 0x5f, 0x03, 0xb7, 0x8b, 0x5a,
-    0x1e, 0x16, 0x14, 0xe7, 0xd9, 0xa1, 0x04, 0xd8, 0x1f, 0x73, 0x24,
-    0x49, 0x87, 0x56, 0xe5, 0x71, 0x90, 0x40, 0x68, 0xa2, 0x60};
+/* Test signing key. Its compressed pubkey is loaded into slot 3 by the fixture.
+ */
+const uint8_t TEST_PRIV[32] = {0xf6, 0xd1, 0x9e, 0x15, 0xa4, 0x38, 0x5f, 0x03,
+                               0xb7, 0x8b, 0x5a, 0x1e, 0x16, 0x14, 0xe7, 0xd9,
+                               0xa1, 0x04, 0xd8, 0x1f, 0x73, 0x24, 0x49, 0x87,
+                               0x56, 0xe5, 0x71, 0x90, 0x40, 0x68, 0xa2, 0x60};
 
 /* Compressed pubkey of TEST_PRIV; loaded into slot 3 by the fixture. */
 const uint8_t EXPECTED_SLOT3_PUB[33] = {
@@ -60,31 +61,31 @@ const uint8_t CONTRACT_B[20] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
                                 0x11, 0x11, 0x11, 0x11, 0x11, 0x11};
 const uint8_t SEL_TRANSFER[4] = {0xa9, 0x05, 0x9c, 0xbb};
 const uint8_t SEL_APPROVE[4] = {0x09, 0x5e, 0xa7, 0xb3};
-const uint8_t TX_HASH[32] = {
-    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b,
-    0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16,
-    0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20};
+const uint8_t TX_HASH[32] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+                             0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+                             0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+                             0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20};
 const uint8_t RECIPIENT[20] = {0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46,
                                0x47, 0x48, 0x49, 0x4a, 0x4b, 0x4c, 0x4d,
                                0x4e, 0x4f, 0x50, 0x51, 0x52, 0x53};
-const uint8_t AMOUNT32[32] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0,    0,
-                              0, 0, 0, 0, 0, 0, 0, 0, 0, 0,    0,
+const uint8_t AMOUNT32[32] = {0, 0, 0, 0, 0, 0, 0, 0, 0,    0,   0,
+                              0, 0, 0, 0, 0, 0, 0, 0, 0,    0,   0,
                               0, 0, 0, 0, 0, 0, 0, 0, 0x03, 0xe8};
 
 /* ---- byte writers ------------------------------------------------------- */
 
-void put_u8(std::vector<uint8_t> &v, uint8_t x) { v.push_back(x); }
-void put_be16(std::vector<uint8_t> &v, uint16_t x) {
+void put_u8(std::vector<uint8_t>& v, uint8_t x) { v.push_back(x); }
+void put_be16(std::vector<uint8_t>& v, uint16_t x) {
   v.push_back((uint8_t)(x >> 8));
   v.push_back((uint8_t)(x & 0xff));
 }
-void put_be32(std::vector<uint8_t> &v, uint32_t x) {
+void put_be32(std::vector<uint8_t>& v, uint32_t x) {
   v.push_back((uint8_t)(x >> 24));
   v.push_back((uint8_t)(x >> 16));
   v.push_back((uint8_t)(x >> 8));
   v.push_back((uint8_t)(x & 0xff));
 }
-void put_bytes(std::vector<uint8_t> &v, const uint8_t *b, size_t n) {
+void put_bytes(std::vector<uint8_t>& v, const uint8_t* b, size_t n) {
   v.insert(v.end(), b, b + n);
 }
 
@@ -97,7 +98,7 @@ struct Arg {
   int value_len_override;  // -1 => use value.size()
 };
 
-Arg mk_arg(const std::string &name, uint8_t format, const uint8_t *value,
+Arg mk_arg(const std::string& name, uint8_t format, const uint8_t* value,
            size_t value_len) {
   Arg a;
   a.name = name;
@@ -122,7 +123,8 @@ struct Spec {
   int num_args_override;    // -1 => use args.size()
 };
 
-/* Canonical VERIFIED metadata: transfer(to:ADDRESS, amount:AMOUNT) on chain 1. */
+/* Canonical VERIFIED metadata: transfer(to:ADDRESS, amount:AMOUNT) on chain 1.
+ */
 Spec base_spec() {
   Spec s;
   s.version = 0x01;
@@ -143,7 +145,7 @@ Spec base_spec() {
 
 /* Serialize the signed region (version .. key_id), exactly matching
  * parse_metadata_binary() / serialize_metadata(). */
-std::vector<uint8_t> build_body(const Spec &s) {
+std::vector<uint8_t> build_body(const Spec& s) {
   std::vector<uint8_t> b;
   put_u8(b, s.version);
   put_be32(b, s.chain_id);
@@ -154,14 +156,14 @@ std::vector<uint8_t> build_body(const Spec &s) {
   uint16_t mlen = s.method_len_override >= 0 ? (uint16_t)s.method_len_override
                                              : (uint16_t)s.method.size();
   put_be16(b, mlen);
-  put_bytes(b, (const uint8_t *)s.method.data(), s.method.size());
+  put_bytes(b, (const uint8_t*)s.method.data(), s.method.size());
 
   uint8_t na = s.num_args_override >= 0 ? (uint8_t)s.num_args_override
                                         : (uint8_t)s.args.size();
   put_u8(b, na);
-  for (const Arg &a : s.args) {
+  for (const Arg& a : s.args) {
     put_u8(b, (uint8_t)a.name.size());
-    put_bytes(b, (const uint8_t *)a.name.data(), a.name.size());
+    put_bytes(b, (const uint8_t*)a.name.data(), a.name.size());
     put_u8(b, a.format);
     uint16_t vl = a.value_len_override >= 0 ? (uint16_t)a.value_len_override
                                             : (uint16_t)a.value.size();
@@ -191,8 +193,8 @@ std::vector<uint8_t> sign_body(std::vector<uint8_t> body) {
 
 std::vector<uint8_t> base_blob() { return sign_body(build_body(base_spec())); }
 
-void make_msg(EthereumSignTx *msg, const uint8_t contract[20],
-              const uint8_t *data, size_t data_len, bool has_chain,
+void make_msg(EthereumSignTx* msg, const uint8_t contract[20],
+              const uint8_t* data, size_t data_len, bool has_chain,
               uint32_t chain) {
   memset(msg, 0, sizeof(*msg));
   msg->has_to = true;
@@ -206,25 +208,25 @@ void make_msg(EthereumSignTx *msg, const uint8_t contract[20],
 }
 
 /* A standard transfer() calldata chunk that matches base_spec(). */
-void make_matching_msg(EthereumSignTx *msg) {
+void make_matching_msg(EthereumSignTx* msg) {
   uint8_t data[68];
   memcpy(data, SEL_TRANSFER, 4);
   memset(data + 4, 0, sizeof(data) - 4);
   make_msg(msg, CONTRACT_A, data, sizeof(data), /*has_chain=*/true, 1);
 }
 
-const char *TEST_ALIAS = "CI Test";
+const char* TEST_ALIAS = "CI Test";
 
 class SignedMetadataTest : public ::testing::Test {
  protected:
   void SetUp() override {
     signed_metadata_clear_signers();
     signed_metadata_store_signer(TEST_KEY_ID, EXPECTED_SLOT3_PUB, TEST_ALIAS,
-                               NULL, 0, 0, 0, false);
+                                 NULL, 0, 0, 0, false);
   }
   void TearDown() override { signed_metadata_clear_signers(); }
 
-  void ExpectMalformed(const std::vector<uint8_t> &blob, uint8_t key_id) {
+  void ExpectMalformed(const std::vector<uint8_t>& blob, uint8_t key_id) {
     EXPECT_EQ(signed_metadata_process(blob.data(), blob.size(), key_id),
               METADATA_MALFORMED);
     EXPECT_FALSE(signed_metadata_available());
@@ -248,7 +250,7 @@ TEST_F(SignedMetadataTest, ValidVerifiedSlot3) {
   EXPECT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
             METADATA_VERIFIED);
   EXPECT_TRUE(signed_metadata_available());
-  const SignedMetadata *m = signed_metadata_get();
+  const SignedMetadata* m = signed_metadata_get();
   ASSERT_NE(m, nullptr);
   EXPECT_EQ(m->classification, METADATA_VERIFIED);
   EXPECT_EQ(m->chain_id, 1u);
@@ -416,13 +418,13 @@ TEST_F(SignedMetadataTest, ArgFormatOutOfRange) {
 
 TEST_F(SignedMetadataTest, StringArgAccepted) {
   Spec s = base_spec();
-  const char *label = "Uniswap V2";
-  s.args[0] = mk_arg("protocol", ARG_FORMAT_STRING, (const uint8_t *)label,
+  const char* label = "Uniswap V2";
+  s.args[0] = mk_arg("protocol", ARG_FORMAT_STRING, (const uint8_t*)label,
                      strlen(label));
   std::vector<uint8_t> blob = sign_body(build_body(s));
   ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
             METADATA_VERIFIED);
-  const SignedMetadata *m = signed_metadata_get();
+  const SignedMetadata* m = signed_metadata_get();
   ASSERT_NE(m, nullptr);
   EXPECT_EQ(m->args[0].format, ARG_FORMAT_STRING);
   EXPECT_EQ(memcmp(m->args[0].value, label, strlen(label)), 0);
@@ -447,8 +449,8 @@ TEST_F(SignedMetadataTest, StringArgRejectsUnprintableAndPercent) {
 /* ---- ARG_FORMAT_TOKEN_AMOUNT (decimals + symbol + amount) --------------- */
 
 std::vector<uint8_t> token_amount_value(uint8_t decimals,
-                                        const std::string &symbol,
-                                        const std::vector<uint8_t> &amount) {
+                                        const std::string& symbol,
+                                        const std::vector<uint8_t>& amount) {
   std::vector<uint8_t> v;
   v.push_back(decimals);
   v.push_back((uint8_t)symbol.size());
@@ -466,7 +468,7 @@ TEST_F(SignedMetadataTest, TokenAmountAccepted) {
   std::vector<uint8_t> blob = sign_body(build_body(s));
   ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
             METADATA_VERIFIED);
-  const SignedMetadata *m = signed_metadata_get();
+  const SignedMetadata* m = signed_metadata_get();
   ASSERT_NE(m, nullptr);
   EXPECT_EQ(m->args[1].format, ARG_FORMAT_TOKEN_AMOUNT);
   EXPECT_EQ(m->args[1].value_len, val.size());
@@ -488,22 +490,22 @@ TEST_F(SignedMetadataTest, TokenAmountRejectsBadLayout) {
   Spec s = base_spec();
   /* symbol chars outside [A-Za-z0-9] */
   std::vector<uint8_t> bad_sym = token_amount_value(6, "US-C", {0x01});
-  s.args[1] = mk_arg("amount", ARG_FORMAT_TOKEN_AMOUNT, bad_sym.data(),
-                     bad_sym.size());
+  s.args[1] =
+      mk_arg("amount", ARG_FORMAT_TOKEN_AMOUNT, bad_sym.data(), bad_sym.size());
   ExpectMalformed(sign_body(build_body(s)), TEST_KEY_ID);
 
   /* decimals > 36 */
   Spec s2 = base_spec();
   std::vector<uint8_t> bad_dec = token_amount_value(37, "USDC", {0x01});
-  s2.args[1] = mk_arg("amount", ARG_FORMAT_TOKEN_AMOUNT, bad_dec.data(),
-                      bad_dec.size());
+  s2.args[1] =
+      mk_arg("amount", ARG_FORMAT_TOKEN_AMOUNT, bad_dec.data(), bad_dec.size());
   ExpectMalformed(sign_body(build_body(s2)), TEST_KEY_ID);
 
   /* symbol_len runs past the value (no amount bytes left) */
   Spec s3 = base_spec();
   std::vector<uint8_t> no_amt = {6, 4, 'U', 'S', 'D', 'C'};
-  s3.args[1] = mk_arg("amount", ARG_FORMAT_TOKEN_AMOUNT, no_amt.data(),
-                      no_amt.size());
+  s3.args[1] =
+      mk_arg("amount", ARG_FORMAT_TOKEN_AMOUNT, no_amt.data(), no_amt.size());
   ExpectMalformed(sign_body(build_body(s3)), TEST_KEY_ID);
 
   /* legacy formats must NOT accept the larger 44-byte cap */
@@ -636,7 +638,8 @@ TEST_F(SignedMetadataTest, MatchesTxWrongChainId) {
   EXPECT_FALSE(signed_metadata_matches_tx(&wrong_chain));
 
   EthereumSignTx no_chain;
-  make_msg(&no_chain, CONTRACT_A, data, sizeof(data), false, 0);  // treated as 0
+  make_msg(&no_chain, CONTRACT_A, data, sizeof(data), false,
+           0);  // treated as 0
   EXPECT_FALSE(signed_metadata_matches_tx(&no_chain));
 }
 
@@ -769,8 +772,8 @@ struct IconCanvas {
   }
 };
 
-bool decode_icon(const std::vector<uint8_t> &data, uint16_t w, uint16_t h,
-                 IconCanvas *ic) {
+bool decode_icon(const std::vector<uint8_t>& data, uint16_t w, uint16_t h,
+                 IconCanvas* ic) {
   Image img;
   img.w = w;
   img.h = h;
@@ -780,7 +783,7 @@ bool decode_icon(const std::vector<uint8_t> &data, uint16_t w, uint16_t h,
   frame.x = 0;
   frame.y = 0;
   frame.duration = 0;
-  frame.color = 100;  /* value*100/100 => data bytes land verbatim */
+  frame.color = 100; /* value*100/100 => data bytes land verbatim */
   frame.image = &img;
   return draw_bitmap_mono_rle(&ic->canvas, &frame, /*erase=*/false);
 }
@@ -834,7 +837,7 @@ TEST(SignedMetadataIcon, MaxRunOf127Decodes) {
 
 TEST(SignedMetadataIcon, TruncatedStreamIsRejected) {
   IconCanvas ic;
-  EXPECT_FALSE(decode_icon({0x08, 0xFF}, 4, 4, &ic));  /* claims 8, has 2 */
+  EXPECT_FALSE(decode_icon({0x08, 0xFF}, 4, 4, &ic)); /* claims 8, has 2 */
 }
 
 /* ── Exact-validation guards (review round 2) ──────────────────────────────
@@ -845,7 +848,7 @@ TEST(SignedMetadataIcon, TruncatedStreamIsRejected) {
 TEST(SignedMetadataIcon, StraddlingRunIsRejected) {
   /* 05 FF for a 2x2: a RUN of 5 into a 4-pixel image. The draw loop would fill
    * 4 and report success; the stream is not well-formed. */
-  EXPECT_FALSE(draw_bitmap_mono_rle_valid((const uint8_t *)"\x05\xFF", 2, 2, 2));
+  EXPECT_FALSE(draw_bitmap_mono_rle_valid((const uint8_t*)"\x05\xFF", 2, 2, 2));
   IconCanvas ic;
   EXPECT_FALSE(decode_icon({0x05, 0xFF}, 2, 2, &ic));
 }
@@ -853,47 +856,49 @@ TEST(SignedMetadataIcon, StraddlingRunIsRejected) {
 TEST(SignedMetadataIcon, TrailingPacketsAreRejected) {
   /* Exactly fills 2x2, then carries an unread packet. */
   EXPECT_FALSE(
-      draw_bitmap_mono_rle_valid((const uint8_t *)"\x04\xFF\x01\xAA", 4, 2, 2));
+      draw_bitmap_mono_rle_valid((const uint8_t*)"\x04\xFF\x01\xAA", 4, 2, 2));
 }
 
 TEST(SignedMetadataIcon, TruncatedLiteralBodyIsRejected) {
   /* n = -3 promises 3 value bytes, only 2 present. */
-  EXPECT_FALSE(draw_bitmap_mono_rle_valid((const uint8_t *)"\xFD\x01\x02", 3, 3, 1));
+  EXPECT_FALSE(
+      draw_bitmap_mono_rle_valid((const uint8_t*)"\xFD\x01\x02", 3, 3, 1));
 }
 
 TEST(SignedMetadataIcon, MissingRunValueByteIsRejected) {
-  EXPECT_FALSE(draw_bitmap_mono_rle_valid((const uint8_t *)"\x04", 1, 4, 1));
+  EXPECT_FALSE(draw_bitmap_mono_rle_valid((const uint8_t*)"\x04", 1, 4, 1));
 }
 
 TEST(SignedMetadataIcon, ValidatorAcceptsExactStreams) {
   /* The golden vector, and the valid boundaries. */
   EXPECT_TRUE(
-      draw_bitmap_mono_rle_valid((const uint8_t *)"\x03\xFF\xFF\x00", 4, 2, 2));
-  EXPECT_TRUE(draw_bitmap_mono_rle_valid((const uint8_t *)"\x7F\x5A", 2, 127, 1));
+      draw_bitmap_mono_rle_valid((const uint8_t*)"\x03\xFF\xFF\x00", 4, 2, 2));
+  EXPECT_TRUE(
+      draw_bitmap_mono_rle_valid((const uint8_t*)"\x7F\x5A", 2, 127, 1));
   std::vector<uint8_t> lit;
   lit.push_back(0x81);
   for (int i = 0; i < 127; i++) lit.push_back((uint8_t)i);
-  EXPECT_TRUE(draw_bitmap_mono_rle_valid(lit.data(), (uint32_t)lit.size(), 127, 1));
+  EXPECT_TRUE(
+      draw_bitmap_mono_rle_valid(lit.data(), (uint32_t)lit.size(), 127, 1));
 }
 
 TEST(SignedMetadataIcon, ValidatorRejectsUndecodableAndZeroCounts) {
   std::vector<uint8_t> lit128;
   lit128.push_back(0x80);
   for (int i = 0; i < 128; i++) lit128.push_back(0xAA);
-  EXPECT_FALSE(
-      draw_bitmap_mono_rle_valid(lit128.data(), (uint32_t)lit128.size(), 128, 1));
-  EXPECT_FALSE(draw_bitmap_mono_rle_valid((const uint8_t *)"\x00\xFF", 2, 1, 1));
+  EXPECT_FALSE(draw_bitmap_mono_rle_valid(lit128.data(),
+                                          (uint32_t)lit128.size(), 128, 1));
+  EXPECT_FALSE(draw_bitmap_mono_rle_valid((const uint8_t*)"\x00\xFF", 2, 1, 1));
   /* The 1x1 accept-and-persist case: 80 FF was previously stored despite never
    * rendering, because only size+dims were checked at the trust boundary. */
-  EXPECT_FALSE(draw_bitmap_mono_rle_valid((const uint8_t *)"\x80\xFF", 2, 1, 1));
+  EXPECT_FALSE(draw_bitmap_mono_rle_valid((const uint8_t*)"\x80\xFF", 2, 1, 1));
 }
 
 TEST(SignedMetadataIcon, ValidatorRejectsDegenerateGeometry) {
-  EXPECT_FALSE(draw_bitmap_mono_rle_valid((const uint8_t *)"\x01\xFF", 2, 0, 1));
-  EXPECT_FALSE(draw_bitmap_mono_rle_valid((const uint8_t *)"\x01\xFF", 2, 1, 0));
+  EXPECT_FALSE(draw_bitmap_mono_rle_valid((const uint8_t*)"\x01\xFF", 2, 0, 1));
+  EXPECT_FALSE(draw_bitmap_mono_rle_valid((const uint8_t*)"\x01\xFF", 2, 1, 0));
   EXPECT_FALSE(draw_bitmap_mono_rle_valid(NULL, 0, 1, 1));
 }
-
 
 TEST(SignedMetadataIcon, IconColumnCapIsNarrowerThanTheIconHeight) {
   /* The width cap is the 40px text column, NOT the 64px height. A 64px-wide
@@ -902,7 +907,6 @@ TEST(SignedMetadataIcon, IconColumnCapIsNarrowerThanTheIconHeight) {
   EXPECT_EQ(LEFT_MARGIN_WITH_ICON, 40);
   EXPECT_LT(LEFT_MARGIN_WITH_ICON, 64);
 }
-
 
 TEST(SignedMetadataSignerValid, AcceptsValidCompressedKeyAllSlots) {
   for (uint8_t slot = 0; slot < METADATA_MAX_KEYS; slot++) {
@@ -937,16 +941,18 @@ TEST(SignedMetadataSignerValid, RejectsNonCompressedPrefix) {
 }
 
 TEST(SignedMetadataSignerValid, RejectsBadAlias) {
-  EXPECT_FALSE(signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, nullptr));
+  EXPECT_FALSE(
+      signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, nullptr));
   EXPECT_FALSE(signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, ""));
   std::string too_long(METADATA_ALIAS_MAX_LEN + 1, 'a');
-  EXPECT_FALSE(
-      signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, too_long.c_str()));
+  EXPECT_FALSE(signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33,
+                                            too_long.c_str()));
   std::string max_len(METADATA_ALIAS_MAX_LEN, 'a');
   EXPECT_TRUE(
       signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, max_len.c_str()));
   /* Realistic aliases (letters/digits/space/-/_) are accepted. */
-  EXPECT_TRUE(signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, "Pioneer"));
+  EXPECT_TRUE(
+      signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, "Pioneer"));
   EXPECT_TRUE(
       signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, "KeepKey Swap"));
   EXPECT_TRUE(
@@ -956,10 +962,11 @@ TEST(SignedMetadataSignerValid, RejectsBadAlias) {
    * false "verified by KeepKey." claim) are all rejected. */
   EXPECT_FALSE(signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, "a\nb"));
   EXPECT_FALSE(signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, "a%sb"));
-  EXPECT_FALSE(
-      signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, "a\x7f" "b"));
-  EXPECT_FALSE(signed_metadata_signer_valid(
-      0, EXPECTED_SLOT3_PUB, 33, "x' verified by KeepKey. Safe ("));
+  EXPECT_FALSE(signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33,
+                                            "a\x7f"
+                                            "b"));
+  EXPECT_FALSE(signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33,
+                                            "x' verified by KeepKey. Safe ("));
   EXPECT_FALSE(
       signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, "safe.KeepKey"));
   EXPECT_FALSE(
@@ -989,19 +996,19 @@ TEST(SignedMetadataFingerprint, IsSha256Prefix) {
 TEST(SignedMetadataEnforce, NotReliedAlwaysAllow) {
   uint8_t h[32] = {0};
   uint8_t hw[32] = {1};
-  EXPECT_TRUE(signed_metadata_enforce_decision(false, true, METADATA_VERIFIED,
-                                               h, h));
+  EXPECT_TRUE(
+      signed_metadata_enforce_decision(false, true, METADATA_VERIFIED, h, h));
   EXPECT_TRUE(signed_metadata_enforce_decision(false, false, METADATA_OPAQUE,
                                                nullptr, nullptr));
-  EXPECT_TRUE(signed_metadata_enforce_decision(false, true, METADATA_VERIFIED,
-                                               h, hw));
+  EXPECT_TRUE(
+      signed_metadata_enforce_decision(false, true, METADATA_VERIFIED, h, hw));
 }
 
 TEST(SignedMetadataEnforce, ReliedHashMatches) {
   uint8_t h[32];
   memcpy(h, TX_HASH, 32);
-  EXPECT_TRUE(signed_metadata_enforce_decision(true, true, METADATA_VERIFIED,
-                                               h, h));
+  EXPECT_TRUE(
+      signed_metadata_enforce_decision(true, true, METADATA_VERIFIED, h, h));
 }
 
 TEST(SignedMetadataEnforce, ReliedHashMismatch) {
@@ -1024,17 +1031,17 @@ TEST(SignedMetadataEnforce, ReliedHashNull) {
 TEST(SignedMetadataEnforce, ReliedNotAvailable) {
   uint8_t h[32];
   memcpy(h, TX_HASH, 32);
-  EXPECT_FALSE(signed_metadata_enforce_decision(true, false, METADATA_VERIFIED,
-                                                h, h));
+  EXPECT_FALSE(
+      signed_metadata_enforce_decision(true, false, METADATA_VERIFIED, h, h));
 }
 
 TEST(SignedMetadataEnforce, ReliedNotVerified) {
   uint8_t h[32];
   memcpy(h, TX_HASH, 32);
-  EXPECT_FALSE(signed_metadata_enforce_decision(true, true, METADATA_OPAQUE,
-                                                h, h));
-  EXPECT_FALSE(signed_metadata_enforce_decision(true, true, METADATA_MALFORMED,
-                                                h, h));
+  EXPECT_FALSE(
+      signed_metadata_enforce_decision(true, true, METADATA_OPAQUE, h, h));
+  EXPECT_FALSE(
+      signed_metadata_enforce_decision(true, true, METADATA_MALFORMED, h, h));
 }
 
 TEST(SignedMetadataEnforce, ReliedStoredHashNull) {
@@ -1062,11 +1069,11 @@ struct V2Arg {
   std::string symbol; /* TOKEN_AMOUNT only */
 };
 
-V2Arg v2_addr(const std::string &name) {
+V2Arg v2_addr(const std::string& name) {
   return V2Arg{name, ARG_FORMAT_ADDRESS, 0, ""};
 }
-V2Arg v2_token(const std::string &name, uint8_t decimals,
-               const std::string &symbol) {
+V2Arg v2_token(const std::string& name, uint8_t decimals,
+               const std::string& symbol) {
   return V2Arg{name, ARG_FORMAT_TOKEN_AMOUNT, decimals, symbol};
 }
 
@@ -1095,24 +1102,24 @@ V2Spec v2_base_spec() {
   return s;
 }
 
-std::vector<uint8_t> build_v2_body(const V2Spec &s) {
+std::vector<uint8_t> build_v2_body(const V2Spec& s) {
   std::vector<uint8_t> b;
   put_u8(b, METADATA_VERSION_SCHEMA);
   put_be32(b, s.chain_id);
   put_bytes(b, s.contract.data(), s.contract.size());
   put_bytes(b, s.selector.data(), s.selector.size());
   put_be16(b, (uint16_t)s.method.size());
-  put_bytes(b, (const uint8_t *)s.method.data(), s.method.size());
+  put_bytes(b, (const uint8_t*)s.method.data(), s.method.size());
   put_u8(b, s.num_args_override >= 0 ? (uint8_t)s.num_args_override
                                      : (uint8_t)s.args.size());
-  for (const V2Arg &a : s.args) {
+  for (const V2Arg& a : s.args) {
     put_u8(b, (uint8_t)a.name.size());
-    put_bytes(b, (const uint8_t *)a.name.data(), a.name.size());
+    put_bytes(b, (const uint8_t*)a.name.data(), a.name.size());
     put_u8(b, a.format);
     if (a.format == ARG_FORMAT_TOKEN_AMOUNT) {
       put_u8(b, a.decimals);
       put_u8(b, (uint8_t)a.symbol.size());
-      put_bytes(b, (const uint8_t *)a.symbol.data(), a.symbol.size());
+      put_bytes(b, (const uint8_t*)a.symbol.data(), a.symbol.size());
     }
   }
   put_u8(b, s.classification);
@@ -1126,7 +1133,7 @@ std::vector<uint8_t> v2_base_blob() {
 }
 
 /* ABI calldata: selector + one 32-byte head word per arg. */
-void put_addr_word(std::vector<uint8_t> &d, const uint8_t addr[20]) {
+void put_addr_word(std::vector<uint8_t>& d, const uint8_t addr[20]) {
   for (int i = 0; i < 12; i++) d.push_back(0);
   d.insert(d.end(), addr, addr + 20);
 }
@@ -1139,8 +1146,8 @@ std::vector<uint8_t> v2_transfer_calldata() {
   return d;
 }
 
-void make_v2_msg(EthereumSignTx *msg, const uint8_t contract[20],
-                 const std::vector<uint8_t> &data, bool has_len,
+void make_v2_msg(EthereumSignTx* msg, const uint8_t contract[20],
+                 const std::vector<uint8_t>& data, bool has_len,
                  uint32_t data_length) {
   memset(msg, 0, sizeof(*msg));
   msg->has_to = true;
@@ -1163,7 +1170,7 @@ TEST_F(SignedMetadataTest, V2SchemaDecodesTransferArgs) {
             METADATA_VERIFIED);
   EXPECT_TRUE(signed_metadata_available());
 
-  const SignedMetadata *md = signed_metadata_get();
+  const SignedMetadata* md = signed_metadata_get();
   ASSERT_NE(md, nullptr);
   EXPECT_EQ(md->version, METADATA_VERSION_SCHEMA);
   EXPECT_EQ(md->num_args, 2);
@@ -1186,14 +1193,40 @@ TEST_F(SignedMetadataTest, V2SchemaDecodesTransferArgs) {
   EXPECT_EQ(memcmp(md->args[1].value + 6, AMOUNT32, 32), 0);
 }
 
+/* THE v2 drain preventer: a v2 schema commits to calldata only — never to
+ * msg->value — and a v2 match suppresses ethereum.c's native-value confirm
+ * screen. A payable method could then clear-sign an arbitrary ETH transfer
+ * whose value is never shown. Any nonzero native value must therefore refuse
+ * the v2 match and fall to the blind-sign gate. (v1 is safe: tx_hash covers
+ * value.) */
+TEST_F(SignedMetadataTest, V2SchemaRejectsNonzeroNativeValue) {
+  std::vector<uint8_t> blob = v2_base_blob();
+  ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+            METADATA_VERIFIED);
+
+  EthereumSignTx msg;
+  std::vector<uint8_t> data = v2_transfer_calldata();
+  make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/true, (uint32_t)data.size());
+  msg.has_value = true;
+  msg.value.size = 1;
+  msg.value.bytes[0] = 0x01;  // 1 wei is enough — any nonzero value refuses
+  EXPECT_FALSE(signed_metadata_matches_tx(&msg));
+
+  /* Same tx with zero value clear-signs — proving the refusal above is the
+   * value guard, not some other binding. */
+  msg.value.size = 0;
+  msg.has_value = false;
+  EXPECT_TRUE(signed_metadata_matches_tx(&msg));
+}
+
 /* Relay solver swap: selector 0x02d5f05f(token address, amount, requestId) —
  * three fixed single words, EXACTLY the shape pulled from real relay traffic
- * (100-byte calldata: 4 + 3*32, zero remainder, verified across 22 live samples).
- * Proves a v2 static schema clear-signs a relay swap: the device decodes
- * token+amount+id from the very calldata it is about to sign — no tx_hash, no
- * per-tx online signer, schema signed once offline. This is the "add a new
- * service via a signed payload" path for a NON-native contract (relay is not in
- * ethereum_contractHandled). */
+ * (100-byte calldata: 4 + 3*32, zero remainder, verified across 22 live
+ * samples). Proves a v2 static schema clear-signs a relay swap: the device
+ * decodes token+amount+id from the very calldata it is about to sign — no
+ * tx_hash, no per-tx online signer, schema signed once offline. This is the
+ * "add a new service via a signed payload" path for a NON-native contract
+ * (relay is not in ethereum_contractHandled). */
 TEST_F(SignedMetadataTest, V2SchemaDecodesRelaySolverArgs) {
   const uint8_t RELAY_SOLVER[20] = {0x4c, 0xd0, 0x0e, 0x38, 0x76, 0x22, 0xc3,
                                     0x5b, 0xdd, 0xb9, 0xb4, 0x96, 0x2c, 0x13,
@@ -1216,12 +1249,13 @@ TEST_F(SignedMetadataTest, V2SchemaDecodesRelaySolverArgs) {
   EXPECT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
             METADATA_VERIFIED);
 
-  const SignedMetadata *md = signed_metadata_get();
+  const SignedMetadata* md = signed_metadata_get();
   ASSERT_NE(md, nullptr);
   EXPECT_EQ(md->version, METADATA_VERSION_SCHEMA);
   EXPECT_EQ(md->num_args, 3);
 
-  // Real relay calldata: selector + token(USDC=CONTRACT_A) + amount + requestId.
+  // Real relay calldata: selector + token(USDC=CONTRACT_A) + amount +
+  // requestId.
   std::vector<uint8_t> data(SEL_RELAY, SEL_RELAY + 4);
   put_addr_word(data, CONTRACT_A);
   data.insert(data.end(), AMOUNT32, AMOUNT32 + 32);
@@ -1229,7 +1263,8 @@ TEST_F(SignedMetadataTest, V2SchemaDecodesRelaySolverArgs) {
   EXPECT_EQ(data.size(), 100u);
 
   EthereumSignTx msg;
-  make_v2_msg(&msg, RELAY_SOLVER, data, /*has_len=*/true, (uint32_t)data.size());
+  make_v2_msg(&msg, RELAY_SOLVER, data, /*has_len=*/true,
+              (uint32_t)data.size());
   EXPECT_TRUE(signed_metadata_matches_tx(&msg));
 
   // token → full 20-byte USDC address (never truncated).
@@ -1250,7 +1285,8 @@ TEST_F(SignedMetadataTest, V2SchemaDecodesRelaySolverArgs) {
   EXPECT_EQ(memcmp(md->args[2].value, REQ_ID, 32), 0);
 }
 
-/* has_data_length omitted but the initial chunk IS the whole calldata: allowed. */
+/* has_data_length omitted but the initial chunk IS the whole calldata: allowed.
+ */
 TEST_F(SignedMetadataTest, V2AcceptsNoDataLengthWhenChunkComplete) {
   std::vector<uint8_t> blob = v2_base_blob();
   ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
@@ -1349,7 +1385,7 @@ TEST_F(SignedMetadataTest, V2MatchesTxIsIdempotent) {
   make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/true, (uint32_t)data.size());
 
   EXPECT_TRUE(signed_metadata_matches_tx(&msg));
-  const SignedMetadata *md = signed_metadata_get();
+  const SignedMetadata* md = signed_metadata_get();
   uint16_t len_addr = md->args[0].value_len, len_tok = md->args[1].value_len;
 
   EXPECT_TRUE(signed_metadata_matches_tx(&msg));  // second call
@@ -1427,8 +1463,8 @@ TEST(SignedMetadataAttestation, VerifiesValidRejectsTampered) {
   sha256_Raw(data, len, digest);
   uint8_t sig[64];
   uint8_t pby;
-  ASSERT_EQ(0, ecdsa_sign_digest(&secp256k1, TEST_PRIV, digest, sig, &pby,
-                                 nullptr));
+  ASSERT_EQ(
+      0, ecdsa_sign_digest(&secp256k1, TEST_PRIV, digest, sig, &pby, nullptr));
 
   EXPECT_TRUE(signed_metadata_verify_attestation(TEST_KEY_ID, data, len, sig,
                                                  sizeof(sig)));
@@ -1467,7 +1503,7 @@ TEST(SolanaTokenDef, TrustedOnlyWithValidAttestation) {
 
   // Canonical preimage: tag || mint(32) || decimals(le32) || symbol.
   std::vector<uint8_t> pre;
-  const char *tag = "KeepKeySolanaTokenDef/1";
+  const char* tag = "KeepKeySolanaTokenDef/1";
   pre.insert(pre.end(), tag, tag + strlen(tag));
   pre.insert(pre.end(), ti.mint.bytes, ti.mint.bytes + 32);
   pre.push_back(6);
@@ -1480,15 +1516,16 @@ TEST(SolanaTokenDef, TrustedOnlyWithValidAttestation) {
   sha256_Raw(pre.data(), pre.size(), digest);
   uint8_t sig[64];
   uint8_t pby;
-  ASSERT_EQ(0,
-            ecdsa_sign_digest(&secp256k1, TEST_PRIV, digest, sig, &pby, nullptr));
+  ASSERT_EQ(
+      0, ecdsa_sign_digest(&secp256k1, TEST_PRIV, digest, sig, &pby, nullptr));
   ti.has_signature = true;
   ti.signature.size = 64;
   memcpy(ti.signature.bytes, sig, 64);
 
   EXPECT_TRUE(solana_token_info_trusted(&ti));
 
-  // Attested-tuple disagreement: a different decimals no longer matches the sig.
+  // Attested-tuple disagreement: a different decimals no longer matches the
+  // sig.
   ti.decimals = 9;
   EXPECT_FALSE(solana_token_info_trusted(&ti));
   ti.decimals = 6;

@@ -364,6 +364,11 @@ bool mayachain_parseConfirmMemo(const char* swapStr, size_t size) {
     if (nfields < 3 || fields[2][0] == '\0') {
       return false;  // malformed memo
     }
+    /* WD:POOL:BPS[:ASSET] — refuse only genuinely-unknown structure (>4
+     * fields), mirroring thorchain.c. */
+    if (nfields > 4) {
+      return false;
+    }
 
     float percent = (float)(atoi(fields[2])) / 100;
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
@@ -371,6 +376,15 @@ bool mayachain_parseConfirmMemo(const char* swapStr, size_t size) {
                  "Confirm withdraw %3.2f%% of asset %s on chain %s", percent,
                  asset, chain)) {
       return false;
+    }
+    /* Field 4 selects an ASYMMETRIC (single-sided) withdrawal payout asset —
+     * it directs money and must never sign unseen (see thorchain.c). */
+    if (nfields > 3 && fields[3][0] != '\0') {
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                   "Mayachain withdraw liquidity",
+                   "Withdraw single-sided as %s", fields[3])) {
+        return false;
+      }
     }
     return true;
 

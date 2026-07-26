@@ -227,7 +227,8 @@ TEST(Solana, ParseSPLTokenTransfer) {
   SolanaParsedTx tx;
   /* Unchecked SPL Transfer carries no signed mint (the token being moved is not
    * provable), so the transaction is now OPAQUE — it requires AdvancedMode
-   * blind-signing rather than clear-signing. The instruction is still parsed. */
+   * blind-signing rather than clear-signing. The instruction is still parsed.
+   */
   EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
 
   EXPECT_EQ(tx.num_instructions, 1);
@@ -256,9 +257,9 @@ TEST(Solana, Token2022TransferCheckedIsOpaque) {
   pos += 32;
   memset(raw + pos, 0xBB, 32);
   pos += 32;
-  raw[pos++] = 1;  /* 1 instruction */
-  raw[pos++] = 4;  /* program index = token-2022 */
-  raw[pos++] = 4;  /* 4 accounts */
+  raw[pos++] = 1; /* 1 instruction */
+  raw[pos++] = 4; /* program index = token-2022 */
+  raw[pos++] = 4; /* 4 accounts */
   raw[pos++] = 0;
   raw[pos++] = 1;
   raw[pos++] = 2;
@@ -319,7 +320,8 @@ TEST(Solana, VoteUpdateValidatorReadsAccountNotData) {
   SolanaParsedTx tx;
   EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_VERIFIED);
   EXPECT_EQ(tx.instructions[0].type, SOL_INSTR_VOTE_UPDATE_VALIDATOR);
-  /* The new validator must be account index 1 (0x22..), never fabricated data. */
+  /* The new validator must be account index 1 (0x22..), never fabricated data.
+   */
   uint8_t expected[32];
   memset(expected, 0x22, 32);
   EXPECT_EQ(0, memcmp(tx.instructions[0].extra, expected, 32));
@@ -328,7 +330,8 @@ TEST(Solana, VoteUpdateValidatorReadsAccountNotData) {
 TEST(Solana, VoteUpdateValidatorRejectsTrailingBytes) {
   uint8_t raw[512];
   /* 4-byte discriminator + 32 fabricated bytes — used to be displayed as a
-   * fake validator; now non-canonical, so the tx is opaque (blind-sign only). */
+   * fake validator; now non-canonical, so the tx is opaque (blind-sign only).
+   */
   size_t pos = build_vote_update_validator(raw, 36);
   SolanaParsedTx tx;
   EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
@@ -872,4 +875,99 @@ TEST(Solana, MalformedVersionedLookupTableRejects) {
   SolanaParsedTx tx;
   EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_MALFORMED);
   EXPECT_FALSE(solana_parseTx(raw, pos, &tx));
+}
+
+/* =====================================================================
+ *  Review-round-12 regression tests: the forced-opaque set and the
+ *  canonical-shape guards. A future refactor that silently drops any of
+ *  these gates fails here, not in the field.
+ * ===================================================================== */
+
+/* Build a single-instruction tx over `program`, with `n_accounts` distinct
+ * accounts fed to the instruction, plus a fee-payer signer and the program
+ * account. instr_data holds the opcode + operands. Returns the byte length. */
+static size_t build_single_instr_tx(uint8_t* raw, const uint8_t* program,
+                                    int n_accounts, const uint8_t* instr_data,
+                                    uint8_t data_len) {
+  size_t pos = 0;
+  raw[pos++] = 1; /* num_required_sigs */
+  raw[pos++] = 0; /* num_readonly_signed */
+  raw[pos++] = 1; /* num_readonly_unsigned (program) */
+  const int total_accts = n_accounts + 1 /* program */;
+  raw[pos++] = (uint8_t)total_accts;     /* compact-u16 account count */
+  for (int i = 0; i < n_accounts; i++) { /* instruction accounts */
+    memset(raw + pos, 0x11 + i, 32);
+    pos += 32;
+  }
+  memcpy(raw + pos, program, 32); /* program account (last) */
+  pos += 32;
+  memset(raw + pos, 0xBB, 32); /* recent blockhash */
+  pos += 32;
+  raw[pos++] = 1;                        /* 1 instruction */
+  raw[pos++] = (uint8_t)n_accounts;      /* program index (last account) */
+  raw[pos++] = (uint8_t)n_accounts;      /* account-index count */
+  for (int i = 0; i < n_accounts; i++) { /* account indices 0..n-1 */
+    raw[pos++] = (uint8_t)i;
+  }
+  raw[pos++] = data_len;
+  memcpy(raw + pos, instr_data, data_len);
+  pos += data_len;
+  return pos;
+}
+
+/* Legacy SPL TransferChecked with the canonical 10-byte data (opcode + amount
+ * + decimals) and all four accounts clear-signs. */
+TEST(Solana, TransferCheckedCanonicalIsVerified) {
+  uint8_t d[10] = {
+      SOL_TOKEN_TRANSFER_CHECKED_IX, 0x40, 0x42, 0x0F, 0, 0, 0, 0, 6};
+  uint8_t raw[512];
+  size_t pos = build_single_instr_tx(raw, SOL_TOKEN_PROGRAM, 4, d, sizeof(d));
+  SolanaParsedTx tx;
+  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_VERIFIED);
+}
+
+/* A 9-byte TransferChecked (no decimals byte) is non-canonical: it must NOT
+ * classify VERIFIED (which would skip the mint screen) — force opaque. */
+TEST(Solana, TransferCheckedShortDataIsOpaque) {
+  uint8_t d[9] = {SOL_TOKEN_TRANSFER_CHECKED_IX, 0x40, 0x42, 0x0F, 0, 0, 0, 0};
+  uint8_t raw[512];
+  size_t pos = build_single_instr_tx(raw, SOL_TOKEN_PROGRAM, 4, d, sizeof(d));
+  SolanaParsedTx tx;
+  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
+}
+
+/* A TransferChecked with fewer than 4 accounts would read a zeroed mint /
+ * destination (displayed as 1111..) — force opaque instead of clear-signing a
+ * fabricated recipient. */
+TEST(Solana, TransferCheckedShortAccountsIsOpaque) {
+  uint8_t d[10] = {
+      SOL_TOKEN_TRANSFER_CHECKED_IX, 0x40, 0x42, 0x0F, 0, 0, 0, 0, 6};
+  uint8_t raw[512];
+  size_t pos = build_single_instr_tx(raw, SOL_TOKEN_PROGRAM, 3, d, sizeof(d));
+  SolanaParsedTx tx;
+  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
+}
+
+/* StakeAuthorize needs >= 40 data bytes (type(4) + new-authority(32) +
+ * role(4)); a 36-byte encoding would read the role word out of bounds, so it
+ * must not be accepted as a canonical authorize. */
+TEST(Solana, StakeAuthorizeShortDataIsOpaque) {
+  uint8_t d[36] = {SOL_STAKE_AUTHORIZE_IX, 0, 0, 0};
+  memset(d + 4, 0x77, 32); /* new authority, role word missing */
+  uint8_t raw[512];
+  size_t pos = build_single_instr_tx(raw, SOL_STAKE_PROGRAM, 3, d, sizeof(d));
+  SolanaParsedTx tx;
+  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
+}
+
+/* The same StakeAuthorize with the full 40-byte canonical encoding clear-signs
+ * (role = staker), proving the rejection above is the length guard. */
+TEST(Solana, StakeAuthorizeCanonicalIsVerified) {
+  uint8_t d[40] = {SOL_STAKE_AUTHORIZE_IX, 0, 0, 0};
+  memset(d + 4, 0x77, 32); /* new authority */
+  /* d[36..39] = role 0 (staker), already zero */
+  uint8_t raw[512];
+  size_t pos = build_single_instr_tx(raw, SOL_STAKE_PROGRAM, 3, d, sizeof(d));
+  SolanaParsedTx tx;
+  EXPECT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_VERIFIED);
 }

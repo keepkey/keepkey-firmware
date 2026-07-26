@@ -1001,7 +1001,10 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
       msg->has_epk && msg->epk.size == 32 && msg->has_enc_compact &&
       msg->enc_compact.size == 52 && msg->has_enc_memo &&
       msg->enc_memo.size == 512 && msg->has_enc_noncompact &&
-      msg->enc_noncompact.size > 0 && msg->has_cv_net &&
+      /* 580-byte enc_ciphertext = compact(52) + memo(512) + noncompact(16);
+       * pin the exact size like every sibling field so a host serializer bug
+       * fails fast per-action instead of as an end-of-flow digest mismatch. */
+      msg->enc_noncompact.size == 16 && msg->has_cv_net &&
       msg->cv_net.size == 32 && msg->has_rk && msg->rk.size == 32 &&
       msg->has_out_ciphertext && msg->out_ciphertext.size == 80;
 

@@ -221,9 +221,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # The emulator CMake default is KK_ZCASH_PRIVACY=ON (what the published
+          # dylib/Docker image include), so an empty-flag full leg builds
+          # byte-identical to the zcash-privacy leg and the SHIPPED device
+          # configuration (multi-coin, privacy OFF) is never unit-tested. Pin the
+          # full leg to the shipped config; publish-emulator ships the
+          # zcash-privacy image (the same bytes the old full leg produced).
           - variant: full
             label: ""
-            cmake_flags: ""
+            cmake_flags: "-DKK_ZCASH_PRIVACY=OFF"
           - variant: bitcoin-only
             label: " (bitcoin-only)"
             cmake_flags: "-DKK_BITCOIN_ONLY=ON"
@@ -812,8 +818,11 @@ jobs:
       - name: Download emulator image
         uses: actions/download-artifact@v8
         with:
-          # Only the full/default variant is published to DockerHub.
-          name: emu-image-full
+          # Publish the zcash-privacy variant: it matches the emulator's CMake
+          # default (privacy engine ON — what vault and auditors run), which
+          # the "full" leg no longer builds now that it pins the shipped
+          # device configuration (privacy OFF).
+          name: emu-image-zcash-privacy
           path: /tmp
 
       - name: Load emulator image
