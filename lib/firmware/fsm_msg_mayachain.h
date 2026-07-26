@@ -141,18 +141,48 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
 
   const MayachainSignTx* sign_tx = mayachain_getMayachainSignTx();
 
+  // Default to "cacao" for backward compatibility; validate all non-default
+  // denoms before any display so untrusted strings never reach the UI or
+  // the signing JSON.
+  const char* coin_denom =
+      (msg->has_send && msg->send.has_denom && msg->send.denom[0])
+          ? msg->send.denom
+          : "cacao";
+
   if (msg->has_send) {
+    if (!mayachain_isValidDenom(coin_denom)) {
+      mayachain_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid denom");
+      layoutHome();
+      return;
+    }
+
     switch (msg->send.address_type) {
       case OutputAddressType_TRANSFER:
       default: {
+        // Amount (no denom suffix) must fit amount_str[32]; a long denom
+        // appended here would overflow bn_format and blank the amount while
+        // the real value is still signed. Confirm the denom on its own
+        // screen instead (matches the THORChain send path).
         char amount_str[32];
-        char denom_str[71];
-        sprintf(denom_str, " %s", msg->send.denom);
-        bn_format_uint64(msg->send.amount, NULL, denom_str, 10, 0, false,
-                         amount_str, sizeof(amount_str));
+        if (!bn_format_uint64(msg->send.amount, NULL, NULL, 10, 0, false,
+                              amount_str, sizeof(amount_str))) {
+          mayachain_signAbort();
+          fsm_sendFailure(FailureType_Failure_FirmwareError,
+                          _("Failed to format amount"));
+          layoutHome();
+          return;
+        }
         if (!confirm_transaction_output(
                 ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
                 msg->send.to_address)) {
+          mayachain_signAbort();
+          fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+          layoutHome();
+          return;
+        }
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Asset",
+                     "%s", coin_denom)) {
           mayachain_signAbort();
           fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
           layoutHome();
@@ -163,7 +193,7 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
       }
     }
     if (!mayachain_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address,
-                                       msg->send.denom)) {
+                                       coin_denom)) {
       mayachain_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include send message in transaction");
@@ -172,8 +202,21 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
     }
 
   } else if (msg->has_deposit) {
-    char amount_str[32];
-    char asset_str[21];
+    // Validate before any display so untrusted strings never reach the UI
+    // or the sign bytes.
+    if (!mayachain_isValidAsset(msg->deposit.asset) ||
+        !mayachain_isValidSigner(msg->deposit.signer)) {
+      mayachain_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Invalid deposit asset or signer");
+      layoutHome();
+      return;
+    }
+    // Long-form assets (e.g.
+    // ETH.USDT-0XDAC17F958D2EE523A2206206994597C13D831EC7) are ~50 chars;
+    // amount_str must fit amount + asset suffix or bn_format zeroes it out.
+    char amount_str[96];
+    char asset_str[64];
     asset_str[0] = ' ';
     strlcpy(&(asset_str[1]), msg->deposit.asset, sizeof(asset_str) - 1);
     bn_format_uint64(msg->deposit.amount, NULL, asset_str, 10, 0, false,
@@ -245,7 +288,7 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, node_str,
                "Sign this %s transaction on %s? "
                "Additional network fees apply.",
-               msg->has_send ? msg->send.denom : "CACAO", sign_tx->chain_id)) {
+               msg->has_send ? coin_denom : "CACAO", sign_tx->chain_id)) {
     mayachain_signAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();

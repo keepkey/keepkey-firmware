@@ -47,12 +47,38 @@ bool thorchain_isValidDenom(const char* denom) {
   return true;
 }
 
+// Deposit assets share the denom grammar but are conventionally uppercase
+// (e.g. ETH.USDT-0XDAC1...); allow both cases, digits, and . / - only.
+bool thorchain_isValidAsset(const char* asset) {
+  if (!asset || !asset[0]) return false;
+  for (size_t i = 0; asset[i]; i++) {
+    char c = asset[i];
+    if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+          (c >= '0' && c <= '9') || c == '.' || c == '/' || c == '-')) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static CONFIDENTIAL HDNode node;
 static SHA256_CTX ctx;
 static bool initialized;
 static uint32_t msgs_remaining;
 static ThorchainSignTx msg;
 static bool testnet;
+
+// Deposit signer is host-supplied; require a valid bech32 address with the
+// HRP of the active network before it is displayed or signed.
+bool thorchain_isValidSigner(const char* signer) {
+  size_t decoded_len;
+  char hrp[45];
+  uint8_t decoded[38];
+  if (!signer || !bech32_decode(hrp, decoded, &decoded_len, signer)) {
+    return false;
+  }
+  return 0 == strcmp(hrp, testnet ? "tthor" : "thor");
+}
 
 const ThorchainSignTx* thorchain_getThorchainSignTx(void) { return &msg; }
 
@@ -171,6 +197,13 @@ bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
 bool thorchain_signTxUpdateMsgDeposit(const ThorchainMsgDeposit* depmsg) {
   char buffer[64 + 1];
 
+  // Defended here too (not just by the FSM caller) so this signing path is
+  // safe even if called directly or reused elsewhere later.
+  if (!thorchain_isValidAsset(depmsg->asset) ||
+      !thorchain_isValidSigner(depmsg->signer)) {
+    return false;
+  }
+
   bool success = true;
 
   const char* const prelude = "{\"type\":\"thorchain/MsgDeposit\",\"value\":{";
@@ -181,9 +214,11 @@ bool thorchain_signTxUpdateMsgDeposit(const ThorchainMsgDeposit* depmsg) {
                                  "\"coins\":[{\"amount\":\"%" PRIu64 "\"",
                                  depmsg->amount);
 
-  // 10 + ^20 + 3 = ^33
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 ",\"asset\":\"%s\"}]", depmsg->asset);
+  // Use escaping as defense-in-depth; valid assets have no escapable chars
+  const char* const asset_prefix = ",\"asset\":\"";
+  sha256_Update(&ctx, (uint8_t*)asset_prefix, strlen(asset_prefix));
+  tendermint_sha256UpdateEscaped(&ctx, depmsg->asset, strlen(depmsg->asset));
+  sha256_Update(&ctx, (uint8_t*)"\"}]", 3);
 
   // <escape memo>
   const char* const memo_prefix = ",\"memo\":\"";
@@ -231,98 +266,120 @@ bool thorchain_parseConfirmMemo(const char* swapStr, size_t size) {
     Input: swapStr is candidate thorchain data
            size is the size of swapStr (<= 256)
     Memos should be of the form:
-    transaction:chain.ticker-id:destination:limit
+    transaction:chain.ticker-id:destination:limit:affiliate:fee_bps
                 ^^^^^^^^^^^^^^----------asset
 
-    So, swap USDT to dest address 0x41e55..., limit 420
-    SWAP:ETH.USDT-0xdac17f958d2ee523a2206206994597c13d831ec7:0x41e5560054824ea6b0732e656e3ad64e20e94e45:420
+    So, swap USDT to dest address 0x41e55..., limit 420, affiliate "kk"
+    skimming 75 basis points:
+    SWAP:ETH.USDT-0xdac17f958d2ee523a2206206994597c13d831ec7:0x41e5560054824ea6b0732e656e3ad64e20e94e45:420:kk:75
 
     Swap transactions can be indicated by "SWAP" or "s" or "="
+
+    Fields are split on ':' PRESERVING empty fields so a blank field (e.g.
+    an empty limit in "=:ETH.ETH:0xdest::kk:75") can never shift a later
+    field (e.g. the affiliate) into an earlier display slot.
   */
 
-  char* parseTokPtrs[7] = {NULL, NULL, NULL, NULL,
-                           NULL, NULL, NULL};  // we can parse up to 7 tokens
-  char* tok;
-  char memoBuf[256];
-  uint16_t ctr;
+  char* fields[8] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+  /* Memos are documented/accepted up to 256 bytes; memoBuf reserves one
+   * extra byte so a full 256-byte memo still leaves a guaranteed NUL
+   * terminator, instead of the copy silently dropping its last byte. */
+  enum { MEMO_MAX = 256 };
+  char memoBuf[MEMO_MAX + 1];
+  size_t nfields, i;
+  char *chain, *asset;
 
   // check if memo data is recognized
 
-  if (size > sizeof(memoBuf)) return false;
+  if (size > MEMO_MAX) return false;
   memzero(memoBuf, sizeof(memoBuf));
-  strlcpy(memoBuf, swapStr, size);
-  memoBuf[255] = '\0';  // ensure null termination
-  tok = strtok(memoBuf, ":");
+  /* size is a byte count, not necessarily including a NUL: the BTC
+   * OP_RETURN caller passes raw memo bytes with no terminator. strlcpy
+   * would copy only size-1 bytes and silently drop the memo's last
+   * character (turning an affiliate fee of "75" bps into "7"). Copy the
+   * bytes exactly (size <= MEMO_MAX < sizeof(memoBuf), so this never
+   * overflows and always leaves at least one zeroed terminator byte);
+   * the zeroed buffer provides termination. */
+  memcpy(memoBuf, swapStr, size);
 
-  // get transaction and asset
-  for (ctr = 0; ctr < 3; ctr++) {
-    if (tok != NULL) {
-      parseTokPtrs[ctr] = tok;
-      tok = strtok(NULL, ":.");
-    } else {
-      break;
+  // Split on ':', keeping empty fields
+  nfields = 0;
+  fields[nfields++] = memoBuf;
+  for (i = 0; memoBuf[i] != '\0' && nfields < 8; i++) {
+    if (memoBuf[i] == ':') {
+      memoBuf[i] = '\0';
+      fields[nfields++] = &memoBuf[i + 1];
     }
   }
 
-  if (ctr != 3) {
-    // Must have three tokens at this point: transaction, chain, asset. If
-    // not, just confirm data
+  if (nfields < 2) {
+    // Must have at least transaction and chain.asset. If not, just confirm
+    // data
     return false;
   }
 
+  // Split chain.asset at the first '.'
+  chain = fields[1];
+  asset = strchr(chain, '.');
+  if (asset == NULL) {
+    // No chain.asset pair; not recognizable thorchain data, just confirm data
+    return false;
+  }
+  *asset = '\0';
+  asset++;
+
   // Check for swap
-  if (strncmp(parseTokPtrs[0], "SWAP", 4) == 0 || *parseTokPtrs[0] == 's' ||
-      *parseTokPtrs[0] == '=') {
+  if (strncmp(fields[0], "SWAP", 4) == 0 || *fields[0] == 's' ||
+      *fields[0] == '=') {
     // This is a swap, set up destination and limit
-    // This is the dest, may be blank which means swap to self
-    parseTokPtrs[3] = "self";
-    parseTokPtrs[4] = "none";
-    if (tok != NULL) {
-      if ((uint32_t)(tok - (parseTokPtrs[2] + strlen(parseTokPtrs[2]))) == 1) {
-        // has dest address
-        parseTokPtrs[3] = tok;
-        tok = strtok(NULL, ":");
-      }
-      if (tok != NULL) {
-        // has limit
-        parseTokPtrs[4] = tok;
-      }
-    }
+    // The dest may be blank which means swap to self
+    const char* dest =
+        (nfields > 2 && fields[2][0] != '\0') ? fields[2] : "self";
+    const char* limit =
+        (nfields > 3 && fields[3][0] != '\0') ? fields[3] : "none";
+    const char* affiliate =
+        (nfields > 4 && fields[4][0] != '\0') ? fields[4] : NULL;
+    const char* fee_bps =
+        (nfields > 5 && fields[5][0] != '\0') ? fields[5] : "unspecified";
 
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Thorchain swap", "Confirm swap asset %s\n on chain %s",
-                 parseTokPtrs[2], parseTokPtrs[1])) {
+                 "Thorchain swap", "Confirm swap asset %s\n on chain %s", asset,
+                 chain)) {
       return false;
     }
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Thorchain swap", "Confirm to %s", parseTokPtrs[3])) {
+                 "Thorchain swap", "Confirm to %s", dest)) {
       return false;
     }
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Thorchain swap", "Confirm limit %s", parseTokPtrs[4])) {
+                 "Thorchain swap", "Confirm limit %s", limit)) {
       return false;
+    }
+    // Never hide the affiliate fee skim from the user
+    if (affiliate != NULL) {
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                   "Thorchain swap", "Affiliate fee %s bps to %s", fee_bps,
+                   affiliate)) {
+        return false;
+      }
     }
     return true;
   }
 
   // Check for add liquidity
-  else if (strncmp(parseTokPtrs[0], "ADD", 3) == 0 || *parseTokPtrs[0] == 'a' ||
-           *parseTokPtrs[0] == '+') {
-    if (tok != NULL) {
-      // add liquidity pool address
-      parseTokPtrs[3] = tok;
-    }
+  else if (strncmp(fields[0], "ADD", 3) == 0 || *fields[0] == 'a' ||
+           *fields[0] == '+') {
+    // add liquidity pool address (optional)
+    const char* pool = (nfields > 2 && fields[2][0] != '\0') ? fields[2] : NULL;
 
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                  "Thorchain add liquidity",
-                 "Confirm add asset %s\n on chain %s pool", parseTokPtrs[2],
-                 parseTokPtrs[1])) {
+                 "Confirm add asset %s\n on chain %s pool", asset, chain)) {
       return false;
     }
-    if (tok != NULL) {
+    if (pool != NULL) {
       if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                   "Thorchain add liquidity", "Confirm to %s",
-                   parseTokPtrs[3])) {
+                   "Thorchain add liquidity", "Confirm to %s", pool)) {
         return false;
       }
     }
@@ -330,20 +387,17 @@ bool thorchain_parseConfirmMemo(const char* swapStr, size_t size) {
   }
 
   // Check for withdraw liquidity
-  else if (strncmp(parseTokPtrs[0], "WITHDRAW", 8) == 0 ||
-           strncmp(parseTokPtrs[0], "wd", 2) == 0 || *parseTokPtrs[0] == '-') {
-    if (tok != NULL) {
-      // add liquidity pool address
-      parseTokPtrs[3] = tok;
-    } else {
+  else if (strncmp(fields[0], "WITHDRAW", 8) == 0 ||
+           strncmp(fields[0], "wd", 2) == 0 || *fields[0] == '-') {
+    if (nfields < 3 || fields[2][0] == '\0') {
       return false;  // malformed memo
     }
 
-    float percent = (float)(atoi(parseTokPtrs[3])) / 100;
+    float percent = (float)(atoi(fields[2])) / 100;
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                  "Thorchain withdraw liquidity",
                  "Confirm withdraw %3.2f%% of asset %s on chain %s", percent,
-                 parseTokPtrs[2], parseTokPtrs[1])) {
+                 asset, chain)) {
       return false;
     }
     return true;
