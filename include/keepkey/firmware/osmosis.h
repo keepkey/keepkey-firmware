@@ -66,6 +66,22 @@ bool osmosis_signTxUpdateMsgSwap(const uint64_t pool_id,
                                  const char* token_in_denom,
                                  const char* token_out_min_amount);
 
+#define OSMOSIS_PRECISION 6
+
+// Longest amount a confirm screen renders: the digits, a point, a space and
+// the longest denom a message can carry.
+#define OSMOSIS_AMOUNT_STR_LEN 103
+
+/**
+ * Render an integer base-unit amount for a confirm screen:
+ * ("1500000", "uosmo") -> "1.500000 OSMO".
+ *
+ * Only uosmo is scaled — any other denom is shown exactly as the chain states
+ * it, because the device does not know its precision.
+ */
+void osmosis_formatAmount(char* out, size_t out_len, const char* value,
+                          const char* denom);
+
 bool osmosis_signTxFinalize(uint8_t* public_key, uint8_t* signature);
 bool osmosis_signingIsInited(void);
 bool osmosis_signingIsFinished(void);

@@ -618,6 +618,24 @@ bool osmosis_signTxFinalize(uint8_t* public_key, uint8_t* signature) {
                            NULL) == 0;
 }
 
+/*
+ * Cosmos amounts arrive as integer base-unit strings. These screens used to
+ * render them with atof() + "%.6f", which rounds anything past ~7 significant
+ * digits — on the very screen the user approves — and linked newlib's floating
+ * point engine into a ROM budget with no room for it. bn_format_uint64 places
+ * the decimal point in integer math, the same way the Hive and Ethereum
+ * confirm screens do.
+ */
+void osmosis_formatAmount(char* out, size_t out_len, const char* value,
+                          const char* denom) {
+  if (strcmp(denom, "uosmo") != 0) {
+    snprintf(out, out_len, "%s %s", value, denom);
+    return;
+  }
+  bn_format_uint64(strtoull(value, NULL, 10), NULL, " OSMO", OSMOSIS_PRECISION,
+                   0, true, out, out_len);
+}
+
 bool osmosis_signingIsInited(void) { return initialized; }
 
 bool osmosis_signingIsFinished(void) { return msgs_remaining == 0; }

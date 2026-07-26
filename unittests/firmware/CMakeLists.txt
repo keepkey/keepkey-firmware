@@ -17,6 +17,7 @@ if(NOT ${KK_BITCOIN_ONLY})
       hive.cpp
       mayachain.cpp
       nano.cpp
+      osmosis.cpp
       ripple.cpp
       signed_metadata.cpp
       solana.cpp
