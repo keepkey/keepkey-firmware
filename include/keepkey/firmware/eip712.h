@@ -95,8 +95,9 @@ typedef enum { DOMAIN = 1, MESSAGE } dm;
 #define JSON_TYPE_T_NOVAL 31
 #define ADDR_STRING_NULL 32
 #define JSON_TYPE_WNOVAL 33
+#define USER_CANCELLED 34
 
-#define LAST_ERROR JSON_TYPE_WNOVAL
+#define LAST_ERROR USER_CANCELLED
 
 int encode(const json_t* jsonTypes, const json_t* jsonVals, const char* typeS,
            uint8_t* hashRet);

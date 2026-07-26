@@ -460,6 +460,9 @@ void fsm_msgWipeDevice(WipeDevice* msg) {
   storage_reset();
   storage_resetUuid();
   storage_commit();
+  /* Factory reset drops runtime trust anchors too: loaded clearsign
+   * signers (and any metadata they verified) must not survive a wipe. */
+  signed_metadata_clear_signers();
 
   fsm_sendSuccess("Device wiped");
   layoutHome();

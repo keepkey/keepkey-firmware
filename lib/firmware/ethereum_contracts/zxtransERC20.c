@@ -45,6 +45,10 @@ bool zx_isZxTransformERC20(const EthereumSignTx* msg) {
 
 bool zx_confirmZxTransERC20(uint32_t data_total, const EthereumSignTx* msg) {
   (void)data_total;
+  /* Reads selector + 4 static head words (in/out token, in/out amount). This
+   * handler is allowed at any data_total (large transformations[] tail), so
+   * guard the read extent against the RECEIVED chunk, not the total length. */
+  if (msg->data_initial_chunk.size < 4 + 4 * 32) return false;
   const TokenType *in, *out;
   const uint8_t *inAddress, *outAddress;
   char constr1[40], constr2[40];

@@ -19,6 +19,85 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "keepkey/firmware/signed_metadata.h"
+
+void fsm_msgEthereumTxMetadata(const EthereumTxMetadata* msg) {
+  CHECK_INITIALIZED
+  CHECK_PIN
+
+  /* Metadata must arrive before signing starts. signed_metadata_process()
+   * clears the binding on entry, so accepting metadata mid-signing would
+   * drop the tx<->metadata binding without aborting: a host could approve a
+   * benign decode (suppressing the blind-sign gate), then inject metadata to
+   * clear the binding and stream attacker-chosen calldata for the rest.
+   * Refuse and abort any in-progress signing session. */
+  if (ethereum_signing_isInProgress()) {
+    ethereum_signing_abort();
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                    _("Metadata not allowed during signing"));
+    layoutHome();
+    return;
+  }
+
+  RESP_INIT(EthereumMetadataAck);
+
+  MetadataClassification result = signed_metadata_process(
+      msg->signed_payload.bytes, msg->signed_payload.size,
+      msg->has_key_id ? msg->key_id : 0);
+
+  resp->classification = (uint32_t)result;
+  resp->has_display_summary = true;
+
+  switch (result) {
+    case METADATA_VERIFIED:
+      strlcpy(resp->display_summary, "Verified", sizeof(resp->display_summary));
+      break;
+    case METADATA_OPAQUE:
+      strlcpy(resp->display_summary, "Unverified",
+              sizeof(resp->display_summary));
+      break;
+    case METADATA_MALFORMED:
+    default:
+      strlcpy(resp->display_summary, "Invalid", sizeof(resp->display_summary));
+      break;
+  }
+
+  msg_write(MessageType_MessageType_EthereumMetadataAck, resp);
+}
+
+void fsm_msgLoadClearsignSigner(const LoadClearsignSigner* msg) {
+  CHECK_INITIALIZED
+  CHECK_PIN
+
+  CHECK_PARAM(msg->has_key_id && msg->has_pubkey && msg->has_alias,
+              _("key_id, pubkey and alias required"));
+  /* Range-check as uint32 BEFORE narrowing: (uint8_t)256 would alias slot 0 */
+  CHECK_PARAM(msg->key_id < METADATA_MAX_KEYS, _("key_id out of range"));
+  CHECK_PARAM(
+      signed_metadata_signer_valid((uint8_t)msg->key_id, msg->pubkey.bytes,
+                                   msg->pubkey.size, msg->alias),
+      _("Invalid clearsign signer"));
+
+  /* Mandatory on-device consent — the whole trust model hangs on this
+   * confirm. The same fingerprint reappears on every per-tx warning. */
+  char fingerprint[METADATA_FINGERPRINT_LEN];
+  signed_metadata_pubkey_fingerprint(msg->pubkey.bytes, fingerprint);
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, _("Load Clearsigner"),
+               "Trust signer '%s' (%s) to describe transactions? NOT verified "
+               "by KeepKey.",
+               msg->alias, fingerprint)) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("Load clearsign signer cancelled"));
+    layoutHome();
+    return;
+  }
+
+  signed_metadata_store_signer((uint8_t)msg->key_id, msg->pubkey.bytes,
+                               msg->alias);
+  fsm_sendSuccess(_("Clearsign signer loaded"));
+  layoutHome();
+}
+
 static int process_ethereum_xfer(const CoinType* coin, EthereumSignTx* msg) {
   if (!ethereum_isStandardERC20Transfer(msg) && msg->data_length != 0)
     return TXOUT_COMPILE_ERROR;
@@ -331,24 +410,40 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash* msg) {
   char str[64 + 1];
   int ctr;
 
-  confirm(ButtonRequestType_ButtonRequest_Other, "Verify Address",
-          "Confirm address: %s", resp->address);
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Verify Address",
+               "Confirm address: %s", resp->address)) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    layoutHome();
+    return;
+  }
 
   for (ctr = 0; ctr < 64 / 2; ctr++) {
     snprintf(&str[2 * ctr], 3, "%02x", msg->domain_separator_hash.bytes[ctr]);
   }
-  confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data domain",
-          "Confirm hash digest: %s", str);
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data domain",
+               "Confirm hash digest: %s", str)) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    layoutHome();
+    return;
+  }
 
   if (msg->has_message_hash) {
     for (ctr = 0; ctr < 64 / 2; ctr++) {
       snprintf(&str[2 * ctr], 3, "%02x", msg->message_hash.bytes[ctr]);
     }
-    confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
-            "Confirm hash digest: %s", str);
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
+                 "Confirm hash digest: %s", str)) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
   } else {
-    confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
-            "Confirm: No message");
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
+                 "Confirm: No message")) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
   }
 
   ethereum_typed_hash_sign(msg, node, resp);
