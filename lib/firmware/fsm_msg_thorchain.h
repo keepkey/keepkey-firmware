@@ -225,17 +225,17 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
     }
 
     if (msg->deposit.has_memo) {
-      // See if we can parse the memo
-      if (!thorchain_parseConfirmMemo(msg->deposit.memo,
-                                      sizeof(msg->deposit.memo))) {
-        // Memo not recognizable, ask to confirm it
-        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
-                     "%s", msg->deposit.memo)) {
-          thorchain_signAbort();
-          fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-          layoutHome();
-          return;
-        }
+      size_t memo_len = strnlen(msg->deposit.memo, sizeof(msg->deposit.memo));
+      // Page the complete raw memo as the sole, authoritative disclosure. No
+      // structured pre-parse here: its bool return conflates "unrecognized"
+      // with "user rejected a screen", so a reject could be followed by these
+      // pages and then signing. The raw pager's own reject aborts.
+      if (!thorchain_confirm_full_memo(_("Memo"), msg->deposit.memo,
+                                       memo_len)) {
+        thorchain_signAbort();
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        layoutHome();
+        return;
       }
     }
 
@@ -255,17 +255,14 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
   }
 
   if (sign_tx->has_memo && !msg->deposit.has_memo) {
-    // See if we can parse the tx memo. This memo ignored if deposit msg has
-    // memo
-    if (!thorchain_parseConfirmMemo(sign_tx->memo, sizeof(sign_tx->memo))) {
-      // Memo not recognizable, ask to confirm it
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",
-                   sign_tx->memo)) {
-        thorchain_signAbort();
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-        layoutHome();
-        return;
-      }
+    // Ignored if the deposit msg has a memo. Page the full raw memo as the sole
+    // gate (see the deposit path above for why there is no structured pass).
+    size_t memo_len = strnlen(sign_tx->memo, sizeof(sign_tx->memo));
+    if (!thorchain_confirm_full_memo(_("Memo"), sign_tx->memo, memo_len)) {
+      thorchain_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
     }
   }
 

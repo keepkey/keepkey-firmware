@@ -26,7 +26,7 @@
 #include "keepkey/firmware/authenticator.h"
 
 #define STORAGE_VERSION \
-  17 /* Must add case fallthrough in storage_fromFlash after increment*/
+  18 /* Must add case fallthrough in storage_fromFlash after increment*/
 
 /* A seed CREATED under bitcoin-only firmware is stamped with a version in a
  * reserved band (base + the normal version). Multi-chain firmware that knows

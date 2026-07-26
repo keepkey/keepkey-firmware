@@ -16,6 +16,10 @@ typedef struct _EthereumSignTx EthereumSignTx;
 #define METADATA_MAX_TOKEN_SYMBOL_LEN 10
 #define METADATA_MAX_KEYS 4
 #define METADATA_ALIAS_MAX_LEN 31
+/* Identity icon cap (1bpp mono RLE). Must equal the device-protocol
+ * LoadClearsignSigner.icon max_size and storage.h CLEARSIGN_ICON_MAX
+ * (static-asserted in signed_metadata.c). */
+#define METADATA_ICON_MAX 384
 /* hex(first 4 bytes of sha256(pubkey)) + NUL */
 #define METADATA_FINGERPRINT_LEN 9
 
@@ -113,14 +117,38 @@ void signed_metadata_clear(void);
 /* Pure validation: slot in range and not occupied by a built-in key, pubkey a
  * valid compressed secp256k1 point, alias non-empty printable ASCII within
  * METADATA_ALIAS_MAX_LEN. No state, no I/O. */
-bool signed_metadata_signer_valid(uint8_t key_id, const uint8_t *pubkey,
-                                  size_t pubkey_len, const char *alias);
+bool signed_metadata_signer_valid(uint8_t key_id, const uint8_t* pubkey,
+                                  size_t pubkey_len, const char* alias);
 
 /* Store a signer into a slot. Caller (the FSM handler) MUST have passed
  * signed_metadata_signer_valid() and obtained on-device user confirmation
- * first — this function is the post-consent write, nothing more. */
-void signed_metadata_store_signer(uint8_t key_id, const uint8_t *pubkey,
-                                  const char *alias);
+ * first — this function is the post-consent write, nothing more.
+ *
+ * icon (optional, icon_len<=384, 1bpp mono RLE) is kept as the session icon for
+ * the slot; icon_len==0 => text-only identity. When persist=true the signer
+ * (incl. icon) is ALSO written to flash so it survives reboot. Returns false
+ * only when persist was requested but every persistent slot is occupied by a
+ * different identity — the RAM (session) signer is stored regardless. */
+bool signed_metadata_store_signer(uint8_t key_id, const uint8_t* pubkey,
+                                  const char* alias, const uint8_t* icon,
+                                  uint8_t icon_w, uint8_t icon_h,
+                                  uint16_t icon_len, bool persist);
+
+/* Resolve a slot's alias / icon from the RAM session copy, else a persisted
+ * identity that survived reboot. alias returns NULL and icon returns false when
+ * the slot has no signer / no icon (text-only). Used by the per-tx confirm. */
+const char* signed_metadata_signer_alias(uint8_t key_id);
+bool signed_metadata_signer_icon(uint8_t key_id, const uint8_t** icon_out,
+                                 uint8_t* w_out, uint8_t* h_out,
+                                 uint16_t* len_out);
+
+/* The LoadClearsignSigner consent screen: leads with the identity's logo (if
+ * any) + alias + fingerprint. Returns true iff the user confirmed. The FSM
+ * handler calls this before storing the signer. */
+bool signed_metadata_confirm_load(const char* alias, const char* fingerprint,
+                                  const uint8_t* icon, uint8_t icon_w,
+                                  uint8_t icon_h, uint16_t icon_len,
+                                  bool persist);
 
 /* Drop all runtime-loaded signers (and any metadata they verified). */
 void signed_metadata_clear_signers(void);
@@ -134,14 +162,30 @@ void signed_metadata_pubkey_fingerprint(const uint8_t pubkey[33],
 /* True when the currently stored metadata was verified by a runtime-loaded
  * signer (=> its confirm flow is warning-first, never "Insight Verified"). */
 bool signed_metadata_from_loaded_signer(void);
-MetadataClassification signed_metadata_process(const uint8_t *payload,
+MetadataClassification signed_metadata_process(const uint8_t* payload,
                                                size_t payload_len,
                                                uint8_t key_id);
+
+/* Generic attestation check reusing the (chain-agnostic) clear-sign signer
+ * keyring: returns true iff a signer is loaded/pinned for `key_id` AND the
+ * 64-byte compact ECDSA signature `sig` verifies over sha256(data). Used by
+ * non-EVM paths (e.g. Solana signed token definitions) that want to trust
+ * host-supplied data only when a loaded signer attests to it. */
+bool signed_metadata_verify_attestation(uint8_t key_id, const uint8_t* data,
+                                        size_t data_len, const uint8_t* sig,
+                                        size_t sig_len);
+
+/* Fingerprint (hex of sha256(pubkey)[0:4]) of the signer loaded/pinned in
+ * `key_id`, written NUL-terminated to `out`. Returns false if no signer is
+ * present. Lets non-EVM callers disambiguate signers (aliases are not unique)
+ * the same way the EVM per-tx warning does. */
+bool signed_metadata_signer_fingerprint(uint8_t key_id,
+                                        char out[METADATA_FINGERPRINT_LEN]);
 /* Display gate: does this metadata plausibly describe `msg`? Binds contract
  * address, selector and chain id so the wrong method is never shown. The
  * authoritative full-tx binding is enforced later by signed_metadata_enforce().
  */
-bool signed_metadata_matches_tx(const EthereumSignTx *msg);
+bool signed_metadata_matches_tx(const EthereumSignTx* msg);
 bool signed_metadata_confirm(void);
 
 /* True once a verified confirm has suppressed the raw-data confirmation, i.e.
@@ -160,8 +204,8 @@ bool signed_metadata_enforce(const uint8_t hash[32]);
  * feeds the module state into this function. No state, no I/O. */
 bool signed_metadata_enforce_decision(bool relied, bool available,
                                       int classification,
-                                      const uint8_t *stored_hash,
-                                      const uint8_t *hash);
+                                      const uint8_t* stored_hash,
+                                      const uint8_t* hash);
 
 /* Pure enforcement decision for v2 (static schema) blobs, exported for unit
  * testing. v2 has no committed tx_hash; the binding is structural (args decoded
@@ -174,6 +218,6 @@ bool signed_metadata_enforce_decision(bool relied, bool available,
 bool signed_metadata_enforce_schema_decision(bool relied, bool available,
                                              bool decoded, int classification);
 
-const SignedMetadata *signed_metadata_get(void);
+const SignedMetadata* signed_metadata_get(void);
 
 #endif

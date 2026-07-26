@@ -21,7 +21,17 @@ option(KK_BUILD_DYLIB "Build libkkemu shared library (.dylib/.so)" OFF)
 option(KK_DEBUG_LINK "Build with debug-link enabled" OFF)
 option(KK_BUILD_FUZZERS "Build the fuzzers?" OFF)
 option(KK_BITCOIN_ONLY "Build Bitcoin-only firmware (strip all non-BTC coins)" OFF)
-option(KK_ZCASH_PRIVACY "Build the Zcash shielded/Orchard privacy engine" OFF)
+# The emulator runs on a host with no flash/SRAM budget, so it defaults the
+# Zcash shielded/Orchard privacy engine ON -- this is what makes the published
+# libkkemu dylib and Docker image (what vault and auditors actually run)
+# include it. Device firmware keeps the OFF default and only ships the engine
+# via an explicit -DKK_ZCASH_PRIVACY=ON. Bitcoin-only can never enable it
+# (mutually exclusive, see below), so it forces the OFF default too.
+if(KK_EMULATOR AND NOT KK_BITCOIN_ONLY)
+  option(KK_ZCASH_PRIVACY "Build the Zcash shielded/Orchard privacy engine" ON)
+else()
+  option(KK_ZCASH_PRIVACY "Build the Zcash shielded/Orchard privacy engine" OFF)
+endif()
 
 # When building the dylib, every static lib it links (kkfirmware, kkboard,
 # trezorcrypto, kkrand, kktransport, qrcodegenerator, SecAESSTM32, ...) must
@@ -86,6 +96,13 @@ endif()
 if(${KK_EMULATOR})
   add_definitions(-DEMULATOR)
   add_definitions(-DCONFIDENTIAL=)
+  # macOS/BSD declare strlcpy/strlcat in <string.h>; glibc (Linux) and MinGW
+  # (Windows) do not. Force-include the prototypes so the ~20 call sites build
+  # without -Werror=implicit-function-declaration (definitions come from
+  # lib/board/strlcpy.c + strlcat.c). Apple already has them in <string.h>.
+  if(NOT APPLE)
+    add_compile_options(-include ${CMAKE_SOURCE_DIR}/include/keepkey/board/bsd_compat.h)
+  endif()
 else()
   add_definitions(-DCONFIDENTIAL=__attribute__\(\(section\("confidential"\)\)\))
 endif()
@@ -202,6 +219,12 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 if(NOT ${KK_EMULATOR})
   link_directories(${LIBOPENCM3_PATH}/lib)
   include_directories(${LIBOPENCM3_PATH}/include)
+
+  # Emit per-function stack-frame sizes (.su files) on device builds. CI's
+  # SRAM budget gate (tools/check_sram_budget.py) reports the largest frames
+  # and fails when the linker-asserted stack reserve minus the largest frame
+  # leaves less than the configured margin. See tools/firmware/keepkey.ld.
+  add_compile_options(-fstack-usage)
 
   # Dummy empty libraries for stack smashing protection support, since we
   # implement __stack_chk_guard and __stack_chk_fail ourselves.

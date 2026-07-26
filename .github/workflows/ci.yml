@@ -100,7 +100,7 @@ jobs:
 
   static-analysis:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -356,7 +356,24 @@ jobs:
               mkdir -p /root/keepkey-firmware/bin && \
               cp bin/*.bin /root/keepkey-firmware/bin/ && \
               cp bin/*.elf /root/keepkey-firmware/bin/ && \
+              cp bin/*.map /root/keepkey-firmware/bin/ 2>/dev/null || true && \
+              arm-none-eabi-size -A bin/firmware.keepkey.elf > /root/keepkey-firmware/bin/firmware.keepkey.size.txt 2>/dev/null || true && \
+              find . -name '*.su' -print0 | tar czf /root/keepkey-firmware/bin/stack-usage.tgz --null -T - && \
               chmod -R a+rw /root/keepkey-firmware/bin"
+
+      # SRAM budget gate — RC7's zcash-privacy variant hard-faulted on boot
+      # because static SRAM left an 11.2 KB gap while msg_write() carried a
+      # 12.4 KB stack frame. keepkey.ld now ASSERTs a 16 KiB reserve at link
+      # time; this step reports the numbers and enforces the frame margin
+      # (tools/sram-budgets.json).
+      - name: SRAM budget gate (${{ matrix.variant }})
+        run: |
+          pip install --quiet pyelftools
+          python3 tools/check_sram_budget.py \
+            --elf bin/firmware.keepkey.elf \
+            --su-tar bin/stack-usage.tgz \
+            --budgets tools/sram-budgets.json \
+            --variant "${{ matrix.variant }}"
 
       - name: Rename firmware artifacts
         run: |
@@ -379,6 +396,9 @@ jobs:
           path: |
             bin/*.bin
             bin/*.elf
+            bin/*.map
+            bin/*.size.txt
+            bin/stack-usage.tgz
           retention-days: 90
 
   # ═══════════════════════════════════════════════════════════

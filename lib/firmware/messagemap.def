@@ -76,7 +76,6 @@
 #endif  // !BITCOIN_ONLY
 
     MSG_IN(MessageType_MessageType_GetBip85Mnemonic,               GetBip85Mnemonic,            fsm_msgGetBip85Mnemonic)
-    MSG_OUT(MessageType_MessageType_Bip85Mnemonic,                  Bip85Mnemonic,               NO_PROCESS_FUNC)
 
     /* Normal Out Messages */
     MSG_OUT(MessageType_MessageType_Success,                        Success,                     NO_PROCESS_FUNC)
@@ -195,12 +194,16 @@
     MSG_IN(MessageType_MessageType_HiveSignTx,                     HiveSignTx,                  fsm_msgHiveSignTx)
     MSG_IN(MessageType_MessageType_HiveSignAccountCreate,          HiveSignAccountCreate,       fsm_msgHiveSignAccountCreate)
     MSG_IN(MessageType_MessageType_HiveSignAccountUpdate,          HiveSignAccountUpdate,       fsm_msgHiveSignAccountUpdate)
+    MSG_IN(MessageType_MessageType_HiveSignMessage,                HiveSignMessage,             fsm_msgHiveSignMessage)
+    MSG_IN(MessageType_MessageType_HiveSignOperations,             HiveSignOperations,          fsm_msgHiveSignOperations)
 
     MSG_OUT(MessageType_MessageType_HivePublicKey,                 HivePublicKey,               NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_HivePublicKeys,                HivePublicKeys,              NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_HiveSignedTx,                  HiveSignedTx,                NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_HiveSignedAccountCreate,       HiveSignedAccountCreate,     NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_HiveSignedAccountUpdate,       HiveSignedAccountUpdate,     NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_HiveSignedMessage,             HiveSignedMessage,           NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_HiveSignedOperations,          HiveSignedOperations,        NO_PROCESS_FUNC)
 #endif  // !BITCOIN_ONLY
 
 #if DEBUG_LINK

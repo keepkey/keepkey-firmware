@@ -37,4 +37,13 @@ const ThorchainSignTx* thorchain_getThorchainSignTx(void);
 //          true if thorchain data parsed and confirmed by user, false otherwise
 bool thorchain_parseConfirmMemo(const char* swapStr, size_t size);
 
+// Pages the COMPLETE raw memo (ASCII as text pages, binary as hex pages) so no
+// byte is ever truncated behind confirm()'s body budget. Native THOR/MAYA
+// deposit/send handlers call this as the authoritative disclosure after their
+// best-effort structured summary, so a field the structured view omits (or a
+// long field that would truncate) can never be signed unseen. Returns false if
+// the user rejects any page. Shared by the MAYA path (same memo grammar).
+bool thorchain_confirm_full_memo(const char* title, const char* memo,
+                                 size_t len);
+
 #endif

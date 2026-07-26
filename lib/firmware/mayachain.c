@@ -32,33 +32,12 @@
 #include <string.h>
 #include <time.h>
 
-// Allow lowercase alpha, digits, and the punctuation used in MAYAChain asset
-// identifiers (e.g. "eth.eth", "btc/btc", cross-chain synthetic prefixes).
-// Rejects anything that needs JSON escaping (backslash, quote).
 bool mayachain_isValidDenom(const char* denom) {
-  if (!denom || !denom[0]) return false;
-  for (size_t i = 0; denom[i]; i++) {
-    char c = denom[i];
-    if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' ||
-          c == '/' || c == '-')) {
-      return false;
-    }
-  }
-  return true;
+  return tendermint_isValidDenom(denom);
 }
 
-// Deposit assets share the denom grammar but are conventionally uppercase
-// (e.g. MAYA.CACAO, ETH.USDT-0XDAC1...); allow both cases, digits, . / -.
 bool mayachain_isValidAsset(const char* asset) {
-  if (!asset || !asset[0]) return false;
-  for (size_t i = 0; asset[i]; i++) {
-    char c = asset[i];
-    if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-          (c >= '0' && c <= '9') || c == '.' || c == '/' || c == '-')) {
-      return false;
-    }
-  }
-  return true;
+  return tendermint_isValidAsset(asset);
 }
 
 static CONFIDENTIAL HDNode node;
@@ -68,16 +47,8 @@ static uint32_t msgs_remaining;
 static MayachainSignTx msg;
 static bool testnet;
 
-// Deposit signer is host-supplied; require a valid bech32 address with the
-// HRP of the active network before it is displayed or signed.
 bool mayachain_isValidSigner(const char* signer) {
-  size_t decoded_len;
-  char hrp[45];
-  uint8_t decoded[38];
-  if (!signer || !bech32_decode(hrp, decoded, &decoded_len, signer)) {
-    return false;
-  }
-  return 0 == strcmp(hrp, testnet ? "smaya" : "maya");
+  return tendermint_isValidSigner(signer, testnet ? "smaya" : "maya");
 }
 
 const MayachainSignTx* mayachain_getMayachainSignTx(void) { return &msg; }

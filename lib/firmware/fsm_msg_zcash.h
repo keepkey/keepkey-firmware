@@ -107,6 +107,10 @@ static struct {
 
 /* Public API; declared in keepkey/firmware/zcash.h. */
 void zcash_signing_abort(void) {
+  /* Centralized cleanup: stop the trickle progress animation here so every
+   * abort path (Cancel, ClearSession, failures) kills it even when the caller
+   * does not go through layoutHome()/layout_clear_animations(). */
+  layoutProgressTrickleStop();
   memzero(&zcash_signing, sizeof(zcash_signing));
 }
 
@@ -162,6 +166,59 @@ static void zcash_format_amount(uint64_t amount, char* out, size_t out_size) {
   snprintf(out, out_size, "%llu.%08llu ZEC",
            (unsigned long long)(amount / 100000000ULL),
            (unsigned long long)(amount % 100000000ULL));
+}
+
+/* Determine account — require explicit account or strict ZIP-32 path
+ * m/32'/133'/account' (all hardened, exactly 3 elements). Shared by
+ * ZcashSignPCZT / ZcashGetOrchardFVK / ZcashDisplayAddress so a malformed
+ * host path cannot silently resolve to an unintended account. */
+static bool zcash_resolve_account(bool has_account, uint32_t account_field,
+                                  const uint32_t* address_n,
+                                  uint32_t address_n_count,
+                                  uint32_t* account_out) {
+  if (has_account) {
+    *account_out = account_field;
+    return true;
+  }
+  if (address_n_count == 3 && address_n[0] == (0x80000000 | 32) &&
+      address_n[1] == (0x80000000 | 133) && (address_n[2] & 0x80000000)) {
+    *account_out = address_n[2] & 0x7FFFFFFF;
+    return true;
+  }
+  fsm_sendFailure(
+      FailureType_Failure_SyntaxError,
+      _("Require account field or ZIP-32 path m/32'/133'/account'"));
+  return false;
+}
+
+/* Optional seed_fingerprint binding (ZIP-32 §6.1). If the host asserts a
+ * seed identity, verify it matches this device's seed before proceeding.
+ * Catches "wrong device" attacks where the host accidentally targets a
+ * different seed than the one it built the request against. */
+static bool zcash_check_seed_fingerprint(bool has_expected,
+                                         const uint8_t* expected,
+                                         size_t expected_size) {
+  if (!zcash_seed_fingerprint_request_valid(has_expected, expected_size)) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Seed fingerprint must be 32 bytes"));
+    return false;
+  }
+  if (!has_expected) return true;
+
+  uint8_t actual_fp[32];
+  if (!storage_zcashSeedFingerprint(true, actual_fp)) {
+    fsm_sendFailure(FailureType_Failure_NotInitialized,
+                    _("Device not initialized or seed unavailable"));
+    return false;
+  }
+  bool match = memcmp(actual_fp, expected, 32) == 0;
+  memzero(actual_fp, sizeof(actual_fp));
+  if (!match) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Seed fingerprint mismatch — wrong device"));
+    return false;
+  }
+  return true;
 }
 
 static bool zcash_verify_and_confirm_orchard_output(
@@ -273,6 +330,18 @@ static void zcash_send_action_ack(uint32_t next_index) {
   resp_ack->has_next_index = true;
   resp_ack->next_index = next_index;
   msg_write(MessageType_MessageType_ZcashPCZTActionAck, resp_ack);
+
+  /* The device now blocks until the host generates the (slow) Orchard proof for
+   * this action. Ease the progress bar from the milestone already reached
+   * toward the one this action will complete, so the screen keeps moving
+   * instead of looking stuck at a frozen value. Stopped again when the action
+   * arrives. */
+  uint32_t n = zcash_signing.n_actions;
+  if (n > 0) {
+    int base = (int)((next_index * 1000) / n);
+    int target = (int)(((next_index + 1) * 1000) / n);
+    layoutProgressTrickle(_("Signing Zcash"), base, target);
+  }
 }
 
 static void zcash_send_transparent_output_ack(uint32_t next_index) {
@@ -459,22 +528,9 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
     return;
   }
 
-  /* Determine account — require explicit account or strict ZIP-32 path
-   * m/32'/133'/account' (all hardened, exactly 3 elements). Matches
-   * ZcashDisplayAddress / ZcashGetOrchardFVK and prevents a malformed
-   * host path from silently signing against an unintended account. */
   uint32_t account;
-  if (msg->has_account) {
-    account = msg->account;
-  } else if (msg->address_n_count == 3 &&
-             msg->address_n[0] == (0x80000000 | 32) &&
-             msg->address_n[1] == (0x80000000 | 133) &&
-             (msg->address_n[2] & 0x80000000)) {
-    account = msg->address_n[2] & 0x7FFFFFFF;
-  } else {
-    fsm_sendFailure(
-        FailureType_Failure_SyntaxError,
-        _("Require account field or ZIP-32 path m/32'/133'/account'"));
+  if (!zcash_resolve_account(msg->has_account, msg->account, msg->address_n,
+                             msg->address_n_count, &account)) {
     layoutHome();
     return;
   }
@@ -519,40 +575,31 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
   signing_meta.n_transparent_inputs = n_tinputs;
   signing_meta.n_transparent_outputs = n_toutputs;
 
-  switch (zcash_pczt_signing_request_status(&signing_meta)) {
-    case ZCASH_PCZT_SIGNING_REQUEST_OK:
-      break;
-    case ZCASH_PCZT_SIGNING_REQUEST_MISSING_TX_DIGESTS:
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      _("Missing transaction digests"));
-      layoutHome();
-      return;
-    case ZCASH_PCZT_SIGNING_REQUEST_INVALID_DIGEST_SIZE:
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      _("Invalid transaction digest"));
-      layoutHome();
-      return;
-    case ZCASH_PCZT_SIGNING_REQUEST_MISSING_HEADER_FIELDS:
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      _("Missing transaction header"));
-      layoutHome();
-      return;
-    case ZCASH_PCZT_SIGNING_REQUEST_UNSUPPORTED_SAPLING_COMPONENT:
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      _("Sapling not supported"));
-      layoutHome();
-      return;
-    case ZCASH_PCZT_SIGNING_REQUEST_MISSING_TRANSPARENT_DIGEST:
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      _("Missing transparent digest"));
-      layoutHome();
-      return;
-    case ZCASH_PCZT_SIGNING_REQUEST_MISSING_ORCHARD_METADATA:
-    default:
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      _("Missing Orchard metadata"));
-      layoutHome();
-      return;
+  const ZcashPCZTSigningRequestStatus status =
+      zcash_pczt_signing_request_status(&signing_meta);
+  if (status != ZCASH_PCZT_SIGNING_REQUEST_OK) {
+    static const char* const status_msgs[] = {
+        [ZCASH_PCZT_SIGNING_REQUEST_MISSING_TX_DIGESTS] =
+            "Missing transaction digests",
+        [ZCASH_PCZT_SIGNING_REQUEST_INVALID_DIGEST_SIZE] =
+            "Invalid transaction digest",
+        [ZCASH_PCZT_SIGNING_REQUEST_MISSING_HEADER_FIELDS] =
+            "Missing transaction header",
+        [ZCASH_PCZT_SIGNING_REQUEST_UNSUPPORTED_SAPLING_COMPONENT] =
+            "Sapling not supported",
+        [ZCASH_PCZT_SIGNING_REQUEST_MISSING_TRANSPARENT_DIGEST] =
+            "Missing transparent digest",
+        [ZCASH_PCZT_SIGNING_REQUEST_MISSING_ORCHARD_METADATA] =
+            "Missing Orchard metadata",
+    };
+    const char* status_msg =
+        ((size_t)status < sizeof(status_msgs) / sizeof(status_msgs[0]) &&
+         status_msgs[status])
+            ? status_msgs[status]
+            : "Missing Orchard metadata";
+    fsm_sendFailure(FailureType_Failure_SyntaxError, _(status_msg));
+    layoutHome();
+    return;
   }
 
   uint8_t header_digest[32];
@@ -610,28 +657,11 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
     }
   }
 
-  /* Optional seed_fingerprint binding (ZIP-32 §6.1).
-   * If host asserts a seed identity, verify it matches before signing.
-   * Catches "wrong device" attacks where the host accidentally targets
-   * a different seed than the one it built the PCZT against. */
-  if (msg->has_expected_seed_fingerprint &&
-      msg->expected_seed_fingerprint.size == 32) {
-    uint8_t actual_fp[32];
-    if (!storage_zcashSeedFingerprint(true, actual_fp)) {
-      fsm_sendFailure(FailureType_Failure_NotInitialized,
-                      _("Device not initialized or seed unavailable"));
-      layoutHome();
-      return;
-    }
-    bool match =
-        memcmp(actual_fp, msg->expected_seed_fingerprint.bytes, 32) == 0;
-    memzero(actual_fp, sizeof(actual_fp));
-    if (!match) {
-      fsm_sendFailure(FailureType_Failure_Other,
-                      _("Seed fingerprint mismatch — wrong device"));
-      layoutHome();
-      return;
-    }
+  if (!zcash_check_seed_fingerprint(msg->has_expected_seed_fingerprint,
+                                    msg->expected_seed_fingerprint.bytes,
+                                    msg->expected_seed_fingerprint.size)) {
+    layoutHome();
+    return;
   }
 
   /* Clear any stale state from a prior (possibly abandoned) session before
@@ -734,6 +764,11 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
                        16);
   zcash_signing.verify_orchard_digest = true;
 
+  /* Draw the initial static progress BEFORE requesting the first component:
+   * for the actions-only path zcash_send_action_ack() arms the trickle, and a
+   * layoutProgress() after it would clear the animation queue and freeze it. */
+  layoutProgress(_("Signing Zcash"), 0);
+
   /* Request the first plaintext component. Transparent outputs are reviewed
    * before any transparent input or Orchard signature can be emitted. */
   if (zcash_signing.n_transparent_outputs > 0) {
@@ -743,7 +778,6 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
   } else {
     zcash_send_action_ack(0);
   }
-  layoutProgress(_("Signing Zcash"), 0);
 }
 
 void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK* msg) {
@@ -753,22 +787,20 @@ void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK* msg) {
 
   CHECK_PIN
 
-  /* Determine account — require explicit account or strict ZIP-32 path
-   * m/32'/133'/account' (all hardened, exactly 3 elements). Matches
-   * ZcashDisplayAddress / ZcashSignPCZT and prevents a malformed host
-   * path from silently exporting an FVK for an unintended account. */
   uint32_t account;
-  if (msg->has_account) {
-    account = msg->account;
-  } else if (msg->address_n_count == 3 &&
-             msg->address_n[0] == (0x80000000 | 32) &&
-             msg->address_n[1] == (0x80000000 | 133) &&
-             (msg->address_n[2] & 0x80000000)) {
-    account = msg->address_n[2] & 0x7FFFFFFF;
-  } else {
-    fsm_sendFailure(
-        FailureType_Failure_SyntaxError,
-        _("Require account field or ZIP-32 path m/32'/133'/account'"));
+  if (!zcash_resolve_account(msg->has_account, msg->account, msg->address_n,
+                             msg->address_n_count, &account)) {
+    layoutHome();
+    return;
+  }
+
+  if (msg->has_show_display && msg->show_display &&
+      !confirm(ButtonRequestType_ButtonRequest_ProtectCall,
+               "Export Zcash View Key",
+               "Export Orchard viewing key for account %u?\nReveals Zcash "
+               "activity.",
+               (unsigned)account)) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, _("Cancelled"));
     layoutHome();
     return;
   }
@@ -836,48 +868,18 @@ void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress* msg) {
 
   CHECK_PIN
 
-  /* Determine account — require explicit account or valid ZIP-32 path.
-   * When using address_n, enforce the expected Orchard path shape:
-   *   m/32'/133'/account'  (all hardened)
-   * This matches the derivation used in ZcashGetOrchardFVK and
-   * ZcashSignPCZT, and prevents a malformed path from silently
-   * deriving against an unintended account. */
   uint32_t account;
-  if (msg->has_account) {
-    account = msg->account;
-  } else if (msg->address_n_count == 3 &&
-             msg->address_n[0] == (0x80000000 | 32) &&
-             msg->address_n[1] == (0x80000000 | 133) &&
-             (msg->address_n[2] & 0x80000000)) {
-    account = msg->address_n[2] & 0x7FFFFFFF;
-  } else {
-    fsm_sendFailure(
-        FailureType_Failure_SyntaxError,
-        _("Require account field or ZIP-32 path m/32'/133'/account'"));
+  if (!zcash_resolve_account(msg->has_account, msg->account, msg->address_n,
+                             msg->address_n_count, &account)) {
     layoutHome();
     return;
   }
 
-  /* Optional seed_fingerprint binding (ZIP-32 §6.1).
-   * Reject before any derivation if the host targets the wrong seed. */
-  if (msg->has_expected_seed_fingerprint &&
-      msg->expected_seed_fingerprint.size == 32) {
-    uint8_t actual_fp[32];
-    if (!storage_zcashSeedFingerprint(true, actual_fp)) {
-      fsm_sendFailure(FailureType_Failure_NotInitialized,
-                      _("Device not initialized or seed unavailable"));
-      layoutHome();
-      return;
-    }
-    bool match =
-        memcmp(actual_fp, msg->expected_seed_fingerprint.bytes, 32) == 0;
-    memzero(actual_fp, sizeof(actual_fp));
-    if (!match) {
-      fsm_sendFailure(FailureType_Failure_Other,
-                      _("Seed fingerprint mismatch — wrong device"));
-      layoutHome();
-      return;
-    }
+  if (!zcash_check_seed_fingerprint(msg->has_expected_seed_fingerprint,
+                                    msg->expected_seed_fingerprint.bytes,
+                                    msg->expected_seed_fingerprint.size)) {
+    layoutHome();
+    return;
   }
 
   /* Derive Orchard keys via storage; the seed never leaves storage.c. */
@@ -941,6 +943,11 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
     layoutHome();
     return;
   }
+
+  /* An action arrived: stop the trickle so the exact per-action milestone (and
+   * the fee confirm reached at completion) draws cleanly. Re-armed by the next
+   * zcash_send_action_ack() if more actions remain. */
+  layoutProgressTrickleStop();
 
   /* Enforce transparent phase completion: if the session declared any
    * transparent data, all plaintext must be streamed and verified before
@@ -1078,7 +1085,6 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
                         _("Orchard digest mismatch: transaction data "
                           "does not match sighash"));
         zcash_signing_abort();
-        memzero(zcash_signing.signatures, sizeof(zcash_signing.signatures));
         layoutHome();
         return;
       }
@@ -1086,7 +1092,6 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
 
     if (!zcash_verify_and_confirm_fee()) {
       zcash_signing_abort();
-      memzero(zcash_signing.signatures, sizeof(zcash_signing.signatures));
       layoutHome();
       return;
     }
@@ -1113,7 +1118,6 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
 
     /* Clean up */
     zcash_signing_abort();
-    memzero(zcash_signing.signatures, sizeof(zcash_signing.signatures));
 
     msg_write(MessageType_MessageType_ZcashSignedPCZT, resp_signed);
     layoutHome();
@@ -1197,6 +1201,10 @@ void fsm_msgZcashTransparentOutput(const ZcashTransparentOutput* msg) {
 
   zcash_signing.current_transparent_output++;
 
+  /* Static draw before the dispatch: the actions transition below arms the
+   * trickle, and a layoutProgress() after it would clear and freeze it. */
+  layoutProgress(_("Signing Zcash"), 0);
+
   if (zcash_signing.current_transparent_output <
       zcash_signing.n_transparent_outputs) {
     zcash_send_transparent_output_ack(zcash_signing.current_transparent_output);
@@ -1212,8 +1220,6 @@ void fsm_msgZcashTransparentOutput(const ZcashTransparentOutput* msg) {
     }
     zcash_send_action_ack(0);
   }
-
-  layoutProgress(_("Signing Zcash"), 0);
 }
 
 /* Phase 3: Transparent plaintext streaming for hybrid shielding
@@ -1388,6 +1394,8 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
   /* Transparent ECDSA sigs are buffered in zcash_signing.pending_transparent.
    * They are released at the same final gate as Orchard sigs, after Orchard
    * digest verification and fee confirmation. */
-  zcash_send_action_ack(0);
+  /* Static draw before arming: zcash_send_action_ack() arms the trickle, so a
+   * layoutProgress() after it would clear the animation queue and freeze it. */
   layoutProgress(_("Signing Zcash"), 0);
+  zcash_send_action_ack(0);
 }

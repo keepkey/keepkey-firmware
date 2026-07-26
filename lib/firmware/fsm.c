@@ -331,5 +331,5 @@ void signed_metadata_clear_signers(void) {}
 // Initialize/ClearSession/Cancel handlers still call zcash_signing_abort();
 // with no privacy state to reset, a no-op is correct. (Bitcoin-only forces
 // privacy off, so this stub also covers the bitcoin-only image.)
-void zcash_signing_abort(void) {}  // ponytail: no shielded signing to abort
+void zcash_signing_abort(void) {}
 #endif

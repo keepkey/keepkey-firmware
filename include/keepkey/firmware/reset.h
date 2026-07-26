@@ -33,6 +33,16 @@
   MAX_WORDS*(MAX_WORD_LEN + ADDITIONAL_WORD_PAD) + 1
 #define MNEMONIC_BY_SCREEN_BUF WORDS_PER_SCREEN*(MAX_WORD_LEN + 1) + 1
 
+/* Paginated-mnemonic display scratch, shared between the backup flow here and
+ * the BIP-85 display flow (fsm_msg_bip85.h) — one ~2.8 KB set instead of two.
+ * Both flows are modal and single-threaded: each formats and displays inside
+ * its own handler call. Every user MUST memzero the set at entry AND on every
+ * exit path. Defined in reset.c (.confidential). */
+extern char mnemonic_scratch_tokened[TOKENED_MNEMONIC_BUF];
+extern char mnemonic_scratch_formatted[MAX_PAGES][FORMATTED_MNEMONIC_BUF];
+extern char mnemonic_scratch_display[FORMATTED_MNEMONIC_BUF];
+extern char mnemonic_scratch_word[MAX_WORD_LEN + ADDITIONAL_WORD_PAD];
+
 void reset_init(bool display_random, uint32_t _strength,
                 bool passphrase_protection, bool pin_protection,
                 const char* language, const char* label, bool _no_backup,

@@ -307,28 +307,6 @@ bool zcash_orchard_derive_unified_address(const ZcashOrchardKeys* keys,
                                           size_t address_out_len);
 
 /**
- * Derive an Orchard-only ZIP-316 Unified Address directly from seed material.
- *
- * Production firmware should continue to access the seed only through the
- * storage-scoped wrappers below; this composition helper is exposed for
- * isolated unit tests and storage-owned call sites.
- *
- * @param seed            BIP-39 master seed
- * @param seed_len        Seed length (typically 64 bytes)
- * @param account         Account index (0-based, will be hardened)
- * @param index_le        11-byte little-endian diversifier index bitstring
- * @param hrp             ZIP-316 HRP ("u" for mainnet, "utest" for testnet)
- * @param address_out     NUL-terminated output address
- * @param address_out_len Size of address_out
- * @return true on success
- */
-bool zcash_derive_orchard_unified_address(const uint8_t* seed,
-                                          uint32_t seed_len, uint32_t account,
-                                          const uint8_t index_le[11],
-                                          const char* hrp, char* address_out,
-                                          size_t address_out_len);
-
-/**
  * Compute the ZIP-32 §6.1 seed fingerprint.
  *
  *   SeedFingerprint := BLAKE2b-256(
@@ -349,6 +327,12 @@ bool zcash_derive_orchard_unified_address(const uint8_t* seed,
  */
 bool zcash_calculate_seed_fingerprint(const uint8_t* seed, uint32_t seed_len,
                                       uint8_t fingerprint_out[32]);
+
+/**
+ * Validate the wire shape of an optional asserted seed fingerprint. Omission is
+ * valid; a present assertion must be exactly 32 bytes.
+ */
+bool zcash_seed_fingerprint_request_valid(bool present, size_t size);
 
 /* ── Storage-scoped wrappers ───────────────────────────────────────────
  *

@@ -231,17 +231,16 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
     }
 
     if (msg->deposit.has_memo) {
-      // See if we can parse the memo
-      if (!mayachain_parseConfirmMemo(msg->deposit.memo,
-                                      sizeof(msg->deposit.memo))) {
-        // Memo not recognizable, ask to confirm it
-        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
-                     "%s", msg->deposit.memo)) {
-          mayachain_signAbort();
-          fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-          layoutHome();
-          return;
-        }
+      size_t memo_len = strnlen(msg->deposit.memo, sizeof(msg->deposit.memo));
+      // Page the complete raw memo as the sole, authoritative disclosure (no
+      // structured pre-parse: its bool return conflates unrecognized with user
+      // reject, so a reject must not be followed by these pages then signing).
+      if (!thorchain_confirm_full_memo(_("Memo"), msg->deposit.memo,
+                                       memo_len)) {
+        mayachain_signAbort();
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        layoutHome();
+        return;
       }
     }
 
@@ -261,17 +260,14 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
   }
 
   if (sign_tx->has_memo && !msg->deposit.has_memo) {
-    // See if we can parse the tx memo. This memo ignored if deposit msg has
-    // memo
-    if (!mayachain_parseConfirmMemo(sign_tx->memo, sizeof(sign_tx->memo))) {
-      // Memo not recognizable, ask to confirm it
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",
-                   sign_tx->memo)) {
-        mayachain_signAbort();
-        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
-        layoutHome();
-        return;
-      }
+    // Ignored if the deposit msg has a memo. Page the full raw memo as the sole
+    // gate (see the deposit path above for why there is no structured pass).
+    size_t memo_len = strnlen(sign_tx->memo, sizeof(sign_tx->memo));
+    if (!thorchain_confirm_full_memo(_("Memo"), sign_tx->memo, memo_len)) {
+      mayachain_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
     }
   }
 

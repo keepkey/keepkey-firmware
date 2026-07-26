@@ -287,6 +287,58 @@ void draw_box_simple(Canvas* canvas, uint8_t color, uint16_t x, uint16_t y,
  * OUTPUT
  *     true/false whether image was drawn
  */
+/*
+ * draw_bitmap_mono_rle_valid() - see draw.h. Pure walk of the RLE grammar;
+ * writes nothing. The drawing path below stops as soon as the canvas is full,
+ * so it cannot tell a well-formed stream from one whose last run straddles the
+ * image or that carries trailing packets. Host-supplied icons must be checked
+ * here, at the trust boundary, before they are shown or persisted.
+ */
+bool draw_bitmap_mono_rle_valid(const uint8_t* data, uint32_t length,
+                                uint16_t w, uint16_t h) {
+  if (!data || w == 0 || h == 0) {
+    return false;
+  }
+
+  const uint32_t pixels = (uint32_t)w * (uint32_t)h;
+  uint32_t emitted = 0;
+  uint32_t i = 0;
+
+  while (emitted < pixels) {
+    if (i >= length) {
+      return false; /* ran out of input mid-image */
+    }
+    const uint8_t raw = data[i];
+    if (raw == 0x80u || raw == 0u) {
+      return false; /* undecodable (int8_t counter) / not a packet */
+    }
+    i++;
+
+    uint32_t run;
+    if (raw > 127u) {
+      run = (uint32_t)(256u - raw); /* LITERAL: 1..127 distinct values */
+      if (i + run > length) {
+        return false; /* literal body truncated */
+      }
+      i += run;
+    } else {
+      run = raw; /* RUN: 1..127 copies of one value */
+      if (i >= length) {
+        return false; /* missing the run's value byte */
+      }
+      i++;
+    }
+
+    if (emitted + run > pixels) {
+      return false; /* run straddles the end of the image */
+    }
+    emitted += run;
+  }
+
+  /* Exactly filled, and nothing left over. */
+  return emitted == pixels && i == length;
+}
+
 bool draw_bitmap_mono_rle(Canvas* canvas, const AnimationFrame* frame,
                           bool erase) {
   if (!frame || !canvas) {
@@ -299,6 +351,16 @@ bool draw_bitmap_mono_rle(Canvas* canvas, const AnimationFrame* frame,
   /* Check that image will fit in bounds */
   if (((img->w + frame->x) > canvas->width) ||
       ((img->h + frame->y) > canvas->height)) {
+    return false;
+  }
+
+  /* Validate the whole stream up front. The loop below fills the canvas and
+   * stops, so on its own it cannot reject a final run that straddles the image
+   * or trailing packets past the last pixel — it would draw and report success.
+   * Checking first makes the return value mean "this stream is well-formed AND
+   * was drawn", which is what callers gating on host-supplied icons need.
+   * (Verified: every bundled image stream terminates exactly.) */
+  if (!draw_bitmap_mono_rle_valid(img->data, img->length, img->w, img->h)) {
     return false;
   }
 
@@ -315,12 +377,29 @@ bool draw_bitmap_mono_rle(Canvas* canvas, const AnimationFrame* frame,
       // sequence > 0 implies the next x pixels are the same
       // sequence < 0 implies the next -x pixels are all different
       if ((sequence == 0) && (nonsequence == 0)) {
-        sequence = img->data[pixel_index];
+        /* Read the packet count. 0x80 (-128) is rejected: `nonsequence` below
+         * is int8_t, so -(-128) = 128 does not fit and wraps back to -128,
+         * breaking the `nonsequence > 0` invariant. Under NDEBUG the assert is
+         * compiled out and we would decode with a negative counter
+         * (signed-overflow UB). 0 is likewise not a valid packet: it leaves
+         * both counters at zero and breaks the same invariant. A host-supplied
+         * icon reaches here, so fail closed rather than trust the encoder. */
+        const uint8_t raw = img->data[pixel_index];
+        if (raw == 0x80u || raw == 0u) {
+          return false;
+        }
         pixel_index++;
 
-        if (sequence < 0) {
-          nonsequence = -sequence;
+        /* Explicit two's-complement read. Narrowing a uint8_t > 127 straight
+         * into an int8_t is implementation-defined, so spell the conversion
+         * out: 1..127 stay positive (RUN), 129..255 become -127..-1 (LITERAL).
+         */
+        if (raw > 127u) {
+          nonsequence = (int8_t)((int)raw - 256); /* -127..-1 */
+          nonsequence = (int8_t)(-nonsequence);   /* 1..127, fits int8_t */
           sequence = 0;
+        } else {
+          sequence = (int8_t)raw; /* 1..127 */
         }
       }
 

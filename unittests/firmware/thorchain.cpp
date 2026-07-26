@@ -149,105 +149,6 @@ static const ThorchainSignTx kSignTx = {
 
 static const char *kToAddr = "thor18vhdczjut44gpsy804crfhnd5nq003nz0nf20v";
 
-// DISABLED: the four SignTx vectors below use kSignNode, which has an all-zero
-// private key; hdnode_fill_public_key() yields an invalid signing node, so
-// thorchain_signTxUpdateMsgSend bails at tendermint_getAddress and returns false
-// (ThorchainSignTxInvalidDenom EXPECT_FALSEs and passes regardless of denom,
-// confirming the early failure). These vectors were never validated (#269 CI was
-// proto-blocked). On-device uses a real seed-derived key (verified 8/8, #292).
-// Re-enable after rebuilding the fixture with a valid key + recomputed sigs.
-// Baseline RUNE send — exact signature vector
-TEST(Thorchain, DISABLED_ThorchainSignTx) {
-  HDNode node = kSignNode;
-  hdnode_fill_public_key(&node);
-
-  ASSERT_TRUE(thorchain_signTxInit(&node, &kSignTx));
-  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(100000, kToAddr, "rune"));
-
-  uint8_t public_key[33];
-  uint8_t signature[64];
-  ASSERT_TRUE(thorchain_signTxFinalize(public_key, signature));
-
-  EXPECT_EQ(
-      0,
-      memcmp(signature,
-             (uint8_t *)"\xc3\xea\xe2\xa3\xc2\xb6\x24\x00\x8d\x8a\xc4\x49\xe2"
-                        "\x53\xdb\xa5\x31\x2e\x4d\xbd\x12\xd6\x77\x39\xd3\xf9"
-                        "\xce\xe1\xc3\xbd\x34\x62\x69\xd2\xaa\x8a\x79\xbe\x81"
-                        "\xd8\x1a\x9e\xe3\x94\x99\x07\xbb\xe2\x08\x04\x1a\xfa"
-                        "\xfe\xfa\x14\x9f\x67\xb3\x9d\x4a\xe2\x29\xc8\x47",
-             64));
-}
-
-// Empty denom must produce identical output to explicit "rune"
-TEST(Thorchain, DISABLED_ThorchainSignTxDefaultDenom) {
-  HDNode node = kSignNode;
-  hdnode_fill_public_key(&node);
-
-  ASSERT_TRUE(thorchain_signTxInit(&node, &kSignTx));
-  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(100000, kToAddr, ""));
-
-  uint8_t public_key[33];
-  uint8_t signature[64];
-  ASSERT_TRUE(thorchain_signTxFinalize(public_key, signature));
-
-  EXPECT_EQ(
-      0,
-      memcmp(signature,
-             (uint8_t *)"\xc3\xea\xe2\xa3\xc2\xb6\x24\x00\x8d\x8a\xc4\x49\xe2"
-                        "\x53\xdb\xa5\x31\x2e\x4d\xbd\x12\xd6\x77\x39\xd3\xf9"
-                        "\xce\xe1\xc3\xbd\x34\x62\x69\xd2\xaa\x8a\x79\xbe\x81"
-                        "\xd8\x1a\x9e\xe3\x94\x99\x07\xbb\xe2\x08\x04\x1a\xfa"
-                        "\xfe\xfa\x14\x9f\x67\xb3\x9d\x4a\xe2\x29\xc8\x47",
-             64));
-}
-
-// TCY (THORChain native yield/governance token) — exact signature vector
-TEST(Thorchain, DISABLED_ThorchainSignTxTCY) {
-  HDNode node = kSignNode;
-  hdnode_fill_public_key(&node);
-
-  ASSERT_TRUE(thorchain_signTxInit(&node, &kSignTx));
-  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(100000, kToAddr, "tcy"));
-
-  uint8_t public_key[33];
-  uint8_t signature[64];
-  ASSERT_TRUE(thorchain_signTxFinalize(public_key, signature));
-
-  EXPECT_EQ(
-      0,
-      memcmp(signature,
-             (uint8_t *)"\xad\xa0\xb6\xce\x50\x41\xc1\x01\x46\xf0\x86\x94\xb9"
-                        "\x97\x29\x41\x13\x41\xef\x87\x70\xe8\x58\x7c\x01\xf9"
-                        "\x81\x3f\x71\x8e\xbb\xc7\x58\xcf\xeb\xfc\xf9\x28\x55"
-                        "\x73\xe0\x85\x31\x52\xfc\x0e\xbf\xbd\xa6\x4e\xe8\xd2"
-                        "\xca\xd6\xc4\xd1\xfc\x18\x31\x13\x33\x2f\x2b\xae",
-             64));
-}
-
-// RUJIRA (DEX protocol native to THORChain) — exact signature vector
-TEST(Thorchain, DISABLED_ThorchainSignTxRujira) {
-  HDNode node = kSignNode;
-  hdnode_fill_public_key(&node);
-
-  ASSERT_TRUE(thorchain_signTxInit(&node, &kSignTx));
-  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(100000, kToAddr, "rujira"));
-
-  uint8_t public_key[33];
-  uint8_t signature[64];
-  ASSERT_TRUE(thorchain_signTxFinalize(public_key, signature));
-
-  EXPECT_EQ(
-      0,
-      memcmp(signature,
-             (uint8_t *)"\xed\x3b\x99\xac\xfa\x12\x32\xf7\x04\x72\x43\x17\x27"
-                        "\x37\xbc\xb3\x15\x32\xc6\xe2\x1e\x5f\x5b\x4b\xb4\x3c"
-                        "\x10\x7f\x7e\x08\x6a\x60\x28\xa3\x26\x53\x37\x44\x21"
-                        "\xcb\x62\x29\xe4\x5a\xba\x82\x89\x2e\xc7\x6a\x27\x4b"
-                        "\xe7\xfd\x4e\x77\xe2\xa4\x3a\x8e\x5a\x82\xbb\x17",
-             64));
-}
-
 // Denom validation: only [a-z0-9./\-] is allowed; anything else is rejected
 TEST(Thorchain, ThorchainDenomValidation) {
   EXPECT_TRUE(thorchain_isValidDenom("rune"));
@@ -416,5 +317,94 @@ TEST(Thorchain, MemoExactBufferCapacityKeepsLastChar) {
 TEST(Thorchain, MemoOversized) {
   ASSERT_TRUE(kkconfirm_preload(0, 0));
   EXPECT_FALSE(parseMemo("SWAP:ETH.ETH:0xdest:420", 257));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// DEX-aggregator swap: aggregator addr, final token and min-out are all
+// router-executed and must be shown — asset/chain + dest + limit + affiliate +
+// aggregator + final + min = 7 screens (none hidden).
+TEST(Thorchain, MemoSwapAggregatorShowsAllFields) {
+  ASSERT_TRUE(kkconfirm_preload(7, 0));
+  EXPECT_TRUE(parseMemo(
+      "SWAP:ETH.ETH:0xdest:420:kk:75:0xaggregator:0xfinaltoken:1000"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// A '|' outbound-memo suffix (MinAmountOut|OUTBOUND_MEMO) is forwarded to the
+// outbound contract and can contain ':' our split would scatter. It must be
+// disclosed in full: swap header + the fully-paged raw memo = 2 screens here
+// (memo < one page). Nothing falls back to blind-signing.
+TEST(Thorchain, MemoSwapPipeOutboundIsFullyPaged) {
+  ASSERT_TRUE(kkconfirm_preload(2, 0));
+  const char memo[] = "=:ETH.ETH:0xdest|OUT:0xfinal:1";  // ':' after the pipe
+  EXPECT_TRUE(parseMemo(memo, strlen(memo)));  // no NUL in the paged bytes
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// More fields than any swap grammar defines (>9) is structure we cannot label;
+// refuse it rather than sign an undisplayed tail. Rejected before any screen.
+TEST(Thorchain, MemoSwapTooManyFieldsRejected) {
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  EXPECT_FALSE(parseMemo("SWAP:ETH.ETH:a:b:c:d:e:f:g:h"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// ADD:POOL:PAIREDADDR:AFFILIATE:FEE — affiliate + fee must not be hidden:
+// add asset + pool + affiliate-fee = 3 screens.
+TEST(Thorchain, MemoAddShowsAffiliateAndFee) {
+  ASSERT_TRUE(kkconfirm_preload(3, 0));
+  EXPECT_TRUE(parseMemo("ADD:BTC.BTC:thor18vhdczjut44gpsy804crfhnd5nq003nz0nf20v"
+                        ":affil:50"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// ADD with more than its 5 defined fields is refused (no hidden tail).
+TEST(Thorchain, MemoAddTooManyFieldsRejected) {
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  EXPECT_FALSE(parseMemo("ADD:BTC.BTC:pool:affil:50:extra"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// The full-memo pager is the authoritative disclosure the native THOR/MAYA
+// handlers page after their structured summary. A short ASCII memo is one page.
+TEST(Thorchain, FullMemoShortAsciiIsOnePage) {
+  const char memo[] = "=:ETH.ETH:0xdest:420:kk:75";
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  EXPECT_TRUE(thorchain_confirm_full_memo("Memo", memo, strlen(memo)));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// A long memo (up to THORChain's 250-byte limit) pages in full instead of
+// truncating in one confirm: 150 ASCII bytes / 72 per page = 3 pages.
+TEST(Thorchain, FullMemoLongAsciiPagesAll) {
+  std::string memo(150, 'a');
+  ASSERT_TRUE(kkconfirm_preload(3, 0));
+  EXPECT_TRUE(thorchain_confirm_full_memo("Memo", memo.c_str(), memo.size()));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// Rejecting any page aborts the whole disclosure (so the handler aborts signing).
+TEST(Thorchain, FullMemoRejectPropagates) {
+  std::string memo(150, 'a');
+  ASSERT_TRUE(kkconfirm_preload(1, 1));  // approve page 1, reject page 2
+  EXPECT_FALSE(thorchain_confirm_full_memo("Memo", memo.c_str(), memo.size()));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// Non-printable memo bytes are disclosed as hex pages (40 bytes/page), never
+// hidden behind a byte-count summary.
+TEST(Thorchain, FullMemoBinaryPagesAsHex) {
+  char memo[50];
+  memset(memo, 0x01, sizeof(memo));  // 50 non-printable bytes -> 2 hex pages
+  ASSERT_TRUE(kkconfirm_preload(2, 0));
+  EXPECT_TRUE(thorchain_confirm_full_memo("Memo", memo, sizeof(memo)));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// An empty memo must show a single "(empty)" screen — not fall through to the
+// hex branch, which would pass an uninitialized buffer to %s.
+TEST(Thorchain, FullMemoEmptyShowsEmpty) {
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  EXPECT_TRUE(thorchain_confirm_full_memo("Memo", "", 0));
   EXPECT_EQ(0, kkconfirm_drain());
 }

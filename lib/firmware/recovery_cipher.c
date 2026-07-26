@@ -191,7 +191,11 @@ bool attempt_auto_complete(char* partial_word) {
     return false;
   }
 
-  static uint16_t CONFIDENTIAL permute[2049];
+  /* 4 KB permutation table lives in the shared frame arena: too big for the
+   * stack, wasteful as its own static. Transient within this call (memzero'd
+   * on every exit), and this function never encodes a USB response while the
+   * table is live — see the FrameArena contract in messages.c. */
+  uint16_t* permute = frame_arena_scratch2049();
   for (int i = 0; i < 2049; i++) {
     permute[i] = i;
   }
@@ -225,18 +229,18 @@ bool attempt_auto_complete(char* partial_word) {
   }
 
   if (precise_match) {
-    memzero(permute, sizeof(permute));
+    memzero(permute, 2049 * sizeof(*permute));
     return true;
   }
 
   /* Autocomplete if we can */
   if (match == 1) {
     strlcpy(partial_word, words[permute[found]], CURRENT_WORD_BUF);
-    memzero(permute, sizeof(permute));
+    memzero(permute, 2049 * sizeof(*permute));
     return true;
   }
 
-  memzero(permute, sizeof(permute));
+  memzero(permute, 2049 * sizeof(*permute));
   return false;
 }
 

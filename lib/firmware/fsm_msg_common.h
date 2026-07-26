@@ -53,6 +53,23 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
 #else
   strlcpy(resp->firmware_variant, "KeepKeyBTC", sizeof(resp->firmware_variant));
 #endif
+#elif ZCASH_PRIVACY
+  /* Zcash/Orchard privacy build. Distinct variant name so hosts can gate
+     variant-partitioned features — the clearsign session icon cache is
+     compiled out of this build to fit SRAM (identities still work; persistent
+     identity icons still render from storage). */
+  if (storage_isBitcoinOnlyLocked()) {
+    strlcpy(resp->firmware_variant, "bitcoin-only-locked",
+            sizeof(resp->firmware_variant));
+  } else {
+#ifdef EMULATOR
+    strlcpy(resp->firmware_variant, "EmulatorZcash",
+            sizeof(resp->firmware_variant));
+#else
+    strlcpy(resp->firmware_variant, "KeepKeyZcash",
+            sizeof(resp->firmware_variant));
+#endif
+  }
 #else
   if (storage_isBitcoinOnlyLocked()) {
     /* Multi-chain firmware refusing to touch a bitcoin-only wallet; a wipe

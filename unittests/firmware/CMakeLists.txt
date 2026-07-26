@@ -14,6 +14,7 @@ if(NOT ${KK_BITCOIN_ONLY})
       cosmos.cpp
       eos.cpp
       ethereum.cpp
+      hive.cpp
       mayachain.cpp
       nano.cpp
       ripple.cpp

@@ -554,21 +554,6 @@ bool zcash_orchard_compute_cmx(
   return ok;
 }
 
-bool zcash_derive_orchard_unified_address(const uint8_t* seed,
-                                          uint32_t seed_len, uint32_t account,
-                                          const uint8_t index_le[11],
-                                          const char* hrp, char* address_out,
-                                          size_t address_out_len) {
-  if (!seed || !index_le || !hrp || !address_out) return false;
-
-  ZcashOrchardKeys keys;
-  bool ok = zcash_derive_orchard_keys(seed, seed_len, account, &keys) &&
-            zcash_orchard_derive_unified_address(&keys, index_le, hrp,
-                                                 address_out, address_out_len);
-  memzero(&keys, sizeof(keys));
-  return ok;
-}
-
 bool zcash_derive_orchard_keys(const uint8_t* seed, uint32_t seed_len,
                                uint32_t account, ZcashOrchardKeys* keys) {
   uint8_t I[64];
@@ -642,25 +627,9 @@ bool zcash_derive_orchard_keys(const uint8_t* seed, uint32_t seed_len,
     bn_write_le(&ak_x, ak_bytes);
     if (bn_is_odd(&ak_test.y)) {
       /* ask = order - ask (negate mod q) */
-      bignum256 neg_ask;
-      bn_copy(&pallas_order, &neg_ask);
-      bignum256 ask_val;
+      bignum256 ask_val, neg_ask;
       bn_read_le(keys->ask, &ask_val);
-      bn_normalize(&ask_val);
-      bn_normalize(&neg_ask);
-      /* neg_ask = order - ask */
-      int32_t borrow = 0;
-      for (int i = 0; i < 9; i++) {
-        int32_t diff =
-            (int32_t)neg_ask.val[i] - (int32_t)ask_val.val[i] + borrow;
-        if (diff < 0) {
-          diff += (1 << 29);
-          borrow = -1;
-        } else {
-          borrow = 0;
-        }
-        neg_ask.val[i] = (uint32_t)diff;
-      }
+      bn_subtract(&pallas_order, &ask_val, &neg_ask);
       bn_write_le(&neg_ask, keys->ask);
       memzero(&neg_ask, sizeof(neg_ask));
       memzero(&ask_val, sizeof(ask_val));
@@ -1129,6 +1098,10 @@ bool zcash_pczt_signing_request_is_clear(
  * rejected — these are nominally seeds but provide no security and are
  * almost certainly bugs in the caller.
  */
+bool zcash_seed_fingerprint_request_valid(bool present, size_t size) {
+  return !present || size == 32;
+}
+
 bool zcash_calculate_seed_fingerprint(const uint8_t* seed, uint32_t seed_len,
                                       uint8_t fingerprint_out[32]) {
   if (!seed || !fingerprint_out) return false;

@@ -542,7 +542,8 @@ TEST(Storage, BitcoinOnlyBandMigrates) {
   memset(flash, 0, sizeof(flash));
   memcpy(flash, "stor", 4);
   uint32_t older = STORAGE_VERSION_BTC_ONLY_BASE + (STORAGE_VERSION - 1);
-  memcpy(flash + 44, &older, 4);  // test host is little-endian, matches read_u32_le
+  memcpy(flash + 44, &older,
+         4);  // test host is little-endian, matches read_u32_le
   memset(&session, 0, sizeof(session));
   EXPECT_NE(storage_fromFlash(&session, &shadow, flash), SUS_BitcoinOnlyLocked);
 
@@ -619,6 +620,7 @@ TEST(Storage, StorageRoundTrip) {
     printf("\n");
 #endif
 
+  // clang-format off
   const uint8_t expected_flash[] = {
         0x73, 0x74, 0x6f, 0x72, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
         0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab,
@@ -716,7 +718,7 @@ TEST(Storage, StorageRoundTrip) {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0x00, 0x00, 0x00, 0xe4, 0x8d, 0xfe, 0xcf, 0xd0, 0x54, 0x71,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0x00, 0x00, 0x00, 0xe4, 0x8d, 0xfe, 0xcf, 0xd0, 0x54, 0x71,
         0x50, 0xcb, 0x12, 0x84, 0xfa, 0x5f, 0xbf, 0xcb, 0x09, 0xca, 0x00, 0xf1, 0x37, 0xe4, 0x8f, 0x5e,
         0xf9, 0x81, 0x57, 0x26, 0xb6, 0x7b, 0x8e, 0x03, 0x44, 0x9a, 0x2a, 0x7c, 0xf4, 0x3c, 0x79, 0x87,
         0x5d, 0x26, 0xae, 0x9b, 0x4b, 0xb4, 0xd2, 0xc4, 0x67, 0x97, 0xe7, 0x6b, 0x6c, 0x4c, 0xbe, 0x68,
@@ -782,6 +784,7 @@ TEST(Storage, StorageRoundTrip) {
         0x7c, 0x20, 0x50, 0x7c, 0x85, 0xc1, 0x44, 0xaa, 0xfb, 0xf8, 0xeb, 0x20, 0x16, 0x8d, 0x72, 0x8c,
         0xd2, 0xbe, 0xc2, 0xea, 0x44, 0xed, 0x7b, 0x94, 0x21, 0x00, 
   };
+  // clang-format on
 
   // If storage isn't correct, let's get an idea of where the failure is
   for (int i=0; i<flash.size(); i++) {
@@ -1001,4 +1004,68 @@ TEST(Storage, Reset) {
       config.storage.pub.random_salt));
 
   ASSERT_TRUE(memcmp(session.storageKey, new_storage_key, 64) == 0);
+}
+
+// V18 storage adds a persistent clear-sign identities block appended after the
+// V17 encrypted_sec. Prove the field-by-field serializer round-trips every
+// field (incl. a real icon + a text-only identity), and that a corrupt on-flash
+// icon_len is clamped on read.
+TEST(Storage, ClearsignIdentityV18RoundTrip) {
+  ConfigFlash start;
+  memset(&start, 0xAB, sizeof(start));
+  memcpy(start.meta.magic, "stor", 4);
+  start.storage.version = STORAGE_VERSION;
+  start.storage.encrypted_sec_version = STORAGE_VERSION;
+
+  // Identity 0: full, with an icon.
+  ClearsignIdentity *a = &start.storage.pub.clearsign_identities[0];
+  memset(a, 0, sizeof(*a));
+  a->present = true;
+  a->key_id = 1;
+  for (int i = 0; i < 33; i++) a->pubkey[i] = (uint8_t)(i + 1);
+  strcpy(a->alias, "CI Test");
+  a->icon_w = 48;
+  a->icon_h = 48;
+  a->icon_len = 120;
+  for (int i = 0; i < a->icon_len; i++) a->icon[i] = (uint8_t)(0xF0 ^ i);
+
+  // Identity 1: text-only (no icon).
+  ClearsignIdentity *b = &start.storage.pub.clearsign_identities[1];
+  memset(b, 0, sizeof(*b));
+  b->present = true;
+  b->key_id = 2;
+  for (int i = 0; i < 33; i++) b->pubkey[i] = (uint8_t)(0x80 + i);
+  strcpy(b->alias, "Pioneer Insight");
+
+  std::vector<uint8_t> flash(3480, 0);
+  storage_writeV18((char *)&flash[0], flash.size(), &start);
+
+  ConfigFlash end;
+  memset(&end, 0x00, sizeof(end));
+  storage_readV18(&end, (const char *)&flash[0], flash.size());
+
+  for (int k = 0; k < PERSISTENT_IDENTITY_COUNT; k++) {
+    const ClearsignIdentity *s = &start.storage.pub.clearsign_identities[k];
+    const ClearsignIdentity *r = &end.storage.pub.clearsign_identities[k];
+    ASSERT_EQ(s->present, r->present) << "present " << k;
+    ASSERT_EQ(s->key_id, r->key_id) << "key_id " << k;
+    ASSERT_EQ(0, memcmp(s->pubkey, r->pubkey, 33)) << "pubkey " << k;
+    ASSERT_STREQ(s->alias, r->alias) << "alias " << k;
+    ASSERT_EQ(s->icon_w, r->icon_w) << "icon_w " << k;
+    ASSERT_EQ(s->icon_h, r->icon_h) << "icon_h " << k;
+    ASSERT_EQ(s->icon_len, r->icon_len) << "icon_len " << k;
+    ASSERT_EQ(0, memcmp(s->icon, r->icon, CLEARSIGN_ICON_MAX)) << "icon " << k;
+  }
+
+  // A corrupt on-flash icon_len (> CLEARSIGN_ICON_MAX) must clamp to 0 on read
+  // so downstream renderers never index past the icon buffer. Identity 0's
+  // icon_len lives at flash[44 + 2525 + 69] (present, key_id, pubkey[33],
+  // alias[32], icon_w, icon_h => 69).
+  const size_t id0_icon_len_off = 44 + 1501 + V17_ENCSEC_SIZE + 69;
+  flash[id0_icon_len_off] = 0xFF;
+  flash[id0_icon_len_off + 1] = 0xFF;
+  ConfigFlash corrupt;
+  memset(&corrupt, 0x00, sizeof(corrupt));
+  storage_readV18(&corrupt, (const char *)&flash[0], flash.size());
+  ASSERT_EQ(0, corrupt.storage.pub.clearsign_identities[0].icon_len);
 }

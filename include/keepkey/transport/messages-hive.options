@@ -44,3 +44,15 @@ HiveSignAccountUpdate.new_memo_key      max_size:64
 
 HiveSignedAccountUpdate.signature       max_size:65
 HiveSignedAccountUpdate.serialized_tx   max_size:512
+
+HiveSignMessage.address_n               max_count:8
+HiveSignMessage.message                 max_size:1024
+
+HiveSignedMessage.signature             max_size:65
+HiveSignedMessage.public_key            max_size:33
+
+HiveSignOperations.address_n            max_count:8
+HiveSignOperations.chain_id             max_size:32
+HiveSignOperations.serialized_tx        max_size:2048
+
+HiveSignedOperations.signature          max_size:65
