@@ -87,8 +87,11 @@ static struct {
   uint8_t orchard_flags;
   int64_t orchard_value_balance;
   uint8_t orchard_anchor[32];
-  /* Signatures buffer: one 64-byte sig per action */
+  /* Compact signatures buffer: one 64-byte sig per real Orchard spend.
+   * Dummy spends are signed by the PCZT finalizer and must not be signed with
+   * the device's Orchard key. */
   uint8_t signatures[ZCASH_MAX_ACTIONS][64];
+  uint32_t signature_count;
   /* Phase 3: transparent shielding state */
   bool has_expected_transparent_digest;
   uint8_t expected_transparent_digest[32];
@@ -222,7 +225,8 @@ static bool zcash_check_seed_fingerprint(bool has_expected,
 }
 
 static bool zcash_verify_and_confirm_orchard_output(
-    const ZcashPCZTAction* msg) {
+    const ZcashPCZTAction* msg, ZcashOrchardProgressCallback progress,
+    void* progress_context) {
   if (!msg->has_value || !msg->has_recipient ||
       msg->recipient.size != ZCASH_ORCHARD_RAW_RECEIVER_SIZE ||
       !msg->has_rseed || msg->rseed.size != 32) {
@@ -232,9 +236,9 @@ static bool zcash_verify_and_confirm_orchard_output(
   }
 
   uint8_t computed_cmx[32];
-  if (!zcash_orchard_compute_cmx(msg->recipient.bytes, msg->value,
-                                 msg->nullifier.bytes, msg->rseed.bytes,
-                                 computed_cmx) ||
+  if (!zcash_orchard_compute_cmx_with_progress(
+          msg->recipient.bytes, msg->value, msg->nullifier.bytes,
+          msg->rseed.bytes, computed_cmx, progress, progress_context) ||
       memcmp(computed_cmx, msg->cmx.bytes, 32) != 0) {
     memzero(computed_cmx, sizeof(computed_cmx));
     fsm_sendFailure(FailureType_Failure_Other,
@@ -322,6 +326,29 @@ static bool zcash_verify_and_confirm_fee(void) {
   }
 
   return true;
+}
+
+typedef struct {
+  uint32_t base;
+  uint32_t span;
+  uint32_t last;
+} ZcashActionProgress;
+
+static void zcash_action_progress(uint32_t completed, uint32_t total,
+                                  void* context) {
+  ZcashActionProgress* progress = (ZcashActionProgress*)context;
+  if (!progress || total == 0) return;
+
+  /* completed/total is a public loop schedule: either the fixed scalar round
+   * count or the fixed-size PCZT note-commitment word count. It never depends
+   * on ask, the nonce, or a secret message bit. Update only when the visible
+   * permil changes to avoid redundant OLED transfers while preserving a smooth
+   * bar. */
+  uint32_t permil = progress->base + (progress->span * completed) / total;
+  if (permil != progress->last) {
+    progress->last = permil;
+    layoutProgress(_("Signing Zcash"), (int)permil);
+  }
 }
 
 static void zcash_send_action_ack(uint32_t next_index) {
@@ -819,25 +846,10 @@ void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK* msg) {
     return;
   }
 
-  /* Compute ak = [ask]G_spendauth on Pallas curve (SpendAuth basepoint) */
-  bignum256 ask_scalar;
-  bn_read_le(keys.ask, &ask_scalar);
-  curve_point ak_point;
-  redpallas_scalar_mult_spendauth_G(&ask_scalar, &ak_point);
-
-  /* Serialize ak as Pallas point (LE x-coord, sign bit in high byte) */
-  uint8_t ak_bytes[32];
-  bignum256 x_copy;
-  bn_copy(&ak_point.x, &x_copy);
-  bn_write_le(&x_copy, ak_bytes);
-  if (bn_is_odd(&ak_point.y)) {
-    ak_bytes[31] |= 0x80;
-  }
-
   /* Build response */
   resp->has_ak = true;
   resp->ak.size = 32;
-  memcpy(resp->ak.bytes, ak_bytes, 32);
+  memcpy(resp->ak.bytes, keys.ak, 32);
 
   resp->has_nk = true;
   resp->nk.size = 32;
@@ -858,7 +870,6 @@ void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK* msg) {
   }
 
   /* Clean up sensitive data */
-  memzero(&ask_scalar, sizeof(ask_scalar));
   memzero(&keys, sizeof(keys));
 
   msg_write(MessageType_MessageType_ZcashOrchardFVK, resp);
@@ -1000,11 +1011,12 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
   }
 
   const bool has_orchard_action_data =
-      zcash_signing.verify_orchard_digest && msg->has_nullifier &&
-      msg->nullifier.size == 32 && msg->has_cmx && msg->cmx.size == 32 &&
-      msg->has_epk && msg->epk.size == 32 && msg->has_enc_compact &&
-      msg->enc_compact.size == 52 && msg->has_enc_memo &&
-      msg->enc_memo.size == 512 && msg->has_enc_noncompact &&
+      zcash_signing.verify_orchard_digest && msg->has_is_spend &&
+      msg->has_nullifier && msg->nullifier.size == 32 && msg->has_cmx &&
+      msg->cmx.size == 32 && msg->has_epk && msg->epk.size == 32 &&
+      msg->has_enc_compact && msg->enc_compact.size == 52 &&
+      msg->has_enc_memo && msg->enc_memo.size == 512 &&
+      msg->has_enc_noncompact &&
       /* 580-byte enc_ciphertext = compact(52) + memo(512) + noncompact(16);
        * pin the exact size like every sibling field so a host serializer bug
        * fails fast per-action instead of as an end-of-flow digest mismatch. */
@@ -1020,17 +1032,30 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
     return;
   }
 
-  if (!zcash_verify_and_confirm_orchard_output(msg)) {
+  const uint32_t action_base =
+      (zcash_signing.current_action * 1000) / zcash_signing.n_actions;
+  const uint32_t action_target =
+      ((zcash_signing.current_action + 1) * 1000) / zcash_signing.n_actions;
+  const uint32_t action_span = action_target - action_base;
+  const uint32_t verification_target =
+      msg->is_spend ? action_base + action_span / 3 : action_target;
+  ZcashActionProgress verification_progress = {
+      action_base, verification_target - action_base, action_base};
+
+  /* The 1086-bit Orchard note commitment takes 109 public Sinsemilla rounds.
+   * Draw their real progress instead of freezing the prior trickle at 0%. */
+  layoutProgress(_("Signing Zcash"), action_base);
+  if (!zcash_verify_and_confirm_orchard_output(msg, zcash_action_progress,
+                                               &verification_progress)) {
     zcash_signing_abort();
     layoutHome();
     return;
   }
 
-  /* The user just approved — switch to the signing screen NOW. RedPallas
-   * signing below is many seconds of pure device-side math, and without
-   * this draw the dismissed dialog would sit on screen the whole time. */
-  layoutProgress(_("Signing Zcash"), (zcash_signing.current_action * 1000) /
-                                         zcash_signing.n_actions);
+  /* The user just approved — restore the progress screen at the verified
+   * milestone. Real spends continue through RedPallas below; dummy spends
+   * complete without an authorization signature. */
+  layoutProgress(_("Signing Zcash"), verification_target);
 
   /* Phase 2b: feed action data into incremental BLAKE2b contexts */
   blake2b_Update(&zcash_signing.compact_ctx, msg->nullifier.bytes, 32);
@@ -1048,14 +1073,26 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
 
   const uint8_t* sighash = zcash_signing.sighash;
 
-  /* Sign this action with RedPallas:
-   * sig = RedPallas.sign(ask, alpha, sighash) */
-  if (redpallas_sign_digest(zcash_signing.keys.ask, msg->alpha.bytes, sighash,
-                            zcash_signing.signatures[msg->index]) != 0) {
-    fsm_sendFailure(FailureType_Failure_Other, _("RedPallas signing failed"));
-    zcash_signing_abort();
-    layoutHome();
-    return;
+  /* Orchard actions always contain a spend and an output, but the spend can be
+   * a dummy. finalize_io() has already signed dummy spends with their ephemeral
+   * key; replacing that signature with one from the device key is invalid and
+   * can never satisfy the action's rk. Stream and verify every action above,
+   * but return compact signatures only for real spends, in action order. */
+  if (msg->is_spend) {
+    ZcashActionProgress signing_progress = {verification_target,
+                                            action_target - verification_target,
+                                            verification_target};
+    if (redpallas_sign_digest_for_rk(
+            zcash_signing.keys.ask, msg->alpha.bytes, msg->rk.bytes, sighash,
+            zcash_signing.signatures[zcash_signing.signature_count],
+            zcash_action_progress, &signing_progress) != 0) {
+      fsm_sendFailure(FailureType_Failure_Other,
+                      _("Orchard spend authorization failed"));
+      zcash_signing_abort();
+      layoutHome();
+      return;
+    }
+    zcash_signing.signature_count++;
   }
 
   zcash_signing.current_action++;
@@ -1123,8 +1160,8 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
     ZcashSignedPCZT* resp_signed = (ZcashSignedPCZT*)msg_resp;
     memset(resp_signed, 0, sizeof(ZcashSignedPCZT));
 
-    resp_signed->signatures_count = zcash_signing.n_actions;
-    for (uint32_t i = 0; i < zcash_signing.n_actions; i++) {
+    resp_signed->signatures_count = zcash_signing.signature_count;
+    for (uint32_t i = 0; i < zcash_signing.signature_count; i++) {
       resp_signed->signatures[i].size = 64;
       memcpy(resp_signed->signatures[i].bytes, zcash_signing.signatures[i], 64);
     }

@@ -60,6 +60,7 @@ fi
 echo "Filter: $SCREENSHOT_FILTER"
 KEEPKEY_SCREENSHOT=1 \
 SCREENSHOT_DIR=/kkemu/test-reports/screenshots \
+KK_EXPECT_PERSIST_REJECTED=1 \
 KK_TRANSPORT_MAIN=kkemu:11044 \
 KK_TRANSPORT_DEBUG=kkemu:11045 \
 pytest -v --tb=short \
@@ -87,6 +88,7 @@ fi
 # Tests that skip via requires_message/requires_firmware are OK.
 # Tests that fail or are missing from JUnit = CI failure.
 echo "=== Phase 2: Full test suite ==="
+KK_EXPECT_PERSIST_REJECTED=1 \
 KK_TRANSPORT_MAIN=kkemu:11044 \
 KK_TRANSPORT_DEBUG=kkemu:11045 \
 pytest -v --junitxml=/kkemu/test-reports/python-keepkey/junit.xml

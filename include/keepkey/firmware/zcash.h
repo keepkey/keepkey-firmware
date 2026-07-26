@@ -34,12 +34,17 @@ typedef struct {
   // cppcheck-suppress unusedStructMember
   uint8_t ask[32]; /* Spend authorizing key (scalar) */
   // cppcheck-suppress unusedStructMember
+  uint8_t ak[32]; /* Public spend validating key (compressed, even y) */
+  // cppcheck-suppress unusedStructMember
   uint8_t nk[32]; /* Nullifier deriving key */
   // cppcheck-suppress unusedStructMember
   uint8_t rivk[32]; /* Commitment randomness key */
   // cppcheck-suppress unusedStructMember
   uint8_t dk[32]; /* Diversifier key */
 } ZcashOrchardKeys;
+
+typedef void (*ZcashOrchardProgressCallback)(uint32_t completed, uint32_t total,
+                                             void* context);
 
 typedef struct {
   bool has_header_digest;
@@ -116,6 +121,16 @@ bool zcash_pczt_signing_request_is_clear(
  */
 bool zcash_derive_orchard_keys(const uint8_t* seed, uint32_t seed_len,
                                uint32_t account, ZcashOrchardKeys* keys);
+
+/**
+ * Progress-reporting Orchard key derivation for interactive device flows.
+ * Progress is driven by the fixed public scalar-multiplication schedule and
+ * does not depend on the derived secret key.
+ */
+bool zcash_derive_orchard_keys_with_progress(
+    const uint8_t* seed, uint32_t seed_len, uint32_t account,
+    ZcashOrchardKeys* keys, ZcashOrchardProgressCallback progress,
+    void* progress_context);
 
 /**
  * Compute the ZIP 244 shielded sighash for Orchard spend authorization.
@@ -202,6 +217,15 @@ bool zcash_orchard_receiver_to_unified_address(
 bool zcash_orchard_compute_cmx(
     const uint8_t receiver[ZCASH_ORCHARD_RAW_RECEIVER_SIZE], uint64_t value,
     const uint8_t rho[32], const uint8_t rseed[32], uint8_t cmx_out[32]);
+
+/**
+ * Progress-reporting note-commitment verification for interactive PCZT flows.
+ * The callback exposes only the public Sinsemilla word index and count.
+ */
+bool zcash_orchard_compute_cmx_with_progress(
+    const uint8_t receiver[ZCASH_ORCHARD_RAW_RECEIVER_SIZE], uint64_t value,
+    const uint8_t rho[32], const uint8_t rseed[32], uint8_t cmx_out[32],
+    ZcashOrchardProgressCallback progress, void* progress_context);
 
 /**
  * Derive an Orchard diversifier from a diversifier key and 88-bit index.

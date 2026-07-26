@@ -62,6 +62,7 @@ set(sources
 if(${KK_ZCASH_PRIVACY})
   list(APPEND sources
       trezor-firmware/crypto/pallas.c
+      trezor-firmware/crypto/pallas_ct.c
       trezor-firmware/crypto/pallas_sinsemilla.c
       trezor-firmware/crypto/pallas_swu.c
       trezor-firmware/crypto/redpallas.c
@@ -79,7 +80,6 @@ endif()
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/trezor-firmware/crypto
-  ${CMAKE_CURRENT_SOURCE_DIR}/trezor-firmware/
   ${CMAKE_CURRENT_SOURCE_DIR}/trezor-firmware/crypto/ed25519-donna
   ${OPENSSL_INCLUDE_DIR})
 

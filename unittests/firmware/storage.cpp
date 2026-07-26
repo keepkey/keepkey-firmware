@@ -1006,66 +1006,49 @@ TEST(Storage, Reset) {
   ASSERT_TRUE(memcmp(session.storageKey, new_storage_key, 64) == 0);
 }
 
-// V18 storage adds a persistent clear-sign identities block appended after the
-// V17 encrypted_sec. Prove the field-by-field serializer round-trips every
-// field (incl. a real icon + a text-only identity), and that a corrupt on-flash
-// icon_len is clamped on read.
-TEST(Storage, ClearsignIdentityV18RoundTrip) {
+// The V18 record layout remains reserved for compatibility, but RC18 must
+// neither write nor accept those unauthenticated public-storage trust anchors.
+TEST(Storage, ClearsignIdentityV18RecordsAreRetired) {
   ConfigFlash start;
-  memset(&start, 0xAB, sizeof(start));
+  memset(&start, 0, sizeof(start));
   memcpy(start.meta.magic, "stor", 4);
   start.storage.version = STORAGE_VERSION;
   start.storage.encrypted_sec_version = STORAGE_VERSION;
 
-  // Identity 0: full, with an icon.
-  ClearsignIdentity *a = &start.storage.pub.clearsign_identities[0];
-  memset(a, 0, sizeof(*a));
+  // Even a populated in-memory legacy record is serialized as zeros.
+  ClearsignIdentity* a = &start.storage.pub.clearsign_identities[0];
   a->present = true;
   a->key_id = 1;
-  for (int i = 0; i < 33; i++) a->pubkey[i] = (uint8_t)(i + 1);
+  memset(a->pubkey, 0x42, sizeof(a->pubkey));
   strcpy(a->alias, "CI Test");
-  a->icon_w = 48;
-  a->icon_h = 48;
-  a->icon_len = 120;
-  for (int i = 0; i < a->icon_len; i++) a->icon[i] = (uint8_t)(0xF0 ^ i);
-
-  // Identity 1: text-only (no icon).
-  ClearsignIdentity *b = &start.storage.pub.clearsign_identities[1];
-  memset(b, 0, sizeof(*b));
-  b->present = true;
-  b->key_id = 2;
-  for (int i = 0; i < 33; i++) b->pubkey[i] = (uint8_t)(0x80 + i);
-  strcpy(b->alias, "Pioneer Insight");
+  a->icon_w = 32;
+  a->icon_h = 32;
+  a->icon_len = 2;
+  a->icon[0] = 0x01;
+  a->icon[1] = 0xFF;
 
   std::vector<uint8_t> flash(3480, 0);
-  storage_writeV18((char *)&flash[0], flash.size(), &start);
-
-  ConfigFlash end;
-  memset(&end, 0x00, sizeof(end));
-  storage_readV18(&end, (const char *)&flash[0], flash.size());
-
-  for (int k = 0; k < PERSISTENT_IDENTITY_COUNT; k++) {
-    const ClearsignIdentity *s = &start.storage.pub.clearsign_identities[k];
-    const ClearsignIdentity *r = &end.storage.pub.clearsign_identities[k];
-    ASSERT_EQ(s->present, r->present) << "present " << k;
-    ASSERT_EQ(s->key_id, r->key_id) << "key_id " << k;
-    ASSERT_EQ(0, memcmp(s->pubkey, r->pubkey, 33)) << "pubkey " << k;
-    ASSERT_STREQ(s->alias, r->alias) << "alias " << k;
-    ASSERT_EQ(s->icon_w, r->icon_w) << "icon_w " << k;
-    ASSERT_EQ(s->icon_h, r->icon_h) << "icon_h " << k;
-    ASSERT_EQ(s->icon_len, r->icon_len) << "icon_len " << k;
-    ASSERT_EQ(0, memcmp(s->icon, r->icon, CLEARSIGN_ICON_MAX)) << "icon " << k;
+  storage_writeV18((char*)&flash[0], flash.size(), &start);
+  const size_t identity_block_off = 44 + 1501 + V17_ENCSEC_SIZE;
+  const size_t identity_block_len =
+      PERSISTENT_IDENTITY_COUNT * (71 + CLEARSIGN_ICON_MAX);
+  for (size_t i = 0; i < identity_block_len; i++) {
+    ASSERT_EQ(0, flash[identity_block_off + i]) << "byte " << i;
   }
 
-  // A corrupt on-flash icon_len (> CLEARSIGN_ICON_MAX) must clamp to 0 on read
-  // so downstream renderers never index past the icon buffer. Identity 0's
-  // icon_len lives at flash[44 + 2525 + 69] (present, key_id, pubkey[33],
-  // alias[32], icon_w, icon_h => 69).
-  const size_t id0_icon_len_off = 44 + 1501 + V17_ENCSEC_SIZE + 69;
-  flash[id0_icon_len_off] = 0xFF;
-  flash[id0_icon_len_off + 1] = 0xFF;
-  ConfigFlash corrupt;
-  memset(&corrupt, 0x00, sizeof(corrupt));
-  storage_readV18(&corrupt, (const char *)&flash[0], flash.size());
-  ASSERT_EQ(0, corrupt.storage.pub.clearsign_identities[0].icon_len);
+  // Simulate attacker-controlled legacy flash. Deserialization must scrub the
+  // full in-memory block rather than parse or expose any of it.
+  memset(&flash[identity_block_off], 0xA5, identity_block_len);
+  ConfigFlash end;
+  memset(&end, 0xCC, sizeof(end));
+  storage_readV18(&end, (const char*)&flash[0], flash.size());
+  const uint8_t* retired =
+      reinterpret_cast<const uint8_t*>(end.storage.pub.clearsign_identities);
+  for (size_t i = 0; i < sizeof(end.storage.pub.clearsign_identities); i++) {
+    ASSERT_EQ(0, retired[i]) << "byte " << i;
+  }
+  for (int k = 0; k < PERSISTENT_IDENTITY_COUNT; k++) {
+    const ClearsignIdentity* r = &end.storage.pub.clearsign_identities[k];
+    ASSERT_FALSE(r->present) << "present " << k;
+  }
 }

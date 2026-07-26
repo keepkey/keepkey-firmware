@@ -28,6 +28,7 @@
 #include "trezor/crypto/hasher.h"
 #include "trezor/crypto/memzero.h"
 #include "trezor/crypto/pallas.h"
+#include "trezor/crypto/pallas_ct.h"
 #include "trezor/crypto/pallas_sinsemilla.h"
 #include "trezor/crypto/pallas_swu.h"
 #include "trezor/crypto/redpallas.h"
@@ -115,19 +116,19 @@ static void to_scalar(const uint8_t input[64], uint8_t output[32]) {
   bignum256 lo, hi, t256, result;
 
   bn_read_le(input, &lo);
-  pallas_mod_q(&lo);
+  pallas_ct_mod_q(&lo);
 
   bn_read_le(input + 32, &hi);
-  pallas_mod_q(&hi);
+  pallas_ct_mod_q(&hi);
 
   bn_read_le(two_256_mod_q, &t256);
 
   /* result = hi * (2^256 mod q) mod q */
   bn_copy(&hi, &result);
-  pallas_mul_mod_q(&result, &t256);
+  pallas_ct_mul_mod_q(&result, &t256);
 
   /* result = result + lo mod q */
-  pallas_add_mod_q(&result, &lo);
+  pallas_ct_add_mod_q(&result, &lo);
 
   bn_write_le(&result, output);
 
@@ -147,20 +148,20 @@ static void to_base(const uint8_t input[64], uint8_t output[32]) {
   bignum256 lo, hi, t256, result;
 
   bn_read_le(input, &lo);
-  pallas_mod_p(&lo);
+  pallas_ct_mod_p(&lo);
 
   bn_read_le(input + 32, &hi);
-  pallas_mod_p(&hi);
+  pallas_ct_mod_p(&hi);
 
   bn_read_le(two_256_mod_p, &t256);
 
   /* result = hi * (2^256 mod p) mod p */
   bn_copy(&hi, &result);
-  pallas_mul_mod_p(&result, &t256);
+  pallas_ct_mul_mod_p(&result, &t256);
 
   /* result = result + lo mod p */
   bignum256 sum;
-  pallas_add_mod_p(&result, &lo, &sum);
+  pallas_ct_add_mod_p(&result, &lo, &sum);
   bn_copy(&sum, &result);
   memzero(&sum, sizeof(sum));
 
@@ -362,7 +363,9 @@ bool zcash_orchard_derive_transmission_key(const uint8_t ivk[32],
   }
 
   curve_point pkd;
-  pallas_point_mult(&ivk_scalar, &gd, &pkd);
+  /* ivk is private viewing-key material.  Do not use the variable-time
+   * public-data multiplier that Sinsemilla note verification relies on. */
+  pallas_ct_point_mult(&ivk_scalar, &gd, &pkd);
   if (pallas_point_is_identity(&pkd)) {
     memzero(&ivk_scalar, sizeof(ivk_scalar));
     memzero(&gd, sizeof(gd));
@@ -510,9 +513,10 @@ static bool zcash_pack_orchard_note_commit_msg(const uint8_t receiver[43],
   return true;
 }
 
-bool zcash_orchard_compute_cmx(
+bool zcash_orchard_compute_cmx_with_progress(
     const uint8_t receiver[ZCASH_ORCHARD_RAW_RECEIVER_SIZE], uint64_t value,
-    const uint8_t rho[32], const uint8_t rseed[32], uint8_t cmx_out[32]) {
+    const uint8_t rho[32], const uint8_t rseed[32], uint8_t cmx_out[32],
+    ZcashOrchardProgressCallback progress, void* progress_context) {
   if (!receiver || !rho || !rseed || !cmx_out) return false;
 
   uint8_t msg[136];
@@ -538,7 +542,8 @@ bool zcash_orchard_compute_cmx(
                          (const uint8_t*)"z.cash:Orchard-NoteCommit-M",
                          strlen("z.cash:Orchard-NoteCommit-M"), &q) == 0 &&
        pallas_group_hash("z.cash:Orchard-NoteCommit-r", NULL, 0, &r) == 0 &&
-       pallas_sinsemilla_short_commit(&q, &r, msg, 1086, rcm, cmx_out) == 0;
+       pallas_sinsemilla_short_commit_progress(&q, &r, msg, 1086, rcm, cmx_out,
+                                               progress, progress_context) == 0;
 
   if (!ok) {
     memzero(cmx_out, 32);
@@ -554,8 +559,17 @@ bool zcash_orchard_compute_cmx(
   return ok;
 }
 
-bool zcash_derive_orchard_keys(const uint8_t* seed, uint32_t seed_len,
-                               uint32_t account, ZcashOrchardKeys* keys) {
+bool zcash_orchard_compute_cmx(
+    const uint8_t receiver[ZCASH_ORCHARD_RAW_RECEIVER_SIZE], uint64_t value,
+    const uint8_t rho[32], const uint8_t rseed[32], uint8_t cmx_out[32]) {
+  return zcash_orchard_compute_cmx_with_progress(receiver, value, rho, rseed,
+                                                 cmx_out, NULL, NULL);
+}
+
+bool zcash_derive_orchard_keys_with_progress(
+    const uint8_t* seed, uint32_t seed_len, uint32_t account,
+    ZcashOrchardKeys* keys, ZcashOrchardProgressCallback progress,
+    void* progress_context) {
   uint8_t I[64];
   uint8_t sk[32], chain_code[32];
 
@@ -621,7 +635,8 @@ bool zcash_derive_orchard_keys(const uint8_t* seed, uint32_t seed_len,
     bignum256 ask_test;
     bn_read_le(keys->ask, &ask_test);
     curve_point ak_test;
-    redpallas_scalar_mult_spendauth_G(&ask_test, &ak_test);
+    redpallas_scalar_mult_spendauth_G_progress(&ask_test, &ak_test, progress,
+                                               progress_context);
     bignum256 ak_x;
     bn_copy(&ak_test.x, &ak_x);
     bn_write_le(&ak_x, ak_bytes);
@@ -638,6 +653,10 @@ bool zcash_derive_orchard_keys(const uint8_t* seed, uint32_t seed_len,
     memzero(&ak_test, sizeof(ak_test));
     memzero(&ak_x, sizeof(ak_x));
   }
+  /* Cache the public key produced by the normalization multiplication.  This
+   * avoids repeating the same expensive secret-scalar operation for FVK
+   * export and lets signing derive rk from public ak + public alpha. */
+  memcpy(keys->ak, ak_bytes, sizeof(keys->ak));
 
   /* nk = ToBase(PRF^expand(sk, [0x07])) */
   uint8_t t_nk = 0x07;
@@ -669,6 +688,12 @@ bool zcash_derive_orchard_keys(const uint8_t* seed, uint32_t seed_len,
   memzero(dk_input, sizeof(dk_input));
 
   return true;
+}
+
+bool zcash_derive_orchard_keys(const uint8_t* seed, uint32_t seed_len,
+                               uint32_t account, ZcashOrchardKeys* keys) {
+  return zcash_derive_orchard_keys_with_progress(seed, seed_len, account, keys,
+                                                 NULL, NULL);
 }
 
 bool zcash_compute_shielded_sighash(const uint8_t header_digest[32],

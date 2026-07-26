@@ -18,7 +18,7 @@ on:
       - 'v*'
 
 env:
-  BASE_IMAGE: kktech/firmware:v15
+  BASE_IMAGE: kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
 
 permissions:
   contents: write
@@ -32,7 +32,7 @@ jobs:
       tag_name: ${{ steps.version.outputs.tag_name }}
       is_prerelease: ${{ steps.version.outputs.is_prerelease }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Extract and verify version
         id: version
@@ -91,10 +91,8 @@ jobs:
             cmake_flags: ""
           - variant: bitcoin-only
             cmake_flags: "-DKK_BITCOIN_ONLY=ON"
-          - variant: zcash-privacy
-            cmake_flags: "-DKK_ZCASH_PRIVACY=ON"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Init required submodules
         run: |
@@ -107,7 +105,7 @@ jobs:
 
       - name: Cache base image
         id: cache-base
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: /tmp/base-image.tar
           key: base-image-${{ env.BASE_IMAGE }}
@@ -180,8 +178,24 @@ jobs:
           mv HASHES.txt "HASHES-${VARIANT}.txt"
           ls -lh
 
+      - name: Record build provenance
+        working-directory: release
+        run: |
+          VARIANT="${{ matrix.variant }}"
+          {
+            echo "firmware_commit=${GITHUB_SHA}"
+            echo "source_repository=${GITHUB_REPOSITORY}"
+            echo "source_ref=${GITHUB_REF}"
+            echo "workflow_ref=${GITHUB_WORKFLOW_REF}"
+            echo "builder_image=${BASE_IMAGE}"
+            echo "runner_image=${ImageOS:-unknown}"
+            echo "variant=${VARIANT}"
+            echo "cmake_flags=${{ matrix.cmake_flags }}"
+          } > "PROVENANCE-${VARIANT}.txt"
+          cat "PROVENANCE-${VARIANT}.txt"
+
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-firmware-${{ matrix.variant }}
           path: release/*
@@ -199,10 +213,8 @@ jobs:
             cmake_flags: ""
           - variant: bitcoin-only
             cmake_flags: "-DKK_BITCOIN_ONLY=ON"
-          - variant: zcash-privacy
-            cmake_flags: "-DKK_ZCASH_PRIVACY=ON"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Init required submodules
         run: |
@@ -215,7 +227,7 @@ jobs:
 
       - name: Cache base image
         id: cache-base
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: /tmp/base-image.tar
           key: base-image-${{ env.BASE_IMAGE }}
@@ -243,10 +255,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Download firmware artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           pattern: release-firmware-*
           path: artifacts
@@ -255,7 +267,8 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
-          cp artifacts/*.bin artifacts/*.elf artifacts/HASHES-*.txt release-assets/
+          cp artifacts/*.bin artifacts/*.elf artifacts/HASHES-*.txt \
+            artifacts/PROVENANCE-*.txt release-assets/
           ls -lh release-assets/
 
       - name: Generate release body
@@ -265,17 +278,15 @@ jobs:
           ## KeepKey Firmware ${{ needs.validate.outputs.tag_name }}
 
           ### Variants
-          - **full** — \`firmware.keepkey.v${VER}-full.bin\` — all supported chains
+          - **full (regular)** — \`firmware.keepkey.v${VER}-full.bin\` — all supported chains, including Zcash shielded/Orchard
           - **bitcoin-only** — \`firmware.keepkey.v${VER}-bitcoin-only.bin\` — BTC-only, non-BTC coins stripped
-          - **zcash-privacy** — \`firmware.keepkey.v${VER}-zcash-privacy.bin\` — adds the Zcash shielded/Orchard engine
 
           ### Reproducible Build Verification
           \`\`\`bash
           ./scripts/build/docker/device/release.sh
           tail -c +257 bin/firmware.keepkey.bin | shasum -a 256
-          # bitcoin-only / zcash-privacy variants:
+          # bitcoin-only:
           #   ./scripts/build/docker/device/release.sh -DKK_BITCOIN_ONLY=ON
-          #   ./scripts/build/docker/device/release.sh -DKK_ZCASH_PRIVACY=ON
           # (extra args pass through to cmake) and compare against the
           # matching HASHES-<variant>.txt
           \`\`\`
@@ -293,7 +304,7 @@ jobs:
           EOF
 
       - name: Create draft release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           draft: true
           prerelease: ${{ needs.validate.outputs.is_prerelease }}

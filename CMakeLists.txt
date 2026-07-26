@@ -21,16 +21,15 @@ option(KK_BUILD_DYLIB "Build libkkemu shared library (.dylib/.so)" OFF)
 option(KK_DEBUG_LINK "Build with debug-link enabled" OFF)
 option(KK_BUILD_FUZZERS "Build the fuzzers?" OFF)
 option(KK_BITCOIN_ONLY "Build Bitcoin-only firmware (strip all non-BTC coins)" OFF)
-# The emulator runs on a host with no flash/SRAM budget, so it defaults the
-# Zcash shielded/Orchard privacy engine ON -- this is what makes the published
-# libkkemu dylib and Docker image (what vault and auditors actually run)
-# include it. Device firmware keeps the OFF default and only ships the engine
-# via an explicit -DKK_ZCASH_PRIVACY=ON. Bitcoin-only can never enable it
-# (mutually exclusive, see below), so it forces the OFF default too.
-if(KK_EMULATOR AND NOT KK_BITCOIN_ONLY)
-  option(KK_ZCASH_PRIVACY "Build the Zcash shielded/Orchard privacy engine" ON)
+# Zcash shielded/Orchard support is part of the regular firmware. It is an
+# internal compile selection, not a third release variant: bitcoin-only strips
+# the Zcash coin and privacy engine; every regular device/emulator build ships
+# both. The open constant-time Pallas audit finding remains a release gate for
+# RC18, but it must not silently change the product being audited.
+if(KK_BITCOIN_ONLY)
+  set(KK_ZCASH_PRIVACY OFF)
 else()
-  option(KK_ZCASH_PRIVACY "Build the Zcash shielded/Orchard privacy engine" OFF)
+  set(KK_ZCASH_PRIVACY ON)
 endif()
 
 # When building the dylib, every static lib it links (kkfirmware, kkboard,
@@ -74,7 +73,7 @@ endif()
 if(NOT EXISTS ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-firmware/crypto/Makefile)
   message(
     FATAL_ERROR
-      " trezor-crypto missing. Need to 'git submodule update --init --recursive"
+      "trezor-crypto fork missing. Run 'git submodule update --init deps/crypto/trezor-firmware'"
   )
 endif()
 
@@ -150,24 +149,14 @@ add_definitions(-DBIP39_WORDLIST_PADDED=1)
 
 add_definitions(-DAES_128=1)
 
-# NOTE: AES table size is selected per-variant below. This PR splits Zcash
-# (and its Pallas curve arithmetic) into the zcash-privacy variant, so the
-# default and bitcoin-only images regain flash headroom and keep the fast
-# FOUR_TABLES AES; only zcash-privacy opts into AES_SMALL_TABLES.
+# NOTE: AES table size is selected per release product below. The regular
+# image includes Zcash and its Pallas curve arithmetic, so it uses the smaller
+# AES tables to preserve flash headroom. Bitcoin-only keeps FOUR_TABLES AES.
 
 if(${KK_DEBUG_LINK})
   add_definitions(-DDEBUG_LINK=1)
 else()
   add_definitions(-DDEBUG_LINK=0)
-endif()
-
-# Bitcoin-only removes the Zcash coin entirely, which the shielded/Orchard
-# privacy engine depends on -- the two flags cannot coexist.
-if(${KK_BITCOIN_ONLY} AND ${KK_ZCASH_PRIVACY})
-  message(
-    FATAL_ERROR
-      "KK_BITCOIN_ONLY and KK_ZCASH_PRIVACY are mutually exclusive: bitcoin-only strips the Zcash coin that the privacy engine requires."
-  )
 endif()
 
 # Value macros (always defined 0/1) -- device builds use -Wundef -Werror, so an
@@ -180,9 +169,9 @@ endif()
 
 if(${KK_ZCASH_PRIVACY})
   add_definitions(-DZCASH_PRIVACY=1)
-  # The Orchard engine leaves this variant tightest on flash; shrink the
+  # The Orchard engine leaves the regular image tightest on flash; shrink the
   # Gladman AES lookup tables from 4KB to 1KB each (-15,360 bytes ROM,
-  # slightly slower AES). full/bitcoin-only keep the fast FOUR_TABLES.
+  # slightly slower AES). Bitcoin-only keeps the fast FOUR_TABLES.
   add_definitions(-DAES_SMALL_TABLES)
 else()
   add_definitions(-DZCASH_PRIVACY=0)
@@ -254,6 +243,10 @@ if(${KK_EMULATOR})
   add_test(test-firmware ${CMAKE_BINARY_DIR}/bin/firmware-unit)
   add_test(test-board ${CMAKE_BINARY_DIR}/bin/board-unit)
   add_test(test-crypto ${CMAKE_BINARY_DIR}/bin/crypto-unit)
+  if(${KK_ZCASH_PRIVACY})
+    add_test(test-pallas-ct ${CMAKE_BINARY_DIR}/bin/pallas-ct-unit)
+    add_test(test-zcash-crypto ${CMAKE_BINARY_DIR}/bin/zcash-crypto-unit)
+  endif()
 
   add_custom_target(
     xunit
@@ -263,5 +256,11 @@ if(${KK_EMULATOR})
             --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/board.xml
     COMMAND ${CMAKE_BINARY_DIR}/bin/crypto-unit
             --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/crypto.xml)
+
+  if(${KK_ZCASH_PRIVACY})
+    add_custom_command(TARGET xunit POST_BUILD
+      COMMAND ${CMAKE_BINARY_DIR}/bin/pallas-ct-unit
+              --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/pallas-ct.xml)
+  endif()
 
 endif()

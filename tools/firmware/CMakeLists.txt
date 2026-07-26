@@ -9,7 +9,7 @@ if(NOT ${KK_EMULATOR})
   include_directories(
       ${CMAKE_SOURCE_DIR}/include
       ${CMAKE_BINARY_DIR}/include
-      ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto)
+      ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-firmware/crypto)
 
   set(linker_script ${CMAKE_CURRENT_SOURCE_DIR}/keepkey.ld)
 

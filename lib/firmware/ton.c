@@ -240,7 +240,7 @@ bool ton_signTx(const HDNode* node, const TonSignTx* msg, TonSignedTx* resp) {
   // Ed25519 sign the transaction
   ed25519_signature signature;
   ed25519_sign(msg->raw_tx.bytes, msg->raw_tx.size, node->private_key,
-               &node->public_key[1], signature);
+               signature);
 
   // Copy signature to response (64 bytes)
   resp->has_signature = true;
@@ -273,7 +273,7 @@ bool ton_message_sign(const HDNode* node, const TonSignMessage* msg,
 
   ed25519_signature signature;
   ed25519_sign(msg->message.bytes, msg->message.size, node->private_key,
-               &node->public_key[1], signature);
+               signature);
 
   resp->has_public_key = true;
   resp->public_key.size = 32;

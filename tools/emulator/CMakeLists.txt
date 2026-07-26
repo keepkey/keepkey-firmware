@@ -6,7 +6,7 @@ if(${KK_EMULATOR})
   include_directories(
       ${CMAKE_SOURCE_DIR}/include
       ${CMAKE_BINARY_DIR}/include
-      ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto)
+      ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-firmware/crypto)
 
   set(FIRMWARE_LIBS
       kkfirmware
@@ -49,7 +49,7 @@ if(${KK_EMULATOR})
       # 3.7.2. macOS ld64 is multi-pass and needs neither.
       # Also: MinGW exports nothing from a DLL by default (unlike Mach-O/ELF),
       # so export the kkemu_* FFI entry points; and link the Windows CSPRNG
-      # (bcrypt, BCryptGenRandom) used by setup.c / rng.c on _WIN32.
+      # (bcrypt, BCryptGenRandom) used by emulator/random.c on _WIN32.
       target_link_libraries(kkemulator_dylib
           -Wl,--start-group ${FIRMWARE_LIBS} -Wl,--end-group bcrypt)
       target_link_options(kkemulator_dylib PRIVATE "-Wl,--export-all-symbols")

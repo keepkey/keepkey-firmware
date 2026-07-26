@@ -831,8 +831,7 @@ bool solana_signTx(const HDNode* node, const SolanaSignTx* msg,
                        &message_len);
 
   uint8_t sig[SOL_SIG_SIZE];
-  ed25519_sign(message, message_len, node->private_key, node->public_key + 1,
-               sig);
+  ed25519_sign(message, message_len, node->private_key, sig);
 
 #if !ZCASH_PRIVACY
   /* Defense-in-depth: refuse to emit a signature that does not verify over
@@ -917,7 +916,7 @@ bool solana_offchain_message_sign(const HDNode* node,
   off += msg->message.size;
 
   uint8_t sig[SOL_SIG_SIZE];
-  ed25519_sign(envelope, off, node->private_key, node->public_key + 1, sig);
+  ed25519_sign(envelope, off, node->private_key, sig);
 
   resp->has_public_key = true;
   resp->public_key.size = SOL_PUBKEY_SIZE;

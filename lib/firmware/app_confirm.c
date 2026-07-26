@@ -417,15 +417,19 @@ bool confirm_sign_identity(const IdentityType* identity,
                  body);
 }
 
-static bool confirm_bytes_is_ascii(const uint8_t* data, size_t size) {
+bool confirm_bytes_is_text(const uint8_t* data, size_t size) {
+  if (!data && size != 0) return false;
+  bool has_visible_character = false;
   for (size_t i = 0; i < size; i++) {
+    if (data[i] == '\n') continue;
     if (data[i] < 0x20 || data[i] > 0x7e) return false;
+    if (data[i] != ' ') has_visible_character = true;
   }
-  return true;
+  return has_visible_character;
 }
 
 static size_t confirm_bytes_render_page(const uint8_t* data, size_t size,
-                                        bool ascii,
+                                        bool text,
                                         char rendered[BODY_CHAR_MAX]) {
   if (size == 0) return 0;
 
@@ -436,9 +440,21 @@ static size_t confirm_bytes_render_page(const uint8_t* data, size_t size,
   uint16_t x = 0;
 
   while (consumed < size) {
+    if (text && data[consumed] == '\n') {
+      // A page boundary already advances past the current third row. Consume
+      // its terminating LF without adding a blank row to the next page.
+      consumed++;
+      if (row == BODY_ROWS) break;
+      if (written + 1 >= BODY_CHAR_MAX) break;
+      rendered[written++] = '\n';
+      row++;
+      x = 0;
+      continue;
+    }
+
     char chars[2];
     size_t char_count;
-    if (ascii) {
+    if (text) {
       chars[0] = (char)data[consumed];
       char_count = 1;
     } else {
@@ -456,7 +472,7 @@ static size_t confirm_bytes_render_page(const uint8_t* data, size_t size,
     // draw_string() wraps only at spaces and otherwise clips overlong words.
     // Pre-insert hard line breaks so long addresses, hashes and IBC denoms are
     // actually visible rather than merely counted as one renderer line.
-    if (ascii && chars[0] == ' ') {
+    if (text && chars[0] == ' ') {
       uint32_t word_width = width;
       for (size_t i = consumed + 1;
            i < size && data[i] != ' ' && data[i] != '\n'; i++) {
@@ -503,13 +519,13 @@ bool confirm_bytes(ButtonRequestType button_request, const char* title,
   if (!title || (!data && size != 0)) return false;
   if (size == 0) return confirm(button_request, title, "(empty)");
 
-  const bool ascii = confirm_bytes_is_ascii(data, size);
+  const bool text = confirm_bytes_is_text(data, size);
   size_t pages = 0;
   size_t offset = 0;
   while (offset < size) {
     char rendered[BODY_CHAR_MAX];
-    const size_t take = confirm_bytes_render_page(data + offset, size - offset,
-                                                  ascii, rendered);
+    const size_t take =
+        confirm_bytes_render_page(data + offset, size - offset, text, rendered);
     if (take == 0) return false;
     offset += take;
     pages++;
@@ -518,14 +534,14 @@ bool confirm_bytes(ButtonRequestType button_request, const char* title,
   offset = 0;
   for (size_t page = 0; page < pages; page++) {
     char rendered[BODY_CHAR_MAX];
-    const size_t take = confirm_bytes_render_page(data + offset, size - offset,
-                                                  ascii, rendered);
+    const size_t take =
+        confirm_bytes_render_page(data + offset, size - offset, text, rendered);
     if (take == 0) return false;
 
     char page_title[TITLE_CHAR_MAX];
-    if (pages > 1 || !ascii) {
+    if (pages > 1 || !text) {
       snprintf(page_title, sizeof(page_title),
-               ascii ? "%s %u/%u" : "%s Hex %u/%u", title, (unsigned)(page + 1),
+               text ? "%s %u/%u" : "%s Hex %u/%u", title, (unsigned)(page + 1),
                (unsigned)pages);
     } else {
       strlcpy(page_title, title, sizeof(page_title));

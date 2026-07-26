@@ -1,6 +1,5 @@
 #include "keepkey/firmware/signed_metadata.h"
 
-#include "storage.h"  // ClearsignIdentity + persistent-slot accessors
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/draw.h"     // draw_bitmap_mono_rle_valid
 #include "keepkey/board/layout.h"   // RUNTIME_ICON + layout_set_runtime_icon
@@ -33,36 +32,18 @@ static SignedMetadata stored_metadata;
  * loaded at runtime via LoadClearsignSigner. Phase 2 restores the production
  * key. */
 
-/* Runtime-loaded signers. RAM only — cleared on reboot by construction.
- * A signer loaded with persist=true is ALSO written to flash (V18 storage) and
- * reconsulted after reboot via storage_getClearsignIdentity(). The RAM slot is
- * the session working copy; the flash slot is the durable trust anchor. */
+/* Runtime-loaded signers. RAM only — cleared on reboot by construction. RC18
+ * deliberately rejects persistent trust anchors: the public storage section
+ * has no authenticated integrity against physical flash modification. */
 static uint8_t loaded_pubkeys[METADATA_MAX_KEYS][33];
 static char loaded_aliases[METADATA_MAX_KEYS][METADATA_ALIAS_MAX_LEN + 1];
 /* Per-slot session icon (1bpp mono RLE). icon_len==0 => text-only identity. */
-_Static_assert(CLEARSIGN_ICON_MAX == METADATA_ICON_MAX,
-               "storage icon cap must match the clearsign icon cap");
 #if !ZCASH_PRIVACY
-/* Session icon cache for ephemeral (RAM-only) signers. The zcash-privacy
- * variant compiles this out to fit SRAM (the Orchard engine leaves it the
- * tightest variant): ephemeral signers render text-only there, while
- * PERSISTENT identity icons still render straight from the storage shadow.
- * Hosts detect this from firmware_variant (KeepKeyZcash/EmulatorZcash). */
-static uint8_t loaded_icons[METADATA_MAX_KEYS][CLEARSIGN_ICON_MAX];
+static uint8_t loaded_icons[METADATA_MAX_KEYS][METADATA_ICON_MAX];
 static uint8_t loaded_icon_w[METADATA_MAX_KEYS];
 static uint8_t loaded_icon_h[METADATA_MAX_KEYS];
 static uint16_t loaded_icon_len[METADATA_MAX_KEYS];
 #endif
-
-/* Find the persistent identity that reloads into `key_id`, or NULL. */
-static const ClearsignIdentity* persistent_identity_for(uint8_t key_id) {
-  int n = storage_clearsignIdentityCount();
-  for (int i = 0; i < n; i++) {
-    const ClearsignIdentity* id = storage_getClearsignIdentity(i);
-    if (id && id->key_id == key_id) return id;
-  }
-  return NULL;
-}
 
 static bool read_u8(const uint8_t** cursor, const uint8_t* end, uint8_t* out) {
   if ((size_t)(end - *cursor) < 1) {
@@ -429,9 +410,7 @@ void signed_metadata_clear_signers(void) {
   memzero(loaded_icon_h, sizeof(loaded_icon_h));
   memzero(loaded_icon_len, sizeof(loaded_icon_len));
 #endif
-  /* Metadata verified by a now-dropped signer must not outlive it. NB: this
-   * clears only the RAM session copies; persisted identities live in flash and
-   * are cleared by WipeDevice, not here. */
+  /* Metadata verified by a now-dropped signer must not outlive it. */
   signed_metadata_clear();
 }
 
@@ -476,7 +455,10 @@ bool signed_metadata_store_signer(uint8_t key_id, const uint8_t* pubkey,
                                   const char* alias, const uint8_t* icon,
                                   uint8_t icon_w, uint8_t icon_h,
                                   uint16_t icon_len, bool persist) {
-  if (key_id >= METADATA_MAX_KEYS) {
+  /* Fail before changing the RAM slot. A caller asking for persistence must
+   * never receive a session-only downgrade it could mistake for durable trust.
+   * Persistence can return only after authenticated storage binding exists. */
+  if (persist || key_id >= METADATA_MAX_KEYS) {
     return false;
   }
   memcpy(loaded_pubkeys[key_id], pubkey, sizeof(loaded_pubkeys[key_id]));
@@ -484,12 +466,12 @@ bool signed_metadata_store_signer(uint8_t key_id, const uint8_t* pubkey,
 
   /* A load without an icon clears any prior one for the slot (icon_len
    * already validated <= max by the caller — belt-and-braces here). */
-  bool has_icon = icon && icon_len > 0 && icon_len <= CLEARSIGN_ICON_MAX;
+  bool has_icon = icon && icon_len > 0 && icon_len <= METADATA_ICON_MAX;
 
+  /* Session icon into the RAM working slot. The Orchard build omits this
+   * cosmetic cache to preserve its tight SRAM margin; signers remain usable
+   * and render text-only after the mandatory load confirmation. */
 #if !ZCASH_PRIVACY
-  /* Session icon into the RAM working slot. The zcash-privacy variant has no
-   * session icon cache (SRAM); persist below still stores the icon bytes, so
-   * persistent identities keep their logo across variants. */
   memzero(loaded_icons[key_id], sizeof(loaded_icons[key_id]));
   if (has_icon) {
     memcpy(loaded_icons[key_id], icon, icon_len);
@@ -501,51 +483,33 @@ bool signed_metadata_store_signer(uint8_t key_id, const uint8_t* pubkey,
     loaded_icon_h[key_id] = 0;
     loaded_icon_len[key_id] = 0;
   }
+#else
+  (void)has_icon;
+  (void)icon_w;
+  (void)icon_h;
 #endif
-
-  bool persisted = true;
-  if (persist) {
-    ClearsignIdentity id;
-    memzero(&id, sizeof(id));
-    id.present = true;
-    id.key_id = key_id;
-    memcpy(id.pubkey, pubkey, sizeof(id.pubkey));
-    strlcpy(id.alias, alias, sizeof(id.alias));
-    if (has_icon) {
-      id.icon_w = icon_w;
-      id.icon_h = icon_h;
-      id.icon_len = icon_len;
-      memcpy(id.icon, icon, icon_len);
-    }
-    persisted = storage_upsertClearsignIdentity(&id);
-    memzero(&id, sizeof(id));
-  }
 
   /* Replacing a signer invalidates anything the old one verified. */
   signed_metadata_clear();
-  return persisted;
+  return true;
 }
 
-/* Resolve the alias for a slot (RAM working copy, else a persisted identity).
- * Returns NULL if the slot has no loaded/persisted signer. */
+/* Resolve the alias for a session slot. */
 const char* signed_metadata_signer_alias(uint8_t key_id) {
   if (key_id >= METADATA_MAX_KEYS) return NULL;
   if (loaded_pubkeys[key_id][0] != 0x00) return loaded_aliases[key_id];
-  const ClearsignIdentity* pid = persistent_identity_for(key_id);
-  return pid ? pid->alias : NULL;
+  return NULL;
 }
 
-/* Resolve the icon for a slot (RAM working copy, else a persisted identity).
- * Returns false when the slot has no icon (text-only identity). */
+/* Resolve the icon for a session slot. Returns false for a text-only slot. */
 /* An icon is renderable only if its geometry fits the confirm's icon column
  * AND its RLE stream decodes exactly to that geometry. This is the single
- * choke point for STORED icons: signed_metadata_signer_icon() is what both the
+ * choke point for session icons: signed_metadata_signer_icon() is what both the
  * load-confirm and the per-tx identity screen call, and the per-tx screen
- * stages the frame itself (it never goes through stage_runtime_icon), so
- * validating in the staging helper alone would leave that path — and every
- * legacy flash record — unchecked. Fail closed to a text-only identity: a
- * missing logo is cosmetic, an over-wide one erases the alias, fingerprint and
- * the "NOT verified by KeepKey" warning. */
+ * stages the frame itself (it never goes through stage_runtime_icon). Fail
+ * closed to a text-only identity: a missing logo is cosmetic, an over-wide one
+ * erases the alias, fingerprint and the "NOT verified by KeepKey" warning. */
+#if !ZCASH_PRIVACY
 static bool icon_renderable(const uint8_t* icon, uint16_t icon_len,
                             uint8_t icon_w, uint8_t icon_h) {
   if (!icon || icon_len == 0) return false;
@@ -553,6 +517,7 @@ static bool icon_renderable(const uint8_t* icon, uint16_t icon_len,
   if (icon_h == 0 || icon_h > 64) return false;
   return draw_bitmap_mono_rle_valid(icon, (uint32_t)icon_len, icon_w, icon_h);
 }
+#endif
 
 bool signed_metadata_signer_icon(uint8_t key_id, const uint8_t** icon_out,
                                  uint8_t* w_out, uint8_t* h_out,
@@ -560,9 +525,10 @@ bool signed_metadata_signer_icon(uint8_t key_id, const uint8_t** icon_out,
   if (key_id >= METADATA_MAX_KEYS) return false;
   if (loaded_pubkeys[key_id][0] != 0x00) {
 #if ZCASH_PRIVACY
-    /* No session icon cache in this variant — an ephemeral signer renders
-     * text-only. It must NOT fall through to the persistent slot below: that
-     * would put a different identity's logo on this signer's screens. */
+    (void)icon_out;
+    (void)w_out;
+    (void)h_out;
+    (void)len_out;
     return false;
 #else
     if (loaded_icon_len[key_id] == 0) return false;
@@ -577,19 +543,7 @@ bool signed_metadata_signer_icon(uint8_t key_id, const uint8_t** icon_out,
     return true;
 #endif
   }
-  const ClearsignIdentity* pid = persistent_identity_for(key_id);
-  if (!pid || pid->icon_len == 0) return false;
-  /* Flash records predate the geometry/encoding rules and are NOT re-validated
-   * by the load handler after a reboot, so an identity persisted by older
-   * firmware can carry a 41-64px or malformed icon. Check it here. */
-  if (!icon_renderable(pid->icon, pid->icon_len, pid->icon_w, pid->icon_h)) {
-    return false;
-  }
-  if (icon_out) *icon_out = pid->icon;
-  if (w_out) *w_out = pid->icon_w;
-  if (h_out) *h_out = pid->icon_h;
-  if (len_out) *len_out = pid->icon_len;
-  return true;
+  return false;
 }
 
 /* Render an AnimationFrame from a stored icon into the confirm's left column.
@@ -603,11 +557,9 @@ static IconType stage_runtime_icon(Image* img, AnimationFrame* frame,
   /* Fail closed on an over-wide icon rather than drawing it at x=0: text begins
    * at x=40 and the icon is drawn AFTER the text, so a wider icon would paint
    * over the alias, fingerprint and the "NOT verified by KeepKey" warning.
-   * fsm_msgLoadClearsignSigner already rejects width > LEFT_MARGIN_WITH_ICON,
-   * but an icon persisted to flash by older firmware re-enters here straight
-   * from storage without passing that check — so enforce it again at the point
-   * of use. Dropping the logo degrades to a text-only identity; letting it
-   * erase the warning does not. */
+   * The load handler already checks this, but enforce it again at the point of
+   * use. Dropping the logo degrades to a text-only identity; letting it erase
+   * the warning does not. */
   if (icon_w == 0 || icon_w > LEFT_MARGIN_WITH_ICON || icon_h == 0 ||
       icon_h > 64) {
     return NO_ICON;
@@ -630,8 +582,7 @@ static IconType stage_runtime_icon(Image* img, AnimationFrame* frame,
 
 bool signed_metadata_confirm_load(const char* alias, const char* fingerprint,
                                   const uint8_t* icon, uint8_t icon_w,
-                                  uint8_t icon_h, uint16_t icon_len,
-                                  bool persist) {
+                                  uint8_t icon_h, uint16_t icon_len) {
   Image icon_img;
   AnimationFrame icon_frame;
   IconType id_icon = stage_runtime_icon(&icon_img, &icon_frame, icon, icon_w,
@@ -642,9 +593,9 @@ bool signed_metadata_confirm_load(const char* alias, const char* fingerprint,
   /* Lead with the identity (its logo + alias + fingerprint). The trust model
    * hangs on this consent; the fingerprint reappears on every per-tx screen. */
   snprintf(body, sizeof(body),
-           "Trust '%s' (%s) to describe transactions?%s NOT verified by "
-           "KeepKey.",
-           alias, fingerprint, persist ? " Kept until wiped." : "");
+           "Trust '%s' (%s) for this session to describe transactions? NOT "
+           "verified by KeepKey.",
+           alias, fingerprint);
   bool ok = confirm_with_icon(ButtonRequestType_ButtonRequest_Other, id_icon,
                               _("Load Clearsigner"), "%s", body);
   layout_set_runtime_icon(NULL);
@@ -672,13 +623,6 @@ static const uint8_t* metadata_pubkey_for(uint8_t key_id, bool* is_loaded) {
   if (loaded_pubkeys[key_id][0] != 0x00) {
     *is_loaded = true;
     return loaded_pubkeys[key_id];
-  }
-  /* Not in a RAM slot this session — fall back to a persisted identity that
-   * survived reboot. (A fresh load into the same slot supersedes it above.) */
-  const ClearsignIdentity* pid = persistent_identity_for(key_id);
-  if (pid) {
-    *is_loaded = true;
-    return pid->pubkey;
   }
   return NULL;
 }

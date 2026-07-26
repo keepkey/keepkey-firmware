@@ -973,6 +973,16 @@ TEST(SignedMetadataSignerValid, RejectsBadAlias) {
       signed_metadata_signer_valid(0, EXPECTED_SLOT3_PUB, 33, "trust(me)"));
 }
 
+TEST(SignedMetadataSignerStore, RejectsPersistenceBeforeSessionMutation) {
+  signed_metadata_clear_signers();
+  EXPECT_FALSE(signed_metadata_store_signer(
+      TEST_KEY_ID, EXPECTED_SLOT3_PUB, TEST_ALIAS, nullptr, 0, 0, 0, true));
+  EXPECT_EQ(signed_metadata_signer_alias(TEST_KEY_ID), nullptr);
+  char fingerprint[METADATA_FINGERPRINT_LEN];
+  EXPECT_FALSE(signed_metadata_signer_fingerprint(TEST_KEY_ID, fingerprint));
+  signed_metadata_clear_signers();
+}
+
 /* ---- signed_metadata_pubkey_fingerprint -------------------------------- */
 
 TEST(SignedMetadataFingerprint, IsSha256Prefix) {

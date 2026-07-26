@@ -32,10 +32,10 @@
 #define V16_ENCSEC_SIZE 512  // for reading old encrypted sec size
 #define V17_ENCSEC_SIZE 1024
 
-/* Persistent clear-sign identities (the "KeepKey + identity" trust anchors).
- * A loaded signer whose LoadClearsignSigner carried persist=true is written to
- * flash here so it survives reboot; RAM-only signers (signed_metadata.c) are
- * unaffected. WipeDevice clears these along with the rest of storage.
+/* Retired V18 clear-sign identity record. The fixed-size fields remain in the
+ * in-memory/storage layout for backward compatibility, but RC18 never trusts,
+ * returns, or writes their contents: this public section lacks authenticated
+ * integrity against physical flash modification.
  *   pubkey  : 33-byte compressed secp256k1 (matches signed_metadata slots)
  *   alias   : METADATA_ALIAS_MAX_LEN(31)+1, printable [A-Za-z0-9 _-]
  *   icon    : 1bpp mono row-major bitmap, <= CLEARSIGN_ICON_MAX bytes,
@@ -95,8 +95,7 @@ typedef struct _Storage {
     bool authdata_encrypted;
     uint8_t random_salt[32];
     uint8_t authdata_fingerprint[32];
-    /* V18: persistent clear-sign identities. Zero-initialized (present=false)
-     * for wallets migrated up from V17 — no data loss. */
+    /* V18 legacy clear-sign records. Always scrubbed on read and write. */
     ClearsignIdentity clearsign_identities[PERSISTENT_IDENTITY_COUNT];
   } pub;
 
@@ -208,18 +207,6 @@ pintest_t session_clear_impl(SessionState* ss, Storage* storage,
 /// \brief Get user private seed.
 /// \returns NULL on error, otherwise \returns the private seed.
 const uint8_t* storage_getSeed(const ConfigFlash* cfg, bool usePassphrase);
-
-/// \brief Number of persistent clear-sign identity slots.
-int storage_clearsignIdentityCount(void);
-
-/// \brief The persistent clear-sign identity in `slot`, or NULL if empty/out
-///        of range. Pointer into shadow storage — valid until the next commit.
-const ClearsignIdentity* storage_getClearsignIdentity(int slot);
-
-/// \brief Persist a clear-sign identity (reuse its pubkey's slot, else the
-///        first free one) and commit. Returns false if all slots are occupied
-///        by other identities.
-bool storage_upsertClearsignIdentity(const ClearsignIdentity* id);
 
 typedef enum {
   SUS_Invalid,

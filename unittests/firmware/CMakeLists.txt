@@ -1,4 +1,5 @@
 set(sources
+    app_confirm.cpp
     recovery.cpp
     storage.cpp
     usb_rx.cpp
@@ -38,7 +39,7 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/lib/firmware
     ${CMAKE_BINARY_DIR}/include
-    ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto)
+    ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-firmware/crypto)
 
 add_executable(firmware-unit ${sources})
 target_link_libraries(firmware-unit
@@ -50,9 +51,9 @@ target_link_libraries(firmware-unit
     kkvariant.keepkey
     kkvariant.salt
     kkboard
-    kkemulator
     trezorcrypto
     qrcodegenerator
     SecAESSTM32
     kkrand
+    kkemulator
     kktransport)

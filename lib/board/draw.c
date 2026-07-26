@@ -292,7 +292,7 @@ void draw_box_simple(Canvas* canvas, uint8_t color, uint16_t x, uint16_t y,
  * writes nothing. The drawing path below stops as soon as the canvas is full,
  * so it cannot tell a well-formed stream from one whose last run straddles the
  * image or that carries trailing packets. Host-supplied icons must be checked
- * here, at the trust boundary, before they are shown or persisted.
+ * here, at the trust boundary, before they are shown or cached for a session.
  */
 bool draw_bitmap_mono_rle_valid(const uint8_t* data, uint32_t length,
                                 uint16_t w, uint16_t h) {

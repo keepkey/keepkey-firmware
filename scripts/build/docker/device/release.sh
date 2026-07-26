@@ -3,12 +3,12 @@
 KEEPKEY_FIRMWARE="$(dirname "$(dirname "$(dirname "$(dirname "$( cd "$(dirname "$0")" ; pwd -P )")")")")"
 cd $KEEPKEY_FIRMWARE
 
-IMAGETAG=kktech/firmware:v15
+IMAGETAG=kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
 
 docker image inspect $IMAGETAG > /dev/null || docker pull $IMAGETAG
 
-# Extra cmake flags pass straight through (reproducible-build verification of
-# the other variants): ./release.sh -DKK_BITCOIN_ONLY=ON  /  -DKK_ZCASH_PRIVACY=ON
+# Extra cmake flags pass straight through. The only alternate release product
+# is bitcoin-only: ./release.sh -DKK_BITCOIN_ONLY=ON
 EXTRA_CMAKE_FLAGS="$*"
 
 docker run -t \

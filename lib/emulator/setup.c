@@ -19,18 +19,12 @@
 
 #include "keepkey/board/memory.h"
 #include "keepkey/board/timer.h"
-#include "keepkey/rand/rng.h"
+#include "keepkey/emulator/setup.h"
 
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN /* exclude winsock.h — it declares \
-                               shutdown(SOCKET,int) */
-#include <windows.h>
-#include <bcrypt.h>
-#else
+#ifndef _WIN32
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -45,48 +39,14 @@
  * blocked the Linux .so and Windows .dll builds. Removed — the board copy is
  * canonical. */
 
-static int urandom = -1;
-
-static void setup_urandom(void);
-
 #ifndef _WIN32
 static void setup_flash(void);
 
 void setup(void) {
-  setup_urandom();
+  setup_urandom_only();
   setup_flash();
 }
 #endif
-
-/* For libkkemu: init RNG only (flash buffer provided by host) */
-void setup_urandom_only(void) { setup_urandom(); }
-
-void emulatorRandom(void* buffer, size_t size) {
-#ifdef _WIN32
-  /* Windows has no /dev/urandom — use the system CSPRNG. */
-  if (BCryptGenRandom(NULL, (PUCHAR)buffer, (ULONG)size,
-                      BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0) {
-    fprintf(stderr, "BCryptGenRandom failed\n");
-    exit(1);
-  }
-#else
-  ssize_t n = read(urandom, buffer, size);
-  if (n < 0 || ((size_t)n) != size) {
-    perror("Failed to read /dev/urandom");
-    exit(1);
-  }
-#endif
-}
-
-static void setup_urandom(void) {
-#ifndef _WIN32
-  urandom = open("/dev/urandom", O_RDONLY);
-  if (urandom < 0) {
-    perror("Failed to open /dev/urandom");
-    exit(1);
-  }
-#endif
-}
 
 #ifndef _WIN32
 static void setup_flash(void) {

@@ -1,4 +1,4 @@
-FROM kktech/firmware:v15
+FROM kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
 
 # Extra Python deps needed by tests that aren't in the shared base image.
 # - rlp + eth-keys + eth-utils: build the canonical EIP-1559 type-2 pre-image

@@ -93,9 +93,7 @@ void fsm_msgLoadClearsignSigner(const LoadClearsignSigner* msg) {
      * host-supplied icon would paint over the alias, fingerprint and the
      * "NOT verified by KeepKey" warning — on the very screen that exists to
      * carry that warning. This is the trust boundary for icons arriving on the
-     * wire; icons READ BACK from flash are re-checked independently in
-     * signed_metadata_signer_icon(), since a record persisted by older firmware
-     * never passes through here again after a reboot. */
+     * wire; signed_metadata_signer_icon() rechecks the session copy at use. */
     CHECK_PARAM(msg->has_icon_width && msg->has_icon_height &&
                     msg->icon_width > 0 &&
                     msg->icon_width <= LEFT_MARGIN_WITH_ICON &&
@@ -103,10 +101,11 @@ void fsm_msgLoadClearsignSigner(const LoadClearsignSigner* msg) {
                 _("icon dimensions out of range"));
     /* Reject a malformed RLE stream HERE rather than discovering it at draw
      * time. The render path returns a bool that layout_add_icon() discards, so
-     * an undecodable icon would otherwise show no logo, still return Success,
-     * and be persisted to flash — the user consents to an identity whose logo
-     * silently does not exist. Validation is exact (every packet well-formed,
-     * no run straddling the image, whole input consumed) and side-effect-free.
+     * an undecodable icon would otherwise show no logo while still returning
+     * Success — the user would consent to an identity
+     * whose logo silently does not exist. Validation is exact (every packet
+     * well-formed, no run straddling the image, whole input consumed) and
+     * side-effect-free.
      */
     CHECK_PARAM(draw_bitmap_mono_rle_valid(
                     msg->icon.bytes, (uint32_t)msg->icon.size,
@@ -118,15 +117,15 @@ void fsm_msgLoadClearsignSigner(const LoadClearsignSigner* msg) {
     icon_h = (uint8_t)msg->icon_height;
   }
   bool persist = msg->has_persist && msg->persist;
+  CHECK_PARAM(!persist, _("Persistent clearsign signers are disabled"));
 
   /* Mandatory on-device consent — leads with the identity's logo (if any) +
    * alias + fingerprint. The whole trust model hangs on this confirm; the same
-   * fingerprint reappears on every per-tx identity screen. persist makes the
-   * trust anchor durable across reboots, so it's called out. */
+   * fingerprint reappears on every per-tx identity screen. */
   char fingerprint[METADATA_FINGERPRINT_LEN];
   signed_metadata_pubkey_fingerprint(msg->pubkey.bytes, fingerprint);
   if (!signed_metadata_confirm_load(msg->alias, fingerprint, icon, icon_w,
-                                    icon_h, icon_len, persist)) {
+                                    icon_h, icon_len)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     _("Load clearsign signer cancelled"));
     layoutHome();
@@ -136,10 +135,8 @@ void fsm_msgLoadClearsignSigner(const LoadClearsignSigner* msg) {
   if (!signed_metadata_store_signer((uint8_t)msg->key_id, msg->pubkey.bytes,
                                     msg->alias, icon, icon_w, icon_h, icon_len,
                                     persist)) {
-    /* Session signer stored, but no persistent slot was free. Tell the truth
-     * rather than silently keeping it RAM-only under a persist request. */
     fsm_sendFailure(FailureType_Failure_Other,
-                    _("No free persistent identity slot — wipe an old one"));
+                    _("Clearsign signer could not be loaded"));
     layoutHome();
     return;
   }

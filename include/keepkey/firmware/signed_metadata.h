@@ -125,18 +125,17 @@ bool signed_metadata_signer_valid(uint8_t key_id, const uint8_t* pubkey,
  * first — this function is the post-consent write, nothing more.
  *
  * icon (optional, icon_len<=384, 1bpp mono RLE) is kept as the session icon for
- * the slot; icon_len==0 => text-only identity. When persist=true the signer
- * (incl. icon) is ALSO written to flash so it survives reboot. Returns false
- * only when persist was requested but every persistent slot is occupied by a
- * different identity — the RAM (session) signer is stored regardless. */
+ * the slot; icon_len==0 => text-only identity. RC18 rejects persist=true before
+ * changing the session slot because public storage lacks authenticated
+ * integrity. */
 bool signed_metadata_store_signer(uint8_t key_id, const uint8_t* pubkey,
                                   const char* alias, const uint8_t* icon,
                                   uint8_t icon_w, uint8_t icon_h,
                                   uint16_t icon_len, bool persist);
 
-/* Resolve a slot's alias / icon from the RAM session copy, else a persisted
- * identity that survived reboot. alias returns NULL and icon returns false when
- * the slot has no signer / no icon (text-only). Used by the per-tx confirm. */
+/* Resolve a slot's alias / icon from the RAM session copy. alias returns NULL
+ * and icon returns false when the slot has no signer / no icon (text-only).
+ * Used by the per-tx confirm. */
 const char* signed_metadata_signer_alias(uint8_t key_id);
 bool signed_metadata_signer_icon(uint8_t key_id, const uint8_t** icon_out,
                                  uint8_t* w_out, uint8_t* h_out,
@@ -147,8 +146,7 @@ bool signed_metadata_signer_icon(uint8_t key_id, const uint8_t** icon_out,
  * handler calls this before storing the signer. */
 bool signed_metadata_confirm_load(const char* alias, const char* fingerprint,
                                   const uint8_t* icon, uint8_t icon_w,
-                                  uint8_t icon_h, uint16_t icon_len,
-                                  bool persist);
+                                  uint8_t icon_h, uint16_t icon_len);
 
 /* Drop all runtime-loaded signers (and any metadata they verified). */
 void signed_metadata_clear_signers(void);

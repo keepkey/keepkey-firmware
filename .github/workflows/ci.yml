@@ -5,11 +5,12 @@
 # Stage 1: GATE (seconds, no Docker)
 #   ├─ lint-format        clang-format diff check
 #   ├─ static-analysis    cppcheck static analysis
+#   ├─ crypto-tests       pinned fork crypto vectors + ASan/UBSan
 #   ├─ secret-scan        gitleaks credential detection
 #   └─ check-submodules   verify all deps present
 #
 # Stage 2: BUILD (parallel, gated by Stage 1)
-#   ├─ build-emulator     Docker image → artifact  [matrix: full / bitcoin-only / zcash-privacy]
+#   ├─ build-emulator     Docker image → artifact  [matrix: full / bitcoin-only]
 #   └─ build-arm-firmware cross-compile → .bin/.elf (downloadable)  [same matrix]
 #
 # Stage 3: TEST (parallel, gated by Stage 2)
@@ -36,7 +37,7 @@ on:
         default: false
 
 env:
-  BASE_IMAGE: kktech/firmware:v15
+  BASE_IMAGE: kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
   EMU_IMAGE: kkemu-ci
 
 jobs:
@@ -49,7 +50,7 @@ jobs:
     timeout-minutes: 3
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -82,7 +83,7 @@ jobs:
     timeout-minutes: 2
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -100,13 +101,16 @@ jobs:
 
   static-analysis:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: false
+
+      - name: Init crypto submodule
+        run: git submodule update --init deps/crypto/trezor-firmware
 
       - name: Install cppcheck
         run: sudo apt-get update && sudo apt-get install -y cppcheck
@@ -170,7 +174,7 @@ jobs:
           echo "cppcheck: clean — zero findings"
 
       - name: Upload cppcheck report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: cppcheck-report
@@ -182,9 +186,12 @@ jobs:
     timeout-minutes: 2
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Init crypto submodule
+        run: git submodule update --init deps/crypto/trezor-firmware
 
       - name: Verify submodules are declared
         run: |
@@ -208,37 +215,109 @@ jobs:
           done
           [ "$FAILED" = "0" ] || exit 1
 
+      - name: Enforce RC18 security invariants
+        run: |
+          python3 tools/check_pallas_api_boundary.py
+          if git grep -n -E \
+            'uses:[[:space:]]+[^#[:space:]]+@(v[0-9]+|main|master)([[:space:]#]|$)' \
+            -- .github/workflows; then
+            echo "::error::Every GitHub Action must be pinned to a full commit SHA"
+            exit 1
+          fi
+          if git grep -n -E 'kktech/firmware:v[0-9]+' -- \
+            .github/workflows scripts/build/docker scripts/emulator; then
+            echo "::error::The firmware builder must be pinned by manifest digest"
+            exit 1
+          fi
+          if git grep -n -E 'return[[:space:]]+random\(\)' -- \
+            lib/rand/rng.c; then
+            echo "::error::Emulator cryptography must not use libc random()"
+            exit 1
+          fi
+          if git grep -n -E \
+            'storage_(get|upsert)ClearsignIdentity|persistent_identity_for' \
+            -- lib include; then
+            echo "::error::Unauthenticated persistent clearsign trust is retired"
+            exit 1
+          fi
+          if git grep -n -F 'option(KK_ZCASH_PRIVACY' -- CMakeLists.txt; then
+            echo "::error::Zcash privacy must not become a third release choice"
+            exit 1
+          fi
+          grep -q 'set(KK_ZCASH_PRIVACY ON)' CMakeLists.txt
+          grep -q 'set(KK_ZCASH_PRIVACY OFF)' CMakeLists.txt
+
+  crypto-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Init crypto submodule
+        run: git submodule update --init deps/crypto/trezor-firmware
+
+      - name: Install crypto test dependencies
+        run: sudo apt-get update && sudo apt-get install -y check libssl-dev pkg-config valgrind
+
+      - name: Run optimized crypto suite
+        working-directory: deps/crypto/trezor-firmware/crypto
+        run: |
+          make clean
+          make VALGRIND=0 tests/test_check tests/test_pallas_ct
+          ./tests/test_check
+          ./tests/test_pallas_ct
+
+      - name: Verify Pallas secret flow with Valgrind
+        working-directory: deps/crypto/trezor-firmware/crypto
+        run: |
+          make clean
+          make VALGRIND=1 OPTFLAGS='-O2 -g' tests/test_pallas_ct
+          valgrind --quiet --error-exitcode=1 --track-origins=yes \
+            ./tests/test_pallas_ct
+
+      - name: Run crypto suite with ASan and UBSan
+        working-directory: deps/crypto/trezor-firmware/crypto
+        run: |
+          make clean
+          make CC='gcc -fsanitize=address,undefined' VALGRIND=0 \
+            OPTFLAGS='-O1 -g -fno-omit-frame-pointer' \
+            tests/test_check tests/test_pallas_ct
+          # Check's default per-test timeout is too short for the two exhaustive
+          # codepoint tests under sanitizer instrumentation on shared runners.
+          # Keep the job-level timeout as the hard upper bound.
+          CK_DEFAULT_TIMEOUT=30 \
+            ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 \
+            UBSAN_OPTIONS=halt_on_error=1 ./tests/test_check
+          ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 \
+            UBSAN_OPTIONS=halt_on_error=1 ./tests/test_pallas_ct
+
   # ═══════════════════════════════════════════════════════════
   # STAGE 2: BUILD — compile only after gate passes
   # ═══════════════════════════════════════════════════════════
 
   build-emulator:
     name: build-emulator${{ matrix.label }}
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
+    needs: [lint-format, static-analysis, check-submodules, secret-scan, crypto-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         include:
-          # The emulator CMake default is KK_ZCASH_PRIVACY=ON (what the published
-          # dylib/Docker image include), so an empty-flag full leg builds
-          # byte-identical to the zcash-privacy leg and the SHIPPED device
-          # configuration (multi-coin, privacy OFF) is never unit-tested. Pin the
-          # full leg to the shipped config; publish-emulator ships the
-          # zcash-privacy image (the same bytes the old full leg produced).
+          # Regular/full includes every supported chain, including Zcash
+          # shielded/Orchard. Bitcoin-only is the sole reduced build.
           - variant: full
             label: ""
-            cmake_flags: "-DKK_ZCASH_PRIVACY=OFF"
+            cmake_flags: ""
           - variant: bitcoin-only
             label: " (bitcoin-only)"
             cmake_flags: "-DKK_BITCOIN_ONLY=ON"
-          - variant: zcash-privacy
-            label: " (zcash-privacy)"
-            cmake_flags: "-DKK_ZCASH_PRIVACY=ON"
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -252,11 +331,11 @@ jobs:
           git submodule update --init deps/sca-hardening/SecAESSTM32
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
 
       - name: Cache base image
         id: cache-base
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: /tmp/base-image.tar
           key: base-image-${{ env.BASE_IMAGE }}
@@ -283,7 +362,7 @@ jobs:
         run: docker save ${{ env.EMU_IMAGE }}-${{ matrix.variant }} -o /tmp/emu-image.tar
 
       - name: Upload emulator image artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: emu-image-${{ matrix.variant }}
           path: /tmp/emu-image.tar
@@ -291,7 +370,7 @@ jobs:
 
   build-arm-firmware:
     name: build-arm-firmware${{ matrix.label }}
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
+    needs: [lint-format, static-analysis, check-submodules, secret-scan, crypto-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -304,12 +383,9 @@ jobs:
           - variant: bitcoin-only
             label: " (bitcoin-only)"
             cmake_flags: "-DKK_BITCOIN_ONLY=ON"
-          - variant: zcash-privacy
-            label: " (zcash-privacy)"
-            cmake_flags: "-DKK_ZCASH_PRIVACY=ON"
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -324,7 +400,7 @@ jobs:
 
       - name: Cache base image
         id: cache-base
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: /tmp/base-image.tar
           key: base-image-${{ env.BASE_IMAGE }}
@@ -359,6 +435,9 @@ jobs:
                 -DCMAKE_COLOR_MAKEFILE=ON \
                 ${{ matrix.cmake_flags }} && \
               make && \
+              python3 /root/keepkey-firmware/tools/check_pallas_ct_disassembly.py \
+                --elf bin/firmware.keepkey.elf \
+                --variant '${{ matrix.variant }}' && \
               mkdir -p /root/keepkey-firmware/bin && \
               cp bin/*.bin /root/keepkey-firmware/bin/ && \
               cp bin/*.elf /root/keepkey-firmware/bin/ && \
@@ -367,7 +446,7 @@ jobs:
               find . -name '*.su' -print0 | tar czf /root/keepkey-firmware/bin/stack-usage.tgz --null -T - && \
               chmod -R a+rw /root/keepkey-firmware/bin"
 
-      # SRAM budget gate — RC7's zcash-privacy variant hard-faulted on boot
+      # SRAM budget gate — RC7's privacy-enabled build hard-faulted on boot
       # because static SRAM left an 11.2 KB gap while msg_write() carried a
       # 12.4 KB stack frame. keepkey.ld now ASSERTs a 16 KiB reserve at link
       # time; this step reports the numbers and enforces the frame margin
@@ -396,7 +475,7 @@ jobs:
           echo "::notice::Firmware v${{ steps.version.outputs.fw_version }} (${{ matrix.variant }}) built successfully"
 
       - name: Upload firmware artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: firmware-v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${{ matrix.variant }}
           path: |
@@ -426,12 +505,9 @@ jobs:
           - variant: bitcoin-only
             label: " (bitcoin-only)"
             cmake_flags: "-DKK_BITCOIN_ONLY=ON"
-          - variant: zcash-privacy
-            label: " (zcash-privacy)"
-            cmake_flags: "-DKK_ZCASH_PRIVACY=ON"
     steps:
       - name: Download emulator image
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: emu-image-${{ matrix.variant }}
           path: /tmp
@@ -453,7 +529,7 @@ jobs:
                 exit \$RC"
 
       - name: Upload unit test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: unit-test-results-${{ matrix.variant }}
@@ -461,12 +537,12 @@ jobs:
           retention-days: 30
 
   python-integration-tests:
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
+    needs: [lint-format, static-analysis, check-submodules, secret-scan, crypto-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -513,7 +589,7 @@ jobs:
           [ "$FW_RC" -eq 0 ] && [ "$PY_RC" -eq 0 ] || exit 1
 
       - name: Upload Python test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: python-test-results
@@ -521,7 +597,7 @@ jobs:
           retention-days: 30
 
       - name: Upload OLED screenshots
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: oled-screenshots
@@ -566,12 +642,12 @@ jobs:
   #     fsm_msgDebugLinkGetState is excluded from the build and any
   #     read_layout() call hangs the test).
   python-dylib-tests:
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
+    needs: [lint-format, static-analysis, check-submodules, secret-scan, crypto-tests]
     runs-on: macos-latest
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -588,7 +664,7 @@ jobs:
           git submodule update --init deps/googletest
 
       - name: Setup Python 3.10
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.10'
 
@@ -695,7 +771,7 @@ jobs:
         # PR. Tagged with the short commit SHA so multiple PR pushes
         # don't overwrite each other when a reviewer downloads them.
         if: always() && env.DYLIB_PATH != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: libkkemu-${{ github.sha }}
           path: ${{ env.DYLIB_PATH }}
@@ -728,7 +804,7 @@ jobs:
             -v --tb=short --junit-xml=../../../test-reports/dylib-junit.xml
 
       - name: Upload dylib test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: python-dylib-test-results
@@ -747,29 +823,28 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Download unit test results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         continue-on-error: true
         with:
-          # Report covers the full/default variant only — bitcoin-only and
-          # zcash-privacy are built and unit-tested in their own matrix legs
-          # but don't get a PDF (see unit-tests / build-arm-firmware).
+          # Report covers the regular/full build. Bitcoin-only is built and
+          # unit-tested in its own matrix leg but does not get a PDF.
           name: unit-test-results-full
           path: test-reports/firmware-unit/
 
       - name: Download python test results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         continue-on-error: true
         with:
           name: python-test-results
           path: test-reports/python-keepkey/
 
       - name: Download OLED screenshots
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         continue-on-error: true
         with:
           name: oled-screenshots
@@ -791,7 +866,7 @@ jobs:
         run: python3 scripts/generate-test-report.py
 
       - name: Upload test report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: test-report
@@ -811,18 +886,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Download emulator image
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          # Publish the zcash-privacy variant: it matches the emulator's CMake
-          # default (privacy engine ON — what vault and auditors run), which
-          # the "full" leg no longer builds now that it pins the shipped
-          # device configuration (privacy OFF).
-          name: emu-image-zcash-privacy
+          # Publish the regular/full image, including Zcash privacy support.
+          name: emu-image-full
           path: /tmp
 
       - name: Load emulator image
@@ -841,7 +913,7 @@ jobs:
           docker tag ${{ env.EMU_IMAGE }}-full kktech/kkemu:v${{ steps.version.outputs.fw_version }}
 
       - name: Login to DockerHub
-        uses: docker/login-action@v4
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4
         with:
           username: ${{ secrets.KK_DOCKERHUB_USER }}
           password: ${{ secrets.KK_DOCKERHUB_PASS }}

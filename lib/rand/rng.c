@@ -21,18 +21,14 @@
 
 #include "trezor/crypto/rand.h"
 
+#ifdef EMULATOR
+#include "keepkey/emulator/emulator.h"
+#endif
+
 #ifndef EMULATOR
 #include <libopencm3/cm3/common.h>
 #include <libopencm3/stm32/memorymap.h>
 #include <libopencm3/stm32/f2/rng.h>
-#endif
-
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN /* exclude winsock.h — it declares \
-                               shutdown(SOCKET,int) */
-#include <stdlib.h>
-#include <windows.h>
-#include <bcrypt.h>
 #endif
 
 void reset_rng(void) {
@@ -85,18 +81,13 @@ uint32_t random32(void) {
   }
   last = new;
   return new;
-#elif defined(_WIN32)
-  /* Windows has no POSIX random(); use the system CSPRNG (stronger than the
-   * macOS/Linux emulator's random() PRNG anyway). Resolves via the bcrypt link
-   * on kkemulator_dylib (tools/emulator/CMakeLists.txt). */
-  uint32_t v = 0;
-  if (BCryptGenRandom(NULL, (PUCHAR)&v, (ULONG)sizeof(v),
-                      BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0) {
-    abort();
-  }
-  return v;
 #else
-  return random();
+  /* Emulator cryptography must use the host OS CSPRNG. emulatorRandom() is
+   * backed by /dev/urandom on POSIX and BCryptGenRandom on Windows and aborts
+   * the process on failure; never fall back to libc random(). */
+  uint32_t v = 0;
+  emulatorRandom(&v, sizeof(v));
+  return v;
 #endif
 }
 
@@ -107,7 +98,7 @@ uint32_t random32(void) {
  * which breaks the Linux .so and Windows .dll links. Provide a strong
  * definition here — identical to trezor-crypto's, built on our random32().
  * macOS ld64 resolves the weak one fine, so it's left untouched there. */
-void random_buffer(uint8_t *buf, size_t len) {
+void random_buffer(uint8_t* buf, size_t len) {
   uint32_t r = 0;
   for (size_t i = 0; i < len; i++) {
     if (i % 4 == 0) r = random32();
@@ -127,9 +118,9 @@ void random_buffer(uint8_t *buf, size_t len) {
     }                                           \
   } while (0)
 
-void random_permute_char(char *str, size_t len) { RANDOM_PERMUTE(str, len); }
+void random_permute_char(char* str, size_t len) { RANDOM_PERMUTE(str, len); }
 
-void random_permute_u16(uint16_t *buf, size_t count) {
+void random_permute_u16(uint16_t* buf, size_t count) {
   RANDOM_PERMUTE(buf, count);
 }
 
