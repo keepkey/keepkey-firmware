@@ -1,14 +1,14 @@
 # KeepKey Firmware Release Pipeline
 #
-# Triggered by version tags (v*) on master.
+# Triggered by version tags (v*).
 # Builds firmware, computes reproducible hashes,
 # and creates a draft GitHub Release with all artifacts.
 #
-# Git-flow: tag master after merging a release/* or hotfix/* branch.
+# Tag a commit only after its CI workflow has completed successfully.
 #
 # Usage:
-#   git tag v7.11.0
-#   git push origin v7.11.0
+#   git tag -a v7.15.0-rc17 -m "KeepKey firmware 7.15.0 RC17 test candidate"
+#   git push origin v7.15.0-rc17
 
 name: Release
 
@@ -29,21 +29,38 @@ jobs:
     timeout-minutes: 3
     outputs:
       fw_version: ${{ steps.version.outputs.fw_version }}
+      tag_name: ${{ steps.version.outputs.tag_name }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
     steps:
       - uses: actions/checkout@v6
-        with:
-          submodules: recursive
 
       - name: Extract and verify version
         id: version
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
           FW_VERSION=$(sed -n '/^project/,/)/p' CMakeLists.txt | grep -oP '\d+\.\d+\.\d+')
-          echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
+          IS_PRERELEASE=false
+          RC_PREFIX="${FW_VERSION}-rc"
+
           if [ "$TAG_VERSION" != "$FW_VERSION" ]; then
-            echo "::error::Tag (${TAG_VERSION}) != CMakeLists.txt (${FW_VERSION})"
-            exit 1
+            if [[ "$TAG_VERSION" != "${RC_PREFIX}"* ]]; then
+              echo "::error::Tag (${TAG_VERSION}) must be ${FW_VERSION} or ${RC_PREFIX}<number>"
+              exit 1
+            fi
+
+            RC_NUMBER="${TAG_VERSION#"${RC_PREFIX}"}"
+            if ! [[ "$RC_NUMBER" =~ ^[0-9]+$ ]]; then
+              echo "::error::Invalid release-candidate tag (${TAG_VERSION}); expected ${RC_PREFIX}<number>"
+              exit 1
+            fi
+            IS_PRERELEASE=true
           fi
+
+          {
+            echo "fw_version=${FW_VERSION}"
+            echo "tag_name=${GITHUB_REF_NAME}"
+            echo "is_prerelease=${IS_PRERELEASE}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Require green CI on the tagged commit
         env:
@@ -78,8 +95,15 @@ jobs:
             cmake_flags: "-DKK_ZCASH_PRIVACY=ON"
     steps:
       - uses: actions/checkout@v6
-        with:
-          submodules: recursive
+
+      - name: Init required submodules
+        run: |
+          git submodule update --init deps/crypto/trezor-firmware
+          git submodule update --init deps/device-protocol
+          git submodule update --init --recursive deps/python-keepkey
+          git submodule update --init deps/googletest
+          git submodule update --init deps/qrenc/QR-Code-generator
+          git submodule update --init deps/sca-hardening/SecAESSTM32
 
       - name: Cache base image
         id: cache-base
@@ -179,8 +203,15 @@ jobs:
             cmake_flags: "-DKK_ZCASH_PRIVACY=ON"
     steps:
       - uses: actions/checkout@v6
-        with:
-          submodules: recursive
+
+      - name: Init required submodules
+        run: |
+          git submodule update --init deps/crypto/trezor-firmware
+          git submodule update --init deps/device-protocol
+          git submodule update --init --recursive deps/python-keepkey
+          git submodule update --init deps/googletest
+          git submodule update --init deps/qrenc/QR-Code-generator
+          git submodule update --init deps/sca-hardening/SecAESSTM32
 
       - name: Cache base image
         id: cache-base
@@ -231,7 +262,7 @@ jobs:
         run: |
           VER="${{ needs.validate.outputs.fw_version }}"
           cat > release-body.md <<EOF
-          ## KeepKey Firmware v${VER}
+          ## KeepKey Firmware ${{ needs.validate.outputs.tag_name }}
 
           ### Variants
           - **full** — \`firmware.keepkey.v${VER}-full.bin\` — all supported chains
@@ -249,7 +280,9 @@ jobs:
           # matching HASHES-<variant>.txt
           \`\`\`
 
-          > **DRAFT** — firmware must be signed by 3/5 key holders before publishing.
+          > **DRAFT TEST CANDIDATE** — RC artifacts are unsigned and intended for
+          > release-candidate testing. Firmware must be signed by 3/5 key holders
+          > before publishing a production release.
 
           ### Signing Checklist (per variant)
           - [ ] Built on multiple machines, hashes match
@@ -263,7 +296,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          name: "Firmware v${{ needs.validate.outputs.fw_version }}"
+          prerelease: ${{ needs.validate.outputs.is_prerelease }}
+          name: "Firmware ${{ needs.validate.outputs.tag_name }}"
           body_path: release-body.md
           files: release-assets/*
           fail_on_unmatched_files: true
