@@ -33,6 +33,7 @@
     MSG_IN(MessageType_MessageType_RecoveryDevice,                  RecoveryDevice,              fsm_msgRecoveryDevice)
     MSG_IN(MessageType_MessageType_CharacterAck,                    CharacterAck,                fsm_msgCharacterAck)
     MSG_IN(MessageType_MessageType_ApplyPolicies,                   ApplyPolicies,               fsm_msgApplyPolicies)
+#if !BITCOIN_ONLY
     MSG_IN(MessageType_MessageType_EthereumGetAddress,              EthereumGetAddress,          fsm_msgEthereumGetAddress)
     MSG_IN(MessageType_MessageType_EthereumSignTx,                  EthereumSignTx,              fsm_msgEthereumSignTx)
     MSG_IN(MessageType_MessageType_EthereumTxAck,                   EthereumTxAck,               fsm_msgEthereumTxAck)
@@ -72,6 +73,7 @@
     MSG_IN(MessageType_MessageType_MayachainGetAddress,             MayachainGetAddress,         fsm_msgMayachainGetAddress)
     MSG_IN(MessageType_MessageType_MayachainSignTx,                 MayachainSignTx,             fsm_msgMayachainSignTx)
     MSG_IN(MessageType_MessageType_MayachainMsgAck,                 MayachainMsgAck,             fsm_msgMayachainMsgAck)
+#endif  // !BITCOIN_ONLY
 
     MSG_IN(MessageType_MessageType_GetBip85Mnemonic,               GetBip85Mnemonic,            fsm_msgGetBip85Mnemonic)
     MSG_OUT(MessageType_MessageType_Bip85Mnemonic,                  Bip85Mnemonic,               NO_PROCESS_FUNC)
@@ -98,6 +100,7 @@
     MSG_OUT(MessageType_MessageType_PassphraseRequest,              PassphraseRequest,           NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_WordRequest,                    WordRequest,                 NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_CharacterRequest,               CharacterRequest,            NO_PROCESS_FUNC)
+#if !BITCOIN_ONLY
     MSG_OUT(MessageType_MessageType_EthereumAddress,                EthereumAddress,             NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EthereumTxRequest,              EthereumTxRequest,           NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EthereumMessageSignature,       EthereumMessageSignature,    NO_PROCESS_FUNC)
@@ -166,20 +169,11 @@
     MSG_OUT(MessageType_MessageType_SolanaSignedTx,                SolanaSignedTx,              NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_SolanaMessageSignature,        SolanaMessageSignature,      NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_SolanaOffchainMessageSignature, SolanaOffchainMessageSignature, NO_PROCESS_FUNC)
+#endif  // !BITCOIN_ONLY
 
-    /* Hive */
-    MSG_IN(MessageType_MessageType_HiveGetPublicKey,               HiveGetPublicKey,            fsm_msgHiveGetPublicKey)
-    MSG_IN(MessageType_MessageType_HiveGetPublicKeys,              HiveGetPublicKeys,           fsm_msgHiveGetPublicKeys)
-    MSG_IN(MessageType_MessageType_HiveSignTx,                     HiveSignTx,                  fsm_msgHiveSignTx)
-    MSG_IN(MessageType_MessageType_HiveSignAccountCreate,          HiveSignAccountCreate,       fsm_msgHiveSignAccountCreate)
-    MSG_IN(MessageType_MessageType_HiveSignAccountUpdate,          HiveSignAccountUpdate,       fsm_msgHiveSignAccountUpdate)
-
-    MSG_OUT(MessageType_MessageType_HivePublicKey,                 HivePublicKey,               NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_HivePublicKeys,                HivePublicKeys,              NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_HiveSignedTx,                  HiveSignedTx,                NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_HiveSignedAccountCreate,       HiveSignedAccountCreate,     NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_HiveSignedAccountUpdate,       HiveSignedAccountUpdate,     NO_PROCESS_FUNC)
-    /* Zcash */
+    /* Zcash shielded/Orchard (privacy engine). Transparent t-address Zcash uses
+       the generic SignTx/GetAddress rows above and needs none of these. */
+#if ZCASH_PRIVACY
     MSG_IN(MessageType_MessageType_ZcashSignPCZT,                  ZcashSignPCZT,               fsm_msgZcashSignPCZT)
     MSG_IN(MessageType_MessageType_ZcashPCZTAction,                ZcashPCZTAction,             fsm_msgZcashPCZTAction)
     MSG_IN(MessageType_MessageType_ZcashGetOrchardFVK,             ZcashGetOrchardFVK,          fsm_msgZcashGetOrchardFVK)
@@ -193,6 +187,21 @@
     MSG_OUT(MessageType_MessageType_ZcashTransparentSigned,        ZcashTransparentSigned,      NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_ZcashTransparentAck,           ZcashTransparentAck,         NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_ZcashAddress,                  ZcashAddress,                NO_PROCESS_FUNC)
+#endif
+#if !BITCOIN_ONLY
+    /* Hive */
+    MSG_IN(MessageType_MessageType_HiveGetPublicKey,               HiveGetPublicKey,            fsm_msgHiveGetPublicKey)
+    MSG_IN(MessageType_MessageType_HiveGetPublicKeys,              HiveGetPublicKeys,           fsm_msgHiveGetPublicKeys)
+    MSG_IN(MessageType_MessageType_HiveSignTx,                     HiveSignTx,                  fsm_msgHiveSignTx)
+    MSG_IN(MessageType_MessageType_HiveSignAccountCreate,          HiveSignAccountCreate,       fsm_msgHiveSignAccountCreate)
+    MSG_IN(MessageType_MessageType_HiveSignAccountUpdate,          HiveSignAccountUpdate,       fsm_msgHiveSignAccountUpdate)
+
+    MSG_OUT(MessageType_MessageType_HivePublicKey,                 HivePublicKey,               NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_HivePublicKeys,                HivePublicKeys,              NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_HiveSignedTx,                  HiveSignedTx,                NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_HiveSignedAccountCreate,       HiveSignedAccountCreate,     NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_HiveSignedAccountUpdate,       HiveSignedAccountUpdate,     NO_PROCESS_FUNC)
+#endif  // !BITCOIN_ONLY
 
 #if DEBUG_LINK
     /* Debug Messages */
@@ -209,6 +218,8 @@
     DEBUG_OUT(MessageType_MessageType_DebugLinkFlashDumpResponse,   DebugLinkFlashDumpResponse,  NO_PROCESS_FUNC)
 #endif
 
+#if !BITCOIN_ONLY
     MSG_IN(MessageType_MessageType_EthereumTxMetadata, EthereumTxMetadata, fsm_msgEthereumTxMetadata)
     MSG_OUT(MessageType_MessageType_EthereumMetadataAck, EthereumMetadataAck, NO_PROCESS_FUNC)
     MSG_IN(MessageType_MessageType_LoadClearsignSigner, LoadClearsignSigner, fsm_msgLoadClearsignSigner)
+#endif  // !BITCOIN_ONLY

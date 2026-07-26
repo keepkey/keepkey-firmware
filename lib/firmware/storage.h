@@ -185,6 +185,7 @@ typedef enum {
   SUS_Invalid,
   SUS_Valid,
   SUS_Updated,
+  SUS_BitcoinOnlyLocked,  // written by bitcoin-only firmware; refuse to load
 } StorageUpdateStatus;
 
 /// \brief Copy configuration from storage partition in flash memory to shadow
