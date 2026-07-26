@@ -20,171 +20,200 @@
 #include "keepkey/firmware/ethereum_contracts/zxliquidtx.h"
 
 #include "keepkey/board/confirm_sm.h"
-#include "keepkey/board/util.h"
-#include "keepkey/firmware/app_confirm.h"
-#include "keepkey/firmware/coins.h"
+#include "keepkey/board/font.h"
+#include "keepkey/board/layout.h"
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_tokens.h"
-#include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/storage.h"
 #include "trezor/crypto/address.h"
+#include "trezor/crypto/bignum.h"
 #include "trezor/crypto/bip32.h"
 #include "trezor/crypto/curves.h"
 #include "trezor/crypto/memzero.h"
-#include "trezor/crypto/sha3.h"
 
-#include <time.h>
+#include <stdio.h>
+#include <string.h>
+
+#define UNISWAP_LIQUIDITY_CALL_SIZE (4 + 6 * 32)
+#define UNISWAP_TOKEN_WORD 0
+#define UNISWAP_PRIMARY_AMOUNT_WORD 1
+#define UNISWAP_TOKEN_MIN_WORD 2
+#define UNISWAP_NATIVE_MIN_WORD 3
+#define UNISWAP_RECIPIENT_WORD 4
+#define UNISWAP_DEADLINE_WORD 5
+#define UNISWAP_AMOUNT_TEXT_SIZE 96
+
+static const uint8_t* abi_word(const EthereumSignTx* msg, size_t word) {
+  return msg->data_initial_chunk.bytes + 4 + word * 32;
+}
+
+static bool abi_address_is_canonical(const uint8_t* word) {
+  for (size_t i = 0; i < 12; i++) {
+    if (word[i] != 0) return false;
+  }
+  return true;
+}
+
+static bool uint256_fits_u64(const uint8_t* word) {
+  for (size_t i = 0; i < 24; i++) {
+    if (word[i] != 0) return false;
+  }
+  return true;
+}
+
+static bool tx_value_is_zero(const EthereumSignTx* msg) {
+  if (!msg->has_value && msg->value.size != 0) return false;
+  for (size_t i = 0; i < msg->value.size; i++) {
+    if (msg->value.bytes[i] != 0) return false;
+  }
+  return true;
+}
+
+static bool isAddLiquidityEthCall(const EthereumSignTx* msg) {
+  return memcmp(msg->data_initial_chunk.bytes, "\xf3\x05\xd7\x19", 4) == 0;
+}
+
+static bool isRemoveLiquidityEthCall(const EthereumSignTx* msg) {
+  return memcmp(msg->data_initial_chunk.bytes, "\x02\x75\x1c\xec", 4) == 0;
+}
+
+static const TokenType* liquidity_token(const EthereumSignTx* msg) {
+  const uint8_t* token_address = abi_word(msg, UNISWAP_TOKEN_WORD) + 12;
+  const TokenType* token = tokenByChainAddress(1, token_address);
+  return token == UnknownToken ? NULL : token;
+}
+
+static bool liquidity_shape_is_clear_signable(const EthereumSignTx* msg) {
+  if (!msg->has_chain_id || msg->chain_id != 1 || !msg->has_to ||
+      msg->to.size != 20 ||
+      memcmp(msg->to.bytes, UNISWAP_ROUTER_ADDRESS, 20) != 0 ||
+      !msg->has_data_initial_chunk ||
+      msg->data_initial_chunk.size != UNISWAP_LIQUIDITY_CALL_SIZE ||
+      msg->value.size > 32 || (!msg->has_value && msg->value.size != 0))
+    return false;
+
+  if (!isAddLiquidityEthCall(msg) && !isRemoveLiquidityEthCall(msg))
+    return false;
+  if (!abi_address_is_canonical(abi_word(msg, UNISWAP_TOKEN_WORD)) ||
+      !abi_address_is_canonical(abi_word(msg, UNISWAP_RECIPIENT_WORD)) ||
+      !uint256_fits_u64(abi_word(msg, UNISWAP_DEADLINE_WORD)))
+    return false;
+  if (liquidity_token(msg) == NULL) return false;
+  if (isRemoveLiquidityEthCall(msg) && !tx_value_is_zero(msg)) return false;
+  return true;
+}
+
+static bool format_amount(const bignum256* amount, const char* suffix,
+                          unsigned int decimals, char* out, size_t out_len) {
+  if (bn_format(amount, NULL, suffix, decimals, 0, false, out, out_len) == 0)
+    return false;
+  return calc_str_line(get_body_font(), out, BODY_WIDTH) <= BODY_ROWS;
+}
+
+bool zx_formatZxLiquidityPrimaryAmount(const EthereumSignTx* msg, char* out,
+                                       size_t out_len) {
+  if (!out || out_len == 0 || !liquidity_shape_is_clear_signable(msg))
+    return false;
+
+  bignum256 amount;
+  bn_from_bytes(abi_word(msg, UNISWAP_PRIMARY_AMOUNT_WORD), 32, &amount);
+  if (isAddLiquidityEthCall(msg)) {
+    const TokenType* token = liquidity_token(msg);
+    return format_amount(&amount, token->ticker, token->decimals, out, out_len);
+  }
+  return format_amount(&amount, " LP", 18, out, out_len);
+}
 
 static HDNode* zx_getDerivedNode(const char* curve, const uint32_t* address_n,
                                  size_t address_n_count,
                                  uint32_t* fingerprint) {
   static HDNode CONFIDENTIAL node;
-  if (fingerprint) {
-    *fingerprint = 0;
-  }
-
-  if (!get_curve_by_name(curve)) {
-    return 0;
-  }
-
-  if (!storage_getRootNode(curve, true, &node)) {
-    return 0;
-  }
-
-  if (!address_n || address_n_count == 0) {
-    return &node;
-  }
-
+  if (fingerprint) *fingerprint = 0;
+  if (!get_curve_by_name(curve)) return NULL;
+  if (!storage_getRootNode(curve, true, &node)) return NULL;
+  if (!address_n || address_n_count == 0) return &node;
   if (hdnode_private_ckd_cached(&node, address_n, address_n_count,
-                                fingerprint) == 0) {
-    return 0;
-  }
-
+                                fingerprint) == 0)
+    return NULL;
   return &node;
 }
 
-static bool isAddLiquidityEthCall(const EthereumSignTx* msg) {
-  if (memcmp(msg->data_initial_chunk.bytes, "\xf3\x05\xd7\x19", 4) == 0)
-    return true;
-
-  return false;
-}
-
-static bool isRemoveLiquidityEthCall(const EthereumSignTx* msg) {
-  if (memcmp(msg->data_initial_chunk.bytes, "\x02\x75\x1c\xec", 4) == 0)
-    return true;
-
-  return false;
-}
-
-static bool confirmFromAccountMatch(const EthereumSignTx* msg,
-                                    const char* addremStr) {
-  // Determine withdrawal address
-  char addressStr[43] = {'0', 'x', '\0'};
-  const char* fromSrc;
-  const uint8_t* fromAddress;
-  uint8_t addressBytes[20];
+static bool confirmFromAccountMatch(const EthereumSignTx* msg) {
+  char address_str[43] = {'0', 'x', '\0'};
+  uint8_t address_bytes[20];
 
   HDNode* node = zx_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                    msg->address_n_count, NULL);
   if (!node) return false;
-
-  if (!hdnode_get_ethereum_pubkeyhash(node, addressBytes)) {
+  if (!hdnode_get_ethereum_pubkeyhash(node, address_bytes)) {
     memzero(node, sizeof(*node));
     return false;
   }
+  memzero(node, sizeof(*node));
 
-  fromAddress =
-      (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 5 * 32 - 20);
-
-  bool isSelf = (memcmp(fromAddress, addressBytes, 20) == 0);
-  fromSrc = isSelf ? "this wallet" : "NOT this wallet";
-
-  for (uint32_t ctr = 0; ctr < 20; ctr++) {
-    snprintf(&addressStr[2 + ctr * 2], 3, "%02x", fromAddress[ctr]);
+  const uint8_t* recipient = abi_word(msg, UNISWAP_RECIPIENT_WORD) + 12;
+  bool is_self = memcmp(recipient, address_bytes, 20) == 0;
+  for (uint32_t i = 0; i < 20; i++) {
+    snprintf(&address_str[2 + i * 2], 3, "%02x", recipient[i]);
   }
 
-  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, addremStr,
-               "Liquidity recipient is %s: %s", fromSrc, addressStr)) {
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+               "Uniswap Recipient", "%s\n%s",
+               is_self ? "this wallet" : "NOT this wallet", address_str))
     return false;
-  }
-
-  /* Fail closed: the liquidity/LP recipient (the `to` parameter) must be the
-   * signer's own address. Previously a non-self recipient only produced a soft
-   * "NOT this wallet" warning that the user could click through, letting LP
-   * tokens / withdrawn ETH be routed to an attacker. */
-  if (!isSelf) {
-    return false;
-  }
-  return true;
+  return is_self;
 }
 
 bool zx_isZxLiquidTx(const EthereumSignTx* msg) {
-  if (memcmp(msg->to.bytes, UNISWAP_ROUTER_ADDRESS, 20) ==
-      0) {  // correct contract address?
-
-    if (isAddLiquidityEthCall(msg)) return true;
-
-    if (isRemoveLiquidityEthCall(msg)) return true;
-  }
-  return false;
+  return liquidity_shape_is_clear_signable(msg);
 }
 
 bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg) {
-  /* reads through the deadline word at offset 4 + 6*32 - 8 .. 4 + 6*32 */
-  if (data_total < 4 + 6 * 32) return false;
-  const TokenType* token;
-  char constr1[40], constr2[40], tokbuf[32];
-  const char* arStr = "";
-  const uint8_t *tokenAddress, *deadlineBytes;
-  bignum256 Amount;
-  uint64_t deadline;
+  if (data_total != UNISWAP_LIQUIDITY_CALL_SIZE ||
+      !liquidity_shape_is_clear_signable(msg))
+    return false;
+
+  const TokenType* token = liquidity_token(msg);
+  bignum256 amount;
+  char amount_text[UNISWAP_AMOUNT_TEXT_SIZE];
+
+  if (!zx_formatZxLiquidityPrimaryAmount(msg, amount_text,
+                                         sizeof(amount_text)) ||
+      !confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+               isAddLiquidityEthCall(msg) ? "Uniswap Token" : "Uniswap LP Burn",
+               "%s", amount_text))
+    return false;
+
+  bn_from_bytes(abi_word(msg, UNISWAP_TOKEN_MIN_WORD), 32, &amount);
+  if (!format_amount(&amount, token->ticker, token->decimals, amount_text,
+                     sizeof(amount_text)) ||
+      !confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+               "Uniswap Token Min", "%s", amount_text))
+    return false;
+
+  if (!confirmFromAccountMatch(msg)) return false;
 
   if (isAddLiquidityEthCall(msg)) {
-    arStr = "uniswap add liquidity";
-  } else if (isRemoveLiquidityEthCall(msg)) {
-    arStr = "uniswap remove liquidity";
-  } else {
-    return false;
+    bn_from_bytes(msg->value.bytes, msg->value.size, &amount);
+    if (!format_amount(&amount, " ETH", 18, amount_text, sizeof(amount_text)) ||
+        !confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Uniswap ETH",
+                 "%s", amount_text))
+      return false;
   }
 
-  tokenAddress = (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 32 - 20);
-  token = tokenByChainAddress(msg->chain_id, tokenAddress);
-  deadlineBytes =
-      (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 6 * 32 - 8);
-  deadline = ((uint64_t)deadlineBytes[0] << 8 * 7) |
-             ((uint64_t)deadlineBytes[1] << 8 * 6) |
-             ((uint64_t)deadlineBytes[2] << 8 * 5) |
-             ((uint64_t)deadlineBytes[3] << 8 * 4) |
-             ((uint64_t)deadlineBytes[4] << 8 * 3) |
-             ((uint64_t)deadlineBytes[5] << 8 * 2) |
-             ((uint64_t)deadlineBytes[6] << 8 * 1) |
-             ((uint64_t)deadlineBytes[7]);
-
-  bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 32, 32,
-                &Amount);  // token amount
-  ethereumFormatAmount(&Amount, token, msg->chain_id, tokbuf, sizeof(tokbuf));
-  snprintf(constr1, 32, "%s", tokbuf);
-  bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 2 * 32, 32,
-                &Amount);  // token min amount
-  ethereumFormatAmount(&Amount, token, msg->chain_id, tokbuf, sizeof(tokbuf));
-  snprintf(constr2, 32, "%s", tokbuf);
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
-          "%s\nMinimum %s", constr1, constr2);
-  if (!confirmFromAccountMatch(msg, arStr)) {
+  bn_from_bytes(abi_word(msg, UNISWAP_NATIVE_MIN_WORD), 32, &amount);
+  if (!format_amount(&amount, " ETH", 18, amount_text, sizeof(amount_text)) ||
+      !confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Uniswap ETH Min",
+               "%s", amount_text))
     return false;
+
+  const uint8_t* deadline_word = abi_word(msg, UNISWAP_DEADLINE_WORD);
+  uint64_t deadline = 0;
+  for (size_t i = 24; i < 32; i++) {
+    deadline = (deadline << 8) | deadline_word[i];
   }
-
-  bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 3 * 32, 32,
-                &Amount);  // eth min amount
-  ethereumFormatAmount(&Amount, NULL, msg->chain_id, tokbuf, sizeof(tokbuf));
-
-  snprintf(constr1, 32, "%s", tokbuf);
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr, "Minimum %s",
-          constr1);
-
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr, "Deadline %s",
-          ctime((const time_t*)&deadline));
-
-  return true;
+  char deadline_text[21];
+  snprintf(deadline_text, sizeof(deadline_text), "%" PRIu64, deadline);
+  return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                 "Uniswap Deadline", "%s", deadline_text);
 }

@@ -7,6 +7,23 @@ extern "C" {
 
 #include <string>
 
+TEST(EOS, UnknownActionsRequireAdvancedMode) {
+  EXPECT_FALSE(eos_unknownActionPolicyAllows(false));
+  EXPECT_TRUE(eos_unknownActionPolicyAllows(true));
+}
+
+TEST(EOS, NewAccountCannotDowngradeToUnknownAction) {
+  EosActionCommon common = {};
+  common.has_account = true;
+  common.account = EOS_eosio;
+  common.has_name = true;
+  common.name = EOS_NewAccount;
+  EXPECT_TRUE(eos_isSupportedAction(&common));
+
+  common.account = 0x1111111111111111ULL;
+  EXPECT_FALSE(eos_isSupportedAction(&common));
+}
+
 TEST(EOS, FormatNameVec) {
   struct {
     uint64_t value;

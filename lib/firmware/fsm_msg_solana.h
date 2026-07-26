@@ -62,61 +62,10 @@ static bool solana_symbol_is_safe(const char* sym) {
   return true;
 }
 
-/* Display budget per confirm body: printable memos page as text, binary memos
- * page as hex so the FULL content is always shown — a memo can carry swap
- * intent (THORChain '=:ETH.ETH:...'), so nothing may be hidden behind a byte
- * count. Mirrors hive_confirm_slice. */
-#define SOL_MEMO_ASCII_CHUNK 72
-#define SOL_MEMO_HEX_CHUNK 40
-
 static bool solana_confirm_memo(const char* title, const uint8_t* s,
                                 uint16_t len) {
-  if (len == 0) {
-    return confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, title,
-                   "Memo (empty)");
-  }
-  bool ascii = true;
-  for (uint16_t i = 0; i < len; i++) {
-    if (s[i] < 0x20 || s[i] > 0x7e) {
-      ascii = false;
-      break;
-    }
-  }
-  uint16_t chunk = ascii ? SOL_MEMO_ASCII_CHUNK : SOL_MEMO_HEX_CHUNK;
-  uint16_t pages = (uint16_t)((len + chunk - 1) / chunk);
-
-  for (uint16_t page = 0; page < pages; page++) {
-    uint16_t offset = (uint16_t)(page * chunk);
-    uint16_t take = (uint16_t)(len - offset);
-    if (take > chunk) take = chunk;
-
-    char page_title[32];
-    if (pages > 1 || !ascii) {
-      snprintf(page_title, sizeof(page_title),
-               ascii ? "%s %u/%u" : "%s Hex %u/%u", title, (unsigned)(page + 1),
-               (unsigned)pages);
-    } else {
-      strlcpy(page_title, title, sizeof(page_title));
-    }
-
-    if (ascii) {
-      char rendered[SOL_MEMO_ASCII_CHUNK + 1];
-      memcpy(rendered, s + offset, take);
-      rendered[take] = '\0';
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, page_title,
-                   "%s", rendered))
-        return false;
-    } else {
-      char rendered[SOL_MEMO_HEX_CHUNK * 2 + 1];
-      for (uint16_t i = 0; i < take; i++) {
-        snprintf(rendered + 2 * i, 3, "%02x", s[offset + i]);
-      }
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, page_title,
-                   "%s", rendered))
-        return false;
-    }
-  }
-  return true;
+  return confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmMemo, title, s,
+                       len);
 }
 
 /* Priority fee = ceil(cu_price_micro_lamports * cu_limit / 1e6) lamports, and
@@ -888,45 +837,16 @@ void fsm_msgSolanaSignMessage(const SolanaSignMessage* msg) {
       layoutHome();
       return;
     }
-  } else /* blind message path */
-  /* Always require on-device confirmation (matches Ethereum behavior).
-   * Display message content if printable, hex preview otherwise. */
-  {
-    char msgBuf[129] = {0};
-    const char* typeLabel;
-    bool printable = true;
-    for (unsigned i = 0; i < msg->message.size; i++) {
-      if (msg->message.bytes[i] < 0x20 || msg->message.bytes[i] > 0x7e) {
-        printable = false;
-        break;
-      }
-    }
-    if (printable && msg->message.size <= sizeof(msgBuf) - 1) {
-      typeLabel = "Sign Message";
-      memcpy(msgBuf, msg->message.bytes, msg->message.size);
-      msgBuf[msg->message.size] = '\0';
-    } else {
-      typeLabel = "Sign Bytes";
-      /* Show hex preview (up to 64 hex chars = 32 bytes) */
-      unsigned show = msg->message.size;
-      if (show > 32) show = 32;
-      for (unsigned i = 0; i < show; i++) {
-        snprintf(&msgBuf[2 * i], 3, "%02x", msg->message.bytes[i]);
-      }
-      msgBuf[2 * show] = '\0';
-      if (msg->message.size > 32) {
-        snprintf(&msgBuf[64], sizeof(msgBuf) - 64, "... (%u bytes)",
-                 (unsigned)msg->message.size);
-      }
-    }
-    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _(typeLabel),
-                 "%s", msgBuf)) {
-      memzero(node, sizeof(*node));
-      fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                      _("Signing cancelled"));
-      layoutHome();
-      return;
-    }
+  } else if (!confirm_bytes(ButtonRequestType_ButtonRequest_ProtectCall,
+                            "Sign Solana Message", msg->message.bytes,
+                            msg->message.size)) {
+    /* AdvancedMode permits the opaque primitive, but every signed byte still
+     * has to be reviewable; previews recreate the hidden-suffix bug. */
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("Signing cancelled"));
+    layoutHome();
+    return;
   }
 
   /* Ed25519 sign */
@@ -1004,45 +924,14 @@ void fsm_msgSolanaSignOffchainMessage(const SolanaSignOffchainMessage* msg) {
   if (!node) return;
   hdnode_fill_public_key(node);
 
-  /* Confirm dialog. Format 0 (ASCII) is always renderable; format 1
-   * (UTF-8 limited) we render as printable bytes only — non-printable
-   * sequences fall through to a hex preview to avoid encoding
-   * surprises on the OLED. */
-  {
-    char msgBuf[129] = {0};
-    const char* typeLabel;
-    bool printable = true;
-    for (unsigned i = 0; i < msg->message.size; i++) {
-      if (msg->message.bytes[i] < 0x20 || msg->message.bytes[i] > 0x7e) {
-        printable = false;
-        break;
-      }
-    }
-    if (printable && msg->message.size <= sizeof(msgBuf) - 1) {
-      typeLabel = "Off-chain Message";
-      memcpy(msgBuf, msg->message.bytes, msg->message.size);
-      msgBuf[msg->message.size] = '\0';
-    } else {
-      typeLabel = "Off-chain Bytes";
-      unsigned show = msg->message.size;
-      if (show > 32) show = 32;
-      for (unsigned i = 0; i < show; i++) {
-        snprintf(&msgBuf[2 * i], 3, "%02x", msg->message.bytes[i]);
-      }
-      msgBuf[2 * show] = '\0';
-      if (msg->message.size > 32) {
-        snprintf(&msgBuf[64], sizeof(msgBuf) - 64, "... (%u bytes)",
-                 (unsigned)msg->message.size);
-      }
-    }
-    if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _(typeLabel),
-                 "%s", msgBuf)) {
-      memzero(node, sizeof(*node));
-      fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                      _("Signing cancelled"));
-      layoutHome();
-      return;
-    }
+  if (!confirm_bytes(ButtonRequestType_ButtonRequest_ProtectCall,
+                     "Sign Solana Off-chain Message", msg->message.bytes,
+                     msg->message.size)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("Signing cancelled"));
+    layoutHome();
+    return;
   }
 
   if (!solana_offchain_message_sign(node, msg, resp)) {

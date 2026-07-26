@@ -83,6 +83,10 @@ bool hive_slip48_path_valid_for_role(const uint32_t* address_n, size_t count,
 // Matches the host serializer's cap; hived itself allows more, but eight is
 // all that can be reviewed on the OLED before approval fatigue sets in.
 #define HIVE_MAX_BENEFICIARIES 8
+// Maximum custom_json authorization accounts accepted per operation. Every
+// account is confirmed individually; bounding the set prevents an unreviewable
+// approval loop and keeps the parsed transaction's static RAM use predictable.
+#define HIVE_MAX_CUSTOM_JSON_AUTHS 4
 
 // Symbol whitelist bits for the asset parser. Every asset field in the op
 // table pins an explicit set — an op that accepts HIVE must never silently
@@ -149,6 +153,8 @@ typedef struct {
                       // set_withdraw_vesting_route percent)
   bool is_top_level;  // comment only: parent_author empty
   uint8_t n_auths;    // custom_json only: total auth account names
+  const uint8_t* auth_acct[HIVE_MAX_CUSTOM_JSON_AUTHS];
+  uint16_t auth_acct_len[HIVE_MAX_CUSTOM_JSON_AUTHS];
 
   // ── Phase-3 op fields ───────────────────────────────────────────────────
   // Borrowed HIVE_ASSET_LEN-byte asset slices in the op's own field order:

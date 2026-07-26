@@ -214,13 +214,14 @@ static bool isValidModelNumber(const char* model) {
   return false;
 }
 
-void checkPassphrase(void) {
+static bool checkPassphrase(void) {
   if (!passphrase_protect()) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     "authenticator needs passphrase");
     layoutHome();
-    return;
+    return false;
   }
+  return true;
 }
 
 void fsm_msgPing(Ping* msg) {
@@ -246,6 +247,8 @@ void fsm_msgPing(Ping* msg) {
       "Authenticator secret seed too large",
       "passphrase incorrect for authdata",
       "Auth secret unknown error",
+      "Authenticator account already exists",
+      "Authenticator action cancelled",
   };
 
   typedef enum _AUTH_MSG_TYPE {
@@ -286,7 +289,7 @@ void fsm_msgPing(Ping* msg) {
         0};  // allow room for domain + ":" + account
 
     CHECK_PIN
-    checkPassphrase();
+    if (!checkPassphrase()) return;
 
     switch (authMsg) {
       case INITAUTH:
@@ -325,8 +328,7 @@ void fsm_msgPing(Ping* msg) {
         break;
 
       case WIPEADATA:
-        wipeAuthData();
-        errcode = NOERR;
+        errcode = wipeAuthData();
         resp->has_message = false;
         break;
 

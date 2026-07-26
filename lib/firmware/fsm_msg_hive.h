@@ -604,10 +604,9 @@ static bool hive_slip48_ops_path_ok(const uint32_t* address_n, uint32_t count,
 
 // User-controlled string fields are paged in full. Printable fields are shown
 // as text; fields containing non-ASCII bytes are shown as complete hex rather
-// than a short preview. At the body font's maximum 8-pixel glyph width, each
-// page fits within the three 225-pixel OLED body rows.
-#define HIVE_DISPLAY_ASCII_CHUNK 72
-#define HIVE_DISPLAY_HEX_CHUNK 40
+// than a short preview. Page boundaries are selected with the same font and
+// word-wrapping calculation used by draw_string(), so no signed suffix can be
+// pushed below the OLED's three visible body rows.
 
 static bool hive_slice_is_ascii(const uint8_t* s, uint16_t len) {
   bool ascii = true;
@@ -620,19 +619,46 @@ static bool hive_slice_is_ascii(const uint8_t* s, uint16_t len) {
   return ascii;
 }
 
+static uint16_t hive_rendered_page_len(const uint8_t* s, uint16_t len,
+                                       bool ascii) {
+  if (len == 0) return 0;
+
+  if (ascii) {
+    size_t candidate = len;
+    if (candidate >= BODY_CHAR_MAX) candidate = BODY_CHAR_MAX - 1;
+    return (uint16_t)calc_str_page(get_body_font(), (const char*)s, candidate,
+                                   BODY_WIDTH, BODY_ROWS);
+  }
+
+  uint16_t candidate = len;
+  if (candidate > (BODY_CHAR_MAX - 1) / 2) candidate = (BODY_CHAR_MAX - 1) / 2;
+  char rendered[BODY_CHAR_MAX];
+  for (uint16_t i = 0; i < candidate; i++) {
+    snprintf(rendered + 2 * i, 3, "%02x", s[i]);
+  }
+  size_t chars = calc_str_page(get_body_font(), rendered, 2 * candidate,
+                               BODY_WIDTH, BODY_ROWS);
+  return (uint16_t)(chars / 2);
+}
+
 static bool hive_confirm_slice(ButtonRequestType type, const char* title,
                                const uint8_t* s, uint16_t len) {
   if (len == 0) return confirm(type, title, "(empty)");
 
   bool ascii = hive_slice_is_ascii(s, len);
-  uint16_t chunk_size =
-      ascii ? HIVE_DISPLAY_ASCII_CHUNK : HIVE_DISPLAY_HEX_CHUNK;
-  uint16_t pages = (uint16_t)((len + chunk_size - 1) / chunk_size);
+  uint16_t pages = 0;
+  uint16_t offset = 0;
+  while (offset < len) {
+    uint16_t take = hive_rendered_page_len(s + offset, len - offset, ascii);
+    if (take == 0) return false;
+    offset = (uint16_t)(offset + take);
+    pages++;
+  }
 
+  offset = 0;
   for (uint16_t page = 0; page < pages; page++) {
-    uint16_t offset = (uint16_t)(page * chunk_size);
-    uint16_t take = (uint16_t)(len - offset);
-    if (take > chunk_size) take = chunk_size;
+    uint16_t take = hive_rendered_page_len(s + offset, len - offset, ascii);
+    if (take == 0) return false;
 
     char page_title[TITLE_CHAR_MAX];
     if (pages > 1 || !ascii) {
@@ -644,17 +670,18 @@ static bool hive_confirm_slice(ButtonRequestType type, const char* title,
     }
 
     if (ascii) {
-      char rendered[HIVE_DISPLAY_ASCII_CHUNK + 1];
+      char rendered[BODY_CHAR_MAX];
       memcpy(rendered, s + offset, take);
       rendered[take] = '\0';
       if (!confirm(type, page_title, "%s", rendered)) return false;
     } else {
-      char rendered[HIVE_DISPLAY_HEX_CHUNK * 2 + 1];
+      char rendered[BODY_CHAR_MAX];
       for (uint16_t i = 0; i < take; i++) {
         snprintf(rendered + 2 * i, 3, "%02x", s[offset + i]);
       }
       if (!confirm(type, page_title, "%s", rendered)) return false;
     }
+    offset = (uint16_t)(offset + take);
   }
   return true;
 }
@@ -781,15 +808,21 @@ void fsm_msgHiveSignOperations(const HiveSignOperations* msg) {
         break;
       }
       case HIVE_OP_CUSTOM_JSON: {
-        char target[33];
-        hive_copy_slice(target, sizeof(target), op->target, op->target_len);
-        char extra[12] = "";
-        if (op->n_auths > 1) {
-          snprintf(extra, sizeof(extra), " +%u", (unsigned)(op->n_auths - 1));
+        approved = true;
+        for (uint8_t a = 0; approved && a < op->n_auths; a++) {
+          char auth_name[17];
+          hive_copy_slice(auth_name, sizeof(auth_name), op->auth_acct[a],
+                          op->auth_acct_len[a]);
+          approved = confirm(
+              ButtonRequestType_ButtonRequest_ConfirmOutput, "Custom JSON Auth",
+              "%u/%u: @%s\n%s key", (unsigned)(a + 1), (unsigned)op->n_auths,
+              auth_name, op->needs_active ? "Active" : "Posting");
         }
-        approved =
-            confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                    "Custom JSON", "id: %s\nby @%s%s", target, name, extra);
+        if (approved) {
+          approved =
+              hive_confirm_slice(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                                 "Custom JSON ID", op->target, op->target_len);
+        }
         if (approved) {
           approved =
               hive_confirm_slice(ButtonRequestType_ButtonRequest_ConfirmOutput,

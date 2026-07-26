@@ -86,6 +86,9 @@ uint32_t eos_actionsRemaining(void);
 
 bool eos_hasActionUnknownDataRemaining(void);
 
+bool eos_isSupportedAction(const EosActionCommon* common);
+bool eos_unknownActionPolicyAllows(bool advanced_mode);
+
 /// \returns true iff successful.
 bool eos_compileActionUnknown(const EosActionCommon* common,
                               const EosActionUnknown* action);

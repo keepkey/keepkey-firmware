@@ -16,12 +16,49 @@ static BinanceSignTx msg;
 
 const BinanceSignTx* binance_getBinanceSignTx(void) { return &msg; }
 
-bool binance_signTxInit(const HDNode* _node, const BinanceSignTx* _msg) {
-  initialized = true;
-  msgs_remaining = _msg->msg_count;
-  has_message = false;
+bool binance_isValidDenom(const char* denom) {
+  if (!denom) return false;
+  const size_t len = strnlen(denom, BINANCE_MAX_DENOM_LEN + 1);
+  if (len == 0 || len > BINANCE_MAX_DENOM_LEN) return false;
+  for (size_t i = 0; i < len; i++) {
+    const char c = denom[i];
+    if (!((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-'))
+      return false;
+  }
+  return true;
+}
 
-  memzero(&node, sizeof(node));
+bool binance_validateTransfer(const BinanceTransferMsg* transfer) {
+  if (!transfer || transfer->inputs_count != 1 ||
+      transfer->inputs[0].coins_count != 1 || transfer->outputs_count != 1 ||
+      transfer->outputs[0].coins_count != 1)
+    return false;
+
+  const BinanceInputOutput* input = &transfer->inputs[0];
+  const BinanceInputOutput* output = &transfer->outputs[0];
+  const BinanceCoin* input_coin = &input->coins[0];
+  const BinanceCoin* output_coin = &output->coins[0];
+  if (!input->has_address || !output->has_address || !input_coin->has_amount ||
+      !output_coin->has_amount || !input_coin->has_denom ||
+      !output_coin->has_denom || input_coin->amount <= 0 ||
+      output_coin->amount <= 0 || input_coin->amount != output_coin->amount ||
+      strcmp(input_coin->denom, output_coin->denom) != 0 ||
+      !binance_isValidDenom(input_coin->denom))
+    return false;
+
+  return true;
+}
+
+bool binance_signTxInit(const HDNode* _node, const BinanceSignTx* _msg) {
+  binance_signAbort();
+  if (!_node || !_msg || !_msg->has_msg_count || _msg->msg_count == 0 ||
+      !_msg->has_account_number || _msg->account_number < 0 ||
+      !_msg->has_chain_id || _msg->chain_id[0] == '\0' || !_msg->has_sequence ||
+      _msg->sequence < 0 || !_msg->has_source || _msg->source < 0)
+    return false;
+
+  msgs_remaining = _msg->msg_count;
+
   memcpy(&node, _node, sizeof(node));
   memcpy(&msg, _msg, sizeof(msg));
 
@@ -32,7 +69,7 @@ bool binance_signTxInit(const HDNode* _node, const BinanceSignTx* _msg) {
 
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  "{\"account_number\":\"%" PRIu64 "\"",
-                                 msg.account_number);
+                                 (uint64_t)msg.account_number);
 
   const char* const chainid_prefix = ",\"chain_id\":\"";
   sha256_Update(&ctx, (uint8_t*)chainid_prefix, strlen(chainid_prefix));
@@ -45,16 +82,25 @@ bool binance_signTxInit(const HDNode* _node, const BinanceSignTx* _msg) {
   }
 
   sha256_Update(&ctx, (const uint8_t*)"\",\"msgs\":[", 10);
-  return success;
+  if (!success) {
+    binance_signAbort();
+    return false;
+  }
+  initialized = true;
+  return true;
 }
 
 bool binance_serializeCoin(const BinanceCoin* coin) {
+  if (!coin || !coin->has_amount || coin->amount <= 0 || !coin->has_denom ||
+      !binance_isValidDenom(coin->denom))
+    return false;
+
   bool success = true;
   char buffer[64 + 1];
 
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  "{\"amount\":%" PRIu64 ",\"denom\":\"%s\"}",
-                                 coin->amount, coin->denom);
+                                 (uint64_t)coin->amount, coin->denom);
 
   return success;
 }
@@ -83,6 +129,9 @@ bool binance_serializeInputOutput(const BinanceInputOutput* io) {
 }
 
 bool binance_signTxUpdateTransfer(const BinanceTransferMsg* _msg) {
+  if (!initialized || msgs_remaining == 0 || !binance_validateTransfer(_msg))
+    return false;
+
   bool success = true;
 
   sha256_Update(&ctx, (const uint8_t*)"{\"inputs\":[", 11);
@@ -103,18 +152,23 @@ bool binance_signTxUpdateTransfer(const BinanceTransferMsg* _msg) {
 
   sha256_Update(&ctx, (const uint8_t*)"]}", 2);
 
-  has_message = true;
-  msgs_remaining--;
+  if (success) {
+    has_message = true;
+    msgs_remaining--;
+  }
   return success;
 }
 
 bool binance_signTxFinalize(uint8_t* public_key, uint8_t* signature) {
+  if (!initialized || msgs_remaining != 0 || !has_message || !public_key ||
+      !signature)
+    return false;
   char buffer[64 + 1];
 
   if (!tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                            "],\"sequence\":\"%" PRIu64
                            "\",\"source\":\"%" PRIu64 "\"}",
-                           msg.sequence, msg.source))
+                           (uint64_t)msg.sequence, (uint64_t)msg.source))
     return false;
 
   hdnode_fill_public_key(&node);
@@ -128,7 +182,9 @@ bool binance_signTxFinalize(uint8_t* public_key, uint8_t* signature) {
 
 bool binance_signingIsInited(void) { return initialized; }
 
-bool binance_signingIsFinished(void) { return msgs_remaining == 0; }
+bool binance_signingIsFinished(void) {
+  return initialized && msgs_remaining == 0 && has_message;
+}
 
 void binance_signAbort(void) {
   initialized = false;

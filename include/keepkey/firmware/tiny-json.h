@@ -35,6 +35,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define json_containerOf(ptr, type, member) \
   ((type*)((char*)ptr - offsetof(type, member)))
 
@@ -66,7 +70,6 @@ typedef struct json_s {
   jsonType_t type;
 } json_t;
 
-extern int errno;
 /** Parse a string to get a json.
  * @param str String pointer with a JSON object. It will be modified.
  * @param mem Array of json properties to allocate.

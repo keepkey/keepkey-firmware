@@ -1,4 +1,6 @@
 extern "C" {
+#include "keepkey/board/font.h"
+#include "keepkey/board/layout.h"
 #include "keepkey/firmware/hive.h"
 }
 
@@ -102,13 +104,10 @@ std::vector<uint8_t> wrap_ops(const std::vector<std::vector<uint8_t>>& ops) {
   return tx;
 }
 
-std::vector<uint8_t> limit_order_create_op(const std::string& owner,
-                                           uint32_t orderid, int64_t sell,
-                                           const std::string& sell_symbol,
-                                           int64_t receive,
-                                           const std::string& receive_symbol,
-                                           bool fill_or_kill,
-                                           uint32_t expiration) {
+std::vector<uint8_t> limit_order_create_op(
+    const std::string& owner, uint32_t orderid, int64_t sell,
+    const std::string& sell_symbol, int64_t receive,
+    const std::string& receive_symbol, bool fill_or_kill, uint32_t expiration) {
   std::vector<uint8_t> op;
   append_varint(op, HIVE_OP_LIMIT_ORDER_CREATE);
   append_string(op, owner);
@@ -202,6 +201,21 @@ std::vector<uint8_t> account_update2_op(const std::string& json_metadata,
   return op;
 }
 
+std::vector<uint8_t> custom_json_op(
+    const std::vector<std::string>& active_auths,
+    const std::vector<std::string>& posting_auths, const std::string& id,
+    const std::string& json) {
+  std::vector<uint8_t> op;
+  append_varint(op, HIVE_OP_CUSTOM_JSON);
+  append_varint(op, static_cast<uint32_t>(active_auths.size()));
+  for (const std::string& auth : active_auths) append_string(op, auth);
+  append_varint(op, static_cast<uint32_t>(posting_auths.size()));
+  for (const std::string& auth : posting_auths) append_string(op, auth);
+  append_string(op, id);
+  append_string(op, json);
+  return op;
+}
+
 }  // namespace
 
 TEST(Hive, Slip48PathValidation) {
@@ -254,11 +268,12 @@ TEST(Hive, CommentParserRetainsEveryDisplayedField) {
 // binary transaction preimage (chain_id || serialized_tx) on any chain id.
 TEST(Hive, MessagePrintableAcceptsAsciiRejectsBinary) {
   const char* login = "keepkey-login-challenge:1700000000";
-  EXPECT_TRUE(hive_message_is_printable(
-      reinterpret_cast<const uint8_t*>(login), strlen(login)));
+  EXPECT_TRUE(hive_message_is_printable(reinterpret_cast<const uint8_t*>(login),
+                                        strlen(login)));
 
   // Empty message is trivially printable.
-  EXPECT_TRUE(hive_message_is_printable(reinterpret_cast<const uint8_t*>(""), 0));
+  EXPECT_TRUE(
+      hive_message_is_printable(reinterpret_cast<const uint8_t*>(""), 0));
 
   // Any non-printable byte (control char / high bit) is refused.
   const uint8_t withNul[] = {'h', 'i', 0x00, 'x'};
@@ -290,14 +305,107 @@ TEST(Hive, TopLevelCommentRetainsCategoryAndEmptyTitle) {
   EXPECT_EQ("{}", slice(op.json_metadata, op.json_metadata_len));
 }
 
+TEST(Hive, RejectsNonCanonicalVarints) {
+  std::vector<uint8_t> op;
+  append_varint(op, HIVE_OP_VOTE);
+  append_string(op, "alice");
+  append_string(op, "bob");
+  append_string(op, "post");
+  append_u16_le(op, 10000);
+
+  HiveParsedTx parsed;
+
+  // Operation count 1 encoded as 0x81 0x00 instead of canonical 0x01.
+  std::vector<uint8_t> overlong_count = wrap_ops({op});
+  overlong_count[10] = 0x81;
+  overlong_count.insert(overlong_count.begin() + 11, 0x00);
+  EXPECT_NE(nullptr, hive_parseOperations(overlong_count.data(),
+                                          overlong_count.size(), &parsed));
+
+  // The voter string length 5 encoded as 0x85 0x00.
+  std::vector<uint8_t> overlong_string = wrap_ops({op});
+  overlong_string[12] = 0x85;
+  overlong_string.insert(overlong_string.begin() + 13, 0x00);
+  EXPECT_NE(nullptr, hive_parseOperations(overlong_string.data(),
+                                          overlong_string.size(), &parsed));
+}
+
+TEST(Hive, RejectsAccountNamesThatCanSpoofTheDisplay) {
+  HiveParsedTx parsed;
+  const std::vector<std::string> invalid = {
+      "al\nice", std::string("ali\0ce", 6), "Alice", "alice-", ".alice", "a"};
+  for (const std::string& account : invalid) {
+    std::vector<uint8_t> op;
+    append_varint(op, HIVE_OP_TRANSFER_TO_SAVINGS);
+    append_string(op, account);
+    append_string(op, "bob");
+    append_asset(op, 1000, 3, "HIVE");
+    append_string(op, "");
+    std::vector<uint8_t> tx = wrap_ops({op});
+    EXPECT_NE(nullptr, hive_parseOperations(tx.data(), tx.size(), &parsed));
+  }
+}
+
+TEST(Hive, CustomJsonRetainsAndBoundsEveryAuthorization) {
+  HiveParsedTx parsed;
+  std::vector<uint8_t> tx =
+      wrap_ops({custom_json_op({}, {"alice", "bob", "carol"}, "follow", "[]")});
+  ASSERT_EQ(nullptr, hive_parseOperations(tx.data(), tx.size(), &parsed));
+  const HiveTxOp& op = parsed.ops[0];
+  ASSERT_EQ(3, op.n_auths);
+  EXPECT_EQ("alice", slice(op.auth_acct[0], op.auth_acct_len[0]));
+  EXPECT_EQ("bob", slice(op.auth_acct[1], op.auth_acct_len[1]));
+  EXPECT_EQ("carol", slice(op.auth_acct[2], op.auth_acct_len[2]));
+  EXPECT_FALSE(parsed.needs_active);
+
+  std::vector<uint8_t> too_many = wrap_ops({custom_json_op(
+      {}, {"alice", "bob", "carol", "dave", "erin"}, "follow", "[]")});
+  EXPECT_NE(nullptr,
+            hive_parseOperations(too_many.data(), too_many.size(), &parsed));
+
+  std::vector<uint8_t> unsorted =
+      wrap_ops({custom_json_op({}, {"bob", "alice"}, "follow", "[]")});
+  EXPECT_NE(nullptr,
+            hive_parseOperations(unsorted.data(), unsorted.size(), &parsed));
+
+  std::vector<uint8_t> duplicate =
+      wrap_ops({custom_json_op({}, {"alice", "alice"}, "follow", "[]")});
+  EXPECT_NE(nullptr,
+            hive_parseOperations(duplicate.data(), duplicate.size(), &parsed));
+}
+
+TEST(Hive, DisplayPaginationUsesRenderedBodyRows) {
+  const std::string payload =
+      "%%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%%";
+  ASSERT_GT(calc_str_line(get_body_font(), payload.c_str(), BODY_WIDTH),
+            BODY_ROWS);
+
+  std::string reconstructed;
+  size_t offset = 0;
+  unsigned pages = 0;
+  while (offset < payload.size()) {
+    size_t take = calc_str_page(get_body_font(), payload.data() + offset,
+                                payload.size() - offset, BODY_WIDTH, BODY_ROWS);
+    ASSERT_GT(take, 0u);
+    const std::string page = payload.substr(offset, take);
+    EXPECT_LE(calc_str_line(get_body_font(), page.c_str(), BODY_WIDTH),
+              BODY_ROWS);
+    reconstructed += page;
+    offset += take;
+    pages++;
+  }
+
+  EXPECT_GT(pages, 1u);
+  EXPECT_EQ(payload, reconstructed);
+}
+
 // ── Phase-3 op table ────────────────────────────────────────────────────────
 
 // The op that started this: a HIVE->HBD internal-market swap. Every field the
 // approval screen shows must survive the parse.
 TEST(Hive, LimitOrderCreateRetainsEveryDisplayedField) {
-  std::vector<uint8_t> tx = wrap_ops(
-      {limit_order_create_op("alice", 42, 1500, "HIVE", 400, "HBD", true,
-                             1700003600)});
+  std::vector<uint8_t> tx = wrap_ops({limit_order_create_op(
+      "alice", 42, 1500, "HIVE", 400, "HBD", true, 1700003600)});
 
   HiveParsedTx parsed;
   ASSERT_EQ(nullptr, hive_parseOperations(tx.data(), tx.size(), &parsed));
@@ -337,8 +445,7 @@ TEST(Hive, LimitOrderRejectsDegenerateOrders) {
             hive_parseOperations(zero_recv.data(), zero_recv.size(), &parsed));
 
   // VESTS never trades on the internal market.
-  std::vector<uint8_t> vests = wrap_ops(
-      {limit_order_vests_op()});
+  std::vector<uint8_t> vests = wrap_ops({limit_order_vests_op()});
   EXPECT_NE(nullptr, hive_parseOperations(vests.data(), vests.size(), &parsed));
 }
 
@@ -470,9 +577,9 @@ TEST(Hive, CommentOptionsMustBindToItsComment) {
       wrap_ops({comment_options_op("alice", "my-post", {})});
   EXPECT_NE(nullptr, hive_parseOperations(alone.data(), alone.size(), &parsed));
 
-  std::vector<uint8_t> wrong_permlink = wrap_ops(
-      {comment_op("alice", "my-post"),
-       comment_options_op("alice", "other-post", {})});
+  std::vector<uint8_t> wrong_permlink =
+      wrap_ops({comment_op("alice", "my-post"),
+                comment_options_op("alice", "other-post", {})});
   EXPECT_NE(nullptr, hive_parseOperations(wrong_permlink.data(),
                                           wrong_permlink.size(), &parsed));
 
@@ -482,9 +589,9 @@ TEST(Hive, CommentOptionsMustBindToItsComment) {
   EXPECT_NE(nullptr, hive_parseOperations(wrong_author.data(),
                                           wrong_author.size(), &parsed));
 
-  std::vector<uint8_t> ok = wrap_ops(
-      {comment_op("alice", "my-post"), comment_options_op("alice", "my-post",
-                                                          {})});
+  std::vector<uint8_t> ok =
+      wrap_ops({comment_op("alice", "my-post"),
+                comment_options_op("alice", "my-post", {})});
   ASSERT_EQ(nullptr, hive_parseOperations(ok.data(), ok.size(), &parsed));
   EXPECT_EQ(2, parsed.num_ops);
   EXPECT_EQ(10000, parsed.ops[1].weight);  // percent_hbd
@@ -546,15 +653,15 @@ TEST(Hive, AccountUpdate2RejectsAuthorityChanges) {
   // json_metadata is an active-key field.
   std::vector<uint8_t> active =
       wrap_ops({account_update2_op("{\"profile\":{}}", "", false)});
-  ASSERT_EQ(nullptr, hive_parseOperations(active.data(), active.size(),
-                                          &parsed));
+  ASSERT_EQ(nullptr,
+            hive_parseOperations(active.data(), active.size(), &parsed));
   EXPECT_TRUE(parsed.needs_active);
 
   // posting_json_metadata alone stays on the posting tier.
   std::vector<uint8_t> posting =
       wrap_ops({account_update2_op("", "{\"profile\":{}}", false)});
-  ASSERT_EQ(nullptr, hive_parseOperations(posting.data(), posting.size(),
-                                          &parsed));
+  ASSERT_EQ(nullptr,
+            hive_parseOperations(posting.data(), posting.size(), &parsed));
   EXPECT_FALSE(parsed.needs_active);
 }
 
@@ -812,7 +919,8 @@ TEST(Hive, TrailingBytesRejected) {
 std::vector<uint8_t> from_hex(const std::string& hex) {
   std::vector<uint8_t> out;
   for (size_t i = 0; i + 1 < hex.size(); i += 2) {
-    out.push_back(static_cast<uint8_t>(std::stoul(hex.substr(i, 2), nullptr, 16)));
+    out.push_back(
+        static_cast<uint8_t>(std::stoul(hex.substr(i, 2), nullptr, 16)));
   }
   return out;
 }
@@ -835,8 +943,8 @@ TEST(Hive, SerializationMatchesHivedLimitOrderCreate) {
   append_u32_le(tx, 0xdeadbeef);
   append_u32_le(tx, 0x5fffaa40);
   append_varint(tx, 1);
-  std::vector<uint8_t> op = limit_order_create_op("alice", 42, 1500, "HIVE", 400,
-                                                  "HBD", true, 0x6553f5b0);
+  std::vector<uint8_t> op = limit_order_create_op("alice", 42, 1500, "HIVE",
+                                                  400, "HBD", true, 0x6553f5b0);
   tx.insert(tx.end(), op.begin(), op.end());
   append_varint(tx, 0);  // extensions
 

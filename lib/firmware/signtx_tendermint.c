@@ -36,19 +36,19 @@ static CONFIDENTIAL HDNode node;
 static SHA256_CTX ctx;
 static bool has_message;
 static bool initialized;
+static TendermintSigningType signing_type;
 static uint32_t msgs_remaining;
 static TendermintSignTx tmsg;
 
 const void* tendermint_getSignTx(void) { return (void*)&tmsg; }
 
 bool tendermint_signTxInit(const HDNode* _node, const void* _msg,
-                           const size_t msgsize, const char* denom) {
-  initialized = true;
-  msgs_remaining = ((TendermintSignTx*)_msg)->msg_count;
-  has_message = false;
-
-  memzero(&node, sizeof(node));
-  memcpy(&node, _node, sizeof(node));
+                           const size_t msgsize, const char* denom,
+                           TendermintSigningType type) {
+  tendermint_signAbort();
+  if (!_node || !_msg || !denom ||
+      (type != TENDERMINT_SIGNING_COSMOS && type != TENDERMINT_SIGNING_GENERIC))
+    return false;
 
   /*
     _msg is expected to be of type TendermintSignTx, CosmosSignTx or
@@ -65,6 +65,11 @@ bool tendermint_signTxInit(const HDNode* _node, const void* _msg,
     return false;
   }
 
+  const TendermintSignTx* common = (const TendermintSignTx*)_msg;
+  if (!common->has_msg_count || common->msg_count == 0) return false;
+
+  msgs_remaining = common->msg_count;
+  memcpy(&node, _node, sizeof(node));
   memcpy((void*)&tmsg, _msg, msgsize);
 
   bool success = true;
@@ -103,13 +108,24 @@ bool tendermint_signTxInit(const HDNode* _node, const void* _msg,
   // 10
   sha256_Update(&ctx, (uint8_t*)"\",\"msgs\":[", 10);
 
-  return success;
+  if (!success) {
+    tendermint_signAbort();
+    return false;
+  }
+  initialized = true;
+  signing_type = type;
+  return true;
+}
+
+static bool tendermint_canUpdate(void) {
+  return initialized && msgs_remaining > 0;
 }
 
 bool tendermint_signTxUpdateMsgSend(const uint64_t amount,
                                     const char* to_address,
                                     const char* chainstr, const char* denom,
                                     const char* msgTypePrefix) {
+  if (!tendermint_canUpdate()) return false;
   char buffer[128];
   size_t decoded_len;
   char hrp[45];
@@ -163,8 +179,10 @@ bool tendermint_signTxUpdateMsgSend(const uint64_t amount,
   success &=
       tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}", to_address);
 
-  has_message = true;
-  msgs_remaining--;
+  if (success) {
+    has_message = true;
+    msgs_remaining--;
+  }
   return success;
 }
 
@@ -173,6 +191,7 @@ bool tendermint_signTxUpdateMsgDelegate(const uint64_t amount,
                                         const char* validator_address,
                                         const char* chainstr, const char* denom,
                                         const char* msgTypePrefix) {
+  if (!tendermint_canUpdate()) return false;
   char buffer[128];
   size_t decoded_len;
   char hrp[45];
@@ -226,8 +245,10 @@ bool tendermint_signTxUpdateMsgDelegate(const uint64_t amount,
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}",
                                  validator_address);
 
-  has_message = true;
-  msgs_remaining--;
+  if (success) {
+    has_message = true;
+    msgs_remaining--;
+  }
   return success;
 }
 bool tendermint_signTxUpdateMsgUndelegate(const uint64_t amount,
@@ -236,6 +257,7 @@ bool tendermint_signTxUpdateMsgUndelegate(const uint64_t amount,
                                           const char* chainstr,
                                           const char* denom,
                                           const char* msgTypePrefix) {
+  if (!tendermint_canUpdate()) return false;
   char buffer[128];
   size_t decoded_len;
   char hrp[45];
@@ -289,8 +311,10 @@ bool tendermint_signTxUpdateMsgUndelegate(const uint64_t amount,
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}",
                                  validator_address);
 
-  has_message = true;
-  msgs_remaining--;
+  if (success) {
+    has_message = true;
+    msgs_remaining--;
+  }
   return success;
 }
 
@@ -298,6 +322,7 @@ bool tendermint_signTxUpdateMsgRedelegate(
     const uint64_t amount, const char* delegator_address,
     const char* validator_src_address, const char* validator_dst_address,
     const char* chainstr, const char* denom, const char* msgTypePrefix) {
+  if (!tendermint_canUpdate()) return false;
   char buffer[128];
   size_t decoded_len;
   char hrp[45];
@@ -359,8 +384,10 @@ bool tendermint_signTxUpdateMsgRedelegate(
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}",
                                  validator_src_address);
 
-  has_message = true;
-  msgs_remaining--;
+  if (success) {
+    has_message = true;
+    msgs_remaining--;
+  }
   return success;
 }
 
@@ -369,6 +396,7 @@ bool tendermint_signTxUpdateMsgRewards(const uint64_t* amount,
                                        const char* validator_address,
                                        const char* chainstr, const char* denom,
                                        const char* msgTypePrefix) {
+  if (!tendermint_canUpdate()) return false;
   char buffer[128];
   size_t decoded_len;
   char hrp[45];
@@ -425,8 +453,10 @@ bool tendermint_signTxUpdateMsgRewards(const uint64_t* amount,
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}",
                                  validator_address);
 
-  has_message = true;
-  msgs_remaining--;
+  if (success) {
+    has_message = true;
+    msgs_remaining--;
+  }
   return success;
 }
 
@@ -435,6 +465,7 @@ bool tendermint_signTxUpdateMsgIBCTransfer(
     const char* source_channel, const char* source_port,
     const char* revision_number, const char* revision_height,
     const char* chainstr, const char* denom, const char* msgTypePrefix) {
+  if (!tendermint_canUpdate()) return false;
   char buffer[128];
   size_t decoded_len;
   char hrp[45];
@@ -505,12 +536,15 @@ bool tendermint_signTxUpdateMsgIBCTransfer(
                                  "\",\"denom\":\"%s\"}}}",
                                  amount, denom);
 
-  has_message = true;
-  msgs_remaining--;
+  if (success) {
+    has_message = true;
+    msgs_remaining--;
+  }
   return success;
 }
 
 bool tendermint_signTxFinalize(uint8_t* public_key, uint8_t* signature) {
+  if (!initialized || msgs_remaining != 0 || !has_message) return false;
   char buffer[128];
 
   // 14 + ^20 + 2 = ^36
@@ -528,12 +562,26 @@ bool tendermint_signTxFinalize(uint8_t* public_key, uint8_t* signature) {
                            NULL) == 0;
 }
 
-bool tendermint_signingIsInited(void) { return initialized; }
+bool tendermint_signingIsInited(TendermintSigningType type) {
+  return initialized && signing_type == type;
+}
 
-bool tendermint_signingIsFinished(void) { return msgs_remaining == 0; }
+bool tendermint_signingConfigMatches(const char* chain_name, const char* denom,
+                                     const char* message_type_prefix) {
+  return tendermint_signingIsInited(TENDERMINT_SIGNING_GENERIC) && chain_name &&
+         denom && message_type_prefix &&
+         strcmp(chain_name, tmsg.chain_name) == 0 &&
+         strcmp(denom, tmsg.denom) == 0 &&
+         strcmp(message_type_prefix, tmsg.message_type_prefix) == 0;
+}
+
+bool tendermint_signingIsFinished(void) {
+  return initialized && msgs_remaining == 0;
+}
 
 void tendermint_signAbort(void) {
   initialized = false;
+  signing_type = TENDERMINT_SIGNING_NONE;
   has_message = false;
   msgs_remaining = 0;
   memzero(&tmsg, sizeof(tmsg));
