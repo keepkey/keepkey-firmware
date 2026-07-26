@@ -55,7 +55,12 @@ set(sources
     trezor-firmware/crypto/aes/aescrypt.c
     trezor-firmware/crypto/aes/aes_modes.c
     #trezor-firmware/crypto/aes/aestst.c
-    trezor-firmware/crypto/aes/aestab.c)
+    trezor-firmware/crypto/aes/aestab.c
+    trezor-firmware/crypto/pallas.c
+    trezor-firmware/crypto/pallas_sinsemilla.c
+    trezor-firmware/crypto/pallas_swu.c
+    trezor-firmware/crypto/redpallas.c
+    trezor-firmware/crypto/zcash_zip316.c)
 
     # Clang 5.0 in the docker image (kktech/firmware:v7) is missing
     # <xmmintrin.h>, which breaks these. Until they're needed, we'll just elide
