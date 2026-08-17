@@ -54,6 +54,31 @@ void dec64_to_str(uint64_t dec64_val, char* str);
 
 bool is_valid_ascii(const uint8_t* data, uint32_t size);
 
+/* Render size bytes of data as a NUL-terminated confirm body of at most
+ * out_len - 1 characters.
+ *
+ * A protobuf `bytes` field is not a C string: it carries its own length, it is
+ * not NUL-terminated, and it is free to contain a NUL anywhere. Handing one to
+ * "%s" both reads past the field and ends the display at the first embedded
+ * NUL, so bytes that go on to be signed never reach the screen.
+ * confirm_body_fits() cannot catch that either, because calc_str_line() stops
+ * at the same NUL. Rendering from (data, size) is the only shape that cannot
+ * hide a signed byte.
+ *
+ * A message that is not entirely printable ASCII is rendered as hex, so every
+ * byte is visible even when one of them is a NUL. When the rendering does not
+ * fit, the number of bytes actually shown is stated in front of the preview,
+ * where the display's silent clip cannot remove it.
+ *
+ * \param data     Bytes to show; only the first size of them are read.
+ * \param size     Number of bytes, i.e. exactly the number that will be signed.
+ * \param out      Destination, always NUL-terminated when out_len > 0.
+ * \param out_len  sizeof(out).
+ * \returns true iff the body is the message text, false iff it is hex.
+ */
+bool format_message_body(const uint8_t* data, uint32_t size, char* out,
+                         size_t out_len);
+
 int base_to_precision(uint8_t* dest, const uint8_t* value,
                       const uint8_t dest_len, const uint8_t value_len,
                       const uint8_t precision);

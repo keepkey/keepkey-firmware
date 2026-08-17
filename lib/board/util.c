@@ -102,6 +102,59 @@ bool is_valid_ascii(const uint8_t* data, uint32_t size) {
   return true;
 }
 
+/* Worst case notice is "TRUNCATED 84/1024 bytes: ", 25 characters. Reserve 30
+ * so the arithmetic below still has room if a caller passes a larger buffer
+ * and the counts grow a digit. */
+#define MESSAGE_BODY_NOTICE_MAX 30
+
+bool format_message_body(const uint8_t* data, uint32_t size, char* out,
+                         size_t out_len) {
+  bool printable = is_valid_ascii(data, size);
+
+  if (!out || out_len == 0) {
+    return printable;
+  }
+
+  /* Terminate first: no path below may leave the caller showing whatever was
+   * on the stack. */
+  out[0] = '\0';
+  if (out_len <= MESSAGE_BODY_NOTICE_MAX + 1) {
+    /* Too small to carry a preview and say truthfully that it is one. Showing
+     * nothing is the honest answer; showing a prefix would not be. */
+    return printable;
+  }
+
+  /* A printable byte costs one character, a byte that has to go out as hex
+   * costs two. */
+  size_t budget = out_len - 1;
+  size_t per_byte = printable ? 1 : 2;
+  size_t show = size;
+  size_t used = 0;
+
+  if (show > budget / per_byte) {
+    show = (budget - MESSAGE_BODY_NOTICE_MAX) / per_byte;
+    int notice =
+        snprintf(out, out_len, "TRUNCATED %u/%u bytes: ", (unsigned)show,
+                 (unsigned)size);
+    /* snprintf() reports what it wanted to write, not what it wrote. Believe
+     * the buffer, and re-clamp the preview to the room that is really left. */
+    used = (notice < 0 || (size_t)notice >= out_len) ? budget : (size_t)notice;
+    if (show > (budget - used) / per_byte) {
+      show = (budget - used) / per_byte;
+    }
+  }
+
+  if (printable) {
+    if (show > 0) {
+      memcpy(out + used, data, show);
+    }
+    out[used + show] = '\0';
+  } else {
+    data2hex(data, (uint32_t)show, out + used);
+  }
+  return printable;
+}
+
 /* convert number in base units to specified decimal precision */
 int base_to_precision(uint8_t* dest, const uint8_t* value,
                       const uint8_t dest_len, const uint8_t value_len,

@@ -5,6 +5,7 @@
 extern "C" {
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/keepkey_board.h"
+#include "keepkey/board/util.h"
 }
 
 TEST(Board, Shutdown) {
@@ -56,4 +57,60 @@ TEST(Board, ConfirmBodyFitsLineCountDoesNotWrap) {
   const std::string hidden =
       "Sign in to example.com" + std::string(255, '\n') + "APPROVE TRANSFER";
   EXPECT_FALSE(confirm_body_fits(hidden.c_str(), BODY_WIDTH));
+}
+
+// Matches COIN_MSG_DISPLAY_MAX / ETH MSG_MAX: three body rows of 38 chars.
+static const size_t kMsgDisplayMax = 38 * 3;
+
+// A protobuf `bytes` field is not a C string. fsm_msgSignMessage handed
+// SignMessage.message.bytes straight to "%s" while cryptoMessageSign() signed
+// message.size bytes, so a payload carrying a NUL displayed only its prefix and
+// signed the rest invisibly. confirm_body_fits() cannot catch that either:
+// calc_str_line() stops at the same NUL. format_message_body() renders from
+// (bytes, size) instead, and hex-encodes anything that is not printable ASCII
+// so no signed byte can stay off screen.
+TEST(Board, FormatMessageBodyShowsBytesPastAnEmbeddedNul) {
+  static const uint8_t payload[] = "benign login\0hidden authorization";
+  const uint32_t size = sizeof(payload) - 1;  // drop the literal's terminator
+  ASSERT_EQ(size, (uint32_t)33);
+
+  // The old shape: "%s" ends here, twelve bytes into a thirty-three byte
+  // signature.
+  EXPECT_EQ(std::string((const char*)payload).size(), (size_t)12);
+
+  char msgBuf[kMsgDisplayMax + 1];
+  EXPECT_FALSE(format_message_body(payload, size, msgBuf, sizeof(msgBuf)));
+
+  // Every signed byte is on screen, the NUL included.
+  EXPECT_EQ(
+      std::string(msgBuf),
+      "62656E69676E206C6F67696E0068696464656E20617574686F72697A6174696F6E");
+  EXPECT_EQ(std::string(msgBuf).size(), (size_t)(2 * 33));
+}
+
+// Printable messages still read as text, and a message too long for the three
+// body rows says how much of it is actually shown -- in FRONT of the preview,
+// because draw_string() clips the tail silently.
+TEST(Board, FormatMessageBodyStatesHowMuchIsShown) {
+  char msgBuf[kMsgDisplayMax + 1];
+
+  const std::string plain = "Sign in to example.com";
+  EXPECT_TRUE(format_message_body((const uint8_t*)plain.data(),
+                                  (uint32_t)plain.size(), msgBuf,
+                                  sizeof(msgBuf)));
+  EXPECT_EQ(std::string(msgBuf), plain);
+
+  const std::string long_msg(1024, 'a');
+  EXPECT_TRUE(format_message_body((const uint8_t*)long_msg.data(),
+                                  (uint32_t)long_msg.size(), msgBuf,
+                                  sizeof(msgBuf)));
+  EXPECT_EQ(std::string(msgBuf).rfind("TRUNCATED 84/1024 bytes: ", 0),
+            (size_t)0);
+  EXPECT_EQ(std::string(msgBuf).size(), (size_t)(25 + 84));
+
+  // An empty message renders as an empty body, never as stack contents.
+  msgBuf[0] = 'X';
+  EXPECT_TRUE(format_message_body((const uint8_t*)"", 0, msgBuf,
+                                  sizeof(msgBuf)));
+  EXPECT_EQ(std::string(msgBuf), "");
 }

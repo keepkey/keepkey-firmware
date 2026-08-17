@@ -265,13 +265,27 @@ void fsm_msgGetAddress(GetAddress* msg) {
   layoutHome();
 }
 
+/* Mirrors ETH MSG_MAX: three body rows of 38 characters. */
+#define COIN_MSG_DISPLAY_MAX (38 * 3)
+
 void fsm_msgSignMessage(SignMessage* msg) {
   RESP_INIT(MessageSignature);
 
   CHECK_INITIALIZED
 
-  if (!confirm(ButtonRequestType_ButtonRequest_SignMessage, "Sign Message",
-               "%s", (char*)msg->message.bytes)) {
+  /* SignMessage.message is `bytes`: not NUL-terminated, and free to carry a
+   * NUL anywhere. cryptoMessageSign() below signs message.size bytes, so a
+   * "%s" on the field would end the display at an embedded NUL while the rest
+   * of the payload stayed under the signature, and confirm_body_fits() could
+   * not catch it because calc_str_line() stops at the same NUL. Render from
+   * (bytes, size); anything that is not printable ASCII goes out as hex so
+   * every signed byte is on screen. */
+  char msgBuf[COIN_MSG_DISPLAY_MAX + 1] = {0};
+  bool printable = format_message_body(msg->message.bytes, msg->message.size,
+                                       msgBuf, sizeof(msgBuf));
+
+  if (!confirm(ButtonRequestType_ButtonRequest_SignMessage,
+               printable ? _("Sign Message") : _("Sign Bytes"), "%s", msgBuf)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     "Sign message cancelled");
     layoutHome();
@@ -325,8 +339,15 @@ void fsm_msgVerifyMessage(VerifyMessage* msg) {
       layoutHome();
       return;
     }
-    if (!review(ButtonRequestType_ButtonRequest_Other, "Message Verified", "%s",
-                (char*)msg->message.bytes)) {
+    /* Same reason as fsm_msgSignMessage: VerifyMessage.message is `bytes` and
+     * cryptoMessageVerify() above covered message.size of them, so the screen
+     * has to show all of them and must not stop at an embedded NUL. */
+    char msgBuf[COIN_MSG_DISPLAY_MAX + 1] = {0};
+    bool printable = format_message_body(msg->message.bytes, msg->message.size,
+                                         msgBuf, sizeof(msgBuf));
+    if (!review(ButtonRequestType_ButtonRequest_Other,
+                printable ? _("Message Verified") : _("Bytes Verified"), "%s",
+                msgBuf)) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Action cancelled by user"));
       layoutHome();
