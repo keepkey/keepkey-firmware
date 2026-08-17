@@ -1,12 +1,16 @@
 extern "C" {
 #include "keepkey/firmware/eip712.h"
 #include "keepkey/firmware/ethereum.h"
+#include "keepkey/firmware/ethereum_contracts.h"
+#include "keepkey/firmware/ethereum_contracts/zxtransERC20.h"
 #include "keepkey/firmware/tron.h"
 #include "trezor/crypto/address.h"
+#include "messages-ethereum.pb.h"
 }
 
 #include "gtest/gtest.h"
 
+#include <cstring>
 #include <string>
 
 static uint8_t bin_from_ascii(char c) {
@@ -86,6 +90,23 @@ TEST(Ethereum, PrecomputedTypedHashesRequireAdvancedMode) {
 
 TEST(Ethereum, StructuredEip712IsDisabledForPointRelease) {
   EXPECT_FALSE(ethereum_structured_eip712_enabled());
+}
+
+TEST(Ethereum, TransformErc20RequiresCompleteCalldataForClearSigning) {
+  EthereumSignTx msg{};
+  msg.has_to = true;
+  msg.to.size = 20;
+  std::memcpy(msg.to.bytes, ZXSWAP_ADDRESS, msg.to.size);
+  msg.has_chain_id = true;
+  msg.chain_id = 1;
+  msg.has_data_initial_chunk = true;
+  msg.data_initial_chunk.size = 4 + 4 * 32;
+  std::memcpy(msg.data_initial_chunk.bytes, "\x41\x55\x65\xb0", 4);
+
+  EXPECT_TRUE(
+      ethereum_contractHandled(msg.data_initial_chunk.size, &msg, nullptr));
+  EXPECT_FALSE(
+      ethereum_contractHandled(msg.data_initial_chunk.size + 1, &msg, nullptr));
 }
 
 TEST(Ethereum, Eip712ChainIdRequiresCanonicalUint32) {
