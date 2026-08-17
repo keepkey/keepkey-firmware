@@ -46,6 +46,21 @@ extern bool reset_msg_stack;
 
 static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
 
+/* Set by format_body() when the formatted body did not fit strbuf, i.e. when
+ * characters were lost before any screen existed to show them. Read and
+ * cleared by confirm_helper(). Truncation here is invisible to every later
+ * check: what reaches the renderer is a complete, well-formed, shorter string,
+ * so the screen looks correct and is not. */
+static bool body_truncated = false;
+
+/* The single place a host-supplied body is formatted. vsnprintf() returns the
+ * length it WOULD have written, which is the only chance to notice that
+ * strbuf was too small -- after this, the evidence is gone. */
+static void format_body(const char* request_body, va_list vl) {
+  const int needed = vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+  body_truncated = (needed < 0) || ((size_t)needed >= sizeof(strbuf));
+}
+
 /// Handler for push button being pressed.
 /// \param context current state context.
 static void handle_screen_press(void* context) {
@@ -295,16 +310,47 @@ confirm_screen_exit:
 }
 
 bool confirm_body_fits(const char* body, uint16_t body_width) {
-  /* calc_str_line() walks the same wrap rules draw_string() draws by, so its
-   * line count is the row count the body will occupy. A three-or-more row
-   * body starts at sp.y = TOP_MARGIN and layout_standard_notification then
-   * adds font_height(body_font) + BODY_TOP_MARGIN, so the rows land at 24, 38
-   * and 52, stepping by font_height + BODY_FONT_LINE_PADDING = 14. A fourth
-   * row at 66 plus the glyph's 10px height is past KEEPKEY_DISPLAY_HEIGHT, so
-   * draw_char_with_shift() refuses it and draw_string() stops. BODY_ROWS is
-   * exactly that budget. */
-  return calc_str_line(get_body_font(), body ? body : "", body_width) <=
-         BODY_ROWS;
+  /* This used to count rows with calc_str_line() and compare against
+   * BODY_ROWS. That was a second model of the screen, and the attacker picks
+   * the input on which the two models disagree: the guard has now been broken
+   * three separate ways -- by plain overflow, by a uint8_t line counter
+   * wrapping at 255 newlines, and by space padding that one walk collapses and
+   * the other does not. Each fix taught the model one more rule that
+   * draw_string() already knew.
+   *
+   * So there is no model any more. draw_string_fits() runs draw_string()'s own
+   * loop and its own per-glyph fit test with the pixel writes switched off,
+   * and reports whether the last character was placed. Measuring and drawing
+   * cannot disagree because they are the same code.
+   *
+   * calc_str_line() survives here for one thing only, and it is not a security
+   * decision: layout_standard_notification() uses it to pick the vertical
+   * alignment, so the probe must start at the same sp.y the real draw will
+   * start at. Both call it with the same arguments, so both get the same
+   * answer -- and if that answer were ever wrong, the probe would be wrong in
+   * exactly the way the real draw is, which is the property we want. */
+  Canvas* canvas = layout_get_canvas();
+  const Font* body_font = get_body_font();
+  const char* str2 = body ? body : "";
+
+  DrawableParams sp;
+  const uint32_t body_line_count = calc_str_line(body_font, str2, body_width);
+  sp.y = TOP_MARGIN;
+  if (body_line_count == ONE_LINE) {
+    sp.y = TOP_MARGIN_FOR_ONE_LINE;
+  } else if (body_line_count == TWO_LINES) {
+    sp.y = TOP_MARGIN_FOR_TWO_LINES;
+  }
+
+  /* Mirrors layout_standard_notification(): the title is drawn from sp.y, then
+   * the body starts one title-height plus BODY_TOP_MARGIN below it. */
+  sp.y += font_height(body_font) + BODY_TOP_MARGIN;
+  sp.x = (body_width == BODY_WIDTH_WITH_ICON) ? LEFT_MARGIN_WITH_ICON
+                                              : LEFT_MARGIN;
+  sp.color = BODY_COLOR;
+
+  return draw_string_fits(canvas, body_font, str2, &sp, body_width,
+                          font_height(body_font) + BODY_FONT_LINE_PADDING);
 }
 
 /// Show a confirmation, warning first when its body will not fit the screen.
@@ -330,13 +376,35 @@ static bool confirm_helper(const char* request_title, const char* request_body,
   const uint16_t body_width =
       (uint16_t)((iconNum == NO_ICON) ? BODY_WIDTH : BODY_WIDTH_WITH_ICON);
 
-  /* Only layout_standard_notification is known to wrap the body at BODY_WIDTH
+  /* Consume the source-completeness latch exactly once, whatever happens
+   * below: leaving it set would make the NEXT confirmation warn for this
+   * one's reason. */
+  const bool truncated = body_truncated;
+  body_truncated = false;
+
+  /* Two independent ways the user can be shown less than what is being
+   * approved, and they need separate measurements because they happen at
+   * different times:
+   *
+   *   SOURCE       the formatted body did not fit strbuf. Characters were lost
+   *                before the renderer ever saw them, so no amount of looking
+   *                at the screen can detect it -- only vsnprintf()'s return
+   *                value could, and format_body() kept it.
+   *   RENDER       the body reached the renderer intact but did not fit the
+   *                canvas. draw_string_fits() replays the real placement and
+   *                reports whether the last character landed.
+   *
+   * Only layout_standard_notification is known to wrap the body at BODY_WIDTH
    * over BODY_ROWS rows. Custom layouts place and size their own body, and
    * layout_constant_power_notification draws from x = 128 + LEFT_MARGIN where
    * the canvas edge, not BODY_WIDTH, is the limit. Measuring either of those
-   * against BODY_WIDTH would be wrong, so leave them exactly as they were. */
-  if (layout_notification_func == &layout_standard_notification &&
-      !confirm_body_fits(request_body, body_width)) {
+   * against BODY_WIDTH would be wrong, so leave them exactly as they were --
+   * but a SOURCE truncation is layout-independent and must warn regardless.  */
+  const bool render_incomplete =
+      (layout_notification_func == &layout_standard_notification) &&
+      !confirm_body_fits(request_body, body_width);
+
+  if (truncated || render_incomplete) {
     /* No second ButtonRequest is written: the host already sent one and its
      * ButtonAck armed button_request_acked, which stays armed for the body
      * screen below. The wire dialogue is unchanged; only the number of holds
@@ -360,7 +428,7 @@ bool confirm(ButtonRequestType type, const char* request_title,
 
   va_list vl;
   va_start(vl, request_body);
-  vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+  format_body(request_body, vl);
   va_end(vl);
 
   /* Send button request */
@@ -383,7 +451,7 @@ bool confirm_constant_power(ButtonRequestType type, const char* request_title,
 
   va_list vl;
   va_start(vl, request_body);
-  vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+  format_body(request_body, vl);
   va_end(vl);
 
   /* Send button request */
@@ -407,7 +475,7 @@ bool confirm_with_custom_button_request(const ButtonRequest* button_request,
 
   va_list vl;
   va_start(vl, request_body);
-  vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+  format_body(request_body, vl);
   va_end(vl);
 
   /* Send button request */
@@ -428,7 +496,7 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
 
   va_list vl;
   va_start(vl, request_body);
-  vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+  format_body(request_body, vl);
   va_end(vl);
 
   /* Send button request */
@@ -450,7 +518,7 @@ bool confirm_without_button_request(const char* request_title,
 
   va_list vl;
   va_start(vl, request_body);
-  vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+  format_body(request_body, vl);
   va_end(vl);
 
   bool ret =
@@ -467,7 +535,7 @@ bool confirm_with_icon(ButtonRequestType type, IconType iconNum,
 
   va_list vl;
   va_start(vl, request_body);
-  vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+  format_body(request_body, vl);
   va_end(vl);
 
   /* Send button request */
@@ -490,7 +558,7 @@ bool review(ButtonRequestType type, const char* request_title,
 
   va_list vl;
   va_start(vl, request_body);
-  vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+  format_body(request_body, vl);
   va_end(vl);
 
   /* Send button request */
@@ -512,7 +580,7 @@ bool review_without_button_request(const char* request_title,
 
   va_list vl;
   va_start(vl, request_body);
-  vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+  format_body(request_body, vl);
   va_end(vl);
 
   (void)confirm_helper(request_title, strbuf, &layout_standard_notification,
@@ -528,7 +596,7 @@ bool review_with_icon(ButtonRequestType type, IconType iconNum,
 
   va_list vl;
   va_start(vl, request_body);
-  vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+  format_body(request_body, vl);
   va_end(vl);
 
   /* Send button request */
@@ -550,7 +618,7 @@ bool review_immediate(ButtonRequestType type, const char* request_title,
 
   va_list vl;
   va_start(vl, request_body);
-  vsnprintf(strbuf, sizeof(strbuf), request_body, vl);
+  format_body(request_body, vl);
   va_end(vl);
 
   /* Send button request */

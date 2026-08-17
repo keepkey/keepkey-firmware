@@ -1,5 +1,8 @@
 #include "gtest/gtest.h"
 
+#include <csignal>
+#include <unistd.h>
+
 #include <string>
 
 extern "C" {
@@ -7,6 +10,9 @@ extern "C" {
 #include "keepkey/board/font.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/util.h"
+#include "keepkey/board/layout.h"
+#include "keepkey/board/timer.h"
+#include "keepkey/board/keepkey_display.h"
 #include "keepkey/firmware/app_confirm.h"
 }
 
@@ -14,11 +20,34 @@ TEST(Board, Shutdown) {
   EXPECT_EXIT(shutdown(), ::testing::ExitedWithCode(1), "");
 }
 
+// confirm_body_fits() asks the real renderer whether the body will fit, so it
+// needs the canvas the renderer draws into. board_init() does this on the
+// device; here we do the same two steps in the same order. Without it
+// layout_get_canvas() is NULL and every measurement is meaningless rather than
+// merely wrong, so this fixture is a precondition for the tests below, not
+// decoration.
+class BodyFits : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    static bool ready = false;
+    if (!ready) {
+      timer_init();
+      layout_init(display_canvas_init());
+      // layout_init() starts a 1ms animation tick. These tests only measure
+      // geometry, and letting the tick run would repaint the canvas underneath
+      // them.
+      ualarm(0, 0);
+      signal(SIGALRM, SIG_IGN);
+      ready = true;
+    }
+  }
+};
+
 // draw_string() stops once a glyph no longer fits the canvas and reports
 // nothing, so a confirm body taller than BODY_ROWS was drawn in part with no
 // indication at all. confirm_body_fits() is the measurement the confirm path
 // now makes before it draws, so the cut can be announced.
-TEST(Board, ConfirmBodyFits) {
+TEST_F(BodyFits, ConfirmBodyFits) {
   EXPECT_TRUE(confirm_body_fits(NULL, BODY_WIDTH));
   EXPECT_TRUE(confirm_body_fits("", BODY_WIDTH));
   EXPECT_TRUE(confirm_body_fits("one\ntwo\nthree", BODY_WIDTH));
@@ -46,7 +75,7 @@ TEST(Board, ConfirmBodyFits) {
 //
 // Every count here must exceed BODY_ROWS, including the ones that land on and
 // around an 8-bit boundary.
-TEST(Board, ConfirmBodyFitsLineCountDoesNotWrap) {
+TEST_F(BodyFits, ConfirmBodyFitsLineCountDoesNotWrap) {
   for (size_t newlines : {(size_t)4, (size_t)254, (size_t)255, (size_t)256,
                           (size_t)257, (size_t)340}) {
     const std::string body(newlines, '\n');
@@ -59,6 +88,68 @@ TEST(Board, ConfirmBodyFitsLineCountDoesNotWrap) {
   const std::string hidden =
       "Sign in to example.com" + std::string(255, '\n') + "APPROVE TRANSFER";
   EXPECT_FALSE(confirm_body_fits(hidden.c_str(), BODY_WIDTH));
+}
+
+// The guard has now been broken three separate ways -- plain overflow, a
+// uint8_t line counter wrapping at 255 newlines, and whitespace that one walk
+// collapses and the other does not. All three were the same mistake: a second
+// model of the screen (calc_str_line + BODY_ROWS) disagreeing with the first
+// (draw_string), on an input the attacker chooses.
+//
+// So the model is gone. confirm_body_fits() now runs draw_string()'s own loop
+// with the pixel writes switched off. This test pins the property that made
+// that worth doing: a body reports as fitting if and only if the renderer
+// places its last character.
+//
+// A newline is "placed" only if the row it asks for exists. Without that,
+// a body of nothing but newlines consumes every character while drawing
+// nothing, and would report as fully shown -- a blank screen presented as a
+// complete one.
+TEST_F(BodyFits, MeasurementTracksTheRendererNotALineCount) {
+  // Whitespace runs that the wrap rules collapse. The old model and the
+  // renderer handled leading spaces at slightly different moments; neither
+  // count matters now, only whether the last glyph landed.
+  for (size_t pad : {(size_t)1, (size_t)40, (size_t)120, (size_t)300}) {
+    const std::string padded = "HEAD" + std::string(pad, ' ') + "TAIL";
+    if (padded.size() >= BODY_CHAR_MAX) continue;
+    const bool fits = confirm_body_fits(padded.c_str(), BODY_WIDTH);
+    // Whatever the verdict, it must be the renderer's. A body that fits must
+    // still fit with strictly less room; one that does not must not start
+    // fitting when given less.
+    if (fits) {
+      EXPECT_TRUE(confirm_body_fits(("HEAD" + std::string(pad, ' ')).c_str(),
+                                    BODY_WIDTH))
+          << "dropping the tail made a fitting body stop fitting, pad=" << pad;
+    } else {
+      EXPECT_FALSE(confirm_body_fits(padded.c_str(), BODY_WIDTH_WITH_ICON))
+          << "less room turned a clipped body into a fitting one, pad=" << pad;
+    }
+  }
+
+  // A body of pure newlines draws nothing at all. The body starts on row 24
+  // and each newline steps 14, so the third lands the cursor at 66 -- past the
+  // last row that can hold a 10px glyph. Up to and including that third
+  // newline every character is still consumed, and nothing has been dropped,
+  // so the body is blank but complete.
+  EXPECT_TRUE(confirm_body_fits("\n\n\n", BODY_WIDTH));
+
+  // From the fourth onwards there are characters the screen cannot reach. A
+  // completeness test that only asked "did we walk to the NUL" would call
+  // these fully shown, because newlines cost no glyph.
+  for (size_t n : {(size_t)4, (size_t)8, (size_t)255, (size_t)340}) {
+    EXPECT_FALSE(confirm_body_fits(std::string(n, '\n').c_str(), BODY_WIDTH))
+        << n << " newlines strand characters off screen";
+  }
+
+  // A trailing newline after a body that fits is harmless: there is nothing
+  // after it to lose.
+  EXPECT_TRUE(confirm_body_fits("one\ntwo\nthree\n", BODY_WIDTH));
+
+  // Narrowing the canvas must never turn a clipped body into a fitting one.
+  const std::string wide(200, 'W');
+  if (!confirm_body_fits(wide.c_str(), BODY_WIDTH)) {
+    EXPECT_FALSE(confirm_body_fits(wide.c_str(), BODY_WIDTH_WITH_ICON));
+  }
 }
 
 static std::string FormatEveryPage(const std::string& input, size_t* pages) {
