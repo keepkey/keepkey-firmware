@@ -58,6 +58,24 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
   const size_t min_chunk = is_expiry ? 260 : 228;
   if (msg->data_initial_chunk.size < min_chunk) return false;
 
+  /* Head word 3 (offset 4 + 3 * 32) is the ABI offset pointer to the dynamic
+   * `memo` string. The memo is read below at a FIXED offset, which is only
+   * where the router's abi.decode will look when that pointer is canonical:
+   * 0x80 for deposit()'s four head words, 0xa0 for depositWithExpiry()'s five.
+   * A host that points the memo elsewhere would have the device display a
+   * benign memo while the router executes a different swap destination.
+   * Refuse to clear-sign a non-canonical encoding. */
+  const char* memo_offset_canon =
+      is_expiry
+          ? "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+            "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xa0"
+          : "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+            "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80";
+  if (memcmp(msg->data_initial_chunk.bytes + 4 + 3 * 32, memo_offset_canon,
+             32) != 0) {
+    return false;
+  }
+
   char confStr[41], *conf;
   const TokenType* assetToken;
   uint8_t* thorchainData;

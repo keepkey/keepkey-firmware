@@ -46,6 +46,13 @@ bool sa_isWithdrawFromSalary(const EthereumSignTx* msg) {
 bool sa_confirmWithdrawFromSalary(uint32_t data_total,
                                   const EthereumSignTx* msg) {
   (void)data_total;
+
+  /* withdrawFromSalary(uint256,uint256) has no dynamic arguments, so both
+   * words are at fixed head positions and there is no offset pointer to
+   * validate. They do have to have been received though: past .size the chunk
+   * buffer still holds bytes from an earlier message. */
+  if (msg->data_initial_chunk.size < 4 + 2 * 32) return false;
+
   char confStr[41];
   bignum256 salaryId, withdrawAmount;
 

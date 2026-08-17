@@ -45,6 +45,15 @@ bool zx_isZxTransformERC20(const EthereumSignTx* msg) {
 
 bool zx_confirmZxTransERC20(uint32_t data_total, const EthereumSignTx* msg) {
   (void)data_total;
+
+  /* transformERC20()'s four displayed arguments (input/output token, input
+   * amount, minimum output amount) are STATIC head words, so their fixed
+   * offsets stay correct wherever the dynamic transformations[] tail lands and
+   * there is no offset pointer to validate here. They do have to have been
+   * received though: past .size the chunk buffer still holds bytes from an
+   * earlier message. */
+  if (msg->data_initial_chunk.size < 4 + 4 * 32) return false;
+
   const TokenType *in, *out;
   const uint8_t *inAddress, *outAddress;
   char constr1[40], constr2[40];

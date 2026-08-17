@@ -45,6 +45,26 @@ bool zx_isZxSwap(const EthereumSignTx* msg) {
 
 bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx* msg) {
   (void)data_total;
+
+  /* Everything read before the token count is known lives in the selector plus
+   * the first five words. Bound against the RECEIVED chunk: past .size the
+   * buffer still holds bytes from an earlier message, which would otherwise be
+   * shown as this transaction's amounts. */
+  if (msg->data_initial_chunk.size < 4 + 5 * 32) return false;
+
+  /* Head word 0 is the ABI offset pointer to the dynamic `tokens[]` argument.
+   * The token count and the token addresses are read below at FIXED offsets
+   * that are only where the router's decoder will look when that pointer is
+   * canonical (0x80 == four head words). A host is free to place the array
+   * anywhere; if it does, the screen would describe words the contract never
+   * executes. Refuse to clear-sign a non-canonical encoding. */
+  if (memcmp(msg->data_initial_chunk.bytes + 4,
+             "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+             "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80",
+             32) != 0) {
+    return false;
+  }
+
   const TokenType *from, *to;
   const uint8_t *fromAddress, *toAddress;
   char constr1[40], constr2[40];
@@ -70,6 +90,12 @@ bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx* msg) {
       return false;
       break;
   }
+
+  /* The toAddress word ends at 4 + (7 + adder) * 32. Re-bound now that the
+   * token count is known, so a legitimate 2-token swap (228 bytes of calldata)
+   * is not rejected by an over-tight fixed floor. */
+  const size_t tokens_end = (size_t)(4 + (7 + adder) * 32);
+  if (msg->data_initial_chunk.size < tokens_end) return false;
 
   fromAddress =
       (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 5 * 32 + 12);
