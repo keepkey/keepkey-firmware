@@ -88,8 +88,13 @@ jobs:
 
       - name: Install gitleaks
         run: |
-          GITLEAKS_VERSION=$(curl -sSf https://api.github.com/repos/gitleaks/gitleaks/releases/latest \
-            | grep -oP '"tag_name":\s*"v\K[^"]+')
+          # PINNED. Tracking releases/latest means a new upstream ruleset can turn
+          # this gate red with no change to this repository -- which is exactly what
+          # happened: a newer generic-api-key rule began flagging published BIP32 test
+          # vectors in 2014/2018 history, and because every build job declares
+          # `needs: [.., secret-scan]`, the whole build and test graph was SKIPPED
+          # rather than failed. Bump deliberately, with the scan re-verified. See #424.
+          GITLEAKS_VERSION=8.30.0
           curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
             | tar -xz -C /usr/local/bin gitleaks
           gitleaks version

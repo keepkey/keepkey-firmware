@@ -63,6 +63,28 @@ Two U2F attestation artifacts are public by design and must not fail the scan.
    be committed there in the first place, and this exemption is not a licence to do
    so — it is an acknowledgement that git SHAs in prose are not secrets.
 
+5. tests/ — historical, pre-submodule test vectors
+
+   This path does not exist in the working tree. The python test suite lived at the
+   repository root before it became the deps/python-keepkey submodule, and CI scans
+   with fetch-depth 0, so gitleaks still reads those commits.
+
+   Every finding here is the generic-api-key rule firing on published BIP32 test
+   vectors — the flagged lines are WIF private keys printed next to their own address
+   and public key as documentation, e.g. tests/test_ecies.py (2014, inherited from
+   Trezor) and tests/test_msg_eos_signtx.py (2018). They are upstream test fixtures,
+   published for a decade, and secure nothing.
+
+   Scoped by path for the same reason as deps/: the secrets are real key material by
+   format, so a regex exemption would be dangerous, whereas the path is provably dead.
+
+   The cost of a path exemption, stated plainly: a genuine secret committed under
+   tests/ would NOT be caught. That is acceptable only while the directory does not
+   exist. If a tests/ tree is ever reintroduced at the repository root, remove this
+   exemption in the same commit — verified by negative control, a real EC private key
+   planted under tests/ is ignored, while the same key under lib/firmware/ is still
+   detected.
+
 Scope note: every exemption is scoped by path and the default ruleset is otherwise
 intact, so a genuine secret committed in source still fails the scan. Verified by
 negative control: a planted EC private key under lib/firmware/ is still detected.
@@ -72,4 +94,5 @@ paths = [
   '''include/keepkey/firmware/u2f/u2f_keys\.h''',
   '''^deps/''',
   '''^docs/''',
+  '''^tests/''',
 ]
