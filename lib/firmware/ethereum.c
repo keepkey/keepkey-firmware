@@ -762,7 +762,14 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   }
 
   memset(confirm_body_message, 0, sizeof(confirm_body_message));
-  if (token == NULL && data_total > 0 && data_needs_confirm) {
+  // A contract that is not in the token table yields the UnknownToken
+  // sentinel, which is NOT NULL, so the original `token == NULL` guard let
+  // ERC-20-shaped calldata to an unrecognized contract skip this block
+  // entirely. The device cannot render that transfer (ethereumFormatAmount
+  // prints "Unknown token value"), so it must fall back to the same raw-data
+  // disclosure and confirm gate as any other unrecognized contract call.
+  if ((token == NULL || token == UnknownToken) && data_total > 0 &&
+      data_needs_confirm) {
     // KeepKey custom: warn the user that they're trying to do something
     // that is potentially dangerous. People (generally) aren't great at
     // parsing raw transaction data, and we can't effectively show them
