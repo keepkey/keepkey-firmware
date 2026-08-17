@@ -47,6 +47,20 @@ static dm confirmProp;
 
 static const char* nameForValue;
 
+/* Append value to dest, a caller-allocated, NUL-terminated buffer of
+   STRBUFSIZE+1 bytes. Returns false and leaves dest untouched if the result
+   would not fit. Deliberately never truncates: a truncated encodeType string
+   hashes to a typehash the host did not ask for, and two distinct type sets
+   sharing a prefix would collide, so callers must fail closed instead. */
+static bool append_type_string(char* dest, const char* value) {
+  if (!dest || !value) return false;
+  const size_t used = strnlen(dest, STRBUFSIZE + 1);
+  const size_t added = strlen(value);
+  if (used > STRBUFSIZE || added > STRBUFSIZE - used) return false;
+  memcpy(dest + used, value, added + 1);
+  return true;
+}
+
 int encodableType(const char* typeStr) {
   int ctr;
 
@@ -134,8 +148,10 @@ int parseType(const json_t* eip712Types, const char* typeS, char* typeStr) {
     return JSON_TYPE_S_NAMEERR;
   }
 
-  strncat(typeStr, nameTest, STRBUFSIZE - strlen((const char*)typeStr));
-  strncat(typeStr, "(", STRBUFSIZE - strlen((const char*)typeStr));
+  if (!append_type_string(typeStr, nameTest) ||
+      !append_type_string(typeStr, "(")) {
+    return UDEF_NAME_ERROR;
+  }
 
   tarray = json_getChild(jType);
   while (tarray != 0) {
@@ -189,10 +205,12 @@ int parseType(const json_t* eip712Types, const char* typeS, char* typeStr) {
       if (NULL == pVal) {
         return JSON_NOPAIRVAL;
       }
-      strncat(typeStr, typeType, STRBUFSIZE - strlen((const char*)typeStr));
-      strncat(typeStr, " ", STRBUFSIZE - strlen((const char*)typeStr));
-      strncat(typeStr, pVal, STRBUFSIZE - strlen((const char*)typeStr));
-      strncat(typeStr, ",", STRBUFSIZE - strlen((const char*)typeStr));
+      if (!append_type_string(typeStr, typeType) ||
+          !append_type_string(typeStr, " ") ||
+          !append_type_string(typeStr, pVal) ||
+          !append_type_string(typeStr, ",")) {
+        return UDEF_NAME_ERROR;
+      }
     }
     tarray = json_getSibling(tarray);
   }
@@ -202,10 +220,14 @@ int parseType(const json_t* eip712Types, const char* typeS, char* typeStr) {
     typeStr[strlen(typeStr) - 1] = ')';
   } else {
     // append paren, there are no parameters
-    strncat(typeStr, ")", STRBUFSIZE - 1);
+    if (!append_type_string(typeStr, ")")) {
+      return UDEF_NAME_ERROR;
+    }
   }
   if (strlen(append) > 0) {
-    strncat(typeStr, append, STRBUFSIZE - strlen((const char*)append));
+    if (!append_type_string(typeStr, append)) {
+      return UDEF_NAME_ERROR;
+    }
   }
 
   return SUCCESS;
