@@ -750,6 +750,67 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════
   # STAGE 4: PUBLISH — manual trigger only, all tests must pass
+
+  # ═══════════════════════════════════════════════════════════
+  # GATE: one authoritative answer for the whole graph
+  # ═══════════════════════════════════════════════════════════
+  #
+  # Every build and test job declares `needs: [lint-format, static-analysis,
+  # check-submodules, secret-scan]`. When one of those gate jobs fails, GitHub
+  # marks the whole downstream graph SKIPPED rather than failed -- and a skipped
+  # job is not a red check. The run summary then shows green ticks on whatever
+  # finished, which reads as healthy unless someone opens the job list.
+  #
+  # That has now happened three times on the 7.14.2 line: gitleaks failing on
+  # develop, lint-format timing out inside its apt.llvm.org install (#471), and
+  # gitleaks again after an unpinned upstream bump. Each time the ARM build,
+  # the unit tests and both python suites produced NOTHING while the run looked
+  # partially green.
+  #
+  # This job exists so that cannot happen quietly. It needs every required job,
+  # runs with `if: always()` so it executes even when they skip, and fails
+  # unless each one reports exactly `success`. failure, cancelled and skipped
+  # are all treated as not-success, because for a required job they are.
+  #
+  # publish-emulator is deliberately absent: it is workflow_dispatch-only and
+  # is legitimately skipped on every push and pull_request.
+  #
+  # Point branch protection at THIS job rather than the individual ones. It is
+  # the only check whose green means "the entire graph ran and passed".
+  ci-gate:
+    name: CI gate
+    if: always()
+    needs:
+      - lint-format
+      - secret-scan
+      - static-analysis
+      - check-submodules
+      - build-emulator
+      - build-arm-firmware
+      - unit-tests
+      - python-integration-tests
+      - python-dylib-tests
+      - generate-test-report
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Assert every required job succeeded
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "$NEEDS_JSON" | jq -r 'to_entries[] | "\(.value.result)\t\(.key)"' | sort
+          echo
+          NOT_SUCCESS=$(echo "$NEEDS_JSON" \
+            | jq -r 'to_entries[] | select(.value.result != "success") | .key')
+          if [ -n "$NOT_SUCCESS" ]; then
+            echo "::error::Required jobs did not succeed: $(echo $NOT_SUCCESS | tr '\n' ' ')"
+            echo "A skipped or cancelled required job is NOT a pass. If a gate-stage"
+            echo "job failed, everything downstream was skipped and produced no signal."
+            exit 1
+          fi
+          echo "All required jobs reported success."
+
   # ═══════════════════════════════════════════════════════════
 
   publish-emulator:
