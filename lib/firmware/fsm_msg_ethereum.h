@@ -198,6 +198,14 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
 
   CHECK_PIN
 
+  /* Merge note (#432 vs this branch): release/7.14.2 gated Ethereum message
+   * signing behind AdvancedMode, which blocks every Sign-In-With-Ethereum
+   * flow on a default device and, because AdvancedMode is session state,
+   * does so again after each power cycle. confirm_bytes() paginates and
+   * displays EVERY signed byte, which is what that gate was standing in for.
+   * Full disclosure is both the stronger security property and the one that
+   * does not break default-configuration signing, so the gate is dropped
+   * here in favour of it. */
   if (!confirm_bytes(ButtonRequestType_ButtonRequest_ProtectCall,
                      _("Sign Ethereum Message"), msg->message.bytes,
                      msg->message.size)) {

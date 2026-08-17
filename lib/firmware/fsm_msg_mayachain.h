@@ -146,8 +146,13 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
       case OutputAddressType_TRANSFER:
       default: {
         char amount_str[32];
+        /* MayachainMsgSend.denom max_size:69 (messages-mayachain.options) ->
+         * 68 visible chars + NUL. ' ' + 68 + NUL = 70 bytes; 71 keeps a 1-byte
+         * margin. The prior code used unbounded sprintf(); switch to a bounded
+         * snprintf so a future max_size bump can't silently overflow. See GH
+         * #437. */
         char denom_str[71];
-        sprintf(denom_str, " %s", msg->send.denom);
+        snprintf(denom_str, sizeof(denom_str), " %s", msg->send.denom);
         bn_format_uint64(msg->send.amount, NULL, denom_str, 10, 0, false,
                          amount_str, sizeof(amount_str));
         if (!confirm_transaction_output(

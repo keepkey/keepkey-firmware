@@ -158,6 +158,22 @@ void fsm_msgTronSignMessage(TronSignMessage* msg) {
 
   CHECK_PIN
 
+  /* Merge note (#432 vs this branch): #432 gated TRON message signing behind
+   * AdvancedMode because the message was a blind sign. It is not any more —
+   * confirm_bytes() below paginates and displays EVERY signed byte, which is
+   * the property the gate was standing in for.
+   *
+   * The gate is dropped here for the same reason it was dropped from
+   * fsm_msgEthereumSignMessage: full disclosure is the stronger guarantee, and
+   * AdvancedMode is session state that resets on power cycle, so keeping it
+   * would block a default device from signing after every replug. Leaving ETH
+   * ungated while TRON stayed gated would also be an inconsistency with no
+   * principled basis, since both now show the user every byte.
+   *
+   * Note this is NOT the same call as the TRON SignTx fence (#405), which
+   * stays: a TRON *transaction* still cannot be parsed or bound on this line,
+   * so it remains genuinely blind and keeps its AdvancedMode gate. */
+
   // Validate path: m/44'/195'/...
   if (msg->address_n_count < 3 || msg->address_n[0] != (0x80000000 | 44) ||
       msg->address_n[1] != (0x80000000 | 195)) {

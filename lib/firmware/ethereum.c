@@ -780,15 +780,21 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   // disclosure and confirm gate as any other unrecognized contract call.
   if ((token == NULL || token == UnknownToken) && data_total > 0 &&
       data_needs_confirm) {
-    // KeepKey custom: warn the user that they're trying to do something
-    // that is potentially dangerous. People (generally) aren't great at
-    // parsing raw transaction data, and we can't effectively show them
-    // what they're about to do in the general case.
+    // KeepKey custom: gate arbitrary ETH contract-data signing on AdvancedMode.
+    // The prior code was a (void)review() warning whose return value was
+    // discarded, so a user who cancelled the warning still fell through to
+    // the confirm() dialog and signed. This now blocks, mirroring
+    // fsm_msgTronSignTx / fsm_msgSolanaSignMessage / fsm_msgTonSignMessage.
+    // See GH #433.
     if (!storage_isPolicyEnabled("AdvancedMode")) {
       (void)review(
-          ButtonRequestType_ButtonRequest_Other, "Warning",
-          "Signing of arbitrary ETH contract data is recommended only for "
-          "experienced users. Enable 'AdvancedMode' policy to dismiss.");
+          ButtonRequestType_ButtonRequest_Other, "Blocked",
+          "Signing of arbitrary ETH contract data requires AdvancedMode. "
+          "Enable 'AdvancedMode' policy in device settings.");
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Arbitrary contract data signing disabled by policy"));
+      ethereum_signing_abort();
+      return;
     }
 
     layoutEthereumData(msg->data_initial_chunk.bytes,
@@ -1116,7 +1122,7 @@ const char* failMsgReturn[LAST_ERROR - 2] = {
     "EIP-712 user defined type name too long",
     "EIP-712 too many user defined types",
     "EIP-712 user defined type array name error",
-    "EIP-712 address string overflow",
+    "EIP-712 invalid address string",
     "EIP-712 bytesN string overflow",
     "EIP-712 bytesN size error",
     "EIP-712 INT and UINT array parsing not implemented",

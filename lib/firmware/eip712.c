@@ -32,6 +32,7 @@
 */
 
 #include <stdio.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 #include "keepkey/board/confirm_sm.h"
@@ -45,6 +46,28 @@ static const char* udefList[MAX_USERDEF_TYPES] = {0};
 static dm confirmProp;
 
 static const char* nameForValue;
+
+static int hex_nibble(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  return -1;
+}
+
+static bool decode_address(const char* string, uint8_t decoded[20]) {
+  if (!string || strlen(string) != ADDRESS_SIZE || string[0] != '0' ||
+      string[1] != 'x') {
+    return false;
+  }
+
+  for (size_t i = 0; i < 20; i++) {
+    const int high = hex_nibble(string[2 + 2 * i]);
+    const int low = hex_nibble(string[3 + 2 * i]);
+    if (high < 0 || low < 0) return false;
+    decoded[i] = (uint8_t)((high << 4) | low);
+  }
+  return true;
+}
 
 /* Append value to dest, a caller-allocated, NUL-terminated buffer of
    STRBUFSIZE+1 bytes. Returns false and leaves dest untouched if the result
@@ -233,23 +256,16 @@ int parseType(const json_t* eip712Types, const char* typeS, char* typeStr) {
 }
 
 int encAddress(const char* string, uint8_t* encoded) {
-  unsigned ctr;
-  char byteStrBuf[3] = {0};
-
   if (string == NULL) {
     return ADDR_STRING_NULL;
   }
-  if (ADDRESS_SIZE < strlen(string)) {
+  uint8_t decoded[20];
+  if (!decode_address(string, decoded)) {
     return ADDR_STRING_VFLOW;
   }
 
-  for (ctr = 0; ctr < 12; ctr++) {
-    encoded[ctr] = '\0';
-  }
-  for (ctr = 12; ctr < 32; ctr++) {
-    strncpy(byteStrBuf, &string[2 * ((ctr - 12)) + 2], 2);
-    encoded[ctr] = (uint8_t)(strtol(byteStrBuf, NULL, 16));
-  }
+  memset(encoded, 0, 12);
+  memcpy(encoded + 12, decoded, sizeof(decoded));
   return SUCCESS;
 }
 
@@ -376,6 +392,9 @@ void marshallDsVals(const char* value) {
 }
 
 int dsConfirm(void) {
+  /* Destination for decode_address() below, which validates the host-supplied
+     verifyingContract before it is displayed. Twenty bytes exactly. */
+  uint8_t addrHexStr[20] = {0};
   char name[41] = {0};
   char version[11] = {0};
   IconType iconNum = NO_ICON;
@@ -392,12 +411,30 @@ int dsConfirm(void) {
   }
 
   if (dsverifyingContract != NULL) {
-    strcat(verifyingContract, "Verifying Contract: ");
-    strncat(verifyingContract, dsverifyingContract,
-            sizeof(verifyingContract) - sizeof("Verifying Contract: "));
+    /* EIP-712 types are host-controlled, so verifyingContract may reach this
+     * function without having passed through the address encoder. Validate it
+     * before any fixed-offset read or display.
+     *
+     * Merge note (#439 vs #440/GH #436): both branches fixed the same OOB read.
+     * This one is kept because it is strictly stronger — it validates the hex
+     * digits as well as the length and prefix, and it fails closed. The other
+     * checked only length and "0x", then set dsverifyingContract = NULL and
+     * fell through to a raw display, so a value like "0xZZZZ..." still reached
+     * sscanf and a malformed contract was shown rather than refused. */
+    if (!decode_address(dsverifyingContract, addrHexStr)) {
+      clearDsVals();
+      return ADDR_STRING_VFLOW;
+    }
+    snprintf(verifyingContract, sizeof(verifyingContract),
+             "Verifying Contract: %s", dsverifyingContract);
   }
 
   if (NULL != dschainId) {
+    /* Merge note: the release branch parsed this with sscanf("%" SCNu32),
+     * which accepts a trailing space, a leading '+', and non-canonical forms
+     * like "007", and cannot report overflow. eip712_parse_canonical_u32()
+     * rejects all of those and fails closed, so it is used instead. See the
+     * cases in unittests/firmware/ethereum.cpp. */
     uint32_t chainInt = 0;
     if (!eip712_parse_canonical_u32(dschainId, &chainInt)) {
       clearDsVals();
