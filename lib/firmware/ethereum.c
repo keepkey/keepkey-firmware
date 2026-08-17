@@ -1235,6 +1235,19 @@ void e712_types_values(Ethereum712TypesValues* msg,
     resp->has_domain_separator_hash = true;
     resp->domain_separator_hash.size = 32;
 
+    // Every screen shown while parsing the typed data is a review(), which
+    // cannot express refusal. Take one real confirmation before producing a
+    // signature so a host cannot obtain one without a button press.
+    if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Sign Typed Data",
+                 "Sign with address %s?", resp->address)) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      "Signing cancelled by user");
+      memzero(domainSeparatorHash, 32);
+      memzero(messageHash, 32);
+      have_ds = false;
+      return;
+    }
+
     uint8_t v = 0;
     if (0 != eip712_sign(domainSeparatorHash, messageHash, resp->has_msg_hash,
                          node, &v, resp->signature.bytes)) {

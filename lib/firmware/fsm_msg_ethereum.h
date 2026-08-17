@@ -331,24 +331,40 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash* msg) {
   char str[64 + 1];
   int ctr;
 
-  confirm(ButtonRequestType_ButtonRequest_Other, "Verify Address",
-          "Confirm address: %s", resp->address);
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Verify Address",
+               "Confirm address: %s", resp->address)) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    layoutHome();
+    return;
+  }
 
   for (ctr = 0; ctr < 64 / 2; ctr++) {
     snprintf(&str[2 * ctr], 3, "%02x", msg->domain_separator_hash.bytes[ctr]);
   }
-  confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data domain",
-          "Confirm hash digest: %s", str);
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data domain",
+               "Confirm hash digest: %s", str)) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    layoutHome();
+    return;
+  }
 
   if (msg->has_message_hash) {
     for (ctr = 0; ctr < 64 / 2; ctr++) {
       snprintf(&str[2 * ctr], 3, "%02x", msg->message_hash.bytes[ctr]);
     }
-    confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
-            "Confirm hash digest: %s", str);
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
+                 "Confirm hash digest: %s", str)) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
   } else {
-    confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
-            "Confirm: No message");
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
+                 "Confirm: No message")) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
   }
 
   ethereum_typed_hash_sign(msg, node, resp);
