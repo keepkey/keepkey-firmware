@@ -114,6 +114,10 @@ static bool confirmFromAccountMatch(const EthereumSignTx* msg,
 }
 
 bool zx_isZxLiquidTx(const EthereumSignTx* msg) {
+  /* UNISWAP_ROUTER_ADDRESS is an Ethereum-mainnet identity. The same 20 bytes
+   * on another EVM chain are an unrelated contract; clear-sign only on mainnet.
+   * See GH #431. */
+  if (!msg->has_chain_id || msg->chain_id != 1) return false;
   if (memcmp(msg->to.bytes, UNISWAP_ROUTER_ADDRESS, 20) ==
       0) {  // correct contract address?
 
@@ -180,9 +184,33 @@ bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg) {
     return false;
   }
 
-  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
-               "Deadline %s", ctime((const time_t*)&deadline))) {
-    return false;
+  /* Render the 64-bit deadline as a decimal epoch string. The prior code
+   * used ctime((const time_t*)&deadline), which on the STM32F2 target reads
+   * only the low 4 bytes of the 64-bit deadline (time_t is 32-bit long), so
+   * post-2038 deadlines render as the wrong date. The decimal epoch is
+   * unambiguous and avoids the 32-bit time_t truncation and ctime()'s stray
+   * newline. See GH #435. */
+  {
+    char deadline_str[21] = {0};
+    /* uint64 -> decimal string (manual, no printf %llu portability concerns) */
+    uint64_t d = deadline;
+    char tmp[21];
+    int len = 0;
+    if (d == 0) {
+      tmp[len++] = '0';
+    } else {
+      while (d > 0 && len < (int)sizeof(tmp)) {
+        tmp[len++] = '0' + (int)(d % 10);
+        d /= 10;
+      }
+    }
+    for (int i = 0; i < len; i++) {
+      deadline_str[i] = tmp[len - 1 - i];
+    }
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
+                 "Deadline epoch %s", deadline_str)) {
+      return false;
+    }
   }
 
   return true;

@@ -171,6 +171,19 @@ void fsm_msgTronSignMessage(TronSignMessage* msg) {
 
   CHECK_PIN
 
+  /* Gate on AdvancedMode: TRON message signing has the same blind-sign risk
+   * as EIP-191 — a signed message is an arbitrary preimage. Mirrors
+   * fsm_msgSolanaSignMessage / fsm_msgTonSignMessage. See GH #432. */
+  if (!storage_isPolicyEnabled("AdvancedMode")) {
+    (void)review(ButtonRequestType_ButtonRequest_Other, "Blocked",
+                 "TRON message signing is experimental. "
+                 "Enable AdvancedMode in device settings.");
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("Message signing disabled by policy"));
+    layoutHome();
+    return;
+  }
+
   // Validate path: m/44'/195'/...
   if (msg->address_n_count < 3 || msg->address_n[0] != (0x80000000 | 44) ||
       msg->address_n[1] != (0x80000000 | 195)) {

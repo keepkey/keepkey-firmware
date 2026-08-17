@@ -212,6 +212,20 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
 
   CHECK_PIN
 
+  /* Gate on AdvancedMode: EIP-191 personal_sign messages are structurally an
+   * EIP-191 preimage, and contracts that accept EIP-191 signatures can be
+   * tricked with a signed message. Mirrors fsm_msgSolanaSignMessage /
+   * fsm_msgTonSignMessage. See GH #432. */
+  if (!storage_isPolicyEnabled("AdvancedMode")) {
+    (void)review(ButtonRequestType_ButtonRequest_Other, "Blocked",
+                 "Ethereum message signing is experimental. "
+                 "Enable AdvancedMode in device settings.");
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("Message signing disabled by policy"));
+    layoutHome();
+    return;
+  }
+
   for (ctr = 0; ctr < msg->message.size; ctr++) {
     if (isprint(msg->message.bytes[ctr]) == false) {
       canPrint = false;

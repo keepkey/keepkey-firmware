@@ -32,6 +32,7 @@
 */
 
 #include <stdio.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 #include "keepkey/board/confirm_sm.h"
@@ -399,7 +400,14 @@ int dsConfirm(void) {
   if (dsverifyingContract != NULL) {
     /* EIP-712 types are host-controlled, so verifyingContract may reach this
      * function without having passed through the address encoder. Validate it
-     * before any fixed-offset read or display. */
+     * before any fixed-offset read or display.
+     *
+     * Merge note (#439 vs #440/GH #436): both branches fixed the same OOB read.
+     * This one is kept because it is strictly stronger — it validates the hex
+     * digits as well as the length and prefix, and it fails closed. The other
+     * checked only length and "0x", then set dsverifyingContract = NULL and
+     * fell through to a raw display, so a value like "0xZZZZ..." still reached
+     * sscanf and a malformed contract was shown rather than refused. */
     if (!decode_address(dsverifyingContract, addrHexStr)) {
       clearDsVals();
       return ADDR_STRING_VFLOW;
@@ -410,11 +418,14 @@ int dsConfirm(void) {
 
   if (NULL != dschainId) {
     noChain = false;
-#ifdef EMULATOR
-    sscanf((char*)dschainId, "%u", &chainInt);
-#else
-    sscanf((char*)dschainId, "%ld", &chainInt);
-#endif
+    /* Use SCNu32 from <inttypes.h> for uint32_t. The prior production build
+     * branch used "%ld" which writes a long (8 bytes on LP64 hosts) into a
+     * uint32_t (4 bytes), corrupting the adjacent stack frame. The EMULATOR
+     * branch already used "%u"; unify on SCNu32 so the format specifier no
+     * longer differs between builds. See GH #434. */
+    if (sscanf((char*)dschainId, "%" SCNu32, &chainInt) != 1) {
+      noChain = true;
+    }
     // As more chains are supported, add icon choice below
     // TBD: not implemented for first release
     // if (chainInt == 1) {
