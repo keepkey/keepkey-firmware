@@ -568,10 +568,11 @@ bool review(ButtonRequestType type, const char* request_title,
   resp.code = type;
   msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-  (void)confirm_helper(request_title, strbuf, &layout_standard_notification,
-                       false, NO_ICON, false);
+  const bool shown =
+      confirm_helper(request_title, strbuf, &layout_standard_notification,
+                     false, NO_ICON, false);
   memzero(strbuf, sizeof(strbuf));
-  return true;
+  return shown;
 }
 
 bool review_without_button_request(const char* request_title,
@@ -583,10 +584,11 @@ bool review_without_button_request(const char* request_title,
   format_body(request_body, vl);
   va_end(vl);
 
-  (void)confirm_helper(request_title, strbuf, &layout_standard_notification,
-                       false, NO_ICON, false);
+  const bool shown =
+      confirm_helper(request_title, strbuf, &layout_standard_notification,
+                     false, NO_ICON, false);
   memzero(strbuf, sizeof(strbuf));
-  return true;
+  return shown;
 }
 
 bool review_with_icon(ButtonRequestType type, IconType iconNum,
@@ -606,10 +608,11 @@ bool review_with_icon(ButtonRequestType type, IconType iconNum,
   resp.code = type;
   msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-  (void)confirm_helper(request_title, strbuf, &layout_standard_notification,
-                       false, iconNum, false);
+  const bool shown =
+      confirm_helper(request_title, strbuf, &layout_standard_notification,
+                     false, iconNum, false);
   memzero(strbuf, sizeof(strbuf));
-  return true;
+  return shown;
 }
 
 bool review_immediate(ButtonRequestType type, const char* request_title,
@@ -628,8 +631,9 @@ bool review_immediate(ButtonRequestType type, const char* request_title,
   resp.code = type;
   msg_write(MessageType_MessageType_ButtonRequest, &resp);
 
-  (void)confirm_helper(request_title, strbuf, &layout_standard_notification,
-                       false, NO_ICON, true);
+  const bool shown =
+      confirm_helper(request_title, strbuf, &layout_standard_notification,
+                     false, NO_ICON, true);
   memzero(strbuf, sizeof(strbuf));
-  return true;
+  return shown;
 }
