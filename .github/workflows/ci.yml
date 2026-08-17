@@ -207,6 +207,20 @@ jobs:
           done
           [ "$FAILED" = "0" ] || exit 1
 
+      - name: Enforce RNG source invariants
+        run: |
+          if grep -q 'RAND_PLATFORM_INDEPENDENT=0' CMakeLists.txt; then
+            echo "::error::RAND_PLATFORM_INDEPENDENT is a definedness switch, not a value toggle"
+            exit 1
+          fi
+          grep -q 'add_definitions(-DRAND_PLATFORM_INDEPENDENT)' CMakeLists.txt
+          grep -q '#ifndef RAND_PLATFORM_INDEPENDENT' lib/rand/rng.c
+          grep -q 'defined(EMULATOR) && defined(__arm__)' lib/rand/rng.c
+          if grep -En 'return[[:space:]]+random\(\)' lib/rand/rng.c; then
+            echo "::error::Emulator cryptography must not use libc random()"
+            exit 1
+          fi
+
   # ═══════════════════════════════════════════════════════════
   # STAGE 2: BUILD — compile only after gate passes
   # ═══════════════════════════════════════════════════════════
