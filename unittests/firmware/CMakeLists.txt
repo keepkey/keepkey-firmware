@@ -6,6 +6,7 @@ set(sources
     ethereum.cpp
     nano.cpp
     recovery.cpp
+    setup_ceremony.cpp
     ripple.cpp
     solana.cpp
     storage.cpp
