@@ -47,6 +47,28 @@ static dm confirmProp;
 
 static const char* nameForValue;
 
+static int hex_nibble(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  return -1;
+}
+
+static bool decode_address(const char* string, uint8_t decoded[20]) {
+  if (!string || strlen(string) != ADDRESS_SIZE || string[0] != '0' ||
+      string[1] != 'x') {
+    return false;
+  }
+
+  for (size_t i = 0; i < 20; i++) {
+    const int high = hex_nibble(string[2 + 2 * i]);
+    const int low = hex_nibble(string[3 + 2 * i]);
+    if (high < 0 || low < 0) return false;
+    decoded[i] = (uint8_t)((high << 4) | low);
+  }
+  return true;
+}
+
 /* Append value to dest, a caller-allocated, NUL-terminated buffer of
    STRBUFSIZE+1 bytes. Returns false and leaves dest untouched if the result
    would not fit. Deliberately never truncates: a truncated encodeType string
@@ -234,23 +256,16 @@ int parseType(const json_t* eip712Types, const char* typeS, char* typeStr) {
 }
 
 int encAddress(const char* string, uint8_t* encoded) {
-  unsigned ctr;
-  char byteStrBuf[3] = {0};
-
   if (string == NULL) {
     return ADDR_STRING_NULL;
   }
-  if (ADDRESS_SIZE < strlen(string)) {
+  uint8_t decoded[20];
+  if (!decode_address(string, decoded)) {
     return ADDR_STRING_VFLOW;
   }
 
-  for (ctr = 0; ctr < 12; ctr++) {
-    encoded[ctr] = '\0';
-  }
-  for (ctr = 12; ctr < 32; ctr++) {
-    strncpy(byteStrBuf, &string[2 * ((ctr - 12)) + 2], 2);
-    encoded[ctr] = (uint8_t)(strtol(byteStrBuf, NULL, 16));
-  }
+  memset(encoded, 0, 12);
+  memcpy(encoded + 12, decoded, sizeof(decoded));
   return SUCCESS;
 }
 
@@ -335,6 +350,14 @@ int confirmValue(const char* value) {
 
 static const char *dsname = NULL, *dsversion = NULL, *dschainId = NULL,
                   *dsverifyingContract = NULL;
+
+static void clearDsVals(void) {
+  dsname = NULL;
+  dsversion = NULL;
+  dschainId = NULL;
+  dsverifyingContract = NULL;
+}
+
 void marshallDsVals(const char* value) {
   if (0 == strncmp(nameForValue, "name", sizeof("name"))) {
     dsname = value;
@@ -360,7 +383,6 @@ int dsConfirm(void) {
   char version[11] = {0};
   uint32_t chainInt;
   bool noChain = true;
-  int ctr;
   IconType iconNum = NO_ICON;
   char title[64] = {0};
   char* fillerStr = "";
@@ -375,13 +397,15 @@ int dsConfirm(void) {
   }
 
   if (dsverifyingContract != NULL) {
-    for (ctr = 2; ctr < 42; ctr += 2) {
-      sscanf((char*)&dsverifyingContract[ctr], "%2hhx",
-             &addrHexStr[(ctr - 2) / 2]);
+    /* EIP-712 types are host-controlled, so verifyingContract may reach this
+     * function without having passed through the address encoder. Validate it
+     * before any fixed-offset read or display. */
+    if (!decode_address(dsverifyingContract, addrHexStr)) {
+      clearDsVals();
+      return ADDR_STRING_VFLOW;
     }
-    strcat(verifyingContract, "Verifying Contract: ");
-    strncat(verifyingContract, dsverifyingContract,
-            sizeof(verifyingContract) - sizeof("Verifying Contract: "));
+    snprintf(verifyingContract, sizeof(verifyingContract),
+             "Verifying Contract: %s", dsverifyingContract);
   }
 
   if (NULL != dschainId) {
@@ -417,10 +441,7 @@ int dsConfirm(void) {
                         "%s %s%s", chainStr, verifyingContract, fillerStr);
   /* Clear the marshalled domain values on the refusal path too: they are file
      statics and a later attempt must not inherit them. */
-  dsname = NULL;
-  dsversion = NULL;
-  dschainId = NULL;
-  dsverifyingContract = NULL;
+  clearDsVals();
   return confirmed ? SUCCESS : USER_CANCELLED;
 }
 

@@ -106,6 +106,7 @@ typedef enum { DOMAIN = 1, MESSAGE } dm;
    error. */
 #define USER_CANCELLED 34
 
+int encAddress(const char* string, uint8_t* encoded);
 int encode(const json_t* jsonTypes, const json_t* jsonVals, const char* typeS,
            uint8_t* hashRet);
 

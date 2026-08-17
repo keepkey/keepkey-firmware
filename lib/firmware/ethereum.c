@@ -1106,7 +1106,7 @@ const char* failMsgReturn[LAST_ERROR - 2] = {
     "EIP-712 user defined type name too long",
     "EIP-712 too many user defined types",
     "EIP-712 user defined type array name error",
-    "EIP-712 address string overflow",
+    "EIP-712 invalid address string",
     "EIP-712 bytesN string overflow",
     "EIP-712 bytesN size error",
     "EIP-712 INT and UINT array parsing not implemented",
