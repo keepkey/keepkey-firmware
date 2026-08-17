@@ -357,8 +357,8 @@ ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
        money and the screens are otherwise identical, so it must be shown. */
     while ((tok = strtok(NULL, ":")) != NULL) {
       if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                   "Thorchain withdraw liquidity",
-                   "Additional memo field\n%s", tok)) {
+                   "Thorchain withdraw liquidity", "Additional memo field\n%s",
+                   tok)) {
         return THORCHAIN_MEMO_CANCELLED;
       }
     }
