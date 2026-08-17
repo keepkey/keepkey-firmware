@@ -35,7 +35,7 @@ on:
         default: false
 
 env:
-  BASE_IMAGE: kktech/firmware:v15
+  BASE_IMAGE: kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
   EMU_IMAGE: kkemu-ci
 
 jobs:
@@ -490,7 +490,12 @@ jobs:
   #     pb2 files expect; newer protoc generates Python that requires
   #     newer protobuf runtime, which breaks the python-keepkey suite).
   #   - protobuf 3.20.3 (Python runtime — strict pin).
-  #   - nanopb 0.3.9.4.post3 (the proto generator the firmware build uses).
+  #   - nanopb 0.3.9.4.post3 — NOTE: this is NOT the version the firmware
+  #     builder image uses. The pinned image builds nanopb-0.3.9.8 from source
+  #     (see Dockerfile). This job installs a different generator via pip, so
+  #     headers produced here are not byte-comparable with the firmware build's.
+  #     Tracked in GH #425; do not treat this job's output as provenance for
+  #     the firmware artifacts.
   #   - KK_DEBUG_LINK=ON (default OFF; without it,
   #     fsm_msgDebugLinkGetState is excluded from the build and any
   #     read_layout() call hangs the test).

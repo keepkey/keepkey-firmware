@@ -18,7 +18,7 @@ on:
       - 'v*'
 
 env:
-  BASE_IMAGE: kktech/firmware:v15
+  BASE_IMAGE: kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
 
 permissions:
   contents: write
@@ -91,6 +91,14 @@ jobs:
         working-directory: release
         run: |
           echo "# KeepKey Firmware v${{ needs.validate.outputs.fw_version }} — Hash Manifest" > HASHES.txt
+          echo "" >> HASHES.txt
+          # Provenance: name the exact toolchain these bytes came out of. BASE_IMAGE
+          # is a sha256 manifest digest, not a tag, so this identifies one immutable
+          # image rather than whatever the tag pointed at on the day. Without it a
+          # green CI build and a locally reproduced binary cannot be shown to be the
+          # same toolchain product. See GH #425.
+          echo "builder image    ${BASE_IMAGE}" >> HASHES.txt
+          echo "source commit    ${GITHUB_SHA}" >> HASHES.txt
           echo "" >> HASHES.txt
           for f in *.bin; do
             [ -f "$f" ] || continue
