@@ -1,4 +1,5 @@
 set(sources
+    binance.cpp
     coins.cpp
     cosmos.cpp
     eos.cpp

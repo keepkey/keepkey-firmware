@@ -151,19 +151,6 @@ void fsm_msgTronSignTx(TronSignTx* msg) {
   layoutHome();
 }
 
-#ifndef TRON_MSG_DISPLAY_MAX
-#define TRON_MSG_DISPLAY_MAX \
-  (38 * 3)  // mirrors ETH MSG_MAX (3 lines × 38 chars)
-#endif
-
-/* The display renders BODY_ROWS (3) lines and silently clips whatever falls
- * past them, so a truncation notice appended AFTER the preview could itself be
- * pushed off-screen by wide glyphs. The notice therefore goes at the front of
- * the body and the preview is shortened to pay for it. Worst case notice is
- * "TRUNCATED 84/1024 bytes: " (25 chars), bounded by the max_size:1024 limit
- * on message.size in messages-tron.options; 30 chars are reserved. */
-#define TRON_MSG_PREVIEW_MAX (TRON_MSG_DISPLAY_MAX - 30)
-
 void fsm_msgTronSignMessage(TronSignMessage* msg) {
   RESP_INIT(TronMessageSignature);
 
@@ -180,45 +167,9 @@ void fsm_msgTronSignMessage(TronSignMessage* msg) {
     return;
   }
 
-  char msgBuf[TRON_MSG_DISPLAY_MAX + 1] = {0};
-  char truncBuf[32] = {0};
-  const char* typeIndicator;
-  bool canPrint = true;
-  unsigned ctr;
-
-  for (ctr = 0; ctr < msg->message.size; ctr++) {
-    if (isprint(msg->message.bytes[ctr]) == false) {
-      canPrint = false;
-      break;
-    }
-  }
-
-  if (canPrint) {
-    typeIndicator = "Sign TRON Message";
-    unsigned copy = msg->message.size;
-    if (copy > TRON_MSG_DISPLAY_MAX) {
-      copy = TRON_MSG_PREVIEW_MAX;
-      snprintf(truncBuf, sizeof(truncBuf), "TRUNCATED %u/%u bytes: ", copy,
-               (unsigned)msg->message.size);
-    }
-    memcpy(msgBuf, msg->message.bytes, copy);
-    msgBuf[copy] = '\0';
-  } else {
-    typeIndicator = "Sign TRON Bytes";
-    unsigned hexBytes = msg->message.size;
-    if (hexBytes * 2 > TRON_MSG_DISPLAY_MAX) {
-      hexBytes = TRON_MSG_PREVIEW_MAX / 2;
-      snprintf(truncBuf, sizeof(truncBuf), "TRUNCATED %u/%u bytes: ", hexBytes,
-               (unsigned)msg->message.size);
-    }
-    for (ctr = 0; ctr < hexBytes; ctr++) {
-      snprintf(&msgBuf[2 * ctr], 3, "%02x", msg->message.bytes[ctr]);
-    }
-    msgBuf[2 * hexBytes] = '\0';
-  }
-
-  if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _(typeIndicator),
-               "%s%s", truncBuf, msgBuf)) {
+  if (!confirm_bytes(ButtonRequestType_ButtonRequest_ProtectCall,
+                     _("Sign TRON Message"), msg->message.bytes,
+                     msg->message.size)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
     return;
@@ -258,45 +209,9 @@ void fsm_msgTronVerifyMessage(const TronVerifyMessage* msg) {
     return;
   }
 
-  char msgBuf[TRON_MSG_DISPLAY_MAX + 1] = {0};
-  char truncBuf[32] = {0};
-  const char* typeIndicator;
-  bool canPrint = true;
-  unsigned ctr;
-
-  for (ctr = 0; ctr < msg->message.size; ctr++) {
-    if (isprint(msg->message.bytes[ctr]) == false) {
-      canPrint = false;
-      break;
-    }
-  }
-
-  if (canPrint) {
-    typeIndicator = "Message Verified";
-    unsigned copy = msg->message.size;
-    if (copy > TRON_MSG_DISPLAY_MAX) {
-      copy = TRON_MSG_PREVIEW_MAX;
-      snprintf(truncBuf, sizeof(truncBuf), "TRUNCATED %u/%u bytes: ", copy,
-               (unsigned)msg->message.size);
-    }
-    memcpy(msgBuf, msg->message.bytes, copy);
-    msgBuf[copy] = '\0';
-  } else {
-    typeIndicator = "Bytes Verified";
-    unsigned hexBytes = msg->message.size;
-    if (hexBytes * 2 > TRON_MSG_DISPLAY_MAX) {
-      hexBytes = TRON_MSG_PREVIEW_MAX / 2;
-      snprintf(truncBuf, sizeof(truncBuf), "TRUNCATED %u/%u bytes: ", hexBytes,
-               (unsigned)msg->message.size);
-    }
-    for (ctr = 0; ctr < hexBytes; ctr++) {
-      snprintf(&msgBuf[2 * ctr], 3, "%02x", msg->message.bytes[ctr]);
-    }
-    msgBuf[2 * hexBytes] = '\0';
-  }
-
-  if (!confirm(ButtonRequestType_ButtonRequest_Other, _(typeIndicator), "%s%s",
-               truncBuf, msgBuf)) {
+  if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                     _("TRON Message Verified"), msg->message.bytes,
+                     msg->message.size)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
     return;
@@ -324,6 +239,20 @@ void fsm_msgTronSignTypedHash(const TronSignTypedHash* msg) {
       (msg->has_message_hash && msg->message_hash.size != 32)) {
     fsm_sendFailure(FailureType_Failure_Other,
                     _("Invalid TIP-712 hash length"));
+    layoutHome();
+    return;
+  }
+
+  if (!tron_typed_hash_policy_allows(storage_isPolicyEnabled("AdvancedMode"))) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Enable AdvancedMode to blind-sign typed hashes"));
+    layoutHome();
+    return;
+  }
+
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "TIP-712 Blind Sign",
+               "Cannot verify these hashes. Trust the host?")) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
     return;
   }

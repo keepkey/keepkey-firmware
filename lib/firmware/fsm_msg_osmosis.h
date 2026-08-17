@@ -332,7 +332,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Pool ID",
-                 "%lld", msg->lp_add.pool_id)) {
+                 "%" PRIu64, msg->lp_add.pool_id)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -340,8 +340,9 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other,
-                 "Confirm Share Out Amount", "Receive %s GAMM-%lld shares?",
-                 outsoamt, msg->lp_add.pool_id)) {
+                 "Confirm Share Out Amount",
+                 "Receive %s GAMM-%" PRIu64 " shares?", outsoamt,
+                 msg->lp_add.pool_id)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -420,7 +421,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Pool ID",
-                 "%lld", msg->lp_remove.pool_id)) {
+                 "%" PRIu64, msg->lp_remove.pool_id)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -428,7 +429,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Pool share amount",
-                 "Redeem %s GAMM-%lld shares?", outsoamt,
+                 "Redeem %s GAMM-%" PRIu64 " shares?", outsoamt,
                  msg->lp_remove.pool_id)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
@@ -586,7 +587,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Pool ID",
-                 "%lld", msg->swap.pool_id)) {
+                 "%" PRIu64, msg->swap.pool_id)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -704,8 +705,8 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
   }
 
   if (sign_tx->has_memo && (strlen(sign_tx->memo) > 0)) {
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",
-                 sign_tx->memo)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
+                       (const uint8_t*)sign_tx->memo, strlen(sign_tx->memo))) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();

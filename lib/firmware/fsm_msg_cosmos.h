@@ -92,7 +92,8 @@ void fsm_msgCosmosSignTx(const CosmosSignTx* msg) {
 
   RESP_INIT(CosmosMsgRequest);
 
-  if (!tendermint_signTxInit(node, (void*)msg, sizeof(CosmosSignTx), "uatom")) {
+  if (!tendermint_signTxInit(node, (void*)msg, sizeof(CosmosSignTx), "uatom",
+                             TENDERMINT_SIGNING_COSMOS)) {
     tendermint_signAbort();
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_FirmwareError,
@@ -108,7 +109,8 @@ void fsm_msgCosmosSignTx(const CosmosSignTx* msg) {
 
 void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
   // Confirm transaction basics
-  CHECK_PARAM(tendermint_signingIsInited(), "Signing not in progress");
+  CHECK_PARAM(tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS),
+              "Cosmos signing not in progress");
 
   const CoinType* coin = fsm_getCoin(true, "Cosmos");
   if (!coin) {
@@ -380,7 +382,8 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
         !msg->ibc_transfer.has_source_port ||
         !msg->ibc_transfer.has_revision_height ||
         !msg->ibc_transfer.has_revision_number ||
-        !msg->ibc_transfer.has_denom || !msg->ibc_transfer.has_amount) {
+        !msg->ibc_transfer.has_denom || !msg->ibc_transfer.has_amount ||
+        strcmp(msg->ibc_transfer.denom, "uatom") != 0) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));
@@ -400,16 +403,20 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
       return;
     }
 
-    if (!confirm_cosmos_address("Confirm sender address",
-                                msg->ibc_transfer.sender)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                       "Confirm sender address",
+                       (const uint8_t*)msg->ibc_transfer.sender,
+                       strlen(msg->ibc_transfer.sender))) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm_cosmos_address("Confirm dest. address",
-                                msg->ibc_transfer.receiver)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                       "Confirm dest. address",
+                       (const uint8_t*)msg->ibc_transfer.receiver,
+                       strlen(msg->ibc_transfer.receiver))) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -478,8 +485,8 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
   }
 
   if (sign_tx->has_memo && (strlen(sign_tx->memo) > 0)) {
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",
-                 sign_tx->memo)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
+                       (const uint8_t*)sign_tx->memo, strlen(sign_tx->memo))) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();

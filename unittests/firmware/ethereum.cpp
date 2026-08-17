@@ -1,5 +1,7 @@
 extern "C" {
 #include "keepkey/firmware/eip712.h"
+#include "keepkey/firmware/ethereum.h"
+#include "keepkey/firmware/tron.h"
 #include "trezor/crypto/address.h"
 }
 
@@ -17,7 +19,7 @@ static uint8_t bin_from_ascii(char c) {
   __builtin_unreachable();
 }
 
-static void test_checksum(const std::string &addr) {
+static void test_checksum(const std::string& addr) {
   uint8_t addr_bin[20];
   for (size_t i = 0; i < addr.size(); i += 2) {
     addr_bin[i / 2] = bin_from_ascii(addr[i + 1]) | bin_from_ascii(addr[i])
@@ -54,4 +56,31 @@ TEST(Ethereum, Eip712UserCancelledIsOutsideTheFailMessageTable) {
   EXPECT_GT(USER_CANCELLED, LAST_ERROR);
   EXPECT_NE(USER_CANCELLED, SUCCESS);
   EXPECT_NE(USER_CANCELLED, NULL_MSG_HASH);
+}
+
+TEST(Ethereum, PrecomputedTypedHashesRequireAdvancedMode) {
+  EXPECT_FALSE(ethereum_typed_hash_policy_allows(false));
+  EXPECT_TRUE(ethereum_typed_hash_policy_allows(true));
+  EXPECT_FALSE(tron_typed_hash_policy_allows(false));
+  EXPECT_TRUE(tron_typed_hash_policy_allows(true));
+}
+
+TEST(Ethereum, StructuredEip712IsDisabledForPointRelease) {
+  EXPECT_FALSE(ethereum_structured_eip712_enabled());
+}
+
+TEST(Ethereum, Eip712ChainIdRequiresCanonicalUint32) {
+  uint32_t value = 0;
+  EXPECT_TRUE(eip712_parse_canonical_u32("0", &value));
+  EXPECT_EQ(0u, value);
+  EXPECT_TRUE(eip712_parse_canonical_u32("4294967295", &value));
+  EXPECT_EQ(UINT32_MAX, value);
+
+  EXPECT_FALSE(eip712_parse_canonical_u32("", &value));
+  EXPECT_FALSE(eip712_parse_canonical_u32("01", &value));
+  EXPECT_FALSE(eip712_parse_canonical_u32("-1", &value));
+  EXPECT_FALSE(eip712_parse_canonical_u32("1 ", &value));
+  EXPECT_FALSE(eip712_parse_canonical_u32("4294967296", &value));
+  EXPECT_FALSE(eip712_parse_canonical_u32(nullptr, &value));
+  EXPECT_FALSE(eip712_parse_canonical_u32("1", nullptr));
 }

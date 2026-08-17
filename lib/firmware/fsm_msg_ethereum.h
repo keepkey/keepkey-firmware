@@ -191,59 +191,16 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress* msg) {
   layoutHome();
 }
 
-#define MSG_MAX (38 * 3)  // 38 chars per line, three lines max
-/* The display renders BODY_ROWS (3) lines and silently clips whatever falls
- * past them, so a truncation notice appended AFTER the preview could itself be
- * pushed off-screen by wide glyphs. The notice therefore goes at the front of
- * the body and the preview is shortened to pay for it. Worst case notice is
- * "TRUNCATED 84/1024 bytes: " (25 chars), bounded by the max_size:1024 limit
- * on message.size in messages-ethereum.options; 30 chars are reserved. */
-#define MSG_PREVIEW_MAX (MSG_MAX - 30)
 void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
-  char msgBuf[MSG_MAX + 1] = {0};
-  char truncBuf[32] = {0};
-  const char* typeIndicator;
-  unsigned ctr;
-  bool canPrint = true;
-
   RESP_INIT(EthereumMessageSignature);
 
   CHECK_INITIALIZED
 
   CHECK_PIN
 
-  for (ctr = 0; ctr < msg->message.size; ctr++) {
-    if (isprint(msg->message.bytes[ctr]) == false) {
-      canPrint = false;
-      break;
-    }
-  }
-  if (canPrint) {
-    typeIndicator = "Sign Message";
-    unsigned show = msg->message.size;
-    if (show > MSG_MAX) {
-      show = MSG_PREVIEW_MAX;
-      snprintf(truncBuf, sizeof(truncBuf), "TRUNCATED %u/%u bytes: ", show,
-               (unsigned)msg->message.size);
-    }
-    memcpy(msgBuf, msg->message.bytes, show);
-    msgBuf[show] = '\0';
-  } else {
-    typeIndicator = "Sign Bytes";
-    unsigned show = msg->message.size;
-    if (show * 2 > MSG_MAX) {
-      show = MSG_PREVIEW_MAX / 2;
-      snprintf(truncBuf, sizeof(truncBuf), "TRUNCATED %u/%u bytes: ", show,
-               (unsigned)msg->message.size);
-    }
-    for (ctr = 0; ctr < show; ctr++) {
-      snprintf(&msgBuf[2 * ctr], 3, "%02x", msg->message.bytes[ctr]);
-    }
-    msgBuf[2 * show] = '\0';
-  }
-
-  if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _(typeIndicator),
-               "%s%s", truncBuf, msgBuf)) {
+  if (!confirm_bytes(ButtonRequestType_ButtonRequest_ProtectCall,
+                     _("Sign Ethereum Message"), msg->message.bytes,
+                     msg->message.size)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
     return;
@@ -259,12 +216,6 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
 }
 
 void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage* msg) {
-  char msgBuf[MSG_MAX + 1] = {0};
-  char truncBuf[32] = {0};
-  const char* typeIndicator;
-  unsigned ctr;
-  bool canPrint = true;
-
   CHECK_PARAM(msg->has_address, _("No address provided"));
   CHECK_PARAM(msg->has_message, _("No message provided"));
 
@@ -281,37 +232,9 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage* msg) {
     return;
   }
 
-  for (ctr = 0; ctr < msg->message.size; ctr++) {
-    if (isprint(msg->message.bytes[ctr]) == false) {
-      canPrint = false;
-      break;
-    }
-  }
-  if (canPrint) {
-    typeIndicator = "Message Verified";
-    unsigned show = msg->message.size;
-    if (show > MSG_MAX) {
-      show = MSG_PREVIEW_MAX;
-      snprintf(truncBuf, sizeof(truncBuf), "TRUNCATED %u/%u bytes: ", show,
-               (unsigned)msg->message.size);
-    }
-    memcpy(msgBuf, msg->message.bytes, show);
-    msgBuf[show] = '\0';
-  } else {
-    typeIndicator = "Bytes Verified";
-    unsigned show = msg->message.size;
-    if (show * 2 > MSG_MAX) {
-      show = MSG_PREVIEW_MAX / 2;
-      snprintf(truncBuf, sizeof(truncBuf), "TRUNCATED %u/%u bytes: ", show,
-               (unsigned)msg->message.size);
-    }
-    for (ctr = 0; ctr < show; ctr++) {
-      snprintf(&msgBuf[2 * ctr], 3, "%02x", msg->message.bytes[ctr]);
-    }
-    msgBuf[2 * show] = '\0';
-  }
-  if (!confirm(ButtonRequestType_ButtonRequest_Other, _(typeIndicator), "%s%s",
-               truncBuf, msgBuf)) {
+  if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                     _("Ethereum Message Verified"), msg->message.bytes,
+                     msg->message.size)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
     return;
@@ -328,10 +251,25 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash* msg) {
 
   CHECK_PIN
 
+  if (!ethereum_typed_hash_policy_allows(
+          storage_isPolicyEnabled("AdvancedMode"))) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Enable AdvancedMode to blind-sign typed hashes"));
+    layoutHome();
+    return;
+  }
+
   if (msg->domain_separator_hash.size != 32 ||
       (msg->has_message_hash && msg->message_hash.size != 32)) {
     fsm_sendFailure(FailureType_Failure_Other,
                     _("Invalid EIP-712 hash length"));
+    return;
+  }
+
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "EIP-712 Blind Sign",
+               "Cannot verify these hashes. Trust the host?")) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    layoutHome();
     return;
   }
 
@@ -400,6 +338,14 @@ void fsm_msgEthereum712TypesValues(Ethereum712TypesValues* msg) {
   CHECK_INITIALIZED
 
   CHECK_PIN
+
+  if (!ethereum_structured_eip712_enabled()) {
+    fsm_sendFailure(
+        FailureType_Failure_Other,
+        _("Structured EIP-712 disabled pending canonical display hardening"));
+    layoutHome();
+    return;
+  }
 
   if (strlen(msg->eip712types) == 0) {
     fsm_sendFailure(FailureType_Failure_Other,

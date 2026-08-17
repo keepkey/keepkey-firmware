@@ -4,8 +4,9 @@
 
 extern "C" {
 #include "keepkey/board/confirm_sm.h"
+#include "keepkey/board/font.h"
 #include "keepkey/board/keepkey_board.h"
-#include "keepkey/board/util.h"
+#include "keepkey/firmware/app_confirm.h"
 }
 
 TEST(Board, Shutdown) {
@@ -59,58 +60,43 @@ TEST(Board, ConfirmBodyFitsLineCountDoesNotWrap) {
   EXPECT_FALSE(confirm_body_fits(hidden.c_str(), BODY_WIDTH));
 }
 
-// Matches COIN_MSG_DISPLAY_MAX / ETH MSG_MAX: three body rows of 38 chars.
-static const size_t kMsgDisplayMax = 38 * 3;
-
-// A protobuf `bytes` field is not a C string. fsm_msgSignMessage handed
-// SignMessage.message.bytes straight to "%s" while cryptoMessageSign() signed
-// message.size bytes, so a payload carrying a NUL displayed only its prefix and
-// signed the rest invisibly. confirm_body_fits() cannot catch that either:
-// calc_str_line() stops at the same NUL. format_message_body() renders from
-// (bytes, size) instead, and hex-encodes anything that is not printable ASCII
-// so no signed byte can stay off screen.
-TEST(Board, FormatMessageBodyShowsBytesPastAnEmbeddedNul) {
-  static const uint8_t payload[] = "benign login\0hidden authorization";
-  const uint32_t size = sizeof(payload) - 1;  // drop the literal's terminator
-  ASSERT_EQ(size, (uint32_t)33);
-
-  // The old shape: "%s" ends here, twelve bytes into a thirty-three byte
-  // signature.
-  EXPECT_EQ(std::string((const char*)payload).size(), (size_t)12);
-
-  char msgBuf[kMsgDisplayMax + 1];
-  EXPECT_FALSE(format_message_body(payload, size, msgBuf, sizeof(msgBuf)));
-
-  // Every signed byte is on screen, the NUL included.
-  EXPECT_EQ(
-      std::string(msgBuf),
-      "62656E69676E206C6F67696E0068696464656E20617574686F72697A6174696F6E");
-  EXPECT_EQ(std::string(msgBuf).size(), (size_t)(2 * 33));
+static std::string FormatEveryPage(const std::string& input, size_t* pages) {
+  std::string rendered;
+  size_t offset = 0;
+  *pages = 0;
+  while (offset < input.size()) {
+    char page[BODY_CHAR_MAX];
+    const size_t take = confirm_bytes_format_page(
+        reinterpret_cast<const uint8_t*>(input.data()) + offset,
+        input.size() - offset, page, sizeof(page));
+    EXPECT_GT(take, 0u);
+    if (take == 0) break;
+    EXPECT_LE(calc_str_line(get_body_font(), page, BODY_WIDTH), BODY_ROWS);
+    rendered += page;
+    offset += take;
+    (*pages)++;
+  }
+  EXPECT_EQ(offset, input.size());
+  return rendered;
 }
 
-// Printable messages still read as text, and a message too long for the three
-// body rows says how much of it is actually shown -- in FRONT of the preview,
-// because draw_string() clips the tail silently.
-TEST(Board, FormatMessageBodyStatesHowMuchIsShown) {
-  char msgBuf[kMsgDisplayMax + 1];
+TEST(Board, ExactBytePagesEscapeRendererWhitespaceAndNul) {
+  static const char raw[] = " benign\nlogin\\\0authorization";
+  const std::string payload(raw, sizeof(raw) - 1);
+  size_t pages = 0;
+  EXPECT_EQ(FormatEveryPage(payload, &pages),
+            "\\x20benign\\x0Alogin\\x5C\\x00authorization");
+  EXPECT_EQ(pages, 1u);
+}
 
-  const std::string plain = "Sign in to example.com";
-  EXPECT_TRUE(format_message_body((const uint8_t*)plain.data(),
-                                  (uint32_t)plain.size(), msgBuf,
-                                  sizeof(msgBuf)));
-  EXPECT_EQ(std::string(msgBuf), plain);
+TEST(Board, ExactBytePagesNeverApproveOnlyAPrefix) {
+  const std::string long_message =
+      "Authorize transfer" + std::string(900, ' ') + "DENY";
+  size_t pages = 0;
+  const std::string rendered = FormatEveryPage(long_message, &pages);
 
-  const std::string long_msg(1024, 'a');
-  EXPECT_TRUE(format_message_body((const uint8_t*)long_msg.data(),
-                                  (uint32_t)long_msg.size(), msgBuf,
-                                  sizeof(msgBuf)));
-  EXPECT_EQ(std::string(msgBuf).rfind("TRUNCATED 84/1024 bytes: ", 0),
-            (size_t)0);
-  EXPECT_EQ(std::string(msgBuf).size(), (size_t)(25 + 84));
-
-  // An empty message renders as an empty body, never as stack contents.
-  msgBuf[0] = 'X';
-  EXPECT_TRUE(format_message_body((const uint8_t*)"", 0, msgBuf,
-                                  sizeof(msgBuf)));
-  EXPECT_EQ(std::string(msgBuf), "");
+  EXPECT_GT(pages, 1u);
+  EXPECT_EQ(rendered.substr(0, 21), "Authorize\\x20transfer");
+  EXPECT_EQ(rendered.substr(rendered.size() - 4), "DENY");
+  EXPECT_EQ(rendered.size(), 21u + 900u * 4u + 4u);
 }

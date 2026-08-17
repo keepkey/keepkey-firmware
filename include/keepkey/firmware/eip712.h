@@ -108,5 +108,6 @@ typedef enum { DOMAIN = 1, MESSAGE } dm;
 
 int encode(const json_t* jsonTypes, const json_t* jsonVals, const char* typeS,
            uint8_t* hashRet);
+bool eip712_parse_canonical_u32(const char* text, uint32_t* value);
 
 #endif

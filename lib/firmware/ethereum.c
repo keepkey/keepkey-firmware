@@ -48,6 +48,16 @@
 
 #define _(X) (X)
 
+bool ethereum_typed_hash_policy_allows(bool advanced_mode) {
+  return advanced_mode;
+}
+
+/* The legacy JSON parser cannot guarantee that every displayed value is the
+ * canonical value hashed by EIP-712. Keep the protocol symbol for compatibility
+ * but fail closed in the FSM until the complete parser hardening is backported.
+ */
+bool ethereum_structured_eip712_enabled(void) { return false; }
+
 #define MAX_CHAIN_ID 2147483630
 
 #define ETHEREUM_TX_TYPE_LEGACY 0UL

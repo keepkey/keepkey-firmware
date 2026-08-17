@@ -37,7 +37,6 @@
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/firmware/eip712.h"
-#include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/tiny-json.h"
 #include "trezor/crypto/sha3.h"
 #include "trezor/crypto/memzero.h"
@@ -335,6 +334,30 @@ int confirmValue(const char* value) {
 
 static const char *dsname = NULL, *dsversion = NULL, *dschainId = NULL,
                   *dsverifyingContract = NULL;
+
+bool eip712_parse_canonical_u32(const char* text, uint32_t* value) {
+  if (!text || !value || text[0] == '\0') return false;
+  if (text[0] == '0' && text[1] != '\0') return false;
+
+  uint32_t parsed = 0;
+  for (const char* p = text; *p != '\0'; p++) {
+    if (*p < '0' || *p > '9') return false;
+    const uint32_t digit = (uint32_t)(*p - '0');
+    if (parsed > (UINT32_MAX - digit) / 10) return false;
+    parsed = parsed * 10 + digit;
+  }
+
+  *value = parsed;
+  return true;
+}
+
+static void clearDsVals(void) {
+  dsname = NULL;
+  dsversion = NULL;
+  dschainId = NULL;
+  dsverifyingContract = NULL;
+}
+
 void marshallDsVals(const char* value) {
   if (0 == strncmp(nameForValue, "name", sizeof("name"))) {
     dsname = value;
@@ -353,14 +376,8 @@ void marshallDsVals(const char* value) {
 }
 
 int dsConfirm(void) {
-  // First check if we recognize the contract
-  const TokenType* assetToken;
-  uint8_t addrHexStr[20] = {0};
   char name[41] = {0};
   char version[11] = {0};
-  uint32_t chainInt;
-  bool noChain = true;
-  int ctr;
   IconType iconNum = NO_ICON;
   char title[64] = {0};
   char* fillerStr = "";
@@ -375,34 +392,24 @@ int dsConfirm(void) {
   }
 
   if (dsverifyingContract != NULL) {
-    for (ctr = 2; ctr < 42; ctr += 2) {
-      sscanf((char*)&dsverifyingContract[ctr], "%2hhx",
-             &addrHexStr[(ctr - 2) / 2]);
-    }
     strcat(verifyingContract, "Verifying Contract: ");
     strncat(verifyingContract, dsverifyingContract,
             sizeof(verifyingContract) - sizeof("Verifying Contract: "));
   }
 
   if (NULL != dschainId) {
-    noChain = false;
-#ifdef EMULATOR
-    sscanf((char*)dschainId, "%u", &chainInt);
-#else
-    sscanf((char*)dschainId, "%ld", &chainInt);
-#endif
+    uint32_t chainInt = 0;
+    if (!eip712_parse_canonical_u32(dschainId, &chainInt)) {
+      clearDsVals();
+      return GENERAL_ERROR;
+    }
+    (void)chainInt;
     // As more chains are supported, add icon choice below
     // TBD: not implemented for first release
     // if (chainInt == 1) {
     //     iconNum = ETHEREUM_ICON;
     // }
   }
-  if (noChain == false && dsverifyingContract != NULL) {
-    assetToken = tokenByChainAddress(chainInt, (uint8_t*)addrHexStr);
-    (void)assetToken;
-    fillerStr = "";
-  }
-
   strncpy(title, name, 40);
   if (NULL != dsversion) {
     strncat(title, " Ver: ", 63 - strlen(title));
@@ -417,10 +424,7 @@ int dsConfirm(void) {
                         "%s %s%s", chainStr, verifyingContract, fillerStr);
   /* Clear the marshalled domain values on the refusal path too: they are file
      statics and a later attempt must not inherit them. */
-  dsname = NULL;
-  dsversion = NULL;
-  dschainId = NULL;
-  dsverifyingContract = NULL;
+  clearDsVals();
   return confirmed ? SUCCESS : USER_CANCELLED;
 }
 
