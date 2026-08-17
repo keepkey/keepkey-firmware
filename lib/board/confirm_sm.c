@@ -151,12 +151,14 @@ static void swap_layout(ActiveLayout active_layout, volatile StateInfo* si,
   };
 }
 
-/// Common confirmation function.
+/// Run one confirmation screen: draw it, then wait for either the user's hold
+/// or the host's Cancel. Callers go through confirm_helper() below, which is
+/// what the public confirm()/review() wrappers use.
 /// \param request_title  The confirmation's title.
 /// \param requesta_body  The body of the confirmation message.
 /// \param layout_notification_func  layout callback for displaying confirm
 /// message. \returns true iff the device confirmed.
-static bool confirm_helper(const char* request_title_param,
+static bool confirm_screen(const char* request_title_param,
                            const char* request_body,
                            layout_notification_t layout_notification_func,
                            bool constant_power, IconType iconNum,
@@ -236,7 +238,7 @@ static bool confirm_helper(const char* request_title_param,
           }
 
           ret_stat = false;
-          goto confirm_helper_exit;
+          goto confirm_screen_exit;
 #if DEBUG_LINK
 
         case MessageType_MessageType_DebugLinkDecision:
@@ -284,12 +286,72 @@ static bool confirm_helper(const char* request_title_param,
     animate();
   }
 
-confirm_helper_exit:
+confirm_screen_exit:
 
   keepkey_button_set_on_press_handler(NULL, NULL);
   keepkey_button_set_on_release_handler(NULL, NULL);
 
   return (ret_stat);
+}
+
+bool confirm_body_fits(const char* body, uint16_t body_width) {
+  /* calc_str_line() walks the same wrap rules draw_string() draws by, so its
+   * line count is the row count the body will occupy. A three-or-more row
+   * body starts at sp.y = TOP_MARGIN and layout_standard_notification then
+   * adds font_height(body_font) + BODY_TOP_MARGIN, so the rows land at 24, 38
+   * and 52, stepping by font_height + BODY_FONT_LINE_PADDING = 14. A fourth
+   * row at 66 plus the glyph's 10px height is past KEEPKEY_DISPLAY_HEIGHT, so
+   * draw_char_with_shift() refuses it and draw_string() stops. BODY_ROWS is
+   * exactly that budget. */
+  return calc_str_line(get_body_font(), body ? body : "", body_width) <=
+         BODY_ROWS;
+}
+
+/// Show a confirmation, warning first when its body will not fit the screen.
+///
+/// draw_string() draws until a glyph no longer fits the canvas and then simply
+/// stops: a body taller than BODY_ROWS is drawn in part, with no ellipsis and
+/// nothing to tell the user that the tail of an address, an amount or a
+/// warning was dropped. The vsnprintf() into strbuf[BODY_CHAR_MAX] below cuts
+/// long host strings a second time, just as quietly.
+///
+/// So when the body will not fit, put an explicit screen in front of it. That
+/// screen costs its own hold, and the hold is a real consent signal: a host
+/// Cancel breaks it and the caller reports ActionCancelled, exactly as it
+/// would for the body screen. A body that is only partly shown is now never
+/// shown without saying so.
+///
+/// Bodies that fit take exactly the path they took before: one screen, one
+/// ButtonRequest, one hold.
+static bool confirm_helper(const char* request_title, const char* request_body,
+                           layout_notification_t layout_notification_func,
+                           bool constant_power, IconType iconNum,
+                           bool immediate) {
+  const uint16_t body_width =
+      (uint16_t)((iconNum == NO_ICON) ? BODY_WIDTH : BODY_WIDTH_WITH_ICON);
+
+  /* Only layout_standard_notification is known to wrap the body at BODY_WIDTH
+   * over BODY_ROWS rows. Custom layouts place and size their own body, and
+   * layout_constant_power_notification draws from x = 128 + LEFT_MARGIN where
+   * the canvas edge, not BODY_WIDTH, is the limit. Measuring either of those
+   * against BODY_WIDTH would be wrong, so leave them exactly as they were. */
+  if (layout_notification_func == &layout_standard_notification &&
+      !confirm_body_fits(request_body, body_width)) {
+    /* No second ButtonRequest is written: the host already sent one and its
+     * ButtonAck armed button_request_acked, which stays armed for the body
+     * screen below. The wire dialogue is unchanged; only the number of holds
+     * is not. */
+    if (!confirm_screen("Cut Off",
+                        "This text is too long for the screen. Only part "
+                        "of it is shown. Hold to view it anyway.",
+                        &layout_standard_notification, constant_power, NO_ICON,
+                        immediate)) {
+      return false;
+    }
+  }
+
+  return confirm_screen(request_title, request_body, layout_notification_func,
+                        constant_power, iconNum, immediate);
 }
 
 bool confirm(ButtonRequestType type, const char* request_title,

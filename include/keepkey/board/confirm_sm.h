@@ -86,6 +86,17 @@ typedef struct {
 typedef void (*layout_notification_t)(const char* str1, const char* str2,
                                       NotificationType type);
 
+/// \brief Will a confirmation body fit on the screen it is drawn on?
+///
+/// draw_string() stops drawing once a glyph no longer fits the canvas and
+/// reports nothing, so a body taller than BODY_ROWS rows is shown in part with
+/// nothing on screen to say so. Callers that measure first can say so.
+///
+/// \param body        The body text as it will be drawn (NULL reads as "").
+/// \param body_width  Wrap width: BODY_WIDTH, or BODY_WIDTH_WITH_ICON.
+/// \returns true iff the whole body will be on screen.
+bool confirm_body_fits(const char* body, uint16_t body_width);
+
 /// User confirmation.
 /// \param type            The kind of button request to send to the host.
 /// \param request_title   Title of confirm message.
