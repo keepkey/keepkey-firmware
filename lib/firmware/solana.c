@@ -239,7 +239,7 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           copy_account(pi->to, tx, acct_indices, num_acct_indices, 1);
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
         } else if (token_instr == SOL_TOKEN_TRANSFER_CHECKED_IX &&
-                   data_len >= 9) {
+                   data_len >= 10) {
           pi->type = SOL_INSTR_TOKEN_TRANSFER_CHECKED;
           pi->amount = read_le64(instr_data + 1);
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
@@ -247,7 +247,12 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           pi->has_mint = (num_acct_indices >= 2);
           copy_account(pi->to, tx, acct_indices, num_acct_indices, 2);
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 3);
-          pi->extra_u8 = data_len >= 10 ? instr_data[9] : 0;
+          /* Decimals live in the signed instruction bytes and are the only
+           * authoritative scale for this transfer, so they must never be
+           * fabricated. A real TransferChecked data field is always 10 bytes
+           * (tag + u64 amount + decimals); a short one falls through to
+           * SOL_INSTR_UNKNOWN and the transaction is treated as opaque. */
+          pi->extra_u8 = instr_data[9];
         } else if (token_instr == SOL_TOKEN_APPROVE_IX && data_len >= 9) {
           pi->type = SOL_INSTR_TOKEN_APPROVE;
           pi->amount = read_le64(instr_data + 1);

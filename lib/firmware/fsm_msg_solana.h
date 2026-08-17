@@ -40,6 +40,18 @@ static void solana_pubkeyToStr(const uint8_t key[SOL_PUBKEY_SIZE], char* out,
            key[31]);
 }
 
+/* A host-supplied token symbol is untrusted and only length-capped by the
+ * proto (max_size:13). Its contents are unconstrained, and the text renderer
+ * treats '\n' as a hard line break, so a symbol of newlines could push the
+ * recipient address off the confirm screen. Accept printable ASCII only. */
+static bool solana_symbol_is_safe(const char* sym) {
+  if (!sym || sym[0] == '\0') return false;
+  for (const char* p = sym; *p; p++) {
+    if ((uint8_t)*p < 0x20 || (uint8_t)*p > 0x7e) return false;
+  }
+  return true;
+}
+
 /* Confirm a single parsed instruction */
 static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
                                       const SolanaSignTx* msg, uint8_t idx,
@@ -105,25 +117,45 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
       char to_str[45];
       solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
 
-      /* Try to find token info from host-provided metadata */
+      /* Host-provided metadata is only ever consulted for TransferChecked:
+       * that is the one instruction whose signed bytes carry both a mint and
+       * the decimals, so it is the only place the host's claim can be bound
+       * to what is actually being signed. Plain Transfer carries neither
+       * (has_mint stays false), so it is never labelled. */
       const SolanaTokenInfo* ti = NULL;
-      if (pi->has_mint) {
+      if (pi->type == SOL_INSTR_TOKEN_TRANSFER_CHECKED && pi->has_mint) {
         ti = solana_findTokenInfo(msg, pi->mint);
       }
 
-      if (ti && ti->has_symbol && ti->has_decimals) {
-        char amount_str[48];
-        solana_formatTokenAmount(amount_str, sizeof(amount_str), pi->amount,
-                                 ti->symbol, (uint8_t)ti->decimals);
-        return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                       "Send %s to %s?", amount_str, to_str);
-      } else {
-        char amount_str[32];
-        snprintf(amount_str, sizeof(amount_str), "%llu tokens",
-                 (unsigned long long)pi->amount);
-        return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                       "Send %s to %s?", amount_str, to_str);
+      /* The mint is the only authenticated token identity in the transaction.
+       * Show it on its own screen so a host-chosen symbol is never the user's
+       * sole basis for believing which token is moving, and cannot share a
+       * line with the identity it is claiming to name. */
+      if (pi->has_mint) {
+        char mint_str[45];
+        solana_pubkeyToStr(pi->mint, mint_str, sizeof(mint_str));
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                     "Token mint\n%s", mint_str)) {
+          return false;
+        }
       }
+
+      /* Scale by the signed instruction's decimals (pi->extra_u8), never by
+       * the host's. Use the host's symbol only when its claimed decimals
+       * agree with the signed ones and the text is safe to render: a
+       * disagreement means the record does not describe this transfer, so it
+       * forfeits the label and we show an honest plain token count. */
+      char amount_str[48];
+      if (ti && ti->has_symbol && ti->has_decimals &&
+          ti->decimals == pi->extra_u8 && solana_symbol_is_safe(ti->symbol)) {
+        solana_formatTokenAmount(amount_str, sizeof(amount_str), pi->amount,
+                                 ti->symbol, pi->extra_u8);
+      } else {
+        solana_formatTokenAmount(amount_str, sizeof(amount_str), pi->amount,
+                                 "tokens", pi->extra_u8);
+      }
+      return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                     "Send %s to %s?", amount_str, to_str);
     }
 
     case SOL_INSTR_TOKEN_APPROVE: {
