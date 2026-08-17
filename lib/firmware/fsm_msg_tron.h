@@ -102,20 +102,32 @@ void fsm_msgTronSignTx(TronSignTx* msg) {
     return;
   }
 
-  bool needs_confirm = true;
+  /* The signature covers raw_data and nothing else (tron.c: sha256_Raw over
+   * msg->raw_data, then ecdsa_sign_digest). The proto's to_address/amount
+   * fields are a host-supplied side channel that is never hashed, so the old
+   * "Send %s TRX to %s?" screen asserted a destination and an amount the
+   * device had no way to vouch for: a host could display one payee and get a
+   * signature over a transfer to another, and a host that simply omitted both
+   * optional fields suppressed the screen altogether. This firmware has no
+   * TRON protobuf parser, so every TronSignTx is a blind signature. Disclose
+   * that instead of displaying unbound data, behind the same AdvancedMode
+   * policy used for opaque Solana transactions and unknown-data ETH calls. */
+  if (!storage_isPolicyEnabled("AdvancedMode")) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Enable AdvancedMode to blind-sign"));
+    layoutHome();
+    return;
+  }
 
-  // Display transaction details if available
-  if (needs_confirm && msg->has_to_address && msg->has_amount) {
-    char amount_str[32];
-    tron_formatAmount(amount_str, sizeof(amount_str), msg->amount);
-
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Send",
-                 "Send %s TRX to %s?", amount_str, msg->to_address)) {
-      memzero(node, sizeof(*node));
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
-      layoutHome();
-      return;
-    }
+  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Blind Sign",
+               "Sign unverified %u-byte TRON transaction? Amount and "
+               "destination unknown.",
+               (unsigned)msg->raw_data.size)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
+    layoutHome();
+    return;
   }
 
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Transaction",
