@@ -375,12 +375,12 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     }
   } else if (msg->has_ibc_transfer) {
     /** Confirm required transaction parameters exist */
-    if (!msg->ibc_transfer.has_sender ||
+    if (!msg->ibc_transfer.has_sender || !msg->ibc_transfer.has_receiver ||
         !msg->ibc_transfer.has_source_channel ||
         !msg->ibc_transfer.has_source_port ||
         !msg->ibc_transfer.has_revision_height ||
         !msg->ibc_transfer.has_revision_number ||
-        !msg->ibc_transfer.has_denom) {
+        !msg->ibc_transfer.has_denom || !msg->ibc_transfer.has_amount) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));
@@ -393,7 +393,23 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
                      amount_str, sizeof(amount_str));
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "IBC Transfer",
-                 "Transfer %s to %s?", amount_str, msg->ibc_transfer.sender)) {
+                 "Transfer %s via IBC?", amount_str)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_cosmos_address("Confirm sender address",
+                                msg->ibc_transfer.sender)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_cosmos_address("Confirm dest. address",
+                                msg->ibc_transfer.receiver)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
