@@ -53,7 +53,13 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
    * memo_offset(32) + memo_length(32) = 164 bytes for deposit(),
    * + expiry(32) = 196 bytes for depositWithExpiry(). */
   const bool is_expiry = thor_is_expiry_variant(msg);
-  const size_t min_chunk = is_expiry ? 260 : 228;
+  /* Exactly the bound needed to read the memo's ABI length word below, which
+   * sits at 4 + 4*32 for deposit() and 4 + 5*32 for depositWithExpiry(). The
+   * previous 228/260 floor assumed a fixed 64-byte memo and rejected valid
+   * short ones: `+:BTC/BTC::t:10` pads to 32 bytes, giving 196 bytes of
+   * calldata for deposit(). The exact-length equality check further down is
+   * what actually bounds the memo. */
+  const size_t min_chunk = is_expiry ? 196 : 164;
   if (msg->data_initial_chunk.size < min_chunk) return false;
 
   /* The memo is a dynamic `string`. Its ABI head pointer (word 3) must be the
