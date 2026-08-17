@@ -8,7 +8,11 @@ FROM kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace0
 # compiles a C extension at install time and needs Python.h + a C toolchain
 # linked against musl. Verified locally against the pinned image.
 RUN apk add --no-cache python3-dev gcc musl-dev
-RUN python3 -m pip install --no-cache-dir rlp eth-keys eth-utils pycryptodome
+# pytest-timeout: a protocol/UI mismatch between firmware and the pinned tests
+# deadlocks -- firmware waits for a ButtonAck the test never sends, the test waits
+# for a response that never comes -- and without a per-test bound that consumes the
+# entire 30-minute job budget and takes Phase 2 with it. See #466.
+RUN python3 -m pip install --no-cache-dir rlp eth-keys eth-utils pycryptodome pytest-timeout
 
 WORKDIR /kkemu
 COPY ./ /kkemu
