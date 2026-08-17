@@ -186,8 +186,16 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
 
     if (msg->deposit.has_memo) {
       // See if we can parse the memo
-      if (!thorchain_parseConfirmMemo(msg->deposit.memo,
-                                      sizeof(msg->deposit.memo))) {
+      ThorchainMemoResult memo_result = thorchain_parseConfirmMemo(
+          msg->deposit.memo, sizeof(msg->deposit.memo));
+      if (memo_result == THORCHAIN_MEMO_CANCELLED) {
+        // A memo screen was refused: a refusal to sign, not a parse failure.
+        thorchain_signAbort();
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        layoutHome();
+        return;
+      }
+      if (memo_result == THORCHAIN_MEMO_UNPARSED) {
         // Memo not recognizable, ask to confirm it
         if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
                      "%s", msg->deposit.memo)) {
@@ -217,7 +225,16 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
   if (sign_tx->has_memo && !msg->deposit.has_memo) {
     // See if we can parse the tx memo. This memo ignored if deposit msg has
     // memo
-    if (!thorchain_parseConfirmMemo(sign_tx->memo, sizeof(sign_tx->memo))) {
+    ThorchainMemoResult memo_result =
+        thorchain_parseConfirmMemo(sign_tx->memo, sizeof(sign_tx->memo));
+    if (memo_result == THORCHAIN_MEMO_CANCELLED) {
+      // A memo screen was refused: a refusal to sign, not a parse failure.
+      thorchain_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+    if (memo_result == THORCHAIN_MEMO_UNPARSED) {
       // Memo not recognizable, ask to confirm it
       if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",
                    sign_tx->memo)) {

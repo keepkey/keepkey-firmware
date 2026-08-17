@@ -238,8 +238,15 @@ int compile_output(const CoinType* coin, const HDNode* root, TxOutputType* in,
         }
       } else {
         // is this thorchain data?
-        if (!thorchain_parseConfirmMemo((const char*)in->op_return_data.bytes,
-                                        (size_t)in->op_return_data.size)) {
+        ThorchainMemoResult memo_result =
+            thorchain_parseConfirmMemo((const char*)in->op_return_data.bytes,
+                                       (size_t)in->op_return_data.size);
+        if (memo_result == THORCHAIN_MEMO_CANCELLED) {
+          // A memo screen was refused. That is a refusal to sign, not a parse
+          // failure: never answer it by asking again on the raw-data screen.
+          return -1;  // user aborted
+        }
+        if (memo_result == THORCHAIN_MEMO_UNPARSED) {
           if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmOutput,
                             _("Confirm OP_RETURN"), in->op_return_data.bytes,
                             in->op_return_data.size)) {
