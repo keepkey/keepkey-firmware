@@ -647,18 +647,6 @@ void solana_formatTokenAmount(char* buf, size_t len, uint64_t amount,
   snprintf(buf, len, "%llu.%s %s", (unsigned long long)whole, frac_str, symbol);
 }
 
-const SolanaTokenInfo* solana_findTokenInfo(
-    const SolanaSignTx* msg, const uint8_t mint[SOL_PUBKEY_SIZE]) {
-  for (size_t i = 0; i < msg->token_info_count; i++) {
-    if (msg->token_info[i].has_mint &&
-        msg->token_info[i].mint.size == SOL_PUBKEY_SIZE &&
-        memcmp(msg->token_info[i].mint.bytes, mint, SOL_PUBKEY_SIZE) == 0) {
-      return &msg->token_info[i];
-    }
-  }
-  return NULL;
-}
-
 /* ------------------------------------------------------------------ */
 /*  Signing                                                            */
 /* ------------------------------------------------------------------ */

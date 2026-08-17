@@ -40,22 +40,13 @@ static void solana_pubkeyToStr(const uint8_t key[SOL_PUBKEY_SIZE], char* out,
            key[31]);
 }
 
-/* A host-supplied token symbol is untrusted and only length-capped by the
- * proto (max_size:13). Its contents are unconstrained, and the text renderer
- * treats '\n' as a hard line break, so a symbol of newlines could push the
- * recipient address off the confirm screen. Accept printable ASCII only. */
-static bool solana_symbol_is_safe(const char* sym) {
-  if (!sym || sym[0] == '\0') return false;
-  for (const char* p = sym; *p; p++) {
-    if ((uint8_t)*p < 0x20 || (uint8_t)*p > 0x7e) return false;
-  }
-  return true;
-}
-
-/* Confirm a single parsed instruction */
+/* Confirm a single parsed instruction.
+ *
+ * Takes no SolanaSignTx on purpose: every value on these screens is decoded
+ * from the bytes being signed. Nothing the host merely asserts is displayed,
+ * so there is no untrusted string left to sanitise. */
 static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
-                                      const SolanaSignTx* msg, uint8_t idx,
-                                      uint8_t total) {
+                                      uint8_t idx, uint8_t total) {
   char title[32];
   snprintf(title, sizeof(title), "Instr %d/%d", idx + 1, total);
 
@@ -117,20 +108,8 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
       char to_str[45];
       solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
 
-      /* Host-provided metadata is only ever consulted for TransferChecked:
-       * that is the one instruction whose signed bytes carry both a mint and
-       * the decimals, so it is the only place the host's claim can be bound
-       * to what is actually being signed. Plain Transfer carries neither
-       * (has_mint stays false), so it is never labelled. */
-      const SolanaTokenInfo* ti = NULL;
-      if (pi->type == SOL_INSTR_TOKEN_TRANSFER_CHECKED && pi->has_mint) {
-        ti = solana_findTokenInfo(msg, pi->mint);
-      }
-
-      /* The mint is the only authenticated token identity in the transaction.
-       * Show it on its own screen so a host-chosen symbol is never the user's
-       * sole basis for believing which token is moving, and cannot share a
-       * line with the identity it is claiming to name. */
+      /* The mint is the only token identity the signed bytes carry, so it is
+       * the only one shown. Its own screen, its own hold. */
       if (pi->has_mint) {
         char mint_str[45];
         solana_pubkeyToStr(pi->mint, mint_str, sizeof(mint_str));
@@ -140,20 +119,26 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
         }
       }
 
-      /* Scale by the signed instruction's decimals (pi->extra_u8), never by
-       * the host's. Use the host's symbol only when its claimed decimals
-       * agree with the signed ones and the text is safe to render: a
-       * disagreement means the record does not describe this transfer, so it
-       * forfeits the label and we show an honest plain token count. */
+      /* Scale by the signed instruction's decimals (pi->extra_u8), and label
+       * with the generic unit -- never with SolanaSignTx.token_info.symbol.
+       *
+       * This device has no on-device Solana mint table. The only token tables
+       * it carries are tokens.def, ethereum_tokens.def and uniswap_tokens.def,
+       * all ERC-20 and keyed by 20-byte Ethereum addresses, so there is
+       * nothing here to authenticate a label such as "USDC" against.
+       *
+       * Requiring the host's claimed decimals to equal the signed ones
+       * authenticates the exponent, not the identity: an attacker picks a mint
+       * whose decimals already match the ones they declare, and the label then
+       * rides through as device-verified fact. Nor can the label be shown with
+       * a caveat -- the host controls up to 12 printable-ASCII characters
+       * immediately beside it, enough to write its own parenthetical.
+       *
+       * The mint above plus a plain token count is everything the device can
+       * honestly assert. */
       char amount_str[48];
-      if (ti && ti->has_symbol && ti->has_decimals &&
-          ti->decimals == pi->extra_u8 && solana_symbol_is_safe(ti->symbol)) {
-        solana_formatTokenAmount(amount_str, sizeof(amount_str), pi->amount,
-                                 ti->symbol, pi->extra_u8);
-      } else {
-        solana_formatTokenAmount(amount_str, sizeof(amount_str), pi->amount,
-                                 "tokens", pi->extra_u8);
-      }
+      solana_formatTokenAmount(amount_str, sizeof(amount_str), pi->amount,
+                               "tokens", pi->extra_u8);
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
                      "Send %s to %s?", amount_str, to_str);
     }
@@ -420,7 +405,7 @@ void fsm_msgSolanaSignTx(const SolanaSignTx* msg) {
   if (tx_review == SOL_TX_REVIEW_VERIFIED) {
     /* Per-instruction confirmation for fully verified messages */
     for (uint8_t i = 0; i < parsed.num_instructions; i++) {
-      if (!solana_confirmInstruction(&parsed.instructions[i], msg, i,
+      if (!solana_confirmInstruction(&parsed.instructions[i], i,
                                      parsed.num_instructions)) {
         memzero(node, sizeof(*node));
         fsm_sendFailure(FailureType_Failure_ActionCancelled,
