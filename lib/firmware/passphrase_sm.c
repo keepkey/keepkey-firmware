@@ -144,11 +144,22 @@ static bool passphrase_request(PassphraseInfo* passphrase_info) {
 
   /* Check for passphrase cancel */
   if (passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_RECEIVED) {
-    review(ButtonRequestType_ButtonRequest_Other, "passphrase confirmation",
-           "If this is wrong, unplug/replug Keepkey:"
-           "%51s",
-           passphrase_info->passphrase);
-    ret = true;
+    /* This screen is the only place the user gets to see the passphrase their
+     * keys will be derived from. review() used to discard its result and this
+     * returned true regardless, so a host that answered the screen with a
+     * protocol Cancel suppressed the display and still got the passphrase
+     * cached -- the session then derived a different wallet than the user
+     * believed they were opening, with nothing shown on the OLED.
+     *
+     * There is no reject button on this device: confirm_helper() returns false
+     * only for a host-sent Cancel/Initialize. So a false here is precisely
+     * "the host took the screen away", and the passphrase must not be cached.
+     * Every caller of passphrase_protect() already tests its result. */
+    ret =
+        review(ButtonRequestType_ButtonRequest_Other, "passphrase confirmation",
+               "If this is wrong, unplug/replug Keepkey:"
+               "%51s",
+               passphrase_info->passphrase);
   } else {
     if (passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_CANCEL_BY_INIT) {
       reset_msg_stack = true;
