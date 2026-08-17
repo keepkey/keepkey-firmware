@@ -6,6 +6,7 @@ extern "C" {
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/font.h"
 #include "keepkey/board/keepkey_board.h"
+#include "keepkey/board/util.h"
 #include "keepkey/firmware/app_confirm.h"
 }
 
@@ -99,4 +100,51 @@ TEST(Board, ExactBytePagesNeverApproveOnlyAPrefix) {
   EXPECT_EQ(rendered.substr(0, 21), "Authorize\\x20transfer");
   EXPECT_EQ(rendered.substr(rendered.size() - 4), "DENY");
   EXPECT_EQ(rendered.size(), 21u + 900u * 4u + 4u);
+}
+
+// base_to_precision() previously used strlcpy(dst, src, n) to copy n DIGITS.
+// strlcpy's third argument is the total destination size including the NUL, so
+// it copied n-1 and dropped the last digit: a signed "1" rendered 0.00000 and
+// "1234567" rendered 1.23456. It also terminated at dest[dest_len], one byte
+// past a buffer whose supplied capacity is dest_len.
+TEST(Board, BaseToPrecisionKeepsEveryDigit) {
+  uint8_t out[64];
+
+  // Fewer digits than the precision: zero-padded fraction, no digit lost.
+  memset(out, 0xAA, sizeof(out));
+  ASSERT_EQ(0, base_to_precision(out, (const uint8_t *)"1", sizeof(out), 1, 6));
+  EXPECT_EQ(std::string((char *)out), "0.000001");
+
+  // Exactly at the boundary.
+  memset(out, 0xAA, sizeof(out));
+  ASSERT_EQ(0, base_to_precision(out, (const uint8_t *)"123456", sizeof(out), 6, 6));
+  EXPECT_EQ(std::string((char *)out), "0.123456");
+
+  // One past the boundary: the last digit must survive.
+  memset(out, 0xAA, sizeof(out));
+  ASSERT_EQ(0, base_to_precision(out, (const uint8_t *)"1234567", sizeof(out), 7, 6));
+  EXPECT_EQ(std::string((char *)out), "1.234567");
+
+  memset(out, 0xAA, sizeof(out));
+  ASSERT_EQ(0, base_to_precision(out, (const uint8_t *)"100000000", sizeof(out), 9, 6));
+  EXPECT_EQ(std::string((char *)out), "100.000000");
+}
+
+// The NUL must land inside the supplied capacity, never at dest[dest_len].
+TEST(Board, BaseToPrecisionRespectsCapacity) {
+  uint8_t buf[16];
+
+  // "1.234567" is 8 chars + NUL = 9; a capacity of 9 is exactly enough.
+  memset(buf, 0xAA, sizeof(buf));
+  ASSERT_EQ(0, base_to_precision(buf, (const uint8_t *)"1234567", 9, 7, 6));
+  EXPECT_EQ(std::string((char *)buf), "1.234567");
+  EXPECT_EQ(buf[9], 0xAA) << "wrote past the supplied capacity";
+
+  // One byte short must be refused, not truncated.
+  memset(buf, 0xAA, sizeof(buf));
+  EXPECT_EQ(-1, base_to_precision(buf, (const uint8_t *)"1234567", 8, 7, 6));
+  EXPECT_EQ(buf[0], 0xAA) << "buffer touched on the refusal path";
+
+  EXPECT_EQ(-1, base_to_precision(NULL, (const uint8_t *)"1", 16, 1, 6));
+  EXPECT_EQ(-1, base_to_precision(buf, NULL, 16, 1, 6));
 }

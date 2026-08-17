@@ -103,3 +103,30 @@ TEST(Ethereum, Eip712ChainIdRequiresCanonicalUint32) {
   EXPECT_FALSE(eip712_parse_canonical_u32(nullptr, &value));
   EXPECT_FALSE(eip712_parse_canonical_u32("1", nullptr));
 }
+
+extern "C" {
+#include "keepkey/firmware/ethereum_contracts.h"
+}
+
+// The 0x Exchange Proxy lives at the same address on many chains, so the two 0x
+// decoders cannot be pinned to mainnet the way the Uniswap and Sablier ones are.
+// Optimism is the trap: 0x deploys a DIFFERENT proxy there
+// (0xdef1abe32c034e558cdd535791643c58a13acc10), so allowing chain 10 for
+// ZXSWAP_ADDRESS would narrate an unrelated contract.
+TEST(Ethereum, ZxExchangeProxyChainAllowlist) {
+  EXPECT_TRUE(zx_isExchangeProxyChain(1));      // Ethereum
+  EXPECT_TRUE(zx_isExchangeProxyChain(56));     // BNB Chain
+  EXPECT_TRUE(zx_isExchangeProxyChain(137));    // Polygon
+  EXPECT_TRUE(zx_isExchangeProxyChain(8453));   // Base
+  EXPECT_TRUE(zx_isExchangeProxyChain(42161));  // Arbitrum
+  EXPECT_TRUE(zx_isExchangeProxyChain(43114));  // Avalanche
+
+  EXPECT_FALSE(zx_isExchangeProxyChain(10)) << "Optimism uses a different 0x proxy";
+
+  // Default-deny: anything unlisted falls through to generic disclosure.
+  EXPECT_FALSE(zx_isExchangeProxyChain(0));
+  EXPECT_FALSE(zx_isExchangeProxyChain(5));
+  EXPECT_FALSE(zx_isExchangeProxyChain(250));
+  EXPECT_FALSE(zx_isExchangeProxyChain(59144));
+  EXPECT_FALSE(zx_isExchangeProxyChain(0xFFFFFFFFu));
+}

@@ -11,36 +11,37 @@
  * GH #438). This helper uses base_to_precision (integer-string decimal
  * insertion) so the rendered value is always faithful to the signed string. */
 static void osmosis_format_amount(char* out, size_t out_len,
-                                  const char* amount_str, uint8_t precision,
-                                  const char* denom) {
+                                  const char* amount_str, const char* denom) {
   if (!out || out_len == 0) return;
   out[0] = '\0';
-  if (!amount_str) {
-    snprintf(out, out_len, "0 %s", denom ? denom : "");
+  const char* d = denom ? denom : "";
+
+  if (!amount_str || amount_str[0] == '\0') {
+    snprintf(out, out_len, "0 %s", d);
     return;
   }
-  size_t amt_len = strlen(amount_str);
-  if (amt_len == 0) {
-    snprintf(out, out_len, "0 %s", denom ? denom : "");
+
+  /* Only the native denom has an exponent this firmware knows. An IBC hash or
+     a factory denom carries an exponent we cannot determine, so scaling it by
+     10^6 would put a number on screen that is not the number being signed.
+     Those are shown as the exact integer with the exact denom. */
+  if (strcmp(d, "uosmo") != 0) {
+    snprintf(out, out_len, "%s %s", amount_str, d);
     return;
   }
-  /* base_to_precision writes up to amt_len+1 chars + NUL; ensure out_len is
-   * enough. Use a local buffer sized to the amount + a decimal point. */
-  char decimal_buf[64];
-  if (amt_len + 2 > sizeof(decimal_buf)) {
-    /* Amount too large for the helper; fall back to raw integer + denom so the
-     * user at least sees the exact signed value. */
-    snprintf(out, out_len, "%s %s", amount_str, denom ? denom : "");
+
+  const size_t amt_len = strlen(amount_str);
+  char decimal_buf[80];
+  if (amt_len > 64 ||
+      base_to_precision((uint8_t*)decimal_buf, (const uint8_t*)amount_str,
+                        (uint8_t)sizeof(decimal_buf), (uint8_t)amt_len,
+                        OSMOSIS_PRECISION) != 0) {
+    /* Cannot render faithfully: show the exact signed integer rather than a
+       rounded or truncated decimal. */
+    snprintf(out, out_len, "%s uosmo", amount_str);
     return;
   }
-  memset(decimal_buf, 0, sizeof(decimal_buf));
-  if (base_to_precision((uint8_t*)decimal_buf, (const uint8_t*)amount_str,
-                        sizeof(decimal_buf) - 1, (uint8_t)amt_len,
-                        precision) == 0) {
-    snprintf(out, out_len, "%s %s", decimal_buf, denom ? denom : "");
-  } else {
-    snprintf(out, out_len, "%s %s", amount_str, denom ? denom : "");
-  }
+  snprintf(out, out_len, "%s OSMO", decimal_buf);
 }
 
 void fsm_msgOsmosisGetAddress(const OsmosisGetAddress* msg) {
@@ -183,12 +184,9 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
 
     const char* denom = msg->send.denom;
-    if (!strcmp(msg->send.denom, "uosmo")) {
-      denom = "OSMO";
-    }
     char amount_str[128];
     osmosis_format_amount(amount_str, sizeof(amount_str), msg->send.amount,
-                          OSMOSIS_PRECISION, denom);
+                          denom);
 
     /** Confirm transaction parameters on screen */
     if (!confirm_transaction_output(
@@ -221,12 +219,9 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
 
     const char* denom = msg->delegate.denom;
-    if (!strcmp(msg->delegate.denom, "uosmo")) {
-      denom = "OSMO";
-    }
     char amount_str[128];
     osmosis_format_amount(amount_str, sizeof(amount_str), msg->delegate.amount,
-                          OSMOSIS_PRECISION, denom);
+                          denom);
 
     /** Confirm transaction parameters on-screen */
     if (!confirm_osmosis_address("Confirm Delegator Address",
@@ -274,12 +269,9 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
 
     const char* denom = msg->undelegate.denom;
-    if (!strcmp(msg->undelegate.denom, "uosmo")) {
-      denom = "OSMO";
-    }
     char amount_str[128];
     osmosis_format_amount(amount_str, sizeof(amount_str),
-                          msg->undelegate.amount, OSMOSIS_PRECISION, denom);
+                          msg->undelegate.amount, denom);
 
     /** Confirm transaction parameters on-screen */
     if (!confirm_osmosis_address("Confirm Delegator Address",
@@ -342,21 +334,13 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
 
     const char* denom_in_max_b = msg->lp_add.denom_in_max_b;
-    if (!strcmp(msg->lp_add.denom_in_max_b, "uosmo")) {
-      denom_in_max_b = "OSMO";
-    }
     const char* denom_in_max_a = msg->lp_add.denom_in_max_a;
-    if (!strcmp(msg->lp_add.denom_in_max_a, "uosmo")) {
-      denom_in_max_a = "OSMO";
-    }
     char amt_b_str[128];
     osmosis_format_amount(amt_b_str, sizeof(amt_b_str),
-                          msg->lp_add.amount_in_max_b, OSMOSIS_PRECISION,
-                          denom_in_max_b);
+                          msg->lp_add.amount_in_max_b, denom_in_max_b);
     char amt_a_str[128];
     osmosis_format_amount(amt_a_str, sizeof(amt_a_str),
-                          msg->lp_add.amount_in_max_a, OSMOSIS_PRECISION,
-                          denom_in_max_a);
+                          msg->lp_add.amount_in_max_a, denom_in_max_a);
 
     /** Confirm transaction parameters on-screen */
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Add Liquidity",
@@ -433,21 +417,13 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
 
     const char* denom_out_min_b = msg->lp_remove.denom_out_min_b;
-    if (!strcmp(msg->lp_remove.denom_out_min_b, "uosmo")) {
-      denom_out_min_b = "OSMO";
-    }
     const char* denom_out_min_a = msg->lp_remove.denom_out_min_a;
-    if (!strcmp(msg->lp_remove.denom_out_min_a, "uosmo")) {
-      denom_out_min_a = "OSMO";
-    }
     char out_b_str[128];
     osmosis_format_amount(out_b_str, sizeof(out_b_str),
-                          msg->lp_remove.amount_out_min_b, OSMOSIS_PRECISION,
-                          denom_out_min_b);
+                          msg->lp_remove.amount_out_min_b, denom_out_min_b);
     char out_a_str[128];
     osmosis_format_amount(out_a_str, sizeof(out_a_str),
-                          msg->lp_remove.amount_out_min_a, OSMOSIS_PRECISION,
-                          denom_out_min_a);
+                          msg->lp_remove.amount_out_min_a, denom_out_min_a);
 
     /** Confirm transaction parameters on-screen */
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Remove Liquidity",
@@ -499,7 +475,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     if (!msg->redelegate.has_delegator_address ||
         !msg->redelegate.has_validator_src_address ||
         !msg->redelegate.has_validator_dst_address ||
-        !msg->redelegate.has_amount) {
+        !msg->redelegate.has_amount || !msg->redelegate.has_denom) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));
@@ -509,7 +485,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
 
     char redelegate_str[128];
     osmosis_format_amount(redelegate_str, sizeof(redelegate_str),
-                          msg->redelegate.amount, OSMOSIS_PRECISION, "OSMO");
+                          msg->redelegate.amount, msg->redelegate.denom);
 
     /** Confirm transaction parameters on-screen */
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Redelegate",
@@ -611,21 +587,13 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
 
     const char* token_in_denom = msg->swap.token_in_denom;
-    if (!strcmp(msg->swap.token_in_denom, "uosmo")) {
-      token_in_denom = "OSMO";
-    }
     const char* token_out_denom = msg->swap.token_out_denom;
-    if (!strcmp(msg->swap.token_out_denom, "uosmo")) {
-      token_out_denom = "OSMO";
-    }
     char swap_in_str[128];
     osmosis_format_amount(swap_in_str, sizeof(swap_in_str),
-                          msg->swap.token_in_amount, OSMOSIS_PRECISION,
-                          token_in_denom);
+                          msg->swap.token_in_amount, token_in_denom);
     char swap_out_str[128];
     osmosis_format_amount(swap_out_str, sizeof(swap_out_str),
-                          msg->swap.token_out_min_amount, OSMOSIS_PRECISION,
-                          token_out_denom);
+                          msg->swap.token_out_min_amount, token_out_denom);
 
     /** Confirm transaction parameters on-screen */
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Swap",
@@ -671,12 +639,9 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
 
     const char* denom = msg->ibc_transfer.denom;
-    if (!strcmp(msg->ibc_transfer.denom, "uosmo")) {
-      denom = "OSMO";
-    }
     char ibc_amount_str[128];
     osmosis_format_amount(ibc_amount_str, sizeof(ibc_amount_str),
-                          msg->ibc_transfer.amount, OSMOSIS_PRECISION, denom);
+                          msg->ibc_transfer.amount, denom);
 
     /** Confirm transaction parameters on-screen */
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "IBC Transfer",

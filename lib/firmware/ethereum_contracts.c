@@ -30,9 +30,13 @@
 #include "keepkey/firmware/ethereum_contracts/makerdao.h"
 
 bool zx_isExchangeProxyChain(uint32_t chain_id) {
+  /* Optimism is deliberately absent: 0x deploys a DIFFERENT Exchange Proxy
+     there (0xdef1abe32c034e558cdd535791643c58a13acc10), so allowing chain 10
+     for ZXSWAP_ADDRESS would let the 0x decoder narrate an unrelated contract —
+     exactly the confusion the chain scoping exists to prevent. Verified against
+     0xProject/protocol packages/contract-addresses/addresses.json. */
   switch (chain_id) {
     case 1:     /* Ethereum   */
-    case 10:    /* Optimism   */
     case 56:    /* BNB Chain  */
     case 137:   /* Polygon    */
     case 8453:  /* Base       */

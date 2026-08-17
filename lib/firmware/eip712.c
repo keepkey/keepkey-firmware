@@ -392,9 +392,6 @@ void marshallDsVals(const char* value) {
 }
 
 int dsConfirm(void) {
-  /* Destination for decode_address() below, which validates the host-supplied
-     verifyingContract before it is displayed. Twenty bytes exactly. */
-  uint8_t addrHexStr[20] = {0};
   char name[41] = {0};
   char version[11] = {0};
   IconType iconNum = NO_ICON;
@@ -421,10 +418,15 @@ int dsConfirm(void) {
      * checked only length and "0x", then set dsverifyingContract = NULL and
      * fell through to a raw display, so a value like "0xZZZZ..." still reached
      * sscanf and a malformed contract was shown rather than refused. */
+    /* Scoped to this block: cppcheck's variableScope rightly flagged it at
+       function scope, and CI treats that as fatal. Twenty bytes exactly, the
+       destination decode_address() validates into. */
+    uint8_t addrHexStr[20] = {0};
     if (!decode_address(dsverifyingContract, addrHexStr)) {
       clearDsVals();
       return ADDR_STRING_VFLOW;
     }
+    (void)addrHexStr;
     snprintf(verifyingContract, sizeof(verifyingContract),
              "Verifying Contract: %s", dsverifyingContract);
   }
