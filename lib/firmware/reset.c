@@ -47,6 +47,11 @@ void reset_init(bool display_random, uint32_t _strength,
                 bool passphrase_protection, bool pin_protection,
                 const char* language, const char* label, bool _no_backup,
                 uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter) {
+  /* Disarm any previously armed ceremony before this one can abort. A stale
+   * awaiting_entropy would let a host-sent EntropyAck be accepted against
+   * entropy and settings left over from an earlier, abandoned ResetDevice. */
+  awaiting_entropy = false;
+
   if (_strength != 128 && _strength != 192 && _strength != 256) {
     fsm_sendFailure(
         FailureType_Failure_SyntaxError,
