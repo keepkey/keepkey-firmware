@@ -22,6 +22,7 @@
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/util.h"
 #include "keepkey/firmware/ethereum.h"
+#include "keepkey/firmware/ethereum_contracts.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/fsm.h"
 #include "trezor/crypto/address.h"
@@ -35,7 +36,15 @@ static bool isSellToUniswapCall(const EthereumSignTx* msg) {
 
 bool zx_isZxSwap(const EthereumSignTx* msg) {
   /* ZXSWAP_ADDRESS is an Ethereum-mainnet identity. See GH #431. */
-  if (!msg->has_chain_id || msg->chain_id != 1) return false;
+  /* ZXSWAP_ADDRESS is the 0x Exchange Proxy, which is deployed at the same
+     address on many chains, unlike the mainnet-only Uniswap router and
+     Sablier proxy that the sibling decoders match. Pinning this one to
+     chain_id == 1 (as GH #431 originally did) stopped legitimate 0x swaps
+     on BSC, Polygon and the rest from being clear-signed and dropped them
+     to the raw-calldata path. Use the per-chain allowlist instead; unknown
+     chains still fall through, which is the safe direction. */
+  if (!msg->has_chain_id || !zx_isExchangeProxyChain(msg->chain_id))
+    return false;
   if (memcmp(msg->to.bytes, ZXSWAP_ADDRESS, 20) ==
       0) {                           // correct proxy address?
     if (isSellToUniswapCall(msg)) {  // does kk handle call?

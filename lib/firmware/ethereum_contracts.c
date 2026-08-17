@@ -29,6 +29,22 @@
 #include "keepkey/firmware/ethereum_contracts/zxswap.h"
 #include "keepkey/firmware/ethereum_contracts/makerdao.h"
 
+bool zx_isExchangeProxyChain(uint32_t chain_id) {
+  switch (chain_id) {
+    case 1:     /* Ethereum   */
+    case 10:    /* Optimism   */
+    case 56:    /* BNB Chain  */
+    case 137:   /* Polygon    */
+    case 8453:  /* Base       */
+    case 42161: /* Arbitrum   */
+    case 43114: /* Avalanche  */
+      return true;
+    default:
+      /* Including chain_id 0 / absent, which callers treat as unknown. */
+      return false;
+  }
+}
+
 bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx* msg,
                               const HDNode* node) {
   (void)node;
