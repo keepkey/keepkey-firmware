@@ -96,7 +96,8 @@ bool osmosis_signTxInit(const HDNode* _node, const OsmosisSignTx* _msg) {
   return success;
 }
 
-bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address) {
+bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address,
+                                 const char* denom) {
   const char mainnetp[] = "osmo";
   const char testnetp[] = "tosmo";
   const char* pfix;
@@ -125,10 +126,20 @@ bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address) {
   const char* const prelude = "{\"type\":\"cosmos-sdk/MsgSend\",\"value\":{";
   sha256_Update(&ctx, (uint8_t*)prelude, strlen(prelude));
 
-  // 21 + ^20 + 19 = ^60
-  success &= tendermint_snprintf(
-      &ctx, buffer, sizeof(buffer),
-      "\"amount\":[{\"amount\":\"%s\",\"denom\":\"uosmo\"}]", amount);
+  // The amount and denom are host-supplied and land in the signed document
+  // verbatim, so escape them the way chain_id and memo are escaped in
+  // osmosis_signTxInit. Hashing in segments also lifts the 64-byte scratch
+  // buffer limit, which IBC and factory denom paths exceed.
+  const char* const amount_prefix = "\"amount\":[{\"amount\":\"";
+  sha256_Update(&ctx, (uint8_t*)amount_prefix, strlen(amount_prefix));
+  tendermint_sha256UpdateEscaped(&ctx, amount, strlen(amount));
+
+  const char* const denom_prefix = "\",\"denom\":\"";
+  sha256_Update(&ctx, (uint8_t*)denom_prefix, strlen(denom_prefix));
+  tendermint_sha256UpdateEscaped(&ctx, denom, strlen(denom));
+
+  const char* const coin_suffix = "\"}]";
+  sha256_Update(&ctx, (uint8_t*)coin_suffix, strlen(coin_suffix));
 
   // 17 + 45 + 1 = 63
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),

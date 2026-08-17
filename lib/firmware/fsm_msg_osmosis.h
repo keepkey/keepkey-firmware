@@ -132,7 +132,8 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
 
   /** Confirm required transaction parameters exist */
   if (msg->has_send) {
-    if (!msg->send.has_to_address || !msg->send.has_amount) {
+    if (!msg->send.has_to_address || !msg->send.has_amount ||
+        !msg->send.has_denom) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));
@@ -147,7 +148,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       denom = "OSMO";
     }
 
-    char amount_str[103];
+    char amount_str[128];
     snprintf(amount_str, sizeof(amount_str) - 1, "%.6f %s", amount, denom);
 
     /** Confirm transaction parameters on screen */
@@ -160,7 +161,8 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       return;
     }
 
-    if (!osmosis_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address)) {
+    if (!osmosis_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address,
+                                     msg->send.denom)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include send message in transaction");
