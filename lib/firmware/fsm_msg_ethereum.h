@@ -192,11 +192,18 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress* msg) {
 }
 
 #define MSG_MAX (38 * 3)  // 38 chars per line, three lines max
+/* The display renders BODY_ROWS (3) lines and silently clips whatever falls
+ * past them, so a truncation notice appended AFTER the preview could itself be
+ * pushed off-screen by wide glyphs. The notice therefore goes at the front of
+ * the body and the preview is shortened to pay for it. Worst case notice is
+ * "TRUNCATED 84/1024 bytes: " (25 chars), bounded by the max_size:1024 limit
+ * on message.size in messages-ethereum.options; 30 chars are reserved. */
+#define MSG_PREVIEW_MAX (MSG_MAX - 30)
 void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
   char msgBuf[MSG_MAX + 1] = {0};
+  char truncBuf[32] = {0};
   const char* typeIndicator;
   unsigned ctr;
-  unsigned msgLen = 0;
   bool canPrint = true;
 
   RESP_INIT(EthereumMessageSignature);
@@ -205,11 +212,6 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
 
   CHECK_PIN
 
-  // truncate to display size if too long
-  msgLen = msg->message.size * 2;
-  if (msgLen > MSG_MAX) {
-    msgLen = MSG_MAX;
-  }
   for (ctr = 0; ctr < msg->message.size; ctr++) {
     if (isprint(msg->message.bytes[ctr]) == false) {
       canPrint = false;
@@ -218,17 +220,30 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
   }
   if (canPrint) {
     typeIndicator = "Sign Message";
-    strncpy(msgBuf, (char*)msg->message.bytes, MSG_MAX + 1);
-    msgBuf[MSG_MAX] = '\0';
+    unsigned show = msg->message.size;
+    if (show > MSG_MAX) {
+      show = MSG_PREVIEW_MAX;
+      snprintf(truncBuf, sizeof(truncBuf), "TRUNCATED %u/%u bytes: ", show,
+               (unsigned)msg->message.size);
+    }
+    memcpy(msgBuf, msg->message.bytes, show);
+    msgBuf[show] = '\0';
   } else {
     typeIndicator = "Sign Bytes";
-    for (ctr = 0; ctr < msgLen / 2; ctr++) {
+    unsigned show = msg->message.size;
+    if (show * 2 > MSG_MAX) {
+      show = MSG_PREVIEW_MAX / 2;
+      snprintf(truncBuf, sizeof(truncBuf), "TRUNCATED %u/%u bytes: ", show,
+               (unsigned)msg->message.size);
+    }
+    for (ctr = 0; ctr < show; ctr++) {
       snprintf(&msgBuf[2 * ctr], 3, "%02x", msg->message.bytes[ctr]);
     }
+    msgBuf[2 * show] = '\0';
   }
 
   if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _(typeIndicator),
-               "%s", msgBuf)) {
+               "%s%s", truncBuf, msgBuf)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
     return;
@@ -245,9 +260,9 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
 
 void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage* msg) {
   char msgBuf[MSG_MAX + 1] = {0};
+  char truncBuf[32] = {0};
   const char* typeIndicator;
   unsigned ctr;
-  unsigned msgLen = 0;
   bool canPrint = true;
 
   CHECK_PARAM(msg->has_address, _("No address provided"));
@@ -266,12 +281,7 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage* msg) {
     return;
   }
 
-  // truncate to display size if too long
-  msgLen = msg->message.size;
-  if (msgLen > MSG_MAX) {
-    msgLen = MSG_MAX;
-  }
-  for (ctr = 0; ctr < msgLen; ctr++) {
+  for (ctr = 0; ctr < msg->message.size; ctr++) {
     if (isprint(msg->message.bytes[ctr]) == false) {
       canPrint = false;
       break;
@@ -279,16 +289,29 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage* msg) {
   }
   if (canPrint) {
     typeIndicator = "Message Verified";
-    strncpy(msgBuf, (char*)msg->message.bytes, MSG_MAX + 1);
-    msgBuf[MSG_MAX] = '\0';
+    unsigned show = msg->message.size;
+    if (show > MSG_MAX) {
+      show = MSG_PREVIEW_MAX;
+      snprintf(truncBuf, sizeof(truncBuf), "TRUNCATED %u/%u bytes: ", show,
+               (unsigned)msg->message.size);
+    }
+    memcpy(msgBuf, msg->message.bytes, show);
+    msgBuf[show] = '\0';
   } else {
     typeIndicator = "Bytes Verified";
-    for (ctr = 0; ctr < msgLen / 2; ctr++) {
+    unsigned show = msg->message.size;
+    if (show * 2 > MSG_MAX) {
+      show = MSG_PREVIEW_MAX / 2;
+      snprintf(truncBuf, sizeof(truncBuf), "TRUNCATED %u/%u bytes: ", show,
+               (unsigned)msg->message.size);
+    }
+    for (ctr = 0; ctr < show; ctr++) {
       snprintf(&msgBuf[2 * ctr], 3, "%02x", msg->message.bytes[ctr]);
     }
+    msgBuf[2 * show] = '\0';
   }
-  if (!confirm(ButtonRequestType_ButtonRequest_Other, _(typeIndicator), "%s",
-               msgBuf)) {
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, _(typeIndicator), "%s%s",
+               truncBuf, msgBuf)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
     return;
