@@ -98,10 +98,14 @@ bool zx_confirmApproveLiquidity(uint32_t data_total,
   }
 
   const char *appStr = "uniswap approve liquidity";
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr, "Amount: %s",
-          amt);
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr,
-          "approve for pool %s %s", tikstr, poolstr);
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr,
+               "Amount: %s", amt)) {
+    return false;
+  }
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr,
+               "approve for pool %s %s", tikstr, poolstr)) {
+    return false;
+  }
   return true;
 }
 

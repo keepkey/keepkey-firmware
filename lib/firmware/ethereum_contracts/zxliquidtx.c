@@ -162,8 +162,10 @@ bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg) {
                 &Amount);  // token min amount
   ethereumFormatAmount(&Amount, token, msg->chain_id, tokbuf, sizeof(tokbuf));
   snprintf(constr2, 32, "%s", tokbuf);
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
-          "%s\nMinimum %s", constr1, constr2);
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
+               "%s\nMinimum %s", constr1, constr2)) {
+    return false;
+  }
   if (!confirmFromAccountMatch(msg, arStr)) {
     return false;
   }
@@ -173,11 +175,15 @@ bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg) {
   ethereumFormatAmount(&Amount, NULL, msg->chain_id, tokbuf, sizeof(tokbuf));
 
   snprintf(constr1, 32, "%s", tokbuf);
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr, "Minimum %s",
-          constr1);
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
+               "Minimum %s", constr1)) {
+    return false;
+  }
 
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr, "Deadline %s",
-          ctime((const time_t*)&deadline));
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
+               "Deadline %s", ctime((const time_t*)&deadline))) {
+    return false;
+  }
 
   return true;
 }
