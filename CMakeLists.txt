@@ -105,7 +105,11 @@ add_definitions(-DUSE_MONERO=0)
 add_definitions(-DUSE_NEM=0)
 add_definitions(-DUSE_NANO=1)
 
-add_definitions(-DRAND_PLATFORM_INDEPENDENT=0)
+# trezor-crypto's rand.c tests only whether this macro is defined.  A value of
+# zero therefore did not disable anything; it excluded the library's insecure
+# test LCG by definedness.  Use the upstream spelling so that intent is clear,
+# and let lib/rand/rng.c fail the build if this provider contract is removed.
+add_definitions(-DRAND_PLATFORM_INDEPENDENT)
 
 add_definitions(-DPB_FIELD_16BIT=1)
 add_definitions(-DPB_NO_ERRMSG=1)

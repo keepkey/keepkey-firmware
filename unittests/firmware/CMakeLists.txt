@@ -29,9 +29,9 @@ target_link_libraries(firmware-unit
     kkvariant.keepkey
     kkvariant.salt
     kkboard
-    kkemulator
     trezorcrypto
     qrcodegenerator
     SecAESSTM32
     kkrand
+    kkemulator
     kktransport)
