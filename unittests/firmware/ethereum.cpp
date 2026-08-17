@@ -92,21 +92,88 @@ TEST(Ethereum, StructuredEip712IsDisabledForPointRelease) {
   EXPECT_FALSE(ethereum_structured_eip712_enabled());
 }
 
+// Two real chain-1 table entries, so the decoder's token lookups resolve.
+// The table has no chain-1 zero-address entry, so an all-zero word is a
+// reliable "unknown token".
+static const char kTUSD[] =
+    "\x00\x00\x00\x00\x00\x08\x5d\x47\x80\xB7\x31\x19\xb6\x44\xAE\x5e\xcd\x22"
+    "\xb3\x76";
+static const char kTGBP[] =
+    "\x00\x00\x00\x00\x44\x13\x78\x00\x8E\xA6\x7F\x42\x84\xA5\x79\x32\xB1\xc0"
+    "\x00\xa5";
+
+// transformERC20(address,address,uint256,uint256,(uint32,bytes)[]) — the two
+// address words carry the token in their low 20 bytes.
+static void MakeTransformErc20(EthereumSignTx* msg, const char* in_token,
+                               const char* out_token) {
+  *msg = EthereumSignTx{};
+  msg->has_to = true;
+  msg->to.size = 20;
+  std::memcpy(msg->to.bytes, ZXSWAP_ADDRESS, msg->to.size);
+  msg->has_chain_id = true;
+  msg->chain_id = 1;
+  msg->has_data_initial_chunk = true;
+  msg->data_initial_chunk.size = 4 + 4 * 32;
+  std::memcpy(msg->data_initial_chunk.bytes, "\x41\x55\x65\xb0", 4);
+  if (in_token) std::memcpy(msg->data_initial_chunk.bytes + 4 + 12, in_token, 20);
+  if (out_token)
+    std::memcpy(msg->data_initial_chunk.bytes + 4 + 32 + 12, out_token, 20);
+}
+
 TEST(Ethereum, TransformErc20RequiresCompleteCalldataForClearSigning) {
-  EthereumSignTx msg{};
-  msg.has_to = true;
-  msg.to.size = 20;
-  std::memcpy(msg.to.bytes, ZXSWAP_ADDRESS, msg.to.size);
-  msg.has_chain_id = true;
-  msg.chain_id = 1;
-  msg.has_data_initial_chunk = true;
-  msg.data_initial_chunk.size = 4 + 4 * 32;
-  std::memcpy(msg.data_initial_chunk.bytes, "\x41\x55\x65\xb0", 4);
+  EthereumSignTx msg;
+  MakeTransformErc20(&msg, kTUSD, kTGBP);
 
   EXPECT_TRUE(
       ethereum_contractHandled(msg.data_initial_chunk.size, &msg, nullptr));
   EXPECT_FALSE(
       ethereum_contractHandled(msg.data_initial_chunk.size + 1, &msg, nullptr));
+}
+
+// The decoder shows four values and hides the transformations[] body. That is
+// only defensible because the input amount and minimum output amount bound the
+// outcome — and ethereumFormatAmount() renders the literal "Unknown token
+// value" whenever tokenByChainAddress() misses, so an unresolved token turns
+// the bound into nothing while the calldata still executes.
+//
+// Gating on the lookup rather than on a chain allowlist keeps this correct
+// however the tables change. It matters in practice: the generated table
+// carries ~1924 entries for chain 1, three each for BSC and Polygon, and NONE
+// for Base, Arbitrum or Avalanche, so on those chains every pair fails here.
+TEST(Ethereum, TransformErc20RequiresBothTokensResolvable) {
+  EthereumSignTx msg;
+
+  // Both known -> the device can name what it is showing.
+  MakeTransformErc20(&msg, kTUSD, kTGBP);
+  EXPECT_TRUE(ethereum_contractHandled(msg.data_initial_chunk.size, &msg,
+                                       nullptr));
+
+  // Either side unknown -> refuse to claim it, so ethereum.c falls through to
+  // the raw-calldata path (AdvancedMode-gated, bytes shown).
+  MakeTransformErc20(&msg, nullptr, kTGBP);
+  EXPECT_FALSE(ethereum_contractHandled(msg.data_initial_chunk.size, &msg,
+                                        nullptr))
+      << "unknown INPUT token must not clear-sign";
+
+  MakeTransformErc20(&msg, kTUSD, nullptr);
+  EXPECT_FALSE(ethereum_contractHandled(msg.data_initial_chunk.size, &msg,
+                                        nullptr))
+      << "unknown OUTPUT token must not clear-sign";
+
+  MakeTransformErc20(&msg, nullptr, nullptr);
+  EXPECT_FALSE(ethereum_contractHandled(msg.data_initial_chunk.size, &msg,
+                                        nullptr));
+
+  // A chain with no token table entries at all cannot name either asset, so it
+  // must refuse even though 0x deploys the same proxy there. This is what the
+  // chain allowlist was previously being asked to approximate.
+  for (uint32_t cid : {8453u, 42161u, 43114u}) {
+    MakeTransformErc20(&msg, kTUSD, kTGBP);
+    msg.chain_id = cid;
+    EXPECT_FALSE(ethereum_contractHandled(msg.data_initial_chunk.size, &msg,
+                                          nullptr))
+        << "chain " << cid << " has no token entries; nothing is nameable";
+  }
 }
 
 TEST(Ethereum, Eip712ChainIdRequiresCanonicalUint32) {
