@@ -617,17 +617,36 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   if (!msg->has_to) msg->to.size = 0;
   if (!msg->has_nonce) msg->nonce.size = 0;
 
-  /* eip-155 chain id */
-  if (msg->has_chain_id) {
-    if (msg->chain_id < 1) {
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      _("Chain Id out of bounds"));
-      ethereum_signing_abort();
-      return;
-    }
-    chain_id = msg->chain_id;
-  } else {
-    chain_id = 0;
+  /* eip-155 chain id
+   *
+   * An absent chain_id is not "some other chain", it is no chain. The bounds
+   * check below used to live inside `if (msg->has_chain_id)`, so a host that
+   * simply omitted the field landed on chain_id == 0 — the exact value the
+   * `< 1` reject exists to forbid — and got there without tripping it.
+   *
+   * Two things then go wrong at once, and the second is what makes it a
+   * signing bug rather than a compatibility wart:
+   *
+   *   - send_signature() appends the EIP-155 fields to the keccak preimage
+   *     only `if (chain_id)`, and falls back to signature_v = v + 27. The
+   *     device emits a pre-EIP-155 signature: not a payment on one chain, but
+   *     a bearer authorization valid on every EVM chain where this address is
+   *     funded at this nonce.
+   *   - ethereumFormatAmount() switches on the chain id to pick a ticker.
+   *     cid 0 matches no case, so suffix stays NULL and bn_format() renders a
+   *     bare number. No screen in the flow names a network, so the user
+   *     approves "Send 0.05 to 0xABC" and cannot see either omission.
+   *
+   * So reject it for every transaction type, the way the EIP-1559 path below
+   * already does for itself. Every chain this firmware supports has a chain
+   * id >= 1; a host omitting the field is malformed, not legacy.
+   */
+  chain_id = msg->has_chain_id ? msg->chain_id : 0;
+  if (chain_id < 1) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Chain Id out of bounds"));
+    ethereum_signing_abort();
+    return;
   }
 
   /* Wanchain txtype */
