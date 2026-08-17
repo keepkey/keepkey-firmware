@@ -34,3 +34,26 @@ TEST(Board, ConfirmBodyFits) {
   EXPECT_TRUE(confirm_body_fits(eighty_w.c_str(), BODY_WIDTH));
   EXPECT_FALSE(confirm_body_fits(eighty_w.c_str(), BODY_WIDTH_WITH_ICON));
 }
+
+// Regression: calc_str_line() accumulated into a uint8_t while returning
+// uint32_t, so a body carrying 255 newlines wrapped the count back to 0 and
+// confirm_body_fits() reported that it fitted. The 352-byte confirm buffer has
+// room for a benign prefix, 255 newlines and a hidden suffix, so the "Cut Off"
+// warning was skippable by a host that chose its whitespace.
+//
+// Every count here must exceed BODY_ROWS, including the ones that land on and
+// around an 8-bit boundary.
+TEST(Board, ConfirmBodyFitsLineCountDoesNotWrap) {
+  for (size_t newlines : {(size_t)4, (size_t)254, (size_t)255, (size_t)256,
+                          (size_t)257, (size_t)340}) {
+    const std::string body(newlines, '\n');
+    EXPECT_FALSE(confirm_body_fits(body.c_str(), BODY_WIDTH))
+        << "a body of " << newlines << " newlines must not report as fitting";
+  }
+
+  // The shape an attacker would actually send: readable prefix, a wall of
+  // newlines to wrap the counter, then the text that stays off screen.
+  const std::string hidden =
+      "Sign in to example.com" + std::string(255, '\n') + "APPROVE TRANSFER";
+  EXPECT_FALSE(confirm_body_fits(hidden.c_str(), BODY_WIDTH));
+}
