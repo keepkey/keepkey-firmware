@@ -46,22 +46,30 @@ Two U2F attestation artifacts are public by design and must not fail the scan.
    the ed25519-donna headers and the AES self-test tables. None is a credential,
    and none of it is KeepKey-authored code.
 
-4. Bare 40-character lowercase hex strings
+4. docs/ — prose and recorded submodule pins
 
-   These are git object IDs. The security documentation records exact submodule
-   pins, and gitleaks scores a commit SHA at entropy ~3.8 and reports it as a
-   generic API key. Restricted deliberately to exactly 40 lowercase hex characters,
-   which is the git SHA-1 shape; real key material in this project is 32 or 64
-   bytes and does not match. Verified against every current finding before adding.
+   The security documentation records exact submodule pins, and gitleaks scores a
+   40-character git commit SHA at entropy ~3.8 and reports it as a generic API key
+   (for example the python-keepkey pin in
+   docs/security/7.15.0-rc21-clearsign-release-control.md).
 
-Scope note: paths are allowlisted individually and the default ruleset is otherwise
-intact, so a genuine secret committed outside these paths still fails the scan.
+   This is scoped by PATH rather than by a regex on the secret. An earlier version
+   of this file allowlisted the pattern \\b[0-9a-f]{40}\\b globally, which was
+   rightly flagged in review: that suppressed every 40-character lowercase hex
+   finding anywhere in the tree, including in source, not merely documented commit
+   hashes. Path scoping keeps the exemption where the false positives actually are.
+
+   Anything under docs/ is prose intended for publication. A credential must never
+   be committed there in the first place, and this exemption is not a licence to do
+   so — it is an acknowledgement that git SHAs in prose are not secrets.
+
+Scope note: every exemption is scoped by path and the default ruleset is otherwise
+intact, so a genuine secret committed in source still fails the scan. Verified by
+negative control: a planted EC private key under lib/firmware/ is still detected.
 """
 paths = [
   '''include/keepkey/firmware/u2f/trezordevkey\.pem''',
   '''include/keepkey/firmware/u2f/u2f_keys\.h''',
   '''^deps/''',
-]
-regexes = [
-  '''\b[0-9a-f]{40}\b''',
+  '''^docs/''',
 ]
