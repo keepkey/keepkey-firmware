@@ -32,6 +32,7 @@
 */
 
 #include <stdio.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 #include "keepkey/board/confirm_sm.h"
@@ -375,22 +376,37 @@ int dsConfirm(void) {
   }
 
   if (dsverifyingContract != NULL) {
-    for (ctr = 2; ctr < 42; ctr += 2) {
-      sscanf((char*)&dsverifyingContract[ctr], "%2hhx",
-             &addrHexStr[(ctr - 2) / 2]);
+    /* Validate length and 0x prefix before the hex-pair loop. The prior code
+     * unconditionally read dsverifyingContract[2..41]; for a shorter string the
+     * &dsverifyingContract[ctr] pointer was past the NUL and sscanf read from
+     * an OOB pointer. Mirrors the length check in encAddress(). See GH #436. */
+    if (strlen(dsverifyingContract) != ADDRESS_SIZE ||
+        dsverifyingContract[0] != '0' ||
+        (dsverifyingContract[1] != 'x' && dsverifyingContract[1] != 'X')) {
+      /* Not a valid 0x-prefixed 20-byte address; fall back to raw display
+       * below (skip token-lookup via addrHexStr). */
+      dsverifyingContract = NULL;
+    } else {
+      for (ctr = 2; ctr < 42; ctr += 2) {
+        sscanf((char*)&dsverifyingContract[ctr], "%2hhx",
+               &addrHexStr[(ctr - 2) / 2]);
+      }
+      strcat(verifyingContract, "Verifying Contract: ");
+      strncat(verifyingContract, dsverifyingContract,
+              sizeof(verifyingContract) - sizeof("Verifying Contract: "));
     }
-    strcat(verifyingContract, "Verifying Contract: ");
-    strncat(verifyingContract, dsverifyingContract,
-            sizeof(verifyingContract) - sizeof("Verifying Contract: "));
   }
 
   if (NULL != dschainId) {
     noChain = false;
-#ifdef EMULATOR
-    sscanf((char*)dschainId, "%u", &chainInt);
-#else
-    sscanf((char*)dschainId, "%ld", &chainInt);
-#endif
+    /* Use SCNu32 from <inttypes.h> for uint32_t. The prior production build
+     * branch used "%ld" which writes a long (8 bytes on LP64 hosts) into a
+     * uint32_t (4 bytes), corrupting the adjacent stack frame. The EMULATOR
+     * branch already used "%u"; unify on SCNu32 so the format specifier no
+     * longer differs between builds. See GH #434. */
+    if (sscanf((char*)dschainId, "%" SCNu32, &chainInt) != 1) {
+      noChain = true;
+    }
     // As more chains are supported, add icon choice below
     // TBD: not implemented for first release
     // if (chainInt == 1) {

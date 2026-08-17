@@ -114,8 +114,13 @@ void fsm_msgBinanceTransferMsg(const BinanceTransferMsg* msg) {
     case OutputAddressType_TRANSFER:
     default: {
       char amount_str[42];
-      char denom_str[14];
-      snprintf(denom_str, strlen(msg->outputs[0].coins[0].denom) + 2, " %s",
+      /* BinanceCoin.denom max_size:32 (messages-binance.options) -> 31 visible
+       * chars + NUL. ' ' + 31 + NUL = 34 bytes; size for the cap + 2 to keep
+       * a 1-byte margin. The prior code passed strlen(denom)+2 as the snprintf
+       * size, which for a 31-char denom is 33 > sizeof(denom_str[14]) and
+       * overflows the stack by up to 19 bytes. See GH #430. */
+      char denom_str[34];
+      snprintf(denom_str, sizeof(denom_str), " %s",
                msg->outputs[0].coins[0].denom);
       bn_format_uint64(msg->outputs[0].coins[0].amount, NULL, denom_str, 8, 0,
                        false, amount_str, sizeof(amount_str));

@@ -34,6 +34,8 @@ static bool isSellToUniswapCall(const EthereumSignTx* msg) {
 }
 
 bool zx_isZxSwap(const EthereumSignTx* msg) {
+  /* ZXSWAP_ADDRESS is an Ethereum-mainnet identity. See GH #431. */
+  if (!msg->has_chain_id || msg->chain_id != 1) return false;
   if (memcmp(msg->to.bytes, ZXSWAP_ADDRESS, 20) ==
       0) {                           // correct proxy address?
     if (isSellToUniswapCall(msg)) {  // does kk handle call?
