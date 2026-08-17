@@ -142,6 +142,19 @@ bool confirm_without_button_request(const char* request_title,
                                     const char* request_body, ...)
     __attribute__((format(printf, 2, 3)));
 
+/// User confirmation, with an icon.
+///
+/// The confirming counterpart of review_with_icon(): same screen, same single
+/// ButtonRequest, but the verdict is returned instead of discarded.
+/// \param type            The kind of button request to send to the host.
+/// \param iconNum         Icon to draw, or NO_ICON.
+/// \param request_title   Title of confirm message.
+/// \param request_body    Body of confirm message.
+/// \returns true iff the device confirmed.
+bool confirm_with_icon(ButtonRequestType type, IconType iconNum,
+                       const char* request_title, const char* request_body, ...)
+    __attribute__((format(printf, 4, 5)));
+
 /// Like confirm, but always \returns true.
 /// \param request_title   Title of confirm message.
 /// \param request_body    Body of confirm message.

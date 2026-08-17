@@ -1136,6 +1136,17 @@ const char* failMsgReturn[LAST_ERROR - 2] = {
 };
 
 void failMessage(int err) {
+  if (USER_CANCELLED == err) {
+    /* Not a parse failure: a typed-data review screen ended without a
+       completed button hold, which is what confirm_helper() reports when the
+       host sends Cancel or Initialize. Report it as a cancellation so the host
+       does not read a refusal as a malformed message. USER_CANCELLED is above
+       LAST_ERROR and has no failMsgReturn[] slot, so this branch must come
+       first. */
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("EIP-712 cancelled"));
+    return;
+  }
   if (err < GENERAL_ERROR || err > LAST_ERROR) {
     // unknown error number
     fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 unknown failure"));

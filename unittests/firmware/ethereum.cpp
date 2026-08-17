@@ -1,4 +1,5 @@
 extern "C" {
+#include "keepkey/firmware/eip712.h"
 #include "trezor/crypto/address.h"
 }
 
@@ -37,4 +38,20 @@ TEST(Ethereum, AddressChecksum) {
   test_checksum("fB6916095ca1df60bB79Ce92cE3Ea74c37c5d359");
   test_checksum("dbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB");
   test_checksum("D1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb");
+}
+
+// Every EIP-712 field screen used to be a review(), which calls
+// confirm_helper() and then returns true unconditionally, so a host that
+// answered each screen with a protocol Cancel still got a hash back. The
+// screens are confirm() now and refusal reaches ethereum.c as USER_CANCELLED.
+//
+// That code has to stay outside failMsgReturn[]. ethereum.c sizes the table
+// LAST_ERROR - 2 and indexes it err - 3, so a cancellation code at or below
+// LAST_ERROR would shift every message already in the table and would make
+// failMessage() report a refusal as a parse error instead of an
+// ActionCancelled. It also must not collide with the two non-error codes.
+TEST(Ethereum, Eip712UserCancelledIsOutsideTheFailMessageTable) {
+  EXPECT_GT(USER_CANCELLED, LAST_ERROR);
+  EXPECT_NE(USER_CANCELLED, SUCCESS);
+  EXPECT_NE(USER_CANCELLED, NULL_MSG_HASH);
 }

@@ -307,19 +307,29 @@ int encodeBytesN(const char* typeT, const char* string, uint8_t* encoded) {
   return SUCCESS;
 }
 
+/* These screens were review(), which calls confirm_helper() and then returns
+   true unconditionally. confirm_helper() returns false when the host sends a
+   Cancel or Initialize tiny message, so a host could refuse every field screen
+   and encode() would still hash typed data the user never saw. They are
+   confirm() now and refusal is reported to parseVals() as USER_CANCELLED, so
+   no hash is produced at all. */
 int confirmName(const char* name, bool valAvailable) {
   if (valAvailable) {
     nameForValue = name;
   } else {
-    (void)review(ButtonRequestType_ButtonRequest_Other, "MESSAGE DATA",
-                 "Press button to continue for\n\"%s\" values", name);
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "MESSAGE DATA",
+                 "Press button to continue for\n\"%s\" values", name)) {
+      return USER_CANCELLED;
+    }
   }
   return SUCCESS;
 }
 
 int confirmValue(const char* value) {
-  (void)review(ButtonRequestType_ButtonRequest_Other, "MESSAGE DATA", "%s %s",
-               nameForValue, value);
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "MESSAGE DATA", "%s %s",
+               nameForValue, value)) {
+    return USER_CANCELLED;
+  }
   return SUCCESS;
 }
 
@@ -342,7 +352,7 @@ void marshallDsVals(const char* value) {
   return;
 }
 
-void dsConfirm(void) {
+int dsConfirm(void) {
   // First check if we recognize the contract
   const TokenType* assetToken;
   uint8_t addrHexStr[20] = {0};
@@ -402,12 +412,16 @@ void dsConfirm(void) {
     snprintf(chainStr, 32, "chain %s,  ", dschainId);
   }
   // snprintf(contractStr, 64, "verifyingContract: %s", verifyingContract);
-  (void)review_with_icon(ButtonRequestType_ButtonRequest_Other, iconNum, title,
-                         "%s %s%s", chainStr, verifyingContract, fillerStr);
+  bool confirmed =
+      confirm_with_icon(ButtonRequestType_ButtonRequest_Other, iconNum, title,
+                        "%s %s%s", chainStr, verifyingContract, fillerStr);
+  /* Clear the marshalled domain values on the refusal path too: they are file
+     statics and a later attempt must not inherit them. */
   dsname = NULL;
   dsversion = NULL;
   dschainId = NULL;
   dsverifyingContract = NULL;
+  return confirmed ? SUCCESS : USER_CANCELLED;
 }
 
 /*
@@ -470,7 +484,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
 
       bool hasValue = (JSON_TEXT == json_getType(walkVals) ||
                        JSON_INTEGER == json_getType(walkVals));
-      confirmName(typeName, hasValue);
+      errRet = confirmName(typeName, hasValue);
+      if (SUCCESS != errRet) {
+        return errRet;
+      }
 
       if (walkVals == 0) {
         return JSON_TYPE_WNOVAL;
@@ -486,7 +503,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
               if (ds_vals) {
                 marshallDsVals(json_getValue(addrVals));
               } else {
-                confirmValue(json_getValue(addrVals));
+                errRet = confirmValue(json_getValue(addrVals));
+                if (SUCCESS != errRet) {
+                  return errRet;
+                }
               }
 
               errRet = encAddress(json_getValue(addrVals), encBytes);
@@ -501,7 +521,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
             if (ds_vals) {
               marshallDsVals(valStr);
             } else {
-              confirmValue(valStr);
+              errRet = confirmValue(valStr);
+              if (SUCCESS != errRet) {
+                return errRet;
+              }
             }
             errRet = encAddress(valStr, encBytes);
             if (SUCCESS != errRet) {
@@ -521,7 +544,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
               if (ds_vals) {
                 marshallDsVals(json_getValue(stringVals));
               } else {
-                confirmValue(json_getValue(stringVals));
+                errRet = confirmValue(json_getValue(stringVals));
+                if (SUCCESS != errRet) {
+                  return errRet;
+                }
               }
               errRet = encString(json_getValue(stringVals), strEncBytes);
               if (SUCCESS != errRet) {
@@ -535,7 +561,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
             if (ds_vals) {
               marshallDsVals(valStr);
             } else {
-              confirmValue(valStr);
+              errRet = confirmValue(valStr);
+              if (SUCCESS != errRet) {
+                return errRet;
+              }
             }
             errRet = encString(valStr, encBytes);
             if (SUCCESS != errRet) {
@@ -551,7 +580,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
             if (ds_vals) {
               marshallDsVals(valStr);
             } else {
-              confirmValue(valStr);
+              errRet = confirmValue(valStr);
+              if (SUCCESS != errRet) {
+                return errRet;
+              }
             }
             uint8_t negInt = 0;  // 0 is positive, 1 is negative
             if (0 == strncmp("int", typeType, strlen("int") - 1)) {
@@ -590,7 +622,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
             if (ds_vals) {
               marshallDsVals(valStr);
             } else {
-              confirmValue(valStr);
+              errRet = confirmValue(valStr);
+              if (SUCCESS != errRet) {
+                return errRet;
+              }
             }
             if (0 == strcmp(typeType, "bytes")) {
               errRet = encodeBytes(valStr, encBytes);
@@ -613,7 +648,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
             if (ds_vals) {
               marshallDsVals(valStr);
             } else {
-              confirmValue(valStr);
+              errRet = confirmValue(valStr);
+              if (SUCCESS != errRet) {
+                return errRet;
+              }
             }
             for (ctr = 0; ctr < 32; ctr++) {
               // leading zeros in bool
@@ -721,7 +759,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
     tarray = json_getSibling(tarray);
   }
   if (ds_vals) {
-    dsConfirm();
+    errRet = dsConfirm();
+    if (SUCCESS != errRet) {
+      return errRet;
+    }
   }
 
   return SUCCESS;
