@@ -212,7 +212,11 @@ static bool draw_string_walk(Canvas* canvas, const Font* font,
     char_params.x = x_offset + p->x;
     have_space =
         draw_char_impl(canvas, &char_params, &x_offset, NULL, img, measure);
-    str_write++;
+    /* A rejected glyph was not drawn. Leave str_write on it so the caller's
+     * completeness result cannot report that a clipped final glyph fitted. */
+    if (have_space) {
+      str_write++;
+    }
   }
 
   if (!measure) {

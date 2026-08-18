@@ -65,6 +65,18 @@ TEST_F(BodyFits, ConfirmBodyFits) {
   const std::string eighty_w(80, 'W');
   EXPECT_TRUE(confirm_body_fits(eighty_w.c_str(), BODY_WIDTH));
   EXPECT_FALSE(confirm_body_fits(eighty_w.c_str(), BODY_WIDTH_WITH_ICON));
+
+  // Regression: draw_string_walk() advanced str_write unconditionally, so a
+  // REJECTED final glyph was still consumed and the walk then saw '\0' and
+  // reported that everything fitted. The failure is exactly one glyph wide,
+  // which is why the earlier three-way sweep of 3,510 bodies missed it: it only
+  // shows at the precise boundary. 117 digits fill three rows; the 118th is the
+  // first glyph that cannot be placed and must be reported as not fitting.
+  std::string digits;
+  for (size_t i = 0; i < 118; i++) digits += "0123456789"[i % 10];
+  EXPECT_TRUE(confirm_body_fits(digits.substr(0, 117).c_str(), BODY_WIDTH));
+  EXPECT_FALSE(confirm_body_fits(digits.c_str(), BODY_WIDTH))
+      << "a body overflowing by exactly one glyph must not report as fitting";
 }
 
 // Regression: calc_str_line() accumulated into a uint8_t while returning
