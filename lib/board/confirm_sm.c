@@ -405,10 +405,23 @@ static bool confirm_helper(const char* request_title, const char* request_body,
       !confirm_body_fits(request_body, body_width);
 
   if (truncated || render_incomplete) {
-    /* No second ButtonRequest is written: the host already sent one and its
-     * ButtonAck armed button_request_acked, which stays armed for the body
-     * screen below. The wire dialogue is unchanged; only the number of holds
-     * is not. */
+    /* INVARIANT: one required hold, one ButtonRequest.
+     *
+     * This used to write no second request, on the reasoning that the host had
+     * already sent one and its ButtonAck left button_request_acked armed for
+     * the body screen below -- "the wire dialogue is unchanged; only the number
+     * of holds is not". That is exactly the defect. The device asked for two
+     * physical confirmations while announcing one, so a host that satisfied
+     * every request it was told about still waited forever for a response that
+     * needed a hold it never heard about. A human holding twice never notices;
+     * any automated or auto-approving host deadlocks.
+     *
+     * The request below belongs to the BODY screen, not to this warning: the
+     * caller's original ButtonRequest was written before confirm_helper() ran
+     * and is answered by the Cut Off screen, which is the first one shown.
+     * Clearing button_request_acked is the load-bearing half -- without it
+     * confirm_screen() would accept a press that arrived for the previous
+     * request. */
     if (!confirm_screen("Cut Off",
                         "This text is too long for the screen. Only part "
                         "of it is shown. Hold to view it anyway.",
@@ -416,6 +429,13 @@ static bool confirm_helper(const char* request_title, const char* request_body,
                         immediate)) {
       return false;
     }
+
+    ButtonRequest cut_off_ack;
+    memset(&cut_off_ack, 0, sizeof(cut_off_ack));
+    cut_off_ack.has_code = true;
+    cut_off_ack.code = ButtonRequestType_ButtonRequest_Other;
+    button_request_acked = false;
+    msg_write(MessageType_MessageType_ButtonRequest, &cut_off_ack);
   }
 
   return confirm_screen(request_title, request_body, layout_notification_func,
