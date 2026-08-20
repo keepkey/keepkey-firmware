@@ -47,14 +47,25 @@ void setup(void) {
 void setup_urandom_only(void) { setup_urandom(); }
 
 void emulatorRandom(void* buffer, size_t size) {
-  ssize_t n = read(urandom, buffer, size);
-  if (n < 0 || ((size_t)n) != size) {
-    perror("Failed to read /dev/urandom");
-    exit(1);
+  setup_urandom();
+
+  uint8_t* out = (uint8_t*)buffer;
+  size_t remaining = size;
+  while (remaining > 0) {
+    ssize_t n = read(urandom, out, remaining);
+    if (n < 0 && errno == EINTR) continue;
+    if (n <= 0) {
+      perror("Failed to read /dev/urandom");
+      exit(1);
+    }
+    out += (size_t)n;
+    remaining -= (size_t)n;
   }
 }
 
 static void setup_urandom(void) {
+  if (urandom >= 0) return;
+
   urandom = open("/dev/urandom", O_RDONLY);
   if (urandom < 0) {
     perror("Failed to open /dev/urandom");

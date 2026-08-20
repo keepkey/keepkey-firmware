@@ -1,6 +1,7 @@
 void fsm_msgInitialize(Initialize* msg) {
   (void)msg;
-  recovery_cipher_abort();
+  /* Ends a setup ceremony of either kind, staged settings and all. */
+  setup_abort();
   signing_abort();
   ethereum_signing_abort();
   tendermint_signAbort();
@@ -198,6 +199,7 @@ void fsm_msgPing(Ping* msg) {
       "Authenticator secret seed too large",
       "passphrase incorrect for authdata",
       "Auth secret unknown error",
+      "Action cancelled",
   };
 
   typedef enum _AUTH_MSG_TYPE {
@@ -277,8 +279,7 @@ void fsm_msgPing(Ping* msg) {
         break;
 
       case WIPEADATA:
-        wipeAuthData();
-        errcode = NOERR;
+        errcode = wipeAuthData();
         resp->has_message = false;
         break;
 
@@ -529,6 +530,7 @@ void fsm_msgLoadDevice(LoadDevice* msg) {
 
 void fsm_msgResetDevice(ResetDevice* msg) {
   CHECK_NOT_INITIALIZED
+  CHECK_NO_CEREMONY
 
   reset_init(msg->has_display_random && msg->display_random,
              msg->has_strength ? msg->strength : 128,
@@ -552,7 +554,8 @@ void fsm_msgEntropyAck(EntropyAck* msg) {
 
 void fsm_msgCancel(Cancel* msg) {
   (void)msg;
-  recovery_cipher_abort();
+  /* Cancellation rolls the ceremony back: one memzero, no storage touched. */
+  setup_abort();
   signing_abort();
   ethereum_signing_abort();
   tendermint_signAbort();
@@ -651,6 +654,8 @@ apply_settings_cancelled:
 }
 
 void fsm_msgRecoveryDevice(RecoveryDevice* msg) {
+  CHECK_NO_CEREMONY
+
   if (msg->has_dry_run && msg->dry_run) {
     CHECK_INITIALIZED
   } else {

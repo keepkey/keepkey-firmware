@@ -98,14 +98,21 @@ bool zx_confirmApproveLiquidity(uint32_t data_total,
   }
 
   const char *appStr = "uniswap approve liquidity";
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr, "Amount: %s",
-          amt);
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr,
-          "approve for pool %s %s", tikstr, poolstr);
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr,
+               "Amount: %s", amt)) {
+    return false;
+  }
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr,
+               "approve for pool %s %s", tikstr, poolstr)) {
+    return false;
+  }
   return true;
 }
 
 bool zx_isZxApproveLiquid(const EthereumSignTx *msg) {
+  /* UNISWAP_ROUTER_ADDRESS (as ERC20 approve spender) is an Ethereum-mainnet
+   * identity. See GH #431. */
+  if (!msg->has_chain_id || msg->chain_id != 1) return false;
   if (memcmp(msg->data_initial_chunk.bytes, "\x09\x5e\xa7\xb3", 4) == 0)
     if (memcmp((uint8_t *)(msg->data_initial_chunk.bytes + 4 + 32 - 20),
                UNISWAP_ROUTER_ADDRESS, 20) == 0)

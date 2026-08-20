@@ -1,9 +1,14 @@
 Prerequisites
 -------------
 
-Install nanopb-0.3.9.4 from:
+Install nanopb-0.3.9.8 from:
 
-`https://github.com/nanopb/nanopb/releases/tag/nanopb-0.3.9.4`
+`https://github.com/nanopb/nanopb/releases/tag/nanopb-0.3.9.8`
+
+This must match the version baked into the pinned builder image
+(`Dockerfile`, `git clone --branch nanopb-0.3.9.8`). Generated headers
+differ between nanopb majors, so a mismatch means a local build and a CI
+build are not the same product even from the same source. See GH #425.
 
 Install the python-protobuf dependency:
 

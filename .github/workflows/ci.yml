@@ -35,7 +35,7 @@ on:
         default: false
 
 env:
-  BASE_IMAGE: kktech/firmware:v15
+  BASE_IMAGE: kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
   EMU_IMAGE: kkemu-ci
 
 jobs:
@@ -88,8 +88,13 @@ jobs:
 
       - name: Install gitleaks
         run: |
-          GITLEAKS_VERSION=$(curl -sSf https://api.github.com/repos/gitleaks/gitleaks/releases/latest \
-            | grep -oP '"tag_name":\s*"v\K[^"]+')
+          # PINNED. Tracking releases/latest means a new upstream ruleset can turn
+          # this gate red with no change to this repository -- which is exactly what
+          # happened: a newer generic-api-key rule began flagging published BIP32 test
+          # vectors in 2014/2018 history, and because every build job declares
+          # `needs: [.., secret-scan]`, the whole build and test graph was SKIPPED
+          # rather than failed. Bump deliberately, with the scan re-verified. See #424.
+          GITLEAKS_VERSION=8.30.0
           curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
             | tar -xz -C /usr/local/bin gitleaks
           gitleaks version
@@ -206,6 +211,20 @@ jobs:
             fi
           done
           [ "$FAILED" = "0" ] || exit 1
+
+      - name: Enforce RNG source invariants
+        run: |
+          if grep -q 'RAND_PLATFORM_INDEPENDENT=0' CMakeLists.txt; then
+            echo "::error::RAND_PLATFORM_INDEPENDENT is a definedness switch, not a value toggle"
+            exit 1
+          fi
+          grep -q 'add_definitions(-DRAND_PLATFORM_INDEPENDENT)' CMakeLists.txt
+          grep -q '#ifndef RAND_PLATFORM_INDEPENDENT' lib/rand/rng.c
+          grep -q 'defined(EMULATOR) && defined(__arm__)' lib/rand/rng.c
+          if grep -En 'return[[:space:]]+random\(\)' lib/rand/rng.c; then
+            echo "::error::Emulator cryptography must not use libc random()"
+            exit 1
+          fi
 
   # ═══════════════════════════════════════════════════════════
   # STAGE 2: BUILD — compile only after gate passes
@@ -490,7 +509,12 @@ jobs:
   #     pb2 files expect; newer protoc generates Python that requires
   #     newer protobuf runtime, which breaks the python-keepkey suite).
   #   - protobuf 3.20.3 (Python runtime — strict pin).
-  #   - nanopb 0.3.9.4.post3 (the proto generator the firmware build uses).
+  #   - nanopb 0.3.9.4.post3 — NOTE: this is NOT the version the firmware
+  #     builder image uses. The pinned image builds nanopb-0.3.9.8 from source
+  #     (see Dockerfile). This job installs a different generator via pip, so
+  #     headers produced here are not byte-comparable with the firmware build's.
+  #     Tracked in GH #425; do not treat this job's output as provenance for
+  #     the firmware artifacts.
   #   - KK_DEBUG_LINK=ON (default OFF; without it,
   #     fsm_msgDebugLinkGetState is excluded from the build and any
   #     read_layout() call hangs the test).
@@ -726,6 +750,67 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════
   # STAGE 4: PUBLISH — manual trigger only, all tests must pass
+
+  # ═══════════════════════════════════════════════════════════
+  # GATE: one authoritative answer for the whole graph
+  # ═══════════════════════════════════════════════════════════
+  #
+  # Every build and test job declares `needs: [lint-format, static-analysis,
+  # check-submodules, secret-scan]`. When one of those gate jobs fails, GitHub
+  # marks the whole downstream graph SKIPPED rather than failed -- and a skipped
+  # job is not a red check. The run summary then shows green ticks on whatever
+  # finished, which reads as healthy unless someone opens the job list.
+  #
+  # That has now happened three times on the 7.14.2 line: gitleaks failing on
+  # develop, lint-format timing out inside its apt.llvm.org install (#471), and
+  # gitleaks again after an unpinned upstream bump. Each time the ARM build,
+  # the unit tests and both python suites produced NOTHING while the run looked
+  # partially green.
+  #
+  # This job exists so that cannot happen quietly. It needs every required job,
+  # runs with `if: always()` so it executes even when they skip, and fails
+  # unless each one reports exactly `success`. failure, cancelled and skipped
+  # are all treated as not-success, because for a required job they are.
+  #
+  # publish-emulator is deliberately absent: it is workflow_dispatch-only and
+  # is legitimately skipped on every push and pull_request.
+  #
+  # Point branch protection at THIS job rather than the individual ones. It is
+  # the only check whose green means "the entire graph ran and passed".
+  ci-gate:
+    name: CI gate
+    if: always()
+    needs:
+      - lint-format
+      - secret-scan
+      - static-analysis
+      - check-submodules
+      - build-emulator
+      - build-arm-firmware
+      - unit-tests
+      - python-integration-tests
+      - python-dylib-tests
+      - generate-test-report
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Assert every required job succeeded
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "$NEEDS_JSON" | jq -r 'to_entries[] | "\(.value.result)\t\(.key)"' | sort
+          echo
+          NOT_SUCCESS=$(echo "$NEEDS_JSON" \
+            | jq -r 'to_entries[] | select(.value.result != "success") | .key')
+          if [ -n "$NOT_SUCCESS" ]; then
+            echo "::error::Required jobs did not succeed: $(echo $NOT_SUCCESS | tr '\n' ' ')"
+            echo "A skipped or cancelled required job is NOT a pass. If a gate-stage"
+            echo "job failed, everything downstream was skipped and produced no signal."
+            exit 1
+          fi
+          echo "All required jobs reported success."
+
   # ═══════════════════════════════════════════════════════════
 
   publish-emulator:

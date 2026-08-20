@@ -92,6 +92,10 @@
 #include "messages-solana.pb.h"
 
 #include <stdio.h>
+/* strnlen: the THORChain memo paths measure fixed arrays rather than
+   trusting their capacity. Included explicitly instead of relying on the
+   fsm_msg_*.h textual includes below to drag it in by accident. */
+#include <string.h>
 
 #define _(X) (X)
 
@@ -109,6 +113,19 @@ static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,             \
                     "Device is already initialized. Use Wipe first."); \
     return;                                                            \
+  }
+
+/* Only the two ceremony STARTS use this. Every other message that persists
+ * anything is handled structurally instead: storage_commit() aborts an armed
+ * ceremony, so a handler that writes can never have its write consumed by
+ * one -- the worst it can do is end it. */
+#define CHECK_NO_CEREMONY                                     \
+  if (setup_isArmed()) {                                      \
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,    \
+                    "Device is in the middle of setup. Send " \
+                    "Initialize or Cancel first.");           \
+    layoutHome();                                             \
+    return;                                                   \
   }
 
 #define CHECK_PIN              \

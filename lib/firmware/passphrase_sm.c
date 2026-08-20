@@ -26,6 +26,7 @@
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/storage.h"
+#include "trezor/crypto/memzero.h"
 
 #include <stdbool.h>
 
@@ -144,11 +145,22 @@ static bool passphrase_request(PassphraseInfo* passphrase_info) {
 
   /* Check for passphrase cancel */
   if (passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_RECEIVED) {
-    review(ButtonRequestType_ButtonRequest_Other, "passphrase confirmation",
-           "If this is wrong, unplug/replug Keepkey:"
-           "%51s",
-           passphrase_info->passphrase);
-    ret = true;
+    /* This screen is the only place the user gets to see the passphrase their
+     * keys will be derived from. review() used to discard its result and this
+     * returned true regardless, so a host that answered the screen with a
+     * protocol Cancel suppressed the display and still got the passphrase
+     * cached -- the session then derived a different wallet than the user
+     * believed they were opening, with nothing shown on the OLED.
+     *
+     * There is no reject button on this device: confirm_helper() returns false
+     * only for a host-sent Cancel/Initialize. So a false here is precisely
+     * "the host took the screen away", and the passphrase must not be cached.
+     * Every caller of passphrase_protect() already tests its result. */
+    ret =
+        review(ButtonRequestType_ButtonRequest_Other, "passphrase confirmation",
+               "If this is wrong, unplug/replug Keepkey:"
+               "%51s",
+               passphrase_info->passphrase);
   } else {
     if (passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_CANCEL_BY_INIT) {
       reset_msg_stack = true;
@@ -168,7 +180,28 @@ static bool passphrase_request(PassphraseInfo* passphrase_info) {
  */
 bool passphrase_protect(void) {
   bool ret = false;
-  PassphraseInfo passphrase_info;
+
+  /* The passphrase selects the wallet: it is the difference between the visible
+   * wallet and a hidden one. This buffer held it on the STACK, unzeroed, on
+   * every path -- success, host cancel, and the early-out where passphrase
+   * protection is off. Nothing else in the firmware treats key material that
+   * way; compare confirm_sm.c's `static CONFIDENTIAL char strbuf[]` and the
+   * session cache, which is `static SessionState CONFIDENTIAL session`.
+   *
+   * CONFIDENTIAL is not a comment. On device builds it is
+   * __attribute__((section("confidential"))), a NOLOAD region the bootloader
+   * wipes at boot (tools/bootloader/main.c). A section attribute cannot apply
+   * to an automatic, so the buffer has to leave the stack to get that
+   * protection -- hence `static`. passphrase_protect() is not reentrant: it is
+   * called from fsm handlers on the single main loop, and it blocks in
+   * passphrase_request() until the exchange finishes.
+   *
+   * The section only clears at boot, so it is zeroed here on entry and exit as
+   * well: reboot-scope protection is not the same as call-scope protection, and
+   * the residue between two calls is the part an attacker can reach without a
+   * power cycle. */
+  static PassphraseInfo CONFIDENTIAL passphrase_info;
+  memzero(&passphrase_info, sizeof(passphrase_info));
 
   if (storage_getPassphraseProtected() && !session_isPassphraseCached()) {
     /* Get passphrase and cache */
@@ -180,5 +213,6 @@ bool passphrase_protect(void) {
     ret = true;
   }
 
+  memzero(&passphrase_info, sizeof(passphrase_info));
   return (ret);
 }

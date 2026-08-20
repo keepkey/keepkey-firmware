@@ -1,11 +1,14 @@
 set(sources
+    binance.cpp
     coins.cpp
     cosmos.cpp
     eos.cpp
     ethereum.cpp
     nano.cpp
     recovery.cpp
+    setup_ceremony.cpp
     ripple.cpp
+    solana.cpp
     storage.cpp
     usb_rx.cpp
     u2f.cpp)
@@ -26,9 +29,9 @@ target_link_libraries(firmware-unit
     kkvariant.keepkey
     kkvariant.salt
     kkboard
-    kkemulator
     trezorcrypto
     qrcodegenerator
     SecAESSTM32
     kkrand
+    kkemulator
     kktransport)

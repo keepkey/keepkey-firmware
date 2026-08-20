@@ -16,7 +16,8 @@ void debug_intermediate_hash(void);
 
 bool osmosis_signTxInit(const HDNode* _node, const OsmosisSignTx* _msg);
 
-bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address);
+bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address,
+                                 const char* denom);
 
 bool osmosis_signTxUpdateMsgDelegate(const char* amount,
                                      const char* delegator_address,
