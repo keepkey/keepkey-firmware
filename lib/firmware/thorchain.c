@@ -240,6 +240,34 @@ ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
      of the source looking for a terminator. Copy exactly `size` bytes; the
      memzero'd tail terminates them. */
   memcpy(memoBuf, swapStr, size);
+
+  /* strtok below treats memoBuf as a C string, so it stops at the first NUL --
+     but `size` bytes were copied and ALL of them are covered by the signature.
+     A memo such as "=:ETH.ETH:<dest>:0\0:affiliate:75" would parse and confirm
+     as if it ended at the zero byte while the suffix stayed in the signed
+     calldata. The EVM caller passes the true ABI length, so those bytes are
+     real.
+     The distinction that matters is whether anything FOLLOWS the NUL:
+       - content after it  -> the memo lies about where it ends and there is no
+                              honest way to parse it. Fail closed; the caller's
+                              UNPARSED path discloses the raw bytes with a
+                              length-aware writer that shows the NUL too.
+       - only NULs after it -> the length merely overstates by a byte or two,
+                              which is what ABI padding looks like when the
+                              length word is generous. Nothing is hidden, so
+                              treat the memo as ending there and parse it.
+     Rejecting both would break legitimate ADD/deposit memos whose ABI length
+     word runs one past the string. */
+  for (uint16_t i = 0; i < size; i++) {
+    if (memoBuf[i] != '\0') continue;
+    for (uint16_t j = i + 1; j < size; j++) {
+      if (memoBuf[j] != '\0') return THORCHAIN_MEMO_UNPARSED;
+    }
+    /* Trailing padding only. memoBuf is already NUL-terminated at i, so
+       strtok below stops there on its own -- nothing further to do. */
+    break;
+  }
+
   tok = strtok(memoBuf, ":");
 
   // get transaction and asset

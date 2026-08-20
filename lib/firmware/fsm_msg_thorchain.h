@@ -186,8 +186,13 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
 
     if (msg->deposit.has_memo) {
       // See if we can parse the memo
+      /* strnlen, not sizeof: passing the buffer capacity hands the parser
+         every trailing zero byte in the fixed array as if it were memo
+         content. The length that matters is how much of the field is
+         populated. */
       ThorchainMemoResult memo_result = thorchain_parseConfirmMemo(
-          msg->deposit.memo, sizeof(msg->deposit.memo));
+          msg->deposit.memo,
+          strnlen(msg->deposit.memo, sizeof(msg->deposit.memo)));
       if (memo_result == THORCHAIN_MEMO_CANCELLED) {
         // A memo screen was refused: a refusal to sign, not a parse failure.
         thorchain_signAbort();
@@ -196,9 +201,16 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
         return;
       }
       if (memo_result == THORCHAIN_MEMO_UNPARSED) {
-        // Memo not recognizable, ask to confirm it
-        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
-                     "%s", msg->deposit.memo)) {
+        /* Memo not recognizable, ask to confirm it.
+           confirm_bytes(), not confirm("%s"): "%s" stops at the first NUL, so
+           an unparsed memo carrying an embedded zero byte would be signed with
+           its tail hidden -- the same defect the parser now refuses, moved one
+           screen later. confirm_bytes takes an explicit length and escapes
+           every non-printable byte, so the NUL is visible as \x00. */
+        if (!confirm_bytes(
+                ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
+                (const uint8_t*)msg->deposit.memo,
+                strnlen(msg->deposit.memo, sizeof(msg->deposit.memo)))) {
           thorchain_signAbort();
           fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
           layoutHome();
@@ -225,8 +237,9 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
   if (sign_tx->has_memo && !msg->deposit.has_memo) {
     // See if we can parse the tx memo. This memo ignored if deposit msg has
     // memo
-    ThorchainMemoResult memo_result =
-        thorchain_parseConfirmMemo(sign_tx->memo, sizeof(sign_tx->memo));
+    /* strnlen, not sizeof -- see the deposit path above. */
+    ThorchainMemoResult memo_result = thorchain_parseConfirmMemo(
+        sign_tx->memo, strnlen(sign_tx->memo, sizeof(sign_tx->memo)));
     if (memo_result == THORCHAIN_MEMO_CANCELLED) {
       // A memo screen was refused: a refusal to sign, not a parse failure.
       thorchain_signAbort();
@@ -235,9 +248,10 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
       return;
     }
     if (memo_result == THORCHAIN_MEMO_UNPARSED) {
-      // Memo not recognizable, ask to confirm it
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",
-                   sign_tx->memo)) {
+      /* Memo not recognizable, ask to confirm it -- length-aware, see above. */
+      if (!confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
+                         (const uint8_t*)sign_tx->memo,
+                         strnlen(sign_tx->memo, sizeof(sign_tx->memo)))) {
         thorchain_signAbort();
         fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
         layoutHome();

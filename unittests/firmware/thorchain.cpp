@@ -8,6 +8,29 @@ extern "C" {
 #include "gtest/gtest.h"
 #include <cstring>
 
+TEST(Thorchain, MemoWithEmbeddedNulIsNotParsed) {
+  /* thorchain_parseConfirmMemo() copies an explicit byte count and then hands
+     the buffer to strtok, which stops at the first NUL. A memo such as
+     "=:ETH.ETH:<dest>:0\0:affiliate:75" is signed in FULL -- the EVM caller
+     passes the true ABI length -- but parsing and confirmation stopped at the
+     zero byte, so the affiliate suffix was never shown.
+     There is no honest way to parse a field that lies about where it ends, so
+     the parser must fail closed and let the caller disclose the raw bytes with
+     a length-aware writer. */
+  static const char kMemo[] =
+      "=:ETH.ETH:0x41e5560054824ea6b0732e656e3ad64e20e94e45:0\0:affiliate:75";
+  /* sizeof - 1 keeps the embedded NUL and drops only the literal's terminator.
+   */
+  EXPECT_EQ(THORCHAIN_MEMO_UNPARSED,
+            thorchain_parseConfirmMemo(kMemo, sizeof(kMemo) - 1));
+
+  /* A trailing NUL at the very end is the same rule: the length says those
+     bytes are content. */
+  static const char kTrailing[] = "=:ETH.ETH:0xabc:0\0";
+  EXPECT_EQ(THORCHAIN_MEMO_UNPARSED,
+            thorchain_parseConfirmMemo(kTrailing, sizeof(kTrailing) - 1));
+}
+
 TEST(Thorchain, ThorchainGetAddress) {
   HDNode node = {
       0,
