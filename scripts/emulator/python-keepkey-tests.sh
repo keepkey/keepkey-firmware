@@ -61,7 +61,24 @@ echo "=== End diagnostic ==="
 echo "=== Phase 1: Report-driven screenshot capture ==="
 # Detect firmware version from CMakeLists if not set in env
 if [ -z "$FW_VERSION" ]; then
-    FW_VERSION=$(sed -n '/^project/,/)/p' /kkemu/CMakeLists.txt | grep -oP '\d+\.\d+\.\d+' || echo "7.14.0")
+    # grep -oP is a GNU extension. This container's grep is BusyBox, which has
+    # no -P, so the old command ALWAYS failed and `|| echo "7.14.0"` silently
+    # supplied a wrong version. Everything downstream keys off this: SECTIONS
+    # entries are filtered by ver_ge(fw_version, min_fw), so on the 7.14.2
+    # release branch every test gated to 7.14.1 or later was excluded from the
+    # screenshot filter AND from report validation. That is why the suites this
+    # release changed captured no screens.
+    #
+    # Use sed only, and FAIL rather than defaulting: a wrong version here is
+    # invisible and silently narrows what CI checks.
+    FW_VERSION=$(sed -n 's/^[[:space:]]*VERSION[[:space:]]\{1,\}\([0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}\).*/\1/p' /kkemu/CMakeLists.txt | head -1)
+    if [ -z "$FW_VERSION" ]; then
+        echo "FATAL: could not read VERSION from /kkemu/CMakeLists.txt."
+        echo "Refusing to guess -- a wrong FW_VERSION silently narrows the"
+        echo "screenshot filter and the SECTIONS validation."
+        echo "1" > /kkemu/test-reports/python-keepkey/status
+        exit 1
+    fi
     echo "Detected FW_VERSION=$FW_VERSION from CMakeLists.txt"
 fi
 export FW_VERSION
