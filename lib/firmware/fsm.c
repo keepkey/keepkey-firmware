@@ -92,6 +92,10 @@
 #include "messages-solana.pb.h"
 
 #include <stdio.h>
+/* strnlen: the THORChain memo paths measure fixed arrays rather than
+   trusting their capacity. Included explicitly instead of relying on the
+   fsm_msg_*.h textual includes below to drag it in by accident. */
+#include <string.h>
 
 #define _(X) (X)
 

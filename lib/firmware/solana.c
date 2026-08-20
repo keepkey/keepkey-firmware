@@ -626,16 +626,31 @@ void solana_formatTokenAmount(char* buf, size_t len, uint64_t amount,
   uint64_t whole = amount / divisor;
   uint64_t frac = amount % divisor;
 
-  /* Format with appropriate decimal places (max 9 shown) */
+  /* Format with appropriate decimal places (max 9 shown).
+   *
+   * Truncating to nine places used to be silent, which meant a real transfer
+   * could render as zero: amount=1 with decimals=18 divided down to
+   * show_frac=0 and the screen read "0.000000000 tokens" while the signed
+   * instruction moved one base unit. A screen that says zero for a nonzero
+   * transfer is worse than one that says nothing.
+   *
+   * So truncate only when the digits being dropped are all zero. If any of
+   * them is nonzero, the decimal form cannot be shown honestly at this width
+   * -- fall back to the exact base-unit count, which is the number actually
+   * present in the instruction being signed. */
   uint8_t show_dec =
       decimals > SOL_MAX_DISPLAY_DECIMALS ? SOL_MAX_DISPLAY_DECIMALS : decimals;
-  uint64_t show_div = 1;
-  for (uint8_t i = 0; i < show_dec; i++) show_div *= 10;
-  (void)show_div;
   uint64_t show_frac = frac;
   if (decimals > SOL_MAX_DISPLAY_DECIMALS) {
+    uint64_t drop_div = 1;
     for (uint8_t i = 0; i < decimals - SOL_MAX_DISPLAY_DECIMALS; i++)
-      show_frac /= 10;
+      drop_div *= 10;
+    if (frac % drop_div != 0) {
+      snprintf(buf, len, "%llu base units (%u decimals) %s",
+               (unsigned long long)amount, (unsigned)decimals, symbol);
+      return;
+    }
+    show_frac = frac / drop_div;
   }
 
   char frac_str[10];

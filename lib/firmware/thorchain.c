@@ -240,6 +240,20 @@ ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
      of the source looking for a terminator. Copy exactly `size` bytes; the
      memzero'd tail terminates them. */
   memcpy(memoBuf, swapStr, size);
+
+  /* strtok below treats memoBuf as a C string, so it stops at the first NUL --
+     but `size` bytes were copied and ALL of them are covered by the signature.
+     A memo such as "=:ETH.ETH:<dest>:0\0:affiliate:75" therefore parses and
+     confirms as if it ended at the zero byte, while the suffix stays in the
+     signed calldata. The EVM caller passes the true ABI length, so those bytes
+     are real.
+     There is no honest way to parse a field that lies about where it ends, so
+     fail closed: the caller's UNPARSED path discloses the raw bytes with a
+     length-aware writer, which shows everything including the NUL. */
+  for (uint16_t i = 0; i < size; i++) {
+    if (memoBuf[i] == '\0') return THORCHAIN_MEMO_UNPARSED;
+  }
+
   tok = strtok(memoBuf, ":");
 
   // get transaction and asset
