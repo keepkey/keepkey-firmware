@@ -199,32 +199,73 @@ void thorchain_signAbort(void) {
   memzero(&node, sizeof(node));
 }
 
-bool thorchain_parseConfirmMemo(const char* swapStr, size_t size) {
+ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
+                                               size_t size) {
   /*
     Input: swapStr is candidate thorchain data
            size is the size of swapStr (<= 256)
     Memos should be of the form:
-    transaction:chain.ticker-id:destination:limit
+    transaction:chain.ticker-id:destination:limit[:affiliate:fee_bps...]
                 ^^^^^^^^^^^^^^----------asset
 
     So, swap USDT to dest address 0x41e55..., limit 420
     SWAP:ETH.USDT-0xdac17f958d2ee523a2206206994597c13d831ec7:0x41e5560054824ea6b0732e656e3ad64e20e94e45:420
 
     Swap transactions can be indicated by "SWAP" or "s" or "="
+
+    Fields past the ones labelled below (affiliate, affiliate fee, aggregator
+    routing) are executed by THORChain, so each branch pages whatever is left
+    rather than signing it unseen.
   */
 
-  char* parseTokPtrs[7] = {NULL, NULL, NULL, NULL,
-                           NULL, NULL, NULL};  // we can parse up to 7 tokens
+  // THORChain's memo maximum, and the largest `size` any caller can pass.
+  enum { THORCHAIN_MEMO_MAX = 256 };
+
+  char* parseTokPtrs[5] = {NULL, NULL, NULL, NULL,
+                           NULL};  // we can parse up to 5 labelled tokens
   char* tok;
-  char memoBuf[256];
+  // One byte past the maximum, so a full-length memo is still NUL terminated
+  // by the memzero below.
+  char memoBuf[THORCHAIN_MEMO_MAX + 1];
   uint16_t ctr;
 
   // check if memo data is recognized
 
-  if (size > sizeof(memoBuf)) return false;
+  if (size > THORCHAIN_MEMO_MAX) return THORCHAIN_MEMO_UNPARSED;
   memzero(memoBuf, sizeof(memoBuf));
-  strlcpy(memoBuf, swapStr, size);
-  memoBuf[255] = '\0';  // ensure null termination
+  /* `size` is a byte count and swapStr is NOT guaranteed to be NUL
+     terminated - the BTC OP_RETURN caller hands us raw script bytes. strlcpy
+     copies only size-1 of them, silently dropping the memo's last character
+     (an affiliate fee of "75" bps renders as "7"), and then walks past the end
+     of the source looking for a terminator. Copy exactly `size` bytes; the
+     memzero'd tail terminates them. */
+  memcpy(memoBuf, swapStr, size);
+
+  /* strtok below treats memoBuf as a C string, so it stops at the first NUL --
+     but `size` bytes were copied and ALL of them are covered by the signature.
+     A memo such as "=:ETH.ETH:<dest>:0\0:affiliate:75" would parse and confirm
+     as if it ended at the zero byte while the suffix stayed in the signed
+     calldata. The EVM caller passes the true ABI length, so those bytes are
+     real.
+
+     Reject ANY NUL inside the declared length, including a trailing one.
+
+     An earlier version of this check exempted trailing NULs on the grounds
+     that nothing is hidden behind them. That was wrong twice over. It was
+     adopted to make two test fixtures pass -- fixtures that declare 59 bytes
+     for a 58-byte memo -- which is the one thing the release invariant forbids:
+     tests adapt to disclosure, disclosure never weakens for a test. And it
+     accepts a length word that does not describe its own content, which is the
+     same non-canonical ABI encoding that the offset-word validation already
+     refuses. A declaration the device cannot trust is not made trustworthy by
+     the bytes it misdescribes happening to be zero.
+
+     The caller's UNPARSED path discloses the raw bytes with a length-aware
+     writer, so nothing is lost by refusing to parse. */
+  for (uint16_t i = 0; i < size; i++) {
+    if (memoBuf[i] == '\0') return THORCHAIN_MEMO_UNPARSED;
+  }
+
   tok = strtok(memoBuf, ":");
 
   // get transaction and asset
@@ -240,7 +281,7 @@ bool thorchain_parseConfirmMemo(const char* swapStr, size_t size) {
   if (ctr != 3) {
     // Must have three tokens at this point: transaction, chain, asset. If
     // not, just confirm data
-    return false;
+    return THORCHAIN_MEMO_UNPARSED;
   }
 
   // Check for swap
@@ -265,17 +306,26 @@ bool thorchain_parseConfirmMemo(const char* swapStr, size_t size) {
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                  "Thorchain swap", "Confirm swap asset %s\n on chain %s",
                  parseTokPtrs[2], parseTokPtrs[1])) {
-      return false;
+      return THORCHAIN_MEMO_CANCELLED;
     }
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                  "Thorchain swap", "Confirm to %s", parseTokPtrs[3])) {
-      return false;
+      return THORCHAIN_MEMO_CANCELLED;
     }
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                  "Thorchain swap", "Confirm limit %s", parseTokPtrs[4])) {
-      return false;
+      return THORCHAIN_MEMO_CANCELLED;
     }
-    return true;
+    /* Everything after the limit - affiliate, affiliate fee in basis points,
+       DEX-aggregator routing - is executed by THORChain but was never shown.
+       Page each remaining field rather than sign it unseen. */
+    while ((tok = strtok(NULL, ":")) != NULL) {
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                   "Thorchain swap", "Additional memo field\n%s", tok)) {
+        return THORCHAIN_MEMO_CANCELLED;
+      }
+    }
+    return THORCHAIN_MEMO_CONFIRMED;
   }
 
   // Check for add liquidity
@@ -290,16 +340,25 @@ bool thorchain_parseConfirmMemo(const char* swapStr, size_t size) {
                  "Thorchain add liquidity",
                  "Confirm add asset %s\n on chain %s pool", parseTokPtrs[2],
                  parseTokPtrs[1])) {
-      return false;
+      return THORCHAIN_MEMO_CANCELLED;
     }
     if (tok != NULL) {
       if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                    "Thorchain add liquidity", "Confirm to %s",
                    parseTokPtrs[3])) {
-        return false;
+        return THORCHAIN_MEMO_CANCELLED;
       }
     }
-    return true;
+    /* ADD:POOL:PAIREDADDR:AFFILIATE:FEE - the affiliate and its fee are
+       optional but router-executed, so neither may be hidden. */
+    while ((tok = strtok(NULL, ":")) != NULL) {
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                   "Thorchain add liquidity", "Additional memo field\n%s",
+                   tok)) {
+        return THORCHAIN_MEMO_CANCELLED;
+      }
+    }
+    return THORCHAIN_MEMO_CONFIRMED;
   }
 
   // Check for withdraw liquidity
@@ -309,7 +368,7 @@ bool thorchain_parseConfirmMemo(const char* swapStr, size_t size) {
       // add liquidity pool address
       parseTokPtrs[3] = tok;
     } else {
-      return false;  // malformed memo
+      return THORCHAIN_MEMO_UNPARSED;  // malformed memo
     }
 
     float percent = (float)(atoi(parseTokPtrs[3])) / 100;
@@ -317,12 +376,22 @@ bool thorchain_parseConfirmMemo(const char* swapStr, size_t size) {
                  "Thorchain withdraw liquidity",
                  "Confirm withdraw %3.2f%% of asset %s on chain %s", percent,
                  parseTokPtrs[2], parseTokPtrs[1])) {
-      return false;
+      return THORCHAIN_MEMO_CANCELLED;
     }
-    return true;
+    /* WD:POOL:BPS:ASSET - the optional 4th field pays the whole withdrawal
+       out single-sided in ASSET instead of the symmetric split. It directs
+       money and the screens are otherwise identical, so it must be shown. */
+    while ((tok = strtok(NULL, ":")) != NULL) {
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                   "Thorchain withdraw liquidity", "Additional memo field\n%s",
+                   tok)) {
+        return THORCHAIN_MEMO_CANCELLED;
+      }
+    }
+    return THORCHAIN_MEMO_CONFIRMED;
 
   } else {
     // Just confirm whatever coin data if no thorchain intention data parsable
-    return false;
+    return THORCHAIN_MEMO_UNPARSED;
   }
 }

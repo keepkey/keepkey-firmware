@@ -77,17 +77,19 @@ void getAuthSlot(char* authSlotData) {
 }
 #endif
 
-void wipeAuthData(void) {
-  confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Wipe Authdata",
-          "Do you want to PERMANENTLY delete all authenticator accounts?\n If "
-          "not, unplug Keepkey now.");
+unsigned wipeAuthData(void) {
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Wipe Authdata",
+               "Do you want to PERMANENTLY delete all authenticator "
+               "accounts?")) {
+    return CANCELED;
+  }
 
   // wipe storage and reset authdata encryption flag
   storage_wipeAuthData();
   // wipe local copy
   memzero(authData, sizeof(authData));
   localAuthdataUpdate = true;
-  return;
+  return NOERR;
 }
 
 unsigned addAuthAccount(char* accountWithSeed) {
@@ -144,9 +146,11 @@ unsigned addAuthAccount(char* accountWithSeed) {
     return BADSECRET;  // bad decode
   }
 
-  confirm(ButtonRequestType_ButtonRequest_Other, "Confirm add account",
-          "Domain: %.*s\nAccount: %.*s\nSecret: %s", DOMAIN_SIZE, domain,
-          ACCOUNT_SIZE, account, seedStr);
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm add account",
+               "Domain: %.*s\nAccount: %.*s\nSecret: %s", DOMAIN_SIZE, domain,
+               ACCOUNT_SIZE, account, seedStr)) {
+    return CANCELED;
+  }
 
   authData[slot].secretSize = authSecretLen;
   memcpy(authData[slot].authSecret, authSecret, authData[slot].secretSize);
@@ -328,9 +332,11 @@ unsigned removeAuthAccount(char* domAcc) {
     return NOACC;  // account not found
   }
 
-  confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Delete Account",
-          "Do you want to PERMANENTLY delete account %.*s:%.*s?",
-          DOMAIN_SIZE - 1, domain, ACCOUNT_SIZE - 1, account);
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Delete Account",
+               "Do you want to PERMANENTLY delete account %.*s:%.*s?",
+               DOMAIN_SIZE - 1, domain, ACCOUNT_SIZE - 1, account)) {
+    return CANCELED;
+  }
 
   memzero((void*)&authData[slot], sizeof(authType));
   setAuthData();

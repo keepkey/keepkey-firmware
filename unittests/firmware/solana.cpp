@@ -19,6 +19,46 @@ TEST(Solana, FormatAmount) {
   EXPECT_STREQ(buf, "2.500000000 SOL");
 }
 
+TEST(Solana, FormatTokenAmountNeverShowsZeroForNonzero) {
+  char buf[64];
+
+  /* The defect: at more than nine decimals the formatter divided the fraction
+     down and printed the result, so a real transfer could render as zero.
+     amount=1 decimals=18 became "0.000000000 tokens" while the signed
+     instruction moved one base unit. */
+  solana_formatTokenAmount(buf, sizeof(buf), 1, "tokens", 18);
+  EXPECT_STRNE(buf, "0.000000000 tokens");
+  EXPECT_NE(nullptr, strstr(buf, "1"));
+
+  /* 18 decimals, value below the display resolution -> exact base units. */
+  EXPECT_STREQ(buf, "1 base units (18 decimals) tokens");
+
+  /* 10 decimals, one digit past the limit, and that digit is nonzero. */
+  solana_formatTokenAmount(buf, sizeof(buf), 1, "tokens", 10);
+  EXPECT_STREQ(buf, "1 base units (10 decimals) tokens");
+
+  /* 10 decimals where the dropped digit IS zero: the decimal form is exact,
+     so it is still used. 10 base units at 10dp = 0.000000001. */
+  solana_formatTokenAmount(buf, sizeof(buf), 10, "tokens", 10);
+  EXPECT_STREQ(buf, "0.000000001 tokens");
+
+  /* 9 decimals is the boundary -- nothing is dropped, decimal form always. */
+  solana_formatTokenAmount(buf, sizeof(buf), 1, "tokens", 9);
+  EXPECT_STREQ(buf, "0.000000001 tokens");
+
+  solana_formatTokenAmount(buf, sizeof(buf), 1000000000ULL, "tokens", 9);
+  EXPECT_STREQ(buf, "1.000000000 tokens");
+
+  /* A whole-number amount at 18 decimals still divides exactly. */
+  solana_formatTokenAmount(buf, sizeof(buf), 1000000000000000000ULL, "tokens",
+                           18);
+  EXPECT_STREQ(buf, "1.000000000 tokens");
+
+  /* Zero really is zero, at any scale. */
+  solana_formatTokenAmount(buf, sizeof(buf), 0, "tokens", 18);
+  EXPECT_STREQ(buf, "0.000000000 tokens");
+}
+
 TEST(Solana, ParseSystemTransfer) {
   /* Construct a minimal Solana transaction with a system transfer.
    *

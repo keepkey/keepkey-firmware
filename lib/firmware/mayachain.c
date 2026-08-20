@@ -222,10 +222,30 @@ bool mayachain_parseConfirmMemo(const char* swapStr, size_t size) {
 
   // check if memo data is recognized
 
-  if (size > sizeof(memoBuf)) return false;
+  /* One byte short of the buffer, so a full-length memo is still terminated by
+     the memzero below. */
+  if (size >= sizeof(memoBuf)) return false;
   memzero(memoBuf, sizeof(memoBuf));
-  strlcpy(memoBuf, swapStr, size);
-  memoBuf[255] = '\0';  // ensure null termination
+
+  /* `size` is a byte count and swapStr is NOT guaranteed to be NUL terminated.
+     strlcpy copied only size-1 of them, silently dropping the memo's last
+     character -- an affiliate fee of "75" bps rendered as "7" -- and then
+     walked past the end of the source looking for a terminator. Copy exactly
+     `size` bytes; the memzero'd tail terminates them.
+     Same defect as the THORChain path; Maya is a fork of it and kept the
+     original code. */
+  memcpy(memoBuf, swapStr, size);
+
+  /* strtok treats memoBuf as a C string and stops at the first NUL, but all
+     `size` bytes are covered by the signature. A memo carrying an embedded
+     zero would parse and confirm as if it ended there while the suffix stayed
+     signed. A length word that does not describe its own content is a
+     non-canonical encoding, so refuse it and let the caller disclose the raw
+     bytes. Mirrors thorchain.c. */
+  for (uint16_t i = 0; i < size; i++) {
+    if (memoBuf[i] == '\0') return false;
+  }
+
   tok = strtok(memoBuf, ":");
 
   // get transaction and asset

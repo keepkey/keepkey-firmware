@@ -41,6 +41,7 @@ enum AUTH_ERR_TYPE {
   LARGESEED,
   BADPASS,
   UNKERR,
+  CANCELED,
   NUM_AUTHERRS
 };
 
@@ -68,7 +69,7 @@ unsigned generateOTP(char* accountWithMsg, char otpStr[]);
 unsigned addAuthAccount(char* accountWithSeed);
 unsigned getAuthAccount(const char* slotStr, char acc[]);
 unsigned removeAuthAccount(char* domAcc);
-void wipeAuthData(void);
+unsigned wipeAuthData(void);
 #if DEBUG_LINK
 void getAuthSlot(char* authSlotData);
 #endif

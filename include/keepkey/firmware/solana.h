@@ -191,10 +191,6 @@ void solana_formatAmount(char* buf, size_t len, uint64_t lamports);
 void solana_formatTokenAmount(char* buf, size_t len, uint64_t amount,
                               const char* symbol, uint8_t decimals);
 
-/* Look up token info from the host-provided list */
-const SolanaTokenInfo* solana_findTokenInfo(
-    const SolanaSignTx* msg, const uint8_t mint[SOL_PUBKEY_SIZE]);
-
 /* Sign transaction */
 bool solana_signTx(const HDNode* node, const SolanaSignTx* msg,
                    SolanaSignedTx* resp);

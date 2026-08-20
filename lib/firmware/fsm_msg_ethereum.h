@@ -191,44 +191,24 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress* msg) {
   layoutHome();
 }
 
-#define MSG_MAX (38 * 3)  // 38 chars per line, three lines max
 void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
-  char msgBuf[MSG_MAX + 1] = {0};
-  const char* typeIndicator;
-  unsigned ctr;
-  unsigned msgLen = 0;
-  bool canPrint = true;
-
   RESP_INIT(EthereumMessageSignature);
 
   CHECK_INITIALIZED
 
   CHECK_PIN
 
-  // truncate to display size if too long
-  msgLen = msg->message.size * 2;
-  if (msgLen > MSG_MAX) {
-    msgLen = MSG_MAX;
-  }
-  for (ctr = 0; ctr < msg->message.size; ctr++) {
-    if (isprint(msg->message.bytes[ctr]) == false) {
-      canPrint = false;
-      break;
-    }
-  }
-  if (canPrint) {
-    typeIndicator = "Sign Message";
-    strncpy(msgBuf, (char*)msg->message.bytes, MSG_MAX + 1);
-    msgBuf[MSG_MAX] = '\0';
-  } else {
-    typeIndicator = "Sign Bytes";
-    for (ctr = 0; ctr < msgLen / 2; ctr++) {
-      snprintf(&msgBuf[2 * ctr], 3, "%02x", msg->message.bytes[ctr]);
-    }
-  }
-
-  if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _(typeIndicator),
-               "%s", msgBuf)) {
+  /* Merge note (#432 vs this branch): release/7.14.2 gated Ethereum message
+   * signing behind AdvancedMode, which blocks every Sign-In-With-Ethereum
+   * flow on a default device and, because AdvancedMode is session state,
+   * does so again after each power cycle. confirm_bytes() paginates and
+   * displays EVERY signed byte, which is what that gate was standing in for.
+   * Full disclosure is both the stronger security property and the one that
+   * does not break default-configuration signing, so the gate is dropped
+   * here in favour of it. */
+  if (!confirm_bytes(ButtonRequestType_ButtonRequest_ProtectCall,
+                     _("Sign Ethereum Message"), msg->message.bytes,
+                     msg->message.size)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
     return;
@@ -244,12 +224,6 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
 }
 
 void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage* msg) {
-  char msgBuf[MSG_MAX + 1] = {0};
-  const char* typeIndicator;
-  unsigned ctr;
-  unsigned msgLen = 0;
-  bool canPrint = true;
-
   CHECK_PARAM(msg->has_address, _("No address provided"));
   CHECK_PARAM(msg->has_message, _("No message provided"));
 
@@ -266,29 +240,9 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage* msg) {
     return;
   }
 
-  // truncate to display size if too long
-  msgLen = msg->message.size;
-  if (msgLen > MSG_MAX) {
-    msgLen = MSG_MAX;
-  }
-  for (ctr = 0; ctr < msgLen; ctr++) {
-    if (isprint(msg->message.bytes[ctr]) == false) {
-      canPrint = false;
-      break;
-    }
-  }
-  if (canPrint) {
-    typeIndicator = "Message Verified";
-    strncpy(msgBuf, (char*)msg->message.bytes, MSG_MAX + 1);
-    msgBuf[MSG_MAX] = '\0';
-  } else {
-    typeIndicator = "Bytes Verified";
-    for (ctr = 0; ctr < msgLen / 2; ctr++) {
-      snprintf(&msgBuf[2 * ctr], 3, "%02x", msg->message.bytes[ctr]);
-    }
-  }
-  if (!confirm(ButtonRequestType_ButtonRequest_Other, _(typeIndicator), "%s",
-               msgBuf)) {
+  if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                     _("Ethereum Message Verified"), msg->message.bytes,
+                     msg->message.size)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
     return;
@@ -305,10 +259,25 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash* msg) {
 
   CHECK_PIN
 
+  if (!ethereum_typed_hash_policy_allows(
+          storage_isPolicyEnabled("AdvancedMode"))) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Enable AdvancedMode to blind-sign typed hashes"));
+    layoutHome();
+    return;
+  }
+
   if (msg->domain_separator_hash.size != 32 ||
       (msg->has_message_hash && msg->message_hash.size != 32)) {
     fsm_sendFailure(FailureType_Failure_Other,
                     _("Invalid EIP-712 hash length"));
+    return;
+  }
+
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "EIP-712 Blind Sign",
+               "Cannot verify these hashes. Trust the host?")) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    layoutHome();
     return;
   }
 
@@ -331,24 +300,40 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash* msg) {
   char str[64 + 1];
   int ctr;
 
-  confirm(ButtonRequestType_ButtonRequest_Other, "Verify Address",
-          "Confirm address: %s", resp->address);
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Verify Address",
+               "Confirm address: %s", resp->address)) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    layoutHome();
+    return;
+  }
 
   for (ctr = 0; ctr < 64 / 2; ctr++) {
     snprintf(&str[2 * ctr], 3, "%02x", msg->domain_separator_hash.bytes[ctr]);
   }
-  confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data domain",
-          "Confirm hash digest: %s", str);
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data domain",
+               "Confirm hash digest: %s", str)) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    layoutHome();
+    return;
+  }
 
   if (msg->has_message_hash) {
     for (ctr = 0; ctr < 64 / 2; ctr++) {
       snprintf(&str[2 * ctr], 3, "%02x", msg->message_hash.bytes[ctr]);
     }
-    confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
-            "Confirm hash digest: %s", str);
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
+                 "Confirm hash digest: %s", str)) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
   } else {
-    confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
-            "Confirm: No message");
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
+                 "Confirm: No message")) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
   }
 
   ethereum_typed_hash_sign(msg, node, resp);
@@ -361,6 +346,14 @@ void fsm_msgEthereum712TypesValues(Ethereum712TypesValues* msg) {
   CHECK_INITIALIZED
 
   CHECK_PIN
+
+  if (!ethereum_structured_eip712_enabled()) {
+    fsm_sendFailure(
+        FailureType_Failure_Other,
+        _("Structured EIP-712 disabled pending canonical display hardening"));
+    layoutHome();
+    return;
+  }
 
   if (strlen(msg->eip712types) == 0) {
     fsm_sendFailure(FailureType_Failure_Other,
