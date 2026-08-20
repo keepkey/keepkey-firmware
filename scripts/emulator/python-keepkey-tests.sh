@@ -95,6 +95,22 @@ if [ "$SCREENSHOT_COUNT" -eq 0 ]; then
     exit 1
 fi
 
+# A total count > 0 cannot distinguish "captured everything" from "captured
+# something". On the 7.14.2 rc30 artifact this gate passed with 345 PNGs while
+# EVERY suite the release changed captured zero -- the rendering evidence for a
+# release about what reaches the screen did not exist, and nothing said so.
+# Audit per test: any SECTIONS entry that DECLARED screens must have captured
+# some. Skipped tests are excluded; a version-gated test cannot draw.
+echo "=== Screenshot audit (per-test) ==="
+python3 ../scripts/generate-test-report.py \
+    --screenshot-audit /kkemu/test-reports/screenshots \
+    --audit-junit /kkemu/test-reports/python-keepkey/junit-screenshots.xml \
+    --fw-version=$FW_VERSION || {
+    echo "FATAL: tests declared screens they did not capture (see list above)."
+    echo "1" > /kkemu/test-reports/python-keepkey/status
+    exit 1
+}
+
 # Phase 2: Full test suite — SECTIONS is the source of truth.
 # pytest may exit non-zero (some tests fail before gating kicks in),
 # so we capture the JUnit XML regardless, then validate against SECTIONS.
