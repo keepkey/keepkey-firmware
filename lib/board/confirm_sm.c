@@ -353,6 +353,111 @@ bool confirm_body_fits(const char* body, uint16_t body_width) {
                           font_height(body_font) + BODY_FONT_LINE_PADDING);
 }
 
+/// How many characters of `body` fit one screen, starting from `body[0]`?
+///
+/// Binary search over confirm_body_fits(), which replays the real placement.
+/// Returns at least 1 so a body of unrenderable glyphs still advances rather
+/// than looping forever.
+static size_t page_take(const char* body, uint16_t body_width, char* buf,
+                        size_t buf_size) {
+  const size_t len = strlen(body);
+  if (len == 0) return 0;
+
+  size_t lo = 1;
+  size_t hi = len < (buf_size - 1) ? len : (buf_size - 1);
+  size_t best = 1;
+
+  while (lo <= hi) {
+    const size_t mid = lo + (hi - lo) / 2;
+    memcpy(buf, body, mid);
+    buf[mid] = '\0';
+    if (confirm_body_fits(buf, body_width)) {
+      best = mid;
+      lo = mid + 1;
+    } else {
+      if (mid == 1) break;
+      hi = mid - 1;
+    }
+  }
+  return best;
+}
+
+/// Show `body` across as many screens as it needs.
+///
+/// Intermediate pages are `immediate`: a short click advances them. Only the
+/// LAST page takes the caller's real hold, because only the last page is the
+/// approval. Paging through what you are being shown should not cost the same
+/// effort as consenting to it.
+///
+/// INVARIANT (see #482): one required press, one ButtonRequest. Every page
+/// after the first writes its own request and clears button_request_acked, so
+/// a host that answers every request it is told about never waits on a press
+/// it never heard of.
+static bool page_body_confirm(const char* request_title, const char* body,
+                              layout_notification_t layout_notification_func,
+                              bool constant_power, IconType iconNum,
+                              bool immediate, uint16_t body_width) {
+  static CONFIDENTIAL char page_buf[BODY_CHAR_MAX];
+  static char page_title[TITLE_CHAR_MAX];
+
+  /* Pass 1: count. */
+  size_t pages = 0;
+  {
+    const char* p = body;
+    while (*p) {
+      const size_t take = page_take(p, body_width, page_buf, sizeof(page_buf));
+      if (take == 0) break;
+      p += take;
+      while (*p == ' ') p++; /* a leading space is dropped at a line start */
+      pages++;
+      if (pages > 99) break; /* title formats n/m; refuse to run away */
+    }
+  }
+  if (pages <= 1) {
+    /* Nothing gained by paging -- draw it as it was. */
+    return confirm_screen(request_title, body, layout_notification_func,
+                          constant_power, iconNum, immediate);
+  }
+
+  bool ok = false;
+  const char* p = body;
+  for (size_t page = 0; page < pages && *p; page++) {
+    const size_t take = page_take(p, body_width, page_buf, sizeof(page_buf));
+    if (take == 0) break;
+    memcpy(page_buf, p, take);
+    page_buf[take] = '\0';
+
+    const int title_len =
+        snprintf(page_title, sizeof(page_title), "%s %u/%u", request_title,
+                 (unsigned)(page + 1), (unsigned)pages);
+    if (title_len < 0 || (size_t)title_len >= sizeof(page_title)) break;
+
+    const bool last = (page + 1 == pages);
+    if (page > 0) {
+      ButtonRequest page_ack;
+      memset(&page_ack, 0, sizeof(page_ack));
+      page_ack.has_code = true;
+      page_ack.code = ButtonRequestType_ButtonRequest_Other;
+      button_request_acked = false;
+      msg_write(MessageType_MessageType_ButtonRequest, &page_ack);
+    }
+
+    if (!confirm_screen(page_title, page_buf, layout_notification_func,
+                        constant_power, iconNum, last ? immediate : true)) {
+      goto done;
+    }
+
+    p += take;
+    while (*p == ' ') p++;
+    if (last) ok = true;
+  }
+
+done:
+  memzero(page_buf, sizeof(page_buf));
+  memzero(page_title, sizeof(page_title));
+  return ok;
+}
+
 /// Show a confirmation, warning first when its body will not fit the screen.
 ///
 /// draw_string() draws until a glyph no longer fits the canvas and then simply
@@ -404,38 +509,32 @@ static bool confirm_helper(const char* request_title, const char* request_body,
       (layout_notification_func == &layout_standard_notification) &&
       !confirm_body_fits(request_body, body_width);
 
-  if (truncated || render_incomplete) {
-    /* INVARIANT: one required hold, one ButtonRequest.
-     *
-     * This used to write no second request, on the reasoning that the host had
-     * already sent one and its ButtonAck left button_request_acked armed for
-     * the body screen below -- "the wire dialogue is unchanged; only the number
-     * of holds is not". That is exactly the defect. The device asked for two
-     * physical confirmations while announcing one, so a host that satisfied
-     * every request it was told about still waited forever for a response that
-     * needed a hold it never heard about. A human holding twice never notices;
-     * any automated or auto-approving host deadlocks.
-     *
-     * The request below belongs to the BODY screen, not to this warning: the
-     * caller's original ButtonRequest was written before confirm_helper() ran
-     * and is answered by the Cut Off screen, which is the first one shown.
-     * Clearing button_request_acked is the load-bearing half -- without it
-     * confirm_screen() would accept a press that arrived for the previous
-     * request. */
+  if (truncated) {
+    /* SOURCE truncation: characters were lost in vsnprintf() before the
+     * renderer ever saw them. They cannot be paged, because they do not
+     * exist any more. Say exactly that -- the old copy promised to show the
+     * rest on the next hold and then redrew the same clipped body, which is
+     * worse than not warning at all: a user who read it carefully was
+     * misled about what they had seen. */
     if (!confirm_screen("Cut Off",
-                        "This text is too long for the screen. Only part "
-                        "of it is shown. Hold to view it anyway.",
+                        "This text is too long to show in full. The rest "
+                        "cannot be displayed. Hold to continue anyway.",
                         &layout_standard_notification, constant_power, NO_ICON,
                         immediate)) {
       return false;
     }
+    return page_body_confirm(request_title, request_body,
+                             layout_notification_func, constant_power, iconNum,
+                             immediate, body_width);
+  }
 
-    ButtonRequest cut_off_ack;
-    memset(&cut_off_ack, 0, sizeof(cut_off_ack));
-    cut_off_ack.has_code = true;
-    cut_off_ack.code = ButtonRequestType_ButtonRequest_Other;
-    button_request_acked = false;
-    msg_write(MessageType_MessageType_ButtonRequest, &cut_off_ack);
+  if (render_incomplete) {
+    /* RENDER overflow: the body reached the renderer intact, so every
+     * character is still in hand and can be shown -- on more than one screen.
+     * Page it. */
+    return page_body_confirm(request_title, request_body,
+                             layout_notification_func, constant_power, iconNum,
+                             immediate, body_width);
   }
 
   return confirm_screen(request_title, request_body, layout_notification_func,
