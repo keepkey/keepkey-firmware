@@ -226,6 +226,22 @@ static bool path_mismatched(const CoinType* coin, const uint32_t* address_n,
     return mismatch;
   }
 
+  // m/86' : BIP86 Taproot
+  // m / purpose' / bip44_account_path' / account' / change / address_index
+  if (address_n[0] == (0x80000000 + 86)) {
+    mismatch |= !coin->has_segwit || !coin->segwit;
+    mismatch |= !coin->has_bech32_prefix;
+    mismatch |= !coin->has_taproot || !coin->taproot;
+    mismatch |= (address_n_count != (whole_account ? 3 : 5));
+    mismatch |= (address_n[1] != coin->bip44_account_path);
+    mismatch |= (address_n[2] & 0x80000000) == 0;
+    if (!whole_account) {
+      mismatch |= (address_n[3] & 0x80000000) == 0x80000000;
+      mismatch |= (address_n[4] & 0x80000000) == 0x80000000;
+    }
+    return mismatch;
+  }
+
   return false;
 }
 

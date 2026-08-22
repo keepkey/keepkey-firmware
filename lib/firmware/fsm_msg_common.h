@@ -1,6 +1,7 @@
 void fsm_msgInitialize(Initialize* msg) {
   (void)msg;
-  recovery_cipher_abort();
+  /* Ends a setup ceremony of either kind, staged settings and all. */
+  setup_abort();
   signing_abort();
   ethereum_signing_abort();
   tendermint_signAbort();
@@ -40,10 +41,29 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
   resp->has_model = true;
   strlcpy(resp->model, model(), sizeof(resp->model));
 
+  /* Taproot capability.  Reported directly so a host does not have to infer
+     P2TR support from a firmware version -- that inference breaks whenever the
+     feature is retargeted to a different release. */
+  resp->has_supports_taproot = true;
+  resp->supports_taproot = true;
+
   /* Variant Name */
   resp->has_firmware_variant = true;
+#if BITCOIN_ONLY
+  /* Report the established KeepKeyBTC / EmulatorBTC names rather than the
+     board variant, so that existing hosts recognise a bitcoin-only image and
+     skip multi-chain-only behaviour instead of offering it features this
+     firmware does not implement. */
+#ifdef EMULATOR
+  strlcpy(resp->firmware_variant, "EmulatorBTC",
+          sizeof(resp->firmware_variant));
+#else
+  strlcpy(resp->firmware_variant, "KeepKeyBTC", sizeof(resp->firmware_variant));
+#endif
+#else
   strlcpy(resp->firmware_variant, variant_getName(),
           sizeof(resp->firmware_variant));
+#endif
 
   /* Security settings */
   resp->has_pin_protection = true;
@@ -150,8 +170,10 @@ void fsm_msgGetCoinTable(GetCoinTable* msg) {
     for (size_t i = 0; i < msg->end - msg->start; i++) {
       if (msg->start + i < COINS_COUNT) {
         resp->table[i] = coins[msg->start + i];
+#if !BITCOIN_ONLY
       } else if (msg->start + i - COINS_COUNT < TOKENS_COUNT) {
         coinFromToken(&resp->table[i], &tokens[msg->start + i - COINS_COUNT]);
+#endif
       }
     }
   }
@@ -198,6 +220,7 @@ void fsm_msgPing(Ping* msg) {
       "Authenticator secret seed too large",
       "passphrase incorrect for authdata",
       "Auth secret unknown error",
+      "Action cancelled",
   };
 
   typedef enum _AUTH_MSG_TYPE {
@@ -277,8 +300,7 @@ void fsm_msgPing(Ping* msg) {
         break;
 
       case WIPEADATA:
-        wipeAuthData();
-        errcode = NOERR;
+        errcode = wipeAuthData();
         resp->has_message = false;
         break;
 
@@ -529,6 +551,7 @@ void fsm_msgLoadDevice(LoadDevice* msg) {
 
 void fsm_msgResetDevice(ResetDevice* msg) {
   CHECK_NOT_INITIALIZED
+  CHECK_NO_CEREMONY
 
   reset_init(msg->has_display_random && msg->display_random,
              msg->has_strength ? msg->strength : 128,
@@ -552,7 +575,8 @@ void fsm_msgEntropyAck(EntropyAck* msg) {
 
 void fsm_msgCancel(Cancel* msg) {
   (void)msg;
-  recovery_cipher_abort();
+  /* Cancellation rolls the ceremony back: one memzero, no storage touched. */
+  setup_abort();
   signing_abort();
   ethereum_signing_abort();
   tendermint_signAbort();
@@ -651,6 +675,8 @@ apply_settings_cancelled:
 }
 
 void fsm_msgRecoveryDevice(RecoveryDevice* msg) {
+  CHECK_NO_CEREMONY
+
   if (msg->has_dry_run && msg->dry_run) {
     CHECK_INITIALIZED
   } else {
