@@ -157,7 +157,7 @@ void setup_commit(const char* mnemonic, bool imported) {
   if (setup.has_language) storage_setLanguage(setup.language);
   if (setup.has_label) storage_setLabel(setup.label);
   storage_setAutoLockDelayMs(setup.auto_lock_delay_ms);
-  storage_setU2FCounter(setup.u2f_counter);
+  storage_stageU2FCounter(setup.u2f_counter);
   if (setup.no_backup) storage_setNoBackup();
 
   storage_setMnemonic(mnemonic);
