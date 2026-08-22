@@ -136,7 +136,9 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
        *
        * The mint above plus a plain token count is everything the device can
        * honestly assert. */
-      char amount_str[48];
+      /* UINT64_MAX with a three-digit decimals count needs 54 bytes including
+       * the terminator in the exact base-unit fallback. */
+      char amount_str[64];
       solana_formatTokenAmount(amount_str, sizeof(amount_str), pi->amount,
                                "tokens", pi->extra_u8);
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,

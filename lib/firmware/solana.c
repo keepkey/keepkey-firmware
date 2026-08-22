@@ -615,8 +615,17 @@ void solana_formatAmount(char* buf, size_t len, uint64_t lamports) {
 
 void solana_formatTokenAmount(char* buf, size_t len, uint64_t amount,
                               const char* symbol, uint8_t decimals) {
-  if (decimals == 0 || decimals > SOL_MAX_TOKEN_DECIMALS) {
+  if (decimals == 0) {
     snprintf(buf, len, "%llu %s", (unsigned long long)amount, symbol);
+    return;
+  }
+
+  /* A mint's decimals field is an unrestricted uint8_t. Preserve both signed
+   * values exactly when the scale exceeds this formatter's arithmetic range
+   * instead of dropping the scale. */
+  if (decimals > SOL_MAX_TOKEN_DECIMALS) {
+    snprintf(buf, len, "%llu base units (%u decimals) %s",
+             (unsigned long long)amount, (unsigned)decimals, symbol);
     return;
   }
 

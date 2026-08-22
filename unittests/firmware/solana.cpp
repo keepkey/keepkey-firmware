@@ -22,6 +22,10 @@ TEST(Solana, FormatAmount) {
 TEST(Solana, FormatTokenAmountNeverShowsZeroForNonzero) {
   char buf[64];
 
+  /* Zero decimals is already an exact base-unit/token count. */
+  solana_formatTokenAmount(buf, sizeof(buf), 1, "tokens", 0);
+  EXPECT_STREQ(buf, "1 tokens");
+
   /* The defect: at more than nine decimals the formatter divided the fraction
      down and printed the result, so a real transfer could render as zero.
      amount=1 decimals=18 became "0.000000000 tokens" while the signed
@@ -57,6 +61,19 @@ TEST(Solana, FormatTokenAmountNeverShowsZeroForNonzero) {
   /* Zero really is zero, at any scale. */
   solana_formatTokenAmount(buf, sizeof(buf), 0, "tokens", 18);
   EXPECT_STREQ(buf, "0.000000000 tokens");
+
+  /* The on-chain decimals field is a uint8_t and is not capped at 18. Values
+     outside the formatter's supported range must retain their signed scale. */
+  solana_formatTokenAmount(buf, sizeof(buf), 1, "tokens", 19);
+  EXPECT_STREQ(buf, "1 base units (19 decimals) tokens");
+
+  solana_formatTokenAmount(buf, sizeof(buf), 0, "tokens", 255);
+  EXPECT_STREQ(buf, "0 base units (255 decimals) tokens");
+
+  /* The production caller also uses 64 bytes, so the longest fallback is not
+     silently truncated before it reaches the confirmation pager. */
+  solana_formatTokenAmount(buf, sizeof(buf), UINT64_MAX, "tokens", 255);
+  EXPECT_STREQ(buf, "18446744073709551615 base units (255 decimals) tokens");
 }
 
 TEST(Solana, ParseSystemTransfer) {
