@@ -27,6 +27,7 @@
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/keepkey_button.h"
 #include "keepkey/board/timer.h"
+#include "keepkey/board/font.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/messages.h"
 #include "keepkey/board/confirm_sm.h"
@@ -38,6 +39,7 @@
 #include "keepkey/firmware/coins.h"
 
 #include "trezor/crypto/bignum.h"
+#include "trezor/crypto/memzero.h"
 
 #include <assert.h>
 #include <stdarg.h>
@@ -389,6 +391,88 @@ bool confirm_sign_identity(const IdentityType* identity,
 
   return confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, "%s",
                  body);
+}
+
+static size_t confirm_byte_token(uint8_t byte, char token[5]) {
+  if (byte >= 0x21 && byte <= 0x7e && byte != '\\') {
+    token[0] = (char)byte;
+    token[1] = '\0';
+    return 1;
+  }
+
+  snprintf(token, 5, "\\x%02X", byte);
+  return 4;
+}
+
+size_t confirm_bytes_format_page(const uint8_t* data, size_t size, char* out,
+                                 size_t out_len) {
+  if ((!data && size != 0) || !out || out_len == 0) return 0;
+
+  out[0] = '\0';
+  size_t used = 0;
+  size_t consumed = 0;
+  while (consumed < size) {
+    char token[5];
+    const size_t token_len = confirm_byte_token(data[consumed], token);
+    if (used >= out_len - 1 || token_len > (out_len - 1) - used) break;
+
+    memcpy(out + used, token, token_len + 1);
+    if (calc_str_line(get_body_font(), out, BODY_WIDTH) > BODY_ROWS) {
+      out[used] = '\0';
+      break;
+    }
+
+    used += token_len;
+    consumed++;
+  }
+
+  return consumed;
+}
+
+bool confirm_bytes(ButtonRequestType button_request, const char* title,
+                   const uint8_t* data, size_t size) {
+  if (!title || (!data && size != 0)) return false;
+  if (size == 0) return confirm(button_request, title, "(empty)");
+
+  static char page_body[BODY_CHAR_MAX];
+  static char page_title[TITLE_CHAR_MAX];
+  bool approved = false;
+
+  size_t pages = 0;
+  size_t offset = 0;
+  while (offset < size) {
+    const size_t take = confirm_bytes_format_page(data + offset, size - offset,
+                                                  page_body, sizeof(page_body));
+    if (take == 0) goto cleanup;
+    offset += take;
+    pages++;
+  }
+
+  offset = 0;
+  for (size_t page = 0; page < pages; page++) {
+    const size_t take = confirm_bytes_format_page(data + offset, size - offset,
+                                                  page_body, sizeof(page_body));
+    if (take == 0) goto cleanup;
+
+    int title_len;
+    if (pages == 1) {
+      title_len = snprintf(page_title, sizeof(page_title), "%s", title);
+    } else {
+      title_len = snprintf(page_title, sizeof(page_title), "%s %u/%u", title,
+                           (unsigned)(page + 1), (unsigned)pages);
+    }
+    if (title_len < 0 || (size_t)title_len >= sizeof(page_title)) goto cleanup;
+
+    if (!confirm(button_request, page_title, "%s", page_body)) goto cleanup;
+    offset += take;
+  }
+
+  approved = true;
+
+cleanup:
+  memzero(page_body, sizeof(page_body));
+  memzero(page_title, sizeof(page_title));
+  return approved;
 }
 
 bool confirm_omni(ButtonRequestType button_request, const char* title,

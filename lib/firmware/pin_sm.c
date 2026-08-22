@@ -277,27 +277,40 @@ bool pin_protect_cached(void) {
 
 bool pin_protect_uncached(void) { return pin_protect("Enter\nYour PIN"); }
 
-bool change_pin(void) {
+bool change_pin_staged(char* out, size_t out_len) {
+  /* Not CONFIDENTIAL: that macro expands to a section attribute, which the
+     ARM toolchain rejects on locals. Both structs are memzero'd on every
+     exit path below, including the failure ones. */
   PINInfo pin_info_first, pin_info_second;
+  bool ret = false;
 
   /* Set request types */
   pin_info_first.type = PinMatrixRequestType_PinMatrixRequestType_NewFirst;
   pin_info_second.type = PinMatrixRequestType_PinMatrixRequestType_NewSecond;
 
-  if (!pin_request("Enter New\nPIN", &pin_info_first)) {
-    return false;
-  }
+  if (!pin_request("Enter New\nPIN", &pin_info_first)) goto done;
 
-  if (!pin_request("Re-Enter\nNew PIN", &pin_info_second)) {
-    return false;
-  }
+  if (!pin_request("Re-Enter\nNew PIN", &pin_info_second)) goto done;
 
-  if (strcmp(pin_info_first.pin, pin_info_second.pin) != 0) {
-    return false;
-  }
+  if (strcmp(pin_info_first.pin, pin_info_second.pin) != 0) goto done;
 
-  storage_setPin(pin_info_first.pin);
-  return true;
+  strlcpy(out, pin_info_first.pin, out_len);
+  ret = true;
+
+done:
+  memzero(&pin_info_first, sizeof(pin_info_first));
+  memzero(&pin_info_second, sizeof(pin_info_second));
+  return ret;
+}
+
+bool change_pin(void) {
+  char pin[PIN_BUF]; /* memzero'd below; see change_pin_staged() */
+  bool ret = change_pin_staged(pin, sizeof(pin));
+
+  if (ret) storage_setPin(pin);
+
+  memzero(pin, sizeof(pin));
+  return ret;
 }
 
 bool change_wipe_code(void) {

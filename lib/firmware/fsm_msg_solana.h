@@ -40,10 +40,13 @@ static void solana_pubkeyToStr(const uint8_t key[SOL_PUBKEY_SIZE], char* out,
            key[31]);
 }
 
-/* Confirm a single parsed instruction */
+/* Confirm a single parsed instruction.
+ *
+ * Takes no SolanaSignTx on purpose: every value on these screens is decoded
+ * from the bytes being signed. Nothing the host merely asserts is displayed,
+ * so there is no untrusted string left to sanitise. */
 static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
-                                      const SolanaSignTx* msg, uint8_t idx,
-                                      uint8_t total) {
+                                      uint8_t idx, uint8_t total) {
   char title[32];
   snprintf(title, sizeof(title), "Instr %d/%d", idx + 1, total);
 
@@ -105,25 +108,39 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
       char to_str[45];
       solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
 
-      /* Try to find token info from host-provided metadata */
-      const SolanaTokenInfo* ti = NULL;
+      /* The mint is the only token identity the signed bytes carry, so it is
+       * the only one shown. Its own screen, its own hold. */
       if (pi->has_mint) {
-        ti = solana_findTokenInfo(msg, pi->mint);
+        char mint_str[45];
+        solana_pubkeyToStr(pi->mint, mint_str, sizeof(mint_str));
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                     "Token mint\n%s", mint_str)) {
+          return false;
+        }
       }
 
-      if (ti && ti->has_symbol && ti->has_decimals) {
-        char amount_str[48];
-        solana_formatTokenAmount(amount_str, sizeof(amount_str), pi->amount,
-                                 ti->symbol, (uint8_t)ti->decimals);
-        return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                       "Send %s to %s?", amount_str, to_str);
-      } else {
-        char amount_str[32];
-        snprintf(amount_str, sizeof(amount_str), "%llu tokens",
-                 (unsigned long long)pi->amount);
-        return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                       "Send %s to %s?", amount_str, to_str);
-      }
+      /* Scale by the signed instruction's decimals (pi->extra_u8), and label
+       * with the generic unit -- never with SolanaSignTx.token_info.symbol.
+       *
+       * This device has no on-device Solana mint table. The only token tables
+       * it carries are tokens.def, ethereum_tokens.def and uniswap_tokens.def,
+       * all ERC-20 and keyed by 20-byte Ethereum addresses, so there is
+       * nothing here to authenticate a label such as "USDC" against.
+       *
+       * Requiring the host's claimed decimals to equal the signed ones
+       * authenticates the exponent, not the identity: an attacker picks a mint
+       * whose decimals already match the ones they declare, and the label then
+       * rides through as device-verified fact. Nor can the label be shown with
+       * a caveat -- the host controls up to 12 printable-ASCII characters
+       * immediately beside it, enough to write its own parenthetical.
+       *
+       * The mint above plus a plain token count is everything the device can
+       * honestly assert. */
+      char amount_str[48];
+      solana_formatTokenAmount(amount_str, sizeof(amount_str), pi->amount,
+                               "tokens", pi->extra_u8);
+      return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                     "Send %s to %s?", amount_str, to_str);
     }
 
     case SOL_INSTR_TOKEN_APPROVE: {
@@ -388,7 +405,7 @@ void fsm_msgSolanaSignTx(const SolanaSignTx* msg) {
   if (tx_review == SOL_TX_REVIEW_VERIFIED) {
     /* Per-instruction confirmation for fully verified messages */
     for (uint8_t i = 0; i < parsed.num_instructions; i++) {
-      if (!solana_confirmInstruction(&parsed.instructions[i], msg, i,
+      if (!solana_confirmInstruction(&parsed.instructions[i], i,
                                      parsed.num_instructions)) {
         memzero(node, sizeof(*node));
         fsm_sendFailure(FailureType_Failure_ActionCancelled,
@@ -531,8 +548,7 @@ void fsm_msgSolanaSignMessage(const SolanaSignMessage* msg) {
 
   /* Ed25519 sign */
   uint8_t sig[SOL_SIG_SIZE];
-  ed25519_sign(msg->message.bytes, msg->message.size, node->private_key,
-               node->public_key + 1, sig);
+  ed25519_sign(msg->message.bytes, msg->message.size, node->private_key, sig);
 
   resp->has_signature = true;
   resp->signature.size = SOL_SIG_SIZE;

@@ -48,6 +48,16 @@
 
 #define _(X) (X)
 
+bool ethereum_typed_hash_policy_allows(bool advanced_mode) {
+  return advanced_mode;
+}
+
+/* The legacy JSON parser cannot guarantee that every displayed value is the
+ * canonical value hashed by EIP-712. Keep the protocol symbol for compatibility
+ * but fail closed in the FSM until the complete parser hardening is backported.
+ */
+bool ethereum_structured_eip712_enabled(void) { return false; }
+
 #define MAX_CHAIN_ID 2147483630
 
 #define ETHEREUM_TX_TYPE_LEGACY 0UL
@@ -607,17 +617,36 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   if (!msg->has_to) msg->to.size = 0;
   if (!msg->has_nonce) msg->nonce.size = 0;
 
-  /* eip-155 chain id */
-  if (msg->has_chain_id) {
-    if (msg->chain_id < 1) {
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      _("Chain Id out of bounds"));
-      ethereum_signing_abort();
-      return;
-    }
-    chain_id = msg->chain_id;
-  } else {
-    chain_id = 0;
+  /* eip-155 chain id
+   *
+   * An absent chain_id is not "some other chain", it is no chain. The bounds
+   * check below used to live inside `if (msg->has_chain_id)`, so a host that
+   * simply omitted the field landed on chain_id == 0 — the exact value the
+   * `< 1` reject exists to forbid — and got there without tripping it.
+   *
+   * Two things then go wrong at once, and the second is what makes it a
+   * signing bug rather than a compatibility wart:
+   *
+   *   - send_signature() appends the EIP-155 fields to the keccak preimage
+   *     only `if (chain_id)`, and falls back to signature_v = v + 27. The
+   *     device emits a pre-EIP-155 signature: not a payment on one chain, but
+   *     a bearer authorization valid on every EVM chain where this address is
+   *     funded at this nonce.
+   *   - ethereumFormatAmount() switches on the chain id to pick a ticker.
+   *     cid 0 matches no case, so suffix stays NULL and bn_format() renders a
+   *     bare number. No screen in the flow names a network, so the user
+   *     approves "Send 0.05 to 0xABC" and cannot see either omission.
+   *
+   * So reject it for every transaction type, the way the EIP-1559 path below
+   * already does for itself. Every chain this firmware supports has a chain
+   * id >= 1; a host omitting the field is malformed, not legacy.
+   */
+  chain_id = msg->has_chain_id ? msg->chain_id : 0;
+  if (chain_id < 1) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Chain Id out of bounds"));
+    ethereum_signing_abort();
+    return;
   }
 
   /* Wanchain txtype */
@@ -762,16 +791,29 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   }
 
   memset(confirm_body_message, 0, sizeof(confirm_body_message));
-  if (token == NULL && data_total > 0 && data_needs_confirm) {
-    // KeepKey custom: warn the user that they're trying to do something
-    // that is potentially dangerous. People (generally) aren't great at
-    // parsing raw transaction data, and we can't effectively show them
-    // what they're about to do in the general case.
+  // A contract that is not in the token table yields the UnknownToken
+  // sentinel, which is NOT NULL, so the original `token == NULL` guard let
+  // ERC-20-shaped calldata to an unrecognized contract skip this block
+  // entirely. The device cannot render that transfer (ethereumFormatAmount
+  // prints "Unknown token value"), so it must fall back to the same raw-data
+  // disclosure and confirm gate as any other unrecognized contract call.
+  if ((token == NULL || token == UnknownToken) && data_total > 0 &&
+      data_needs_confirm) {
+    // KeepKey custom: gate arbitrary ETH contract-data signing on AdvancedMode.
+    // The prior code was a (void)review() warning whose return value was
+    // discarded, so a user who cancelled the warning still fell through to
+    // the confirm() dialog and signed. This now blocks, mirroring
+    // fsm_msgTronSignTx / fsm_msgSolanaSignMessage / fsm_msgTonSignMessage.
+    // See GH #433.
     if (!storage_isPolicyEnabled("AdvancedMode")) {
       (void)review(
-          ButtonRequestType_ButtonRequest_Other, "Warning",
-          "Signing of arbitrary ETH contract data is recommended only for "
-          "experienced users. Enable 'AdvancedMode' policy to dismiss.");
+          ButtonRequestType_ButtonRequest_Other, "Blocked",
+          "Signing of arbitrary ETH contract data requires AdvancedMode. "
+          "Enable 'AdvancedMode' policy in device settings.");
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Arbitrary contract data signing disabled by policy"));
+      ethereum_signing_abort();
+      return;
     }
 
     layoutEthereumData(msg->data_initial_chunk.bytes,
@@ -1099,7 +1141,7 @@ const char* failMsgReturn[LAST_ERROR - 2] = {
     "EIP-712 user defined type name too long",
     "EIP-712 too many user defined types",
     "EIP-712 user defined type array name error",
-    "EIP-712 address string overflow",
+    "EIP-712 invalid address string",
     "EIP-712 bytesN string overflow",
     "EIP-712 bytesN size error",
     "EIP-712 INT and UINT array parsing not implemented",
@@ -1129,6 +1171,17 @@ const char* failMsgReturn[LAST_ERROR - 2] = {
 };
 
 void failMessage(int err) {
+  if (USER_CANCELLED == err) {
+    /* Not a parse failure: a typed-data review screen ended without a
+       completed button hold, which is what confirm_helper() reports when the
+       host sends Cancel or Initialize. Report it as a cancellation so the host
+       does not read a refusal as a malformed message. USER_CANCELLED is above
+       LAST_ERROR and has no failMsgReturn[] slot, so this branch must come
+       first. */
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("EIP-712 cancelled"));
+    return;
+  }
   if (err < GENERAL_ERROR || err > LAST_ERROR) {
     // unknown error number
     fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 unknown failure"));
@@ -1234,6 +1287,19 @@ void e712_types_values(Ethereum712TypesValues* msg,
     memcpy(resp->domain_separator_hash.bytes, domainSeparatorHash, 32);
     resp->has_domain_separator_hash = true;
     resp->domain_separator_hash.size = 32;
+
+    // Every screen shown while parsing the typed data is a review(), which
+    // cannot express refusal. Take one real confirmation before producing a
+    // signature so a host cannot obtain one without a button press.
+    if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Sign Typed Data",
+                 "Sign with address %s?", resp->address)) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      "Signing cancelled by user");
+      memzero(domainSeparatorHash, 32);
+      memzero(messageHash, 32);
+      have_ds = false;
+      return;
+    }
 
     uint8_t v = 0;
     if (0 != eip712_sign(domainSeparatorHash, messageHash, resp->has_msg_hash,

@@ -20,12 +20,30 @@ bool thorchain_signingIsFinished(void);
 void thorchain_signAbort(void);
 const ThorchainSignTx* thorchain_getThorchainSignTx(void);
 
+// Result of thorchain_parseConfirmMemo(). A memo the device could not parse
+// and a refusal at a confirm screen are DIFFERENT outcomes and must never be
+// conflated: an unparsed memo means the caller still has to disclose the raw
+// bytes itself, while a refusal is a "no" that must abort the signing.
+typedef enum {
+  // Memo parsed, and every field it contains was confirmed on the device.
+  THORCHAIN_MEMO_CONFIRMED = 0,
+  // Not recognizable thorchain data; nothing was shown and nothing was
+  // confirmed. The caller must disclose the raw memo itself, or refuse.
+  THORCHAIN_MEMO_UNPARSED,
+  // A confirm screen returned false. On a one-button device that happens only
+  // when the host sends Cancel/Initialize, so it is a refusal to sign: the
+  // caller must abort, and must never re-ask with a different screen.
+  THORCHAIN_MEMO_CANCELLED,
+} ThorchainMemoResult;
+
 // Thorchain swap data parse and confirm
 //      input:
-//          swapStr - string in thorchain swap format
-//          size - size of input string (must be <= 256)
+//          swapStr - candidate thorchain memo bytes; NOT required to be NUL
+//                    terminated
+//          size - number of bytes at swapStr (must be <= 256)
 //      output:
-//          true if thorchain data parsed and confirmed by user, false otherwise
-bool thorchain_parseConfirmMemo(const char* swapStr, size_t size);
+//          see ThorchainMemoResult
+ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
+                                               size_t size);
 
 #endif

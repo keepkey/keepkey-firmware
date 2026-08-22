@@ -239,7 +239,7 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           copy_account(pi->to, tx, acct_indices, num_acct_indices, 1);
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
         } else if (token_instr == SOL_TOKEN_TRANSFER_CHECKED_IX &&
-                   data_len >= 9) {
+                   data_len >= 10) {
           pi->type = SOL_INSTR_TOKEN_TRANSFER_CHECKED;
           pi->amount = read_le64(instr_data + 1);
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
@@ -247,7 +247,12 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           pi->has_mint = (num_acct_indices >= 2);
           copy_account(pi->to, tx, acct_indices, num_acct_indices, 2);
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 3);
-          pi->extra_u8 = data_len >= 10 ? instr_data[9] : 0;
+          /* Decimals live in the signed instruction bytes and are the only
+           * authoritative scale for this transfer, so they must never be
+           * fabricated. A real TransferChecked data field is always 10 bytes
+           * (tag + u64 amount + decimals); a short one falls through to
+           * SOL_INSTR_UNKNOWN and the transaction is treated as opaque. */
+          pi->extra_u8 = instr_data[9];
         } else if (token_instr == SOL_TOKEN_APPROVE_IX && data_len >= 9) {
           pi->type = SOL_INSTR_TOKEN_APPROVE;
           pi->amount = read_le64(instr_data + 1);
@@ -621,16 +626,31 @@ void solana_formatTokenAmount(char* buf, size_t len, uint64_t amount,
   uint64_t whole = amount / divisor;
   uint64_t frac = amount % divisor;
 
-  /* Format with appropriate decimal places (max 9 shown) */
+  /* Format with appropriate decimal places (max 9 shown).
+   *
+   * Truncating to nine places used to be silent, which meant a real transfer
+   * could render as zero: amount=1 with decimals=18 divided down to
+   * show_frac=0 and the screen read "0.000000000 tokens" while the signed
+   * instruction moved one base unit. A screen that says zero for a nonzero
+   * transfer is worse than one that says nothing.
+   *
+   * So truncate only when the digits being dropped are all zero. If any of
+   * them is nonzero, the decimal form cannot be shown honestly at this width
+   * -- fall back to the exact base-unit count, which is the number actually
+   * present in the instruction being signed. */
   uint8_t show_dec =
       decimals > SOL_MAX_DISPLAY_DECIMALS ? SOL_MAX_DISPLAY_DECIMALS : decimals;
-  uint64_t show_div = 1;
-  for (uint8_t i = 0; i < show_dec; i++) show_div *= 10;
-  (void)show_div;
   uint64_t show_frac = frac;
   if (decimals > SOL_MAX_DISPLAY_DECIMALS) {
+    uint64_t drop_div = 1;
     for (uint8_t i = 0; i < decimals - SOL_MAX_DISPLAY_DECIMALS; i++)
-      show_frac /= 10;
+      drop_div *= 10;
+    if (frac % drop_div != 0) {
+      snprintf(buf, len, "%llu base units (%u decimals) %s",
+               (unsigned long long)amount, (unsigned)decimals, symbol);
+      return;
+    }
+    show_frac = frac / drop_div;
   }
 
   char frac_str[10];
@@ -640,18 +660,6 @@ void solana_formatTokenAmount(char* buf, size_t len, uint64_t amount,
   }
   frac_str[show_dec] = '\0';
   snprintf(buf, len, "%llu.%s %s", (unsigned long long)whole, frac_str, symbol);
-}
-
-const SolanaTokenInfo* solana_findTokenInfo(
-    const SolanaSignTx* msg, const uint8_t mint[SOL_PUBKEY_SIZE]) {
-  for (size_t i = 0; i < msg->token_info_count; i++) {
-    if (msg->token_info[i].has_mint &&
-        msg->token_info[i].mint.size == SOL_PUBKEY_SIZE &&
-        memcmp(msg->token_info[i].mint.bytes, mint, SOL_PUBKEY_SIZE) == 0) {
-      return &msg->token_info[i];
-    }
-  }
-  return NULL;
 }
 
 /* ------------------------------------------------------------------ */
@@ -665,8 +673,7 @@ bool solana_signTx(const HDNode* node, const SolanaSignTx* msg,
   /* Ed25519 sign the raw transaction message directly
    * (Solana signs the serialized message, not a hash of it) */
   uint8_t sig[SOL_SIG_SIZE];
-  ed25519_sign(msg->raw_tx.bytes, msg->raw_tx.size, node->private_key,
-               node->public_key + 1, sig);
+  ed25519_sign(msg->raw_tx.bytes, msg->raw_tx.size, node->private_key, sig);
 
   resp->has_signature = true;
   resp->signature.size = SOL_SIG_SIZE;
@@ -739,7 +746,7 @@ bool solana_offchain_message_sign(const HDNode* node,
   off += msg->message.size;
 
   uint8_t sig[SOL_SIG_SIZE];
-  ed25519_sign(envelope, off, node->private_key, node->public_key + 1, sig);
+  ed25519_sign(envelope, off, node->private_key, sig);
 
   resp->has_public_key = true;
   resp->public_key.size = SOL_PUBKEY_SIZE;

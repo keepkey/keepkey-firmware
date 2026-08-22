@@ -9,8 +9,15 @@
 
 typedef struct _TendermintSignTx TendermintSignTx;
 
+typedef enum {
+  TENDERMINT_SIGNING_NONE = 0,
+  TENDERMINT_SIGNING_COSMOS,
+  TENDERMINT_SIGNING_GENERIC,
+} TendermintSigningType;
+
 bool tendermint_signTxInit(const HDNode* _node, const void* _msg,
-                           const size_t msgsize, const char* denom);
+                           const size_t msgsize, const char* denom,
+                           TendermintSigningType type);
 bool tendermint_signTxUpdateMsgSend(const uint64_t amount,
                                     const char* to_address,
                                     const char* chainstr, const char* denom,
@@ -41,7 +48,9 @@ bool tendermint_signTxUpdateMsgIBCTransfer(
     const char* revision_number, const char* revision_height,
     const char* chainstr, const char* denom, const char* msgTypePrefix);
 bool tendermint_signTxFinalize(uint8_t* public_key, uint8_t* signature);
-bool tendermint_signingIsInited(void);
+bool tendermint_signingIsInited(TendermintSigningType type);
+bool tendermint_signingConfigMatches(const char* chain_name, const char* denom,
+                                     const char* message_type_prefix);
 bool tendermint_signingIsFinished(void);
 void tendermint_signAbort(void);
 const void* tendermint_getSignTx(void);

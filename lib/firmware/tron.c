@@ -301,6 +301,8 @@ static void tron_typed_hash(const uint8_t domain_separator_hash[32],
   keccak_Final(&ctx, hash);
 }
 
+bool tron_typed_hash_policy_allows(bool advanced_mode) { return advanced_mode; }
+
 /**
  * Sign a TIP-712 typed-data digest. Host pre-computes the domain
  * separator hash and message hash per the TIP-712 spec; the device just

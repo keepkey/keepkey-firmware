@@ -1,6 +1,24 @@
 #!/bin/sh
 set -e
 
+# Bound every test individually.
+#
+# A protocol/UI mismatch deadlocks: the firmware blocks waiting for a ButtonAck
+# the test never sends (this release added confirmation screens the pinned suite
+# does not acknowledge), and the test blocks reading a response that never comes.
+# Without a per-test bound that is a 30-minute JOB timeout with no JUnit XML, so
+# Phase 2 never completes and every file after the stall is unmeasured -- the
+# absence of a result is indistinguishable from a pass.
+#
+# method=signal rather than thread: thread kills the process, so one deadlock
+# still costs the rest of the run. signal raises inside the blocked test, which
+# then FAILS BY NAME and the suite continues. Measured on the known-deadlocking
+# THORChain file: "1 failed, 5 passed in 20.29s" instead of hanging forever.
+#
+# 60s is roughly 30x the slowest healthy file in this suite (multisig, ~2s).
+# See #466.
+PYTEST_TIMEOUT_ARGS="--timeout=60 --timeout-method=signal"
+
 mkdir -p /kkemu/test-reports/python-keepkey
 mkdir -p /kkemu/test-reports/screenshots
 
@@ -43,7 +61,24 @@ echo "=== End diagnostic ==="
 echo "=== Phase 1: Report-driven screenshot capture ==="
 # Detect firmware version from CMakeLists if not set in env
 if [ -z "$FW_VERSION" ]; then
-    FW_VERSION=$(sed -n '/^project/,/)/p' /kkemu/CMakeLists.txt | grep -oP '\d+\.\d+\.\d+' || echo "7.14.0")
+    # grep -oP is a GNU extension. This container's grep is BusyBox, which has
+    # no -P, so the old command ALWAYS failed and `|| echo "7.14.0"` silently
+    # supplied a wrong version. Everything downstream keys off this: SECTIONS
+    # entries are filtered by ver_ge(fw_version, min_fw), so on the 7.14.2
+    # release branch every test gated to 7.14.1 or later was excluded from the
+    # screenshot filter AND from report validation. That is why the suites this
+    # release changed captured no screens.
+    #
+    # Use sed only, and FAIL rather than defaulting: a wrong version here is
+    # invisible and silently narrows what CI checks.
+    FW_VERSION=$(sed -n 's/^[[:space:]]*VERSION[[:space:]]\{1,\}\([0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}\).*/\1/p' /kkemu/CMakeLists.txt | head -1)
+    if [ -z "$FW_VERSION" ]; then
+        echo "FATAL: could not read VERSION from /kkemu/CMakeLists.txt."
+        echo "Refusing to guess -- a wrong FW_VERSION silently narrows the"
+        echo "screenshot filter and the SECTIONS validation."
+        echo "1" > /kkemu/test-reports/python-keepkey/status
+        exit 1
+    fi
     echo "Detected FW_VERSION=$FW_VERSION from CMakeLists.txt"
 fi
 export FW_VERSION
@@ -58,6 +93,7 @@ SCREENSHOT_DIR=/kkemu/test-reports/screenshots \
 KK_TRANSPORT_MAIN=kkemu:11044 \
 KK_TRANSPORT_DEBUG=kkemu:11045 \
 pytest -v --tb=short \
+  $PYTEST_TIMEOUT_ARGS \
   -k "$SCREENSHOT_FILTER" \
   --junitxml=/kkemu/test-reports/python-keepkey/junit-screenshots.xml \
   -s 2>&1 || true
@@ -76,6 +112,22 @@ if [ "$SCREENSHOT_COUNT" -eq 0 ]; then
     exit 1
 fi
 
+# A total count > 0 cannot distinguish "captured everything" from "captured
+# something". On the 7.14.2 rc30 artifact this gate passed with 345 PNGs while
+# EVERY suite the release changed captured zero -- the rendering evidence for a
+# release about what reaches the screen did not exist, and nothing said so.
+# Audit per test: any SECTIONS entry that DECLARED screens must have captured
+# some. Skipped tests are excluded; a version-gated test cannot draw.
+echo "=== Screenshot audit (per-test) ==="
+python3 ../scripts/generate-test-report.py \
+    --screenshot-audit /kkemu/test-reports/screenshots \
+    --audit-junit /kkemu/test-reports/python-keepkey/junit-screenshots.xml \
+    --fw-version=$FW_VERSION || {
+    echo "FATAL: tests declared screens they did not capture (see list above)."
+    echo "1" > /kkemu/test-reports/python-keepkey/status
+    exit 1
+}
+
 # Phase 2: Full test suite — SECTIONS is the source of truth.
 # pytest may exit non-zero (some tests fail before gating kicks in),
 # so we capture the JUnit XML regardless, then validate against SECTIONS.
@@ -84,7 +136,7 @@ fi
 echo "=== Phase 2: Full test suite ==="
 KK_TRANSPORT_MAIN=kkemu:11044 \
 KK_TRANSPORT_DEBUG=kkemu:11045 \
-pytest -v --junitxml=/kkemu/test-reports/python-keepkey/junit.xml
+pytest -v $PYTEST_TIMEOUT_ARGS --junitxml=/kkemu/test-reports/python-keepkey/junit.xml
 PYTEST_RC=$?
 
 echo "=== Phase 2: Generate test report ==="
