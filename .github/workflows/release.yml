@@ -18,7 +18,7 @@ on:
       - 'v*'
 
 env:
-  BASE_IMAGE: kktech/firmware:v15
+  BASE_IMAGE: kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
 
 permissions:
   contents: write
@@ -48,6 +48,21 @@ jobs:
   build-firmware:
     needs: validate
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 'suffix' names the published files; 'variant' is the internal build
+          # selector. The default build takes an EMPTY suffix so its assets keep
+          # the names every previous release used (v7.14.x shipped
+          # firmware.keepkey.bin). Only bitcoin-only is qualified, because it is
+          # the unusual one.
+          - variant: full
+            suffix: ""
+            cmake_flags: ""
+          - variant: bitcoin-only
+            suffix: "-bitcoin-only"
+            cmake_flags: "-DKK_BITCOIN_ONLY=ON"
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
@@ -78,6 +93,7 @@ jobs:
             ${{ env.BASE_IMAGE }} /bin/sh -c "\
               mkdir /root/build && cd /root/build && \
               cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
+                ${{ matrix.cmake_flags }} \
                 -DCMAKE_BUILD_TYPE=MinSizeRel \
                 -DCMAKE_COLOR_MAKEFILE=ON && \
               make && \
@@ -90,34 +106,46 @@ jobs:
       - name: Compute hashes
         working-directory: release
         run: |
-          echo "# KeepKey Firmware v${{ needs.validate.outputs.fw_version }} — Hash Manifest" > HASHES.txt
-          echo "" >> HASHES.txt
+          SUFFIX="${{ matrix.suffix }}"
+          echo "# KeepKey Firmware v${{ needs.validate.outputs.fw_version }} — Hash Manifest" > "HASHES${SUFFIX}.txt"
+          echo "" >> "HASHES${SUFFIX}.txt"
+          # Provenance: name the exact toolchain these bytes came out of. BASE_IMAGE
+          # is a sha256 manifest digest, not a tag, so this identifies one immutable
+          # image rather than whatever the tag pointed at on the day. Without it a
+          # green CI build and a locally reproduced binary cannot be shown to be the
+          # same toolchain product. See GH #425.
+          echo "builder image    ${BASE_IMAGE}" >> "HASHES${SUFFIX}.txt"
+          echo "source commit    ${GITHUB_SHA}" >> "HASHES${SUFFIX}.txt"
+          echo "" >> "HASHES${SUFFIX}.txt"
           for f in *.bin; do
             [ -f "$f" ] || continue
             FULL_HASH=$(sha256sum "$f" | awk '{print $1}')
-            echo "sha256 (full)    $f  $FULL_HASH" >> HASHES.txt
+            echo "sha256 (full)    $f  $FULL_HASH" >> "HASHES${SUFFIX}.txt"
             FILE_SIZE=$(stat -c%s "$f")
             if [ "$FILE_SIZE" -gt 256 ]; then
               PAYLOAD_HASH=$(tail -c +257 "$f" | sha256sum | awk '{print $1}')
-              echo "sha256 (payload) $f  $PAYLOAD_HASH" >> HASHES.txt
+              echo "sha256 (payload) $f  $PAYLOAD_HASH" >> "HASHES${SUFFIX}.txt"
             fi
-            echo "" >> HASHES.txt
+            echo "" >> "HASHES${SUFFIX}.txt"
           done
-          cat HASHES.txt
+          cat "HASHES${SUFFIX}.txt"
 
       - name: Rename artifacts
         working-directory: release
         run: |
           VER="${{ needs.validate.outputs.fw_version }}"
-          [ -f firmware.keepkey.bin ] && mv firmware.keepkey.bin "firmware.keepkey.v${VER}.bin"
-          [ -f firmware.keepkey.elf ] && mv firmware.keepkey.elf "firmware.keepkey.v${VER}.elf"
+          SUFFIX="${{ matrix.suffix }}"
+          [ -f firmware.keepkey.bin ] && mv firmware.keepkey.bin "firmware.keepkey.v${VER}${SUFFIX}.bin"
+          [ -f firmware.keepkey.elf ] && mv firmware.keepkey.elf "firmware.keepkey.v${VER}${SUFFIX}.elf"
           [ -f bootloader.bin ] && mv bootloader.bin "bootloader.v${VER}.bin"
           ls -lh
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: release-firmware
+          # Per-variant, because upload-artifact v4+ makes names immutable: two
+          # matrix legs writing one name is a hard failure, not a merge.
+          name: release-firmware-${{ matrix.variant }}
           path: release/*
           retention-days: 90
 
@@ -163,8 +191,9 @@ jobs:
       - name: Download firmware artifacts
         uses: actions/download-artifact@v8
         with:
-          name: release-firmware
+          pattern: release-firmware-*
           path: artifacts
+          merge-multiple: true
 
       - name: Prepare release assets
         run: |
