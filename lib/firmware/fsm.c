@@ -92,6 +92,10 @@
 #include "messages-solana.pb.h"
 
 #include <stdio.h>
+/* strnlen: the THORChain memo paths measure fixed arrays rather than
+   trusting their capacity. Included explicitly instead of relying on the
+   fsm_msg_*.h textual includes below to drag it in by accident. */
+#include <string.h>
 
 #define _(X) (X)
 
@@ -104,11 +108,34 @@ static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
     return;                                             \
   }
 
-#define CHECK_NOT_INITIALIZED                                          \
-  if (storage_isInitialized()) {                                       \
-    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,             \
-                    "Device is already initialized. Use Wipe first."); \
-    return;                                                            \
+#define CHECK_NOT_INITIALIZED                                              \
+  if (storage_isInitialized()) {                                           \
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,                 \
+                    "Device is already initialized. Use Wipe first.");     \
+    return;                                                                \
+  }                                                                        \
+  /* A locked bitcoin-only wallet leaves the device LOOKING uninitialized: \
+   * the RAM shadow was reset at boot, so storage_isInitialized() is       \
+   * false. Refuse here, loudly, before the user does the work -- a        \
+   * ceremony allowed to run would end in storage_commit() declining to    \
+   * write and the handler reporting success anyway. */                    \
+  if (storage_isBitcoinOnlyLocked()) {                                     \
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,                 \
+                    "Bitcoin-only wallet present. Use Wipe first.");       \
+    return;                                                                \
+  }
+
+/* Only the two ceremony STARTS use this. Every other message that persists
+ * anything is handled structurally instead: storage_commit() aborts an armed
+ * ceremony, so a handler that writes can never have its write consumed by
+ * one -- the worst it can do is end it. */
+#define CHECK_NO_CEREMONY                                     \
+  if (setup_isArmed()) {                                      \
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,    \
+                    "Device is in the middle of setup. Send " \
+                    "Initialize or Cancel first.");           \
+    layoutHome();                                             \
+    return;                                                   \
   }
 
 #define CHECK_PIN              \
@@ -276,12 +303,16 @@ void fsm_msgClearSession(ClearSession* msg) {
   fsm_sendSuccess("Session cleared");
 }
 
+// Always-on handlers: Bitcoin and common device messages (fsm_msg_coin,
+// fsm_msg_common), CipherKeyValue/identity (fsm_msg_crypto) and debug-link.
+// None of these is a coin engine.
 #include "fsm_msg_common.h"
 #include "fsm_msg_coin.h"
-#include "fsm_msg_ethereum.h"
-#include "fsm_msg_nano.h"
 #include "fsm_msg_crypto.h"
 #include "fsm_msg_debug.h"
+#if !BITCOIN_ONLY
+#include "fsm_msg_ethereum.h"
+#include "fsm_msg_nano.h"
 #include "fsm_msg_eos.h"
 #include "fsm_msg_cosmos.h"
 #include "fsm_msg_osmosis.h"
@@ -293,3 +324,12 @@ void fsm_msgClearSession(ClearSession* msg) {
 #include "fsm_msg_tron.h"
 #include "fsm_msg_ton.h"
 #include "fsm_msg_solana.h"
+#else
+// The coin engines above are compiled out, but the always-on
+// Initialize/Cancel handlers still call each engine's abort hook. With no
+// engine state to roll back, no-ops are the correct definitions -- and
+// defining them here keeps those handlers free of build-variant branches.
+void ethereum_signing_abort(void) {}
+void tendermint_signAbort(void) {}
+void eos_signingAbort(void) {}
+#endif  // !BITCOIN_ONLY

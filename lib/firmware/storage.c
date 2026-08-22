@@ -44,6 +44,7 @@
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/policy.h"
+#include "keepkey/firmware/reset.h"
 #include "keepkey/firmware/u2f.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/transport/interface.h"
@@ -86,9 +87,37 @@ static SessionState CONFIDENTIAL session;
 static Allocation storage_location = FLASH_INVALID;
 
 /* Shadow memory for configuration data in storage partition */
+_Static_assert(STORAGE_VERSION >= STORAGE_VERSION_LAST_SHIPPED,
+               "STORAGE_VERSION went below a version that already shipped; "
+               "every device in the field would read its blob as an unknown "
+               "future format and wipe. Raise the version, do not lower the "
+               "floor.");
+
 _Static_assert(sizeof(ConfigFlash) <= FLASH_STORAGE_LEN,
                "ConfigFlash struct is too large for storage partition");
 static ConfigFlash CONFIDENTIAL shadow_config;
+
+/* This firmware found storage in flash it must refuse to load or overwrite
+ * until the user explicitly wipes: a bitcoin-only wallet seen by multi-chain
+ * firmware, or (on bitcoin-only firmware) a newer in-band wallet than this
+ * build understands. Set from the SUS_BitcoinOnlyLocked path in either build.
+ */
+static bool btc_only_locked = false;
+
+bool storage_isBitcoinOnlyLocked(void) { return btc_only_locked; }
+
+// Stamp a newly-created seed into the reserved bitcoin-only version band so
+// multi-chain firmware refuses it (see storage_fromFlash). Called only from
+// seed-creation paths, so a pre-existing multi-chain wallet migrated under
+// bitcoin-only firmware keeps its normal, portable version. No-op (but still
+// referenced, so no -Wunused) in multi-chain builds.
+#if BITCOIN_ONLY
+static void storage_stampBitcoinOnlySeed(void) {
+  shadow_config.storage.version = STORAGE_VERSION_BTC_ONLY;
+}
+#else
+static void storage_stampBitcoinOnlySeed(void) {}
+#endif
 
 #if DEBUG_LINK
 // These won't survive resets like the stuff in flash would, but thats a
@@ -184,7 +213,13 @@ enum StorageVersion {
   StorageVersion_NONE,
 #define STORAGE_VERSION_ENTRY(VAL) StorageVersion_##VAL,
 #include "storage_versions.inc"
+  StorageVersion_BTC_ONLY,  // reserved band, never in storage_versions.inc
 };
+
+// The normal storage version must stay below the bitcoin-only band, or a
+// bitcoin-only wallet would become loadable by multi-chain firmware.
+_Static_assert(STORAGE_VERSION < STORAGE_VERSION_BTC_ONLY_BASE,
+               "storage version must stay below the bitcoin-only band");
 
 static enum StorageVersion version_from_int(int version) {
 #define STORAGE_VERSION_LAST(VAL)        \
@@ -192,6 +227,12 @@ static enum StorageVersion version_from_int(int version) {
                  "need to update "       \
                  "storage_versions.inc");
 #include "storage_versions.inc"
+
+  // Any version in the reserved bitcoin-only band maps here regardless of
+  // build; storage_fromFlash decides load-vs-refuse from the exact value, so
+  // an in-band firmware downgrade refuses rather than silently wiping a newer
+  // bitcoin-only wallet.
+  if (version >= STORAGE_VERSION_BTC_ONLY_BASE) return StorageVersion_BTC_ONLY;
 
   switch (version) {
 #define STORAGE_VERSION_ENTRY(VAL) \
@@ -1152,8 +1193,10 @@ StorageUpdateStatus storage_fromFlash(SessionState* ss, ConfigFlash* dst,
                                       const char* flash) {
   memzero(dst, sizeof(*dst));
 
-  // Load config values from active config node.
-  enum StorageVersion version = version_from_int(read_u32_le(flash + 44));
+  // Load config values from active config node. The raw value is kept because
+  // the bitcoin-only arm needs the exact stored number, not its classification.
+  uint32_t raw_version = read_u32_le(flash + 44);
+  enum StorageVersion version = version_from_int(raw_version);
 
   switch (version) {
     case StorageVersion_1:
@@ -1202,6 +1245,41 @@ StorageUpdateStatus storage_fromFlash(SessionState* ss, ConfigFlash* dst,
       storage_readV17(dst, flash, STORAGE_SECTOR_LEN);
       dst->storage.version = STORAGE_VERSION;
       return dst->storage.version == version ? SUS_Valid : SUS_Updated;
+
+    case StorageVersion_BTC_ONLY:
+#if BITCOIN_ONLY
+    {
+      // Our own bitcoin-only wallet. The stored wire version is the multi-chain
+      // storage version plus the band base, so recover the underlying layout
+      // version and load it through the normal migration chain. Exact-matching
+      // STORAGE_VERSION_BTC_ONLY here would lock every existing bitcoin-only
+      // wallet out of its own firmware on the next STORAGE_VERSION bump.
+      uint32_t underlying = raw_version - STORAGE_VERSION_BTC_ONLY_BASE;
+      if (underlying > (uint32_t)STORAGE_VERSION) {
+        // A newer bitcoin-only wallet than this firmware understands: refuse
+        // rather than wipe, so a firmware downgrade never destroys it.
+        return SUS_BitcoinOnlyLocked;
+      }
+      // Read via the reader matching the underlying version (same mapping as
+      // the multi-chain arms above), then keep the band stamp so multi-chain
+      // firmware still refuses it.
+      if (underlying <= 15) {
+        storage_readV11(dst, flash, STORAGE_SECTOR_LEN);
+      } else if (underlying == 16) {
+        storage_readV16(dst, flash, STORAGE_SECTOR_LEN);
+      } else {
+        storage_readV17(dst, flash, STORAGE_SECTOR_LEN);
+      }
+      dst->storage.version = STORAGE_VERSION_BTC_ONLY;
+      return (underlying == (uint32_t)STORAGE_VERSION) ? SUS_Valid
+                                                       : SUS_Updated;
+    }
+#else
+      // Written by bitcoin-only firmware: refuse to load. The wallet stays
+      // intact in flash (reflash bitcoin-only firmware to recover it); using
+      // multi-chain firmware requires an explicit wipe.
+      return SUS_BitcoinOnlyLocked;
+#endif
 
     case StorageVersion_NONE:
       return SUS_Invalid;
@@ -1340,6 +1418,20 @@ void storage_init(void) {
       // that it's available on next boot without conversion.
       storage_commit();
       break;
+    case SUS_BitcoinOnlyLocked:
+      // Bitcoin-only wallet in flash: act as an uninitialized, locked device.
+      // Do NOT commit -- flash stays untouched so reflashing bitcoin-only
+      // firmware recovers the wallet; leaving requires an explicit wipe.
+      btc_only_locked = true;
+      storage_reset();
+      // storage_fromFlash() memzeroed the WHOLE shadow config, meta included,
+      // and storage_reset() clears only .storage. Every loading arm restores
+      // the metadata via storage_readMeta(); this arm returns before reaching
+      // one, so without this the device reports an EMPTY device_id -- the same
+      // empty id on every locked device, which silently merges distinct
+      // devices in any host keyed on it. The sector is known active here.
+      storage_readMeta(&shadow_config.meta, flash, STORAGE_SECTOR_LEN);
+      break;
   }
 
   if (!storage_hasPin()) {
@@ -1386,6 +1478,9 @@ void storage_wipe(void) {
   flash_erase_word(FLASH_STORAGE1);
   flash_erase_word(FLASH_STORAGE2);
   flash_erase_word(FLASH_STORAGE3);
+
+  // The bitcoin-only wallet (if any) is gone; the device may be used freely.
+  btc_only_locked = false;
 }
 
 void storage_clearKeys(void) {
@@ -1460,6 +1555,18 @@ clear:
 }
 
 void storage_commit(void) {
+  /* This is the only door to flash, so it is where the ceremony invariant is
+   * enforced rather than in each handler. setup_commit() disarms before it
+   * calls us, so anything still armed here is a DIFFERENT operation
+   * persisting: end the ceremony rather than let its staged settings, or its
+   * arming, outlive a write it did not make. setup_abort() touches no
+   * storage, so this cannot recurse. */
+  if (setup_isArmed()) setup_abort();
+
+  // Never overwrite a bitcoin-only wallet from multi-chain firmware; the
+  // only way out is storage_wipe() (which clears the lock).
+  if (btc_only_locked) return;
+
   // Temporary storage for marshalling secrets in & out of flash.
   // Size of v17 storage layout (2525 bytes) + size of meta (44 bytes) + 1
   static char flash_temp[2570];
@@ -1622,6 +1729,10 @@ void storage_loadDevice(LoadDevice* msg) {
     shadow_config.storage.pub.has_u2froot = true;
     session.seedCached = false;
     memset(&session.seed, 0, sizeof(session.seed));
+  }
+
+  if (msg->has_node || msg->has_mnemonic) {
+    storage_stampBitcoinOnlySeed();
   }
 
   if (msg->has_language) {
@@ -1994,6 +2105,7 @@ void storage_setMnemonicFromWords(const char (*words)[12],
 
   shadow_config.storage.pub.has_mnemonic = true;
   shadow_config.storage.has_sec = true;
+  storage_stampBitcoinOnlySeed();
 
   storage_compute_u2froot(&session, shadow_config.storage.sec.mnemonic,
                           &shadow_config.storage.pub.u2froot);
@@ -2011,6 +2123,7 @@ void storage_setMnemonic(const char* m) {
 #endif
   shadow_config.storage.pub.has_mnemonic = true;
   shadow_config.storage.has_sec = true;
+  storage_stampBitcoinOnlySeed();
 
   storage_compute_u2froot(&session, shadow_config.storage.sec.mnemonic,
                           &shadow_config.storage.pub.u2froot);
