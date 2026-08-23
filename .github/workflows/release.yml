@@ -198,7 +198,7 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
-          cp artifacts/*.bin artifacts/*.elf artifacts/HASHES.txt release-assets/
+          cp artifacts/*.bin artifacts/*.elf artifacts/HASHES*.txt release-assets/
           ls -lh release-assets/
 
       - name: Generate release body
