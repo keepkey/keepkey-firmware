@@ -1,0 +1,92 @@
+{
+  "candidate": "7.15.0-rc26",
+  "seed": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+  "capture": {
+    "source": "emulator",
+    "method": "python-keepkey with KEEPKEY_SCREENSHOT=1",
+    "note": "Emulator captures. Per the release SOP these do not substitute for on-device Gate-3 proof."
+  },
+  "defects_covered": [
+    {
+      "pr": 331,
+      "title": "addresses longer than one line were silently truncated",
+      "detail": "draw_string() stopped at the bottom of the canvas and dropped the remainder, so the rendered text and the QR code disagreed with no indication.",
+      "frames": [
+        "01-p2tr-address-full-62-chars.png",
+        "02-p2wsh-address-full.png"
+      ]
+    },
+    {
+      "pr": 337,
+      "title": "taproot witness and locktime footer never reached the host",
+      "detail": "The taproot signing branch set has_signature but not has_serialized_tx, so nanopb omitted serialized_tx and 70 bytes (66-byte witness + 4-byte locktime) were dropped on the wire.",
+      "frames": [
+        "03-p2tr-spend-recipient.png",
+        "04-p2tr-spend-fee.png",
+        "05-p2tr-change-recipient.png",
+        "06-p2tr-change-fee.png",
+        "07-mixed-p2tr-legacy-recipient.png",
+        "08-mixed-p2tr-legacy-fee.png"
+      ]
+    }
+  ],
+  "verified_values": {
+    "bip86_receive_address_m_86h_0h_0h_0_0": "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr",
+    "bip86_address_characters": 62,
+    "serialized_tx_bytes": {
+      "p2tr": 153,
+      "p2tr_with_change": 196,
+      "mixed_p2tr_and_legacy": 301
+    }
+  },
+  "tests": {
+    "files": [
+      "test_msg_signtx_taproot.py",
+      "test_msg_getaddress_taproot.py",
+      "test_taproot_screens.py"
+    ],
+    "result": "9 passed"
+  },
+  "frames": [
+    {
+      "file": "01-p2tr-address-full-62-chars.png",
+      "sha256": "b1a4174f8e4c88b30a41ce337d0e45ded840c104f6637dcc98a7dfc89d27e073",
+      "bytes": 996
+    },
+    {
+      "file": "02-p2wsh-address-full.png",
+      "sha256": "7cf807b25d8a2a6a67bc83f887184b89221a0bfd9d8a2a24872d3bc954669b17",
+      "bytes": 1057
+    },
+    {
+      "file": "03-p2tr-spend-recipient.png",
+      "sha256": "91390aec2d647e5dcd5c9cfc767e72fcc62a41e710aae9d8d42abe4af9451fd5",
+      "bytes": 574
+    },
+    {
+      "file": "04-p2tr-spend-fee.png",
+      "sha256": "c635bd2cb4c52b4553e4ad0ccbf53ae0e6fa3c61f9dbe60bfbf43d18692228fb",
+      "bytes": 793
+    },
+    {
+      "file": "05-p2tr-change-recipient.png",
+      "sha256": "fb1e137d2463b5ba44decd151f5380f649b3e884323c7c54f6f66e87cc3288a0",
+      "bytes": 579
+    },
+    {
+      "file": "06-p2tr-change-fee.png",
+      "sha256": "7260c9c0ee5cc85c61356b41b91aa4d30a091bf1be60b7516bff0e4b25b225aa",
+      "bytes": 790
+    },
+    {
+      "file": "07-mixed-p2tr-legacy-recipient.png",
+      "sha256": "6964d237e5208ec5cf2ca03ca35a3515cbd522eb4d0799e372285b5262cf1f6c",
+      "bytes": 587
+    },
+    {
+      "file": "08-mixed-p2tr-legacy-fee.png",
+      "sha256": "8ff0582a2bb578485b1c4973f042f8f7e1454473b7995174afdfb4e72cb56f1e",
+      "bytes": 796
+    }
+  ]
+}

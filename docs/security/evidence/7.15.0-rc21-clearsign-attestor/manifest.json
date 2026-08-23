@@ -1,0 +1,51 @@
+{
+  "account": {
+    "index": 7,
+    "label": "VaultAccount1234",
+    "label_characters": 16
+  },
+  "arguments": [
+    {
+      "label": "Amount1234567890",
+      "label_characters": 16,
+      "type": "u64 LE"
+    },
+    {
+      "label": "Flag123456789012",
+      "label_characters": 16,
+      "type": "u8"
+    },
+    {
+      "label": "RecipientPubKey1",
+      "label_characters": 16,
+      "type": "public key"
+    },
+    {
+      "label": "OrderHash1234567",
+      "label_characters": 16,
+      "type": "bytes32 hex"
+    }
+  ],
+  "attestation_public_key_bytes": 33,
+  "attestation_signature_bytes": 64,
+  "device_protocol_commit": "4cc8b717517c79ee3ac436161141dd033db286fd",
+  "discriminator_bytes": 8,
+  "discriminator_hex": "0d9e0ddf5fd51c06",
+  "firmware_commit": "c49bd9d04f981da103b8b3161dbb5b042367f1ce",
+  "instruction_name": "Review All Types 123",
+  "instruction_name_characters": 20,
+  "program_id": "99vQwtBwYtrqqD9YSXbdum3KBdxPAVxYTaQ3cfnJSrN2",
+  "program_id_characters": 44,
+  "program_name": "Boundary Program 123",
+  "program_name_characters": 20,
+  "screens": [
+    "01-schema-identity.png",
+    "02-program-id-44chars.png",
+    "03-discriminator-8bytes.png",
+    "04-arg-u64-le-16char-label.png",
+    "05-arg-u8-16char-label.png",
+    "06-arg-public-key-16char-label.png",
+    "07-arg-bytes32-hex-16char-label.png",
+    "08-account-16char-label.png"
+  ]
+}
