@@ -119,6 +119,13 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
   // Confirm transaction basics
   // supports only 1 message ack
   CHECK_PARAM(mayachain_signingIsInited(), "Signing not in progress");
+  if (msg->has_send == msg->has_deposit) {
+    mayachain_signAbort();
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Expected exactly one MAYAChain message"));
+    layoutHome();
+    return;
+  }
   if (msg->has_send && msg->send.has_to_address && msg->send.has_amount &&
       msg->send.has_denom) {
     // pass
@@ -278,10 +285,10 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
     return;
   }
 
-  if (sign_tx->has_memo && !msg->deposit.has_memo) {
-    // Ignored if the deposit msg has a memo. Page the full raw memo as the
-    // sole gate -- strnlen, not sizeof; see the deposit path above for why
-    // there is no structured pass.
+  if (sign_tx->has_memo) {
+    // The transaction-level memo and a deposit memo are distinct signed
+    // fields, so page both when both are present. strnlen, not sizeof; see the
+    // deposit path above for why there is no structured pass.
     size_t memo_len = strnlen(sign_tx->memo, sizeof(sign_tx->memo));
     if (!thorchain_confirm_full_memo(_("Memo"), sign_tx->memo, memo_len)) {
       mayachain_signAbort();

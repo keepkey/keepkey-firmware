@@ -119,6 +119,13 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
   // Confirm transaction basics
   // supports only 1 message ack
   CHECK_PARAM(thorchain_signingIsInited(), "Signing not in progress");
+  if (msg->has_send == msg->has_deposit) {
+    thorchain_signAbort();
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Expected exactly one THORChain message"));
+    layoutHome();
+    return;
+  }
   if (msg->has_send && msg->send.has_to_address && msg->send.has_amount) {
     // pass
   } else if (msg->has_deposit && msg->deposit.has_asset &&
@@ -261,9 +268,9 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
     return;
   }
 
-  if (sign_tx->has_memo && !msg->deposit.has_memo) {
-    // See if we can parse the tx memo. This memo ignored if deposit msg has
-    // memo
+  if (sign_tx->has_memo) {
+    // See if we can parse the tx memo. The transaction and deposit memos are
+    // distinct signed fields, so both are reviewed when both are present.
     /* strnlen, not sizeof -- see the deposit path above. */
     ThorchainMemoResult memo_result = thorchain_parseConfirmMemo(
         sign_tx->memo, strnlen(sign_tx->memo, sizeof(sign_tx->memo)));

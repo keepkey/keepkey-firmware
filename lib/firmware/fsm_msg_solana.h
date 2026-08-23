@@ -304,6 +304,131 @@ static bool solana_signerInTx(const uint8_t* pubkey, const SolanaParsedTx* tx) {
   return false;
 }
 
+typedef enum {
+  SOL_SCHEMA_REVIEW_NONE = 0,
+  SOL_SCHEMA_REVIEW_APPROVED,
+  SOL_SCHEMA_REVIEW_CANCELLED,
+} SolanaSchemaReviewResult;
+
+/* Review an opaque instruction through a signed KKSOLSC1 descriptor. This is
+ * annotation only: invalid or inapplicable metadata produces no screens, and
+ * the caller still presents the ordinary blind-sign warning after an approved
+ * schema review. */
+static SolanaSchemaReviewResult solana_confirmAttestedSchema(
+    const SolanaSignTx* msg, const SolanaParsedTx* tx) {
+  if (!msg->has_schema_payload || msg->schema_payload.size == 0 ||
+      !msg->has_schema_signature || msg->schema_signature.size != 64 ||
+      !msg->has_schema_signer_key_id ||
+      msg->schema_signer_key_id >= METADATA_MAX_KEYS) {
+    return SOL_SCHEMA_REVIEW_NONE;
+  }
+
+  const uint8_t key_id = (uint8_t)msg->schema_signer_key_id;
+  if (!signed_metadata_verify_attestation(
+          key_id, msg->schema_payload.bytes, msg->schema_payload.size,
+          msg->schema_signature.bytes, msg->schema_signature.size)) {
+    return SOL_SCHEMA_REVIEW_NONE;
+  }
+
+  SolanaInstrSchema schema;
+  uint8_t instruction_index = 0;
+  if (!solana_parseInstrSchema(msg->schema_payload.bytes,
+                               msg->schema_payload.size, &schema) ||
+      !solana_schemaApplies(&schema, tx, &instruction_index)) {
+    memzero(&schema, sizeof(schema));
+    return SOL_SCHEMA_REVIEW_NONE;
+  }
+
+  const SolanaParsedInstruction* ix = &tx->instructions[instruction_index];
+  for (uint8_t i = 0; i < schema.num_accounts; i++) {
+    const uint8_t instruction_account = schema.accounts[i].index;
+    if (!ix->acct_indices || instruction_account >= ix->num_acct_indices ||
+        ix->acct_indices[instruction_account] >= tx->num_accounts) {
+      memzero(&schema, sizeof(schema));
+      return SOL_SCHEMA_REVIEW_NONE;
+    }
+  }
+
+  char fingerprint[METADATA_FINGERPRINT_LEN];
+  if (!signed_metadata_signer_fingerprint(key_id, fingerprint)) {
+    fingerprint[0] = '\0';
+  }
+  const char* alias = signed_metadata_signer_alias(key_id);
+  bool approved =
+      confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Schema Source",
+              "%s (%s) describes this instruction.\nNOT verified by KeepKey.",
+              alias ? alias : "Unknown signer", fingerprint);
+
+  if (approved) {
+    approved =
+        confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Instruction",
+                "%s\n%s", schema.program_name, schema.instruction_name);
+  }
+
+  char program_id[45];
+  solana_pubkeyToStr(schema.program_id, program_id, sizeof(program_id));
+  if (approved) {
+    approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                       "Program ID", "%s", program_id);
+  }
+
+  char discriminator[2 * SOL_SCHEMA_DISC_MAX + 1] = {0};
+  for (uint8_t i = 0; i < schema.disc_len; i++) {
+    snprintf(discriminator + 2 * i, sizeof(discriminator) - 2 * i, "%02x",
+             schema.disc[i]);
+  }
+  if (approved) {
+    approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                       "Discriminator", "%s", discriminator);
+  }
+
+  const uint8_t* arg = ix->data + schema.disc_len;
+  for (uint8_t i = 0; approved && i < schema.num_args; i++) {
+    switch (schema.args[i].type) {
+      case SOL_SCHEMA_ARG_U64: {
+        uint64_t value = 0;
+        for (uint8_t j = 0; j < 8; j++) {
+          value |= ((uint64_t)arg[j]) << (8 * j);
+        }
+        approved =
+            confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                    schema.args[i].label, "%llu", (unsigned long long)value);
+        arg += 8;
+        break;
+      }
+      case SOL_SCHEMA_ARG_U8:
+        approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                           schema.args[i].label, "%u", (unsigned)*arg);
+        arg++;
+        break;
+      case SOL_SCHEMA_ARG_PUBKEY: {
+        char pubkey[45];
+        solana_pubkeyToStr(arg, pubkey, sizeof(pubkey));
+        approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                           schema.args[i].label, "%s", pubkey);
+        arg += SOL_PUBKEY_SIZE;
+        break;
+      }
+      case SOL_SCHEMA_ARG_OPAQUE32:
+        approved = confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                                 schema.args[i].label, arg, 32);
+        arg += 32;
+        break;
+    }
+  }
+
+  for (uint8_t i = 0; approved && i < schema.num_accounts; i++) {
+    const uint8_t account_index = ix->acct_indices[schema.accounts[i].index];
+    char account[45];
+    solana_pubkeyToStr(tx->accounts[account_index], account, sizeof(account));
+    approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                       schema.accounts[i].label, "%s", account);
+  }
+
+  memzero(&schema, sizeof(schema));
+  return approved ? SOL_SCHEMA_REVIEW_APPROVED : SOL_SCHEMA_REVIEW_CANCELLED;
+}
+
 void fsm_msgSolanaGetAddress(const SolanaGetAddress* msg) {
   RESP_INIT(SolanaAddress);
 
@@ -420,6 +545,16 @@ void fsm_msgSolanaSignTx(const SolanaSignTx* msg) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_Other,
                       _("Enable AdvancedMode to blind-sign"));
+      layoutHome();
+      return;
+    }
+
+    const SolanaSchemaReviewResult schema_review =
+        solana_confirmAttestedSchema(msg, &parsed);
+    if (schema_review == SOL_SCHEMA_REVIEW_CANCELLED) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Signing cancelled"));
       layoutHome();
       return;
     }

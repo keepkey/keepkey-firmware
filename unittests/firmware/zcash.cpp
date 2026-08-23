@@ -1832,20 +1832,21 @@ TEST(Zcash, RedPallasSign_DifferentSighash) {
   memzero(&keys, sizeof(keys));
 }
 
-/* ZIP-244 empty-bundle digests.
+/* ZIP-244 and ZIP-229 empty-bundle digests.
  *
  * A bundle with no components hashes the EMPTY string under its own
  * personalization. The device pins the digest of every pool it does not stream
  * and verify, so that it never signs a sighash committing to a bundle it has
  * not inspected -- transparent and Sapling were already pinned this way, and
- * Orchard-under-Ironwood is pinned by EMPTY_ORCHARD_DIGEST in fsm_msg_zcash.h.
+ * Orchard-under-Ironwood is pinned by EMPTY_ORCHARD_DIGEST_V6 in
+ * fsm_msg_zcash.h.
  *
  * These expected bytes are NOT taken from our own constants; they are the
- * ZIP-244 values, so this test catches a mistyped literal as well as a wrong
- * personalization string. A wrong Orchard value would reject every Ironwood
- * transaction, which is safe but would look like an Ironwood bug.
+ * specification values, so this test catches a mistyped literal as well as a
+ * wrong personalization string. A wrong Orchard value would reject every
+ * Ironwood transaction, which is safe but would look like an Ironwood bug.
  */
-TEST(Zcash, EmptyBundleDigests_MatchZip244) {
+TEST(Zcash, EmptyBundleDigests_MatchZip244AndZip229) {
   struct Case {
     const char* personal;
     const char* expect_hex;
@@ -1857,6 +1858,10 @@ TEST(Zcash, EmptyBundleDigests_MatchZip244) {
        "6f2fc8f98feafd94e74a0df4bed74391ee0b5a69945e4ced8ca8a095206f00ae"},
       {"ZTxIdOrchardHash",
        "9fbe4ed13b0c08e671c11a3407d84e1117cd45028a2eee1b9feae78b48a6e2c1"},
+      {"ZTxIdOrchardH_v6",
+       "a3367d2fdea2910159fc5026e9bf1fccd3e28ce5e6de46bfb71587230eea9515"},
+      {"ZTxIdIronwd_H_v6",
+       "b9cfe643ce45b28c33190f0d5223e475972f2a149dc54404fd8365521f8416c5"},
   };
 
   for (const Case& c : cases) {
@@ -1872,7 +1877,7 @@ TEST(Zcash, EmptyBundleDigests_MatchZip244) {
     }
     EXPECT_STREQ(hex, c.expect_hex)
         << "empty-bundle digest for " << c.personal
-        << " does not match ZIP-244";
+        << " does not match the transaction digest specification";
   }
 }
 

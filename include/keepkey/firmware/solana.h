@@ -244,7 +244,7 @@ typedef enum {
   SOL_SCHEMA_ARG_U64 = 1,      /* 8 bytes, shown as a decimal integer */
   SOL_SCHEMA_ARG_U8 = 2,       /* 1 byte */
   SOL_SCHEMA_ARG_PUBKEY = 3,   /* 32 bytes, shown base58 */
-  SOL_SCHEMA_ARG_OPAQUE32 = 4, /* 32 bytes, shown truncated hex */
+  SOL_SCHEMA_ARG_OPAQUE32 = 4, /* 32 bytes, shown in full over pages */
 } SolanaSchemaArgType;
 
 typedef struct {

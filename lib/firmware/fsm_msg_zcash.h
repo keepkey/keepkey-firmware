@@ -40,16 +40,18 @@ static const uint8_t EMPTY_SAPLING_DIGEST[32] = {
     0xf4, 0xbe, 0xd7, 0x43, 0x91, 0xee, 0x0b, 0x5a, 0x69, 0x94, 0x5e,
     0x4c, 0xed, 0x8c, 0xa8, 0xa0, 0x95, 0x20, 0x6f, 0x00, 0xae};
 
-/* ZIP-244 empty-bundle digest: BLAKE2b-256 of the empty string personalized
- * "ZTxIdOrchardHash". A v6 (Ironwood) transaction streams and verifies only its
- * Ironwood actions, so its Orchard bundle MUST be empty -- otherwise the device
- * would sign a sighash committing to an Orchard bundle it never inspected.
- * Sapling and the transparent bundle are already pinned this way above; Orchard
- * was the one unused pool taken on trust from the host. */
-static const uint8_t EMPTY_ORCHARD_DIGEST[32] = {
-    0x9f, 0xbe, 0x4e, 0xd1, 0x3b, 0x0c, 0x08, 0xe6, 0x71, 0xc1, 0x1a,
-    0x34, 0x07, 0xd8, 0x4e, 0x11, 0x17, 0xcd, 0x45, 0x02, 0x8a, 0x2e,
-    0xee, 0x1b, 0x9f, 0xea, 0xe7, 0x8b, 0x48, 0xa6, 0xe2, 0xc1};
+/* ZIP-229 v6 adds/changes the Orchard-protocol component
+ * personalizations. Sapling's top-level personalization is unchanged from
+ * v5, so the empty Sapling component continues to use the value above. */
+static const uint8_t EMPTY_ORCHARD_DIGEST_V6[32] = {
+    0xa3, 0x36, 0x7d, 0x2f, 0xde, 0xa2, 0x91, 0x01, 0x59, 0xfc, 0x50,
+    0x26, 0xe9, 0xbf, 0x1f, 0xcc, 0xd3, 0xe2, 0x8c, 0xe5, 0xe6, 0xde,
+    0x46, 0xbf, 0xb7, 0x15, 0x87, 0x23, 0x0e, 0xea, 0x95, 0x15};
+
+static const uint8_t EMPTY_IRONWOOD_DIGEST_V6[32] = {
+    0xb9, 0xcf, 0xe6, 0x43, 0xce, 0x45, 0xb2, 0x8c, 0x33, 0x19, 0x0f,
+    0x0d, 0x52, 0x23, 0xe4, 0x75, 0x97, 0x2f, 0x2a, 0x14, 0x9d, 0xc5,
+    0x44, 0x04, 0xfd, 0x83, 0x65, 0x52, 0x1f, 0x84, 0x16, 0xc5};
 
 #define ZCASH_MAX_ACTIONS 16
 #define ZCASH_MAX_TRANSPARENT_INPUTS 8
@@ -678,7 +680,7 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
    * strings for every streamed action, so a transaction spanning both pools
    * cannot be expressed here. */
   if (is_ironwood &&
-      memcmp(msg->orchard_digest.bytes, EMPTY_ORCHARD_DIGEST, 32) != 0) {
+      memcmp(msg->orchard_digest.bytes, EMPTY_ORCHARD_DIGEST_V6, 32) != 0) {
     fsm_sendFailure(
         FailureType_Failure_SyntaxError,
         _("Ironwood transaction must have an empty Orchard bundle"));
@@ -829,6 +831,11 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
   memcpy(zcash_signing.orchard_component_digest, msg->orchard_digest.bytes, 32);
   if (is_ironwood) {
     memcpy(zcash_signing.ironwood_component_digest, msg->ironwood_digest.bytes,
+           32);
+  } else if (zcash_signing.transaction_v6) {
+    /* An Orchard-v6 request does not stream an Ironwood bundle. Bind the
+     * canonical empty component rather than zero-filled state or host data. */
+    memcpy(zcash_signing.ironwood_component_digest, EMPTY_IRONWOOD_DIGEST_V6,
            32);
   }
   zcash_signing.has_device_sighash = false;
@@ -1281,7 +1288,10 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
       BLAKE2B_CTX orchard_ctx;
       blake2b_InitPersonal(
           &orchard_ctx, 32,
-          zcash_signing.is_ironwood ? "ZTxIdIronwd_H_v6" : "ZTxIdOrchardHash",
+          zcash_signing.is_ironwood
+              ? "ZTxIdIronwd_H_v6"
+              : (zcash_signing.transaction_v6 ? "ZTxIdOrchardH_v6"
+                                              : "ZTxIdOrchardHash"),
           16);
       blake2b_Update(&orchard_ctx, compact_hash, 32);
       blake2b_Update(&orchard_ctx, memos_hash, 32);
