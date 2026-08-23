@@ -115,6 +115,25 @@ static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
     return;                                             \
   }
 
+/* A locked bitcoin-only wallet leaves the RAM shadow reset, so handlers that
+ * merely PERSIST settings look perfectly ordinary: storage_setPin(),
+ * storage_setLabel() and friends update the shadow, storage_commit() then
+ * returns without writing (the btc_only_locked backstop in storage.c), and the
+ * handler answers Success. The change appears to take effect for the rest of
+ * the session and is gone at the next boot.
+ *
+ * CHECK_NOT_INITIALIZED already refuses this for the ceremonies that CREATE a
+ * seed. The same reasoning applies to every handler that expects its write to
+ * survive a reboot, and those were missed. Refuse before doing the work rather
+ * than reporting a success that did not happen. */
+#define CHECK_NOT_BITCOIN_ONLY_LOCKED                                \
+  if (storage_isBitcoinOnlyLocked()) {                               \
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,           \
+                    "Bitcoin-only wallet present. Use Wipe first."); \
+    layoutHome();                                                    \
+    return;                                                          \
+  }
+
 #define CHECK_NOT_INITIALIZED                                              \
   if (storage_isInitialized()) {                                           \
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,                 \
@@ -306,9 +325,6 @@ void fsm_sendFailure(FailureType code, const char* text) {
 
 void fsm_msgClearSession(ClearSession* msg) {
   (void)msg;
-  /* The Orchard spend authorizing key lives in the Zcash signing session, so
-   * clearing the session has to clear that too. */
-  zcash_signing_abort();
   session_clear(/*clear_pin=*/true);
   fsm_sendSuccess("Session cleared");
 }

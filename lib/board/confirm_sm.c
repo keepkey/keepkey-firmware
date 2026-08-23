@@ -353,13 +353,64 @@ bool confirm_body_fits(const char* body, uint16_t body_width) {
                           font_height(body_font) + BODY_FONT_LINE_PADDING);
 }
 
+/* The same probe, for constant-power screens.
+ *
+ * layout_constant_power_notification() draws from x = 128 + LEFT_MARGIN,
+ * because the display driver mirrors the right half of the canvas onto the
+ * panel. Only KEEPKEY_DISPLAY_WIDTH - (128 + LEFT_MARGIN) = 124 px exists past
+ * that origin, while BODY_WIDTH (225) is what gets passed as the wrap width.
+ * The wrap therefore never fires before the canvas edge does, draw_char_impl
+ * rejects the first glyph that crosses 256, and draw_string_walk stops --
+ * dropping the rest of the body, including whole later lines, with no ellipsis
+ * and no indicator.
+ *
+ * Measuring with BODY_WIDTH from the LEFT margin (confirm_body_fits) would say
+ * such a body fits, because from x = 4 it does. The origin is the whole point,
+ * so this probe starts where the real draw starts. Same loop, same per-glyph
+ * fit test, so measuring and drawing cannot disagree.
+ *
+ * body_width is accepted and forwarded unchanged so this can stand in for
+ * confirm_body_fits() wherever a fit probe is selected by layout. */
+bool confirm_body_fits_constant_power(const char* body, uint16_t body_width) {
+  Canvas* canvas = layout_get_canvas();
+  const Font* body_font = get_body_font();
+  const char* str2 = body ? body : "";
+
+  DrawableParams sp;
+  const uint32_t body_line_count = calc_str_line(body_font, str2, body_width);
+  sp.y = TOP_MARGIN;
+  if (body_line_count == ONE_LINE) {
+    sp.y = TOP_MARGIN_FOR_ONE_LINE;
+  } else if (body_line_count == TWO_LINES) {
+    sp.y = TOP_MARGIN_FOR_TWO_LINES;
+  }
+
+  /* Mirrors layout_constant_power_notification() exactly. */
+  sp.y += font_height(body_font) + BODY_TOP_MARGIN;
+  sp.x = 128 + LEFT_MARGIN;
+  sp.color = BODY_COLOR;
+
+  return draw_string_fits(canvas, body_font, str2, &sp, body_width,
+                          font_height(body_font) + BODY_FONT_LINE_PADDING);
+}
+
+/// Fit probe selected by layout: measuring must start where drawing starts.
+typedef bool (*body_fits_fn)(const char*, uint16_t);
+
+static body_fits_fn fits_probe_for(layout_notification_t fn) {
+  if (fn == &layout_constant_power_notification) {
+    return &confirm_body_fits_constant_power;
+  }
+  return &confirm_body_fits;
+}
+
 /// How many characters of `body` fit one screen, starting from `body[0]`?
 ///
 /// Binary search over confirm_body_fits(), which replays the real placement.
 /// Returns at least 1 so a body of unrenderable glyphs still advances rather
 /// than looping forever.
 static size_t page_take(const char* body, uint16_t body_width, char* buf,
-                        size_t buf_size) {
+                        size_t buf_size, body_fits_fn fits) {
   const size_t len = strlen(body);
   if (len == 0) return 0;
 
@@ -371,7 +422,7 @@ static size_t page_take(const char* body, uint16_t body_width, char* buf,
     const size_t mid = lo + (hi - lo) / 2;
     memcpy(buf, body, mid);
     buf[mid] = '\0';
-    if (confirm_body_fits(buf, body_width)) {
+    if (fits(buf, body_width)) {
       best = mid;
       lo = mid + 1;
     } else {
@@ -397,6 +448,7 @@ static bool page_body_confirm(const char* request_title, const char* body,
                               layout_notification_t layout_notification_func,
                               bool constant_power, IconType iconNum,
                               bool immediate, uint16_t body_width) {
+  const body_fits_fn fits = fits_probe_for(layout_notification_func);
   static CONFIDENTIAL char page_buf[BODY_CHAR_MAX];
   static char page_title[TITLE_CHAR_MAX];
 
@@ -405,7 +457,8 @@ static bool page_body_confirm(const char* request_title, const char* body,
   {
     const char* p = body;
     while (*p) {
-      const size_t take = page_take(p, body_width, page_buf, sizeof(page_buf));
+      const size_t take =
+          page_take(p, body_width, page_buf, sizeof(page_buf), fits);
       if (take == 0) break;
       p += take;
       while (*p == ' ') p++; /* a leading space is dropped at a line start */
@@ -422,7 +475,8 @@ static bool page_body_confirm(const char* request_title, const char* body,
   bool ok = false;
   const char* p = body;
   for (size_t page = 0; page < pages && *p; page++) {
-    const size_t take = page_take(p, body_width, page_buf, sizeof(page_buf));
+    const size_t take =
+        page_take(p, body_width, page_buf, sizeof(page_buf), fits);
     if (take == 0) break;
     memcpy(page_buf, p, take);
     page_buf[take] = '\0';
@@ -499,15 +553,31 @@ static bool confirm_helper(const char* request_title, const char* request_body,
    *                canvas. draw_string_fits() replays the real placement and
    *                reports whether the last character landed.
    *
-   * Only layout_standard_notification is known to wrap the body at BODY_WIDTH
-   * over BODY_ROWS rows. Custom layouts place and size their own body, and
-   * layout_constant_power_notification draws from x = 128 + LEFT_MARGIN where
-   * the canvas edge, not BODY_WIDTH, is the limit. Measuring either of those
-   * against BODY_WIDTH would be wrong, so leave them exactly as they were --
-   * but a SOURCE truncation is layout-independent and must warn regardless.  */
+   * The probe must start where the real draw starts, so it is selected by
+   * layout. layout_standard_notification wraps at BODY_WIDTH from LEFT_MARGIN;
+   * layout_constant_power_notification draws from x = 128 + LEFT_MARGIN, where
+   * the canvas edge and not BODY_WIDTH is the limit.
+   *
+   * Constant-power screens used to be excluded here on the grounds that
+   * measuring them against BODY_WIDTH would be wrong. It would have been -- but
+   * excluding them meant the seed-backup pages, which are drawn by exactly that
+   * layout, had NO completeness check at all. Measured over 200k random 24-word
+   * mnemonics with the real font tables: 1.7% produce a backup page the
+   * renderer silently clips, and 0.65% never show one of the words at all,
+   * because the walk stops at the first rejected glyph and drops every
+   * character after it. A user writes down 23 words and cannot restore.
+   *
+   * The answer is to measure at the right origin, not to skip the measurement.
+   * Custom layouts that place their own body still opt out.
+   *
+   * A SOURCE truncation is layout-independent and must warn regardless. */
+  const body_fits_fn render_probe =
+      (layout_notification_func == &layout_standard_notification ||
+       layout_notification_func == &layout_constant_power_notification)
+          ? fits_probe_for(layout_notification_func)
+          : NULL;
   const bool render_incomplete =
-      (layout_notification_func == &layout_standard_notification) &&
-      !confirm_body_fits(request_body, body_width);
+      render_probe && !render_probe(request_body, body_width);
 
   if (truncated) {
     /* SOURCE truncation: characters were lost in vsnprintf() before the

@@ -1713,6 +1713,13 @@ void session_clear(bool clear_pin) {
   /* Runtime ClearSign trust belongs to the unlocked device session. Any path
    * that tears that session down must also revoke its RAM-only signer slots. */
   signed_metadata_clear_signers();
+  /* The Orchard spend AUTHORIZING key lives in the Zcash signing session, so it
+   * belongs to the unlocked session for exactly the same reason. Clearing it
+   * here rather than at each caller is what makes the guarantee hold on paths
+   * nobody enumerated: the screensaver auto-lock (home_sm.c toggle_screensaver)
+   * and the PIN-failure path (pin_sm.c) both tear the session down without
+   * going through Initialize or ClearSession, and both left the key live. */
+  zcash_signing_abort();
   if (PIN_REWRAP ==
       session_clear_impl(&session, &shadow_config.storage, clear_pin)) {
     storage_commit();

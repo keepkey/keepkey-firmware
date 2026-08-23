@@ -171,6 +171,43 @@ TEST_F(BodyFits, ConfirmBodyFits) {
       << "a body overflowing by exactly one glyph must not report as fitting";
 }
 
+// Constant-power screens draw from x = 128 + LEFT_MARGIN, because the display
+// driver mirrors the right half of the canvas onto the panel. Only
+// KEEPKEY_DISPLAY_WIDTH - (128 + LEFT_MARGIN) px exists past that origin, not
+// BODY_WIDTH. A body measured from the LEFT margin can therefore be declared
+// to fit and still be clipped when it is drawn on the right half.
+//
+// This is not hypothetical: the seed-backup pages are drawn by exactly that
+// layout. Replaying the real font tables and the real placement rules over
+// 200,000 random 24-word mnemonics, 1.712% produce a page the renderer clips
+// and 0.646% never show one of the words at all, because draw_string_walk()
+// stops at the first rejected glyph and drops every character after it,
+// including whole later lines. No ellipsis, no warning, no page indicator.
+//
+// The page below is from one of those mnemonics: 39 of its 41 characters are
+// placed, so a user copying their backup writes down "24.observ".
+TEST_F(BodyFits, ConstantPowerBodyFitsMeasuresFromItsOwnOrigin) {
+  static const char kClippedBackupPage[] =
+      "   22.second\n   23.together   24.observe\n";
+
+  // From the left margin it fits -- which is why the completeness check, hard
+  // gated to layout_standard_notification, saw nothing wrong with it.
+  EXPECT_TRUE(confirm_body_fits(kClippedBackupPage, BODY_WIDTH))
+      << "if this ever fails, the test no longer demonstrates the blind spot "
+         "it exists to pin";
+
+  // Measured where it is actually drawn, it does not.
+  EXPECT_FALSE(confirm_body_fits_constant_power(kClippedBackupPage, BODY_WIDTH))
+      << "a constant-power page the renderer clips must report as not fitting, "
+         "so the confirm layer pages it instead of silently dropping the tail "
+         "of the user's seed";
+
+  // Control: a short body fits under both probes, so the constant-power probe
+  // is not simply refusing everything.
+  EXPECT_TRUE(confirm_body_fits("   1.abandon", BODY_WIDTH));
+  EXPECT_TRUE(confirm_body_fits_constant_power("   1.abandon", BODY_WIDTH));
+}
+
 // Regression: calc_str_line() accumulated into a uint8_t while returning
 // uint32_t, so a body carrying 255 newlines wrapped the count back to 0 and
 // confirm_body_fits() reported that it fitted. The 352-byte confirm buffer

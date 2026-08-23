@@ -48,6 +48,22 @@
     "RAND_PLATFORM_INDEPENDENT must be defined; otherwise trezor-crypto compiles its insecure test LCG"
 #endif
 
+/* Software mirror of the hardware's sticky seed/clock error.
+ *
+ * RNG_SR_SEIS latches in hardware, but only until someone clears it -- and both
+ * random32() below and reset_rng() do, as they must to keep drawing. random32()
+ * runs constantly, so by the time a self-test reads RNG_SR the evidence of a
+ * transient fault is usually gone, and rng_source_live() was documented as
+ * catching exactly that case. Record it here instead, where it cannot be
+ * cleared by the recovery path that observed it.
+ *
+ * Boot-lifetime and one-way on purpose: a noise source that failed its own
+ * continuous test once is not trusted again until the device is power-cycled.
+ */
+static volatile bool rng_seed_error_seen = false;
+
+bool rng_seed_error_latched(void) { return rng_seed_error_seen; }
+
 void reset_rng(void) {
 #ifndef EMULATOR
   /* disable RNG */
@@ -84,7 +100,10 @@ uint32_t random32(void) {
         new = RNG_DR;
       }
     } else if ((rng_sr_img & (RNG_SR_SECS | RNG_SR_CECS)) == 0) {
-      /* Reset RNG interrupt status bits (SECS, CECS errors no longer exist) */
+      /* Reset RNG interrupt status bits (SECS, CECS errors no longer
+       * exist). Record it FIRST: clearing the hardware latch is exactly
+       * what makes this fault invisible to a later self-test. */
+      rng_seed_error_seen = true;
       RNG_SR &= ~(RNG_SR_SEIS | RNG_SR_CEIS);
     } else {
       /* RNG is not ready.  Allow few more samples for RNG to come back alive

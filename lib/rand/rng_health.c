@@ -47,6 +47,7 @@
  * shipping firmware in which these checks are absent.
  */
 
+#include "keepkey/rand/rng.h"
 #include "keepkey/rand/rng_health.h"
 
 #include <string.h>
@@ -68,10 +69,15 @@ bool rng_source_live(void) {
     return false;
   }
 
-  /* Sticky seed/clock error. RNG_SR_SEIS means the noise source failed its
-   * own continuous test; SEIS latches, so a transient fault is still visible
-   * here even if the current sample looks fine. */
-  if (RNG_SR & (RNG_SR_SEIS | RNG_SR_CEIS)) {
+  /* Seed/clock error, hardware latch AND software mirror.
+   *
+   * RNG_SR_SEIS latches in hardware, but random32() clears it whenever the
+   * underlying SECS/CECS condition has gone -- it has to, to keep drawing --
+   * and random32() runs constantly. So the hardware bit alone does NOT make a
+   * transient fault visible here, which is what this check was documented as
+   * doing. rng_seed_error_latched() is the boot-lifetime software mirror, set
+   * at the moment the hardware latch is cleared and never cleared itself. */
+  if ((RNG_SR & (RNG_SR_SEIS | RNG_SR_CEIS)) || rng_seed_error_latched()) {
     return false;
   }
 

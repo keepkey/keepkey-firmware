@@ -97,6 +97,15 @@ typedef void (*layout_notification_t)(const char* str1, const char* str2,
 /// \returns true iff the whole body will be on screen.
 bool confirm_body_fits(const char* body, uint16_t body_width);
 
+/// Same, for constant-power screens, which draw from x = 128 + LEFT_MARGIN.
+///
+/// Only KEEPKEY_DISPLAY_WIDTH - (128 + LEFT_MARGIN) px exists past that origin,
+/// so a body that fits when measured from the left margin can still be clipped
+/// here. Exposed for tests: the seed-backup pages are drawn by this layout, and
+/// a page that does not fit loses every character after the first rejected
+/// glyph -- including whole later lines.
+bool confirm_body_fits_constant_power(const char* body, uint16_t body_width);
+
 /// User confirmation.
 /// \param type            The kind of button request to send to the host.
 /// \param request_title   Title of confirm message.
