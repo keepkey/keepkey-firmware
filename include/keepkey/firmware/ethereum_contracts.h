@@ -21,9 +21,31 @@
 #ifndef KEEPKEY_FIRMWARE_ETHEREUMCONTRACTS_H
 #define KEEPKEY_FIRMWARE_ETHEREUMCONTRACTS_H
 
+#include <stdint.h>
+
 #include "trezor/crypto/bip32.h"
 
 typedef struct _EthereumSignTx EthereumSignTx;
+
+/// \returns true iff the 0x Exchange Proxy is deployed at ZXSWAP_ADDRESS on
+///          this chain.
+///
+/// Most decoders in this directory match a contract that only exists on
+/// Ethereum mainnet — the Uniswap V2 router, the Sablier proxy — so pinning
+/// them to chain_id == 1 is correct: the same 20 bytes on another chain are an
+/// unrelated contract, and clear-signing them would narrate the wrong thing.
+///
+/// The 0x Exchange Proxy is different. It is deployed at the SAME address
+/// (0xdef1c0de...) across many chains by design, so the address alone is a
+/// meaningful identity and a blanket mainnet pin would stop legitimate 0x
+/// swaps on BSC, Polygon and the rest from being clear-signed at all — they
+/// would fall through to the raw-calldata path, which is a strictly worse
+/// screen for the user.
+///
+/// Default-deny: a chain absent from this list is not clear-signed, it falls
+/// through to the generic disclosure. That is the safe direction, so an
+/// incomplete list costs display quality rather than safety.
+bool zx_isExchangeProxyChain(uint32_t chain_id);
 
 /// \returns true iff there is custom support for this ETH signing request
 bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx* msg,
