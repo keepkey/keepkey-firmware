@@ -105,9 +105,9 @@ bool rng_health_analyze(const uint8_t* buf, size_t len);
 ///
 /// Adding a new key-material draw does NOT inherit this gate. You must route
 /// it through random_buffer_checked() deliberately. Inverting the default so
-/// that coverage was automatic was built for 7.15 and descoped; the reasons
-/// and the follow-up project are in
-/// docs/security/rc28-open-findings-handoff.md.
+/// that coverage was automatic was built for 7.15 and descoped: it can hang
+/// or brick the bootloader when the generator has failed and there is no
+/// defined degraded-RNG recovery mode yet.
 bool rng_health_check(void);
 
 /// Fold \p len bytes of freshly drawn output into the boot-lifetime continuous

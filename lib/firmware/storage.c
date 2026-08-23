@@ -581,7 +581,8 @@ pintest_t storage_isWipeCodeCorrect_impl(const char* wipe_code,
  * enforcement -- ordinary random_buffer() callers, including the Orchard
  * RedPallas signing nonce in the crypto submodule, still draw unchecked
  * exactly as they do on develop. Making the default checked was tried and
- * descoped from 7.15; see docs/security/rc28-open-findings-handoff.md.
+ * descoped from 7.15: it can hang or brick the bootloader when the generator
+ * has failed and there is no defined degraded-RNG recovery mode yet.
  *
  * These call sites are void and have no way to report a failure, so they halt
  * -- the same disposition storage_secMigrate() takes when secrets fail to

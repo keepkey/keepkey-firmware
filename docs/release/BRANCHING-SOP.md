@@ -83,6 +83,6 @@ A one-sided gate is worse than none, because it reads green. The rule that works
 > A symbol defined on the branch being merged INTO may be dropped only if
 > nothing in the merged tree still references it.
 
-plus an explicit list of markers from the branch being merged FROM. See
-`ALPHA-MERGE-HANDOFF.md` for a working implementation. A hand-written gate that
-only checked one direction passed while 95 symbols went missing.
+plus an explicit list of markers from the branch being merged FROM. A
+hand-written gate that only checked one direction passed while 95 symbols went
+missing.

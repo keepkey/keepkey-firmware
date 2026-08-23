@@ -399,8 +399,8 @@ Once Phase 2 ships:
 
 - Vault: replace the "Verify on device" button's primary action to call
   `ZcashGetUnifiedAddress`, drop the host-supplied address from the FSM call.
-- Documentation: update `docs/zoo/reports/zcash-report.md` with the strong-
-  attestation flow as the canonical "verify address" procedure.
+- Documentation: record the strong-attestation flow as the canonical "verify
+  address" procedure.
 
 ## 10. References
 

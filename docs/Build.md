@@ -36,3 +36,20 @@ Running the tests
 $ cd build
 $ make all test
 ```
+
+Release products
+-----------------
+
+Two release products, no separate `zcash-privacy` artifact:
+
+| Product | Contents |
+| --- | --- |
+| Regular (`full`) | Every supported chain, including Zcash shielded/Orchard |
+| Bitcoin-only | Bitcoin only; all non-Bitcoin coins and Zcash privacy code removed |
+
+An unflagged CMake build is the regular product (`BITCOIN_ONLY=0`,
+`ZCASH_PRIVACY=1`). `-DKK_BITCOIN_ONLY=ON` sets `BITCOIN_ONLY=1` and
+`ZCASH_PRIVACY=0`. Zcash privacy is part of the regular firmware and cannot be
+disabled as a release choice; the internal `ZCASH_PRIVACY` value exists only so
+bitcoin-only can compile the privacy sources out. Device, emulator, unit-test,
+SRAM, and tagged-release CI matrices cover only these two products.
