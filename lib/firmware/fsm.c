@@ -306,6 +306,9 @@ void fsm_sendFailure(FailureType code, const char* text) {
 
 void fsm_msgClearSession(ClearSession* msg) {
   (void)msg;
+  /* The Orchard spend authorizing key lives in the Zcash signing session, so
+   * clearing the session has to clear that too. */
+  zcash_signing_abort();
   session_clear(/*clear_pin=*/true);
   fsm_sendSuccess("Session cleared");
 }

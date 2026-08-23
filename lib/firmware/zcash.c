@@ -69,6 +69,11 @@ static void zip32_orchard_master(const uint8_t* seed, size_t seed_len,
   blake2b_InitPersonal(&ctx, 64, "ZcashIP32Orchard", 16);
   blake2b_Update(&ctx, seed, seed_len);
   blake2b_Final(&ctx, out, 64);
+  /* blake2b_Final() clears its own scratch and leaves the finished state in
+   * ctx: h[0..7] IS the 64-byte master key just produced, and buf still holds
+   * the last block of the BIP-39 SEED. Both are the highest-value secrets on
+   * the device. */
+  memzero(&ctx, sizeof(ctx));
 }
 
 /* PRF^expand(sk, t) = BLAKE2b-512("Zcash_ExpandSeed", sk || t) */
@@ -79,6 +84,9 @@ static void prf_expand(const uint8_t sk[32], const uint8_t* t, size_t t_len,
   blake2b_Update(&ctx, sk, 32);
   blake2b_Update(&ctx, t, t_len);
   blake2b_Final(&ctx, out, 64);
+  /* ctx.buf still holds sk (the Orchard spending key) and ctx.h is the
+   * expanded output. Same leak as zip32_orchard_master() above. */
+  memzero(&ctx, sizeof(ctx));
 }
 
 /*

@@ -160,8 +160,22 @@ def main():
                                              "fsm_msgZcashPCZTAction"))
     require(action_handler, "msg->has_is_spend", "PCZT action handler")
     require(action_handler, "if (msg->is_spend)", "PCZT action handler")
-    require(action_handler, "redpallas_sign_digest_for_rk",
+    # The action handler must sign through the rk-VALIDATING entry point. This
+    # gate previously required redpallas_sign_digest_for_rk() here, which pinned
+    # the weaker path as an invariant: _for_rk feeds the host's rk straight into
+    # the nonce and challenge hashes without ever checking it describes this
+    # device's key, so the device would authorize under a verification key that
+    # is not its own. _with_ak derives rk from the device's ak and alpha,
+    # refuses on mismatch, and signs with the derived value.
+    #
+    # This is the second time this file has been found requiring the weaker of
+    # two available implementations by name (see the normaliser note above).
+    # Requiring a function by name pins whichever one happened to be in use;
+    # forbid the unsafe one as well, so the gate states the property.
+    require(action_handler, "redpallas_sign_digest_with_ak",
             "PCZT action handler")
+    forbid(action_handler, "redpallas_sign_digest_for_rk(",
+           "PCZT action handler")
     require(action_handler, "signatures[zcash_signing.signature_count]",
             "compact PCZT signature collection")
     require(action_handler, "zcash_signing.signature_count++",
@@ -169,8 +183,6 @@ def main():
     require(action_handler,
             "resp_signed->signatures_count = zcash_signing.signature_count",
             "compact PCZT signature response")
-    forbid(action_handler, "redpallas_sign_digest_with_ak",
-           "PCZT action handler")
     output_verification = code_only(function_body(
         zcash_fsm, "zcash_verify_and_confirm_orchard_output"))
     require(output_verification, "zcash_orchard_compute_cmx_with_progress",

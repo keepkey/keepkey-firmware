@@ -2355,6 +2355,10 @@ bool storage_getRootNode(const char* curve, bool usePassphrase, HDNode* node) {
                       &ctx);
       memzero(&ctx, sizeof(ctx));
       memzero(secret, sizeof(secret));
+      /* pctx is keyed by the passphrase and its state derives `secret`, the
+       * AES key that just decrypted the private key and chain code. Both of
+       * those are wiped above; the context that produced them was not. */
+      memzero(&pctx, sizeof(pctx));
     }
 
     return true;

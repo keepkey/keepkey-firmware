@@ -1832,6 +1832,50 @@ TEST(Zcash, RedPallasSign_DifferentSighash) {
   memzero(&keys, sizeof(keys));
 }
 
+/* ZIP-244 empty-bundle digests.
+ *
+ * A bundle with no components hashes the EMPTY string under its own
+ * personalization. The device pins the digest of every pool it does not stream
+ * and verify, so that it never signs a sighash committing to a bundle it has
+ * not inspected -- transparent and Sapling were already pinned this way, and
+ * Orchard-under-Ironwood is pinned by EMPTY_ORCHARD_DIGEST in fsm_msg_zcash.h.
+ *
+ * These expected bytes are NOT taken from our own constants; they are the
+ * ZIP-244 values, so this test catches a mistyped literal as well as a wrong
+ * personalization string. A wrong Orchard value would reject every Ironwood
+ * transaction, which is safe but would look like an Ironwood bug.
+ */
+TEST(Zcash, EmptyBundleDigests_MatchZip244) {
+  struct Case {
+    const char* personal;
+    const char* expect_hex;
+  };
+  const Case cases[] = {
+      {"ZTxIdTranspaHash",
+       "c33f2e95705faab35f8d533fa61e95c3b7aaba0776b874a9f74fc12784376a59"},
+      {"ZTxIdSaplingHash",
+       "6f2fc8f98feafd94e74a0df4bed74391ee0b5a69945e4ced8ca8a095206f00ae"},
+      {"ZTxIdOrchardHash",
+       "9fbe4ed13b0c08e671c11a3407d84e1117cd45028a2eee1b9feae78b48a6e2c1"},
+  };
+
+  for (const Case& c : cases) {
+    BLAKE2B_CTX ctx;
+    ASSERT_EQ(blake2b_InitPersonal(&ctx, 32, c.personal, 16), 0)
+        << "personalization " << c.personal;
+    uint8_t out[32];
+    ASSERT_EQ(blake2b_Final(&ctx, out, 32), 0) << c.personal;
+
+    char hex[65];
+    for (int i = 0; i < 32; i++) {
+      snprintf(hex + 2 * i, 3, "%02x", out[i]);
+    }
+    EXPECT_STREQ(hex, c.expect_hex)
+        << "empty-bundle digest for " << c.personal
+        << " does not match ZIP-244";
+  }
+}
+
 /* --- RedDSA nonce derivation ------------------------------------- *
  *
  * These are the regression tests for the nonce defect. The signer used to

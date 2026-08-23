@@ -456,7 +456,19 @@ void ethereumFormatAmount(const bignum256* amnt, const TokenType* token,
       }
     }
   }
-  bn_format(amnt, NULL, suffix, decimals, 0, false, buf, buflen);
+  /* bn_format() BLANKS the buffer and returns 0 when the value does not fit:
+   * BN_FORMAT_ADD_OUTPUT_CHAR does memset(output, 0, output_length) on
+   * overflow. Ignoring the return therefore renders an EMPTY amount on the
+   * confirmation screen, and an empty string is the one rendering a user
+   * cannot read as wrong -- they approve a transfer whose value was never
+   * shown. A 256-bit value at 18 decimals needs ~80 characters, so this is
+   * reachable with an ordinary large-amount transfer, not a corner case.
+   *
+   * Never leave the caller a blank amount. Say the value could not be shown,
+   * so the screen is refusable rather than silently empty. */
+  if (bn_format(amnt, NULL, suffix, decimals, 0, false, buf, buflen) == 0) {
+    strlcpy(buf, _("AMOUNT TOO LARGE TO DISPLAY"), buflen);
+  }
 }
 
 static void layoutEthereumConfirmTx(const uint8_t* to, uint32_t to_len,
@@ -469,7 +481,11 @@ static void layoutEthereumConfirmTx(const uint8_t* to, uint32_t to_len,
   memcpy(pad_val + (32 - value_len), value, value_len);
   bn_read_be(pad_val, &val);
 
-  char amount[32];
+  /* 256-bit at 18 decimals is 60 integer digits + '.' + 18 fractional + a
+   * suffix, so 32 bytes silently blanked the amount for ordinary large
+   * transfers. Size it so the formatter cannot overflow at all; the guard in
+   * ethereumFormatAmount() remains as the backstop. */
+  char amount[96];
   if (token == NULL) {
     if (bn_is_zero(&val)) {
       strcpy(amount, _("message"));

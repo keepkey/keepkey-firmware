@@ -905,9 +905,18 @@ static bool signed_metadata_confirm_screens(void) {
         if (is_max && arg->value_len == 32) {
           snprintf(body, sizeof(body), "%s:\nUNLIMITED", arg->name);
         } else {
-          char formatted[48];
-          bn_format(&amount, NULL, " wei", 0, 0, false, formatted,
+          /* bn_format() BLANKS its output buffer and returns 0 when the value
+           * does not fit, so 48 bytes rendered a 256-bit amount as an EMPTY
+           * string: the clear-sign screen showed the argument name and no
+           * value, which is the one rendering a user cannot read as wrong.
+           * Size it beyond the 78-digit worst case and refuse to render a
+           * blank if it ever overflows anyway. */
+          char formatted[96];
+          if (bn_format(&amount, NULL, " wei", 0, 0, false, formatted,
+                        sizeof(formatted)) == 0) {
+            strlcpy(formatted, "AMOUNT TOO LARGE TO DISPLAY",
                     sizeof(formatted));
+          }
           snprintf(body, sizeof(body), "%s:\n%s", arg->name, formatted);
         }
         break;
@@ -944,9 +953,18 @@ static bool signed_metadata_confirm_screens(void) {
         } else {
           bignum256 amount;
           bn_from_metadata_bytes(amt, amt_len, &amount);
-          char formatted[48];
-          bn_format(&amount, NULL, suffix, decimals, 0, false, formatted,
+          /* bn_format() BLANKS its output buffer and returns 0 when the value
+           * does not fit, so 48 bytes rendered a 256-bit amount as an EMPTY
+           * string: the clear-sign screen showed the argument name and no
+           * value, which is the one rendering a user cannot read as wrong.
+           * Size it beyond the 78-digit worst case and refuse to render a
+           * blank if it ever overflows anyway. */
+          char formatted[96];
+          if (bn_format(&amount, NULL, suffix, decimals, 0, false, formatted,
+                        sizeof(formatted)) == 0) {
+            strlcpy(formatted, "AMOUNT TOO LARGE TO DISPLAY",
                     sizeof(formatted));
+          }
           snprintf(body, sizeof(body), "%s:\n%s", arg->name, formatted);
         }
         break;
