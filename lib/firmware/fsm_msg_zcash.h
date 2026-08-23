@@ -1168,34 +1168,35 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
    * can never satisfy the action's rk. Stream and verify every action above,
    * but return compact signatures only for real spends, in action order. */
   if (msg->is_spend) {
-    /* FAIL CLOSED on a sick RNG before drawing a spend-authorization nonce.
+    /* Draw the spend-authorization randomness T here, from the CHECKED source,
+     * and hand it to the signer.
      *
-     * redpallas_sign_with_rsk() takes its nonce from plain random_buffer(),
-     * which is unchecked, and a REPEATED nonce discloses the spend
-     * authorization key outright. That draw lives in vendored crypto
-     * (deps/crypto/trezor-firmware), so it cannot be routed through
-     * random_buffer_checked() from here; until it is, this is the gate.
+     * redpallas_sign_digest_for_rk() takes T from the caller precisely so this
+     * decision is visible. The signer derives the nonce as r = H*(T || rk || M)
+     * rather than reducing T directly, so a repeat of T alone is survivable --
+     * but a REPEATED NONCE discloses the spend authorization key from any two
+     * signatures, so the entropy must still come from a source that has been
+     * health-checked, and a degraded source must yield NO signature rather than
+     * a predictable one.
      *
-     * Two checks, because they catch different things:
-     *   rng_health_check()      the boot-lifetime verdict, latched failed for
-     *                           the rest of the boot once the RCT or APT trips
-     *   random_buffer_checked() a LIVE draw from the same source, folded into
-     *                           the continuous SP 800-90B state immediately
-     *                           before the nonce is taken, so a source failing
-     *                           right now is seen right now
+     * random_buffer_checked() folds the drawn bytes into the continuous
+     * SP 800-90B state and returns false if the RCT or APT trips;
+     * rng_health_check() is the latched boot verdict. Both must hold, and the
+     * signer independently refuses an all-zero T.
      *
-     * The drawn bytes are deliberately discarded and zeroed: this is a health
-     * observation, not key material. Refusing to sign is always safe; signing
-     * with a repeated nonce is not.
+     * 80 bytes, not 32: T is the randomness input to the RedDSA nonce
+     * derivation r = H*(T || rk || M), and the Zcash protocol specification
+     * sizes it at 80 so that H*'s output is statistically uniform over the
+     * scalar field. The signer hashes T with the verification key and the
+     * message rather than reducing it directly, so a repeated T across two
+     * DIFFERENT messages still yields different nonces.
      *
-     * This is NOT equivalent to the nonce itself being checked. The complete
-     * fix is a checked draw inside redpallas, or an independently reviewed
-     * deterministic nonce; both need a change to the vendored crypto.
+     * Refusing to sign is always safe. Signing with a repeated nonce is not.
      */
-    uint8_t rng_probe[32];
-    bool rng_ok = rng_health_check() && random_buffer_checked(rng_probe, 32);
-    memzero(rng_probe, sizeof(rng_probe));
-    if (!rng_ok) {
+    uint8_t zcash_T[80];
+    if (!rng_health_check() ||
+        !random_buffer_checked(zcash_T, sizeof(zcash_T))) {
+      memzero(zcash_T, sizeof(zcash_T));
       fsm_sendFailure(FailureType_Failure_Other,
                       _("RNG health check failed; refusing to sign"));
       zcash_signing_abort();
@@ -1206,10 +1207,12 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
     ZcashActionProgress signing_progress = {verification_target,
                                             action_target - verification_target,
                                             verification_target};
-    if (redpallas_sign_digest_for_rk(
-            zcash_signing.keys.ask, msg->alpha.bytes, msg->rk.bytes, sighash,
-            zcash_signing.signatures[zcash_signing.signature_count],
-            zcash_action_progress, &signing_progress) != 0) {
+    int sign_rc = redpallas_sign_digest_for_rk(
+        zcash_signing.keys.ask, msg->alpha.bytes, msg->rk.bytes, sighash,
+        zcash_T, zcash_signing.signatures[zcash_signing.signature_count],
+        zcash_action_progress, &signing_progress);
+    memzero(zcash_T, sizeof(zcash_T));
+    if (sign_rc != 0) {
       fsm_sendFailure(FailureType_Failure_Other,
                       _("Orchard spend authorization failed"));
       zcash_signing_abort();

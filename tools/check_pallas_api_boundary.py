@@ -110,9 +110,33 @@ def main():
 
     sign_core = code_only(function_body(redpallas,
                                         "redpallas_sign_with_rsk"))
-    for token in ("pallas_ct_add_mod_q", "pallas_ct_mod_q",
-                  "pallas_ct_mul_mod_q", "pallas_ct_scalar_replace_zero_with_one"):
+    for token in ("pallas_ct_add_mod_q", "pallas_ct_mul_mod_q"):
         require(sign_core, token, "RedPallas signing core")
+
+    # The nonce must come from the spec construction, not from a raw reduction.
+    require(sign_core, "redpallas_hash_nonce", "RedPallas signing core")
+
+    # NEVER normalise a signing nonce. This gate used to REQUIRE
+    # pallas_ct_scalar_replace_zero_with_one() here, which institutionalised the
+    # defect as an invariant: a dead entropy source became the constant nonce 1
+    # on every signature, and a nonce that is reused AND publicly known
+    # discloses the key from a single signature. A zero scalar must fail the
+    # signature instead. Requiring a helper by name checked the shape of the
+    # code; this checks the security property.
+    forbid(sign_core, "pallas_ct_scalar_replace_zero_with_one",
+           "RedPallas signing core")
+    forbid(sign_core, "random_buffer", "RedPallas signing core")
+
+    # The nonce hash must wipe its BLAKE2b context, not just the digest buffer.
+    # blake2b_Final() clears its own scratch but leaves the finished state in
+    # ctx: h[0..7] IS the digest it serialized, and buf still holds the last
+    # input block, which contains T. Either one recovers the nonce r, and r plus
+    # the emitted signature gives up the randomized signing key via
+    # rsk = (s - r) / c. Found in review after the fix landed, so it is pinned
+    # here rather than left to the next reader to notice.
+    nonce_hash = code_only(function_body(redpallas, "redpallas_hash_nonce"))
+    require(nonce_hash, "memzero(&ctx", "RedPallas nonce hash")
+    require(nonce_hash, "memzero(hash_out", "RedPallas nonce hash")
     for token in ("pallas_add_mod_q(", "pallas_mod_q(", "pallas_mul_mod_q("):
         forbid(sign_core, token, "RedPallas signing core")
 

@@ -254,20 +254,4 @@ TEST(PallasConstantTime, ScalarArithmeticAndMultiplicationReduceModOrder) {
   EXPECT_TRUE(PointsEqual(kPallasGenerator, point));
 }
 
-TEST(PallasConstantTime, NonzeroScalarNormalizationIsBranchlessAndCanonical) {
-  bignum256 zero = {{0}};
-  bignum256 one = ScalarWithBit(0);
-  bignum256 max_256 = Max256();
-  const bignum256 expected_one = one;
-  const bignum256 expected_max = max_256;
-
-  pallas_ct_scalar_replace_zero_with_one(&zero);
-  pallas_ct_scalar_replace_zero_with_one(&one);
-  pallas_ct_scalar_replace_zero_with_one(&max_256);
-
-  EXPECT_TRUE(BignumsEqual(expected_one, zero));
-  EXPECT_TRUE(BignumsEqual(expected_one, one));
-  EXPECT_TRUE(BignumsEqual(expected_max, max_256));
-}
-
 }  // namespace
