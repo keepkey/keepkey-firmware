@@ -36,10 +36,9 @@ There is no separate `zcash-privacy` artifact.
 - **AdvancedMode** — session-scoped opt-in policy; never a flash bit.
 
 ### 1.4 References
-- `docs/security/clearsign-provider-tier.md` — the tier's own scope rules
+- `docs/security/clearsign-provider-tier.md` — the tier's own scope rules,
+  including the two-product decision and the Solana attestor's human-attestation gate
 - `docs/security/clearsign-key-delegation-roadmap.md` — phases 0–3
-- `docs/security/7.15.0-rc18-release-shape.md` — the two-product decision
-- `docs/release/DEFECTS-2026-08.md` — defect register
 - `deps/python-keepkey/scripts/generate-test-report.py` — the atlas (`SECTIONS`)
 
 ---
@@ -225,9 +224,8 @@ once and an unexplained 456 B is the kind of thing that only becomes visible
 when the next feature does not fit.
 
 The token budget is what pays for it: 500 of 1,946 candidate entries, −23,104 B
-of flash. See `TOKEN-TABLE-BUDGET.md` for what that cannot buy — the pinned
-data source has been stale since 2023-04-06, so the long tail is not coverage
-of anything current.
+of flash. The pinned data source has been stale since 2023-04-06, so the long
+tail is not coverage of anything current.
 
 ---
 
@@ -235,10 +233,11 @@ of anything current.
 
 1. ~~R-4.1 implemented, or explicitly deferred~~ — **met.** KKSOLSW1 landed
    (firmware #500); §3.4.
-2. Gate 3 OLED evidence per `7.15.0-rc21-clearsign-release-control.md`: a
-   44-character base58 program ID, an 8-byte discriminator on its own screen,
-   all four argument types, 16-character labels. **CI success alone does not
-   prove this display boundary.**
+2. Gate 3 OLED evidence per the human-attestation gate in
+   `docs/security/clearsign-provider-tier.md`: a 44-character base58 program
+   ID, an 8-byte discriminator on its own screen, all four argument types,
+   16-character labels. **CI success alone does not prove this display
+   boundary.**
 3. The CI test report green with **nothing withheld**.
 4. `solana-schemas-local.json` CI test key replaced or removed. **Host-side
    deliverable** — the file is not in this repository; it ships with the
@@ -261,21 +260,20 @@ follows is the selection.
 
 | # | Change | Lines | Why it is in 7.15 |
 |---|---|---|---|
-| L1 | 7.14.2 security merge + the 10 defects it exposed | see `DEFECTS-2026-08.md` | Three are shipping bugs. They go first because everything else rebases on them. |
+| L1 | 7.14.2 security merge + the 10 defects it exposed | — | Three are shipping bugs. They go first because everything else rebases on them. |
 | L2 | Clear-sign provider context, additive (§3.1–3.3) | — | The release's reason to exist. |
 | L3 | KKSOLSW1 Solana account context (§3.4) | +146 | Last firmware build item. |
 | L4 | Bitcoin-only variant (§3.5) | — | Second product, its own emulator leg. |
 | L5 | Storage upgrade preservation (§3.6) | — | Proves a signed upgrade does not wipe. |
-| L6 | Token table budget — 1,945 → 500 entries | −23,104 B flash | Pays for the above. `TOKEN-TABLE-BUDGET.md`. |
+| L6 | Token table budget — 1,945 → 500 entries | −23,104 B flash | Pays for the above. |
 | L7 | Test atlas sections F, I, L, U, J, Q, K, P + the report gates | — | The evidence. Without it none of the above is auditable. |
 
 ### 6.2 What does NOT go
 
 Everything gated on a firmware-pinned provider key: the reductive branch, the
-delegate certificate chain, expiry. It is written up in
-`DESIGN-716-reductive.md` and it stays there. The release gate is mechanical
-and checkable — **no pinned provider key bytes in the artifact** — which is why
-7.15 needs no custody programme (`ROADMAP-715-717.md`).
+delegate certificate chain, expiry — that is 7.16+ scope. The release gate is
+mechanical and checkable — **no pinned provider key bytes in the artifact** —
+which is why 7.15 needs no custody programme.
 
 ### 6.3 Order
 

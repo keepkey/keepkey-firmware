@@ -1,8 +1,7 @@
 # Clear-sign providers: Phase 0 as a shippable tier
 
 Status: **goals**, for agreement before build. Companion to
-`clearsign-key-delegation-roadmap.md` (which defines Phases 0–3) and
-`7.15.0-rc21-clearsign-release-control.md` (what ships today).
+`clearsign-key-delegation-roadmap.md`, which defines Phases 0–3.
 
 The roadmap treats Phase 0 as a developer affordance — "that path is for
 developers and self-service, and it should never become the production path".
@@ -149,6 +148,36 @@ A compromised provider key can therefore **mislabel** a transaction, but cannot
 "cannot fully verify" prompt, and the trust expires on its own. That bounded
 blast radius is the reason this tier needs no custody programme — and the reason
 it must never be quietly upgraded into one.
+
+## Human-attestation gate (Solana attestor)
+
+The constrained `KKSOLSC1` attestor is usable only while `AdvancedMode` is
+enabled. Loaded signer identities are RAM-only; metadata from a runtime signer
+is annotation-only and never suppresses the baseline raw/unverified review.
+
+Before it signs, the attestor must show every security-relevant declaration:
+
+1. program and instruction labels;
+2. the complete base58 program ID on its own confirmation;
+3. the complete discriminator on its own confirmation;
+4. every argument's ordinal, ABI type, and label; and
+5. every displayed account index and label.
+
+Program ID and discriminator may not share one notification screen — a
+44-character base58 program ID consumes two body rows, and an 8-byte
+discriminator cannot reliably fit in the remaining row. Argument types may not
+be omitted: two different ordered type declarations can have the same total
+width while assigning the same labels to different byte offsets.
+
+`SolanaSignTx` tags 9, 10, and 11 carry `schema_payload`, `schema_signature`,
+and `schema_signer_key_id`. Tags 5 through 8 are reserved for the
+transaction-bound `KKSOLSW1` descriptor and one-request opaque-signing
+consent — removing that reservation or assigning those tags is a
+protocol-review event. Hosts built against the older experimental schema
+contract (tags 5, 6, 7) fall back silently to the ordinary unverified review,
+since protobuf treats those fields as unknown; that fallback is safe but
+operationally silent, so host release notes must state which contract a
+reusable schema requires.
 
 ## Open question for the roadmap
 
