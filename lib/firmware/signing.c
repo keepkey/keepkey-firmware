@@ -836,6 +836,26 @@ static bool signing_validate_input(const TxInputType* txinput) {
     signing_abort();
     return false;
   }
+  if (txinput->has_multisig) {
+    /* A DER-encoded ECDSA signature is at most 72 bytes: 0x30 len, then two
+     * 0x02-tagged integers of at most 33 bytes each. The wire field is sized
+     * max_size:73, so the decoder accepts 73 -- and the witness path writes
+     * the sighash byte AT signatures[i].size, which at 73 is one past the end
+     * of bytes[73]. For i < 14 that lands on signatures[i+1].size and can
+     * revive a slot the host left empty, changing the witness stack after the
+     * user has reviewed it; at i == 14 it lands on has_m.
+     *
+     * The declared max_size is a DECODER bound, never a runtime one. Bound it
+     * here, once, before anything indexes with it. */
+    for (uint32_t i = 0; i < txinput->multisig.signatures_count; i++) {
+      if (txinput->multisig.signatures[i].size > 72) {
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Multisig signature too long"));
+        signing_abort();
+        return false;
+      }
+    }
+  }
   if (txinput->address_n_count > 0 && !is_internal_input_script_type(txinput)) {
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                     "Input's address_n provided but not expected.");
@@ -1495,10 +1515,20 @@ static bool signing_sign_segwit_input(TxInputType* txinput) {
           continue;
         }
         nwitnesses++;
-        txinput->multisig.signatures[i]
-            .bytes[txinput->multisig.signatures[i].size] = sighash;
-        r += tx_serialize_script(txinput->multisig.signatures[i].size + 1,
-                                 txinput->multisig.signatures[i].bytes,
+        /* Build the witness element in a local rather than appending the
+         * sighash byte in place. The wire field is bytes[73] and the write
+         * went to bytes[size], so a host-supplied size of 73 wrote one past
+         * the end -- landing on signatures[i+1].size for i < 14, which can
+         * revive a slot the host deliberately left empty and change the
+         * witness stack after the user reviewed it, or on has_m at i == 14.
+         * signing_validate_input() now caps size at 72; this removes the
+         * out-of-bounds write itself rather than relying on that cap. */
+        uint8_t sig_with_hashtype[73];
+        const size_t sig_len = txinput->multisig.signatures[i].size;
+        memcpy(sig_with_hashtype, txinput->multisig.signatures[i].bytes,
+               sig_len);
+        sig_with_hashtype[sig_len] = sighash;
+        r += tx_serialize_script(sig_len + 1, sig_with_hashtype,
                                  resp.serialized.serialized_tx.bytes + r);
       }
       uint32_t script_len =
