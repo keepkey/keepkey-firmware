@@ -152,7 +152,16 @@ const VariantAnimation* variant_getLogo(bool reversed) {
 
 const char* variant_getName(void) {
 #ifdef EMULATOR
+#if BITCOIN_ONLY
+  /* The bitcoin-only emulator must NOT answer "Emulator": the pyk suite's
+     common.requires_fullFeature() skips a test when the variant is
+     "KeepKeyBTC" or "EmulatorBTC", so reporting the full-feature name here
+     meant it never skipped anything and every multi-chain test ran against a
+     bitcoin-only device. */
+  return "EmulatorBTC";
+#else
   return "Emulator";
+#endif
 #else
   if (name) {
     return name;

@@ -188,6 +188,21 @@ static bool path_mismatched(const CoinType* coin, const GetAddress* msg) {
     return mismatch;
   }
 
+  // m/86' : BIP86 Taproot
+  // m / purpose' / bip44_account_path' / account' / change / address_index
+  if (msg->address_n[0] == (0x80000000 + 86)) {
+    mismatch |= (msg->script_type != InputScriptType_SPENDTAPROOT);
+    mismatch |= !coin->has_segwit || !coin->segwit;
+    mismatch |= !coin->has_bech32_prefix;
+    mismatch |= !coin->has_taproot || !coin->taproot;
+    mismatch |= (msg->address_n_count != 5);
+    mismatch |= (msg->address_n[1] != coin->bip44_account_path);
+    mismatch |= (msg->address_n[2] & 0x80000000) == 0;
+    mismatch |= (msg->address_n[3] & 0x80000000) == 0x80000000;
+    mismatch |= (msg->address_n[4] & 0x80000000) == 0x80000000;
+    return mismatch;
+  }
+
   return false;
 }
 
@@ -270,8 +285,9 @@ void fsm_msgSignMessage(SignMessage* msg) {
 
   CHECK_INITIALIZED
 
-  if (!confirm(ButtonRequestType_ButtonRequest_SignMessage, "Sign Message",
-               "%s", (char*)msg->message.bytes)) {
+  if (!confirm_bytes(ButtonRequestType_ButtonRequest_SignMessage,
+                     _("Sign Message"), msg->message.bytes,
+                     msg->message.size)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     "Sign message cancelled");
     layoutHome();
@@ -325,8 +341,9 @@ void fsm_msgVerifyMessage(VerifyMessage* msg) {
       layoutHome();
       return;
     }
-    if (!review(ButtonRequestType_ButtonRequest_Other, "Message Verified", "%s",
-                (char*)msg->message.bytes)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                       _("Message Verified"), msg->message.bytes,
+                       msg->message.size)) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Action cancelled by user"));
       layoutHome();

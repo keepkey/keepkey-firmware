@@ -17,6 +17,9 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState* msg) {
   resp->has_reset_word = true;
   strlcpy(resp->reset_word, reset_get_word(), sizeof(resp->reset_word));
 
+  resp->dice_digest.size = reset_get_dice_digest(resp->dice_digest.bytes);
+  resp->has_dice_digest = resp->dice_digest.size > 0;
+
   if (storage_hasMnemonic()) {
     resp->has_mnemonic = true;
     strlcpy(resp->mnemonic, storage_getMnemonic(), sizeof(resp->mnemonic));
