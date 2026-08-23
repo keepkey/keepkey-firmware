@@ -571,13 +571,25 @@ static bool confirm_helper(const char* request_title, const char* request_body,
    * Custom layouts that place their own body still opt out.
    *
    * A SOURCE truncation is layout-independent and must warn regardless. */
-  const body_fits_fn render_probe =
-      (layout_notification_func == &layout_standard_notification ||
-       layout_notification_func == &layout_constant_power_notification)
-          ? fits_probe_for(layout_notification_func)
-          : NULL;
+  /* NOT wired to constant-power screens, deliberately, and this is a
+   * behavioural constraint rather than an oversight.
+   *
+   * page_body_confirm() emits one ButtonRequest PER PAGE (see #482: "Every page
+   * after the first writes its own request"). The seed-backup flow is driven by
+   * a host that reads one word group per ButtonRequest, so paging a backup
+   * screen makes the host read that group TWICE and reconstruct a mnemonic with
+   * duplicated words. That is a protocol change for every host, not just a test
+   * artifact, and it silently corrupts the thing the user is writing down.
+   *
+   * So the measurement stays available and honest -- see
+   * confirm_body_fits_constant_power(), and the test that pins a real clipped
+   * backup page -- but it does not silently change the flow. Fixing the
+   * clipping properly means packing reset.c's pages against the width they are
+   * actually drawn at, which needs MAX_PAGES raised (~3.7 KB more static SRAM)
+   * and on-device OLED verification. Tracked in #519. */
   const bool render_incomplete =
-      render_probe && !render_probe(request_body, body_width);
+      (layout_notification_func == &layout_standard_notification) &&
+      !confirm_body_fits(request_body, body_width);
 
   if (truncated) {
     /* SOURCE truncation: characters were lost in vsnprintf() before the
