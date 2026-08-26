@@ -289,13 +289,16 @@ int compile_output(const CoinType* coin, const HDNode* root, TxOutputType* in,
     memcpy(&node, root, sizeof(HDNode));
     if (hdnode_private_ckd_cached(&node, in->address_n, in->address_n_count,
                                   NULL) == 0) {
+      memzero(&node, sizeof(node));
       return 0;  // failed to compile output
     }
     hdnode_fill_public_key(&node);
     if (!compute_address(coin, input_script_type, &node, in->has_multisig,
                          &in->multisig, in->address)) {
+      memzero(&node, sizeof(node));
       return 0;  // failed to compile output
     }
+    memzero(&node, sizeof(node));
   } else if (!in->has_address) {
     return 0;  // failed to compile output
   }

@@ -22,46 +22,11 @@
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/util.h"
 #include "keepkey/firmware/app_confirm.h"
-#include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_tokens.h"
-#include "keepkey/firmware/fsm.h"
-#include "keepkey/firmware/storage.h"
-#include "trezor/crypto/address.h"
 #include "trezor/crypto/bip32.h"
-#include "trezor/crypto/curves.h"
-#include "trezor/crypto/memzero.h"
-#include "trezor/crypto/sha3.h"
 
 #include <time.h>
-
-static HDNode* zx_getDerivedNode(const char* curve, const uint32_t* address_n,
-                                 size_t address_n_count,
-                                 uint32_t* fingerprint) {
-  static HDNode CONFIDENTIAL node;
-  if (fingerprint) {
-    *fingerprint = 0;
-  }
-
-  if (!get_curve_by_name(curve)) {
-    return 0;
-  }
-
-  if (!storage_getRootNode(curve, true, &node)) {
-    return 0;
-  }
-
-  if (!address_n || address_n_count == 0) {
-    return &node;
-  }
-
-  if (hdnode_private_ckd_cached(&node, address_n, address_n_count,
-                                fingerprint) == 0) {
-    return 0;
-  }
-
-  return &node;
-}
 
 static bool isAddLiquidityEthCall(const EthereumSignTx* msg) {
   if (memcmp(msg->data_initial_chunk.bytes, "\xf3\x05\xd7\x19", 4) == 0)
@@ -78,20 +43,16 @@ static bool isRemoveLiquidityEthCall(const EthereumSignTx* msg) {
 }
 
 static bool confirmFromAccountMatch(const EthereumSignTx* msg,
-                                    const char* addremStr) {
+                                    const char* addremStr, const HDNode* node) {
   // Determine withdrawal address
   char addressStr[43] = {'0', 'x', '\0'};
   const char* fromSrc;
   const uint8_t* fromAddress;
   uint8_t addressBytes[20];
 
-  HDNode* node = zx_getDerivedNode(SECP256K1_NAME, msg->address_n,
-                                   msg->address_n_count, NULL);
   if (!node) return false;
 
-  if (!hdnode_get_ethereum_pubkeyhash(node, addressBytes)) {
-    memzero(node, sizeof(*node));
-  }
+  if (!hdnode_get_ethereum_pubkeyhash(node, addressBytes)) return false;
 
   fromAddress =
       (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 5 * 32 - 20);
@@ -189,10 +150,11 @@ bool zx_isZxLiquidTx(const EthereumSignTx* msg) {
   return zxliquid_resolveToken(msg, NULL);
 }
 
-bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg) {
+bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg,
+                          const HDNode* node) {
   (void)data_total;
   const TokenType* token;
-  char constr1[40], constr2[40], tokbuf[32];
+  char constr1[40], constr2[40], constr3[40], tokbuf[32];
   const char* arStr = "";
   const uint8_t* deadlineBytes;
   bignum256 Amount;
@@ -223,27 +185,36 @@ bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg) {
 
   bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 32, 32,
                 &Amount);  // token amount
-  ethereumFormatAmount(&Amount, token, msg->chain_id, tokbuf, sizeof(tokbuf));
+  if (!ethereumFormatAmount(&Amount, token, msg->chain_id, tokbuf,
+                            sizeof(tokbuf)))
+    return false;
   snprintf(constr1, 32, "%s", tokbuf);
   bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 2 * 32, 32,
                 &Amount);  // token min amount
-  ethereumFormatAmount(&Amount, token, msg->chain_id, tokbuf, sizeof(tokbuf));
+  if (!ethereumFormatAmount(&Amount, token, msg->chain_id, tokbuf,
+                            sizeof(tokbuf)))
+    return false;
   snprintf(constr2, 32, "%s", tokbuf);
+
+  /* Validate every amount before drawing the first approval screen. A later
+   * formatting failure must not leave the user with a partial review flow. */
+  bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 3 * 32, 32,
+                &Amount);  // eth min amount
+  if (!ethereumFormatAmount(&Amount, NULL, msg->chain_id, tokbuf,
+                            sizeof(tokbuf)))
+    return false;
+  snprintf(constr3, 32, "%s", tokbuf);
+
   if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
                "%s\nMinimum %s", constr1, constr2)) {
     return false;
   }
-  if (!confirmFromAccountMatch(msg, arStr)) {
+  if (!confirmFromAccountMatch(msg, arStr, node)) {
     return false;
   }
 
-  bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 3 * 32, 32,
-                &Amount);  // eth min amount
-  ethereumFormatAmount(&Amount, NULL, msg->chain_id, tokbuf, sizeof(tokbuf));
-
-  snprintf(constr1, 32, "%s", tokbuf);
   if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
-               "Minimum %s", constr1)) {
+               "Minimum %s", constr3)) {
     return false;
   }
 

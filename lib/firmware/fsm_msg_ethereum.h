@@ -51,7 +51,9 @@ static int process_ethereum_xfer(const CoinType* coin, EthereumSignTx* msg) {
   bn_from_bytes(value_bytes, value_size, &value);
 
   char amount_str[128 + sizeof(msg->token_shortcut) + 3];
-  ethereumFormatAmount(&value, token, chain_id, amount_str, sizeof(amount_str));
+  if (!ethereumFormatAmount(&value, token, chain_id, amount_str,
+                            sizeof(amount_str)))
+    return TXOUT_COMPILE_ERROR;
 
   if (!confirm_transfer_output(
           ButtonRequestType_ButtonRequest_ConfirmTransferToAccount, amount_str,

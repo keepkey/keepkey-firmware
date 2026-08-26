@@ -1,0 +1,22 @@
+title = "KeepKey firmware gitleaks configuration"
+
+[extend]
+useDefault = true
+
+# Published U2F attestation material and historical vendored test vectors.
+[[allowlists]]
+description = "Public device material and third-party historical fixtures"
+paths = [
+  '''include/keepkey/firmware/u2f/trezordevkey\.pem''',
+  '''include/keepkey/firmware/u2f/u2f_keys\.h''',
+  '''^deps/''',
+  '''^tests/''',
+]
+
+[[allowlists]]
+description = "Documented python-keepkey commit pins"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^docs/''']
+regexes = ['''python-keepkey[^\n]{0,16}`[0-9a-f]{40}`''']
+regexTarget = "match"

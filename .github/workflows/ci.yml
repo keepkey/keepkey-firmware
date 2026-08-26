@@ -35,7 +35,7 @@ on:
         default: false
 
 env:
-  BASE_IMAGE: kktech/firmware:v15
+  BASE_IMAGE: kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
   EMU_IMAGE: kkemu-ci
 
 jobs:
@@ -88,8 +88,7 @@ jobs:
 
       - name: Install gitleaks
         run: |
-          GITLEAKS_VERSION=$(curl -sSf https://api.github.com/repos/gitleaks/gitleaks/releases/latest \
-            | grep -oP '"tag_name":\s*"v\K[^"]+')
+          GITLEAKS_VERSION=8.30.0
           curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
             | tar -xz -C /usr/local/bin gitleaks
           gitleaks version
@@ -412,8 +411,10 @@ jobs:
         working-directory: scripts/emulator
         run: |
           # Run each test container — capture exit codes, always extract reports
+          set +e
           docker compose up --build --exit-code-from firmware-unit firmware-unit; FW_RC=$?
           docker compose up --build --exit-code-from python-keepkey python-keepkey; PY_RC=$?
+          set -e
 
           mkdir -p ${{ github.workspace }}/test-reports
 
@@ -426,10 +427,6 @@ jobs:
 
           echo "=== Extracted files ==="
           find ${{ github.workspace }}/test-reports -type f | head -30
-          echo "=== Screenshot PNGs ==="
-          find ${{ github.workspace }}/test-reports/screenshots -name '*.png' 2>/dev/null | wc -l
-          echo "PNGs on host"
-
           echo "firmware-unit exit code: $FW_RC"
           echo "python-keepkey exit code: $PY_RC"
 
@@ -448,15 +445,6 @@ jobs:
           name: python-test-results
           path: test-reports/python-keepkey/
           retention-days: 30
-
-      - name: Upload OLED screenshots
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: oled-screenshots
-          path: test-reports/screenshots/
-          retention-days: 90
-          if-no-files-found: warn
 
       - name: Tear down
         if: always()

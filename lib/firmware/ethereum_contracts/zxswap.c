@@ -184,10 +184,12 @@ bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx* msg) {
 
   char sellToken[32];
   char minBuyToken[32];
-  ethereumFormatAmount(&sellTokenAmount, from, msg->chain_id, sellToken,
-                       sizeof(sellToken));
-  ethereumFormatAmount(&minBuyTokenAmount, to, msg->chain_id, minBuyToken,
-                       sizeof(minBuyToken));
+  if (!ethereumFormatAmount(&sellTokenAmount, from, msg->chain_id, sellToken,
+                            sizeof(sellToken)))
+    return false;
+  if (!ethereumFormatAmount(&minBuyTokenAmount, to, msg->chain_id, minBuyToken,
+                            sizeof(minBuyToken)))
+    return false;
 
   snprintf(constr1, 32, "%s", sellToken);
   snprintf(constr2, 32, "%s", minBuyToken);

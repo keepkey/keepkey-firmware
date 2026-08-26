@@ -207,8 +207,9 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
     }
 
   } else {
-    ethereumFormatAmount(&Amount, assetToken, msg->chain_id, confStr,
-                         sizeof(confStr));
+    if (!ethereumFormatAmount(&Amount, assetToken, msg->chain_id, confStr,
+                              sizeof(confStr)))
+      return false;
 
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                  "Thorchain data", "Confirm sending %s", confStr)) {
