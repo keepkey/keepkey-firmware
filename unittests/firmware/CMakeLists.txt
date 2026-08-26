@@ -1,5 +1,7 @@
 set(sources
+    dice.cpp
     recovery.cpp
+    rng_health.cpp
     setup_ceremony.cpp
     signing.cpp
     storage.cpp

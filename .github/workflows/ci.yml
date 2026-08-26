@@ -290,6 +290,17 @@ jobs:
     needs: [lint-format, static-analysis, check-submodules, secret-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      # Both release variants must compile on every PR. Without the
+      # bitcoin-only leg, a change that only breaks the KK_BITCOIN_ONLY image
+      # goes green here and fails for the first time in the release build.
+      matrix:
+        include:
+          - variant: full
+            cmake_flags: ""
+          - variant: bitcoin-only
+            cmake_flags: "-DKK_BITCOIN_ONLY=ON"
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -338,6 +349,7 @@ jobs:
             ${{ env.BASE_IMAGE }} /bin/sh -c "\
               mkdir /root/build && cd /root/build && \
               cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
+                ${{ matrix.cmake_flags }} \
                 -DCMAKE_BUILD_TYPE=MinSizeRel \
                 -DCMAKE_COLOR_MAKEFILE=ON && \
               make && \
@@ -363,7 +375,9 @@ jobs:
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: firmware-v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}
+          # matrix.variant in the name: two legs uploading the same artifact
+          # name is a hard failure on upload-artifact@v4+ (see release.yml).
+          name: firmware-v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${{ matrix.variant }}
           path: |
             bin/*.bin
             bin/*.elf

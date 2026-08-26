@@ -31,3 +31,7 @@ SolanaSignOffchainMessage.message max_size:1212
 
 SolanaOffchainMessageSignature.public_key max_size:32
 SolanaOffchainMessageSignature.signature max_size:64
+
+SolanaSignTx.lut_account max_count:8
+SolanaSignTx.lut_account max_size:32
+SolanaSignTx.lut_signature max_size:64
