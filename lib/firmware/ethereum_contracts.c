@@ -20,6 +20,7 @@
 
 #include "keepkey/firmware/ethereum_contracts.h"
 
+#include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_contracts/saproxy.h"
 #include "keepkey/firmware/ethereum_contracts/thortx.h"
 #include "keepkey/firmware/ethereum_contracts/zxappliquid.h"
@@ -28,12 +29,77 @@
 #include "keepkey/firmware/ethereum_contracts/zxswap.h"
 #include "keepkey/firmware/ethereum_contracts/makerdao.h"
 
+bool zx_isExchangeProxyChain(uint32_t chain_id) {
+  /* Optimism is deliberately absent: 0x deploys a DIFFERENT Exchange Proxy
+     there (0xdef1abe32c034e558cdd535791643c58a13acc10), so allowing chain 10
+     for ZXSWAP_ADDRESS would let the 0x decoder narrate an unrelated contract —
+     exactly the confusion the chain scoping exists to prevent. Verified against
+     0xProject/protocol packages/contract-addresses/addresses.json. */
+  switch (chain_id) {
+    case 1:     /* Ethereum   */
+    case 56:    /* BNB Chain  */
+    case 137:   /* Polygon    */
+    case 8453:  /* Base       */
+    case 42161: /* Arbitrum   */
+    case 43114: /* Avalanche  */
+      return true;
+    default:
+      /* Including chain_id 0 / absent, which callers treat as unknown. */
+      return false;
+  }
+}
+
+bool zx_tokenLabelsThisChain(uint32_t chain_id, const TokenType* token) {
+  if (token == NULL || token == UnknownToken) return false;
+
+  /* tokenByChainAddress() matches the 0xeeee..eeee native pseudo-address
+   * OUTSIDE its chain-scoped loop (ethereum_tokens.c), so it hands back the
+   * same ETH-labelled entry on every chain. This tree carries token entries
+   * for BNB Chain and Polygon, so a native-asset swap there resolves both
+   * operands, survives the UnknownToken check, and puts "ETH" on screen while
+   * the signature moves BNB or MATIC. Naming one asset and signing another is
+   * the defect class this release exists to close (#456), so refuse the label
+   * rather than qualify it.
+   *
+   * Only chain 1 is allowed, not every ETH-native chain: Base, Arbitrum and
+   * Avalanche have no entries in the table at all, and tokenByChainAddress()
+   * takes a uint8_t chain id so their ids truncate anyway (#455). The other
+   * operand there is always UnknownToken, so nothing is lost by refusing.
+   *
+   * Refusing means the caller's predicate returns false and the transaction
+   * falls through to raw-calldata review, which shows the bytes. */
+  if (token == EthTestToken) return chain_id == 1;
+
+  return true;
+}
+
 bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx* msg,
                               const HDNode* node) {
   (void)node;
 
-  if (sa_isWithdrawFromSalary(msg)) return true;
+  /* Every handler parses and displays fixed offsets inside the initial chunk
+   * only. If the calldata does not fit in that chunk, the remainder streams
+   * in via EthereumTxAck and is hashed into the signature without ever being
+   * shown, so refuse to claim the tx and fall through to the generic raw-data
+   * disclosure path. This gate runs BEFORE any decoder, including 0x
+   * transformERC20, so a transformERC20 whose transformations[] tail exceeds
+   * one 1024-byte chunk is NOT clear-signed blind: it falls through to raw
+   * disclosure (AdvancedMode-gated). */
+  if (data_total != msg->data_initial_chunk.size) return false;
+
+  /* Every predicate below opens with a 4-byte selector memcmp.
+   * data_initial_chunk is a fixed-capacity buffer that is NOT cleared between
+   * messages, so on a calldata shorter than its own selector those reads
+   * compare bytes left over from an earlier transaction. Nothing downstream
+   * guarantees the minimum, so establish it once here. */
+  if (msg->data_initial_chunk.size < 4) return false;
+
+  /* 0x transformERC20 is pinned to the ExchangeProxy address and its outcome
+   * is bounded by the input amount and minimum output amount shown on screen,
+   * so it stays clear-signable at any calldata size that fits one chunk. */
   if (zx_isZxTransformERC20(msg)) return true;
+
+  if (sa_isWithdrawFromSalary(msg)) return true;
   if (zx_isZxSwap(msg)) return true;
   if (zx_isZxLiquidTx(msg)) return true;
   if (zx_isZxApproveLiquid(msg)) return true;
@@ -48,6 +114,12 @@ bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx* msg,
 bool ethereum_contractConfirmed(uint32_t data_total, const EthereumSignTx* msg,
                                 const HDNode* node) {
   (void)node;
+
+  /* Same selector bound as ethereum_contractHandled(). This function is only
+   * ever reached after that one returned true, so this is belt and braces --
+   * but the two dispatch on the same predicates and must not be able to
+   * disagree about which of them are safe to evaluate. */
+  if (msg->data_initial_chunk.size < 4) return false;
 
   if (sa_isWithdrawFromSalary(msg))
     return sa_confirmWithdrawFromSalary(data_total, msg);

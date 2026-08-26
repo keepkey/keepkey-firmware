@@ -57,6 +57,11 @@ static bool getAuthData(void) {
 
 static void setAuthData(void) { storage_setAuthData(authData); }
 
+void authenticator_clear_cache(void) {
+  memzero(authData, sizeof(authData));
+  localAuthdataUpdate = true;
+}
+
 #if DEBUG_LINK
 static unsigned _otpSlot = 0;
 void getAuthSlot(char* authSlotData) {
@@ -77,25 +82,28 @@ void getAuthSlot(char* authSlotData) {
 }
 #endif
 
-void wipeAuthData(void) {
-  confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Wipe Authdata",
-          "Do you want to PERMANENTLY delete all authenticator accounts?\n If "
-          "not, unplug Keepkey now.");
+unsigned wipeAuthData(void) {
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Wipe Authdata",
+               "Do you want to PERMANENTLY delete all authenticator "
+               "accounts?")) {
+    return CANCELED;
+  }
 
   // wipe storage and reset authdata encryption flag
   storage_wipeAuthData();
   // wipe local copy
-  memzero(authData, sizeof(authData));
-  localAuthdataUpdate = true;
-  return;
+  authenticator_clear_cache();
+  return NOERR;
 }
 
 unsigned addAuthAccount(char* accountWithSeed) {
   char *domain, *account, *seedStr;
   unsigned slot;
-  char authSecret[AUTHSECRET_SIZE_MAX];  // 128-bit key len is the recommended
-                                         // minimum, this is room for 160-bit
+  char authSecret[AUTHSECRET_SIZE_MAX] = {
+      0};  // 128-bit key len is the recommended minimum, this is room for
+           // 160-bit
   size_t authSecretLen;
+  unsigned result = UNKERR;
 
   // accountWithSeed should be of the form "domain:account:seedStr"
   domain = strtok(accountWithSeed, ":");  // get the domain string token
@@ -141,12 +149,16 @@ unsigned addAuthAccount(char* accountWithSeed) {
   if (NULL == base32_decode((const char*)seedStr, strlen(seedStr),
                             (uint8_t*)authSecret, sizeof(authSecret),
                             BASE32_ALPHABET_RFC4648)) {
-    return BADSECRET;  // bad decode
+    result = BADSECRET;
+    goto cleanup;
   }
 
-  confirm(ButtonRequestType_ButtonRequest_Other, "Confirm add account",
-          "Domain: %.*s\nAccount: %.*s\nSecret: %s", DOMAIN_SIZE, domain,
-          ACCOUNT_SIZE, account, seedStr);
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm add account",
+               "Domain: %.*s\nAccount: %.*s\nSecret: %s", DOMAIN_SIZE, domain,
+               ACCOUNT_SIZE, account, seedStr)) {
+    result = CANCELED;
+    goto cleanup;
+  }
 
   authData[slot].secretSize = authSecretLen;
   memcpy(authData[slot].authSecret, authSecret, authData[slot].secretSize);
@@ -154,8 +166,11 @@ unsigned addAuthAccount(char* accountWithSeed) {
   strlcpy(authData[slot].account, account, ACCOUNT_SIZE);
 
   setAuthData();
+  result = NOERR;
 
-  return NOERR;  // success
+cleanup:
+  memzero(authSecret, sizeof(authSecret));
+  return result;
 }
 
 unsigned generateOTP(char* accountWithMsg, char otpStr[]) {
@@ -328,9 +343,11 @@ unsigned removeAuthAccount(char* domAcc) {
     return NOACC;  // account not found
   }
 
-  confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Delete Account",
-          "Do you want to PERMANENTLY delete account %.*s:%.*s?",
-          DOMAIN_SIZE - 1, domain, ACCOUNT_SIZE - 1, account);
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Delete Account",
+               "Do you want to PERMANENTLY delete account %.*s:%.*s?",
+               DOMAIN_SIZE - 1, domain, ACCOUNT_SIZE - 1, account)) {
+    return CANCELED;
+  }
 
   memzero((void*)&authData[slot], sizeof(authType));
   setAuthData();

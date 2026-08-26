@@ -77,7 +77,9 @@ bool tron_getAddress(const uint8_t public_key[33], char* address,
 void tron_formatAmount(char* buf, size_t len, uint64_t amount) {
   bignum256 val;
   bn_read_uint64(amount, &val);
-  bn_format(&val, NULL, " TRX", TRON_DECIMALS, 0, false, buf, len);
+  if (!bn_format(&val, NULL, " TRX", TRON_DECIMALS, 0, false, buf, len)) {
+    strlcpy(buf, "AMOUNT TOO LARGE TO DISPLAY", len);
+  }
 }
 
 /**
@@ -300,6 +302,8 @@ static void tron_typed_hash(const uint8_t domain_separator_hash[32],
   }
   keccak_Final(&ctx, hash);
 }
+
+bool tron_typed_hash_policy_allows(bool advanced_mode) { return advanced_mode; }
 
 /**
  * Sign a TIP-712 typed-data digest. Host pre-computes the domain

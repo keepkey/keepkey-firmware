@@ -28,6 +28,7 @@
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/pin_sm.h"
+#include "keepkey/firmware/reset.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
 #include "trezor/crypto/bip39.h"
@@ -45,7 +46,6 @@
 
 static uint32_t word_count = 0;
 static uint32_t words_entered = 0;
-static bool recovery_started = false;
 static bool enforce_wordlist = true;
 static bool dry_run = true;
 static bool awaiting_character;
@@ -54,6 +54,27 @@ static char english_alphabet[ENGLISH_ALPHABET_BUF] =
     "abcdefghijklmnopqrstuvwxyz";
 static CONFIDENTIAL char cipher[ENGLISH_ALPHABET_BUF];
 
+/* Recovery scratch, at file scope so recovery_cipher_reset() can reach it.
+ *
+ * These were function statics. That gives them the same lifetime -- they
+ * outlive the call either way -- but put them out of reach of the abort path,
+ * so setup_abort() could not honour its own contract ("memzero ... the
+ * recovery buffers", reset.h). rc_coded_word and rc_decoded_word were cleared
+ * only under `if (!mnemonic[0])`, i.e. at the START of the next recovery, so
+ * cancelling mid-word left the characters entered so far resident until
+ * another recovery began or the device rebooted.
+ *
+ * Hoisting changes no semantics: same storage duration, same zero
+ * initialisation, same values across calls. It only makes them clearable. The
+ * rc_ prefix keeps them from shadowing the identically-named parameters of
+ * get_current_word() and format_current_word(). */
+static CONFIDENTIAL char rc_coded_word[12];
+static CONFIDENTIAL char rc_decoded_word[12];
+static CONFIDENTIAL char rc_current_word[CURRENT_WORD_BUF];
+static CONFIDENTIAL char rc_formatted_word[CURRENT_WORD_BUF + 10];
+static CONFIDENTIAL char rc_new_mnemonic[MNEMONIC_BUF];
+static CONFIDENTIAL char rc_temp_word[CURRENT_WORD_BUF];
+
 #if DEBUG_LINK
 static char auto_completed_word[CURRENT_WORD_BUF];
 #endif
@@ -61,12 +82,7 @@ static char auto_completed_word[CURRENT_WORD_BUF];
 static uint32_t get_current_word_pos(void);
 static void get_current_word(char* current_word);
 
-void recovery_cipher_abort(void) {
-  if (!dry_run) {
-    storage_reset();
-  }
-
-  recovery_started = false;
+void recovery_cipher_reset(void) {
   awaiting_character = false;
   enforce_wordlist = true;
   dry_run = true;
@@ -74,12 +90,26 @@ void recovery_cipher_abort(void) {
   word_count = 0;
   memzero(mnemonic, sizeof(mnemonic));
   memzero(cipher, sizeof(cipher));
+  /* Every buffer that can hold seed material or a partially entered word. */
+  memzero(rc_coded_word, sizeof(rc_coded_word));
+  memzero(rc_decoded_word, sizeof(rc_decoded_word));
+  memzero(rc_current_word, sizeof(rc_current_word));
+  memzero(rc_formatted_word, sizeof(rc_formatted_word));
+  memzero(rc_new_mnemonic, sizeof(rc_new_mnemonic));
+  memzero(rc_temp_word, sizeof(rc_temp_word));
 }
+
+/* The `if (!dry_run) storage_reset();` that used to open this function is
+ * deliberately gone. A recovery now writes nothing before its commit point,
+ * so there is nothing to reset -- and with dry_run able to survive a
+ * cancelled ceremony, that line was a storage reset a host could reach with
+ * no button press at all. Aborting is a memzero, and nothing else. */
+void recovery_cipher_abort(void) { setup_abort(); }
 
 /// Formats the passed word to show position in mnemonic as well as characters
 /// left.
 ///
-/// \param current_word[in]    The string to format.
+/// \param current_word[in]       The string to format.
 /// \param auto_completed[in]  Whether to format as an auto completed word.
 static void format_current_word(uint32_t word_pos, const char* current_word,
                                 bool auto_completed,
@@ -125,7 +155,7 @@ static uint32_t get_current_word_pos(void) {
 }
 
 /// \returns the current word being entered by parsing the mnemonic thus far
-/// \param current_word[out]  Array to populate with current word.
+/// \param current_word[out]      Array to populate with current word.
 static void get_current_word(char* current_word) {
   char* pos = strrchr(mnemonic, ' ');
 
@@ -258,29 +288,28 @@ void recovery_cipher_init(uint32_t _word_count, bool passphrase_protection,
     return;
   }
 
+  /* Stage before anything else, dry run included: staging is what claims the
+   * ceremony slot, and a dry run must not be startable on top of an armed
+   * ResetDevice either. setup_stage() zeroes the recovery statics below, so
+   * they are assigned after it, never before. */
+  if (!setup_stage(passphrase_protection, language, label, _auto_lock_delay_ms,
+                   _u2f_counter, /*no_backup=*/false)) {
+    return;
+  }
+
   word_count = _word_count;
   enforce_wordlist = _enforce_wordlist;
   dry_run = _dry_run;
 
   if (!dry_run) {
-    if (pin_protection) {
-      if (!change_pin()) {
-        recovery_cipher_abort();
-        fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                        "PINs do not match");
-        layoutHome();
-        return;
-      }
-    } else {
-      storage_setPin("");
+    if (!setup_stagePin(pin_protection)) {
+      setup_abort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, "PINs do not match");
+      layoutHome();
+      return;
     }
-
-    storage_setPassphraseProtected(passphrase_protection);
-    storage_setLanguage(language);
-    storage_setLabel(label);
-    storage_setAutoLockDelayMs(_auto_lock_delay_ms);
-    storage_setU2FCounter(_u2f_counter);
   } else if (!pin_protect("Enter Your PIN")) {
+    setup_abort();
     layoutHome();
     return;
   }
@@ -290,7 +319,9 @@ void recovery_cipher_init(uint32_t _word_count, bool passphrase_protection,
                "When entering your recovery seed, use the substitution cipher "
                "and check that each word shows up correctly on the screen.")) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Recovery cancelled");
-    if (!dry_run) storage_reset();
+    /* No storage_reset(): nothing was written, and the ceremony is discarded
+     * here rather than left armed with dry_run stuck at false. */
+    setup_abort();
     layoutHome();
     return;
   }
@@ -300,8 +331,8 @@ void recovery_cipher_init(uint32_t _word_count, bool passphrase_protection,
 
   /* Set to recovery cipher mode and generate and show next cipher */
   awaiting_character = true;
-  recovery_started = true;
   words_entered = 1;
+  setup_arm(SETUP_RECOVERY);
   next_character();
 }
 
@@ -314,7 +345,7 @@ void recovery_cipher_init(uint32_t _word_count, bool passphrase_protection,
  *     none
  */
 void next_character(void) {
-  if (!recovery_started) {
+  if (!setup_isArmedAs(SETUP_RECOVERY)) {
     recovery_cipher_abort();
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                     "Not in Recovery mode");
@@ -326,12 +357,11 @@ void next_character(void) {
   strlcpy(cipher, english_alphabet, ENGLISH_ALPHABET_BUF);
   random_permute_char(cipher, strlen(cipher));
 
-  static char CONFIDENTIAL current_word[CURRENT_WORD_BUF];
-  get_current_word(current_word);
+  get_current_word(rc_current_word);
 
   /* Words should never be longer than 4 characters */
-  if (strlen(current_word) > 4) {
-    memzero(current_word, sizeof(current_word));
+  if (strlen(rc_current_word) > 4) {
+    memzero(rc_current_word, sizeof(rc_current_word));
 
     recovery_cipher_abort();
     fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -353,32 +383,32 @@ void next_character(void) {
   memset(&resp, 0, sizeof(CharacterRequest));
 
   resp.word_pos = word_pos;
-  resp.character_pos = strlen(current_word);
+  resp.character_pos = strlen(rc_current_word);
 
   msg_write(MessageType_MessageType_CharacterRequest, &resp);
 
   /* Attempt to auto complete if we have at least 3 characters */
   bool auto_completed = false;
-  if (strlen(current_word) >= 3) {
-    auto_completed = attempt_auto_complete(current_word);
+  if (strlen(rc_current_word) >= 3) {
+    auto_completed = attempt_auto_complete(rc_current_word);
   }
 
 #if DEBUG_LINK
   if (auto_completed) {
-    strlcpy(auto_completed_word, current_word, CURRENT_WORD_BUF);
+    strlcpy(auto_completed_word, rc_current_word, CURRENT_WORD_BUF);
   } else {
     auto_completed_word[0] = '\0';
   }
 #endif
 
   /* Format current word and display it along with cipher */
-  static char CONFIDENTIAL formatted_word[CURRENT_WORD_BUF + 10];
-  format_current_word(word_pos, current_word, auto_completed, &formatted_word);
-  memzero(current_word, sizeof(current_word));
+  format_current_word(word_pos, rc_current_word, auto_completed,
+                      &rc_formatted_word);
+  memzero(rc_current_word, sizeof(rc_current_word));
 
   /* Show cipher and partial word */
-  layout_cipher(formatted_word, cipher);
-  memzero(formatted_word, sizeof(formatted_word));
+  layout_cipher(rc_formatted_word, cipher);
+  memzero(rc_formatted_word, sizeof(rc_formatted_word));
 }
 
 /*
@@ -390,7 +420,7 @@ void next_character(void) {
  *     none
  */
 void recovery_character(const char* character) {
-  if (!awaiting_character || !recovery_started) {
+  if (!awaiting_character || !setup_isArmedAs(SETUP_RECOVERY)) {
     recovery_cipher_abort();
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                     "Not in Recovery mode");
@@ -420,14 +450,12 @@ void recovery_character(const char* character) {
   // Count of words we think the user has entered without using the cipher:
   static int uncyphered_word_count = 0;
   static bool definitely_using_cipher = false;
-  static CONFIDENTIAL char coded_word[12];
-  static CONFIDENTIAL char decoded_word[12];
 
   if (!mnemonic[0]) {
     uncyphered_word_count = 0;
     definitely_using_cipher = false;
-    memzero(coded_word, sizeof(coded_word));
-    memzero(decoded_word, sizeof(decoded_word));
+    memzero(rc_coded_word, sizeof(rc_coded_word));
+    memzero(rc_decoded_word, sizeof(rc_decoded_word));
   }
 
   char decoded_character[2] = " ";
@@ -435,16 +463,16 @@ void recovery_character(const char* character) {
     // Decode character using cipher if not space
     decoded_character[0] = english_alphabet[(int)(pos - cipher)];
 
-    strlcat(coded_word, character, sizeof(coded_word));
-    strlcat(decoded_word, decoded_character, sizeof(decoded_word));
+    strlcat(rc_coded_word, character, sizeof(rc_coded_word));
+    strlcat(rc_decoded_word, decoded_character, sizeof(rc_decoded_word));
 
-    if (enforce_wordlist && 4 <= strlen(coded_word)) {
+    if (enforce_wordlist && 4 <= strlen(rc_coded_word)) {
       // Check & bail if the user is entering their seed without using the
       // cipher. Note that for each word, this can give false positives about
       // ~0.4% of the time (2048/26^4).
 
-      bool maybe_not_using_cipher = attempt_auto_complete(coded_word);
-      bool maybe_using_cipher = attempt_auto_complete(decoded_word);
+      bool maybe_not_using_cipher = attempt_auto_complete(rc_coded_word);
+      bool maybe_using_cipher = attempt_auto_complete(rc_decoded_word);
 
       if (!maybe_not_using_cipher && maybe_using_cipher) {
         // Decrease the overall false positive rate by detecting that a
@@ -462,8 +490,8 @@ void recovery_character(const char* character) {
       }
     }
   } else {
-    memzero(coded_word, sizeof(coded_word));
-    memzero(decoded_word, sizeof(decoded_word));
+    memzero(rc_coded_word, sizeof(rc_coded_word));
+    memzero(rc_decoded_word, sizeof(rc_decoded_word));
 
     if (word_count && words_entered == word_count) {
       strlcat(mnemonic, " ", MNEMONIC_BUF);
@@ -497,7 +525,7 @@ void recovery_character(const char* character) {
  *     none
  */
 void recovery_delete_character(void) {
-  if (!recovery_started) {
+  if (!setup_isArmedAs(SETUP_RECOVERY)) {
     recovery_cipher_abort();
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                     "Not in Recovery mode");
@@ -524,7 +552,7 @@ void recovery_delete_character(void) {
  *     none
  */
 void recovery_cipher_finalize(void) {
-  if (!recovery_started) {
+  if (!setup_isArmedAs(SETUP_RECOVERY)) {
     recovery_cipher_abort();
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                     "Not in Recovery mode");
@@ -553,60 +581,53 @@ void recovery_cipher_finalize(void) {
     }
   }
 
-  static char CONFIDENTIAL new_mnemonic[MNEMONIC_BUF] = "";
-  static char CONFIDENTIAL temp_word[CURRENT_WORD_BUF];
   volatile bool auto_completed = true;
 
-  memzero(new_mnemonic, sizeof(new_mnemonic));
-  memzero(temp_word, sizeof(temp_word));
+  memzero(rc_new_mnemonic, sizeof(rc_new_mnemonic));
+  memzero(rc_temp_word, sizeof(rc_temp_word));
 
   /* Attempt to autocomplete each word */
   char* tok = strtok(mnemonic, " ");
 
   while (tok) {
-    strlcpy(temp_word, tok, CURRENT_WORD_BUF);
+    strlcpy(rc_temp_word, tok, CURRENT_WORD_BUF);
 
-    auto_completed &= attempt_auto_complete(temp_word);
+    auto_completed &= attempt_auto_complete(rc_temp_word);
 
-    strlcat(new_mnemonic, temp_word, MNEMONIC_BUF);
-    strlcat(new_mnemonic, " ", MNEMONIC_BUF);
+    strlcat(rc_new_mnemonic, rc_temp_word, MNEMONIC_BUF);
+    strlcat(rc_new_mnemonic, " ", MNEMONIC_BUF);
 
     tok = strtok(NULL, " ");
   }
-  memzero(temp_word, sizeof(temp_word));
+  memzero(rc_temp_word, sizeof(rc_temp_word));
 
   if (!auto_completed && !enforce_wordlist) {
-    if (!dry_run) {
-      storage_reset();
-    }
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     "Words were not entered correctly. Make sure you are using "
                     "the substition cipher.");
-    awaiting_character = false;
+    setup_abort();
     layoutHome();
     return;
   }
 
   /* Truncate additional space at the end */
-  new_mnemonic[MAX(1u, strnlen(new_mnemonic, sizeof(new_mnemonic))) - 1u] =
-      '\0';
-  if (!dry_run && (!enforce_wordlist || mnemonic_check(new_mnemonic))) {
-    storage_setMnemonic(new_mnemonic);
-    memzero(new_mnemonic, sizeof(new_mnemonic));
-    if (!enforce_wordlist) {
-      // not enforcing => mark storage as imported
-      storage_setImported(true);
-    }
-    storage_commit();
+  rc_new_mnemonic[MAX(1u, strnlen(rc_new_mnemonic, sizeof(rc_new_mnemonic))) -
+                  1u] = '\0';
+  if (!dry_run && (!enforce_wordlist || mnemonic_check(rc_new_mnemonic))) {
+    /* Commit point: the settings staged at the start of THIS ceremony and
+     * the seed the user typed word by word land together, or neither lands.
+     * setup_commit() disarms before it writes. */
+    setup_commit(rc_new_mnemonic, /*imported=*/!enforce_wordlist);
+    memzero(rc_new_mnemonic, sizeof(rc_new_mnemonic));
     fsm_sendSuccess("Device recovered");
   } else if (dry_run) {
     bool match =
-        storage_isInitialized() && storage_containsMnemonic(new_mnemonic);
+        storage_isInitialized() && storage_containsMnemonic(rc_new_mnemonic);
     if (match) {
       review(ButtonRequestType_ButtonRequest_Other, "Recovery Dry Run",
              "The seed is valid and MATCHES the one in the device.");
       fsm_sendSuccess("The seed is valid and matches the one in the device.");
-    } else if (mnemonic_check(new_mnemonic)) {
+    } else if (mnemonic_check(rc_new_mnemonic)) {
       review(ButtonRequestType_ButtonRequest_Other, "Recovery Dry Run",
              "The seed is valid, but DOES NOT MATCH the one in the device.");
       fsm_sendFailure(
@@ -619,22 +640,17 @@ void recovery_cipher_finalize(void) {
           FailureType_Failure_Other,
           "The seed is invalid, and does not match the one in the device.");
     }
-    memzero(new_mnemonic, sizeof(new_mnemonic));
+    memzero(rc_new_mnemonic, sizeof(rc_new_mnemonic));
   } else {
-    session_clear(true);
+    /* Nothing reached storage: the staged settings and the mnemonic are
+     * still only in RAM, and the common cleanup below discards both. */
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     "Invalid mnemonic, are words in correct order?");
-    recovery_cipher_abort();
   }
 
-  memzero(new_mnemonic, sizeof(new_mnemonic));
-  awaiting_character = false;
-  enforce_wordlist = true;
-  dry_run = true;
-  words_entered = 0;
-  word_count = 0;
-  memzero(mnemonic, sizeof(mnemonic));
-  memzero(cipher, sizeof(cipher));
+  memzero(rc_new_mnemonic, sizeof(rc_new_mnemonic));
+  /* Idempotent: the success path already disarmed inside setup_commit(). */
+  setup_abort();
   layoutHome();
 }
 

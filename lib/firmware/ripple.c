@@ -59,7 +59,9 @@ bool ripple_getAddress(const uint8_t public_key[33],
 void ripple_formatAmount(char* buf, size_t len, uint64_t amount) {
   bignum256 val;
   bn_read_uint64(amount, &val);
-  bn_format(&val, NULL, " XRP", RIPPLE_DECIMALS, 0, false, buf, len);
+  if (!bn_format(&val, NULL, " XRP", RIPPLE_DECIMALS, 0, false, buf, len)) {
+    strlcpy(buf, "AMOUNT TOO LARGE TO DISPLAY", len);
+  }
 }
 
 static void append_u8(bool* ok, uint8_t** buf, const uint8_t* end,

@@ -1,10 +1,6 @@
 void fsm_msgInitialize(Initialize* msg) {
   (void)msg;
-  recovery_cipher_abort();
-  signing_abort();
-  ethereum_signing_abort();
-  tendermint_signAbort();
-  eos_signingAbort();
+  fsm_abort_workflows();
   session_clear(false);  // do not clear PIN
   layoutHome();
   fsm_msgGetFeatures(0);
@@ -166,13 +162,14 @@ static bool isValidModelNumber(const char* model) {
   return false;
 }
 
-void checkPassphrase(void) {
+bool checkPassphrase(void) {
   if (!passphrase_protect()) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     "authenticator needs passphrase");
     layoutHome();
-    return;
+    return false;
   }
+  return true;
 }
 
 void fsm_msgPing(Ping* msg) {
@@ -198,6 +195,7 @@ void fsm_msgPing(Ping* msg) {
       "Authenticator secret seed too large",
       "passphrase incorrect for authdata",
       "Auth secret unknown error",
+      "Action cancelled",
   };
 
   typedef enum _AUTH_MSG_TYPE {
@@ -238,7 +236,7 @@ void fsm_msgPing(Ping* msg) {
         0};  // allow room for domain + ":" + account
 
     CHECK_PIN
-    checkPassphrase();
+    if (!checkPassphrase()) return;
 
     switch (authMsg) {
       case INITAUTH:
@@ -277,8 +275,7 @@ void fsm_msgPing(Ping* msg) {
         break;
 
       case WIPEADATA:
-        wipeAuthData();
-        errcode = NOERR;
+        errcode = wipeAuthData();
         resp->has_message = false;
         break;
 
@@ -456,6 +453,7 @@ void fsm_msgWipeDevice(WipeDevice* msg) {
   }
 
   /* Wipe device */
+  fsm_abort_workflows();
   storage_wipe();
   storage_reset();
   storage_resetUuid();
@@ -529,6 +527,7 @@ void fsm_msgLoadDevice(LoadDevice* msg) {
 
 void fsm_msgResetDevice(ResetDevice* msg) {
   CHECK_NOT_INITIALIZED
+  CHECK_NO_CEREMONY
 
   reset_init(msg->has_display_random && msg->display_random,
              msg->has_strength ? msg->strength : 128,
@@ -552,11 +551,7 @@ void fsm_msgEntropyAck(EntropyAck* msg) {
 
 void fsm_msgCancel(Cancel* msg) {
   (void)msg;
-  recovery_cipher_abort();
-  signing_abort();
-  ethereum_signing_abort();
-  tendermint_signAbort();
-  eos_signingAbort();
+  fsm_abort_workflows();
   fsm_sendFailure(FailureType_Failure_ActionCancelled, "Aborted");
 }
 
@@ -651,6 +646,8 @@ apply_settings_cancelled:
 }
 
 void fsm_msgRecoveryDevice(RecoveryDevice* msg) {
+  CHECK_NO_CEREMONY
+
   if (msg->has_dry_run && msg->dry_run) {
     CHECK_INITIALIZED
   } else {

@@ -238,8 +238,15 @@ int compile_output(const CoinType* coin, const HDNode* root, TxOutputType* in,
         }
       } else {
         // is this thorchain data?
-        if (!thorchain_parseConfirmMemo((const char*)in->op_return_data.bytes,
-                                        (size_t)in->op_return_data.size)) {
+        ThorchainMemoResult memo_result =
+            thorchain_parseConfirmMemo((const char*)in->op_return_data.bytes,
+                                       (size_t)in->op_return_data.size);
+        if (memo_result == THORCHAIN_MEMO_CANCELLED) {
+          // A memo screen was refused. That is a refusal to sign, not a parse
+          // failure: never answer it by asking again on the raw-data screen.
+          return -1;  // user aborted
+        }
+        if (memo_result == THORCHAIN_MEMO_UNPARSED) {
           if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmOutput,
                             _("Confirm OP_RETURN"), in->op_return_data.bytes,
                             in->op_return_data.size)) {
@@ -561,7 +568,28 @@ uint32_t serialize_script_sig(const uint8_t* signature, uint32_t signature_len,
 
 uint32_t serialize_script_multisig(const CoinType* coin,
                                    const MultisigRedeemScriptType* multisig,
-                                   uint8_t sighash, uint8_t* out) {
+                                   uint8_t sighash, uint8_t* out,
+                                   size_t out_len) {
+  if (!coin || !multisig || !out) return 0;
+
+  /* Prove the complete write fits before touching the destination. Nanopb's
+   * static bytes decoder can accept one byte beyond the declared max_size due
+   * to structure padding, so the protobuf declaration is not a serializer
+   * bound. Runtime validation rejects non-DER sizes too, but this function
+   * remains safe independently of its caller. */
+  uint32_t required = coin->decred ? 0 : 1;
+  for (uint32_t i = 0; i < multisig->signatures_count; i++) {
+    const uint32_t sig_len = multisig->signatures[i].size;
+    if (sig_len == 0) continue;
+    if (sig_len > 72) return 0;
+    const uint32_t item_len = sig_len + 1; /* DER plus sighash */
+    required += op_push_size(item_len) + item_len;
+  }
+  const uint32_t script_len = compile_script_multisig(coin, multisig, 0);
+  if (script_len == 0) return 0;
+  required += op_push_size(script_len) + script_len;
+  if (required > out_len) return 0;
+
   uint32_t r = 0;
   if (!coin->decred) {
     // Decred fixed the off-by-one bug
@@ -578,10 +606,6 @@ uint32_t serialize_script_multisig(const CoinType* coin,
     r += multisig->signatures[i].size;
     out[r] = sighash;
     r++;
-  }
-  uint32_t script_len = compile_script_multisig(coin, multisig, 0);
-  if (script_len == 0) {
-    return 0;
   }
   r += op_push(script_len, out + r);
   r += compile_script_multisig(coin, multisig, out + r);

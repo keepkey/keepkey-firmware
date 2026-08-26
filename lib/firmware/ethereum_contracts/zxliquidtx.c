@@ -113,15 +113,80 @@ static bool confirmFromAccountMatch(const EthereumSignTx* msg,
   return true;
 }
 
-bool zx_isZxLiquidTx(const EthereumSignTx* msg) {
-  if (memcmp(msg->to.bytes, UNISWAP_ROUTER_ADDRESS, 20) ==
-      0) {  // correct contract address?
+/* Decode the head far enough to name the pool token, or refuse.
+ *
+ * Both screens this handler draws state a token amount and a token minimum,
+ * and both come from ethereumFormatAmount(), which renders the literal
+ * "Unknown token value" when tokenByChainAddress() misses. An unlisted pool
+ * token therefore produces a screen that asserts no amount at all while the
+ * calldata executes: a blind signature wearing a decoder's title. Worse than
+ * the generic case, because claiming the transaction here is exactly what
+ * skips the AdvancedMode raw-calldata fallback that would have shown the
+ * bytes.
+ *
+ * Refuse in the PREDICATE, not the confirm: ethereum.c reads a false return
+ * from ethereum_contractConfirmed() as a user cancel, while a false predicate
+ * falls through to raw disclosure. Same split as zxswap.c and zxtransERC20.c.
+ *
+ * Shared by the predicate and the confirm so the two cannot disagree about
+ * what is displayable.
+ */
+static bool zxliquid_resolveToken(const EthereumSignTx* msg,
+                                  const TokenType** token) {
+  /* addLiquidityETH / removeLiquidityETH are both
+   *   (address, uint256, uint256, uint256, address, uint256)
+   * with no dynamic argument, so the calldata is exactly 4 + 6 * 32 = 196
+   * bytes. Everything this handler reads -- the token at offset 16, three
+   * amounts, the `to` address at 144, and the deadline at 188 -- lies inside
+   * it.
+   *
+   * Exactly 196, in both directions. Short, and the confirm would read bytes
+   * an earlier message left in the chunk buffer past .size and show them as
+   * this transaction's amounts and deadline. Long, and the extra words are
+   * hashed into the signature with no screen showing them. */
+  if (msg->data_initial_chunk.size != 4 + 6 * 32) return false;
 
-    if (isAddLiquidityEthCall(msg)) return true;
-
-    if (isRemoveLiquidityEthCall(msg)) return true;
+  /* The deadline is a full uint256, but the screen renders only its low 64
+   * bits (see the epoch formatter in zx_confirmZxLiquidTx). Anything set above
+   * bit 63 is therefore invisible: a deadline of 2^64 + 1 is effectively
+   * "never expires", and the device would state "Deadline epoch 1" -- a
+   * long-past time, the opposite of what the router will enforce.
+   *
+   * Require the upper 24 bytes to be zero rather than widen the formatter. A
+   * real Uniswap deadline is a Unix timestamp and fits comfortably; a word that
+   * does not is not something this screen can describe, so it belongs on the
+   * raw-calldata path. Checked in the resolver, which the PREDICATE calls, so
+   * the refusal falls through to disclosure instead of being reported as a
+   * user cancel. */
+  const uint8_t* deadline_word =
+      (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 5 * 32);
+  for (size_t i = 0; i < 24; i++) {
+    if (deadline_word[i] != 0) return false;
   }
-  return false;
+
+  const TokenType* t = tokenByChainAddress(
+      msg->chain_id,
+      (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 32 - 20));
+  if (t == NULL || t == UnknownToken) return false;
+
+  if (token) *token = t;
+  return true;
+}
+
+bool zx_isZxLiquidTx(const EthereumSignTx* msg) {
+  /* UNISWAP_ROUTER_ADDRESS is an Ethereum-mainnet identity. The same 20 bytes
+   * on another EVM chain are an unrelated contract; clear-sign only on mainnet.
+   * See GH #431. */
+  if (!msg->has_chain_id || msg->chain_id != 1) return false;
+  if (memcmp(msg->to.bytes, UNISWAP_ROUTER_ADDRESS, 20) !=
+      0)  // correct contract address?
+    return false;
+
+  if (!isAddLiquidityEthCall(msg) && !isRemoveLiquidityEthCall(msg))
+    return false;
+
+  /* Claim the transaction only if the screen can name the pool token. */
+  return zxliquid_resolveToken(msg, NULL);
 }
 
 bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg) {
@@ -129,7 +194,7 @@ bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg) {
   const TokenType* token;
   char constr1[40], constr2[40], tokbuf[32];
   const char* arStr = "";
-  const uint8_t *tokenAddress, *deadlineBytes;
+  const uint8_t* deadlineBytes;
   bignum256 Amount;
   uint64_t deadline;
 
@@ -141,8 +206,10 @@ bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg) {
     return false;
   }
 
-  tokenAddress = (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 32 - 20);
-  token = tokenByChainAddress(msg->chain_id, tokenAddress);
+  /* Re-resolve rather than trust the predicate's verdict from a distance: the
+     length bound and the token lookup are the preconditions for every read
+     below, so they belong on the same code path that performs them. */
+  if (!zxliquid_resolveToken(msg, &token)) return false;
   deadlineBytes =
       (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 6 * 32 - 8);
   deadline = ((uint64_t)deadlineBytes[0] << 8 * 7) |
@@ -162,8 +229,10 @@ bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg) {
                 &Amount);  // token min amount
   ethereumFormatAmount(&Amount, token, msg->chain_id, tokbuf, sizeof(tokbuf));
   snprintf(constr2, 32, "%s", tokbuf);
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
-          "%s\nMinimum %s", constr1, constr2);
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
+               "%s\nMinimum %s", constr1, constr2)) {
+    return false;
+  }
   if (!confirmFromAccountMatch(msg, arStr)) {
     return false;
   }
@@ -173,11 +242,39 @@ bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg) {
   ethereumFormatAmount(&Amount, NULL, msg->chain_id, tokbuf, sizeof(tokbuf));
 
   snprintf(constr1, 32, "%s", tokbuf);
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr, "Minimum %s",
-          constr1);
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
+               "Minimum %s", constr1)) {
+    return false;
+  }
 
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr, "Deadline %s",
-          ctime((const time_t*)&deadline));
+  /* Render the 64-bit deadline as a decimal epoch string. The prior code
+   * used ctime((const time_t*)&deadline), which on the STM32F2 target reads
+   * only the low 4 bytes of the 64-bit deadline (time_t is 32-bit long), so
+   * post-2038 deadlines render as the wrong date. The decimal epoch is
+   * unambiguous and avoids the 32-bit time_t truncation and ctime()'s stray
+   * newline. See GH #435. */
+  {
+    char deadline_str[21] = {0};
+    /* uint64 -> decimal string (manual, no printf %llu portability concerns) */
+    uint64_t d = deadline;
+    char tmp[21];
+    int len = 0;
+    if (d == 0) {
+      tmp[len++] = '0';
+    } else {
+      while (d > 0 && len < (int)sizeof(tmp)) {
+        tmp[len++] = '0' + (int)(d % 10);
+        d /= 10;
+      }
+    }
+    for (int i = 0; i < len; i++) {
+      deadline_str[i] = tmp[len - 1 - i];
+    }
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arStr,
+                 "Deadline epoch %s", deadline_str)) {
+      return false;
+    }
+  }
 
   return true;
 }

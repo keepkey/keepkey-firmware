@@ -111,7 +111,7 @@ static void libkkemu_capture_frame(const uint8_t* canvas_buf) {
   memset(slot, 0, FRAME_PACKED_SIZE);
   for (int x = 0; x < 256; x++) {
     for (int y = 0; y < 64; y++) {
-      if (canvas_buf[y * 256 + x] > 0) {
+      if (display_mono_pixel_is_lit(canvas_buf[y * 256 + x], x, y)) {
         slot[x + (y / 8) * 256] |= (uint8_t)(1u << (y % 8));
       }
     }
@@ -299,7 +299,7 @@ const uint8_t* kkemu_get_display(int* width, int* height) {
   memset(display_packed_scratch, 0, sizeof(display_packed_scratch));
   for (int x = 0; x < 256; x++) {
     for (int y = 0; y < 64; y++) {
-      if (c->buffer[y * 256 + x] > 0) {
+      if (display_mono_pixel_is_lit(c->buffer[y * 256 + x], x, y)) {
         display_packed_scratch[x + (y / 8) * 256] |= (uint8_t)(1u << (y % 8));
       }
     }

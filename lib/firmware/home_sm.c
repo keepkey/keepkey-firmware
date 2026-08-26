@@ -22,6 +22,7 @@
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/firmware/app_layout.h"
+#include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
 
@@ -120,6 +121,7 @@ void toggle_screensaver(void) {
   switch (home_state) {
     case AT_HOME:
       if (idle_time >= storage_getAutoLockDelayMs()) {
+        fsm_abort_workflows();
         session_clear(/*clear_pin=*/true);
         layout_screensaver();
         home_state = SCREENSAVER;

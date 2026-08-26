@@ -46,6 +46,7 @@
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/mayachain.h"
+#include "keepkey/firmware/nano.h"
 #include "keepkey/firmware/osmosis.h"
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/pin_sm.h"
@@ -92,6 +93,10 @@
 #include "messages-solana.pb.h"
 
 #include <stdio.h>
+/* strnlen: the THORChain memo paths measure fixed arrays rather than
+   trusting their capacity. Included explicitly instead of relying on the
+   fsm_msg_*.h textual includes below to drag it in by accident. */
+#include <string.h>
 
 #define _(X) (X)
 
@@ -109,6 +114,19 @@ static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,             \
                     "Device is already initialized. Use Wipe first."); \
     return;                                                            \
+  }
+
+/* Only the two ceremony STARTS use this. Every other message that persists
+ * anything is handled structurally instead: storage_commit() aborts an armed
+ * ceremony, so a handler that writes can never have its write consumed by
+ * one -- the worst it can do is end it. */
+#define CHECK_NO_CEREMONY                                     \
+  if (setup_isArmed()) {                                      \
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,    \
+                    "Device is in the middle of setup. Send " \
+                    "Initialize or Cancel first.");           \
+    layoutHome();                                             \
+    return;                                                   \
   }
 
 #define CHECK_PIN              \
@@ -158,6 +176,11 @@ static const MessagesMap_t MessagesMap[] = {
 
 extern bool reset_msg_stack;
 
+/* Shared scratch returned by fsm_getDerivedNode(). It may hold a root or
+ * derived private key after any chain handler, not only the streaming Bitcoin
+ * signer, so session revocation must scrub it centrally. */
+static HDNode CONFIDENTIAL fsm_derived_node;
+
 static const CoinType* fsm_getCoin(bool has_name, const char* name) {
   const CoinType* coin;
   if (has_name) {
@@ -177,7 +200,6 @@ static const CoinType* fsm_getCoin(bool has_name, const char* name) {
 static HDNode* fsm_getDerivedNode(const char* curve, const uint32_t* address_n,
                                   size_t address_n_count,
                                   uint32_t* fingerprint) {
-  static HDNode CONFIDENTIAL node;
   if (fingerprint) {
     *fingerprint = 0;
   }
@@ -188,7 +210,7 @@ static HDNode* fsm_getDerivedNode(const char* curve, const uint32_t* address_n,
     return 0;
   }
 
-  if (!storage_getRootNode(curve, true, &node)) {
+  if (!storage_getRootNode(curve, true, &fsm_derived_node)) {
     fsm_sendFailure(FailureType_Failure_NotInitialized,
                     "Device not initialized or passphrase request cancelled");
     layoutHome();
@@ -196,17 +218,17 @@ static HDNode* fsm_getDerivedNode(const char* curve, const uint32_t* address_n,
   }
 
   if (!address_n || address_n_count == 0) {
-    return &node;
+    return &fsm_derived_node;
   }
 
-  if (hdnode_private_ckd_cached(&node, address_n, address_n_count,
+  if (hdnode_private_ckd_cached(&fsm_derived_node, address_n, address_n_count,
                                 fingerprint) == 0) {
     fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
     layoutHome();
     return 0;
   }
 
-  return &node;
+  return &fsm_derived_node;
 }
 
 #if DEBUG_LINK
@@ -270,8 +292,24 @@ void fsm_sendFailure(FailureType code, const char* text) {
   msg_write(MessageType_MessageType_Failure, resp);
 }
 
+void fsm_abort_workflows(void) {
+  setup_abort();
+  signing_abort();
+  ethereum_signing_abort();
+  nano_signingAbort();
+  binance_signAbort();
+  tendermint_signAbort();
+  osmosis_signAbort();
+  thorchain_signAbort();
+  mayachain_signAbort();
+  eos_signingAbort();
+  authenticator_clear_cache();
+  memzero(&fsm_derived_node, sizeof(fsm_derived_node));
+}
+
 void fsm_msgClearSession(ClearSession* msg) {
   (void)msg;
+  fsm_abort_workflows();
   session_clear(/*clear_pin=*/true);
   fsm_sendSuccess("Session cleared");
 }

@@ -24,6 +24,7 @@
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/pin_sm.h"
+#include "keepkey/firmware/recovery_cipher.h"
 #include "keepkey/firmware/reset.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
@@ -37,16 +38,146 @@
 
 #define _(X) (X)
 
+/* One struct, one owner, one clear. Note what is NOT in here: any call into
+ * storage. A staged ceremony has written nothing, so abandoning one cannot
+ * leave a half-applied setting behind, and no abort path has anything to
+ * remember to undo. */
+typedef struct {
+  SetupKind kind; /* SETUP_NONE unless armed */
+  bool staged;    /* settings staged, not yet armed */
+  bool passphrase_protection;
+  bool has_language;
+  char language[16];
+  bool has_label;
+  char label[48];
+  uint32_t auto_lock_delay_ms;
+  uint32_t u2f_counter;
+  bool no_backup;
+  /* CONFIDENTIAL is a section attribute. It applies to a whole OBJECT of a
+     NAMED type, which is why this struct is a typedef and the attribute sits
+     on the declaration below — the house pattern, cf. `static SessionState
+     CONFIDENTIAL session;` in storage.c. setup_abort() memzeroes the entire
+     struct, this PIN included. */
+  char pin[PIN_BUF];
+} SetupState;
+
+static SetupState CONFIDENTIAL setup;
+
 static uint32_t strength;
 static uint8_t CONFIDENTIAL int_entropy[32];
-static bool awaiting_entropy = false;
 static char CONFIDENTIAL current_words[MNEMONIC_BY_SCREEN_BUF];
-static bool no_backup;
+
+bool setup_isArmed(void) { return setup.kind != SETUP_NONE; }
+
+bool setup_isArmedAs(SetupKind kind) {
+  return kind != SETUP_NONE && setup.kind == kind;
+}
+
+void setup_abort(void) {
+  /* The recovery half owns its own word buffers. Clearing them is a memzero
+   * too; like everything here it touches no storage. */
+  recovery_cipher_reset();
+
+  memzero(&setup, sizeof(setup));
+  memzero(int_entropy, sizeof(int_entropy));
+  memzero(current_words, sizeof(current_words));
+  strength = 0;
+}
+
+bool setup_require(SetupKind kind, const char* errmsg) {
+  if (setup_isArmedAs(kind)) return true;
+
+  /* Out of sequence. Kill the ceremony rather than leaving it armed for the
+   * next attempt: the host can already end one with Cancel, so there is
+   * nothing to protect by keeping it. */
+  setup_abort();
+  fsm_sendFailure(FailureType_Failure_UnexpectedMessage, errmsg);
+  layoutHome();
+  return false;
+}
+
+bool setup_stage(bool passphrase_protection, const char* language,
+                 const char* label, uint32_t auto_lock_delay_ms,
+                 uint32_t u2f_counter, bool no_backup) {
+  if (setup_isArmed()) {
+    /* One ceremony at a time. This is where issue #429 dies: a RecoveryDevice
+     * sent in the middle of a ResetDevice is refused instead of quietly
+     * overwriting the settings the user is in the middle of choosing. */
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                    _("Device is in the middle of setup"));
+    layoutHome();
+    return false;
+  }
+
+  setup_abort(); /* start from a known-zero staging area */
+
+  setup.passphrase_protection = passphrase_protection;
+  setup.auto_lock_delay_ms = auto_lock_delay_ms;
+  setup.u2f_counter = u2f_counter;
+  setup.no_backup = no_backup;
+
+  /* storage_setLanguage()/storage_setLabel() ignore a NULL, so a host that
+   * omits the field must leave the stored value alone. Record the absence
+   * rather than staging an empty string. */
+  if (language) {
+    setup.has_language = true;
+    strlcpy(setup.language, language, sizeof(setup.language));
+  }
+  if (label) {
+    setup.has_label = true;
+    strlcpy(setup.label, label, sizeof(setup.label));
+  }
+
+  setup.staged = true;
+  return true;
+}
+
+bool setup_stagePin(bool pin_protection) {
+  if (!setup.staged) return false;
+
+  if (!pin_protection) {
+    /* The empty PIN is a choice like any other: stage it, do not apply it. */
+    memzero(setup.pin, sizeof(setup.pin));
+    return true;
+  }
+
+  return change_pin_staged(setup.pin, sizeof(setup.pin));
+}
+
+void setup_arm(SetupKind kind) {
+  setup.kind = setup.staged ? kind : SETUP_NONE;
+}
+
+void setup_commit(const char* mnemonic, bool imported) {
+  /* The ordering below is load-bearing. storage_setPin() derives the storage
+   * key that storage_commit() encrypts the secrets with, so it has to run
+   * before storage_setMnemonic(). Do not reorder. */
+  storage_setPin(setup.pin);
+  storage_setPassphraseProtected(setup.passphrase_protection);
+  if (setup.has_language) storage_setLanguage(setup.language);
+  if (setup.has_label) storage_setLabel(setup.label);
+  storage_setAutoLockDelayMs(setup.auto_lock_delay_ms);
+  storage_stageU2FCounter(setup.u2f_counter);
+  if (setup.no_backup) storage_setNoBackup();
+
+  storage_setMnemonic(mnemonic);
+  if (imported) storage_setImported(true);
+  mnemonic_clear();
+
+  /* Disarm before the flash write. The ceremony is over at this point, and
+   * storage_commit() aborts any ceremony still armed when it runs. */
+  setup_abort();
+  storage_commit();
+}
 
 void reset_init(bool display_random, uint32_t _strength,
                 bool passphrase_protection, bool pin_protection,
                 const char* language, const char* label, bool _no_backup,
                 uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter) {
+  /* Retained in the wire/API signature for compatibility. Revealing the
+   * device entropy lets a host that supplies external entropy reconstruct the
+   * seed preimage, so 7.14.2 deliberately ignores this legacy request. */
+  (void)display_random;
   if (_strength != 128 && _strength != 192 && _strength != 256) {
     fsm_sendFailure(
         FailureType_Failure_SyntaxError,
@@ -55,17 +186,19 @@ void reset_init(bool display_random, uint32_t _strength,
     return;
   }
 
-  strength = _strength;
-  no_backup = _no_backup;
-
-  if (display_random && no_backup) {
-    fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("Can't show internal entropy when backup is skipped"));
-    layoutHome();
+  /* Nothing below this line writes storage. Everything the host asked for is
+   * staged, and stays staged until reset_entropy() reaches setup_commit().
+   * Returning early from any of the screens below therefore rolls the whole
+   * ceremony back by doing nothing at all: setup.kind is still SETUP_NONE,
+   * so no later message can consume what was staged. */
+  if (!setup_stage(passphrase_protection, language, label, _auto_lock_delay_ms,
+                   _u2f_counter, _no_backup)) {
     return;
   }
 
-  if (no_backup) {
+  strength = _strength;
+
+  if (_no_backup) {
     // Double confirm, since this is a feature for advanced users only, and
     // there is risk of loss of funds if this mode is used incorrectly
     // (i.e. multisig is an absolute must with this scheme).
@@ -76,6 +209,7 @@ void reset_init(bool display_random, uint32_t _strength,
         !confirm(ButtonRequestType_ButtonRequest_Other, _("WARNING"),
                  _("The 'No Backup' option was selected.\n\n"
                    "I understand, and accept the risks.\n"))) {
+      setup_abort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Reset cancelled"));
       layoutHome();
@@ -85,52 +219,24 @@ void reset_init(bool display_random, uint32_t _strength,
 
   random_buffer(int_entropy, 32);
 
-  if (display_random) {
-    static char CONFIDENTIAL ent_str[4][17];
-    data2hex(int_entropy, 8, ent_str[0]);
-    data2hex(int_entropy + 8, 8, ent_str[1]);
-    data2hex(int_entropy + 16, 8, ent_str[2]);
-    data2hex(int_entropy + 24, 8, ent_str[3]);
-
-    if (!confirm(ButtonRequestType_ButtonRequest_ResetDevice,
-                 _("Internal Entropy"), "%s %s %s %s", ent_str[0], ent_str[1],
-                 ent_str[2], ent_str[3])) {
-      memzero(ent_str, sizeof(ent_str));
-      fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                      _("Reset cancelled"));
-      layoutHome();
-      return;
-    }
-    memzero(ent_str, sizeof(ent_str));
+  if (!setup_stagePin(pin_protection)) {
+    setup_abort();
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("PINs do not match"));
+    layoutHome();
+    return;
   }
-
-  if (pin_protection) {
-    if (!change_pin()) {
-      fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                      _("PINs do not match"));
-      layoutHome();
-      return;
-    }
-  } else {
-    storage_setPin("");
-  }
-
-  storage_setPassphraseProtected(passphrase_protection);
-  storage_setLanguage(language);
-  storage_setLabel(label);
-  storage_setAutoLockDelayMs(_auto_lock_delay_ms);
-  storage_setU2FCounter(_u2f_counter);
 
   EntropyRequest resp;
   memset(&resp, 0, sizeof(EntropyRequest));
+  /* Arm last, and only here: from this statement on an EntropyAck is in
+   * sequence, and nothing else is. */
+  setup_arm(SETUP_RESET);
   msg_write(MessageType_MessageType_EntropyRequest, &resp);
-  awaiting_entropy = true;
 }
 
 void reset_entropy(const uint8_t* ext_entropy, uint32_t len) {
-  if (!awaiting_entropy) {
-    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
-                    _("Not in Reset mode"));
+  if (!setup_require(SETUP_RESET, _("Not in Reset mode"))) {
     return;
   }
 
@@ -143,13 +249,11 @@ void reset_entropy(const uint8_t* ext_entropy, uint32_t len) {
   const char* temp_mnemonic = mnemonic_from_data(int_entropy, strength / 8);
 
   memzero(int_entropy, sizeof(int_entropy));
-  awaiting_entropy = false;
 
-  if (no_backup) {
-    storage_setNoBackup();
-    storage_setMnemonic(temp_mnemonic);
-    mnemonic_clear();
-    storage_commit();
+  if (setup.no_backup) {
+    /* Consent for this path is the two WARNING holds taken during the same
+     * ceremony, in reset_init(). */
+    setup_commit(temp_mnemonic, /*imported=*/false);
     fsm_sendSuccess(_("Device reset"));
     goto exit;
   } else {
@@ -160,7 +264,9 @@ void reset_entropy(const uint8_t* ext_entropy, uint32_t len) {
                  "and DO NOT share it with anyone. ")) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Reset cancelled"));
-      storage_reset();
+      /* storage_reset() used to run here. Nothing was written, so there is
+       * nothing to reset -- and a host-reachable wipe is not a rollback. */
+      setup_abort();
       layoutHome();
       return;
     }
@@ -197,7 +303,7 @@ void reset_entropy(const uint8_t* ext_entropy, uint32_t len) {
       if (MAX_PAGES <= page_count) {
         fsm_sendFailure(FailureType_Failure_Other,
                         _("Too many pages of mnemonic words"));
-        storage_reset();
+        setup_abort();
         goto exit;
       }
 
@@ -239,20 +345,22 @@ void reset_entropy(const uint8_t* ext_entropy, uint32_t len) {
                current_page + 1, page_count);
     }
 
-    if (!confirm_constant_power(ButtonRequestType_ButtonRequest_ConfirmWord,
-                                title, "%s",
-                                formatted_mnemonic[current_page])) {
+    /* Keep the legacy one-request-per-group host protocol while paging the
+     * narrower physical OLED layout locally inside that request. */
+    if (!confirm_constant_power_paged(
+            ButtonRequestType_ButtonRequest_ConfirmWord, title,
+            formatted_mnemonic[current_page])) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Reset cancelled"));
-      storage_reset();
+      setup_abort();
       goto exit;
     }
   }
 
-  /* Save mnemonic */
-  storage_setMnemonic(temp_mnemonic);
-  mnemonic_clear();
-  storage_commit();
+  /* Every page was held through. This is the commit point: the settings the
+   * user chose during THIS ceremony and the seed land together, or neither
+   * lands. */
+  setup_commit(temp_mnemonic, /*imported=*/false);
   fsm_sendSuccess(_("Device reset"));
 
 exit:

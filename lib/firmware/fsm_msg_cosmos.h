@@ -1,4 +1,10 @@
 
+static void cosmos_formatAmount(uint64_t amount, char* out, size_t out_len) {
+  if (!bn_format_uint64(amount, NULL, " ATOM", 6, 0, false, out, out_len)) {
+    strlcpy(out, "AMOUNT TOO LARGE TO DISPLAY", out_len);
+  }
+}
+
 void fsm_msgCosmosGetAddress(const CosmosGetAddress* msg) {
   RESP_INIT(CosmosAddress);
 
@@ -92,7 +98,8 @@ void fsm_msgCosmosSignTx(const CosmosSignTx* msg) {
 
   RESP_INIT(CosmosMsgRequest);
 
-  if (!tendermint_signTxInit(node, (void*)msg, sizeof(CosmosSignTx), "uatom")) {
+  if (!tendermint_signTxInit(node, (void*)msg, sizeof(CosmosSignTx), "uatom",
+                             TENDERMINT_SIGNING_COSMOS)) {
     tendermint_signAbort();
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_FirmwareError,
@@ -108,7 +115,8 @@ void fsm_msgCosmosSignTx(const CosmosSignTx* msg) {
 
 void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
   // Confirm transaction basics
-  CHECK_PARAM(tendermint_signingIsInited(), "Signing not in progress");
+  CHECK_PARAM(tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS),
+              "Cosmos signing not in progress");
 
   const CoinType* coin = fsm_getCoin(true, "Cosmos");
   if (!coin) {
@@ -129,8 +137,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
       case OutputAddressType_TRANSFER:
       default: {
         char amount_str[32];
-        bn_format_uint64(msg->send.amount, NULL, " ATOM", 6, 0, false,
-                         amount_str, sizeof(amount_str));
+        cosmos_formatAmount(msg->send.amount, amount_str, sizeof(amount_str));
         if (!confirm_transaction_output(
                 ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
                 msg->send.to_address)) {
@@ -164,8 +171,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     }
     /** Confirm transaction parameters on-screen */
     char amount_str[32];
-    bn_format_uint64(msg->delegate.amount, NULL, " ATOM", 6, 0, false,
-                     amount_str, sizeof(amount_str));
+    cosmos_formatAmount(msg->delegate.amount, amount_str, sizeof(amount_str));
 
     if (!confirm_cosmos_address("Confirm delegator address",
                                 msg->delegate.delegator_address)) {
@@ -214,8 +220,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     }
     /** Confirm transaction parameters on-screen */
     char amount_str[32];
-    bn_format_uint64(msg->undelegate.amount, NULL, " ATOM", 6, 0, false,
-                     amount_str, sizeof(amount_str));
+    cosmos_formatAmount(msg->undelegate.amount, amount_str, sizeof(amount_str));
 
     if (!confirm_cosmos_address("Confirm delegator address",
                                 msg->undelegate.delegator_address)) {
@@ -267,8 +272,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     }
     /** Confirm transaction parameters on-screen */
     char amount_str[32];
-    bn_format_uint64(msg->redelegate.amount, NULL, " ATOM", 6, 0, false,
-                     amount_str, sizeof(amount_str));
+    cosmos_formatAmount(msg->redelegate.amount, amount_str, sizeof(amount_str));
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Redelegate",
                  "Redelegate %s?", amount_str)) {
@@ -327,8 +331,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     if (msg->rewards.has_amount) {
       /** Confirm transaction parameters on-screen */
       char amount_str[32];
-      bn_format_uint64(msg->rewards.amount, NULL, " ATOM", 6, 0, false,
-                       amount_str, sizeof(amount_str));
+      cosmos_formatAmount(msg->rewards.amount, amount_str, sizeof(amount_str));
 
       if (!confirm(ButtonRequestType_ButtonRequest_Other, "Claim Rewards",
                    "Claim %s?", amount_str)) {
@@ -375,12 +378,13 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     }
   } else if (msg->has_ibc_transfer) {
     /** Confirm required transaction parameters exist */
-    if (!msg->ibc_transfer.has_sender ||
+    if (!msg->ibc_transfer.has_sender || !msg->ibc_transfer.has_receiver ||
         !msg->ibc_transfer.has_source_channel ||
         !msg->ibc_transfer.has_source_port ||
         !msg->ibc_transfer.has_revision_height ||
         !msg->ibc_transfer.has_revision_number ||
-        !msg->ibc_transfer.has_denom) {
+        !msg->ibc_transfer.has_denom || !msg->ibc_transfer.has_amount ||
+        strcmp(msg->ibc_transfer.denom, "uatom") != 0) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));
@@ -389,11 +393,31 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     }
     /** Confirm transaction parameters on-screen */
     char amount_str[32];
-    bn_format_uint64(msg->ibc_transfer.amount, NULL, " ATOM", 6, 0, false,
-                     amount_str, sizeof(amount_str));
+    cosmos_formatAmount(msg->ibc_transfer.amount, amount_str,
+                        sizeof(amount_str));
 
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "IBC Transfer",
-                 "Transfer %s to %s?", amount_str, msg->ibc_transfer.sender)) {
+                 "Transfer %s via IBC?", amount_str)) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                       "Confirm sender address",
+                       (const uint8_t*)msg->ibc_transfer.sender,
+                       strlen(msg->ibc_transfer.sender))) {
+      tendermint_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                       "Confirm dest. address",
+                       (const uint8_t*)msg->ibc_transfer.receiver,
+                       strlen(msg->ibc_transfer.receiver))) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -462,8 +486,8 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
   }
 
   if (sign_tx->has_memo && (strlen(sign_tx->memo) > 0)) {
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",
-                 sign_tx->memo)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
+                       (const uint8_t*)sign_tx->memo, strlen(sign_tx->memo))) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();

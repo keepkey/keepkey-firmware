@@ -270,21 +270,24 @@ void fsm_msgSignMessage(SignMessage* msg) {
 
   CHECK_INITIALIZED
 
-  if (!confirm(ButtonRequestType_ButtonRequest_SignMessage, "Sign Message",
-               "%s", (char*)msg->message.bytes)) {
+  const CoinType* coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
+  if (!coin) return;
+
+  CHECK_PIN
+
+  HDNode* node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
+                                    msg->address_n_count, NULL);
+  if (!node) return;
+
+  if (!confirm_bytes(ButtonRequestType_ButtonRequest_SignMessage,
+                     _("Sign Message"), msg->message.bytes,
+                     msg->message.size)) {
+    memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     "Sign message cancelled");
     layoutHome();
     return;
   }
-
-  CHECK_PIN
-
-  const CoinType* coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
-  if (!coin) return;
-  HDNode* node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
-                                    msg->address_n_count, NULL);
-  if (!node) return;
 
   animating_progress_handler(_("Signing"), 0);
   if (cryptoMessageSign(coin, node, msg->script_type, msg->message.bytes,
@@ -325,8 +328,9 @@ void fsm_msgVerifyMessage(VerifyMessage* msg) {
       layoutHome();
       return;
     }
-    if (!review(ButtonRequestType_ButtonRequest_Other, "Message Verified", "%s",
-                (char*)msg->message.bytes)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                       _("Message Verified"), msg->message.bytes,
+                       msg->message.size)) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Action cancelled by user"));
       layoutHome();

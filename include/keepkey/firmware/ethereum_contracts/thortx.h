@@ -22,6 +22,7 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #define ETH_ADDRESS                                                          \
   "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" \
@@ -44,5 +45,7 @@ bool thor_has_deposit_selector(const EthereumSignTx* msg);
 bool thor_is_expiry_variant(const EthereumSignTx* msg);
 bool thor_isThorchainTx(const EthereumSignTx* msg);
 bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg);
+bool thor_formatUnknownAssetAmount(const uint8_t word[32], char* out,
+                                   size_t out_len);
 
 #endif

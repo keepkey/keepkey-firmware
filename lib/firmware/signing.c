@@ -756,6 +756,21 @@ static bool signing_validate_input(const TxInputType* txinput) {
     signing_abort();
     return false;
   }
+  if (txinput->has_multisig) {
+    /* DER-encoded secp256k1 signatures are at most 72 bytes. The generated
+     * field is bytes[73], but the legacy nanopb decoder can accept size 74
+     * because its static repeated-element stride includes padding. Bound the
+     * host-controlled length before any copy, append, hash, or serialization.
+     */
+    for (uint32_t i = 0; i < txinput->multisig.signatures_count; i++) {
+      if (txinput->multisig.signatures[i].size > 72) {
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Multisig signature too long"));
+        signing_abort();
+        return false;
+      }
+    }
+  }
   if (txinput->address_n_count > 0 && !is_internal_input_script_type(txinput)) {
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                     "Input's address_n provided but not expected.");
@@ -1212,7 +1227,8 @@ static bool signing_sign_hash(TxInputType* txinput, const uint8_t* private_key,
     txinput->multisig.signatures[pubkey_idx].size =
         resp.serialized.signature.size;
     txinput->script_sig.size = serialize_script_multisig(
-        coin, &(txinput->multisig), sighash, txinput->script_sig.bytes);
+        coin, &(txinput->multisig), sighash, txinput->script_sig.bytes,
+        sizeof(txinput->script_sig.bytes));
     if (txinput->script_sig.size == 0) {
       fsm_sendFailure(FailureType_Failure_Other,
                       _("Failed to serialize multisig script"));
@@ -1282,11 +1298,16 @@ static bool signing_sign_segwit_input(TxInputType* txinput) {
           continue;
         }
         nwitnesses++;
-        txinput->multisig.signatures[i]
-            .bytes[txinput->multisig.signatures[i].size] = sighash;
-        r += tx_serialize_script(txinput->multisig.signatures[i].size + 1,
-                                 txinput->multisig.signatures[i].bytes,
+        /* Never append the sighash inside the decoded protobuf field. Even a
+         * nominal 73-byte value has no spare byte there. */
+        uint8_t sig_with_hashtype[73];
+        const size_t sig_len = txinput->multisig.signatures[i].size;
+        memcpy(sig_with_hashtype, txinput->multisig.signatures[i].bytes,
+               sig_len);
+        sig_with_hashtype[sig_len] = sighash;
+        r += tx_serialize_script(sig_len + 1, sig_with_hashtype,
                                  resp.serialized.serialized_tx.bytes + r);
+        memzero(sig_with_hashtype, sizeof(sig_with_hashtype));
       }
       uint32_t script_len =
           compile_script_multisig(coin, &txinput->multisig, 0);
@@ -1298,10 +1319,22 @@ static bool signing_sign_segwit_input(TxInputType* txinput) {
     } else {  // single signature
       uint32_t r = 0;
       r += ser_length(2, resp.serialized.serialized_tx.bytes + r);
-      resp.serialized.signature.bytes[resp.serialized.signature.size] = sighash;
-      r += tx_serialize_script(resp.serialized.signature.size + 1,
-                               resp.serialized.signature.bytes,
+      /* The protobuf signature field has no guaranteed spare byte. Serialize
+       * the wire-only sighash suffix from bounded scratch instead of writing
+       * one byte past bytes[size]. */
+      uint8_t sig_with_hashtype[73];
+      const size_t sig_len = resp.serialized.signature.size;
+      if (sig_len > 72) {
+        fsm_sendFailure(FailureType_Failure_Other,
+                        _("Invalid signature length"));
+        signing_abort();
+        return false;
+      }
+      memcpy(sig_with_hashtype, resp.serialized.signature.bytes, sig_len);
+      sig_with_hashtype[sig_len] = sighash;
+      r += tx_serialize_script(sig_len + 1, sig_with_hashtype,
                                resp.serialized.serialized_tx.bytes + r);
+      memzero(sig_with_hashtype, sizeof(sig_with_hashtype));
       r += tx_serialize_script(33, node.public_key,
                                resp.serialized.serialized_tx.bytes + r);
       resp.serialized.serialized_tx.size = r;
@@ -1900,6 +1933,44 @@ void signing_abort(void) {
     layoutHome();
     signing = false;
   }
+  /* root points at fsm_getDerivedNode()'s static HDNode. Clearing only the
+   * pointer leaves the master private key resident across cancellation,
+   * ClearSession, lock, or wipe. */
+  if (root) memzero((void*)root, sizeof(*root));
   memzero(&root, sizeof(root));
   memzero(&node, sizeof(node));
+  memzero(privkey, sizeof(privkey));
+  memzero(pubkey, sizeof(pubkey));
+  memzero(sig, sizeof(sig));
+  memzero(hash_prevouts, sizeof(hash_prevouts));
+  memzero(hash_sequence, sizeof(hash_sequence));
+  memzero(hash_outputs, sizeof(hash_outputs));
+  memzero(hash_prefix, sizeof(hash_prefix));
+  memzero(hash_check, sizeof(hash_check));
+  memzero(multisig_fp, sizeof(multisig_fp));
+  memzero(in_address_n, sizeof(in_address_n));
+  memzero(&input, sizeof(input));
+  memzero(&bin_output, sizeof(bin_output));
+  memzero(&resp, sizeof(resp));
+  memzero(&to, sizeof(to));
+  memzero(&tp, sizeof(tp));
+  memzero(&ti, sizeof(ti));
+  memzero(&hasher_prevouts, sizeof(hasher_prevouts));
+  memzero(&hasher_sequence, sizeof(hasher_sequence));
+  memzero(&hasher_outputs, sizeof(hasher_outputs));
+  memzero(&hasher_check, sizeof(hasher_check));
+  inputs_count = outputs_count = 0;
+  signing_stage = STAGE_REQUEST_1_INPUT;
+  idx1 = idx2 = signatures = 0;
+  to_spend = authorized_bip143_in = spending = change_spend = 0;
+  version = 1;
+  lock_time = expiry = version_group_id = branch_id = 0;
+  overwintered = false;
+  next_nonsegwit_input = 0;
+  progress = progress_step = progress_meta_step = 0;
+  multisig_fp_set = multisig_fp_mismatch = false;
+  in_address_n_count = 0;
+  tx_weight = 0;
+  coin = NULL;
+  curve = NULL;
 }

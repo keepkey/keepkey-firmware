@@ -27,6 +27,7 @@
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/keepkey_button.h"
 #include "keepkey/board/timer.h"
+#include "keepkey/board/font.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/messages.h"
 #include "keepkey/board/confirm_sm.h"
@@ -38,6 +39,7 @@
 #include "keepkey/firmware/coins.h"
 
 #include "trezor/crypto/bignum.h"
+#include "trezor/crypto/memzero.h"
 
 #include <assert.h>
 #include <stdarg.h>
@@ -391,14 +393,133 @@ bool confirm_sign_identity(const IdentityType* identity,
                  body);
 }
 
+static size_t confirm_byte_token(uint8_t byte, char token[5]) {
+  if (byte >= 0x21 && byte <= 0x7e && byte != '\\') {
+    token[0] = (char)byte;
+    token[1] = '\0';
+    return 1;
+  }
+
+  snprintf(token, 5, "\\x%02X", byte);
+  return 4;
+}
+
+bool confirm_bytes_escape(const uint8_t* data, size_t size, char* out,
+                          size_t out_len) {
+  if ((!data && size != 0) || !out || out_len == 0) return false;
+
+  out[0] = '\0';
+  size_t used = 0;
+  for (size_t i = 0; i < size; i++) {
+    char token[5];
+    const size_t token_len = confirm_byte_token(data[i], token);
+    if (token_len > (out_len - 1) - used) {
+      out[0] = '\0';
+      return false;
+    }
+    memcpy(out + used, token, token_len + 1);
+    used += token_len;
+  }
+  return true;
+}
+
+size_t confirm_bytes_format_page(const uint8_t* data, size_t size, char* out,
+                                 size_t out_len) {
+  if ((!data && size != 0) || !out || out_len == 0) return 0;
+
+  out[0] = '\0';
+  size_t used = 0;
+  size_t consumed = 0;
+  while (consumed < size) {
+    char token[5];
+    const size_t token_len = confirm_byte_token(data[consumed], token);
+    if (used >= out_len - 1 || token_len > (out_len - 1) - used) break;
+
+    memcpy(out + used, token, token_len + 1);
+    if (calc_str_line(get_body_font(), out, BODY_WIDTH) > BODY_ROWS) {
+      out[used] = '\0';
+      break;
+    }
+
+    used += token_len;
+    consumed++;
+  }
+
+  return consumed;
+}
+
+bool confirm_bytes(ButtonRequestType button_request, const char* title,
+                   const uint8_t* data, size_t size) {
+  if (!title || (!data && size != 0)) return false;
+  if (size == 0) return confirm(button_request, title, "(empty)");
+
+  static char page_body[BODY_CHAR_MAX];
+  static char page_title[TITLE_CHAR_MAX];
+  bool approved = false;
+
+  size_t pages = 0;
+  size_t offset = 0;
+  while (offset < size) {
+    const size_t take = confirm_bytes_format_page(data + offset, size - offset,
+                                                  page_body, sizeof(page_body));
+    if (take == 0) goto cleanup;
+    offset += take;
+    pages++;
+  }
+
+  offset = 0;
+  for (size_t page = 0; page < pages; page++) {
+    const size_t take = confirm_bytes_format_page(data + offset, size - offset,
+                                                  page_body, sizeof(page_body));
+    if (take == 0) goto cleanup;
+
+    int title_len;
+    if (pages == 1) {
+      title_len = snprintf(page_title, sizeof(page_title), "%s", title);
+    } else {
+      title_len = snprintf(page_title, sizeof(page_title), "%s %u/%u", title,
+                           (unsigned)(page + 1), (unsigned)pages);
+    }
+    if (title_len < 0 || (size_t)title_len >= sizeof(page_title)) goto cleanup;
+
+    const bool last = (page + 1 == pages);
+    if (last) {
+      /* Only the final page approves the signature, so it keeps the full hold.
+       */
+      if (!confirm(button_request, page_title, "%s", page_body)) goto cleanup;
+    } else {
+      /* Reading an intermediate page advances on a short click. Cancel and
+       * Initialize still return false from the underlying confirmation screen.
+       */
+      if (!review_immediate(button_request, page_title, "%s", page_body))
+        goto cleanup;
+    }
+    offset += take;
+  }
+
+  approved = true;
+
+cleanup:
+  memzero(page_body, sizeof(page_body));
+  memzero(page_title, sizeof(page_title));
+  return approved;
+}
+
 bool confirm_omni(ButtonRequestType button_request, const char* title,
                   const uint8_t* data, uint32_t size) {
-  uint32_t tx_type;
-  REVERSE32(*(const uint32_t*)(data + 4), tx_type);
-  if (tx_type == 0x00000000 && size == 20) {  // OMNI simple send
+  uint32_t tx_type_be = 0;
+  uint32_t tx_type = UINT32_MAX;
+  if (data && size == 20) {
+    /* Protobuf byte arrays are size-delimited, not necessarily aligned. */
+    memcpy(&tx_type_be, data + 4, sizeof(tx_type_be));
+    REVERSE32(tx_type_be, tx_type);
+  }
+  if (tx_type == 0x00000000) {  // OMNI simple send
     char str_out[32];
+    uint32_t currency_be;
     uint32_t currency;
-    REVERSE32(*(const uint32_t*)(data + 8), currency);
+    memcpy(&currency_be, data + 8, sizeof(currency_be));
+    REVERSE32(currency_be, currency);
     const char* suffix = "UNKN";
     switch (currency) {
       case 1:
@@ -413,32 +534,32 @@ bool confirm_omni(ButtonRequestType button_request, const char* title,
       case 31:
         suffix = " USDT";
         break;
+      default:
+        /* Asset identity is signed semantics. A generic UNKN ticker makes
+         * every unsupported property ID look identical, so disclose the
+         * complete payload instead of pretending it was decoded. */
+        return confirm_bytes(button_request, title, data, size);
     }
     uint64_t amount_be, amount;
     memcpy(&amount_be, data + 12, sizeof(uint64_t));
     REVERSE64(amount_be, amount);
-    bn_format_uint64(amount, NULL, suffix, BITCOIN_DIVISIBILITY, 0, false,
-                     str_out, sizeof(str_out));
+    if (!bn_format_uint64(amount, NULL, suffix, BITCOIN_DIVISIBILITY, 0, false,
+                          str_out, sizeof(str_out))) {
+      strlcpy(str_out, "AMOUNT TOO LARGE TO DISPLAY", sizeof(str_out));
+    }
     return confirm(button_request, title, _("Do you want to send %s?"),
                    str_out);
-  } else {
-    return confirm(button_request, title, _("Unknown Transaction"));
   }
+
+  /* Unknown/malformed Omni messages must still bind approval to every signed
+   * OP_RETURN byte. */
+  return confirm_bytes(button_request, title, data, size);
 }
 
 bool confirm_data(ButtonRequestType button_request, const char* title,
                   const uint8_t* data, uint32_t size) {
-  const char* str = (const char*)data;
-  char hex[50 * 2 + 1];
-  if (!is_valid_ascii(data, size)) {
-    if (size > 50) size = 50;
-    memset(hex, 0, sizeof(hex));
-    data2hex(data, size, hex);
-    if (size > 50) {
-      hex[50 * 2 - 1] = '.';
-      hex[50 * 2 - 2] = '.';
-    }
-    str = hex;
-  }
-  return confirm(button_request, title, "%s", str);
+  /* OP_RETURN bytes and EOS memo bytes are committed to in full. Route both
+   * through the length-delimited pager so embedded NULs, non-ASCII data, and
+   * tails beyond the first screen cannot disappear from the approval flow. */
+  return confirm_bytes(button_request, title, data, size);
 }

@@ -1,4 +1,3 @@
-
 void fsm_msgThorchainGetAddress(const ThorchainGetAddress* msg) {
   RESP_INIT(ThorchainAddress);
 
@@ -145,8 +144,14 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
       case OutputAddressType_TRANSFER:
       default: {
         char amount_str[32];
-        bn_format_uint64(msg->send.amount, NULL, " RUNE", 8, 0, false,
-                         amount_str, sizeof(amount_str));
+        if (!thorchain_formatAmount(msg->send.amount, "RUNE", amount_str,
+                                    sizeof(amount_str))) {
+          thorchain_signAbort();
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          "Invalid THORChain send amount");
+          layoutHome();
+          return;
+        }
         if (!confirm_transaction_output(
                 ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
                 msg->send.to_address)) {
@@ -169,12 +174,21 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
     }
 
   } else if (msg->has_deposit) {
-    char amount_str[32];
-    char asset_str[21];
-    asset_str[0] = ' ';
-    strlcpy(&(asset_str[1]), msg->deposit.asset, sizeof(asset_str) - 1);
-    bn_format_uint64(msg->deposit.amount, NULL, asset_str, 8, 0, false,
-                     amount_str, sizeof(amount_str));
+    /* ThorchainMsgDeposit.asset is max_size:20, so the suffix reaches 20
+     * characters while a uint64 at 8 decimals reaches 21: 21 + 20 + 1 = 42
+     * did not fit the old 32-byte amount_str. bn_format() zeroes its output
+     * and returns 0 on overflow, and the ignored return let an EMPTY amount
+     * reach the confirmation screen and be signed. Size for the maximum and
+     * fail closed, as fsm_msg_binance.h does. */
+    char amount_str[21 + THORCHAIN_ASSET_SUFFIX_LEN + 1];
+    if (!thorchain_formatAmount(msg->deposit.amount, msg->deposit.asset,
+                                amount_str, sizeof(amount_str))) {
+      thorchain_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Invalid THORChain deposit amount");
+      layoutHome();
+      return;
+    }
     if (!confirm_transaction_output(
             ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
             msg->deposit.signer)) {
@@ -186,11 +200,31 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
 
     if (msg->deposit.has_memo) {
       // See if we can parse the memo
-      if (!thorchain_parseConfirmMemo(msg->deposit.memo,
-                                      sizeof(msg->deposit.memo))) {
-        // Memo not recognizable, ask to confirm it
-        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
-                     "%s", msg->deposit.memo)) {
+      /* strnlen, not sizeof: passing the buffer capacity hands the parser
+         every trailing zero byte in the fixed array as if it were memo
+         content. The length that matters is how much of the field is
+         populated. */
+      ThorchainMemoResult memo_result = thorchain_parseConfirmMemo(
+          msg->deposit.memo,
+          strnlen(msg->deposit.memo, sizeof(msg->deposit.memo)));
+      if (memo_result == THORCHAIN_MEMO_CANCELLED) {
+        // A memo screen was refused: a refusal to sign, not a parse failure.
+        thorchain_signAbort();
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        layoutHome();
+        return;
+      }
+      if (memo_result == THORCHAIN_MEMO_UNPARSED) {
+        /* Memo not recognizable, ask to confirm it.
+           confirm_bytes(), not confirm("%s"): "%s" stops at the first NUL, so
+           an unparsed memo carrying an embedded zero byte would be signed with
+           its tail hidden -- the same defect the parser now refuses, moved one
+           screen later. confirm_bytes takes an explicit length and escapes
+           every non-printable byte, so the NUL is visible as \x00. */
+        if (!confirm_bytes(
+                ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
+                (const uint8_t*)msg->deposit.memo,
+                strnlen(msg->deposit.memo, sizeof(msg->deposit.memo)))) {
           thorchain_signAbort();
           fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
           layoutHome();
@@ -217,10 +251,21 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
   if (sign_tx->has_memo && !msg->deposit.has_memo) {
     // See if we can parse the tx memo. This memo ignored if deposit msg has
     // memo
-    if (!thorchain_parseConfirmMemo(sign_tx->memo, sizeof(sign_tx->memo))) {
-      // Memo not recognizable, ask to confirm it
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",
-                   sign_tx->memo)) {
+    /* strnlen, not sizeof -- see the deposit path above. */
+    ThorchainMemoResult memo_result = thorchain_parseConfirmMemo(
+        sign_tx->memo, strnlen(sign_tx->memo, sizeof(sign_tx->memo)));
+    if (memo_result == THORCHAIN_MEMO_CANCELLED) {
+      // A memo screen was refused: a refusal to sign, not a parse failure.
+      thorchain_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+    if (memo_result == THORCHAIN_MEMO_UNPARSED) {
+      /* Memo not recognizable, ask to confirm it -- length-aware, see above. */
+      if (!confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
+                         (const uint8_t*)sign_tx->memo,
+                         strnlen(sign_tx->memo, sizeof(sign_tx->memo)))) {
         thorchain_signAbort();
         fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
         layoutHome();

@@ -49,6 +49,14 @@ extern const TokenType tokens[];
 
 extern const TokenType* UnknownToken;
 
+/* The 0xeeee..eeee pseudo-address, which 0x and several routers use to mean
+ * "this chain's NATIVE asset". tokenByChainAddress() returns this entry for
+ * that address on EVERY chain, because the match is made outside the
+ * chain-scoped loop -- and the entry is labelled ETH. Callers that display a
+ * ticker must therefore not take it at face value off Ethereum; see
+ * zx_tokenLabelsThisChain(). */
+extern const TokenType* EthTestToken;
+
 const TokenType* tokenIter(int32_t* ctr);
 
 const TokenType* tokenByChainAddress(uint8_t chain_id, const uint8_t* address);

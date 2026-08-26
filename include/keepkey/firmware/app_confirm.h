@@ -24,6 +24,7 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #define CONFIRM_SIGN_IDENTITY_TITLE 32
 #define CONFIRM_SIGN_IDENTITY_BODY 416
@@ -46,6 +47,39 @@ bool confirm_load_device(bool is_node);
 bool confirm_address(const char* desc, const char* address);
 bool confirm_xpub(const char* node_str, const char* xpub);
 bool confirm_sign_identity(const IdentityType* identity, const char* challenge);
+
+/**
+ * Render the largest screen-sized prefix of a byte string.
+ *
+ * Whitespace, backslashes, controls, and non-ASCII bytes use an unambiguous
+ * \xNN spelling. This prevents the OLED renderer from discarding leading
+ * spaces or interpreting newlines while preserving readable printable text.
+ *
+ * \returns the number of input bytes represented in out, or zero on error.
+ */
+/// Escape every byte of `data` into `out`, exactly as confirm_bytes() renders
+/// it, but without paging: bytes outside 0x21..0x7E, and '\\' itself, become a
+/// four-glyph \\xNN escape.
+///
+/// For callers that must place the escaped text inside a larger body -- a
+/// warning line above it, say -- and so cannot hand the whole screen to
+/// confirm_bytes(). Fails rather than truncating, because a partial escape of
+/// a secret is exactly the ambiguity the escaping exists to remove.
+///
+/// \param data     Bytes to escape (NULL only if size is 0).
+/// \param size     Number of bytes at `data`.
+/// \param out      Destination, always NUL terminated on success.
+/// \param out_len  Capacity of `out`, including the terminator.
+/// \returns true iff every byte fit.
+bool confirm_bytes_escape(const uint8_t* data, size_t size, char* out,
+                          size_t out_len);
+
+size_t confirm_bytes_format_page(const uint8_t* data, size_t size, char* out,
+                                 size_t out_len);
+
+/** Review every byte of a length-delimited payload over one or more screens. */
+bool confirm_bytes(ButtonRequestType button_request, const char* title,
+                   const uint8_t* data, size_t size);
 bool confirm_cosmos_address(const char* desc, const char* address);
 bool confirm_osmosis_address(const char* desc, const char* address);
 bool confirm_ethereum_address(const char* desc, const char* address);
