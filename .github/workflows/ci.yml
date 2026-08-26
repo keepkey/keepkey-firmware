@@ -340,6 +340,48 @@ jobs:
           ls -lh
           echo "::notice::Firmware v${{ steps.version.outputs.fw_version }} built successfully"
 
+      - name: Bind ARM outputs to source commits
+        run: |
+          python3 - <<'PY'
+          import datetime
+          import glob
+          import hashlib
+          import json
+          import os
+          import subprocess
+
+          def digest(path):
+              value = hashlib.sha256()
+              with open(path, "rb") as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                      value.update(chunk)
+              return value.hexdigest()
+
+          files = []
+          for path in sorted(glob.glob("bin/*.bin") + glob.glob("bin/*.elf")):
+              files.append({
+                  "name": os.path.basename(path),
+                  "sha256": digest(path),
+                  "size": os.path.getsize(path),
+              })
+          if not files:
+              raise SystemExit("no ARM outputs found")
+          manifest = {
+              "schema": 1,
+              "generated_at": datetime.datetime.now(
+                  datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+              "firmware_sha": subprocess.check_output(
+                  ["git", "rev-parse", "HEAD"], text=True).strip(),
+              "python_sha": subprocess.check_output(
+                  ["git", "rev-parse", "HEAD:deps/python-keepkey"],
+                  text=True).strip(),
+              "files": files,
+          }
+          with open("bin/arm-build-manifest.json", "w", encoding="utf-8") as handle:
+              json.dump(manifest, handle, sort_keys=True, indent=2)
+              handle.write("\n")
+          PY
+
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -347,6 +389,7 @@ jobs:
           path: |
             bin/*.bin
             bin/*.elf
+            bin/arm-build-manifest.json
           retention-days: 90
 
   # ═══════════════════════════════════════════════════════════
@@ -391,7 +434,7 @@ jobs:
   python-integration-tests:
     needs: [lint-format, static-analysis, check-submodules, secret-scan]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -445,6 +488,15 @@ jobs:
           name: python-test-results
           path: test-reports/python-keepkey/
           retention-days: 30
+
+      - name: Upload OLED screenshots
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: oled-screenshots
+          path: test-reports/screenshots/
+          retention-days: 90
+          if-no-files-found: error
 
       - name: Tear down
         if: always()
@@ -614,7 +666,7 @@ jobs:
         if: always() && env.DYLIB_PATH != ''
         uses: actions/upload-artifact@v4
         with:
-          name: libkkemu-${{ github.sha }}
+          name: libkkemu-${{ github.event.pull_request.head.sha || github.sha }}
           path: ${{ env.DYLIB_PATH }}
           retention-days: 30
           if-no-files-found: error
@@ -658,7 +710,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════
 
   generate-test-report:
-    needs: [unit-tests, python-integration-tests]
+    needs: [unit-tests, python-integration-tests, python-dylib-tests, build-arm-firmware]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -669,25 +721,35 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Download unit test results
-        uses: actions/download-artifact@v4
-        continue-on-error: true
+        uses: actions/download-artifact@v8
         with:
           name: unit-test-results
           path: test-reports/firmware-unit/
 
       - name: Download python test results
-        uses: actions/download-artifact@v4
-        continue-on-error: true
+        uses: actions/download-artifact@v8
         with:
           name: python-test-results
           path: test-reports/python-keepkey/
 
       - name: Download OLED screenshots
-        uses: actions/download-artifact@v4
-        continue-on-error: true
+        uses: actions/download-artifact@v8
         with:
           name: oled-screenshots
           path: test-reports/screenshots/
+
+      - name: Download dylib test results
+        uses: actions/download-artifact@v8
+        with:
+          name: python-dylib-test-results
+          path: test-reports/
+
+      - name: Download ARM firmware
+        uses: actions/download-artifact@v8
+        with:
+          pattern: firmware-v*
+          path: test-reports/arm/
+          merge-multiple: true
 
       - name: Extract firmware version
         id: version
@@ -696,12 +758,20 @@ jobs:
           echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Init python-keepkey submodule
-        run: git submodule update --init deps/python-keepkey
+        id: python
+        run: |
+          git submodule update --init deps/python-keepkey
+          echo "sha=$(git rev-parse HEAD:deps/python-keepkey)" >> "$GITHUB_OUTPUT"
 
       - name: Generate test report PDF
         env:
           FW_VERSION: ${{ steps.version.outputs.fw_version }}
-          KK_BUILD_LABEL: ${{ github.head_ref || github.ref_name }}@${{ github.event.pull_request.head.sha || github.sha }}
+          KK_FIRMWARE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          KK_PYTHON_SHA: ${{ steps.python.outputs.sha }}
+          KK_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          KK_WORKFLOW_EVENT: ${{ github.event_name }}
+          KK_FIRMWARE_PR: ${{ github.event.pull_request.html_url }}
+          KK_PYTHON_PR: https://github.com/keepkey/python-keepkey/pull/219
         run: python3 scripts/generate-test-report.py
 
       - name: Upload test report
@@ -709,15 +779,33 @@ jobs:
         if: always()
         with:
           name: test-report
-          path: test-report.pdf
+          path: test-report/
           retention-days: 90
+          if-no-files-found: error
+
+  release-evidence-gate:
+    needs: [unit-tests, python-integration-tests, python-dylib-tests, build-arm-firmware, generate-test-report]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every release job
+        env:
+          UNIT_RESULT: ${{ needs.unit-tests.result }}
+          PYTHON_RESULT: ${{ needs.python-integration-tests.result }}
+          DYLIB_RESULT: ${{ needs.python-dylib-tests.result }}
+          ARM_RESULT: ${{ needs.build-arm-firmware.result }}
+          REPORT_RESULT: ${{ needs.generate-test-report.result }}
+        run: |
+          for result in "$UNIT_RESULT" "$PYTHON_RESULT" "$DYLIB_RESULT" "$ARM_RESULT" "$REPORT_RESULT"; do
+            test "$result" = success || exit 1
+          done
 
   # ═══════════════════════════════════════════════════════════
   # STAGE 4: PUBLISH — manual trigger only, all tests must pass
   # ═══════════════════════════════════════════════════════════
 
   publish-emulator:
-    needs: [unit-tests, python-integration-tests, python-dylib-tests, build-arm-firmware]
+    needs: [release-evidence-gate, build-emulator]
     if: >-
       github.event_name == 'workflow_dispatch' &&
       github.event.inputs.publish_emulator == 'true'

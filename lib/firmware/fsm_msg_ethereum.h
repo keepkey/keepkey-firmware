@@ -29,30 +29,8 @@ static int process_ethereum_xfer(const CoinType* coin, EthereumSignTx* msg) {
                             /*show_addridx=*/false))
     return TXOUT_COMPILE_ERROR;
 
-  if (!coin->has_forkid) return TXOUT_COMPILE_ERROR;
-
-  const uint32_t chain_id = coin->forkid;
-
-  const uint8_t* value_bytes;
-  size_t value_size;
-  const TokenType* token;
-
-  if (ethereum_isStandardERC20Transfer(msg)) {
-    value_bytes = msg->data_initial_chunk.bytes + 4 + 32;
-    value_size = 32;
-    token = tokenByChainAddress(chain_id, msg->to.bytes);
-  } else {
-    value_bytes = msg->value.bytes;
-    value_size = msg->value.size;
-    token = NULL;
-  }
-
-  bignum256 value;
-  bn_from_bytes(value_bytes, value_size, &value);
-
   char amount_str[128 + sizeof(msg->token_shortcut) + 3];
-  if (!ethereumFormatAmount(&value, token, chain_id, amount_str,
-                            sizeof(amount_str)))
+  if (!ethereumFormatTransferAmount(msg, amount_str, sizeof(amount_str)))
     return TXOUT_COMPILE_ERROR;
 
   if (!confirm_transfer_output(

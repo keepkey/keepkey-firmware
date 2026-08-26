@@ -41,6 +41,18 @@ static bool testnet;
 
 const OsmosisSignTx* osmosis_getOsmosisSignTx(void) { return &msg; }
 
+bool osmosis_validate_required_text(bool has_value, const char* value) {
+  return has_value && value && value[0] != '\0';
+}
+
+bool osmosis_validate_amount(bool has_value, const char* value) {
+  if (!osmosis_validate_required_text(has_value, value)) return false;
+  for (const char* p = value; *p; ++p) {
+    if (*p < '0' || *p > '9') return false;
+  }
+  return true;
+}
+
 bool osmosis_signTxInit(const HDNode* _node, const OsmosisSignTx* _msg) {
   initialized = true;
   /* A previous session's has_message must not leak into this one: a stale

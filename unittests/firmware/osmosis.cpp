@@ -110,3 +110,16 @@ TEST(Osmosis, ZeroMessagesNeverFinishes) {
   EXPECT_FALSE(osmosis_signingIsFinished());
   osmosis_signAbort();
 }
+
+TEST(Osmosis, RequiredValuesRejectEmptyAndNonDecimalAmounts) {
+  EXPECT_FALSE(osmosis_validate_required_text(false, "uosmo"));
+  EXPECT_FALSE(osmosis_validate_required_text(true, ""));
+  EXPECT_TRUE(osmosis_validate_required_text(true, "uosmo"));
+
+  EXPECT_FALSE(osmosis_validate_amount(false, "1"));
+  EXPECT_FALSE(osmosis_validate_amount(true, ""));
+  EXPECT_FALSE(osmosis_validate_amount(true, "1.0"));
+  EXPECT_FALSE(osmosis_validate_amount(true, "-1"));
+  EXPECT_TRUE(osmosis_validate_amount(true, "0"));
+  EXPECT_TRUE(osmosis_validate_amount(true, "1000000"));
+}

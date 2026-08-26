@@ -115,6 +115,27 @@ TEST(Ethereum, NativeAmountsUseTheSigningChainsTicker) {
   EXPECT_STREQ("1.5 ETH", rendered);
 }
 
+TEST(Ethereum, TransferAmountUsesTheRequestsSigningChain) {
+  EthereumSignTx msg = EthereumSignTx{};
+  msg.has_chain_id = true;
+  msg.has_value = true;
+  msg.value.size = 8;
+  const uint64_t amount = 1500000000000000000ULL;
+  for (size_t i = 0; i < msg.value.size; ++i) {
+    msg.value.bytes[msg.value.size - 1 - i] =
+        static_cast<uint8_t>(amount >> (8 * i));
+  }
+
+  char rendered[32];
+  msg.chain_id = 56;
+  ASSERT_TRUE(ethereumFormatTransferAmount(&msg, rendered, sizeof(rendered)));
+  EXPECT_STREQ("1.5 BNB", rendered);
+
+  msg.chain_id = 137;
+  ASSERT_TRUE(ethereumFormatTransferAmount(&msg, rendered, sizeof(rendered)));
+  EXPECT_STREQ("1.5 MATIC", rendered);
+}
+
 TEST(Ethereum, Eip712AddressRequiresCanonicalTwentyByteHex) {
   uint8_t encoded[32] = {0};
   ASSERT_EQ(SUCCESS,

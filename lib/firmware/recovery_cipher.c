@@ -574,6 +574,7 @@ void recovery_cipher_finalize(void) {
     // Otherwise just enforce that the number of words entered is a standard
     // count:
     if (words_entered != 12 && words_entered != 18 && words_entered != 24) {
+      recovery_cipher_abort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Invalid word count (must be 12, 18 or 24)");
       layoutHome();
