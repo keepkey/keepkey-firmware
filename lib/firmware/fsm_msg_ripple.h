@@ -102,6 +102,7 @@ void fsm_msgRippleSignTx(RippleSignTx* msg) {
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Fee must be between 10 and 1,000,000 drops"));
+    layoutHome();
     return;
   }
 

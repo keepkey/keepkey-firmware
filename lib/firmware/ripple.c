@@ -68,8 +68,17 @@ bool ripple_validateAddress(const char* address) {
   uint8_t addr_raw[MAX_ADDR_RAW_SIZE];
   const uint32_t len =
       ripple_decode_check(address, HASHER_SHA2D, addr_raw, MAX_ADDR_RAW_SIZE);
+  /* The version byte matters as much as the length. ripple_serializeAddress()
+     drops addr_raw[0] and signs only the 20 bytes after it, so an address with
+     a valid checksum but a NON-ZERO version would be displayed exactly as the
+     host supplied it while the signature committed to the account those 20
+     bytes name under version 0 -- a different destination from the one on the
+     screen. RIPPLE_ADDRESS_VERSION is what ripple_getAddress() itself encodes,
+     so this accepts exactly the classic account addresses the device can
+     produce. */
+  const bool ok = (len == 21) && (addr_raw[0] == RIPPLE_ADDRESS_VERSION);
   memzero(addr_raw, sizeof(addr_raw));
-  return len == 21;
+  return ok;
 }
 
 bool ripple_formatAmount(char* buf, size_t len, uint64_t amount) {

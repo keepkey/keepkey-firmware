@@ -29,6 +29,11 @@
 
 #define RIPPLE_DECIMALS 6
 
+/* Version byte of a classic XRP account address. ripple_getAddress() encodes
+   it and ripple_serializeAddress() discards it, so anything else would sign a
+   different account than the screen showed. */
+#define RIPPLE_ADDRESS_VERSION 0x00
+
 /* The largest drop amount ripple_serializeAmount() can encode. Above this the
    value collides with the bits that flag "XRP" and "positive", so the
    serializer would emit a different amount than the one supplied. It guarded
