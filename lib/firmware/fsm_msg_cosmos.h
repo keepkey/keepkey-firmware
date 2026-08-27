@@ -130,8 +130,22 @@ void fsm_msgCosmosSignTx(const CosmosSignTx* msg) {
 
 void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
   // Confirm transaction basics
-  CHECK_PARAM(tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS),
-              "Cosmos signing not in progress");
+  /* A continuation for the WRONG protocol is terminal for the session it
+     found, not just for itself.
+
+     Cosmos and generic Tendermint share one signer in signtx_tendermint.c,
+     told apart only by signing_type. CHECK_PARAM sends a failure and returns,
+     leaving that shared state initialized: a Cosmos session survived a
+     Tendermint ACK (and vice versa), the UI went home, and the session stayed
+     resumable by a later stale ACK of its own protocol. Clear the shared
+     signer first, the way every malformed-ACK path below already does. */
+  if (!tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS)) {
+    tendermint_signAbort();
+    fsm_sendFailure(FailureType_Failure_Other,
+                    "Cosmos signing not in progress");
+    layoutHome();
+    return;
+  }
 
   const CoinType* coin = fsm_getCoin(true, "Cosmos");
   if (!coin) {

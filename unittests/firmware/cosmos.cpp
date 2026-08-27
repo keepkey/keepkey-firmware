@@ -35,6 +35,19 @@ TEST(Cosmos, HostTextMustBeSafeForJsonAndDisplay) {
       "cosmos1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnl07mr", "cosmos"));
   EXPECT_FALSE(tendermint_validateBech32Address(
       "cosmos1qqqqqqqqqqqqqqqqqqqqe9efq6", "cosmos"));
+
+  /* Well-formedness with an arbitrary HRP, for IBC receivers on counterparty
+     chains. Still bounded, still checksum-checked. */
+  EXPECT_TRUE(tendermint_bech32IsWellFormed(
+      "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v"));
+  EXPECT_TRUE(tendermint_bech32IsWellFormed(
+      "cosmos1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnrql8a"));
+  EXPECT_FALSE(tendermint_bech32IsWellFormed(nullptr));
+  EXPECT_FALSE(tendermint_bech32IsWellFormed(""));
+  EXPECT_FALSE(tendermint_bech32IsWellFormed("not-bech32"));
+  /* A bad checksum on an otherwise well-shaped string. */
+  EXPECT_FALSE(tendermint_bech32IsWellFormed(
+      "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20w"));
 }
 
 TEST(Cosmos, CosmosGetAddress) {

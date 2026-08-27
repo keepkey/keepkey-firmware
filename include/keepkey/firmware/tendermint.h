@@ -38,6 +38,13 @@ bool tendermint_validateSafeText(const char* value);
 
 /** Validate a Bech32 address and bind it to the expected human-readable part.
  */
+/// Well-formed bech32 (charset, length, checksum) with ANY human-readable
+/// part. Use only where an arbitrary HRP is intended -- an IBC receiver on a
+/// counterparty chain. Where the network is known, use
+/// tendermint_validateBech32Address(), which also pins the prefix and the
+/// 20-byte account length.
+bool tendermint_bech32IsWellFormed(const char* address);
+
 bool tendermint_validateBech32Address(const char* address,
                                       const char* expected_prefix);
 

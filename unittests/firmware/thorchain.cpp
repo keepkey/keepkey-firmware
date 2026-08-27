@@ -87,6 +87,25 @@ TEST(Thorchain, MemoWithEmbeddedNulIsNotParsed) {
   EXPECT_EQ(
       THORCHAIN_MEMO_UNPARSED,
       thorchain_parseConfirmMemo(kTooFewFields, sizeof(kTooFewFields) - 1));
+
+  /* A colon where the chain/asset dot belongs shifts every later field. The
+     tokenizer splits on ":." interchangeably, so this yields the same three
+     tokens as "SWAP:ETH.USDT:dest:limit" and would be reviewed as asset USDT
+     on chain ETH -- while the protocol reads USDT as the DESTINATION. It has
+     to reach the raw-byte path instead. */
+  static const char kColonForDot[] = "SWAP:ETH:USDT:dest:limit";
+  EXPECT_EQ(THORCHAIN_MEMO_UNPARSED,
+            thorchain_parseConfirmMemo(kColonForDot, sizeof(kColonForDot) - 1));
+
+  /* No dot at all is the same defect. */
+  static const char kNoDot[] = "SWAP:ETH:dest";
+  EXPECT_EQ(THORCHAIN_MEMO_UNPARSED,
+            thorchain_parseConfirmMemo(kNoDot, sizeof(kNoDot) - 1));
+
+  /* A second dot outside the chain/asset field is not this grammar either. */
+  static const char kExtraDot[] = "SWAP:ETH.USDT:de.st:limit";
+  EXPECT_EQ(THORCHAIN_MEMO_UNPARSED,
+            thorchain_parseConfirmMemo(kExtraDot, sizeof(kExtraDot) - 1));
 }
 
 TEST(Thorchain, MemoWithEmptyPositionalFieldIsNotStructured) {

@@ -144,10 +144,15 @@ bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address,
   const char* pfix;
   char buffer[64 + 1];
 
-  size_t decoded_len;
-  char hrp[45] = {0};
-  uint8_t decoded[38] = {0};
-  if (!bech32_decode(hrp, decoded, &decoded_len, to_address)) {
+  /* Validate against THIS network's prefix and the 20-byte account length
+     before the address reaches the bare "%s" JSON serialization below. This
+     was a bare bech32_decode() into hrp[45]/decoded[38]: both undersized for
+     host-chosen input (see tendermint_bech32DecodeChecked()), and neither the
+     network nor the payload length was checked, so a wrong-chain address, a
+     module or operator address, or a punctuation-bearing HRP passed through
+     into the signed document. */
+  if (!tendermint_validateBech32Address(to_address,
+                                        testnet ? testnetp : mainnetp)) {
     return false;
   }
 
@@ -212,11 +217,15 @@ bool osmosis_signTxUpdateMsgDelegate(const char* amount,
   const char* pfix;
 
   char buffer[128] = {0};
-  size_t decoded_len;
-  char hrp[45] = {0};
-  uint8_t decoded[38] = {0};
-
-  if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
+  /* Validate against THIS network's prefix and the 20-byte account length
+     before the address reaches the bare "%s" JSON serialization below. This
+     was a bare bech32_decode() into hrp[45]/decoded[38]: both undersized for
+     host-chosen input (see tendermint_bech32DecodeChecked()), and neither the
+     network nor the payload length was checked, so a wrong-chain address, a
+     module or operator address, or a punctuation-bearing HRP passed through
+     into the signed document. */
+  if (!tendermint_validateBech32Address(delegator_address,
+                                        testnet ? testnetp : mainnetp)) {
     return false;
   }
 
@@ -282,11 +291,15 @@ bool osmosis_signTxUpdateMsgUndelegate(const char* amount,
   const char* pfix;
 
   char buffer[128] = {0};
-  size_t decoded_len;
-  char hrp[45] = {0};
-  uint8_t decoded[38] = {0};
-
-  if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
+  /* Validate against THIS network's prefix and the 20-byte account length
+     before the address reaches the bare "%s" JSON serialization below. This
+     was a bare bech32_decode() into hrp[45]/decoded[38]: both undersized for
+     host-chosen input (see tendermint_bech32DecodeChecked()), and neither the
+     network nor the payload length was checked, so a wrong-chain address, a
+     module or operator address, or a punctuation-bearing HRP passed through
+     into the signed document. */
+  if (!tendermint_validateBech32Address(delegator_address,
+                                        testnet ? testnetp : mainnetp)) {
     return false;
   }
 
@@ -352,11 +365,15 @@ bool osmosis_signTxUpdateMsgRedelegate(const char* amount,
   const char* pfix;
 
   char buffer[128] = {0};
-  size_t decoded_len;
-  char hrp[45] = {0};
-  uint8_t decoded[38] = {0};
-
-  if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
+  /* Validate against THIS network's prefix and the 20-byte account length
+     before the address reaches the bare "%s" JSON serialization below. This
+     was a bare bech32_decode() into hrp[45]/decoded[38]: both undersized for
+     host-chosen input (see tendermint_bech32DecodeChecked()), and neither the
+     network nor the payload length was checked, so a wrong-chain address, a
+     module or operator address, or a punctuation-bearing HRP passed through
+     into the signed document. */
+  if (!tendermint_validateBech32Address(delegator_address,
+                                        testnet ? testnetp : mainnetp)) {
     return false;
   }
 
@@ -538,11 +555,15 @@ bool osmosis_signTxUpdateMsgRewards(const char* delegator_address,
   const char* pfix;
 
   char buffer[128] = {0};
-  size_t decoded_len;
-  char hrp[45] = {0};
-  uint8_t decoded[38] = {0};
-
-  if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
+  /* Validate against THIS network's prefix and the 20-byte account length
+     before the address reaches the bare "%s" JSON serialization below. This
+     was a bare bech32_decode() into hrp[45]/decoded[38]: both undersized for
+     host-chosen input (see tendermint_bech32DecodeChecked()), and neither the
+     network nor the payload length was checked, so a wrong-chain address, a
+     module or operator address, or a punctuation-bearing HRP passed through
+     into the signed document. */
+  if (!tendermint_validateBech32Address(delegator_address,
+                                        testnet ? testnetp : mainnetp)) {
     return false;
   }
 
@@ -605,11 +626,13 @@ bool osmosis_signTxUpdateMsgIBCTransfer(const char* amount, const char* sender,
   const char* pfix;
 
   char buffer[128] = {0};
-  size_t decoded_len;
-  char hrp[45] = {0};
-  uint8_t decoded[38] = {0};
-
-  if (!bech32_decode(hrp, decoded, &decoded_len, receiver)) {
+  /* An IBC receiver lives on the COUNTERPARTY chain, so its human-readable
+     part is deliberately not one of ours and cannot be pinned to a prefix.
+     What can be fixed is the decode itself: the previous bare bech32_decode()
+     wrote into hrp[45]/decoded[38], both of which a host can overrun (see
+     tendermint_bech32DecodeChecked()). Check well-formedness with bounded
+     buffers instead. */
+  if (!tendermint_bech32IsWellFormed(receiver)) {
     return false;
   }
 

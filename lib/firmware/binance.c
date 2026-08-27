@@ -107,10 +107,23 @@ bool binance_serializeCoin(const BinanceCoin* coin) {
 }
 
 bool binance_serializeInputOutput(const BinanceInputOutput* io) {
-  size_t decoded_len;
-  char hrp[45];
-  uint8_t decoded[38];
-  if (!bech32_decode(hrp, decoded, &decoded_len, io->address)) {
+  /* io->address is written verbatim into the signed JSON immediately below, so
+     it has to be a Binance ACCOUNT address, not merely a string with a valid
+     bech32 checksum.
+
+     The previous bare bech32_decode() into hrp[45]/decoded[38] checked neither
+     the network nor the payload length, and both buffers were undersized for
+     what a host can send -- see tendermint_bech32DecodeChecked(). A wrong-HRP
+     address, a module address, or a punctuation-bearing HRP therefore reached
+     the signed document.
+
+     Both Binance Chain account prefixes are accepted -- "bnb" for mainnet and
+     "tbnb" for testnet -- because transfers are serialized on either network,
+     and the pinned vectors in unittests/firmware/binance.cpp are testnet. What
+     is refused is everything else: another chain's prefix, a validator or
+     module address, and any payload that is not a 20-byte account. */
+  if (!tendermint_validateBech32Address(io->address, "bnb") &&
+      !tendermint_validateBech32Address(io->address, "tbnb")) {
     return false;
   }
 
