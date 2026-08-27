@@ -3,29 +3,59 @@
 # FAIL FAST — quick checks gate everything, no wasted compute.
 #
 # Stage 1: GATE (seconds, no Docker)
-#   ├─ lint-format        clang-format diff check
-#   ├─ static-analysis    cppcheck static analysis
-#   ├─ secret-scan        gitleaks credential detection
-#   └─ check-submodules   verify all deps present
+#   ├─ lint-format        clang-format check + submodule declarations
+#   ├─ static-analysis    cppcheck static analysis (parallel)
+#   └─ secret-scan        gitleaks credential detection
 #
-# Stage 2: BUILD (parallel, gated by Stage 1)
-#   ├─ build-emulator     Docker image → artifact
-#   └─ build-arm-firmware cross-compile → .bin/.elf (downloadable)
-#
-# Stage 3: TEST (parallel, gated by Stage 2)
-#   ├─ unit-tests              GoogleTest (make xunit)
-#   └─ python-integration      full test suite
+# Stage 2: BUILD + TEST (parallel, gated by Stage 1)
+#   ├─ build-and-test     emulator image → make xunit → python-keepkey suite
+#   ├─ build-arm-firmware cross-compile → .bin/.elf (downloadable)
+#   └─ python-dylib-tests libkkemu.dylib screenshot regression (macOS)
 #
 # Stage 4: PUBLISH (manual trigger, all tests must pass)
 #   └─ publish-emulator   DockerHub push (workflow_dispatch only)
+#
+# Design notes — why it is shaped this way:
+#
+#   The emulator image is built EXACTLY ONCE per run. It used to be built
+#   twice (once in build-emulator, once by `docker compose --build` in
+#   python-integration-tests) and then shipped between jobs as an 845 MB
+#   `docker save` tarball. That tarball cost ~77s to save+upload and ~49s
+#   to download+load, in order to run a test suite that takes 1s. Both
+#   test suites now run in the job that built the image.
+#
+#   The base image is pulled, not cached. The previous actions/cache of a
+#   649 MB `docker save` tar was ref-scoped, so every branch wrote its own
+#   copy; 13 of them were occupying 8.4 GB of the repo's 10 GB cache quota
+#   and evicting each other, which is why it missed on develop anyway.
+#
+#   static-analysis does NOT gate the build. cppcheck is advisory — a style
+#   or portability finding does not mean the firmware is wrong to compile —
+#   and as the slowest Stage 1 job it was serialising the entire pipeline
+#   behind itself. It still fails the run; it just no longer delays it.
+#   lint-format and secret-scan stay in the gate: both finish in ~20s, and
+#   secret-scan in particular should stop a leaked credential before any
+#   artifact is produced from that commit.
 
 name: CI
 
 on:
   push:
     branches: [master, develop, 'feature/**', 'fix/**', 'release/**', 'hotfix/**']
+    # Documentation-only commits do not need two firmware compiles. Note this
+    # skips the workflow entirely rather than reporting a neutral check --
+    # safe here because develop is unprotected and master's only required
+    # context is a CircleCI job that no longer exists in this repo. Revisit
+    # if branch protection starts requiring any CI job below.
+    paths-ignore: &docs_only
+      - '**/*.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/*.md'
   pull_request:
     branches: [master, develop]
+    paths-ignore: *docs_only
   workflow_dispatch:
     inputs:
       publish_emulator:
@@ -34,8 +64,21 @@ on:
         type: boolean
         default: false
 
+# Supersede in-flight runs for the same PR. Pushes to long-lived branches
+# are never cancelled — a half-finished develop/master run tells you less
+# than nothing, and release branches gate real firmware artifacts.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   BASE_IMAGE: kktech/firmware:v15
+  # Pulls of the 650 MB base image from Docker Hub cost ~34s per job. The
+  # same blob served from GHCR to a GitHub-hosted runner is markedly faster
+  # and is not subject to Docker Hub's anonymous pull limits. Populate it
+  # with the mirror-base-image workflow; CI falls back to Docker Hub
+  # automatically when the mirror is absent or unreadable.
+  BASE_IMAGE_MIRROR: ghcr.io/${{ github.repository_owner }}/firmware:v15
   EMU_IMAGE: kkemu-ci
 
 jobs:
@@ -52,25 +95,77 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Install clang-format-20 (pinned stable)
+      # Folded in from the former `check-submodules` job. It is a grep over
+      # .gitmodules that ran for 3s but cost a whole runner spin-up, and it
+      # sat in the `needs:` fan-in of every downstream job.
+      - name: Verify submodules are declared
         run: |
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" | sudo tee /etc/apt/sources.list.d/llvm.list
-          sudo apt-get update -qq && sudo apt-get install -y -qq clang-format-20
-          sudo ln -sf /usr/bin/clang-format-20 /usr/bin/clang-format
+          echo "Checking required submodule declarations..."
+          REQUIRED=(
+            "deps/crypto/trezor-firmware"
+            "deps/device-protocol"
+            "deps/python-keepkey"
+            "deps/googletest"
+            "deps/qrenc/QR-Code-generator"
+            "deps/sca-hardening/SecAESSTM32"
+          )
+          FAILED=0
+          for sub in "${REQUIRED[@]}"; do
+            if ! grep -q "$sub" .gitmodules; then
+              echo "::error::Missing required submodule: $sub"
+              FAILED=1
+            else
+              echo "  ✓ $sub"
+            fi
+          done
+          [ "$FAILED" = "0" ] || exit 1
+
+      # PyPI wheel instead of the LLVM apt repo. Same upstream binary,
+      # pinned just as tightly, without `apt-get update` against
+      # apt.llvm.org on every run.
+      - name: Install clang-format 20 (pinned stable)
+        run: |
+          python3 -m pip install --quiet --upgrade "clang-format==20.1.8"
+          clang-format --version
 
       - name: Check code formatting
         run: |
           echo "Using: $(clang-format --version)"
-          FAILED=0
-          for f in $(find include/keepkey lib/firmware lib/board lib/transport/src \
-                     -name '*.c' -o -name '*.h' 2>/dev/null | grep -v generated | grep -v '.pb.'); do
-            if ! clang-format --style=file --dry-run --Werror "$f" 2>/dev/null; then
-              echo "::warning file=$f::Formatting differs from .clang-format"
-              FAILED=1
-            fi
-          done
-          if [ "$FAILED" = "1" ]; then
+          # xargs -P fans the per-file checks across the runner's cores; each
+          # clang-format invocation is independent, so the only thing needing
+          # coordination is the exit status, which xargs aggregates (123 if
+          # any child failed).
+          #
+          # The pipeline is the `if` condition rather than a bare command
+          # because GitHub runs `run:` blocks under `bash -e` -- a bare
+          # failing pipeline would abort the step immediately and swallow the
+          # remediation message below. Inside an `if`, -e is suspended.
+          #
+          # shellcheck disable=SC2016  # $1 is expanded by the inner sh, not here
+          # lib/transport/src has never existed in this repo -- the transport
+          # sources sit directly in lib/transport/. The path silently
+          # contributed nothing because find's error went to /dev/null.
+          # Dropped, and stderr is no longer suppressed, so a future bad path
+          # is loud instead of quietly narrowing coverage.
+          #
+          # lib/transport itself is deliberately NOT scanned: it holds the
+          # vendored nanopb runtime (pb_common.c, pb_decode.c, pb_encode.c).
+          # pb_decode.c does not satisfy this repo's .clang-format, and
+          # reformatting vendored upstream sources would make future nanopb
+          # updates needlessly painful.
+          #
+          # The name tests are parenthesised so the implicit -print
+          # unambiguously applies to both branches.
+          if ! find include/keepkey lib/firmware lib/board \
+                    \( -name '*.c' -o -name '*.h' \) \
+               | grep -v generated | grep -vF '.pb.' \
+               | xargs -P "$(nproc)" -I{} sh -c '
+                   if ! clang-format --style=file --dry-run --Werror "$1" 2>/dev/null; then
+                     echo "::warning file=$1::Formatting differs from .clang-format"
+                     exit 1
+                   fi
+                 ' _ {}
+          then
             echo ""
             echo "::error::Code formatting check failed. Run: clang-format -i <file> to fix."
             exit 1
@@ -121,12 +216,21 @@ jobs:
 
       - name: Run cppcheck
         run: |
+          # `|| CPPCHECK_RC=$?` rather than `; CPPCHECK_RC=$?`. cppcheck is run
+          # with --error-exitcode=1, so it returns non-zero whenever it finds
+          # anything -- and `run:` steps execute under `bash -e`, which means
+          # the step died right here on exactly the runs that have findings.
+          # The `cat` that emits the ::warning file= annotations and the
+          # severity summary below never ran, leaving a bare failure with no
+          # diagnostics. A command in an `||` list is exempt from -e.
+          CPPCHECK_RC=0
           cppcheck \
             --enable=warning,style,performance,portability \
             --std=c11 \
             --platform=unspecified \
             --inconclusive \
             --force \
+            -j8 \
             --inline-suppr \
             --suppressions-list=.cppcheck-suppressions \
             -I include \
@@ -141,7 +245,7 @@ jobs:
             --template='::warning file={file},line={line},col={column}::{severity}: {message} [{id}]' \
             --output-file=cppcheck_report.txt \
             --error-exitcode=1 \
-            lib/ include/keepkey/ tools/ 2>&1; CPPCHECK_RC=$?
+            lib/ include/keepkey/ tools/ 2>&1 || CPPCHECK_RC=$?
 
           # Count issues by severity
           ERRORS=$(grep -c '\berror:' cppcheck_report.txt 2>/dev/null || true)
@@ -185,45 +289,22 @@ jobs:
           path: cppcheck_report.txt
           retention-days: 30
 
-  check-submodules:
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Verify submodules are declared
-        run: |
-          echo "Checking required submodule declarations..."
-          REQUIRED=(
-            "deps/crypto/trezor-firmware"
-            "deps/device-protocol"
-            "deps/python-keepkey"
-            "deps/googletest"
-            "deps/qrenc/QR-Code-generator"
-            "deps/sca-hardening/SecAESSTM32"
-          )
-          FAILED=0
-          for sub in "${REQUIRED[@]}"; do
-            if ! grep -q "$sub" .gitmodules; then
-              echo "::error::Missing required submodule: $sub"
-              FAILED=1
-            else
-              echo "  ✓ $sub"
-            fi
-          done
-          [ "$FAILED" = "0" ] || exit 1
-
   # ═══════════════════════════════════════════════════════════
-  # STAGE 2: BUILD — compile only after gate passes
+  # STAGE 2: BUILD + TEST — compile once, test in place
   # ═══════════════════════════════════════════════════════════
 
-  build-emulator:
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
+  # Replaces the former build-emulator + unit-tests + python-integration-tests
+  # trio. Those three jobs built the emulator image twice and moved 845 MB of
+  # `docker save` tarball between runners to run suites that take 1s and 11s
+  # respectively. Both suites now run against the image in the job that built
+  # it, so the tarball only has to exist when it is actually published.
+  build-and-test:
+    needs: [lint-format, secret-scan]
+    permissions:
+      contents: read
+      packages: read
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -232,32 +313,64 @@ jobs:
 
       - name: Init submodules
         run: |
-          git submodule update --init deps/crypto/trezor-firmware
-          git submodule update --init deps/device-protocol
-          git submodule update --init --recursive deps/python-keepkey
-          git submodule update --init deps/googletest
-          git submodule update --init deps/qrenc/QR-Code-generator
-          git submodule update --init deps/sca-hardening/SecAESSTM32
+          # --jobs 4 clones these in parallel. Only python-keepkey is
+          # --recursive: trezor-firmware declares 9 nested submodules that
+          # this build does not use, and pulling them would cost more than
+          # the parallelism saves.
+          git submodule update --init --jobs 4 \
+            deps/crypto/trezor-firmware \
+            deps/device-protocol \
+            deps/googletest \
+            deps/qrenc/QR-Code-generator \
+            deps/sca-hardening/SecAESSTM32
+          git submodule update --init --recursive --jobs 4 deps/python-keepkey
+
+      # continue-on-error because the mirror is optional by design. Without
+      # it a GHCR outage, a revoked package grant, or a token hiccup fails the
+      # job here -- before the Docker Hub fallback this login exists to enable
+      # ever gets a chance to run. A failed login simply means the subsequent
+      # mirror pull is unauthenticated, which takes the fallback path.
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        continue-on-error: true
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Cache base image
-        id: cache-base
-        uses: actions/cache@v5
-        with:
-          path: /tmp/base-image.tar
-          key: base-image-${{ env.BASE_IMAGE }}
-
-      - name: Pull and cache base image
-        if: steps.cache-base.outputs.cache-hit != 'true'
+      - name: Pull base image
         run: |
-          docker pull ${{ env.BASE_IMAGE }}
-          docker save ${{ env.BASE_IMAGE }} -o /tmp/base-image.tar
-
-      - name: Load base image from cache
-        if: steps.cache-base.outputs.cache-hit == 'true'
-        run: docker load -i /tmp/base-image.tar
+          # Two consumers, resolved differently:
+          #
+          #  1. `docker build` for the emulator image uses the classic builder,
+          #     which reads the local daemon image store. Re-tagging the mirror
+          #     to the Docker Hub name satisfies the `FROM kktech/firmware:v15`
+          #     in scripts/emulator/Dockerfile with no registry round-trip.
+          #
+          #  2. buildx (docker/build-push-action) uses the docker-container
+          #     driver, which does NOT see daemon-local images and resolves
+          #     FROM against a registry. Re-tagging alone silently left it
+          #     pulling from Docker Hub -- confirmed in run 33046944618, which
+          #     logged `[auth] kktech/firmware:pull token for
+          #     registry-1.docker.io` during the buildx step. RESOLVED_BASE is
+          #     therefore exported and passed to that build as a build-arg.
+          #
+          # stderr is deliberately not suppressed: the fallback stops a mirror
+          # problem being fatal, but hiding the error makes auth vs missing tag
+          # vs transient network indistinguishable.
+          if docker pull "${{ env.BASE_IMAGE_MIRROR }}"; then
+            docker tag "${{ env.BASE_IMAGE_MIRROR }}" "${{ env.BASE_IMAGE }}"
+            echo "RESOLVED_BASE=${{ env.BASE_IMAGE_MIRROR }}" >> "$GITHUB_ENV"
+            echo "base image: GHCR mirror"
+          else
+            echo "::warning::GHCR mirror unavailable — falling back to Docker Hub. Run the mirror-base-image workflow to populate it."
+            docker pull "${{ env.BASE_IMAGE }}"
+            echo "RESOLVED_BASE=${{ env.BASE_IMAGE }}" >> "$GITHUB_ENV"
+            echo "base image: Docker Hub"
+          fi
 
       - name: Build emulator image
         run: |
@@ -265,19 +378,243 @@ jobs:
             -t ${{ env.EMU_IMAGE }} \
             -f scripts/emulator/Dockerfile \
             .
+          # docker-compose.yml declares `image: kktech/kkemu:latest` on the
+          # kkemu service. Tagging the image we just built under that name is
+          # what stops `docker compose up` from rebuilding it: compose only
+          # builds a service when its image is absent or --build is passed.
+          docker tag ${{ env.EMU_IMAGE }} kktech/kkemu:latest
 
-      - name: Save emulator image
+      - name: Run firmware unit tests (make xunit)
+        run: |
+          # make xunit returns non-zero if any test fails — capture
+          # exit code so JUnit XML still gets copied for reporting
+          mkdir -p ${{ github.workspace }}/test-reports
+          # `|| UNIT_RC=$?` rather than a bare command: `run:` steps execute
+          # under `bash -e`, so a failing suite would abort the step here and
+          # skip the python integration suite entirely. These used to be
+          # separate jobs, where one red suite never suppressed the other.
+          # Both now run every time and the verdict is applied at the end.
+          UNIT_RC=0
+          docker run --rm \
+            -v ${{ github.workspace }}/test-reports:/kkemu/test-reports \
+            --entrypoint /bin/sh \
+            ${{ env.EMU_IMAGE }} \
+            -c "mkdir -p /kkemu/test-reports/firmware-unit && \
+                make xunit; RC=\$?; \
+                cp -r unittests/*.xml /kkemu/test-reports/firmware-unit/ 2>/dev/null; \
+                exit \$RC" || UNIT_RC=$?
+          echo "UNIT_RC=$UNIT_RC" >> "$GITHUB_ENV"
+          echo "firmware unit suite exit code: $UNIT_RC"
+
+          # The cp above sends its errors to /dev/null, so a build that stops
+          # emitting JUnit XML -- or a glob that stops matching -- would sail
+          # through and leave the report rendering "0 tests" with nothing
+          # objecting. That is the same silent-evidence-loss failure the
+          # python side hit earlier on this branch, so it is gated the same
+          # way: no XML is an infrastructure failure, distinct from a test
+          # failure, and it fails here rather than being discovered in a PDF.
+          if ! compgen -G "${{ github.workspace }}/test-reports/firmware-unit/*.xml" > /dev/null; then
+            echo "::error::make xunit produced no JUnit XML (suite exit code $UNIT_RC) — unit test evidence was lost"
+            exit 1
+          fi
+          # That container runs as root and leaves root-owned paths behind in
+          # the bind mount. The `docker cp` in the integration step below
+          # chmods what it extracts into, and a root-owned directory there
+          # makes it fail outright -- copying nothing. This did not arise when
+          # the two suites lived in separate jobs, each with a pristine
+          # test-reports/.
+          sudo chown -R "$(id -u):$(id -g)" "${{ github.workspace }}/test-reports"
+
+      # The pip layer here builds the cytoolz C extension against musl, which
+      # measured 36.8s, plus ~8s for the apk layer. Those are worth caching.
+      # The COPY layer below them is NOT: it ships the whole build context,
+      # and it is invalidated by every commit, so it can never produce a hit.
+      #
+      # Caching the whole image is therefore a net loss, and measurably so --
+      # a first attempt with cache-to on the full image spent 103.9s in
+      # "exporting to GitHub Actions Cache" to save 36.8s of pip. Hence the
+      # split: cache-to on the `deps` target only, and cache-from (never
+      # cache-to) on the image that adds COPY.
+      #
+      # build-push-action rather than a `run:` step on purpose: the type=gha
+      # cache backend needs ACTIONS_RUNTIME_TOKEN and ACTIONS_CACHE_URL, and
+      # GitHub injects those into actions but NOT into `run:` shells. Driving
+      # buildx from a shell step here would warn and export nothing -- a cache
+      # that looks configured and silently does no work.
+      - name: Build python-keepkey dependency layers
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: scripts/emulator/python-keepkey.Dockerfile
+          target: deps
+          tags: kkemu-tests-deps:latest
+          load: true
+          push: false
+          build-args: |
+            BASE_IMAGE=${{ env.RESOLVED_BASE }}
+          cache-from: type=gha,scope=python-keepkey-deps
+          cache-to: type=gha,mode=max,scope=python-keepkey-deps
+
+      # No cache-to here -- see above. The tag matches `image:` on the
+      # python-keepkey compose service, so `docker compose up` reuses this
+      # instead of rebuilding it.
+      - name: Build python-keepkey test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: scripts/emulator/python-keepkey.Dockerfile
+          tags: kktech/kkemu-tests:latest
+          load: true
+          push: false
+          build-args: |
+            BASE_IMAGE=${{ env.RESOLVED_BASE }}
+          cache-from: type=gha,scope=python-keepkey-deps
+
+      - name: Run python-keepkey integration suite
+        working-directory: scripts/emulator
+        run: |
+          # No --build: kkemu resolves to the image tagged above, and
+          # python-keepkey was built in the previous step. --build here
+          # would force both to be rebuilt from scratch.
+          # `|| PY_RC=$?` rather than `; PY_RC=$?`: under `bash -e` a failing
+          # compose run aborts the step immediately, so none of the extraction
+          # or gating below would execute -- losing the reports on exactly the
+          # run where they matter most. A command in an `||` list is exempt
+          # from -e.
+          PY_RC=0
+          docker compose up --exit-code-from python-keepkey python-keepkey || PY_RC=$?
+
+          echo "=== Extracting test reports from Docker ==="
+          PY_CONTAINER=$(docker compose ps -a -q python-keepkey)
+          if [ -z "$PY_CONTAINER" ]; then
+            echo "::error::could not resolve the python-keepkey container to extract reports from"
+            exit 1
+          fi
+          docker cp "$PY_CONTAINER":/kkemu/test-reports/. "${{ github.workspace }}/test-reports/"
+
+          echo "=== Extracted files ==="
+          find ${{ github.workspace }}/test-reports -type f | head -30
+          PNGS=$(find ${{ github.workspace }}/test-reports/screenshots -name '*.png' 2>/dev/null | wc -l)
+          echo "=== Screenshot PNGs on host: $PNGS ==="
+
+          # Extraction is gated, not warned about. A silent `docker cp` failure
+          # previously let this job go green having lost every integration
+          # result: 437 tests and 310 screenshots stayed inside the container,
+          # the artifacts uploaded empty, and the report PDF rendered
+          # "0 passed, 0 failed". Losing test evidence must fail the run.
+          JUNIT="${{ github.workspace }}/test-reports/python-keepkey/junit.xml"
+          if [ ! -s "$JUNIT" ]; then
+            echo "::error::python-keepkey junit.xml missing or empty after extraction — test results were lost"
+            exit 1
+          fi
+          if [ "$PNGS" -eq 0 ]; then
+            echo "::error::no OLED screenshots extracted — the screenshot pipeline or the extraction is broken"
+            exit 1
+          fi
+
+          echo "PY_RC=$PY_RC" >> "$GITHUB_ENV"
+          echo "python-keepkey exit code: $PY_RC"
+
+      - name: Upload unit test results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: unit-test-results
+          path: test-reports/firmware-unit/
+          retention-days: 30
+
+      - name: Upload Python test results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: python-test-results
+          path: test-reports/python-keepkey/
+          retention-days: 30
+
+      - name: Upload OLED screenshots
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: oled-screenshots
+          path: test-reports/screenshots/
+          retention-days: 90
+          if-no-files-found: warn
+
+      # Only materialised for the publish path. On a normal push or PR this
+      # is 845 MB of save + upload that nothing downstream consumes.
+      - name: Save emulator image for publish
+        if: >-
+          github.event_name == 'workflow_dispatch' &&
+          github.event.inputs.publish_emulator == 'true'
         run: docker save ${{ env.EMU_IMAGE }} -o /tmp/emu-image.tar
 
       - name: Upload emulator image artifact
+        if: >-
+          github.event_name == 'workflow_dispatch' &&
+          github.event.inputs.publish_emulator == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: emu-image
           path: /tmp/emu-image.tar
           retention-days: 1
 
+      # Folded in from the former `generate-test-report` job. Every input it
+      # needs is already on this runner: the three report directories, the
+      # checkout, and the python-keepkey submodule. As a separate job it paid
+      # a runner spin-up plus three artifact downloads to reassemble state
+      # that had just been torn down. The script is pure stdlib.
+      #
+      # if: always() throughout, so a red test run still produces its report
+      # -- that is the run where the PDF matters most.
+      - name: Extract firmware version
+        id: version
+        if: always()
+        run: |
+          FW_VERSION=$(sed -n '/^project/,/)/p' CMakeLists.txt | grep -oP '\d+\.\d+\.\d+' || echo "unknown")
+          echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate test report PDF
+        if: always()
+        env:
+          FW_VERSION: ${{ steps.version.outputs.fw_version }}
+          KK_BUILD_LABEL: ${{ github.head_ref || github.ref_name }}@${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 scripts/generate-test-report.py
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: test-report
+          path: test-report.pdf
+          retention-days: 90
+
+      # The verdict is applied here, once, after both suites have run and every
+      # artifact has been captured. Failing at the point of the first red suite
+      # would skip the second one and truncate the evidence.
+      - name: Test suite verdict
+        if: always()
+        run: |
+          RC=0
+          if [ "${UNIT_RC:-1}" -ne 0 ]; then
+            echo "::error::firmware unit tests failed (exit code ${UNIT_RC:-unknown})"
+            RC=1
+          fi
+          if [ "${PY_RC:-1}" -ne 0 ]; then
+            echo "::error::python-keepkey tests failed (exit code ${PY_RC:-unknown})"
+            RC=1
+          fi
+          [ "$RC" = "0" ] && echo "both suites passed"
+          exit "$RC"
+
+      # No `docker compose down` -- this runner is destroyed within seconds
+      # of the job ending, so tearing down containers and volumes was ~10s
+      # spent tidying a machine that is about to cease to exist.
+
   build-arm-firmware:
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
+    needs: [lint-format, secret-scan]
+    permissions:
+      contents: read
+      packages: read
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -288,29 +625,50 @@ jobs:
 
       - name: Init submodules
         run: |
-          git submodule update --init deps/crypto/trezor-firmware
-          git submodule update --init deps/device-protocol
-          git submodule update --init --recursive deps/python-keepkey
-          git submodule update --init deps/googletest
-          git submodule update --init deps/qrenc/QR-Code-generator
-          git submodule update --init deps/sca-hardening/SecAESSTM32
+          # --jobs 4 clones these in parallel. Only python-keepkey is
+          # --recursive: trezor-firmware declares 9 nested submodules that
+          # this build does not use, and pulling them would cost more than
+          # the parallelism saves.
+          git submodule update --init --jobs 4 \
+            deps/crypto/trezor-firmware \
+            deps/device-protocol \
+            deps/googletest \
+            deps/qrenc/QR-Code-generator \
+            deps/sca-hardening/SecAESSTM32
+          git submodule update --init --recursive --jobs 4 deps/python-keepkey
 
-      - name: Cache base image
-        id: cache-base
-        uses: actions/cache@v5
+      # continue-on-error because the mirror is optional by design. Without
+      # it a GHCR outage, a revoked package grant, or a token hiccup fails the
+      # job here -- before the Docker Hub fallback this login exists to enable
+      # ever gets a chance to run. A failed login simply means the subsequent
+      # mirror pull is unauthenticated, which takes the fallback path.
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        continue-on-error: true
         with:
-          path: /tmp/base-image.tar
-          key: base-image-${{ env.BASE_IMAGE }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull and cache base image
-        if: steps.cache-base.outputs.cache-hit != 'true'
+      - name: Pull base image
         run: |
-          docker pull ${{ env.BASE_IMAGE }}
-          docker save ${{ env.BASE_IMAGE }} -o /tmp/base-image.tar
-
-      - name: Load base image from cache
-        if: steps.cache-base.outputs.cache-hit == 'true'
-        run: docker load -i /tmp/base-image.tar
+          # This job runs the toolchain with `docker run`, so it only needs the
+          # image present in the local daemon store under its Docker Hub name.
+          # No buildx here, and so no RESOLVED_BASE -- see build-and-test,
+          # which does need both because buildx resolves FROM against a
+          # registry rather than the daemon.
+          #
+          # stderr is deliberately not suppressed: the fallback stops a mirror
+          # problem being fatal, but hiding the error makes auth vs missing tag
+          # vs transient network indistinguishable.
+          if docker pull "${{ env.BASE_IMAGE_MIRROR }}"; then
+            docker tag "${{ env.BASE_IMAGE_MIRROR }}" "${{ env.BASE_IMAGE }}"
+            echo "base image: GHCR mirror"
+          else
+            echo "::warning::GHCR mirror unavailable — falling back to Docker Hub. Run the mirror-base-image workflow to populate it."
+            docker pull "${{ env.BASE_IMAGE }}"
+            echo "base image: Docker Hub"
+          fi
 
       - name: Extract firmware version
         id: version
@@ -360,119 +718,6 @@ jobs:
           retention-days: 90
 
   # ═══════════════════════════════════════════════════════════
-  # STAGE 3: TEST — run only after builds succeed
-  # ═══════════════════════════════════════════════════════════
-
-  unit-tests:
-    needs: build-emulator
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Download emulator image
-        uses: actions/download-artifact@v8
-        with:
-          name: emu-image
-          path: /tmp
-
-      - name: Load emulator image
-        run: docker load -i /tmp/emu-image.tar
-
-      - name: Run unit tests
-        run: |
-          # make xunit returns non-zero if any test fails — capture
-          # exit code so JUnit XML still gets copied for reporting
-          docker run --rm \
-            -v ${{ github.workspace }}/test-reports:/kkemu/test-reports \
-            --entrypoint /bin/sh \
-            ${{ env.EMU_IMAGE }} \
-            -c "mkdir -p /kkemu/test-reports/firmware-unit && \
-                make xunit; RC=\$?; \
-                cp -r unittests/*.xml /kkemu/test-reports/firmware-unit/ 2>/dev/null; \
-                exit \$RC"
-
-      - name: Upload unit test results
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: unit-test-results
-          path: test-reports/firmware-unit/
-          retention-days: 30
-
-  python-integration-tests:
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Init submodules
-        run: |
-          git submodule update --init deps/crypto/trezor-firmware
-          git submodule update --init deps/device-protocol
-          git submodule update --init --recursive deps/python-keepkey
-          git submodule update --init deps/googletest
-          git submodule update --init deps/qrenc/QR-Code-generator
-          git submodule update --init deps/sca-hardening/SecAESSTM32
-
-      - name: Build and run tests (docker compose)
-        working-directory: scripts/emulator
-        run: |
-          # Run each test container — capture exit codes, always extract reports
-          docker compose up --build --exit-code-from firmware-unit firmware-unit; FW_RC=$?
-          docker compose up --build --exit-code-from python-keepkey python-keepkey; PY_RC=$?
-
-          mkdir -p ${{ github.workspace }}/test-reports
-
-          echo "=== Extracting test reports from Docker ==="
-          PY_CONTAINER=$(docker compose ps -a -q python-keepkey)
-          FW_CONTAINER=$(docker compose ps -a -q firmware-unit)
-
-          docker cp "$FW_CONTAINER":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ || echo "WARN: firmware-unit docker cp failed"
-          docker cp "$PY_CONTAINER":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ || echo "WARN: python-keepkey docker cp failed"
-
-          echo "=== Extracted files ==="
-          find ${{ github.workspace }}/test-reports -type f | head -30
-          echo "=== Screenshot PNGs ==="
-          find ${{ github.workspace }}/test-reports/screenshots -name '*.png' 2>/dev/null | wc -l
-          echo "PNGs on host"
-
-          echo "firmware-unit exit code: $FW_RC"
-          echo "python-keepkey exit code: $PY_RC"
-
-          if [ "$FW_RC" -ne 0 ]; then
-            echo "::error::firmware-unit tests failed (exit code $FW_RC)"
-          fi
-          if [ "$PY_RC" -ne 0 ]; then
-            echo "::error::python-keepkey tests failed (exit code $PY_RC)"
-          fi
-          [ "$FW_RC" -eq 0 ] && [ "$PY_RC" -eq 0 ] || exit 1
-
-      - name: Upload Python test results
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: python-test-results
-          path: test-reports/python-keepkey/
-          retention-days: 30
-
-      - name: Upload OLED screenshots
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: oled-screenshots
-          path: test-reports/screenshots/
-          retention-days: 90
-          if-no-files-found: warn
-
-      - name: Tear down
-        if: always()
-        working-directory: scripts/emulator
-        run: docker compose down -v || true
-
-  # ═══════════════════════════════════════════════════════════
   # STAGE 3a-bis: DYLIB TESTS — libkkemu shared lib via python-keepkey
   # ═══════════════════════════════════════════════════════════
   # Builds the firmware emulator as a shared library (libkkemu.dylib on
@@ -486,7 +731,7 @@ jobs:
   # Fixing requires deduping the symbol — out of scope for this PR.
   # TODO: enable ubuntu-latest in a follow-up after the symbol cleanup.
   #
-  # Why a separate job from python-integration-tests:
+  # Why a separate job from the build-and-test suite:
   #   - Different artifact: .dylib (in-process FFI), not the kkemu
   #     UDP binary the existing job builds.
   #   - Different transport in tests: KK_TRANSPORT=dylib instead of UDP.
@@ -504,7 +749,7 @@ jobs:
   #     fsm_msgDebugLinkGetState is excluded from the build and any
   #     read_layout() call hangs the test).
   python-dylib-tests:
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
+    needs: [lint-format, secret-scan]
     runs-on: macos-latest
     timeout-minutes: 25
     steps:
@@ -515,11 +760,16 @@ jobs:
 
       - name: Init submodules
         run: |
-          git submodule update --init deps/crypto/trezor-firmware
-          git submodule update --init deps/device-protocol
-          git submodule update --init --recursive deps/python-keepkey
-          git submodule update --init deps/qrenc/QR-Code-generator
-          git submodule update --init deps/sca-hardening/SecAESSTM32
+          # --jobs 4 clones these in parallel. Only python-keepkey is
+          # --recursive: trezor-firmware declares 9 nested submodules that
+          # this build does not use, and pulling them would cost more than
+          # the parallelism saves.
+          git submodule update --init --jobs 4 \
+            deps/crypto/trezor-firmware \
+            deps/device-protocol \
+            deps/qrenc/QR-Code-generator \
+            deps/sca-hardening/SecAESSTM32
+          git submodule update --init --recursive --jobs 4 deps/python-keepkey
           # CMakeLists.txt requires googletest unconditionally even when
           # we only build the dylib target — the project's add_subdirectory
           # for it runs at configure time, before any target selection.
@@ -529,6 +779,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+          cache: 'pip'
 
       - name: Install pinned Python deps
         run: |
@@ -537,6 +788,13 @@ jobs:
           # is needed by lib/firmware's ethereum_tokens.def build step
           # (it fetches token-list JSON at compile time).
           pip install "protobuf==3.20.3" "nanopb==0.3.9.4.post3" requests
+
+      - name: Cache pinned protoc
+        id: cache-protoc
+        uses: actions/cache@v5
+        with:
+          path: /tmp/protoc.zip
+          key: protoc-21.12-osx-aarch_64
 
       - name: Install pinned protoc 3.21
         run: |
@@ -548,8 +806,13 @@ jobs:
           # both drop the leading 3.
           PROTOC_VERSION=21.12
           PROTOC_ASSET="protoc-${PROTOC_VERSION}-osx-aarch_64.zip"
-          curl -sSL -fL -o /tmp/protoc.zip \
-            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ASSET}"
+          # -s not -f: a cache entry can restore empty or truncated, and
+          # existence alone would skip the download and hand unzip a bad file
+          # with no retry.
+          if [ ! -s /tmp/protoc.zip ]; then
+            curl -sSL -fL -o /tmp/protoc.zip \
+              "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ASSET}"
+          fi
           # `-f` makes curl fail-fast on HTTP errors so we don't unzip
           # a 404 HTML page.
           file /tmp/protoc.zip
@@ -633,7 +896,7 @@ jobs:
         # PR. Tagged with the short commit SHA so multiple PR pushes
         # don't overwrite each other when a reviewer downloads them.
         if: always() && env.DYLIB_PATH != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: libkkemu-${{ github.sha }}
           path: ${{ env.DYLIB_PATH }}
@@ -645,7 +908,7 @@ jobs:
         run: |
           pip install -e .
           # python-keepkey's setup.py doesn't list pytest as a dep;
-          # the existing python-integration-tests job runs inside a
+          # the build-and-test integration suite runs inside a
           # Docker image that has it baked. We're running on a vanilla
           # macos runner so we install it explicitly. Pin pytest-timeout
           # too — even though pytest-timeout can't break the dylib's C
@@ -666,7 +929,7 @@ jobs:
             -v --tb=short --junit-xml=../../../test-reports/dylib-junit.xml
 
       - name: Upload dylib test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: python-dylib-test-results
@@ -675,70 +938,20 @@ jobs:
           if-no-files-found: warn
 
   # ═══════════════════════════════════════════════════════════
-  # STAGE 3b: TEST REPORT — generate PDF from test artifacts
-  # ═══════════════════════════════════════════════════════════
-
-  generate-test-report:
-    needs: [unit-tests, python-integration-tests]
-    if: always()
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Download unit test results
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: unit-test-results
-          path: test-reports/firmware-unit/
-
-      - name: Download python test results
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: python-test-results
-          path: test-reports/python-keepkey/
-
-      - name: Download OLED screenshots
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: oled-screenshots
-          path: test-reports/screenshots/
-
-      - name: Extract firmware version
-        id: version
-        run: |
-          FW_VERSION=$(sed -n '/^project/,/)/p' CMakeLists.txt | grep -oP '\d+\.\d+\.\d+' || echo "unknown")
-          echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
-
-      - name: Init python-keepkey submodule
-        run: git submodule update --init deps/python-keepkey
-
-      - name: Generate test report PDF
-        env:
-          FW_VERSION: ${{ steps.version.outputs.fw_version }}
-          KK_BUILD_LABEL: ${{ github.head_ref || github.ref_name }}@${{ github.event.pull_request.head.sha || github.sha }}
-        run: python3 scripts/generate-test-report.py
-
-      - name: Upload test report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-report
-          path: test-report.pdf
-          retention-days: 90
-
-  # ═══════════════════════════════════════════════════════════
   # STAGE 4: PUBLISH — manual trigger only, all tests must pass
   # ═══════════════════════════════════════════════════════════
 
   publish-emulator:
-    needs: [unit-tests, python-integration-tests, python-dylib-tests, build-arm-firmware]
+    # static-analysis is listed explicitly even though it gates nothing else.
+    # Taking it out of the *build* gate was a deliberate wall-clock trade: a
+    # cppcheck finding does not mean the firmware is wrong to compile, so it
+    # should not hold up compiling. Publishing is a different question. These
+    # images are pushed to DockerHub under kktech/kkemu and consumed
+    # downstream, and before the jobs were merged publish inherited the
+    # cppcheck gate transitively through the build jobs. Dropping it here
+    # would have meant a dispatch could publish artifacts from a commit with
+    # cppcheck red. The run is manual and already slow; the gate is free.
+    needs: [build-and-test, python-dylib-tests, build-arm-firmware, static-analysis]
     if: >-
       github.event_name == 'workflow_dispatch' &&
       github.event.inputs.publish_emulator == 'true'
