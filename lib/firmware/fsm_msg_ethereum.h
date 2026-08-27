@@ -125,9 +125,21 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress* msg) {
                                     msg->address_n_count, NULL);
   if (!node) return;
 
-  resp->address.size = 20;
+  /* Build the whole answer in LOCALS and commit it to `resp` only after the
+   * confirmation.
+   *
+   * `resp` aliases fsm.c's single msg_resp buffer, and confirm_* below runs a
+   * message loop: every DebugLink request the emulator harness makes while a
+   * screen is up is dispatched from inside it, and those handlers RESP_INIT
+   * the same buffer. Anything staged in `resp` before the screen is therefore
+   * live across an arbitrary number of foreign writes to it -- which is how
+   * EthereumAddress.address_str reached the host as undecodable bytes.
+   *
+   * fsm_msgNanoGetAddress() already builds into a local and assigns after its
+   * confirm; this handler was the one that staged first. */
+  uint8_t pubkeyhash[20] = {0};
 
-  if (!hdnode_get_ethereum_pubkeyhash(node, resp->address.bytes)) {
+  if (!hdnode_get_ethereum_pubkeyhash(node, pubkeyhash)) {
     memzero(node, sizeof(*node));
     return;
   }
@@ -153,11 +165,7 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress* msg) {
   }
 
   char address[43] = {'0', 'x'};
-  ethereum_address_checksum(resp->address.bytes, address + 2, rskip60,
-                            chain_id);
-
-  resp->has_address_str = true;
-  strlcpy(resp->address_str, address, sizeof(resp->address_str));
+  ethereum_address_checksum(pubkeyhash, address + 2, rskip60, chain_id);
 
   if (msg->has_show_display && msg->show_display) {
     char node_str[NODE_STRING_LENGTH];
@@ -181,6 +189,13 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress* msg) {
   }
 
   memzero(node, sizeof(*node));
+
+  /* Only now, with no further message loop between here and the write. */
+  resp->address.size = sizeof(pubkeyhash);
+  memcpy(resp->address.bytes, pubkeyhash, sizeof(pubkeyhash));
+  resp->has_address_str = true;
+  strlcpy(resp->address_str, address, sizeof(resp->address_str));
+
   msg_write(MessageType_MessageType_EthereumAddress, resp);
   layoutHome();
 }
