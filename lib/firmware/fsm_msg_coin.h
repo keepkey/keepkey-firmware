@@ -280,6 +280,18 @@ void fsm_msgSignMessage(SignMessage* msg) {
 
   CHECK_INITIALIZED
 
+  /* A zero-length message is not a message. confirm_bytes() renders size 0 as
+     the literal "(empty)" and returns whatever the owner pressed, so without
+     this the device would sign a payload no screen ever showed -- the same
+     hole already closed on the TON and Solana paths. (`message` is a required
+     field here, so nanopb rejects an omitted one during decode; only the empty
+     case reaches this far.) */
+  if (msg->message.size == 0) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError, _("Missing message"));
+    layoutHome();
+    return;
+  }
+
   const CoinType* coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
   if (!coin) return;
 

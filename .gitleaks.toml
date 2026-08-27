@@ -3,14 +3,21 @@ title = "KeepKey firmware gitleaks configuration"
 [extend]
 useDefault = true
 
-# Published U2F attestation material and historical vendored test vectors.
+# Published U2F attestation material and vendored third-party code.
+#
+# Deliberately NOT allowlisted: any first-party test tree. An earlier revision
+# carried '''^tests/''' here, which turned off secret detection for every
+# first-party test present or future -- a real credential committed under it
+# would have passed CI. No such directory exists in this repository, so the
+# entry exempted nothing and only stood ready to exempt something later. If a
+# fixture ever does trip a rule, allowlist that path or its fingerprint, not
+# the tree above it.
 [[allowlists]]
-description = "Public device material and third-party historical fixtures"
+description = "Public device material and vendored third-party code"
 paths = [
   '''include/keepkey/firmware/u2f/trezordevkey\.pem''',
   '''include/keepkey/firmware/u2f/u2f_keys\.h''',
   '''^deps/''',
-  '''^tests/''',
 ]
 
 [[allowlists]]

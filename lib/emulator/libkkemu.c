@@ -15,6 +15,7 @@
 #include "keepkey/board/usb.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/board/timer.h"
+#include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
@@ -192,6 +193,22 @@ int kkemu_init(uint8_t* flash_buf, size_t flash_len) {
 
 void kkemu_shutdown(void) {
   if (!libkkemu_initialized) return;
+
+  /*
+   * End any workflow still in flight BEFORE anything else.
+   *
+   * The buffer scrubbing below covers the transport rings and the frame ring,
+   * but signing state and fsm_derived_node -- the shared derived private-key
+   * scratch -- live behind fsm_abort_workflows(), which nothing here was
+   * calling. In the dylib case this file is written for, the library sits in a
+   * long-running host process, so a shutdown/init cycle would carry an old
+   * workflow and its key material across into the next session. That is the
+   * same exposure the comment below describes, and it needs the same answer.
+   *
+   * Before storage_commit() so the committed image reflects the aborted state
+   * rather than a half-finished ceremony.
+   */
+  fsm_abort_workflows();
 
   /* Flush any pending storage to the flash buffer */
   storage_commit();
