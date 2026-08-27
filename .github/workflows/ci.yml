@@ -142,8 +142,22 @@ jobs:
           # remediation message below. Inside an `if`, -e is suspended.
           #
           # shellcheck disable=SC2016  # $1 is expanded by the inner sh, not here
-          if ! find include/keepkey lib/firmware lib/board lib/transport/src \
-                    -name '*.c' -o -name '*.h' 2>/dev/null \
+          # lib/transport/src has never existed in this repo -- the transport
+          # sources sit directly in lib/transport/. The path silently
+          # contributed nothing because find's error went to /dev/null.
+          # Dropped, and stderr is no longer suppressed, so a future bad path
+          # is loud instead of quietly narrowing coverage.
+          #
+          # lib/transport itself is deliberately NOT scanned: it holds the
+          # vendored nanopb runtime (pb_common.c, pb_decode.c, pb_encode.c).
+          # pb_decode.c does not satisfy this repo's .clang-format, and
+          # reformatting vendored upstream sources would make future nanopb
+          # updates needlessly painful.
+          #
+          # The name tests are parenthesised so the implicit -print
+          # unambiguously applies to both branches.
+          if ! find include/keepkey lib/firmware lib/board \
+                    \( -name '*.c' -o -name '*.h' \) \
                | grep -v generated | grep -vF '.pb.' \
                | xargs -P "$(nproc)" -I{} sh -c '
                    if ! clang-format --style=file --dry-run --Werror "$1" 2>/dev/null; then
