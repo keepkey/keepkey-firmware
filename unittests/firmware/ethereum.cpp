@@ -191,6 +191,25 @@ static const char kTGBP[] =
     "\x00\x00\x00\x00\x44\x13\x78\x00\x8E\xA6\x7F\x42\x84\xA5\x79\x32\xB1\xc0"
     "\x00\xa5";
 
+TEST(Ethereum, TransferDisplayDoesNotAliasHighChainTokenMetadata) {
+  EthereumSignTx msg = EthereumSignTx{};
+  msg.has_chain_id = true;
+  msg.chain_id = 257;
+  msg.has_to = true;
+  msg.to.size = 20;
+  std::memcpy(msg.to.bytes, kTUSD, msg.to.size);
+  msg.has_data_initial_chunk = true;
+  msg.data_initial_chunk.size = 68;
+  std::memcpy(msg.data_initial_chunk.bytes, "\xa9\x05\x9c\xbb", 4);
+  msg.data_initial_chunk.bytes[67] = 1;
+  msg.address_type = OutputAddressType_TRANSFER;
+
+  ASSERT_TRUE(ethereum_isStandardERC20Transfer(&msg));
+  char rendered[32];
+  ASSERT_TRUE(ethereumFormatTransferAmount(&msg, rendered, sizeof(rendered)));
+  EXPECT_STREQ("Unknown token value", rendered);
+}
+
 // transformERC20(address,address,uint256,uint256,(uint32,bytes)[]) — the two
 // address words carry the token in their low 20 bytes.
 static void MakeTransformErc20(EthereumSignTx* msg, const char* in_token,
