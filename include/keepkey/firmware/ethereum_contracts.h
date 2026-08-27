@@ -51,15 +51,12 @@ bool zx_isExchangeProxyChain(uint32_t chain_id);
 
 /// May `token`'s ticker be shown as the asset for a transaction on this chain?
 ///
-/// tokenByChainAddress() scopes the token TABLE by chain, but the
-/// 0xeeee..eeee native pseudo-address is matched outside that loop and always
-/// returns the ETH-labelled EthTestToken. On BNB Chain or Polygon a native
-/// swap therefore resolves, passes an UnknownToken check, and
-/// ethereumFormatAmount() writes "ETH" onto the screen while the signature
-/// moves BNB or MATIC -- the device naming one asset and signing another.
+/// Ordinary lookup is chain-scoped, including the Ethereum-mainnet
+/// 0xeeee..eeee pseudo-address.  This remains a defense-in-depth check for
+/// specialized decoders: directly supplied or stale token metadata may be
+/// displayed only when its chain ID matches the signing domain.
 ///
-/// \returns false for NULL, for UnknownToken, and for the native
-/// pseudo-address on any chain whose native asset is not ETH.
+/// \returns false for NULL, UnknownToken, or metadata from another chain.
 bool zx_tokenLabelsThisChain(uint32_t chain_id, const TokenType* token);
 
 /// \returns true iff there is custom support for this ETH signing request

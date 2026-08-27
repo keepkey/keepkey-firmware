@@ -114,9 +114,9 @@ static bool zxswap_resolveBothTokens(const EthereumSignTx* msg,
   const TokenType* t = tokenByChainAddress(
       msg->chain_id, msg->data_initial_chunk.bytes + 4 + (6 + adder) * 32 + 12);
 
-  /* Not just "resolved" -- resolved to a ticker that is TRUE on this chain.
-   * The 0xeeee..eeee native pseudo-address resolves everywhere and is labelled
-   * ETH, so on BNB Chain or Polygon it would name the wrong asset. */
+  /* Not just "resolved" -- resolved to metadata for this exact chain.  The
+   * lookup is chain-scoped, and this second check keeps the decoder fail-closed
+   * if a future caller ever supplies metadata directly. */
   if (!zx_tokenLabelsThisChain(msg->chain_id, f) ||
       !zx_tokenLabelsThisChain(msg->chain_id, t))
     return false;

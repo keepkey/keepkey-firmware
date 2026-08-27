@@ -51,26 +51,7 @@ bool zx_isExchangeProxyChain(uint32_t chain_id) {
 
 bool zx_tokenLabelsThisChain(uint32_t chain_id, const TokenType* token) {
   if (token == NULL || token == UnknownToken) return false;
-
-  /* tokenByChainAddress() matches the 0xeeee..eeee native pseudo-address
-   * OUTSIDE its chain-scoped loop (ethereum_tokens.c), so it hands back the
-   * same ETH-labelled entry on every chain. This tree carries token entries
-   * for BNB Chain and Polygon, so a native-asset swap there resolves both
-   * operands, survives the UnknownToken check, and puts "ETH" on screen while
-   * the signature moves BNB or MATIC. Naming one asset and signing another is
-   * the defect class this release exists to close (#456), so refuse the label
-   * rather than qualify it.
-   *
-   * Only chain 1 is allowed, not every ETH-native chain: Base, Arbitrum and
-   * Avalanche have no entries in the table at all, and tokenByChainAddress()
-   * takes a uint8_t chain id so their ids truncate anyway (#455). The other
-   * operand there is always UnknownToken, so nothing is lost by refusing.
-   *
-   * Refusing means the caller's predicate returns false and the transaction
-   * falls through to raw-calldata review, which shows the bytes. */
-  if (token == EthTestToken) return chain_id == 1;
-
-  return true;
+  return token->chain_id == chain_id;
 }
 
 bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx* msg,

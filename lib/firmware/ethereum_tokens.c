@@ -51,7 +51,11 @@ const TokenType* tokenByChainAddress(uint32_t chain_id,
       return &(tokens[i]);
     }
   }
-  if (memcmp(address, Ethtest.address, 20) == 0) {
+  /* 0xeeee..eeee is an Ethereum-mainnet token-table sentinel, not a
+   * chain-independent contract identity.  Routers that use the same bytes to
+   * mean a chain's native asset must resolve that meaning themselves. */
+  if (chain_id == Ethtest.chain_id &&
+      memcmp(address, Ethtest.address, 20) == 0) {
     return EthTestToken;
   }
 

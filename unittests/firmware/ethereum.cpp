@@ -190,6 +190,9 @@ static const char kTUSD[] =
 static const char kTGBP[] =
     "\x00\x00\x00\x00\x44\x13\x78\x00\x8E\xA6\x7F\x42\x84\xA5\x79\x32\xB1\xc0"
     "\x00\xa5";
+static const uint8_t kNativePseudoAddress[20] = {
+    0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee,
+    0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee};
 
 TEST(Ethereum, TransferDisplayDoesNotAliasHighChainTokenMetadata) {
   EthereumSignTx msg = EthereumSignTx{};
@@ -208,6 +211,72 @@ TEST(Ethereum, TransferDisplayDoesNotAliasHighChainTokenMetadata) {
   char rendered[32];
   ASSERT_TRUE(ethereumFormatTransferAmount(&msg, rendered, sizeof(rendered)));
   EXPECT_STREQ("Unknown token value", rendered);
+}
+
+TEST(Ethereum, NativePseudoAddressCallsRenderUnknownOffMainnet) {
+  static const uint8_t selectors[][4] = {
+      {0xa9, 0x05, 0x9c, 0xbb}, /* transfer(address,uint256) */
+      {0x09, 0x5e, 0xa7, 0xb3}, /* approve(address,uint256) */
+  };
+
+  for (size_t i = 0; i < sizeof(selectors) / sizeof(selectors[0]); ++i) {
+    EthereumSignTx msg = EthereumSignTx{};
+    msg.has_chain_id = true;
+    msg.chain_id = 257;
+    msg.has_to = true;
+    msg.to.size = sizeof(kNativePseudoAddress);
+    std::memcpy(msg.to.bytes, kNativePseudoAddress, msg.to.size);
+    msg.has_data_initial_chunk = true;
+    msg.data_initial_chunk.size = 68;
+    std::memcpy(msg.data_initial_chunk.bytes, selectors[i], 4);
+    msg.data_initial_chunk.bytes[67] = 1;
+
+    if (i == 0) {
+      ASSERT_TRUE(ethereum_isStandardERC20Transfer(&msg));
+    } else {
+      ASSERT_FALSE(ethereum_isStandardERC20Transfer(&msg));
+    }
+
+    const TokenType* token = tokenByChainAddress(msg.chain_id, msg.to.bytes);
+    ASSERT_EQ(UnknownToken, token);
+
+    bignum256 amount;
+    bn_from_bytes(msg.data_initial_chunk.bytes + 36, 32, &amount);
+    char rendered[32];
+    ASSERT_TRUE(ethereumFormatAmount(&amount, token, msg.chain_id, rendered,
+                                     sizeof(rendered)));
+    EXPECT_STREQ("Unknown token value", rendered);
+  }
+}
+
+TEST(Ethereum, NativePseudoAddressTransferFormatterIsUnknownOffMainnet) {
+  EthereumSignTx msg = EthereumSignTx{};
+  msg.has_chain_id = true;
+  msg.chain_id = 257;
+  msg.has_to = true;
+  msg.to.size = sizeof(kNativePseudoAddress);
+  std::memcpy(msg.to.bytes, kNativePseudoAddress, msg.to.size);
+  msg.has_data_initial_chunk = true;
+  msg.data_initial_chunk.size = 68;
+  std::memcpy(msg.data_initial_chunk.bytes, "\xa9\x05\x9c\xbb", 4);
+  msg.data_initial_chunk.bytes[67] = 1;
+  msg.address_type = OutputAddressType_TRANSFER;
+
+  ASSERT_TRUE(ethereum_isStandardERC20Transfer(&msg));
+  char rendered[32];
+  ASSERT_TRUE(ethereumFormatTransferAmount(&msg, rendered, sizeof(rendered)));
+  EXPECT_STREQ("Unknown token value", rendered);
+}
+
+TEST(Ethereum, ThorchainNativeAssetUsesOnlyItsZeroAddressSentinel) {
+  static const uint8_t kZeroAddress[20] = {};
+  static const uint8_t kTokenAddress[20] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                            0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+
+  EXPECT_TRUE(thor_assetIsNative(kZeroAddress));
+  EXPECT_FALSE(thor_assetIsNative(kNativePseudoAddress));
+  EXPECT_FALSE(thor_assetIsNative(kTokenAddress));
+  EXPECT_FALSE(thor_assetIsNative(nullptr));
 }
 
 // transformERC20(address,address,uint256,uint256,(uint32,bytes)[]) — the two
@@ -341,27 +410,14 @@ TEST(Ethereum, ZxExchangeProxyChainAllowlist) {
   EXPECT_FALSE(zx_isExchangeProxyChain(0xFFFFFFFFu));
 }
 
-TEST(Ethereum, NativePseudoAddressNeverLabelsAnotherChain) {
-  /* tokenByChainAddress() scopes the token TABLE by chain, but it matches the
-     0xeeee..eeee native pseudo-address OUTSIDE that loop, so the same
-     ETH-labelled entry comes back on every chain. This tree has token entries
-     for BNB Chain and Polygon, so a native swap there resolved both operands,
-     survived the UnknownToken check, and put "ETH" on screen while the
-     signature moved BNB or MATIC.
+TEST(Ethereum, NativePseudoAddressIsStrictlyChainScoped) {
+  EXPECT_EQ(tokenByChainAddress(1, kNativePseudoAddress), EthTestToken);
+  EXPECT_EQ(tokenByChainAddress(56, kNativePseudoAddress), UnknownToken);
+  EXPECT_EQ(tokenByChainAddress(137, kNativePseudoAddress), UnknownToken);
+  EXPECT_EQ(tokenByChainAddress(257, kNativePseudoAddress), UnknownToken);
 
-     First, pin the behaviour that makes this possible, so the test still means
-     something if the lookup is ever chain-scoped properly: */
-  static const uint8_t kNative[20] = {0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee,
-                                      0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee,
-                                      0xee, 0xee, 0xee, 0xee, 0xee, 0xee};
-  EXPECT_EQ(tokenByChainAddress(1, kNative), EthTestToken);
-  EXPECT_EQ(tokenByChainAddress(56, kNative), EthTestToken);
-  EXPECT_EQ(tokenByChainAddress(137, kNative), EthTestToken);
-
-  /* The ticker really does say ETH, on all three. */
+  /* The sentinel is ETH metadata and must remain a chain-1-only value. */
   EXPECT_STREQ(EthTestToken->ticker, "  ETH");
-
-  /* So the label is only true on Ethereum. */
   EXPECT_TRUE(zx_tokenLabelsThisChain(1, EthTestToken));
   EXPECT_FALSE(zx_tokenLabelsThisChain(56, EthTestToken));
   EXPECT_FALSE(zx_tokenLabelsThisChain(137, EthTestToken));

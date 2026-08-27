@@ -48,6 +48,10 @@ bool thor_isThorchainTx(const EthereumSignTx* msg) {
   return false;
 }
 
+bool thor_assetIsNative(const uint8_t asset_address[20]) {
+  return asset_address != NULL && memcmp(asset_address, ETH_ADDRESS, 20) == 0;
+}
+
 bool thor_formatUnknownAssetAmount(const uint8_t word[32], char* out,
                                    size_t out_len) {
   if (!word || !out || out_len == 0) return false;
@@ -165,20 +169,16 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
     return false;
   }
 
-  if (memcmp(contractAssetAddress, ETH_ADDRESS, sizeof(ETH_ADDRESS)) == 0) {
-    assetAddress = (const uint8_t*)
-        ETH_NATIVE;  // get eth native parameters if asset is not a token
-  } else {
-    assetAddress = contractAssetAddress;
-  }
-
-  assetToken = tokenByChainAddress(msg->chain_id, assetAddress);
-
-  /* ETH_NATIVE is a cross-chain pseudo-address. tokenByChainAddress() returns
-   * the global EthTestToken entry for it on every EVM chain, but that entry's
-   * ticker is ETH. Treat it as this chain's native asset instead. */
-  if (assetToken == EthTestToken) {
+  assetAddress = contractAssetAddress;
+  /* The THORChain ABI uses the zero address to mean this signing chain's
+   * native asset.  Resolve that router-specific meaning directly instead of
+   * routing it through the Ethereum-only 0xeeee..eeee token sentinel.  A NULL
+   * token makes ethereumFormatAmount() select the native ticker from chain_id.
+   */
+  if (thor_assetIsNative(contractAssetAddress)) {
     assetToken = NULL;
+  } else {
+    assetToken = tokenByChainAddress(msg->chain_id, assetAddress);
   }
 
   if (assetToken == UnknownToken) {
