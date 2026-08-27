@@ -287,12 +287,20 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash* msg) {
     return;
   }
 
-  const HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
-                                          msg->address_n_count, NULL);
+  /* Not const: every exit past this point has to scrub the node.
+   *
+   * `node` is the shared fsm_derived_node scratch. A Cancel answered at any of
+   * the confirmations below is consumed by confirm_screen() and returned as a
+   * refusal -- it never reaches fsm_msgCancel(), so nothing else runs
+   * fsm_abort_workflows() on the way out. Each early return here was therefore
+   * leaving a derived private key resident, and so was the success path. */
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+                                    msg->address_n_count, NULL);
   if (!node) return;
 
   uint8_t pubkeyhash[20] = {0};
   if (!hdnode_get_ethereum_pubkeyhash(node, pubkeyhash)) {
+    memzero(node, sizeof(*node));
     layoutHome();
     return;
   }
@@ -308,6 +316,7 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash* msg) {
 
   if (!confirm(ButtonRequestType_ButtonRequest_Other, "Verify Address",
                "Confirm address: %s", resp->address)) {
+    memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
     return;
@@ -318,6 +327,7 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash* msg) {
   }
   if (!confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data domain",
                "Confirm hash digest: %s", str)) {
+    memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
     return;
@@ -329,6 +339,7 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash* msg) {
     }
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
                  "Confirm hash digest: %s", str)) {
+      memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
@@ -336,6 +347,7 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash* msg) {
   } else {
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
                  "Confirm: No message")) {
+      memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
@@ -343,6 +355,7 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash* msg) {
   }
 
   ethereum_typed_hash_sign(msg, node, resp);
+  memzero(node, sizeof(*node));
   layoutHome();
 }
 
@@ -367,12 +380,17 @@ void fsm_msgEthereum712TypesValues(Ethereum712TypesValues* msg) {
     return;
   }
 
-  const HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
-                                          msg->address_n_count, NULL);
+  /* Not const, for the same reason as fsm_msgEthereumSignTypedHash() above:
+   * this is the shared fsm_derived_node scratch and every exit has to scrub
+   * it. e712_types_values() runs its own confirmations, and a Cancel answered
+   * there never reaches fsm_msgCancel(). */
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+                                    msg->address_n_count, NULL);
   if (!node) return;
 
   uint8_t pubkeyhash[20] = {0};
   if (!hdnode_get_ethereum_pubkeyhash(node, pubkeyhash)) {
+    memzero(node, sizeof(*node));
     layoutHome();
     return;
   }
@@ -382,6 +400,7 @@ void fsm_msgEthereum712TypesValues(Ethereum712TypesValues* msg) {
   ethereum_address_checksum(pubkeyhash, resp->address + 2, false, 0);
 
   e712_types_values(msg, resp, node);
+  memzero(node, sizeof(*node));
 
   layoutHome();
 }

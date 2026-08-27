@@ -204,6 +204,14 @@ static HDNode* fsm_getDerivedNode(const char* curve, const uint32_t* address_n,
     *fingerprint = 0;
   }
 
+  /* Every failure below returns NULL, so the caller has no pointer with which
+   * to clear this scratch -- only this function can. Leaving it dirty left a
+   * root or half-derived private key resident until whatever happened to
+   * overwrite it next: storage_getRootNode() may write before it fails, and by
+   * the time hdnode_private_ckd_cached() can fail the root is definitely
+   * there. Scrub on entry, and on each failure after a possible write. */
+  memzero(&fsm_derived_node, sizeof(fsm_derived_node));
+
   if (!get_curve_by_name(curve)) {
     fsm_sendFailure(FailureType_Failure_SyntaxError, "Unknown ecdsa curve");
     layoutHome();
@@ -211,6 +219,7 @@ static HDNode* fsm_getDerivedNode(const char* curve, const uint32_t* address_n,
   }
 
   if (!storage_getRootNode(curve, true, &fsm_derived_node)) {
+    memzero(&fsm_derived_node, sizeof(fsm_derived_node));
     fsm_sendFailure(FailureType_Failure_NotInitialized,
                     "Device not initialized or passphrase request cancelled");
     layoutHome();
@@ -223,6 +232,7 @@ static HDNode* fsm_getDerivedNode(const char* curve, const uint32_t* address_n,
 
   if (hdnode_private_ckd_cached(&fsm_derived_node, address_n, address_n_count,
                                 fingerprint) == 0) {
+    memzero(&fsm_derived_node, sizeof(fsm_derived_node));
     fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
     layoutHome();
     return 0;
